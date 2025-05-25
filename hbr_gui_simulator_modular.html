@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ヘブンバーンズレッド戦闘シミュレータ (モジュール版)</title>
+    
+    <!-- CSS Files -->
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/party-setup.css">
+    <link rel="stylesheet" href="css/party-display.css">
+    <link rel="stylesheet" href="css/controls.css">
+    <link rel="stylesheet" href="css/results.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔥 ヘブンバーンズレッド 戦闘シミュレータ (モジュール版)</h1>
+            <p>戦術的な戦闘をシミュレートして最適な戦略を見つけよう</p>
+        </div>
+        
+        <!-- パーティー編成セクション -->
+        <div class="party-setup" id="partySetup">
+            <h2 onclick="UIManager.togglePartySetup()">
+                📝 パーティー編成
+                <span class="collapse-icon">🔽</span>
+            </h2>
+            <div class="party-status" id="partyStatus">
+                ✅ パーティー編成完了 - クリックして再編集
+            </div>
+            <div class="character-config" id="characterConfig">
+                <!-- キャラクター設定はJavaScriptで動的生成 -->
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="PartyManager.loadPartySetup()">編成確定</button>
+                <button class="btn btn-warning" onclick="PartyManager.resetParty()">リセット</button>
+            </div>
+        </div>
+        
+        <!-- パーティー表示セクション -->
+        <div class="party-display">
+            <h2>⚔️ 戦闘フォーメーション</h2>
+            <div class="turn-info" id="turnInfo">
+                ターン 1 - 戦闘準備中
+            </div>
+            <div class="position-labels">
+                <div class="position-label front">前衛 1</div>
+                <div class="position-label front">前衛 2</div>
+                <div class="position-label front">前衛 3</div>
+                <div class="position-label back">後衛 4</div>
+                <div class="position-label back">後衛 5</div>
+                <div class="position-label back">後衛 6</div>
+            </div>
+            <div class="party-formation" id="partyFormation">
+                <!-- パーティー表示はJavaScriptで動的生成 -->
+            </div>
+        </div>
+        
+        <!-- コントロールパネル -->
+        <div class="control-panel">
+            <h2>🎮 戦闘コントロール</h2>
+            <div class="controls">
+                <button class="btn btn-warning" id="swapBtn" onclick="SwapManager.toggleSwapMode()">配置入れ替え</button>
+                <button class="btn btn-success" id="executeBtn" onclick="ControlManager.executeTurn()" disabled>ターン実行</button>
+                <button class="btn btn-primary" onclick="ControlManager.nextTurn()">次のターン</button>
+            </div>
+            
+            <!-- スキル選択エリア -->
+            <div class="skill-selection" id="skillSelection" style="display: none;">
+                <h3 id="skillSelectionTitle">スキル選択</h3>
+                <select class="skill-dropdown" id="skillDropdown" onchange="SkillManager.selectSkill()">
+                    <option value="">スキルを選択してください</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- 結果表示セクション -->
+        <div class="results-section">
+            <h2>📊 戦闘結果</h2>
+            <div id="resultsContainer">
+                <table class="results-table" id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>ターン</th>
+                            <th>敵行動など</th>
+                            <th colspan="3">キャラクター1</th>
+                            <th colspan="3">キャラクター2</th>
+                            <th colspan="3">キャラクター3</th>
+                            <th colspan="3">キャラクター4</th>
+                            <th colspan="3">キャラクター5</th>
+                            <th colspan="3">キャラクター6</th>
+                        </tr>
+                        <tr>
+                            <th></th>
+                            <th></th>
+                            <th>始</th><th>行動</th><th>終</th>
+                            <th>始</th><th>行動</th><th>終</th>
+                            <th>始</th><th>行動</th><th>終</th>
+                            <th>始</th><th>行動</th><th>終</th>
+                            <th>始</th><th>行動</th><th>終</th>
+                            <th>始</th><th>行動</th><th>終</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                        <!-- 結果行がJavaScriptで生成される -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Files -->
+    <script src="js/globals.js"></script>
+    <script src="js/data-manager.js"></script>
+    <script src="js/party-manager.js"></script>
+    <script src="js/display-manager.js"></script>
+    <script src="js/event-handlers.js"></script>
+    <script src="js/control-manager.js"></script>
+    <script src="js/results-manager.js"></script>
+</body>
+</html>

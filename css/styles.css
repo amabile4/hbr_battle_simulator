@@ -1,0 +1,78 @@
+/* ヘブンバーンズレッド戦闘シミュレータ - メインスタイル */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: #333;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    text-align: center;
+    color: white;
+    margin-bottom: 30px;
+}
+
+.header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+/* 共通要素 */
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .character-config {
+        grid-template-columns: 1fr;
+    }
+    
+    .party-formation {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+    }
+    
+    .character-card {
+        width: 100px;
+        height: 100px;
+        font-size: 11px;
+    }
+    
+    .skill-display {
+        width: 100px;
+        font-size: 10px;
+        min-height: 20px;
+        padding: 2px 4px;
+    }
+    
+    .sp-display {
+        width: 20px;
+        height: 16px;
+        font-size: 10px;
+    }
+    
+    .controls {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}
