@@ -1,0 +1,2342 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "createdAt": "2025-05-25T10:55:29.947608Z",
+    "characterCount": 58,
+    "totalSkills": 443,
+    "description": "ヘブンバーンズレッド スキルデータベース（CSVから変換）"
+  },
+  "characters": {
+    "茅森月歌": [
+      {
+        "name": "茅森通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "クロス斬り",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "ノーブルウェッジ",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "フルブレイカー",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "夢幻泡影",
+        "cost": 12,
+        "type": "damage"
+      },
+      {
+        "name": "星火燎原",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "スピニングスラッシュ",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "千紫万紅",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "バーニングインパクト",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "迅雷風烈",
+        "cost": 16,
+        "type": "non_damage"
+      },
+      {
+        "name": "サンダーパルス",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "(火)黒曜のオーバーロード",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "(闇)黒曜のオーバーロード",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "(火:弱点)黒曜のオーバーロード",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "(闇:弱点)黒曜のオーバーロード",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "星火燎原+(31Aが3人以上)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "星火燎原+",
+        "cost": 14,
+        "type": "damage"
+      }
+    ],
+    "和泉ユキ": [
+      {
+        "name": "和泉通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ブレイクカノン",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "ブレイクバースト",
+        "cost": 4,
+        "type": "damage"
+      },
+      {
+        "name": "流星(+)",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "銀蜂",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "牡丹",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "スーパーセル",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "スパイクサージ",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "レッドオペレーション",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "光輝の夜明け",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "乙女の輝き",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "流星+(初回)",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "仮面のワルツ",
+        "cost": 10,
+        "type": "non_damage"
+      },
+      {
+        "name": "乙女の秘め事",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "コードダクネス(火)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "コードダクネス(闇)",
+        "cost": 15,
+        "type": "damage"
+      }
+    ],
+    "逢川めぐみ": [
+      {
+        "name": "逢川通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "スタンブレード",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "ハードブレード",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "リミットインパクト(+)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ネイキッドイレイザー",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "フルスイング",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "ブレイブ・ストライク",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "神楽浄火・閃",
+        "cost": 15,
+        "type": "non_damage"
+      },
+      {
+        "name": "ヒットチャートからの一閃",
+        "cost": 15,
+        "type": "non_damage"
+      },
+      {
+        "name": "ナイトフォール",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "潮風ハイボルテージ",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "リミットインパクト[31A3人以上](+)",
+        "cost": 7,
+        "type": "damage"
+      }
+    ],
+    "東城つかさ": [
+      {
+        "name": "東城通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ブレスショット",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "メメント・モリ(+)",
+        "cost": 12,
+        "type": "damage"
+      },
+      {
+        "name": "シルキーフレア",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "レディ・イン・ミラージュ",
+        "cost": 13,
+        "type": "damage"
+      }
+    ],
+    "朝倉可憐": [
+      {
+        "name": "朝倉通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "乱舞",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "狂乱舞",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "ブラッディ・ダンス(+)",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "ワイルドスロー",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "フューリーインパルス",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "劫火絢爛",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "破壊のシニシズム(弱点有効)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "破壊のシニシズム(弱点無効)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "キルキルヒカル",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "残焔",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "フグリングクラッシュ(弱点無効)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "フグリングクラッシュ(弱点有効)",
+        "cost": 14,
+        "type": "damage"
+      }
+    ],
+    "國見タマ": [
+      {
+        "name": "國見通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "フレイムテンペスト",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "闘気斬",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "二律背反スパークピッキング",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "プリズムアタック",
+        "cost": 9,
+        "type": "damage"
+      }
+    ],
+    "蒼井えりか": [
+      {
+        "name": "蒼井通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "シールドレイ",
+        "cost": 4,
+        "type": "non_damage"
+      },
+      {
+        "name": "シールドトルネード",
+        "cost": 6,
+        "type": "non_damage"
+      },
+      {
+        "name": "青春色のシュプール",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "アイドルスマイル(火弱点以外)",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "アイドルスマイル(火弱点)",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "水瀬いちご": [
+      {
+        "name": "水瀬い通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "キラーショット",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "スパークル・トライショット",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "キャノンボール",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "天の慈悲",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "狂騒のヨスガ",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "(特効30%)スパークル・トライショット+",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "(特効50%)スパークル・トライショット+",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ナイトグリント",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "ルナティック・クリスタル",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "一意専心",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "水瀬すもも": [
+      {
+        "name": "水瀬す通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "残影",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "残心撃",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "スパークル・トライエッジ",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "風斬りの刃",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "ランブルシャーク",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "ヘイルストーム",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "スパークル・トライエッジ+",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ロココ・デストラクション",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "スパークル・トライエッジ[タゲ集中]+",
+        "cost": 7,
+        "type": "damage"
+      }
+    ],
+    "樋口聖華": [
+      {
+        "name": "樋口通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "トリック・カノン",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "リサイクル",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "ファンタズム",
+        "cost": 8,
+        "type": "non_damage"
+      }
+    ],
+    "柊木梢": [
+      {
+        "name": "柊木通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ミストサイス",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "ミストイングレイブ",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "ミストスラッシュ",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "カースサイス",
+        "cost": 4,
+        "type": "damage"
+      },
+      {
+        "name": "フリージング・スペル",
+        "cost": 14,
+        "type": "damage"
+      }
+    ],
+    "ビャッコ": [
+      {
+        "name": "ビャッコ通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "レイジングクロー",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "ビースト・プリズン",
+        "cost": 12,
+        "type": "non_damage"
+      },
+      {
+        "name": "スラッシュクロー",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "イノセンス",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "ヒロイックプラウド",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "破壊の女王(弱点有効)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "破壊の女王(弱点無効)",
+        "cost": 14,
+        "type": "damage"
+      }
+    ],
+    "山脇・ボン・イヴァール": [
+      {
+        "name": "山脇通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "キラーサイス",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "キリングエッジ",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "絶対零度(+)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "アイススラッシュ",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "レイジング・レインディア",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "醒めたる思い(初回)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "醒めたる思い(2回目以降)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "絶対零度+(31Cが3人以上)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ヴォリション・サイス",
+        "cost": 17,
+        "type": "damage"
+      }
+    ],
+    "桜庭星羅": [
+      {
+        "name": "桜庭通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ポラリスの輝き",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "コールドウェイヴ",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "シャインテラー",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "花舞う、可憐のフレア(DP100%)",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "花舞う、可憐のフレア(DP0%)",
+        "cost": 14,
+        "type": "non_damage"
+      }
+    ],
+    "天音巫呼": [
+      {
+        "name": "天音通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ウィザードショット",
+        "cost": 4,
+        "type": "non_damage"
+      },
+      {
+        "name": "ルーンバースト",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "デストロイ",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "魔莢",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "にゃんこ大魔法",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "衝撃零度",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "デストロイ+",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "レイス・カース・ダンス(1回目)",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "レイス・カース・ダンス(2回目)",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "レイス・カース・ダンス(3回目)",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "レイス・カース・ダンス(4回目)",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "デストロイ[初回]+",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "にゃんこ大魔法[防御デバフ中]",
+        "cost": 7,
+        "type": "non_damage"
+      }
+    ],
+    "豊後弥生": [
+      {
+        "name": "豊後通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "クラッカー",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "トリック・オア・トリート",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "プレッツェル",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "ビスコッティ",
+        "cost": 9,
+        "type": "non_damage"
+      },
+      {
+        "name": "セイクリッド・クワイア[2回目以降]",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "セイクリッド・クワイア[1回目]",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "スターマイン",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "三色団子乱れ撃ち[2回目以降]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "三色団子乱れ撃ち[1回目]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ー〇〇〇",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "バブルデストロイヤー",
+        "cost": 12,
+        "type": "damage"
+      },
+      {
+        "name": "メガデストロイヤー(しもべ1)",
+        "cost": 16,
+        "type": "damage"
+      },
+      {
+        "name": "メガデストロイヤー(しもべ2-3)",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "メガデストロイヤー(しもべ4)",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "メガデストロイヤー(しもべ5)",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "メガデストロイヤー(しもべ6)",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "想像の翼",
+        "cost": 8,
+        "type": "non_damage"
+      }
+    ],
+    "神崎アーデルハイド": [
+      {
+        "name": "神崎通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "旋風",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "滅殺影分身",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "滅殺影分身+",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "一片氷心",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "神崎流忍術・氷塵(弱点有効)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "神崎流忍術・氷塵(弱点無効)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "神崎流忍術・散華(弱点有効)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "神崎流忍術・散華(弱点無効)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "寝ても醒めても",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "レッドラウンドイリュージョン",
+        "cost": 14,
+        "type": "non_damage"
+      }
+    ],
+    "佐月マリ": [
+      {
+        "name": "佐月通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ゲインカノン",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "ダイヤモンド・ダスト",
+        "cost": 12,
+        "type": "damage"
+      },
+      {
+        "name": "バラ撒き",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "別れの朝",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "次の主役はあなた[破壊率200%未満]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "次の主役はあなた[破壊率200%以上]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "浮き浮きサニー・ボマー(通常)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "浮き浮きサニー・ボマー(影分身)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "ダイヤモンド・ダスト+",
+        "cost": 12,
+        "type": "damage"
+      }
+    ],
+    "二階堂三郷": [
+      {
+        "name": "二階堂通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "極点の一手",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "石塔の手筋+[ODなし]",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "石塔の手筋+[OD中]",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "ハネ殺し",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "フローズン・ワルツ[ODなし]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "フローズン・ワルツ[OD中]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "スイーツチャージ！",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "国士無双",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "追風",
+        "cost": 12,
+        "type": "non_damage"
+      }
+    ],
+    "石井色葉": [
+      {
+        "name": "石井通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ヴィヴィットシュート",
+        "cost": 5,
+        "type": "non_damage"
+      },
+      {
+        "name": "アクロマティックバレット(+)",
+        "cost": 12,
+        "type": "damage"
+      },
+      {
+        "name": "ファイトパッション",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "アクロマティックバレット(初回)(+)",
+        "cost": 6,
+        "type": "damage"
+      }
+    ],
+    "命吹雪": [
+      {
+        "name": "命通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "レイジングシャウト",
+        "cost": 5,
+        "type": "non_damage"
+      },
+      {
+        "name": "破滅でおやすみ[ODなし]",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "破滅でおやすみ[OD中]",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "先に逝くなよ",
+        "cost": 6,
+        "type": "non_damage"
+      },
+      {
+        "name": "R.I.P.",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "破滅でおやすみ+[ODなし]",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "破滅でおやすみ+[OD中]",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "プレゼント・フォー・ユー(DP100%)",
+        "cost": 16,
+        "type": "non_damage"
+      },
+      {
+        "name": "プレゼント・フォー・ユー(DP0%)",
+        "cost": 16,
+        "type": "non_damage"
+      }
+    ],
+    "室伏理沙": [
+      {
+        "name": "室伏通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "リバースショット",
+        "cost": 5,
+        "type": "non_damage"
+      },
+      {
+        "name": "ハートフル・ボマー",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "儚き目覚め",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "ハートフル・ボマー+",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ハートフル・ボマー[31D3人以上]+",
+        "cost": 7,
+        "type": "damage"
+      }
+    ],
+    "伊達朱里": [
+      {
+        "name": "伊達通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "サービス・エース",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "スライスショット",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "漆黒トランスサーブ",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "哀のスノードロップ",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "アバランチ",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "御祈祷オーバーヒート",
+        "cost": 16,
+        "type": "damage"
+      },
+      {
+        "name": "哀のスノードロップ[ブレイク時]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "御祈祷オーバーヒート[ネガティブ解除]",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "瑞原あいな": [
+      {
+        "name": "瑞原通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ラブカ・ブレード",
+        "cost": 6,
+        "type": "non_damage"
+      },
+      {
+        "name": "ディープブロー",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "大海原",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "海のギャング",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "デバノデバン",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "豪快！パイレーツキャノン(敵1体)",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "豪快！パイレーツキャノン(敵2体)",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "豪快！パイレーツキャノン(敵3体)",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "ヌラルジャ(通常)",
+        "cost": 12,
+        "type": "non_damage"
+      },
+      {
+        "name": "ヌラルジャ(OD中)",
+        "cost": 6,
+        "type": "non_damage"
+      },
+      {
+        "name": "ソフニング(海賊あいな+提督蒼井)",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "ジェリーフィッシュ・ダンス",
+        "cost": 15,
+        "type": "non_damage"
+      },
+      {
+        "name": "グラビトン(海賊あいな)",
+        "cost": 6,
+        "type": "damage"
+      }
+    ],
+    "大島一千子": [
+      {
+        "name": "大島一通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "滾る激情",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "負けるな、私",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "とどけ！誓いのしるし",
+        "cost": 16,
+        "type": "damage"
+      },
+      {
+        "name": "インフィニティ・ハレーション",
+        "cost": 18,
+        "type": "non_damage"
+      },
+      {
+        "name": "とどけ！誓いのしるし[挑発中]",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "大島二以奈": [
+      {
+        "name": "大島二通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "砕華",
+        "cost": 5,
+        "type": "non_damage"
+      },
+      {
+        "name": "桜華",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "レヴォリューション",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "純愛アンビシャス",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ファーストラヴ",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "純愛アンビシャス+",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "誘掖の途",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "爽籟に舞う仁慈[破壊率200%未満]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "爽籟に舞う仁慈[破壊率200%以上]",
+        "cost": 14,
+        "type": "damage"
+      }
+    ],
+    "大島三野里": [
+      {
+        "name": "大島三通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ダッシュブレード",
+        "cost": 4,
+        "type": "damage"
+      },
+      {
+        "name": "サイクロンブレード",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "パワークラッシュ",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "宙舞うハイテンション(+)",
+        "cost": 14,
+        "type": "non_damage"
+      }
+    ],
+    "大島四ツ葉": [
+      {
+        "name": "大島四通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "キャンディ・バースト",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "グッナイ",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "ネコジェット・シャテキ",
+        "cost": 10,
+        "type": "damage"
+      }
+    ],
+    "大島五十鈴": [
+      {
+        "name": "大島五通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "トラブルメーカー",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "怒裂昂",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "魔炎閃獄門(+)",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "ヴィクタープラクティス",
+        "cost": 6,
+        "type": "non_damage"
+      },
+      {
+        "name": "露わな鋒",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "イリュージョン",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "魔炎閃獄門[31E3人以上](+)",
+        "cost": 7,
+        "type": "non_damage"
+      }
+    ],
+    "大島六宇亜": [
+      {
+        "name": "大島六通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "トランスペイン",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "生存の業",
+        "cost": 9,
+        "type": "damage"
+      }
+    ],
+    "柳美音": [
+      {
+        "name": "柳通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "華麗なる清掃",
+        "cost": 6,
+        "type": "non_damage"
+      },
+      {
+        "name": "エキゾーストノート",
+        "cost": 10,
+        "type": "non_damage"
+      }
+    ],
+    "丸山奏多": [
+      {
+        "name": "丸山通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ハイセンス・ショット",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "ヴォイドストーム[チャージなし]",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "ヴォイドストーム[チャージあり]",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "ラージ・カノン",
+        "cost": 4,
+        "type": "damage"
+      },
+      {
+        "name": "シャドウインサイト",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "主君の努め",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "回る！ぽんぽこ花吹雪",
+        "cost": 18,
+        "type": "damage"
+      },
+      {
+        "name": "ヴォイドストーム+[チャージなし]",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "ヴォイドストーム+[チャージあり]",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "フォトン・バレット",
+        "cost": 8,
+        "type": "non_damage"
+      }
+    ],
+    "華村詩紀": [
+      {
+        "name": "華村通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "不純なアリア",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "小鳥たちへのシンフォニー(+)",
+        "cost": 11,
+        "type": "damage"
+      }
+    ],
+    "松岡チロル": [
+      {
+        "name": "松岡通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ギャザー・バッシュ",
+        "cost": 4,
+        "type": "damage"
+      },
+      {
+        "name": "疾黒破弾",
+        "cost": 10,
+        "type": "non_damage"
+      },
+      {
+        "name": "必滅！ヴェインキック(+)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "そよ風に吹かれて",
+        "cost": 12,
+        "type": "damage"
+      }
+    ],
+    "夏目祈": [
+      {
+        "name": "夏目通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "残心",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "瞬刃",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "夜嵐[チャージなし]",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "夜嵐[チャージあり]",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "唯雅粛正[チャージなし]",
+        "cost": 18,
+        "type": "damage"
+      },
+      {
+        "name": "唯雅粛正[チャージあり]",
+        "cost": 18,
+        "type": "damage"
+      },
+      {
+        "name": "疾きこと風の如し[チャージあり]",
+        "cost": 30,
+        "type": "damage"
+      },
+      {
+        "name": "疾きこと風の如し[チャージなし]",
+        "cost": 30,
+        "type": "damage"
+      }
+    ],
+    "黒沢真希": [
+      {
+        "name": "黒沢通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "一発入魂",
+        "cost": 4,
+        "type": "damage"
+      },
+      {
+        "name": "喧嘩上等！！",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "覇道妄執我突邁進(+)[チャージなし]",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "覇道妄執我突邁進(+)[チャージあり]",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "武血伽魔死",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "走り屋に夜露死苦",
+        "cost": 18,
+        "type": "non_damage"
+      }
+    ],
+    "キャロル・リーパー": [
+      {
+        "name": "キャロル通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ブラスト・スラッシュ",
+        "cost": 4,
+        "type": "damage"
+      },
+      {
+        "name": "ライトニングロア",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "サンダーストーム",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "パニッシャー",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "渦中のヴァイオレット",
+        "cost": 10,
+        "type": "damage"
+      }
+    ],
+    "李映夏": [
+      {
+        "name": "李通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "臥龍演舞斬",
+        "cost": 6,
+        "type": "non_damage"
+      },
+      {
+        "name": "春雷",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "炎焔",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "アイリーン・レドメイン": [
+      {
+        "name": "アイリーン通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "エレメンタリー・バレット",
+        "cost": 4,
+        "type": "damage"
+      },
+      {
+        "name": "トゥルーペネトレーター",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "華麗なるファントム・シーフ",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "トゥルーペネトレーター+",
+        "cost": 15,
+        "type": "damage"
+      }
+    ],
+    "ヴリティカ・バラクリシュナン": [
+      {
+        "name": "ヴリティカ通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "トータルサブトラクション",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "プリンシプルチャンダス",
+        "cost": 10,
+        "type": "non_damage"
+      },
+      {
+        "name": "狂気乱舞のカーリー(+)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ジーナーカーナー",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "パドマ・ナーチュナー(DP100%)",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "パドマ・ナーチュナー(DP150%)",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "マリア・デ・アンジェリス": [
+      {
+        "name": "マリア通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "コンヴィクション・ゼロ",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "サクリファイス",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "救済のレクイエム",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ディナミコ・アチェーゾ(DP100%)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "ディナミコ・アチェーゾ(DP150%)",
+        "cost": 14,
+        "type": "damage"
+      }
+    ],
+    "シャルロッタ・スコポフスカヤ": [
+      {
+        "name": "シャルロッタ通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "コーシュカ・アルマータ",
+        "cost": 30,
+        "type": "damage"
+      },
+      {
+        "name": "ディザスター",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "狼狽プーリァ",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "君に咲くグラナータ",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "純潔のパツィルーイ",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "ザヴィーシマスチ",
+        "cost": 5,
+        "type": "non_damage"
+      },
+      {
+        "name": "守りたい場所",
+        "cost": 9,
+        "type": "damage"
+      }
+    ],
+    "白河ユイナ": [
+      {
+        "name": "白河通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ブレイブソード",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "セイントフォール",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "粛清",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "ライトニングジャッジメント",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "雷鳴",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "ブレイブソウル",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "シーサイドベルセルク(追加ターン以外)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "シーサイドベルセルク(追加ターン中)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "蒼焔ノ迷宮(通常)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "蒼焔ノ迷宮(追加ターン中)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "蒼焔ノ螺旋",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "蒼星のイリデッセンス",
+        "cost": 16,
+        "type": "damage"
+      },
+      {
+        "name": "蒼星のイリデッセンス[トークン4以上]",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "月城最中": [
+      {
+        "name": "月城通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "断",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "烈",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "羅刹",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "朧",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "輝神(追加ターン以外)",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "輝神(追加ターン中)",
+        "cost": 11,
+        "type": "damage"
+      },
+      {
+        "name": "一途[通常]",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "一途[追加ターン中]",
+        "cost": 0,
+        "type": "damage"
+      }
+    ],
+    "桐生美也": [
+      {
+        "name": "桐生通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "呪怨の矢",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "薙の矢",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "光芒一閃",
+        "cost": 12,
+        "type": "damage"
+      },
+      {
+        "name": "神妙",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "御稲荷神話",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "天変の相",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "氷華、千射万箭",
+        "cost": 15,
+        "type": "non_damage"
+      },
+      {
+        "name": "花の散るらむ",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "光芒一閃+",
+        "cost": 12,
+        "type": "non_damage"
+      },
+      {
+        "name": "御稲荷神話[脆弱中]",
+        "cost": 7,
+        "type": "non_damage"
+      }
+    ],
+    "菅原千恵": [
+      {
+        "name": "菅原通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ディミニッシュ・レイ",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "イノセントワイルド",
+        "cost": 12,
+        "type": "damage"
+      },
+      {
+        "name": "姫君の寵愛",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "イノセントワイルド+",
+        "cost": 12,
+        "type": "non_damage"
+      },
+      {
+        "name": "ロリータフルバースト",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "覚醒インスティンクト",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "姫君の寵愛[挑発中]",
+        "cost": 7,
+        "type": "damage"
+      }
+    ],
+    "小笠原緋雨": [
+      {
+        "name": "小笠原通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "渾身銃撃",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "夜雨",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "朧月",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "三日月宗近",
+        "cost": 10,
+        "type": "non_damage"
+      },
+      {
+        "name": "メイド・イン・パンクチュア[チャージあり]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "メイド・イン・パンクチュア[チャージなし]",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "三日月宗近+",
+        "cost": 8,
+        "type": "non_damage"
+      },
+      {
+        "name": "夢視るデザイア",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "朝霜",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "放課後の淡いスリル",
+        "cost": 14,
+        "type": "non_damage"
+      },
+      {
+        "name": "目覚まし見て氷結",
+        "cost": 8,
+        "type": "non_damage"
+      }
+    ],
+    "蔵里見": [
+      {
+        "name": "蔵通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "斜陽",
+        "cost": 5,
+        "type": "damage"
+      },
+      {
+        "name": "夢十夜",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "収穫祭(+)",
+        "cost": 13,
+        "type": "non_damage"
+      },
+      {
+        "name": "地獄変",
+        "cost": 9,
+        "type": "damage"
+      },
+      {
+        "name": "大切り盛り",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "最凶のおもてなし(弱点有効)",
+        "cost": 14,
+        "type": "damage"
+      },
+      {
+        "name": "最凶のおもてなし(弱点無効)",
+        "cost": 14,
+        "type": "damage"
+      }
+    ],
+    "仲村ゆり": [
+      {
+        "name": "仲村通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "オンラッシュ",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "バーストファイア",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "カタストロフィー",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "トゥルー・アイシクル",
+        "cost": 16,
+        "type": "damage"
+      },
+      {
+        "name": "コールドバレット",
+        "cost": 10,
+        "type": "damage"
+      },
+      {
+        "name": "フロストソーン",
+        "cost": 10,
+        "type": "damage"
+      }
+    ],
+    "立華かなで": [
+      {
+        "name": "立華通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "フォーチュンスラッシュ",
+        "cost": 7,
+        "type": "non_damage"
+      },
+      {
+        "name": "エンジェルズ・レイ",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "バーチカルフォース(DP100%)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "バーチカルフォース(DP150%)",
+        "cost": 15,
+        "type": "damage"
+      },
+      {
+        "name": "フローズンタイム",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "入江みゆき": [
+      {
+        "name": "入江通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ダウンビート",
+        "cost": 8,
+        "type": "damage"
+      },
+      {
+        "name": "コールドストローク",
+        "cost": 9,
+        "type": "damage"
+      }
+    ],
+    "NaN": [
+      {
+        "name": "空白地",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "豪快！パイレーツキャノン",
+        "cost": 6,
+        "type": "damage"
+      },
+      {
+        "name": "コードダクネス",
+        "cost": 15,
+        "type": "damage"
+      }
+    ],
+    "渕田ひさ子": [
+      {
+        "name": "渕田通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "コールドクラッシュ",
+        "cost": 9,
+        "type": "non_damage"
+      },
+      {
+        "name": "ヴァンダリズム",
+        "cost": 7,
+        "type": "damage"
+      }
+    ],
+    "関根しおり": [
+      {
+        "name": "関根通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      }
+    ],
+    "岩沢雅美": [
+      {
+        "name": "岩沢通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "アルペジオ",
+        "cost": 12,
+        "type": "damage"
+      },
+      {
+        "name": "カラスの鳴き声で",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "芳岡ユイ": [
+      {
+        "name": "芳岡通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "オルタネイトピッキング",
+        "cost": 9,
+        "type": "damage"
+      }
+    ],
+    "七瀬七海": [
+      {
+        "name": "七瀬通常攻撃",
+        "cost": 0,
+        "type": "damage"
+      },
+      {
+        "name": "ネオンバースト",
+        "cost": 7,
+        "type": "damage"
+      },
+      {
+        "name": "ノヴァエリミネーション",
+        "cost": 8,
+        "type": "damage"
+      }
+    ],
+    "検証用キャラ名": [
+      {
+        "name": "検証用EX(A火)",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "検証用EX(B火)",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "検証用EX(A氷)",
+        "cost": 13,
+        "type": "damage"
+      },
+      {
+        "name": "検証用EX(B氷)",
+        "cost": 13,
+        "type": "damage"
+      }
+    ]
+  }
+}
