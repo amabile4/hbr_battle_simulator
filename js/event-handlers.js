@@ -18,6 +18,9 @@ class SwapManager {
         const btn = document.getElementById('swapBtn');
         
         if (isSwapMode) {
+            // 入れ替えモード開始時：スキル選択UIを非表示
+            this.hideSkillSelection();
+            
             btn.textContent = '入れ替え中止';
             btn.className = 'btn btn-warning';
             document.querySelectorAll('.character-card').forEach(card => {
@@ -33,6 +36,22 @@ class SwapManager {
         }
     }
     
+    // スキル選択UIを非表示にする
+    static hideSkillSelection() {
+        const skillSelection = document.getElementById('skillSelection');
+        if (skillSelection) {
+            skillSelection.style.display = 'none';
+        }
+        
+        // スキル選択対象をリセット
+        selectedCharacterForSkill = null;
+        
+        // キャラクターカードの選択状態をクリア
+        document.querySelectorAll('.character-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+    }
+    
     // 配置入れ替え処理
     static handleSwapClick(position) {
         if (swapFirstSelected === null) {
@@ -44,13 +63,78 @@ class SwapManager {
                 [positionMap[swapFirstSelected], positionMap[position]] = 
                 [positionMap[position], positionMap[swapFirstSelected]];
                 
+                // スキル選択状態の管理
+                this.handleSkillSwap(swapFirstSelected, position);
+                
+                // SP状態を復元（プレビュー状態をリセット）
+                ControlManager.restoreSPState();
+                
                 // パーティー表示を更新
                 DisplayManager.generatePartyDisplay();
+                
+                // スキル選択状態を確実にリセット
+                this.hideSkillSelection();
             }
             
             // 入れ替えモード終了
             this.toggleSwapMode();
         }
+    }
+    
+    // スキル選択状態の入れ替え処理
+    static handleSkillSwap(pos1, pos2) {
+        const isFront1 = pos1 < CONFIG.FRONT_POSITIONS;
+        const isFront2 = pos2 < CONFIG.FRONT_POSITIONS;
+        
+        if (isFront1 && isFront2) {
+            // 前衛同士の入れ替え：スキル選択状態も入れ替え
+            const action1 = turnActions[pos1];
+            const action2 = turnActions[pos2];
+            
+            if (action1) {
+                turnActions[pos2] = {
+                    ...action1,
+                    position: pos2
+                };
+            } else {
+                delete turnActions[pos2];
+            }
+            
+            if (action2) {
+                turnActions[pos1] = {
+                    ...action2,
+                    position: pos1
+                };
+            } else {
+                delete turnActions[pos1];
+            }
+        } else {
+            // 前衛と後衛の入れ替え：前衛のスキル選択をクリア
+            if (isFront1) {
+                delete turnActions[pos1];
+            }
+            if (isFront2) {
+                delete turnActions[pos2];
+            }
+        }
+        
+        // 新しく前衛になったキャラクターにデフォルトスキルを設定
+        [pos1, pos2].forEach(pos => {
+            if (pos < CONFIG.FRONT_POSITIONS && !turnActions[pos]) {
+                const playerIndex = positionMap[pos];
+                const character = currentParty[playerIndex];
+                if (character) {
+                    const defaultSkill = character.skills.find(skill => skill.cost === 0);
+                    if (defaultSkill) {
+                        turnActions[pos] = {
+                            character: character.name,
+                            skill: defaultSkill,
+                            position: pos
+                        };
+                    }
+                }
+            }
+        });
     }
 }
 

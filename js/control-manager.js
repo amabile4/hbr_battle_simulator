@@ -23,21 +23,20 @@ class ControlManager {
     
     // ターン実行
     static executeTurn() {
+        // SP状態を保存（プレビュー用）
+        this.saveSPState();
+        
         const turnData = {
             turn: currentTurn,
             enemyAction: "敵行動",
             characters: []
         };
         
-        // SP回復とターン処理
+        // 行動処理（SP回復は次のターンで行う）
         currentParty.forEach((character, index) => {
             if (!character) return;
             
             const startSP = character.currentSP;
-            
-            // ターン開始時SP回復
-            character.currentSP += CONFIG.BASE_SP_RECOVERY + character.spBonus;
-            character.currentSP = Math.min(character.currentSP, CONFIG.MAX_SP);
             
             // 行動処理
             const position = positionMap.indexOf(index);
@@ -53,24 +52,63 @@ class ControlManager {
             
             turnData.characters.push({
                 name: character.name,
-                startSP: startSP + CONFIG.BASE_SP_RECOVERY + character.spBonus,
+                startSP: startSP,
                 action: action,
                 endSP: character.currentSP
             });
         });
         
-        battleHistory.push(turnData);
+        // 同じターンの結果が既に存在する場合は上書き
+        const existingTurnIndex = battleHistory.findIndex(turn => turn.turn === currentTurn);
+        if (existingTurnIndex >= 0) {
+            battleHistory[existingTurnIndex] = turnData;
+        } else {
+            battleHistory.push(turnData);
+        }
+        
         ResultsManager.updateResultsTable();
         DisplayManager.generatePartyDisplay();
         
-        // リセット
+        // UI要素の選択状態のみリセット（スキル選択は保持）
+        document.querySelectorAll('.character-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        
+        this.updateExecuteButton();
+    }
+    
+    // 次のターン
+    static nextTurn() {
+        // 現在のターンが未実行の場合、自動的にターン実行
+        const currentTurnExists = battleHistory.some(turn => turn.turn === currentTurn);
+        if (!currentTurnExists) {
+            console.log('未実行のターンを自動実行中...');
+            this.executeTurn();
+        }
+        
+        // SP状態を確定（保存状態をクリア）
+        savedSPState = [];
+        
+        currentTurn++;
+        document.getElementById('turnInfo').textContent = `ターン ${currentTurn} - 戦闘中`;
+        
+        // SP回復処理
+        currentParty.forEach((character) => {
+            if (!character) return;
+            
+            // ターン開始時SP回復
+            character.currentSP += CONFIG.BASE_SP_RECOVERY + character.spBonus;
+            character.currentSP = Math.min(character.currentSP, CONFIG.MAX_SP);
+        });
+        
+        // スキル選択をリセットし、デフォルトスキルを設定
         turnActions = {};
         document.querySelectorAll('.character-card').forEach(card => {
             card.style.border = '';
             card.classList.remove('selected');
         });
         
-        // 前衛のデフォルトスキル再設定
+        // 前衛のデフォルトスキル設定
         for (let i = 0; i < CONFIG.FRONT_POSITIONS; i++) {
             const playerIndex = positionMap[i];
             const character = currentParty[playerIndex];
@@ -83,16 +121,29 @@ class ControlManager {
                         position: i
                     };
                 }
-                DisplayManager.updateSkillDisplay(i);
             }
         }
         
+        // 表示を更新
+        DisplayManager.generatePartyDisplay();
         this.updateExecuteButton();
     }
     
-    // 次のターン
-    static nextTurn() {
-        currentTurn++;
-        document.getElementById('turnInfo').textContent = `ターン ${currentTurn} - 戦闘中`;
+    // SP状態の保存
+    static saveSPState() {
+        savedSPState = currentParty.map(character => 
+            character ? character.currentSP : 0
+        );
+    }
+    
+    // SP状態の復元
+    static restoreSPState() {
+        if (savedSPState.length === currentParty.length) {
+            currentParty.forEach((character, index) => {
+                if (character && savedSPState[index] !== undefined) {
+                    character.currentSP = savedSPState[index];
+                }
+            });
+        }
     }
 }

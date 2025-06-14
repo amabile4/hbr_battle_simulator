@@ -20,19 +20,19 @@
         </div>
         
         <!-- パーティー編成セクション -->
-        <div class="party-setup" id="partySetup">
+        <div class="party-setup collapsed" id="partySetup">
             <h2 onclick="UIManager.togglePartySetup()">
                 📝 パーティー編成
                 <span class="collapse-icon">🔽</span>
             </h2>
             <div class="party-status" id="partyStatus">
-                ✅ パーティー編成完了 - クリックして再編集
+                ✅ デフォルトパーティー設定済み - クリックして再編集
             </div>
             <div class="character-config" id="characterConfig">
                 <!-- キャラクター設定はJavaScriptで動的生成 -->
             </div>
             <div class="controls">
-                <button class="btn btn-primary" onclick="PartyManager.loadPartySetup()">編成確定</button>
+                <button class="btn btn-primary" onclick="PartyManager.loadPartySetup()">編成更新</button>
                 <button class="btn btn-warning" onclick="PartyManager.resetParty()">リセット</button>
             </div>
         </div>

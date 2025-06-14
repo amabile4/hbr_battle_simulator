@@ -38,6 +38,48 @@ class PartyManager {
         }
         
         console.log('キャラクター設定UI生成完了');
+        
+        // デフォルトパーティーを設定
+        this.loadDefaultParty();
+    }
+    
+    // デフォルトパーティーの設定
+    static loadDefaultParty() {
+        // デフォルトパーティーのキャラクターが存在するかチェック
+        const availableChars = Object.keys(characterDatabase);
+        const validDefaultChars = defaultPartySettings.characters.filter(char => 
+            availableChars.includes(char)
+        );
+        
+        if (validDefaultChars.length === 0) {
+            console.log('デフォルトパーティーのキャラクターが見つかりません');
+            return;
+        }
+        
+        // デフォルト値を設定
+        for (let i = 0; i < CONFIG.MAX_CHARACTERS; i++) {
+            const charSelect = document.getElementById(`char_${i}`);
+            const spInput = document.getElementById(`sp_${i}`);
+            const bonusInput = document.getElementById(`bonus_${i}`);
+            
+            if (charSelect && i < validDefaultChars.length) {
+                charSelect.value = validDefaultChars[i];
+            }
+            if (spInput) {
+                spInput.value = defaultPartySettings.initialSP;
+            }
+            if (bonusInput) {
+                bonusInput.value = defaultPartySettings.spBonus;
+            }
+        }
+        
+        // 重複チェックを実行
+        this.updateCharacterSelection();
+        
+        // 自動的にパーティーを確定
+        this.loadPartySetup();
+        
+        console.log('デフォルトパーティー設定完了');
     }
     
     // キャラクター選択の更新（重複チェック）
@@ -122,9 +164,7 @@ class PartyManager {
         // パーティー状況を更新
         const partyStatus = document.getElementById('partyStatus');
         const selectedNames = currentParty.map(p => p.name).join(', ');
-        partyStatus.textContent = `✅ 編成完了: ${selectedNames}`;
-        
-        alert('パーティー編成が完了しました！');
+        partyStatus.textContent = `✅ 編成完了: ${selectedNames} - クリックして再編集`;
     }
     
     // リセット機能

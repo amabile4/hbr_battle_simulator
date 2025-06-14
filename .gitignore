@@ -1,0 +1,40 @@
+# サーバーログ
+server.log
+
+# 一時ファイル
+*.tmp
+*.temp
+
+# エディタ関連
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS関連
+.DS_Store
+Thumbs.db
+
+# ログファイル
+*.log
+
+# バックアップファイル
+*.bak
+*.backup
+
+# 機密情報ファイル
+.env
+.env.local
+.env.production
+.env.development
+config/secrets.*
+secrets.*
+api-keys.*
+credentials.*
+*-secret.json
+*-credentials.json
+
+# 設定ファイル（機密情報を含む可能性）
+config/production.js
+config/staging.js
