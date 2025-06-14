@@ -50,7 +50,7 @@ class DisplayManager {
                 }
                 this.updateSkillDisplayElement(skillDisplay, i);
             } else if (i >= CONFIG.FRONT_POSITIONS) {
-                skillDisplay.textContent = '後衛待機';
+                skillDisplay.textContent = '—';
                 skillDisplay.className = 'skill-display inactive';
             } else {
                 skillDisplay.textContent = '未設定';
@@ -63,6 +63,14 @@ class DisplayManager {
         }
         
         ControlManager.updateExecuteButton();
+        
+        // デバッグ情報を更新
+        setTimeout(() => {
+            if (typeof ResultsManager !== 'undefined' && ResultsManager.updateDebugInfo) {
+                ResultsManager.updateDebugInfo();
+            }
+        }, 100);
+        
         console.log('パーティー表示更新完了');
     }
     

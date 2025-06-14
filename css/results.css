@@ -10,13 +10,118 @@
     width: 100%;
     border-collapse: collapse;
     margin-top: 20px;
+    table-layout: fixed; /* 固定レイアウト */
 }
 
 .results-table th,
 .results-table td {
-    padding: 12px;
+    padding: 8px 4px;
     text-align: center;
     border: 1px solid #e2e8f0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    font-size: 0.85em;
+}
+
+/* 列幅の設定 */
+.results-table .turn-col,
+.results-table tbody td:nth-child(1) {
+    width: 40px !important; /* ターン列（固定幅） */
+    max-width: 40px !important;
+    min-width: 40px !important;
+}
+
+.results-table .enemy-col,
+.results-table tbody td:nth-child(2) {
+    width: 90px !important; /* 敵行動列（固定幅） */
+    max-width: 90px !important;
+    min-width: 90px !important;
+}
+
+/* キャラクターヘッダー行の高さ制限 */
+.results-table .char-header {
+    font-size: 0.7em !important;
+    line-height: 1.1 !important;
+    padding: 2px 1px !important;
+    height: auto !important;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* キャラクター列（6人分の構成：始SP + 行動 + 終SP） */
+/* 固定幅での強制適用 */
+.results-table .sp-col {
+    width: 45px !important; /* 始SP・終SP列（固定幅） */
+    max-width: 45px !important;
+    min-width: 45px !important;
+}
+
+.results-table .action-col {
+    width: 100px !important; /* 行動列（固定幅） */
+    max-width: 100px !important;
+    min-width: 100px !important;
+}
+
+/* データ行の列幅 */
+.results-table tbody td:nth-child(3),
+.results-table tbody td:nth-child(5),
+.results-table tbody td:nth-child(6),
+.results-table tbody td:nth-child(8),
+.results-table tbody td:nth-child(9),
+.results-table tbody td:nth-child(11),
+.results-table tbody td:nth-child(12),
+.results-table tbody td:nth-child(14),
+.results-table tbody td:nth-child(15),
+.results-table tbody td:nth-child(17),
+.results-table tbody td:nth-child(18),
+.results-table tbody td:nth-child(20) {
+    width: 45px !important; /* 始SP・終SP列 */
+    max-width: 45px !important;
+    min-width: 45px !important;
+}
+
+.results-table tbody td:nth-child(4),
+.results-table tbody td:nth-child(7),
+.results-table tbody td:nth-child(10),
+.results-table tbody td:nth-child(13),
+.results-table tbody td:nth-child(16),
+.results-table tbody td:nth-child(19) {
+    width: 100px !important; /* 行動列 */
+    max-width: 100px !important;
+    min-width: 100px !important;
+}
+
+/* スキル名（行動）列の特別処理 */
+.results-table td.action-cell {
+    font-size: 0.75em;
+    line-height: 1.2;
+    padding: 6px 4px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    max-width: none;
+    min-height: 2.4em;
+    vertical-align: middle;
+}
+
+/* 長いスキル名用の省略表示 */
+.skill-name-long {
+    font-size: 0.7em !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: inline-block;
+}
+
+/* 待機状態の控えめ表示 */
+.results-table td.action-cell {
+    color: #666;
+}
+
+.results-table td.action-cell:has-text("—") {
+    color: #999;
+    font-weight: normal;
 }
 
 .results-table th {
@@ -31,4 +136,37 @@
 
 .results-table tr:hover {
     background: #edf2f7;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .results-table th,
+    .results-table td {
+        padding: 4px 2px;
+        font-size: 0.75em;
+    }
+    
+    .results-table td.action-cell {
+        font-size: 0.65em;
+    }
+    
+    .skill-name-long {
+        font-size: 0.6em !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .results-table {
+        font-size: 0.8em;
+    }
+    
+    .results-table th,
+    .results-table td {
+        padding: 2px 1px;
+        font-size: 0.7em;
+    }
+    
+    .results-table td.action-cell {
+        font-size: 0.6em;
+    }
 }

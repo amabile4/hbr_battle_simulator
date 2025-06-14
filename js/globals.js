@@ -35,6 +35,8 @@ let defaultPartySettings = {
 
 // 初期化
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('GUI初期化開始');
+    console.log('🔥 ヘブンバーンズレッド戦闘シミュレータ');
+    console.log('Version: 2025-06-15-TableLayout-Fix-v4');
+    console.log('戦闘結果テーブル固定レイアウト対応版が読み込まれました');
     DataManager.loadSkillData();
 });

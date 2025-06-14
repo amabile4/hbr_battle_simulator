@@ -1,4 +1,5 @@
 // 戦闘制御管理クラス
+// Version: 2025-06-15-SP-Fix-v2
 class ControlManager {
     // 実行ボタンの状態更新
     static updateExecuteButton() {
@@ -23,8 +24,14 @@ class ControlManager {
     
     // ターン実行
     static executeTurn() {
-        // SP状態を保存（プレビュー用）
-        this.saveSPState();
+        // 初回実行時のみSP状態を保存、連続実行時は復元
+        if (savedSPState.length === 0) {
+            // 初回実行：SP状態を保存
+            this.saveSPState();
+        } else {
+            // 連続実行：保存された状態に復元してから処理
+            this.restoreSPState();
+        }
         
         const turnData = {
             turn: currentTurn,
@@ -40,21 +47,22 @@ class ControlManager {
             
             // 行動処理
             const position = positionMap.indexOf(index);
-            let action = "待機";
+            let action = "—";
             let endSP = character.currentSP;
             
             if (position < CONFIG.FRONT_POSITIONS && turnActions[position]) {
                 const skillData = turnActions[position].skill;
                 action = skillData.name;
                 endSP = character.currentSP - skillData.cost;
-                character.currentSP = endSP;
+                // プレビュー時はSPを実際に変更しない
+                // 表示用のendSPのみ計算
             }
             
             turnData.characters.push({
                 name: character.name,
                 startSP: startSP,
                 action: action,
-                endSP: character.currentSP
+                endSP: endSP
             });
         });
         
@@ -82,9 +90,11 @@ class ControlManager {
         // 現在のターンが未実行の場合、自動的にターン実行
         const currentTurnExists = battleHistory.some(turn => turn.turn === currentTurn);
         if (!currentTurnExists) {
-            console.log('未実行のターンを自動実行中...');
             this.executeTurn();
         }
+        
+        // SP消費を確定させる
+        this.confirmSPChanges();
         
         // SP状態を確定（保存状態をクリア）
         savedSPState = [];
@@ -144,6 +154,25 @@ class ControlManager {
                     character.currentSP = savedSPState[index];
                 }
             });
+        }
+    }
+    
+    // SP消費を確定する
+    static confirmSPChanges() {
+        // 現在の配置での前衛キャラクターのみSP消費を確定
+        for (let position = 0; position < CONFIG.FRONT_POSITIONS; position++) {
+            if (turnActions[position]) {
+                const playerIndex = positionMap[position];
+                const character = currentParty[playerIndex];
+                if (character) {
+                    const skillData = turnActions[position].skill;
+                    // スキル選択が現在のキャラクターのものか確認
+                    if (turnActions[position].character === character.name) {
+                        character.currentSP -= skillData.cost;
+                        character.currentSP = Math.max(character.currentSP, 0);
+                    }
+                }
+            }
         }
     }
 }

@@ -74,6 +74,9 @@ class SwapManager {
                 
                 // スキル選択状態を確実にリセット
                 this.hideSkillSelection();
+                
+                // 配置入れ替え後、現在のターンの戦闘結果を再計算
+                this.updateBattleResultAfterSwap();
             }
             
             // 入れ替えモード終了
@@ -91,6 +94,7 @@ class SwapManager {
             const action1 = turnActions[pos1];
             const action2 = turnActions[pos2];
             
+            // 単純に行動を入れ替え（キャラクター名は後で再設定）
             if (action1) {
                 turnActions[pos2] = {
                     ...action1,
@@ -109,12 +113,21 @@ class SwapManager {
                 delete turnActions[pos1];
             }
         } else {
-            // 前衛と後衛の入れ替え：前衛のスキル選択をクリア
-            if (isFront1) {
-                delete turnActions[pos1];
+            // 前衛と後衛の入れ替え：関連するスキル選択をすべてクリア
+            delete turnActions[pos1];
+            delete turnActions[pos2];
+        }
+        
+        // 配置入れ替え後のキャラクター名を更新
+        if (isFront1 && isFront2) {
+            // 前衛同士の場合、キャラクター名を正しく更新
+            if (turnActions[pos1]) {
+                const char1Index = positionMap[pos1];
+                turnActions[pos1].character = currentParty[char1Index].name;
             }
-            if (isFront2) {
-                delete turnActions[pos2];
+            if (turnActions[pos2]) {
+                const char2Index = positionMap[pos2];
+                turnActions[pos2].character = currentParty[char2Index].name;
             }
         }
         
@@ -135,6 +148,50 @@ class SwapManager {
                 }
             }
         });
+    }
+    
+    // 配置入れ替え後の戦闘結果更新
+    static updateBattleResultAfterSwap() {
+        // 現在のターンの戦闘結果が存在する場合のみ更新
+        const currentTurnIndex = battleHistory.findIndex(turn => turn.turn === currentTurn);
+        if (currentTurnIndex >= 0) {
+            // 現在の配置とスキル選択で戦闘結果を再計算
+            const turnData = {
+                turn: currentTurn,
+                enemyAction: "敵行動",
+                characters: []
+            };
+            
+            currentParty.forEach((character, index) => {
+                if (!character) return;
+                
+                const startSP = character.currentSP;
+                
+                // 行動処理
+                const position = positionMap.indexOf(index);
+                let action = "—";
+                let endSP = character.currentSP;
+                
+                if (position < CONFIG.FRONT_POSITIONS && turnActions[position]) {
+                    const skillData = turnActions[position].skill;
+                    action = skillData.name;
+                    endSP = character.currentSP - skillData.cost;
+                }
+                
+                turnData.characters.push({
+                    name: character.name,
+                    startSP: startSP,
+                    action: action,
+                    endSP: endSP
+                });
+            });
+            
+            // 戦闘履歴を更新
+            battleHistory[currentTurnIndex] = turnData;
+            
+            // 結果テーブルを更新
+            ResultsManager.updateResultsTable();
+        }
     }
 }
 
