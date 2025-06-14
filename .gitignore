@@ -1,40 +1,75 @@
-# サーバーログ
-server.log
+# =============================================================================
+# ヘブンバーンズレッド戦闘シミュレータ - Git無視ファイル
+# =============================================================================
 
-# 一時ファイル
-*.tmp
-*.temp
+# Node.js関連
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.pnpm-debug.log*
 
-# エディタ関連
+# テスト・カバレッジ関連
+coverage/
+.vitest/
+.nyc_output/
+test-results/
+playwright-report/
+
+# ビルド・配布関連
+dist/
+build/
+release/
+*.tgz
+
+# OS関連
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# エディタ・IDE関連
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.sublime-*
 
-# OS関連
-.DS_Store
-Thumbs.db
+# 一時ファイル
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
 
 # ログファイル
 *.log
+server.log
+debug.log
 
 # バックアップファイル
 *.bak
 *.backup
+*~
 
 # 機密情報ファイル
 .env
-.env.local
-.env.production
-.env.development
+.env.*
+!.env.example
 config/secrets.*
 secrets.*
 api-keys.*
 credentials.*
 *-secret.json
 *-credentials.json
+.secrets
 
-# 設定ファイル（機密情報を含む可能性）
+# 設定ファイル（本番環境用）
 config/production.js
 config/staging.js
+
+# その他
+.history/
+.vscode-test/

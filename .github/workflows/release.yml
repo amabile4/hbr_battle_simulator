@@ -1,0 +1,130 @@
+name: 🚀 Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  test:
+    name: 🧪 Pre-release Tests
+    uses: ./.github/workflows/test.yml
+
+  release:
+    name: 📦 Create Release
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: write
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: 🔧 Install dependencies
+        run: npm ci
+        
+      - name: 🧪 Run final tests
+        run: npm run test:coverage
+        
+      - name: 📊 Generate release artifacts
+        run: |
+          echo "🏗️ Preparing release artifacts..."
+          
+          # リリース用のファイルを準備
+          mkdir -p release
+          
+          # HTMLファイル
+          cp hbr_gui_simulator_modular.html release/
+          
+          # JS/CSSファイル
+          cp -r js css release/
+          
+          # データベース
+          cp skillDatabase.json release/
+          
+          # ドキュメント
+          cp README.md CLAUDE.md DEVELOPMENT_NOTES.md release/
+          
+          # リリースノート生成
+          echo "# Release Notes" > release/RELEASE_NOTES.md
+          echo "" >> release/RELEASE_NOTES.md
+          echo "バージョン: ${{ github.ref_name }}" >> release/RELEASE_NOTES.md
+          echo "リリース日: $(date '+%Y-%m-%d')" >> release/RELEASE_NOTES.md
+          echo "" >> release/RELEASE_NOTES.md
+          echo "## 🎮 ヘブンバーンズレッド戦闘シミュレータ" >> release/RELEASE_NOTES.md
+          echo "" >> release/RELEASE_NOTES.md
+          echo "### 📦 含まれるファイル" >> release/RELEASE_NOTES.md
+          echo "- シミュレータ本体 (HTML/CSS/JS)" >> release/RELEASE_NOTES.md
+          echo "- スキルデータベース (JSON)" >> release/RELEASE_NOTES.md
+          echo "- ドキュメント" >> release/RELEASE_NOTES.md
+          echo "" >> release/RELEASE_NOTES.md
+          echo "### 🚀 使用方法" >> release/RELEASE_NOTES.md
+          echo "1. ファイルをダウンロード" >> release/RELEASE_NOTES.md
+          echo "2. \`python3 -m http.server 8080\` でサーバー起動" >> release/RELEASE_NOTES.md
+          echo "3. \`http://localhost:8080/hbr_gui_simulator_modular.html\` にアクセス" >> release/RELEASE_NOTES.md
+          
+          # ZIPファイルの作成
+          cd release
+          zip -r "../hbr-battle-simulator-${{ github.ref_name }}.zip" .
+          cd ..
+          
+          echo "✅ Release artifacts prepared"
+          
+      - name: 📝 Extract release notes
+        id: extract_notes
+        run: |
+          # 最新のコミットメッセージからリリースノートを抽出
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --pretty=format:"%B" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+      - name: 🚀 Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: "ヘブンバーンズレッド戦闘シミュレータ ${{ github.ref_name }}"
+          body: |
+            ## 🎮 ヘブンバーンズレッド戦闘シミュレータ
+            
+            ${{ steps.extract_notes.outputs.notes }}
+            
+            ### 📊 テスト結果
+            - ✅ 全テストが通過
+            - ✅ データベース検証完了
+            - ✅ デプロイメントチェック完了
+            
+            ### 🚀 使用方法
+            1. `hbr-battle-simulator-${{ github.ref_name }}.zip` をダウンロード
+            2. ファイルを展開
+            3. `python3 -m http.server 8080` でローカルサーバー起動
+            4. ブラウザで `http://localhost:8080/hbr_gui_simulator_modular.html` にアクセス
+            
+            ### 🔧 技術仕様
+            - モジュラーJavaScript アーキテクチャ
+            - レスポンシブWebデザイン
+            - JSONベーススキルデータベース
+            - 自動テスト対応
+            
+            ---
+            🤖 自動生成されたリリース
+          draft: false
+          prerelease: false
+          
+      - name: 📎 Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./hbr-battle-simulator-${{ github.ref_name }}.zip
+          asset_name: hbr-battle-simulator-${{ github.ref_name }}.zip
+          asset_content_type: application/zip

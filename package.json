@@ -1,0 +1,19 @@
+{
+  "name": "hbr-battle-simulator",
+  "version": "1.0.0",
+  "description": "ヘブンバーンズレッド戦闘シミュレータ",
+  "type": "module",
+  "scripts": {
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "dev": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.4",
+    "jsdom": "^23.0.1",
+    "@vitest/ui": "^1.0.4",
+    "@vitest/coverage-v8": "^1.0.4"
+  }
+}
