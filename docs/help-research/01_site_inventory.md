@@ -1,0 +1,353 @@
+# サイト棚卸し（子A: 網羅性担保）
+
+## 1. 対象データと前提
+- 入力: `data/help_crawl_raw.json`
+- クロール開始URL: `https://wfs-heaven-burns-red.zendesk.com/hc/ja`
+- 開始時刻(UTC): `2026-02-25T12:04:30.079Z`
+- 実行時間: `135` 秒
+- 終了条件: `未訪問リンク0で終了`
+
+## 2. URL正規化ルール（同一判定）
+JSON `summary.normalization_rule` に基づく。
+- 対象ホスト固定: `wfs-heaven-burns-red.zendesk.com`
+- 対象パス接頭辞: `/hc/ja`
+- フラグメント: 常に除去（`#...` は同一URL扱い）
+- クエリ: `sections/categories` のページネーション `page` のみ保持
+- 上記以外のクエリ: 除去して同一URL扱い
+
+### クエリ処理の実測
+- クエリ付きURLの種類: `2` 種（`?page=1`, `?page=2`）
+- クエリ出現回数(リンク抽出時): `5` 回
+- フラグメント出現回数: `0` 回
+
+## 3. 集計サマリ（具体値）
+- 発見URL数（正規化後）: `134`
+- 訪問成功URL数: `134`
+- 失敗URL数: `0`
+- 未解決キュー残数: `0`
+- 抽出リンク総数（重複含む）: `581`
+- 重複/既知リンク件数: `447`（=`581 - 134`）
+- URL種別内訳:
+  - ルート: `1`
+  - セクションページ: `12`（うちバトルのページネーション `2`）
+  - 記事ページ: `121`
+
+## 4. 階層ツリー（カテゴリ/セクション/記事）
+- カテゴリ: `HEAVEN BURNS RED`
+  - セクション: `アプリ全般`（17記事）
+  - セクション: `動作不良`（2記事）
+  - セクション: `メニュー`（9記事）
+  - セクション: `ストーリー`（3記事）
+  - セクション: `キャラクター`（9記事）
+  - セクション: `バトル`（60記事）
+  - セクション: `クォーツ`（6記事）
+  - セクション: `プレミアムパス/ライトパス`（8記事）
+  - セクション: `Steam版`（5記事）
+  - セクション: `Google Play Games on PC`（2記事）
+
+### セクションURL一覧（正規化URL）
+- 1. [アプリ全般] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283363469209-%E3%82%A2%E3%83%97%E3%83%AA%E5%85%A8%E8%88%AC
+- 2. [メニュー] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283463608857-%E3%83%A1%E3%83%8B%E3%83%A5%E3%83%BC
+- 3. [動作不良] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283474417689-%E5%8B%95%E4%BD%9C%E4%B8%8D%E8%89%AF
+- 4. [ストーリー] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283516088345-%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AA%E3%83%BC
+- 5. [バトル] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283518828313-%E3%83%90%E3%83%88%E3%83%AB
+- 6. [バトル] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283518828313-%E3%83%90%E3%83%88%E3%83%AB?page=1
+- 7. [バトル] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283518828313-%E3%83%90%E3%83%88%E3%83%AB?page=2
+- 8. [キャラクター] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283532648985-%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC
+- 9. [クォーツ] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283537592345-%E3%82%AF%E3%82%A9%E3%83%BC%E3%83%84
+- 10. [Steam版] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283539380377-Steam%E7%89%88
+- 11. [プレミアムパス/ライトパス] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283543879321-%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9
+- 12. [Google Play Games on PC] https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/40509809604377-Google-Play-Games-on-PC
+
+### 記事ツリー（セクション配下）
+- Google Play Games on PC（2記事）
+  - 【Google Play Games on PC】動作環境を教えてください | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40489061740313--Google-Play-Games-on-PC-%E5%8B%95%E4%BD%9C%E7%92%B0%E5%A2%83%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+  - 端末間のデータ連携と自動引き継ぎ機能について【重要】 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40489223296793-%E7%AB%AF%E6%9C%AB%E9%96%93%E3%81%AE%E3%83%87%E3%83%BC%E3%82%BF%E9%80%A3%E6%90%BA%E3%81%A8%E8%87%AA%E5%8B%95%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E6%A9%9F%E8%83%BD%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6-%E9%87%8D%E8%A6%81
+- Steam版（5記事）
+  - Bluetooth接続しているコントローラーの電源をオフにしてもマウス/キーボード操作に切り替わらない | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/36926330146457-Bluetooth%E6%8E%A5%E7%B6%9A%E3%81%97%E3%81%A6%E3%81%84%E3%82%8B%E3%82%B3%E3%83%B3%E3%83%88%E3%83%AD%E3%83%BC%E3%83%A9%E3%83%BC%E3%81%AE%E9%9B%BB%E6%BA%90%E3%82%92%E3%82%AA%E3%83%95%E3%81%AB%E3%81%97%E3%81%A6%E3%82%82%E3%83%9E%E3%82%A6%E3%82%B9-%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E6%93%8D%E4%BD%9C%E3%81%AB%E5%88%87%E3%82%8A%E6%9B%BF%E3%82%8F%E3%82%89%E3%81%AA%E3%81%84
+  - 【Steam版】アンチウィルスソフトが作動してインストールができません。 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321228868633--Steam%E7%89%88-%E3%82%A2%E3%83%B3%E3%83%81%E3%82%A6%E3%82%A3%E3%83%AB%E3%82%B9%E3%82%BD%E3%83%95%E3%83%88%E3%81%8C%E4%BD%9C%E5%8B%95%E3%81%97%E3%81%A6%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AB%E3%81%8C%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%9B%E3%82%93
+  - 【Steam版】予期しないエラーが発生して、タイトル画面に戻る | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15339396523417--Steam%E7%89%88-%E4%BA%88%E6%9C%9F%E3%81%97%E3%81%AA%E3%81%84%E3%82%A8%E3%83%A9%E3%83%BC%E3%81%8C%E7%99%BA%E7%94%9F%E3%81%97%E3%81%A6-%E3%82%BF%E3%82%A4%E3%83%88%E3%83%AB%E7%94%BB%E9%9D%A2%E3%81%AB%E6%88%BB%E3%82%8B
+  - 【Steam版】動作環境を教えてください | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321224050713--Steam%E7%89%88-%E5%8B%95%E4%BD%9C%E7%92%B0%E5%A2%83%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+  - 端末間のデータ連携と自動引き継ぎ機能について【重要】 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321274801561-%E7%AB%AF%E6%9C%AB%E9%96%93%E3%81%AE%E3%83%87%E3%83%BC%E3%82%BF%E9%80%A3%E6%90%BA%E3%81%A8%E8%87%AA%E5%8B%95%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E6%A9%9F%E8%83%BD%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6-%E9%87%8D%E8%A6%81
+- アプリ全般（17記事）
+  - Apple IDを用いたデータの引き継ぎ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319640292377-Apple-ID%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E
+  - Apple IDを用いた引き継ぎ設定 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319610991641-Apple-ID%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E8%A8%AD%E5%AE%9A
+  - Google Play Gamesアカウントによる自動連携 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40489465367065-Google-Play-Games%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%81%AB%E3%82%88%E3%82%8B%E8%87%AA%E5%8B%95%E9%80%A3%E6%90%BA
+  - Google Play Gamesアカウントを用いたデータの引き継ぎ（手動連携） | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40490075312537-Google-Play-Games%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E-%E6%89%8B%E5%8B%95%E9%80%A3%E6%90%BA
+  - Google Play Gamesアカウントを用いた引き継ぎ設定（手動連携） | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40489815791129-Google-Play-Games%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E8%A8%AD%E5%AE%9A-%E6%89%8B%E5%8B%95%E9%80%A3%E6%90%BA
+  - Googleアカウントを用いたデータの引き継ぎ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319683021081-Google%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E
+  - Googleアカウントを用いた引き継ぎ設定 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319644427289-Google%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E8%A8%AD%E5%AE%9A
+  - お問い合わせに対する返事がきません | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319738930329-%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B%E3%81%AB%E5%AF%BE%E3%81%99%E3%82%8B%E8%BF%94%E4%BA%8B%E3%81%8C%E3%81%8D%E3%81%BE%E3%81%9B%E3%82%93
+  - ゲームをセーブする方法を教えてください | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317382510873-%E3%82%B2%E3%83%BC%E3%83%A0%E3%82%92%E3%82%BB%E3%83%BC%E3%83%96%E3%81%99%E3%82%8B%E6%96%B9%E6%B3%95%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+  - タイムゾーンについて | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15419263757337-%E3%82%BF%E3%82%A4%E3%83%A0%E3%82%BE%E3%83%BC%E3%83%B3%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6
+  - プレイヤーIDの確認方法を教えてほしい | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15299183725081-%E3%83%97%E3%83%AC%E3%82%A4%E3%83%A4%E3%83%BCID%E3%81%AE%E7%A2%BA%E8%AA%8D%E6%96%B9%E6%B3%95%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%BB%E3%81%97%E3%81%84
+  - 二次創作ガイドライン | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317495269785-%E4%BA%8C%E6%AC%A1%E5%89%B5%E4%BD%9C%E3%82%AC%E3%82%A4%E3%83%89%E3%83%A9%E3%82%A4%E3%83%B3
+  - 動作環境を教えてください | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317351100953-%E5%8B%95%E4%BD%9C%E7%92%B0%E5%A2%83%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+  - 動画等配信ガイドライン | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317489906073-%E5%8B%95%E7%94%BB%E7%AD%89%E9%85%8D%E4%BF%A1%E3%82%AC%E3%82%A4%E3%83%89%E3%83%A9%E3%82%A4%E3%83%B3
+  - 引き継ぎIDを用いたデータの引き継ぎ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319582024345-%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8EID%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E
+  - 引き継ぎIDを用いた引き継ぎ設定 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317608426521-%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8EID%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E8%A8%AD%E5%AE%9A
+  - 引き継ぎ機能【重要】 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15339853269401-%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E6%A9%9F%E8%83%BD-%E9%87%8D%E8%A6%81
+- キャラクター（9記事）
+  - ガチャで出てきたスタイルが見当たりません | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320495413657-%E3%82%AC%E3%83%81%E3%83%A3%E3%81%A7%E5%87%BA%E3%81%A6%E3%81%8D%E3%81%9F%E3%82%B9%E3%82%BF%E3%82%A4%E3%83%AB%E3%81%8C%E8%A6%8B%E5%BD%93%E3%81%9F%E3%82%8A%E3%81%BE%E3%81%9B%E3%82%93
+  - スキル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320508908313-%E3%82%B9%E3%82%AD%E3%83%AB
+  - スキルの装備 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320602247705-%E3%82%B9%E3%82%AD%E3%83%AB%E3%81%AE%E8%A3%85%E5%82%99
+  - スタイル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320464353945-%E3%82%B9%E3%82%BF%E3%82%A4%E3%83%AB
+  - ピース | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320564779417-%E3%83%94%E3%83%BC%E3%82%B9
+  - 専用スキル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320655908121-%E5%B0%82%E7%94%A8%E3%82%B9%E3%82%AD%E3%83%AB
+  - 戦力 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320493044249-%E6%88%A6%E5%8A%9B
+  - 経験値アップアイテム「バトルレポート」「強化教本」の使用方法を教えてほしい | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320505556249-%E7%B5%8C%E9%A8%93%E5%80%A4%E3%82%A2%E3%83%83%E3%83%97%E3%82%A2%E3%82%A4%E3%83%86%E3%83%A0-%E3%83%90%E3%83%88%E3%83%AB%E3%83%AC%E3%83%9D%E3%83%BC%E3%83%88-%E5%BC%B7%E5%8C%96%E6%95%99%E6%9C%AC-%E3%81%AE%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%BB%E3%81%97%E3%81%84
+  - 限界突破 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320555154329-%E9%99%90%E7%95%8C%E7%AA%81%E7%A0%B4
+- クォーツ（6記事）
+  - 使用期限はありますか？ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321184416793-%E4%BD%BF%E7%94%A8%E6%9C%9F%E9%99%90%E3%81%AF%E3%81%82%E3%82%8A%E3%81%BE%E3%81%99%E3%81%8B
+  - 利用履歴を教えてください | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321137571481-%E5%88%A9%E7%94%A8%E5%B1%A5%E6%AD%B4%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+  - 年齢により購入金額の上限設定がされていますか？ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321092584601-%E5%B9%B4%E9%BD%A2%E3%81%AB%E3%82%88%E3%82%8A%E8%B3%BC%E5%85%A5%E9%87%91%E9%A1%8D%E3%81%AE%E4%B8%8A%E9%99%90%E8%A8%AD%E5%AE%9A%E3%81%8C%E3%81%95%E3%82%8C%E3%81%A6%E3%81%84%E3%81%BE%E3%81%99%E3%81%8B
+  - 有償と無償の違いはなんですか？ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321103372569-%E6%9C%89%E5%84%9F%E3%81%A8%E7%84%A1%E5%84%9F%E3%81%AE%E9%81%95%E3%81%84%E3%81%AF%E3%81%AA%E3%82%93%E3%81%A7%E3%81%99%E3%81%8B
+  - 異なるOSにデータを引き継いだ場合、クォーツも引き継げますか？ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321140262297-%E7%95%B0%E3%81%AA%E3%82%8BOS%E3%81%AB%E3%83%87%E3%83%BC%E3%82%BF%E3%82%92%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%84%E3%81%A0%E5%A0%B4%E5%90%88-%E3%82%AF%E3%82%A9%E3%83%BC%E3%83%84%E3%82%82%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%92%E3%81%BE%E3%81%99%E3%81%8B
+  - 購入が反映されない場合はどうしたら良いですか？ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321181895833-%E8%B3%BC%E5%85%A5%E3%81%8C%E5%8F%8D%E6%98%A0%E3%81%95%E3%82%8C%E3%81%AA%E3%81%84%E5%A0%B4%E5%90%88%E3%81%AF%E3%81%A9%E3%81%86%E3%81%97%E3%81%9F%E3%82%89%E8%89%AF%E3%81%84%E3%81%A7%E3%81%99%E3%81%8B
+- ストーリー（3記事）
+  - ストーリーのやり直し | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320405750937-%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AA%E3%83%BC%E3%81%AE%E3%82%84%E3%82%8A%E7%9B%B4%E3%81%97
+  - 交流 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320408125465-%E4%BA%A4%E6%B5%81
+  - 分岐選択 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320460940313-%E5%88%86%E5%B2%90%E9%81%B8%E6%8A%9E
+- バトル（60記事）
+  - BREAK | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320740141849-BREAK
+  - DP犠牲 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321043673881-DP%E7%8A%A0%E7%89%B2
+  - EXスキル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/35139098350105-EX%E3%82%B9%E3%82%AD%E3%83%AB
+  - EXスキル連続発動 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/35138866290201-EX%E3%82%B9%E3%82%AD%E3%83%AB%E9%80%A3%E7%B6%9A%E7%99%BA%E5%8B%95
+  - OVERDRIVE | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320696330393-OVERDRIVE
+  - 「バトル勝利時」に発生する効果 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/50369026797209--%E3%83%90%E3%83%88%E3%83%AB%E5%8B%9D%E5%88%A9%E6%99%82-%E3%81%AB%E7%99%BA%E7%94%9F%E3%81%99%E3%82%8B%E5%8A%B9%E6%9E%9C
+  - やる気 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/50971362780825-%E3%82%84%E3%82%8B%E6%B0%97
+  - アビリティ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/24700857754137-%E3%82%A2%E3%83%93%E3%83%AA%E3%83%86%E3%82%A3
+  - ウイルス | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320943210137-%E3%82%A6%E3%82%A4%E3%83%AB%E3%82%B9
+  - オギャり | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/37021229555609-%E3%82%AA%E3%82%AE%E3%83%A3%E3%82%8A
+  - クリティカル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/38548259387545-%E3%82%AF%E3%83%AA%E3%83%86%E3%82%A3%E3%82%AB%E3%83%AB
+  - サポート枠 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/48890914006553-%E3%82%B5%E3%83%9D%E3%83%BC%E3%83%88%E6%9E%A0
+  - スイッチスキル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/28956482153113-%E3%82%B9%E3%82%A4%E3%83%83%E3%83%81%E3%82%B9%E3%82%AD%E3%83%AB
+  - スキル使用回数回復 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33454876555289-%E3%82%B9%E3%82%AD%E3%83%AB%E4%BD%BF%E7%94%A8%E5%9B%9E%E6%95%B0%E5%9B%9E%E5%BE%A9
+  - スタン | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320840761625-%E3%82%B9%E3%82%BF%E3%83%B3
+  - ダメージスキルの威力 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/39676297984665-%E3%83%80%E3%83%A1%E3%83%BC%E3%82%B8%E3%82%B9%E3%82%AD%E3%83%AB%E3%81%AE%E5%A8%81%E5%8A%9B
+  - チャージ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320797129753-%E3%83%81%E3%83%A3%E3%83%BC%E3%82%B8
+  - デバフ無効 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/26720721926425-%E3%83%87%E3%83%90%E3%83%95%E7%84%A1%E5%8A%B9
+  - トークン | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320706830233-%E3%83%88%E3%83%BC%E3%82%AF%E3%83%B3
+  - ハッキング | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/38547687336217-%E3%83%8F%E3%83%83%E3%82%AD%E3%83%B3%E3%82%B0
+  - バインド | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320851369497-%E3%83%90%E3%82%A4%E3%83%B3%E3%83%89
+  - バフ/デバフの有効期間 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/25266097861913-%E3%83%90%E3%83%95-%E3%83%87%E3%83%90%E3%83%95%E3%81%AE%E6%9C%89%E5%8A%B9%E6%9C%9F%E9%96%93
+  - バフ/デバフの重ねがけ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/25266143232537-%E3%83%90%E3%83%95-%E3%83%87%E3%83%90%E3%83%95%E3%81%AE%E9%87%8D%E3%81%AD%E3%81%8C%E3%81%91
+  - バフ解除 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/28786672770073-%E3%83%90%E3%83%95%E8%A7%A3%E9%99%A4
+  - パッシブスキル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/35138394732441-%E3%83%91%E3%83%83%E3%82%B7%E3%83%96%E3%82%B9%E3%82%AD%E3%83%AB
+  - フィールド効果 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/23209176582425-%E3%83%95%E3%82%A3%E3%83%BC%E3%83%AB%E3%83%89%E5%8A%B9%E6%9E%9C
+  - ブレイクガード | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/27747314361753-%E3%83%96%E3%83%AC%E3%82%A4%E3%82%AF%E3%82%AC%E3%83%BC%E3%83%89
+  - ブレイク時に追加効果 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/24700229699737-%E3%83%96%E3%83%AC%E3%82%A4%E3%82%AF%E6%99%82%E3%81%AB%E8%BF%BD%E5%8A%A0%E5%8A%B9%E6%9E%9C
+  - メンバーの行動順序 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321041274137-%E3%83%A1%E3%83%B3%E3%83%90%E3%83%BC%E3%81%AE%E8%A1%8C%E5%8B%95%E9%A0%86%E5%BA%8F
+  - レベルバフ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/30186400592921-%E3%83%AC%E3%83%99%E3%83%AB%E3%83%90%E3%83%95
+  - 使用回数が回数限定のスキル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33454752601881-%E4%BD%BF%E7%94%A8%E5%9B%9E%E6%95%B0%E3%81%8C%E5%9B%9E%E6%95%B0%E9%99%90%E5%AE%9A%E3%81%AE%E3%82%B9%E3%82%AD%E3%83%AB
+  - 共鳴アビリティ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/48890751538585-%E5%85%B1%E9%B3%B4%E3%82%A2%E3%83%93%E3%83%AA%E3%83%86%E3%82%A3
+  - 単独発動 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40951008222233-%E5%8D%98%E7%8B%AC%E7%99%BA%E5%8B%95
+  - 厄 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320992930585-%E5%8E%84
+  - 反動 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320999429913-%E5%8F%8D%E5%8B%95
+  - 士気 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/30187153931161-%E5%A3%AB%E6%B0%97
+  - 封印 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320948106649-%E5%B0%81%E5%8D%B0
+  - 属性ダメージ吸収 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33946806994201-%E5%B1%9E%E6%80%A7%E3%83%80%E3%83%A1%E3%83%BC%E3%82%B8%E5%90%B8%E5%8F%8E
+  - 幻惑 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320666381977-%E5%B9%BB%E6%83%91
+  - 強ブレイク | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/23161705068057-%E5%BC%B7%E3%83%96%E3%83%AC%E3%82%A4%E3%82%AF
+  - 影分身 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/34617732192409-%E5%BD%B1%E5%88%86%E8%BA%AB
+  - 心眼 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320987219993-%E5%BF%83%E7%9C%BC
+  - 挑発 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320897430809-%E6%8C%91%E7%99%BA
+  - 永遠なる誓い | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33454649768985-%E6%B0%B8%E9%81%A0%E3%81%AA%E3%82%8B%E8%AA%93%E3%81%84
+  - 混乱 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320945968537-%E6%B7%B7%E4%B9%B1
+  - 無敵 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320802302745-%E7%84%A1%E6%95%B5
+  - 破壊率 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320767440665-%E7%A0%B4%E5%A3%8A%E7%8E%87
+  - 稲穂フィールド | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/37021472648345-%E7%A8%B2%E7%A9%82%E3%83%95%E3%82%A3%E3%83%BC%E3%83%AB%E3%83%89
+  - 編成条件アビリティ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/26720897823769-%E7%B7%A8%E6%88%90%E6%9D%A1%E4%BB%B6%E3%82%A2%E3%83%93%E3%83%AA%E3%83%86%E3%82%A3
+  - 耐性ダウン | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/25259163276185-%E8%80%90%E6%80%A7%E3%83%80%E3%82%A6%E3%83%B3
+  - 耐性打ち消し | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/25259363204505-%E8%80%90%E6%80%A7%E6%89%93%E3%81%A1%E6%B6%88%E3%81%97
+  - 脆弱 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320902302745-%E8%84%86%E5%BC%B1
+  - 複数属性スタイル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/28956326660889-%E8%A4%87%E6%95%B0%E5%B1%9E%E6%80%A7%E3%82%B9%E3%82%BF%E3%82%A4%E3%83%AB
+  - 護りの真髄 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33946400431513-%E8%AD%B7%E3%82%8A%E3%81%AE%E7%9C%9F%E9%AB%84
+  - 貫通クリティカル | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/32543991643801-%E8%B2%AB%E9%80%9A%E3%82%AF%E3%83%AA%E3%83%86%E3%82%A3%E3%82%AB%E3%83%AB
+  - 追撃 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/46937801889817-%E8%BF%BD%E6%92%83
+  - 連戦系コンテンツ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/30187374351129-%E9%80%A3%E6%88%A6%E7%B3%BB%E3%82%B3%E3%83%B3%E3%83%86%E3%83%B3%E3%83%84
+  - 闘志 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321039109145-%E9%97%98%E5%BF%97
+  - 陣 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/47831417508889-%E9%99%A3
+  - 霊符 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/50970892519321-%E9%9C%8A%E7%AC%A6
+- プレミアムパス/ライトパス（8記事）
+  - 「マンスリーミッション」はどこから確認できますか | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321889355033--%E3%83%9E%E3%83%B3%E3%82%B9%E3%83%AA%E3%83%BC%E3%83%9F%E3%83%83%E3%82%B7%E3%83%A7%E3%83%B3-%E3%81%AF%E3%81%A9%E3%81%93%E3%81%8B%E3%82%89%E7%A2%BA%E8%AA%8D%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%99%E3%81%8B
+  - データの引き継ぎによるプレミアムパス/ライトパスの加入状況について | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321867576089-%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E3%81%AB%E3%82%88%E3%82%8B%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9%E3%81%AE%E5%8A%A0%E5%85%A5%E7%8A%B6%E6%B3%81%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6
+  - プレミアムパス/ライトパスとは何ですか | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321829428761-%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9%E3%81%A8%E3%81%AF%E4%BD%95%E3%81%A7%E3%81%99%E3%81%8B
+  - プレミアムパス/ライトパスに加入できたか確認したい | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321832310169-%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9%E3%81%AB%E5%8A%A0%E5%85%A5%E3%81%A7%E3%81%8D%E3%81%9F%E3%81%8B%E7%A2%BA%E8%AA%8D%E3%81%97%E3%81%9F%E3%81%84
+  - プレミアムパス/ライトパスの解約方法について（自動更新の停止） | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321923984793-%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9%E3%81%AE%E8%A7%A3%E7%B4%84%E6%96%B9%E6%B3%95%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6-%E8%87%AA%E5%8B%95%E6%9B%B4%E6%96%B0%E3%81%AE%E5%81%9C%E6%AD%A2
+  - 月額継続サービスの利用における注意事項 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321962131353-%E6%9C%88%E9%A1%8D%E7%B6%99%E7%B6%9A%E3%82%B5%E3%83%BC%E3%83%93%E3%82%B9%E3%81%AE%E5%88%A9%E7%94%A8%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85
+  - 有効期間の自動更新について | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321920783129-%E6%9C%89%E5%8A%B9%E6%9C%9F%E9%96%93%E3%81%AE%E8%87%AA%E5%8B%95%E6%9B%B4%E6%96%B0%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6
+  - 特典について | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321886102041-%E7%89%B9%E5%85%B8%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6
+- メニュー（9記事）
+  - ゲーム内メニュー | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320335563417-%E3%82%B2%E3%83%BC%E3%83%A0%E5%86%85%E3%83%A1%E3%83%8B%E3%83%A5%E3%83%BC
+  - シックスセンス | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320196469145-%E3%82%B7%E3%83%83%E3%82%AF%E3%82%B9%E3%82%BB%E3%83%B3%E3%82%B9
+  - セラフ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320306392345-%E3%82%BB%E3%83%A9%E3%83%95
+  - デイリーミッション | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/19517651466777-%E3%83%87%E3%82%A4%E3%83%AA%E3%83%BC%E3%83%9F%E3%83%83%E3%82%B7%E3%83%A7%E3%83%B3
+  - プレイヤーランク | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320193802777-%E3%83%97%E3%83%AC%E3%82%A4%E3%83%A4%E3%83%BC%E3%83%A9%E3%83%B3%E3%82%AF
+  - ライフ | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320392802969-%E3%83%A9%E3%82%A4%E3%83%95
+  - ライフの回復 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320402250649-%E3%83%A9%E3%82%A4%E3%83%95%E3%81%AE%E5%9B%9E%E5%BE%A9
+  - 編成 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320361786777-%E7%B7%A8%E6%88%90
+  - 設定 | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320339815065-%E8%A8%AD%E5%AE%9A
+- 動作不良（2記事）
+  - アプリが強制終了/フリーズした場合、どうしたら良いですか | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320147295897-%E3%82%A2%E3%83%97%E3%83%AA%E3%81%8C%E5%BC%B7%E5%88%B6%E7%B5%82%E4%BA%86-%E3%83%95%E3%83%AA%E3%83%BC%E3%82%BA%E3%81%97%E3%81%9F%E5%A0%B4%E5%90%88-%E3%81%A9%E3%81%86%E3%81%97%E3%81%9F%E3%82%89%E8%89%AF%E3%81%84%E3%81%A7%E3%81%99%E3%81%8B
+  - 音楽が流れませんが、どうしたら良いですか | https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320144627225-%E9%9F%B3%E6%A5%BD%E3%81%8C%E6%B5%81%E3%82%8C%E3%81%BE%E3%81%9B%E3%82%93%E3%81%8C-%E3%81%A9%E3%81%86%E3%81%97%E3%81%9F%E3%82%89%E8%89%AF%E3%81%84%E3%81%A7%E3%81%99%E3%81%8B
+
+## 5. 全訪問URL一覧（正規化URL）
+以下は `discoveredAll`（正規化後ユニークリスト）をURL昇順で列挙。
+- 1. https://wfs-heaven-burns-red.zendesk.com/hc/ja
+- 2. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15299183725081-%E3%83%97%E3%83%AC%E3%82%A4%E3%83%A4%E3%83%BCID%E3%81%AE%E7%A2%BA%E8%AA%8D%E6%96%B9%E6%B3%95%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%BB%E3%81%97%E3%81%84
+- 3. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317351100953-%E5%8B%95%E4%BD%9C%E7%92%B0%E5%A2%83%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+- 4. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317382510873-%E3%82%B2%E3%83%BC%E3%83%A0%E3%82%92%E3%82%BB%E3%83%BC%E3%83%96%E3%81%99%E3%82%8B%E6%96%B9%E6%B3%95%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+- 5. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317489906073-%E5%8B%95%E7%94%BB%E7%AD%89%E9%85%8D%E4%BF%A1%E3%82%AC%E3%82%A4%E3%83%89%E3%83%A9%E3%82%A4%E3%83%B3
+- 6. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317495269785-%E4%BA%8C%E6%AC%A1%E5%89%B5%E4%BD%9C%E3%82%AC%E3%82%A4%E3%83%89%E3%83%A9%E3%82%A4%E3%83%B3
+- 7. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15317608426521-%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8EID%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E8%A8%AD%E5%AE%9A
+- 8. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319582024345-%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8EID%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E
+- 9. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319610991641-Apple-ID%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E8%A8%AD%E5%AE%9A
+- 10. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319640292377-Apple-ID%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E
+- 11. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319644427289-Google%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E8%A8%AD%E5%AE%9A
+- 12. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319683021081-Google%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E
+- 13. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15319738930329-%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B%E3%81%AB%E5%AF%BE%E3%81%99%E3%82%8B%E8%BF%94%E4%BA%8B%E3%81%8C%E3%81%8D%E3%81%BE%E3%81%9B%E3%82%93
+- 14. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320144627225-%E9%9F%B3%E6%A5%BD%E3%81%8C%E6%B5%81%E3%82%8C%E3%81%BE%E3%81%9B%E3%82%93%E3%81%8C-%E3%81%A9%E3%81%86%E3%81%97%E3%81%9F%E3%82%89%E8%89%AF%E3%81%84%E3%81%A7%E3%81%99%E3%81%8B
+- 15. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320147295897-%E3%82%A2%E3%83%97%E3%83%AA%E3%81%8C%E5%BC%B7%E5%88%B6%E7%B5%82%E4%BA%86-%E3%83%95%E3%83%AA%E3%83%BC%E3%82%BA%E3%81%97%E3%81%9F%E5%A0%B4%E5%90%88-%E3%81%A9%E3%81%86%E3%81%97%E3%81%9F%E3%82%89%E8%89%AF%E3%81%84%E3%81%A7%E3%81%99%E3%81%8B
+- 16. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320193802777-%E3%83%97%E3%83%AC%E3%82%A4%E3%83%A4%E3%83%BC%E3%83%A9%E3%83%B3%E3%82%AF
+- 17. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320196469145-%E3%82%B7%E3%83%83%E3%82%AF%E3%82%B9%E3%82%BB%E3%83%B3%E3%82%B9
+- 18. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320306392345-%E3%82%BB%E3%83%A9%E3%83%95
+- 19. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320335563417-%E3%82%B2%E3%83%BC%E3%83%A0%E5%86%85%E3%83%A1%E3%83%8B%E3%83%A5%E3%83%BC
+- 20. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320339815065-%E8%A8%AD%E5%AE%9A
+- 21. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320361786777-%E7%B7%A8%E6%88%90
+- 22. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320392802969-%E3%83%A9%E3%82%A4%E3%83%95
+- 23. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320402250649-%E3%83%A9%E3%82%A4%E3%83%95%E3%81%AE%E5%9B%9E%E5%BE%A9
+- 24. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320405750937-%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AA%E3%83%BC%E3%81%AE%E3%82%84%E3%82%8A%E7%9B%B4%E3%81%97
+- 25. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320408125465-%E4%BA%A4%E6%B5%81
+- 26. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320460940313-%E5%88%86%E5%B2%90%E9%81%B8%E6%8A%9E
+- 27. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320464353945-%E3%82%B9%E3%82%BF%E3%82%A4%E3%83%AB
+- 28. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320493044249-%E6%88%A6%E5%8A%9B
+- 29. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320495413657-%E3%82%AC%E3%83%81%E3%83%A3%E3%81%A7%E5%87%BA%E3%81%A6%E3%81%8D%E3%81%9F%E3%82%B9%E3%82%BF%E3%82%A4%E3%83%AB%E3%81%8C%E8%A6%8B%E5%BD%93%E3%81%9F%E3%82%8A%E3%81%BE%E3%81%9B%E3%82%93
+- 30. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320505556249-%E7%B5%8C%E9%A8%93%E5%80%A4%E3%82%A2%E3%83%83%E3%83%97%E3%82%A2%E3%82%A4%E3%83%86%E3%83%A0-%E3%83%90%E3%83%88%E3%83%AB%E3%83%AC%E3%83%9D%E3%83%BC%E3%83%88-%E5%BC%B7%E5%8C%96%E6%95%99%E6%9C%AC-%E3%81%AE%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%BB%E3%81%97%E3%81%84
+- 31. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320508908313-%E3%82%B9%E3%82%AD%E3%83%AB
+- 32. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320555154329-%E9%99%90%E7%95%8C%E7%AA%81%E7%A0%B4
+- 33. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320564779417-%E3%83%94%E3%83%BC%E3%82%B9
+- 34. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320602247705-%E3%82%B9%E3%82%AD%E3%83%AB%E3%81%AE%E8%A3%85%E5%82%99
+- 35. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320655908121-%E5%B0%82%E7%94%A8%E3%82%B9%E3%82%AD%E3%83%AB
+- 36. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320666381977-%E5%B9%BB%E6%83%91
+- 37. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320696330393-OVERDRIVE
+- 38. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320706830233-%E3%83%88%E3%83%BC%E3%82%AF%E3%83%B3
+- 39. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320740141849-BREAK
+- 40. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320767440665-%E7%A0%B4%E5%A3%8A%E7%8E%87
+- 41. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320797129753-%E3%83%81%E3%83%A3%E3%83%BC%E3%82%B8
+- 42. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320802302745-%E7%84%A1%E6%95%B5
+- 43. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320840761625-%E3%82%B9%E3%82%BF%E3%83%B3
+- 44. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320851369497-%E3%83%90%E3%82%A4%E3%83%B3%E3%83%89
+- 45. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320897430809-%E6%8C%91%E7%99%BA
+- 46. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320902302745-%E8%84%86%E5%BC%B1
+- 47. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320943210137-%E3%82%A6%E3%82%A4%E3%83%AB%E3%82%B9
+- 48. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320945968537-%E6%B7%B7%E4%B9%B1
+- 49. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320948106649-%E5%B0%81%E5%8D%B0
+- 50. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320987219993-%E5%BF%83%E7%9C%BC
+- 51. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320992930585-%E5%8E%84
+- 52. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15320999429913-%E5%8F%8D%E5%8B%95
+- 53. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321039109145-%E9%97%98%E5%BF%97
+- 54. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321041274137-%E3%83%A1%E3%83%B3%E3%83%90%E3%83%BC%E3%81%AE%E8%A1%8C%E5%8B%95%E9%A0%86%E5%BA%8F
+- 55. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321043673881-DP%E7%8A%A0%E7%89%B2
+- 56. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321092584601-%E5%B9%B4%E9%BD%A2%E3%81%AB%E3%82%88%E3%82%8A%E8%B3%BC%E5%85%A5%E9%87%91%E9%A1%8D%E3%81%AE%E4%B8%8A%E9%99%90%E8%A8%AD%E5%AE%9A%E3%81%8C%E3%81%95%E3%82%8C%E3%81%A6%E3%81%84%E3%81%BE%E3%81%99%E3%81%8B
+- 57. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321103372569-%E6%9C%89%E5%84%9F%E3%81%A8%E7%84%A1%E5%84%9F%E3%81%AE%E9%81%95%E3%81%84%E3%81%AF%E3%81%AA%E3%82%93%E3%81%A7%E3%81%99%E3%81%8B
+- 58. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321137571481-%E5%88%A9%E7%94%A8%E5%B1%A5%E6%AD%B4%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+- 59. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321140262297-%E7%95%B0%E3%81%AA%E3%82%8BOS%E3%81%AB%E3%83%87%E3%83%BC%E3%82%BF%E3%82%92%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%84%E3%81%A0%E5%A0%B4%E5%90%88-%E3%82%AF%E3%82%A9%E3%83%BC%E3%83%84%E3%82%82%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%92%E3%81%BE%E3%81%99%E3%81%8B
+- 60. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321181895833-%E8%B3%BC%E5%85%A5%E3%81%8C%E5%8F%8D%E6%98%A0%E3%81%95%E3%82%8C%E3%81%AA%E3%81%84%E5%A0%B4%E5%90%88%E3%81%AF%E3%81%A9%E3%81%86%E3%81%97%E3%81%9F%E3%82%89%E8%89%AF%E3%81%84%E3%81%A7%E3%81%99%E3%81%8B
+- 61. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321184416793-%E4%BD%BF%E7%94%A8%E6%9C%9F%E9%99%90%E3%81%AF%E3%81%82%E3%82%8A%E3%81%BE%E3%81%99%E3%81%8B
+- 62. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321224050713--Steam%E7%89%88-%E5%8B%95%E4%BD%9C%E7%92%B0%E5%A2%83%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+- 63. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321228868633--Steam%E7%89%88-%E3%82%A2%E3%83%B3%E3%83%81%E3%82%A6%E3%82%A3%E3%83%AB%E3%82%B9%E3%82%BD%E3%83%95%E3%83%88%E3%81%8C%E4%BD%9C%E5%8B%95%E3%81%97%E3%81%A6%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AB%E3%81%8C%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%9B%E3%82%93
+- 64. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321274801561-%E7%AB%AF%E6%9C%AB%E9%96%93%E3%81%AE%E3%83%87%E3%83%BC%E3%82%BF%E9%80%A3%E6%90%BA%E3%81%A8%E8%87%AA%E5%8B%95%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E6%A9%9F%E8%83%BD%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6-%E9%87%8D%E8%A6%81
+- 65. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321829428761-%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9%E3%81%A8%E3%81%AF%E4%BD%95%E3%81%A7%E3%81%99%E3%81%8B
+- 66. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321832310169-%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9%E3%81%AB%E5%8A%A0%E5%85%A5%E3%81%A7%E3%81%8D%E3%81%9F%E3%81%8B%E7%A2%BA%E8%AA%8D%E3%81%97%E3%81%9F%E3%81%84
+- 67. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321867576089-%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E3%81%AB%E3%82%88%E3%82%8B%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9%E3%81%AE%E5%8A%A0%E5%85%A5%E7%8A%B6%E6%B3%81%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6
+- 68. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321886102041-%E7%89%B9%E5%85%B8%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6
+- 69. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321889355033--%E3%83%9E%E3%83%B3%E3%82%B9%E3%83%AA%E3%83%BC%E3%83%9F%E3%83%83%E3%82%B7%E3%83%A7%E3%83%B3-%E3%81%AF%E3%81%A9%E3%81%93%E3%81%8B%E3%82%89%E7%A2%BA%E8%AA%8D%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%99%E3%81%8B
+- 70. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321920783129-%E6%9C%89%E5%8A%B9%E6%9C%9F%E9%96%93%E3%81%AE%E8%87%AA%E5%8B%95%E6%9B%B4%E6%96%B0%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6
+- 71. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321923984793-%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9%E3%81%AE%E8%A7%A3%E7%B4%84%E6%96%B9%E6%B3%95%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6-%E8%87%AA%E5%8B%95%E6%9B%B4%E6%96%B0%E3%81%AE%E5%81%9C%E6%AD%A2
+- 72. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15321962131353-%E6%9C%88%E9%A1%8D%E7%B6%99%E7%B6%9A%E3%82%B5%E3%83%BC%E3%83%93%E3%82%B9%E3%81%AE%E5%88%A9%E7%94%A8%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85
+- 73. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15339396523417--Steam%E7%89%88-%E4%BA%88%E6%9C%9F%E3%81%97%E3%81%AA%E3%81%84%E3%82%A8%E3%83%A9%E3%83%BC%E3%81%8C%E7%99%BA%E7%94%9F%E3%81%97%E3%81%A6-%E3%82%BF%E3%82%A4%E3%83%88%E3%83%AB%E7%94%BB%E9%9D%A2%E3%81%AB%E6%88%BB%E3%82%8B
+- 74. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15339853269401-%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E6%A9%9F%E8%83%BD-%E9%87%8D%E8%A6%81
+- 75. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/15419263757337-%E3%82%BF%E3%82%A4%E3%83%A0%E3%82%BE%E3%83%BC%E3%83%B3%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6
+- 76. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/19517651466777-%E3%83%87%E3%82%A4%E3%83%AA%E3%83%BC%E3%83%9F%E3%83%83%E3%82%B7%E3%83%A7%E3%83%B3
+- 77. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/23161705068057-%E5%BC%B7%E3%83%96%E3%83%AC%E3%82%A4%E3%82%AF
+- 78. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/23209176582425-%E3%83%95%E3%82%A3%E3%83%BC%E3%83%AB%E3%83%89%E5%8A%B9%E6%9E%9C
+- 79. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/24700229699737-%E3%83%96%E3%83%AC%E3%82%A4%E3%82%AF%E6%99%82%E3%81%AB%E8%BF%BD%E5%8A%A0%E5%8A%B9%E6%9E%9C
+- 80. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/24700857754137-%E3%82%A2%E3%83%93%E3%83%AA%E3%83%86%E3%82%A3
+- 81. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/25259163276185-%E8%80%90%E6%80%A7%E3%83%80%E3%82%A6%E3%83%B3
+- 82. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/25259363204505-%E8%80%90%E6%80%A7%E6%89%93%E3%81%A1%E6%B6%88%E3%81%97
+- 83. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/25266097861913-%E3%83%90%E3%83%95-%E3%83%87%E3%83%90%E3%83%95%E3%81%AE%E6%9C%89%E5%8A%B9%E6%9C%9F%E9%96%93
+- 84. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/25266143232537-%E3%83%90%E3%83%95-%E3%83%87%E3%83%90%E3%83%95%E3%81%AE%E9%87%8D%E3%81%AD%E3%81%8C%E3%81%91
+- 85. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/26720721926425-%E3%83%87%E3%83%90%E3%83%95%E7%84%A1%E5%8A%B9
+- 86. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/26720897823769-%E7%B7%A8%E6%88%90%E6%9D%A1%E4%BB%B6%E3%82%A2%E3%83%93%E3%83%AA%E3%83%86%E3%82%A3
+- 87. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/27747314361753-%E3%83%96%E3%83%AC%E3%82%A4%E3%82%AF%E3%82%AC%E3%83%BC%E3%83%89
+- 88. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/28786672770073-%E3%83%90%E3%83%95%E8%A7%A3%E9%99%A4
+- 89. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/28956326660889-%E8%A4%87%E6%95%B0%E5%B1%9E%E6%80%A7%E3%82%B9%E3%82%BF%E3%82%A4%E3%83%AB
+- 90. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/28956482153113-%E3%82%B9%E3%82%A4%E3%83%83%E3%83%81%E3%82%B9%E3%82%AD%E3%83%AB
+- 91. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/30186400592921-%E3%83%AC%E3%83%99%E3%83%AB%E3%83%90%E3%83%95
+- 92. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/30187153931161-%E5%A3%AB%E6%B0%97
+- 93. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/30187374351129-%E9%80%A3%E6%88%A6%E7%B3%BB%E3%82%B3%E3%83%B3%E3%83%86%E3%83%B3%E3%83%84
+- 94. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/32543991643801-%E8%B2%AB%E9%80%9A%E3%82%AF%E3%83%AA%E3%83%86%E3%82%A3%E3%82%AB%E3%83%AB
+- 95. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33454649768985-%E6%B0%B8%E9%81%A0%E3%81%AA%E3%82%8B%E8%AA%93%E3%81%84
+- 96. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33454752601881-%E4%BD%BF%E7%94%A8%E5%9B%9E%E6%95%B0%E3%81%8C%E5%9B%9E%E6%95%B0%E9%99%90%E5%AE%9A%E3%81%AE%E3%82%B9%E3%82%AD%E3%83%AB
+- 97. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33454876555289-%E3%82%B9%E3%82%AD%E3%83%AB%E4%BD%BF%E7%94%A8%E5%9B%9E%E6%95%B0%E5%9B%9E%E5%BE%A9
+- 98. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33946400431513-%E8%AD%B7%E3%82%8A%E3%81%AE%E7%9C%9F%E9%AB%84
+- 99. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/33946806994201-%E5%B1%9E%E6%80%A7%E3%83%80%E3%83%A1%E3%83%BC%E3%82%B8%E5%90%B8%E5%8F%8E
+- 100. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/34617732192409-%E5%BD%B1%E5%88%86%E8%BA%AB
+- 101. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/35138394732441-%E3%83%91%E3%83%83%E3%82%B7%E3%83%96%E3%82%B9%E3%82%AD%E3%83%AB
+- 102. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/35138866290201-EX%E3%82%B9%E3%82%AD%E3%83%AB%E9%80%A3%E7%B6%9A%E7%99%BA%E5%8B%95
+- 103. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/35139098350105-EX%E3%82%B9%E3%82%AD%E3%83%AB
+- 104. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/36926330146457-Bluetooth%E6%8E%A5%E7%B6%9A%E3%81%97%E3%81%A6%E3%81%84%E3%82%8B%E3%82%B3%E3%83%B3%E3%83%88%E3%83%AD%E3%83%BC%E3%83%A9%E3%83%BC%E3%81%AE%E9%9B%BB%E6%BA%90%E3%82%92%E3%82%AA%E3%83%95%E3%81%AB%E3%81%97%E3%81%A6%E3%82%82%E3%83%9E%E3%82%A6%E3%82%B9-%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E6%93%8D%E4%BD%9C%E3%81%AB%E5%88%87%E3%82%8A%E6%9B%BF%E3%82%8F%E3%82%89%E3%81%AA%E3%81%84
+- 105. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/37021229555609-%E3%82%AA%E3%82%AE%E3%83%A3%E3%82%8A
+- 106. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/37021472648345-%E7%A8%B2%E7%A9%82%E3%83%95%E3%82%A3%E3%83%BC%E3%83%AB%E3%83%89
+- 107. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/38547687336217-%E3%83%8F%E3%83%83%E3%82%AD%E3%83%B3%E3%82%B0
+- 108. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/38548259387545-%E3%82%AF%E3%83%AA%E3%83%86%E3%82%A3%E3%82%AB%E3%83%AB
+- 109. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/39676297984665-%E3%83%80%E3%83%A1%E3%83%BC%E3%82%B8%E3%82%B9%E3%82%AD%E3%83%AB%E3%81%AE%E5%A8%81%E5%8A%9B
+- 110. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40489061740313--Google-Play-Games-on-PC-%E5%8B%95%E4%BD%9C%E7%92%B0%E5%A2%83%E3%82%92%E6%95%99%E3%81%88%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+- 111. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40489223296793-%E7%AB%AF%E6%9C%AB%E9%96%93%E3%81%AE%E3%83%87%E3%83%BC%E3%82%BF%E9%80%A3%E6%90%BA%E3%81%A8%E8%87%AA%E5%8B%95%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E6%A9%9F%E8%83%BD%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6-%E9%87%8D%E8%A6%81
+- 112. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40489465367065-Google-Play-Games%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%81%AB%E3%82%88%E3%82%8B%E8%87%AA%E5%8B%95%E9%80%A3%E6%90%BA
+- 113. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40489815791129-Google-Play-Games%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E%E8%A8%AD%E5%AE%9A-%E6%89%8B%E5%8B%95%E9%80%A3%E6%90%BA
+- 114. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40490075312537-Google-Play-Games%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%82%92%E7%94%A8%E3%81%84%E3%81%9F%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%BC%95%E3%81%8D%E7%B6%99%E3%81%8E-%E6%89%8B%E5%8B%95%E9%80%A3%E6%90%BA
+- 115. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/40951008222233-%E5%8D%98%E7%8B%AC%E7%99%BA%E5%8B%95
+- 116. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/46937801889817-%E8%BF%BD%E6%92%83
+- 117. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/47831417508889-%E9%99%A3
+- 118. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/48890751538585-%E5%85%B1%E9%B3%B4%E3%82%A2%E3%83%93%E3%83%AA%E3%83%86%E3%82%A3
+- 119. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/48890914006553-%E3%82%B5%E3%83%9D%E3%83%BC%E3%83%88%E6%9E%A0
+- 120. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/50369026797209--%E3%83%90%E3%83%88%E3%83%AB%E5%8B%9D%E5%88%A9%E6%99%82-%E3%81%AB%E7%99%BA%E7%94%9F%E3%81%99%E3%82%8B%E5%8A%B9%E6%9E%9C
+- 121. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/50970892519321-%E9%9C%8A%E7%AC%A6
+- 122. https://wfs-heaven-burns-red.zendesk.com/hc/ja/articles/50971362780825-%E3%82%84%E3%82%8B%E6%B0%97
+- 123. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283363469209-%E3%82%A2%E3%83%97%E3%83%AA%E5%85%A8%E8%88%AC
+- 124. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283463608857-%E3%83%A1%E3%83%8B%E3%83%A5%E3%83%BC
+- 125. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283474417689-%E5%8B%95%E4%BD%9C%E4%B8%8D%E8%89%AF
+- 126. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283516088345-%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AA%E3%83%BC
+- 127. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283518828313-%E3%83%90%E3%83%88%E3%83%AB
+- 128. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283518828313-%E3%83%90%E3%83%88%E3%83%AB?page=1
+- 129. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283518828313-%E3%83%90%E3%83%88%E3%83%AB?page=2
+- 130. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283532648985-%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC
+- 131. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283537592345-%E3%82%AF%E3%82%A9%E3%83%BC%E3%83%84
+- 132. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283539380377-Steam%E7%89%88
+- 133. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/15283543879321-%E3%83%97%E3%83%AC%E3%83%9F%E3%82%A2%E3%83%A0%E3%83%91%E3%82%B9-%E3%83%A9%E3%82%A4%E3%83%88%E3%83%91%E3%82%B9
+- 134. https://wfs-heaven-burns-red.zendesk.com/hc/ja/sections/40509809604377-Google-Play-Games-on-PC
+
+## 6. 未取得URL一覧
+- 未取得件数: `0`
+- 未取得URL: なし
+
+## 7. 再帰探索ログ要約
+- 開始点:
+  - ルート `https://wfs-heaven-burns-red.zendesk.com/hc/ja` から開始。
+- キュー運用:
+  - 各訪問ページでリンク抽出し、正規化後URLを対象に未訪問URLのみキュー投入。
+  - `visitLog` 件数は `134` で、各訪問後の `queue_after` を持つ。
+  - `queue_after` 推移: 初回 `10`、最大 `92`、最終 `0`。
+- 終了条件:
+  - `summary.termination_condition` は `未訪問リンク0で終了`。
+  - 最終的に未解決キュー残数 `0`。
+- 重複排除ルール:
+  - 正規化ルール適用後のURLをキーに重複除外。
+  - 抽出リンク `581` 件に対し、最終ユニーク訪問 `134` 件で `447` 件は既知URLとして再投入不要。
+
+## 8. 網羅率評価（訪問成功率）
+- 訪問成功率（成功 / 発見）: `134 / 134 = 100.00%`
+- リクエスト成功率（成功 / 試行）: `134 / (134 + 0) = 100.00%`
+- 評価: 今回クロールで発見された正規化対象URLは全件取得済み。

@@ -11,9 +11,10 @@
     "dev": "python3 -m http.server 8080"
   },
   "devDependencies": {
-    "vitest": "^1.0.4",
-    "jsdom": "^23.0.1",
+    "@vitest/coverage-v8": "^1.0.4",
     "@vitest/ui": "^1.0.4",
-    "@vitest/coverage-v8": "^1.0.4"
+    "jsdom": "^23.0.1",
+    "playwright": "^1.58.2",
+    "vitest": "^1.0.4"
   }
 }
