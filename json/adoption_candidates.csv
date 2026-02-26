@@ -1,0 +1,1261 @@
+file,field_path,type,presence_rate,null_rate,relation_relevance,simulator_relevance,initial_label,reason
+characters.json,root,object:59,1.000000,0.000000,low,low,adopt,ルートエンティティ。
+characters.json,root.base_param,object:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.con,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.con.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.dex,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.dex.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.dp,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.dp.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.hp,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.hp.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.level,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.level.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.luk,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.luk.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.sp,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.sp.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.spr,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.spr.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.str,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.str.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.wis,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.base_param.wis.[],number:118,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards,array:59,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[],object:339,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].ele,array:339,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].ele.[],string:179,0.915254,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].gabi,object:289|null:50,0.966102,0.147493,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].gabi.l,string:289,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].gabi.n,string:289,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].id,number:339,0.966102,0.000000,high,low,adopt,識別/結合に必要。
+characters.json,root.cards.[].image,string:339,0.966102,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.cards.[].label,string:339,0.966102,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].name,string:339,0.966102,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives,array:339,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[],object:734,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[].c,string:734,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[].e,array:734,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[].e.[],array:772,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[].e.[].[],string:1631,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[].i,number:734,0.966102,0.000000,high,low,adopt,識別/結合に必要。
+characters.json,root.cards.[].passives.[].l,string:734,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[].n,string:734,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[].s,number:734,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].passives.[].t,string:734,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].role,string:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].skills,array:339,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].skills.[],object:593,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].skills.[].c,number:593,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].skills.[].ct,string:593,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].skills.[].e,array:593,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].skills.[].e.[],array:1024,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].skills.[].e.[].[],string:2357,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].skills.[].i,number:593,0.966102,0.000000,high,low,adopt,識別/結合に必要。
+characters.json,root.cards.[].skills.[].l,string:593,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].skills.[].n,string:593,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].skills.[].u,number:593,0.966102,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.cards.[].stats,object:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.con,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.dex,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.dp,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.hp,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.luk,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.sp,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.spr,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.str,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].stats.wis,number:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].tier,string:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.cards.[].type,string:339,0.966102,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.id,number:59,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+characters.json,root.image,string:59,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.in_date,string:59,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.label,string:59,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly,null:35|object:24,1.000000,0.593220,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.desc,string:24,0.406780,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.masterly.id,number:24,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.in_date,string:24,0.406780,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.masterly.label,string:24,0.406780,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions,array:24,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[],object:72,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].category,string:72,0.406780,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].conditions,array:72,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.missions.[].conditions.[],object:144,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.missions.[].conditions.[].label,string:144,0.406780,0.000000,medium,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.missions.[].conditions.[].value,number:144,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.missions.[].desc,string:72,0.406780,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.masterly.missions.[].event,object:72,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].event.a,string:72,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].event.i,string:72,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].event.t,string:72,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].id,number:72,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].in_date,string:72,0.406780,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.masterly.missions.[].label,string:72,0.406780,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].out_date,string:72,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].reward,array:72,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.missions.[].type,string:72,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill,object:24,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.skill.auto_priority,number:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.card_form,string:24,0.406780,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.skill.cond,string:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.consume_type,string:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.desc,string:24,0.406780,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.masterly.skill.effect,string:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.hit_count,number:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.hits,array:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.hits.[],object:4,0.016949,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+characters.json,root.masterly.skill.hits.[].id,number:4,0.016949,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+characters.json,root.masterly.skill.hits.[].power_ratio,number:4,0.016949,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+characters.json,root.masterly.skill.hits.[].type,string:4,0.016949,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+characters.json,root.masterly.skill.id,number:24,0.406780,0.000000,high,low,adopt,識別/結合に必要。
+characters.json,root.masterly.skill.in_date,string:24,0.406780,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.masterly.skill.is_adv,boolean:24,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.skill.is_restricted,number:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.iuc_cond,string:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.label,string:24,0.406780,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.skill.max_level,number:24,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.skill.name,string:24,0.406780,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.skill.overwrite,number:24,0.406780,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.masterly.skill.overwrite_cond,string:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts,array:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[],object:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].cond,string:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].diff_for_max,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].dv,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].effect,object:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].effect.category,string:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].effect.exitCond,string:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].effect.exitVal,array:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].effect.exitVal.[],number:86,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].effect.ir,boolean:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].effect.limitType,string:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].elements,array:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].growth,array:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].growth.[],number:38,0.135593,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].hit_condition,string:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].hits,array:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].hits.[],object:11,0.118644,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].hits.[].id,number:11,0.118644,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].hits.[].power_ratio,number:11,0.118644,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].hits.[].type,string:11,0.118644,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].multipliers,object:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].multipliers.dp,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].multipliers.dr,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].multipliers.hp,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].parameters,object:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].parameters.con,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].parameters.dex,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].parameters.luk,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].parameters.spr,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].parameters.str,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].parameters.wis,number:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].power,array:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].power.[],number:86,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].skill_type,string:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].sstl,null:43,0.406780,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+characters.json,root.masterly.skill.parts.[].strval,array:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].strval.[],number:79|null:7,0.406780,0.081395,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].target_condition,string:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].target_type,string:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].type,null:42|string:1,0.406780,0.976744,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+characters.json,root.masterly.skill.parts.[].value,array:43,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.parts.[].value.[],number:86,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.passive,object:16|null:8,0.406780,0.333333,high,low,adopt,識別/結合に必要。
+characters.json,root.masterly.skill.passive.activ_rate,number:16,0.271186,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.passive.auto_type,string:16,0.271186,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.passive.condition,string:16,0.271186,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.passive.effect,string:16,0.271186,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.passive.limit,number:16,0.271186,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.passive.timing,string:16,0.271186,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.sp_cost,number:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.target_type,string:24,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.use_count,number:16|array:8,0.406780,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.masterly.skill.use_count.[],number:8,0.135593,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.name,string:59,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.profile,object:57|null:2,1.000000,0.033898,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.profile.bd,string:57,0.966102,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.profile.bp,string:57,0.966102,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.profile.cv,string:57,0.966102,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.profile.desc,string:57,0.966102,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.profile.hg,string:57,0.966102,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.profile.sc,string:57,0.966102,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.profile.vo,string:57,0.966102,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.reincarnation,number:59,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.restrict,array:59,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.restrict.[],object:15,0.254237,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.restrict.[].end,string:15,0.254237,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.restrict.[].start,string:15,0.254237,0.000000,low,high,adopt,戦闘計算に直接関与。
+characters.json,root.ruby,string:59,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+characters.json,root.team,string:59,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+characters.json,root.w_image,string:59,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+passives.json,root,object:734,1.000000,0.000000,low,low,adopt,ルートエンティティ。
+passives.json,root.activ_rate,number:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.auto_type,string:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.card_form,string:734,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+passives.json,root.category,string:734,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+passives.json,root.chara,string:734,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+passives.json,root.condition,string:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.ct,string:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.desc,string:734,1.000000,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+passives.json,root.effect,string:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.id,number:734,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+passives.json,root.image,string:734,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+passives.json,root.in_date,string:734,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+passives.json,root.info,string:734,1.000000,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+passives.json,root.label,string:734,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+passives.json,root.labels,null:733|array:1,1.000000,0.998638,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.labels.[],string:2,0.001362,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.lb,number:734,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+passives.json,root.limit,number:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.max,number:734,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+passives.json,root.name,string:734,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+passives.json,root.parts,array:733,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[],object:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].cond,string:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].diff_for_max,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].dv,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].effect,object:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].effect.category,string:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].effect.exitCond,string:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].effect.exitVal,array:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].effect.exitVal.[],number:1544,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].effect.ir,boolean:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].effect.limitType,string:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].elements,array:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].elements.[],string:87,0.118529,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].growth,array:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].hit_condition,string:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].hits,array:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].multipliers,object:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].multipliers.dp,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].multipliers.dr,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].multipliers.hp,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].parameters,object:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].parameters.con,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].parameters.dex,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].parameters.luk,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].parameters.spr,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].parameters.str,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].parameters.wis,number:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].power,array:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].power.[],number:1544,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].skill_type,string:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].sstl,null:771|array:1,0.998638,0.998705,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].sstl.[],string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval,array:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].strval.[],number:1502|null:35|object:9,0.998638,0.022639,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].strval.[].activ_rate,number:6,0.002725,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].auto_priority,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].auto_type,string:6,0.002725,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].card_form,string:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].category,string:6,0.002725,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].cond,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].condition,string:6,0.002725,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].consume_type,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].desc,string:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].effect,string:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].hit_count,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].hits,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].hits.[],object:6,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].hits.[].id,number:6,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].hits.[].power_ratio,number:6,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].hits.[].type,string:6,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].id,number:9,0.006812,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].in_date,string:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].info,string:6,0.002725,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].is_adv,boolean:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].is_restricted,number:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].is_strval,boolean:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].iuc_cond,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].label,string:9,0.006812,0.000000,medium,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].labels,null:6,0.002725,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].limit,number:6,0.002725,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].max_level,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].name,string:9,0.006812,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].overwrite,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].overwrite_cond,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts,array:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[],object:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].cond,string:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].diff_for_max,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].dv,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].effect,object:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].effect.category,string:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].effect.exitCond,string:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].effect.exitVal,array:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].effect.exitVal.[],number:16,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].effect.ir,boolean:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].effect.limitType,string:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].elements,array:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].growth,array:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].growth.[],number:4,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].hit_condition,string:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].hits,array:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].hits.[],object:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].hits.[].id,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].hits.[].power_ratio,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].hits.[].type,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].multipliers,object:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].multipliers.dp,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].multipliers.dr,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].multipliers.hp,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].parameters,object:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].parameters.con,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].parameters.dex,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].parameters.luk,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].parameters.spr,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].parameters.str,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].parameters.wis,number:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].power,array:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].power.[],number:16,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].skill_type,string:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].sstl,null:8,0.004087,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].strval,array:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].strval.[],number:16,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].target_condition,string:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].target_type,string:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].type,null:7|string:1,0.004087,0.875000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].value,array:8,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].parts.[].value.[],number:16,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].passive,null:1,0.001362,1.000000,high,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].sp_cost,number:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].target_type,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].timing,string:6,0.002725,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].strval.[].use_count,number:7,0.004087,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].target_condition,string:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].target_type,string:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].type,null:758|string:14,0.998638,0.981865,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.parts.[].value,array:772,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.parts.[].value.[],number:1544,0.998638,0.000000,low,high,adopt,戦闘計算に直接関与。
+passives.json,root.pc,number:734,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+passives.json,root.skill,object:1,0.001362,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.auto_priority,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.card_form,string:1,0.001362,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.cond,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.consume_type,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.desc,string:1,0.001362,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+passives.json,root.skill.effect,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.hit_count,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.hits,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.id,number:1,0.001362,0.000000,high,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.in_date,string:1,0.001362,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+passives.json,root.skill.is_adv,boolean:1,0.001362,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.is_restricted,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.iuc_cond,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.label,string:1,0.001362,0.000000,medium,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.max_level,number:1,0.001362,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.name,string:1,0.001362,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.overwrite,number:1,0.001362,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.overwrite_cond,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[],object:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].cond,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].diff_for_max,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].dv,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].effect,object:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].effect.category,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].effect.exitCond,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].effect.exitVal,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].effect.exitVal.[],number:2,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].effect.ir,boolean:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].effect.limitType,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].elements,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].growth,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].growth.[],number:2,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].hit_condition,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].hits,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].multipliers,object:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].multipliers.dp,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].multipliers.dr,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].multipliers.hp,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].parameters,object:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].parameters.con,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].parameters.dex,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].parameters.luk,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].parameters.spr,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].parameters.str,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].parameters.wis,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].power,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].power.[],number:2,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].skill_type,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].sstl,null:1,0.001362,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].strval,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].strval.[],number:2,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].target_condition,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].target_type,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].type,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].value,array:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.parts.[].value.[],number:2,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.passive,null:1,0.001362,1.000000,high,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.sp_cost,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.target_type,string:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.skill.use_count,number:1,0.001362,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+passives.json,root.style,string:734,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+passives.json,root.team,string:734,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+passives.json,root.timing,string:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root,object:689,1.000000,0.000000,low,low,adopt,ルートエンティティ。
+skills.json,root.auto_priority,number:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.card_form,string:689,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+skills.json,root.chara,string:689,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+skills.json,root.cond,string:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.consume_type,string:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.desc,string:689,1.000000,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+skills.json,root.effect,string:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.hit_count,number:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.hits,array:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.hits.[],object:571,0.148041,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.hits.[].id,number:571,0.148041,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.hits.[].power_ratio,number:571,0.148041,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.hits.[].type,string:571,0.148041,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.id,number:689,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+skills.json,root.image,string:689,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+skills.json,root.in_date,string:689,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+skills.json,root.is_adv,boolean:689,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+skills.json,root.is_restricted,number:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.iuc_cond,string:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.label,string:689,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+skills.json,root.max_level,number:689,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+skills.json,root.name,string:689,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+skills.json,root.overwrite,number:689,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+skills.json,root.overwrite_cond,string:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts,array:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[],object:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].cond,string:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].diff_for_max,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].dv,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].effect,object:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].effect.category,string:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].effect.exitCond,string:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].effect.exitVal,array:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].effect.exitVal.[],number:2240,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].effect.ir,boolean:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].effect.limitType,string:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].elements,array:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].elements.[],string:309,0.346880,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].growth,array:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].growth.[],number:2170,0.962264,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].hit_condition,string:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].hits,array:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].hits.[],object:422,0.462990,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].hits.[].id,number:422,0.462990,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].hits.[].power_ratio,number:422,0.462990,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].hits.[].type,string:422,0.462990,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].multipliers,object:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].multipliers.dp,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].multipliers.dr,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].multipliers.hp,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].parameters,object:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].parameters.con,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].parameters.dex,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].parameters.luk,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].parameters.spr,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].parameters.str,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].parameters.wis,number:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].power,array:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].power.[],number:2240,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].skill_type,string:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].sstl,null:1117|array:3,1.000000,0.997321,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].sstl.[],string:3,0.004354,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval,array:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[],number:2092|object:180|null:6,1.000000,0.002634,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].auto_priority,number:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].card_form,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].cond,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].consume_type,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].desc,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].effect,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].hit_count,number:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].hits,array:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].hits.[],object:696,0.062409,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].hits.[].id,number:696,0.062409,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].hits.[].power_ratio,number:696,0.062409,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].hits.[].type,string:696,0.062409,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].id,number:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].in_date,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].is_adv,boolean:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].is_restricted,number:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].is_strval,boolean:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].iuc_cond,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].label,string:180,0.104499,0.000000,medium,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].max_level,number:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].name,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].overwrite,number:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].overwrite_cond,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts,array:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[],object:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].cond,string:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].diff_for_max,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].dv,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].effect,object:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].effect.category,string:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].effect.exitCond,string:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].effect.exitVal,array:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].effect.exitVal.[],number:826,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].effect.ir,boolean:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].effect.limitType,string:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].elements,array:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].elements.[],string:192,0.072569,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].growth,array:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].growth.[],number:826,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].hit_condition,string:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].hits,array:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].hits.[],object:233,0.084180,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].hits.[].id,number:233,0.084180,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].hits.[].power_ratio,number:233,0.084180,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].hits.[].type,string:233,0.084180,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].multipliers,object:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].multipliers.dp,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].multipliers.dr,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].multipliers.hp,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].parameters,object:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].parameters.con,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].parameters.dex,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].parameters.luk,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].parameters.spr,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].parameters.str,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].parameters.wis,number:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].power,array:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].power.[],number:826,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].skill_type,string:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].sstl,null:413,0.104499,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval,array:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].strval.[],number:824|object:2,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].auto_priority,number:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].card_form,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].cond,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].consume_type,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].desc,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].effect,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].hit_count,number:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].hits,array:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].hits.[],object:10,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].hits.[].id,number:10,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].hits.[].power_ratio,number:10,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].hits.[].type,string:10,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].id,number:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].in_date,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].is_adv,boolean:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].is_restricted,number:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].is_strval,boolean:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].iuc_cond,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].label,string:2,0.001451,0.000000,medium,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].max_level,number:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].name,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].overwrite,number:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].overwrite_cond,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts,array:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[],object:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].cond,string:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].diff_for_max,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].dv,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].effect,object:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].effect.category,string:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].effect.exitCond,string:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].effect.exitVal,array:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].effect.exitVal.[],number:6,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].effect.ir,boolean:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].effect.limitType,string:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].elements,array:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].elements.[],string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].growth,array:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].growth.[],number:6,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].hit_condition,string:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].hits,array:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].hits.[],object:1,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].hits.[].id,number:1,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].hits.[].power_ratio,number:1,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].hits.[].type,string:1,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].multipliers,object:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].multipliers.dp,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].multipliers.dr,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].multipliers.hp,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].parameters,object:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].parameters.con,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].parameters.dex,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].parameters.luk,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].parameters.spr,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].parameters.str,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].parameters.wis,number:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].power,array:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].power.[],number:6,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].skill_type,string:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].sstl,null:3,0.001451,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].strval,array:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].strval.[],number:6,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].target_condition,string:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].target_type,string:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].type,string:2|null:1,0.001451,0.333333,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].value,array:3,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].parts.[].value.[],number:6,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].passive,null:2,0.001451,1.000000,high,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].sp_cost,number:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].target_type,string:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].strval.[].use_count,number:2,0.001451,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].parts.[].target_condition,string:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].target_type,string:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].type,null:274|string:139,0.104499,0.663438,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].value,array:413,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].parts.[].value.[],number:826,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].passive,null:180,0.104499,1.000000,high,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.parts.[].strval.[].sp_cost,number:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].target_type,string:180,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].use_count,array:110|number:70,0.104499,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].strval.[].use_count.[],number:324,0.076923,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].target_condition,string:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].target_type,string:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].type,null:662|string:458,1.000000,0.591071,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].value,array:1120,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.parts.[].value.[],number:2240,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.passive,null:663|object:26,1.000000,0.962264,high,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+skills.json,root.passive.activ_rate,number:26,0.037736,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.passive.auto_type,string:26,0.037736,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.passive.condition,string:26,0.037736,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.passive.effect,string:26,0.037736,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.passive.limit,number:26,0.037736,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.passive.timing,string:26,0.037736,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.role,string:545,0.791001,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.sp_cost,number:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.style,string:689,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+skills.json,root.target_type,string:689,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.team,string:689,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+skills.json,root.use_count,number:402|array:287,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+skills.json,root.use_count.[],number:903,0.416546,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root,object:339,1.000000,0.000000,low,low,adopt,ルートエンティティ。
+styles.json,root.ability_tree,array:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[],object:2527,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list,array:2527,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[],object:25068,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].category,string:25068,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].is_exclusive,boolean:25068,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].requires,object:25068,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].requires.ci_num,number:25068,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].requires.items,array:25068,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].requires.items.[],object:39522,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].requires.items.[].item,string:39522,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].requires.items.[].num,number:39522,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].requires.level,number:25068,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].requires.sc_num,number:25068,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].ability_list.[].skill,null:22106|number:2962,1.000000,0.881841,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.ability_tree.[].ability_list.[].type,string:25068,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.ability_tree.[].ability_list.[].value,array:25068,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.ability_tree.[].ability_list.[].value_type,string:25068,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.ability_tree.[].ability_list.[].value.[],number:50136,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.ability_tree.[].conditions,null:1358|array:1169,1.000000,0.537396,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.ability_tree.[].conditions.[],string:1169,0.997050,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.ability_tree.[].label,string:2527,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.ability_tree.[].name,string:2527,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.another,null:338|object:1,1.000000,0.997050,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.another.bg,string:1,0.002950,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.another.chara,string:1,0.002950,0.000000,high,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.another.chara_icon,string:1,0.002950,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.another.chara_label,string:1,0.002950,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.another.image,string:1,0.002950,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.another.label,string:1,0.002950,0.000000,medium,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.another.name,string:1,0.002950,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.another.role,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.another.weapon,object:1,0.002950,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.another.weapon.name,string:1,0.002950,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.another.weapon.type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.base_param,object:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.con,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.dex,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.dp,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.hp,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.luk,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.sp,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.spr,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.str,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.base_param.wis,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.bg,string:339,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.chara,string:339,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+styles.json,root.chara_icon,string:339,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.chara_label,string:339,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.desc,string:339,1.000000,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.desc_evo,string:339,1.000000,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.elements,array:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.elements.[],string:179,0.519174,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.generalize,boolean:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.growth_abi,object:289|null:50,1.000000,0.147493,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.growth_abi.l,string:289,0.852507,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.growth_abi.n,string:289,0.852507,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.id,number:339,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+styles.json,root.image,string:339,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.in_date,string:339,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.label,string:339,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.limit_break,object:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level,array:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[],object:3039,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus,array:3039,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[],object:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].activ_rate,number:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].auto_type,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].card_form,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].category,string:734,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].condition,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].ct,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].desc,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].effect,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].id,number:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].in_date,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].info,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].label,string:588,1.000000,0.000000,medium,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].labels,null:588,1.000000,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].limit,number:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].name,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts,array:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[],object:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].cond,string:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].diff_for_max,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].dv,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].effect,object:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].effect.category,string:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].effect.exitCond,string:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].effect.exitVal,array:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].effect.exitVal.[],number:1214,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].effect.ir,boolean:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].effect.limitType,string:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].elements,array:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].elements.[],string:57,0.162242,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].growth,array:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].hit_condition,string:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].hits,array:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].multipliers,object:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].multipliers.dp,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].multipliers.dr,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].multipliers.hp,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].parameters,object:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].parameters.con,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].parameters.dex,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].parameters.luk,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].parameters.spr,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].parameters.str,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].parameters.wis,number:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].power,array:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].power.[],number:1214,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].skill_type,string:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].sstl,null:607,1.000000,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval,array:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[],number:1192|null:16|object:8,1.000000,0.013158,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].activ_rate,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].auto_type,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].card_form,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].category,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].condition,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].desc,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].effect,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].id,number:8,0.011799,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].in_date,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].info,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].is_restricted,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].is_strval,boolean:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].label,string:8,0.011799,0.000000,medium,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].labels,null:6,0.005900,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].limit,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].name,string:8,0.011799,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts,array:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[],object:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].cond,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].diff_for_max,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].dv,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].effect,object:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].effect.category,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].effect.exitCond,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].effect.exitVal,array:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].effect.exitVal.[],number:12,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].effect.ir,boolean:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].effect.limitType,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].elements,array:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].growth,array:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].hit_condition,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].hits,array:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].multipliers,object:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].multipliers.dp,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].multipliers.dr,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].multipliers.hp,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].parameters,object:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].parameters.con,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].parameters.dex,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].parameters.luk,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].parameters.spr,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].parameters.str,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].parameters.wis,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].power,array:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].power.[],number:12,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].skill_type,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].sstl,null:6,0.005900,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].strval,array:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].strval.[],number:12,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].target_condition,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].target_type,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].type,null:6,0.005900,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].value,array:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].parts.[].value.[],number:12,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].sp_cost,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].timing,string:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].strval.[].use_count,number:6,0.005900,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].target_condition,string:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].target_type,string:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].type,null:593|string:14,1.000000,0.976936,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].value,array:607,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].parts.[].value.[],number:1214,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].skill,null:146,0.430678,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].timing,string:588,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].type,string:146,0.430678,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].value,array:146,0.430678,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].value_type,string:146,0.430678,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].bonus.[].value.[],number:292,0.430678,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].level_cap,number:3039,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].piece_num,number:3039,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.bonus_per_level.[].step,number:3039,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.limit_break.stat_up_per_level,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.lmv,string:194|null:145,1.000000,0.427729,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.lvl,string:194|null:145,1.000000,0.427729,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.lvt,string:194|null:145,1.000000,0.427729,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.mv,null:214|string:125,1.000000,0.631268,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.name,string:339,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.pair_weapon,string:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.passives,array:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.passives.[],object:485,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.passives.[].activ_rate,number:485,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].auto_type,string:485,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].card_form,string:485,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.passives.[].category,string:485,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.passives.[].condition,string:485,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].desc,string:485,1.000000,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.passives.[].effect,string:485,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].id,number:485,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+styles.json,root.passives.[].in_date,string:485,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.passives.[].info,string:485,1.000000,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.passives.[].label,string:485,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.passives.[].labels,null:484|array:1,1.000000,0.997938,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].labels.[],string:2,0.002950,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].limit,number:485,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].name,string:485,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.passives.[].parts,array:484,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[],object:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].cond,string:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].diff_for_max,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].dv,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].effect,object:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].effect.category,string:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].effect.exitCond,string:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].effect.exitVal,array:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].effect.exitVal.[],number:1008,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].effect.ir,boolean:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].effect.limitType,string:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].elements,array:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].elements.[],string:30,0.088496,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].growth,array:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].hit_condition,string:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].hits,array:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].multipliers,object:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].multipliers.dp,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].multipliers.dr,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].multipliers.hp,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].parameters,object:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].parameters.con,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].parameters.dex,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].parameters.luk,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].parameters.spr,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].parameters.str,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].parameters.wis,number:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].power,array:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].power.[],number:1008,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].skill_type,string:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].sstl,null:503|array:1,1.000000,0.998016,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].sstl.[],string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval,array:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].strval.[],number:988|null:19|object:1,1.000000,0.018849,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].strval.[].auto_priority,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].card_form,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].cond,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].consume_type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].desc,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].effect,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].hit_count,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].hits,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].hits.[],object:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].hits.[].id,number:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].hits.[].power_ratio,number:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].hits.[].type,string:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].id,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].in_date,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].is_adv,boolean:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].is_restricted,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].is_strval,boolean:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].iuc_cond,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].label,string:1,0.002950,0.000000,medium,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].max_level,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].name,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].overwrite,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].overwrite_cond,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[],object:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].cond,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].diff_for_max,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].dv,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].effect,object:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].effect.category,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].effect.exitCond,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].effect.exitVal,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].effect.exitVal.[],number:4,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].effect.ir,boolean:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].effect.limitType,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].elements,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].growth,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].growth.[],number:4,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].hit_condition,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].hits,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].hits.[],object:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].hits.[].id,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].hits.[].power_ratio,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].hits.[].type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].multipliers,object:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].multipliers.dp,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].multipliers.dr,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].multipliers.hp,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].parameters,object:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].parameters.con,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].parameters.dex,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].parameters.luk,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].parameters.spr,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].parameters.str,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].parameters.wis,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].power,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].power.[],number:4,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].skill_type,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].sstl,null:2,0.002950,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].strval,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].strval.[],number:4,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].target_condition,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].target_type,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].type,string:1|null:1,0.002950,0.500000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].value,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].parts.[].value.[],number:4,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].passive,null:1,0.002950,1.000000,high,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].sp_cost,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].target_type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].strval.[].use_count,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].target_condition,string:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].target_type,string:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].type,null:504,1.000000,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].parts.[].value,array:504,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].parts.[].value.[],number:1008,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.passives.[].skill,object:1,0.002950,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.auto_priority,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.card_form,string:1,0.002950,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.cond,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.consume_type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.desc,string:1,0.002950,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.passives.[].skill.effect,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.hit_count,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.hits,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.id,number:1,0.002950,0.000000,high,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.in_date,string:1,0.002950,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.passives.[].skill.is_adv,boolean:1,0.002950,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.is_restricted,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.iuc_cond,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.label,string:1,0.002950,0.000000,medium,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.max_level,number:1,0.002950,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.name,string:1,0.002950,0.000000,low,medium,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.overwrite,number:1,0.002950,0.000000,low,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.overwrite_cond,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[],object:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].cond,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].diff_for_max,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].dv,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].effect,object:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].effect.category,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].effect.exitCond,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].effect.exitVal,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].effect.exitVal.[],number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].effect.ir,boolean:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].effect.limitType,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].elements,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].growth,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].growth.[],number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].hit_condition,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].hits,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].multipliers,object:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].multipliers.dp,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].multipliers.dr,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].multipliers.hp,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].parameters,object:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].parameters.con,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].parameters.dex,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].parameters.luk,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].parameters.spr,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].parameters.str,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].parameters.wis,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].power,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].power.[],number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].skill_type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].sstl,null:1,0.002950,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].strval,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].strval.[],number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].target_condition,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].target_type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].value,array:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.parts.[].value.[],number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.passive,null:1,0.002950,1.000000,high,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.sp_cost,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.target_type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].skill.use_count,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.passives.[].timing,string:485,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.piece,object:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.almightyRate,number:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.category,string:339,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.currency,string:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.id,number:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.image,string:339,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.piece.is_item,boolean:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.label,string:339,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.limit,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.piece.location,string:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.name,string:339,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.price,number:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.price_alt,number:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.rarity,number:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.sale,number:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.text,string:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.piece.value,number:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.release,string:339,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.resonance,string:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.role,string:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.roleabi,null:334|object:5,1.000000,0.985251,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.roleabi.desc,string:5,0.014749,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.roleabi.label,string:5,0.014749,0.000000,medium,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.roleabi.name,string:5,0.014749,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.roleabi.role,string:5,0.014749,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills,array:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.skills.[],object:1266,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.skills.[].auto_priority,number:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].card_form,string:1266,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.skills.[].cond,string:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].consume_type,string:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].desc,string:1266,1.000000,0.000000,low,medium,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.skills.[].effect,string:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].hit_count,number:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].hits,array:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].hits.[],object:574,0.256637,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].hits.[].id,number:574,0.256637,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].hits.[].power_ratio,number:574,0.256637,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].hits.[].type,string:574,0.256637,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].id,number:1266,1.000000,0.000000,high,low,adopt,識別/結合に必要。
+styles.json,root.skills.[].in_date,string:1266,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.skills.[].is_adv,boolean:1266,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.skills.[].is_restricted,number:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].iuc_cond,string:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].label,string:1266,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.skills.[].max_level,number:1266,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.skills.[].name,string:1266,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.skills.[].overwrite,number:1266,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.skills.[].overwrite_cond,string:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts,array:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[],object:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].cond,string:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].diff_for_max,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].dv,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].effect,object:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].effect.category,string:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].effect.exitCond,string:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].effect.exitVal,array:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].effect.exitVal.[],number:3394,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].effect.ir,boolean:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].effect.limitType,string:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].elements,array:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].elements.[],string:309,0.507375,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].growth,array:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].growth.[],number:3324,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].hit_condition,string:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].hits,array:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].hits.[],object:422,0.666667,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].hits.[].id,number:422,0.666667,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].hits.[].power_ratio,number:422,0.666667,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].hits.[].type,string:422,0.666667,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].multipliers,object:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].multipliers.dp,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].multipliers.dr,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].multipliers.hp,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].parameters,object:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].parameters.con,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].parameters.dex,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].parameters.luk,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].parameters.spr,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].parameters.str,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].parameters.wis,number:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].power,array:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].power.[],number:3394,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].skill_type,string:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].sstl,null:1694|array:3,1.000000,0.998232,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].sstl.[],string:3,0.008850,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval,array:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[],number:3246|object:180|null:6,1.000000,0.001748,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].auto_priority,number:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].card_form,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].cond,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].consume_type,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].desc,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].effect,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].hit_count,number:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].hits,array:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].hits.[],object:696,0.117994,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].hits.[].id,number:696,0.117994,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].hits.[].power_ratio,number:696,0.117994,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].hits.[].type,string:696,0.117994,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].id,number:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].in_date,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].is_adv,boolean:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].is_restricted,number:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].is_strval,boolean:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].iuc_cond,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].label,string:180,0.176991,0.000000,medium,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].max_level,number:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].name,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].overwrite,number:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].overwrite_cond,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts,array:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[],object:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].cond,string:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].diff_for_max,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].dv,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].effect,object:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].effect.category,string:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].effect.exitCond,string:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].effect.exitVal,array:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].effect.exitVal.[],number:826,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].effect.ir,boolean:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].effect.limitType,string:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].elements,array:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].elements.[],string:192,0.132743,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].growth,array:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].growth.[],number:826,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].hit_condition,string:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].hits,array:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].hits.[],object:233,0.147493,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].hits.[].id,number:233,0.147493,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].hits.[].power_ratio,number:233,0.147493,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].hits.[].type,string:233,0.147493,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].multipliers,object:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].multipliers.dp,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].multipliers.dr,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].multipliers.hp,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].parameters,object:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].parameters.con,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].parameters.dex,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].parameters.luk,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].parameters.spr,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].parameters.str,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].parameters.wis,number:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].power,array:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].power.[],number:826,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].skill_type,string:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].sstl,null:413,0.176991,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval,array:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[],number:824|object:2,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].auto_priority,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].card_form,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].cond,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].consume_type,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].desc,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].effect,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].hit_count,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].hits,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].hits.[],object:10,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].hits.[].id,number:10,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].hits.[].power_ratio,number:10,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].hits.[].type,string:10,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].id,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].in_date,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].is_adv,boolean:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].is_restricted,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].is_strval,boolean:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].iuc_cond,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].label,string:2,0.002950,0.000000,medium,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].max_level,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].name,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].overwrite,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].overwrite_cond,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts,array:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[],object:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].cond,string:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].diff_for_max,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].dv,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].effect,object:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].effect.category,string:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].effect.exitCond,string:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].effect.exitVal,array:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].effect.exitVal.[],number:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].effect.ir,boolean:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].effect.limitType,string:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].elements,array:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].elements.[],string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].growth,array:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].growth.[],number:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].hit_condition,string:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].hits,array:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].hits.[],object:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].hits.[].id,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].hits.[].power_ratio,number:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].hits.[].type,string:1,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].multipliers,object:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].multipliers.dp,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].multipliers.dr,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].multipliers.hp,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].parameters,object:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].parameters.con,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].parameters.dex,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].parameters.luk,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].parameters.spr,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].parameters.str,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].parameters.wis,number:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].power,array:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].power.[],number:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].skill_type,string:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].sstl,null:3,0.002950,1.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].strval,array:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].strval.[],number:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].target_condition,string:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].target_type,string:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].type,string:2|null:1,0.002950,0.333333,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].value,array:3,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].parts.[].value.[],number:6,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].passive,null:2,0.002950,1.000000,high,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].sp_cost,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].target_type,string:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].strval.[].use_count,number:2,0.002950,0.000000,low,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].target_condition,string:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].target_type,string:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].type,null:274|string:139,0.176991,0.663438,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].value,array:413,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].parts.[].value.[],number:826,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].passive,null:180,0.176991,1.000000,high,high,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].parts.[].strval.[].sp_cost,number:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].target_type,string:180,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].use_count,array:110|number:70,0.176991,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].strval.[].use_count.[],number:324,0.135693,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].target_condition,string:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].target_type,string:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].type,string:1035|null:662,1.000000,0.390100,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].value,array:1697,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].parts.[].value.[],number:3394,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].passive,null:1240|object:26,1.000000,0.979463,high,low,hold,推測: 出現率またはnull率の観点で仕様確認が必要。
+styles.json,root.skills.[].passive.activ_rate,number:26,0.076696,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].passive.auto_type,string:26,0.076696,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].passive.condition,string:26,0.076696,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].passive.effect,string:26,0.076696,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].passive.limit,number:26,0.076696,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].passive.timing,string:26,0.076696,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].sp_cost,number:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].target_type,string:1266,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].use_count,number:979|array:287,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.skills.[].use_count.[],number:903,0.619469,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.strip,string:339,1.000000,0.000000,low,low,drop,表示・装飾寄りで戦闘シミュレーション寄与が低い。
+styles.json,root.team,string:339,1.000000,0.000000,medium,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.tier,string:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.type,string:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
+styles.json,root.weapon,object:339,1.000000,0.000000,low,low,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.weapon.name,string:339,1.000000,0.000000,low,medium,hold,推測: 用途はあるが仕様確認待ち。
+styles.json,root.weapon.type,string:339,1.000000,0.000000,low,high,adopt,戦闘計算に直接関与。
