@@ -3,6 +3,7 @@ import path from 'path';
 
 const ROOT = '/Users/ram4/git/hbr_battle_simulator';
 const JSON_DIR = path.join(ROOT, 'json');
+const REPORTS_DIR = path.join(JSON_DIR, 'reports', 'migration');
 
 function readJson(relPath) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, relPath), 'utf8'));
@@ -287,12 +288,16 @@ const artifacts = {
   }
 };
 
-fs.writeFileSync(path.join(JSON_DIR, 'migration_artifacts.json'), JSON.stringify(artifacts, null, 2));
-fs.writeFileSync(path.join(JSON_DIR, 'new_skill_database.draft.json'), JSON.stringify(artifacts.candidateDatabase, null, 2));
-fs.writeFileSync(path.join(JSON_DIR, 'migration_metrics.json'), JSON.stringify(artifacts.comparison, null, 2));
+fs.writeFileSync(path.join(REPORTS_DIR, 'migration_artifacts.json'), JSON.stringify(artifacts, null, 2));
+fs.writeFileSync(path.join(REPORTS_DIR, 'new_skill_database.draft.json'), JSON.stringify(artifacts.candidateDatabase, null, 2));
+fs.writeFileSync(path.join(REPORTS_DIR, 'migration_metrics.json'), JSON.stringify(artifacts.comparison, null, 2));
 
 console.log(JSON.stringify({
-  output: ['json/migration_artifacts.json', 'json/new_skill_database.draft.json', 'json/migration_metrics.json'],
+  output: [
+    'json/reports/migration/migration_artifacts.json',
+    'json/reports/migration/new_skill_database.draft.json',
+    'json/reports/migration/migration_metrics.json'
+  ],
   coverage,
   replacementClassification
 }, null, 2));

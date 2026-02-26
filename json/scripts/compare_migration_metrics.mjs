@@ -3,15 +3,15 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 const ROOT = '/Users/ram4/git/hbr_battle_simulator';
-const CURRENT_METRICS_PATH = path.join(ROOT, 'json', 'migration_metrics.json');
-const OUTPUT_REPORT_PATH = path.join(ROOT, 'json', 'migration_increment_report.json');
+const CURRENT_METRICS_PATH = path.join(ROOT, 'json', 'reports', 'migration', 'migration_metrics.json');
+const OUTPUT_REPORT_PATH = path.join(ROOT, 'json', 'reports', 'migration', 'migration_increment_report.json');
 
 function readJsonFile(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
 function readHeadJson(relPath) {
-  const cmd = `git show HEAD:${relPath}`;
+  const cmd = `git show HEAD:${relPath} 2>/dev/null`;
   const text = execSync(cmd, { cwd: ROOT, encoding: 'utf8' });
   return JSON.parse(text);
 }
@@ -28,12 +28,18 @@ function formatDelta(v, digits = 0) {
 const current = readJsonFile(CURRENT_METRICS_PATH);
 
 let base;
-let baseRef = 'HEAD:json/migration_metrics.json';
+let baseRef = 'HEAD:json/reports/migration/migration_metrics.json';
 try {
-  base = readHeadJson('json/migration_metrics.json');
+  base = readHeadJson('json/reports/migration/migration_metrics.json');
 } catch (err) {
-  console.error('baseline read failed:', err.message);
-  process.exit(1);
+  // Backward compatibility: HEAD may still have metrics at the old path before migration.
+  try {
+    baseRef = 'HEAD:json/migration_metrics.json';
+    base = readHeadJson('json/migration_metrics.json');
+  } catch (fallbackErr) {
+    console.error('baseline read failed:', fallbackErr.message);
+    process.exit(1);
+  }
 }
 
 const keys = [

@@ -85,7 +85,7 @@
 ## 4) 新スキーマ提案
 
 - 定義ファイル: `json/new_skill_database.schema.json`
-- 生成例: `json/new_skill_database.draft.json`
+- 生成例: `json/reports/migration/new_skill_database.draft.json`
 
 ### 4-1. 設計要点
 
@@ -109,9 +109,9 @@
 
 - 実装: `json/scripts/build_skill_migration_artifacts.mjs`
 - 出力:
-  - `json/migration_artifacts.json`
-  - `json/new_skill_database.draft.json`
-  - `json/migration_metrics.json`
+  - `json/reports/migration/migration_artifacts.json`
+  - `json/reports/migration/new_skill_database.draft.json`
+  - `json/reports/migration/migration_metrics.json`
 
 ### 5-1. 処理フロー
 
@@ -150,12 +150,12 @@ write artifacts + metrics
 ### 5-4. 検証手順
 
 - `node json/scripts/build_skill_migration_artifacts.mjs`
-- `json/migration_metrics.json` の閾値確認
+- `json/reports/migration/migration_metrics.json` の閾値確認
 - サンプル差分（未一致/新規）をレビュー
 
 ## 6) 比較結果（定量）
 
-出典: `json/migration_metrics.json`
+出典: `json/reports/migration/migration_metrics.json`
 
 - 旧行数: 586
 - 新候補行数（distinct name集約）: 689

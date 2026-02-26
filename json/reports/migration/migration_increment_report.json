@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-26T16:09:59.405Z",
+  "generatedAt": "2026-02-26T16:18:21.628Z",
   "baseline": "HEAD:json/migration_metrics.json",
   "delta": {
     "legacyRowCount": {
@@ -18,14 +18,14 @@
       "diff": 0
     },
     "exactMatch": {
-      "before": 368,
+      "before": 590,
       "after": 590,
-      "diff": 222
+      "diff": 0
     },
     "nameMatchOnly": {
-      "before": 222,
+      "before": 0,
       "after": 0,
-      "diff": -222
+      "diff": 0
     },
     "unmatchedLegacyRows": {
       "before": 0,
@@ -33,25 +33,25 @@
       "diff": 0
     },
     "costMismatch": {
-      "before": 3,
+      "before": 0,
       "after": 0,
-      "diff": -3
+      "diff": 0
     },
     "typeMismatch": {
-      "before": 220,
+      "before": 0,
       "after": 0,
-      "diff": -220
+      "diff": 0
     },
     "candidateRowsNotInLegacy": {
-      "before": 325,
+      "before": 103,
       "after": 103,
-      "diff": -222
+      "diff": 0
     },
     "exactMatchRate": {
-      "before": 0.6237288135593221,
+      "before": 1,
       "after": 1,
-      "diff": 0.3762711864406779,
-      "diffPercentagePoint": 37.62711864406779
+      "diff": 0,
+      "diffPercentagePoint": 0
     },
     "nameLevelCoverage": {
       "before": 1,
@@ -60,10 +60,10 @@
       "diffPercentagePoint": 0
     },
     "mismatchRate": {
-      "before": 0.376271186440678,
+      "before": 0,
       "after": 0,
-      "diff": -0.376271186440678,
-      "diffPercentagePoint": -37.6271186440678
+      "diff": 0,
+      "diffPercentagePoint": 0
     },
     "missingFieldImprovementRate": {
       "before": 1,
@@ -78,9 +78,9 @@
         "diff": 0
       },
       "needAdditionalImplementation": {
-        "before": 222,
+        "before": 0,
         "after": 0,
-        "diff": -222
+        "diff": 0
       },
       "nonReplaceable": {
         "before": 0,

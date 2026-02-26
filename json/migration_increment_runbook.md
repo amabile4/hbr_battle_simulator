@@ -15,7 +15,7 @@
 1. 分析実行
 `npm run analyze:migration`
 
-2. 増分比較（基準: `HEAD:json/migration_metrics.json`）
+2. 増分比較（基準: `HEAD:json/reports/migration/migration_metrics.json`）
 `npm run analyze:migration:delta`
 
 3. まとめて実行
@@ -23,10 +23,10 @@
 
 ## 生成物
 
-- `json/migration_artifacts.json`
-- `json/new_skill_database.draft.json`
-- `json/migration_metrics.json`
-- `json/migration_increment_report.json`
+- `json/reports/migration/migration_artifacts.json`
+- `json/reports/migration/new_skill_database.draft.json`
+- `json/reports/migration/migration_metrics.json`
+- `json/reports/migration/migration_increment_report.json`
 
 ## 判定観点
 
@@ -46,7 +46,7 @@
 ## 補足
 
 - 比較スクリプトは `HEAD` を基準にするため、通常は「データ更新後、コミット前」に実行すると差分確認が明確。
-- さらに比較を残したい場合は `json/migration_increment_report.json` をコミット対象に含める。
+- さらに比較を残したい場合は `json/reports/migration/migration_increment_report.json` をコミット対象に含める。
 
 ## 運用ルール（合意事項）
 

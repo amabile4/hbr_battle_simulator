@@ -30,17 +30,17 @@
 1. 分析生成
 `npm run analyze:migration`
 
-2. 増分比較（基準: `HEAD:json/migration_metrics.json`）
+2. 増分比較（基準: `HEAD:json/reports/migration/migration_metrics.json`）
 `npm run analyze:migration:delta`
 
 3. 一括実行
 `npm run analyze:migration:all`
 
 ### 生成物
-- `json/migration_artifacts.json`
-- `json/new_skill_database.draft.json`
-- `json/migration_metrics.json`
-- `json/migration_increment_report.json`
+- `json/reports/migration/migration_artifacts.json`
+- `json/reports/migration/new_skill_database.draft.json`
+- `json/reports/migration/migration_metrics.json`
+- `json/reports/migration/migration_increment_report.json`
 
 ### 確認ポイント
 - `legacyRowCount`
