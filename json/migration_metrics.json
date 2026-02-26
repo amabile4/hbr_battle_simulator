@@ -3,20 +3,20 @@
     "legacyRowCount": 590,
     "candidateDistinctNameRowCount": 693,
     "candidateRawSkillCount": 693,
-    "exactMatch": 368,
-    "nameMatchOnly": 222,
+    "exactMatch": 590,
+    "nameMatchOnly": 0,
     "unmatchedLegacyRows": 0,
-    "exactMatchRate": 0.6237288135593221,
+    "exactMatchRate": 1,
     "nameLevelCoverage": 1,
-    "mismatchRate": 0.376271186440678,
-    "costMismatch": 3,
-    "typeMismatch": 220,
-    "candidateRowsNotInLegacy": 325,
+    "mismatchRate": 0,
+    "costMismatch": 0,
+    "typeMismatch": 0,
+    "candidateRowsNotInLegacy": 103,
     "missingFieldImprovementRate": 1
   },
   "replacementClassification": {
     "replaceable": 590,
-    "needAdditionalImplementation": 222,
+    "needAdditionalImplementation": 0,
     "nonReplaceable": 0
   },
   "semanticDiffs": [
@@ -53,70 +53,6 @@
       },
       {
         "chara": "茅森 月歌",
-        "name": "黒曜のオーバーロード",
-        "cost": 14,
-        "type": "non_damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "茅森 月歌",
-        "name": "炯眼の構え",
-        "cost": 5,
-        "type": "non_damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "茅森 月歌",
-        "name": "月光",
-        "cost": 7,
-        "type": "non_damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "茅森 月歌",
-        "name": "流れ星に唄えば",
-        "cost": 14,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "茅森 月歌",
-        "name": "燃やせ青春！マリンボール！",
-        "cost": 16,
-        "type": "non_damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "茅森 月歌",
-        "name": "アーク・オブ・ヴィクトリア",
-        "cost": 13,
-        "type": "non_damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "茅森 月歌",
-        "name": "指揮行動",
-        "cost": 0,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "茅森 月歌",
-        "name": "星火燎原+",
-        "cost": 14,
-        "type": "non_damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "茅森 月歌",
         "name": "追撃",
         "cost": 0,
         "type": "damage",
@@ -128,22 +64,6 @@
         "name": "通常攻撃",
         "cost": 0,
         "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "和泉 ユキ",
-        "name": "クールダウン",
-        "cost": 5,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "和泉 ユキ",
-        "name": "コードダクネス",
-        "cost": 15,
-        "type": "non_damage",
         "variantCount": 1,
         "hasConflict": false
       },
@@ -165,22 +85,6 @@
       },
       {
         "chara": "逢川 めぐみ",
-        "name": "クールダウン",
-        "cost": 5,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "逢川 めぐみ",
-        "name": "最高潮！アオハルオンステージ",
-        "cost": 15,
-        "type": "non_damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "逢川 めぐみ",
         "name": "追撃",
         "cost": 0,
         "type": "damage",
@@ -191,70 +95,6 @@
         "chara": "東城 つかさ",
         "name": "通常攻撃",
         "cost": 0,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "東城 つかさ",
-        "name": "エンハンス",
-        "cost": 6,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "東城 つかさ",
-        "name": "フィルエンハンス",
-        "cost": 9,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "東城 つかさ",
-        "name": "ウィッシュカムトゥルー",
-        "cost": 10,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "東城 つかさ",
-        "name": "ホーリーエンハンス",
-        "cost": 6,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "東城 つかさ",
-        "name": "ピクシースマイル",
-        "cost": 6,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "東城 つかさ",
-        "name": "今宵、快楽ナイトメア",
-        "cost": 11,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "東城 つかさ",
-        "name": "涙雨",
-        "cost": 12,
-        "type": "damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "東城 つかさ",
-        "name": "ミラージュ・モーメント",
-        "cost": 14,
         "type": "damage",
         "variantCount": 1,
         "hasConflict": false
@@ -277,9 +117,169 @@
       },
       {
         "chara": "朝倉 可憐",
-        "name": "意気揚々",
-        "cost": 10,
-        "type": "non_damage",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "國見 タマ",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "國見 タマ",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "蒼井 えりか",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "蒼井 えりか",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "水瀬 いちご",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "水瀬 いちご",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "水瀬 すもも",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "水瀬 すもも",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "樋口 聖華",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "樋口 聖華",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "柊木 梢",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "柊木 梢",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "ビャッコ",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "ビャッコ",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "山脇・ボン・イヴァール",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "山脇・ボン・イヴァール",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "桜庭 星羅",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "桜庭 星羅",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "天音 巫呼",
+        "name": "通常攻撃",
+        "cost": 0,
+        "type": "damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "天音 巫呼",
+        "name": "追撃",
+        "cost": 0,
+        "type": "damage",
         "variantCount": 1,
         "hasConflict": false
       }

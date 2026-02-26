@@ -1,69 +1,69 @@
 {
-  "generatedAt": "2026-02-26T13:23:21.034Z",
+  "generatedAt": "2026-02-26T16:09:59.405Z",
   "baseline": "HEAD:json/migration_metrics.json",
   "delta": {
     "legacyRowCount": {
-      "before": 586,
+      "before": 590,
       "after": 590,
-      "diff": 4
+      "diff": 0
     },
     "candidateDistinctNameRowCount": {
-      "before": 689,
+      "before": 693,
       "after": 693,
-      "diff": 4
+      "diff": 0
     },
     "candidateRawSkillCount": {
-      "before": 689,
+      "before": 693,
       "after": 693,
-      "diff": 4
+      "diff": 0
     },
     "exactMatch": {
-      "before": 367,
-      "after": 368,
-      "diff": 1
+      "before": 368,
+      "after": 590,
+      "diff": 222
     },
     "nameMatchOnly": {
-      "before": 217,
-      "after": 222,
-      "diff": 5
+      "before": 222,
+      "after": 0,
+      "diff": -222
     },
     "unmatchedLegacyRows": {
-      "before": 2,
+      "before": 0,
       "after": 0,
-      "diff": -2
+      "diff": 0
     },
     "costMismatch": {
       "before": 3,
-      "after": 3,
-      "diff": 0
+      "after": 0,
+      "diff": -3
     },
     "typeMismatch": {
-      "before": 215,
-      "after": 220,
-      "diff": 5
+      "before": 220,
+      "after": 0,
+      "diff": -220
     },
     "candidateRowsNotInLegacy": {
-      "before": 322,
-      "after": 325,
-      "diff": 3
+      "before": 325,
+      "after": 103,
+      "diff": -222
     },
     "exactMatchRate": {
-      "before": 0.6262798634812287,
-      "after": 0.6237288135593221,
-      "diff": -0.0025510499219065785,
-      "diffPercentagePoint": -0.25510499219065785
+      "before": 0.6237288135593221,
+      "after": 1,
+      "diff": 0.3762711864406779,
+      "diffPercentagePoint": 37.62711864406779
     },
     "nameLevelCoverage": {
-      "before": 0.9965870307167235,
+      "before": 1,
       "after": 1,
-      "diff": 0.0034129692832765013,
-      "diffPercentagePoint": 0.34129692832765013
+      "diff": 0,
+      "diffPercentagePoint": 0
     },
     "mismatchRate": {
-      "before": 0.37372013651877134,
-      "after": 0.376271186440678,
-      "diff": 0.002551049921906634,
-      "diffPercentagePoint": 0.2551049921906634
+      "before": 0.376271186440678,
+      "after": 0,
+      "diff": -0.376271186440678,
+      "diffPercentagePoint": -37.6271186440678
     },
     "missingFieldImprovementRate": {
       "before": 1,
@@ -73,19 +73,19 @@
     },
     "replacementClassification": {
       "replaceable": {
-        "before": 584,
+        "before": 590,
         "after": 590,
-        "diff": 6
+        "diff": 0
       },
       "needAdditionalImplementation": {
-        "before": 219,
-        "after": 222,
-        "diff": 3
+        "before": 222,
+        "after": 0,
+        "diff": -222
       },
       "nonReplaceable": {
-        "before": 2,
+        "before": 0,
         "after": 0,
-        "diff": -2
+        "diff": 0
       }
     }
   }

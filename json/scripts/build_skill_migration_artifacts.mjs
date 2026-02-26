@@ -13,22 +13,32 @@ function normalizeCharaName(name) {
 }
 
 function isDamageSkill(skill) {
-  const parts = Array.isArray(skill.parts) ? skill.parts : [];
-  return parts.some((part) => {
-    const skillType = String(part?.skill_type || '');
-    if (skillType.includes('Attack')) return true;
+  const damageSkillTypes = new Set([
+    'AttackSkill',
+    'AttackNormal',
+    'DamageRateChangeAttackSkill',
+    'PenetrationCriticalAttack',
+    'TokenAttack',
+    'AttackByOwnDpRate',
+    'AttackBySp',
+    'FixedHpDamageRateAttack'
+  ]);
 
-    const multipliers = part?.multipliers || {};
-    const dp = Number(multipliers.dp || 0);
-    const hp = Number(multipliers.hp || 0);
-    const dr = Number(multipliers.dr || 0);
-    const hasDamageMultiplier = dp > 0 || hp > 0 || dr > 0;
+  function hasDamagePart(parts) {
+    const arr = Array.isArray(parts) ? parts : [];
+    for (const part of arr) {
+      if (damageSkillTypes.has(String(part?.skill_type || ''))) return true;
 
-    const power = Array.isArray(part?.power) ? part.power : [];
-    const maxPower = Math.max(0, ...power.map((v) => Number(v || 0)));
+      // Some skills keep executable attack definitions in nested strval skill payloads.
+      const variants = Array.isArray(part?.strval) ? part.strval : [];
+      for (const variant of variants) {
+        if (variant && typeof variant === 'object' && hasDamagePart(variant.parts)) return true;
+      }
+    }
+    return false;
+  }
 
-    return hasDamageMultiplier && maxPower > 0;
-  });
+  return hasDamagePart(skill?.parts);
 }
 
 function groupBy(items, keyFn) {
@@ -56,6 +66,8 @@ const normalizedSkillRecords = skills.map((skill) => {
   const normalizedChara = normalizeCharaName(skill.chara);
   const style = styleByName.get(skill.style);
   const damage = isDamageSkill(skill);
+  const rawSpCost = Number.isFinite(Number(skill.sp_cost)) ? Number(skill.sp_cost) : null;
+  const consumeAllSp = rawSpCost === -1;
 
   return {
     skillId: skill.id,
@@ -67,7 +79,8 @@ const normalizedSkillRecords = skills.map((skill) => {
     styleId: style?.id ?? null,
     team: skill.team || style?.team || null,
     role: skill.role || style?.role || null,
-    spCost: Number.isFinite(Number(skill.sp_cost)) ? Number(skill.sp_cost) : null,
+    spCost: rawSpCost,
+    consumeAllSp,
     type: damage ? 'damage' : 'non_damage',
     consumeType: skill.consume_type || null,
     maxLevel: Number.isFinite(Number(skill.max_level)) ? Number(skill.max_level) : null,
@@ -115,6 +128,7 @@ for (const [key, records] of byCharacterAndName.entries()) {
     name: merged.name,
     cost: merged.cost,
     type: merged.type,
+    consumeAllSp: records.some((r) => r.consumeAllSp),
     sourceSkillIds: merged.sourceSkillIds,
     variantCount: merged.variantCount,
     hasConflict: merged.hasCostConflict || merged.hasTypeConflict
