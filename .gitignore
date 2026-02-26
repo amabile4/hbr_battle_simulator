@@ -73,3 +73,23 @@ config/staging.js
 # その他
 .history/
 .vscode-test/
+
+# External JSON symlinks (managed in seraphdb)
+json/accessories.json
+json/arts_items.json
+json/battles.json
+json/boosters.json
+json/characters.json
+json/chips.json
+json/conquest.json
+json/cooking.json
+json/enemies.json
+json/events.json
+json/gachasim.json
+json/items.json
+json/levels.json
+json/missions.json
+json/packs.json
+json/passives.json
+json/skills.json
+json/styles.json
