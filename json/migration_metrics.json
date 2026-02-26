@@ -1,23 +1,23 @@
 {
   "coverage": {
-    "legacyRowCount": 586,
-    "candidateDistinctNameRowCount": 689,
-    "candidateRawSkillCount": 689,
-    "exactMatch": 367,
-    "nameMatchOnly": 217,
-    "unmatchedLegacyRows": 2,
-    "exactMatchRate": 0.6262798634812287,
-    "nameLevelCoverage": 0.9965870307167235,
-    "mismatchRate": 0.37372013651877134,
+    "legacyRowCount": 590,
+    "candidateDistinctNameRowCount": 693,
+    "candidateRawSkillCount": 693,
+    "exactMatch": 368,
+    "nameMatchOnly": 222,
+    "unmatchedLegacyRows": 0,
+    "exactMatchRate": 0.6237288135593221,
+    "nameLevelCoverage": 1,
+    "mismatchRate": 0.376271186440678,
     "costMismatch": 3,
-    "typeMismatch": 215,
-    "candidateRowsNotInLegacy": 322,
+    "typeMismatch": 220,
+    "candidateRowsNotInLegacy": 325,
     "missingFieldImprovementRate": 1
   },
   "replacementClassification": {
-    "replaceable": 584,
-    "needAdditionalImplementation": 219,
-    "nonReplaceable": 2
+    "replaceable": 590,
+    "needAdditionalImplementation": 222,
+    "nonReplaceable": 0
   },
   "semanticDiffs": [
     {
@@ -40,20 +40,7 @@
     }
   ],
   "samples": {
-    "unmatchedLegacyRows": [
-      {
-        "chara": "大島 一千子",
-        "name": "誓いのしるし",
-        "cost": 16,
-        "type": "damage"
-      },
-      {
-        "chara": "李 映夏",
-        "name": "無中生有",
-        "cost": 11,
-        "type": "non_damage"
-      }
-    ],
+    "unmatchedLegacyRows": [],
     "conflictRows": [],
     "newOnlyRows": [
       {
@@ -186,6 +173,14 @@
       },
       {
         "chara": "逢川 めぐみ",
+        "name": "最高潮！アオハルオンステージ",
+        "cost": 15,
+        "type": "non_damage",
+        "variantCount": 1,
+        "hasConflict": false
+      },
+      {
+        "chara": "逢川 めぐみ",
         "name": "追撃",
         "cost": 0,
         "type": "damage",
@@ -284,14 +279,6 @@
         "chara": "朝倉 可憐",
         "name": "意気揚々",
         "cost": 10,
-        "type": "non_damage",
-        "variantCount": 1,
-        "hasConflict": false
-      },
-      {
-        "chara": "朝倉 可憐",
-        "name": "レッドスピネル",
-        "cost": 9,
         "type": "non_damage",
         "variantCount": 1,
         "hasConflict": false

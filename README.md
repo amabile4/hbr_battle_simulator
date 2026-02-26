@@ -18,6 +18,42 @@
 - **コードサンプル**: 20250526004832-code_sample.py
 - **データ構造定義**: 20250526004832-data_structures.py
 
+## データ更新時の分析手順（運用）
+
+`seraphdb` 側で JSON が更新された後、以下で同じ分析を再実行し、増分を確認する。
+
+### 前提
+- `skillDatabase.json` は `seraphdb/data/skillDatabase.json` へのシンボリックリンク
+- `json/*.json`（主要データ）は `seraphdb/data/json/*.json` へのシンボリックリンク
+
+### 実行コマンド
+1. 分析生成
+`npm run analyze:migration`
+
+2. 増分比較（基準: `HEAD:json/migration_metrics.json`）
+`npm run analyze:migration:delta`
+
+3. 一括実行
+`npm run analyze:migration:all`
+
+### 生成物
+- `json/migration_artifacts.json`
+- `json/new_skill_database.draft.json`
+- `json/migration_metrics.json`
+- `json/migration_increment_report.json`
+
+### 確認ポイント
+- `legacyRowCount`
+- `candidateDistinctNameRowCount`
+- `exactMatch`
+- `nameMatchOnly`
+- `unmatchedLegacyRows`
+- `candidateRowsNotInLegacy`
+- `typeMismatch`
+- `replacementClassification.nonReplaceable`
+
+補足: 詳細手順は `json/migration_increment_runbook.md` を参照。
+
 ## 1. シミュレータ概要
 
 ### 1.1 目的
@@ -367,4 +403,3 @@ Google Spreadsheet互換のCSV形式での戦闘行動記録
 - 自動戦闘シミュレーション機能
 
 ---
-

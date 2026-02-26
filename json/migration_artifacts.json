@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-26T00:14:12.987Z",
+  "generatedAt": "2026-02-26T13:23:20.840Z",
   "sourcePriority": "json/* as source of truth",
   "sourceFiles": [
     "characters.json",
@@ -13,18 +13,18 @@
     "counts": {
       "characters": 57,
       "normalizedCharacters": 57,
-      "styles": 339,
-      "skills": 689,
-      "passives": 734,
-      "legacyCompatibleSkillRows": 689,
+      "styles": 341,
+      "skills": 693,
+      "passives": 740,
+      "legacyCompatibleSkillRows": 693,
       "conflictRows": 0
     },
     "legacyCompatible": {
       "metadata": {
         "sourceVersion": "json-raw",
-        "generatedAt": "2026-02-26T00:14:12.988Z",
+        "generatedAt": "2026-02-26T13:23:20.841Z",
         "characterCount": 57,
-        "totalSkills": 689
+        "totalSkills": 693
       },
       "characters": {
         "茅森 月歌": [
@@ -443,6 +443,16 @@
         ],
         "逢川 めぐみ": [
           {
+            "name": "まだまだ行くで！",
+            "cost": 0,
+            "type": "damage",
+            "sourceSkillIds": [
+              46001314
+            ],
+            "variantCount": 1,
+            "hasConflict": false
+          },
+          {
             "name": "メディテーション",
             "cost": 0,
             "type": "damage",
@@ -578,6 +588,16 @@
             "type": "damage",
             "sourceSkillIds": [
               46001307
+            ],
+            "variantCount": 1,
+            "hasConflict": false
+          },
+          {
+            "name": "最高潮！アオハルオンステージ",
+            "cost": 15,
+            "type": "non_damage",
+            "sourceSkillIds": [
+              46001315
             ],
             "variantCount": 1,
             "hasConflict": false
@@ -2013,6 +2033,16 @@
             "hasConflict": false
           },
           {
+            "name": "魔王の御前",
+            "cost": 4,
+            "type": "non_damage",
+            "sourceSkillIds": [
+              46003118
+            ],
+            "variantCount": 1,
+            "hasConflict": false
+          },
+          {
             "name": "イチコロスマイル",
             "cost": 5,
             "type": "damage",
@@ -2524,6 +2554,16 @@
             "type": "non_damage",
             "sourceSkillIds": [
               46003408
+            ],
+            "variantCount": 1,
+            "hasConflict": false
+          },
+          {
+            "name": "トリック・オア・トリート+",
+            "cost": 11,
+            "type": "non_damage",
+            "sourceSkillIds": [
+              46003461
             ],
             "variantCount": 1,
             "hasConflict": false
@@ -8106,6 +8146,48 @@
         }
       },
       {
+        "skillId": 46001314,
+        "name": "まだまだ行くで！",
+        "normalizedNameKey": "逢川 めぐみ::まだまだ行くで！",
+        "chara": "逢川 めぐみ",
+        "rawChara": "逢川 めぐみ — Megumi Aikawa — めぐみん Megumin",
+        "styleName": "スペシャルナイト・ガールズジャム",
+        "styleId": 1001309,
+        "team": "31A",
+        "role": "Debuffer",
+        "spCost": 0,
+        "type": "damage",
+        "consumeType": "Sp",
+        "maxLevel": 10,
+        "isRestricted": 0,
+        "source": {
+          "from": "skills.json",
+          "inDate": "2026-02-27 02:00:00+00:00",
+          "label": "MAikawaSkill08"
+        }
+      },
+      {
+        "skillId": 46001315,
+        "name": "最高潮！アオハルオンステージ",
+        "normalizedNameKey": "逢川 めぐみ::最高潮！アオハルオンステージ",
+        "chara": "逢川 めぐみ",
+        "rawChara": "逢川 めぐみ — Megumi Aikawa — めぐみん Megumin",
+        "styleName": "スペシャルナイト・ガールズジャム",
+        "styleId": 1001309,
+        "team": "31A",
+        "role": "Debuffer",
+        "spCost": 15,
+        "type": "non_damage",
+        "consumeType": "Sp",
+        "maxLevel": 10,
+        "isRestricted": 1,
+        "source": {
+          "from": "skills.json",
+          "inDate": "2026-02-27 02:00:00+00:00",
+          "label": "MAikawaSkill56"
+        }
+      },
+      {
         "skillId": 46001361,
         "name": "リミット・インパクト+",
         "normalizedNameKey": "逢川 めぐみ::リミット・インパクト+",
@@ -11172,6 +11254,27 @@
         }
       },
       {
+        "skillId": 46003118,
+        "name": "魔王の御前",
+        "normalizedNameKey": "山脇・ボン・イヴァール::魔王の御前",
+        "chara": "山脇・ボン・イヴァール",
+        "rawChara": "山脇・ボン・イヴァール — Ivar Bon Yamawaki — ワッキー Wakkii",
+        "styleName": "孤高のロンリネス",
+        "styleId": 1003109,
+        "team": "31C",
+        "role": "Buffer",
+        "spCost": 4,
+        "type": "non_damage",
+        "consumeType": "Sp",
+        "maxLevel": 1,
+        "isRestricted": 0,
+        "source": {
+          "from": "skills.json",
+          "inDate": "2026-02-27 02:00:00+00:00",
+          "label": "BIYamawakiSkill09"
+        }
+      },
+      {
         "skillId": 46003161,
         "name": "絶対零度+",
         "normalizedNameKey": "山脇・ボン・イヴァール::絶対零度+",
@@ -12030,6 +12133,27 @@
           "from": "skills.json",
           "inDate": "2025-05-02 02:00:00+00:00",
           "label": "YBungoSkill07"
+        }
+      },
+      {
+        "skillId": 46003461,
+        "name": "トリック・オア・トリート+",
+        "normalizedNameKey": "豊後 弥生::トリック・オア・トリート+",
+        "chara": "豊後 弥生",
+        "rawChara": "豊後 弥生 — Yayoi Bungo — ぶんちゃん BunChan",
+        "styleName": "夜空のShining Star",
+        "styleId": 1003403,
+        "team": "31C",
+        "role": "Breaker",
+        "spCost": 11,
+        "type": "non_damage",
+        "consumeType": "Sp",
+        "maxLevel": 10,
+        "isRestricted": 1,
+        "source": {
+          "from": "skills.json",
+          "inDate": "2026-02-27 02:00:00+00:00",
+          "label": "YBungoSkill51Ev1"
         }
       },
       {
@@ -21507,24 +21631,24 @@
   },
   "comparison": {
     "coverage": {
-      "legacyRowCount": 586,
-      "candidateDistinctNameRowCount": 689,
-      "candidateRawSkillCount": 689,
-      "exactMatch": 367,
-      "nameMatchOnly": 217,
-      "unmatchedLegacyRows": 2,
-      "exactMatchRate": 0.6262798634812287,
-      "nameLevelCoverage": 0.9965870307167235,
-      "mismatchRate": 0.37372013651877134,
+      "legacyRowCount": 590,
+      "candidateDistinctNameRowCount": 693,
+      "candidateRawSkillCount": 693,
+      "exactMatch": 368,
+      "nameMatchOnly": 222,
+      "unmatchedLegacyRows": 0,
+      "exactMatchRate": 0.6237288135593221,
+      "nameLevelCoverage": 1,
+      "mismatchRate": 0.376271186440678,
       "costMismatch": 3,
-      "typeMismatch": 215,
-      "candidateRowsNotInLegacy": 322,
+      "typeMismatch": 220,
+      "candidateRowsNotInLegacy": 325,
       "missingFieldImprovementRate": 1
     },
     "replacementClassification": {
-      "replaceable": 584,
-      "needAdditionalImplementation": 219,
-      "nonReplaceable": 2
+      "replaceable": 590,
+      "needAdditionalImplementation": 222,
+      "nonReplaceable": 0
     },
     "semanticDiffs": [
       {
@@ -21547,20 +21671,7 @@
       }
     ],
     "samples": {
-      "unmatchedLegacyRows": [
-        {
-          "chara": "大島 一千子",
-          "name": "誓いのしるし",
-          "cost": 16,
-          "type": "damage"
-        },
-        {
-          "chara": "李 映夏",
-          "name": "無中生有",
-          "cost": 11,
-          "type": "non_damage"
-        }
-      ],
+      "unmatchedLegacyRows": [],
       "conflictRows": [],
       "newOnlyRows": [
         {
@@ -21693,6 +21804,14 @@
         },
         {
           "chara": "逢川 めぐみ",
+          "name": "最高潮！アオハルオンステージ",
+          "cost": 15,
+          "type": "non_damage",
+          "variantCount": 1,
+          "hasConflict": false
+        },
+        {
+          "chara": "逢川 めぐみ",
           "name": "追撃",
           "cost": 0,
           "type": "damage",
@@ -21791,14 +21910,6 @@
           "chara": "朝倉 可憐",
           "name": "意気揚々",
           "cost": 10,
-          "type": "non_damage",
-          "variantCount": 1,
-          "hasConflict": false
-        },
-        {
-          "chara": "朝倉 可憐",
-          "name": "レッドスピネル",
-          "cost": 9,
           "type": "non_damage",
           "variantCount": 1,
           "hasConflict": false

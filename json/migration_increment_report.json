@@ -1,0 +1,92 @@
+{
+  "generatedAt": "2026-02-26T13:23:21.034Z",
+  "baseline": "HEAD:json/migration_metrics.json",
+  "delta": {
+    "legacyRowCount": {
+      "before": 586,
+      "after": 590,
+      "diff": 4
+    },
+    "candidateDistinctNameRowCount": {
+      "before": 689,
+      "after": 693,
+      "diff": 4
+    },
+    "candidateRawSkillCount": {
+      "before": 689,
+      "after": 693,
+      "diff": 4
+    },
+    "exactMatch": {
+      "before": 367,
+      "after": 368,
+      "diff": 1
+    },
+    "nameMatchOnly": {
+      "before": 217,
+      "after": 222,
+      "diff": 5
+    },
+    "unmatchedLegacyRows": {
+      "before": 2,
+      "after": 0,
+      "diff": -2
+    },
+    "costMismatch": {
+      "before": 3,
+      "after": 3,
+      "diff": 0
+    },
+    "typeMismatch": {
+      "before": 215,
+      "after": 220,
+      "diff": 5
+    },
+    "candidateRowsNotInLegacy": {
+      "before": 322,
+      "after": 325,
+      "diff": 3
+    },
+    "exactMatchRate": {
+      "before": 0.6262798634812287,
+      "after": 0.6237288135593221,
+      "diff": -0.0025510499219065785,
+      "diffPercentagePoint": -0.25510499219065785
+    },
+    "nameLevelCoverage": {
+      "before": 0.9965870307167235,
+      "after": 1,
+      "diff": 0.0034129692832765013,
+      "diffPercentagePoint": 0.34129692832765013
+    },
+    "mismatchRate": {
+      "before": 0.37372013651877134,
+      "after": 0.376271186440678,
+      "diff": 0.002551049921906634,
+      "diffPercentagePoint": 0.2551049921906634
+    },
+    "missingFieldImprovementRate": {
+      "before": 1,
+      "after": 1,
+      "diff": 0,
+      "diffPercentagePoint": 0
+    },
+    "replacementClassification": {
+      "replaceable": {
+        "before": 584,
+        "after": 590,
+        "diff": 6
+      },
+      "needAdditionalImplementation": {
+        "before": 219,
+        "after": 222,
+        "diff": 3
+      },
+      "nonReplaceable": {
+        "before": 2,
+        "after": 0,
+        "diff": -2
+      }
+    }
+  }
+}

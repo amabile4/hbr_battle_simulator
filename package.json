@@ -8,7 +8,10 @@
     "test:watch": "vitest --watch",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "dev": "python3 -m http.server 8080"
+    "dev": "python3 -m http.server 8080",
+    "analyze:migration": "node json/scripts/build_skill_migration_artifacts.mjs",
+    "analyze:migration:delta": "node json/scripts/compare_migration_metrics.mjs",
+    "analyze:migration:all": "npm run analyze:migration && npm run analyze:migration:delta"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^1.0.4",
