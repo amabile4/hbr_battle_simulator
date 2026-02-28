@@ -8,6 +8,7 @@ function createRoot() {
   const dom = new JSDOM(`<!doctype html><body>
     <div id="app">
       <div data-role="style-slots"></div>
+      <span data-role="selection-summary"></span>
       <button data-action="initialize"></button>
       <input data-role="enemy-action" />
       <div data-role="action-slots"></div>
@@ -27,12 +28,15 @@ function createRoot() {
     </div>
   </body>`);
 
-  return dom.window.document.querySelector('#app');
+  return {
+    root: dom.window.document.querySelector('#app'),
+    win: dom.window,
+  };
 }
 
 test('dom adapter initializes, previews, commits, and exports csv', () => {
   const store = getStore();
-  const root = createRoot();
+  const { root } = createRoot();
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
 
   adapter.mount();
@@ -51,7 +55,7 @@ test('dom adapter initializes, previews, commits, and exports csv', () => {
 
 test('dom adapter can initialize using explicit style ids and queue swap', () => {
   const store = getStore();
-  const root = createRoot();
+  const { root } = createRoot();
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
 
   const styleIds = getSixUsableStyleIds(store);
@@ -66,4 +70,44 @@ test('dom adapter can initialize using explicit style ids and queue swap', () =>
 
   assert.equal(adapter.pendingSwapEvents.length, 0);
   assert.equal(adapter.recordStore.records.length, 1);
+});
+
+test('character -> style selection is linked and reflected on screen', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const characterSelects = root.querySelectorAll('[data-role="character-select"]');
+  const styleSelects = root.querySelectorAll('[data-role="style-select"]');
+  assert.equal(characterSelects.length, 6);
+  assert.equal(styleSelects.length, 6);
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+  const initialCharacter = characterSelect.value;
+
+  const target = store
+    .listCharacterCandidates()
+    .find((candidate) => candidate.label !== initialCharacter && candidate.styleCount > 1);
+  assert.ok(target);
+
+  characterSelect.value = target.label;
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  assert.ok(styleSelect.options.length > 0);
+  for (const option of styleSelect.options) {
+    assert.equal(option.getAttribute('data-character-label'), target.label);
+  }
+
+  styleSelect.selectedIndex = Math.max(0, styleSelect.options.length - 1);
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const slotSummary = root.querySelector(`[data-role="slot-summary"][data-slot="${slot}"]`).textContent;
+  const summary = root.querySelector('[data-role="selection-summary"]').textContent;
+
+  assert.ok(slotSummary.includes('Character:'));
+  assert.ok(slotSummary.includes('Style:'));
+  assert.ok(summary.includes('Slot 1:'));
 });

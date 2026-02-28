@@ -25,6 +25,9 @@ export class HbrDataStore {
     this.skillDbDraft = payload.skillDbDraft;
 
     this.charactersById = new Map(this.characters.map((row) => [Number(row.id), row]));
+    this.charactersByLabel = new Map(
+      this.characters.map((row) => [String(row.label ?? ''), row])
+    );
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
     this.canonicalSkillById = new Map(
@@ -75,6 +78,10 @@ export class HbrDataStore {
     return this.charactersById.get(Number(characterId)) ?? null;
   }
 
+  getCharacterByLabel(characterLabel) {
+    return this.charactersByLabel.get(String(characterLabel ?? '')) ?? null;
+  }
+
   getStyleById(styleId) {
     return this.stylesById.get(Number(styleId)) ?? null;
   }
@@ -101,6 +108,33 @@ export class HbrDataStore {
     return (style.skills ?? [])
       .map((row) => this.getSkillById(row.id))
       .filter(Boolean);
+  }
+
+  listCharacterCandidates() {
+    const styleCounts = new Map();
+
+    for (const style of this.styles) {
+      if (!Array.isArray(style.skills) || style.skills.length === 0) {
+        continue;
+      }
+
+      const label = String(style.chara_label ?? '');
+      styleCounts.set(label, (styleCounts.get(label) ?? 0) + 1);
+    }
+
+    const out = [];
+    for (const [label, styleCount] of styleCounts.entries()) {
+      const character = this.getCharacterByLabel(label);
+      const name = normalizeCharacterName(character?.name ?? label);
+      out.push({
+        label,
+        name,
+        styleCount,
+      });
+    }
+
+    out.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    return out;
   }
 
   putCharacter(character) {

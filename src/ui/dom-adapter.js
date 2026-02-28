@@ -6,7 +6,13 @@ function toInt(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function uniqueStyleCandidates(styles) {
+function normalizeName(name) {
+  return String(name ?? '')
+    .split('—')[0]
+    .trim();
+}
+
+function firstSixUniqueStyles(styles) {
   const out = [];
   const seen = new Set();
 
@@ -22,6 +28,10 @@ function uniqueStyleCandidates(styles) {
 
     seen.add(key);
     out.push(style);
+
+    if (out.length === 6) {
+      break;
+    }
   }
 
   return out;
@@ -44,15 +54,26 @@ export class BattleDomAdapter {
     this.previewRecord = null;
     this.pendingSwapEvents = [];
 
-    this.styleCandidates = uniqueStyleCandidates(this.dataStore.styles);
+    this.characterCandidates = this.dataStore.listCharacterCandidates();
+    this.defaultSelections = this.buildDefaultSelections();
+
     this._bound = false;
   }
 
   mount() {
-    this.renderStyleSelectors();
+    this.renderPartySelectionSlots();
     this.bindEvents();
     this.initializeBattle();
     return this;
+  }
+
+  runSafely(action, fallbackMessage = 'Operation failed.') {
+    try {
+      return action();
+    } catch (error) {
+      this.setStatus(`Error: ${error.message || fallbackMessage}`);
+      return null;
+    }
   }
 
   bindEvents() {
@@ -61,25 +82,27 @@ export class BattleDomAdapter {
     }
 
     this.root.querySelector('[data-action="initialize"]')?.addEventListener('click', () => {
-      this.initializeBattle();
+      this.runSafely(() => this.initializeBattle());
     });
 
     this.root.querySelector('[data-action="preview"]')?.addEventListener('click', () => {
-      this.previewCurrentTurn();
+      this.runSafely(() => this.previewCurrentTurn());
     });
 
     this.root.querySelector('[data-action="commit"]')?.addEventListener('click', () => {
-      this.commitCurrentTurn();
+      this.runSafely(() => this.commitCurrentTurn());
     });
 
     this.root.querySelector('[data-action="swap"]')?.addEventListener('click', () => {
-      const from = toInt(this.root.querySelector('[data-role="swap-from"]')?.value, 0);
-      const to = toInt(this.root.querySelector('[data-role="swap-to"]')?.value, 3);
-      this.queueSwap(from, to);
+      this.runSafely(() => {
+        const from = toInt(this.root.querySelector('[data-role="swap-from"]')?.value, 0);
+        const to = toInt(this.root.querySelector('[data-role="swap-to"]')?.value, 3);
+        this.queueSwap(from, to);
+      });
     });
 
     this.root.querySelector('[data-action="export-csv"]')?.addEventListener('click', () => {
-      this.exportCsv();
+      this.runSafely(() => this.exportCsv());
     });
 
     this.root.querySelector('[data-action="clear-records"]')?.addEventListener('click', () => {
@@ -88,55 +111,185 @@ export class BattleDomAdapter {
       this.setStatus('Records cleared.');
     });
 
+    this.root.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof this.doc.defaultView.HTMLElement)) {
+        return;
+      }
+
+      if (target.matches('[data-role="character-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.onCharacterSelectionChanged(slot, target.value);
+      }
+
+      if (target.matches('[data-role="style-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateSlotSummary(slot);
+        this.renderSelectionSummary();
+      }
+    });
+
     this._bound = true;
   }
 
-  getDefaultStyleIds() {
-    const defaultStyles = this.styleCandidates.slice(0, 6);
-    if (defaultStyles.length < 6) {
-      throw new Error('Not enough styles to build a 6-member party.');
+  buildDefaultSelections() {
+    const defaults = firstSixUniqueStyles(this.dataStore.styles);
+    if (defaults.length < 6) {
+      throw new Error('Not enough unique character styles to initialize six party slots.');
     }
 
-    return defaultStyles.map((style) => Number(style.id));
+    return defaults.map((style) => ({
+      characterLabel: String(style.chara_label),
+      styleId: Number(style.id),
+    }));
   }
 
-  renderStyleSelectors() {
+  getStylesForCharacter(characterLabel) {
+    return this.dataStore
+      .listStylesByCharacter(characterLabel)
+      .filter((style) => Array.isArray(style.skills) && style.skills.length > 0)
+      .sort((a, b) => Number(a.id) - Number(b.id));
+  }
+
+  renderPartySelectionSlots() {
     const container = this.root.querySelector('[data-role="style-slots"]');
     if (!container) {
       return;
     }
 
     container.innerHTML = '';
-    const defaults = this.getDefaultStyleIds();
 
     for (let i = 0; i < 6; i += 1) {
-      const wrapper = this.doc.createElement('label');
-      wrapper.className = 'style-slot';
-      wrapper.textContent = `Slot ${i + 1} `;
+      const initial = this.defaultSelections[i];
+      const wrapper = this.doc.createElement('div');
+      wrapper.className = 'party-slot';
+      wrapper.setAttribute('data-slot', String(i));
 
-      const select = this.doc.createElement('select');
-      select.setAttribute('data-style-slot', String(i));
+      const slotTitle = this.doc.createElement('strong');
+      slotTitle.textContent = `Slot ${i + 1}`;
+      wrapper.appendChild(slotTitle);
 
-      for (const style of this.styleCandidates) {
+      const characterSelect = this.doc.createElement('select');
+      characterSelect.setAttribute('data-role', 'character-select');
+      characterSelect.setAttribute('data-slot', String(i));
+
+      for (const candidate of this.characterCandidates) {
         const option = this.doc.createElement('option');
-        option.value = String(style.id);
-        option.textContent = `${style.name} / ${style.chara_label}`;
-        if (Number(style.id) === defaults[i]) {
+        option.value = candidate.label;
+        option.textContent = `${candidate.name} (${candidate.styleCount})`;
+        if (candidate.label === initial.characterLabel) {
           option.selected = true;
         }
-        select.appendChild(option);
+        characterSelect.appendChild(option);
       }
 
-      wrapper.appendChild(select);
+      const styleSelect = this.doc.createElement('select');
+      styleSelect.setAttribute('data-role', 'style-select');
+      styleSelect.setAttribute('data-slot', String(i));
+
+      wrapper.appendChild(characterSelect);
+      wrapper.appendChild(styleSelect);
+
+      const summary = this.doc.createElement('div');
+      summary.setAttribute('data-role', 'slot-summary');
+      summary.setAttribute('data-slot', String(i));
+      wrapper.appendChild(summary);
+
       container.appendChild(wrapper);
+      this.populateStyleSelect(i, initial.characterLabel, initial.styleId);
+      this.updateSlotSummary(i);
     }
+
+    this.renderSelectionSummary();
+  }
+
+  populateStyleSelect(slotIndex, characterLabel, preferredStyleId = null) {
+    const styleSelect = this.root.querySelector(
+      `[data-role="style-select"][data-slot="${slotIndex}"]`
+    );
+
+    if (!styleSelect) {
+      return;
+    }
+
+    const styles = this.getStylesForCharacter(characterLabel);
+    styleSelect.innerHTML = '';
+
+    for (const style of styles) {
+      const option = this.doc.createElement('option');
+      option.value = String(style.id);
+      option.textContent = `${style.name} [${style.tier ?? '-'}]`;
+      option.setAttribute('data-character-label', String(style.chara_label ?? ''));
+      option.setAttribute('data-style-name', String(style.name ?? ''));
+      if (preferredStyleId !== null && Number(style.id) === Number(preferredStyleId)) {
+        option.selected = true;
+      }
+      styleSelect.appendChild(option);
+    }
+
+    if (styles.length > 0 && styleSelect.value === '') {
+      styleSelect.value = String(styles[0].id);
+    }
+  }
+
+  onCharacterSelectionChanged(slotIndex, characterLabel) {
+    this.populateStyleSelect(slotIndex, characterLabel, null);
+    this.updateSlotSummary(slotIndex);
+    this.renderSelectionSummary();
+  }
+
+  updateSlotSummary(slotIndex) {
+    const summary = this.root.querySelector(`[data-role="slot-summary"][data-slot="${slotIndex}"]`);
+    if (!summary) {
+      return;
+    }
+
+    const charSelect = this.root.querySelector(
+      `[data-role="character-select"][data-slot="${slotIndex}"]`
+    );
+    const styleSelect = this.root.querySelector(
+      `[data-role="style-select"][data-slot="${slotIndex}"]`
+    );
+
+    const selectedCharacterLabel = charSelect?.value ?? '';
+    const selectedStyleId = styleSelect?.value ?? '';
+    const character = this.dataStore.getCharacterByLabel(selectedCharacterLabel);
+    const style = this.dataStore.getStyleById(selectedStyleId);
+
+    const charName = normalizeName(character?.name ?? selectedCharacterLabel);
+    summary.textContent = `Character: ${charName} / Style: ${style?.name ?? '-'}`;
+  }
+
+  renderSelectionSummary() {
+    const container = this.root.querySelector('[data-role="selection-summary"]');
+    if (!container) {
+      return;
+    }
+
+    const lines = [];
+    for (let i = 0; i < 6; i += 1) {
+      const charSelect = this.root.querySelector(
+        `[data-role="character-select"][data-slot="${i}"]`
+      );
+      const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${i}"]`);
+
+      const character = this.dataStore.getCharacterByLabel(charSelect?.value ?? '');
+      const style = this.dataStore.getStyleById(styleSelect?.value ?? '');
+
+      lines.push(
+        `Slot ${i + 1}: ${normalizeName(character?.name ?? charSelect?.value)} / ${style?.name ?? '-'}`
+      );
+    }
+
+    container.textContent = lines.join(' | ');
   }
 
   readStyleIdsFromDom() {
     const ids = [];
     for (let i = 0; i < 6; i += 1) {
-      const select = this.root.querySelector(`[data-style-slot="${i}"]`);
-      ids.push(toInt(select?.value, this.getDefaultStyleIds()[i]));
+      const select = this.root.querySelector(`[data-role="style-select"][data-slot="${i}"]`);
+      const fallback = this.defaultSelections[i].styleId;
+      ids.push(toInt(select?.value, fallback));
     }
     return ids;
   }

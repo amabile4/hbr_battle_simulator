@@ -9,6 +9,7 @@
     .row { margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
     .panel { border: 1px solid #c4ccd8; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .style-slot, .action-slot { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; }
+    .party-slot { border: 1px solid #d6dce6; border-radius: 6px; padding: 8px; min-width: 280px; display: grid; gap: 6px; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #c4ccd8; padding: 6px; text-align: left; }
     pre, textarea { width: 100%; min-height: 120px; }
@@ -20,8 +21,9 @@
 
   <div id="app">
     <div class="panel">
-      <h2>Party Setup</h2>
+      <h2>Character Selection</h2>
       <div data-role="style-slots" class="row"></div>
+      <p><strong>Selections:</strong> <span data-role="selection-summary"></span></p>
       <div class="row">
         <button data-action="initialize" type="button">Initialize Battle</button>
       </div>
