@@ -12,6 +12,22 @@ function normalizeName(name) {
     .trim();
 }
 
+function isNormalAttackSkill(skill) {
+  const name = String(skill?.name ?? '');
+  const label = String(skill?.label ?? '');
+  return name === '通常攻撃' || label.endsWith('AttackNormal');
+}
+
+function isAdmiralCommandSkill(skill) {
+  const name = String(skill?.name ?? '');
+  const role = String(skill?.role ?? '');
+  return name === '指揮行動' && role === 'Admiral';
+}
+
+function isRequiredEquippedSkill(skill) {
+  return isNormalAttackSkill(skill) || isAdmiralCommandSkill(skill);
+}
+
 function firstSixUniqueStyles(styles) {
   const out = [];
   const seen = new Set();
@@ -124,29 +140,52 @@ export class BattleDomAdapter {
 
       if (target.matches('[data-role="style-select"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
-        this.populateSkillSelect(slot, target.value);
+        this.populateSkillChecklist(slot, target.value);
         this.updateSlotSummary(slot);
         this.renderSelectionSummary();
+      }
+
+      if (target.matches('[data-role="skill-check"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateSlotSummary(slot);
       }
     });
 
     this._bound = true;
   }
 
-  populateSkillSelect(slotIndex, styleId) {
-    const skillSelect = this.root.querySelector(
-      `[data-role="skill-select"][data-slot="${slotIndex}"]`
+  populateSkillChecklist(slotIndex, styleId, preferredCheckedIds = null) {
+    const container = this.root.querySelector(
+      `[data-role="skill-checklist"][data-slot="${slotIndex}"]`
     );
-    if (!skillSelect) return;
+    if (!container) return;
 
     const skills = this.dataStore.listSkillsByStyleId(styleId);
-    skillSelect.innerHTML = '';
+    const checkedSet = Array.isArray(preferredCheckedIds)
+      ? new Set(preferredCheckedIds.map((id) => Number(id)))
+      : null;
+    container.innerHTML = '';
 
     for (const skill of skills) {
-      const option = this.doc.createElement('option');
-      option.value = String(skill.id);
-      option.textContent = `${skill.name} (SP ${skill.spCost ?? '-'})`;
-      skillSelect.appendChild(option);
+      const row = this.doc.createElement('label');
+      row.className = 'skill-check-item';
+      const checkbox = this.doc.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.setAttribute('data-role', 'skill-check');
+      checkbox.setAttribute('data-slot', String(slotIndex));
+      checkbox.value = String(skill.id);
+      const required = isRequiredEquippedSkill(skill);
+      checkbox.checked = required ? true : checkedSet ? checkedSet.has(Number(skill.id)) : true;
+      if (required) {
+        checkbox.disabled = true;
+        checkbox.setAttribute('data-required-skill', 'true');
+      }
+
+      const sourceType = String(skill.sourceType ?? 'style');
+      const sourceBadge = sourceType === 'style' ? '' : ` [${sourceType}]`;
+      row.appendChild(checkbox);
+      row.append(` ${skill.name} (SP ${skill.spCost ?? '-'})${sourceBadge}`);
+      container.appendChild(row);
     }
   }
 
@@ -205,13 +244,13 @@ export class BattleDomAdapter {
       styleSelect.setAttribute('data-role', 'style-select');
       styleSelect.setAttribute('data-slot', String(i));
 
-      const skillSelect = this.doc.createElement('select');
-      skillSelect.setAttribute('data-role', 'skill-select');
-      skillSelect.setAttribute('data-slot', String(i));
+      const skillChecklist = this.doc.createElement('div');
+      skillChecklist.setAttribute('data-role', 'skill-checklist');
+      skillChecklist.setAttribute('data-slot', String(i));
 
       wrapper.appendChild(characterSelect);
       wrapper.appendChild(styleSelect);
-      wrapper.appendChild(skillSelect);
+      wrapper.appendChild(skillChecklist);
 
       const summary = this.doc.createElement('div');
       summary.setAttribute('data-role', 'slot-summary');
@@ -220,7 +259,7 @@ export class BattleDomAdapter {
 
       container.appendChild(wrapper);
       this.populateStyleSelect(i, initial.characterLabel, initial.styleId);
-      this.populateSkillSelect(i, initial.styleId);
+      this.populateSkillChecklist(i, initial.styleId);
       this.updateSlotSummary(i);
     }
 
@@ -261,9 +300,38 @@ export class BattleDomAdapter {
     const styleSelect = this.root.querySelector(
       `[data-role="style-select"][data-slot="${slotIndex}"]`
     );
-    this.populateSkillSelect(slotIndex, styleSelect?.value ?? '');
+    this.populateSkillChecklist(slotIndex, styleSelect?.value ?? '');
     this.updateSlotSummary(slotIndex);
     this.renderSelectionSummary();
+  }
+
+  getCheckedSkillIdsForSlot(slotIndex) {
+    const checkboxes = this.root.querySelectorAll(
+      `[data-role="skill-check"][data-slot="${slotIndex}"]`
+    );
+    if (checkboxes.length === 0) {
+      return null;
+    }
+    const out = [];
+    for (const box of checkboxes) {
+      const isRequired = box.getAttribute('data-required-skill') === 'true';
+      if (!box.checked && !isRequired) {
+        continue;
+      }
+      out.push(toInt(box.value, 0));
+    }
+    return out;
+  }
+
+  readSkillSetMapFromDom() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const selected = this.getCheckedSkillIdsForSlot(i);
+      if (Array.isArray(selected)) {
+        out[i] = selected;
+      }
+    }
+    return out;
   }
 
   updateSlotSummary(slotIndex) {
@@ -278,19 +346,16 @@ export class BattleDomAdapter {
     const styleSelect = this.root.querySelector(
       `[data-role="style-select"][data-slot="${slotIndex}"]`
     );
-    const skillSelect = this.root.querySelector(
-      `[data-role="skill-select"][data-slot="${slotIndex}"]`
-    );
-
     const selectedCharacterLabel = charSelect?.value ?? '';
     const selectedStyleId = styleSelect?.value ?? '';
-    const selectedSkillId = skillSelect?.value;
     const character = this.dataStore.getCharacterByLabel(selectedCharacterLabel);
     const style = this.dataStore.getStyleById(selectedStyleId);
-    const skill = this.dataStore.getSkillById(selectedSkillId);
+    const selectedSkillIds = this.getCheckedSkillIdsForSlot(slotIndex) ?? [];
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
-    summary.textContent = `Character: ${charName} / Style: ${style?.name ?? '-'} / Skill: ${skill?.name ?? '-'}`;
+    summary.textContent =
+      `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
+      `Equipped Skills: ${selectedSkillIds.length}`;
   }
 
   renderSelectionSummary() {
@@ -327,8 +392,12 @@ export class BattleDomAdapter {
     return ids;
   }
 
-  initializeBattle(styleIds = this.readStyleIdsFromDom()) {
-    this.party = this.dataStore.buildPartyFromStyleIds(styleIds, { initialSP: this.initialSP });
+  initializeBattle(styleIds = this.readStyleIdsFromDom(), options = {}) {
+    const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? this.readSkillSetMapFromDom();
+    this.party = this.dataStore.buildPartyFromStyleIds(styleIds, {
+      initialSP: this.initialSP,
+      skillSetsByPartyIndex,
+    });
     this.state = createBattleStateFromParty(this.party);
     this.recordStore = createBattleRecordStore();
     this.previewRecord = null;
@@ -361,6 +430,15 @@ export class BattleDomAdapter {
       const select = this.doc.createElement('select');
       select.setAttribute('data-action-slot', String(member.position));
 
+      if (member.skills.length === 0) {
+        const option = this.doc.createElement('option');
+        option.value = '';
+        option.textContent = '(No equipped skills)';
+        option.disabled = true;
+        option.selected = true;
+        select.appendChild(option);
+      }
+
       for (const skill of member.skills) {
         const option = this.doc.createElement('option');
         option.value = String(skill.skillId);
@@ -382,6 +460,9 @@ export class BattleDomAdapter {
     for (const member of this.party.getFrontline()) {
       const select = this.root.querySelector(`[data-action-slot="${member.position}"]`);
       const fallbackSkill = member.skills[0];
+      if (!fallbackSkill) {
+        throw new Error(`No equipped skills for position ${member.position + 1}.`);
+      }
       const skillId = toInt(select?.value, fallbackSkill?.skillId ?? 0);
       actionDict[String(member.position)] = {
         characterId: member.characterId,
@@ -419,8 +500,17 @@ export class BattleDomAdapter {
       inCharacterName: inMember.characterName,
     };
 
+    const fromPos = outMember.position;
+    const toPos = inMember.position;
+    outMember.setPosition(toPos);
+    inMember.setPosition(fromPos);
+
     this.pendingSwapEvents.push(event);
-    this.setStatus(`Swap queued: ${outMember.characterName} <-> ${inMember.characterName}`);
+    this.previewRecord = null;
+    this.writePreviewOutput('');
+    this.renderActionSelectors();
+    this.renderPartyState();
+    this.setStatus(`Swap applied: ${outMember.characterName} <-> ${inMember.characterName}`);
     return event;
   }
 
@@ -450,7 +540,8 @@ export class BattleDomAdapter {
     const { nextState, committedRecord } = commitTurn(
       this.state,
       this.previewRecord,
-      this.pendingSwapEvents
+      this.pendingSwapEvents,
+      { applySwapOnCommit: false }
     );
 
     this.state = nextState;

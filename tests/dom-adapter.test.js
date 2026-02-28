@@ -53,23 +53,28 @@ test('dom adapter initializes, previews, commits, and exports csv', () => {
   assert.ok(csv.includes('T1'));
 });
 
-test('dom adapter can initialize using explicit style ids and queue swap', () => {
+test('dom adapter applies swap immediately and keeps swap event for commit record', () => {
   const store = getStore();
   const { root } = createRoot();
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
 
   const styleIds = getSixUsableStyleIds(store);
   adapter.initializeBattle(styleIds);
+  const beforePos0 = adapter.state.party.find((m) => m.position === 0);
+  const beforePos3 = adapter.state.party.find((m) => m.position === 3);
 
   const swap = adapter.queueSwap(0, 3);
   assert.equal(swap.fromPositionIndex, 0);
   assert.equal(swap.toPositionIndex, 3);
+  assert.equal(adapter.state.party.find((m) => m.position === 0)?.characterId, beforePos3?.characterId);
+  assert.equal(adapter.state.party.find((m) => m.position === 3)?.characterId, beforePos0?.characterId);
 
   adapter.previewCurrentTurn();
-  adapter.commitCurrentTurn();
+  const committed = adapter.commitCurrentTurn();
 
   assert.equal(adapter.pendingSwapEvents.length, 0);
   assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(committed.swapEvents.length, 1);
 });
 
 test('character -> style selection is linked and reflected on screen', () => {
@@ -119,10 +124,13 @@ test('style -> skill selection is linked', () => {
   adapter.mount();
 
   const slot = 0;
-  const skillSelect = root.querySelector(`[data-role="skill-select"][data-slot="${slot}"]`);
+  const checklist = root.querySelector(`[data-role="skill-checklist"][data-slot="${slot}"]`);
 
-  assert.ok(skillSelect !== null, 'skill-select should exist');
-  assert.ok(skillSelect.options.length > 0, 'skills should be populated');
+  assert.ok(checklist !== null, 'skill-checklist should exist');
+  assert.ok(
+    checklist.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`).length > 0,
+    'skills should be populated'
+  );
 
   const candidates = store.listCharacterCandidates();
   const charWithMultipleStyles = candidates.find((c) => c.styleCount >= 2);
@@ -138,12 +146,15 @@ test('style -> skill selection is linked', () => {
     if (styles.length >= 2) {
       styleSelect.value = String(styles[1].id);
       styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
-      assert.ok(skillSelect.options.length > 0, 'skills updated for new style');
+      assert.ok(
+        checklist.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`).length > 0,
+        'skills updated for new style'
+      );
     }
   }
 
   const slotSummary = root.querySelector(`[data-role="slot-summary"][data-slot="${slot}"]`).textContent;
-  assert.ok(slotSummary.includes('Skill:'), 'slot summary includes skill info');
+  assert.ok(slotSummary.includes('Equipped Skills:'), 'slot summary includes equipped skill count');
 });
 
 test('style selection exposes usable skills by restricted/generalize/admiral rules', () => {
@@ -155,7 +166,10 @@ test('style selection exposes usable skills by restricted/generalize/admiral rul
   const slot = 0;
   const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
   const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
-  const skillSelect = root.querySelector(`[data-role="skill-select"][data-slot="${slot}"]`);
+  const getSkillIds = () =>
+    [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)].map((el) =>
+      Number(el.value)
+    );
 
   // KMaruyama(スマイリー) should see generalized restricted skill and normal shared skill.
   characterSelect.value = 'KMaruyama';
@@ -163,7 +177,7 @@ test('style selection exposes usable skills by restricted/generalize/admiral rul
   styleSelect.value = '1007205'; // スマイリー・ブルーム (SS, non-generalize)
   styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
 
-  const maruyamaSkillIds = [...skillSelect.options].map((opt) => Number(opt.value));
+  const maruyamaSkillIds = getSkillIds();
   assert.equal(maruyamaSkillIds.includes(46007206), true, 'ヴォイドストーム should be usable via generalize');
   assert.equal(maruyamaSkillIds.includes(46007214), true, '勇気の灯火 should be shared as normal skill');
 
@@ -172,12 +186,86 @@ test('style selection exposes usable skills by restricted/generalize/admiral rul
   characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
   styleSelect.value = '1001103'; // 閃光のサーキットバースト (non-Admiral)
   styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
-  const rkNonAdmiralSkillIds = [...skillSelect.options].map((opt) => Number(opt.value));
+  const rkNonAdmiralSkillIds = getSkillIds();
   assert.equal(rkNonAdmiralSkillIds.includes(46001134), false, '指揮行動 should be hidden on non-Admiral');
 
   // Admiral style should see 指揮行動.
   styleSelect.value = '1001111'; // Glorious Blades (Admiral)
   styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
-  const rkAdmiralSkillIds = [...skillSelect.options].map((opt) => Number(opt.value));
+  const rkAdmiralSkillIds = getSkillIds();
   assert.equal(rkAdmiralSkillIds.includes(46001134), true, '指揮行動 should be available on Admiral');
+});
+
+test('unchecked skills are excluded from battle member loadout', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const boxes = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)];
+  assert.ok(boxes.length >= 2, 'need at least two skills for this test');
+
+  for (const box of boxes) {
+    box.checked = false;
+  }
+  boxes[0].checked = true;
+
+  adapter.initializeBattle();
+  const member = adapter.party.getByPosition(0);
+  assert.equal(member.skills.length, 1, 'only one equipped skill should remain');
+  assert.equal(member.skills[0].skillId, Number(boxes[0].value));
+});
+
+test('normal attack is always equipped and cannot be unchecked', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const boxes = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)];
+  const normal = boxes.find((box) => {
+    const label = box.closest('label');
+    return (label?.textContent ?? '').includes('通常攻撃');
+  });
+
+  assert.ok(normal, 'normal attack checkbox should exist');
+  assert.equal(normal.disabled, true, 'normal attack checkbox should be disabled');
+  assert.equal(normal.checked, true, 'normal attack checkbox should be checked');
+
+  for (const box of boxes) {
+    box.checked = false;
+  }
+
+  adapter.initializeBattle();
+  const member = adapter.party.getByPosition(0);
+  const skillNames = member.skills.map((skill) => skill.name);
+  assert.equal(skillNames.includes('通常攻撃'), true, 'normal attack should always remain equipped');
+});
+
+test('admiral command is always equipped and cannot be unchecked on Admiral style', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+
+  characterSelect.value = 'RKayamori';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1001111'; // Glorious Blades (Admiral)
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const boxes = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)];
+  const admiralCommand = boxes.find((box) => {
+    const label = box.closest('label');
+    return (label?.textContent ?? '').includes('指揮行動');
+  });
+
+  assert.ok(admiralCommand, 'admiral command checkbox should exist');
+  assert.equal(admiralCommand.disabled, true, 'admiral command checkbox should be disabled');
+  assert.equal(admiralCommand.checked, true, 'admiral command checkbox should be checked');
 });

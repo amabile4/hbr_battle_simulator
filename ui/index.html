@@ -10,6 +10,8 @@
     .panel { border: 1px solid #c4ccd8; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .style-slot, .action-slot { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; }
     .party-slot { border: 1px solid #d6dce6; border-radius: 6px; padding: 8px; min-width: 280px; display: grid; gap: 6px; }
+    [data-role="skill-checklist"] { max-height: 180px; overflow: auto; border: 1px solid #e3e8ef; padding: 6px; border-radius: 4px; }
+    .skill-check-item { display: block; font-size: 0.9rem; margin-bottom: 4px; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #c4ccd8; padding: 6px; text-align: left; }
     pre, textarea { width: 100%; min-height: 120px; }
@@ -56,7 +58,7 @@
             <option value="5">Pos 6</option>
           </select>
         </label>
-        <button data-action="swap" type="button">Queue Swap</button>
+        <button data-action="swap" type="button">Apply Swap</button>
       </div>
       <div class="row">
         <button data-action="preview" type="button">Preview Turn</button>

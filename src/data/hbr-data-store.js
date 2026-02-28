@@ -553,7 +553,7 @@ export class HbrDataStore {
     return nextStyle;
   }
 
-  buildCharacterStyle({ styleId, partyIndex, initialSP = 4, spBonus = 0 }) {
+  buildCharacterStyle({ styleId, partyIndex, initialSP = 4, spBonus = 0, equippedSkillIds = null }) {
     const style = this.getStyleById(styleId);
     if (!style) {
       throw new Error(`Style not found: ${styleId}`);
@@ -566,7 +566,7 @@ export class HbrDataStore {
       throw new Error(`Character not found for style.chara_label=${style.chara_label}`);
     }
 
-    const styleSkills = this.listSkillsByStyleId(style.id)
+    const allStyleSkills = this.listSkillsByStyleId(style.id)
       .map((skill) => {
         const canonical = this.canonicalSkillById.get(Number(skill.id));
         return {
@@ -575,6 +575,12 @@ export class HbrDataStore {
           usage: this.resolveSkillUseCount(skill.use_count, 'max'),
         };
       });
+    const equippedSet = Array.isArray(equippedSkillIds)
+      ? new Set(equippedSkillIds.map((id) => Number(id)))
+      : null;
+    const styleSkills = equippedSet
+      ? allStyleSkills.filter((skill) => equippedSet.has(Number(skill.id)))
+      : allStyleSkills;
     const triggeredSkills = this.listTriggeredSkillsByStyleId(style.id).map((skill) => ({
       ...skill,
       usage: this.resolveSkillUseCount(skill.use_count, 'max'),
@@ -603,6 +609,7 @@ export class HbrDataStore {
 
     const initialSP = options.initialSP ?? 4;
     const spBonusMap = options.spBonusMap ?? {};
+    const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
 
     const members = styleIds.map((styleId, index) =>
       this.buildCharacterStyle({
@@ -610,6 +617,9 @@ export class HbrDataStore {
         partyIndex: index,
         initialSP,
         spBonus: Number(spBonusMap[index] ?? 0),
+        equippedSkillIds: Array.isArray(skillSetsByPartyIndex[index])
+          ? skillSetsByPartyIndex[index]
+          : null,
       })
     );
 

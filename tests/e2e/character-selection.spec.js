@@ -10,13 +10,13 @@ test.describe('キャラクター選択画面 M1受け入れ基準', () => {
     expect(slotContainers.length).toBeGreaterThanOrEqual(6);
   });
 
-  test('各スロットにキャラ/スタイル/スキル選択がある', async ({ page }) => {
+  test('各スロットにキャラ/スタイル/スキルセット選択がある', async ({ page }) => {
     await page.goto(PAGE_URL);
     await page.waitForTimeout(3000);
     for (let i = 0; i < 6; i++) {
       await expect(page.locator(`[data-role="character-select"][data-slot="${i}"]`)).toBeVisible();
       await expect(page.locator(`[data-role="style-select"][data-slot="${i}"]`)).toBeVisible();
-      await expect(page.locator(`[data-role="skill-select"][data-slot="${i}"]`)).toBeVisible();
+      await expect(page.locator(`[data-role="skill-checklist"][data-slot="${i}"]`)).toBeVisible();
     }
   });
 
@@ -37,18 +37,18 @@ test.describe('キャラクター選択画面 M1受け入れ基準', () => {
     }
   });
 
-  test('スタイル変更でスキル候補が更新される', async ({ page }) => {
+  test('スタイル変更でスキルセット候補が更新される', async ({ page }) => {
     await page.goto(PAGE_URL);
     await page.waitForTimeout(3000);
     const styleSelect = page.locator('[data-role="style-select"][data-slot="0"]');
-    const skillSelect = page.locator('[data-role="skill-select"][data-slot="0"]');
+    const skillChecklist = page.locator('[data-role="skill-checklist"][data-slot="0"]');
     const styleOptions = await styleSelect.locator('option').all();
     if (styleOptions.length > 1) {
       const secondStyleValue = await styleOptions[1].getAttribute('value');
       await styleSelect.selectOption(secondStyleValue);
     }
-    const skillOptions = await skillSelect.locator('option').all();
-    expect(skillOptions.length).toBeGreaterThan(0);
+    const skillChecks = await skillChecklist.locator('[data-role="skill-check"]').all();
+    expect(skillChecks.length).toBeGreaterThan(0);
   });
 
   test('選択サマリが表示される', async ({ page }) => {

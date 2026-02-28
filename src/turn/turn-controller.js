@@ -213,10 +213,11 @@ export function previewTurn(state, actions, enemyAction = null) {
   return record;
 }
 
-export function commitTurn(state, previewRecord, swapEvents = []) {
+export function commitTurn(state, previewRecord, swapEvents = [], options = {}) {
   if (!previewRecord || previewRecord.recordStatus !== 'preview') {
     throw new Error('commitTurn requires preview TurnRecord.');
   }
+  const applySwapOnCommit = options.applySwapOnCommit !== false;
 
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
@@ -259,7 +260,9 @@ export function commitTurn(state, previewRecord, swapEvents = []) {
     entry.spChanges = [...entry.spChanges, ...extraChanges];
   }
 
-  applySwapEvents(state, swapEvents);
+  if (applySwapOnCommit) {
+    applySwapEvents(state, swapEvents);
+  }
 
   const snapAfter = snapshotPartyByPartyIndex(state.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
