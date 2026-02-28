@@ -148,6 +148,7 @@ test('style skill list includes master/orb skills and can toggle orb skills', ()
 
   assert.equal(skillIdsDefault.includes(46501301), true, 'master skill should be selectable');
   assert.equal(skillIdsDefault.includes(46300007), true, 'orb skill should be selectable');
+  assert.equal(skillIdsDefault.includes(46001391), false, 'pursuit should not be command-selectable');
   assert.equal(masterSkill?.sourceType, 'master');
   assert.equal(orbSkill?.sourceType, 'orb');
 
@@ -159,4 +160,12 @@ test('style skill list includes master/orb skills and can toggle orb skills', ()
   store.setSkillAvailability({ includeOrbSkills: true });
   const skillIdsOrbBack = store.listSkillsByStyleId(megumiAStyleId).map((s) => Number(s.id));
   assert.equal(skillIdsOrbBack.includes(46300007), true, 'orb skill should reappear when enabled');
+});
+
+test('triggered skill list keeps pursuit skills for future simulation', () => {
+  const store = getStore();
+  const megumiAStyleId = 1001301;
+
+  const triggeredSkillIds = store.listTriggeredSkillsByStyleId(megumiAStyleId).map((s) => Number(s.id));
+  assert.equal(triggeredSkillIds.includes(46001391), true, 'pursuit should be retained as triggered');
 });

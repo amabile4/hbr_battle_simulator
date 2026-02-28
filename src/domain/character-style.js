@@ -71,6 +71,9 @@ export class CharacterStyle {
     this.skills = Object.freeze(
       (input.skills ?? []).map((skill) => normalizeSkill(skill, skill.canonicalSkill))
     );
+    this.triggeredSkills = Object.freeze(
+      (input.triggeredSkills ?? []).map((skill) => normalizeSkill(skill, skill.canonicalSkill))
+    );
 
     this._revision = 0;
   }

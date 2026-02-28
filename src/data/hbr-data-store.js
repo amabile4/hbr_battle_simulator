@@ -154,6 +154,30 @@ export class HbrDataStore {
     return Number(skill?.is_restricted ?? 0) === 1;
   }
 
+  isCommandSelectableSkill(skill) {
+    if (!skill) {
+      return false;
+    }
+
+    const name = String(skill.name ?? '');
+    const label = String(skill.label ?? '');
+    const desc = String(skill.desc ?? '');
+
+    if (name === '追撃') {
+      return false;
+    }
+
+    if (label.endsWith('Skill91')) {
+      return false;
+    }
+
+    if (desc.includes('追撃でのみ発動可能')) {
+      return false;
+    }
+
+    return true;
+  }
+
   cloneSkillWithSource(skill, sourceType, sourceMeta = {}) {
     return {
       ...structuredClone(skill),
@@ -356,6 +380,10 @@ export class HbrDataStore {
           continue;
         }
 
+        if (!this.isCommandSelectableSkill(skill)) {
+          continue;
+        }
+
         seen.add(Number(skill.id));
         out.push(
           this.cloneSkillWithSource(skill, 'style', {
@@ -390,6 +418,46 @@ export class HbrDataStore {
           this.cloneSkillWithSource(orbSkill, 'orb', {
             sourceAccessoryId: Number(orbSkill.sourceAccessoryId),
             sourceAccessoryName: String(orbSkill.sourceAccessoryName ?? ''),
+          })
+        );
+      }
+    }
+
+    return out;
+  }
+
+  listTriggeredSkillsByStyleId(styleId) {
+    const style = this.getStyleById(styleId);
+    if (!style) {
+      return [];
+    }
+
+    const styles = this.listStylesByCharacter(style.chara_label).sort(
+      (a, b) => toDateValue(a.in_date) - toDateValue(b.in_date)
+    );
+
+    const out = [];
+    const seen = new Set();
+    for (const rowStyle of styles) {
+      for (const skillRef of rowStyle.skills ?? []) {
+        const skill = this.getSkillById(skillRef.id);
+        if (!skill || seen.has(Number(skill.id))) {
+          continue;
+        }
+
+        if (!this.canStyleUseSkill(style, skill)) {
+          continue;
+        }
+
+        if (this.isCommandSelectableSkill(skill)) {
+          continue;
+        }
+
+        seen.add(Number(skill.id));
+        out.push(
+          this.cloneSkillWithSource(skill, 'triggered', {
+            sourceStyleId: Number(rowStyle.id),
+            sourceStyleName: String(rowStyle.name ?? ''),
           })
         );
       }
@@ -507,6 +575,10 @@ export class HbrDataStore {
           usage: this.resolveSkillUseCount(skill.use_count, 'max'),
         };
       });
+    const triggeredSkills = this.listTriggeredSkillsByStyleId(style.id).map((skill) => ({
+      ...skill,
+      usage: this.resolveSkillUseCount(skill.use_count, 'max'),
+    }));
 
     return new CharacterStyle({
       characterId: String(character.label),
@@ -520,6 +592,7 @@ export class HbrDataStore {
       spMin: 0,
       spMax: 20,
       skills: styleSkills,
+      triggeredSkills,
     });
   }
 
