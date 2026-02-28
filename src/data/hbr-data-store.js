@@ -44,6 +44,21 @@ export class HbrDataStore {
     });
   }
 
+  static fromRawData(payload) {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('fromRawData requires a payload object.');
+    }
+
+    return new HbrDataStore({
+      characters: payload.characters ?? [],
+      styles: payload.styles ?? [],
+      skills: payload.skills ?? [],
+      passives: payload.passives ?? [],
+      skillDbSchema: payload.skillDbSchema ?? {},
+      skillDbDraft: payload.skillDbDraft ?? {},
+    });
+  }
+
   validateSkillDatabaseDraft() {
     return validateDocument(this.skillDbSchema, this.skillDbDraft);
   }

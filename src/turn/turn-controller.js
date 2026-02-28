@@ -1,4 +1,9 @@
-import { createBattleState, cloneTurnState, snapshotPartyByPartyIndex } from '../contracts/interfaces.js';
+import {
+  createBattleState,
+  cloneTurnState,
+  snapshotPartyByPartyIndex,
+  buildPositionMap,
+} from '../contracts/interfaces.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 
 export const BASE_SP_RECOVERY = 2;
@@ -263,14 +268,9 @@ export function commitTurn(state, previewRecord, swapEvents = []) {
   const nextState = {
     ...state,
     party: [...state.party],
-    positionMap: state.positionMap.constructor === Array ? state.positionMap : [...state.positionMap],
+    positionMap: buildPositionMap(state.party),
     turnState: nextTurnState,
   };
-
-  nextState.positionMap = state.party
-    .slice()
-    .sort((a, b) => a.position - b.position)
-    .map((member) => member.partyIndex);
 
   return {
     nextState,

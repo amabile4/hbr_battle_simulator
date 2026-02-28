@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HBR Battle Simulator Adapter Demo</title>
+  <style>
+    body { font-family: Georgia, 'Times New Roman', serif; margin: 24px; color: #1f2d3d; }
+    .row { margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .panel { border: 1px solid #c4ccd8; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .style-slot, .action-slot { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #c4ccd8; padding: 6px; text-align: left; }
+    pre, textarea { width: 100%; min-height: 120px; }
+    ul { margin: 0; padding-left: 18px; }
+  </style>
+</head>
+<body>
+  <h1>HBR Battle Simulator UI Adapter Demo</h1>
+
+  <div id="app">
+    <div class="panel">
+      <h2>Party Setup</h2>
+      <div data-role="style-slots" class="row"></div>
+      <div class="row">
+        <button data-action="initialize" type="button">Initialize Battle</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Turn Controls</h2>
+      <div class="row">
+        <label>Enemy Action <input data-role="enemy-action" type="text" placeholder="optional" /></label>
+      </div>
+      <div data-role="action-slots" class="row"></div>
+      <div class="row">
+        <label>Swap From
+          <select data-role="swap-from">
+            <option value="0">Pos 1</option>
+            <option value="1">Pos 2</option>
+            <option value="2">Pos 3</option>
+          </select>
+        </label>
+        <label>Swap To
+          <select data-role="swap-to">
+            <option value="3">Pos 4</option>
+            <option value="4">Pos 5</option>
+            <option value="5">Pos 6</option>
+          </select>
+        </label>
+        <button data-action="swap" type="button">Queue Swap</button>
+      </div>
+      <div class="row">
+        <button data-action="preview" type="button">Preview Turn</button>
+        <button data-action="commit" type="button">Commit Turn</button>
+      </div>
+      <p><strong>Turn:</strong> <span data-role="turn-label"></span></p>
+      <ul data-role="party-state"></ul>
+      <p><strong>Status:</strong> <span data-role="status"></span></p>
+    </div>
+
+    <div class="panel">
+      <h2>Preview</h2>
+      <pre data-role="preview-output"></pre>
+    </div>
+
+    <div class="panel">
+      <h2>Records</h2>
+      <div class="row">
+        <button data-action="clear-records" type="button">Clear Records</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>turnId</th><th>turnLabel</th><th>turnType</th><th>actions</th></tr>
+        </thead>
+        <tbody data-role="record-body"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>CSV Export</h2>
+      <div class="row">
+        <button data-action="export-csv" type="button">Export CSV</button>
+      </div>
+      <textarea data-role="csv-output"></textarea>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -20,8 +20,14 @@ export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceI
 }
 
 export function commitRecord(preview, snapAfter, swapEvents, committedAt = new Date().toISOString()) {
+  const actions = preview.actions.map((entry) => {
+    const { _baseRevision, ...safeEntry } = entry;
+    return safeEntry;
+  });
+
   return {
     ...preview,
+    actions,
     recordStatus: 'committed',
     snapAfter,
     swapEvents,
