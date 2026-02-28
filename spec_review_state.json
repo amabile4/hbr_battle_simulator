@@ -1,0 +1,152 @@
+{
+  "project": "hbr_battle_simulator",
+  "status": "implementation_ready",
+  "current_round": 9,
+  "last_updated_utc": "2026-02-27T12:00:00Z",
+  "team": ["CLAUDE", "GEMINI", "CODEX"],
+  "agreed_v1": [
+    "CharacterState/TurnState/TurnRecordを分離し、状態遷移は純粋関数インターフェースで統一",
+    "turnType=normal|od|extra と turnLabel を分離保持",
+    "previewTurn(プレビュー) と commitTurn(確定) の2段階を維持（関数名変更確定）",
+    "TurnRecordに recordStatus=preview|committed を追加",
+    "SP変更はsource付きイベントとして記録（cost/base/od/passive/active/clamp）",
+    "OD SP回復対象=6人全員（確定）",
+    "追加ターン制約=allowedCharacterIds基準（character単位、確定）",
+    "バフ/デバフ v1=記録のみ（EffectSlotスキーマ定義、計算なし）",
+    "SkillSlot.type=damage|non_damageの2値（確定）",
+    "enemyAction=nullable（CSV空文字、v1必須にしない）",
+    "SP回復適用順: cost → base → od → passive → clamp",
+    "RecordAssembler=fromSnapshot()でBattleState依存排除",
+    "SwapEvent.swapSequenceで同一ターン内の交代順序を保持",
+    "EffectSlot.durationRemaining=-1をv1デフォルト（永続/未設定を意味する）",
+    "canSwapWith(a,b,isExtraActive,allowedIds)でBattleState依存を排除",
+    "[R7確定] OD残行動: OD1=1回, OD2=2回, OD3=3回",
+    "[R7確定] SPパッシブ効果: 加算・上限なし・他キャラ付与もv1対応",
+    "[R7確定] sequenceId採用: 全コミットで単調増加する内部連番を新設",
+    "[R7確定] TurnRecord.turnId = sequenceId に変更",
+    "[R7確定] SP負債を許可: SPChangeEntry.postSPがマイナス値を取りうる",
+    "[R7確定] extra即割り込み: OD中にextra付与→extra開始(OD suspend)→extra完了→OD resume",
+    "[R7確定] extra同時並列消費: 同時付与はallowedCharacterIdsをマージし1ターンで消費",
+    "[R7確定] SwapEvent: commitTurn時点の最終状態のみ記録（仮交代試行は記録しない）",
+    "[R7確定] CharacterState.isExtraActive: boolean をキャラごとに保持",
+    "[R7確定] TurnState.odSuspended: boolean を追加（extra割り込み中にtrue）",
+    "[R7確定] CSV: DOMテーブルと完全一致",
+    "[R7確定] 関数名: executeTurn→previewTurn, nextTurn→commitTurn",
+    "[R7確定] v1にisAlive/isBreakの2フラグのみCharacterStateに追加（DP/HP数値は将来）",
+    "[R8確定] OD種別をodContext:'preemptive'|'interrupt'|null で区別",
+    "[R8確定] preemptive OD: 行動開始前に発動→ODターン消化→自ターン開始前に戻る",
+    "[R8確定] interrupt OD: 行動後に発動→ODターン消化→敵ターンへ移行",
+    "[R9確定] Q-NEW2解決: extra行動中の割り込みODはextra完了まで保留（Answer A）",
+    "[R9確定] TurnState.odPending: boolean を追加（割り込みODトリガー成立済み・extraフェーズ中）",
+    "[R9確定] odPendingはextraフェーズ終了後の次ターン移行タイミングで発動する",
+    "[R9確定] 連続extra（追加→追加→追加）中もodPending=trueを維持、全extra完了後に発動",
+    "[R10確定] SP下限: 通常0（sp.min）、特性/スキル付与でマイナス値可（ゲームメカニクス）",
+    "[R10確定] SP上限: 通常20（sp.max）、特性/スキルで25/30まで拡張可",
+    "[R10確定] OD回復イベント(source='od')のみeventCeiling=99でsp.maxを無視して最大99まで増加可能",
+    "[R10確定] ODはsp.maxを変動させない。base/cost/passiveはOD中も通常ルールを使う",
+    "[R10確定] SkillSlot.spRecoveryCeiling?: number を追加（省略=sp.max準拠、指定=その値まで回復可）",
+    "[R10確定] SP変動統一関数: applySpChange(current, delta, min, eventCeiling)",
+    "[R10確定] eventCeiling一覧: cost=Infinity, base=sp.max, od=99, active通常=sp.max, active拡張=spRecoveryCeiling",
+    "[R10確定] 凍結ルール統一式: effectiveCeiling=Math.max(current, eventCeiling)"
+    "[R10確定] 特性解除時のsp.max変動: currentをimmediate-clampしない（次回SP変動時に自然収束）",
+    "[R10確定] CharacterState.sp.min追加（デフォルト0、キャラ固有/スキル付与で変動）",
+    "[R10確定] clampAfterRecovery(current, delta, min, max, isDuringOD): current>sp.maxの間は回復無効（凍結）",
+    "[R10確定] 凍結状態: current>sp.max の間、回復（base/od/passive）は乗らずcurrentを維持",
+    "[R10確定] 凍結解除: SP消費によってcurrentがsp.max以下になった時点で通常回復が再開",
+    "[R10確定] OD中は凍結ルール適用外（effectiveCeiling=99で上書き）",
+    "[R10確定] OD終了時に上限クランプは発生しない。凍結ルールが継続するのみ",
+    "[R10確定] SP凍結ルールは経緯を問わない（特性拡張/OD/組み合わせ）: current>sp.maxなら回復無効"
+  ],
+  "open_questions": [
+    {
+      "id": "Q-B2",
+      "priority": "Should",
+      "theme": "記録/CSV",
+      "question": "CSV列としてturnIndex（内部連番）とturnLabel（表示値）を分離するか",
+      "hypothesis": "turnLabelのみ（スキップ回答）",
+      "impact": "CSV列設計"
+    },
+    {
+      "id": "Q6-G1",
+      "priority": "Should",
+      "theme": "キャラクタークラス",
+      "question": "sp.bonusの具体的用途は（スキップ）",
+      "hypothesis": "ターン回復量への加算（BASE_SP_RECOVERY + bonus）",
+      "impact": "SP計算ルール"
+    },
+    {
+      "id": "Q6-C4",
+      "priority": "Should",
+      "theme": "ターン管理",
+      "question": "OD終了時のSP clampはOD最終行動の全回復適用後に実施で確定か（スキップ）",
+      "hypothesis": "全回復後にclamp",
+      "impact": "OD終了時SP値"
+    },
+    {
+      "id": "Q6-CL1",
+      "priority": "Should",
+      "theme": "行動記録",
+      "question": "snapBeforeはpreviewTurn呼び出し直前のキャラ状態か（スキップ）",
+      "hypothesis": "previewTurn呼び出し直前",
+      "impact": "startSPの記録タイミング"
+    }
+  ],
+  "resolved_questions": [
+    {
+      "id": "Q-NEW2",
+      "priority": "Must",
+      "theme": "ターン管理",
+      "question": "extra行動中に割り込みODがトリガーされた場合、A)extra完了後にOD、B)OD即割り込みのどちらか",
+      "answer": "A) extra完了後にOD（連続extraも全て完了後）",
+      "mechanism": "odPending=trueで保持、extraフェーズ終了タイミングで発動",
+      "resolved_in": "Round 9"
+    }
+  ],
+  "critical_design_changes_r7": {
+    "od_extra_priority": {
+      "old": "od > extra > normal（OD最高優先）。OD完了後にextra開始",
+      "new": "extraがODに即座に割り込む。OD残行動をsuspendし、extra完了後にOD再開",
+      "impact": "TurnStateMachineの遷移規則を全面見直し"
+    },
+    "extra_parallel_consumption": {
+      "spec": "同時付与されたextra権利はallowedCharacterIdsをマージして1ターンで並列消費",
+      "remainingActions": "1（加算しない）"
+    },
+    "sp_debt": {
+      "spec": "SP負債（マイナス）を許可。シミュレータの利便性のため",
+      "impact": "SPChangeEntry.postSPがマイナス値を取りうる"
+    },
+    "sequence_id": {
+      "spec": "sequenceIdを新設（全コミットで+1）。TurnRecord.turnId = sequenceId",
+      "reason": "OD/extra中はturnIndexが変化しないため、ログ一意性の担保に必要"
+    }
+  },
+  "critical_design_changes_r8_r9": {
+    "od_context": {
+      "spec": "TurnState.odContext: 'preemptive' | 'interrupt' | null",
+      "preemptive": "行動開始前にOD発動→ODターン消化→自ターン開始前に戻る（敵ターンなし）",
+      "interrupt": "行動後にOD発動→ODターン消化→敵ターンへ移行",
+      "null": "OD非活性時"
+    },
+    "od_pending": {
+      "spec": "TurnState.odPending: boolean",
+      "trigger": "extra行動中に割り込みODトリガー条件が成立",
+      "fire_timing": "extraフェーズ終了後の次ターン移行タイミング",
+      "chain_behavior": "連続extraチェーン中もodPending=trueを維持し続ける"
+    }
+  },
+  "must_questions_resolved": {
+    "count": 8,
+    "status": "all_resolved",
+    "note": "Must級未確定事項ゼロ。実装着手可能な状態"
+  },
+  "pending_items": [],
+  "next_resume_step": "SP範囲仕様確定済み。Should級未確定事項（Q-B2/Q6-G1/Q6-C4/Q6-CL1）を仮説で実装開始可能",
+  "checkpoint_files": [
+    "spec_review_round_log.md",
+    "spec_review_state.json"
+  ],
+  "rate_limit": {
+    "detected": false
+  }
+}
