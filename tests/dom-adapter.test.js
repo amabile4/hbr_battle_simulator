@@ -145,3 +145,39 @@ test('style -> skill selection is linked', () => {
   const slotSummary = root.querySelector(`[data-role="slot-summary"][data-slot="${slot}"]`).textContent;
   assert.ok(slotSummary.includes('Skill:'), 'slot summary includes skill info');
 });
+
+test('style selection exposes usable skills by restricted/generalize/admiral rules', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+  const skillSelect = root.querySelector(`[data-role="skill-select"][data-slot="${slot}"]`);
+
+  // KMaruyama(スマイリー) should see generalized restricted skill and normal shared skill.
+  characterSelect.value = 'KMaruyama';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1007205'; // スマイリー・ブルーム (SS, non-generalize)
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const maruyamaSkillIds = [...skillSelect.options].map((opt) => Number(opt.value));
+  assert.equal(maruyamaSkillIds.includes(46007206), true, 'ヴォイドストーム should be usable via generalize');
+  assert.equal(maruyamaSkillIds.includes(46007214), true, '勇気の灯火 should be shared as normal skill');
+
+  // Non-Admiral RKayamori style should not see 指揮行動.
+  characterSelect.value = 'RKayamori';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1001103'; // 閃光のサーキットバースト (non-Admiral)
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const rkNonAdmiralSkillIds = [...skillSelect.options].map((opt) => Number(opt.value));
+  assert.equal(rkNonAdmiralSkillIds.includes(46001134), false, '指揮行動 should be hidden on non-Admiral');
+
+  // Admiral style should see 指揮行動.
+  styleSelect.value = '1001111'; // Glorious Blades (Admiral)
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const rkAdmiralSkillIds = [...skillSelect.options].map((opt) => Number(opt.value));
+  assert.equal(rkAdmiralSkillIds.includes(46001134), true, '指揮行動 should be available on Admiral');
+});
