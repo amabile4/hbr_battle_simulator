@@ -124,12 +124,30 @@ export class BattleDomAdapter {
 
       if (target.matches('[data-role="style-select"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.populateSkillSelect(slot, target.value);
         this.updateSlotSummary(slot);
         this.renderSelectionSummary();
       }
     });
 
     this._bound = true;
+  }
+
+  populateSkillSelect(slotIndex, styleId) {
+    const skillSelect = this.root.querySelector(
+      `[data-role="skill-select"][data-slot="${slotIndex}"]`
+    );
+    if (!skillSelect) return;
+
+    const skills = this.dataStore.listSkillsByStyleId(styleId);
+    skillSelect.innerHTML = '';
+
+    for (const skill of skills) {
+      const option = this.doc.createElement('option');
+      option.value = String(skill.id);
+      option.textContent = `${skill.name} (SP ${skill.spCost ?? '-'})`;
+      skillSelect.appendChild(option);
+    }
   }
 
   buildDefaultSelections() {
@@ -187,8 +205,13 @@ export class BattleDomAdapter {
       styleSelect.setAttribute('data-role', 'style-select');
       styleSelect.setAttribute('data-slot', String(i));
 
+      const skillSelect = this.doc.createElement('select');
+      skillSelect.setAttribute('data-role', 'skill-select');
+      skillSelect.setAttribute('data-slot', String(i));
+
       wrapper.appendChild(characterSelect);
       wrapper.appendChild(styleSelect);
+      wrapper.appendChild(skillSelect);
 
       const summary = this.doc.createElement('div');
       summary.setAttribute('data-role', 'slot-summary');
@@ -197,6 +220,7 @@ export class BattleDomAdapter {
 
       container.appendChild(wrapper);
       this.populateStyleSelect(i, initial.characterLabel, initial.styleId);
+      this.populateSkillSelect(i, initial.styleId);
       this.updateSlotSummary(i);
     }
 
@@ -234,6 +258,10 @@ export class BattleDomAdapter {
 
   onCharacterSelectionChanged(slotIndex, characterLabel) {
     this.populateStyleSelect(slotIndex, characterLabel, null);
+    const styleSelect = this.root.querySelector(
+      `[data-role="style-select"][data-slot="${slotIndex}"]`
+    );
+    this.populateSkillSelect(slotIndex, styleSelect?.value ?? '');
     this.updateSlotSummary(slotIndex);
     this.renderSelectionSummary();
   }
@@ -250,14 +278,19 @@ export class BattleDomAdapter {
     const styleSelect = this.root.querySelector(
       `[data-role="style-select"][data-slot="${slotIndex}"]`
     );
+    const skillSelect = this.root.querySelector(
+      `[data-role="skill-select"][data-slot="${slotIndex}"]`
+    );
 
     const selectedCharacterLabel = charSelect?.value ?? '';
     const selectedStyleId = styleSelect?.value ?? '';
+    const selectedSkillId = skillSelect?.value;
     const character = this.dataStore.getCharacterByLabel(selectedCharacterLabel);
     const style = this.dataStore.getStyleById(selectedStyleId);
+    const skill = this.dataStore.getSkillById(selectedSkillId);
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
-    summary.textContent = `Character: ${charName} / Style: ${style?.name ?? '-'}`;
+    summary.textContent = `Character: ${charName} / Style: ${style?.name ?? '-'} / Skill: ${skill?.name ?? '-'}`;
   }
 
   renderSelectionSummary() {

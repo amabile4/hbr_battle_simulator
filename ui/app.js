@@ -2,6 +2,12 @@ import { HbrDataStore } from '../src/data/hbr-data-store.js';
 import { BattleDomAdapter } from '../src/ui/dom-adapter.js';
 
 async function fetchJson(path) {
+  if (window.location.protocol === 'file:') {
+    const url = new URL(path, import.meta.url).href;
+    const module = await import(url, { with: { type: 'json' } });
+    return module.default;
+  }
+
   const response = await fetch(path);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${path}: ${response.status}`);

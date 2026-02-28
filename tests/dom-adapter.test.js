@@ -111,3 +111,37 @@ test('character -> style selection is linked and reflected on screen', () => {
   assert.ok(slotSummary.includes('Style:'));
   assert.ok(summary.includes('Slot 1:'));
 });
+
+test('style -> skill selection is linked', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const skillSelect = root.querySelector(`[data-role="skill-select"][data-slot="${slot}"]`);
+
+  assert.ok(skillSelect !== null, 'skill-select should exist');
+  assert.ok(skillSelect.options.length > 0, 'skills should be populated');
+
+  const candidates = store.listCharacterCandidates();
+  const charWithMultipleStyles = candidates.find((c) => c.styleCount >= 2);
+  if (charWithMultipleStyles) {
+    const charSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+    const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+    charSelect.value = charWithMultipleStyles.label;
+    charSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const styles = store
+      .listStylesByCharacter(charWithMultipleStyles.label)
+      .filter((s) => Array.isArray(s.skills) && s.skills.length > 0);
+    if (styles.length >= 2) {
+      styleSelect.value = String(styles[1].id);
+      styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+      assert.ok(skillSelect.options.length > 0, 'skills updated for new style');
+    }
+  }
+
+  const slotSummary = root.querySelector(`[data-role="slot-summary"][data-slot="${slot}"]`).textContent;
+  assert.ok(slotSummary.includes('Skill:'), 'slot summary includes skill info');
+});
