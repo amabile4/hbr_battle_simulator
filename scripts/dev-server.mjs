@@ -25,6 +25,12 @@ const MIME = {
   '.svg': 'image/svg+xml',
 };
 
+const NO_CACHE_HEADERS = Object.freeze({
+  'Cache-Control': 'no-store, max-age=0, must-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+});
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const filePath = join(ROOT, url.pathname);
@@ -33,14 +39,15 @@ const server = createServer(async (req, res) => {
     const data = await readFile(filePath);
     const ext = extname(filePath).toLowerCase();
     const contentType = MIME[ext] ?? 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': contentType });
+    res.writeHead(200, { 'Content-Type': contentType, ...NO_CACHE_HEADERS });
     res.end(data);
   } catch {
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.writeHead(404, { 'Content-Type': 'text/plain', ...NO_CACHE_HEADERS });
     res.end('Not found: ' + url.pathname);
   }
 });
 
 server.listen(PORT, () => {
   console.log(`Dev server listening on http://localhost:${PORT}`);
+  console.log(`Serving root: ${ROOT}`);
 });
