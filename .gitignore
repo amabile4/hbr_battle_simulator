@@ -96,3 +96,4 @@ json/styles.json
 skillDatabase.json
 
 .cli-home
+scripts/run_gemini_api.sh
