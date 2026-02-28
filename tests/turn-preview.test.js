@@ -1,31 +1,75 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { commitTurn, previewTurn } from '../src/index.js';
+import {
+  commitTurn,
+  createBattleStateFromParty,
+  createBattleRecordStore,
+  previewTurn,
+  RecordEditor,
+} from '../src/index.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
 test('turn preview and commit work with revision guard', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);
   const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 15 });
+  const state = createBattleStateFromParty(party);
 
-  const actionPlan = party
-    .getFrontline()
-    .map((member) => {
+  const actionDict = Object.fromEntries(
+    party.getFrontline().map((member) => {
       const skill = member.skills.find((item) => item.spCost > 0) ?? member.skills[0];
-      return {
-        position: member.position,
-        skillId: skill.skillId,
-      };
-    });
+      return [
+        String(member.position),
+        {
+          characterId: member.characterId,
+          skillId: skill.skillId,
+        },
+      ];
+    })
+  );
 
-  const preview = previewTurn(party, actionPlan);
+  const preview = previewTurn(state, actionDict);
 
-  assert.equal(preview.status, 'preview');
-  assert.equal(preview.entries.length, 3);
+  assert.equal(preview.recordStatus, 'preview');
+  assert.equal(preview.actions.length, 3);
+  assert.equal(preview.turnType, 'normal');
 
-  const committed = commitTurn(party, preview);
-  assert.equal(committed.status, 'committed');
-  assert.equal(committed.applied.length, 3);
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  assert.equal(committedRecord.recordStatus, 'committed');
+  assert.equal(committedRecord.actions.length, 3);
+  assert.equal(nextState.turnState.sequenceId, 2);
+  assert.equal(nextState.turnState.turnIndex, 2);
 
-  assert.throws(() => commitTurn(party, preview), /State changed after preview/);
+  assert.throws(() => commitTurn(nextState, preview), /State changed after preview/);
+});
+
+test('preview/commit records can be stored and reindexed', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 15 });
+  const state = createBattleStateFromParty(party);
+
+  const actionDict = Object.fromEntries(
+    party.getFrontline().map((member) => {
+      const skill = member.skills.find((item) => item.spCost > 0) ?? member.skills[0];
+      return [
+        String(member.position),
+        {
+          characterId: member.characterId,
+          skillId: skill.skillId,
+        },
+      ];
+    })
+  );
+
+  const preview = previewTurn(state, actionDict);
+  const { committedRecord } = commitTurn(state, preview);
+
+  let recordStore = createBattleRecordStore();
+  recordStore = RecordEditor.upsertRecord(recordStore, committedRecord);
+  recordStore = RecordEditor.reindexTurnLabels(recordStore);
+
+  assert.equal(recordStore.records.length, 1);
+  assert.equal(recordStore.records[0].turnId, 1);
+  assert.equal(recordStore.records[0].turnLabel, 'T1');
 });
