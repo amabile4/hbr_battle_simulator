@@ -16,8 +16,8 @@
 | Gemini（ターン制御視点） | **可能** |
 | Claude（行動記録視点） | 条件付き可能 |
 
-**最終結論**: 条件付き可能。技術的にブロッキングな問題は存在しない。
-ただし「現行コードからの移行コスト」と「未確定事項の一部」を解消した上での実装着手を推奨する。
+**最終結論**: 条件付き可能。技術的にブロッキングな問題は存在しない。  
+前回の条件だった「未確定事項」は解消済みで、残る条件は「現行コードからの段階移行（Adapter導入）」のみ。
 
 ---
 
@@ -34,12 +34,17 @@
    - `globals.js`, `event-handlers.js`, `results-manager.js`, `export-manager.js` の全モジュールがグローバル変数を直接参照
    - BattleState移行はAdapter層なしには一括変更になり、移行リスクが高い
 
-2. **未確定事項Q-CL2の影響**（Claude評価）
-   - cascade削除の連鎖範囲が未確定
-   - OD一連ターン削除時の整合性ロジックが不完全
+2. **TurnController実装ガイドの不足**（更新）
+   - `turnLabel` 生成関数の責務が仕様上は確定したが、実装タスクとして未着手
+   - 実装時に `generateTurnLabel(TurnState): string` を固定する必要がある
 
-3. **preview/commit間の二重適用リスク**（Codex評価）
-   - commitTurnがpreviewRecordを「検証して採用」するのか「再計算する」のかを明示的に固定しないと、SPの二重消費が発生しうる
+### 解消済み条件（ユーザー回答で確定）
+- Q-S001: `commitTurn` は `previewRecord` 採用（再計算しない）
+- Q-CL2: `deleteRecord` は個別削除のみ（cascadeなし）
+- Q-OD1: OD回復はOD開始時に一括適用
+- Q-EF1: `EffectSlot.source` はv1で `skill | passive | system`
+- Q-CSV1: CSVはポジション1..6固定、1ターン1行ワイド形式
+- Q-B2: CSVは `turnIndex + turnLabel` の2列出力
 
 ---
 
@@ -78,21 +83,17 @@
 ### Must
 | ID | 不足点 | 解消方法 |
 |----|--------|----------|
-| S-001 | preview/commitの二重適用防止ロジックが未定義 | commitTurnの「previewRecord検証採用」か「再計算」かをコード仕様に明記 |
 | S-002 | BattleState移行Adapterがない | 既存グローバル変数をラップするAdapter関数（getState/setState）を先行実装 |
 
 ### Should
 | ID | 不足点 | 解消方法 |
 |----|--------|----------|
-| S-003 | cascade削除の連鎖範囲未定義（Q-CL2） | ODグループID（od_group_id）をTurnRecordに追加し、同一グループを一括削除 |
 | S-004 | turnLabel生成関数が未定義 | TurnController内にgenerateTurnLabel(TurnState): stringを定義 |
-| S-005 | OD中SP回復タイミング未確定（Q-OD1） | 仮採用「各行動終了後に回復」で実装開始可能 |
 
 ### Could
 | ID | 不足点 | 解消方法 |
 |----|--------|----------|
-| S-006 | EffectSlot.source確定値（Q-EF1） | v1ではeffectSlotを記録のみのため、ユーザー確認後に列挙値を確定 |
-| S-007 | CSV Swap列表現（Q-CSV1） | ActionEntry.skillNameに「[交代]→キャラ名」を記入で仮実装 |
+| S-005 | 移行後のCSV運用ルール（列表示/非表示）のテンプレ化不足 | ワイドCSV向けSpreadsheetテンプレート（列グルーピング）を追加 |
 
 ---
 
@@ -120,16 +121,18 @@
 
 ### STEP 3: TurnController移行（既存executeTurn/nextTurn置換）
 ```
-□ previewTurn() 実装（S-001: preview/commit明確化）
-□ commitTurn() 実装（SP変動パイプライン5ステップ）
+□ previewTurn() 実装（Q-S001確定: previewRecord採用前提）
+□ commitTurn() 実装（通常: cost→base→passive、OD回復は開始時一括）
 □ OD状態機械実装（normal/od/extra遷移）
+□ generateTurnLabel(TurnState): string 実装（S-004）
 □ canSwapWith() 実装
 ```
 
 ### STEP 4: RecordEditor + CSVエクスポート
 ```
-□ BattleRecordStore + RecordEditor 実装（S-003: cascade削除含む）
+□ BattleRecordStore + RecordEditor 実装（Q-CL2確定: 個別削除のみ）
 □ CsvExporter を BattleRecordStore基盤に移行
+□ CsvExporter.recordToRow() をワイド形式で実装（Q-B2, Q-CSV1確定）
 □ ResultsManager のDOM更新をBattleRecordEvent購読方式に変更
 ```
 
@@ -142,5 +145,6 @@
 - 技術的ブロッキング要素: なし
 - 主要リスク: グローバル依存の段階的除去（Adapter層が必要）
 - 推奨アプローチ: STEP1の純粋関数群から着手し、既存コードと並走させながら段階移行
-- 未確定事項: 8件（Must=0件、Should=5件、Could=3件）のうち実装前に解消が必要なものは S-001, S-002 のみ
+- 仕様未確定事項: 0件（open_questions.mdの回答反映により解消済み）
+- 実装前の残課題: S-002（Must）, S-004（Should）
 - 想定実装品質: 純粋関数設計によりテストカバレッジの大幅向上が見込める

@@ -78,7 +78,7 @@ interface SpState {
   current: number;  // 可変（負債も許可: R10確定）
   min: number;      // 可変（デフォルト0、特性でマイナス可）
   max: number;      // 可変（デフォルト20、特性で25/30拡張可）
-  bonus: number;    // 可変（BASE_SP_RECOVERY=2 への加算: Q6-G1仮採用）
+  bonus: number;    // 可変（BASE_SP_RECOVERY=2 への加算: Q-G1確定）
 }
 
 // ========== スキル ==========
@@ -102,7 +102,7 @@ interface SkillSlot {
 interface EffectSlot {
   effectId: string;
   name: string;
-  source: 'skill' | 'passive' | 'item' | 'system'; // (Q-EF1: 仮確定、要ユーザー確認)
+  source: 'skill' | 'passive' | 'system'; // (Q-EF1確定: itemはv1対象外、将来追加)
   durationRemaining: number; // -1 = 永続（v1デフォルト）
   // 将来拡張ポイント（v1は未使用）
   stacks?: number;
@@ -132,7 +132,7 @@ interface CharacterState {
 type CharacterSnapshot = Readonly<{
   characterId: string;
   characterName: string;
-  partyIndex: number;               // 初期インデックス（CSV列固定用）
+  partyIndex: number;               // 初期インデックス（記録・参照用）
   positionIndex: number;            // スナップショット時点のポジション
   isFront: boolean;
   sp: Readonly<SpState>;
@@ -248,7 +248,8 @@ function previewTurn(
 
 /**
  * commitTurn: ターン確定（新しいBattleStateを返す）
- * SP確定処理順: cost → base → od → passive → clamp
+ * SP確定処理順（通常）: cost → base → passive
+ * OD回復（source='od'）: OD開始時に一括適用（Q-OD1確定）
  */
 function commitTurn(
   state: BattleState,
@@ -277,7 +278,7 @@ interface SPChangeEntry {
 interface ActionEntry {
   characterId: string;
   characterName: string;
-  partyIndex: number;          // 初期パーティーインデックス（CSV列固定用: Geminiレビュー採用）
+  partyIndex: number;          // 初期パーティーインデックス（記録・参照用）
   positionIndex: number;       // 行動時のポジション
   isExtraAction: boolean;      // extraターン内の行動か（Geminiレビュー提案採用）
   skillId: number;
@@ -313,7 +314,7 @@ interface TurnRecord {
   isExtraTurn: boolean;
   remainingOdActionsAtStart: number;
 
-  // スナップショット（snapBeforeはpreviewTurn呼び出し直前: Q-CL1仮採用）
+  // スナップショット（snapBeforeはpreviewTurn呼び出し直前: Q-CL1確定）
   snapBefore: CharacterSnapshot[];
   snapAfter: CharacterSnapshot[];   // committedでのみ有効（previewはnull可）
 
@@ -357,7 +358,7 @@ interface RecordAssembler {
 // ========== RecordEditor（表計算ライク）==========
 interface RecordEditor {
   upsertRecord(store: BattleRecordStore, record: TurnRecord): BattleRecordStore;
-  deleteRecord(store: BattleRecordStore, turnId: number, opts?: { cascade: boolean }): BattleRecordStore;
+  deleteRecord(store: BattleRecordStore, turnId: number): BattleRecordStore; // Q-CL2確定: 個別削除のみ
   insertBefore(store: BattleRecordStore, targetTurnId: number, record: TurnRecord): BattleRecordStore;
   reindexTurnLabels(store: BattleRecordStore): BattleRecordStore;
 }
@@ -366,18 +367,19 @@ interface RecordEditor {
 interface CsvExporter {
   /**
    * Google Spreadsheet互換CSV生成
-   * 列固定: initialPartyのpartyIndex順（交代があっても同キャラは同列: Geminiレビュー採用）
+   * 列固定: ポジション1..6（Q-CSV1確定: 1ターン1行ワイド形式）
+   * 先頭列: turnIndex + turnLabel（Q-B2確定）
    */
   exportToCSV(store: BattleRecordStore, initialParty: CharacterSnapshot[]): string;
   recordToRow(record: TurnRecord, initialParty: CharacterSnapshot[]): string[];
 }
 
 // CSV列構造:
-// [turnLabel, enemyAction,
-//  char[partyIndex=0].startSP, char[partyIndex=0].action, char[partyIndex=0].endSP,
-//  char[partyIndex=1].startSP, char[partyIndex=1].action, char[partyIndex=1].endSP,
+// [turnIndex, turnLabel, enemyAction,
+//  pos1.characterName, pos1.startSP, pos1.action, pos1.endSP,
+//  pos2.characterName, pos2.startSP, pos2.action, pos2.endSP,
 //  ...,
-//  char[partyIndex=5].startSP, char[partyIndex=5].action, char[partyIndex=5].endSP]
+//  pos6.characterName, pos6.startSP, pos6.action, pos6.endSP]
 ```
 
 ---
@@ -431,29 +433,31 @@ per キャラクター per ターン:
 2. base:  applySpChange(sp.current, BASE_SP_RECOVERY + sp.bonus, sp.min, sp.max)
           → 凍結ルール適用（current > sp.max なら回復無効）
 
-3. od:    (OD中のみ) applySpChange(sp.current, odRecovery, sp.min, 99)
-          → current > 99 の場合も回復可（R10確定のOD例外）
-          → 全6人に適用
-
-4. passive: applySpChange(sp.current, passiveDelta, sp.min, sp.max)
+3. passive: applySpChange(sp.current, passiveDelta, sp.min, sp.max)
             → 各キャラのパッシブ効果
 
-5. clamp: Math.max(sp.min, Math.min(sp.current, effectiveCeiling))
-          → effectiveCeiling = Math.max(sp.current, sp.max)（凍結ルール）
-          → OD終了時のclampは発生しない（凍結継続: R10確定）
+OD開始時（一度だけ、全6人）:
+- od: applySpChange(sp.current, odRecovery, sp.min, 99)
+  → current > 99 の場合も回復可（R10確定のOD例外）
+  → Q-OD1確定: 各ODターン後ではなく開始時一括
+
+補足:
+- Q-C4確定: OD終了時の追加clampは発生しない（凍結ルール継続のみ）
 ```
 
 ---
 
-## 8. 未確定事項（統合後の残課題）
+## 8. 確定事項（ユーザー回答反映）
 
-| ID | 優先度 | テーマ | 質問 | 仮採用 | 出典 |
-|----|--------|--------|------|--------|------|
-| Q-B2 | Should | CSV | turnIndex（内部連番）とturnLabel（表示値）をCSV列として分離するか | turnLabelのみ | R7 |
-| Q-G1 | Should | キャラクター | sp.bonusの用途はBASE_SP_RECOVERY+bonusへの加算で確定か | 加算仮採用 | R6 |
-| Q-C4 | Should | ターン制御 | OD終了時のSP clampはOD最終行動の全回復適用後か | 全回復後にclamp | R6 |
-| Q-CL1 | Should | 記録 | snapBeforeはpreviewTurn呼び出し直前か | 直前スナップショット | 本設計 |
-| Q-EF1 | Should | エフェクト | EffectSlot.source確定値（skill/passive/item/system） | 仮確定 | Codexレビュー |
-| Q-BS1 | Must | 共有型 | BattleState共有型の所有モジュール | shared-types.ts | Claudeレビュー |
-| Q-OD1 | Should | OD | OD中のSP回復タイミング（各行動後か/OD開始時のみか） | 各行動後 | Gemini設計 |
-| Q-CSV1 | Should | CSV | Swap時のCSV列表現（skillName列に[Swap]を記入か専用列か） | skillName列に記入 | Geminiレビュー |
+| ID | 優先度 | テーマ | 確定内容 | 出典 |
+|----|--------|--------|----------|------|
+| Q-S001 | Must | ターン確定 | `commitTurn` は `previewRecord` を採用し、SP再計算しない | ユーザー回答 |
+| Q-B2 | Should | CSV | `turnIndex` と `turnLabel` を2列で出力 | ユーザー回答 |
+| Q-G1 | Should | キャラクター | `sp.bonus` は `BASE_SP_RECOVERY + bonus` 加算 | ユーザー回答 |
+| Q-C4 | Should | ターン制御 | OD終了時の追加clampなし（凍結ルール継続） | ユーザー回答 |
+| Q-CL1 | Should | 記録 | `snapBefore` はターン開始回復後・選択前 | ユーザー回答 |
+| Q-EF1 | Should | エフェクト | v1の `EffectSlot.source` は `skill/passive/system`（`item`は将来追加） | ユーザー回答 |
+| Q-OD1 | Should | OD | OD回復はOD開始時に一括適用 | ユーザー回答 |
+| Q-CL2 | Could | RecordEditor | `deleteRecord` は個別削除のみ | ユーザー回答 |
+| Q-CSV1 | Could | CSV | ポジション1..6固定、1ターン1行ワイド形式 | ユーザー回答 |
+| Q-BS1 | Could | 共有型 | `BattleState` は `shared-types.ts` に配置 | ユーザー回答 |

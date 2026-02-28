@@ -21,7 +21,7 @@ export interface SpState {
   current: number;   // 可変。負債（マイナス）許可: R10確定
   min: number;       // デフォルト0、特性でマイナス可能
   max: number;       // デフォルト20、特性で25/30拡張可
-  bonus: number;     // ターン回復ボーナス（BASE_SP_RECOVERY=2への加算: Q-G1仮採用）
+  bonus: number;     // ターン回復ボーナス（BASE_SP_RECOVERY=2への加算: Q-G1確定）
 }
 
 export interface SkillSlot {
@@ -42,8 +42,8 @@ export interface SkillSlot {
 export interface EffectSlot {
   effectId: string;
   name: string;
-  /** Q-EF1: 仮確定値。要ユーザー確認 */
-  source: 'skill' | 'passive' | 'item' | 'system';
+  /** Q-EF1確定: v1はitem除外（将来追加） */
+  source: 'skill' | 'passive' | 'system';
   durationRemaining: number; // -1 = 永続（v1デフォルト）
   // 将来拡張ポイント（v1未使用）
   stacks?: number;
@@ -56,7 +56,7 @@ export interface CharacterState {
   readonly characterName: string;
   readonly styleId: number;
   readonly styleName: string;
-  /** 初期パーティーインデックス（不変、CSV列固定に使用: DEC-003）*/
+  /** 初期パーティーインデックス（不変、記録・参照用）*/
   readonly partyIndex: 0 | 1 | 2 | 3 | 4 | 5;
   readonly skills: readonly SkillSlot[];
 
@@ -77,7 +77,7 @@ export interface CharacterState {
 export type CharacterSnapshot = Readonly<{
   characterId: string;
   characterName: string;
-  /** 初期パーティーインデックス（CSV列固定用）*/
+  /** 初期パーティーインデックス（記録・参照用）*/
   partyIndex: 0 | 1 | 2 | 3 | 4 | 5;
   /** スナップショット時点のポジション */
   positionIndex: 0 | 1 | 2 | 3 | 4 | 5;
@@ -210,7 +210,7 @@ export interface BattleState {
   readonly party: readonly CharacterState[];
   readonly turnState: TurnState;
   readonly positionMap: readonly [number, number, number, number, number, number];
-  /** バトル開始時固定（CSV列固定用: DEC-003）*/
+  /** バトル開始時固定（初期編成参照用）*/
   readonly initialParty: readonly CharacterSnapshot[];
 }
 
@@ -248,7 +248,7 @@ export interface SPChangeEntry {
 export interface ActionEntry {
   characterId: string;
   characterName: string;
-  /** 初期パーティーインデックス（CSV列固定: DEC-003）*/
+  /** 初期パーティーインデックス（記録・参照用）*/
   partyIndex: number;
   positionIndex: number;
   /** extraターン内の行動か（DEC-007: Geminiレビュー提案採用）*/
@@ -295,7 +295,7 @@ export interface TurnRecord {
   isExtraTurn: boolean;
   remainingOdActionsAtStart: number;
 
-  /** previewTurn呼び出し直前のスナップショット（Q-CL1仮採用）*/
+  /** previewTurn呼び出し直前のスナップショット（Q-CL1確定）*/
   snapBefore: CharacterSnapshot[];
   /** commitTurn後のスナップショット（previewではnull可）*/
   snapAfter: CharacterSnapshot[] | null;
@@ -344,11 +344,8 @@ export interface RecordAssembler {
 
 export interface RecordEditor {
   upsertRecord(store: BattleRecordStore, record: TurnRecord): BattleRecordStore;
-  deleteRecord(
-    store: BattleRecordStore,
-    turnId: number,
-    opts?: { cascade: boolean }
-  ): BattleRecordStore;
+  /** Q-CL2確定: 個別削除のみ（cascadeなし） */
+  deleteRecord(store: BattleRecordStore, turnId: number): BattleRecordStore;
   insertBefore(
     store: BattleRecordStore,
     targetTurnId: number,
@@ -360,12 +357,14 @@ export interface RecordEditor {
 export interface CsvExporter {
   /**
    * Google Spreadsheet互換CSV生成
-   * 列固定: initialPartyのpartyIndex順（DEC-003採用）
+   * Q-B2確定: 先頭列は turnIndex + turnLabel
+   * Q-CSV1確定: ポジション1..6固定、1ターン1行ワイド形式
    */
   exportToCSV(
     store: BattleRecordStore,
     initialParty: CharacterSnapshot[]
   ): string;
+  /** [turnIndex, turnLabel, enemyAction, pos1_*, ..., pos6_*] の1行を生成 */
   recordToRow(record: TurnRecord, initialParty: CharacterSnapshot[]): string[];
 }
 
@@ -381,8 +380,7 @@ export type RecordCommittedEvent = {
 
 export type RecordDeletedEvent = {
   type: 'record.deleted';
-  turnId: number;
-  cascadeDeletedIds: number[];
+  deletedTurnId: number;
 };
 
 export type StoreReindexedEvent = {
