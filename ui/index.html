@@ -27,6 +27,15 @@
       <div data-role="style-slots" class="row"></div>
       <p><strong>Selections:</strong> <span data-role="selection-summary"></span></p>
       <div class="row">
+        <label>Selection Slot
+          <select data-role="selection-slot-select"></select>
+        </label>
+        <button data-action="save-selection" type="button">Save Selection</button>
+        <button data-action="load-selection" type="button">Load Selection</button>
+        <button data-action="clear-selection-slot" type="button">Clear Slot</button>
+      </div>
+      <pre data-role="selection-slot-preview"></pre>
+      <div class="row">
         <button data-action="initialize" type="button">Initialize Battle</button>
       </div>
     </div>

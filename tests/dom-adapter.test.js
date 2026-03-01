@@ -9,6 +9,11 @@ function createRoot() {
     <div id="app">
       <div data-role="style-slots"></div>
       <span data-role="selection-summary"></span>
+      <select data-role="selection-slot-select"></select>
+      <button data-action="save-selection"></button>
+      <button data-action="load-selection"></button>
+      <button data-action="clear-selection-slot"></button>
+      <pre data-role="selection-slot-preview"></pre>
       <button data-action="initialize"></button>
       <input data-role="enemy-action" />
       <div data-role="action-slots"></div>
@@ -26,7 +31,7 @@ function createRoot() {
       <tbody data-role="record-body"></tbody>
       <textarea data-role="csv-output"></textarea>
     </div>
-  </body>`);
+  </body>`, { url: 'https://example.test/' });
 
   return {
     root: dom.window.document.querySelector('#app'),
@@ -51,6 +56,78 @@ test('dom adapter initializes, previews, commits, and exports csv', () => {
   const csv = adapter.exportCsv();
   assert.ok(csv.includes('turnLabel,enemyAction'));
   assert.ok(csv.includes('T1'));
+});
+
+test('selection state can be saved and loaded from localStorage slots', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  win.confirm = () => true;
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+  const lbSelect = root.querySelector(`[data-role="limit-break-select"][data-slot="${slot}"]`);
+  const saveSlotSelect = root.querySelector('[data-role="selection-slot-select"]');
+
+  characterSelect.value = 'RKayamori';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1001108'; // The Feel of the Throne (SSR)
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  lbSelect.value = '1';
+  lbSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const skillChecks = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)];
+  const target = skillChecks.find((box) => {
+    const text = box.closest('label')?.textContent ?? '';
+    return text.includes('エクシード・ルミナンス');
+  });
+  if (target) {
+    target.checked = false;
+    target.dispatchEvent(new win.Event('change', { bubbles: true }));
+  }
+
+  saveSlotSelect.value = '2';
+  adapter.saveSelectionToSlot(2);
+
+  characterSelect.value = 'TTojo';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  adapter.loadSelectionFromSlot(2);
+
+  assert.equal(characterSelect.value, 'RKayamori');
+  assert.equal(styleSelect.value, '1001108');
+  assert.equal(lbSelect.value, '1');
+  if (target) {
+    const restored = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)].find(
+      (box) => (box.closest('label')?.textContent ?? '').includes('エクシード・ルミナンス')
+    );
+    assert.equal(restored?.checked, false, 'skill checkbox state should be restored');
+  }
+
+  const preview = root.querySelector('[data-role="selection-slot-preview"]').textContent ?? '';
+  assert.ok(preview.includes('savedAt:'), 'preview should show saved timestamp');
+  assert.ok(preview.includes('P1:'), 'preview should show party lines');
+});
+
+test('save/load button honors confirm dialog cancellation', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  let confirmCalls = 0;
+  win.confirm = () => {
+    confirmCalls += 1;
+    return false;
+  };
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  root.querySelector('[data-action="save-selection"]').click();
+  root.querySelector('[data-action="load-selection"]').click();
+
+  assert.equal(confirmCalls >= 2, true, 'confirm should be called for save and load');
+  const status = root.querySelector('[data-role="status"]').textContent ?? '';
+  assert.ok(status.includes('canceled'), 'status should report cancellation');
 });
 
 test('dom adapter applies swap immediately and keeps swap event for commit record', () => {
