@@ -9,6 +9,7 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 export const BASE_SP_RECOVERY = 2;
 const OD_RECOVERY_BY_LEVEL = Object.freeze({ 1: 5, 2: 12, 3: 20 });
 const OD_GAUGE_PER_HIT_PERCENT = 2.5;
+const OD_GAUGE_MIN_PERCENT = -999;
 const OD_GAUGE_MAX_PERCENT = 300;
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
@@ -340,7 +341,7 @@ function applyOdGaugeFromActions(state, previewRecord) {
 
     const beforeOdGauge = currentOdGauge;
     currentOdGauge = truncateToTwoDecimals(beforeOdGauge + delta);
-    currentOdGauge = Math.max(0, Math.min(OD_GAUGE_MAX_PERCENT, currentOdGauge));
+    currentOdGauge = Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, currentOdGauge));
 
     events.push({
       characterId: member.characterId,

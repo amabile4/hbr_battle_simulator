@@ -693,7 +693,7 @@ test('od gauge is capped at 300%', () => {
   assert.equal(nextState.turnState.odGauge, 300);
 });
 
-test('OverDrivePointDown reduces od gauge and cannot go below 0', () => {
+test('OverDrivePointDown reduces od gauge and lower bound is -999', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `D${idx + 1}`,
@@ -726,7 +726,7 @@ test('OverDrivePointDown reduces od gauge and cannot go below 0', () => {
     0: { characterId: 'D1', skillId: 9900 },
   });
   let committed = commitTurn(state, preview);
-  assert.equal(committed.nextState.turnState.odGauge, 0);
+  assert.equal(committed.nextState.turnState.odGauge, -10);
 
   state = createBattleStateFromParty(party);
   state.turnState.odGauge = 184.7;
@@ -735,4 +735,12 @@ test('OverDrivePointDown reduces od gauge and cannot go below 0', () => {
   });
   committed = commitTurn(state, preview);
   assert.equal(committed.nextState.turnState.odGauge, 134.7);
+
+  state = createBattleStateFromParty(party);
+  state.turnState.odGauge = -990;
+  preview = previewTurn(state, {
+    0: { characterId: 'D1', skillId: 9900 },
+  });
+  committed = commitTurn(state, preview);
+  assert.equal(committed.nextState.turnState.odGauge, -999);
 });
