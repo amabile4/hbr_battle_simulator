@@ -195,6 +195,54 @@ test('commitTurn grants extra turn and marks allowed members as extra-active', (
   );
 });
 
+test('self-only additional turn in extra turn does not carry previous allowed members', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `X${idx + 1}`,
+      characterName: `X${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `XS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 11000 + idx,
+          name: idx === 0 ? 'Self Extra' : 'Normal',
+          sp_cost: 0,
+          additionalTurnRule:
+            idx === 0
+              ? {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: true,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: false,
+                  },
+                  additionalTurnTargetTypes: ['Self'],
+                }
+              : null,
+          parts: idx === 0 ? [{ skill_type: 'AdditionalTurn', target_type: 'Self' }] : [],
+        },
+      ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state = grantExtraTurn(state, ['X1', 'X2', 'X3']);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'X1', skillId: 11000 },
+    1: { characterId: 'X2', skillId: 11001 },
+    2: { characterId: 'X3', skillId: 11002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, ['X1']);
+});
+
 test('extra turn disallows non-allowed members from acting', () => {
   const party = createManualExtraTurnParty();
   let state = createBattleStateFromParty(party);

@@ -1068,11 +1068,9 @@ function computeNextTurnState(current, grantedExtraCharacterIds = []) {
 
   if (current.turnType === 'extra') {
     if (hasGrantedExtra) {
-      const prevAllowed = current.extraTurnState?.allowedCharacterIds ?? [];
-      for (const id of prevAllowed) {
-        grantedSet.add(id);
-      }
-
+      // 追加ターン中にさらに追加ターンが発生した場合は、
+      // 新たに付与対象となったメンバーのみを次の追加ターン対象とする。
+      // (例: Self追加なら自分のみ継続)
       next.turnType = 'extra';
       next.turnLabel = 'EX';
       next.extraTurnState = {

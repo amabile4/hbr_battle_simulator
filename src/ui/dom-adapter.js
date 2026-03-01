@@ -1363,7 +1363,7 @@ export class BattleDomAdapter {
     if (!this.state) {
       return false;
     }
-    if (this.state.turnState.turnType !== 'normal') {
+    if (this.state.turnState.turnType === 'od') {
       return false;
     }
     if (this.isForceOdEnabled()) {
@@ -1407,6 +1407,16 @@ export class BattleDomAdapter {
   }
 
   openOdDialog(mode) {
+    // 片方だけ開く: 以前のダイアログ表示を必ず閉じる
+    const normalDialog = this.root.querySelector('[data-role="od-dialog"]');
+    const interruptDialog = this.root.querySelector('[data-role="interrupt-od-dialog"]');
+    if (normalDialog) {
+      normalDialog.hidden = true;
+    }
+    if (interruptDialog) {
+      interruptDialog.hidden = true;
+    }
+
     const dialog = this.root.querySelector(
       mode === 'interrupt' ? '[data-role="interrupt-od-dialog"]' : '[data-role="od-dialog"]'
     );

@@ -123,6 +123,21 @@ test('OD controls: preemptive activation and interrupt reservation/commit', () =
   assert.equal(adapter.state.turnState.odGauge < 150, true);
 });
 
+test('interrupt OD button is shown in extra turn when gauge requirement is satisfied', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const exCharacterId = adapter.state.party.find((member) => member.position === 0)?.characterId;
+  adapter.state = grantExtraTurn(adapter.state, [exCharacterId]);
+  adapter.state.turnState.odGauge = 120;
+  adapter.renderTurnStatus();
+
+  const interruptButton = root.querySelector('[data-action="open-interrupt-od"]');
+  assert.equal(interruptButton.hidden, false);
+});
+
 test('action selector displays SP ALL for sp_cost -1 skills', () => {
   const store = getStore();
   const { root } = createRoot();
