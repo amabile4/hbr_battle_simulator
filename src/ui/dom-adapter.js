@@ -1,4 +1,9 @@
-import { createBattleStateFromParty, previewTurn, commitTurn } from '../turn/turn-controller.js';
+import {
+  createBattleStateFromParty,
+  previewTurn,
+  commitTurn,
+  activateOverdrive,
+} from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor, CsvExporter } from '../records/record-store.js';
 
 function toInt(value, fallback = 0) {
@@ -101,6 +106,7 @@ export class BattleDomAdapter {
     this.previewRecord = null;
     this.pendingSwapEvents = [];
     this.lastActionSkillByPosition = new Map();
+    this.pendingInterruptOdLevel = null;
 
     this.characterCandidates = this.dataStore.listCharacterCandidates();
     this.defaultSelections = this.buildDefaultSelections();
@@ -140,6 +146,30 @@ export class BattleDomAdapter {
 
     this.root.querySelector('[data-action="commit"]')?.addEventListener('click', () => {
       this.runSafely(() => this.commitCurrentTurn());
+    });
+
+    this.root.querySelector('[data-action="open-od"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.openOdDialog('normal'));
+    });
+
+    this.root.querySelector('[data-action="od-confirm"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.confirmOdDialog('normal'));
+    });
+
+    this.root.querySelector('[data-action="od-cancel"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.closeOdDialog('normal'));
+    });
+
+    this.root.querySelector('[data-action="open-interrupt-od"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.openOdDialog('interrupt'));
+    });
+
+    this.root.querySelector('[data-action="interrupt-od-confirm"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.confirmOdDialog('interrupt'));
+    });
+
+    this.root.querySelector('[data-action="interrupt-od-cancel"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.closeOdDialog('interrupt'));
     });
 
     this.root.querySelector('[data-action="swap"]')?.addEventListener('click', () => {
@@ -249,6 +279,10 @@ export class BattleDomAdapter {
         if (position >= 0) {
           this.lastActionSkillByPosition.set(position, toInt(target.value, 0));
         }
+      }
+
+      if (target.matches('[data-role="force-od-toggle"]')) {
+        this.renderOdControls();
       }
     });
 
@@ -957,6 +991,7 @@ export class BattleDomAdapter {
     this.recordStore = createBattleRecordStore();
     this.previewRecord = null;
     this.pendingSwapEvents = [];
+    this.pendingInterruptOdLevel = null;
 
     this.renderActionSelectors();
     this.renderPartyState();
@@ -965,6 +1000,7 @@ export class BattleDomAdapter {
     this.renderRecordTable();
     this.writePreviewOutput('');
     this.writeCsvOutput('');
+    this.renderOdControls();
     this.saveSelectionToSlot(AUTO_SAVE_SLOT_INDEX, { allowAutoSlot: true, silent: true });
     this.setStatus('Battle initialized. Selection auto-saved to Auto Slot 0.');
 
@@ -1148,17 +1184,24 @@ export class BattleDomAdapter {
       this.previewCurrentTurn();
     }
 
+    const interruptOdLevel = Number(this.pendingInterruptOdLevel ?? 0);
+    const forceOdActivation = this.isForceOdEnabled();
     const { nextState, committedRecord } = commitTurn(
       this.state,
       this.previewRecord,
       this.pendingSwapEvents,
-      { applySwapOnCommit: false }
+      {
+        applySwapOnCommit: false,
+        interruptOdLevel,
+        forceOdActivation,
+      }
     );
 
     this.state = nextState;
     this.recordStore = RecordEditor.upsertRecord(this.recordStore, committedRecord);
     this.previewRecord = null;
     this.pendingSwapEvents = [];
+    this.pendingInterruptOdLevel = null;
 
     this.renderActionSelectors();
     this.renderPartyState();
@@ -1166,6 +1209,7 @@ export class BattleDomAdapter {
     this.renderTurnStatus();
     this.renderRecordTable();
     this.writePreviewOutput('');
+    this.renderOdControls();
     this.setStatus('Turn committed.');
 
     return committedRecord;
@@ -1284,6 +1328,150 @@ export class BattleDomAdapter {
       const odGauge = Number(this.state.turnState.odGauge ?? 0);
       turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId}, OD=${odGauge.toFixed(2)}%)`;
     }
+    this.renderOdControls();
+  }
+
+  isForceOdEnabled() {
+    const toggle = this.root.querySelector('[data-role="force-od-toggle"]');
+    return Boolean(toggle?.checked);
+  }
+
+  canActivateOdLevel(level) {
+    if (!this.state) {
+      return false;
+    }
+    if (this.isForceOdEnabled()) {
+      return true;
+    }
+    const numericLevel = Number(level);
+    const gauge = Number(this.state.turnState.odGauge ?? 0);
+    return gauge >= numericLevel * 100;
+  }
+
+  canShowInterruptOdButton() {
+    if (!this.state) {
+      return false;
+    }
+    if (this.state.turnState.turnType !== 'normal') {
+      return false;
+    }
+    if (this.isForceOdEnabled()) {
+      return true;
+    }
+    const gauge = Number(this.state.turnState.odGauge ?? 0);
+    return gauge >= 100;
+  }
+
+  renderOdControls() {
+    const openOdButton = this.root.querySelector('[data-action="open-od"]');
+    const openInterruptButton = this.root.querySelector('[data-action="open-interrupt-od"]');
+    const interruptBadge = this.root.querySelector('[data-role="interrupt-od-badge"]');
+    if (!this.state) {
+      if (openOdButton) {
+        openOdButton.disabled = true;
+      }
+      if (openInterruptButton) {
+        openInterruptButton.hidden = true;
+      }
+      if (interruptBadge) {
+        interruptBadge.textContent = '';
+      }
+      return;
+    }
+
+    const isOdTurn = this.state.turnState.turnType === 'od';
+    if (openOdButton) {
+      openOdButton.disabled = isOdTurn;
+    }
+    if (openInterruptButton) {
+      openInterruptButton.hidden = !this.canShowInterruptOdButton();
+      openInterruptButton.disabled = isOdTurn;
+    }
+    if (interruptBadge) {
+      interruptBadge.textContent =
+        this.pendingInterruptOdLevel !== null
+          ? `割込OD予約: OD${this.pendingInterruptOdLevel}`
+          : '';
+    }
+  }
+
+  openOdDialog(mode) {
+    const dialog = this.root.querySelector(
+      mode === 'interrupt' ? '[data-role="interrupt-od-dialog"]' : '[data-role="od-dialog"]'
+    );
+    const select = this.root.querySelector(
+      mode === 'interrupt' ? '[data-role="interrupt-od-level"]' : '[data-role="od-level"]'
+    );
+    if (!dialog || !select) {
+      return;
+    }
+
+    const candidates = [1, 2, 3].filter((level) => this.canActivateOdLevel(level));
+    if (candidates.length === 0) {
+      throw new Error('ODゲージが不足しているため発動できません。');
+    }
+
+    select.innerHTML = '';
+    for (const level of candidates) {
+      const option = this.doc.createElement('option');
+      option.value = String(level);
+      option.textContent = `OD${level}`;
+      select.appendChild(option);
+    }
+    dialog.hidden = false;
+  }
+
+  closeOdDialog(mode) {
+    const dialog = this.root.querySelector(
+      mode === 'interrupt' ? '[data-role="interrupt-od-dialog"]' : '[data-role="od-dialog"]'
+    );
+    if (dialog) {
+      dialog.hidden = true;
+    }
+    if (mode === 'interrupt') {
+      this.pendingInterruptOdLevel = null;
+      this.renderOdControls();
+    }
+    this.setStatus(mode === 'interrupt' ? '割込OD設定をキャンセルしました。' : 'OD発動をキャンセルしました。');
+  }
+
+  confirmOdDialog(mode) {
+    const select = this.root.querySelector(
+      mode === 'interrupt' ? '[data-role="interrupt-od-level"]' : '[data-role="od-level"]'
+    );
+    const level = toInt(select?.value, 1);
+    if (!this.canActivateOdLevel(level)) {
+      throw new Error(`OD${level}を発動できません。`);
+    }
+
+    if (mode === 'interrupt') {
+      this.pendingInterruptOdLevel = level;
+      const dialog = this.root.querySelector('[data-role="interrupt-od-dialog"]');
+      if (dialog) {
+        dialog.hidden = true;
+      }
+      this.renderOdControls();
+      this.setStatus(`割込ODを予約しました: OD${level}`);
+      return;
+    }
+
+    this.state = activateOverdrive(this.state, level, 'preemptive', {
+      forceActivation: this.isForceOdEnabled(),
+    });
+    const dialog = this.root.querySelector('[data-role="od-dialog"]');
+    if (dialog) {
+      dialog.hidden = true;
+    }
+    this.pendingInterruptOdLevel = null;
+    this.previewRecord = null;
+    this.pendingSwapEvents = [];
+    this.writePreviewOutput('');
+    this.renderActionSelectors();
+    this.renderPartyState();
+    this.renderSwapSelectors();
+    this.renderTurnStatus();
+    this.renderOdControls();
+    this.setStatus(`OD${level}を発動しました。`);
   }
 
   renderPartyState() {

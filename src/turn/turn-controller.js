@@ -8,6 +8,7 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 
 export const BASE_SP_RECOVERY = 2;
 const OD_RECOVERY_BY_LEVEL = Object.freeze({ 1: 5, 2: 12, 3: 20 });
+const OD_COST_BY_LEVEL = Object.freeze({ 1: 100, 2: 200, 3: 300 });
 const OD_GAUGE_PER_HIT_PERCENT = 2.5;
 const OD_GAUGE_MIN_PERCENT = -999;
 const OD_GAUGE_MAX_PERCENT = 300;
@@ -1030,7 +1031,8 @@ function computeNextTurnState(current, grantedExtraCharacterIds = []) {
     }
 
     next.turnType = 'normal';
-    next.turnIndex = current.turnIndex + 1;
+    // OD終了後は、OD突入元の通常ターン文脈へ復帰する（turnIndexは進めない）。
+    next.turnIndex = current.turnIndex;
     next.turnLabel = `T${next.turnIndex}`;
     next.odLevel = 0;
     next.remainingOdActions = 0;
@@ -1137,6 +1139,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     throw new Error('commitTurn requires preview TurnRecord.');
   }
   const applySwapOnCommit = options.applySwapOnCommit !== false;
+  const interruptOdLevel = Number(options.interruptOdLevel ?? 0);
+  const forceOdActivation = Boolean(options.forceOdActivation ?? false);
 
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
@@ -1210,12 +1214,18 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 
-  const nextState = {
+  let nextState = {
     ...state,
     party: [...state.party],
     positionMap: buildPositionMap(state.party),
     turnState: nextTurnState,
   };
+
+  if (Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3) {
+    nextState = activateOverdrive(nextState, interruptOdLevel, 'interrupt', {
+      forceActivation: forceOdActivation,
+    });
+  }
 
   return {
     nextState,
@@ -1223,11 +1233,23 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   };
 }
 
-export function activateOverdrive(state, level, context = 'preemptive') {
+export function activateOverdrive(state, level, context = 'preemptive', options = {}) {
   const numericLevel = Number(level);
   if (numericLevel < 1 || numericLevel > 3) {
     throw new Error('OD level must be 1..3');
   }
+  const requiredGauge = Number(OD_COST_BY_LEVEL[numericLevel] ?? 0);
+  const forceActivation = Boolean(options.forceActivation ?? false);
+  const currentGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
+  if (!forceActivation && currentGauge < requiredGauge) {
+    throw new Error(
+      `OD${numericLevel} requires ${requiredGauge}% gauge. current=${currentGauge.toFixed(2)}%`
+    );
+  }
+
+  const nextGauge = forceActivation
+    ? currentGauge
+    : truncateToTwoDecimals(currentGauge - requiredGauge);
 
   const nextTurnState = {
     ...cloneTurnState(state.turnState),
@@ -1237,6 +1259,8 @@ export function activateOverdrive(state, level, context = 'preemptive') {
     remainingOdActions: numericLevel,
     odContext: context,
     odSuspended: false,
+    odPending: false,
+    odGauge: Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, nextGauge)),
   };
 
   const nextState = {

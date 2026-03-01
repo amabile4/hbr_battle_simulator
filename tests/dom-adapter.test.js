@@ -23,6 +23,20 @@ function createRoot() {
       <button data-action="swap"></button>
       <button data-action="preview"></button>
       <button data-action="commit"></button>
+      <button data-action="open-interrupt-od" hidden></button>
+      <span data-role="interrupt-od-badge"></span>
+      <button data-action="open-od"></button>
+      <input data-role="force-od-toggle" type="checkbox" />
+      <div data-role="od-dialog" hidden>
+        <select data-role="od-level"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+        <button data-action="od-confirm"></button>
+        <button data-action="od-cancel"></button>
+      </div>
+      <div data-role="interrupt-od-dialog" hidden>
+        <select data-role="interrupt-od-level"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+        <button data-action="interrupt-od-confirm"></button>
+        <button data-action="interrupt-od-cancel"></button>
+      </div>
       <button data-action="clear-records"></button>
       <button data-action="export-csv"></button>
       <span data-role="turn-label"></span>
@@ -71,6 +85,40 @@ test('enemy count in turn controls is reflected in preview record', () => {
 
   const preview = adapter.previewCurrentTurn();
   assert.equal(preview.enemyCount, 3);
+});
+
+test('OD controls: preemptive activation and interrupt reservation/commit', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const interruptButton = root.querySelector('[data-action="open-interrupt-od"]');
+  assert.equal(interruptButton.hidden, true, 'interrupt button should be hidden when od gauge < 100');
+
+  adapter.state.turnState.odGauge = 120;
+  adapter.renderTurnStatus();
+  assert.equal(interruptButton.hidden, false, 'interrupt button should be visible when od gauge >= 100');
+
+  adapter.openOdDialog('normal');
+  adapter.confirmOdDialog('normal');
+  assert.equal(adapter.state.turnState.turnType, 'od');
+  assert.equal(adapter.state.turnState.odGauge, 20);
+
+  // reset and test interrupt path
+  adapter.initializeBattle();
+  adapter.state.turnState.odGauge = 150;
+  adapter.renderTurnStatus();
+  adapter.openOdDialog('interrupt');
+  const interruptSelect = root.querySelector('[data-role="interrupt-od-level"]');
+  interruptSelect.value = '1';
+  adapter.confirmOdDialog('interrupt');
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.state.turnState.turnType, 'od');
+  assert.equal(adapter.state.turnState.odContext, 'interrupt');
+  assert.equal(adapter.state.turnState.odGauge < 150, true);
 });
 
 test('selection state can be saved and loaded from localStorage slots', () => {

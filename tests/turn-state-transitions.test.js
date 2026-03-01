@@ -38,12 +38,13 @@ function findStyleIdBySkillId(store, skillId) {
   throw new Error(`style not found for skillId=${skillId}`);
 }
 
-test('od state transitions to normal after remaining actions consumed', () => {
+test('preemptive od returns to same normal turn context after remaining actions consumed', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);
   const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
 
   let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
   state = activateOverdrive(state, 1, 'preemptive');
 
   assert.equal(state.turnState.turnType, 'od');
@@ -53,6 +54,43 @@ test('od state transitions to normal after remaining actions consumed', () => {
   const { nextState } = commitTurn(state, preview);
 
   assert.equal(nextState.turnState.turnType, 'normal');
+  assert.equal(nextState.turnState.turnIndex, 1);
+});
+
+test('activateOverdrive consumes gauge by level and rejects insufficient gauge unless forced', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  let state = createBattleStateFromParty(party);
+
+  state.turnState.odGauge = 250.5;
+  state = activateOverdrive(state, 2, 'preemptive');
+  assert.equal(state.turnState.turnType, 'od');
+  assert.equal(state.turnState.odGauge, 50.5);
+
+  const lowGaugeState = createBattleStateFromParty(party);
+  lowGaugeState.turnState.odGauge = 80;
+  assert.throws(() => activateOverdrive(lowGaugeState, 1, 'preemptive'), /requires 100% gauge/);
+
+  const forcedState = activateOverdrive(lowGaugeState, 1, 'preemptive', { forceActivation: true });
+  assert.equal(forcedState.turnState.turnType, 'od');
+  assert.equal(forcedState.turnState.odGauge, 80);
+});
+
+test('commitTurn can activate interrupt OD after commit', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 150;
+
+  const preview = previewTurn(state, buildActionDict(party));
+  const { nextState } = commitTurn(state, preview, [], { interruptOdLevel: 1 });
+
+  assert.equal(nextState.turnState.turnType, 'od');
+  assert.equal(nextState.turnState.odContext, 'interrupt');
+  assert.equal(nextState.turnState.odGauge < 150, true, 'interrupt OD should consume 100% gauge');
+  assert.equal(nextState.turnState.odGauge > 0, true, 'remaining gauge should stay positive in this case');
   assert.equal(nextState.turnState.turnIndex, 2);
 });
 
@@ -200,6 +238,7 @@ test('Nanase supports parallel SP/EP and EP ceiling changes in OD', () => {
   assert.equal(after.ep.current, 4, 'HealEp +3 and Admiral turn gain +1');
 
   // OD発動時の+5 and 上限20
+  nextState.turnState.odGauge = 100;
   state = activateOverdrive(nextState, 1, 'preemptive');
   const odNanase = state.party.find((m) => m.characterId === 'NNanase');
   assert.equal(odNanase.ep.current, 9);
@@ -778,6 +817,7 @@ test('skill with IsOverDrive() condition is unusable outside OD and usable in OD
     /cannot be used because cond is not satisfied/
   );
 
+  state.turnState.odGauge = 100;
   state = activateOverdrive(state, 1, 'preemptive');
   const preview = previewTurn(state, {
     0: { characterId: 'OD1', skillId: 10000 },
@@ -815,6 +855,7 @@ test('skill with IsOverDrive()==0 is unusable in OD and usable outside OD', () =
   });
   assert.equal(normalPreview.actions.length, 1);
 
+  state.turnState.odGauge = 100;
   state = activateOverdrive(state, 1, 'preemptive');
   assert.throws(
     () =>
