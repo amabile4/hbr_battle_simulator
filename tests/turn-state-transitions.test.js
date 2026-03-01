@@ -459,3 +459,44 @@ test('single-target attack does not scale OD gain by enemy count', () => {
 
   assert.equal(nextState.turnState.odGauge, 5, 'single-target remains 2 hits * 2.5%');
 });
+
+test('manual-compare case: Ruka Thunder Pulse vs 3 enemies with Drive Pierce 15% for 10 turns', () => {
+  const store = getStore();
+  const rukaStyleId = 1001107; // ナイトクルーズ・エスコート (サンダーパルス所持)
+  const others = getSixUsableStyleIds(store).filter((id) => store.getStyleById(id)?.chara_label !== 'RKayamori');
+  const styleIds = [rukaStyleId, ...others.slice(0, 5)];
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 10,
+    drivePierceByPartyIndex: { 0: 15 },
+  });
+  let state = createBattleStateFromParty(party);
+  const ruka = state.party.find((m) => m.characterId === 'RKayamori');
+  assert.ok(ruka);
+
+  const flooredByTurn = [];
+  for (let i = 0; i < 10; i += 1) {
+    const preview = previewTurn(
+      state,
+      {
+        [String(ruka.position)]: {
+          characterId: ruka.characterId,
+          skillId: 46001111, // サンダーパルス (2hit, All)
+        },
+      },
+      null,
+      3
+    );
+    state = commitTurn(state, preview).nextState;
+    flooredByTurn.push(Math.floor(state.turnState.odGauge));
+  }
+
+  // 仕様:
+  // - ODゲージは小数第2位まで保持し、第3位以下を切り捨て
+  // - 全体攻撃は敵1体ごとに計算した値を(小数第2位まで)合算
+  // - サンダーパルス(2hit) + ドライブ15%(2hit=>+6.11%) の場合
+  //   敵1体ぶん: trunc2(2 * 2.5 * 1.0611) = trunc2(5.3055) = 5.30
+  //   敵3体合計: 15.90
+  //   10ターン: 159.00
+  assert.equal(state.turnState.odGauge, 159);
+  assert.deepEqual(flooredByTurn.slice(0, 4), [15, 31, 47, 63]);
+});

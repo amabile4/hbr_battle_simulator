@@ -56,7 +56,34 @@ function hasDamagePartInParts(parts) {
   return false;
 }
 
-function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1) {
+function resolveDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent) {
+  const p = Number(drivePiercePercent ?? 0);
+  if (![10, 12, 15].includes(p)) {
+    return 0;
+  }
+
+  const hit = Math.max(1, Number(effectiveHitCount ?? 1));
+  const clamped = Math.min(10, hit);
+
+  // 今回仕様: 役割で分岐せず、ドライブピアス列のみを使用する。
+  const baseAt1 = 5;
+  const step = (p - baseAt1) / 9;
+  const bonus = baseAt1 + step * (clamped - 1);
+  return Number(bonus.toFixed(4));
+}
+
+function truncateToTwoDecimals(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return 0;
+  }
+  if (n >= 0) {
+    return Math.floor((n + 1e-9) * 100) / 100;
+  }
+  return Math.ceil((n - 1e-9) * 100) / 100;
+}
+
+function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null) {
   if (!hasDamagePartInParts(skill?.parts ?? [])) {
     return 0;
   }
@@ -67,7 +94,9 @@ function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1) {
   const targetType = String(skill?.targetType ?? '');
   const isAllTarget = targetType === 'All';
 
-  let hitCount = resolveSkillHitCount(skill) * (isAllTarget ? numericEnemyCount : 1);
+  const baseHitCount = resolveSkillHitCount(skill);
+  const hitCountPerEnemy = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
+  let hitCount = hitCountPerEnemy * (isAllTarget ? numericEnemyCount : 1);
   if (isNormalAttackSkill(skill)) {
     // 通常攻撃はヒット数に関わらず最低3hit(=7.5%)保証。
     hitCount = Math.max(3, hitCount);
@@ -77,7 +106,22 @@ function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1) {
     return 0;
   }
 
-  return hitCount * OD_GAUGE_PER_HIT_PERCENT;
+  const baseGain = hitCount * OD_GAUGE_PER_HIT_PERCENT;
+  if (isNormalAttackSkill(skill)) {
+    return truncateToTwoDecimals(baseGain);
+  }
+
+  // ピアス補正テーブルの hit 数は、敵数を掛けた後ではなく「スキル本来の hit 数」を使う。
+  const bonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
+  const multiplier = 1 + bonusPercent / 100;
+
+  if (isAllTarget && numericEnemyCount > 1) {
+    // 仕様: 全体攻撃は敵1体ごとにOD増加を計算し、小数第2位まで保持して合算する。
+    const perEnemyGain = truncateToTwoDecimals(hitCountPerEnemy * OD_GAUGE_PER_HIT_PERCENT * multiplier);
+    return truncateToTwoDecimals(perEnemyGain * numericEnemyCount);
+  }
+
+  return truncateToTwoDecimals(baseGain * multiplier);
 }
 
 function applyOdGaugeFromActions(state, previewRecord) {
@@ -102,7 +146,7 @@ function applyOdGaugeFromActions(state, previewRecord) {
     const baseHitCount = resolveSkillHitCount(skill);
     const effectiveHitCount =
       String(skill?.targetType ?? '') === 'All' ? baseHitCount * enemyCount : baseHitCount;
-    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill, enemyCount);
+    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill, enemyCount, member);
     if (!Number.isFinite(odGaugeGain) || odGaugeGain === 0) {
       continue;
     }
@@ -118,7 +162,7 @@ function applyOdGaugeFromActions(state, previewRecord) {
   }
 
   const startOdGauge = Number(state.turnState.odGauge ?? 0);
-  const endOdGauge = startOdGauge + total;
+  const endOdGauge = truncateToTwoDecimals(startOdGauge + total);
   state.turnState.odGauge = endOdGauge;
 
   return {
