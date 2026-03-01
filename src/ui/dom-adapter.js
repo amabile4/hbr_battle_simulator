@@ -24,7 +24,9 @@ const TIER_ORDER = Object.freeze({
   SSR: 3,
 });
 const SELECTION_SAVE_SCHEMA_VERSION = 1;
-const SELECTION_SAVE_SLOT_COUNT = 10;
+const AUTO_SAVE_SLOT_INDEX = 0;
+const MANUAL_SELECTION_SLOT_COUNT = 10;
+const TOTAL_SELECTION_SLOT_COUNT = MANUAL_SELECTION_SLOT_COUNT + 1;
 const SELECTION_SAVE_STORAGE_KEY = 'hbr.battle_simulator.selection_slots.v1';
 
 function isNormalAttackSkill(skill) {
@@ -155,7 +157,7 @@ export class BattleDomAdapter {
       this.runSafely(() => {
         const slot = this.getSelectedSelectionSlotIndex();
         const ok = this.askConfirm(
-          `Selection Slot ${slot + 1} に現在の選択を保存します。よろしいですか？`
+          `Selection ${this.getSelectionSlotLabel(slot)} に現在の選択を保存します。よろしいですか？`
         );
         if (!ok) {
           this.setStatus('Selection save canceled.');
@@ -397,15 +399,15 @@ export class BattleDomAdapter {
     }
 
     select.innerHTML = '';
-    for (let i = 0; i < SELECTION_SAVE_SLOT_COUNT; i += 1) {
+    for (let i = 1; i <= MANUAL_SELECTION_SLOT_COUNT; i += 1) {
       const option = this.doc.createElement('option');
       option.value = String(i);
-      option.textContent = `Slot ${i + 1}`;
+      option.textContent = `Slot ${i}`;
       select.appendChild(option);
     }
-    select.value = '0';
+    select.value = '1';
     this.refreshSelectionSlotOptions();
-    this.renderSelectionSlotPreview(0);
+    this.renderSelectionSlotPreview(1);
   }
 
   askConfirm(message) {
@@ -420,9 +422,22 @@ export class BattleDomAdapter {
     }
   }
 
+  getSelectionSlotLabel(slotIndex) {
+    if (Number(slotIndex) === AUTO_SAVE_SLOT_INDEX) {
+      return 'Auto Slot 0';
+    }
+    return `Slot ${slotIndex}`;
+  }
+
   getSelectedSelectionSlotIndex() {
     const select = this.root.querySelector('[data-role="selection-slot-select"]');
-    return Math.max(0, Math.min(SELECTION_SAVE_SLOT_COUNT - 1, toInt(select?.value, 0)));
+    return Math.max(1, Math.min(MANUAL_SELECTION_SLOT_COUNT, toInt(select?.value, 1)));
+  }
+
+  assertManualSelectionSlotIndex(slotIndex) {
+    if (slotIndex < 1 || slotIndex > MANUAL_SELECTION_SLOT_COUNT) {
+      throw new Error(`Manual selection slot must be 1-${MANUAL_SELECTION_SLOT_COUNT}.`);
+    }
   }
 
   readSelectionStore() {
@@ -430,7 +445,7 @@ export class BattleDomAdapter {
     if (!storage) {
       return {
         schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-        slots: Array(SELECTION_SAVE_SLOT_COUNT).fill(null),
+        slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
       };
     }
 
@@ -438,7 +453,7 @@ export class BattleDomAdapter {
     if (!raw) {
       return {
         schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-        slots: Array(SELECTION_SAVE_SLOT_COUNT).fill(null),
+        slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
       };
     }
 
@@ -451,13 +466,20 @@ export class BattleDomAdapter {
       ) {
         return {
           schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-          slots: Array(SELECTION_SAVE_SLOT_COUNT).fill(null),
+          slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
         };
       }
 
-      const slots = Array(SELECTION_SAVE_SLOT_COUNT).fill(null);
-      for (let i = 0; i < SELECTION_SAVE_SLOT_COUNT; i += 1) {
-        slots[i] = parsed.slots[i] ?? null;
+      const slots = Array(TOTAL_SELECTION_SLOT_COUNT).fill(null);
+      if (parsed.slots.length === MANUAL_SELECTION_SLOT_COUNT) {
+        // Legacy format: slot 0-9 were manual slots 1-10.
+        for (let i = 0; i < MANUAL_SELECTION_SLOT_COUNT; i += 1) {
+          slots[i + 1] = parsed.slots[i] ?? null;
+        }
+      } else {
+        for (let i = 0; i < TOTAL_SELECTION_SLOT_COUNT; i += 1) {
+          slots[i] = parsed.slots[i] ?? null;
+        }
       }
       return {
         schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
@@ -466,7 +488,7 @@ export class BattleDomAdapter {
     } catch {
       return {
         schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-        slots: Array(SELECTION_SAVE_SLOT_COUNT).fill(null),
+        slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
       };
     }
   }
@@ -562,21 +584,29 @@ export class BattleDomAdapter {
     return { changedCount, warnings };
   }
 
-  saveSelectionToSlot(slotIndex) {
+  saveSelectionToSlot(slotIndex, options = {}) {
+    const allowAutoSlot = options.allowAutoSlot === true;
+    const silent = options.silent === true;
+    if (!allowAutoSlot) {
+      this.assertManualSelectionSlotIndex(slotIndex);
+    }
     const store = this.readSelectionStore();
     store.slots[slotIndex] = this.captureSelectionState();
     this.writeSelectionStore(store);
-    this.refreshSelectionSlotOptions();
-    this.renderSelectionSlotPreview(slotIndex);
-    this.setStatus(`Selection saved to Slot ${slotIndex + 1}.`);
+    if (!silent) {
+      this.refreshSelectionSlotOptions();
+      this.renderSelectionSlotPreview(slotIndex);
+      this.setStatus(`Selection saved to ${this.getSelectionSlotLabel(slotIndex)}.`);
+    }
     return store.slots[slotIndex];
   }
 
   loadSelectionFromSlot(slotIndex) {
+    this.assertManualSelectionSlotIndex(slotIndex);
     const store = this.readSelectionStore();
     const state = store.slots[slotIndex];
     if (!state) {
-      this.setStatus(`Selection Slot ${slotIndex + 1} is empty.`);
+      this.setStatus(`Selection ${this.getSelectionSlotLabel(slotIndex)} is empty.`);
       return null;
     }
 
@@ -585,25 +615,26 @@ export class BattleDomAdapter {
     this.renderSelectionSlotPreview(slotIndex);
     if (result.warnings.length > 0) {
       this.setStatus(
-        `Selection loaded from Slot ${slotIndex + 1} (changed=${result.changedCount}). Warnings: ${result.warnings.join('; ')}`
+        `Selection loaded from ${this.getSelectionSlotLabel(slotIndex)} (changed=${result.changedCount}). Warnings: ${result.warnings.join('; ')}`
       );
     } else if (result.changedCount === 0) {
       this.setStatus(
-        `Selection loaded from Slot ${slotIndex + 1}. No visible changes (same as current selection).`
+        `Selection loaded from ${this.getSelectionSlotLabel(slotIndex)}. No visible changes (same as current selection).`
       );
     } else {
-      this.setStatus(`Selection loaded from Slot ${slotIndex + 1} (changed=${result.changedCount}).`);
+      this.setStatus(`Selection loaded from ${this.getSelectionSlotLabel(slotIndex)} (changed=${result.changedCount}).`);
     }
     return state;
   }
 
   clearSelectionSlot(slotIndex) {
+    this.assertManualSelectionSlotIndex(slotIndex);
     const store = this.readSelectionStore();
     store.slots[slotIndex] = null;
     this.writeSelectionStore(store);
     this.refreshSelectionSlotOptions();
     this.renderSelectionSlotPreview(slotIndex);
-    this.setStatus(`Selection Slot ${slotIndex + 1} cleared.`);
+    this.setStatus(`Selection ${this.getSelectionSlotLabel(slotIndex)} cleared.`);
   }
 
   refreshSelectionSlotOptions() {
@@ -612,13 +643,13 @@ export class BattleDomAdapter {
       return;
     }
     const store = this.readSelectionStore();
-    for (let i = 0; i < SELECTION_SAVE_SLOT_COUNT; i += 1) {
+    for (let i = 1; i <= MANUAL_SELECTION_SLOT_COUNT; i += 1) {
       const option = select.querySelector(`option[value="${i}"]`);
       if (!option) {
         continue;
       }
       const hasData = Boolean(store.slots[i]);
-      option.textContent = hasData ? `Slot ${i + 1} (Saved)` : `Slot ${i + 1}`;
+      option.textContent = hasData ? `Slot ${i} (Saved)` : `Slot ${i}`;
     }
   }
 
@@ -631,13 +662,13 @@ export class BattleDomAdapter {
     const state = store.slots[slotIndex];
     if (!state) {
       output.textContent =
-        `Slot ${slotIndex + 1}: empty\n` +
+        `${this.getSelectionSlotLabel(slotIndex)}: empty\n` +
         'localStorage保存のため、同じブラウザ/同じURLならリロード後も保持されます。';
       return;
     }
 
     const lines = [];
-    lines.push(`Slot ${slotIndex + 1} savedAt: ${state.savedAt ?? '-'}`);
+    lines.push(`${this.getSelectionSlotLabel(slotIndex)} savedAt: ${state.savedAt ?? '-'}`);
     const rows = Array.isArray(state.partySelections) ? state.partySelections : [];
     for (let i = 0; i < rows.length; i += 1) {
       const row = rows[i] ?? {};
@@ -863,9 +894,8 @@ export class BattleDomAdapter {
     this.renderRecordTable();
     this.writePreviewOutput('');
     this.writeCsvOutput('');
-    const saveSlot = options.autoSaveSlotIndex ?? this.getSelectedSelectionSlotIndex();
-    this.saveSelectionToSlot(saveSlot);
-    this.setStatus(`Battle initialized. Selection auto-saved to Slot ${saveSlot + 1}.`);
+    this.saveSelectionToSlot(AUTO_SAVE_SLOT_INDEX, { allowAutoSlot: true, silent: true });
+    this.setStatus('Battle initialized. Selection auto-saved to Auto Slot 0.');
 
     return this.state;
   }

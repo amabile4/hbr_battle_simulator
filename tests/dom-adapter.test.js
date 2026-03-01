@@ -130,6 +130,31 @@ test('save/load button honors confirm dialog cancellation', () => {
   assert.ok(status.includes('canceled'), 'status should report cancellation');
 });
 
+test('mount auto-saves to slot 0 without overwriting manual slots', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const storageKey = 'hbr.battle_simulator.selection_slots.v1';
+  const preSaved = {
+    schemaVersion: 1,
+    slots: Array(11).fill(null),
+  };
+  preSaved.slots[1] = {
+    schemaVersion: 1,
+    savedAt: '2000-01-01T00:00:00.000Z',
+    partySelections: [],
+    extras: { sentinel: true },
+  };
+  win.localStorage.setItem(storageKey, JSON.stringify(preSaved));
+
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const after = JSON.parse(win.localStorage.getItem(storageKey));
+  assert.equal(typeof after?.slots?.[0]?.savedAt, 'string', 'slot 0 should be auto-saved on mount');
+  assert.equal(after?.slots?.[1]?.savedAt, '2000-01-01T00:00:00.000Z');
+  assert.equal(after?.slots?.[1]?.extras?.sentinel, true);
+});
+
 test('dom adapter applies swap immediately and keeps swap event for commit record', () => {
   const store = getStore();
   const { root } = createRoot();
