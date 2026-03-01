@@ -188,14 +188,11 @@ function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null, 
     // ピアス補正テーブルの hit 数は、敵数を掛けた後ではなく「スキル本来の hit 数」を使う。
     const bonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
     const multiplier = 1 + bonusPercent / 100;
-
-    if (isAllTarget && numericEnemyCount > 1) {
-      // 仕様: 全体攻撃は敵1体ごとにOD増加を計算し、小数第2位まで保持して合算する。
-      const perEnemyGain = truncateToTwoDecimals(hitCountPerEnemy * OD_GAUGE_PER_HIT_PERCENT * multiplier);
-      attackGain = truncateToTwoDecimals(perEnemyGain * numericEnemyCount);
-    } else {
-      attackGain = truncateToTwoDecimals(baseGain * multiplier);
-    }
+    // 仕様更新:
+    // 攻撃ぶんODは「1hitごと」に算出し、小数第2位で切り捨ててから総hitへ乗算する。
+    // (全体攻撃は totalHits = baseHitCount * enemyCount, 単体攻撃は totalHits = baseHitCount)
+    const perHitGain = truncateToTwoDecimals(OD_GAUGE_PER_HIT_PERCENT * multiplier);
+    attackGain = truncateToTwoDecimals(perHitGain * hitCount);
   }
 
   const overDrivePointUpGain = computeOverDrivePointUpGainPercent(

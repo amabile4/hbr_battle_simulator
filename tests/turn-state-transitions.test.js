@@ -435,6 +435,52 @@ test('all-target attack scales OD gain by enemy count', () => {
   assert.equal(nextState.turnState.odGauge, 15, '2 hits * 3 enemies * 2.5%');
 });
 
+test('all-target attack with drive uses per-hit truncation before total hit multiplication', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `H${idx + 1}`,
+      characterName: `H${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      drivePiercePercent: idx === 0 ? 15 : 0,
+      skills: [
+        {
+          id: 9700 + idx,
+          name: idx === 0 ? 'Hit12 AoE Attack' : 'Normal',
+          sp_cost: 1,
+          hit_count: 12,
+          target_type: 'All',
+          parts: [{ skill_type: 'AttackSkill', target_type: 'All' }],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  let state = createBattleStateFromParty(party);
+
+  for (let i = 0; i < 2; i += 1) {
+    const preview = previewTurn(
+      state,
+      {
+        0: { characterId: 'H1', skillId: 9700 },
+      },
+      null,
+      3
+    );
+    state = commitTurn(state, preview).nextState;
+  }
+
+  // per-hit truncation model:
+  // bonus(hit=12, drive15)=15%
+  // per-hit = trunc2(2.5 * 1.15) = 2.87
+  // one action (12hit * 3targets) = trunc2(2.87 * 36) = 103.32
+  // two actions = 206.64 -> floor 206
+  assert.equal(Math.floor(state.turnState.odGauge), 206);
+});
+
 test('single-target attack does not scale OD gain by enemy count', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -504,7 +550,7 @@ test('manual-compare case: Ruka Thunder Pulse vs 3 enemies with Drive Pierce 15%
 
   // 仕様:
   // - ODゲージは小数第2位まで保持し、第3位以下を切り捨て
-  // - 全体攻撃は敵1体ごとに計算した値を(小数第2位まで)合算
+  // - 攻撃ぶんODは1hitごとに計算し、小数第2位で切り捨てて合算
   // - サンダーパルス(2hit) + ドライブ15%(2hit=>+6.11%) の場合
   //   敵1体ぶん: trunc2(2 * 2.5 * 1.0611) = trunc2(5.3055) = 5.30
   //   敵3体合計: 15.90
