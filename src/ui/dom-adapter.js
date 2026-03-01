@@ -1282,7 +1282,7 @@ export class BattleDomAdapter {
     const turnLabel = this.root.querySelector('[data-role="turn-label"]');
     if (turnLabel) {
       const odGauge = Number(this.state.turnState.odGauge ?? 0);
-      turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId}, OD=${odGauge.toFixed(1)}%)`;
+      turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId}, OD=${odGauge.toFixed(2)}%)`;
     }
   }
 
