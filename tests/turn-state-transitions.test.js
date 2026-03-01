@@ -158,3 +158,73 @@ test('extra turn disallows non-allowed members from acting', () => {
     /not allowed to act in extra turn/
   );
 });
+
+test('Nanase supports parallel SP/EP and EP ceiling changes in OD', () => {
+  const store = getStore();
+  const nanaseStyleId = 1010204; // 約束は暁の彼方で (Admiral)
+  const others = getSixUsableStyleIds(store).filter((id) => store.getStyleById(id)?.chara_label !== 'NNanase');
+  const styleIds = [nanaseStyleId, ...others.slice(0, 5)];
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+
+  let state = createBattleStateFromParty(party);
+  const nanase = state.party.find((m) => m.characterId === 'NNanase');
+  assert.ok(nanase);
+  assert.equal(nanase.ep.current, 0);
+  assert.equal(nanase.ep.max, 10);
+
+  // 宿る想い (SP消費 + HealEp)
+  const action = {
+    [String(nanase.position)]: {
+      characterId: nanase.characterId,
+      skillId: 46041501,
+    },
+  };
+
+  const preview = previewTurn(state, action);
+  assert.equal(preview.actions[0].startEP, 0);
+  assert.equal(preview.actions[0].endEP, 0, '宿る想いはEP消費ではない');
+  const { nextState } = commitTurn(state, preview);
+  const after = nextState.party.find((m) => m.characterId === 'NNanase');
+  assert.equal(after.ep.current, 4, 'HealEp +3 and Admiral turn gain +1');
+
+  // OD発動時の+5 and 上限20
+  state = activateOverdrive(nextState, 1, 'preemptive');
+  const odNanase = state.party.find((m) => m.characterId === 'NNanase');
+  assert.equal(odNanase.ep.current, 9);
+
+  // OD中はEP上限20として扱われるため、10を超えて増加できる
+  const odPreview = previewTurn(state, {
+    [String(odNanase.position)]: {
+      characterId: odNanase.characterId,
+      skillId: 46041501,
+    },
+  });
+  const odCommitted = commitTurn(state, odPreview);
+  const odAfter = odCommitted.nextState.party.find((m) => m.characterId === 'NNanase');
+  assert.equal(odAfter.ep.current > 10, true, 'OD中はEP上限20として10超過が可能');
+});
+
+test('Nanase Rider uses external EP rule while Admiral uses passive-derived EP rule', () => {
+  const store = getStore();
+  const riderOnly = [1010203, ...getSixUsableStyleIds(store).filter((id) => store.getStyleById(id)?.chara_label !== 'NNanase').slice(0, 5)];
+  let riderState = createBattleStateFromParty(store.buildPartyFromStyleIds(riderOnly, { initialSP: 10 }));
+  const riderNanase = riderState.party.find((m) => m.characterId === 'NNanase');
+  assert.equal(riderNanase.epRule?.turnStartEpDelta, 2);
+  const riderPreview = previewTurn(riderState, {
+    [String(riderNanase.position)]: { characterId: riderNanase.characterId, skillId: riderNanase.getActionSkills()[0].skillId },
+  });
+  const riderCommitted = commitTurn(riderState, riderPreview);
+  const riderAfter = riderCommitted.nextState.party.find((m) => m.characterId === 'NNanase');
+  assert.ok(riderAfter.ep.current >= 2, 'Rider turn-start EP gain should come from override rule');
+
+  const admiralOnly = [1010204, ...getSixUsableStyleIds(store).filter((id) => store.getStyleById(id)?.chara_label !== 'NNanase').slice(0, 5)];
+  const admiralState = createBattleStateFromParty(store.buildPartyFromStyleIds(admiralOnly, { initialSP: 10 }));
+  const admiralNanase = admiralState.party.find((m) => m.characterId === 'NNanase');
+  assert.equal(admiralNanase.epRule, null);
+  const preview = previewTurn(admiralState, {
+    [String(admiralNanase.position)]: { characterId: admiralNanase.characterId, skillId: 46041501 },
+  });
+  const committed = commitTurn(admiralState, preview);
+  const admiralAfter = committed.nextState.party.find((m) => m.characterId === 'NNanase');
+  assert.equal(admiralAfter.ep.current, 4, 'Admiral EP+1 should be from passive skill + HealEp3 from 宿る想い');
+});

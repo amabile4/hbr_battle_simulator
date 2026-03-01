@@ -27,6 +27,7 @@ export function toCharacterSnapshot(character) {
     positionIndex: character.position,
     isFront: character.position <= 2,
     sp: Object.freeze({ ...character.sp }),
+    ep: Object.freeze({ ...character.ep }),
     isAlive: Boolean(character.isAlive),
     isBreak: Boolean(character.isBreak),
     isExtraActive: Boolean(character.isExtraActive),

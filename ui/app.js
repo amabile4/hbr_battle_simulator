@@ -23,6 +23,7 @@ async function main() {
     passives: await fetchJson('../json/passives.json'),
     accessories: await fetchJson('../json/accessories.json'),
     skillRuleOverrides: await fetchJson('../json/skill_rule_overrides.json'),
+    epRuleOverrides: await fetchJson('../json/ep_rule_overrides.json'),
     skillDbSchema: await fetchJson('../json/new_skill_database.schema.json'),
     skillDbDraft: await fetchJson('../json/reports/migration/new_skill_database.draft.json'),
   };

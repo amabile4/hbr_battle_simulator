@@ -18,6 +18,8 @@ function normalizeSkill(skill, canonicalSkill) {
       skill.additionalTurnRule && typeof skill.additionalTurnRule === 'object'
         ? structuredClone(skill.additionalTurnRule)
         : null,
+    parts: Array.isArray(skill.parts) ? structuredClone(skill.parts) : [],
+    passive: skill.passive && typeof skill.passive === 'object' ? structuredClone(skill.passive) : null,
   };
 }
 
@@ -61,6 +63,7 @@ export class CharacterStyle {
     this.characterName = String(input.characterName);
     this.styleId = Number(input.styleId);
     this.styleName = String(input.styleName);
+    this.role = String(input.role ?? '');
     this.limitBreakLevel = Number(input.limitBreakLevel ?? 0);
     this.partyIndex = partyIndex;
     this.position = position;
@@ -72,10 +75,18 @@ export class CharacterStyle {
       bonus: Number(input.spBonus ?? 0),
     };
 
+    this.ep = {
+      current: Number(input.initialEP ?? 0),
+      min: Number(input.epMin ?? 0),
+      max: Number(input.epMax ?? 10),
+      odMax: Number(input.epOdMax ?? 20),
+    };
+
     this.isAlive = input.isAlive ?? true;
     this.isBreak = input.isBreak ?? false;
     this.isExtraActive = input.isExtraActive ?? false;
     this.isReinforcedMode = input.isReinforcedMode ?? false;
+    this.epRule = input.epRule && typeof input.epRule === 'object' ? structuredClone(input.epRule) : null;
     this.effects = Array.isArray(input.effects) ? structuredClone(input.effects) : [];
 
     this.skills = Object.freeze(
@@ -92,6 +103,7 @@ export class CharacterStyle {
         desc: String(passive.desc ?? ''),
         timing: String(passive.timing ?? ''),
         condition: String(passive.condition ?? ''),
+        parts: Array.isArray(passive.parts) ? structuredClone(passive.parts) : [],
       }))
     );
 
@@ -122,8 +134,14 @@ export class CharacterStyle {
     }
 
     const startSP = this.sp.current;
-    const delta = -Math.abs(skill.spCost);
-    const endSP = applySpChange(startSP, delta, this.sp.min, Number.POSITIVE_INFINITY);
+    const startEP = this.ep.current;
+    const consumeType = String(skill.consumeType ?? 'Sp');
+    const cost = Math.abs(Number(skill.spCost ?? 0));
+
+    const deltaSP = consumeType === 'Ep' ? 0 : -cost;
+    const deltaEP = consumeType === 'Ep' ? -cost : 0;
+    const endSP = applySpChange(startSP, deltaSP, this.sp.min, Number.POSITIVE_INFINITY);
+    const endEP = applySpChange(startEP, deltaEP, this.ep.min, Number.POSITIVE_INFINITY);
 
     return {
       characterId: this.characterId,
@@ -131,10 +149,14 @@ export class CharacterStyle {
       skillId: skill.skillId,
       skillName: skill.name,
       source: 'cost',
+      consumeType,
       baseRevision: this._revision,
       startSP,
       endSP,
+      startEP,
+      endEP,
       spDelta: endSP - startSP,
+      epDelta: endEP - startEP,
     };
   }
 
@@ -153,6 +175,9 @@ export class CharacterStyle {
     }
 
     this.sp.current = Number(preview.endSP);
+    if (Number.isFinite(Number(preview.endEP))) {
+      this.ep.current = Number(preview.endEP);
+    }
     this._revision += 1;
 
     return {
@@ -161,6 +186,8 @@ export class CharacterStyle {
       appliedFromPreview: true,
       startSP: Number(preview.startSP),
       endSP: this.sp.current,
+      startEP: Number(preview.startEP ?? this.ep.current),
+      endEP: this.ep.current,
       revision: this._revision,
     };
   }
@@ -179,6 +206,21 @@ export class CharacterStyle {
       eventCeiling,
       startSP,
       endSP,
+    };
+  }
+
+  applyEpDelta(delta, eventCeiling = this.ep.max) {
+    const numericDelta = Number(delta);
+    const startEP = this.ep.current;
+    const endEP = applySpChange(startEP, numericDelta, this.ep.min, eventCeiling);
+    this.ep.current = endEP;
+    this._revision += 1;
+
+    return {
+      delta: numericDelta,
+      startEP,
+      endEP,
+      eventCeiling,
     };
   }
 
@@ -228,10 +270,12 @@ export class CharacterStyle {
       partyIndex: this.partyIndex,
       position: this.position,
       sp: { ...this.sp },
+      ep: { ...this.ep },
       isAlive: this.isAlive,
       isBreak: this.isBreak,
       isExtraActive: this.isExtraActive,
       isReinforcedMode: this.isReinforcedMode,
+      epRule: this.epRule ? structuredClone(this.epRule) : null,
       revision: this._revision,
     };
   }

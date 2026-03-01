@@ -190,6 +190,20 @@ test('swap candidates are filtered by EX state and mixed EX/normal swap is block
   );
 });
 
+test('party state shows EP alongside SP only for Nanase', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+
+  const nanaseStyleId = 1010204;
+  const others = getSixUsableStyleIds(store).filter((id) => store.getStyleById(id)?.chara_label !== 'NNanase');
+  adapter.initializeBattle([nanaseStyleId, ...others.slice(0, 5)]);
+
+  const rows = [...root.querySelectorAll('[data-role="party-state"] li')].map((li) => li.textContent ?? '');
+  assert.equal(rows.some((line) => line.includes('七瀬 七海') && line.includes('EP=')), true);
+  assert.equal(rows.filter((line) => !line.includes('七瀬 七海')).some((line) => line.includes('EP=')), false);
+});
+
 test('character -> style selection is linked and reflected on screen', () => {
   const store = getStore();
   const { root, win } = createRoot();

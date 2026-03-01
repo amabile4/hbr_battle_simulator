@@ -202,6 +202,7 @@ function previewActionEntries(state, sortedActions) {
       skillId: skill.skillId,
       skillName: skill.name,
       spCost: skill.spCost,
+      consumeType: String(skill.consumeType ?? 'Sp'),
       spChanges: [
         {
           source: 'cost',
@@ -213,13 +214,158 @@ function previewActionEntries(state, sortedActions) {
       ],
       startSP: preview.startSP,
       endSP: preview.endSP,
+      startEP: preview.startEP,
+      endEP: preview.endEP,
       _baseRevision: preview.baseRevision,
     };
   });
 }
 
+function getEpRule(member) {
+  return member?.epRule && typeof member.epRule === 'object' ? member.epRule : null;
+}
+
+function getPassiveOverdriveEpLimit(member) {
+  let limit = null;
+  for (const passive of member.passives ?? []) {
+    if (String(passive.timing ?? '') !== 'OnOverdriveStart') {
+      continue;
+    }
+    for (const part of passive.parts ?? []) {
+      if (String(part.skill_type ?? '') !== 'EpLimitOverwrite') {
+        continue;
+      }
+      const value = Number(part?.power?.[0] ?? 0);
+      if (Number.isFinite(value) && value > 0) {
+        limit = limit === null ? value : Math.max(limit, value);
+      }
+    }
+  }
+  return limit;
+}
+
+function getEpCeilingForTurn(member, turnState) {
+  const rule = getEpRule(member);
+  if (turnState.turnType === 'od') {
+    const passiveLimit = getPassiveOverdriveEpLimit(member);
+    if (Number.isFinite(passiveLimit)) {
+      return Number(passiveLimit);
+    }
+    if (Number.isFinite(Number(rule?.ep?.odMax))) {
+      return Number(rule.ep.odMax);
+    }
+    return Number(member.ep.odMax ?? member.ep.max ?? 0);
+  }
+  if (Number.isFinite(Number(rule?.ep?.max))) {
+    return Number(rule.ep.max);
+  }
+  return Number(member.ep.max ?? 0);
+}
+
+function applyRoleEpGain(member, turnState) {
+  const rule = getEpRule(member);
+  const delta = Number(rule?.turnStartEpDelta ?? 0);
+  if (!Number.isFinite(delta) || delta === 0) {
+    return null;
+  }
+
+  const source = String(rule?.turnStartSource ?? 'ep_rule');
+  const change = member.applyEpDelta(delta, getEpCeilingForTurn(member, turnState));
+  return { characterId: member.characterId, source, ...change };
+}
+
+function applyPassiveSkillEpTurnStart(member, turnState) {
+  const events = [];
+  for (const skill of member.skills ?? []) {
+    if (!skill.isPassive) {
+      continue;
+    }
+    if (String(skill?.passive?.timing ?? '') !== 'OnEveryTurn') {
+      continue;
+    }
+    for (const part of skill.parts ?? []) {
+      if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
+        continue;
+      }
+      const amount = Number(part?.power?.[0] ?? 0);
+      if (!Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+      const change = member.applyEpDelta(amount, getEpCeilingForTurn(member, turnState));
+      events.push({
+        characterId: member.characterId,
+        source: 'ep_passive_skill',
+        skillId: skill.skillId,
+        ...change,
+      });
+    }
+  }
+  return events;
+}
+
+function applyPassiveEpOnOverdriveStart(member, turnState) {
+  const events = [];
+  for (const passive of member.passives ?? []) {
+    if (String(passive.timing ?? '') !== 'OnOverdriveStart') {
+      continue;
+    }
+    for (const part of passive.parts ?? []) {
+      if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
+        continue;
+      }
+      const amount = Number(part?.power?.[0] ?? 0);
+      if (!Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+      const change = member.applyEpDelta(amount, getEpCeilingForTurn(member, turnState));
+      events.push({
+        characterId: member.characterId,
+        source: 'ep_passive',
+        passiveName: passive.name,
+        ...change,
+      });
+    }
+  }
+  return events;
+}
+
+function applySkillSelfEpGains(state, previewRecord) {
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const member = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!member) {
+      continue;
+    }
+
+    const skill = member.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    for (const part of skill.parts ?? []) {
+      if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
+        continue;
+      }
+      const amount = Number(part?.power?.[0] ?? 0);
+      if (!Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+
+      const change = member.applyEpDelta(amount, getEpCeilingForTurn(member, state.turnState));
+      events.push({
+        characterId: member.characterId,
+        source: 'ep_skill',
+        skillId: skill.skillId,
+        ...change,
+      });
+    }
+  }
+  return events;
+}
+
 function applyRecoveryPipeline(party, turnState) {
   const recoveryEvents = [];
+  const epEvents = [];
 
   for (const member of party) {
     const base = member.recoverBaseSP(BASE_SP_RECOVERY);
@@ -228,6 +374,16 @@ function applyRecoveryPipeline(party, turnState) {
       source: 'base',
       ...base,
     });
+
+    const epRole = applyRoleEpGain(member, turnState);
+    if (epRole) {
+      epEvents.push(epRole);
+    }
+
+    const passiveSkillEvents = applyPassiveSkillEpTurnStart(member, turnState);
+    if (passiveSkillEvents.length > 0) {
+      epEvents.push(...passiveSkillEvents);
+    }
   }
 
   if (turnState.turnType === 'od' && turnState.odLevel > 0) {
@@ -242,7 +398,10 @@ function applyRecoveryPipeline(party, turnState) {
     }
   }
 
-  return recoveryEvents;
+  return {
+    spEvents: recoveryEvents,
+    epEvents,
+  };
 }
 
 function applySwapEvents(state, swapEvents) {
@@ -417,15 +576,21 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       skillId: entry.skillId,
       startSP: entry.startSP,
       endSP: entry.endSP,
+      startEP: entry.startEP,
+      endEP: entry.endEP,
       baseRevision: entry._baseRevision,
     });
   }
 
-  const recoveryEvents = applyRecoveryPipeline(state.party, state.turnState);
+  const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
+  const recovery = applyRecoveryPipeline(state.party, state.turnState);
+  const recoveryEvents = recovery.spEvents;
+  const epEvents = [...epSkillEvents, ...recovery.epEvents];
 
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
     entry.endSP = member.sp.current;
+    entry.endEP = member.ep.current;
 
     const extraChanges = recoveryEvents
       .filter((ev) => ev.characterId === entry.characterId)
@@ -438,6 +603,15 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       }));
 
     entry.spChanges = [...entry.spChanges, ...extraChanges];
+    entry.epChanges = epEvents
+      .filter((ev) => ev.characterId === entry.characterId)
+      .map((ev) => ({
+        source: ev.source,
+        delta: ev.delta,
+        preEP: ev.startEP,
+        postEP: ev.endEP,
+        eventCeiling: ev.eventCeiling,
+      }));
   }
 
   if (applySwapOnCommit) {
@@ -479,10 +653,21 @@ export function activateOverdrive(state, level, context = 'preemptive') {
     odSuspended: false,
   };
 
-  return {
+  const nextState = {
     ...state,
     turnState: nextTurnState,
   };
+
+  for (const member of nextState.party) {
+    const rule = getEpRule(member);
+    const delta = Number(rule?.onOverdriveStartEpDelta ?? 0);
+    if (Number.isFinite(delta) && delta !== 0) {
+      member.applyEpDelta(delta, getEpCeilingForTurn(member, nextTurnState));
+    }
+    applyPassiveEpOnOverdriveStart(member, nextTurnState);
+  }
+
+  return nextState;
 }
 
 export function grantExtraTurn(state, allowedCharacterIds) {

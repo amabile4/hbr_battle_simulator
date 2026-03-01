@@ -277,8 +277,13 @@ export class BattleDomAdapter {
         tags.push('パッシブ');
       }
       const sourceBadge = tags.length > 0 ? ` ${tags.map((t) => `[${t}]`).join('')}` : '';
+      const consumeType = String(skill.consume_type ?? skill.consumeType ?? 'Sp');
+      const costLabel =
+        consumeType.toLowerCase() === 'ep'
+          ? `EP ${skill.spCost ?? skill.sp_cost ?? '-'}`
+          : `SP ${skill.spCost ?? skill.sp_cost ?? '-'}`;
       row.appendChild(checkbox);
-      row.append(` ${skill.name} (SP ${skill.spCost ?? skill.sp_cost ?? '-'})${sourceBadge}`);
+      row.append(` ${skill.name} (${costLabel})${sourceBadge}`);
       container.appendChild(row);
     }
   }
@@ -894,7 +899,9 @@ export class BattleDomAdapter {
       for (const skill of member.getActionSkills()) {
         const option = this.doc.createElement('option');
         option.value = String(skill.skillId);
-        option.textContent = `${skill.name} (SP ${skill.spCost})`;
+        const consumeType = String(skill.consumeType ?? 'Sp');
+        const costLabel = consumeType === 'Ep' ? `EP ${skill.spCost}` : `SP ${skill.spCost}`;
+        option.textContent = `${skill.name} (${costLabel})`;
         select.appendChild(option);
       }
 
@@ -1168,6 +1175,9 @@ export class BattleDomAdapter {
       .map((member) => {
         const frontBack = member.position <= 2 ? 'Front' : 'Back';
         const extraTag = member.isExtraActive ? ' [EX]' : '';
+        if (String(member.characterId) === 'NNanase') {
+          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag} SP=${member.sp.current} / EP=${member.ep.current}</li>`;
+        }
         return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag} SP=${member.sp.current}</li>`;
       })
       .join('');

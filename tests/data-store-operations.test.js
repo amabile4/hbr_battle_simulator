@@ -293,3 +293,14 @@ test('additional turn rules expose turn-context conditions from skill parts', ()
 
   assert.equal(sprint?.conditions?.requiresOverDrive, true);
 });
+
+test('EP rules are loaded from external rule table for Nanase styles', () => {
+  const store = getStore();
+  const rider = store.buildCharacterStyle({ styleId: 1010203, partyIndex: 0, initialSP: 10 });
+  const admiral = store.buildCharacterStyle({ styleId: 1010204, partyIndex: 1, initialSP: 10 });
+
+  assert.equal(rider.ep.max, 10);
+  assert.equal(rider.ep.odMax, 10);
+  assert.equal(rider.epRule?.turnStartEpDelta, 2);
+  assert.equal(admiral.epRule, null, 'Admiral should rely on in-data passives, not override');
+});

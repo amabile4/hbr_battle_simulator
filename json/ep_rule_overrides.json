@@ -1,0 +1,16 @@
+[
+  {
+    "characterId": "NNanase",
+    "role": "Rider",
+    "ep": {
+      "initial": 0,
+      "min": 0,
+      "max": 10,
+      "odMax": 10
+    },
+    "turnStartEpDelta": 2,
+    "turnStartSource": "ep_role",
+    "allyDpPenaltyRateWithoutSelf": 0.03,
+    "notes": "RIDER role ability (gear-slot equivalent). Keep as override until source data exposes explicit role-ability fields."
+  }
+]

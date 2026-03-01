@@ -69,6 +69,7 @@ export class HbrDataStore {
     this.passives = payload.passives;
     this.accessories = payload.accessories ?? [];
     this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
+    this.epRuleOverrides = payload.epRuleOverrides ?? [];
 
     this.skillDbSchema = payload.skillDbSchema;
     this.skillDbDraft = payload.skillDbDraft;
@@ -122,6 +123,29 @@ export class HbrDataStore {
     return sortMeta;
   }
 
+  getEpRuleForStyle(style, character) {
+    if (!style || !character) {
+      return null;
+    }
+
+    const styleId = Number(style.id);
+    const characterId = String(character.label ?? '');
+    const role = String(style.role ?? '');
+
+    const byStyle = this.epRuleOverrides.find((row) => Number(row.styleId) === styleId) ?? null;
+    if (byStyle) {
+      return structuredClone(byStyle);
+    }
+
+    const byCharacterRole =
+      this.epRuleOverrides.find(
+        (row) =>
+          String(row.characterId ?? '') === characterId &&
+          String(row.role ?? '') === role
+      ) ?? null;
+    return byCharacterRole ? structuredClone(byCharacterRole) : null;
+  }
+
   static fromJsonDirectory(baseDir = 'json') {
     const dir = resolve(baseDir);
     return new HbrDataStore({
@@ -131,6 +155,7 @@ export class HbrDataStore {
       passives: readJson(resolve(dir, 'passives.json')),
       accessories: readJson(resolve(dir, 'accessories.json')),
       skillRuleOverrides: readJson(resolve(dir, 'skill_rule_overrides.json')),
+      epRuleOverrides: readJson(resolve(dir, 'ep_rule_overrides.json')),
       skillDbSchema: readJson(resolve(dir, 'new_skill_database.schema.json')),
       skillDbDraft: readJson(resolve(dir, 'reports/migration/new_skill_database.draft.json')),
     });
@@ -148,6 +173,7 @@ export class HbrDataStore {
       passives: payload.passives ?? [],
       accessories: payload.accessories ?? [],
       skillRuleOverrides: payload.skillRuleOverrides ?? [],
+      epRuleOverrides: payload.epRuleOverrides ?? [],
       skillDbSchema: payload.skillDbSchema ?? {},
       skillDbDraft: payload.skillDbDraft ?? {},
       skillAvailability: payload.skillAvailability ?? {},
@@ -965,18 +991,36 @@ export class HbrDataStore {
       ? Math.max(0, Math.min(maxLimitBreak, Number(limitBreakLevel)))
       : maxLimitBreak;
     const passives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
+    const epRule = this.getEpRuleForStyle(style, character);
+    const ep = epRule?.ep ?? {};
+    const hasEpRelatedSkill = allStyleSkills.some((skill) => {
+      const consumeType = String(skill.consume_type ?? skill.consumeType ?? '');
+      if (consumeType === 'Ep') {
+        return true;
+      }
+      return (skill.parts ?? []).some((part) => String(part.skill_type ?? '') === 'HealEp');
+    });
+    const inferredEpMax = hasEpRelatedSkill ? 10 : 0;
+    const epMax = Number.isFinite(Number(ep.max)) ? Number(ep.max) : inferredEpMax;
+    const epOdMax = Number.isFinite(Number(ep.odMax)) ? Number(ep.odMax) : epMax;
 
     return new CharacterStyle({
       characterId: String(character.label),
       characterName: normalizeCharacterName(character.name),
       styleId: Number(style.id),
       styleName: String(style.name),
+      role: String(style.role ?? ''),
       partyIndex: Number(partyIndex),
       position: Number(partyIndex),
       initialSP: Number(initialSP),
+      initialEP: Number(ep.initial ?? 0),
       spBonus: Number(spBonus),
       spMin: 0,
       spMax: 20,
+      epMin: Number(ep.min ?? 0),
+      epMax,
+      epOdMax,
+      epRule,
       limitBreakLevel: normalizedLimitBreak,
       skills: styleSkills,
       triggeredSkills,
