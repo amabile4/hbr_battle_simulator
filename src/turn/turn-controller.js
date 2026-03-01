@@ -8,6 +8,114 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 
 export const BASE_SP_RECOVERY = 2;
 const OD_RECOVERY_BY_LEVEL = Object.freeze({ 1: 5, 2: 12, 3: 20 });
+const OD_GAUGE_PER_HIT_PERCENT = 2.5;
+const OD_DAMAGE_PART_TYPES = new Set([
+  'AttackNormal',
+  'AttackSkill',
+  'DamageRateChangeAttackSkill',
+  'PenetrationCriticalAttack',
+  'AttackByOwnDpRate',
+  'AttackBySp',
+  'TokenAttack',
+  'FixedHpDamageRateAttack',
+]);
+
+function isNormalAttackSkill(skill) {
+  const name = String(skill?.name ?? '');
+  const label = String(skill?.label ?? '');
+  return name === '通常攻撃' || label.endsWith('AttackNormal');
+}
+
+function resolveSkillHitCount(skill) {
+  const direct = Number(skill?.hitCount ?? 0);
+  if (Number.isFinite(direct) && direct > 0) {
+    return direct;
+  }
+
+  const hitsArrayCount = Array.isArray(skill?.hits) ? skill.hits.length : 0;
+  return Number.isFinite(hitsArrayCount) && hitsArrayCount > 0 ? hitsArrayCount : 0;
+}
+
+function hasDamagePartInParts(parts) {
+  for (const part of parts ?? []) {
+    const skillType = String(part?.skill_type ?? '');
+    if (OD_DAMAGE_PART_TYPES.has(skillType)) {
+      return true;
+    }
+
+    if (Array.isArray(part?.strval)) {
+      for (const nested of part.strval) {
+        if (nested && typeof nested === 'object' && Array.isArray(nested.parts)) {
+          if (hasDamagePartInParts(nested.parts)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function computeOdGaugeGainPercentBySkill(skill) {
+  if (!hasDamagePartInParts(skill?.parts ?? [])) {
+    return 0;
+  }
+
+  let hitCount = resolveSkillHitCount(skill);
+  if (isNormalAttackSkill(skill)) {
+    // 通常攻撃はヒット数に関わらず最低3hit(=7.5%)保証。
+    hitCount = Math.max(3, hitCount);
+  }
+
+  if (!Number.isFinite(hitCount) || hitCount <= 0) {
+    return 0;
+  }
+
+  return hitCount * OD_GAUGE_PER_HIT_PERCENT;
+}
+
+function applyOdGaugeFromActions(state, previewRecord) {
+  const events = [];
+  let total = 0;
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const member = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!member) {
+      continue;
+    }
+
+    const skill = member.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const hitCount = resolveSkillHitCount(skill);
+    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill);
+    if (!Number.isFinite(odGaugeGain) || odGaugeGain === 0) {
+      continue;
+    }
+
+    total += odGaugeGain;
+    events.push({
+      characterId: member.characterId,
+      skillId: skill.skillId,
+      skillName: skill.name,
+      hitCount,
+      odGaugeGain,
+    });
+  }
+
+  const startOdGauge = Number(state.turnState.odGauge ?? 0);
+  const endOdGauge = startOdGauge + total;
+  state.turnState.odGauge = endOdGauge;
+
+  return {
+    startOdGauge,
+    endOdGauge,
+    totalGain: total,
+    events,
+  };
+}
 
 function findMemberByCharacterId(state, characterId) {
   return state.party.find((member) => member.characterId === characterId) ?? null;
@@ -583,6 +691,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
+  const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
   const recovery = applyRecoveryPipeline(state.party, state.turnState);
   const recoveryEvents = recovery.spEvents;
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
@@ -612,6 +721,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         postEP: ev.endEP,
         eventCeiling: ev.eventCeiling,
       }));
+    const odEvent = odGaugeGain.events.find(
+      (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
+    );
+    entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
   }
 
   if (applySwapOnCommit) {

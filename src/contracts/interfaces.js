@@ -48,6 +48,7 @@ export function createInitialTurnState() {
     sequenceId: 1,
     turnType: 'normal',
     turnLabel: 'T1',
+    odGauge: 0,
     odLevel: 0,
     remainingOdActions: 0,
     odContext: null,

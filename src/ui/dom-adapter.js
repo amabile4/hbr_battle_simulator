@@ -931,7 +931,9 @@ export class BattleDomAdapter {
         option.value = String(skill.skillId);
         const consumeType = String(skill.consumeType ?? 'Sp');
         const costLabel = consumeType === 'Ep' ? `EP ${skill.spCost}` : `SP ${skill.spCost}`;
-        option.textContent = `${skill.name} (${costLabel})`;
+        const hitCount = Number(skill.hitCount ?? 0);
+        const hitLabel = Number.isFinite(hitCount) && hitCount > 0 ? `${hitCount}` : '-';
+        option.textContent = `${skill.name} (${costLabel} / Hit ${hitLabel})`;
         select.appendChild(option);
       }
 
@@ -1185,7 +1187,8 @@ export class BattleDomAdapter {
 
     const turnLabel = this.root.querySelector('[data-role="turn-label"]');
     if (turnLabel) {
-      turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId})`;
+      const odGauge = Number(this.state.turnState.odGauge ?? 0);
+      turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId}, OD=${odGauge.toFixed(1)}%)`;
     }
   }
 

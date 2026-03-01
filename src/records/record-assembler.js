@@ -8,6 +8,7 @@ export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceI
     odContext: context.odContext,
     isExtraTurn: context.isExtraTurn,
     remainingOdActionsAtStart: context.remainingOdActionsAtStart,
+    odGaugeAtStart: context.odGaugeAtStart,
     snapBefore,
     snapAfter: null,
     enemyAction: context.enemyAction,
@@ -43,6 +44,7 @@ export function buildTurnContext(turnState, enemyAction = null) {
     odContext: turnState.odContext,
     isExtraTurn: turnState.turnType === 'extra',
     remainingOdActionsAtStart: turnState.remainingOdActions,
+    odGaugeAtStart: Number(turnState.odGauge ?? 0),
     enemyAction,
   };
 }

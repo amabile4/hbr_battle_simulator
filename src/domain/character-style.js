@@ -5,12 +5,15 @@ function normalizeSkill(skill, canonicalSkill) {
   const isPassive = Boolean(skill.passive && typeof skill.passive === 'object') || sourceType === 'passive';
   return {
     skillId: Number(skill.id ?? skill.skillId),
+    label: String(skill.label ?? canonicalSkill?.label ?? ''),
     name: String(skill.name ?? ''),
     spCost: Number(skill.sp_cost ?? skill.spCost ?? canonicalSkill?.spCost ?? 0),
     sourceType,
     isPassive,
     type: canonicalSkill?.type ?? inferSkillType(skill),
     consumeType: skill.consume_type ?? skill.consumeType ?? canonicalSkill?.consumeType ?? null,
+    hitCount: Number(skill.hit_count ?? skill.hitCount ?? canonicalSkill?.hitCount ?? 0),
+    hits: Array.isArray(skill.hits) ? structuredClone(skill.hits) : [],
     maxLevel: skill.max_level ?? skill.maxLevel ?? canonicalSkill?.maxLevel ?? null,
     spRecoveryCeiling:
       typeof skill.spRecoveryCeiling === 'number' ? skill.spRecoveryCeiling : undefined,

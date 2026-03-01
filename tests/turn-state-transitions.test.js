@@ -228,3 +228,160 @@ test('Nanase Rider uses external EP rule while Admiral uses passive-derived EP r
   const admiralAfter = committed.nextState.party.find((m) => m.characterId === 'NNanase');
   assert.equal(admiralAfter.ep.current, 4, 'Admiral EP+1 should be from passive skill + HealEp3 from 宿る想い');
 });
+
+test('normal attack guarantees minimum 7.5% OD gain even when hit count is below 3', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `N${idx + 1}`,
+      characterName: `N${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 9100 + idx,
+          label: `N${idx + 1}AttackNormal`,
+          name: '通常攻撃',
+          sp_cost: 0,
+          hit_count: 1,
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'N1', skillId: 9100 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 7.5);
+});
+
+test('skill attack increases OD gauge by hit_count * 2.5%', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `A${idx + 1}`,
+      characterName: `A${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 9200 + idx,
+          name: idx === 0 ? 'Hit5 Attack' : 'Buff',
+          sp_cost: 1,
+          hit_count: idx === 0 ? 5 : 0,
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single' }]
+              : [{ skill_type: 'AttackUp', target_type: 'Self' }],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'A1', skillId: 9200 },
+    1: { characterId: 'A2', skillId: 9201 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 12.5);
+});
+
+test('non-damaging debuff skill with hit_count does not increase OD gauge', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `D${idx + 1}`,
+      characterName: `D${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 9300 + idx,
+          name: idx === 0 ? 'Weaken-like' : 'Normal',
+          sp_cost: 1,
+          hit_count: 1,
+          parts:
+            idx === 0
+              ? [
+                  { skill_type: 'AttackDown', target_type: 'Single' },
+                  { skill_type: 'RemoveBuff', target_type: 'Single' },
+                ]
+              : [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'D1', skillId: 9300 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 0);
+});
+
+test('non-damaging skill-switch with hit_count does not increase OD gauge', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `S${idx + 1}`,
+      characterName: `S${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `Style${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 9400 + idx,
+          name: idx === 0 ? 'Aoharu-like' : 'Normal',
+          sp_cost: 1,
+          hit_count: 1,
+          parts:
+            idx === 0
+              ? [
+                  {
+                    skill_type: 'SkillSwitch',
+                    target_type: 'All',
+                    strval: [
+                      {
+                        id: 994001,
+                        name: 'Branch A',
+                        hit_count: 1,
+                        parts: [{ skill_type: 'AttackUp', target_type: 'AllyAll' }],
+                      },
+                      {
+                        id: 994002,
+                        name: 'Branch B',
+                        hit_count: 1,
+                        parts: [{ skill_type: 'CriticalRateUp', target_type: 'AllyAll' }],
+                      },
+                    ],
+                  },
+                ]
+              : [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'S1', skillId: 9400 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 0);
+});
