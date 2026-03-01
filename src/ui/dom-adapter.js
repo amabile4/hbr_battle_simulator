@@ -12,6 +12,18 @@ function normalizeName(name) {
     .trim();
 }
 
+function toDateValue(value) {
+  const t = new Date(String(value ?? '')).getTime();
+  return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+}
+
+const TIER_ORDER = Object.freeze({
+  A: 0,
+  S: 1,
+  SS: 2,
+  SSR: 3,
+});
+
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
   const label = String(skill?.label ?? '');
@@ -26,6 +38,10 @@ function isAdmiralCommandSkill(skill) {
 
 function isRequiredEquippedSkill(skill) {
   return isNormalAttackSkill(skill) || isAdmiralCommandSkill(skill);
+}
+
+function clampLimitBreak(level, max) {
+  return Math.max(0, Math.min(Number(max), Number(level)));
 }
 
 function firstSixUniqueStyles(styles) {
@@ -140,9 +156,20 @@ export class BattleDomAdapter {
 
       if (target.matches('[data-role="style-select"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.populateLimitBreakSelect(slot, target.value, null);
         this.populateSkillChecklist(slot, target.value);
+        this.populatePassiveList(slot, target.value);
         this.updateSlotSummary(slot);
         this.renderSelectionSummary();
+      }
+
+      if (target.matches('[data-role="limit-break-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        const styleSelect = this.root.querySelector(
+          `[data-role="style-select"][data-slot="${slot}"]`
+        );
+        this.populatePassiveList(slot, styleSelect?.value ?? '');
+        this.updateSlotSummary(slot);
       }
 
       if (target.matches('[data-role="skill-check"]')) {
@@ -160,7 +187,7 @@ export class BattleDomAdapter {
     );
     if (!container) return;
 
-    const skills = this.dataStore.listSkillsByStyleId(styleId);
+    const skills = this.dataStore.listEquipableSkillsByStyleId(styleId);
     const checkedSet = Array.isArray(preferredCheckedIds)
       ? new Set(preferredCheckedIds.map((id) => Number(id)))
       : null;
@@ -182,9 +209,23 @@ export class BattleDomAdapter {
       }
 
       const sourceType = String(skill.sourceType ?? 'style');
-      const sourceBadge = sourceType === 'style' ? '' : ` [${sourceType}]`;
+      const sourceLabelByType = {
+        style: '',
+        master: 'マスター',
+        orb: 'オーブ',
+        passive: '',
+      };
+      const tags = [];
+      const sourceLabel = sourceLabelByType[sourceType] ?? sourceType;
+      if (sourceLabel) {
+        tags.push(sourceLabel);
+      }
+      if (skill.passive && typeof skill.passive === 'object') {
+        tags.push('パッシブ');
+      }
+      const sourceBadge = tags.length > 0 ? ` ${tags.map((t) => `[${t}]`).join('')}` : '';
       row.appendChild(checkbox);
-      row.append(` ${skill.name} (SP ${skill.spCost ?? '-'})${sourceBadge}`);
+      row.append(` ${skill.name} (SP ${skill.spCost ?? skill.sp_cost ?? '-'})${sourceBadge}`);
       container.appendChild(row);
     }
   }
@@ -205,7 +246,20 @@ export class BattleDomAdapter {
     return this.dataStore
       .listStylesByCharacter(characterLabel)
       .filter((style) => Array.isArray(style.skills) && style.skills.length > 0)
-      .sort((a, b) => Number(a.id) - Number(b.id));
+      .sort((a, b) => {
+        const tierA = TIER_ORDER[String(a.tier ?? '').toUpperCase()] ?? Number.POSITIVE_INFINITY;
+        const tierB = TIER_ORDER[String(b.tier ?? '').toUpperCase()] ?? Number.POSITIVE_INFINITY;
+        if (tierA !== tierB) {
+          return tierA - tierB;
+        }
+
+        const dateDelta = toDateValue(a.in_date) - toDateValue(b.in_date);
+        if (dateDelta !== 0) {
+          return dateDelta;
+        }
+
+        return Number(a.id) - Number(b.id);
+      });
   }
 
   renderPartySelectionSlots() {
@@ -244,12 +298,17 @@ export class BattleDomAdapter {
       styleSelect.setAttribute('data-role', 'style-select');
       styleSelect.setAttribute('data-slot', String(i));
 
+      const limitBreakSelect = this.doc.createElement('select');
+      limitBreakSelect.setAttribute('data-role', 'limit-break-select');
+      limitBreakSelect.setAttribute('data-slot', String(i));
+
       const skillChecklist = this.doc.createElement('div');
       skillChecklist.setAttribute('data-role', 'skill-checklist');
       skillChecklist.setAttribute('data-slot', String(i));
 
       wrapper.appendChild(characterSelect);
       wrapper.appendChild(styleSelect);
+      wrapper.appendChild(limitBreakSelect);
       wrapper.appendChild(skillChecklist);
 
       const summary = this.doc.createElement('div');
@@ -257,9 +316,16 @@ export class BattleDomAdapter {
       summary.setAttribute('data-slot', String(i));
       wrapper.appendChild(summary);
 
+      const passiveList = this.doc.createElement('div');
+      passiveList.setAttribute('data-role', 'passive-list');
+      passiveList.setAttribute('data-slot', String(i));
+      wrapper.appendChild(passiveList);
+
       container.appendChild(wrapper);
       this.populateStyleSelect(i, initial.characterLabel, initial.styleId);
+      this.populateLimitBreakSelect(i, initial.styleId, null);
       this.populateSkillChecklist(i, initial.styleId);
+      this.populatePassiveList(i, initial.styleId);
       this.updateSlotSummary(i);
     }
 
@@ -300,9 +366,59 @@ export class BattleDomAdapter {
     const styleSelect = this.root.querySelector(
       `[data-role="style-select"][data-slot="${slotIndex}"]`
     );
+    this.populateLimitBreakSelect(slotIndex, styleSelect?.value ?? '', null);
     this.populateSkillChecklist(slotIndex, styleSelect?.value ?? '');
+    this.populatePassiveList(slotIndex, styleSelect?.value ?? '');
     this.updateSlotSummary(slotIndex);
     this.renderSelectionSummary();
+  }
+
+  populateLimitBreakSelect(slotIndex, styleId, preferredLevel = null) {
+    const select = this.root.querySelector(
+      `[data-role="limit-break-select"][data-slot="${slotIndex}"]`
+    );
+    if (!select) {
+      return;
+    }
+
+    const style = this.dataStore.getStyleById(styleId);
+    const max = this.dataStore.getStyleLimitBreakMax(style);
+    const current = preferredLevel ?? select.value;
+    const initial = Number.isFinite(Number(current)) ? clampLimitBreak(Number(current), max) : max;
+
+    select.innerHTML = '';
+    for (let level = 0; level <= max; level += 1) {
+      const option = this.doc.createElement('option');
+      option.value = String(level);
+      option.textContent = `LB ${level}`;
+      if (level === initial) {
+        option.selected = true;
+      }
+      select.appendChild(option);
+    }
+  }
+
+  populatePassiveList(slotIndex, styleId) {
+    const container = this.root.querySelector(
+      `[data-role="passive-list"][data-slot="${slotIndex}"]`
+    );
+    if (!container) {
+      return;
+    }
+
+    const lbSelect = this.root.querySelector(
+      `[data-role="limit-break-select"][data-slot="${slotIndex}"]`
+    );
+    const limitBreakLevel = toInt(lbSelect?.value, 0);
+    const passives = this.dataStore.listPassivesByStyleId(styleId, { limitBreakLevel });
+    if (passives.length === 0) {
+      container.textContent = 'Passives: -';
+      return;
+    }
+
+    container.textContent = `Passives: ${passives
+      .map((p) => `${p.name}(LB${p.requiredLimitBreakLevel ?? 0})`)
+      .join(', ')}`;
   }
 
   getCheckedSkillIdsForSlot(slotIndex) {
@@ -334,6 +450,15 @@ export class BattleDomAdapter {
     return out;
   }
 
+  readLimitBreakMapFromDom() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const select = this.root.querySelector(`[data-role="limit-break-select"][data-slot="${i}"]`);
+      out[i] = toInt(select?.value, 0);
+    }
+    return out;
+  }
+
   updateSlotSummary(slotIndex) {
     const summary = this.root.querySelector(`[data-role="slot-summary"][data-slot="${slotIndex}"]`);
     if (!summary) {
@@ -351,11 +476,16 @@ export class BattleDomAdapter {
     const character = this.dataStore.getCharacterByLabel(selectedCharacterLabel);
     const style = this.dataStore.getStyleById(selectedStyleId);
     const selectedSkillIds = this.getCheckedSkillIdsForSlot(slotIndex) ?? [];
+    const lbSelect = this.root.querySelector(
+      `[data-role="limit-break-select"][data-slot="${slotIndex}"]`
+    );
+    const limitBreakLevel = toInt(lbSelect?.value, 0);
+    const passives = this.dataStore.listPassivesByStyleId(selectedStyleId, { limitBreakLevel });
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `Equipped Skills: ${selectedSkillIds.length}`;
+      `LB: ${limitBreakLevel} / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {
@@ -394,9 +524,12 @@ export class BattleDomAdapter {
 
   initializeBattle(styleIds = this.readStyleIdsFromDom(), options = {}) {
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? this.readSkillSetMapFromDom();
+    const limitBreakLevelsByPartyIndex =
+      options.limitBreakLevelsByPartyIndex ?? this.readLimitBreakMapFromDom();
     this.party = this.dataStore.buildPartyFromStyleIds(styleIds, {
       initialSP: this.initialSP,
       skillSetsByPartyIndex,
+      limitBreakLevelsByPartyIndex,
     });
     this.state = createBattleStateFromParty(this.party);
     this.recordStore = createBattleRecordStore();
@@ -439,7 +572,7 @@ export class BattleDomAdapter {
         select.appendChild(option);
       }
 
-      for (const skill of member.skills) {
+      for (const skill of member.getActionSkills()) {
         const option = this.doc.createElement('option');
         option.value = String(skill.skillId);
         option.textContent = `${skill.name} (SP ${skill.spCost})`;
@@ -459,7 +592,8 @@ export class BattleDomAdapter {
     const actionDict = {};
     for (const member of this.party.getFrontline()) {
       const select = this.root.querySelector(`[data-action-slot="${member.position}"]`);
-      const fallbackSkill = member.skills[0];
+      const actionSkills = member.getActionSkills();
+      const fallbackSkill = actionSkills[0];
       if (!fallbackSkill) {
         throw new Error(`No equipped skills for position ${member.position + 1}.`);
       }

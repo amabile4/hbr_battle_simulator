@@ -21,6 +21,7 @@ async function main() {
     styles: await fetchJson('../json/styles.json'),
     skills: await fetchJson('../json/skills.json'),
     passives: await fetchJson('../json/passives.json'),
+    accessories: await fetchJson('../json/accessories.json'),
     skillDbSchema: await fetchJson('../json/new_skill_database.schema.json'),
     skillDbDraft: await fetchJson('../json/reports/migration/new_skill_database.draft.json'),
   };

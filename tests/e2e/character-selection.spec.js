@@ -10,12 +10,13 @@ test.describe('キャラクター選択画面 M1受け入れ基準', () => {
     expect(slotContainers.length).toBeGreaterThanOrEqual(6);
   });
 
-  test('各スロットにキャラ/スタイル/スキルセット選択がある', async ({ page }) => {
+  test('各スロットにキャラ/スタイル/LB/スキルセット選択がある', async ({ page }) => {
     await page.goto(PAGE_URL);
     await page.waitForTimeout(3000);
     for (let i = 0; i < 6; i++) {
       await expect(page.locator(`[data-role="character-select"][data-slot="${i}"]`)).toBeVisible();
       await expect(page.locator(`[data-role="style-select"][data-slot="${i}"]`)).toBeVisible();
+      await expect(page.locator(`[data-role="limit-break-select"][data-slot="${i}"]`)).toBeVisible();
       await expect(page.locator(`[data-role="skill-checklist"][data-slot="${i}"]`)).toBeVisible();
     }
   });

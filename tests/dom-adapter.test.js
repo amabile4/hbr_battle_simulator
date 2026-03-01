@@ -85,8 +85,10 @@ test('character -> style selection is linked and reflected on screen', () => {
 
   const characterSelects = root.querySelectorAll('[data-role="character-select"]');
   const styleSelects = root.querySelectorAll('[data-role="style-select"]');
+  const lbSelects = root.querySelectorAll('[data-role="limit-break-select"]');
   assert.equal(characterSelects.length, 6);
   assert.equal(styleSelects.length, 6);
+  assert.equal(lbSelects.length, 6);
 
   const slot = 0;
   const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
@@ -155,6 +157,101 @@ test('style -> skill selection is linked', () => {
 
   const slotSummary = root.querySelector(`[data-role="slot-summary"][data-slot="${slot}"]`).textContent;
   assert.ok(slotSummary.includes('Equipped Skills:'), 'slot summary includes equipped skill count');
+  assert.ok(slotSummary.includes('Passives:'), 'slot summary includes passive count');
+});
+
+test('style selection updates passive list', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+  const passiveList = root.querySelector(`[data-role="passive-list"][data-slot="${slot}"]`);
+
+  characterSelect.value = 'TTojo';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1001402';
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const text = passiveList.textContent ?? '';
+  assert.ok(text.includes('Passives:'), 'passive list should be rendered');
+  assert.ok(text.includes('福運') || text.includes('[Overdrive]'), 'known passive should be listed');
+});
+
+test('limit break selector range follows style tier and filters passives', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+  const lbSelect = root.querySelector(`[data-role="limit-break-select"][data-slot="${slot}"]`);
+  const passiveList = root.querySelector(`[data-role="passive-list"][data-slot="${slot}"]`);
+
+  characterSelect.value = 'RKayamori';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1001101'; // Attack or Music (A)
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  assert.equal(lbSelect.options.length, 21, 'A tier should have LB 0..20');
+  lbSelect.value = '4';
+  lbSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  assert.equal((passiveList.textContent ?? '').includes('疾風'), false, '疾風 should be hidden at LB4');
+
+  lbSelect.value = '5';
+  lbSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  assert.equal((passiveList.textContent ?? '').includes('疾風'), true, '疾風 should appear at LB5');
+});
+
+test('passive skills are shown in checklist but excluded from action selector', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+  characterSelect.value = 'TTojo';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1001408'; // 哀情のラメント
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const checklistLabels = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)]
+    .map((box) => box.closest('label')?.textContent ?? '');
+  assert.ok(
+    checklistLabels.some((text) => text.includes('日陰のシエスタ') && text.includes('[パッシブ]')),
+    'passive badge should be shown in checklist'
+  );
+  assert.ok(
+    checklistLabels.some((text) => text.includes('ディフェンスブースト') && text.includes('[オーブ]') && text.includes('[パッシブ]')),
+    'orb passive should show [オーブ][パッシブ]'
+  );
+
+  const styleIds = getSixUsableStyleIds(store);
+  const tojoIndex = styleIds.findIndex((id) => store.getStyleById(id)?.chara_label === 'TTojo');
+  if (tojoIndex >= 0) {
+    styleIds[tojoIndex] = 1001408;
+  } else {
+    styleIds[0] = 1001408;
+  }
+  adapter.initializeBattle(styleIds, { skillSetsByPartyIndex: {} });
+  const tojoMember = adapter.party.members.find((member) => member.styleId === 1001408);
+  const actionNames = (tojoMember?.getActionSkills() ?? []).map((skill) => skill.name);
+  assert.equal(
+    actionNames.some((name) =>
+      name.includes('日陰のシエスタ') ||
+      name.includes('ディフェンスブースト') ||
+      name.includes('紡がれた記憶')
+    ),
+    false,
+    'passive skills should not appear in action selector'
+  );
 });
 
 test('style selection exposes usable skills by restricted/generalize/admiral rules', () => {
@@ -194,6 +291,38 @@ test('style selection exposes usable skills by restricted/generalize/admiral rul
   styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
   const rkAdmiralSkillIds = getSkillIds();
   assert.equal(rkAdmiralSkillIds.includes(46001134), true, '指揮行動 should be available on Admiral');
+});
+
+test('style options are ordered by tier asc and then in_date asc', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+
+  characterSelect.value = 'RKayamori';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const optionIds = [...styleSelect.options].map((opt) => Number(opt.value));
+  const styles = optionIds.map((id) => store.getStyleById(id));
+  const tierOrder = { A: 0, S: 1, SS: 2, SSR: 3 };
+
+  for (let i = 1; i < styles.length; i += 1) {
+    const prev = styles[i - 1];
+    const curr = styles[i];
+    const prevTier = tierOrder[String(prev?.tier ?? '').toUpperCase()] ?? Number.POSITIVE_INFINITY;
+    const currTier = tierOrder[String(curr?.tier ?? '').toUpperCase()] ?? Number.POSITIVE_INFINITY;
+    assert.ok(prevTier <= currTier, 'tier order should be ascending');
+
+    if (prevTier === currTier) {
+      const prevDate = new Date(String(prev?.in_date ?? '')).getTime();
+      const currDate = new Date(String(curr?.in_date ?? '')).getTime();
+      assert.ok(prevDate <= currDate, 'in_date should be ascending within same tier');
+    }
+  }
 });
 
 test('unchecked skills are excluded from battle member loadout', () => {
@@ -260,6 +389,7 @@ test('admiral command is always equipped and cannot be unchecked on Admiral styl
   styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
 
   const boxes = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)];
+  const labels = boxes.map((box) => box.closest('label')?.textContent ?? '');
   const admiralCommand = boxes.find((box) => {
     const label = box.closest('label');
     return (label?.textContent ?? '').includes('指揮行動');
@@ -268,4 +398,29 @@ test('admiral command is always equipped and cannot be unchecked on Admiral styl
   assert.ok(admiralCommand, 'admiral command checkbox should exist');
   assert.equal(admiralCommand.disabled, true, 'admiral command checkbox should be disabled');
   assert.equal(admiralCommand.checked, true, 'admiral command checkbox should be checked');
+  assert.equal(labels[0].includes('指揮行動'), true, 'admiral command should be listed first');
+  assert.equal(labels.some((text) => text.includes('通常攻撃')), false, 'normal attack should be hidden');
+});
+
+test('master passive shows [マスター][パッシブ] tag in checklist', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+  characterSelect.value = 'RKayamori';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1001103';
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const labels = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)]
+    .map((box) => box.closest('label')?.textContent ?? '');
+  assert.equal(
+    labels.some((text) => text.includes('紡がれた記憶') && text.includes('[マスター]') && text.includes('[パッシブ]')),
+    true,
+    'master passive should show both master and passive tags'
+  );
 });

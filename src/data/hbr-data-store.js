@@ -14,10 +14,24 @@ function normalizeCharacterName(name) {
     .trim();
 }
 
+function normalizeCharaText(name) {
+  return String(name ?? '')
+    .split('—')[0]
+    .trim()
+    .replace(/\s+/g, '');
+}
+
 function toDateValue(value) {
   const t = new Date(String(value ?? '')).getTime();
   return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
 }
+
+const LIMIT_BREAK_MAX_BY_TIER = Object.freeze({
+  A: 20,
+  S: 10,
+  SS: 4,
+  SSR: 4,
+});
 
 export class HbrDataStore {
   constructor(payload) {
@@ -141,6 +155,22 @@ export class HbrDataStore {
     return this.skillsById.get(Number(skillId)) ?? null;
   }
 
+  getLimitBreakMaxByTier(tier) {
+    const key = String(tier ?? '').toUpperCase();
+    return LIMIT_BREAK_MAX_BY_TIER[key] ?? 0;
+  }
+
+  getStyleLimitBreakMax(styleIdOrStyle) {
+    const style =
+      typeof styleIdOrStyle === 'object' && styleIdOrStyle !== null
+        ? styleIdOrStyle
+        : this.getStyleById(styleIdOrStyle);
+    if (!style) {
+      return 0;
+    }
+    return this.getLimitBreakMaxByTier(style.tier);
+  }
+
   listStylesByCharacter(characterLabelOrName) {
     const key = String(characterLabelOrName ?? '').trim();
     return this.styles.filter((style) => {
@@ -156,6 +186,10 @@ export class HbrDataStore {
 
   isCommandSelectableSkill(skill) {
     if (!skill) {
+      return false;
+    }
+
+    if (this.isPassiveSkill(skill)) {
       return false;
     }
 
@@ -176,6 +210,19 @@ export class HbrDataStore {
     }
 
     return true;
+  }
+
+  isPassiveSkill(skill) {
+    if (!skill || typeof skill !== 'object') {
+      return false;
+    }
+
+    if (skill.passive && typeof skill.passive === 'object') {
+      return true;
+    }
+
+    const label = String(skill.label ?? '');
+    return label.includes('PassiveSkill');
   }
 
   cloneSkillWithSource(skill, sourceType, sourceMeta = {}) {
@@ -231,6 +278,10 @@ export class HbrDataStore {
       return false;
     }
 
+    if (String(style.role ?? '') === 'Admiral' && String(skill?.name ?? '') === '通常攻撃') {
+      return false;
+    }
+
     if (this.isAdmiralCommandSkill(skill) && String(style.role ?? '') !== 'Admiral') {
       return false;
     }
@@ -274,8 +325,22 @@ export class HbrDataStore {
       }
     }
 
-    out.sort((a, b) => Number(a.id) - Number(b.id));
-    return out;
+    const deduped = [];
+    const uniqueByMeaning = new Set();
+    for (const passive of out) {
+      const key = [
+        String(passive.label ?? ''),
+        String(passive.name ?? ''),
+      ].join('|');
+      if (uniqueByMeaning.has(key)) {
+        continue;
+      }
+      uniqueByMeaning.add(key);
+      deduped.push(passive);
+    }
+
+    deduped.sort((a, b) => Number(a.id) - Number(b.id));
+    return deduped;
   }
 
   resolveSkillUseCount(useCount, policy = 'max') {
@@ -423,6 +488,92 @@ export class HbrDataStore {
       }
     }
 
+    if (String(style.role ?? '') === 'Admiral') {
+      out.sort((a, b) => {
+        const aCmd = this.isAdmiralCommandSkill(a) ? 0 : 1;
+        const bCmd = this.isAdmiralCommandSkill(b) ? 0 : 1;
+        if (aCmd !== bCmd) {
+          return aCmd - bCmd;
+        }
+        return Number(a.id) - Number(b.id);
+      });
+    }
+
+    return out;
+  }
+
+  listEquipableSkillsByStyleId(styleId) {
+    const style = this.getStyleById(styleId);
+    if (!style) {
+      return [];
+    }
+
+    const commandSkills = this.listSkillsByStyleId(styleId);
+    const out = [...commandSkills];
+    const seen = new Set(commandSkills.map((skill) => Number(skill.id)));
+
+    const styles = this.listStylesByCharacter(style.chara_label).sort(
+      (a, b) => toDateValue(a.in_date) - toDateValue(b.in_date)
+    );
+
+    for (const rowStyle of styles) {
+      for (const skillRef of rowStyle.skills ?? []) {
+        const skill = this.getSkillById(skillRef.id);
+        const id = Number(skill?.id);
+        if (!skill || !Number.isFinite(id) || seen.has(id)) {
+          continue;
+        }
+        if (!this.canStyleUseSkill(style, skill)) {
+          continue;
+        }
+        if (!this.isPassiveSkill(skill)) {
+          continue;
+        }
+
+        seen.add(id);
+        out.push(
+          this.cloneSkillWithSource(skill, 'passive', {
+            sourceStyleId: Number(rowStyle.id),
+            sourceStyleName: String(rowStyle.name ?? ''),
+          })
+        );
+      }
+    }
+
+    if (this.skillAvailability.includeMasterSkills) {
+      const masterSkill = this.getMasterSkillByCharacterLabel(style.chara_label);
+      const masterId = Number(masterSkill?.id);
+      if (
+        masterSkill &&
+        Number.isFinite(masterId) &&
+        !seen.has(masterId) &&
+        this.isPassiveSkill(masterSkill)
+      ) {
+        seen.add(masterId);
+        out.push(
+          this.cloneSkillWithSource(masterSkill, 'master', {
+            sourceCharacterLabel: String(style.chara_label ?? ''),
+          })
+        );
+      }
+    }
+
+    if (this.skillAvailability.includeOrbSkills) {
+      for (const orbSkill of this.listOrbSkills()) {
+        const id = Number(orbSkill.id);
+        if (seen.has(id) || !this.isPassiveSkill(orbSkill)) {
+          continue;
+        }
+        seen.add(id);
+        out.push(
+          this.cloneSkillWithSource(orbSkill, 'orb', {
+            sourceAccessoryId: Number(orbSkill.sourceAccessoryId),
+            sourceAccessoryName: String(orbSkill.sourceAccessoryName ?? ''),
+          })
+        );
+      }
+    }
+
     return out;
   }
 
@@ -464,6 +615,86 @@ export class HbrDataStore {
     }
 
     return out;
+  }
+
+  listPassivesByStyleId(styleId, options = {}) {
+    const style = this.getStyleById(styleId);
+    if (!style) {
+      return [];
+    }
+    const maxLimitBreak = this.getStyleLimitBreakMax(style);
+    const limitBreakLevelRaw = options.limitBreakLevel;
+    const limitBreakLevel = Number.isFinite(Number(limitBreakLevelRaw))
+      ? Math.max(0, Math.min(maxLimitBreak, Number(limitBreakLevelRaw)))
+      : maxLimitBreak;
+
+    const out = [];
+    const seen = new Set();
+
+    for (const passive of style.passives ?? []) {
+      const id = Number(passive?.id);
+      if (!Number.isFinite(id) || seen.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      out.push({
+        ...structuredClone(passive),
+        requiredLimitBreakLevel: Number.isFinite(Number(passive?.lb)) ? Number(passive.lb) : 0,
+      });
+    }
+
+    const styleName = String(style.name ?? '');
+    const styleTier = String(style.tier ?? '');
+    const styleCharaNorm = normalizeCharaText(style.chara);
+    for (const passive of this.passives ?? []) {
+      const id = Number(passive?.id);
+      if (!Number.isFinite(id) || seen.has(id)) {
+        continue;
+      }
+
+      const sameStyleName = String(passive.style ?? '') === styleName;
+      const sameTier = !passive.ct || String(passive.ct) === styleTier;
+      const passiveCharaNorm = normalizeCharaText(passive.chara);
+      const sameCharacter = !passive.chara || passiveCharaNorm === styleCharaNorm;
+      if (!sameStyleName || !sameTier || !sameCharacter) {
+        continue;
+      }
+
+      seen.add(id);
+      out.push({
+        ...structuredClone(passive),
+        requiredLimitBreakLevel: Number.isFinite(Number(passive?.lb)) ? Number(passive.lb) : 0,
+      });
+    }
+
+    const deduped = [];
+    const uniqueByMeaning = new Set();
+    for (const passive of out) {
+      const key = [
+        String(passive.label ?? ''),
+        String(passive.name ?? ''),
+        Number(passive.requiredLimitBreakLevel ?? 0),
+      ].join('|');
+      if (uniqueByMeaning.has(key)) {
+        continue;
+      }
+      uniqueByMeaning.add(key);
+      deduped.push(passive);
+    }
+
+    const acquired = deduped.filter(
+      (passive) => Number(passive.requiredLimitBreakLevel ?? 0) <= limitBreakLevel
+    );
+
+    acquired.sort((a, b) => {
+      const lbDelta =
+        Number(a.requiredLimitBreakLevel ?? 0) - Number(b.requiredLimitBreakLevel ?? 0);
+      if (lbDelta !== 0) {
+        return lbDelta;
+      }
+      return Number(a.id) - Number(b.id);
+    });
+    return acquired;
   }
 
   listCharacterCandidates() {
@@ -553,7 +784,14 @@ export class HbrDataStore {
     return nextStyle;
   }
 
-  buildCharacterStyle({ styleId, partyIndex, initialSP = 4, spBonus = 0, equippedSkillIds = null }) {
+  buildCharacterStyle({
+    styleId,
+    partyIndex,
+    initialSP = 4,
+    spBonus = 0,
+    equippedSkillIds = null,
+    limitBreakLevel = null,
+  }) {
     const style = this.getStyleById(styleId);
     if (!style) {
       throw new Error(`Style not found: ${styleId}`);
@@ -566,7 +804,7 @@ export class HbrDataStore {
       throw new Error(`Character not found for style.chara_label=${style.chara_label}`);
     }
 
-    const allStyleSkills = this.listSkillsByStyleId(style.id)
+    const allStyleSkills = this.listEquipableSkillsByStyleId(style.id)
       .map((skill) => {
         const canonical = this.canonicalSkillById.get(Number(skill.id));
         return {
@@ -585,6 +823,11 @@ export class HbrDataStore {
       ...skill,
       usage: this.resolveSkillUseCount(skill.use_count, 'max'),
     }));
+    const maxLimitBreak = this.getStyleLimitBreakMax(style);
+    const normalizedLimitBreak = Number.isFinite(Number(limitBreakLevel))
+      ? Math.max(0, Math.min(maxLimitBreak, Number(limitBreakLevel)))
+      : maxLimitBreak;
+    const passives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
 
     return new CharacterStyle({
       characterId: String(character.label),
@@ -597,8 +840,10 @@ export class HbrDataStore {
       spBonus: Number(spBonus),
       spMin: 0,
       spMax: 20,
+      limitBreakLevel: normalizedLimitBreak,
       skills: styleSkills,
       triggeredSkills,
+      passives,
     });
   }
 
@@ -610,6 +855,7 @@ export class HbrDataStore {
     const initialSP = options.initialSP ?? 4;
     const spBonusMap = options.spBonusMap ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
+    const limitBreakLevelsByPartyIndex = options.limitBreakLevelsByPartyIndex ?? {};
 
     const members = styleIds.map((styleId, index) =>
       this.buildCharacterStyle({
@@ -620,6 +866,7 @@ export class HbrDataStore {
         equippedSkillIds: Array.isArray(skillSetsByPartyIndex[index])
           ? skillSetsByPartyIndex[index]
           : null,
+        limitBreakLevel: Number(limitBreakLevelsByPartyIndex[index]),
       })
     );
 

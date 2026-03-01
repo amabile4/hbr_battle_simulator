@@ -1,10 +1,14 @@
 import { applySpChange, getEventCeiling } from './sp.js';
 
 function normalizeSkill(skill, canonicalSkill) {
+  const sourceType = String(skill.sourceType ?? 'style');
+  const isPassive = Boolean(skill.passive && typeof skill.passive === 'object') || sourceType === 'passive';
   return {
     skillId: Number(skill.id ?? skill.skillId),
     name: String(skill.name ?? ''),
     spCost: Number(skill.sp_cost ?? skill.spCost ?? canonicalSkill?.spCost ?? 0),
+    sourceType,
+    isPassive,
     type: canonicalSkill?.type ?? inferSkillType(skill),
     consumeType: skill.consume_type ?? skill.consumeType ?? canonicalSkill?.consumeType ?? null,
     maxLevel: skill.max_level ?? skill.maxLevel ?? canonicalSkill?.maxLevel ?? null,
@@ -53,6 +57,7 @@ export class CharacterStyle {
     this.characterName = String(input.characterName);
     this.styleId = Number(input.styleId);
     this.styleName = String(input.styleName);
+    this.limitBreakLevel = Number(input.limitBreakLevel ?? 0);
     this.partyIndex = partyIndex;
     this.position = position;
 
@@ -74,6 +79,16 @@ export class CharacterStyle {
     this.triggeredSkills = Object.freeze(
       (input.triggeredSkills ?? []).map((skill) => normalizeSkill(skill, skill.canonicalSkill))
     );
+    this.passives = Object.freeze(
+      (input.passives ?? []).map((passive) => ({
+        passiveId: Number(passive.id ?? passive.passiveId),
+        label: String(passive.label ?? ''),
+        name: String(passive.name ?? ''),
+        desc: String(passive.desc ?? ''),
+        timing: String(passive.timing ?? ''),
+        condition: String(passive.condition ?? ''),
+      }))
+    );
 
     this._revision = 0;
   }
@@ -88,7 +103,11 @@ export class CharacterStyle {
 
   getSkill(skillId) {
     const id = Number(skillId);
-    return this.skills.find((skill) => skill.skillId === id) ?? null;
+    return this.skills.find((skill) => skill.skillId === id && !skill.isPassive) ?? null;
+  }
+
+  getActionSkills() {
+    return this.skills.filter((skill) => !skill.isPassive);
   }
 
   previewSkillUse(skillId) {
@@ -195,6 +214,7 @@ export class CharacterStyle {
       characterName: this.characterName,
       styleId: this.styleId,
       styleName: this.styleName,
+      limitBreakLevel: this.limitBreakLevel,
       partyIndex: this.partyIndex,
       position: this.position,
       sp: { ...this.sp },

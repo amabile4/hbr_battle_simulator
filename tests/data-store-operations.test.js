@@ -36,6 +36,14 @@ test('listStylesByCharacter returns styles', () => {
   assert.ok(items.some((row) => Number(row.id) === Number(style.id)));
 });
 
+test('style limit break max depends on tier', () => {
+  const store = getStore();
+  assert.equal(store.getStyleLimitBreakMax(1001101), 20, 'A max LB should be 20');
+  assert.equal(store.getStyleLimitBreakMax(1001106), 10, 'S max LB should be 10');
+  assert.equal(store.getStyleLimitBreakMax(1001103), 4, 'SS max LB should be 4');
+  assert.equal(store.getStyleLimitBreakMax(1001108), 4, 'SSR max LB should be 4');
+});
+
 test('listCharacterCandidates is ordered by team then character order', () => {
   const store = getStore();
   const candidates = store.listCharacterCandidates();
@@ -118,6 +126,12 @@ test('listSkillsByStyleId applies restricted/generalize/admiral rules', () => {
     true,
     '指揮行動 should be usable on Admiral style'
   );
+  assert.equal(
+    rkAdmiralSkills.includes(46001101),
+    false,
+    '通常攻撃 should be hidden on Admiral style'
+  );
+  assert.equal(rkAdmiralSkills[0], 46001134, '指揮行動 should be the first skill on Admiral style');
 });
 
 test('skill usage rule resolves range and fixed-limited counts', () => {
@@ -168,4 +182,73 @@ test('triggered skill list keeps pursuit skills for future simulation', () => {
 
   const triggeredSkillIds = store.listTriggeredSkillsByStyleId(megumiAStyleId).map((s) => Number(s.id));
   assert.equal(triggeredSkillIds.includes(46001391), true, 'pursuit should be retained as triggered');
+});
+
+test('listPassivesByStyleId merges style and passive database entries', () => {
+  const store = getStore();
+  const tojoLamentStyleId = 1001408; // 哀情のラメント
+  const passives = store.listPassivesByStyleId(tojoLamentStyleId);
+  const passiveIds = passives.map((p) => Number(p.id));
+
+  assert.equal(passiveIds.includes(57000002), true, 'base overdrive passive should exist');
+  assert.equal(passiveIds.includes(100140803), true, 'style-specific passive should be merged');
+  assert.equal(
+    passives.filter((p) => String(p.name) === '愛嬌').length,
+    1,
+    'duplicate passive names should be deduplicated by meaning'
+  );
+});
+
+test('listPassivesByStyleId filters by selected limit break level', () => {
+  const store = getStore();
+
+  const aStyle = 1001101; // Attack or Music
+  const aLb4 = store.listPassivesByStyleId(aStyle, { limitBreakLevel: 4 }).map((p) => p.name);
+  const aLb5 = store.listPassivesByStyleId(aStyle, { limitBreakLevel: 5 }).map((p) => p.name);
+  assert.equal(aLb4.includes('疾風'), false, '疾風 should require LB5');
+  assert.equal(aLb5.includes('疾風'), true, '疾風 should be acquired at LB5');
+
+  const sStyle = 1001106; // つかの間の安息
+  const sLb2 = store.listPassivesByStyleId(sStyle, { limitBreakLevel: 2 }).map((p) => p.name);
+  const sLb3 = store.listPassivesByStyleId(sStyle, { limitBreakLevel: 3 }).map((p) => p.name);
+  const sLb10 = store.listPassivesByStyleId(sStyle, { limitBreakLevel: 10 }).map((p) => p.name);
+  assert.equal(sLb2.includes('吉報'), false, '吉報 should require LB3');
+  assert.equal(sLb3.includes('吉報'), true, '吉報 should be acquired at LB3');
+  assert.equal(sLb10.includes('危険な火遊び'), true, '危険な火遊び should be acquired at LB10');
+
+  const ssrStyle = 1001108; // The Feel of the Throne
+  const ssrLb0 = store.listPassivesByStyleId(ssrStyle, { limitBreakLevel: 0 }).map((p) => p.name);
+  const ssrLb1 = store.listPassivesByStyleId(ssrStyle, { limitBreakLevel: 1 }).map((p) => p.name);
+  const ssrLb3 = store.listPassivesByStyleId(ssrStyle, { limitBreakLevel: 3 }).map((p) => p.name);
+  const ssrLb4 = store.listPassivesByStyleId(ssrStyle, { limitBreakLevel: 4 }).map((p) => p.name);
+  assert.equal(ssrLb0.includes('心眼の境地'), true, '心眼の境地 should be acquired at LB0');
+  assert.equal(ssrLb0.includes('王の眼差し'), true, '王の眼差し should be acquired at LB0');
+  assert.equal(ssrLb1.includes('閃光'), true, '閃光 should be acquired at LB1');
+  assert.equal(ssrLb3.includes('万物の強威'), true, '万物の強威 should be acquired at LB3');
+  assert.equal(ssrLb4.includes('即応の型'), true, '即応の型 should be acquired at LB4');
+});
+
+test('listEquipableSkillsByStyleId includes passives as equip-only entries', () => {
+  const store = getStore();
+  const tojoLamentStyleId = 1001408; // 哀情のラメント
+  const equipables = store.listEquipableSkillsByStyleId(tojoLamentStyleId);
+  const ids = equipables.map((s) => Number(s.id));
+  const siesta = equipables.find((s) => Number(s.id) === 46401401);
+  const orbPassive = equipables.find((s) => Number(s.id) === 46450001);
+
+  const rkStyleId = 1001103;
+  const rkEquipables = store.listEquipableSkillsByStyleId(rkStyleId);
+  const masterPassive = rkEquipables.find((s) => Number(s.id) === 46511101);
+
+  assert.equal(ids.includes(46401401), true, '日陰のシエスタ should be available in equip list');
+  assert.equal(siesta?.sourceType, 'passive', 'style passive sourceType should be passive');
+  assert.equal(Boolean(siesta?.passive), true, '日陰のシエスタ should keep passive metadata');
+
+  assert.equal(Boolean(orbPassive), true, 'orb passive should be included in equip list');
+  assert.equal(orbPassive?.sourceType, 'orb', 'orb passive should keep orb sourceType');
+  assert.equal(Boolean(orbPassive?.passive), true, 'orb passive should keep passive metadata');
+
+  assert.equal(Boolean(masterPassive), true, 'master passive should be included in equip list');
+  assert.equal(masterPassive?.sourceType, 'master', 'master passive should keep master sourceType');
+  assert.equal(Boolean(masterPassive?.passive), true, 'master passive should keep passive metadata');
 });
