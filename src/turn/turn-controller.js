@@ -56,6 +56,24 @@ function hasDamagePartInParts(parts) {
   return false;
 }
 
+function hasOverDrivePointUpPartInParts(parts) {
+  for (const part of parts ?? []) {
+    if (String(part?.skill_type ?? '') === 'OverDrivePointUp') {
+      return true;
+    }
+    if (Array.isArray(part?.strval)) {
+      for (const nested of part.strval) {
+        if (nested && typeof nested === 'object' && Array.isArray(nested.parts)) {
+          if (hasOverDrivePointUpPartInParts(nested.parts)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
 function resolveDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent) {
   const p = Number(drivePiercePercent ?? 0);
   if (![10, 12, 15].includes(p)) {
@@ -83,7 +101,63 @@ function truncateToTwoDecimals(value) {
   return Math.ceil((n - 1e-9) * 100) / 100;
 }
 
-function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null) {
+function resolveOverDrivePointUpPowerPercent(part) {
+  const power0 = Number(part?.power?.[0] ?? 0);
+  const power1 = Number(part?.power?.[1] ?? 0);
+  const maxPower = Math.max(power0, power1, 0);
+  // 実機検証結果に合わせ、power(0.1 / 0.5 / 1.5 など)は百分率へ拡大して扱う。
+  return maxPower * 100;
+}
+
+function evaluateOverDrivePointUpCondition(part, actionEntry) {
+  const condTexts = [String(part?.cond ?? ''), String(part?.hit_condition ?? '')].filter(Boolean);
+  if (condTexts.length === 0) {
+    return true;
+  }
+
+  const breakHitCount = Number(actionEntry?.breakHitCount ?? 0);
+  for (const condText of condTexts) {
+    if (condText.includes('BreakHitCount()>0') && breakHitCount <= 0) {
+      return false;
+    }
+    if (condText.includes('BreakHitCount()==0') && breakHitCount !== 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function computeOverDrivePointUpGainPercent(skill, member, actionEntry, baseHitCount) {
+  const hasOdPoint = hasOverDrivePointUpPartInParts(skill?.parts ?? []);
+  if (!hasOdPoint) {
+    return 0;
+  }
+
+  const driveBonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
+  const driveMultiplier = 1 + driveBonusPercent / 100;
+
+  let total = 0;
+  for (const part of skill?.parts ?? []) {
+    if (String(part?.skill_type ?? '') !== 'OverDrivePointUp') {
+      continue;
+    }
+    if (!evaluateOverDrivePointUpCondition(part, actionEntry)) {
+      continue;
+    }
+
+    const partPercent = resolveOverDrivePointUpPowerPercent(part);
+    if (!Number.isFinite(partPercent) || partPercent <= 0) {
+      continue;
+    }
+
+    total = truncateToTwoDecimals(total + truncateToTwoDecimals(partPercent * driveMultiplier));
+  }
+
+  return total;
+}
+
+function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null, actionEntry = null) {
   if (!hasDamagePartInParts(skill?.parts ?? [])) {
     return 0;
   }
@@ -107,21 +181,31 @@ function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null) 
   }
 
   const baseGain = hitCount * OD_GAUGE_PER_HIT_PERCENT;
+  let attackGain = 0;
   if (isNormalAttackSkill(skill)) {
-    return truncateToTwoDecimals(baseGain);
+    attackGain = truncateToTwoDecimals(baseGain);
+  } else {
+    // ピアス補正テーブルの hit 数は、敵数を掛けた後ではなく「スキル本来の hit 数」を使う。
+    const bonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
+    const multiplier = 1 + bonusPercent / 100;
+
+    if (isAllTarget && numericEnemyCount > 1) {
+      // 仕様: 全体攻撃は敵1体ごとにOD増加を計算し、小数第2位まで保持して合算する。
+      const perEnemyGain = truncateToTwoDecimals(hitCountPerEnemy * OD_GAUGE_PER_HIT_PERCENT * multiplier);
+      attackGain = truncateToTwoDecimals(perEnemyGain * numericEnemyCount);
+    } else {
+      attackGain = truncateToTwoDecimals(baseGain * multiplier);
+    }
   }
 
-  // ピアス補正テーブルの hit 数は、敵数を掛けた後ではなく「スキル本来の hit 数」を使う。
-  const bonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
-  const multiplier = 1 + bonusPercent / 100;
+  const overDrivePointUpGain = computeOverDrivePointUpGainPercent(
+    skill,
+    member,
+    actionEntry,
+    baseHitCount
+  );
 
-  if (isAllTarget && numericEnemyCount > 1) {
-    // 仕様: 全体攻撃は敵1体ごとにOD増加を計算し、小数第2位まで保持して合算する。
-    const perEnemyGain = truncateToTwoDecimals(hitCountPerEnemy * OD_GAUGE_PER_HIT_PERCENT * multiplier);
-    return truncateToTwoDecimals(perEnemyGain * numericEnemyCount);
-  }
-
-  return truncateToTwoDecimals(baseGain * multiplier);
+  return truncateToTwoDecimals(attackGain + overDrivePointUpGain);
 }
 
 function applyOdGaugeFromActions(state, previewRecord) {
@@ -146,7 +230,7 @@ function applyOdGaugeFromActions(state, previewRecord) {
     const baseHitCount = resolveSkillHitCount(skill);
     const effectiveHitCount =
       String(skill?.targetType ?? '') === 'All' ? baseHitCount * enemyCount : baseHitCount;
-    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill, enemyCount, member);
+    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill, enemyCount, member, actionEntry);
     if (!Number.isFinite(odGaugeGain) || odGaugeGain === 0) {
       continue;
     }
@@ -354,7 +438,7 @@ function validateActionDict(state, actions) {
 }
 
 function previewActionEntries(state, sortedActions) {
-  return sortedActions.map(({ member, position, skill }) => {
+  return sortedActions.map(({ member, position, skill, action }) => {
     const preview = member.previewSkillUse(skill.skillId);
 
     return {
@@ -380,6 +464,7 @@ function previewActionEntries(state, sortedActions) {
       endSP: preview.endSP,
       startEP: preview.startEP,
       endEP: preview.endEP,
+      breakHitCount: Number(action?.breakHitCount ?? 0),
       _baseRevision: preview.baseRevision,
     };
   });

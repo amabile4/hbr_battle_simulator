@@ -26,6 +26,18 @@ function buildActionDict(party) {
   );
 }
 
+function findStyleIdBySkillId(store, skillId) {
+  for (const style of store.styles) {
+    if (!Array.isArray(style.skills)) {
+      continue;
+    }
+    if (style.skills.some((s) => Number(s.id ?? s.i) === Number(skillId))) {
+      return Number(style.id);
+    }
+  }
+  throw new Error(`style not found for skillId=${skillId}`);
+}
+
 test('od state transitions to normal after remaining actions consumed', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);
@@ -499,4 +511,69 @@ test('manual-compare case: Ruka Thunder Pulse vs 3 enemies with Drive Pierce 15%
   //   10ターン: 159.00
   assert.equal(state.turnState.odGauge, 159);
   assert.deepEqual(flooredByTurn.slice(0, 4), [15, 31, 47, 63]);
+});
+
+test('AttackSkill + OverDrivePointUp applies drive bonus and max self-parameter assumption', () => {
+  const store = getStore();
+  const cases = [
+    // 実機確認値: 渾身銃撃=18, 海のギャング=71, サービス・エース=21
+    { skillId: 46004504, expected: 18, breakHitCount: 0 },
+    { skillId: 46005605, expected: 71, breakHitCount: 0 },
+    { skillId: 46005502, expected: 21, breakHitCount: 0 },
+  ];
+
+  for (const c of cases) {
+    const styleId = findStyleIdBySkillId(store, c.skillId);
+    const others = getSixUsableStyleIds(store).filter((id) => id !== styleId);
+    const styleIds = [styleId, ...others.slice(0, 5)];
+    const party = store.buildPartyFromStyleIds(styleIds, {
+      initialSP: 20,
+      drivePierceByPartyIndex: { 0: 15 },
+    });
+    const actor = party.getByPosition(0);
+    const state = createBattleStateFromParty(party);
+
+    const preview = previewTurn(state, {
+      0: {
+        characterId: actor.characterId,
+        skillId: c.skillId,
+        breakHitCount: c.breakHitCount,
+      },
+    });
+    const { nextState } = commitTurn(state, preview);
+    assert.equal(
+      Math.floor(nextState.turnState.odGauge),
+      c.expected,
+      `skillId=${c.skillId} should match confirmed OD integer`
+    );
+  }
+});
+
+test('OverDrivePointUp condition BreakHitCount()>0 is evaluated from action context', () => {
+  const store = getStore();
+  const skillId = 46005507; // 哀のスノードロップ
+  const styleId = findStyleIdBySkillId(store, skillId);
+  const others = getSixUsableStyleIds(store).filter((id) => id !== styleId);
+  const styleIds = [styleId, ...others.slice(0, 5)];
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    drivePierceByPartyIndex: { 0: 15 },
+  });
+  const actor = party.getByPosition(0);
+
+  // 非ブレイク時: 攻撃ぶんのみ
+  let state = createBattleStateFromParty(party);
+  let preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId, breakHitCount: 0 },
+  });
+  let committed = commitTurn(state, preview);
+  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 5);
+
+  // ブレイク時: OverDrivePointUp(+150%)を追加
+  state = createBattleStateFromParty(party);
+  preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId, breakHitCount: 1 },
+  });
+  committed = commitTurn(state, preview);
+  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 164);
 });

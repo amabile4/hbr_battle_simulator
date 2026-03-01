@@ -49,6 +49,21 @@
 - `per_enemy = trunc2(2 * 2.5 * 1.0611) = trunc2(5.3055) = 5.30`
 - `gain_all = trunc2(5.30 * 3) = 15.90`
 
+### AttackSkill + OverDrivePointUp の計算（現行実装）
+
+- 適用条件:
+  - スキル `parts` 内にダメージ系パーツ（`AttackSkill` 等）が存在
+  - かつ `OverDrivePointUp` パーツが存在
+- 計算:
+  - `attack_gain`: 上記「ドライブピアスOD補正式」で算出した攻撃ぶんのOD増加
+  - `od_point_up_gain`: `OverDrivePointUp.power` の最大値を採用し、`*100` した値にドライブ補正を乗算
+  - `total_gain = trunc2(attack_gain + od_point_up_gain)`
+- 条件式:
+  - `OverDrivePointUp.hit_condition` を評価（例: `BreakHitCount()>0`）
+  - 条件付き加算はアクション文脈 (`breakHitCount`) に基づき適用/非適用を分岐
+- 自己パラメータ依存（知性など）:
+  - SP/ODシミュレータ方針により常に最大値を採用（ダメージ計算機で詳細化予定）
+
 ## 2026年2月27日 - 要求仕様確定メモ
 
 ### 確定事項
