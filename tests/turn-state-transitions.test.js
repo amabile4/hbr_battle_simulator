@@ -900,3 +900,56 @@ test('skill with SpecialStatusCountByType(20)==0 is blocked during extra turn', 
     /cannot be used because cond is not satisfied/
   );
 });
+
+test('kishin state lasts 3 actionable turns then applies 1-turn action disable', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: idx === 0 ? 'STezuka' : `K${idx + 1}`,
+      characterName: idx === 0 ? '手塚 咲' : `K${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `KS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 10300 + idx,
+          name: idx === 0 ? '天駆の鉄槌' : 'Normal',
+          label: idx === 0 ? 'STezukaSkill' : `KSkill${idx + 1}`,
+          sp_cost: 1,
+          parts: idx === 0 ? [{ skill_type: 'AttackSkill' }] : [],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  let state = createBattleStateFromParty(party);
+  const tezuka = state.party.find((m) => m.characterId === 'STezuka');
+  tezuka.activateReinforcedMode(3);
+
+  for (let i = 0; i < 3; i += 1) {
+    const preview = previewTurn(state, {
+      0: { characterId: 'STezuka', skillId: 10300 },
+      1: { characterId: 'K2', skillId: 10301 },
+      2: { characterId: 'K3', skillId: 10302 },
+    });
+    state = commitTurn(state, preview).nextState;
+  }
+
+  const afterThree = state.party.find((m) => m.characterId === 'STezuka');
+  assert.equal(afterThree.isReinforcedMode, false);
+  assert.equal(afterThree.actionDisabledTurns, 1);
+  const actionSkills = afterThree.getActionSkills();
+  assert.equal(actionSkills.length, 1);
+  assert.equal(actionSkills[0].skillId, 0);
+  assert.equal(actionSkills[0].name, '行動なし');
+
+  const previewDisabledTurn = previewTurn(state, {
+    0: { characterId: 'STezuka', skillId: 0 },
+    1: { characterId: 'K2', skillId: 10301 },
+    2: { characterId: 'K3', skillId: 10302 },
+  });
+  state = commitTurn(state, previewDisabledTurn).nextState;
+  const recovered = state.party.find((m) => m.characterId === 'STezuka');
+  assert.equal(recovered.actionDisabledTurns, 0);
+});

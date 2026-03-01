@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { BattleDomAdapter, grantExtraTurn } from '../src/index.js';
+import { BattleDomAdapter, grantExtraTurn, CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
 function createRoot() {
@@ -26,6 +26,8 @@ function createRoot() {
       <button data-action="open-interrupt-od" hidden></button>
       <span data-role="interrupt-od-badge"></span>
       <button data-action="open-od"></button>
+      <button data-action="kishinka" hidden></button>
+      <span data-role="kishinka-state"></span>
       <input data-role="force-od-toggle" type="checkbox" />
       <div data-role="od-dialog" hidden>
         <select data-role="od-level"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
@@ -119,6 +121,61 @@ test('OD controls: preemptive activation and interrupt reservation/commit', () =
   assert.equal(adapter.state.turnState.turnType, 'od');
   assert.equal(adapter.state.turnState.odContext, 'interrupt');
   assert.equal(adapter.state.turnState.odGauge < 150, true);
+});
+
+test('action selector displays SP ALL for sp_cost -1 skills', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `C${idx + 1}`,
+      characterName: `C${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [{ id: 777001, name: 'Trinity Blazing', label: 'TB', sp_cost: -1, consume_type: 'Sp' }]
+          : [{ id: 777100 + idx, name: 'Normal', label: `N${idx}`, sp_cost: 0, consume_type: 'Sp' }],
+    })
+  );
+
+  adapter.party = new Party(members);
+  adapter.state = createBattleStateFromParty(adapter.party);
+  adapter.renderActionSelectors();
+
+  const select = root.querySelector('[data-action-slot="0"]');
+  const text = select?.options?.[0]?.textContent ?? '';
+  assert.equal(text.includes('SP ALL'), true);
+});
+
+test('kishinka button is shown for Tezuka and activates reinforced state', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const tezukaStyle = store.styles.find((style) => String(style.chara_label ?? '') === 'STezuka');
+  if (!tezukaStyle) {
+    return;
+  }
+
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== Number(tezukaStyle.id));
+  adapter.initializeBattle([Number(tezukaStyle.id), ...others.slice(0, 5)]);
+
+  const button = root.querySelector('[data-action="kishinka"]');
+  const badge = root.querySelector('[data-role="kishinka-state"]');
+  assert.equal(button.hidden, false);
+
+  button.click();
+  const tezuka = adapter.state.party.find((m) => m.characterId === 'STezuka');
+  assert.equal(tezuka?.isReinforcedMode, true);
+  assert.equal((badge?.textContent ?? '').includes('鬼神化中'), true);
 });
 
 test('selection state can be saved and loaded from localStorage slots', () => {

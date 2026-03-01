@@ -12,6 +12,7 @@ const OD_COST_BY_LEVEL = Object.freeze({ 1: 100, 2: 200, 3: 300 });
 const OD_GAUGE_PER_HIT_PERCENT = 2.5;
 const OD_GAUGE_MIN_PERCENT = -999;
 const OD_GAUGE_MAX_PERCENT = 300;
+const TEZUKA_CHARACTER_ID = 'STezuka';
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
   'AttackSkill',
@@ -593,6 +594,29 @@ function getExtraAllowedSet(turnState) {
     return null;
   }
   return new Set(turnState.extraTurnState.allowedCharacterIds ?? []);
+}
+
+function isMemberActionableInCurrentTurn(state, member) {
+  if (!member || member.position > 2) {
+    return false;
+  }
+  if (state.turnState.turnType !== 'extra') {
+    return true;
+  }
+  const allowedSet = getExtraAllowedSet(state.turnState);
+  if (!allowedSet) {
+    return false;
+  }
+  return allowedSet.has(member.characterId);
+}
+
+function updateKishinStateAfterTurn(state) {
+  const tezuka = state.party.find((member) => member.characterId === TEZUKA_CHARACTER_ID) ?? null;
+  if (!tezuka) {
+    return;
+  }
+  const actionable = isMemberActionableInCurrentTurn(state, tezuka);
+  tezuka.tickReinforcedModeTurnIfActionable(actionable);
 }
 
 function syncExtraActiveFlags(party, allowedCharacterIds = []) {
@@ -1203,6 +1227,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
     member.incrementSkillUseById(entry.skillId);
   }
+
+  updateKishinStateAfterTurn(state);
 
   if (applySwapOnCommit) {
     applySwapEvents(state, swapEvents);

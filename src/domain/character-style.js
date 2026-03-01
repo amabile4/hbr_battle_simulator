@@ -57,6 +57,30 @@ export function canSwapWith(a, b, isExtraActive, allowedCharacterIds = []) {
   return allowed.has(a.characterId) && allowed.has(b.characterId);
 }
 
+function createNoActionSkill() {
+  return {
+    skillId: 0,
+    label: 'NoAction',
+    name: '行動なし',
+    targetType: 'Self',
+    spCost: 0,
+    sourceType: 'system',
+    isPassive: false,
+    type: 'non_damage',
+    consumeType: 'Sp',
+    hitCount: 0,
+    hits: [],
+    maxLevel: null,
+    spRecoveryCeiling: undefined,
+    cond: '',
+    iucCond: '',
+    overwriteCond: '',
+    additionalTurnRule: null,
+    parts: [],
+    passive: null,
+  };
+}
+
 export class CharacterStyle {
   constructor(input) {
     if (!input) {
@@ -96,6 +120,8 @@ export class CharacterStyle {
     this.isReinforcedMode = input.isReinforcedMode ?? false;
     this.epRule = input.epRule && typeof input.epRule === 'object' ? structuredClone(input.epRule) : null;
     this.effects = Array.isArray(input.effects) ? structuredClone(input.effects) : [];
+    this.reinforcedTurnsRemaining = Number(input.reinforcedTurnsRemaining ?? 0);
+    this.actionDisabledTurns = Number(input.actionDisabledTurns ?? 0);
 
     this.skills = Object.freeze(
       (input.skills ?? []).map((skill) => normalizeSkill(skill, skill.canonicalSkill))
@@ -133,10 +159,19 @@ export class CharacterStyle {
 
   getSkill(skillId) {
     const id = Number(skillId);
+    if (this.actionDisabledTurns > 0) {
+      if (id === 0) {
+        return createNoActionSkill();
+      }
+      return null;
+    }
     return this.skills.find((skill) => skill.skillId === id && !skill.isPassive) ?? null;
   }
 
   getActionSkills() {
+    if (this.actionDisabledTurns > 0) {
+      return [createNoActionSkill()];
+    }
     return this.skills.filter((skill) => !skill.isPassive);
   }
 
@@ -149,10 +184,15 @@ export class CharacterStyle {
     const startSP = this.sp.current;
     const startEP = this.ep.current;
     const consumeType = String(skill.consumeType ?? 'Sp');
-    const cost = Math.abs(Number(skill.spCost ?? 0));
+    const rawCost = Number(skill.spCost ?? 0);
+    const cost = Math.abs(rawCost);
 
-    const deltaSP = consumeType === 'Ep' ? 0 : -cost;
-    const deltaEP = consumeType === 'Ep' ? -cost : 0;
+    let deltaSP = consumeType === 'Ep' ? 0 : -cost;
+    let deltaEP = consumeType === 'Ep' ? -cost : 0;
+    // HBR特殊値: sp_cost = -1 は「現在SPを全消費」。
+    if (consumeType !== 'Ep' && rawCost === -1) {
+      deltaSP = -startSP;
+    }
     const endSP = applySpChange(startSP, deltaSP, this.sp.min, Number.POSITIVE_INFINITY);
     const endEP = applySpChange(startEP, deltaEP, this.ep.min, Number.POSITIVE_INFINITY);
 
@@ -263,6 +303,35 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
+  activateReinforcedMode(duration = 3) {
+    const turns = Math.max(1, Number(duration) || 3);
+    this.isReinforcedMode = true;
+    this.reinforcedTurnsRemaining = turns;
+    this._revision += 1;
+  }
+
+  tickReinforcedModeTurnIfActionable(isActionable) {
+    if (!isActionable) {
+      return;
+    }
+
+    if (this.isReinforcedMode && this.reinforcedTurnsRemaining > 0) {
+      this.reinforcedTurnsRemaining -= 1;
+      if (this.reinforcedTurnsRemaining <= 0) {
+        this.isReinforcedMode = false;
+        this.reinforcedTurnsRemaining = 0;
+        this.actionDisabledTurns = Math.max(this.actionDisabledTurns, 1);
+      }
+      this._revision += 1;
+      return;
+    }
+
+    if (this.actionDisabledTurns > 0) {
+      this.actionDisabledTurns -= 1;
+      this._revision += 1;
+    }
+  }
+
   setBreakState(isBreak) {
     this.isBreak = Boolean(isBreak);
     this._revision += 1;
@@ -315,6 +384,8 @@ export class CharacterStyle {
       isBreak: this.isBreak,
       isExtraActive: this.isExtraActive,
       isReinforcedMode: this.isReinforcedMode,
+      reinforcedTurnsRemaining: this.reinforcedTurnsRemaining,
+      actionDisabledTurns: this.actionDisabledTurns,
       epRule: this.epRule ? structuredClone(this.epRule) : null,
       skillUseCounts: Object.fromEntries(this.skillUseCounts.entries()),
       revision: this._revision,

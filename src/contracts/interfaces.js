@@ -32,6 +32,8 @@ export function toCharacterSnapshot(character) {
     isBreak: Boolean(character.isBreak),
     isExtraActive: Boolean(character.isExtraActive),
     isReinforcedMode: Boolean(character.isReinforcedMode),
+    reinforcedTurnsRemaining: Number(character.reinforcedTurnsRemaining ?? 0),
+    actionDisabledTurns: Number(character.actionDisabledTurns ?? 0),
     revision: Number(character.revision ?? 0),
   });
 }

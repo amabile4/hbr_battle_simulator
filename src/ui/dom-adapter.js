@@ -39,6 +39,7 @@ const DRIVE_PIERCE_OPTIONS = Object.freeze([
   { value: 12, label: 'ドライブピアス +12%' },
   { value: 15, label: 'ドライブピアス +15%' },
 ]);
+const TEZUKA_CHARACTER_ID = 'STezuka';
 
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
@@ -62,6 +63,15 @@ function clampLimitBreak(level, max) {
 
 function canSwapByExtraState(a, b) {
   return Boolean(a?.isExtraActive) === Boolean(b?.isExtraActive);
+}
+
+function formatSkillCostLabel(skill) {
+  const consumeType = String(skill?.consumeType ?? skill?.consume_type ?? 'Sp');
+  const costRaw = Number(skill?.spCost ?? skill?.sp_cost ?? 0);
+  if (consumeType.toLowerCase() !== 'ep' && costRaw === -1) {
+    return 'SP ALL';
+  }
+  return consumeType.toLowerCase() === 'ep' ? `EP ${costRaw}` : `SP ${costRaw}`;
 }
 
 function firstSixUniqueStyles(styles) {
@@ -150,6 +160,9 @@ export class BattleDomAdapter {
 
     this.root.querySelector('[data-action="open-od"]')?.addEventListener('click', () => {
       this.runSafely(() => this.openOdDialog('normal'));
+    });
+    this.root.querySelector('[data-action="kishinka"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.activateKishinka());
     });
 
     this.root.querySelector('[data-action="od-confirm"]')?.addEventListener('click', () => {
@@ -332,11 +345,7 @@ export class BattleDomAdapter {
         tags.push('パッシブ');
       }
       const sourceBadge = tags.length > 0 ? ` ${tags.map((t) => `[${t}]`).join('')}` : '';
-      const consumeType = String(skill.consume_type ?? skill.consumeType ?? 'Sp');
-      const costLabel =
-        consumeType.toLowerCase() === 'ep'
-          ? `EP ${skill.spCost ?? skill.sp_cost ?? '-'}`
-          : `SP ${skill.spCost ?? skill.sp_cost ?? '-'}`;
+      const costLabel = formatSkillCostLabel(skill);
       row.appendChild(checkbox);
       row.append(` ${skill.name} (${costLabel})${sourceBadge}`);
       container.appendChild(row);
@@ -997,6 +1006,7 @@ export class BattleDomAdapter {
     this.renderPartyState();
     this.renderSwapSelectors();
     this.renderTurnStatus();
+    this.renderKishinkaControls();
     this.renderRecordTable();
     this.writePreviewOutput('');
     this.writeCsvOutput('');
@@ -1043,8 +1053,7 @@ export class BattleDomAdapter {
       for (const skill of member.getActionSkills()) {
         const option = this.doc.createElement('option');
         option.value = String(skill.skillId);
-        const consumeType = String(skill.consumeType ?? 'Sp');
-        const costLabel = consumeType === 'Ep' ? `EP ${skill.spCost}` : `SP ${skill.spCost}`;
+        const costLabel = formatSkillCostLabel(skill);
         const hitCount = Number(skill.hitCount ?? 0);
         const hitLabel = Number.isFinite(hitCount) && hitCount > 0 ? `${hitCount}` : '-';
         option.textContent = `${skill.name} (${costLabel} / Hit ${hitLabel})`;
@@ -1207,6 +1216,7 @@ export class BattleDomAdapter {
     this.renderPartyState();
     this.renderSwapSelectors();
     this.renderTurnStatus();
+    this.renderKishinkaControls();
     this.renderRecordTable();
     this.writePreviewOutput('');
     this.renderOdControls();
@@ -1329,6 +1339,7 @@ export class BattleDomAdapter {
       turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId}, OD=${odGauge.toFixed(2)}%)`;
     }
     this.renderOdControls();
+    this.renderKishinkaControls();
   }
 
   isForceOdEnabled() {
@@ -1474,6 +1485,65 @@ export class BattleDomAdapter {
     this.setStatus(`OD${level}を発動しました。`);
   }
 
+  findTezukaMember() {
+    return this.state?.party?.find((member) => member.characterId === TEZUKA_CHARACTER_ID) ?? null;
+  }
+
+  renderKishinkaControls() {
+    const button = this.root.querySelector('[data-action="kishinka"]');
+    const badge = this.root.querySelector('[data-role="kishinka-state"]');
+    if (!button || !badge) {
+      return;
+    }
+
+    const tezuka = this.findTezukaMember();
+    if (!tezuka) {
+      button.hidden = true;
+      badge.textContent = '';
+      return;
+    }
+
+    button.hidden = false;
+    button.disabled = Boolean(tezuka.isReinforcedMode) || Number(tezuka.actionDisabledTurns ?? 0) > 0;
+
+    if (tezuka.isReinforcedMode) {
+      badge.textContent = `鬼神化中: 残り${tezuka.reinforcedTurnsRemaining}ターン`;
+      return;
+    }
+
+    if (Number(tezuka.actionDisabledTurns ?? 0) > 0) {
+      badge.textContent = `行動不能: 残り${tezuka.actionDisabledTurns}ターン`;
+      return;
+    }
+
+    badge.textContent = '鬼神化待機';
+  }
+
+  activateKishinka() {
+    if (!this.state) {
+      throw new Error('State is not initialized.');
+    }
+    const tezuka = this.findTezukaMember();
+    if (!tezuka) {
+      throw new Error('手塚 咲がパーティ内にいません。');
+    }
+    if (tezuka.isReinforcedMode) {
+      throw new Error('すでに鬼神化中です。');
+    }
+    if (Number(tezuka.actionDisabledTurns ?? 0) > 0) {
+      throw new Error('行動不能中は鬼神化できません。');
+    }
+
+    tezuka.activateReinforcedMode(3);
+    this.previewRecord = null;
+    this.writePreviewOutput('');
+    this.renderActionSelectors();
+    this.renderPartyState();
+    this.renderSwapSelectors();
+    this.renderTurnStatus();
+    this.setStatus('手塚 咲が鬼神化しました。');
+  }
+
   renderPartyState() {
     if (!this.state) {
       return;
@@ -1490,10 +1560,15 @@ export class BattleDomAdapter {
       .map((member) => {
         const frontBack = member.position <= 2 ? 'Front' : 'Back';
         const extraTag = member.isExtraActive ? ' [EX]' : '';
+        const kishinTag = member.isReinforcedMode
+          ? ` [鬼神化:${member.reinforcedTurnsRemaining}]`
+          : Number(member.actionDisabledTurns ?? 0) > 0
+            ? ` [行動不能:${member.actionDisabledTurns}]`
+            : '';
         if (String(member.characterId) === 'NNanase') {
-          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag} SP=${member.sp.current} / EP=${member.ep.current}</li>`;
+          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}</li>`;
         }
-        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag} SP=${member.sp.current}</li>`;
+        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}</li>`;
       })
       .join('');
 
