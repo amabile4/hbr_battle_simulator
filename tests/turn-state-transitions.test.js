@@ -623,3 +623,33 @@ test('OverDrivePointUp condition BreakHitCount()>0 is evaluated from action cont
   committed = commitTurn(state, preview);
   assert.equal(Math.floor(committed.nextState.turnState.odGauge), 164);
 });
+
+test('non-damaging OD gain skill applies drive bonus and first-use branching (Compensation)', () => {
+  const store = getStore();
+  const skillId = 46005308; // コンペンセーション
+  const styleId = findStyleIdBySkillId(store, skillId);
+  const others = getSixUsableStyleIds(store).filter((id) => id !== styleId);
+  const styleIds = [styleId, ...others.slice(0, 5)];
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    drivePierceByPartyIndex: { 0: 15 },
+  });
+  const actor = party.getByPosition(0);
+
+  // 1回目: 75% に drive(1hit扱い=+5%) を適用 => 78.75
+  let state = createBattleStateFromParty(party);
+  let preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId },
+  });
+  let committed = commitTurn(state, preview);
+  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 78);
+
+  // 2回目: 25% に drive(1hit扱い=+5%) を適用 => +26.25
+  state = committed.nextState;
+  preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId },
+  });
+  committed = commitTurn(state, preview);
+  assert.ok(Math.abs(committed.nextState.turnState.odGauge - 105) < 0.01);
+  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 105);
+});

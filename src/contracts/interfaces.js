@@ -55,6 +55,7 @@ export function createInitialTurnState() {
     odSuspended: false,
     odPending: false,
     extraTurnState: null,
+    skillUseCounts: Object.freeze({}),
   });
 }
 
@@ -67,6 +68,7 @@ export function cloneTurnState(turnState) {
           allowedCharacterIds: [...turnState.extraTurnState.allowedCharacterIds],
         }
       : null,
+    skillUseCounts: { ...(turnState.skillUseCounts ?? {}) },
   };
 }
 
