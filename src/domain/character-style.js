@@ -18,6 +18,9 @@ function normalizeSkill(skill, canonicalSkill) {
     maxLevel: skill.max_level ?? skill.maxLevel ?? canonicalSkill?.maxLevel ?? null,
     spRecoveryCeiling:
       typeof skill.spRecoveryCeiling === 'number' ? skill.spRecoveryCeiling : undefined,
+    cond: String(skill.cond ?? ''),
+    iucCond: String(skill.iuc_cond ?? skill.iucCond ?? ''),
+    overwriteCond: String(skill.overwrite_cond ?? skill.overwriteCond ?? ''),
     additionalTurnRule:
       skill.additionalTurnRule && typeof skill.additionalTurnRule === 'object'
         ? structuredClone(skill.additionalTurnRule)

@@ -95,34 +95,198 @@ function compareNumbers(left, op, right) {
   }
 }
 
-function evaluateSkillConditionExpression(expression, member, skill) {
-  const text = String(expression ?? '').trim();
-  if (!text) {
-    return true;
-  }
-
-  const clauses = text.split('&&').map((s) => s.trim()).filter(Boolean);
-  const defaultRef = String(skill?.label ?? '');
-
-  for (const clause of clauses) {
-    const m = clause.match(/^PlayedSkillCount\(([^)]*)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
-    if (!m) {
-      // 未対応式は判定不能扱いで通す（既存仕様非破壊）。
+function splitTopLevel(expression, separator) {
+  const text = String(expression ?? '');
+  const out = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === '(') {
+      depth += 1;
       continue;
     }
-    const refRaw = String(m[1] ?? '').trim();
-    const ref = refRaw || defaultRef;
-    const op = m[2];
-    const rhs = Number(m[3]);
-    const lhs = Number(member?.getSkillUseCountByLabel(ref) ?? 0);
-    if (!compareNumbers(lhs, op, rhs)) {
-      return false;
+    if (ch === ')') {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (depth !== 0) {
+      continue;
+    }
+    if (text.slice(i, i + separator.length) === separator) {
+      out.push(text.slice(start, i).trim());
+      start = i + separator.length;
+      i += separator.length - 1;
     }
   }
-  return true;
+  out.push(text.slice(start).trim());
+  return out.filter(Boolean);
 }
 
-function resolveEffectiveSkillParts(skill, member) {
+function evaluateCountBCPredicate(innerExpression, state, member) {
+  const inner = String(innerExpression ?? '').replace(/\s+/g, '');
+  if (!inner) {
+    return { known: false, value: true };
+  }
+
+  if (inner === 'IsPlayer()') {
+    return { known: true, value: state.party.length };
+  }
+
+  if (inner === 'IsFront()==0&&IsPlayer()') {
+    const backlineCount = state.party.filter((item) => item.position >= 3).length;
+    return { known: true, value: backlineCount };
+  }
+
+  if (inner === 'IsPlayer()==1&&SpecialStatusCountByType(20)>0') {
+    const count = state.party.filter((item) => item.isExtraActive).length;
+    return { known: true, value: count };
+  }
+
+  if (inner === 'IsPlayer()==1&&SpecialStatusCountByType(20)>=1') {
+    const count = state.party.filter((item) => item.isExtraActive).length;
+    return { known: true, value: count };
+  }
+
+  if (inner === 'IsPlayer()==1&&SpecialStatusCountByType(20)==0') {
+    const count = state.party.filter((item) => item.isExtraActive).length;
+    return { known: true, value: count === 0 ? 1 : 0 };
+  }
+
+  if (inner === 'PlayedSkillCount(FMikotoSkill04)>0') {
+    const lhs = Number(member?.getSkillUseCountByLabel('FMikotoSkill04') ?? 0);
+    return { known: true, value: lhs > 0 ? 1 : 0 };
+  }
+
+  return { known: false, value: true };
+}
+
+function evaluateSingleConditionClause(clause, state, member, skill, actionEntry) {
+  const text = String(clause ?? '').trim();
+  if (!text) {
+    return { known: true, value: true };
+  }
+
+  const defaultRef = String(skill?.label ?? '');
+  const breakHitCount = Number(actionEntry?.breakHitCount ?? 0);
+
+  {
+    const m = text.match(/^PlayedSkillCount\(([^)]*)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    if (m) {
+      const refRaw = String(m[1] ?? '').trim();
+      const ref = refRaw || defaultRef;
+      const op = m[2];
+      const rhs = Number(m[3]);
+      const lhs = Number(member?.getSkillUseCountByLabel(ref) ?? 0);
+      return { known: true, value: compareNumbers(lhs, op, rhs) };
+    }
+  }
+
+  {
+    const m = text.match(/^BreakHitCount\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    if (m) {
+      return { known: true, value: compareNumbers(breakHitCount, m[1], Number(m[2])) };
+    }
+  }
+
+  {
+    const m = text.match(/^SpecialStatusCountByType\(20\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    if (m) {
+      const active = member?.isExtraActive ? 1 : 0;
+      return { known: true, value: compareNumbers(active, m[1], Number(m[2])) };
+    }
+  }
+
+  {
+    const m = text.match(/^OverDriveGauge\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
+    if (m) {
+      const gauge = Number(state?.turnState?.odGauge ?? 0);
+      return { known: true, value: compareNumbers(gauge, m[1], Number(m[2])) };
+    }
+  }
+
+  {
+    const m = text.match(/^Sp\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
+    if (m) {
+      const sp = Number(member?.sp?.current ?? 0);
+      return { known: true, value: compareNumbers(sp, m[1], Number(m[2])) };
+    }
+  }
+
+  {
+    const m = text.match(/^CountBC\((.+)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    if (m) {
+      const evaluated = evaluateCountBCPredicate(m[1], state, member);
+      if (!evaluated.known) {
+        return { known: false, value: true };
+      }
+      return { known: true, value: compareNumbers(Number(evaluated.value), m[2], Number(m[3])) };
+    }
+  }
+
+  if (text === 'IsOverDrive()') {
+    return { known: true, value: state.turnState.turnType === 'od' };
+  }
+  {
+    const m = text.match(/^IsOverDrive\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    if (m) {
+      const lhs = state.turnState.turnType === 'od' ? 1 : 0;
+      return { known: true, value: compareNumbers(lhs, m[1], Number(m[2])) };
+    }
+  }
+
+  if (text === 'IsReinforcedMode()') {
+    return { known: true, value: hasReinforcedMode(member) };
+  }
+  {
+    const m = text.match(/^IsReinforcedMode\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    if (m) {
+      const lhs = hasReinforcedMode(member) ? 1 : 0;
+      return { known: true, value: compareNumbers(lhs, m[1], Number(m[2])) };
+    }
+  }
+
+  return { known: false, value: true };
+}
+
+function evaluateConditionExpression(expression, state, member, skill, actionEntry = null) {
+  const text = String(expression ?? '').trim();
+  if (!text) {
+    return { result: true, knownCount: 0 };
+  }
+
+  let knownCount = 0;
+  const orClauses = splitTopLevel(text, '||');
+  let orResult = false;
+
+  for (const orClause of orClauses) {
+    const andClauses = splitTopLevel(orClause, '&&');
+    let andResult = true;
+    for (const clause of andClauses) {
+      const evaluated = evaluateSingleConditionClause(clause, state, member, skill, actionEntry);
+      if (evaluated.known) {
+        knownCount += 1;
+      }
+      if (!evaluated.value) {
+        andResult = false;
+        break;
+      }
+    }
+    if (andResult) {
+      orResult = true;
+      break;
+    }
+  }
+
+  return { result: orResult, knownCount };
+}
+
+function evaluateSkillConditionExpression(expression, state, member, skill) {
+  const evaluation = evaluateConditionExpression(expression, state, member, skill);
+  return evaluation.result;
+}
+
+function resolveEffectiveSkillParts(skill, state, member) {
   const out = [];
 
   for (const part of skill?.parts ?? []) {
@@ -139,9 +303,9 @@ function resolveEffectiveSkillParts(skill, member) {
       continue;
     }
 
-    const conditionMatched = evaluateSkillConditionExpression(part?.cond, member, skill);
+    const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
     const selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
-    out.push(...resolveEffectiveSkillParts(selected, member));
+    out.push(...resolveEffectiveSkillParts(selected, state, member));
   }
 
   return out;
@@ -182,26 +346,29 @@ function resolveOverDrivePointUpPowerPercent(part) {
   return maxPower * 100;
 }
 
-function evaluateOdGaugePartCondition(part, actionEntry) {
-  const condTexts = [String(part?.cond ?? ''), String(part?.hit_condition ?? '')].filter(Boolean);
+function evaluateOdGaugePartCondition(part, state, member, skill, actionEntry) {
+  const condTexts = [
+    String(part?.cond ?? ''),
+    String(part?.hit_condition ?? ''),
+    String(part?.target_condition ?? ''),
+  ].filter((text) => String(text).trim());
   if (condTexts.length === 0) {
     return true;
   }
 
-  const breakHitCount = Number(actionEntry?.breakHitCount ?? 0);
-  for (const condText of condTexts) {
-    if (condText.includes('BreakHitCount()>0') && breakHitCount <= 0) {
-      return false;
-    }
-    if (condText.includes('BreakHitCount()==0') && breakHitCount !== 0) {
-      return false;
-    }
-  }
-
-  return true;
+  return condTexts.every((condText) =>
+    evaluateConditionExpression(condText, state, member, skill, actionEntry).result
+  );
 }
 
-function computeOverDrivePointUpGainPercent(effectiveParts, member, actionEntry, baseHitCount) {
+function computeOverDrivePointUpGainPercent(
+  effectiveParts,
+  state,
+  member,
+  skill,
+  actionEntry,
+  baseHitCount
+) {
   const hasOdPoint = hasOverDrivePointUpPartInParts(effectiveParts ?? []);
   if (!hasOdPoint) {
     return 0;
@@ -215,7 +382,7 @@ function computeOverDrivePointUpGainPercent(effectiveParts, member, actionEntry,
     if (String(part?.skill_type ?? '') !== 'OverDrivePointUp') {
       continue;
     }
-    if (!evaluateOdGaugePartCondition(part, actionEntry)) {
+    if (!evaluateOdGaugePartCondition(part, state, member, skill, actionEntry)) {
       continue;
     }
 
@@ -237,13 +404,13 @@ function resolveOverDrivePointDownPowerPercent(part) {
   return maxPower * 100;
 }
 
-function computeOverDrivePointDownPercent(effectiveParts, actionEntry) {
+function computeOverDrivePointDownPercent(effectiveParts, state, member, skill, actionEntry) {
   let total = 0;
   for (const part of effectiveParts ?? []) {
     if (String(part?.skill_type ?? '') !== 'OverDrivePointDown') {
       continue;
     }
-    if (!evaluateOdGaugePartCondition(part, actionEntry)) {
+    if (!evaluateOdGaugePartCondition(part, state, member, skill, actionEntry)) {
       continue;
     }
 
@@ -256,8 +423,14 @@ function computeOverDrivePointDownPercent(effectiveParts, actionEntry) {
   return total;
 }
 
-function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null, actionEntry = null) {
-  const effectiveParts = resolveEffectiveSkillParts(skill, member);
+function computeOdGaugeGainPercentBySkill(
+  skill,
+  state,
+  enemyCount = 1,
+  member = null,
+  actionEntry = null
+) {
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
   const hasDamage = hasDamagePartInParts(effectiveParts);
   const hasOdPoint = hasOverDrivePointUpPartInParts(effectiveParts);
   if (!hasDamage && !hasOdPoint) {
@@ -301,7 +474,9 @@ function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null, 
 
   const overDrivePointUpGain = computeOverDrivePointUpGainPercent(
     effectiveParts,
+    state,
     member,
+    skill,
     actionEntry,
     baseHitCount
   );
@@ -328,12 +503,24 @@ function applyOdGaugeFromActions(state, previewRecord) {
       continue;
     }
 
-    const effectiveParts = resolveEffectiveSkillParts(skill, member);
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
     const baseHitCount = resolveSkillHitCount(skill);
     const effectiveHitCount =
       String(skill?.targetType ?? '') === 'All' ? baseHitCount * enemyCount : baseHitCount;
-    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill, enemyCount, member, actionEntry);
-    const odGaugeDown = computeOverDrivePointDownPercent(effectiveParts, actionEntry);
+    const odGaugeGain = computeOdGaugeGainPercentBySkill(
+      skill,
+      state,
+      enemyCount,
+      member,
+      actionEntry
+    );
+    const odGaugeDown = computeOverDrivePointDownPercent(
+      effectiveParts,
+      state,
+      member,
+      skill,
+      actionEntry
+    );
     const delta = truncateToTwoDecimals(Number(odGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
     if (!Number.isFinite(delta) || delta === 0) {
       continue;
@@ -527,6 +714,27 @@ function validateActionDict(state, actions) {
       throw new Error(`Skill ${action.skillId} is not available for ${member.characterId}`);
     }
 
+    if (state.turnState.turnType === 'extra' && skill.additionalTurnRule?.skillUsableInExtraTurn === false) {
+      throw new Error(`Skill ${skill.skillId} is not usable in extra turn.`);
+    }
+
+    const skillConditions = [
+      { label: 'cond', expression: skill.cond },
+      { label: 'iuc_cond', expression: skill.iucCond },
+    ];
+    for (const condition of skillConditions) {
+      const expr = String(condition.expression ?? '').trim();
+      if (!expr) {
+        continue;
+      }
+      const evaluated = evaluateConditionExpression(expr, state, member, skill, action);
+      if (evaluated.knownCount > 0 && !evaluated.result) {
+        throw new Error(
+          `Skill ${skill.skillId} cannot be used because ${condition.label} is not satisfied.`
+        );
+      }
+    }
+
     return {
       position,
       member,
@@ -707,6 +915,15 @@ function applySkillSelfEpGains(state, previewRecord) {
 
     for (const part of skill.parts ?? []) {
       if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
+        continue;
+      }
+      const condTexts = [part.cond, part.hit_condition, part.target_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, member, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
         continue;
       }
       const amount = Number(part?.power?.[0] ?? 0);

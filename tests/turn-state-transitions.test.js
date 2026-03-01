@@ -744,3 +744,118 @@ test('OverDrivePointDown reduces od gauge and lower bound is -999', () => {
   committed = commitTurn(state, preview);
   assert.equal(committed.nextState.turnState.odGauge, -999);
 });
+
+test('skill with IsOverDrive() condition is unusable outside OD and usable in OD', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `OD${idx + 1}`,
+      characterName: `OD${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 10000 + idx,
+          name: 'OD Only Skill',
+          label: `ODOnly${idx + 1}`,
+          sp_cost: 0,
+          cond: 'IsOverDrive()',
+          parts: [],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  let state = createBattleStateFromParty(party);
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'OD1', skillId: 10000 },
+      }),
+    /cannot be used because cond is not satisfied/
+  );
+
+  state = activateOverdrive(state, 1, 'preemptive');
+  const preview = previewTurn(state, {
+    0: { characterId: 'OD1', skillId: 10000 },
+  });
+  assert.equal(preview.actions.length, 1);
+});
+
+test('skill with IsOverDrive()==0 is unusable in OD and usable outside OD', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODZ${idx + 1}`,
+      characterName: `ODZ${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODZS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 10200 + idx,
+          name: 'OD Forbidden Skill',
+          label: `ODForbidden${idx + 1}`,
+          sp_cost: 0,
+          cond: 'IsOverDrive()==0',
+          parts: [],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  let state = createBattleStateFromParty(party);
+
+  const normalPreview = previewTurn(state, {
+    0: { characterId: 'ODZ1', skillId: 10200 },
+  });
+  assert.equal(normalPreview.actions.length, 1);
+
+  state = activateOverdrive(state, 1, 'preemptive');
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'ODZ1', skillId: 10200 },
+      }),
+    /cannot be used because cond is not satisfied/
+  );
+});
+
+test('skill with SpecialStatusCountByType(20)==0 is blocked during extra turn', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EX${idx + 1}`,
+      characterName: `EX${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EXS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 10100 + idx,
+          name: 'No Extra Skill',
+          label: `NoExtra${idx + 1}`,
+          sp_cost: 0,
+          cond: 'SpecialStatusCountByType(20)==0',
+          parts: [],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  let state = createBattleStateFromParty(party);
+  state = grantExtraTurn(state, ['EX1']);
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'EX1', skillId: 10100 },
+      }),
+    /cannot be used because cond is not satisfied/
+  );
+});
