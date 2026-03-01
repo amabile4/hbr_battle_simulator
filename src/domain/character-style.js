@@ -7,6 +7,7 @@ function normalizeSkill(skill, canonicalSkill) {
     skillId: Number(skill.id ?? skill.skillId),
     label: String(skill.label ?? canonicalSkill?.label ?? ''),
     name: String(skill.name ?? ''),
+    targetType: String(skill.target_type ?? skill.targetType ?? canonicalSkill?.targetType ?? ''),
     spCost: Number(skill.sp_cost ?? skill.spCost ?? canonicalSkill?.spCost ?? 0),
     sourceType,
     isPassive,
@@ -68,6 +69,7 @@ export class CharacterStyle {
     this.styleName = String(input.styleName);
     this.role = String(input.role ?? '');
     this.limitBreakLevel = Number(input.limitBreakLevel ?? 0);
+    this.drivePiercePercent = Number(input.drivePiercePercent ?? 0);
     this.partyIndex = partyIndex;
     this.position = position;
 

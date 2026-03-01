@@ -16,6 +16,7 @@ function createRoot() {
       <pre data-role="selection-slot-preview"></pre>
       <button data-action="initialize"></button>
       <input data-role="enemy-action" />
+      <select data-role="enemy-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
       <div data-role="action-slots"></div>
       <select data-role="swap-from"><option value="0">0</option></select>
       <select data-role="swap-to"><option value="3">3</option></select>
@@ -58,6 +59,20 @@ test('dom adapter initializes, previews, commits, and exports csv', () => {
   assert.ok(csv.includes('T1'));
 });
 
+test('enemy count in turn controls is reflected in preview record', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+
+  adapter.mount();
+  const enemyCount = root.querySelector('[data-role="enemy-count"]');
+  enemyCount.value = '3';
+  enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const preview = adapter.previewCurrentTurn();
+  assert.equal(preview.enemyCount, 3);
+});
+
 test('selection state can be saved and loaded from localStorage slots', () => {
   const store = getStore();
   const { root, win } = createRoot();
@@ -69,6 +84,7 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
   const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
   const lbSelect = root.querySelector(`[data-role="limit-break-select"][data-slot="${slot}"]`);
+  const driveSelect = root.querySelector(`[data-role="drive-pierce-select"][data-slot="${slot}"]`);
   const saveSlotSelect = root.querySelector('[data-role="selection-slot-select"]');
 
   characterSelect.value = 'RKayamori';
@@ -77,6 +93,8 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
   lbSelect.value = '1';
   lbSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  driveSelect.value = '12';
+  driveSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
 
   const skillChecks = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)];
   const target = skillChecks.find((box) => {
@@ -99,6 +117,7 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   assert.equal(characterSelect.value, 'RKayamori');
   assert.equal(styleSelect.value, '1001108');
   assert.equal(lbSelect.value, '1');
+  assert.equal(driveSelect.value, '12');
   if (target) {
     const restored = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)].find(
       (box) => (box.closest('label')?.textContent ?? '').includes('エクシード・ルミナンス')
@@ -179,6 +198,27 @@ test('dom adapter applies swap immediately and keeps swap event for commit recor
   assert.equal(committed.swapEvents.length, 1);
 });
 
+test('action selection is preserved after commit for each position', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+
+  adapter.mount();
+  const actionSelect = root.querySelector('[data-action-slot="0"]');
+  const options = [...actionSelect.querySelectorAll('option')];
+  if (options.length < 2) {
+    return;
+  }
+
+  const chosen = options[1].value;
+  actionSelect.value = chosen;
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+
+  const actionSelectAfter = root.querySelector('[data-action-slot="0"]');
+  assert.equal(actionSelectAfter.value, chosen);
+});
+
 test('swap candidates are filtered by EX state and mixed EX/normal swap is blocked', () => {
   const store = getStore();
   const { root, win } = createRoot();
@@ -238,9 +278,11 @@ test('character -> style selection is linked and reflected on screen', () => {
   const characterSelects = root.querySelectorAll('[data-role="character-select"]');
   const styleSelects = root.querySelectorAll('[data-role="style-select"]');
   const lbSelects = root.querySelectorAll('[data-role="limit-break-select"]');
+  const driveSelects = root.querySelectorAll('[data-role="drive-pierce-select"]');
   assert.equal(characterSelects.length, 6);
   assert.equal(styleSelects.length, 6);
   assert.equal(lbSelects.length, 6);
+  assert.equal(driveSelects.length, 6);
 
   const slot = 0;
   const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);

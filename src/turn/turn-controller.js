@@ -56,12 +56,18 @@ function hasDamagePartInParts(parts) {
   return false;
 }
 
-function computeOdGaugeGainPercentBySkill(skill) {
+function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1) {
   if (!hasDamagePartInParts(skill?.parts ?? [])) {
     return 0;
   }
 
-  let hitCount = resolveSkillHitCount(skill);
+  const numericEnemyCount = Number.isFinite(Number(enemyCount))
+    ? Math.max(1, Math.min(3, Number(enemyCount)))
+    : 1;
+  const targetType = String(skill?.targetType ?? '');
+  const isAllTarget = targetType === 'All';
+
+  let hitCount = resolveSkillHitCount(skill) * (isAllTarget ? numericEnemyCount : 1);
   if (isNormalAttackSkill(skill)) {
     // 通常攻撃はヒット数に関わらず最低3hit(=7.5%)保証。
     hitCount = Math.max(3, hitCount);
@@ -77,6 +83,10 @@ function computeOdGaugeGainPercentBySkill(skill) {
 function applyOdGaugeFromActions(state, previewRecord) {
   const events = [];
   let total = 0;
+  const enemyCountRaw = Number(previewRecord?.enemyCount ?? 1);
+  const enemyCount = Number.isFinite(enemyCountRaw)
+    ? Math.max(1, Math.min(3, enemyCountRaw))
+    : 1;
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const member = findMemberByCharacterId(state, actionEntry.characterId);
@@ -89,8 +99,10 @@ function applyOdGaugeFromActions(state, previewRecord) {
       continue;
     }
 
-    const hitCount = resolveSkillHitCount(skill);
-    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill);
+    const baseHitCount = resolveSkillHitCount(skill);
+    const effectiveHitCount =
+      String(skill?.targetType ?? '') === 'All' ? baseHitCount * enemyCount : baseHitCount;
+    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill, enemyCount);
     if (!Number.isFinite(odGaugeGain) || odGaugeGain === 0) {
       continue;
     }
@@ -100,7 +112,7 @@ function applyOdGaugeFromActions(state, previewRecord) {
       characterId: member.characterId,
       skillId: skill.skillId,
       skillName: skill.name,
-      hitCount,
+      hitCount: effectiveHitCount,
       odGaugeGain,
     });
   }
@@ -644,14 +656,14 @@ export function createBattleStateFromParty(party, turnState) {
   return next;
 }
 
-export function previewTurn(state, actions, enemyAction = null) {
+export function previewTurn(state, actions, enemyAction = null, enemyCount = 1) {
   const sortedActions = validateActionDict(state, actions);
   const actionEntries = previewActionEntries(state, sortedActions);
   const snapBefore = snapshotPartyByPartyIndex(state.party);
 
   const record = fromSnapshot(
     snapBefore,
-    buildTurnContext(state.turnState, enemyAction),
+    buildTurnContext(state.turnState, enemyAction, enemyCount),
     actionEntries,
     [],
     state.turnState.sequenceId

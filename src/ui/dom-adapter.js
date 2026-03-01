@@ -28,6 +28,12 @@ const AUTO_SAVE_SLOT_INDEX = 0;
 const MANUAL_SELECTION_SLOT_COUNT = 10;
 const TOTAL_SELECTION_SLOT_COUNT = MANUAL_SELECTION_SLOT_COUNT + 1;
 const SELECTION_SAVE_STORAGE_KEY = 'hbr.battle_simulator.selection_slots.v1';
+const DRIVE_PIERCE_OPTIONS = Object.freeze([
+  { value: 0, label: 'ドライブピアスなし' },
+  { value: 10, label: 'ドライブピアス +10%' },
+  { value: 12, label: 'ドライブピアス +12%' },
+  { value: 15, label: 'ドライブピアス +15%' },
+]);
 
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
@@ -94,6 +100,7 @@ export class BattleDomAdapter {
     this.recordStore = createBattleRecordStore();
     this.previewRecord = null;
     this.pendingSwapEvents = [];
+    this.lastActionSkillByPosition = new Map();
 
     this.characterCandidates = this.dataStore.listCharacterCandidates();
     this.defaultSelections = this.buildDefaultSelections();
@@ -222,6 +229,11 @@ export class BattleDomAdapter {
         this.updateSlotSummary(slot);
       }
 
+      if (target.matches('[data-role="drive-pierce-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateSlotSummary(slot);
+      }
+
       if (target.matches('[data-role="selection-slot-select"]')) {
         const slot = this.getSelectedSelectionSlotIndex();
         this.renderSelectionSlotPreview(slot);
@@ -230,6 +242,13 @@ export class BattleDomAdapter {
       if (target.matches('[data-role="swap-from"]')) {
         const from = toInt(target.value, 0);
         this.renderSwapToOptions(from);
+      }
+
+      if (target.matches('[data-action-slot]')) {
+        const position = toInt(target.getAttribute('data-action-slot'), -1);
+        if (position >= 0) {
+          this.lastActionSkillByPosition.set(position, toInt(target.value, 0));
+        }
       }
     });
 
@@ -362,6 +381,19 @@ export class BattleDomAdapter {
       limitBreakSelect.setAttribute('data-role', 'limit-break-select');
       limitBreakSelect.setAttribute('data-slot', String(i));
 
+      const drivePierceSelect = this.doc.createElement('select');
+      drivePierceSelect.setAttribute('data-role', 'drive-pierce-select');
+      drivePierceSelect.setAttribute('data-slot', String(i));
+      for (const optionDef of DRIVE_PIERCE_OPTIONS) {
+        const option = this.doc.createElement('option');
+        option.value = String(optionDef.value);
+        option.textContent = optionDef.label;
+        if (Number(optionDef.value) === 0) {
+          option.selected = true;
+        }
+        drivePierceSelect.appendChild(option);
+      }
+
       const skillChecklist = this.doc.createElement('div');
       skillChecklist.setAttribute('data-role', 'skill-checklist');
       skillChecklist.setAttribute('data-slot', String(i));
@@ -369,6 +401,7 @@ export class BattleDomAdapter {
       wrapper.appendChild(characterSelect);
       wrapper.appendChild(styleSelect);
       wrapper.appendChild(limitBreakSelect);
+      wrapper.appendChild(drivePierceSelect);
       wrapper.appendChild(skillChecklist);
 
       const summary = this.doc.createElement('div');
@@ -511,11 +544,15 @@ export class BattleDomAdapter {
       const lbSelect = this.root.querySelector(
         `[data-role="limit-break-select"][data-slot="${i}"]`
       );
+      const drivePierceSelect = this.root.querySelector(
+        `[data-role="drive-pierce-select"][data-slot="${i}"]`
+      );
       const checkedSkillIds = this.getCheckedSkillIdsForSlot(i) ?? [];
       partySelections.push({
         characterLabel: String(charSelect?.value ?? ''),
         styleId: toInt(styleSelect?.value, this.defaultSelections[i].styleId),
         limitBreakLevel: toInt(lbSelect?.value, 0),
+        drivePiercePercent: toInt(drivePierceSelect?.value, 0),
         checkedSkillIds,
       });
     }
@@ -575,6 +612,24 @@ export class BattleDomAdapter {
       if ((lbSelect?.value ?? '') !== beforeLb) {
         changedCount += 1;
       }
+
+      const drivePierceSelect = this.root.querySelector(
+        `[data-role="drive-pierce-select"][data-slot="${i}"]`
+      );
+      const beforeDrive = drivePierceSelect?.value ?? '';
+      const requestedDrive = toInt(row.drivePiercePercent, 0);
+      if (
+        drivePierceSelect &&
+        [...drivePierceSelect.options].some((opt) => Number(opt.value) === requestedDrive)
+      ) {
+        drivePierceSelect.value = String(requestedDrive);
+      } else if (drivePierceSelect) {
+        drivePierceSelect.value = '0';
+      }
+      if ((drivePierceSelect?.value ?? '') !== beforeDrive) {
+        changedCount += 1;
+      }
+
       this.populateSkillChecklist(i, styleSelect?.value ?? '', row.checkedSkillIds ?? []);
       this.populatePassiveList(i, styleSelect?.value ?? '');
       this.updateSlotSummary(i);
@@ -674,7 +729,7 @@ export class BattleDomAdapter {
       const row = rows[i] ?? {};
       lines.push(
         `P${i + 1}: ${row.characterLabel ?? '-'} / style=${row.styleId ?? '-'} / ` +
-          `LB=${row.limitBreakLevel ?? '-'} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
+          `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
       );
     }
     lines.push(
@@ -810,6 +865,15 @@ export class BattleDomAdapter {
     return out;
   }
 
+  readDrivePierceMapFromDom() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const select = this.root.querySelector(`[data-role="drive-pierce-select"][data-slot="${i}"]`);
+      out[i] = toInt(select?.value, 0);
+    }
+    return out;
+  }
+
   updateSlotSummary(slotIndex) {
     const summary = this.root.querySelector(`[data-role="slot-summary"][data-slot="${slotIndex}"]`);
     if (!summary) {
@@ -832,11 +896,15 @@ export class BattleDomAdapter {
     );
     const limitBreakLevel = toInt(lbSelect?.value, 0);
     const passives = this.dataStore.listPassivesByStyleId(selectedStyleId, { limitBreakLevel });
+    const drivePierceSelect = this.root.querySelector(
+      `[data-role="drive-pierce-select"][data-slot="${slotIndex}"]`
+    );
+    const drivePiercePercent = toInt(drivePierceSelect?.value, 0);
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `LB: ${limitBreakLevel} / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
+      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {
@@ -877,10 +945,13 @@ export class BattleDomAdapter {
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? this.readSkillSetMapFromDom();
     const limitBreakLevelsByPartyIndex =
       options.limitBreakLevelsByPartyIndex ?? this.readLimitBreakMapFromDom();
+    const drivePierceByPartyIndex =
+      options.drivePierceByPartyIndex ?? this.readDrivePierceMapFromDom();
     this.party = this.dataStore.buildPartyFromStyleIds(styleIds, {
       initialSP: this.initialSP,
       skillSetsByPartyIndex,
       limitBreakLevelsByPartyIndex,
+      drivePierceByPartyIndex,
     });
     this.state = createBattleStateFromParty(this.party);
     this.recordStore = createBattleRecordStore();
@@ -906,6 +977,13 @@ export class BattleDomAdapter {
       return;
     }
 
+    const previousSelection = new Map(this.lastActionSkillByPosition);
+    for (const oldSelect of container.querySelectorAll('[data-action-slot]')) {
+      const position = toInt(oldSelect.getAttribute('data-action-slot'), -1);
+      if (position >= 0) {
+        previousSelection.set(position, toInt(oldSelect.value, 0));
+      }
+    }
     container.innerHTML = '';
 
     const actionableMembers = this.getActionableFrontlineMembers();
@@ -936,6 +1014,15 @@ export class BattleDomAdapter {
         option.textContent = `${skill.name} (${costLabel} / Hit ${hitLabel})`;
         select.appendChild(option);
       }
+
+      const preferredSkillId = previousSelection.get(member.position);
+      if (
+        Number.isFinite(Number(preferredSkillId)) &&
+        [...select.options].some((option) => Number(option.value) === Number(preferredSkillId))
+      ) {
+        select.value = String(preferredSkillId);
+      }
+      this.lastActionSkillByPosition.set(member.position, toInt(select.value, 0));
 
       wrapper.appendChild(select);
       container.appendChild(wrapper);
@@ -984,6 +1071,12 @@ export class BattleDomAdapter {
     }
 
     return actionDict;
+  }
+
+  readEnemyCountFromDom() {
+    const select = this.root.querySelector('[data-role="enemy-count"]');
+    const n = toInt(select?.value, 1);
+    return Math.max(1, Math.min(3, n));
   }
 
   queueSwap(fromPositionIndex, toPositionIndex) {
@@ -1037,9 +1130,10 @@ export class BattleDomAdapter {
     }
 
     const enemyAction = this.root.querySelector('[data-role="enemy-action"]')?.value ?? null;
+    const enemyCount = this.readEnemyCountFromDom();
     const actions = this.collectActionDictFromDom();
 
-    this.previewRecord = previewTurn(this.state, actions, enemyAction);
+    this.previewRecord = previewTurn(this.state, actions, enemyAction, enemyCount);
     this.writePreviewOutput(JSON.stringify(this.previewRecord, null, 2));
     this.setStatus('Preview generated.');
     return this.previewRecord;

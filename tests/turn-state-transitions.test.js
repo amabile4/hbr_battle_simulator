@@ -385,3 +385,77 @@ test('non-damaging skill-switch with hit_count does not increase OD gauge', () =
 
   assert.equal(nextState.turnState.odGauge, 0);
 });
+
+test('all-target attack scales OD gain by enemy count', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `E${idx + 1}`,
+      characterName: `E${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 9500 + idx,
+          name: idx === 0 ? 'AoE Attack' : 'Normal',
+          sp_cost: 1,
+          hit_count: 2,
+          target_type: idx === 0 ? 'All' : 'Single',
+          parts: [{ skill_type: 'AttackSkill', target_type: idx === 0 ? 'All' : 'Single' }],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'E1', skillId: 9500 },
+    },
+    null,
+    3
+  );
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 15, '2 hits * 3 enemies * 2.5%');
+});
+
+test('single-target attack does not scale OD gain by enemy count', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `F${idx + 1}`,
+      characterName: `F${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 9600 + idx,
+          name: idx === 0 ? 'Single Attack' : 'Normal',
+          sp_cost: 1,
+          hit_count: 2,
+          target_type: 'Single',
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'F1', skillId: 9600 },
+    },
+    null,
+    3
+  );
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 5, 'single-target remains 2 hits * 2.5%');
+});

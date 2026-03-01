@@ -950,6 +950,7 @@ export class HbrDataStore {
     partyIndex,
     initialSP = 4,
     spBonus = 0,
+    drivePiercePercent = 0,
     equippedSkillIds = null,
     limitBreakLevel = null,
   }) {
@@ -1012,6 +1013,7 @@ export class HbrDataStore {
       role: String(style.role ?? ''),
       partyIndex: Number(partyIndex),
       position: Number(partyIndex),
+      drivePiercePercent: Number(drivePiercePercent),
       initialSP: Number(initialSP),
       initialEP: Number(ep.initial ?? 0),
       spBonus: Number(spBonus),
@@ -1035,6 +1037,7 @@ export class HbrDataStore {
 
     const initialSP = options.initialSP ?? 4;
     const spBonusMap = options.spBonusMap ?? {};
+    const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
     const limitBreakLevelsByPartyIndex = options.limitBreakLevelsByPartyIndex ?? {};
 
@@ -1044,6 +1047,7 @@ export class HbrDataStore {
         partyIndex: index,
         initialSP,
         spBonus: Number(spBonusMap[index] ?? 0),
+        drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
         equippedSkillIds: Array.isArray(skillSetsByPartyIndex[index])
           ? skillSetsByPartyIndex[index]
           : null,

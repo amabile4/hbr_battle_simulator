@@ -12,6 +12,7 @@ export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceI
     snapBefore,
     snapAfter: null,
     enemyAction: context.enemyAction,
+    enemyCount: context.enemyCount,
     actions,
     swapEvents,
     effectSnapshots: [],
@@ -36,7 +37,7 @@ export function commitRecord(preview, snapAfter, swapEvents, committedAt = new D
   };
 }
 
-export function buildTurnContext(turnState, enemyAction = null) {
+export function buildTurnContext(turnState, enemyAction = null, enemyCount = 1) {
   return {
     turnIndex: turnState.turnIndex,
     turnLabel: turnState.turnLabel,
@@ -46,5 +47,6 @@ export function buildTurnContext(turnState, enemyAction = null) {
     remainingOdActionsAtStart: turnState.remainingOdActions,
     odGaugeAtStart: Number(turnState.odGauge ?? 0),
     enemyAction,
+    enemyCount: Number(enemyCount),
   };
 }
