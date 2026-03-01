@@ -523,6 +523,8 @@ function previewActionEntries(state, sortedActions) {
       skillId: skill.skillId,
       skillName: skill.name,
       skillLabel: skill.label,
+      skillTargetType: String(skill.targetType ?? ''),
+      skillHitCount: resolveSkillHitCount(skill),
       spCost: skill.spCost,
       consumeType: String(skill.consumeType ?? 'Sp'),
       spChanges: [

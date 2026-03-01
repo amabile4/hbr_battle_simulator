@@ -25,6 +25,18 @@ function getActionContext(record) {
   return 'normal';
 }
 
+function formatActionCell(action) {
+  if (!action) {
+    return '-';
+  }
+  const name = String(action.skillName ?? '-');
+  const target = String(action.skillTargetType ?? '');
+  const hit = Number(action.skillHitCount ?? 0);
+  const targetLabel = target || '?';
+  const hitLabel = Number.isFinite(hit) && hit > 0 ? `${hit}hit` : '-hit';
+  return `${name} [${targetLabel},${hitLabel}]`;
+}
+
 export function recordToRow(record, initialParty) {
   const sortedParty = [...initialParty].sort((a, b) => a.partyIndex - b.partyIndex);
   const beforeMap = getSnapshotByPartyIndex(record.snapBefore);
@@ -45,7 +57,7 @@ export function recordToRow(record, initialParty) {
 
     row.push(before ? before.sp.current : '');
     row.push(before ? Number(before.positionIndex) + 1 : '');
-    row.push(action ? action.skillName : '-');
+    row.push(formatActionCell(action));
     row.push(after ? after.sp.current : before ? before.sp.current : '');
   }
 
