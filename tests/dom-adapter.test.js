@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { BattleDomAdapter } from '../src/index.js';
+import { BattleDomAdapter, grantExtraTurn } from '../src/index.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
 function createRoot() {
@@ -54,7 +54,7 @@ test('dom adapter initializes, previews, commits, and exports csv', () => {
   assert.equal(adapter.recordStore.records.length, 1);
 
   const csv = adapter.exportCsv();
-  assert.ok(csv.includes('turnLabel,enemyAction'));
+  assert.ok(csv.includes('seq,turnLabel,actionContext,enemyAction'));
   assert.ok(csv.includes('T1'));
 });
 
@@ -152,6 +152,42 @@ test('dom adapter applies swap immediately and keeps swap event for commit recor
   assert.equal(adapter.pendingSwapEvents.length, 0);
   assert.equal(adapter.recordStore.records.length, 1);
   assert.equal(committed.swapEvents.length, 1);
+});
+
+test('swap candidates are filtered by EX state and mixed EX/normal swap is blocked', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const exCharacterId = adapter.state.party.find((member) => member.position === 0)?.characterId;
+  adapter.state = grantExtraTurn(adapter.state, [exCharacterId]);
+  adapter.renderPartyState();
+
+  const swapFrom = root.querySelector('[data-role="swap-from"]');
+  const swapTo = root.querySelector('[data-role="swap-to"]');
+
+  // EX member selected as source => no valid target (only one EX)
+  swapFrom.value = '0';
+  swapFrom.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const toValuesForExFrom = [...swapTo.options].map((option) => option.value);
+  assert.equal(toValuesForExFrom.length, 1);
+  assert.equal(toValuesForExFrom[0], '', 'EX source should have no normal target candidates');
+
+  // Normal member selected as source => only normal candidates
+  swapFrom.value = '3';
+  swapFrom.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const toValuesForNormalFrom = [...swapTo.options].map((option) => Number(option.value));
+  assert.equal(
+    toValuesForNormalFrom.includes(0),
+    false,
+    'normal source should not be able to pick EX target'
+  );
+
+  assert.throws(
+    () => adapter.queueSwap(0, 5),
+    /Swap is allowed only between \[EX\]<->\[EX\] or normal<->normal/
+  );
 });
 
 test('character -> style selection is linked and reflected on screen', () => {

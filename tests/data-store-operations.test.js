@@ -252,3 +252,44 @@ test('listEquipableSkillsByStyleId includes passives as equip-only entries', () 
   assert.equal(masterPassive?.sourceType, 'master', 'master passive should keep master sourceType');
   assert.equal(Boolean(masterPassive?.passive), true, 'master passive should keep passive metadata');
 });
+
+test('skill rule overrides can patch additional turn behavior without hardcoding', () => {
+  const store = getStore();
+  const gokigen = store.getSkillById(46003115);
+  const rule = store.getAdditionalTurnRule(46003115);
+
+  assert.equal(gokigen?.name, 'ごきげんダンス');
+  assert.equal(
+    gokigen?.parts?.[2]?.extra_turn_grant_enabled_in_extra_turn,
+    false,
+    'override should be merged into AdditionalTurn part'
+  );
+  assert.equal(rule?.skillUsableInExtraTurn, true, 'skill should remain usable in extra turn');
+  assert.equal(
+    rule?.additionalTurnGrantInExtraTurn,
+    false,
+    'additional turn grant should be disabled in extra turn by override'
+  );
+  assert.equal(rule?.source, 'override');
+});
+
+test('additional turn rules expose turn-context conditions from skill parts', () => {
+  const store = getStore();
+  const yatadoru = store.getAdditionalTurnRule(46041501); // 宿る想い
+  const tenku = store.getAdditionalTurnRule(46041403); // 天駆の鉄槌
+  const sprint = store.getAdditionalTurnRule(46006661); // 快感・スプリント！+
+
+  assert.equal(yatadoru?.skillUsableInExtraTurn, true);
+  assert.equal(yatadoru?.additionalTurnGrantInExtraTurn, false);
+  assert.equal(
+    yatadoru?.conditions?.excludesExtraTurnForAdditionalTurnGrant,
+    true,
+    '宿る想い should block additional-turn grant while in extra turn'
+  );
+
+  assert.equal(tenku?.conditions?.requiresReinforcedMode, true);
+  assert.equal(tenku?.conditions?.requiresOverDrive, false);
+  assert.equal(tenku?.additionalTurnGrantInExtraTurn, true);
+
+  assert.equal(sprint?.conditions?.requiresOverDrive, true);
+});

@@ -47,6 +47,10 @@ function clampLimitBreak(level, max) {
   return Math.max(0, Math.min(Number(max), Number(level)));
 }
 
+function canSwapByExtraState(a, b) {
+  return Boolean(a?.isExtraActive) === Boolean(b?.isExtraActive);
+}
+
 function firstSixUniqueStyles(styles) {
   const out = [];
   const seen = new Set();
@@ -132,7 +136,7 @@ export class BattleDomAdapter {
     this.root.querySelector('[data-action="swap"]')?.addEventListener('click', () => {
       this.runSafely(() => {
         const from = toInt(this.root.querySelector('[data-role="swap-from"]')?.value, 0);
-        const to = toInt(this.root.querySelector('[data-role="swap-to"]')?.value, 3);
+        const to = toInt(this.root.querySelector('[data-role="swap-to"]')?.value, -1);
         this.queueSwap(from, to);
       });
     });
@@ -219,6 +223,11 @@ export class BattleDomAdapter {
       if (target.matches('[data-role="selection-slot-select"]')) {
         const slot = this.getSelectedSelectionSlotIndex();
         this.renderSelectionSlotPreview(slot);
+      }
+
+      if (target.matches('[data-role="swap-from"]')) {
+        const from = toInt(target.value, 0);
+        this.renderSwapToOptions(from);
       }
     });
 
@@ -494,6 +503,8 @@ export class BattleDomAdapter {
 
   applySelectionState(state) {
     const selections = Array.isArray(state?.partySelections) ? state.partySelections : [];
+    let changedCount = 0;
+    const warnings = [];
     for (let i = 0; i < 6; i += 1) {
       const row = selections[i];
       if (!row) {
@@ -507,22 +518,43 @@ export class BattleDomAdapter {
         continue;
       }
 
-      characterSelect.value = String(row.characterLabel ?? '');
+      const beforeCharacter = characterSelect.value;
+      const requestedCharacter = String(row.characterLabel ?? '');
+      if ([...characterSelect.options].some((opt) => opt.value === requestedCharacter)) {
+        characterSelect.value = requestedCharacter;
+      } else {
+        warnings.push(`Slot ${i + 1}: character not found (${requestedCharacter})`);
+      }
       this.onCharacterSelectionChanged(i, characterSelect.value);
-
-      const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${i}"]`);
-      const preferredStyleId = toInt(row.styleId, toInt(styleSelect?.value, 0));
-      if (styleSelect && [...styleSelect.options].some((opt) => Number(opt.value) === preferredStyleId)) {
-        styleSelect.value = String(preferredStyleId);
+      if (characterSelect.value !== beforeCharacter) {
+        changedCount += 1;
       }
 
+      const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${i}"]`);
+      const beforeStyle = styleSelect?.value ?? '';
+      const preferredStyleId = toInt(row.styleId, toInt(beforeStyle, 0));
+      if (styleSelect && [...styleSelect.options].some((opt) => Number(opt.value) === preferredStyleId)) {
+        styleSelect.value = String(preferredStyleId);
+      } else if (styleSelect) {
+        warnings.push(`Slot ${i + 1}: style not found (${row.styleId})`);
+      }
+      if ((styleSelect?.value ?? '') !== beforeStyle) {
+        changedCount += 1;
+      }
+
+      const lbSelect = this.root.querySelector(`[data-role="limit-break-select"][data-slot="${i}"]`);
+      const beforeLb = lbSelect?.value ?? '';
       this.populateLimitBreakSelect(i, styleSelect?.value ?? '', row.limitBreakLevel);
+      if ((lbSelect?.value ?? '') !== beforeLb) {
+        changedCount += 1;
+      }
       this.populateSkillChecklist(i, styleSelect?.value ?? '', row.checkedSkillIds ?? []);
       this.populatePassiveList(i, styleSelect?.value ?? '');
       this.updateSlotSummary(i);
     }
 
     this.renderSelectionSummary();
+    return { changedCount, warnings };
   }
 
   saveSelectionToSlot(slotIndex) {
@@ -543,10 +575,20 @@ export class BattleDomAdapter {
       return null;
     }
 
-    this.applySelectionState(state);
+    const result = this.applySelectionState(state);
     this.refreshSelectionSlotOptions();
     this.renderSelectionSlotPreview(slotIndex);
-    this.setStatus(`Selection loaded from Slot ${slotIndex + 1}.`);
+    if (result.warnings.length > 0) {
+      this.setStatus(
+        `Selection loaded from Slot ${slotIndex + 1} (changed=${result.changedCount}). Warnings: ${result.warnings.join('; ')}`
+      );
+    } else if (result.changedCount === 0) {
+      this.setStatus(
+        `Selection loaded from Slot ${slotIndex + 1}. No visible changes (same as current selection).`
+      );
+    } else {
+      this.setStatus(`Selection loaded from Slot ${slotIndex + 1} (changed=${result.changedCount}).`);
+    }
     return state;
   }
 
@@ -811,6 +853,7 @@ export class BattleDomAdapter {
 
     this.renderActionSelectors();
     this.renderPartyState();
+    this.renderSwapSelectors();
     this.renderTurnStatus();
     this.renderRecordTable();
     this.writePreviewOutput('');
@@ -830,7 +873,8 @@ export class BattleDomAdapter {
 
     container.innerHTML = '';
 
-    for (const member of this.party.getFrontline()) {
+    const actionableMembers = this.getActionableFrontlineMembers();
+    for (const member of actionableMembers) {
       const wrapper = this.doc.createElement('label');
       wrapper.className = 'action-slot';
       wrapper.textContent = `Pos ${member.position + 1} (${member.characterName}) `;
@@ -857,6 +901,27 @@ export class BattleDomAdapter {
       wrapper.appendChild(select);
       container.appendChild(wrapper);
     }
+
+    if (actionableMembers.length === 0) {
+      const note = this.doc.createElement('div');
+      note.textContent = 'No actionable front members in current turn state.';
+      container.appendChild(note);
+    }
+  }
+
+  getActionableFrontlineMembers() {
+    if (!this.party || !this.state) {
+      return [];
+    }
+
+    const frontline = this.party.getFrontline();
+    const turnState = this.state.turnState;
+    if (turnState.turnType !== 'extra' || !turnState.extraTurnState) {
+      return frontline;
+    }
+
+    const allowed = new Set(turnState.extraTurnState.allowedCharacterIds ?? []);
+    return frontline.filter((member) => allowed.has(member.characterId));
   }
 
   collectActionDictFromDom() {
@@ -865,7 +930,7 @@ export class BattleDomAdapter {
     }
 
     const actionDict = {};
-    for (const member of this.party.getFrontline()) {
+    for (const member of this.getActionableFrontlineMembers()) {
       const select = this.root.querySelector(`[data-action-slot="${member.position}"]`);
       const actionSkills = member.getActionSkills();
       const fallbackSkill = actionSkills[0];
@@ -898,6 +963,9 @@ export class BattleDomAdapter {
     if (!outMember || !inMember) {
       throw new Error('Swap target position not found.');
     }
+    if (!canSwapByExtraState(outMember, inMember)) {
+      throw new Error('Swap is allowed only between [EX]<->[EX] or normal<->normal.');
+    }
 
     const event = {
       swapSequence: this.pendingSwapEvents.length + 1,
@@ -919,6 +987,7 @@ export class BattleDomAdapter {
     this.writePreviewOutput('');
     this.renderActionSelectors();
     this.renderPartyState();
+    this.renderSwapSelectors();
     this.setStatus(`Swap applied: ${outMember.characterName} <-> ${inMember.characterName}`);
     return event;
   }
@@ -960,6 +1029,7 @@ export class BattleDomAdapter {
 
     this.renderActionSelectors();
     this.renderPartyState();
+    this.renderSwapSelectors();
     this.renderTurnStatus();
     this.renderRecordTable();
     this.writePreviewOutput('');
@@ -997,6 +1067,80 @@ export class BattleDomAdapter {
     }
   }
 
+  renderSwapSelectors() {
+    if (!this.state) {
+      return;
+    }
+
+    const fromSelect = this.root.querySelector('[data-role="swap-from"]');
+    const toSelect = this.root.querySelector('[data-role="swap-to"]');
+    if (!fromSelect || !toSelect) {
+      return;
+    }
+
+    const members = this.state.party.slice().sort((a, b) => a.position - b.position);
+    const prevFrom = String(fromSelect.value ?? '');
+    const prevTo = String(toSelect.value ?? '');
+
+    fromSelect.innerHTML = '';
+    for (const member of members) {
+      const option = this.doc.createElement('option');
+      option.value = String(member.position);
+      option.textContent = `Pos ${member.position + 1}${member.isExtraActive ? ' [EX]' : ''}`;
+      fromSelect.appendChild(option);
+    }
+
+    const hasPrevFrom = [...fromSelect.options].some((option) => option.value === prevFrom);
+    fromSelect.value = hasPrevFrom ? prevFrom : fromSelect.options[0]?.value ?? '0';
+    this.renderSwapToOptions(toInt(fromSelect.value, 0), prevTo);
+  }
+
+  renderSwapToOptions(fromPositionIndex, preferredTo = null) {
+    if (!this.state) {
+      return;
+    }
+
+    const toSelect = this.root.querySelector('[data-role="swap-to"]');
+    if (!toSelect) {
+      return;
+    }
+
+    const fromMember = this.state.party.find((member) => member.position === fromPositionIndex) ?? null;
+    if (!fromMember) {
+      toSelect.innerHTML = '';
+      return;
+    }
+
+    const candidates = this.state.party
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .filter(
+        (member) => member.position !== fromPositionIndex && canSwapByExtraState(fromMember, member)
+      );
+
+    toSelect.innerHTML = '';
+    if (candidates.length === 0) {
+      const option = this.doc.createElement('option');
+      option.value = '';
+      option.textContent = '(No valid target)';
+      option.selected = true;
+      option.disabled = true;
+      toSelect.appendChild(option);
+      return;
+    }
+
+    for (const member of candidates) {
+      const option = this.doc.createElement('option');
+      option.value = String(member.position);
+      option.textContent = `Pos ${member.position + 1}${member.isExtraActive ? ' [EX]' : ''}`;
+      toSelect.appendChild(option);
+    }
+
+    const desired = String(preferredTo ?? '');
+    const hasPreferred = [...toSelect.options].some((option) => option.value === desired);
+    toSelect.value = hasPreferred ? desired : toSelect.options[0]?.value ?? '';
+  }
+
   renderTurnStatus() {
     if (!this.state) {
       return;
@@ -1023,11 +1167,13 @@ export class BattleDomAdapter {
       .sort((a, b) => a.position - b.position)
       .map((member) => {
         const frontBack = member.position <= 2 ? 'Front' : 'Back';
-        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName} SP=${member.sp.current}</li>`;
+        const extraTag = member.isExtraActive ? ' [EX]' : '';
+        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag} SP=${member.sp.current}</li>`;
       })
       .join('');
 
     container.innerHTML = rows;
+    this.renderSwapSelectors();
   }
 
   renderRecordTable() {

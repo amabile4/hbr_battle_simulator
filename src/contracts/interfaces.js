@@ -30,6 +30,7 @@ export function toCharacterSnapshot(character) {
     isAlive: Boolean(character.isAlive),
     isBreak: Boolean(character.isBreak),
     isExtraActive: Boolean(character.isExtraActive),
+    isReinforcedMode: Boolean(character.isReinforcedMode),
     revision: Number(character.revision ?? 0),
   });
 }

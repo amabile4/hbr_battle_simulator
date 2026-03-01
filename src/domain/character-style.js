@@ -14,6 +14,10 @@ function normalizeSkill(skill, canonicalSkill) {
     maxLevel: skill.max_level ?? skill.maxLevel ?? canonicalSkill?.maxLevel ?? null,
     spRecoveryCeiling:
       typeof skill.spRecoveryCeiling === 'number' ? skill.spRecoveryCeiling : undefined,
+    additionalTurnRule:
+      skill.additionalTurnRule && typeof skill.additionalTurnRule === 'object'
+        ? structuredClone(skill.additionalTurnRule)
+        : null,
   };
 }
 
@@ -71,6 +75,7 @@ export class CharacterStyle {
     this.isAlive = input.isAlive ?? true;
     this.isBreak = input.isBreak ?? false;
     this.isExtraActive = input.isExtraActive ?? false;
+    this.isReinforcedMode = input.isReinforcedMode ?? false;
     this.effects = Array.isArray(input.effects) ? structuredClone(input.effects) : [];
 
     this.skills = Object.freeze(
@@ -198,6 +203,11 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
+  setReinforcedMode(active) {
+    this.isReinforcedMode = Boolean(active);
+    this._revision += 1;
+  }
+
   setBreakState(isBreak) {
     this.isBreak = Boolean(isBreak);
     this._revision += 1;
@@ -221,6 +231,7 @@ export class CharacterStyle {
       isAlive: this.isAlive,
       isBreak: this.isBreak,
       isExtraActive: this.isExtraActive,
+      isReinforcedMode: this.isReinforcedMode,
       revision: this._revision,
     };
   }

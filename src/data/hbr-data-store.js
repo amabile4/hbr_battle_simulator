@@ -33,6 +33,34 @@ const LIMIT_BREAK_MAX_BY_TIER = Object.freeze({
   SSR: 4,
 });
 
+const EXTRA_TURN_BLOCK_PATTERN = /SpecialStatusCountByType\(20\)\s*==\s*0/;
+const OVERDRIVE_PATTERN = /IsOverDrive\(\)/;
+const REINFORCED_PATTERN = /IsReinforcedMode\(\)/;
+
+function parseConditionFlags(expression) {
+  const text = String(expression ?? '');
+  return {
+    excludesExtraTurn: EXTRA_TURN_BLOCK_PATTERN.test(text),
+    requiresOverDrive: OVERDRIVE_PATTERN.test(text),
+    requiresReinforcedMode: REINFORCED_PATTERN.test(text),
+  };
+}
+
+function mergeConditionFlags(...flagsList) {
+  return flagsList.reduce(
+    (acc, flags) => ({
+      excludesExtraTurn: acc.excludesExtraTurn || Boolean(flags?.excludesExtraTurn),
+      requiresOverDrive: acc.requiresOverDrive || Boolean(flags?.requiresOverDrive),
+      requiresReinforcedMode: acc.requiresReinforcedMode || Boolean(flags?.requiresReinforcedMode),
+    }),
+    {
+      excludesExtraTurn: false,
+      requiresOverDrive: false,
+      requiresReinforcedMode: false,
+    }
+  );
+}
+
 export class HbrDataStore {
   constructor(payload) {
     this.characters = payload.characters;
@@ -40,6 +68,7 @@ export class HbrDataStore {
     this.skills = payload.skills;
     this.passives = payload.passives;
     this.accessories = payload.accessories ?? [];
+    this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
 
     this.skillDbSchema = payload.skillDbSchema;
     this.skillDbDraft = payload.skillDbDraft;
@@ -55,6 +84,9 @@ export class HbrDataStore {
     this.characterSortMetaByLabel = this.buildCharacterSortMetaByLabel(this.characters);
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
+    this.skillRuleOverridesById = new Map(
+      this.skillRuleOverrides.map((row) => [Number(row.id), row])
+    );
     this.canonicalSkillById = new Map(
       (this.skillDbDraft.canonicalSkills ?? []).map((row) => [Number(row.skillId), row])
     );
@@ -98,6 +130,7 @@ export class HbrDataStore {
       skills: readJson(resolve(dir, 'skills.json')),
       passives: readJson(resolve(dir, 'passives.json')),
       accessories: readJson(resolve(dir, 'accessories.json')),
+      skillRuleOverrides: readJson(resolve(dir, 'skill_rule_overrides.json')),
       skillDbSchema: readJson(resolve(dir, 'new_skill_database.schema.json')),
       skillDbDraft: readJson(resolve(dir, 'reports/migration/new_skill_database.draft.json')),
     });
@@ -114,6 +147,7 @@ export class HbrDataStore {
       skills: payload.skills ?? [],
       passives: payload.passives ?? [],
       accessories: payload.accessories ?? [],
+      skillRuleOverrides: payload.skillRuleOverrides ?? [],
       skillDbSchema: payload.skillDbSchema ?? {},
       skillDbDraft: payload.skillDbDraft ?? {},
       skillAvailability: payload.skillAvailability ?? {},
@@ -139,6 +173,45 @@ export class HbrDataStore {
     }
   }
 
+  mergeSkillWithOverride(skill) {
+    if (!skill || typeof skill !== 'object') {
+      return null;
+    }
+
+    const id = Number(skill.id);
+    const override = this.skillRuleOverridesById.get(id);
+    if (!override) {
+      return structuredClone(skill);
+    }
+
+    const merged = {
+      ...structuredClone(skill),
+      ...structuredClone(override),
+    };
+
+    if (Array.isArray(skill.parts) && Array.isArray(override.parts)) {
+      const parts = [];
+      const maxLen = Math.max(skill.parts.length, override.parts.length);
+      for (let i = 0; i < maxLen; i += 1) {
+        const basePart = skill.parts[i];
+        const overridePart = override.parts[i];
+        if (basePart && overridePart) {
+          parts.push({
+            ...structuredClone(basePart),
+            ...structuredClone(overridePart),
+          });
+        } else if (overridePart) {
+          parts.push(structuredClone(overridePart));
+        } else if (basePart) {
+          parts.push(structuredClone(basePart));
+        }
+      }
+      merged.parts = parts;
+    }
+
+    return merged;
+  }
+
   getCharacterById(characterId) {
     return this.charactersById.get(Number(characterId)) ?? null;
   }
@@ -152,7 +225,8 @@ export class HbrDataStore {
   }
 
   getSkillById(skillId) {
-    return this.skillsById.get(Number(skillId)) ?? null;
+    const raw = this.skillsById.get(Number(skillId)) ?? null;
+    return this.mergeSkillWithOverride(raw);
   }
 
   getLimitBreakMaxByTier(tier) {
@@ -301,7 +375,7 @@ export class HbrDataStore {
   getMasterSkillByCharacterLabel(characterLabel) {
     const character = this.getCharacterByLabel(characterLabel);
     const skill = character?.masterly?.skill ?? null;
-    return skill && typeof skill === 'object' ? skill : null;
+    return skill && typeof skill === 'object' ? this.mergeSkillWithOverride(skill) : null;
   }
 
   listOrbSkills() {
@@ -317,7 +391,7 @@ export class HbrDataStore {
         }
         seen.add(id);
         out.push({
-          ...skill,
+          ...this.mergeSkillWithOverride(skill),
           sourceAccessoryId: Number(accessory.id),
           sourceAccessoryLabel: String(accessory.label ?? ''),
           sourceAccessoryName: String(accessory.name ?? ''),
@@ -409,10 +483,11 @@ export class HbrDataStore {
   }
 
   getSkillUsageRule(skillIdOrSkill, policy = 'max') {
-    const skill =
+    const skillRaw =
       typeof skillIdOrSkill === 'object' && skillIdOrSkill !== null
         ? skillIdOrSkill
         : this.getSkillById(skillIdOrSkill);
+    const skill = this.mergeSkillWithOverride(skillRaw);
 
     if (!skill) {
       return null;
@@ -575,6 +650,66 @@ export class HbrDataStore {
     }
 
     return out;
+  }
+
+  getAdditionalTurnRule(skillIdOrSkill) {
+    const skillRaw =
+      typeof skillIdOrSkill === 'object' && skillIdOrSkill !== null
+        ? skillIdOrSkill
+        : this.getSkillById(skillIdOrSkill);
+    const skill = this.mergeSkillWithOverride(skillRaw);
+    if (!skill) {
+      return null;
+    }
+
+    const hasAdditionalTurnPart = (skill.parts ?? []).some(
+      (part) => String(part.skill_type ?? '') === 'AdditionalTurn'
+    );
+    if (!hasAdditionalTurnPart) {
+      return null;
+    }
+
+    const skillConditionFlags = mergeConditionFlags(
+      parseConditionFlags(skill.cond),
+      parseConditionFlags(skill.iuc_cond)
+    );
+    const additionalTurnParts = (skill.parts ?? []).filter(
+      (part) => String(part.skill_type ?? '') === 'AdditionalTurn'
+    );
+    const partConditionFlags = additionalTurnParts.map((part) =>
+      mergeConditionFlags(
+        parseConditionFlags(part.cond),
+        parseConditionFlags(part.hit_condition),
+        parseConditionFlags(part.target_condition)
+      )
+    );
+    const aggregatePartFlags = mergeConditionFlags(...partConditionFlags);
+
+    const defaultSkillUsableInExtraTurn = !skillConditionFlags.excludesExtraTurn;
+    const defaultAdditionalTurnGrantInExtraTurn =
+      defaultSkillUsableInExtraTurn && !aggregatePartFlags.excludesExtraTurn;
+    const overrideRules = skill.extra_turn_rules ?? {};
+    const hasGrantOverride = overrideRules.additional_turn_grant_in_extra_turn !== undefined;
+    const hasUsableOverride = overrideRules.skill_usable_in_extra_turn !== undefined;
+    const additionalTurnTargetTypes = additionalTurnParts.map((part) => String(part.target_type ?? ''));
+
+    return {
+      skillId: Number(skill.id),
+      skillUsableInExtraTurn:
+        overrideRules.skill_usable_in_extra_turn ?? defaultSkillUsableInExtraTurn,
+      additionalTurnGrantInExtraTurn:
+        overrideRules.additional_turn_grant_in_extra_turn ?? defaultAdditionalTurnGrantInExtraTurn,
+      conditions: {
+        requiresOverDrive:
+          skillConditionFlags.requiresOverDrive || aggregatePartFlags.requiresOverDrive,
+        requiresReinforcedMode:
+          skillConditionFlags.requiresReinforcedMode || aggregatePartFlags.requiresReinforcedMode,
+        excludesExtraTurnForSkillUse: skillConditionFlags.excludesExtraTurn,
+        excludesExtraTurnForAdditionalTurnGrant: aggregatePartFlags.excludesExtraTurn,
+      },
+      additionalTurnTargetTypes,
+      source: hasGrantOverride || hasUsableOverride ? 'override' : 'derived',
+    };
   }
 
   listTriggeredSkillsByStyleId(styleId) {
@@ -807,10 +942,12 @@ export class HbrDataStore {
     const allStyleSkills = this.listEquipableSkillsByStyleId(style.id)
       .map((skill) => {
         const canonical = this.canonicalSkillById.get(Number(skill.id));
+        const additionalTurnRule = this.getAdditionalTurnRule(skill);
         return {
           ...skill,
           canonicalSkill: canonical ?? null,
           usage: this.resolveSkillUseCount(skill.use_count, 'max'),
+          additionalTurnRule,
         };
       });
     const equippedSet = Array.isArray(equippedSkillIds)

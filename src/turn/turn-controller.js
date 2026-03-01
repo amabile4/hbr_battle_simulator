@@ -13,11 +13,136 @@ function findMemberByCharacterId(state, characterId) {
   return state.party.find((member) => member.characterId === characterId) ?? null;
 }
 
+function hasReinforcedMode(member) {
+  if (member.isReinforcedMode) {
+    return true;
+  }
+
+  if (!Array.isArray(member.effects)) {
+    return false;
+  }
+
+  return member.effects.some((effect) => {
+    const type = String(effect?.type ?? effect?.effectType ?? effect?.kind ?? '');
+    const tag = String(effect?.tag ?? effect?.label ?? effect?.name ?? '');
+    return (
+      type === 'ReinforcedMode' ||
+      type === 'Kishin' ||
+      tag.includes('鬼神') ||
+      tag.includes('Reinforced')
+    );
+  });
+}
+
+function getFrontlineMembers(state) {
+  return state.party
+    .filter((member) => member.position <= 2)
+    .slice()
+    .sort((a, b) => a.position - b.position);
+}
+
+function getExtraAllowedSet(turnState) {
+  if (turnState.turnType !== 'extra' || !turnState.extraTurnState) {
+    return null;
+  }
+  return new Set(turnState.extraTurnState.allowedCharacterIds ?? []);
+}
+
+function syncExtraActiveFlags(party, allowedCharacterIds = []) {
+  const allowed = new Set(allowedCharacterIds);
+  for (const member of party) {
+    member.setExtraActive(allowed.has(member.characterId));
+  }
+}
+
+function resolveAdditionalTurnTargets(state, actorMember, targetTypes) {
+  const ids = new Set();
+  const frontline = getFrontlineMembers(state);
+
+  for (const targetTypeRaw of targetTypes ?? []) {
+    const targetType = String(targetTypeRaw ?? '');
+    if (!targetType) {
+      continue;
+    }
+
+    if (targetType === 'Self') {
+      ids.add(actorMember.characterId);
+      continue;
+    }
+
+    if (targetType === 'AllyFront') {
+      for (const member of frontline) {
+        ids.add(member.characterId);
+      }
+      continue;
+    }
+
+    if (targetType === 'AllySingleWithoutSelf') {
+      const target =
+        frontline.find((member) => member.characterId !== actorMember.characterId) ?? null;
+      if (target) {
+        ids.add(target.characterId);
+      }
+      continue;
+    }
+
+    if (targetType === 'AllySingle') {
+      const target = frontline[0] ?? null;
+      if (target) {
+        ids.add(target.characterId);
+      }
+      continue;
+    }
+  }
+
+  return [...ids];
+}
+
+function deriveGrantedExtraTurnCharacterIds(state, previewRecord) {
+  const granted = new Set();
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const member = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!member) {
+      continue;
+    }
+
+    const skill = member.getSkill(actionEntry.skillId);
+    if (!skill?.additionalTurnRule) {
+      continue;
+    }
+
+    const rule = skill.additionalTurnRule;
+    if (!rule.additionalTurnGrantInExtraTurn && state.turnState.turnType === 'extra') {
+      continue;
+    }
+
+    const conditions = rule.conditions ?? {};
+    if (conditions.requiresOverDrive && state.turnState.turnType !== 'od') {
+      continue;
+    }
+    if (conditions.requiresReinforcedMode && !hasReinforcedMode(member)) {
+      continue;
+    }
+
+    const targetTypes = Array.isArray(rule.additionalTurnTargetTypes)
+      ? rule.additionalTurnTargetTypes
+      : [];
+    const targets = resolveAdditionalTurnTargets(state, member, targetTypes);
+    for (const characterId of targets) {
+      granted.add(characterId);
+    }
+  }
+
+  return [...granted];
+}
+
 function validateActionDict(state, actions) {
   if (!actions || typeof actions !== 'object' || Array.isArray(actions)) {
     throw new Error('actions must be an object keyed by position index.');
   }
 
+  const allowedInExtra = getExtraAllowedSet(state.turnState);
   const entries = Object.entries(actions).map(([positionKey, action]) => {
     const position = Number(positionKey);
     const member = state.party.find((item) => item.position === position) ?? null;
@@ -32,6 +157,10 @@ function validateActionDict(state, actions) {
 
     if (action.characterId && action.characterId !== member.characterId) {
       throw new Error(`characterId mismatch at position ${position}`);
+    }
+
+    if (allowedInExtra && !allowedInExtra.has(member.characterId)) {
+      throw new Error(`Character ${member.characterId} is not allowed to act in extra turn.`);
     }
 
     const skill = member.getSkill(action.skillId);
@@ -132,13 +261,30 @@ function applySwapEvents(state, swapEvents) {
   }
 }
 
-function computeNextTurnState(current) {
+function computeNextTurnState(current, grantedExtraCharacterIds = []) {
   const next = cloneTurnState(current);
   next.sequenceId += 1;
+  const hasGrantedExtra = grantedExtraCharacterIds.length > 0;
+  const grantedSet = new Set(grantedExtraCharacterIds);
 
   if (current.turnType === 'od') {
+    const remainingOdActions = Math.max(0, Number(current.remainingOdActions) - 1);
+    next.remainingOdActions = remainingOdActions;
+
+    if (hasGrantedExtra) {
+      next.turnType = 'extra';
+      next.turnLabel = 'EX';
+      next.odSuspended = true;
+      next.extraTurnState = {
+        active: true,
+        remainingActions: 1,
+        allowedCharacterIds: [...grantedSet],
+        grantTurnIndex: current.turnIndex,
+      };
+      return next;
+    }
+
     if (current.remainingOdActions > 1) {
-      next.remainingOdActions = current.remainingOdActions - 1;
       next.turnType = 'od';
       next.turnLabel = `OD${current.odLevel}-${current.odLevel - next.remainingOdActions + 1}`;
       return next;
@@ -156,6 +302,23 @@ function computeNextTurnState(current) {
   }
 
   if (current.turnType === 'extra') {
+    if (hasGrantedExtra) {
+      const prevAllowed = current.extraTurnState?.allowedCharacterIds ?? [];
+      for (const id of prevAllowed) {
+        grantedSet.add(id);
+      }
+
+      next.turnType = 'extra';
+      next.turnLabel = 'EX';
+      next.extraTurnState = {
+        active: true,
+        remainingActions: 1,
+        allowedCharacterIds: [...grantedSet],
+        grantTurnIndex: current.turnIndex,
+      };
+      return next;
+    }
+
     const extraState = current.extraTurnState;
     if (extraState && extraState.remainingActions > 1) {
       next.extraTurnState = {
@@ -176,6 +339,7 @@ function computeNextTurnState(current) {
       next.remainingOdActions = level;
       next.odPending = false;
       next.extraTurnState = null;
+      next.odSuspended = false;
       return next;
     }
 
@@ -183,6 +347,19 @@ function computeNextTurnState(current) {
     next.turnIndex = current.turnIndex + 1;
     next.turnLabel = `T${next.turnIndex}`;
     next.extraTurnState = null;
+    next.odSuspended = false;
+    return next;
+  }
+
+  if (hasGrantedExtra) {
+    next.turnType = 'extra';
+    next.turnLabel = 'EX';
+    next.extraTurnState = {
+      active: true,
+      remainingActions: 1,
+      allowedCharacterIds: [...grantedSet],
+      grantTurnIndex: current.turnIndex,
+    };
     return next;
   }
 
@@ -194,7 +371,10 @@ function computeNextTurnState(current) {
 
 export function createBattleStateFromParty(party, turnState) {
   const members = Array.isArray(party) ? party : party.members;
-  return createBattleState(members, turnState);
+  const next = createBattleState(members, turnState);
+  const allowed = next.turnState.extraTurnState?.allowedCharacterIds ?? [];
+  syncExtraActiveFlags(next.party, allowed);
+  return next;
 }
 
 export function previewTurn(state, actions, enemyAction = null) {
@@ -266,7 +446,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
 
   const snapAfter = snapshotPartyByPartyIndex(state.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
-  const nextTurnState = computeNextTurnState(state.turnState);
+  const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
+  const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
+  syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 
   const nextState = {
     ...state,
@@ -319,6 +501,10 @@ export function grantExtraTurn(state, allowedCharacterIds) {
 
   return {
     ...state,
+    party: state.party.map((member) => {
+      member.setExtraActive(ids.includes(member.characterId));
+      return member;
+    }),
     turnState: nextTurnState,
   };
 }
