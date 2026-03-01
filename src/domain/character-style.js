@@ -111,6 +111,11 @@ export class CharacterStyle {
         parts: Array.isArray(passive.parts) ? structuredClone(passive.parts) : [],
       }))
     );
+    const skillUseCountsInput =
+      input.skillUseCounts && typeof input.skillUseCounts === 'object' ? input.skillUseCounts : {};
+    this.skillUseCounts = new Map(
+      Object.entries(skillUseCountsInput).map(([k, v]) => [String(k), Number(v)])
+    );
 
     this._revision = 0;
   }
@@ -265,6 +270,33 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
+  getSkillUseCountByLabel(label) {
+    const key = String(label ?? '').trim();
+    if (!key) {
+      return 0;
+    }
+    return Number(this.skillUseCounts.get(key) ?? 0);
+  }
+
+  incrementSkillUseByLabel(label) {
+    const key = String(label ?? '').trim();
+    if (!key) {
+      return;
+    }
+    const current = this.getSkillUseCountByLabel(key);
+    this.skillUseCounts.set(key, current + 1);
+    this._revision += 1;
+  }
+
+  incrementSkillUseById(skillId) {
+    const skill = this.getSkill(skillId);
+    const key = String(skill?.label ?? '').trim();
+    if (!key) {
+      return;
+    }
+    this.incrementSkillUseByLabel(key);
+  }
+
   snapshot() {
     return {
       characterId: this.characterId,
@@ -281,6 +313,7 @@ export class CharacterStyle {
       isExtraActive: this.isExtraActive,
       isReinforcedMode: this.isReinforcedMode,
       epRule: this.epRule ? structuredClone(this.epRule) : null,
+      skillUseCounts: Object.fromEntries(this.skillUseCounts.entries()),
       revision: this._revision,
     };
   }

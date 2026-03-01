@@ -93,14 +93,13 @@ function compareNumbers(left, op, right) {
   }
 }
 
-function evaluateSkillConditionExpression(expression, turnState, skill) {
+function evaluateSkillConditionExpression(expression, member, skill) {
   const text = String(expression ?? '').trim();
   if (!text) {
     return true;
   }
 
   const clauses = text.split('&&').map((s) => s.trim()).filter(Boolean);
-  const counts = turnState?.skillUseCounts ?? {};
   const defaultRef = String(skill?.label ?? '');
 
   for (const clause of clauses) {
@@ -113,7 +112,7 @@ function evaluateSkillConditionExpression(expression, turnState, skill) {
     const ref = refRaw || defaultRef;
     const op = m[2];
     const rhs = Number(m[3]);
-    const lhs = Number(counts[ref] ?? 0);
+    const lhs = Number(member?.getSkillUseCountByLabel(ref) ?? 0);
     if (!compareNumbers(lhs, op, rhs)) {
       return false;
     }
@@ -121,7 +120,7 @@ function evaluateSkillConditionExpression(expression, turnState, skill) {
   return true;
 }
 
-function resolveEffectiveSkillParts(skill, turnState) {
+function resolveEffectiveSkillParts(skill, member) {
   const out = [];
 
   for (const part of skill?.parts ?? []) {
@@ -138,9 +137,9 @@ function resolveEffectiveSkillParts(skill, turnState) {
       continue;
     }
 
-    const conditionMatched = evaluateSkillConditionExpression(part?.cond, turnState, skill);
+    const conditionMatched = evaluateSkillConditionExpression(part?.cond, member, skill);
     const selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
-    out.push(...resolveEffectiveSkillParts(selected, turnState));
+    out.push(...resolveEffectiveSkillParts(selected, member));
   }
 
   return out;
@@ -230,7 +229,7 @@ function computeOverDrivePointUpGainPercent(effectiveParts, member, actionEntry,
 }
 
 function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null, actionEntry = null) {
-  const effectiveParts = resolveEffectiveSkillParts(skill, actionEntry?.turnState);
+  const effectiveParts = resolveEffectiveSkillParts(skill, member);
   const hasDamage = hasDamagePartInParts(effectiveParts);
   const hasOdPoint = hasOverDrivePointUpPartInParts(effectiveParts);
   if (!hasDamage && !hasOdPoint) {
@@ -304,12 +303,7 @@ function applyOdGaugeFromActions(state, previewRecord) {
     const baseHitCount = resolveSkillHitCount(skill);
     const effectiveHitCount =
       String(skill?.targetType ?? '') === 'All' ? baseHitCount * enemyCount : baseHitCount;
-    const odGaugeGain = computeOdGaugeGainPercentBySkill(
-      skill,
-      enemyCount,
-      member,
-      { ...actionEntry, turnState: state.turnState }
-    );
+    const odGaugeGain = computeOdGaugeGainPercentBySkill(skill, enemyCount, member, actionEntry);
     if (!Number.isFinite(odGaugeGain) || odGaugeGain === 0) {
       continue;
     }
@@ -334,23 +328,6 @@ function applyOdGaugeFromActions(state, previewRecord) {
     totalGain: total,
     events,
   };
-}
-
-function incrementSkillUseCounts(turnState, previewRecord, state) {
-  const next = { ...(turnState.skillUseCounts ?? {}) };
-  for (const entry of previewRecord.actions ?? []) {
-    const member = findMemberByCharacterId(state, entry.characterId);
-    if (!member) {
-      continue;
-    }
-    const skill = member.getSkill(entry.skillId);
-    const key = String(skill?.label ?? entry.skillLabel ?? '');
-    if (!key) {
-      continue;
-    }
-    next[key] = Number(next[key] ?? 0) + 1;
-  }
-  return next;
 }
 
 function findMemberByCharacterId(state, characterId) {
@@ -963,6 +940,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );
     entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
+    member.incrementSkillUseById(entry.skillId);
   }
 
   if (applySwapOnCommit) {
@@ -973,7 +951,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
-  nextTurnState.skillUseCounts = incrementSkillUseCounts(nextTurnState, previewRecord, state);
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 
   const nextState = {

@@ -75,7 +75,7 @@
   - `SkillCondition` + `PlayedSkillCount(...)` を評価して分岐先 `strval` スキルを選択
   - 例: `コンペンセーション` は初回75%・2回目以降25%（いずれもドライブ補正適用）
 - 状態管理:
-  - `turnState.skillUseCounts` にスキル使用回数を保持し、commitごとに加算
+  - `CharacterStyle.skillUseCounts` にスキル使用回数を保持し、commitごとに加算
 
 ## 2026年2月27日 - 要求仕様確定メモ
 
