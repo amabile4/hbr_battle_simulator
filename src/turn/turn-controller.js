@@ -9,6 +9,7 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 export const BASE_SP_RECOVERY = 2;
 const OD_RECOVERY_BY_LEVEL = Object.freeze({ 1: 5, 2: 12, 3: 20 });
 const OD_GAUGE_PER_HIT_PERCENT = 2.5;
+const OD_GAUGE_MAX_PERCENT = 300;
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
   'AttackSkill',
@@ -180,7 +181,7 @@ function resolveOverDrivePointUpPowerPercent(part) {
   return maxPower * 100;
 }
 
-function evaluateOverDrivePointUpCondition(part, actionEntry) {
+function evaluateOdGaugePartCondition(part, actionEntry) {
   const condTexts = [String(part?.cond ?? ''), String(part?.hit_condition ?? '')].filter(Boolean);
   if (condTexts.length === 0) {
     return true;
@@ -213,7 +214,7 @@ function computeOverDrivePointUpGainPercent(effectiveParts, member, actionEntry,
     if (String(part?.skill_type ?? '') !== 'OverDrivePointUp') {
       continue;
     }
-    if (!evaluateOverDrivePointUpCondition(part, actionEntry)) {
+    if (!evaluateOdGaugePartCondition(part, actionEntry)) {
       continue;
     }
 
@@ -225,6 +226,32 @@ function computeOverDrivePointUpGainPercent(effectiveParts, member, actionEntry,
     total = truncateToTwoDecimals(total + truncateToTwoDecimals(partPercent * driveMultiplier));
   }
 
+  return total;
+}
+
+function resolveOverDrivePointDownPowerPercent(part) {
+  const power0 = Number(part?.power?.[0] ?? 0);
+  const power1 = Number(part?.power?.[1] ?? 0);
+  const maxPower = Math.max(power0, power1, 0);
+  return maxPower * 100;
+}
+
+function computeOverDrivePointDownPercent(effectiveParts, actionEntry) {
+  let total = 0;
+  for (const part of effectiveParts ?? []) {
+    if (String(part?.skill_type ?? '') !== 'OverDrivePointDown') {
+      continue;
+    }
+    if (!evaluateOdGaugePartCondition(part, actionEntry)) {
+      continue;
+    }
+
+    const partPercent = resolveOverDrivePointDownPowerPercent(part);
+    if (!Number.isFinite(partPercent) || partPercent <= 0) {
+      continue;
+    }
+    total = truncateToTwoDecimals(total + partPercent);
+  }
   return total;
 }
 
@@ -283,11 +310,11 @@ function computeOdGaugeGainPercentBySkill(skill, enemyCount = 1, member = null, 
 
 function applyOdGaugeFromActions(state, previewRecord) {
   const events = [];
-  let total = 0;
   const enemyCountRaw = Number(previewRecord?.enemyCount ?? 1);
   const enemyCount = Number.isFinite(enemyCountRaw)
     ? Math.max(1, Math.min(3, enemyCountRaw))
     : 1;
+  let currentOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const member = findMemberByCharacterId(state, actionEntry.characterId);
@@ -300,32 +327,42 @@ function applyOdGaugeFromActions(state, previewRecord) {
       continue;
     }
 
+    const effectiveParts = resolveEffectiveSkillParts(skill, member);
     const baseHitCount = resolveSkillHitCount(skill);
     const effectiveHitCount =
       String(skill?.targetType ?? '') === 'All' ? baseHitCount * enemyCount : baseHitCount;
     const odGaugeGain = computeOdGaugeGainPercentBySkill(skill, enemyCount, member, actionEntry);
-    if (!Number.isFinite(odGaugeGain) || odGaugeGain === 0) {
+    const odGaugeDown = computeOverDrivePointDownPercent(effectiveParts, actionEntry);
+    const delta = truncateToTwoDecimals(Number(odGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
+    if (!Number.isFinite(delta) || delta === 0) {
       continue;
     }
 
-    total += odGaugeGain;
+    const beforeOdGauge = currentOdGauge;
+    currentOdGauge = truncateToTwoDecimals(beforeOdGauge + delta);
+    currentOdGauge = Math.max(0, Math.min(OD_GAUGE_MAX_PERCENT, currentOdGauge));
+
     events.push({
       characterId: member.characterId,
       skillId: skill.skillId,
       skillName: skill.name,
       hitCount: effectiveHitCount,
-      odGaugeGain,
+      odGaugeGain: delta,
+      odGaugeRawGain: truncateToTwoDecimals(Number(odGaugeGain ?? 0)),
+      odGaugeRawDown: truncateToTwoDecimals(Number(odGaugeDown ?? 0)),
+      odGaugeBefore: beforeOdGauge,
+      odGaugeAfter: currentOdGauge,
     });
   }
 
-  const startOdGauge = Number(state.turnState.odGauge ?? 0);
-  const endOdGauge = truncateToTwoDecimals(startOdGauge + total);
+  const startOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
+  const endOdGauge = currentOdGauge;
   state.turnState.odGauge = endOdGauge;
 
   return {
     startOdGauge,
     endOdGauge,
-    totalGain: total,
+    totalGain: truncateToTwoDecimals(endOdGauge - startOdGauge),
     events,
   };
 }

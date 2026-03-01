@@ -653,3 +653,86 @@ test('non-damaging OD gain skill applies drive bonus and first-use branching (Co
   assert.ok(Math.abs(committed.nextState.turnState.odGauge - 105) < 0.01);
   assert.equal(Math.floor(committed.nextState.turnState.odGauge), 105);
 });
+
+test('od gauge is capped at 300%', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `C${idx + 1}`,
+      characterName: `C${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      drivePiercePercent: idx === 0 ? 15 : 0,
+      skills: [
+        {
+          id: 9800 + idx,
+          name: idx === 0 ? 'Big AoE' : 'Normal',
+          sp_cost: 1,
+          hit_count: 12,
+          target_type: 'All',
+          parts: [{ skill_type: 'AttackSkill', target_type: idx === 0 ? 'All' : 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const party = new Party(members);
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 299.5;
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'C1', skillId: 9800 },
+    },
+    null,
+    3
+  );
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.odGauge, 300);
+});
+
+test('OverDrivePointDown reduces od gauge and cannot go below 0', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `D${idx + 1}`,
+      characterName: `D${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      skills: [
+        {
+          id: 9900 + idx,
+          name: idx === 0 ? 'Spend OD 50' : 'Normal',
+          sp_cost: 0,
+          hit_count: -1,
+          target_type: 'Self',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'OverDrivePointDown', target_type: 'Self', power: [0.5, 0] }]
+              : [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const party = new Party(members);
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 40;
+  let preview = previewTurn(state, {
+    0: { characterId: 'D1', skillId: 9900 },
+  });
+  let committed = commitTurn(state, preview);
+  assert.equal(committed.nextState.turnState.odGauge, 0);
+
+  state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 184.7;
+  preview = previewTurn(state, {
+    0: { characterId: 'D1', skillId: 9900 },
+  });
+  committed = commitTurn(state, preview);
+  assert.equal(committed.nextState.turnState.odGauge, 134.7);
+});
