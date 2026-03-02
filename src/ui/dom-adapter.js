@@ -1199,12 +1199,12 @@ export class BattleDomAdapter {
       }
       this.lastActionSkillByPosition.set(member.position, toInt(select.value, 0));
 
-      wrapper.appendChild(select);
       const skillAttrBadges = this.doc.createElement('span');
       skillAttrBadges.setAttribute('data-role', 'action-skill-attr-badges');
       skillAttrBadges.setAttribute('data-position', String(member.position));
       skillAttrBadges.className = 'attr-badge-row';
       wrapper.appendChild(skillAttrBadges);
+      wrapper.appendChild(select);
       container.appendChild(wrapper);
       this.updateActionSkillAttributeBadges(member.position, toInt(select.value, 0));
     }
