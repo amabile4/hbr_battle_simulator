@@ -243,6 +243,205 @@ test('self-only additional turn in extra turn does not carry previous allowed me
   assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, ['X1']);
 });
 
+test('OD turn resumes after extra turn (OD3-1 -> EX -> OD3-2)', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `R${idx + 1}`,
+      characterName: `R${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `RS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 12000 + idx,
+          name: idx === 0 ? 'Grant Self Extra' : 'Normal',
+          sp_cost: 0,
+          additionalTurnRule:
+            idx === 0
+              ? {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: false,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: true,
+                  },
+                  additionalTurnTargetTypes: ['Self'],
+                }
+              : null,
+          parts: idx === 0 ? [{ skill_type: 'AdditionalTurn', target_type: 'Self' }] : [],
+        },
+      ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 300;
+  state = activateOverdrive(state, 3, 'preemptive');
+  assert.equal(state.turnState.turnLabel, 'OD3-1');
+
+  // OD3-1 で追加ターン付与
+  const previewOd = previewTurn(state, {
+    0: { characterId: 'R1', skillId: 12000 },
+    1: { characterId: 'R2', skillId: 12001 },
+    2: { characterId: 'R3', skillId: 12002 },
+  });
+  state = commitTurn(state, previewOd).nextState;
+  assert.equal(state.turnState.turnType, 'extra');
+  assert.equal(state.turnState.odSuspended, true);
+  assert.equal(state.turnState.remainingOdActions, 2);
+
+  // EX終了後は OD3-2 へ復帰するべき
+  const previewEx = previewTurn(state, {
+    0: { characterId: 'R1', skillId: 12000 },
+  });
+  state = commitTurn(state, previewEx).nextState;
+  assert.equal(state.turnState.turnType, 'od');
+  assert.equal(state.turnState.turnLabel, 'OD3-2');
+  assert.equal(state.turnState.remainingOdActions, 2);
+  assert.equal(state.turnState.odSuspended, false);
+});
+
+test('OD1 preemptive + single extra returns to T1 after extra ends', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `O${idx + 1}`,
+      characterName: `O${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `OS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 13000 + idx,
+          name: idx === 0 ? 'Grant Self Extra Once' : 'Normal',
+          sp_cost: 0,
+          additionalTurnRule:
+            idx === 0
+              ? {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: false,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: true,
+                  },
+                  additionalTurnTargetTypes: ['Self'],
+                }
+              : null,
+          parts: idx === 0 ? [{ skill_type: 'AdditionalTurn', target_type: 'Self' }] : [],
+        },
+      ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+  assert.equal(state.turnState.turnLabel, 'OD1-1');
+
+  const odPreview = previewTurn(state, {
+    0: { characterId: 'O1', skillId: 13000 },
+    1: { characterId: 'O2', skillId: 13001 },
+    2: { characterId: 'O3', skillId: 13002 },
+  });
+  state = commitTurn(state, odPreview).nextState;
+  assert.equal(state.turnState.turnType, 'extra');
+
+  const exPreview = previewTurn(state, {
+    0: { characterId: 'O1', skillId: 13000 },
+  });
+  state = commitTurn(state, exPreview).nextState;
+  assert.equal(state.turnState.turnType, 'normal');
+  assert.equal(state.turnState.turnLabel, 'T1');
+  assert.equal(state.turnState.turnIndex, 1);
+});
+
+test('OD1 preemptive + chained extras returns to T1 after all extras end', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `Z${idx + 1}`,
+      characterName: `Z${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ZS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 14000,
+                name: 'Chain Self Extra',
+                sp_cost: 0,
+                additionalTurnRule: {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: true,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: false,
+                  },
+                  additionalTurnTargetTypes: ['Self'],
+                },
+                parts: [{ skill_type: 'AdditionalTurn', target_type: 'Self' }],
+              },
+              {
+                id: 14001,
+                name: 'End Chain',
+                sp_cost: 0,
+                parts: [],
+              },
+            ]
+          : [
+              {
+                id: 14000 + idx + 1,
+                name: 'Normal',
+                sp_cost: 0,
+                parts: [],
+              },
+            ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const odPreview = previewTurn(state, {
+    0: { characterId: 'Z1', skillId: 14000 },
+    1: { characterId: 'Z2', skillId: 14002 },
+    2: { characterId: 'Z3', skillId: 14003 },
+  });
+  state = commitTurn(state, odPreview).nextState;
+  assert.equal(state.turnState.turnType, 'extra');
+
+  // EX, EX, EX を継続
+  for (let i = 0; i < 3; i += 1) {
+    const exPreview = previewTurn(state, {
+      0: { characterId: 'Z1', skillId: 14000 },
+    });
+    state = commitTurn(state, exPreview).nextState;
+    assert.equal(state.turnState.turnType, 'extra');
+  }
+
+  // 最後のEXで連鎖を止める
+  const exEndPreview = previewTurn(state, {
+    0: { characterId: 'Z1', skillId: 14001 },
+  });
+  state = commitTurn(state, exEndPreview).nextState;
+
+  assert.equal(state.turnState.turnType, 'normal');
+  assert.equal(state.turnState.turnLabel, 'T1');
+  assert.equal(state.turnState.turnIndex, 1);
+});
+
 test('extra turn disallows non-allowed members from acting', () => {
   const party = createManualExtraTurnParty();
   let state = createBattleStateFromParty(party);
@@ -1000,4 +1199,258 @@ test('kishin state lasts 3 actionable turns then applies 1-turn action disable',
   state = commitTurn(state, previewDisabledTurn).nextState;
   const recovered = state.party.find((m) => m.characterId === 'STezuka');
   assert.equal(recovered.actionDisabledTurns, 0);
+});
+
+test('kishin remaining 1 still allows Tezuka self-extra grant before expiring', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: idx === 0 ? 'STezuka' : `KR${idx + 1}`,
+      characterName: idx === 0 ? '手塚 咲' : `KR${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `KRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: idx === 0 ? 10400 : 10400 + idx,
+          name: idx === 0 ? '天駆の鉄槌' : 'Normal',
+          label: idx === 0 ? 'STezukaTenku' : `KRSkill${idx + 1}`,
+          sp_cost: 0,
+          additionalTurnRule:
+            idx === 0
+              ? {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: true,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: true,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: false,
+                  },
+                  additionalTurnTargetTypes: ['Self'],
+                }
+              : null,
+          parts:
+            idx === 0
+              ? [
+                  { skill_type: 'AttackSkill', target_type: 'All' },
+                  { skill_type: 'AdditionalTurn', target_type: 'Self' },
+                ]
+              : [],
+        },
+      ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  const tezuka = state.party.find((m) => m.characterId === 'STezuka');
+  tezuka.activateReinforcedMode(3);
+  state = grantExtraTurn(state, ['STezuka']);
+
+  for (let i = 0; i < 3; i += 1) {
+    const preview = previewTurn(state, {
+      0: { characterId: 'STezuka', skillId: 10400 },
+    });
+    state = commitTurn(state, preview).nextState;
+    assert.equal(state.turnState.turnType, 'extra', `commit #${i + 1} should still be extra`);
+  }
+
+  const afterThird = state.party.find((m) => m.characterId === 'STezuka');
+  assert.equal(afterThird.isReinforcedMode, false);
+  assert.equal(afterThird.actionDisabledTurns, 1);
+
+  const disabledSkills = afterThird.getActionSkills();
+  assert.equal(disabledSkills.length, 1);
+  assert.equal(disabledSkills[0].skillId, 0);
+
+  const previewDisabled = previewTurn(state, {
+    0: { characterId: 'STezuka', skillId: 0 },
+  });
+  state = commitTurn(state, previewDisabled).nextState;
+  assert.equal(state.turnState.turnType, 'normal');
+});
+
+test('commitTurn imports Funnel effect values from skill parts into statusEffects', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `FU${idx + 1}`,
+      characterName: `FU${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `FUS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 21000 + idx,
+          name: idx === 0 ? 'Funnel Self' : 'Normal',
+          label: idx === 0 ? 'FunnelSelf' : `FUSkill${idx + 1}`,
+          sp_cost: 0,
+          parts:
+            idx === 0
+              ? [
+                  {
+                    skill_type: 'Funnel',
+                    target_type: 'Self',
+                    power: [5, 0],
+                    value: [0.06, 0],
+                    effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                  },
+                ]
+              : [],
+        },
+      ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'FU1', skillId: 21000 },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  const actor = state.party.find((m) => m.characterId === 'FU1');
+  const effects = actor.resolveEffectiveFunnelEffects();
+  assert.equal(effects.length, 1);
+  assert.equal(effects[0].power, 5);
+  assert.equal(effects[0].limitType, 'Default');
+  assert.equal(effects[0].exitCond, 'Count');
+  assert.equal(effects[0].remaining, 1);
+  assert.equal(effects[0].metadata?.damageBonus, 0.06);
+});
+
+test('commitTurn imports Funnel from SkillCondition resolved branch', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `FC${idx + 1}`,
+      characterName: `FC${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `FCS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 22000 + idx,
+          name: idx === 0 ? 'Conditional Funnel' : 'Normal',
+          label: idx === 0 ? 'ConditionalFunnel' : `FCSkill${idx + 1}`,
+          sp_cost: 0,
+          parts:
+            idx === 0
+              ? [
+                  {
+                    skill_type: 'SkillCondition',
+                    cond: 'IsOverDrive()==1',
+                    strval: [
+                      {
+                        id: 1,
+                        parts: [
+                          {
+                            skill_type: 'Funnel',
+                            target_type: 'Self',
+                            power: [3, 0],
+                            value: [0.5, 0],
+                            effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [3, 0] },
+                          },
+                        ],
+                      },
+                      {
+                        id: 2,
+                        parts: [
+                          {
+                            skill_type: 'Funnel',
+                            target_type: 'Self',
+                            power: [5, 0],
+                            value: [0.12, 0],
+                            effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ]
+              : [],
+        },
+      ],
+    })
+  );
+
+  // 非ODでは後段(branch #2)が選ばれる
+  let state = createBattleStateFromParty(new Party(members));
+  let preview = previewTurn(state, {
+    0: { characterId: 'FC1', skillId: 22000 },
+  });
+  state = commitTurn(state, preview).nextState;
+  let effects = state.party.find((m) => m.characterId === 'FC1').resolveEffectiveFunnelEffects();
+  assert.equal(effects[0].power, 5);
+  assert.equal(effects[0].metadata?.damageBonus, 0.12);
+
+  // ODでは前段(branch #1)が選ばれる
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+  preview = previewTurn(state, {
+    0: { characterId: 'FC1', skillId: 22000 },
+  });
+  state = commitTurn(state, preview).nextState;
+  effects = state.party.find((m) => m.characterId === 'FC1').resolveEffectiveFunnelEffects();
+  assert.equal(effects.some((item) => item.power === 3 && item.metadata?.damageBonus === 0.5), true);
+});
+
+test('OD gain uses Funnel hit bonus and consumes count-based Funnel on damage action', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `FO${idx + 1}`,
+      characterName: `FO${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `FOS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 23000 + idx,
+          name: idx === 0 ? 'Attack + Funnel' : 'Normal',
+          label: idx === 0 ? 'AttackFunnel' : `FOSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 1 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [
+                  { skill_type: 'AttackSkill', target_type: 'Single' },
+                  {
+                    skill_type: 'Funnel',
+                    target_type: 'Self',
+                    power: [3, 0],
+                    value: [0.25, 0],
+                    effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                  },
+                ]
+              : [],
+        },
+      ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  let preview = previewTurn(state, {
+    0: { characterId: 'FO1', skillId: 23000 },
+  });
+  let committed = commitTurn(state, preview);
+  state = committed.nextState;
+
+  // base hit 1 + funnel +3 => 4 hits => 10.0%
+  assert.equal(state.turnState.odGauge, 10);
+  const odEvent = committed.committedRecord.actions[0].funnelApplied;
+  assert.equal(Array.isArray(odEvent), true);
+  const actor = state.party.find((m) => m.characterId === 'FO1');
+  assert.equal(actor.resolveEffectiveFunnelEffects().length, 0, 'count-based funnel should be consumed');
+
+  preview = previewTurn(state, {
+    0: { characterId: 'FO1', skillId: 23000 },
+  });
+  committed = commitTurn(state, preview);
+  state = committed.nextState;
+  assert.equal(state.turnState.odGauge, 20, 'same action repeats same +10.0%');
 });

@@ -5,6 +5,7 @@ import {
   buildPositionMap,
 } from '../contracts/interfaces.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
+import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 
 export const BASE_SP_RECOVERY = 2;
 const OD_RECOVERY_BY_LEVEL = Object.freeze({ 1: 5, 2: 12, 3: 20 });
@@ -430,7 +431,8 @@ function computeOdGaugeGainPercentBySkill(
   state,
   enemyCount = 1,
   member = null,
-  actionEntry = null
+  actionEntry = null,
+  options = {}
 ) {
   const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
   const hasDamage = hasDamagePartInParts(effectiveParts);
@@ -446,7 +448,9 @@ function computeOdGaugeGainPercentBySkill(
   const isAllTarget = targetType === 'All';
 
   const baseHitCount = resolveSkillHitCount(skill);
-  const hitCountPerEnemy = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
+  const funnelHitBonus = Number(options?.funnelHitBonus ?? 0);
+  const hitCountPerEnemyBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
+  const hitCountPerEnemy = hitCountPerEnemyBase + Math.max(0, funnelHitBonus);
   let hitCount = hitCountPerEnemy * (isAllTarget ? numericEnemyCount : 1);
   if (isNormalAttackSkill(skill)) {
     // 通常攻撃はヒット数に関わらず最低3hit(=7.5%)保証。
@@ -506,15 +510,28 @@ function applyOdGaugeFromActions(state, previewRecord) {
     }
 
     const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
+    const hasDamage = hasDamagePartInParts(effectiveParts);
+    const funnelEffects = hasDamage ? member.resolveEffectiveFunnelEffects().slice(0, 2) : [];
+    const funnelHitBonus = funnelEffects.reduce(
+      (sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)),
+      0
+    );
     const baseHitCount = resolveSkillHitCount(skill);
+    const effectiveHitCountPerEnemy = Math.max(
+      0,
+      (isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount) + funnelHitBonus
+    );
     const effectiveHitCount =
-      String(skill?.targetType ?? '') === 'All' ? baseHitCount * enemyCount : baseHitCount;
+      String(skill?.targetType ?? '') === 'All'
+        ? effectiveHitCountPerEnemy * enemyCount
+        : effectiveHitCountPerEnemy;
     const odGaugeGain = computeOdGaugeGainPercentBySkill(
       skill,
       state,
       enemyCount,
       member,
-      actionEntry
+      actionEntry,
+      { funnelHitBonus }
     );
     const odGaugeDown = computeOverDrivePointDownPercent(
       effectiveParts,
@@ -532,11 +549,35 @@ function applyOdGaugeFromActions(state, previewRecord) {
     currentOdGauge = truncateToTwoDecimals(beforeOdGauge + delta);
     currentOdGauge = Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, currentOdGauge));
 
+    let consumedFunnels = [];
+    if (hasDamage) {
+      consumedFunnels = member.consumeFunnelEffects(2);
+    }
+
+    const damageContext = buildDamageCalculationContext({
+      actorCharacterId: member.characterId,
+      actorStyleId: member.styleId,
+      skillId: skill.skillId,
+      skillLabel: skill.label,
+      skillName: skill.name,
+      targetType: skill.targetType,
+      enemyCount,
+      baseHitCount,
+      funnelHitBonus,
+      effectiveHitCountPerEnemy,
+      effectiveHitCountTotal: effectiveHitCount,
+      funnelEffects,
+    });
+
     events.push({
       characterId: member.characterId,
       skillId: skill.skillId,
       skillName: skill.name,
       hitCount: effectiveHitCount,
+      baseHitCount,
+      funnelHitBonus,
+      consumedFunnelEffects: consumedFunnels,
+      damageContext,
       odGaugeGain: delta,
       odGaugeRawGain: truncateToTwoDecimals(Number(odGaugeGain ?? 0)),
       odGaugeRawDown: truncateToTwoDecimals(Number(odGaugeDown ?? 0)),
@@ -555,6 +596,115 @@ function applyOdGaugeFromActions(state, previewRecord) {
     totalGain: truncateToTwoDecimals(endOdGauge - startOdGauge),
     events,
   };
+}
+
+function resolveSupportTargetCharacterIds(state, actorMember, targetTypeRaw) {
+  const targetType = String(targetTypeRaw ?? '');
+  const frontline = getFrontlineMembers(state);
+  const backline = state.party
+    .filter((member) => member.position >= 3)
+    .slice()
+    .sort((a, b) => a.position - b.position);
+  const out = new Set();
+
+  if (targetType === 'Self') {
+    out.add(actorMember.characterId);
+  } else if (targetType === 'AllyAll') {
+    for (const member of state.party) {
+      out.add(member.characterId);
+    }
+  } else if (targetType === 'AllyFront') {
+    for (const member of frontline) {
+      out.add(member.characterId);
+    }
+  } else if (targetType === 'AllySub') {
+    for (const member of backline) {
+      out.add(member.characterId);
+    }
+  } else if (targetType === 'AllySingle') {
+    const target = frontline[0] ?? actorMember;
+    if (target) {
+      out.add(target.characterId);
+    }
+  } else if (targetType === 'AllySingleWithoutSelf') {
+    const target = frontline.find((member) => member.characterId !== actorMember.characterId) ?? null;
+    if (target) {
+      out.add(target.characterId);
+    }
+  }
+
+  return [...out];
+}
+
+function applyFunnelEffectsFromActions(state, previewRecord) {
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts) {
+      if (String(part?.skill_type ?? '') !== 'Funnel') {
+        continue;
+      }
+      if (!evaluateOdGaugePartCondition(part, state, actor, skill, actionEntry)) {
+        continue;
+      }
+
+      const targetCharacterIds = resolveSupportTargetCharacterIds(state, actor, part?.target_type);
+      if (targetCharacterIds.length === 0) {
+        continue;
+      }
+
+      const limitType = String(part?.effect?.limitType ?? 'Default');
+      const exitCond = String(part?.effect?.exitCond ?? 'Count');
+      const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
+      const hitBonus = Number(part?.power?.[0] ?? 0);
+      const damageBonus = Number(part?.value?.[0] ?? 0);
+
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+
+        const effect = target.addStatusEffect({
+          statusType: 'Funnel',
+          limitType,
+          exitCond,
+          remaining: Number.isFinite(remaining) ? remaining : 1,
+          power: Number.isFinite(hitBonus) ? hitBonus : 0,
+          sourceSkillId: Number(skill.skillId),
+          sourceSkillLabel: String(skill.label ?? ''),
+          sourceSkillName: String(skill.name ?? ''),
+          metadata: {
+            damageBonus: Number.isFinite(damageBonus) ? damageBonus : 0,
+            targetType: String(part?.target_type ?? ''),
+          },
+        });
+
+        events.push({
+          actorCharacterId: actor.characterId,
+          targetCharacterId,
+          skillId: skill.skillId,
+          skillName: skill.name,
+          effectId: effect.effectId,
+          hitBonus: effect.power,
+          damageBonus: effect.metadata?.damageBonus ?? 0,
+          limitType: effect.limitType,
+          exitCond: effect.exitCond,
+          remaining: effect.remaining,
+        });
+      }
+    }
+  }
+  return events;
 }
 
 function findMemberByCharacterId(state, characterId) {
@@ -1093,6 +1243,32 @@ function computeNextTurnState(current, grantedExtraCharacterIds = []) {
       return next;
     }
 
+    if (current.odSuspended) {
+      if (Number(current.remainingOdActions) > 0) {
+        const level = Number(current.odLevel > 0 ? current.odLevel : 1);
+        const odStep = level - Number(current.remainingOdActions) + 1;
+        next.turnType = 'od';
+        next.turnLabel = `OD${level}-${odStep}`;
+        next.odContext = current.odContext ?? 'preemptive';
+        next.odSuspended = false;
+        next.extraTurnState = null;
+        return next;
+      }
+
+      // ODアクションを使い切った状態でEXが終わった場合は、
+      // OD突入元の通常ターン文脈へ復帰する（turnIndexは進めない）。
+      next.turnType = 'normal';
+      next.turnLabel = `T${current.turnIndex}`;
+      next.turnIndex = current.turnIndex;
+      next.odLevel = 0;
+      next.remainingOdActions = 0;
+      next.odContext = null;
+      next.odSuspended = false;
+      next.odPending = false;
+      next.extraTurnState = null;
+      return next;
+    }
+
     if (current.odPending) {
       const level = current.odLevel > 0 ? current.odLevel : 1;
       next.turnType = 'od';
@@ -1189,6 +1365,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
+  const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
   const recovery = applyRecoveryPipeline(state.party, state.turnState);
   const recoveryEvents = recovery.spEvents;
@@ -1223,9 +1400,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );
     entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
+    entry.funnelApplied = funnelEvents.filter(
+      (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
+    );
     member.incrementSkillUseById(entry.skillId);
   }
 
+  const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
   updateKishinStateAfterTurn(state);
 
   if (applySwapOnCommit) {
@@ -1234,7 +1415,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
 
   const snapAfter = snapshotPartyByPartyIndex(state.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
-  const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 

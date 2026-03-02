@@ -81,6 +81,84 @@ function createNoActionSkill() {
   };
 }
 
+function normalizeStatusEffect(effect, fallbackId = 1) {
+  const effectId = Number(effect?.effectId ?? effect?.id ?? fallbackId);
+  const statusType = String(
+    effect?.statusType ?? effect?.type ?? effect?.skillType ?? effect?.skill_type ?? ''
+  );
+  const limitType = String(effect?.limitType ?? effect?.effect?.limitType ?? 'Default');
+  const exitCond = String(effect?.exitCond ?? effect?.effect?.exitCond ?? 'Count');
+  const remainingFromExitVal = Array.isArray(effect?.effect?.exitVal)
+    ? Number(effect.effect.exitVal[0] ?? 0)
+    : undefined;
+  const remaining = Number(effect?.remaining ?? remainingFromExitVal ?? 1);
+  const powerRaw = Array.isArray(effect?.power) ? effect.power[0] : effect?.power;
+  const power = Number(powerRaw ?? 0);
+  const sourceSkillId =
+    effect?.sourceSkillId === undefined || effect?.sourceSkillId === null
+      ? null
+      : Number(effect.sourceSkillId);
+
+  return {
+    effectId: Number.isFinite(effectId) ? effectId : fallbackId,
+    statusType,
+    limitType,
+    exitCond,
+    remaining: Number.isFinite(remaining) ? remaining : 0,
+    power: Number.isFinite(power) ? power : 0,
+    sourceSkillId: Number.isFinite(sourceSkillId) ? sourceSkillId : null,
+    sourceSkillLabel: String(effect?.sourceSkillLabel ?? ''),
+    sourceSkillName: String(effect?.sourceSkillName ?? ''),
+    metadata:
+      effect?.metadata && typeof effect.metadata === 'object' ? structuredClone(effect.metadata) : null,
+  };
+}
+
+function isActiveStatusEffect(effect) {
+  return Number(effect?.remaining ?? 0) > 0;
+}
+
+function sortStatusEffectsByPriority(a, b) {
+  const powerDelta = Number(b?.power ?? 0) - Number(a?.power ?? 0);
+  if (powerDelta !== 0) {
+    return powerDelta;
+  }
+  return Number(a?.effectId ?? 0) - Number(b?.effectId ?? 0);
+}
+
+function createKishinFunnelEffect() {
+  return {
+    statusType: 'Funnel',
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 3,
+    power: 3,
+    sourceSkillLabel: 'STezukaKishin',
+    sourceSkillName: '鬼神化',
+    metadata: {
+      effectName: 'FunnelUp',
+      damageTier: 'large',
+      multiHit: 3,
+    },
+  };
+}
+
+function createKishinMindEyeEffect() {
+  return {
+    statusType: 'MindEye',
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 3,
+    power: 1,
+    sourceSkillLabel: 'STezukaKishin',
+    sourceSkillName: '鬼神化',
+    metadata: {
+      effectName: 'MindEye',
+      singleTrigger: true,
+    },
+  };
+}
+
 export class CharacterStyle {
   constructor(input) {
     if (!input) {
@@ -120,6 +198,11 @@ export class CharacterStyle {
     this.isReinforcedMode = input.isReinforcedMode ?? false;
     this.epRule = input.epRule && typeof input.epRule === 'object' ? structuredClone(input.epRule) : null;
     this.effects = Array.isArray(input.effects) ? structuredClone(input.effects) : [];
+    this.statusEffects = Array.isArray(input.statusEffects)
+      ? input.statusEffects.map((effect, idx) => normalizeStatusEffect(effect, idx + 1))
+      : [];
+    this._nextStatusEffectId =
+      this.statusEffects.reduce((max, effect) => Math.max(max, Number(effect.effectId ?? 0)), 0) + 1;
     this.reinforcedTurnsRemaining = Number(input.reinforcedTurnsRemaining ?? 0);
     this.actionDisabledTurns = Number(input.actionDisabledTurns ?? 0);
 
@@ -184,7 +267,10 @@ export class CharacterStyle {
     const startSP = this.sp.current;
     const startEP = this.ep.current;
     const consumeType = String(skill.consumeType ?? 'Sp');
-    const rawCost = Number(skill.spCost ?? 0);
+    let rawCost = Number(skill.spCost ?? 0);
+    if (this.characterId === 'STezuka' && this.isReinforcedMode && consumeType !== 'Ep') {
+      rawCost = 0;
+    }
     const cost = Math.abs(rawCost);
 
     let deltaSP = consumeType === 'Ep' ? 0 : -cost;
@@ -307,6 +393,8 @@ export class CharacterStyle {
     const turns = Math.max(1, Number(duration) || 3);
     this.isReinforcedMode = true;
     this.reinforcedTurnsRemaining = turns;
+    this.addStatusEffect(createKishinFunnelEffect());
+    this.addStatusEffect(createKishinMindEyeEffect());
     this._revision += 1;
   }
 
@@ -317,6 +405,7 @@ export class CharacterStyle {
 
     if (this.isReinforcedMode && this.reinforcedTurnsRemaining > 0) {
       this.reinforcedTurnsRemaining -= 1;
+      this.tickStatusEffectsByExitCond('PlayerTurnEnd');
       if (this.reinforcedTurnsRemaining <= 0) {
         this.isReinforcedMode = false;
         this.reinforcedTurnsRemaining = 0;
@@ -340,6 +429,150 @@ export class CharacterStyle {
   setAliveState(isAlive) {
     this.isAlive = Boolean(isAlive);
     this._revision += 1;
+  }
+
+  addStatusEffect(effect) {
+    const normalized = normalizeStatusEffect(effect, this._nextStatusEffectId);
+    this._nextStatusEffectId = Math.max(this._nextStatusEffectId + 1, normalized.effectId + 1);
+    this.statusEffects.push(normalized);
+    this._revision += 1;
+    return structuredClone(normalized);
+  }
+
+  getStatusEffectsByType(statusType, options = {}) {
+    const key = String(statusType ?? '');
+    const activeOnly = options.activeOnly !== false;
+    return this.statusEffects
+      .filter((effect) => String(effect.statusType) === key)
+      .filter((effect) => (activeOnly ? isActiveStatusEffect(effect) : true))
+      .map((effect) => structuredClone(effect));
+  }
+
+  resolveEffectiveStatusEffects(statusType) {
+    const active = this.getStatusEffectsByType(statusType, { activeOnly: true });
+    const defaults = active.filter((effect) => String(effect.limitType) !== 'Only');
+    const onlyCandidates = active
+      .filter((effect) => String(effect.limitType) === 'Only')
+      .sort(sortStatusEffectsByPriority);
+    if (onlyCandidates.length > 0) {
+      defaults.push(onlyCandidates[0]);
+    }
+    return defaults.sort(sortStatusEffectsByPriority);
+  }
+
+  consumeStatusEffectsByType(statusType, consumeCount = 1) {
+    const count = Math.max(0, Number(consumeCount) || 0);
+    if (count <= 0) {
+      return [];
+    }
+
+    const effective = this.resolveEffectiveStatusEffects(statusType).filter(
+      (effect) => String(effect.exitCond) === 'Count'
+    );
+    const picked = effective.slice(0, count);
+    if (picked.length === 0) {
+      return [];
+    }
+
+    const idSet = new Set(picked.map((effect) => Number(effect.effectId)));
+    const consumed = [];
+    let changed = false;
+
+    for (const effect of this.statusEffects) {
+      if (!idSet.has(Number(effect.effectId))) {
+        continue;
+      }
+      if (!isActiveStatusEffect(effect)) {
+        continue;
+      }
+      const before = Number(effect.remaining);
+      effect.remaining = Math.max(0, before - 1);
+      consumed.push({
+        effectId: effect.effectId,
+        statusType: effect.statusType,
+        limitType: effect.limitType,
+        exitCond: effect.exitCond,
+        power: effect.power,
+        remainingBefore: before,
+        remainingAfter: effect.remaining,
+      });
+      changed = true;
+    }
+
+    const beforeLen = this.statusEffects.length;
+    this.statusEffects = this.statusEffects.filter((effect) => isActiveStatusEffect(effect));
+    if (this.statusEffects.length !== beforeLen) {
+      changed = true;
+    }
+
+    if (changed) {
+      this._revision += 1;
+    }
+
+    return consumed.sort((a, b) => sortStatusEffectsByPriority(a, b));
+  }
+
+  tickStatusEffectsByExitCond(exitCond) {
+    const cond = String(exitCond ?? '');
+    if (!cond) {
+      return [];
+    }
+
+    const ticked = [];
+    let changed = false;
+    for (const effect of this.statusEffects) {
+      if (String(effect.exitCond) !== cond || !isActiveStatusEffect(effect)) {
+        continue;
+      }
+      const before = Number(effect.remaining);
+      effect.remaining = Math.max(0, before - 1);
+      ticked.push({
+        effectId: effect.effectId,
+        statusType: effect.statusType,
+        limitType: effect.limitType,
+        exitCond: effect.exitCond,
+        power: effect.power,
+        remainingBefore: before,
+        remainingAfter: effect.remaining,
+      });
+      changed = true;
+    }
+
+    const beforeLen = this.statusEffects.length;
+    this.statusEffects = this.statusEffects.filter((effect) => isActiveStatusEffect(effect));
+    if (this.statusEffects.length !== beforeLen) {
+      changed = true;
+    }
+
+    if (changed) {
+      this._revision += 1;
+    }
+
+    return ticked;
+  }
+
+  getFunnelEffects(options = {}) {
+    return this.getStatusEffectsByType('Funnel', options);
+  }
+
+  resolveEffectiveFunnelEffects() {
+    return this.resolveEffectiveStatusEffects('Funnel');
+  }
+
+  consumeFunnelEffects(consumeCount = 2) {
+    return this.consumeStatusEffectsByType('Funnel', consumeCount);
+  }
+
+  getMindEyeEffects(options = {}) {
+    return this.getStatusEffectsByType('MindEye', options);
+  }
+
+  resolveEffectiveMindEyeEffects() {
+    return this.resolveEffectiveStatusEffects('MindEye');
+  }
+
+  consumeMindEyeEffects(consumeCount = 1) {
+    return this.consumeStatusEffectsByType('MindEye', consumeCount);
   }
 
   getSkillUseCountByLabel(label) {
@@ -387,6 +620,7 @@ export class CharacterStyle {
       reinforcedTurnsRemaining: this.reinforcedTurnsRemaining,
       actionDisabledTurns: this.actionDisabledTurns,
       epRule: this.epRule ? structuredClone(this.epRule) : null,
+      statusEffects: structuredClone(this.statusEffects),
       skillUseCounts: Object.fromEntries(this.skillUseCounts.entries()),
       revision: this._revision,
     };

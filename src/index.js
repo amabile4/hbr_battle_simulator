@@ -22,3 +22,4 @@ export { createBattleRecordStore, RecordEditor, CsvExporter } from './records/re
 export { BattleDomAdapter } from './ui/dom-adapter.js';
 export { validateDocument, validateBySchema } from './data/schema-validator.js';
 export { HbrDataStore } from './data/hbr-data-store.js';
+export { buildDamageCalculationContext } from './domain/damage-calculation-context.js';
