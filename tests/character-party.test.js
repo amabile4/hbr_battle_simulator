@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applySpChange } from '../src/index.js';
+import { applySpChange, CharacterStyle } from '../src/index.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
 test('applySpChange follows freeze rule for positive delta', () => {
@@ -42,4 +42,37 @@ test('character preview/commit applies preview result exactly once (Q-S001 A)', 
   assert.equal(committed.appliedFromPreview, true);
 
   assert.throws(() => member.commitSkillPreview(preview), /Stale preview/);
+});
+
+test('sp_cost -1 consumes all current SP (magic number rule)', () => {
+  const member = new CharacterStyle({
+    characterId: 'TEST',
+    characterName: 'TEST',
+    styleId: 1,
+    styleName: 'Test Style',
+    partyIndex: 0,
+    position: 0,
+    initialSP: 17,
+    initialEP: 3,
+    skills: [
+      {
+        id: 999001,
+        name: 'Trinity Blazing',
+        label: 'TestAllSp',
+        consume_type: 'Sp',
+        sp_cost: -1,
+      },
+    ],
+  });
+
+  const preview = member.previewSkillUse(999001);
+  assert.equal(preview.startSP, 17);
+  assert.equal(preview.endSP, 0);
+  assert.equal(preview.spDelta, -17);
+  assert.equal(preview.startEP, 3);
+  assert.equal(preview.endEP, 3);
+
+  member.commitSkillPreview(preview);
+  assert.equal(member.sp.current, 0);
+  assert.equal(member.ep.current, 3);
 });
