@@ -430,6 +430,22 @@ test('swap candidates are filtered by EX state and mixed EX/normal swap is block
   );
 });
 
+test('swap selectors display character names while keeping position values', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const swapFrom = root.querySelector('[data-role="swap-from"]');
+  const firstOption = swapFrom?.options?.[0];
+  assert.ok(firstOption);
+  assert.equal(firstOption.textContent.includes('Pos '), false);
+
+  const memberAtPosition0 = adapter.state.party.find((member) => member.position === 0);
+  assert.equal(firstOption.textContent.includes(memberAtPosition0.characterName), true);
+  assert.equal(firstOption.value, '0');
+});
+
 test('party state shows EP alongside SP only for Nanase', () => {
   const store = getStore();
   const { root } = createRoot();

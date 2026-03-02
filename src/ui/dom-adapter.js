@@ -66,6 +66,11 @@ function canSwapByExtraState(a, b) {
   return Boolean(a?.isExtraActive) === Boolean(b?.isExtraActive);
 }
 
+function formatSwapMemberLabel(member) {
+  const name = String(member?.characterName ?? member?.characterId ?? '');
+  return `${name}${member?.isExtraActive ? ' [EX]' : ''}`;
+}
+
 function formatSkillCostLabel(skill) {
   const consumeType = String(skill?.consumeType ?? skill?.consume_type ?? 'Sp');
   const costRaw = Number(skill?.spCost ?? skill?.sp_cost ?? 0);
@@ -1443,7 +1448,7 @@ export class BattleDomAdapter {
     for (const member of members) {
       const option = this.doc.createElement('option');
       option.value = String(member.position);
-      option.textContent = `Pos ${member.position + 1}${member.isExtraActive ? ' [EX]' : ''}`;
+      option.textContent = formatSwapMemberLabel(member);
       fromSelect.appendChild(option);
     }
 
@@ -1489,7 +1494,7 @@ export class BattleDomAdapter {
     for (const member of candidates) {
       const option = this.doc.createElement('option');
       option.value = String(member.position);
-      option.textContent = `Pos ${member.position + 1}${member.isExtraActive ? ' [EX]' : ''}`;
+      option.textContent = formatSwapMemberLabel(member);
       toSelect.appendChild(option);
     }
 
