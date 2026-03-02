@@ -304,3 +304,37 @@ test('EP rules are loaded from external rule table for Nanase styles', () => {
   assert.equal(rider.epRule?.turnStartEpDelta, 2);
   assert.equal(admiral.epRule, null, 'Admiral should rely on in-data passives, not override');
 });
+
+test('party build rejects multiple Admiral members', () => {
+  const store = getStore();
+  const admiralStyles = store.styles.filter((style) => String(style.role ?? '') === 'Admiral');
+  assert.equal(admiralStyles.length >= 2, true);
+
+  const duplicateAdmirals = [Number(admiralStyles[0].id), Number(admiralStyles[1].id)];
+  const usedChara = new Set(
+    admiralStyles.slice(0, 2).map((style) => String(style.chara_label ?? ''))
+  );
+
+  for (const style of store.styles) {
+    const charaLabel = String(style.chara_label ?? '');
+    if (
+      String(style.role ?? '') === 'Admiral' ||
+      usedChara.has(charaLabel) ||
+      !Array.isArray(style.skills) ||
+      style.skills.length === 0
+    ) {
+      continue;
+    }
+    duplicateAdmirals.push(Number(style.id));
+    usedChara.add(charaLabel);
+    if (duplicateAdmirals.length === 6) {
+      break;
+    }
+  }
+
+  assert.equal(duplicateAdmirals.length, 6);
+  assert.throws(
+    () => store.buildPartyFromStyleIds(duplicateAdmirals, { initialSP: 10 }),
+    /at most one Admiral/
+  );
+});

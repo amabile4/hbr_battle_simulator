@@ -70,6 +70,7 @@ export class HbrDataStore {
     this.accessories = payload.accessories ?? [];
     this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
     this.epRuleOverrides = payload.epRuleOverrides ?? [];
+    this.transcendenceRuleOverrides = payload.transcendenceRuleOverrides ?? [];
 
     this.skillDbSchema = payload.skillDbSchema;
     this.skillDbDraft = payload.skillDbDraft;
@@ -156,6 +157,7 @@ export class HbrDataStore {
       accessories: readJson(resolve(dir, 'accessories.json')),
       skillRuleOverrides: readJson(resolve(dir, 'skill_rule_overrides.json')),
       epRuleOverrides: readJson(resolve(dir, 'ep_rule_overrides.json')),
+      transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
       skillDbSchema: readJson(resolve(dir, 'new_skill_database.schema.json')),
       skillDbDraft: readJson(resolve(dir, 'reports/migration/new_skill_database.draft.json')),
     });
@@ -174,10 +176,22 @@ export class HbrDataStore {
       accessories: payload.accessories ?? [],
       skillRuleOverrides: payload.skillRuleOverrides ?? [],
       epRuleOverrides: payload.epRuleOverrides ?? [],
+      transcendenceRuleOverrides: payload.transcendenceRuleOverrides ?? [],
       skillDbSchema: payload.skillDbSchema ?? {},
       skillDbDraft: payload.skillDbDraft ?? {},
       skillAvailability: payload.skillAvailability ?? {},
     });
+  }
+
+  getTranscendenceRuleByStyleId(styleId) {
+    const id = Number(styleId);
+    return (
+      this.transcendenceRuleOverrides.find((rule) => Number(rule.styleId) === id) ?? null
+    );
+  }
+
+  listTranscendenceRules() {
+    return this.transcendenceRuleOverrides.map((rule) => structuredClone(rule));
   }
 
   setSkillAvailability(next = {}) {
@@ -1011,6 +1025,9 @@ export class HbrDataStore {
       styleId: Number(style.id),
       styleName: String(style.name),
       role: String(style.role ?? ''),
+      elements: Array.isArray(style.elements) ? [...style.elements] : [],
+      weaponType: String(style.type ?? ''),
+      transcendenceRule: this.getTranscendenceRuleByStyleId(style.id),
       partyIndex: Number(partyIndex),
       position: Number(partyIndex),
       drivePiercePercent: Number(drivePiercePercent),
@@ -1058,6 +1075,11 @@ export class HbrDataStore {
     const uniqueCharacters = new Set(members.map((member) => member.characterId));
     if (uniqueCharacters.size !== members.length) {
       throw new Error('Party requires 6 unique characters (duplicate character detected).');
+    }
+
+    const admiralCount = members.filter((member) => String(member.role ?? '') === 'Admiral').length;
+    if (admiralCount > 1) {
+      throw new Error('Party can include at most one Admiral role member.');
     }
 
     return new Party(members);
