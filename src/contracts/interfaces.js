@@ -56,6 +56,7 @@ export function createInitialTurnState() {
     odContext: null,
     odSuspended: false,
     odPending: false,
+    transcendence: null,
     extraTurnState: null,
   });
 }
@@ -63,6 +64,11 @@ export function createInitialTurnState() {
 export function cloneTurnState(turnState) {
   return {
     ...turnState,
+    transcendence: turnState.transcendence
+      ? {
+          ...turnState.transcendence,
+        }
+      : null,
     extraTurnState: turnState.extraTurnState
       ? {
           ...turnState.extraTurnState,

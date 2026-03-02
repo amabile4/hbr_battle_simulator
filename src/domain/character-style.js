@@ -173,6 +173,16 @@ export class CharacterStyle {
     this.styleId = Number(input.styleId);
     this.styleName = String(input.styleName);
     this.role = String(input.role ?? '');
+    this.elements = Object.freeze(
+      Array.isArray(input.elements)
+        ? [...new Set(input.elements.map((element) => String(element ?? '')).filter(Boolean))]
+        : []
+    );
+    this.weaponType = String(input.weaponType ?? '');
+    this.transcendenceRule =
+      input.transcendenceRule && typeof input.transcendenceRule === 'object'
+        ? structuredClone(input.transcendenceRule)
+        : null;
     this.limitBreakLevel = Number(input.limitBreakLevel ?? 0);
     this.drivePiercePercent = Number(input.drivePiercePercent ?? 0);
     this.partyIndex = partyIndex;

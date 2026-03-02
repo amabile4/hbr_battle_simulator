@@ -1506,7 +1506,12 @@ export class BattleDomAdapter {
     const turnLabel = this.root.querySelector('[data-role="turn-label"]');
     if (turnLabel) {
       const odGauge = Number(this.state.turnState.odGauge ?? 0);
-      turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId}, OD=${odGauge.toFixed(2)}%)`;
+      const transcendence = this.state.turnState.transcendence;
+      const hasTranscendenceGauge = Boolean(transcendence?.active);
+      const transcendenceText = hasTranscendenceGauge
+        ? `, 超越=${Number(transcendence?.gaugePercent ?? 0).toFixed(2)}%`
+        : '';
+      turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId}, OD=${odGauge.toFixed(2)}%${transcendenceText})`;
     }
     this.renderOdControls();
     this.renderKishinkaControls();

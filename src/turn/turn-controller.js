@@ -25,6 +25,133 @@ const OD_DAMAGE_PART_TYPES = new Set([
   'FixedHpDamageRateAttack',
 ]);
 
+function clampOdGauge(value) {
+  return Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, value));
+}
+
+function getTranscendenceState(turnState) {
+  const state = turnState?.transcendence;
+  return state && typeof state === 'object' ? state : null;
+}
+
+function hasElement(member, element) {
+  if (!member || !Array.isArray(member.elements)) {
+    return false;
+  }
+  return member.elements.some((item) => String(item) === String(element));
+}
+
+function buildInitialTranscendenceStateFromParty(party) {
+  if (!Array.isArray(party) || party.length === 0) {
+    return null;
+  }
+
+  const source =
+    party.find((member) => member?.transcendenceRule && typeof member.transcendenceRule === 'object') ??
+    null;
+  if (!source) {
+    return null;
+  }
+
+  const rule = source.transcendenceRule;
+  const gaugeElement = String(rule?.gaugeElement ?? '');
+  const initialPerMember = Number(rule?.initialGaugePercentPerMatchingElementMember ?? 0);
+  const gainPerAction = Number(rule?.gaugeGainPercentOnMatchingElementAction ?? 0);
+  const maxGaugePercent = Number(rule?.maxGaugePercent ?? 100);
+  const odBonusOnMax = Number(rule?.triggerOnReachMax?.odGaugeDeltaPercent ?? 0);
+
+  if (!gaugeElement || !Number.isFinite(maxGaugePercent) || maxGaugePercent <= 0) {
+    return null;
+  }
+
+  const matchingCount = party.reduce(
+    (count, member) => count + (hasElement(member, gaugeElement) ? 1 : 0),
+    0
+  );
+  const initialGauge = truncateToTwoDecimals(
+    Math.max(0, Math.min(maxGaugePercent, matchingCount * Math.max(0, initialPerMember)))
+  );
+
+  return {
+    active: true,
+    sourceCharacterId: String(source.characterId ?? ''),
+    sourceStyleId: Number(source.styleId ?? 0),
+    gaugeElement,
+    gaugePercent: initialGauge,
+    maxGaugePercent: maxGaugePercent,
+    gainPercentPerAction: Math.max(0, gainPerAction),
+    odBonusOnMax: Math.max(0, odBonusOnMax),
+    burstTriggered: false,
+  };
+}
+
+function computeTranscendenceTurnSummary(state, previewRecord) {
+  const transcendence = getTranscendenceState(state?.turnState);
+  if (!transcendence || !transcendence.active) {
+    return {
+      active: false,
+      startGaugePercent: 0,
+      endGaugePercent: 0,
+      gainPercent: 0,
+      matchingActionCount: 0,
+      reachedMaxThisTurn: false,
+      odGaugeBonusPercent: 0,
+    };
+  }
+
+  const gaugeElement = String(transcendence.gaugeElement ?? '');
+  const maxGaugePercent = Math.max(0, Number(transcendence.maxGaugePercent ?? 100));
+  const gainPerAction = Math.max(0, Number(transcendence.gainPercentPerAction ?? 0));
+  const startGaugePercent = truncateToTwoDecimals(Number(transcendence.gaugePercent ?? 0));
+  const matchingActionCount = (previewRecord?.actions ?? []).reduce((count, actionEntry) => {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    return count + (hasElement(actor, gaugeElement) ? 1 : 0);
+  }, 0);
+  const gainPercent = truncateToTwoDecimals(matchingActionCount * gainPerAction);
+  const endGaugePercent = truncateToTwoDecimals(
+    Math.max(0, Math.min(maxGaugePercent, startGaugePercent + gainPercent))
+  );
+  const reachedMaxThisTurn =
+    !Boolean(transcendence.burstTriggered) &&
+    startGaugePercent < maxGaugePercent &&
+    endGaugePercent >= maxGaugePercent;
+  const odGaugeBonusPercent = reachedMaxThisTurn
+    ? truncateToTwoDecimals(Math.max(0, Number(transcendence.odBonusOnMax ?? 0)))
+    : 0;
+
+  return {
+    active: true,
+    startGaugePercent,
+    endGaugePercent,
+    gainPercent,
+    matchingActionCount,
+    reachedMaxThisTurn,
+    odGaugeBonusPercent,
+  };
+}
+
+function applyTranscendenceTurnSummary(state, summary) {
+  if (!summary?.active) {
+    return summary;
+  }
+
+  const transcendence = getTranscendenceState(state?.turnState);
+  if (!transcendence) {
+    return summary;
+  }
+
+  transcendence.gaugePercent = truncateToTwoDecimals(Number(summary.endGaugePercent ?? 0));
+  if (summary.reachedMaxThisTurn) {
+    transcendence.burstTriggered = true;
+    const currentOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
+    state.turnState.odGauge = truncateToTwoDecimals(
+      clampOdGauge(currentOdGauge + Number(summary.odGaugeBonusPercent ?? 0))
+    );
+  }
+
+  return summary;
+}
+
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
   const label = String(skill?.label ?? '');
@@ -490,7 +617,8 @@ function computeOdGaugeGainPercentBySkill(
   return truncateToTwoDecimals(attackGain + overDrivePointUpGain);
 }
 
-function applyOdGaugeFromActions(state, previewRecord) {
+function applyOdGaugeFromActions(state, previewRecord, options = {}) {
+  const consumeStatusEffects = options.consumeStatusEffects !== false;
   const events = [];
   const enemyCountRaw = Number(previewRecord?.enemyCount ?? 1);
   const enemyCount = Number.isFinite(enemyCountRaw)
@@ -551,7 +679,7 @@ function applyOdGaugeFromActions(state, previewRecord) {
 
     let consumedFunnels = [];
     let consumedMindEyes = [];
-    if (hasDamage) {
+    if (hasDamage && consumeStatusEffects) {
       consumedFunnels = member.consumeFunnelEffects(2);
       consumedMindEyes = member.consumeMindEyeEffects(1);
     }
@@ -1176,6 +1304,68 @@ function applySkillSelfEpGains(state, previewRecord) {
   return events;
 }
 
+function applySkillSpGains(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      if (String(part?.skill_type ?? '') !== 'HealSp') {
+        continue;
+      }
+
+      const condTexts = [part?.cond, part?.hit_condition, part?.target_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+
+      const amount = Number(part?.power?.[0] ?? 0);
+      if (!Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+
+      const targetCharacterIds = resolveSupportTargetCharacterIds(state, actor, part?.target_type);
+      if (targetCharacterIds.length === 0) {
+        continue;
+      }
+
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        const change = target.applySpDelta(amount, 'active', skill.spRecoveryCeiling);
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          source: 'sp_skill',
+          skillId: skill.skillId,
+          skillName: skill.name,
+          targetType: String(part?.target_type ?? ''),
+          ...change,
+        });
+      }
+    }
+  }
+
+  return events;
+}
+
 function applyRecoveryPipeline(party, turnState) {
   const recoveryEvents = [];
   const epEvents = [];
@@ -1369,6 +1559,9 @@ function computeNextTurnState(current, grantedExtraCharacterIds = []) {
 export function createBattleStateFromParty(party, turnState) {
   const members = Array.isArray(party) ? party : party.members;
   const next = createBattleState(members, turnState);
+  if (!next.turnState.transcendence) {
+    next.turnState.transcendence = buildInitialTranscendenceStateFromParty(next.party);
+  }
   const allowed = next.turnState.extraTurnState?.allowedCharacterIds ?? [];
   syncExtraActiveFlags(next.party, allowed);
   return next;
@@ -1386,6 +1579,23 @@ export function previewTurn(state, actions, enemyAction = null, enemyCount = 1) 
     [],
     state.turnState.sequenceId
   );
+
+  const projectedState = {
+    ...state,
+    party: state.party,
+    turnState: cloneTurnState(state.turnState),
+  };
+  const odProjection = applyOdGaugeFromActions(projectedState, record, {
+    consumeStatusEffects: false,
+  });
+  const transcendenceSummary = applyTranscendenceTurnSummary(
+    projectedState,
+    computeTranscendenceTurnSummary(projectedState, record)
+  );
+  record.projections = {
+    odGaugeAtEnd: Number(projectedState.turnState.odGauge ?? odProjection.endOdGauge ?? 0),
+    transcendence: transcendenceSummary,
+  };
 
   return record;
 }
@@ -1423,10 +1633,15 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
+  const skillSpEvents = applySkillSpGains(state, previewRecord);
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
+  const transcendenceSummary = applyTranscendenceTurnSummary(
+    state,
+    computeTranscendenceTurnSummary(state, previewRecord)
+  );
   const recovery = applyRecoveryPipeline(state.party, state.turnState);
-  const recoveryEvents = recovery.spEvents;
+  const recoveryEvents = [...skillSpEvents, ...recovery.spEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
 
   for (const entry of previewRecord.actions) {
@@ -1474,6 +1689,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
 
   const snapAfter = snapshotPartyByPartyIndex(state.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
+  committed.transcendence = transcendenceSummary;
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 

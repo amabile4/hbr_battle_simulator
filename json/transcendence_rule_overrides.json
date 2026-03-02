@@ -1,0 +1,80 @@
+[
+  {
+    "styleId": 1001111,
+    "styleLabel": "RKayamori11",
+    "characterId": "RKayamori",
+    "gaugeElement": "Ice",
+    "activationRoleAbilityLabel": "RoleAbility.RKayamori11.1",
+    "activationRoleAbilityName": "氷の律動",
+    "initialGaugePercentPerMatchingElementMember": 15,
+    "gaugeGainPercentOnMatchingElementAction": 4,
+    "maxGaugePercent": 100,
+    "triggerOnReachMax": {
+      "odGaugeDeltaPercent": 100,
+      "burst": {
+        "enabled": true,
+        "element": "Ice",
+        "attackUpPercent": 300,
+        "destructionRateBonusPercent": 10,
+        "attackBuffSkillEffectUpPercent": 20,
+        "debuffSkillEffectUpPercent": 20,
+        "criticalGuaranteed": true,
+        "criticalDamageUpPercent": 100,
+        "destructionRateCapPercent": 300
+      }
+    },
+    "notes": "Derived from official in-game presentation. Keep in override table until raw data exposes explicit transcendence mechanics."
+  },
+  {
+    "styleId": 1004110,
+    "styleLabel": "YShirakawa10",
+    "characterId": "YShirakawa",
+    "gaugeElement": "Fire",
+    "activationRoleAbilityLabel": "RoleAbility.YShirakawa10.1",
+    "activationRoleAbilityName": "火の律動",
+    "initialGaugePercentPerMatchingElementMember": 15,
+    "gaugeGainPercentOnMatchingElementAction": 4,
+    "maxGaugePercent": 100,
+    "triggerOnReachMax": {
+      "odGaugeDeltaPercent": 100,
+      "burst": {
+        "enabled": true,
+        "element": "Fire",
+        "attackUpPercent": 300,
+        "destructionRateBonusPercent": 10,
+        "attackBuffSkillEffectUpPercent": 20,
+        "debuffSkillEffectUpPercent": 20,
+        "criticalGuaranteed": true,
+        "criticalDamageUpPercent": 100,
+        "destructionRateCapPercent": 300
+      }
+    },
+    "notes": "Derived from official in-game presentation. Keep in override table until raw data exposes explicit transcendence mechanics."
+  },
+  {
+    "styleId": 1010204,
+    "styleLabel": "NNanase04",
+    "characterId": "NNanase",
+    "gaugeElement": "Thunder",
+    "activationRoleAbilityLabel": "RoleAbility.NNanase04.1",
+    "activationRoleAbilityName": "雷の律動",
+    "initialGaugePercentPerMatchingElementMember": 15,
+    "gaugeGainPercentOnMatchingElementAction": 4,
+    "maxGaugePercent": 100,
+    "triggerOnReachMax": {
+      "odGaugeDeltaPercent": 100,
+      "burst": {
+        "enabled": true,
+        "element": "Thunder",
+        "attackUpPercent": 300,
+        "destructionRateBonusPercent": 10,
+        "attackBuffSkillEffectUpPercent": 20,
+        "debuffSkillEffectUpPercent": 20,
+        "criticalGuaranteed": true,
+        "criticalDamageUpPercent": 100,
+        "destructionRateCapPercent": 300
+      }
+    },
+    "notes": "Derived from official in-game presentation. Keep in override table until raw data exposes explicit transcendence mechanics."
+  }
+]

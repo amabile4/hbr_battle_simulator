@@ -94,6 +94,83 @@ test('commitTurn can activate interrupt OD after commit', () => {
   assert.equal(nextState.turnState.turnIndex, 2);
 });
 
+function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `TC${idx + 1}`,
+      characterName: `TC${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `TS${idx + 1}`,
+      role: idx === 0 ? 'Admiral' : 'Attacker',
+      elements: idx <= 2 ? ['Ice'] : ['Fire'],
+      transcendenceRule:
+        idx === 0
+          ? {
+              styleId: 1,
+              gaugeElement: 'Ice',
+              initialGaugePercentPerMatchingElementMember: 15,
+              gaugeGainPercentOnMatchingElementAction: 4,
+              maxGaugePercent: 100,
+              triggerOnReachMax: { odGaugeDeltaPercent: 100 },
+            }
+          : null,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15000 + idx,
+          name: 'Support',
+          sp_cost: 0,
+          parts: [{ skill_type: 'AttackUp', target_type: 'Self' }],
+        },
+      ],
+    })
+  );
+
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  if (initialGaugePercent !== null) {
+    state.turnState.transcendence.gaugePercent = Number(initialGaugePercent);
+  }
+  return state;
+}
+
+test('transcendence gauge initializes by matching-element member count x 15%', () => {
+  const state = createTranscendenceTestParty();
+  assert.equal(state.turnState.transcendence?.active, true);
+  assert.equal(state.turnState.transcendence?.gaugeElement, 'Ice');
+  assert.equal(state.turnState.transcendence?.gaugePercent, 45);
+});
+
+test('transcendence gauge gains +4 per matching-element action and is capped at 100%', () => {
+  let state = createTranscendenceTestParty({ initialGaugePercent: 96 });
+  state.turnState.odGauge = 10;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15000 }, // Ice
+    1: { characterId: 'TC2', skillId: 15001 }, // Ice
+    2: { characterId: 'TC3', skillId: 15002 }, // Ice
+  });
+  assert.equal(preview.projections?.transcendence?.endGaugePercent, 100);
+  assert.equal(preview.projections?.transcendence?.odGaugeBonusPercent, 100);
+
+  const committed = commitTurn(state, preview);
+  state = committed.nextState;
+  assert.equal(state.turnState.transcendence?.gaugePercent, 100);
+  assert.equal(state.turnState.odGauge, 110);
+
+  // 2ターン目: すでに100%到達済みのため、OD+100は再発しない。
+  const preview2 = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15000 },
+    1: { characterId: 'TC2', skillId: 15001 },
+    2: { characterId: 'TC3', skillId: 15002 },
+  });
+  const committed2 = commitTurn(state, preview2);
+  assert.equal(committed2.nextState.turnState.odGauge, 110);
+  assert.equal(committed2.nextState.turnState.transcendence?.gaugePercent, 100);
+});
+
 test('extra turn can be granted and consumed', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);
@@ -525,6 +602,92 @@ test('Nanase Rider uses external EP rule while Admiral uses passive-derived EP r
   const committed = commitTurn(admiralState, preview);
   const admiralAfter = committed.nextState.party.find((m) => m.characterId === 'NNanase');
   assert.equal(admiralAfter.ep.current, 4, 'Admiral EP+1 should be from passive skill + HealEp3 from 宿る想い');
+});
+
+test('HealSp AllyFront increases SP for all frontline members', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HSF${idx + 1}`,
+      characterName: `HSF${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `HSFS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 51000 + idx,
+          name: idx === 0 ? 'Front SP Up' : 'Normal',
+          sp_cost: 0,
+          parts:
+            idx === 0
+              ? [{ skill_type: 'HealSp', target_type: 'AllyFront', power: [3, 0] }]
+              : [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'HSF1', skillId: 51000 },
+    1: { characterId: 'HSF2', skillId: 51001 },
+    2: { characterId: 'HSF3', skillId: 51002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  const m1 = nextState.party.find((m) => m.characterId === 'HSF1');
+  const m2 = nextState.party.find((m) => m.characterId === 'HSF2');
+  const m3 = nextState.party.find((m) => m.characterId === 'HSF3');
+  const m4 = nextState.party.find((m) => m.characterId === 'HSF4');
+
+  // frontline: +3 (skill) +2 (base)
+  assert.equal(m1.sp.current, 15);
+  assert.equal(m2.sp.current, 15);
+  assert.equal(m3.sp.current, 15);
+  // backline: +2 (base only)
+  assert.equal(m4.sp.current, 12);
+});
+
+test('HealSp AllySingleWithoutSelf targets one ally and excludes self', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HSS${idx + 1}`,
+      characterName: `HSS${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `HSSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 52000 + idx,
+          name: idx === 0 ? 'Single Other SP Up' : 'Normal',
+          sp_cost: 0,
+          parts:
+            idx === 0
+              ? [{ skill_type: 'HealSp', target_type: 'AllySingleWithoutSelf', power: [4, 0] }]
+              : [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'HSS1', skillId: 52000 },
+    1: { characterId: 'HSS2', skillId: 52001 },
+    2: { characterId: 'HSS3', skillId: 52002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  const actor = nextState.party.find((m) => m.characterId === 'HSS1');
+  const ally = nextState.party.find((m) => m.characterId === 'HSS2');
+
+  // actor: base only
+  assert.equal(actor.sp.current, 12);
+  // first non-self frontline ally gets +4 then base +2
+  assert.equal(ally.sp.current, 16);
 });
 
 test('normal attack guarantees minimum 7.5% OD gain even when hit count is below 3', () => {

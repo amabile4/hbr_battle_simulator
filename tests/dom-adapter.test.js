@@ -138,6 +138,36 @@ test('interrupt OD button is shown in extra turn when gauge requirement is satis
   assert.equal(interruptButton.hidden, false);
 });
 
+test('turn label shows transcendence gauge only when transcendence style is in party', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const label = root.querySelector('[data-role="turn-label"]');
+  assert.equal((label?.textContent ?? '').includes('超越='), false);
+
+  const transcendenceRule = store.listTranscendenceRules()[0] ?? null;
+  if (!transcendenceRule) {
+    return;
+  }
+
+  const targetStyle = store.getStyleById(Number(transcendenceRule.styleId));
+  if (!targetStyle) {
+    return;
+  }
+  const targetCharaLabel = String(targetStyle.chara_label ?? '');
+  const others = getSixUsableStyleIds(store).filter((id) => {
+    const style = store.getStyleById(Number(id));
+    if (!style) {
+      return false;
+    }
+    return String(style.chara_label ?? '') !== targetCharaLabel;
+  });
+  adapter.initializeBattle([Number(transcendenceRule.styleId), ...others.slice(0, 5)]);
+  assert.equal((label?.textContent ?? '').includes('超越='), true);
+});
+
 test('action selector displays SP ALL for sp_cost -1 skills', () => {
   const store = getStore();
   const { root } = createRoot();
