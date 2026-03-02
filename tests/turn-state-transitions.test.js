@@ -1454,3 +1454,110 @@ test('OD gain uses Funnel hit bonus and consumes count-based Funnel on damage ac
   state = committed.nextState;
   assert.equal(state.turnState.odGauge, 20, 'same action repeats same +10.0%');
 });
+
+test('PlayerTurnEnd status expiry is applied only to members who acted this turn', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `TE${idx + 1}`,
+      characterName: `TE${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `TES${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [{ id: 24000 + idx, name: 'Normal', label: `TESkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state = grantExtraTurn(state, ['TE1']);
+  state.party.find((m) => m.characterId === 'TE1').addStatusEffect({
+    statusType: 'Funnel',
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 2,
+    power: 3,
+  });
+  state.party.find((m) => m.characterId === 'TE2').addStatusEffect({
+    statusType: 'Funnel',
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 2,
+    power: 3,
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TE1', skillId: 24000 },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  const te1 = state.party.find((m) => m.characterId === 'TE1').resolveEffectiveFunnelEffects();
+  const te2 = state.party.find((m) => m.characterId === 'TE2').resolveEffectiveFunnelEffects();
+  assert.equal(te1[0].remaining, 1, 'acted member should tick PlayerTurnEnd');
+  assert.equal(te2[0].remaining, 2, 'non-acting member should not tick PlayerTurnEnd');
+});
+
+test('count-based MindEye is consumed by damage action only', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ME${idx + 1}`,
+      characterName: `ME${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `MES${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 25000,
+                name: 'Damage',
+                label: 'DamageSkill',
+                sp_cost: 0,
+                hit_count: 1,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+              },
+              {
+                id: 25001,
+                name: 'Buff',
+                label: 'BuffSkill',
+                sp_cost: 0,
+                parts: [{ skill_type: 'AttackUp', target_type: 'Self' }],
+              },
+            ]
+          : [{ id: 25000 + idx + 1, name: 'Normal', label: `MESkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+
+  // Damage consumes Count mind-eye
+  let state = createBattleStateFromParty(new Party(members));
+  state.party.find((m) => m.characterId === 'ME1').addStatusEffect({
+    statusType: 'MindEye',
+    limitType: 'Default',
+    exitCond: 'Count',
+    remaining: 1,
+    power: 1,
+  });
+  let preview = previewTurn(state, {
+    0: { characterId: 'ME1', skillId: 25000 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(state.party.find((m) => m.characterId === 'ME1').resolveEffectiveMindEyeEffects().length, 0);
+
+  // Non-damage does not consume Count mind-eye
+  state = createBattleStateFromParty(new Party(members));
+  state.party.find((m) => m.characterId === 'ME1').addStatusEffect({
+    statusType: 'MindEye',
+    limitType: 'Default',
+    exitCond: 'Count',
+    remaining: 1,
+    power: 1,
+  });
+  preview = previewTurn(state, {
+    0: { characterId: 'ME1', skillId: 25001 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(state.party.find((m) => m.characterId === 'ME1').resolveEffectiveMindEyeEffects().length, 1);
+});

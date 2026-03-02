@@ -398,14 +398,17 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
-  tickReinforcedModeTurnIfActionable(isActionable) {
+  tickReinforcedModeTurnIfActionable(isActionable, options = {}) {
     if (!isActionable) {
       return;
     }
+    const shouldTickPlayerTurnEndStatuses = options.tickPlayerTurnEndStatuses !== false;
 
     if (this.isReinforcedMode && this.reinforcedTurnsRemaining > 0) {
       this.reinforcedTurnsRemaining -= 1;
-      this.tickStatusEffectsByExitCond('PlayerTurnEnd');
+      if (shouldTickPlayerTurnEndStatuses) {
+        this.tickStatusEffectsByExitCond('PlayerTurnEnd');
+      }
       if (this.reinforcedTurnsRemaining <= 0) {
         this.isReinforcedMode = false;
         this.reinforcedTurnsRemaining = 0;

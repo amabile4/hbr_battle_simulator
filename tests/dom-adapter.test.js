@@ -187,10 +187,35 @@ test('kishinka button is shown for Tezuka and activates reinforced state', () =>
   const badge = root.querySelector('[data-role="kishinka-state"]');
   assert.equal(button.hidden, false);
 
+  adapter.state.turnState.odGauge = 0;
   button.click();
   const tezuka = adapter.state.party.find((m) => m.characterId === 'STezuka');
   assert.equal(tezuka?.isReinforcedMode, true);
+  assert.equal(button.disabled, true, 'kishinka button should be disabled while reinforced');
+  assert.equal(adapter.state.turnState.odGauge, 15);
   assert.equal((badge?.textContent ?? '').includes('鬼神化中'), true);
+});
+
+test('action selector hit label shows base+funnel while reinforced', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const tezukaStyle = store.styles.find((style) => String(style.chara_label ?? '') === 'STezuka');
+  if (!tezukaStyle) {
+    return;
+  }
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== Number(tezukaStyle.id));
+  adapter.initializeBattle([Number(tezukaStyle.id), ...others.slice(0, 5)]);
+
+  // 鬼神化で Funnel(+3) が付く
+  const button = root.querySelector('[data-action="kishinka"]');
+  button.click();
+
+  const select = root.querySelector('[data-action-slot="0"]');
+  const hasFunnelHitLabel = [...select.options].some((opt) => /Hit\s+\d+\+3\b/.test(opt.textContent));
+  assert.equal(hasFunnelHitLabel, true);
 });
 
 test('selection state can be saved and loaded from localStorage slots', () => {

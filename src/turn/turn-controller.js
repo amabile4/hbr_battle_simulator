@@ -550,8 +550,10 @@ function applyOdGaugeFromActions(state, previewRecord) {
     currentOdGauge = Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, currentOdGauge));
 
     let consumedFunnels = [];
+    let consumedMindEyes = [];
     if (hasDamage) {
       consumedFunnels = member.consumeFunnelEffects(2);
+      consumedMindEyes = member.consumeMindEyeEffects(1);
     }
 
     const damageContext = buildDamageCalculationContext({
@@ -577,6 +579,7 @@ function applyOdGaugeFromActions(state, previewRecord) {
       baseHitCount,
       funnelHitBonus,
       consumedFunnelEffects: consumedFunnels,
+      consumedMindEyeEffects: consumedMindEyes,
       damageContext,
       odGaugeGain: delta,
       odGaugeRawGain: truncateToTwoDecimals(Number(odGaugeGain ?? 0)),
@@ -634,6 +637,35 @@ function resolveSupportTargetCharacterIds(state, actorMember, targetTypeRaw) {
   }
 
   return [...out];
+}
+
+function resolveFunnelHitBonusForMember(member, maxStacks = 2) {
+  if (!member || typeof member.resolveEffectiveFunnelEffects !== 'function') {
+    return 0;
+  }
+  const effects = member.resolveEffectiveFunnelEffects().slice(0, Math.max(0, Number(maxStacks) || 0));
+  return effects.reduce((sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)), 0);
+}
+
+function resolveEffectivePreviewHitCount(skill, state, member) {
+  const baseHitCount = resolveSkillHitCount(skill);
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
+  const hasDamage = hasDamagePartInParts(effectiveParts);
+  if (!hasDamage) {
+    return {
+      baseHitCount,
+      funnelHitBonus: 0,
+      effectiveHitCount: baseHitCount,
+    };
+  }
+
+  const normalizedBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
+  const funnelHitBonus = resolveFunnelHitBonusForMember(member, 2);
+  return {
+    baseHitCount,
+    funnelHitBonus,
+    effectiveHitCount: Math.max(0, normalizedBase + funnelHitBonus),
+  };
 }
 
 function applyFunnelEffectsFromActions(state, previewRecord) {
@@ -766,7 +798,30 @@ function updateKishinStateAfterTurn(state) {
     return;
   }
   const actionable = isMemberActionableInCurrentTurn(state, tezuka);
-  tezuka.tickReinforcedModeTurnIfActionable(actionable);
+  // PlayerTurnEnd 系状態の減算は turn-controller 側で一括処理する。
+  tezuka.tickReinforcedModeTurnIfActionable(actionable, { tickPlayerTurnEndStatuses: false });
+}
+
+function applyTurnBasedStatusExpiry(state, previewRecord) {
+  const processed = new Set();
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const characterId = String(actionEntry?.characterId ?? '');
+    if (!characterId || processed.has(characterId)) {
+      continue;
+    }
+    processed.add(characterId);
+
+    const member = findMemberByCharacterId(state, characterId);
+    if (!member) {
+      continue;
+    }
+    const ticked = member.tickStatusEffectsByExitCond('PlayerTurnEnd');
+    for (const item of ticked) {
+      events.push({ characterId, ...item });
+    }
+  }
+  return events;
 }
 
 function syncExtraActiveFlags(party, allowedCharacterIds = []) {
@@ -934,6 +989,7 @@ function validateActionDict(state, actions) {
 function previewActionEntries(state, sortedActions) {
   return sortedActions.map(({ member, position, skill, action }) => {
     const preview = member.previewSkillUse(skill.skillId);
+    const hitInfo = resolveEffectivePreviewHitCount(skill, state, member);
 
     return {
       characterId: member.characterId,
@@ -945,7 +1001,9 @@ function previewActionEntries(state, sortedActions) {
       skillName: skill.name,
       skillLabel: skill.label,
       skillTargetType: String(skill.targetType ?? ''),
-      skillHitCount: resolveSkillHitCount(skill),
+      skillHitCount: hitInfo.effectiveHitCount,
+      skillBaseHitCount: hitInfo.baseHitCount,
+      skillFunnelHitBonus: hitInfo.funnelHitBonus,
       spCost: skill.spCost,
       consumeType: String(skill.consumeType ?? 'Sp'),
       spChanges: [
@@ -1408,6 +1466,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
 
   const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
   updateKishinStateAfterTurn(state);
+  applyTurnBasedStatusExpiry(state, previewRecord);
 
   if (applySwapOnCommit) {
     applySwapEvents(state, swapEvents);

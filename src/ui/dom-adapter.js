@@ -40,6 +40,7 @@ const DRIVE_PIERCE_OPTIONS = Object.freeze([
   { value: 15, label: 'ドライブピアス +15%' },
 ]);
 const TEZUKA_CHARACTER_ID = 'STezuka';
+const OD_GAUGE_MAX_PERCENT = 300;
 
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
@@ -72,6 +73,30 @@ function formatSkillCostLabel(skill) {
     return 'SP ALL';
   }
   return consumeType.toLowerCase() === 'ep' ? `EP ${costRaw}` : `SP ${costRaw}`;
+}
+
+function resolveFunnelHitBonus(member, maxStacks = 2) {
+  if (!member || typeof member.resolveEffectiveFunnelEffects !== 'function') {
+    return 0;
+  }
+  return member
+    .resolveEffectiveFunnelEffects()
+    .slice(0, Math.max(0, Number(maxStacks) || 0))
+    .reduce((sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)), 0);
+}
+
+function formatSkillHitLabel(skill, member) {
+  const baseHit = Number(skill?.hitCount ?? 0);
+  const validBase = Number.isFinite(baseHit) && baseHit > 0 ? baseHit : null;
+  if (!validBase) {
+    return '-';
+  }
+
+  const funnel = String(skill?.type ?? '') === 'damage' ? resolveFunnelHitBonus(member, 2) : 0;
+  if (funnel > 0) {
+    return `${validBase}+${funnel}`;
+  }
+  return `${validBase}`;
 }
 
 function firstSixUniqueStyles(styles) {
@@ -1054,8 +1079,7 @@ export class BattleDomAdapter {
         const option = this.doc.createElement('option');
         option.value = String(skill.skillId);
         const costLabel = formatSkillCostLabel(skill);
-        const hitCount = Number(skill.hitCount ?? 0);
-        const hitLabel = Number.isFinite(hitCount) && hitCount > 0 ? `${hitCount}` : '-';
+        const hitLabel = formatSkillHitLabel(skill, member);
         option.textContent = `${skill.name} (${costLabel} / Hit ${hitLabel})`;
         select.appendChild(option);
       }
@@ -1545,13 +1569,16 @@ export class BattleDomAdapter {
     }
 
     tezuka.activateReinforcedMode(3);
+    const currentOd = Number(this.state.turnState.odGauge ?? 0);
+    const nextOd = Math.min(OD_GAUGE_MAX_PERCENT, currentOd + 15);
+    this.state.turnState.odGauge = Number(nextOd.toFixed(2));
     this.previewRecord = null;
     this.writePreviewOutput('');
     this.renderActionSelectors();
     this.renderPartyState();
     this.renderSwapSelectors();
     this.renderTurnStatus();
-    this.setStatus('手塚 咲が鬼神化しました。');
+    this.setStatus('手塚 咲が鬼神化しました。OD+15%');
   }
 
   renderPartyState() {

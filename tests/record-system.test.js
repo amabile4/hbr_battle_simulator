@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   createBattleRecordStore,
   createBattleStateFromParty,
+  CharacterStyle,
   CsvExporter,
+  Party,
   previewTurn,
   commitTurn,
   RecordEditor,
@@ -82,4 +84,60 @@ test('csv exporter outputs stable character columns by initial party index', () 
   const firstDataRow = csv.split('\n')[1]?.split(',') ?? [];
   const positionCol = 5; // seq,turnLabel,actionContext,enemyAction,startSP,position,...
   assert.equal(Number(firstDataRow[positionCol]) >= 1, true, 'position should be 1-based in CSV');
+});
+
+test('csv action cell renders hit as base+funnel when funnel bonus exists', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `CR${idx + 1}`,
+      characterName: `CR${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `CRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 31000 + idx,
+          name: idx === 0 ? 'Attack + Funnel' : 'Normal',
+          label: idx === 0 ? 'AttackFunnel' : `CRSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 1 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [
+                  { skill_type: 'AttackSkill', target_type: 'Single' },
+                  {
+                    skill_type: 'Funnel',
+                    target_type: 'Self',
+                    power: [3, 0],
+                    value: [0.25, 0],
+                    effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                  },
+                ]
+              : [],
+        },
+      ],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  const actor = state.party.find((m) => m.characterId === 'CR1');
+  actor.addStatusEffect({
+    statusType: 'Funnel',
+    limitType: 'Default',
+    exitCond: 'Count',
+    remaining: 1,
+    power: 3,
+    metadata: { damageBonus: 0.25 },
+  });
+  const preview = previewTurn(state, {
+    0: { characterId: 'CR1', skillId: 31000 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const store = RecordEditor.upsertRecord(createBattleRecordStore(), committedRecord);
+  const csv = CsvExporter.exportToCSV(store, state.initialParty);
+
+  assert.ok(csv.includes('Attack + Funnel [Single,4hit (1+3)]'));
 });

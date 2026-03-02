@@ -32,8 +32,17 @@ function formatActionCell(action) {
   const name = String(action.skillName ?? '-');
   const target = String(action.skillTargetType ?? '');
   const hit = Number(action.skillHitCount ?? 0);
+  const baseHit = Number(action.skillBaseHitCount ?? 0);
+  const funnelHit = Number(action.skillFunnelHitBonus ?? 0);
   const targetLabel = target || '?';
-  const hitLabel = Number.isFinite(hit) && hit > 0 ? `${hit}hit` : '-hit';
+  let hitLabel = '-hit';
+  if (Number.isFinite(hit) && hit > 0) {
+    if (Number.isFinite(baseHit) && baseHit > 0 && Number.isFinite(funnelHit) && funnelHit > 0) {
+      hitLabel = `${hit}hit (${baseHit}+${funnelHit})`;
+    } else {
+      hitLabel = `${hit}hit`;
+    }
+  }
   return `${name} [${targetLabel},${hitLabel}]`;
 }
 
