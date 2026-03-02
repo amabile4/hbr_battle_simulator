@@ -99,6 +99,42 @@ function formatSkillHitLabel(skill, member) {
   return `${validBase}`;
 }
 
+const ELEMENT_BADGE_META = Object.freeze({
+  Fire: { label: '火', className: 'attr-element-fire' },
+  Ice: { label: '氷', className: 'attr-element-ice' },
+  Thunder: { label: '雷', className: 'attr-element-thunder' },
+  Light: { label: '光', className: 'attr-element-light' },
+  Dark: { label: '闇', className: 'attr-element-dark' },
+});
+
+const WEAPON_BADGE_META = Object.freeze({
+  Slash: { label: '斬', className: 'attr-weapon-slash' },
+  Stab: { label: '突', className: 'attr-weapon-stab' },
+  Strike: { label: '打', className: 'attr-weapon-strike' },
+});
+
+function toUniqueList(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function extractSkillAttributes(skill) {
+  const parts = Array.isArray(skill?.parts) ? skill.parts : [];
+  const elements = toUniqueList(
+    parts
+      .flatMap((part) => (Array.isArray(part?.elements) ? part.elements : []))
+      .map((v) => String(v))
+      .filter((v) => v && v !== 'None')
+  );
+
+  const weapon = toUniqueList(
+    parts
+      .map((part) => String(part?.type ?? ''))
+      .filter((v) => ['Slash', 'Stab', 'Strike'].includes(v))
+  )[0] ?? null;
+
+  return { elements, weapon };
+}
+
 function firstSixUniqueStyles(styles) {
   const out = [];
   const seen = new Set();
@@ -163,6 +199,41 @@ export class BattleDomAdapter {
     } catch (error) {
       this.setStatus(`Error: ${error.message || fallbackMessage}`);
       return null;
+    }
+  }
+
+  createAttributeBadge(text, className) {
+    const badge = this.doc.createElement('span');
+    badge.className = `attr-badge ${className}`;
+    badge.textContent = text;
+    return badge;
+  }
+
+  buildAttributeBadgeNodes({ elements = [], weapon = null } = {}) {
+    const nodes = [];
+    for (const element of elements) {
+      const meta = ELEMENT_BADGE_META[element];
+      if (!meta) {
+        continue;
+      }
+      nodes.push(this.createAttributeBadge(meta.label, meta.className));
+    }
+    if (weapon) {
+      const meta = WEAPON_BADGE_META[weapon];
+      if (meta) {
+        nodes.push(this.createAttributeBadge(meta.label, meta.className));
+      }
+    }
+    return nodes;
+  }
+
+  renderBadgeContainer(container, attrs) {
+    if (!container) {
+      return;
+    }
+    container.innerHTML = '';
+    for (const node of this.buildAttributeBadgeNodes(attrs)) {
+      container.appendChild(node);
     }
   }
 
@@ -276,6 +347,7 @@ export class BattleDomAdapter {
 
       if (target.matches('[data-role="style-select"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateStyleAttributeBadges(slot, target.value);
         this.populateLimitBreakSelect(slot, target.value, null);
         this.populateSkillChecklist(slot, target.value);
         this.populatePassiveList(slot, target.value);
@@ -316,6 +388,7 @@ export class BattleDomAdapter {
         const position = toInt(target.getAttribute('data-action-slot'), -1);
         if (position >= 0) {
           this.lastActionSkillByPosition.set(position, toInt(target.value, 0));
+          this.updateActionSkillAttributeBadges(position, toInt(target.value, 0));
         }
       }
 
@@ -371,7 +444,12 @@ export class BattleDomAdapter {
       }
       const sourceBadge = tags.length > 0 ? ` ${tags.map((t) => `[${t}]`).join('')}` : '';
       const costLabel = formatSkillCostLabel(skill);
+      const attrs = extractSkillAttributes(skill);
       row.appendChild(checkbox);
+      row.append(' ');
+      for (const badge of this.buildAttributeBadgeNodes(attrs)) {
+        row.appendChild(badge);
+      }
       row.append(` ${skill.name} (${costLabel})${sourceBadge}`);
       container.appendChild(row);
     }
@@ -444,6 +522,10 @@ export class BattleDomAdapter {
       const styleSelect = this.doc.createElement('select');
       styleSelect.setAttribute('data-role', 'style-select');
       styleSelect.setAttribute('data-slot', String(i));
+      const styleAttrBadges = this.doc.createElement('div');
+      styleAttrBadges.setAttribute('data-role', 'style-attr-badges');
+      styleAttrBadges.setAttribute('data-slot', String(i));
+      styleAttrBadges.className = 'attr-badge-row';
 
       const limitBreakSelect = this.doc.createElement('select');
       limitBreakSelect.setAttribute('data-role', 'limit-break-select');
@@ -468,6 +550,7 @@ export class BattleDomAdapter {
 
       wrapper.appendChild(characterSelect);
       wrapper.appendChild(styleSelect);
+      wrapper.appendChild(styleAttrBadges);
       wrapper.appendChild(limitBreakSelect);
       wrapper.appendChild(drivePierceSelect);
       wrapper.appendChild(skillChecklist);
@@ -484,6 +567,7 @@ export class BattleDomAdapter {
 
       container.appendChild(wrapper);
       this.populateStyleSelect(i, initial.characterLabel, initial.styleId);
+      this.updateStyleAttributeBadges(i, initial.styleId);
       this.populateLimitBreakSelect(i, initial.styleId, null);
       this.populateSkillChecklist(i, initial.styleId);
       this.populatePassiveList(i, initial.styleId);
@@ -833,6 +917,28 @@ export class BattleDomAdapter {
     if (styles.length > 0 && styleSelect.value === '') {
       styleSelect.value = String(styles[0].id);
     }
+    this.updateStyleAttributeBadges(slotIndex, styleSelect.value);
+  }
+
+  updateStyleAttributeBadges(slotIndex, styleId) {
+    const container = this.root.querySelector(
+      `[data-role="style-attr-badges"][data-slot="${slotIndex}"]`
+    );
+    const style = this.dataStore.getStyleById(styleId);
+    if (!style) {
+      this.renderBadgeContainer(container, { elements: [], weapon: null });
+      return;
+    }
+    const elements = toUniqueList(
+      (Array.isArray(style.elements) ? style.elements : [])
+        .map((v) => String(v))
+        .filter((v) => v && v !== 'None')
+    );
+    const weapon = String(style.weapon ?? '');
+    this.renderBadgeContainer(container, {
+      elements,
+      weapon: ['Slash', 'Stab', 'Strike'].includes(weapon) ? weapon : null,
+    });
   }
 
   onCharacterSelectionChanged(slotIndex, characterLabel) {
@@ -1094,7 +1200,13 @@ export class BattleDomAdapter {
       this.lastActionSkillByPosition.set(member.position, toInt(select.value, 0));
 
       wrapper.appendChild(select);
+      const skillAttrBadges = this.doc.createElement('span');
+      skillAttrBadges.setAttribute('data-role', 'action-skill-attr-badges');
+      skillAttrBadges.setAttribute('data-position', String(member.position));
+      skillAttrBadges.className = 'attr-badge-row';
+      wrapper.appendChild(skillAttrBadges);
       container.appendChild(wrapper);
+      this.updateActionSkillAttributeBadges(member.position, toInt(select.value, 0));
     }
 
     if (actionableMembers.length === 0) {
@@ -1102,6 +1214,23 @@ export class BattleDomAdapter {
       note.textContent = 'No actionable front members in current turn state.';
       container.appendChild(note);
     }
+  }
+
+  updateActionSkillAttributeBadges(position, skillId) {
+    const container = this.root.querySelector(
+      `[data-role="action-skill-attr-badges"][data-position="${position}"]`
+    );
+    if (!container || !this.party) {
+      return;
+    }
+    const member = this.party.getByPosition(position);
+    const skill = member?.getSkill(skillId);
+    if (!member || !skill) {
+      this.renderBadgeContainer(container, { elements: [], weapon: null });
+      return;
+    }
+    const attrs = extractSkillAttributes(skill);
+    this.renderBadgeContainer(container, attrs);
   }
 
   getActionableFrontlineMembers() {
