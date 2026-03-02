@@ -90,6 +90,7 @@
         <label>デバッグ：OD強制発動 <input data-role="force-od-toggle" type="checkbox" /></label>
       </div>
       <div class="row" data-role="od-dialog" hidden>
+        <strong>通常OD発動</strong>
         <label>ODレベル
           <select data-role="od-level">
             <option value="1">OD1</option>
@@ -97,10 +98,11 @@
             <option value="3">OD3</option>
           </select>
         </label>
-        <button data-action="od-confirm" type="button">OD発動</button>
+        <button data-action="od-confirm" type="button">通常OD発動</button>
         <button data-action="od-cancel" type="button">キャンセル</button>
       </div>
       <div class="row" data-role="interrupt-od-dialog" hidden>
+        <strong>割込OD発動</strong>
         <label>ODレベル
           <select data-role="interrupt-od-level">
             <option value="1">OD1</option>
@@ -108,7 +110,7 @@
             <option value="3">OD3</option>
           </select>
         </label>
-        <button data-action="interrupt-od-confirm" type="button">OD発動</button>
+        <button data-action="interrupt-od-confirm" type="button">割込OD発動</button>
         <button data-action="interrupt-od-cancel" type="button">キャンセル</button>
       </div>
       <p><strong>Turn:</strong> <span data-role="turn-label"></span></p>
