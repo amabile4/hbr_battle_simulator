@@ -118,21 +118,38 @@ function toUniqueList(values) {
 }
 
 function extractSkillAttributes(skill) {
-  const parts = Array.isArray(skill?.parts) ? skill.parts : [];
-  const elements = toUniqueList(
-    parts
-      .flatMap((part) => (Array.isArray(part?.elements) ? part.elements : []))
-      .map((v) => String(v))
-      .filter((v) => v && v !== 'None')
-  );
+  const elements = new Set();
+  const weaponTypes = new Set();
 
-  const weapon = toUniqueList(
-    parts
-      .map((part) => String(part?.type ?? ''))
-      .filter((v) => ['Slash', 'Stab', 'Strike'].includes(v))
-  )[0] ?? null;
+  const collectFromParts = (parts) => {
+    for (const part of Array.isArray(parts) ? parts : []) {
+      for (const element of Array.isArray(part?.elements) ? part.elements : []) {
+        const value = String(element ?? '');
+        if (value && value !== 'None') {
+          elements.add(value);
+        }
+      }
 
-  return { elements, weapon };
+      const type = String(part?.type ?? '');
+      if (['Slash', 'Stab', 'Strike'].includes(type)) {
+        weaponTypes.add(type);
+      }
+
+      // SkillSwitch などで variant が strval に入るため、再帰で拾う。
+      for (const variant of Array.isArray(part?.strval) ? part.strval : []) {
+        if (variant && typeof variant === 'object' && Array.isArray(variant.parts)) {
+          collectFromParts(variant.parts);
+        }
+      }
+    }
+  };
+
+  collectFromParts(skill?.parts);
+
+  return {
+    elements: [...elements],
+    weapon: [...weaponTypes][0] ?? null,
+  };
 }
 
 function firstSixUniqueStyles(styles) {
