@@ -24,6 +24,7 @@ const OD_DAMAGE_PART_TYPES = new Set([
   'TokenAttack',
   'FixedHpDamageRateAttack',
 ]);
+const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 
 function clampOdGauge(value) {
   return Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, value));
@@ -264,6 +265,64 @@ function splitTopLevel(expression, separator) {
   return out.filter(Boolean);
 }
 
+function getEnemyState(turnState) {
+  const state = turnState?.enemyState;
+  if (!state || typeof state !== 'object') {
+    return { enemyCount: 1, statuses: [] };
+  }
+  const enemyCount = Number(state.enemyCount ?? 1);
+  return {
+    enemyCount: Number.isFinite(enemyCount) ? Math.max(1, Math.min(3, enemyCount)) : 1,
+    statuses: Array.isArray(state.statuses) ? state.statuses : [],
+  };
+}
+
+function getActiveEnemyStatuses(turnState, statusType) {
+  const key = String(statusType ?? '');
+  return getEnemyState(turnState).statuses.filter(
+    (status) =>
+      String(status?.statusType ?? '') === key && Number(status?.remainingTurns ?? 0) > 0
+  );
+}
+
+function countEnemiesWithStatus(turnState, statusType) {
+  const enemyState = getEnemyState(turnState);
+  const targets = new Set();
+  for (const status of getActiveEnemyStatuses(turnState, statusType)) {
+    const idx = Number(status?.targetIndex ?? -1);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= enemyState.enemyCount) {
+      continue;
+    }
+    targets.add(idx);
+  }
+  return targets.size;
+}
+
+function tickEnemyStatuses(turnState) {
+  const enemyState = getEnemyState(turnState);
+  const nextStatuses = enemyState.statuses
+    .map((status) => {
+      const remainingTurns = Number(status?.remainingTurns ?? 0);
+      if (!Number.isFinite(remainingTurns) || remainingTurns <= 0) {
+        return null;
+      }
+      const nextTurns = remainingTurns - 1;
+      if (nextTurns <= 0) {
+        return null;
+      }
+      return {
+        statusType: String(status?.statusType ?? ''),
+        targetIndex: Number(status?.targetIndex ?? 0),
+        remainingTurns: nextTurns,
+      };
+    })
+    .filter(Boolean);
+  turnState.enemyState = {
+    enemyCount: enemyState.enemyCount,
+    statuses: nextStatuses,
+  };
+}
+
 function evaluateCountBCPredicate(innerExpression, state, member) {
   const inner = String(innerExpression ?? '').replace(/\s+/g, '');
   if (!inner) {
@@ -297,6 +356,11 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
   if (inner === 'PlayedSkillCount(FMikotoSkill04)>0') {
     const lhs = Number(member?.getSkillUseCountByLabel('FMikotoSkill04') ?? 0);
     return { known: true, value: lhs > 0 ? 1 : 0 };
+  }
+
+  if (inner === 'IsPlayer()==0&&IsDead()==0&&BreakDownTurn()>0') {
+    const count = countEnemiesWithStatus(state?.turnState, ENEMY_STATUS_DOWN_TURN);
+    return { known: true, value: count };
   }
 
   return { known: false, value: true };
@@ -1802,6 +1866,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
   updateKishinStateAfterTurn(state);
   applyTurnBasedStatusExpiry(state, previewRecord);
+  tickEnemyStatuses(state.turnState);
 
   if (applySwapOnCommit) {
     applySwapEvents(state, swapEvents);

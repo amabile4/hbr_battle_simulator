@@ -92,7 +92,23 @@
             <option value="3">3</option>
           </select>
         </label>
+        <label>Enemy Status
+          <select data-role="enemy-status-type">
+            <option value="DownTurn" selected>DownTurn</option>
+          </select>
+        </label>
+        <label>Target
+          <select data-role="enemy-status-target">
+            <option value="0" selected>Enemy 1</option>
+          </select>
+        </label>
+        <label>Turns
+          <input data-role="enemy-status-turns" type="number" min="1" step="1" value="1" />
+        </label>
+        <button data-action="enemy-status-apply" type="button">状態付与</button>
+        <button data-action="enemy-status-clear" type="button">状態解除</button>
       </div>
+      <p><strong data-role="enemy-status-list">Enemy Status: -</strong></p>
       <div data-role="action-slots" class="row"></div>
       <div class="row">
         <label>Swap From

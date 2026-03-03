@@ -18,6 +18,12 @@ function createRoot() {
       <button data-action="initialize"></button>
       <input data-role="enemy-action" />
       <select data-role="enemy-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+      <select data-role="enemy-status-type"><option value="DownTurn">DownTurn</option></select>
+      <select data-role="enemy-status-target"><option value="0">Enemy 1</option></select>
+      <input data-role="enemy-status-turns" type="number" value="1" />
+      <button data-action="enemy-status-apply"></button>
+      <button data-action="enemy-status-clear"></button>
+      <strong data-role="enemy-status-list"></strong>
       <div data-role="action-slots"></div>
       <select data-role="swap-from"><option value="0">0</option></select>
       <select data-role="swap-to"><option value="3">3</option></select>
@@ -88,6 +94,27 @@ test('enemy count in turn controls is reflected in preview record', () => {
 
   const preview = adapter.previewCurrentTurn();
   assert.equal(preview.enemyCount, 3);
+});
+
+test('enemy down-turn status can be applied and cleared from controls', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const turns = root.querySelector('[data-role="enemy-status-turns"]');
+  turns.value = '2';
+  adapter.applyEnemyStatusFromDom();
+
+  const statusesAfterApply = adapter.state.turnState.enemyState.statuses;
+  assert.equal(statusesAfterApply.length, 1);
+  assert.equal(statusesAfterApply[0].statusType, 'DownTurn');
+  assert.equal(statusesAfterApply[0].remainingTurns, 2);
+  assert.ok((root.querySelector('[data-role="enemy-status-list"]')?.textContent ?? '').includes('DownTurn(2)'));
+
+  adapter.clearEnemyStatusFromDom();
+  assert.equal(adapter.state.turnState.enemyState.statuses.length, 0);
+  assert.equal(root.querySelector('[data-role="enemy-status-list"]')?.textContent, 'Enemy Status: -');
 });
 
 test('OD controls: preemptive activation and interrupt reservation/commit', () => {

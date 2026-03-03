@@ -56,14 +56,35 @@ export function createInitialTurnState() {
     odContext: null,
     odSuspended: false,
     odPending: false,
+    enemyState: {
+      enemyCount: 1,
+      statuses: [],
+    },
     transcendence: null,
     extraTurnState: null,
   });
 }
 
 export function cloneTurnState(turnState) {
+  const enemyState =
+    turnState?.enemyState && typeof turnState.enemyState === 'object'
+      ? {
+          enemyCount: Number(turnState.enemyState.enemyCount ?? 1),
+          statuses: Array.isArray(turnState.enemyState.statuses)
+            ? turnState.enemyState.statuses.map((status) => ({
+                statusType: String(status?.statusType ?? ''),
+                targetIndex: Number(status?.targetIndex ?? 0),
+                remainingTurns: Number(status?.remainingTurns ?? 0),
+              }))
+            : [],
+        }
+      : {
+          enemyCount: 1,
+          statuses: [],
+        };
   return {
     ...turnState,
+    enemyState,
     transcendence: turnState.transcendence
       ? {
           ...turnState.transcendence,

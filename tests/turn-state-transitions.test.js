@@ -1575,6 +1575,53 @@ test('skill with IsOverDrive()==0 is unusable in OD and usable outside OD', () =
   );
 });
 
+test('CountBC(...BreakDownTurn()>0) is evaluated from enemy down-turn state', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ED${idx + 1}`,
+      characterName: `ED${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EDS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 18000,
+                name: 'BreakDown Dependent',
+                label: 'BreakDownDependent',
+                sp_cost: 0,
+                iuc_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&BreakDownTurn()>0)>0',
+                parts: [],
+              },
+            ]
+          : [{ id: 18000 + idx, name: 'Normal', label: `EDSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'ED1', skillId: 18000 },
+      }),
+    /cannot be used/i
+  );
+
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+  const preview = previewTurn(state, {
+    0: { characterId: 'ED1', skillId: 18000 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.enemyState.statuses.length, 0, 'down turn should tick down after commit');
+});
+
 test('skill with SpecialStatusCountByType(20)==0 is blocked during extra turn', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

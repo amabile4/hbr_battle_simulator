@@ -51,6 +51,7 @@ const START_SP_EQUIP_OPTIONS = Object.freeze([
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const OD_GAUGE_MIN_PERCENT = -999.99;
 const OD_GAUGE_MAX_PERCENT = 300;
+const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
@@ -368,6 +369,12 @@ export class BattleDomAdapter {
     this.root.querySelector('[data-action="export-csv"]')?.addEventListener('click', () => {
       this.runSafely(() => this.exportCsv());
     });
+    this.root.querySelector('[data-action="enemy-status-apply"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.applyEnemyStatusFromDom());
+    });
+    this.root.querySelector('[data-action="enemy-status-clear"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.clearEnemyStatusFromDom());
+    });
 
     this.root.querySelector('[data-action="clear-records"]')?.addEventListener('click', () => {
       this.recordStore = createBattleRecordStore();
@@ -463,6 +470,11 @@ export class BattleDomAdapter {
       if (target.matches('[data-role="swap-from"]')) {
         const from = toInt(target.value, 0);
         this.renderSwapToOptions(from);
+      }
+
+      if (target.matches('[data-role="enemy-count"]')) {
+        this.syncEnemyStateFromDom();
+        this.renderEnemyStatusControls();
       }
 
       if (target.matches('[data-action-slot]')) {
@@ -1289,6 +1301,10 @@ export class BattleDomAdapter {
       ...createInitialTurnState(),
       odGauge: Number(initialOdGauge),
     };
+    initialTurnState.enemyState = {
+      enemyCount: this.readEnemyCountFromDom(),
+      statuses: [],
+    };
     this.state = createBattleStateFromParty(this.party, initialTurnState);
     this.recordStore = createBattleRecordStore();
     this.previewRecord = null;
@@ -1299,6 +1315,7 @@ export class BattleDomAdapter {
     this.renderPartyState();
     this.renderSwapSelectors();
     this.renderTurnStatus();
+    this.renderEnemyStatusControls();
     this.renderKishinkaControls();
     this.renderRecordTable();
     this.writePreviewOutput('');
@@ -1523,6 +1540,147 @@ export class BattleDomAdapter {
     return Math.max(1, Math.min(3, n));
   }
 
+  syncEnemyStateFromDom() {
+    if (!this.state?.turnState) {
+      return;
+    }
+    const enemyCount = this.readEnemyCountFromDom();
+    const current = this.state.turnState.enemyState ?? { enemyCount: 1, statuses: [] };
+    const statuses = Array.isArray(current.statuses)
+      ? current.statuses
+          .filter((status) => Number(status?.remainingTurns ?? 0) > 0)
+          .filter((status) => Number(status?.targetIndex ?? -1) >= 0)
+          .filter((status) => Number(status?.targetIndex ?? -1) < enemyCount)
+          .map((status) => ({
+            statusType: String(status?.statusType ?? ''),
+            targetIndex: Number(status?.targetIndex ?? 0),
+            remainingTurns: Number(status?.remainingTurns ?? 0),
+          }))
+      : [];
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses,
+    };
+  }
+
+  getEnemyStatuses() {
+    const state = this.state?.turnState?.enemyState;
+    return Array.isArray(state?.statuses) ? state.statuses : [];
+  }
+
+  renderEnemyStatusControls() {
+    const targetSelect = this.root.querySelector('[data-role="enemy-status-target"]');
+    const list = this.root.querySelector('[data-role="enemy-status-list"]');
+    const enemyCount = this.readEnemyCountFromDom();
+
+    if (targetSelect) {
+      const prev = String(targetSelect.value ?? '');
+      targetSelect.innerHTML = '';
+      for (let i = 0; i < enemyCount; i += 1) {
+        const option = this.doc.createElement('option');
+        option.value = String(i);
+        option.textContent = `Enemy ${i + 1}`;
+        targetSelect.appendChild(option);
+      }
+      const hasPrev = [...targetSelect.options].some((option) => option.value === prev);
+      targetSelect.value = hasPrev ? prev : '0';
+    }
+
+    if (list) {
+      const statuses = this.getEnemyStatuses()
+        .filter((status) => Number(status?.remainingTurns ?? 0) > 0)
+        .sort((a, b) => Number(a.targetIndex) - Number(b.targetIndex));
+      if (statuses.length === 0) {
+        list.textContent = 'Enemy Status: -';
+      } else {
+        const text = statuses
+          .map(
+            (status) =>
+              `Enemy ${Number(status.targetIndex) + 1}: ${String(status.statusType)}(${Number(
+                status.remainingTurns
+              )})`
+          )
+          .join(' | ');
+        list.textContent = `Enemy Status: ${text}`;
+      }
+    }
+  }
+
+  applyEnemyStatusFromDom() {
+    if (!this.state?.turnState) {
+      throw new Error('State is not initialized.');
+    }
+    this.syncEnemyStateFromDom();
+
+    const typeSelect = this.root.querySelector('[data-role="enemy-status-type"]');
+    const turnsInput = this.root.querySelector('[data-role="enemy-status-turns"]');
+    const targetSelect = this.root.querySelector('[data-role="enemy-status-target"]');
+    const statusType = String(typeSelect?.value ?? ENEMY_STATUS_DOWN_TURN);
+    const remainingTurns = Math.max(1, toInt(turnsInput?.value, 1));
+    const targetIndex = Math.max(
+      0,
+      Math.min(this.readEnemyCountFromDom() - 1, toInt(targetSelect?.value, 0))
+    );
+
+    const nextStatuses = this.getEnemyStatuses()
+      .filter(
+        (status) =>
+          !(
+            String(status?.statusType ?? '') === statusType &&
+            Number(status?.targetIndex ?? -1) === targetIndex
+          )
+      )
+      .map((status) => ({
+        statusType: String(status?.statusType ?? ''),
+        targetIndex: Number(status?.targetIndex ?? 0),
+        remainingTurns: Number(status?.remainingTurns ?? 0),
+      }));
+    nextStatuses.push({
+      statusType,
+      targetIndex,
+      remainingTurns,
+    });
+    this.state.turnState.enemyState = {
+      enemyCount: this.readEnemyCountFromDom(),
+      statuses: nextStatuses,
+    };
+    this.previewRecord = null;
+    this.writePreviewOutput('');
+    this.renderEnemyStatusControls();
+    this.setStatus(`Enemy ${targetIndex + 1} に ${statusType}(${remainingTurns}) を付与しました。`);
+  }
+
+  clearEnemyStatusFromDom() {
+    if (!this.state?.turnState) {
+      throw new Error('State is not initialized.');
+    }
+    this.syncEnemyStateFromDom();
+
+    const typeSelect = this.root.querySelector('[data-role="enemy-status-type"]');
+    const targetSelect = this.root.querySelector('[data-role="enemy-status-target"]');
+    const statusType = String(typeSelect?.value ?? ENEMY_STATUS_DOWN_TURN);
+    const targetIndex = Math.max(
+      0,
+      Math.min(this.readEnemyCountFromDom() - 1, toInt(targetSelect?.value, 0))
+    );
+
+    const nextStatuses = this.getEnemyStatuses().filter(
+      (status) =>
+        !(
+          String(status?.statusType ?? '') === statusType &&
+          Number(status?.targetIndex ?? -1) === targetIndex
+        )
+    );
+    this.state.turnState.enemyState = {
+      enemyCount: this.readEnemyCountFromDom(),
+      statuses: nextStatuses,
+    };
+    this.previewRecord = null;
+    this.writePreviewOutput('');
+    this.renderEnemyStatusControls();
+    this.setStatus(`Enemy ${targetIndex + 1} の ${statusType} を解除しました。`);
+  }
+
   queueSwap(fromPositionIndex, toPositionIndex) {
     if (!this.state) {
       throw new Error('State is not initialized.');
@@ -1575,6 +1733,7 @@ export class BattleDomAdapter {
 
     const enemyAction = this.root.querySelector('[data-role="enemy-action"]')?.value ?? null;
     const enemyCount = this.readEnemyCountFromDom();
+    this.syncEnemyStateFromDom();
     const actions = this.collectActionDictFromDom();
 
     this.previewRecord = previewTurn(this.state, actions, enemyAction, enemyCount);
@@ -1615,6 +1774,7 @@ export class BattleDomAdapter {
     this.renderPartyState();
     this.renderSwapSelectors();
     this.renderTurnStatus();
+    this.renderEnemyStatusControls();
     this.renderKishinkaControls();
     this.renderRecordTable();
     this.writePreviewOutput('');
@@ -1753,6 +1913,7 @@ export class BattleDomAdapter {
     }
     this.renderOdControls();
     this.renderKishinkaControls();
+    this.renderEnemyStatusControls();
   }
 
   isForceOdEnabled() {
