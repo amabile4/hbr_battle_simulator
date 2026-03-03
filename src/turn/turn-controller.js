@@ -979,7 +979,8 @@ function updateKishinStateAfterTurn(state) {
   if (!tezuka) {
     return;
   }
-  const actionable = isMemberActionableInCurrentTurn(state, tezuka);
+  const actionable =
+    isMemberActionableInCurrentTurn(state, tezuka) || state.turnState.turnType === 'extra';
   // PlayerTurnEnd 系状態の減算は turn-controller 側で一括処理する。
   tezuka.tickReinforcedModeTurnIfActionable(actionable, { tickPlayerTurnEndStatuses: false });
 }
@@ -1504,7 +1505,11 @@ function applyRecoveryPipeline(party, turnState) {
     }
   }
 
-  if (turnState.turnType === 'od' && turnState.odLevel > 0) {
+  const isFirstOdAction =
+    turnState.turnType === 'od' &&
+    turnState.odLevel > 0 &&
+    Number(turnState.remainingOdActions ?? 0) === Number(turnState.odLevel);
+  if (isFirstOdAction) {
     const odAmount = OD_RECOVERY_BY_LEVEL[turnState.odLevel] ?? 0;
     for (const member of party) {
       const od = member.applySpDelta(odAmount, 'od');

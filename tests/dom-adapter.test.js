@@ -382,6 +382,29 @@ test('initialize battle applies manually entered initial OD gauge', () => {
   assert.equal(adapter.state.turnState.odGauge, 300);
 });
 
+test('initialize battle applies start SP base + equip bonus per slot', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 4 });
+  adapter.mount();
+
+  const slot0 = root.querySelector('[data-role="start-sp-equip-select"][data-slot="0"]');
+  const slot1 = root.querySelector('[data-role="start-sp-equip-select"][data-slot="1"]');
+  slot0.value = '3';
+  slot1.value = '1';
+  slot0.dispatchEvent(new win.Event('change', { bubbles: true }));
+  slot1.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  adapter.initializeBattle();
+
+  const member0 = adapter.party.members.find((m) => m.partyIndex === 0);
+  const member1 = adapter.party.members.find((m) => m.partyIndex === 1);
+  const member2 = adapter.party.members.find((m) => m.partyIndex === 2);
+  assert.equal(member0.sp.current, 7);
+  assert.equal(member1.sp.current, 5);
+  assert.equal(member2.sp.current, 4);
+});
+
 test('selection state can be saved and loaded from localStorage slots', () => {
   const store = getStore();
   const { root, win } = createRoot();
@@ -394,6 +417,9 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
   const lbSelect = root.querySelector(`[data-role="limit-break-select"][data-slot="${slot}"]`);
   const driveSelect = root.querySelector(`[data-role="drive-pierce-select"][data-slot="${slot}"]`);
+  const startSpEquipSelect = root.querySelector(
+    `[data-role="start-sp-equip-select"][data-slot="${slot}"]`
+  );
   const saveSlotSelect = root.querySelector('[data-role="selection-slot-select"]');
 
   characterSelect.value = 'RKayamori';
@@ -404,6 +430,8 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   lbSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
   driveSelect.value = '12';
   driveSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  startSpEquipSelect.value = '3';
+  startSpEquipSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
 
   const skillChecks = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)];
   const target = skillChecks.find((box) => {
@@ -427,6 +455,7 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   assert.equal(styleSelect.value, '1001108');
   assert.equal(lbSelect.value, '1');
   assert.equal(driveSelect.value, '12');
+  assert.equal(startSpEquipSelect.value, '3');
   if (target) {
     const restored = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)].find(
       (box) => (box.closest('label')?.textContent ?? '').includes('エクシード・ルミナンス')
@@ -604,10 +633,12 @@ test('character -> style selection is linked and reflected on screen', () => {
   const styleSelects = root.querySelectorAll('[data-role="style-select"]');
   const lbSelects = root.querySelectorAll('[data-role="limit-break-select"]');
   const driveSelects = root.querySelectorAll('[data-role="drive-pierce-select"]');
+  const startSpEquipSelects = root.querySelectorAll('[data-role="start-sp-equip-select"]');
   assert.equal(characterSelects.length, 6);
   assert.equal(styleSelects.length, 6);
   assert.equal(lbSelects.length, 6);
   assert.equal(driveSelects.length, 6);
+  assert.equal(startSpEquipSelects.length, 6);
 
   const slot = 0;
   const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);

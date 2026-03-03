@@ -481,6 +481,83 @@ test('OD turn resumes after extra turn (OD3-1 -> EX -> OD3-2)', () => {
   assert.equal(state.turnState.odSuspended, false);
 });
 
+test('OD SP recovery is granted once per OD activation (no repeated +20 on OD3-2 after EX)', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `OR${idx + 1}`,
+      characterName: `OR${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ORS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 12100,
+                name: 'Grant Self Extra',
+                sp_cost: 0,
+                additionalTurnRule: {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: false,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: true,
+                  },
+                  additionalTurnTargetTypes: ['Self'],
+                },
+                parts: [{ skill_type: 'AdditionalTurn', target_type: 'Self' }],
+              },
+              {
+                id: 12101,
+                name: 'Normal',
+                sp_cost: 0,
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+              },
+            ]
+          : [{ id: 12110 + idx, name: 'Normal', sp_cost: 0, parts: [{ skill_type: 'AttackSkill' }] }],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 300;
+  state = activateOverdrive(state, 3, 'preemptive');
+
+  // OD3-1: +20 (OD) +2 (base) = +22
+  let preview = previewTurn(state, {
+    0: { characterId: 'OR1', skillId: 12100 },
+    1: { characterId: 'OR2', skillId: 12111 },
+    2: { characterId: 'OR3', skillId: 12112 },
+  });
+  state = commitTurn(state, preview).nextState;
+  let actor = state.party.find((m) => m.characterId === 'OR1');
+  assert.equal(actor.sp.current, 32);
+  assert.equal(state.turnState.turnType, 'extra');
+
+  // EX: base回復は freeze ルールで current(32) を維持（上乗せなし）
+  preview = previewTurn(state, {
+    0: { characterId: 'OR1', skillId: 12101 },
+  });
+  state = commitTurn(state, preview).nextState;
+  actor = state.party.find((m) => m.characterId === 'OR1');
+  assert.equal(actor.sp.current, 32);
+  assert.equal(state.turnState.turnType, 'od');
+  assert.equal(state.turnState.turnLabel, 'OD3-2');
+
+  // OD3-2: OD回復(+20)は再発しない。SPは32維持。
+  preview = previewTurn(state, {
+    0: { characterId: 'OR1', skillId: 12101 },
+    1: { characterId: 'OR2', skillId: 12111 },
+    2: { characterId: 'OR3', skillId: 12112 },
+  });
+  state = commitTurn(state, preview).nextState;
+  actor = state.party.find((m) => m.characterId === 'OR1');
+  assert.equal(actor.sp.current, 32);
+});
+
 test('OD1 preemptive + single extra returns to T1 after extra ends', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -1657,6 +1734,42 @@ test('kishin state lasts 3 actionable turns then applies 1-turn action disable',
   state = commitTurn(state, previewDisabledTurn).nextState;
   const recovered = state.party.find((m) => m.characterId === 'STezuka');
   assert.equal(recovered.actionDisabledTurns, 0);
+});
+
+test('Tezuka kishin turn count advances on extra turn even when Tezuka is not in allowed extra members', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: idx === 0 ? 'STezuka' : `KX${idx + 1}`,
+      characterName: idx === 0 ? '手塚 咲' : `KX${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `KXS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 18000 + idx,
+          name: 'Normal',
+          label: `KXSkill${idx + 1}`,
+          sp_cost: 0,
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  const tezuka = state.party.find((m) => m.characterId === 'STezuka');
+  tezuka.activateReinforcedMode(3);
+
+  state = grantExtraTurn(state, ['KX2']);
+  const preview = previewTurn(state, {
+    1: { characterId: 'KX2', skillId: 18001 },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  const after = state.party.find((m) => m.characterId === 'STezuka');
+  assert.equal(after.reinforcedTurnsRemaining, 2);
 });
 
 test('kishin remaining 1 still allows Tezuka self-extra grant before expiring', () => {

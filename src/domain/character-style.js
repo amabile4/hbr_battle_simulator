@@ -278,7 +278,12 @@ export class CharacterStyle {
     const startEP = this.ep.current;
     const consumeType = String(skill.consumeType ?? 'Sp');
     let rawCost = Number(skill.spCost ?? 0);
-    if (this.characterId === 'STezuka' && this.isReinforcedMode && consumeType !== 'Ep') {
+    if (
+      this.characterId === 'STezuka' &&
+      this.isReinforcedMode &&
+      consumeType !== 'Ep' &&
+      rawCost !== -1
+    ) {
       rawCost = 0;
     }
     const cost = Math.abs(rawCost);

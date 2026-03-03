@@ -35,7 +35,7 @@ async function main() {
   const adapter = new BattleDomAdapter({
     root,
     dataStore: store,
-    initialSP: 10,
+    initialSP: 4,
   });
 
   adapter.mount();

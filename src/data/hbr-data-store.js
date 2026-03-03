@@ -1058,6 +1058,7 @@ export class HbrDataStore {
     }
 
     const initialSP = options.initialSP ?? 4;
+    const initialSpByPartyIndex = options.initialSpByPartyIndex ?? {};
     const spBonusMap = options.spBonusMap ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
@@ -1067,7 +1068,7 @@ export class HbrDataStore {
       this.buildCharacterStyle({
         styleId,
         partyIndex: index,
-        initialSP,
+        initialSP: Number(initialSpByPartyIndex[index] ?? initialSP),
         spBonus: Number(spBonusMap[index] ?? 0),
         drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
         equippedSkillIds: Array.isArray(skillSetsByPartyIndex[index])

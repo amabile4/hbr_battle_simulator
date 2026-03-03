@@ -224,9 +224,9 @@ test('Tezuka reinforced mode makes SP skill cost zero and grants Funnel/MindEye 
 
   const previewAll = member.previewSkillUse(46041404);
   assert.equal(previewAll.startSP, 12);
-  assert.equal(previewAll.endSP, 12);
+  assert.equal(previewAll.endSP, 0);
   member.commitSkillPreview(previewAll);
-  assert.equal(member.sp.current, 12);
+  assert.equal(member.sp.current, 0);
 });
 
 test('Tezuka reinforced state decrements granted Funnel/MindEye by actionable turns', () => {

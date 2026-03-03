@@ -40,6 +40,14 @@ const DRIVE_PIERCE_OPTIONS = Object.freeze([
   { value: 12, label: 'ドライブピアス +12%' },
   { value: 15, label: 'ドライブピアス +15%' },
 ]);
+const START_SP_BASE = 1;
+const START_SP_LEVEL_BONUS = 3;
+const START_SP_EQUIP_OPTIONS = Object.freeze([
+  { value: 0, label: '初期SP装備 +0' },
+  { value: 1, label: '初期SP装備 +1' },
+  { value: 2, label: '初期SP装備 +2' },
+  { value: 3, label: '初期SP装備 +3' },
+]);
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const OD_GAUGE_MIN_PERCENT = -999.99;
 const OD_GAUGE_MAX_PERCENT = 300;
@@ -79,7 +87,8 @@ function formatSkillCostLabel(skill, member = null) {
   if (
     member?.characterId === TEZUKA_CHARACTER_ID &&
     Boolean(member?.isReinforcedMode) &&
-    consumeType.toLowerCase() !== 'ep'
+    consumeType.toLowerCase() !== 'ep' &&
+    costRaw !== -1
   ) {
     return 'SP 0';
   }
@@ -441,6 +450,11 @@ export class BattleDomAdapter {
         this.updateSlotSummary(slot);
       }
 
+      if (target.matches('[data-role="start-sp-equip-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateSlotSummary(slot);
+      }
+
       if (target.matches('[data-role="selection-slot-select"]')) {
         const slot = this.getSelectedSelectionSlotIndex();
         this.renderSelectionSlotPreview(slot);
@@ -618,6 +632,18 @@ export class BattleDomAdapter {
         }
         drivePierceSelect.appendChild(option);
       }
+      const startSpEquipSelect = this.doc.createElement('select');
+      startSpEquipSelect.setAttribute('data-role', 'start-sp-equip-select');
+      startSpEquipSelect.setAttribute('data-slot', String(i));
+      for (const optionDef of START_SP_EQUIP_OPTIONS) {
+        const option = this.doc.createElement('option');
+        option.value = String(optionDef.value);
+        option.textContent = optionDef.label;
+        if (Number(optionDef.value) === 0) {
+          option.selected = true;
+        }
+        startSpEquipSelect.appendChild(option);
+      }
 
       const skillChecklist = this.doc.createElement('div');
       skillChecklist.setAttribute('data-role', 'skill-checklist');
@@ -628,6 +654,7 @@ export class BattleDomAdapter {
       wrapper.appendChild(styleAttrBadges);
       wrapper.appendChild(limitBreakSelect);
       wrapper.appendChild(drivePierceSelect);
+      wrapper.appendChild(startSpEquipSelect);
       wrapper.appendChild(skillChecklist);
 
       const summary = this.doc.createElement('div');
@@ -774,12 +801,16 @@ export class BattleDomAdapter {
       const drivePierceSelect = this.root.querySelector(
         `[data-role="drive-pierce-select"][data-slot="${i}"]`
       );
+      const startSpEquipSelect = this.root.querySelector(
+        `[data-role="start-sp-equip-select"][data-slot="${i}"]`
+      );
       const checkedSkillIds = this.getCheckedSkillIdsForSlot(i) ?? [];
       partySelections.push({
         characterLabel: String(charSelect?.value ?? ''),
         styleId: toInt(styleSelect?.value, this.defaultSelections[i].styleId),
         limitBreakLevel: toInt(lbSelect?.value, 0),
         drivePiercePercent: toInt(drivePierceSelect?.value, 0),
+        startSpEquipBonus: toInt(startSpEquipSelect?.value, 0),
         checkedSkillIds,
       });
     }
@@ -854,6 +885,22 @@ export class BattleDomAdapter {
         drivePierceSelect.value = '0';
       }
       if ((drivePierceSelect?.value ?? '') !== beforeDrive) {
+        changedCount += 1;
+      }
+      const startSpEquipSelect = this.root.querySelector(
+        `[data-role="start-sp-equip-select"][data-slot="${i}"]`
+      );
+      const beforeStartSpEquip = startSpEquipSelect?.value ?? '';
+      const requestedStartSpEquip = toInt(row.startSpEquipBonus, 0);
+      if (
+        startSpEquipSelect &&
+        [...startSpEquipSelect.options].some((opt) => Number(opt.value) === requestedStartSpEquip)
+      ) {
+        startSpEquipSelect.value = String(requestedStartSpEquip);
+      } else if (startSpEquipSelect) {
+        startSpEquipSelect.value = '0';
+      }
+      if ((startSpEquipSelect?.value ?? '') !== beforeStartSpEquip) {
         changedCount += 1;
       }
 
@@ -956,7 +1003,7 @@ export class BattleDomAdapter {
       const row = rows[i] ?? {};
       lines.push(
         `P${i + 1}: ${row.characterLabel ?? '-'} / style=${row.styleId ?? '-'} / ` +
-          `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
+          `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
       );
     }
     lines.push(
@@ -1123,6 +1170,17 @@ export class BattleDomAdapter {
     return out;
   }
 
+  readStartSpEquipMapFromDom() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const select = this.root.querySelector(
+        `[data-role="start-sp-equip-select"][data-slot="${i}"]`
+      );
+      out[i] = toInt(select?.value, 0);
+    }
+    return out;
+  }
+
   updateSlotSummary(slotIndex) {
     const summary = this.root.querySelector(`[data-role="slot-summary"][data-slot="${slotIndex}"]`);
     if (!summary) {
@@ -1149,11 +1207,16 @@ export class BattleDomAdapter {
       `[data-role="drive-pierce-select"][data-slot="${slotIndex}"]`
     );
     const drivePiercePercent = toInt(drivePierceSelect?.value, 0);
+    const startSpEquipSelect = this.root.querySelector(
+      `[data-role="start-sp-equip-select"][data-slot="${slotIndex}"]`
+    );
+    const startSpEquipBonus = toInt(startSpEquipSelect?.value, 0);
+    const startSp = START_SP_BASE + START_SP_LEVEL_BONUS + startSpEquipBonus;
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
+      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / StartSP: ${startSp} (1+3+${startSpEquipBonus}) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {
@@ -1205,8 +1268,17 @@ export class BattleDomAdapter {
       options.limitBreakLevelsByPartyIndex ?? this.readLimitBreakMapFromDom();
     const drivePierceByPartyIndex =
       options.drivePierceByPartyIndex ?? this.readDrivePierceMapFromDom();
+    const startSpEquipByPartyIndex =
+      options.startSpEquipByPartyIndex ?? this.readStartSpEquipMapFromDom();
+    const initialSpByPartyIndex = Object.fromEntries(
+      Object.entries(startSpEquipByPartyIndex).map(([index, bonus]) => [
+        Number(index),
+        Number(this.initialSP) + Number(bonus ?? 0),
+      ])
+    );
     this.party = this.dataStore.buildPartyFromStyleIds(styleIds, {
       initialSP: this.initialSP,
+      initialSpByPartyIndex,
       skillSetsByPartyIndex,
       limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
