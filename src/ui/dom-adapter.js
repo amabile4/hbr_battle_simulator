@@ -117,7 +117,7 @@ function deriveDisplayedOdTurn(turnState) {
   }
   const level = Number(turnState?.odLevel ?? 0);
   const remaining = Number(turnState?.remainingOdActions ?? 0);
-  if (level <= 0 || remaining <= 0) {
+  if (level <= 0 || remaining < 0) {
     return '';
   }
   const step = Math.max(1, Math.min(level, level - remaining));

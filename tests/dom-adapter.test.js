@@ -219,6 +219,26 @@ test('turn label keeps OD turn visible during OD-suspended extra turn', () => {
   assert.equal(label.includes('| EX |'), true);
 });
 
+test('turn label keeps OD1-1 visible during od-suspended extra turn with remaining=0', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state.turnState.turnType = 'extra';
+  adapter.state.turnState.turnLabel = 'EX';
+  adapter.state.turnState.turnIndex = 1;
+  adapter.state.turnState.odLevel = 1;
+  adapter.state.turnState.remainingOdActions = 0;
+  adapter.state.turnState.odSuspended = true;
+  adapter.renderTurnStatus();
+
+  const label = root.querySelector('[data-role="turn-label"]')?.textContent ?? '';
+  assert.equal(label.includes('| T01 |'), true);
+  assert.equal(label.includes('| OD1-1 '), true);
+  assert.equal(label.includes('| EX |'), true);
+});
+
 test('action selector displays SP ALL for sp_cost -1 skills', () => {
   const store = getStore();
   const { root } = createRoot();

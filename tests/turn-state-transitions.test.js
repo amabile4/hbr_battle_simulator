@@ -526,13 +526,17 @@ test('OD1 preemptive + single extra returns to T1 after extra ends', () => {
     1: { characterId: 'O2', skillId: 13001 },
     2: { characterId: 'O3', skillId: 13002 },
   });
-  state = commitTurn(state, odPreview).nextState;
+  let committed = commitTurn(state, odPreview);
+  state = committed.nextState;
   assert.equal(state.turnState.turnType, 'extra');
+  assert.equal(committed.committedRecord.odTurnLabelAtStart, 'OD1-1');
 
   const exPreview = previewTurn(state, {
     0: { characterId: 'O1', skillId: 13000 },
   });
-  state = commitTurn(state, exPreview).nextState;
+  committed = commitTurn(state, exPreview);
+  state = committed.nextState;
+  assert.equal(committed.committedRecord.odTurnLabelAtStart, 'OD1-1');
   assert.equal(state.turnState.turnType, 'normal');
   assert.equal(state.turnState.turnLabel, 'T1');
   assert.equal(state.turnState.turnIndex, 1);
