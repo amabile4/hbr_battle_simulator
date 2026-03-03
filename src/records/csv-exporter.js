@@ -25,6 +25,22 @@ function getActionContext(record) {
   return 'normal';
 }
 
+function formatOdGaugePercent(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return '0.00%';
+  }
+  return `${n.toFixed(2)}%`;
+}
+
+function formatTranscendencePercent(record) {
+  const start = Number(record?.transcendence?.startGaugePercent ?? 0);
+  if (!Number.isFinite(start)) {
+    return '0%';
+  }
+  return `${Math.max(0, Math.floor(start))}%`;
+}
+
 function formatActionCell(action) {
   if (!action) {
     return '-';
@@ -50,11 +66,17 @@ export function recordToRow(record, initialParty) {
   const sortedParty = [...initialParty].sort((a, b) => a.partyIndex - b.partyIndex);
   const beforeMap = getSnapshotByPartyIndex(record.snapBefore);
   const afterMap = getSnapshotByPartyIndex(record.snapAfter ?? record.snapBefore);
+  const turnType = String(record?.turnType ?? '');
+  const odTurn = turnType === 'od' ? String(record.turnLabel ?? '') : '';
+  const ex = turnType === 'extra' ? 'ex' : '';
 
   const row = [
     Number(record.turnId),
-    record.turnLabel,
-    getActionContext(record),
+    Number(record.turnIndex ?? 0),
+    odTurn,
+    ex,
+    formatOdGaugePercent(record?.odGaugeAtStart ?? 0),
+    formatTranscendencePercent(record),
     record.enemyAction ?? '',
   ];
 
@@ -75,7 +97,7 @@ export function recordToRow(record, initialParty) {
 
 export function exportToCSV(store, initialParty) {
   const sortedParty = [...initialParty].sort((a, b) => a.partyIndex - b.partyIndex);
-  const header = ['seq', 'turnLabel', 'actionContext', 'enemyAction'];
+  const header = ['seq', 'turn', 'od_turn', 'ex', 'od', 'transcendence', 'enemyAction'];
 
   for (const member of sortedParty) {
     header.push(`${member.characterName}_startSP`);

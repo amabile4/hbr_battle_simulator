@@ -71,8 +71,8 @@ test('dom adapter initializes, previews, commits, and exports csv', () => {
   assert.equal(adapter.recordStore.records.length, 1);
 
   const csv = adapter.exportCsv();
-  assert.ok(csv.includes('seq,turnLabel,actionContext,enemyAction'));
-  assert.ok(csv.includes('T1'));
+  assert.ok(csv.includes('seq,turn,od_turn,ex,od,transcendence,enemyAction'));
+  assert.ok(csv.includes(',1,,'));
 });
 
 test('enemy count in turn controls is reflected in preview record', () => {
@@ -145,7 +145,7 @@ test('turn label shows transcendence gauge only when transcendence style is in p
   adapter.mount();
 
   const label = root.querySelector('[data-role="turn-label"]');
-  assert.equal((label?.textContent ?? '').includes('超越='), false);
+  assert.equal((label?.textContent ?? '').includes('超越=-'), true);
 
   const transcendenceRule = store.listTranscendenceRules()[0] ?? null;
   if (!transcendenceRule) {
@@ -166,6 +166,36 @@ test('turn label shows transcendence gauge only when transcendence style is in p
   });
   adapter.initializeBattle([Number(transcendenceRule.styleId), ...others.slice(0, 5)]);
   assert.equal((label?.textContent ?? '').includes('超越='), true);
+});
+
+test('turn label keeps base turn and marks ex-turn separately', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const exCharacterId = adapter.state.party.find((member) => member.position === 0)?.characterId;
+  adapter.state = grantExtraTurn(adapter.state, [exCharacterId]);
+  adapter.renderTurnStatus();
+
+  const label = root.querySelector('[data-role="turn-label"]')?.textContent ?? '';
+  assert.equal(label.includes(' | T01 | '), true);
+  assert.equal(label.includes(' | EX | '), true);
+});
+
+test('turn label shows OD turn in dedicated column while in OD turn', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state.turnState.odGauge = 100;
+  adapter.openOdDialog('normal');
+  adapter.confirmOdDialog('normal');
+  adapter.renderTurnStatus();
+
+  const label = root.querySelector('[data-role="turn-label"]')?.textContent ?? '';
+  assert.equal(/\|\s*OD1-1\s+\|/.test(label), true);
 });
 
 test('action selector displays SP ALL for sp_cost -1 skills', () => {

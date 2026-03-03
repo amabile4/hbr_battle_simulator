@@ -41,6 +41,12 @@
     th, td { border: 1px solid #c4ccd8; padding: 6px; text-align: left; }
     pre, textarea { width: 100%; min-height: 120px; }
     ul { margin: 0; padding-left: 18px; }
+    .turn-label-fixed {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+      display: inline-block;
+      min-width: 62ch;
+    }
   </style>
 </head>
 <body>
@@ -137,7 +143,7 @@
         <button data-action="interrupt-od-confirm" type="button">割込OD発動</button>
         <button data-action="interrupt-od-cancel" type="button">キャンセル</button>
       </div>
-      <p><strong>Turn:</strong> <span data-role="turn-label"></span></p>
+      <p><strong>Turn:</strong> <span data-role="turn-label" class="turn-label-fixed"></span></p>
       <ul data-role="party-state"></ul>
       <p><strong>Status:</strong> <span data-role="status"></span></p>
     </div>

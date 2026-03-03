@@ -74,15 +74,17 @@ test('csv exporter outputs stable character columns by initial party index', () 
 
   const csv = CsvExporter.exportToCSV(battleStore, state.initialParty);
 
-  assert.ok(csv.includes('seq,turnLabel,actionContext,enemyAction'));
-  assert.ok(csv.includes('T1'));
-  assert.ok(csv.includes('normal'));
+  assert.ok(csv.includes('seq,turn,od_turn,ex,od,transcendence,enemyAction'));
+  assert.ok(csv.includes(',1,'));
+  assert.ok(csv.includes('0.00%'));
 
   const firstName = state.initialParty.find((p) => p.partyIndex === 0).characterName;
   assert.ok(csv.includes(`${firstName}_startSP`));
   assert.ok(csv.includes(`${firstName}_position`));
-  const firstDataRow = csv.split('\n')[1]?.split(',') ?? [];
-  const positionCol = 5; // seq,turnLabel,actionContext,enemyAction,startSP,position,...
+  const rows = csv.split('\n');
+  const header = rows[0]?.split(',') ?? [];
+  const firstDataRow = rows[1]?.split(',') ?? [];
+  const positionCol = header.indexOf(`${firstName}_position`);
   assert.equal(Number(firstDataRow[positionCol]) >= 1, true, 'position should be 1-based in CSV');
 });
 

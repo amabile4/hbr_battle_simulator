@@ -80,6 +80,24 @@ function formatSkillCostLabel(skill) {
   return consumeType.toLowerCase() === 'ep' ? `EP ${costRaw}` : `SP ${costRaw}`;
 }
 
+function formatGaugePercent(value) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) {
+    return '000.00';
+  }
+  const absText = Math.abs(n).toFixed(2).padStart(6, '0');
+  return n < 0 ? `-${absText}` : absText;
+}
+
+function formatTranscendencePercent(value) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) {
+    return '000';
+  }
+  const clamped = Math.max(0, Math.min(999, Math.floor(n)));
+  return String(clamped).padStart(3, '0');
+}
+
 function resolveFunnelHitBonus(member, maxStacks = 2) {
   if (!member || typeof member.resolveEffectiveFunnelEffects !== 'function') {
     return 0;
@@ -1510,13 +1528,22 @@ export class BattleDomAdapter {
 
     const turnLabel = this.root.querySelector('[data-role="turn-label"]');
     if (turnLabel) {
+      const seq = String(Math.max(0, Number(this.state.turnState.sequenceId ?? 1))).padStart(2, '0');
+      const baseTurn = `T${String(Math.max(0, Number(this.state.turnState.turnIndex ?? 1))).padStart(2, '0')}`;
+      const odTurn = this.state.turnState.turnType === 'od' ? String(this.state.turnState.turnLabel ?? '') : '';
+      const exTurn = this.state.turnState.turnType === 'extra' ? 'EX' : '';
       const odGauge = Number(this.state.turnState.odGauge ?? 0);
       const transcendence = this.state.turnState.transcendence;
       const hasTranscendenceGauge = Boolean(transcendence?.active);
-      const transcendenceText = hasTranscendenceGauge
-        ? `, 超越=${Number(transcendence?.gaugePercent ?? 0).toFixed(2)}%`
-        : '';
-      turnLabel.textContent = `${this.state.turnState.turnLabel} (seq=${this.state.turnState.sequenceId}, OD=${odGauge.toFixed(2)}%${transcendenceText})`;
+      const transcendenceValue = hasTranscendenceGauge
+        ? `${formatTranscendencePercent(Number(transcendence?.gaugePercent ?? 0))}%`
+        : '---';
+      // 固定幅で見やすくする（列伸縮を抑える）
+      const seqCol = seq.padStart(2, '0');
+      const turnCol = baseTurn.padEnd(3, ' ');
+      const odTurnCol = odTurn.padEnd(6, ' ');
+      const exCol = exTurn.padEnd(2, ' ');
+      turnLabel.textContent = `${seqCol} | ${turnCol} | ${odTurnCol} | ${exCol} | OD=${formatGaugePercent(odGauge)}% | 超越=${transcendenceValue}`;
     }
     this.renderOdControls();
     this.renderKishinkaControls();
