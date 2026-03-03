@@ -48,6 +48,7 @@ const START_SP_EQUIP_OPTIONS = Object.freeze([
   { value: 2, label: '初期SP装備 +2' },
   { value: 3, label: '初期SP装備 +3' },
 ]);
+const START_SP_EQUIP_DEFAULT = 3;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const OD_GAUGE_MIN_PERCENT = -999.99;
 const OD_GAUGE_MAX_PERCENT = 300;
@@ -255,6 +256,8 @@ export class BattleDomAdapter {
     this.lastActionSkillByPosition = new Map();
     this.lastActionTargetByPosition = new Map();
     this.pendingInterruptOdLevel = null;
+    this.scenario = null;
+    this.scenarioCursor = 0;
 
     this.characterCandidates = this.dataStore.listCharacterCandidates();
     this.defaultSelections = this.buildDefaultSelections();
@@ -267,6 +270,7 @@ export class BattleDomAdapter {
     this.initializeSelectionStorageUi();
     this.bindEvents();
     this.initializeBattle();
+    this.renderScenarioStatus();
     return this;
   }
 
@@ -380,6 +384,18 @@ export class BattleDomAdapter {
       this.recordStore = createBattleRecordStore();
       this.renderRecordTable();
       this.setStatus('Records cleared.');
+    });
+    this.root.querySelector('[data-action="scenario-load"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.loadScenarioFromDom());
+    });
+    this.root.querySelector('[data-action="scenario-apply-setup"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.applyLoadedScenarioSetup());
+    });
+    this.root.querySelector('[data-action="scenario-run-next"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.runNextScenarioTurn());
+    });
+    this.root.querySelector('[data-action="scenario-run-all"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.runAllScenarioTurns());
     });
 
     this.root.querySelector('[data-action="save-selection"]')?.addEventListener('click', () => {
@@ -651,7 +667,7 @@ export class BattleDomAdapter {
         const option = this.doc.createElement('option');
         option.value = String(optionDef.value);
         option.textContent = optionDef.label;
-        if (Number(optionDef.value) === 0) {
+        if (Number(optionDef.value) === START_SP_EQUIP_DEFAULT) {
           option.selected = true;
         }
         startSpEquipSelect.appendChild(option);
@@ -822,7 +838,7 @@ export class BattleDomAdapter {
         styleId: toInt(styleSelect?.value, this.defaultSelections[i].styleId),
         limitBreakLevel: toInt(lbSelect?.value, 0),
         drivePiercePercent: toInt(drivePierceSelect?.value, 0),
-        startSpEquipBonus: toInt(startSpEquipSelect?.value, 0),
+        startSpEquipBonus: toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT),
         checkedSkillIds,
       });
     }
@@ -903,14 +919,14 @@ export class BattleDomAdapter {
         `[data-role="start-sp-equip-select"][data-slot="${i}"]`
       );
       const beforeStartSpEquip = startSpEquipSelect?.value ?? '';
-      const requestedStartSpEquip = toInt(row.startSpEquipBonus, 0);
+      const requestedStartSpEquip = toInt(row.startSpEquipBonus, START_SP_EQUIP_DEFAULT);
       if (
         startSpEquipSelect &&
         [...startSpEquipSelect.options].some((opt) => Number(opt.value) === requestedStartSpEquip)
       ) {
         startSpEquipSelect.value = String(requestedStartSpEquip);
       } else if (startSpEquipSelect) {
-        startSpEquipSelect.value = '0';
+        startSpEquipSelect.value = String(START_SP_EQUIP_DEFAULT);
       }
       if ((startSpEquipSelect?.value ?? '') !== beforeStartSpEquip) {
         changedCount += 1;
@@ -1168,7 +1184,7 @@ export class BattleDomAdapter {
     const out = {};
     for (let i = 0; i < 6; i += 1) {
       const select = this.root.querySelector(`[data-role="limit-break-select"][data-slot="${i}"]`);
-      out[i] = toInt(select?.value, 0);
+      out[i] = toInt(select?.value, START_SP_EQUIP_DEFAULT);
     }
     return out;
   }
@@ -1222,7 +1238,7 @@ export class BattleDomAdapter {
     const startSpEquipSelect = this.root.querySelector(
       `[data-role="start-sp-equip-select"][data-slot="${slotIndex}"]`
     );
-    const startSpEquipBonus = toInt(startSpEquipSelect?.value, 0);
+    const startSpEquipBonus = toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT);
     const startSp = START_SP_BASE + START_SP_LEVEL_BONUS + startSpEquipBonus;
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
@@ -1321,6 +1337,7 @@ export class BattleDomAdapter {
     this.writePreviewOutput('');
     this.writeCsvOutput('');
     this.renderOdControls();
+    this.renderScenarioStatus();
     this.saveSelectionToSlot(AUTO_SAVE_SLOT_INDEX, { allowAutoSlot: true, silent: true });
     this.setStatus('Battle initialized. Selection auto-saved to Auto Slot 0.');
 
@@ -1811,6 +1828,617 @@ export class BattleDomAdapter {
         output.textContent = text;
       }
     }
+  }
+
+  renderScenarioStatus() {
+    const node = this.root.querySelector('[data-role="scenario-status"]');
+    if (!node) {
+      return;
+    }
+    if (!this.scenario) {
+      node.textContent = 'Not loaded';
+      return;
+    }
+    const total = Array.isArray(this.scenario.turns) ? this.scenario.turns.length : 0;
+    node.textContent = `Loaded (turns ${this.scenarioCursor}/${total})`;
+  }
+
+  getScenarioJsonTextFromDom() {
+    const area = this.root.querySelector('[data-role="scenario-json"]');
+    return String(area?.value ?? '').trim();
+  }
+
+  setDomValue(selector, value) {
+    const node = this.root.querySelector(selector);
+    if (!node) {
+      return;
+    }
+    if ('value' in node) {
+      node.value = String(value);
+    }
+  }
+
+  parseCsvText(text) {
+    const lines = String(text ?? '')
+      .split(/\r?\n/)
+      .filter((line) => line.length > 0);
+    if (lines.length === 0) {
+      return { header: [], rows: [] };
+    }
+
+    const parseLine = (line) => {
+      const out = [];
+      let cur = '';
+      let quoted = false;
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (quoted && line[i + 1] === '"') {
+            cur += '"';
+            i += 1;
+          } else {
+            quoted = !quoted;
+          }
+          continue;
+        }
+        if (ch === ',' && !quoted) {
+          out.push(cur);
+          cur = '';
+          continue;
+        }
+        cur += ch;
+      }
+      out.push(cur);
+      return out;
+    };
+
+    const header = parseLine(lines[0]);
+    const rows = lines.slice(1).map((line) => {
+      const cols = parseLine(line);
+      const row = {};
+      for (let i = 0; i < header.length; i += 1) {
+        row[header[i]] = cols[i] ?? '';
+      }
+      return row;
+    });
+    return { header, rows };
+  }
+
+  extractSkillNameFromActionCell(text) {
+    const raw = String(text ?? '').trim();
+    if (!raw || raw === '-') {
+      return '';
+    }
+    const marker = raw.indexOf(' (');
+    if (marker <= 0) {
+      return raw;
+    }
+    return raw.slice(0, marker).trim();
+  }
+
+  extractOdLevelFromTurnLabel(odTurn) {
+    const m = String(odTurn ?? '').match(/^OD([123])-[123]$/);
+    return m ? Number(m[1]) : null;
+  }
+
+  convertCsvToScenario(csvText) {
+    const { header, rows } = this.parseCsvText(csvText);
+    if (header.length === 0 || rows.length === 0) {
+      throw new Error('CSV is empty.');
+    }
+    if (!header.includes('seq') || !header.includes('turn') || !header.includes('od_turn')) {
+      throw new Error('Unsupported CSV format: required columns seq/turn/od_turn are missing.');
+    }
+
+    const positionCols = header.filter((h) => h.endsWith('_position'));
+    const actionCols = header.filter((h) => h.endsWith('_action'));
+    const actorPrefixes = positionCols
+      .map((col) => col.slice(0, -'_position'.length))
+      .filter((prefix) => actionCols.includes(`${prefix}_action`));
+    const actorOrder = [...actorPrefixes];
+
+    const positionMaps = rows.map((row) => {
+      const byCharacter = new Map();
+      for (const prefix of actorOrder) {
+        const pos = Number(row[`${prefix}_position`]);
+        if (!Number.isFinite(pos) || pos < 1 || pos > 6) {
+          continue;
+        }
+        byCharacter.set(prefix, pos);
+      }
+      return byCharacter;
+    });
+
+    const turns = rows.map((row) => {
+      const turn = {};
+      const enemyAction = String(row.enemyAction ?? '');
+      if (enemyAction) {
+        turn.enemyAction = enemyAction;
+      }
+      const actions = [];
+      for (const prefix of actorPrefixes) {
+        const actionCell = String(row[`${prefix}_action`] ?? '').trim();
+        const skillName = this.extractSkillNameFromActionCell(actionCell);
+        if (!skillName || skillName === '行動なし') {
+          continue;
+        }
+        const posRaw = row[`${prefix}_position`];
+        if (!Number.isFinite(Number(posRaw))) {
+          continue;
+        }
+        actions.push({
+          position: Number(posRaw),
+          skillName,
+        });
+      }
+      if (actions.length > 0) {
+        turn.actions = actions;
+      }
+      const ex = String(row.ex ?? '').trim().toLowerCase();
+      if (ex === 'ex') {
+        turn.commit = true;
+      }
+      return turn;
+    });
+
+    const deriveSwapsFromPositions = (fromMap, toMap) => {
+      const names = actorOrder.filter((name) => fromMap.has(name) && toMap.has(name));
+      if (names.length === 0) {
+        return [];
+      }
+
+      const currentPosByName = new Map(names.map((name) => [name, Number(fromMap.get(name))]));
+      const targetPosByName = new Map(names.map((name) => [name, Number(toMap.get(name))]));
+      const nameByCurrentPos = new Map(
+        [...currentPosByName.entries()].map(([name, pos]) => [pos, name])
+      );
+      const swaps = [];
+
+      for (const name of names) {
+        while (Number(currentPosByName.get(name)) !== Number(targetPosByName.get(name))) {
+          const from = Number(currentPosByName.get(name));
+          const to = Number(targetPosByName.get(name));
+          const counterpart = nameByCurrentPos.get(to);
+          if (!counterpart || counterpart === name) {
+            break;
+          }
+
+          swaps.push({ from, to });
+
+          currentPosByName.set(name, to);
+          currentPosByName.set(counterpart, from);
+          nameByCurrentPos.set(from, counterpart);
+          nameByCurrentPos.set(to, name);
+        }
+      }
+
+      const deduped = [];
+      for (const swap of swaps) {
+        const prev = deduped[deduped.length - 1];
+        if (prev && prev.from === swap.to && prev.to === swap.from) {
+          continue;
+        }
+        deduped.push(swap);
+      }
+      return deduped;
+    };
+
+    // row i -> row i+1 の position 変化を、turns[i] の swap として復元する。
+    for (let i = 0; i < rows.length - 1; i += 1) {
+      const swaps = deriveSwapsFromPositions(positionMaps[i], positionMaps[i + 1]);
+      if (swaps.length > 0) {
+        turns[i].swaps = swaps;
+      }
+    }
+
+    // ODコンテキスト復元:
+    // - preemptive + ODx-1 は当該行で preemptive OD
+    // - interrupt + ODx-1 は前行で interrupt 予約
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      const odTurn = String(row.od_turn ?? '').trim();
+      const odContext = String(row.od_context ?? '').trim();
+      const level = this.extractOdLevelFromTurnLabel(odTurn);
+      const isStep1 = /-1$/.test(odTurn);
+      if (!level || !isStep1) {
+        continue;
+      }
+      if (odContext === 'preemptive') {
+        turns[i].preemptiveOdLevel = level;
+      } else if (odContext === 'interrupt') {
+        if (i > 0) {
+          turns[i - 1].interruptOdLevel = level;
+        } else {
+          turns[i].preemptiveOdLevel = level;
+        }
+      }
+    }
+
+    const firstRow = rows[0];
+    const setup = {};
+    const firstOd = Number.parseFloat(String(firstRow.od ?? '').replace('%', ''));
+    if (Number.isFinite(firstOd)) {
+      setup.initialOdGauge = firstOd;
+    }
+    if (setup.initialOdGauge !== undefined && setup.initialOdGauge < 100) {
+      setup.forceOd = true;
+    }
+
+    return {
+      version: 1,
+      setup,
+      turns,
+    };
+  }
+
+  loadScenarioFromDom() {
+    const text = this.getScenarioJsonTextFromDom();
+    if (!text) {
+      throw new Error('Scenario JSON is empty.');
+    }
+    let parsed = null;
+    const looksLikeCsv = /^seq,/.test(text);
+    if (looksLikeCsv) {
+      parsed = this.convertCsvToScenario(text);
+    } else {
+      try {
+        parsed = JSON.parse(text);
+      } catch (error) {
+        throw new Error(`Invalid scenario JSON: ${error.message}`);
+      }
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Scenario must be an object.');
+    }
+
+    const turns = Array.isArray(parsed.turns) ? parsed.turns : [];
+    this.scenario = {
+      version: Number(parsed.version ?? 1),
+      setup: parsed.setup && typeof parsed.setup === 'object' ? parsed.setup : {},
+      turns,
+    };
+    this.scenarioCursor = 0;
+    this.renderScenarioStatus();
+    if (looksLikeCsv) {
+      const area = this.root.querySelector('[data-role="scenario-json"]');
+      if (area) {
+        area.value = JSON.stringify(parsed, null, 2);
+      }
+    }
+    this.setStatus(`Scenario loaded (${turns.length} turns).`);
+    return this.scenario;
+  }
+
+  resolveScenarioPosition(rawPosition) {
+    const n = Number(rawPosition);
+    if (!Number.isFinite(n)) {
+      throw new Error(`Invalid position: ${rawPosition}`);
+    }
+    if (n >= 1 && n <= 6) {
+      return n - 1;
+    }
+    if (n >= 0 && n <= 5) {
+      return n;
+    }
+    throw new Error(`Position out of range: ${rawPosition}`);
+  }
+
+  applyScenarioEnemyStatuses(statuses = []) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    const enemyCount = this.readEnemyCountFromDom();
+    const next = [];
+    for (const status of statuses) {
+      if (!status || typeof status !== 'object') {
+        continue;
+      }
+      const statusType = String(status.statusType ?? ENEMY_STATUS_DOWN_TURN);
+      const targetRaw = status.targetIndex ?? status.target ?? 0;
+      const targetIndex = Math.max(0, Math.min(enemyCount - 1, toInt(targetRaw, 0)));
+      const remainingTurns = Math.max(1, toInt(status.remainingTurns, 1));
+      next.push({ statusType, targetIndex, remainingTurns });
+    }
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses: next,
+    };
+    this.renderEnemyStatusControls();
+  }
+
+  applyLoadedScenarioSetup() {
+    if (!this.scenario) {
+      throw new Error('Scenario is not loaded.');
+    }
+    const setup = this.scenario.setup ?? {};
+    const selections = this.captureSelectionState();
+    const slots = Array.isArray(setup.slots) ? setup.slots : [];
+    for (let i = 0; i < slots.length; i += 1) {
+      const entry = slots[i];
+      if (!entry || typeof entry !== 'object') {
+        continue;
+      }
+      const slotIndex = Number.isFinite(Number(entry.slot))
+        ? Math.max(0, Math.min(5, toInt(entry.slot, 0) - 1))
+        : i;
+      const current = selections.partySelections[slotIndex] ?? {};
+      selections.partySelections[slotIndex] = {
+        ...current,
+        ...(entry.characterLabel ? { characterLabel: String(entry.characterLabel) } : {}),
+        ...(Number.isFinite(Number(entry.styleId)) ? { styleId: Number(entry.styleId) } : {}),
+        ...(Number.isFinite(Number(entry.limitBreakLevel))
+          ? { limitBreakLevel: Number(entry.limitBreakLevel) }
+          : {}),
+        ...(Number.isFinite(Number(entry.drivePiercePercent))
+          ? { drivePiercePercent: Number(entry.drivePiercePercent) }
+          : {}),
+        ...(Number.isFinite(Number(entry.startSpEquipBonus))
+          ? { startSpEquipBonus: Number(entry.startSpEquipBonus) }
+          : {}),
+        ...(Array.isArray(entry.checkedSkillIds)
+          ? { checkedSkillIds: entry.checkedSkillIds.map((id) => Number(id)) }
+          : {}),
+      };
+    }
+    this.applySelectionState(selections);
+
+    if (Number.isFinite(Number(setup.enemyCount))) {
+      this.setDomValue('[data-role="enemy-count"]', Math.max(1, Math.min(3, Number(setup.enemyCount))));
+    }
+    if (setup.enemyAction !== undefined) {
+      this.setDomValue('[data-role="enemy-action"]', String(setup.enemyAction ?? ''));
+    }
+    if (Number.isFinite(Number(setup.initialOdGauge))) {
+      this.setDomValue('[data-role="initial-od-gauge"]', Number(setup.initialOdGauge));
+    }
+    if (typeof setup.forceOd === 'boolean') {
+      const toggle = this.root.querySelector('[data-role="force-od-toggle"]');
+      if (toggle) {
+        toggle.checked = setup.forceOd;
+      }
+    }
+
+    this.initializeBattle();
+    if (Array.isArray(setup.enemyStatuses)) {
+      this.applyScenarioEnemyStatuses(setup.enemyStatuses);
+    }
+    this.scenarioCursor = 0;
+    this.renderScenarioStatus();
+    this.setStatus('Scenario setup applied.');
+  }
+
+  resolveScenarioSkillId(member, action) {
+    if (!member) {
+      throw new Error('Member not found for scenario action.');
+    }
+    if (Number.isFinite(Number(action?.skillId))) {
+      return Number(action.skillId);
+    }
+    const skillName = String(action?.skillName ?? '').trim();
+    if (!skillName) {
+      throw new Error(`Scenario action requires skillId or skillName (member ${member.characterName}).`);
+    }
+    const skill =
+      member
+        .getActionSkills()
+        .find((item) => String(item.name ?? '') === skillName || String(item.label ?? '') === skillName) ??
+      null;
+    if (!skill) {
+      throw new Error(`Skill not found on ${member.characterName}: ${skillName}`);
+    }
+    return Number(skill.skillId);
+  }
+
+  setScenarioActionOnDom(action) {
+    const position = this.resolveScenarioPosition(action?.position);
+    const member = this.party?.getByPosition(position);
+    if (!member) {
+      throw new Error(`No member at position ${position + 1}`);
+    }
+    const skillId = this.resolveScenarioSkillId(member, action);
+    const select = this.root.querySelector(`[data-action-slot="${position}"]`);
+    if (!select) {
+      throw new Error(`Action slot is not available at position ${position + 1}`);
+    }
+    const hasOption = [...select.options].some((option) => Number(option.value) === Number(skillId));
+    if (!hasOption) {
+      throw new Error(
+        `Skill ${skillId} cannot be selected at position ${position + 1} in current turn state.`
+      );
+    }
+    select.value = String(skillId);
+    this.lastActionSkillByPosition.set(position, skillId);
+    this.updateActionSkillAttributeBadges(position, skillId);
+    this.updateActionTargetSelector(position, skillId);
+
+    const targetSelect = this.root.querySelector(`[data-action-target-slot="${position}"]`);
+    if (targetSelect && targetSelect.style.display !== 'none') {
+      const targetByCharacterId = String(action?.targetCharacterId ?? '').trim();
+      if (targetByCharacterId) {
+        const can = [...targetSelect.options].some(
+          (option) => String(option.value) === targetByCharacterId
+        );
+        if (!can) {
+          throw new Error(
+            `Target character is not selectable at position ${position + 1}: ${targetByCharacterId}`
+          );
+        }
+        targetSelect.value = targetByCharacterId;
+        this.lastActionTargetByPosition.set(position, targetByCharacterId);
+      } else if (Number.isFinite(Number(action?.targetPosition))) {
+        const targetPosition = this.resolveScenarioPosition(action.targetPosition);
+        const targetMember = this.party?.getByPosition(targetPosition);
+        if (!targetMember) {
+          throw new Error(`Target member not found at position ${targetPosition + 1}`);
+        }
+        const targetCharacterId = String(targetMember.characterId);
+        const can = [...targetSelect.options].some(
+          (option) => String(option.value) === targetCharacterId
+        );
+        if (!can) {
+          throw new Error(
+            `Target position is not selectable at position ${position + 1}: ${targetPosition + 1}`
+          );
+        }
+        targetSelect.value = targetCharacterId;
+        this.lastActionTargetByPosition.set(position, targetCharacterId);
+      }
+    }
+  }
+
+  applyScenarioTurn(turn = {}) {
+    if (!this.state) {
+      throw new Error('Battle state is not initialized.');
+    }
+    if (Number.isFinite(Number(turn.enemyCount))) {
+      this.setDomValue('[data-role="enemy-count"]', Math.max(1, Math.min(3, Number(turn.enemyCount))));
+      this.syncEnemyStateFromDom();
+      this.renderEnemyStatusControls();
+    }
+    if (turn.enemyAction !== undefined) {
+      this.setDomValue('[data-role="enemy-action"]', String(turn.enemyAction ?? ''));
+    }
+    if (typeof turn.forceOd === 'boolean') {
+      const toggle = this.root.querySelector('[data-role="force-od-toggle"]');
+      if (toggle) {
+        toggle.checked = turn.forceOd;
+      }
+      this.renderOdControls();
+    }
+
+    if (Array.isArray(turn.enemyStatuses)) {
+      this.applyScenarioEnemyStatuses(turn.enemyStatuses);
+    }
+    if (Array.isArray(turn.enemyStatusesApply)) {
+      const merged = [...this.getEnemyStatuses()];
+      for (const status of turn.enemyStatusesApply) {
+        if (!status || typeof status !== 'object') {
+          continue;
+        }
+        const statusType = String(status.statusType ?? ENEMY_STATUS_DOWN_TURN);
+        const targetIndex = Math.max(
+          0,
+          Math.min(this.readEnemyCountFromDom() - 1, toInt(status.targetIndex ?? status.target, 0))
+        );
+        const remainingTurns = Math.max(1, toInt(status.remainingTurns, 1));
+        const filtered = merged.filter(
+          (item) =>
+            !(String(item.statusType ?? '') === statusType && Number(item.targetIndex) === targetIndex)
+        );
+        filtered.push({ statusType, targetIndex, remainingTurns });
+        merged.length = 0;
+        merged.push(...filtered);
+      }
+      this.state.turnState.enemyState = {
+        enemyCount: this.readEnemyCountFromDom(),
+        statuses: merged,
+      };
+      this.renderEnemyStatusControls();
+    }
+    if (Array.isArray(turn.enemyStatusesClear)) {
+      let statuses = [...this.getEnemyStatuses()];
+      for (const status of turn.enemyStatusesClear) {
+        if (!status || typeof status !== 'object') {
+          continue;
+        }
+        const statusType = String(status.statusType ?? ENEMY_STATUS_DOWN_TURN);
+        const hasTarget =
+          status.targetIndex !== undefined || status.target !== undefined || status.targetPosition !== undefined;
+        if (!hasTarget) {
+          statuses = statuses.filter((item) => String(item.statusType ?? '') !== statusType);
+          continue;
+        }
+        const targetIndex = Math.max(
+          0,
+          Math.min(
+            this.readEnemyCountFromDom() - 1,
+            toInt(status.targetIndex ?? status.target ?? status.targetPosition, 0)
+          )
+        );
+        statuses = statuses.filter(
+          (item) =>
+            !(String(item.statusType ?? '') === statusType && Number(item.targetIndex) === targetIndex)
+        );
+      }
+      this.state.turnState.enemyState = {
+        enemyCount: this.readEnemyCountFromDom(),
+        statuses,
+      };
+      this.renderEnemyStatusControls();
+    }
+
+    if (Number.isFinite(Number(turn.preemptiveOdLevel))) {
+      this.state = activateOverdrive(this.state, Number(turn.preemptiveOdLevel), 'preemptive', {
+        forceActivation: this.isForceOdEnabled(),
+      });
+      this.previewRecord = null;
+      this.pendingSwapEvents = [];
+      this.renderActionSelectors();
+      this.renderPartyState();
+      this.renderSwapSelectors();
+      this.renderTurnStatus();
+    }
+
+    if (turn.kishinka) {
+      this.activateKishinka();
+    }
+
+    if (Array.isArray(turn.swaps)) {
+      for (const swap of turn.swaps) {
+        const from = this.resolveScenarioPosition(swap?.from);
+        const to = this.resolveScenarioPosition(swap?.to);
+        this.queueSwap(from, to);
+      }
+    }
+
+    if (Array.isArray(turn.actions)) {
+      for (const action of turn.actions) {
+        this.setScenarioActionOnDom(action);
+      }
+    }
+
+    if (Number.isFinite(Number(turn.interruptOdLevel))) {
+      this.pendingInterruptOdLevel = Number(turn.interruptOdLevel);
+      this.renderOdControls();
+    }
+
+    const doCommit = turn.commit !== false;
+    if (!doCommit) {
+      return this.previewCurrentTurn();
+    }
+    return this.commitCurrentTurn();
+  }
+
+  runNextScenarioTurn() {
+    if (!this.scenario) {
+      throw new Error('Scenario is not loaded.');
+    }
+    const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
+    if (this.scenarioCursor >= turns.length) {
+      this.setStatus('Scenario completed.');
+      this.renderScenarioStatus();
+      return null;
+    }
+    const turn = turns[this.scenarioCursor] ?? {};
+    const result = this.applyScenarioTurn(turn);
+    this.scenarioCursor += 1;
+    this.renderScenarioStatus();
+    this.setStatus(`Scenario turn ${this.scenarioCursor}/${turns.length} executed.`);
+    return result;
+  }
+
+  runAllScenarioTurns() {
+    if (!this.scenario) {
+      throw new Error('Scenario is not loaded.');
+    }
+    const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
+    while (this.scenarioCursor < turns.length) {
+      this.runNextScenarioTurn();
+    }
+    this.setStatus(`Scenario completed (${turns.length} turns).`);
+    this.renderScenarioStatus();
+    return this.recordStore.records.length;
   }
 
   renderSwapSelectors() {

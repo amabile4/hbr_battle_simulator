@@ -48,6 +48,12 @@ function createRoot() {
       </div>
       <button data-action="clear-records"></button>
       <button data-action="export-csv"></button>
+      <textarea data-role="scenario-json"></textarea>
+      <button data-action="scenario-load"></button>
+      <button data-action="scenario-apply-setup"></button>
+      <button data-action="scenario-run-next"></button>
+      <button data-action="scenario-run-all"></button>
+      <span data-role="scenario-status"></span>
       <span data-role="turn-label"></span>
       <span data-role="status"></span>
       <ul data-role="party-state"></ul>
@@ -115,6 +121,90 @@ test('enemy down-turn status can be applied and cleared from controls', () => {
   adapter.clearEnemyStatusFromDom();
   assert.equal(adapter.state.turnState.enemyState.statuses.length, 0);
   assert.equal(root.querySelector('[data-role="enemy-status-list"]')?.textContent, 'Enemy Status: -');
+});
+
+test('scenario runner loads setup and executes turns deterministically', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const front = adapter.party.getFrontline();
+  const scenario = {
+    version: 1,
+    setup: {
+      enemyCount: 3,
+      initialOdGauge: 100,
+      enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+    },
+    turns: [
+      {
+        preemptiveOdLevel: 1,
+        actions: [
+          { position: front[0].position + 1, skillId: front[0].getActionSkills()[0].skillId },
+        ],
+      },
+      {
+        actions: [
+          { position: front[0].position + 1, skillId: front[0].getActionSkills()[0].skillId },
+        ],
+      },
+    ],
+  };
+
+  root.querySelector('[data-role="scenario-json"]').value = JSON.stringify(scenario);
+  adapter.loadScenarioFromDom();
+  adapter.applyLoadedScenarioSetup();
+
+  assert.equal(adapter.state.turnState.enemyState.enemyCount, 3);
+  assert.equal(adapter.state.turnState.enemyState.statuses.length, 1);
+
+  adapter.runAllScenarioTurns();
+  assert.equal(adapter.recordStore.records.length, 2);
+  assert.equal(adapter.scenarioCursor, 2);
+  assert.equal(adapter.state.turnState.enemyState.statuses.length, 0, 'enemy status should tick down each committed turn');
+});
+
+test('scenario loader accepts exported CSV and converts it to runnable scenario', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const front = adapter.party.getFrontline();
+  const csv = [
+    'seq,turn,od_turn,od_context,ex,od,transcendence,enemyAction,Pos1_position,Pos1_action',
+    `1,1,OD1-1,preemptive,,0.00%,0%,,1,"${front[0].getActionSkills()[0].name} (SP 0) [Self,-hit]"`,
+    `2,1,OD1-1,preemptive,ex,10.00%,0%,,1,"${front[0].getActionSkills()[0].name} (SP 0) [Self,-hit]"`,
+  ].join('\n');
+
+  root.querySelector('[data-role="scenario-json"]').value = csv;
+  const scenario = adapter.loadScenarioFromDom();
+  assert.equal(Array.isArray(scenario.turns), true);
+  assert.equal(scenario.turns.length, 2);
+  assert.equal(scenario.turns[0].preemptiveOdLevel, 1);
+
+  adapter.applyLoadedScenarioSetup();
+  adapter.runAllScenarioTurns();
+  assert.equal(adapter.recordStore.records.length, 2);
+});
+
+test('scenario loader reconstructs swaps from CSV position transitions', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const csv = [
+    'seq,turn,od_turn,od_context,ex,od,transcendence,enemyAction,A_position,A_action,B_position,B_action',
+    '1,1,,,,0.00%,0%,,1,-,2,-',
+    '2,1,,,,0.00%,0%,,2,-,1,-',
+  ].join('\n');
+
+  root.querySelector('[data-role="scenario-json"]').value = csv;
+  const scenario = adapter.loadScenarioFromDom();
+  assert.equal(scenario.turns.length, 2);
+  assert.deepEqual(scenario.turns[0].swaps, [{ from: 1, to: 2 }]);
 });
 
 test('OD controls: preemptive activation and interrupt reservation/commit', () => {
@@ -429,7 +519,7 @@ test('initialize battle applies start SP base + equip bonus per slot', () => {
   const member2 = adapter.party.members.find((m) => m.partyIndex === 2);
   assert.equal(member0.sp.current, 7);
   assert.equal(member1.sp.current, 5);
-  assert.equal(member2.sp.current, 4);
+  assert.equal(member2.sp.current, 7);
 });
 
 test('selection state can be saved and loaded from localStorage slots', () => {
