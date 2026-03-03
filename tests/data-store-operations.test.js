@@ -257,6 +257,7 @@ test('skill rule overrides can patch additional turn behavior without hardcoding
   const store = getStore();
   const gokigen = store.getSkillById(46003115);
   const rule = store.getAdditionalTurnRule(46003115);
+  const boryaku = store.getAdditionalTurnRule(46003626);
 
   assert.equal(gokigen?.name, 'ごきげんダンス');
   assert.equal(
@@ -271,6 +272,20 @@ test('skill rule overrides can patch additional turn behavior without hardcoding
     'additional turn grant should be disabled in extra turn by override'
   );
   assert.equal(rule?.source, 'override');
+  assert.equal(
+    rule?.additionalTurnTargets?.some(
+      (item) => item.targetType === 'Self' && item.targetCondition === 'SpecialStatusCountByType(20) == 0'
+    ),
+    true,
+    'ごきげんダンス should keep AdditionalTurn target_condition in derived targets'
+  );
+  assert.equal(
+    boryaku?.additionalTurnTargets?.some(
+      (item) => item.targetType === 'AllySingleWithoutSelf' && item.targetCondition === 'IsFront()==1'
+    ),
+    true,
+    '謀略 should keep front-only AdditionalTurn target_condition in derived targets'
+  );
 });
 
 test('additional turn rules expose turn-context conditions from skill parts', () => {

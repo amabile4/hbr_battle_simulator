@@ -217,6 +217,7 @@ export class BattleDomAdapter {
     this.previewRecord = null;
     this.pendingSwapEvents = [];
     this.lastActionSkillByPosition = new Map();
+    this.lastActionTargetByPosition = new Map();
     this.pendingInterruptOdLevel = null;
 
     this.characterCandidates = this.dataStore.listCharacterCandidates();
@@ -429,6 +430,14 @@ export class BattleDomAdapter {
         if (position >= 0) {
           this.lastActionSkillByPosition.set(position, toInt(target.value, 0));
           this.updateActionSkillAttributeBadges(position, toInt(target.value, 0));
+          this.updateActionTargetSelector(position, toInt(target.value, 0));
+        }
+      }
+
+      if (target.matches('[data-action-target-slot]')) {
+        const position = toInt(target.getAttribute('data-action-target-slot'), -1);
+        if (position >= 0) {
+          this.lastActionTargetByPosition.set(position, String(target.value));
         }
       }
 
@@ -1239,14 +1248,20 @@ export class BattleDomAdapter {
       }
       this.lastActionSkillByPosition.set(member.position, toInt(select.value, 0));
 
+      const targetSelect = this.doc.createElement('select');
+      targetSelect.setAttribute('data-action-target-slot', String(member.position));
+      targetSelect.style.display = 'none';
+
       const skillAttrBadges = this.doc.createElement('span');
       skillAttrBadges.setAttribute('data-role', 'action-skill-attr-badges');
       skillAttrBadges.setAttribute('data-position', String(member.position));
       skillAttrBadges.className = 'attr-badge-row';
       wrapper.appendChild(skillAttrBadges);
       wrapper.appendChild(select);
+      wrapper.appendChild(targetSelect);
       container.appendChild(wrapper);
       this.updateActionSkillAttributeBadges(member.position, toInt(select.value, 0));
+      this.updateActionTargetSelector(member.position, toInt(select.value, 0));
     }
 
     if (actionableMembers.length === 0) {
@@ -1271,6 +1286,76 @@ export class BattleDomAdapter {
     }
     const attrs = extractSkillAttributes(skill);
     this.renderBadgeContainer(container, attrs);
+  }
+
+  resolveActionTargetConfig(member, skill) {
+    if (!member || !skill) {
+      return null;
+    }
+
+    const parts = Array.isArray(skill.parts) ? skill.parts : [];
+    for (const part of parts) {
+      const targetType = String(part?.target_type ?? '');
+      if (targetType !== 'AllySingle' && targetType !== 'AllySingleWithoutSelf') {
+        continue;
+      }
+
+      const targetCondition = String(part?.target_condition ?? '').replace(/\s+/g, '');
+      const allies = this.state?.party?.slice().sort((a, b) => a.position - b.position);
+      const candidates = (allies ?? []).filter((candidate) =>
+        (targetType === 'AllySingleWithoutSelf'
+          ? candidate.characterId !== member.characterId
+          : true) &&
+        (targetCondition === 'IsFront()==1'
+          ? candidate.position <= 2
+          : targetCondition === 'IsFront()==0'
+            ? candidate.position >= 3
+            : true)
+      );
+
+      if (candidates.length === 0) {
+        return null;
+      }
+
+      return { targetType, candidates };
+    }
+
+    return null;
+  }
+
+  updateActionTargetSelector(position, skillId) {
+    const targetSelect = this.root.querySelector(`[data-action-target-slot="${position}"]`);
+    if (!targetSelect || !this.party) {
+      return;
+    }
+
+    const member = this.party.getByPosition(position);
+    const skill = member?.getSkill(skillId);
+    const config = this.resolveActionTargetConfig(member, skill);
+
+    targetSelect.innerHTML = '';
+    if (!config) {
+      targetSelect.style.display = 'none';
+      this.lastActionTargetByPosition.delete(position);
+      return;
+    }
+
+    for (const candidate of config.candidates) {
+      const option = this.doc.createElement('option');
+      option.value = String(candidate.characterId);
+      option.textContent = `Target: Pos ${candidate.position + 1} (${candidate.characterName})`;
+      targetSelect.appendChild(option);
+    }
+
+    const preferred = this.lastActionTargetByPosition.get(position);
+    if (
+      preferred &&
+      [...targetSelect.options].some((option) => String(option.value) === String(preferred))
+    ) {
+      targetSelect.value = String(preferred);
+    }
+    this.lastActionTargetByPosition.set(position, String(targetSelect.value));
+    targetSelect.style.display = '';
   }
 
   getActionableFrontlineMembers() {
@@ -1302,9 +1387,17 @@ export class BattleDomAdapter {
         throw new Error(`No equipped skills for position ${member.position + 1}.`);
       }
       const skillId = toInt(select?.value, fallbackSkill?.skillId ?? 0);
+      const targetSelect = this.root.querySelector(
+        `[data-action-target-slot="${member.position}"]`
+      );
+      const targetCharacterId =
+        targetSelect && targetSelect.style.display !== 'none'
+          ? String(targetSelect.value ?? '').trim()
+          : '';
       actionDict[String(member.position)] = {
         characterId: member.characterId,
         skillId,
+        ...(targetCharacterId ? { targetCharacterId } : {}),
       };
     }
 

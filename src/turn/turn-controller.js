@@ -729,9 +729,15 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
   };
 }
 
-function resolveSupportTargetCharacterIds(state, actorMember, targetTypeRaw) {
+function resolveSupportTargetCharacterIds(
+  state,
+  actorMember,
+  targetTypeRaw,
+  preferredTargetCharacterId = null
+) {
   const targetType = String(targetTypeRaw ?? '');
   const frontline = getFrontlineMembers(state);
+  const allies = state.party.slice().sort((a, b) => a.position - b.position);
   const backline = state.party
     .filter((member) => member.position >= 3)
     .slice()
@@ -744,21 +750,50 @@ function resolveSupportTargetCharacterIds(state, actorMember, targetTypeRaw) {
     for (const member of state.party) {
       out.add(member.characterId);
     }
+  } else if (targetType === 'AllyAllWithoutSelf') {
+    for (const member of state.party) {
+      if (member.characterId !== actorMember.characterId) {
+        out.add(member.characterId);
+      }
+    }
   } else if (targetType === 'AllyFront') {
     for (const member of frontline) {
       out.add(member.characterId);
+    }
+  } else if (targetType === 'AllyFrontWithoutSelf') {
+    for (const member of frontline) {
+      if (member.characterId !== actorMember.characterId) {
+        out.add(member.characterId);
+      }
     }
   } else if (targetType === 'AllySub') {
     for (const member of backline) {
       out.add(member.characterId);
     }
   } else if (targetType === 'AllySingle') {
-    const target = frontline[0] ?? actorMember;
+    let target =
+      preferredTargetCharacterId
+        ? allies.find((member) => member.characterId === preferredTargetCharacterId) ?? null
+        : null;
+    if (!target) {
+      target = allies[0] ?? actorMember;
+    }
     if (target) {
       out.add(target.characterId);
     }
   } else if (targetType === 'AllySingleWithoutSelf') {
-    const target = frontline.find((member) => member.characterId !== actorMember.characterId) ?? null;
+    let target = null;
+    if (preferredTargetCharacterId) {
+      target =
+        allies.find(
+          (member) =>
+            member.characterId === preferredTargetCharacterId &&
+            member.characterId !== actorMember.characterId
+        ) ?? null;
+    }
+    if (!target) {
+      target = allies.find((member) => member.characterId !== actorMember.characterId) ?? null;
+    }
     if (target) {
       out.add(target.characterId);
     }
@@ -817,7 +852,12 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
         continue;
       }
 
-      const targetCharacterIds = resolveSupportTargetCharacterIds(state, actor, part?.target_type);
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
       if (targetCharacterIds.length === 0) {
         continue;
       }
@@ -831,6 +871,9 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
       for (const targetCharacterId of targetCharacterIds) {
         const target = findMemberByCharacterId(state, targetCharacterId);
         if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition)) {
           continue;
         }
 
@@ -959,40 +1002,82 @@ function syncExtraActiveFlags(party, allowedCharacterIds = []) {
   }
 }
 
-function resolveAdditionalTurnTargets(state, actorMember, targetTypes) {
+function isTargetConditionSatisfiedByMember(targetMember, expression) {
+  const expr = String(expression ?? '').replace(/\s+/g, '');
+  if (!expr) {
+    return true;
+  }
+  if (expr === 'IsFront()==1') {
+    return Number(targetMember?.position ?? 99) <= 2;
+  }
+  if (expr === 'IsFront()==0') {
+    return Number(targetMember?.position ?? -1) >= 3;
+  }
+  return true;
+}
+
+function resolveAdditionalTurnTargets(
+  state,
+  actorMember,
+  targetSpecs,
+  preferredTargetCharacterId = null
+) {
   const ids = new Set();
   const frontline = getFrontlineMembers(state);
+  const allies = state.party.slice().sort((a, b) => a.position - b.position);
 
-  for (const targetTypeRaw of targetTypes ?? []) {
-    const targetType = String(targetTypeRaw ?? '');
+  for (const spec of targetSpecs ?? []) {
+    const targetType = String(spec?.targetType ?? spec ?? '');
+    const targetCondition = String(spec?.targetCondition ?? '');
     if (!targetType) {
       continue;
     }
 
     if (targetType === 'Self') {
-      ids.add(actorMember.characterId);
+      if (isTargetConditionSatisfiedByMember(actorMember, targetCondition)) {
+        ids.add(actorMember.characterId);
+      }
       continue;
     }
 
     if (targetType === 'AllyFront') {
       for (const member of frontline) {
-        ids.add(member.characterId);
+        if (isTargetConditionSatisfiedByMember(member, targetCondition)) {
+          ids.add(member.characterId);
+        }
       }
       continue;
     }
 
     if (targetType === 'AllySingleWithoutSelf') {
-      const target =
-        frontline.find((member) => member.characterId !== actorMember.characterId) ?? null;
-      if (target) {
+      let target = null;
+      if (preferredTargetCharacterId) {
+        target =
+          allies.find(
+            (member) =>
+              member.characterId === preferredTargetCharacterId &&
+              member.characterId !== actorMember.characterId
+          ) ?? null;
+      }
+      if (!target) {
+        target = allies.find((member) => member.characterId !== actorMember.characterId) ?? null;
+      }
+      if (target && isTargetConditionSatisfiedByMember(target, targetCondition)) {
         ids.add(target.characterId);
       }
       continue;
     }
 
     if (targetType === 'AllySingle') {
-      const target = frontline[0] ?? null;
-      if (target) {
+      let target = null;
+      if (preferredTargetCharacterId) {
+        target =
+          allies.find((member) => member.characterId === preferredTargetCharacterId) ?? null;
+      }
+      if (!target) {
+        target = allies[0] ?? null;
+      }
+      if (target && isTargetConditionSatisfiedByMember(target, targetCondition)) {
         ids.add(target.characterId);
       }
       continue;
@@ -1029,10 +1114,20 @@ function deriveGrantedExtraTurnCharacterIds(state, previewRecord) {
       continue;
     }
 
-    const targetTypes = Array.isArray(rule.additionalTurnTargetTypes)
-      ? rule.additionalTurnTargetTypes
-      : [];
-    const targets = resolveAdditionalTurnTargets(state, member, targetTypes);
+    const targetSpecs = Array.isArray(rule.additionalTurnTargets)
+      ? rule.additionalTurnTargets
+      : Array.isArray(rule.additionalTurnTargetTypes)
+        ? rule.additionalTurnTargetTypes.map((targetType) => ({ targetType, targetCondition: '' }))
+        : [];
+    const targets = resolveAdditionalTurnTargets(
+      state,
+      member,
+      targetSpecs,
+      actionEntry?.targetCharacterId
+    ).filter((characterId) => {
+      const target = findMemberByCharacterId(state, characterId);
+      return Number(target?.position ?? 99) <= 2;
+    });
     for (const characterId of targets) {
       granted.add(characterId);
     }
@@ -1148,6 +1243,7 @@ function previewActionEntries(state, sortedActions) {
       startEP: preview.startEP,
       endEP: preview.endEP,
       breakHitCount: Number(action?.breakHitCount ?? 0),
+      targetCharacterId: String(action?.targetCharacterId ?? ''),
       _baseRevision: preview.baseRevision,
     };
   });
@@ -1324,7 +1420,7 @@ function applySkillSpGains(state, previewRecord) {
         continue;
       }
 
-      const condTexts = [part?.cond, part?.hit_condition, part?.target_condition]
+      const condTexts = [part?.cond, part?.hit_condition]
         .map((value) => String(value ?? '').trim())
         .filter(Boolean);
       const condSatisfied = condTexts.every((expr) =>
@@ -1339,7 +1435,12 @@ function applySkillSpGains(state, previewRecord) {
         continue;
       }
 
-      const targetCharacterIds = resolveSupportTargetCharacterIds(state, actor, part?.target_type);
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
       if (targetCharacterIds.length === 0) {
         continue;
       }
@@ -1347,6 +1448,9 @@ function applySkillSpGains(state, previewRecord) {
       for (const targetCharacterId of targetCharacterIds) {
         const target = findMemberByCharacterId(state, targetCharacterId);
         if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition)) {
           continue;
         }
         const change = target.applySpDelta(amount, 'active', skill.spRecoveryCeiling);

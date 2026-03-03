@@ -731,7 +731,11 @@ export class HbrDataStore {
     const overrideRules = skill.extra_turn_rules ?? {};
     const hasGrantOverride = overrideRules.additional_turn_grant_in_extra_turn !== undefined;
     const hasUsableOverride = overrideRules.skill_usable_in_extra_turn !== undefined;
-    const additionalTurnTargetTypes = additionalTurnParts.map((part) => String(part.target_type ?? ''));
+    const additionalTurnTargets = additionalTurnParts.map((part) => ({
+      targetType: String(part.target_type ?? ''),
+      targetCondition: String(part.target_condition ?? ''),
+    }));
+    const additionalTurnTargetTypes = additionalTurnTargets.map((item) => item.targetType);
 
     return {
       skillId: Number(skill.id),
@@ -747,6 +751,7 @@ export class HbrDataStore {
         excludesExtraTurnForSkillUse: skillConditionFlags.excludesExtraTurn,
         excludesExtraTurnForAdditionalTurnGrant: aggregatePartFlags.excludesExtraTurn,
       },
+      additionalTurnTargets,
       additionalTurnTargetTypes,
       source: hasGrantOverride || hasUsableOverride ? 'override' : 'derived',
     };

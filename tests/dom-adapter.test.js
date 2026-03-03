@@ -229,6 +229,47 @@ test('action selector displays SP ALL for sp_cost -1 skills', () => {
   assert.equal(text.includes('SP ALL'), true);
 });
 
+test('action selector shows target selector for non-HealSp AllySingle skills', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `T${idx + 1}`,
+      characterName: `T${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `TS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 778001,
+                name: 'Single Target Buff',
+                label: 'STB',
+                sp_cost: 0,
+                consume_type: 'Sp',
+                parts: [{ skill_type: 'AttackUp', target_type: 'AllySingleWithoutSelf' }],
+              },
+            ]
+          : [{ id: 778100 + idx, name: 'Normal', label: `N${idx}`, sp_cost: 0, consume_type: 'Sp' }],
+    })
+  );
+
+  adapter.party = new Party(members);
+  adapter.state = createBattleStateFromParty(adapter.party);
+  adapter.renderActionSelectors();
+
+  const targetSelect = root.querySelector('[data-action-target-slot="0"]');
+  assert.ok(targetSelect);
+  assert.notEqual(targetSelect.style.display, 'none');
+  assert.equal(targetSelect.options.length, 5);
+});
+
 test('kishinka button is shown for Tezuka and activates reinforced state', () => {
   const store = getStore();
   const { root } = createRoot();

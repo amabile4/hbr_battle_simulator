@@ -320,6 +320,105 @@ test('self-only additional turn in extra turn does not carry previous allowed me
   assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, ['X1']);
 });
 
+test('additional turn AllySingleWithoutSelf respects selected targetCharacterId', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ATS${idx + 1}`,
+      characterName: `ATS${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ATSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 54000 + idx,
+          name: idx === 0 ? 'Single Extra' : 'Normal',
+          sp_cost: 0,
+          additionalTurnRule:
+            idx === 0
+              ? {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: true,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                  },
+                  additionalTurnTargetTypes: ['AllySingleWithoutSelf'],
+                }
+              : null,
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AdditionalTurn', target_type: 'AllySingleWithoutSelf' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'ATS1', skillId: 54000, targetCharacterId: 'ATS3' },
+    1: { characterId: 'ATS2', skillId: 54001 },
+    2: { characterId: 'ATS3', skillId: 54002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, ['ATS3']);
+});
+
+test('additional turn target_condition IsFront()==1 rejects backline target', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ATF${idx + 1}`,
+      characterName: `ATF${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ATFS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 54100 + idx,
+          name: idx === 0 ? 'Front Only Extra' : 'Normal',
+          sp_cost: 0,
+          additionalTurnRule:
+            idx === 0
+              ? {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: true,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                  },
+                  additionalTurnTargets: [
+                    { targetType: 'AllySingleWithoutSelf', targetCondition: 'IsFront()==1' },
+                  ],
+                  additionalTurnTargetTypes: ['AllySingleWithoutSelf'],
+                }
+              : null,
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AdditionalTurn', target_type: 'AllySingleWithoutSelf', target_condition: 'IsFront()==1' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'ATF1', skillId: 54100, targetCharacterId: 'ATF5' },
+    1: { characterId: 'ATF2', skillId: 54101 },
+    2: { characterId: 'ATF3', skillId: 54102 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.turnType, 'normal');
+  assert.equal(nextState.party.some((m) => m.isExtraActive), false);
+});
+
 test('OD turn resumes after extra turn (OD3-1 -> EX -> OD3-2)', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -649,6 +748,82 @@ test('HealSp AllyFront increases SP for all frontline members', () => {
   assert.equal(m4.sp.current, 12);
 });
 
+test('HealSp AllyAll increases SP for all party members', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HSA${idx + 1}`,
+      characterName: `HSA${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `HSAS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 51500 + idx,
+          name: idx === 0 ? 'All SP Up' : 'Normal',
+          sp_cost: 0,
+          parts:
+            idx === 0
+              ? [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [3, 0] }]
+              : [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'HSA1', skillId: 51500 },
+    1: { characterId: 'HSA2', skillId: 51501 },
+    2: { characterId: 'HSA3', skillId: 51502 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  for (const member of nextState.party) {
+    assert.equal(member.sp.current, 15);
+  }
+});
+
+test('HealSp AllyAllWithoutSelf excludes actor and affects all allies', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HSAS${idx + 1}`,
+      characterName: `HSAS${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `HSASS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 51600 + idx,
+          name: idx === 0 ? 'All Other SP Up' : 'Normal',
+          sp_cost: 0,
+          parts:
+            idx === 0
+              ? [{ skill_type: 'HealSp', target_type: 'AllyAllWithoutSelf', power: [3, 0] }]
+              : [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'HSAS1', skillId: 51600 },
+    1: { characterId: 'HSAS2', skillId: 51601 },
+    2: { characterId: 'HSAS3', skillId: 51602 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  const actor = nextState.party.find((m) => m.characterId === 'HSAS1');
+  assert.equal(actor.sp.current, 12);
+  for (const member of nextState.party.filter((m) => m.characterId !== 'HSAS1')) {
+    assert.equal(member.sp.current, 15);
+  }
+});
+
 test('HealSp AllySingleWithoutSelf targets one ally and excludes self', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -688,6 +863,49 @@ test('HealSp AllySingleWithoutSelf targets one ally and excludes self', () => {
   assert.equal(actor.sp.current, 12);
   // first non-self frontline ally gets +4 then base +2
   assert.equal(ally.sp.current, 16);
+});
+
+test('HealSp AllySingleWithoutSelf respects selected targetCharacterId', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HST${idx + 1}`,
+      characterName: `HST${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `HSTS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 53000 + idx,
+          name: idx === 0 ? 'Single Other SP Up' : 'Normal',
+          sp_cost: 0,
+          parts:
+            idx === 0
+              ? [{ skill_type: 'HealSp', target_type: 'AllySingleWithoutSelf', power: [4, 0] }]
+              : [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'HST1', skillId: 53000, targetCharacterId: 'HST5' },
+    1: { characterId: 'HST2', skillId: 53001 },
+    2: { characterId: 'HST3', skillId: 53002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  const actor = nextState.party.find((m) => m.characterId === 'HST1');
+  const t2 = nextState.party.find((m) => m.characterId === 'HST2');
+  const t3 = nextState.party.find((m) => m.characterId === 'HST3');
+  const t5 = nextState.party.find((m) => m.characterId === 'HST5');
+
+  assert.equal(actor.sp.current, 12);
+  assert.equal(t2.sp.current, 12, 'non-selected frontline ally should get base only');
+  assert.equal(t3.sp.current, 12, 'non-selected ally should get base only');
+  assert.equal(t5.sp.current, 16, 'selected backline ally should receive HealSp');
 });
 
 test('normal attack guarantees minimum 7.5% OD gain even when hit count is below 3', () => {
