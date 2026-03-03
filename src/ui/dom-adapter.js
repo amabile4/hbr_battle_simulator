@@ -5,6 +5,7 @@ import {
   activateOverdrive,
 } from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor, CsvExporter } from '../records/record-store.js';
+import { createInitialTurnState } from '../contracts/interfaces.js';
 
 function toInt(value, fallback = 0) {
   const n = Number.parseInt(String(value), 10);
@@ -40,6 +41,7 @@ const DRIVE_PIERCE_OPTIONS = Object.freeze([
   { value: 15, label: 'ドライブピアス +15%' },
 ]);
 const TEZUKA_CHARACTER_ID = 'STezuka';
+const OD_GAUGE_MIN_PERCENT = -999.99;
 const OD_GAUGE_MAX_PERCENT = 300;
 
 function isNormalAttackSkill(skill) {
@@ -71,9 +73,16 @@ function formatSwapMemberLabel(member) {
   return `${name}${member?.isExtraActive ? ' [EX]' : ''}`;
 }
 
-function formatSkillCostLabel(skill) {
+function formatSkillCostLabel(skill, member = null) {
   const consumeType = String(skill?.consumeType ?? skill?.consume_type ?? 'Sp');
   const costRaw = Number(skill?.spCost ?? skill?.sp_cost ?? 0);
+  if (
+    member?.characterId === TEZUKA_CHARACTER_ID &&
+    Boolean(member?.isReinforcedMode) &&
+    consumeType.toLowerCase() !== 'ep'
+  ) {
+    return 'SP 0';
+  }
   if (consumeType.toLowerCase() !== 'ep' && costRaw === -1) {
     return 'SP ALL';
   }
@@ -96,6 +105,23 @@ function formatTranscendencePercent(value) {
   }
   const clamped = Math.max(0, Math.min(999, Math.floor(n)));
   return String(clamped).padStart(3, '0');
+}
+
+function deriveDisplayedOdTurn(turnState) {
+  const type = String(turnState?.turnType ?? '');
+  if (type === 'od') {
+    return String(turnState?.turnLabel ?? '');
+  }
+  if (type !== 'extra' || !turnState?.odSuspended) {
+    return '';
+  }
+  const level = Number(turnState?.odLevel ?? 0);
+  const remaining = Number(turnState?.remainingOdActions ?? 0);
+  if (level <= 0 || remaining <= 0) {
+    return '';
+  }
+  const step = Math.max(1, Math.min(level, level - remaining));
+  return `OD${level}-${step}`;
 }
 
 function resolveFunnelHitBonus(member, maxStacks = 2) {
@@ -1164,6 +1190,15 @@ export class BattleDomAdapter {
     return ids;
   }
 
+  readInitialOdGaugeFromDom() {
+    const input = this.root.querySelector('[data-role="initial-od-gauge"]');
+    const raw = Number.parseFloat(String(input?.value ?? '0'));
+    if (!Number.isFinite(raw)) {
+      return 0;
+    }
+    return Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, raw));
+  }
+
   initializeBattle(styleIds = this.readStyleIdsFromDom(), options = {}) {
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? this.readSkillSetMapFromDom();
     const limitBreakLevelsByPartyIndex =
@@ -1176,7 +1211,13 @@ export class BattleDomAdapter {
       limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
     });
-    this.state = createBattleStateFromParty(this.party);
+    const initialOdGauge =
+      options.initialOdGauge ?? (options.skipInitialOdRead ? 0 : this.readInitialOdGaugeFromDom());
+    const initialTurnState = {
+      ...createInitialTurnState(),
+      odGauge: Number(initialOdGauge),
+    };
+    this.state = createBattleStateFromParty(this.party, initialTurnState);
     this.recordStore = createBattleRecordStore();
     this.previewRecord = null;
     this.pendingSwapEvents = [];
@@ -1233,7 +1274,7 @@ export class BattleDomAdapter {
       for (const skill of member.getActionSkills()) {
         const option = this.doc.createElement('option');
         option.value = String(skill.skillId);
-        const costLabel = formatSkillCostLabel(skill);
+        const costLabel = formatSkillCostLabel(skill, member);
         const hitLabel = formatSkillHitLabel(skill, member);
         option.textContent = `${skill.name} (${costLabel} / Hit ${hitLabel})`;
         select.appendChild(option);
@@ -1623,7 +1664,7 @@ export class BattleDomAdapter {
     if (turnLabel) {
       const seq = String(Math.max(0, Number(this.state.turnState.sequenceId ?? 1))).padStart(2, '0');
       const baseTurn = `T${String(Math.max(0, Number(this.state.turnState.turnIndex ?? 1))).padStart(2, '0')}`;
-      const odTurn = this.state.turnState.turnType === 'od' ? String(this.state.turnState.turnLabel ?? '') : '';
+      const odTurn = deriveDisplayedOdTurn(this.state.turnState);
       const exTurn = this.state.turnState.turnType === 'extra' ? 'EX' : '';
       const odGauge = Number(this.state.turnState.odGauge ?? 0);
       const transcendence = this.state.turnState.transcendence;

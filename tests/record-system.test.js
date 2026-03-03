@@ -74,7 +74,7 @@ test('csv exporter outputs stable character columns by initial party index', () 
 
   const csv = CsvExporter.exportToCSV(battleStore, state.initialParty);
 
-  assert.ok(csv.includes('seq,turn,od_turn,ex,od,transcendence,enemyAction'));
+  assert.ok(csv.includes('seq,turn,od_turn,od_context,ex,od,transcendence,enemyAction'));
   assert.ok(csv.includes(',1,'));
   assert.ok(csv.includes('0.00%'));
 
@@ -141,5 +141,84 @@ test('csv action cell renders hit as base+funnel when funnel bonus exists', () =
   const store = RecordEditor.upsertRecord(createBattleRecordStore(), committedRecord);
   const csv = CsvExporter.exportToCSV(store, state.initialParty);
 
-  assert.ok(csv.includes('Attack + Funnel [Single,4hit (1+3)]'));
+  assert.ok(csv.includes('Attack + Funnel (SP 0) [Single,4hit (1+3)]'));
+});
+
+test('csv keeps od_turn during od-suspended extra and exposes od_context', () => {
+  const initialParty = [
+    { characterName: 'A', partyIndex: 0 },
+    { characterName: 'B', partyIndex: 1 },
+    { characterName: 'C', partyIndex: 2 },
+    { characterName: 'D', partyIndex: 3 },
+    { characterName: 'E', partyIndex: 4 },
+    { characterName: 'F', partyIndex: 5 },
+  ];
+
+  const record = {
+    turnId: 2,
+    turnIndex: 2,
+    turnType: 'extra',
+    turnLabel: 'EX',
+    odTurnLabelAtStart: 'OD3-1',
+    odContext: 'interrupt',
+    odGaugeAtStart: 150,
+    enemyAction: '',
+    snapBefore: [],
+    snapAfter: [],
+    actions: [],
+  };
+
+  const row = CsvExporter.recordToRow(record, initialParty);
+  assert.equal(row[1], 2);
+  assert.equal(row[2], 'OD3-1');
+  assert.equal(row[3], 'interrupt');
+  assert.equal(row[4], 'ex');
+});
+
+test('csv action cell shows SP 0 for Tezuka skills during reinforced mode', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: idx === 0 ? 'STezuka' : `TZ${idx + 1}`,
+      characterName: idx === 0 ? '手塚 咲' : `TZ${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `TZS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        idx === 0
+          ? {
+              id: 46041403,
+              name: '天駆の鉄槌',
+              label: 'STezukaSkill03',
+              sp_cost: 7,
+              consume_type: 'Sp',
+              hit_count: 1,
+              target_type: 'All',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All' }],
+            }
+          : {
+              id: 46050000 + idx,
+              name: 'Normal',
+              label: `TZSkill${idx + 1}`,
+              sp_cost: 0,
+              consume_type: 'Sp',
+              parts: [],
+            },
+      ],
+    })
+  );
+
+  const party = new Party(members);
+  const tezuka = party.members.find((m) => m.characterId === 'STezuka');
+  tezuka.activateReinforcedMode(3);
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'STezuka', skillId: 46041403 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const store = RecordEditor.upsertRecord(createBattleRecordStore(), committedRecord);
+  const csv = CsvExporter.exportToCSV(store, state.initialParty);
+
+  assert.ok(csv.includes('天駆の鉄槌 (SP 0) [All,4hit (1+3)]'));
 });

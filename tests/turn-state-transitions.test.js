@@ -1529,6 +1529,79 @@ test('skill with SpecialStatusCountByType(20)==0 is blocked during extra turn', 
   );
 });
 
+test('od-suspended extra turn satisfies both OD and extra-turn conditions simultaneously', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `OX${idx + 1}`,
+      characterName: `OX${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `OXS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 10150,
+                name: 'OD Only',
+                label: 'ODOnlyInExtra',
+                sp_cost: 0,
+                cond: 'IsOverDrive()==1',
+                parts: [],
+              },
+              {
+                id: 10151,
+                name: 'OD Forbidden',
+                label: 'ODForbiddenInExtra',
+                sp_cost: 0,
+                cond: 'IsOverDrive()==0',
+                parts: [],
+              },
+              {
+                id: 10152,
+                name: 'No Extra',
+                label: 'NoExtraInOd',
+                sp_cost: 0,
+                cond: 'SpecialStatusCountByType(20)==0',
+                parts: [],
+              },
+            ]
+          : [{ id: 10160 + idx, name: 'Normal', label: `OXSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state = grantExtraTurn(state, ['OX1']);
+  state.turnState.odSuspended = true;
+  state.turnState.odLevel = 3;
+  state.turnState.remainingOdActions = 2;
+  state.turnState.odContext = 'interrupt';
+
+  const odOnlyPreview = previewTurn(state, {
+    0: { characterId: 'OX1', skillId: 10150 },
+  });
+  assert.equal(odOnlyPreview.actions.length, 1, 'OD-only skill should be usable during OD-suspended EX');
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'OX1', skillId: 10151 },
+      }),
+    /cannot be used because cond is not satisfied/,
+    'OD-forbidden skill should be blocked during OD-suspended EX'
+  );
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'OX1', skillId: 10152 },
+      }),
+    /cannot be used because cond is not satisfied/,
+    'extra-turn-forbidden skill should remain blocked during OD-suspended EX'
+  );
+});
+
 test('kishin state lasts 3 actionable turns then applies 1-turn action disable', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

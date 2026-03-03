@@ -14,6 +14,7 @@ function createRoot() {
       <button data-action="load-selection"></button>
       <button data-action="clear-selection-slot"></button>
       <pre data-role="selection-slot-preview"></pre>
+      <input data-role="initial-od-gauge" type="number" value="0" />
       <button data-action="initialize"></button>
       <input data-role="enemy-action" />
       <select data-role="enemy-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
@@ -71,7 +72,7 @@ test('dom adapter initializes, previews, commits, and exports csv', () => {
   assert.equal(adapter.recordStore.records.length, 1);
 
   const csv = adapter.exportCsv();
-  assert.ok(csv.includes('seq,turn,od_turn,ex,od,transcendence,enemyAction'));
+  assert.ok(csv.includes('seq,turn,od_turn,od_context,ex,od,transcendence,enemyAction'));
   assert.ok(csv.includes(',1,,'));
 });
 
@@ -198,6 +199,26 @@ test('turn label shows OD turn in dedicated column while in OD turn', () => {
   assert.equal(/\|\s*OD1-1\s+\|/.test(label), true);
 });
 
+test('turn label keeps OD turn visible during OD-suspended extra turn', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state.turnState.turnType = 'extra';
+  adapter.state.turnState.turnLabel = 'EX';
+  adapter.state.turnState.turnIndex = 2;
+  adapter.state.turnState.odLevel = 3;
+  adapter.state.turnState.remainingOdActions = 2;
+  adapter.state.turnState.odSuspended = true;
+  adapter.renderTurnStatus();
+
+  const label = root.querySelector('[data-role="turn-label"]')?.textContent ?? '';
+  assert.equal(label.includes('| T02 |'), true);
+  assert.equal(label.includes('| OD3-1 '), true);
+  assert.equal(label.includes('| EX |'), true);
+});
+
 test('action selector displays SP ALL for sp_cost -1 skills', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -317,6 +338,28 @@ test('action selector hit label shows base+funnel while reinforced', () => {
   const select = root.querySelector('[data-action-slot="0"]');
   const hasFunnelHitLabel = [...select.options].some((opt) => /Hit\s+\d+\+3\b/.test(opt.textContent));
   assert.equal(hasFunnelHitLabel, true);
+  const hasSpZeroCost = [...select.options].some((opt) => /\(SP 0 \/ Hit /.test(opt.textContent));
+  assert.equal(hasSpZeroCost, true);
+});
+
+test('initialize battle applies manually entered initial OD gauge', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const input = root.querySelector('[data-role="initial-od-gauge"]');
+  input.value = '-123.45';
+  adapter.initializeBattle();
+  assert.equal(adapter.state.turnState.odGauge, -123.45);
+
+  input.value = '-5000';
+  adapter.initializeBattle();
+  assert.equal(adapter.state.turnState.odGauge, -999.99);
+
+  input.value = '5000';
+  adapter.initializeBattle();
+  assert.equal(adapter.state.turnState.odGauge, 300);
 });
 
 test('selection state can be saved and loaded from localStorage slots', () => {

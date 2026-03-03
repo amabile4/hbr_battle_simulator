@@ -46,6 +46,16 @@ function formatActionCell(action) {
     return '-';
   }
   const name = String(action.skillName ?? '-');
+  const consumeType = String(action.consumeType ?? 'Sp').toLowerCase();
+  const costSpEvent = Array.isArray(action.spChanges)
+    ? action.spChanges.find((entry) => String(entry?.source ?? '') === 'cost')
+    : null;
+  const spDelta = Math.abs(Number(costSpEvent?.delta ?? 0));
+  const epDelta = Math.abs(Number(action.startEP ?? 0) - Number(action.endEP ?? 0));
+  let costLabel = consumeType === 'ep' ? `EP ${epDelta}` : `SP ${spDelta}`;
+  if (consumeType !== 'ep' && Number(action.spCost) === -1 && spDelta > 0) {
+    costLabel = 'SP ALL';
+  }
   const target = String(action.skillTargetType ?? '');
   const hit = Number(action.skillHitCount ?? 0);
   const baseHit = Number(action.skillBaseHitCount ?? 0);
@@ -59,7 +69,7 @@ function formatActionCell(action) {
       hitLabel = `${hit}hit`;
     }
   }
-  return `${name} [${targetLabel},${hitLabel}]`;
+  return `${name} (${costLabel}) [${targetLabel},${hitLabel}]`;
 }
 
 export function recordToRow(record, initialParty) {
@@ -67,13 +77,15 @@ export function recordToRow(record, initialParty) {
   const beforeMap = getSnapshotByPartyIndex(record.snapBefore);
   const afterMap = getSnapshotByPartyIndex(record.snapAfter ?? record.snapBefore);
   const turnType = String(record?.turnType ?? '');
-  const odTurn = turnType === 'od' ? String(record.turnLabel ?? '') : '';
+  const odTurn = String(record?.odTurnLabelAtStart ?? '');
+  const odContext = String(record?.odContext ?? '');
   const ex = turnType === 'extra' ? 'ex' : '';
 
   const row = [
     Number(record.turnId),
     Number(record.turnIndex ?? 0),
     odTurn,
+    odContext,
     ex,
     formatOdGaugePercent(record?.odGaugeAtStart ?? 0),
     formatTranscendencePercent(record),
@@ -97,7 +109,7 @@ export function recordToRow(record, initialParty) {
 
 export function exportToCSV(store, initialParty) {
   const sortedParty = [...initialParty].sort((a, b) => a.partyIndex - b.partyIndex);
-  const header = ['seq', 'turn', 'od_turn', 'ex', 'od', 'transcendence', 'enemyAction'];
+  const header = ['seq', 'turn', 'od_turn', 'od_context', 'ex', 'od', 'transcendence', 'enemyAction'];
 
   for (const member of sortedParty) {
     header.push(`${member.characterName}_startSP`);

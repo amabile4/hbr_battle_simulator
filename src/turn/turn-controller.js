@@ -29,6 +29,17 @@ function clampOdGauge(value) {
   return Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, value));
 }
 
+function isOverDriveActive(turnState) {
+  const type = String(turnState?.turnType ?? '');
+  if (type === 'od') {
+    return true;
+  }
+  if (type !== 'extra') {
+    return false;
+  }
+  return Boolean(turnState?.odSuspended) && Number(turnState?.remainingOdActions ?? 0) > 0;
+}
+
 function getTranscendenceState(turnState) {
   const state = turnState?.transcendence;
   return state && typeof state === 'object' ? state : null;
@@ -355,12 +366,12 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   }
 
   if (text === 'IsOverDrive()') {
-    return { known: true, value: state.turnState.turnType === 'od' };
+    return { known: true, value: isOverDriveActive(state.turnState) };
   }
   {
     const m = text.match(/^IsOverDrive\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
     if (m) {
-      const lhs = state.turnState.turnType === 'od' ? 1 : 0;
+      const lhs = isOverDriveActive(state.turnState) ? 1 : 0;
       return { known: true, value: compareNumbers(lhs, m[1], Number(m[2])) };
     }
   }
@@ -1107,7 +1118,7 @@ function deriveGrantedExtraTurnCharacterIds(state, previewRecord) {
     }
 
     const conditions = rule.conditions ?? {};
-    if (conditions.requiresOverDrive && state.turnState.turnType !== 'od') {
+    if (conditions.requiresOverDrive && !isOverDriveActive(state.turnState)) {
       continue;
     }
     if (conditions.requiresReinforcedMode && !hasReinforcedMode(member)) {
