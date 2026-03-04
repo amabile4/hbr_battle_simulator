@@ -41,6 +41,15 @@ function formatTranscendencePercent(record) {
   return `${Math.max(0, Math.floor(start))}%`;
 }
 
+function formatEnemyActionCell(record) {
+  const action = String(record?.enemyAction ?? '').trim();
+  const status = String(record?.enemyStatusSummary ?? '').trim();
+  if (action && status) {
+    return `${action} | ${status}`;
+  }
+  return action || status || '';
+}
+
 function formatActionCell(action) {
   if (!action) {
     return '-';
@@ -89,7 +98,7 @@ export function recordToRow(record, initialParty) {
     ex,
     formatOdGaugePercent(record?.odGaugeAtStart ?? 0),
     formatTranscendencePercent(record),
-    record.enemyAction ?? '',
+    formatEnemyActionCell(record),
   ];
 
   for (const member of sortedParty) {

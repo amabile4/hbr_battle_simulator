@@ -1687,6 +1687,86 @@ test('enemy down-turn status ticks when base turn advances (enemy turn consumed)
   assert.equal(nextState.turnState.enemyState.statuses.length, 0);
 });
 
+test('SkillCondition branch sp_cost is applied when BreakDownTurn condition matches', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `BDSP${idx + 1}`,
+      characterName: `BDSP${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `BDSPS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 28000,
+                name: 'BreakDown Cost Branch',
+                label: 'BreakDownCostBranch',
+                sp_cost: 16,
+                parts: [
+                  {
+                    skill_type: 'SkillCondition',
+                    cond: 'CountBC(IsDead()==0&&IsPlayer()==0&&BreakDownTurn()>0)>0',
+                    strval: [
+                      {
+                        id: 28001,
+                        name: 'BreakDown Cost Branch A',
+                        label: 'BreakDownCostBranchA',
+                        sp_cost: 0,
+                        consume_type: 'Sp',
+                        hit_count: 8,
+                        target_type: 'Single',
+                        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', power: [1, 1] }],
+                      },
+                      {
+                        id: 28002,
+                        name: 'BreakDown Cost Branch B',
+                        label: 'BreakDownCostBranchB',
+                        sp_cost: 16,
+                        consume_type: 'Sp',
+                        hit_count: 8,
+                        target_type: 'Single',
+                        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', power: [1, 1] }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ]
+          : [{ id: 28010 + idx, name: 'Normal', label: `BDSPSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+
+  // DownTurnなし: 16消費
+  const previewNormal = previewTurn(state, {
+    0: { characterId: 'BDSP1', skillId: 28000 },
+  });
+  assert.equal(previewNormal.actions[0].spCost, 16);
+  assert.equal(previewNormal.actions[0].startSP, 20);
+  assert.equal(previewNormal.actions[0].endSP, 4);
+
+  // DownTurnあり: 0消費
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+  const previewDown = previewTurn(state, {
+    0: { characterId: 'BDSP1', skillId: 28000 },
+  });
+  assert.equal(previewDown.actions[0].spCost, 0);
+  assert.equal(previewDown.actions[0].startSP, 20);
+  assert.equal(previewDown.actions[0].endSP, 20);
+
+  const { nextState } = commitTurn(state, previewDown);
+  const actor = nextState.party.find((m) => m.characterId === 'BDSP1');
+  assert.equal(actor?.sp?.current, 20);
+});
+
 test('skill with SpecialStatusCountByType(20)==0 is blocked during extra turn', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

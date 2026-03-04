@@ -274,6 +274,15 @@ export class CharacterStyle {
       throw new Error(`Skill ${skillId} is not available for style ${this.styleId}.`);
     }
 
+    return this.previewSkillUseResolved(skill);
+  }
+
+  previewSkillUseResolved(skillLike) {
+    const skill = skillLike;
+    if (!skill || typeof skill !== 'object') {
+      throw new Error(`Skill is not available for style ${this.styleId}.`);
+    }
+
     const startSP = this.sp.current;
     const startEP = this.ep.current;
     const consumeType = String(skill.consumeType ?? 'Sp');

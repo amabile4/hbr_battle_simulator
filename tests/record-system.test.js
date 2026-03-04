@@ -175,6 +175,35 @@ test('csv keeps od_turn during od-suspended extra and exposes od_context', () =>
   assert.equal(row[4], 'ex');
 });
 
+test('csv enemyAction cell includes active enemy status summary for debugging', () => {
+  const initialParty = [
+    { characterName: 'A', partyIndex: 0 },
+    { characterName: 'B', partyIndex: 1 },
+    { characterName: 'C', partyIndex: 2 },
+    { characterName: 'D', partyIndex: 3 },
+    { characterName: 'E', partyIndex: 4 },
+    { characterName: 'F', partyIndex: 5 },
+  ];
+
+  const record = {
+    turnId: 6,
+    turnIndex: 6,
+    turnType: 'normal',
+    turnLabel: 'T6',
+    odTurnLabelAtStart: '',
+    odContext: '',
+    odGaugeAtStart: 123.45,
+    enemyAction: '',
+    enemyStatusSummary: 'DownTurn:E1(1)',
+    snapBefore: [],
+    snapAfter: [],
+    actions: [],
+  };
+
+  const row = CsvExporter.recordToRow(record, initialParty);
+  assert.equal(row[7], 'DownTurn:E1(1)');
+});
+
 test('csv action cell shows SP 0 for Tezuka skills during reinforced mode', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

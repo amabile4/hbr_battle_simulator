@@ -61,6 +61,62 @@ function mergeConditionFlags(...flagsList) {
   );
 }
 
+function mergeSkillVariant(baseVariant, overrideVariant) {
+  if (baseVariant && overrideVariant && typeof baseVariant === 'object' && typeof overrideVariant === 'object') {
+    const merged = {
+      ...structuredClone(baseVariant),
+      ...structuredClone(overrideVariant),
+    };
+    if (Array.isArray(baseVariant.parts) && Array.isArray(overrideVariant.parts)) {
+      const parts = [];
+      const maxLen = Math.max(baseVariant.parts.length, overrideVariant.parts.length);
+      for (let i = 0; i < maxLen; i += 1) {
+        const b = baseVariant.parts[i];
+        const o = overrideVariant.parts[i];
+        if (b && o) {
+          parts.push({
+            ...structuredClone(b),
+            ...structuredClone(o),
+          });
+        } else if (o) {
+          parts.push(structuredClone(o));
+        } else if (b) {
+          parts.push(structuredClone(b));
+        }
+      }
+      merged.parts = parts;
+    }
+    return merged;
+  }
+  return overrideVariant ?? baseVariant;
+}
+
+function mergeSkillPart(basePart, overridePart) {
+  const merged = {
+    ...structuredClone(basePart ?? {}),
+    ...structuredClone(overridePart ?? {}),
+  };
+
+  if (Array.isArray(basePart?.strval) && Array.isArray(overridePart?.strval)) {
+    const strval = [];
+    const maxLen = Math.max(basePart.strval.length, overridePart.strval.length);
+    for (let i = 0; i < maxLen; i += 1) {
+      const b = basePart.strval[i];
+      const o = overridePart.strval[i];
+      if (b && o) {
+        strval.push(mergeSkillVariant(b, o));
+      } else if (o !== undefined) {
+        strval.push(structuredClone(o));
+      } else {
+        strval.push(structuredClone(b));
+      }
+    }
+    merged.strval = strval;
+  }
+
+  return merged;
+}
+
 export class HbrDataStore {
   constructor(payload) {
     this.characters = payload.characters;
@@ -236,10 +292,7 @@ export class HbrDataStore {
         const basePart = skill.parts[i];
         const overridePart = override.parts[i];
         if (basePart && overridePart) {
-          parts.push({
-            ...structuredClone(basePart),
-            ...structuredClone(overridePart),
-          });
+          parts.push(mergeSkillPart(basePart, overridePart));
         } else if (overridePart) {
           parts.push(structuredClone(overridePart));
         } else if (basePart) {

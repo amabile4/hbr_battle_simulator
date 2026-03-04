@@ -358,7 +358,13 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     return { known: true, value: lhs > 0 ? 1 : 0 };
   }
 
-  if (inner === 'IsPlayer()==0&&IsDead()==0&&BreakDownTurn()>0') {
+  const clauses = inner.split('&&').filter(Boolean);
+  const hasAllDownTurnEnemyClauses =
+    clauses.length === 3 &&
+    clauses.includes('IsPlayer()==0') &&
+    clauses.includes('IsDead()==0') &&
+    clauses.includes('BreakDownTurn()>0');
+  if (hasAllDownTurnEnemyClauses) {
     const count = countEnemiesWithStatus(state?.turnState, ENEMY_STATUS_DOWN_TURN);
     return { known: true, value: count };
   }
@@ -491,29 +497,76 @@ function evaluateSkillConditionExpression(expression, state, member, skill) {
   return evaluation.result;
 }
 
-function resolveEffectiveSkillParts(skill, state, member) {
-  const out = [];
-
-  for (const part of skill?.parts ?? []) {
-    const skillType = String(part?.skill_type ?? '');
-    if (skillType !== 'SkillCondition') {
-      out.push(part);
-      continue;
+function resolveSkillScalarField(skillLike, candidates, fallback = null) {
+  for (const key of candidates) {
+    if (skillLike?.[key] !== undefined && skillLike?.[key] !== null) {
+      return skillLike[key];
     }
-
-    const variants = Array.isArray(part?.strval)
-      ? part.strval.filter((v) => v && typeof v === 'object' && Array.isArray(v.parts))
-      : [];
-    if (variants.length === 0) {
-      continue;
-    }
-
-    const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
-    const selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
-    out.push(...resolveEffectiveSkillParts(selected, state, member));
   }
+  return fallback;
+}
 
-  return out;
+function resolveEffectiveSkillVariant(skill, state, member) {
+  const recurse = (skillLike) => {
+    const fallbackParts = Array.isArray(skillLike?.parts) ? skillLike.parts : [];
+    let resolved = {
+      spCost: Number(resolveSkillScalarField(skillLike, ['spCost', 'sp_cost'], 0)),
+      consumeType: String(resolveSkillScalarField(skillLike, ['consumeType', 'consume_type'], 'Sp')),
+      targetType: String(resolveSkillScalarField(skillLike, ['targetType', 'target_type'], '')),
+      hitCount: Number(resolveSkillScalarField(skillLike, ['hitCount', 'hit_count'], 0)),
+      parts: [],
+    };
+
+    for (const part of fallbackParts) {
+      const skillType = String(part?.skill_type ?? '');
+      if (skillType !== 'SkillCondition') {
+        resolved.parts.push(part);
+        continue;
+      }
+
+      const variants = Array.isArray(part?.strval)
+        ? part.strval.filter((v) => v && typeof v === 'object' && Array.isArray(v.parts))
+        : [];
+      if (variants.length === 0) {
+        continue;
+      }
+
+      const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
+      const selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
+      const nested = recurse(selected);
+      resolved = {
+        ...resolved,
+        spCost: nested.spCost,
+        consumeType: nested.consumeType,
+        targetType: nested.targetType,
+        hitCount: nested.hitCount,
+      };
+      resolved.parts.push(...nested.parts);
+    }
+
+    return resolved;
+  };
+
+  const effective = recurse(skill);
+  return {
+    ...skill,
+    spCost: Number(effective.spCost),
+    consumeType: String(effective.consumeType),
+    targetType: String(effective.targetType),
+    hitCount: Number(effective.hitCount),
+    parts: effective.parts,
+  };
+}
+
+export function resolveEffectiveSkillForAction(state, member, skill) {
+  if (!skill || !member || !state) {
+    return skill;
+  }
+  return resolveEffectiveSkillVariant(skill, state, member);
+}
+
+function resolveEffectiveSkillParts(skill, state, member) {
+  return resolveEffectiveSkillForAction(state, member, skill)?.parts ?? [];
 }
 
 function resolveDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent) {
@@ -1287,8 +1340,9 @@ function validateActionDict(state, actions) {
 
 function previewActionEntries(state, sortedActions) {
   return sortedActions.map(({ member, position, skill, action }) => {
-    const preview = member.previewSkillUse(skill.skillId);
-    const hitInfo = resolveEffectivePreviewHitCount(skill, state, member);
+    const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
+    const preview = member.previewSkillUseResolved(effectiveSkill);
+    const hitInfo = resolveEffectivePreviewHitCount(effectiveSkill, state, member);
 
     return {
       characterId: member.characterId,
@@ -1296,15 +1350,15 @@ function previewActionEntries(state, sortedActions) {
       partyIndex: member.partyIndex,
       positionIndex: position,
       isExtraAction: state.turnState.turnType === 'extra',
-      skillId: skill.skillId,
-      skillName: skill.name,
-      skillLabel: skill.label,
-      skillTargetType: String(skill.targetType ?? ''),
+      skillId: effectiveSkill.skillId,
+      skillName: effectiveSkill.name,
+      skillLabel: effectiveSkill.label,
+      skillTargetType: String(effectiveSkill.targetType ?? ''),
       skillHitCount: hitInfo.effectiveHitCount,
       skillBaseHitCount: hitInfo.baseHitCount,
       skillFunnelHitBonus: hitInfo.funnelHitBonus,
-      spCost: skill.spCost,
-      consumeType: String(skill.consumeType ?? 'Sp'),
+      spCost: effectiveSkill.spCost,
+      consumeType: String(effectiveSkill.consumeType ?? 'Sp'),
       spChanges: [
         {
           source: 'cost',

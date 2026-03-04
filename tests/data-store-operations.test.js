@@ -288,6 +288,24 @@ test('skill rule overrides can patch additional turn behavior without hardcoding
   );
 });
 
+test('skill rule overrides can patch nested SkillCondition branch sp_cost without losing variant parts', () => {
+  const store = getStore();
+  const skill = store.getSkillById(46005616); // レインボーミラクルスライダー
+  const branch0 = skill?.parts?.[0]?.strval?.[0];
+  const branch1 = skill?.parts?.[0]?.strval?.[1];
+
+  assert.equal(skill?.name, 'レインボーミラクルスライダー');
+  assert.equal(branch0?.id, 46005617);
+  assert.equal(branch0?.sp_cost, 0, 'override should patch branch-0 sp_cost to 0');
+  assert.equal(
+    Array.isArray(branch0?.parts) && branch0.parts.length > 0,
+    true,
+    'branch-0 parts should remain available after override merge'
+  );
+  assert.equal(branch1?.id, 46005618);
+  assert.equal(branch1?.sp_cost, 16, 'branch-1 should keep original sp_cost');
+});
+
 test('additional turn rules expose turn-context conditions from skill parts', () => {
   const store = getStore();
   const yatadoru = store.getAdditionalTurnRule(46041501); // 宿る想い

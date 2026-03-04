@@ -24,5 +24,22 @@
       "additional_turn_grant_in_extra_turn": false
     },
     "notes": "Source data does not explicitly encode the partial extra-turn restriction. Remove when upstream data has dedicated flags."
+  },
+  {
+    "id": 46005616,
+    "label": "AMizuharaSkill54",
+    "name": "レインボーミラクルスライダー",
+    "parts": [
+      {
+        "strval": [
+          {
+            "id": 46005617,
+            "sp_cost": 0
+          },
+          {}
+        ]
+      }
+    ],
+    "notes": "Upstream data inconsistency: DownTurn branch (46005617) should consume SP0."
   }
 ]

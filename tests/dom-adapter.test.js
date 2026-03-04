@@ -197,6 +197,48 @@ test('scenario loader accepts exported CSV and converts it to runnable scenario'
   assert.equal(adapter.recordStore.records.length, 2);
 });
 
+test('scenario run applies setup automatically when setup step is skipped', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const front = adapter.party.getFrontline();
+  const frontMember = front[0];
+  const backMember =
+    adapter.party.members
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .find((member) => member.position >= 3) ?? null;
+  assert.ok(backMember, 'expected at least one backline member');
+
+  const scenario = {
+    version: 1,
+    setup: {
+      initialPositions: [
+        { characterName: frontMember.characterName, position: 4 },
+        { characterName: backMember.characterName, position: 1 },
+      ],
+    },
+    turns: [
+      {
+        actions: [{ actorName: backMember.characterName, skillId: backMember.getActionSkills()[0].skillId }],
+      },
+    ],
+  };
+
+  root.querySelector('[data-role="scenario-json"]').value = JSON.stringify(scenario);
+  adapter.loadScenarioFromDom();
+  adapter.runAllScenarioTurns();
+
+  const movedFrontMember = adapter.findScenarioMemberByActorName(frontMember.characterName);
+  const movedBackMember = adapter.findScenarioMemberByActorName(backMember.characterName);
+  assert.equal(Number(movedFrontMember?.position), 3);
+  assert.equal(Number(movedBackMember?.position), 0);
+  assert.equal(adapter.scenarioCursor, 1);
+  assert.equal(adapter.recordStore.records.length, 1);
+});
+
 test('scenario loader reconstructs swaps from CSV position transitions', () => {
   const store = getStore();
   const { root } = createRoot();

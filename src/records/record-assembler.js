@@ -13,6 +13,7 @@ export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceI
     snapBefore,
     snapAfter: null,
     enemyAction: context.enemyAction,
+    enemyStatusSummary: context.enemyStatusSummary,
     enemyCount: context.enemyCount,
     actions,
     swapEvents,
@@ -20,6 +21,25 @@ export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceI
     createdAt: new Date().toISOString(),
     committedAt: null,
   };
+}
+
+function formatEnemyStatusSummary(turnState) {
+  const statuses = Array.isArray(turnState?.enemyState?.statuses) ? turnState.enemyState.statuses : [];
+  const active = statuses
+    .filter((s) => Number(s?.remainingTurns ?? 0) > 0)
+    .map((s) => ({
+      statusType: String(s?.statusType ?? ''),
+      targetIndex: Number(s?.targetIndex ?? -1),
+      remainingTurns: Number(s?.remainingTurns ?? 0),
+    }))
+    .filter((s) => s.statusType && Number.isFinite(s.targetIndex) && s.targetIndex >= 0)
+    .sort((a, b) => a.targetIndex - b.targetIndex || a.statusType.localeCompare(b.statusType));
+  if (active.length === 0) {
+    return '';
+  }
+  return active
+    .map((s) => `${s.statusType}:E${s.targetIndex + 1}(${s.remainingTurns})`)
+    .join('|');
 }
 
 export function commitRecord(preview, snapAfter, swapEvents, committedAt = new Date().toISOString()) {
@@ -72,6 +92,7 @@ export function buildTurnContext(turnState, enemyAction = null, enemyCount = 1) 
     remainingOdActionsAtStart: turnState.remainingOdActions,
     odGaugeAtStart: Number(turnState.odGauge ?? 0),
     enemyAction,
+    enemyStatusSummary: formatEnemyStatusSummary(turnState),
     enemyCount: Number(enemyCount),
   };
 }

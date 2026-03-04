@@ -3,6 +3,7 @@ import {
   previewTurn,
   commitTurn,
   activateOverdrive,
+  resolveEffectiveSkillForAction,
 } from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor, CsvExporter } from '../records/record-store.js';
 import { createInitialTurnState, buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
@@ -86,9 +87,11 @@ function formatSwapMemberLabel(member) {
   return `${name}${member?.isExtraActive ? ' [EX]' : ''}`;
 }
 
-function formatSkillCostLabel(skill, member = null) {
-  const consumeType = String(skill?.consumeType ?? skill?.consume_type ?? 'Sp');
-  const costRaw = Number(skill?.spCost ?? skill?.sp_cost ?? 0);
+function formatSkillCostLabel(skill, member = null, state = null) {
+  const effectiveSkill =
+    state && member ? resolveEffectiveSkillForAction(state, member, skill) : skill;
+  const consumeType = String(effectiveSkill?.consumeType ?? effectiveSkill?.consume_type ?? 'Sp');
+  const costRaw = Number(effectiveSkill?.spCost ?? effectiveSkill?.sp_cost ?? 0);
   if (
     member?.characterId === TEZUKA_CHARACTER_ID &&
     Boolean(member?.isReinforcedMode) &&
@@ -148,14 +151,17 @@ function resolveFunnelHitBonus(member, maxStacks = 2) {
     .reduce((sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)), 0);
 }
 
-function formatSkillHitLabel(skill, member) {
-  const baseHit = Number(skill?.hitCount ?? 0);
+function formatSkillHitLabel(skill, member, state = null) {
+  const effectiveSkill =
+    state && member ? resolveEffectiveSkillForAction(state, member, skill) : skill;
+  const baseHit = Number(effectiveSkill?.hitCount ?? 0);
   const validBase = Number.isFinite(baseHit) && baseHit > 0 ? baseHit : null;
   if (!validBase) {
     return '-';
   }
 
-  const funnel = String(skill?.type ?? '') === 'damage' ? resolveFunnelHitBonus(member, 2) : 0;
+  const funnel =
+    String(effectiveSkill?.type ?? '') === 'damage' ? resolveFunnelHitBonus(member, 2) : 0;
   if (funnel > 0) {
     return `${validBase}+${funnel}`;
   }
@@ -263,6 +269,7 @@ export class BattleDomAdapter {
     this.scenario = null;
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
+    this.scenarioSetupApplied = false;
 
     this.characterCandidates = this.dataStore.listCharacterCandidates();
     this.defaultSelections = this.buildDefaultSelections();
@@ -1389,8 +1396,8 @@ export class BattleDomAdapter {
       for (const skill of member.getActionSkills()) {
         const option = this.doc.createElement('option');
         option.value = String(skill.skillId);
-        const costLabel = formatSkillCostLabel(skill, member);
-        const hitLabel = formatSkillHitLabel(skill, member);
+        const costLabel = formatSkillCostLabel(skill, member, this.state);
+        const hitLabel = formatSkillHitLabel(skill, member, this.state);
         option.textContent = `${skill.name} (${costLabel} / Hit ${hitLabel})`;
         select.appendChild(option);
       }
@@ -1440,7 +1447,8 @@ export class BattleDomAdapter {
       this.renderBadgeContainer(container, { elements: [], weapon: null });
       return;
     }
-    const attrs = extractSkillAttributes(skill);
+    const effectiveSkill = resolveEffectiveSkillForAction(this.state, member, skill);
+    const attrs = extractSkillAttributes(effectiveSkill);
     this.renderBadgeContainer(container, attrs);
   }
 
@@ -1487,7 +1495,8 @@ export class BattleDomAdapter {
 
     const member = this.party.getByPosition(position);
     const skill = member?.getSkill(skillId);
-    const config = this.resolveActionTargetConfig(member, skill);
+    const effectiveSkill = resolveEffectiveSkillForAction(this.state, member, skill);
+    const config = this.resolveActionTargetConfig(member, effectiveSkill);
 
     targetSelect.innerHTML = '';
     if (!config) {
@@ -1672,6 +1681,7 @@ export class BattleDomAdapter {
     };
     this.previewRecord = null;
     this.writePreviewOutput('');
+    this.renderActionSelectors();
     this.renderEnemyStatusControls();
     this.setStatus(`Enemy ${targetIndex + 1} に ${statusType}(${remainingTurns}) を付与しました。`);
   }
@@ -1703,6 +1713,7 @@ export class BattleDomAdapter {
     };
     this.previewRecord = null;
     this.writePreviewOutput('');
+    this.renderActionSelectors();
     this.renderEnemyStatusControls();
     this.setStatus(`Enemy ${targetIndex + 1} の ${statusType} を解除しました。`);
   }
@@ -2140,6 +2151,7 @@ export class BattleDomAdapter {
     };
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
+    this.scenarioSetupApplied = false;
     this.renderScenarioStatus();
     if (looksLikeCsv) {
       const area = this.root.querySelector('[data-role="scenario-json"]');
@@ -2249,8 +2261,19 @@ export class BattleDomAdapter {
     }
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
+    this.scenarioSetupApplied = true;
     this.renderScenarioStatus();
     this.setStatus('Scenario setup applied.');
+  }
+
+  ensureScenarioSetupApplied() {
+    if (!this.scenario) {
+      throw new Error('Scenario is not loaded.');
+    }
+    if (this.scenarioSetupApplied) {
+      return;
+    }
+    this.applyLoadedScenarioSetup();
   }
 
   resolveScenarioSkillId(member, action) {
@@ -2549,9 +2572,7 @@ export class BattleDomAdapter {
   }
 
   stageCurrentScenarioTurn() {
-    if (!this.scenario) {
-      throw new Error('Scenario is not loaded.');
-    }
+    this.ensureScenarioSetupApplied();
     const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
     if (this.scenarioCursor >= turns.length) {
       this.setStatus('Scenario completed.');
@@ -2569,9 +2590,7 @@ export class BattleDomAdapter {
   }
 
   runNextScenarioTurn() {
-    if (!this.scenario) {
-      throw new Error('Scenario is not loaded.');
-    }
+    this.ensureScenarioSetupApplied();
     const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
     if (this.scenarioCursor >= turns.length) {
       this.setStatus('Scenario completed.');
@@ -2588,9 +2607,7 @@ export class BattleDomAdapter {
   }
 
   runAllScenarioTurns() {
-    if (!this.scenario) {
-      throw new Error('Scenario is not loaded.');
-    }
+    this.ensureScenarioSetupApplied();
     const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
     while (this.scenarioCursor < turns.length) {
       this.runNextScenarioTurn();
