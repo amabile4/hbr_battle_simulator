@@ -2524,15 +2524,18 @@ export class BattleDomAdapter {
     }
 
     if (Number.isFinite(Number(turn.preemptiveOdLevel))) {
-      this.state = activateOverdrive(this.state, Number(turn.preemptiveOdLevel), 'preemptive', {
-        forceActivation: this.isForceOdEnabled(),
-      });
-      this.previewRecord = null;
-      this.pendingSwapEvents = [];
-      this.renderActionSelectors();
-      this.renderPartyState();
-      this.renderSwapSelectors();
-      this.renderTurnStatus();
+      const canApplyPreemptiveOd = String(this.state.turnState?.turnType ?? 'normal') === 'normal';
+      if (canApplyPreemptiveOd) {
+        this.state = activateOverdrive(this.state, Number(turn.preemptiveOdLevel), 'preemptive', {
+          forceActivation: this.isForceOdEnabled(),
+        });
+        this.previewRecord = null;
+        this.pendingSwapEvents = [];
+        this.renderActionSelectors();
+        this.renderPartyState();
+        this.renderSwapSelectors();
+        this.renderTurnStatus();
+      }
     }
 
     if (turn.kishinka) {

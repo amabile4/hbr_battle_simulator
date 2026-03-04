@@ -323,6 +323,41 @@ test('scenario can stage current turn without commit and advance cursor on manua
   assert.equal(adapter.scenarioStagedTurnIndex, null);
 });
 
+test('scenario ignores preemptiveOdLevel when current turn is not normal (OD/EX continuation)', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const front = adapter.party.getFrontline();
+  const actor = front[0];
+  const actionSkill = actor.getActionSkills()[0];
+
+  // Ensure we can activate OD3 once, remain in OD turn, then run next turn without retrying preemptive OD.
+  adapter.state.turnState.odGauge = 300;
+  adapter.scenario = {
+    version: 1,
+    setup: {},
+    turns: [
+      {
+        preemptiveOdLevel: 3,
+        actions: [{ actorName: actor.characterName, skillId: actionSkill.skillId }],
+      },
+      {
+        preemptiveOdLevel: 1,
+        actions: [{ actorName: actor.characterName, skillId: actionSkill.skillId }],
+      },
+    ],
+  };
+  adapter.scenarioSetupApplied = true;
+  adapter.scenarioCursor = 0;
+
+  assert.doesNotThrow(() => adapter.runNextScenarioTurn());
+  assert.equal(adapter.state.turnState.turnType, 'od');
+  assert.doesNotThrow(() => adapter.runNextScenarioTurn());
+  assert.equal(adapter.scenarioCursor, 2);
+});
+
 test('OD controls: preemptive activation and interrupt reservation/commit', () => {
   const store = getStore();
   const { root } = createRoot();
