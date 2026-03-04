@@ -3,7 +3,7 @@ export default {
   webServer: {
     command: 'node scripts/dev-server.mjs',
     port: 4173,
-    reuseExistingServer: false,
+    reuseExistingServer: true,
   },
   use: {
     headless: true,
