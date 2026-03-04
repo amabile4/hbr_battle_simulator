@@ -74,8 +74,11 @@ function clampLimitBreak(level, max) {
   return Math.max(0, Math.min(Number(max), Number(level)));
 }
 
-function canSwapByExtraState(a, b) {
-  return Boolean(a?.isExtraActive) === Boolean(b?.isExtraActive);
+function canSwapByExtraState(a, b, hasAnyExtra = false) {
+  if (hasAnyExtra) {
+    return Boolean(a?.isExtraActive) && Boolean(b?.isExtraActive);
+  }
+  return true;
 }
 
 function formatSwapMemberLabel(member) {
@@ -1035,7 +1038,7 @@ export class BattleDomAdapter {
       const row = rows[i] ?? {};
       lines.push(
         `P${i + 1}: ${row.characterLabel ?? '-'} / style=${row.styleId ?? '-'} / ` +
-          `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
+        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
       );
     }
     lines.push(
@@ -1569,14 +1572,14 @@ export class BattleDomAdapter {
     const current = this.state.turnState.enemyState ?? { enemyCount: 1, statuses: [] };
     const statuses = Array.isArray(current.statuses)
       ? current.statuses
-          .filter((status) => Number(status?.remainingTurns ?? 0) > 0)
-          .filter((status) => Number(status?.targetIndex ?? -1) >= 0)
-          .filter((status) => Number(status?.targetIndex ?? -1) < enemyCount)
-          .map((status) => ({
-            statusType: String(status?.statusType ?? ''),
-            targetIndex: Number(status?.targetIndex ?? 0),
-            remainingTurns: Number(status?.remainingTurns ?? 0),
-          }))
+        .filter((status) => Number(status?.remainingTurns ?? 0) > 0)
+        .filter((status) => Number(status?.targetIndex ?? -1) >= 0)
+        .filter((status) => Number(status?.targetIndex ?? -1) < enemyCount)
+        .map((status) => ({
+          statusType: String(status?.statusType ?? ''),
+          targetIndex: Number(status?.targetIndex ?? 0),
+          remainingTurns: Number(status?.remainingTurns ?? 0),
+        }))
       : [];
     this.state.turnState.enemyState = {
       enemyCount,
@@ -1718,8 +1721,9 @@ export class BattleDomAdapter {
     if (!outMember || !inMember) {
       throw new Error('Swap target position not found.');
     }
-    if (!canSwapByExtraState(outMember, inMember)) {
-      throw new Error('Swap is allowed only between [EX]<->[EX] or normal<->normal.');
+    const hasAnyExtra = this.state.party.some((m) => m.isExtraActive);
+    if (!canSwapByExtraState(outMember, inMember, hasAnyExtra)) {
+      throw new Error('Swap is allowed only between [EX]<->[EX] during an Extra Turn.');
     }
 
     const event = {
@@ -2604,7 +2608,11 @@ export class BattleDomAdapter {
       return;
     }
 
-    const members = this.state.party.slice().sort((a, b) => a.position - b.position);
+    const allMembers = this.state.party.slice().sort((a, b) => a.position - b.position);
+    const hasAnyExtra = allMembers.some((member) => Boolean(member?.isExtraActive));
+    const members = hasAnyExtra
+      ? allMembers.filter((member) => Boolean(member?.isExtraActive))
+      : allMembers;
     const prevFrom = String(fromSelect.value ?? '');
     const prevTo = String(toSelect.value ?? '');
 
@@ -2637,11 +2645,13 @@ export class BattleDomAdapter {
       return;
     }
 
+    const hasAnyExtra = this.state.party.some((m) => m.isExtraActive);
+
     const candidates = this.state.party
       .slice()
       .sort((a, b) => a.position - b.position)
       .filter(
-        (member) => member.position !== fromPositionIndex && canSwapByExtraState(fromMember, member)
+        (member) => member.position !== fromPositionIndex && canSwapByExtraState(fromMember, member, hasAnyExtra)
       );
 
     toSelect.innerHTML = '';

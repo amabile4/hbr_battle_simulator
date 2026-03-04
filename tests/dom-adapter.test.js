@@ -756,6 +756,8 @@ test('swap candidates are filtered by EX state and mixed EX/normal swap is block
 
   const swapFrom = root.querySelector('[data-role="swap-from"]');
   const swapTo = root.querySelector('[data-role="swap-to"]');
+  const fromValues = [...swapFrom.options].map((option) => Number(option.value));
+  assert.deepEqual(fromValues, [0], 'during EX turn, Swap From should list only EX members');
 
   // EX member selected as source => no valid target (only one EX)
   swapFrom.value = '0';
@@ -764,19 +766,15 @@ test('swap candidates are filtered by EX state and mixed EX/normal swap is block
   assert.equal(toValuesForExFrom.length, 1);
   assert.equal(toValuesForExFrom[0], '', 'EX source should have no normal target candidates');
 
-  // Normal member selected as source => only normal candidates
-  swapFrom.value = '3';
-  swapFrom.dispatchEvent(new win.Event('change', { bubbles: true }));
-  const toValuesForNormalFrom = [...swapTo.options].map((option) => Number(option.value));
   assert.equal(
-    toValuesForNormalFrom.includes(0),
+    [...swapFrom.options].some((option) => Number(option.value) === 3),
     false,
-    'normal source should not be able to pick EX target'
+    'during EX turn, non-EX members must not appear in Swap From'
   );
 
   assert.throws(
     () => adapter.queueSwap(0, 5),
-    /Swap is allowed only between \[EX\]<->\[EX\] or normal<->normal/
+    /Swap is allowed only between \[EX\]<->\[EX\] during an Extra Turn/
   );
 });
 
