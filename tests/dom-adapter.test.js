@@ -163,7 +163,11 @@ test('scenario runner loads setup and executes turns deterministically', () => {
   adapter.runAllScenarioTurns();
   assert.equal(adapter.recordStore.records.length, 2);
   assert.equal(adapter.scenarioCursor, 2);
-  assert.equal(adapter.state.turnState.enemyState.statuses.length, 0, 'enemy status should tick down each committed turn');
+  assert.equal(
+    adapter.state.turnState.enemyState.statuses.length,
+    1,
+    'enemy status should not tick during OD/EX commits without enemy turn consumption'
+  );
 });
 
 test('scenario loader accepts exported CSV and converts it to runnable scenario', () => {
@@ -294,6 +298,9 @@ test('OD controls: preemptive activation and interrupt reservation/commit', () =
   adapter.confirmOdDialog('normal');
   assert.equal(adapter.state.turnState.turnType, 'od');
   assert.equal(adapter.state.turnState.odGauge, 20);
+  adapter.closeOdDialog('normal');
+  assert.equal(adapter.state.turnState.turnType, 'normal');
+  assert.equal(adapter.state.turnState.odGauge, 120, 'cancel should restore consumed gauge');
 
   // reset and test interrupt path
   adapter.initializeBattle();

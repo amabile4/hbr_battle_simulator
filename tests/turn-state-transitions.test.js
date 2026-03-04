@@ -1619,7 +1619,72 @@ test('CountBC(...BreakDownTurn()>0) is evaluated from enemy down-turn state', ()
     0: { characterId: 'ED1', skillId: 18000 },
   });
   const { nextState } = commitTurn(state, preview);
-  assert.equal(nextState.turnState.enemyState.statuses.length, 0, 'down turn should tick down after commit');
+  assert.equal(
+    nextState.turnState.enemyState.statuses.length,
+    0,
+    'down turn should tick when base turn advances (enemy turn consumed)'
+  );
+});
+
+test('enemy down-turn status does not tick during OD/EX chain without base-turn advance', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EDO${idx + 1}`,
+      characterName: `EDO${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EDOS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [{ id: 18200 + idx, name: 'Normal', label: `EDOSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const party = new Party(members);
+  let state = createBattleStateFromParty(party);
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  state = activateOverdrive(state, 1, 'preemptive', { forceActivation: true });
+  const preview = previewTurn(state, {
+    0: { characterId: 'EDO1', skillId: 18200 },
+    1: { characterId: 'EDO2', skillId: 18201 },
+    2: { characterId: 'EDO3', skillId: 18202 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.turnIndex, 1);
+  assert.equal(nextState.turnState.enemyState.statuses.length, 1);
+});
+
+test('enemy down-turn status ticks when base turn advances (enemy turn consumed)', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EDX${idx + 1}`,
+      characterName: `EDX${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EDXS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [{ id: 18100 + idx, name: 'Normal', label: `EDXSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const party = new Party(members);
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'EDX1', skillId: 18100 },
+    1: { characterId: 'EDX2', skillId: 18101 },
+    2: { characterId: 'EDX3', skillId: 18102 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.turnIndex, 2);
+  assert.equal(nextState.turnState.enemyState.statuses.length, 0);
 });
 
 test('skill with SpecialStatusCountByType(20)==0 is blocked during extra turn', () => {

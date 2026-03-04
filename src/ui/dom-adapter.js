@@ -5,7 +5,7 @@ import {
   activateOverdrive,
 } from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor, CsvExporter } from '../records/record-store.js';
-import { createInitialTurnState, buildPositionMap } from '../contracts/interfaces.js';
+import { createInitialTurnState, buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
 
 function toInt(value, fallback = 0) {
   const n = Number.parseInt(String(value), 10);
@@ -259,6 +259,7 @@ export class BattleDomAdapter {
     this.lastActionSkillByPosition = new Map();
     this.lastActionTargetByPosition = new Map();
     this.pendingInterruptOdLevel = null;
+    this.preemptiveOdCheckpoint = null;
     this.scenario = null;
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
@@ -1333,6 +1334,7 @@ export class BattleDomAdapter {
     this.previewRecord = null;
     this.pendingSwapEvents = [];
     this.pendingInterruptOdLevel = null;
+    this.preemptiveOdCheckpoint = null;
 
     this.renderActionSelectors();
     this.renderPartyState();
@@ -1794,6 +1796,7 @@ export class BattleDomAdapter {
     this.previewRecord = null;
     this.pendingSwapEvents = [];
     this.pendingInterruptOdLevel = null;
+    this.preemptiveOdCheckpoint = null;
     if (
       this.scenario &&
       this.scenarioStagedTurnIndex !== null &&
@@ -2711,6 +2714,62 @@ export class BattleDomAdapter {
     return Boolean(toggle?.checked);
   }
 
+  createPreemptiveOdCheckpoint() {
+    if (!this.state) {
+      return null;
+    }
+    return {
+      turnState: cloneTurnState(this.state.turnState),
+      partySnapshots: this.state.party.map((member) => member.snapshot()),
+      previewRecord: this.previewRecord ? structuredClone(this.previewRecord) : null,
+      pendingSwapEvents: this.pendingSwapEvents.map((event) => ({ ...event })),
+      pendingInterruptOdLevel: this.pendingInterruptOdLevel,
+    };
+  }
+
+  restorePreemptiveOdCheckpoint(checkpoint) {
+    if (!this.state || !checkpoint) {
+      return;
+    }
+
+    this.state.turnState = cloneTurnState(checkpoint.turnState);
+    const byId = new Map(
+      (Array.isArray(checkpoint.partySnapshots) ? checkpoint.partySnapshots : []).map((snap) => [
+        String(snap?.characterId ?? ''),
+        snap,
+      ])
+    );
+
+    for (const member of this.state.party) {
+      const snap = byId.get(String(member.characterId));
+      if (!snap) {
+        continue;
+      }
+      member.setPosition(Number(snap.position ?? member.position));
+      member.sp.current = Number(snap.sp?.current ?? member.sp.current);
+      member.sp.max = Number(snap.sp?.max ?? member.sp.max);
+      member.ep.current = Number(snap.ep?.current ?? member.ep.current);
+      member.ep.max = Number(snap.ep?.max ?? member.ep.max);
+      member.isAlive = Boolean(snap.isAlive);
+      member.isBreak = Boolean(snap.isBreak);
+      member.isExtraActive = Boolean(snap.isExtraActive);
+      member.isReinforcedMode = Boolean(snap.isReinforcedMode);
+      member.reinforcedTurnsRemaining = Number(snap.reinforcedTurnsRemaining ?? member.reinforcedTurnsRemaining ?? 0);
+      member.actionDisabledTurns = Number(snap.actionDisabledTurns ?? member.actionDisabledTurns ?? 0);
+      member.statusEffects = structuredClone(snap.statusEffects ?? []);
+      const rawCounts = snap.skillUseCounts ?? {};
+      member.skillUseCounts = new Map(
+        Object.entries(rawCounts).map(([label, count]) => [String(label), Number(count ?? 0)])
+      );
+      member._revision = Number(snap.revision ?? member.revision ?? 0);
+    }
+
+    this.state.positionMap = buildPositionMap(this.state.party);
+    this.previewRecord = checkpoint.previewRecord ? structuredClone(checkpoint.previewRecord) : null;
+    this.pendingSwapEvents = checkpoint.pendingSwapEvents.map((event) => ({ ...event }));
+    this.pendingInterruptOdLevel = checkpoint.pendingInterruptOdLevel ?? null;
+  }
+
   canActivateOdLevel(level) {
     if (!this.state) {
       return false;
@@ -2816,6 +2875,14 @@ export class BattleDomAdapter {
     if (mode === 'interrupt') {
       this.pendingInterruptOdLevel = null;
       this.renderOdControls();
+    } else if (this.preemptiveOdCheckpoint) {
+      this.restorePreemptiveOdCheckpoint(this.preemptiveOdCheckpoint);
+      this.preemptiveOdCheckpoint = null;
+      this.renderActionSelectors();
+      this.renderPartyState();
+      this.renderSwapSelectors();
+      this.renderTurnStatus();
+      this.renderOdControls();
     }
     this.setStatus(mode === 'interrupt' ? '割込OD設定をキャンセルしました。' : 'OD発動をキャンセルしました。');
   }
@@ -2840,6 +2907,7 @@ export class BattleDomAdapter {
       return;
     }
 
+    this.preemptiveOdCheckpoint = this.createPreemptiveOdCheckpoint();
     this.state = activateOverdrive(this.state, level, 'preemptive', {
       forceActivation: this.isForceOdEnabled(),
     });

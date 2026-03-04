@@ -1866,7 +1866,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
   updateKishinStateAfterTurn(state);
   applyTurnBasedStatusExpiry(state, previewRecord);
-  tickEnemyStatuses(state.turnState);
 
   if (applySwapOnCommit) {
     applySwapEvents(state, swapEvents);
@@ -1876,6 +1875,11 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   committed.transcendence = transcendenceSummary;
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
+  // Enemy statuses tick on enemy-turn consumption only.
+  // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
+  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+    tickEnemyStatuses(nextTurnState);
+  }
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 
   let nextState = {
