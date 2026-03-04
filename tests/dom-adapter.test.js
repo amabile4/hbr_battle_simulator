@@ -51,6 +51,7 @@ function createRoot() {
       <textarea data-role="scenario-json"></textarea>
       <button data-action="scenario-load"></button>
       <button data-action="scenario-apply-setup"></button>
+      <button data-action="scenario-stage-next"></button>
       <button data-action="scenario-run-next"></button>
       <button data-action="scenario-run-all"></button>
       <span data-role="scenario-status"></span>
@@ -183,6 +184,9 @@ test('scenario loader accepts exported CSV and converts it to runnable scenario'
   assert.equal(Array.isArray(scenario.turns), true);
   assert.equal(scenario.turns.length, 2);
   assert.equal(scenario.turns[0].preemptiveOdLevel, 1);
+  assert.equal(scenario.turns[0].actions[0].actorName, 'Pos1');
+  assert.equal(Array.isArray(scenario.setup.initialPositions), true);
+  assert.equal(scenario.setup.initialPositions.length, 1);
 
   adapter.applyLoadedScenarioSetup();
   adapter.runAllScenarioTurns();
@@ -205,6 +209,72 @@ test('scenario loader reconstructs swaps from CSV position transitions', () => {
   const scenario = adapter.loadScenarioFromDom();
   assert.equal(scenario.turns.length, 2);
   assert.deepEqual(scenario.turns[0].swaps, [{ from: 1, to: 2 }]);
+});
+
+test('scenario action resolves actor by actorName before position', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ACT${idx + 1}`,
+      characterName: `Actor${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `Style${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [{ id: 900000 + idx, name: `Skill${idx + 1}`, label: `Skill${idx + 1}`, sp_cost: 0 }],
+    })
+  );
+
+  const party = new Party(members);
+  party.swap(0, 1);
+  adapter.party = party;
+  adapter.state = createBattleStateFromParty(adapter.party);
+  adapter.renderActionSelectors();
+
+  assert.doesNotThrow(() =>
+    adapter.setScenarioActionOnDom({
+      actorName: 'Actor1',
+      position: 1,
+      skillName: 'Skill1',
+    })
+  );
+});
+
+test('scenario can stage current turn without commit and advance cursor on manual commit', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const front = adapter.party.getFrontline();
+  const firstMember = front[0];
+  const firstSkill = firstMember.getActionSkills()[0];
+  adapter.scenario = {
+    version: 1,
+    setup: {},
+    turns: [
+      {
+        actions: [{ actorName: firstMember.characterName, skillId: firstSkill.skillId }],
+      },
+    ],
+  };
+  adapter.scenarioCursor = 0;
+  adapter.scenarioStagedTurnIndex = null;
+
+  adapter.stageCurrentScenarioTurn();
+  assert.equal(adapter.scenarioCursor, 0);
+  assert.equal(adapter.scenarioStagedTurnIndex, 0);
+  const actionSelect = root.querySelector(`[data-action-slot="${firstMember.position}"]`);
+  assert.equal(Number(actionSelect?.value), Number(firstSkill.skillId));
+
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.scenarioCursor, 1);
+  assert.equal(adapter.scenarioStagedTurnIndex, null);
 });
 
 test('OD controls: preemptive activation and interrupt reservation/commit', () => {

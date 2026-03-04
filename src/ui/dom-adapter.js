@@ -5,7 +5,7 @@ import {
   activateOverdrive,
 } from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor, CsvExporter } from '../records/record-store.js';
-import { createInitialTurnState } from '../contracts/interfaces.js';
+import { createInitialTurnState, buildPositionMap } from '../contracts/interfaces.js';
 
 function toInt(value, fallback = 0) {
   const n = Number.parseInt(String(value), 10);
@@ -258,6 +258,7 @@ export class BattleDomAdapter {
     this.pendingInterruptOdLevel = null;
     this.scenario = null;
     this.scenarioCursor = 0;
+    this.scenarioStagedTurnIndex = null;
 
     this.characterCandidates = this.dataStore.listCharacterCandidates();
     this.defaultSelections = this.buildDefaultSelections();
@@ -393,6 +394,9 @@ export class BattleDomAdapter {
     });
     this.root.querySelector('[data-action="scenario-run-next"]')?.addEventListener('click', () => {
       this.runSafely(() => this.runNextScenarioTurn());
+    });
+    this.root.querySelector('[data-action="scenario-stage-next"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.stageCurrentScenarioTurn());
     });
     this.root.querySelector('[data-action="scenario-run-all"]')?.addEventListener('click', () => {
       this.runSafely(() => this.runAllScenarioTurns());
@@ -1786,6 +1790,15 @@ export class BattleDomAdapter {
     this.previewRecord = null;
     this.pendingSwapEvents = [];
     this.pendingInterruptOdLevel = null;
+    if (
+      this.scenario &&
+      this.scenarioStagedTurnIndex !== null &&
+      Number.isFinite(Number(this.scenarioStagedTurnIndex)) &&
+      Number(this.scenarioStagedTurnIndex) === Number(this.scenarioCursor)
+    ) {
+      this.scenarioCursor += 1;
+      this.scenarioStagedTurnIndex = null;
+    }
 
     this.renderActionSelectors();
     this.renderPartyState();
@@ -1796,6 +1809,7 @@ export class BattleDomAdapter {
     this.renderRecordTable();
     this.writePreviewOutput('');
     this.renderOdControls();
+    this.renderScenarioStatus();
     this.setStatus('Turn committed.');
 
     return committedRecord;
@@ -1840,7 +1854,11 @@ export class BattleDomAdapter {
       return;
     }
     const total = Array.isArray(this.scenario.turns) ? this.scenario.turns.length : 0;
-    node.textContent = `Loaded (turns ${this.scenarioCursor}/${total})`;
+    const isStaged =
+      this.scenarioStagedTurnIndex !== null &&
+      Number.isFinite(Number(this.scenarioStagedTurnIndex)) &&
+      Number(this.scenarioStagedTurnIndex) === Number(this.scenarioCursor);
+    node.textContent = `Loaded (turns ${this.scenarioCursor}/${total}${isStaged ? ' staged' : ''})`;
   }
 
   getScenarioJsonTextFromDom() {
@@ -1967,6 +1985,7 @@ export class BattleDomAdapter {
           continue;
         }
         actions.push({
+          actorName: prefix,
           position: Number(posRaw),
           skillName,
         });
@@ -2063,6 +2082,20 @@ export class BattleDomAdapter {
     if (setup.initialOdGauge !== undefined && setup.initialOdGauge < 100) {
       setup.forceOd = true;
     }
+    const initialPositions = [];
+    for (const prefix of actorOrder) {
+      const raw = Number(firstRow[`${prefix}_position`]);
+      if (!Number.isFinite(raw) || raw < 1 || raw > 6) {
+        continue;
+      }
+      initialPositions.push({
+        characterName: prefix,
+        position: raw,
+      });
+    }
+    if (initialPositions.length > 0) {
+      setup.initialPositions = initialPositions;
+    }
 
     return {
       version: 1,
@@ -2099,6 +2132,7 @@ export class BattleDomAdapter {
       turns,
     };
     this.scenarioCursor = 0;
+    this.scenarioStagedTurnIndex = null;
     this.renderScenarioStatus();
     if (looksLikeCsv) {
       const area = this.root.querySelector('[data-role="scenario-json"]');
@@ -2200,10 +2234,14 @@ export class BattleDomAdapter {
     }
 
     this.initializeBattle();
+    if (Array.isArray(setup.initialPositions) && setup.initialPositions.length > 0) {
+      this.applyScenarioInitialPositions(setup.initialPositions);
+    }
     if (Array.isArray(setup.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(setup.enemyStatuses);
     }
     this.scenarioCursor = 0;
+    this.scenarioStagedTurnIndex = null;
     this.renderScenarioStatus();
     this.setStatus('Scenario setup applied.');
   }
@@ -2230,12 +2268,98 @@ export class BattleDomAdapter {
     return Number(skill.skillId);
   }
 
-  setScenarioActionOnDom(action) {
-    const position = this.resolveScenarioPosition(action?.position);
+  resolveScenarioActorName(action) {
+    return String(action?.actorName ?? action?.characterName ?? action?.characterId ?? '').trim();
+  }
+
+  findScenarioMemberByActorName(actorName) {
+    const normalized = normalizeName(actorName);
+    if (!normalized || !this.party) {
+      return null;
+    }
+    return (
+      this.party.members.find((member) => normalizeName(member.characterName) === normalized) ??
+      this.party.members.find((member) => String(member.characterId) === actorName) ??
+      null
+    );
+  }
+
+  resolveScenarioActionMember(action) {
+    const actorName = this.resolveScenarioActorName(action);
+    if (actorName) {
+      const byName = this.findScenarioMemberByActorName(actorName);
+      if (byName) {
+        return byName;
+      }
+    }
+    const hasPosition = action?.position !== undefined && action?.position !== null;
+    if (!hasPosition) {
+      throw new Error(`Scenario action requires position or actorName: ${JSON.stringify(action ?? {})}`);
+    }
+    const position = this.resolveScenarioPosition(action.position);
     const member = this.party?.getByPosition(position);
     if (!member) {
       throw new Error(`No member at position ${position + 1}`);
     }
+    return member;
+  }
+
+  applyScenarioInitialPositions(initialPositions = []) {
+    if (!this.party || !this.state || !Array.isArray(initialPositions) || initialPositions.length === 0) {
+      return;
+    }
+
+    const targetPositionByMember = new Map(this.party.members.map((member) => [member, Number(member.position)]));
+    const assignedMembers = new Set();
+
+    for (const row of initialPositions) {
+      if (!row || typeof row !== 'object') {
+        continue;
+      }
+      const actorName = String(
+        row.characterName ?? row.actorName ?? row.name ?? row.characterId ?? ''
+      ).trim();
+      if (!actorName) {
+        continue;
+      }
+      const member = this.findScenarioMemberByActorName(actorName);
+      if (!member) {
+        continue;
+      }
+      if (assignedMembers.has(member)) {
+        throw new Error(`Scenario initialPositions: duplicated member: ${actorName}`);
+      }
+      const targetPosition = this.resolveScenarioPosition(row.position ?? row.positionIndex ?? row.slot);
+      targetPositionByMember.set(member, targetPosition);
+      assignedMembers.add(member);
+    }
+
+    if (assignedMembers.size === 0) {
+      return;
+    }
+
+    const values = [...targetPositionByMember.values()];
+    const unique = new Set(values);
+    if (values.length !== unique.size) {
+      throw new Error('Scenario initialPositions create duplicate positions.');
+    }
+    if (values.some((pos) => !Number.isFinite(pos) || pos < 0 || pos > 5)) {
+      throw new Error('Scenario initialPositions contain out-of-range position.');
+    }
+
+    for (const member of this.party.members) {
+      member.setPosition(targetPositionByMember.get(member));
+    }
+    this.state.positionMap = buildPositionMap(this.state.party);
+    this.renderActionSelectors();
+    this.renderPartyState();
+    this.renderSwapSelectors();
+    this.renderTurnStatus();
+  }
+
+  setScenarioActionOnDom(action) {
+    const member = this.resolveScenarioActionMember(action);
+    const position = Number(member.position);
     const skillId = this.resolveScenarioSkillId(member, action);
     const select = this.root.querySelector(`[data-action-slot="${position}"]`);
     if (!select) {
@@ -2287,7 +2411,8 @@ export class BattleDomAdapter {
     }
   }
 
-  applyScenarioTurn(turn = {}) {
+  applyScenarioTurn(turn = {}, options = {}) {
+    const mode = String(options.mode ?? 'commit');
     if (!this.state) {
       throw new Error('Battle state is not initialized.');
     }
@@ -2403,11 +2528,37 @@ export class BattleDomAdapter {
       this.renderOdControls();
     }
 
-    const doCommit = turn.commit !== false;
+    if (mode === 'stage') {
+      this.previewRecord = null;
+      this.writePreviewOutput('');
+      return null;
+    }
+
+    const doCommit = mode === 'commit' ? turn.commit !== false : false;
     if (!doCommit) {
       return this.previewCurrentTurn();
     }
     return this.commitCurrentTurn();
+  }
+
+  stageCurrentScenarioTurn() {
+    if (!this.scenario) {
+      throw new Error('Scenario is not loaded.');
+    }
+    const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
+    if (this.scenarioCursor >= turns.length) {
+      this.setStatus('Scenario completed.');
+      this.renderScenarioStatus();
+      return null;
+    }
+    const turn = turns[this.scenarioCursor] ?? {};
+    const result = this.applyScenarioTurn(turn, { mode: 'stage' });
+    this.scenarioStagedTurnIndex = this.scenarioCursor;
+    this.renderScenarioStatus();
+    this.setStatus(
+      `Scenario turn ${this.scenarioCursor + 1}/${turns.length} staged. Adjust controls, then Commit Turn.`
+    );
+    return result;
   }
 
   runNextScenarioTurn() {
@@ -2421,8 +2572,9 @@ export class BattleDomAdapter {
       return null;
     }
     const turn = turns[this.scenarioCursor] ?? {};
-    const result = this.applyScenarioTurn(turn);
+    const result = this.applyScenarioTurn(turn, { mode: 'commit' });
     this.scenarioCursor += 1;
+    this.scenarioStagedTurnIndex = null;
     this.renderScenarioStatus();
     this.setStatus(`Scenario turn ${this.scenarioCursor}/${turns.length} executed.`);
     return result;
