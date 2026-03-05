@@ -1,0 +1,229 @@
+category,item_key,occurrences,field_path,condition_expression,unsupported_clause,part_skill_type,target_type,effect_exit_cond,effect_limit_type,note,skill_id,character_name,style_name,skill_name,skill_desc
+effect_unresolved,NormalBuff_Up,55,skills[19].effect,,,,,,,top-level effect は実行ロジック未接続,46001134,茅森 月歌,Glorious Blades,指揮行動,"通常攻撃ができない代わりに指揮行動ができる
+1ターンの間 前衛の味方の攻撃力(通常攻撃含む)を上げる"
+effect_unresolved,HealDp_Buff,42,skills[3].effect,,,,,,,top-level effect は実行ロジック未接続,46001104,茅森 月歌,閃光のサーキットバースト,リカバー,"聖なる光で
+前衛のDPを回復する"
+effect_unresolved,DefaultDebuff,41,skills[41].effect,,,,,,,top-level effect は実行ロジック未接続,46001303,逢川 めぐみ,Impact Stream,ハードブレード,"振り上げた力で  敵を強打
+さらに 防御力を下げる"
+effect_unresolved,HealSp,12,skills[17].effect,,,,,,,top-level effect は実行ロジック未接続,46001130,茅森 月歌,Glorious Blades,先導のカリスマ,"前衛のSPを3上昇
+さらに 前衛の味方に追加ターン(追加ターン中を除く)"
+effect_unresolved,DarkBuff_Up,6,skills[64].effect,,,,,,,top-level effect は実行ロジック未接続,46001410,東城 つかさ,バニーファイト・デビエーション,ピクシースマイル,"前衛の力を引き出し
+闇属性スキル攻撃力を上げる"
+effect_unresolved,FunnelUp,6,skills[14].effect,,,,,,,top-level effect は実行ロジック未接続,46001117,茅森 月歌,白き華の歌姫,月光,"味方単体の連撃数を3ターン上げる(中ダメージ/5回) [単独発動]
+自身が歌姫の加護状態のとき 連撃数が(特大ダメージ/3回)に変化する"
+effect_unresolved,ProtectBuff,6,skills[110].effect,,,,,,,top-level effect は実行ロジック未接続,46002105,蒼井 えりか,トドケ・Miracle,ご注文を伺います,"自身の防御力を高め 敵の攻撃を自身に集中させる
+さらに 自身のトークンを上昇"
+effect_unresolved,ThunderBuff_Up,6,skills[142].effect,,,,,,,top-level effect は実行ロジック未接続,46002308,水瀬 すもも,類は友を呼ぶ,ねこじゃらし,"挑発して 敵の攻撃を自身に集中させる
+さらに 自身の雷属性スキル攻撃力を上げる"
+effect_unresolved,ChargeBuff,5,skills[331].effect,,,,,,,top-level effect は実行ロジック未接続,46004503,小笠原 緋雨,萌えよ天才剣士,メイドの嗜み,"自身をチャージ(スキルを強化)し
+さらに 追加ターン"
+effect_unresolved,IceBuff_Up,5,skills[66].effect,,,,,,,top-level effect は実行ロジック未接続,46001412,東城 つかさ,哀情のラメント,涙雨,3ターンの間 前衛の氷属性スキル攻撃力を大きく上げる[単独発動]
+effect_unresolved,CriticalBuff_Up,4,skills[169].effect,,,,,,,top-level effect は実行ロジック未接続,46002508,柊木 梢,ホップ・ステップ・スリップ！,一途なスマイル,"味方単体を奮い立たせ
+クリティカル率とクリティカルダメージを上げる"
+effect_unresolved,LightBuff_Up,4,skills[62].effect,,,,,,,top-level effect は実行ロジック未接続,46001408,東城 つかさ,シークレットサービス・サイレンス,ホーリーエンハンス,"前衛の力を引き出し
+光属性スキル攻撃力を上げる"
+effect_unresolved,MindEyeBuff,4,skills[13].effect,,,,,,,top-level effect は実行ロジック未接続,46001116,茅森 月歌,The Feel of the Throne,炯眼の構え,刃を研ぎ澄まし 自身を心眼状態にする
+effect_unresolved,OverDriveUp,4,skills[385].parts[0].strval[0].effect,,,,,,,top-level effect は実行ロジック未接続,46005308,命 吹雪,"Frozen Moon, Melting Heart",コンペンセーション,"自身のDPを著しく犠牲にし オーバードライブゲージを25%上昇
+初回使用時 さらに50%上昇 ブレイク中は使用不可"
+effect_unresolved,TokenUp,2,skills[451].parts[0].strval[0].effect,,,,,,,top-level effect は実行ロジック未接続,46006308,大島 三野里,ミッドナイト・プレリュード,バーテンダーズ・チョイス,"ODゲージを15%消費して 前衛の味方のトークンを2上昇
+ODゲージ0%以上で使用可能 初回使用時 味方全体のSPを3上昇する"
+effect_unresolved,FireBuff_Up,1,skills[374].parts[0].strval[0].effect,,,,,,,top-level effect は実行ロジック未接続,46005207,石井 色葉,センシティビティ・オーバーフロー,極彩色,"行動開始時の展開中の元素属性強化フィールドに応じた
+味方単体のクリティカル率 クリティカルダメージを上昇"
+enemy_status_unimplemented,DefenseDown,120,skills[11].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001112,茅森 月歌,ナイトクルーズ・エスコート,迅雷風烈,"迅雷の力をその身に纏わせ 敵の防御力を下げ
+雷鳴の如く敵を貫く [対HP+50%]"
+enemy_status_unimplemented,Fragile,29,skills[36].parts[0].strval[0].parts[2],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
+さらに 獄炎の砲撃 [対DP+100%] [スイッチで属性変化]"
+enemy_status_unimplemented,AttackDown,15,skills[92].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001705,國見 タマ,魔法の国のエレメンタル,フレイムテンペスト,"炎の力を宿した刃で敵を斬り刻む
+さらに 攻撃力を下げる"
+enemy_status_unimplemented,StunRandom,9,skills[40].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001302,逢川 めぐみ,Plain or Wild,スタンブレード,"敵を叩きつけて攻撃
+さらに 確率でスタンさせる"
+enemy_status_unimplemented,Misfortune,8,skills[48].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001310,逢川 めぐみ,トワイライト・グロース,ナイトフォール,"闇を宿した大剣を叩きつけて敵を攻撃
+さらに2ターン厄状態にする"
+enemy_status_unimplemented,ResistDown,8,skills[52].parts[0].strval[0].parts[1],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001315,逢川 めぐみ,スペシャルナイト・ガールズジャム,最高潮！アオハルオンステージ,"敵全体の氷属性防御力と氷弱点の敵の氷耐性を下げ(ターン永続)
+氷属性強化フィールド(大)を8ターン展開する"
+enemy_status_unimplemented,ConfusionRandom,7,skills[248].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46003506,神崎 アーデルハイド,ごちゃまぜ忍法大乱闘,滅殺影分身,"忍術で分身を作り出し 全体を斬りつける [破壊率大]
+さらに 確率で混乱させる"
+enemy_status_unimplemented,ResistDownOverwrite,6,skills[65].parts[0],,,ResistDownOverwrite,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46001411,東城 つかさ,バニーファイト・デビエーション,今宵、快楽ナイトメア,"前衛の闇属性スタイルの 連撃数(小ダメージ)を3〜5回上げ
+敵全体の闇耐性を消し去り 闇耐性を下げる(ターン永続)"
+enemy_status_unimplemented,ImprisonRandom,5,skills[164].parts[1],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46002503,柊木 梢,戦場の聳動,ミストサイス,"鎌で連撃し
+霊能の力で強攻撃を封じる"
+enemy_status_unimplemented,HealDown,3,skills[49].parts[3],,,HealDown,Single,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46001311,逢川 めぐみ,トワイライト・グロース,ヒットチャートからの一閃,"敵の防御力と闇属性防御力を下げ(ターン永続) 闇属性で攻撃
+さらに 敵の回復力を致命的に下げる(ターン永続)"
+enemy_status_unimplemented,AttackUp,2,skills[240].parts[0].strval[1].parts[2],,,AttackUp,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003432,豊後 弥生,あちきと愉快な仲間たち,想像の翼,"全体に銃弾の雨を降らせ DP防御力を著しく下げる
+運が悪いと敵の攻撃力が2ターン上がる"
+enemy_status_unimplemented,Cover,2,skills[111].parts[1],,,Cover,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46002106,蒼井 えりか,ココロ・Inspire,エンジェルズ・ウィング,"奇跡の盾で 自身を2回ダメージ無効にし 
+全体攻撃も含め 敵の攻撃を自身に集中させる"
+enemy_status_unimplemented,Hacking,2,skills[36].parts[0].strval[0].parts[1],,,Hacking,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
+さらに 獄炎の砲撃 [対DP+100%] [スイッチで属性変化]"
+enemy_status_unimplemented,DefenseUp,1,skills[236].parts[0].strval[1].parts[2],,,DefenseUp,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003414,豊後 弥生,お花見怪人クシダンゴ,ー◯◯◯,"狙いを定めて 銃弾を放ちつつ SPを10回復
+運が悪いと敵の防御力が3ターン上がる"
+enemy_status_unimplemented,SuperBreakDown,1,skills[84].parts[1],,,SuperBreakDown,Single,None,None,敵状態異常付与の適用処理は turn-controller に未実装,46001522,朝倉 可憐,CODE:Virtual Killer,ナイトキルエッジ,"敵に8連撃 [貫通クリティカル] [対DP+50%]【カレン 専用】
+敵をダウンさせる または ダウンターン中の敵に攻撃時 超ダウンにする"
+enemy_status_unimplemented,Talisman,1,skills[671].parts[0],,,Talisman,All,Eternal,None,敵状態異常付与の適用処理は turn-controller に未実装,46401601,國見 タマ,ようこそ♪ナイトメア・パレード,貼ったりましょう！,バトル開始時 敵に霊符状態(ターン永続/解除不可)を付与する
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0,6,skills[283].parts[0].strval[1].overwrite_cond,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0,,,,,overwrite_cond は実行ロジック未接続,46004113,白河 ユイナ,月が綺麗,蒼焔ノ迷宮,"荘厳なる氷柱で敵全体を5連撃 [対HP+50%]  追加ターン中 
+自身の連撃数(大ダメージ)を3回上昇 [スイッチで性能変化]"
+overwrite_cond_unresolved,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0,4,skills[146].overwrite_cond,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0,,,,,overwrite_cond は実行ロジック未接続,46002361,水瀬 すもも,残光,スパークル・トライエッジ+,"自身の雷属性スキル攻撃力を上げ 迅雷の一撃 [対DP+50%]
+挑発または注目状態の敵がいるとき 消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(AKanzaki) == 1 && SpecialStatusCountByType(125)>0)>0,3,skills[252].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(AKanzaki) == 1 && SpecialStatusCountByType(125)>0)>0,CountBC(IsPlayer() == 1 && IsCharacter(AKanzaki) == 1 && SpecialStatusCountByType(125)>0)>0,,,,,overwrite_cond は実行ロジック未接続,46003510,神崎 アーデルハイド,向日葵,レッドラウンドイリュージョン,"味方全体の火属性スキル攻撃力 火属性クリティカルダメージを上げ
+火属性攻撃 [破壊率特大] 影分身中は消費SPが半減"
+overwrite_cond_unresolved,CountBC(IsPlayer()==0 && IsDead()==0 && BreakDownTurn()>0)>0,3,skills[103].overwrite_cond,CountBC(IsPlayer()==0 && IsDead()==0 && BreakDownTurn()>0)>0,CountBC(IsPlayer()==0 && IsDead()==0 && BreakDownTurn()>0)>0,,,,,overwrite_cond は実行ロジック未接続,46001716,國見 タマ,ようこそ♪ナイトメア・パレード,秘技！霊符トルネード,"敵全体の氷属性防御力を下げ 脆弱状態にし 氷属性攻撃
+ダウンターン中の敵がいるとき 消費SP0 かつスキル回数を消費しない"
+overwrite_cond_unresolved,IsOverDrive(),3,skills[254].overwrite_cond,IsOverDrive(),IsOverDrive(),,,,,overwrite_cond は実行ロジック未接続,46003514,神崎 アーデルハイド,魔王に仕えし災禍の魔獣使い,ワイルドハウル,"敵全体に闇属性の斬撃 [破壊率特大] さらに 自身に追加ターン
+(追加ターン中を除く) オーバードライブ中は消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() &&IsTeam(31E)==1)>=3,2,skills[442].overwrite_cond,CountBC(IsPlayer() &&IsTeam(31E)==1)>=3,CountBC(IsPlayer() &&IsTeam(31E)==1)>=3,,,,,overwrite_cond は実行ロジック未接続,46006261,大島 二以奈,Brand New Mind,純愛アンビシャス+,"前衛のスキル攻撃時の破壊率上昇量を上げ 炎の斬撃 [破壊率特大]
+31Eの隊員が3人以上のとき消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer()==1&&IsCharacter(NiOhshima)==1&&SpecialStatusCountByType(164)>0)>0,2,skills[440].overwrite_cond,CountBC(IsPlayer()==1&&IsCharacter(NiOhshima)==1&&SpecialStatusCountByType(164)>0)>0,CountBC(IsPlayer()==1&&IsCharacter(NiOhshima)==1&&SpecialStatusCountByType(164)>0)>0,,,,,overwrite_cond は実行ロジック未接続,46006211,大島 二以奈,渚のピュアメモリー,夏に恋するオードトワレ,"敵全体に闇属性攻撃[対HP+50％] 自身がメイクアップ状態のとき
+スキル回数を消費せず消費SPが半減"
+overwrite_cond_unresolved,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,1,skills[85].overwrite_cond,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,,,,,overwrite_cond は実行ロジック未接続,46001523,朝倉 可憐,CODE:Virtual Killer,シンメトリー・リベレーション,"敵に10連撃 [破壊率超特大] [貫通クリティカル] 【朝倉可憐 専用】
+さらに 超ダウン中の敵がいるとき 消費SP0 かつ [破壊率絶大]"
+overwrite_cond_unresolved,CountBC(IsDead()==0&&IsPlayer()==0&&BreakDownTurn()>0)>0,1,skills[654].overwrite_cond,CountBC(IsDead()==0&&IsPlayer()==0&&BreakDownTurn()>0)>0,CountBC(IsDead()==0&&IsPlayer()==0&&BreakDownTurn()>0)>0,,,,,overwrite_cond は実行ロジック未接続,46040702,岩沢 雅美,Dreamlike Days,アルペジオ,"敵全体を氷の砲弾で攻撃 [破壊率特大] 
+ダウンターン中の敵がいるとき 消費SP0"
+overwrite_cond_unresolved,CountBC(IsPlayer() &&IsTeam(31A)==1)>=3,1,skills[53].overwrite_cond,CountBC(IsPlayer() &&IsTeam(31A)==1)>=3,CountBC(IsPlayer() &&IsTeam(31A)==1)>=3,,,,,overwrite_cond は実行ロジック未接続,46001361,逢川 めぐみ,Ikki Burst Strike,リミット・インパクト+,"敵を脆弱状態にし 遥か空中から一撃を与え 高確率でスタン
+31Aの隊員が3人以上のとき消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() &&IsTeam(31D)==1)>=3,1,skills[398].overwrite_cond,CountBC(IsPlayer() &&IsTeam(31D)==1)>=3,CountBC(IsPlayer() &&IsTeam(31D)==1)>=3,,,,,overwrite_cond は実行ロジック未接続,46005461,室伏 理沙,早くおうちに帰りましょ,ハートフル・ボマー+,"全体の士気レベルを4上昇させ(最大レベル10) 敵に知性依存の砲撃
+31Dの隊員が3人以上のとき消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(ADate) == 1 && SpecialStatusCountByType(146) < 1) > 0,1,skills[408].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(ADate) == 1 && SpecialStatusCountByType(146) < 1) > 0,CountBC(IsPlayer() == 1 && IsCharacter(ADate) == 1 && SpecialStatusCountByType(146) < 1) > 0,,,,,overwrite_cond は実行ロジック未接続,46005511,伊達 朱里,幸運ふゆうらら,御祈祷オーバーヒート,"敵全体のバフを2つ解除し 火属性攻撃 [対DP+50%]
+自身がネガティブ状態でないとき 消費SP半減 かつ [破壊率特大]"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(CMatsuoka) == 1 && IsCharging()==1) > 0,1,skills[534].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(CMatsuoka) == 1 && IsCharging()==1) > 0,CountBC(IsPlayer() == 1 && IsCharacter(CMatsuoka) == 1 && IsCharging()==1) > 0,,,,,overwrite_cond は実行ロジック未接続,46007411,松岡 チロル,悪を討つヒロイックアクション,スターダムロード,"みなぎる活力で 前衛の防御力を高め DPを中回復
+さらに チャージ中は消費SP0"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(CSugahara) == 1 && DpRate() >= 1.0) > 0,1,skills[327].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(CSugahara) == 1 && DpRate() >= 1.0) > 0,CountBC(IsPlayer() == 1 && IsCharacter(CSugahara) == 1 && DpRate() >= 1.0) > 0,,,,,overwrite_cond は実行ロジック未接続,46004461,菅原 千恵,終末ロリータ白書,イノセントワイルド+,"前衛の防御力を3ターン高め 敵の攻撃を自身に集中させつつ
+敵に攻撃 [威力+] 自身がDP100%以上のとき 消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(EAoi) == 1 && MoraleLevel() >= 6)>0,1,skills[119].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(EAoi) == 1 && MoraleLevel() >= 6)>0,CountBC(IsPlayer() == 1 && IsCharacter(EAoi) == 1 && MoraleLevel() >= 6)>0,,,,,overwrite_cond は実行ロジック未接続,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
+さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(KHiiragi) == 1 && MoraleLevel() >= 6)>0,1,skills[172].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(KHiiragi) == 1 && MoraleLevel() >= 6)>0,CountBC(IsPlayer() == 1 && IsCharacter(KHiiragi) == 1 && MoraleLevel() >= 6)>0,,,,,overwrite_cond は実行ロジック未接続,46002511,柊木 梢,プールサイド・モーメント,邪眼・マリンスラッシュ,"敵全体に闇属性攻撃 [破壊率特大] 自身の士気レベルが6以上のとき
+[破壊率超特大][対HP+50%] かつ スキル回数を消費せず消費SPが半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(MKiryu) == 1 && FireMarkLevel()>=4)>=1,1,skills[312].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(MKiryu) == 1 && FireMarkLevel()>=4)>=1,CountBC(IsPlayer() == 1 && IsCharacter(MKiryu) == 1 && FireMarkLevel()>=4)>=1,,,,,overwrite_cond は実行ロジック未接続,46004311,桐生 美也,汐風に誘われて,咲き昇る宵の幻,"5ターンの間 火属性スタイルを心眼状態にし[単独発動]
+敵に火属性攻撃[破壊率特大] 火の印レベルが4以上のとき 消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(RKayamori) == 1 && MotivationLevel() == 5)>0,1,skills[16].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(RKayamori) == 1 && MotivationLevel() == 5)>0,CountBC(IsPlayer() == 1 && IsCharacter(RKayamori) == 1 && MotivationLevel() == 5)>0,,,,,overwrite_cond は実行ロジック未接続,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
+敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(SMinase) == 1 && SpecialStatusCountByType(122)>0)>0,1,skills[141].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(SMinase) == 1 && SpecialStatusCountByType(122)>0)>0,CountBC(IsPlayer() == 1 && IsCharacter(SMinase) == 1 && SpecialStatusCountByType(122)>0)>0,,,,,overwrite_cond は実行ロジック未接続,46002307,水瀬 すもも,茹だるアサシン,ヘイルストーム,"氷の刃で敵全体を斬り裂く [対HP+50%]
+自身が回避状態のとき 消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && IsCharacter(VBalakrishnan) == 1 && DpRate() >= 1.0) > 0,1,skills[604].overwrite_cond,CountBC(IsPlayer() == 1 && IsCharacter(VBalakrishnan) == 1 && DpRate() >= 1.0) > 0,CountBC(IsPlayer() == 1 && IsCharacter(VBalakrishnan) == 1 && DpRate() >= 1.0) > 0,,,,,overwrite_cond は実行ロジック未接続,46008461,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー+,"強攻撃を封じ 3ターンの間厄状態にして攻撃力を下げる 10連撃
+SP0以上で使用可能 自身がDP100%以上のとき 消費SP半減"
+overwrite_cond_unresolved,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)>=3,1,skills[239].overwrite_cond,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)>=3,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)>=3,,,,,overwrite_cond は実行ロジック未接続,46003421,豊後 弥生,悪の軍団進軍開始でゲス！,メガデストロイヤー,"敵単体に10連撃 [対DP+100%] [貫通クリティカル]
+山脇様のしもべ状態の味方数に応じて スキル性能が上昇(最大6人)"
+overwrite_cond_unresolved,CountBC(IsPlayer()&&Sp()<=0)>0,1,skills[589].overwrite_cond,CountBC(IsPlayer()&&Sp()<=0)>0,CountBC(IsPlayer()&&Sp()<=0)>0,,,,,overwrite_cond は実行ロジック未接続,46008309,アイリーン・レドメイン,謳うそよ風の向かう先,ドリーミー・ガーデン,"味方全体のDPを中回復  SP0以下の味方がいるとき消費SP0
+次ターン開始時 自身を除くSP10以下の味方のSPを「10」まで回復"
+overwrite_cond_unresolved,CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0,1,skills[439].overwrite_cond,CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0,,,,,overwrite_cond は実行ロジック未接続,46006208,大島 二以奈,心緒、昂る温泉郷,爽籟に舞う仁慈,"自身の光クリティカルダメージを上げ 敵全体に光属性攻撃 [対HP+50%]
+破壊率200%以上の敵がいるとき スキル回数を消費せず消費SPが半減"
+overwrite_cond_unresolved,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,1,skills[308].overwrite_cond,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,,,,,overwrite_cond は実行ロジック未接続,46004307,桐生 美也,豊楽ノ神秘,御稲荷神話,"2ターンの間敵の防御力を下げ 脆弱状態にし 稲妻で強襲する
+脆弱状態の敵がいるとき 消費SPが半減"
+overwrite_cond_unresolved,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,1,skills[221].overwrite_cond,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,,,,,overwrite_cond は実行ロジック未接続,46003307,天音 巫呼,山脇様の手下：マジカルにゃん,にゃんこ大魔法,"敵の氷属性防御力を2ターン下げ 知性依存の氷の閃光を放つ
+防御力ダウン状態の敵がいるとき 消費SPが半減"
+overwrite_cond_unresolved,CountBC(IsPlayer()==1&&IsCharacter(YShirakawa)==1&&Token()>3)>0,1,skills[286].overwrite_cond,CountBC(IsPlayer()==1&&IsCharacter(YShirakawa)==1&&Token()>3)>0,CountBC(IsPlayer()==1&&IsCharacter(YShirakawa)==1&&Token()>3)>0,,,,,overwrite_cond は実行ロジック未接続,46004120,白河 ユイナ,黄昏に咲くスピカ,蒼星のイリデッセンス,"全体の光属性クリティカル率&ダメージを5ターン著しく上げ[単独発動]
+敵全体に光の斬撃[破壊率特大] 自身のトークン4つ以上のとき 消費SP半減"
+overwrite_cond_unresolved,CountBC(IsZone(Fire)==0&&IsZone(None)==0)>0,1,skills[375].overwrite_cond,CountBC(IsZone(Fire)==0&&IsZone(None)==0)>0,CountBC(IsZone(Fire)==0&&IsZone(None)==0)>0,,,,,overwrite_cond は実行ロジック未接続,46005222,石井 色葉,センシティビティ・オーバーフロー,スペクタクルアート,"火属性強化フィールド(大)を8ターン展開し 味方全体のSPを5上昇する
+火属性強化フィールド以外のフィールドがあるとき 消費SP0"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(CMatsuokaSkill04)>0)==0,1,skills[531].overwrite_cond,CountBC(PlayedSkillCount(CMatsuokaSkill04)>0)==0,CountBC(PlayedSkillCount(CMatsuokaSkill04)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46007406,松岡 チロル,内緒のコーヒーブレイク,そよ風に吹かれて,"敵単体に光属性で攻撃し 2ターンの間攻撃力を下げる
+初回使用時 消費SPを半減する"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(CMatsuokaSkill51Ev1)>0)==0,1,skills[535].overwrite_cond,CountBC(PlayedSkillCount(CMatsuokaSkill51Ev1)>0)==0,CountBC(PlayedSkillCount(CMatsuokaSkill51Ev1)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46007461,松岡 チロル,疾風迅速滅亡の狼煙,必滅！ヴェインキック+,"自身のクリティカル率を上げ 敵全体を爆発に巻き込む10連撃 
+初回使用時 消費SPを半減する"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(CMatsuokaSkill52)>0)==0,1,skills[532].overwrite_cond,CountBC(PlayedSkillCount(CMatsuokaSkill52)>0)==0,CountBC(PlayedSkillCount(CMatsuokaSkill52)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46007407,松岡 チロル,内緒のコーヒーブレイク,リフレッシング・チアーズ！,"味方全体をチャージ(スキルを強化)  3ターンの間光属性スタイルの
+防御力を高め 継続DP回復状態にする 初回使用時 消費SPを半減する"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(IIshiiSkill51Ev1)>0)==0,1,skills[378].overwrite_cond,CountBC(PlayedSkillCount(IIshiiSkill51Ev1)>0)==0,CountBC(PlayedSkillCount(IIshiiSkill51Ev1)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46005261,石井 色葉,撃砕の無彩色,アクロマティックバレット+,"闇属性強化フィールドを展開し 全体を闇の銃弾で貫き爆発させる
+初回使用時 消費SPを半減し オーバードライブゲージを30%上昇"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(KAsakuraSkill51Ev1)>0)==0,1,skills[86].overwrite_cond,CountBC(PlayedSkillCount(KAsakuraSkill51Ev1)>0)==0,CountBC(PlayedSkillCount(KAsakuraSkill51Ev1)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46001561,朝倉 可憐,紅蓮月華のKillrazor,ブラッディ・ダンス+,"あらゆる方向からの10連撃 [破壊率大]
+初回使用時 消費SPを-5する"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(MSatsukiSkill55)>1)>0,1,skills[269].overwrite_cond,CountBC(PlayedSkillCount(MSatsukiSkill55)>1)>0,CountBC(PlayedSkillCount(MSatsukiSkill55)>1)>0,,,,,overwrite_cond は実行ロジック未接続,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
+さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(MTenneSkill51Ev1)>0)==0,1,skills[227].overwrite_cond,CountBC(PlayedSkillCount(MTenneSkill51Ev1)>0)==0,CountBC(PlayedSkillCount(MTenneSkill51Ev1)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46003361,天音 巫呼,エクスペリメンタルなキミ,デストロイ+,"敵全体の防御力を大きく下げる魔法陣を展開し
+大魔術6連で 知性依存の攻撃 初回使用時 消費SPを半減する"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(SKuraSkill53)>0)==0,1,skills[352].overwrite_cond,CountBC(PlayedSkillCount(SKuraSkill53)>0)==0,CountBC(PlayedSkillCount(SKuraSkill53)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46004609,蔵 里見,夏陽炎の名勝負,飛沫きらめく水浅葱,"敵全体に攻撃 [対HP+30%] [貫通クリティカル] 初回使用時 消費SP半減
+ダメージに応じて前衛のDPを回復(120%まで上限突破可)"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(SMinaseSkill06)>0)==0,1,skills[145].overwrite_cond,CountBC(PlayedSkillCount(SMinaseSkill06)>0)==0,CountBC(PlayedSkillCount(SMinaseSkill06)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46002311,水瀬 すもも,いたずらブラックキャット,キャッツアイ,"3ターンの間 自身を心眼状態にする[単独発動]
+初回使用時 消費SP半減"
+overwrite_cond_unresolved,CountBC(PlayedSkillCount(SMinaseSkill53)>0)==0,1,skills[143].overwrite_cond,CountBC(PlayedSkillCount(SMinaseSkill53)>0)==0,CountBC(PlayedSkillCount(SMinaseSkill53)>0)==0,,,,,overwrite_cond は実行ロジック未接続,46002309,水瀬 すもも,愛憐の綻び,ロココ・デストラクション,"防御力を犠牲に スキル攻撃力を大きく上げ 凶刃で敵を斬り刻む
+[対HP+30%] [貫通クリティカル] 初回使用時 消費SP半減"
+state_condition_unimplemented,IsHitWeak(),16,skills[12].parts[0].strval[0].parts[0].cond,IsHitWeak(),IsHitWeak(),,,,,,46001113,茅森 月歌,The Feel of the Throne,黒曜のオーバーロード,"敵の闇属性防御力を下げ 暗黒の太陽で10連撃 [対HP+100%]
+さらに 敵の弱点をついたとき 威力上昇 [スイッチで属性変化]"
+state_condition_unimplemented,IsCharging(),11,skills[335].parts[0].cond,IsCharging(),IsCharging(),,,,,,46004507,小笠原 緋雨,萌えよ天才剣士,メイド・イン・パンクチュア,"己に宿る闇の力をセラフに込め 敵全体を常闇に沈める [対HP+50%]
+チャージ中は威力が上昇 追加ターン中は消費SP半減"
+state_condition_unimplemented,IsNatureElement(Fire)==1,8,skills[94].parts[2].target_condition,IsNatureElement(Fire)==1,IsNatureElement(Fire)==1,,,,,,46001707,國見 タマ,魔法の国のエレメンタル,リバイブ・ヴェール,"癒しの光で全体のDPを中回復し スキル攻撃力も上げる
+自身以外の火属性スタイルのSPが3上昇する"
+state_condition_unimplemented,IsNatureElement(Light)==1,6,skills[99].parts[2].target_condition,IsNatureElement(Light)==1,IsNatureElement(Light)==1,,,,,,46001712,國見 タマ,幻想のコーラル,カレイド・レインシャワー,"降り注ぐ輝きで 全体のDPを中回復し 3ターン継続DP回復状態
+自身以外の光属性スタイルのSPが3上昇する"
+state_condition_unimplemented,CountBC(IsPlayer()==0&&SpecialStatusCountByType(12)>0)>0,4,skills[133].parts[0].cond,CountBC(IsPlayer()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&SpecialStatusCountByType(57)>0)>0,CountBC(IsPlayer()==0&&SpecialStatusCountByType(12)>0)>0,,,,,,46002261,水瀬 いちご,嬉々迫るフォール・イン・ラヴ,スパークル・トライショット+,"自身の雷属性スキル攻撃力を上げ 雷の銃弾で敵を攻撃 [対HP+30%]
+挑発または注目状態の敵がいるとき [対HP+50%]"
+state_condition_unimplemented,CountBC(IsPlayer()==0&&SpecialStatusCountByType(57)>0)>0,4,skills[133].parts[0].cond,CountBC(IsPlayer()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&SpecialStatusCountByType(57)>0)>0,CountBC(IsPlayer()==0&&SpecialStatusCountByType(57)>0)>0,,,,,,46002261,水瀬 いちご,嬉々迫るフォール・イン・ラヴ,スパークル・トライショット+,"自身の雷属性スキル攻撃力を上げ 雷の銃弾で敵を攻撃 [対HP+30%]
+挑発または注目状態の敵がいるとき [対HP+50%]"
+state_condition_unimplemented,IsNatureElement(Dark)==1,3,skills[65].parts[1].target_condition,IsNatureElement(Dark)==1,IsNatureElement(Dark)==1,,,,,,46001411,東城 つかさ,バニーファイト・デビエーション,今宵、快楽ナイトメア,"前衛の闇属性スタイルの 連撃数(小ダメージ)を3〜5回上げ
+敵全体の闇耐性を消し去り 闇耐性を下げる(ターン永続)"
+state_condition_unimplemented,IsZone(Thunder)==1,3,skills[374].parts[0].cond,IsZone(Fire)==1 || IsZone(Ice)==1 || IsZone(Thunder)==1 || IsZone(Light)==1,IsZone(Thunder)==1,,,,,,46005207,石井 色葉,センシティビティ・オーバーフロー,極彩色,"行動開始時の展開中の元素属性強化フィールドに応じた
+味方単体のクリティカル率 クリティカルダメージを上昇"
+state_condition_unimplemented,TargetBreakDownTurn()>0,3,skills[83].parts[0].strval[0].parts[0].cond,TargetBreakDownTurn()>0,TargetBreakDownTurn()>0,,,,,,46001516,朝倉 可憐,Twinkle Eclosion,ブラッディ・バーン,"敵に火属性攻撃 [破壊率大] [対HP+30%] [スイッチで属性変化]
+ダウンターン中の敵に攻撃したとき 威力上昇かつ [破壊率特大]"
+state_condition_unimplemented,0.0<DpRate(),2,skills[51].cond,0.0<DpRate(),0.0<DpRate(),,,,,,46001314,逢川 めぐみ,スペシャルナイト・ガールズジャム,まだまだ行くで！,"大剣の一振りで全体を攻撃 さらに 自身のDPを大きく犠牲にし
+敵全体を脆弱状態にする(ターン永続) ブレイク中は使用不可"
+state_condition_unimplemented,CountBC(IsPlayer() &&IsTeam(31C)==1)>=3,2,skills[200].parts[0].cond,CountBC(IsPlayer() &&IsTeam(31C)==1)>=3,CountBC(IsPlayer() &&IsTeam(31C)==1)>=3,,,,,,46003161,山脇・ボン・イヴァール,Ebon Knight,絶対零度+,"自身のスキル攻撃力を大きく上げ 氷の刃で敵を強撃 [対HP+30%]
+31Cの隊員が3人以上のとき [対HP+50%]"
+state_condition_unimplemented,CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0,2,skills[266].parts[0].cond,CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0,,,,,,46003612,佐月 マリ,Crying Tears,次の主役はあなた,"敵に氷の閃光を放つ [対HP+30%] 行動開始時に破壊率が200%以上の
+敵がいるとき自身の連撃数(大ダメージ)を3回上昇 かつ [対HP+50%]"
+state_condition_unimplemented,IsFront()==0,2,skills[462].cond,IsFront()==0,IsFront()==0,,,,,,46006408,大島 四ツ葉,ゆるりたゆたう湯道楽,ネコジェット・シャテキ,"3ターン 前衛の闇属性スキル攻撃力と闇属性クリティカル率&ダメージを
+大きく上げ [単独発動] 敵に闇属性攻撃[追撃でのみ発動可能]"
+state_condition_unimplemented,IsNatureElement(Fire),2,skills[627].parts[1].target_condition,IsNatureElement(Fire),IsNatureElement(Fire),,,,,,46008611,シャルロッタ・スコポフスカヤ,捧ぐ愛の晩餐,召し上がれミラーシュカ,"味方全体をシチー状態(ターン永続)にし 自身以外の
+火属性スタイルのSPを3上昇  SPが0以上で使用可能"
+state_condition_unimplemented,IsNatureElement(Ice),2,skills[603].parts[1].target_condition,IsNatureElement(Ice),IsNatureElement(Ice),,,,,,46008409,ヴリティカ・バラクリシュナン,歓待のアンナプールナ,饗宴アヌラーガ,"味方全体をカリー状態(ターン永続)にし 自身以外の
+氷属性スタイルのSPを3上昇  SPが0以上で使用可能"
+state_condition_unimplemented,IsZone(Fire)==1,2,skills[374].parts[0].cond,IsZone(Fire)==1 || IsZone(Ice)==1 || IsZone(Thunder)==1 || IsZone(Light)==1,IsZone(Fire)==1,,,,,,46005207,石井 色葉,センシティビティ・オーバーフロー,極彩色,"行動開始時の展開中の元素属性強化フィールドに応じた
+味方単体のクリティカル率 クリティカルダメージを上昇"
+state_condition_unimplemented,IsZone(Ice)==1,2,skills[374].parts[0].cond,IsZone(Fire)==1 || IsZone(Ice)==1 || IsZone(Thunder)==1 || IsZone(Light)==1,IsZone(Ice)==1,,,,,,46005207,石井 色葉,センシティビティ・オーバーフロー,極彩色,"行動開始時の展開中の元素属性強化フィールドに応じた
+味方単体のクリティカル率 クリティカルダメージを上昇"
+state_condition_unimplemented,IsZone(Light)==1,2,skills[374].parts[0].cond,IsZone(Fire)==1 || IsZone(Ice)==1 || IsZone(Thunder)==1 || IsZone(Light)==1,IsZone(Light)==1,,,,,,46005207,石井 色葉,センシティビティ・オーバーフロー,極彩色,"行動開始時の展開中の元素属性強化フィールドに応じた
+味方単体のクリティカル率 クリティカルダメージを上昇"
+state_condition_unimplemented,MoraleLevel() >= 6,2,skills[171].cond,MoraleLevel() >= 6,MoraleLevel() >= 6,,,,,,46002510,柊木 梢,プールサイド・モーメント,水影,"味方単体の連撃数を5ターン上げる(中ダメージ/5回)[単独発動]
+自身の士気レベルが6以上のときのみ使用可能"
+state_condition_unimplemented,RemoveDebuffCount()>0,2,skills[397].parts[2].hit_condition,RemoveDebuffCount()>0,RemoveDebuffCount()>0,,,,,,46005416,室伏 理沙,今宵、花明かりの下で,胡蝶のいざない、照る初旭,"味方全体のデバフを3つ解除し DPを大回復 デバフを解除したとき
+心眼状態にし さらにスキル攻撃力を大きく引き出す"
+state_condition_unimplemented,SpecialStatusCountByType(125) > 0,2,skills[252].parts[0].cond,SpecialStatusCountByType(125) > 0,SpecialStatusCountByType(125) > 0,,,,,,46003510,神崎 アーデルハイド,向日葵,レッドラウンドイリュージョン,"味方全体の火属性スキル攻撃力 火属性クリティカルダメージを上げ
+火属性攻撃 [破壊率特大] 影分身中は消費SPが半減"
+state_condition_unimplemented,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,1,skills[85].parts[0].cond,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,,,,,,46001523,朝倉 可憐,CODE:Virtual Killer,シンメトリー・リベレーション,"敵に10連撃 [破壊率超特大] [貫通クリティカル] 【朝倉可憐 専用】
+さらに 超ダウン中の敵がいるとき 消費SP0 かつ [破壊率絶大]"
+state_condition_unimplemented,CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()>=6)>0,1,skills[452].parts[0].cond,CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()>=6)>0,CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()>=6)>0,,,,,,46006311,大島 三野里,ミッドナイト・プレリュード,夜注ぐスターライト・ステア,"ODゲージを100%消費し 敵全体に光の8連撃[対DP+100%]
+ODゲージ0%以上で使用可能 自身のトークン1つ毎に消費ODゲージ-5%"
+state_condition_unimplemented,CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=6,1,skills[198].cond,CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=6,CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=6,,,,,,46003116,山脇・ボン・イヴァール,誇り高き魔王の凱旋,ギガビッグバン,"自身の連撃数(大ダメージ)を3回上げ 敵全体に闇属性の10連撃
+山脇様のしもべ状態の味方が6人以上のときのみ使用可能"
+state_condition_unimplemented,CountBC(IsPlayer() &&IsTeam(31A)==1)>=3,1,skills[20].parts[0].cond,CountBC(IsPlayer() &&IsTeam(31A)==1)>=3,CountBC(IsPlayer() &&IsTeam(31A)==1)>=3,,,,,,46001161,茅森 月歌,黎明のエモーショナル・ソウル,星火燎原+,"自身のスキル攻撃力を大きく上げ 敵単体を焼き尽くす [対HP+30%]
+31Aの隊員が3人以上のとき [対HP+50%]"
+state_condition_unimplemented,CountBC(IsPlayer() == 1 && IsCharacter(KHiiragi) == 1 && MoraleLevel()>=6)>0,1,skills[172].parts[0].cond,CountBC(IsPlayer() == 1 && IsCharacter(KHiiragi) == 1 && MoraleLevel()>=6)>0,CountBC(IsPlayer() == 1 && IsCharacter(KHiiragi) == 1 && MoraleLevel()>=6)>0,,,,,,46002511,柊木 梢,プールサイド・モーメント,邪眼・マリンスラッシュ,"敵全体に闇属性攻撃 [破壊率特大] 自身の士気レベルが6以上のとき
+[破壊率超特大][対HP+50%] かつ スキル回数を消費せず消費SPが半減"
+state_condition_unimplemented,CountBC(IsPlayer() == 1 && IsCharacter(MTsukishiro) == 1 && SpecialStatusCountByType(20)>0) > 0,1,skills[298].iuc_cond,CountBC(IsPlayer() == 1 && IsCharacter(MTsukishiro) == 1 && SpecialStatusCountByType(20)>0) > 0,CountBC(IsPlayer() == 1 && IsCharacter(MTsukishiro) == 1 && SpecialStatusCountByType(20)>0) > 0,,,,,,46004211,月城 最中,君想う春吹雪,一途,"自身のトークンを5消費し 敵単体に光属性攻撃 [対HP+50%]
+追加ターン中は威力上昇し スキル使用回数を消費しない"
+state_condition_unimplemented,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=4,1,skills[239].parts[0].cond,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=4,CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=4,,,,,,46003421,豊後 弥生,悪の軍団進軍開始でゲス！,メガデストロイヤー,"敵単体に10連撃 [対DP+100%] [貫通クリティカル]
+山脇様のしもべ状態の味方数に応じて スキル性能が上昇(最大6人)"
+state_condition_unimplemented,CountBC(IsPlayer()==0&&IsDead()==0)==3,1,skills[416].parts[0].cond,CountBC(IsPlayer()==0&&IsDead()==0)==3,CountBC(IsPlayer()==0&&IsDead()==0)==3,,,,,,46005607,瑞原 あいな,ラッシュ！スタブ！ツナ！,豪快！パイレーツキャノン,"敵の数が少ないほど自身の連撃数(小ダメージ)が上昇(最大10回)
+巨大な大砲からの砲撃で 敵全体の防御力を下げ 闇属性5連撃"
+state_condition_unimplemented,CountBC(IsPlayer()==1 && IsBroken() == 1)==0,1,skills[420].cond,CountBC(IsPlayer()==1 && IsBroken() == 1)==0,CountBC(IsPlayer()==1 && IsBroken() == 1)==0,,,,,,46005619,瑞原 あいな,キラキラサマーへ、ジャンプイン！,夏色ハイテンション,"味方単体のDPを著しく犠牲にし オーバードライブゲージを25%上昇
+初回使用時 さらに25%上昇 ブレイク中の味方がいると使用不可"
+state_condition_unimplemented,HasSkill(YoOhshimaSkill53)==1,1,skills[688].parts[0].cond,HasSkill(YoOhshimaSkill53)==1,HasSkill(YoOhshimaSkill53)==1,,,,,,46406401,大島 四ツ葉,ゆるりたゆたう湯道楽,温泉手形,"自身の追撃が【ネコジェット・シャテキ】に変わる(1回の行動中に1回のみ)
+該当スキルを装備してないか 発動条件を満たさない場合 変化しない"
+state_condition_unimplemented,IsFront()==1,1,skills[270].parts[0].target_condition,IsFront()==1,IsFront()==1,,,,,,46003626,佐月 マリ,魔王に仕えし混沌の謀臣,謀略,"自身と前衛の味方単体に追加ターン
+追加ターン中は使用不可"
+state_condition_unimplemented,IsNatureElement(Fire)==0,1,skills[159].parts[0].target_condition,IsNatureElement(Fire)==0,IsNatureElement(Fire)==0,,,,,,46002414,樋口 聖華,サンセット・ユートピア,茜色,"3ターンの間 前衛の味方のスキル攻撃力を著しく上げる[単独発動]
+味方が火属性スタイルのとき ターン数が5ターンに変化する"
+state_condition_unimplemented,IsNatureElement(Ice)==1,1,skills[121].parts[1].target_condition,IsNatureElement(Ice)==1,IsNatureElement(Ice)==1,,,,,,46002126,蒼井 えりか,ツナグ・Legacy,未来へ繋ぐ蒼の意志,"氷属性スタイルの連撃数を3ターン上げる(特大ダメージ/3回) [単独発動]
+さらに オーバードライブゲージを50%上昇"
+state_condition_unimplemented,IsNatureElement(Light)==0,1,skills[341].parts[1].target_condition,IsNatureElement(Light)==0,IsNatureElement(Light)==0,,,,,,46004515,小笠原 緋雨,天才に手ほどき,捕球の極意,"味方全体のDPを中回復し デバフを1つ解除する
+味方が光属性スタイルのとき 全てのデバフを解除する"
+state_condition_unimplemented,IsNatureElement(Thunder)==0,1,skills[512].parts[1].target_condition,IsNatureElement(Thunder)==0,IsNatureElement(Thunder)==0,,,,,,46007213,丸山 奏多,決起のレガリア,進軍を照らす覇光,"全体を3ターン 心眼状態にし 連撃数を上げる(中ダメージ/5回)[単独発動]
+味方が雷属性スタイルのとき 連撃数が(特大ダメージ/3回)に変化する"
+state_condition_unimplemented,IsNatureElement(Thunder)==1,1,skills[512].parts[2].target_condition,IsNatureElement(Thunder)==1,IsNatureElement(Thunder)==1,,,,,,46007213,丸山 奏多,決起のレガリア,進軍を照らす覇光,"全体を3ターン 心眼状態にし 連撃数を上げる(中ダメージ/5回)[単独発動]
+味方が雷属性スタイルのとき 連撃数が(特大ダメージ/3回)に変化する"
+state_condition_unimplemented,IsTeam(31E)==1,1,skills[686].parts[0].target_condition,IsTeam(31E)==1,IsTeam(31E)==1,,,,,,46406101,大島 一千子,Sisters First,モーニングルーティン,31Eの隊員のスキル攻撃力を常時+10%
+state_condition_unimplemented,IsWeakElement(Ice)==1,1,skills[52].parts[0].strval[0].parts[1].target_condition,IsWeakElement(Ice)==1,IsWeakElement(Ice)==1,,,,,,46001315,逢川 めぐみ,スペシャルナイト・ガールズジャム,最高潮！アオハルオンステージ,"敵全体の氷属性防御力と氷弱点の敵の氷耐性を下げ(ターン永続)
+氷属性強化フィールド(大)を8ターン展開する"
+state_condition_unimplemented,IsWeakElement(Thunder)==1,1,skills[52].parts[0].strval[1].parts[1].target_condition,IsWeakElement(Thunder)==1,IsWeakElement(Thunder)==1,,,,,,46001315,逢川 めぐみ,スペシャルナイト・ガールズジャム,最高潮！アオハルオンステージ,"敵全体の氷属性防御力と氷弱点の敵の氷耐性を下げ(ターン永続)
+氷属性強化フィールド(大)を8ターン展開する"
+state_condition_unimplemented,MoraleLevel()<=5,1,skills[119].parts[0].cond,MoraleLevel()<=5,MoraleLevel()<=5,,,,,,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
+さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
+state_condition_unimplemented,MoraleLevel()>=10,1,skills[119].iuc_cond,MoraleLevel()>=10,MoraleLevel()>=10,,,,,,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
+さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
+state_condition_unimplemented,MotivationLevel()>=4,1,skills[16].parts[0].cond,MotivationLevel()>=4,MotivationLevel()>=4,,,,,,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
+敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
+state_condition_unimplemented,SpecialStatusCountByType(144) > 0,1,skills[14].parts[0].cond,SpecialStatusCountByType(144) > 0,SpecialStatusCountByType(144) > 0,,,,,,46001117,茅森 月歌,白き華の歌姫,月光,"味方単体の連撃数を3ターン上げる(中ダメージ/5回) [単独発動]
+自身が歌姫の加護状態のとき 連撃数が(特大ダメージ/3回)に変化する"
+state_condition_unimplemented,SpecialStatusCountByType(146) > 0,1,skills[408].parts[0].cond,SpecialStatusCountByType(146) > 0,SpecialStatusCountByType(146) > 0,,,,,,46005511,伊達 朱里,幸運ふゆうらら,御祈祷オーバーヒート,"敵全体のバフを2つ解除し 火属性攻撃 [対DP+50%]
+自身がネガティブ状態でないとき 消費SP半減 かつ [破壊率特大]"
+state_condition_unimplemented,SpecialStatusCountByType(164)>0,1,skills[440].iuc_cond,SpecialStatusCountByType(164)>0,SpecialStatusCountByType(164)>0,,,,,,46006211,大島 二以奈,渚のピュアメモリー,夏に恋するオードトワレ,"敵全体に闇属性攻撃[対HP+50％] 自身がメイクアップ状態のとき
+スキル回数を消費せず消費SPが半減"
+state_condition_unimplemented,Turn()==1,1,skills[363].cond,Turn()==1,Turn()==1,,,,,,46005113,二階堂 三郷,スイート・メロウタイム,スイーツチャージ！,"敵にエネルギー弾を放ちつつ SPを7上昇する
+バトル開始1ターン目のみ使用可能"
