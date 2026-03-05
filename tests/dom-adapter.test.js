@@ -32,6 +32,7 @@ function createRoot() {
       <button data-action="commit"></button>
       <button data-action="open-interrupt-od" hidden></button>
       <span data-role="interrupt-od-badge"></span>
+      <span data-role="interrupt-od-projection"></span>
       <button data-action="open-od"></button>
       <button data-action="kishinka" hidden></button>
       <span data-role="kishinka-state"></span>
@@ -68,6 +69,23 @@ function createRoot() {
     root: dom.window.document.querySelector('#app'),
     win: dom.window,
   };
+}
+
+function setFrontlineNormalAttackSelections(adapter, root, win) {
+  for (const member of adapter.party.getFrontline()) {
+    const select = root.querySelector(`[data-action-slot="${member.position}"]`);
+    if (!select) {
+      continue;
+    }
+    const normalOption = [...select.options].find((option) =>
+      String(option.textContent ?? '').includes('通常攻撃')
+    );
+    if (!normalOption) {
+      continue;
+    }
+    select.value = String(normalOption.value);
+    select.dispatchEvent(new win.Event('change', { bubbles: true }));
+  }
 }
 
 test('dom adapter initializes, previews, commits, and exports csv', () => {
@@ -365,11 +383,11 @@ test('OD controls: preemptive activation and interrupt reservation/commit', () =
   adapter.mount();
 
   const interruptButton = root.querySelector('[data-action="open-interrupt-od"]');
-  assert.equal(interruptButton.hidden, true, 'interrupt button should be hidden when od gauge < 100');
+  assert.equal(interruptButton.hidden, false, 'interrupt button should be visible in normal/extra turn');
 
   adapter.state.turnState.odGauge = 120;
   adapter.renderTurnStatus();
-  assert.equal(interruptButton.hidden, false, 'interrupt button should be visible when od gauge >= 100');
+  assert.equal(interruptButton.hidden, false, 'interrupt button should remain visible');
 
   adapter.openOdDialog('normal');
   adapter.confirmOdDialog('normal');
@@ -388,14 +406,165 @@ test('OD controls: preemptive activation and interrupt reservation/commit', () =
   interruptSelect.value = '1';
   adapter.confirmOdDialog('interrupt');
 
-  adapter.previewCurrentTurn();
   adapter.commitCurrentTurn();
   assert.equal(adapter.state.turnState.turnType, 'od');
   assert.equal(adapter.state.turnState.odContext, 'interrupt');
   assert.equal(adapter.state.turnState.odGauge < 150, true);
+  assert.equal(adapter.state.turnState.turnIndex, 1);
 });
 
-test('interrupt OD button is shown in extra turn when gauge requirement is satisfied', () => {
+test('normal OD dialog stays visible while interrupt OD dialog is toggled', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state.turnState.odGauge = 280;
+  adapter.renderTurnStatus();
+  setFrontlineNormalAttackSelections(adapter, root, win);
+
+  const normalDialog = root.querySelector('[data-role="od-dialog"]');
+  const interruptDialog = root.querySelector('[data-role="interrupt-od-dialog"]');
+  assert.equal(normalDialog.hidden, false);
+  assert.equal(interruptDialog.hidden, true);
+
+  adapter.openOdDialog('interrupt');
+  assert.equal(normalDialog.hidden, false);
+  assert.equal(interruptDialog.hidden, false);
+
+  adapter.closeOdDialog('interrupt');
+  assert.equal(normalDialog.hidden, false);
+  assert.equal(interruptDialog.hidden, true);
+});
+
+test('interrupt OD projected gauge allows OD3 reservation at initial 280% with three normal attacks', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state.turnState.odGauge = 280;
+  adapter.renderTurnStatus();
+  setFrontlineNormalAttackSelections(adapter, root, win);
+
+  const projection = root.querySelector('[data-role="interrupt-od-projection"]');
+  adapter.openOdDialog('interrupt');
+  const interruptSelect = root.querySelector('[data-role="interrupt-od-level"]');
+  const options = [...interruptSelect.options].map((option) => String(option.value));
+  assert.equal(options.includes('3'), true);
+  assert.equal((projection?.textContent ?? '').includes('300.00%'), true);
+
+  interruptSelect.value = '3';
+  adapter.confirmOdDialog('interrupt');
+  adapter.commitCurrentTurn();
+
+  assert.equal(adapter.state.turnState.turnType, 'od');
+  assert.equal(adapter.state.turnState.odContext, 'interrupt');
+  assert.equal(adapter.state.turnState.turnLabel, 'OD3-1');
+});
+
+test('interrupt OD projected gauge allows OD1 from thunder party at initial 0%', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // 雷6人編成 (超越初期値90) + InitialOD=0
+  adapter.initializeBattle([1001107, 1001205, 1001308, 1010204, 1001706, 1002104], {
+    initialOdGauge: 0,
+  });
+  setFrontlineNormalAttackSelections(adapter, root, win);
+
+  adapter.openOdDialog('interrupt');
+  const interruptSelect = root.querySelector('[data-role="interrupt-od-level"]');
+  const options = [...interruptSelect.options].map((option) => String(option.value));
+  assert.deepEqual(options, ['1']);
+  assert.equal(Number(adapter.interruptOdProjection?.projectedGauge) >= 100, true);
+});
+
+test('interrupt OD projection is cleared when selected action changes before reservation', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state.turnState.odGauge = 280;
+  adapter.renderTurnStatus();
+  setFrontlineNormalAttackSelections(adapter, root, win);
+
+  adapter.openOdDialog('interrupt');
+  assert.equal(Number(adapter.interruptOdProjection?.projectedGauge) > 0, true);
+
+  const dialog = root.querySelector('[data-role="interrupt-od-dialog"]');
+  const projection = root.querySelector('[data-role="interrupt-od-projection"]');
+  assert.equal(projection.hidden, false);
+  const firstSelect = root.querySelector('[data-action-slot]');
+  const alternative = [...firstSelect.options].find((option) => option.value !== firstSelect.value);
+  if (!alternative) {
+    return;
+  }
+  firstSelect.value = String(alternative.value);
+  firstSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  assert.equal(adapter.interruptOdProjection, null);
+  assert.equal(dialog.hidden, true);
+  assert.equal((projection?.textContent ?? '').trim(), '');
+  assert.equal(projection.hidden, true);
+});
+
+test('interrupt OD projection is hidden when dialog is closed after reservation', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state.turnState.odGauge = 280;
+  adapter.renderTurnStatus();
+  setFrontlineNormalAttackSelections(adapter, root, win);
+
+  const openButton = root.querySelector('[data-action="open-interrupt-od"]');
+  const projection = root.querySelector('[data-role="interrupt-od-projection"]');
+  const dialog = root.querySelector('[data-role="interrupt-od-dialog"]');
+  adapter.openOdDialog('interrupt');
+
+  assert.equal(dialog.hidden, false);
+  assert.equal(openButton.hidden, false);
+  assert.equal(projection.hidden, false);
+
+  const interruptSelect = root.querySelector('[data-role="interrupt-od-level"]');
+  interruptSelect.value = '1';
+  adapter.confirmOdDialog('interrupt');
+
+  assert.equal(dialog.hidden, true);
+  assert.equal(openButton.hidden, false);
+  assert.equal(projection.hidden, true);
+});
+
+test('interrupt OD dialog is hidden when projection state is missing', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const dialog = root.querySelector('[data-role="interrupt-od-dialog"]');
+  const openButton = root.querySelector('[data-action="open-interrupt-od"]');
+  assert.equal(dialog.hidden, true);
+
+  adapter.state.turnState.odGauge = 280;
+  adapter.renderTurnStatus();
+  setFrontlineNormalAttackSelections(adapter, root, win);
+  adapter.openOdDialog('interrupt');
+  assert.equal(dialog.hidden, false);
+
+  // 見込み状態が失われた場合は、ダイアログ表示を維持しない
+  adapter.interruptOdProjection = null;
+  adapter.renderOdControls();
+
+  assert.equal(dialog.hidden, true);
+  assert.equal(openButton.hidden, false);
+});
+
+test('interrupt OD button is shown in extra turn', () => {
   const store = getStore();
   const { root } = createRoot();
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
@@ -403,7 +572,6 @@ test('interrupt OD button is shown in extra turn when gauge requirement is satis
 
   const exCharacterId = adapter.state.party.find((member) => member.position === 0)?.characterId;
   adapter.state = grantExtraTurn(adapter.state, [exCharacterId]);
-  adapter.state.turnState.odGauge = 120;
   adapter.renderTurnStatus();
 
   const interruptButton = root.querySelector('[data-action="open-interrupt-od"]');

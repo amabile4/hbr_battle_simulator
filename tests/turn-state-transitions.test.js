@@ -91,7 +91,29 @@ test('commitTurn can activate interrupt OD after commit', () => {
   assert.equal(nextState.turnState.odContext, 'interrupt');
   assert.equal(nextState.turnState.odGauge < 150, true, 'interrupt OD should consume 100% gauge');
   assert.equal(nextState.turnState.odGauge > 0, true, 'remaining gauge should stay positive in this case');
-  assert.equal(nextState.turnState.turnIndex, 2);
+  assert.equal(nextState.turnState.turnIndex, 1, 'interrupt OD should keep base turn index until OD ends');
+});
+
+test('interrupt OD advances to next base turn after OD sequence ends', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 150;
+
+  // T1 の行動後に割込OD1へ入る (T1 | OD1-1)
+  const preview = previewTurn(state, buildActionDict(party));
+  state = commitTurn(state, preview, [], { interruptOdLevel: 1 }).nextState;
+  assert.equal(state.turnState.turnType, 'od');
+  assert.equal(state.turnState.turnIndex, 1);
+  assert.equal(state.turnState.turnLabel, 'OD1-1');
+
+  // OD1-1 消化後は T2 に進む
+  const odPreview = previewTurn(state, buildActionDict(party));
+  state = commitTurn(state, odPreview).nextState;
+  assert.equal(state.turnState.turnType, 'normal');
+  assert.equal(state.turnState.turnIndex, 2);
+  assert.equal(state.turnState.turnLabel, 'T2');
 });
 
 function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {

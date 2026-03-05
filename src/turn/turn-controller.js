@@ -1691,8 +1691,11 @@ function computeNextTurnState(current, grantedExtraCharacterIds = []) {
     }
 
     next.turnType = 'normal';
-    // OD終了後は、OD突入元の通常ターン文脈へ復帰する（turnIndexは進めない）。
-    next.turnIndex = current.turnIndex;
+    // OD終了後:
+    // - preemptive は同一ターン文脈へ復帰
+    // - interrupt は直前ターン処理後の割込なので次ターンへ進む
+    const shouldAdvanceBaseTurn = String(current.odContext ?? '') === 'interrupt';
+    next.turnIndex = Number(current.turnIndex ?? 1) + (shouldAdvanceBaseTurn ? 1 : 0);
     next.turnLabel = `T${next.turnIndex}`;
     next.odLevel = 0;
     next.remainingOdActions = 0;
@@ -1742,10 +1745,12 @@ function computeNextTurnState(current, grantedExtraCharacterIds = []) {
       }
 
       // ODアクションを使い切った状態でEXが終わった場合は、
-      // OD突入元の通常ターン文脈へ復帰する（turnIndexは進めない）。
+      // OD突入元の通常ターン文脈へ復帰する。
+      // interrupt 文脈なら次ターンへ進む。
       next.turnType = 'normal';
-      next.turnLabel = `T${current.turnIndex}`;
-      next.turnIndex = current.turnIndex;
+      const shouldAdvanceBaseTurn = String(current.odContext ?? '') === 'interrupt';
+      next.turnIndex = Number(current.turnIndex ?? 1) + (shouldAdvanceBaseTurn ? 1 : 0);
+      next.turnLabel = `T${next.turnIndex}`;
       next.odLevel = 0;
       next.remainingOdActions = 0;
       next.odContext = null;
@@ -1844,6 +1849,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
   const applySwapOnCommit = options.applySwapOnCommit !== false;
   const interruptOdLevel = Number(options.interruptOdLevel ?? 0);
+  const shouldActivateInterruptOd =
+    Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3;
   const forceOdActivation = Boolean(options.forceOdActivation ?? false);
 
   for (const entry of previewRecord.actions) {
@@ -1929,6 +1936,14 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   committed.transcendence = transcendenceSummary;
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
+  if (shouldActivateInterruptOd) {
+    // 割込ODは「現在通常ターンの後段」に差し込まれるため、
+    // ODが終わるまで base turn index を進めない。
+    nextTurnState.turnIndex = Number(state.turnState.turnIndex ?? nextTurnState.turnIndex ?? 1);
+    if (String(nextTurnState.turnType ?? '') === 'normal') {
+      nextTurnState.turnLabel = `T${nextTurnState.turnIndex}`;
+    }
+  }
   // Enemy statuses tick on enemy-turn consumption only.
   // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
@@ -1943,7 +1958,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     turnState: nextTurnState,
   };
 
-  if (Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3) {
+  if (shouldActivateInterruptOd) {
     nextState = activateOverdrive(nextState, interruptOdLevel, 'interrupt', {
       forceActivation: forceOdActivation,
     });

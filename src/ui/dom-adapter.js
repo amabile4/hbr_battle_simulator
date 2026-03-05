@@ -265,6 +265,7 @@ export class BattleDomAdapter {
     this.lastActionSkillByPosition = new Map();
     this.lastActionTargetByPosition = new Map();
     this.pendingInterruptOdLevel = null;
+    this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
     this.scenario = null;
     this.scenarioCursor = 0;
@@ -505,7 +506,11 @@ export class BattleDomAdapter {
 
       if (target.matches('[data-role="enemy-count"]')) {
         this.syncEnemyStateFromDom();
+        this.previewRecord = null;
+        this.resetInterruptOdProjection({ clearReservation: true });
+        this.writePreviewOutput('');
         this.renderEnemyStatusControls();
+        this.renderOdControls();
       }
 
       if (target.matches('[data-action-slot]')) {
@@ -514,6 +519,10 @@ export class BattleDomAdapter {
           this.lastActionSkillByPosition.set(position, toInt(target.value, 0));
           this.updateActionSkillAttributeBadges(position, toInt(target.value, 0));
           this.updateActionTargetSelector(position, toInt(target.value, 0));
+          this.previewRecord = null;
+          this.resetInterruptOdProjection({ clearReservation: true });
+          this.writePreviewOutput('');
+          this.renderOdControls();
         }
       }
 
@@ -521,10 +530,17 @@ export class BattleDomAdapter {
         const position = toInt(target.getAttribute('data-action-target-slot'), -1);
         if (position >= 0) {
           this.lastActionTargetByPosition.set(position, String(target.value));
+          this.previewRecord = null;
+          this.resetInterruptOdProjection({ clearReservation: true });
+          this.writePreviewOutput('');
+          this.renderOdControls();
         }
       }
 
       if (target.matches('[data-role="force-od-toggle"]')) {
+        this.previewRecord = null;
+        this.resetInterruptOdProjection({ clearReservation: true });
+        this.writePreviewOutput('');
         this.renderOdControls();
       }
     });
@@ -1341,6 +1357,7 @@ export class BattleDomAdapter {
     this.previewRecord = null;
     this.pendingSwapEvents = [];
     this.pendingInterruptOdLevel = null;
+    this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
 
     this.renderActionSelectors();
@@ -1680,9 +1697,11 @@ export class BattleDomAdapter {
       statuses: nextStatuses,
     };
     this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
     this.renderActionSelectors();
     this.renderEnemyStatusControls();
+    this.renderOdControls();
     this.setStatus(`Enemy ${targetIndex + 1} に ${statusType}(${remainingTurns}) を付与しました。`);
   }
 
@@ -1712,9 +1731,11 @@ export class BattleDomAdapter {
       statuses: nextStatuses,
     };
     this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
     this.renderActionSelectors();
     this.renderEnemyStatusControls();
+    this.renderOdControls();
     this.setStatus(`Enemy ${targetIndex + 1} の ${statusType} を解除しました。`);
   }
 
@@ -1756,10 +1777,12 @@ export class BattleDomAdapter {
 
     this.pendingSwapEvents.push(event);
     this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
     this.renderActionSelectors();
     this.renderPartyState();
     this.renderSwapSelectors();
+    this.renderOdControls();
     this.setStatus(`Swap applied: ${outMember.characterName} <-> ${inMember.characterName}`);
     return event;
   }
@@ -1807,6 +1830,7 @@ export class BattleDomAdapter {
     this.previewRecord = null;
     this.pendingSwapEvents = [];
     this.pendingInterruptOdLevel = null;
+    this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
     if (
       this.scenario &&
@@ -2531,6 +2555,7 @@ export class BattleDomAdapter {
         });
         this.previewRecord = null;
         this.pendingSwapEvents = [];
+        this.resetInterruptOdProjection({ clearReservation: true });
         this.renderActionSelectors();
         this.renderPartyState();
         this.renderSwapSelectors();
@@ -2558,11 +2583,13 @@ export class BattleDomAdapter {
 
     if (Number.isFinite(Number(turn.interruptOdLevel))) {
       this.pendingInterruptOdLevel = Number(turn.interruptOdLevel);
+      this.interruptOdProjection = null;
       this.renderOdControls();
     }
 
     if (mode === 'stage') {
       this.previewRecord = null;
+      this.resetInterruptOdProjection({ clearReservation: false });
       this.writePreviewOutput('');
       return null;
     }
@@ -2744,6 +2771,7 @@ export class BattleDomAdapter {
       previewRecord: this.previewRecord ? structuredClone(this.previewRecord) : null,
       pendingSwapEvents: this.pendingSwapEvents.map((event) => ({ ...event })),
       pendingInterruptOdLevel: this.pendingInterruptOdLevel,
+      interruptOdProjection: this.interruptOdProjection ? structuredClone(this.interruptOdProjection) : null,
     };
   }
 
@@ -2788,9 +2816,52 @@ export class BattleDomAdapter {
     this.previewRecord = checkpoint.previewRecord ? structuredClone(checkpoint.previewRecord) : null;
     this.pendingSwapEvents = checkpoint.pendingSwapEvents.map((event) => ({ ...event }));
     this.pendingInterruptOdLevel = checkpoint.pendingInterruptOdLevel ?? null;
+    this.interruptOdProjection = checkpoint.interruptOdProjection
+      ? structuredClone(checkpoint.interruptOdProjection)
+      : null;
   }
 
-  canActivateOdLevel(level) {
+  resetInterruptOdProjection(options = {}) {
+    const clearReservation = options.clearReservation !== false;
+    const closeDialog = options.closeDialog !== false;
+    this.interruptOdProjection = null;
+    if (clearReservation) {
+      this.pendingInterruptOdLevel = null;
+    }
+    if (closeDialog) {
+      const dialog = this.root.querySelector('[data-role="interrupt-od-dialog"]');
+      if (dialog) {
+        dialog.hidden = true;
+      }
+    }
+  }
+
+  buildInterruptOdProjection() {
+    if (!this.state) {
+      throw new Error('State is not initialized.');
+    }
+    if (this.state.turnState.turnType === 'od') {
+      throw new Error('ODターン中は割込ODを計算できません。');
+    }
+
+    const enemyAction = this.root.querySelector('[data-role="enemy-action"]')?.value ?? null;
+    const enemyCount = this.readEnemyCountFromDom();
+    this.syncEnemyStateFromDom();
+    const actions = this.collectActionDictFromDom();
+    const projectionRecord = previewTurn(this.state, actions, enemyAction, enemyCount);
+    const projectedGaugeRaw = Number(
+      projectionRecord?.projections?.odGaugeAtEnd ?? this.state.turnState.odGauge ?? 0
+    );
+    const projectedGauge = Number.isFinite(projectedGaugeRaw) ? projectedGaugeRaw : 0;
+    const candidates = [1, 2, 3].filter((level) => this.canActivateOdLevel(level, projectedGauge));
+    this.interruptOdProjection = {
+      projectedGauge: Number(projectedGauge.toFixed(2)),
+      candidates,
+    };
+    return this.interruptOdProjection;
+  }
+
+  canActivateOdLevel(level, gaugeOverride = null) {
     if (!this.state) {
       return false;
     }
@@ -2798,28 +2869,25 @@ export class BattleDomAdapter {
       return true;
     }
     const numericLevel = Number(level);
-    const gauge = Number(this.state.turnState.odGauge ?? 0);
+    const hasGaugeOverride =
+      gaugeOverride !== null && gaugeOverride !== undefined && Number.isFinite(Number(gaugeOverride));
+    const gauge = hasGaugeOverride
+      ? Number(gaugeOverride)
+      : Number(this.state.turnState.odGauge ?? 0);
     return gauge >= numericLevel * 100;
   }
 
   canShowInterruptOdButton() {
-    if (!this.state) {
-      return false;
-    }
-    if (this.state.turnState.turnType === 'od') {
-      return false;
-    }
-    if (this.isForceOdEnabled()) {
-      return true;
-    }
-    const gauge = Number(this.state.turnState.odGauge ?? 0);
-    return gauge >= 100;
+    return Boolean(this.state);
   }
 
   renderOdControls() {
     const openOdButton = this.root.querySelector('[data-action="open-od"]');
     const openInterruptButton = this.root.querySelector('[data-action="open-interrupt-od"]');
     const interruptBadge = this.root.querySelector('[data-role="interrupt-od-badge"]');
+    const interruptProjection = this.root.querySelector('[data-role="interrupt-od-projection"]');
+    const normalDialog = this.root.querySelector('[data-role="od-dialog"]');
+    const interruptDialog = this.root.querySelector('[data-role="interrupt-od-dialog"]');
     if (!this.state) {
       if (openOdButton) {
         openOdButton.disabled = true;
@@ -2830,10 +2898,22 @@ export class BattleDomAdapter {
       if (interruptBadge) {
         interruptBadge.textContent = '';
       }
+      if (interruptProjection) {
+        interruptProjection.textContent = '';
+        interruptProjection.hidden = true;
+      }
       return;
     }
 
     const isOdTurn = this.state.turnState.turnType === 'od';
+    if (normalDialog) {
+      normalDialog.hidden = false;
+    }
+    // ダイアログは「割込ODが有効な通常/EXターン」かつ「見込み計算が存在する」時のみ表示を許可。
+    if (interruptDialog && (isOdTurn || !this.interruptOdProjection)) {
+      interruptDialog.hidden = true;
+    }
+    const isInterruptDialogOpen = Boolean(interruptDialog && !interruptDialog.hidden);
     if (openOdButton) {
       openOdButton.disabled = isOdTurn;
     }
@@ -2847,17 +2927,31 @@ export class BattleDomAdapter {
           ? `割込OD予約: OD${this.pendingInterruptOdLevel}`
           : '';
     }
+    if (interruptProjection) {
+      const projectedGauge = Number(this.interruptOdProjection?.projectedGauge ?? NaN);
+      if (Number.isFinite(projectedGauge) && isInterruptDialogOpen) {
+        const labels = Array.isArray(this.interruptOdProjection?.candidates)
+          ? this.interruptOdProjection.candidates.map((level) => `OD${level}`).join(', ')
+          : '';
+        interruptProjection.textContent = `見込みOD: ${formatGaugePercent(projectedGauge)}%${
+          labels ? ` / 候補: ${labels}` : ' / 候補なし'
+        }`;
+        interruptProjection.hidden = false;
+      } else {
+        interruptProjection.textContent = '';
+        interruptProjection.hidden = true;
+      }
+    }
   }
 
   openOdDialog(mode) {
-    // 片方だけ開く: 以前のダイアログ表示を必ず閉じる
     const normalDialog = this.root.querySelector('[data-role="od-dialog"]');
     const interruptDialog = this.root.querySelector('[data-role="interrupt-od-dialog"]');
-    if (normalDialog) {
-      normalDialog.hidden = true;
-    }
     if (interruptDialog) {
       interruptDialog.hidden = true;
+    }
+    if (mode === 'normal' && normalDialog) {
+      normalDialog.hidden = false;
     }
 
     const dialog = this.root.querySelector(
@@ -2870,8 +2964,17 @@ export class BattleDomAdapter {
       return;
     }
 
-    const candidates = [1, 2, 3].filter((level) => this.canActivateOdLevel(level));
+    const candidates =
+      mode === 'interrupt'
+        ? this.buildInterruptOdProjection().candidates
+        : [1, 2, 3].filter((level) => this.canActivateOdLevel(level));
     if (candidates.length === 0) {
+      if (mode === 'interrupt') {
+        const projected = Number(this.interruptOdProjection?.projectedGauge ?? 0);
+        throw new Error(
+          `見込みODが不足しているため割込ODを予約できません。(見込み ${formatGaugePercent(projected)}%)`
+        );
+      }
       throw new Error('ODゲージが不足しているため発動できません。');
     }
 
@@ -2882,7 +2985,15 @@ export class BattleDomAdapter {
       option.textContent = `OD${level}`;
       select.appendChild(option);
     }
+    if (
+      mode === 'interrupt' &&
+      Number.isFinite(Number(this.pendingInterruptOdLevel)) &&
+      candidates.includes(Number(this.pendingInterruptOdLevel))
+    ) {
+      select.value = String(this.pendingInterruptOdLevel);
+    }
     dialog.hidden = false;
+    this.renderOdControls();
   }
 
   closeOdDialog(mode) {
@@ -2890,10 +3001,10 @@ export class BattleDomAdapter {
       mode === 'interrupt' ? '[data-role="interrupt-od-dialog"]' : '[data-role="od-dialog"]'
     );
     if (dialog) {
-      dialog.hidden = true;
+      dialog.hidden = mode === 'interrupt';
     }
     if (mode === 'interrupt') {
-      this.pendingInterruptOdLevel = null;
+      this.resetInterruptOdProjection({ clearReservation: true, closeDialog: false });
       this.renderOdControls();
     } else if (this.preemptiveOdCheckpoint) {
       this.restorePreemptiveOdCheckpoint(this.preemptiveOdCheckpoint);
@@ -2912,11 +3023,20 @@ export class BattleDomAdapter {
       mode === 'interrupt' ? '[data-role="interrupt-od-level"]' : '[data-role="od-level"]'
     );
     const level = toInt(select?.value, 1);
-    if (!this.canActivateOdLevel(level)) {
+    const interruptProjectedGauge = Number(this.interruptOdProjection?.projectedGauge ?? NaN);
+    const gaugeForValidation =
+      mode === 'interrupt' && Number.isFinite(interruptProjectedGauge) ? interruptProjectedGauge : null;
+    if (!this.canActivateOdLevel(level, gaugeForValidation)) {
       throw new Error(`OD${level}を発動できません。`);
     }
 
     if (mode === 'interrupt') {
+      if (!this.interruptOdProjection) {
+        throw new Error('割込OD見込みが未計算です。割込ODボタンから再計算してください。');
+      }
+      if (!this.interruptOdProjection.candidates.includes(level) && !this.isForceOdEnabled()) {
+        throw new Error(`見込みODでは OD${level} を予約できません。`);
+      }
       this.pendingInterruptOdLevel = level;
       const dialog = this.root.querySelector('[data-role="interrupt-od-dialog"]');
       if (dialog) {
@@ -2933,9 +3053,9 @@ export class BattleDomAdapter {
     });
     const dialog = this.root.querySelector('[data-role="od-dialog"]');
     if (dialog) {
-      dialog.hidden = true;
+      dialog.hidden = false;
     }
-    this.pendingInterruptOdLevel = null;
+    this.resetInterruptOdProjection({ clearReservation: true, closeDialog: false });
     this.previewRecord = null;
     this.pendingSwapEvents = [];
     this.writePreviewOutput('');
@@ -3001,6 +3121,7 @@ export class BattleDomAdapter {
     const nextOd = Math.min(OD_GAUGE_MAX_PERCENT, currentOd + 15);
     this.state.turnState.odGauge = Number(nextOd.toFixed(2));
     this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
     this.renderActionSelectors();
     this.renderPartyState();
