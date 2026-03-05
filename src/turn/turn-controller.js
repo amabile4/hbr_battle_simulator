@@ -1350,6 +1350,8 @@ function previewActionEntries(state, sortedActions) {
     return {
       characterId: member.characterId,
       characterName: member.characterName,
+      styleId: Number(member.styleId ?? 0),
+      styleName: String(member.styleName ?? ''),
       partyIndex: member.partyIndex,
       positionIndex: position,
       isExtraAction: state.turnState.turnType === 'extra',

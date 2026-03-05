@@ -1094,6 +1094,84 @@ test('turn plan replay resolves swaps by style reference', () => {
   assert.equal(Number(adapter.recordStore.records[0].swapEvents?.length ?? 0), 1);
 });
 
+test('turn plan replay prioritizes recorded action position over stale character reference', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const frontline = adapter.party.getFrontline().slice().sort((a, b) => a.position - b.position);
+  let fromMember = null;
+  let toMember = null;
+  let uniqueSkill = null;
+  for (let i = 0; i < frontline.length; i += 1) {
+    for (let j = 0; j < frontline.length; j += 1) {
+      if (i === j) {
+        continue;
+      }
+      const candidateFrom = frontline[i];
+      const candidateTo = frontline[j];
+      const candidateSkill =
+        candidateTo.getActionSkills().find((skill) => !candidateFrom.getSkill(skill.skillId)) ?? null;
+      if (candidateSkill) {
+        fromMember = candidateFrom;
+        toMember = candidateTo;
+        uniqueSkill = candidateSkill;
+        break;
+      }
+    }
+    if (uniqueSkill) {
+      break;
+    }
+  }
+  if (!fromMember || !toMember || !uniqueSkill) {
+    return;
+  }
+
+  adapter.queueSwap(fromMember.position, toMember.position);
+  const toAfterSwap = adapter.state.party.find((member) => member.characterId === toMember.characterId);
+  if (!toAfterSwap) {
+    return;
+  }
+  const targetSelect = root.querySelector(`[data-action-slot="${toAfterSwap.position}"]`);
+  if (!targetSelect) {
+    return;
+  }
+  targetSelect.value = String(uniqueSkill.skillId);
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.turnPlans.length, 1);
+
+  const actionWithUniqueSkill =
+    adapter.turnPlans[0].actions.find((action) => Number(action.skillId) === Number(uniqueSkill.skillId)) ?? null;
+  if (!actionWithUniqueSkill) {
+    return;
+  }
+  assert.equal(Number(actionWithUniqueSkill.positionIndex), Number(toAfterSwap.position));
+
+  adapter.turnPlans[0].actions = adapter.turnPlans[0].actions.map((action) =>
+    Number(action.skillId) === Number(uniqueSkill.skillId)
+      ? {
+          ...action,
+          characterId: String(fromMember.characterId),
+          characterName: String(fromMember.characterName),
+        }
+      : action
+  );
+
+  adapter.recalculateTurnPlans({ mode: 'strict' });
+
+  assert.equal(adapter.turnPlanReplayError, null);
+  const replayedAction =
+    adapter.recordStore.records[0]?.actions?.find((action) => Number(action.skillId) === Number(uniqueSkill.skillId)) ??
+    null;
+  if (!replayedAction) {
+    return;
+  }
+  assert.equal(String(replayedAction.characterId), String(toMember.characterId));
+});
+
 test('turn plan force recalculation allows SP deficit', () => {
   const store = getStore();
   const { root } = createRoot();

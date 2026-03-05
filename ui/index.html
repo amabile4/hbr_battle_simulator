@@ -6,7 +6,7 @@
   <title>HBR Battle Simulator Adapter Demo</title>
   <meta name="robots" content="noindex,nofollow,noarchive,nosnippet" />
   <style>
-    body { font-family: Georgia, 'Times New Roman', serif; margin: 24px; color: #1f2d3d; }
+    body { font-family: Georgia, 'Times New Roman', serif; margin: 24px; color: #1f2d3d; overflow-x: hidden; }
     .row { margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
     [hidden] { display: none !important; }
     .panel { border: 1px solid #c4ccd8; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
@@ -40,6 +40,23 @@
     .attr-weapon-strike { background: #3e9b52; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #c4ccd8; padding: 6px; text-align: left; }
+    .records-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border: 1px solid #c4ccd8;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .records-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+    }
+    .records-table th, .records-table td {
+      white-space: nowrap;
+      vertical-align: top;
+    }
     pre, textarea { width: 100%; min-height: 120px; }
     ul { margin: 0; padding-left: 18px; }
     .turn-label-fixed {
@@ -213,12 +230,44 @@
         <button data-action="turn-plan-edit-save" type="button">この内容で保存</button>
         <button data-action="turn-plan-edit-cancel" type="button">編集キャンセル</button>
       </div>
-      <table>
-        <thead>
-          <tr><th>turnId</th><th>turnLabel</th><th>turnType</th><th>actions</th><th>status</th><th>ops</th></tr>
-        </thead>
-        <tbody data-role="record-body"></tbody>
-      </table>
+      <div class="records-table-wrap" data-role="records-scroll">
+        <table class="records-table">
+          <thead>
+            <tr data-role="record-head">
+              <th>turnId</th>
+              <th>turnLabel</th>
+              <th>turnType</th>
+              <th>turnIndex</th>
+              <th>recordStatus</th>
+              <th>odTurnStart</th>
+              <th>odContext</th>
+              <th>isExtraTurn</th>
+              <th>remainingOD</th>
+              <th>odGaugeStart</th>
+              <th>enemyCount</th>
+              <th>enemyAction</th>
+              <th>enemyStatus</th>
+              <th>transcendence</th>
+              <th>前衛POS1キャラ</th>
+              <th>前衛POS1スキル</th>
+              <th>前衛POS2キャラ</th>
+              <th>前衛POS2スキル</th>
+              <th>前衛POS3キャラ</th>
+              <th>前衛POS3スキル</th>
+              <th>actions</th>
+              <th>swapEvents</th>
+              <th>snapBefore</th>
+              <th>snapAfter</th>
+              <th>effectSnapshots</th>
+              <th>createdAt</th>
+              <th>committedAt</th>
+              <th>status</th>
+              <th>ops</th>
+            </tr>
+          </thead>
+          <tbody data-role="record-body"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="panel">

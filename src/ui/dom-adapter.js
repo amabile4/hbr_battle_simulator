@@ -2446,6 +2446,15 @@ export class BattleDomAdapter {
   }
 
   resolveScenarioActionMember(action) {
+    const hasPositionIndex = Number.isFinite(Number(action?.positionIndex));
+    if (hasPositionIndex) {
+      const position = Math.max(0, Math.min(5, toInt(action.positionIndex, 0)));
+      const member = this.party?.getByPosition(position);
+      if (!member) {
+        throw new Error(`No member at position ${position + 1}`);
+      }
+      return member;
+    }
     const actorName = this.resolveScenarioActorName(action);
     if (actorName) {
       const byName = this.findScenarioMemberByActorName(actorName);
@@ -2454,15 +2463,87 @@ export class BattleDomAdapter {
       }
     }
     const hasPosition = action?.position !== undefined && action?.position !== null;
-    if (!hasPosition) {
-      throw new Error(`Scenario action requires position or actorName: ${JSON.stringify(action ?? {})}`);
+    if (hasPosition) {
+      const position = this.resolveScenarioPosition(action.position);
+      const member = this.party?.getByPosition(position);
+      if (!member) {
+        throw new Error(`No member at position ${position + 1}`);
+      }
+      return member;
     }
-    const position = this.resolveScenarioPosition(action.position);
-    const member = this.party?.getByPosition(position);
-    if (!member) {
-      throw new Error(`No member at position ${position + 1}`);
+    throw new Error(`Scenario action requires position or actorName: ${JSON.stringify(action ?? {})}`);
+  }
+
+  alignScenarioActionPositions(actions = [], options = {}) {
+    if (!this.state || !this.party || !Array.isArray(actions) || actions.length === 0) {
+      return;
     }
-    return member;
+    const warn = typeof options.onWarning === 'function' ? options.onWarning : () => {};
+    const isForceMode = Boolean(options.forceMode);
+    let changed = false;
+    for (const action of actions) {
+      const hasPositionIndex = Number.isFinite(Number(action?.positionIndex));
+      const hasPosition =
+        action?.position !== undefined && action?.position !== null && String(action.position).trim() !== '';
+      if (!hasPositionIndex && !hasPosition) {
+        continue;
+      }
+      try {
+        const targetPosition = hasPositionIndex
+          ? Math.max(0, Math.min(5, toInt(action.positionIndex, 0)))
+          : this.resolveScenarioPosition(action.position);
+        const skillId = Number(action?.skillId ?? NaN);
+        if (!Number.isFinite(skillId)) {
+          continue;
+        }
+        const currentMember = this.party.getByPosition(targetPosition);
+        if (!currentMember) {
+          throw new Error(`No member at position ${targetPosition + 1} for position alignment.`);
+        }
+        if (currentMember.getSkill(skillId)) {
+          continue;
+        }
+
+        const actorName = this.resolveScenarioActorName(action);
+        const actor = actorName ? this.findScenarioMemberByActorName(actorName) : null;
+        const skillCandidates = this.party.members.filter((member) => Boolean(member.getSkill(skillId)));
+        const byActor = actor && actor.getSkill(skillId) ? actor : null;
+        const preferred = byActor ?? (skillCandidates.length === 1 ? skillCandidates[0] : null);
+        if (!preferred) {
+          if (isForceMode) {
+            warn(
+              `position alignment skipped: cannot resolve actor for skill ${skillId} at Pos ${targetPosition + 1}`
+            );
+            continue;
+          }
+          throw new Error(
+            `Cannot align action position: skill ${skillId} is not usable at Pos ${targetPosition + 1}.`
+          );
+        }
+        if (Number(preferred.position) === targetPosition) {
+          continue;
+        }
+        const fromPosition = Number(preferred.position);
+        preferred.setPosition(targetPosition);
+        currentMember.setPosition(fromPosition);
+        changed = true;
+      } catch (error) {
+        if (isForceMode) {
+          warn(`position alignment skipped: ${error.message}`);
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (!changed) {
+      return;
+    }
+    this.state.positionMap = buildPositionMap(this.state.party);
+    this.previewRecord = null;
+    this.writePreviewOutput('');
+    this.renderActionSelectors();
+    this.renderPartyState();
+    this.renderSwapSelectors();
   }
 
   resolveScenarioSwapEndpointPosition(swap, side) {
@@ -2741,6 +2822,10 @@ export class BattleDomAdapter {
     }
 
     if (Array.isArray(turn.actions)) {
+      this.alignScenarioActionPositions(turn.actions, {
+        forceMode: isForceMode,
+        onWarning: warn,
+      });
       for (const action of turn.actions) {
         if (isForceMode) {
           try {
@@ -3411,12 +3496,22 @@ export class BattleDomAdapter {
     const actions = Array.isArray(plan.actions)
       ? plan.actions
         .map((action) => ({
+          positionIndex:
+            Number.isFinite(Number(action?.positionIndex))
+              ? Math.max(0, Math.min(5, toInt(action.positionIndex, 0)))
+              : action?.position === undefined || action?.position === null || String(action.position).trim() === ''
+                ? null
+                : this.resolveScenarioPosition(action.position),
           characterId: String(action?.characterId ?? ''),
           characterName: String(action?.characterName ?? ''),
           skillId: Number(action?.skillId ?? 0),
           targetCharacterId: String(action?.targetCharacterId ?? ''),
         }))
-        .filter((action) => action.characterId && Number.isFinite(action.skillId))
+        .filter(
+          (action) =>
+            (Number.isFinite(Number(action.positionIndex)) || action.characterId || action.characterName) &&
+            Number.isFinite(action.skillId)
+        )
       : [];
     const swaps = Array.isArray(plan.swaps)
       ? plan.swaps
@@ -3471,6 +3566,7 @@ export class BattleDomAdapter {
       .map(([, action]) => {
         const member = this.state.party.find((item) => item.characterId === String(action.characterId)) ?? null;
         return {
+          positionIndex: Number(member?.position ?? -1),
           characterId: String(action.characterId),
           characterName: String(member?.characterName ?? ''),
           skillId: Number(action.skillId),
@@ -3517,6 +3613,9 @@ export class BattleDomAdapter {
     }
     if (normalized.actions.length > 0) {
       out.actions = normalized.actions.map((action) => ({
+        ...(Number.isFinite(Number(action.positionIndex))
+          ? { positionIndex: Number(action.positionIndex) }
+          : {}),
         characterId: action.characterId,
         characterName: action.characterName,
         skillId: action.skillId,
@@ -3780,6 +3879,70 @@ export class BattleDomAdapter {
     this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
   }
 
+  serializeRecordField(value, fallback = '-') {
+    if (value === undefined || value === null) {
+      return fallback;
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? String(value) : fallback;
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'true' : 'false';
+    }
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  formatFrontlineCharacterSkillColumns(record, plan = null) {
+    const actions = Array.isArray(record?.actions)
+      ? record.actions
+      : Array.isArray(plan?.actions)
+        ? plan.actions
+        : [];
+    const slots = [
+      { character: '-', skill: '-' },
+      { character: '-', skill: '-' },
+      { character: '-', skill: '-' },
+    ];
+
+    for (const action of actions) {
+      const hasPositionIndex = Number.isFinite(Number(action?.positionIndex));
+      const rawPosition = hasPositionIndex ? Number(action.positionIndex) : Number(action?.position);
+      if (!Number.isFinite(rawPosition)) {
+        continue;
+      }
+      const normalizedPosition = hasPositionIndex
+        ? Math.trunc(rawPosition)
+        : rawPosition >= 1 && rawPosition <= 6
+          ? Math.trunc(rawPosition) - 1
+          : Math.trunc(rawPosition);
+      if (normalizedPosition < 0 || normalizedPosition > 2) {
+        continue;
+      }
+
+      const character = String(action?.characterName ?? action?.characterId ?? '').trim() || '-';
+      const skillName = String(action?.skillName ?? action?.skillLabel ?? '').trim();
+      const skillId = Number(action?.skillId);
+      const skill = skillName || (Number.isFinite(skillId) ? `skill:${skillId}` : '-');
+      slots[normalizedPosition] = { character, skill };
+    }
+
+    return [
+      slots[0].character,
+      slots[0].skill,
+      slots[1].character,
+      slots[1].skill,
+      slots[2].character,
+      slots[2].skill,
+    ];
+  }
+
   renderRecordTable() {
     const tbody = this.root.querySelector('[data-role="record-body"]');
     if (!tbody) {
@@ -3790,6 +3953,42 @@ export class BattleDomAdapter {
       recalcMode.value = this.turnPlanRecalcMode;
     }
     this.renderTurnPlanRecalcStatus();
+
+    const headerLabels = [
+      'turnId',
+      'turnLabel',
+      'turnType',
+      'turnIndex',
+      'recordStatus',
+      'odTurnStart',
+      'odContext',
+      'isExtraTurn',
+      'remainingOD',
+      'odGaugeStart',
+      'enemyCount',
+      'enemyAction',
+      'enemyStatus',
+      'transcendence',
+      '前衛POS1キャラ',
+      '前衛POS1スキル',
+      '前衛POS2キャラ',
+      '前衛POS2スキル',
+      '前衛POS3キャラ',
+      '前衛POS3スキル',
+      'actions',
+      'swapEvents',
+      'snapBefore',
+      'snapAfter',
+      'effectSnapshots',
+      'createdAt',
+      'committedAt',
+      'status',
+      'ops',
+    ];
+    const headRow = this.root.querySelector('[data-role="record-head"]');
+    if (headRow) {
+      headRow.innerHTML = headerLabels.map((label) => `<th>${label}</th>`).join('');
+    }
 
     tbody.innerHTML = '';
     const totalRows = Math.max(this.turnPlans.length, this.recordStore.records.length);
@@ -3810,21 +4009,72 @@ export class BattleDomAdapter {
       if (this.turnPlanEditSession && this.turnPlanEditSession.targetIndex === i) {
         tr.setAttribute('data-editing', 'true');
       }
-      const actionCount = record ? Number(record.actions?.length ?? 0) : Number(plan?.actions?.length ?? 0);
-      tr.innerHTML =
-        `<td>${turnId}</td>` +
-        `<td>${record?.turnLabel ?? '未確定'}</td>` +
-        `<td>${record?.turnType ?? '-'}</td>` +
-        `<td>${actionCount}</td>` +
-        `<td>${statusText}</td>` +
-        `<td>` +
+
+      const turnLabel = record?.turnLabel ?? '未確定';
+      const turnType = record?.turnType ?? '-';
+      const turnIndex = this.serializeRecordField(record?.turnIndex, '-');
+      const recordStatus = record?.recordStatus ?? (plan ? 'planned' : '-');
+      const odTurnStart = this.serializeRecordField(record?.odTurnLabelAtStart, '-');
+      const odContext = this.serializeRecordField(record?.odContext, '-');
+      const isExtraTurn = this.serializeRecordField(record?.isExtraTurn, '-');
+      const remainingOd = this.serializeRecordField(record?.remainingOdActionsAtStart, '-');
+      const odGaugeStart =
+        record && Number.isFinite(Number(record.odGaugeAtStart))
+          ? `${formatGaugePercent(record.odGaugeAtStart)}%`
+          : '-';
+      const enemyCount = this.serializeRecordField(record?.enemyCount ?? plan?.enemyCount, '-');
+      const enemyAction = this.serializeRecordField(record?.enemyAction ?? plan?.enemyAction, '');
+      const enemyStatus = this.serializeRecordField(record?.enemyStatusSummary, '-');
+      const transcendence = this.serializeRecordField(record?.transcendence, '-');
+      const frontlineColumns = this.formatFrontlineCharacterSkillColumns(record, plan);
+      const actions = this.serializeRecordField(record?.actions ?? plan?.actions, '-');
+      const swapEvents = this.serializeRecordField(record?.swapEvents ?? plan?.swaps, '-');
+      const snapBefore = this.serializeRecordField(record?.snapBefore, '-');
+      const snapAfter = this.serializeRecordField(record?.snapAfter, '-');
+      const effectSnapshots = this.serializeRecordField(record?.effectSnapshots, '-');
+      const createdAt = this.serializeRecordField(record?.createdAt, '-');
+      const committedAt = this.serializeRecordField(record?.committedAt, '-');
+
+      const cells = [
+        String(turnId),
+        turnLabel,
+        turnType,
+        turnIndex,
+        recordStatus,
+        odTurnStart,
+        odContext,
+        isExtraTurn,
+        remainingOd,
+        odGaugeStart,
+        enemyCount,
+        enemyAction,
+        enemyStatus,
+        transcendence,
+        ...frontlineColumns,
+        actions,
+        swapEvents,
+        snapBefore,
+        snapAfter,
+        effectSnapshots,
+        createdAt,
+        committedAt,
+        statusText,
+      ];
+      for (const cell of cells) {
+        const td = this.doc.createElement('td');
+        td.textContent = String(cell ?? '');
+        tr.appendChild(td);
+      }
+
+      const ops = this.doc.createElement('td');
+      ops.innerHTML =
         `<button type="button" data-action="turn-plan-edit-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>編集</button>` +
         `<button type="button" data-action="turn-plan-insert-before-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+前</button>` +
         `<button type="button" data-action="turn-plan-insert-after-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+後</button>` +
         `<button type="button" data-action="turn-plan-delete-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>削除</button>` +
         `<button type="button" data-action="turn-plan-move-up-row" data-turn-id="${turnId}" ${i <= 0 || !plan ? 'disabled' : ''}>↑</button>` +
-        `<button type="button" data-action="turn-plan-move-down-row" data-turn-id="${turnId}" ${i >= this.turnPlans.length - 1 || !plan ? 'disabled' : ''}>↓</button>` +
-        `</td>`;
+        `<button type="button" data-action="turn-plan-move-down-row" data-turn-id="${turnId}" ${i >= this.turnPlans.length - 1 || !plan ? 'disabled' : ''}>↓</button>`;
+      tr.appendChild(ops);
       tbody.appendChild(tr);
     }
   }
