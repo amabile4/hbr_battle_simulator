@@ -53,6 +53,7 @@ const START_SP_EQUIP_DEFAULT = 3;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const OD_GAUGE_MIN_PERCENT = -999.99;
 const OD_GAUGE_MAX_PERCENT = 300;
+const FORCE_RESOURCE_MIN = -999;
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 
 function isNormalAttackSkill(skill) {
@@ -267,6 +268,15 @@ export class BattleDomAdapter {
     this.pendingInterruptOdLevel = null;
     this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
+    this.kishinkaActivatedThisTurn = false;
+    this.turnPlans = [];
+    this.turnPlanComputedRecords = [];
+    this.turnPlanReplayError = null;
+    this.turnPlanReplayWarnings = [];
+    this.turnPlanEditSession = null;
+    this.turnPlanBaseSetup = null;
+    this.turnPlanRecalcMode = 'strict';
+    this.isReplayingTurnPlans = false;
     this.scenario = null;
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
@@ -395,8 +405,23 @@ export class BattleDomAdapter {
 
     this.root.querySelector('[data-action="clear-records"]')?.addEventListener('click', () => {
       this.recordStore = createBattleRecordStore();
+      this.turnPlans = [];
+      this.turnPlanComputedRecords = [];
+      this.turnPlanReplayError = null;
+      this.turnPlanReplayWarnings = [];
+      this.turnPlanEditSession = null;
       this.renderRecordTable();
+      this.renderTurnPlanEditControls();
       this.setStatus('Records cleared.');
+    });
+    this.root.querySelector('[data-action="turn-plan-recalc"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() }));
+    });
+    this.root.querySelector('[data-action="turn-plan-edit-save"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.saveTurnPlanEditFromDom());
+    });
+    this.root.querySelector('[data-action="turn-plan-edit-cancel"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.cancelTurnPlanEdit());
     });
     this.root.querySelector('[data-action="scenario-load"]')?.addEventListener('click', () => {
       this.runSafely(() => this.loadScenarioFromDom());
@@ -453,6 +478,11 @@ export class BattleDomAdapter {
       const target = event.target;
       if (!(target instanceof this.doc.defaultView.HTMLElement)) {
         return;
+      }
+
+      if (target.matches('[data-role="turn-plan-recalc-mode"]')) {
+        this.turnPlanRecalcMode = String(target.value || 'strict') === 'force' ? 'force' : 'strict';
+        this.renderRecordTable();
       }
 
       if (target.matches('[data-role="character-select"]')) {
@@ -542,6 +572,41 @@ export class BattleDomAdapter {
         this.resetInterruptOdProjection({ clearReservation: true });
         this.writePreviewOutput('');
         this.renderOdControls();
+      }
+    });
+
+    this.root.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof this.doc.defaultView.HTMLElement)) {
+        return;
+      }
+      const rowTurnId = toInt(target.getAttribute('data-turn-id'), 0);
+      if (rowTurnId <= 0) {
+        return;
+      }
+
+      if (target.matches('[data-action="turn-plan-edit-row"]')) {
+        this.runSafely(() => this.startTurnPlanEdit(rowTurnId));
+        return;
+      }
+      if (target.matches('[data-action="turn-plan-insert-before-row"]')) {
+        this.runSafely(() => this.startTurnPlanInsert(rowTurnId, 'before'));
+        return;
+      }
+      if (target.matches('[data-action="turn-plan-insert-after-row"]')) {
+        this.runSafely(() => this.startTurnPlanInsert(rowTurnId, 'after'));
+        return;
+      }
+      if (target.matches('[data-action="turn-plan-delete-row"]')) {
+        this.runSafely(() => this.deleteTurnPlanRow(rowTurnId));
+        return;
+      }
+      if (target.matches('[data-action="turn-plan-move-up-row"]')) {
+        this.runSafely(() => this.moveTurnPlanRow(rowTurnId, -1));
+        return;
+      }
+      if (target.matches('[data-action="turn-plan-move-down-row"]')) {
+        this.runSafely(() => this.moveTurnPlanRow(rowTurnId, 1));
       }
     });
 
@@ -1344,6 +1409,7 @@ export class BattleDomAdapter {
     });
     const initialOdGauge =
       options.initialOdGauge ?? (options.skipInitialOdRead ? 0 : this.readInitialOdGaugeFromDom());
+    const preserveTurnPlans = options.preserveTurnPlans === true;
     const initialTurnState = {
       ...createInitialTurnState(),
       odGauge: Number(initialOdGauge),
@@ -1359,6 +1425,24 @@ export class BattleDomAdapter {
     this.pendingInterruptOdLevel = null;
     this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
+    this.kishinkaActivatedThisTurn = false;
+    if (!preserveTurnPlans) {
+      this.turnPlans = [];
+      this.turnPlanComputedRecords = [];
+      this.turnPlanReplayError = null;
+      this.turnPlanReplayWarnings = [];
+      this.turnPlanEditSession = null;
+    }
+    this.turnPlanBaseSetup = {
+      styleIds: [...styleIds].map((id) => Number(id)),
+      skillSetsByPartyIndex: structuredClone(skillSetsByPartyIndex),
+      limitBreakLevelsByPartyIndex: structuredClone(limitBreakLevelsByPartyIndex),
+      drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),
+      startSpEquipByPartyIndex: structuredClone(startSpEquipByPartyIndex),
+      initialOdGauge: Number(initialOdGauge),
+      enemyCount: this.readEnemyCountFromDom(),
+      forceOdToggle: this.isForceOdEnabled(),
+    };
 
     this.renderActionSelectors();
     this.renderPartyState();
@@ -1367,12 +1451,17 @@ export class BattleDomAdapter {
     this.renderEnemyStatusControls();
     this.renderKishinkaControls();
     this.renderRecordTable();
+    this.renderTurnPlanEditControls();
     this.writePreviewOutput('');
     this.writeCsvOutput('');
     this.renderOdControls();
     this.renderScenarioStatus();
-    this.saveSelectionToSlot(AUTO_SAVE_SLOT_INDEX, { allowAutoSlot: true, silent: true });
-    this.setStatus('Battle initialized. Selection auto-saved to Auto Slot 0.');
+    if (!options.suppressAutoSave) {
+      this.saveSelectionToSlot(AUTO_SAVE_SLOT_INDEX, { allowAutoSlot: true, silent: true });
+    }
+    if (!options.silent) {
+      this.setStatus('Battle initialized. Selection auto-saved to Auto Slot 0.');
+    }
 
     return this.state;
   }
@@ -1787,7 +1876,7 @@ export class BattleDomAdapter {
     return event;
   }
 
-  previewCurrentTurn() {
+  previewCurrentTurn(options = {}) {
     if (!this.state) {
       throw new Error('State is not initialized.');
     }
@@ -1797,23 +1886,29 @@ export class BattleDomAdapter {
     this.syncEnemyStateFromDom();
     const actions = this.collectActionDictFromDom();
 
-    this.previewRecord = previewTurn(this.state, actions, enemyAction, enemyCount);
+    this.previewRecord = previewTurn(this.state, actions, enemyAction, enemyCount, options);
     this.writePreviewOutput(JSON.stringify(this.previewRecord, null, 2));
     this.setStatus('Preview generated.');
     return this.previewRecord;
   }
 
-  commitCurrentTurn() {
+  commitCurrentTurn(options = {}) {
     if (!this.state) {
       throw new Error('State is not initialized.');
     }
+    const previewOptions =
+      options.previewOptions && typeof options.previewOptions === 'object' ? options.previewOptions : {};
+    const shouldCaptureTurnPlan = options.skipTurnPlanCapture !== true && !this.isReplayingTurnPlans;
+    const capturedTurnPlan = shouldCaptureTurnPlan ? this.captureCurrentTurnPlanFromDom() : null;
 
     if (!this.previewRecord) {
-      this.previewCurrentTurn();
+      this.previewCurrentTurn(previewOptions);
     }
 
     const interruptOdLevel = Number(this.pendingInterruptOdLevel ?? 0);
-    const forceOdActivation = this.isForceOdEnabled();
+    const forceOdActivation =
+      options.forceOdOverride !== undefined ? Boolean(options.forceOdOverride) : this.isForceOdEnabled();
+    const forceResourceDeficit = Boolean(options.forceResourceDeficit ?? false);
     const { nextState, committedRecord } = commitTurn(
       this.state,
       this.previewRecord,
@@ -1822,6 +1917,7 @@ export class BattleDomAdapter {
         applySwapOnCommit: false,
         interruptOdLevel,
         forceOdActivation,
+        forceResourceDeficit,
       }
     );
 
@@ -1832,6 +1928,7 @@ export class BattleDomAdapter {
     this.pendingInterruptOdLevel = null;
     this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
+    this.kishinkaActivatedThisTurn = false;
     if (
       this.scenario &&
       this.scenarioStagedTurnIndex !== null &&
@@ -1852,6 +1949,14 @@ export class BattleDomAdapter {
     this.writePreviewOutput('');
     this.renderOdControls();
     this.renderScenarioStatus();
+    if (shouldCaptureTurnPlan && capturedTurnPlan) {
+      this.turnPlans.push(capturedTurnPlan);
+      this.turnPlanComputedRecords = [...this.recordStore.records];
+      this.turnPlanReplayError = null;
+      this.turnPlanReplayWarnings = [];
+      this.turnPlanEditSession = null;
+      this.renderTurnPlanEditControls();
+    }
     this.setStatus('Turn committed.');
 
     return committedRecord;
@@ -2334,6 +2439,8 @@ export class BattleDomAdapter {
     return (
       this.party.members.find((member) => normalizeName(member.characterName) === normalized) ??
       this.party.members.find((member) => String(member.characterId) === actorName) ??
+      this.party.members.find((member) => String(member.styleId) === actorName) ??
+      this.party.members.find((member) => normalizeName(member.styleName) === normalized) ??
       null
     );
   }
@@ -2356,6 +2463,35 @@ export class BattleDomAdapter {
       throw new Error(`No member at position ${position + 1}`);
     }
     return member;
+  }
+
+  resolveScenarioSwapEndpointPosition(swap, side) {
+    const key = side === 'from' ? 'from' : 'to';
+    const explicitPosition = swap?.[key];
+    if (explicitPosition !== undefined && explicitPosition !== null && String(explicitPosition).trim() !== '') {
+      return this.resolveScenarioPosition(explicitPosition);
+    }
+    const characterIdKey = side === 'from' ? 'fromCharacterId' : 'toCharacterId';
+    const characterNameKey = side === 'from' ? 'fromCharacterName' : 'toCharacterName';
+    const styleIdKey = side === 'from' ? 'fromStyleId' : 'toStyleId';
+    const styleNameKey = side === 'from' ? 'fromStyleName' : 'toStyleName';
+    const actorName =
+      [
+        swap?.[characterIdKey],
+        swap?.[characterNameKey],
+        swap?.[styleIdKey],
+        swap?.[styleNameKey],
+      ]
+        .map((value) => String(value ?? '').trim())
+        .find((value) => value.length > 0) ?? '';
+    if (!actorName) {
+      throw new Error(`Scenario swap requires ${key} position or character reference.`);
+    }
+    const member = this.findScenarioMemberByActorName(actorName);
+    if (!member) {
+      throw new Error(`Scenario swap member not found (${key}=${actorName}).`);
+    }
+    return Number(member.position);
   }
 
   applyScenarioInitialPositions(initialPositions = []) {
@@ -2467,6 +2603,14 @@ export class BattleDomAdapter {
 
   applyScenarioTurn(turn = {}, options = {}) {
     const mode = String(options.mode ?? 'commit');
+    const recalcMode = String(options.recalcMode ?? 'strict') === 'force' ? 'force' : 'strict';
+    const isForceMode = recalcMode === 'force';
+    const warn =
+      typeof options.onWarning === 'function'
+        ? options.onWarning
+        : () => {};
+    const commitOptions =
+      options.commitOptions && typeof options.commitOptions === 'object' ? options.commitOptions : {};
     if (!this.state) {
       throw new Error('Battle state is not initialized.');
     }
@@ -2551,7 +2695,8 @@ export class BattleDomAdapter {
       const canApplyPreemptiveOd = String(this.state.turnState?.turnType ?? 'normal') === 'normal';
       if (canApplyPreemptiveOd) {
         this.state = activateOverdrive(this.state, Number(turn.preemptiveOdLevel), 'preemptive', {
-          forceActivation: this.isForceOdEnabled(),
+          forceActivation: this.isForceOdEnabled() || isForceMode,
+          forceConsumeGauge: isForceMode,
         });
         this.previewRecord = null;
         this.pendingSwapEvents = [];
@@ -2560,24 +2705,52 @@ export class BattleDomAdapter {
         this.renderPartyState();
         this.renderSwapSelectors();
         this.renderTurnStatus();
+      } else if (isForceMode) {
+        warn('preemptive OD was requested but current turn is not normal. skipped.');
       }
     }
 
     if (turn.kishinka) {
-      this.activateKishinka();
+      if (isForceMode) {
+        try {
+          this.activateKishinka();
+        } catch (error) {
+          warn(`kishinka skipped: ${error.message}`);
+        }
+      } else {
+        this.activateKishinka();
+      }
     }
 
     if (Array.isArray(turn.swaps)) {
       for (const swap of turn.swaps) {
-        const from = this.resolveScenarioPosition(swap?.from);
-        const to = this.resolveScenarioPosition(swap?.to);
-        this.queueSwap(from, to);
+        if (isForceMode) {
+          try {
+            const from = this.resolveScenarioSwapEndpointPosition(swap, 'from');
+            const to = this.resolveScenarioSwapEndpointPosition(swap, 'to');
+            this.queueSwap(from, to);
+          } catch (error) {
+            warn(`swap skipped: ${error.message}`);
+          }
+        } else {
+          const from = this.resolveScenarioSwapEndpointPosition(swap, 'from');
+          const to = this.resolveScenarioSwapEndpointPosition(swap, 'to');
+          this.queueSwap(from, to);
+        }
       }
     }
 
     if (Array.isArray(turn.actions)) {
       for (const action of turn.actions) {
-        this.setScenarioActionOnDom(action);
+        if (isForceMode) {
+          try {
+            this.setScenarioActionOnDom(action);
+          } catch (error) {
+            warn(`action override skipped: ${error.message}`);
+          }
+        } else {
+          this.setScenarioActionOnDom(action);
+        }
       }
     }
 
@@ -2595,10 +2768,27 @@ export class BattleDomAdapter {
     }
 
     const doCommit = mode === 'commit' ? turn.commit !== false : false;
+    const effectiveCommitOptions = {
+      ...commitOptions,
+      previewOptions: {
+        ...(isForceMode ? { skipSkillConditions: true } : {}),
+        ...((commitOptions.previewOptions && typeof commitOptions.previewOptions === 'object')
+          ? commitOptions.previewOptions
+          : {}),
+      },
+      forceOdOverride:
+        commitOptions.forceOdOverride !== undefined
+          ? commitOptions.forceOdOverride
+          : isForceMode,
+      forceResourceDeficit:
+        commitOptions.forceResourceDeficit !== undefined
+          ? commitOptions.forceResourceDeficit
+          : isForceMode,
+    };
     if (!doCommit) {
-      return this.previewCurrentTurn();
+      return this.previewCurrentTurn(effectiveCommitOptions.previewOptions);
     }
-    return this.commitCurrentTurn();
+    return this.commitCurrentTurn(effectiveCommitOptions);
   }
 
   stageCurrentScenarioTurn() {
@@ -2878,7 +3068,7 @@ export class BattleDomAdapter {
   }
 
   canShowInterruptOdButton() {
-    return Boolean(this.state);
+    return true;
   }
 
   renderOdControls() {
@@ -2893,7 +3083,8 @@ export class BattleDomAdapter {
         openOdButton.disabled = true;
       }
       if (openInterruptButton) {
-        openInterruptButton.hidden = true;
+        openInterruptButton.hidden = false;
+        openInterruptButton.disabled = true;
       }
       if (interruptBadge) {
         interruptBadge.textContent = '';
@@ -3120,6 +3311,7 @@ export class BattleDomAdapter {
     const currentOd = Number(this.state.turnState.odGauge ?? 0);
     const nextOd = Math.min(OD_GAUGE_MAX_PERCENT, currentOd + 15);
     this.state.turnState.odGauge = Number(nextOd.toFixed(2));
+    this.kishinkaActivatedThisTurn = true;
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
@@ -3162,16 +3354,477 @@ export class BattleDomAdapter {
     this.renderSwapSelectors();
   }
 
+  getTurnPlanRecalcModeFromDom() {
+    const select = this.root.querySelector('[data-role="turn-plan-recalc-mode"]');
+    if (select && String(select.value ?? '') === 'force') {
+      return 'force';
+    }
+    return 'strict';
+  }
+
+  renderTurnPlanEditControls() {
+    const toolbar = this.root.querySelector('[data-role="turn-plan-edit-toolbar"]');
+    const title = this.root.querySelector('[data-role="turn-plan-edit-title"]');
+    if (!toolbar) {
+      return;
+    }
+    const session = this.turnPlanEditSession;
+    if (!session) {
+      toolbar.hidden = true;
+      if (title) {
+        title.textContent = '';
+      }
+      return;
+    }
+    toolbar.hidden = false;
+    if (!title) {
+      return;
+    }
+    if (session.type === 'insert') {
+      title.textContent = `Turn ${session.targetIndex + 1} に挿入編集中`;
+      return;
+    }
+    title.textContent = `Turn ${session.targetIndex + 1} を編集中`;
+  }
+
+  renderTurnPlanRecalcStatus() {
+    const node = this.root.querySelector('[data-role="turn-plan-recalc-status"]');
+    if (!node) {
+      return;
+    }
+    const warningCount = this.turnPlanReplayWarnings.reduce(
+      (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+      0
+    );
+    if (this.turnPlanReplayError) {
+      node.textContent = `再計算: ${this.turnPlanRecalcMode} / Error@${this.turnPlanReplayError.index + 1}`;
+      return;
+    }
+    if (warningCount > 0) {
+      node.textContent = `再計算: ${this.turnPlanRecalcMode} / Warnings=${warningCount}`;
+      return;
+    }
+    node.textContent = `再計算: ${this.turnPlanRecalcMode}`;
+  }
+
+  normalizeTurnPlan(plan = {}) {
+    const actions = Array.isArray(plan.actions)
+      ? plan.actions
+        .map((action) => ({
+          characterId: String(action?.characterId ?? ''),
+          characterName: String(action?.characterName ?? ''),
+          skillId: Number(action?.skillId ?? 0),
+          targetCharacterId: String(action?.targetCharacterId ?? ''),
+        }))
+        .filter((action) => action.characterId && Number.isFinite(action.skillId))
+      : [];
+    const swaps = Array.isArray(plan.swaps)
+      ? plan.swaps
+        .map((swap) => ({
+          fromCharacterId: String(swap?.fromCharacterId ?? ''),
+          fromCharacterName: String(swap?.fromCharacterName ?? ''),
+          fromStyleId:
+            swap?.fromStyleId === undefined || swap?.fromStyleId === null
+              ? ''
+              : String(swap.fromStyleId),
+          fromStyleName: String(swap?.fromStyleName ?? ''),
+          toCharacterId: String(swap?.toCharacterId ?? ''),
+          toCharacterName: String(swap?.toCharacterName ?? ''),
+          toStyleId:
+            swap?.toStyleId === undefined || swap?.toStyleId === null ? '' : String(swap.toStyleId),
+          toStyleName: String(swap?.toStyleName ?? ''),
+        }))
+        .filter(
+          (swap) =>
+            (swap.fromCharacterId || swap.fromCharacterName || swap.fromStyleId || swap.fromStyleName) &&
+            (swap.toCharacterId || swap.toCharacterName || swap.toStyleId || swap.toStyleName)
+        )
+      : [];
+    const preemptiveOdLevel = Number(plan.preemptiveOdLevel ?? 0);
+    const interruptOdLevel = Number(plan.interruptOdLevel ?? 0);
+    return {
+      enemyAction: String(plan.enemyAction ?? ''),
+      enemyCount: Math.max(1, Math.min(3, toInt(plan.enemyCount, 1))),
+      actions,
+      swaps,
+      preemptiveOdLevel:
+        Number.isFinite(preemptiveOdLevel) && preemptiveOdLevel >= 1 && preemptiveOdLevel <= 3
+          ? preemptiveOdLevel
+          : null,
+      interruptOdLevel:
+        Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3
+          ? interruptOdLevel
+          : null,
+      kishinka: Boolean(plan.kishinka),
+      commit: true,
+    };
+  }
+
+  captureCurrentTurnPlanFromDom() {
+    if (!this.state) {
+      throw new Error('State is not initialized.');
+    }
+    this.syncEnemyStateFromDom();
+    const actionDict = this.collectActionDictFromDom();
+    const actions = Object.entries(actionDict)
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([, action]) => {
+        const member = this.state.party.find((item) => item.characterId === String(action.characterId)) ?? null;
+        return {
+          characterId: String(action.characterId),
+          characterName: String(member?.characterName ?? ''),
+          skillId: Number(action.skillId),
+          targetCharacterId: String(action.targetCharacterId ?? ''),
+        };
+      });
+    const isPreemptiveOdStep1 =
+      String(this.state.turnState.turnType ?? '') === 'od' &&
+      String(this.state.turnState.odContext ?? '') === 'preemptive' &&
+      Number(this.state.turnState.remainingOdActions ?? 0) === Number(this.state.turnState.odLevel ?? 0);
+    const preemptiveOdLevel = isPreemptiveOdStep1 ? Number(this.state.turnState.odLevel ?? 0) : null;
+    const swaps = this.pendingSwapEvents.map((event) => ({
+      fromCharacterId: String(event.outCharacterId ?? ''),
+      fromCharacterName: String(event.outCharacterName ?? ''),
+      toCharacterId: String(event.inCharacterId ?? ''),
+      toCharacterName: String(event.inCharacterName ?? ''),
+    }));
+    return this.normalizeTurnPlan({
+      enemyAction: this.root.querySelector('[data-role="enemy-action"]')?.value ?? '',
+      enemyCount: this.readEnemyCountFromDom(),
+      actions,
+      swaps,
+      preemptiveOdLevel,
+      interruptOdLevel: this.pendingInterruptOdLevel,
+      kishinka: this.kishinkaActivatedThisTurn,
+    });
+  }
+
+  toScenarioTurnFromTurnPlan(plan) {
+    const normalized = this.normalizeTurnPlan(plan);
+    const out = {
+      enemyAction: normalized.enemyAction,
+      enemyCount: normalized.enemyCount,
+      commit: true,
+    };
+    if (normalized.preemptiveOdLevel !== null) {
+      out.preemptiveOdLevel = normalized.preemptiveOdLevel;
+    }
+    if (normalized.interruptOdLevel !== null) {
+      out.interruptOdLevel = normalized.interruptOdLevel;
+    }
+    if (normalized.kishinka) {
+      out.kishinka = true;
+    }
+    if (normalized.actions.length > 0) {
+      out.actions = normalized.actions.map((action) => ({
+        characterId: action.characterId,
+        characterName: action.characterName,
+        skillId: action.skillId,
+        ...(action.targetCharacterId ? { targetCharacterId: action.targetCharacterId } : {}),
+      }));
+    }
+    if (normalized.swaps.length > 0) {
+      out.swaps = normalized.swaps.map((swap) => ({
+        fromCharacterId: swap.fromCharacterId,
+        fromCharacterName: swap.fromCharacterName,
+        fromStyleId: swap.fromStyleId,
+        fromStyleName: swap.fromStyleName,
+        toCharacterId: swap.toCharacterId,
+        toCharacterName: swap.toCharacterName,
+        toStyleId: swap.toStyleId,
+        toStyleName: swap.toStyleName,
+      }));
+    }
+    return out;
+  }
+
+  enableForceResourceDeficitMode() {
+    if (!this.state?.party) {
+      return;
+    }
+    for (const member of this.state.party) {
+      member.sp.min = FORCE_RESOURCE_MIN;
+    }
+  }
+
+  reinitializeFromTurnPlanBase({ forceMode = false } = {}) {
+    if (!this.turnPlanBaseSetup) {
+      throw new Error('TurnPlan replay base is not initialized. Please initialize battle first.');
+    }
+    const base = structuredClone(this.turnPlanBaseSetup);
+    this.setDomValue('[data-role="enemy-count"]', Number(base.enemyCount ?? 1));
+    const forceToggle = this.root.querySelector('[data-role="force-od-toggle"]');
+    if (forceToggle && typeof base.forceOdToggle === 'boolean') {
+      forceToggle.checked = Boolean(base.forceOdToggle);
+    }
+    this.initializeBattle(base.styleIds, {
+      skillSetsByPartyIndex: base.skillSetsByPartyIndex,
+      limitBreakLevelsByPartyIndex: base.limitBreakLevelsByPartyIndex,
+      drivePierceByPartyIndex: base.drivePierceByPartyIndex,
+      startSpEquipByPartyIndex: base.startSpEquipByPartyIndex,
+      initialOdGauge: Number(base.initialOdGauge ?? 0),
+      skipInitialOdRead: true,
+      preserveTurnPlans: true,
+      suppressAutoSave: true,
+      silent: true,
+    });
+    if (forceMode) {
+      this.enableForceResourceDeficitMode();
+    }
+  }
+
+  recalculateTurnPlans(options = {}) {
+    const mode = String(options.mode ?? this.getTurnPlanRecalcModeFromDom()) === 'force' ? 'force' : 'strict';
+    this.turnPlanRecalcMode = mode;
+    if (!Array.isArray(this.turnPlans) || this.turnPlans.length === 0) {
+      this.recordStore = createBattleRecordStore();
+      this.turnPlanComputedRecords = [];
+      this.turnPlanReplayError = null;
+      this.turnPlanReplayWarnings = [];
+      this.renderRecordTable();
+      this.renderTurnPlanEditControls();
+      this.setStatus('再計算対象のTurnPlanがありません。');
+      return 0;
+    }
+
+    this.isReplayingTurnPlans = true;
+    try {
+      this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
+      this.recordStore = createBattleRecordStore();
+      this.turnPlanComputedRecords = [];
+      this.turnPlanReplayError = null;
+      this.turnPlanReplayWarnings = [];
+      let applied = 0;
+      for (let i = 0; i < this.turnPlans.length; i += 1) {
+        const warnings = [];
+        this.turnPlanReplayWarnings[i] = warnings;
+        const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[i]);
+        try {
+          this.applyScenarioTurn(turn, {
+            mode: 'commit',
+            recalcMode: mode,
+            onWarning: (message) => warnings.push(String(message)),
+            commitOptions: {
+              skipTurnPlanCapture: true,
+              forceOdOverride: mode === 'force',
+              forceResourceDeficit: mode === 'force',
+              previewOptions: { skipSkillConditions: mode === 'force' },
+            },
+          });
+          applied += 1;
+        } catch (error) {
+          this.turnPlanReplayError = { index: i, message: error.message, mode };
+          if (mode === 'force') {
+            warnings.push(`force fallback: ${error.message}`);
+            try {
+              this.pendingSwapEvents = [];
+              this.pendingInterruptOdLevel = null;
+              this.preemptiveOdCheckpoint = null;
+              this.interruptOdProjection = null;
+              this.previewRecord = null;
+              this.commitCurrentTurn({
+                skipTurnPlanCapture: true,
+                forceOdOverride: true,
+                forceResourceDeficit: true,
+                previewOptions: { skipSkillConditions: true },
+              });
+              this.turnPlanReplayError = null;
+              applied += 1;
+              continue;
+            } catch (fallbackError) {
+              warnings.push(`force fallback failed: ${fallbackError.message}`);
+              this.turnPlanReplayError = { index: i, message: fallbackError.message, mode };
+            }
+          }
+          break;
+        }
+      }
+      this.turnPlanComputedRecords = [...this.recordStore.records];
+      if (this.turnPlanReplayError) {
+        const turnId = this.turnPlanReplayError.index + 1;
+        this.setStatus(`再計算停止: Turn ${turnId} / ${this.turnPlanReplayError.message}`);
+      } else {
+        const warningCount = this.turnPlanReplayWarnings.reduce(
+          (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+          0
+        );
+        this.setStatus(
+          `再計算完了: ${applied}/${this.turnPlans.length} turns (${mode}${warningCount > 0 ? ` / warnings=${warningCount}` : ''})`
+        );
+      }
+    } finally {
+      this.isReplayingTurnPlans = false;
+      this.renderActionSelectors();
+      this.renderPartyState();
+      this.renderSwapSelectors();
+      this.renderTurnStatus();
+      this.renderEnemyStatusControls();
+      this.renderKishinkaControls();
+      this.renderOdControls();
+      this.renderRecordTable();
+      this.renderTurnPlanEditControls();
+    }
+    return this.recordStore.records.length;
+  }
+
+  stageTurnPlanSession(session) {
+    const mode = this.getTurnPlanRecalcModeFromDom();
+    this.isReplayingTurnPlans = true;
+    try {
+      this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
+      for (let i = 0; i < session.sourceIndex; i += 1) {
+        const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[i]);
+        this.applyScenarioTurn(turn, {
+          mode: 'commit',
+          recalcMode: mode,
+          commitOptions: {
+            skipTurnPlanCapture: true,
+            forceOdOverride: mode === 'force',
+            forceResourceDeficit: mode === 'force',
+            previewOptions: { skipSkillConditions: mode === 'force' },
+          },
+        });
+      }
+      const sourceTurn = this.toScenarioTurnFromTurnPlan(this.turnPlans[session.sourceIndex]);
+      this.applyScenarioTurn(sourceTurn, { mode: 'stage', recalcMode: mode });
+      this.turnPlanEditSession = session;
+      this.renderTurnPlanEditControls();
+      this.renderRecordTable();
+      if (session.type === 'insert') {
+        this.setStatus(`Turn ${session.targetIndex + 1} に挿入する内容を編集中です。`);
+      } else {
+        this.setStatus(`Turn ${session.targetIndex + 1} を編集中です。`);
+      }
+    } finally {
+      this.isReplayingTurnPlans = false;
+    }
+  }
+
+  startTurnPlanEdit(turnId) {
+    const index = Number(turnId) - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= this.turnPlans.length) {
+      throw new Error(`TurnPlan not found: ${turnId}`);
+    }
+    this.stageTurnPlanSession({
+      type: 'edit',
+      sourceIndex: index,
+      targetIndex: index,
+    });
+  }
+
+  startTurnPlanInsert(turnId, direction = 'before') {
+    const index = Number(turnId) - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= this.turnPlans.length) {
+      throw new Error(`TurnPlan not found: ${turnId}`);
+    }
+    const targetIndex = direction === 'after' ? index + 1 : index;
+    this.stageTurnPlanSession({
+      type: 'insert',
+      sourceIndex: index,
+      targetIndex,
+    });
+  }
+
+  saveTurnPlanEditFromDom() {
+    const session = this.turnPlanEditSession;
+    if (!session) {
+      throw new Error('TurnPlan編集セッションがありません。');
+    }
+    const plan = this.captureCurrentTurnPlanFromDom();
+    if (session.type === 'insert') {
+      this.turnPlans.splice(session.targetIndex, 0, plan);
+    } else {
+      this.turnPlans[session.targetIndex] = plan;
+    }
+    this.turnPlanEditSession = null;
+    this.kishinkaActivatedThisTurn = false;
+    this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
+  }
+
+  cancelTurnPlanEdit() {
+    if (!this.turnPlanEditSession) {
+      return;
+    }
+    this.turnPlanEditSession = null;
+    this.kishinkaActivatedThisTurn = false;
+    this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
+  }
+
+  deleteTurnPlanRow(turnId) {
+    const index = Number(turnId) - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= this.turnPlans.length) {
+      throw new Error(`TurnPlan not found: ${turnId}`);
+    }
+    this.turnPlans.splice(index, 1);
+    this.turnPlanEditSession = null;
+    this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
+  }
+
+  moveTurnPlanRow(turnId, delta) {
+    const index = Number(turnId) - 1;
+    const nextIndex = index + Number(delta);
+    if (
+      !Number.isInteger(index) ||
+      !Number.isInteger(nextIndex) ||
+      index < 0 ||
+      nextIndex < 0 ||
+      index >= this.turnPlans.length ||
+      nextIndex >= this.turnPlans.length
+    ) {
+      return;
+    }
+    const temp = this.turnPlans[index];
+    this.turnPlans[index] = this.turnPlans[nextIndex];
+    this.turnPlans[nextIndex] = temp;
+    this.turnPlanEditSession = null;
+    this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
+  }
+
   renderRecordTable() {
     const tbody = this.root.querySelector('[data-role="record-body"]');
     if (!tbody) {
       return;
     }
+    const recalcMode = this.root.querySelector('[data-role="turn-plan-recalc-mode"]');
+    if (recalcMode) {
+      recalcMode.value = this.turnPlanRecalcMode;
+    }
+    this.renderTurnPlanRecalcStatus();
 
     tbody.innerHTML = '';
-    for (const record of this.recordStore.records) {
+    const totalRows = Math.max(this.turnPlans.length, this.recordStore.records.length);
+    for (let i = 0; i < totalRows; i += 1) {
+      const turnId = i + 1;
+      const plan = this.turnPlans[i] ?? null;
+      const record = this.recordStore.records[i] ?? null;
+      const warningList = Array.isArray(this.turnPlanReplayWarnings[i]) ? this.turnPlanReplayWarnings[i] : [];
+      const isError = Number(this.turnPlanReplayError?.index) === i;
+      const statusText = isError
+        ? `Error: ${this.turnPlanReplayError?.message ?? ''}`
+        : warningList.length > 0
+          ? `Warn(${warningList.length})`
+          : record
+            ? 'OK'
+            : '未確定';
       const tr = this.doc.createElement('tr');
-      tr.innerHTML = `<td>${record.turnId}</td><td>${record.turnLabel}</td><td>${record.turnType}</td><td>${record.actions.length}</td>`;
+      if (this.turnPlanEditSession && this.turnPlanEditSession.targetIndex === i) {
+        tr.setAttribute('data-editing', 'true');
+      }
+      const actionCount = record ? Number(record.actions?.length ?? 0) : Number(plan?.actions?.length ?? 0);
+      tr.innerHTML =
+        `<td>${turnId}</td>` +
+        `<td>${record?.turnLabel ?? '未確定'}</td>` +
+        `<td>${record?.turnType ?? '-'}</td>` +
+        `<td>${actionCount}</td>` +
+        `<td>${statusText}</td>` +
+        `<td>` +
+        `<button type="button" data-action="turn-plan-edit-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>編集</button>` +
+        `<button type="button" data-action="turn-plan-insert-before-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+前</button>` +
+        `<button type="button" data-action="turn-plan-insert-after-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+後</button>` +
+        `<button type="button" data-action="turn-plan-delete-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>削除</button>` +
+        `<button type="button" data-action="turn-plan-move-up-row" data-turn-id="${turnId}" ${i <= 0 || !plan ? 'disabled' : ''}>↑</button>` +
+        `<button type="button" data-action="turn-plan-move-down-row" data-turn-id="${turnId}" ${i >= this.turnPlans.length - 1 || !plan ? 'disabled' : ''}>↓</button>` +
+        `</td>`;
       tbody.appendChild(tr);
     }
   }

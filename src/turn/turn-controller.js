@@ -1265,10 +1265,11 @@ function deriveGrantedExtraTurnCharacterIds(state, previewRecord) {
   return [...granted];
 }
 
-function validateActionDict(state, actions) {
+function validateActionDict(state, actions, options = {}) {
   if (!actions || typeof actions !== 'object' || Array.isArray(actions)) {
     throw new Error('actions must be an object keyed by position index.');
   }
+  const skipSkillConditions = Boolean(options.skipSkillConditions);
 
   const allowedInExtra = getExtraAllowedSet(state.turnState);
   const entries = Object.entries(actions).map(([positionKey, action]) => {
@@ -1300,20 +1301,22 @@ function validateActionDict(state, actions) {
       throw new Error(`Skill ${skill.skillId} is not usable in extra turn.`);
     }
 
-    const skillConditions = [
-      { label: 'cond', expression: skill.cond },
-      { label: 'iuc_cond', expression: skill.iucCond },
-    ];
-    for (const condition of skillConditions) {
-      const expr = String(condition.expression ?? '').trim();
-      if (!expr) {
-        continue;
-      }
-      const evaluated = evaluateConditionExpression(expr, state, member, skill, action);
-      if (evaluated.knownCount > 0 && !evaluated.result) {
-        throw new Error(
-          `Skill ${skill.skillId} cannot be used because ${condition.label} is not satisfied.`
-        );
+    if (!skipSkillConditions) {
+      const skillConditions = [
+        { label: 'cond', expression: skill.cond },
+        { label: 'iuc_cond', expression: skill.iucCond },
+      ];
+      for (const condition of skillConditions) {
+        const expr = String(condition.expression ?? '').trim();
+        if (!expr) {
+          continue;
+        }
+        const evaluated = evaluateConditionExpression(expr, state, member, skill, action);
+        if (evaluated.knownCount > 0 && !evaluated.result) {
+          throw new Error(
+            `Skill ${skill.skillId} cannot be used because ${condition.label} is not satisfied.`
+          );
+        }
       }
     }
 
@@ -1810,8 +1813,8 @@ export function createBattleStateFromParty(party, turnState) {
   return next;
 }
 
-export function previewTurn(state, actions, enemyAction = null, enemyCount = 1) {
-  const sortedActions = validateActionDict(state, actions);
+export function previewTurn(state, actions, enemyAction = null, enemyCount = 1, options = {}) {
+  const sortedActions = validateActionDict(state, actions, options);
   const actionEntries = previewActionEntries(state, sortedActions);
   const snapBefore = snapshotPartyByPartyIndex(state.party);
 
@@ -1852,6 +1855,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const shouldActivateInterruptOd =
     Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3;
   const forceOdActivation = Boolean(options.forceOdActivation ?? false);
+  const forceResourceDeficit = Boolean(options.forceResourceDeficit ?? false);
 
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
@@ -1961,6 +1965,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   if (shouldActivateInterruptOd) {
     nextState = activateOverdrive(nextState, interruptOdLevel, 'interrupt', {
       forceActivation: forceOdActivation,
+      forceConsumeGauge: forceResourceDeficit,
     });
   }
 
@@ -1977,6 +1982,7 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
   }
   const requiredGauge = Number(OD_COST_BY_LEVEL[numericLevel] ?? 0);
   const forceActivation = Boolean(options.forceActivation ?? false);
+  const forceConsumeGauge = Boolean(options.forceConsumeGauge ?? false);
   const currentGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
   if (!forceActivation && currentGauge < requiredGauge) {
     throw new Error(
@@ -1985,7 +1991,9 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
   }
 
   const nextGauge = forceActivation
-    ? currentGauge
+    ? forceConsumeGauge
+      ? truncateToTwoDecimals(currentGauge - requiredGauge)
+      : currentGauge
     : truncateToTwoDecimals(currentGauge - requiredGauge);
 
   const nextTurnState = {

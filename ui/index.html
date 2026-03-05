@@ -137,7 +137,7 @@
       <div class="row">
         <button data-action="preview" type="button">Preview Turn</button>
         <button data-action="commit" type="button">Commit Turn</button>
-        <button data-action="open-interrupt-od" type="button" hidden>割込OD</button>
+        <button data-action="open-interrupt-od" type="button">割込OD</button>
         <span data-role="interrupt-od-badge"></span>
         <span data-role="interrupt-od-projection" hidden></span>
       </div>
@@ -199,10 +199,23 @@
       <h2>Records</h2>
       <div class="row">
         <button data-action="clear-records" type="button">Clear Records</button>
+        <label>再計算モード
+          <select data-role="turn-plan-recalc-mode">
+            <option value="strict">Strict (途中停止)</option>
+            <option value="force">Force (強引継続)</option>
+          </select>
+        </label>
+        <button data-action="turn-plan-recalc" type="button">全ターン再計算</button>
+        <span data-role="turn-plan-recalc-status"></span>
+      </div>
+      <div class="row" data-role="turn-plan-edit-toolbar" hidden>
+        <strong data-role="turn-plan-edit-title"></strong>
+        <button data-action="turn-plan-edit-save" type="button">この内容で保存</button>
+        <button data-action="turn-plan-edit-cancel" type="button">編集キャンセル</button>
       </div>
       <table>
         <thead>
-          <tr><th>turnId</th><th>turnLabel</th><th>turnType</th><th>actions</th></tr>
+          <tr><th>turnId</th><th>turnLabel</th><th>turnType</th><th>actions</th><th>status</th><th>ops</th></tr>
         </thead>
         <tbody data-role="record-body"></tbody>
       </table>

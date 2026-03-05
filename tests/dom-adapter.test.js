@@ -30,7 +30,7 @@ function createRoot() {
       <button data-action="swap"></button>
       <button data-action="preview"></button>
       <button data-action="commit"></button>
-      <button data-action="open-interrupt-od" hidden></button>
+      <button data-action="open-interrupt-od"></button>
       <span data-role="interrupt-od-badge"></span>
       <span data-role="interrupt-od-projection"></span>
       <button data-action="open-od"></button>
@@ -48,6 +48,14 @@ function createRoot() {
         <button data-action="interrupt-od-cancel"></button>
       </div>
       <button data-action="clear-records"></button>
+      <select data-role="turn-plan-recalc-mode"><option value="strict">strict</option><option value="force">force</option></select>
+      <button data-action="turn-plan-recalc"></button>
+      <span data-role="turn-plan-recalc-status"></span>
+      <div data-role="turn-plan-edit-toolbar" hidden>
+        <span data-role="turn-plan-edit-title"></span>
+        <button data-action="turn-plan-edit-save"></button>
+        <button data-action="turn-plan-edit-cancel"></button>
+      </div>
       <button data-action="export-csv"></button>
       <textarea data-role="scenario-json"></textarea>
       <button data-action="scenario-load"></button>
@@ -564,6 +572,20 @@ test('interrupt OD dialog is hidden when projection state is missing', () => {
   assert.equal(openButton.hidden, false);
 });
 
+test('interrupt OD button stays visible and disabled when state is missing', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state = null;
+  adapter.renderOdControls();
+
+  const openButton = root.querySelector('[data-action="open-interrupt-od"]');
+  assert.equal(openButton.hidden, false);
+  assert.equal(openButton.disabled, true);
+});
+
 test('interrupt OD button is shown in extra turn', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -973,6 +995,137 @@ test('dom adapter applies swap immediately and keeps swap event for commit recor
   assert.equal(adapter.pendingSwapEvents.length, 0);
   assert.equal(adapter.recordStore.records.length, 1);
   assert.equal(committed.swapEvents.length, 1);
+});
+
+test('turn plan strict recalculation stops at first invalid edited row', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.turnPlans.length, 1);
+
+  adapter.turnPlans[0] = {
+    ...adapter.turnPlans[0],
+    actions: [
+      {
+        ...adapter.turnPlans[0].actions[0],
+        skillId: 99999999,
+      },
+    ],
+  };
+  adapter.recalculateTurnPlans({ mode: 'strict' });
+
+  assert.equal(Number(adapter.turnPlanReplayError?.index), 0);
+  assert.equal(adapter.recordStore.records.length, 0);
+});
+
+test('turn plan force recalculation allows OD gauge deficit and continues', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.turnPlans.length, 1);
+
+  adapter.turnPlans[0] = {
+    ...adapter.turnPlans[0],
+    preemptiveOdLevel: 3,
+  };
+  adapter.recalculateTurnPlans({ mode: 'force' });
+
+  assert.equal(adapter.turnPlanReplayError, null);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(Number(adapter.state.turnState.odGauge) < 0, true);
+});
+
+test('turn plan replay resolves swaps by character reference', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.queueSwap(0, 3);
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.turnPlans.length, 1);
+  assert.equal(adapter.turnPlans[0].swaps.length, 1);
+  assert.equal(String(adapter.turnPlans[0].swaps[0].fromCharacterId).length > 0, true);
+
+  adapter.recalculateTurnPlans({ mode: 'strict' });
+
+  assert.equal(adapter.turnPlanReplayError, null);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(Number(adapter.recordStore.records[0].swapEvents?.length ?? 0), 1);
+});
+
+test('turn plan replay resolves swaps by style reference', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.queueSwap(0, 3);
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.turnPlans.length, 1);
+
+  const swapPlan = adapter.turnPlans[0].swaps[0];
+  const fromMember = adapter.state.party.find((member) => member.characterId === swapPlan.fromCharacterId);
+  const toMember = adapter.state.party.find((member) => member.characterId === swapPlan.toCharacterId);
+  if (!fromMember || !toMember) {
+    return;
+  }
+  adapter.turnPlans[0].swaps = [
+    {
+      fromStyleId: String(fromMember.styleId),
+      toStyleId: String(toMember.styleId),
+    },
+  ];
+
+  adapter.recalculateTurnPlans({ mode: 'strict' });
+
+  assert.equal(adapter.turnPlanReplayError, null);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(Number(adapter.recordStore.records[0].swapEvents?.length ?? 0), 1);
+});
+
+test('turn plan force recalculation allows SP deficit', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 0 });
+  adapter.mount();
+
+  const actor = adapter.party.getFrontline()[0];
+  const expensiveSkill =
+    actor
+      .getActionSkills()
+      .filter((skill) => Number(skill.spCost ?? 0) >= 5)
+      .sort((a, b) => Number(b.spCost ?? 0) - Number(a.spCost ?? 0))[0] ?? null;
+  if (!expensiveSkill) {
+    return;
+  }
+  const actorPosition = Number(actor.position);
+
+  for (let i = 0; i < 2; i += 1) {
+    const actionSelect = root.querySelector(`[data-action-slot="${actorPosition}"]`);
+    if (actionSelect) {
+      actionSelect.value = String(expensiveSkill.skillId);
+    }
+    adapter.previewCurrentTurn();
+    adapter.commitCurrentTurn();
+  }
+  assert.equal(adapter.turnPlans.length, 2);
+
+  adapter.recalculateTurnPlans({ mode: 'force' });
+
+  const replayActor = adapter.state.party.find((member) => member.characterId === actor.characterId);
+  assert.ok(replayActor);
+  assert.equal(Number(replayActor.sp.current) < 0, true);
 });
 
 test('action selection is preserved after commit for each position', () => {
