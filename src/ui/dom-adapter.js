@@ -1949,6 +1949,13 @@ export class BattleDomAdapter {
       this.scenarioCursor += 1;
       this.scenarioStagedTurnIndex = null;
     }
+    if (shouldCaptureTurnPlan && capturedTurnPlan) {
+      this.turnPlans.push(capturedTurnPlan);
+      this.turnPlanComputedRecords = [...this.recordStore.records];
+      this.turnPlanReplayError = null;
+      this.turnPlanReplayWarnings = [];
+      this.turnPlanEditSession = null;
+    }
 
     this.renderActionSelectors();
     this.renderPartyState();
@@ -1961,11 +1968,6 @@ export class BattleDomAdapter {
     this.renderOdControls();
     this.renderScenarioStatus();
     if (shouldCaptureTurnPlan && capturedTurnPlan) {
-      this.turnPlans.push(capturedTurnPlan);
-      this.turnPlanComputedRecords = [...this.recordStore.records];
-      this.turnPlanReplayError = null;
-      this.turnPlanReplayWarnings = [];
-      this.turnPlanEditSession = null;
       this.renderTurnPlanEditControls();
     }
     this.setStatus('Turn committed.');

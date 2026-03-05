@@ -1079,6 +1079,31 @@ test('records table supports simple mode toggle and keeps priority columns left 
   assert.equal(simpleRow.children[2].textContent, String(adapter.recordStore.records[0]?.turnLabel ?? ''));
 });
 
+test('record ops for latest committed row is enabled immediately', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+
+  const firstRowEdit = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]'
+  );
+  assert.ok(firstRowEdit);
+  assert.equal(firstRowEdit.disabled, false);
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+
+  const secondRowEdit = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(2) [data-action="turn-plan-edit-row"]'
+  );
+  assert.ok(secondRowEdit);
+  assert.equal(secondRowEdit.disabled, false);
+});
+
 test('turn plan strict recalculation stops at first invalid edited row', () => {
   const store = getStore();
   const { root } = createRoot();
