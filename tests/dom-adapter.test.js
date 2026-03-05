@@ -1104,6 +1104,87 @@ test('record ops for latest committed row is enabled immediately', () => {
   assert.equal(secondRowEdit.disabled, false);
 });
 
+test('records boundary sequence keeps ui and internal state in sync', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const getRows = () => [...root.querySelectorAll('[data-role="record-body"] tr')];
+  const getEditButton = (rowNumber) =>
+    root.querySelector(
+      `[data-role="record-body"] tr:nth-child(${rowNumber}) [data-action="turn-plan-edit-row"]`
+    );
+  const assertCounts = (expected) => {
+    assert.equal(adapter.recordStore.records.length, expected, 'recordStore length mismatch');
+    assert.equal(adapter.turnPlans.length, expected, 'turnPlans length mismatch');
+    assert.equal(getRows().length, expected, 'table rows mismatch');
+  };
+
+  assertCounts(0);
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assertCounts(1);
+  assert.equal(getEditButton(1)?.disabled, false, 'first row should be editable after first commit');
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assertCounts(2);
+  assert.equal(getEditButton(2)?.disabled, false, 'latest row should be editable after second commit');
+
+  const deleteFirst = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-delete-row"]'
+  );
+  assert.ok(deleteFirst, 'delete button should exist for first row');
+  deleteFirst.click();
+  assertCounts(1);
+  assert.equal(getEditButton(1)?.disabled, false, 'remaining row should stay editable after delete');
+
+  root.querySelector('[data-action="clear-records"]').click();
+  assertCounts(0);
+  assert.equal(root.querySelector('[data-role="status"]').textContent, 'Records cleared.');
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assertCounts(1);
+  assert.equal(getEditButton(1)?.disabled, false, 'row should be editable after re-creating first record');
+});
+
+test('scenario first run creates editable first records row', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const front = adapter.party.getFrontline();
+  const scenario = {
+    version: 1,
+    setup: { enemyCount: 1, initialOdGauge: 0, enemyStatuses: [] },
+    turns: [
+      {
+        actions: [
+          { position: front[0].position + 1, skillId: front[0].getActionSkills()[0].skillId },
+        ],
+      },
+    ],
+  };
+
+  root.querySelector('[data-role="scenario-json"]').value = JSON.stringify(scenario);
+  adapter.loadScenarioFromDom();
+  adapter.applyLoadedScenarioSetup();
+  adapter.runNextScenarioTurn();
+
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(adapter.turnPlans.length, 1);
+  assert.equal(root.querySelectorAll('[data-role="record-body"] tr').length, 1);
+  const editButton = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]'
+  );
+  assert.ok(editButton);
+  assert.equal(editButton.disabled, false);
+});
+
 test('turn plan strict recalculation stops at first invalid edited row', () => {
   const store = getStore();
   const { root } = createRoot();

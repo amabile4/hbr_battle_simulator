@@ -49,6 +49,24 @@ test.describe('HBR Battle Simulator Adapter Demo Core Features', () => {
         await expect(turnIdCell).toHaveText('1');
     });
 
+    test('First Commit Enables Ops Button Test', async ({ page }) => {
+        await page.goto(PAGE_URL);
+        await page.waitForTimeout(3000);
+
+        await page.locator('button[data-action="initialize"]').click();
+        await expect(page.locator('[data-role="status"]')).toHaveText(/Battle initialized/);
+
+        await page.locator('button[data-action="commit"]').click();
+
+        const recordRows = page.locator('tbody[data-role="record-body"] tr');
+        await expect(recordRows).toHaveCount(1);
+
+        const editButton = page.locator(
+            'tbody[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]'
+        );
+        await expect(editButton).toBeEnabled();
+    });
+
     test('Character Swap Test', async ({ page }) => {
         await page.goto(PAGE_URL);
         await page.waitForTimeout(3000);

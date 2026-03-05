@@ -116,6 +116,55 @@ test('interrupt OD advances to next base turn after OD sequence ends', () => {
   assert.equal(state.turnState.turnLabel, 'T2');
 });
 
+test('normal/od/extra boundary transitions keep expected turn labels and indices', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  const firstCharacterId = party.getByPosition(0).characterId;
+
+  let state = createBattleStateFromParty(party);
+  assert.equal(state.turnState.turnType, 'normal');
+  assert.equal(state.turnState.turnLabel, 'T1');
+  assert.equal(state.turnState.turnIndex, 1);
+  assert.equal(state.turnState.sequenceId, 1);
+
+  let preview = previewTurn(state, buildActionDict(party));
+  state = commitTurn(state, preview).nextState;
+  assert.equal(state.turnState.turnType, 'normal');
+  assert.equal(state.turnState.turnLabel, 'T2');
+  assert.equal(state.turnState.turnIndex, 2);
+  assert.equal(state.turnState.sequenceId, 2);
+
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+  assert.equal(state.turnState.turnType, 'od');
+  assert.equal(state.turnState.turnLabel, 'OD1-1');
+  assert.equal(state.turnState.turnIndex, 2, 'preemptive OD should keep base turn index');
+  assert.equal(state.turnState.sequenceId, 2, 'OD activation itself should not advance sequence');
+
+  preview = previewTurn(state, buildActionDict(party));
+  state = commitTurn(state, preview).nextState;
+  assert.equal(state.turnState.turnType, 'normal');
+  assert.equal(state.turnState.turnLabel, 'T2');
+  assert.equal(state.turnState.turnIndex, 2, 'OD1 end should return to same base turn context');
+  assert.equal(state.turnState.sequenceId, 3);
+
+  state = grantExtraTurn(state, [firstCharacterId]);
+  assert.equal(state.turnState.turnType, 'extra');
+  assert.equal(state.turnState.turnLabel, 'EX');
+  assert.equal(state.turnState.turnIndex, 2, 'granting extra turn should not advance base turn');
+  assert.equal(state.turnState.sequenceId, 3);
+
+  preview = previewTurn(state, {
+    0: { characterId: firstCharacterId, skillId: party.getByPosition(0).skills[0].skillId },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(state.turnState.turnType, 'normal');
+  assert.equal(state.turnState.turnLabel, 'T3');
+  assert.equal(state.turnState.turnIndex, 3);
+  assert.equal(state.turnState.sequenceId, 4);
+});
+
 function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
