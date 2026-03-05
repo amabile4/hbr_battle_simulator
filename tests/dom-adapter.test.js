@@ -58,6 +58,7 @@ function createRoot() {
         <button data-action="turn-plan-edit-cancel"></button>
       </div>
       <button data-action="export-csv"></button>
+      <button data-action="export-records-json"></button>
       <textarea data-role="scenario-json"></textarea>
       <button data-action="scenario-load"></button>
       <button data-action="scenario-apply-setup"></button>
@@ -74,6 +75,7 @@ function createRoot() {
         <tbody data-role="record-body"></tbody>
       </table>
       <textarea data-role="csv-output"></textarea>
+      <textarea data-role="records-json-output"></textarea>
     </div>
   </body>`, { url: 'https://example.test/' });
 
@@ -117,6 +119,52 @@ test('dom adapter initializes, previews, commits, and exports csv', () => {
   const csv = adapter.exportCsv();
   assert.ok(csv.includes('seq,turn,od_turn,od_context,ex,od,transcendence,enemyAction'));
   assert.ok(csv.includes(',1,,'));
+});
+
+test('dom adapter exports records json and triggers file download flow', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  const originalCreateObjectURL = win.URL.createObjectURL;
+  const originalRevokeObjectURL = win.URL.revokeObjectURL;
+  const originalAnchorClick = win.HTMLAnchorElement.prototype.click;
+  const createObjectCalls = [];
+  const revokedUrls = [];
+  let clickedHref = '';
+  let clickedDownload = '';
+
+  win.URL.createObjectURL = (blob) => {
+    createObjectCalls.push(blob);
+    return 'blob:records-json-test';
+  };
+  win.URL.revokeObjectURL = (url) => {
+    revokedUrls.push(url);
+  };
+  win.HTMLAnchorElement.prototype.click = function clickOverride() {
+    clickedHref = this.getAttribute('href') ?? this.href;
+    clickedDownload = this.getAttribute('download') ?? this.download;
+  };
+
+  try {
+    adapter.mount();
+    adapter.previewCurrentTurn();
+    adapter.commitCurrentTurn();
+    const json = adapter.exportRecordsJson();
+
+    const parsed = JSON.parse(json);
+    assert.equal(parsed.schemaVersion, 1);
+    assert.equal(parsed.recordStore.records.length, 1);
+    assert.equal(root.querySelector('[data-role="records-json-output"]').value, json);
+    assert.equal(createObjectCalls.length, 1);
+    assert.equal(clickedHref.includes('blob:records-json-test'), true);
+    assert.equal(clickedDownload.startsWith('records_'), true);
+    assert.equal(clickedDownload.endsWith('.json'), true);
+    assert.deepEqual(revokedUrls, ['blob:records-json-test']);
+  } finally {
+    win.URL.createObjectURL = originalCreateObjectURL;
+    win.URL.revokeObjectURL = originalRevokeObjectURL;
+    win.HTMLAnchorElement.prototype.click = originalAnchorClick;
+  }
 });
 
 test('enemy count in turn controls is reflected in preview record', () => {

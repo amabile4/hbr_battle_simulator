@@ -18,7 +18,7 @@ export {
   BASE_SP_RECOVERY,
 } from './turn/turn-controller.js';
 export { fromSnapshot, commitRecord, buildTurnContext } from './records/record-assembler.js';
-export { createBattleRecordStore, RecordEditor, CsvExporter } from './records/record-store.js';
+export { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from './records/record-store.js';
 export { BattleDomAdapter } from './ui/dom-adapter.js';
 export { validateDocument, validateBySchema } from './data/schema-validator.js';
 export { HbrDataStore } from './data/hbr-data-store.js';

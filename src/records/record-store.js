@@ -1,5 +1,6 @@
 import { upsertRecord, deleteRecord, insertBefore, reindexTurnLabels } from './record-editor.js';
 import { exportToCSV, recordToRow } from './csv-exporter.js';
+import { exportToJSON, buildRecordExportPayload } from './json-exporter.js';
 
 export function createBattleRecordStore() {
   return {
@@ -18,4 +19,9 @@ export const RecordEditor = Object.freeze({
 export const CsvExporter = Object.freeze({
   exportToCSV,
   recordToRow,
+});
+
+export const JsonExporter = Object.freeze({
+  exportToJSON,
+  buildRecordExportPayload,
 });

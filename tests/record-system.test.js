@@ -5,6 +5,7 @@ import {
   createBattleStateFromParty,
   CharacterStyle,
   CsvExporter,
+  JsonExporter,
   Party,
   previewTurn,
   commitTurn,
@@ -86,6 +87,32 @@ test('csv exporter outputs stable character columns by initial party index', () 
   const firstDataRow = rows[1]?.split(',') ?? [];
   const positionCol = header.indexOf(`${firstName}_position`);
   assert.equal(Number(firstDataRow[positionCol]) >= 1, true, 'position should be 1-based in CSV');
+});
+
+test('json exporter writes all record store fields for file save payload', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, buildFrontActionDict(party));
+  const { committedRecord } = commitTurn(state, preview);
+
+  let battleStore = createBattleRecordStore();
+  battleStore = RecordEditor.upsertRecord(battleStore, committedRecord);
+  const exportedAt = '2026-03-06T00:00:00.000Z';
+  const payload = JSON.parse(JsonExporter.exportToJSON(battleStore, { exportedAt }));
+
+  assert.equal(payload.schemaVersion, 1);
+  assert.equal(payload.exportedAt, exportedAt);
+  assert.equal(payload.recordStore.nextSequenceId, battleStore.nextSequenceId);
+  assert.equal(Array.isArray(payload.recordStore.records), true);
+  assert.equal(payload.recordStore.records.length, 1);
+  assert.equal(payload.recordStore.records[0].turnId, committedRecord.turnId);
+  assert.equal(payload.recordStore.records[0].actions.length, committedRecord.actions.length);
+  assert.equal(payload.recordStore.records[0].actions[0].skillId, committedRecord.actions[0].skillId);
+  assert.equal(payload.recordStore.records[0].actions[0].spChanges[0].eventCeiling, 'Infinity');
+  assert.deepEqual(payload.recordStore.records[0].swapEvents, committedRecord.swapEvents);
 });
 
 test('csv action cell renders hit as base+funnel when funnel bonus exists', () => {

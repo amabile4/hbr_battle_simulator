@@ -5,7 +5,7 @@ import {
   activateOverdrive,
   resolveEffectiveSkillForAction,
 } from '../turn/turn-controller.js';
-import { createBattleRecordStore, RecordEditor, CsvExporter } from '../records/record-store.js';
+import { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from '../records/record-store.js';
 import { createInitialTurnState, buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
 
 function toInt(value, fallback = 0) {
@@ -397,6 +397,9 @@ export class BattleDomAdapter {
     this.root.querySelector('[data-action="export-csv"]')?.addEventListener('click', () => {
       this.runSafely(() => this.exportCsv());
     });
+    this.root.querySelector('[data-action="export-records-json"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.exportRecordsJson());
+    });
     this.root.querySelector('[data-action="enemy-status-apply"]')?.addEventListener('click', () => {
       this.runSafely(() => this.applyEnemyStatusFromDom());
     });
@@ -413,6 +416,7 @@ export class BattleDomAdapter {
       this.turnPlanEditSession = null;
       this.renderRecordTable();
       this.renderTurnPlanEditControls();
+      this.writeRecordsJsonOutput('');
       this.setStatus('Records cleared.');
     });
     this.root.querySelector('[data-action="turn-plan-recalc"]')?.addEventListener('click', () => {
@@ -1460,6 +1464,7 @@ export class BattleDomAdapter {
     this.renderTurnPlanEditControls();
     this.writePreviewOutput('');
     this.writeCsvOutput('');
+    this.writeRecordsJsonOutput('');
     this.renderOdControls();
     this.renderScenarioStatus();
     if (!options.suppressAutoSave) {
@@ -1979,6 +1984,50 @@ export class BattleDomAdapter {
     return csv;
   }
 
+  exportRecordsJson() {
+    const json = JsonExporter.exportToJSON(this.recordStore);
+    this.writeRecordsJsonOutput(json);
+    const saved = this.saveRecordsJsonFile(json);
+    this.setStatus(saved ? 'Records JSON saved.' : 'Records JSON exported.');
+    return json;
+  }
+
+  saveRecordsJsonFile(text) {
+    const view = this.doc?.defaultView ?? globalThis;
+    const BlobCtor = view?.Blob ?? globalThis.Blob;
+    const urlApi = view?.URL ?? globalThis.URL;
+
+    if (
+      !BlobCtor ||
+      !urlApi ||
+      typeof urlApi.createObjectURL !== 'function' ||
+      typeof this.doc?.createElement !== 'function'
+    ) {
+      return false;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `records_${timestamp}.json`;
+    const blob = new BlobCtor([text], { type: 'application/json' });
+    const objectUrl = urlApi.createObjectURL(blob);
+    const link = this.doc.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    link.style.display = 'none';
+    this.doc.body?.appendChild(link);
+
+    try {
+      link.click();
+    } finally {
+      link.remove();
+      if (typeof urlApi.revokeObjectURL === 'function') {
+        urlApi.revokeObjectURL(objectUrl);
+      }
+    }
+
+    return true;
+  }
+
   writePreviewOutput(text) {
     const output = this.root.querySelector('[data-role="preview-output"]');
     if (output) {
@@ -1988,6 +2037,17 @@ export class BattleDomAdapter {
 
   writeCsvOutput(text) {
     const output = this.root.querySelector('[data-role="csv-output"]');
+    if (output) {
+      if ('value' in output) {
+        output.value = text;
+      } else {
+        output.textContent = text;
+      }
+    }
+  }
+
+  writeRecordsJsonOutput(text) {
+    const output = this.root.querySelector('[data-role="records-json-output"]');
     if (output) {
       if ('value' in output) {
         output.value = text;
