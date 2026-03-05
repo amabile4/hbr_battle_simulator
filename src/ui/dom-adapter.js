@@ -276,6 +276,7 @@ export class BattleDomAdapter {
     this.turnPlanEditSession = null;
     this.turnPlanBaseSetup = null;
     this.turnPlanRecalcMode = 'strict';
+    this.recordsSimpleMode = false;
     this.isReplayingTurnPlans = false;
     this.scenario = null;
     this.scenarioCursor = 0;
@@ -482,6 +483,11 @@ export class BattleDomAdapter {
 
       if (target.matches('[data-role="turn-plan-recalc-mode"]')) {
         this.turnPlanRecalcMode = String(target.value || 'strict') === 'force' ? 'force' : 'strict';
+        this.renderRecordTable();
+      }
+
+      if (target.matches('[data-role="records-simple-toggle"]')) {
+        this.recordsSimpleMode = Boolean(target.checked);
         this.renderRecordTable();
       }
 
@@ -3943,6 +3949,58 @@ export class BattleDomAdapter {
     ];
   }
 
+  getRecordColumns(simpleMode = false) {
+    const priority = [
+      { key: 'turnId', label: 'turnId' },
+      { key: 'ops', label: 'ops' },
+      { key: 'turnLabel', label: 'turnLabel' },
+      { key: 'odGaugeStart', label: 'odGaugeStart' },
+      { key: 'frontPos1Char', label: '前衛POS1キャラ' },
+      { key: 'frontPos1Skill', label: '前衛POS1スキル' },
+      { key: 'frontPos2Char', label: '前衛POS2キャラ' },
+      { key: 'frontPos2Skill', label: '前衛POS2スキル' },
+      { key: 'frontPos3Char', label: '前衛POS3キャラ' },
+      { key: 'frontPos3Skill', label: '前衛POS3スキル' },
+    ];
+    if (simpleMode) {
+      return priority;
+    }
+    return [
+      ...priority,
+      { key: 'status', label: 'status' },
+      { key: 'turnType', label: 'turnType' },
+      { key: 'turnIndex', label: 'turnIndex' },
+      { key: 'recordStatus', label: 'recordStatus' },
+      { key: 'odTurnStart', label: 'odTurnStart' },
+      { key: 'odContext', label: 'odContext' },
+      { key: 'isExtraTurn', label: 'isExtraTurn' },
+      { key: 'remainingOD', label: 'remainingOD' },
+      { key: 'enemyCount', label: 'enemyCount' },
+      { key: 'enemyAction', label: 'enemyAction' },
+      { key: 'enemyStatus', label: 'enemyStatus' },
+      { key: 'transcendence', label: 'transcendence' },
+      { key: 'actions', label: 'actions' },
+      { key: 'swapEvents', label: 'swapEvents' },
+      { key: 'snapBefore', label: 'snapBefore' },
+      { key: 'snapAfter', label: 'snapAfter' },
+      { key: 'effectSnapshots', label: 'effectSnapshots' },
+      { key: 'createdAt', label: 'createdAt' },
+      { key: 'committedAt', label: 'committedAt' },
+    ];
+  }
+
+  createRecordOpsCell(turnId, plan, rowIndex) {
+    const ops = this.doc.createElement('td');
+    ops.innerHTML =
+      `<button type="button" data-action="turn-plan-edit-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>編集</button>` +
+      `<button type="button" data-action="turn-plan-insert-before-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+前</button>` +
+      `<button type="button" data-action="turn-plan-insert-after-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+後</button>` +
+      `<button type="button" data-action="turn-plan-delete-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>削除</button>` +
+      `<button type="button" data-action="turn-plan-move-up-row" data-turn-id="${turnId}" ${rowIndex <= 0 || !plan ? 'disabled' : ''}>↑</button>` +
+      `<button type="button" data-action="turn-plan-move-down-row" data-turn-id="${turnId}" ${rowIndex >= this.turnPlans.length - 1 || !plan ? 'disabled' : ''}>↓</button>`;
+    return ops;
+  }
+
   renderRecordTable() {
     const tbody = this.root.querySelector('[data-role="record-body"]');
     if (!tbody) {
@@ -3952,39 +4010,14 @@ export class BattleDomAdapter {
     if (recalcMode) {
       recalcMode.value = this.turnPlanRecalcMode;
     }
+    const simpleToggle = this.root.querySelector('[data-role="records-simple-toggle"]');
+    if (simpleToggle) {
+      this.recordsSimpleMode = Boolean(simpleToggle.checked);
+    }
     this.renderTurnPlanRecalcStatus();
 
-    const headerLabels = [
-      'turnId',
-      'turnLabel',
-      'turnType',
-      'turnIndex',
-      'recordStatus',
-      'odTurnStart',
-      'odContext',
-      'isExtraTurn',
-      'remainingOD',
-      'odGaugeStart',
-      'enemyCount',
-      'enemyAction',
-      'enemyStatus',
-      'transcendence',
-      '前衛POS1キャラ',
-      '前衛POS1スキル',
-      '前衛POS2キャラ',
-      '前衛POS2スキル',
-      '前衛POS3キャラ',
-      '前衛POS3スキル',
-      'actions',
-      'swapEvents',
-      'snapBefore',
-      'snapAfter',
-      'effectSnapshots',
-      'createdAt',
-      'committedAt',
-      'status',
-      'ops',
-    ];
+    const columns = this.getRecordColumns(this.recordsSimpleMode);
+    const headerLabels = columns.map((column) => column.label);
     const headRow = this.root.querySelector('[data-role="record-head"]');
     if (headRow) {
       headRow.innerHTML = headerLabels.map((label) => `<th>${label}</th>`).join('');
@@ -4035,8 +4068,8 @@ export class BattleDomAdapter {
       const createdAt = this.serializeRecordField(record?.createdAt, '-');
       const committedAt = this.serializeRecordField(record?.committedAt, '-');
 
-      const cells = [
-        String(turnId),
+      const valueMap = {
+        turnId: String(turnId),
         turnLabel,
         turnType,
         turnIndex,
@@ -4044,13 +4077,18 @@ export class BattleDomAdapter {
         odTurnStart,
         odContext,
         isExtraTurn,
-        remainingOd,
+        remainingOD: remainingOd,
         odGaugeStart,
         enemyCount,
         enemyAction,
         enemyStatus,
         transcendence,
-        ...frontlineColumns,
+        frontPos1Char: frontlineColumns[0],
+        frontPos1Skill: frontlineColumns[1],
+        frontPos2Char: frontlineColumns[2],
+        frontPos2Skill: frontlineColumns[3],
+        frontPos3Char: frontlineColumns[4],
+        frontPos3Skill: frontlineColumns[5],
         actions,
         swapEvents,
         snapBefore,
@@ -4058,23 +4096,17 @@ export class BattleDomAdapter {
         effectSnapshots,
         createdAt,
         committedAt,
-        statusText,
-      ];
-      for (const cell of cells) {
+        status: statusText,
+      };
+      for (const column of columns) {
+        if (column.key === 'ops') {
+          tr.appendChild(this.createRecordOpsCell(turnId, plan, i));
+          continue;
+        }
         const td = this.doc.createElement('td');
-        td.textContent = String(cell ?? '');
+        td.textContent = String(valueMap[column.key] ?? '');
         tr.appendChild(td);
       }
-
-      const ops = this.doc.createElement('td');
-      ops.innerHTML =
-        `<button type="button" data-action="turn-plan-edit-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>編集</button>` +
-        `<button type="button" data-action="turn-plan-insert-before-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+前</button>` +
-        `<button type="button" data-action="turn-plan-insert-after-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+後</button>` +
-        `<button type="button" data-action="turn-plan-delete-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>削除</button>` +
-        `<button type="button" data-action="turn-plan-move-up-row" data-turn-id="${turnId}" ${i <= 0 || !plan ? 'disabled' : ''}>↑</button>` +
-        `<button type="button" data-action="turn-plan-move-down-row" data-turn-id="${turnId}" ${i >= this.turnPlans.length - 1 || !plan ? 'disabled' : ''}>↓</button>`;
-      tr.appendChild(ops);
       tbody.appendChild(tr);
     }
   }

@@ -48,6 +48,7 @@ function createRoot() {
         <button data-action="interrupt-od-cancel"></button>
       </div>
       <button data-action="clear-records"></button>
+      <input data-role="records-simple-toggle" type="checkbox" />
       <select data-role="turn-plan-recalc-mode"><option value="strict">strict</option><option value="force">force</option></select>
       <button data-action="turn-plan-recalc"></button>
       <span data-role="turn-plan-recalc-status"></span>
@@ -68,7 +69,10 @@ function createRoot() {
       <span data-role="status"></span>
       <ul data-role="party-state"></ul>
       <pre data-role="preview-output"></pre>
-      <tbody data-role="record-body"></tbody>
+      <table>
+        <thead><tr data-role="record-head"></tr></thead>
+        <tbody data-role="record-body"></tbody>
+      </table>
       <textarea data-role="csv-output"></textarea>
     </div>
   </body>`, { url: 'https://example.test/' });
@@ -995,6 +999,36 @@ test('dom adapter applies swap immediately and keeps swap event for commit recor
   assert.equal(adapter.pendingSwapEvents.length, 0);
   assert.equal(adapter.recordStore.records.length, 1);
   assert.equal(committed.swapEvents.length, 1);
+});
+
+test('records table supports simple mode toggle and keeps priority columns left in full mode', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+
+  const tbody = root.querySelector('[data-role="record-body"]');
+  const fullRow = tbody?.querySelector('tr');
+  assert.ok(fullRow);
+  assert.equal(fullRow.children.length > 10, true);
+  assert.equal(fullRow.children[0].textContent, '1');
+  assert.ok(fullRow.children[1].querySelector('[data-action="turn-plan-edit-row"]'));
+  assert.equal(fullRow.children[2].textContent, String(adapter.recordStore.records[0]?.turnLabel ?? ''));
+  assert.equal(fullRow.children[3].textContent.includes('%'), true);
+
+  const simpleToggle = root.querySelector('[data-role="records-simple-toggle"]');
+  simpleToggle.checked = true;
+  simpleToggle.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const simpleRow = tbody?.querySelector('tr');
+  assert.ok(simpleRow);
+  assert.equal(simpleRow.children.length, 10);
+  assert.equal(simpleRow.children[0].textContent, '1');
+  assert.ok(simpleRow.children[1].querySelector('[data-action="turn-plan-edit-row"]'));
+  assert.equal(simpleRow.children[2].textContent, String(adapter.recordStore.records[0]?.turnLabel ?? ''));
 });
 
 test('turn plan strict recalculation stops at first invalid edited row', () => {
