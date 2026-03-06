@@ -1,261 +1,196 @@
 # UI Parallel Development Interface Spec (DOM Adapter + Engine)
 
-- 作成日: 2026-03-06
-- 対象: `src/ui/dom-adapter.js` を使って新GUIを並行開発する生成AI/開発者
-- 目的: 現行DOM Adapterとメインエンジンの境界を明確化し、別実装UIから安全に利用できるようにする
+- Updated: 2026-03-06
+- Scope: `src/ui` + `src/turn` integration contract for parallel GUI development
+- Target reader: AI agents and developers implementing UI in parallel
 
-## 1. 結論: `dom-adapter` の独立性評価
+## 1. Current Architecture (Implemented)
 
-`BattleDomAdapter` は「UI層のみ」ではなく、次を同時に担うオーケストレータです。
+The UI layer is now split into 3 layers.
 
-- DOMイベントバインド
-- UI描画
-- ターンプラン編集/再計算
-- シナリオ実行
-- エンジン関数呼び出し
-- レコードストア管理
+1. `src/ui/adapter-core.js`
+- DOM-independent pure core helpers
+- Battle initialization snapshot build
+- preview/commit wrappers
+- swap state mutation wrappers
+- CSV/JSON export wrappers
 
-そのため **他ソースからは独立しているが、DOM構造に強く依存** します。
+2. `src/ui/battle-adapter-facade.js`
+- State transition facade (no DOM rendering)
+- Holds battle/session state
+- Uses `adapter-core` to mutate/advance state
 
-- エンジン依存は明確で限定的
-  - `createBattleStateFromParty`
-  - `previewTurn`
-  - `commitTurn`
-  - `activateOverdrive`
-  - `resolveEffectiveSkillForAction`
-- ただしDOM依存が大きい
-  - `[data-role="..."]` / `[data-action="..."]` セレクタ前提
-  - `root` 内の要素欠損時に、機能が silently skip か例外になる
+3. `src/ui/dom-view.js`
+- DOM update/view utility only
+- Status/output writing and scenario status rendering
+- DOM value setter
 
-評価:
+4. `src/ui/dom-adapter.js`
+- Orchestrator/controller
+- Event binding and UI flow
+- Delegates engine/state transitions to `BattleAdapterFacade`
+- Delegates DOM output to `BattleDomView`
 
-- 並行開発は可能
-- ただし「同一 `BattleDomAdapter` を使うGUI」を別AIが作るなら、DOM契約の共有が必須
-- DOM契約を避けたい場合は、`turn-controller` 直利用の新UI層を作る方が独立性は高い
+## 2. Independence Evaluation
 
-## 2. モジュール境界
+### 2.1 Can GUI be developed in parallel?
 
-### 2.1 UI起動側
+Yes. Parallel work is practical if teams follow the fixed contracts below.
 
-- `ui/app.js`
-  - JSON群を `HbrDataStore.fromRawData(payload)` に投入
-  - `new BattleDomAdapter({ root, dataStore, initialSP })`
-  - `adapter.mount()`
+- Engine/state logic is isolated into facade/core (`adapter-core`, `battle-adapter-facade`)
+- DOM rendering is isolated into `dom-view`
+- `dom-adapter` remains integration/controller
 
-### 2.2 DOM Adapter側
+### 2.2 Remaining coupling
 
-- `src/ui/dom-adapter.js`
-- 役割:
-  - UI入力をドメイン入力へ変換
-  - エンジン呼び出し
-  - 結果をUI出力へ反映
+- `dom-adapter` still expects fixed `data-role` / `data-action` selectors
+- Existing tests validate current selector contract and behavior
 
-### 2.3 メインエンジン側
+Conclusion:
 
-- `src/turn/turn-controller.js`
-- 純粋ロジック（DOM非依存）
+- For short-term parallel GUI development, keep selector contract and replace visual layout/CSS freely
+- For long-term complete decoupling, use `adapter-core` + engine directly with a custom view/controller
 
-## 3. Engine Interface Spec
+## 3. Engine Interface (Main Entry Points)
 
-### 3.1 `createBattleStateFromParty(party, turnState?)`
+From `src/turn/turn-controller.js`:
 
-- 入力:
-  - `party`: `Party` または member配列（6人）
-  - `turnState`: 省略可。通常は `createInitialTurnState()` ベース
-- 出力:
-  - `BattleState`
-    - `party`
-    - `turnState`
-    - `positionMap`
-    - `initialParty`
+1. `createBattleStateFromParty(party, turnState?)`
+- Input: `Party` or 6-member array + optional `turnState`
+- Output: battle state `{ party, turnState, positionMap, initialParty }`
 
-### 3.2 `previewTurn(state, actions, enemyAction = null, enemyCount = 1, options = {})`
+2. `previewTurn(state, actions, enemyAction = null, enemyCount = 1, options = {})`
+- Input: state + action dict
+- Output: preview `TurnRecord` (`recordStatus: "preview"`)
 
-- 入力:
-  - `state`: `BattleState`
-  - `actions`: positionキー辞書
-    - 例:
-      - `"0": { "characterId": "SRuka", "skillId": 100100101 }`
-      - 単体対象系は `targetCharacterId` 追加
-  - `enemyAction`: 文字列 or `null`
-  - `enemyCount`: 1..3
-  - `options`:
-    - `skipSkillConditions` など（強制再計算モード用）
-- 出力:
-  - `TurnRecord` (`recordStatus: "preview"`)
-  - `projections.odGaugeAtEnd` を含む
+3. `commitTurn(state, previewRecord, swapEvents = [], options = {})`
+- Input: preview record + optional commit options
+- Output: `{ nextState, committedRecord }`
 
-### 3.3 `commitTurn(state, previewRecord, swapEvents = [], options = {})`
+4. `activateOverdrive(state, level, context = 'preemptive', options = {})`
+- Input: OD level/context/options
+- Output: updated state in OD turn
 
-- 前提:
-  - `previewRecord.recordStatus === "preview"`
-- 入力オプション:
-  - `applySwapOnCommit` (default true)
-  - `interruptOdLevel` (1..3)
-  - `forceOdActivation` (ODゲージ不足でも割込OD許可)
-  - `forceResourceDeficit` (不足リソース許可)
-- 出力:
-  - `{ nextState, committedRecord }`
-- 主な例外:
-  - プレビュー/ステート不整合
-  - メンバー不在
-  - revision不一致
+5. `grantExtraTurn(state, allowedCharacterIds)`
+- Input: allowed actor IDs
+- Output: extra-turn state
 
-### 3.4 `activateOverdrive(state, level, context = "preemptive", options = {})`
+## 4. Facade Interface (`BattleAdapterFacade`)
 
-- 入力:
-  - `level`: 1..3
-  - `context`: `"preemptive" | "interrupt"`
-  - `options.forceActivation`
-  - `options.forceConsumeGauge`
-- 出力:
-  - ODターンへ遷移した `state`
+`src/ui/battle-adapter-facade.js`
 
-### 3.5 `grantExtraTurn(state, allowedCharacterIds)`
+1. `initializeBattleState(options)`
+- Builds party/state and resets runtime records
 
-- 入力:
-  - `allowedCharacterIds`: 追加ターンで行動可能な characterId 配列
-- 出力:
-  - Extra Turn化した `state`
+2. `queueSwapInState(fromPositionIndex, toPositionIndex)`
+- Applies swap directly to state party positions
+- Returns swap event payload
 
-## 4. `BattleDomAdapter` Public Usage Spec
+3. `previewCurrentTurnState({ actions, enemyAction, enemyCount, options })`
+- Stores and returns `previewRecord`
 
-実質的に外部から直接使う主メソッドは以下。
+4. `commitCurrentTurnState(options)`
+- Commits from current `previewRecord`
+- Updates state, records, turn plan arrays
 
-- `mount()`
-- `initializeBattle(styleIds?, options?)`
-- `previewCurrentTurn(options?)`
-- `commitCurrentTurn(options?)`
-- `queueSwap(fromPos, toPos)`
-- `applyEnemyStatusFromDom()` / `clearEnemyStatusFromDom()`
-- `exportCsv()`
-- `exportRecordsJson()`
-- `loadScenarioFromDom()`
-- `applyLoadedScenarioSetup()`
-- `runNextScenarioTurn()`
-- `runAllScenarioTurns()`
-- `recalculateTurnPlans({ mode: "strict" | "force" })`
-- `captureSelectionState()` / `applySelectionState(state)`
+5. `clearRecordsState()`
+- Clears records and turn-plan replay artifacts
 
-### 4.1 コンストラクタ
+6. `exportCsvState()` / `exportRecordsJsonState()`
+- Export text payloads
 
-```js
-const adapter = new BattleDomAdapter({
-  root: document.querySelector('#app'),
-  dataStore,
-  initialSP: 4,
-});
+## 5. View Interface (`BattleDomView`)
+
+`src/ui/dom-view.js`
+
+1. `setStatus(message)`
+2. `writePreviewOutput(text)`
+3. `writeCsvOutput(text)`
+4. `writeRecordsJsonOutput(text)`
+5. `renderScenarioStatus({ scenario, cursor, stagedTurnIndex })`
+6. `setDomValue(selector, value)`
+
+Rule:
+- `BattleDomView` should only perform DOM read/write helpers and simple display formatting.
+
+## 6. DOM Selector Contract (Fixed)
+
+When implementing another GUI while reusing `BattleDomAdapter`, keep these selectors compatible.
+
+### 6.1 Required action selectors
+
+- `[data-action="initialize"]`
+- `[data-action="preview"]`
+- `[data-action="commit"]`
+- `[data-action="swap"]`
+- `[data-action="open-od"]`
+- `[data-action="open-interrupt-od"]`
+- `[data-action="export-csv"]`
+- `[data-action="export-records-json"]`
+- `[data-action="clear-records"]`
+- `[data-action="turn-plan-recalc"]`
+- `[data-action="scenario-load"]`
+- `[data-action="scenario-apply-setup"]`
+- `[data-action="scenario-run-next"]`
+- `[data-action="scenario-run-all"]`
+
+### 6.2 Required role selectors
+
+- `[data-role="style-slots"]`
+- `[data-role="action-slots"]`
+- `[data-role="turn-label"]`
+- `[data-role="party-state"]`
+- `[data-role="status"]`
+- `[data-role="preview-output"]`
+- `[data-role="csv-output"]`
+- `[data-role="records-json-output"]`
+- `[data-role="record-head"]`
+- `[data-role="record-body"]`
+- `[data-role="enemy-count"]`
+- `[data-role="enemy-action"]`
+- `[data-role="initial-od-gauge"]`
+- `[data-role="scenario-json"]`
+- `[data-role="scenario-status"]`
+
+Note:
+- Existing `ui/index.html` is the canonical contract sample.
+- Visual style/theme can be changed without changing these contracts.
+
+## 7. Parallel Development Guide for AI Agents
+
+1. Keep core logic in facade/core files (`adapter-core`, `battle-adapter-facade`)
+2. Keep DOM output in `dom-view`
+3. Keep `dom-adapter` as integration/controller
+4. Do not modify `tests/e2e` or run Playwright E2E from Codex side
+5. Validate regressions with:
+
+```bash
+node --test tests/*.test.js
 ```
 
-- `root` と `dataStore` は必須
-- `initialSP` は省略時 `4`
+## 8. Next Actions to Increase Independence
 
-### 4.2 初期化シーケンス
+Status: implemented in this iteration.
 
-```js
-adapter.mount();
-// mount内部で initializeBattle() が実行される
-```
+1. `src/ui/dom-adapter.js` split into Facade + View
+- Implemented:
+  - `src/ui/battle-adapter-facade.js` added
+  - `src/ui/dom-view.js` added
+  - `src/ui/dom-adapter.js` now delegates state transitions to Facade and display writes to View
 
-### 4.3 1ターン実行の最小呼び出し
+2. Fix `data-role` contract in docs
+- Implemented in this document (Section 6)
 
-```js
-adapter.initializeBattle();
-const preview = adapter.previewCurrentTurn();
-const committed = adapter.commitCurrentTurn();
-```
+3. Add DOM-independent `adapter-core`
+- Implemented as `src/ui/adapter-core.js`
+- Can be reused by non-DOM controllers
 
-### 4.4 レコード出力
+4. Full decoupling roadmap
+- Step A: Move turn-status/party-state/table rendering into `dom-view`
+- Step B: Keep `dom-adapter` event routing only
+- Step C: Add alternative controller for non-DOM GUI using `BattleAdapterFacade`
 
-```js
-const csv = adapter.exportCsv();
-const jsonText = adapter.exportRecordsJson();
-```
-
-`exportRecordsJson()` はUIテキストエリア更新とダウンロード保存処理も行う。
-
-## 5. DOM Contract（Adapterをそのまま使う場合）
-
-`BattleDomAdapter` を使うGUIは、`root` 配下に最低限次の要素を用意する。
-
-- 初期化/ターン操作:
-  - `[data-action="initialize"]`
-  - `[data-action="preview"]`
-  - `[data-action="commit"]`
-  - `[data-role="action-slots"]`
-  - `[data-role="turn-label"]`
-  - `[data-role="status"]`
-- 入出力:
-  - `[data-role="preview-output"]`
-  - `[data-role="csv-output"]`
-  - `[data-role="records-json-output"]`
-  - `[data-role="record-head"]`
-  - `[data-role="record-body"]`
-- 戦闘条件:
-  - `[data-role="enemy-count"]`
-  - `[data-role="enemy-action"]`
-  - `[data-role="initial-od-gauge"]`
-
-推奨:
-
-- 既存の `ui/index.html` を契約サンプルとしてコピーし、見た目だけ置換する
-- `data-role` / `data-action` 名は変えない
-
-## 6. 並行開発パターン
-
-### パターンA: Adapter互換GUIを並行実装（推奨）
-
-- 目的: 短期で見た目を刷新
-- 方針:
-  - `BattleDomAdapter` はそのまま利用
-  - 新UIは `data-role`/`data-action` 契約を満たす
-- メリット:
-  - 既存ロジックとテスト資産を活用
-  - エンジンロジック変更不要
-- 注意:
-  - DOM契約破壊で機能が壊れる
-
-### パターンB: Engine直結GUIを新規実装
-
-- 目的: 長期で疎結合化
-- 方針:
-  - `turn-controller` を直接呼び出すUI層を別実装
-  - `dom-adapter` 依存を除去
-- メリット:
-  - UI自由度が最大
-- 注意:
-  - 既存のシナリオ/ターンプラン機能を再実装する必要がある
-
-## 7. 生成AI向け実装ガイド
-
-### 7.1 最低限守る呼び出し順
-
-1. JSONロードして `HbrDataStore` を作る
-2. `BattleDomAdapter` を `mount()` する
-3. `initializeBattle()` 後にターン操作を許可する
-4. `previewCurrentTurn()` 後に `commitCurrentTurn()` を呼ぶ
-
-### 7.2 状態の読み取りポイント
-
-- 現在ターン情報: `adapter.state.turnState`
-- 現在パーティ: `adapter.state.party`
-- 確定レコード: `adapter.recordStore.records`
-- ターン計画: `adapter.turnPlans`
-
-### 7.3 エラー処理
-
-- UIイベント経由は `runSafely()` でステータスに表示される
-- API直呼びでは `throw` を捕捉してUIに表示する
-
-## 8. 独立性を上げるための次アクション（任意）
-
-- `src/ui/dom-adapter.js` を Facade + View に分割
-  - Facade: エンジン呼び出し/状態遷移のみ
-  - View: DOM更新のみ
-- `data-role` 契約を `docs` に固定化（この文書を基準に更新）
-- GUI別実装向けに `adapter-core`（DOM非依存）を新設
-
-## 9. サンプル: 新GUI側からの最小利用
+## 9. Minimal Usage Example
 
 ```js
 import { HbrDataStore } from '../src/data/hbr-data-store.js';
@@ -263,14 +198,10 @@ import { BattleDomAdapter } from '../src/ui/dom-adapter.js';
 
 const dataStore = HbrDataStore.fromRawData(payload);
 const root = document.querySelector('#app');
+
 const adapter = new BattleDomAdapter({ root, dataStore, initialSP: 4 });
 adapter.mount();
 
-// 任意のUIイベントから
 adapter.previewCurrentTurn();
 adapter.commitCurrentTurn();
 ```
-
----
-
-本仕様は `src/ui/dom-adapter.js` と `src/turn/turn-controller.js` の現実装を基準に作成。

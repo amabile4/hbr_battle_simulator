@@ -1,12 +1,12 @@
 import {
-  createBattleStateFromParty,
   previewTurn,
-  commitTurn,
   activateOverdrive,
   resolveEffectiveSkillForAction,
 } from '../turn/turn-controller.js';
-import { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from '../records/record-store.js';
-import { createInitialTurnState, buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
+import { createBattleRecordStore, RecordEditor } from '../records/record-store.js';
+import { buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
+import { BattleAdapterFacade } from './battle-adapter-facade.js';
+import { BattleDomView } from './dom-view.js';
 
 function toInt(value, fallback = 0) {
   const n = Number.parseInt(String(value), 10);
@@ -247,37 +247,21 @@ function firstSixUniqueStyles(styles) {
   return out;
 }
 
-export class BattleDomAdapter {
+export class BattleDomAdapter extends BattleAdapterFacade {
   constructor({ root, dataStore, initialSP = 4 }) {
     if (!root || !dataStore) {
       throw new Error('BattleDomAdapter requires root and dataStore.');
     }
+    super({ dataStore, initialSP });
 
     this.root = root;
     this.doc = root.ownerDocument ?? globalThis.document;
-    this.dataStore = dataStore;
-    this.initialSP = initialSP;
+    this.view = new BattleDomView({ root: this.root, doc: this.doc });
 
-    this.party = null;
-    this.state = null;
-    this.recordStore = createBattleRecordStore();
-    this.previewRecord = null;
-    this.pendingSwapEvents = [];
     this.lastActionSkillByPosition = new Map();
     this.lastActionTargetByPosition = new Map();
-    this.pendingInterruptOdLevel = null;
-    this.interruptOdProjection = null;
-    this.preemptiveOdCheckpoint = null;
-    this.kishinkaActivatedThisTurn = false;
-    this.turnPlans = [];
-    this.turnPlanComputedRecords = [];
-    this.turnPlanReplayError = null;
-    this.turnPlanReplayWarnings = [];
-    this.turnPlanEditSession = null;
-    this.turnPlanBaseSetup = null;
     this.turnPlanRecalcMode = 'strict';
     this.recordsSimpleMode = false;
-    this.isReplayingTurnPlans = false;
     this.scenario = null;
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
@@ -408,12 +392,7 @@ export class BattleDomAdapter {
     });
 
     this.root.querySelector('[data-action="clear-records"]')?.addEventListener('click', () => {
-      this.recordStore = createBattleRecordStore();
-      this.turnPlans = [];
-      this.turnPlanComputedRecords = [];
-      this.turnPlanReplayError = null;
-      this.turnPlanReplayWarnings = [];
-      this.turnPlanEditSession = null;
+      this.clearRecordsState();
       this.renderRecordTable();
       this.renderTurnPlanEditControls();
       this.writeRecordsJsonOutput('');
@@ -1404,55 +1383,20 @@ export class BattleDomAdapter {
       options.drivePierceByPartyIndex ?? this.readDrivePierceMapFromDom();
     const startSpEquipByPartyIndex =
       options.startSpEquipByPartyIndex ?? this.readStartSpEquipMapFromDom();
-    const initialSpByPartyIndex = Object.fromEntries(
-      Object.entries(startSpEquipByPartyIndex).map(([index, bonus]) => [
-        Number(index),
-        Number(this.initialSP) + Number(bonus ?? 0),
-      ])
-    );
-    this.party = this.dataStore.buildPartyFromStyleIds(styleIds, {
-      initialSP: this.initialSP,
-      initialSpByPartyIndex,
-      skillSetsByPartyIndex,
-      limitBreakLevelsByPartyIndex,
-      drivePierceByPartyIndex,
-    });
     const initialOdGauge =
       options.initialOdGauge ?? (options.skipInitialOdRead ? 0 : this.readInitialOdGaugeFromDom());
     const preserveTurnPlans = options.preserveTurnPlans === true;
-    const initialTurnState = {
-      ...createInitialTurnState(),
-      odGauge: Number(initialOdGauge),
-    };
-    initialTurnState.enemyState = {
+    this.initializeBattleState({
+      styleIds,
+      skillSetsByPartyIndex,
+      limitBreakLevelsByPartyIndex,
+      drivePierceByPartyIndex,
+      startSpEquipByPartyIndex,
+      initialOdGauge,
       enemyCount: this.readEnemyCountFromDom(),
-      statuses: [],
-    };
-    this.state = createBattleStateFromParty(this.party, initialTurnState);
-    this.recordStore = createBattleRecordStore();
-    this.previewRecord = null;
-    this.pendingSwapEvents = [];
-    this.pendingInterruptOdLevel = null;
-    this.interruptOdProjection = null;
-    this.preemptiveOdCheckpoint = null;
-    this.kishinkaActivatedThisTurn = false;
-    if (!preserveTurnPlans) {
-      this.turnPlans = [];
-      this.turnPlanComputedRecords = [];
-      this.turnPlanReplayError = null;
-      this.turnPlanReplayWarnings = [];
-      this.turnPlanEditSession = null;
-    }
-    this.turnPlanBaseSetup = {
-      styleIds: [...styleIds].map((id) => Number(id)),
-      skillSetsByPartyIndex: structuredClone(skillSetsByPartyIndex),
-      limitBreakLevelsByPartyIndex: structuredClone(limitBreakLevelsByPartyIndex),
-      drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),
-      startSpEquipByPartyIndex: structuredClone(startSpEquipByPartyIndex),
-      initialOdGauge: Number(initialOdGauge),
-      enemyCount: this.readEnemyCountFromDom(),
+      preserveTurnPlans,
       forceOdToggle: this.isForceOdEnabled(),
-    };
+    });
 
     this.renderActionSelectors();
     this.renderPartyState();
@@ -1840,51 +1784,19 @@ export class BattleDomAdapter {
   }
 
   queueSwap(fromPositionIndex, toPositionIndex) {
-    if (!this.state) {
-      throw new Error('State is not initialized.');
-    }
-
-    if (fromPositionIndex === toPositionIndex) {
+    const result = this.queueSwapInState(fromPositionIndex, toPositionIndex);
+    if (result?.skippedSamePosition) {
       this.setStatus('Swap skipped: same position.');
       return null;
     }
-
-    const outMember = this.state.party.find((member) => member.position === fromPositionIndex);
-    const inMember = this.state.party.find((member) => member.position === toPositionIndex);
-
-    if (!outMember || !inMember) {
-      throw new Error('Swap target position not found.');
-    }
-    const hasAnyExtra = this.state.party.some((m) => m.isExtraActive);
-    if (!canSwapByExtraState(outMember, inMember, hasAnyExtra)) {
-      throw new Error('Swap is allowed only between [EX]<->[EX] during an Extra Turn.');
-    }
-
-    const event = {
-      swapSequence: this.pendingSwapEvents.length + 1,
-      fromPositionIndex,
-      toPositionIndex,
-      outCharacterId: outMember.characterId,
-      outCharacterName: outMember.characterName,
-      inCharacterId: inMember.characterId,
-      inCharacterName: inMember.characterName,
-    };
-
-    const fromPos = outMember.position;
-    const toPos = inMember.position;
-    outMember.setPosition(toPos);
-    inMember.setPosition(fromPos);
-
-    this.pendingSwapEvents.push(event);
-    this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
     this.renderActionSelectors();
     this.renderPartyState();
     this.renderSwapSelectors();
     this.renderOdControls();
-    this.setStatus(`Swap applied: ${outMember.characterName} <-> ${inMember.characterName}`);
-    return event;
+    this.setStatus(`Swap applied: ${result.outMember.characterName} <-> ${result.inMember.characterName}`);
+    return result.event;
   }
 
   previewCurrentTurn(options = {}) {
@@ -1897,7 +1809,7 @@ export class BattleDomAdapter {
     this.syncEnemyStateFromDom();
     const actions = this.collectActionDictFromDom();
 
-    this.previewRecord = previewTurn(this.state, actions, enemyAction, enemyCount, options);
+    this.previewCurrentTurnState({ actions, enemyAction, enemyCount, options });
     this.writePreviewOutput(JSON.stringify(this.previewRecord, null, 2));
     this.setStatus('Preview generated.');
     return this.previewRecord;
@@ -1916,30 +1828,16 @@ export class BattleDomAdapter {
       this.previewCurrentTurn(previewOptions);
     }
 
-    const interruptOdLevel = Number(this.pendingInterruptOdLevel ?? 0);
     const forceOdActivation =
       options.forceOdOverride !== undefined ? Boolean(options.forceOdOverride) : this.isForceOdEnabled();
     const forceResourceDeficit = Boolean(options.forceResourceDeficit ?? false);
-    const { nextState, committedRecord } = commitTurn(
-      this.state,
-      this.previewRecord,
-      this.pendingSwapEvents,
-      {
-        applySwapOnCommit: false,
-        interruptOdLevel,
-        forceOdActivation,
-        forceResourceDeficit,
-      }
-    );
-
-    this.state = nextState;
-    this.recordStore = RecordEditor.upsertRecord(this.recordStore, committedRecord);
-    this.previewRecord = null;
-    this.pendingSwapEvents = [];
-    this.pendingInterruptOdLevel = null;
-    this.interruptOdProjection = null;
-    this.preemptiveOdCheckpoint = null;
-    this.kishinkaActivatedThisTurn = false;
+    const committedRecord = this.commitCurrentTurnState({
+      interruptOdLevel: Number(this.pendingInterruptOdLevel ?? 0),
+      forceOdActivation,
+      forceResourceDeficit,
+      shouldCaptureTurnPlan,
+      capturedTurnPlan,
+    });
     if (
       this.scenario &&
       this.scenarioStagedTurnIndex !== null &&
@@ -1949,14 +1847,6 @@ export class BattleDomAdapter {
       this.scenarioCursor += 1;
       this.scenarioStagedTurnIndex = null;
     }
-    if (shouldCaptureTurnPlan && capturedTurnPlan) {
-      this.turnPlans.push(capturedTurnPlan);
-      this.turnPlanComputedRecords = [...this.recordStore.records];
-      this.turnPlanReplayError = null;
-      this.turnPlanReplayWarnings = [];
-      this.turnPlanEditSession = null;
-    }
-
     this.renderActionSelectors();
     this.renderPartyState();
     this.renderSwapSelectors();
@@ -1976,18 +1866,14 @@ export class BattleDomAdapter {
   }
 
   exportCsv() {
-    if (!this.state) {
-      throw new Error('State is not initialized.');
-    }
-
-    const csv = CsvExporter.exportToCSV(this.recordStore, this.state.initialParty);
+    const csv = this.exportCsvState();
     this.writeCsvOutput(csv);
     this.setStatus('CSV exported.');
     return csv;
   }
 
   exportRecordsJson() {
-    const json = JsonExporter.exportToJSON(this.recordStore);
+    const json = this.exportRecordsJsonState();
     this.writeRecordsJsonOutput(json);
     const saved = this.saveRecordsJsonFile(json);
     this.setStatus(saved ? 'Records JSON saved.' : 'Records JSON exported.');
@@ -2031,49 +1917,23 @@ export class BattleDomAdapter {
   }
 
   writePreviewOutput(text) {
-    const output = this.root.querySelector('[data-role="preview-output"]');
-    if (output) {
-      output.textContent = text;
-    }
+    this.view.writePreviewOutput(text);
   }
 
   writeCsvOutput(text) {
-    const output = this.root.querySelector('[data-role="csv-output"]');
-    if (output) {
-      if ('value' in output) {
-        output.value = text;
-      } else {
-        output.textContent = text;
-      }
-    }
+    this.view.writeCsvOutput(text);
   }
 
   writeRecordsJsonOutput(text) {
-    const output = this.root.querySelector('[data-role="records-json-output"]');
-    if (output) {
-      if ('value' in output) {
-        output.value = text;
-      } else {
-        output.textContent = text;
-      }
-    }
+    this.view.writeRecordsJsonOutput(text);
   }
 
   renderScenarioStatus() {
-    const node = this.root.querySelector('[data-role="scenario-status"]');
-    if (!node) {
-      return;
-    }
-    if (!this.scenario) {
-      node.textContent = 'Not loaded';
-      return;
-    }
-    const total = Array.isArray(this.scenario.turns) ? this.scenario.turns.length : 0;
-    const isStaged =
-      this.scenarioStagedTurnIndex !== null &&
-      Number.isFinite(Number(this.scenarioStagedTurnIndex)) &&
-      Number(this.scenarioStagedTurnIndex) === Number(this.scenarioCursor);
-    node.textContent = `Loaded (turns ${this.scenarioCursor}/${total}${isStaged ? ' staged' : ''})`;
+    this.view.renderScenarioStatus({
+      scenario: this.scenario,
+      cursor: this.scenarioCursor,
+      stagedTurnIndex: this.scenarioStagedTurnIndex,
+    });
   }
 
   getScenarioJsonTextFromDom() {
@@ -2082,13 +1942,7 @@ export class BattleDomAdapter {
   }
 
   setDomValue(selector, value) {
-    const node = this.root.querySelector(selector);
-    if (!node) {
-      return;
-    }
-    if ('value' in node) {
-      node.value = String(value);
-    }
+    this.view.setDomValue(selector, value);
   }
 
   parseCsvText(text) {
@@ -4174,9 +4028,6 @@ export class BattleDomAdapter {
   }
 
   setStatus(message) {
-    const status = this.root.querySelector('[data-role="status"]');
-    if (status) {
-      status.textContent = message;
-    }
+    this.view.setStatus(message);
   }
 }
