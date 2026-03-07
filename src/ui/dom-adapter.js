@@ -1594,6 +1594,20 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       options.startSpEquipByPartyIndex ?? this.readStartSpEquipMapFromDom();
     const initialOdGauge =
       options.initialOdGauge ?? (options.skipInitialOdRead ? 0 : this.readInitialOdGaugeFromDom());
+    const enemyNamesByEnemy =
+      options.enemyNamesByEnemy ?? normalizeEnemyNamesByEnemy(this.state?.turnState?.enemyState?.enemyNamesByEnemy);
+    const damageRatesByEnemy =
+      options.damageRatesByEnemy ??
+      normalizeEnemyDamageRatesByEnemy(this.state?.turnState?.enemyState?.damageRatesByEnemy);
+    const enemyStatuses =
+      options.enemyStatuses ??
+      (Array.isArray(this.state?.turnState?.enemyState?.statuses)
+        ? this.state.turnState.enemyState.statuses.map((status) => ({
+            statusType: String(status?.statusType ?? ''),
+            targetIndex: Number(status?.targetIndex ?? 0),
+            remainingTurns: Number(status?.remainingTurns ?? 0),
+          }))
+        : []);
     const preserveTurnPlans = options.preserveTurnPlans === true;
     this.initializeBattleState({
       styleIds,
@@ -1604,6 +1618,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       startSpEquipByPartyIndex,
       initialOdGauge,
       enemyCount: this.readEnemyCountFromDom(),
+      enemyNamesByEnemy,
+      damageRatesByEnemy,
+      enemyStatuses,
       preserveTurnPlans,
       forceOdToggle: this.isForceOdEnabled(),
     });
@@ -2788,7 +2805,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       }
     }
 
-    this.initializeBattle();
+    this.initializeBattle(undefined, {
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(setup.enemyNames),
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(setup.enemyDamageRates),
+      enemyStatuses: Array.isArray(setup.enemyStatuses)
+        ? setup.enemyStatuses.map((status) => ({
+            statusType: String(status?.statusType ?? ''),
+            targetIndex: Number(status?.targetIndex ?? status?.target ?? 0),
+            remainingTurns: Number(status?.remainingTurns ?? 0),
+          }))
+        : [],
+    });
     if (Array.isArray(setup.initialPositions) && setup.initialPositions.length > 0) {
       this.applyScenarioInitialPositions(setup.initialPositions);
     }
@@ -3961,6 +3988,37 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   normalizeTurnPlan(plan = {}) {
+    const setupDelta = plan.setupDelta && typeof plan.setupDelta === 'object' ? plan.setupDelta : {};
+    const normalizedEnemyCount = clampEnemyCount(
+      toInt(plan.enemyCount ?? setupDelta.enemyCount, DEFAULT_ENEMY_COUNT)
+    );
+    const enemyStatuses = Array.isArray(plan.enemyStatuses)
+      ? plan.enemyStatuses
+          .map((status) => ({
+            statusType: String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN),
+            targetIndex: Math.max(0, Math.min(normalizedEnemyCount - 1, toInt(status?.targetIndex ?? status?.target, 0))),
+            remainingTurns: isPersistentEnemyStatus(String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN))
+              ? 0
+              : Math.max(1, toInt(status?.remainingTurns, 1)),
+          }))
+          .filter((status) => status.statusType.length > 0)
+      : Array.isArray(setupDelta.enemyStatuses)
+        ? setupDelta.enemyStatuses
+          .map((status) => ({
+            statusType: String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN),
+            targetIndex: Math.max(0, Math.min(normalizedEnemyCount - 1, toInt(status?.targetIndex ?? status?.target, 0))),
+            remainingTurns: isPersistentEnemyStatus(String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN))
+              ? 0
+              : Math.max(1, toInt(status?.remainingTurns, 1)),
+          }))
+          .filter((status) => status.statusType.length > 0)
+        : [];
+    const enemyNames = normalizeEnemyNamesByEnemy(
+      plan.enemyNames ?? plan.enemyNamesByEnemy ?? setupDelta.enemyNames ?? setupDelta.enemyNamesByEnemy
+    );
+    const enemyDamageRates = normalizeEnemyDamageRatesByEnemy(
+      plan.enemyDamageRates ?? plan.damageRatesByEnemy ?? setupDelta.enemyDamageRates ?? setupDelta.damageRatesByEnemy
+    );
     const actions = Array.isArray(plan.actions)
       ? plan.actions
         .map((action) => ({
@@ -4009,7 +4067,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const interruptOdLevel = Number(plan.interruptOdLevel ?? 0);
     return {
       enemyAction: String(plan.enemyAction ?? ''),
-      enemyCount: clampEnemyCount(toInt(plan.enemyCount, DEFAULT_ENEMY_COUNT)),
+      enemyCount: normalizedEnemyCount,
+      setupDelta: {
+        enemyCount: normalizedEnemyCount,
+        enemyNames,
+        enemyDamageRates,
+        enemyStatuses,
+      },
       actions,
       swaps,
       preemptiveOdLevel:
@@ -4060,6 +4124,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return this.normalizeTurnPlan({
       enemyAction: this.root.querySelector('[data-role="enemy-action"]')?.value ?? '',
       enemyCount: this.readEnemyCountFromDom(),
+      enemyNames: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      enemyDamageRates: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      enemyStatuses: this.getEnemyStatuses().map((status) => ({
+        statusType: String(status?.statusType ?? ''),
+        targetIndex: Number(status?.targetIndex ?? 0),
+        remainingTurns: Number(status?.remainingTurns ?? 0),
+      })),
       actions,
       swaps,
       preemptiveOdLevel,
@@ -4072,9 +4143,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const normalized = this.normalizeTurnPlan(plan);
     const out = {
       enemyAction: normalized.enemyAction,
-      enemyCount: normalized.enemyCount,
+      enemyCount: normalized.setupDelta.enemyCount,
       commit: true,
     };
+    if (Object.keys(normalized.setupDelta.enemyNames ?? {}).length > 0) {
+      out.enemyNames = structuredClone(normalized.setupDelta.enemyNames);
+    }
+    if (Object.keys(normalized.setupDelta.enemyDamageRates ?? {}).length > 0) {
+      out.enemyDamageRates = structuredClone(normalized.setupDelta.enemyDamageRates);
+    }
+    if (Array.isArray(normalized.setupDelta.enemyStatuses) && normalized.setupDelta.enemyStatuses.length > 0) {
+      out.enemyStatuses = structuredClone(normalized.setupDelta.enemyStatuses);
+    }
     if (normalized.preemptiveOdLevel !== null) {
       out.preemptiveOdLevel = normalized.preemptiveOdLevel;
     }
@@ -4139,6 +4219,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       normalAttackElementsByPartyIndex: base.normalAttackElementsByPartyIndex,
       startSpEquipByPartyIndex: base.startSpEquipByPartyIndex,
       initialOdGauge: Number(base.initialOdGauge ?? 0),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(base.enemyNamesByEnemy),
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(base.damageRatesByEnemy),
+      enemyStatuses: Array.isArray(base.enemyStatuses) ? structuredClone(base.enemyStatuses) : [],
       skipInitialOdRead: true,
       preserveTurnPlans: true,
       suppressAutoSave: true,

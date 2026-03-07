@@ -25,6 +25,9 @@ export function createInitializedBattleSnapshot({
   startSpEquipByPartyIndex,
   initialOdGauge,
   enemyCount,
+  enemyNamesByEnemy = {},
+  damageRatesByEnemy = {},
+  enemyStatuses = [],
 }) {
   const initialSpByPartyIndex = Object.fromEntries(
     Object.entries(startSpEquipByPartyIndex).map(([index, bonus]) => [
@@ -47,9 +50,17 @@ export function createInitializedBattleSnapshot({
     odGauge: Number(initialOdGauge),
     enemyState: {
       enemyCount: Number(enemyCount),
-      statuses: [],
-      damageRatesByEnemy: {},
-      enemyNamesByEnemy: {},
+      statuses: Array.isArray(enemyStatuses)
+        ? enemyStatuses.map((status) => ({
+            statusType: String(status?.statusType ?? ''),
+            targetIndex: Number(status?.targetIndex ?? 0),
+            remainingTurns: Number(status?.remainingTurns ?? 0),
+          }))
+        : [],
+      damageRatesByEnemy:
+        damageRatesByEnemy && typeof damageRatesByEnemy === 'object' ? structuredClone(damageRatesByEnemy) : {},
+      enemyNamesByEnemy:
+        enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
     },
   };
 
@@ -68,6 +79,11 @@ export function createInitializedBattleSnapshot({
       startSpEquipByPartyIndex: structuredClone(startSpEquipByPartyIndex),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
+      enemyNamesByEnemy:
+        enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
+      damageRatesByEnemy:
+        damageRatesByEnemy && typeof damageRatesByEnemy === 'object' ? structuredClone(damageRatesByEnemy) : {},
+      enemyStatuses: Array.isArray(enemyStatuses) ? structuredClone(enemyStatuses) : [],
     },
   };
 }

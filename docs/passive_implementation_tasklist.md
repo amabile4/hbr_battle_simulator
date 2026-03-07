@@ -46,6 +46,45 @@
 - [ ] `OnAdditionalTurnStart`
 - [ ] `OnBattleWin`
 
+### turnPlan 再設計タスク
+
+- [x] `turnPlan` を「行動入力」だけでなく「発火に必要な環境入力」も持てる構造に再設計する
+- [x] `turnPlan` に `setupDelta` 相当の層を導入する
+- [x] `setupDelta` に複数敵状態を保持できるようにする
+  - `enemyCount`
+  - `enemyNames`
+  - `enemyDamageRates`
+  - `enemyStatuses`
+- [ ] 将来の `timing` 発火条件で必要な状態を `setupDelta` / turn state のどちらで持つか整理する
+  - `Zone`
+  - `Territory`
+  - `Token`
+  - `MoraleLevel`
+  - `MotivationLevel`
+  - `Mark`
+  - `DpRate`
+- [ ] `turnPlan` にはパッシブ発火結果そのものではなく「発火に必要な入力状態」を保存する方針で統一する
+- [ ] パッシブ発火結果は record 側に残し、`turnPlan` 再計算時に毎回再評価する
+- [ ] `turn-controller` に `timing` 単位の汎用実行入口を設ける
+  - 例: `applyPassiveTiming(state, timing, context)`
+- [ ] `timing` 実行時の `context` に何を持たせるか定義する
+  - `turnType`
+  - `isFirstBattleTurn`
+  - `isAdditionalTurn`
+  - `triggerSource`
+  - `enemyState`
+  - `actor`
+
+### turnPlan 再設計メモ
+
+- 今の `turnPlan` は `enemyCount` と `actions` 中の `targetEnemyIndex` までは持てるが、複数敵状態全体は保持していない
+- 今後 `OnBattleStart` / `OnEnemyTurnStart` / `OnAdditionalTurnStart` を汎用化するには、「そのターン開始時点で何が展開されていたか」を再現できる必要がある
+- そのため `turnPlan` は「入力意図」と「環境差分」を分けて持つ方がよい
+- 想定構造
+  - `setupDelta`
+  - `actionIntent`
+  - `expectedMeta`
+
 ## Phase 5: 状態変化スキル実装
 
 - [ ] トークン付与スキル

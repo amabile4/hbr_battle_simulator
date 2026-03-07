@@ -367,6 +367,80 @@ test('scenario runner loads setup and executes turns deterministically', () => {
   );
 });
 
+test('turn plan base setup stores multi-enemy initial state from setup', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const scenario = {
+    version: 1,
+    setup: {
+      enemyCount: 3,
+      enemyNames: ['Enemy A', 'Enemy B', 'Enemy C'],
+      enemyDamageRates: [{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }],
+      enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+    },
+    turns: [],
+  };
+
+  root.querySelector('[data-role="scenario-json"]').value = JSON.stringify(scenario);
+  adapter.loadScenarioFromDom();
+  adapter.applyLoadedScenarioSetup();
+
+  assert.deepEqual(adapter.turnPlanBaseSetup.enemyNamesByEnemy, {
+    0: 'Enemy A',
+    1: 'Enemy B',
+    2: 'Enemy C',
+  });
+  assert.deepEqual(adapter.turnPlanBaseSetup.damageRatesByEnemy, {
+    0: { Slash: 50 },
+    1: { Fire: 150 },
+    2: { Thunder: 75 },
+  });
+  assert.deepEqual(adapter.turnPlanBaseSetup.enemyStatuses, [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
+  ]);
+});
+
+test('reinitialize from turn plan base restores multi-enemy initial state', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const enemyCount = root.querySelector('[data-role="enemy-count"]');
+  enemyCount.value = '3';
+  enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
+  adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
+  adapter.applyScenarioEnemyDamageRates([{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }]);
+  const turns = root.querySelector('[data-role="enemy-status-turns"]');
+  turns.value = '2';
+  adapter.applyEnemyStatusFromDom();
+  adapter.initializeBattle(undefined, { preserveTurnPlans: true });
+
+  adapter.applyScenarioEnemyNames(['Changed A']);
+  adapter.applyScenarioEnemyDamageRates([{ Slash: 999 }]);
+  adapter.clearEnemyStatusFromDom();
+
+  adapter.reinitializeFromTurnPlanBase();
+
+  assert.deepEqual(adapter.state.turnState.enemyState.enemyNamesByEnemy, {
+    0: 'Enemy A',
+    1: 'Enemy B',
+    2: 'Enemy C',
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.damageRatesByEnemy, {
+    0: { Slash: 50 },
+    1: { Fire: 150 },
+    2: { Thunder: 75 },
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.statuses, [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
+  ]);
+});
+
 test('scenario loader accepts exported CSV and converts it to runnable scenario', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -1462,6 +1536,52 @@ test('turn plan replay resolves swaps by style reference', () => {
   assert.equal(adapter.turnPlanReplayError, null);
   assert.equal(adapter.recordStore.records.length, 1);
   assert.equal(Number(adapter.recordStore.records[0].swapEvents?.length ?? 0), 1);
+});
+
+test('turn plan recalculation preserves multi-enemy setup delta', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const enemyCount = root.querySelector('[data-role="enemy-count"]');
+  enemyCount.value = '3';
+  enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
+  adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
+  adapter.applyScenarioEnemyDamageRates([{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }]);
+  const turns = root.querySelector('[data-role="enemy-status-turns"]');
+  turns.value = '2';
+  adapter.applyEnemyStatusFromDom();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+
+  assert.equal(adapter.turnPlans.length, 1);
+  assert.deepEqual(adapter.turnPlans[0].setupDelta.enemyNames, {
+    0: 'Enemy A',
+    1: 'Enemy B',
+    2: 'Enemy C',
+  });
+  assert.deepEqual(adapter.turnPlans[0].setupDelta.enemyDamageRates, {
+    0: { Slash: 50 },
+    1: { Fire: 150 },
+    2: { Thunder: 75 },
+  });
+  assert.equal(Array.isArray(adapter.turnPlans[0].setupDelta.enemyStatuses), true);
+
+  adapter.recalculateTurnPlans({ mode: 'strict' });
+
+  assert.equal(adapter.turnPlanReplayError, null);
+  assert.deepEqual(adapter.state.turnState.enemyState.enemyNamesByEnemy, {
+    0: 'Enemy A',
+    1: 'Enemy B',
+    2: 'Enemy C',
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.damageRatesByEnemy, {
+    0: { Slash: 50 },
+    1: { Fire: 150 },
+    2: { Thunder: 75 },
+  });
 });
 
 test('turn plan replay prioritizes recorded action position over stale character reference', () => {

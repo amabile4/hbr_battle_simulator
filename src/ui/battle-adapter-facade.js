@@ -48,6 +48,9 @@ export class BattleAdapterFacade {
       startSpEquipByPartyIndex: options.startSpEquipByPartyIndex,
       initialOdGauge: options.initialOdGauge,
       enemyCount: options.enemyCount,
+      enemyNamesByEnemy: options.enemyNamesByEnemy,
+      damageRatesByEnemy: options.damageRatesByEnemy,
+      enemyStatuses: options.enemyStatuses,
     });
 
     this.party = snapshot.party;

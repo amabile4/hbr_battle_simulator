@@ -77,21 +77,59 @@
 
 - [x] 敵名を UI から編集できるようにする
 - [x] 敵ごとのダメージ係数を UI 上で確認・編集しやすくする
-- [ ] 単体攻撃の敵ターゲット選択 UI をさらに検証し、誤操作しづらくする
+- [x] 単体攻撃の敵ターゲット選択 UI をさらに検証し、誤操作しづらくする
 
 ### Phase 4 メモ
 
 - 敵名は内部状態と scenario JSON からはすでに保持できる
 - 通常操作で敵名・敵ダメージ係数を編集できるようにした
 - `scenario.setup.enemyDamageRates` / `turn.enemyDamageRates` でも注入可能
-- ターゲット選択 UI は機能しているが、見た目と誤操作防止の改善余地あり
+- `dom_adapter` はエンジン検証用 UI とし、最終 UX 調整は将来の本番 UI 実装時に行う
+- 現状でも敵 1 体時は単体攻撃の敵ターゲット選択を出さないため、不要な操作増加は起きない
 
 ## Phase 5: 複数敵前提の仕様レビュー
 
-- [ ] パッシブの敵条件評価がすべて敵 index ごとに見られているか再確認する
+- [x] パッシブの敵条件評価がすべて敵 index ごとに見られているか再確認する
 - [ ] 将来実装のデバフ/バフ/フィールド系が敵ごとに持つべき状態か棚卸しする
 - [ ] record 再計算時に複数敵情報が欠落しないか確認する
 - [ ] scenario save/load で複数敵情報が往復できるか確認する
+
+### Phase 5 レビュー結果
+
+- 実装済みの敵条件評価
+  - `BreakDownTurn`
+  - `IsBroken`
+  - `IsWeakElement`
+  - これらは `enemyState` の `targetIndex` / `damageRatesByEnemy` を参照しており、敵 index ごとに評価される
+- 未修正の主な箇所
+  - `turnPlan` には `enemyCount` と action の `targetEnemyIndex` は入るが、`enemyNamesByEnemy` と `damageRatesByEnemy` は入っていない
+  - そのため `recalculateTurnPlans()` は複数敵の名前・耐性設定を再現しない
+  - `toScenarioTurnFromTurnPlan()` にも `enemyNames` / `enemyDamageRates` が出ないため、turn plan 由来の scenario 化では複数敵設定が欠落する
+- つまり現状の認識
+  - 通常の battle state / preview / commit / record / CSV / loaded scenario では複数敵情報を扱える
+  - ただし turn plan の保存・再計算・再構成経路は、まだ複数敵設定を完全には往復できない
+
+### turnPlan 再設計タスク
+
+- [x] `turnPlan` に複数敵状態の入力を保持できるようにする
+  - `enemyCount`
+  - `enemyNames`
+  - `enemyDamageRates`
+  - `enemyStatuses`
+- [x] `captureCurrentTurnPlanFromDom()` が複数敵設定を取り込めるようにする
+- [x] `normalizeTurnPlan()` が複数敵設定を正規化できるようにする
+- [x] `toScenarioTurnFromTurnPlan()` が複数敵設定を落とさず scenario turn 化できるようにする
+- [x] `recalculateTurnPlans()` が複数敵設定込みで再現できるようにする
+- [ ] `turnPlanBaseSetup` に複数敵の初期入力状態を保持できるようにする
+- [ ] 将来の passive `timing` 汎用基盤を見据えて、`turnPlan` を `setupDelta` と `actionIntent` に分ける
+
+### turnPlan 再設計メモ
+
+- 複数敵対応だけを見ると `enemyNamesByEnemy` / `damageRatesByEnemy` / `statuses` を turnPlan が持てば足りる
+- ただし passive 実装まで含めると、それだけでは足りない
+- `OnBattleStart` / `OnFirstBattleStart` / `OnEnemyTurnStart` / `OnAdditionalTurnStart` を再計算可能にするには、「ターン開始前環境」を `turnPlan` が持つ必要がある
+- そのため turnPlan の責務は「そのターンのプレイヤー行動」だけでなく「そのターン開始時に成立していた環境差分」まで拡張する前提で考える
+- 現在は最小段階として、複数敵環境を `setupDelta` として各 turnPlan に保持し、recalc 時に再適用するところまで実装済み
 
 ## 優先順
 
