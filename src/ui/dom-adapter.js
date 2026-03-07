@@ -43,7 +43,7 @@ const DRIVE_PIERCE_OPTIONS = Object.freeze([
   { value: 15, label: 'ドライブピアス +15%' },
 ]);
 const START_SP_BASE = 1;
-const START_SP_LEVEL_BONUS = 3;
+const START_SP_LEVEL_BONUS = 2;
 const START_SP_EQUIP_OPTIONS = Object.freeze([
   { value: 0, label: '初期SP装備 +0' },
   { value: 1, label: '初期SP装備 +1' },
@@ -56,6 +56,31 @@ const OD_GAUGE_MIN_PERCENT = -999.99;
 const OD_GAUGE_MAX_PERCENT = 300;
 const FORCE_RESOURCE_MIN = -999;
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
+const ENEMY_STATUS_BREAK = 'Break';
+
+function isPersistentEnemyStatus(statusType) {
+  return String(statusType ?? '') === ENEMY_STATUS_BREAK;
+}
+
+function isEnemyStatusActive(status) {
+  if (isPersistentEnemyStatus(status?.statusType)) {
+    return true;
+  }
+  return Number(status?.remainingTurns ?? 0) > 0;
+}
+
+function normalizeEnemyStatusForUi(status) {
+  const statusType = String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN);
+  const targetIndex = Number(status?.targetIndex ?? 0);
+  const remainingTurns = isPersistentEnemyStatus(statusType)
+    ? Number(status?.remainingTurns ?? 0)
+    : Math.max(1, toInt(status?.remainingTurns, 1));
+  return {
+    statusType,
+    targetIndex,
+    remainingTurns,
+  };
+}
 
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
@@ -261,7 +286,7 @@ function firstSixUniqueStyles(styles) {
 }
 
 export class BattleDomAdapter extends BattleAdapterFacade {
-  constructor({ root, dataStore, initialSP = 4 }) {
+  constructor({ root, dataStore, initialSP = 3 }) {
     if (!root || !dataStore) {
       throw new Error('BattleDomAdapter requires root and dataStore.');
     }
@@ -1381,7 +1406,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / StartSP: ${startSp} (1+3+${startSpEquipBonus}) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
+      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / StartSP(base): ${startSp} (1+2+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {
@@ -1714,14 +1739,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const current = this.state.turnState.enemyState ?? { enemyCount: 1, statuses: [] };
     const statuses = Array.isArray(current.statuses)
       ? current.statuses
-        .filter((status) => Number(status?.remainingTurns ?? 0) > 0)
+        .filter((status) => isEnemyStatusActive(status))
         .filter((status) => Number(status?.targetIndex ?? -1) >= 0)
         .filter((status) => Number(status?.targetIndex ?? -1) < enemyCount)
-        .map((status) => ({
-          statusType: String(status?.statusType ?? ''),
-          targetIndex: Number(status?.targetIndex ?? 0),
-          remainingTurns: Number(status?.remainingTurns ?? 0),
-        }))
+        .map((status) => normalizeEnemyStatusForUi(status))
       : [];
     this.state.turnState.enemyState = {
       enemyCount,
@@ -1754,18 +1775,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
     if (list) {
       const statuses = this.getEnemyStatuses()
-        .filter((status) => Number(status?.remainingTurns ?? 0) > 0)
+        .filter((status) => isEnemyStatusActive(status))
         .sort((a, b) => Number(a.targetIndex) - Number(b.targetIndex));
       if (statuses.length === 0) {
         list.textContent = 'Enemy Status: -';
       } else {
         const text = statuses
-          .map(
-            (status) =>
-              `Enemy ${Number(status.targetIndex) + 1}: ${String(status.statusType)}(${Number(
-                status.remainingTurns
-              )})`
-          )
+          .map((status) => {
+            const suffix = isPersistentEnemyStatus(status.statusType)
+              ? ''
+              : `(${Number(status.remainingTurns)})`;
+            return `Enemy ${Number(status.targetIndex) + 1}: ${String(status.statusType)}${suffix}`;
+          })
           .join(' | ');
         list.textContent = `Enemy Status: ${text}`;
       }
@@ -1789,22 +1810,30 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
 
     const nextStatuses = this.getEnemyStatuses()
-      .filter(
-        (status) =>
-          !(
-            String(status?.statusType ?? '') === statusType &&
-            Number(status?.targetIndex ?? -1) === targetIndex
-          )
-      )
-      .map((status) => ({
-        statusType: String(status?.statusType ?? ''),
-        targetIndex: Number(status?.targetIndex ?? 0),
-        remainingTurns: Number(status?.remainingTurns ?? 0),
-      }));
+      .filter((status) => {
+        const currentType = String(status?.statusType ?? '');
+        const currentTarget = Number(status?.targetIndex ?? -1);
+        if (currentTarget !== targetIndex) {
+          return true;
+        }
+        if (statusType === ENEMY_STATUS_DOWN_TURN) {
+          return currentType !== ENEMY_STATUS_DOWN_TURN && currentType !== ENEMY_STATUS_BREAK;
+        }
+        return currentType !== statusType;
+      })
+      .map((status) => normalizeEnemyStatusForUi(status));
+
+    if (statusType === ENEMY_STATUS_DOWN_TURN) {
+      nextStatuses.push({
+        statusType: ENEMY_STATUS_BREAK,
+        targetIndex,
+        remainingTurns: 0,
+      });
+    }
     nextStatuses.push({
       statusType,
       targetIndex,
-      remainingTurns,
+      remainingTurns: isPersistentEnemyStatus(statusType) ? 0 : remainingTurns,
     });
     this.state.turnState.enemyState = {
       enemyCount: this.readEnemyCountFromDom(),
@@ -1834,11 +1863,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
 
     const nextStatuses = this.getEnemyStatuses().filter(
-      (status) =>
-        !(
-          String(status?.statusType ?? '') === statusType &&
-          Number(status?.targetIndex ?? -1) === targetIndex
-        )
+      (status) => {
+        const currentType = String(status?.statusType ?? '');
+        const currentTarget = Number(status?.targetIndex ?? -1);
+        if (currentTarget !== targetIndex) {
+          return true;
+        }
+        if (statusType === ENEMY_STATUS_BREAK) {
+          return currentType !== ENEMY_STATUS_BREAK && currentType !== ENEMY_STATUS_DOWN_TURN;
+        }
+        return currentType !== statusType;
+      }
     );
     this.state.turnState.enemyState = {
       enemyCount: this.readEnemyCountFromDom(),
@@ -2320,7 +2355,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const statusType = String(status.statusType ?? ENEMY_STATUS_DOWN_TURN);
       const targetRaw = status.targetIndex ?? status.target ?? 0;
       const targetIndex = Math.max(0, Math.min(enemyCount - 1, toInt(targetRaw, 0)));
-      const remainingTurns = Math.max(1, toInt(status.remainingTurns, 1));
+      const remainingTurns = isPersistentEnemyStatus(statusType)
+        ? 0
+        : Math.max(1, toInt(status.remainingTurns, 1));
       next.push({ statusType, targetIndex, remainingTurns });
     }
     this.state.turnState.enemyState = {
@@ -2726,11 +2763,23 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           0,
           Math.min(this.readEnemyCountFromDom() - 1, toInt(status.targetIndex ?? status.target, 0))
         );
-        const remainingTurns = Math.max(1, toInt(status.remainingTurns, 1));
-        const filtered = merged.filter(
-          (item) =>
-            !(String(item.statusType ?? '') === statusType && Number(item.targetIndex) === targetIndex)
-        );
+        const remainingTurns = isPersistentEnemyStatus(statusType)
+          ? 0
+          : Math.max(1, toInt(status.remainingTurns, 1));
+        const filtered = merged.filter((item) => {
+          const currentType = String(item.statusType ?? '');
+          const currentTarget = Number(item.targetIndex);
+          if (currentTarget !== targetIndex) {
+            return true;
+          }
+          if (statusType === ENEMY_STATUS_DOWN_TURN) {
+            return currentType !== ENEMY_STATUS_DOWN_TURN && currentType !== ENEMY_STATUS_BREAK;
+          }
+          return currentType !== statusType;
+        });
+        if (statusType === ENEMY_STATUS_DOWN_TURN) {
+          filtered.push({ statusType: ENEMY_STATUS_BREAK, targetIndex, remainingTurns: 0 });
+        }
         filtered.push({ statusType, targetIndex, remainingTurns });
         merged.length = 0;
         merged.push(...filtered);
@@ -2762,8 +2811,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           )
         );
         statuses = statuses.filter(
-          (item) =>
-            !(String(item.statusType ?? '') === statusType && Number(item.targetIndex) === targetIndex)
+          (item) => {
+            const currentType = String(item.statusType ?? '');
+            const currentTarget = Number(item.targetIndex);
+            if (currentTarget !== targetIndex) {
+              return true;
+            }
+            if (statusType === ENEMY_STATUS_BREAK) {
+              return currentType !== ENEMY_STATUS_BREAK && currentType !== ENEMY_STATUS_DOWN_TURN;
+            }
+            return currentType !== statusType;
+          }
         );
       }
       this.state.turnState.enemyState = {

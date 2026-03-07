@@ -194,14 +194,20 @@ test('enemy down-turn status can be applied and cleared from controls', () => {
   adapter.applyEnemyStatusFromDom();
 
   const statusesAfterApply = adapter.state.turnState.enemyState.statuses;
-  assert.equal(statusesAfterApply.length, 1);
-  assert.equal(statusesAfterApply[0].statusType, 'DownTurn');
-  assert.equal(statusesAfterApply[0].remainingTurns, 2);
+  assert.equal(statusesAfterApply.length, 2);
+  assert.equal(statusesAfterApply.some((status) => status.statusType === 'DownTurn'), true);
+  assert.equal(statusesAfterApply.some((status) => status.statusType === 'Break'), true);
+  assert.equal(
+    statusesAfterApply.find((status) => status.statusType === 'DownTurn')?.remainingTurns,
+    2
+  );
   assert.ok((root.querySelector('[data-role="enemy-status-list"]')?.textContent ?? '').includes('DownTurn(2)'));
+  assert.ok((root.querySelector('[data-role="enemy-status-list"]')?.textContent ?? '').includes('Break'));
 
   adapter.clearEnemyStatusFromDom();
-  assert.equal(adapter.state.turnState.enemyState.statuses.length, 0);
-  assert.equal(root.querySelector('[data-role="enemy-status-list"]')?.textContent, 'Enemy Status: -');
+  assert.equal(adapter.state.turnState.enemyState.statuses.length, 1);
+  assert.equal(adapter.state.turnState.enemyState.statuses[0].statusType, 'Break');
+  assert.equal(root.querySelector('[data-role="enemy-status-list"]')?.textContent, 'Enemy Status: Enemy 1: Break');
 });
 
 test('enemy break status can be applied and cleared from controls', () => {
@@ -219,8 +225,8 @@ test('enemy break status can be applied and cleared from controls', () => {
   const statusesAfterApply = adapter.state.turnState.enemyState.statuses;
   assert.equal(statusesAfterApply.length, 1);
   assert.equal(statusesAfterApply[0].statusType, 'Break');
-  assert.equal(statusesAfterApply[0].remainingTurns, 3);
-  assert.ok((root.querySelector('[data-role="enemy-status-list"]')?.textContent ?? '').includes('Break(3)'));
+  assert.equal(statusesAfterApply[0].remainingTurns, 0);
+  assert.ok((root.querySelector('[data-role="enemy-status-list"]')?.textContent ?? '').includes('Break'));
 
   adapter.clearEnemyStatusFromDom();
   assert.equal(adapter.state.turnState.enemyState.statuses.length, 0);
@@ -946,7 +952,7 @@ test('initialize battle applies manually entered initial OD gauge', () => {
 test('initialize battle applies start SP base + equip bonus per slot', () => {
   const store = getStore();
   const { root, win } = createRoot();
-  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 4 });
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 3 });
   adapter.mount();
 
   const slot0 = root.querySelector('[data-role="start-sp-equip-select"][data-slot="0"]');
@@ -956,14 +962,34 @@ test('initialize battle applies start SP base + equip bonus per slot', () => {
   slot0.dispatchEvent(new win.Event('change', { bubbles: true }));
   slot1.dispatchEvent(new win.Event('change', { bubbles: true }));
 
-  adapter.initializeBattle();
+  adapter.initializeBattle([1001101, 1001201, 1001301, 1001401, 1001501, 1001701]);
 
   const member0 = adapter.party.members.find((m) => m.partyIndex === 0);
   const member1 = adapter.party.members.find((m) => m.partyIndex === 1);
   const member2 = adapter.party.members.find((m) => m.partyIndex === 2);
-  assert.equal(member0.sp.current, 7);
-  assert.equal(member1.sp.current, 5);
-  assert.equal(member2.sp.current, 7);
+  assert.equal(member0.sp.current, 6);
+  assert.equal(member1.sp.current, 4);
+  assert.equal(member2.sp.current, 6);
+});
+
+test('initialize battle applies 閃光 to frontline initial SP', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 3 });
+  adapter.mount();
+
+  adapter.initializeBattle(
+    [1001108, 1001201, 1001301, 1001401, 1001501, 1001701],
+    {
+      limitBreakLevelsByPartyIndex: { 0: 1 },
+      startSpEquipByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    }
+  );
+
+  const flashHolder = adapter.party.members.find((m) => m.partyIndex === 0);
+  const nonPassiveFront = adapter.party.members.find((m) => m.partyIndex === 1);
+  assert.equal(flashHolder.sp.current, 4, 'frontline 閃光 should add +1 at battle init');
+  assert.equal(nonPassiveFront.sp.current, 3, 'member without turn-start passive should stay at base');
 });
 
 test('selection state can be saved and loaded from localStorage slots', () => {

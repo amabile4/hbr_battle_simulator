@@ -15,6 +15,7 @@ export {
   commitTurn,
   activateOverdrive,
   grantExtraTurn,
+  applyInitialPassiveState,
   BASE_SP_RECOVERY,
   SUPPORTED_PASSIVE_TIMINGS,
   CONDITION_SUPPORT_MATRIX,

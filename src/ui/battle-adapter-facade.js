@@ -11,7 +11,7 @@ import {
 } from './adapter-core.js';
 
 export class BattleAdapterFacade {
-  constructor({ dataStore, initialSP = 4 }) {
+  constructor({ dataStore, initialSP = 3 }) {
     this.dataStore = dataStore;
     this.initialSP = initialSP;
 

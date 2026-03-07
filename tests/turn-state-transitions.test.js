@@ -10,6 +10,7 @@ import {
   grantExtraTurn,
   Party,
   previewTurn,
+  applyInitialPassiveState,
 } from '../src/index.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
@@ -2603,4 +2604,104 @@ test('count-based MindEye is consumed by damage action only', () => {
   });
   state = commitTurn(state, preview).nextState;
   assert.equal(state.party.find((m) => m.characterId === 'ME1').resolveEffectiveMindEyeEffects().length, 1);
+});
+
+test('applyInitialPassiveState applies battle-start and turn-start SP passives', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `IP${idx + 1}`,
+      characterName: `IP${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `IPS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 1,
+                name: '閃光',
+                desc: 'ターン開始時に前衛にいると自身のSP+1',
+                timing: 'OnEveryTurn',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+              },
+            ]
+          : idx === 1
+            ? [
+                {
+                  id: 2,
+                  name: '機敏',
+                  desc: 'バトル開始時 前衛にいると自身のSP+2',
+                  timing: 'OnBattleStart',
+                  condition: 'IsFront()',
+                  parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+                },
+              ]
+            : idx === 3
+              ? [
+                  {
+                    id: 3,
+                    name: '閃光',
+                    desc: 'ターン開始時に前衛にいると自身のSP+1',
+                    timing: 'OnEveryTurn',
+                    condition: 'IsFront()',
+                    parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+                  },
+                ]
+              : [],
+      skills: [{ id: 26000 + idx, name: 'Wait', label: `IPSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  applyInitialPassiveState(state);
+
+  assert.equal(state.party.find((m) => m.characterId === 'IP1').sp.current, 4);
+  assert.equal(state.party.find((m) => m.characterId === 'IP2').sp.current, 5);
+  assert.equal(state.party.find((m) => m.characterId === 'IP4').sp.current, 3);
+  assert.equal(state.turnState.passiveEventsLastApplied.length, 2);
+});
+
+test('turn recovery applies 閃光 on every turn while frontline', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `FS${idx + 1}`,
+      characterName: `FS${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `FSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 10,
+                name: '閃光',
+                desc: 'ターン開始時に前衛にいると自身のSP+1',
+                timing: 'OnEveryTurn',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 26100 + idx, name: 'Wait', label: `FSSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  applyInitialPassiveState(state);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'FS1', skillId: 26100 },
+    1: { characterId: 'FS2', skillId: 26101 },
+    2: { characterId: 'FS3', skillId: 26102 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party.find((m) => m.characterId === 'FS1').sp.current, 7);
+  assert.equal(nextState.party.find((m) => m.characterId === 'FS2').sp.current, 5);
+  assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '閃光'), true);
 });

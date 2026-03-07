@@ -1,4 +1,9 @@
-import { createBattleStateFromParty, previewTurn, commitTurn } from '../turn/turn-controller.js';
+import {
+  createBattleStateFromParty,
+  previewTurn,
+  commitTurn,
+  applyInitialPassiveState,
+} from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from '../records/record-store.js';
 import { createInitialTurnState } from '../contracts/interfaces.js';
 
@@ -45,6 +50,7 @@ export function createInitializedBattleSnapshot({
   };
 
   const state = createBattleStateFromParty(party, initialTurnState);
+  applyInitialPassiveState(state);
 
   return {
     party,

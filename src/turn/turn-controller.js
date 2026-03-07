@@ -26,6 +26,8 @@ const OD_DAMAGE_PART_TYPES = new Set([
 ]);
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
+const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn']);
+const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart']);
 export const SUPPORTED_PASSIVE_TIMINGS = Object.freeze(['OnOverdriveStart']);
 export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   PlayedSkillCount: Object.freeze({ tier: 'implemented', note: 'skill use count is tracked now' }),
@@ -479,11 +481,21 @@ function getEnemyState(turnState) {
   };
 }
 
+function isEnemyStatusPersistent(status) {
+  return String(status?.statusType ?? '') === ENEMY_STATUS_BREAK;
+}
+
+function isEnemyStatusActive(status) {
+  if (isEnemyStatusPersistent(status)) {
+    return true;
+  }
+  return Number(status?.remainingTurns ?? 0) > 0;
+}
+
 function getActiveEnemyStatuses(turnState, statusType) {
   const key = String(statusType ?? '');
   return getEnemyState(turnState).statuses.filter(
-    (status) =>
-      String(status?.statusType ?? '') === key && Number(status?.remainingTurns ?? 0) > 0
+    (status) => String(status?.statusType ?? '') === key && isEnemyStatusActive(status)
   );
 }
 
@@ -504,6 +516,13 @@ function tickEnemyStatuses(turnState) {
   const enemyState = getEnemyState(turnState);
   const nextStatuses = enemyState.statuses
     .map((status) => {
+      if (isEnemyStatusPersistent(status)) {
+        return {
+          statusType: String(status?.statusType ?? ''),
+          targetIndex: Number(status?.targetIndex ?? 0),
+          remainingTurns: Number(status?.remainingTurns ?? 0),
+        };
+      }
       const remainingTurns = Number(status?.remainingTurns ?? 0);
       if (!Number.isFinite(remainingTurns) || remainingTurns <= 0) {
         return null;
@@ -1739,6 +1758,90 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
   return { epEvents: events, passiveEvents };
 }
 
+function evaluatePassiveSelfConditions(passive, part, state, member) {
+  const conditions = [passive?.condition, part?.cond, part?.hit_condition]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean);
+  return conditions.every((expr) => evaluateConditionExpression(expr, state, member, null).result);
+}
+
+function applyPassiveSpByTiming(state, timings = [], options = {}) {
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  const events = [];
+  const passiveEvents = [];
+  const turnState = state?.turnState ?? {};
+
+  for (const member of state?.party ?? []) {
+    for (const passive of member.passives ?? []) {
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+
+      let matched = false;
+      let totalDelta = 0;
+      const effectTypes = new Set();
+      for (const part of passive.parts ?? []) {
+        if (String(part?.skill_type ?? '') !== 'HealSp') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
+          continue;
+        }
+
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          member,
+          part?.target_type,
+          options.targetCharacterId ?? null
+        );
+        if (targetCharacterIds.length === 0) {
+          continue;
+        }
+
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition)) {
+            continue;
+          }
+          const change = target.applySpDelta(amount, 'passive');
+          events.push({
+            actorCharacterId: member.characterId,
+            characterId: target.characterId,
+            source: 'sp_passive',
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            targetType: String(part?.target_type ?? ''),
+            ...change,
+          });
+          matched = true;
+          totalDelta += Number(change?.delta ?? 0);
+          effectTypes.add('HealSp');
+        }
+      }
+
+      if (matched) {
+        passiveEvents.push(
+          createPassiveTriggerEvent(turnState, member, passive, {
+            source: 'passive',
+            effectTypes: [...effectTypes],
+            spDelta: totalDelta,
+          })
+        );
+      }
+    }
+  }
+
+  return { spEvents: events, passiveEvents };
+}
+
 function applySkillSelfEpGains(state, previewRecord) {
   const events = [];
   for (const actionEntry of previewRecord.actions ?? []) {
@@ -1855,6 +1958,7 @@ function applySkillSpGains(state, previewRecord) {
 function applyRecoveryPipeline(party, turnState) {
   const recoveryEvents = [];
   const epEvents = [];
+  const passiveEvents = [];
 
   for (const member of party) {
     const base = member.recoverBaseSP(BASE_SP_RECOVERY);
@@ -1873,6 +1977,20 @@ function applyRecoveryPipeline(party, turnState) {
     if (passiveSkillEvents.length > 0) {
       epEvents.push(...passiveSkillEvents);
     }
+  }
+
+  const passiveSpResult = applyPassiveSpByTiming(
+    {
+      party,
+      turnState,
+    },
+    TURN_START_PASSIVE_TIMINGS
+  );
+  if (passiveSpResult.spEvents.length > 0) {
+    recoveryEvents.push(...passiveSpResult.spEvents);
+  }
+  if (passiveSpResult.passiveEvents.length > 0) {
+    passiveEvents.push(...passiveSpResult.passiveEvents);
   }
 
   const isFirstOdAction =
@@ -1894,6 +2012,7 @@ function applyRecoveryPipeline(party, turnState) {
   return {
     spEvents: recoveryEvents,
     epEvents,
+    passiveEvents,
   };
 }
 
@@ -2189,8 +2308,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   committed.transcendence = transcendenceSummary;
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
-  nextTurnState.passiveEventsLastApplied = [];
-  committed.passiveEvents = [];
+  nextTurnState.passiveEventsLastApplied = Array.isArray(recovery.passiveEvents)
+    ? structuredClone(recovery.passiveEvents)
+    : [];
+  committed.passiveEvents = Array.isArray(recovery.passiveEvents)
+    ? structuredClone(recovery.passiveEvents)
+    : [];
   if (shouldActivateInterruptOd) {
     // 割込ODは「現在通常ターンの後段」に差し込まれるため、
     // ODが終わるまで base turn index を進めない。
@@ -2286,6 +2409,20 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
   nextState.turnState.passiveEventsLastApplied = passiveEvents;
 
   return nextState;
+}
+
+export function applyInitialPassiveState(state) {
+  if (!state || !Array.isArray(state.party) || !state.turnState) {
+    return state;
+  }
+
+  const battleStartResult = applyPassiveSpByTiming(state, BATTLE_START_PASSIVE_TIMINGS);
+  const turnStartResult = applyPassiveSpByTiming(state, TURN_START_PASSIVE_TIMINGS);
+  state.turnState.passiveEventsLastApplied = [
+    ...battleStartResult.passiveEvents,
+    ...turnStartResult.passiveEvents,
+  ];
+  return state;
 }
 
 export function grantExtraTurn(state, allowedCharacterIds) {

@@ -1052,7 +1052,7 @@ export class HbrDataStore {
   buildCharacterStyle({
     styleId,
     partyIndex,
-    initialSP = 4,
+    initialSP = 3,
     spBonus = 0,
     drivePiercePercent = 0,
     equippedSkillIds = null,
@@ -1142,7 +1142,7 @@ export class HbrDataStore {
       throw new Error('buildPartyFromStyleIds requires exactly 6 style IDs.');
     }
 
-    const initialSP = options.initialSP ?? 4;
+    const initialSP = options.initialSP ?? 3;
     const initialSpByPartyIndex = options.initialSpByPartyIndex ?? {};
     const spBonusMap = options.spBonusMap ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
