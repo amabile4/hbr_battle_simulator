@@ -1,3 +1,5 @@
+import { DEFAULT_ENEMY_COUNT } from '../config/battle-defaults.js';
+
 export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
 export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
 export const RECORD_STATUSES = Object.freeze(['preview', 'committed']);
@@ -57,7 +59,7 @@ export function createInitialTurnState() {
     odSuspended: false,
     odPending: false,
     enemyState: {
-      enemyCount: 1,
+      enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
     },
     transcendence: null,
@@ -80,7 +82,7 @@ export function cloneTurnState(turnState) {
             : [],
         }
       : {
-          enemyCount: 1,
+          enemyCount: DEFAULT_ENEMY_COUNT,
           statuses: [],
         };
   return {

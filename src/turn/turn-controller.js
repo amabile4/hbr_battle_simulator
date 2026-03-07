@@ -6,13 +6,22 @@ import {
 } from '../contracts/interfaces.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
+import {
+  OD_RECOVERY_BY_LEVEL,
+  OD_COST_BY_LEVEL,
+  OD_GAUGE_PER_HIT_PERCENT,
+  OD_GAUGE_MIN_PERCENT,
+  OD_GAUGE_MAX_PERCENT,
+  DEFAULT_ENEMY_COUNT,
+  OD_LEVELS,
+  DRIVE_PIERCE_OPTION_VALUES,
+  DRIVE_PIERCE_BASE_BONUS_AT_HIT_1,
+  DRIVE_PIERCE_MAX_REFERENCE_HIT,
+  getOdGaugeRequirement,
+  clampEnemyCount,
+} from '../config/battle-defaults.js';
 
 export const BASE_SP_RECOVERY = 2;
-const OD_RECOVERY_BY_LEVEL = Object.freeze({ 1: 5, 2: 12, 3: 20 });
-const OD_COST_BY_LEVEL = Object.freeze({ 1: 100, 2: 200, 3: 300 });
-const OD_GAUGE_PER_HIT_PERCENT = 2.5;
-const OD_GAUGE_MIN_PERCENT = -999;
-const OD_GAUGE_MAX_PERCENT = 300;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
@@ -472,11 +481,11 @@ function splitTopLevel(expression, separator) {
 function getEnemyState(turnState) {
   const state = turnState?.enemyState;
   if (!state || typeof state !== 'object') {
-    return { enemyCount: 1, statuses: [] };
+    return { enemyCount: DEFAULT_ENEMY_COUNT, statuses: [] };
   }
-  const enemyCount = Number(state.enemyCount ?? 1);
+  const enemyCount = clampEnemyCount(state.enemyCount ?? DEFAULT_ENEMY_COUNT);
   return {
-    enemyCount: Number.isFinite(enemyCount) ? Math.max(1, Math.min(3, enemyCount)) : 1,
+    enemyCount,
     statuses: Array.isArray(state.statuses) ? state.statuses : [],
   };
 }
@@ -788,17 +797,16 @@ function resolveEffectiveSkillParts(skill, state, member) {
 
 function resolveDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent) {
   const p = Number(drivePiercePercent ?? 0);
-  if (![10, 12, 15].includes(p)) {
+  if (!DRIVE_PIERCE_OPTION_VALUES.includes(p) || p === 0) {
     return 0;
   }
 
   const hit = Math.max(1, Number(effectiveHitCount ?? 1));
-  const clamped = Math.min(10, hit);
+  const clamped = Math.min(DRIVE_PIERCE_MAX_REFERENCE_HIT, hit);
 
   // 今回仕様: 役割で分岐せず、ドライブピアス列のみを使用する。
-  const baseAt1 = 5;
-  const step = (p - baseAt1) / 9;
-  const bonus = baseAt1 + step * (clamped - 1);
+  const step = (p - DRIVE_PIERCE_BASE_BONUS_AT_HIT_1) / (DRIVE_PIERCE_MAX_REFERENCE_HIT - 1);
+  const bonus = DRIVE_PIERCE_BASE_BONUS_AT_HIT_1 + step * (clamped - 1);
   return Number(bonus.toFixed(4));
 }
 
@@ -913,9 +921,7 @@ function computeOdGaugeGainPercentBySkill(
     return 0;
   }
 
-  const numericEnemyCount = Number.isFinite(Number(enemyCount))
-    ? Math.max(1, Math.min(3, Number(enemyCount)))
-    : 1;
+  const numericEnemyCount = clampEnemyCount(enemyCount);
   const targetType = String(skill?.targetType ?? '');
   const isAllTarget = targetType === 'All';
 
@@ -965,10 +971,7 @@ function computeOdGaugeGainPercentBySkill(
 function applyOdGaugeFromActions(state, previewRecord, options = {}) {
   const consumeStatusEffects = options.consumeStatusEffects !== false;
   const events = [];
-  const enemyCountRaw = Number(previewRecord?.enemyCount ?? 1);
-  const enemyCount = Number.isFinite(enemyCountRaw)
-    ? Math.max(1, Math.min(3, enemyCountRaw))
-    : 1;
+  const enemyCount = clampEnemyCount(previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT);
   let currentOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
 
   for (const actionEntry of previewRecord.actions ?? []) {
@@ -1308,7 +1311,7 @@ function isMemberActionableInCurrentTurn(state, member) {
   return allowedSet.has(member.characterId);
 }
 
-function updateKishinStateAfterTurn(state) {
+function updateReinforcedModeStateAfterTurn(state) {
   const tezuka = state.party.find((member) => member.characterId === TEZUKA_CHARACTER_ID) ?? null;
   if (!tezuka) {
     return;
@@ -2297,7 +2300,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
-  updateKishinStateAfterTurn(state);
+  updateReinforcedModeStateAfterTurn(state);
   applyTurnBasedStatusExpiry(state, previewRecord);
 
   if (applySwapOnCommit) {
@@ -2354,10 +2357,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
 
 export function activateOverdrive(state, level, context = 'preemptive', options = {}) {
   const numericLevel = Number(level);
-  if (numericLevel < 1 || numericLevel > 3) {
-    throw new Error('OD level must be 1..3');
+  if (!OD_LEVELS.includes(numericLevel)) {
+    throw new Error(`OD level must be one of ${OD_LEVELS.join(', ')}`);
   }
-  const requiredGauge = Number(OD_COST_BY_LEVEL[numericLevel] ?? 0);
+  const requiredGauge = getOdGaugeRequirement(numericLevel);
   const forceActivation = Boolean(options.forceActivation ?? false);
   const forceConsumeGauge = Boolean(options.forceConsumeGauge ?? false);
   const currentGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));

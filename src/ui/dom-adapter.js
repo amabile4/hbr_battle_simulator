@@ -13,6 +13,14 @@ import {
   START_SP_FIXED_BONUS,
   DEFAULT_INITIAL_SP,
   DEFAULT_START_SP_EQUIP_BONUS,
+  DEFAULT_ENEMY_COUNT,
+  DRIVE_PIERCE_OPTIONS,
+  OD_GAUGE_MIN_PERCENT,
+  OD_GAUGE_MAX_PERCENT,
+  OD_LEVELS,
+  REINFORCED_MODE_OD_GAUGE_BONUS,
+  clampEnemyCount,
+  getOdGaugeRequirement,
 } from '../config/battle-defaults.js';
 
 function toInt(value, fallback = 0) {
@@ -42,12 +50,6 @@ const AUTO_SAVE_SLOT_INDEX = 0;
 const MANUAL_SELECTION_SLOT_COUNT = 10;
 const TOTAL_SELECTION_SLOT_COUNT = MANUAL_SELECTION_SLOT_COUNT + 1;
 const SELECTION_SAVE_STORAGE_KEY = 'hbr.battle_simulator.selection_slots.v1';
-const DRIVE_PIERCE_OPTIONS = Object.freeze([
-  { value: 0, label: 'ドライブピアスなし' },
-  { value: 10, label: 'ドライブピアス +10%' },
-  { value: 12, label: 'ドライブピアス +12%' },
-  { value: 15, label: 'ドライブピアス +15%' },
-]);
 const START_SP_EQUIP_OPTIONS = Object.freeze([
   { value: 0, label: '初期SP装備 +0' },
   { value: 1, label: '初期SP装備 +1' },
@@ -56,8 +58,6 @@ const START_SP_EQUIP_OPTIONS = Object.freeze([
 ]);
 const START_SP_EQUIP_DEFAULT = DEFAULT_START_SP_EQUIP_BONUS;
 const TEZUKA_CHARACTER_ID = 'STezuka';
-const OD_GAUGE_MIN_PERCENT = -999.99;
-const OD_GAUGE_MAX_PERCENT = 300;
 const FORCE_RESOURCE_MIN = -999;
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
@@ -1731,8 +1731,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   readEnemyCountFromDom() {
     const select = this.root.querySelector('[data-role="enemy-count"]');
-    const n = toInt(select?.value, 1);
-    return Math.max(1, Math.min(3, n));
+    return clampEnemyCount(toInt(select?.value, DEFAULT_ENEMY_COUNT));
   }
 
   syncEnemyStateFromDom() {
@@ -1740,7 +1739,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return;
     }
     const enemyCount = this.readEnemyCountFromDom();
-    const current = this.state.turnState.enemyState ?? { enemyCount: 1, statuses: [] };
+    const current = this.state.turnState.enemyState ?? { enemyCount: DEFAULT_ENEMY_COUNT, statuses: [] };
     const statuses = Array.isArray(current.statuses)
       ? current.statuses
         .filter((status) => isEnemyStatusActive(status))
@@ -2408,7 +2407,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.applySelectionState(selections);
 
     if (Number.isFinite(Number(setup.enemyCount))) {
-      this.setDomValue('[data-role="enemy-count"]', Math.max(1, Math.min(3, Number(setup.enemyCount))));
+      this.setDomValue('[data-role="enemy-count"]', clampEnemyCount(setup.enemyCount));
     }
     if (setup.enemyAction !== undefined) {
       this.setDomValue('[data-role="enemy-action"]', String(setup.enemyAction ?? ''));
@@ -2738,7 +2737,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       throw new Error('Battle state is not initialized.');
     }
     if (Number.isFinite(Number(turn.enemyCount))) {
-      this.setDomValue('[data-role="enemy-count"]', Math.max(1, Math.min(3, Number(turn.enemyCount))));
+      this.setDomValue('[data-role="enemy-count"]', clampEnemyCount(turn.enemyCount));
       this.syncEnemyStateFromDom();
       this.renderEnemyStatusControls();
     }
@@ -3192,7 +3191,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       projectionRecord?.projections?.odGaugeAtEnd ?? this.state.turnState.odGauge ?? 0
     );
     const projectedGauge = Number.isFinite(projectedGaugeRaw) ? projectedGaugeRaw : 0;
-    const candidates = [1, 2, 3].filter((level) => this.canActivateOdLevel(level, projectedGauge));
+    const candidates = OD_LEVELS.filter((level) => this.canActivateOdLevel(level, projectedGauge));
     this.interruptOdProjection = {
       projectedGauge: Number(projectedGauge.toFixed(2)),
       candidates,
@@ -3213,7 +3212,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const gauge = hasGaugeOverride
       ? Number(gaugeOverride)
       : Number(this.state.turnState.odGauge ?? 0);
-    return gauge >= numericLevel * 100;
+    return gauge >= getOdGaugeRequirement(numericLevel);
   }
 
   canShowInterruptOdButton() {
@@ -3307,7 +3306,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const candidates =
       mode === 'interrupt'
         ? this.buildInterruptOdProjection().candidates
-        : [1, 2, 3].filter((level) => this.canActivateOdLevel(level));
+        : OD_LEVELS.filter((level) => this.canActivateOdLevel(level));
     if (candidates.length === 0) {
       if (mode === 'interrupt') {
         const projected = Number(this.interruptOdProjection?.projectedGauge ?? 0);
@@ -3459,7 +3458,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
     tezuka.activateReinforcedMode(3);
     const currentOd = Number(this.state.turnState.odGauge ?? 0);
-    const nextOd = Math.min(OD_GAUGE_MAX_PERCENT, currentOd + 15);
+    const nextOd = Math.min(OD_GAUGE_MAX_PERCENT, currentOd + REINFORCED_MODE_OD_GAUGE_BONUS);
     this.state.turnState.odGauge = Number(nextOd.toFixed(2));
     this.kishinkaActivatedThisTurn = true;
     this.previewRecord = null;
@@ -3604,7 +3603,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const interruptOdLevel = Number(plan.interruptOdLevel ?? 0);
     return {
       enemyAction: String(plan.enemyAction ?? ''),
-      enemyCount: Math.max(1, Math.min(3, toInt(plan.enemyCount, 1))),
+      enemyCount: clampEnemyCount(toInt(plan.enemyCount, DEFAULT_ENEMY_COUNT)),
       actions,
       swaps,
       preemptiveOdLevel:

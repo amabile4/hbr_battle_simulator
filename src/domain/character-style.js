@@ -127,7 +127,7 @@ function sortStatusEffectsByPriority(a, b) {
   return Number(a?.effectId ?? 0) - Number(b?.effectId ?? 0);
 }
 
-function createKishinFunnelEffect() {
+function createReinforcedModeFunnelEffect() {
   return {
     statusType: 'Funnel',
     limitType: 'Only',
@@ -144,7 +144,7 @@ function createKishinFunnelEffect() {
   };
 }
 
-function createKishinMindEyeEffect() {
+function createReinforcedModeMindEyeEffect() {
   return {
     statusType: 'MindEye',
     limitType: 'Only',
@@ -432,8 +432,8 @@ export class CharacterStyle {
     const turns = Math.max(1, Number(duration) || 3);
     this.isReinforcedMode = true;
     this.reinforcedTurnsRemaining = turns;
-    this.addStatusEffect(createKishinFunnelEffect());
-    this.addStatusEffect(createKishinMindEyeEffect());
+    this.addStatusEffect(createReinforcedModeFunnelEffect());
+    this.addStatusEffect(createReinforcedModeMindEyeEffect());
     this._revision += 1;
   }
 
