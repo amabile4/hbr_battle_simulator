@@ -63,6 +63,7 @@ export function createInitialTurnState() {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
       damageRatesByEnemy: {},
+      enemyNamesByEnemy: {},
     },
     transcendence: null,
     extraTurnState: null,
@@ -92,11 +93,22 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          enemyNamesByEnemy:
+            turnState.enemyState.enemyNamesByEnemy &&
+            typeof turnState.enemyState.enemyNamesByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.enemyNamesByEnemy).map(([targetIndex, name]) => [
+                    String(targetIndex),
+                    String(name ?? ''),
+                  ])
+                )
+              : {},
         }
       : {
           enemyCount: DEFAULT_ENEMY_COUNT,
           statuses: [],
           damageRatesByEnemy: {},
+          enemyNamesByEnemy: {},
         };
   return {
     ...turnState,

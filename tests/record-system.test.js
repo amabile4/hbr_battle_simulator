@@ -171,6 +171,48 @@ test('csv action cell renders hit as base+funnel when funnel bonus exists', () =
   assert.ok(csv.includes('Attack + Funnel (SP 0) [Single,4hit (1+3)]'));
 });
 
+test('csv action cell shows selected enemy target with enemy name when available', () => {
+  const initialParty = [
+    { characterName: 'A', partyIndex: 0, positionIndex: 0, sp: { current: 10 } },
+    { characterName: 'B', partyIndex: 1, positionIndex: 1, sp: { current: 10 } },
+    { characterName: 'C', partyIndex: 2, positionIndex: 2, sp: { current: 10 } },
+    { characterName: 'D', partyIndex: 3, positionIndex: 3, sp: { current: 10 } },
+    { characterName: 'E', partyIndex: 4, positionIndex: 4, sp: { current: 10 } },
+    { characterName: 'F', partyIndex: 5, positionIndex: 5, sp: { current: 10 } },
+  ];
+
+  const record = {
+    turnId: 3,
+    turnIndex: 3,
+    turnType: 'normal',
+    turnLabel: 'T3',
+    odTurnLabelAtStart: '',
+    odContext: '',
+    odGaugeAtStart: 0,
+    enemyAction: '',
+    enemyNamesByEnemy: { 1: 'Boss B' },
+    snapBefore: initialParty,
+    snapAfter: initialParty,
+    actions: [
+      {
+        partyIndex: 0,
+        skillName: 'Targeted Slash',
+        consumeType: 'Sp',
+        spChanges: [{ source: 'cost', delta: 0 }],
+        spCost: 0,
+        skillTargetType: 'Single',
+        skillHitCount: 2,
+        skillBaseHitCount: 2,
+        skillFunnelHitBonus: 0,
+        targetEnemyIndex: 1,
+      },
+    ],
+  };
+
+  const row = CsvExporter.recordToRow(record, initialParty);
+  assert.equal(row[10], 'Targeted Slash (SP 0) [Single,2hit] -> Enemy 2 (Boss B)');
+});
+
 test('csv keeps od_turn during od-suspended extra and exposes od_context', () => {
   const initialParty = [
     { characterName: 'A', partyIndex: 0 },

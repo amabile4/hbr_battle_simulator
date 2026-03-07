@@ -15,6 +15,7 @@ export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceI
     enemyAction: context.enemyAction,
     enemyStatusSummary: context.enemyStatusSummary,
     enemyCount: context.enemyCount,
+    enemyNamesByEnemy: context.enemyNamesByEnemy,
     actions,
     swapEvents,
     effectSnapshots: [],
@@ -82,6 +83,15 @@ function deriveOdTurnLabel(turnState) {
 }
 
 export function buildTurnContext(turnState, enemyAction = null, enemyCount = 1) {
+  const enemyNamesByEnemy =
+    turnState?.enemyState?.enemyNamesByEnemy && typeof turnState.enemyState.enemyNamesByEnemy === 'object'
+      ? Object.fromEntries(
+          Object.entries(turnState.enemyState.enemyNamesByEnemy).map(([targetIndex, name]) => [
+            String(targetIndex),
+            String(name ?? ''),
+          ])
+        )
+      : {};
   return {
     turnIndex: turnState.turnIndex,
     turnLabel: turnState.turnLabel,
@@ -94,5 +104,6 @@ export function buildTurnContext(turnState, enemyAction = null, enemyCount = 1) 
     enemyAction,
     enemyStatusSummary: formatEnemyStatusSummary(turnState),
     enemyCount: Number(enemyCount),
+    enemyNamesByEnemy,
   };
 }

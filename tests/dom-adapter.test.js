@@ -183,6 +183,54 @@ test('enemy count in turn controls is reflected in preview record', () => {
   assert.equal(preview.enemyCount, 3);
 });
 
+test('single-target attack can select enemy target from controls', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+
+  adapter.mount();
+  const enemyCount = root.querySelector('[data-role="enemy-count"]');
+  enemyCount.value = '3';
+  enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const firstFront = adapter.party.getFrontline()[0];
+  const targetSelect = root.querySelector(`[data-action-target-slot="${firstFront.position}"]`);
+  assert.ok(targetSelect);
+  assert.equal(targetSelect.style.display, '');
+  assert.deepEqual(
+    [...targetSelect.options].map((option) => option.textContent),
+    ['Target: Enemy 1', 'Target: Enemy 2', 'Target: Enemy 3']
+  );
+
+  targetSelect.value = 'enemy:1';
+  targetSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const preview = adapter.previewCurrentTurn();
+  assert.equal(preview.actions[0].targetEnemyIndex, 1);
+});
+
+test('record table shows selected enemy target with enemy name', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+
+  adapter.mount();
+  const enemyCount = root.querySelector('[data-role="enemy-count"]');
+  enemyCount.value = '3';
+  enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
+  adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
+
+  const firstFront = adapter.party.getFrontline()[0];
+  const targetSelect = root.querySelector(`[data-action-target-slot="${firstFront.position}"]`);
+  targetSelect.value = 'enemy:1';
+  targetSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  adapter.commitCurrentTurn();
+
+  const rowText = root.querySelector('[data-role="record-body"] tr')?.textContent ?? '';
+  assert.ok(rowText.includes('Enemy 2 (Enemy B)'));
+});
+
 test('enemy down-turn status can be applied and cleared from controls', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -244,6 +292,7 @@ test('scenario runner loads setup and executes turns deterministically', () => {
     version: 1,
     setup: {
       enemyCount: 3,
+      enemyNames: ['Enemy A', 'Enemy B', 'Enemy C'],
       initialOdGauge: 100,
       enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
     },
@@ -267,6 +316,11 @@ test('scenario runner loads setup and executes turns deterministically', () => {
   adapter.applyLoadedScenarioSetup();
 
   assert.equal(adapter.state.turnState.enemyState.enemyCount, 3);
+  assert.deepEqual(adapter.state.turnState.enemyState.enemyNamesByEnemy, {
+    0: 'Enemy A',
+    1: 'Enemy B',
+    2: 'Enemy C',
+  });
   assert.equal(adapter.state.turnState.enemyState.statuses.length, 1);
 
   adapter.runAllScenarioTurns();

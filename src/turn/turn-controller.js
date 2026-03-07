@@ -412,10 +412,8 @@ function countEnemiesEligibleForOdGain(state, member, skill, enemyCount) {
   const targetType = String(skill?.targetType ?? '');
   const isAllTarget = targetType === 'All';
   if (!isAllTarget) {
-    // Current action model does not carry an enemy target selection yet.
-    // Until that UI/state exists, single-target attacks are resolved against Enemy 1.
-    const targetIndex = Number.isFinite(Number(member?.__enemyTargetIndex))
-      ? Number(member.__enemyTargetIndex)
+    const targetIndex = Number.isFinite(Number(skill?.targetEnemyIndex))
+      ? Number(skill.targetEnemyIndex)
       : 0;
     return computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, targetIndex) >=
       DEFAULT_DAMAGE_RATE_PERCENT
@@ -601,7 +599,7 @@ function splitTopLevel(expression, separator) {
 function getEnemyState(turnState) {
   const state = turnState?.enemyState;
   if (!state || typeof state !== 'object') {
-    return { enemyCount: DEFAULT_ENEMY_COUNT, statuses: [], damageRatesByEnemy: {} };
+    return { enemyCount: DEFAULT_ENEMY_COUNT, statuses: [], damageRatesByEnemy: {}, enemyNamesByEnemy: {} };
   }
   const enemyCount = clampEnemyCount(state.enemyCount ?? DEFAULT_ENEMY_COUNT);
   return {
@@ -609,6 +607,8 @@ function getEnemyState(turnState) {
     statuses: Array.isArray(state.statuses) ? state.statuses : [],
     damageRatesByEnemy:
       state.damageRatesByEnemy && typeof state.damageRatesByEnemy === 'object' ? state.damageRatesByEnemy : {},
+    enemyNamesByEnemy:
+      state.enemyNamesByEnemy && typeof state.enemyNamesByEnemy === 'object' ? state.enemyNamesByEnemy : {},
   };
 }
 
@@ -699,6 +699,7 @@ function tickEnemyStatuses(turnState) {
     enemyCount: enemyState.enemyCount,
     statuses: nextStatuses,
     damageRatesByEnemy: enemyState.damageRatesByEnemy,
+    enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
   };
 }
 
@@ -1145,6 +1146,10 @@ function computeOdGaugeGainPercentBySkill(
   options = {}
 ) {
   const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
+  const skillWithTarget =
+    actionEntry && typeof actionEntry === 'object'
+      ? { ...skill, targetEnemyIndex: Number.isFinite(Number(actionEntry.targetEnemyIndex)) ? Number(actionEntry.targetEnemyIndex) : undefined }
+      : skill;
   const hasDamage = hasDamagePartInParts(effectiveParts);
   const hasOdPoint = hasOverDrivePointUpPartInParts(effectiveParts);
   if (!hasDamage && !hasOdPoint) {
@@ -1160,7 +1165,7 @@ function computeOdGaugeGainPercentBySkill(
   const hitCountPerEnemyBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
   const hitCountPerEnemy = hitCountPerEnemyBase + Math.max(0, funnelHitBonus);
   const odEligibleEnemyCount = hasDamage
-    ? countEnemiesEligibleForOdGain(state, member, skill, numericEnemyCount)
+    ? countEnemiesEligibleForOdGain(state, member, skillWithTarget, numericEnemyCount)
     : 0;
   let hitCount = hitCountPerEnemy * (isAllTarget ? odEligibleEnemyCount : Math.min(1, odEligibleEnemyCount));
   if (isNormalAttackSkill(skill)) {
@@ -1844,6 +1849,8 @@ function previewActionEntries(state, sortedActions) {
       endEP: preview.endEP,
       breakHitCount: Number(action?.breakHitCount ?? 0),
       targetCharacterId: String(action?.targetCharacterId ?? ''),
+      targetEnemyIndex:
+        Number.isFinite(Number(action?.targetEnemyIndex)) ? Number(action.targetEnemyIndex) : null,
       _baseRevision: preview.baseRevision,
     };
   });

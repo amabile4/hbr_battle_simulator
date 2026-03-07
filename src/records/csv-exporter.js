@@ -50,7 +50,19 @@ function formatEnemyActionCell(record) {
   return action || status || '';
 }
 
-function formatActionCell(action) {
+function formatEnemyTargetLabel(record, action) {
+  const targetEnemyIndex = Number(action?.targetEnemyIndex);
+  if (!Number.isFinite(targetEnemyIndex) || targetEnemyIndex < 0) {
+    return '';
+  }
+  const defaultLabel = `Enemy ${targetEnemyIndex + 1}`;
+  const enemyNamesByEnemy =
+    record?.enemyNamesByEnemy && typeof record.enemyNamesByEnemy === 'object' ? record.enemyNamesByEnemy : {};
+  const rawName = String(enemyNamesByEnemy[String(targetEnemyIndex)] ?? enemyNamesByEnemy[targetEnemyIndex] ?? '').trim();
+  return rawName ? `${defaultLabel} (${rawName})` : defaultLabel;
+}
+
+function formatActionCell(record, action) {
   if (!action) {
     return '-';
   }
@@ -78,7 +90,9 @@ function formatActionCell(action) {
       hitLabel = `${hit}hit`;
     }
   }
-  return `${name} (${costLabel}) [${targetLabel},${hitLabel}]`;
+  const enemyTargetLabel = formatEnemyTargetLabel(record, action);
+  const suffix = enemyTargetLabel ? ` -> ${enemyTargetLabel}` : '';
+  return `${name} (${costLabel}) [${targetLabel},${hitLabel}]${suffix}`;
 }
 
 export function recordToRow(record, initialParty) {
@@ -109,7 +123,7 @@ export function recordToRow(record, initialParty) {
 
     row.push(before ? before.sp.current : '');
     row.push(before ? Number(before.positionIndex) + 1 : '');
-    row.push(formatActionCell(action));
+    row.push(formatActionCell(record, action));
     row.push(after ? after.sp.current : before ? before.sp.current : '');
   }
 

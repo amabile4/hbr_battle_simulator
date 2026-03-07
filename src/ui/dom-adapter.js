@@ -109,6 +109,15 @@ function normalizeEnemyDamageRatesByEnemy(value) {
   );
 }
 
+function normalizeEnemyNamesByEnemy(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([targetIndex, name]) => [String(targetIndex), String(name ?? '')])
+  );
+}
+
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
   const label = String(skill?.label ?? '');
@@ -609,6 +618,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.previewRecord = null;
         this.resetInterruptOdProjection({ clearReservation: true });
         this.writePreviewOutput('');
+        this.renderActionSelectors();
         this.renderEnemyStatusControls();
         this.renderOdControls();
       }
@@ -1733,7 +1743,29 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         return null;
       }
 
-      return { targetType, candidates };
+      return { targetType, candidates, kind: 'ally' };
+    }
+
+    const enemyCount = this.readEnemyCountFromDom();
+    if (enemyCount > 1 && String(skill?.targetType ?? '') === 'Single') {
+      const parts = Array.isArray(skill.parts) ? skill.parts : [];
+      const hasEnemySingleDamage = parts.some((part) => {
+        const skillType = String(part?.skill_type ?? '');
+        return (
+          ['AttackNormal', 'AttackSkill', 'DamageRateChangeAttackSkill', 'PenetrationCriticalAttack'].includes(skillType) &&
+          String(part?.target_type ?? skill?.targetType ?? '') === 'Single'
+        );
+      });
+      if (hasEnemySingleDamage) {
+        return {
+          targetType: 'EnemySingle',
+          kind: 'enemy',
+          candidates: Array.from({ length: enemyCount }, (_, index) => ({
+            targetEnemyIndex: index,
+            label: `Target: Enemy ${index + 1}`,
+          })),
+        };
+      }
     }
 
     return null;
@@ -1759,8 +1791,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
     for (const candidate of config.candidates) {
       const option = this.doc.createElement('option');
-      option.value = String(candidate.characterId);
-      option.textContent = `Target: Pos ${candidate.position + 1} (${candidate.characterName})`;
+      if (config.kind === 'enemy') {
+        option.value = `enemy:${candidate.targetEnemyIndex}`;
+        option.textContent = candidate.label;
+      } else {
+        option.value = `ally:${candidate.characterId}`;
+        option.textContent = `Target: Pos ${candidate.position + 1} (${candidate.characterName})`;
+      }
       targetSelect.appendChild(option);
     }
 
@@ -1807,14 +1844,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const targetSelect = this.root.querySelector(
         `[data-action-target-slot="${member.position}"]`
       );
-      const targetCharacterId =
+      const targetValue =
         targetSelect && targetSelect.style.display !== 'none'
           ? String(targetSelect.value ?? '').trim()
           : '';
+      const targetCharacterId = targetValue.startsWith('ally:') ? targetValue.slice('ally:'.length) : '';
+      const targetEnemyIndex =
+        targetValue.startsWith('enemy:') ? Math.max(0, toInt(targetValue.slice('enemy:'.length), 0)) : null;
       actionDict[String(member.position)] = {
         characterId: member.characterId,
         skillId,
         ...(targetCharacterId ? { targetCharacterId } : {}),
+        ...(Number.isFinite(Number(targetEnemyIndex)) ? { targetEnemyIndex: Number(targetEnemyIndex) } : {}),
       };
     }
 
@@ -1835,6 +1876,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
       damageRatesByEnemy: {},
+      enemyNamesByEnemy: {},
     };
     const statuses = Array.isArray(current.statuses)
       ? current.statuses
@@ -1844,10 +1886,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         .map((status) => normalizeEnemyStatusForUi(status))
       : [];
     const damageRatesByEnemy = normalizeEnemyDamageRatesByEnemy(current.damageRatesByEnemy);
+    const enemyNamesByEnemy = normalizeEnemyNamesByEnemy(current.enemyNamesByEnemy);
     this.state.turnState.enemyState = {
       enemyCount,
       statuses,
       damageRatesByEnemy,
+      enemyNamesByEnemy,
     };
   }
 
@@ -1940,6 +1984,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount: this.readEnemyCountFromDom(),
       statuses: nextStatuses,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
     };
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
@@ -1981,6 +2026,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount: this.readEnemyCountFromDom(),
       statuses: nextStatuses,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
     };
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
@@ -2467,8 +2513,38 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount,
       statuses: next,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
     };
     this.renderEnemyStatusControls();
+  }
+
+  applyScenarioEnemyNames(enemyNames = {}) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    const enemyCount = this.readEnemyCountFromDom();
+    const next = {};
+    if (Array.isArray(enemyNames)) {
+      enemyNames.forEach((name, index) => {
+        if (index < 0 || index >= enemyCount) {
+          return;
+        }
+        next[String(index)] = String(name ?? '').trim();
+      });
+    } else if (enemyNames && typeof enemyNames === 'object') {
+      for (const [targetIndex, name] of Object.entries(enemyNames)) {
+        const normalizedIndex = Math.max(0, Math.min(enemyCount - 1, toInt(targetIndex, 0)));
+        next[String(normalizedIndex)] = String(name ?? '').trim();
+      }
+    }
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses: Array.isArray(this.state.turnState.enemyState?.statuses)
+        ? this.state.turnState.enemyState.statuses
+        : [],
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(next),
+    };
   }
 
   applyLoadedScenarioSetup() {
@@ -2529,6 +2605,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.initializeBattle();
     if (Array.isArray(setup.initialPositions) && setup.initialPositions.length > 0) {
       this.applyScenarioInitialPositions(setup.initialPositions);
+    }
+    if (Array.isArray(setup.enemyNames) || (setup.enemyNames && typeof setup.enemyNames === 'object')) {
+      this.applyScenarioEnemyNames(setup.enemyNames);
     }
     if (Array.isArray(setup.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(setup.enemyStatuses);
@@ -2796,16 +2875,29 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (targetSelect && targetSelect.style.display !== 'none') {
       const targetByCharacterId = String(action?.targetCharacterId ?? '').trim();
       if (targetByCharacterId) {
+        const encodedValue = `ally:${targetByCharacterId}`;
         const can = [...targetSelect.options].some(
-          (option) => String(option.value) === targetByCharacterId
+          (option) => String(option.value) === encodedValue
         );
         if (!can) {
           throw new Error(
             `Target character is not selectable at position ${position + 1}: ${targetByCharacterId}`
           );
         }
-        targetSelect.value = targetByCharacterId;
-        this.lastActionTargetByPosition.set(position, targetByCharacterId);
+        targetSelect.value = encodedValue;
+        this.lastActionTargetByPosition.set(position, encodedValue);
+      } else if (Number.isFinite(Number(action?.targetEnemyIndex))) {
+        const encodedValue = `enemy:${Math.max(0, toInt(action.targetEnemyIndex, 0))}`;
+        const can = [...targetSelect.options].some(
+          (option) => String(option.value) === encodedValue
+        );
+        if (!can) {
+          throw new Error(
+            `Target enemy is not selectable at position ${position + 1}: ${Number(action.targetEnemyIndex) + 1}`
+          );
+        }
+        targetSelect.value = encodedValue;
+        this.lastActionTargetByPosition.set(position, encodedValue);
       } else if (Number.isFinite(Number(action?.targetPosition))) {
         const targetPosition = this.resolveScenarioPosition(action.targetPosition);
         const targetMember = this.party?.getByPosition(targetPosition);
@@ -2814,15 +2906,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         }
         const targetCharacterId = String(targetMember.characterId);
         const can = [...targetSelect.options].some(
-          (option) => String(option.value) === targetCharacterId
+          (option) => String(option.value) === `ally:${targetCharacterId}`
         );
         if (!can) {
           throw new Error(
             `Target position is not selectable at position ${position + 1}: ${targetPosition + 1}`
           );
         }
-        targetSelect.value = targetCharacterId;
-        this.lastActionTargetByPosition.set(position, targetCharacterId);
+        targetSelect.value = `ally:${targetCharacterId}`;
+        this.lastActionTargetByPosition.set(position, `ally:${targetCharacterId}`);
       }
     }
   }
@@ -2858,6 +2950,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
     if (Array.isArray(turn.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(turn.enemyStatuses);
+    }
+    if (Array.isArray(turn.enemyNames) || (turn.enemyNames && typeof turn.enemyNames === 'object')) {
+      this.applyScenarioEnemyNames(turn.enemyNames);
     }
     if (Array.isArray(turn.enemyStatusesApply)) {
       const merged = [...this.getEnemyStatuses()];
@@ -2895,6 +2990,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyCount: this.readEnemyCountFromDom(),
         statuses: merged,
         damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+        enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       };
       this.renderEnemyStatusControls();
     }
@@ -2936,6 +3032,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyCount: this.readEnemyCountFromDom(),
         statuses,
         damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+        enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       };
       this.renderEnemyStatusControls();
     }
@@ -3681,6 +3778,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           characterName: String(action?.characterName ?? ''),
           skillId: Number(action?.skillId ?? 0),
           targetCharacterId: String(action?.targetCharacterId ?? ''),
+          targetEnemyIndex:
+            Number.isFinite(Number(action?.targetEnemyIndex)) ? Math.max(0, toInt(action.targetEnemyIndex, 0)) : null,
         }))
         .filter(
           (action) =>
@@ -3746,6 +3845,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           characterName: String(member?.characterName ?? ''),
           skillId: Number(action.skillId),
           targetCharacterId: String(action.targetCharacterId ?? ''),
+          ...(Number.isFinite(Number(action.targetEnemyIndex))
+            ? { targetEnemyIndex: Number(action.targetEnemyIndex) }
+            : {}),
         };
       });
     const isPreemptiveOdStep1 =
@@ -3795,6 +3897,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         characterName: action.characterName,
         skillId: action.skillId,
         ...(action.targetCharacterId ? { targetCharacterId: action.targetCharacterId } : {}),
+        ...(Number.isFinite(Number(action.targetEnemyIndex))
+          ? { targetEnemyIndex: Number(action.targetEnemyIndex) }
+          : {}),
       }));
     }
     if (normalized.swaps.length > 0) {
@@ -4075,12 +4180,30 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
   }
 
+  formatEnemyTargetLabel(action, enemyNamesByEnemy = {}) {
+    const targetEnemyIndex = Number(action?.targetEnemyIndex);
+    if (!Number.isFinite(targetEnemyIndex) || targetEnemyIndex < 0) {
+      return '';
+    }
+    const defaultLabel = `Enemy ${targetEnemyIndex + 1}`;
+    const rawName = String(
+      enemyNamesByEnemy[String(targetEnemyIndex)] ?? enemyNamesByEnemy[targetEnemyIndex] ?? ''
+    ).trim();
+    return rawName ? `${defaultLabel} (${rawName})` : defaultLabel;
+  }
+
   formatFrontlineCharacterSkillColumns(record, plan = null) {
     const actions = Array.isArray(record?.actions)
       ? record.actions
       : Array.isArray(plan?.actions)
         ? plan.actions
         : [];
+    const enemyNamesByEnemy =
+      record?.enemyNamesByEnemy && typeof record.enemyNamesByEnemy === 'object'
+        ? record.enemyNamesByEnemy
+        : this.state?.turnState?.enemyState?.enemyNamesByEnemy && typeof this.state.turnState.enemyState.enemyNamesByEnemy === 'object'
+          ? this.state.turnState.enemyState.enemyNamesByEnemy
+          : {};
     const slots = [
       { character: '-', skill: '-' },
       { character: '-', skill: '-' },
@@ -4105,7 +4228,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const character = String(action?.characterName ?? action?.characterId ?? '').trim() || '-';
       const skillName = String(action?.skillName ?? action?.skillLabel ?? '').trim();
       const skillId = Number(action?.skillId);
-      const skill = skillName || (Number.isFinite(skillId) ? `skill:${skillId}` : '-');
+      const skillBase = skillName || (Number.isFinite(skillId) ? `skill:${skillId}` : '-');
+      const enemyTargetLabel = this.formatEnemyTargetLabel(action, enemyNamesByEnemy);
+      const skill = enemyTargetLabel ? `${skillBase} -> ${enemyTargetLabel}` : skillBase;
       slots[normalizedPosition] = { character, skill };
     }
 
@@ -4146,6 +4271,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       { key: 'isExtraTurn', label: 'isExtraTurn' },
       { key: 'remainingOD', label: 'remainingOD' },
       { key: 'enemyCount', label: 'enemyCount' },
+      { key: 'enemyNames', label: 'enemyNames' },
       { key: 'enemyAction', label: 'enemyAction' },
       { key: 'enemyStatus', label: 'enemyStatus' },
       { key: 'transcendence', label: 'transcendence' },
@@ -4226,6 +4352,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           ? `${formatGaugePercent(record.odGaugeAtStart)}%`
           : '-';
       const enemyCount = this.serializeRecordField(record?.enemyCount ?? plan?.enemyCount, '-');
+      const enemyNames = this.serializeRecordField(record?.enemyNamesByEnemy, '-');
       const enemyAction = this.serializeRecordField(record?.enemyAction ?? plan?.enemyAction, '');
       const enemyStatus = this.serializeRecordField(record?.enemyStatusSummary, '-');
       const transcendence = this.serializeRecordField(record?.transcendence, '-');
@@ -4250,6 +4377,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         remainingOD: remainingOd,
         odGaugeStart,
         enemyCount,
+        enemyNames,
         enemyAction,
         enemyStatus,
         transcendence,

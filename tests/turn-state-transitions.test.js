@@ -1503,6 +1503,51 @@ test('single-target attack does not gain OD when combined damage rate is below 1
   assert.equal(nextState.turnState.odGauge, 0);
 });
 
+test('single-target attack uses selected enemy target for OD resistance check', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODT${idx + 1}`,
+      characterName: `ODT${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODTS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 14050 + idx,
+          name: idx === 0 ? 'Targeted Slash' : 'Normal',
+          label: idx === 0 ? 'TargetedSlash' : `ODTSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 2 : 0,
+          target_type: 'Single',
+          parts: idx === 0 ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }] : [],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Slash: 50 },
+      1: { Slash: 150 },
+    },
+  };
+
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'ODT1', skillId: 14050, targetEnemyIndex: 1 },
+    },
+    null,
+    2
+  );
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.odGauge, 5);
+});
+
 test('all-target attack gains OD only from enemies whose combined damage rate is at least 100%', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

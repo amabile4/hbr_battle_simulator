@@ -49,6 +49,7 @@ export function createInitializedBattleSnapshot({
       enemyCount: Number(enemyCount),
       statuses: [],
       damageRatesByEnemy: {},
+      enemyNamesByEnemy: {},
     },
   };
 
