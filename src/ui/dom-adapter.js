@@ -77,6 +77,13 @@ const MOTIVATION_OPTIONS = Object.freeze([
 const MOTIVATION_LABEL_BY_VALUE = Object.freeze(
   Object.fromEntries(MOTIVATION_OPTIONS.map((option) => [String(option.value), String(option.label).replace(/^やる気:\s*/, '')]))
 );
+const MOTIVATION_ICON_BY_VALUE = Object.freeze({
+  '1': '\u{1F7E3}',
+  '2': '\u{1F535}',
+  '3': '\u{1F7E1}',
+  '4': '\u{1F534}',
+  '5': '\u{1FA77}',
+});
 const START_SP_EQUIP_DEFAULT = DEFAULT_START_SP_EQUIP_BONUS;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
@@ -313,7 +320,33 @@ function hasVisibleMoraleState(member) {
 
 function formatMotivationLabel(value) {
   const key = String(Number(value));
-  return MOTIVATION_LABEL_BY_VALUE[key] ?? `普通(3)`;
+  return MOTIVATION_LABEL_BY_VALUE[key] ?? '-';
+}
+
+function formatMotivationIcon(value) {
+  const key = String(Number(value));
+  return MOTIVATION_ICON_BY_VALUE[key] ?? '';
+}
+
+function memberHasMotivationSource(member) {
+  const collections = [member?.skills, member?.passives];
+  return collections.some((collection) =>
+    (Array.isArray(collection) ? collection : []).some((entry) =>
+      (entry?.parts ?? []).some((part) => String(part?.skill_type ?? '') === 'Motivation')
+    )
+  );
+}
+
+function partyHasMotivationSource(members) {
+  return (Array.isArray(members) ? members : []).some((member) => memberHasMotivationSource(member));
+}
+
+function normalizeMotivationLevel(value, fallback = 0) {
+  const raw = toInt(value, fallback);
+  if (raw <= 0) {
+    return 0;
+  }
+  return Math.max(1, Math.min(5, raw));
 }
 
 function deriveDisplayedOdTurn(turnState) {
@@ -690,6 +723,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.populateLimitBreakSelect(slot, target.value, null);
         this.populateSkillChecklist(slot, target.value);
         this.populatePassiveList(slot, target.value);
+        this.syncMotivationSelectionControls();
         this.updateSlotSummary(slot);
         this.renderSelectionSummary();
       }
@@ -700,12 +734,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           `[data-role="style-select"][data-slot="${slot}"]`
         );
         this.populatePassiveList(slot, styleSelect?.value ?? '');
+        this.syncMotivationSelectionControls();
         this.updateSlotSummary(slot);
       }
 
       if (target.matches('[data-role="skill-check"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.syncMotivationSelectionControls();
         this.updateSlotSummary(slot);
+        this.renderSelectionSummary();
       }
 
       if (target.matches('[data-role="drive-pierce-select"]')) {
@@ -1032,15 +1069,6 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const motivationSelect = this.doc.createElement('select');
       motivationSelect.setAttribute('data-role', 'motivation-select');
       motivationSelect.setAttribute('data-slot', String(i));
-      for (const optionDef of MOTIVATION_OPTIONS) {
-        const option = this.doc.createElement('option');
-        option.value = String(optionDef.value);
-        option.textContent = optionDef.label;
-        if (Number(optionDef.value) === 3) {
-          option.selected = true;
-        }
-        motivationSelect.appendChild(option);
-      }
 
       const skillChecklist = this.doc.createElement('div');
       skillChecklist.setAttribute('data-role', 'skill-checklist');
@@ -1075,6 +1103,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.updateSlotSummary(i);
     }
 
+    this.syncMotivationSelectionControls();
     this.renderSelectionSummary();
   }
 
@@ -1217,7 +1246,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         drivePiercePercent: toInt(drivePierceSelect?.value, 0),
         startSpEquipBonus: toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT),
         normalAttackBelt: String(normalAttackBeltSelect?.value ?? ''),
-        initialMotivation: toInt(motivationSelect?.value, 3),
+        initialMotivation: normalizeMotivationLevel(motivationSelect?.value, 0),
         checkedSkillIds,
       });
     }
@@ -1326,25 +1355,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if ((normalAttackBeltSelect?.value ?? '') !== beforeNormalAttackBelt) {
         changedCount += 1;
       }
-      const motivationSelect = this.root.querySelector(
-        `[data-role="motivation-select"][data-slot="${i}"]`
-      );
-      const beforeMotivation = motivationSelect?.value ?? '';
-      const requestedMotivation = Math.max(1, Math.min(5, toInt(row.initialMotivation, 3)));
-      if (
-        motivationSelect &&
-        [...motivationSelect.options].some((opt) => Number(opt.value) === requestedMotivation)
-      ) {
-        motivationSelect.value = String(requestedMotivation);
-      } else if (motivationSelect) {
-        motivationSelect.value = '3';
-      }
-      if ((motivationSelect?.value ?? '') !== beforeMotivation) {
-        changedCount += 1;
-      }
 
       this.populateSkillChecklist(i, styleSelect?.value ?? '', row.checkedSkillIds ?? []);
       this.populatePassiveList(i, styleSelect?.value ?? '');
+    }
+
+    this.syncMotivationSelectionControls({
+      requestedBySlot: Object.fromEntries(
+        selections.map((row, index) => [index, normalizeMotivationLevel(row?.initialMotivation, 0)])
+      ),
+    });
+    for (let i = 0; i < 6; i += 1) {
       this.updateSlotSummary(i);
     }
 
@@ -1442,7 +1463,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const row = rows[i] ?? {};
       lines.push(
         `P${i + 1}: ${row.characterLabel ?? '-'} / style=${row.styleId ?? '-'} / ` +
-        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / Motivation=${formatMotivationLabel(row.initialMotivation ?? 3)} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
+        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / Motivation=${formatMotivationLabel(row.initialMotivation ?? 0)} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
       );
     }
     lines.push(
@@ -1510,8 +1531,78 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.populateLimitBreakSelect(slotIndex, styleSelect?.value ?? '', null);
     this.populateSkillChecklist(slotIndex, styleSelect?.value ?? '');
     this.populatePassiveList(slotIndex, styleSelect?.value ?? '');
+    this.syncMotivationSelectionControls();
     this.updateSlotSummary(slotIndex);
     this.renderSelectionSummary();
+  }
+
+  slotHasMotivationSource(slotIndex) {
+    const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${slotIndex}"]`);
+    const lbSelect = this.root.querySelector(`[data-role="limit-break-select"][data-slot="${slotIndex}"]`);
+    const styleId = toInt(styleSelect?.value, 0);
+    if (!styleId) {
+      return false;
+    }
+    const limitBreakLevel = toInt(lbSelect?.value, 0);
+    const checkedSkillIds = this.getCheckedSkillIdsForSlot(slotIndex) ?? [];
+    const selectedSkills = checkedSkillIds
+      .map((skillId) => this.dataStore.getSkillById(skillId))
+      .filter(Boolean);
+    const passives = this.dataStore.listPassivesByStyleId(styleId, { limitBreakLevel });
+    return partyHasMotivationSource([
+      {
+        skills: selectedSkills,
+        passives,
+      },
+    ]);
+  }
+
+  selectedPartyHasMotivationSource() {
+    for (let i = 0; i < 6; i += 1) {
+      if (this.slotHasMotivationSource(i)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  syncMotivationSelectionControls(options = {}) {
+    const requestedBySlot =
+      options.requestedBySlot && typeof options.requestedBySlot === 'object'
+        ? options.requestedBySlot
+        : null;
+    const hasSource = this.selectedPartyHasMotivationSource();
+    for (let i = 0; i < 6; i += 1) {
+      const select = this.root.querySelector(`[data-role="motivation-select"][data-slot="${i}"]`);
+      if (!select) {
+        continue;
+      }
+      const currentRequested =
+        requestedBySlot && Object.prototype.hasOwnProperty.call(requestedBySlot, i)
+          ? normalizeMotivationLevel(requestedBySlot[i], 0)
+          : normalizeMotivationLevel(select.value, 0);
+      select.innerHTML = '';
+      if (!hasSource) {
+        const option = this.doc.createElement('option');
+        option.value = '0';
+        option.textContent = 'やる気付与なし';
+        option.selected = true;
+        select.appendChild(option);
+        select.disabled = true;
+        continue;
+      }
+      for (const optionDef of MOTIVATION_OPTIONS) {
+        const option = this.doc.createElement('option');
+        option.value = String(optionDef.value);
+        option.textContent = optionDef.label;
+        const selectedValue = currentRequested > 0 ? currentRequested : 3;
+        if (Number(optionDef.value) === selectedValue) {
+          option.selected = true;
+        }
+        select.appendChild(option);
+      }
+      select.disabled = false;
+    }
   }
 
   populateLimitBreakSelect(slotIndex, styleId, preferredLevel = null) {
@@ -1672,9 +1763,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   readInitialMotivationMapFromDom() {
     const out = {};
+    const hasSource = this.selectedPartyHasMotivationSource();
     for (let i = 0; i < 6; i += 1) {
       const select = this.root.querySelector(`[data-role="motivation-select"][data-slot="${i}"]`);
-      out[i] = Math.max(1, Math.min(5, toInt(select?.value, 3)));
+      out[i] = hasSource ? normalizeMotivationLevel(select?.value, 3) : 0;
     }
     return out;
   }
@@ -1716,7 +1808,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const motivationSelect = this.root.querySelector(
       `[data-role="motivation-select"][data-slot="${slotIndex}"]`
     );
-    const initialMotivation = Math.max(1, Math.min(5, toInt(motivationSelect?.value, 3)));
+    const initialMotivation = normalizeMotivationLevel(motivationSelect?.value, 0);
     const startSp = START_SP_BASE + START_SP_FIXED_BONUS + startSpEquipBonus;
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
@@ -1732,6 +1824,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
 
     const lines = [];
+    const showMotivation = this.selectedPartyHasMotivationSource();
     for (let i = 0; i < 6; i += 1) {
       const charSelect = this.root.querySelector(
         `[data-role="character-select"][data-slot="${i}"]`
@@ -1743,10 +1836,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const motivationSelect = this.root.querySelector(
         `[data-role="motivation-select"][data-slot="${i}"]`
       );
-      const motivation = Math.max(1, Math.min(5, toInt(motivationSelect?.value, 3)));
+      const motivation = normalizeMotivationLevel(motivationSelect?.value, 0);
 
       lines.push(
-        `Slot ${i + 1}: ${normalizeName(character?.name ?? charSelect?.value)} / ${style?.name ?? '-'} / やる気=${formatMotivationLabel(motivation)}`
+        `Slot ${i + 1}: ${normalizeName(character?.name ?? charSelect?.value)} / ${style?.name ?? '-'}${showMotivation ? ` / やる気=${formatMotivationLabel(motivation || 3)}` : ''}`
       );
     }
 
@@ -3941,8 +4034,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.moraleState.current = Number(snap.moraleState?.current ?? member.moraleState?.current ?? 0);
       member.moraleState.min = Number(snap.moraleState?.min ?? member.moraleState?.min ?? 0);
       member.moraleState.max = Number(snap.moraleState?.max ?? member.moraleState?.max ?? 10);
-      member.motivationState.current = Number(snap.motivationState?.current ?? member.motivationState?.current ?? 3);
-      member.motivationState.min = Number(snap.motivationState?.min ?? member.motivationState?.min ?? 1);
+      member.motivationState.current = Number(snap.motivationState?.current ?? member.motivationState?.current ?? 0);
+      member.motivationState.min = Number(snap.motivationState?.min ?? member.motivationState?.min ?? 0);
       member.motivationState.max = Number(snap.motivationState?.max ?? member.motivationState?.max ?? 5);
       member.isAlive = Boolean(snap.isAlive);
       member.isBreak = Boolean(snap.isBreak);
@@ -4294,6 +4387,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return;
     }
 
+    const showMotivation = partyHasMotivationSource(this.state.party);
     const rows = this.state.party
       .slice()
       .sort((a, b) => a.position - b.position)
@@ -4311,7 +4405,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const moraleText = hasVisibleMoraleState(member)
           ? ` / Morale=${member.moraleState?.current ?? 0}`
           : '';
-        const motivationText = ` / Motivation=${formatMotivationLabel(member.motivationState?.current ?? 3)}`;
+        const motivationText = showMotivation
+          ? ` / ${formatMotivationIcon(member.motivationState?.current ?? 3)}`
+          : '';
         if (String(member.characterId) === 'NNanase') {
           return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}${moraleText}${motivationText}</li>`;
         }

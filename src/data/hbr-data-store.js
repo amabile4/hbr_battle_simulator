@@ -1054,7 +1054,7 @@ export class HbrDataStore {
     styleId,
     partyIndex,
     initialSP = DEFAULT_INITIAL_SP,
-    initialMotivation = 3,
+    initialMotivation = 0,
     spBonus = 0,
     drivePiercePercent = 0,
     normalAttackElements = [],
@@ -1161,7 +1161,7 @@ export class HbrDataStore {
         styleId,
         partyIndex: index,
         initialSP: Number(initialSpByPartyIndex[index] ?? initialSP),
-        initialMotivation: Number(initialMotivationByPartyIndex[index] ?? 3),
+        initialMotivation: Number(initialMotivationByPartyIndex[index] ?? 0),
         spBonus: Number(spBonusMap[index] ?? 0),
         drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
         normalAttackElements: Array.isArray(normalAttackElementsByPartyIndex[index])

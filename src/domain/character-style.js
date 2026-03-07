@@ -246,8 +246,8 @@ export class CharacterStyle {
     };
 
     this.motivationState = {
-      current: Number(input.initialMotivation ?? 3),
-      min: Number(input.motivationMin ?? 1),
+      current: Number(input.initialMotivation ?? 0),
+      min: Number(input.motivationMin ?? 0),
       max: Number(input.motivationMax ?? 5),
     };
 
