@@ -450,6 +450,28 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
   }
 }
 
+function resolveSingleArgConditionValue(name, argRaw, state, member) {
+  const key = String(name ?? '').trim();
+  const arg = String(argRaw ?? '').trim();
+  switch (key) {
+    case 'IsNatureElement':
+      return {
+        known: true,
+        value: Array.isArray(member?.elements) && member.elements.some((element) => String(element) === arg) ? 1 : 0,
+      };
+    case 'IsCharacter':
+      return {
+        known: true,
+        value: String(member?.characterId ?? '') === arg ? 1 : 0,
+      };
+    default:
+      return {
+        known: false,
+        value: true,
+      };
+  }
+}
+
 function splitTopLevel(expression, separator) {
   const text = String(expression ?? '');
   const out = [];
@@ -588,6 +610,46 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     return { known: true, value: lhs > 0 ? 1 : 0 };
   }
 
+  if (inner.includes('IsPlayer()') && !inner.includes('IsPlayer()==0')) {
+    const clauses = inner.split('&&').map((clause) => clause.trim()).filter(Boolean);
+    const playerClauses = clauses.filter((clause) => clause !== 'IsPlayer()' && clause !== 'IsPlayer()==1');
+    let count = 0;
+    for (const candidate of state.party ?? []) {
+      const matched = playerClauses.every((clause) => {
+        if (!clause) {
+          return true;
+        }
+        if (clause === 'IsFront()==0') {
+          return Number(candidate?.position ?? -1) >= 3;
+        }
+        if (clause === 'IsFront()==1') {
+          return Number(candidate?.position ?? 99) <= 2;
+        }
+        let m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
+        if (m) {
+          const resolved = resolveSingleArgConditionValue(m[1], m[2], state, candidate);
+          if (!resolved.known) {
+            return false;
+          }
+          return compareNumbers(Number(resolved.value), m[3], Number(m[4]));
+        }
+        m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)$/);
+        if (m) {
+          const resolved = resolveSingleArgConditionValue(m[1], m[2], state, candidate);
+          if (!resolved.known) {
+            return false;
+          }
+          return Boolean(Number(resolved.value));
+        }
+        return false;
+      });
+      if (matched) {
+        count += 1;
+      }
+    }
+    return { known: true, value: count };
+  }
+
   const clauses = inner.split('&&').filter(Boolean);
   const hasAllBrokenEnemyClauses =
     clauses.length === 3 &&
@@ -659,6 +721,30 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
         return { known: false, value: true };
       }
       return { known: true, value: compareNumbers(Number(evaluated.value), m[2], Number(m[3])) };
+    }
+  }
+
+  {
+    const m = text.match(
+      /^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/
+    );
+    if (m) {
+      const resolved = resolveSingleArgConditionValue(m[1], m[2], state, member);
+      if (!resolved.known) {
+        return { known: false, value: true };
+      }
+      return { known: true, value: compareNumbers(Number(resolved.value), m[3], Number(m[4])) };
+    }
+  }
+
+  {
+    const m = text.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)$/);
+    if (m) {
+      const resolved = resolveSingleArgConditionValue(m[1], m[2], state, member);
+      if (!resolved.known) {
+        return { known: false, value: true };
+      }
+      return { known: true, value: Boolean(Number(resolved.value)) };
     }
   }
 
@@ -1361,6 +1447,18 @@ function isTargetConditionSatisfiedByMember(targetMember, expression) {
   }
   if (expr === 'IsFront()==0') {
     return Number(targetMember?.position ?? -1) >= 3;
+  }
+  {
+    const m = expr.match(/^IsCharacter\(([^)]+)\)==1$/);
+    if (m) {
+      return String(targetMember?.characterId ?? '') === String(m[1] ?? '').trim();
+    }
+  }
+  {
+    const m = expr.match(/^IsCharacter\(([^)]+)\)==0$/);
+    if (m) {
+      return String(targetMember?.characterId ?? '') !== String(m[1] ?? '').trim();
+    }
   }
   return true;
 }

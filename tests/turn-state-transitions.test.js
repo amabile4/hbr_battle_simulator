@@ -1590,7 +1590,7 @@ test('od gauge is capped at 300%', () => {
   assert.equal(nextState.turnState.odGauge, 300);
 });
 
-test('OverDrivePointDown reduces od gauge and lower bound is -999', () => {
+test('OverDrivePointDown reduces od gauge and lower bound is -999.99', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `D${idx + 1}`,
@@ -1639,7 +1639,7 @@ test('OverDrivePointDown reduces od gauge and lower bound is -999', () => {
     0: { characterId: 'D1', skillId: 9900 },
   });
   committed = commitTurn(state, preview);
-  assert.equal(committed.nextState.turnState.odGauge, -999);
+  assert.equal(committed.nextState.turnState.odGauge, -999.99);
 });
 
 test('skill with IsOverDrive() condition is unusable outside OD and usable in OD', () => {
@@ -2152,6 +2152,113 @@ test('condition aliases block skills when bare/resource predicates are false', (
         1: { characterId: 'CB2', skillId: 31003 },
         2: { characterId: 'CB3', skillId: 31004 },
       }),
+    /cannot be used because cond is not satisfied/
+  );
+});
+
+test('IsNatureElement direct condition is evaluated from member style elements', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `NE${idx + 1}`,
+      characterName: `NE${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `NES${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      elements: idx === 0 ? ['Fire'] : ['Ice'],
+      skills: [
+        {
+          id: 32000 + idx,
+          name: 'Nature Skill',
+          label: `NatureSkill${idx + 1}`,
+          sp_cost: 0,
+          cond: 'IsNatureElement(Fire)==1',
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'NE1', skillId: 32000 },
+  });
+  assert.equal(preview.actions.length, 1);
+  assert.throws(
+    () => previewTurn(state, { 1: { characterId: 'NE2', skillId: 32001 } }),
+    /cannot be used because cond is not satisfied/
+  );
+});
+
+test('CountBC(IsPlayer() && IsNatureElement(...)) is evaluated from party member elements', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `NC${idx + 1}`,
+      characterName: `NC${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `NCS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      elements: idx <= 2 ? ['Fire'] : ['Ice'],
+      skills: [
+        {
+          id: 32100 + idx,
+          name: 'Nature Count Skill',
+          label: `NatureCount${idx + 1}`,
+          sp_cost: 0,
+          cond: 'CountBC(IsPlayer() && IsNatureElement(Fire)==1)>=3',
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'NC1', skillId: 32100 },
+  });
+  assert.equal(preview.actions.length, 1);
+
+  state.party[2].elements = Object.freeze(['Ice']);
+  assert.throws(
+    () => previewTurn(state, { 0: { characterId: 'NC1', skillId: 32100 } }),
+    /cannot be used because cond is not satisfied/
+  );
+});
+
+test('IsCharacter direct condition is evaluated from member identity', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: idx === 1 ? 'IIshii' : `IC${idx + 1}`,
+      characterName: idx === 1 ? '石井 色葉' : `IC${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ICS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 32200 + idx,
+          name: 'Character Skill',
+          label: `CharacterSkill${idx + 1}`,
+          sp_cost: 0,
+          cond: 'IsCharacter(IIshii)==1',
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+        },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    1: { characterId: 'IIshii', skillId: 32201 },
+  });
+  assert.equal(preview.actions.length, 1);
+
+  assert.throws(
+    () => previewTurn(state, { 0: { characterId: 'IC1', skillId: 32200 } }),
     /cannot be used because cond is not satisfied/
   );
 });
