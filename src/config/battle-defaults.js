@@ -17,6 +17,38 @@ export const INTRINSIC_MARK_EFFECTS_BY_ELEMENT = Object.freeze({
     criticalDamageUpAtLevel5: 0.3,
     extraFrontSpAtTurnStartAtLevel6: 1,
   }),
+  Ice: Object.freeze({
+    skillDamageUpRateAtLevel1: 0.3,
+    damageTakenDownRateAtLevel2: 0.1,
+    devastationRateUpAtLevel3: 0.1,
+    criticalRateUpAtLevel4: 0.3,
+    criticalDamageUpAtLevel5: 0.3,
+    extraFrontSpAtTurnStartAtLevel6: 1,
+  }),
+  Thunder: Object.freeze({
+    skillDamageUpRateAtLevel1: 0.3,
+    damageTakenDownRateAtLevel2: 0.1,
+    devastationRateUpAtLevel3: 0.1,
+    criticalRateUpAtLevel4: 0.3,
+    criticalDamageUpAtLevel5: 0.3,
+    extraFrontSpAtTurnStartAtLevel6: 1,
+  }),
+  Dark: Object.freeze({
+    skillDamageUpRateAtLevel1: 0.3,
+    damageTakenDownRateAtLevel2: 0.1,
+    devastationRateUpAtLevel3: 0.1,
+    criticalRateUpAtLevel4: 0.3,
+    criticalDamageUpAtLevel5: 0.3,
+    extraFrontSpAtTurnStartAtLevel6: 1,
+  }),
+  Light: Object.freeze({
+    skillDamageUpRateAtLevel1: 0.3,
+    damageTakenDownRateAtLevel2: 0.1,
+    devastationRateUpAtLevel3: 0.1,
+    criticalRateUpAtLevel4: 0.3,
+    criticalDamageUpAtLevel5: 0.3,
+    extraFrontSpAtTurnStartAtLevel6: 1,
+  }),
 });
 
 export const OD_LEVELS = Object.freeze([1, 2, 3]);

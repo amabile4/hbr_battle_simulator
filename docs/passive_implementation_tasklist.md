@@ -57,7 +57,7 @@
 - [ ] `FireMarkLevel`
   - 共通基盤として `CharacterStyle.markStates`、各 `*MarkLevel()` 条件評価、`Fire/Ice/Thunder/Dark/LightMark` スキル適用は実装済み
   - 実データ回帰は `ThunderMarkLevel / DarkMarkLevel / LightMark` 経由で通している
-  - 火の印の常在効果は実装済み
+  - 全属性印の常在効果は同型として実装済み
     - Lv1: スキル攻撃力+30% を preview / record modifier に反映
     - Lv2: 被ダメージ-10% を preview / record modifier に反映
     - Lv3: 破壊率上昇+10% を preview / record modifier に反映
@@ -66,8 +66,7 @@
     - Lv6: ターン開始時 前衛SP+1 を実効
 - [ ] `IceMarkLevel`
   - 共通基盤は `FireMarkLevel` と同じ実装を共有
-  - 氷 / 雷 / 闇 / 光 の印レベル条件評価と印状態付与基盤は実装済み
-  - 各属性印の常在効果は未実装
+  - 氷 / 雷 / 闇 / 光 の印レベル条件評価、印状態付与、常在効果を `FireMarkLevel` と同じ実装で共有
 - [x] `IsZone`
 - [x] `IsTerritory`
 

@@ -973,6 +973,86 @@ test('fire mark intrinsic modifiers are exposed on preview and damage context', 
   assert.equal(committedRecord.actions[0].damageContext?.markCriticalDamageUp, 0.3);
 });
 
+test('thunder mark intrinsic level 6 grants extra SP only to frontline thunder styles at battle start', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx <= 3
+      ? {
+          initialSP: 0,
+          elements: ['Thunder'],
+          markStates: {
+            Thunder: { current: 6, min: 0, max: 6 },
+          },
+        }
+      : {
+          initialSP: 0,
+          elements: idx === 4 ? ['Thunder'] : [],
+          markStates: {
+            Thunder: { current: idx === 4 ? 6 : 0, min: 0, max: 6 },
+          },
+        }
+  );
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  assert.deepEqual(
+    state.party.map((member) => member.sp.current),
+    [1, 1, 1, 0, 0, 0]
+  );
+});
+
+test('dark and light mark intrinsic modifiers are exposed on preview and damage context', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 10,
+          elements: ['Dark', 'Light'],
+          markStates: {
+            Dark: { current: 4, min: 0, max: 6 },
+            Light: { current: 5, min: 0, max: 6 },
+          },
+          skills: [
+            {
+              id: 8402,
+              name: '光闇連撃',
+              label: 'DualElementAttack',
+              sp_cost: 4,
+              hit_count: 2,
+              target_type: 'Single',
+              parts: [
+                {
+                  skill_type: 'AttackSkill',
+                  target_type: 'Single',
+                  type: 'Slash',
+                  elements: ['Dark', 'Light'],
+                  power: [1.0, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8402 },
+  });
+
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markAttackUpRate, 0.6);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markDamageTakenDownRate, 0.2);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markDevastationRateUp, 0.2);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markCriticalRateUp, 0.6);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markCriticalDamageUp, 0.3);
+
+  const { committedRecord } = commitTurn(state, preview);
+  assert.equal(committedRecord.actions[0].damageContext?.markAttackUpRate, 0.6);
+  assert.equal(committedRecord.actions[0].damageContext?.markDamageTakenDownRate, 0.2);
+  assert.equal(committedRecord.actions[0].damageContext?.markDevastationRateUp, 0.2);
+  assert.equal(committedRecord.actions[0].damageContext?.markCriticalRateUp, 0.6);
+  assert.equal(committedRecord.actions[0].damageContext?.markCriticalDamageUp, 0.3);
+});
+
 test('CountBC with 3 motivated allies resolves high branch when 3 members are MotivationLevel>=4', () => {
   const createParty = (motivationValues) =>
     createSixMemberManualParty((idx) =>
