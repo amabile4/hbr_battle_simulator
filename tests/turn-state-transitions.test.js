@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   activateOverdrive,
+  analyzePassiveTimingCoverage,
+  analyzePassiveConditionSupport,
   CharacterStyle,
   commitTurn,
   createBattleStateFromParty,
@@ -75,6 +77,81 @@ test('activateOverdrive consumes gauge by level and rejects insufficient gauge u
   const forcedState = activateOverdrive(lowGaugeState, 1, 'preemptive', { forceActivation: true });
   assert.equal(forcedState.turnState.turnType, 'od');
   assert.equal(forcedState.turnState.odGauge, 80);
+});
+
+test('passive timing coverage report identifies controller gaps against passives.json', () => {
+  const store = getStore();
+  const report = analyzePassiveTimingCoverage(store.passives);
+
+  assert.deepEqual(report.supportedTimings, [{ timing: 'OnOverdriveStart', count: 9 }]);
+  assert.deepEqual(
+    report.unsupportedTimings.map((item) => item.timing),
+    [
+      'None',
+      'OnAdditionalTurnStart',
+      'OnBattleStart',
+      'OnBattleWin',
+      'OnEnemyTurnStart',
+      'OnEveryTurn',
+      'OnEveryTurnIncludeSpecial',
+      'OnFirstBattleStart',
+      'OnPlayerTurnStart',
+    ]
+  );
+});
+
+test('condition support matrix classifies passive conditions by planned tier', () => {
+  const report = analyzePassiveConditionSupport([
+    {
+      id: 1,
+      name: 'Support A',
+      condition: 'DpRate()>=1.0 && IsFront()',
+      parts: [],
+    },
+    {
+      id: 2,
+      name: 'Support B',
+      condition: 'ConquestBikeLevel()>=80 || Random()<0.3',
+      parts: [],
+    },
+    {
+      id: 3,
+      name: 'Support C',
+      condition: 'IsNatureElement(Fire)==1 && IsCharacter(IIshii)==1',
+      parts: [],
+    },
+  ]);
+
+  assert.deepEqual(report.summary.ready_now, ['IsCharacter', 'IsNatureElement']);
+  assert.deepEqual(report.summary.manual_state, ['ConquestBikeLevel', 'Random']);
+  assert.deepEqual(report.summary.stateful_future, ['DpRate']);
+});
+
+test('activateOverdrive records triggered passive events for debug logging', () => {
+  const store = getStore();
+  const styleIds = [
+    1001408,
+    ...getSixUsableStyleIds(store)
+      .filter((id) => store.getStyleById(id)?.chara_label !== 'TTojo')
+      .slice(0, 5),
+  ];
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  let state = createBattleStateFromParty(party);
+
+  state.turnState.odGauge = 120;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const passiveEvents = state.turnState.passiveEventsLastApplied ?? [];
+  assert.equal(passiveEvents.length > 0, true);
+  assert.equal(passiveEvents.some((event) => event.turnLabel === 'OD1-1'), true);
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.characterName === '東城 つかさ' &&
+        String(event.passiveDesc ?? '').includes('オーバードライブ中 ダメージアップ')
+    ),
+    true
+  );
 });
 
 test('commitTurn can activate interrupt OD after commit', () => {
@@ -1697,6 +1774,51 @@ test('CountBC(...BreakDownTurn()>0) is evaluated from enemy down-turn state', ()
   );
 });
 
+test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EB${idx + 1}`,
+      characterName: `EB${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EBS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 18100,
+                name: 'Break Hunter',
+                label: 'BreakHunter',
+                sp_cost: 0,
+                iuc_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsBroken()==1)>0',
+                parts: [],
+              },
+            ]
+          : [{ id: 18100 + idx, name: 'Normal', label: `EBSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'EB1', skillId: 18100 },
+      }),
+    /cannot be used/i
+  );
+
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [{ statusType: 'Break', targetIndex: 1, remainingTurns: 2 }],
+  };
+  const preview = previewTurn(state, {
+    0: { characterId: 'EB1', skillId: 18100 },
+  });
+  assert.equal(preview.actions.length, 1);
+});
+
 test('enemy down-turn status does not tick during OD/EX chain without base-turn advance', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -1943,6 +2065,93 @@ test('od-suspended extra turn satisfies both OD and extra-turn conditions simult
       }),
     /cannot be used because cond is not satisfied/,
     'extra-turn-forbidden skill should remain blocked during OD-suspended EX'
+  );
+});
+
+test('condition aliases support bare IsFront() and resource predicates', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `CA${idx + 1}`,
+      characterName: `CA${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `CAS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: idx === 0 ? 0 : 10,
+      initialEP: idx === 0 ? 3 : 0,
+      isBreak: idx === 0,
+      skills: [
+        idx === 0
+          ? {
+              id: 30001,
+              name: '通常攻撃',
+              label: 'AliasNormal',
+              sp_cost: 0,
+              cond: 'IsFront() && IsAttackNormal()==1 && ConsumeSp()==0 && Ep()>=3 && IsBroken()==1',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+            }
+          : {
+              id: 30002 + idx,
+              name: 'Normal',
+              label: `AliasSkill${idx + 1}`,
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+            },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'CA1', skillId: 30001 },
+    1: { characterId: 'CA2', skillId: 30003 },
+    2: { characterId: 'CA3', skillId: 30004 },
+  });
+
+  assert.equal(preview.actions.length, 3);
+});
+
+test('condition aliases block skills when bare/resource predicates are false', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `CB${idx + 1}`,
+      characterName: `CB${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `CBS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      initialEP: idx === 0 ? 2 : 0,
+      skills: [
+        idx === 0
+          ? {
+              id: 31001,
+              name: 'Spell',
+              label: 'AliasBlocked',
+              sp_cost: 9,
+              cond: 'IsFront() && IsAttackNormal()==0 && ConsumeSp()<=8 && Ep()>=3',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+            }
+          : {
+              id: 31002 + idx,
+              name: 'Normal',
+              label: `AliasBlockSkill${idx + 1}`,
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+            },
+      ],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'CB1', skillId: 31001 },
+        1: { characterId: 'CB2', skillId: 31003 },
+        2: { characterId: 'CB3', skillId: 31004 },
+      }),
+    /cannot be used because cond is not satisfied/
   );
 });
 

@@ -18,7 +18,7 @@ function createRoot() {
       <button data-action="initialize"></button>
       <input data-role="enemy-action" />
       <select data-role="enemy-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-      <select data-role="enemy-status-type"><option value="DownTurn">DownTurn</option></select>
+      <select data-role="enemy-status-type"><option value="DownTurn">DownTurn</option><option value="Break">Break</option></select>
       <select data-role="enemy-status-target"><option value="0">Enemy 1</option></select>
       <input data-role="enemy-status-turns" type="number" value="1" />
       <button data-action="enemy-status-apply"></button>
@@ -70,6 +70,8 @@ function createRoot() {
       <span data-role="status"></span>
       <ul data-role="party-state"></ul>
       <pre data-role="preview-output"></pre>
+      <pre data-role="condition-support-summary"></pre>
+      <pre data-role="passive-log-output"></pre>
       <table>
         <thead><tr data-role="record-head"></tr></thead>
         <tbody data-role="record-body"></tbody>
@@ -196,6 +198,29 @@ test('enemy down-turn status can be applied and cleared from controls', () => {
   assert.equal(statusesAfterApply[0].statusType, 'DownTurn');
   assert.equal(statusesAfterApply[0].remainingTurns, 2);
   assert.ok((root.querySelector('[data-role="enemy-status-list"]')?.textContent ?? '').includes('DownTurn(2)'));
+
+  adapter.clearEnemyStatusFromDom();
+  assert.equal(adapter.state.turnState.enemyState.statuses.length, 0);
+  assert.equal(root.querySelector('[data-role="enemy-status-list"]')?.textContent, 'Enemy Status: -');
+});
+
+test('enemy break status can be applied and cleared from controls', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const typeSelect = root.querySelector('[data-role="enemy-status-type"]');
+  const turns = root.querySelector('[data-role="enemy-status-turns"]');
+  typeSelect.value = 'Break';
+  turns.value = '3';
+  adapter.applyEnemyStatusFromDom();
+
+  const statusesAfterApply = adapter.state.turnState.enemyState.statuses;
+  assert.equal(statusesAfterApply.length, 1);
+  assert.equal(statusesAfterApply[0].statusType, 'Break');
+  assert.equal(statusesAfterApply[0].remainingTurns, 3);
+  assert.ok((root.querySelector('[data-role="enemy-status-list"]')?.textContent ?? '').includes('Break(3)'));
 
   adapter.clearEnemyStatusFromDom();
   assert.equal(adapter.state.turnState.enemyState.statuses.length, 0);
@@ -471,6 +496,29 @@ test('OD controls: preemptive activation and interrupt reservation/commit', () =
   assert.equal(adapter.state.turnState.odContext, 'interrupt');
   assert.equal(adapter.state.turnState.odGauge < 150, true);
   assert.equal(adapter.state.turnState.turnIndex, 1);
+});
+
+test('passive log panel shows triggered passive descriptions on OD start', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.initializeBattle([
+    1001408,
+    ...getSixUsableStyleIds(store)
+      .filter((id) => store.getStyleById(id)?.chara_label !== 'TTojo')
+      .slice(0, 5),
+  ]);
+  adapter.state.turnState.odGauge = 120;
+
+  adapter.openOdDialog('normal');
+  adapter.confirmOdDialog('normal');
+
+  const text = root.querySelector('[data-role="passive-log-output"]')?.textContent ?? '';
+  assert.equal(text.includes('OD1-1'), true);
+  assert.equal(text.includes('東城 つかさ') || text.includes('TTojo'), true);
+  assert.equal(text.includes('オーバードライブ中 ダメージアップ'), true);
 });
 
 test('normal OD dialog stays visible while interrupt OD dialog is toggled', () => {
@@ -1612,6 +1660,32 @@ test('limit break selector range follows style tier and filters passives', () =>
   lbSelect.value = '5';
   lbSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
   assert.equal((passiveList.textContent ?? '').includes('疾風'), true, '疾風 should appear at LB5');
+});
+
+test('condition support panel shows planned support tiers for selected style passives', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const slot = 0;
+  const characterSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);
+  const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+  const lbSelect = root.querySelector(`[data-role="limit-break-select"][data-slot="${slot}"]`);
+  const summary = root.querySelector('[data-role="condition-support-summary"]');
+
+  characterSelect.value = 'RKayamori';
+  characterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  styleSelect.value = '1001103';
+  styleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  lbSelect.value = '3';
+  lbSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const text = summary.textContent ?? '';
+  assert.equal(text.includes('Global Passive Condition Support'), true);
+  assert.equal(text.includes('stateful_future: DpRate'), true);
+  assert.equal(text.includes('Selected Style: 閃光のサーキットバースト'), true);
+  assert.equal(text.includes('堅忍: DpRate:stateful_future'), true);
 });
 
 test('passive skills are shown in checklist but excluded from action selector', () => {

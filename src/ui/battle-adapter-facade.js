@@ -24,6 +24,7 @@ export class BattleAdapterFacade {
     this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
     this.kishinkaActivatedThisTurn = false;
+    this.passiveLogEntries = [];
 
     this.turnPlans = [];
     this.turnPlanComputedRecords = [];
@@ -56,6 +57,7 @@ export class BattleAdapterFacade {
     this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
     this.kishinkaActivatedThisTurn = false;
+    this.passiveLogEntries = [];
 
     if (!options.preserveTurnPlans) {
       this.turnPlans = [];
@@ -124,6 +126,7 @@ export class BattleAdapterFacade {
 
   clearRecordsState() {
     this.recordStore = resetRecordStore();
+    this.passiveLogEntries = [];
     this.turnPlans = [];
     this.turnPlanComputedRecords = [];
     this.turnPlanReplayError = null;

@@ -2,6 +2,7 @@ import {
   previewTurn,
   activateOverdrive,
   resolveEffectiveSkillForAction,
+  analyzePassiveConditionSupport,
 } from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor } from '../records/record-store.js';
 import { buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
@@ -123,6 +124,18 @@ function formatTranscendencePercent(value) {
   }
   const clamped = Math.max(0, Math.min(999, Math.floor(n)));
   return String(clamped).padStart(3, '0');
+}
+
+function formatPassiveLogLine(event) {
+  const turnLabel = String(event?.turnLabel ?? '');
+  const characterName = String(event?.characterName ?? event?.characterId ?? '');
+  const passiveDesc = String(event?.passiveDesc ?? event?.passiveName ?? '');
+  return `${turnLabel}：${characterName}：${passiveDesc}`;
+}
+
+function formatConditionSupportLine(label, values) {
+  const list = Array.isArray(values) && values.length > 0 ? values.join(', ') : '-';
+  return `${label}: ${list}`;
 }
 
 function deriveDisplayedOdTurn(turnState) {
@@ -396,6 +409,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.renderRecordTable();
       this.renderTurnPlanEditControls();
       this.writeRecordsJsonOutput('');
+      this.writePassiveLogOutput('');
       this.setStatus('Records cleared.');
     });
     this.root.querySelector('[data-action="turn-plan-recalc"]')?.addEventListener('click', () => {
@@ -1228,12 +1242,50 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const passives = this.dataStore.listPassivesByStyleId(styleId, { limitBreakLevel });
     if (passives.length === 0) {
       container.textContent = 'Passives: -';
+      this.renderConditionSupportSummary(styleId, passives);
       return;
     }
-
+    const analyzed = analyzePassiveConditionSupport(passives);
     container.textContent = `Passives: ${passives
-      .map((p) => `${p.name}(LB${p.requiredLimitBreakLevel ?? 0})`)
+      .map((p) => {
+        const support = analyzed.perPassive.find((item) => Number(item.passiveId) === Number(p.passiveId));
+        const pending = (support?.functions ?? []).filter((item) => item.tier !== 'implemented').map((item) => item.name);
+        const suffix = pending.length > 0 ? ` [review: ${pending.join('/')}]` : '';
+        return `${p.name}(LB${p.requiredLimitBreakLevel ?? 0})${suffix}`;
+      })
       .join(', ')}`;
+    this.renderConditionSupportSummary(styleId, passives);
+  }
+
+  renderConditionSupportSummary(styleId, passives = null) {
+    const style = this.dataStore.getStyleById(styleId);
+    const rows = [];
+    const global = analyzePassiveConditionSupport(this.dataStore.passives ?? []);
+    rows.push(`Global Passive Condition Support`);
+    rows.push(formatConditionSupportLine('implemented', global.summary.implemented));
+    rows.push(formatConditionSupportLine('ready_now', global.summary.ready_now));
+    rows.push(formatConditionSupportLine('manual_state', global.summary.manual_state));
+    rows.push(formatConditionSupportLine('stateful_future', global.summary.stateful_future));
+    rows.push(formatConditionSupportLine('unknown', global.summary.unknown));
+
+    const stylePassives = Array.isArray(passives)
+      ? passives
+      : this.dataStore.listPassivesByStyleId(styleId, { limitBreakLevel: 0 });
+    const perStyle = analyzePassiveConditionSupport(stylePassives);
+    rows.push('');
+    rows.push(`Selected Style: ${String(style?.name ?? '-')}`);
+    const reviewPassives = perStyle.perPassive.filter((item) => item.requiresReview);
+    if (reviewPassives.length === 0) {
+      rows.push('review_needed: -');
+    } else {
+      for (const item of reviewPassives) {
+        const pending = item.functions
+          .filter((entry) => entry.tier !== 'implemented')
+          .map((entry) => `${entry.name}:${entry.tier}`);
+        rows.push(`${item.passiveName}: ${pending.join(', ')}`);
+      }
+    }
+    this.writeConditionSupportSummary(rows.join('\n'));
   }
 
   getCheckedSkillIdsForSlot(slotIndex) {
@@ -1407,8 +1459,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.renderRecordTable();
     this.renderTurnPlanEditControls();
     this.writePreviewOutput('');
+    this.writeConditionSupportSummary('');
     this.writeCsvOutput('');
     this.writeRecordsJsonOutput('');
+    this.writePassiveLogOutput('');
     this.renderOdControls();
     this.renderScenarioStatus();
     if (!options.suppressAutoSave) {
@@ -1419,6 +1473,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
 
     return this.state;
+  }
+
+  appendPassiveLogEvents(events = []) {
+    const normalized = (Array.isArray(events) ? events : [])
+      .filter((event) => event && typeof event === 'object')
+      .map((event) => ({
+        turnLabel: String(event.turnLabel ?? ''),
+        characterName: String(event.characterName ?? event.characterId ?? ''),
+        passiveDesc: String(event.passiveDesc ?? event.passiveName ?? ''),
+      }))
+      .filter((event) => event.turnLabel && event.characterName && event.passiveDesc);
+    if (normalized.length === 0) {
+      return;
+    }
+    this.passiveLogEntries.push(...normalized);
+    this.writePassiveLogOutput(this.passiveLogEntries.map((event) => formatPassiveLogLine(event)).join('\n'));
   }
 
   renderActionSelectors() {
@@ -1838,6 +1908,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       shouldCaptureTurnPlan,
       capturedTurnPlan,
     });
+    this.appendPassiveLogEvents(committedRecord?.passiveEvents ?? []);
     if (
       this.scenario &&
       this.scenarioStagedTurnIndex !== null &&
@@ -1920,12 +1991,20 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.view.writePreviewOutput(text);
   }
 
+  writeConditionSupportSummary(text) {
+    this.view.writeConditionSupportSummary(text);
+  }
+
   writeCsvOutput(text) {
     this.view.writeCsvOutput(text);
   }
 
   writeRecordsJsonOutput(text) {
     this.view.writeRecordsJsonOutput(text);
+  }
+
+  writePassiveLogOutput(text) {
+    this.view.writePassiveLogOutput(text);
   }
 
   renderScenarioStatus() {
@@ -2701,6 +2780,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           forceActivation: this.isForceOdEnabled() || isForceMode,
           forceConsumeGauge: isForceMode,
         });
+        this.appendPassiveLogEvents(this.state?.turnState?.passiveEventsLastApplied ?? []);
         this.previewRecord = null;
         this.pendingSwapEvents = [];
         this.resetInterruptOdProjection({ clearReservation: true });
@@ -3249,6 +3329,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state = activateOverdrive(this.state, level, 'preemptive', {
       forceActivation: this.isForceOdEnabled(),
     });
+    this.appendPassiveLogEvents(this.state?.turnState?.passiveEventsLastApplied ?? []);
     const dialog = this.root.querySelector('[data-role="od-dialog"]');
     if (dialog) {
       dialog.hidden = false;

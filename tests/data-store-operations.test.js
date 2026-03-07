@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getStore } from './helpers.js';
+import { HbrDataStore } from '../src/index.js';
 
 test('style/skill lookup and assignment operations work', () => {
   const store = getStore();
@@ -226,6 +227,101 @@ test('listPassivesByStyleId filters by selected limit break level', () => {
   assert.equal(ssrLb1.includes('閃光'), true, '閃光 should be acquired at LB1');
   assert.equal(ssrLb3.includes('万物の強威'), true, '万物の強威 should be acquired at LB3');
   assert.equal(ssrLb4.includes('即応の型'), true, '即応の型 should be acquired at LB4');
+});
+
+test('listPassivesByStyleId preserves activation metadata needed by runtime', () => {
+  const store = getStore();
+  const styleId = 1001108; // The Feel of the Throne
+
+  const passives = store.listPassivesByStyleId(styleId, { limitBreakLevel: 4 });
+  const passive = passives.find((item) => String(item.name) === '心眼の境地');
+
+  assert.ok(passive, 'target passive should be resolved from style + lb');
+  assert.equal(passive.requiredLimitBreakLevel, 0);
+  assert.equal(passive.timing, 'OnPlayerTurnStart');
+  assert.equal(passive.condition, 'SpecialStatusCountByType(78)>0 && IsFront()');
+  assert.equal(passive.effect, 'NormalBuff_Up');
+  assert.equal(passive.activ_rate, 0);
+  assert.equal(passive.auto_type, 'None');
+  assert.equal(passive.limit, 0);
+  assert.equal(passive.sourceType, 'style');
+  assert.equal(passive.sourceMeta?.sourceStyleId, styleId);
+  assert.equal(Array.isArray(passive.parts), true);
+  assert.equal(String(passive.parts?.[0]?.skill_type ?? ''), 'AttackUp');
+});
+
+test('listPassivesByStyleId keeps same-name passives when activation metadata differs', () => {
+  const store = HbrDataStore.fromRawData({
+    characters: [{ id: 1, label: 'TestChar', name: 'Test Char', team: '31A' }],
+    styles: [
+      {
+        id: 1001,
+        name: 'Test Style',
+        chara: 'Test Char',
+        chara_label: 'TestChar',
+        tier: 'SS',
+        role: 'Attacker',
+        elements: [],
+        type: 'Slash',
+        skills: [{ id: 9001 }],
+        passives: [
+          {
+            id: 8001,
+            label: 'Passive.SharedName',
+            name: '同名パッシブ',
+            timing: 'OnBattleStart',
+            condition: 'IsFront()',
+            effect: 'HealSp',
+            parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+          },
+        ],
+      },
+    ],
+    skills: [{ id: 9001, label: 'TestSkill', name: 'Test Skill', sp_cost: 0, consume_type: 'Sp', parts: [] }],
+    passives: [
+      {
+        id: 8002,
+        label: 'Passive.SharedName',
+        name: '同名パッシブ',
+        style: 'Test Style',
+        chara: 'Test Char',
+        ct: 'SS',
+        lb: 0,
+        timing: 'OnPlayerTurnStart',
+        condition: 'Sp()<=3',
+        effect: 'NormalBuff_Up',
+        parts: [{ skill_type: 'AttackUp', target_type: 'Self', power: [0.2, 0] }],
+      },
+    ],
+    skillDbSchema: {},
+    skillDbDraft: {},
+  });
+
+  const passives = store.listPassivesByStyleId(1001, { limitBreakLevel: 0 });
+
+  assert.equal(passives.length, 2);
+  assert.deepEqual(
+    passives.map((item) => ({
+      name: item.name,
+      timing: item.timing,
+      condition: item.condition,
+      effect: item.effect,
+    })),
+    [
+      {
+        name: '同名パッシブ',
+        timing: 'OnBattleStart',
+        condition: 'IsFront()',
+        effect: 'HealSp',
+      },
+      {
+        name: '同名パッシブ',
+        timing: 'OnPlayerTurnStart',
+        condition: 'Sp()<=3',
+        effect: 'NormalBuff_Up',
+      },
+    ]
+  );
 });
 
 test('listEquipableSkillsByStyleId includes passives as equip-only entries', () => {

@@ -117,6 +117,34 @@ function mergeSkillPart(basePart, overridePart) {
   return merged;
 }
 
+function createPassiveMeaningKey(passive) {
+  return JSON.stringify({
+    label: String(passive?.label ?? ''),
+    name: String(passive?.name ?? ''),
+    desc: String(passive?.desc ?? ''),
+    info: String(passive?.info ?? ''),
+    timing: String(passive?.timing ?? ''),
+    condition: String(passive?.condition ?? ''),
+    effect: String(passive?.effect ?? ''),
+    activRate: Number(passive?.activ_rate ?? passive?.activRate ?? 0),
+    autoType: String(passive?.auto_type ?? passive?.autoType ?? ''),
+    limit: Number(passive?.limit ?? 0),
+    requiredLimitBreakLevel: Number(passive?.requiredLimitBreakLevel ?? passive?.lb ?? 0),
+    parts: Array.isArray(passive?.parts) ? passive.parts : [],
+  });
+}
+
+function clonePassiveWithSource(passive, sourceType, sourceMeta = {}) {
+  return {
+    ...structuredClone(passive),
+    sourceType: String(sourceType ?? 'style'),
+    sourceMeta: structuredClone(sourceMeta),
+    requiredLimitBreakLevel: Number.isFinite(Number(passive?.lb))
+      ? Number(passive.lb)
+      : Number(passive?.requiredLimitBreakLevel ?? 0),
+  };
+}
+
 export class HbrDataStore {
   constructor(payload) {
     this.characters = payload.characters;
@@ -870,10 +898,14 @@ export class HbrDataStore {
         continue;
       }
       seen.add(id);
-      out.push({
-        ...structuredClone(passive),
-        requiredLimitBreakLevel: Number.isFinite(Number(passive?.lb)) ? Number(passive.lb) : 0,
-      });
+      out.push(
+        clonePassiveWithSource(passive, 'style', {
+          sourceStyleId: Number(style.id),
+          sourceStyleName: String(style.name ?? ''),
+          sourceCharacterId: String(style.chara_label ?? ''),
+          sourceCharacterName: normalizeCharacterName(style.chara),
+        })
+      );
     }
 
     const styleName = String(style.name ?? '');
@@ -894,20 +926,20 @@ export class HbrDataStore {
       }
 
       seen.add(id);
-      out.push({
-        ...structuredClone(passive),
-        requiredLimitBreakLevel: Number.isFinite(Number(passive?.lb)) ? Number(passive.lb) : 0,
-      });
+      out.push(
+        clonePassiveWithSource(passive, 'database', {
+          sourceStyleId: Number(style.id),
+          sourceStyleName: String(style.name ?? ''),
+          sourceCharacterId: String(style.chara_label ?? ''),
+          sourceCharacterName: normalizeCharacterName(style.chara),
+        })
+      );
     }
 
     const deduped = [];
     const uniqueByMeaning = new Set();
     for (const passive of out) {
-      const key = [
-        String(passive.label ?? ''),
-        String(passive.name ?? ''),
-        Number(passive.requiredLimitBreakLevel ?? 0),
-      ].join('|');
+      const key = createPassiveMeaningKey(passive);
       if (uniqueByMeaning.has(key)) {
         continue;
       }

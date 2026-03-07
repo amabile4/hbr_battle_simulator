@@ -159,6 +159,30 @@ function createKishinMindEyeEffect() {
   };
 }
 
+function normalizePassive(passive) {
+  return {
+    passiveId: Number(passive.id ?? passive.passiveId),
+    label: String(passive.label ?? ''),
+    name: String(passive.name ?? ''),
+    desc: String(passive.desc ?? ''),
+    info: String(passive.info ?? ''),
+    timing: String(passive.timing ?? ''),
+    condition: String(passive.condition ?? ''),
+    effect: String(passive.effect ?? ''),
+    activRate: Number(passive.activ_rate ?? passive.activRate ?? 0),
+    autoType: String(passive.auto_type ?? passive.autoType ?? ''),
+    limit: Number(passive.limit ?? 0),
+    requiredLimitBreakLevel: Number(passive.requiredLimitBreakLevel ?? passive.lb ?? 0),
+    sourceType: String(passive.sourceType ?? 'style'),
+    sourceMeta:
+      passive.sourceMeta && typeof passive.sourceMeta === 'object'
+        ? structuredClone(passive.sourceMeta)
+        : null,
+    labels: Array.isArray(passive.labels) ? structuredClone(passive.labels) : null,
+    parts: Array.isArray(passive.parts) ? structuredClone(passive.parts) : [],
+  };
+}
+
 export class CharacterStyle {
   constructor(input) {
     if (!input) {
@@ -222,17 +246,7 @@ export class CharacterStyle {
     this.triggeredSkills = Object.freeze(
       (input.triggeredSkills ?? []).map((skill) => normalizeSkill(skill, skill.canonicalSkill))
     );
-    this.passives = Object.freeze(
-      (input.passives ?? []).map((passive) => ({
-        passiveId: Number(passive.id ?? passive.passiveId),
-        label: String(passive.label ?? ''),
-        name: String(passive.name ?? ''),
-        desc: String(passive.desc ?? ''),
-        timing: String(passive.timing ?? ''),
-        condition: String(passive.condition ?? ''),
-        parts: Array.isArray(passive.parts) ? structuredClone(passive.parts) : [],
-      }))
-    );
+    this.passives = Object.freeze((input.passives ?? []).map((passive) => normalizePassive(passive)));
     const skillUseCountsInput =
       input.skillUseCounts && typeof input.skillUseCounts === 'object' ? input.skillUseCounts : {};
     this.skillUseCounts = new Map(

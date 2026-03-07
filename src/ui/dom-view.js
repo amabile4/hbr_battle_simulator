@@ -35,12 +35,20 @@ export class BattleDomView {
     this.writeText('[data-role="preview-output"]', text);
   }
 
+  writeConditionSupportSummary(text) {
+    this.writeValueOrText('[data-role="condition-support-summary"]', text);
+  }
+
   writeCsvOutput(text) {
     this.writeValueOrText('[data-role="csv-output"]', text);
   }
 
   writeRecordsJsonOutput(text) {
     this.writeValueOrText('[data-role="records-json-output"]', text);
+  }
+
+  writePassiveLogOutput(text) {
+    this.writeValueOrText('[data-role="passive-log-output"]', text);
   }
 
   renderScenarioStatus({ scenario, cursor, stagedTurnIndex }) {

@@ -25,9 +25,145 @@ const OD_DAMAGE_PART_TYPES = new Set([
   'FixedHpDamageRateAttack',
 ]);
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
+const ENEMY_STATUS_BREAK = 'Break';
+export const SUPPORTED_PASSIVE_TIMINGS = Object.freeze(['OnOverdriveStart']);
+export const CONDITION_SUPPORT_MATRIX = Object.freeze({
+  PlayedSkillCount: Object.freeze({ tier: 'implemented', note: 'skill use count is tracked now' }),
+  BreakHitCount: Object.freeze({ tier: 'implemented', note: 'action context is tracked now' }),
+  SpecialStatusCountByType: Object.freeze({ tier: 'implemented', note: 'tracked special states only' }),
+  OverDriveGauge: Object.freeze({ tier: 'implemented', note: 'turn state gauge is tracked now' }),
+  Sp: Object.freeze({ tier: 'implemented', note: 'current SP is tracked now' }),
+  Ep: Object.freeze({ tier: 'implemented', note: 'current EP is tracked now' }),
+  CountBC: Object.freeze({ tier: 'implemented', note: 'implemented only for supported nested predicates' }),
+  IsOverDrive: Object.freeze({ tier: 'implemented', note: 'turn type is tracked now' }),
+  IsReinforcedMode: Object.freeze({ tier: 'implemented', note: 'character state is tracked now' }),
+  IsFront: Object.freeze({ tier: 'implemented', note: 'position is tracked now' }),
+  IsDead: Object.freeze({ tier: 'implemented', note: 'alive state is tracked now' }),
+  BreakDownTurn: Object.freeze({ tier: 'implemented', note: 'enemy DownTurn is tracked now' }),
+  ConsumeSp: Object.freeze({ tier: 'implemented', note: 'selected skill cost is tracked now' }),
+  IsAttackNormal: Object.freeze({ tier: 'implemented', note: 'selected action can be checked now' }),
+  IsBroken: Object.freeze({ tier: 'implemented', note: 'self flag and enemy manual Break status are tracked now' }),
+  IsNatureElement: Object.freeze({ tier: 'ready_now', note: 'can be derived from style elements without new state' }),
+  IsCharacter: Object.freeze({ tier: 'ready_now', note: 'can be derived from party membership without new state' }),
+  ConquestBikeLevel: Object.freeze({ tier: 'manual_state', note: 'manual external setting' }),
+  DamageRate: Object.freeze({ tier: 'manual_state', note: 'manual enemy state until damage sim exists' }),
+  Random: Object.freeze({ tier: 'manual_state', note: 'manual / debug random policy' }),
+  DpRate: Object.freeze({ tier: 'stateful_future', note: 'needs DP current/max state and updates' }),
+  Token: Object.freeze({ tier: 'stateful_future', note: 'needs token current state and updates' }),
+  MoraleLevel: Object.freeze({ tier: 'stateful_future', note: 'needs morale state and updates' }),
+  MotivationLevel: Object.freeze({ tier: 'stateful_future', note: 'needs motivation state and updates' }),
+  FireMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs fire mark level state and updates' }),
+  IceMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs ice mark level state and updates' }),
+  IsZone: Object.freeze({ tier: 'stateful_future', note: 'needs field zone state' }),
+  IsTerritory: Object.freeze({ tier: 'stateful_future', note: 'needs territory state' }),
+});
+const CONDITION_FUNCTION_PATTERN = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+
+export function analyzePassiveTimingCoverage(passives = []) {
+  const countsByTiming = new Map();
+  for (const passive of Array.isArray(passives) ? passives : []) {
+    const timing = String(passive?.timing ?? '');
+    countsByTiming.set(timing, (countsByTiming.get(timing) ?? 0) + 1);
+  }
+
+  const supportedTimings = [];
+  const unsupportedTimings = [];
+  for (const timing of [...countsByTiming.keys()].sort((a, b) => a.localeCompare(b, 'en'))) {
+    if (SUPPORTED_PASSIVE_TIMINGS.includes(timing)) {
+      supportedTimings.push({ timing, count: countsByTiming.get(timing) ?? 0 });
+    } else {
+      unsupportedTimings.push({ timing, count: countsByTiming.get(timing) ?? 0 });
+    }
+  }
+
+  return {
+    supportedTimings,
+    unsupportedTimings,
+    countsByTiming: Object.fromEntries(countsByTiming.entries()),
+  };
+}
+
+export function extractConditionFunctionNames(text) {
+  const out = new Set();
+  for (const match of String(text ?? '').matchAll(CONDITION_FUNCTION_PATTERN)) {
+    out.add(String(match[1] ?? ''));
+  }
+  return [...out].sort((a, b) => a.localeCompare(b, 'en'));
+}
+
+export function analyzePassiveConditionSupport(passives = []) {
+  const perPassive = [];
+  const summary = {
+    implemented: new Set(),
+    ready_now: new Set(),
+    manual_state: new Set(),
+    stateful_future: new Set(),
+    unknown: new Set(),
+  };
+
+  for (const passive of Array.isArray(passives) ? passives : []) {
+    const expressions = [];
+    const pushExpr = (location, text) => {
+      const value = String(text ?? '').trim();
+      if (value) {
+        expressions.push({ location, expression: value });
+      }
+    };
+
+    pushExpr('condition', passive?.condition);
+    for (const [partIndex, part] of (passive?.parts ?? []).entries()) {
+      pushExpr(`parts[${partIndex}].cond`, part?.cond);
+      pushExpr(`parts[${partIndex}].hit_condition`, part?.hit_condition);
+      pushExpr(`parts[${partIndex}].target_condition`, part?.target_condition);
+    }
+
+    const functions = [...new Set(expressions.flatMap((item) => extractConditionFunctionNames(item.expression)))];
+    const support = functions.map((name) => ({
+      name,
+      ...(CONDITION_SUPPORT_MATRIX[name] ?? { tier: 'unknown', note: 'not classified yet' }),
+    }));
+
+    for (const item of support) {
+      if (!summary[item.tier]) {
+        summary.unknown.add(item.name);
+      } else {
+        summary[item.tier].add(item.name);
+      }
+    }
+
+    perPassive.push({
+      passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+      passiveName: String(passive?.name ?? ''),
+      expressions,
+      functions: support,
+      requiresReview: support.some((item) => item.tier !== 'implemented'),
+    });
+  }
+
+  return {
+    perPassive,
+    summary: Object.fromEntries(
+      Object.entries(summary).map(([tier, values]) => [tier, [...values].sort((a, b) => a.localeCompare(b, 'en'))])
+    ),
+  };
+}
 
 function clampOdGauge(value) {
   return Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, value));
+}
+
+function createPassiveTriggerEvent(turnState, member, passive, details = {}) {
+  return {
+    turnLabel: String(turnState?.turnLabel ?? ''),
+    turnType: String(turnState?.turnType ?? ''),
+    timing: String(passive?.timing ?? ''),
+    characterId: String(member?.characterId ?? ''),
+    characterName: String(member?.characterName ?? ''),
+    passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+    passiveName: String(passive?.name ?? ''),
+    passiveDesc: String(passive?.desc ?? ''),
+    ...details,
+  };
 }
 
 function isOverDriveActive(turnState) {
@@ -237,6 +373,72 @@ function compareNumbers(left, op, right) {
   }
 }
 
+function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
+  const key = String(name ?? '').trim();
+  switch (key) {
+    case 'BreakHitCount':
+      return {
+        known: true,
+        value: Number(actionEntry?.breakHitCount ?? 0),
+      };
+    case 'OverDriveGauge':
+      return {
+        known: true,
+        value: Number(state?.turnState?.odGauge ?? 0),
+      };
+    case 'Sp':
+      return {
+        known: true,
+        value: Number(member?.sp?.current ?? 0),
+      };
+    case 'Ep':
+      return {
+        known: true,
+        value: Number(member?.ep?.current ?? 0),
+      };
+    case 'IsOverDrive':
+      return {
+        known: true,
+        value: isOverDriveActive(state?.turnState) ? 1 : 0,
+      };
+    case 'IsReinforcedMode':
+      return {
+        known: true,
+        value: hasReinforcedMode(member) ? 1 : 0,
+      };
+    case 'IsFront':
+      return {
+        known: true,
+        value: Number(member?.position ?? 99) <= 2 ? 1 : 0,
+      };
+    case 'IsDead':
+      return {
+        known: true,
+        value: member?.isAlive === false ? 1 : 0,
+      };
+    case 'IsBroken':
+      return {
+        known: true,
+        value: member?.isBreak ? 1 : 0,
+      };
+    case 'IsAttackNormal':
+      return {
+        known: true,
+        value: isNormalAttackSkill(skill) ? 1 : 0,
+      };
+    case 'ConsumeSp':
+      return {
+        known: true,
+        value: Number(skill?.spCost ?? skill?.sp_cost ?? 0),
+      };
+    default:
+      return {
+        known: false,
+        value: true,
+      };
+  }
+}
+
 function splitTopLevel(expression, separator) {
   const text = String(expression ?? '');
   const out = [];
@@ -359,6 +561,26 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
   }
 
   const clauses = inner.split('&&').filter(Boolean);
+  const hasAllBrokenEnemyClauses =
+    clauses.length === 3 &&
+    clauses.includes('IsPlayer()==0') &&
+    clauses.includes('IsDead()==0') &&
+    clauses.includes('IsBroken()==1');
+  if (hasAllBrokenEnemyClauses) {
+    const count = countEnemiesWithStatus(state?.turnState, ENEMY_STATUS_BREAK);
+    return { known: true, value: count };
+  }
+
+  const hasBrokenAndHighDamageEnemyClauses =
+    clauses.length === 4 &&
+    clauses.includes('IsPlayer()==0') &&
+    clauses.includes('IsDead()==0') &&
+    clauses.includes('IsBroken()==1') &&
+    clauses.some((clause) => clause.startsWith('DamageRate()'));
+  if (hasBrokenAndHighDamageEnemyClauses) {
+    return { known: false, value: true };
+  }
+
   const hasAllDownTurnEnemyClauses =
     clauses.length === 3 &&
     clauses.includes('IsPlayer()==0') &&
@@ -394,33 +616,10 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   }
 
   {
-    const m = text.match(/^BreakHitCount\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
-    if (m) {
-      return { known: true, value: compareNumbers(breakHitCount, m[1], Number(m[2])) };
-    }
-  }
-
-  {
     const m = text.match(/^SpecialStatusCountByType\(20\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
     if (m) {
       const active = member?.isExtraActive ? 1 : 0;
       return { known: true, value: compareNumbers(active, m[1], Number(m[2])) };
-    }
-  }
-
-  {
-    const m = text.match(/^OverDriveGauge\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
-    if (m) {
-      const gauge = Number(state?.turnState?.odGauge ?? 0);
-      return { known: true, value: compareNumbers(gauge, m[1], Number(m[2])) };
-    }
-  }
-
-  {
-    const m = text.match(/^Sp\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
-    if (m) {
-      const sp = Number(member?.sp?.current ?? 0);
-      return { known: true, value: compareNumbers(sp, m[1], Number(m[2])) };
     }
   }
 
@@ -435,25 +634,24 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
     }
   }
 
-  if (text === 'IsOverDrive()') {
-    return { known: true, value: isOverDriveActive(state.turnState) };
-  }
   {
-    const m = text.match(/^IsOverDrive\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    const m = text.match(/^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
     if (m) {
-      const lhs = isOverDriveActive(state.turnState) ? 1 : 0;
-      return { known: true, value: compareNumbers(lhs, m[1], Number(m[2])) };
+      const resolved = resolveZeroArgConditionValue(m[1], state, member, skill, actionEntry);
+      if (!resolved.known) {
+        return { known: false, value: true };
+      }
+      return { known: true, value: compareNumbers(Number(resolved.value), m[2], Number(m[3])) };
     }
   }
-
-  if (text === 'IsReinforcedMode()') {
-    return { known: true, value: hasReinforcedMode(member) };
-  }
   {
-    const m = text.match(/^IsReinforcedMode\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    const m = text.match(/^([A-Za-z_][A-Za-z0-9_]*)\(\)$/);
     if (m) {
-      const lhs = hasReinforcedMode(member) ? 1 : 0;
-      return { known: true, value: compareNumbers(lhs, m[1], Number(m[2])) };
+      const resolved = resolveZeroArgConditionValue(m[1], state, member, skill, actionEntry);
+      if (!resolved.known) {
+        return { known: false, value: true };
+      }
+      return { known: true, value: Boolean(Number(resolved.value)) };
     }
   }
 
@@ -1407,10 +1605,12 @@ function getPassiveOverdriveEpLimit(member) {
   return limit;
 }
 
-function getEpCeilingForTurn(member, turnState) {
+function getEpCeilingForTurn(member, turnState, options = {}) {
   const rule = getEpRule(member);
   if (turnState.turnType === 'od') {
-    const passiveLimit = getPassiveOverdriveEpLimit(member);
+    const passiveLimit = Number.isFinite(Number(options.passiveOverdriveEpLimit))
+      ? Number(options.passiveOverdriveEpLimit)
+      : getPassiveOverdriveEpLimit(member);
     if (Number.isFinite(passiveLimit)) {
       return Number(passiveLimit);
     }
@@ -1466,30 +1666,77 @@ function applyPassiveSkillEpTurnStart(member, turnState) {
   return events;
 }
 
-function applyPassiveEpOnOverdriveStart(member, turnState) {
+function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
   const events = [];
+  const passiveEvents = [];
+  const passiveOverdriveEpLimit = Number.isFinite(Number(options.passiveOverdriveEpLimit))
+    ? Number(options.passiveOverdriveEpLimit)
+    : null;
   for (const passive of member.passives ?? []) {
     if (String(passive.timing ?? '') !== 'OnOverdriveStart') {
       continue;
     }
+    const effectTypes = new Set();
     for (const part of passive.parts ?? []) {
-      if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
+      const skillType = String(part?.skill_type ?? '').trim();
+      if (skillType) {
+        effectTypes.add(skillType);
+      }
+    }
+    let totalDelta = 0;
+    let matched = false;
+    for (const part of passive.parts ?? []) {
+      const skillType = String(part.skill_type ?? '');
+      if (skillType === 'EpLimitOverwrite') {
+        const limit = Number(part?.power?.[0] ?? 0);
+        if (Number.isFinite(limit) && limit > 0) {
+          matched = true;
+          effectTypes.add(skillType);
+        }
+        continue;
+      }
+      if (skillType !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
       const amount = Number(part?.power?.[0] ?? 0);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
-      const change = member.applyEpDelta(amount, getEpCeilingForTurn(member, turnState));
+      const change = member.applyEpDelta(
+        amount,
+        getEpCeilingForTurn(member, turnState, { passiveOverdriveEpLimit })
+      );
       events.push({
         characterId: member.characterId,
         source: 'ep_passive',
         passiveName: passive.name,
         ...change,
       });
+      matched = true;
+      totalDelta += Number(change?.delta ?? 0);
+      effectTypes.add(skillType);
+    }
+    if (matched) {
+      passiveEvents.push(
+        createPassiveTriggerEvent(turnState, member, passive, {
+          source: 'passive',
+          effectTypes: [...effectTypes],
+          epDelta: totalDelta,
+          epLimit: passiveOverdriveEpLimit,
+        })
+      );
+    } else if (effectTypes.size > 0 || String(passive.effect ?? '').trim()) {
+      passiveEvents.push(
+        createPassiveTriggerEvent(turnState, member, passive, {
+          source: 'passive',
+          effectTypes: [...effectTypes],
+          epDelta: totalDelta,
+          epLimit: passiveOverdriveEpLimit,
+        })
+      );
     }
   }
-  return events;
+  return { epEvents: events, passiveEvents };
 }
 
 function applySkillSelfEpGains(state, previewRecord) {
@@ -1942,6 +2189,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   committed.transcendence = transcendenceSummary;
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
+  nextTurnState.passiveEventsLastApplied = [];
+  committed.passiveEvents = [];
   if (shouldActivateInterruptOd) {
     // 割込ODは「現在通常ターンの後段」に差し込まれるため、
     // ODが終わるまで base turn index を進めない。
@@ -1969,6 +2218,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       forceActivation: forceOdActivation,
       forceConsumeGauge: forceResourceDeficit,
     });
+    committed.passiveEvents = Array.isArray(nextState.turnState?.passiveEventsLastApplied)
+      ? structuredClone(nextState.turnState.passiveEventsLastApplied)
+      : [];
   }
 
   return {
@@ -2014,15 +2266,24 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
     ...state,
     turnState: nextTurnState,
   };
+  const passiveEvents = [];
 
   for (const member of nextState.party) {
     const rule = getEpRule(member);
+    const passiveOverdriveEpLimit = getPassiveOverdriveEpLimit(member);
     const delta = Number(rule?.onOverdriveStartEpDelta ?? 0);
     if (Number.isFinite(delta) && delta !== 0) {
-      member.applyEpDelta(delta, getEpCeilingForTurn(member, nextTurnState));
+      member.applyEpDelta(
+        delta,
+        getEpCeilingForTurn(member, nextTurnState, { passiveOverdriveEpLimit })
+      );
     }
-    applyPassiveEpOnOverdriveStart(member, nextTurnState);
+    const passiveResult = applyPassiveEpOnOverdriveStart(member, nextTurnState, {
+      passiveOverdriveEpLimit,
+    });
+    passiveEvents.push(...passiveResult.passiveEvents);
   }
+  nextState.turnState.passiveEventsLastApplied = passiveEvents;
 
   return nextState;
 }

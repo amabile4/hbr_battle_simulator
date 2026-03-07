@@ -62,6 +62,7 @@ export function createInitialTurnState() {
     },
     transcendence: null,
     extraTurnState: null,
+    passiveEventsLastApplied: [],
   });
 }
 
@@ -96,6 +97,9 @@ export function cloneTurnState(turnState) {
           allowedCharacterIds: [...turnState.extraTurnState.allowedCharacterIds],
         }
       : null,
+    passiveEventsLastApplied: Array.isArray(turnState?.passiveEventsLastApplied)
+      ? turnState.passiveEventsLastApplied.map((event) => ({ ...event }))
+      : [],
   };
 }
 

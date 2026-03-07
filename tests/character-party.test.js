@@ -27,6 +27,22 @@ test('build party with six styles and perform swap', () => {
   assert.equal(party.getByPosition(3).characterId, before0);
 });
 
+test('buildCharacterStyle keeps passive activation metadata on member state', () => {
+  const store = getStore();
+  const member = store.buildCharacterStyle({ styleId: 1001108, partyIndex: 0, initialSP: 10 });
+  const passive = member.passives.find((item) => item.name === '心眼の境地');
+
+  assert.ok(passive);
+  assert.equal(passive.timing, 'OnPlayerTurnStart');
+  assert.equal(passive.condition, 'SpecialStatusCountByType(78)>0 && IsFront()');
+  assert.equal(passive.effect, 'NormalBuff_Up');
+  assert.equal(passive.activRate, 0);
+  assert.equal(passive.autoType, 'None');
+  assert.equal(passive.requiredLimitBreakLevel, 0);
+  assert.equal(passive.sourceType, 'style');
+  assert.equal(Array.isArray(passive.parts), true);
+});
+
 test('character preview/commit applies preview result exactly once (Q-S001 A)', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);

@@ -16,6 +16,11 @@ export {
   activateOverdrive,
   grantExtraTurn,
   BASE_SP_RECOVERY,
+  SUPPORTED_PASSIVE_TIMINGS,
+  CONDITION_SUPPORT_MATRIX,
+  analyzePassiveTimingCoverage,
+  analyzePassiveConditionSupport,
+  extractConditionFunctionNames,
 } from './turn/turn-controller.js';
 export { fromSnapshot, commitRecord, buildTurnContext } from './records/record-assembler.js';
 export { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from './records/record-store.js';
