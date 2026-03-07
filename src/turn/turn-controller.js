@@ -1735,10 +1735,14 @@ function resolveEffectiveSkillVariant(skill, state, member) {
       const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
       const selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
       const nested = recurse(selected);
+      const inheritedConsumeType =
+        String(nested.consumeType) === 'Sp' && String(resolved.consumeType) !== 'Sp'
+          ? String(resolved.consumeType)
+          : String(nested.consumeType);
       resolved = {
         ...resolved,
         spCost: nested.spCost,
-        consumeType: nested.consumeType,
+        consumeType: inheritedConsumeType,
         targetType: nested.targetType,
         hitCount: nested.hitCount,
         cond: nested.cond,
@@ -2026,7 +2030,7 @@ function computeOverDrivePointUpGainPercent(
 
     let partPercent = resolveOverDrivePointUpPowerPercent(part);
     if (skillType === 'OverDrivePointUpByToken') {
-      const tokenCount = Number(member?.tokenState?.current ?? 0);
+      const tokenCount = Number(actionEntry?.startToken ?? member?.tokenState?.current ?? 0);
       partPercent = truncateToTwoDecimals(partPercent * tokenCount);
     }
     if (!Number.isFinite(partPercent) || partPercent <= 0) {
@@ -2232,14 +2236,15 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       overDrivePointUpByTokenPerToken: effectiveParts
         .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
         .reduce((sum, part) => sum + Number(part?.power?.[0] ?? 0), 0),
-      overDrivePointUpByTokenTokenCount: Number(member?.tokenState?.current ?? 0),
+      overDrivePointUpByTokenTokenCount: Number(actionEntry?.startToken ?? member?.tokenState?.current ?? 0),
       overDrivePointUpByTokenTotalPercent: effectiveParts
         .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
         .reduce(
           (sum, part) =>
             sum +
             truncateToTwoDecimals(
-              resolveOverDrivePointUpPowerPercent(part) * Number(member?.tokenState?.current ?? 0)
+              resolveOverDrivePointUpPowerPercent(part) *
+                Number(actionEntry?.startToken ?? member?.tokenState?.current ?? 0)
             ),
           0
         ),

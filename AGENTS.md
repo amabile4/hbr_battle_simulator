@@ -6,3 +6,9 @@
 - Codex must not run Playwright E2E commands (example: `npm run test:e2e -- --grep "First Commit Enables Ops Button Test"`); E2E execution is owned by Gemini Antigravity.
 - Gemini Antigravity must not modify `src/` domain logic unless explicitly requested by the user.
 - Shared changes (fixtures/selectors/contracts) should be coordinated via user instruction before cross-boundary edits.
+
+## Test Writing Conventions
+
+- テスト作成時に「行動なし」を他キャラクターへさせたい場合は、原則として `プロテクション`（`SP0`、自らの防御力を上げる）を使用する。
+- これは完全な no-op ではないが、現在の実装と実データ運用では「行動なしにかなり近い代替」として扱う。
+- 今後の unit/integration test でも、明示的な意図がない限り `行動なし` の代替として `プロテクション` を優先する。

@@ -881,6 +881,39 @@ test('interrupt OD projected gauge allows OD1 from thunder party at initial 0%',
   assert.equal(Number(adapter.interruptOdProjection?.projectedGauge) >= 100, true);
 });
 
+test('interrupt OD projection includes token-based OD gain from 真夏のひんやりショック！', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const muStyle = store.styles.find((style) =>
+    Array.isArray(style?.skills) && style.skills.some((skill) => Number(skill?.id) === 46006609)
+  );
+  assert.ok(muStyle);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== Number(muStyle.id));
+  adapter.initializeBattle([Number(muStyle.id), ...others.slice(0, 5)], {
+    skillSetsByPartyIndex: {
+      0: [46006609],
+    },
+    initialOdGauge: 60,
+  });
+  adapter.state.party[0].tokenState.current = 4;
+  adapter.renderPartyState();
+
+  const actionSelect = root.querySelector('[data-action-slot="0"]');
+  assert.ok(actionSelect);
+  actionSelect.value = '46006609';
+  actionSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  adapter.openOdDialog('interrupt');
+  const interruptSelect = root.querySelector('[data-role="interrupt-od-level"]');
+  const options = [...interruptSelect.options].map((option) => String(option.value));
+
+  assert.deepEqual(options, ['1']);
+  assert.equal(Number(adapter.interruptOdProjection?.projectedGauge) >= 100, true);
+});
+
 test('interrupt OD projection is cleared when selected action changes before reservation', () => {
   const store = getStore();
   const { root, win } = createRoot();

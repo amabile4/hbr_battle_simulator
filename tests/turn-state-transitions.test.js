@@ -227,6 +227,58 @@ test('TokenSetByHealedDp grants token when DP heal skill targets the member', ()
   );
 });
 
+test('フェリチータ grants token only on initial skill use, not on later regeneration turns', () => {
+  const store = getStore();
+  const actorStyleId = findStyleIdBySkillId(store, 46008506);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [46008506],
+    },
+  });
+  let state = createBattleStateFromParty(party);
+  let actor = state.party[0];
+
+  assert.equal(actor.characterId, 'MdAngelis');
+
+  const preview1 = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46008506 },
+  });
+  const commit1 = commitTurn(state, preview1);
+  state = commit1.nextState;
+  actor = state.party[0];
+  const entry1 = commit1.committedRecord.actions.find((item) => item.characterId === actor.characterId);
+
+  assert.equal(actor.tokenState.current, 2);
+  assert.equal(
+    (entry1.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 1),
+    true
+  );
+  assert.equal(
+    (entry1.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSetByHealedDp' && item.delta === 1),
+    true
+  );
+
+  const preview2 = previewTurn(state, {});
+  const commit2 = commitTurn(state, preview2);
+  state = commit2.nextState;
+  actor = state.party[0];
+  const entry2 = commit2.committedRecord.actions.find((item) => item.characterId === actor.characterId);
+
+  assert.equal(actor.tokenState.current, 2);
+  assert.equal(entry2, undefined);
+
+  const preview3 = previewTurn(state, {});
+  const commit3 = commitTurn(state, preview3);
+  state = commit3.nextState;
+  actor = state.party[0];
+  const entry3 = commit3.committedRecord.actions.find((item) => item.characterId === actor.characterId);
+
+  assert.equal(actor.tokenState.current, 2);
+  assert.equal(entry3, undefined);
+});
+
 test('Token() condition can trigger passives from current token state', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -793,6 +845,117 @@ test('real token consume skill 星降るシャンデリア・グラス spends 5 
   assert.equal((entry.moraleChanges ?? []).some((item) => item.triggerType === 'Morale' && item.delta === 3), true);
 });
 
+test('一途 spends 5 token on preview and commit', () => {
+  const store = getStore();
+  const actorStyleId = findStyleIdBySkillId(store, 46004211);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [46004211],
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+  actor.tokenState.current = 7;
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46004211, targetEnemyIndex: 0 },
+  });
+  assert.equal(actor.characterId, 'MTsukishiro');
+  assert.equal(preview.actions[0].consumeType, 'Token');
+  assert.equal(preview.actions[0].startSP, 20);
+  assert.equal(preview.actions[0].endSP, 20);
+  assert.equal(preview.actions[0].startToken, 7);
+  assert.equal(preview.actions[0].endToken, 2);
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === actor.characterId);
+
+  assert.equal(nextState.party[0].sp.current, 20);
+  assert.equal(nextState.party[0].tokenState.current, 3);
+  assert.equal((entry.tokenChanges ?? []).some((item) => item.source === 'cost' && item.delta === -5), true);
+  assert.equal(
+    (entry.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSetByAttacking' && item.delta === 1),
+    true
+  );
+});
+
+test('サマーグレイス is usable outside OD and blocked during OD', () => {
+  const store = getStore();
+  const actorStyleId = findStyleIdBySkillId(store, 46006610);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 10,
+    skillSetsByPartyIndex: {
+      0: [46006610],
+    },
+  });
+  let state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46006610 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === actor.characterId);
+
+  assert.equal(actor.characterId, 'MuOhshima');
+  assert.equal(preview.actions[0].spCost, 4);
+  assert.equal(preview.actions[0].startToken, 0);
+  assert.equal(nextState.party[0].tokenState.current, 1);
+  assert.equal(
+    (entry.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 1),
+    true
+  );
+
+  state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: actor.characterId, skillId: 46006610 },
+      }),
+    /cannot be used because cond is not satisfied/
+  );
+});
+
+test('真夏のひんやりショック！ consumes all token and converts it to OD gain', () => {
+  const store = getStore();
+  const actorStyleId = findStyleIdBySkillId(store, 46006609);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 10,
+    skillSetsByPartyIndex: {
+      0: [46006609],
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 40;
+  const actor = state.party[0];
+  actor.tokenState.current = 4;
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46006609 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === actor.characterId);
+
+  assert.equal(actor.characterId, 'MuOhshima');
+  assert.equal(preview.actions[0].consumeType, 'Token');
+  assert.equal(preview.actions[0].startToken, 4);
+  assert.equal(preview.actions[0].endToken, 0);
+  assert.equal(nextState.party[0].tokenState.current, 0);
+  assert.equal(entry.odGaugeGain, 40);
+  assert.equal(nextState.turnState.odGauge, 80);
+  assert.equal((entry.tokenChanges ?? []).some((item) => item.source === 'cost' && item.delta === -4), true);
+  assert.equal(entry.damageContext?.overDrivePointUpByTokenPerToken, 0.1);
+  assert.equal(entry.damageContext?.overDrivePointUpByTokenTokenCount, 4);
+  assert.equal(entry.damageContext?.overDrivePointUpByTokenTotalPercent, 40);
+});
+
 test('orb skill Cheer Up raises self morale for characters without innate morale support', () => {
   const store = getStore();
   const actorStyleId = 1001201; // YIzumi
@@ -897,6 +1060,56 @@ test('ハートフル・ボマー+ raises morale for all allies', () => {
   assert.equal(
     (entry.moraleChanges ?? []).filter((item) => item.triggerType === 'Morale' && item.delta === 4).length,
     1
+  );
+});
+
+test('バーテンダーズ・チョイス splits first and second use for token gain and OD cost', () => {
+  const store = getStore();
+  const actorStyleId = findStyleIdBySkillId(store, 46006308);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 10,
+    skillSetsByPartyIndex: {
+      0: [46006308],
+    },
+  });
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+  const actor = state.party[0];
+
+  const preview1 = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46006308 },
+  });
+  assert.equal(actor.characterId, 'MiOhshima');
+  assert.equal(preview1.actions[0].spCost, 0);
+  const commit1 = commitTurn(state, preview1);
+  state = commit1.nextState;
+
+  assert.equal(state.turnState.odGauge, 85);
+  assert.deepEqual(
+    state.party.map((member) => Number(member.tokenState?.current ?? 0)),
+    [2, 2, 2, 0, 0, 0]
+  );
+  assert.deepEqual(
+    state.party.map((member) => Number(member.sp?.current ?? 0)),
+    [15, 15, 15, 15, 15, 15]
+  );
+
+  const preview2 = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46006308 },
+  });
+  assert.equal(preview2.actions[0].spCost, 0);
+  const commit2 = commitTurn(state, preview2);
+  state = commit2.nextState;
+
+  assert.equal(state.turnState.odGauge, 70);
+  assert.deepEqual(
+    state.party.map((member) => Number(member.tokenState?.current ?? 0)),
+    [4, 4, 4, 0, 0, 0]
+  );
+  assert.deepEqual(
+    state.party.map((member) => Number(member.sp?.current ?? 0)),
+    [17, 17, 17, 17, 17, 17]
   );
 });
 
