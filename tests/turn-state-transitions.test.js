@@ -677,6 +677,128 @@ test('MotivationLevel condition can trigger passives from current motivation sta
   assert.equal(state.party[0].sp.current, 3);
 });
 
+test('CountBC with 3 motivated allies resolves high branch when 3 members are MotivationLevel>=4', () => {
+  const createParty = (motivationValues) =>
+    createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            initialMotivation: motivationValues[idx] ?? 3,
+            skills: [
+              {
+                id: 18226,
+                name: 'Motivation Count Branch',
+                sp_cost: 12,
+                target_type: 'All',
+                overwrite_cond: 'CountBC(IsPlayer()==1&&MotivationLevel()>=4)>=3',
+                parts: [
+                  {
+                    skill_type: 'SkillCondition',
+                    target_type: 'All',
+                    cond: 'CountBC(IsPlayer()==1&&MotivationLevel()>=4)>=3',
+                    strval: [
+                      {
+                        id: 18227,
+                        name: 'high',
+                        sp_cost: 6,
+                        target_type: 'All',
+                        parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+                      },
+                      {
+                        id: 18228,
+                        name: 'low',
+                        sp_cost: 12,
+                        target_type: 'All',
+                        parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        : {
+            initialMotivation: motivationValues[idx] ?? 3,
+          }
+    );
+
+  const highPreview = previewTurn(createBattleStateFromParty(createParty([4, 4, 4, 3, 3, 3])), {
+    0: { characterId: 'M1', skillId: 18226 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  assert.equal(highPreview.actions[0].spCost, 6);
+
+  const lowPreview = previewTurn(createBattleStateFromParty(createParty([4, 4, 3, 3, 3, 3])), {
+    0: { characterId: 'M1', skillId: 18226 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  assert.equal(lowPreview.actions[0].spCost, 12);
+});
+
+test('スペシャルタッグ passive resolves 3/2/1 motivated ally branches', () => {
+  const createParty = (motivationValues) =>
+    createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            initialMotivation: motivationValues[idx] ?? 3,
+            passives: [
+              {
+                id: 18229,
+                name: 'スペシャルタッグ',
+                timing: 'OnPlayerTurnStart',
+                condition: 'CountBC(MotivationLevel() >= 4) > 0',
+                parts: [
+                  {
+                    skill_type: 'SkillCondition',
+                    target_type: 'None',
+                    cond: 'CountBC(MotivationLevel() >= 4) >= 3',
+                    strval: [
+                      {
+                        id: 18230,
+                        name: 'スペシャルタッグ',
+                        desc: '好調以上の味方：3人',
+                        parts: [{ skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.3, 0] }],
+                      },
+                      {
+                        id: 18231,
+                        name: 'スペシャルタッグ',
+                        desc: '好調以上の味方：2人',
+                        parts: [{ skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.2, 0] }],
+                      },
+                      {
+                        id: 18232,
+                        name: 'スペシャルタッグ',
+                        desc: '好調以上の味方：1人',
+                        parts: [{ skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.1, 0] }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        : {
+            initialMotivation: motivationValues[idx] ?? 3,
+          }
+    );
+
+  const result3 = applyPassiveTiming(createBattleStateFromParty(createParty([4, 4, 4, 3, 3, 3])), 'OnPlayerTurnStart');
+  assert.equal(result3.passiveEvents[0].attackUpRate, 0.3);
+  assert.deepEqual(result3.passiveEvents[0].unsupportedEffectTypes, []);
+
+  const result2 = applyPassiveTiming(createBattleStateFromParty(createParty([4, 4, 3, 3, 3, 3])), 'OnPlayerTurnStart');
+  assert.equal(result2.passiveEvents[0].attackUpRate, 0.2);
+  assert.deepEqual(result2.passiveEvents[0].unsupportedEffectTypes, []);
+
+  const result1 = applyPassiveTiming(createBattleStateFromParty(createParty([4, 3, 3, 3, 3, 3])), 'OnPlayerTurnStart');
+  assert.equal(result1.passiveEvents[0].attackUpRate, 0.1);
+  assert.deepEqual(result1.passiveEvents[0].unsupportedEffectTypes, []);
+
+  const result0 = applyPassiveTiming(createBattleStateFromParty(createParty([3, 3, 3, 3, 3, 3])), 'OnPlayerTurnStart');
+  assert.equal(result0.passiveEvents.length, 0);
+});
+
 test('掴め栄冠！グランドスラム！ sets all ally motivation levels to 5', () => {
   const store = getStore();
   const actorStyleId = findStyleIdBySkillId(store, 46002210);
@@ -702,6 +824,155 @@ test('掴め栄冠！グランドスラム！ sets all ally motivation levels to
   );
   const motivationEvents = committedRecord.actions.flatMap((entry) => entry.motivationChanges ?? []);
   assert.equal(motivationEvents.some((event) => event.triggerType === 'Motivation' && event.postMotivation === 5), true);
+});
+
+test('絶好調女 gives SP+1 only to allies whose motivation level is 5', () => {
+  const store = getStore();
+  const actorStyleId = 1002207;
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 1 },
+    initialMotivationByPartyIndex: { 0: 5, 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 },
+  });
+  const state = createBattleStateFromParty(party);
+
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  assert.equal(result.spEvents.length, 2);
+  assert.equal(state.party[0].sp.current, 2);
+  assert.equal(state.party[1].sp.current, 2);
+  assert.equal(state.party[2].sp.current, 1);
+  assert.equal(state.party[3].sp.current, 1);
+  assert.equal(state.party[4].sp.current, 1);
+  assert.equal(state.party[5].sp.current, 1);
+  assert.equal(
+    result.passiveEvents.some((event) => event.passiveName === '絶好調女' && event.spDelta === 2),
+    true
+  );
+});
+
+test('怪童 gives self SP+1 only when motivation is 4 or higher', () => {
+  const store = getStore();
+  const actorStyleId = 1001110;
+  const actorStyle = store.getStyleById(actorStyleId);
+  const others = getSixUsableStyleIds(store).filter(
+    (id) => String(store.getStyleById(id)?.chara ?? '') !== String(actorStyle?.chara ?? '')
+  );
+
+  const highParty = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 1 },
+    initialMotivationByPartyIndex: { 0: 4 },
+  });
+  const highState = createBattleStateFromParty(highParty);
+  const highResult = applyPassiveTiming(highState, 'OnEveryTurn');
+  assert.equal(highState.party[0].sp.current, 2);
+  assert.equal(highResult.passiveEvents.some((event) => event.passiveName === '怪童' && event.spDelta === 1), true);
+
+  const lowParty = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 1 },
+    initialMotivationByPartyIndex: { 0: 3 },
+  });
+  const lowState = createBattleStateFromParty(lowParty);
+  const lowResult = applyPassiveTiming(lowState, 'OnEveryTurn');
+  assert.equal(lowState.party[0].sp.current, 1);
+  assert.equal(lowResult.passiveEvents.length, 0);
+});
+
+test('球界の頭脳 adds 10% OD gauge only when motivation is 4 or higher', () => {
+  const store = getStore();
+  const actorStyleId = 1004508;
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+
+  const highParty = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 3 },
+    initialMotivationByPartyIndex: { 0: 4 },
+  });
+  const highState = createBattleStateFromParty(highParty);
+  highState.turnState.odGauge = 20;
+  const highResult = applyPassiveTiming(highState, 'OnEveryTurn');
+  assert.equal(highState.turnState.odGauge, 30);
+  assert.equal(
+    highResult.passiveEvents.some((event) => event.passiveName === '球界の頭脳' && event.odGaugeDelta === 10),
+    true
+  );
+
+  const lowParty = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 3 },
+    initialMotivationByPartyIndex: { 0: 3 },
+  });
+  const lowState = createBattleStateFromParty(lowParty);
+  lowState.turnState.odGauge = 20;
+  const lowResult = applyPassiveTiming(lowState, 'OnEveryTurn');
+  assert.equal(lowState.turnState.odGauge, 20);
+  assert.equal(lowResult.passiveEvents.length, 0);
+});
+
+test('不屈の魂 applies DebuffGuard only when motivation is 5', () => {
+  const store = getStore();
+  const actorStyleId = 1001110;
+  const actorStyle = store.getStyleById(actorStyleId);
+  const others = getSixUsableStyleIds(store).filter(
+    (id) => String(store.getStyleById(id)?.chara ?? '') !== String(actorStyle?.chara ?? '')
+  );
+
+  const highParty = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 0 },
+    initialMotivationByPartyIndex: { 0: 5 },
+  });
+  const highState = createBattleStateFromParty(highParty);
+  const highResult = applyPassiveTiming(highState, 'OnEnemyTurnStart');
+  const guardEffects = highState.party[0].getStatusEffectsByType('DebuffGuard');
+  assert.equal(guardEffects.length, 1);
+  assert.equal(guardEffects[0].exitCond, 'EnemyTurnEnd');
+  assert.equal(
+    highResult.passiveEvents.some((event) => event.passiveName === '不屈の魂' && event.appliedStatusEffects?.length === 1),
+    true
+  );
+
+  const lowParty = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 0 },
+    initialMotivationByPartyIndex: { 0: 4 },
+  });
+  const lowState = createBattleStateFromParty(lowParty);
+  const lowResult = applyPassiveTiming(lowState, 'OnEnemyTurnStart');
+  assert.equal(lowState.party[0].getStatusEffectsByType('DebuffGuard').length, 0);
+  assert.equal(lowResult.passiveEvents.some((event) => event.passiveName === '不屈の魂'), false);
+});
+
+test('明鏡止水 applies DebuffGuard only when motivation is 5', () => {
+  const store = getStore();
+  const actorStyleId = 1002207;
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+
+  const highParty = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 0 },
+    initialMotivationByPartyIndex: { 0: 5 },
+  });
+  const highState = createBattleStateFromParty(highParty);
+  const highResult = applyPassiveTiming(highState, 'OnEnemyTurnStart');
+  assert.equal(highState.party[0].getStatusEffectsByType('DebuffGuard').length, 1);
+  assert.equal(
+    highResult.passiveEvents.some((event) => event.passiveName === '明鏡止水' && event.appliedStatusEffects?.length === 1),
+    true
+  );
+
+  const lowParty = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 1,
+    limitBreakLevelsByPartyIndex: { 0: 0 },
+    initialMotivationByPartyIndex: { 0: 4 },
+  });
+  const lowState = createBattleStateFromParty(lowParty);
+  const lowResult = applyPassiveTiming(lowState, 'OnEnemyTurnStart');
+  assert.equal(lowState.party[0].getStatusEffectsByType('DebuffGuard').length, 0);
+  assert.equal(lowResult.passiveEvents.some((event) => event.passiveName === '明鏡止水'), false);
 });
 
 test('AdditionalHitOnSpecifiedSkill can raise morale via passive trigger', () => {

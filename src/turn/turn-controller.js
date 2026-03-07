@@ -1508,6 +1508,8 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     return { known: false, value: true };
   }
 
+  const clauses = inner.split('&&').filter(Boolean);
+
   if (inner === 'IsPlayer()') {
     return { known: true, value: state.party.length };
   }
@@ -1593,7 +1595,20 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     return { known: true, value: count };
   }
 
-  const clauses = inner.split('&&').filter(Boolean);
+  if (!clauses.includes('IsPlayer()==0') && !clauses.includes('IsPlayer()') && !clauses.includes('IsPlayer()==1')) {
+    let count = 0;
+    for (const candidate of state.party ?? []) {
+      const matched = clauses.every((clause) => {
+        const evaluated = evaluateSingleConditionClause(clause, state, candidate, null, null);
+        return evaluated.known && Boolean(evaluated.value);
+      });
+      if (matched) {
+        count += 1;
+      }
+    }
+    return { known: true, value: count };
+  }
+
   const hasAllBrokenEnemyClauses =
     clauses.length === 3 &&
     clauses.includes('IsPlayer()==0') &&
@@ -1775,6 +1790,93 @@ function evaluateSkillConditionExpression(expression, state, member, skill) {
   return evaluation.result;
 }
 
+function evaluateCountBcValue(expression, state, member) {
+  const text = String(expression ?? '').trim();
+  const match = text.match(/^CountBC\((.+)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+  if (!match) {
+    return { known: false, value: 0 };
+  }
+  const evaluated = evaluateCountBCPredicate(match[1], state, member);
+  if (!evaluated.known) {
+    return { known: false, value: 0 };
+  }
+  return { known: true, value: Number(evaluated.value ?? 0) };
+}
+
+function inferPassiveVariantThreshold(variant) {
+  const texts = [variant?.desc, variant?.info, variant?.name]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean);
+  for (const text of texts) {
+    const match = text.match(/[:：]\s*(\d+)人/);
+    if (match) {
+      return Number(match[1]);
+    }
+  }
+  return null;
+}
+
+function resolvePassiveVariantForSkillConditionPart(part, state, member) {
+  const variants = Array.isArray(part?.strval)
+    ? part.strval.filter((value) => value && typeof value === 'object' && Array.isArray(value.parts))
+    : [];
+  if (variants.length === 0) {
+    return null;
+  }
+
+  for (const variant of variants) {
+    const variantCond = String(variant?.condition ?? variant?.cond ?? '').trim();
+    if (!variantCond) {
+      continue;
+    }
+    if (evaluateConditionExpression(variantCond, state, member, null).result) {
+      return variant;
+    }
+  }
+
+  const countBc = evaluateCountBcValue(part?.cond, state, member);
+  if (countBc.known) {
+    const thresholded = variants
+      .map((variant) => ({
+        variant,
+        threshold: inferPassiveVariantThreshold(variant),
+      }))
+      .filter((entry) => Number.isFinite(entry.threshold));
+    if (thresholded.length > 0) {
+      thresholded.sort((a, b) => Number(b.threshold) - Number(a.threshold));
+      const matched = thresholded.find((entry) => Number(countBc.value) >= Number(entry.threshold));
+      if (matched) {
+        return matched.variant;
+      }
+    }
+  }
+
+  const conditionMatched = evaluateConditionExpression(part?.cond, state, member, null).result;
+  if (conditionMatched) {
+    return variants[0];
+  }
+  return variants[1] ?? variants[0];
+}
+
+function resolvePassiveEffectiveParts(passive, state, member) {
+  const resolved = [];
+  const sourceParts = Array.isArray(passive?.parts) ? passive.parts : [];
+  for (const part of sourceParts) {
+    const skillType = String(part?.skill_type ?? '');
+    if (skillType !== 'SkillCondition') {
+      resolved.push(part);
+      continue;
+    }
+
+    const variant = resolvePassiveVariantForSkillConditionPart(part, state, member);
+    if (!variant) {
+      continue;
+    }
+    resolved.push(...resolvePassiveEffectiveParts(variant, state, member));
+  }
+  return resolved;
+}
+
 function resolveSkillScalarField(skillLike, candidates, fallback = null) {
   for (const key of candidates) {
     if (skillLike?.[key] !== undefined && skillLike?.[key] !== null) {
@@ -1909,7 +2011,7 @@ function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
         continue;
       }
       let passiveRate = 0;
-      for (const part of passive.parts ?? []) {
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
         if (String(part?.skill_type ?? '') !== 'AttackUp') {
           continue;
         }
@@ -3160,10 +3262,13 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       let totalDelta = 0;
       let totalEpDelta = 0;
       let totalMotivationDelta = 0;
+      let totalAttackUpRate = 0;
+      let totalOdGaugeDelta = 0;
+      const appliedStatusEffects = [];
       const effectTypes = new Set();
       const unsupportedEffectTypes = new Set();
       const fieldEvents = [];
-      for (const part of passive.parts ?? []) {
+      for (const part of resolvePassiveEffectiveParts(passive, state, member)) {
         const skillType = String(part?.skill_type ?? '');
         if (skillType) {
           effectTypes.add(skillType);
@@ -3190,7 +3295,14 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           }
           continue;
         }
-        if (skillType !== 'HealSp' && skillType !== 'HealEp' && skillType !== 'Motivation') {
+        if (
+          skillType !== 'HealSp' &&
+          skillType !== 'HealEp' &&
+          skillType !== 'Motivation' &&
+          skillType !== 'AttackUp' &&
+          skillType !== 'OverDrivePointUp' &&
+          skillType !== 'DebuffGuard'
+        ) {
           if (skillType) {
             unsupportedEffectTypes.add(skillType);
           }
@@ -3253,6 +3365,102 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
+        if (skillType === 'AttackUp') {
+          const amount = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          let matchedTarget = false;
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            matchedTarget = true;
+          }
+          if (matchedTarget) {
+            matched = true;
+            totalAttackUpRate += amount;
+          }
+          continue;
+        }
+
+        if (skillType === 'OverDrivePointUp') {
+          const amount = resolveOverDrivePointUpPowerPercent(part);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (!targetCharacterIds.includes(member.characterId)) {
+            continue;
+          }
+          turnState.odGauge = clampOdGauge(
+            truncateToTwoDecimals(Number(turnState.odGauge ?? 0) + Number(amount))
+          );
+          matched = true;
+          totalOdGaugeDelta += Number(amount);
+          continue;
+        }
+
+        if (skillType === 'DebuffGuard') {
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const added = target.addStatusEffect({
+              statusType: 'DebuffGuard',
+              power: Number(part?.power?.[0] ?? 0),
+              limitType: String(part?.effect?.limitType ?? 'None'),
+              exitCond: String(part?.effect?.exitCond ?? 'EnemyTurnEnd'),
+              effect: { exitVal: Array.isArray(part?.effect?.exitVal) ? part.effect.exitVal : [1, 0] },
+              sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              sourceSkillName: String(passive?.name ?? ''),
+              metadata: {
+                timing: String(passive?.timing ?? ''),
+                passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              },
+            });
+            appliedStatusEffects.push({
+              characterId: target.characterId,
+              statusType: String(added?.statusType ?? 'DebuffGuard'),
+              exitCond: String(added?.exitCond ?? ''),
+              remaining: Number(added?.remaining ?? 0),
+            });
+            matched = true;
+          }
+          continue;
+        }
+
         const amount = Number(part?.power?.[0] ?? 0);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
@@ -3299,6 +3507,9 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             spDelta: totalDelta,
             epDelta: totalEpDelta,
             motivationDelta: totalMotivationDelta,
+            attackUpRate: totalAttackUpRate,
+            odGaugeDelta: totalOdGaugeDelta,
+            appliedStatusEffects,
             fieldEvents,
             unsupportedEffectTypes: [...unsupportedEffectTypes],
           })
