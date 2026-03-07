@@ -1548,6 +1548,113 @@ test('single-target attack uses selected enemy target for OD resistance check', 
   assert.equal(nextState.turnState.odGauge, 5);
 });
 
+test('damage context keeps target enemy and effective rates for multi-enemy OD analysis', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `CTX${idx + 1}`,
+      characterName: `CTX${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `CTXS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15050 + idx,
+          name: idx === 0 ? 'Targeted Thunder Slash' : 'Normal',
+          label: idx === 0 ? 'TargetedThunderSlash' : `CTXSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 2 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Thunder'] }]
+              : [],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Slash: 300, Thunder: 50 },
+      1: { Slash: 50, Thunder: 50 },
+    },
+  };
+
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'CTX1', skillId: 15050, targetEnemyIndex: 0 },
+    },
+    null,
+    2
+  );
+  const { committedRecord } = commitTurn(state, preview);
+  const damageContext = committedRecord.actions[0].damageContext;
+
+  assert.ok(damageContext);
+  assert.equal(damageContext.targetEnemyIndex, 0);
+  assert.deepEqual(damageContext.eligibleEnemyIndexes, [0]);
+  assert.equal(damageContext.effectiveDamageRatesByEnemy['0'], 150);
+  assert.equal(damageContext.effectiveDamageRatesByEnemy['1'], undefined);
+});
+
+test('damage context keeps all-target enemy eligibility and effective rates', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `CTXA${idx + 1}`,
+      characterName: `CTXA${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `CTXAS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15150 + idx,
+          name: idx === 0 ? 'All Slash' : 'Normal',
+          label: idx === 0 ? 'AllSlash' : `CTXASkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 1 : 0,
+          target_type: 'All',
+          parts: idx === 0 ? [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }] : [],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    enemyCount: 3,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Slash: 50 },
+      1: { Slash: 100 },
+      2: { Slash: 150 },
+    },
+  };
+
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'CTXA1', skillId: 15150 },
+    },
+    null,
+    3
+  );
+  const { committedRecord } = commitTurn(state, preview);
+  const damageContext = committedRecord.actions[0].damageContext;
+
+  assert.ok(damageContext);
+  assert.equal(damageContext.targetEnemyIndex, null);
+  assert.deepEqual(damageContext.eligibleEnemyIndexes, [1, 2]);
+  assert.equal(damageContext.effectiveDamageRatesByEnemy['0'], 50);
+  assert.equal(damageContext.effectiveDamageRatesByEnemy['1'], 100);
+  assert.equal(damageContext.effectiveDamageRatesByEnemy['2'], 150);
+});
+
 test('all-target attack gains OD only from enemies whose combined damage rate is at least 100%', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

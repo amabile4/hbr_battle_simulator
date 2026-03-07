@@ -58,15 +58,20 @@
 
 ## Phase 3: ダメージ文脈を敵別モデルへ寄せる
 
-- [ ] `damage-calculation-context` に `targetEnemyIndex` を追加する
-- [ ] `damage-calculation-context` に敵別耐性計算結果を追加する
-- [ ] 全体攻撃時に `eligibleEnemyIndexes` のような情報を持てるようにする
-- [ ] 将来のダメージログやパッシブログが敵別文脈を参照できる形にする
+- [x] `damage-calculation-context` に `targetEnemyIndex` を追加する
+- [x] `damage-calculation-context` に敵別耐性計算結果を追加する
+- [x] 全体攻撃時に `eligibleEnemyIndexes` のような情報を持てるようにする
+- [x] 将来のダメージログやパッシブログが敵別文脈を参照できる形にする
 
 ### Phase 3 メモ
 
 - 現状は `enemyCount` と hit 集計が中心
 - 将来、敵別ダメージ、敵別発火条件、敵名つきログを出すにはここが不足する
+- `damageContext` は commit 後の `record.actions[].damageContext` にも保持される
+- 保持項目
+  - `targetEnemyIndex`
+  - `eligibleEnemyIndexes`
+  - `effectiveDamageRatesByEnemy`
 
 ## Phase 4: UI 入力経路を整える
 

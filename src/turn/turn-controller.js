@@ -407,27 +407,43 @@ function computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, ta
   return Number.isFinite(bestRate) ? bestRate : DEFAULT_DAMAGE_RATE_PERCENT;
 }
 
-function countEnemiesEligibleForOdGain(state, member, skill, enemyCount) {
+function analyzeEnemiesEligibleForOdGain(state, member, skill, enemyCount) {
   const numericEnemyCount = clampEnemyCount(enemyCount);
   const targetType = String(skill?.targetType ?? '');
   const isAllTarget = targetType === 'All';
+  const effectiveDamageRatesByEnemy = {};
+  const eligibleEnemyIndexes = [];
+  let targetEnemyIndex = null;
   if (!isAllTarget) {
-    const targetIndex = Number.isFinite(Number(skill?.targetEnemyIndex))
+    targetEnemyIndex = Number.isFinite(Number(skill?.targetEnemyIndex))
       ? Number(skill.targetEnemyIndex)
       : 0;
-    return computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, targetIndex) >=
-      DEFAULT_DAMAGE_RATE_PERCENT
-      ? 1
-      : 0;
+    const rate = computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, targetEnemyIndex);
+    effectiveDamageRatesByEnemy[String(targetEnemyIndex)] = rate;
+    if (rate >= DEFAULT_DAMAGE_RATE_PERCENT) {
+      eligibleEnemyIndexes.push(targetEnemyIndex);
+    }
+    return {
+      targetEnemyIndex,
+      eligibleEnemyIndexes,
+      effectiveDamageRatesByEnemy,
+      eligibleEnemyCount: eligibleEnemyIndexes.length,
+    };
   }
 
-  let count = 0;
   for (let i = 0; i < numericEnemyCount; i += 1) {
-    if (computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, i) >= DEFAULT_DAMAGE_RATE_PERCENT) {
-      count += 1;
+    const rate = computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, i);
+    effectiveDamageRatesByEnemy[String(i)] = rate;
+    if (rate >= DEFAULT_DAMAGE_RATE_PERCENT) {
+      eligibleEnemyIndexes.push(i);
     }
   }
-  return count;
+  return {
+    targetEnemyIndex,
+    eligibleEnemyIndexes,
+    effectiveDamageRatesByEnemy,
+    eligibleEnemyCount: eligibleEnemyIndexes.length,
+  };
 }
 
 function hasOverDrivePointUpPartInParts(parts) {
@@ -1164,9 +1180,10 @@ function computeOdGaugeGainPercentBySkill(
   const funnelHitBonus = Number(options?.funnelHitBonus ?? 0);
   const hitCountPerEnemyBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
   const hitCountPerEnemy = hitCountPerEnemyBase + Math.max(0, funnelHitBonus);
-  const odEligibleEnemyCount = hasDamage
-    ? countEnemiesEligibleForOdGain(state, member, skillWithTarget, numericEnemyCount)
-    : 0;
+  const odEnemyAnalysis = hasDamage
+    ? analyzeEnemiesEligibleForOdGain(state, member, skillWithTarget, numericEnemyCount)
+    : null;
+  const odEligibleEnemyCount = Number(odEnemyAnalysis?.eligibleEnemyCount ?? 0);
   let hitCount = hitCountPerEnemy * (isAllTarget ? odEligibleEnemyCount : Math.min(1, odEligibleEnemyCount));
   if (isNormalAttackSkill(skill)) {
     // 通常攻撃はヒット数に関わらず最低3hit(=7.5%)保証。
@@ -1239,6 +1256,17 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       String(skill?.targetType ?? '') === 'All'
         ? effectiveHitCountPerEnemy * enemyCount
         : effectiveHitCountPerEnemy;
+    const skillWithTarget =
+      actionEntry && typeof actionEntry === 'object'
+        ? {
+            ...skill,
+            targetEnemyIndex:
+              Number.isFinite(Number(actionEntry.targetEnemyIndex)) ? Number(actionEntry.targetEnemyIndex) : undefined,
+          }
+        : skill;
+    const odEnemyAnalysis = hasDamage
+      ? analyzeEnemiesEligibleForOdGain(state, member, skillWithTarget, enemyCount)
+      : null;
     const odGaugeGain = computeOdGaugeGainPercentBySkill(
       skill,
       state,
@@ -1278,10 +1306,13 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       skillName: skill.name,
       targetType: skill.targetType,
       enemyCount,
+      targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
       baseHitCount,
       funnelHitBonus,
       effectiveHitCountPerEnemy,
       effectiveHitCountTotal: effectiveHitCount,
+      eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
+      effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
       funnelEffects,
     });
 
@@ -2545,6 +2576,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );
     entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
+    entry.damageContext = odEvent?.damageContext ? structuredClone(odEvent.damageContext) : null;
     entry.funnelApplied = funnelEvents.filter(
       (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
     );
