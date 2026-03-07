@@ -55,6 +55,51 @@
 - `HealDpRate` の実データには `value: [1.2, 0]` のような値があり、オーバー回復上限候補と見られる
 - DP関連はパッシブだけでなく、スキル条件・スキル効果・将来のダメージ処理にまたがる
 
+### 現時点の実データ調査メモ
+
+- DP基礎値の参照元候補が 2 層ある
+  - `styles.json` の `style.base_param.dp`
+    - 例: `30 / 50 / 70`
+  - `characters.json` の `character.base_param.dp`
+    - 例: `[600, 2000]`
+- 一方で `HealDp` 系の `power[0]` は `224 / 305 / 404 / 809` のように大きく、`style.base_param.dp` とはそのまま一致しない
+- そのため、`HealDp` / `RegenerationDp` / `ReviveDp` / `HealDpByDamage` の `power[0]` を「そのまま DP 実数値」と読むのは危険
+- 初期実装では
+  - `DpRate()` 条件
+  - 手入力 DP 状態
+  - `HealDpRate` のように割合で意味が取れるもの
+  - `SelfDamage` のように割合解釈しやすいもの
+  を優先し、`HealDp` 系の厳密式は別途切り出す方が安全
+
+### 代表的な実データ例
+
+- `HealDpRate`
+  - `46405401`
+  - `power[0] = 0.1`, `value[0] = 1.2`
+  - 「最大 DP の 10% 回復、120% まで上限突破可」と読むのが自然
+- `SelfDamage`
+  - `46001314 まだまだ行くで！`
+    - `power[0] = 0.5`
+  - `46005308 コンペンセーション`
+    - 分岐先に `SelfDamage power[0] = 1.0`
+  - 初期実装では「`baseMaxDp` に対する割合自傷」として扱うのが最も自然
+- `RegenerationDp`
+  - `46008506 フェリチータ`
+  - `effect.exitCond = EnemyTurnEnd`, `exitVal[0] = 4`
+  - 継続ターンは実データから取得できる
+
+### 既存コードとの接点
+
+- `turn-controller` にはすでに `TokenSetByHealedDp` のために
+  - `HealDp`
+  - `HealDpRate`
+  - `RegenerationDp`
+  - `ReviveDp`
+  - `HealDpByDamage`
+  の検出経路がある
+- ただし現状は「DP回復を検知してトークンを付与する」だけで、DP現在値そのものは変化していない
+- `DpRate` 実装時はこの検出経路を流用して、実際の DP 変化とトークン付与を同時に扱うのが自然
+
 ## 実装フェーズ
 
 ## Phase 1: 状態モデル
@@ -123,6 +168,7 @@
 - DP破損と `Break` は現時点では同一視せず、別状態として扱う方が安全
 - `OnBattleWin` の `HealDpRate` は DP状態モデル完成後に実装する
 - パッシブ側の `DpRate` 実装状況は [`docs/passive_implementation_tasklist.md`](/Users/ram4/git/hbr_battle_simulator/docs/passive_implementation_tasklist.md) から参照する
+- `style.base_param.dp` を `baseMaxDp` の初期基準として使う案は実装しやすいが、`HealDp power` との単位差があるため、将来の厳密化余地を残しておく
 
 ## 優先順
 

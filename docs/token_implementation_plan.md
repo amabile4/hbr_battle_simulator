@@ -14,7 +14,6 @@
 - `Token()` 条件
 - `consume_type: Token`
 - `TokenAttack`
-- `TokenChangeTimeline`
 
 を扱い、その上にキャラクター固有の発火条件を個別モジュールで載せる。
 
@@ -156,6 +155,7 @@
 - `敵から攻撃を受けると`
   - 蒼井えりか / 大島六宇亜 系
   - 今の simulator では敵の被弾イベントが薄いので、後で event hook が必要
+  - UI 接続にはターゲット集中/ヘイト設計が関わるため、いったん保留
 
 ## 共通モジュール案
 
@@ -198,6 +198,12 @@
   - `tokenAfter`
   - `tokenDeltaEvents`
   を残せるようにする
+
+### 非対応方針
+
+- `TokenChangeTimeline`
+  - 現時点では独立効果として扱わない
+  - 実機上も「トークン数に応じて威力上昇」以外の独立効果は確認できていないため、専用実装は行わない
 
 ## 個別モジュール案
 
@@ -243,10 +249,9 @@
 5. [x] 月城最中の `戦勲`
 6. [x] マリアの `TokenSetByHealedDp`
 7. [x] `TokenAttack`
-8. `TokenChangeTimeline`
+8. `TokenSetByAttacked` の UI 接続
 9. [x] `DamageRateUpPerToken`
 10. [x] `OverDrivePointUpByToken`
-11. `TokenSetByAttacked`
 
 ## 最初のスコープ
 
@@ -258,11 +263,21 @@
   - [x] `consume_type: Token`
   - [x] `Token()`
   - [x] `TokenAttack` の preview / record / `damageContext` 露出
-  - `TokenChangeTimeline` は独立効果としては扱わない
-- マリア
-  - [x] `TokenSet`
-  - [x] `TokenSetByHealedDp`
-  - [x] `TokenAttack` の preview / record / `damageContext` 露出
-  - `TokenChangeTimeline` は独立効果としては扱わない
+
+## 現在の残課題
+
+- `TokenSetByAttacked` の UI 接続
+  - エンジン側 API `applyEnemyAttackTokenTriggers(state, targetCharacterIds)` は実装済み
+  - ただし UI 側はターゲット集中/被弾対象入力の設計が必要なため保留
+- `TokenAttack` はダメージ計算自体には未接続
+  - 現シミュレータのスコープでは preview / record / `damageContext` 露出までで十分
+- `TokenChangeTimeline` は独立効果としては扱わない
+- 月城最中とマリアの主要トークン系
+  - `TokenSet`
+  - `TokenSetByAttacking`
+  - `TokenSetByHealedDp`
+  - `consume_type: Token`
+  - `TokenAttack`
+  までは実装済み
 
 これで「攻撃由来トークン」と「回復由来トークン」の 2 大パターンを押さえられる。

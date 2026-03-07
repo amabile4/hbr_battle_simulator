@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-最終更新: 2026-03-07
+最終更新: 2026-03-08
 
 ## 方針
 
@@ -10,6 +10,7 @@
 - `Token` は独立プラン `docs/token_implementation_plan.md` を参照
 - `DpRate` / DP関連はパッシブに閉じないため [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md) で別管理する
 - マスタースキル由来パッシブ、通常スキル由来パッシブは別系統として後段で扱う
+- `docs/multi_enemy_implementation_tasklist.md` は別管理であり、このタスクリストには複数敵固有の詳細は持ち込まない
 
 ## Phase 1: 今の状態から取れる条件
 
@@ -121,10 +122,11 @@
   - パッシブ `OnBattleStart` などによる `Zone`
   - 基本的な継続ターン減少
   - `turnPlan` / scenario / `turnPlanBaseSetup` への `zoneState` / `territoryState` 保存と復元
+  - 敵設定 UI からの手動 `Zone` 展開
 - まだ未実装の範囲
-  - 敵側の `Zone` 展開
   - 陣の種類追加時の個別効果適用
   - `ZoneUpEternal` の効果量上昇側の反映
+  - `Zone` / `Territory` の効果内容そのものの見える化
 
 ## Phase 4: timing の汎用実行基盤
 
@@ -206,12 +208,18 @@
   - 明示データは未確認だが、負数 `Morale` と `consume_type: Morale` を処理できる状態
 - [x] やる気上昇スキル
   - `Motivation` による明示レベル設定は実装済み
+  - やる気付与元スタイルが編成内にいる時だけ初期値選択 UI を有効化し、既定値は `普通(3)` にする
+  - やる気付与元がいない時は初期値 `0` / 非表示とする
 - [ ] やる気減少スキル
   - `被ダメージで -1` のようなイベント起点は未実装
-- [ ] 火の印付与スキル
-- [ ] 火の印消費スキル
-- [ ] 氷の印付与スキル
-- [ ] 氷の印消費スキル
+- [x] 属性印付与スキル
+  - `Fire / Ice / Thunder / Dark / Light` の `*Mark` 付与と `*MarkLevel()` 条件評価は実装済み
+  - 実機仕様に合わせて「属性人数ベースの印レベル」を採用
+- [x] 属性印の常在効果
+  - 全属性を同型として実装済み
+  - 残りは UI / Records / Passive Log での見える化
+- [ ] 属性印消費スキル
+  - 現時点では未着手
 - [x] フィールド展開スキル
 - [ ] フィールド解除/上書き処理
 - [x] 陣展開スキル
@@ -256,3 +264,9 @@
 - 士気レベルは共有値ではなく各キャラクター個別状態として扱う
 - 士気は計算で追える前提とし、デバッグ入力は持たない
 - UI 表示は `moraleState.current > 0` のキャラだけに出す
+- やる気レベルも各キャラクター個別状態として扱う
+- やる気初期値は「やる気付与元スタイルがPT内にいる時だけ」選択可能
+- 印システムは `Fire / Ice / Thunder / Dark / Light` すべて同型として実装済み
+- 印の残課題は「表示」「ログ」「実データ回帰の厚み」であり、条件評価や常在効果の基盤自体はほぼ完了
+- `DamageRate()` は手動破壊率状態としてのみ使い、ダメージ計算には接続しない
+- `ConquestBikeLevel()` は現状固定 `160`。UI 上書きだけ将来課題
