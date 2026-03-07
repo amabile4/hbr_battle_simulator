@@ -4,6 +4,8 @@ import {
   activateOverdrive,
   analyzePassiveTimingCoverage,
   analyzePassiveConditionSupport,
+  applyEnemyAttackTokenTriggers,
+  applyPassiveTiming,
   CharacterStyle,
   commitTurn,
   createBattleStateFromParty,
@@ -40,6 +42,381 @@ function findStyleIdBySkillId(store, skillId) {
   }
   throw new Error(`style not found for skillId=${skillId}`);
 }
+
+function createSixMemberManualParty(factory) {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `M${idx + 1}`,
+      characterName: `M${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 8000 + idx,
+          name: '通常',
+          sp_cost: 0,
+          parts: idx <= 2 ? [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }] : [],
+        },
+      ],
+      ...(typeof factory === 'function' ? factory(idx) : {}),
+    })
+  );
+  return new Party(members);
+}
+
+test('consume_type Token spends token instead of SP on preview and commit', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialToken: 5,
+          skills: [
+            {
+              id: 18000,
+              name: 'Token Spend',
+              sp_cost: 3,
+              consume_type: 'Token',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18000, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const entry = preview.actions.find((item) => item.characterId === 'M1');
+  assert.equal(entry.startSP, 10);
+  assert.equal(entry.endSP, 10);
+  assert.equal(entry.startToken, 5);
+  assert.equal(entry.endToken, 2);
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const member = nextState.party.find((item) => item.characterId === 'M1');
+  assert.equal(member.sp.current, 12);
+  assert.equal(member.tokenState.current, 2);
+  const committed = committedRecord.actions.find((item) => item.characterId === 'M1');
+  assert.equal(committed.endToken, 2);
+  assert.equal(committed.tokenChanges[0].delta, -3);
+});
+
+test('TokenSet skill part increases token and clamps at max 10', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialToken: 9,
+          skills: [
+            {
+              id: 18010,
+              name: 'Token Gain',
+              sp_cost: 0,
+              parts: [{ skill_type: 'TokenSet', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18010 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const member = nextState.party.find((item) => item.characterId === 'M1');
+  assert.equal(member.tokenState.current, 10);
+  const committed = committedRecord.actions.find((item) => item.characterId === 'M1');
+  assert.equal(committed.tokenChanges.some((item) => item.triggerType === 'TokenSet' && item.delta === 1), true);
+});
+
+test('TokenSetByAttacking grants token per damaged enemy', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 18100,
+              name: '戦勲',
+              timing: 'OnFirstBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'TokenSetByAttacking', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+          skills: [
+            {
+              id: 18101,
+              name: 'All Attack',
+              sp_cost: 0,
+              target_type: 'All',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 3;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18101 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  const member = nextState.party.find((item) => item.characterId === 'M1');
+  assert.equal(member.tokenState.current, 3);
+  const committed = committedRecord.actions.find((item) => item.characterId === 'M1');
+  assert.equal(
+    committed.tokenChanges.some((item) => item.triggerType === 'TokenSetByAttacking' && item.delta === 3),
+    true
+  );
+});
+
+test('TokenSetByHealedDp grants token when DP heal skill targets the member', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 18120,
+            name: 'DP Heal',
+            sp_cost: 0,
+            parts: [{ skill_type: 'HealDp', target_type: 'AllySingle', power: [10, 0] }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        passives: [
+          {
+            id: 18121,
+            name: '戦士の祝福',
+            timing: 'OnFirstBattleStart',
+            condition: '',
+            parts: [{ skill_type: 'TokenSetByHealedDp', target_type: 'Self', power: [1, 0] }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18120, targetCharacterId: 'M2' },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  const target = nextState.party.find((item) => item.characterId === 'M2');
+  assert.equal(target.tokenState.current, 1);
+  const committed = committedRecord.actions.find((item) => item.characterId === 'M2');
+  assert.equal(
+    committed.tokenChanges.some((item) => item.triggerType === 'TokenSetByHealedDp' && item.delta === 1),
+    true
+  );
+});
+
+test('Token() condition can trigger passives from current token state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 1,
+          initialToken: 3,
+          passives: [
+            {
+              id: 18130,
+              name: 'Token Heal',
+              desc: '行動開始時 トークン3以上なら自身のSP+2',
+              timing: 'OnPlayerTurnStart',
+              condition: 'Token()>=3',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(state.party.find((item) => item.characterId === 'M1').sp.current, 3);
+});
+
+test('TokenAttack exposes token-based attack context on preview action', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialToken: 4,
+          skills: [
+            {
+              id: 18140,
+              name: 'Token Attack',
+              sp_cost: 13,
+              target_type: 'All',
+              hit_count: 1,
+              parts: [
+                { skill_type: 'TokenAttack', target_type: 'All', power: [4177.5, 8355], value: [0.16, 0] },
+                { skill_type: 'TokenChangeTimeline', target_type: 'All', power: [0, 0], value: [0, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 3;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18140 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const entry = preview.actions.find((item) => item.characterId === 'M1');
+
+  assert.equal(entry.tokenAttackContext.tokenCount, 4);
+  assert.equal(entry.tokenAttackContext.ratePerToken, 0.16);
+  assert.equal(entry.tokenAttackContext.totalRate, 0.64);
+});
+
+test('TokenAttack context is preserved into committed damage context', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialToken: 5,
+          skills: [
+            {
+              id: 18141,
+              name: 'Token Attack',
+              sp_cost: 13,
+              target_type: 'Single',
+              hit_count: 1,
+              parts: [
+                { skill_type: 'TokenAttack', target_type: 'Single', power: [5445, 10890], value: [0.16, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18141, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === 'M1');
+
+  assert.equal(entry.damageContext.tokenAttackTokenCount, 5);
+  assert.equal(entry.damageContext.tokenAttackRatePerToken, 0.16);
+  assert.equal(entry.damageContext.tokenAttackTotalRate, 0.8);
+});
+
+test('TokenSetByAttacked grants token when enemy attack trigger is applied to the target member', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 18150,
+              name: '護りの真髄',
+              timing: 'OnFirstBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'TokenSetByAttacked', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const events = applyEnemyAttackTokenTriggers(state, ['M1']);
+  const member = state.party.find((item) => item.characterId === 'M1');
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].triggerType, 'TokenSetByAttacked');
+  assert.equal(member.tokenState.current, 1);
+});
+
+test('DamageRateUpPerToken is exposed on preview action modifiers', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialToken: 3,
+          passives: [
+            {
+              id: 18160,
+              name: '奮起',
+              timing: 'OnPlayerTurnStart',
+              condition: '',
+              parts: [{ skill_type: 'DamageRateUpPerToken', target_type: 'AllyAll', power: [0.03, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+
+  assert.equal(preview.actions[0].specialPassiveModifiers.damageRateUpRate, 0.09);
+  assert.equal(
+    preview.actions[0].specialPassiveEvents.some((event) => event.damageRateUpRate === 0.09),
+    true
+  );
+});
+
+test('OverDrivePointUpByToken increases od gauge gain by token count', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialToken: 3,
+          skills: [
+            {
+              id: 18161,
+              name: 'Token OD Up',
+              sp_cost: 0,
+              target_type: 'Self',
+              hit_count: 0,
+              parts: [
+                { skill_type: 'OverDrivePointUpByToken', target_type: 'Self', power: [0.1, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18161 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === 'M1');
+
+  assert.equal(entry.odGaugeGain, 30);
+  assert.equal(entry.damageContext.overDrivePointUpByTokenPerToken, 0.1);
+  assert.equal(entry.damageContext.overDrivePointUpByTokenTokenCount, 3);
+  assert.equal(entry.damageContext.overDrivePointUpByTokenTotalPercent, 30);
+});
 
 test('preemptive od returns to same normal turn context after remaining actions consumed', () => {
   const store = getStore();
@@ -84,20 +461,19 @@ test('passive timing coverage report identifies controller gaps against passives
   const store = getStore();
   const report = analyzePassiveTimingCoverage(store.passives);
 
-  assert.deepEqual(report.supportedTimings, [{ timing: 'OnOverdriveStart', count: 9 }]);
+  assert.deepEqual(report.supportedTimings, [
+    { timing: 'OnAdditionalTurnStart', count: 10 },
+    { timing: 'OnBattleStart', count: 84 },
+    { timing: 'OnBattleWin', count: 4 },
+    { timing: 'OnEnemyTurnStart', count: 31 },
+    { timing: 'OnEveryTurn', count: 290 },
+    { timing: 'OnFirstBattleStart', count: 108 },
+    { timing: 'OnOverdriveStart', count: 9 },
+    { timing: 'OnPlayerTurnStart', count: 198 },
+  ]);
   assert.deepEqual(
     report.unsupportedTimings.map((item) => item.timing),
-    [
-      'None',
-      'OnAdditionalTurnStart',
-      'OnBattleStart',
-      'OnBattleWin',
-      'OnEnemyTurnStart',
-      'OnEveryTurn',
-      'OnEveryTurnIncludeSpecial',
-      'OnFirstBattleStart',
-      'OnPlayerTurnStart',
-    ]
+    ['None', 'OnEveryTurnIncludeSpecial']
   );
 });
 
@@ -419,6 +795,71 @@ test('commitTurn grants extra turn and marks allowed members as extra-active', (
       .sort(),
     ['C1', 'C2', 'C3']
   );
+});
+
+test('commitTurn applies OnAdditionalTurnStart passives when next state enters extra turn', () => {
+  const members = Array.from({ length: 6 }, (_, idx) => {
+    const extraRule =
+      idx === 0
+        ? {
+            skillUsableInExtraTurn: true,
+            additionalTurnGrantInExtraTurn: true,
+            conditions: {
+              requiresOverDrive: false,
+              requiresReinforcedMode: false,
+              excludesExtraTurnForSkillUse: false,
+              excludesExtraTurnForAdditionalTurnGrant: false,
+            },
+            additionalTurnTargetTypes: ['AllyFront'],
+          }
+        : null;
+    return new CharacterStyle({
+      characterId: `CE${idx + 1}`,
+      characterName: `CE${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `CES${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      passives:
+        idx === 1
+          ? [
+              {
+                id: 31,
+                name: 'アフターサービス',
+                desc: '追加ターン開始時 自身のSP+1',
+                timing: 'OnAdditionalTurnStart',
+                condition: '',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+              },
+            ]
+          : [],
+      skills: [
+        {
+          id: 29000 + idx,
+          name: idx === 0 ? 'Grant Front Extra' : 'Normal',
+          sp_cost: 0,
+          additionalTurnRule: extraRule,
+          parts: extraRule ? [{ skill_type: 'AdditionalTurn', target_type: 'AllyFront' }] : [],
+        },
+      ],
+    });
+  });
+  const state = createBattleStateFromParty(new Party(members));
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'CE1', skillId: 29000 },
+    1: { characterId: 'CE2', skillId: 29001 },
+    2: { characterId: 'CE3', skillId: 29002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.equal(nextState.party.find((m) => m.characterId === 'CE2').sp.current, 6);
+  assert.equal(nextState.turnState.passiveEventsLastApplied.length, 1);
+  assert.equal(nextState.turnState.passiveEventsLastApplied[0].timing, 'OnAdditionalTurnStart');
+  assert.equal(committedRecord.passiveEvents.length, 1);
+  assert.equal(committedRecord.passiveEvents[0].passiveName, 'アフターサービス');
 });
 
 test('self-only additional turn in extra turn does not carry previous allowed members', () => {
@@ -2202,6 +2643,241 @@ test('IsWeakElement defaults to false when enemy damage rate is not above 100%',
   );
 });
 
+test('Zone skill applies zone state and IsZone condition becomes true on next turn', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          elements: ['Fire'],
+          skills: [
+            {
+              id: 8101,
+              name: '火フィールド',
+              label: 'FireZoneSkill',
+              sp_cost: 5,
+              target_type: 'Field',
+              parts: [
+                {
+                  skill_type: 'Zone',
+                  target_type: 'Field',
+                  elements: ['Fire'],
+                  power: [1.8, 0],
+                  effect: { exitCond: 'PlayerTurnEnd', exitVal: [8, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8101 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.deepEqual(nextState.turnState.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 7,
+    powerRate: 1.8,
+  });
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].kind, 'zone');
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].type, 'Fire');
+
+  const conditionalParty = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 90001,
+              name: '火陣確認',
+              timing: 'OnPlayerTurnStart',
+              condition: 'IsZone(Fire)==1',
+              parts: [
+                {
+                  skill_type: 'HealSp',
+                  target_type: 'Self',
+                  power: [2, 0],
+                  effect: { exitCond: 'None', exitVal: [0, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const conditionalState = createBattleStateFromParty(conditionalParty, nextState.turnState);
+  const result = applyPassiveTiming(conditionalState, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(result.spEvents[0].delta, 2);
+});
+
+test('ZoneUpEternal modifier makes deployed zone eternal', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          elements: ['Fire'],
+          skills: [
+            {
+              id: 8102,
+              name: '火フィールド',
+              label: 'FireZoneSkill',
+              sp_cost: 5,
+              target_type: 'Field',
+              parts: [
+                {
+                  skill_type: 'Zone',
+                  target_type: 'Field',
+                  elements: ['Fire'],
+                  power: [1.8, 0],
+                  effect: { exitCond: 'PlayerTurnEnd', exitVal: [8, 0] },
+                },
+              ],
+            },
+          ],
+          passives: [
+            {
+              id: 90002,
+              name: 'メディテーション',
+              timing: 'OnFirstBattleStart',
+              condition: '',
+              parts: [
+                {
+                  skill_type: 'ZoneUpEternal',
+                  target_type: 'Field',
+                  effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8102 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.deepEqual(nextState.turnState.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: null,
+    powerRate: 1.95,
+  });
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].kind, 'zone');
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].remainingTurns, null);
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].powerRate, 1.95);
+});
+
+test('preview and damage context expose zone power for matching element skills', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          elements: ['Fire'],
+          skills: [
+            {
+              id: 8103,
+              name: '火属性攻撃',
+              label: 'FireAttackSkill',
+              sp_cost: 5,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [
+                {
+                  skill_type: 'AttackSkill',
+                  target_type: 'Single',
+                  elements: ['Fire'],
+                  power: [1.0, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party, {
+    zoneState: { type: 'Fire', sourceSide: 'player', remainingTurns: 8, powerRate: 1.8 },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8103 },
+  });
+  assert.equal(preview.actions[0].specialPassiveModifiers?.zonePowerRate, 1.8);
+
+  const { committedRecord } = commitTurn(state, preview);
+  assert.equal(committedRecord.actions[0].damageContext?.zoneType, 'Fire');
+  assert.equal(committedRecord.actions[0].damageContext?.zonePowerRate, 1.8);
+});
+
+test('ReviveTerritory skill applies territory state and IsTerritory condition becomes true', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 8201,
+              name: '再生の陣',
+              label: 'ReviveTerritorySkill',
+              sp_cost: 8,
+              target_type: 'Field',
+              parts: [
+                {
+                  skill_type: 'ReviveTerritory',
+                  target_type: 'Field',
+                  effect: { exitCond: 'None', exitVal: [0, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8201 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.deepEqual(nextState.turnState.territoryState, {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  });
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].kind, 'territory');
+
+  const conditionalParty = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 90002,
+              name: '方円',
+              timing: 'OnEveryTurn',
+              condition: 'IsTerritory(ReviveTerritory)==1',
+              parts: [
+                {
+                  skill_type: 'HealSp',
+                  target_type: 'Self',
+                  power: [1, 0],
+                  effect: { exitCond: 'None', exitVal: [0, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const conditionalState = createBattleStateFromParty(conditionalParty, nextState.turnState);
+  const result = applyPassiveTiming(conditionalState, 'OnEveryTurn');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(result.spEvents[0].delta, 1);
+});
+
 test('enemy down-turn status does not tick during OD/EX chain without base-turn advance', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -3128,18 +3804,40 @@ test('applyInitialPassiveState applies battle-start and turn-start SP passives',
                   parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
                 },
               ]
-            : idx === 3
+            : idx === 2
               ? [
                   {
                     id: 3,
-                    name: '閃光',
-                    desc: 'ターン開始時に前衛にいると自身のSP+1',
-                    timing: 'OnEveryTurn',
+                    name: '号令',
+                    desc: 'プレイヤーターン開始時 前衛にいると自身のSP+1',
+                    timing: 'OnPlayerTurnStart',
                     condition: 'IsFront()',
                     parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
                   },
                 ]
-              : [],
+              : idx === 3
+                ? [
+                    {
+                      id: 4,
+                      name: '閃光',
+                      desc: 'ターン開始時に前衛にいると自身のSP+1',
+                      timing: 'OnEveryTurn',
+                      condition: 'IsFront()',
+                      parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+                    },
+                  ]
+                : idx === 4
+                  ? [
+                      {
+                        id: 5,
+                        name: '先陣',
+                        desc: '初回バトル開始時 自身のSP+2',
+                        timing: 'OnFirstBattleStart',
+                        condition: '',
+                        parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+                      },
+                    ]
+                  : [],
       skills: [{ id: 26000 + idx, name: 'Wait', label: `IPSkill${idx + 1}`, sp_cost: 0, parts: [] }],
     })
   );
@@ -3149,8 +3847,47 @@ test('applyInitialPassiveState applies battle-start and turn-start SP passives',
 
   assert.equal(state.party.find((m) => m.characterId === 'IP1').sp.current, 4);
   assert.equal(state.party.find((m) => m.characterId === 'IP2').sp.current, 5);
+  assert.equal(state.party.find((m) => m.characterId === 'IP3').sp.current, 4);
   assert.equal(state.party.find((m) => m.characterId === 'IP4').sp.current, 3);
-  assert.equal(state.turnState.passiveEventsLastApplied.length, 2);
+  assert.equal(state.party.find((m) => m.characterId === 'IP5').sp.current, 5);
+  assert.equal(state.turnState.passiveEventsLastApplied.length, 4);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.timing === 'OnPlayerTurnStart'), true);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.timing === 'OnFirstBattleStart'), true);
+});
+
+test('applyInitialPassiveState applies OnBattleStart Zone passive into zone state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 91001,
+              name: '灼熱の陣',
+              timing: 'OnBattleStart',
+              condition: 'IsFront()',
+              parts: [
+                {
+                  skill_type: 'Zone',
+                  target_type: 'Field',
+                  elements: ['Fire'],
+                  effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  assert.deepEqual(state.turnState.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: null,
+  });
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '灼熱の陣'), true);
 });
 
 test('turn recovery applies 閃光 on every turn while frontline', () => {
@@ -3193,4 +3930,320 @@ test('turn recovery applies 閃光 on every turn while frontline', () => {
   assert.equal(nextState.party.find((m) => m.characterId === 'FS1').sp.current, 7);
   assert.equal(nextState.party.find((m) => m.characterId === 'FS2').sp.current, 5);
   assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '閃光'), true);
+});
+
+test('applyPassiveTiming applies OnPlayerTurnStart through exported timing API', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `PT${idx + 1}`,
+      characterName: `PT${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `PTS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 11,
+                name: '号令',
+                desc: 'プレイヤーターン開始時 前衛にいると自身のSP+1',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 27000 + idx, name: 'Wait', label: `PTSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart', {});
+
+  assert.equal(state.party.find((m) => m.characterId === 'PT1').sp.current, 4);
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(result.passiveEvents.length, 1);
+  assert.equal(result.passiveEvents[0].timing, 'OnPlayerTurnStart');
+});
+
+test('grantExtraTurn applies OnAdditionalTurnStart SP passives when extra turn begins', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `AT${idx + 1}`,
+      characterName: `AT${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ATS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 21,
+                name: 'アフターサービス',
+                desc: '追加ターン開始時 自身のSP+1',
+                timing: 'OnAdditionalTurnStart',
+                condition: '',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+              },
+            ]
+          : idx === 1
+            ? [
+                {
+                  id: 22,
+                  name: '戦場の華',
+                  desc: '追加ターン開始時 自分以外の味方のSP+2',
+                  timing: 'OnAdditionalTurnStart',
+                  condition: '',
+                  parts: [{ skill_type: 'HealSp', target_type: 'AllyAllWithoutSelf', power: [2, 0] }],
+                },
+              ]
+            : [],
+      skills: [{ id: 28000 + idx, name: 'Wait', label: `ATSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  let state = createBattleStateFromParty(new Party(members));
+
+  state = grantExtraTurn(state, ['AT1']);
+
+  assert.equal(state.turnState.turnType, 'extra');
+  assert.equal(state.party.find((m) => m.characterId === 'AT1').sp.current, 6);
+  assert.equal(state.party.find((m) => m.characterId === 'AT2').sp.current, 3);
+  assert.equal(state.party.find((m) => m.characterId === 'AT3').sp.current, 5);
+  assert.equal(state.turnState.passiveEventsLastApplied.length, 2);
+  assert.deepEqual(
+    state.turnState.passiveEventsLastApplied.map((event) => event.passiveName),
+    ['アフターサービス', '戦場の華']
+  );
+});
+
+test('commitTurn records OnEnemyTurnStart passive events when base turn advances', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EN${idx + 1}`,
+      characterName: `EN${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ENS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 41,
+                name: '銀氷の加護',
+                desc: '敵行動開始時 氷属性弱点の敵の攻撃ステータスを50下げる',
+                timing: 'OnEnemyTurnStart',
+                condition: '',
+                parts: [
+                  {
+                    skill_type: 'BorderRefPDownByAdmiral',
+                    target_type: 'All',
+                    target_condition: 'IsWeakElement(Ice)==1',
+                    power: [0, 0],
+                  },
+                ],
+              },
+            ]
+          : [],
+      skills: [{ id: 28100 + idx, name: 'Wait', label: `ENSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    damageRatesByEnemy: [{ Ice: 150 }],
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'EN1', skillId: 28100 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.turnIndex, 2);
+  assert.equal(committedRecord.passiveEvents.length, 1);
+  assert.equal(committedRecord.passiveEvents[0].timing, 'OnEnemyTurnStart');
+  assert.equal(committedRecord.passiveEvents[0].passiveName, '銀氷の加護');
+  assert.deepEqual(committedRecord.passiveEvents[0].unsupportedEffectTypes, ['BorderRefPDownByAdmiral']);
+});
+
+test('OnEveryTurnIncludeSpecial ReduceSp lowers self skill cost at action selection time', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `RS${idx + 1}`,
+      characterName: `RS${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `RSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 51,
+                name: 'ポジショニング',
+                desc: 'ダウンターン中の敵がいるとき 自身の消費SPが-2',
+                timing: 'OnEveryTurnIncludeSpecial',
+                condition: 'CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0',
+                parts: [{ skill_type: 'ReduceSp', target_type: 'Self', power: [2, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 28200 + idx, name: 'Act', label: `RSSkill${idx + 1}`, sp_cost: idx === 0 ? 8 : 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'RS1', skillId: 28200 },
+  });
+
+  assert.equal(preview.actions[0].spCost, 6);
+  assert.equal(preview.actions[0].startSP, 20);
+  assert.equal(preview.actions[0].endSP, 14);
+});
+
+test('OnEveryTurnIncludeSpecial ReduceSp can target matching allies at action selection time', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `RA${idx + 1}`,
+      characterName: `RA${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `RAS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 52,
+                name: '勇姿',
+                desc: 'ターン開始時 チャージ状態の味方の消費SP-1',
+                timing: 'OnEveryTurnIncludeSpecial',
+                condition: 'CountBC(IsPlayer() && SpecialStatusCountByType(20) > 0)>0',
+                parts: [
+                  {
+                    skill_type: 'ReduceSp',
+                    target_type: 'AllyAll',
+                    target_condition: 'SpecialStatusCountByType(20)>0',
+                    power: [1, 0],
+                  },
+                ],
+              },
+            ]
+          : [],
+      skills: [{ id: 28300 + idx, name: 'Act', label: `RASkill${idx + 1}`, sp_cost: idx === 1 ? 5 : 0, parts: [] }],
+    })
+  );
+  let state = createBattleStateFromParty(new Party(members));
+  state = grantExtraTurn(state, ['RA2']);
+
+  const preview = previewTurn(state, {
+    1: { characterId: 'RA2', skillId: 28301 },
+  });
+
+  assert.equal(preview.actions[0].spCost, 4);
+  assert.equal(preview.actions[0].startSP, 20);
+  assert.equal(preview.actions[0].endSP, 16);
+});
+
+test('OnEveryTurnIncludeSpecial AttackUp is exposed on preview action modifiers', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `AP${idx + 1}`,
+      characterName: `AP${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `APS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      initialEP: idx === 0 ? 10 : 0,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 53,
+                name: 'トルクマキシマム',
+                desc: '行動選択時 自身のEPが10以上のとき 自身のスキル攻撃力+50%',
+                timing: 'OnEveryTurnIncludeSpecial',
+                condition: 'Ep()>=10',
+                parts: [{ skill_type: 'AttackUp', target_type: 'Self', power: [0.5, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 28400 + idx, name: 'Act', label: `APSkill${idx + 1}`, sp_cost: idx === 0 ? 4 : 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'AP1', skillId: 28400 },
+  });
+
+  assert.equal(preview.actions[0].specialPassiveModifiers?.attackUpRate, 0.5);
+  assert.equal(preview.actions[0].specialPassiveEvents?.length, 1);
+  assert.equal(preview.actions[0].specialPassiveEvents?.[0]?.passiveName, 'トルクマキシマム');
+});
+
+test('commitTurn applies OnBattleWin passives when all enemies are dead', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `BW${idx + 1}`,
+      characterName: `BW${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `BWS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      elements: idx === 0 ? ['Fire'] : [],
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 61,
+                name: '実の父よりもシチーは飽きることがない',
+                desc: 'バトル勝利時 味方全体の火属性スタイルのSP+3',
+                timing: 'OnBattleWin',
+                condition: '',
+                parts: [
+                  {
+                    skill_type: 'HealSp',
+                    target_type: 'AllyAll',
+                    target_condition: 'IsNatureElement(Fire)',
+                    power: [3, 0],
+                  },
+                ],
+              },
+            ]
+          : [],
+      skills: [{ id: 28500 + idx, name: 'Act', label: `BWSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'Dead', targetIndex: 0, remainingTurns: 0 }],
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'BW1', skillId: 28500 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party.find((m) => m.characterId === 'BW1').sp.current, 8);
+  assert.equal(committedRecord.passiveEvents.some((event) => event.timing === 'OnBattleWin'), true);
+  assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '実の父よりもシチーは飽きることがない'), true);
 });

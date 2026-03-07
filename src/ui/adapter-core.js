@@ -28,6 +28,9 @@ export function createInitializedBattleSnapshot({
   enemyNamesByEnemy = {},
   damageRatesByEnemy = {},
   enemyStatuses = [],
+  enemyZoneConfigByEnemy = {},
+  zoneState = null,
+  territoryState = null,
 }) {
   const initialSpByPartyIndex = Object.fromEntries(
     Object.entries(startSpEquipByPartyIndex).map(([index, bonus]) => [
@@ -61,7 +64,13 @@ export function createInitializedBattleSnapshot({
         damageRatesByEnemy && typeof damageRatesByEnemy === 'object' ? structuredClone(damageRatesByEnemy) : {},
       enemyNamesByEnemy:
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
+      zoneConfigByEnemy:
+        enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
+          ? structuredClone(enemyZoneConfigByEnemy)
+          : {},
     },
+    zoneState: zoneState && typeof zoneState === 'object' ? structuredClone(zoneState) : null,
+    territoryState: territoryState && typeof territoryState === 'object' ? structuredClone(territoryState) : null,
   };
 
   const state = createBattleStateFromParty(party, initialTurnState);
@@ -84,6 +93,12 @@ export function createInitializedBattleSnapshot({
       damageRatesByEnemy:
         damageRatesByEnemy && typeof damageRatesByEnemy === 'object' ? structuredClone(damageRatesByEnemy) : {},
       enemyStatuses: Array.isArray(enemyStatuses) ? structuredClone(enemyStatuses) : [],
+      enemyZoneConfigByEnemy:
+        enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
+          ? structuredClone(enemyZoneConfigByEnemy)
+          : {},
+      zoneState: zoneState && typeof zoneState === 'object' ? structuredClone(zoneState) : null,
+      territoryState: territoryState && typeof territoryState === 'object' ? structuredClone(territoryState) : null,
     },
   };
 }

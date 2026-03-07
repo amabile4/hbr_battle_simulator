@@ -72,9 +72,20 @@ const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
+const ENEMY_STATUS_DEAD = 'Dead';
+const ENEMY_ZONE_TYPE_OPTIONS = Object.freeze([
+  { value: 'Fire', label: '火' },
+  { value: 'Ice', label: '氷' },
+  { value: 'Thunder', label: '雷' },
+  { value: 'Dark', label: '闇' },
+  { value: 'Light', label: '光' },
+]);
 
 function isPersistentEnemyStatus(statusType) {
-  return String(statusType ?? '') === ENEMY_STATUS_BREAK;
+  return (
+    String(statusType ?? '') === ENEMY_STATUS_BREAK ||
+    String(statusType ?? '') === ENEMY_STATUS_DEAD
+  );
 }
 
 function isEnemyStatusActive(status) {
@@ -116,6 +127,49 @@ function normalizeEnemyNamesByEnemy(value) {
   return Object.fromEntries(
     Object.entries(value).map(([targetIndex, name]) => [String(targetIndex), String(name ?? '')])
   );
+}
+
+function normalizeEnemyZoneConfigByEnemy(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([targetIndex, config]) => [
+      String(targetIndex),
+      {
+        enabled: Boolean(config?.enabled),
+        type: String(config?.type ?? ''),
+        remainingTurns:
+          config?.remainingTurns === null || config?.remainingTurns === undefined
+            ? null
+            : Number.isFinite(Number(config.remainingTurns))
+              ? Number(config.remainingTurns)
+              : 8,
+      },
+    ])
+  );
+}
+
+function normalizeFieldStateForScenario(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const type = String(value.type ?? '').trim();
+  if (!type) {
+    return null;
+  }
+  const rawRemaining = value.remainingTurns;
+  return {
+    type,
+    sourceSide: String(value.sourceSide ?? ''),
+    remainingTurns:
+      rawRemaining === null || rawRemaining === undefined
+        ? null
+        : Number.isFinite(Number(rawRemaining))
+          ? Number(rawRemaining)
+          : null,
+    ...(Number.isFinite(Number(value.powerRate)) ? { powerRate: Number(value.powerRate) } : {}),
+  };
 }
 
 const ENEMY_DAMAGE_RATE_FIELDS = Object.freeze([
@@ -210,6 +264,28 @@ function formatPassiveLogLine(event) {
 function formatConditionSupportLine(label, values) {
   const list = Array.isArray(values) && values.length > 0 ? values.join(', ') : '-';
   return `${label}: ${list}`;
+}
+
+function formatFieldStateLabel(turnState) {
+  const zoneState = turnState?.zoneState && typeof turnState.zoneState === 'object' ? turnState.zoneState : null;
+  const territoryState =
+    turnState?.territoryState && typeof turnState.territoryState === 'object' ? turnState.territoryState : null;
+  const zoneText = zoneState?.type
+    ? `Field=${zoneState.type}${zoneState.remainingTurns === null ? '' : `(${zoneState.remainingTurns})`}`
+    : 'Field=-';
+  const territoryText = territoryState?.type
+    ? `Territory=${territoryState.type}${territoryState.remainingTurns === null ? '' : `(${territoryState.remainingTurns})`}`
+    : 'Territory=-';
+  return `${zoneText} | ${territoryText}`;
+}
+
+function hasTokenPassiveSupport(member) {
+  return (member?.passives ?? []).some((passive) => {
+    if (String(passive?.condition ?? '').includes('Token()')) {
+      return true;
+    }
+    return (passive?.parts ?? []).some((part) => String(part?.skill_type ?? '').includes('Token'));
+  });
 }
 
 function deriveDisplayedOdTurn(turnState) {
@@ -487,6 +563,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.root.querySelector('[data-action="enemy-status-clear"]')?.addEventListener('click', () => {
       this.runSafely(() => this.clearEnemyStatusFromDom());
     });
+    this.root.querySelector('[data-action="enemy-zone-apply"]')?.addEventListener('click', () => {
+      this.runSafely(() => this.applyEnemyZoneFromDom());
+    });
 
     this.root.querySelector('[data-action="clear-records"]')?.addEventListener('click', () => {
       this.clearRecordsState();
@@ -649,6 +728,34 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const damageKey = String(target.getAttribute('data-damage-key') ?? '').trim();
         if (targetIndex >= 0 && damageKey) {
           this.applyEnemyDamageRateFromDom(targetIndex, damageKey, target.value);
+        }
+      }
+
+      if (target.matches('[data-role="enemy-zone-enabled"]')) {
+        const targetIndex = toInt(target.getAttribute('data-enemy-index'), -1);
+        if (targetIndex >= 0) {
+          this.applyEnemyZoneConfigFromDom(targetIndex, { enabled: Boolean(target.checked) });
+        }
+      }
+
+      if (target.matches('[data-role="enemy-zone-type"]')) {
+        const targetIndex = toInt(target.getAttribute('data-enemy-index'), -1);
+        if (targetIndex >= 0) {
+          this.applyEnemyZoneConfigFromDom(targetIndex, { type: String(target.value ?? '') });
+        }
+      }
+
+      if (target.matches('[data-role="enemy-zone-turns"]')) {
+        const targetIndex = toInt(target.getAttribute('data-enemy-index'), -1);
+        if (targetIndex >= 0) {
+          this.applyEnemyZoneConfigFromDom(targetIndex, { remainingTurns: target.value });
+        }
+      }
+
+      if (target.matches('[data-role="token-debug-input"]')) {
+        const characterId = String(target.getAttribute('data-character-id') ?? '').trim();
+        if (characterId) {
+          this.applyTokenDebugValueFromDom(characterId, target.value);
         }
       }
 
@@ -1608,6 +1715,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
             remainingTurns: Number(status?.remainingTurns ?? 0),
           }))
         : []);
+    const enemyZoneConfigByEnemy =
+      options.enemyZoneConfigByEnemy ??
+      normalizeEnemyZoneConfigByEnemy(this.state?.turnState?.enemyState?.zoneConfigByEnemy);
+    const zoneState =
+      options.zoneState ?? normalizeFieldStateForScenario(this.state?.turnState?.zoneState);
+    const territoryState =
+      options.territoryState ?? normalizeFieldStateForScenario(this.state?.turnState?.territoryState);
     const preserveTurnPlans = options.preserveTurnPlans === true;
     this.initializeBattleState({
       styleIds,
@@ -1621,6 +1735,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyNamesByEnemy,
       damageRatesByEnemy,
       enemyStatuses,
+      enemyZoneConfigByEnemy,
+      zoneState,
+      territoryState,
       preserveTurnPlans,
       forceOdToggle: this.isForceOdEnabled(),
     });
@@ -1924,6 +2041,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       statuses: [],
       damageRatesByEnemy: {},
       enemyNamesByEnemy: {},
+      zoneConfigByEnemy: {},
     };
     const statuses = Array.isArray(current.statuses)
       ? current.statuses
@@ -1934,11 +2052,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       : [];
     const damageRatesByEnemy = normalizeEnemyDamageRatesByEnemy(current.damageRatesByEnemy);
     const enemyNamesByEnemy = normalizeEnemyNamesByEnemy(current.enemyNamesByEnemy);
+    const zoneConfigByEnemy = normalizeEnemyZoneConfigByEnemy(current.zoneConfigByEnemy);
     this.state.turnState.enemyState = {
       enemyCount,
       statuses,
       damageRatesByEnemy,
       enemyNamesByEnemy,
+      zoneConfigByEnemy,
     };
   }
 
@@ -1964,6 +2084,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const enemyCount = this.readEnemyCountFromDom();
     const enemyNamesByEnemy = normalizeEnemyNamesByEnemy(this.state?.turnState?.enemyState?.enemyNamesByEnemy);
     const damageRatesByEnemy = normalizeEnemyDamageRatesByEnemy(this.state?.turnState?.enemyState?.damageRatesByEnemy);
+    const zoneConfigByEnemy = normalizeEnemyZoneConfigByEnemy(this.state?.turnState?.enemyState?.zoneConfigByEnemy);
     container.innerHTML = '';
 
     for (let i = 0; i < enemyCount; i += 1) {
@@ -1986,6 +2107,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       row.appendChild(nameLabel);
 
       const enemyRates = damageRatesByEnemy[String(i)] ?? {};
+      const zoneConfig = zoneConfigByEnemy[String(i)] ?? { enabled: false, type: 'Fire', remainingTurns: 8 };
       for (const field of ENEMY_DAMAGE_RATE_FIELDS) {
         const label = this.doc.createElement('label');
         label.textContent = `${field.label} `;
@@ -2005,7 +2127,63 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         row.appendChild(label);
       }
 
+      const zoneEnabledLabel = this.doc.createElement('label');
+      const zoneEnabled = this.doc.createElement('input');
+      zoneEnabled.type = 'checkbox';
+      zoneEnabled.checked = Boolean(zoneConfig.enabled);
+      zoneEnabled.setAttribute('data-role', 'enemy-zone-enabled');
+      zoneEnabled.setAttribute('data-enemy-index', String(i));
+      zoneEnabledLabel.appendChild(zoneEnabled);
+      zoneEnabledLabel.append(' フィールド持ち');
+      row.appendChild(zoneEnabledLabel);
+
+      const zoneTypeLabel = this.doc.createElement('label');
+      zoneTypeLabel.textContent = '属性 ';
+      const zoneTypeSelect = this.doc.createElement('select');
+      zoneTypeSelect.setAttribute('data-role', 'enemy-zone-type');
+      zoneTypeSelect.setAttribute('data-enemy-index', String(i));
+      for (const optionConfig of ENEMY_ZONE_TYPE_OPTIONS) {
+        const option = this.doc.createElement('option');
+        option.value = optionConfig.value;
+        option.textContent = optionConfig.label;
+        zoneTypeSelect.appendChild(option);
+      }
+      zoneTypeSelect.value = zoneConfig.type || 'Fire';
+      zoneTypeLabel.appendChild(zoneTypeSelect);
+      row.appendChild(zoneTypeLabel);
+
+      const zoneTurnsLabel = this.doc.createElement('label');
+      zoneTurnsLabel.textContent = 'T ';
+      const zoneTurnsInput = this.doc.createElement('input');
+      zoneTurnsInput.type = 'number';
+      zoneTurnsInput.min = '1';
+      zoneTurnsInput.step = '1';
+      zoneTurnsInput.value = String(zoneConfig.remainingTurns === null ? 8 : Number(zoneConfig.remainingTurns ?? 8));
+      zoneTurnsInput.setAttribute('data-role', 'enemy-zone-turns');
+      zoneTurnsInput.setAttribute('data-enemy-index', String(i));
+      zoneTurnsLabel.appendChild(zoneTurnsInput);
+      row.appendChild(zoneTurnsLabel);
+
       container.appendChild(row);
+    }
+    this.renderEnemyZoneControls();
+  }
+
+  renderEnemyZoneControls() {
+    const container = this.root.querySelector('[data-role="enemy-zone-controls"]');
+    const sourceSelect = this.root.querySelector('[data-role="enemy-zone-source"]');
+    if (!container || !sourceSelect) {
+      return;
+    }
+    const zoneConfigByEnemy = normalizeEnemyZoneConfigByEnemy(this.state?.turnState?.enemyState?.zoneConfigByEnemy);
+    const enabledEntries = Object.entries(zoneConfigByEnemy).filter(([, config]) => Boolean(config?.enabled));
+    container.hidden = enabledEntries.length === 0;
+    sourceSelect.innerHTML = '';
+    for (const [targetIndex] of enabledEntries) {
+      const option = this.doc.createElement('option');
+      option.value = String(targetIndex);
+      option.textContent = this.getEnemyDisplayName(Number(targetIndex));
+      sourceSelect.appendChild(option);
     }
   }
 
@@ -2069,6 +2247,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
       enemyNamesByEnemy: next,
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
     this.renderEnemyStatusControls();
     this.renderEnemyConfigControls();
@@ -2094,6 +2273,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
       damageRatesByEnemy: nextRates,
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
@@ -2127,6 +2307,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         if (currentTarget !== targetIndex) {
           return true;
         }
+        if (statusType === ENEMY_STATUS_DEAD) {
+          return false;
+        }
         if (statusType === ENEMY_STATUS_DOWN_TURN) {
           return currentType !== ENEMY_STATUS_DOWN_TURN && currentType !== ENEMY_STATUS_BREAK;
         }
@@ -2151,6 +2334,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       statuses: nextStatuses,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
@@ -2182,6 +2366,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         if (currentTarget !== targetIndex) {
           return true;
         }
+        if (statusType === ENEMY_STATUS_DEAD) {
+          return currentType !== ENEMY_STATUS_DEAD;
+        }
         if (statusType === ENEMY_STATUS_BREAK) {
           return currentType !== ENEMY_STATUS_BREAK && currentType !== ENEMY_STATUS_DOWN_TURN;
         }
@@ -2193,6 +2380,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       statuses: nextStatuses,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
@@ -2200,7 +2388,81 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.renderActionSelectors();
     this.renderEnemyStatusControls();
     this.renderOdControls();
+    this.renderEnemyZoneControls();
     this.setStatus(`Enemy ${targetIndex + 1} の ${statusType} を解除しました。`);
+  }
+
+  applyEnemyZoneConfigFromDom(targetIndex, patch = {}) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    this.syncEnemyStateFromDom();
+    const enemyCount = this.readEnemyCountFromDom();
+    if (targetIndex < 0 || targetIndex >= enemyCount) {
+      return;
+    }
+    const next = normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy);
+    const current = next[String(targetIndex)] ?? { enabled: false, type: 'Fire', remainingTurns: 8 };
+    next[String(targetIndex)] = {
+      enabled: patch.enabled !== undefined ? Boolean(patch.enabled) : Boolean(current.enabled),
+      type: patch.type !== undefined ? String(patch.type ?? '') : String(current.type ?? 'Fire'),
+      remainingTurns:
+        patch.remainingTurns !== undefined
+          ? (patch.remainingTurns === null ? null : Math.max(1, toInt(patch.remainingTurns, 8)))
+          : current.remainingTurns,
+    };
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      zoneConfigByEnemy: next,
+    };
+    this.renderEnemyConfigControls();
+    this.renderEnemyZoneControls();
+  }
+
+  applyEnemyZoneFromDom() {
+    if (!this.state?.turnState) {
+      throw new Error('State is not initialized.');
+    }
+    const sourceSelect = this.root.querySelector('[data-role="enemy-zone-source"]');
+    const targetIndex = Math.max(0, toInt(sourceSelect?.value, 0));
+    const zoneConfigByEnemy = normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy);
+    const config = zoneConfigByEnemy[String(targetIndex)];
+    if (!config?.enabled || !config?.type) {
+      throw new Error('敵フィールド設定がありません。');
+    }
+    this.state.turnState.zoneState = {
+      type: String(config.type),
+      sourceSide: 'enemy',
+      remainingTurns: config.remainingTurns === undefined ? 8 : config.remainingTurns,
+    };
+    this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
+    this.writePreviewOutput('');
+    this.renderTurnStatus();
+    this.setStatus(`${this.getEnemyDisplayName(targetIndex)} が ${config.type} フィールドを展開しました。`);
+  }
+
+  applyTokenDebugValueFromDom(characterId, rawValue) {
+    if (!this.state?.party) {
+      return;
+    }
+    const member = this.state.party.find((item) => String(item.characterId) === String(characterId));
+    if (!member?.tokenState) {
+      return;
+    }
+    const parsed = Number(rawValue);
+    const min = Number(member.tokenState.min ?? 0);
+    const max = Number(member.tokenState.max ?? 10);
+    const normalized = Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.trunc(parsed))) : min;
+    member.tokenState.current = normalized;
+    this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
+    this.writePreviewOutput('');
+    this.renderPartyState();
+    this.setStatus(`${member.characterName} のトークンを ${normalized} に更新しました。`);
   }
 
   queueSwap(fromPositionIndex, toPositionIndex) {
@@ -2680,6 +2942,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       statuses: next,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
     this.renderEnemyStatusControls();
     this.renderEnemyConfigControls();
@@ -2711,6 +2974,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         : [],
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(next),
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
     this.renderEnemyStatusControls();
     this.renderEnemyConfigControls();
@@ -2746,6 +3010,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         : [],
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(next),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
     this.renderEnemyConfigControls();
   }
@@ -2815,6 +3080,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
             remainingTurns: Number(status?.remainingTurns ?? 0),
           }))
         : [],
+      zoneState: normalizeFieldStateForScenario(setup.zoneState),
+      territoryState: normalizeFieldStateForScenario(setup.territoryState),
     });
     if (Array.isArray(setup.initialPositions) && setup.initialPositions.length > 0) {
       this.applyScenarioInitialPositions(setup.initialPositions);
@@ -2828,10 +3095,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (Array.isArray(setup.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(setup.enemyStatuses);
     }
+    if (setup.zoneState && typeof setup.zoneState === 'object') {
+      this.state.turnState.zoneState = normalizeFieldStateForScenario(setup.zoneState);
+    }
+    if (setup.territoryState && typeof setup.territoryState === 'object') {
+      this.state.turnState.territoryState = normalizeFieldStateForScenario(setup.territoryState);
+    }
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
     this.scenarioSetupApplied = true;
     this.renderScenarioStatus();
+    this.renderTurnStatus();
     this.setStatus('Scenario setup applied.');
   }
 
@@ -3168,6 +3442,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (Array.isArray(turn.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(turn.enemyStatuses);
     }
+    if (turn.zoneState && typeof turn.zoneState === 'object') {
+      this.state.turnState.zoneState = normalizeFieldStateForScenario(turn.zoneState);
+    }
+    if (turn.territoryState && typeof turn.territoryState === 'object') {
+      this.state.turnState.territoryState = normalizeFieldStateForScenario(turn.territoryState);
+    }
     if (Array.isArray(turn.enemyNames) || (turn.enemyNames && typeof turn.enemyNames === 'object')) {
       this.applyScenarioEnemyNames(turn.enemyNames);
     }
@@ -3211,6 +3491,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         statuses: merged,
         damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
         enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+        zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
       };
       this.renderEnemyStatusControls();
       this.renderEnemyConfigControls();
@@ -3254,10 +3535,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         statuses,
         damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
         enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+        zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
       };
       this.renderEnemyStatusControls();
       this.renderEnemyConfigControls();
     }
+    this.renderTurnStatus();
 
     if (Number.isFinite(Number(turn.preemptiveOdLevel))) {
       const canApplyPreemptiveOd = String(this.state.turnState?.turnType ?? 'normal') === 'normal';
@@ -3496,6 +3779,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
 
     const turnLabel = this.root.querySelector('[data-role="turn-label"]');
+    const fieldStateLabel = this.root.querySelector('[data-role="field-state-label"]');
     if (turnLabel) {
       const seq = String(Math.max(0, Number(this.state.turnState.sequenceId ?? 1))).padStart(2, '0');
       const baseTurn = `T${String(Math.max(0, Number(this.state.turnState.turnIndex ?? 1))).padStart(2, '0')}`;
@@ -3513,6 +3797,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const odTurnCol = odTurn.padEnd(6, ' ');
       const exCol = exTurn.padEnd(2, ' ');
       turnLabel.textContent = `${seqCol} | ${turnCol} | ${odTurnCol} | ${exCol} | OD=${formatGaugePercent(odGauge)}% | 超越=${transcendenceValue}`;
+    }
+    if (fieldStateLabel) {
+      fieldStateLabel.textContent = formatFieldStateLabel(this.state.turnState);
     }
     this.renderOdControls();
     this.renderKishinkaControls();
@@ -3562,6 +3849,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.sp.max = Number(snap.sp?.max ?? member.sp.max);
       member.ep.current = Number(snap.ep?.current ?? member.ep.current);
       member.ep.max = Number(snap.ep?.max ?? member.ep.max);
+      member.tokenState.current = Number(snap.tokenState?.current ?? member.tokenState?.current ?? 0);
+      member.tokenState.min = Number(snap.tokenState?.min ?? member.tokenState?.min ?? 0);
+      member.tokenState.max = Number(snap.tokenState?.max ?? member.tokenState?.max ?? 10);
       member.isAlive = Boolean(snap.isAlive);
       member.isBreak = Boolean(snap.isBreak);
       member.isExtraActive = Boolean(snap.isExtraActive);
@@ -3923,15 +4213,55 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           : Number(member.actionDisabledTurns ?? 0) > 0
             ? ` [行動不能:${member.actionDisabledTurns}]`
             : '';
+        const tokenText = hasTokenPassiveSupport(member)
+          ? ` / Token=${member.tokenState?.current ?? 0}`
+          : '';
         if (String(member.characterId) === 'NNanase') {
-          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}</li>`;
+          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}</li>`;
         }
-        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}</li>`;
+        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${tokenText}</li>`;
       })
       .join('');
 
     container.innerHTML = rows;
+    this.renderTokenDebugControls();
     this.renderSwapSelectors();
+  }
+
+  renderTokenDebugControls() {
+    const container = this.root.querySelector('[data-role="token-debug-list"]');
+    if (!container) {
+      return;
+    }
+    if (!this.state?.party) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const rows = this.state.party
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .filter((member) => hasTokenPassiveSupport(member))
+      .map((member) => {
+        const current = Number(member.tokenState?.current ?? 0);
+        const max = Number(member.tokenState?.max ?? 10);
+        return `
+          <label class="style-slot">
+            Token ${member.position + 1}:${member.characterName}
+            <input
+              data-role="token-debug-input"
+              data-character-id="${member.characterId}"
+              type="number"
+              min="0"
+              max="${max}"
+              step="1"
+              value="${current}"
+            />
+          </label>
+        `;
+      })
+      .join('');
+    container.innerHTML = rows;
   }
 
   getTurnPlanRecalcModeFromDom() {
@@ -4019,6 +4349,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const enemyDamageRates = normalizeEnemyDamageRatesByEnemy(
       plan.enemyDamageRates ?? plan.damageRatesByEnemy ?? setupDelta.enemyDamageRates ?? setupDelta.damageRatesByEnemy
     );
+    const zoneState = normalizeFieldStateForScenario(plan.zoneState ?? setupDelta.zoneState);
+    const territoryState = normalizeFieldStateForScenario(plan.territoryState ?? setupDelta.territoryState);
     const actions = Array.isArray(plan.actions)
       ? plan.actions
         .map((action) => ({
@@ -4073,6 +4405,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyNames,
         enemyDamageRates,
         enemyStatuses,
+        ...(zoneState ? { zoneState } : {}),
+        ...(territoryState ? { territoryState } : {}),
       },
       actions,
       swaps,
@@ -4131,6 +4465,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         targetIndex: Number(status?.targetIndex ?? 0),
         remainingTurns: Number(status?.remainingTurns ?? 0),
       })),
+      zoneState: normalizeFieldStateForScenario(this.state.turnState?.zoneState),
+      territoryState: normalizeFieldStateForScenario(this.state.turnState?.territoryState),
       actions,
       swaps,
       preemptiveOdLevel,
@@ -4154,6 +4490,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Array.isArray(normalized.setupDelta.enemyStatuses) && normalized.setupDelta.enemyStatuses.length > 0) {
       out.enemyStatuses = structuredClone(normalized.setupDelta.enemyStatuses);
+    }
+    if (normalized.setupDelta.zoneState) {
+      out.zoneState = structuredClone(normalized.setupDelta.zoneState);
+    }
+    if (normalized.setupDelta.territoryState) {
+      out.territoryState = structuredClone(normalized.setupDelta.territoryState);
     }
     if (normalized.preemptiveOdLevel !== null) {
       out.preemptiveOdLevel = normalized.preemptiveOdLevel;
@@ -4222,6 +4564,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(base.enemyNamesByEnemy),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(base.damageRatesByEnemy),
       enemyStatuses: Array.isArray(base.enemyStatuses) ? structuredClone(base.enemyStatuses) : [],
+      zoneState: normalizeFieldStateForScenario(base.zoneState),
+      territoryState: normalizeFieldStateForScenario(base.territoryState),
       skipInitialOdRead: true,
       preserveTurnPlans: true,
       suppressAutoSave: true,

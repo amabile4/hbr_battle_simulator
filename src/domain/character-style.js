@@ -232,6 +232,12 @@ export class CharacterStyle {
       odMax: Number(input.epOdMax ?? 20),
     };
 
+    this.tokenState = {
+      current: Number(input.initialToken ?? 0),
+      min: Number(input.tokenMin ?? 0),
+      max: Number(input.tokenMax ?? 10),
+    };
+
     this.isAlive = input.isAlive ?? true;
     this.isBreak = input.isBreak ?? false;
     this.isExtraActive = input.isExtraActive ?? false;
@@ -305,6 +311,7 @@ export class CharacterStyle {
 
     const startSP = this.sp.current;
     const startEP = this.ep.current;
+    const startToken = this.tokenState.current;
     const consumeType = String(skill.consumeType ?? 'Sp');
     let rawCost = Number(skill.spCost ?? 0);
     if (
@@ -317,14 +324,24 @@ export class CharacterStyle {
     }
     const cost = Math.abs(rawCost);
 
-    let deltaSP = consumeType === 'Ep' ? 0 : -cost;
+    let deltaSP = consumeType === 'Ep' || consumeType === 'Token' ? 0 : -cost;
     let deltaEP = consumeType === 'Ep' ? -cost : 0;
+    let deltaToken = consumeType === 'Token' ? -cost : 0;
     // HBR特殊値: sp_cost = -1 は「現在SPを全消費」。
-    if (consumeType !== 'Ep' && rawCost === -1) {
+    if (consumeType !== 'Ep' && consumeType !== 'Token' && rawCost === -1) {
       deltaSP = -startSP;
+    }
+    if (consumeType === 'Token' && rawCost === -1) {
+      deltaToken = -startToken;
     }
     const endSP = applySpChange(startSP, deltaSP, this.sp.min, Number.POSITIVE_INFINITY);
     const endEP = applySpChange(startEP, deltaEP, this.ep.min, Number.POSITIVE_INFINITY);
+    const endToken = applySpChange(
+      startToken,
+      deltaToken,
+      this.tokenState.min,
+      Number.POSITIVE_INFINITY
+    );
 
     return {
       characterId: this.characterId,
@@ -338,8 +355,11 @@ export class CharacterStyle {
       endSP,
       startEP,
       endEP,
+      startToken,
+      endToken,
       spDelta: endSP - startSP,
       epDelta: endEP - startEP,
+      tokenDelta: endToken - startToken,
     };
   }
 
@@ -361,6 +381,9 @@ export class CharacterStyle {
     if (Number.isFinite(Number(preview.endEP))) {
       this.ep.current = Number(preview.endEP);
     }
+    if (Number.isFinite(Number(preview.endToken))) {
+      this.tokenState.current = Number(preview.endToken);
+    }
     this._revision += 1;
 
     return {
@@ -371,6 +394,8 @@ export class CharacterStyle {
       endSP: this.sp.current,
       startEP: Number(preview.startEP ?? this.ep.current),
       endEP: this.ep.current,
+      startToken: Number(preview.startToken ?? this.tokenState.current),
+      endToken: this.tokenState.current,
       revision: this._revision,
     };
   }
@@ -404,6 +429,24 @@ export class CharacterStyle {
       startEP,
       endEP,
       eventCeiling,
+    };
+  }
+
+  applyTokenDelta(delta, eventCeiling = this.tokenState.max) {
+    const numericDelta = Number(delta);
+    const startToken = this.tokenState.current;
+    const ceiling = Number.isFinite(Number(eventCeiling))
+      ? Number(eventCeiling)
+      : Number(this.tokenState.max ?? 10);
+    const endToken = applySpChange(startToken, numericDelta, this.tokenState.min, ceiling);
+    this.tokenState.current = endToken;
+    this._revision += 1;
+
+    return {
+      startToken,
+      endToken,
+      delta: endToken - startToken,
+      eventCeiling: ceiling,
     };
   }
 
@@ -661,6 +704,7 @@ export class CharacterStyle {
       normalAttackElements: [...this.normalAttackElements],
       sp: { ...this.sp },
       ep: { ...this.ep },
+      tokenState: { ...this.tokenState },
       isAlive: this.isAlive,
       isBreak: this.isBreak,
       isExtraActive: this.isExtraActive,

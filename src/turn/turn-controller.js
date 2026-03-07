@@ -36,9 +36,19 @@ const OD_DAMAGE_PART_TYPES = new Set([
 ]);
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
-const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn']);
-const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart']);
-export const SUPPORTED_PASSIVE_TIMINGS = Object.freeze(['OnOverdriveStart']);
+const ENEMY_STATUS_DEAD = 'Dead';
+const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
+const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
+export const SUPPORTED_PASSIVE_TIMINGS = Object.freeze([
+  'OnOverdriveStart',
+  'OnBattleStart',
+  'OnFirstBattleStart',
+  'OnEveryTurn',
+  'OnPlayerTurnStart',
+  'OnAdditionalTurnStart',
+  'OnEnemyTurnStart',
+  'OnBattleWin',
+]);
 export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   PlayedSkillCount: Object.freeze({ tier: 'implemented', note: 'skill use count is tracked now' }),
   BreakHitCount: Object.freeze({ tier: 'implemented', note: 'action context is tracked now' }),
@@ -62,13 +72,13 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   IsWeakElement: Object.freeze({ tier: 'manual_state', note: 'manual enemy damage-rate state' }),
   Random: Object.freeze({ tier: 'manual_state', note: 'manual / debug random policy' }),
   DpRate: Object.freeze({ tier: 'stateful_future', note: 'needs DP current/max state and updates' }),
-  Token: Object.freeze({ tier: 'stateful_future', note: 'needs token current state and updates' }),
+  Token: Object.freeze({ tier: 'implemented', note: 'current token state is tracked now' }),
   MoraleLevel: Object.freeze({ tier: 'stateful_future', note: 'needs morale state and updates' }),
   MotivationLevel: Object.freeze({ tier: 'stateful_future', note: 'needs motivation state and updates' }),
   FireMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs fire mark level state and updates' }),
   IceMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs ice mark level state and updates' }),
-  IsZone: Object.freeze({ tier: 'stateful_future', note: 'needs field zone state' }),
-  IsTerritory: Object.freeze({ tier: 'stateful_future', note: 'needs territory state' }),
+  IsZone: Object.freeze({ tier: 'implemented', note: 'turn state zone state is tracked now' }),
+  IsTerritory: Object.freeze({ tier: 'implemented', note: 'turn state territory state is tracked now' }),
 });
 const CONDITION_FUNCTION_PATTERN = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
@@ -349,6 +359,25 @@ function hasDamagePartInParts(parts) {
   return false;
 }
 
+function skillMatchesActiveZone(state, skill, member = null) {
+  const zoneState = getZoneState(state?.turnState);
+  if (!isFieldStateActive(zoneState)) {
+    return { matched: false, zoneState };
+  }
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
+  for (const part of effectiveParts ?? []) {
+    const skillType = String(part?.skill_type ?? '').trim();
+    if (!OD_DAMAGE_PART_TYPES.has(skillType)) {
+      continue;
+    }
+    const elements = Array.isArray(part?.elements) ? part.elements.map((value) => String(value ?? '').trim()) : [];
+    if (elements.includes(String(zoneState.type ?? ''))) {
+      return { matched: true, zoneState };
+    }
+  }
+  return { matched: false, zoneState };
+}
+
 function getDamagePartReferences(part, options = {}) {
   if (!part || typeof part !== 'object') {
     return [];
@@ -448,7 +477,8 @@ function analyzeEnemiesEligibleForOdGain(state, member, skill, enemyCount) {
 
 function hasOverDrivePointUpPartInParts(parts) {
   for (const part of parts ?? []) {
-    if (String(part?.skill_type ?? '') === 'OverDrivePointUp') {
+    const skillType = String(part?.skill_type ?? '');
+    if (skillType === 'OverDrivePointUp' || skillType === 'OverDrivePointUpByToken') {
       return true;
     }
     if (Array.isArray(part?.strval)) {
@@ -505,6 +535,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
       return {
         known: true,
         value: Number(member?.ep?.current ?? 0),
+      };
+    case 'Token':
+      return {
+        known: true,
+        value: Number(member?.tokenState?.current ?? 0),
       };
     case 'IsOverDrive':
       return {
@@ -576,6 +611,35 @@ function resolveSingleArgConditionValue(name, argRaw, state, member) {
         value: isEnemyWeakToElement(state?.turnState, targetIndex, arg) ? 1 : 0,
       };
     }
+    case 'IsZone':
+      return {
+        known: true,
+        value:
+          isFieldStateActive(getZoneState(state?.turnState)) &&
+          String(getZoneState(state?.turnState)?.type ?? '') === arg
+            ? 1
+            : 0,
+      };
+    case 'IsTerritory':
+      return {
+        known: true,
+        value:
+          isFieldStateActive(getTerritoryState(state?.turnState)) &&
+          String(getTerritoryState(state?.turnState)?.type ?? '') === arg
+            ? 1
+            : 0,
+      };
+    case 'SpecialStatusCountByType':
+      if (arg === '20') {
+        return {
+          known: true,
+          value: member?.isExtraActive ? 1 : 0,
+        };
+      }
+      return {
+        known: false,
+        value: true,
+      };
     default:
       return {
         known: false,
@@ -615,7 +679,13 @@ function splitTopLevel(expression, separator) {
 function getEnemyState(turnState) {
   const state = turnState?.enemyState;
   if (!state || typeof state !== 'object') {
-    return { enemyCount: DEFAULT_ENEMY_COUNT, statuses: [], damageRatesByEnemy: {}, enemyNamesByEnemy: {} };
+    return {
+      enemyCount: DEFAULT_ENEMY_COUNT,
+      statuses: [],
+      damageRatesByEnemy: {},
+      enemyNamesByEnemy: {},
+      zoneConfigByEnemy: {},
+    };
   }
   const enemyCount = clampEnemyCount(state.enemyCount ?? DEFAULT_ENEMY_COUNT);
   return {
@@ -625,7 +695,159 @@ function getEnemyState(turnState) {
       state.damageRatesByEnemy && typeof state.damageRatesByEnemy === 'object' ? state.damageRatesByEnemy : {},
     enemyNamesByEnemy:
       state.enemyNamesByEnemy && typeof state.enemyNamesByEnemy === 'object' ? state.enemyNamesByEnemy : {},
+    zoneConfigByEnemy:
+      state.zoneConfigByEnemy && typeof state.zoneConfigByEnemy === 'object' ? state.zoneConfigByEnemy : {},
   };
+}
+
+function normalizeFieldState(fieldState) {
+  if (!fieldState || typeof fieldState !== 'object') {
+    return null;
+  }
+  const type = String(fieldState.type ?? '').trim();
+  if (!type) {
+    return null;
+  }
+  const rawRemaining = fieldState.remainingTurns;
+  return {
+    type,
+    sourceSide: String(fieldState.sourceSide ?? ''),
+    remainingTurns:
+      rawRemaining === null || rawRemaining === undefined
+        ? null
+        : Number.isFinite(Number(rawRemaining))
+          ? Number(rawRemaining)
+          : null,
+    ...(Number.isFinite(Number(fieldState.powerRate)) ? { powerRate: Number(fieldState.powerRate) } : {}),
+  };
+}
+
+function getZoneState(turnState) {
+  return normalizeFieldState(turnState?.zoneState);
+}
+
+function getTerritoryState(turnState) {
+  return normalizeFieldState(turnState?.territoryState);
+}
+
+function isFieldStateActive(fieldState) {
+  if (!fieldState) {
+    return false;
+  }
+  if (fieldState.remainingTurns === null) {
+    return true;
+  }
+  return Number(fieldState.remainingTurns ?? 0) > 0;
+}
+
+function tickFieldState(fieldState) {
+  const normalized = normalizeFieldState(fieldState);
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.remainingTurns === null) {
+    return normalized;
+  }
+  const nextTurns = Number(normalized.remainingTurns ?? 0) - 1;
+  if (nextTurns <= 0) {
+    return null;
+  }
+  return {
+    ...normalized,
+    remainingTurns: nextTurns,
+  };
+}
+
+function resolveFieldDuration(part) {
+  const exitCond = String(part?.effect?.exitCond ?? '');
+  const turns = Number(part?.effect?.exitVal?.[0] ?? 0);
+  if (exitCond === 'Eternal' || exitCond === 'None') {
+    return null;
+  }
+  if (!Number.isFinite(turns) || turns <= 0) {
+    return null;
+  }
+  return turns;
+}
+
+function deriveZoneTypeFromPart(part) {
+  const explicit = String(part?.strval?.[0] ?? '').trim();
+  if (explicit && explicit !== '-1') {
+    return explicit;
+  }
+  const element = Array.isArray(part?.elements) ? String(part.elements[0] ?? '').trim() : '';
+  if (element) {
+    return element;
+  }
+  return '';
+}
+
+function resolveZonePowerRate(part) {
+  const power = Number(part?.power?.[0] ?? NaN);
+  return Number.isFinite(power) ? power : null;
+}
+
+function deriveTerritoryTypeFromPart(part) {
+  const skillType = String(part?.skill_type ?? '').trim();
+  if (skillType && skillType !== '-1') {
+    return skillType;
+  }
+  const explicit = String(part?.strval?.[0] ?? '').trim();
+  if (explicit && explicit !== '-1') {
+    return explicit;
+  }
+  return '';
+}
+
+function applyZonePartToTurnState(turnState, part, sourceSide = 'player') {
+  const type = deriveZoneTypeFromPart(part);
+  if (!type) {
+    return null;
+  }
+  const next = {
+    type,
+    sourceSide: String(sourceSide ?? ''),
+    remainingTurns: resolveFieldDuration(part),
+    ...(Number.isFinite(resolveZonePowerRate(part)) ? { powerRate: resolveZonePowerRate(part) } : {}),
+  };
+  turnState.zoneState = next;
+  return next;
+}
+
+function resolveZoneUpEternalParts(member) {
+  return (member?.passives ?? []).flatMap((passive) =>
+    (passive?.parts ?? [])
+      .filter((part) => String(part?.skill_type ?? '').trim() === 'ZoneUpEternal')
+      .map((part) => ({ passive, part }))
+  );
+}
+
+function hasActiveZoneUpEternalModifier(state, member, skill = null, actionEntry = null) {
+  for (const { passive, part } of resolveZoneUpEternalParts(member)) {
+    const timing = String(passive?.timing ?? '').trim();
+    if (timing !== 'OnBattleStart' && timing !== 'OnFirstBattleStart') {
+      continue;
+    }
+    if (!evaluatePassiveSelfConditions(passive, part, state, member, skill, actionEntry)) {
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+function applyTerritoryPartToTurnState(turnState, part, sourceSide = 'player') {
+  const type = deriveTerritoryTypeFromPart(part);
+  if (!type) {
+    return null;
+  }
+  const next = {
+    type,
+    sourceSide: String(sourceSide ?? ''),
+    remainingTurns: resolveFieldDuration(part),
+  };
+  turnState.territoryState = next;
+  return next;
 }
 
 function getEnemyDamageRatePercent(turnState, targetIndex, element) {
@@ -647,7 +869,7 @@ function countEnemiesWeakToElement(turnState, element) {
   const enemyState = getEnemyState(turnState);
   let count = 0;
   for (let i = 0; i < enemyState.enemyCount; i += 1) {
-    if (isEnemyWeakToElement(turnState, i, element)) {
+    if (!isEnemyDead(turnState, i) && isEnemyWeakToElement(turnState, i, element)) {
       count += 1;
     }
   }
@@ -655,7 +877,10 @@ function countEnemiesWeakToElement(turnState, element) {
 }
 
 function isEnemyStatusPersistent(status) {
-  return String(status?.statusType ?? '') === ENEMY_STATUS_BREAK;
+  return (
+    String(status?.statusType ?? '') === ENEMY_STATUS_BREAK ||
+    String(status?.statusType ?? '') === ENEMY_STATUS_DEAD
+  );
 }
 
 function isEnemyStatusActive(status) {
@@ -683,6 +908,297 @@ function countEnemiesWithStatus(turnState, statusType) {
     targets.add(idx);
   }
   return targets.size;
+}
+
+function getDeadEnemyTargetIndexes(turnState) {
+  const enemyState = getEnemyState(turnState);
+  const targets = new Set();
+  for (const status of getActiveEnemyStatuses(turnState, ENEMY_STATUS_DEAD)) {
+    const idx = Number(status?.targetIndex ?? -1);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= enemyState.enemyCount) {
+      continue;
+    }
+    targets.add(idx);
+  }
+  return targets;
+}
+
+function isEnemyDead(turnState, targetIndex) {
+  return getDeadEnemyTargetIndexes(turnState).has(Number(targetIndex));
+}
+
+function isEnemyAlive(turnState, targetIndex) {
+  const idx = Number(targetIndex);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= getEnemyState(turnState).enemyCount) {
+    return false;
+  }
+  return !isEnemyDead(turnState, idx);
+}
+
+function countAliveEnemies(turnState) {
+  const enemyState = getEnemyState(turnState);
+  const deadTargets = getDeadEnemyTargetIndexes(turnState);
+  let count = 0;
+  for (let i = 0; i < enemyState.enemyCount; i += 1) {
+    if (!deadTargets.has(i)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function countDeadEnemies(turnState) {
+  return getDeadEnemyTargetIndexes(turnState).size;
+}
+
+function countAliveEnemiesWithStatus(turnState, statusType) {
+  const enemyState = getEnemyState(turnState);
+  const deadTargets = getDeadEnemyTargetIndexes(turnState);
+  const targets = new Set();
+  for (const status of getActiveEnemyStatuses(turnState, statusType)) {
+    const idx = Number(status?.targetIndex ?? -1);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= enemyState.enemyCount || deadTargets.has(idx)) {
+      continue;
+    }
+    targets.add(idx);
+  }
+  return targets.size;
+}
+
+function getActionTargetEnemyIndexes(state, actionEntry, skill) {
+  const targetType = String(skill?.targetType ?? actionEntry?.skillTargetType ?? '');
+  const enemyCount = clampEnemyCount(
+    state?.turnState?.enemyState?.enemyCount ?? actionEntry?.enemyCount ?? DEFAULT_ENEMY_COUNT
+  );
+  if (targetType === 'All') {
+    const targets = [];
+    for (let i = 0; i < enemyCount; i += 1) {
+      if (isEnemyAlive(state?.turnState, i)) {
+        targets.push(i);
+      }
+    }
+    return targets;
+  }
+  const targetEnemyIndex = Number.isFinite(Number(actionEntry?.targetEnemyIndex))
+    ? Number(actionEntry.targetEnemyIndex)
+    : 0;
+  return isEnemyAlive(state?.turnState, targetEnemyIndex) ? [targetEnemyIndex] : [];
+}
+
+function getTokenSetAmount(part) {
+  const amount = Number(part?.power?.[0] ?? part?.value?.[0] ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function resolveTokenAttackContext(skill, state, actor, tokenCountOverride = null) {
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+  const tokenAttackPart = effectiveParts.find((part) => String(part?.skill_type ?? '') === 'TokenAttack');
+  if (!tokenAttackPart) {
+    return null;
+  }
+  const tokenCount = Number.isFinite(Number(tokenCountOverride))
+    ? Number(tokenCountOverride)
+    : Number(actor?.tokenState?.current ?? 0);
+  const ratePerToken = Number(tokenAttackPart?.value?.[0] ?? 0);
+  return {
+    tokenCount,
+    ratePerToken: Number.isFinite(ratePerToken) ? ratePerToken : 0,
+    totalRate:
+      Number.isFinite(ratePerToken) && Number.isFinite(tokenCount) ? ratePerToken * tokenCount : 0,
+    targetType: String(tokenAttackPart?.target_type ?? ''),
+  };
+}
+
+function skillHasDamageParts(skill, state, actor) {
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+  return effectiveParts.some((part) => OD_DAMAGE_PART_TYPES.has(String(part?.skill_type ?? '').trim()));
+}
+
+function applyTokenEffectsFromActions(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      if (String(part?.skill_type ?? '') !== 'TokenSet') {
+        continue;
+      }
+      const condTexts = [part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+      const amount = getTokenSetAmount(part);
+      if (!amount) {
+        continue;
+      }
+      const change = actor.applyTokenDelta(amount);
+      events.push({
+        actorCharacterId: actor.characterId,
+        characterId: actor.characterId,
+        source: 'token_skill',
+        skillId: skill.skillId,
+        skillName: skill.name,
+        triggerType: 'TokenSet',
+        ...change,
+      });
+    }
+
+    if (skillHasDamageParts(skill, state, actor)) {
+      const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
+      const hitEnemyCount = targetEnemyIndexes.length;
+      if (hitEnemyCount > 0) {
+        for (const passive of actor.passives ?? []) {
+          for (const part of passive.parts ?? []) {
+            if (String(part?.skill_type ?? '') !== 'TokenSetByAttacking') {
+              continue;
+            }
+            const conditions = [passive?.condition, part?.cond, part?.hit_condition]
+              .map((value) => String(value ?? '').trim())
+              .filter(Boolean);
+            const matched = conditions.every((expr) =>
+              evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+            );
+            if (!matched) {
+              continue;
+            }
+            const amountPerEnemy = getTokenSetAmount(part) || 1;
+            const change = actor.applyTokenDelta(amountPerEnemy * hitEnemyCount);
+            events.push({
+              actorCharacterId: actor.characterId,
+              characterId: actor.characterId,
+              source: 'token_passive',
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              triggerType: 'TokenSetByAttacking',
+              hitEnemyCount,
+              ...change,
+            });
+          }
+        }
+      }
+    }
+
+    const dpHealParts = effectiveParts.filter((part) =>
+      ['HealDp', 'HealDpRate', 'RegenerationDp', 'ReviveDp', 'HealDpByDamage'].includes(
+        String(part?.skill_type ?? '')
+      )
+    );
+    if (dpHealParts.length === 0) {
+      continue;
+    }
+    for (const part of dpHealParts) {
+      const condTexts = [part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        for (const passive of target.passives ?? []) {
+          for (const passivePart of passive.parts ?? []) {
+            if (String(passivePart?.skill_type ?? '') !== 'TokenSetByHealedDp') {
+              continue;
+            }
+            const conditions = [passive?.condition, passivePart?.cond, passivePart?.hit_condition]
+              .map((value) => String(value ?? '').trim())
+              .filter(Boolean);
+            const matched = conditions.every((expr) =>
+              evaluateConditionExpression(expr, state, target, skill, actionEntry).result
+            );
+            if (!matched) {
+              continue;
+            }
+            const amount = getTokenSetAmount(passivePart) || 1;
+            const change = target.applyTokenDelta(amount);
+            events.push({
+              actorCharacterId: actor.characterId,
+              characterId: target.characterId,
+              source: 'token_passive',
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              triggerType: 'TokenSetByHealedDp',
+              skillId: skill.skillId,
+              skillName: skill.name,
+              ...change,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return events;
+}
+
+export function applyEnemyAttackTokenTriggers(state, targetCharacterIds = []) {
+  const events = [];
+  const ids = [...new Set((Array.isArray(targetCharacterIds) ? targetCharacterIds : [targetCharacterIds]).map((id) => String(id ?? '').trim()).filter(Boolean))];
+
+  for (const characterId of ids) {
+    const target = findMemberByCharacterId(state, characterId);
+    if (!target) {
+      continue;
+    }
+    for (const passive of target.passives ?? []) {
+      for (const part of passive.parts ?? []) {
+        if (String(part?.skill_type ?? '') !== 'TokenSetByAttacked') {
+          continue;
+        }
+        const conditions = [passive?.condition, part?.cond, part?.hit_condition]
+          .map((value) => String(value ?? '').trim())
+          .filter(Boolean);
+        const matched = conditions.every((expr) =>
+          evaluateConditionExpression(expr, state, target, null, null).result
+        );
+        if (!matched) {
+          continue;
+        }
+        const amount = getTokenSetAmount(part) || 1;
+        const change = target.applyTokenDelta(amount);
+        events.push({
+          actorCharacterId: target.characterId,
+          characterId: target.characterId,
+          source: 'token_passive',
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          triggerType: 'TokenSetByAttacked',
+          ...change,
+        });
+      }
+    }
+  }
+
+  return events;
 }
 
 function tickEnemyStatuses(turnState) {
@@ -716,7 +1232,10 @@ function tickEnemyStatuses(turnState) {
     statuses: nextStatuses,
     damageRatesByEnemy: enemyState.damageRatesByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
+    zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
   };
+  turnState.zoneState = tickFieldState(turnState.zoneState);
+  turnState.territoryState = tickFieldState(turnState.territoryState);
 }
 
 function evaluateCountBCPredicate(innerExpression, state, member) {
@@ -801,7 +1320,7 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     clauses.includes('IsDead()==0') &&
     clauses.includes('IsBroken()==1');
   if (hasAllBrokenEnemyClauses) {
-    const count = countEnemiesWithStatus(state?.turnState, ENEMY_STATUS_BREAK);
+    const count = countAliveEnemiesWithStatus(state?.turnState, ENEMY_STATUS_BREAK);
     return { known: true, value: count };
   }
 
@@ -821,8 +1340,14 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     clauses.includes('IsDead()==0') &&
     clauses.includes('BreakDownTurn()>0');
   if (hasAllDownTurnEnemyClauses) {
-    const count = countEnemiesWithStatus(state?.turnState, ENEMY_STATUS_DOWN_TURN);
+    const count = countAliveEnemiesWithStatus(state?.turnState, ENEMY_STATUS_DOWN_TURN);
     return { known: true, value: count };
+  }
+
+  const hasAllDeadEnemyClauses =
+    clauses.length === 2 && clauses.includes('IsPlayer()==0') && clauses.includes('IsDead()==1');
+  if (hasAllDeadEnemyClauses) {
+    return { known: true, value: countDeadEnemies(state?.turnState) };
   }
 
   const weakElementClause = clauses.find((clause) =>
@@ -1031,11 +1556,182 @@ function resolveEffectiveSkillVariant(skill, state, member) {
   };
 }
 
+function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
+  if (!state || !targetMember) {
+    return 0;
+  }
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  let totalReduction = 0;
+
+  for (const actor of state.party ?? []) {
+    for (const passive of actor.passives ?? []) {
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      for (const part of passive.parts ?? []) {
+        if (String(part?.skill_type ?? '') !== 'ReduceSp') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          targetMember.characterId
+        );
+        if (!targetCharacterIds.includes(targetMember.characterId)) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
+          continue;
+        }
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount <= 0) {
+          continue;
+        }
+        totalReduction += amount;
+      }
+    }
+  }
+
+  return totalReduction;
+}
+
+function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
+  if (!state || !targetMember) {
+    return { totalRate: 0, matchedPassives: [] };
+  }
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  let totalRate = 0;
+  const matchedPassives = [];
+
+  for (const actor of state.party ?? []) {
+    for (const passive of actor.passives ?? []) {
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      let passiveRate = 0;
+      for (const part of passive.parts ?? []) {
+        if (String(part?.skill_type ?? '') !== 'AttackUp') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          targetMember.characterId
+        );
+        if (!targetCharacterIds.includes(targetMember.characterId)) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
+          continue;
+        }
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        passiveRate += amount;
+        totalRate += amount;
+      }
+      if (passiveRate !== 0) {
+        matchedPassives.push({
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          passiveDesc: String(passive?.desc ?? ''),
+          timing: String(passive?.timing ?? ''),
+          attackUpRate: passiveRate,
+        });
+      }
+    }
+  }
+
+  return { totalRate, matchedPassives };
+}
+
+function resolvePassiveDamageRateUpPerTokenForMember(state, targetMember, timings = []) {
+  if (!state || !targetMember) {
+    return { totalRate: 0, matchedPassives: [] };
+  }
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  let totalRate = 0;
+  const matchedPassives = [];
+
+  for (const actor of state.party ?? []) {
+    for (const passive of actor.passives ?? []) {
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      let passiveRate = 0;
+      for (const part of passive.parts ?? []) {
+        if (String(part?.skill_type ?? '') !== 'DamageRateUpPerToken') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          targetMember.characterId
+        );
+        if (!targetCharacterIds.includes(targetMember.characterId)) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
+          continue;
+        }
+        const tokenCount = Number(actor?.tokenState?.current ?? 0);
+        const perTokenRate = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(tokenCount) || !Number.isFinite(perTokenRate) || perTokenRate === 0) {
+          continue;
+        }
+        const amount = tokenCount * perTokenRate;
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        passiveRate += amount;
+        totalRate += amount;
+      }
+      if (passiveRate !== 0) {
+        matchedPassives.push({
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          passiveDesc: String(passive?.desc ?? ''),
+          timing: String(passive?.timing ?? ''),
+          damageRateUpRate: passiveRate,
+        });
+      }
+    }
+  }
+
+  return { totalRate, matchedPassives };
+}
+
 export function resolveEffectiveSkillForAction(state, member, skill) {
   if (!skill || !member || !state) {
     return skill;
   }
-  return resolveEffectiveSkillVariant(skill, state, member);
+  const effective = resolveEffectiveSkillVariant(skill, state, member);
+  const consumeType = String(effective?.consumeType ?? 'Sp');
+  const baseSpCost = Number(effective?.spCost ?? 0);
+  if (consumeType !== 'Sp' || !Number.isFinite(baseSpCost) || baseSpCost <= 0) {
+    return effective;
+  }
+  const reduceSp = resolvePassiveReduceSpForMember(state, member, 'OnEveryTurnIncludeSpecial');
+  if (!Number.isFinite(reduceSp) || reduceSp <= 0) {
+    return effective;
+  }
+  return {
+    ...effective,
+    spCost: Math.max(0, baseSpCost - reduceSp),
+  };
 }
 
 function resolveEffectiveSkillParts(skill, state, member) {
@@ -1109,14 +1805,19 @@ function computeOverDrivePointUpGainPercent(
 
   let total = 0;
   for (const part of effectiveParts ?? []) {
-    if (String(part?.skill_type ?? '') !== 'OverDrivePointUp') {
+    const skillType = String(part?.skill_type ?? '');
+    if (skillType !== 'OverDrivePointUp' && skillType !== 'OverDrivePointUpByToken') {
       continue;
     }
     if (!evaluateOdGaugePartCondition(part, state, member, skill, actionEntry)) {
       continue;
     }
 
-    const partPercent = resolveOverDrivePointUpPowerPercent(part);
+    let partPercent = resolveOverDrivePointUpPowerPercent(part);
+    if (skillType === 'OverDrivePointUpByToken') {
+      const tokenCount = Number(member?.tokenState?.current ?? 0);
+      partPercent = truncateToTwoDecimals(partPercent * tokenCount);
+    }
     if (!Number.isFinite(partPercent) || partPercent <= 0) {
       continue;
     }
@@ -1313,6 +2014,28 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       effectiveHitCountTotal: effectiveHitCount,
       eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
       effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
+      tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
+      tokenAttackRatePerToken: Number(actionEntry?.tokenAttackContext?.ratePerToken ?? 0),
+      tokenAttackTotalRate: Number(actionEntry?.tokenAttackContext?.totalRate ?? 0),
+      damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
+      overDrivePointUpByTokenPerToken: effectiveParts
+        .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
+        .reduce((sum, part) => sum + Number(part?.power?.[0] ?? 0), 0),
+      overDrivePointUpByTokenTokenCount: Number(member?.tokenState?.current ?? 0),
+      overDrivePointUpByTokenTotalPercent: effectiveParts
+        .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
+        .reduce(
+          (sum, part) =>
+            sum +
+            truncateToTwoDecimals(
+              resolveOverDrivePointUpPowerPercent(part) * Number(member?.tokenState?.current ?? 0)
+            ),
+          0
+        ),
+      zoneType: skillMatchesActiveZone(state, skill, member).zoneState?.type ?? '',
+      zonePowerRate: skillMatchesActiveZone(state, skill, member).matched
+        ? Number(skillMatchesActiveZone(state, skill, member).zoneState?.powerRate ?? 0)
+        : 0,
       funnelEffects,
     });
 
@@ -1490,7 +2213,7 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
         if (!target) {
           continue;
         }
-        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition)) {
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
           continue;
         }
 
@@ -1620,7 +2343,7 @@ function syncExtraActiveFlags(party, allowedCharacterIds = []) {
   }
 }
 
-function isTargetConditionSatisfiedByMember(targetMember, expression) {
+function isTargetConditionSatisfiedByMember(targetMember, expression, state = null) {
   const expr = String(expression ?? '').replace(/\s+/g, '');
   if (!expr) {
     return true;
@@ -1643,6 +2366,9 @@ function isTargetConditionSatisfiedByMember(targetMember, expression) {
       return String(targetMember?.characterId ?? '') !== String(m[1] ?? '').trim();
     }
   }
+  if (state && targetMember) {
+    return evaluateConditionExpression(expr, state, targetMember, null).result;
+  }
   return true;
 }
 
@@ -1664,7 +2390,7 @@ function resolveAdditionalTurnTargets(
     }
 
     if (targetType === 'Self') {
-      if (isTargetConditionSatisfiedByMember(actorMember, targetCondition)) {
+      if (isTargetConditionSatisfiedByMember(actorMember, targetCondition, state)) {
         ids.add(actorMember.characterId);
       }
       continue;
@@ -1672,7 +2398,7 @@ function resolveAdditionalTurnTargets(
 
     if (targetType === 'AllyFront') {
       for (const member of frontline) {
-        if (isTargetConditionSatisfiedByMember(member, targetCondition)) {
+        if (isTargetConditionSatisfiedByMember(member, targetCondition, state)) {
           ids.add(member.characterId);
         }
       }
@@ -1692,7 +2418,7 @@ function resolveAdditionalTurnTargets(
       if (!target) {
         target = allies.find((member) => member.characterId !== actorMember.characterId) ?? null;
       }
-      if (target && isTargetConditionSatisfiedByMember(target, targetCondition)) {
+      if (target && isTargetConditionSatisfiedByMember(target, targetCondition, state)) {
         ids.add(target.characterId);
       }
       continue;
@@ -1707,7 +2433,7 @@ function resolveAdditionalTurnTargets(
       if (!target) {
         target = allies[0] ?? null;
       }
-      if (target && isTargetConditionSatisfiedByMember(target, targetCondition)) {
+      if (target && isTargetConditionSatisfiedByMember(target, targetCondition, state)) {
         ids.add(target.characterId);
       }
       continue;
@@ -1847,6 +2573,20 @@ function previewActionEntries(state, sortedActions) {
     const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
     const preview = member.previewSkillUseResolved(effectiveSkill);
     const hitInfo = resolveEffectivePreviewHitCount(effectiveSkill, state, member);
+    const specialAttackUp = resolvePassiveAttackUpForMember(state, member, 'OnEveryTurnIncludeSpecial');
+    const damageRateUpPerToken = resolvePassiveDamageRateUpPerTokenForMember(
+      state,
+      member,
+      'OnPlayerTurnStart'
+    );
+    const zoneMatch = skillMatchesActiveZone(state, effectiveSkill, member);
+    const zonePowerRate = zoneMatch.matched ? Number(zoneMatch.zoneState?.powerRate ?? 0) : 0;
+    const tokenAttackContext = resolveTokenAttackContext(
+      effectiveSkill,
+      state,
+      member,
+      preview.startToken
+    );
 
     return {
       characterId: member.characterId,
@@ -1878,6 +2618,30 @@ function previewActionEntries(state, sortedActions) {
       endSP: preview.endSP,
       startEP: preview.startEP,
       endEP: preview.endEP,
+      startToken: preview.startToken,
+      endToken: preview.endToken,
+      tokenChanges:
+        Number(preview.tokenDelta ?? 0) !== 0
+          ? [
+              {
+                source: 'cost',
+                delta: preview.tokenDelta,
+                preToken: preview.startToken,
+                postToken: preview.endToken,
+                eventCeiling: Number.POSITIVE_INFINITY,
+              },
+            ]
+          : [],
+      specialPassiveModifiers: {
+        attackUpRate: Number(specialAttackUp.totalRate ?? 0),
+        damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
+        zonePowerRate,
+      },
+      tokenAttackContext,
+      specialPassiveEvents: [
+        ...specialAttackUp.matchedPassives,
+        ...damageRateUpPerToken.matchedPassives,
+      ],
       breakHitCount: Number(action?.breakHitCount ?? 0),
       targetCharacterId: String(action?.targetCharacterId ?? ''),
       targetEnemyIndex:
@@ -2051,9 +2815,10 @@ function evaluatePassiveSelfConditions(passive, part, state, member) {
   return conditions.every((expr) => evaluateConditionExpression(expr, state, member, null).result);
 }
 
-function applyPassiveSpByTiming(state, timings = [], options = {}) {
+function applyPassiveTimingInternal(state, timings = [], options = {}) {
   const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
-  const events = [];
+  const spEvents = [];
+  const epEvents = [];
   const passiveEvents = [];
   const turnState = state?.turnState ?? {};
 
@@ -2065,9 +2830,41 @@ function applyPassiveSpByTiming(state, timings = [], options = {}) {
 
       let matched = false;
       let totalDelta = 0;
+      let totalEpDelta = 0;
       const effectTypes = new Set();
+      const unsupportedEffectTypes = new Set();
+      const fieldEvents = [];
       for (const part of passive.parts ?? []) {
-        if (String(part?.skill_type ?? '') !== 'HealSp') {
+        const skillType = String(part?.skill_type ?? '');
+        if (skillType) {
+          effectTypes.add(skillType);
+        }
+        if (skillType === 'Zone') {
+          if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
+            continue;
+          }
+          const applied = applyZonePartToTurnState(turnState, part, 'player');
+          if (applied) {
+            matched = true;
+            fieldEvents.push({ kind: 'zone', ...applied });
+          }
+          continue;
+        }
+        if (/Territory$/i.test(skillType)) {
+          if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
+            continue;
+          }
+          const applied = applyTerritoryPartToTurnState(turnState, part, 'player');
+          if (applied) {
+            matched = true;
+            fieldEvents.push({ kind: 'territory', ...applied });
+          }
+          continue;
+        }
+        if (skillType !== 'HealSp' && skillType !== 'HealEp') {
+          if (skillType) {
+            unsupportedEffectTypes.add(skillType);
+          }
           continue;
         }
         if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
@@ -2076,6 +2873,26 @@ function applyPassiveSpByTiming(state, timings = [], options = {}) {
 
         const amount = Number(part?.power?.[0] ?? 0);
         if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+
+        if (skillType === 'HealEp') {
+          if (String(part?.target_type ?? '') !== 'Self') {
+            unsupportedEffectTypes.add(skillType);
+            continue;
+          }
+          const change = member.applyEpDelta(amount, getEpCeilingForTurn(member, turnState));
+          epEvents.push({
+            actorCharacterId: member.characterId,
+            characterId: member.characterId,
+            source: 'ep_passive',
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            targetType: 'Self',
+            ...change,
+          });
+          matched = true;
+          totalEpDelta += Number(change?.delta ?? 0);
           continue;
         }
 
@@ -2094,11 +2911,11 @@ function applyPassiveSpByTiming(state, timings = [], options = {}) {
           if (!target) {
             continue;
           }
-          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition)) {
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
             continue;
           }
           const change = target.applySpDelta(amount, 'passive');
-          events.push({
+          spEvents.push({
             actorCharacterId: member.characterId,
             characterId: target.characterId,
             source: 'sp_passive',
@@ -2109,23 +2926,25 @@ function applyPassiveSpByTiming(state, timings = [], options = {}) {
           });
           matched = true;
           totalDelta += Number(change?.delta ?? 0);
-          effectTypes.add('HealSp');
         }
       }
 
-      if (matched) {
+      if (matched || unsupportedEffectTypes.size > 0) {
         passiveEvents.push(
           createPassiveTriggerEvent(turnState, member, passive, {
             source: 'passive',
             effectTypes: [...effectTypes],
             spDelta: totalDelta,
+            epDelta: totalEpDelta,
+            fieldEvents,
+            unsupportedEffectTypes: [...unsupportedEffectTypes],
           })
         );
       }
     }
   }
 
-  return { spEvents: events, passiveEvents };
+  return { spEvents, epEvents, passiveEvents };
 }
 
 function applySkillSelfEpGains(state, previewRecord) {
@@ -2221,7 +3040,7 @@ function applySkillSpGains(state, previewRecord) {
         if (!target) {
           continue;
         }
-        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition)) {
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
           continue;
         }
         const change = target.applySpDelta(amount, 'active', skill.spRecoveryCeiling);
@@ -2235,6 +3054,69 @@ function applySkillSpGains(state, previewRecord) {
           ...change,
         });
       }
+    }
+  }
+
+  return events;
+}
+
+function applyFieldStateFromActions(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      const skillType = String(part?.skill_type ?? '').trim();
+      if (!skillType) {
+        continue;
+      }
+      if (skillType !== 'Zone' && !/Territory$/i.test(skillType)) {
+        continue;
+      }
+      const condTexts = [part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+
+      const applied =
+        skillType === 'Zone'
+          ? applyZonePartToTurnState(state.turnState, part, 'player')
+          : applyTerritoryPartToTurnState(state.turnState, part, 'player');
+      if (!applied) {
+        continue;
+      }
+      if (skillType === 'Zone' && hasActiveZoneUpEternalModifier(state, actor, skill, actionEntry)) {
+        const nextPowerRate = Number(applied.powerRate ?? state.turnState.zoneState?.powerRate ?? 0) + 0.15;
+        applied.remainingTurns = null;
+        applied.powerRate = nextPowerRate;
+        state.turnState.zoneState = {
+          ...state.turnState.zoneState,
+          remainingTurns: null,
+          powerRate: nextPowerRate,
+        };
+      }
+      events.push({
+        actorCharacterId: actor.characterId,
+        skillId: skill.skillId,
+        skillName: skill.name,
+        kind: skillType === 'Zone' ? 'zone' : 'territory',
+        ...applied,
+      });
     }
   }
 
@@ -2265,18 +3147,21 @@ function applyRecoveryPipeline(party, turnState) {
     }
   }
 
-  const passiveSpResult = applyPassiveSpByTiming(
+  const passiveResult = applyPassiveTimingInternal(
     {
       party,
       turnState,
     },
     TURN_START_PASSIVE_TIMINGS
   );
-  if (passiveSpResult.spEvents.length > 0) {
-    recoveryEvents.push(...passiveSpResult.spEvents);
+  if (passiveResult.spEvents.length > 0) {
+    recoveryEvents.push(...passiveResult.spEvents);
   }
-  if (passiveSpResult.passiveEvents.length > 0) {
-    passiveEvents.push(...passiveSpResult.passiveEvents);
+  if (passiveResult.epEvents.length > 0) {
+    epEvents.push(...passiveResult.epEvents);
+  }
+  if (passiveResult.passiveEvents.length > 0) {
+    passiveEvents.push(...passiveResult.passiveEvents);
   }
 
   const isFirstOdAction =
@@ -2531,12 +3416,16 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       endSP: entry.endSP,
       startEP: entry.startEP,
       endEP: entry.endEP,
+      startToken: entry.startToken,
+      endToken: entry.endToken,
       baseRevision: entry._baseRevision,
     });
   }
 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
   const skillSpEvents = applySkillSpGains(state, previewRecord);
+  const tokenEvents = applyTokenEffectsFromActions(state, previewRecord);
+  const fieldStateEvents = applyFieldStateFromActions(state, previewRecord);
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
   const transcendenceSummary = applyTranscendenceTurnSummary(
@@ -2551,6 +3440,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     const member = findMemberByCharacterId(state, entry.characterId);
     entry.endSP = member.sp.current;
     entry.endEP = member.ep.current;
+    entry.endToken = Number(member.tokenState?.current ?? entry.endToken ?? 0);
 
     const extraChanges = recoveryEvents
       .filter((ev) => ev.characterId === entry.characterId)
@@ -2572,12 +3462,26 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         postEP: ev.endEP,
         eventCeiling: ev.eventCeiling,
       }));
+    const extraTokenChanges = tokenEvents
+      .filter((ev) => ev.characterId === entry.characterId)
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        delta: ev.delta,
+        preToken: ev.startToken,
+        postToken: ev.endToken,
+        eventCeiling: ev.eventCeiling,
+      }));
+    entry.tokenChanges = [...(entry.tokenChanges ?? []), ...extraTokenChanges];
     const odEvent = odGaugeGain.events.find(
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );
     entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
     entry.damageContext = odEvent?.damageContext ? structuredClone(odEvent.damageContext) : null;
     entry.funnelApplied = funnelEvents.filter(
+      (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
+    );
+    entry.fieldStateApplied = fieldStateEvents.filter(
       (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
     );
     member.incrementSkillUseById(entry.skillId);
@@ -2601,6 +3505,37 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   committed.passiveEvents = Array.isArray(recovery.passiveEvents)
     ? structuredClone(recovery.passiveEvents)
     : [];
+  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+    const enemyTurnStartResult = applyPassiveTimingInternal(
+      {
+        ...state,
+        party: state.party,
+        turnState: nextTurnState,
+      },
+      'OnEnemyTurnStart'
+    );
+    const passiveEvents = Array.isArray(enemyTurnStartResult.passiveEvents)
+      ? structuredClone(enemyTurnStartResult.passiveEvents)
+      : [];
+    nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
+    committed.passiveEvents = [...(committed.passiveEvents ?? []), ...passiveEvents];
+  }
+  if (Number(getEnemyState(nextTurnState).enemyCount ?? 0) > 0 && countAliveEnemies(nextTurnState) === 0) {
+    const battleWinResult = applyPassiveTimingInternal(
+      {
+        ...state,
+        party: state.party,
+        turnState: nextTurnState,
+      },
+      'OnBattleWin'
+    );
+    const passiveEvents = Array.isArray(battleWinResult.passiveEvents)
+      ? structuredClone(battleWinResult.passiveEvents)
+      : [];
+    nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
+    committed.passiveEvents = [...(committed.passiveEvents ?? []), ...passiveEvents];
+  }
+
   if (shouldActivateInterruptOd) {
     // 割込ODは「現在通常ターンの後段」に差し込まれるため、
     // ODが終わるまで base turn index を進めない。
@@ -2622,6 +3557,18 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     positionMap: buildPositionMap(state.party),
     turnState: nextTurnState,
   };
+
+  if (String(nextTurnState.turnType ?? '') === 'extra') {
+    const additionalTurnStartResult = applyPassiveTimingInternal(nextState, 'OnAdditionalTurnStart');
+    const passiveEvents = Array.isArray(additionalTurnStartResult.passiveEvents)
+      ? structuredClone(additionalTurnStartResult.passiveEvents)
+      : [];
+    nextState.turnState.passiveEventsLastApplied = [
+      ...(nextState.turnState.passiveEventsLastApplied ?? []),
+      ...passiveEvents,
+    ];
+    committed.passiveEvents = [...(committed.passiveEvents ?? []), ...passiveEvents];
+  }
 
   if (shouldActivateInterruptOd) {
     nextState = activateOverdrive(nextState, interruptOdLevel, 'interrupt', {
@@ -2703,8 +3650,8 @@ export function applyInitialPassiveState(state) {
     return state;
   }
 
-  const battleStartResult = applyPassiveSpByTiming(state, BATTLE_START_PASSIVE_TIMINGS);
-  const turnStartResult = applyPassiveSpByTiming(state, TURN_START_PASSIVE_TIMINGS);
+  const battleStartResult = applyPassiveTimingInternal(state, BATTLE_START_PASSIVE_TIMINGS);
+  const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
   state.turnState.passiveEventsLastApplied = [
     ...battleStartResult.passiveEvents,
     ...turnStartResult.passiveEvents,
@@ -2712,26 +3659,42 @@ export function applyInitialPassiveState(state) {
   return state;
 }
 
+export function applyPassiveTiming(state, timing, context = {}) {
+  const timings = Array.isArray(timing) ? timing : [timing];
+  const targetCharacterId =
+    context && typeof context === 'object' ? String(context.targetCharacterId ?? '').trim() || null : null;
+  const result = applyPassiveTimingInternal(state, timings, { targetCharacterId });
+  if (state?.turnState) {
+    state.turnState.passiveEventsLastApplied = Array.isArray(result.passiveEvents)
+      ? structuredClone(result.passiveEvents)
+      : [];
+  }
+  return result;
+}
+
 export function grantExtraTurn(state, allowedCharacterIds) {
   const ids = [...new Set(allowedCharacterIds ?? [])];
-  const nextTurnState = {
-    ...cloneTurnState(state.turnState),
-    turnType: 'extra',
-    turnLabel: 'EX',
-    extraTurnState: {
-      active: true,
-      remainingActions: 1,
-      allowedCharacterIds: ids,
-      grantTurnIndex: state.turnState.turnIndex,
-    },
-  };
-
-  return {
+  const nextState = {
     ...state,
     party: state.party.map((member) => {
       member.setExtraActive(ids.includes(member.characterId));
       return member;
     }),
-    turnState: nextTurnState,
+    turnState: {
+      ...cloneTurnState(state.turnState),
+      turnType: 'extra',
+      turnLabel: 'EX',
+      extraTurnState: {
+        active: true,
+        remainingActions: 1,
+        allowedCharacterIds: ids,
+        grantTurnIndex: state.turnState.turnIndex,
+      },
+    },
   };
+  const additionalTurnStartResult = applyPassiveTimingInternal(nextState, 'OnAdditionalTurnStart');
+  nextState.turnState.passiveEventsLastApplied = Array.isArray(additionalTurnStartResult.passiveEvents)
+    ? structuredClone(additionalTurnStartResult.passiveEvents)
+    : [];
+  return nextState;
 }

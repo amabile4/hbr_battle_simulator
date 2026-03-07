@@ -16,6 +16,8 @@ export {
   activateOverdrive,
   grantExtraTurn,
   applyInitialPassiveState,
+  applyPassiveTiming,
+  applyEnemyAttackTokenTriggers,
   BASE_SP_RECOVERY,
   SUPPORTED_PASSIVE_TIMINGS,
   CONDITION_SUPPORT_MATRIX,

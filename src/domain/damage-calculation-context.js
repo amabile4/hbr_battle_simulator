@@ -31,6 +31,15 @@ export function buildDamageCalculationContext(input = {}) {
             ])
           )
         : {},
+    tokenAttackTokenCount: Number(input.tokenAttackTokenCount ?? 0),
+    tokenAttackRatePerToken: Number(input.tokenAttackRatePerToken ?? 0),
+    tokenAttackTotalRate: Number(input.tokenAttackTotalRate ?? 0),
+    damageRateUpPerTokenRate: Number(input.damageRateUpPerTokenRate ?? 0),
+    overDrivePointUpByTokenPerToken: Number(input.overDrivePointUpByTokenPerToken ?? 0),
+    overDrivePointUpByTokenTokenCount: Number(input.overDrivePointUpByTokenTokenCount ?? 0),
+    overDrivePointUpByTokenTotalPercent: Number(input.overDrivePointUpByTokenTotalPercent ?? 0),
+    zoneType: String(input.zoneType ?? ''),
+    zonePowerRate: Number(input.zonePowerRate ?? 0),
     funnelEffects: Array.isArray(input.funnelEffects) ? structuredClone(input.funnelEffects) : [],
   };
 }

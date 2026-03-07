@@ -6,7 +6,9 @@
 
 - パッシブ単体ではなく、関連する状態変化スキルの実装を同じ作業単位に含める
 - `condition` 実装と `timing` 実装は分けて管理する
-- `Token`, `MoraleLevel`, `MotivationLevel`, `Mark`, `Zone`, `Territory`, `DpRate` は状態保持だけでなく増減スキル実装が必要
+- `Token`, `MoraleLevel`, `MotivationLevel`, `Mark`, `Zone`, `Territory` は状態保持だけでなく増減スキル実装が必要
+- `Token` は独立プラン `docs/token_implementation_plan.md` を参照
+- `DpRate` / DP関連はパッシブに閉じないため [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md) で別管理する
 - マスタースキル由来パッシブ、通常スキル由来パッシブは別系統として後段で扱う
 
 ## Phase 1: 今の状態から取れる条件
@@ -22,29 +24,88 @@
 - [ ] `Random`
 - [ ] `ConquestBikeLevel`
 - [ ] 自キャラ `IsBroken` 手動状態UI
-- [ ] 敵 `IsBroken` 手動状態の運用仕上げ
+- [ ] 敵 `IsBroken` / `IsDead` 手動状態の運用仕上げ
 
 ## Phase 3: 状態保持が必要な条件
 
 - [ ] `DpRate`
+  - 実装計画は [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md) を参照
 - [ ] `Token`
+  - 共通基盤として `CharacterStyle.tokenState`、`Token()`、`TokenSet`、`consume_type: Token` は実装済み
+  - 月城最中系の `TokenSetByAttacking`、マリア系の `TokenSetByHealedDp` は実装済み
+  - `TokenSetByAttacked` はエンジン API `applyEnemyAttackTokenTriggers()` まで実装済み
+  - `TokenAttack` は preview / record / `damageContext` に参照値を保持するところまで実装済み
+  - `DamageRateUpPerToken` は `OnPlayerTurnStart` の preview modifier / record 向け参照値として実装済み
+  - `OverDrivePointUpByToken` は OD 上昇値へ反映し、`damageContext` に参照値を保持するところまで実装済み
+  - `TokenChangeTimeline` は独立効果としては扱わず、`TokenAttack` と同列の内部表現として無視する方針
+  - 未実装は `TokenSetByAttacked` の UI 接続
 - [ ] `MoraleLevel`
 - [ ] `MotivationLevel`
 - [ ] `FireMarkLevel`
 - [ ] `IceMarkLevel`
-- [ ] `IsZone`
-- [ ] `IsTerritory`
+- [x] `IsZone`
+- [x] `IsTerritory`
+
+### `IsZone` / `IsTerritory` 仕様メモ
+
+- `Zone` は属性フィールド状態として扱う
+- `Territory` は陣状態として扱う
+- `Zone` と `Territory` は別状態であり、同時に存在できる
+- `Zone` は後から展開されたものが上書きする
+- `Zone` は味方・敵のどちらも展開できる
+- `Zone` には効果ターン無制限と効果ターン制限ありがある
+- `Territory` は `Zone` と独立して継続する特殊状態で、展開中は対応する特殊効果を受け続ける
+- `Territory` も将来のデータ差分に備えて継続ターンを持てる設計にする
+- 現時点で確認できた `ReviveTerritory` は `exitCond: None` / `exitVal: [0,0]` で、少なくとも現データ上は無期限
+- 現時点で確認できている条件出現は
+  - `IsZone(Fire)` 1件
+  - `IsTerritory(ReviveTerritory)` 2件
+- 現時点で確認できている展開系の出現は
+  - `Zone`
+    - スキル展開は `exitCond: PlayerTurnEnd / exitVal: [8,0]` などのターン制限あり
+    - パッシブ展開や `ZoneUpEternal` により `exitCond: Eternal` の永続あり
+  - `Territory`
+    - `ReviveTerritory` は `target_type: Field`
+    - 現データ上は `exitCond: None / exitVal: [0,0]`
+- 実装時は `turnState` に少なくとも次を持たせる前提で整理する
+  - `zoneState`
+  - `territoryState`
+- `zoneState` の最低要件
+  - `type`
+  - `sourceSide`
+  - `remainingTurns`
+- `territoryState` の最低要件
+  - `type`
+  - `sourceSide`
+  - `remainingTurns`
+- `remainingTurns` は `null` または特定値で無制限を表せるようにする
+- `turnPlan` 再計算のため、`setupDelta` / `turnPlanBaseSetup` にも保存可能である必要がある
+- 現在の実装済み範囲
+  - `turnState.zoneState`
+  - `turnState.territoryState`
+  - `IsZone(...)`
+  - `IsTerritory(...)`
+  - スキル `Zone`
+  - スキル `ReviveTerritory`
+  - `ZoneUpEternal` による自分の `Zone` 永続化
+  - パッシブ `OnBattleStart` などによる `Zone`
+  - 基本的な継続ターン減少
+  - `turnPlan` / scenario / `turnPlanBaseSetup` への `zoneState` / `territoryState` 保存と復元
+- まだ未実装の範囲
+  - 敵側の `Zone` 展開
+  - 陣の種類追加時の個別効果適用
+  - `ZoneUpEternal` の効果量上昇側の反映
 
 ## Phase 4: timing の汎用実行基盤
 
-- [ ] `OnPlayerTurnStart`
+- [x] `OnPlayerTurnStart`
 - [ ] `OnEveryTurn`
 - [ ] `OnEveryTurnIncludeSpecial`
-- [ ] `OnBattleStart`
-- [ ] `OnFirstBattleStart`
-- [ ] `OnEnemyTurnStart`
-- [ ] `OnAdditionalTurnStart`
-- [ ] `OnBattleWin`
+- [x] `OnBattleStart`
+- [x] `OnFirstBattleStart`
+- [x] `OnEnemyTurnStart`
+- [x] `OnAdditionalTurnStart`
+- [x] `OnBattleWin`
 
 ### turnPlan 再設計タスク
 
@@ -65,7 +126,7 @@
   - `DpRate`
 - [ ] `turnPlan` にはパッシブ発火結果そのものではなく「発火に必要な入力状態」を保存する方針で統一する
 - [ ] パッシブ発火結果は record 側に残し、`turnPlan` 再計算時に毎回再評価する
-- [ ] `turn-controller` に `timing` 単位の汎用実行入口を設ける
+- [x] `turn-controller` に `timing` 単位の汎用実行入口を設ける
   - 例: `applyPassiveTiming(state, timing, context)`
 - [ ] `timing` 実行時の `context` に何を持たせるか定義する
   - `turnType`
@@ -84,6 +145,27 @@
   - `setupDelta`
   - `actionIntent`
   - `expectedMeta`
+- 現在は `applyPassiveTiming(state, timing, context)` の公開 API を追加し、`HealSp/HealEp` に関して
+  - `OnAdditionalTurnStart`
+  - `OnBattleStart`
+  - `OnEnemyTurnStart`
+  - `OnFirstBattleStart`
+  - `OnEveryTurn`
+  - `OnPlayerTurnStart`
+  を同じ入口で通せる状態まで進んでいる
+- `OnEnemyTurnStart` は base turn index が進み、敵ターンが消費される境界で評価する
+  - 現時点では敵行動本体は未シミュレートのため、まず `passiveEvents` と対応済み effect のみ処理
+- `OnAdditionalTurnStart` は extra turn へ遷移した瞬間に評価する
+  - `grantExtraTurn()` の直接呼び出し
+  - `commitTurn()` 後に次状態が `turnType === 'extra'` になった場合
+- `OnBattleWin` は enemyCount を維持したまま、全敵が `Dead` 状態になったときに評価する
+  - 敵は配列から削除せず、`Dead` を持つことで場から除外されたものとして扱う
+  - `CountBC(IsPlayer()==0 && IsDead()==0 && ...)` は `Dead` でない敵のみを数える
+- `OnEveryTurnIncludeSpecial` は「特殊状態つきの行動開始時」寄りの timing とみなす
+  - 毎ターンの行動選択時に条件を再評価する
+  - `ReduceSp` のように、そのターンの選択スキルの消費SPへ直接効く効果を優先実装する
+  - 将来 `AttackUp` なども同じ preview/行動選択文脈へ載せる
+- 現時点の汎用 effect 対応は `HealSp/HealEp` が中心で、`OnEnemyTurnStart` の敵デバフ/防御バフ系は一部ログ化のみ
 
 ## Phase 5: 状態変化スキル実装
 
@@ -122,6 +204,7 @@
 7. `MotivationLevel` と関連スキル
 8. `IsZone` / `IsTerritory` と展開スキル
 9. `DpRate` と DP 状態
+  - 詳細は [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md)
 10. `Mark` 系
 
 ## 備考
@@ -133,5 +216,7 @@
 - `IsNatureElement` / `IsCharacter` / `IsWeakElement` は条件評価器としては実装済み。ただし、それらを使うパッシブ全体の発火は `timing` / `effect` 実装が別途必要
 - `IsWeakElement(Fire)` は敵の該当属性ダメージ係数が `100%` を超えると真になる。`100%` 以下は偽
 - 敵の属性耐性/弱点は現時点では手動状態として保持する。未設定時は `100%` 扱い
+- DP関連は `DpRate` 条件だけでなく、DP回復、DP自傷、オーバー回復上限、`AttackByOwnDpRate`、`BreakGuard` を含むため独立ドキュメントで管理する
 - `オーバーレイ` のように `target_type: AllyAll` と `target_condition: IsCharacter(IIshii)==1` を組み合わせるパッシブがあるため、今後の発火実装は「発火元イベント判定」と「効果対象抽出」を分離して設計する必要がある
 - 具体的には「味方の誰かがフィールドを展開した」という味方イベントで発火しつつ、効果対象は後衛の石井本人だけ、というレアケースを許容する必要がある
+- `IsZone` / `IsTerritory` は条件評価だけでなく、展開スキル・上書き・継続ターン管理とセットで設計する

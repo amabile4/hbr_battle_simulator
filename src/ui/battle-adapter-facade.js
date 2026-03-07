@@ -51,6 +51,9 @@ export class BattleAdapterFacade {
       enemyNamesByEnemy: options.enemyNamesByEnemy,
       damageRatesByEnemy: options.damageRatesByEnemy,
       enemyStatuses: options.enemyStatuses,
+      enemyZoneConfigByEnemy: options.enemyZoneConfigByEnemy,
+      zoneState: options.zoneState,
+      territoryState: options.territoryState,
     });
 
     this.party = snapshot.party;

@@ -31,6 +31,7 @@ export function toCharacterSnapshot(character) {
     normalAttackElements: Object.freeze([...(character.normalAttackElements ?? [])]),
     sp: Object.freeze({ ...character.sp }),
     ep: Object.freeze({ ...character.ep }),
+    tokenState: Object.freeze({ ...(character.tokenState ?? { current: 0, min: 0, max: 10 }) }),
     isAlive: Boolean(character.isAlive),
     isBreak: Boolean(character.isBreak),
     isExtraActive: Boolean(character.isExtraActive),
@@ -64,7 +65,10 @@ export function createInitialTurnState() {
       statuses: [],
       damageRatesByEnemy: {},
       enemyNamesByEnemy: {},
+      zoneConfigByEnemy: {},
     },
+    zoneState: null,
+    territoryState: null,
     transcendence: null,
     extraTurnState: null,
     passiveEventsLastApplied: [],
@@ -103,16 +107,66 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          zoneConfigByEnemy:
+            turnState.enemyState.zoneConfigByEnemy &&
+            typeof turnState.enemyState.zoneConfigByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.zoneConfigByEnemy).map(([targetIndex, config]) => [
+                    String(targetIndex),
+                    config && typeof config === 'object'
+                      ? {
+                          enabled: Boolean(config.enabled),
+                          type: String(config.type ?? ''),
+                          remainingTurns:
+                            config.remainingTurns === null || config.remainingTurns === undefined
+                              ? null
+                              : Number(config.remainingTurns ?? 0),
+                        }
+                      : { enabled: false, type: '', remainingTurns: 8 },
+                  ])
+                )
+              : {},
         }
       : {
           enemyCount: DEFAULT_ENEMY_COUNT,
           statuses: [],
           damageRatesByEnemy: {},
           enemyNamesByEnemy: {},
+          zoneConfigByEnemy: {},
         };
+  const zoneState =
+    turnState?.zoneState && typeof turnState.zoneState === 'object'
+      ? {
+          type: String(turnState.zoneState.type ?? ''),
+          sourceSide: String(turnState.zoneState.sourceSide ?? ''),
+          remainingTurns:
+            turnState.zoneState.remainingTurns === null || turnState.zoneState.remainingTurns === undefined
+              ? null
+              : Number(turnState.zoneState.remainingTurns ?? 0),
+          ...(Number.isFinite(Number(turnState.zoneState.powerRate))
+            ? { powerRate: Number(turnState.zoneState.powerRate) }
+            : {}),
+        }
+      : null;
+  const territoryState =
+    turnState?.territoryState && typeof turnState.territoryState === 'object'
+      ? {
+          type: String(turnState.territoryState.type ?? ''),
+          sourceSide: String(turnState.territoryState.sourceSide ?? ''),
+          remainingTurns:
+            turnState.territoryState.remainingTurns === null || turnState.territoryState.remainingTurns === undefined
+              ? null
+              : Number(turnState.territoryState.remainingTurns ?? 0),
+          ...(Number.isFinite(Number(turnState.territoryState.powerRate))
+            ? { powerRate: Number(turnState.territoryState.powerRate) }
+            : {}),
+        }
+      : null;
   return {
     ...turnState,
     enemyState,
+    zoneState,
+    territoryState,
     transcendence: turnState.transcendence
       ? {
           ...turnState.transcendence,

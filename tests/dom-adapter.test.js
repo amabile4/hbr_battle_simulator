@@ -18,13 +18,17 @@ function createRoot() {
       <button data-action="initialize"></button>
       <input data-role="enemy-action" />
       <select data-role="enemy-count"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-      <select data-role="enemy-status-type"><option value="DownTurn">DownTurn</option><option value="Break">Break</option></select>
+      <select data-role="enemy-status-type"><option value="DownTurn">DownTurn</option><option value="Break">Break</option><option value="Dead">Dead</option></select>
       <select data-role="enemy-status-target"><option value="0">Enemy 1</option></select>
       <input data-role="enemy-status-turns" type="number" value="1" />
       <button data-action="enemy-status-apply"></button>
       <button data-action="enemy-status-clear"></button>
       <strong data-role="enemy-status-list"></strong>
       <div data-role="enemy-config-list"></div>
+      <div data-role="enemy-zone-controls" hidden>
+        <select data-role="enemy-zone-source"></select>
+        <button data-action="enemy-zone-apply"></button>
+      </div>
       <div data-role="action-slots"></div>
       <select data-role="swap-from"><option value="0">0</option></select>
       <select data-role="swap-to"><option value="3">3</option></select>
@@ -68,8 +72,10 @@ function createRoot() {
       <button data-action="scenario-run-all"></button>
       <span data-role="scenario-status"></span>
       <span data-role="turn-label"></span>
+      <span data-role="field-state-label"></span>
       <span data-role="status"></span>
       <ul data-role="party-state"></ul>
+      <div data-role="token-debug-list"></div>
       <pre data-role="preview-output"></pre>
       <pre data-role="condition-support-summary"></pre>
       <pre data-role="passive-log-output"></pre>
@@ -309,6 +315,65 @@ test('enemy break status can be applied and cleared from controls', () => {
   assert.equal(root.querySelector('[data-role="enemy-status-list"]')?.textContent, 'Enemy Status: -');
 });
 
+test('enemy dead status can be applied and cleared from controls', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const typeSelect = root.querySelector('[data-role="enemy-status-type"]');
+  typeSelect.value = 'Dead';
+  adapter.applyEnemyStatusFromDom();
+
+  const statusesAfterApply = adapter.state.turnState.enemyState.statuses;
+  assert.equal(statusesAfterApply.length, 1);
+  assert.equal(statusesAfterApply[0].statusType, 'Dead');
+  assert.ok((root.querySelector('[data-role="enemy-status-list"]')?.textContent ?? '').includes('Dead'));
+
+  adapter.clearEnemyStatusFromDom();
+  assert.equal(adapter.state.turnState.enemyState.statuses.length, 0);
+  assert.equal(root.querySelector('[data-role="enemy-status-list"]')?.textContent, 'Enemy Status: -');
+});
+
+test('enemy zone controls are shown only for field-holder enemies and apply enemy field state', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const zoneControls = root.querySelector('[data-role="enemy-zone-controls"]');
+  assert.equal(zoneControls?.hidden, true);
+
+  const enabled = root.querySelector('[data-role="enemy-zone-enabled"][data-enemy-index="0"]');
+  assert.ok(enabled);
+
+  enabled.checked = true;
+  enabled.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const type = root.querySelector('[data-role="enemy-zone-type"][data-enemy-index="0"]');
+  const turns = root.querySelector('[data-role="enemy-zone-turns"][data-enemy-index="0"]');
+  assert.ok(type);
+  assert.ok(turns);
+  type.value = 'Thunder';
+  type.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const turnsAfterTypeChange = root.querySelector('[data-role="enemy-zone-turns"][data-enemy-index="0"]');
+  assert.ok(turnsAfterTypeChange);
+  turnsAfterTypeChange.value = '6';
+  turnsAfterTypeChange.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  assert.equal(zoneControls?.hidden, false);
+  const sourceSelect = root.querySelector('[data-role="enemy-zone-source"]');
+  assert.equal(sourceSelect?.value, '0');
+
+  root.querySelector('[data-action="enemy-zone-apply"]')?.dispatchEvent(new win.Event('click', { bubbles: true }));
+
+  assert.deepEqual(adapter.state.turnState.zoneState, {
+    type: 'Thunder',
+    sourceSide: 'enemy',
+    remainingTurns: 6,
+  });
+  assert.equal(root.querySelector('[data-role="field-state-label"]')?.textContent, 'Field=Thunder(6) | Territory=-');
+});
+
 test('scenario runner loads setup and executes turns deterministically', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -324,6 +389,8 @@ test('scenario runner loads setup and executes turns deterministically', () => {
       enemyDamageRates: [{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }],
       initialOdGauge: 100,
       enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+      zoneState: { type: 'Fire', sourceSide: 'player', remainingTurns: 8 },
+      territoryState: { type: 'ReviveTerritory', sourceSide: 'player', remainingTurns: null },
     },
     turns: [
       {
@@ -356,6 +423,16 @@ test('scenario runner loads setup and executes turns deterministically', () => {
     2: { Thunder: 75 },
   });
   assert.equal(adapter.state.turnState.enemyState.statuses.length, 1);
+  assert.deepEqual(adapter.state.turnState.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+  });
+  assert.deepEqual(adapter.state.turnState.territoryState, {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  });
 
   adapter.runAllScenarioTurns();
   assert.equal(adapter.recordStore.records.length, 2);
@@ -380,6 +457,8 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
       enemyNames: ['Enemy A', 'Enemy B', 'Enemy C'],
       enemyDamageRates: [{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }],
       enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+      zoneState: { type: 'Fire', sourceSide: 'player', remainingTurns: 8 },
+      territoryState: { type: 'ReviveTerritory', sourceSide: 'player', remainingTurns: null },
     },
     turns: [],
   };
@@ -401,6 +480,16 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
   assert.deepEqual(adapter.turnPlanBaseSetup.enemyStatuses, [
     { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
   ]);
+  assert.deepEqual(adapter.turnPlanBaseSetup.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+  });
+  assert.deepEqual(adapter.turnPlanBaseSetup.territoryState, {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  });
 });
 
 test('reinitialize from turn plan base restores multi-enemy initial state', () => {
@@ -414,14 +503,38 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
   adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }]);
+  adapter.state.turnState.zoneState = {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+  };
+  adapter.state.turnState.territoryState = {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  };
   const turns = root.querySelector('[data-role="enemy-status-turns"]');
   turns.value = '2';
   adapter.applyEnemyStatusFromDom();
   adapter.initializeBattle(undefined, { preserveTurnPlans: true });
+  adapter.state.turnState.zoneState = {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+  };
+  adapter.state.turnState.territoryState = {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  };
+  adapter.turnPlanBaseSetup.zoneState = structuredClone(adapter.state.turnState.zoneState);
+  adapter.turnPlanBaseSetup.territoryState = structuredClone(adapter.state.turnState.territoryState);
 
   adapter.applyScenarioEnemyNames(['Changed A']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 999 }]);
   adapter.clearEnemyStatusFromDom();
+  adapter.state.turnState.zoneState = null;
+  adapter.state.turnState.territoryState = null;
 
   adapter.reinitializeFromTurnPlanBase();
 
@@ -439,6 +552,16 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
     { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
     { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
   ]);
+  assert.deepEqual(adapter.state.turnState.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+  });
+  assert.deepEqual(adapter.state.turnState.territoryState, {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  });
 });
 
 test('scenario loader accepts exported CSV and converts it to runnable scenario', () => {
@@ -1549,6 +1672,16 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
   adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }]);
+  adapter.state.turnState.zoneState = {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+  };
+  adapter.state.turnState.territoryState = {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  };
   const turns = root.querySelector('[data-role="enemy-status-turns"]');
   turns.value = '2';
   adapter.applyEnemyStatusFromDom();
@@ -1568,6 +1701,16 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
     2: { Thunder: 75 },
   });
   assert.equal(Array.isArray(adapter.turnPlans[0].setupDelta.enemyStatuses), true);
+  assert.deepEqual(adapter.turnPlans[0].setupDelta.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+  });
+  assert.deepEqual(adapter.turnPlans[0].setupDelta.territoryState, {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  });
 
   adapter.recalculateTurnPlans({ mode: 'strict' });
 
@@ -1581,6 +1724,16 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
     0: { Slash: 50 },
     1: { Fire: 150 },
     2: { Thunder: 75 },
+  });
+  assert.deepEqual(adapter.state.turnState.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 7,
+  });
+  assert.deepEqual(adapter.state.turnState.territoryState, {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
   });
 });
 
@@ -1779,6 +1932,63 @@ test('party state shows EP alongside SP only for Nanase', () => {
   const rows = [...root.querySelectorAll('[data-role="party-state"] li')].map((li) => li.textContent ?? '');
   assert.equal(rows.some((line) => line.includes('七瀬 七海') && line.includes('EP=')), true);
   assert.equal(rows.filter((line) => !line.includes('七瀬 七海')).some((line) => line.includes('EP=')), false);
+});
+
+test('token debug controls update current token state with clamp', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+  const tokenStyleId = 1004204;
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== Number(tokenStyleId));
+  adapter.initializeBattle([tokenStyleId, ...others.slice(0, 5)]);
+
+  const member = adapter.state.party[0];
+  assert.ok(member);
+  const getInput = () =>
+    root.querySelector(`[data-role="token-debug-input"][data-character-id="${member.characterId}"]`);
+  let input = getInput();
+  assert.ok(input);
+
+  input.value = '12';
+  input.dispatchEvent(new win.Event('change', { bubbles: true }));
+  assert.equal(member.tokenState.current, 10);
+
+  input = getInput();
+  assert.ok(input);
+  input.value = '-3';
+  input.dispatchEvent(new win.Event('change', { bubbles: true }));
+  assert.equal(member.tokenState.current, 0);
+
+  const rows = [...root.querySelectorAll('[data-role="party-state"] li')].map((li) => li.textContent ?? '');
+  assert.equal(rows.some((line) => line.includes(`${member.characterName}`) && line.includes('Token=0')), true);
+});
+
+test('turn status shows current field and territory state', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const label = root.querySelector('[data-role="field-state-label"]');
+  assert.equal(label?.textContent, 'Field=- | Territory=-');
+
+  adapter.state.turnState.zoneState = {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+  };
+  adapter.state.turnState.territoryState = {
+    type: 'ReviveTerritory',
+    sourceSide: 'player',
+    remainingTurns: null,
+  };
+  adapter.renderTurnStatus();
+
+  assert.equal(
+    root.querySelector('[data-role="field-state-label"]')?.textContent,
+    'Field=Fire(8) | Territory=ReviveTerritory'
+  );
 });
 
 test('character -> style selection is linked and reflected on screen', () => {

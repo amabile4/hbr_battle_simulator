@@ -67,6 +67,13 @@
       display: inline-block;
       min-width: 62ch;
     }
+    .field-state-fixed {
+      display: inline-block;
+      min-width: 24ch;
+      margin-left: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+    }
   </style>
 </head>
 <body>
@@ -116,6 +123,7 @@
           <select data-role="enemy-status-type">
             <option value="DownTurn" selected>DownTurn</option>
             <option value="Break">Break</option>
+            <option value="Dead">Dead</option>
           </select>
         </label>
         <label>Target
@@ -131,6 +139,13 @@
       </div>
       <p><strong data-role="enemy-status-list">Enemy Status: -</strong></p>
       <div data-role="enemy-config-list" class="stack"></div>
+      <div class="row" data-role="enemy-zone-controls" hidden>
+        <strong>Enemy Field</strong>
+        <label>Source
+          <select data-role="enemy-zone-source"></select>
+        </label>
+        <button data-action="enemy-zone-apply" type="button">敵フィールド展開</button>
+      </div>
       <div data-role="action-slots" class="row"></div>
       <div class="row">
         <label>Swap From
@@ -192,8 +207,9 @@
         <button data-action="interrupt-od-confirm" type="button">割込OD発動</button>
         <button data-action="interrupt-od-cancel" type="button">キャンセル</button>
       </div>
-      <p><strong>Turn:</strong> <span data-role="turn-label" class="turn-label-fixed"></span></p>
+      <p><strong>Turn:</strong> <span data-role="turn-label" class="turn-label-fixed"></span><span data-role="field-state-label" class="field-state-fixed"></span></p>
       <ul data-role="party-state"></ul>
+      <div data-role="token-debug-list" class="row"></div>
       <p><strong>Status:</strong> <span data-role="status"></span></p>
     </div>
 
