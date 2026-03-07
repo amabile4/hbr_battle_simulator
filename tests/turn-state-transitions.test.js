@@ -1899,9 +1899,9 @@ test('condition support matrix classifies passive conditions by planned tier', (
     },
   ]);
 
-  assert.deepEqual(report.summary.implemented, ['IsFront', 'MoraleLevel']);
+  assert.deepEqual(report.summary.implemented, ['ConquestBikeLevel', 'IsFront', 'MoraleLevel', 'Random']);
   assert.deepEqual(report.summary.ready_now, ['IsCharacter', 'IsNatureElement']);
-  assert.deepEqual(report.summary.manual_state, ['ConquestBikeLevel', 'Random']);
+  assert.deepEqual(report.summary.manual_state, []);
   assert.deepEqual(report.summary.stateful_future, ['DpRate']);
 });
 
@@ -4724,6 +4724,97 @@ test('IsCharacter direct condition is evaluated from member identity', () => {
     () => previewTurn(state, { 0: { characterId: 'IC1', skillId: 32200 } }),
     /cannot be used because cond is not satisfied/
   );
+});
+
+test('ConquestBikeLevel condition uses fixed internal value 160', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 19001,
+              name: '制圧戦常勝',
+              timing: 'OnPlayerTurnStart',
+              condition: 'ConquestBikeLevel()>=80',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(state.party[0].sp.current, 11);
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(result.passiveEvents[0]?.passiveName, '制圧戦常勝');
+});
+
+test('Random condition succeeds by default for A, S, SS, and SSR passives', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 19011,
+              name: 'A Random',
+              tier: 'A',
+              timing: 'OnPlayerTurnStart',
+              condition: 'Random()<0.3',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : idx === 1
+        ? {
+            passives: [
+              {
+                id: 19012,
+                name: 'S Random',
+                tier: 'S',
+                timing: 'OnPlayerTurnStart',
+                condition: 'Random()<0.3',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+              },
+            ],
+          }
+        : idx === 2
+          ? {
+              passives: [
+                {
+                  id: 19013,
+                  name: 'SS Random',
+                  tier: 'SS',
+                  timing: 'OnPlayerTurnStart',
+                  condition: 'Random()<0.3',
+                  parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+                },
+              ],
+            }
+          : idx === 3
+            ? {
+                passives: [
+                  {
+                    id: 19014,
+                    name: 'SSR Random',
+                    tier: 'SSR',
+                    timing: 'OnPlayerTurnStart',
+                    condition: 'Random()<0.3',
+                    parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+                  },
+                ],
+              }
+          : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(state.party[0].sp.current, 11);
+  assert.equal(state.party[1].sp.current, 11);
+  assert.equal(state.party[2].sp.current, 11);
+  assert.equal(state.party[3].sp.current, 11);
+  assert.equal(result.spEvents.length, 4);
 });
 
 test('kishin state lasts 3 actionable turns then applies 1-turn action disable', () => {

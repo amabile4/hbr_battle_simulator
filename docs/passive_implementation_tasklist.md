@@ -21,8 +21,10 @@
 ## Phase 2: 手動入力状態で扱う条件
 
 - [ ] `DamageRate`
-- [ ] `Random`
-- [ ] `ConquestBikeLevel`
+- [x] `Random`
+- [x] `ConquestBikeLevel`
+  - 現在は固定値 `160` を返す実装
+  - 将来課題として UI からの上書き入力を追加する
 - [ ] 自キャラ `IsBroken` 手動状態UI
 - [ ] 敵 `IsBroken` / `IsDead` 手動状態の運用仕上げ
 
@@ -54,7 +56,7 @@
   - `Motivation` スキルによる明示レベル上書きは実装済み
   - `OnFirstBattleStart` のランダム付与系は、シミュレータでは手動初期値を優先して no-op として扱う
   - 未実装は `DP回復で +1` と `被ダメージで -1` のイベントフック
-- [ ] `FireMarkLevel`
+- [x] `FireMarkLevel`
   - 共通基盤として `CharacterStyle.markStates`、各 `*MarkLevel()` 条件評価、`Fire/Ice/Thunder/Dark/LightMark` スキル適用は実装済み
   - 実データ回帰は `ThunderMarkLevel / DarkMarkLevel / LightMark` 経由で通している
   - 全属性印の常在効果は同型として実装済み
@@ -64,9 +66,10 @@
     - Lv4: クリティカル率+30% を preview / record modifier に反映
     - Lv5: クリティカルダメージ+30% を preview / record modifier に反映
     - Lv6: ターン開始時 前衛SP+1 を実効
-- [ ] `IceMarkLevel`
+- [x] `IceMarkLevel`
   - 共通基盤は `FireMarkLevel` と同じ実装を共有
   - 氷 / 雷 / 闇 / 光 の印レベル条件評価、印状態付与、常在効果を `FireMarkLevel` と同じ実装で共有
+  - 残課題は UI 表示拡張、Records / Passive Log での見える化、各属性の実データ回帰追加
 - [x] `IsZone`
 - [x] `IsTerritory`
 
@@ -238,7 +241,7 @@
 
 - `OnBattleStart` と `OnEveryTurn` は主要 timing の入口は揃っているが、effect 種別の汎用化はまだ継続中
 - `IsBroken` は自キャラ/敵ともに手動状態として扱う方針
-- `Random` は将来、常時成功/個別指定/常時失敗を切り替えられるデバッグ設定と合わせて実装する
+- `Random` は現状 `A/S/SS/SSR` すべて既定成功固定。将来、常時成功/個別指定/常時失敗を切り替えられるUI設定を追加する
 - `IsCharacter` は「編成内にそのキャラがいる」ではなく、基本的には「評価対象そのものがそのキャラ」で扱う
 - `IsNatureElement` / `IsCharacter` / `IsWeakElement` は条件評価器としては実装済み。ただし、それらを使うパッシブ全体の発火は `timing` / `effect` 実装が別途必要
 - `IsWeakElement(Fire)` は敵の該当属性ダメージ係数が `100%` を超えると真になる。`100%` 以下は偽

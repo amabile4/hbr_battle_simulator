@@ -190,6 +190,7 @@ function normalizePassive(passive) {
     name: String(passive.name ?? ''),
     desc: String(passive.desc ?? ''),
     info: String(passive.info ?? ''),
+    tier: String(passive.ct ?? passive.tier ?? ''),
     timing: String(passive.timing ?? ''),
     condition: String(passive.condition ?? ''),
     effect: String(passive.effect ?? ''),

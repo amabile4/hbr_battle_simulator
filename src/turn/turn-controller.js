@@ -82,10 +82,10 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   IsBroken: Object.freeze({ tier: 'implemented', note: 'self flag and enemy manual Break status are tracked now' }),
   IsNatureElement: Object.freeze({ tier: 'ready_now', note: 'can be derived from style elements without new state' }),
   IsCharacter: Object.freeze({ tier: 'ready_now', note: 'target member identity is available without new state' }),
-  ConquestBikeLevel: Object.freeze({ tier: 'manual_state', note: 'manual external setting' }),
+  ConquestBikeLevel: Object.freeze({ tier: 'implemented', note: 'currently fixed at 160; UI override is future work' }),
   DamageRate: Object.freeze({ tier: 'manual_state', note: 'manual enemy state until damage sim exists' }),
   IsWeakElement: Object.freeze({ tier: 'manual_state', note: 'manual enemy damage-rate state' }),
-  Random: Object.freeze({ tier: 'manual_state', note: 'manual / debug random policy' }),
+  Random: Object.freeze({ tier: 'implemented', note: 'A/S succeed by default; future UI override' }),
   DpRate: Object.freeze({ tier: 'stateful_future', note: 'needs DP current/max state and updates' }),
   Token: Object.freeze({ tier: 'implemented', note: 'current token state is tracked now' }),
   MoraleLevel: Object.freeze({ tier: 'implemented', note: 'current morale state is tracked now' }),
@@ -97,6 +97,12 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   LightMarkLevel: Object.freeze({ tier: 'implemented', note: 'current light mark level state is tracked now' }),
   IsZone: Object.freeze({ tier: 'implemented', note: 'turn state zone state is tracked now' }),
   IsTerritory: Object.freeze({ tier: 'implemented', note: 'turn state territory state is tracked now' }),
+});
+const DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER = Object.freeze({
+  A: 0,
+  S: 0,
+  SS: 0,
+  SSR: 0,
 });
 const CONDITION_FUNCTION_PATTERN = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
@@ -561,6 +567,24 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
         known: true,
         value: Number(member?.ep?.current ?? 0),
       };
+    case 'ConquestBikeLevel':
+      return {
+        known: true,
+        value: 160,
+      };
+    case 'Random': {
+      const tier = String(skill?.tier ?? skill?.ct ?? '').trim().toUpperCase();
+      if (Object.hasOwn(DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER, tier)) {
+        return {
+          known: true,
+          value: DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER[tier],
+        };
+      }
+      return {
+        known: true,
+        value: 1,
+      };
+    }
     case 'Token':
       return {
         known: true,
@@ -3484,7 +3508,7 @@ function evaluatePassiveSelfConditions(passive, part, state, member) {
   const conditions = [passive?.condition, part?.cond, part?.hit_condition]
     .map((value) => String(value ?? '').trim())
     .filter(Boolean);
-  return conditions.every((expr) => evaluateConditionExpression(expr, state, member, null).result);
+  return conditions.every((expr) => evaluateConditionExpression(expr, state, member, passive).result);
 }
 
 function applyPassiveTimingInternal(state, timings = [], options = {}) {
