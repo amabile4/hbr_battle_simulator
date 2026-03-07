@@ -1170,6 +1170,55 @@ test('normal attack guarantees minimum 7.5% OD gain even when hit count is below
   assert.equal(nextState.turnState.odGauge, 7.5);
 });
 
+test('normal attack uses belt element in OD resistance check', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `NAB${idx + 1}`,
+      characterName: `NAB${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `NABS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      normalAttackElements: idx === 0 ? ['Fire'] : [],
+      skills: [
+        {
+          id: 11600 + idx,
+          name: '通常攻撃',
+          label: `NABAttackNormal${idx + 1}`,
+          sp_cost: 0,
+          hit_count: 1,
+          target_type: 'Single',
+          parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Slash: 100, Fire: 50 },
+    },
+  };
+  let preview = previewTurn(state, {
+    0: { characterId: 'NAB1', skillId: 11600 },
+  });
+  let committed = commitTurn(state, preview);
+  assert.equal(committed.nextState.turnState.odGauge, 0);
+
+  state.turnState.enemyState.damageRatesByEnemy = {
+    0: { Slash: 300, Fire: 50 },
+  };
+  preview = previewTurn(state, {
+    0: { characterId: 'NAB1', skillId: 11600 },
+  });
+  committed = commitTurn(state, preview);
+  assert.equal(committed.nextState.turnState.odGauge, 7.5);
+});
+
 test('skill attack increases OD gauge by hit_count * 2.5%', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -1413,6 +1462,94 @@ test('single-target attack does not scale OD gain by enemy count', () => {
   const { nextState } = commitTurn(state, preview);
 
   assert.equal(nextState.turnState.odGauge, 5, 'single-target remains 2 hits * 2.5%');
+});
+
+test('single-target attack does not gain OD when combined damage rate is below 100%', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODR${idx + 1}`,
+      characterName: `ODR${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 14000 + idx,
+          name: idx === 0 ? 'Resisted Slash' : 'Normal',
+          label: idx === 0 ? 'ResistedSlash' : `ODRSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 2 : 0,
+          target_type: 'Single',
+          parts: idx === 0 ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }] : [],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Slash: 50 },
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ODR1', skillId: 14000 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.odGauge, 0);
+});
+
+test('all-target attack gains OD only from enemies whose combined damage rate is at least 100%', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODA${idx + 1}`,
+      characterName: `ODA${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODAS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 14100 + idx,
+          name: idx === 0 ? 'All Slash Fire' : 'Normal',
+          label: idx === 0 ? 'AllSlashFire' : `ODASkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 2 : 0,
+          target_type: 'All',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash', elements: ['Fire'] }]
+              : [],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    enemyCount: 3,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Slash: 300, Fire: 50 },
+      1: { Slash: 80, Fire: 100 },
+      2: { Slash: 120, Fire: 100 },
+    },
+  };
+
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'ODA1', skillId: 14100 },
+    },
+    null,
+    3
+  );
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.odGauge, 10, '2 hits * 2 eligible enemies * 2.5%');
 });
 
 test('manual-compare case: Ruka Thunder Pulse vs 3 enemies with Drive Pierce 15% for 10 turns', () => {
@@ -1818,6 +1955,99 @@ test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
     0: { characterId: 'EB1', skillId: 18100 },
   });
   assert.equal(preview.actions.length, 1);
+});
+
+test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EW${idx + 1}`,
+      characterName: `EW${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EWS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 18150,
+                name: 'Weak Hunter',
+                label: 'WeakHunter',
+                sp_cost: 0,
+                iuc_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Fire)==1)>0',
+                parts: [],
+              },
+            ]
+          : [{ id: 18150 + idx, name: 'Normal', label: `EWSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'EW1', skillId: 18150 },
+      }),
+    /cannot be used/i
+  );
+
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Fire: 120, Ice: 100 },
+      1: { Fire: 100 },
+    },
+  };
+  const preview = previewTurn(state, {
+    0: { characterId: 'EW1', skillId: 18150 },
+  });
+  assert.equal(preview.actions.length, 1);
+});
+
+test('IsWeakElement defaults to false when enemy damage rate is not above 100%', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EWD${idx + 1}`,
+      characterName: `EWD${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EWDS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 18180,
+                name: 'Weak Hunter Default',
+                label: 'WeakHunterDefault',
+                sp_cost: 0,
+                iuc_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Ice)==1)>0',
+                parts: [],
+              },
+            ]
+          : [{ id: 18180 + idx, name: 'Normal', label: `EWDSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Ice: 100 },
+      1: { Fire: 130 },
+    },
+  };
+
+  assert.throws(
+    () =>
+      previewTurn(state, {
+        0: { characterId: 'EWD1', skillId: 18180 },
+      }),
+    /cannot be used/i
+  );
 });
 
 test('enemy down-turn status does not tick during OD/EX chain without base-turn advance', () => {

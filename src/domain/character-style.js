@@ -210,6 +210,11 @@ export class CharacterStyle {
         : null;
     this.limitBreakLevel = Number(input.limitBreakLevel ?? 0);
     this.drivePiercePercent = Number(input.drivePiercePercent ?? 0);
+    this.normalAttackElements = Object.freeze(
+      Array.isArray(input.normalAttackElements)
+        ? [...new Set(input.normalAttackElements.map((element) => String(element ?? '')).filter(Boolean))]
+        : []
+    );
     this.partyIndex = partyIndex;
     this.position = position;
 
@@ -653,6 +658,7 @@ export class CharacterStyle {
       limitBreakLevel: this.limitBreakLevel,
       partyIndex: this.partyIndex,
       position: this.position,
+      normalAttackElements: [...this.normalAttackElements],
       sp: { ...this.sp },
       ep: { ...this.ep },
       isAlive: this.isAlive,

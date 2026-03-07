@@ -5,6 +5,7 @@ export const DEFAULT_START_SP_EQUIP_BONUS = 3;
 export const DEFAULT_ENEMY_COUNT = 1;
 export const MIN_ENEMY_COUNT = 1;
 export const MAX_ENEMY_COUNT = 3;
+export const DEFAULT_DAMAGE_RATE_PERCENT = 100;
 
 export const OD_LEVELS = Object.freeze([1, 2, 3]);
 export const OD_RECOVERY_BY_LEVEL = Object.freeze({ 1: 5, 2: 12, 3: 20 });

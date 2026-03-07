@@ -28,6 +28,7 @@ export function toCharacterSnapshot(character) {
     partyIndex: character.partyIndex,
     positionIndex: character.position,
     isFront: character.position <= 2,
+    normalAttackElements: Object.freeze([...(character.normalAttackElements ?? [])]),
     sp: Object.freeze({ ...character.sp }),
     ep: Object.freeze({ ...character.ep }),
     isAlive: Boolean(character.isAlive),
@@ -61,6 +62,7 @@ export function createInitialTurnState() {
     enemyState: {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
+      damageRatesByEnemy: {},
     },
     transcendence: null,
     extraTurnState: null,
@@ -80,10 +82,21 @@ export function cloneTurnState(turnState) {
                 remainingTurns: Number(status?.remainingTurns ?? 0),
               }))
             : [],
+          damageRatesByEnemy:
+            turnState.enemyState.damageRatesByEnemy &&
+            typeof turnState.enemyState.damageRatesByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.damageRatesByEnemy).map(([targetIndex, rates]) => [
+                    String(targetIndex),
+                    rates && typeof rates === 'object' ? { ...rates } : {},
+                  ])
+                )
+              : {},
         }
       : {
           enemyCount: DEFAULT_ENEMY_COUNT,
           statuses: [],
+          damageRatesByEnemy: {},
         };
   return {
     ...turnState,

@@ -13,6 +13,7 @@ import {
   OD_GAUGE_MIN_PERCENT,
   OD_GAUGE_MAX_PERCENT,
   DEFAULT_ENEMY_COUNT,
+  DEFAULT_DAMAGE_RATE_PERCENT,
   OD_LEVELS,
   DRIVE_PIERCE_OPTION_VALUES,
   DRIVE_PIERCE_BASE_BONUS_AT_HIT_1,
@@ -55,9 +56,10 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   IsAttackNormal: Object.freeze({ tier: 'implemented', note: 'selected action can be checked now' }),
   IsBroken: Object.freeze({ tier: 'implemented', note: 'self flag and enemy manual Break status are tracked now' }),
   IsNatureElement: Object.freeze({ tier: 'ready_now', note: 'can be derived from style elements without new state' }),
-  IsCharacter: Object.freeze({ tier: 'ready_now', note: 'can be derived from party membership without new state' }),
+  IsCharacter: Object.freeze({ tier: 'ready_now', note: 'target member identity is available without new state' }),
   ConquestBikeLevel: Object.freeze({ tier: 'manual_state', note: 'manual external setting' }),
   DamageRate: Object.freeze({ tier: 'manual_state', note: 'manual enemy state until damage sim exists' }),
+  IsWeakElement: Object.freeze({ tier: 'manual_state', note: 'manual enemy damage-rate state' }),
   Random: Object.freeze({ tier: 'manual_state', note: 'manual / debug random policy' }),
   DpRate: Object.freeze({ tier: 'stateful_future', note: 'needs DP current/max state and updates' }),
   Token: Object.freeze({ tier: 'stateful_future', note: 'needs token current state and updates' }),
@@ -347,6 +349,89 @@ function hasDamagePartInParts(parts) {
   return false;
 }
 
+function getDamagePartReferences(part, options = {}) {
+  if (!part || typeof part !== 'object') {
+    return [];
+  }
+  const out = [];
+  const attackType = String(part?.type ?? '').trim();
+  if (attackType) {
+    out.push(attackType);
+  }
+  const attackElements =
+    Array.isArray(options.normalAttackElements) && options.normalAttackElements.length > 0
+      ? options.normalAttackElements
+      : Array.isArray(part?.elements)
+        ? part.elements
+        : [];
+  for (const element of attackElements) {
+    const normalized = String(element ?? '').trim();
+    if (normalized) {
+      out.push(normalized);
+    }
+  }
+  return [...new Set(out)];
+}
+
+function computeEnemyEffectiveDamageRatePercentForPart(turnState, targetIndex, part, options = {}) {
+  const references = getDamagePartReferences(part, options);
+  if (references.length === 0) {
+    return DEFAULT_DAMAGE_RATE_PERCENT;
+  }
+  let rate = 1;
+  for (const reference of references) {
+    rate *= getEnemyDamageRatePercent(turnState, targetIndex, reference) / 100;
+  }
+  return truncateToTwoDecimals(rate * 100);
+}
+
+function computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, targetIndex) {
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, member).filter((part) =>
+    OD_DAMAGE_PART_TYPES.has(String(part?.skill_type ?? ''))
+  );
+  if (effectiveParts.length === 0) {
+    return DEFAULT_DAMAGE_RATE_PERCENT;
+  }
+
+  const normalAttackElements =
+    isNormalAttackSkill(skill) && Array.isArray(member?.normalAttackElements) ? member.normalAttackElements : [];
+  let bestRate = Number.NEGATIVE_INFINITY;
+  for (const part of effectiveParts) {
+    const partRate = computeEnemyEffectiveDamageRatePercentForPart(state?.turnState, targetIndex, part, {
+      normalAttackElements,
+    });
+    if (partRate > bestRate) {
+      bestRate = partRate;
+    }
+  }
+  return Number.isFinite(bestRate) ? bestRate : DEFAULT_DAMAGE_RATE_PERCENT;
+}
+
+function countEnemiesEligibleForOdGain(state, member, skill, enemyCount) {
+  const numericEnemyCount = clampEnemyCount(enemyCount);
+  const targetType = String(skill?.targetType ?? '');
+  const isAllTarget = targetType === 'All';
+  if (!isAllTarget) {
+    // Current action model does not carry an enemy target selection yet.
+    // Until that UI/state exists, single-target attacks are resolved against Enemy 1.
+    const targetIndex = Number.isFinite(Number(member?.__enemyTargetIndex))
+      ? Number(member.__enemyTargetIndex)
+      : 0;
+    return computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, targetIndex) >=
+      DEFAULT_DAMAGE_RATE_PERCENT
+      ? 1
+      : 0;
+  }
+
+  let count = 0;
+  for (let i = 0; i < numericEnemyCount; i += 1) {
+    if (computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, i) >= DEFAULT_DAMAGE_RATE_PERCENT) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function hasOverDrivePointUpPartInParts(parts) {
   for (const part of parts ?? []) {
     if (String(part?.skill_type ?? '') === 'OverDrivePointUp') {
@@ -464,6 +549,19 @@ function resolveSingleArgConditionValue(name, argRaw, state, member) {
         known: true,
         value: String(member?.characterId ?? '') === arg ? 1 : 0,
       };
+    case 'IsWeakElement': {
+      const targetIndex = Number(member?.__enemyTargetIndex ?? Number.NaN);
+      if (!Number.isFinite(targetIndex) || targetIndex < 0) {
+        return {
+          known: false,
+          value: true,
+        };
+      }
+      return {
+        known: true,
+        value: isEnemyWeakToElement(state?.turnState, targetIndex, arg) ? 1 : 0,
+      };
+    }
     default:
       return {
         known: false,
@@ -503,13 +601,41 @@ function splitTopLevel(expression, separator) {
 function getEnemyState(turnState) {
   const state = turnState?.enemyState;
   if (!state || typeof state !== 'object') {
-    return { enemyCount: DEFAULT_ENEMY_COUNT, statuses: [] };
+    return { enemyCount: DEFAULT_ENEMY_COUNT, statuses: [], damageRatesByEnemy: {} };
   }
   const enemyCount = clampEnemyCount(state.enemyCount ?? DEFAULT_ENEMY_COUNT);
   return {
     enemyCount,
     statuses: Array.isArray(state.statuses) ? state.statuses : [],
+    damageRatesByEnemy:
+      state.damageRatesByEnemy && typeof state.damageRatesByEnemy === 'object' ? state.damageRatesByEnemy : {},
   };
+}
+
+function getEnemyDamageRatePercent(turnState, targetIndex, element) {
+  const enemyState = getEnemyState(turnState);
+  const enemyKey = String(Number(targetIndex));
+  const rates = enemyState.damageRatesByEnemy?.[enemyKey];
+  if (!rates || typeof rates !== 'object') {
+    return DEFAULT_DAMAGE_RATE_PERCENT;
+  }
+  const value = Number(rates[String(element ?? '').trim()]);
+  return Number.isFinite(value) ? value : DEFAULT_DAMAGE_RATE_PERCENT;
+}
+
+function isEnemyWeakToElement(turnState, targetIndex, element) {
+  return getEnemyDamageRatePercent(turnState, targetIndex, element) > DEFAULT_DAMAGE_RATE_PERCENT;
+}
+
+function countEnemiesWeakToElement(turnState, element) {
+  const enemyState = getEnemyState(turnState);
+  let count = 0;
+  for (let i = 0; i < enemyState.enemyCount; i += 1) {
+    if (isEnemyWeakToElement(turnState, i, element)) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 function isEnemyStatusPersistent(status) {
@@ -572,6 +698,7 @@ function tickEnemyStatuses(turnState) {
   turnState.enemyState = {
     enemyCount: enemyState.enemyCount,
     statuses: nextStatuses,
+    damageRatesByEnemy: enemyState.damageRatesByEnemy,
   };
 }
 
@@ -679,6 +806,23 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
   if (hasAllDownTurnEnemyClauses) {
     const count = countEnemiesWithStatus(state?.turnState, ENEMY_STATUS_DOWN_TURN);
     return { known: true, value: count };
+  }
+
+  const weakElementClause = clauses.find((clause) =>
+    /^IsWeakElement\([^)]+\)(==1)?$/.test(clause)
+  );
+  const hasAllWeakElementEnemyClauses =
+    clauses.length === 3 &&
+    clauses.includes('IsPlayer()==0') &&
+    clauses.includes('IsDead()==0') &&
+    Boolean(weakElementClause);
+  if (hasAllWeakElementEnemyClauses) {
+    const match = weakElementClause.match(/^IsWeakElement\(([^)]+)\)/);
+    const element = String(match?.[1] ?? '').trim();
+    return {
+      known: true,
+      value: countEnemiesWeakToElement(state?.turnState, element),
+    };
   }
 
   return { known: false, value: true };
@@ -1015,10 +1159,13 @@ function computeOdGaugeGainPercentBySkill(
   const funnelHitBonus = Number(options?.funnelHitBonus ?? 0);
   const hitCountPerEnemyBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
   const hitCountPerEnemy = hitCountPerEnemyBase + Math.max(0, funnelHitBonus);
-  let hitCount = hitCountPerEnemy * (isAllTarget ? numericEnemyCount : 1);
+  const odEligibleEnemyCount = hasDamage
+    ? countEnemiesEligibleForOdGain(state, member, skill, numericEnemyCount)
+    : 0;
+  let hitCount = hitCountPerEnemy * (isAllTarget ? odEligibleEnemyCount : Math.min(1, odEligibleEnemyCount));
   if (isNormalAttackSkill(skill)) {
     // 通常攻撃はヒット数に関わらず最低3hit(=7.5%)保証。
-    hitCount = Math.max(3, hitCount);
+    hitCount = odEligibleEnemyCount > 0 ? Math.max(3, hitCount) : 0;
   }
 
   if (hasDamage && (!Number.isFinite(hitCount) || hitCount <= 0)) {

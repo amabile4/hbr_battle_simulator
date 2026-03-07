@@ -972,6 +972,26 @@ test('initialize battle applies start SP base + equip bonus per slot', () => {
   assert.equal(member2.sp.current, 6);
 });
 
+test('initialize battle applies selected normal attack belt to party member', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const beltSelect = root.querySelector('[data-role="normal-attack-belt-select"][data-slot="0"]');
+  assert.ok(beltSelect);
+  beltSelect.value = 'Fire';
+  beltSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  adapter.initializeBattle();
+
+  assert.deepEqual(adapter.party.members[0].normalAttackElements, ['Fire']);
+  assert.match(
+    root.querySelector('[data-role="slot-summary"][data-slot="0"]')?.textContent ?? '',
+    /通常攻撃属性: 火/
+  );
+});
+
 test('initialize battle applies 閃光 to frontline initial SP', () => {
   const store = getStore();
   const { root } = createRoot();

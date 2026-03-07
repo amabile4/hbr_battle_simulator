@@ -56,6 +56,17 @@ const START_SP_EQUIP_OPTIONS = Object.freeze([
   { value: 2, label: '初期SP装備 +2' },
   { value: 3, label: '初期SP装備 +3' },
 ]);
+const NORMAL_ATTACK_BELT_OPTIONS = Object.freeze([
+  { value: '', label: '属性ベルト: なし' },
+  { value: 'Fire', label: '属性ベルト: 火' },
+  { value: 'Ice', label: '属性ベルト: 氷' },
+  { value: 'Thunder', label: '属性ベルト: 雷' },
+  { value: 'Dark', label: '属性ベルト: 闇' },
+  { value: 'Light', label: '属性ベルト: 光' },
+]);
+const NORMAL_ATTACK_BELT_LABEL_BY_VALUE = Object.freeze(
+  Object.fromEntries(NORMAL_ATTACK_BELT_OPTIONS.map((option) => [String(option.value), String(option.label).replace('属性ベルト: ', '')]))
+);
 const START_SP_EQUIP_DEFAULT = DEFAULT_START_SP_EQUIP_BONUS;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
@@ -84,6 +95,18 @@ function normalizeEnemyStatusForUi(status) {
     targetIndex,
     remainingTurns,
   };
+}
+
+function normalizeEnemyDamageRatesByEnemy(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([targetIndex, rates]) => [
+      String(targetIndex),
+      rates && typeof rates === 'object' ? { ...rates } : {},
+    ])
+  );
 }
 
 function isNormalAttackSkill(skill) {
@@ -229,7 +252,11 @@ function toUniqueList(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
-function extractSkillAttributes(skill) {
+function formatNormalAttackBeltLabel(value) {
+  return NORMAL_ATTACK_BELT_LABEL_BY_VALUE[String(value ?? '')] ?? 'なし';
+}
+
+function extractSkillAttributes(skill, options = {}) {
   const elements = new Set();
   const weaponTypes = new Set();
 
@@ -257,6 +284,12 @@ function extractSkillAttributes(skill) {
   };
 
   collectFromParts(skill?.parts);
+  for (const element of Array.isArray(options.normalAttackElements) ? options.normalAttackElements : []) {
+    const value = String(element ?? '');
+    if (value && value !== 'None') {
+      elements.add(value);
+    }
+  }
 
   return {
     elements: [...elements],
@@ -556,6 +589,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.updateSlotSummary(slot);
       }
 
+      if (target.matches('[data-role="normal-attack-belt-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateSlotSummary(slot);
+      }
+
       if (target.matches('[data-role="selection-slot-select"]')) {
         const slot = this.getSelectedSelectionSlotIndex();
         this.renderSelectionSlotPreview(slot);
@@ -800,6 +838,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         }
         startSpEquipSelect.appendChild(option);
       }
+      const normalAttackBeltSelect = this.doc.createElement('select');
+      normalAttackBeltSelect.setAttribute('data-role', 'normal-attack-belt-select');
+      normalAttackBeltSelect.setAttribute('data-slot', String(i));
+      for (const optionDef of NORMAL_ATTACK_BELT_OPTIONS) {
+        const option = this.doc.createElement('option');
+        option.value = String(optionDef.value);
+        option.textContent = optionDef.label;
+        if (optionDef.value === '') {
+          option.selected = true;
+        }
+        normalAttackBeltSelect.appendChild(option);
+      }
 
       const skillChecklist = this.doc.createElement('div');
       skillChecklist.setAttribute('data-role', 'skill-checklist');
@@ -811,6 +861,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       wrapper.appendChild(limitBreakSelect);
       wrapper.appendChild(drivePierceSelect);
       wrapper.appendChild(startSpEquipSelect);
+      wrapper.appendChild(normalAttackBeltSelect);
       wrapper.appendChild(skillChecklist);
 
       const summary = this.doc.createElement('div');
@@ -960,6 +1011,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const startSpEquipSelect = this.root.querySelector(
         `[data-role="start-sp-equip-select"][data-slot="${i}"]`
       );
+      const normalAttackBeltSelect = this.root.querySelector(
+        `[data-role="normal-attack-belt-select"][data-slot="${i}"]`
+      );
       const checkedSkillIds = this.getCheckedSkillIdsForSlot(i) ?? [];
       partySelections.push({
         characterLabel: String(charSelect?.value ?? ''),
@@ -967,6 +1021,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         limitBreakLevel: toInt(lbSelect?.value, 0),
         drivePiercePercent: toInt(drivePierceSelect?.value, 0),
         startSpEquipBonus: toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT),
+        normalAttackBelt: String(normalAttackBeltSelect?.value ?? ''),
         checkedSkillIds,
       });
     }
@@ -1057,6 +1112,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         startSpEquipSelect.value = String(START_SP_EQUIP_DEFAULT);
       }
       if ((startSpEquipSelect?.value ?? '') !== beforeStartSpEquip) {
+        changedCount += 1;
+      }
+      const normalAttackBeltSelect = this.root.querySelector(
+        `[data-role="normal-attack-belt-select"][data-slot="${i}"]`
+      );
+      const beforeNormalAttackBelt = normalAttackBeltSelect?.value ?? '';
+      const requestedNormalAttackBelt = String(row.normalAttackBelt ?? '');
+      if (
+        normalAttackBeltSelect &&
+        [...normalAttackBeltSelect.options].some((opt) => String(opt.value) === requestedNormalAttackBelt)
+      ) {
+        normalAttackBeltSelect.value = requestedNormalAttackBelt;
+      } else if (normalAttackBeltSelect) {
+        normalAttackBeltSelect.value = '';
+      }
+      if ((normalAttackBeltSelect?.value ?? '') !== beforeNormalAttackBelt) {
         changedCount += 1;
       }
 
@@ -1159,7 +1230,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const row = rows[i] ?? {};
       lines.push(
         `P${i + 1}: ${row.characterLabel ?? '-'} / style=${row.styleId ?? '-'} / ` +
-        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
+        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
       );
     }
     lines.push(
@@ -1375,6 +1446,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return out;
   }
 
+  readNormalAttackElementsMapFromDom() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const select = this.root.querySelector(
+        `[data-role="normal-attack-belt-select"][data-slot="${i}"]`
+      );
+      const value = String(select?.value ?? '').trim();
+      out[i] = value ? [value] : [];
+    }
+    return out;
+  }
+
   updateSlotSummary(slotIndex) {
     const summary = this.root.querySelector(`[data-role="slot-summary"][data-slot="${slotIndex}"]`);
     if (!summary) {
@@ -1405,12 +1488,16 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       `[data-role="start-sp-equip-select"][data-slot="${slotIndex}"]`
     );
     const startSpEquipBonus = toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT);
+    const normalAttackBeltSelect = this.root.querySelector(
+      `[data-role="normal-attack-belt-select"][data-slot="${slotIndex}"]`
+    );
+    const normalAttackBelt = String(normalAttackBeltSelect?.value ?? '').trim();
     const startSp = START_SP_BASE + START_SP_FIXED_BONUS + startSpEquipBonus;
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
+      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / 通常攻撃属性: ${formatNormalAttackBeltLabel(normalAttackBelt)} / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {
@@ -1462,6 +1549,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       options.limitBreakLevelsByPartyIndex ?? this.readLimitBreakMapFromDom();
     const drivePierceByPartyIndex =
       options.drivePierceByPartyIndex ?? this.readDrivePierceMapFromDom();
+    const normalAttackElementsByPartyIndex =
+      options.normalAttackElementsByPartyIndex ?? this.readNormalAttackElementsMapFromDom();
     const startSpEquipByPartyIndex =
       options.startSpEquipByPartyIndex ?? this.readStartSpEquipMapFromDom();
     const initialOdGauge =
@@ -1472,6 +1561,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       skillSetsByPartyIndex,
       limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
+      normalAttackElementsByPartyIndex,
       startSpEquipByPartyIndex,
       initialOdGauge,
       enemyCount: this.readEnemyCountFromDom(),
@@ -1608,7 +1698,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return;
     }
     const effectiveSkill = resolveEffectiveSkillForAction(this.state, member, skill);
-    const attrs = extractSkillAttributes(effectiveSkill);
+    const attrs = extractSkillAttributes(effectiveSkill, {
+      normalAttackElements: isNormalAttackSkill(effectiveSkill) ? member.normalAttackElements : [],
+    });
     this.renderBadgeContainer(container, attrs);
   }
 
@@ -1739,7 +1831,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return;
     }
     const enemyCount = this.readEnemyCountFromDom();
-    const current = this.state.turnState.enemyState ?? { enemyCount: DEFAULT_ENEMY_COUNT, statuses: [] };
+    const current = this.state.turnState.enemyState ?? {
+      enemyCount: DEFAULT_ENEMY_COUNT,
+      statuses: [],
+      damageRatesByEnemy: {},
+    };
     const statuses = Array.isArray(current.statuses)
       ? current.statuses
         .filter((status) => isEnemyStatusActive(status))
@@ -1747,9 +1843,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         .filter((status) => Number(status?.targetIndex ?? -1) < enemyCount)
         .map((status) => normalizeEnemyStatusForUi(status))
       : [];
+    const damageRatesByEnemy = normalizeEnemyDamageRatesByEnemy(current.damageRatesByEnemy);
     this.state.turnState.enemyState = {
       enemyCount,
       statuses,
+      damageRatesByEnemy,
     };
   }
 
@@ -1841,6 +1939,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = {
       enemyCount: this.readEnemyCountFromDom(),
       statuses: nextStatuses,
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
     };
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
@@ -1881,6 +1980,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = {
       enemyCount: this.readEnemyCountFromDom(),
       statuses: nextStatuses,
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
     };
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
@@ -2366,6 +2466,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = {
       enemyCount,
       statuses: next,
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
     };
     this.renderEnemyStatusControls();
   }
@@ -2395,6 +2496,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           : {}),
         ...(Number.isFinite(Number(entry.drivePiercePercent))
           ? { drivePiercePercent: Number(entry.drivePiercePercent) }
+          : {}),
+        ...(typeof entry.normalAttackBelt === 'string'
+          ? { normalAttackBelt: String(entry.normalAttackBelt) }
           : {}),
         ...(Number.isFinite(Number(entry.startSpEquipBonus))
           ? { startSpEquipBonus: Number(entry.startSpEquipBonus) }
@@ -2790,6 +2894,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.state.turnState.enemyState = {
         enemyCount: this.readEnemyCountFromDom(),
         statuses: merged,
+        damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
       };
       this.renderEnemyStatusControls();
     }
@@ -2830,6 +2935,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.state.turnState.enemyState = {
         enemyCount: this.readEnemyCountFromDom(),
         statuses,
+        damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
       };
       this.renderEnemyStatusControls();
     }
@@ -3140,6 +3246,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.isBreak = Boolean(snap.isBreak);
       member.isExtraActive = Boolean(snap.isExtraActive);
       member.isReinforcedMode = Boolean(snap.isReinforcedMode);
+      member.normalAttackElements = Object.freeze(
+        Array.isArray(snap.normalAttackElements)
+          ? [...new Set(snap.normalAttackElements.map((element) => String(element ?? '')).filter(Boolean))]
+          : []
+      );
       member.reinforcedTurnsRemaining = Number(snap.reinforcedTurnsRemaining ?? member.reinforcedTurnsRemaining ?? 0);
       member.actionDisabledTurns = Number(snap.actionDisabledTurns ?? member.actionDisabledTurns ?? 0);
       member.statusEffects = structuredClone(snap.statusEffects ?? []);
@@ -3724,6 +3835,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       skillSetsByPartyIndex: base.skillSetsByPartyIndex,
       limitBreakLevelsByPartyIndex: base.limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex: base.drivePierceByPartyIndex,
+      normalAttackElementsByPartyIndex: base.normalAttackElementsByPartyIndex,
       startSpEquipByPartyIndex: base.startSpEquipByPartyIndex,
       initialOdGauge: Number(base.initialOdGauge ?? 0),
       skipInitialOdRead: true,

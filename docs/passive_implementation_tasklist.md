@@ -13,8 +13,8 @@
 
 - [x] `IsNatureElement`
 - [x] `IsCharacter`
-- [ ] `IsWeakElement` の仕様確認
-- [ ] `IsWeakElement` 実装
+- [x] `IsWeakElement` の仕様確認
+- [x] `IsWeakElement` 実装
 
 ## Phase 2: 手動入力状態で扱う条件
 
@@ -91,6 +91,8 @@
 - `IsBroken` は自キャラ/敵ともに手動状態として扱う方針
 - `Random` は将来、常時成功/個別指定/常時失敗を切り替えられるデバッグ設定と合わせて実装する
 - `IsCharacter` は「編成内にそのキャラがいる」ではなく、基本的には「評価対象そのものがそのキャラ」で扱う
-- `IsNatureElement` と `IsCharacter` は条件評価器としては実装済み。ただし、それらを使うパッシブ全体の発火は `timing` / `effect` 実装が別途必要
+- `IsNatureElement` / `IsCharacter` / `IsWeakElement` は条件評価器としては実装済み。ただし、それらを使うパッシブ全体の発火は `timing` / `effect` 実装が別途必要
+- `IsWeakElement(Fire)` は敵の該当属性ダメージ係数が `100%` を超えると真になる。`100%` 以下は偽
+- 敵の属性耐性/弱点は現時点では手動状態として保持する。未設定時は `100%` 扱い
 - `オーバーレイ` のように `target_type: AllyAll` と `target_condition: IsCharacter(IIshii)==1` を組み合わせるパッシブがあるため、今後の発火実装は「発火元イベント判定」と「効果対象抽出」を分離して設計する必要がある
 - 具体的には「味方の誰かがフィールドを展開した」という味方イベントで発火しつつ、効果対象は後衛の石井本人だけ、というレアケースを許容する必要がある

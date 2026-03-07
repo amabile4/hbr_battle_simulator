@@ -21,6 +21,7 @@ export function createInitializedBattleSnapshot({
   skillSetsByPartyIndex,
   limitBreakLevelsByPartyIndex,
   drivePierceByPartyIndex,
+  normalAttackElementsByPartyIndex,
   startSpEquipByPartyIndex,
   initialOdGauge,
   enemyCount,
@@ -38,6 +39,7 @@ export function createInitializedBattleSnapshot({
     skillSetsByPartyIndex,
     limitBreakLevelsByPartyIndex,
     drivePierceByPartyIndex,
+    normalAttackElementsByPartyIndex,
   });
 
   const initialTurnState = {
@@ -46,6 +48,7 @@ export function createInitializedBattleSnapshot({
     enemyState: {
       enemyCount: Number(enemyCount),
       statuses: [],
+      damageRatesByEnemy: {},
     },
   };
 
@@ -60,6 +63,7 @@ export function createInitializedBattleSnapshot({
       skillSetsByPartyIndex: structuredClone(skillSetsByPartyIndex),
       limitBreakLevelsByPartyIndex: structuredClone(limitBreakLevelsByPartyIndex),
       drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),
+      normalAttackElementsByPartyIndex: structuredClone(normalAttackElementsByPartyIndex),
       startSpEquipByPartyIndex: structuredClone(startSpEquipByPartyIndex),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
