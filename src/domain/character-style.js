@@ -245,6 +245,12 @@ export class CharacterStyle {
       max: Number(input.moraleMax ?? 10),
     };
 
+    this.motivationState = {
+      current: Number(input.initialMotivation ?? 3),
+      min: Number(input.motivationMin ?? 1),
+      max: Number(input.motivationMax ?? 5),
+    };
+
     this.isAlive = input.isAlive ?? true;
     this.isBreak = input.isBreak ?? false;
     this.isExtraActive = input.isExtraActive ?? false;
@@ -320,6 +326,7 @@ export class CharacterStyle {
     const startEP = this.ep.current;
     const startToken = this.tokenState.current;
     const startMorale = this.moraleState.current;
+    const startMotivation = this.motivationState.current;
     const consumeType = String(skill.consumeType ?? 'Sp');
     let rawCost = Number(skill.spCost ?? 0);
     if (
@@ -327,18 +334,32 @@ export class CharacterStyle {
       this.isReinforcedMode &&
       consumeType !== 'Ep' &&
       consumeType !== 'Morale' &&
+      consumeType !== 'Motivation' &&
       rawCost !== -1
     ) {
       rawCost = 0;
     }
     const cost = Math.abs(rawCost);
 
-    let deltaSP = consumeType === 'Ep' || consumeType === 'Token' || consumeType === 'Morale' ? 0 : -cost;
+    let deltaSP =
+      consumeType === 'Ep' ||
+      consumeType === 'Token' ||
+      consumeType === 'Morale' ||
+      consumeType === 'Motivation'
+        ? 0
+        : -cost;
     let deltaEP = consumeType === 'Ep' ? -cost : 0;
     let deltaToken = consumeType === 'Token' ? -cost : 0;
     let deltaMorale = consumeType === 'Morale' ? -cost : 0;
+    let deltaMotivation = consumeType === 'Motivation' ? -cost : 0;
     // HBR特殊値: sp_cost = -1 は「現在SPを全消費」。
-    if (consumeType !== 'Ep' && consumeType !== 'Token' && consumeType !== 'Morale' && rawCost === -1) {
+    if (
+      consumeType !== 'Ep' &&
+      consumeType !== 'Token' &&
+      consumeType !== 'Morale' &&
+      consumeType !== 'Motivation' &&
+      rawCost === -1
+    ) {
       deltaSP = -startSP;
     }
     if (consumeType === 'Token' && rawCost === -1) {
@@ -346,6 +367,9 @@ export class CharacterStyle {
     }
     if (consumeType === 'Morale' && rawCost === -1) {
       deltaMorale = -startMorale;
+    }
+    if (consumeType === 'Motivation' && rawCost === -1) {
+      deltaMotivation = -startMotivation;
     }
     const endSP = applySpChange(startSP, deltaSP, this.sp.min, Number.POSITIVE_INFINITY);
     const endEP = applySpChange(startEP, deltaEP, this.ep.min, Number.POSITIVE_INFINITY);
@@ -359,6 +383,12 @@ export class CharacterStyle {
       startMorale,
       deltaMorale,
       this.moraleState.min,
+      Number.POSITIVE_INFINITY
+    );
+    const endMotivation = applySpChange(
+      startMotivation,
+      deltaMotivation,
+      this.motivationState.min,
       Number.POSITIVE_INFINITY
     );
 
@@ -378,10 +408,13 @@ export class CharacterStyle {
       endToken,
       startMorale,
       endMorale,
+      startMotivation,
+      endMotivation,
       spDelta: endSP - startSP,
       epDelta: endEP - startEP,
       tokenDelta: endToken - startToken,
       moraleDelta: endMorale - startMorale,
+      motivationDelta: endMotivation - startMotivation,
     };
   }
 
@@ -409,6 +442,9 @@ export class CharacterStyle {
     if (Number.isFinite(Number(preview.endMorale))) {
       this.moraleState.current = Number(preview.endMorale);
     }
+    if (Number.isFinite(Number(preview.endMotivation))) {
+      this.motivationState.current = Number(preview.endMotivation);
+    }
     this._revision += 1;
 
     return {
@@ -423,6 +459,8 @@ export class CharacterStyle {
       endToken: this.tokenState.current,
       startMorale: Number(preview.startMorale ?? this.moraleState.current),
       endMorale: this.moraleState.current,
+      startMotivation: Number(preview.startMotivation ?? this.motivationState.current),
+      endMotivation: this.motivationState.current,
       revision: this._revision,
     };
   }
@@ -492,6 +530,49 @@ export class CharacterStyle {
       endMorale,
       delta: endMorale - startMorale,
       eventCeiling: ceiling,
+    };
+  }
+
+  applyMotivationDelta(delta, eventCeiling = this.motivationState.max) {
+    const numericDelta = Number(delta);
+    const startMotivation = this.motivationState.current;
+    const ceiling = Number.isFinite(Number(eventCeiling))
+      ? Number(eventCeiling)
+      : Number(this.motivationState.max ?? 5);
+    const endMotivation = applySpChange(
+      startMotivation,
+      numericDelta,
+      this.motivationState.min,
+      ceiling
+    );
+    this.motivationState.current = endMotivation;
+    this._revision += 1;
+
+    return {
+      startMotivation,
+      endMotivation,
+      delta: endMotivation - startMotivation,
+      eventCeiling: ceiling,
+    };
+  }
+
+  setMotivationLevel(level) {
+    const startMotivation = this.motivationState.current;
+    const endMotivation = Math.max(
+      Number(this.motivationState.min ?? 1),
+      Math.min(
+        Number(this.motivationState.max ?? 5),
+        Number.isFinite(Number(level)) ? Number(level) : startMotivation
+      )
+    );
+    this.motivationState.current = endMotivation;
+    this._revision += 1;
+
+    return {
+      startMotivation,
+      endMotivation,
+      delta: endMotivation - startMotivation,
+      eventCeiling: Number(this.motivationState.max ?? 5),
     };
   }
 
@@ -751,6 +832,7 @@ export class CharacterStyle {
       ep: { ...this.ep },
       tokenState: { ...this.tokenState },
       moraleState: { ...this.moraleState },
+      motivationState: { ...this.motivationState },
       isAlive: this.isAlive,
       isBreak: this.isBreak,
       isExtraActive: this.isExtraActive,

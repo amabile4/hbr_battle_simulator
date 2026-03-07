@@ -1054,6 +1054,7 @@ export class HbrDataStore {
     styleId,
     partyIndex,
     initialSP = DEFAULT_INITIAL_SP,
+    initialMotivation = 3,
     spBonus = 0,
     drivePiercePercent = 0,
     normalAttackElements = [],
@@ -1125,6 +1126,7 @@ export class HbrDataStore {
       drivePiercePercent: Number(drivePiercePercent),
       normalAttackElements: Array.isArray(normalAttackElements) ? [...normalAttackElements] : [],
       initialSP: Number(initialSP),
+      initialMotivation: Number(initialMotivation),
       initialEP: Number(ep.initial ?? 0),
       spBonus: Number(spBonus),
       spMin: 0,
@@ -1148,6 +1150,7 @@ export class HbrDataStore {
     const initialSP = options.initialSP ?? DEFAULT_INITIAL_SP;
     const initialSpByPartyIndex = options.initialSpByPartyIndex ?? {};
     const spBonusMap = options.spBonusMap ?? {};
+    const initialMotivationByPartyIndex = options.initialMotivationByPartyIndex ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
     const normalAttackElementsByPartyIndex = options.normalAttackElementsByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
@@ -1158,6 +1161,7 @@ export class HbrDataStore {
         styleId,
         partyIndex: index,
         initialSP: Number(initialSpByPartyIndex[index] ?? initialSP),
+        initialMotivation: Number(initialMotivationByPartyIndex[index] ?? 3),
         spBonus: Number(spBonusMap[index] ?? 0),
         drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
         normalAttackElements: Array.isArray(normalAttackElementsByPartyIndex[index])

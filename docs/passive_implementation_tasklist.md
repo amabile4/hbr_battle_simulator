@@ -46,7 +46,14 @@
   - `AdditionalHitOnSpecifiedSkill` / `AdditionalHitOnExtraSkill` を起点にした士気上昇パッシブも実装済み
   - `AdditionalHitOnKillCount` はエンジン側で実装済み。現状は `action.killCount` を与える形で検証する
   - `consume_type: Morale` と負数 `Morale` にも対応済み
-- [ ] `MotivationLevel`
+- [x] `MotivationLevel`
+  - 共通基盤として `CharacterStyle.motivationState` と `MotivationLevel()` 条件評価は実装済み
+  - シミュレータの初期値ランダムは再現性優先で廃止し、初期値既定は `Lv.3 普通`
+  - キャラクター選択 UI で各キャラごとに `1..5` を選択可能
+  - 選択値は localStorage 保存、`turnPlanBaseSetup`、record snapshot / JSON export に保持
+  - `Motivation` スキルによる明示レベル上書きは実装済み
+  - `OnFirstBattleStart` のランダム付与系は、シミュレータでは手動初期値を優先して no-op として扱う
+  - 未実装は `DP回復で +1` と `被ダメージで -1` のイベントフック
 - [ ] `FireMarkLevel`
 - [ ] `IceMarkLevel`
 - [x] `IsZone`
@@ -180,8 +187,10 @@
 - [x] 士気上昇スキル
 - [x] 士気減少/消費スキル
   - 明示データは未確認だが、負数 `Morale` と `consume_type: Morale` を処理できる状態
-- [ ] やる気上昇スキル
+- [x] やる気上昇スキル
+  - `Motivation` による明示レベル設定は実装済み
 - [ ] やる気減少スキル
+  - `被ダメージで -1` のようなイベント起点は未実装
 - [ ] 火の印付与スキル
 - [ ] 火の印消費スキル
 - [ ] 氷の印付与スキル

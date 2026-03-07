@@ -652,6 +652,58 @@ test('Morale skill variants resolve low and high morale branches without blockin
   assert.equal(highPreview.actions[0].spCost, 8);
 });
 
+test('MotivationLevel condition can trigger passives from current motivation state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 1,
+          initialMotivation: 5,
+          passives: [
+            {
+              id: 18225,
+              name: 'Motivation Heal',
+              timing: 'OnPlayerTurnStart',
+              condition: 'MotivationLevel()>=4',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(state.party[0].sp.current, 3);
+});
+
+test('掴め栄冠！グランドスラム！ sets all ally motivation levels to 5', () => {
+  const store = getStore();
+  const actorStyleId = findStyleIdBySkillId(store, 46002210);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 20,
+    initialMotivationByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 1 },
+    skillSetsByPartyIndex: {
+      0: [46002210],
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46002210 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.deepEqual(
+    nextState.party.map((member) => member.motivationState.current),
+    [5, 5, 5, 5, 5, 5]
+  );
+  const motivationEvents = committedRecord.actions.flatMap((entry) => entry.motivationChanges ?? []);
+  assert.equal(motivationEvents.some((event) => event.triggerType === 'Motivation' && event.postMotivation === 5), true);
+});
+
 test('AdditionalHitOnSpecifiedSkill can raise morale via passive trigger', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

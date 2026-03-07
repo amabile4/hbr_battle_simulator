@@ -23,6 +23,7 @@ export function createInitializedBattleSnapshot({
   drivePierceByPartyIndex,
   normalAttackElementsByPartyIndex,
   startSpEquipByPartyIndex,
+  initialMotivationByPartyIndex = {},
   initialOdGauge,
   enemyCount,
   enemyNamesByEnemy = {},
@@ -42,6 +43,7 @@ export function createInitializedBattleSnapshot({
   const party = dataStore.buildPartyFromStyleIds(styleIds, {
     initialSP,
     initialSpByPartyIndex,
+    initialMotivationByPartyIndex,
     skillSetsByPartyIndex,
     limitBreakLevelsByPartyIndex,
     drivePierceByPartyIndex,
@@ -86,6 +88,7 @@ export function createInitializedBattleSnapshot({
       drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),
       normalAttackElementsByPartyIndex: structuredClone(normalAttackElementsByPartyIndex),
       startSpEquipByPartyIndex: structuredClone(startSpEquipByPartyIndex),
+      initialMotivationByPartyIndex: structuredClone(initialMotivationByPartyIndex),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
       enemyNamesByEnemy:

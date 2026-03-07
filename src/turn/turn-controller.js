@@ -74,7 +74,7 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   DpRate: Object.freeze({ tier: 'stateful_future', note: 'needs DP current/max state and updates' }),
   Token: Object.freeze({ tier: 'implemented', note: 'current token state is tracked now' }),
   MoraleLevel: Object.freeze({ tier: 'implemented', note: 'current morale state is tracked now' }),
-  MotivationLevel: Object.freeze({ tier: 'stateful_future', note: 'needs motivation state and updates' }),
+  MotivationLevel: Object.freeze({ tier: 'implemented', note: 'current motivation state is tracked now' }),
   FireMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs fire mark level state and updates' }),
   IceMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs ice mark level state and updates' }),
   IsZone: Object.freeze({ tier: 'implemented', note: 'turn state zone state is tracked now' }),
@@ -545,6 +545,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
       return {
         known: true,
         value: Number(member?.moraleState?.current ?? 0),
+      };
+    case 'MotivationLevel':
+      return {
+        known: true,
+        value: Number(member?.motivationState?.current ?? 3),
       };
     case 'IsOverDrive':
       return {
@@ -1185,6 +1190,17 @@ function getMoraleAmount(part) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function getMotivationTargetLevel(part) {
+  const candidates = [part?.value?.[0], part?.power?.[0]];
+  for (const raw of candidates) {
+    const value = Number(raw);
+    if (Number.isFinite(value) && value > 0) {
+      return value;
+    }
+  }
+  return 0;
+}
+
 function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   const events = [];
 
@@ -1338,6 +1354,71 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     }
 
     events.push(...applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry));
+  }
+
+  return events;
+}
+
+function applyMotivationEffectsFromActions(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      if (String(part?.skill_type ?? '').trim() !== 'Motivation') {
+        continue;
+      }
+      const condTexts = [part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+      const targetLevel = getMotivationTargetLevel(part);
+      if (!targetLevel) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      if (targetCharacterIds.length === 0) {
+        continue;
+      }
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        const change = target.setMotivationLevel(targetLevel);
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          source: 'motivation_skill',
+          skillId: skill.skillId,
+          skillName: skill.name,
+          triggerType: 'Motivation',
+          ...change,
+        });
+      }
+    }
   }
 
   return events;
@@ -2840,6 +2921,8 @@ function previewActionEntries(state, sortedActions) {
       endToken: preview.endToken,
       startMorale: preview.startMorale,
       endMorale: preview.endMorale,
+      startMotivation: preview.startMotivation,
+      endMotivation: preview.endMotivation,
       tokenChanges:
         Number(preview.tokenDelta ?? 0) !== 0
           ? [
@@ -2860,6 +2943,18 @@ function previewActionEntries(state, sortedActions) {
                 delta: preview.moraleDelta,
                 preMorale: preview.startMorale,
                 postMorale: preview.endMorale,
+                eventCeiling: Number.POSITIVE_INFINITY,
+              },
+            ]
+          : [],
+      motivationChanges:
+        Number(preview.motivationDelta ?? 0) !== 0
+          ? [
+              {
+                source: 'cost',
+                delta: preview.motivationDelta,
+                preMotivation: preview.startMotivation,
+                postMotivation: preview.endMotivation,
                 eventCeiling: Number.POSITIVE_INFINITY,
               },
             ]
@@ -3064,6 +3159,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       let matched = false;
       let totalDelta = 0;
       let totalEpDelta = 0;
+      let totalMotivationDelta = 0;
       const effectTypes = new Set();
       const unsupportedEffectTypes = new Set();
       const fieldEvents = [];
@@ -3094,7 +3190,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           }
           continue;
         }
-        if (skillType !== 'HealSp' && skillType !== 'HealEp') {
+        if (skillType !== 'HealSp' && skillType !== 'HealEp' && skillType !== 'Motivation') {
           if (skillType) {
             unsupportedEffectTypes.add(skillType);
           }
@@ -3104,12 +3200,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
-        const amount = Number(part?.power?.[0] ?? 0);
-        if (!Number.isFinite(amount) || amount === 0) {
-          continue;
-        }
-
         if (skillType === 'HealEp') {
+          const amount = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
           if (String(part?.target_type ?? '') !== 'Self') {
             unsupportedEffectTypes.add(skillType);
             continue;
@@ -3126,6 +3221,40 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           });
           matched = true;
           totalEpDelta += Number(change?.delta ?? 0);
+          continue;
+        }
+
+        if (skillType === 'Motivation') {
+          const targetLevel = getMotivationTargetLevel(part);
+          if (!targetLevel) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const change = target.setMotivationLevel(targetLevel);
+            matched = true;
+            totalMotivationDelta += Number(change?.delta ?? 0);
+          }
+          continue;
+        }
+
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
 
@@ -3169,6 +3298,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             effectTypes: [...effectTypes],
             spDelta: totalDelta,
             epDelta: totalEpDelta,
+            motivationDelta: totalMotivationDelta,
             fieldEvents,
             unsupportedEffectTypes: [...unsupportedEffectTypes],
           })
@@ -3653,6 +3783,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       endToken: entry.endToken,
       startMorale: entry.startMorale,
       endMorale: entry.endMorale,
+      startMotivation: entry.startMotivation,
+      endMotivation: entry.endMotivation,
       baseRevision: entry._baseRevision,
     });
   }
@@ -3661,6 +3793,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const skillSpEvents = applySkillSpGains(state, previewRecord);
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord);
   const moraleEvents = applyMoraleEffectsFromActions(state, previewRecord);
+  const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
   const fieldStateEvents = applyFieldStateFromActions(state, previewRecord);
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
@@ -3678,6 +3811,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     entry.endEP = member.ep.current;
     entry.endToken = Number(member.tokenState?.current ?? entry.endToken ?? 0);
     entry.endMorale = Number(member.moraleState?.current ?? entry.endMorale ?? 0);
+    entry.endMotivation = Number(member.motivationState?.current ?? entry.endMotivation ?? 3);
 
     const extraChanges = recoveryEvents
       .filter((ev) => ev.characterId === entry.characterId)
@@ -3721,6 +3855,17 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         eventCeiling: ev.eventCeiling,
       }));
     entry.moraleChanges = [...(entry.moraleChanges ?? []), ...extraMoraleChanges];
+    const extraMotivationChanges = motivationEvents
+      .filter((ev) => ev.characterId === entry.characterId)
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        delta: ev.delta,
+        preMotivation: ev.startMotivation,
+        postMotivation: ev.endMotivation,
+        eventCeiling: ev.eventCeiling,
+      }));
+    entry.motivationChanges = [...(entry.motivationChanges ?? []), ...extraMotivationChanges];
     const odEvent = odGaugeGain.events.find(
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );

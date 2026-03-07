@@ -33,6 +33,7 @@ export function toCharacterSnapshot(character) {
     ep: Object.freeze({ ...character.ep }),
     tokenState: Object.freeze({ ...(character.tokenState ?? { current: 0, min: 0, max: 10 }) }),
     moraleState: Object.freeze({ ...(character.moraleState ?? { current: 0, min: 0, max: 10 }) }),
+    motivationState: Object.freeze({ ...(character.motivationState ?? { current: 3, min: 1, max: 5 }) }),
     isAlive: Boolean(character.isAlive),
     isBreak: Boolean(character.isBreak),
     isExtraActive: Boolean(character.isExtraActive),

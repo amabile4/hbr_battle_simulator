@@ -46,6 +46,7 @@ export class BattleAdapterFacade {
       drivePierceByPartyIndex: options.drivePierceByPartyIndex,
       normalAttackElementsByPartyIndex: options.normalAttackElementsByPartyIndex,
       startSpEquipByPartyIndex: options.startSpEquipByPartyIndex,
+      initialMotivationByPartyIndex: options.initialMotivationByPartyIndex,
       initialOdGauge: options.initialOdGauge,
       enemyCount: options.enemyCount,
       enemyNamesByEnemy: options.enemyNamesByEnemy,

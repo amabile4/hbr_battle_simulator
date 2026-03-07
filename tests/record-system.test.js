@@ -92,7 +92,10 @@ test('csv exporter outputs stable character columns by initial party index', () 
 test('json exporter writes all record store fields for file save payload', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);
-  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 10,
+    initialMotivationByPartyIndex: { 0: 5, 1: 1 },
+  });
   const state = createBattleStateFromParty(party);
 
   const preview = previewTurn(state, buildFrontActionDict(party));
@@ -112,6 +115,8 @@ test('json exporter writes all record store fields for file save payload', () =>
   assert.equal(payload.recordStore.records[0].actions.length, committedRecord.actions.length);
   assert.equal(payload.recordStore.records[0].actions[0].skillId, committedRecord.actions[0].skillId);
   assert.equal(payload.recordStore.records[0].actions[0].spChanges[0].eventCeiling, 'Infinity');
+  assert.equal(payload.recordStore.records[0].snapBefore[0].motivationState.current, 5);
+  assert.equal(payload.recordStore.records[0].snapBefore[1].motivationState.current, 1);
   assert.deepEqual(payload.recordStore.records[0].swapEvents, committedRecord.swapEvents);
 });
 

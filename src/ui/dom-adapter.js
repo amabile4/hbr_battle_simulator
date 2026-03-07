@@ -67,6 +67,16 @@ const NORMAL_ATTACK_BELT_OPTIONS = Object.freeze([
 const NORMAL_ATTACK_BELT_LABEL_BY_VALUE = Object.freeze(
   Object.fromEntries(NORMAL_ATTACK_BELT_OPTIONS.map((option) => [String(option.value), String(option.label).replace('属性ベルト: ', '')]))
 );
+const MOTIVATION_OPTIONS = Object.freeze([
+  { value: 1, label: 'やる気: 絶不調(1)' },
+  { value: 2, label: 'やる気: 不調(2)' },
+  { value: 3, label: 'やる気: 普通(3)' },
+  { value: 4, label: 'やる気: 好調(4)' },
+  { value: 5, label: 'やる気: 絶好調(5)' },
+]);
+const MOTIVATION_LABEL_BY_VALUE = Object.freeze(
+  Object.fromEntries(MOTIVATION_OPTIONS.map((option) => [String(option.value), String(option.label).replace(/^やる気:\s*/, '')]))
+);
 const START_SP_EQUIP_DEFAULT = DEFAULT_START_SP_EQUIP_BONUS;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
@@ -299,6 +309,11 @@ function hasTokenPassiveSupport(member) {
 
 function hasVisibleMoraleState(member) {
   return Number(member?.moraleState?.current ?? 0) > 0;
+}
+
+function formatMotivationLabel(value) {
+  const key = String(Number(value));
+  return MOTIVATION_LABEL_BY_VALUE[key] ?? `普通(3)`;
 }
 
 function deriveDisplayedOdTurn(turnState) {
@@ -708,6 +723,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.updateSlotSummary(slot);
       }
 
+      if (target.matches('[data-role="motivation-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateSlotSummary(slot);
+      }
+
       if (target.matches('[data-role="selection-slot-select"]')) {
         const slot = this.getSelectedSelectionSlotIndex();
         this.renderSelectionSlotPreview(slot);
@@ -1009,6 +1029,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         }
         normalAttackBeltSelect.appendChild(option);
       }
+      const motivationSelect = this.doc.createElement('select');
+      motivationSelect.setAttribute('data-role', 'motivation-select');
+      motivationSelect.setAttribute('data-slot', String(i));
+      for (const optionDef of MOTIVATION_OPTIONS) {
+        const option = this.doc.createElement('option');
+        option.value = String(optionDef.value);
+        option.textContent = optionDef.label;
+        if (Number(optionDef.value) === 3) {
+          option.selected = true;
+        }
+        motivationSelect.appendChild(option);
+      }
 
       const skillChecklist = this.doc.createElement('div');
       skillChecklist.setAttribute('data-role', 'skill-checklist');
@@ -1021,6 +1053,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       wrapper.appendChild(drivePierceSelect);
       wrapper.appendChild(startSpEquipSelect);
       wrapper.appendChild(normalAttackBeltSelect);
+      wrapper.appendChild(motivationSelect);
       wrapper.appendChild(skillChecklist);
 
       const summary = this.doc.createElement('div');
@@ -1173,6 +1206,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const normalAttackBeltSelect = this.root.querySelector(
         `[data-role="normal-attack-belt-select"][data-slot="${i}"]`
       );
+      const motivationSelect = this.root.querySelector(
+        `[data-role="motivation-select"][data-slot="${i}"]`
+      );
       const checkedSkillIds = this.getCheckedSkillIdsForSlot(i) ?? [];
       partySelections.push({
         characterLabel: String(charSelect?.value ?? ''),
@@ -1181,6 +1217,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         drivePiercePercent: toInt(drivePierceSelect?.value, 0),
         startSpEquipBonus: toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT),
         normalAttackBelt: String(normalAttackBeltSelect?.value ?? ''),
+        initialMotivation: toInt(motivationSelect?.value, 3),
         checkedSkillIds,
       });
     }
@@ -1289,6 +1326,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if ((normalAttackBeltSelect?.value ?? '') !== beforeNormalAttackBelt) {
         changedCount += 1;
       }
+      const motivationSelect = this.root.querySelector(
+        `[data-role="motivation-select"][data-slot="${i}"]`
+      );
+      const beforeMotivation = motivationSelect?.value ?? '';
+      const requestedMotivation = Math.max(1, Math.min(5, toInt(row.initialMotivation, 3)));
+      if (
+        motivationSelect &&
+        [...motivationSelect.options].some((opt) => Number(opt.value) === requestedMotivation)
+      ) {
+        motivationSelect.value = String(requestedMotivation);
+      } else if (motivationSelect) {
+        motivationSelect.value = '3';
+      }
+      if ((motivationSelect?.value ?? '') !== beforeMotivation) {
+        changedCount += 1;
+      }
 
       this.populateSkillChecklist(i, styleSelect?.value ?? '', row.checkedSkillIds ?? []);
       this.populatePassiveList(i, styleSelect?.value ?? '');
@@ -1389,7 +1442,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const row = rows[i] ?? {};
       lines.push(
         `P${i + 1}: ${row.characterLabel ?? '-'} / style=${row.styleId ?? '-'} / ` +
-        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
+        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / Motivation=${formatMotivationLabel(row.initialMotivation ?? 3)} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
       );
     }
     lines.push(
@@ -1617,6 +1670,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return out;
   }
 
+  readInitialMotivationMapFromDom() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const select = this.root.querySelector(`[data-role="motivation-select"][data-slot="${i}"]`);
+      out[i] = Math.max(1, Math.min(5, toInt(select?.value, 3)));
+    }
+    return out;
+  }
+
   updateSlotSummary(slotIndex) {
     const summary = this.root.querySelector(`[data-role="slot-summary"][data-slot="${slotIndex}"]`);
     if (!summary) {
@@ -1651,12 +1713,16 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       `[data-role="normal-attack-belt-select"][data-slot="${slotIndex}"]`
     );
     const normalAttackBelt = String(normalAttackBeltSelect?.value ?? '').trim();
+    const motivationSelect = this.root.querySelector(
+      `[data-role="motivation-select"][data-slot="${slotIndex}"]`
+    );
+    const initialMotivation = Math.max(1, Math.min(5, toInt(motivationSelect?.value, 3)));
     const startSp = START_SP_BASE + START_SP_FIXED_BONUS + startSpEquipBonus;
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / 通常攻撃属性: ${formatNormalAttackBeltLabel(normalAttackBelt)} / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
+      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / 通常攻撃属性: ${formatNormalAttackBeltLabel(normalAttackBelt)} / やる気初期値: ${formatMotivationLabel(initialMotivation)} / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {
@@ -1674,9 +1740,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
       const character = this.dataStore.getCharacterByLabel(charSelect?.value ?? '');
       const style = this.dataStore.getStyleById(styleSelect?.value ?? '');
+      const motivationSelect = this.root.querySelector(
+        `[data-role="motivation-select"][data-slot="${i}"]`
+      );
+      const motivation = Math.max(1, Math.min(5, toInt(motivationSelect?.value, 3)));
 
       lines.push(
-        `Slot ${i + 1}: ${normalizeName(character?.name ?? charSelect?.value)} / ${style?.name ?? '-'}`
+        `Slot ${i + 1}: ${normalizeName(character?.name ?? charSelect?.value)} / ${style?.name ?? '-'} / やる気=${formatMotivationLabel(motivation)}`
       );
     }
 
@@ -1710,6 +1780,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       options.drivePierceByPartyIndex ?? this.readDrivePierceMapFromDom();
     const normalAttackElementsByPartyIndex =
       options.normalAttackElementsByPartyIndex ?? this.readNormalAttackElementsMapFromDom();
+    const initialMotivationByPartyIndex =
+      options.initialMotivationByPartyIndex ?? this.readInitialMotivationMapFromDom();
     const startSpEquipByPartyIndex =
       options.startSpEquipByPartyIndex ?? this.readStartSpEquipMapFromDom();
     const initialOdGauge =
@@ -1742,6 +1814,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
       normalAttackElementsByPartyIndex,
+      initialMotivationByPartyIndex,
       startSpEquipByPartyIndex,
       initialOdGauge,
       enemyCount: this.readEnemyCountFromDom(),
@@ -3868,6 +3941,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.moraleState.current = Number(snap.moraleState?.current ?? member.moraleState?.current ?? 0);
       member.moraleState.min = Number(snap.moraleState?.min ?? member.moraleState?.min ?? 0);
       member.moraleState.max = Number(snap.moraleState?.max ?? member.moraleState?.max ?? 10);
+      member.motivationState.current = Number(snap.motivationState?.current ?? member.motivationState?.current ?? 3);
+      member.motivationState.min = Number(snap.motivationState?.min ?? member.motivationState?.min ?? 1);
+      member.motivationState.max = Number(snap.motivationState?.max ?? member.motivationState?.max ?? 5);
       member.isAlive = Boolean(snap.isAlive);
       member.isBreak = Boolean(snap.isBreak);
       member.isExtraActive = Boolean(snap.isExtraActive);
@@ -4235,10 +4311,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const moraleText = hasVisibleMoraleState(member)
           ? ` / Morale=${member.moraleState?.current ?? 0}`
           : '';
+        const motivationText = ` / Motivation=${formatMotivationLabel(member.motivationState?.current ?? 3)}`;
         if (String(member.characterId) === 'NNanase') {
-          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}${moraleText}</li>`;
+          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}${moraleText}${motivationText}</li>`;
         }
-        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${tokenText}${moraleText}</li>`;
+        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${tokenText}${moraleText}${motivationText}</li>`;
       })
       .join('');
 
@@ -4579,6 +4656,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       drivePierceByPartyIndex: base.drivePierceByPartyIndex,
       normalAttackElementsByPartyIndex: base.normalAttackElementsByPartyIndex,
       startSpEquipByPartyIndex: base.startSpEquipByPartyIndex,
+      initialMotivationByPartyIndex: base.initialMotivationByPartyIndex,
       initialOdGauge: Number(base.initialOdGauge ?? 0),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(base.enemyNamesByEnemy),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(base.damageRatesByEnemy),
