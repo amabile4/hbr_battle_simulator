@@ -171,8 +171,16 @@ test('enemy config controls update enemy names and damage rates', () => {
   fireRateInput.value = '50';
   fireRateInput.dispatchEvent(new win.Event('change', { bubbles: true }));
 
+  const destructionRateInput = root.querySelector(
+    '[data-role="enemy-destruction-rate-input"][data-enemy-index="1"]'
+  );
+  assert.ok(destructionRateInput);
+  destructionRateInput.value = '250';
+  destructionRateInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
   assert.equal(adapter.state.turnState.enemyState.enemyNamesByEnemy['1'], 'Boss B');
   assert.equal(adapter.state.turnState.enemyState.damageRatesByEnemy['1'].Fire, 50);
+  assert.equal(adapter.state.turnState.enemyState.destructionRateByEnemy['1'], 250);
   assert.ok((root.querySelector('[data-role="enemy-status-target"]')?.textContent ?? '').includes('Boss B'));
 });
 

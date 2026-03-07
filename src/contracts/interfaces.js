@@ -1,4 +1,4 @@
-import { DEFAULT_ENEMY_COUNT } from '../config/battle-defaults.js';
+import { DEFAULT_DESTRUCTION_RATE_PERCENT, DEFAULT_ENEMY_COUNT } from '../config/battle-defaults.js';
 
 export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
 export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
@@ -74,6 +74,7 @@ export function createInitialTurnState() {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
       damageRatesByEnemy: {},
+      destructionRateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
     },
@@ -105,6 +106,16 @@ export function cloneTurnState(turnState) {
                   Object.entries(turnState.enemyState.damageRatesByEnemy).map(([targetIndex, rates]) => [
                     String(targetIndex),
                     rates && typeof rates === 'object' ? { ...rates } : {},
+                  ])
+                )
+              : {},
+          destructionRateByEnemy:
+            turnState.enemyState.destructionRateByEnemy &&
+            typeof turnState.enemyState.destructionRateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.destructionRateByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) ? Number(value) : DEFAULT_DESTRUCTION_RATE_PERCENT,
                   ])
                 )
               : {},
@@ -142,6 +153,7 @@ export function cloneTurnState(turnState) {
           enemyCount: DEFAULT_ENEMY_COUNT,
           statuses: [],
           damageRatesByEnemy: {},
+          destructionRateByEnemy: {},
           enemyNamesByEnemy: {},
           zoneConfigByEnemy: {},
         };

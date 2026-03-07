@@ -4751,6 +4751,40 @@ test('ConquestBikeLevel condition uses fixed internal value 160', () => {
   assert.equal(result.passiveEvents[0]?.passiveName, '制圧戦常勝');
 });
 
+test('DamageRate condition uses manual enemy destruction-rate state only', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 19021,
+              name: '高破壊率警戒',
+              timing: 'OnPlayerTurnStart',
+              condition: 'CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 2;
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'Break', targetIndex: 1, remainingTurns: 0 },
+  ];
+  state.turnState.enemyState.destructionRateByEnemy = {
+    '0': 199,
+    '1': 200,
+  };
+
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(state.party[0].sp.current, 11);
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(result.passiveEvents[0]?.passiveName, '高破壊率警戒');
+});
+
 test('Random condition succeeds by default for A, S, SS, and SSR passives', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

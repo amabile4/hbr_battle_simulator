@@ -51,6 +51,7 @@ export class BattleAdapterFacade {
       enemyCount: options.enemyCount,
       enemyNamesByEnemy: options.enemyNamesByEnemy,
       damageRatesByEnemy: options.damageRatesByEnemy,
+      destructionRateByEnemy: options.destructionRateByEnemy,
       enemyStatuses: options.enemyStatuses,
       enemyZoneConfigByEnemy: options.enemyZoneConfigByEnemy,
       zoneState: options.zoneState,

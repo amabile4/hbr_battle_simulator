@@ -20,7 +20,10 @@
 
 ## Phase 2: 手動入力状態で扱う条件
 
-- [ ] `DamageRate`
+- [x] `DamageRate`
+  - 敵ごとの手動破壊率状態として実装
+  - 既存の敵 `damageRatesByEnemy` は属性/物理の耐性係数であり、`DamageRate()` とは別状態
+  - パッシブ条件評価専用で、ダメージ計算には使わない
 - [x] `Random`
 - [x] `ConquestBikeLevel`
   - 現在は固定値 `160` を返す実装

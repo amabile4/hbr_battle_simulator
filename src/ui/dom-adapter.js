@@ -125,6 +125,8 @@ function normalizeEnemyStatusForUi(status) {
   };
 }
 
+// Enemy damage-rate coefficients represent physical/element resistance and weakness,
+// not the separate "DamageRate()" destruction-rate condition.
 function normalizeEnemyDamageRatesByEnemy(value) {
   if (!value || typeof value !== 'object') {
     return {};
@@ -133,6 +135,22 @@ function normalizeEnemyDamageRatesByEnemy(value) {
     Object.entries(value).map(([targetIndex, rates]) => [
       String(targetIndex),
       rates && typeof rates === 'object' ? { ...rates } : {},
+    ])
+  );
+}
+
+function normalizeEnemyResistanceRatesByEnemy(value) {
+  return normalizeEnemyDamageRatesByEnemy(value);
+}
+
+function normalizeEnemyDestructionRateByEnemy(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([targetIndex, rate]) => [
+      String(targetIndex),
+      Number.isFinite(Number(rate)) ? Number(rate) : DEFAULT_ENEMY_DESTRUCTION_RATE_UI_VALUE,
     ])
   );
 }
@@ -200,7 +218,10 @@ const ENEMY_DAMAGE_RATE_FIELDS = Object.freeze([
   { key: 'Light', label: '光' },
 ]);
 
+// These are enemy resistance/weakness coefficients. They are distinct from
+// destruction rate, which is handled separately as 破壊率.
 const DEFAULT_ENEMY_DAMAGE_RATE_UI_VALUE = 100;
+const DEFAULT_ENEMY_DESTRUCTION_RATE_UI_VALUE = 100;
 
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
@@ -829,6 +850,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const damageKey = String(target.getAttribute('data-damage-key') ?? '').trim();
         if (targetIndex >= 0 && damageKey) {
           this.applyEnemyDamageRateFromDom(targetIndex, damageKey, target.value);
+        }
+      }
+
+      if (target.matches('[data-role="enemy-destruction-rate-input"]')) {
+        const targetIndex = toInt(target.getAttribute('data-enemy-index'), -1);
+        if (targetIndex >= 0) {
+          this.applyEnemyDestructionRateFromDom(targetIndex, target.value);
         }
       }
 
@@ -2255,6 +2283,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
       damageRatesByEnemy: {},
+      destructionRateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
     };
@@ -2266,12 +2295,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         .map((status) => normalizeEnemyStatusForUi(status))
       : [];
     const damageRatesByEnemy = normalizeEnemyDamageRatesByEnemy(current.damageRatesByEnemy);
+    const destructionRateByEnemy = normalizeEnemyDestructionRateByEnemy(current.destructionRateByEnemy);
     const enemyNamesByEnemy = normalizeEnemyNamesByEnemy(current.enemyNamesByEnemy);
     const zoneConfigByEnemy = normalizeEnemyZoneConfigByEnemy(current.zoneConfigByEnemy);
     this.state.turnState.enemyState = {
       enemyCount,
       statuses,
       damageRatesByEnemy,
+      destructionRateByEnemy,
       enemyNamesByEnemy,
       zoneConfigByEnemy,
     };
@@ -2299,6 +2330,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const enemyCount = this.readEnemyCountFromDom();
     const enemyNamesByEnemy = normalizeEnemyNamesByEnemy(this.state?.turnState?.enemyState?.enemyNamesByEnemy);
     const damageRatesByEnemy = normalizeEnemyDamageRatesByEnemy(this.state?.turnState?.enemyState?.damageRatesByEnemy);
+    const destructionRateByEnemy = normalizeEnemyDestructionRateByEnemy(
+      this.state?.turnState?.enemyState?.destructionRateByEnemy
+    );
     const zoneConfigByEnemy = normalizeEnemyZoneConfigByEnemy(this.state?.turnState?.enemyState?.zoneConfigByEnemy);
     container.innerHTML = '';
 
@@ -2322,6 +2356,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       row.appendChild(nameLabel);
 
       const enemyRates = damageRatesByEnemy[String(i)] ?? {};
+      const destructionRate = Number(
+        destructionRateByEnemy[String(i)] ?? DEFAULT_ENEMY_DESTRUCTION_RATE_UI_VALUE
+      );
       const zoneConfig = zoneConfigByEnemy[String(i)] ?? { enabled: false, type: 'Fire', remainingTurns: 8 };
       for (const field of ENEMY_DAMAGE_RATE_FIELDS) {
         const label = this.doc.createElement('label');
@@ -2341,6 +2378,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         label.appendChild(input);
         row.appendChild(label);
       }
+
+      const destructionLabel = this.doc.createElement('label');
+      destructionLabel.textContent = '破壊率 ';
+      const destructionInput = this.doc.createElement('input');
+      destructionInput.type = 'number';
+      destructionInput.step = '1';
+      destructionInput.min = '0';
+      destructionInput.value = String(destructionRate);
+      destructionInput.setAttribute('data-role', 'enemy-destruction-rate-input');
+      destructionInput.setAttribute('data-enemy-index', String(i));
+      destructionLabel.appendChild(destructionInput);
+      row.appendChild(destructionLabel);
 
       const zoneEnabledLabel = this.doc.createElement('label');
       const zoneEnabled = this.doc.createElement('input');
@@ -2461,6 +2510,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount,
       statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
       enemyNamesByEnemy: next,
       zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
@@ -2487,6 +2539,38 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount,
       statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
       damageRatesByEnemy: nextRates,
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
+    };
+    this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
+    this.writePreviewOutput('');
+    this.renderActionSelectors();
+    this.renderEnemyStatusControls();
+    this.renderEnemyConfigControls();
+    this.renderOdControls();
+  }
+
+  applyEnemyDestructionRateFromDom(targetIndex, rawValue) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    this.syncEnemyStateFromDom();
+    const enemyCount = this.readEnemyCountFromDom();
+    if (targetIndex < 0 || targetIndex >= enemyCount) {
+      return;
+    }
+    const nextRates = normalizeEnemyDestructionRateByEnemy(this.state.turnState.enemyState?.destructionRateByEnemy);
+    const parsed = Number(rawValue);
+    nextRates[String(targetIndex)] = Number.isFinite(parsed) ? parsed : DEFAULT_ENEMY_DESTRUCTION_RATE_UI_VALUE;
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      destructionRateByEnemy: nextRates,
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
@@ -2548,6 +2632,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount: this.readEnemyCountFromDom(),
       statuses: nextStatuses,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
@@ -2594,6 +2681,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount: this.readEnemyCountFromDom(),
       statuses: nextStatuses,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
@@ -2630,6 +2720,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount,
       statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       zoneConfigByEnemy: next,
     };
@@ -3156,6 +3249,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount,
       statuses: next,
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
@@ -3188,6 +3284,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         ? this.state.turnState.enemyState.statuses
         : [],
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(next),
       zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
@@ -3224,6 +3323,46 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         ? this.state.turnState.enemyState.statuses
         : [],
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(next),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
+    };
+    this.renderEnemyConfigControls();
+  }
+
+  applyScenarioEnemyResistanceRates(enemyResistanceRates = {}) {
+    this.applyScenarioEnemyDamageRates(enemyResistanceRates);
+  }
+
+  applyScenarioEnemyDestructionRates(enemyDestructionRates = {}) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    const enemyCount = this.readEnemyCountFromDom();
+    const next = {};
+    const assignRate = (targetIndex, rate) => {
+      if (targetIndex < 0 || targetIndex >= enemyCount) {
+        return;
+      }
+      const parsed = Number(rate);
+      next[String(targetIndex)] = Number.isFinite(parsed) ? parsed : DEFAULT_ENEMY_DESTRUCTION_RATE_UI_VALUE;
+    };
+    if (Array.isArray(enemyDestructionRates)) {
+      enemyDestructionRates.forEach((rate, index) => assignRate(index, rate));
+    } else if (enemyDestructionRates && typeof enemyDestructionRates === 'object') {
+      for (const [targetIndex, rate] of Object.entries(enemyDestructionRates)) {
+        assignRate(Math.max(0, Math.min(enemyCount - 1, toInt(targetIndex, 0))), rate);
+      }
+    }
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses: Array.isArray(this.state.turnState.enemyState?.statuses)
+        ? this.state.turnState.enemyState.statuses
+        : [],
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(next),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
     };
@@ -3288,6 +3427,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.initializeBattle(undefined, {
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(setup.enemyNames),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(setup.enemyDamageRates),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(setup.enemyDestructionRates),
       enemyStatuses: Array.isArray(setup.enemyStatuses)
         ? setup.enemyStatuses.map((status) => ({
             statusType: String(status?.statusType ?? ''),
@@ -3306,6 +3446,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Array.isArray(setup.enemyDamageRates) || (setup.enemyDamageRates && typeof setup.enemyDamageRates === 'object')) {
       this.applyScenarioEnemyDamageRates(setup.enemyDamageRates);
+    }
+    if (
+      Array.isArray(setup.enemyDestructionRates) ||
+      (setup.enemyDestructionRates && typeof setup.enemyDestructionRates === 'object')
+    ) {
+      this.applyScenarioEnemyDestructionRates(setup.enemyDestructionRates);
     }
     if (Array.isArray(setup.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(setup.enemyStatuses);
