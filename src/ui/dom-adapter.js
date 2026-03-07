@@ -221,19 +221,28 @@ function formatSkillCostLabel(skill, member = null, state = null) {
   const effectiveSkill =
     state && member ? resolveEffectiveSkillForAction(state, member, skill) : skill;
   const consumeType = String(effectiveSkill?.consumeType ?? effectiveSkill?.consume_type ?? 'Sp');
+  const consumeTypeLower = consumeType.toLowerCase();
   const costRaw = Number(effectiveSkill?.spCost ?? effectiveSkill?.sp_cost ?? 0);
   if (
     member?.characterId === TEZUKA_CHARACTER_ID &&
     Boolean(member?.isReinforcedMode) &&
-    consumeType.toLowerCase() !== 'ep' &&
+    consumeTypeLower !== 'ep' &&
+    consumeTypeLower !== 'token' &&
+    consumeTypeLower !== 'morale' &&
     costRaw !== -1
   ) {
     return 'SP 0';
   }
-  if (consumeType.toLowerCase() !== 'ep' && costRaw === -1) {
+  if (consumeTypeLower === 'token') {
+    return costRaw === -1 ? 'Token ALL' : `Token ${costRaw}`;
+  }
+  if (consumeTypeLower === 'morale') {
+    return costRaw === -1 ? 'Morale ALL' : `Morale ${costRaw}`;
+  }
+  if (consumeTypeLower !== 'ep' && costRaw === -1) {
     return 'SP ALL';
   }
-  return consumeType.toLowerCase() === 'ep' ? `EP ${costRaw}` : `SP ${costRaw}`;
+  return consumeTypeLower === 'ep' ? `EP ${costRaw}` : `SP ${costRaw}`;
 }
 
 function formatGaugePercent(value) {

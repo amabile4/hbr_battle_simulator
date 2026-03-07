@@ -451,6 +451,43 @@ test('Morale skill part raises target morale and clamps at max 10', () => {
   assert.equal(committed.moraleChanges.some((item) => item.triggerType === 'Morale' && item.delta === 1), true);
 });
 
+test('Morale consume_type spends current morale instead of SP', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 9,
+          initialMorale: 6,
+          skills: [
+            {
+              id: 18205,
+              name: 'Morale Burst',
+              sp_cost: 4,
+              consume_type: 'Morale',
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18205, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  assert.equal(preview.actions[0].startSP, 9);
+  assert.equal(preview.actions[0].endSP, 9);
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === 'M1');
+
+  assert.equal(entry.startMorale, 6);
+  assert.equal(entry.endMorale, 2);
+  assert.equal(nextState.party[0].moraleState.current, 2);
+  assert.equal((entry.moraleChanges ?? []).some((item) => item.source === 'cost' && item.delta === -4), true);
+});
+
 test('MoraleLevel condition can trigger passives from current morale state', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -647,6 +684,115 @@ test('AdditionalHitOnExtraSkill can raise morale when restricted skill is used',
   assert.equal(nextState.party[0].moraleState.current, 3);
 });
 
+test('AdditionalHitOnKillCount can raise morale per defeated enemy', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KILL1',
+          characterName: 'KILL1',
+          passives: [
+            {
+              id: 18250,
+              name: '迸る衝動',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnKillCount', target_type: 'Self' },
+                { skill_type: 'Morale', target_type: 'Self', power: [2, 0] },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 18251,
+              name: 'Kill Skill',
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KILL1', skillId: 18251, killCount: 2 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === 'KILL1');
+
+  assert.equal(nextState.party[0].moraleState.current, 4);
+  assert.equal((entry.moraleChanges ?? []).some((item) => item.triggerType === 'MoralePassiveTrigger' && item.delta === 4), true);
+});
+
+test('real kill-count morale passive raises morale for ally party members', () => {
+  const store = getStore();
+  const allyMoralePassive = structuredClone(store.passives.find((passive) => Number(passive?.id) === 100460600));
+  assert.ok(allyMoralePassive);
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'LEAD1',
+          characterName: 'LEAD1',
+          initialSP: 20,
+          passives: [allyMoralePassive],
+          skills: [
+            {
+              id: 18252,
+              name: 'Leader Kill',
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'LEAD1', skillId: 18252, killCount: 2, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(
+    nextState.party.map((member) => Number(member.moraleState?.current ?? 0)),
+    [2, 2, 2, 2, 2, 2]
+  );
+});
+
+test('real token consume skill 星降るシャンデリア・グラス spends 5 token and grants token and morale to all allies', () => {
+  const store = getStore();
+  const actorStyleId = findStyleIdBySkillId(store, 46006511);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], {
+    initialSP: 20,
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+  actor.tokenState.current = 7;
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46006511 },
+  });
+  assert.equal(preview.actions[0].consumeType, 'Token');
+  assert.equal(preview.actions[0].startToken, 7);
+  assert.equal(preview.actions[0].endToken, 2);
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === actor.characterId);
+
+  assert.equal(actor.characterId, 'IrOhshima');
+  assert.equal(nextState.party[0].tokenState.current, 6);
+  assert.deepEqual(
+    nextState.party.map((member) => Number(member.tokenState?.current ?? 0)),
+    [6, 3, 3, 3, 3, 3]
+  );
+  assert.deepEqual(
+    nextState.party.map((member) => Number(member.moraleState?.current ?? 0)),
+    [3, 3, 3, 3, 3, 3]
+  );
+  assert.equal((entry.tokenChanges ?? []).some((item) => item.source === 'cost' && item.delta === -5), true);
+  assert.equal((entry.moraleChanges ?? []).some((item) => item.triggerType === 'Morale' && item.delta === 3), true);
+});
+
 test('orb skill Cheer Up raises self morale for characters without innate morale support', () => {
   const store = getStore();
   const actorStyleId = 1001201; // YIzumi
@@ -700,6 +846,57 @@ test('frontline morale skill raises morale only for front members', () => {
   assert.deepEqual(
     nextState.party.map((member) => Number(member.moraleState?.current ?? 0)),
     [5, 5, 5, 0, 0, 0]
+  );
+});
+
+test('ハートフル・ボマー+ raises morale for all allies', () => {
+  const store = getStore();
+  const actorStyleId = findStyleIdBySkillId(store, 46005461);
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? '');
+  const extra31d = [];
+  const seen31dChars = new Set([actorCharaLabel]);
+  for (const style of store.styles) {
+    if (String(style?.team ?? '') !== '31D') {
+      continue;
+    }
+    const styleId = Number(style.id);
+    const charaLabel = String(style?.chara_label ?? '');
+    if (!Number.isFinite(styleId) || styleId === actorStyleId || seen31dChars.has(charaLabel)) {
+      continue;
+    }
+    seen31dChars.add(charaLabel);
+    extra31d.push(styleId);
+    if (extra31d.length >= 2) {
+      break;
+    }
+  }
+  assert.equal(extra31d.length, 2);
+  const others = getSixUsableStyleIds(store).filter((id) => ![actorStyleId, ...extra31d].includes(Number(id)));
+  const styleIds = [actorStyleId, ...extra31d, ...others.slice(0, 3)];
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [46005461],
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46005461, targetEnemyIndex: 0 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === actor.characterId);
+
+  assert.equal(actor.characterId, 'RMurohushi');
+  assert.deepEqual(
+    nextState.party.map((member) => Number(member.moraleState?.current ?? 0)),
+    [4, 4, 4, 4, 4, 4]
+  );
+  assert.equal(
+    (entry.moraleChanges ?? []).filter((item) => item.triggerType === 'Morale' && item.delta === 4).length,
+    1
   );
 });
 

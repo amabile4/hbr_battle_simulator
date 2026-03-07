@@ -326,21 +326,26 @@ export class CharacterStyle {
       this.characterId === 'STezuka' &&
       this.isReinforcedMode &&
       consumeType !== 'Ep' &&
+      consumeType !== 'Morale' &&
       rawCost !== -1
     ) {
       rawCost = 0;
     }
     const cost = Math.abs(rawCost);
 
-    let deltaSP = consumeType === 'Ep' || consumeType === 'Token' ? 0 : -cost;
+    let deltaSP = consumeType === 'Ep' || consumeType === 'Token' || consumeType === 'Morale' ? 0 : -cost;
     let deltaEP = consumeType === 'Ep' ? -cost : 0;
     let deltaToken = consumeType === 'Token' ? -cost : 0;
+    let deltaMorale = consumeType === 'Morale' ? -cost : 0;
     // HBR特殊値: sp_cost = -1 は「現在SPを全消費」。
-    if (consumeType !== 'Ep' && consumeType !== 'Token' && rawCost === -1) {
+    if (consumeType !== 'Ep' && consumeType !== 'Token' && consumeType !== 'Morale' && rawCost === -1) {
       deltaSP = -startSP;
     }
     if (consumeType === 'Token' && rawCost === -1) {
       deltaToken = -startToken;
+    }
+    if (consumeType === 'Morale' && rawCost === -1) {
+      deltaMorale = -startMorale;
     }
     const endSP = applySpChange(startSP, deltaSP, this.sp.min, Number.POSITIVE_INFINITY);
     const endEP = applySpChange(startEP, deltaEP, this.ep.min, Number.POSITIVE_INFINITY);
@@ -348,6 +353,12 @@ export class CharacterStyle {
       startToken,
       deltaToken,
       this.tokenState.min,
+      Number.POSITIVE_INFINITY
+    );
+    const endMorale = applySpChange(
+      startMorale,
+      deltaMorale,
+      this.moraleState.min,
       Number.POSITIVE_INFINITY
     );
 
@@ -366,11 +377,11 @@ export class CharacterStyle {
       startToken,
       endToken,
       startMorale,
-      endMorale: startMorale,
+      endMorale,
       spDelta: endSP - startSP,
       epDelta: endEP - startEP,
       tokenDelta: endToken - startToken,
-      moraleDelta: 0,
+      moraleDelta: endMorale - startMorale,
     };
   }
 

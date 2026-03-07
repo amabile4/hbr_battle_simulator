@@ -1122,6 +1122,38 @@ test('action selector displays SP ALL for sp_cost -1 skills', () => {
   assert.equal(text.includes('SP ALL'), true);
 });
 
+test('action selector displays Token cost for token consume skills', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `TK${idx + 1}`,
+      characterName: `TK${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `TKS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [{ id: 777002, name: 'Token Burst', label: 'TB2', sp_cost: 5, consume_type: 'Token' }]
+          : [{ id: 777200 + idx, name: 'Normal', label: `N2${idx}`, sp_cost: 0, consume_type: 'Sp' }],
+    })
+  );
+
+  adapter.party = new Party(members);
+  adapter.state = createBattleStateFromParty(adapter.party);
+  adapter.renderActionSelectors();
+
+  const select = root.querySelector('[data-action-slot="0"]');
+  const text = select?.options?.[0]?.textContent ?? '';
+  assert.equal(text.includes('Token 5'), true);
+  assert.equal(text.includes('SP 5'), false);
+});
+
 test('action selector shows target selector for non-HealSp AllySingle skills', () => {
   const store = getStore();
   const { root } = createRoot();

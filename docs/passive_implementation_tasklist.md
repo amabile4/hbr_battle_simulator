@@ -44,7 +44,8 @@
   - `CountBC(... MoraleLevel() >= N ...)` の player 条件評価も実装済み
   - `Morale` スキルによる士気上昇、`SkillCondition` / `iuc_cond` を含む士気依存スキル分岐は実装済み
   - `AdditionalHitOnSpecifiedSkill` / `AdditionalHitOnExtraSkill` を起点にした士気上昇パッシブも実装済み
-  - `AdditionalHitOnKillCount` は敵撃破 UI がないため、現時点では pending
+  - `AdditionalHitOnKillCount` はエンジン側で実装済み。現状は `action.killCount` を与える形で検証する
+  - `consume_type: Morale` と負数 `Morale` にも対応済み
 - [ ] `MotivationLevel`
 - [ ] `FireMarkLevel`
 - [ ] `IceMarkLevel`
@@ -177,7 +178,8 @@
 - [x] トークン付与スキル
 - [x] トークン消費スキル
 - [x] 士気上昇スキル
-- [ ] 士気減少スキル
+- [x] 士気減少/消費スキル
+  - 明示データは未確認だが、負数 `Morale` と `consume_type: Morale` を処理できる状態
 - [ ] やる気上昇スキル
 - [ ] やる気減少スキル
 - [ ] 火の印付与スキル

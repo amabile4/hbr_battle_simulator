@@ -1050,16 +1050,31 @@ function applyTokenEffectsFromActions(state, previewRecord) {
       if (!amount) {
         continue;
       }
-      const change = actor.applyTokenDelta(amount);
-      events.push({
-        actorCharacterId: actor.characterId,
-        characterId: actor.characterId,
-        source: 'token_skill',
-        skillId: skill.skillId,
-        skillName: skill.name,
-        triggerType: 'TokenSet',
-        ...change,
-      });
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        const change = target.applyTokenDelta(amount);
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          source: 'token_skill',
+          skillId: skill.skillId,
+          skillName: skill.name,
+          triggerType: 'TokenSet',
+          ...change,
+        });
+      }
     }
 
     if (skillHasDamageParts(skill, state, actor)) {
@@ -1180,6 +1195,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
     }
 
     const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+    let triggerMultiplier = 0;
     const triggerMatched = parts.some((part) => {
       const skillType = String(part?.skill_type ?? '').trim();
       const conditions = [passive?.condition, part?.cond, part?.hit_condition]
@@ -1201,7 +1217,16 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         );
       }
       if (skillType === 'AdditionalHitOnExtraSkill') {
+        triggerMultiplier = 1;
         return Boolean(skill?.isRestricted);
+      }
+      if (skillType === 'AdditionalHitOnKillCount') {
+        const killCount = Math.max(0, Number(actionEntry?.killCount ?? 0));
+        if (killCount > 0) {
+          triggerMultiplier = killCount;
+          return true;
+        }
+        return false;
       }
       return false;
     });
@@ -1214,7 +1239,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       if (String(part?.skill_type ?? '').trim() !== 'Morale') {
         continue;
       }
-      const amount = getMoraleAmount(part);
+      const amount = getMoraleAmount(part) * Math.max(1, triggerMultiplier || 1);
       if (!amount) {
         continue;
       }
@@ -2845,6 +2870,7 @@ function previewActionEntries(state, sortedActions) {
         ...damageRateUpPerToken.matchedPassives,
       ],
       breakHitCount: Number(action?.breakHitCount ?? 0),
+      killCount: Number(action?.killCount ?? 0),
       targetCharacterId: String(action?.targetCharacterId ?? ''),
       targetEnemyIndex:
         Number.isFinite(Number(action?.targetEnemyIndex)) ? Number(action.targetEnemyIndex) : null,
@@ -3620,6 +3646,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       endEP: entry.endEP,
       startToken: entry.startToken,
       endToken: entry.endToken,
+      startMorale: entry.startMorale,
+      endMorale: entry.endMorale,
       baseRevision: entry._baseRevision,
     });
   }
