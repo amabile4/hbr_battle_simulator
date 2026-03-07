@@ -73,7 +73,7 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   Random: Object.freeze({ tier: 'manual_state', note: 'manual / debug random policy' }),
   DpRate: Object.freeze({ tier: 'stateful_future', note: 'needs DP current/max state and updates' }),
   Token: Object.freeze({ tier: 'implemented', note: 'current token state is tracked now' }),
-  MoraleLevel: Object.freeze({ tier: 'stateful_future', note: 'needs morale state and updates' }),
+  MoraleLevel: Object.freeze({ tier: 'implemented', note: 'current morale state is tracked now' }),
   MotivationLevel: Object.freeze({ tier: 'stateful_future', note: 'needs motivation state and updates' }),
   FireMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs fire mark level state and updates' }),
   IceMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs ice mark level state and updates' }),
@@ -540,6 +540,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
       return {
         known: true,
         value: Number(member?.tokenState?.current ?? 0),
+      };
+    case 'MoraleLevel':
+      return {
+        known: true,
+        value: Number(member?.moraleState?.current ?? 0),
       };
     case 'IsOverDrive':
       return {
@@ -1160,6 +1165,159 @@ function applyTokenEffectsFromActions(state, previewRecord) {
   return events;
 }
 
+function getMoraleAmount(part) {
+  const value = Number(part?.power?.[0] ?? part?.value?.[0] ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
+  const events = [];
+
+  for (const passive of actor.passives ?? []) {
+    const timing = String(passive?.timing ?? '').trim();
+    if (timing !== 'OnFirstBattleStart' && timing !== 'OnBattleStart') {
+      continue;
+    }
+
+    const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+    const triggerMatched = parts.some((part) => {
+      const skillType = String(part?.skill_type ?? '').trim();
+      const conditions = [passive?.condition, part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const matchedConditions = conditions.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!matchedConditions) {
+        return false;
+      }
+      if (skillType === 'AdditionalHitOnSpecifiedSkill') {
+        const targetSkill = part?.strval?.find?.((item) => item && typeof item === 'object') ?? null;
+        const targetSkillId = Number(targetSkill?.id ?? NaN);
+        const targetSkillLabel = String(targetSkill?.label ?? '').trim();
+        return (
+          (Number.isFinite(targetSkillId) && Number(skill?.skillId ?? 0) === targetSkillId) ||
+          (targetSkillLabel && String(skill?.label ?? '') === targetSkillLabel)
+        );
+      }
+      if (skillType === 'AdditionalHitOnExtraSkill') {
+        return Boolean(skill?.isRestricted);
+      }
+      return false;
+    });
+
+    if (!triggerMatched) {
+      continue;
+    }
+
+    for (const part of parts) {
+      if (String(part?.skill_type ?? '').trim() !== 'Morale') {
+        continue;
+      }
+      const amount = getMoraleAmount(part);
+      if (!amount) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        const change = target.applyMoraleDelta(amount);
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          source: 'morale_passive',
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          triggerType: 'MoralePassiveTrigger',
+          skillId: skill.skillId,
+          skillName: skill.name,
+          ...change,
+        });
+      }
+    }
+  }
+
+  return events;
+}
+
+function applyMoraleEffectsFromActions(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      if (String(part?.skill_type ?? '').trim() !== 'Morale') {
+        continue;
+      }
+      const condTexts = [part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+      const amount = getMoraleAmount(part);
+      if (!amount) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      if (targetCharacterIds.length === 0) {
+        continue;
+      }
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        const change = target.applyMoraleDelta(amount);
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          source: 'morale_skill',
+          skillId: skill.skillId,
+          skillName: skill.name,
+          triggerType: 'Morale',
+          ...change,
+        });
+      }
+    }
+
+    events.push(...applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry));
+  }
+
+  return events;
+}
+
 export function applyEnemyAttackTokenTriggers(state, targetCharacterIds = []) {
   const events = [];
   const ids = [...new Set((Array.isArray(targetCharacterIds) ? targetCharacterIds : [targetCharacterIds]).map((id) => String(id ?? '').trim()).filter(Boolean))];
@@ -1299,6 +1457,22 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
         m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)$/);
         if (m) {
           const resolved = resolveSingleArgConditionValue(m[1], m[2], state, candidate);
+          if (!resolved.known) {
+            return false;
+          }
+          return Boolean(Number(resolved.value));
+        }
+        m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
+        if (m) {
+          const resolved = resolveZeroArgConditionValue(m[1], state, candidate, null, null);
+          if (!resolved.known) {
+            return false;
+          }
+          return compareNumbers(Number(resolved.value), m[2], Number(m[3]));
+        }
+        m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(\)$/);
+        if (m) {
+          const resolved = resolveZeroArgConditionValue(m[1], state, candidate, null, null);
           if (!resolved.known) {
             return false;
           }
@@ -1512,6 +1686,10 @@ function resolveEffectiveSkillVariant(skill, state, member) {
       consumeType: String(resolveSkillScalarField(skillLike, ['consumeType', 'consume_type'], 'Sp')),
       targetType: String(resolveSkillScalarField(skillLike, ['targetType', 'target_type'], '')),
       hitCount: Number(resolveSkillScalarField(skillLike, ['hitCount', 'hit_count'], 0)),
+      cond: String(resolveSkillScalarField(skillLike, ['cond'], '')),
+      iucCond: String(resolveSkillScalarField(skillLike, ['iucCond', 'iuc_cond'], '')),
+      overwriteCond: String(resolveSkillScalarField(skillLike, ['overwriteCond', 'overwrite_cond'], '')),
+      isRestricted: Number(resolveSkillScalarField(skillLike, ['isRestricted', 'is_restricted'], 0)) === 1,
       parts: [],
     };
 
@@ -1538,6 +1716,10 @@ function resolveEffectiveSkillVariant(skill, state, member) {
         consumeType: nested.consumeType,
         targetType: nested.targetType,
         hitCount: nested.hitCount,
+        cond: nested.cond,
+        iucCond: nested.iucCond,
+        overwriteCond: nested.overwriteCond,
+        isRestricted: nested.isRestricted,
       };
       resolved.parts.push(...nested.parts);
     }
@@ -1552,6 +1734,10 @@ function resolveEffectiveSkillVariant(skill, state, member) {
     consumeType: String(effective.consumeType),
     targetType: String(effective.targetType),
     hitCount: Number(effective.hitCount),
+    cond: String(effective.cond),
+    iucCond: String(effective.iucCond),
+    overwriteCond: String(effective.overwriteCond),
+    isRestricted: Boolean(effective.isRestricted),
     parts: effective.parts,
   };
 }
@@ -2528,17 +2714,19 @@ function validateActionDict(state, actions, options = {}) {
       throw new Error(`Skill ${skill.skillId} is not usable in extra turn.`);
     }
 
+    const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
+
     if (!skipSkillConditions) {
       const skillConditions = [
-        { label: 'cond', expression: skill.cond },
-        { label: 'iuc_cond', expression: skill.iucCond },
+        { label: 'cond', expression: effectiveSkill?.cond ?? skill.cond },
+        { label: 'iuc_cond', expression: effectiveSkill?.iucCond ?? skill.iucCond },
       ];
       for (const condition of skillConditions) {
         const expr = String(condition.expression ?? '').trim();
         if (!expr) {
           continue;
         }
-        const evaluated = evaluateConditionExpression(expr, state, member, skill, action);
+        const evaluated = evaluateConditionExpression(expr, state, member, effectiveSkill, action);
         if (evaluated.knownCount > 0 && !evaluated.result) {
           throw new Error(
             `Skill ${skill.skillId} cannot be used because ${condition.label} is not satisfied.`
@@ -2620,6 +2808,8 @@ function previewActionEntries(state, sortedActions) {
       endEP: preview.endEP,
       startToken: preview.startToken,
       endToken: preview.endToken,
+      startMorale: preview.startMorale,
+      endMorale: preview.endMorale,
       tokenChanges:
         Number(preview.tokenDelta ?? 0) !== 0
           ? [
@@ -2628,6 +2818,18 @@ function previewActionEntries(state, sortedActions) {
                 delta: preview.tokenDelta,
                 preToken: preview.startToken,
                 postToken: preview.endToken,
+                eventCeiling: Number.POSITIVE_INFINITY,
+              },
+            ]
+          : [],
+      moraleChanges:
+        Number(preview.moraleDelta ?? 0) !== 0
+          ? [
+              {
+                source: 'cost',
+                delta: preview.moraleDelta,
+                preMorale: preview.startMorale,
+                postMorale: preview.endMorale,
                 eventCeiling: Number.POSITIVE_INFINITY,
               },
             ]
@@ -3425,6 +3627,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
   const skillSpEvents = applySkillSpGains(state, previewRecord);
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord);
+  const moraleEvents = applyMoraleEffectsFromActions(state, previewRecord);
   const fieldStateEvents = applyFieldStateFromActions(state, previewRecord);
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
@@ -3441,6 +3644,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     entry.endSP = member.sp.current;
     entry.endEP = member.ep.current;
     entry.endToken = Number(member.tokenState?.current ?? entry.endToken ?? 0);
+    entry.endMorale = Number(member.moraleState?.current ?? entry.endMorale ?? 0);
 
     const extraChanges = recoveryEvents
       .filter((ev) => ev.characterId === entry.characterId)
@@ -3473,6 +3677,17 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         eventCeiling: ev.eventCeiling,
       }));
     entry.tokenChanges = [...(entry.tokenChanges ?? []), ...extraTokenChanges];
+    const extraMoraleChanges = moraleEvents
+      .filter((ev) => ev.characterId === entry.characterId)
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        delta: ev.delta,
+        preMorale: ev.startMorale,
+        postMorale: ev.endMorale,
+        eventCeiling: ev.eventCeiling,
+      }));
+    entry.moraleChanges = [...(entry.moraleChanges ?? []), ...extraMoraleChanges];
     const odEvent = odGaugeGain.events.find(
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );

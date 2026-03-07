@@ -418,6 +418,291 @@ test('OverDrivePointUpByToken increases od gauge gain by token count', () => {
   assert.equal(entry.damageContext.overDrivePointUpByTokenTotalPercent, 30);
 });
 
+test('Morale skill part raises target morale and clamps at max 10', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18200,
+              name: 'Morale Up',
+              sp_cost: 0,
+              target_type: 'AllyAll',
+              parts: [{ skill_type: 'Morale', target_type: 'AllyAll', power: [2, 0] }],
+            },
+          ],
+        }
+      : idx === 1
+        ? { initialMorale: 9 }
+        : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18200 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party[0].moraleState.current, 2);
+  assert.equal(nextState.party[1].moraleState.current, 10);
+  const committed = committedRecord.actions.find((item) => item.characterId === 'M2');
+  assert.equal(committed.moraleChanges.some((item) => item.triggerType === 'Morale' && item.delta === 1), true);
+});
+
+test('MoraleLevel condition can trigger passives from current morale state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 1,
+          initialMorale: 6,
+          passives: [
+            {
+              id: 18210,
+              name: 'Morale Heal',
+              timing: 'OnPlayerTurnStart',
+              condition: 'MoraleLevel()>=6',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(state.party[0].sp.current, 3);
+});
+
+test('MoraleLevel works inside CountBC player predicates', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'EAoi',
+          characterName: '青井',
+          initialSP: 1,
+          initialMorale: 6,
+          passives: [
+            {
+              id: 18211,
+              name: '夢中',
+              timing: 'OnPlayerTurnStart',
+              condition: 'CountBC(IsPlayer()==1&&IsCharacter(EAoi)==1&&MoraleLevel()>=6)>0',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(state.party[0].sp.current, 3);
+});
+
+test('Morale skill variants resolve low and high morale branches without blocking use', () => {
+  const createParty = (morale) =>
+    createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: 'KHiiragi',
+            characterName: '柊',
+            initialMorale: morale,
+            skills: [
+              {
+                id: 18220,
+                name: '邪眼・マリンスラッシュ',
+                sp_cost: 16,
+                target_type: 'All',
+                iuc_cond: 'MoraleLevel()>=6',
+                overwrite_cond: 'CountBC(IsPlayer()==1&&IsCharacter(KHiiragi)==1&&MoraleLevel()>=6)>0',
+                parts: [
+                  {
+                    skill_type: 'SkillCondition',
+                    target_type: 'All',
+                    cond: 'CountBC(IsPlayer()==1&&IsCharacter(KHiiragi)==1&&MoraleLevel()>=6)>0',
+                    strval: [
+                      {
+                        id: 18221,
+                        name: 'high',
+                        sp_cost: 8,
+                        target_type: 'All',
+                        parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+                      },
+                      {
+                        id: 18222,
+                        name: 'low',
+                        sp_cost: 16,
+                        target_type: 'All',
+                        parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        : {}
+    );
+
+  const lowPreview = previewTurn(createBattleStateFromParty(createParty(0)), {
+    0: { characterId: 'KHiiragi', skillId: 18220 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  assert.equal(lowPreview.actions[0].spCost, 16);
+
+  const highPreview = previewTurn(createBattleStateFromParty(createParty(6)), {
+    0: { characterId: 'KHiiragi', skillId: 18220 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  assert.equal(highPreview.actions[0].spCost, 8);
+});
+
+test('AdditionalHitOnSpecifiedSkill can raise morale via passive trigger', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'EAoi',
+          characterName: '青井',
+          passives: [
+            {
+              id: 18230,
+              name: 'ムードメーカー',
+              timing: 'OnFirstBattleStart',
+              condition: '',
+              parts: [
+                {
+                  skill_type: 'AdditionalHitOnSpecifiedSkill',
+                  target_type: 'Self',
+                  strval: [-1, { id: 18231, label: 'EAoiSkillX', name: 'Trigger Skill' }],
+                },
+                { skill_type: 'Morale', target_type: 'AllyAll', power: [2, 0] },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 18231,
+              label: 'EAoiSkillX',
+              name: 'Trigger Skill',
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'EAoi', skillId: 18231, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.party[0].moraleState.current, 2);
+  assert.equal(nextState.party[1].moraleState.current, 2);
+});
+
+test('AdditionalHitOnExtraSkill can raise morale when restricted skill is used', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 18240,
+              name: 'Extra Morale',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self' },
+                { skill_type: 'Morale', target_type: 'Self', power: [3, 0] },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 18241,
+              name: 'EX Skill',
+              is_restricted: 1,
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18241, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.party[0].moraleState.current, 3);
+});
+
+test('orb skill Cheer Up raises self morale for characters without innate morale support', () => {
+  const store = getStore();
+  const actorStyleId = 1001201; // YIzumi
+  const others = getSixUsableStyleIds(store).filter((id) => store.getStyleById(id)?.chara_label !== 'YIzumi');
+  const styleIds = [actorStyleId, ...others.slice(0, 5)];
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [46300018], // [オーブ] チアーアップ
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+  assert.equal(actor.characterId, 'YIzumi');
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46300018 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party[0].moraleState.current, 2);
+  assert.equal(nextState.party.slice(1).every((member) => Number(member.moraleState?.current ?? 0) === 0), true);
+  assert.equal(
+    (committedRecord.actions.find((entry) => entry.characterId === actor.characterId)?.moraleChanges ?? []).some(
+      (item) => item.triggerType === 'Morale' && item.delta === 2
+    ),
+    true
+  );
+});
+
+test('frontline morale skill raises morale only for front members', () => {
+  const store = getStore();
+  const actorStyleId = 1008303; // IRedmayne
+  const others = getSixUsableStyleIds(store).filter((id) => store.getStyleById(id)?.chara_label !== 'IRedmayne');
+  const styleIds = [actorStyleId, ...others.slice(0, 5)];
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [46008314], // 背水のギャンビット
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+  assert.equal(actor.characterId, 'IRedmayne');
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46008314, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(
+    nextState.party.map((member) => Number(member.moraleState?.current ?? 0)),
+    [5, 5, 5, 0, 0, 0]
+  );
+});
+
 test('preemptive od returns to same normal turn context after remaining actions consumed', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);
@@ -497,8 +782,15 @@ test('condition support matrix classifies passive conditions by planned tier', (
       condition: 'IsNatureElement(Fire)==1 && IsCharacter(IIshii)==1',
       parts: [],
     },
+    {
+      id: 4,
+      name: 'Support D',
+      condition: 'MoraleLevel()>=6',
+      parts: [],
+    },
   ]);
 
+  assert.deepEqual(report.summary.implemented, ['IsFront', 'MoraleLevel']);
   assert.deepEqual(report.summary.ready_now, ['IsCharacter', 'IsNatureElement']);
   assert.deepEqual(report.summary.manual_state, ['ConquestBikeLevel', 'Random']);
   assert.deepEqual(report.summary.stateful_future, ['DpRate']);

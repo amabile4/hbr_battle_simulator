@@ -30,7 +30,7 @@
 
 - [ ] `DpRate`
   - 実装計画は [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md) を参照
-- [ ] `Token`
+- [x] `Token`
   - 共通基盤として `CharacterStyle.tokenState`、`Token()`、`TokenSet`、`consume_type: Token` は実装済み
   - 月城最中系の `TokenSetByAttacking`、マリア系の `TokenSetByHealedDp` は実装済み
   - `TokenSetByAttacked` はエンジン API `applyEnemyAttackTokenTriggers()` まで実装済み
@@ -39,7 +39,12 @@
   - `OverDrivePointUpByToken` は OD 上昇値へ反映し、`damageContext` に参照値を保持するところまで実装済み
   - `TokenChangeTimeline` は独立効果としては扱わず、`TokenAttack` と同列の内部表現として無視する方針
   - 未実装は `TokenSetByAttacked` の UI 接続
-- [ ] `MoraleLevel`
+- [x] `MoraleLevel`
+  - 共通基盤として `CharacterStyle.moraleState` と `MoraleLevel()` 条件評価は実装済み
+  - `CountBC(... MoraleLevel() >= N ...)` の player 条件評価も実装済み
+  - `Morale` スキルによる士気上昇、`SkillCondition` / `iuc_cond` を含む士気依存スキル分岐は実装済み
+  - `AdditionalHitOnSpecifiedSkill` / `AdditionalHitOnExtraSkill` を起点にした士気上昇パッシブも実装済み
+  - `AdditionalHitOnKillCount` は敵撃破 UI がないため、現時点では pending
 - [ ] `MotivationLevel`
 - [ ] `FireMarkLevel`
 - [ ] `IceMarkLevel`
@@ -99,8 +104,8 @@
 ## Phase 4: timing の汎用実行基盤
 
 - [x] `OnPlayerTurnStart`
-- [ ] `OnEveryTurn`
-- [ ] `OnEveryTurnIncludeSpecial`
+- [x] `OnEveryTurn`
+- [x] `OnEveryTurnIncludeSpecial`
 - [x] `OnBattleStart`
 - [x] `OnFirstBattleStart`
 - [x] `OnEnemyTurnStart`
@@ -169,9 +174,9 @@
 
 ## Phase 5: 状態変化スキル実装
 
-- [ ] トークン付与スキル
-- [ ] トークン消費スキル
-- [ ] 士気上昇スキル
+- [x] トークン付与スキル
+- [x] トークン消費スキル
+- [x] 士気上昇スキル
 - [ ] 士気減少スキル
 - [ ] やる気上昇スキル
 - [ ] やる気減少スキル
@@ -179,9 +184,9 @@
 - [ ] 火の印消費スキル
 - [ ] 氷の印付与スキル
 - [ ] 氷の印消費スキル
-- [ ] フィールド展開スキル
+- [x] フィールド展開スキル
 - [ ] フィールド解除/上書き処理
-- [ ] 陣展開スキル
+- [x] 陣展開スキル
 - [ ] 陣解除/上書き処理
 - [ ] DP現在値保持
 - [ ] DP増減処理
@@ -209,7 +214,7 @@
 
 ## 備考
 
-- `OnBattleStart` と `OnEveryTurn` は一部だけ先行対応済みだが、まだ timing 全体を汎用処理できる状態ではない
+- `OnBattleStart` と `OnEveryTurn` は主要 timing の入口は揃っているが、effect 種別の汎用化はまだ継続中
 - `IsBroken` は自キャラ/敵ともに手動状態として扱う方針
 - `Random` は将来、常時成功/個別指定/常時失敗を切り替えられるデバッグ設定と合わせて実装する
 - `IsCharacter` は「編成内にそのキャラがいる」ではなく、基本的には「評価対象そのものがそのキャラ」で扱う
@@ -220,3 +225,6 @@
 - `オーバーレイ` のように `target_type: AllyAll` と `target_condition: IsCharacter(IIshii)==1` を組み合わせるパッシブがあるため、今後の発火実装は「発火元イベント判定」と「効果対象抽出」を分離して設計する必要がある
 - 具体的には「味方の誰かがフィールドを展開した」という味方イベントで発火しつつ、効果対象は後衛の石井本人だけ、というレアケースを許容する必要がある
 - `IsZone` / `IsTerritory` は条件評価だけでなく、展開スキル・上書き・継続ターン管理とセットで設計する
+- 士気レベルは共有値ではなく各キャラクター個別状態として扱う
+- 士気は計算で追える前提とし、デバッグ入力は持たない
+- UI 表示は `moraleState.current > 0` のキャラだけに出す

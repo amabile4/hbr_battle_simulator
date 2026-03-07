@@ -288,6 +288,10 @@ function hasTokenPassiveSupport(member) {
   });
 }
 
+function hasVisibleMoraleState(member) {
+  return Number(member?.moraleState?.current ?? 0) > 0;
+}
+
 function deriveDisplayedOdTurn(turnState) {
   const type = String(turnState?.turnType ?? '');
   if (type === 'od') {
@@ -3852,6 +3856,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.tokenState.current = Number(snap.tokenState?.current ?? member.tokenState?.current ?? 0);
       member.tokenState.min = Number(snap.tokenState?.min ?? member.tokenState?.min ?? 0);
       member.tokenState.max = Number(snap.tokenState?.max ?? member.tokenState?.max ?? 10);
+      member.moraleState.current = Number(snap.moraleState?.current ?? member.moraleState?.current ?? 0);
+      member.moraleState.min = Number(snap.moraleState?.min ?? member.moraleState?.min ?? 0);
+      member.moraleState.max = Number(snap.moraleState?.max ?? member.moraleState?.max ?? 10);
       member.isAlive = Boolean(snap.isAlive);
       member.isBreak = Boolean(snap.isBreak);
       member.isExtraActive = Boolean(snap.isExtraActive);
@@ -4216,10 +4223,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const tokenText = hasTokenPassiveSupport(member)
           ? ` / Token=${member.tokenState?.current ?? 0}`
           : '';
+        const moraleText = hasVisibleMoraleState(member)
+          ? ` / Morale=${member.moraleState?.current ?? 0}`
+          : '';
         if (String(member.characterId) === 'NNanase') {
-          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}</li>`;
+          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}${moraleText}</li>`;
         }
-        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${tokenText}</li>`;
+        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${tokenText}${moraleText}</li>`;
       })
       .join('');
 

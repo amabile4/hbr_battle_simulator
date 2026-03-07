@@ -15,6 +15,7 @@ function normalizeSkill(skill, canonicalSkill) {
     type: canonicalSkill?.type ?? inferSkillType(skill),
     consumeType: skill.consume_type ?? skill.consumeType ?? canonicalSkill?.consumeType ?? null,
     hitCount: Number(skill.hit_count ?? skill.hitCount ?? canonicalSkill?.hitCount ?? 0),
+    isRestricted: Number(skill.is_restricted ?? skill.isRestricted ?? canonicalSkill?.isRestricted ?? 0) === 1,
     hits: Array.isArray(skill.hits) ? structuredClone(skill.hits) : [],
     maxLevel: skill.max_level ?? skill.maxLevel ?? canonicalSkill?.maxLevel ?? null,
     spRecoveryCeiling:
@@ -238,6 +239,12 @@ export class CharacterStyle {
       max: Number(input.tokenMax ?? 10),
     };
 
+    this.moraleState = {
+      current: Number(input.initialMorale ?? 0),
+      min: Number(input.moraleMin ?? 0),
+      max: Number(input.moraleMax ?? 10),
+    };
+
     this.isAlive = input.isAlive ?? true;
     this.isBreak = input.isBreak ?? false;
     this.isExtraActive = input.isExtraActive ?? false;
@@ -312,6 +319,7 @@ export class CharacterStyle {
     const startSP = this.sp.current;
     const startEP = this.ep.current;
     const startToken = this.tokenState.current;
+    const startMorale = this.moraleState.current;
     const consumeType = String(skill.consumeType ?? 'Sp');
     let rawCost = Number(skill.spCost ?? 0);
     if (
@@ -357,9 +365,12 @@ export class CharacterStyle {
       endEP,
       startToken,
       endToken,
+      startMorale,
+      endMorale: startMorale,
       spDelta: endSP - startSP,
       epDelta: endEP - startEP,
       tokenDelta: endToken - startToken,
+      moraleDelta: 0,
     };
   }
 
@@ -384,6 +395,9 @@ export class CharacterStyle {
     if (Number.isFinite(Number(preview.endToken))) {
       this.tokenState.current = Number(preview.endToken);
     }
+    if (Number.isFinite(Number(preview.endMorale))) {
+      this.moraleState.current = Number(preview.endMorale);
+    }
     this._revision += 1;
 
     return {
@@ -396,6 +410,8 @@ export class CharacterStyle {
       endEP: this.ep.current,
       startToken: Number(preview.startToken ?? this.tokenState.current),
       endToken: this.tokenState.current,
+      startMorale: Number(preview.startMorale ?? this.moraleState.current),
+      endMorale: this.moraleState.current,
       revision: this._revision,
     };
   }
@@ -446,6 +462,24 @@ export class CharacterStyle {
       startToken,
       endToken,
       delta: endToken - startToken,
+      eventCeiling: ceiling,
+    };
+  }
+
+  applyMoraleDelta(delta, eventCeiling = this.moraleState.max) {
+    const numericDelta = Number(delta);
+    const startMorale = this.moraleState.current;
+    const ceiling = Number.isFinite(Number(eventCeiling))
+      ? Number(eventCeiling)
+      : Number(this.moraleState.max ?? 10);
+    const endMorale = applySpChange(startMorale, numericDelta, this.moraleState.min, ceiling);
+    this.moraleState.current = endMorale;
+    this._revision += 1;
+
+    return {
+      startMorale,
+      endMorale,
+      delta: endMorale - startMorale,
       eventCeiling: ceiling,
     };
   }
@@ -705,6 +739,7 @@ export class CharacterStyle {
       sp: { ...this.sp },
       ep: { ...this.ep },
       tokenState: { ...this.tokenState },
+      moraleState: { ...this.moraleState },
       isAlive: this.isAlive,
       isBreak: this.isBreak,
       isExtraActive: this.isExtraActive,

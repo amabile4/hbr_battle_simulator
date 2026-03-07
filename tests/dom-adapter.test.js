@@ -1964,6 +1964,39 @@ test('token debug controls update current token state with clamp', () => {
   assert.equal(rows.some((line) => line.includes(`${member.characterName}`) && line.includes('Token=0')), true);
 });
 
+test('morale display stays hidden at 0 and appears after morale rises', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+  const moraleStyleId = Number(
+    store.styles.find(
+      (style) =>
+        String(style?.chara_label ?? '') === 'EAoi' &&
+        Array.isArray(style?.skills) &&
+        style.skills.some((skill) => Number(skill?.id ?? skill) === 46002113)
+    )?.id
+  );
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== moraleStyleId);
+  adapter.initializeBattle([moraleStyleId, ...others.slice(0, 5)]);
+
+  const member = adapter.state.party[0];
+  assert.ok(member);
+  let rows = [...root.querySelectorAll('[data-role="party-state"] li')].map((li) => li.textContent ?? '');
+  assert.equal(rows.some((line) => line.includes(`${member.characterName}`) && line.includes('Morale=')), false);
+
+  member.moraleState.current = 1;
+  adapter.renderPartyState();
+
+  rows = [...root.querySelectorAll('[data-role="party-state"] li')].map((li) => li.textContent ?? '');
+  assert.equal(rows.some((line) => line.includes(`${member.characterName}`) && line.includes('Morale=1')), true);
+  member.moraleState.current = 0;
+  adapter.renderPartyState();
+
+  rows = [...root.querySelectorAll('[data-role="party-state"] li')].map((li) => li.textContent ?? '');
+  assert.equal(rows.some((line) => line.includes(`${member.characterName}`) && line.includes('Morale=')), false);
+});
+
 test('turn status shows current field and territory state', () => {
   const store = getStore();
   const { root } = createRoot();
