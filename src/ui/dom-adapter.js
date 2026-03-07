@@ -332,6 +332,33 @@ function formatMotivationIcon(value) {
   return MOTIVATION_ICON_BY_VALUE[key] ?? '';
 }
 
+const PARTY_STATE_MARK_ICON_BY_ELEMENT = Object.freeze({
+  Fire: './assets/marks/FireMark.webp',
+  Ice: './assets/marks/IceMark.webp',
+  Thunder: './assets/marks/ThunderMark.webp',
+  Dark: './assets/marks/DarkMark.svg',
+  Light: './assets/marks/LightMark.svg',
+});
+
+function formatPartyStateMarkIcons(member) {
+  const states = member?.markStates && typeof member.markStates === 'object' ? member.markStates : {};
+  const icons = [];
+  for (const element of ['Fire', 'Ice', 'Thunder', 'Dark', 'Light']) {
+    const level = Number(states?.[element]?.current ?? 0);
+    const src = PARTY_STATE_MARK_ICON_BY_ELEMENT[element];
+    if (!src || !Number.isFinite(level) || level <= 0) {
+      continue;
+    }
+    icons.push(
+      `<span class="mark-icon-row" title="${element} Mark Lv${level}">` +
+        `<img class="mark-icon" src="${src}" alt="${element} Mark" />` +
+        `<span class="mark-level">${level}</span>` +
+      `</span>`
+    );
+  }
+  return icons.join('');
+}
+
 function memberHasMotivationSource(member) {
   const collections = [member?.skills, member?.passives];
   return collections.some((collection) =>
@@ -4425,10 +4452,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const motivationText = showMotivation
           ? ` / ${formatMotivationIcon(member.motivationState?.current ?? 3)}`
           : '';
+        const markText = formatPartyStateMarkIcons(member);
         if (String(member.characterId) === 'NNanase') {
-          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}${moraleText}${motivationText}</li>`;
+          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}${moraleText}${motivationText}${markText}</li>`;
         }
-        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${tokenText}${moraleText}${motivationText}</li>`;
+        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${tokenText}${moraleText}${motivationText}${markText}</li>`;
       })
       .join('');
 

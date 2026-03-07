@@ -139,6 +139,66 @@ test('party state shows motivation icons only when party has a motivation source
   assert.equal(partyState.includes('Motivation='), false);
 });
 
+test('party state shows small mark icons after motivation icon', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const party = new Party(
+    Array.from({ length: 6 }, (_, idx) =>
+      new CharacterStyle({
+        characterId: `MK${idx + 1}`,
+        characterName: `MK${idx + 1}`,
+        styleId: idx + 21,
+        styleName: `MKS${idx + 1}`,
+        partyIndex: idx,
+        position: idx,
+        initialSP: 10,
+        initialMotivation: idx === 0 ? 5 : 3,
+        markStates:
+          idx === 0
+            ? {
+                Fire: { current: 6, min: 0, max: 6 },
+                Thunder: { current: 2, min: 0, max: 6 },
+                Dark: { current: 4, min: 0, max: 6 },
+                Light: { current: 1, min: 0, max: 6 },
+              }
+            : {},
+        passives:
+          idx === 0
+            ? [
+                {
+                  id: 9200,
+                  name: 'プレイボール',
+                  timing: 'OnFirstBattleStart',
+                  parts: [{ skill_type: 'Motivation', target_type: 'AllyAll', power: [5, 0] }],
+                },
+              ]
+            : [],
+        skills: [{ id: 9200 + idx, name: '通常', sp_cost: 0, parts: [] }],
+      })
+    )
+  );
+
+  adapter.party = party;
+  adapter.state = createBattleStateFromParty(party);
+  adapter.renderPartyState();
+
+  const firstRow = root.querySelector('[data-role="party-state"] li');
+  const icons = [...firstRow.querySelectorAll('.mark-icon')].map((img) => img.getAttribute('src'));
+  const levels = [...firstRow.querySelectorAll('.mark-level')].map((node) => node.textContent ?? '');
+
+  assert.equal(firstRow.textContent.includes('🩷'), true);
+  assert.deepEqual(icons, [
+    './assets/marks/FireMark.webp',
+    './assets/marks/ThunderMark.webp',
+    './assets/marks/DarkMark.svg',
+    './assets/marks/LightMark.svg',
+  ]);
+  assert.deepEqual(levels, ['6', '2', '4', '1']);
+});
+
 test('save/load button honors confirm dialog cancellation', () => {
   const store = getStore();
   const { root, win } = createRoot();
