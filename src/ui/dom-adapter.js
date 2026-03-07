@@ -118,6 +118,19 @@ function normalizeEnemyNamesByEnemy(value) {
   );
 }
 
+const ENEMY_DAMAGE_RATE_FIELDS = Object.freeze([
+  { key: 'Slash', label: '斬' },
+  { key: 'Stab', label: '突' },
+  { key: 'Strike', label: '打' },
+  { key: 'Fire', label: '火' },
+  { key: 'Ice', label: '氷' },
+  { key: 'Thunder', label: '雷' },
+  { key: 'Dark', label: '闇' },
+  { key: 'Light', label: '光' },
+]);
+
+const DEFAULT_ENEMY_DAMAGE_RATE_UI_VALUE = 100;
+
 function isNormalAttackSkill(skill) {
   const name = String(skill?.name ?? '');
   const label = String(skill?.label ?? '');
@@ -620,7 +633,23 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.writePreviewOutput('');
         this.renderActionSelectors();
         this.renderEnemyStatusControls();
+        this.renderEnemyConfigControls();
         this.renderOdControls();
+      }
+
+      if (target.matches('[data-role="enemy-name-input"]')) {
+        const targetIndex = toInt(target.getAttribute('data-enemy-index'), -1);
+        if (targetIndex >= 0) {
+          this.applyEnemyNameFromDom(targetIndex, String(target.value ?? ''));
+        }
+      }
+
+      if (target.matches('[data-role="enemy-damage-rate-input"]')) {
+        const targetIndex = toInt(target.getAttribute('data-enemy-index'), -1);
+        const damageKey = String(target.getAttribute('data-damage-key') ?? '').trim();
+        if (targetIndex >= 0 && damageKey) {
+          this.applyEnemyDamageRateFromDom(targetIndex, damageKey, target.value);
+        }
       }
 
       if (target.matches('[data-action-slot]')) {
@@ -1584,6 +1613,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.renderSwapSelectors();
     this.renderTurnStatus();
     this.renderEnemyStatusControls();
+    this.renderEnemyConfigControls();
     this.renderKishinkaControls();
     this.renderRecordTable();
     this.renderTurnPlanEditControls();
@@ -1900,10 +1930,73 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return Array.isArray(state?.statuses) ? state.statuses : [];
   }
 
+  getEnemyDisplayName(targetIndex, enemyNamesByEnemy = null) {
+    const source =
+      enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object'
+        ? enemyNamesByEnemy
+        : this.state?.turnState?.enemyState?.enemyNamesByEnemy;
+    const rawName = String(source?.[String(targetIndex)] ?? source?.[targetIndex] ?? '').trim();
+    return rawName ? `Enemy ${targetIndex + 1} (${rawName})` : `Enemy ${targetIndex + 1}`;
+  }
+
+  renderEnemyConfigControls() {
+    const container = this.root.querySelector('[data-role="enemy-config-list"]');
+    if (!container) {
+      return;
+    }
+    const enemyCount = this.readEnemyCountFromDom();
+    const enemyNamesByEnemy = normalizeEnemyNamesByEnemy(this.state?.turnState?.enemyState?.enemyNamesByEnemy);
+    const damageRatesByEnemy = normalizeEnemyDamageRatesByEnemy(this.state?.turnState?.enemyState?.damageRatesByEnemy);
+    container.innerHTML = '';
+
+    for (let i = 0; i < enemyCount; i += 1) {
+      const row = this.doc.createElement('div');
+      row.className = 'row';
+
+      const title = this.doc.createElement('strong');
+      title.textContent = `Enemy ${i + 1}`;
+      row.appendChild(title);
+
+      const nameLabel = this.doc.createElement('label');
+      nameLabel.textContent = '名前 ';
+      const nameInput = this.doc.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = String(enemyNamesByEnemy[String(i)] ?? '');
+      nameInput.setAttribute('data-role', 'enemy-name-input');
+      nameInput.setAttribute('data-enemy-index', String(i));
+      nameInput.placeholder = `Enemy ${i + 1}`;
+      nameLabel.appendChild(nameInput);
+      row.appendChild(nameLabel);
+
+      const enemyRates = damageRatesByEnemy[String(i)] ?? {};
+      for (const field of ENEMY_DAMAGE_RATE_FIELDS) {
+        const label = this.doc.createElement('label');
+        label.textContent = `${field.label} `;
+        const input = this.doc.createElement('input');
+        input.type = 'number';
+        input.step = '1';
+        input.min = '0';
+        input.value = String(
+          Number.isFinite(Number(enemyRates[field.key]))
+            ? Number(enemyRates[field.key])
+            : DEFAULT_ENEMY_DAMAGE_RATE_UI_VALUE
+        );
+        input.setAttribute('data-role', 'enemy-damage-rate-input');
+        input.setAttribute('data-enemy-index', String(i));
+        input.setAttribute('data-damage-key', field.key);
+        label.appendChild(input);
+        row.appendChild(label);
+      }
+
+      container.appendChild(row);
+    }
+  }
+
   renderEnemyStatusControls() {
     const targetSelect = this.root.querySelector('[data-role="enemy-status-target"]');
     const list = this.root.querySelector('[data-role="enemy-status-list"]');
     const enemyCount = this.readEnemyCountFromDom();
+    const enemyNamesByEnemy = normalizeEnemyNamesByEnemy(this.state?.turnState?.enemyState?.enemyNamesByEnemy);
 
     if (targetSelect) {
       const prev = String(targetSelect.value ?? '');
@@ -1911,7 +2004,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       for (let i = 0; i < enemyCount; i += 1) {
         const option = this.doc.createElement('option');
         option.value = String(i);
-        option.textContent = `Enemy ${i + 1}`;
+        option.textContent = this.getEnemyDisplayName(i, enemyNamesByEnemy);
         targetSelect.appendChild(option);
       }
       const hasPrev = [...targetSelect.options].some((option) => option.value === prev);
@@ -1930,12 +2023,68 @@ export class BattleDomAdapter extends BattleAdapterFacade {
             const suffix = isPersistentEnemyStatus(status.statusType)
               ? ''
               : `(${Number(status.remainingTurns)})`;
-            return `Enemy ${Number(status.targetIndex) + 1}: ${String(status.statusType)}${suffix}`;
+            return `${this.getEnemyDisplayName(Number(status.targetIndex), enemyNamesByEnemy)}: ${String(status.statusType)}${suffix}`;
           })
           .join(' | ');
         list.textContent = `Enemy Status: ${text}`;
       }
     }
+  }
+
+  applyEnemyNameFromDom(targetIndex, value) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    this.syncEnemyStateFromDom();
+    const enemyCount = this.readEnemyCountFromDom();
+    if (targetIndex < 0 || targetIndex >= enemyCount) {
+      return;
+    }
+    const next = normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy);
+    const trimmed = String(value ?? '').trim();
+    if (trimmed) {
+      next[String(targetIndex)] = trimmed;
+    } else {
+      delete next[String(targetIndex)];
+    }
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      enemyNamesByEnemy: next,
+    };
+    this.renderEnemyStatusControls();
+    this.renderEnemyConfigControls();
+    this.renderRecordTable();
+  }
+
+  applyEnemyDamageRateFromDom(targetIndex, damageKey, rawValue) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    this.syncEnemyStateFromDom();
+    const enemyCount = this.readEnemyCountFromDom();
+    if (targetIndex < 0 || targetIndex >= enemyCount) {
+      return;
+    }
+    const nextRates = normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy);
+    const enemyRates = { ...(nextRates[String(targetIndex)] ?? {}) };
+    const parsed = Number(rawValue);
+    enemyRates[String(damageKey)] = Number.isFinite(parsed) ? parsed : DEFAULT_ENEMY_DAMAGE_RATE_UI_VALUE;
+    nextRates[String(targetIndex)] = enemyRates;
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
+      damageRatesByEnemy: nextRates,
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+    };
+    this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
+    this.writePreviewOutput('');
+    this.renderActionSelectors();
+    this.renderEnemyStatusControls();
+    this.renderEnemyConfigControls();
+    this.renderOdControls();
   }
 
   applyEnemyStatusFromDom() {
@@ -2516,6 +2665,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
     };
     this.renderEnemyStatusControls();
+    this.renderEnemyConfigControls();
   }
 
   applyScenarioEnemyNames(enemyNames = {}) {
@@ -2545,6 +2695,42 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(next),
     };
+    this.renderEnemyStatusControls();
+    this.renderEnemyConfigControls();
+  }
+
+  applyScenarioEnemyDamageRates(enemyDamageRates = {}) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    const enemyCount = this.readEnemyCountFromDom();
+    const next = {};
+    const assignRates = (targetIndex, rates) => {
+      if (targetIndex < 0 || targetIndex >= enemyCount || !rates || typeof rates !== 'object') {
+        return;
+      }
+      next[String(targetIndex)] = Object.fromEntries(
+        Object.entries(rates)
+          .map(([key, value]) => [String(key), Number(value)])
+          .filter(([, value]) => Number.isFinite(value))
+      );
+    };
+    if (Array.isArray(enemyDamageRates)) {
+      enemyDamageRates.forEach((rates, index) => assignRates(index, rates));
+    } else if (enemyDamageRates && typeof enemyDamageRates === 'object') {
+      for (const [targetIndex, rates] of Object.entries(enemyDamageRates)) {
+        assignRates(Math.max(0, Math.min(enemyCount - 1, toInt(targetIndex, 0))), rates);
+      }
+    }
+    this.state.turnState.enemyState = {
+      enemyCount,
+      statuses: Array.isArray(this.state.turnState.enemyState?.statuses)
+        ? this.state.turnState.enemyState.statuses
+        : [],
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(next),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+    };
+    this.renderEnemyConfigControls();
   }
 
   applyLoadedScenarioSetup() {
@@ -2608,6 +2794,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Array.isArray(setup.enemyNames) || (setup.enemyNames && typeof setup.enemyNames === 'object')) {
       this.applyScenarioEnemyNames(setup.enemyNames);
+    }
+    if (Array.isArray(setup.enemyDamageRates) || (setup.enemyDamageRates && typeof setup.enemyDamageRates === 'object')) {
+      this.applyScenarioEnemyDamageRates(setup.enemyDamageRates);
     }
     if (Array.isArray(setup.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(setup.enemyStatuses);
@@ -2936,6 +3125,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.setDomValue('[data-role="enemy-count"]', clampEnemyCount(turn.enemyCount));
       this.syncEnemyStateFromDom();
       this.renderEnemyStatusControls();
+      this.renderEnemyConfigControls();
     }
     if (turn.enemyAction !== undefined) {
       this.setDomValue('[data-role="enemy-action"]', String(turn.enemyAction ?? ''));
@@ -2953,6 +3143,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Array.isArray(turn.enemyNames) || (turn.enemyNames && typeof turn.enemyNames === 'object')) {
       this.applyScenarioEnemyNames(turn.enemyNames);
+    }
+    if (Array.isArray(turn.enemyDamageRates) || (turn.enemyDamageRates && typeof turn.enemyDamageRates === 'object')) {
+      this.applyScenarioEnemyDamageRates(turn.enemyDamageRates);
     }
     if (Array.isArray(turn.enemyStatusesApply)) {
       const merged = [...this.getEnemyStatuses()];
@@ -2993,6 +3186,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       };
       this.renderEnemyStatusControls();
+      this.renderEnemyConfigControls();
     }
     if (Array.isArray(turn.enemyStatusesClear)) {
       let statuses = [...this.getEnemyStatuses()];
@@ -3035,6 +3229,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       };
       this.renderEnemyStatusControls();
+      this.renderEnemyConfigControls();
     }
 
     if (Number.isFinite(Number(turn.preemptiveOdLevel))) {
@@ -3295,6 +3490,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.renderOdControls();
     this.renderKishinkaControls();
     this.renderEnemyStatusControls();
+    this.renderEnemyConfigControls();
   }
 
   isForceOdEnabled() {

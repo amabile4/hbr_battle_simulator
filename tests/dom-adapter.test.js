@@ -24,6 +24,7 @@ function createRoot() {
       <button data-action="enemy-status-apply"></button>
       <button data-action="enemy-status-clear"></button>
       <strong data-role="enemy-status-list"></strong>
+      <div data-role="enemy-config-list"></div>
       <div data-role="action-slots"></div>
       <select data-role="swap-from"><option value="0">0</option></select>
       <select data-role="swap-to"><option value="3">3</option></select>
@@ -231,6 +232,33 @@ test('record table shows selected enemy target with enemy name', () => {
   assert.ok(rowText.includes('Enemy 2 (Enemy B)'));
 });
 
+test('enemy config controls update enemy names and damage rates', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+
+  adapter.mount();
+  const enemyCount = root.querySelector('[data-role="enemy-count"]');
+  enemyCount.value = '2';
+  enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const nameInput = root.querySelector('[data-role="enemy-name-input"][data-enemy-index="1"]');
+  assert.ok(nameInput);
+  nameInput.value = 'Boss B';
+  nameInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const fireRateInput = root.querySelector(
+    '[data-role="enemy-damage-rate-input"][data-enemy-index="1"][data-damage-key="Fire"]'
+  );
+  assert.ok(fireRateInput);
+  fireRateInput.value = '50';
+  fireRateInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  assert.equal(adapter.state.turnState.enemyState.enemyNamesByEnemy['1'], 'Boss B');
+  assert.equal(adapter.state.turnState.enemyState.damageRatesByEnemy['1'].Fire, 50);
+  assert.ok((root.querySelector('[data-role="enemy-status-target"]')?.textContent ?? '').includes('Boss B'));
+});
+
 test('enemy down-turn status can be applied and cleared from controls', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -293,6 +321,7 @@ test('scenario runner loads setup and executes turns deterministically', () => {
     setup: {
       enemyCount: 3,
       enemyNames: ['Enemy A', 'Enemy B', 'Enemy C'],
+      enemyDamageRates: [{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }],
       initialOdGauge: 100,
       enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
     },
@@ -320,6 +349,11 @@ test('scenario runner loads setup and executes turns deterministically', () => {
     0: 'Enemy A',
     1: 'Enemy B',
     2: 'Enemy C',
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.damageRatesByEnemy, {
+    0: { Slash: 50 },
+    1: { Fire: 150 },
+    2: { Thunder: 75 },
   });
   assert.equal(adapter.state.turnState.enemyState.statuses.length, 1);
 
