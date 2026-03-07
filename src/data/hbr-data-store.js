@@ -130,7 +130,6 @@ function createPassiveMeaningKey(passive) {
     activRate: Number(passive?.activ_rate ?? passive?.activRate ?? 0),
     autoType: String(passive?.auto_type ?? passive?.autoType ?? ''),
     limit: Number(passive?.limit ?? 0),
-    tier: String(passive?.ct ?? passive?.tier ?? ''),
     requiredLimitBreakLevel: Number(passive?.requiredLimitBreakLevel ?? passive?.lb ?? 0),
     parts: Array.isArray(passive?.parts) ? passive.parts : [],
   });
