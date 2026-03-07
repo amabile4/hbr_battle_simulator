@@ -33,7 +33,15 @@ export function toCharacterSnapshot(character) {
     ep: Object.freeze({ ...character.ep }),
     tokenState: Object.freeze({ ...(character.tokenState ?? { current: 0, min: 0, max: 10 }) }),
     moraleState: Object.freeze({ ...(character.moraleState ?? { current: 0, min: 0, max: 10 }) }),
-    motivationState: Object.freeze({ ...(character.motivationState ?? { current: 3, min: 1, max: 5 }) }),
+    motivationState: Object.freeze({ ...(character.motivationState ?? { current: 0, min: 0, max: 5 }) }),
+    markStates: Object.freeze(
+      Object.fromEntries(
+        Object.entries(character.markStates ?? {}).map(([element, state]) => [
+          String(element),
+          Object.freeze({ ...(state ?? { current: 0, min: 0, max: 10 }) }),
+        ])
+      )
+    ),
     isAlive: Boolean(character.isAlive),
     isBreak: Boolean(character.isBreak),
     isExtraActive: Boolean(character.isExtraActive),
@@ -74,6 +82,7 @@ export function createInitialTurnState() {
     transcendence: null,
     extraTurnState: null,
     passiveEventsLastApplied: [],
+    passiveUsageCounts: {},
   });
 }
 
@@ -183,6 +192,15 @@ export function cloneTurnState(turnState) {
     passiveEventsLastApplied: Array.isArray(turnState?.passiveEventsLastApplied)
       ? turnState.passiveEventsLastApplied.map((event) => ({ ...event }))
       : [],
+    passiveUsageCounts:
+      turnState?.passiveUsageCounts && typeof turnState.passiveUsageCounts === 'object'
+        ? Object.fromEntries(
+            Object.entries(turnState.passiveUsageCounts).map(([key, count]) => [
+              String(key),
+              Number(count ?? 0),
+            ])
+          )
+        : {},
   };
 }
 

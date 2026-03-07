@@ -283,8 +283,12 @@ function formatTranscendencePercent(value) {
 function formatPassiveLogLine(event) {
   const turnLabel = String(event?.turnLabel ?? '');
   const characterName = String(event?.characterName ?? event?.characterId ?? '');
-  const passiveDesc = String(event?.passiveDesc ?? event?.passiveName ?? '');
-  return `${turnLabel}：${characterName}：${passiveDesc}`;
+  const passiveName = String(event?.passiveName ?? '').trim();
+  const passiveDesc = String(event?.passiveDesc ?? event?.passiveName ?? '')
+    .replace(/\s*\n+\s*/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return `${turnLabel}：${characterName} : [${passiveName}] ${passiveDesc}`;
 }
 
 function formatConditionSupportLine(label, values) {
@@ -1935,6 +1939,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.writeCsvOutput('');
     this.writeRecordsJsonOutput('');
     this.writePassiveLogOutput('');
+    this.appendPassiveLogEvents(this.state?.turnState?.passiveEventsLastApplied ?? []);
     this.renderOdControls();
     this.renderScenarioStatus();
     if (!options.suppressAutoSave) {
@@ -1953,9 +1958,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       .map((event) => ({
         turnLabel: String(event.turnLabel ?? ''),
         characterName: String(event.characterName ?? event.characterId ?? ''),
-        passiveDesc: String(event.passiveDesc ?? event.passiveName ?? ''),
+        passiveName: String(event.passiveName ?? '').trim(),
+        passiveDesc:
+          String(event.passiveDesc ?? '').trim() ||
+          String(event.desc ?? '').trim() ||
+          String(event.passiveName ?? ''),
       }))
-      .filter((event) => event.turnLabel && event.characterName && event.passiveDesc);
+      .filter((event) => event.turnLabel && event.characterName && event.passiveName && event.passiveDesc);
     if (normalized.length === 0) {
       return;
     }
@@ -4037,6 +4046,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.motivationState.current = Number(snap.motivationState?.current ?? member.motivationState?.current ?? 0);
       member.motivationState.min = Number(snap.motivationState?.min ?? member.motivationState?.min ?? 0);
       member.motivationState.max = Number(snap.motivationState?.max ?? member.motivationState?.max ?? 5);
+      const snapMarkStates = snap.markStates && typeof snap.markStates === 'object' ? snap.markStates : {};
+      for (const [element, state] of Object.entries(member.markStates ?? {})) {
+        const snapState =
+          snapMarkStates[element] && typeof snapMarkStates[element] === 'object' ? snapMarkStates[element] : {};
+        state.current = Number(snapState.current ?? state.current ?? 0);
+        state.min = Number(snapState.min ?? state.min ?? 0);
+        state.max = Number(snapState.max ?? state.max ?? 10);
+      }
       member.isAlive = Boolean(snap.isAlive);
       member.isBreak = Boolean(snap.isBreak);
       member.isExtraActive = Boolean(snap.isExtraActive);
@@ -4999,6 +5016,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   formatEnemyTargetLabel(action, enemyNamesByEnemy = {}) {
     const targetEnemyIndex = Number(action?.targetEnemyIndex);
     if (!Number.isFinite(targetEnemyIndex) || targetEnemyIndex < 0) {
+      return '';
+    }
+    const enemyCount = Number(this.state?.turnState?.enemyState?.enemyCount ?? 1);
+    if (Number.isFinite(enemyCount) && enemyCount <= 1) {
       return '';
     }
     const defaultLabel = `Enemy ${targetEnemyIndex + 1}`;

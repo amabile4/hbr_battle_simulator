@@ -55,7 +55,19 @@
   - `OnFirstBattleStart` のランダム付与系は、シミュレータでは手動初期値を優先して no-op として扱う
   - 未実装は `DP回復で +1` と `被ダメージで -1` のイベントフック
 - [ ] `FireMarkLevel`
+  - 共通基盤として `CharacterStyle.markStates`、各 `*MarkLevel()` 条件評価、`Fire/Ice/Thunder/Dark/LightMark` スキル適用は実装済み
+  - 実データ回帰は `ThunderMarkLevel / DarkMarkLevel / LightMark` 経由で通している
+  - 火の印の常在効果は実装済み
+    - Lv1: スキル攻撃力+30% を preview / record modifier に反映
+    - Lv2: 被ダメージ-10% を preview / record modifier に反映
+    - Lv3: 破壊率上昇+10% を preview / record modifier に反映
+    - Lv4: クリティカル率+30% を preview / record modifier に反映
+    - Lv5: クリティカルダメージ+30% を preview / record modifier に反映
+    - Lv6: ターン開始時 前衛SP+1 を実効
 - [ ] `IceMarkLevel`
+  - 共通基盤は `FireMarkLevel` と同じ実装を共有
+  - 氷 / 雷 / 闇 / 光 の印レベル条件評価と印状態付与基盤は実装済み
+  - 各属性印の常在効果は未実装
 - [x] `IsZone`
 - [x] `IsTerritory`
 

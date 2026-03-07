@@ -195,6 +195,7 @@ test('csv action cell shows selected enemy target with enemy name when available
     odContext: '',
     odGaugeAtStart: 0,
     enemyAction: '',
+    enemyCount: 3,
     enemyNamesByEnemy: { 1: 'Boss B' },
     snapBefore: initialParty,
     snapAfter: initialParty,
@@ -216,6 +217,49 @@ test('csv action cell shows selected enemy target with enemy name when available
 
   const row = CsvExporter.recordToRow(record, initialParty);
   assert.equal(row[10], 'Targeted Slash (SP 0) [Single,2hit] -> Enemy 2 (Boss B)');
+});
+
+test('csv omits targeted enemy label when enemy count is one', () => {
+  const initialParty = [
+    { characterName: 'A', partyIndex: 0, positionIndex: 0, sp: { current: 10 } },
+    { characterName: 'B', partyIndex: 1, positionIndex: 1, sp: { current: 10 } },
+    { characterName: 'C', partyIndex: 2, positionIndex: 2, sp: { current: 10 } },
+    { characterName: 'D', partyIndex: 3, positionIndex: 3, sp: { current: 10 } },
+    { characterName: 'E', partyIndex: 4, positionIndex: 4, sp: { current: 10 } },
+    { characterName: 'F', partyIndex: 5, positionIndex: 5, sp: { current: 10 } },
+  ];
+
+  const record = {
+    turnId: 4,
+    turnIndex: 4,
+    turnType: 'normal',
+    turnLabel: 'T4',
+    odTurnLabelAtStart: '',
+    odContext: '',
+    odGaugeAtStart: 0,
+    enemyAction: '',
+    enemyCount: 1,
+    enemyNamesByEnemy: { 0: 'Solo Boss' },
+    snapBefore: initialParty,
+    snapAfter: initialParty,
+    actions: [
+      {
+        partyIndex: 0,
+        skillName: 'Targeted Slash',
+        consumeType: 'Sp',
+        spChanges: [{ source: 'cost', delta: 0 }],
+        spCost: 0,
+        skillTargetType: 'Single',
+        skillHitCount: 2,
+        skillBaseHitCount: 2,
+        skillFunnelHitBonus: 0,
+        targetEnemyIndex: 0,
+      },
+    ],
+  };
+
+  const row = CsvExporter.recordToRow(record, initialParty);
+  assert.equal(row[10], 'Targeted Slash (SP 0) [Single,2hit]');
 });
 
 test('csv keeps od_turn during od-suspended extra and exposes od_context', () => {

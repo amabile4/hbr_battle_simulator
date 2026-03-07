@@ -677,6 +677,302 @@ test('MotivationLevel condition can trigger passives from current motivation sta
   assert.equal(state.party[0].sp.current, 3);
 });
 
+test('ThunderMark skill part increases thunder marks for matching ally targets', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        elements: ['Thunder'],
+        skills: [
+          {
+            id: 18600,
+            name: 'Thunder Mark Up',
+            sp_cost: 0,
+            parts: [
+              {
+                skill_type: 'ThunderMark',
+                target_type: 'AllyAll',
+                power: [2, 0],
+                target_condition: 'IsNatureElement(Thunder)==1',
+              },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return { elements: ['Thunder'] };
+    }
+    if (idx === 2) {
+      return { elements: ['Fire'] };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18600 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.party[0].markStates.Thunder.current, 2);
+  assert.equal(nextState.party[1].markStates.Thunder.current, 2);
+  assert.equal(nextState.party[2].markStates.Thunder.current, 0);
+});
+
+test('DarkMarkLevel condition can trigger passives from current dark mark state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          markStates: {
+            Dark: { current: 6, min: 0, max: 6 },
+          },
+          passives: [
+            {
+              id: 18610,
+              name: 'Dark Mark Passive',
+              timing: 'OnEveryTurn',
+              condition: 'DarkMarkLevel()>=6',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(result.spEvents[0]?.characterId, 'M1');
+  assert.equal(result.spEvents[0]?.delta, 1);
+});
+
+test('LightMark passive timing applies light mark state on battle start', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          elements: ['Light'],
+          passives: [
+            {
+              id: 18620,
+              name: 'Light Mark Start',
+              timing: 'OnBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'LightMark', target_type: 'Self', power: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnBattleStart');
+
+  assert.equal(state.party[0].markStates.Light.current, 1);
+  assert.equal(result.passiveEvents.length, 1);
+  assert.equal(result.passiveEvents[0]?.effectTypes.includes('LightMark'), true);
+});
+
+test('猛火の進撃 grants ally-wide SP+5 when fire mark level is 6 or higher', () => {
+  const store = getStore();
+  const passive = store
+    .listPassivesByStyleId(1004307, { limitBreakLevel: 3 })
+    .find((item) => String(item.name ?? '') === '猛火の進撃');
+  assert.ok(passive);
+
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 0,
+          markStates: {
+            Fire: { current: 6, min: 0, max: 6 },
+          },
+          passives: [passive],
+        }
+      : { initialSP: 0 }
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  assert.deepEqual(
+    state.party.map((member) => member.sp.current),
+    [5, 5, 5, 5, 5, 5]
+  );
+  assert.equal(result.spEvents.length, 6);
+  assert.equal(result.passiveEvents[0]?.passiveName, '猛火の進撃');
+});
+
+test('猛火の進撃 triggers only once per sortie when passive limit is 1', () => {
+  const store = getStore();
+  const passive = store
+    .listPassivesByStyleId(1004307, { limitBreakLevel: 3 })
+    .find((item) => String(item.name ?? '') === '猛火の進撃');
+  assert.ok(passive);
+
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 0,
+          markStates: {
+            Fire: { current: 6, min: 0, max: 6 },
+          },
+          passives: [passive],
+        }
+      : { initialSP: 0 }
+  );
+  const state = createBattleStateFromParty(party);
+
+  const first = applyPassiveTiming(state, 'OnEveryTurn');
+  const second = applyPassiveTiming(state, 'OnEveryTurn');
+
+  assert.deepEqual(
+    state.party.map((member) => member.sp.current),
+    [5, 5, 5, 5, 5, 5]
+  );
+  assert.equal(first.spEvents.length, 6);
+  assert.equal(second.spEvents.length, 0);
+  assert.equal(first.passiveEvents.some((event) => event.passiveName === '猛火の進撃'), true);
+  assert.equal(second.passiveEvents.some((event) => event.passiveName === '猛火の進撃'), false);
+});
+
+test('夏のひより applies fire marks only to fire-element allies from real data', () => {
+  const store = getStore();
+  const styleIds = [1004307, 1001104, 1001204, 1001504, 1001401, 1001701];
+  assert.equal(styleIds.length, 6);
+
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 10,
+    limitBreakLevelsByPartyIndex: { 0: 3 },
+  });
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  for (const member of state.party) {
+    const expected = member.elements.includes('Fire') ? 4 : 0;
+    assert.equal(Number(member.markStates?.Fire?.current ?? 0), expected, member.styleName);
+  }
+  assert.equal(
+    state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '夏のひより'),
+    true
+  );
+});
+
+test('夏のひより alone does not satisfy 猛火の進撃 fire mark threshold', () => {
+  const store = getStore();
+  const styleIds = [1004307, 1001104, 1001204, 1001504, 1001401, 1001701];
+  assert.equal(styleIds.length, 6);
+
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 10,
+    limitBreakLevelsByPartyIndex: { 0: 3 },
+  });
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  assert.equal(Number(state.party[0].markStates?.Fire?.current ?? 0), 4);
+  assert.equal(result.passiveEvents.some((event) => event.passiveName === '猛火の進撃'), false);
+});
+
+test('fire mark intrinsic level 6 grants extra SP only to frontline fire styles at battle start', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx <= 3
+      ? {
+          initialSP: 0,
+          elements: ['Fire'],
+          markStates: {
+            Fire: { current: 6, min: 0, max: 6 },
+          },
+        }
+      : {
+          initialSP: 0,
+          elements: idx === 4 ? ['Fire'] : [],
+          markStates: {
+            Fire: { current: idx === 4 ? 6 : 0, min: 0, max: 6 },
+          },
+        }
+  );
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  assert.deepEqual(
+    state.party.map((member) => member.sp.current),
+    [1, 1, 1, 0, 0, 0]
+  );
+});
+
+test('six-fire real-data opening SP includes fire mark level 6 recovery before turn-start passives', () => {
+  const store = getStore();
+  const styleIds = [1004307, 1001206, 1001106, 1001506, 1002405, 1004206];
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 6,
+    startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    limitBreakLevelsByPartyIndex: { 0: 4 },
+  });
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  assert.deepEqual(
+    state.party.map((member) => member.sp.current),
+    [13, 12, 12, 11, 11, 11]
+  );
+});
+
+test('fire mark intrinsic modifiers are exposed on preview and damage context', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 10,
+          elements: ['Fire'],
+          markStates: {
+            Fire: { current: 5, min: 0, max: 6 },
+          },
+          skills: [
+            {
+              id: 8401,
+              name: '火炎斬',
+              label: 'FireSlash',
+              sp_cost: 4,
+              hit_count: 2,
+              target_type: 'Single',
+              parts: [
+                {
+                  skill_type: 'AttackSkill',
+                  target_type: 'Single',
+                  type: 'Slash',
+                  elements: ['Fire'],
+                  power: [1.0, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8401 },
+  });
+
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markAttackUpRate, 0.3);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markDamageTakenDownRate, 0.1);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markDevastationRateUp, 0.1);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markCriticalRateUp, 0.3);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markCriticalDamageUp, 0.3);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.attackUpRate, 0.3);
+
+  const { committedRecord } = commitTurn(state, preview);
+  assert.equal(committedRecord.actions[0].damageContext?.markAttackUpRate, 0.3);
+  assert.equal(committedRecord.actions[0].damageContext?.markDamageTakenDownRate, 0.1);
+  assert.equal(committedRecord.actions[0].damageContext?.markDevastationRateUp, 0.1);
+  assert.equal(committedRecord.actions[0].damageContext?.markCriticalRateUp, 0.3);
+  assert.equal(committedRecord.actions[0].damageContext?.markCriticalDamageUp, 0.3);
+});
+
 test('CountBC with 3 motivated allies resolves high branch when 3 members are MotivationLevel>=4', () => {
   const createParty = (motivationValues) =>
     createSixMemberManualParty((idx) =>
@@ -2354,13 +2650,13 @@ test('Nanase supports parallel SP/EP and EP ceiling changes in OD', () => {
   assert.equal(preview.actions[0].endEP, 0, '宿る想いはEP消費ではない');
   const { nextState } = commitTurn(state, preview);
   const after = nextState.party.find((m) => m.characterId === 'NNanase');
-  assert.equal(after.ep.current, 4, 'HealEp +3 and Admiral turn gain +1');
+  assert.equal(after.ep.current, 5, 'HealEp +3, Admiral turn gain +1, and 咲き誇る花 +1');
 
   // OD発動時の+5 and 上限20
   nextState.turnState.odGauge = 100;
   state = activateOverdrive(nextState, 1, 'preemptive');
   const odNanase = state.party.find((m) => m.characterId === 'NNanase');
-  assert.equal(odNanase.ep.current, 9);
+  assert.equal(odNanase.ep.current, 10);
 
   // OD中はEP上限20として扱われるため、10を超えて増加できる
   const odPreview = previewTurn(state, {
@@ -2396,7 +2692,7 @@ test('Nanase Rider uses external EP rule while Admiral uses passive-derived EP r
   });
   const committed = commitTurn(admiralState, preview);
   const admiralAfter = committed.nextState.party.find((m) => m.characterId === 'NNanase');
-  assert.equal(admiralAfter.ep.current, 4, 'Admiral EP+1 should be from passive skill + HealEp3 from 宿る想い');
+  assert.equal(admiralAfter.ep.current, 5, 'Admiral EP+1, 宿る想い HealEp+3, and 咲き誇る花 HealEp+1');
 });
 
 test('HealSp AllyFront increases SP for all frontline members', () => {
@@ -3288,22 +3584,26 @@ test('non-damaging OD gain skill applies drive bonus and first-use branching (Co
   });
   const actor = party.getByPosition(0);
 
-  // 1回目: 75% に drive(1hit扱い=+5%) を適用 => 78.75
+  // 1回目: スキル本体は 75% に drive(1hit扱い=+5%) を適用 => 78.75
+  // ただし現行スタイルは OnEveryTurn の OD+10% パッシブも同時に持つため、最終 gauge は 88.75。
   let state = createBattleStateFromParty(party);
   let preview = previewTurn(state, {
     0: { characterId: actor.characterId, skillId },
   });
   let committed = commitTurn(state, preview);
-  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 78);
+  assert.equal(Math.floor(committed.committedRecord.actions[0].odGaugeGain), 78);
+  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 88);
 
-  // 2回目: 25% に drive(1hit扱い=+5%) を適用 => +26.25
+  // 2回目: スキル本体は 25% に drive(1hit扱い=+5%) を適用 => +26.25
+  // 同じくターン開始時の OD+10% が加算される。
   state = committed.nextState;
   preview = previewTurn(state, {
     0: { characterId: actor.characterId, skillId },
   });
   committed = commitTurn(state, preview);
-  assert.ok(Math.abs(committed.nextState.turnState.odGauge - 105) < 0.01);
-  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 105);
+  assert.ok(Math.abs(committed.committedRecord.actions[0].odGaugeGain - 26.25) < 0.01);
+  assert.ok(Math.abs(committed.nextState.turnState.odGauge - 125) < 0.01);
+  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 125);
 });
 
 test('od gauge is capped at 300%', () => {

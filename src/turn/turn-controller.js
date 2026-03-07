@@ -18,6 +18,7 @@ import {
   DRIVE_PIERCE_OPTION_VALUES,
   DRIVE_PIERCE_BASE_BONUS_AT_HIT_1,
   DRIVE_PIERCE_MAX_REFERENCE_HIT,
+  INTRINSIC_MARK_EFFECTS_BY_ELEMENT,
   getOdGaugeRequirement,
   clampEnemyCount,
 } from '../config/battle-defaults.js';
@@ -37,6 +38,20 @@ const OD_DAMAGE_PART_TYPES = new Set([
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
 const ENEMY_STATUS_DEAD = 'Dead';
+const MARK_LEVEL_CONDITION_TO_ELEMENT = Object.freeze({
+  FireMarkLevel: 'Fire',
+  IceMarkLevel: 'Ice',
+  ThunderMarkLevel: 'Thunder',
+  DarkMarkLevel: 'Dark',
+  LightMarkLevel: 'Light',
+});
+const MARK_SKILL_TYPE_TO_ELEMENT = Object.freeze({
+  FireMark: 'Fire',
+  IceMark: 'Ice',
+  ThunderMark: 'Thunder',
+  DarkMark: 'Dark',
+  LightMark: 'Light',
+});
 const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
 const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
 export const SUPPORTED_PASSIVE_TIMINGS = Object.freeze([
@@ -75,8 +90,11 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   Token: Object.freeze({ tier: 'implemented', note: 'current token state is tracked now' }),
   MoraleLevel: Object.freeze({ tier: 'implemented', note: 'current morale state is tracked now' }),
   MotivationLevel: Object.freeze({ tier: 'implemented', note: 'current motivation state is tracked now' }),
-  FireMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs fire mark level state and updates' }),
-  IceMarkLevel: Object.freeze({ tier: 'stateful_future', note: 'needs ice mark level state and updates' }),
+  FireMarkLevel: Object.freeze({ tier: 'implemented', note: 'current fire mark level state is tracked now' }),
+  IceMarkLevel: Object.freeze({ tier: 'implemented', note: 'current ice mark level state is tracked now' }),
+  ThunderMarkLevel: Object.freeze({ tier: 'implemented', note: 'current thunder mark level state is tracked now' }),
+  DarkMarkLevel: Object.freeze({ tier: 'implemented', note: 'current dark mark level state is tracked now' }),
+  LightMarkLevel: Object.freeze({ tier: 'implemented', note: 'current light mark level state is tracked now' }),
   IsZone: Object.freeze({ tier: 'implemented', note: 'turn state zone state is tracked now' }),
   IsTerritory: Object.freeze({ tier: 'implemented', note: 'turn state territory state is tracked now' }),
 });
@@ -515,6 +533,13 @@ function compareNumbers(left, op, right) {
 
 function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
   const key = String(name ?? '').trim();
+  const markElement = MARK_LEVEL_CONDITION_TO_ELEMENT[key];
+  if (markElement) {
+    return {
+      known: true,
+      value: Number(member?.markStates?.[markElement]?.current ?? 0),
+    };
+  }
   switch (key) {
     case 'BreakHitCount':
       return {
@@ -549,7 +574,7 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
     case 'MotivationLevel':
       return {
         known: true,
-        value: Number(member?.motivationState?.current ?? 3),
+        value: Number(member?.motivationState?.current ?? 0),
       };
     case 'IsOverDrive':
       return {
@@ -824,8 +849,51 @@ function applyZonePartToTurnState(turnState, part, sourceSide = 'player') {
   return next;
 }
 
+function toPassiveLikeEntryFromTriggeredSkill(skill) {
+  if (!skill?.passive || typeof skill.passive !== 'object') {
+    return null;
+  }
+  return {
+    passiveId: Number(skill.skillId ?? skill.id ?? 0),
+    label: String(skill.label ?? ''),
+    name: String(skill.name ?? ''),
+    desc: String(skill.desc ?? ''),
+    info: String(skill.info ?? ''),
+    timing: String(skill.passive.timing ?? ''),
+    condition: String(skill.passive.condition ?? ''),
+    effect: String(skill.passive.effect ?? ''),
+    activRate: Number(skill.passive.activ_rate ?? skill.passive.activRate ?? 0),
+    autoType: String(skill.passive.auto_type ?? skill.passive.autoType ?? ''),
+    limit: Number(skill.passive.limit ?? 0),
+    requiredLimitBreakLevel: 0,
+    sourceType: String(skill.sourceType ?? 'triggeredSkill'),
+    sourceMeta:
+      skill.sourceMeta && typeof skill.sourceMeta === 'object' ? structuredClone(skill.sourceMeta) : null,
+    labels: null,
+    parts: Array.isArray(skill.parts) ? skill.parts : [],
+  };
+}
+
+function getPassiveEntriesForMember(member) {
+  const entries = Array.isArray(member?.passives) ? [...member.passives] : [];
+  for (const skill of member?.triggeredSkills ?? []) {
+    const passiveLike = toPassiveLikeEntryFromTriggeredSkill(skill);
+    if (passiveLike) {
+      entries.push(passiveLike);
+    }
+  }
+  return entries;
+}
+
+function getPassiveUsageKey(member, passive) {
+  const characterId = String(member?.characterId ?? '').trim();
+  const passiveId = Number(passive?.passiveId ?? passive?.id ?? 0);
+  const passiveName = String(passive?.name ?? '').trim();
+  return `${characterId}:${Number.isFinite(passiveId) ? passiveId : 0}:${passiveName}`;
+}
+
 function resolveZoneUpEternalParts(member) {
-  return (member?.passives ?? []).flatMap((passive) =>
+  return getPassiveEntriesForMember(member).flatMap((passive) =>
     (passive?.parts ?? [])
       .filter((part) => String(part?.skill_type ?? '').trim() === 'ZoneUpEternal')
       .map((part) => ({ passive, part }))
@@ -1199,6 +1267,168 @@ function getMotivationTargetLevel(part) {
     }
   }
   return 0;
+}
+
+function resolvePartyMarkLevelForElement(state, element) {
+  const key = String(element ?? '').trim();
+  if (!key) {
+    return 0;
+  }
+  let count = 0;
+  for (const member of state?.party ?? []) {
+    if (Array.isArray(member?.elements) && member.elements.includes(key)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function resolveIntrinsicMarkModifiersForMember(member) {
+  if (!member) {
+    return {
+      attackUpRate: 0,
+      damageTakenDownRate: 0,
+      devastationRateUp: 0,
+      criticalRateUp: 0,
+      criticalDamageUp: 0,
+      matchedElements: [],
+    };
+  }
+
+  let attackUpRate = 0;
+  let damageTakenDownRate = 0;
+  let devastationRateUp = 0;
+  let criticalRateUp = 0;
+  let criticalDamageUp = 0;
+  const matchedElements = [];
+
+  for (const element of member.elements ?? []) {
+    const config = INTRINSIC_MARK_EFFECTS_BY_ELEMENT[String(element ?? '').trim()];
+    if (!config) {
+      continue;
+    }
+    const level = Number(member.markStates?.[element]?.current ?? 0);
+    if (level <= 0) {
+      continue;
+    }
+    matchedElements.push({ element, level });
+    if (level >= 1) {
+      attackUpRate += Number(config.skillDamageUpRateAtLevel1 ?? 0);
+    }
+    if (level >= 2) {
+      damageTakenDownRate += Number(config.damageTakenDownRateAtLevel2 ?? 0);
+    }
+    if (level >= 3) {
+      devastationRateUp += Number(config.devastationRateUpAtLevel3 ?? 0);
+    }
+    if (level >= 4) {
+      criticalRateUp += Number(config.criticalRateUpAtLevel4 ?? 0);
+    }
+    if (level >= 5) {
+      criticalDamageUp += Number(config.criticalDamageUpAtLevel5 ?? 0);
+    }
+  }
+
+  return {
+    attackUpRate,
+    damageTakenDownRate,
+    devastationRateUp,
+    criticalRateUp,
+    criticalDamageUp,
+    matchedElements,
+  };
+}
+
+function applyIntrinsicMarkTurnStartRecovery(party) {
+  const recoveryEvents = [];
+
+  for (const member of party ?? []) {
+    if (!member?.isFront()) {
+      continue;
+    }
+    for (const { element, level } of resolveIntrinsicMarkModifiersForMember(member).matchedElements) {
+      const config = INTRINSIC_MARK_EFFECTS_BY_ELEMENT[String(element ?? '').trim()];
+      const amount = Number(config?.extraFrontSpAtTurnStartAtLevel6 ?? 0);
+      if (level < 6 || !Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+      const change = member.applySpDelta(amount, 'passive');
+      recoveryEvents.push({
+        characterId: member.characterId,
+        source: 'intrinsic_mark',
+        triggerType: `${element}Mark`,
+        ...change,
+      });
+    }
+  }
+
+  return recoveryEvents;
+}
+
+function applyMarkEffectsFromActions(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      const markElement = MARK_SKILL_TYPE_TO_ELEMENT[String(part?.skill_type ?? '').trim()];
+      if (!markElement) {
+        continue;
+      }
+      const condTexts = [part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+      const level = resolvePartyMarkLevelForElement(state, markElement);
+      if (!level) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        const change = target.setMarkLevel(markElement, level);
+        if (!change) {
+          continue;
+        }
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          source: 'mark_skill',
+          skillId: skill.skillId,
+          skillName: skill.name,
+          triggerType: `${markElement}Mark`,
+          ...change,
+        });
+      }
+    }
+  }
+
+  return events;
 }
 
 function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
@@ -2416,6 +2646,11 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       tokenAttackRatePerToken: Number(actionEntry?.tokenAttackContext?.ratePerToken ?? 0),
       tokenAttackTotalRate: Number(actionEntry?.tokenAttackContext?.totalRate ?? 0),
       damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
+      markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
+      markDamageTakenDownRate: Number(actionEntry?.specialPassiveModifiers?.markDamageTakenDownRate ?? 0),
+      markDevastationRateUp: Number(actionEntry?.specialPassiveModifiers?.markDevastationRateUp ?? 0),
+      markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
+      markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
       overDrivePointUpByTokenPerToken: effectiveParts
         .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
         .reduce((sum, part) => sum + Number(part?.power?.[0] ?? 0), 0),
@@ -2988,6 +3223,7 @@ function previewActionEntries(state, sortedActions) {
       member,
       preview.startToken
     );
+    const intrinsicMarkModifiers = resolveIntrinsicMarkModifiersForMember(member);
 
     return {
       characterId: member.characterId,
@@ -3062,9 +3298,15 @@ function previewActionEntries(state, sortedActions) {
             ]
           : [],
       specialPassiveModifiers: {
-        attackUpRate: Number(specialAttackUp.totalRate ?? 0),
+        attackUpRate:
+          Number(specialAttackUp.totalRate ?? 0) + Number(intrinsicMarkModifiers.attackUpRate ?? 0),
+        markAttackUpRate: Number(intrinsicMarkModifiers.attackUpRate ?? 0),
         damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
         zonePowerRate,
+        markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
+        markDevastationRateUp: Number(intrinsicMarkModifiers.devastationRateUp ?? 0),
+        markCriticalRateUp: Number(intrinsicMarkModifiers.criticalRateUp ?? 0),
+        markCriticalDamageUp: Number(intrinsicMarkModifiers.criticalDamageUp ?? 0),
       },
       tokenAttackContext,
       specialPassiveEvents: [
@@ -3251,10 +3493,20 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
   const epEvents = [];
   const passiveEvents = [];
   const turnState = state?.turnState ?? {};
+  const passiveUsageCounts =
+    turnState.passiveUsageCounts && typeof turnState.passiveUsageCounts === 'object'
+      ? turnState.passiveUsageCounts
+      : {};
 
   for (const member of state?.party ?? []) {
-    for (const passive of member.passives ?? []) {
+    for (const passive of getPassiveEntriesForMember(member)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      const passiveLimit = Number(passive?.limit ?? 0);
+      const usageKey = getPassiveUsageKey(member, passive);
+      const currentUsageCount = Number(passiveUsageCounts[usageKey] ?? 0);
+      if (passiveLimit > 0 && currentUsageCount >= passiveLimit) {
         continue;
       }
 
@@ -3301,7 +3553,8 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'Motivation' &&
           skillType !== 'AttackUp' &&
           skillType !== 'OverDrivePointUp' &&
-          skillType !== 'DebuffGuard'
+          skillType !== 'DebuffGuard' &&
+          !MARK_SKILL_TYPE_TO_ELEMENT[skillType]
         ) {
           if (skillType) {
             unsupportedEffectTypes.add(skillType);
@@ -3363,6 +3616,40 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             totalMotivationDelta += Number(change?.delta ?? 0);
           }
           continue;
+        }
+
+        {
+          const markElement = MARK_SKILL_TYPE_TO_ELEMENT[skillType];
+          if (markElement) {
+            const level = resolvePartyMarkLevelForElement(state, markElement);
+            if (!level) {
+              continue;
+            }
+            const targetCharacterIds = resolveSupportTargetCharacterIds(
+              state,
+              member,
+              part?.target_type,
+              options.targetCharacterId ?? null
+            );
+            if (targetCharacterIds.length === 0) {
+              continue;
+            }
+            for (const targetCharacterId of targetCharacterIds) {
+              const target = findMemberByCharacterId(state, targetCharacterId);
+              if (!target) {
+                continue;
+              }
+              if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+                continue;
+              }
+              const change = target.setMarkLevel(markElement, level);
+              if (!change) {
+                continue;
+              }
+              matched = true;
+            }
+            continue;
+          }
         }
 
         if (skillType === 'AttackUp') {
@@ -3500,6 +3787,9 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       }
 
       if (matched || unsupportedEffectTypes.size > 0) {
+        if (matched && passiveLimit > 0) {
+          passiveUsageCounts[usageKey] = currentUsageCount + 1;
+        }
         passiveEvents.push(
           createPassiveTriggerEvent(turnState, member, passive, {
             source: 'passive',
@@ -3719,6 +4009,11 @@ function applyRecoveryPipeline(party, turnState) {
     if (passiveSkillEvents.length > 0) {
       epEvents.push(...passiveSkillEvents);
     }
+  }
+
+  const intrinsicMarkRecoveryEvents = applyIntrinsicMarkTurnStartRecovery(party);
+  if (intrinsicMarkRecoveryEvents.length > 0) {
+    recoveryEvents.push(...intrinsicMarkRecoveryEvents);
   }
 
   const passiveResult = applyPassiveTimingInternal(
@@ -4005,6 +4300,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord);
   const moraleEvents = applyMoraleEffectsFromActions(state, previewRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
+  const markEvents = applyMarkEffectsFromActions(state, previewRecord);
   const fieldStateEvents = applyFieldStateFromActions(state, previewRecord);
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
@@ -4022,7 +4318,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     entry.endEP = member.ep.current;
     entry.endToken = Number(member.tokenState?.current ?? entry.endToken ?? 0);
     entry.endMorale = Number(member.moraleState?.current ?? entry.endMorale ?? 0);
-    entry.endMotivation = Number(member.motivationState?.current ?? entry.endMotivation ?? 3);
+    entry.endMotivation = Number(member.motivationState?.current ?? entry.endMotivation ?? 0);
+    entry.endMarkStates = structuredClone(member.markStates ?? {});
 
     const extraChanges = recoveryEvents
       .filter((ev) => ev.characterId === entry.characterId)
@@ -4077,6 +4374,18 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         eventCeiling: ev.eventCeiling,
       }));
     entry.motivationChanges = [...(entry.motivationChanges ?? []), ...extraMotivationChanges];
+    const extraMarkChanges = markEvents
+      .filter((ev) => ev.characterId === entry.characterId)
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        element: ev.element,
+        delta: ev.delta,
+        preMark: ev.startMark,
+        postMark: ev.endMark,
+        eventCeiling: ev.eventCeiling,
+      }));
+    entry.markChanges = [...(entry.markChanges ?? []), ...extraMarkChanges];
     const odEvent = odGaugeGain.events.find(
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );
@@ -4255,6 +4564,7 @@ export function applyInitialPassiveState(state) {
   }
 
   const battleStartResult = applyPassiveTimingInternal(state, BATTLE_START_PASSIVE_TIMINGS);
+  applyIntrinsicMarkTurnStartRecovery(state.party);
   const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
   state.turnState.passiveEventsLastApplied = [
     ...battleStartResult.passiveEvents,

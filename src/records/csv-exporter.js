@@ -55,6 +55,10 @@ function formatEnemyTargetLabel(record, action) {
   if (!Number.isFinite(targetEnemyIndex) || targetEnemyIndex < 0) {
     return '';
   }
+  const enemyCount = Number(record?.enemyCount ?? 1);
+  if (Number.isFinite(enemyCount) && enemyCount <= 1) {
+    return '';
+  }
   const defaultLabel = `Enemy ${targetEnemyIndex + 1}`;
   const enemyNamesByEnemy =
     record?.enemyNamesByEnemy && typeof record.enemyNamesByEnemy === 'object' ? record.enemyNamesByEnemy : {};

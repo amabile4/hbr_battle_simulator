@@ -137,6 +137,18 @@ test('record table shows selected enemy target with enemy name', () => {
   assert.ok(rowText.includes('Enemy 2 (Enemy B)'));
 });
 
+test('record table omits target enemy label when only one enemy exists', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+
+  adapter.mount();
+  adapter.commitCurrentTurn();
+
+  const rowText = root.querySelector('[data-role="record-body"] tr')?.textContent ?? '';
+  assert.equal(rowText.includes('-> Enemy 1'), false);
+});
+
 test('enemy config controls update enemy names and damage rates', () => {
   const store = getStore();
   const { root, win } = createRoot();

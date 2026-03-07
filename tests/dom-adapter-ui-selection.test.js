@@ -65,8 +65,24 @@ test('passive log panel shows triggered passive descriptions on OD start', () =>
 
   const text = root.querySelector('[data-role="passive-log-output"]')?.textContent ?? '';
   assert.equal(text.includes('OD1-1'), true);
-  assert.equal(text.includes('東城 つかさ') || text.includes('TTojo'), true);
-  assert.equal(text.includes('オーバードライブ中 ダメージアップ'), true);
+  assert.equal(text.includes('東城 つかさ : [[Overdrive]] オーバードライブ中 ダメージアップ'), true);
+});
+
+test('passive log panel shows battle-start passive descriptions on initialize', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.initializeBattle([1004307, 1001104, 1001204, 1001504, 1001401, 1001701], {
+    limitBreakLevelsByPartyIndex: { 0: 3 },
+  });
+
+  const text = root.querySelector('[data-role="passive-log-output"]')?.textContent ?? '';
+  assert.equal(text.includes('T1'), true);
+  assert.equal(text.includes('桐生 美也 : [夏のひより] 初戦開始時 火属性スタイルに火の印を付与する(ターン永続/解除不可)'), true);
+  assert.equal(text.includes('朝倉 可憐 : [五月雨] バトル開始時 前衛にいると自身の連撃数(小ダメージ)+5(1回)'), true);
+  assert.equal(text.includes('和泉 ユキ : [遥拝の君] 味方の攻撃で敵をブレイクしたとき敵のダウンターンを1ターン延長'), true);
 });
 
 test('normal OD dialog stays visible while interrupt OD dialog is toggled', () => {

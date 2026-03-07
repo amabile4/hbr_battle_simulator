@@ -1,5 +1,9 @@
 import { applySpChange, getEventCeiling } from './sp.js';
-import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
+import {
+  DEFAULT_INITIAL_SP,
+  DEFAULT_MARK_LEVEL_MAX,
+  MARK_STATE_ELEMENTS,
+} from '../config/battle-defaults.js';
 
 function normalizeSkill(skill, canonicalSkill) {
   const sourceType = String(skill.sourceType ?? 'style');
@@ -8,6 +12,7 @@ function normalizeSkill(skill, canonicalSkill) {
     skillId: Number(skill.id ?? skill.skillId),
     label: String(skill.label ?? canonicalSkill?.label ?? ''),
     name: String(skill.name ?? ''),
+    desc: String(skill.desc ?? canonicalSkill?.desc ?? ''),
     targetType: String(skill.target_type ?? skill.targetType ?? canonicalSkill?.targetType ?? ''),
     spCost: Number(skill.sp_cost ?? skill.spCost ?? canonicalSkill?.spCost ?? 0),
     sourceType,
@@ -161,6 +166,23 @@ function createReinforcedModeMindEyeEffect() {
   };
 }
 
+function buildDefaultMarkStates(input) {
+  const rawMarkStates = input?.markStates && typeof input.markStates === 'object' ? input.markStates : {};
+  return Object.fromEntries(
+    MARK_STATE_ELEMENTS.map((element) => {
+      const source = rawMarkStates[element] && typeof rawMarkStates[element] === 'object' ? rawMarkStates[element] : {};
+      return [
+        element,
+        {
+          current: Number(source.current ?? 0),
+          min: Number(source.min ?? 0),
+          max: Number(source.max ?? DEFAULT_MARK_LEVEL_MAX),
+        },
+      ];
+    })
+  );
+}
+
 function normalizePassive(passive) {
   return {
     passiveId: Number(passive.id ?? passive.passiveId),
@@ -250,6 +272,7 @@ export class CharacterStyle {
       min: Number(input.motivationMin ?? 0),
       max: Number(input.motivationMax ?? 5),
     };
+    this.markStates = buildDefaultMarkStates(input);
 
     this.isAlive = input.isAlive ?? true;
     this.isBreak = input.isBreak ?? false;
@@ -556,6 +579,38 @@ export class CharacterStyle {
     };
   }
 
+  getMarkState(element) {
+    const key = String(element ?? '').trim();
+    if (!key) {
+      return null;
+    }
+    return this.markStates[key] ?? null;
+  }
+
+  setMarkLevel(element, level, eventCeiling = undefined) {
+    const key = String(element ?? '').trim();
+    const markState = this.getMarkState(key);
+    if (!markState) {
+      return null;
+    }
+    const startMark = markState.current;
+    const targetLevel = Number(level);
+    const ceiling = Number.isFinite(Number(eventCeiling))
+      ? Number(eventCeiling)
+      : Number(markState.max ?? DEFAULT_MARK_LEVEL_MAX);
+    const endMark = applySpChange(0, targetLevel, markState.min, ceiling);
+    markState.current = endMark;
+    this._revision += 1;
+
+    return {
+      element: key,
+      startMark,
+      endMark,
+      delta: endMark - startMark,
+      eventCeiling: ceiling,
+    };
+  }
+
   setMotivationLevel(level) {
     const startMotivation = this.motivationState.current;
     const endMotivation = Math.max(
@@ -833,6 +888,9 @@ export class CharacterStyle {
       tokenState: { ...this.tokenState },
       moraleState: { ...this.moraleState },
       motivationState: { ...this.motivationState },
+      markStates: Object.fromEntries(
+        Object.entries(this.markStates ?? {}).map(([element, state]) => [element, { ...state }])
+      ),
       isAlive: this.isAlive,
       isBreak: this.isBreak,
       isExtraActive: this.isExtraActive,
