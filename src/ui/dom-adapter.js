@@ -8,6 +8,12 @@ import { createBattleRecordStore, RecordEditor } from '../records/record-store.j
 import { buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
 import { BattleAdapterFacade } from './battle-adapter-facade.js';
 import { BattleDomView } from './dom-view.js';
+import {
+  START_SP_BASE,
+  START_SP_FIXED_BONUS,
+  DEFAULT_INITIAL_SP,
+  DEFAULT_START_SP_EQUIP_BONUS,
+} from '../config/battle-defaults.js';
 
 function toInt(value, fallback = 0) {
   const n = Number.parseInt(String(value), 10);
@@ -42,15 +48,13 @@ const DRIVE_PIERCE_OPTIONS = Object.freeze([
   { value: 12, label: 'ドライブピアス +12%' },
   { value: 15, label: 'ドライブピアス +15%' },
 ]);
-const START_SP_BASE = 1;
-const START_SP_LEVEL_BONUS = 2;
 const START_SP_EQUIP_OPTIONS = Object.freeze([
   { value: 0, label: '初期SP装備 +0' },
   { value: 1, label: '初期SP装備 +1' },
   { value: 2, label: '初期SP装備 +2' },
   { value: 3, label: '初期SP装備 +3' },
 ]);
-const START_SP_EQUIP_DEFAULT = 3;
+const START_SP_EQUIP_DEFAULT = DEFAULT_START_SP_EQUIP_BONUS;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const OD_GAUGE_MIN_PERCENT = -999.99;
 const OD_GAUGE_MAX_PERCENT = 300;
@@ -286,7 +290,7 @@ function firstSixUniqueStyles(styles) {
 }
 
 export class BattleDomAdapter extends BattleAdapterFacade {
-  constructor({ root, dataStore, initialSP = 3 }) {
+  constructor({ root, dataStore, initialSP = DEFAULT_INITIAL_SP }) {
     if (!root || !dataStore) {
       throw new Error('BattleDomAdapter requires root and dataStore.');
     }
@@ -1401,12 +1405,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       `[data-role="start-sp-equip-select"][data-slot="${slotIndex}"]`
     );
     const startSpEquipBonus = toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT);
-    const startSp = START_SP_BASE + START_SP_LEVEL_BONUS + startSpEquipBonus;
+    const startSp = START_SP_BASE + START_SP_FIXED_BONUS + startSpEquipBonus;
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / StartSP(base): ${startSp} (1+2+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
+      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {

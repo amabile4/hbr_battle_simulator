@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CharacterStyle } from '../domain/character-style.js';
 import { Party } from '../domain/party.js';
+import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
 import { validateDocument } from './schema-validator.js';
 
 function readJson(path) {
@@ -1052,7 +1053,7 @@ export class HbrDataStore {
   buildCharacterStyle({
     styleId,
     partyIndex,
-    initialSP = 3,
+    initialSP = DEFAULT_INITIAL_SP,
     spBonus = 0,
     drivePiercePercent = 0,
     equippedSkillIds = null,
@@ -1142,7 +1143,7 @@ export class HbrDataStore {
       throw new Error('buildPartyFromStyleIds requires exactly 6 style IDs.');
     }
 
-    const initialSP = options.initialSP ?? 3;
+    const initialSP = options.initialSP ?? DEFAULT_INITIAL_SP;
     const initialSpByPartyIndex = options.initialSpByPartyIndex ?? {};
     const spBonusMap = options.spBonusMap ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};

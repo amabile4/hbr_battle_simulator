@@ -1,4 +1,5 @@
 import { createBattleRecordStore } from '../records/record-store.js';
+import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
 import {
   createInitializedBattleSnapshot,
   queueSwapState,
@@ -11,7 +12,7 @@ import {
 } from './adapter-core.js';
 
 export class BattleAdapterFacade {
-  constructor({ dataStore, initialSP = 3 }) {
+  constructor({ dataStore, initialSP = DEFAULT_INITIAL_SP }) {
     this.dataStore = dataStore;
     this.initialSP = initialSP;
 

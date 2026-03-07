@@ -1,0 +1,4 @@
+export const START_SP_BASE = 1;
+export const START_SP_FIXED_BONUS = 2;
+export const DEFAULT_INITIAL_SP = START_SP_BASE + START_SP_FIXED_BONUS;
+export const DEFAULT_START_SP_EQUIP_BONUS = 3;

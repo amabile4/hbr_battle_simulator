@@ -1,5 +1,6 @@
 import { HbrDataStore } from '../src/data/hbr-data-store.js';
 import { BattleDomAdapter } from '../src/ui/dom-adapter.js';
+import { DEFAULT_INITIAL_SP } from '../src/config/battle-defaults.js';
 
 async function fetchJson(path) {
   if (window.location.protocol === 'file:') {
@@ -35,7 +36,7 @@ async function main() {
   const adapter = new BattleDomAdapter({
     root,
     dataStore: store,
-    initialSP: 4,
+    initialSP: DEFAULT_INITIAL_SP,
   });
 
   adapter.mount();

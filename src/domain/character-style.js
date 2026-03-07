@@ -1,4 +1,5 @@
 import { applySpChange, getEventCeiling } from './sp.js';
+import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
 
 function normalizeSkill(skill, canonicalSkill) {
   const sourceType = String(skill.sourceType ?? 'style');
@@ -213,7 +214,7 @@ export class CharacterStyle {
     this.position = position;
 
     this.sp = {
-      current: Number(input.initialSP ?? 4),
+      current: Number(input.initialSP ?? DEFAULT_INITIAL_SP),
       min: Number(input.spMin ?? 0),
       max: Number(input.spMax ?? 20),
       bonus: Number(input.spBonus ?? 0),
