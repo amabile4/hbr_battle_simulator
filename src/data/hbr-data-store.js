@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CharacterStyle } from '../domain/character-style.js';
 import { Party } from '../domain/party.js';
+import {
+  isAdmiralCommandSkill as isAdmiralCommandSkillClassifier,
+  isNormalAttackSkill as isNormalAttackSkillClassifier,
+  isPursuitOnlySkill as isPursuitOnlySkillClassifier,
+} from '../domain/skill-classifiers.js';
 import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
 import { validateDocument } from './schema-validator.js';
 
@@ -390,19 +395,7 @@ export class HbrDataStore {
       return false;
     }
 
-    const name = String(skill.name ?? '');
-    const label = String(skill.label ?? '');
-    const desc = String(skill.desc ?? '');
-
-    if (name === '追撃') {
-      return false;
-    }
-
-    if (label.endsWith('Skill91')) {
-      return false;
-    }
-
-    if (desc.includes('追撃でのみ発動可能')) {
+    if (isPursuitOnlySkillClassifier(skill)) {
       return false;
     }
 
@@ -431,7 +424,7 @@ export class HbrDataStore {
   }
 
   isAdmiralCommandSkill(skill) {
-    return String(skill?.name ?? '') === '指揮行動' && String(skill?.role ?? '') === 'Admiral';
+    return isAdmiralCommandSkillClassifier(skill);
   }
 
   getBasicCandidateStylesByCharacter(characterLabelOrName) {
@@ -475,7 +468,7 @@ export class HbrDataStore {
       return false;
     }
 
-    if (String(style.role ?? '') === 'Admiral' && String(skill?.name ?? '') === '通常攻撃') {
+    if (String(style.role ?? '') === 'Admiral' && isNormalAttackSkillClassifier(skill)) {
       return false;
     }
 

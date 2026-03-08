@@ -7,6 +7,10 @@ import {
 import { createBattleRecordStore, RecordEditor } from '../records/record-store.js';
 import { buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
 import { createDpState, cloneDpState } from '../domain/dp-state.js';
+import {
+  isAdmiralCommandSkill,
+  isNormalAttackSkill,
+} from '../domain/skill-classifiers.js';
 import { BattleAdapterFacade } from './battle-adapter-facade.js';
 import { BattleDomView } from './dom-view.js';
 import {
@@ -404,18 +408,6 @@ const ENEMY_DAMAGE_RATE_FIELDS = Object.freeze([
 // destruction rate, which is handled separately as 破壊率.
 const DEFAULT_ENEMY_DAMAGE_RATE_UI_VALUE = 100;
 const DEFAULT_ENEMY_DESTRUCTION_RATE_UI_VALUE = 100;
-
-function isNormalAttackSkill(skill) {
-  const name = String(skill?.name ?? '');
-  const label = String(skill?.label ?? '');
-  return name === '通常攻撃' || label.endsWith('AttackNormal');
-}
-
-function isAdmiralCommandSkill(skill) {
-  const name = String(skill?.name ?? '');
-  const role = String(skill?.role ?? '');
-  return name === '指揮行動' && role === 'Admiral';
-}
 
 function isRequiredEquippedSkill(skill) {
   return isNormalAttackSkill(skill) || isAdmiralCommandSkill(skill);

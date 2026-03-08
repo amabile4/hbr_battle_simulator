@@ -7,6 +7,7 @@ import {
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
+import { isNormalAttackSkill } from '../domain/skill-classifiers.js';
 import {
   OD_RECOVERY_BY_LEVEL,
   OD_COST_BY_LEVEL,
@@ -414,12 +415,6 @@ function applyTranscendenceTurnSummary(state, summary) {
   }
 
   return summary;
-}
-
-function isNormalAttackSkill(skill) {
-  const name = String(skill?.name ?? '');
-  const label = String(skill?.label ?? '');
-  return name === '通常攻撃' || label.endsWith('AttackNormal');
 }
 
 function resolveSkillHitCount(skill) {
