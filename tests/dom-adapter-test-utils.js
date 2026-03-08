@@ -73,6 +73,7 @@ export function createRoot() {
       <ul data-role="party-state"></ul>
       <div data-role="dp-debug-list"></div>
       <div data-role="token-debug-list"></div>
+      <div data-role="enemy-attack-target-controls"></div>
       <pre data-role="preview-output"></pre>
       <pre data-role="condition-support-summary"></pre>
       <pre data-role="passive-log-output"></pre>

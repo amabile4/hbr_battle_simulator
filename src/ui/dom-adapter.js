@@ -20,6 +20,8 @@ import {
   DEFAULT_START_SP_EQUIP_BONUS,
   DEFAULT_ENEMY_COUNT,
   DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+  DEFAULT_MARK_LEVEL_MAX,
+  MARK_STATE_ELEMENTS,
   SPECIAL_BREAK_CAP_BONUS_PERCENT,
   DRIVE_PIERCE_OPTIONS,
   OD_GAUGE_MIN_PERCENT,
@@ -102,6 +104,10 @@ const DP_INPUT_STEP = '0.01';
 const PARTY_SLOT_COUNT = 6;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
+const DEFAULT_STATE_MIN = 0;
+const DEFAULT_TOKEN_STATE_MAX = 10;
+const DEFAULT_MORALE_STATE_MAX = 10;
+const DEFAULT_MOTIVATION_STATE_MAX = 5;
 const TEST_CHARACTER_CANDIDATE_LABELS_ENV_KEY = 'HBR_TEST_CHARACTER_LABELS';
 const SCENARIO_JSON_ERROR_PREFIX = 'Invalid scenario JSON';
 const RECORDS_JSON_DOWNLOAD_PREFIX = 'records';
@@ -638,6 +644,78 @@ function normalizeDpStateByPartyIndex(value, baseMaxDpByPartyIndex = {}) {
   return out;
 }
 
+function normalizeBoundedStateForScenario(value, fallbackState, fallbackMax) {
+  const source = value && typeof value === 'object' ? value : {};
+  const fallback = fallbackState && typeof fallbackState === 'object' ? fallbackState : {};
+  const min = Number.isFinite(Number(source.min))
+    ? Number(source.min)
+    : Number.isFinite(Number(fallback.min))
+      ? Number(fallback.min)
+      : DEFAULT_STATE_MIN;
+  const max = Number.isFinite(Number(source.max))
+    ? Number(source.max)
+    : Number.isFinite(Number(fallback.max))
+      ? Number(fallback.max)
+      : fallbackMax;
+  const currentRaw = Number.isFinite(Number(source.current))
+    ? Number(source.current)
+    : Number.isFinite(Number(fallback.current))
+      ? Number(fallback.current)
+      : min;
+  return {
+    current: Math.max(min, Math.min(max, currentRaw)),
+    min,
+    max,
+  };
+}
+
+function normalizeStateMapByPartyIndex(value, party = [], fallbackMax = DEFAULT_TOKEN_STATE_MAX, stateKey = 'tokenState') {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  const memberByPartyIndex = new Map(
+    (Array.isArray(party) ? party : []).map((member) => [String(member.partyIndex), member])
+  );
+  return Object.fromEntries(
+    Object.entries(value).map(([partyIndex, state]) => {
+      const member = memberByPartyIndex.get(String(partyIndex));
+      return [
+        String(partyIndex),
+        normalizeBoundedStateForScenario(state, member?.[stateKey], fallbackMax),
+      ];
+    })
+  );
+}
+
+function normalizeMarkStatesForScenario(value, fallbackStates = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  const fallback = fallbackStates && typeof fallbackStates === 'object' ? fallbackStates : {};
+  return Object.fromEntries(
+    MARK_STATE_ELEMENTS.map((element) => [
+      element,
+      normalizeBoundedStateForScenario(source[element], fallback[element], DEFAULT_MARK_LEVEL_MAX),
+    ])
+  );
+}
+
+function normalizeMarkStateByPartyIndex(value, party = []) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  const memberByPartyIndex = new Map(
+    (Array.isArray(party) ? party : []).map((member) => [String(member.partyIndex), member])
+  );
+  return Object.fromEntries(
+    Object.entries(value).map(([partyIndex, markStates]) => {
+      const member = memberByPartyIndex.get(String(partyIndex));
+      return [
+        String(partyIndex),
+        normalizeMarkStatesForScenario(markStates, member?.markStates),
+      ];
+    })
+  );
+}
+
 function deriveDisplayedOdTurn(turnState) {
   const type = String(turnState?.turnType ?? '');
   if (type === 'od') {
@@ -846,6 +924,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
     this.scenarioSetupApplied = false;
+    this.enemyAttackTargetCharacterIds = [];
 
     this.characterCandidates = resolveCharacterCandidates(this.dataStore.listCharacterCandidates(), {
       maxCandidates,
@@ -1174,6 +1253,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         if (characterId) {
           this.applyDpDebugValueFromDom(characterId, { effectiveDpCap: target.value });
         }
+      }
+
+      if (target.matches('[data-role="enemy-attack-target-checkbox"]')) {
+        this.setEnemyAttackTargetCharacterIds(this.readEnemyAttackTargetCharacterIdsFromDom());
       }
 
       if (target.matches('[data-action-slot]')) {
@@ -2442,6 +2525,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       options.initialBreakByPartyIndex ?? this.readInitialBreakMapFromDom();
     const startSpEquipByPartyIndex =
       options.startSpEquipByPartyIndex ?? this.readStartSpEquipMapFromDom();
+    const tokenStateByPartyIndex =
+      options.tokenStateByPartyIndex && typeof options.tokenStateByPartyIndex === 'object'
+        ? options.tokenStateByPartyIndex
+        : {};
+    const moraleStateByPartyIndex =
+      options.moraleStateByPartyIndex && typeof options.moraleStateByPartyIndex === 'object'
+        ? options.moraleStateByPartyIndex
+        : {};
+    const motivationStateByPartyIndex =
+      options.motivationStateByPartyIndex && typeof options.motivationStateByPartyIndex === 'object'
+        ? options.motivationStateByPartyIndex
+        : {};
+    const markStateByPartyIndex =
+      options.markStateByPartyIndex && typeof options.markStateByPartyIndex === 'object'
+        ? options.markStateByPartyIndex
+        : {};
     const initialOdGauge =
       options.initialOdGauge ?? (options.skipInitialOdRead ? 0 : this.readInitialOdGaugeFromDom());
     const enemyNamesByEnemy =
@@ -2475,6 +2574,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       initialMotivationByPartyIndex,
       initialDpStateByPartyIndex,
       initialBreakByPartyIndex,
+      tokenStateByPartyIndex,
+      moraleStateByPartyIndex,
+      motivationStateByPartyIndex,
+      markStateByPartyIndex,
       startSpEquipByPartyIndex,
       initialOdGauge,
       enemyCount: this.readEnemyCountFromDom(),
@@ -2496,6 +2599,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       preserveTurnPlans,
       forceOdToggle: this.isForceOdEnabled(),
     });
+    this.setEnemyAttackTargetCharacterIds([]);
 
     this.refreshMutationUi({
       actionSelectors: true,
@@ -3320,9 +3424,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       interruptOdLevel: Number(this.pendingInterruptOdLevel ?? 0),
       forceOdActivation,
       forceResourceDeficit,
+      enemyAttackTargetCharacterIds: this.readEnemyAttackTargetCharacterIdsFromDom(),
       shouldCaptureTurnPlan,
       capturedTurnPlan,
     });
+    this.setEnemyAttackTargetCharacterIds([]);
     this.appendPassiveLogEvents(committedRecord?.passiveEvents ?? []);
     if (
       this.scenario &&
@@ -4148,6 +4254,166 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
   }
 
+  captureCurrentTokenStateByPartyIndex() {
+    if (!this.state?.party) {
+      return {};
+    }
+    return Object.fromEntries(
+      this.state.party.map((member) => [
+        String(member.partyIndex),
+        {
+          current: Number(member.tokenState?.current ?? 0),
+          min: Number(member.tokenState?.min ?? DEFAULT_STATE_MIN),
+          max: Number(member.tokenState?.max ?? DEFAULT_TOKEN_STATE_MAX),
+        },
+      ])
+    );
+  }
+
+  captureCurrentMoraleStateByPartyIndex() {
+    if (!this.state?.party) {
+      return {};
+    }
+    return Object.fromEntries(
+      this.state.party.map((member) => [
+        String(member.partyIndex),
+        {
+          current: Number(member.moraleState?.current ?? 0),
+          min: Number(member.moraleState?.min ?? DEFAULT_STATE_MIN),
+          max: Number(member.moraleState?.max ?? DEFAULT_MORALE_STATE_MAX),
+        },
+      ])
+    );
+  }
+
+  captureCurrentMotivationStateByPartyIndex() {
+    if (!this.state?.party) {
+      return {};
+    }
+    return Object.fromEntries(
+      this.state.party.map((member) => [
+        String(member.partyIndex),
+        {
+          current: Number(member.motivationState?.current ?? 0),
+          min: Number(member.motivationState?.min ?? DEFAULT_STATE_MIN),
+          max: Number(member.motivationState?.max ?? DEFAULT_MOTIVATION_STATE_MAX),
+        },
+      ])
+    );
+  }
+
+  captureCurrentMarkStateByPartyIndex() {
+    if (!this.state?.party) {
+      return {};
+    }
+    return Object.fromEntries(
+      this.state.party.map((member) => [
+        String(member.partyIndex),
+        normalizeMarkStatesForScenario(member.markStates),
+      ])
+    );
+  }
+
+  applyScenarioTokenStateByPartyIndex(tokenStateByPartyIndex = {}) {
+    if (!this.state?.party) {
+      return;
+    }
+    const normalized = normalizeStateMapByPartyIndex(
+      tokenStateByPartyIndex,
+      this.state.party,
+      DEFAULT_TOKEN_STATE_MAX,
+      'tokenState'
+    );
+    for (const member of this.state.party) {
+      const next = normalized[String(member.partyIndex)];
+      if (!next) {
+        continue;
+      }
+      member.tokenState = structuredClone(next);
+    }
+    this.refreshMutationUi({ partyState: true });
+  }
+
+  applyScenarioMoraleStateByPartyIndex(moraleStateByPartyIndex = {}) {
+    if (!this.state?.party) {
+      return;
+    }
+    const normalized = normalizeStateMapByPartyIndex(
+      moraleStateByPartyIndex,
+      this.state.party,
+      DEFAULT_MORALE_STATE_MAX,
+      'moraleState'
+    );
+    for (const member of this.state.party) {
+      const next = normalized[String(member.partyIndex)];
+      if (!next) {
+        continue;
+      }
+      member.moraleState = structuredClone(next);
+    }
+    this.refreshMutationUi({ partyState: true });
+  }
+
+  applyScenarioMotivationStateByPartyIndex(motivationStateByPartyIndex = {}) {
+    if (!this.state?.party) {
+      return;
+    }
+    const normalized = normalizeStateMapByPartyIndex(
+      motivationStateByPartyIndex,
+      this.state.party,
+      DEFAULT_MOTIVATION_STATE_MAX,
+      'motivationState'
+    );
+    for (const member of this.state.party) {
+      const next = normalized[String(member.partyIndex)];
+      if (!next) {
+        continue;
+      }
+      member.motivationState = structuredClone(next);
+    }
+    this.refreshMutationUi({ partyState: true });
+  }
+
+  applyScenarioMarkStateByPartyIndex(markStateByPartyIndex = {}) {
+    if (!this.state?.party) {
+      return;
+    }
+    const normalized = normalizeMarkStateByPartyIndex(markStateByPartyIndex, this.state.party);
+    for (const member of this.state.party) {
+      const next = normalized[String(member.partyIndex)];
+      if (!next) {
+        continue;
+      }
+      member.markStates = structuredClone(next);
+    }
+    this.refreshMutationUi({ partyState: true });
+  }
+
+  normalizeEnemyAttackTargetCharacterIds(targetCharacterIds = []) {
+    const validCharacterIds = new Set((this.state?.party ?? []).map((member) => String(member.characterId)));
+    return [...new Set(
+      (Array.isArray(targetCharacterIds) ? targetCharacterIds : [targetCharacterIds])
+        .map((characterId) => String(characterId ?? '').trim())
+        .filter((characterId) => validCharacterIds.size === 0 || validCharacterIds.has(characterId))
+    )];
+  }
+
+  readEnemyAttackTargetCharacterIdsFromDom() {
+    return this.normalizeEnemyAttackTargetCharacterIds(
+      [...this.root.querySelectorAll('[data-role="enemy-attack-target-checkbox"]')]
+        .filter((node) => Boolean(node?.checked))
+        .map((node) => node.getAttribute('data-character-id'))
+    );
+  }
+
+  setEnemyAttackTargetCharacterIds(targetCharacterIds = []) {
+    this.enemyAttackTargetCharacterIds = this.normalizeEnemyAttackTargetCharacterIds(targetCharacterIds);
+    for (const checkbox of this.root.querySelectorAll('[data-role="enemy-attack-target-checkbox"]')) {
+      const characterId = String(checkbox.getAttribute('data-character-id') ?? '').trim();
+      checkbox.checked = this.enemyAttackTargetCharacterIds.includes(characterId);
+    }
+  }
+
   applyScenarioDpStateByPartyIndex(dpStateByPartyIndex = {}) {
     if (!this.state?.party) {
       return;
@@ -4254,6 +4520,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.initializeBattle(undefined, {
       initialBreakByPartyIndex: this.readInitialBreakMapFromDom(),
       initialDpStateByPartyIndex: this.readInitialDpStateMapFromDom(),
+      tokenStateByPartyIndex:
+        setup.tokenStateByPartyIndex && typeof setup.tokenStateByPartyIndex === 'object'
+          ? structuredClone(setup.tokenStateByPartyIndex)
+          : {},
+      moraleStateByPartyIndex:
+        setup.moraleStateByPartyIndex && typeof setup.moraleStateByPartyIndex === 'object'
+          ? structuredClone(setup.moraleStateByPartyIndex)
+          : {},
+      motivationStateByPartyIndex:
+        setup.motivationStateByPartyIndex && typeof setup.motivationStateByPartyIndex === 'object'
+          ? structuredClone(setup.motivationStateByPartyIndex)
+          : {},
+      markStateByPartyIndex:
+        setup.markStateByPartyIndex && typeof setup.markStateByPartyIndex === 'object'
+          ? structuredClone(setup.markStateByPartyIndex)
+          : {},
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(setup.enemyNames),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(setup.enemyDamageRates),
       destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(setup.enemyDestructionRates),
@@ -4303,6 +4585,19 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (setup.territoryState && typeof setup.territoryState === 'object') {
       this.state.turnState.territoryState = normalizeFieldStateForScenario(setup.territoryState);
     }
+    if (setup.tokenStateByPartyIndex && typeof setup.tokenStateByPartyIndex === 'object') {
+      this.applyScenarioTokenStateByPartyIndex(setup.tokenStateByPartyIndex);
+    }
+    if (setup.moraleStateByPartyIndex && typeof setup.moraleStateByPartyIndex === 'object') {
+      this.applyScenarioMoraleStateByPartyIndex(setup.moraleStateByPartyIndex);
+    }
+    if (setup.motivationStateByPartyIndex && typeof setup.motivationStateByPartyIndex === 'object') {
+      this.applyScenarioMotivationStateByPartyIndex(setup.motivationStateByPartyIndex);
+    }
+    if (setup.markStateByPartyIndex && typeof setup.markStateByPartyIndex === 'object') {
+      this.applyScenarioMarkStateByPartyIndex(setup.markStateByPartyIndex);
+    }
+    this.setEnemyAttackTargetCharacterIds([]);
     if (Object.keys(setupDpStateByPartyIndex).length > 0) {
       this.applyScenarioDpStateByPartyIndex(setupDpStateByPartyIndex);
     }
@@ -4618,6 +4913,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   applyScenarioTurnStateOverrides(turn = {}) {
+    this.setEnemyAttackTargetCharacterIds(turn.enemyAttackTargetCharacterIds ?? []);
     if (Number.isFinite(Number(turn.enemyCount))) {
       this.setDomValue('[data-role="enemy-count"]', clampEnemyCount(turn.enemyCount));
       this.syncEnemyStateFromDom();
@@ -4647,6 +4943,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (turn.dpStateByPartyIndex && typeof turn.dpStateByPartyIndex === 'object') {
       this.applyScenarioDpStateByPartyIndex(turn.dpStateByPartyIndex);
+    }
+    if (turn.tokenStateByPartyIndex && typeof turn.tokenStateByPartyIndex === 'object') {
+      this.applyScenarioTokenStateByPartyIndex(turn.tokenStateByPartyIndex);
+    }
+    if (turn.moraleStateByPartyIndex && typeof turn.moraleStateByPartyIndex === 'object') {
+      this.applyScenarioMoraleStateByPartyIndex(turn.moraleStateByPartyIndex);
+    }
+    if (turn.motivationStateByPartyIndex && typeof turn.motivationStateByPartyIndex === 'object') {
+      this.applyScenarioMotivationStateByPartyIndex(turn.motivationStateByPartyIndex);
+    }
+    if (turn.markStateByPartyIndex && typeof turn.markStateByPartyIndex === 'object') {
+      this.applyScenarioMarkStateByPartyIndex(turn.markStateByPartyIndex);
     }
     if (Array.isArray(turn.enemyNames) || (turn.enemyNames && typeof turn.enemyNames === 'object')) {
       this.applyScenarioEnemyNames(turn.enemyNames);
@@ -5588,6 +5896,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     container.innerHTML = rows;
     this.renderDpDebugControls();
     this.renderTokenDebugControls();
+    this.renderEnemyAttackTargetControls();
     this.renderSwapSelectors();
   }
 
@@ -5662,6 +5971,39 @@ export class BattleDomAdapter extends BattleAdapterFacade {
               step="1"
               value="${current}"
             />
+          </label>
+        `;
+      })
+      .join('');
+    container.innerHTML = rows;
+  }
+
+  renderEnemyAttackTargetControls() {
+    const container = this.root.querySelector('[data-role="enemy-attack-target-controls"]');
+    if (!container) {
+      return;
+    }
+    if (!this.state?.party) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const selectedCharacterIds = this.normalizeEnemyAttackTargetCharacterIds(this.enemyAttackTargetCharacterIds);
+    this.enemyAttackTargetCharacterIds = selectedCharacterIds;
+    const rows = this.state.party
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((member) => {
+        const characterId = String(member.characterId);
+        return `
+          <label class="style-slot">
+            <input
+              data-role="enemy-attack-target-checkbox"
+              data-character-id="${characterId}"
+              type="checkbox"
+              ${selectedCharacterIds.includes(characterId) ? 'checked' : ''}
+            />
+            被弾 ${member.position + 1}:${member.characterName}
           </label>
         `;
       })
@@ -5777,6 +6119,31 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         (this.state?.party ?? []).map((member) => [String(member.partyIndex), Number(member.dpState?.baseMaxDp ?? 0)])
       )
     );
+    const tokenStateByPartyIndex = normalizeStateMapByPartyIndex(
+      plan.tokenStateByPartyIndex ?? setupDelta.tokenStateByPartyIndex,
+      this.state?.party,
+      DEFAULT_TOKEN_STATE_MAX,
+      'tokenState'
+    );
+    const moraleStateByPartyIndex = normalizeStateMapByPartyIndex(
+      plan.moraleStateByPartyIndex ?? setupDelta.moraleStateByPartyIndex,
+      this.state?.party,
+      DEFAULT_MORALE_STATE_MAX,
+      'moraleState'
+    );
+    const motivationStateByPartyIndex = normalizeStateMapByPartyIndex(
+      plan.motivationStateByPartyIndex ?? setupDelta.motivationStateByPartyIndex,
+      this.state?.party,
+      DEFAULT_MOTIVATION_STATE_MAX,
+      'motivationState'
+    );
+    const markStateByPartyIndex = normalizeMarkStateByPartyIndex(
+      plan.markStateByPartyIndex ?? setupDelta.markStateByPartyIndex,
+      this.state?.party
+    );
+    const enemyAttackTargetCharacterIds = this.normalizeEnemyAttackTargetCharacterIds(
+      plan.enemyAttackTargetCharacterIds
+    );
     const actions = Array.isArray(plan.actions)
       ? plan.actions
         .map((action) => ({
@@ -5835,9 +6202,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyBreakStates,
         enemyStatuses,
         ...(Object.keys(dpStateByPartyIndex).length > 0 ? { dpStateByPartyIndex } : {}),
+        ...(Object.keys(tokenStateByPartyIndex).length > 0 ? { tokenStateByPartyIndex } : {}),
+        ...(Object.keys(moraleStateByPartyIndex).length > 0 ? { moraleStateByPartyIndex } : {}),
+        ...(Object.keys(motivationStateByPartyIndex).length > 0 ? { motivationStateByPartyIndex } : {}),
+        ...(Object.keys(markStateByPartyIndex).length > 0 ? { markStateByPartyIndex } : {}),
         ...(zoneState ? { zoneState } : {}),
         ...(territoryState ? { territoryState } : {}),
       },
+      enemyAttackTargetCharacterIds,
       actions,
       swaps,
       preemptiveOdLevel:
@@ -5903,8 +6275,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         remainingTurns: Number(status?.remainingTurns ?? 0),
       })),
       dpStateByPartyIndex: this.captureCurrentDpStateByPartyIndex(),
+      tokenStateByPartyIndex: this.captureCurrentTokenStateByPartyIndex(),
+      moraleStateByPartyIndex: this.captureCurrentMoraleStateByPartyIndex(),
+      motivationStateByPartyIndex: this.captureCurrentMotivationStateByPartyIndex(),
+      markStateByPartyIndex: this.captureCurrentMarkStateByPartyIndex(),
       zoneState: normalizeFieldStateForScenario(this.state.turnState?.zoneState),
       territoryState: normalizeFieldStateForScenario(this.state.turnState?.territoryState),
+      enemyAttackTargetCharacterIds: this.readEnemyAttackTargetCharacterIdsFromDom(),
       actions,
       swaps,
       preemptiveOdLevel,
@@ -5941,6 +6318,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (Object.keys(normalized.setupDelta.dpStateByPartyIndex ?? {}).length > 0) {
       out.dpStateByPartyIndex = structuredClone(normalized.setupDelta.dpStateByPartyIndex);
     }
+    if (Object.keys(normalized.setupDelta.tokenStateByPartyIndex ?? {}).length > 0) {
+      out.tokenStateByPartyIndex = structuredClone(normalized.setupDelta.tokenStateByPartyIndex);
+    }
+    if (Object.keys(normalized.setupDelta.moraleStateByPartyIndex ?? {}).length > 0) {
+      out.moraleStateByPartyIndex = structuredClone(normalized.setupDelta.moraleStateByPartyIndex);
+    }
+    if (Object.keys(normalized.setupDelta.motivationStateByPartyIndex ?? {}).length > 0) {
+      out.motivationStateByPartyIndex = structuredClone(normalized.setupDelta.motivationStateByPartyIndex);
+    }
+    if (Object.keys(normalized.setupDelta.markStateByPartyIndex ?? {}).length > 0) {
+      out.markStateByPartyIndex = structuredClone(normalized.setupDelta.markStateByPartyIndex);
+    }
     if (normalized.setupDelta.zoneState) {
       out.zoneState = structuredClone(normalized.setupDelta.zoneState);
     }
@@ -5955,6 +6344,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (normalized.kishinka) {
       out.kishinka = true;
+    }
+    if (normalized.enemyAttackTargetCharacterIds.length > 0) {
+      out.enemyAttackTargetCharacterIds = structuredClone(normalized.enemyAttackTargetCharacterIds);
     }
     if (normalized.actions.length > 0) {
       out.actions = normalized.actions.map((action) => ({
@@ -6017,6 +6409,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       initialMotivationByPartyIndex: base.initialMotivationByPartyIndex,
       initialDpStateByPartyIndex: base.initialDpStateByPartyIndex,
       initialBreakByPartyIndex: base.initialBreakByPartyIndex,
+      tokenStateByPartyIndex: base.tokenStateByPartyIndex,
+      moraleStateByPartyIndex: base.moraleStateByPartyIndex,
+      motivationStateByPartyIndex: base.motivationStateByPartyIndex,
+      markStateByPartyIndex: base.markStateByPartyIndex,
       initialOdGauge: Number(base.initialOdGauge ?? 0),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(base.enemyNamesByEnemy),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(base.damageRatesByEnemy),

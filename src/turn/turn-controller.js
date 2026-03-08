@@ -2472,7 +2472,11 @@ function applyMotivationEffectsFromActions(state, previewRecord) {
 
 export function applyEnemyAttackTokenTriggers(state, targetCharacterIds = []) {
   const events = [];
-  const ids = [...new Set((Array.isArray(targetCharacterIds) ? targetCharacterIds : [targetCharacterIds]).map((id) => String(id ?? '').trim()).filter(Boolean))];
+  const ids = [...new Set(
+    (Array.isArray(targetCharacterIds) ? targetCharacterIds : [targetCharacterIds])
+      .map((id) => String(id ?? '').trim())
+      .filter(Boolean)
+  )];
 
   for (const characterId of ids) {
     const target = findMemberByCharacterId(state, characterId);
@@ -2509,6 +2513,29 @@ export function applyEnemyAttackTokenTriggers(state, targetCharacterIds = []) {
   }
 
   return events;
+}
+
+function createEnemyAttackPassiveEvents(turnState, state, enemyAttackEvents = []) {
+  return (Array.isArray(enemyAttackEvents) ? enemyAttackEvents : [])
+    .filter((event) => event && typeof event === 'object')
+    .map((event) => {
+      const member = findMemberByCharacterId(state, event.characterId);
+      return {
+        turnLabel: String(turnState?.turnLabel ?? ''),
+        timing: 'EnemyAttack',
+        source: 'enemy_attack',
+        actorCharacterId: String(event.actorCharacterId ?? event.characterId ?? ''),
+        characterId: String(event.characterId ?? ''),
+        characterName: String(member?.characterName ?? event.characterId ?? ''),
+        passiveId: Number(event.passiveId ?? 0),
+        passiveName: String(event.passiveName ?? ''),
+        passiveDesc: `${String(event.passiveName ?? '')} (Enemy Attack)`,
+        triggerType: String(event.triggerType ?? ''),
+        effectTypes: [String(event.triggerType ?? '')].filter(Boolean),
+        unsupportedEffectTypes: [],
+        tokenDelta: Number(event.delta ?? 0),
+      };
+    });
 }
 
 function tickEnemyStatuses(turnState) {
@@ -5363,11 +5390,20 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3;
   const forceOdActivation = Boolean(options.forceOdActivation ?? false);
   const forceResourceDeficit = Boolean(options.forceResourceDeficit ?? false);
+  const enemyAttackTargetCharacterIds = [...new Set(
+    (Array.isArray(options.enemyAttackTargetCharacterIds)
+      ? options.enemyAttackTargetCharacterIds
+      : [options.enemyAttackTargetCharacterIds]
+    )
+      .map((characterId) => String(characterId ?? '').trim())
+      .filter(Boolean)
+  )];
   const currentTurnPassiveEvents = Array.isArray(state.turnState?.passiveEventsLastApplied)
     ? structuredClone(state.turnState.passiveEventsLastApplied)
     : [];
   const boundaryPassiveEvents = [];
   const boundaryDpEvents = [];
+  const enemyAttackEvents = [];
 
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
@@ -5579,6 +5615,11 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   // Enemy statuses tick on enemy-turn consumption only.
   // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+    const tokenAttackEvents = applyEnemyAttackTokenTriggers(state, enemyAttackTargetCharacterIds);
+    if (tokenAttackEvents.length > 0) {
+      enemyAttackEvents.push(...tokenAttackEvents);
+      boundaryPassiveEvents.push(...createEnemyAttackPassiveEvents(nextTurnState, state, tokenAttackEvents));
+    }
     tickEnemyStatuses(nextTurnState);
     boundaryDpEvents.push(...applyEnemyTurnEndDpEffects(state.party));
   }
@@ -5622,6 +5663,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   committed.transcendence = transcendenceSummary;
   committed.passiveEvents = structuredClone([...currentTurnPassiveEvents, ...boundaryPassiveEvents]);
   committed.dpEvents = structuredClone([...actionDpEvents, ...recoveryDpEvents, ...boundaryDpEvents]);
+  committed.enemyAttackEvents = structuredClone(enemyAttackEvents);
+  committed.enemyAttackTargetCharacterIds = structuredClone(enemyAttackTargetCharacterIds);
 
   return {
     nextState,

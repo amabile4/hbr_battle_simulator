@@ -649,6 +649,14 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   adapter.applyScenarioEnemyDestructionRates({ 0: 300 });
   adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
   adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
+  adapter.state.party[0].tokenState.current = 4;
+  adapter.state.party[1].tokenState.current = 2;
+  adapter.state.party[0].moraleState.current = 1;
+  adapter.state.party[1].moraleState.current = 3;
+  adapter.state.party[0].motivationState.current = 5;
+  adapter.state.party[1].motivationState.current = 2;
+  adapter.state.party[0].markStates.Fire.current = 2;
+  adapter.state.party[1].markStates.Light.current = 1;
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -678,6 +686,10 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
       },
     },
   };
+  adapter.setEnemyAttackTargetCharacterIds([
+    adapter.state.party[0].characterId,
+    adapter.state.party[1].characterId,
+  ]);
 
   adapter.previewCurrentTurn();
   adapter.commitCurrentTurn();
@@ -710,6 +722,18 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   assert.equal(adapter.turnPlans[0].setupDelta.dpStateByPartyIndex['0'].currentDp, 84);
   assert.equal(adapter.turnPlans[0].setupDelta.dpStateByPartyIndex['0'].effectiveDpCap, 98);
   assert.equal(adapter.turnPlans[0].setupDelta.dpStateByPartyIndex['1'].currentDp, 0);
+  assert.equal(adapter.turnPlans[0].setupDelta.tokenStateByPartyIndex['0'].current, 4);
+  assert.equal(adapter.turnPlans[0].setupDelta.tokenStateByPartyIndex['1'].current, 2);
+  assert.equal(adapter.turnPlans[0].setupDelta.moraleStateByPartyIndex['0'].current, 1);
+  assert.equal(adapter.turnPlans[0].setupDelta.moraleStateByPartyIndex['1'].current, 3);
+  assert.equal(adapter.turnPlans[0].setupDelta.motivationStateByPartyIndex['0'].current, 5);
+  assert.equal(adapter.turnPlans[0].setupDelta.motivationStateByPartyIndex['1'].current, 2);
+  assert.equal(adapter.turnPlans[0].setupDelta.markStateByPartyIndex['0'].Fire.current, 2);
+  assert.equal(adapter.turnPlans[0].setupDelta.markStateByPartyIndex['1'].Light.current, 1);
+  assert.deepEqual(adapter.turnPlans[0].enemyAttackTargetCharacterIds, [
+    adapter.state.party[0].characterId,
+    adapter.state.party[1].characterId,
+  ]);
   assert.deepEqual(adapter.turnPlans[0].setupDelta.zoneState, {
     type: 'Fire',
     sourceSide: 'player',
@@ -760,11 +784,23 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   assert.equal(adapter.state.party[0].dpState.currentDp, 84);
   assert.equal(adapter.state.party[0].dpState.effectiveDpCap, 98);
   assert.equal(adapter.state.party[1].dpState.currentDp, 0);
+  assert.equal(adapter.state.party[0].tokenState.current, 4);
+  assert.equal(adapter.state.party[1].tokenState.current, 2);
+  assert.equal(adapter.state.party[0].moraleState.current, 1);
+  assert.equal(adapter.state.party[1].moraleState.current, 3);
+  assert.equal(adapter.state.party[0].motivationState.current, 5);
+  assert.equal(adapter.state.party[1].motivationState.current, 2);
+  assert.equal(adapter.state.party[0].markStates.Fire.current, 2);
+  assert.equal(adapter.state.party[1].markStates.Light.current, 1);
   assert.deepEqual(adapter.state.turnState.territoryState, {
     type: 'ReviveTerritory',
     sourceSide: 'player',
     remainingTurns: null,
   });
+  assert.deepEqual(adapter.materializeTurnPlanScenarioTurn(0).enemyAttackTargetCharacterIds, [
+    adapter.state.party[0].characterId,
+    adapter.state.party[1].characterId,
+  ]);
 });
 
 test('turn plan replay prioritizes recorded action position over stale character reference', () => {

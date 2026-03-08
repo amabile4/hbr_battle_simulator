@@ -23,35 +23,48 @@
 
 | 優先 | ID | 状態 | テーマ | 主な出典 | 先にやる理由 | 完了条件 |
 |------|----|------|--------|----------|--------------|----------|
-| P0 | `PRI-001` | `todo` | `turnPlan` / `timing context` 契約整理 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | 今後の passive 実装を全部またぐ共通基盤であり、未整理のまま個別 mechanic を増やすと手戻りが大きい | `setupDelta` と `turn state` の責務、`timing context` の項目、record と turnPlan の保存方針が文章で確定し、参照先 docs に反映されている |
-| P1 | `PRI-002` | `todo` | 被弾イベント入力モデルの設計と接続 | [`token_implementation_plan.md`](token_implementation_plan.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | `TokenSetByAttacked` と `やる気減少` が同じ「誰が被弾したか」入力に依存しており、1回の設計で 2 系統を進められる | UI 入力経路、engine hook 呼び出し位置、record への残し方、最小テスト方針が定義されている |
-| P2 | `PRI-003` | `todo` | 被弾トークン / やる気減少の実装 | [`token_implementation_plan.md`](token_implementation_plan.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | P1 が固まれば最短で効果が出る未実装 mechanic 群 | `TokenSetByAttacked` の UI 接続と、被ダメージ起点の `Motivation -1` がテスト込みで動作する |
+| P0 | `PRI-001` | `done` | `turnPlan` / `timing context` 契約整理 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | 今後の passive 実装を全部またぐ共通基盤であり、未整理のまま個別 mechanic を増やすと手戻りが大きい | `setupDelta` と `turn state` の責務、`timing context` の項目、record と turnPlan の保存方針が文章で確定し、参照先 docs に反映されている |
+| P1 | `PRI-002` | `done` | 被弾イベント入力モデルの設計と接続 | [`token_implementation_plan.md`](token_implementation_plan.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | `TokenSetByAttacked` と `やる気減少` が同じ「誰が被弾したか」入力に依存しており、1回の設計で 2 系統を進められる | UI 入力経路、engine hook 呼び出し位置、record への残し方、最小テスト方針が定義されている |
+| P2 | `PRI-003` | `doing` | 被弾トークン / やる気減少の実装 | [`token_implementation_plan.md`](token_implementation_plan.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | P1 が固まれば最短で効果が出る未実装 mechanic 群 | `TokenSetByAttacked` の UI 接続と、被ダメージ起点の `Motivation -1` がテスト込みで動作する |
 | P3 | `PRI-004` | `todo` | 属性印消費、Field / Territory の解除・上書き | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | 状態系 mechanic の未完部分をまとめて閉じられる | 印消費、Zone / Territory の解除・上書きの状態遷移が turnPlan / scenario / record と整合した形で実装される |
 | P4 | `PRI-005` | `todo` | 状態系 UI / Records / Passive Log の見える化 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`ui_parallel_interface_spec.md`](ui_parallel_interface_spec.md) | デバッグ効率は高いが、P0-P3 ほどのアンブロッカーではない | Mark / Zone / Territory の見える化方針と表示箇所が docs と UI の両方で揃う |
 | P5 | `PRI-006` | `todo` | Phase 6 拡張（master / normal / slot / equip 起点 passive） | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | 面積が広く、前段の契約整理が済んでからでないと危険 | 対象範囲の分割順、最初に着手する source 系統、テスト方針が決まっている |
 
 ## 次に着手する具体的な 1 本
 
-### `PRI-001` で先に決めること
+### 今回までで確定したこと
 
-- `setupDelta` に残すもの
-  - `Zone`
-  - `Territory`
-  - `Token`
-  - `MoraleLevel`
-  - `MotivationLevel`
-  - `Mark`
-  - `DpRate`
-- `turnPlan` に残さないもの
+- `setupDelta` に保存する入力状態
+  - `dpStateByPartyIndex`
+  - `tokenStateByPartyIndex`
+  - `moraleStateByPartyIndex`
+  - `motivationStateByPartyIndex`
+  - `markStateByPartyIndex`
+  - `zoneState`
+  - `territoryState`
+- `turn` 単位の一時入力として top-level に保存するもの
+  - `enemyAttackTargetCharacterIds`
+- `turnPlan` に保存しないもの
   - passive の発火結果そのもの
   - warning / log のような派生結果
-- `timing context` に最低限入れるもの
+- record 側に保存するもの
+  - `passiveEvents`
+  - `enemyAttackEvents`
+  - `enemyAttackTargetCharacterIds`
+- `timing context` の最低限の前提
   - `turnType`
   - `isFirstBattleTurn`
   - `isAdditionalTurn`
   - `triggerSource`
   - `enemyState`
   - `actor`
+
+### 次に着手する具体的な 1 本
+
+- `PRI-003` の残り
+  - `TokenSetByAttacked` の UI / scenario / turnPlan / record 接続は完了
+  - 未完は被ダメージ起点の `Motivation -1`
+  - 現データで直接対応する skill / passive 表現がまだ整理不足なので、次は `Motivation` 減少トリガーの表現確認から再開する
 
 ## メモ
 

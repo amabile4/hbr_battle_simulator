@@ -42,12 +42,11 @@
 - [x] `Token`
   - 共通基盤として `CharacterStyle.tokenState`、`Token()`、`TokenSet`、`consume_type: Token` は実装済み
   - 月城最中系の `TokenSetByAttacking`、マリア系の `TokenSetByHealedDp` は実装済み
-  - `TokenSetByAttacked` はエンジン API `applyEnemyAttackTokenTriggers()` まで実装済み
+  - `TokenSetByAttacked` は engine API `applyEnemyAttackTokenTriggers()` と UI / scenario / turnPlan / record 接続まで実装済み
   - `TokenAttack` は preview / record / `damageContext` に参照値を保持するところまで実装済み
   - `DamageRateUpPerToken` は `OnPlayerTurnStart` の preview modifier / record 向け参照値として実装済み
   - `OverDrivePointUpByToken` は OD 上昇値へ反映し、`damageContext` に参照値を保持するところまで実装済み
   - `TokenChangeTimeline` は独立効果としては扱わず、`TokenAttack` と同列の内部表現として無視する方針
-  - 未実装は `TokenSetByAttacked` の UI 接続
 - [x] `MoraleLevel`
   - 共通基盤として `CharacterStyle.moraleState` と `MoraleLevel()` 条件評価は実装済み
   - `CountBC(... MoraleLevel() >= N ...)` の player 条件評価も実装済み
@@ -63,6 +62,7 @@
   - `Motivation` スキルによる明示レベル上書きは実装済み
   - `OnFirstBattleStart` のランダム付与系は、シミュレータでは手動初期値を優先して no-op として扱う
   - 未実装は `DP回復で +1` と `被ダメージで -1` のイベントフック
+  - 被弾入力モデル自体は `enemyAttackTargetCharacterIds` として UI / scenario / turnPlan / record に接続済み
 - [x] `FireMarkLevel`
   - 共通基盤として `CharacterStyle.markStates`、各 `*MarkLevel()` 条件評価、`Fire/Ice/Thunder/Dark/LightMark` スキル適用は実装済み
   - 実データ回帰は `ThunderMarkLevel / DarkMarkLevel / LightMark` 経由で通している
@@ -151,7 +151,7 @@
   - `enemyNames`
   - `enemyDamageRates`
   - `enemyStatuses`
-- [ ] 将来の `timing` 発火条件で必要な状態を `setupDelta` / turn state のどちらで持つか整理する
+- [x] 将来の `timing` 発火条件で必要な状態を `setupDelta` / turn state のどちらで持つか整理する
   - `Zone`
   - `Territory`
   - `Token`
@@ -159,11 +159,11 @@
   - `MotivationLevel`
   - `Mark`
   - `DpRate`
-- [ ] `turnPlan` にはパッシブ発火結果そのものではなく「発火に必要な入力状態」を保存する方針で統一する
-- [ ] パッシブ発火結果は record 側に残し、`turnPlan` 再計算時に毎回再評価する
+- [x] `turnPlan` にはパッシブ発火結果そのものではなく「発火に必要な入力状態」を保存する方針で統一する
+- [x] パッシブ発火結果は record 側に残し、`turnPlan` 再計算時に毎回再評価する
 - [x] `turn-controller` に `timing` 単位の汎用実行入口を設ける
   - 例: `applyPassiveTiming(state, timing, context)`
-- [ ] `timing` 実行時の `context` に何を持たせるか定義する
+- [x] `timing` 実行時の `context` に何を持たせるか定義する
   - `turnType`
   - `isFirstBattleTurn`
   - `isAdditionalTurn`
@@ -180,6 +180,10 @@
   - `setupDelta`
   - `actionIntent`
   - `expectedMeta`
+- 現在の保存方針
+  - `setupDelta` には `dpStateByPartyIndex` / `tokenStateByPartyIndex` / `moraleStateByPartyIndex` / `motivationStateByPartyIndex` / `markStateByPartyIndex` / `zoneState` / `territoryState` を保持する
+  - 被弾入力は battle state ではなく turn 単位の一時入力として `enemyAttackTargetCharacterIds` を top-level に保持する
+  - `passiveEvents` や warning は `turnPlan` に保存せず、record 側で保持する
 - 現在は `applyPassiveTiming(state, timing, context)` の公開 API を追加し、`HealSp/HealEp` に関して
   - `OnAdditionalTurnStart`
   - `OnBattleStart`
@@ -215,6 +219,7 @@
   - やる気付与元がいない時は初期値 `0` / 非表示とする
 - [ ] やる気減少スキル
   - `被ダメージで -1` のようなイベント起点は未実装
+  - 被弾入力モデルの保存経路は実装済みで、残りは `MotivationLevel` への減少反映 hook のみ
 - [x] 属性印付与スキル
   - `Fire / Ice / Thunder / Dark / Light` の `*Mark` 付与と `*MarkLevel()` 条件評価は実装済み
   - 実機仕様に合わせて「属性人数ベースの印レベル」を採用

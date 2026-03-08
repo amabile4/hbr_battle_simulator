@@ -6,12 +6,100 @@ import {
 } from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from '../records/record-store.js';
 import { createInitialTurnState } from '../contracts/interfaces.js';
+import { DEFAULT_MARK_LEVEL_MAX, MARK_STATE_ELEMENTS } from '../config/battle-defaults.js';
+
+const DEFAULT_STATE_MIN = 0;
+const DEFAULT_TOKEN_STATE_MAX = 10;
+const DEFAULT_MORALE_STATE_MAX = 10;
+const DEFAULT_MOTIVATION_STATE_MAX = 5;
 
 function canSwapByExtraState(a, b, hasAnyExtra = false) {
   if (hasAnyExtra) {
     return Boolean(a?.isExtraActive) && Boolean(b?.isExtraActive);
   }
   return true;
+}
+
+function getPartyMembers(party) {
+  if (Array.isArray(party)) {
+    return party;
+  }
+  return Array.isArray(party?.members) ? party.members : [];
+}
+
+function normalizeBoundedState(rawState, fallbackState, fallbackMax) {
+  const state = rawState && typeof rawState === 'object' ? rawState : {};
+  const fallback = fallbackState && typeof fallbackState === 'object' ? fallbackState : {};
+  const min = Number.isFinite(Number(state.min))
+    ? Number(state.min)
+    : Number.isFinite(Number(fallback.min))
+      ? Number(fallback.min)
+      : DEFAULT_STATE_MIN;
+  const max = Number.isFinite(Number(state.max))
+    ? Number(state.max)
+    : Number.isFinite(Number(fallback.max))
+      ? Number(fallback.max)
+      : fallbackMax;
+  const currentRaw = Number.isFinite(Number(state.current))
+    ? Number(state.current)
+    : Number.isFinite(Number(fallback.current))
+      ? Number(fallback.current)
+      : min;
+  return {
+    current: Math.max(min, Math.min(max, currentRaw)),
+    min,
+    max,
+  };
+}
+
+function normalizeMarkStates(rawMarkStates, fallbackMarkStates) {
+  const source = rawMarkStates && typeof rawMarkStates === 'object' ? rawMarkStates : {};
+  const fallback = fallbackMarkStates && typeof fallbackMarkStates === 'object' ? fallbackMarkStates : {};
+  return Object.fromEntries(
+    MARK_STATE_ELEMENTS.map((element) => [
+      element,
+      normalizeBoundedState(source[element], fallback[element], DEFAULT_MARK_LEVEL_MAX),
+    ])
+  );
+}
+
+function applyInitialPartyStateOverrides(
+  party,
+  {
+    tokenStateByPartyIndex = {},
+    moraleStateByPartyIndex = {},
+    motivationStateByPartyIndex = {},
+    markStateByPartyIndex = {},
+  } = {}
+) {
+  const members = getPartyMembers(party);
+  for (const member of members) {
+    const key = String(member.partyIndex);
+    if (tokenStateByPartyIndex[key] && typeof tokenStateByPartyIndex[key] === 'object') {
+      member.tokenState = normalizeBoundedState(
+        tokenStateByPartyIndex[key],
+        member.tokenState,
+        DEFAULT_TOKEN_STATE_MAX
+      );
+    }
+    if (moraleStateByPartyIndex[key] && typeof moraleStateByPartyIndex[key] === 'object') {
+      member.moraleState = normalizeBoundedState(
+        moraleStateByPartyIndex[key],
+        member.moraleState,
+        DEFAULT_MORALE_STATE_MAX
+      );
+    }
+    if (motivationStateByPartyIndex[key] && typeof motivationStateByPartyIndex[key] === 'object') {
+      member.motivationState = normalizeBoundedState(
+        motivationStateByPartyIndex[key],
+        member.motivationState,
+        DEFAULT_MOTIVATION_STATE_MAX
+      );
+    }
+    if (markStateByPartyIndex[key] && typeof markStateByPartyIndex[key] === 'object') {
+      member.markStates = normalizeMarkStates(markStateByPartyIndex[key], member.markStates);
+    }
+  }
 }
 
 export function createInitializedBattleSnapshot({
@@ -26,6 +114,10 @@ export function createInitializedBattleSnapshot({
   initialMotivationByPartyIndex = {},
   initialDpStateByPartyIndex = {},
   initialBreakByPartyIndex = {},
+  tokenStateByPartyIndex = {},
+  moraleStateByPartyIndex = {},
+  motivationStateByPartyIndex = {},
+  markStateByPartyIndex = {},
   initialOdGauge,
   enemyCount,
   enemyNamesByEnemy = {},
@@ -55,6 +147,12 @@ export function createInitializedBattleSnapshot({
     limitBreakLevelsByPartyIndex,
     drivePierceByPartyIndex,
     normalAttackElementsByPartyIndex,
+  });
+  applyInitialPartyStateOverrides(party, {
+    tokenStateByPartyIndex,
+    moraleStateByPartyIndex,
+    motivationStateByPartyIndex,
+    markStateByPartyIndex,
   });
 
   const initialTurnState = {
@@ -108,6 +206,10 @@ export function createInitializedBattleSnapshot({
       initialMotivationByPartyIndex: structuredClone(initialMotivationByPartyIndex),
       initialDpStateByPartyIndex: structuredClone(initialDpStateByPartyIndex),
       initialBreakByPartyIndex: structuredClone(initialBreakByPartyIndex),
+      tokenStateByPartyIndex: structuredClone(tokenStateByPartyIndex),
+      moraleStateByPartyIndex: structuredClone(moraleStateByPartyIndex),
+      motivationStateByPartyIndex: structuredClone(motivationStateByPartyIndex),
+      markStateByPartyIndex: structuredClone(markStateByPartyIndex),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
       enemyNamesByEnemy:
@@ -188,6 +290,9 @@ export function commitTurnRecord(state, previewRecord, pendingSwapEvents, option
     interruptOdLevel: Number(options.interruptOdLevel ?? 0),
     forceOdActivation: Boolean(options.forceOdActivation ?? false),
     forceResourceDeficit: Boolean(options.forceResourceDeficit ?? false),
+    enemyAttackTargetCharacterIds: Array.isArray(options.enemyAttackTargetCharacterIds)
+      ? structuredClone(options.enemyAttackTargetCharacterIds)
+      : [],
   });
 }
 

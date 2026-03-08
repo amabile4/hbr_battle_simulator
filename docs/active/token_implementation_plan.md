@@ -1,6 +1,6 @@
 # Token Implementation Plan
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-08
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-09
 
 ## 概要
 
@@ -156,8 +156,8 @@
   - 自分が使った回復だけでなく、他人から受けた回復も対象になりうる
 - `敵から攻撃を受けると`
   - 蒼井えりか / 大島六宇亜 系
-  - 今の simulator では敵の被弾イベントが薄いので、後で event hook が必要
-  - UI 接続にはターゲット集中/ヘイト設計が関わるため、いったん保留
+  - `enemyAttackTargetCharacterIds` を turn 単位入力として持ち、commit 境界で `applyEnemyAttackTokenTriggers()` を呼ぶ方針で実装した
+  - 記録先は `turnPlan` / scenario の turn-level 入力、および record の `enemyAttackEvents` / `enemyAttackTargetCharacterIds`
 
 ## 共通モジュール案
 
@@ -227,8 +227,8 @@
 - 蒼井えりか
 - 大島六宇亜
 - 共通 hook: `TokenSetByAttacked`
-- 現時点ではエンジン API `applyEnemyAttackTokenTriggers(state, targetCharacterIds)` まで実装済み
-- UI から「敵に誰が攻撃されたか」を入れる接続は未実装
+- `applyEnemyAttackTokenTriggers(state, targetCharacterIds)` と commit 境界の record 化まで実装済み
+- UI / scenario / turnPlan では `enemyAttackTargetCharacterIds` として被弾対象を入力できる
 
 ### 追加ターントークン module
 
@@ -251,7 +251,7 @@
 5. [x] 月城最中の `戦勲`
 6. [x] マリアの `TokenSetByHealedDp`
 7. [x] `TokenAttack`
-8. `TokenSetByAttacked` の UI 接続
+8. [x] `TokenSetByAttacked` の UI 接続
 9. [x] `DamageRateUpPerToken`
 10. [x] `OverDrivePointUpByToken`
 
@@ -268,9 +268,9 @@
 
 ## 現在の残課題
 
-- `TokenSetByAttacked` の UI 接続
-  - エンジン側 API `applyEnemyAttackTokenTriggers(state, targetCharacterIds)` は実装済み
-  - ただし UI 側はターゲット集中/被弾対象入力の設計が必要なため保留
+- `TokenSetByAttacked`
+  - engine / UI / scenario / turnPlan / record の接続は完了
+  - 残りは被ダメージ起点 `Motivation -1` と共有する入力 UX の磨き込み、必要なら passive log 表示の拡張
 - `TokenAttack` はダメージ計算自体には未接続
   - 現シミュレータのスコープでは preview / record / `damageContext` 露出までで十分
 - `TokenChangeTimeline` は独立効果としては扱わない

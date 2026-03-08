@@ -49,6 +49,10 @@ export class BattleAdapterFacade {
       initialMotivationByPartyIndex: options.initialMotivationByPartyIndex,
       initialDpStateByPartyIndex: options.initialDpStateByPartyIndex,
       initialBreakByPartyIndex: options.initialBreakByPartyIndex,
+      tokenStateByPartyIndex: options.tokenStateByPartyIndex,
+      moraleStateByPartyIndex: options.moraleStateByPartyIndex,
+      motivationStateByPartyIndex: options.motivationStateByPartyIndex,
+      markStateByPartyIndex: options.markStateByPartyIndex,
       initialOdGauge: options.initialOdGauge,
       enemyCount: options.enemyCount,
       enemyNamesByEnemy: options.enemyNamesByEnemy,
@@ -116,6 +120,9 @@ export class BattleAdapterFacade {
       interruptOdLevel: Number(options.interruptOdLevel ?? 0),
       forceOdActivation: Boolean(options.forceOdActivation ?? false),
       forceResourceDeficit: Boolean(options.forceResourceDeficit ?? false),
+      enemyAttackTargetCharacterIds: Array.isArray(options.enemyAttackTargetCharacterIds)
+        ? structuredClone(options.enemyAttackTargetCharacterIds)
+        : [],
     });
 
     this.state = nextState;

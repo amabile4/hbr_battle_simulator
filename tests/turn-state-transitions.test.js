@@ -892,6 +892,52 @@ test('TokenSetByAttacked grants token when enemy attack trigger is applied to th
   assert.equal(member.tokenState.current, 1);
 });
 
+test('commitTurn records enemy attack token triggers when attacked targets are provided', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 18151,
+              name: '護りの真髄',
+              timing: 'OnFirstBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'TokenSetByAttacked', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002, targetEnemyIndex: 0 },
+  });
+
+  const { nextState, committedRecord } = commitTurn(state, preview, [], {
+    enemyAttackTargetCharacterIds: ['M1'],
+  });
+  const member = nextState.party.find((item) => item.characterId === 'M1');
+
+  assert.equal(member?.tokenState.current, 1);
+  assert.deepEqual(committedRecord.enemyAttackTargetCharacterIds, ['M1']);
+  assert.equal(committedRecord.enemyAttackEvents.length, 1);
+  assert.equal(committedRecord.enemyAttackEvents[0].characterId, 'M1');
+  assert.equal(committedRecord.enemyAttackEvents[0].triggerType, 'TokenSetByAttacked');
+  assert.equal(committedRecord.enemyAttackEvents[0].delta, 1);
+  assert.equal(
+    committedRecord.passiveEvents.some(
+      (event) =>
+        event.characterId === 'M1' &&
+        event.triggerType === 'TokenSetByAttacked' &&
+        event.source === 'enemy_attack' &&
+        event.tokenDelta === 1
+    ),
+    true
+  );
+});
+
 test('DamageRateUpPerToken is exposed on preview action modifiers', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

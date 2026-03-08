@@ -4,6 +4,7 @@ import {
   BattleDomAdapter,
   grantExtraTurn,
   CharacterStyle,
+  HbrDataStore,
   Party,
   createBattleStateFromParty,
 } from '../src/index.js';
@@ -474,6 +475,22 @@ test('scenario runner loads setup and executes turns deterministically', () => {
         0: { currentDp: 84, effectiveDpCap: 98 },
         1: { currentDp: 0, effectiveDpCap: 50 },
       },
+      tokenStateByPartyIndex: {
+        0: { current: 4, min: 0, max: 10 },
+        1: { current: 2, min: 0, max: 10 },
+      },
+      moraleStateByPartyIndex: {
+        0: { current: 1, min: 0, max: 10 },
+        1: { current: 3, min: 0, max: 10 },
+      },
+      motivationStateByPartyIndex: {
+        0: { current: 5, min: 0, max: 5 },
+        1: { current: 2, min: 0, max: 5 },
+      },
+      markStateByPartyIndex: {
+        0: { Fire: { current: 2, min: 0, max: 6 } },
+        1: { Light: { current: 1, min: 0, max: 6 } },
+      },
       initialOdGauge: 100,
       enemyStatuses: [
         { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
@@ -530,6 +547,14 @@ test('scenario runner loads setup and executes turns deterministically', () => {
   assert.equal(adapter.state.party[0].dpState.currentDp, 84);
   assert.equal(adapter.state.party[0].dpState.effectiveDpCap, 98);
   assert.equal(adapter.state.party[1].dpState.currentDp, 0);
+  assert.equal(adapter.state.party[0].tokenState.current, 4);
+  assert.equal(adapter.state.party[1].tokenState.current, 2);
+  assert.equal(adapter.state.party[0].moraleState.current, 1);
+  assert.equal(adapter.state.party[1].moraleState.current, 3);
+  assert.equal(adapter.state.party[0].motivationState.current, 5);
+  assert.equal(adapter.state.party[1].motivationState.current, 2);
+  assert.equal(adapter.state.party[0].markStates.Fire.current, 2);
+  assert.equal(adapter.state.party[1].markStates.Light.current, 1);
 
   adapter.runAllScenarioTurns();
   assert.equal(adapter.recordStore.records.length, 2);
@@ -565,6 +590,22 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
       dpStateByPartyIndex: {
         0: { currentDp: 84, effectiveDpCap: 98 },
         1: { currentDp: 0, effectiveDpCap: 50 },
+      },
+      tokenStateByPartyIndex: {
+        0: { current: 4, min: 0, max: 10 },
+        1: { current: 2, min: 0, max: 10 },
+      },
+      moraleStateByPartyIndex: {
+        0: { current: 1, min: 0, max: 10 },
+        1: { current: 3, min: 0, max: 10 },
+      },
+      motivationStateByPartyIndex: {
+        0: { current: 5, min: 0, max: 5 },
+        1: { current: 2, min: 0, max: 5 },
+      },
+      markStateByPartyIndex: {
+        0: { Fire: { current: 2, min: 0, max: 6 } },
+        1: { Light: { current: 1, min: 0, max: 6 } },
       },
       enemyStatuses: [
         { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
@@ -612,6 +653,14 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].currentDp, 84);
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].effectiveDpCap, 98);
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['1'].currentDp, 0);
+  assert.equal(adapter.turnPlanBaseSetup.tokenStateByPartyIndex['0'].current, 4);
+  assert.equal(adapter.turnPlanBaseSetup.tokenStateByPartyIndex['1'].current, 2);
+  assert.equal(adapter.turnPlanBaseSetup.moraleStateByPartyIndex['0'].current, 1);
+  assert.equal(adapter.turnPlanBaseSetup.moraleStateByPartyIndex['1'].current, 3);
+  assert.equal(adapter.turnPlanBaseSetup.motivationStateByPartyIndex['0'].current, 5);
+  assert.equal(adapter.turnPlanBaseSetup.motivationStateByPartyIndex['1'].current, 2);
+  assert.equal(adapter.turnPlanBaseSetup.markStateByPartyIndex['0'].Fire.current, 2);
+  assert.equal(adapter.turnPlanBaseSetup.markStateByPartyIndex['1'].Light.current, 1);
   assert.deepEqual(adapter.turnPlanBaseSetup.zoneState, {
     type: 'Fire',
     sourceSide: 'player',
@@ -625,7 +674,7 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
 });
 
 test('reinitialize from turn plan base restores multi-enemy initial state', () => {
-  const store = getStore();
+  const store = HbrDataStore.fromJsonDirectory('json');
   const { root, win } = createRoot();
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
@@ -638,6 +687,14 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   adapter.applyScenarioEnemyDestructionRates({ 0: 300 });
   adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
   adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
+  adapter.state.party[0].tokenState.current = 4;
+  adapter.state.party[1].tokenState.current = 2;
+  adapter.state.party[0].moraleState.current = 1;
+  adapter.state.party[1].moraleState.current = 3;
+  adapter.state.party[0].motivationState.current = 5;
+  adapter.state.party[1].motivationState.current = 2;
+  adapter.state.party[0].markStates.Fire.current = 2;
+  adapter.state.party[1].markStates.Light.current = 1;
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -671,6 +728,14 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   adapter.applyScenarioEnemyDestructionRates({ 0: 300 });
   adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
   adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
+  adapter.state.party[0].tokenState.current = 4;
+  adapter.state.party[1].tokenState.current = 2;
+  adapter.state.party[0].moraleState.current = 1;
+  adapter.state.party[1].moraleState.current = 3;
+  adapter.state.party[0].motivationState.current = 5;
+  adapter.state.party[1].motivationState.current = 2;
+  adapter.state.party[0].markStates.Fire.current = 2;
+  adapter.state.party[1].markStates.Light.current = 1;
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -686,6 +751,22 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   adapter.turnPlanBaseSetup.initialDpStateByPartyIndex = {
     0: structuredClone(adapter.state.party[0].dpState),
     1: structuredClone(adapter.state.party[1].dpState),
+  };
+  adapter.turnPlanBaseSetup.tokenStateByPartyIndex = {
+    0: structuredClone(adapter.state.party[0].tokenState),
+    1: structuredClone(adapter.state.party[1].tokenState),
+  };
+  adapter.turnPlanBaseSetup.moraleStateByPartyIndex = {
+    0: structuredClone(adapter.state.party[0].moraleState),
+    1: structuredClone(adapter.state.party[1].moraleState),
+  };
+  adapter.turnPlanBaseSetup.motivationStateByPartyIndex = {
+    0: structuredClone(adapter.state.party[0].motivationState),
+    1: structuredClone(adapter.state.party[1].motivationState),
+  };
+  adapter.turnPlanBaseSetup.markStateByPartyIndex = {
+    0: structuredClone(adapter.state.party[0].markStates),
+    1: structuredClone(adapter.state.party[1].markStates),
   };
   adapter.turnPlanBaseSetup.destructionRateByEnemy = { 0: 300 };
   adapter.turnPlanBaseSetup.destructionRateCapByEnemy = { 0: 600 };
@@ -703,6 +784,14 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   adapter.clearEnemyStatusFromDom();
   adapter.state.party[0].setDpState({ currentDp: 10, effectiveDpCap: adapter.state.party[0].dpState.baseMaxDp });
   adapter.state.party[1].setDpState({ currentDp: adapter.state.party[1].dpState.baseMaxDp, effectiveDpCap: 120 });
+  adapter.state.party[0].tokenState.current = 0;
+  adapter.state.party[1].tokenState.current = 0;
+  adapter.state.party[0].moraleState.current = 0;
+  adapter.state.party[1].moraleState.current = 0;
+  adapter.state.party[0].motivationState.current = 0;
+  adapter.state.party[1].motivationState.current = 0;
+  adapter.state.party[0].markStates.Fire.current = 0;
+  adapter.state.party[1].markStates.Light.current = 0;
   adapter.state.turnState.zoneState = null;
   adapter.state.turnState.territoryState = null;
 
@@ -749,6 +838,57 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   assert.equal(adapter.state.party[0].dpState.currentDp, 84);
   assert.equal(adapter.state.party[0].dpState.effectiveDpCap, 98);
   assert.equal(adapter.state.party[1].dpState.currentDp, 0);
+  assert.equal(adapter.state.party[0].tokenState.current, 4);
+  assert.equal(adapter.state.party[1].tokenState.current, 2);
+  assert.equal(adapter.state.party[0].moraleState.current, 1);
+  assert.equal(adapter.state.party[1].moraleState.current, 3);
+  assert.equal(adapter.state.party[0].motivationState.current, 5);
+  assert.equal(adapter.state.party[1].motivationState.current, 2);
+  assert.equal(adapter.state.party[0].markStates.Fire.current, 2);
+  assert.equal(adapter.state.party[1].markStates.Light.current, 1);
+});
+
+test('scenario turn overrides apply party state maps and attacked target checkboxes', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const targetIds = [adapter.state.party[0].characterId, adapter.state.party[1].characterId];
+  adapter.applyScenarioTurnStateOverrides({
+    tokenStateByPartyIndex: {
+      0: { current: 4, min: 0, max: 10 },
+      1: { current: 2, min: 0, max: 10 },
+    },
+    moraleStateByPartyIndex: {
+      0: { current: 1, min: 0, max: 10 },
+      1: { current: 3, min: 0, max: 10 },
+    },
+    motivationStateByPartyIndex: {
+      0: { current: 5, min: 0, max: 5 },
+      1: { current: 2, min: 0, max: 5 },
+    },
+    markStateByPartyIndex: {
+      0: { Fire: { current: 2, min: 0, max: 6 } },
+      1: { Light: { current: 1, min: 0, max: 6 } },
+    },
+    enemyAttackTargetCharacterIds: targetIds,
+  });
+
+  assert.equal(adapter.state.party[0].tokenState.current, 4);
+  assert.equal(adapter.state.party[1].tokenState.current, 2);
+  assert.equal(adapter.state.party[0].moraleState.current, 1);
+  assert.equal(adapter.state.party[1].moraleState.current, 3);
+  assert.equal(adapter.state.party[0].motivationState.current, 5);
+  assert.equal(adapter.state.party[1].motivationState.current, 2);
+  assert.equal(adapter.state.party[0].markStates.Fire.current, 2);
+  assert.equal(adapter.state.party[1].markStates.Light.current, 1);
+  assert.deepEqual(adapter.enemyAttackTargetCharacterIds, targetIds);
+
+  const checkedIds = [...root.querySelectorAll('[data-role="enemy-attack-target-checkbox"]')]
+    .filter((node) => node.checked)
+    .map((node) => node.getAttribute('data-character-id'));
+  assert.deepEqual(checkedIds, targetIds);
 });
 
 test('scenario loader accepts exported CSV and converts it to runnable scenario', () => {
