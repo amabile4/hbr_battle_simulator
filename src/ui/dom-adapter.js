@@ -2497,23 +2497,27 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       forceOdToggle: this.isForceOdEnabled(),
     });
 
-    this.renderActionSelectors();
-    this.renderPartyState();
-    this.renderSwapSelectors();
-    this.renderTurnStatus();
-    this.renderEnemyStatusControls();
-    this.renderEnemyConfigControls();
-    this.renderKishinkaControls();
-    this.renderRecordTable();
-    this.renderTurnPlanEditControls();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+      turnStatus: true,
+      enemyStatusControls: true,
+      enemyConfigControls: true,
+      kishinkaControls: true,
+      recordTable: true,
+      turnPlanEditControls: true,
+    });
     this.writePreviewOutput('');
     this.writeConditionSupportSummary('');
     this.writeCsvOutput('');
     this.writeRecordsJsonOutput('');
     this.writePassiveLogOutput('');
     this.appendPassiveLogEvents(this.state?.turnState?.passiveEventsLastApplied ?? []);
-    this.renderOdControls();
-    this.renderScenarioStatus();
+    this.refreshMutationUi({
+      odControls: true,
+      scenarioStatus: true,
+    });
     if (!options.suppressAutoSave) {
       this.saveSelectionToSlot(AUTO_SAVE_SLOT_INDEX, { allowAutoSlot: true, silent: true });
     }
@@ -3329,18 +3333,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.scenarioCursor += 1;
       this.scenarioStagedTurnIndex = null;
     }
-    this.renderActionSelectors();
-    this.renderPartyState();
-    this.renderSwapSelectors();
-    this.renderTurnStatus();
-    this.renderEnemyStatusControls();
-    this.renderKishinkaControls();
-    this.renderRecordTable();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+      turnStatus: true,
+      enemyStatusControls: true,
+      kishinkaControls: true,
+      recordTable: true,
+    });
     this.writePreviewOutput('');
-    this.renderOdControls();
-    this.renderScenarioStatus();
+    this.refreshMutationUi({
+      odControls: true,
+      scenarioStatus: true,
+    });
     if (shouldCaptureTurnPlan && capturedTurnPlan) {
-      this.renderTurnPlanEditControls();
+      this.refreshMutationUi({ turnPlanEditControls: true });
     }
     this.setStatus('Turn committed.');
 
@@ -3484,6 +3492,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (options.enemyConfigControls) {
       this.renderEnemyConfigControls();
     }
+    if (options.kishinkaControls) {
+      this.renderKishinkaControls();
+    }
     if (options.enemyZoneControls) {
       this.renderEnemyZoneControls();
     }
@@ -3492,6 +3503,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (options.odControls) {
       this.renderOdControls();
+    }
+    if (options.turnPlanEditControls) {
+      this.renderTurnPlanEditControls();
+    }
+    if (options.scenarioStatus) {
+      this.renderScenarioStatus();
     }
   }
 
@@ -3646,15 +3663,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (!refreshUi) {
         return;
       }
-      this.renderActionSelectors();
-      this.renderPartyState();
-      this.renderSwapSelectors();
-      this.renderTurnStatus();
-      this.renderEnemyStatusControls();
-      this.renderKishinkaControls();
-      this.renderOdControls();
-      this.renderRecordTable();
-      this.renderTurnPlanEditControls();
+      this.refreshMutationUi({
+        actionSelectors: true,
+        partyState: true,
+        swapSelectors: true,
+        turnStatus: true,
+        enemyStatusControls: true,
+        kishinkaControls: true,
+        odControls: true,
+        recordTable: true,
+        turnPlanEditControls: true,
+      });
     }
   }
 
