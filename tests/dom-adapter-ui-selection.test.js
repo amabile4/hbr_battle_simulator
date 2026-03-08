@@ -148,6 +148,43 @@ test('mount falls back to empty selection store when localStorage read throws', 
   }
 });
 
+test('readSelectionStore migrates legacy manual-slot array into current slot layout', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  const legacy = {
+    schemaVersion: 1,
+    slots: Array(10).fill(null),
+  };
+  legacy.slots[0] = { savedAt: '2000-01-01T00:00:00.000Z', extras: { slot: 1 } };
+  legacy.slots[9] = { savedAt: '2000-01-02T00:00:00.000Z', extras: { slot: 10 } };
+  win.localStorage.setItem('hbr.battle_simulator.selection_slots.v1', JSON.stringify(legacy));
+
+  const saved = adapter.readSelectionStore();
+
+  assert.equal(saved.schemaVersion, 1);
+  assert.equal(saved.slots.length, 11);
+  assert.equal(saved.slots[0], null);
+  assert.deepEqual(saved.slots[1]?.extras, { slot: 1 });
+  assert.deepEqual(saved.slots[10]?.extras, { slot: 10 });
+});
+
+test('readSelectionStore falls back to empty store when saved schema is invalid', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  win.localStorage.setItem(
+    'hbr.battle_simulator.selection_slots.v1',
+    JSON.stringify({ schemaVersion: 999, slots: ['unexpected'] })
+  );
+
+  const saved = adapter.readSelectionStore();
+
+  assert.equal(saved.schemaVersion, 1);
+  assert.equal(saved.slots.length, 11);
+  assert.equal(saved.slots.every((slot) => slot === null), true);
+});
+
 test('save selection surfaces localStorage write failures via runSafely', () => {
   const store = getStore();
   const { root, win } = createRoot();

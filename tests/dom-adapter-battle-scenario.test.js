@@ -75,6 +75,35 @@ test('dom adapter exports records json and triggers file download flow', () => {
   }
 });
 
+test('saveRecordsJsonFile revokes object URL even when anchor click throws', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  const originalCreateObjectURL = win.URL.createObjectURL;
+  const originalRevokeObjectURL = win.URL.revokeObjectURL;
+  const originalAnchorClick = win.HTMLAnchorElement.prototype.click;
+  const revokedUrls = [];
+
+  win.URL.createObjectURL = () => 'blob:records-json-error';
+  win.URL.revokeObjectURL = (url) => {
+    revokedUrls.push(url);
+  };
+  win.HTMLAnchorElement.prototype.click = function clickOverride() {
+    throw new Error('download failed');
+  };
+
+  try {
+    adapter.mount();
+    assert.throws(() => adapter.saveRecordsJsonFile('{"schemaVersion":1}'), /download failed/);
+    assert.deepEqual(revokedUrls, ['blob:records-json-error']);
+    assert.equal(root.querySelectorAll('a[download]').length, 0);
+  } finally {
+    win.URL.createObjectURL = originalCreateObjectURL;
+    win.URL.revokeObjectURL = originalRevokeObjectURL;
+    win.HTMLAnchorElement.prototype.click = originalAnchorClick;
+  }
+});
+
 test('scenario load surfaces invalid JSON parse errors via runSafely', () => {
   const store = getStore();
   const { root, win } = createRoot();

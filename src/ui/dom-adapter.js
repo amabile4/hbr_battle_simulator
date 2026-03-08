@@ -103,6 +103,10 @@ const PARTY_SLOT_COUNT = 6;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
 const TEST_CHARACTER_CANDIDATE_LABELS_ENV_KEY = 'HBR_TEST_CHARACTER_LABELS';
+const SCENARIO_JSON_ERROR_PREFIX = 'Invalid scenario JSON';
+const RECORDS_JSON_DOWNLOAD_PREFIX = 'records';
+const JSON_FILE_EXTENSION = 'json';
+const JSON_DOWNLOAD_MIME_TYPE = 'application/json';
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
 const ENEMY_STATUS_STRONG_BREAK = 'StrongBreak';
@@ -1501,15 +1505,23 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   askConfirm(message) {
-    const fn = this.doc.defaultView?.confirm;
-    if (typeof fn !== 'function') {
+    const confirmHandler = this.getBrowserConfirmHandler();
+    if (!confirmHandler) {
       return true;
     }
     try {
-      return Boolean(fn.call(this.doc.defaultView, message));
+      return Boolean(confirmHandler(message));
     } catch {
       return true;
     }
+  }
+
+  getBrowserConfirmHandler() {
+    const fn = this.doc.defaultView?.confirm;
+    if (typeof fn !== 'function') {
+      return null;
+    }
+    return fn.bind(this.doc.defaultView);
   }
 
   getSelectionSlotLabel(slotIndex) {
@@ -1541,34 +1553,37 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (!raw) {
         return createEmptySelectionStore();
       }
-
-      const parsed = JSON.parse(raw);
-      if (
-        !parsed ||
-        parsed.schemaVersion !== SELECTION_SAVE_SCHEMA_VERSION ||
-        !Array.isArray(parsed.slots)
-      ) {
-        return createEmptySelectionStore();
-      }
-
-      const slots = Array(TOTAL_SELECTION_SLOT_COUNT).fill(null);
-      if (parsed.slots.length === MANUAL_SELECTION_SLOT_COUNT) {
-        // Legacy format: slot 0-9 were manual slots 1-10.
-        for (let i = 0; i < MANUAL_SELECTION_SLOT_COUNT; i += 1) {
-          slots[i + 1] = parsed.slots[i] ?? null;
-        }
-      } else {
-        for (let i = 0; i < TOTAL_SELECTION_SLOT_COUNT; i += 1) {
-          slots[i] = parsed.slots[i] ?? null;
-        }
-      }
-      return {
-        schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-        slots,
-      };
+      const parsed = this.parseJsonText(raw, 'Invalid selection store JSON');
+      return this.normalizeSelectionStoreSnapshot(parsed);
     } catch {
       return createEmptySelectionStore();
     }
+  }
+
+  normalizeSelectionStoreSnapshot(parsed) {
+    if (
+      !parsed ||
+      parsed.schemaVersion !== SELECTION_SAVE_SCHEMA_VERSION ||
+      !Array.isArray(parsed.slots)
+    ) {
+      return createEmptySelectionStore();
+    }
+
+    const slots = Array(TOTAL_SELECTION_SLOT_COUNT).fill(null);
+    if (parsed.slots.length === MANUAL_SELECTION_SLOT_COUNT) {
+      // Legacy format: slot 0-9 were manual slots 1-10.
+      for (let i = 0; i < MANUAL_SELECTION_SLOT_COUNT; i += 1) {
+        slots[i + 1] = parsed.slots[i] ?? null;
+      }
+    } else {
+      for (let i = 0; i < TOTAL_SELECTION_SLOT_COUNT; i += 1) {
+        slots[i] = parsed.slots[i] ?? null;
+      }
+    }
+    return {
+      schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
+      slots,
+    };
   }
 
   writeSelectionStore(store) {
@@ -1591,13 +1606,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         parsed: this.convertCsvToScenario(source),
       };
     }
+    return {
+      looksLikeCsv: false,
+      parsed: this.parseJsonText(source, SCENARIO_JSON_ERROR_PREFIX),
+    };
+  }
+
+  parseJsonText(text, errorPrefix = 'Invalid JSON') {
     try {
-      return {
-        looksLikeCsv: false,
-        parsed: JSON.parse(source),
-      };
+      return JSON.parse(String(text ?? ''));
     } catch (error) {
-      throw new Error(`Invalid scenario JSON: ${error.message}`);
+      throw new Error(`${errorPrefix}: ${error.message}`);
     }
   }
 
@@ -3353,10 +3372,20 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return json;
   }
 
-  saveRecordsJsonFile(text) {
+  buildTimestampedFilename(prefix, extension) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    return `${prefix}_${timestamp}.${extension}`;
+  }
+
+  buildTextDownloadTarget(text, options = {}) {
     const view = this.doc?.defaultView ?? globalThis;
     const BlobCtor = view?.Blob ?? globalThis.Blob;
     const urlApi = view?.URL ?? globalThis.URL;
+    const mimeType = String(options.mimeType ?? JSON_DOWNLOAD_MIME_TYPE);
+    const filename = String(
+      options.filename ??
+        this.buildTimestampedFilename(RECORDS_JSON_DOWNLOAD_PREFIX, JSON_FILE_EXTENSION)
+    );
 
     if (
       !BlobCtor ||
@@ -3364,26 +3393,45 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       typeof urlApi.createObjectURL !== 'function' ||
       typeof this.doc?.createElement !== 'function'
     ) {
-      return false;
+      return null;
     }
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `records_${timestamp}.json`;
-    const blob = new BlobCtor([text], { type: 'application/json' });
+    const blob = new BlobCtor([text], { type: mimeType });
     const objectUrl = urlApi.createObjectURL(blob);
     const link = this.doc.createElement('a');
     link.href = objectUrl;
     link.download = filename;
     link.style.display = 'none';
     this.doc.body?.appendChild(link);
+    return { link, objectUrl, urlApi };
+  }
+
+  cleanupTextDownloadTarget(target) {
+    if (!target) {
+      return;
+    }
+    target.link.remove();
+    if (typeof target.urlApi?.revokeObjectURL === 'function') {
+      target.urlApi.revokeObjectURL(target.objectUrl);
+    }
+  }
+
+  saveRecordsJsonFile(text) {
+    const target = this.buildTextDownloadTarget(text, {
+      mimeType: JSON_DOWNLOAD_MIME_TYPE,
+      filename: this.buildTimestampedFilename(
+        RECORDS_JSON_DOWNLOAD_PREFIX,
+        JSON_FILE_EXTENSION
+      ),
+    });
+    if (!target) {
+      return false;
+    }
 
     try {
-      link.click();
+      target.link.click();
     } finally {
-      link.remove();
-      if (typeof urlApi.revokeObjectURL === 'function') {
-        urlApi.revokeObjectURL(objectUrl);
-      }
+      this.cleanupTextDownloadTarget(target);
     }
 
     return true;
