@@ -424,6 +424,31 @@ test('turn plan edit row starts staged edit session and updates status message',
   assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Turn 1 を編集中です。');
 });
 
+test('cancelTurnPlanEdit clears edit session and reruns recalculation through shared helper', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.turnPlans.length, 1);
+
+  const editButton = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]'
+  );
+  assert.ok(editButton);
+  editButton.click();
+  adapter.kishinkaActivatedThisTurn = true;
+
+  adapter.cancelTurnPlanEdit();
+
+  assert.equal(adapter.turnPlanEditSession, null);
+  assert.equal(adapter.kishinkaActivatedThisTurn, false);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(root.querySelector('[data-role="status"]')?.textContent?.includes('再計算完了'), true);
+});
+
 test('serializeRecordField falls back to String(value) when JSON.stringify throws', () => {
   const store = getStore();
   const { root } = createRoot();

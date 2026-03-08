@@ -5965,10 +5965,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   startTurnPlanEdit(turnId) {
-    const index = Number(turnId) - 1;
-    if (!Number.isInteger(index) || index < 0 || index >= this.turnPlans.length) {
-      throw new Error(`TurnPlan not found: ${turnId}`);
-    }
+    const index = this.resolveTurnPlanIndex(turnId);
     this.stageTurnPlanSession({
       type: 'edit',
       sourceIndex: index,
@@ -5977,16 +5974,29 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   startTurnPlanInsert(turnId, direction = 'before') {
-    const index = Number(turnId) - 1;
-    if (!Number.isInteger(index) || index < 0 || index >= this.turnPlans.length) {
-      throw new Error(`TurnPlan not found: ${turnId}`);
-    }
+    const index = this.resolveTurnPlanIndex(turnId);
     const targetIndex = direction === 'after' ? index + 1 : index;
     this.stageTurnPlanSession({
       type: 'insert',
       sourceIndex: index,
       targetIndex,
     });
+  }
+
+  resolveTurnPlanIndex(turnId) {
+    const index = Number(turnId) - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= this.turnPlans.length) {
+      throw new Error(`TurnPlan not found: ${turnId}`);
+    }
+    return index;
+  }
+
+  finalizeTurnPlanMutation(options = {}) {
+    const mode =
+      String(options.mode ?? this.getTurnPlanRecalcModeFromDom()) === 'force' ? 'force' : 'strict';
+    this.turnPlanEditSession = null;
+    this.kishinkaActivatedThisTurn = false;
+    return this.recalculateTurnPlans({ mode });
   }
 
   saveTurnPlanEditFromDom() {
@@ -6000,39 +6010,28 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     } else {
       this.turnPlans[session.targetIndex] = plan;
     }
-    this.turnPlanEditSession = null;
-    this.kishinkaActivatedThisTurn = false;
-    this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
+    this.finalizeTurnPlanMutation();
   }
 
   cancelTurnPlanEdit() {
     if (!this.turnPlanEditSession) {
       return;
     }
-    this.turnPlanEditSession = null;
-    this.kishinkaActivatedThisTurn = false;
-    this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
+    this.finalizeTurnPlanMutation();
   }
 
   deleteTurnPlanRow(turnId) {
-    const index = Number(turnId) - 1;
-    if (!Number.isInteger(index) || index < 0 || index >= this.turnPlans.length) {
-      throw new Error(`TurnPlan not found: ${turnId}`);
-    }
+    const index = this.resolveTurnPlanIndex(turnId);
     this.turnPlans.splice(index, 1);
-    this.turnPlanEditSession = null;
-    this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
+    this.finalizeTurnPlanMutation();
   }
 
   moveTurnPlanRow(turnId, delta) {
-    const index = Number(turnId) - 1;
+    const index = this.resolveTurnPlanIndex(turnId);
     const nextIndex = index + Number(delta);
     if (
-      !Number.isInteger(index) ||
       !Number.isInteger(nextIndex) ||
-      index < 0 ||
       nextIndex < 0 ||
-      index >= this.turnPlans.length ||
       nextIndex >= this.turnPlans.length
     ) {
       return;
@@ -6040,8 +6039,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const temp = this.turnPlans[index];
     this.turnPlans[index] = this.turnPlans[nextIndex];
     this.turnPlans[nextIndex] = temp;
-    this.turnPlanEditSession = null;
-    this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() });
+    this.finalizeTurnPlanMutation();
   }
 
   serializeRecordField(value, fallback = '-') {
