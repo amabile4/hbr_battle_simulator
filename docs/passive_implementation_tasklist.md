@@ -313,6 +313,11 @@
 - `IsNatureElement` / `IsCharacter` / `IsWeakElement` は条件評価器としては実装済み。ただし、それらを使うパッシブ全体の発火は `timing` / `effect` 実装が別途必要
 - `IsWeakElement(Fire)` は敵の該当属性ダメージ係数が `100%` を超えると真になる。`100%` 以下は偽
 - 敵の属性耐性/弱点は現時点では手動状態として保持する。未設定時は `100%` 扱い
+- Phase 6 で `BreakGuard` は active/passive ともに `statusEffects` へ保存されるようになった
+- Phase 6 で enemy special break 状態は `StrongBreak` / `SuperDown` と `destructionRateCapByEnemy` / `breakStateByEnemy` に分離して保持する
+- `IsHitWeak()` は `SuperBreak` 適用時には target ごとに評価するため、`All` 対象でも弱点 enemy だけへ反映される
+- `turnPlan / scenario` には `enemyDestructionRates / enemyDestructionRateCaps / enemyBreakStates` を保存する
+- `BreakDownTurnUp` は Phase 6 では manual-first のまま据え置きで、DownTurn の UI 入力値を人間が解釈して与える運用を継続する
 - DP関連は `DpRate` 条件だけでなく、DP回復、DP自傷、オーバー回復上限、`AttackByOwnDpRate`、`BreakGuard` を含むため独立ドキュメントで管理する
 - `オーバーレイ` のように `target_type: AllyAll` と `target_condition: IsCharacter(IIshii)==1` を組み合わせるパッシブがあるため、今後の発火実装は「発火元イベント判定」と「効果対象抽出」を分離して設計する必要がある
 - 具体的には「味方の誰かがフィールドを展開した」という味方イベントで発火しつつ、効果対象は後衛の石井本人だけ、というレアケースを許容する必要がある

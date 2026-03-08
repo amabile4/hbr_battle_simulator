@@ -650,6 +650,9 @@ test('selection state can be saved and loaded from localStorage slots', () => {
     `[data-role="start-sp-equip-select"][data-slot="${slot}"]`
   );
   const motivationSelect = root.querySelector(`[data-role="motivation-select"][data-slot="${slot}"]`);
+  const initialBreakCheckbox = root.querySelector(
+    `[data-role="initial-break-checkbox"][data-slot="${slot}"]`
+  );
   const initialDpCurrentInput = root.querySelector(
     `[data-role="initial-dp-current-input"][data-slot="${slot}"]`
   );
@@ -668,6 +671,8 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   driveSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
   startSpEquipSelect.value = '3';
   startSpEquipSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  initialBreakCheckbox.checked = true;
+  initialBreakCheckbox.dispatchEvent(new win.Event('change', { bubbles: true }));
   initialDpCurrentInput.value = '91';
   initialDpCurrentInput.dispatchEvent(new win.Event('change', { bubbles: true }));
   initialDpCapInput.value = '105';
@@ -715,6 +720,7 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   assert.equal(driveSelect.value, '12');
   assert.equal(startSpEquipSelect.value, '3');
   assert.equal(motivationSelect.value, '5');
+  assert.equal(initialBreakCheckbox.checked, true);
   assert.equal(initialDpCurrentInput.value, '91');
   assert.equal(initialDpCapInput.value, '105');
   if (target) {
@@ -728,9 +734,11 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   assert.ok(preview.includes('savedAt:'), 'preview should show saved timestamp');
   assert.ok(preview.includes('P1:'), 'preview should show party lines');
   assert.ok(preview.includes('Motivation=絶好調(5)'), 'preview should include saved motivation');
+  assert.ok(preview.includes('Break=ON'), 'preview should include saved break state');
   assert.ok(preview.includes('DP=91/70 Cap=105'), 'preview should include saved DP state');
   const summary = root.querySelector('[data-role="selection-summary"]').textContent ?? '';
   assert.ok(summary.includes('やる気=絶好調(5)'), 'summary should include selected motivation');
+  assert.ok(summary.includes('Break=ON'), 'summary should include selected break state');
 });
 
 test('initialize battle applies selected motivation and preserves it in turn plan base setup', () => {
@@ -764,10 +772,13 @@ test('initialize battle applies selected motivation and preserves it in turn pla
   const initialDpCap0 = root.querySelector('[data-role="initial-dp-cap-input"][data-slot="0"]');
   const initialDpCurrent1 = root.querySelector('[data-role="initial-dp-current-input"][data-slot="1"]');
   const initialDpCap1 = root.querySelector('[data-role="initial-dp-cap-input"][data-slot="1"]');
+  const initialBreak0 = root.querySelector('[data-role="initial-break-checkbox"][data-slot="0"]');
   motivation0.value = '5';
   motivation0.dispatchEvent(new win.Event('change', { bubbles: true }));
   motivation1.value = '1';
   motivation1.dispatchEvent(new win.Event('change', { bubbles: true }));
+  initialBreak0.checked = true;
+  initialBreak0.dispatchEvent(new win.Event('change', { bubbles: true }));
   initialDpCurrent0.value = '84';
   initialDpCurrent0.dispatchEvent(new win.Event('change', { bubbles: true }));
   initialDpCap0.value = '98';
@@ -781,12 +792,14 @@ test('initialize battle applies selected motivation and preserves it in turn pla
 
   assert.equal(adapter.party.members[0].motivationState.current, 5);
   assert.equal(adapter.party.members[1].motivationState.current, 1);
+  assert.equal(adapter.party.members[0].isBreak, true);
   assert.equal(adapter.party.members[0].dpState.currentDp, 84);
   assert.equal(adapter.party.members[0].dpState.effectiveDpCap, 98);
   assert.equal(adapter.party.members[1].dpState.currentDp, 17);
   assert.equal(adapter.party.members[1].dpState.effectiveDpCap, 50);
   assert.equal(adapter.turnPlanBaseSetup.initialMotivationByPartyIndex['0'], 5);
   assert.equal(adapter.turnPlanBaseSetup.initialMotivationByPartyIndex['1'], 1);
+  assert.equal(adapter.turnPlanBaseSetup.initialBreakByPartyIndex['0'], true);
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].currentDp, 84);
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].effectiveDpCap, 98);
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['1'].currentDp, 17);

@@ -25,12 +25,15 @@ export function createInitializedBattleSnapshot({
   startSpEquipByPartyIndex,
   initialMotivationByPartyIndex = {},
   initialDpStateByPartyIndex = {},
+  initialBreakByPartyIndex = {},
   initialOdGauge,
   enemyCount,
   enemyNamesByEnemy = {},
   damageRatesByEnemy = {},
   destructionRateByEnemy = {},
+  destructionRateCapByEnemy = {},
   enemyStatuses = [],
+  breakStateByEnemy = {},
   enemyZoneConfigByEnemy = {},
   zoneState = null,
   territoryState = null,
@@ -47,6 +50,7 @@ export function createInitializedBattleSnapshot({
     initialSpByPartyIndex,
     initialMotivationByPartyIndex,
     initialDpStateByPartyIndex,
+    initialBreakByPartyIndex,
     skillSetsByPartyIndex,
     limitBreakLevelsByPartyIndex,
     drivePierceByPartyIndex,
@@ -71,6 +75,12 @@ export function createInitializedBattleSnapshot({
         destructionRateByEnemy && typeof destructionRateByEnemy === 'object'
           ? structuredClone(destructionRateByEnemy)
           : {},
+      destructionRateCapByEnemy:
+        destructionRateCapByEnemy && typeof destructionRateCapByEnemy === 'object'
+          ? structuredClone(destructionRateCapByEnemy)
+          : {},
+      breakStateByEnemy:
+        breakStateByEnemy && typeof breakStateByEnemy === 'object' ? structuredClone(breakStateByEnemy) : {},
       enemyNamesByEnemy:
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
       zoneConfigByEnemy:
@@ -97,6 +107,7 @@ export function createInitializedBattleSnapshot({
       startSpEquipByPartyIndex: structuredClone(startSpEquipByPartyIndex),
       initialMotivationByPartyIndex: structuredClone(initialMotivationByPartyIndex),
       initialDpStateByPartyIndex: structuredClone(initialDpStateByPartyIndex),
+      initialBreakByPartyIndex: structuredClone(initialBreakByPartyIndex),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
       enemyNamesByEnemy:
@@ -107,7 +118,13 @@ export function createInitializedBattleSnapshot({
         destructionRateByEnemy && typeof destructionRateByEnemy === 'object'
           ? structuredClone(destructionRateByEnemy)
           : {},
+      destructionRateCapByEnemy:
+        destructionRateCapByEnemy && typeof destructionRateCapByEnemy === 'object'
+          ? structuredClone(destructionRateCapByEnemy)
+          : {},
       enemyStatuses: Array.isArray(enemyStatuses) ? structuredClone(enemyStatuses) : [],
+      breakStateByEnemy:
+        breakStateByEnemy && typeof breakStateByEnemy === 'object' ? structuredClone(breakStateByEnemy) : {},
       enemyZoneConfigByEnemy:
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)

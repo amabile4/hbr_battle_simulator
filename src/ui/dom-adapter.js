@@ -15,6 +15,7 @@ import {
   DEFAULT_INITIAL_SP,
   DEFAULT_START_SP_EQUIP_BONUS,
   DEFAULT_ENEMY_COUNT,
+  DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
   DRIVE_PIERCE_OPTIONS,
   OD_GAUGE_MIN_PERCENT,
   OD_GAUGE_MAX_PERCENT,
@@ -91,6 +92,8 @@ const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
+const ENEMY_STATUS_STRONG_BREAK = 'StrongBreak';
+const ENEMY_STATUS_SUPER_DOWN = 'SuperDown';
 const ENEMY_STATUS_DEAD = 'Dead';
 const ENEMY_ZONE_TYPE_OPTIONS = Object.freeze([
   { value: 'Fire', label: '火' },
@@ -101,9 +104,12 @@ const ENEMY_ZONE_TYPE_OPTIONS = Object.freeze([
 ]);
 
 function isPersistentEnemyStatus(statusType) {
+  const normalized = String(statusType ?? '');
   return (
-    String(statusType ?? '') === ENEMY_STATUS_BREAK ||
-    String(statusType ?? '') === ENEMY_STATUS_DEAD
+    normalized === ENEMY_STATUS_BREAK ||
+    normalized === ENEMY_STATUS_STRONG_BREAK ||
+    normalized === ENEMY_STATUS_SUPER_DOWN ||
+    normalized === ENEMY_STATUS_DEAD
   );
 }
 
@@ -139,6 +145,177 @@ function normalizeEnemyDamageRatesByEnemy(value) {
       rates && typeof rates === 'object' ? { ...rates } : {},
     ])
   );
+}
+
+function normalizeEnemyDestructionRateCapByEnemy(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([targetIndex, cap]) => [
+      String(targetIndex),
+      Number.isFinite(Number(cap)) ? Number(cap) : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+    ])
+  );
+}
+
+function normalizeEnemyBreakStateByEnemy(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([targetIndex, state]) => [
+      String(targetIndex),
+      state && typeof state === 'object'
+        ? {
+            baseCap: Number.isFinite(Number(state.baseCap))
+              ? Number(state.baseCap)
+              : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+            strongBreakActive: Boolean(state.strongBreakActive),
+            superDown:
+              state.superDown && typeof state.superDown === 'object'
+                ? {
+                    preRate: Number.isFinite(Number(state.superDown.preRate))
+                      ? Number(state.superDown.preRate)
+                      : DEFAULT_DESTRUCTION_RATE_PERCENT,
+                    preCap: Number.isFinite(Number(state.superDown.preCap))
+                      ? Number(state.superDown.preCap)
+                      : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                  }
+                : null,
+          }
+        : {
+            baseCap: DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+            strongBreakActive: false,
+            superDown: null,
+          },
+    ])
+  );
+}
+
+function buildEnemyStateForUi(current = {}, enemyCount = DEFAULT_ENEMY_COUNT, overrides = {}) {
+  return {
+    enemyCount,
+    statuses: Array.isArray(overrides.statuses ?? current.statuses)
+      ? (overrides.statuses ?? current.statuses).map((status) => normalizeEnemyStatusForUi(status))
+      : [],
+    damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(
+      overrides.damageRatesByEnemy ?? current.damageRatesByEnemy
+    ),
+    destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
+      overrides.destructionRateByEnemy ?? current.destructionRateByEnemy
+    ),
+    destructionRateCapByEnemy: normalizeEnemyDestructionRateCapByEnemy(
+      overrides.destructionRateCapByEnemy ?? current.destructionRateCapByEnemy
+    ),
+    breakStateByEnemy: normalizeEnemyBreakStateByEnemy(
+      overrides.breakStateByEnemy ?? current.breakStateByEnemy
+    ),
+    enemyNamesByEnemy: normalizeEnemyNamesByEnemy(
+      overrides.enemyNamesByEnemy ?? current.enemyNamesByEnemy
+    ),
+    zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(
+      overrides.zoneConfigByEnemy ?? current.zoneConfigByEnemy
+    ),
+  };
+}
+
+function clearEnemySpecialBreakStateForUi(enemyState, targetIndex) {
+  const key = String(Number(targetIndex));
+  const normalized = buildEnemyStateForUi(enemyState, Number(enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT));
+  const breakState = normalized.breakStateByEnemy[key];
+  if (breakState) {
+    let currentRate = Number(normalized.destructionRateByEnemy[key] ?? DEFAULT_DESTRUCTION_RATE_PERCENT);
+    if (breakState.superDown) {
+      const gainedDuringSuperDown = Math.max(0, currentRate - Number(breakState.superDown.preCap ?? 0));
+      const capAfterSuperDown = breakState.strongBreakActive
+        ? Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) + 300
+        : Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT);
+      currentRate = Math.min(
+        capAfterSuperDown,
+        Number(breakState.superDown.preRate ?? DEFAULT_DESTRUCTION_RATE_PERCENT) + gainedDuringSuperDown
+      );
+    }
+    normalized.destructionRateByEnemy[key] = Math.min(
+      Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT),
+      currentRate
+    );
+  }
+  delete normalized.destructionRateCapByEnemy[key];
+  delete normalized.breakStateByEnemy[key];
+  normalized.statuses = normalized.statuses.filter((status) => {
+    const currentTarget = Number(status?.targetIndex ?? -1);
+    const currentType = String(status?.statusType ?? '');
+    if (currentTarget !== Number(targetIndex)) {
+      return true;
+    }
+    return currentType !== ENEMY_STATUS_STRONG_BREAK && currentType !== ENEMY_STATUS_SUPER_DOWN;
+  });
+  return normalized;
+}
+
+function removeEnemySuperDownStateForUi(enemyState, targetIndex) {
+  const key = String(Number(targetIndex));
+  const normalized = buildEnemyStateForUi(enemyState, Number(enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT));
+  const breakState = normalized.breakStateByEnemy[key];
+  if (!breakState?.superDown) {
+    normalized.statuses = normalized.statuses.filter((status) => {
+      const currentTarget = Number(status?.targetIndex ?? -1);
+      const currentType = String(status?.statusType ?? '');
+      return currentTarget !== Number(targetIndex) || currentType !== ENEMY_STATUS_SUPER_DOWN;
+    });
+    return normalized;
+  }
+  const currentRate = Number(normalized.destructionRateByEnemy[key] ?? DEFAULT_DESTRUCTION_RATE_PERCENT);
+  const gainedDuringSuperDown = Math.max(0, currentRate - Number(breakState.superDown.preCap ?? 0));
+  const nextCap = breakState.strongBreakActive
+    ? Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) + 300
+    : Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT);
+  normalized.destructionRateByEnemy[key] = Math.min(
+    nextCap,
+    Number(breakState.superDown.preRate ?? DEFAULT_DESTRUCTION_RATE_PERCENT) + gainedDuringSuperDown
+  );
+  normalized.statuses = normalized.statuses.filter((status) => {
+    const currentTarget = Number(status?.targetIndex ?? -1);
+    const currentType = String(status?.statusType ?? '');
+    return currentTarget !== Number(targetIndex) || currentType !== ENEMY_STATUS_SUPER_DOWN;
+  });
+  if (breakState.strongBreakActive) {
+    normalized.destructionRateCapByEnemy[key] = nextCap;
+    normalized.breakStateByEnemy[key] = {
+      baseCap: Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT),
+      strongBreakActive: true,
+      superDown: null,
+    };
+  } else {
+    delete normalized.destructionRateCapByEnemy[key];
+    delete normalized.breakStateByEnemy[key];
+  }
+  return normalized;
+}
+
+function reconcileEnemySpecialBreakStateForUi(enemyState) {
+  let next = buildEnemyStateForUi(enemyState, Number(enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT));
+  const targets = Object.keys(next.breakStateByEnemy ?? {});
+  for (const key of targets) {
+    const targetIndex = Number(key);
+    const hasStrongBreak = next.statuses.some(
+      (status) =>
+        Number(status?.targetIndex ?? -1) === targetIndex && String(status?.statusType ?? '') === ENEMY_STATUS_STRONG_BREAK
+    );
+    const hasSuperDown = next.statuses.some(
+      (status) =>
+        Number(status?.targetIndex ?? -1) === targetIndex && String(status?.statusType ?? '') === ENEMY_STATUS_SUPER_DOWN
+    );
+    if (!hasStrongBreak && !hasSuperDown) {
+      next = clearEnemySpecialBreakStateForUi(next, targetIndex);
+      continue;
+    }
+    if (!hasSuperDown) {
+      next = removeEnemySuperDownStateForUi(next, targetIndex);
+    }
+  }
+  return next;
 }
 
 function normalizeEnemyResistanceRatesByEnemy(value) {
@@ -873,6 +1050,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.updateSlotSummary(slot);
       }
 
+      if (target.matches('[data-role="initial-break-checkbox"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateSlotSummary(slot);
+      }
+
       if (target.matches('[data-role="initial-dp-current-input"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
         this.syncInitialDpSelectionControls(slot, { currentDp: target.value });
@@ -1211,6 +1393,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       motivationSelect.setAttribute('data-role', 'motivation-select');
       motivationSelect.setAttribute('data-slot', String(i));
 
+      const initialBreakLabel = this.doc.createElement('label');
+      const initialBreakCheckbox = this.doc.createElement('input');
+      initialBreakCheckbox.type = 'checkbox';
+      initialBreakCheckbox.setAttribute('data-role', 'initial-break-checkbox');
+      initialBreakCheckbox.setAttribute('data-slot', String(i));
+      initialBreakLabel.appendChild(initialBreakCheckbox);
+      initialBreakLabel.append(' 初期Break');
+
       const initialDpBaseLabel = this.doc.createElement('div');
       initialDpBaseLabel.setAttribute('data-role', 'initial-dp-base-label');
       initialDpBaseLabel.setAttribute('data-slot', String(i));
@@ -1245,6 +1435,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       wrapper.appendChild(startSpEquipSelect);
       wrapper.appendChild(normalAttackBeltSelect);
       wrapper.appendChild(motivationSelect);
+      wrapper.appendChild(initialBreakLabel);
       wrapper.appendChild(initialDpBaseLabel);
       wrapper.appendChild(initialDpCurrentInput);
       wrapper.appendChild(initialDpCapInput);
@@ -1405,6 +1596,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const motivationSelect = this.root.querySelector(
         `[data-role="motivation-select"][data-slot="${i}"]`
       );
+      const initialBreakCheckbox = this.root.querySelector(
+        `[data-role="initial-break-checkbox"][data-slot="${i}"]`
+      );
       const initialDpCurrentInput = this.root.querySelector(
         `[data-role="initial-dp-current-input"][data-slot="${i}"]`
       );
@@ -1426,6 +1620,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         startSpEquipBonus: toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT),
         normalAttackBelt: String(normalAttackBeltSelect?.value ?? ''),
         initialMotivation: normalizeMotivationLevel(motivationSelect?.value, 0),
+        initialBreak: Boolean(initialBreakCheckbox?.checked),
         initialDpCurrent: normalizedDpState.currentDp,
         initialDpCap: normalizedDpState.effectiveDpCap,
         checkedSkillIds,
@@ -1523,6 +1718,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const normalAttackBeltSelect = this.root.querySelector(
         `[data-role="normal-attack-belt-select"][data-slot="${i}"]`
       );
+      const initialBreakCheckbox = this.root.querySelector(
+        `[data-role="initial-break-checkbox"][data-slot="${i}"]`
+      );
       const beforeNormalAttackBelt = normalAttackBeltSelect?.value ?? '';
       const requestedNormalAttackBelt = String(row.normalAttackBelt ?? '');
       if (
@@ -1534,6 +1732,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         normalAttackBeltSelect.value = '';
       }
       if ((normalAttackBeltSelect?.value ?? '') !== beforeNormalAttackBelt) {
+        changedCount += 1;
+      }
+      const beforeInitialBreak = Boolean(initialBreakCheckbox?.checked);
+      const requestedInitialBreak = Boolean(row.initialBreak);
+      if (initialBreakCheckbox) {
+        initialBreakCheckbox.checked = requestedInitialBreak;
+      }
+      if (Boolean(initialBreakCheckbox?.checked) !== beforeInitialBreak) {
         changedCount += 1;
       }
 
@@ -1676,7 +1882,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       });
       lines.push(
         `P${i + 1}: ${row.characterLabel ?? '-'} / style=${row.styleId ?? '-'} / ` +
-        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / Motivation=${formatMotivationLabel(row.initialMotivation ?? 0)} / ${dpText} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
+        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / Motivation=${formatMotivationLabel(row.initialMotivation ?? 0)} / Break=${row.initialBreak ? 'ON' : 'OFF'} / ${dpText} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
       );
     }
     lines.push(
@@ -2049,6 +2255,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return out;
   }
 
+  readInitialBreakMapFromDom() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const checkbox = this.root.querySelector(`[data-role="initial-break-checkbox"][data-slot="${i}"]`);
+      out[i] = Boolean(checkbox?.checked);
+    }
+    return out;
+  }
+
   readInitialDpStateMapFromDom() {
     const out = {};
     for (let i = 0; i < 6; i += 1) {
@@ -2101,7 +2316,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const initialDpCapInput = this.root.querySelector(
       `[data-role="initial-dp-cap-input"][data-slot="${slotIndex}"]`
     );
+    const initialBreakCheckbox = this.root.querySelector(
+      `[data-role="initial-break-checkbox"][data-slot="${slotIndex}"]`
+    );
     const initialMotivation = normalizeMotivationLevel(motivationSelect?.value, 0);
+    const initialBreak = Boolean(initialBreakCheckbox?.checked);
     const initialDpState = createDpState({
       baseMaxDp: this.getBaseMaxDpForStyle(selectedStyleId),
       currentDp: initialDpCurrentInput?.value,
@@ -2112,7 +2331,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / 通常攻撃属性: ${formatNormalAttackBeltLabel(normalAttackBelt)} / やる気初期値: ${formatMotivationLabel(initialMotivation)} / 初期${formatDpStateSummary(initialDpState)} / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
+      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / 通常攻撃属性: ${formatNormalAttackBeltLabel(normalAttackBelt)} / やる気初期値: ${formatMotivationLabel(initialMotivation)} / 初期Break: ${initialBreak ? 'ON' : 'OFF'} / 初期${formatDpStateSummary(initialDpState)} / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {
@@ -2134,10 +2353,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const motivationSelect = this.root.querySelector(
         `[data-role="motivation-select"][data-slot="${i}"]`
       );
+      const initialBreakCheckbox = this.root.querySelector(
+        `[data-role="initial-break-checkbox"][data-slot="${i}"]`
+      );
       const motivation = normalizeMotivationLevel(motivationSelect?.value, 0);
+      const initialBreak = Boolean(initialBreakCheckbox?.checked);
 
       lines.push(
-        `Slot ${i + 1}: ${normalizeName(character?.name ?? charSelect?.value)} / ${style?.name ?? '-'}${showMotivation ? ` / やる気=${formatMotivationLabel(motivation || 3)}` : ''}`
+        `Slot ${i + 1}: ${normalizeName(character?.name ?? charSelect?.value)} / ${style?.name ?? '-'}${showMotivation ? ` / やる気=${formatMotivationLabel(motivation || 3)}` : ''} / Break=${initialBreak ? 'ON' : 'OFF'}`
       );
     }
 
@@ -2175,6 +2398,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       options.initialMotivationByPartyIndex ?? this.readInitialMotivationMapFromDom();
     const initialDpStateByPartyIndex =
       options.initialDpStateByPartyIndex ?? this.readInitialDpStateMapFromDom();
+    const initialBreakByPartyIndex =
+      options.initialBreakByPartyIndex ?? this.readInitialBreakMapFromDom();
     const startSpEquipByPartyIndex =
       options.startSpEquipByPartyIndex ?? this.readStartSpEquipMapFromDom();
     const initialOdGauge =
@@ -2209,12 +2434,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       normalAttackElementsByPartyIndex,
       initialMotivationByPartyIndex,
       initialDpStateByPartyIndex,
+      initialBreakByPartyIndex,
       startSpEquipByPartyIndex,
       initialOdGauge,
       enemyCount: this.readEnemyCountFromDom(),
       enemyNamesByEnemy,
       damageRatesByEnemy,
+      destructionRateByEnemy:
+        options.destructionRateByEnemy ??
+        normalizeEnemyDestructionRateByEnemy(this.state?.turnState?.enemyState?.destructionRateByEnemy),
       enemyStatuses,
+      destructionRateCapByEnemy:
+        options.destructionRateCapByEnemy ??
+        normalizeEnemyDestructionRateCapByEnemy(this.state?.turnState?.enemyState?.destructionRateCapByEnemy),
+      breakStateByEnemy:
+        options.breakStateByEnemy ??
+        normalizeEnemyBreakStateByEnemy(this.state?.turnState?.enemyState?.breakStateByEnemy),
       enemyZoneConfigByEnemy,
       zoneState,
       territoryState,
@@ -2521,14 +2756,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return;
     }
     const enemyCount = this.readEnemyCountFromDom();
-    const current = this.state.turnState.enemyState ?? {
-      enemyCount: DEFAULT_ENEMY_COUNT,
-      statuses: [],
-      damageRatesByEnemy: {},
-      destructionRateByEnemy: {},
-      enemyNamesByEnemy: {},
-      zoneConfigByEnemy: {},
-    };
+    const current = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount);
     const statuses = Array.isArray(current.statuses)
       ? current.statuses
         .filter((status) => isEnemyStatusActive(status))
@@ -2536,18 +2764,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         .filter((status) => Number(status?.targetIndex ?? -1) < enemyCount)
         .map((status) => normalizeEnemyStatusForUi(status))
       : [];
-    const damageRatesByEnemy = normalizeEnemyDamageRatesByEnemy(current.damageRatesByEnemy);
-    const destructionRateByEnemy = normalizeEnemyDestructionRateByEnemy(current.destructionRateByEnemy);
-    const enemyNamesByEnemy = normalizeEnemyNamesByEnemy(current.enemyNamesByEnemy);
-    const zoneConfigByEnemy = normalizeEnemyZoneConfigByEnemy(current.zoneConfigByEnemy);
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses,
-      damageRatesByEnemy,
-      destructionRateByEnemy,
-      enemyNamesByEnemy,
-      zoneConfigByEnemy,
-    };
+    this.state.turnState.enemyState = buildEnemyStateForUi(current, enemyCount, { statuses });
   }
 
   getEnemyStatuses() {
@@ -2748,16 +2965,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     } else {
       delete next[String(targetIndex)];
     }
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
-        this.state.turnState.enemyState?.destructionRateByEnemy
-      ),
+    this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       enemyNamesByEnemy: next,
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    });
     this.renderEnemyStatusControls();
     this.renderEnemyConfigControls();
     this.renderRecordTable();
@@ -2777,16 +2987,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const parsed = Number(rawValue);
     enemyRates[String(damageKey)] = Number.isFinite(parsed) ? parsed : DEFAULT_ENEMY_DAMAGE_RATE_UI_VALUE;
     nextRates[String(targetIndex)] = enemyRates;
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
+    this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       damageRatesByEnemy: nextRates,
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
-        this.state.turnState.enemyState?.destructionRateByEnemy
-      ),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    });
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
@@ -2808,14 +3011,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const nextRates = normalizeEnemyDestructionRateByEnemy(this.state.turnState.enemyState?.destructionRateByEnemy);
     const parsed = Number(rawValue);
     nextRates[String(targetIndex)] = Number.isFinite(parsed) ? parsed : DEFAULT_ENEMY_DESTRUCTION_RATE_UI_VALUE;
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+    this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       destructionRateByEnemy: nextRates,
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    });
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
@@ -2870,16 +3068,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       targetIndex,
       remainingTurns: isPersistentEnemyStatus(statusType) ? 0 : remainingTurns,
     });
-    this.state.turnState.enemyState = {
-      enemyCount: this.readEnemyCountFromDom(),
-      statuses: nextStatuses,
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
-        this.state.turnState.enemyState?.destructionRateByEnemy
-      ),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    this.state.turnState.enemyState = buildEnemyStateForUi(
+      this.state.turnState.enemyState,
+      this.readEnemyCountFromDom(),
+      { statuses: nextStatuses }
+    );
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
@@ -2919,16 +3112,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         return currentType !== statusType;
       }
     );
-    this.state.turnState.enemyState = {
-      enemyCount: this.readEnemyCountFromDom(),
+    let nextEnemyState = buildEnemyStateForUi(this.state.turnState.enemyState, this.readEnemyCountFromDom(), {
       statuses: nextStatuses,
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
-        this.state.turnState.enemyState?.destructionRateByEnemy
-      ),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    });
+    if (statusType === ENEMY_STATUS_BREAK || statusType === ENEMY_STATUS_DEAD) {
+      nextEnemyState = clearEnemySpecialBreakStateForUi(nextEnemyState, targetIndex);
+    } else if (statusType === ENEMY_STATUS_DOWN_TURN) {
+      nextEnemyState = removeEnemySuperDownStateForUi(nextEnemyState, targetIndex);
+    }
+    this.state.turnState.enemyState = nextEnemyState;
     this.previewRecord = null;
     this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
@@ -2958,16 +3150,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           ? (patch.remainingTurns === null ? null : Math.max(1, toInt(patch.remainingTurns, 8)))
           : current.remainingTurns,
     };
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses: Array.isArray(this.state.turnState.enemyState?.statuses) ? this.state.turnState.enemyState.statuses : [],
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
-        this.state.turnState.enemyState?.destructionRateByEnemy
-      ),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
+    this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       zoneConfigByEnemy: next,
-    };
+    });
     this.renderEnemyConfigControls();
     this.renderEnemyZoneControls();
   }
@@ -3515,16 +3700,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         : Math.max(1, toInt(status.remainingTurns, 1));
       next.push({ statusType, targetIndex, remainingTurns });
     }
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses: next,
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
-        this.state.turnState.enemyState?.destructionRateByEnemy
-      ),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    this.state.turnState.enemyState = reconcileEnemySpecialBreakStateForUi(
+      buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, { statuses: next })
+    );
     this.renderEnemyStatusControls();
     this.renderEnemyConfigControls();
   }
@@ -3548,18 +3726,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         next[String(normalizedIndex)] = String(name ?? '').trim();
       }
     }
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses: Array.isArray(this.state.turnState.enemyState?.statuses)
-        ? this.state.turnState.enemyState.statuses
-        : [],
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
-        this.state.turnState.enemyState?.destructionRateByEnemy
-      ),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(next),
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
+      enemyNamesByEnemy: next,
+    });
     this.renderEnemyStatusControls();
     this.renderEnemyConfigControls();
   }
@@ -3587,18 +3756,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         assignRates(Math.max(0, Math.min(enemyCount - 1, toInt(targetIndex, 0))), rates);
       }
     }
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses: Array.isArray(this.state.turnState.enemyState?.statuses)
-        ? this.state.turnState.enemyState.statuses
-        : [],
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(next),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(
-        this.state.turnState.enemyState?.destructionRateByEnemy
-      ),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
+      damageRatesByEnemy: next,
+    });
     this.renderEnemyConfigControls();
   }
 
@@ -3626,16 +3786,31 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         assignRate(Math.max(0, Math.min(enemyCount - 1, toInt(targetIndex, 0))), rate);
       }
     }
-    this.state.turnState.enemyState = {
-      enemyCount,
-      statuses: Array.isArray(this.state.turnState.enemyState?.statuses)
-        ? this.state.turnState.enemyState.statuses
-        : [],
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(next),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-      zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-    };
+    this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
+      destructionRateByEnemy: next,
+    });
+    this.renderEnemyConfigControls();
+  }
+
+  applyScenarioEnemySpecialBreakState({
+    enemyDestructionRateCaps = undefined,
+    enemyBreakStates = undefined,
+  } = {}) {
+    if (!this.state?.turnState) {
+      return;
+    }
+    const enemyCount = this.readEnemyCountFromDom();
+    const overrides = {};
+    if (enemyDestructionRateCaps !== undefined) {
+      overrides.destructionRateCapByEnemy = normalizeEnemyDestructionRateCapByEnemy(enemyDestructionRateCaps);
+    }
+    if (enemyBreakStates !== undefined) {
+      overrides.breakStateByEnemy = normalizeEnemyBreakStateByEnemy(enemyBreakStates);
+    }
+    this.state.turnState.enemyState = reconcileEnemySpecialBreakStateForUi(
+      buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, overrides)
+    );
+    this.renderEnemyStatusControls();
     this.renderEnemyConfigControls();
   }
 
@@ -3698,6 +3873,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         ...(Number.isFinite(Number(entry.startSpEquipBonus))
           ? { startSpEquipBonus: Number(entry.startSpEquipBonus) }
           : {}),
+        ...(typeof entry.initialBreak === 'boolean'
+          ? { initialBreak: Boolean(entry.initialBreak) }
+          : typeof entry.isBreak === 'boolean'
+            ? { initialBreak: Boolean(entry.isBreak) }
+            : {}),
         ...(Number.isFinite(Number(entry.currentDp))
           ? { initialDpCurrent: Number(entry.currentDp) }
           : {}),
@@ -3747,10 +3927,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
 
     this.initializeBattle(undefined, {
+      initialBreakByPartyIndex: this.readInitialBreakMapFromDom(),
       initialDpStateByPartyIndex: this.readInitialDpStateMapFromDom(),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(setup.enemyNames),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(setup.enemyDamageRates),
       destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(setup.enemyDestructionRates),
+      destructionRateCapByEnemy: normalizeEnemyDestructionRateCapByEnemy(setup.enemyDestructionRateCaps),
+      breakStateByEnemy: normalizeEnemyBreakStateByEnemy(setup.enemyBreakStates),
       enemyStatuses: Array.isArray(setup.enemyStatuses)
         ? setup.enemyStatuses.map((status) => ({
             statusType: String(status?.statusType ?? ''),
@@ -3778,6 +3961,16 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Array.isArray(setup.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(setup.enemyStatuses);
+    }
+    if (
+      Array.isArray(setup.enemyDestructionRateCaps) ||
+      (setup.enemyDestructionRateCaps && typeof setup.enemyDestructionRateCaps === 'object') ||
+      (setup.enemyBreakStates && typeof setup.enemyBreakStates === 'object')
+    ) {
+      this.applyScenarioEnemySpecialBreakState({
+        enemyDestructionRateCaps: setup.enemyDestructionRateCaps,
+        enemyBreakStates: setup.enemyBreakStates,
+      });
     }
     if (setup.zoneState && typeof setup.zoneState === 'object') {
       this.state.turnState.zoneState = normalizeFieldStateForScenario(setup.zoneState);
@@ -4144,6 +4337,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (Array.isArray(turn.enemyDamageRates) || (turn.enemyDamageRates && typeof turn.enemyDamageRates === 'object')) {
       this.applyScenarioEnemyDamageRates(turn.enemyDamageRates);
     }
+    if (
+      Array.isArray(turn.enemyDestructionRates) ||
+      (turn.enemyDestructionRates && typeof turn.enemyDestructionRates === 'object')
+    ) {
+      this.applyScenarioEnemyDestructionRates(turn.enemyDestructionRates);
+    }
+    if (
+      Array.isArray(turn.enemyDestructionRateCaps) ||
+      (turn.enemyDestructionRateCaps && typeof turn.enemyDestructionRateCaps === 'object') ||
+      (turn.enemyBreakStates && typeof turn.enemyBreakStates === 'object')
+    ) {
+      this.applyScenarioEnemySpecialBreakState({
+        enemyDestructionRateCaps: turn.enemyDestructionRateCaps,
+        enemyBreakStates: turn.enemyBreakStates,
+      });
+    }
     if (Array.isArray(turn.enemyStatusesApply)) {
       const merged = [...this.getEnemyStatuses()];
       for (const status of turn.enemyStatusesApply) {
@@ -4176,18 +4385,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         merged.length = 0;
         merged.push(...filtered);
       }
-      this.state.turnState.enemyState = {
-        enemyCount: this.readEnemyCountFromDom(),
-        statuses: merged,
-        damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-        enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-        zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-      };
+      this.state.turnState.enemyState = reconcileEnemySpecialBreakStateForUi(
+        buildEnemyStateForUi(this.state.turnState.enemyState, this.readEnemyCountFromDom(), {
+          statuses: merged,
+        })
+      );
       this.renderEnemyStatusControls();
       this.renderEnemyConfigControls();
     }
     if (Array.isArray(turn.enemyStatusesClear)) {
       let statuses = [...this.getEnemyStatuses()];
+      let nextEnemyState = buildEnemyStateForUi(this.state.turnState.enemyState, this.readEnemyCountFromDom());
       for (const status of turn.enemyStatusesClear) {
         if (!status || typeof status !== 'object') {
           continue;
@@ -4197,6 +4405,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           status.targetIndex !== undefined || status.target !== undefined || status.targetPosition !== undefined;
         if (!hasTarget) {
           statuses = statuses.filter((item) => String(item.statusType ?? '') !== statusType);
+          if (statusType === ENEMY_STATUS_BREAK || statusType === ENEMY_STATUS_DEAD) {
+            for (const target of Object.keys(nextEnemyState.breakStateByEnemy ?? {})) {
+              nextEnemyState = clearEnemySpecialBreakStateForUi(nextEnemyState, Number(target));
+            }
+          } else if (statusType === ENEMY_STATUS_DOWN_TURN) {
+            for (const target of Object.keys(nextEnemyState.breakStateByEnemy ?? {})) {
+              nextEnemyState = removeEnemySuperDownStateForUi(nextEnemyState, Number(target));
+            }
+          }
           continue;
         }
         const targetIndex = Math.max(
@@ -4219,14 +4436,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
             return currentType !== statusType;
           }
         );
+        if (statusType === ENEMY_STATUS_BREAK || statusType === ENEMY_STATUS_DEAD) {
+          nextEnemyState = clearEnemySpecialBreakStateForUi(nextEnemyState, targetIndex);
+        } else if (statusType === ENEMY_STATUS_DOWN_TURN) {
+          nextEnemyState = removeEnemySuperDownStateForUi(nextEnemyState, targetIndex);
+        }
       }
-      this.state.turnState.enemyState = {
-        enemyCount: this.readEnemyCountFromDom(),
-        statuses,
-        damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
-        enemyNamesByEnemy: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
-        zoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(this.state.turnState.enemyState?.zoneConfigByEnemy),
-      };
+      this.state.turnState.enemyState = reconcileEnemySpecialBreakStateForUi(
+        buildEnemyStateForUi(nextEnemyState, this.readEnemyCountFromDom(), { statuses })
+      );
       this.renderEnemyStatusControls();
       this.renderEnemyConfigControls();
     }
@@ -5117,6 +5335,21 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const enemyDamageRates = normalizeEnemyDamageRatesByEnemy(
       plan.enemyDamageRates ?? plan.damageRatesByEnemy ?? setupDelta.enemyDamageRates ?? setupDelta.damageRatesByEnemy
     );
+    const enemyDestructionRates = normalizeEnemyDestructionRateByEnemy(
+      plan.enemyDestructionRates ??
+        plan.destructionRateByEnemy ??
+        setupDelta.enemyDestructionRates ??
+        setupDelta.destructionRateByEnemy
+    );
+    const enemyDestructionRateCaps = normalizeEnemyDestructionRateCapByEnemy(
+      plan.enemyDestructionRateCaps ??
+        plan.destructionRateCapByEnemy ??
+        setupDelta.enemyDestructionRateCaps ??
+        setupDelta.destructionRateCapByEnemy
+    );
+    const enemyBreakStates = normalizeEnemyBreakStateByEnemy(
+      plan.enemyBreakStates ?? plan.breakStateByEnemy ?? setupDelta.enemyBreakStates ?? setupDelta.breakStateByEnemy
+    );
     const zoneState = normalizeFieldStateForScenario(plan.zoneState ?? setupDelta.zoneState);
     const territoryState = normalizeFieldStateForScenario(plan.territoryState ?? setupDelta.territoryState);
     const dpStateByPartyIndex = normalizeDpStateByPartyIndex(
@@ -5178,6 +5411,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyCount: normalizedEnemyCount,
         enemyNames,
         enemyDamageRates,
+        enemyDestructionRates,
+        enemyDestructionRateCaps,
+        enemyBreakStates,
         enemyStatuses,
         ...(Object.keys(dpStateByPartyIndex).length > 0 ? { dpStateByPartyIndex } : {}),
         ...(zoneState ? { zoneState } : {}),
@@ -5235,6 +5471,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyCount: this.readEnemyCountFromDom(),
       enemyNames: normalizeEnemyNamesByEnemy(this.state.turnState.enemyState?.enemyNamesByEnemy),
       enemyDamageRates: normalizeEnemyDamageRatesByEnemy(this.state.turnState.enemyState?.damageRatesByEnemy),
+      enemyDestructionRates: normalizeEnemyDestructionRateByEnemy(
+        this.state.turnState.enemyState?.destructionRateByEnemy
+      ),
+      enemyDestructionRateCaps: normalizeEnemyDestructionRateCapByEnemy(
+        this.state.turnState.enemyState?.destructionRateCapByEnemy
+      ),
+      enemyBreakStates: normalizeEnemyBreakStateByEnemy(this.state.turnState.enemyState?.breakStateByEnemy),
       enemyStatuses: this.getEnemyStatuses().map((status) => ({
         statusType: String(status?.statusType ?? ''),
         targetIndex: Number(status?.targetIndex ?? 0),
@@ -5263,6 +5506,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Object.keys(normalized.setupDelta.enemyDamageRates ?? {}).length > 0) {
       out.enemyDamageRates = structuredClone(normalized.setupDelta.enemyDamageRates);
+    }
+    if (Object.keys(normalized.setupDelta.enemyDestructionRates ?? {}).length > 0) {
+      out.enemyDestructionRates = structuredClone(normalized.setupDelta.enemyDestructionRates);
+    }
+    if (Object.keys(normalized.setupDelta.enemyDestructionRateCaps ?? {}).length > 0) {
+      out.enemyDestructionRateCaps = structuredClone(normalized.setupDelta.enemyDestructionRateCaps);
+    }
+    if (Object.keys(normalized.setupDelta.enemyBreakStates ?? {}).length > 0) {
+      out.enemyBreakStates = structuredClone(normalized.setupDelta.enemyBreakStates);
     }
     if (Array.isArray(normalized.setupDelta.enemyStatuses) && normalized.setupDelta.enemyStatuses.length > 0) {
       out.enemyStatuses = structuredClone(normalized.setupDelta.enemyStatuses);
@@ -5341,10 +5593,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       startSpEquipByPartyIndex: base.startSpEquipByPartyIndex,
       initialMotivationByPartyIndex: base.initialMotivationByPartyIndex,
       initialDpStateByPartyIndex: base.initialDpStateByPartyIndex,
+      initialBreakByPartyIndex: base.initialBreakByPartyIndex,
       initialOdGauge: Number(base.initialOdGauge ?? 0),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(base.enemyNamesByEnemy),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(base.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(base.destructionRateByEnemy),
+      destructionRateCapByEnemy: normalizeEnemyDestructionRateCapByEnemy(base.destructionRateCapByEnemy),
       enemyStatuses: Array.isArray(base.enemyStatuses) ? structuredClone(base.enemyStatuses) : [],
+      breakStateByEnemy: normalizeEnemyBreakStateByEnemy(base.breakStateByEnemy),
+      enemyZoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(base.enemyZoneConfigByEnemy),
       zoneState: normalizeFieldStateForScenario(base.zoneState),
       territoryState: normalizeFieldStateForScenario(base.territoryState),
       skipInitialOdRead: true,

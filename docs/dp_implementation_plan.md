@@ -111,10 +111,10 @@
 - Phase 3: 条件評価
 - Phase 4: DP回復スキル
 - Phase 5: DP自傷とDP依存スキル
+- Phase 6: Break関連
 
 ### 未実装
 
-- Phase 6: Break関連
 - Phase 7: パッシブ接続
 
 ### 補足
@@ -122,7 +122,7 @@
 - `DpRate()` はパッシブ条件だけでなく、`SkillCondition` と `CountBC(...)` 内のプレイヤー条件でも評価できるようになった
 - DP状態は `snapshot / record / turnPlan / scenario` まで保存されるようになり、再計算・再生で引き継げる
 - `RegenerationDp` の statusEffect も snapshot / record 経由で引き継げるようになった
-- 検証時点では非 E2E テスト 274 件が通過している
+- 検証時点では非 E2E テスト 279 件が通過している
 
 ## Phase 1: 状態モデル
 
@@ -276,11 +276,11 @@
 
 ## Phase 6: Break関連
 
-- [ ] `BreakGuard`
-- [ ] `SuperBreak`
-- [ ] `SuperBreakDown`
-- [ ] `BreakDownTurnUp`
-- [ ] DP破損と `Break` の関係整理
+- [x] `BreakGuard`
+- [x] `SuperBreak`
+- [x] `SuperBreakDown`
+- [x] `BreakDownTurnUp` の manual-first 方針整理
+- [x] DP破損と `Break` の関係整理
 
 ### Phase 6メモ
 
@@ -295,7 +295,7 @@
 - 敵側の `IsBroken()` / `BreakDownTurn()>0` は既に enemy status から条件評価できる
   - Phase 6 ではこの既存状態表現へ `SuperBreak` / `SuperBreakDown` を接続するのが主眼
 - 自キャラ側の `IsBroken()` は評価器だけ先にある状態で、手動 UI が未実装
-  - Phase 6 の先頭で「自キャラ Break 手動状態 UI」と、その snapshot / record / turnPlan / scenario 保存を追加候補とする
+  - Phase 6 で「自キャラ Break 手動状態 UI」と、その snapshot / record / turnPlan / scenario 保存を追加した
 - `SuperBreak` は通常 `Break` と別状態として扱う
   - 例: `ヴォリション・サイス`
   - `elements` 弱点を突いた時に、既に `Break` 状態の敵を「強ブレイク状態」にする
@@ -326,6 +326,15 @@
 - `BreakGuard` は enemy status ではなく味方側の防御用状態として扱う
   - Phase 6 では自己バフとして `statusEffects` へ保持し、保存・復元・record まで通せばよい
   - 消費処理は敵攻撃シミュレーション未実装のため後回しにする
+- 実装では enemy special break 状態を `enemyState.destructionRateCapByEnemy` と `enemyState.breakStateByEnemy` へ分離して保持する
+  - `StrongBreak` は `Break` に重なる persistent status として扱う
+  - `SuperDown` は `DownTurn` 終了時に解除し、そのとき破壊率と破壊率上限を復元する
+- `IsHitWeak()` は `SuperBreak` / `SuperBreakDown` の適用時には target ごとに再評価する
+  - `All` 対象でも、弱点を突いた enemy だけへ `StrongBreak` を付与する
+- `SuperBreakDown` の素の `DownTurn(1)` 付与は、既存 engine の down-turn decrement 規約をそのまま使う
+  - そのため base turn が進む commit では、record 上は `DownTurn` 付与が残るが `nextState` では即 0 になり、`Break` のみ残る
+- `turnPlan / scenario` には `enemyDestructionRates / enemyDestructionRateCaps / enemyBreakStates` を保存する
+  - `SuperDown` の replay や `reinitializeFromTurnPlanBase()` でも cap と復元用メタデータを失わない
 - `AdditionalHitOnBreaking` / `breakHitCount` の自動生成は、Phase 6 の主スコープからは外す
   - 現状の `breakHitCount` は action context のテスト用入力としては使える
   - Break 発生検知と追加効果 trigger を結ぶ本実装は、Break 状態の自動付与が安定してから詰める

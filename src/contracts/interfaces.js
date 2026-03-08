@@ -1,4 +1,8 @@
-import { DEFAULT_DESTRUCTION_RATE_PERCENT, DEFAULT_ENEMY_COUNT } from '../config/battle-defaults.js';
+import {
+  DEFAULT_DESTRUCTION_RATE_PERCENT,
+  DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+  DEFAULT_ENEMY_COUNT,
+} from '../config/battle-defaults.js';
 import { cloneDpState } from '../domain/dp-state.js';
 
 export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
@@ -82,6 +86,8 @@ export function createInitialTurnState() {
       statuses: [],
       damageRatesByEnemy: {},
       destructionRateByEnemy: {},
+      destructionRateCapByEnemy: {},
+      breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
     },
@@ -126,6 +132,47 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          destructionRateCapByEnemy:
+            turnState.enemyState.destructionRateCapByEnemy &&
+            typeof turnState.enemyState.destructionRateCapByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.destructionRateCapByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) ? Number(value) : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                  ])
+                )
+              : {},
+          breakStateByEnemy:
+            turnState.enemyState.breakStateByEnemy && typeof turnState.enemyState.breakStateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.breakStateByEnemy).map(([targetIndex, state]) => [
+                    String(targetIndex),
+                    state && typeof state === 'object'
+                      ? {
+                          baseCap: Number.isFinite(Number(state.baseCap))
+                            ? Number(state.baseCap)
+                            : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                          strongBreakActive: Boolean(state.strongBreakActive),
+                          superDown:
+                            state.superDown && typeof state.superDown === 'object'
+                              ? {
+                                  preRate: Number.isFinite(Number(state.superDown.preRate))
+                                    ? Number(state.superDown.preRate)
+                                    : DEFAULT_DESTRUCTION_RATE_PERCENT,
+                                  preCap: Number.isFinite(Number(state.superDown.preCap))
+                                    ? Number(state.superDown.preCap)
+                                    : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                                }
+                              : null,
+                        }
+                      : {
+                          baseCap: DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                          strongBreakActive: false,
+                          superDown: null,
+                        },
+                  ])
+                )
+              : {},
           enemyNamesByEnemy:
             turnState.enemyState.enemyNamesByEnemy &&
             typeof turnState.enemyState.enemyNamesByEnemy === 'object'
@@ -156,11 +203,13 @@ export function cloneTurnState(turnState) {
                 )
               : {},
         }
-      : {
+        : {
           enemyCount: DEFAULT_ENEMY_COUNT,
           statuses: [],
           damageRatesByEnemy: {},
           destructionRateByEnemy: {},
+          destructionRateCapByEnemy: {},
+          breakStateByEnemy: {},
           enemyNamesByEnemy: {},
           zoneConfigByEnemy: {},
         };

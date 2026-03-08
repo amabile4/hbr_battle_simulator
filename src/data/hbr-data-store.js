@@ -1057,6 +1057,7 @@ export class HbrDataStore {
     initialSP = DEFAULT_INITIAL_SP,
     initialMotivation = 0,
     initialDpState = null,
+    initialBreak = false,
     spBonus = 0,
     drivePiercePercent = 0,
     normalAttackElements = [],
@@ -1133,6 +1134,7 @@ export class HbrDataStore {
       baseMaxDp: Number(initialDpState?.baseMaxDp ?? styleBaseMaxDp),
       currentDp: initialDpState?.currentDp,
       effectiveDpCap: initialDpState?.effectiveDpCap,
+      isBreak: Boolean(initialBreak),
       initialEP: Number(ep.initial ?? 0),
       spBonus: Number(spBonus),
       spMin: 0,
@@ -1158,6 +1160,7 @@ export class HbrDataStore {
     const spBonusMap = options.spBonusMap ?? {};
     const initialMotivationByPartyIndex = options.initialMotivationByPartyIndex ?? {};
     const initialDpStateByPartyIndex = options.initialDpStateByPartyIndex ?? {};
+    const initialBreakByPartyIndex = options.initialBreakByPartyIndex ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
     const normalAttackElementsByPartyIndex = options.normalAttackElementsByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
@@ -1173,6 +1176,7 @@ export class HbrDataStore {
           initialDpStateByPartyIndex[index] && typeof initialDpStateByPartyIndex[index] === 'object'
             ? initialDpStateByPartyIndex[index]
             : null,
+        initialBreak: Boolean(initialBreakByPartyIndex[index]),
         spBonus: Number(spBonusMap[index] ?? 0),
         drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
         normalAttackElements: Array.isArray(normalAttackElementsByPartyIndex[index])

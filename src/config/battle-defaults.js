@@ -7,6 +7,7 @@ export const MIN_ENEMY_COUNT = 1;
 export const MAX_ENEMY_COUNT = 3;
 export const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 export const DEFAULT_DESTRUCTION_RATE_PERCENT = 100;
+export const DEFAULT_DESTRUCTION_RATE_CAP_PERCENT = 300;
 export const MARK_STATE_ELEMENTS = Object.freeze(['Fire', 'Ice', 'Thunder', 'Dark', 'Light']);
 export const DEFAULT_MARK_LEVEL_MAX = 6;
 export const INTRINSIC_MARK_EFFECTS_BY_ELEMENT = Object.freeze({

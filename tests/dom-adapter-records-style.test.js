@@ -511,6 +511,7 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
   adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }]);
+  adapter.applyScenarioEnemyDestructionRates({ 0: 300 });
   adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
   adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
   adapter.state.turnState.zoneState = {
@@ -526,6 +527,22 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   const turns = root.querySelector('[data-role="enemy-status-turns"]');
   turns.value = '2';
   adapter.applyEnemyStatusFromDom();
+  adapter.state.turnState.enemyState = {
+    ...adapter.state.turnState.enemyState,
+    statuses: [
+      { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+      { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
+      { statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 },
+    ],
+    destructionRateCapByEnemy: { 0: 600 },
+    breakStateByEnemy: {
+      0: {
+        baseCap: 300,
+        strongBreakActive: false,
+        superDown: { preRate: 250, preCap: 300 },
+      },
+    },
+  };
 
   adapter.previewCurrentTurn();
   adapter.commitCurrentTurn();
@@ -540,6 +557,19 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
     0: { Slash: 50 },
     1: { Fire: 150 },
     2: { Thunder: 75 },
+  });
+  assert.deepEqual(adapter.turnPlans[0].setupDelta.enemyDestructionRates, {
+    0: 300,
+  });
+  assert.deepEqual(adapter.turnPlans[0].setupDelta.enemyDestructionRateCaps, {
+    0: 600,
+  });
+  assert.deepEqual(adapter.turnPlans[0].setupDelta.enemyBreakStates, {
+    0: {
+      baseCap: 300,
+      strongBreakActive: false,
+      superDown: { preRate: 250, preCap: 300 },
+    },
   });
   assert.equal(Array.isArray(adapter.turnPlans[0].setupDelta.enemyStatuses), true);
   assert.equal(adapter.turnPlans[0].setupDelta.dpStateByPartyIndex['0'].currentDp, 84);
@@ -569,6 +599,24 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
     1: { Fire: 150 },
     2: { Thunder: 75 },
   });
+  assert.deepEqual(adapter.state.turnState.enemyState.destructionRateByEnemy, {
+    0: 300,
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.destructionRateCapByEnemy, {
+    0: 600,
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.breakStateByEnemy, {
+    0: {
+      baseCap: 300,
+      strongBreakActive: false,
+      superDown: { preRate: 250, preCap: 300 },
+    },
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.statuses, [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 },
+    { statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 },
+  ]);
   assert.deepEqual(adapter.state.turnState.zoneState, {
     type: 'Fire',
     sourceSide: 'player',

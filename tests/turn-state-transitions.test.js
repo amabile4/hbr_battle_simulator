@@ -1953,6 +1953,84 @@ test('明鏡止水 applies DebuffGuard only when motivation is 5', () => {
   assert.equal(lowResult.passiveEvents.some((event) => event.passiveName === '明鏡止水'), false);
 });
 
+test('BreakGuard skill part is added to self status effects and recorded on commit', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18180,
+              name: '聖女の守護',
+              sp_cost: 0,
+              target_type: 'Self',
+              parts: [
+                {
+                  skill_type: 'BreakGuard',
+                  target_type: 'Self',
+                  power: [0.5, 0],
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18180 },
+  });
+  const committed = commitTurn(state, preview);
+  const actor = committed.nextState.party.find((member) => member.characterId === 'M1');
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+
+  assert.equal(actor.getStatusEffectsByType('BreakGuard').length, 1);
+  assert.equal(actor.getStatusEffectsByType('BreakGuard')[0].exitCond, 'Count');
+  assert.equal(action.statusEffectsApplied.length, 1);
+  assert.equal(action.statusEffectsApplied[0].statusType, 'BreakGuard');
+});
+
+test('applyInitialPassiveState applies BreakGuard passive into status effects', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 91020,
+              name: '根性',
+              timing: 'OnBattleStart',
+              condition: '',
+              parts: [
+                {
+                  skill_type: 'BreakGuard',
+                  target_type: 'Self',
+                  power: [0.5, 0],
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  assert.equal(state.party[0].getStatusEffectsByType('BreakGuard').length, 1);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '根性'), true);
+  assert.equal(
+    state.turnState.passiveEventsLastApplied.some(
+      (event) =>
+        event.passiveName === '根性' &&
+        Array.isArray(event.appliedStatusEffects) &&
+        event.appliedStatusEffects.some((effect) => effect.statusType === 'BreakGuard')
+    ),
+    true
+  );
+});
+
 test('AdditionalHitOnSpecifiedSkill can raise morale via passive trigger', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -4573,6 +4651,68 @@ test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
   assert.equal(preview.actions.length, 1);
 });
 
+test('SuperBreak only upgrades weak broken targets and records StrongBreak state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18120,
+              name: '光輝の夜明け',
+              sp_cost: 0,
+              target_type: 'All',
+              parts: [
+                {
+                  skill_type: 'SuperBreak',
+                  target_type: 'All',
+                  elements: ['Light'],
+                  cond: 'IsHitWeak()',
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [
+      { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+      { statusType: 'Break', targetIndex: 1, remainingTurns: 0 },
+    ],
+    damageRatesByEnemy: {
+      0: { Light: 150 },
+      1: { Light: 50 },
+    },
+    destructionRateByEnemy: {
+      0: 180,
+      1: 220,
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18120 },
+  });
+  const committed = commitTurn(state, preview);
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+  const nextEnemyState = committed.nextState.turnState.enemyState;
+
+  assert.equal(
+    nextEnemyState.statuses.some((status) => status.statusType === 'StrongBreak' && status.targetIndex === 0),
+    true
+  );
+  assert.equal(
+    nextEnemyState.statuses.some((status) => status.statusType === 'StrongBreak' && status.targetIndex === 1),
+    false
+  );
+  assert.equal(nextEnemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(nextEnemyState.destructionRateCapByEnemy['1'], undefined);
+  assert.equal(action.enemyStatusChanges.length, 1);
+  assert.equal(action.enemyStatusChanges[0].mode, 'StrongBreak');
+  assert.equal(action.enemyStatusChanges[0].targetIndex, 0);
+});
+
 test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -4960,6 +5100,108 @@ test('enemy down-turn status ticks when base turn advances (enemy turn consumed)
   const { nextState } = commitTurn(state, preview);
   assert.equal(nextState.turnState.turnIndex, 2);
   assert.equal(nextState.turnState.enemyState.statuses.length, 0);
+});
+
+test('SuperBreakDown adds DownTurn event on fresh target and leaves Break state in next turn', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18130,
+              name: 'ナイトキルエッジ',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18130, targetEnemyIndex: 0 },
+  });
+  const committed = commitTurn(state, preview);
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+
+  assert.equal(action.enemyStatusChanges.length, 1);
+  assert.equal(action.enemyStatusChanges[0].mode, 'DownTurn');
+  assert.equal(action.enemyStatusChanges[0].remainingTurns, 1);
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+    ),
+    false
+  );
+});
+
+test('SuperBreakDown upgrades down-turn target to SuperDown and restores cap when down-turn ends', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18131,
+              name: 'ナイトキルエッジ',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single' }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+    destructionRateByEnemy: { 0: 250 },
+  };
+
+  let preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18131, targetEnemyIndex: 0 },
+  });
+  let committed = commitTurn(state, preview);
+  let action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+
+  assert.equal(action.enemyStatusChanges.length, 1);
+  assert.equal(action.enemyStatusChanges[0].mode, 'SuperDown');
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperDown' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.find((status) => status.statusType === 'DownTurn')
+      ?.remainingTurns,
+    1
+  );
+  assert.equal(committed.nextState.turnState.enemyState.destructionRateByEnemy['0'], 300);
+  assert.equal(committed.nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(committed.nextState.turnState.enemyState.breakStateByEnemy['0'].superDown.preRate, 250);
+
+  committed.nextState.turnState.enemyState.destructionRateByEnemy['0'] = 420;
+  preview = previewTurn(committed.nextState, {
+    0: { characterId: 'M1', skillId: 18131, targetEnemyIndex: 0 },
+  });
+  committed = commitTurn(committed.nextState, preview);
+
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some((status) => status.statusType === 'SuperDown'),
+    false
+  );
+  assert.equal(committed.nextState.turnState.enemyState.destructionRateByEnemy['0'], 300);
+  assert.deepEqual(committed.nextState.turnState.enemyState.destructionRateCapByEnemy, {});
+  assert.deepEqual(committed.nextState.turnState.enemyState.breakStateByEnemy, {});
 });
 
 test('SkillCondition branch sp_cost is applied when BreakDownTurn condition matches', () => {

@@ -306,12 +306,25 @@ test('scenario runner loads setup and executes turns deterministically', () => {
       enemyCount: 3,
       enemyNames: ['Enemy A', 'Enemy B', 'Enemy C'],
       enemyDamageRates: [{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }],
+      enemyDestructionRates: { 0: 300 },
+      enemyDestructionRateCaps: { 0: 600 },
+      enemyBreakStates: {
+        0: {
+          baseCap: 300,
+          strongBreakActive: false,
+          superDown: { preRate: 250, preCap: 300 },
+        },
+      },
       dpStateByPartyIndex: {
         0: { currentDp: 84, effectiveDpCap: 98 },
         1: { currentDp: 0, effectiveDpCap: 50 },
       },
       initialOdGauge: 100,
-      enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+      enemyStatuses: [
+        { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+        { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
+        { statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 },
+      ],
       zoneState: { type: 'Fire', sourceSide: 'player', remainingTurns: 8 },
       territoryState: { type: 'ReviveTerritory', sourceSide: 'player', remainingTurns: null },
     },
@@ -345,7 +358,10 @@ test('scenario runner loads setup and executes turns deterministically', () => {
     1: { Fire: 150 },
     2: { Thunder: 75 },
   });
-  assert.equal(adapter.state.turnState.enemyState.statuses.length, 1);
+  assert.equal(adapter.state.turnState.enemyState.destructionRateByEnemy['0'], 300);
+  assert.equal(adapter.state.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(adapter.state.turnState.enemyState.breakStateByEnemy['0'].superDown.preRate, 250);
+  assert.equal(adapter.state.turnState.enemyState.statuses.length, 3);
   assert.deepEqual(adapter.state.turnState.zoneState, {
     type: 'Fire',
     sourceSide: 'player',
@@ -365,7 +381,7 @@ test('scenario runner loads setup and executes turns deterministically', () => {
   assert.equal(adapter.scenarioCursor, 2);
   assert.equal(
     adapter.state.turnState.enemyState.statuses.length,
-    1,
+    3,
     'enemy status should not tick during OD/EX commits without enemy turn consumption'
   );
 });
@@ -382,11 +398,24 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
       enemyCount: 3,
       enemyNames: ['Enemy A', 'Enemy B', 'Enemy C'],
       enemyDamageRates: [{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }],
+      enemyDestructionRates: { 0: 300 },
+      enemyDestructionRateCaps: { 0: 600 },
+      enemyBreakStates: {
+        0: {
+          baseCap: 300,
+          strongBreakActive: false,
+          superDown: { preRate: 250, preCap: 300 },
+        },
+      },
       dpStateByPartyIndex: {
         0: { currentDp: 84, effectiveDpCap: 98 },
         1: { currentDp: 0, effectiveDpCap: 50 },
       },
-      enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+      enemyStatuses: [
+        { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+        { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
+        { statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 },
+      ],
       zoneState: { type: 'Fire', sourceSide: 'player', remainingTurns: 8 },
       territoryState: { type: 'ReviveTerritory', sourceSide: 'player', remainingTurns: null },
     },
@@ -407,8 +436,23 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
     1: { Fire: 150 },
     2: { Thunder: 75 },
   });
+  assert.deepEqual(adapter.turnPlanBaseSetup.destructionRateByEnemy, {
+    0: 300,
+  });
+  assert.deepEqual(adapter.turnPlanBaseSetup.destructionRateCapByEnemy, {
+    0: 600,
+  });
+  assert.deepEqual(adapter.turnPlanBaseSetup.breakStateByEnemy, {
+    0: {
+      baseCap: 300,
+      strongBreakActive: false,
+      superDown: { preRate: 250, preCap: 300 },
+    },
+  });
   assert.deepEqual(adapter.turnPlanBaseSetup.enemyStatuses, [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
     { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
+    { statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 },
   ]);
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].currentDp, 84);
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].effectiveDpCap, 98);
@@ -436,6 +480,7 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
   adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }]);
+  adapter.applyScenarioEnemyDestructionRates({ 0: 300 });
   adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
   adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
   adapter.state.turnState.zoneState = {
@@ -451,7 +496,24 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   const turns = root.querySelector('[data-role="enemy-status-turns"]');
   turns.value = '2';
   adapter.applyEnemyStatusFromDom();
+  adapter.state.turnState.enemyState = {
+    ...adapter.state.turnState.enemyState,
+    statuses: [
+      { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+      { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
+      { statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 },
+    ],
+    destructionRateCapByEnemy: { 0: 600 },
+    breakStateByEnemy: {
+      0: {
+        baseCap: 300,
+        strongBreakActive: false,
+        superDown: { preRate: 250, preCap: 300 },
+      },
+    },
+  };
   adapter.initializeBattle(undefined, { preserveTurnPlans: true });
+  adapter.applyScenarioEnemyDestructionRates({ 0: 300 });
   adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
   adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
   adapter.state.turnState.zoneState = {
@@ -470,9 +532,19 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
     0: structuredClone(adapter.state.party[0].dpState),
     1: structuredClone(adapter.state.party[1].dpState),
   };
+  adapter.turnPlanBaseSetup.destructionRateByEnemy = { 0: 300 };
+  adapter.turnPlanBaseSetup.destructionRateCapByEnemy = { 0: 600 };
+  adapter.turnPlanBaseSetup.breakStateByEnemy = {
+    0: {
+      baseCap: 300,
+      strongBreakActive: false,
+      superDown: { preRate: 250, preCap: 300 },
+    },
+  };
 
   adapter.applyScenarioEnemyNames(['Changed A']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 999 }]);
+  adapter.applyScenarioEnemyDestructionRates({ 0: 999 });
   adapter.clearEnemyStatusFromDom();
   adapter.state.party[0].setDpState({ currentDp: 10, effectiveDpCap: adapter.state.party[0].dpState.baseMaxDp });
   adapter.state.party[1].setDpState({ currentDp: adapter.state.party[1].dpState.baseMaxDp, effectiveDpCap: 120 });
@@ -491,9 +563,23 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
     1: { Fire: 150 },
     2: { Thunder: 75 },
   });
+  assert.deepEqual(adapter.state.turnState.enemyState.destructionRateByEnemy, {
+    0: 300,
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.destructionRateCapByEnemy, {
+    0: 600,
+  });
+  assert.deepEqual(adapter.state.turnState.enemyState.breakStateByEnemy, {
+    0: {
+      baseCap: 300,
+      strongBreakActive: false,
+      superDown: { preRate: 250, preCap: 300 },
+    },
+  });
   assert.deepEqual(adapter.state.turnState.enemyState.statuses, [
     { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
     { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
+    { statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 },
   ]);
   assert.deepEqual(adapter.state.turnState.zoneState, {
     type: 'Fire',
