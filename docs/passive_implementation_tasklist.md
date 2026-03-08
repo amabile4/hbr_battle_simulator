@@ -265,12 +265,23 @@
   - DP 0 / Break を再現したいケースは、現状はユーザー手入力で `currentDp=0` を入れる前提
   - `AttackByOwnDpRate` は preview / record の `damageContext` に「行動開始時 DP 比率」と解決 multiplier を残す
   - `SkillCondition` 分岐後の実スキルを行動 entry に snapshot して、OD増加・DP変化・Funnel などの後段処理でも同じ分岐結果を使う
-  - 行動後の DP 変化は、その turn の後段で走る `DpRate()` 条件付きパッシブや追加ターン開始条件から見える
+  - 行動後 DP を同じ commit 内で見られるのは boundary timing に限られる
+    - `OnAdditionalTurnStart` / `OnEnemyTurnStart` / `OnBattleWin` は行動後状態を見て評価できる
+    - `OnEveryTurn` / `OnPlayerTurnStart` は次ターン開始用として `nextState.turnState.passiveEventsLastApplied` に保持し、前ターンの `committedRecord.passiveEvents` には混ぜない
+  - `コンペンセーション` の検証では、T1 の `SelfDamage` 後でも `究極のスリル` は T1 record へは載らず、T2 commit 時に初回発火として見える
 - そのため Passive 側の残件は「DP状態が見えるか」ではなく、「各 passive effect が direct heal / regen grant / regen tick / self damage / damage-based heal / break 起点をどう解釈するか」の詰めに寄ってきた
 - `RegenerationDp` を replay で安定させるには、DP値だけでなく `statusEffects` 自体を snapshot / restore へ通す必要があった
   - 復元時は `_nextStatusEffectId` の再計算も必要
 - `HealDpRate` は `baseMaxDp` 基準の割合回復として扱えるが、他の DP回復 skill_type は現状「回復した事実」と「種別」を保持するところまでで十分だった
 - Phase 7 で個別パッシブを詰める時は、「direct heal」「regen grant」「regen tick」「damage-based heal」の 4 種別を別 trigger として使う前提でテストを書く
+
+### timing 記録メモ
+
+- `committedRecord.passiveEvents` は次の 2 種だけを載せる
+  - その turn の開始時点で既に `state.turnState.passiveEventsLastApplied` に入っていたもの
+  - `commitTurn()` 中の boundary で新規発火したもの
+- これにより、次ターン開始用の `OnEveryTurn` / `OnPlayerTurnStart` が前ターン record に逆流しない
+- 現在の timing 全体像は [`docs/passive_timing_reference.md`](/Users/ram4/git/hbr_battle_simulator/docs/passive_timing_reference.md) を参照
 
 ## Phase 6: 将来拡張
 

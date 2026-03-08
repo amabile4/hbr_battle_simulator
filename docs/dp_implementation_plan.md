@@ -268,9 +268,11 @@
   - 解決後 multiplier
   を preview / committed record の `damageContext` へ保持する
 - `SkillCondition` 分岐を含むスキルでも preview と commit の解決結果をずらさないため、行動 entry に resolved skill snapshot を保持して OD / DP / Funnel 系の後段処理へ渡すようにした
-- 行動後の DP 変化は、その turn の後段で走る条件付きパッシブや追加ターン開始条件から見える
-  - `コンペンセーション` の `SelfDamage` 後に `DpRate()<=0.5` の `OverDrivePointUp` パッシブが発火するケースで確認済み
-  - `SelfDamage 100% -> DP1` の後でも `DpRate()<=0.05` 条件の `OnAdditionalTurnStart` パッシブが同じ commit 内で再評価される
+- 行動後の DP 変化がいつ見えるかは passive timing に依存する
+  - `OnAdditionalTurnStart` / `OnEnemyTurnStart` / `OnBattleWin` のような commit 境界で新規評価される passive は、行動後 DP を見て同じ commit 内で発火できる
+  - `OnEveryTurn` / `OnPlayerTurnStart` は次ターン開始用の評価結果として `nextState.turnState.passiveEventsLastApplied` に保持し、前ターンの `committedRecord.passiveEvents` へは混ぜない
+  - `コンペンセーション` の確認では、T1 の `SelfDamage` 後でも `究極のスリル` は T1 record に混ざらず、T2 commit 時に初めて見える形へ修正した
+  - `SelfDamage 100% -> DP1` の後でも、`DpRate()<=0.05` 条件の `OnAdditionalTurnStart` は同じ commit 内の boundary timing として再評価できる
 
 ## Phase 6: Break関連
 
@@ -309,6 +311,8 @@
 - パッシブ側の `DpRate` 実装状況は [`docs/passive_implementation_tasklist.md`](/Users/ram4/git/hbr_battle_simulator/docs/passive_implementation_tasklist.md) から参照する
 - `style.base_param.dp` を `baseMaxDp` の初期基準として使う案は実装しやすいが、`HealDp power` との単位差があるため、将来の厳密化余地を残しておく
 - DP関連は UI 入力だけでなく record / replay 系へ保存しないと、turnPlan 再計算や scenario 再生で `DpRate()` 条件の再現性が崩れる
+- `committedRecord.passiveEvents` は「その turn の開始時点で既に有効だった passive」と「その commit 境界で新規発火した passive」のみを持つ
+  - 次ターン開始用の `OnEveryTurn` / `OnPlayerTurnStart` を前ターン record に逆流させない
 - DPデバッグUIは初期 `currentDp` の既定値前提をテストと揃える必要があり、現状 1 件だけ追従漏れが残っている
 
 ## 優先順
