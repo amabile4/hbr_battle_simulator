@@ -43,12 +43,10 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-| [active/dp_implementation_plan.md](active/dp_implementation_plan.md) | ✅ 完了 | DP（回復・ブレイク）実装プラン・フェーズ別タスク | 2026-03-08 |
-| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画 | 2026-03-08 |
-| [active/code_review_followup_tasklist.md](active/code_review_followup_tasklist.md) | 🟢 進行中 | コードレビュー指摘の対応順・対応状況・完了コミット追跡 | 2026-03-08 |
+| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次に進める実装テーマの優先順位と再開順 | 2026-03-09 |
+| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画 | 2026-03-09 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-08 |
 | [active/token_implementation_plan.md](active/token_implementation_plan.md) | 🟢 進行中 | Token状態システム独立実装計画 | 2026-03-08 |
-| [active/multi_enemy_implementation_tasklist.md](active/multi_enemy_implementation_tasklist.md) | ✅ 完了 | 複数敵対応の実装タスク一覧 | 2026-03-08 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
@@ -129,6 +127,9 @@ docs/
 |-------------|------|------|
 | [archive/rebuild-spec/](archive/rebuild-spec/) | 初期設計レビュー（R1-R10の前段階） | → rebuild-spec-v2/ |
 | [archive/rebuild-spec-v2/](archive/rebuild-spec-v2/) | 統合設計v1 | → specs/runs/RUN_20260228_001/ |
+| [archive/20260309_completed_active_docs/dp_implementation_plan.md](archive/20260309_completed_active_docs/dp_implementation_plan.md) | DP（回復・ブレイク）実装プランの完了記録 | → active/implementation_priority_tasklist.md |
+| [archive/20260309_completed_active_docs/code_review_followup_tasklist.md](archive/20260309_completed_active_docs/code_review_followup_tasklist.md) | コードレビュー follow-up 対応記録の完了版 | → active/implementation_priority_tasklist.md |
+| [archive/20260309_completed_active_docs/multi_enemy_implementation_tasklist.md](archive/20260309_completed_active_docs/multi_enemy_implementation_tasklist.md) | 複数敵対応タスクリストの完了記録 | → active/implementation_priority_tasklist.md |
 | [archive/spec_review_round_log.md](archive/spec_review_round_log.md) | 3LLM合議仕様レビュー Round 1〜9 ログ（2026-02-26〜27） | → specs/runs/RUN_20260228_001/ |
 | [archive/spec_review_state.json](archive/spec_review_state.json) | 仕様レビューチェックポイント（R9完了・agreed_v1確定済み） | → specs/runs/RUN_20260228_001/ |
 | [archive/20260308_doc_management_proposal.md](archive/20260308_doc_management_proposal.md) | ドキュメント管理ルール提案書（策定根拠） | → このREADMEに反映済み |

@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-08
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-09
 
 ## 方針
 
@@ -8,9 +8,9 @@
 - `condition` 実装と `timing` 実装は分けて管理する
 - `Token`, `MoraleLevel`, `MotivationLevel`, `Mark`, `Zone`, `Territory` は状態保持だけでなく増減スキル実装が必要
 - `Token` は独立プラン [`token_implementation_plan.md`](token_implementation_plan.md) を参照
-- `DpRate` / DP関連はパッシブに閉じないため [`dp_implementation_plan.md`](dp_implementation_plan.md) で別管理する
+- `DpRate` / DP関連はパッシブに閉じないため [`../archive/20260309_completed_active_docs/dp_implementation_plan.md`](../archive/20260309_completed_active_docs/dp_implementation_plan.md) で別管理する
 - マスタースキル由来パッシブ、通常スキル由来パッシブは別系統として後段で扱う
-- `docs/multi_enemy_implementation_tasklist.md` は別管理であり、このタスクリストには複数敵固有の詳細は持ち込まない
+- [`../archive/20260309_completed_active_docs/multi_enemy_implementation_tasklist.md`](../archive/20260309_completed_active_docs/multi_enemy_implementation_tasklist.md) は別管理であり、このタスクリストには複数敵固有の詳細は持ち込まない
 
 ## Phase 1: 今の状態から取れる条件
 
@@ -37,7 +37,7 @@
 ## Phase 3: 状態保持が必要な条件
 
 - [x] `DpRate`
-  - 実装計画は [`dp_implementation_plan.md`](dp_implementation_plan.md) を参照
+  - 実装計画は [`../archive/20260309_completed_active_docs/dp_implementation_plan.md`](../archive/20260309_completed_active_docs/dp_implementation_plan.md) を参照
   - 条件評価、DP状態保存、DP増減、DP条件パッシブ接続まで実装済み
 - [x] `Token`
   - 共通基盤として `CharacterStyle.tokenState`、`Token()`、`TokenSet`、`consume_type: Token` は実装済み
@@ -236,7 +236,7 @@
 
 ### DP回復タスクメモ
 
-- DP関連の詳細実装計画は [`dp_implementation_plan.md`](dp_implementation_plan.md) の Phase 4 を参照
+- DP関連の詳細実装計画は [`../archive/20260309_completed_active_docs/dp_implementation_plan.md`](../archive/20260309_completed_active_docs/dp_implementation_plan.md) の Phase 4 を参照
 - Phase 4 の完了条件は「回復量の厳密再現」ではなく、「DP回復イベントを trigger と状態遷移の入力として扱えること」に置く
 - 現在は
   - `DirectDpHeal`
@@ -308,7 +308,7 @@
 7. `MotivationLevel` と関連スキル
 8. `IsZone` / `IsTerritory` と展開スキル
 9. `DpRate` と DP 状態
-  - 詳細は [`dp_implementation_plan.md`](dp_implementation_plan.md)
+  - 詳細は [`../archive/20260309_completed_active_docs/dp_implementation_plan.md`](../archive/20260309_completed_active_docs/dp_implementation_plan.md)
 10. `Mark` 系
 
 ## 備考

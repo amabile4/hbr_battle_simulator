@@ -820,6 +820,35 @@ test('scenario run applies setup automatically when setup step is skipped', () =
   assert.equal(adapter.recordStore.records.length, 1);
 });
 
+test('scenario run-next surfaces contextual error when current turn fails', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const front = adapter.party.getFrontline();
+  const scenario = {
+    version: 1,
+    turns: [
+      {
+        actions: [{ actorName: front[0].characterName, skillId: 99999999 }],
+      },
+    ],
+  };
+
+  root.querySelector('[data-role="scenario-json"]').value = JSON.stringify(scenario);
+  adapter.loadScenarioFromDom();
+  root.querySelector('[data-action="scenario-run-next"]')?.dispatchEvent(new win.Event('click', { bubbles: true }));
+
+  assert.equal(adapter.scenarioCursor, 0);
+  assert.equal(
+    (root.querySelector('[data-role="status"]')?.textContent ?? '').includes(
+      'Scenario turn 1/1 execution failed'
+    ),
+    true
+  );
+});
+
 test('scenario loader reconstructs swaps from CSV position transitions', () => {
   const store = getStore();
   const { root } = createRoot();

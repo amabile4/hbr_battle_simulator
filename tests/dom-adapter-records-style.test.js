@@ -424,6 +424,38 @@ test('turn plan edit row starts staged edit session and updates status message',
   assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Turn 1 を編集中です。');
 });
 
+test('turn plan edit row surfaces contextual error when source turn staging fails', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.turnPlans[0] = {
+    ...adapter.turnPlans[0],
+    actions: [
+      {
+        ...adapter.turnPlans[0].actions[0],
+        skillId: 99999999,
+      },
+    ],
+  };
+
+  const editButton = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]'
+  );
+  assert.ok(editButton);
+
+  editButton.click();
+
+  assert.equal(adapter.turnPlanEditSession, null);
+  assert.equal(
+    (root.querySelector('[data-role="status"]')?.textContent ?? '').includes('TurnPlan編集開始に失敗: Turn 1'),
+    true
+  );
+});
+
 test('cancelTurnPlanEdit clears edit session and reruns recalculation through shared helper', () => {
   const store = getStore();
   const { root } = createRoot();

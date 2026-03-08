@@ -3525,6 +3525,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return String(area?.value ?? '').trim();
   }
 
+  getErrorMessage(error, fallback = 'Unknown error') {
+    return String(error?.message ?? error ?? fallback);
+  }
+
   executeScenarioStep(action, options = {}) {
     const onWarning = typeof options.onWarning === 'function' ? options.onWarning : null;
     const warningPrefix = String(options.warningPrefix ?? '').trim();
@@ -3534,7 +3538,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (!onWarning) {
         throw error;
       }
-      const message = String(error?.message ?? error ?? 'Unknown error');
+      const message = this.getErrorMessage(error);
       onWarning(warningPrefix ? `${warningPrefix}: ${message}` : message);
       return null;
     }
@@ -3598,9 +3602,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   buildTurnPlanReplayError(index, mode, error) {
     return {
       index,
-      message: String(error?.message ?? error ?? 'Unknown error'),
+      message: this.getErrorMessage(error),
       mode,
     };
+  }
+
+  buildTurnPlanEditStageError(session, error) {
+    const turnId = Number(session?.sourceIndex ?? -1) + 1;
+    return new Error(`TurnPlan編集開始に失敗: Turn ${turnId} / ${this.getErrorMessage(error)}`);
   }
 
   attemptTurnPlanForceFallback(index, mode, warnings = []) {
@@ -3627,8 +3636,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   replayTurnPlanAtIndex(index, mode) {
     const warnings = [];
     this.turnPlanReplayWarnings[index] = warnings;
-    const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[index]);
     try {
+      const turn = this.materializeTurnPlanScenarioTurn(index);
       this.replayTurnPlanTurn(turn, mode, warnings);
       return { applied: 1, shouldStop: false };
     } catch (error) {
@@ -3660,20 +3669,19 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return action();
     } finally {
       this.isReplayingTurnPlans = false;
-      if (!refreshUi) {
-        return;
+      if (refreshUi) {
+        this.refreshMutationUi({
+          actionSelectors: true,
+          partyState: true,
+          swapSelectors: true,
+          turnStatus: true,
+          enemyStatusControls: true,
+          kishinkaControls: true,
+          odControls: true,
+          recordTable: true,
+          turnPlanEditControls: true,
+        });
       }
-      this.refreshMutationUi({
-        actionSelectors: true,
-        partyState: true,
-        swapSelectors: true,
-        turnStatus: true,
-        enemyStatusControls: true,
-        kishinkaControls: true,
-        odControls: true,
-        recordTable: true,
-        turnPlanEditControls: true,
-      });
     }
   }
 
@@ -3701,8 +3709,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   finalizeTurnPlanEditSession(session) {
     this.turnPlanEditSession = session;
-    this.renderTurnPlanEditControls();
-    this.renderRecordTable();
+    this.refreshMutationUi({
+      turnPlanEditControls: true,
+      recordTable: true,
+    });
     this.setStatus(this.getTurnPlanEditSessionStatusMessage(session));
   }
 
@@ -3966,7 +3976,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
     this.scenarioSetupApplied = false;
-    this.renderScenarioStatus();
+    this.refreshMutationUi({ scenarioStatus: true });
     if (looksLikeCsv) {
       const area = this.root.querySelector('[data-role="scenario-json"]');
       if (area) {
@@ -4012,8 +4022,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = reconcileEnemySpecialBreakStateForUi(
       buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, { statuses: next })
     );
-    this.renderEnemyStatusControls();
-    this.renderEnemyConfigControls();
+    this.refreshMutationUi({
+      enemyStatusControls: true,
+      enemyConfigControls: true,
+    });
   }
 
   applyScenarioEnemyNames(enemyNames = {}) {
@@ -4038,8 +4050,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       enemyNamesByEnemy: next,
     });
-    this.renderEnemyStatusControls();
-    this.renderEnemyConfigControls();
+    this.refreshMutationUi({
+      enemyStatusControls: true,
+      enemyConfigControls: true,
+    });
   }
 
   applyScenarioEnemyDamageRates(enemyDamageRates = {}) {
@@ -4068,7 +4082,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       damageRatesByEnemy: next,
     });
-    this.renderEnemyConfigControls();
+    this.refreshMutationUi({ enemyConfigControls: true });
   }
 
   applyScenarioEnemyResistanceRates(enemyResistanceRates = {}) {
@@ -4098,7 +4112,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       destructionRateByEnemy: next,
     });
-    this.renderEnemyConfigControls();
+    this.refreshMutationUi({ enemyConfigControls: true });
   }
 
   applyScenarioEnemySpecialBreakState({
@@ -4119,8 +4133,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = reconcileEnemySpecialBreakStateForUi(
       buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, overrides)
     );
-    this.renderEnemyStatusControls();
-    this.renderEnemyConfigControls();
+    this.refreshMutationUi({
+      enemyStatusControls: true,
+      enemyConfigControls: true,
+    });
   }
 
   captureCurrentDpStateByPartyIndex() {
@@ -4147,7 +4163,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       }
       member.setDpState(next);
     }
-    this.renderPartyState();
+    this.refreshMutationUi({ partyState: true });
   }
 
   applyLoadedScenarioSetup() {
@@ -4293,8 +4309,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
     this.scenarioSetupApplied = true;
-    this.renderScenarioStatus();
-    this.renderTurnStatus();
+    this.refreshMutationUi({
+      scenarioStatus: true,
+      turnStatus: true,
+    });
     this.setStatus('Scenario setup applied.');
   }
 
@@ -4603,8 +4621,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (Number.isFinite(Number(turn.enemyCount))) {
       this.setDomValue('[data-role="enemy-count"]', clampEnemyCount(turn.enemyCount));
       this.syncEnemyStateFromDom();
-      this.renderEnemyStatusControls();
-      this.renderEnemyConfigControls();
+      this.refreshMutationUi({
+        enemyStatusControls: true,
+        enemyConfigControls: true,
+      });
     }
     if (turn.enemyAction !== undefined) {
       this.setDomValue('[data-role="enemy-action"]', String(turn.enemyAction ?? ''));
@@ -4614,7 +4634,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (toggle) {
         toggle.checked = turn.forceOd;
       }
-      this.renderOdControls();
+      this.refreshMutationUi({ odControls: true });
     }
     if (Array.isArray(turn.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(turn.enemyStatuses);
@@ -4697,8 +4717,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           statuses: merged,
         })
       );
-      this.renderEnemyStatusControls();
-      this.renderEnemyConfigControls();
+      this.refreshMutationUi({
+        enemyStatusControls: true,
+        enemyConfigControls: true,
+      });
     }
     if (Array.isArray(turn.enemyStatusesClear)) {
       let statuses = [...this.getEnemyStatuses()];
@@ -4747,8 +4769,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.state.turnState.enemyState = reconcileEnemySpecialBreakStateForUi(
         buildEnemyStateForUi(nextEnemyState, this.readEnemyCountFromDom(), { statuses })
       );
-      this.renderEnemyStatusControls();
-      this.renderEnemyConfigControls();
+      this.refreshMutationUi({
+        enemyStatusControls: true,
+        enemyConfigControls: true,
+      });
     }
   }
 
@@ -4832,7 +4856,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     this.pendingInterruptOdLevel = interruptOdLevel;
     this.interruptOdProjection = null;
-    this.renderOdControls();
+    this.refreshMutationUi({ odControls: true });
   }
 
   clearScenarioStagePreviewState() {
@@ -4928,7 +4952,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.setStatus(
       turnsLength > 0 ? `Scenario completed (${turnsLength} turns).` : 'Scenario completed.'
     );
-    this.renderScenarioStatus();
+    this.refreshMutationUi({ scenarioStatus: true });
     return null;
   }
 
@@ -4939,6 +4963,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return `Scenario turn ${this.scenarioCursor}/${turnsLength} executed.`;
   }
 
+  buildScenarioTurnExecutionError(turnIndex, turnsLength, mode, error) {
+    const turnLabel = `${turnIndex + 1}/${turnsLength}`;
+    const actionLabel = mode === 'stage' ? 'stage failed' : 'execution failed';
+    return new Error(`Scenario turn ${turnLabel} ${actionLabel}: ${this.getErrorMessage(error)}`);
+  }
+
   finalizeScenarioTurnProgress(mode, turnsLength) {
     if (mode === 'stage') {
       this.scenarioStagedTurnIndex = this.scenarioCursor;
@@ -4946,7 +4976,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.scenarioCursor += 1;
       this.scenarioStagedTurnIndex = null;
     }
-    this.renderScenarioStatus();
+    this.refreshMutationUi({ scenarioStatus: true });
     this.setStatus(this.getScenarioTurnStatusMessage(mode, turnsLength));
   }
 
@@ -4955,10 +4985,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (!this.hasRemainingScenarioTurns(turns)) {
       return this.finalizeScenarioCompletion(turns.length);
     }
-    const turn = turns[this.scenarioCursor] ?? {};
-    const result = this.applyScenarioTurn(turn, { mode });
-    this.finalizeScenarioTurnProgress(mode, turns.length);
-    return result;
+    const turnIndex = this.scenarioCursor;
+    const turn = turns[turnIndex] ?? {};
+    try {
+      const result = this.applyScenarioTurn(turn, { mode });
+      this.finalizeScenarioTurnProgress(mode, turns.length);
+      return result;
+    } catch (error) {
+      throw this.buildScenarioTurnExecutionError(turnIndex, turns.length, mode, error);
+    }
   }
 
   stageCurrentScenarioTurn() {
@@ -5950,6 +5985,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return out;
   }
 
+  materializeTurnPlanScenarioTurn(index) {
+    return this.toScenarioTurnFromTurnPlan(this.turnPlans[index]);
+  }
+
   enableForceResourceDeficitMode() {
     if (!this.state?.party) {
       return;
@@ -6003,8 +6042,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.turnPlanRecalcMode = mode;
     if (!Array.isArray(this.turnPlans) || this.turnPlans.length === 0) {
       this.resetTurnPlanReplayResults();
-      this.renderRecordTable();
-      this.renderTurnPlanEditControls();
+      this.refreshMutationUi({
+        recordTable: true,
+        turnPlanEditControls: true,
+      });
       this.setStatus('再計算対象のTurnPlanがありません。');
       return 0;
     }
@@ -6030,8 +6071,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.runInTurnPlanReplaySession(() => {
       this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
       this.replayTurnPlansBeforeIndex(session.sourceIndex, mode);
-      const sourceTurn = this.toScenarioTurnFromTurnPlan(this.turnPlans[session.sourceIndex]);
-      this.applyScenarioTurn(sourceTurn, { mode: 'stage', recalcMode: mode });
+      try {
+        const sourceTurn = this.materializeTurnPlanScenarioTurn(session.sourceIndex);
+        this.applyScenarioTurn(sourceTurn, { mode: 'stage', recalcMode: mode });
+      } catch (error) {
+        throw this.buildTurnPlanEditStageError(session, error);
+      }
       this.finalizeTurnPlanEditSession(session);
     });
   }

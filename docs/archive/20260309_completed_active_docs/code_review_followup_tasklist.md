@@ -1,6 +1,6 @@
 # Code Review Follow-up Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-08（P2b T-005〜T-008 追加）
+> **ステータス**: 🗄️ アーカイブ | 📅 最終更新: 2026-03-09（R-006 最終棚卸し完了）
 
 ## 目的
 
@@ -36,12 +36,12 @@
 
 | ID | 状態 | 概要 | 出典 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|------|----------|--------------|------------|------|
-| `R-001` | `done` | `package.json` に `test:quick` `test:dom` `test:dom:full` を追加する | [06_test_grouping_proposal.md](../20260308_code-review/06_test_grouping_proposal.md) | スクリプト追加、各コマンドの実行確認、利用方針を active docs に一言残す | `0414102` | `npm run test:quick`, `npm run test:dom`, `npm run test:dom:full` | 日常の反復は `test:quick`、DOM 変更確認は `test:dom`、PR 前は `test:dom:full` または `npm test` を使う |
-| `R-002` | `done` | `src/ui/dom-adapter.js` の `SPECIAL_BREAK_CAP_BONUS_PERCENT` 直書きを共通定数参照へ統一する | [00_summary.md](../20260308_code-review/00_summary.md) `NEW-H1` | 該当 2 箇所が定数参照に置き換わり、関連テストが通る | `0414102` | `npm run test:quick`, `npm run test:dom`, `npm run test:dom:full` | 定数は `src/config/battle-defaults.js` に寄せて `turn-controller.js` と共有 |
+| `R-001` | `done` | `package.json` に `test:quick` `test:dom` `test:dom:full` を追加する | [06_test_grouping_proposal.md](../../20260308_code-review/06_test_grouping_proposal.md) | スクリプト追加、各コマンドの実行確認、利用方針を active docs に一言残す | `0414102` | `npm run test:quick`, `npm run test:dom`, `npm run test:dom:full` | 日常の反復は `test:quick`、DOM 変更確認は `test:dom`、PR 前は `test:dom:full` または `npm test` を使う |
+| `R-002` | `done` | `src/ui/dom-adapter.js` の `SPECIAL_BREAK_CAP_BONUS_PERCENT` 直書きを共通定数参照へ統一する | [00_summary.md](../../20260308_code-review/00_summary.md) `NEW-H1` | 該当 2 箇所が定数参照に置き換わり、関連テストが通る | `0414102` | `npm run test:quick`, `npm run test:dom`, `npm run test:dom:full` | 定数は `src/config/battle-defaults.js` に寄せて `turn-controller.js` と共有 |
 
 ## P1: DP / passive Phase 7
 
-出典: [dp_implementation_plan.md](dp_implementation_plan.md), [passive_implementation_tasklist.md](passive_implementation_tasklist.md)
+出典: [dp_implementation_plan.md](dp_implementation_plan.md), [../../active/passive_implementation_tasklist.md](../../active/passive_implementation_tasklist.md)
 
 | ID | 状態 | 概要 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|----------|--------------|------------|------|
@@ -56,31 +56,31 @@
 
 | ID | 状態 | 概要 | 出典 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|------|----------|--------------|------------|------|
-| `T-001` | `done` | `damage-calculation-context.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | 専用テストファイルで境界値を直接確認できる | `0dc9886` | `npm test` | `tests/damage-calculation-context.test.js` を新設し、`test:quick` に組み込んだ |
-| `T-002` | `done` | `adapter-core.js` / `battle-adapter-facade.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | DOM に依存しないロジックを分離して検証できる | `0dc9886` | `npm test` | swap 制約、`preserveTurnPlans` 分岐、turn-plan capture を DOM なしで固定した |
-| `T-003` | `done` | fixture または `maxCandidates` による dom-adapter テスト高速化 | [07_test_data_shrink_study.md](../20260308_code-review/07_test_data_shrink_study.md) | 高速化方式を選定し、`test:dom` と組み合わせて運用できる | `1e9fe29` | `npm run test:dom:full`, `npm test` | `test:dom` 系では候補ラベル allowlist を使い、full data の `npm test` は従来どおり残す |
-| `T-004` | `done` | 実データ未カバーのメカニクスカテゴリテストを補完する | [08_test_coverage_from_real_data.md](../20260308_code-review/08_test_coverage_from_real_data.md) | EP / SP量条件 / Morale / 後衛条件の不足分を追加 | `1e9fe29` | `npm test` | `tests/real-data-mechanics-coverage.test.js` を新設し、`test:quick` に組み込んだ |
+| `T-001` | `done` | `damage-calculation-context.js` の単体テストを追加する | [05_test_coverage_review.md](../../20260308_code-review/05_test_coverage_review.md) | 専用テストファイルで境界値を直接確認できる | `0dc9886` | `npm test` | `tests/damage-calculation-context.test.js` を新設し、`test:quick` に組み込んだ |
+| `T-002` | `done` | `adapter-core.js` / `battle-adapter-facade.js` の単体テストを追加する | [05_test_coverage_review.md](../../20260308_code-review/05_test_coverage_review.md) | DOM に依存しないロジックを分離して検証できる | `0dc9886` | `npm test` | swap 制約、`preserveTurnPlans` 分岐、turn-plan capture を DOM なしで固定した |
+| `T-003` | `done` | fixture または `maxCandidates` による dom-adapter テスト高速化 | [07_test_data_shrink_study.md](../../20260308_code-review/07_test_data_shrink_study.md) | 高速化方式を選定し、`test:dom` と組み合わせて運用できる | `1e9fe29` | `npm run test:dom:full`, `npm test` | `test:dom` 系では候補ラベル allowlist を使い、full data の `npm test` は従来どおり残す |
+| `T-004` | `done` | 実データ未カバーのメカニクスカテゴリテストを補完する | [08_test_coverage_from_real_data.md](../../20260308_code-review/08_test_coverage_from_real_data.md) | EP / SP量条件 / Morale / 後衛条件の不足分を追加 | `1e9fe29` | `npm test` | `tests/real-data-mechanics-coverage.test.js` を新設し、`test:quick` に組み込んだ |
 
 ## P2b: テスト補完（T-005〜T-008）
 
 | ID | 状態 | 概要 | 出典 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|------|----------|--------------|------------|------|
-| `T-005` | `done` | `record-system.test.js` 追加テスト（T-M3対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M3 | insertBefore 境界・cascade 削除・reindexTurnLabels 混在・0件CSV を直接固定 | `37b7614` | `npm run test:quick` | insertBefore 先頭/非存在ID throws・cascade で同 turnIndex 全削除・OD→EX→normal 混在ラベル・空ストアで header のみ出力 |
-| `T-006` | `done` | 境界値テスト追加（T-M1対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M1 | SP 負値・swap 後 CSV 列固定・Infinity JSON 往復を固定 | `37b7614` | `npm run test:quick` | SP min=-5 での clamp、party.swap 後も partyIndex 順の列ヘッダー、'Infinity' 文字列 → Number.POSITIVE_INFINITY 変換 |
-| `T-007` | `done` | 異常系テスト追加（T-M2対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M2 | preview なしの commitTurn が適切にエラーを投げること | `37b7614` | `npm run test:quick` | null/undefined/committed-status 渡しで "commitTurn requires preview TurnRecord" を throw |
-| `T-008` | `done` | IceMarkLevel / OnOverdriveStart パッシブテスト追加 | [08_test_coverage_from_real_data.md](../20260308_code-review/08_test_coverage_from_real_data.md) | IceMark 閾値発動・未達不発・OD タイミングの前衛条件・後衛不発・タイミング識別 | `37b7614` | `npm run test:quick` | DarkMark テストのパターンを IceMark に適用。OnOverdriveStart は applyPassiveTiming 直呼びで検証 |
+| `T-005` | `done` | `record-system.test.js` 追加テスト（T-M3対応） | [05_test_coverage_review.md](../../20260308_code-review/05_test_coverage_review.md) T-M3 | insertBefore 境界・cascade 削除・reindexTurnLabels 混在・0件CSV を直接固定 | `37b7614` | `npm run test:quick` | insertBefore 先頭/非存在ID throws・cascade で同 turnIndex 全削除・OD→EX→normal 混在ラベル・空ストアで header のみ出力 |
+| `T-006` | `done` | 境界値テスト追加（T-M1対応） | [05_test_coverage_review.md](../../20260308_code-review/05_test_coverage_review.md) T-M1 | SP 負値・swap 後 CSV 列固定・Infinity JSON 往復を固定 | `37b7614` | `npm run test:quick` | SP min=-5 での clamp、party.swap 後も partyIndex 順の列ヘッダー、'Infinity' 文字列 → Number.POSITIVE_INFINITY 変換 |
+| `T-007` | `done` | 異常系テスト追加（T-M2対応） | [05_test_coverage_review.md](../../20260308_code-review/05_test_coverage_review.md) T-M2 | preview なしの commitTurn が適切にエラーを投げること | `37b7614` | `npm run test:quick` | null/undefined/committed-status 渡しで "commitTurn requires preview TurnRecord" を throw |
+| `T-008` | `done` | IceMarkLevel / OnOverdriveStart パッシブテスト追加 | [08_test_coverage_from_real_data.md](../../20260308_code-review/08_test_coverage_from_real_data.md) | IceMark 閾値発動・未達不発・OD タイミングの前衛条件・後衛不発・タイミング識別 | `37b7614` | `npm run test:quick` | DarkMark テストのパターンを IceMark に適用。OnOverdriveStart は applyPassiveTiming 直呼びで検証 |
 
 ## P3: 中長期のレビュー改善
 
 | ID | 状態 | 概要 | 出典 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|------|----------|--------------|------------|------|
-| `R-003` | `deferred` | `src/ui/dom-adapter.js` の分割計画と実施 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-C1` | 役割分割方針が確定し、テストを保ったまま分割できる | - | - | 工数大、Phase 7 と混ぜない |
-| `R-004` | `deferred` | `src/turn/turn-controller.js` の分割計画と実施 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-C2` | passive / condition / effect / recovery の責務が分離される | - | - | 工数大、リスク高 |
-| `R-005` | `done` | `swap()` / `queueSwapState()` の原子性改善 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H1` | 途中失敗時の状態不整合が起きない | `1e9fe29` | `npm run test:quick`, `npm test` | `Party.swap()` は `setPosition()` に依存せず直接位置を入れ替え、同一位置 swap は no-op にした |
-| `R-006` | `doing` | エラーハンドリング戦略の統一 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H2` | UI / domain / 外部 I/O の例外方針が統一される | - | `npm run test:dom:full`, `npm test` | UI event 入口、外部 I/O (`localStorage`, scenario JSON 読み込み)、force/replay warning、scenario stage/commit tail、turn-plan mutation 後の再計算経路、edit session 前段 replay の force fallback、preview invalidation / UI refresh helper、battle surface redraw helper までは整理済み。残りは `dom-adapter` 内の深い replay 分岐整理 |
-| `R-007` | `done` | Regex 条件解析の定数化・安全化 | [03_turn_layer.md](../20260308_code-review/03_turn_layer.md), [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H3` | 重複 regex とマジックナンバーが整理される | `11e886e` | `npm run test:quick`, `npm test` | 比較演算子・数値・関数呼び出し・`SpecialStatusCountByType(20)` を turn-controller のモジュール定数へ集約した |
-| `R-008` | `done` | 日本語文字列ハードコードの削減 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H4` | 代表的なスキル名直比較がフラグまたは定数へ置き換わる | `84e60e7` | `npm run test:quick`, `npm test` | `通常攻撃` / `指揮行動` / `追撃` の代表的な比較を `src/domain/skill-classifiers.js` へ集約した |
-| `R-009` | `deferred` | `battle-adapter-facade.js` / `dom-adapter.js` の状態管理整理 | [00_summary.md](../20260308_code-review/00_summary.md) `H1` | 状態変数の責務が分離され、因果関係が追える | - | - | |
+| `R-003` | `deferred` | `src/ui/dom-adapter.js` の分割計画と実施 | [04_recommendations.md](../../20260308_code-review/04_recommendations.md) `R-C1` | 役割分割方針が確定し、テストを保ったまま分割できる | - | - | 工数大、Phase 7 と混ぜない |
+| `R-004` | `deferred` | `src/turn/turn-controller.js` の分割計画と実施 | [04_recommendations.md](../../20260308_code-review/04_recommendations.md) `R-C2` | passive / condition / effect / recovery の責務が分離される | - | - | 工数大、リスク高 |
+| `R-005` | `done` | `swap()` / `queueSwapState()` の原子性改善 | [04_recommendations.md](../../20260308_code-review/04_recommendations.md) `R-H1` | 途中失敗時の状態不整合が起きない | `1e9fe29` | `npm run test:quick`, `npm test` | `Party.swap()` は `setPosition()` に依存せず直接位置を入れ替え、同一位置 swap は no-op にした |
+| `R-006` | `done` | エラーハンドリング戦略の統一 | [04_recommendations.md](../../20260308_code-review/04_recommendations.md) `R-H2` | UI / domain / 外部 I/O の例外方針が統一される | `未commit` | `npm run test:dom:full`, `npm test` | DOM event 入口は `runSafely()` 経由へ統一し、domain は `throw` 維持、外部 I/O は helper 内で文脈付き error / fallback に整理済み。replay/session の例外 swallowing と turn-plan materialization 境界も解消し、残件は deferred の別タスクのみ |
+| `R-007` | `done` | Regex 条件解析の定数化・安全化 | [03_turn_layer.md](../../20260308_code-review/03_turn_layer.md), [04_recommendations.md](../../20260308_code-review/04_recommendations.md) `R-H3` | 重複 regex とマジックナンバーが整理される | `11e886e` | `npm run test:quick`, `npm test` | 比較演算子・数値・関数呼び出し・`SpecialStatusCountByType(20)` を turn-controller のモジュール定数へ集約した |
+| `R-008` | `done` | 日本語文字列ハードコードの削減 | [04_recommendations.md](../../20260308_code-review/04_recommendations.md) `R-H4` | 代表的なスキル名直比較がフラグまたは定数へ置き換わる | `84e60e7` | `npm run test:quick`, `npm test` | `通常攻撃` / `指揮行動` / `追撃` の代表的な比較を `src/domain/skill-classifiers.js` へ集約した |
+| `R-009` | `deferred` | `battle-adapter-facade.js` / `dom-adapter.js` の状態管理整理 | [00_summary.md](../../20260308_code-review/00_summary.md) `H1` | 状態変数の責務が分離され、因果関係が追える | - | - | |
 
 ## 対応記録メモ
 
@@ -113,4 +113,7 @@
 - 2026-03-08: `R-006` の preview invalidation 側では `invalidatePreviewState()` / `refreshMutationUi()` を追加し、enemy damage rate / destruction rate / enemy status / zone / token / DP debug 更新後の preview 破棄と再描画責務を helper へ寄せた。敵ダメージ倍率変更で preview と interrupt 予約が同時に消えることを DOM テストで固定した。
 - 2026-03-08: `R-006` の event / OD / scenario refresh 側では `invalidatePreviewState()` を enemy count 変更、action/target selection 変更、force OD toggle、preemptive OD、OD dialog confirm、鬼神化にも広げ、`refreshMutationUi()` で party/action/swap/turn UI の再描画を共通化した。scenario position alignment と initialPositions も同じ refresh helper を使うように揃えた。
 - 2026-03-08: `R-006` の battle surface redraw 側では `refreshMutationUi()` を `kishinkaControls` / `turnPlanEditControls` / `scenarioStatus` まで拡張し、`initializeBattle()` / `commitCurrentTurn()` / `runInTurnPlanReplaySession()` の大きい再描画ブロックを同じ helper へ寄せた。通常 commit と replay session の UI 復元責務を近い形に揃えた。
+- 2026-03-08: `R-006` の scenario setup redraw 側では `applyScenarioEnemyStatuses()` / `applyScenarioEnemyNames()` / `applyScenarioEnemyDamageRates()` / `applyScenarioEnemyDestructionRates()` / `applyScenarioEnemySpecialBreakState()` / `applyScenarioDpStateByPartyIndex()` / `applyLoadedScenarioSetup()` の direct render を `refreshMutationUi()` へ寄せた。scenario 読み込み直後の enemy/party/status UI 更新経路を同じ helper に揃えた。
+- 2026-03-09: `R-006` の replay/session error context 側では `runInTurnPlanReplaySession()` の `finally` にあった `return` を除去し、`refreshUi: false` 経路で例外が握り潰される不具合を修正した。あわせて `materializeTurnPlanScenarioTurn()` を導入し、turn-plan → scenario turn 変換を replay/edit の `try` 境界内へ移したうえで、`stageTurnPlanSession()` と `applyScenarioTurnAtCursor()` に Turn 番号つき failure context を追加した。scenario run-next と turn-plan edit stage の失敗文言は DOM テストで固定した。
+- 2026-03-09: `R-006` 最終棚卸しとして、レビュー起点だった 3 層の方針を再確認した。UI event は `bindSafeClickAction()` / `bindSafeRootListener()` 経由で `runSafely()` に統一、domain 失敗は `throw` 維持、外部 I/O は helper で fallback または文脈付き error に統一されており、`npm run test:dom:full` と `npm test` の通過も再確認した。以後の未対応は `R-003` / `R-004` / `R-009` の deferred 項目のみのため、`R-006` は完了扱いとする。
 - 2026-03-08: `T-005〜T-008` として P2b テスト補完を実施。321 テスト → 332 テスト（+11件）。`record-system.test.js`（A群・B群）/ `character-party.test.js`（B群 SP 負値）/ `turn-preview.test.js`（D群 異常系）/ `turn-state-transitions.test.js`（C群 IceMark・OnOverdriveStart）に追加。全 332 テスト PASS。turn-state-transitions.test.js のファイル分割（T-H1）は工数・リスクが高いため deferred 継続。

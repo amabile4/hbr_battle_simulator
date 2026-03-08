@@ -1,6 +1,6 @@
 # DP実装プラン
 
-> **ステータス**: ✅ 完了 | 📅 最終更新: 2026-03-08
+> **ステータス**: 🗄️ アーカイブ | 📅 最終更新: 2026-03-09
 
 ## 方針
 
@@ -373,7 +373,7 @@
 - 将来ダメージ計算機が入っても、DP状態モデルはそのまま流用できる形にする
 - DP破損と `Break` は現時点では同一視せず、別状態として扱う方が安全
 - 自傷や味方起点の DP消費では自動的に Break させず、DP 0 は手入力でのみ再現する
-- パッシブ側の `DpRate` 実装状況は [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) から参照する
+- パッシブ側の `DpRate` 実装状況は [`../../active/passive_implementation_tasklist.md`](../../active/passive_implementation_tasklist.md) から参照する
 - `style.base_param.dp` を `baseMaxDp` の初期基準として使う案は実装しやすいが、`HealDp power` との単位差があるため、将来の厳密化余地を残しておく
 - DP関連は UI 入力だけでなく record / replay 系へ保存しないと、turnPlan 再計算や scenario 再生で `DpRate()` 条件の再現性が崩れる
 - `committedRecord.passiveEvents` は「その turn の開始時点で既に有効だった passive」と「その commit 境界で新規発火した passive」のみを持つ
