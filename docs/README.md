@@ -116,11 +116,4 @@ docs/
 |-------------|------|------|
 | [archive/rebuild-spec/](archive/rebuild-spec/) | 初期設計レビュー（R1-R10の前段階） | → rebuild-spec-v2/ |
 | [archive/rebuild-spec-v2/](archive/rebuild-spec-v2/) | 統合設計v1 | → specs/runs/RUN_20260228_001/ |
-
----
-
-## 提案・意思決定記録
-
-| ドキュメント | 概要 | ステータス |
-|-------------|------|-----------|
-| [20260308_doc_management_proposal.md](20260308_doc_management_proposal.md) | ドキュメント管理ルール提案書（本ルールの策定根拠） | ✅ 合意済み・このREADMEに反映済み |
+| [archive/20260308_doc_management_proposal.md](archive/20260308_doc_management_proposal.md) | ドキュメント管理ルール提案書（策定根拠） | → このREADMEに反映済み |
