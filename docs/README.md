@@ -45,6 +45,7 @@ docs/
 |-------------|-----------|------|----------|
 | [active/dp_implementation_plan.md](active/dp_implementation_plan.md) | 🟢 進行中 | DP（回復・ブレイク）実装プラン・フェーズ別タスク | 2026-03-08 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画 | 2026-03-08 |
+| [active/code_review_followup_tasklist.md](active/code_review_followup_tasklist.md) | 🟢 進行中 | コードレビュー指摘の対応順・対応状況・完了コミット追跡 | 2026-03-08 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-08 |
 | [active/token_implementation_plan.md](active/token_implementation_plan.md) | 🟢 進行中 | Token状態システム独立実装計画 | 2026-03-08 |
 | [active/multi_enemy_implementation_tasklist.md](active/multi_enemy_implementation_tasklist.md) | ✅ 完了 | 複数敵対応の実装タスク一覧 | 2026-03-08 |
