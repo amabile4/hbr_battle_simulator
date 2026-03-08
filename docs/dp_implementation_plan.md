@@ -121,7 +121,7 @@
 
 - `DpRate()` はパッシブ条件だけでなく、`SkillCondition` と `CountBC(...)` 内のプレイヤー条件でも評価できるようになった
 - DP状態は `snapshot / record / turnPlan / scenario` まで保存されるようになり、再計算・再生で引き継げる
-- 検証時点では関連テスト 235 件中 234 件が通過しており、`tests/dom-adapter-records-style.test.js` に DP デバッグUIの初期値前提ずれ 1 件が残っている
+- 検証時点では関連テスト 235 件が通過している
 
 ## Phase 1: 状態モデル
 
@@ -184,6 +184,58 @@
 - `turn-controller` には `TokenSetByHealedDp` 用の検知経路が既にあるが、DP現在値更新にはまだ接続していない
 - `HealDp` 系は `power` の単位解釈が未確定で、`style.base_param.dp` と直接整合しないため厳密実装は保留
 - `HealDpRate` は割合と cap の読み筋が比較的明確なので、Phase 4 着手時はここから入るのが安全
+- 2026-03-08 時点の Phase 4 完了条件は「DP回復量の厳密再現」ではなく、「DP回復が起きたという事実をシミュレータ内部で扱えること」に置き直す
+- このソフトの主要要求は
+  - `TokenSetByHealedDp`
+  - DP回復をトリガーにするパッシブ
+  - `DpRate()` 条件の再評価に必要な最低限の状態遷移
+  を成立させることなので、`HealDp power` の厳密式は Phase 4 の完了条件から外す
+- 検討はまず次の 2 系統に分ける
+  - シンプルケース
+    - 「回復スキルが対象の DP を回復した」結果として、`TokenSetByHealedDp` や DP回復起点パッシブが発火する
+    - 主対象は `HealDp` / `HealDpRate` / `ReviveDp`
+  - 複合ケース
+    - 攻撃・分岐・追加効果の結果として DP回復が起こる
+    - 主対象は `RegenerationDp`、`HealDpByDamage`、`SkillCondition` 分岐先、`effect` 直下の `HealDp_Buff` 系
+- `RegenerationDp` は `HealDp` と同列の「直接回復」ではなく、まず「継続回復状態を付与した」という状態変化として扱う
+  - 付与時点: `RegenerationDp` 付与トリガー
+  - 後続 tick 時点: 継続回復による DP回復トリガー
+  - この 2 つは別イベントとして保持する
+- マリア系のトークン上昇では、直接回復と継続回復状態付与が別トリガーとして扱われていたため、パッシブ側でも区別できる前提を維持する
+- Phase 4 では個別パッシブの最終挙動までは確定させず、少なくとも次を別物として管理できるようにする
+  - 直接 DP回復
+  - 継続回復状態付与
+  - 継続回復 tick による DP回復
+  - 攻撃起点の DP回復
+- 実装順の案
+  - 1. まずシンプルケースの `HealDp / HealDpRate / ReviveDp` を共通の「直接 DP回復イベント」に正規化する
+    - 少なくとも `actor`, `target`, `skillType`, `skillId`, `skillName`, `amountResolved`, `capResolved` を持つ
+  - 2. `TokenSetByHealedDp` は「直接 DP回復イベントが発生したか」でまず判定できるようにする
+    - 回復量の厳密値を前提にしない
+  - 3. `RegenerationDp` は別系統で扱う
+    - 付与時には「継続回復状態付与イベント」を発行する
+    - 実際の回復が起きる tick では「継続回復 tick イベント」と「継続回復による DP回復イベント」を発行する
+    - 付与と回復を同じ trigger に潰さない
+  - 4. `record` / `passive log` / debug表示にも「どの種別の DP回復関連イベントが起きたか」を残せるようにする
+  - 5. 次に複合ケースを個別に扱う
+    - `HealDpByDamage` は「攻撃スキルが敵へ与えたダメージを参照して、自身の DP を回復する」型なので、通常の回復スキルとは別扱いにする
+    - target は実質 `Self` 固定だが、発火条件は「回復 part が存在する」ではなく「攻撃結果として与ダメージが確定した」である
+    - 将来ダメージ計算機が入るまでは、`HealDpByDamage` の数値回復は未解釈でもよいが、「攻撃起点の DP回復 trigger」というイベント種別は分けて保持した方が安全
+  - 6. 数値更新は解釈可能なものから入れる
+    - `HealDpRate`: `baseMaxDp` 比率回復として扱い、`value[0]` があれば cap 候補として使う
+    - `RegenerationDp`: 継続効果の付与と tick 管理を優先し、tick量が解釈できる場合だけ `currentDp` を増やす
+    - `ReviveDp`: 厳密量が不明でも「DP 0 から復帰した」ことを表せる最小復帰値案を採る
+    - `HealDp`: まずはイベント発火と trigger 接続を優先し、数値反映は未解釈でも完了扱いとする
+    - `HealDpByDamage`: 数値反映は damage context 依存なので後回しにし、まず trigger 用イベントだけ扱う
+- 既存 UI に DP 手入力があるため、量未解釈スキルは「トリガーは自動、数値は必要なら手補正」という運用が可能
+- `effect` 直下の `HealDp_Buff` 系や `SkillCondition` 分岐先も取りこぼすと trigger が抜けるため、Phase 4 では `parts` だけでなく実際の発火経路全体を正規化対象に含める
+- Phase 4 の完了判定案
+  - シンプルケースの直接 DP回復系 skill_type が action / passive timing の中で検知される
+  - `RegenerationDp` は「状態付与」と「tick 回復」が別イベントとして管理される
+  - `TokenSetByHealedDp` と DP回復起点パッシブがその検知結果を参照できる
+  - `record` / scenario 再計算で「どの種別の DP回復関連イベントが起きたか」を保持できる
+  - `HealDpByDamage` は別イベント種別として分類され、通常回復フローと混線しない
+  - 回復量の厳密式が未実装でも、既知の制約としてメモされていれば完了扱いにする
 
 ## Phase 5: DP自傷とDP依存スキル
 

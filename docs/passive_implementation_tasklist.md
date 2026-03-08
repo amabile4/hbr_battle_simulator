@@ -227,6 +227,24 @@
 - [ ] DP現在値保持
 - [ ] DP増減処理
 
+### DP回復タスクメモ
+
+- DP関連の詳細実装計画は [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md) の Phase 4 を参照
+- Phase 4 の完了条件は「回復量の厳密再現」ではなく、「DP回復イベントを trigger と状態遷移の入力として扱えること」に置く
+- まずは
+  - 通常の回復スキルで対象の DP を回復した
+  - その結果として `TokenSetByHealedDp` や DP回復起点パッシブが発火した
+  というシンプルケースを先に通す
+- `RegenerationDp` は直接回復ではなく「継続回復状態付与」と「その後の継続回復 tick」を分けて扱う
+  - マリア系のトークン上昇ではこの差が効くため、パッシブ側でも区別できる前提を保つ
+  - Phase 4 では挙動詳細の確定まではせず、別 trigger として管理できることを優先する
+- `HealDpByDamage` は「攻撃成功時に、与ダメージ割合で self の DP を回復する」複合ケースなので別扱いにする
+- そのため `HealDp` / `HealDpByDamage` の `power` 厳密解釈が未実装でも、次が通れば完了扱いにできる
+  - `TokenSetByHealedDp`
+  - DP回復起点のパッシブ
+  - `record` / replay 上での DP回復イベント保持
+- `HealDpRate` のように割合で解釈できるものだけ数値反映を先行し、その他は既存 DP 手入力 UI で補正可能とする
+
 ## Phase 6: 将来拡張
 
 - [ ] マスタースキル由来パッシブ
