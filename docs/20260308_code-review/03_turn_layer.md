@@ -250,3 +250,77 @@ const OD_LEVEL_CONFIG = [
 4. **キャラクターIDハードコードの撤廃**: ゲームデータ駆動での特殊処理
 
 `battle-defaults.js` は定数管理として機能しており、OD設定の関連データ統合と関数の分離により更に改善できる。
+
+---
+
+## 差分レビュー #1 — Phase 6 ブレイク状態実装（2026-03-08 / `af6e73b`）
+
+### `src/config/battle-defaults.js`
+
+**変更量**: +1行
+
+| 変更 | 評価 |
+|------|------|
+| `DEFAULT_DESTRUCTION_RATE_CAP_PERCENT = 300` 定数追加 | ✅ 改善。初回レビューで指摘していたマジックナンバー問題の一件を解消 |
+
+**残存問題**: `dom-adapter.js` が同じ値（300）を `SPECIAL_BREAK_CAP_BONUS_PERCENT` から import せず `+ 300` としてハードコードしている（後述 NEW-H1）。
+
+---
+
+### `src/turn/turn-controller.js`
+
+**変更量**: +633行（net 約+8行 / 旧来の未コミット分を含む大規模追加）
+
+#### 改善点
+
+**1. `createConditionSkillContext()` によるpart単位コンテキスト修正**
+
+```javascript
+function createConditionSkillContext(skill, part = null) {
+  if (!skill || !part) return skill;
+  return { ...skill, __conditionPart: part, __conditionElements: [...part.elements] };
+}
+```
+
+以前はパッシブ・スキル条件評価でスキル全体を渡していたため、`IsHitWeak` のような「どの部品の属性か」が必要な条件が正しく評価できなかった。この修正で `applyMoralePassiveTriggerEffects`・`applyMoraleEffectsFromActions`・`applyMotivationEffectsFromActions`・`applyFunnelEffectsFromActions`・`applySkillSelfEpGains` 等、全て統一対応した。
+
+**2. `addGuardStatusEffect()` の抽出による重複排除**
+
+`DebuffGuard` のロジックがパッシブタイミング処理内にインライン実装されていたが、`addGuardStatusEffect()` として抽出し、アクション適用 (`applyGuardEffectsFromActions`) とパッシブ (`applyPassiveTimingInternal`) の両方から再利用するよう統一した。
+
+**3. break state 管理関数群の設計品質**
+
+新規追加されたbreak state 管理関数は、責任が明確に分割されている：
+
+| 関数 | 責任 |
+|------|------|
+| `getEnemyBreakStateByTarget()` | 読み取り（正規化込み） |
+| `setEnemyBreakStateByTarget()` | 書き込み（バリデーション込み） |
+| `computeEnemySpecialBreakCapPercent()` | cap計算（純粋関数） |
+| `clearEnemySpecialBreakState()` | SuperDown/StrongBreak解除時の巻き戻し |
+| `removeEnemySuperDownState()` | DownTurn期限切れ時のSuperDown解除 |
+| `applyEnemyStrongBreakState()` / `applyEnemySuperDownState()` | 状態適用 |
+
+新規コードは小さな単一責任関数の集合になっており、既存の巨大関数群と対照的に保守性が高い。
+
+**4. `IsHitWeak` 条件評価の実装**
+
+```javascript
+// CONDITION_SUPPORT_MATRIX
+IsHitWeak: { tier: 'implemented', note: 'selected target + current skill element can be checked now' }
+```
+
+スキルpartの属性と対象敵の弱点属性を照合する条件が実装された。`getConditionSkillElements()` で `__conditionElements` → `__conditionPart.elements` → `skill.parts` の優先順で属性を取得するフォールバックチェーンが適切に実装されている。
+
+**5. `tickEnemyStatuses()` での自動DownTurn解除**
+
+DownTurnが期限切れになった敵に対して `removeEnemySuperDownState()` を自動呼び出すようにした。SuperDownはDownTurnが有効な間のみ有効であるというゲーム仕様を正しく実装している。
+
+#### 残存問題（変化なし）
+
+初回レビューで指摘した以下の問題は未対処のまま：
+- C2: モノリシック（5571行、さらに増加）
+- マジックナンバー多数（`isPlainObject` チェック10+箇所等）
+- 日本語文字列ハードコード（`'通常攻撃'`, `'追撃'`）
+- Regex脆弱性（条件文字列解析）
+

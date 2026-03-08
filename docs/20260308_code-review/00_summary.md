@@ -121,3 +121,46 @@
 - [02_ui_layer.md](02_ui_layer.md) - src/ui/, ui/ の詳細レビュー
 - [03_turn_layer.md](03_turn_layer.md) - turn/config層の詳細レビュー
 - [04_recommendations.md](04_recommendations.md) - 優先度付き改善提案
+
+---
+
+## 差分レビュー #1 — Phase 6 ブレイク状態実装（2026-03-08）
+
+**対象コミット**: `af6e73b`（`Implement phase 6 break state support`）
+**変更ファイル**: 7ファイル（1,078 insertions / 162 deletions）
+
+### ファイル別スコア更新
+
+| ファイル | 初回 | 再レビュー後 | 変化 |
+|---------|------|------------|------|
+| `src/config/battle-defaults.js` | 4/5 | 4/5 | → |
+| `src/contracts/interfaces.js` | 3.5/5 | 3.5/5 | → |
+| `src/data/hbr-data-store.js` | 3/5 | 3/5 | → |
+| `src/turn/turn-controller.js` | 2/5 | 2/5 | → |
+| `src/ui/adapter-core.js` | 3/5 | 3/5 | → |
+| `src/ui/battle-adapter-facade.js` | 2.5/5 | 2.5/5 | → |
+| `src/ui/dom-adapter.js` | 1.5/5 | 1.5/5 | → |
+
+### 新規発見問題
+
+| # | 重要度 | 問題 | 対象ファイル |
+|---|--------|------|------------|
+| NEW-H1 | 🟠 High | `SPECIAL_BREAK_CAP_BONUS_PERCENT`（300）が`dom-adapter.js`でハードコード。`turn-controller.js`で定数化されているのに`import`せず`+ 300`を2箇所に直書き | `src/ui/dom-adapter.js:232,272` |
+
+### 改善確認
+
+| 改善内容 | 対象ファイル |
+|---------|------------|
+| ✅ `DEFAULT_DESTRUCTION_RATE_CAP_PERCENT = 300` 定数化（マジックナンバー解消） | `src/config/battle-defaults.js` |
+| ✅ `createConditionSkillContext()` でpart単位の条件コンテキストを正しく渡すように修正 | `src/turn/turn-controller.js` |
+| ✅ `addGuardStatusEffect()` を抽出して `DebuffGuard`/`BreakGuard` を共通処理に統一 | `src/turn/turn-controller.js` |
+| ✅ `buildEnemyStateForUi()` を抽出してnormalizer群の呼び出しを一元化 | `src/ui/dom-adapter.js` |
+| ✅ `IsHitWeak` 条件評価を実装（`CONDITION_SUPPORT_MATRIX` で `tier: 'implemented'` に更新） | `src/turn/turn-controller.js` |
+
+### テスト変化
+
+| 項目 | 初回 | 再レビュー後 |
+|------|------|------------|
+| テスト総数 | 274 | **279**（+5） |
+| PASS | 274 | **279** |
+| FAIL | 0 | 0 |

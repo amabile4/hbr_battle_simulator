@@ -287,3 +287,40 @@ applyMoraleDelta(delta) { return this._applyResourceDelta(this.morale, delta, th
 ## 総括
 
 domain層の設計は良好で、`sp.js` や `dp-state.js` は高品質な純粋関数として機能している。最大の問題は `character-style.js` と `hbr-data-store.js` の複雑さで、前者はデルタ系メソッドの重複削減と直接ミューテーション排除、後者はmergeロジックの統合と日本語文字列のデータ駆動化が優先課題となる。
+
+---
+
+## 差分レビュー #1 — Phase 6 ブレイク状態実装（2026-03-08 / `af6e73b`）
+
+### `src/contracts/interfaces.js`（+53行）
+
+**変更内容**: `createInitialTurnState()` に `destructionRateCapByEnemy`・`breakStateByEnemy` フィールド追加。`cloneTurnState()` に対応するcloneロジック追加。
+
+**評価**:
+
+| 項目 | 評価 |
+|------|------|
+| `createInitialTurnState()` の追加 | ✅ 適切。空オブジェクト `{}` で初期化する一貫したパターン |
+| `cloneTurnState()` の `breakStateByEnemy` clone | 🟡 注意。ネストした `superDown` オブジェクトのcloneロジックが複雑な三項演算の連鎖になっている（19行程度） |
+| `breakStateByEnemy` の型定義 | 🟡 `{baseCap, strongBreakActive, superDown: {preRate, preCap}}` という構造が `cloneTurnState` のコードからのみ読み取れる。JSDoc等のドキュメントがない |
+
+`cloneTurnState` がさらに肥大化したことにより、「インターフェース定義ファイル」が実装ロジックを多く持つという初回レビューの問題が悪化している。`destructionRateCapByEnemy` の正規化ロジック（`Number.isFinite(Number(value)) ? Number(value) : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT`）は `turn-controller.js` の `getEnemyDestructionRateCapPercent()` と重複している。
+
+**スコア**: 3.5/5 維持（変化なし）
+
+---
+
+### `src/data/hbr-data-store.js`（+4行）
+
+**変更内容**: `buildCharacterStyleFromOptions()` に `initialBreak = false` パラメータ追加。`buildPartyFromOptions()` に `initialBreakByPartyIndex = {}` 追加。
+
+**評価**:
+
+| 項目 | 評価 |
+|------|------|
+| パターンの一貫性 | ✅ `initialDpStateByPartyIndex` と同じパターン |
+| `Boolean(initialBreak)` の明示的変換 | ✅ 入力値の型を強制する一貫したアプローチ |
+| `Boolean(initialBreakByPartyIndex[index])` | ✅ undefinedに対してfalseを返すフォールバックが適切 |
+
+**スコア**: 3/5 維持（変化なし）
+

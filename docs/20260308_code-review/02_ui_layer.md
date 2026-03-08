@@ -282,3 +282,73 @@ const [rawCharacters, rawStyles, rawSkills] = await Promise.all([
 UI層の最大問題は `dom-adapter.js` の巨大化（5996行）であり、これが全ての保守性問題の根本原因となっている。短期的には機能ブロック単位での**ファイル分割**が最優先の改善アクションとなる。
 
 `battle-adapter-facade.js` の状態変数の整理（状態図の作成とグルーピング）も保守性向上に大きく貢献する。`adapter-core.js` と `dom-view.js` は相対的に良好な品質を維持している。
+
+---
+
+## 差分レビュー #1 — Phase 6 ブレイク状態実装（2026-03-08 / `af6e73b`）
+
+### `src/ui/adapter-core.js`（+17行）
+
+**変更内容**: `initialBreakByPartyIndex`、`destructionRateCapByEnemy`、`breakStateByEnemy` の3フィールドを既存パターンに沿って追加。
+
+| 評価 | 理由 |
+|------|------|
+| ✅ 一貫性あり | 既存の `initialDpStateByPartyIndex` や `damageRatesByEnemy` と同じ `structuredClone` + 型ガードのパターンを踏襲 |
+| → スコア変化なし | 3/5 維持 |
+
+### `src/ui/battle-adapter-facade.js`（+3行）
+
+**変更内容**: 3フィールドを `options.xxx` から `createInitializedBattleSnapshot` へのパススルーとして追加。
+
+| 評価 | 理由 |
+|------|------|
+| ✅ 機械的な変更 | パッシブ追加のみ、論理変更なし |
+| → スコア変化なし | 2.5/5 維持 |
+
+### `src/ui/dom-adapter.js`（+529行 / -84行）
+
+#### 改善点
+
+**`buildEnemyStateForUi()` の抽出**
+
+8つの `normalizeEnemyXxx()` 呼び出しが複数箇所で繰り返されていたが、`buildEnemyStateForUi(current, enemyCount, overrides)` に集約された。initializer 的な責任を持つ関数が統一されたことで、今後の敵状態フィールド追加時の変更箇所が一カ所に集約される。
+
+**break state UI関数の設計**
+
+`clearEnemySpecialBreakStateForUi()`、`removeEnemySuperDownStateForUi()`、`reconcileEnemySpecialBreakStateForUi()` は純粋関数として実装されており、引数の `enemyState` を直接変更せず、`buildEnemyStateForUi()` を通してコピーを返す。これはレビューで継続して推奨してきたイミュータブルパターンと一致する。
+
+**`isEnemyStatusPersistent()` の拡張**
+
+`StrongBreak`、`SuperDown` が自動ティック対象外（永続型）として追加された。既存の `Break`、`Dead` と同じ分類。
+
+#### 新規問題
+
+**NEW-H1: `SPECIAL_BREAK_CAP_BONUS_PERCENT` のハードコード**
+
+```javascript
+// src/ui/dom-adapter.js:232
+? Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) + 300  // ← 直書き
+
+// src/ui/dom-adapter.js:272
+? Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) + 300  // ← 直書き
+```
+
+`turn-controller.js` では `SPECIAL_BREAK_CAP_BONUS_PERCENT = 300` として定数化済みだが、`dom-adapter.js` ではその定数を import せず `+ 300` をハードコード。`battle-defaults.js` にある `DEFAULT_DESTRUCTION_RATE_CAP_PERCENT` は import しているのに、同じ値の定数 `SPECIAL_BREAK_CAP_BONUS_PERCENT` は import していない。
+
+将来この値が変更された場合、`turn-controller.js` の1箇所だけ修正して `dom-adapter.js` の修正が漏れるリスクがある。
+
+**修正案**:
+```javascript
+// dom-adapter.js の import に追加
+import { DEFAULT_DESTRUCTION_RATE_CAP_PERCENT, SPECIAL_BREAK_CAP_BONUS_PERCENT } from '../turn/turn-controller.js';
+// または battle-defaults.js に移動して両方から import
+```
+
+ただし、`SPECIAL_BREAK_CAP_BONUS_PERCENT` は現在 `turn-controller.js` 内部の定数（`export` されていない）であるため、export 追加または `battle-defaults.js` への移動が必要。
+
+| 評価 | スコア |
+|------|--------|
+| `buildEnemyStateForUi` 改善あり | +0.1 |
+| NEW-H1 マジックナンバー新規追加 | -0.1 |
+| **総合スコア変化なし** | **1.5/5 維持** |
+
