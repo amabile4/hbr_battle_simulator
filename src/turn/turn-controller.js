@@ -83,6 +83,42 @@ const MARK_SKILL_TYPE_TO_ELEMENT = Object.freeze({
 });
 const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
 const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
+const EXTRA_ACTIVATION_STATUS_TYPE = 20;
+const CONDITION_WHITESPACE_RE = /\s+/g;
+const PASSIVE_VARIANT_THRESHOLD_RE = /[:：]\s*(\d+)人/;
+const CONDITION_COMPARISON_OP_PATTERN = String.raw`(==|!=|>=|<=|>|<)`;
+const CONDITION_INTEGER_PATTERN = String.raw`(-?\d+)`;
+const CONDITION_NUMERIC_PATTERN = String.raw`(-?\d+(?:\.\d+)?)`;
+const CONDITION_IDENTIFIER_PATTERN = String.raw`([A-Za-z_][A-Za-z0-9_]*)`;
+const DAMAGE_RATE_CONDITION_RE = new RegExp(
+  String.raw`^DamageRate\(\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_NUMERIC_PATTERN}$`
+);
+const IS_WEAK_ELEMENT_CLAUSE_RE = /^IsWeakElement\(([^)]+)\)/;
+const IS_WEAK_ELEMENT_PREDICATE_RE = /^IsWeakElement\([^)]+\)(==1)?$/;
+const PLAYED_SKILL_COUNT_CONDITION_RE = new RegExp(
+  String.raw`^PlayedSkillCount\(([^)]*)\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_INTEGER_PATTERN}$`
+);
+const SPECIAL_STATUS_COUNT_BY_TYPE_CONDITION_RE = new RegExp(
+  String.raw`^SpecialStatusCountByType\(${EXTRA_ACTIVATION_STATUS_TYPE}\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_INTEGER_PATTERN}$`
+);
+const COUNT_BC_CONDITION_RE = new RegExp(
+  String.raw`^CountBC\((.+)\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_INTEGER_PATTERN}$`
+);
+const FUNCTION_COMPARISON_CONDITION_RE = new RegExp(
+  String.raw`^${CONDITION_IDENTIFIER_PATTERN}\(([^)]*)\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_NUMERIC_PATTERN}$`
+);
+const REVERSE_FUNCTION_COMPARISON_CONDITION_RE = new RegExp(
+  String.raw`^${CONDITION_NUMERIC_PATTERN}\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_IDENTIFIER_PATTERN}\(([^)]*)\)$`
+);
+const BARE_FUNCTION_CALL_CONDITION_RE = new RegExp(
+  String.raw`^${CONDITION_IDENTIFIER_PATTERN}\(([^)]*)\)$`
+);
+const IS_CHARACTER_TARGET_CONDITION_RE = new RegExp(
+  String.raw`^IsCharacter\(([^)]+)\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*([01])$`
+);
+const EXTRA_ACTIVE_COUNT_BC_GT_ZERO = `IsPlayer()==1&&SpecialStatusCountByType(${EXTRA_ACTIVATION_STATUS_TYPE})>0`;
+const EXTRA_ACTIVE_COUNT_BC_GE_ONE = `IsPlayer()==1&&SpecialStatusCountByType(${EXTRA_ACTIVATION_STATUS_TYPE})>=1`;
+const EXTRA_ACTIVE_COUNT_BC_EQ_ZERO = `IsPlayer()==1&&SpecialStatusCountByType(${EXTRA_ACTIVATION_STATUS_TYPE})==0`;
 export const SUPPORTED_PASSIVE_TIMINGS = Object.freeze([
   'OnOverdriveStart',
   'OnBattleStart',
@@ -2549,17 +2585,17 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     return { known: true, value: backlineCount };
   }
 
-  if (inner === 'IsPlayer()==1&&SpecialStatusCountByType(20)>0') {
+  if (inner === EXTRA_ACTIVE_COUNT_BC_GT_ZERO) {
     const count = state.party.filter((item) => item.isExtraActive).length;
     return { known: true, value: count };
   }
 
-  if (inner === 'IsPlayer()==1&&SpecialStatusCountByType(20)>=1') {
+  if (inner === EXTRA_ACTIVE_COUNT_BC_GE_ONE) {
     const count = state.party.filter((item) => item.isExtraActive).length;
     return { known: true, value: count };
   }
 
-  if (inner === 'IsPlayer()==1&&SpecialStatusCountByType(20)==0') {
+  if (inner === EXTRA_ACTIVE_COUNT_BC_EQ_ZERO) {
     const count = state.party.filter((item) => item.isExtraActive).length;
     return { known: true, value: count === 0 ? 1 : 0 };
   }
@@ -2617,7 +2653,7 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     clauses.some((clause) => clause.startsWith('DamageRate()'));
   if (hasBrokenAndHighDamageEnemyClauses) {
     const damageRateClause = clauses.find((clause) => clause.startsWith('DamageRate()')) ?? '';
-    const match = damageRateClause.match(/^DamageRate\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
+    const match = damageRateClause.match(DAMAGE_RATE_CONDITION_RE);
     if (!match || match[1] !== '>=') {
       return { known: false, value: true };
     }
@@ -2643,16 +2679,14 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     return { known: true, value: countDeadEnemies(state?.turnState) };
   }
 
-  const weakElementClause = clauses.find((clause) =>
-    /^IsWeakElement\([^)]+\)(==1)?$/.test(clause)
-  );
+  const weakElementClause = clauses.find((clause) => IS_WEAK_ELEMENT_PREDICATE_RE.test(clause));
   const hasAllWeakElementEnemyClauses =
     clauses.length === 3 &&
     clauses.includes('IsPlayer()==0') &&
     clauses.includes('IsDead()==0') &&
     Boolean(weakElementClause);
   if (hasAllWeakElementEnemyClauses) {
-    const match = weakElementClause.match(/^IsWeakElement\(([^)]+)\)/);
+    const match = weakElementClause.match(IS_WEAK_ELEMENT_CLAUSE_RE);
     const element = String(match?.[1] ?? '').trim();
     return {
       known: true,
@@ -2673,7 +2707,7 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   const breakHitCount = Number(actionEntry?.breakHitCount ?? 0);
 
   {
-    const m = text.match(/^PlayedSkillCount\(([^)]*)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    const m = text.match(PLAYED_SKILL_COUNT_CONDITION_RE);
     if (m) {
       const refRaw = String(m[1] ?? '').trim();
       const ref = refRaw || defaultRef;
@@ -2685,7 +2719,7 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   }
 
   {
-    const m = text.match(/^SpecialStatusCountByType\(20\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    const m = text.match(SPECIAL_STATUS_COUNT_BY_TYPE_CONDITION_RE);
     if (m) {
       const active = member?.isExtraActive ? 1 : 0;
       return { known: true, value: compareNumbers(active, m[1], Number(m[2])) };
@@ -2693,7 +2727,7 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   }
 
   {
-    const m = text.match(/^CountBC\((.+)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+    const m = text.match(COUNT_BC_CONDITION_RE);
     if (m) {
       const evaluated = evaluateCountBCPredicate(m[1], state, member);
       if (!evaluated.known) {
@@ -2704,9 +2738,7 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   }
 
   {
-    const m = text.match(
-      /^([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/
-    );
+    const m = text.match(FUNCTION_COMPARISON_CONDITION_RE);
     if (m) {
       const resolved = resolveConditionFunctionValue(m[1], m[2], state, member, skill, actionEntry);
       if (!resolved.known) {
@@ -2717,9 +2749,7 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   }
 
   {
-    const m = text.match(
-      /^(-?\d+(?:\.\d+)?)\s*(==|!=|>=|<=|>|<)\s*([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)$/
-    );
+    const m = text.match(REVERSE_FUNCTION_COMPARISON_CONDITION_RE);
     if (m) {
       const resolved = resolveConditionFunctionValue(m[3], m[4], state, member, skill, actionEntry);
       if (!resolved.known) {
@@ -2730,7 +2760,7 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   }
 
   {
-    const m = text.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)$/);
+    const m = text.match(BARE_FUNCTION_CALL_CONDITION_RE);
     if (m) {
       const resolved = resolveConditionFunctionValue(m[1], m[2], state, member, skill, actionEntry);
       if (!resolved.known) {
@@ -2782,7 +2812,7 @@ function evaluateSkillConditionExpression(expression, state, member, skill) {
 
 function evaluateCountBcValue(expression, state, member) {
   const text = String(expression ?? '').trim();
-  const match = text.match(/^CountBC\((.+)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+)$/);
+  const match = text.match(COUNT_BC_CONDITION_RE);
   if (!match) {
     return { known: false, value: 0 };
   }
@@ -2798,7 +2828,7 @@ function inferPassiveVariantThreshold(variant) {
     .map((value) => String(value ?? '').trim())
     .filter(Boolean);
   for (const text of texts) {
-    const match = text.match(/[:：]\s*(\d+)人/);
+    const match = text.match(PASSIVE_VARIANT_THRESHOLD_RE);
     if (match) {
       return Number(match[1]);
     }
@@ -3942,7 +3972,7 @@ function syncExtraActiveFlags(party, allowedCharacterIds = []) {
 }
 
 function isTargetConditionSatisfiedByMember(targetMember, expression, state = null) {
-  const expr = String(expression ?? '').replace(/\s+/g, '');
+  const expr = String(expression ?? '').replace(CONDITION_WHITESPACE_RE, '');
   if (!expr) {
     return true;
   }
@@ -3953,15 +3983,13 @@ function isTargetConditionSatisfiedByMember(targetMember, expression, state = nu
     return Number(targetMember?.position ?? -1) >= 3;
   }
   {
-    const m = expr.match(/^IsCharacter\(([^)]+)\)==1$/);
+    const m = expr.match(IS_CHARACTER_TARGET_CONDITION_RE);
     if (m) {
-      return String(targetMember?.characterId ?? '') === String(m[1] ?? '').trim();
-    }
-  }
-  {
-    const m = expr.match(/^IsCharacter\(([^)]+)\)==0$/);
-    if (m) {
-      return String(targetMember?.characterId ?? '') !== String(m[1] ?? '').trim();
+      const characterId = String(m[1] ?? '').trim();
+      const op = String(m[2] ?? '');
+      const rhs = Number(m[3] ?? 0);
+      const lhs = String(targetMember?.characterId ?? '') === characterId ? 1 : 0;
+      return compareNumbers(lhs, op, rhs);
     }
   }
   if (state && targetMember) {
