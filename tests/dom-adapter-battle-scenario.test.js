@@ -234,6 +234,30 @@ test('enemy config controls update enemy names and damage rates', () => {
   assert.ok((root.querySelector('[data-role="enemy-status-target"]')?.textContent ?? '').includes('Boss B'));
 });
 
+test('enemy damage rate mutation clears preview state and interrupt reservation through shared helper', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  const reservedInterruptOdLevel = 1;
+  adapter.mount();
+
+  const preview = adapter.previewCurrentTurn();
+  assert.equal(preview.recordStatus, 'preview');
+  assert.notEqual(root.querySelector('[data-role="preview-output"]')?.textContent ?? '', '');
+
+  adapter.pendingInterruptOdLevel = reservedInterruptOdLevel;
+  adapter.interruptOdProjection = {
+    projectedGauge: 100,
+    candidates: [reservedInterruptOdLevel],
+  };
+  adapter.applyEnemyDamageRateFromDom(0, 'Fire', '150');
+
+  assert.equal(adapter.previewRecord, null);
+  assert.equal(adapter.pendingInterruptOdLevel, null);
+  assert.equal(adapter.interruptOdProjection, null);
+  assert.equal(root.querySelector('[data-role="preview-output"]')?.textContent ?? '', '');
+});
+
 test('enemy down-turn status can be applied and cleared from controls', () => {
   const store = getStore();
   const { root } = createRoot();

@@ -3036,13 +3036,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       damageRatesByEnemy: nextRates,
     });
-    this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: true });
-    this.writePreviewOutput('');
-    this.renderActionSelectors();
-    this.renderEnemyStatusControls();
-    this.renderEnemyConfigControls();
-    this.renderOdControls();
+    this.invalidatePreviewState();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      enemyStatusControls: true,
+      enemyConfigControls: true,
+      odControls: true,
+    });
   }
 
   applyEnemyDestructionRateFromDom(targetIndex, rawValue) {
@@ -3060,13 +3060,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.turnState.enemyState = buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, {
       destructionRateByEnemy: nextRates,
     });
-    this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: true });
-    this.writePreviewOutput('');
-    this.renderActionSelectors();
-    this.renderEnemyStatusControls();
-    this.renderEnemyConfigControls();
-    this.renderOdControls();
+    this.invalidatePreviewState();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      enemyStatusControls: true,
+      enemyConfigControls: true,
+      odControls: true,
+    });
   }
 
   applyEnemyStatusFromDom() {
@@ -3119,12 +3119,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.readEnemyCountFromDom(),
       { statuses: nextStatuses }
     );
-    this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: true });
-    this.writePreviewOutput('');
-    this.renderActionSelectors();
-    this.renderEnemyStatusControls();
-    this.renderOdControls();
+    this.invalidatePreviewState();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      enemyStatusControls: true,
+      odControls: true,
+    });
     this.setStatus(`Enemy ${targetIndex + 1} に ${statusType}(${remainingTurns}) を付与しました。`);
   }
 
@@ -3167,13 +3167,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       nextEnemyState = removeEnemySuperDownStateForUi(nextEnemyState, targetIndex);
     }
     this.state.turnState.enemyState = nextEnemyState;
-    this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: true });
-    this.writePreviewOutput('');
-    this.renderActionSelectors();
-    this.renderEnemyStatusControls();
-    this.renderOdControls();
-    this.renderEnemyZoneControls();
+    this.invalidatePreviewState();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      enemyStatusControls: true,
+      enemyZoneControls: true,
+      odControls: true,
+    });
     this.setStatus(`Enemy ${targetIndex + 1} の ${statusType} を解除しました。`);
   }
 
@@ -3219,10 +3219,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       sourceSide: 'enemy',
       remainingTurns: config.remainingTurns === undefined ? 8 : config.remainingTurns,
     };
-    this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: true });
-    this.writePreviewOutput('');
-    this.renderTurnStatus();
+    this.invalidatePreviewState();
+    this.refreshMutationUi({ turnStatus: true });
     this.setStatus(`${this.getEnemyDisplayName(targetIndex)} が ${config.type} フィールドを展開しました。`);
   }
 
@@ -3239,10 +3237,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const max = Number(member.tokenState.max ?? 10);
     const normalized = Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.trunc(parsed))) : min;
     member.tokenState.current = normalized;
-    this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: true });
-    this.writePreviewOutput('');
-    this.renderPartyState();
+    this.invalidatePreviewState();
+    this.refreshMutationUi({ partyState: true });
     this.setStatus(`${member.characterName} のトークンを ${normalized} に更新しました。`);
   }
 
@@ -3267,10 +3263,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       normalizedNextState.effectiveDpCap = requestedCurrentDp;
     }
     const result = member.setDpState(normalizedNextState);
-    this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: true });
-    this.writePreviewOutput('');
-    this.renderPartyState();
+    this.invalidatePreviewState();
+    this.refreshMutationUi({ partyState: true });
     this.setStatus(`${member.characterName} の${formatDpStateSummary(result.endDpState)}に更新しました。`);
   }
 
@@ -3455,6 +3449,43 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   writePassiveLogOutput(text) {
     this.view.writePassiveLogOutput(text);
+  }
+
+  invalidatePreviewState(options = {}) {
+    const clearInterruptReservation = options.clearInterruptReservation !== false;
+    this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: clearInterruptReservation });
+    this.writePreviewOutput('');
+  }
+
+  refreshMutationUi(options = {}) {
+    if (options.actionSelectors) {
+      this.renderActionSelectors();
+    }
+    if (options.partyState) {
+      this.renderPartyState();
+    }
+    if (options.swapSelectors) {
+      this.renderSwapSelectors();
+    }
+    if (options.turnStatus) {
+      this.renderTurnStatus();
+    }
+    if (options.enemyStatusControls) {
+      this.renderEnemyStatusControls();
+    }
+    if (options.enemyConfigControls) {
+      this.renderEnemyConfigControls();
+    }
+    if (options.enemyZoneControls) {
+      this.renderEnemyZoneControls();
+    }
+    if (options.recordTable) {
+      this.renderRecordTable();
+    }
+    if (options.odControls) {
+      this.renderOdControls();
+    }
   }
 
   renderScenarioStatus() {
