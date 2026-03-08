@@ -95,6 +95,17 @@ docs/
 | [20260306_tasklist/skills_unimplemented_catalog.csv](20260306_tasklist/skills_unimplemented_catalog.csv) | 未対応条件の集約一覧（49KB） |
 | [20260306_tasklist/skills_unimplemented_occurrences.csv](20260306_tasklist/skills_unimplemented_occurrences.csv) | 未対応条件の全出現行（212KB） |
 
+### 20260226_json-data-research/ — SeraphDB JSONデータ構造調査（2026-02-26実施）
+
+> データは57スタイル時点のスナップショット（現在は59スタイル）
+
+| ドキュメント | 概要 |
+|-------------|------|
+| [20260226_json-data-research/summary.md](20260226_json-data-research/summary.md) | 採用優先フィールドTop20・捨て候補Top20 |
+| [20260226_json-data-research/field_tree.md](20260226_json-data-research/field_tree.md) | 全データセットのフィールドツリー |
+| [20260226_json-data-research/relation_map.md](20260226_json-data-research/relation_map.md) | データセット間のJoin候補・Jaccard係数 |
+| [20260226_json-data-research/adoption_candidates.csv](20260226_json-data-research/adoption_candidates.csv) | 採用候補フィールド一覧（CSV） |
+
 ### 20260225_help-research/ — ゲーム仕様調査（2026-02-25実施）
 
 | ドキュメント | 概要 |
