@@ -1,4 +1,4 @@
-import { canSwapWith } from './character-style.js';
+import { canSwapWith, normalizePartyPosition } from './character-style.js';
 
 export const MAX_PARTY_SIZE = 6;
 
@@ -46,11 +46,13 @@ export class Party {
   }
 
   swap(posA, posB, options = {}) {
-    const memberA = this.getByPosition(posA);
-    const memberB = this.getByPosition(posB);
+    const fromPosition = normalizePartyPosition(posA);
+    const toPosition = normalizePartyPosition(posB);
+    const memberA = this.getByPosition(fromPosition);
+    const memberB = this.getByPosition(toPosition);
 
     if (!memberA || !memberB) {
-      throw new Error(`Cannot swap missing positions: ${posA}, ${posB}`);
+      throw new Error(`Cannot swap missing positions: ${fromPosition}, ${toPosition}`);
     }
 
     const isExtraActive = Boolean(options.isExtraActive);
@@ -61,14 +63,25 @@ export class Party {
       throw new Error('Swap is not allowed in current extra-turn constraints.');
     }
 
-    memberA.setPosition(posB);
-    memberB.setPosition(posA);
+    if (fromPosition === toPosition) {
+      return {
+        from: memberA.characterId,
+        to: memberB.characterId,
+        fromPosition,
+        toPosition,
+      };
+    }
+
+    memberA.position = toPosition;
+    memberB.position = fromPosition;
+    memberA._revision += 1;
+    memberB._revision += 1;
 
     return {
       from: memberA.characterId,
       to: memberB.characterId,
-      fromPosition: posA,
-      toPosition: posB,
+      fromPosition,
+      toPosition,
     };
   }
 

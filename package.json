@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/**/*.test.js",
-    "test:quick": "node --test tests/adapter-core.test.js tests/battle-adapter-facade.test.js tests/character-party.test.js tests/data-store-operations.test.js tests/damage-calculation-context.test.js tests/schema-validation.test.js tests/turn-preview.test.js tests/record-system.test.js tests/turn-state-transitions.test.js",
-    "test:dom": "node --test tests/dom-adapter-battle-scenario.test.js",
-    "test:dom:full": "node --test tests/dom-adapter-battle-scenario.test.js tests/dom-adapter-records-style.test.js tests/dom-adapter-ui-selection.test.js",
+    "test:quick": "node --test tests/adapter-core.test.js tests/battle-adapter-facade.test.js tests/character-party.test.js tests/data-store-operations.test.js tests/damage-calculation-context.test.js tests/real-data-mechanics-coverage.test.js tests/schema-validation.test.js tests/turn-preview.test.js tests/record-system.test.js tests/turn-state-transitions.test.js",
+    "test:dom": "HBR_TEST_CHARACTER_LABELS=RKayamori,YIzumi,MAikawa,TTojo,KAsakura,TKunimi,EAoi,MuOhshima,STezuka,MTsukishiro,MKiryu,KMaruyama,NNanase node --test tests/dom-adapter-battle-scenario.test.js",
+    "test:dom:full": "HBR_TEST_CHARACTER_LABELS=RKayamori,YIzumi,MAikawa,TTojo,KAsakura,TKunimi,EAoi,MuOhshima,STezuka,MTsukishiro,MKiryu,KMaruyama,NNanase node --test tests/dom-adapter-battle-scenario.test.js tests/dom-adapter-records-style.test.js tests/dom-adapter-ui-selection.test.js",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

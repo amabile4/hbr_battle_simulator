@@ -27,6 +27,51 @@ test('build party with six styles and perform swap', () => {
   assert.equal(party.getByPosition(3).characterId, before0);
 });
 
+test('party swap updates positions atomically without depending on member setPosition', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  const member0 = party.getByPosition(0);
+  const member3 = party.getByPosition(3);
+
+  member0.setPosition = () => {
+    throw new Error('setPosition should not be called during atomic swap');
+  };
+  member3.setPosition = () => {
+    throw new Error('setPosition should not be called during atomic swap');
+  };
+
+  const result = party.swap(0, 3);
+
+  assert.equal(party.getByPosition(0).characterId, member3.characterId);
+  assert.equal(party.getByPosition(3).characterId, member0.characterId);
+  assert.deepEqual(result, {
+    from: member0.characterId,
+    to: member3.characterId,
+    fromPosition: 0,
+    toPosition: 3,
+  });
+});
+
+test('party swap no-ops when from and to positions are the same', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  const member0 = party.getByPosition(0);
+  const beforeRevision = member0.revision;
+
+  const result = party.swap(0, 0);
+
+  assert.equal(party.getByPosition(0).characterId, member0.characterId);
+  assert.equal(member0.revision, beforeRevision);
+  assert.deepEqual(result, {
+    from: member0.characterId,
+    to: member0.characterId,
+    fromPosition: 0,
+    toPosition: 0,
+  });
+});
+
 test('buildCharacterStyle keeps passive activation metadata on member state', () => {
   const store = getStore();
   const member = store.buildCharacterStyle({ styleId: 1001108, partyIndex: 0, initialSP: 10 });

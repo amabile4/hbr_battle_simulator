@@ -56,10 +56,10 @@
 
 | ID | 状態 | 概要 | 出典 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|------|----------|--------------|------------|------|
-| `T-001` | `done` | `damage-calculation-context.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | 専用テストファイルで境界値を直接確認できる | pending | `npm test` | `tests/damage-calculation-context.test.js` を新設し、`test:quick` に組み込んだ |
-| `T-002` | `done` | `adapter-core.js` / `battle-adapter-facade.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | DOM に依存しないロジックを分離して検証できる | pending | `npm test` | swap 制約、`preserveTurnPlans` 分岐、turn-plan capture を DOM なしで固定した |
-| `T-003` | `deferred` | fixture または `maxCandidates` による dom-adapter テスト高速化 | [07_test_data_shrink_study.md](../20260308_code-review/07_test_data_shrink_study.md) | 高速化方式を選定し、`test:dom` と組み合わせて運用できる | - | - | Phase 7 後の検討対象 |
-| `T-004` | `deferred` | 実データ未カバーのメカニクスカテゴリテストを補完する | [08_test_coverage_from_real_data.md](../20260308_code-review/08_test_coverage_from_real_data.md) | EP / SP量条件 / Morale / 後衛条件の不足分を追加 | - | - | 追加テストはカテゴリ単位で増やす |
+| `T-001` | `done` | `damage-calculation-context.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | 専用テストファイルで境界値を直接確認できる | `0dc9886` | `npm test` | `tests/damage-calculation-context.test.js` を新設し、`test:quick` に組み込んだ |
+| `T-002` | `done` | `adapter-core.js` / `battle-adapter-facade.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | DOM に依存しないロジックを分離して検証できる | `0dc9886` | `npm test` | swap 制約、`preserveTurnPlans` 分岐、turn-plan capture を DOM なしで固定した |
+| `T-003` | `done` | fixture または `maxCandidates` による dom-adapter テスト高速化 | [07_test_data_shrink_study.md](../20260308_code-review/07_test_data_shrink_study.md) | 高速化方式を選定し、`test:dom` と組み合わせて運用できる | pending | `npm run test:dom:full`, `npm test` | `test:dom` 系では候補ラベル allowlist を使い、full data の `npm test` は従来どおり残す |
+| `T-004` | `done` | 実データ未カバーのメカニクスカテゴリテストを補完する | [08_test_coverage_from_real_data.md](../20260308_code-review/08_test_coverage_from_real_data.md) | EP / SP量条件 / Morale / 後衛条件の不足分を追加 | pending | `npm test` | `tests/real-data-mechanics-coverage.test.js` を新設し、`test:quick` に組み込んだ |
 
 ## P3: 中長期のレビュー改善
 
@@ -67,7 +67,7 @@
 |----|------|------|------|----------|--------------|------------|------|
 | `R-003` | `deferred` | `src/ui/dom-adapter.js` の分割計画と実施 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-C1` | 役割分割方針が確定し、テストを保ったまま分割できる | - | - | 工数大、Phase 7 と混ぜない |
 | `R-004` | `deferred` | `src/turn/turn-controller.js` の分割計画と実施 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-C2` | passive / condition / effect / recovery の責務が分離される | - | - | 工数大、リスク高 |
-| `R-005` | `deferred` | `swap()` / `queueSwapState()` の原子性改善 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H1` | 途中失敗時の状態不整合が起きない | - | - | |
+| `R-005` | `done` | `swap()` / `queueSwapState()` の原子性改善 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H1` | 途中失敗時の状態不整合が起きない | pending | `npm run test:quick`, `npm test` | `Party.swap()` は `setPosition()` に依存せず直接位置を入れ替え、同一位置 swap は no-op にした |
 | `R-006` | `deferred` | エラーハンドリング戦略の統一 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H2` | UI / domain / 外部 I/O の例外方針が統一される | - | - | |
 | `R-007` | `deferred` | Regex 条件解析の定数化・安全化 | [03_turn_layer.md](../20260308_code-review/03_turn_layer.md), [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H3` | 重複 regex とマジックナンバーが整理される | - | - | Phase 7 で新規負債を増やさないことを先に守る |
 | `R-008` | `deferred` | 日本語文字列ハードコードの削減 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H4` | 代表的なスキル名直比較がフラグまたは定数へ置き換わる | - | - | |
@@ -80,3 +80,6 @@
 - 2026-03-08: Phase 7 で passive 起点の `dpEvents` を turn start / boundary timing に接続。`OnPlayerTurnStart` / `OnEveryTurn` / `OnEnemyTurnStart` / `OnBattleWin` の DP 条件 passive を実装し、unsupported passive log の誤混入も同時に修正した。
 - 2026-03-08: `damage-calculation-context.js` の専用テストを追加。defaults、`targetEnemyIndex` の null-safe 正規化、`eligibleEnemyIndexes` のフィルタ、`funnelEffects` clone を直接固定した。
 - 2026-03-08: `adapter-core.js` / `battle-adapter-facade.js` の単体テストを追加。swap の EX 制約、`preserveTurnPlans` の reset/preserve 分岐、commit 時の turn-plan capture を DOM なしで検証できるようにした。
+- 2026-03-08: `T-004` として EP 消費、`Ep()>=N`、`Sp()<=N` / `Sp()>=N && IsFront()`、`MoraleLevel()>=N && IsFront()`、`IsFront()==0` を実データカテゴリ単位で追加し、`tests/real-data-mechanics-coverage.test.js` に集約した。
+- 2026-03-08: `T-003` は `maxCandidates` 単独では必要キャラが index 50 まで散って効果が薄かったため、`HBR_TEST_CHARACTER_LABELS` による候補ラベル allowlist を採用した。`test:dom` / `test:dom:full` は軽量候補集合、`npm test` は full data のまま使い分ける。
+- 2026-03-08: `R-005` として `Party.swap()` を setter 連鎖から切り離し、直接 position/revision を更新する原子的な入れ替えに変更した。`setPosition` を差し替えても swap が崩れないことと、同一位置 swap が no-op であることをテストで固定した。

@@ -987,8 +987,7 @@ test('character -> style selection is linked and reflected on screen', () => {
   const styleSelect = root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
   const initialCharacter = characterSelect.value;
 
-  const target = store
-    .listCharacterCandidates()
+  const target = adapter.characterCandidates
     .find((candidate) => candidate.label !== initialCharacter && candidate.styleCount > 1);
   assert.ok(target);
 
@@ -1011,6 +1010,25 @@ test('character -> style selection is linked and reflected on screen', () => {
   assert.ok(summary.includes('Slot 1:'));
 });
 
+test('character candidate filter limits selection options without changing default slot wiring', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const labels = ['RKayamori', 'YIzumi', 'MAikawa', 'TTojo', 'KAsakura', 'TKunimi'];
+  const adapter = new BattleDomAdapter({
+    root,
+    dataStore: store,
+    initialSP: 10,
+    characterCandidateLabels: labels,
+  });
+  adapter.mount();
+
+  const characterSelect = root.querySelector('[data-role="character-select"][data-slot="0"]');
+  const optionLabels = [...characterSelect.options].map((option) => String(option.value));
+
+  assert.deepEqual(optionLabels, labels);
+  assert.equal(characterSelect.value, 'RKayamori');
+});
+
 test('style -> skill selection is linked', () => {
   const store = getStore();
   const { root, win } = createRoot();
@@ -1026,7 +1044,7 @@ test('style -> skill selection is linked', () => {
     'skills should be populated'
   );
 
-  const candidates = store.listCharacterCandidates();
+  const candidates = adapter.characterCandidates;
   const charWithMultipleStyles = candidates.find((c) => c.styleCount >= 2);
   if (charWithMultipleStyles) {
     const charSelect = root.querySelector(`[data-role="character-select"][data-slot="${slot}"]`);

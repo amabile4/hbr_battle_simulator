@@ -89,8 +89,10 @@ const MOTIVATION_ICON_BY_VALUE = Object.freeze({
 });
 const START_SP_EQUIP_DEFAULT = DEFAULT_START_SP_EQUIP_BONUS;
 const DP_INPUT_STEP = '0.01';
+const PARTY_SLOT_COUNT = 6;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
+const TEST_CHARACTER_CANDIDATE_LABELS_ENV_KEY = 'HBR_TEST_CHARACTER_LABELS';
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
 const ENEMY_STATUS_STRONG_BREAK = 'StrongBreak';
@@ -758,7 +760,7 @@ function firstSixUniqueStyles(styles) {
     seen.add(key);
     out.push(style);
 
-    if (out.length === 6) {
+    if (out.length === PARTY_SLOT_COUNT) {
       break;
     }
   }
@@ -766,8 +768,65 @@ function firstSixUniqueStyles(styles) {
   return out;
 }
 
+function normalizeCharacterCandidateLabels(value) {
+  if (!value) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? '').trim())
+      .filter(Boolean);
+  }
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function resolveCharacterCandidateEnvLabels() {
+  const raw = globalThis.process?.env?.[TEST_CHARACTER_CANDIDATE_LABELS_ENV_KEY];
+  return normalizeCharacterCandidateLabels(raw);
+}
+
+function resolveCharacterCandidates(candidates, options = {}) {
+  const normalizedCandidates = Array.isArray(candidates) ? [...candidates] : [];
+  if (normalizedCandidates.length === 0) {
+    return normalizedCandidates;
+  }
+
+  const requestedLabels = normalizeCharacterCandidateLabels(options.characterCandidateLabels);
+  const envLabels = requestedLabels.length > 0 ? [] : resolveCharacterCandidateEnvLabels();
+  const labels = requestedLabels.length > 0 ? requestedLabels : envLabels;
+
+  let filtered = normalizedCandidates;
+  if (labels.length > 0) {
+    const labelSet = new Set(labels);
+    filtered = normalizedCandidates.filter((candidate) => labelSet.has(String(candidate?.label ?? '')));
+  }
+
+  const hasExplicitMaxCandidates =
+    options.maxCandidates !== null &&
+    options.maxCandidates !== undefined &&
+    String(options.maxCandidates).trim() !== '';
+  const parsedMaxCandidates = hasExplicitMaxCandidates ? Number(options.maxCandidates) : Number.NaN;
+  const maxCandidates = Number.isFinite(parsedMaxCandidates)
+    ? Math.max(PARTY_SLOT_COUNT, Math.trunc(parsedMaxCandidates))
+    : null;
+  if (Number.isFinite(maxCandidates)) {
+    filtered = filtered.slice(0, maxCandidates);
+  }
+
+  return filtered.length > 0 ? filtered : normalizedCandidates;
+}
+
 export class BattleDomAdapter extends BattleAdapterFacade {
-  constructor({ root, dataStore, initialSP = DEFAULT_INITIAL_SP }) {
+  constructor({
+    root,
+    dataStore,
+    initialSP = DEFAULT_INITIAL_SP,
+    maxCandidates = null,
+    characterCandidateLabels = null,
+  }) {
     if (!root || !dataStore) {
       throw new Error('BattleDomAdapter requires root and dataStore.');
     }
@@ -786,7 +845,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.scenarioStagedTurnIndex = null;
     this.scenarioSetupApplied = false;
 
-    this.characterCandidates = this.dataStore.listCharacterCandidates();
+    this.characterCandidates = resolveCharacterCandidates(this.dataStore.listCharacterCandidates(), {
+      maxCandidates,
+      characterCandidateLabels,
+    });
     this.defaultSelections = this.buildDefaultSelections();
 
     this._bound = false;
@@ -1280,7 +1342,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   buildDefaultSelections() {
     const defaults = firstSixUniqueStyles(this.dataStore.styles);
-    if (defaults.length < 6) {
+    if (defaults.length < PARTY_SLOT_COUNT) {
       throw new Error('Not enough unique character styles to initialize six party slots.');
     }
 

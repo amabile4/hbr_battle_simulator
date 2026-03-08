@@ -6,6 +6,16 @@ import {
   MARK_STATE_ELEMENTS,
 } from '../config/battle-defaults.js';
 
+export const MAX_PARTY_POSITION = 5;
+
+export function normalizePartyPosition(position) {
+  const numericPosition = Number(position);
+  if (!Number.isInteger(numericPosition) || numericPosition < 0 || numericPosition > MAX_PARTY_POSITION) {
+    throw new Error(`Invalid position: ${position}`);
+  }
+  return numericPosition;
+}
+
 function normalizeSkill(skill, canonicalSkill) {
   const sourceType = String(skill.sourceType ?? 'style');
   const isPassive = Boolean(skill.passive && typeof skill.passive === 'object') || sourceType === 'passive';
@@ -671,12 +681,7 @@ export class CharacterStyle {
   }
 
   setPosition(position) {
-    const numericPosition = Number(position);
-    if (numericPosition < 0 || numericPosition > 5) {
-      throw new Error(`Invalid position: ${position}`);
-    }
-
-    this.position = numericPosition;
+    this.position = normalizePartyPosition(position);
     this._revision += 1;
     return this.position;
   }
