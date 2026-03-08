@@ -424,6 +424,18 @@ test('turn plan edit row starts staged edit session and updates status message',
   assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Turn 1 を編集中です。');
 });
 
+test('serializeRecordField falls back to String(value) when JSON.stringify throws', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const circular = {};
+  circular.self = circular;
+
+  assert.equal(adapter.serializeRecordField(circular), '[object Object]');
+});
+
 test('turn plan strict recalculation stops at first invalid edited row', () => {
   const store = getStore();
   const { root } = createRoot();

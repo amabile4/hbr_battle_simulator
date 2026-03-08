@@ -3546,6 +3546,28 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
   }
 
+  runInTurnPlanReplaySession(action, options = {}) {
+    const refreshUi = options.refreshUi === true;
+    this.isReplayingTurnPlans = true;
+    try {
+      return action();
+    } finally {
+      this.isReplayingTurnPlans = false;
+      if (!refreshUi) {
+        return;
+      }
+      this.renderActionSelectors();
+      this.renderPartyState();
+      this.renderSwapSelectors();
+      this.renderTurnStatus();
+      this.renderEnemyStatusControls();
+      this.renderKishinkaControls();
+      this.renderOdControls();
+      this.renderRecordTable();
+      this.renderTurnPlanEditControls();
+    }
+  }
+
   replayTurnPlansBeforeIndex(limitExclusive, mode) {
     const limit = Math.max(0, Number(limitExclusive ?? 0));
     for (let i = 0; i < limit; i += 1) {
@@ -3570,6 +3592,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.renderTurnPlanEditControls();
     this.renderRecordTable();
     this.setStatus(this.getTurnPlanEditSessionStatusMessage(session));
+  }
+
+  stringifyRecordFieldValue(value) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
   }
 
   setDomValue(selector, value) {
@@ -5784,8 +5814,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return 0;
     }
 
-    this.isReplayingTurnPlans = true;
-    try {
+    return this.runInTurnPlanReplaySession(() => {
       this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
       this.resetTurnPlanReplayResults();
       let applied = 0;
@@ -5797,33 +5826,19 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         }
       }
       this.finalizeTurnPlanReplay(applied, mode);
-    } finally {
-      this.isReplayingTurnPlans = false;
-      this.renderActionSelectors();
-      this.renderPartyState();
-      this.renderSwapSelectors();
-      this.renderTurnStatus();
-      this.renderEnemyStatusControls();
-      this.renderKishinkaControls();
-      this.renderOdControls();
-      this.renderRecordTable();
-      this.renderTurnPlanEditControls();
-    }
-    return this.recordStore.records.length;
+      return this.recordStore.records.length;
+    }, { refreshUi: true });
   }
 
   stageTurnPlanSession(session) {
     const mode = this.getTurnPlanRecalcModeFromDom();
-    this.isReplayingTurnPlans = true;
-    try {
+    this.runInTurnPlanReplaySession(() => {
       this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
       this.replayTurnPlansBeforeIndex(session.sourceIndex, mode);
       const sourceTurn = this.toScenarioTurnFromTurnPlan(this.turnPlans[session.sourceIndex]);
       this.applyScenarioTurn(sourceTurn, { mode: 'stage', recalcMode: mode });
       this.finalizeTurnPlanEditSession(session);
-    } finally {
-      this.isReplayingTurnPlans = false;
-    }
+    });
   }
 
   startTurnPlanEdit(turnId) {
@@ -5919,11 +5934,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (typeof value === 'boolean') {
       return value ? 'true' : 'false';
     }
-    try {
-      return JSON.stringify(value);
-    } catch (error) {
-      return String(value);
-    }
+    return this.stringifyRecordFieldValue(value);
   }
 
   formatEnemyTargetLabel(action, enemyNamesByEnemy = {}) {
