@@ -1103,13 +1103,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
       if (target.matches('[data-role="enemy-count"]')) {
         this.syncEnemyStateFromDom();
-        this.previewRecord = null;
-        this.resetInterruptOdProjection({ clearReservation: true });
-        this.writePreviewOutput('');
-        this.renderActionSelectors();
-        this.renderEnemyStatusControls();
-        this.renderEnemyConfigControls();
-        this.renderOdControls();
+        this.invalidatePreviewState();
+        this.refreshMutationUi({
+          actionSelectors: true,
+          enemyStatusControls: true,
+          enemyConfigControls: true,
+          odControls: true,
+        });
       }
 
       if (target.matches('[data-role="enemy-name-input"]')) {
@@ -1182,10 +1182,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           this.lastActionSkillByPosition.set(position, toInt(target.value, 0));
           this.updateActionSkillAttributeBadges(position, toInt(target.value, 0));
           this.updateActionTargetSelector(position, toInt(target.value, 0));
-          this.previewRecord = null;
-          this.resetInterruptOdProjection({ clearReservation: true });
-          this.writePreviewOutput('');
-          this.renderOdControls();
+          this.invalidatePreviewState();
+          this.refreshMutationUi({ odControls: true });
         }
       }
 
@@ -1193,18 +1191,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const position = toInt(target.getAttribute('data-action-target-slot'), -1);
         if (position >= 0) {
           this.lastActionTargetByPosition.set(position, String(target.value));
-          this.previewRecord = null;
-          this.resetInterruptOdProjection({ clearReservation: true });
-          this.writePreviewOutput('');
-          this.renderOdControls();
+          this.invalidatePreviewState();
+          this.refreshMutationUi({ odControls: true });
         }
       }
 
       if (target.matches('[data-role="force-od-toggle"]')) {
-        this.previewRecord = null;
-        this.resetInterruptOdProjection({ clearReservation: true });
-        this.writePreviewOutput('');
-        this.renderOdControls();
+        this.invalidatePreviewState();
+        this.refreshMutationUi({ odControls: true });
       }
   }
 
@@ -3276,10 +3270,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     this.resetInterruptOdProjection({ clearReservation: true });
     this.writePreviewOutput('');
-    this.renderActionSelectors();
-    this.renderPartyState();
-    this.renderSwapSelectors();
-    this.renderOdControls();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+      odControls: true,
+    });
     this.setStatus(`Swap applied: ${result.outMember.characterName} <-> ${result.inMember.characterName}`);
     return result.event;
   }
@@ -3453,8 +3449,19 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   invalidatePreviewState(options = {}) {
     const clearInterruptReservation = options.clearInterruptReservation !== false;
+    const resetPendingSwapEvents = options.resetPendingSwapEvents === true;
+    const resetInterruptOptions =
+      options.resetInterruptOptions && typeof options.resetInterruptOptions === 'object'
+        ? { ...options.resetInterruptOptions }
+        : {};
+    if (resetInterruptOptions.clearReservation === undefined) {
+      resetInterruptOptions.clearReservation = clearInterruptReservation;
+    }
     this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: clearInterruptReservation });
+    if (resetPendingSwapEvents) {
+      this.pendingSwapEvents = [];
+    }
+    this.resetInterruptOdProjection(resetInterruptOptions);
     this.writePreviewOutput('');
   }
 
@@ -4415,9 +4422,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.state.positionMap = buildPositionMap(this.state.party);
     this.previewRecord = null;
     this.writePreviewOutput('');
-    this.renderActionSelectors();
-    this.renderPartyState();
-    this.renderSwapSelectors();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+    });
   }
 
   resolveScenarioSwapEndpointPosition(swap, side) {
@@ -4496,10 +4505,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.setPosition(targetPositionByMember.get(member));
     }
     this.state.positionMap = buildPositionMap(this.state.party);
-    this.renderActionSelectors();
-    this.renderPartyState();
-    this.renderSwapSelectors();
-    this.renderTurnStatus();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+      turnStatus: true,
+    });
   }
 
   setScenarioActionOnDom(action) {
@@ -4735,13 +4746,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         forceConsumeGauge: isForceMode,
       });
       this.appendPassiveLogEvents(this.state?.turnState?.passiveEventsLastApplied ?? []);
-      this.previewRecord = null;
-      this.pendingSwapEvents = [];
-      this.resetInterruptOdProjection({ clearReservation: true });
-      this.renderActionSelectors();
-      this.renderPartyState();
-      this.renderSwapSelectors();
-      this.renderTurnStatus();
+      this.invalidatePreviewState({ resetPendingSwapEvents: true });
+      this.refreshMutationUi({
+        actionSelectors: true,
+        partyState: true,
+        swapSelectors: true,
+        turnStatus: true,
+      });
       return;
     }
     if (isForceMode) {
@@ -5353,11 +5364,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     } else if (this.preemptiveOdCheckpoint) {
       this.restorePreemptiveOdCheckpoint(this.preemptiveOdCheckpoint);
       this.preemptiveOdCheckpoint = null;
-      this.renderActionSelectors();
-      this.renderPartyState();
-      this.renderSwapSelectors();
-      this.renderTurnStatus();
-      this.renderOdControls();
+      this.refreshMutationUi({
+        actionSelectors: true,
+        partyState: true,
+        swapSelectors: true,
+        turnStatus: true,
+        odControls: true,
+      });
     }
     this.setStatus(mode === 'interrupt' ? '割込OD設定をキャンセルしました。' : 'OD発動をキャンセルしました。');
   }
@@ -5400,15 +5413,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (dialog) {
       dialog.hidden = false;
     }
-    this.resetInterruptOdProjection({ clearReservation: true, closeDialog: false });
-    this.previewRecord = null;
-    this.pendingSwapEvents = [];
-    this.writePreviewOutput('');
-    this.renderActionSelectors();
-    this.renderPartyState();
-    this.renderSwapSelectors();
-    this.renderTurnStatus();
-    this.renderOdControls();
+    this.invalidatePreviewState({
+      resetPendingSwapEvents: true,
+      resetInterruptOptions: { clearReservation: true, closeDialog: false },
+    });
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+      turnStatus: true,
+      odControls: true,
+    });
     this.setStatus(`OD${level}を発動しました。`);
   }
 
@@ -5466,13 +5481,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const nextOd = Math.min(OD_GAUGE_MAX_PERCENT, currentOd + REINFORCED_MODE_OD_GAUGE_BONUS);
     this.state.turnState.odGauge = Number(nextOd.toFixed(2));
     this.kishinkaActivatedThisTurn = true;
-    this.previewRecord = null;
-    this.resetInterruptOdProjection({ clearReservation: true });
-    this.writePreviewOutput('');
-    this.renderActionSelectors();
-    this.renderPartyState();
-    this.renderSwapSelectors();
-    this.renderTurnStatus();
+    this.invalidatePreviewState();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+      turnStatus: true,
+    });
     this.setStatus('手塚 咲が鬼神化しました。OD+15%');
   }
 
