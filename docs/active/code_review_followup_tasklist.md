@@ -36,8 +36,8 @@
 
 | ID | 状態 | 概要 | 出典 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|------|----------|--------------|------------|------|
-| `R-001` | `todo` | `package.json` に `test:quick` `test:dom` `test:dom:full` を追加する | [06_test_grouping_proposal.md](../20260308_code-review/06_test_grouping_proposal.md) | スクリプト追加、各コマンドの実行確認、利用方針を active docs に一言残す | - | - | Phase 7 のローカル反復を早くするため最優先 |
-| `R-002` | `todo` | `src/ui/dom-adapter.js` の `SPECIAL_BREAK_CAP_BONUS_PERCENT` 直書きを共通定数参照へ統一する | [00_summary.md](../20260308_code-review/00_summary.md) `NEW-H1` | 該当 2 箇所が定数参照に置き換わり、関連テストが通る | - | - | Phase 7 前に潰せる低リスク修正 |
+| `R-001` | `done` | `package.json` に `test:quick` `test:dom` `test:dom:full` を追加する | [06_test_grouping_proposal.md](../20260308_code-review/06_test_grouping_proposal.md) | スクリプト追加、各コマンドの実行確認、利用方針を active docs に一言残す | pending | `npm run test:quick`, `npm run test:dom`, `npm run test:dom:full` | 日常の反復は `test:quick`、DOM 変更確認は `test:dom`、PR 前は `test:dom:full` または `npm test` を使う |
+| `R-002` | `done` | `src/ui/dom-adapter.js` の `SPECIAL_BREAK_CAP_BONUS_PERCENT` 直書きを共通定数参照へ統一する | [00_summary.md](../20260308_code-review/00_summary.md) `NEW-H1` | 該当 2 箇所が定数参照に置き換わり、関連テストが通る | pending | `npm run test:quick`, `npm run test:dom`, `npm run test:dom:full` | 定数は `src/config/battle-defaults.js` に寄せて `turn-controller.js` と共有 |
 
 ## P1: DP / passive Phase 7
 
@@ -76,3 +76,4 @@
 ## 対応記録メモ
 
 - 2026-03-08: follow-up 用 active タスクリストを新設。レビュー本文は snapshot として固定し、今後の対応状況はこの文書で追跡する方針を確定。
+- 2026-03-08: P0 として `test:quick` / `test:dom` / `test:dom:full` を導入。日常反復では `test:quick` を基本にし、DOM を触った時だけ `test:dom` を追加、PR 前に `test:dom:full` または `npm test` を回す。

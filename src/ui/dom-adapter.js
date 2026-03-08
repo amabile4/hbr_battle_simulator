@@ -16,6 +16,7 @@ import {
   DEFAULT_START_SP_EQUIP_BONUS,
   DEFAULT_ENEMY_COUNT,
   DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+  SPECIAL_BREAK_CAP_BONUS_PERCENT,
   DRIVE_PIERCE_OPTIONS,
   OD_GAUGE_MIN_PERCENT,
   OD_GAUGE_MAX_PERCENT,
@@ -229,7 +230,7 @@ function clearEnemySpecialBreakStateForUi(enemyState, targetIndex) {
     if (breakState.superDown) {
       const gainedDuringSuperDown = Math.max(0, currentRate - Number(breakState.superDown.preCap ?? 0));
       const capAfterSuperDown = breakState.strongBreakActive
-        ? Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) + 300
+        ? Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) + SPECIAL_BREAK_CAP_BONUS_PERCENT
         : Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT);
       currentRate = Math.min(
         capAfterSuperDown,
@@ -269,7 +270,7 @@ function removeEnemySuperDownStateForUi(enemyState, targetIndex) {
   const currentRate = Number(normalized.destructionRateByEnemy[key] ?? DEFAULT_DESTRUCTION_RATE_PERCENT);
   const gainedDuringSuperDown = Math.max(0, currentRate - Number(breakState.superDown.preCap ?? 0));
   const nextCap = breakState.strongBreakActive
-    ? Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) + 300
+    ? Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) + SPECIAL_BREAK_CAP_BONUS_PERCENT
     : Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT);
   normalized.destructionRateByEnemy[key] = Math.min(
     nextCap,
