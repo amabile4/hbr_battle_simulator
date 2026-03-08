@@ -6,6 +6,7 @@ import {
 } from '../turn/turn-controller.js';
 import { createBattleRecordStore, RecordEditor } from '../records/record-store.js';
 import { buildPositionMap, cloneTurnState } from '../contracts/interfaces.js';
+import { createDpState, cloneDpState } from '../domain/dp-state.js';
 import { BattleAdapterFacade } from './battle-adapter-facade.js';
 import { BattleDomView } from './dom-view.js';
 import {
@@ -85,6 +86,7 @@ const MOTIVATION_ICON_BY_VALUE = Object.freeze({
   '5': '\u{1FA77}',
 });
 const START_SP_EQUIP_DEFAULT = DEFAULT_START_SP_EQUIP_BONUS;
+const DP_INPUT_STEP = '0.01';
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const FORCE_RESOURCE_MIN = -999;
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
@@ -399,6 +401,59 @@ function normalizeMotivationLevel(value, fallback = 0) {
     return 0;
   }
   return Math.max(1, Math.min(5, raw));
+}
+
+function formatDpValue(value) {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  if (Number.isInteger(numeric)) {
+    return String(numeric);
+  }
+  return String(Number(numeric.toFixed(2)));
+}
+
+function formatDpStateSummary(dpState) {
+  const normalized = createDpState(dpState);
+  const currentText = formatDpValue(normalized.currentDp);
+  const baseText = formatDpValue(normalized.baseMaxDp);
+  const capText = formatDpValue(normalized.effectiveDpCap);
+  if (normalized.effectiveDpCap === normalized.baseMaxDp) {
+    return `DP=${currentText}/${baseText}`;
+  }
+  return `DP=${currentText}/${baseText} Cap=${capText}`;
+}
+
+function normalizeDpStateByPartyIndex(value, baseMaxDpByPartyIndex = {}) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  const out = {};
+  const assignState = (partyIndex, stateLike) => {
+    if (!Number.isInteger(partyIndex) || partyIndex < 0 || partyIndex >= 6) {
+      return;
+    }
+    const source = stateLike && typeof stateLike === 'object' ? stateLike : {};
+    const fallbackBaseMaxDp = Number(baseMaxDpByPartyIndex[partyIndex] ?? 0);
+    out[String(partyIndex)] = createDpState({
+      baseMaxDp: source.baseMaxDp ?? source.baseMax ?? fallbackBaseMaxDp,
+      currentDp: source.currentDp ?? source.current,
+      effectiveDpCap: source.effectiveDpCap ?? source.effectiveCap ?? source.cap,
+    });
+  };
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => assignState(index, entry));
+    return out;
+  }
+
+  for (const [partyIndex, stateLike] of Object.entries(value)) {
+    assignState(toInt(partyIndex, -1), stateLike);
+  }
+
+  return out;
 }
 
 function deriveDisplayedOdTurn(turnState) {
@@ -775,6 +830,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.populateLimitBreakSelect(slot, target.value, null);
         this.populateSkillChecklist(slot, target.value);
         this.populatePassiveList(slot, target.value);
+        this.syncInitialDpSelectionControls(slot, {});
         this.syncMotivationSelectionControls();
         this.updateSlotSummary(slot);
         this.renderSelectionSummary();
@@ -814,6 +870,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
       if (target.matches('[data-role="motivation-select"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.updateSlotSummary(slot);
+      }
+
+      if (target.matches('[data-role="initial-dp-current-input"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.syncInitialDpSelectionControls(slot, { currentDp: target.value });
+        this.updateSlotSummary(slot);
+      }
+
+      if (target.matches('[data-role="initial-dp-cap-input"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.syncInitialDpSelectionControls(slot, { effectiveDpCap: target.value });
         this.updateSlotSummary(slot);
       }
 
@@ -885,6 +953,20 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const characterId = String(target.getAttribute('data-character-id') ?? '').trim();
         if (characterId) {
           this.applyTokenDebugValueFromDom(characterId, target.value);
+        }
+      }
+
+      if (target.matches('[data-role="dp-debug-current-input"]')) {
+        const characterId = String(target.getAttribute('data-character-id') ?? '').trim();
+        if (characterId) {
+          this.applyDpDebugValueFromDom(characterId, { currentDp: target.value });
+        }
+      }
+
+      if (target.matches('[data-role="dp-debug-cap-input"]')) {
+        const characterId = String(target.getAttribute('data-character-id') ?? '').trim();
+        if (characterId) {
+          this.applyDpDebugValueFromDom(characterId, { effectiveDpCap: target.value });
         }
       }
 
@@ -1129,6 +1211,28 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       motivationSelect.setAttribute('data-role', 'motivation-select');
       motivationSelect.setAttribute('data-slot', String(i));
 
+      const initialDpBaseLabel = this.doc.createElement('div');
+      initialDpBaseLabel.setAttribute('data-role', 'initial-dp-base-label');
+      initialDpBaseLabel.setAttribute('data-slot', String(i));
+
+      const initialDpCurrentInput = this.doc.createElement('input');
+      initialDpCurrentInput.setAttribute('data-role', 'initial-dp-current-input');
+      initialDpCurrentInput.setAttribute('data-slot', String(i));
+      initialDpCurrentInput.type = 'number';
+      initialDpCurrentInput.min = '0';
+      initialDpCurrentInput.step = DP_INPUT_STEP;
+      initialDpCurrentInput.placeholder = '初期DP現在値';
+      initialDpCurrentInput.title = '初期DP現在値';
+
+      const initialDpCapInput = this.doc.createElement('input');
+      initialDpCapInput.setAttribute('data-role', 'initial-dp-cap-input');
+      initialDpCapInput.setAttribute('data-slot', String(i));
+      initialDpCapInput.type = 'number';
+      initialDpCapInput.min = '0';
+      initialDpCapInput.step = DP_INPUT_STEP;
+      initialDpCapInput.placeholder = 'DP上限';
+      initialDpCapInput.title = 'DP上限';
+
       const skillChecklist = this.doc.createElement('div');
       skillChecklist.setAttribute('data-role', 'skill-checklist');
       skillChecklist.setAttribute('data-slot', String(i));
@@ -1141,6 +1245,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       wrapper.appendChild(startSpEquipSelect);
       wrapper.appendChild(normalAttackBeltSelect);
       wrapper.appendChild(motivationSelect);
+      wrapper.appendChild(initialDpBaseLabel);
+      wrapper.appendChild(initialDpCurrentInput);
+      wrapper.appendChild(initialDpCapInput);
       wrapper.appendChild(skillChecklist);
 
       const summary = this.doc.createElement('div');
@@ -1159,6 +1266,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.populateLimitBreakSelect(i, initial.styleId, null);
       this.populateSkillChecklist(i, initial.styleId);
       this.populatePassiveList(i, initial.styleId);
+      this.syncInitialDpSelectionControls(i);
       this.updateSlotSummary(i);
     }
 
@@ -1297,15 +1405,29 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const motivationSelect = this.root.querySelector(
         `[data-role="motivation-select"][data-slot="${i}"]`
       );
+      const initialDpCurrentInput = this.root.querySelector(
+        `[data-role="initial-dp-current-input"][data-slot="${i}"]`
+      );
+      const initialDpCapInput = this.root.querySelector(
+        `[data-role="initial-dp-cap-input"][data-slot="${i}"]`
+      );
+      const styleId = toInt(styleSelect?.value, this.defaultSelections[i].styleId);
+      const normalizedDpState = createDpState({
+        baseMaxDp: this.getBaseMaxDpForStyle(styleId),
+        currentDp: initialDpCurrentInput?.value,
+        effectiveDpCap: initialDpCapInput?.value,
+      });
       const checkedSkillIds = this.getCheckedSkillIdsForSlot(i) ?? [];
       partySelections.push({
         characterLabel: String(charSelect?.value ?? ''),
-        styleId: toInt(styleSelect?.value, this.defaultSelections[i].styleId),
+        styleId,
         limitBreakLevel: toInt(lbSelect?.value, 0),
         drivePiercePercent: toInt(drivePierceSelect?.value, 0),
         startSpEquipBonus: toInt(startSpEquipSelect?.value, START_SP_EQUIP_DEFAULT),
         normalAttackBelt: String(normalAttackBeltSelect?.value ?? ''),
         initialMotivation: normalizeMotivationLevel(motivationSelect?.value, 0),
+        initialDpCurrent: normalizedDpState.currentDp,
+        initialDpCap: normalizedDpState.effectiveDpCap,
         checkedSkillIds,
       });
     }
@@ -1415,6 +1537,33 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         changedCount += 1;
       }
 
+      const initialDpCurrentInput = this.root.querySelector(
+        `[data-role="initial-dp-current-input"][data-slot="${i}"]`
+      );
+      const initialDpCapInput = this.root.querySelector(
+        `[data-role="initial-dp-cap-input"][data-slot="${i}"]`
+      );
+      const beforeInitialDpCurrent = initialDpCurrentInput?.value ?? '';
+      const beforeInitialDpCap = initialDpCapInput?.value ?? '';
+      const normalizedDpState = this.syncInitialDpSelectionControls(i, {
+        currentDp: row.initialDpCurrent,
+        effectiveDpCap: row.initialDpCap,
+      });
+      const normalizedCurrentText = formatDpValue(normalizedDpState?.currentDp ?? 0);
+      const normalizedCapText = formatDpValue(normalizedDpState?.effectiveDpCap ?? 0);
+      if ((initialDpCurrentInput?.value ?? '') !== beforeInitialDpCurrent) {
+        changedCount += 1;
+      }
+      if ((initialDpCapInput?.value ?? '') !== beforeInitialDpCap) {
+        changedCount += 1;
+      }
+      if (initialDpCurrentInput && initialDpCurrentInput.value !== normalizedCurrentText) {
+        initialDpCurrentInput.value = normalizedCurrentText;
+      }
+      if (initialDpCapInput && initialDpCapInput.value !== normalizedCapText) {
+        initialDpCapInput.value = normalizedCapText;
+      }
+
       this.populateSkillChecklist(i, styleSelect?.value ?? '', row.checkedSkillIds ?? []);
       this.populatePassiveList(i, styleSelect?.value ?? '');
     }
@@ -1520,9 +1669,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const rows = Array.isArray(state.partySelections) ? state.partySelections : [];
     for (let i = 0; i < rows.length; i += 1) {
       const row = rows[i] ?? {};
+      const dpText = formatDpStateSummary({
+        baseMaxDp: this.getBaseMaxDpForStyle(row.styleId),
+        currentDp: row.initialDpCurrent,
+        effectiveDpCap: row.initialDpCap,
+      });
       lines.push(
         `P${i + 1}: ${row.characterLabel ?? '-'} / style=${row.styleId ?? '-'} / ` +
-        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / Motivation=${formatMotivationLabel(row.initialMotivation ?? 0)} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
+        `LB=${row.limitBreakLevel ?? '-'} / Drive=${row.drivePiercePercent ?? 0}% / StartSP+${row.startSpEquipBonus ?? 0} / Belt=${formatNormalAttackBeltLabel(row.normalAttackBelt)} / Motivation=${formatMotivationLabel(row.initialMotivation ?? 0)} / ${dpText} / skills=${Array.isArray(row.checkedSkillIds) ? row.checkedSkillIds.length : 0}`
       );
     }
     lines.push(
@@ -1590,6 +1744,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.populateLimitBreakSelect(slotIndex, styleSelect?.value ?? '', null);
     this.populateSkillChecklist(slotIndex, styleSelect?.value ?? '');
     this.populatePassiveList(slotIndex, styleSelect?.value ?? '');
+    this.syncInitialDpSelectionControls(slotIndex, {});
     this.syncMotivationSelectionControls();
     this.updateSlotSummary(slotIndex);
     this.renderSelectionSummary();
@@ -1808,6 +1963,70 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return out;
   }
 
+  getBaseMaxDpForStyle(styleId) {
+    const style = this.dataStore.getStyleById(styleId);
+    return Number(style?.base_param?.dp ?? 0);
+  }
+
+  getSelectedBaseMaxDpByPartyIndex() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${i}"]`);
+      out[i] = this.getBaseMaxDpForStyle(styleSelect?.value ?? this.defaultSelections[i].styleId);
+    }
+    return out;
+  }
+
+  syncInitialDpSelectionControls(slotIndex, requestedState = null) {
+    const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${slotIndex}"]`);
+    const baseLabel = this.root.querySelector(
+      `[data-role="initial-dp-base-label"][data-slot="${slotIndex}"]`
+    );
+    const currentInput = this.root.querySelector(
+      `[data-role="initial-dp-current-input"][data-slot="${slotIndex}"]`
+    );
+    const capInput = this.root.querySelector(
+      `[data-role="initial-dp-cap-input"][data-slot="${slotIndex}"]`
+    );
+    if (!baseLabel || !currentInput || !capInput) {
+      return null;
+    }
+
+    const baseMaxDp = this.getBaseMaxDpForStyle(styleSelect?.value ?? this.defaultSelections[slotIndex].styleId);
+    const hasRequestedState = requestedState && typeof requestedState === 'object';
+    const hasRequestedCurrentDp =
+      hasRequestedState && Object.prototype.hasOwnProperty.call(requestedState, 'currentDp');
+    const hasRequestedEffectiveDpCap =
+      hasRequestedState && Object.prototype.hasOwnProperty.call(requestedState, 'effectiveDpCap');
+    const requestedCurrentDp = hasRequestedCurrentDp ? requestedState.currentDp : currentInput.value;
+    let requestedEffectiveDpCap = hasRequestedEffectiveDpCap
+      ? requestedState.effectiveDpCap
+      : capInput.value;
+    const currentNumeric = Number(requestedCurrentDp);
+    const capNumeric = Number(requestedEffectiveDpCap);
+    if (
+      hasRequestedCurrentDp &&
+      !hasRequestedEffectiveDpCap &&
+      Number.isFinite(currentNumeric) &&
+      currentNumeric > Math.max(baseMaxDp, Number.isFinite(capNumeric) ? capNumeric : baseMaxDp)
+    ) {
+      requestedEffectiveDpCap = currentNumeric;
+    }
+    const normalized = createDpState({
+      baseMaxDp,
+      currentDp: requestedCurrentDp,
+      effectiveDpCap: requestedEffectiveDpCap,
+    });
+    baseLabel.textContent = `BaseDP ${formatDpValue(normalized.baseMaxDp)}`;
+    currentInput.value = formatDpValue(normalized.currentDp);
+    currentInput.min = '0';
+    currentInput.step = DP_INPUT_STEP;
+    capInput.value = formatDpValue(normalized.effectiveDpCap);
+    capInput.min = formatDpValue(normalized.baseMaxDp);
+    capInput.step = DP_INPUT_STEP;
+    return normalized;
+  }
+
   readNormalAttackElementsMapFromDom() {
     const out = {};
     for (let i = 0; i < 6; i += 1) {
@@ -1826,6 +2045,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     for (let i = 0; i < 6; i += 1) {
       const select = this.root.querySelector(`[data-role="motivation-select"][data-slot="${i}"]`);
       out[i] = hasSource ? normalizeMotivationLevel(select?.value, 3) : 0;
+    }
+    return out;
+  }
+
+  readInitialDpStateMapFromDom() {
+    const out = {};
+    for (let i = 0; i < 6; i += 1) {
+      const normalized = this.syncInitialDpSelectionControls(i);
+      out[i] = cloneDpState(normalized ?? createDpState({ baseMaxDp: 0 }));
     }
     return out;
   }
@@ -1867,13 +2095,24 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const motivationSelect = this.root.querySelector(
       `[data-role="motivation-select"][data-slot="${slotIndex}"]`
     );
+    const initialDpCurrentInput = this.root.querySelector(
+      `[data-role="initial-dp-current-input"][data-slot="${slotIndex}"]`
+    );
+    const initialDpCapInput = this.root.querySelector(
+      `[data-role="initial-dp-cap-input"][data-slot="${slotIndex}"]`
+    );
     const initialMotivation = normalizeMotivationLevel(motivationSelect?.value, 0);
+    const initialDpState = createDpState({
+      baseMaxDp: this.getBaseMaxDpForStyle(selectedStyleId),
+      currentDp: initialDpCurrentInput?.value,
+      effectiveDpCap: initialDpCapInput?.value,
+    });
     const startSp = START_SP_BASE + START_SP_FIXED_BONUS + startSpEquipBonus;
 
     const charName = normalizeName(character?.name ?? selectedCharacterLabel);
     summary.textContent =
       `Character: ${charName} / Style: ${style?.name ?? '-'} / ` +
-      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / 通常攻撃属性: ${formatNormalAttackBeltLabel(normalAttackBelt)} / やる気初期値: ${formatMotivationLabel(initialMotivation)} / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
+      `LB: ${limitBreakLevel} / DrivePierce: ${drivePiercePercent}% / 通常攻撃属性: ${formatNormalAttackBeltLabel(normalAttackBelt)} / やる気初期値: ${formatMotivationLabel(initialMotivation)} / 初期${formatDpStateSummary(initialDpState)} / StartSP(base): ${startSp} (${START_SP_BASE}+${START_SP_FIXED_BONUS}+${startSpEquipBonus}, passive別反映) / Equipped Skills: ${selectedSkillIds.length} / Passives: ${passives.length}`;
   }
 
   renderSelectionSummary() {
@@ -1934,6 +2173,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       options.normalAttackElementsByPartyIndex ?? this.readNormalAttackElementsMapFromDom();
     const initialMotivationByPartyIndex =
       options.initialMotivationByPartyIndex ?? this.readInitialMotivationMapFromDom();
+    const initialDpStateByPartyIndex =
+      options.initialDpStateByPartyIndex ?? this.readInitialDpStateMapFromDom();
     const startSpEquipByPartyIndex =
       options.startSpEquipByPartyIndex ?? this.readStartSpEquipMapFromDom();
     const initialOdGauge =
@@ -1967,6 +2208,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       drivePierceByPartyIndex,
       normalAttackElementsByPartyIndex,
       initialMotivationByPartyIndex,
+      initialDpStateByPartyIndex,
       startSpEquipByPartyIndex,
       initialOdGauge,
       enemyCount: this.readEnemyCountFromDom(),
@@ -2773,6 +3015,34 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.setStatus(`${member.characterName} のトークンを ${normalized} に更新しました。`);
   }
 
+  applyDpDebugValueFromDom(characterId, nextState = {}) {
+    if (!this.state?.party) {
+      return;
+    }
+    const member = this.state.party.find((item) => String(item.characterId) === String(characterId));
+    if (!member?.dpState) {
+      return;
+    }
+    const hasCurrentDp = Object.prototype.hasOwnProperty.call(nextState, 'currentDp');
+    const hasEffectiveDpCap = Object.prototype.hasOwnProperty.call(nextState, 'effectiveDpCap');
+    const normalizedNextState = { ...nextState };
+    const requestedCurrentDp = Number(nextState.currentDp);
+    if (
+      hasCurrentDp &&
+      !hasEffectiveDpCap &&
+      Number.isFinite(requestedCurrentDp) &&
+      requestedCurrentDp > Number(member.dpState?.effectiveDpCap ?? member.dpState?.baseMaxDp ?? 0)
+    ) {
+      normalizedNextState.effectiveDpCap = requestedCurrentDp;
+    }
+    const result = member.setDpState(normalizedNextState);
+    this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: true });
+    this.writePreviewOutput('');
+    this.renderPartyState();
+    this.setStatus(`${member.characterName} の${formatDpStateSummary(result.endDpState)}に更新しました。`);
+  }
+
   queueSwap(fromPositionIndex, toPositionIndex) {
     const result = this.queueSwapInState(fromPositionIndex, toPositionIndex);
     if (result?.skippedSamePosition) {
@@ -3369,6 +3639,33 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.renderEnemyConfigControls();
   }
 
+  captureCurrentDpStateByPartyIndex() {
+    if (!this.state?.party) {
+      return {};
+    }
+    return Object.fromEntries(
+      this.state.party.map((member) => [String(member.partyIndex), cloneDpState(member.dpState)])
+    );
+  }
+
+  applyScenarioDpStateByPartyIndex(dpStateByPartyIndex = {}) {
+    if (!this.state?.party) {
+      return;
+    }
+    const baseMaxDpByPartyIndex = Object.fromEntries(
+      this.state.party.map((member) => [String(member.partyIndex), Number(member.dpState?.baseMaxDp ?? 0)])
+    );
+    const normalized = normalizeDpStateByPartyIndex(dpStateByPartyIndex, baseMaxDpByPartyIndex);
+    for (const member of this.state.party) {
+      const next = normalized[String(member.partyIndex)];
+      if (!next) {
+        continue;
+      }
+      member.setDpState(next);
+    }
+    this.renderPartyState();
+  }
+
   applyLoadedScenarioSetup() {
     if (!this.scenario) {
       throw new Error('Scenario is not loaded.');
@@ -3401,9 +3698,34 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         ...(Number.isFinite(Number(entry.startSpEquipBonus))
           ? { startSpEquipBonus: Number(entry.startSpEquipBonus) }
           : {}),
+        ...(Number.isFinite(Number(entry.currentDp))
+          ? { initialDpCurrent: Number(entry.currentDp) }
+          : {}),
+        ...(Number.isFinite(Number(entry.effectiveDpCap))
+          ? { initialDpCap: Number(entry.effectiveDpCap) }
+          : {}),
         ...(Array.isArray(entry.checkedSkillIds)
           ? { checkedSkillIds: entry.checkedSkillIds.map((id) => Number(id)) }
           : {}),
+      };
+    }
+    const selectionBaseMaxDpByPartyIndex = Object.fromEntries(
+      (selections.partySelections ?? []).map((row, index) => [
+        String(index),
+        this.getBaseMaxDpForStyle(row?.styleId),
+      ])
+    );
+    const setupDpStateByPartyIndex = normalizeDpStateByPartyIndex(
+      setup.dpStateByPartyIndex,
+      selectionBaseMaxDpByPartyIndex
+    );
+    for (const [partyIndex, dpState] of Object.entries(setupDpStateByPartyIndex)) {
+      const slotIndex = Math.max(0, Math.min(5, toInt(partyIndex, 0)));
+      const current = selections.partySelections[slotIndex] ?? {};
+      selections.partySelections[slotIndex] = {
+        ...current,
+        initialDpCurrent: Number(dpState.currentDp ?? current.initialDpCurrent ?? 0),
+        initialDpCap: Number(dpState.effectiveDpCap ?? current.initialDpCap ?? 0),
       };
     }
     this.applySelectionState(selections);
@@ -3425,6 +3747,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
 
     this.initializeBattle(undefined, {
+      initialDpStateByPartyIndex: this.readInitialDpStateMapFromDom(),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(setup.enemyNames),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(setup.enemyDamageRates),
       destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(setup.enemyDestructionRates),
@@ -3461,6 +3784,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (setup.territoryState && typeof setup.territoryState === 'object') {
       this.state.turnState.territoryState = normalizeFieldStateForScenario(setup.territoryState);
+    }
+    if (Object.keys(setupDpStateByPartyIndex).length > 0) {
+      this.applyScenarioDpStateByPartyIndex(setupDpStateByPartyIndex);
     }
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
@@ -3808,6 +4134,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (turn.territoryState && typeof turn.territoryState === 'object') {
       this.state.turnState.territoryState = normalizeFieldStateForScenario(turn.territoryState);
+    }
+    if (turn.dpStateByPartyIndex && typeof turn.dpStateByPartyIndex === 'object') {
+      this.applyScenarioDpStateByPartyIndex(turn.dpStateByPartyIndex);
     }
     if (Array.isArray(turn.enemyNames) || (turn.enemyNames && typeof turn.enemyNames === 'object')) {
       this.applyScenarioEnemyNames(turn.enemyNames);
@@ -4210,6 +4539,16 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.sp.max = Number(snap.sp?.max ?? member.sp.max);
       member.ep.current = Number(snap.ep?.current ?? member.ep.current);
       member.ep.max = Number(snap.ep?.max ?? member.ep.max);
+      const snapDpState = snap.dpState && typeof snap.dpState === 'object' ? snap.dpState : {};
+      const normalizedDpState = createDpState({
+        baseMaxDp: snapDpState.baseMaxDp ?? member.dpState?.baseMaxDp,
+        currentDp: snapDpState.currentDp ?? member.dpState?.currentDp,
+        effectiveDpCap: snapDpState.effectiveDpCap ?? member.dpState?.effectiveDpCap,
+      });
+      member.dpState.baseMaxDp = normalizedDpState.baseMaxDp;
+      member.dpState.currentDp = normalizedDpState.currentDp;
+      member.dpState.effectiveDpCap = normalizedDpState.effectiveDpCap;
+      member.dpState.minDp = normalizedDpState.minDp;
       member.tokenState.current = Number(snap.tokenState?.current ?? member.tokenState?.current ?? 0);
       member.tokenState.min = Number(snap.tokenState?.min ?? member.tokenState?.min ?? 0);
       member.tokenState.max = Number(snap.tokenState?.max ?? member.tokenState?.max ?? 10);
@@ -4592,6 +4931,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const tokenText = hasTokenPassiveSupport(member)
           ? ` / Token=${member.tokenState?.current ?? 0}`
           : '';
+        const dpText = ` / ${formatDpStateSummary(member.dpState)}`;
         const moraleText = hasVisibleMoraleState(member)
           ? ` / Morale=${member.moraleState?.current ?? 0}`
           : '';
@@ -4600,15 +4940,58 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           : '';
         const markText = formatPartyStateMarkIcons(member);
         if (String(member.characterId) === 'NNanase') {
-          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${tokenText}${moraleText}${motivationText}${markText}</li>`;
+          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${dpText}${tokenText}${moraleText}${motivationText}${markText}</li>`;
         }
-        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${tokenText}${moraleText}${motivationText}${markText}</li>`;
+        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${dpText}${tokenText}${moraleText}${motivationText}${markText}</li>`;
       })
       .join('');
 
     container.innerHTML = rows;
+    this.renderDpDebugControls();
     this.renderTokenDebugControls();
     this.renderSwapSelectors();
+  }
+
+  renderDpDebugControls() {
+    const container = this.root.querySelector('[data-role="dp-debug-list"]');
+    if (!container) {
+      return;
+    }
+    if (!this.state?.party) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const rows = this.state.party
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((member) => {
+        const dpState = createDpState(member.dpState);
+        return `
+          <label class="style-slot">
+            DP ${member.position + 1}:${member.characterName}
+            <span>Base ${formatDpValue(dpState.baseMaxDp)}</span>
+            <input
+              data-role="dp-debug-current-input"
+              data-character-id="${member.characterId}"
+              type="number"
+              min="0"
+              step="${DP_INPUT_STEP}"
+              value="${formatDpValue(dpState.currentDp)}"
+            />
+            <input
+              data-role="dp-debug-cap-input"
+              data-character-id="${member.characterId}"
+              type="number"
+              min="${formatDpValue(dpState.baseMaxDp)}"
+              step="${DP_INPUT_STEP}"
+              value="${formatDpValue(dpState.effectiveDpCap)}"
+            />
+          </label>
+        `;
+      })
+      .join('');
+    container.innerHTML = rows;
   }
 
   renderTokenDebugControls() {
@@ -4734,6 +5117,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
     const zoneState = normalizeFieldStateForScenario(plan.zoneState ?? setupDelta.zoneState);
     const territoryState = normalizeFieldStateForScenario(plan.territoryState ?? setupDelta.territoryState);
+    const dpStateByPartyIndex = normalizeDpStateByPartyIndex(
+      plan.dpStateByPartyIndex ?? setupDelta.dpStateByPartyIndex,
+      Object.fromEntries(
+        (this.state?.party ?? []).map((member) => [String(member.partyIndex), Number(member.dpState?.baseMaxDp ?? 0)])
+      )
+    );
     const actions = Array.isArray(plan.actions)
       ? plan.actions
         .map((action) => ({
@@ -4788,6 +5177,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyNames,
         enemyDamageRates,
         enemyStatuses,
+        ...(Object.keys(dpStateByPartyIndex).length > 0 ? { dpStateByPartyIndex } : {}),
         ...(zoneState ? { zoneState } : {}),
         ...(territoryState ? { territoryState } : {}),
       },
@@ -4848,6 +5238,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         targetIndex: Number(status?.targetIndex ?? 0),
         remainingTurns: Number(status?.remainingTurns ?? 0),
       })),
+      dpStateByPartyIndex: this.captureCurrentDpStateByPartyIndex(),
       zoneState: normalizeFieldStateForScenario(this.state.turnState?.zoneState),
       territoryState: normalizeFieldStateForScenario(this.state.turnState?.territoryState),
       actions,
@@ -4873,6 +5264,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Array.isArray(normalized.setupDelta.enemyStatuses) && normalized.setupDelta.enemyStatuses.length > 0) {
       out.enemyStatuses = structuredClone(normalized.setupDelta.enemyStatuses);
+    }
+    if (Object.keys(normalized.setupDelta.dpStateByPartyIndex ?? {}).length > 0) {
+      out.dpStateByPartyIndex = structuredClone(normalized.setupDelta.dpStateByPartyIndex);
     }
     if (normalized.setupDelta.zoneState) {
       out.zoneState = structuredClone(normalized.setupDelta.zoneState);
@@ -4944,6 +5338,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       normalAttackElementsByPartyIndex: base.normalAttackElementsByPartyIndex,
       startSpEquipByPartyIndex: base.startSpEquipByPartyIndex,
       initialMotivationByPartyIndex: base.initialMotivationByPartyIndex,
+      initialDpStateByPartyIndex: base.initialDpStateByPartyIndex,
       initialOdGauge: Number(base.initialOdGauge ?? 0),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(base.enemyNamesByEnemy),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(base.damageRatesByEnemy),

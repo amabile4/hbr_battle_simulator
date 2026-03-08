@@ -1,6 +1,6 @@
 # DP実装プラン
 
-最終更新: 2026-03-07
+最終更新: 2026-03-08
 
 ## 方針
 
@@ -100,34 +100,74 @@
 - ただし現状は「DP回復を検知してトークンを付与する」だけで、DP現在値そのものは変化していない
 - `DpRate` 実装時はこの検出経路を流用して、実際の DP 変化とトークン付与を同時に扱うのが自然
 
-## 実装フェーズ
+## 実装フェーズと進捗
+
+### 現在の進捗
+
+### 実装済み
+
+- Phase 1: 状態モデル
+- Phase 2: 手入力UI
+- Phase 3: 条件評価
+
+### 未実装
+
+- Phase 4: DP回復スキル
+- Phase 5: DP自傷とDP依存スキル
+- Phase 6: Break関連
+- Phase 7: パッシブ接続
+
+### 補足
+
+- `DpRate()` はパッシブ条件だけでなく、`SkillCondition` と `CountBC(...)` 内のプレイヤー条件でも評価できるようになった
+- DP状態は `snapshot / record / turnPlan / scenario` まで保存されるようになり、再計算・再生で引き継げる
+- 検証時点では関連テスト 235 件中 234 件が通過しており、`tests/dom-adapter-records-style.test.js` に DP デバッグUIの初期値前提ずれ 1 件が残っている
 
 ## Phase 1: 状態モデル
 
-- [ ] `baseMaxDp` を持たせる
-- [ ] `currentDp` を持たせる
-- [ ] `effectiveDpCap` を持たせる
-- [ ] `DpRate()` を `currentDp / baseMaxDp` で評価できるようにする
-- [ ] snapshot / record / turnPlan / scenario にDP状態を保存できるようにする
+- [x] `baseMaxDp` を持たせる
+- [x] `currentDp` を持たせる
+- [x] `effectiveDpCap` を持たせる
+- [x] `DpRate()` を `currentDp / baseMaxDp` で評価できるようにする
+- [x] snapshot / record / turnPlan / scenario にDP状態を保存できるようにする
+
+### Phase 1メモ
+
+- `src/domain/dp-state.js` を新設し、DP状態の正規化と `DpRate()` 評価を一箇所に寄せた
+- `baseMaxDp` の初期値は現状 `style.base_param.dp` を採用している
+- `currentDp` は `effectiveDpCap` では clamp するが、`baseMaxDp` では clamp しない
 
 ## Phase 2: 手入力UI
 
-- [ ] 味方ごとの DP 現在値入力欄
-- [ ] オーバー回復値を入力できるUI
-- [ ] DP状態の初期化と復元
-- [ ] turnPlan / scenario 再生時のDP再現
+- [x] 味方ごとの DP 現在値入力欄
+- [x] オーバー回復値を入力できるUI
+- [x] DP状態の初期化と復元
+- [x] turnPlan / scenario 再生時のDP再現
+
+### Phase 2メモ
+
+- 初期編成UIに `BaseDP / 初期DP現在値 / DP上限` を追加した
+- 戦闘中にも DP デバッグ入力を追加し、その場で `currentDp / effectiveDpCap` を手修正できる
+- `currentDp` を単独で更新したとき、入力値が現在の cap を超える場合は cap を追従させる仕様にしている
+- selection save/load、turnPlan 再計算、scenario setup / turn 再生でも DP 状態を保持する
 
 ## Phase 3: 条件評価
 
-- [ ] `DpRate()==0.0`
-- [ ] `DpRate()<=0.3`
-- [ ] `DpRate()<=0.5`
-- [ ] `DpRate()>=0.5`
-- [ ] `DpRate()>=0.8`
-- [ ] `DpRate()>=1.0`
-- [ ] `DpRate()>=1.01`
-- [ ] `DpRate()>1.495`
-- [ ] `0.0 < DpRate()` のようなスキル条件
+- [x] `DpRate()==0.0`
+- [x] `DpRate()<=0.3`
+- [x] `DpRate()<=0.5`
+- [x] `DpRate()>=0.5`
+- [x] `DpRate()>=0.8`
+- [x] `DpRate()>=1.0`
+- [x] `DpRate()>=1.01`
+- [x] `DpRate()>1.495`
+- [x] `0.0 < DpRate()` のようなスキル条件
+
+### Phase 3メモ
+
+- `CONDITION_SUPPORT_MATRIX` 上の `DpRate` は `stateful_future` から `implemented` へ移行した
+- 条件評価器を汎化し、`DpRate()` のゼロ引数関数比較を通常条件・逆順比較の両方で解釈できるようにした
+- `CountBC(IsPlayer()==1&&DpRate()>=1.0)` のようなプレイヤー側述語も共通条件評価へ寄せて通るようにした
 
 ## Phase 4: DP回復スキル
 
@@ -139,12 +179,23 @@
 - [ ] 通常回復とオーバー回復付き回復を分離して扱う
 - [ ] スキルごとのオーバー回復上限を解釈する
 
+### Phase 4メモ
+
+- `turn-controller` には `TokenSetByHealedDp` 用の検知経路が既にあるが、DP現在値更新にはまだ接続していない
+- `HealDp` 系は `power` の単位解釈が未確定で、`style.base_param.dp` と直接整合しないため厳密実装は保留
+- `HealDpRate` は割合と cap の読み筋が比較的明確なので、Phase 4 着手時はここから入るのが安全
+
 ## Phase 5: DP自傷とDP依存スキル
 
 - [ ] DP自傷スキルの洗い出し
 - [ ] DP自傷の現在値反映
 - [ ] `AttackByOwnDpRate`
 - [ ] 行動前後で `DpRate` 条件が変わることの反映
+
+### Phase 5メモ
+
+- DP状態モデルは先に入ったので、`SelfDamage` や `AttackByOwnDpRate` をつなぐ下地はできている
+- ただし「行動前の条件判定」と「行動後の DP 変化で次条件が変わる」境界は、スキル効果順序を整理してから入れる必要がある
 
 ## Phase 6: Break関連
 
@@ -154,12 +205,22 @@
 - [ ] `BreakDownTurnUp`
 - [ ] DP破損と `Break` の関係整理
 
+### Phase 6メモ
+
+- 現時点では DP 0 と `Break` を同一視していない
+- Break 系を先に雑につなぐと、将来の DP破損処理と enemy status の責務が衝突しやすい
+
 ## Phase 7: パッシブ接続
 
 - [ ] `OnPlayerTurnStart` の DP 条件パッシブ
 - [ ] `OnEnemyTurnStart` の DP 条件パッシブ
 - [ ] `OnEveryTurn` の DP 条件パッシブ
 - [ ] `OnBattleWin` の DP 回復系パッシブ
+
+### Phase 7メモ
+
+- 条件評価そのものは Phase 3 で通るため、未実装なのは主に DP回復・DP変動を伴うパッシブ効果側
+- `OnBattleWin` の `HealDpRate` は DP状態更新ロジックが入ってから接続する方が安全
 
 ## 設計メモ
 
@@ -169,6 +230,8 @@
 - `OnBattleWin` の `HealDpRate` は DP状態モデル完成後に実装する
 - パッシブ側の `DpRate` 実装状況は [`docs/passive_implementation_tasklist.md`](/Users/ram4/git/hbr_battle_simulator/docs/passive_implementation_tasklist.md) から参照する
 - `style.base_param.dp` を `baseMaxDp` の初期基準として使う案は実装しやすいが、`HealDp power` との単位差があるため、将来の厳密化余地を残しておく
+- DP関連は UI 入力だけでなく record / replay 系へ保存しないと、turnPlan 再計算や scenario 再生で `DpRate()` 条件の再現性が崩れる
+- DPデバッグUIは初期 `currentDp` の既定値前提をテストと揃える必要があり、現状 1 件だけ追従漏れが残っている
 
 ## 優先順
 

@@ -6,6 +6,7 @@ import {
 } from '../contracts/interfaces.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
+import { getDpRate } from '../domain/dp-state.js';
 import {
   OD_RECOVERY_BY_LEVEL,
   OD_COST_BY_LEVEL,
@@ -90,7 +91,7 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   }),
   IsWeakElement: Object.freeze({ tier: 'manual_state', note: 'manual enemy damage-rate state' }),
   Random: Object.freeze({ tier: 'implemented', note: 'A/S succeed by default; future UI override' }),
-  DpRate: Object.freeze({ tier: 'stateful_future', note: 'needs DP current/max state and updates' }),
+  DpRate: Object.freeze({ tier: 'implemented', note: 'current/base/cap DP state is tracked now' }),
   Token: Object.freeze({ tier: 'implemented', note: 'current token state is tracked now' }),
   MoraleLevel: Object.freeze({ tier: 'implemented', note: 'current morale state is tracked now' }),
   MotivationLevel: Object.freeze({ tier: 'implemented', note: 'current motivation state is tracked now' }),
@@ -604,6 +605,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
         known: true,
         value: Number(member?.motivationState?.current ?? 0),
       };
+    case 'DpRate':
+      return {
+        known: true,
+        value: getDpRate(member?.dpState),
+      };
     case 'IsOverDrive':
       return {
         known: true,
@@ -709,6 +715,14 @@ function resolveSingleArgConditionValue(name, argRaw, state, member) {
         value: true,
       };
   }
+}
+
+function resolveConditionFunctionValue(name, argRaw, state, member, skill, actionEntry) {
+  const arg = String(argRaw ?? '').trim();
+  if (!arg) {
+    return resolveZeroArgConditionValue(name, state, member, skill, actionEntry);
+  }
+  return resolveSingleArgConditionValue(name, arg, state, member);
 }
 
 function splitTopLevel(expression, separator) {
@@ -1832,48 +1846,8 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     let count = 0;
     for (const candidate of state.party ?? []) {
       const matched = playerClauses.every((clause) => {
-        if (!clause) {
-          return true;
-        }
-        if (clause === 'IsFront()==0') {
-          return Number(candidate?.position ?? -1) >= 3;
-        }
-        if (clause === 'IsFront()==1') {
-          return Number(candidate?.position ?? 99) <= 2;
-        }
-        let m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
-        if (m) {
-          const resolved = resolveSingleArgConditionValue(m[1], m[2], state, candidate);
-          if (!resolved.known) {
-            return false;
-          }
-          return compareNumbers(Number(resolved.value), m[3], Number(m[4]));
-        }
-        m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)$/);
-        if (m) {
-          const resolved = resolveSingleArgConditionValue(m[1], m[2], state, candidate);
-          if (!resolved.known) {
-            return false;
-          }
-          return Boolean(Number(resolved.value));
-        }
-        m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
-        if (m) {
-          const resolved = resolveZeroArgConditionValue(m[1], state, candidate, null, null);
-          if (!resolved.known) {
-            return false;
-          }
-          return compareNumbers(Number(resolved.value), m[2], Number(m[3]));
-        }
-        m = clause.match(/^([A-Za-z_][A-Za-z0-9_]*)\(\)$/);
-        if (m) {
-          const resolved = resolveZeroArgConditionValue(m[1], state, candidate, null, null);
-          if (!resolved.known) {
-            return false;
-          }
-          return Boolean(Number(resolved.value));
-        }
-        return false;
+        const evaluated = evaluateSingleConditionClause(clause, state, candidate, null, null);
+        return evaluated.known && Boolean(evaluated.value);
       });
       if (matched) {
         count += 1;
@@ -2002,10 +1976,10 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
 
   {
     const m = text.match(
-      /^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/
+      /^([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/
     );
     if (m) {
-      const resolved = resolveSingleArgConditionValue(m[1], m[2], state, member);
+      const resolved = resolveConditionFunctionValue(m[1], m[2], state, member, skill, actionEntry);
       if (!resolved.known) {
         return { known: false, value: true };
       }
@@ -2014,30 +1988,22 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   }
 
   {
-    const m = text.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]+)\)$/);
+    const m = text.match(
+      /^(-?\d+(?:\.\d+)?)\s*(==|!=|>=|<=|>|<)\s*([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)$/
+    );
     if (m) {
-      const resolved = resolveSingleArgConditionValue(m[1], m[2], state, member);
+      const resolved = resolveConditionFunctionValue(m[3], m[4], state, member, skill, actionEntry);
       if (!resolved.known) {
         return { known: false, value: true };
       }
-      return { known: true, value: Boolean(Number(resolved.value)) };
+      return { known: true, value: compareNumbers(Number(m[1]), m[2], Number(resolved.value)) };
     }
   }
 
   {
-    const m = text.match(/^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
+    const m = text.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)$/);
     if (m) {
-      const resolved = resolveZeroArgConditionValue(m[1], state, member, skill, actionEntry);
-      if (!resolved.known) {
-        return { known: false, value: true };
-      }
-      return { known: true, value: compareNumbers(Number(resolved.value), m[2], Number(m[3])) };
-    }
-  }
-  {
-    const m = text.match(/^([A-Za-z_][A-Za-z0-9_]*)\(\)$/);
-    if (m) {
-      const resolved = resolveZeroArgConditionValue(m[1], state, member, skill, actionEntry);
+      const resolved = resolveConditionFunctionValue(m[1], m[2], state, member, skill, actionEntry);
       if (!resolved.known) {
         return { known: false, value: true };
       }

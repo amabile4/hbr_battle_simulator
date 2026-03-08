@@ -24,6 +24,7 @@ export function createInitializedBattleSnapshot({
   normalAttackElementsByPartyIndex,
   startSpEquipByPartyIndex,
   initialMotivationByPartyIndex = {},
+  initialDpStateByPartyIndex = {},
   initialOdGauge,
   enemyCount,
   enemyNamesByEnemy = {},
@@ -45,6 +46,7 @@ export function createInitializedBattleSnapshot({
     initialSP,
     initialSpByPartyIndex,
     initialMotivationByPartyIndex,
+    initialDpStateByPartyIndex,
     skillSetsByPartyIndex,
     limitBreakLevelsByPartyIndex,
     drivePierceByPartyIndex,
@@ -94,6 +96,7 @@ export function createInitializedBattleSnapshot({
       normalAttackElementsByPartyIndex: structuredClone(normalAttackElementsByPartyIndex),
       startSpEquipByPartyIndex: structuredClone(startSpEquipByPartyIndex),
       initialMotivationByPartyIndex: structuredClone(initialMotivationByPartyIndex),
+      initialDpStateByPartyIndex: structuredClone(initialDpStateByPartyIndex),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
       enemyNamesByEnemy:

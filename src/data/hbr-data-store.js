@@ -1056,6 +1056,7 @@ export class HbrDataStore {
     partyIndex,
     initialSP = DEFAULT_INITIAL_SP,
     initialMotivation = 0,
+    initialDpState = null,
     spBonus = 0,
     drivePiercePercent = 0,
     normalAttackElements = [],
@@ -1112,6 +1113,7 @@ export class HbrDataStore {
     const inferredEpMax = hasEpRelatedSkill ? 10 : 0;
     const epMax = Number.isFinite(Number(ep.max)) ? Number(ep.max) : inferredEpMax;
     const epOdMax = Number.isFinite(Number(ep.odMax)) ? Number(ep.odMax) : epMax;
+    const styleBaseMaxDp = Number(style.base_param?.dp ?? 0);
 
     return new CharacterStyle({
       characterId: String(character.label),
@@ -1128,6 +1130,9 @@ export class HbrDataStore {
       normalAttackElements: Array.isArray(normalAttackElements) ? [...normalAttackElements] : [],
       initialSP: Number(initialSP),
       initialMotivation: Number(initialMotivation),
+      baseMaxDp: Number(initialDpState?.baseMaxDp ?? styleBaseMaxDp),
+      currentDp: initialDpState?.currentDp,
+      effectiveDpCap: initialDpState?.effectiveDpCap,
       initialEP: Number(ep.initial ?? 0),
       spBonus: Number(spBonus),
       spMin: 0,
@@ -1152,6 +1157,7 @@ export class HbrDataStore {
     const initialSpByPartyIndex = options.initialSpByPartyIndex ?? {};
     const spBonusMap = options.spBonusMap ?? {};
     const initialMotivationByPartyIndex = options.initialMotivationByPartyIndex ?? {};
+    const initialDpStateByPartyIndex = options.initialDpStateByPartyIndex ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
     const normalAttackElementsByPartyIndex = options.normalAttackElementsByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
@@ -1163,6 +1169,10 @@ export class HbrDataStore {
         partyIndex: index,
         initialSP: Number(initialSpByPartyIndex[index] ?? initialSP),
         initialMotivation: Number(initialMotivationByPartyIndex[index] ?? 0),
+        initialDpState:
+          initialDpStateByPartyIndex[index] && typeof initialDpStateByPartyIndex[index] === 'object'
+            ? initialDpStateByPartyIndex[index]
+            : null,
         spBonus: Number(spBonusMap[index] ?? 0),
         drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
         normalAttackElements: Array.isArray(normalAttackElementsByPartyIndex[index])

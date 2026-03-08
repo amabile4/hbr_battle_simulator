@@ -592,6 +592,59 @@ test('MoraleLevel works inside CountBC player predicates', () => {
   assert.equal(state.party[0].sp.current, 3);
 });
 
+test('DpRate condition can trigger passives from current DP state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 1,
+          baseMaxDp: 70,
+          currentDp: 84,
+          effectiveDpCap: 98,
+          passives: [
+            {
+              id: 18212,
+              name: 'Dp Heal',
+              timing: 'OnPlayerTurnStart',
+              condition: 'DpRate()>=1.01',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : { baseMaxDp: 70 }
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(state.party[0].sp.current, 3);
+});
+
+test('DpRate works inside CountBC player predicates', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 1,
+          baseMaxDp: 70,
+          currentDp: 70,
+          passives: [
+            {
+              id: 18213,
+              name: 'Dp Count Heal',
+              timing: 'OnPlayerTurnStart',
+              condition: 'CountBC(IsPlayer()==1&&DpRate()>=1.0)>0',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : { baseMaxDp: 70 }
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(state.party[0].sp.current, 3);
+});
+
 test('Morale skill variants resolve low and high morale branches without blocking use', () => {
   const createParty = (morale) =>
     createSixMemberManualParty((idx) =>
@@ -650,6 +703,65 @@ test('Morale skill variants resolve low and high morale branches without blockin
     2: { characterId: 'M3', skillId: 8002 },
   });
   assert.equal(highPreview.actions[0].spCost, 8);
+});
+
+test('SkillCondition supports reversed DpRate comparison clauses', () => {
+  const createParty = (currentDp) =>
+    createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: 'KDpRate',
+            characterName: 'DP条件役',
+            initialSP: 20,
+            baseMaxDp: 70,
+            currentDp,
+            skills: [
+              {
+                id: 18230,
+                name: 'Dp Reverse Branch',
+                sp_cost: 10,
+                target_type: 'Single',
+                parts: [
+                  {
+                    skill_type: 'SkillCondition',
+                    cond: '0.0 < DpRate()',
+                    strval: [
+                      {
+                        id: 18231,
+                        name: 'high',
+                        sp_cost: 0,
+                        target_type: 'Single',
+                        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+                      },
+                      {
+                        id: 18232,
+                        name: 'low',
+                        sp_cost: 10,
+                        target_type: 'Single',
+                        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        : { baseMaxDp: 70 }
+    );
+
+  const zeroPreview = previewTurn(createBattleStateFromParty(createParty(0)), {
+    0: { characterId: 'KDpRate', skillId: 18230 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  assert.equal(zeroPreview.actions[0].spCost, 10);
+
+  const highPreview = previewTurn(createBattleStateFromParty(createParty(35)), {
+    0: { characterId: 'KDpRate', skillId: 18230 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  assert.equal(highPreview.actions[0].spCost, 0);
 });
 
 test('MotivationLevel condition can trigger passives from current motivation state', () => {
@@ -1899,10 +2011,10 @@ test('condition support matrix classifies passive conditions by planned tier', (
     },
   ]);
 
-  assert.deepEqual(report.summary.implemented, ['ConquestBikeLevel', 'IsFront', 'MoraleLevel', 'Random']);
+  assert.deepEqual(report.summary.implemented, ['ConquestBikeLevel', 'DpRate', 'IsFront', 'MoraleLevel', 'Random']);
   assert.deepEqual(report.summary.ready_now, ['IsCharacter', 'IsNatureElement']);
   assert.deepEqual(report.summary.manual_state, []);
-  assert.deepEqual(report.summary.stateful_future, ['DpRate']);
+  assert.deepEqual(report.summary.stateful_future, []);
 });
 
 test('activateOverdrive records triggered passive events for debug logging', () => {
@@ -3665,25 +3777,23 @@ test('non-damaging OD gain skill applies drive bonus and first-use branching (Co
   const actor = party.getByPosition(0);
 
   // 1回目: スキル本体は 75% に drive(1hit扱い=+5%) を適用 => 78.75
-  // ただし現行スタイルは OnEveryTurn の OD+10% パッシブも同時に持つため、最終 gauge は 88.75。
   let state = createBattleStateFromParty(party);
   let preview = previewTurn(state, {
     0: { characterId: actor.characterId, skillId },
   });
   let committed = commitTurn(state, preview);
   assert.equal(Math.floor(committed.committedRecord.actions[0].odGaugeGain), 78);
-  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 88);
+  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 78);
 
   // 2回目: スキル本体は 25% に drive(1hit扱い=+5%) を適用 => +26.25
-  // 同じくターン開始時の OD+10% が加算される。
   state = committed.nextState;
   preview = previewTurn(state, {
     0: { characterId: actor.characterId, skillId },
   });
   committed = commitTurn(state, preview);
   assert.ok(Math.abs(committed.committedRecord.actions[0].odGaugeGain - 26.25) < 0.01);
-  assert.ok(Math.abs(committed.nextState.turnState.odGauge - 125) < 0.01);
-  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 125);
+  assert.ok(Math.abs(committed.nextState.turnState.odGauge - 105) < 0.01);
+  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 105);
 });
 
 test('od gauge is capped at 300%', () => {

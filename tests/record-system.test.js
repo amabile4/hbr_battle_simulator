@@ -95,6 +95,7 @@ test('json exporter writes all record store fields for file save payload', () =>
   const party = store.buildPartyFromStyleIds(styleIds, {
     initialSP: 10,
     initialMotivationByPartyIndex: { 0: 5, 1: 1 },
+    initialDpStateByPartyIndex: { 0: { currentDp: 84, effectiveDpCap: 98 } },
   });
   const state = createBattleStateFromParty(party);
 
@@ -117,6 +118,8 @@ test('json exporter writes all record store fields for file save payload', () =>
   assert.equal(payload.recordStore.records[0].actions[0].spChanges[0].eventCeiling, 'Infinity');
   assert.equal(payload.recordStore.records[0].snapBefore[0].motivationState.current, 5);
   assert.equal(payload.recordStore.records[0].snapBefore[1].motivationState.current, 1);
+  assert.equal(payload.recordStore.records[0].snapBefore[0].dpState.currentDp, 84);
+  assert.equal(payload.recordStore.records[0].snapBefore[0].dpState.effectiveDpCap, 98);
   assert.deepEqual(payload.recordStore.records[0].swapEvents, committedRecord.swapEvents);
 });
 

@@ -511,6 +511,8 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
   adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }]);
+  adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
+  adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -540,6 +542,9 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
     2: { Thunder: 75 },
   });
   assert.equal(Array.isArray(adapter.turnPlans[0].setupDelta.enemyStatuses), true);
+  assert.equal(adapter.turnPlans[0].setupDelta.dpStateByPartyIndex['0'].currentDp, 84);
+  assert.equal(adapter.turnPlans[0].setupDelta.dpStateByPartyIndex['0'].effectiveDpCap, 98);
+  assert.equal(adapter.turnPlans[0].setupDelta.dpStateByPartyIndex['1'].currentDp, 0);
   assert.deepEqual(adapter.turnPlans[0].setupDelta.zoneState, {
     type: 'Fire',
     sourceSide: 'player',
@@ -569,6 +574,9 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
     sourceSide: 'player',
     remainingTurns: 7,
   });
+  assert.equal(adapter.state.party[0].dpState.currentDp, 84);
+  assert.equal(adapter.state.party[0].dpState.effectiveDpCap, 98);
+  assert.equal(adapter.state.party[1].dpState.currentDp, 0);
   assert.deepEqual(adapter.state.turnState.territoryState, {
     type: 'ReviveTerritory',
     sourceSide: 'player',
@@ -802,6 +810,53 @@ test('token debug controls update current token state with clamp', () => {
   assert.equal(rows.some((line) => line.includes(`${member.characterName}`) && line.includes('Token=0')), true);
 });
 
+test('dp debug controls update current DP and cap with clamp', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const member = adapter.state.party[0];
+  assert.ok(member);
+  const getCurrentInput = () =>
+    root.querySelector(`[data-role="dp-debug-current-input"][data-character-id="${member.characterId}"]`);
+  const getCapInput = () =>
+    root.querySelector(`[data-role="dp-debug-cap-input"][data-character-id="${member.characterId}"]`);
+
+  let currentInput = getCurrentInput();
+  let capInput = getCapInput();
+  assert.ok(currentInput);
+  assert.ok(capInput);
+  assert.equal(member.dpState.currentDp, member.dpState.baseMaxDp);
+
+  currentInput.value = '95';
+  currentInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+  assert.equal(member.dpState.currentDp, 95);
+  assert.equal(member.dpState.effectiveDpCap, 95);
+
+  capInput = getCapInput();
+  capInput.value = '105';
+  capInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+  assert.equal(member.dpState.effectiveDpCap, 105);
+
+  currentInput = getCurrentInput();
+  currentInput.value = '95';
+  currentInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+  assert.equal(member.dpState.currentDp, 95);
+
+  capInput = getCapInput();
+  capInput.value = '60';
+  capInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+  assert.equal(member.dpState.effectiveDpCap, 60);
+  assert.equal(member.dpState.currentDp, 60);
+
+  const rows = [...root.querySelectorAll('[data-role="party-state"] li')].map((li) => li.textContent ?? '');
+  assert.equal(
+    rows.some((line) => line.includes(`${member.characterName}`) && line.includes('DP=60/30 Cap=60')),
+    true
+  );
+});
+
 test('morale display stays hidden at 0 and appears after morale rises', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -1018,9 +1073,11 @@ test('condition support panel shows planned support tiers for selected style pas
 
   const text = summary.textContent ?? '';
   assert.equal(text.includes('Global Passive Condition Support'), true);
-  assert.equal(text.includes('stateful_future: DpRate'), true);
+  assert.equal(text.includes('implemented:'), true);
+  assert.equal(text.includes('DpRate'), true);
+  assert.equal(text.includes('stateful_future: -'), true);
   assert.equal(text.includes('Selected Style: 閃光のサーキットバースト'), true);
-  assert.equal(text.includes('堅忍: DpRate:stateful_future'), true);
+  assert.equal(text.includes('review_needed: -'), true);
 });
 
 test('passive skills are shown in checklist but excluded from action selector', () => {

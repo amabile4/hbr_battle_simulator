@@ -306,6 +306,10 @@ test('scenario runner loads setup and executes turns deterministically', () => {
       enemyCount: 3,
       enemyNames: ['Enemy A', 'Enemy B', 'Enemy C'],
       enemyDamageRates: [{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }],
+      dpStateByPartyIndex: {
+        0: { currentDp: 84, effectiveDpCap: 98 },
+        1: { currentDp: 0, effectiveDpCap: 50 },
+      },
       initialOdGauge: 100,
       enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
       zoneState: { type: 'Fire', sourceSide: 'player', remainingTurns: 8 },
@@ -352,6 +356,9 @@ test('scenario runner loads setup and executes turns deterministically', () => {
     sourceSide: 'player',
     remainingTurns: null,
   });
+  assert.equal(adapter.state.party[0].dpState.currentDp, 84);
+  assert.equal(adapter.state.party[0].dpState.effectiveDpCap, 98);
+  assert.equal(adapter.state.party[1].dpState.currentDp, 0);
 
   adapter.runAllScenarioTurns();
   assert.equal(adapter.recordStore.records.length, 2);
@@ -375,6 +382,10 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
       enemyCount: 3,
       enemyNames: ['Enemy A', 'Enemy B', 'Enemy C'],
       enemyDamageRates: [{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }],
+      dpStateByPartyIndex: {
+        0: { currentDp: 84, effectiveDpCap: 98 },
+        1: { currentDp: 0, effectiveDpCap: 50 },
+      },
       enemyStatuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
       zoneState: { type: 'Fire', sourceSide: 'player', remainingTurns: 8 },
       territoryState: { type: 'ReviveTerritory', sourceSide: 'player', remainingTurns: null },
@@ -399,6 +410,9 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
   assert.deepEqual(adapter.turnPlanBaseSetup.enemyStatuses, [
     { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 },
   ]);
+  assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].currentDp, 84);
+  assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].effectiveDpCap, 98);
+  assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['1'].currentDp, 0);
   assert.deepEqual(adapter.turnPlanBaseSetup.zoneState, {
     type: 'Fire',
     sourceSide: 'player',
@@ -422,6 +436,8 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   enemyCount.dispatchEvent(new win.Event('change', { bubbles: true }));
   adapter.applyScenarioEnemyNames(['Enemy A', 'Enemy B', 'Enemy C']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 50 }, { Fire: 150 }, { Thunder: 75 }]);
+  adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
+  adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -436,6 +452,8 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   turns.value = '2';
   adapter.applyEnemyStatusFromDom();
   adapter.initializeBattle(undefined, { preserveTurnPlans: true });
+  adapter.state.party[0].setDpState({ currentDp: 84, effectiveDpCap: 98 });
+  adapter.state.party[1].setDpState({ currentDp: 0, effectiveDpCap: adapter.state.party[1].dpState.baseMaxDp });
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -448,10 +466,16 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   };
   adapter.turnPlanBaseSetup.zoneState = structuredClone(adapter.state.turnState.zoneState);
   adapter.turnPlanBaseSetup.territoryState = structuredClone(adapter.state.turnState.territoryState);
+  adapter.turnPlanBaseSetup.initialDpStateByPartyIndex = {
+    0: structuredClone(adapter.state.party[0].dpState),
+    1: structuredClone(adapter.state.party[1].dpState),
+  };
 
   adapter.applyScenarioEnemyNames(['Changed A']);
   adapter.applyScenarioEnemyDamageRates([{ Slash: 999 }]);
   adapter.clearEnemyStatusFromDom();
+  adapter.state.party[0].setDpState({ currentDp: 10, effectiveDpCap: adapter.state.party[0].dpState.baseMaxDp });
+  adapter.state.party[1].setDpState({ currentDp: adapter.state.party[1].dpState.baseMaxDp, effectiveDpCap: 120 });
   adapter.state.turnState.zoneState = null;
   adapter.state.turnState.territoryState = null;
 
@@ -481,6 +505,9 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
     sourceSide: 'player',
     remainingTurns: null,
   });
+  assert.equal(adapter.state.party[0].dpState.currentDp, 84);
+  assert.equal(adapter.state.party[0].dpState.effectiveDpCap, 98);
+  assert.equal(adapter.state.party[1].dpState.currentDp, 0);
 });
 
 test('scenario loader accepts exported CSV and converts it to runnable scenario', () => {

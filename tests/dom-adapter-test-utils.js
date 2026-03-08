@@ -71,6 +71,7 @@ export function createRoot() {
       <span data-role="field-state-label"></span>
       <span data-role="status"></span>
       <ul data-role="party-state"></ul>
+      <div data-role="dp-debug-list"></div>
       <div data-role="token-debug-list"></div>
       <pre data-role="preview-output"></pre>
       <pre data-role="condition-support-summary"></pre>

@@ -1,4 +1,5 @@
 import { applySpChange, getEventCeiling } from './sp.js';
+import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
 import {
   DEFAULT_INITIAL_SP,
   DEFAULT_MARK_LEVEL_MAX,
@@ -255,6 +256,14 @@ export class CharacterStyle {
       max: Number(input.epMax ?? 10),
       odMax: Number(input.epOdMax ?? 20),
     };
+
+    const rawDpState =
+      input?.dpState && typeof input.dpState === 'object' ? input.dpState : input;
+    this.dpState = createDpState({
+      baseMaxDp: rawDpState.baseMaxDp,
+      currentDp: rawDpState.currentDp ?? rawDpState.initialCurrentDp ?? rawDpState.initialDp,
+      effectiveDpCap: rawDpState.effectiveDpCap,
+    });
 
     this.tokenState = {
       current: Number(input.initialToken ?? 0),
@@ -519,6 +528,30 @@ export class CharacterStyle {
       endEP,
       eventCeiling,
     };
+  }
+
+  setDpState(nextState = {}) {
+    const startDpState = cloneDpState(this.dpState);
+    const endDpState = createDpState({
+      ...this.dpState,
+      ...(nextState && typeof nextState === 'object' ? nextState : {}),
+    });
+    this.dpState.baseMaxDp = endDpState.baseMaxDp;
+    this.dpState.currentDp = endDpState.currentDp;
+    this.dpState.effectiveDpCap = endDpState.effectiveDpCap;
+    this.dpState.minDp = endDpState.minDp;
+    this._revision += 1;
+
+    return {
+      startDpState,
+      endDpState: cloneDpState(this.dpState),
+      startDpRate: getDpRate(startDpState),
+      endDpRate: getDpRate(this.dpState),
+    };
+  }
+
+  getDpRate() {
+    return getDpRate(this.dpState);
   }
 
   applyTokenDelta(delta, eventCeiling = this.tokenState.max) {
@@ -886,6 +919,7 @@ export class CharacterStyle {
       normalAttackElements: [...this.normalAttackElements],
       sp: { ...this.sp },
       ep: { ...this.ep },
+      dpState: cloneDpState(this.dpState),
       tokenState: { ...this.tokenState },
       moraleState: { ...this.moraleState },
       motivationState: { ...this.motivationState },

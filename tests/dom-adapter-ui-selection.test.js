@@ -650,6 +650,12 @@ test('selection state can be saved and loaded from localStorage slots', () => {
     `[data-role="start-sp-equip-select"][data-slot="${slot}"]`
   );
   const motivationSelect = root.querySelector(`[data-role="motivation-select"][data-slot="${slot}"]`);
+  const initialDpCurrentInput = root.querySelector(
+    `[data-role="initial-dp-current-input"][data-slot="${slot}"]`
+  );
+  const initialDpCapInput = root.querySelector(
+    `[data-role="initial-dp-cap-input"][data-slot="${slot}"]`
+  );
   const saveSlotSelect = root.querySelector('[data-role="selection-slot-select"]');
 
   characterSelect.value = 'RKayamori';
@@ -662,6 +668,10 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   driveSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
   startSpEquipSelect.value = '3';
   startSpEquipSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  initialDpCurrentInput.value = '91';
+  initialDpCurrentInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+  initialDpCapInput.value = '105';
+  initialDpCapInput.dispatchEvent(new win.Event('change', { bubbles: true }));
   const selectedStyleId = Number(styleSelect.value);
   store.listPassivesByStyleId = (styleId, options = {}) => {
     const list = originalListPassivesByStyleId(styleId, options);
@@ -705,6 +715,8 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   assert.equal(driveSelect.value, '12');
   assert.equal(startSpEquipSelect.value, '3');
   assert.equal(motivationSelect.value, '5');
+  assert.equal(initialDpCurrentInput.value, '91');
+  assert.equal(initialDpCapInput.value, '105');
   if (target) {
     const restored = [...root.querySelectorAll(`[data-role="skill-check"][data-slot="${slot}"]`)].find(
       (box) => (box.closest('label')?.textContent ?? '').includes('エクシード・ルミナンス')
@@ -716,6 +728,7 @@ test('selection state can be saved and loaded from localStorage slots', () => {
   assert.ok(preview.includes('savedAt:'), 'preview should show saved timestamp');
   assert.ok(preview.includes('P1:'), 'preview should show party lines');
   assert.ok(preview.includes('Motivation=絶好調(5)'), 'preview should include saved motivation');
+  assert.ok(preview.includes('DP=91/70 Cap=105'), 'preview should include saved DP state');
   const summary = root.querySelector('[data-role="selection-summary"]').textContent ?? '';
   assert.ok(summary.includes('やる気=絶好調(5)'), 'summary should include selected motivation');
 });
@@ -747,15 +760,35 @@ test('initialize battle applies selected motivation and preserves it in turn pla
 
   const motivation0 = root.querySelector('[data-role="motivation-select"][data-slot="0"]');
   const motivation1 = root.querySelector('[data-role="motivation-select"][data-slot="1"]');
+  const initialDpCurrent0 = root.querySelector('[data-role="initial-dp-current-input"][data-slot="0"]');
+  const initialDpCap0 = root.querySelector('[data-role="initial-dp-cap-input"][data-slot="0"]');
+  const initialDpCurrent1 = root.querySelector('[data-role="initial-dp-current-input"][data-slot="1"]');
+  const initialDpCap1 = root.querySelector('[data-role="initial-dp-cap-input"][data-slot="1"]');
   motivation0.value = '5';
   motivation0.dispatchEvent(new win.Event('change', { bubbles: true }));
   motivation1.value = '1';
   motivation1.dispatchEvent(new win.Event('change', { bubbles: true }));
+  initialDpCurrent0.value = '84';
+  initialDpCurrent0.dispatchEvent(new win.Event('change', { bubbles: true }));
+  initialDpCap0.value = '98';
+  initialDpCap0.dispatchEvent(new win.Event('change', { bubbles: true }));
+  initialDpCurrent1.value = '17';
+  initialDpCurrent1.dispatchEvent(new win.Event('change', { bubbles: true }));
+  initialDpCap1.value = '50';
+  initialDpCap1.dispatchEvent(new win.Event('change', { bubbles: true }));
 
   adapter.initializeBattle();
 
   assert.equal(adapter.party.members[0].motivationState.current, 5);
   assert.equal(adapter.party.members[1].motivationState.current, 1);
+  assert.equal(adapter.party.members[0].dpState.currentDp, 84);
+  assert.equal(adapter.party.members[0].dpState.effectiveDpCap, 98);
+  assert.equal(adapter.party.members[1].dpState.currentDp, 17);
+  assert.equal(adapter.party.members[1].dpState.effectiveDpCap, 50);
   assert.equal(adapter.turnPlanBaseSetup.initialMotivationByPartyIndex['0'], 5);
   assert.equal(adapter.turnPlanBaseSetup.initialMotivationByPartyIndex['1'], 1);
+  assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].currentDp, 84);
+  assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['0'].effectiveDpCap, 98);
+  assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['1'].currentDp, 17);
+  assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['1'].effectiveDpCap, 50);
 });

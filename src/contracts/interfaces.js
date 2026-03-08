@@ -1,4 +1,5 @@
 import { DEFAULT_DESTRUCTION_RATE_PERCENT, DEFAULT_ENEMY_COUNT } from '../config/battle-defaults.js';
+import { cloneDpState } from '../domain/dp-state.js';
 
 export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
 export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
@@ -31,6 +32,7 @@ export function toCharacterSnapshot(character) {
     normalAttackElements: Object.freeze([...(character.normalAttackElements ?? [])]),
     sp: Object.freeze({ ...character.sp }),
     ep: Object.freeze({ ...character.ep }),
+    dpState: Object.freeze(cloneDpState(character.dpState ?? {})),
     tokenState: Object.freeze({ ...(character.tokenState ?? { current: 0, min: 0, max: 10 }) }),
     moraleState: Object.freeze({ ...(character.moraleState ?? { current: 0, min: 0, max: 10 }) }),
     motivationState: Object.freeze({ ...(character.motivationState ?? { current: 0, min: 0, max: 5 }) }),
