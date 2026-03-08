@@ -43,6 +43,17 @@ test('turn preview and commit work with revision guard', () => {
   assert.throws(() => commitTurn(nextState, preview), /State changed after preview/);
 });
 
+test('commitTurn throws when called with null preview (no prior previewTurn)', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  const state = createBattleStateFromParty(party);
+
+  assert.throws(() => commitTurn(state, null), /commitTurn requires preview TurnRecord/);
+  assert.throws(() => commitTurn(state, undefined), /commitTurn requires preview TurnRecord/);
+  assert.throws(() => commitTurn(state, { recordStatus: 'committed' }), /commitTurn requires preview TurnRecord/);
+});
+
 test('preview/commit records can be stored and reindexed', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);

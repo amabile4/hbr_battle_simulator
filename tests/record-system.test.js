@@ -13,6 +13,22 @@ import {
 } from '../src/index.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
+function makeSimpleRecord(turnId, turnType, turnIndex, turnLabel) {
+  return {
+    turnId,
+    turnIndex,
+    turnType,
+    turnLabel,
+    odTurnLabelAtStart: '',
+    odContext: '',
+    odGaugeAtStart: 0,
+    enemyAction: '',
+    snapBefore: [],
+    snapAfter: [],
+    actions: [],
+  };
+}
+
 function buildFrontActionDict(party) {
   return Object.fromEntries(
     party.getFrontline().map((member) => {
@@ -323,6 +339,147 @@ test('csv enemyAction cell includes active enemy status summary for debugging', 
 
   const row = CsvExporter.recordToRow(record, initialParty);
   assert.equal(row[7], 'DownTurn:E1(1)');
+});
+
+// A群: insertBefore 境界テスト
+test('insertBefore inserts at head when target is the first turnId', () => {
+  let battleStore = createBattleRecordStore();
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(1, 'normal', 1, 'T1'));
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(2, 'normal', 2, 'T2'));
+
+  const newRecord = makeSimpleRecord(999, 'extra', 0, 'EX');
+  battleStore = RecordEditor.insertBefore(battleStore, 1, newRecord);
+
+  assert.equal(battleStore.records.length, 3);
+  assert.equal(battleStore.records[0].turnId, 1);
+  assert.equal(battleStore.records[0].turnType, 'extra');
+  assert.equal(battleStore.records[1].turnId, 2);
+  assert.equal(battleStore.records[1].turnType, 'normal');
+});
+
+test('insertBefore throws when target turnId does not exist', () => {
+  let battleStore = createBattleRecordStore();
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(1, 'normal', 1, 'T1'));
+
+  assert.throws(
+    () => RecordEditor.insertBefore(battleStore, 999, makeSimpleRecord(999, 'extra', 1, 'EX')),
+    /Target turnId not found/
+  );
+});
+
+// A群: cascade 削除テスト
+test('deleteRecord with cascade removes linked od and extra records sharing the same turnIndex', () => {
+  let battleStore = createBattleRecordStore();
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(1, 'normal', 1, 'T1'));
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(2, 'od', 1, 'OD1'));
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(3, 'extra', 1, 'EX'));
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(4, 'normal', 2, 'T2'));
+
+  assert.equal(battleStore.records.length, 4);
+
+  // OD を cascade 削除 → 同じ turnIndex=1 の normal・extra も消える
+  battleStore = RecordEditor.deleteRecord(battleStore, 2, { cascade: true });
+
+  assert.equal(battleStore.records.length, 1);
+  assert.equal(battleStore.records[0].turnType, 'normal');
+  assert.equal(battleStore.records[0].turnLabel, 'T1');
+});
+
+// A群: reindexTurnLabels 混在テスト
+test('reindexTurnLabels produces correct labels for normal/od/extra/normal/od sequence', () => {
+  let battleStore = createBattleRecordStore();
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(1, 'normal', 0, ''));
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(2, 'od', 0, ''));
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(3, 'extra', 0, ''));
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(4, 'normal', 0, ''));
+  battleStore = RecordEditor.upsertRecord(battleStore, makeSimpleRecord(5, 'od', 0, ''));
+
+  battleStore = RecordEditor.reindexTurnLabels(battleStore);
+
+  const labels = battleStore.records.map((r) => r.turnLabel);
+  assert.deepEqual(labels, ['T1', 'OD1', 'EX', 'T2', 'OD1']);
+
+  const turnIndexes = battleStore.records.map((r) => r.turnIndex);
+  assert.deepEqual(turnIndexes, [1, 1, 1, 2, 2]);
+});
+
+// A群: 0件レコードCSV出力
+test('csv exporter with empty record store outputs header line only', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  const state = createBattleStateFromParty(party);
+
+  const emptyStore = createBattleRecordStore();
+  const csv = CsvExporter.exportToCSV(emptyStore, state.initialParty);
+
+  const rows = csv.trim().split('\n').filter((r) => r.trim() !== '');
+  assert.equal(rows.length, 1, 'should have header row only');
+  assert.ok(rows[0].includes('seq,turn'), 'header should include fixed columns');
+  const firstName = state.initialParty.find((p) => p.partyIndex === 0).characterName;
+  assert.ok(rows[0].includes(`${firstName}_startSP`), 'header should include character columns');
+});
+
+// B群: swap後もCSV列が初期パーティーインデックス固定
+test('csv column order stays fixed by initial partyIndex after party swap', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+
+  // partyIndex=0 と partyIndex=3 のキャラクター名を記録しておく（swap 前）
+  const nameAtPartyIndex0 = party.members.find((m) => m.partyIndex === 0).characterName;
+  const nameAtPartyIndex3 = party.members.find((m) => m.partyIndex === 3).characterName;
+
+  // swap position 0 ↔ position 3（party オブジェクトに対して呼ぶ）
+  party.swap(0, 3);
+
+  // swap 後に state を作成 → initialParty は partyIndex 順でスナップショットされる
+  const state = createBattleStateFromParty(party);
+
+  // swap後の前衛（position < 3）でアクションを組み立てる
+  const frontActions = Object.fromEntries(
+    state.party
+      .filter((m) => m.position < 3)
+      .map((m) => [String(m.position), { characterId: m.characterId, skillId: m.skills[0].skillId }])
+  );
+  const preview = previewTurn(state, frontActions);
+  const { committedRecord } = commitTurn(state, preview);
+
+  let battleStore = createBattleRecordStore();
+  battleStore = RecordEditor.upsertRecord(battleStore, committedRecord);
+
+  const csv = CsvExporter.exportToCSV(battleStore, state.initialParty);
+  const header = csv.split('\n')[0].split(',');
+
+  const idx0Col = header.indexOf(`${nameAtPartyIndex0}_startSP`);
+  const idx3Col = header.indexOf(`${nameAtPartyIndex3}_startSP`);
+
+  assert.ok(idx0Col >= 0, 'partyIndex=0 character column must exist');
+  assert.ok(idx3Col >= 0, 'partyIndex=3 character column must exist');
+  assert.ok(idx0Col < idx3Col, 'partyIndex=0 column must appear before partyIndex=3 column');
+});
+
+// B群: Infinity値のJSON出力→文字列'Infinity'確認と数値復元
+test('json exporter serializes Infinity eventCeiling as string and it restores to numeric Infinity', () => {
+  const store = getStore();
+  const styleIds = getSixUsableStyleIds(store);
+  const party = store.buildPartyFromStyleIds(styleIds, { initialSP: 10 });
+  const state = createBattleStateFromParty(party);
+
+  // state.party は配列なので position で絞り込む
+  const frontlineMember = state.party.find((m) => m.position === 0);
+  const preview = previewTurn(state, {
+    0: { characterId: frontlineMember.characterId, skillId: frontlineMember.skills[0].skillId },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  let battleStore = createBattleRecordStore();
+  battleStore = RecordEditor.upsertRecord(battleStore, committedRecord);
+  const payload = JSON.parse(JsonExporter.exportToJSON(battleStore, {}));
+
+  const eventCeiling = payload.recordStore.records[0].actions[0].spChanges[0].eventCeiling;
+  assert.equal(eventCeiling, 'Infinity', 'exported value must be the string "Infinity"');
+  assert.equal(Number(eventCeiling), Number.POSITIVE_INFINITY, 'string "Infinity" must convert back to numeric Infinity');
 });
 
 test('csv action cell shows SP 0 for Tezuka skills during reinforced mode', () => {

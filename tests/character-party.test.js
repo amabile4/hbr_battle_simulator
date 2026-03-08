@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import { applySpChange, CharacterStyle } from '../src/index.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
+test('applySpChange clamps to negative min when SP goes below zero (minus-SP passive)', () => {
+  // SP が min 未満まで消費されようとするとき、min でクランプされる
+  assert.equal(applySpChange(3, -10, -5, 20), -5, 'should clamp to min=-5');
+  assert.equal(applySpChange(0, -3, -5, 20), -3, 'SP from 0 to -3 is within min=-5');
+  assert.equal(applySpChange(-3, -3, -5, 20), -5, 'SP from -3 to -6 clamps at min=-5');
+});
+
+test('applySpChange freeze rule does not apply during negative-SP recovery', () => {
+  // current=-3, delta=+5, min=-5, ceiling=20 → effectiveCeiling=max(-3,20)=20 → -3+5=2
+  assert.equal(applySpChange(-3, 5, -5, 20), 2);
+  // current=18, delta=+5, min=-5, ceiling=20 → effectiveCeiling=max(18,20)=20 → 20 (freeze)
+  assert.equal(applySpChange(18, 5, -5, 20), 20);
+});
+
 test('applySpChange follows freeze rule for positive delta', () => {
   const current = 25;
   const next = applySpChange(current, 5, 0, 20);

@@ -6864,3 +6864,131 @@ test('commitTurn applies OnBattleWin HealDpRate passive to matching allies', () 
     true
   );
 });
+
+// C群: IceMarkLevel パッシブテスト
+test('IceMarkLevel condition can trigger passives from current ice mark state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          markStates: {
+            Ice: { current: 6, min: 0, max: 6 },
+          },
+          passives: [
+            {
+              id: 18700,
+              name: 'Ice Mark Passive',
+              timing: 'OnEveryTurn',
+              condition: 'IceMarkLevel()>=6',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  assert.equal(result.spEvents.length, 1);
+  assert.equal(result.spEvents[0]?.characterId, 'M1');
+  assert.equal(result.spEvents[0]?.delta, 3);
+});
+
+test('IceMarkLevel condition does not trigger when ice mark is below threshold', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          markStates: {
+            Ice: { current: 5, min: 0, max: 6 },
+          },
+          passives: [
+            {
+              id: 18701,
+              name: 'Ice Mark Passive',
+              timing: 'OnEveryTurn',
+              condition: 'IceMarkLevel()>=6',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  assert.equal(result.spEvents.length, 0, 'passive should not fire when ice mark < 6');
+});
+
+// C群: OnOverdriveStart タイミングテスト
+test('OnOverdriveStart passive with IsFront condition fires for frontline members via applyPassiveTiming', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 18710,
+              name: 'OD Start Passive',
+              timing: 'OnOverdriveStart',
+              condition: 'IsFront()',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [5, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // M1 は position=0（前衛）なので IsFront() が成立する
+  const result = applyPassiveTiming(state, 'OnOverdriveStart');
+
+  assert.equal(result.spEvents.length, 1, 'frontline member should gain SP');
+  assert.equal(result.spEvents[0]?.characterId, 'M1');
+  assert.equal(result.spEvents[0]?.delta, 5);
+});
+
+test('OnOverdriveStart passive does not fire for backline member with IsFront condition', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 3
+      ? {
+          passives: [
+            {
+              id: 18711,
+              name: 'OD Start Passive',
+              timing: 'OnOverdriveStart',
+              condition: 'IsFront()',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [5, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // M4 は position=3（後衛）なので IsFront() が不成立
+  const result = applyPassiveTiming(state, 'OnOverdriveStart');
+
+  assert.equal(result.spEvents.length, 0, 'backline member should not gain SP with IsFront condition');
+});
+
+test('OnOverdriveStart passive does not fire on non-OD timing (OnPlayerTurnStart)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 18712,
+              name: 'OD Start Only Passive',
+              timing: 'OnOverdriveStart',
+              condition: '',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // OnPlayerTurnStart では OnOverdriveStart タイミングの passive は発動しない
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents.length, 0, 'OnOverdriveStart passive must not fire on OnPlayerTurnStart');
+});
