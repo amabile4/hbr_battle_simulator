@@ -3532,6 +3532,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   resetTurnPlanReplayResults() {
     this.recordStore = createBattleRecordStore();
     this.turnPlanComputedRecords = [];
+    this.resetTurnPlanReplayDiagnostics();
+  }
+
+  resetTurnPlanReplayDiagnostics() {
     this.turnPlanReplayError = null;
     this.turnPlanReplayWarnings = [];
   }
@@ -3618,13 +3622,16 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   replayTurnPlansBeforeIndex(limitExclusive, mode) {
     const limit = Math.max(0, Number(limitExclusive ?? 0));
+    this.resetTurnPlanReplayDiagnostics();
     for (let i = 0; i < limit; i += 1) {
-      const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[i]);
-      this.applyScenarioTurn(turn, {
-        mode: 'commit',
-        recalcMode: mode,
-        commitOptions: this.buildTurnPlanReplayCommitOptions(mode),
-      });
+      const result = this.replayTurnPlanAtIndex(i, mode);
+      if (!result.shouldStop) {
+        continue;
+      }
+      const message = String(
+        this.turnPlanReplayError?.message ?? `Turn ${i + 1} replay failed.`
+      );
+      throw new Error(`編集用TurnPlan再生に失敗: Turn ${i + 1} / ${message}`);
     }
   }
 

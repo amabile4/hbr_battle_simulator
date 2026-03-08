@@ -507,6 +507,51 @@ test('turn plan force recalculation allows OD gauge deficit and continues', () =
   assert.equal(Number(adapter.state.turnState.odGauge) < 0, true);
 });
 
+test('turn plan edit staging in force mode replays earlier invalid turns via shared fallback', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.turnPlans.length, 2);
+
+  root.querySelector('[data-role="turn-plan-recalc-mode"]').value = 'force';
+  const originalReplayTurnPlanTurn = adapter.replayTurnPlanTurn;
+  let replayCount = 0;
+  adapter.replayTurnPlanTurn = function replayTurnPlanTurnWithFailure(...args) {
+    if (replayCount === 0) {
+      replayCount += 1;
+      throw new Error('forced prior replay failure');
+    }
+    replayCount += 1;
+    return originalReplayTurnPlanTurn.apply(this, args);
+  };
+
+  const editButton = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(2) [data-action="turn-plan-edit-row"]'
+  );
+  assert.ok(editButton);
+  try {
+    editButton.click();
+  } finally {
+    adapter.replayTurnPlanTurn = originalReplayTurnPlanTurn;
+  }
+
+  assert.equal(adapter.turnPlanEditSession?.type, 'edit');
+  assert.equal(adapter.turnPlanEditSession?.targetIndex, 1);
+  assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Turn 2 を編集中です。');
+  assert.equal(
+    adapter.turnPlanReplayWarnings[0]?.some((warning) =>
+      String(warning).includes('force fallback: forced prior replay failure')
+    ),
+    true
+  );
+});
+
 test('turn plan replay resolves swaps by character reference', () => {
   const store = getStore();
   const { root } = createRoot();
