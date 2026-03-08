@@ -45,19 +45,19 @@
 
 | ID | 状態 | 概要 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|----------|--------------|------------|------|
-| `P7-001` | `done` | `OnPlayerTurnStart` の DP 条件パッシブを接続する | `DpRate()` 条件つき passive が turn start pipeline で反映される | pending | `npm test` | `applyInitialPassiveState()` と turn start pipeline で `HealDpRate` / `ReviveDpRate` を扱えるようにした |
-| `P7-002` | `done` | `OnEnemyTurnStart` の DP 条件パッシブを接続する | base turn 境界で DP 条件 passive が反映される | pending | `npm test` | base turn 境界の `dp_passive` が `committedRecord.passiveEvents` と `committedRecord.dpEvents` に残る |
-| `P7-003` | `done` | `OnEveryTurn` の DP 条件パッシブを接続する | `OnPlayerTurnStart` と区別を崩さずに `OnEveryTurn` が反映される | pending | `npm test` | passive timing の記録責務を維持したまま `dpEvents` を追加 |
-| `P7-004` | `done` | `OnBattleWin` の DP 回復系パッシブを接続する | battle win 境界で DP 回復イベントと passive log が成立する | pending | `npm test` | DP 回復量の扱いは Phase 4 方針を維持 |
-| `P7-005` | `done` | Phase 7 回帰テストを追加する | timing 別の DP 条件 passive と DP 回復起点が再現される | pending | `npm test` | `プロテクション` を no-op 代替として使う規約は維持 |
-| `P7-006` | `done` | Phase 7 完了後に active docs を更新する | `dp_implementation_plan.md` と `passive_implementation_tasklist.md` の進捗が一致する | pending | `npm test` | `docs/README.md` の DP plan ステータスも完了へ更新する |
+| `P7-001` | `done` | `OnPlayerTurnStart` の DP 条件パッシブを接続する | `DpRate()` 条件つき passive が turn start pipeline で反映される | `ca4cc72` | `npm test` | `applyInitialPassiveState()` と turn start pipeline で `HealDpRate` / `ReviveDpRate` を扱えるようにした |
+| `P7-002` | `done` | `OnEnemyTurnStart` の DP 条件パッシブを接続する | base turn 境界で DP 条件 passive が反映される | `ca4cc72` | `npm test` | base turn 境界の `dp_passive` が `committedRecord.passiveEvents` と `committedRecord.dpEvents` に残る |
+| `P7-003` | `done` | `OnEveryTurn` の DP 条件パッシブを接続する | `OnPlayerTurnStart` と区別を崩さずに `OnEveryTurn` が反映される | `ca4cc72` | `npm test` | passive timing の記録責務を維持したまま `dpEvents` を追加 |
+| `P7-004` | `done` | `OnBattleWin` の DP 回復系パッシブを接続する | battle win 境界で DP 回復イベントと passive log が成立する | `ca4cc72` | `npm test` | DP 回復量の扱いは Phase 4 方針を維持 |
+| `P7-005` | `done` | Phase 7 回帰テストを追加する | timing 別の DP 条件 passive と DP 回復起点が再現される | `ca4cc72` | `npm test` | `プロテクション` を no-op 代替として使う規約は維持 |
+| `P7-006` | `done` | Phase 7 完了後に active docs を更新する | `dp_implementation_plan.md` と `passive_implementation_tasklist.md` の進捗が一致する | `ca4cc72` | `npm test` | `docs/README.md` の DP plan ステータスも完了へ更新する |
 
 ## P2: テスト不足の補完
 
 | ID | 状態 | 概要 | 出典 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|------|----------|--------------|------------|------|
-| `T-001` | `todo` | `damage-calculation-context.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | 専用テストファイルで境界値を直接確認できる | - | - | Phase 7 の blocker ではない |
-| `T-002` | `todo` | `adapter-core.js` / `battle-adapter-facade.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | DOM に依存しないロジックを分離して検証できる | - | - | dom-adapter 統合テスト偏重の緩和 |
+| `T-001` | `done` | `damage-calculation-context.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | 専用テストファイルで境界値を直接確認できる | pending | `npm test` | `tests/damage-calculation-context.test.js` を新設し、`test:quick` に組み込んだ |
+| `T-002` | `done` | `adapter-core.js` / `battle-adapter-facade.js` の単体テストを追加する | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) | DOM に依存しないロジックを分離して検証できる | pending | `npm test` | swap 制約、`preserveTurnPlans` 分岐、turn-plan capture を DOM なしで固定した |
 | `T-003` | `deferred` | fixture または `maxCandidates` による dom-adapter テスト高速化 | [07_test_data_shrink_study.md](../20260308_code-review/07_test_data_shrink_study.md) | 高速化方式を選定し、`test:dom` と組み合わせて運用できる | - | - | Phase 7 後の検討対象 |
 | `T-004` | `deferred` | 実データ未カバーのメカニクスカテゴリテストを補完する | [08_test_coverage_from_real_data.md](../20260308_code-review/08_test_coverage_from_real_data.md) | EP / SP量条件 / Morale / 後衛条件の不足分を追加 | - | - | 追加テストはカテゴリ単位で増やす |
 
@@ -78,3 +78,5 @@
 - 2026-03-08: follow-up 用 active タスクリストを新設。レビュー本文は snapshot として固定し、今後の対応状況はこの文書で追跡する方針を確定。
 - 2026-03-08: P0 として `test:quick` / `test:dom` / `test:dom:full` を導入。日常反復では `test:quick` を基本にし、DOM を触った時だけ `test:dom` を追加、PR 前に `test:dom:full` または `npm test` を回す。
 - 2026-03-08: Phase 7 で passive 起点の `dpEvents` を turn start / boundary timing に接続。`OnPlayerTurnStart` / `OnEveryTurn` / `OnEnemyTurnStart` / `OnBattleWin` の DP 条件 passive を実装し、unsupported passive log の誤混入も同時に修正した。
+- 2026-03-08: `damage-calculation-context.js` の専用テストを追加。defaults、`targetEnemyIndex` の null-safe 正規化、`eligibleEnemyIndexes` のフィルタ、`funnelEffects` clone を直接固定した。
+- 2026-03-08: `adapter-core.js` / `battle-adapter-facade.js` の単体テストを追加。swap の EX 制約、`preserveTurnPlans` の reset/preserve 分岐、commit 時の turn-plan capture を DOM なしで検証できるようにした。

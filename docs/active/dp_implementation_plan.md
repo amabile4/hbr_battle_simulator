@@ -124,7 +124,7 @@
 - DP状態は `snapshot / record / turnPlan / scenario` まで保存されるようになり、再計算・再生で引き継げる
 - `RegenerationDp` の statusEffect も snapshot / record 経由で引き継げるようになった
 - 合意どおり `HealDp` / `ReviveDp` / `HealDpByDamage` の厳密量解釈は仕様留保のまま、trigger と状態遷移の成立を優先して完了扱いとする
-- 検証時点では非 E2E テスト 285 件が通過している
+- 検証時点では非 E2E テスト 294 件が通過している
 
 ## Phase 1: 状態モデル
 
