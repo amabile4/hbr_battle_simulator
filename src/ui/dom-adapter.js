@@ -3481,6 +3481,54 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.commitCurrentTurn(this.buildTurnPlanReplayCommitOptions('force'));
   }
 
+  resetTurnPlanReplayResults() {
+    this.recordStore = createBattleRecordStore();
+    this.turnPlanComputedRecords = [];
+    this.turnPlanReplayError = null;
+    this.turnPlanReplayWarnings = [];
+  }
+
+  replayTurnPlanAtIndex(index, mode) {
+    const warnings = [];
+    this.turnPlanReplayWarnings[index] = warnings;
+    const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[index]);
+    try {
+      this.replayTurnPlanTurn(turn, mode, warnings);
+      return { applied: 1, shouldStop: false };
+    } catch (error) {
+      this.turnPlanReplayError = { index, message: error.message, mode };
+      if (mode === 'force') {
+        warnings.push(`force fallback: ${error.message}`);
+        try {
+          this.attemptForceTurnPlanFallback();
+          this.turnPlanReplayError = null;
+          return { applied: 1, shouldStop: false };
+        } catch (fallbackError) {
+          warnings.push(`force fallback failed: ${fallbackError.message}`);
+          this.turnPlanReplayError = { index, message: fallbackError.message, mode };
+        }
+      }
+      return { applied: 0, shouldStop: true };
+    }
+  }
+
+  finalizeTurnPlanReplay(applied, mode) {
+    this.turnPlanComputedRecords = [...this.recordStore.records];
+    if (this.turnPlanReplayError) {
+      const turnId = this.turnPlanReplayError.index + 1;
+      this.setStatus(`再計算停止: Turn ${turnId} / ${this.turnPlanReplayError.message}`);
+      return;
+    }
+
+    const warningCount = this.turnPlanReplayWarnings.reduce(
+      (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+      0
+    );
+    this.setStatus(
+      `再計算完了: ${applied}/${this.turnPlans.length} turns (${mode}${warningCount > 0 ? ` / warnings=${warningCount}` : ''})`
+    );
+  }
+
   setDomValue(selector, value) {
     this.view.setDomValue(selector, value);
   }
@@ -5686,10 +5734,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const mode = String(options.mode ?? this.getTurnPlanRecalcModeFromDom()) === 'force' ? 'force' : 'strict';
     this.turnPlanRecalcMode = mode;
     if (!Array.isArray(this.turnPlans) || this.turnPlans.length === 0) {
-      this.recordStore = createBattleRecordStore();
-      this.turnPlanComputedRecords = [];
-      this.turnPlanReplayError = null;
-      this.turnPlanReplayWarnings = [];
+      this.resetTurnPlanReplayResults();
       this.renderRecordTable();
       this.renderTurnPlanEditControls();
       this.setStatus('再計算対象のTurnPlanがありません。');
@@ -5699,48 +5744,16 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.isReplayingTurnPlans = true;
     try {
       this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
-      this.recordStore = createBattleRecordStore();
-      this.turnPlanComputedRecords = [];
-      this.turnPlanReplayError = null;
-      this.turnPlanReplayWarnings = [];
+      this.resetTurnPlanReplayResults();
       let applied = 0;
       for (let i = 0; i < this.turnPlans.length; i += 1) {
-        const warnings = [];
-        this.turnPlanReplayWarnings[i] = warnings;
-        const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[i]);
-        try {
-          this.replayTurnPlanTurn(turn, mode, warnings);
-          applied += 1;
-        } catch (error) {
-          this.turnPlanReplayError = { index: i, message: error.message, mode };
-          if (mode === 'force') {
-            warnings.push(`force fallback: ${error.message}`);
-            try {
-              this.attemptForceTurnPlanFallback();
-              this.turnPlanReplayError = null;
-              applied += 1;
-              continue;
-            } catch (fallbackError) {
-              warnings.push(`force fallback failed: ${fallbackError.message}`);
-              this.turnPlanReplayError = { index: i, message: fallbackError.message, mode };
-            }
-          }
+        const result = this.replayTurnPlanAtIndex(i, mode);
+        applied += result.applied;
+        if (result.shouldStop) {
           break;
         }
       }
-      this.turnPlanComputedRecords = [...this.recordStore.records];
-      if (this.turnPlanReplayError) {
-        const turnId = this.turnPlanReplayError.index + 1;
-        this.setStatus(`再計算停止: Turn ${turnId} / ${this.turnPlanReplayError.message}`);
-      } else {
-        const warningCount = this.turnPlanReplayWarnings.reduce(
-          (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
-          0
-        );
-        this.setStatus(
-          `再計算完了: ${applied}/${this.turnPlans.length} turns (${mode}${warningCount > 0 ? ` / warnings=${warningCount}` : ''})`
-        );
-      }
+      this.finalizeTurnPlanReplay(applied, mode);
     } finally {
       this.isReplayingTurnPlans = false;
       this.renderActionSelectors();
