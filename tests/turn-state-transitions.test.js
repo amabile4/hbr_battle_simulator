@@ -220,9 +220,84 @@ test('TokenSetByHealedDp grants token when DP heal skill targets the member', ()
 
   const target = nextState.party.find((item) => item.characterId === 'M2');
   assert.equal(target.tokenState.current, 1);
+  const actorEntry = committedRecord.actions.find((item) => item.characterId === 'M1');
+  assert.equal(
+    actorEntry.dpChanges.some(
+      (item) =>
+        item.triggerType === 'DirectDpHeal' &&
+        item.skillType === 'HealDp' &&
+        item.targetCharacterId === 'M2' &&
+        item.isAmountResolved === false
+    ),
+    true
+  );
   const committed = committedRecord.actions.find((item) => item.characterId === 'M2');
   assert.equal(
     committed.tokenChanges.some((item) => item.triggerType === 'TokenSetByHealedDp' && item.delta === 1),
+    true
+  );
+});
+
+test('HealDpRate updates DP current/cap and records direct DP heal change', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 18122,
+            name: 'DP Rate Heal',
+            sp_cost: 0,
+            parts: [{ skill_type: 'HealDpRate', target_type: 'AllySingle', power: [0.1, 0], value: [1.2, 0] }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        dpState: {
+          baseMaxDp: 100,
+          currentDp: 40,
+          effectiveDpCap: 100,
+        },
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18122, targetCharacterId: 'M2' },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  const target = nextState.party.find((item) => item.characterId === 'M2');
+  assert.equal(target.dpState.currentDp, 50);
+  assert.equal(target.dpState.effectiveDpCap, 120);
+  const actorEntry = committedRecord.actions.find((item) => item.characterId === 'M1');
+  assert.equal(
+    actorEntry.dpChanges.some(
+      (item) =>
+        item.triggerType === 'DirectDpHeal' &&
+        item.skillType === 'HealDpRate' &&
+        item.targetCharacterId === 'M2' &&
+        item.delta === 10 &&
+        item.preDp === 40 &&
+        item.postDp === 50 &&
+        item.postDpCap === 120 &&
+        item.isAmountResolved === true
+    ),
+    true
+  );
+  assert.equal(
+    committedRecord.dpEvents.some(
+      (item) =>
+        item.triggerType === 'DirectDpHeal' &&
+        item.skillType === 'HealDpRate' &&
+        item.characterId === 'M2' &&
+        item.delta === 10
+    ),
     true
   );
 });
@@ -250,13 +325,34 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry1 = commit1.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 2);
+  assert.equal(actor.tokenState.current, 1);
   assert.equal(
     (entry1.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 1),
     true
   );
   assert.equal(
     (entry1.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSetByHealedDp' && item.delta === 1),
+    false
+  );
+  assert.equal(
+    (entry1.dpChanges ?? []).some(
+      (item) => item.triggerType === 'RegenerationDpGrant' && item.targetCharacterId === actor.characterId
+    ),
+    true
+  );
+  assert.equal(
+    (commit1.committedRecord.dpEvents ?? []).some(
+      (item) => item.triggerType === 'RegenerationDpTick' && item.characterId === actor.characterId
+    ),
+    true
+  );
+  const actorSnapAfterTurn1 = commit1.committedRecord.snapAfter.find(
+    (item) => item.characterId === actor.characterId
+  );
+  assert.equal(
+    (actorSnapAfterTurn1.statusEffects ?? []).some(
+      (item) => item.statusType === 'RegenerationDp' && item.exitCond === 'EnemyTurnEnd' && item.remaining === 3
+    ),
     true
   );
 
@@ -266,8 +362,14 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry2 = commit2.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 2);
+  assert.equal(actor.tokenState.current, 1);
   assert.equal(entry2, undefined);
+  assert.equal(
+    (commit2.committedRecord.dpEvents ?? []).some(
+      (item) => item.triggerType === 'RegenerationDpTick' && item.characterId === actor.characterId
+    ),
+    true
+  );
 
   const preview3 = previewTurn(state, {});
   const commit3 = commitTurn(state, preview3);
@@ -275,8 +377,79 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry3 = commit3.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 2);
+  assert.equal(actor.tokenState.current, 1);
   assert.equal(entry3, undefined);
+  assert.equal(
+    (commit3.committedRecord.dpEvents ?? []).some(
+      (item) => item.triggerType === 'RegenerationDpTick' && item.characterId === actor.characterId
+    ),
+    true
+  );
+});
+
+test('HealDpByDamage is tracked separately from direct DP heal triggers', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        passives: [
+          {
+            id: 18124,
+            name: '戦士の祝福',
+            timing: 'OnFirstBattleStart',
+            condition: '',
+            parts: [{ skill_type: 'TokenSetByHealedDp', target_type: 'Self', power: [1, 0] }],
+          },
+        ],
+        skills: [
+          {
+            id: 18123,
+            name: 'Shield Tornado',
+            sp_cost: 0,
+            target_type: 'All',
+            hit_count: 1,
+            parts: [
+              { skill_type: 'AttackSkill', target_type: 'All', type: 'Strike', power: [100, 0] },
+              { skill_type: 'HealDpByDamage', target_type: 'Self', power: [0.3, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 3;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18123 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  const actor = nextState.party.find((item) => item.characterId === 'M1');
+  assert.equal(actor.tokenState.current, 0);
+  const actorEntry = committedRecord.actions.find((item) => item.characterId === 'M1');
+  assert.equal(
+    actorEntry.dpChanges.some(
+      (item) =>
+        item.triggerType === 'HealDpByDamage' &&
+        item.skillType === 'HealDpByDamage' &&
+        item.targetCharacterId === 'M1' &&
+        item.delta === 0 &&
+        item.isAmountResolved === false
+    ),
+    true
+  );
+  assert.equal(
+    committedRecord.dpEvents.some(
+      (item) =>
+        item.triggerType === 'HealDpByDamage' &&
+        item.skillType === 'HealDpByDamage' &&
+        item.characterId === 'M1'
+    ),
+    true
+  );
 });
 
 test('Token() condition can trigger passives from current token state', () => {

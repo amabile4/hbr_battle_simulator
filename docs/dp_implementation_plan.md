@@ -109,10 +109,10 @@
 - Phase 1: 状態モデル
 - Phase 2: 手入力UI
 - Phase 3: 条件評価
+- Phase 4: DP回復スキル
 
 ### 未実装
 
-- Phase 4: DP回復スキル
 - Phase 5: DP自傷とDP依存スキル
 - Phase 6: Break関連
 - Phase 7: パッシブ接続
@@ -121,7 +121,8 @@
 
 - `DpRate()` はパッシブ条件だけでなく、`SkillCondition` と `CountBC(...)` 内のプレイヤー条件でも評価できるようになった
 - DP状態は `snapshot / record / turnPlan / scenario` まで保存されるようになり、再計算・再生で引き継げる
-- 検証時点では関連テスト 235 件が通過している
+- `RegenerationDp` の statusEffect も snapshot / record 経由で引き継げるようになった
+- 検証時点では非 E2E テスト 269 件が通過している
 
 ## Phase 1: 状態モデル
 
@@ -171,19 +172,28 @@
 
 ## Phase 4: DP回復スキル
 
-- [ ] `HealDp`
-- [ ] `HealDpRate`
-- [ ] `RegenerationDp`
-- [ ] `ReviveDp`
-- [ ] `HealDpByDamage`
-- [ ] 通常回復とオーバー回復付き回復を分離して扱う
-- [ ] スキルごとのオーバー回復上限を解釈する
+- [x] `HealDp`
+- [x] `HealDpRate`
+- [x] `RegenerationDp`
+- [x] `ReviveDp`
+- [x] `HealDpByDamage`
+- [x] 通常回復とオーバー回復付き回復を分離して扱う
+- [x] 継続回復状態付与と継続回復 tick を分離して扱う
+- [x] `TokenSetByHealedDp` を direct heal のみで判定する
+- [x] `record` / `snapshot` に DP回復イベント種別と再生状態を残す
+- [ ] `HealDp` / `ReviveDp` / `HealDpByDamage` の厳密回復量式
+- [ ] 全 skill_type のオーバー回復上限を厳密解釈する
 
 ### Phase 4メモ
 
-- `turn-controller` には `TokenSetByHealedDp` 用の検知経路が既にあるが、DP現在値更新にはまだ接続していない
+- `turn-controller` に DP回復イベント正規化を追加し、`HealDp / HealDpRate / ReviveDp` は `DirectDpHeal`、`RegenerationDp` は `RegenerationDpGrant` / `RegenerationDpTick`、`HealDpByDamage` は別イベントとして記録するようにした
+- action 起点の DP回復関連は `actions[].dpChanges` に、ターン境界 tick を含む全体履歴は `record.dpEvents` に残す
+- `RegenerationDp` は `statusEffects` へ保存し、`EnemyTurnEnd` で tick する
+- `TokenSetByHealedDp` は direct heal event のみ参照し、`RegenerationDp` 付与や `HealDpByDamage` では発火しない
+- `snapshotPartyByPartyIndex()` に `statusEffects` を載せ、record restore 時に `_nextStatusEffectId` も再計算するようにした
 - `HealDp` 系は `power` の単位解釈が未確定で、`style.base_param.dp` と直接整合しないため厳密実装は保留
-- `HealDpRate` は割合と cap の読み筋が比較的明確なので、Phase 4 着手時はここから入るのが安全
+- `HealDpRate` は `baseMaxDp` 比率回復 + `value[0]` による cap 拡張として扱う
+- `ReviveDp` は暫定で `DP0 -> 最小復帰値 1` を採用し、厳密量は未解釈のままにする
 - 2026-03-08 時点の Phase 4 完了条件は「DP回復量の厳密再現」ではなく、「DP回復が起きたという事実をシミュレータ内部で扱えること」に置き直す
 - このソフトの主要要求は
   - `TokenSetByHealedDp`
@@ -230,7 +240,7 @@
 - 既存 UI に DP 手入力があるため、量未解釈スキルは「トリガーは自動、数値は必要なら手補正」という運用が可能
 - `effect` 直下の `HealDp_Buff` 系や `SkillCondition` 分岐先も取りこぼすと trigger が抜けるため、Phase 4 では `parts` だけでなく実際の発火経路全体を正規化対象に含める
 - Phase 4 の完了判定案
-  - シンプルケースの直接 DP回復系 skill_type が action / passive timing の中で検知される
+  - シンプルケースの直接 DP回復系 skill_type が action 実行中に検知される
   - `RegenerationDp` は「状態付与」と「tick 回復」が別イベントとして管理される
   - `TokenSetByHealedDp` と DP回復起点パッシブがその検知結果を参照できる
   - `record` / scenario 再計算で「どの種別の DP回復関連イベントが起きたか」を保持できる

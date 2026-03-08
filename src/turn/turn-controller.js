@@ -6,7 +6,7 @@ import {
 } from '../contracts/interfaces.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
-import { getDpRate } from '../domain/dp-state.js';
+import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import {
   OD_RECOVERY_BY_LEVEL,
   OD_COST_BY_LEVEL,
@@ -40,6 +40,20 @@ const OD_DAMAGE_PART_TYPES = new Set([
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
 const ENEMY_STATUS_DEAD = 'Dead';
+const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp']));
+const DP_HEAL_SKILL_TYPES = Object.freeze(
+  new Set([...DIRECT_DP_HEAL_SKILL_TYPES, 'RegenerationDp', 'HealDpByDamage'])
+);
+const DP_EVENT_KINDS = Object.freeze({
+  DIRECT_HEAL: 'DirectDpHeal',
+  REGENERATION_GRANT: 'RegenerationDpGrant',
+  REGENERATION_TICK: 'RegenerationDpTick',
+  DAMAGE_BASED_HEAL: 'HealDpByDamage',
+});
+const DP_EVENT_SOURCE_SKILL = 'dp_skill';
+const DP_EVENT_SOURCE_REGENERATION = 'dp_regeneration';
+const DEFAULT_STATUS_EFFECT_REMAINING = 1;
+const DEFAULT_REVIVE_DP_FLOOR = 1;
 const MARK_LEVEL_CONDITION_TO_ELEMENT = Object.freeze({
   FireMarkLevel: 'Fire',
   IceMarkLevel: 'Ice',
@@ -1162,7 +1176,225 @@ function skillHasDamageParts(skill, state, actor) {
   return effectiveParts.some((part) => OD_DAMAGE_PART_TYPES.has(String(part?.skill_type ?? '').trim()));
 }
 
-function applyTokenEffectsFromActions(state, previewRecord) {
+function getDpEventKind(skillType) {
+  const normalized = String(skillType ?? '').trim();
+  if (DIRECT_DP_HEAL_SKILL_TYPES.has(normalized)) {
+    return DP_EVENT_KINDS.DIRECT_HEAL;
+  }
+  if (normalized === 'RegenerationDp') {
+    return DP_EVENT_KINDS.REGENERATION_GRANT;
+  }
+  if (normalized === 'HealDpByDamage') {
+    return DP_EVENT_KINDS.DAMAGE_BASED_HEAL;
+  }
+  return normalized;
+}
+
+function getDpHealCapForPart(target, part) {
+  const baseMaxDp = Number(target?.dpState?.baseMaxDp ?? 0);
+  const currentCap = Number(target?.dpState?.effectiveDpCap ?? baseMaxDp);
+  const capMultiplier = Number(part?.value?.[0] ?? 0);
+  if (!Number.isFinite(capMultiplier) || capMultiplier <= 0 || baseMaxDp <= 0) {
+    return currentCap;
+  }
+  return Math.max(currentCap, baseMaxDp * capMultiplier);
+}
+
+function createDpEvent({
+  actor,
+  target,
+  skill,
+  part,
+  triggerType,
+  source,
+  startDpState,
+  endDpState,
+  statusEffect = null,
+  isAmountResolved = false,
+}) {
+  const startState = cloneDpState(startDpState ?? target?.dpState ?? {});
+  const endState = cloneDpState(endDpState ?? target?.dpState ?? {});
+  return {
+    actorCharacterId: actor?.characterId ?? null,
+    characterId: target.characterId,
+    source,
+    skillId: Number(skill?.skillId ?? 0),
+    skillName: String(skill?.name ?? ''),
+    skillType: String(part?.skill_type ?? ''),
+    triggerType: String(triggerType ?? ''),
+    delta: Number(endState.currentDp ?? 0) - Number(startState.currentDp ?? 0),
+    startDpState: startState,
+    endDpState: endState,
+    startDpRate: getDpRate(startState),
+    endDpRate: getDpRate(endState),
+    eventCeiling: Number(endState.effectiveDpCap ?? endState.baseMaxDp ?? 0),
+    isAmountResolved: Boolean(isAmountResolved),
+    targetType: String(part?.target_type ?? ''),
+    targetCondition: String(part?.target_condition ?? ''),
+    ...(statusEffect
+      ? {
+          effectId: Number(statusEffect.effectId ?? 0),
+          limitType: String(statusEffect.limitType ?? ''),
+          exitCond: String(statusEffect.exitCond ?? ''),
+          remaining: Number(statusEffect.remaining ?? 0),
+        }
+      : {}),
+  };
+}
+
+function applyDpEffectsFromActions(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      const skillType = String(part?.skill_type ?? '').trim();
+      if (!DP_HEAL_SKILL_TYPES.has(skillType)) {
+        continue;
+      }
+      const condTexts = [part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+
+        const startDpState = cloneDpState(target.dpState ?? {});
+        let endDpState = cloneDpState(startDpState);
+        let statusEffect = null;
+        let isAmountResolved = false;
+
+        if (skillType === 'HealDpRate') {
+          const rate = Number(part?.power?.[0] ?? 0);
+          const amount = Number.isFinite(rate) && rate > 0 ? Number(startDpState.baseMaxDp ?? 0) * rate : 0;
+          const change = target.setDpState({
+            currentDp: Number(startDpState.currentDp ?? 0) + amount,
+            effectiveDpCap: getDpHealCapForPart(target, part),
+          });
+          endDpState = cloneDpState(change.endDpState);
+          isAmountResolved = true;
+        } else if (skillType === 'ReviveDp') {
+          const change = target.setDpState({
+            currentDp: Math.max(Number(startDpState.currentDp ?? 0), DEFAULT_REVIVE_DP_FLOOR),
+            effectiveDpCap: getDpHealCapForPart(target, part),
+          });
+          endDpState = cloneDpState(change.endDpState);
+          isAmountResolved = true;
+        } else if (skillType === 'RegenerationDp') {
+          const remaining = Number(part?.effect?.exitVal?.[0] ?? DEFAULT_STATUS_EFFECT_REMAINING);
+          statusEffect = target.addStatusEffect({
+            statusType: 'RegenerationDp',
+            limitType: String(part?.effect?.limitType ?? 'Default'),
+            exitCond: String(part?.effect?.exitCond ?? 'EnemyTurnEnd'),
+            remaining:
+              Number.isFinite(remaining) && remaining > 0 ? remaining : DEFAULT_STATUS_EFFECT_REMAINING,
+            power: Number(part?.power?.[0] ?? 0),
+            sourceSkillId: Number(skill.skillId),
+            sourceSkillLabel: String(skill.label ?? ''),
+            sourceSkillName: String(skill.name ?? ''),
+            metadata: {
+              capMultiplier: Number(part?.value?.[0] ?? 0),
+              targetType: String(part?.target_type ?? ''),
+            },
+          });
+        }
+
+        events.push(
+          createDpEvent({
+            actor,
+            target,
+            skill,
+            part,
+            triggerType: getDpEventKind(skillType),
+            source: DP_EVENT_SOURCE_SKILL,
+            startDpState,
+            endDpState,
+            statusEffect,
+            isAmountResolved,
+          })
+        );
+      }
+    }
+  }
+
+  return events;
+}
+
+function applyEnemyTurnEndDpEffects(party = []) {
+  const events = [];
+
+  for (const member of party) {
+    const regenEffects = member
+      .resolveEffectiveStatusEffects('RegenerationDp')
+      .filter((effect) => String(effect?.exitCond ?? '') === 'EnemyTurnEnd');
+    const regenEffectById = new Map(
+      regenEffects.map((effect) => [Number(effect.effectId ?? 0), structuredClone(effect)])
+    );
+    const tickedEffects = member.tickStatusEffectsByExitCond('EnemyTurnEnd');
+    if (regenEffectById.size === 0) {
+      continue;
+    }
+    for (const ticked of tickedEffects) {
+      const effect = regenEffectById.get(Number(ticked.effectId ?? 0));
+      if (!effect) {
+        continue;
+      }
+      const startDpState = cloneDpState(member.dpState ?? {});
+      const endDpState = cloneDpState(member.dpState ?? {});
+      events.push({
+        actorCharacterId: null,
+        characterId: member.characterId,
+        source: DP_EVENT_SOURCE_REGENERATION,
+        skillId: Number(effect.sourceSkillId ?? 0),
+        skillName: String(effect.sourceSkillName ?? ''),
+        skillType: 'RegenerationDp',
+        triggerType: DP_EVENT_KINDS.REGENERATION_TICK,
+        delta: 0,
+        startDpState,
+        endDpState,
+        startDpRate: getDpRate(startDpState),
+        endDpRate: getDpRate(endDpState),
+        eventCeiling: Number(endDpState.effectiveDpCap ?? endDpState.baseMaxDp ?? 0),
+        isAmountResolved: false,
+        effectId: Number(effect.effectId ?? 0),
+        limitType: String(effect.limitType ?? ''),
+        exitCond: String(effect.exitCond ?? ''),
+        remainingBefore: Number(ticked.remainingBefore ?? effect.remaining ?? 0),
+        remainingAfter: Number(ticked.remainingAfter ?? 0),
+      });
+    }
+  }
+
+  return events;
+}
+
+function applyTokenEffectsFromActions(state, previewRecord, dpEvents = []) {
   const events = [];
 
   for (const actionEntry of previewRecord.actions ?? []) {
@@ -1255,66 +1487,44 @@ function applyTokenEffectsFromActions(state, previewRecord) {
       }
     }
 
-    const dpHealParts = effectiveParts.filter((part) =>
-      ['HealDp', 'HealDpRate', 'RegenerationDp', 'ReviveDp', 'HealDpByDamage'].includes(
-        String(part?.skill_type ?? '')
-      )
+    const directDpEvents = dpEvents.filter(
+      (event) =>
+        event?.actorCharacterId === actor.characterId &&
+        Number(event?.skillId ?? 0) === Number(skill.skillId) &&
+        String(event?.triggerType ?? '') === DP_EVENT_KINDS.DIRECT_HEAL
     );
-    if (dpHealParts.length === 0) {
-      continue;
-    }
-    for (const part of dpHealParts) {
-      const condTexts = [part?.cond, part?.hit_condition]
-        .map((value) => String(value ?? '').trim())
-        .filter(Boolean);
-      const condSatisfied = condTexts.every((expr) =>
-        evaluateConditionExpression(expr, state, actor, skill, actionEntry).result
-      );
-      if (!condSatisfied) {
+    for (const dpEvent of directDpEvents) {
+      const target = findMemberByCharacterId(state, dpEvent.characterId);
+      if (!target) {
         continue;
       }
-      const targetCharacterIds = resolveSupportTargetCharacterIds(
-        state,
-        actor,
-        part?.target_type,
-        actionEntry?.targetCharacterId
-      );
-      for (const targetCharacterId of targetCharacterIds) {
-        const target = findMemberByCharacterId(state, targetCharacterId);
-        if (!target) {
-          continue;
-        }
-        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
-          continue;
-        }
-        for (const passive of target.passives ?? []) {
-          for (const passivePart of passive.parts ?? []) {
-            if (String(passivePart?.skill_type ?? '') !== 'TokenSetByHealedDp') {
-              continue;
-            }
-            const conditions = [passive?.condition, passivePart?.cond, passivePart?.hit_condition]
-              .map((value) => String(value ?? '').trim())
-              .filter(Boolean);
-            const matched = conditions.every((expr) =>
-              evaluateConditionExpression(expr, state, target, skill, actionEntry).result
-            );
-            if (!matched) {
-              continue;
-            }
-            const amount = getTokenSetAmount(passivePart) || 1;
-            const change = target.applyTokenDelta(amount);
-            events.push({
-              actorCharacterId: actor.characterId,
-              characterId: target.characterId,
-              source: 'token_passive',
-              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
-              passiveName: String(passive?.name ?? ''),
-              triggerType: 'TokenSetByHealedDp',
-              skillId: skill.skillId,
-              skillName: skill.name,
-              ...change,
-            });
+      for (const passive of target.passives ?? []) {
+        for (const passivePart of passive.parts ?? []) {
+          if (String(passivePart?.skill_type ?? '') !== 'TokenSetByHealedDp') {
+            continue;
           }
+          const conditions = [passive?.condition, passivePart?.cond, passivePart?.hit_condition]
+            .map((value) => String(value ?? '').trim())
+            .filter(Boolean);
+          const matched = conditions.every((expr) =>
+            evaluateConditionExpression(expr, state, target, skill, actionEntry).result
+          );
+          if (!matched) {
+            continue;
+          }
+          const amount = getTokenSetAmount(passivePart) || 1;
+          const change = target.applyTokenDelta(amount);
+          events.push({
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            source: 'token_passive',
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            triggerType: 'TokenSetByHealedDp',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            ...change,
+          });
         }
       }
     }
@@ -3328,6 +3538,7 @@ function previewActionEntries(state, sortedActions) {
               },
             ]
           : [],
+      dpChanges: [],
       specialPassiveModifiers: {
         attackUpRate:
           Number(specialAttackUp.totalRate ?? 0) + Number(intrinsicMarkModifiers.attackUpRate ?? 0),
@@ -4328,7 +4539,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
   const skillSpEvents = applySkillSpGains(state, previewRecord);
-  const tokenEvents = applyTokenEffectsFromActions(state, previewRecord);
+  const actionDpEvents = applyDpEffectsFromActions(state, previewRecord);
+  const tokenEvents = applyTokenEffectsFromActions(state, previewRecord, actionDpEvents);
   const moraleEvents = applyMoraleEffectsFromActions(state, previewRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
   const markEvents = applyMarkEffectsFromActions(state, previewRecord);
@@ -4417,6 +4629,23 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         eventCeiling: ev.eventCeiling,
       }));
     entry.markChanges = [...(entry.markChanges ?? []), ...extraMarkChanges];
+    entry.dpChanges = actionDpEvents
+      .filter((ev) => ev.actorCharacterId === entry.characterId && Number(ev.skillId ?? 0) === Number(entry.skillId))
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        skillType: ev.skillType,
+        targetCharacterId: ev.characterId,
+        delta: ev.delta,
+        preDp: Number(ev.startDpState?.currentDp ?? 0),
+        postDp: Number(ev.endDpState?.currentDp ?? 0),
+        preDpCap: Number(ev.startDpState?.effectiveDpCap ?? ev.startDpState?.baseMaxDp ?? 0),
+        postDpCap: Number(ev.endDpState?.effectiveDpCap ?? ev.endDpState?.baseMaxDp ?? 0),
+        isAmountResolved: Boolean(ev.isAmountResolved),
+        ...(Number.isFinite(Number(ev.effectId)) ? { effectId: Number(ev.effectId) } : {}),
+        ...(Number.isFinite(Number(ev.remaining)) ? { remaining: Number(ev.remaining) } : {}),
+        ...(String(ev.exitCond ?? '') ? { exitCond: String(ev.exitCond) } : {}),
+      }));
     const odEvent = odGaugeGain.events.find(
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );
@@ -4439,14 +4668,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     applySwapEvents(state, swapEvents);
   }
 
-  const snapAfter = snapshotPartyByPartyIndex(state.party);
-  const committed = commitRecord(previewRecord, snapAfter, swapEvents);
-  committed.transcendence = transcendenceSummary;
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
   nextTurnState.passiveEventsLastApplied = Array.isArray(recovery.passiveEvents)
-    ? structuredClone(recovery.passiveEvents)
-    : [];
-  committed.passiveEvents = Array.isArray(recovery.passiveEvents)
     ? structuredClone(recovery.passiveEvents)
     : [];
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
@@ -4462,7 +4685,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       ? structuredClone(enemyTurnStartResult.passiveEvents)
       : [];
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
-    committed.passiveEvents = [...(committed.passiveEvents ?? []), ...passiveEvents];
   }
   if (Number(getEnemyState(nextTurnState).enemyCount ?? 0) > 0 && countAliveEnemies(nextTurnState) === 0) {
     const battleWinResult = applyPassiveTimingInternal(
@@ -4477,7 +4699,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       ? structuredClone(battleWinResult.passiveEvents)
       : [];
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
-    committed.passiveEvents = [...(committed.passiveEvents ?? []), ...passiveEvents];
   }
 
   if (shouldActivateInterruptOd) {
@@ -4488,10 +4709,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       nextTurnState.turnLabel = `T${nextTurnState.turnIndex}`;
     }
   }
+  let boundaryDpEvents = [];
   // Enemy statuses tick on enemy-turn consumption only.
   // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
     tickEnemyStatuses(nextTurnState);
+    boundaryDpEvents = applyEnemyTurnEndDpEffects(state.party);
   }
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 
@@ -4511,7 +4734,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       ...(nextState.turnState.passiveEventsLastApplied ?? []),
       ...passiveEvents,
     ];
-    committed.passiveEvents = [...(committed.passiveEvents ?? []), ...passiveEvents];
   }
 
   if (shouldActivateInterruptOd) {
@@ -4519,10 +4741,15 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       forceActivation: forceOdActivation,
       forceConsumeGauge: forceResourceDeficit,
     });
-    committed.passiveEvents = Array.isArray(nextState.turnState?.passiveEventsLastApplied)
-      ? structuredClone(nextState.turnState.passiveEventsLastApplied)
-      : [];
   }
+
+  const snapAfter = snapshotPartyByPartyIndex(nextState.party);
+  const committed = commitRecord(previewRecord, snapAfter, swapEvents);
+  committed.transcendence = transcendenceSummary;
+  committed.passiveEvents = Array.isArray(nextState.turnState?.passiveEventsLastApplied)
+    ? structuredClone(nextState.turnState.passiveEventsLastApplied)
+    : [];
+  committed.dpEvents = structuredClone([...actionDpEvents, ...boundaryDpEvents]);
 
   return {
     nextState,

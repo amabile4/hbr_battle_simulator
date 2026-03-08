@@ -44,6 +44,11 @@ export function toCharacterSnapshot(character) {
         ])
       )
     ),
+    statusEffects: Object.freeze(
+      Array.isArray(character.statusEffects)
+        ? character.statusEffects.map((effect) => Object.freeze(structuredClone(effect)))
+        : []
+    ),
     isAlive: Boolean(character.isAlive),
     isBreak: Boolean(character.isBreak),
     isExtraActive: Boolean(character.isExtraActive),

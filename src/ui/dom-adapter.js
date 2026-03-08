@@ -4578,6 +4578,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       member.reinforcedTurnsRemaining = Number(snap.reinforcedTurnsRemaining ?? member.reinforcedTurnsRemaining ?? 0);
       member.actionDisabledTurns = Number(snap.actionDisabledTurns ?? member.actionDisabledTurns ?? 0);
       member.statusEffects = structuredClone(snap.statusEffects ?? []);
+      member._nextStatusEffectId =
+        member.statusEffects.reduce((max, effect) => Math.max(max, Number(effect?.effectId ?? 0)), 0) + 1;
       const rawCounts = snap.skillUseCounts ?? {};
       member.skillUseCounts = new Map(
         Object.entries(rawCounts).map(([label, count]) => [String(label), Number(count ?? 0)])
