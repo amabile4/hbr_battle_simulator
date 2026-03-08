@@ -744,6 +744,37 @@ test('turn plan force recalculation allows SP deficit', () => {
   assert.equal(Number(replayActor.sp.current) < 0, true);
 });
 
+test('turn plan force recalculation records warnings for skipped invalid swaps', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.turnPlans.length, 1);
+
+  adapter.turnPlans[0] = {
+    ...adapter.turnPlans[0],
+    swaps: [
+      {
+        fromCharacterId: 'UNKNOWN_MEMBER',
+        toCharacterId: String(adapter.party.getFrontline()[0]?.characterId ?? ''),
+      },
+    ],
+  };
+
+  adapter.recalculateTurnPlans({ mode: 'force' });
+
+  assert.equal(adapter.turnPlanReplayError, null);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(Array.isArray(adapter.turnPlanReplayWarnings[0]), true);
+  assert.equal(
+    adapter.turnPlanReplayWarnings[0].some((message) => String(message).includes('swap skipped')),
+    true
+  );
+});
+
 test('action selection is preserved after commit for each position', () => {
   const store = getStore();
   const { root } = createRoot();

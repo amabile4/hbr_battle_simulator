@@ -3422,6 +3422,29 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return String(area?.value ?? '').trim();
   }
 
+  executeScenarioStep(action, options = {}) {
+    const onWarning = typeof options.onWarning === 'function' ? options.onWarning : null;
+    const warningPrefix = String(options.warningPrefix ?? '').trim();
+    try {
+      return action();
+    } catch (error) {
+      if (!onWarning) {
+        throw error;
+      }
+      const message = String(error?.message ?? error ?? 'Unknown error');
+      onWarning(warningPrefix ? `${warningPrefix}: ${message}` : message);
+      return null;
+    }
+  }
+
+  resetTurnReplayTransientState() {
+    this.pendingSwapEvents = [];
+    this.pendingInterruptOdLevel = null;
+    this.preemptiveOdCheckpoint = null;
+    this.interruptOdProjection = null;
+    this.previewRecord = null;
+  }
+
   setDomValue(selector, value) {
     this.view.setDomValue(selector, value);
   }
@@ -4099,20 +4122,20 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (!hasPositionIndex && !hasPosition) {
         continue;
       }
-      try {
+      const aligned = this.executeScenarioStep(() => {
         const targetPosition = hasPositionIndex
           ? Math.max(0, Math.min(5, toInt(action.positionIndex, 0)))
           : this.resolveScenarioPosition(action.position);
         const skillId = Number(action?.skillId ?? NaN);
         if (!Number.isFinite(skillId)) {
-          continue;
+          return false;
         }
         const currentMember = this.party.getByPosition(targetPosition);
         if (!currentMember) {
           throw new Error(`No member at position ${targetPosition + 1} for position alignment.`);
         }
         if (currentMember.getSkill(skillId)) {
-          continue;
+          return false;
         }
 
         const actorName = this.resolveScenarioActorName(action);
@@ -4121,29 +4144,26 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         const byActor = actor && actor.getSkill(skillId) ? actor : null;
         const preferred = byActor ?? (skillCandidates.length === 1 ? skillCandidates[0] : null);
         if (!preferred) {
-          if (isForceMode) {
-            warn(
-              `position alignment skipped: cannot resolve actor for skill ${skillId} at Pos ${targetPosition + 1}`
-            );
-            continue;
-          }
           throw new Error(
-            `Cannot align action position: skill ${skillId} is not usable at Pos ${targetPosition + 1}.`
+            isForceMode
+              ? `cannot resolve actor for skill ${skillId} at Pos ${targetPosition + 1}`
+              : `Cannot align action position: skill ${skillId} is not usable at Pos ${targetPosition + 1}.`
           );
         }
         if (Number(preferred.position) === targetPosition) {
-          continue;
+          return false;
         }
         const fromPosition = Number(preferred.position);
         preferred.setPosition(targetPosition);
         currentMember.setPosition(fromPosition);
         changed = true;
-      } catch (error) {
-        if (isForceMode) {
-          warn(`position alignment skipped: ${error.message}`);
-          continue;
-        }
-        throw error;
+        return true;
+      }, {
+        onWarning: isForceMode ? warn : null,
+        warningPrefix: 'position alignment skipped',
+      });
+      if (aligned === null) {
+        continue;
       }
     }
     if (!changed) {
@@ -4488,31 +4508,25 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
 
     if (turn.kishinka) {
-      if (isForceMode) {
-        try {
-          this.activateKishinka();
-        } catch (error) {
-          warn(`kishinka skipped: ${error.message}`);
-        }
-      } else {
-        this.activateKishinka();
-      }
+      this.executeScenarioStep(() => this.activateKishinka(), {
+        onWarning: isForceMode ? warn : null,
+        warningPrefix: 'kishinka skipped',
+      });
     }
 
     if (Array.isArray(turn.swaps)) {
       for (const swap of turn.swaps) {
-        if (isForceMode) {
-          try {
-            const from = this.resolveScenarioSwapEndpointPosition(swap, 'from');
-            const to = this.resolveScenarioSwapEndpointPosition(swap, 'to');
-            this.queueSwap(from, to);
-          } catch (error) {
-            warn(`swap skipped: ${error.message}`);
-          }
-        } else {
+        const queued = this.executeScenarioStep(() => {
           const from = this.resolveScenarioSwapEndpointPosition(swap, 'from');
           const to = this.resolveScenarioSwapEndpointPosition(swap, 'to');
           this.queueSwap(from, to);
+          return true;
+        }, {
+          onWarning: isForceMode ? warn : null,
+          warningPrefix: 'swap skipped',
+        });
+        if (queued === null) {
+          continue;
         }
       }
     }
@@ -4523,14 +4537,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         onWarning: warn,
       });
       for (const action of turn.actions) {
-        if (isForceMode) {
-          try {
-            this.setScenarioActionOnDom(action);
-          } catch (error) {
-            warn(`action override skipped: ${error.message}`);
-          }
-        } else {
+        const applied = this.executeScenarioStep(() => {
           this.setScenarioActionOnDom(action);
+          return true;
+        }, {
+          onWarning: isForceMode ? warn : null,
+          warningPrefix: 'action override skipped',
+        });
+        if (applied === null) {
+          continue;
         }
       }
     }
@@ -5675,11 +5690,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           if (mode === 'force') {
             warnings.push(`force fallback: ${error.message}`);
             try {
-              this.pendingSwapEvents = [];
-              this.pendingInterruptOdLevel = null;
-              this.preemptiveOdCheckpoint = null;
-              this.interruptOdProjection = null;
-              this.previewRecord = null;
+              this.resetTurnReplayTransientState();
               this.commitCurrentTurn({
                 skipTurnPlanCapture: true,
                 forceOdOverride: true,
