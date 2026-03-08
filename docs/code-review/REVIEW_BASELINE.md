@@ -16,7 +16,6 @@
 ### HEADコミット
 
 ```
-9d7c23ff9808c6dbc85c74aec219cc0342e681b7
 9d7c23f Refine phase 6 break-state plan
 ```
 

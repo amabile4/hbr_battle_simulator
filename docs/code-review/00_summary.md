@@ -8,7 +8,7 @@
 
 | 項目 | 値 |
 |------|-----|
-| HEADコミット | `9d7c23ff9808c6dbc85c74aec219cc0342e681b7` |
+| HEADコミット | `9d7c23f` |
 | コミットメッセージ | `Refine phase 6 break-state plan` |
 | ブランチ | `feature/record-edit-recalculation` |
 | 未コミット変更 | あり（7ファイル、実装途中）|
