@@ -65,10 +65,10 @@
 
 | ID | 状態 | 概要 | 出典 | 完了条件 | 完了コミット | 確認テスト | メモ |
 |----|------|------|------|----------|--------------|------------|------|
-| `T-005` | `done` | `record-system.test.js` 追加テスト（T-M3対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M3 | insertBefore 境界・cascade 削除・reindexTurnLabels 混在・0件CSV を直接固定 | pending | `npm run test:quick` | insertBefore 先頭/非存在ID throws・cascade で同 turnIndex 全削除・OD→EX→normal 混在ラベル・空ストアで header のみ出力 |
-| `T-006` | `done` | 境界値テスト追加（T-M1対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M1 | SP 負値・swap 後 CSV 列固定・Infinity JSON 往復を固定 | pending | `npm run test:quick` | SP min=-5 での clamp、party.swap 後も partyIndex 順の列ヘッダー、'Infinity' 文字列 → Number.POSITIVE_INFINITY 変換 |
-| `T-007` | `done` | 異常系テスト追加（T-M2対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M2 | preview なしの commitTurn が適切にエラーを投げること | pending | `npm run test:quick` | null/undefined/committed-status 渡しで "commitTurn requires preview TurnRecord" を throw |
-| `T-008` | `done` | IceMarkLevel / OnOverdriveStart パッシブテスト追加 | [08_test_coverage_from_real_data.md](../20260308_code-review/08_test_coverage_from_real_data.md) | IceMark 閾値発動・未達不発・OD タイミングの前衛条件・後衛不発・タイミング識別 | pending | `npm run test:quick` | DarkMark テストのパターンを IceMark に適用。OnOverdriveStart は applyPassiveTiming 直呼びで検証 |
+| `T-005` | `done` | `record-system.test.js` 追加テスト（T-M3対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M3 | insertBefore 境界・cascade 削除・reindexTurnLabels 混在・0件CSV を直接固定 | `37b7614` | `npm run test:quick` | insertBefore 先頭/非存在ID throws・cascade で同 turnIndex 全削除・OD→EX→normal 混在ラベル・空ストアで header のみ出力 |
+| `T-006` | `done` | 境界値テスト追加（T-M1対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M1 | SP 負値・swap 後 CSV 列固定・Infinity JSON 往復を固定 | `37b7614` | `npm run test:quick` | SP min=-5 での clamp、party.swap 後も partyIndex 順の列ヘッダー、'Infinity' 文字列 → Number.POSITIVE_INFINITY 変換 |
+| `T-007` | `done` | 異常系テスト追加（T-M2対応） | [05_test_coverage_review.md](../20260308_code-review/05_test_coverage_review.md) T-M2 | preview なしの commitTurn が適切にエラーを投げること | `37b7614` | `npm run test:quick` | null/undefined/committed-status 渡しで "commitTurn requires preview TurnRecord" を throw |
+| `T-008` | `done` | IceMarkLevel / OnOverdriveStart パッシブテスト追加 | [08_test_coverage_from_real_data.md](../20260308_code-review/08_test_coverage_from_real_data.md) | IceMark 閾値発動・未達不発・OD タイミングの前衛条件・後衛不発・タイミング識別 | `37b7614` | `npm run test:quick` | DarkMark テストのパターンを IceMark に適用。OnOverdriveStart は applyPassiveTiming 直呼びで検証 |
 
 ## P3: 中長期のレビュー改善
 
