@@ -384,6 +384,46 @@ test('applyScenarioTurn applies and clears enemy status delta through shared hel
   );
 });
 
+test('applyScenarioTurn stage mode keeps interrupt OD reservation while clearing preview state', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  const interruptOdLevel = 1;
+  adapter.mount();
+
+  const preview = adapter.previewCurrentTurn();
+  assert.equal(preview.recordStatus, 'preview');
+  assert.notEqual(root.querySelector('[data-role="preview-output"]')?.textContent ?? '', '');
+
+  adapter.applyScenarioTurn({ interruptOdLevel: interruptOdLevel }, { mode: 'stage' });
+
+  assert.equal(adapter.previewRecord, null);
+  assert.equal(adapter.pendingInterruptOdLevel, interruptOdLevel);
+  assert.equal(adapter.interruptOdProjection, null);
+  assert.equal(root.querySelector('[data-role="preview-output"]')?.textContent ?? '', '');
+});
+
+test('applyScenarioTurn previews instead of committing when scenario turn commit is disabled', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const actor = adapter.party.getFrontline()[0];
+  const skill = actor.getActionSkills()[0];
+  const preview = adapter.applyScenarioTurn(
+    {
+      commit: false,
+      actions: [{ actorName: actor.characterName, skillId: skill.skillId }],
+    },
+    { mode: 'commit' }
+  );
+
+  assert.equal(preview?.recordStatus, 'preview');
+  assert.equal(adapter.recordStore.records.length, 0);
+  assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Preview generated.');
+});
+
 test('scenario runner loads setup and executes turns deterministically', () => {
   const store = getStore();
   const { root } = createRoot();

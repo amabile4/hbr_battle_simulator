@@ -4757,6 +4757,61 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
   }
 
+  applyScenarioInterruptOverdrive(turn = {}) {
+    const interruptOdLevel = Number(turn.interruptOdLevel);
+    if (!Number.isFinite(interruptOdLevel)) {
+      return;
+    }
+    this.pendingInterruptOdLevel = interruptOdLevel;
+    this.interruptOdProjection = null;
+    this.renderOdControls();
+  }
+
+  clearScenarioStagePreviewState() {
+    this.previewRecord = null;
+    this.resetInterruptOdProjection({ clearReservation: false });
+    this.writePreviewOutput('');
+    return null;
+  }
+
+  buildScenarioTurnCommitOptions(commitOptions = {}, options = {}) {
+    const normalizedCommitOptions =
+      commitOptions && typeof commitOptions === 'object' ? commitOptions : {};
+    const isForceMode = Boolean(options.forceMode);
+    return {
+      ...normalizedCommitOptions,
+      previewOptions: {
+        ...(isForceMode ? { skipSkillConditions: true } : {}),
+        ...((normalizedCommitOptions.previewOptions && typeof normalizedCommitOptions.previewOptions === 'object')
+          ? normalizedCommitOptions.previewOptions
+          : {}),
+      },
+      forceOdOverride:
+        normalizedCommitOptions.forceOdOverride !== undefined
+          ? normalizedCommitOptions.forceOdOverride
+          : isForceMode,
+      forceResourceDeficit:
+        normalizedCommitOptions.forceResourceDeficit !== undefined
+          ? normalizedCommitOptions.forceResourceDeficit
+          : isForceMode,
+    };
+  }
+
+  executeScenarioTurnResolution(turn = {}, options = {}) {
+    const mode = String(options.mode ?? 'commit');
+    if (mode === 'stage') {
+      return this.clearScenarioStagePreviewState();
+    }
+    const effectiveCommitOptions = this.buildScenarioTurnCommitOptions(options.commitOptions, {
+      forceMode: options.forceMode,
+    });
+    const doCommit = mode === 'commit' ? turn.commit !== false : false;
+    if (!doCommit) {
+      return this.previewCurrentTurn(effectiveCommitOptions.previewOptions);
+    }
+    return this.commitCurrentTurn(effectiveCommitOptions);
+  }
+
   applyScenarioTurn(turn = {}, options = {}) {
     const mode = String(options.mode ?? 'commit');
     const recalcMode = String(options.recalcMode ?? 'strict') === 'force' ? 'force' : 'strict';
@@ -4785,42 +4840,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
     this.applyScenarioQueuedSwaps(turn.swaps, { forceMode: isForceMode, onWarning: warn });
     this.applyScenarioQueuedActions(turn.actions, { forceMode: isForceMode, onWarning: warn });
-
-    if (Number.isFinite(Number(turn.interruptOdLevel))) {
-      this.pendingInterruptOdLevel = Number(turn.interruptOdLevel);
-      this.interruptOdProjection = null;
-      this.renderOdControls();
-    }
-
-    if (mode === 'stage') {
-      this.previewRecord = null;
-      this.resetInterruptOdProjection({ clearReservation: false });
-      this.writePreviewOutput('');
-      return null;
-    }
-
-    const doCommit = mode === 'commit' ? turn.commit !== false : false;
-    const effectiveCommitOptions = {
-      ...commitOptions,
-      previewOptions: {
-        ...(isForceMode ? { skipSkillConditions: true } : {}),
-        ...((commitOptions.previewOptions && typeof commitOptions.previewOptions === 'object')
-          ? commitOptions.previewOptions
-          : {}),
-      },
-      forceOdOverride:
-        commitOptions.forceOdOverride !== undefined
-          ? commitOptions.forceOdOverride
-          : isForceMode,
-      forceResourceDeficit:
-        commitOptions.forceResourceDeficit !== undefined
-          ? commitOptions.forceResourceDeficit
-          : isForceMode,
-    };
-    if (!doCommit) {
-      return this.previewCurrentTurn(effectiveCommitOptions.previewOptions);
-    }
-    return this.commitCurrentTurn(effectiveCommitOptions);
+    this.applyScenarioInterruptOverdrive(turn);
+    return this.executeScenarioTurnResolution(turn, {
+      mode,
+      forceMode: isForceMode,
+      commitOptions,
+    });
   }
 
   getScenarioTurns() {
