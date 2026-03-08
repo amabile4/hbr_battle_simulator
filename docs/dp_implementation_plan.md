@@ -288,6 +288,56 @@
 - このシミュレータでは自動計算の `SelfDamage` / DP消費 / 将来の DPスリップで DP 0 を作らない
   - 自動で DP 0 になる経路は、将来の敵攻撃や特殊状態+フィールドダメージを実装する時に別途扱う
 - Break 系を先に雑につなぐと、将来の DP破損処理と enemy status の責務が衝突しやすい
+- Phase 6 は `manual-first` で進める
+  - 敵 `Break / DownTurn / Dead` は、既存の手動 enemy status を正規状態としてそのまま使う
+  - まず「明示的に Break 系 skill/effect を使ったときだけ」自動で enemy status を付与する
+  - 通常ダメージでの自然 Break や、敵攻撃起点の Break はまだ自動化しない
+- 敵側の `IsBroken()` / `BreakDownTurn()>0` は既に enemy status から条件評価できる
+  - Phase 6 ではこの既存状態表現へ `SuperBreak` / `SuperBreakDown` を接続するのが主眼
+- 自キャラ側の `IsBroken()` は評価器だけ先にある状態で、手動 UI が未実装
+  - Phase 6 の先頭で「自キャラ Break 手動状態 UI」と、その snapshot / record / turnPlan / scenario 保存を追加候補とする
+- `SuperBreak` は通常 `Break` と別状態として扱う
+  - 例: `ヴォリション・サイス`
+  - `elements` 弱点を突いた時に、既に `Break` 状態の敵を「強ブレイク状態」にする
+  - `cond: IsHitWeak()` の part 条件を満たすことが前提
+  - 強ブレイク状態の敵は「破壊率上限が +300%」になる
+  - つまり Phase 6 では `Break` 付与そのものではなく、「既存 Break 状態を上位状態へ昇格させる」表現が必要
+- `SuperBreakDown` も通常 `Break + DownTurn(1)` へ単純化しない
+  - 例: `ナイトキルエッジ`
+  - 基本挙動は「敵をダウンさせる」、または「ダウンターン中の敵へ攻撃した時に超ダウン状態にする」
+  - 超ダウン状態では
+    - 敵の破壊率を現在の最大値まで引き上げる
+    - さらに破壊率上限を +300% する
+  - 超ダウン中の敵へ重ねて超ダウンを付与することはできない
+  - 敵のダウンターン終了時に超ダウンは解除される
+  - 解除時は
+    - 破壊率上限を「超ダウン付与前の上限値」へ戻す
+    - 破壊率は「超ダウン付与前の破壊率 + 超ダウン中に上昇した破壊率」に戻す
+    - ただし元の破壊率上限は超えない
+    - 付与時に現在の最大値まで押し上げたぶんは「超ダウン中に上昇した破壊率」へ含めない
+- `BreakDownTurnUp` は最初から汎用 trigger にしすぎない
+  - 現時点では人間の手入力に任せる運用でよい
+  - 既存 UI では DownTurn 付与時にターン数を入力でき、実務では `0..2` を想定している
+  - `0` はダウンターン無効の敵を表現するために使う
+  - `2` は `BreakDownTurnUp` を人間が解釈して入力するための運用値
+  - 将来エンジン先行実装するなら
+    - UI で DownTurn 状態変更時に `0..2` の入力値があればそれを優先採用
+    - 空白なら基礎 DownTurn を `1` とし、`BreakDownTurnUp` により `+1` する既定ロジックを入れる余地がある
+- `BreakGuard` は enemy status ではなく味方側の防御用状態として扱う
+  - Phase 6 では自己バフとして `statusEffects` へ保持し、保存・復元・record まで通せばよい
+  - 消費処理は敵攻撃シミュレーション未実装のため後回しにする
+- `AdditionalHitOnBreaking` / `breakHitCount` の自動生成は、Phase 6 の主スコープからは外す
+  - 現状の `breakHitCount` は action context のテスト用入力としては使える
+  - Break 発生検知と追加効果 trigger を結ぶ本実装は、Break 状態の自動付与が安定してから詰める
+- `IsHitWeak()` は Phase 6 の前提条件として最小実装が必要
+  - 選択中 target enemy に対して、その skill/part の属性が弱点なら真
+  - 複数属性や無属性の解釈は、まず `elements[0]` を見る最小仕様から入るのが安全
+- Phase 6 の完了条件候補
+  - `SuperBreak` / `SuperBreakDown` の仕様差分を潰さずに内部状態として保持できる
+  - `BreakGuard` を味方状態として保持・再生できる
+  - 自キャラ `IsBroken` 手動状態を保存できる
+  - DownTurn ターン数の既存手動入力運用を壊さない
+  - 手動入力運用を壊さず、自然 Break や敵攻撃 Break は未実装として明示されている
 
 ## Phase 7: パッシブ接続
 
