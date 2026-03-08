@@ -3488,6 +3488,35 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.turnPlanReplayWarnings = [];
   }
 
+  buildTurnPlanReplayError(index, mode, error) {
+    return {
+      index,
+      message: String(error?.message ?? error ?? 'Unknown error'),
+      mode,
+    };
+  }
+
+  attemptTurnPlanForceFallback(index, mode, warnings = []) {
+    try {
+      this.attemptForceTurnPlanFallback();
+      this.turnPlanReplayError = null;
+      return { applied: 1, shouldStop: false };
+    } catch (fallbackError) {
+      warnings.push(`force fallback failed: ${fallbackError.message}`);
+      this.turnPlanReplayError = this.buildTurnPlanReplayError(index, mode, fallbackError);
+      return { applied: 0, shouldStop: true };
+    }
+  }
+
+  handleTurnPlanReplayFailure(index, mode, error, warnings = []) {
+    this.turnPlanReplayError = this.buildTurnPlanReplayError(index, mode, error);
+    if (mode !== 'force') {
+      return { applied: 0, shouldStop: true };
+    }
+    warnings.push(`force fallback: ${error.message}`);
+    return this.attemptTurnPlanForceFallback(index, mode, warnings);
+  }
+
   replayTurnPlanAtIndex(index, mode) {
     const warnings = [];
     this.turnPlanReplayWarnings[index] = warnings;
@@ -3496,19 +3525,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.replayTurnPlanTurn(turn, mode, warnings);
       return { applied: 1, shouldStop: false };
     } catch (error) {
-      this.turnPlanReplayError = { index, message: error.message, mode };
-      if (mode === 'force') {
-        warnings.push(`force fallback: ${error.message}`);
-        try {
-          this.attemptForceTurnPlanFallback();
-          this.turnPlanReplayError = null;
-          return { applied: 1, shouldStop: false };
-        } catch (fallbackError) {
-          warnings.push(`force fallback failed: ${fallbackError.message}`);
-          this.turnPlanReplayError = { index, message: fallbackError.message, mode };
-        }
-      }
-      return { applied: 0, shouldStop: true };
+      return this.handleTurnPlanReplayFailure(index, mode, error, warnings);
     }
   }
 
