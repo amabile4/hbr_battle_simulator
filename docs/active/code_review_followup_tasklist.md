@@ -88,3 +88,4 @@
 - 2026-03-08: `R-008` として `通常攻撃` / `指揮行動` / `追撃` の代表的な name/label/desc 直比較を `src/domain/skill-classifiers.js` へ切り出し、`hbr-data-store` / `dom-adapter` / `turn-controller` から共有する形にした。classifier 単体テストも追加した。
 - 2026-03-08: `R-006` の次段として `localStorage` 読み書きと scenario JSON 読み込みを `dom-adapter` の helper へ寄せた。`readSelectionStore()` は read/parse 失敗時に空ストアへフォールバックし、`writeSelectionStore()` と `parseScenarioDocument()` は UI 側で扱いやすい文脈付きエラーへ包み直すようにした。
 - 2026-03-08: `R-006` の force/replay 系でも `executeScenarioStep()` と `resetTurnReplayTransientState()` を導入し、`kishinka` / swap / action override / position alignment の warning 付与と、force fallback 前の transient state reset を 1 箇所へ寄せた。`turnPlanReplayWarnings` に `swap skipped` が残ることも DOM テストで固定した。
+- 2026-03-08: `R-006` の replay 入口では `buildTurnPlanReplayCommitOptions()` / `replayTurnPlanTurn()` / `attemptForceTurnPlanFallback()` を追加し、`recalculateTurnPlans()` と `stageTurnPlanSession()` の `commitOptions` 組み立てと force fallback 実行を共通化した。

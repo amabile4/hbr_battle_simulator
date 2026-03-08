@@ -3445,6 +3445,42 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.previewRecord = null;
   }
 
+  buildTurnPlanReplayCommitOptions(mode, overrides = {}) {
+    const isForceMode = String(mode ?? 'strict') === 'force';
+    const base = {
+      skipTurnPlanCapture: true,
+      forceOdOverride: isForceMode,
+      forceResourceDeficit: isForceMode,
+      previewOptions: { skipSkillConditions: isForceMode },
+    };
+    const extraPreviewOptions =
+      overrides.previewOptions && typeof overrides.previewOptions === 'object'
+        ? overrides.previewOptions
+        : {};
+    return {
+      ...base,
+      ...overrides,
+      previewOptions: {
+        ...base.previewOptions,
+        ...extraPreviewOptions,
+      },
+    };
+  }
+
+  replayTurnPlanTurn(turn, mode, warnings = []) {
+    this.applyScenarioTurn(turn, {
+      mode: 'commit',
+      recalcMode: mode,
+      onWarning: (message) => warnings.push(String(message)),
+      commitOptions: this.buildTurnPlanReplayCommitOptions(mode),
+    });
+  }
+
+  attemptForceTurnPlanFallback() {
+    this.resetTurnReplayTransientState();
+    this.commitCurrentTurn(this.buildTurnPlanReplayCommitOptions('force'));
+  }
+
   setDomValue(selector, value) {
     this.view.setDomValue(selector, value);
   }
@@ -5673,30 +5709,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.turnPlanReplayWarnings[i] = warnings;
         const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[i]);
         try {
-          this.applyScenarioTurn(turn, {
-            mode: 'commit',
-            recalcMode: mode,
-            onWarning: (message) => warnings.push(String(message)),
-            commitOptions: {
-              skipTurnPlanCapture: true,
-              forceOdOverride: mode === 'force',
-              forceResourceDeficit: mode === 'force',
-              previewOptions: { skipSkillConditions: mode === 'force' },
-            },
-          });
+          this.replayTurnPlanTurn(turn, mode, warnings);
           applied += 1;
         } catch (error) {
           this.turnPlanReplayError = { index: i, message: error.message, mode };
           if (mode === 'force') {
             warnings.push(`force fallback: ${error.message}`);
             try {
-              this.resetTurnReplayTransientState();
-              this.commitCurrentTurn({
-                skipTurnPlanCapture: true,
-                forceOdOverride: true,
-                forceResourceDeficit: true,
-                previewOptions: { skipSkillConditions: true },
-              });
+              this.attemptForceTurnPlanFallback();
               this.turnPlanReplayError = null;
               applied += 1;
               continue;
@@ -5746,12 +5766,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.applyScenarioTurn(turn, {
           mode: 'commit',
           recalcMode: mode,
-          commitOptions: {
-            skipTurnPlanCapture: true,
-            forceOdOverride: mode === 'force',
-            forceResourceDeficit: mode === 'force',
-            previewOptions: { skipSkillConditions: mode === 'force' },
-          },
+          commitOptions: this.buildTurnPlanReplayCommitOptions(mode),
         });
       }
       const sourceTurn = this.toScenarioTurnFromTurnPlan(this.turnPlans[session.sourceIndex]);
