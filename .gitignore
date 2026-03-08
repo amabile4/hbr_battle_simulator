@@ -83,5 +83,5 @@ scripts/run_gemini_api.sh
 # Local IDE metadata
 .kiro/
 
-# Local IDE metadata
-.kiro/
+# Claude Code local settings (machine-specific, not shared)
+.claude/
