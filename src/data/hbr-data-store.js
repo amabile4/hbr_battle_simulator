@@ -14,6 +14,17 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
 
+function readJsonOrFallback(path, fallbackFactory) {
+  try {
+    return readJson(path);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error;
+    }
+    return typeof fallbackFactory === 'function' ? fallbackFactory() : fallbackFactory;
+  }
+}
+
 function normalizeCharacterName(name) {
   return String(name ?? '')
     .split('—')[0]
@@ -250,7 +261,7 @@ export class HbrDataStore {
       epRuleOverrides: readJson(resolve(dir, 'ep_rule_overrides.json')),
       transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
       skillDbSchema: readJson(resolve(dir, 'new_skill_database.schema.json')),
-      skillDbDraft: readJson(resolve(dir, 'reports/migration/new_skill_database.draft.json')),
+      skillDbDraft: readJsonOrFallback(resolve(dir, 'reports/migration/new_skill_database.draft.json'), {}),
     });
   }
 

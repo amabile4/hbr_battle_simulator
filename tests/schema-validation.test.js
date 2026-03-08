@@ -3,19 +3,8 @@ import assert from 'node:assert/strict';
 import { getStore } from './helpers.js';
 import { validateDocument } from '../src/index.js';
 
-test('new_skill_database.draft.json can be validated and returns diagnostics', () => {
-  const store = getStore();
-  const result = store.validateSkillDatabaseDraft();
-
-  assert.equal(typeof result.valid, 'boolean');
-  assert.ok(Array.isArray(result.errors));
-  assert.ok(result.errors.length > 0);
-  assert.ok(result.errors.some((error) => error.includes('consumeAllSp')));
-});
-
-test('schema validator accepts a minimal valid document', () => {
-  const store = getStore();
-  const sample = {
+function createValidSkillDatabaseDraftSample() {
+  return {
     version: '1.0.0',
     counts: {
       characters: 1,
@@ -70,20 +59,35 @@ test('schema validator accepts a minimal valid document', () => {
       },
     ],
   };
+}
+
+test('schema validator returns diagnostics for invalid draft sample without relying on disk report', () => {
+  const store = getStore();
+  const invalid = createValidSkillDatabaseDraftSample();
+  invalid.canonicalSkills[0].consumeAllSp = false;
+
+  const result = validateDocument(store.skillDbSchema, invalid);
+
+  assert.equal(result.valid, false);
+  assert.ok(Array.isArray(result.errors));
+  assert.ok(result.errors.some((error) => error.includes('consumeAllSp')));
+});
+
+test('schema validator accepts a minimal valid document', () => {
+  const store = getStore();
+  const sample = createValidSkillDatabaseDraftSample();
 
   const result = validateDocument(store.skillDbSchema, sample);
+
   assert.equal(result.valid, true);
   assert.equal(result.errors.length, 0);
 });
 
 test('schema validator reports missing required property', () => {
   const store = getStore();
+  const invalid = createValidSkillDatabaseDraftSample();
 
-  const invalid = {
-    version: '1.0.0',
-    counts: store.skillDbDraft.counts,
-    canonicalSkills: store.skillDbDraft.canonicalSkills,
-  };
+  delete invalid.legacyCompatible;
 
   const result = validateDocument(store.skillDbSchema, invalid);
 

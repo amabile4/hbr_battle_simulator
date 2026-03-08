@@ -791,12 +791,45 @@ test('scenario can stage current turn without commit and advance cursor on manua
   adapter.stageCurrentScenarioTurn();
   assert.equal(adapter.scenarioCursor, 0);
   assert.equal(adapter.scenarioStagedTurnIndex, 0);
+  assert.equal(
+    root.querySelector('[data-role="status"]')?.textContent,
+    'Scenario turn 1/1 staged. Adjust controls, then Commit Turn.'
+  );
   const actionSelect = root.querySelector(`[data-action-slot="${firstMember.position}"]`);
   assert.equal(Number(actionSelect?.value), Number(firstSkill.skillId));
 
   adapter.commitCurrentTurn();
   assert.equal(adapter.scenarioCursor, 1);
   assert.equal(adapter.scenarioStagedTurnIndex, null);
+});
+
+test('runNextScenarioTurn reports executed and completed status through shared cursor helper', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const front = adapter.party.getFrontline();
+  const firstMember = front[0];
+  const firstSkill = firstMember.getActionSkills()[0];
+  adapter.scenario = {
+    version: 1,
+    setup: {},
+    turns: [
+      {
+        actions: [{ actorName: firstMember.characterName, skillId: firstSkill.skillId }],
+      },
+    ],
+  };
+  adapter.scenarioCursor = 0;
+  adapter.scenarioStagedTurnIndex = null;
+  adapter.scenarioSetupApplied = true;
+
+  adapter.runNextScenarioTurn();
+  assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Scenario turn 1/1 executed.');
+
+  adapter.runNextScenarioTurn();
+  assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Scenario completed (1 turns).');
 });
 
 test('scenario ignores preemptiveOdLevel when current turn is not normal (OD/EX continuation)', () => {

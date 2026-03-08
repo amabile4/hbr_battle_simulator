@@ -4792,49 +4792,68 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return this.commitCurrentTurn(effectiveCommitOptions);
   }
 
-  stageCurrentScenarioTurn() {
-    this.ensureScenarioSetupApplied();
-    const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
-    if (this.scenarioCursor >= turns.length) {
-      this.setStatus('Scenario completed.');
-      this.renderScenarioStatus();
-      return null;
+  getScenarioTurns() {
+    return Array.isArray(this.scenario?.turns) ? this.scenario.turns : [];
+  }
+
+  hasRemainingScenarioTurns(turns = this.getScenarioTurns()) {
+    return this.scenarioCursor < turns.length;
+  }
+
+  finalizeScenarioCompletion(turnsLength) {
+    this.setStatus(
+      turnsLength > 0 ? `Scenario completed (${turnsLength} turns).` : 'Scenario completed.'
+    );
+    this.renderScenarioStatus();
+    return null;
+  }
+
+  getScenarioTurnStatusMessage(mode, turnsLength) {
+    if (mode === 'stage') {
+      return `Scenario turn ${this.scenarioCursor + 1}/${turnsLength} staged. Adjust controls, then Commit Turn.`;
+    }
+    return `Scenario turn ${this.scenarioCursor}/${turnsLength} executed.`;
+  }
+
+  finalizeScenarioTurnProgress(mode, turnsLength) {
+    if (mode === 'stage') {
+      this.scenarioStagedTurnIndex = this.scenarioCursor;
+    } else {
+      this.scenarioCursor += 1;
+      this.scenarioStagedTurnIndex = null;
+    }
+    this.renderScenarioStatus();
+    this.setStatus(this.getScenarioTurnStatusMessage(mode, turnsLength));
+  }
+
+  applyScenarioTurnAtCursor(mode = 'commit') {
+    const turns = this.getScenarioTurns();
+    if (!this.hasRemainingScenarioTurns(turns)) {
+      return this.finalizeScenarioCompletion(turns.length);
     }
     const turn = turns[this.scenarioCursor] ?? {};
-    const result = this.applyScenarioTurn(turn, { mode: 'stage' });
-    this.scenarioStagedTurnIndex = this.scenarioCursor;
-    this.renderScenarioStatus();
-    this.setStatus(
-      `Scenario turn ${this.scenarioCursor + 1}/${turns.length} staged. Adjust controls, then Commit Turn.`
-    );
+    const result = this.applyScenarioTurn(turn, { mode });
+    this.finalizeScenarioTurnProgress(mode, turns.length);
     return result;
+  }
+
+  stageCurrentScenarioTurn() {
+    this.ensureScenarioSetupApplied();
+    return this.applyScenarioTurnAtCursor('stage');
   }
 
   runNextScenarioTurn() {
     this.ensureScenarioSetupApplied();
-    const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
-    if (this.scenarioCursor >= turns.length) {
-      this.setStatus('Scenario completed.');
-      this.renderScenarioStatus();
-      return null;
-    }
-    const turn = turns[this.scenarioCursor] ?? {};
-    const result = this.applyScenarioTurn(turn, { mode: 'commit' });
-    this.scenarioCursor += 1;
-    this.scenarioStagedTurnIndex = null;
-    this.renderScenarioStatus();
-    this.setStatus(`Scenario turn ${this.scenarioCursor}/${turns.length} executed.`);
-    return result;
+    return this.applyScenarioTurnAtCursor('commit');
   }
 
   runAllScenarioTurns() {
     this.ensureScenarioSetupApplied();
-    const turns = Array.isArray(this.scenario.turns) ? this.scenario.turns : [];
-    while (this.scenarioCursor < turns.length) {
-      this.runNextScenarioTurn();
+    const turns = this.getScenarioTurns();
+    while (this.hasRemainingScenarioTurns(turns)) {
+      this.applyScenarioTurnAtCursor('commit');
     }
-    this.setStatus(`Scenario completed (${turns.length} turns).`);
-    this.renderScenarioStatus();
+    this.finalizeScenarioCompletion(turns.length);
     return this.recordStore.records.length;
   }
 
