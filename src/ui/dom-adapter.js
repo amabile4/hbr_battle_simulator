@@ -3546,6 +3546,32 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
   }
 
+  replayTurnPlansBeforeIndex(limitExclusive, mode) {
+    const limit = Math.max(0, Number(limitExclusive ?? 0));
+    for (let i = 0; i < limit; i += 1) {
+      const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[i]);
+      this.applyScenarioTurn(turn, {
+        mode: 'commit',
+        recalcMode: mode,
+        commitOptions: this.buildTurnPlanReplayCommitOptions(mode),
+      });
+    }
+  }
+
+  getTurnPlanEditSessionStatusMessage(session) {
+    if (session?.type === 'insert') {
+      return `Turn ${session.targetIndex + 1} に挿入する内容を編集中です。`;
+    }
+    return `Turn ${session?.targetIndex + 1} を編集中です。`;
+  }
+
+  finalizeTurnPlanEditSession(session) {
+    this.turnPlanEditSession = session;
+    this.renderTurnPlanEditControls();
+    this.renderRecordTable();
+    this.setStatus(this.getTurnPlanEditSessionStatusMessage(session));
+  }
+
   setDomValue(selector, value) {
     this.view.setDomValue(selector, value);
   }
@@ -5791,24 +5817,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.isReplayingTurnPlans = true;
     try {
       this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
-      for (let i = 0; i < session.sourceIndex; i += 1) {
-        const turn = this.toScenarioTurnFromTurnPlan(this.turnPlans[i]);
-        this.applyScenarioTurn(turn, {
-          mode: 'commit',
-          recalcMode: mode,
-          commitOptions: this.buildTurnPlanReplayCommitOptions(mode),
-        });
-      }
+      this.replayTurnPlansBeforeIndex(session.sourceIndex, mode);
       const sourceTurn = this.toScenarioTurnFromTurnPlan(this.turnPlans[session.sourceIndex]);
       this.applyScenarioTurn(sourceTurn, { mode: 'stage', recalcMode: mode });
-      this.turnPlanEditSession = session;
-      this.renderTurnPlanEditControls();
-      this.renderRecordTable();
-      if (session.type === 'insert') {
-        this.setStatus(`Turn ${session.targetIndex + 1} に挿入する内容を編集中です。`);
-      } else {
-        this.setStatus(`Turn ${session.targetIndex + 1} を編集中です。`);
-      }
+      this.finalizeTurnPlanEditSession(session);
     } finally {
       this.isReplayingTurnPlans = false;
     }

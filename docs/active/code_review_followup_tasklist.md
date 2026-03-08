@@ -91,3 +91,4 @@
 - 2026-03-08: `R-006` の replay 入口では `buildTurnPlanReplayCommitOptions()` / `replayTurnPlanTurn()` / `attemptForceTurnPlanFallback()` を追加し、`recalculateTurnPlans()` と `stageTurnPlanSession()` の `commitOptions` 組み立てと force fallback 実行を共通化した。
 - 2026-03-08: `R-006` の `recalculateTurnPlans()` では `resetTurnPlanReplayResults()` / `replayTurnPlanAtIndex()` / `finalizeTurnPlanReplay()` を導入し、1ターン分の replay 実行、force fallback、warning 集計、完了/停止 status 更新を helper へ分離した。
 - 2026-03-08: `R-006` の replay failure 側では `buildTurnPlanReplayError()` / `handleTurnPlanReplayFailure()` / `attemptTurnPlanForceFallback()` を追加し、turn-plan replay 失敗時の error object 化と force fallback 分岐を `replayTurnPlanAtIndex()` から切り離した。
+- 2026-03-08: `R-006` の edit session 側では `replayTurnPlansBeforeIndex()` / `getTurnPlanEditSessionStatusMessage()` / `finalizeTurnPlanEditSession()` を追加し、`stageTurnPlanSession()` の replay 前処理と status 文言更新を helper へ寄せた。編集開始時の status 文言も DOM テストで固定した。

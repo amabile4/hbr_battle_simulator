@@ -403,6 +403,27 @@ test('scenario first run creates editable first records row', () => {
   assert.equal(editButton.disabled, false);
 });
 
+test('turn plan edit row starts staged edit session and updates status message', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+
+  const editButton = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]'
+  );
+  assert.ok(editButton);
+
+  editButton.click();
+
+  assert.equal(adapter.turnPlanEditSession?.type, 'edit');
+  assert.equal(adapter.turnPlanEditSession?.targetIndex, 0);
+  assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Turn 1 を編集中です。');
+});
+
 test('turn plan strict recalculation stops at first invalid edited row', () => {
   const store = getStore();
   const { root } = createRoot();
