@@ -81,7 +81,7 @@ test('passive log panel shows battle-start passive descriptions on initialize', 
   const text = root.querySelector('[data-role="passive-log-output"]')?.textContent ?? '';
   assert.equal(text.includes('T1'), true);
   assert.equal(text.includes('桐生 美也 : [夏のひより] 初戦開始時 火属性スタイルに火の印を付与する(ターン永続/解除不可)'), true);
-  assert.equal(text.includes('朝倉 可憐 : [五月雨] バトル開始時 前衛にいると自身の連撃数(小ダメージ)+5(1回)'), true);
+  assert.equal(text.includes('朝倉 可憐 : [玄人] 自身のクリティカル率を常時+100%'), true);
   assert.equal(text.includes('和泉 ユキ : [遥拝の君] 味方の攻撃で敵をブレイクしたとき敵のダウンターンを1ターン延長'), true);
 });
 

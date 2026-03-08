@@ -1135,6 +1135,173 @@ test('DpRate works inside CountBC player predicates', () => {
   assert.equal(state.party[0].sp.current, 3);
 });
 
+test('OnEveryTurn passive HealDpRate updates DP state when DpRate condition matches', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          baseMaxDp: 70,
+          currentDp: 35,
+          passives: [
+            {
+              id: 18214,
+              name: '気合',
+              timing: 'OnEveryTurn',
+              condition: 'DpRate()<=0.5 && IsFront()',
+              parts: [{ skill_type: 'HealDpRate', target_type: 'Self', power: [0.15, 0] }],
+            },
+          ],
+        }
+      : { baseMaxDp: 70 }
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  assert.equal(result.dpEvents.length, 1);
+  assert.ok(Math.abs(state.party[0].dpState.currentDp - 45.5) < 1e-9);
+  assert.ok(
+    result.passiveEvents.some(
+      (event) => event.passiveName === '気合' && Math.abs(Number(event.dpDelta ?? 0) - 10.5) < 1e-9
+    )
+  );
+});
+
+test('applyInitialPassiveState applies OnPlayerTurnStart HealDpRate passive when DpRate condition matches', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          baseMaxDp: 70,
+          currentDp: 35,
+          passives: [
+            {
+              id: 18217,
+              name: '静養',
+              timing: 'OnPlayerTurnStart',
+              condition: 'DpRate()<=0.5 && IsFront()',
+              parts: [{ skill_type: 'HealDpRate', target_type: 'Self', power: [0.2, 0] }],
+            },
+          ],
+        }
+      : { baseMaxDp: 70 }
+  );
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  assert.equal(state.party[0].dpState.currentDp, 49);
+  assert.ok(
+    state.turnState.passiveEventsLastApplied.some(
+      (event) => event.passiveName === '静養' && Math.abs(Number(event.dpDelta ?? 0) - 14) < 1e-9
+    )
+  );
+});
+
+test('ReviveDpRate passive revives broken self only once when limit is 1', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          baseMaxDp: 70,
+          currentDp: 0,
+          passives: [
+            {
+              id: 18215,
+              name: 'くじけぬ心',
+              timing: 'OnEveryTurn',
+              condition: 'DpRate()==0.0 && IsFront()',
+              limit: 1,
+              parts: [{ skill_type: 'ReviveDpRate', target_type: 'Self', power: [0.5, 0] }],
+            },
+          ],
+        }
+      : { baseMaxDp: 70 }
+  );
+  const state = createBattleStateFromParty(party);
+
+  const first = applyPassiveTiming(state, 'OnEveryTurn');
+  assert.equal(first.dpEvents.length, 1);
+  assert.equal(state.party[0].dpState.currentDp, 35);
+
+  state.party[0].setDpState({ currentDp: 0 });
+  const second = applyPassiveTiming(state, 'OnEveryTurn');
+  assert.equal(second.dpEvents.length, 0);
+  assert.equal(second.passiveEvents.length, 0);
+  assert.equal(state.party[0].dpState.currentDp, 0);
+});
+
+test('commitTurn applies OnEnemyTurnStart HealDpRate passive when base turn advances', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          baseMaxDp: 70,
+          currentDp: 35,
+          passives: [
+            {
+              id: 18218,
+              name: '充填',
+              timing: 'OnEnemyTurnStart',
+              condition: 'DpRate()<=0.5 && IsFront()',
+              parts: [{ skill_type: 'HealDpRate', target_type: 'Self', power: [0.1, 0] }],
+            },
+          ],
+        }
+      : { baseMaxDp: 70 }
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party[0].dpState.currentDp, 42);
+  assert.equal(
+    committedRecord.passiveEvents.some(
+      (event) => event.timing === 'OnEnemyTurnStart' && event.passiveName === '充填' && event.dpDelta === 7
+    ),
+    true
+  );
+  assert.equal(
+    committedRecord.dpEvents.some(
+      (event) => event.source === 'dp_passive' && event.passiveName === '充填' && event.delta === 7
+    ),
+    true
+  );
+});
+
+test('unsupported OnEnemyTurnStart DefenseUp passive logs only when DpRate condition matches', () => {
+  const createParty = (currentDp) =>
+    createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            baseMaxDp: 70,
+            currentDp,
+            passives: [
+              {
+                id: 18216,
+                name: '堅忍',
+                timing: 'OnEnemyTurnStart',
+                condition: 'DpRate()==0.0 && IsFront()',
+                parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.5, 0] }],
+              },
+            ],
+          }
+        : { baseMaxDp: 70 }
+    );
+
+  const highState = createBattleStateFromParty(createParty(0));
+  const highResult = applyPassiveTiming(highState, 'OnEnemyTurnStart');
+  assert.ok(
+    highResult.passiveEvents.some(
+      (event) => event.passiveName === '堅忍' && event.unsupportedEffectTypes?.includes('DefenseUp')
+    )
+  );
+
+  const lowState = createBattleStateFromParty(createParty(70));
+  const lowResult = applyPassiveTiming(lowState, 'OnEnemyTurnStart');
+  assert.equal(lowResult.passiveEvents.length, 0);
+});
+
 test('Morale skill variants resolve low and high morale branches without blocking use', () => {
   const createParty = (morale) =>
     createSixMemberManualParty((idx) =>
@@ -6636,4 +6803,64 @@ test('commitTurn applies OnBattleWin passives when all enemies are dead', () => 
   assert.equal(nextState.party.find((m) => m.characterId === 'BW1').sp.current, 8);
   assert.equal(committedRecord.passiveEvents.some((event) => event.timing === 'OnBattleWin'), true);
   assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '実の父よりもシチーは飽きることがない'), true);
+});
+
+test('commitTurn applies OnBattleWin HealDpRate passive to matching allies', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `BDP${idx + 1}`,
+      characterName: `BDP${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `BDPS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      baseMaxDp: 70,
+      currentDp: idx < 2 ? 0 : 35,
+      elements: idx < 2 ? ['Fire'] : ['Ice'],
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 62,
+                name: '愛情の料理',
+                desc: 'バトル勝利時 味方全体の火属性スタイルのDP+100%',
+                timing: 'OnBattleWin',
+                condition: '',
+                parts: [
+                  {
+                    skill_type: 'HealDpRate',
+                    target_type: 'AllyAll',
+                    target_condition: 'IsNatureElement(Fire)',
+                    power: [1, 0],
+                  },
+                ],
+              },
+            ]
+          : [],
+      skills: [{ id: 28600 + idx, name: 'Act', label: `BDPSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'Dead', targetIndex: 0, remainingTurns: 0 }],
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'BDP1', skillId: 28600 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party[0].dpState.currentDp, 70);
+  assert.equal(nextState.party[1].dpState.currentDp, 70);
+  assert.equal(nextState.party[2].dpState.currentDp, 35);
+  assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '愛情の料理'), true);
+  assert.equal(
+    committedRecord.dpEvents.some(
+      (event) => event.source === 'dp_passive' && event.passiveName === '愛情の料理' && event.delta === 70
+    ),
+    true
+  );
 });

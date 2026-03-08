@@ -7,8 +7,8 @@
 - パッシブ単体ではなく、関連する状態変化スキルの実装を同じ作業単位に含める
 - `condition` 実装と `timing` 実装は分けて管理する
 - `Token`, `MoraleLevel`, `MotivationLevel`, `Mark`, `Zone`, `Territory` は状態保持だけでなく増減スキル実装が必要
-- `Token` は独立プラン `docs/token_implementation_plan.md` を参照
-- `DpRate` / DP関連はパッシブに閉じないため [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md) で別管理する
+- `Token` は独立プラン [`token_implementation_plan.md`](token_implementation_plan.md) を参照
+- `DpRate` / DP関連はパッシブに閉じないため [`dp_implementation_plan.md`](dp_implementation_plan.md) で別管理する
 - マスタースキル由来パッシブ、通常スキル由来パッシブは別系統として後段で扱う
 - `docs/multi_enemy_implementation_tasklist.md` は別管理であり、このタスクリストには複数敵固有の詳細は持ち込まない
 
@@ -29,13 +29,16 @@
 - [x] `ConquestBikeLevel`
   - 現在は固定値 `160` を返す実装
   - 将来課題として UI からの上書き入力を追加する
-- [ ] 自キャラ `IsBroken` 手動状態UI
-- [ ] 敵 `IsBroken` / `IsDead` 手動状態の運用仕上げ
+- [x] 自キャラ `IsBroken` 手動状態UI
+  - 初期編成 UI と scenario / turnPlan / snapshot 保存まで実装済み
+- [x] 敵 `IsBroken` / `IsDead` 手動状態の運用仕上げ
+  - enemy status controls、record、scenario、turnPlan 再生まで通っている
 
 ## Phase 3: 状態保持が必要な条件
 
-- [ ] `DpRate`
-  - 実装計画は [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md) を参照
+- [x] `DpRate`
+  - 実装計画は [`dp_implementation_plan.md`](dp_implementation_plan.md) を参照
+  - 条件評価、DP状態保存、DP増減、DP条件パッシブ接続まで実装済み
 - [x] `Token`
   - 共通基盤として `CharacterStyle.tokenState`、`Token()`、`TokenSet`、`consume_type: Token` は実装済み
   - 月城最中系の `TokenSetByAttacking`、マリア系の `TokenSetByHealedDp` は実装済み
@@ -225,14 +228,15 @@
 - [x] 陣展開スキル
 - [ ] 陣解除/上書き処理
 - [x] DP現在値保持
-- [ ] DP増減処理
+- [x] DP増減処理
   - Phase 4 の direct heal / regeneration grant / regeneration tick / HealDpByDamage trigger は実装済み
   - Phase 5 の `SelfDamage` / `AttackByOwnDpRate` / 行動後 `DpRate` 再評価は実装済み
-  - 未実装は `HealDp` / `ReviveDp` / `HealDpByDamage` の厳密量と Break起点変化
+  - Phase 7 の `HealDpRate` / `ReviveDpRate` passive effect と `OnPlayerTurnStart` / `OnEveryTurn` / `OnEnemyTurnStart` / `OnBattleWin` 接続も実装済み
+  - `HealDp` / `ReviveDp` / `HealDpByDamage` の厳密量は仕様留保のまま、trigger と状態遷移を優先して完了扱いにする
 
 ### DP回復タスクメモ
 
-- DP関連の詳細実装計画は [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md) の Phase 4 を参照
+- DP関連の詳細実装計画は [`dp_implementation_plan.md`](dp_implementation_plan.md) の Phase 4 を参照
 - Phase 4 の完了条件は「回復量の厳密再現」ではなく、「DP回復イベントを trigger と状態遷移の入力として扱えること」に置く
 - 現在は
   - `DirectDpHeal`
@@ -274,6 +278,9 @@
   - 復元時は `_nextStatusEffectId` の再計算も必要
 - `HealDpRate` は `baseMaxDp` 基準の割合回復として扱えるが、他の DP回復 skill_type は現状「回復した事実」と「種別」を保持するところまでで十分だった
 - Phase 7 で個別パッシブを詰める時は、「direct heal」「regen grant」「regen tick」「damage-based heal」の 4 種別を別 trigger として使う前提でテストを書く
+- Phase 7 で `HealDpRate` / `ReviveDpRate` の passive effect が `OnPlayerTurnStart` / `OnEveryTurn` / `OnEnemyTurnStart` / `OnBattleWin` に接続された
+  - passive 起点の DP変化は `dp_passive` として `record.dpEvents` に残る
+  - unsupported passive log は条件不成立や target 不在では残さないようにした
 
 ### timing 記録メモ
 
@@ -281,7 +288,7 @@
   - その turn の開始時点で既に `state.turnState.passiveEventsLastApplied` に入っていたもの
   - `commitTurn()` 中の boundary で新規発火したもの
 - これにより、次ターン開始用の `OnEveryTurn` / `OnPlayerTurnStart` が前ターン record に逆流しない
-- 現在の timing 全体像は [`docs/passive_timing_reference.md`](/Users/ram4/git/hbr_battle_simulator/docs/passive_timing_reference.md) を参照
+- 現在の timing 全体像は [`passive_timing_reference.md`](passive_timing_reference.md) を参照
 
 ## Phase 6: 将来拡張
 
@@ -301,7 +308,7 @@
 7. `MotivationLevel` と関連スキル
 8. `IsZone` / `IsTerritory` と展開スキル
 9. `DpRate` と DP 状態
-  - 詳細は [`docs/dp_implementation_plan.md`](/Users/ram4/git/hbr_battle_simulator/docs/dp_implementation_plan.md)
+  - 詳細は [`dp_implementation_plan.md`](dp_implementation_plan.md)
 10. `Mark` 系
 
 ## 備考

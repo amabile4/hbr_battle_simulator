@@ -44,7 +44,7 @@ const ENEMY_STATUS_BREAK = 'Break';
 const ENEMY_STATUS_STRONG_BREAK = 'StrongBreak';
 const ENEMY_STATUS_SUPER_DOWN = 'SuperDown';
 const ENEMY_STATUS_DEAD = 'Dead';
-const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp']));
+const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp', 'ReviveDpRate']));
 const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
 const DP_HEAL_SKILL_TYPES = Object.freeze(
   new Set([...DIRECT_DP_HEAL_SKILL_TYPES, 'RegenerationDp', 'HealDpByDamage'])
@@ -1678,6 +1678,57 @@ function createDpEvent({
           remaining: Number(statusEffect.remaining ?? 0),
         }
       : {}),
+  };
+}
+
+function createPassiveDpEvent({
+  actor,
+  target,
+  passive,
+  part,
+  triggerType,
+  source,
+  startDpState,
+  endDpState,
+  isAmountResolved = false,
+}) {
+  const startState = cloneDpState(startDpState ?? target?.dpState ?? {});
+  const endState = cloneDpState(endDpState ?? target?.dpState ?? {});
+  return {
+    actorCharacterId: actor?.characterId ?? null,
+    characterId: target.characterId,
+    source,
+    passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+    passiveName: String(passive?.name ?? ''),
+    skillType: String(part?.skill_type ?? ''),
+    triggerType: String(triggerType ?? ''),
+    delta: Number(endState.currentDp ?? 0) - Number(startState.currentDp ?? 0),
+    startDpState: startState,
+    endDpState: endState,
+    startDpRate: getDpRate(startState),
+    endDpRate: getDpRate(endState),
+    eventCeiling: Number(endState.effectiveDpCap ?? endState.baseMaxDp ?? 0),
+    isAmountResolved: Boolean(isAmountResolved),
+    targetType: String(part?.target_type ?? ''),
+    targetCondition: String(part?.target_condition ?? ''),
+  };
+}
+
+function mapDpEventToRecordChange(event) {
+  return {
+    source: event.source,
+    triggerType: event.triggerType,
+    skillType: event.skillType,
+    targetCharacterId: event.characterId,
+    delta: event.delta,
+    preDp: Number(event.startDpState?.currentDp ?? 0),
+    postDp: Number(event.endDpState?.currentDp ?? 0),
+    preDpCap: Number(event.startDpState?.effectiveDpCap ?? event.startDpState?.baseMaxDp ?? 0),
+    postDpCap: Number(event.endDpState?.effectiveDpCap ?? event.endDpState?.baseMaxDp ?? 0),
+    isAmountResolved: Boolean(event.isAmountResolved),
+    ...(Number.isFinite(Number(event.effectId)) ? { effectId: Number(event.effectId) } : {}),
+    ...(Number.isFinite(Number(event.remaining)) ? { remaining: Number(event.remaining) } : {}),
+    ...(String(event.exitCond ?? '') ? { exitCond: String(event.exitCond) } : {}),
   };
 }
 
@@ -4410,10 +4461,46 @@ function evaluatePassiveSelfConditions(passive, part, state, member) {
   return conditions.every((expr) => evaluateConditionExpression(expr, state, member, conditionSkill).result);
 }
 
+function resolvePassiveTargetMembers(state, actorMember, part, preferredTargetCharacterId = null) {
+  const targetCharacterIds = resolveSupportTargetCharacterIds(
+    state,
+    actorMember,
+    part?.target_type,
+    preferredTargetCharacterId
+  );
+  const targets = [];
+  for (const targetCharacterId of targetCharacterIds) {
+    const target = findMemberByCharacterId(state, targetCharacterId);
+    if (!target) {
+      continue;
+    }
+    if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+      continue;
+    }
+    targets.push(target);
+  }
+  return targets;
+}
+
+function passivePartCanMatchWithoutPartyTarget(part) {
+  const targetType = String(part?.target_type ?? '').trim();
+  return ![
+    'Self',
+    'AllyAll',
+    'AllyAllWithoutSelf',
+    'AllyFront',
+    'AllyFrontWithoutSelf',
+    'AllySub',
+    'AllySingle',
+    'AllySingleWithoutSelf',
+  ].includes(targetType);
+}
+
 function applyPassiveTimingInternal(state, timings = [], options = {}) {
   const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
   const spEvents = [];
   const epEvents = [];
+  const dpEvents = [];
   const passiveEvents = [];
   const turnState = state?.turnState ?? {};
   const passiveUsageCounts =
@@ -4436,6 +4523,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       let matched = false;
       let totalDelta = 0;
       let totalEpDelta = 0;
+      let totalDpDelta = 0;
       let totalMotivationDelta = 0;
       let totalAttackUpRate = 0;
       let totalOdGaugeDelta = 0;
@@ -4443,6 +4531,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       const effectTypes = new Set();
       const unsupportedEffectTypes = new Set();
       const fieldEvents = [];
+      let unsupportedMatched = false;
       for (const part of resolvePassiveEffectiveParts(passive, state, member)) {
         const skillType = String(part?.skill_type ?? '');
         if (skillType) {
@@ -4473,6 +4562,8 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         if (
           skillType !== 'HealSp' &&
           skillType !== 'HealEp' &&
+          skillType !== 'HealDpRate' &&
+          skillType !== 'ReviveDpRate' &&
           skillType !== 'Motivation' &&
           skillType !== 'AttackUp' &&
           skillType !== 'OverDrivePointUp' &&
@@ -4480,8 +4571,16 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'BreakGuard' &&
           !MARK_SKILL_TYPE_TO_ELEMENT[skillType]
         ) {
+          if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
+            continue;
+          }
+          const targets = resolvePassiveTargetMembers(state, member, part, options.targetCharacterId ?? null);
+          if (targets.length === 0 && !passivePartCanMatchWithoutPartyTarget(part)) {
+            continue;
+          }
           if (skillType) {
             unsupportedEffectTypes.add(skillType);
+            unsupportedMatched = true;
           }
           continue;
         }
@@ -4510,6 +4609,52 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           });
           matched = true;
           totalEpDelta += Number(change?.delta ?? 0);
+          continue;
+        }
+
+        if (skillType === 'HealDpRate' || skillType === 'ReviveDpRate') {
+          const rate = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(rate) || rate <= 0) {
+            continue;
+          }
+          const targets = resolvePassiveTargetMembers(state, member, part, options.targetCharacterId ?? null);
+          if (targets.length === 0) {
+            continue;
+          }
+          for (const target of targets) {
+            const startDpState = cloneDpState(target.dpState ?? {});
+            const baseMaxDp = Number(startDpState.baseMaxDp ?? 0);
+            if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0) {
+              continue;
+            }
+            const amount = baseMaxDp * rate;
+            if (!Number.isFinite(amount) || amount <= 0) {
+              continue;
+            }
+            const nextCurrentDp =
+              skillType === 'ReviveDpRate'
+                ? Math.max(Number(startDpState.currentDp ?? 0), amount)
+                : Number(startDpState.currentDp ?? 0) + amount;
+            const change = target.setDpState({
+              currentDp: nextCurrentDp,
+              effectiveDpCap: getDpHealCapForPart(target, part),
+            });
+            const endDpState = cloneDpState(change.endDpState);
+            const event = createPassiveDpEvent({
+              actor: member,
+              target,
+              passive,
+              part,
+              triggerType: getDpEventKind(skillType),
+              source: 'dp_passive',
+              startDpState,
+              endDpState,
+              isAmountResolved: true,
+            });
+            dpEvents.push(event);
+            matched = true;
+            totalDpDelta += Number(event.delta ?? 0);
+          }
           continue;
         }
 
@@ -4708,8 +4853,8 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
       }
 
-      if (matched || unsupportedEffectTypes.size > 0) {
-        if (matched && passiveLimit > 0) {
+      if (matched || unsupportedMatched) {
+        if ((matched || unsupportedMatched) && passiveLimit > 0) {
           passiveUsageCounts[usageKey] = currentUsageCount + 1;
         }
         passiveEvents.push(
@@ -4718,6 +4863,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             effectTypes: [...effectTypes],
             spDelta: totalDelta,
             epDelta: totalEpDelta,
+            dpDelta: totalDpDelta,
             motivationDelta: totalMotivationDelta,
             attackUpRate: totalAttackUpRate,
             odGaugeDelta: totalOdGaugeDelta,
@@ -4730,7 +4876,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
     }
   }
 
-  return { spEvents, epEvents, passiveEvents };
+  return { spEvents, epEvents, dpEvents, passiveEvents };
 }
 
 function applySkillSelfEpGains(state, previewRecord) {
@@ -4915,6 +5061,7 @@ function applyFieldStateFromActions(state, previewRecord) {
 function applyRecoveryPipeline(party, turnState) {
   const recoveryEvents = [];
   const epEvents = [];
+  const dpEvents = [];
   const passiveEvents = [];
 
   for (const member of party) {
@@ -4954,6 +5101,9 @@ function applyRecoveryPipeline(party, turnState) {
   if (passiveResult.epEvents.length > 0) {
     epEvents.push(...passiveResult.epEvents);
   }
+  if (passiveResult.dpEvents.length > 0) {
+    dpEvents.push(...passiveResult.dpEvents);
+  }
   if (passiveResult.passiveEvents.length > 0) {
     passiveEvents.push(...passiveResult.passiveEvents);
   }
@@ -4977,6 +5127,7 @@ function applyRecoveryPipeline(party, turnState) {
   return {
     spEvents: recoveryEvents,
     epEvents,
+    dpEvents,
     passiveEvents,
   };
 }
@@ -5193,6 +5344,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     ? structuredClone(state.turnState.passiveEventsLastApplied)
     : [];
   const boundaryPassiveEvents = [];
+  const boundaryDpEvents = [];
 
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
@@ -5243,6 +5395,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const recovery = applyRecoveryPipeline(state.party, state.turnState);
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
+  const recoveryDpEvents = Array.isArray(recovery.dpEvents) ? [...recovery.dpEvents] : [];
 
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
@@ -5318,23 +5471,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         eventCeiling: ev.eventCeiling,
       }));
     entry.markChanges = [...(entry.markChanges ?? []), ...extraMarkChanges];
-    entry.dpChanges = actionDpEvents
+    const actionDpChanges = actionDpEvents
       .filter((ev) => ev.actorCharacterId === entry.characterId && Number(ev.skillId ?? 0) === Number(entry.skillId))
-      .map((ev) => ({
-        source: ev.source,
-        triggerType: ev.triggerType,
-        skillType: ev.skillType,
-        targetCharacterId: ev.characterId,
-        delta: ev.delta,
-        preDp: Number(ev.startDpState?.currentDp ?? 0),
-        postDp: Number(ev.endDpState?.currentDp ?? 0),
-        preDpCap: Number(ev.startDpState?.effectiveDpCap ?? ev.startDpState?.baseMaxDp ?? 0),
-        postDpCap: Number(ev.endDpState?.effectiveDpCap ?? ev.endDpState?.baseMaxDp ?? 0),
-        isAmountResolved: Boolean(ev.isAmountResolved),
-        ...(Number.isFinite(Number(ev.effectId)) ? { effectId: Number(ev.effectId) } : {}),
-        ...(Number.isFinite(Number(ev.remaining)) ? { remaining: Number(ev.remaining) } : {}),
-        ...(String(ev.exitCond ?? '') ? { exitCond: String(ev.exitCond) } : {}),
-      }));
+      .map((ev) => mapDpEventToRecordChange(ev));
+    const recoveryDpChanges = recoveryDpEvents
+      .filter((ev) => ev.characterId === entry.characterId)
+      .map((ev) => mapDpEventToRecordChange(ev));
+    entry.dpChanges = [...actionDpChanges, ...recoveryDpChanges];
     const odEvent = odGaugeGain.events.find(
       (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
     );
@@ -5379,7 +5522,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     const passiveEvents = Array.isArray(enemyTurnStartResult.passiveEvents)
       ? structuredClone(enemyTurnStartResult.passiveEvents)
       : [];
+    const dpEvents = Array.isArray(enemyTurnStartResult.dpEvents) ? structuredClone(enemyTurnStartResult.dpEvents) : [];
     boundaryPassiveEvents.push(...passiveEvents);
+    boundaryDpEvents.push(...dpEvents);
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
   }
   if (Number(getEnemyState(nextTurnState).enemyCount ?? 0) > 0 && countAliveEnemies(nextTurnState) === 0) {
@@ -5394,7 +5539,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     const passiveEvents = Array.isArray(battleWinResult.passiveEvents)
       ? structuredClone(battleWinResult.passiveEvents)
       : [];
+    const dpEvents = Array.isArray(battleWinResult.dpEvents) ? structuredClone(battleWinResult.dpEvents) : [];
     boundaryPassiveEvents.push(...passiveEvents);
+    boundaryDpEvents.push(...dpEvents);
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
   }
 
@@ -5406,12 +5553,11 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       nextTurnState.turnLabel = `T${nextTurnState.turnIndex}`;
     }
   }
-  let boundaryDpEvents = [];
   // Enemy statuses tick on enemy-turn consumption only.
   // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
     tickEnemyStatuses(nextTurnState);
-    boundaryDpEvents = applyEnemyTurnEndDpEffects(state.party);
+    boundaryDpEvents.push(...applyEnemyTurnEndDpEffects(state.party));
   }
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 
@@ -5427,7 +5573,11 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     const passiveEvents = Array.isArray(additionalTurnStartResult.passiveEvents)
       ? structuredClone(additionalTurnStartResult.passiveEvents)
       : [];
+    const dpEvents = Array.isArray(additionalTurnStartResult.dpEvents)
+      ? structuredClone(additionalTurnStartResult.dpEvents)
+      : [];
     boundaryPassiveEvents.push(...passiveEvents);
+    boundaryDpEvents.push(...dpEvents);
     nextState.turnState.passiveEventsLastApplied = [
       ...(nextState.turnState.passiveEventsLastApplied ?? []),
       ...passiveEvents,
@@ -5448,7 +5598,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   committed.transcendence = transcendenceSummary;
   committed.passiveEvents = structuredClone([...currentTurnPassiveEvents, ...boundaryPassiveEvents]);
-  committed.dpEvents = structuredClone([...actionDpEvents, ...boundaryDpEvents]);
+  committed.dpEvents = structuredClone([...actionDpEvents, ...recoveryDpEvents, ...boundaryDpEvents]);
 
   return {
     nextState,

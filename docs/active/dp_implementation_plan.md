@@ -1,6 +1,6 @@
 # DP実装プラン
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-08
+> **ステータス**: ✅ 完了 | 📅 最終更新: 2026-03-08
 
 ## 方針
 
@@ -112,17 +112,19 @@
 - Phase 4: DP回復スキル
 - Phase 5: DP自傷とDP依存スキル
 - Phase 6: Break関連
+- Phase 7: パッシブ接続
 
 ### 未実装
 
-- Phase 7: パッシブ接続
+- なし
 
 ### 補足
 
 - `DpRate()` はパッシブ条件だけでなく、`SkillCondition` と `CountBC(...)` 内のプレイヤー条件でも評価できるようになった
 - DP状態は `snapshot / record / turnPlan / scenario` まで保存されるようになり、再計算・再生で引き継げる
 - `RegenerationDp` の statusEffect も snapshot / record 経由で引き継げるようになった
-- 検証時点では非 E2E テスト 279 件が通過している
+- 合意どおり `HealDp` / `ReviveDp` / `HealDpByDamage` の厳密量解釈は仕様留保のまま、trigger と状態遷移の成立を優先して完了扱いとする
+- 検証時点では非 E2E テスト 285 件が通過している
 
 ## Phase 1: 状態モデル
 
@@ -350,15 +352,20 @@
 
 ## Phase 7: パッシブ接続
 
-- [ ] `OnPlayerTurnStart` の DP 条件パッシブ
-- [ ] `OnEnemyTurnStart` の DP 条件パッシブ
-- [ ] `OnEveryTurn` の DP 条件パッシブ
-- [ ] `OnBattleWin` の DP 回復系パッシブ
+- [x] `OnPlayerTurnStart` の DP 条件パッシブ
+- [x] `OnEnemyTurnStart` の DP 条件パッシブ
+- [x] `OnEveryTurn` の DP 条件パッシブ
+- [x] `OnBattleWin` の DP 回復系パッシブ
 
 ### Phase 7メモ
 
-- 条件評価そのものは Phase 3 で通るため、未実装なのは主に DP回復・DP変動を伴うパッシブ効果側
-- `OnBattleWin` の `HealDpRate` は DP状態更新ロジックが入ってから接続する方が安全
+- `applyPassiveTimingInternal()` が `dpEvents` を返すようになり、passive 起点の DP変化を `record.dpEvents` と `actions[].dpChanges` に残せるようになった
+- `HealDpRate` / `ReviveDpRate` を passive effect として扱い、`baseMaxDp` 比率で `currentDp` と `effectiveDpCap` を更新する
+- `OnPlayerTurnStart` / `OnEveryTurn` は turn start pipeline で発火し、次ターン開始用の `passiveEventsLastApplied` に保持される
+- `OnEnemyTurnStart` / `OnBattleWin` は boundary timing として commit 中に評価し、前ターン record にだけ必要な `dp_passive` を追加する
+- unsupported passive のログは、「self 条件が真で、かつ実際に target が取れる時だけ残す」ように整理した
+  - これにより、後衛条件を満たしていない passive が passive log に誤混入するケースを防げた
+- direct heal / regeneration grant / regeneration tick / damage-based heal の区別は Phase 4 の方針を維持し、Phase 7 では timing 接続に専念した
 
 ## 設計メモ
 
@@ -366,8 +373,7 @@
 - 将来ダメージ計算機が入っても、DP状態モデルはそのまま流用できる形にする
 - DP破損と `Break` は現時点では同一視せず、別状態として扱う方が安全
 - 自傷や味方起点の DP消費では自動的に Break させず、DP 0 は手入力でのみ再現する
-- `OnBattleWin` の `HealDpRate` は DP状態モデル完成後に実装する
-- パッシブ側の `DpRate` 実装状況は [`docs/passive_implementation_tasklist.md`](/Users/ram4/git/hbr_battle_simulator/docs/passive_implementation_tasklist.md) から参照する
+- パッシブ側の `DpRate` 実装状況は [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) から参照する
 - `style.base_param.dp` を `baseMaxDp` の初期基準として使う案は実装しやすいが、`HealDp power` との単位差があるため、将来の厳密化余地を残しておく
 - DP関連は UI 入力だけでなく record / replay 系へ保存しないと、turnPlan 再計算や scenario 再生で `DpRate()` 条件の再現性が崩れる
 - `committedRecord.passiveEvents` は「その turn の開始時点で既に有効だった passive」と「その commit 境界で新規発火した passive」のみを持つ
