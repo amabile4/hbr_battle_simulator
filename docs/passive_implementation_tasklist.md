@@ -227,7 +227,8 @@
 - [x] DP現在値保持
 - [ ] DP増減処理
   - Phase 4 の direct heal / regeneration grant / regeneration tick / HealDpByDamage trigger は実装済み
-  - 未実装は `HealDp` / `ReviveDp` / `HealDpByDamage` の厳密量、DP自傷、Break起点変化
+  - Phase 5 の `SelfDamage` / `AttackByOwnDpRate` / 行動後 `DpRate` 再評価は実装済み
+  - 未実装は `HealDp` / `ReviveDp` / `HealDpByDamage` の厳密量と Break起点変化
 
 ### DP回復タスクメモ
 
@@ -253,6 +254,23 @@
   - DP回復起点のパッシブ
   - `record` / replay 上での DP回復イベント保持
 - `HealDpRate` のように割合で解釈できるものだけ数値反映を先行し、その他は既存 DP 手入力 UI で補正可能とする
+- 実装上、`RegenerationDpTick` の発生タイミングは「毎 commit」ではなく「base turn index が進み、敵ターンが消費された境界」に置くのが安全だった
+  - OD/EX 中の commit では tick させない
+- DP回復イベントは 2 層に分けると扱いやすい
+  - `actions[].dpChanges`: どの行動が何を起こしたかを追う action 単位の履歴
+  - `record.dpEvents`: 再生や将来の trigger 判定で参照する turn 全体の履歴
+- DPプラン側の Phase 5 は実装済み
+  - `SelfDamage` は `baseMaxDp` 比率で現在値へ反映し、`SelfDpDamage` として記録する
+  - Break明示仕様が無い DP消費は `1` 未満へ落とさず、シミュレータ上で自動 Break を起こさない
+  - DP 0 / Break を再現したいケースは、現状はユーザー手入力で `currentDp=0` を入れる前提
+  - `AttackByOwnDpRate` は preview / record の `damageContext` に「行動開始時 DP 比率」と解決 multiplier を残す
+  - `SkillCondition` 分岐後の実スキルを行動 entry に snapshot して、OD増加・DP変化・Funnel などの後段処理でも同じ分岐結果を使う
+  - 行動後の DP 変化は、その turn の後段で走る `DpRate()` 条件付きパッシブや追加ターン開始条件から見える
+- そのため Passive 側の残件は「DP状態が見えるか」ではなく、「各 passive effect が direct heal / regen grant / regen tick / self damage / damage-based heal / break 起点をどう解釈するか」の詰めに寄ってきた
+- `RegenerationDp` を replay で安定させるには、DP値だけでなく `statusEffects` 自体を snapshot / restore へ通す必要があった
+  - 復元時は `_nextStatusEffectId` の再計算も必要
+- `HealDpRate` は `baseMaxDp` 基準の割合回復として扱えるが、他の DP回復 skill_type は現状「回復した事実」と「種別」を保持するところまでで十分だった
+- Phase 7 で個別パッシブを詰める時は、「direct heal」「regen grant」「regen tick」「damage-based heal」の 4 種別を別 trigger として使う前提でテストを書く
 
 ## Phase 6: 将来拡張
 

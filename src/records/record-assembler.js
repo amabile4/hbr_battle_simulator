@@ -45,7 +45,7 @@ function formatEnemyStatusSummary(turnState) {
 
 export function commitRecord(preview, snapAfter, swapEvents, committedAt = new Date().toISOString()) {
   const actions = preview.actions.map((entry) => {
-    const { _baseRevision, ...safeEntry } = entry;
+    const { _baseRevision, _effectiveSkillSnapshot, ...safeEntry } = entry;
     return safeEntry;
   });
 

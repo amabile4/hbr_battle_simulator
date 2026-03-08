@@ -452,6 +452,323 @@ test('HealDpByDamage is tracked separately from direct DP heal triggers', () => 
   );
 });
 
+test('SelfDamage lowers current DP by baseMax rate and records DP self-damage', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          dpState: {
+            baseMaxDp: 100,
+            currentDp: 100,
+            effectiveDpCap: 100,
+          },
+          skills: [
+            {
+              id: 18125,
+              name: 'Self Damage Slash',
+              sp_cost: 0,
+              target_type: 'Single',
+              hit_count: 1,
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', power: [100, 0] },
+                { skill_type: 'SelfDamage', target_type: 'Self', power: [0.5, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18125, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  const actor = nextState.party.find((item) => item.characterId === 'M1');
+  assert.equal(actor.dpState.currentDp, 50);
+  const actorEntry = committedRecord.actions.find((item) => item.characterId === 'M1');
+  assert.equal(
+    actorEntry.dpChanges.some(
+      (item) =>
+        item.triggerType === 'SelfDpDamage' &&
+        item.skillType === 'SelfDamage' &&
+        item.targetCharacterId === 'M1' &&
+        item.delta === -50 &&
+        item.preDp === 100 &&
+        item.postDp === 50 &&
+        item.isAmountResolved === true
+    ),
+    true
+  );
+  assert.equal(
+    committedRecord.dpEvents.some(
+      (item) =>
+        item.triggerType === 'SelfDpDamage' &&
+        item.skillType === 'SelfDamage' &&
+        item.characterId === 'M1' &&
+        item.delta === -50
+    ),
+    true
+  );
+});
+
+test('SelfDamage supports ally-targeted DP reduction skill parts', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx <= 2
+      ? {
+          dpState: {
+            baseMaxDp: 70,
+            currentDp: 70,
+            effectiveDpCap: 70,
+          },
+          ...(idx === 0
+            ? {
+                skills: [
+                  {
+                    id: 18126,
+                    name: 'Ally Damage Boost',
+                    sp_cost: 0,
+                    parts: [
+                      { skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.3, 0] },
+                      { skill_type: 'SelfDamage', target_type: 'AllyFrontWithoutSelf', power: [0.3, 0] },
+                    ],
+                  },
+                ],
+              }
+            : {}),
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18126 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party[0].dpState.currentDp, 70);
+  assert.equal(nextState.party[1].dpState.currentDp, 49);
+  assert.equal(nextState.party[2].dpState.currentDp, 49);
+  const actorEntry = committedRecord.actions.find((item) => item.characterId === 'M1');
+  assert.equal(
+    actorEntry.dpChanges.filter((item) => item.triggerType === 'SelfDpDamage').length,
+    2
+  );
+  assert.equal(
+    actorEntry.dpChanges.some(
+      (item) => item.triggerType === 'SelfDpDamage' && item.targetCharacterId === 'M2' && item.delta === -21
+    ),
+    true
+  );
+  assert.equal(
+    actorEntry.dpChanges.some(
+      (item) => item.triggerType === 'SelfDpDamage' && item.targetCharacterId === 'M3' && item.delta === -21
+    ),
+    true
+  );
+});
+
+test('SelfDamage keeps 1 DP floor instead of auto-breaking on 100% cost', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          dpState: {
+            baseMaxDp: 70,
+            currentDp: 70,
+            effectiveDpCap: 70,
+          },
+          skills: [
+            {
+              id: 18131,
+              name: 'Full Cost',
+              sp_cost: 0,
+              parts: [{ skill_type: 'SelfDamage', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18131 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party[0].dpState.currentDp, 1);
+  assert.equal(
+    committedRecord.actions[0].dpChanges.some(
+      (item) =>
+        item.triggerType === 'SelfDpDamage' &&
+        item.targetCharacterId === 'M1' &&
+        item.preDp === 70 &&
+        item.postDp === 1 &&
+        item.delta === -69
+    ),
+    true
+  );
+});
+
+test('AttackByOwnDpRate exposes resolved multiplier from current DP rate', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        dpState: {
+          baseMaxDp: 70,
+          currentDp: 35,
+          effectiveDpCap: 70,
+        },
+        skills: [
+          {
+            id: 18127,
+            name: 'Low DP Burst',
+            sp_cost: 0,
+            target_type: 'Single',
+            hit_count: 1,
+            parts: [
+              {
+                skill_type: 'AttackByOwnDpRate',
+                target_type: 'Single',
+                type: 'Strike',
+                power: [100, 0],
+                value: [1.75, 1.0],
+              },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        dpState: {
+          baseMaxDp: 70,
+          currentDp: 84,
+          effectiveDpCap: 84,
+        },
+        skills: [
+          {
+            id: 18128,
+            name: 'High DP Burst',
+            sp_cost: 0,
+            target_type: 'Single',
+            hit_count: 1,
+            parts: [
+              {
+                skill_type: 'AttackByOwnDpRate',
+                target_type: 'Single',
+                type: 'Slash',
+                power: [100, 0],
+                value: [0.6, 1.5],
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18127, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 18128, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+
+  assert.equal(preview.actions[0].attackByOwnDpRateContext.startDpRate, 0.5);
+  assert.equal(preview.actions[0].attackByOwnDpRateContext.referenceDpRate, 0.5);
+  assert.equal(preview.actions[0].attackByOwnDpRateContext.resolvedMultiplier, 1.375);
+  assert.equal(preview.actions[1].attackByOwnDpRateContext.startDpRate, 1.2);
+  assert.equal(preview.actions[1].attackByOwnDpRateContext.referenceDpRate, 1);
+  assert.equal(preview.actions[1].attackByOwnDpRateContext.resolvedMultiplier, 1.5);
+
+  const { committedRecord } = commitTurn(state, preview);
+  const lowDpEntry = committedRecord.actions.find((item) => item.characterId === 'M1');
+  const highDpEntry = committedRecord.actions.find((item) => item.characterId === 'M2');
+
+  assert.equal(lowDpEntry.damageContext.attackByOwnDpRateStartDpRate, 0.5);
+  assert.equal(lowDpEntry.damageContext.attackByOwnDpRateResolvedMultiplier, 1.375);
+  assert.equal(highDpEntry.damageContext.attackByOwnDpRateStartDpRate, 1.2);
+  assert.equal(highDpEntry.damageContext.attackByOwnDpRateReferenceDpRate, 1);
+  assert.equal(highDpEntry.damageContext.attackByOwnDpRateResolvedMultiplier, 1.5);
+});
+
+test('post-action DpRate changes are visible to additional-turn passive conditions', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          dpState: {
+            baseMaxDp: 70,
+            currentDp: 70,
+            effectiveDpCap: 70,
+          },
+          passives: [
+            {
+              id: 18129,
+              name: '破砕の残光',
+              timing: 'OnAdditionalTurnStart',
+              condition: 'DpRate()<=0.05',
+              parts: [{ skill_type: 'HealEp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+          skills: [
+            {
+              id: 18130,
+              name: 'Near Break',
+              sp_cost: 0,
+              additionalTurnRule: {
+                skillUsableInExtraTurn: true,
+                additionalTurnGrantInExtraTurn: true,
+                conditions: {
+                  requiresOverDrive: false,
+                  requiresReinforcedMode: false,
+                  excludesExtraTurnForSkillUse: false,
+                  excludesExtraTurnForAdditionalTurnGrant: false,
+                },
+                additionalTurnTargetTypes: ['Self'],
+              },
+              parts: [
+                { skill_type: 'SelfDamage', target_type: 'Self', power: [1, 0] },
+                { skill_type: 'AdditionalTurn', target_type: 'Self' },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18130 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  const actor = nextState.party.find((item) => item.characterId === 'M1');
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.equal(actor.dpState.currentDp, 1);
+  assert.equal(actor.ep.current, 2);
+  assert.equal(
+    (committedRecord.actions[0].dpChanges ?? []).some(
+      (item) => item.triggerType === 'SelfDpDamage' && item.targetCharacterId === 'M1' && item.postDp === 1
+    ),
+    true
+  );
+  assert.equal(
+    (nextState.turnState.passiveEventsLastApplied ?? []).some(
+      (item) => item.timing === 'OnAdditionalTurnStart' && item.passiveName === '破砕の残光'
+    ),
+    true
+  );
+});
+
 test('Token() condition can trigger passives from current token state', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -3945,28 +4262,46 @@ test('non-damaging OD gain skill applies drive bonus and first-use branching (Co
   const styleIds = [styleId, ...others.slice(0, 5)];
   const party = store.buildPartyFromStyleIds(styleIds, {
     initialSP: 20,
-    drivePierceByPartyIndex: { 0: 15 },
+    drivePierceByPartyIndex: { 0: 0 },
   });
   const actor = party.getByPosition(0);
 
-  // 1回目: スキル本体は 75% に drive(1hit扱い=+5%) を適用 => 78.75
+  // 1回目: 装備なしの素の状態ではスキル本体ぶん 75% のみ。
+  // 究極のスリルは T2 開始条件なので、T1 の committed record には混ざらない。
   let state = createBattleStateFromParty(party);
   let preview = previewTurn(state, {
     0: { characterId: actor.characterId, skillId },
   });
   let committed = commitTurn(state, preview);
-  assert.equal(Math.floor(committed.committedRecord.actions[0].odGaugeGain), 78);
-  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 78);
+  assert.ok(Math.abs(committed.committedRecord.actions[0].odGaugeGain - 75) < 0.01);
+  assert.equal(
+    committed.committedRecord.passiveEvents.some(
+      (event) =>
+        event.characterId === actor.characterId &&
+        event.passiveName === '究極のスリル'
+    ),
+    false
+  );
+  assert.equal(committed.nextState.party[0].dpState.currentDp, 1);
 
-  // 2回目: スキル本体は 25% に drive(1hit扱い=+5%) を適用 => +26.25
+  // 2回目: 開始時点で DP50%未満なので、T2 の committed record には究極のスリルが現れる。
+  // スキル本体は 25% 側に切り替わる。
   state = committed.nextState;
   preview = previewTurn(state, {
     0: { characterId: actor.characterId, skillId },
   });
   committed = commitTurn(state, preview);
-  assert.ok(Math.abs(committed.committedRecord.actions[0].odGaugeGain - 26.25) < 0.01);
-  assert.ok(Math.abs(committed.nextState.turnState.odGauge - 105) < 0.01);
-  assert.equal(Math.floor(committed.nextState.turnState.odGauge), 105);
+  assert.ok(Math.abs(committed.committedRecord.actions[0].odGaugeGain - 25) < 0.01);
+  assert.equal(committed.nextState.party[0].dpState.currentDp, 1);
+  assert.ok(
+    committed.committedRecord.passiveEvents.some(
+      (event) =>
+        event.characterId === actor.characterId &&
+        event.passiveName === '究極のスリル' &&
+        event.effectTypes.includes('OverDrivePointUp') &&
+        Number(event.odGaugeDelta ?? 0) === 10
+    )
+  );
 });
 
 test('od gauge is capped at 300%', () => {

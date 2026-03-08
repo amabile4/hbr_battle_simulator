@@ -41,19 +41,27 @@ const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
 const ENEMY_STATUS_DEAD = 'Dead';
 const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp']));
+const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
 const DP_HEAL_SKILL_TYPES = Object.freeze(
   new Set([...DIRECT_DP_HEAL_SKILL_TYPES, 'RegenerationDp', 'HealDpByDamage'])
+);
+const DP_STATE_CHANGE_SKILL_TYPES = Object.freeze(
+  new Set([...DP_HEAL_SKILL_TYPES, ...DP_SELF_DAMAGE_SKILL_TYPES])
 );
 const DP_EVENT_KINDS = Object.freeze({
   DIRECT_HEAL: 'DirectDpHeal',
   REGENERATION_GRANT: 'RegenerationDpGrant',
   REGENERATION_TICK: 'RegenerationDpTick',
   DAMAGE_BASED_HEAL: 'HealDpByDamage',
+  SELF_DAMAGE: 'SelfDpDamage',
 });
 const DP_EVENT_SOURCE_SKILL = 'dp_skill';
 const DP_EVENT_SOURCE_REGENERATION = 'dp_regeneration';
 const DEFAULT_STATUS_EFFECT_REMAINING = 1;
 const DEFAULT_REVIVE_DP_FLOOR = 1;
+const AUTO_DP_CONSUMPTION_FLOOR = 1;
+const DP_RATE_REFERENCE_MIN = 0;
+const DP_RATE_REFERENCE_MAX = 1;
 const MARK_LEVEL_CONDITION_TO_ELEMENT = Object.freeze({
   FireMarkLevel: 'Fire',
   IceMarkLevel: 'Ice',
@@ -1171,6 +1179,43 @@ function resolveTokenAttackContext(skill, state, actor, tokenCountOverride = nul
   };
 }
 
+function clampAttackByOwnDpRateReference(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return DP_RATE_REFERENCE_MIN;
+  }
+  return Math.max(DP_RATE_REFERENCE_MIN, Math.min(DP_RATE_REFERENCE_MAX, numeric));
+}
+
+function resolveAttackByOwnDpRateContext(skill, state, actor, dpStateOverride = null) {
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+  const attackByOwnDpRatePart = effectiveParts.find(
+    (part) => String(part?.skill_type ?? '') === 'AttackByOwnDpRate'
+  );
+  if (!attackByOwnDpRatePart) {
+    return null;
+  }
+  const dpState = cloneDpState(dpStateOverride ?? actor?.dpState ?? {});
+  const startDpRate = getDpRate(dpState);
+  const referenceDpRate = clampAttackByOwnDpRateReference(startDpRate);
+  const lowDpMultiplier = Number(attackByOwnDpRatePart?.value?.[0] ?? 0);
+  const highDpMultiplier = Number(attackByOwnDpRatePart?.value?.[1] ?? 0);
+  const normalizedLowDpMultiplier = Number.isFinite(lowDpMultiplier) ? lowDpMultiplier : 0;
+  const normalizedHighDpMultiplier = Number.isFinite(highDpMultiplier)
+    ? highDpMultiplier
+    : normalizedLowDpMultiplier;
+  return {
+    startDpRate,
+    referenceDpRate,
+    lowDpMultiplier: normalizedLowDpMultiplier,
+    highDpMultiplier: normalizedHighDpMultiplier,
+    resolvedMultiplier:
+      normalizedLowDpMultiplier +
+      (normalizedHighDpMultiplier - normalizedLowDpMultiplier) * referenceDpRate,
+    targetType: String(attackByOwnDpRatePart?.target_type ?? ''),
+  };
+}
+
 function skillHasDamageParts(skill, state, actor) {
   const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
   return effectiveParts.some((part) => OD_DAMAGE_PART_TYPES.has(String(part?.skill_type ?? '').trim()));
@@ -1187,6 +1232,9 @@ function getDpEventKind(skillType) {
   if (normalized === 'HealDpByDamage') {
     return DP_EVENT_KINDS.DAMAGE_BASED_HEAL;
   }
+  if (DP_SELF_DAMAGE_SKILL_TYPES.has(normalized)) {
+    return DP_EVENT_KINDS.SELF_DAMAGE;
+  }
   return normalized;
 }
 
@@ -1198,6 +1246,27 @@ function getDpHealCapForPart(target, part) {
     return currentCap;
   }
   return Math.max(currentCap, baseMaxDp * capMultiplier);
+}
+
+function getDpSelfDamageAmount(target, part) {
+  const baseMaxDp = Number(target?.dpState?.baseMaxDp ?? 0);
+  const rate = Number(part?.power?.[0] ?? 0);
+  if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0 || !Number.isFinite(rate) || rate <= 0) {
+    return 0;
+  }
+  return baseMaxDp * rate;
+}
+
+function resolveAutoDpConsumptionCurrentDp(startDpState, amount) {
+  const startCurrentDp = Number(startDpState?.currentDp ?? 0);
+  const numericAmount = Number(amount ?? 0);
+  if (!Number.isFinite(startCurrentDp) || startCurrentDp <= 0) {
+    return startCurrentDp;
+  }
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return startCurrentDp;
+  }
+  return Math.max(AUTO_DP_CONSUMPTION_FLOOR, startCurrentDp - numericAmount);
 }
 
 function createDpEvent({
@@ -1258,7 +1327,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
     const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
     for (const part of effectiveParts ?? []) {
       const skillType = String(part?.skill_type ?? '').trim();
-      if (!DP_HEAL_SKILL_TYPES.has(skillType)) {
+      if (!DP_STATE_CHANGE_SKILL_TYPES.has(skillType)) {
         continue;
       }
       const condTexts = [part?.cond, part?.hit_condition]
@@ -1296,6 +1365,13 @@ function applyDpEffectsFromActions(state, previewRecord) {
           const change = target.setDpState({
             currentDp: Number(startDpState.currentDp ?? 0) + amount,
             effectiveDpCap: getDpHealCapForPart(target, part),
+          });
+          endDpState = cloneDpState(change.endDpState);
+          isAmountResolved = true;
+        } else if (skillType === 'SelfDamage') {
+          const amount = getDpSelfDamageAmount(target, part);
+          const change = target.setDpState({
+            currentDp: resolveAutoDpConsumptionCurrentDp(startDpState, amount),
           });
           endDpState = cloneDpState(change.endDpState);
           isAmountResolved = true;
@@ -2357,6 +2433,18 @@ function resolveSkillScalarField(skillLike, candidates, fallback = null) {
   return fallback;
 }
 
+function mergeConditionExpressions(baseExpression, nestedExpression) {
+  const base = String(baseExpression ?? '').trim();
+  const nested = String(nestedExpression ?? '').trim();
+  if (!base) {
+    return nested;
+  }
+  if (!nested) {
+    return base;
+  }
+  return `(${base}) && (${nested})`;
+}
+
 function resolveEffectiveSkillVariant(skill, state, member) {
   const recurse = (skillLike) => {
     const fallbackParts = Array.isArray(skillLike?.parts) ? skillLike.parts : [];
@@ -2399,7 +2487,7 @@ function resolveEffectiveSkillVariant(skill, state, member) {
         consumeType: inheritedConsumeType,
         targetType: nested.targetType,
         hitCount: nested.hitCount,
-        cond: nested.cond,
+        cond: mergeConditionExpressions(resolved.cond, nested.cond),
         iucCond: nested.iucCond,
         overwriteCond: nested.overwriteCond,
         isRestricted: nested.isRestricted,
@@ -2805,12 +2893,15 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       continue;
     }
 
-    const skill = member.getSkill(actionEntry.skillId);
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : member.getSkill(actionEntry.skillId);
     if (!skill) {
       continue;
     }
 
-    const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
+    const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, member);
     const hasDamage = hasDamagePartInParts(effectiveParts);
     const funnelEffects = hasDamage ? member.resolveEffectiveFunnelEffects().slice(0, 2) : [];
     const funnelHitBonus = funnelEffects.reduce(
@@ -2886,6 +2977,13 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
       tokenAttackRatePerToken: Number(actionEntry?.tokenAttackContext?.ratePerToken ?? 0),
       tokenAttackTotalRate: Number(actionEntry?.tokenAttackContext?.totalRate ?? 0),
+      attackByOwnDpRateStartDpRate: Number(actionEntry?.attackByOwnDpRateContext?.startDpRate ?? 0),
+      attackByOwnDpRateReferenceDpRate: Number(actionEntry?.attackByOwnDpRateContext?.referenceDpRate ?? 0),
+      attackByOwnDpRateLowDpMultiplier: Number(actionEntry?.attackByOwnDpRateContext?.lowDpMultiplier ?? 0),
+      attackByOwnDpRateHighDpMultiplier: Number(actionEntry?.attackByOwnDpRateContext?.highDpMultiplier ?? 0),
+      attackByOwnDpRateResolvedMultiplier: Number(
+        actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
+      ),
       damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
       markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
       markDamageTakenDownRate: Number(actionEntry?.specialPassiveModifiers?.markDamageTakenDownRate ?? 0),
@@ -3464,6 +3562,12 @@ function previewActionEntries(state, sortedActions) {
       member,
       preview.startToken
     );
+    const attackByOwnDpRateContext = resolveAttackByOwnDpRateContext(
+      effectiveSkill,
+      state,
+      member,
+      member.dpState
+    );
     const intrinsicMarkModifiers = resolveIntrinsicMarkModifiersForMember(member);
 
     return {
@@ -3502,6 +3606,7 @@ function previewActionEntries(state, sortedActions) {
       endMorale: preview.endMorale,
       startMotivation: preview.startMotivation,
       endMotivation: preview.endMotivation,
+      attackByOwnDpRateContext,
       tokenChanges:
         Number(preview.tokenDelta ?? 0) !== 0
           ? [
@@ -3561,6 +3666,7 @@ function previewActionEntries(state, sortedActions) {
       targetEnemyIndex:
         Number.isFinite(Number(action?.targetEnemyIndex)) ? Number(action.targetEnemyIndex) : null,
       _baseRevision: preview.baseRevision,
+      _effectiveSkillSnapshot: structuredClone(effectiveSkill),
     };
   });
 }
@@ -4506,6 +4612,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3;
   const forceOdActivation = Boolean(options.forceOdActivation ?? false);
   const forceResourceDeficit = Boolean(options.forceResourceDeficit ?? false);
+  const currentTurnPassiveEvents = Array.isArray(state.turnState?.passiveEventsLastApplied)
+    ? structuredClone(state.turnState.passiveEventsLastApplied)
+    : [];
+  const boundaryPassiveEvents = [];
 
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
@@ -4684,6 +4794,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     const passiveEvents = Array.isArray(enemyTurnStartResult.passiveEvents)
       ? structuredClone(enemyTurnStartResult.passiveEvents)
       : [];
+    boundaryPassiveEvents.push(...passiveEvents);
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
   }
   if (Number(getEnemyState(nextTurnState).enemyCount ?? 0) > 0 && countAliveEnemies(nextTurnState) === 0) {
@@ -4698,6 +4809,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     const passiveEvents = Array.isArray(battleWinResult.passiveEvents)
       ? structuredClone(battleWinResult.passiveEvents)
       : [];
+    boundaryPassiveEvents.push(...passiveEvents);
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
   }
 
@@ -4730,6 +4842,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     const passiveEvents = Array.isArray(additionalTurnStartResult.passiveEvents)
       ? structuredClone(additionalTurnStartResult.passiveEvents)
       : [];
+    boundaryPassiveEvents.push(...passiveEvents);
     nextState.turnState.passiveEventsLastApplied = [
       ...(nextState.turnState.passiveEventsLastApplied ?? []),
       ...passiveEvents,
@@ -4741,14 +4854,15 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       forceActivation: forceOdActivation,
       forceConsumeGauge: forceResourceDeficit,
     });
+    if (Array.isArray(nextState.turnState?.passiveEventsLastApplied)) {
+      boundaryPassiveEvents.push(...structuredClone(nextState.turnState.passiveEventsLastApplied));
+    }
   }
 
   const snapAfter = snapshotPartyByPartyIndex(nextState.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   committed.transcendence = transcendenceSummary;
-  committed.passiveEvents = Array.isArray(nextState.turnState?.passiveEventsLastApplied)
-    ? structuredClone(nextState.turnState.passiveEventsLastApplied)
-    : [];
+  committed.passiveEvents = structuredClone([...currentTurnPassiveEvents, ...boundaryPassiveEvents]);
   committed.dpEvents = structuredClone([...actionDpEvents, ...boundaryDpEvents]);
 
   return {

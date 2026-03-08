@@ -110,10 +110,10 @@
 - Phase 2: 手入力UI
 - Phase 3: 条件評価
 - Phase 4: DP回復スキル
+- Phase 5: DP自傷とDP依存スキル
 
 ### 未実装
 
-- Phase 5: DP自傷とDP依存スキル
 - Phase 6: Break関連
 - Phase 7: パッシブ接続
 
@@ -122,7 +122,7 @@
 - `DpRate()` はパッシブ条件だけでなく、`SkillCondition` と `CountBC(...)` 内のプレイヤー条件でも評価できるようになった
 - DP状態は `snapshot / record / turnPlan / scenario` まで保存されるようになり、再計算・再生で引き継げる
 - `RegenerationDp` の statusEffect も snapshot / record 経由で引き継げるようになった
-- 検証時点では非 E2E テスト 269 件が通過している
+- 検証時点では非 E2E テスト 274 件が通過している
 
 ## Phase 1: 状態モデル
 
@@ -249,15 +249,28 @@
 
 ## Phase 5: DP自傷とDP依存スキル
 
-- [ ] DP自傷スキルの洗い出し
-- [ ] DP自傷の現在値反映
-- [ ] `AttackByOwnDpRate`
-- [ ] 行動前後で `DpRate` 条件が変わることの反映
+- [x] DP自傷スキルの洗い出し
+- [x] DP自傷の現在値反映
+- [x] `AttackByOwnDpRate`
+- [x] 行動前後で `DpRate` 条件が変わることの反映
 
 ### Phase 5メモ
 
-- DP状態モデルは先に入ったので、`SelfDamage` や `AttackByOwnDpRate` をつなぐ下地はできている
-- ただし「行動前の条件判定」と「行動後の DP 変化で次条件が変わる」境界は、スキル効果順序を整理してから入れる必要がある
+- `SelfDamage` は `baseMaxDp` 比率として解釈し、`SelfDpDamage` イベントとして `actions[].dpChanges` / `record.dpEvents` に残す
+- `SelfDamage` は `Self` だけでなく、データ上の target 解決に従って味方対象 DP 減少にも使えるようにしてある
+- `SelfDamage` と今後の DPスリップ系の自動減少は、Break明示仕様が無い限り `1` 未満へ落とさない
+  - `power[0] = 1.0` でも自動計算上は `DP=1` で止める
+  - 自らを Break させたいケースは、シミュレータではユーザー手入力で `currentDp=0` を入れる前提にする
+- `AttackByOwnDpRate` は現時点では威力式そのものを damage engine へ直結していないが、少なくとも
+  - 行動開始時の `DpRate`
+  - 条件評価に使う参照 `DpRate`
+  - low / high multiplier
+  - 解決後 multiplier
+  を preview / committed record の `damageContext` へ保持する
+- `SkillCondition` 分岐を含むスキルでも preview と commit の解決結果をずらさないため、行動 entry に resolved skill snapshot を保持して OD / DP / Funnel 系の後段処理へ渡すようにした
+- 行動後の DP 変化は、その turn の後段で走る条件付きパッシブや追加ターン開始条件から見える
+  - `コンペンセーション` の `SelfDamage` 後に `DpRate()<=0.5` の `OverDrivePointUp` パッシブが発火するケースで確認済み
+  - `SelfDamage 100% -> DP1` の後でも `DpRate()<=0.05` 条件の `OnAdditionalTurnStart` パッシブが同じ commit 内で再評価される
 
 ## Phase 6: Break関連
 
@@ -270,6 +283,8 @@
 ### Phase 6メモ
 
 - 現時点では DP 0 と `Break` を同一視していない
+- このシミュレータでは自動計算の `SelfDamage` / DP消費 / 将来の DPスリップで DP 0 を作らない
+  - 自動で DP 0 になる経路は、将来の敵攻撃や特殊状態+フィールドダメージを実装する時に別途扱う
 - Break 系を先に雑につなぐと、将来の DP破損処理と enemy status の責務が衝突しやすい
 
 ## Phase 7: パッシブ接続
@@ -289,6 +304,7 @@
 - 初期段階では、DP減少は手入力とスキル効果で扱う
 - 将来ダメージ計算機が入っても、DP状態モデルはそのまま流用できる形にする
 - DP破損と `Break` は現時点では同一視せず、別状態として扱う方が安全
+- 自傷や味方起点の DP消費では自動的に Break させず、DP 0 は手入力でのみ再現する
 - `OnBattleWin` の `HealDpRate` は DP状態モデル完成後に実装する
 - パッシブ側の `DpRate` 実装状況は [`docs/passive_implementation_tasklist.md`](/Users/ram4/git/hbr_battle_simulator/docs/passive_implementation_tasklist.md) から参照する
 - `style.base_param.dp` を `baseMaxDp` の初期基準として使う案は実装しやすいが、`HealDp power` との単位差があるため、将来の厳密化余地を残しておく
