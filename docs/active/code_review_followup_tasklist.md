@@ -68,8 +68,8 @@
 | `R-003` | `deferred` | `src/ui/dom-adapter.js` の分割計画と実施 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-C1` | 役割分割方針が確定し、テストを保ったまま分割できる | - | - | 工数大、Phase 7 と混ぜない |
 | `R-004` | `deferred` | `src/turn/turn-controller.js` の分割計画と実施 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-C2` | passive / condition / effect / recovery の責務が分離される | - | - | 工数大、リスク高 |
 | `R-005` | `done` | `swap()` / `queueSwapState()` の原子性改善 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H1` | 途中失敗時の状態不整合が起きない | `1e9fe29` | `npm run test:quick`, `npm test` | `Party.swap()` は `setPosition()` に依存せず直接位置を入れ替え、同一位置 swap は no-op にした |
-| `R-006` | `deferred` | エラーハンドリング戦略の統一 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H2` | UI / domain / 外部 I/O の例外方針が統一される | - | - | |
-| `R-007` | `done` | Regex 条件解析の定数化・安全化 | [03_turn_layer.md](../20260308_code-review/03_turn_layer.md), [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H3` | 重複 regex とマジックナンバーが整理される | pending | `npm run test:quick`, `npm test` | 比較演算子・数値・関数呼び出し・`SpecialStatusCountByType(20)` を turn-controller のモジュール定数へ集約した |
+| `R-006` | `doing` | エラーハンドリング戦略の統一 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H2` | UI / domain / 外部 I/O の例外方針が統一される | - | - | まず UI event 入口を `runSafely()` に統一し、次に内部の `try/catch` 境界を整理する |
+| `R-007` | `done` | Regex 条件解析の定数化・安全化 | [03_turn_layer.md](../20260308_code-review/03_turn_layer.md), [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H3` | 重複 regex とマジックナンバーが整理される | `11e886e` | `npm run test:quick`, `npm test` | 比較演算子・数値・関数呼び出し・`SpecialStatusCountByType(20)` を turn-controller のモジュール定数へ集約した |
 | `R-008` | `deferred` | 日本語文字列ハードコードの削減 | [04_recommendations.md](../20260308_code-review/04_recommendations.md) `R-H4` | 代表的なスキル名直比較がフラグまたは定数へ置き換わる | - | - | |
 | `R-009` | `deferred` | `battle-adapter-facade.js` / `dom-adapter.js` の状態管理整理 | [00_summary.md](../20260308_code-review/00_summary.md) `H1` | 状態変数の責務が分離され、因果関係が追える | - | - | |
 
@@ -84,3 +84,4 @@
 - 2026-03-08: `T-003` は `maxCandidates` 単独では必要キャラが index 50 まで散って効果が薄かったため、`HBR_TEST_CHARACTER_LABELS` による候補ラベル allowlist を採用した。`test:dom` / `test:dom:full` は軽量候補集合、`npm test` は full data のまま使い分ける。
 - 2026-03-08: `R-005` として `Party.swap()` を setter 連鎖から切り離し、直接 position/revision を更新する原子的な入れ替えに変更した。`setPosition` を差し替えても swap が崩れないことと、同一位置 swap が no-op であることをテストで固定した。
 - 2026-03-08: `R-007` として condition 評価まわりの regex を turn-controller 冒頭へ集約した。比較演算子、整数/小数パターン、`CountBC`、`PlayedSkillCount`、`SpecialStatusCountByType(20)`、`IsCharacter(...)` などの重複を定数化し、extra-active の type `20` も定数へ置いた。
+- 2026-03-08: `R-006` 着手として `dom-adapter` の UI event 入口を共通 helper (`bindSafeClickAction`, `bindSafeRootListener`) に寄せた。direct click と delegated change の両方が `runSafely()` を通ることを DOM テストで固定した。

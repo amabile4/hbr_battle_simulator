@@ -85,6 +85,46 @@ test('passive log panel shows battle-start passive descriptions on initialize', 
   assert.equal(text.includes('和泉 ユキ : [遥拝の君] 味方の攻撃で敵をブレイクしたとき敵のダウンターンを1ターン延長'), true);
 });
 
+test('direct click actions are routed through runSafely', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.clearRecordsState = () => {
+    throw new Error('clear failed');
+  };
+
+  const button = root.querySelector('[data-action="clear-records"]');
+  assert.ok(button);
+  assert.doesNotThrow(() => {
+    button.dispatchEvent(new win.Event('click', { bubbles: true }));
+  });
+  assert.equal((root.querySelector('[data-role="status"]')?.textContent ?? '').includes('clear failed'), true);
+});
+
+test('delegated change actions are routed through runSafely', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.onCharacterSelectionChanged = () => {
+    throw new Error('change failed');
+  };
+
+  const select = root.querySelector('[data-role="character-select"][data-slot="0"]');
+  assert.ok(select);
+  const alternative = [...select.options].find((option) => option.value !== select.value);
+  assert.ok(alternative);
+
+  select.value = String(alternative.value);
+  assert.doesNotThrow(() => {
+    select.dispatchEvent(new win.Event('change', { bubbles: true }));
+  });
+  assert.equal((root.querySelector('[data-role="status"]')?.textContent ?? '').includes('change failed'), true);
+});
+
 test('normal OD dialog stays visible while interrupt OD dialog is toggled', () => {
   const store = getStore();
   const { root, win } = createRoot();

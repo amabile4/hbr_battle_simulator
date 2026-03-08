@@ -872,6 +872,25 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
   }
 
+  wrapSafeUiAction(action, fallbackMessage = 'Operation failed.') {
+    return (...args) => this.runSafely(() => action.apply(this, args), fallbackMessage);
+  }
+
+  bindSafeClickAction(selector, action, fallbackMessage = 'Operation failed.') {
+    this.root
+      .querySelector(selector)
+      ?.addEventListener('click', this.wrapSafeUiAction(action, fallbackMessage));
+  }
+
+  bindSafeRootListener(eventName, action, fallbackMessage = 'Operation failed.') {
+    this.root.addEventListener(eventName, this.wrapSafeUiAction(action, fallbackMessage));
+  }
+
+  getEventTargetElement(event) {
+    const target = event?.target;
+    return target instanceof this.doc.defaultView.HTMLElement ? target : null;
+  }
+
   createAttributeBadge(text, className) {
     const badge = this.doc.createElement('span');
     badge.className = `attr-badge ${className}`;
@@ -912,70 +931,27 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return;
     }
 
-    this.root.querySelector('[data-action="initialize"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.initializeBattle());
+    this.bindSafeClickAction('[data-action="initialize"]', this.initializeBattle);
+    this.bindSafeClickAction('[data-action="preview"]', this.previewCurrentTurn);
+    this.bindSafeClickAction('[data-action="commit"]', this.commitCurrentTurn);
+    this.bindSafeClickAction('[data-action="open-od"]', () => this.openOdDialog('normal'));
+    this.bindSafeClickAction('[data-action="kishinka"]', this.activateKishinka);
+    this.bindSafeClickAction('[data-action="od-confirm"]', () => this.confirmOdDialog('normal'));
+    this.bindSafeClickAction('[data-action="od-cancel"]', () => this.closeOdDialog('normal'));
+    this.bindSafeClickAction('[data-action="open-interrupt-od"]', () => this.openOdDialog('interrupt'));
+    this.bindSafeClickAction('[data-action="interrupt-od-confirm"]', () => this.confirmOdDialog('interrupt'));
+    this.bindSafeClickAction('[data-action="interrupt-od-cancel"]', () => this.closeOdDialog('interrupt'));
+    this.bindSafeClickAction('[data-action="swap"]', () => {
+      const from = toInt(this.root.querySelector('[data-role="swap-from"]')?.value, 0);
+      const to = toInt(this.root.querySelector('[data-role="swap-to"]')?.value, -1);
+      this.queueSwap(from, to);
     });
-
-    this.root.querySelector('[data-action="preview"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.previewCurrentTurn());
-    });
-
-    this.root.querySelector('[data-action="commit"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.commitCurrentTurn());
-    });
-
-    this.root.querySelector('[data-action="open-od"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.openOdDialog('normal'));
-    });
-    this.root.querySelector('[data-action="kishinka"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.activateKishinka());
-    });
-
-    this.root.querySelector('[data-action="od-confirm"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.confirmOdDialog('normal'));
-    });
-
-    this.root.querySelector('[data-action="od-cancel"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.closeOdDialog('normal'));
-    });
-
-    this.root.querySelector('[data-action="open-interrupt-od"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.openOdDialog('interrupt'));
-    });
-
-    this.root.querySelector('[data-action="interrupt-od-confirm"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.confirmOdDialog('interrupt'));
-    });
-
-    this.root.querySelector('[data-action="interrupt-od-cancel"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.closeOdDialog('interrupt'));
-    });
-
-    this.root.querySelector('[data-action="swap"]')?.addEventListener('click', () => {
-      this.runSafely(() => {
-        const from = toInt(this.root.querySelector('[data-role="swap-from"]')?.value, 0);
-        const to = toInt(this.root.querySelector('[data-role="swap-to"]')?.value, -1);
-        this.queueSwap(from, to);
-      });
-    });
-
-    this.root.querySelector('[data-action="export-csv"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.exportCsv());
-    });
-    this.root.querySelector('[data-action="export-records-json"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.exportRecordsJson());
-    });
-    this.root.querySelector('[data-action="enemy-status-apply"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.applyEnemyStatusFromDom());
-    });
-    this.root.querySelector('[data-action="enemy-status-clear"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.clearEnemyStatusFromDom());
-    });
-    this.root.querySelector('[data-action="enemy-zone-apply"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.applyEnemyZoneFromDom());
-    });
-
-    this.root.querySelector('[data-action="clear-records"]')?.addEventListener('click', () => {
+    this.bindSafeClickAction('[data-action="export-csv"]', this.exportCsv);
+    this.bindSafeClickAction('[data-action="export-records-json"]', this.exportRecordsJson);
+    this.bindSafeClickAction('[data-action="enemy-status-apply"]', this.applyEnemyStatusFromDom);
+    this.bindSafeClickAction('[data-action="enemy-status-clear"]', this.clearEnemyStatusFromDom);
+    this.bindSafeClickAction('[data-action="enemy-zone-apply"]', this.applyEnemyZoneFromDom);
+    this.bindSafeClickAction('[data-action="clear-records"]', () => {
       this.clearRecordsState();
       this.renderRecordTable();
       this.renderTurnPlanEditControls();
@@ -983,71 +959,54 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.writePassiveLogOutput('');
       this.setStatus('Records cleared.');
     });
-    this.root.querySelector('[data-action="turn-plan-recalc"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() }));
-    });
-    this.root.querySelector('[data-action="turn-plan-edit-save"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.saveTurnPlanEditFromDom());
-    });
-    this.root.querySelector('[data-action="turn-plan-edit-cancel"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.cancelTurnPlanEdit());
-    });
-    this.root.querySelector('[data-action="scenario-load"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.loadScenarioFromDom());
-    });
-    this.root.querySelector('[data-action="scenario-apply-setup"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.applyLoadedScenarioSetup());
-    });
-    this.root.querySelector('[data-action="scenario-run-next"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.runNextScenarioTurn());
-    });
-    this.root.querySelector('[data-action="scenario-stage-next"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.stageCurrentScenarioTurn());
-    });
-    this.root.querySelector('[data-action="scenario-run-all"]')?.addEventListener('click', () => {
-      this.runSafely(() => this.runAllScenarioTurns());
-    });
-
-    this.root.querySelector('[data-action="save-selection"]')?.addEventListener('click', () => {
-      this.runSafely(() => {
-        const slot = this.getSelectedSelectionSlotIndex();
-        const ok = this.askConfirm(
-          `Selection ${this.getSelectionSlotLabel(slot)} に現在の選択を保存します。よろしいですか？`
-        );
-        if (!ok) {
-          this.setStatus('Selection save canceled.');
-          return null;
-        }
-        return this.saveSelectionToSlot(slot);
-      });
-    });
-
-    this.root.querySelector('[data-action="load-selection"]')?.addEventListener('click', () => {
-      this.runSafely(() => {
-        const slot = this.getSelectedSelectionSlotIndex();
-        const ok = this.askConfirm(
-          '現在のキャラクターセレクションは上書きされます。読み込みを続行しますか？'
-        );
-        if (!ok) {
-          this.setStatus('Selection load canceled.');
-          return null;
-        }
-        return this.loadSelectionFromSlot(slot);
-      });
-    });
-
-    this.root.querySelector('[data-action="clear-selection-slot"]')?.addEventListener('click', () => {
-      this.runSafely(() => {
-        const slot = this.getSelectedSelectionSlotIndex();
-        this.clearSelectionSlot(slot);
-      });
-    });
-
-    this.root.addEventListener('change', (event) => {
-      const target = event.target;
-      if (!(target instanceof this.doc.defaultView.HTMLElement)) {
-        return;
+    this.bindSafeClickAction('[data-action="turn-plan-recalc"]', () =>
+      this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() })
+    );
+    this.bindSafeClickAction('[data-action="turn-plan-edit-save"]', this.saveTurnPlanEditFromDom);
+    this.bindSafeClickAction('[data-action="turn-plan-edit-cancel"]', this.cancelTurnPlanEdit);
+    this.bindSafeClickAction('[data-action="scenario-load"]', this.loadScenarioFromDom);
+    this.bindSafeClickAction('[data-action="scenario-apply-setup"]', this.applyLoadedScenarioSetup);
+    this.bindSafeClickAction('[data-action="scenario-run-next"]', this.runNextScenarioTurn);
+    this.bindSafeClickAction('[data-action="scenario-stage-next"]', this.stageCurrentScenarioTurn);
+    this.bindSafeClickAction('[data-action="scenario-run-all"]', this.runAllScenarioTurns);
+    this.bindSafeClickAction('[data-action="save-selection"]', () => {
+      const slot = this.getSelectedSelectionSlotIndex();
+      const ok = this.askConfirm(
+        `Selection ${this.getSelectionSlotLabel(slot)} に現在の選択を保存します。よろしいですか？`
+      );
+      if (!ok) {
+        this.setStatus('Selection save canceled.');
+        return null;
       }
+      return this.saveSelectionToSlot(slot);
+    });
+    this.bindSafeClickAction('[data-action="load-selection"]', () => {
+      const slot = this.getSelectedSelectionSlotIndex();
+      const ok = this.askConfirm(
+        '現在のキャラクターセレクションは上書きされます。読み込みを続行しますか？'
+      );
+      if (!ok) {
+        this.setStatus('Selection load canceled.');
+        return null;
+      }
+      return this.loadSelectionFromSlot(slot);
+    });
+    this.bindSafeClickAction('[data-action="clear-selection-slot"]', () => {
+      const slot = this.getSelectedSelectionSlotIndex();
+      this.clearSelectionSlot(slot);
+    });
+
+    this.bindSafeRootListener('change', this.handleRootChangeEvent);
+    this.bindSafeRootListener('click', this.handleTurnPlanRowActionClick);
+
+    this._bound = true;
+  }
+
+  handleRootChangeEvent(event) {
+    const target = this.getEventTargetElement(event);
+    if (!target) {
+      return;
+    }
 
       if (target.matches('[data-role="turn-plan-recalc-mode"]')) {
         this.turnPlanRecalcMode = String(target.value || 'strict') === 'force' ? 'force' : 'strict';
@@ -1245,44 +1204,41 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.writePreviewOutput('');
         this.renderOdControls();
       }
-    });
+  }
 
-    this.root.addEventListener('click', (event) => {
-      const target = event.target;
-      if (!(target instanceof this.doc.defaultView.HTMLElement)) {
-        return;
-      }
-      const rowTurnId = toInt(target.getAttribute('data-turn-id'), 0);
-      if (rowTurnId <= 0) {
-        return;
-      }
+  handleTurnPlanRowActionClick(event) {
+    const target = this.getEventTargetElement(event);
+    if (!target) {
+      return;
+    }
+    const rowTurnId = toInt(target.getAttribute('data-turn-id'), 0);
+    if (rowTurnId <= 0) {
+      return;
+    }
 
-      if (target.matches('[data-action="turn-plan-edit-row"]')) {
-        this.runSafely(() => this.startTurnPlanEdit(rowTurnId));
-        return;
-      }
-      if (target.matches('[data-action="turn-plan-insert-before-row"]')) {
-        this.runSafely(() => this.startTurnPlanInsert(rowTurnId, 'before'));
-        return;
-      }
-      if (target.matches('[data-action="turn-plan-insert-after-row"]')) {
-        this.runSafely(() => this.startTurnPlanInsert(rowTurnId, 'after'));
-        return;
-      }
-      if (target.matches('[data-action="turn-plan-delete-row"]')) {
-        this.runSafely(() => this.deleteTurnPlanRow(rowTurnId));
-        return;
-      }
-      if (target.matches('[data-action="turn-plan-move-up-row"]')) {
-        this.runSafely(() => this.moveTurnPlanRow(rowTurnId, -1));
-        return;
-      }
-      if (target.matches('[data-action="turn-plan-move-down-row"]')) {
-        this.runSafely(() => this.moveTurnPlanRow(rowTurnId, 1));
-      }
-    });
-
-    this._bound = true;
+    if (target.matches('[data-action="turn-plan-edit-row"]')) {
+      this.startTurnPlanEdit(rowTurnId);
+      return;
+    }
+    if (target.matches('[data-action="turn-plan-insert-before-row"]')) {
+      this.startTurnPlanInsert(rowTurnId, 'before');
+      return;
+    }
+    if (target.matches('[data-action="turn-plan-insert-after-row"]')) {
+      this.startTurnPlanInsert(rowTurnId, 'after');
+      return;
+    }
+    if (target.matches('[data-action="turn-plan-delete-row"]')) {
+      this.deleteTurnPlanRow(rowTurnId);
+      return;
+    }
+    if (target.matches('[data-action="turn-plan-move-up-row"]')) {
+      this.moveTurnPlanRow(rowTurnId, -1);
+      return;
+    }
+    if (target.matches('[data-action="turn-plan-move-down-row"]')) {
+      this.moveTurnPlanRow(rowTurnId, 1);
+    }
   }
 
   populateSkillChecklist(slotIndex, styleId, preferredCheckedIds = null) {
