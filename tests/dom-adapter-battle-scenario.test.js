@@ -343,6 +343,47 @@ test('enemy zone controls are shown only for field-holder enemies and apply enem
   assert.equal(root.querySelector('[data-role="field-state-label"]')?.textContent, 'Field=Thunder(6) | Territory=-');
 });
 
+test('applyScenarioTurn applies and clears enemy status delta through shared helper', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.applyScenarioTurn(
+    {
+      enemyStatusesApply: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+    },
+    { mode: 'stage' }
+  );
+
+  assert.equal(
+    adapter.state.turnState.enemyState.statuses.some((status) => status.statusType === 'Break'),
+    true
+  );
+  assert.equal(
+    adapter.state.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'DownTurn' && status.remainingTurns === 2
+    ),
+    true
+  );
+
+  adapter.applyScenarioTurn(
+    {
+      enemyStatusesClear: [{ statusType: 'DownTurn', targetIndex: 0 }],
+    },
+    { mode: 'stage' }
+  );
+
+  assert.equal(
+    adapter.state.turnState.enemyState.statuses.some((status) => status.statusType === 'DownTurn'),
+    false
+  );
+  assert.equal(
+    adapter.state.turnState.enemyState.statuses.some((status) => status.statusType === 'Break'),
+    true
+  );
+});
+
 test('scenario runner loads setup and executes turns deterministically', () => {
   const store = getStore();
   const { root } = createRoot();

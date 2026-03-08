@@ -4531,19 +4531,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
   }
 
-  applyScenarioTurn(turn = {}, options = {}) {
-    const mode = String(options.mode ?? 'commit');
-    const recalcMode = String(options.recalcMode ?? 'strict') === 'force' ? 'force' : 'strict';
-    const isForceMode = recalcMode === 'force';
-    const warn =
-      typeof options.onWarning === 'function'
-        ? options.onWarning
-        : () => {};
-    const commitOptions =
-      options.commitOptions && typeof options.commitOptions === 'object' ? options.commitOptions : {};
-    if (!this.state) {
-      throw new Error('Battle state is not initialized.');
-    }
+  applyScenarioTurnStateOverrides(turn = {}) {
     if (Number.isFinite(Number(turn.enemyCount))) {
       this.setDomValue('[data-role="enemy-count"]', clampEnemyCount(turn.enemyCount));
       this.syncEnemyStateFromDom();
@@ -4560,7 +4548,6 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       }
       this.renderOdControls();
     }
-
     if (Array.isArray(turn.enemyStatuses)) {
       this.applyScenarioEnemyStatuses(turn.enemyStatuses);
     }
@@ -4595,6 +4582,19 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyBreakStates: turn.enemyBreakStates,
       });
     }
+  }
+
+  resolveScenarioEnemyStatusTargetIndex(status) {
+    return Math.max(
+      0,
+      Math.min(
+        this.readEnemyCountFromDom() - 1,
+        toInt(status?.targetIndex ?? status?.target ?? status?.targetPosition, 0)
+      )
+    );
+  }
+
+  applyScenarioEnemyStatusDelta(turn = {}) {
     if (Array.isArray(turn.enemyStatusesApply)) {
       const merged = [...this.getEnemyStatuses()];
       for (const status of turn.enemyStatusesApply) {
@@ -4602,10 +4602,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           continue;
         }
         const statusType = String(status.statusType ?? ENEMY_STATUS_DOWN_TURN);
-        const targetIndex = Math.max(
-          0,
-          Math.min(this.readEnemyCountFromDom() - 1, toInt(status.targetIndex ?? status.target, 0))
-        );
+        const targetIndex = this.resolveScenarioEnemyStatusTargetIndex(status);
         const remainingTurns = isPersistentEnemyStatus(statusType)
           ? 0
           : Math.max(1, toInt(status.remainingTurns, 1));
@@ -4637,7 +4634,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Array.isArray(turn.enemyStatusesClear)) {
       let statuses = [...this.getEnemyStatuses()];
-      let nextEnemyState = buildEnemyStateForUi(this.state.turnState.enemyState, this.readEnemyCountFromDom());
+      let nextEnemyState = buildEnemyStateForUi(
+        this.state.turnState.enemyState,
+        this.readEnemyCountFromDom()
+      );
       for (const status of turn.enemyStatusesClear) {
         if (!status || typeof status !== 'object') {
           continue;
@@ -4658,26 +4658,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           }
           continue;
         }
-        const targetIndex = Math.max(
-          0,
-          Math.min(
-            this.readEnemyCountFromDom() - 1,
-            toInt(status.targetIndex ?? status.target ?? status.targetPosition, 0)
-          )
-        );
-        statuses = statuses.filter(
-          (item) => {
-            const currentType = String(item.statusType ?? '');
-            const currentTarget = Number(item.targetIndex);
-            if (currentTarget !== targetIndex) {
-              return true;
-            }
-            if (statusType === ENEMY_STATUS_BREAK) {
-              return currentType !== ENEMY_STATUS_BREAK && currentType !== ENEMY_STATUS_DOWN_TURN;
-            }
-            return currentType !== statusType;
+        const targetIndex = this.resolveScenarioEnemyStatusTargetIndex(status);
+        statuses = statuses.filter((item) => {
+          const currentType = String(item.statusType ?? '');
+          const currentTarget = Number(item.targetIndex);
+          if (currentTarget !== targetIndex) {
+            return true;
           }
-        );
+          if (statusType === ENEMY_STATUS_BREAK) {
+            return currentType !== ENEMY_STATUS_BREAK && currentType !== ENEMY_STATUS_DOWN_TURN;
+          }
+          return currentType !== statusType;
+        });
         if (statusType === ENEMY_STATUS_BREAK || statusType === ENEMY_STATUS_DEAD) {
           nextEnemyState = clearEnemySpecialBreakStateForUi(nextEnemyState, targetIndex);
         } else if (statusType === ENEMY_STATUS_DOWN_TURN) {
@@ -4690,27 +4682,99 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.renderEnemyStatusControls();
       this.renderEnemyConfigControls();
     }
-    this.renderTurnStatus();
+  }
 
-    if (Number.isFinite(Number(turn.preemptiveOdLevel))) {
-      const canApplyPreemptiveOd = String(this.state.turnState?.turnType ?? 'normal') === 'normal';
-      if (canApplyPreemptiveOd) {
-        this.state = activateOverdrive(this.state, Number(turn.preemptiveOdLevel), 'preemptive', {
-          forceActivation: this.isForceOdEnabled() || isForceMode,
-          forceConsumeGauge: isForceMode,
-        });
-        this.appendPassiveLogEvents(this.state?.turnState?.passiveEventsLastApplied ?? []);
-        this.previewRecord = null;
-        this.pendingSwapEvents = [];
-        this.resetInterruptOdProjection({ clearReservation: true });
-        this.renderActionSelectors();
-        this.renderPartyState();
-        this.renderSwapSelectors();
-        this.renderTurnStatus();
-      } else if (isForceMode) {
-        warn('preemptive OD was requested but current turn is not normal. skipped.');
+  applyScenarioPreemptiveOverdrive(turn = {}, options = {}) {
+    if (!Number.isFinite(Number(turn.preemptiveOdLevel))) {
+      return;
+    }
+    const isForceMode = Boolean(options.forceMode);
+    const warn = typeof options.onWarning === 'function' ? options.onWarning : () => {};
+    const canApplyPreemptiveOd = String(this.state.turnState?.turnType ?? 'normal') === 'normal';
+    if (canApplyPreemptiveOd) {
+      this.state = activateOverdrive(this.state, Number(turn.preemptiveOdLevel), 'preemptive', {
+        forceActivation: this.isForceOdEnabled() || isForceMode,
+        forceConsumeGauge: isForceMode,
+      });
+      this.appendPassiveLogEvents(this.state?.turnState?.passiveEventsLastApplied ?? []);
+      this.previewRecord = null;
+      this.pendingSwapEvents = [];
+      this.resetInterruptOdProjection({ clearReservation: true });
+      this.renderActionSelectors();
+      this.renderPartyState();
+      this.renderSwapSelectors();
+      this.renderTurnStatus();
+      return;
+    }
+    if (isForceMode) {
+      warn('preemptive OD was requested but current turn is not normal. skipped.');
+    }
+  }
+
+  applyScenarioQueuedSwaps(swaps = [], options = {}) {
+    if (!Array.isArray(swaps)) {
+      return;
+    }
+    const isForceMode = Boolean(options.forceMode);
+    const warn = typeof options.onWarning === 'function' ? options.onWarning : () => {};
+    for (const swap of swaps) {
+      const queued = this.executeScenarioStep(() => {
+        const from = this.resolveScenarioSwapEndpointPosition(swap, 'from');
+        const to = this.resolveScenarioSwapEndpointPosition(swap, 'to');
+        this.queueSwap(from, to);
+        return true;
+      }, {
+        onWarning: isForceMode ? warn : null,
+        warningPrefix: 'swap skipped',
+      });
+      if (queued === null) {
+        continue;
       }
     }
+  }
+
+  applyScenarioQueuedActions(actions = [], options = {}) {
+    if (!Array.isArray(actions)) {
+      return;
+    }
+    const isForceMode = Boolean(options.forceMode);
+    const warn = typeof options.onWarning === 'function' ? options.onWarning : () => {};
+    this.alignScenarioActionPositions(actions, {
+      forceMode: isForceMode,
+      onWarning: warn,
+    });
+    for (const action of actions) {
+      const applied = this.executeScenarioStep(() => {
+        this.setScenarioActionOnDom(action);
+        return true;
+      }, {
+        onWarning: isForceMode ? warn : null,
+        warningPrefix: 'action override skipped',
+      });
+      if (applied === null) {
+        continue;
+      }
+    }
+  }
+
+  applyScenarioTurn(turn = {}, options = {}) {
+    const mode = String(options.mode ?? 'commit');
+    const recalcMode = String(options.recalcMode ?? 'strict') === 'force' ? 'force' : 'strict';
+    const isForceMode = recalcMode === 'force';
+    const warn =
+      typeof options.onWarning === 'function'
+        ? options.onWarning
+        : () => {};
+    const commitOptions =
+      options.commitOptions && typeof options.commitOptions === 'object' ? options.commitOptions : {};
+    if (!this.state) {
+      throw new Error('Battle state is not initialized.');
+    }
+    this.applyScenarioTurnStateOverrides(turn);
+    this.applyScenarioEnemyStatusDelta(turn);
+    this.renderTurnStatus();
+
+    this.applyScenarioPreemptiveOverdrive(turn, { forceMode: isForceMode, onWarning: warn });
 
     if (turn.kishinka) {
       this.executeScenarioStep(() => this.activateKishinka(), {
@@ -4719,41 +4783,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       });
     }
 
-    if (Array.isArray(turn.swaps)) {
-      for (const swap of turn.swaps) {
-        const queued = this.executeScenarioStep(() => {
-          const from = this.resolveScenarioSwapEndpointPosition(swap, 'from');
-          const to = this.resolveScenarioSwapEndpointPosition(swap, 'to');
-          this.queueSwap(from, to);
-          return true;
-        }, {
-          onWarning: isForceMode ? warn : null,
-          warningPrefix: 'swap skipped',
-        });
-        if (queued === null) {
-          continue;
-        }
-      }
-    }
-
-    if (Array.isArray(turn.actions)) {
-      this.alignScenarioActionPositions(turn.actions, {
-        forceMode: isForceMode,
-        onWarning: warn,
-      });
-      for (const action of turn.actions) {
-        const applied = this.executeScenarioStep(() => {
-          this.setScenarioActionOnDom(action);
-          return true;
-        }, {
-          onWarning: isForceMode ? warn : null,
-          warningPrefix: 'action override skipped',
-        });
-        if (applied === null) {
-          continue;
-        }
-      }
-    }
+    this.applyScenarioQueuedSwaps(turn.swaps, { forceMode: isForceMode, onWarning: warn });
+    this.applyScenarioQueuedActions(turn.actions, { forceMode: isForceMode, onWarning: warn });
 
     if (Number.isFinite(Number(turn.interruptOdLevel))) {
       this.pendingInterruptOdLevel = Number(turn.interruptOdLevel);
