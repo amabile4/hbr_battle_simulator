@@ -75,6 +75,27 @@ test('dom adapter exports records json and triggers file download flow', () => {
   }
 });
 
+test('scenario load surfaces invalid JSON parse errors via runSafely', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const area = root.querySelector('[data-role="scenario-json"]');
+  const button = root.querySelector('[data-action="scenario-load"]');
+  assert.ok(area);
+  assert.ok(button);
+
+  area.value = '{"turns":[';
+  assert.doesNotThrow(() => {
+    button.dispatchEvent(new win.Event('click', { bubbles: true }));
+  });
+  assert.equal(
+    (root.querySelector('[data-role="status"]')?.textContent ?? '').includes('Invalid scenario JSON'),
+    true
+  );
+});
+
 test('enemy count in turn controls is reflected in preview record', () => {
   const store = getStore();
   const { root, win } = createRoot();

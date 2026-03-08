@@ -125,6 +125,61 @@ test('delegated change actions are routed through runSafely', () => {
   assert.equal((root.querySelector('[data-role="status"]')?.textContent ?? '').includes('change failed'), true);
 });
 
+test('mount falls back to empty selection store when localStorage read throws', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  const storageProto = Object.getPrototypeOf(win.localStorage);
+  const originalGetItem = storageProto.getItem;
+
+  storageProto.getItem = () => {
+    throw new Error('storage read failed');
+  };
+
+  try {
+    assert.doesNotThrow(() => {
+      adapter.mount();
+    });
+    const select = root.querySelector('[data-role="selection-slot-select"]');
+    assert.ok(select);
+    assert.equal(select.options.length >= 2, true);
+  } finally {
+    storageProto.getItem = originalGetItem;
+  }
+});
+
+test('save selection surfaces localStorage write failures via runSafely', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  const storageProto = Object.getPrototypeOf(win.localStorage);
+  const originalSetItem = storageProto.setItem;
+  const originalConfirm = win.confirm;
+  adapter.mount();
+
+  win.confirm = () => true;
+  storageProto.setItem = () => {
+    throw new Error('storage write failed');
+  };
+
+  try {
+    const button = root.querySelector('[data-action="save-selection"]');
+    assert.ok(button);
+    assert.doesNotThrow(() => {
+      button.dispatchEvent(new win.Event('click', { bubbles: true }));
+    });
+    assert.equal(
+      (root.querySelector('[data-role="status"]')?.textContent ?? '').includes(
+        'Selection save failed: storage write failed'
+      ),
+      true
+    );
+  } finally {
+    win.confirm = originalConfirm;
+    storageProto.setItem = originalSetItem;
+  }
+});
+
 test('normal OD dialog stays visible while interrupt OD dialog is toggled', () => {
   const store = getStore();
   const { root, win } = createRoot();

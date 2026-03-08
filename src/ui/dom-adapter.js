@@ -84,6 +84,12 @@ const MOTIVATION_OPTIONS = Object.freeze([
 const MOTIVATION_LABEL_BY_VALUE = Object.freeze(
   Object.fromEntries(MOTIVATION_OPTIONS.map((option) => [String(option.value), String(option.label).replace(/^やる気:\s*/, '')]))
 );
+function createEmptySelectionStore() {
+  return {
+    schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
+    slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
+  };
+}
 const MOTIVATION_ICON_BY_VALUE = Object.freeze({
   '1': '\u{1F7E3}',
   '2': '\u{1F535}',
@@ -1527,31 +1533,22 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   readSelectionStore() {
     const storage = this.doc.defaultView?.localStorage;
     if (!storage) {
-      return {
-        schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-        slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
-      };
-    }
-
-    const raw = storage.getItem(SELECTION_SAVE_STORAGE_KEY);
-    if (!raw) {
-      return {
-        schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-        slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
-      };
+      return createEmptySelectionStore();
     }
 
     try {
+      const raw = storage.getItem(SELECTION_SAVE_STORAGE_KEY);
+      if (!raw) {
+        return createEmptySelectionStore();
+      }
+
       const parsed = JSON.parse(raw);
       if (
         !parsed ||
         parsed.schemaVersion !== SELECTION_SAVE_SCHEMA_VERSION ||
         !Array.isArray(parsed.slots)
       ) {
-        return {
-          schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-          slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
-        };
+        return createEmptySelectionStore();
       }
 
       const slots = Array(TOTAL_SELECTION_SLOT_COUNT).fill(null);
@@ -1570,10 +1567,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         slots,
       };
     } catch {
-      return {
-        schemaVersion: SELECTION_SAVE_SCHEMA_VERSION,
-        slots: Array(TOTAL_SELECTION_SLOT_COUNT).fill(null),
-      };
+      return createEmptySelectionStore();
     }
   }
 
@@ -1582,7 +1576,29 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (!storage) {
       return;
     }
-    storage.setItem(SELECTION_SAVE_STORAGE_KEY, JSON.stringify(store));
+    try {
+      storage.setItem(SELECTION_SAVE_STORAGE_KEY, JSON.stringify(store));
+    } catch (error) {
+      throw new Error(`Selection save failed: ${error.message}`);
+    }
+  }
+
+  parseScenarioDocument(text) {
+    const source = String(text ?? '');
+    if (/^seq,/.test(source)) {
+      return {
+        looksLikeCsv: true,
+        parsed: this.convertCsvToScenario(source),
+      };
+    }
+    try {
+      return {
+        looksLikeCsv: false,
+        parsed: JSON.parse(source),
+      };
+    } catch (error) {
+      throw new Error(`Invalid scenario JSON: ${error.message}`);
+    }
   }
 
   captureSelectionState() {
@@ -3643,17 +3659,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (!text) {
       throw new Error('Scenario JSON is empty.');
     }
-    let parsed = null;
-    const looksLikeCsv = /^seq,/.test(text);
-    if (looksLikeCsv) {
-      parsed = this.convertCsvToScenario(text);
-    } else {
-      try {
-        parsed = JSON.parse(text);
-      } catch (error) {
-        throw new Error(`Invalid scenario JSON: ${error.message}`);
-      }
-    }
+    const { looksLikeCsv, parsed } = this.parseScenarioDocument(text);
 
     if (!parsed || typeof parsed !== 'object') {
       throw new Error('Scenario must be an object.');
