@@ -1,6 +1,6 @@
 # UI Parallel Development Interface Spec (DOM Adapter + Engine)
 
-- Updated: 2026-03-06
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-06
 - Scope: `src/ui` + `src/turn` integration contract for parallel GUI development
 - Target reader: AI agents and developers implementing UI in parallel
 

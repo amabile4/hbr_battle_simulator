@@ -1,5 +1,7 @@
 # Passive Timing Reference
 
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-08
+
 ## 1. 今回の修正が場当たりではない理由
 
 - `commitTurn()` の `committedRecord.passiveEvents` を、`state.turnState.passiveEventsLastApplied` と boundary で新規発火した passive に限定しました。

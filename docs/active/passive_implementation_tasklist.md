@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-最終更新: 2026-03-08
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-08
 
 ## 方針
 
