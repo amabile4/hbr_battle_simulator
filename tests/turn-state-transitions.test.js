@@ -1785,9 +1785,11 @@ test('夏のひより party keeps intrinsic fire marks only on fire-element alli
     const expected = member.elements.includes('Fire') ? 4 : 0;
     assert.equal(Number(member.markStates?.Fire?.current ?? 0), expected, member.styleName);
   }
+  // 夏のひより is a triggered skill passive (sourceType='triggered') that logs a passive event.
+  // Mark state changes are handled by initializeIntrinsicMarkStatesFromParty, not by this passive.
   assert.equal(
     state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '夏のひより'),
-    false
+    true
   );
 });
 

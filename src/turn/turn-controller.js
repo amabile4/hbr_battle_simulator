@@ -4876,6 +4876,24 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
 
         {
           if (MARK_SKILL_TYPE_TO_ELEMENT[skillType]) {
+            // For triggered skills (sourceType==='triggered'), log the passive event even though
+            // mark state is managed by initializeIntrinsicMarkStatesFromParty.
+            // For regular passives (database/style), skip silently.
+            if (String(passive?.sourceType ?? '') === 'triggered') {
+              const targets = resolvePassiveTargetMembers(
+                state,
+                member,
+                part,
+                options.targetCharacterId ?? null
+              );
+              for (const target of targets) {
+                if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+                  continue;
+                }
+                matched = true;
+                break;
+              }
+            }
             continue;
           }
         }
