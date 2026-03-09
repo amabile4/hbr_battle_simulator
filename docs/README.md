@@ -50,7 +50,7 @@ docs/
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
-注記: `PRI-003`〜`PRI-006` 完了。Phase 6-A（通常スキル由来パッシブ不足エフェクト 7 種実装）完了。次の着手は **Phase 6-B**（マスタースキル由来パッシブのデータソース確立）。
+注記: Phase 6-A 完了。Phase 6-C（generalize）は編成 UI フラグのためバトル passive 対象外と確定。次の着手は **Phase 6-B**（`DamageUpByOverDrive` 等マスタースキル由来不足エフェクト実装）。
 
 ---
 

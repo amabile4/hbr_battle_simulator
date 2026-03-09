@@ -314,8 +314,8 @@
 | source | データ読み込み | 処理パイプライン | エフェクト適用 | 状態 |
 |--------|--------------|----------------|--------------|------|
 | 通常スキル由来（skills.json `passive` フィールド） | ✅ 実装済み | ✅ 実装済み | ✅ Phase 6-A 完了 | **残り複雑型は後段** |
-| マスタースキル由来（ability_tree PassiveSkill ノード） | ❌ 未実装 | ❌ 未着手 | ❌ 未着手 | **データソース確立から** |
-| スキルスロット起点（generalize フラグ） | データは存在 | ❌ 未着手 | ❌ 未着手 | **仕様未確定** |
+| マスタースキル由来（ability_tree PassiveSkill ノード） | ✅ 実装済み | ✅ 実装済み | 🔄 エフェクト追加中 | **Phase 6-B: 不足エフェクト実装** |
+| スキルスロット起点（generalize フラグ） | — | — | — | **対象外（編成 UI フラグ）** |
 | 装備起点（accessories / chips） | バトル passive なし | — | — | **対象外** |
 
 ### 通常スキル由来パッシブ（skills.json の `passive` フィールド）
@@ -330,19 +330,23 @@
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 
-- `styles.json` の `ability_tree` に `PassiveSkill` ノードが存在
-- 参照スキル ID は `57xxxxxx` 系（167 ユニーク）→ **`skills.json` に存在しない**
-- `listPassivesByStyleId`（`src/data/hbr-data-store.js:887`）は `style.passives` と `passives.json` のみ読み、`ability_tree` は非対応
-- **実装内容**: 57xxxxxx スキル ID の実データソース確認 → `listPassivesByStyleId` 拡張 → `getPassiveEntriesForMember` へ統合
-- [ ] 57xxxxxx スキル ID のデータソース確認（abilities.json 等）
-- [ ] マスタースキル由来パッシブのデータ読み込み実装（Phase 6-B）
+- `styles.json` の `ability_tree` に `PassiveSkill` ノードが存在し、`skill: 57xxxxxx` で参照
+- **重要な発見**: 57xxxxxx パッシブの実データは `styles.json` の各スタイルの **`passives[]` に直接埋め込まれている**
+  - `listPassivesByStyleId`（`src/data/hbr-data-store.js:887`）が `style.passives` を読む → **すでに読み込み済み**
+  - `abilities.json` などの別データソースは不要だった
+- **実際のギャップ**: 不足エフェクト型。最多は `DamageUpByOverDrive`（341 件）
+- [x] 57xxxxxx スキル ID のデータソース確認 → `styles.json` の `passives[]` に存在（確認完了）
+- [ ] `DamageUpByOverDrive` 等の不足エフェクト実装（Phase 6-B）
+  - `DamageUpByOverDrive` (341)、`GiveAttackBuffUp` (4)、`GiveHealUp` (3) が主要対象
+  - `AdditionalTurn`、`Funnel`、キャラクター固有型は後段
 
-### スキルスロット起点パッシブ（generalize フラグ）
+### スキルスロット起点パッシブ（generalize フラグ）→ 対象外
 
-- `styles.json` の一部スタイルに `generalize: true/false` フィールドが存在（55 スタイルに値あり）
-- フラグの意味が未確定（他スロットへのパッシブ適用可能化か否か）
-- **次アクション**: `help/` ディレクトリまたはゲーム仕様ドキュメントで `generalize` の意味を調査
-- [ ] generalize フラグ仕様の調査と確認（Phase 6-C、仕様確定後に判断）
+- `styles.json` の `generalize: true/false` は**編成・UI レイヤーの静的フラグ**（バトル中のパッシブ効果ではない）
+- 仕様: SS スタイルの専用スキル（EXスキル）を他スタイルのスキル枠へセット可能にする機能
+- 詳細: [`help/HEAVEN_BURNS_RED/キャラクター/ジェネライズ.md`](../../help/HEAVEN_BURNS_RED/キャラクター/ジェネライズ.md)
+- **結論**: バトルパッシブ処理基盤（Phase 6 等）の対象外。シミュレーターは「常にジェネライズ済み」前提で実装
+- [x] generalize フラグ仕様の確認 → バトル passive 対象外と確定（Drop）
 
 ### 装備起点パッシブ（accessories / chips）
 
@@ -352,12 +356,12 @@
 ### 優先実装順
 
 ```
-Phase 6-A（最初）: 通常スキル由来パッシブの不足エフェクト実装
-  → データ読み込みは済み、applyPassiveTimingInternal へのエフェクト型追加のみで完結
-Phase 6-B（次）: マスタースキル由来パッシブのデータソース確立
-  → 57xxxxxx ID の実データ確認から着手
-Phase 6-C（調査後）: スキルスロット起点パッシブ
-  → generalize 仕様確定後に判断
+Phase 6-A（完了）: 通常スキル由来パッシブの不足エフェクト実装
+  → Morale, DamageRateUp, DefenseDown, DefenseUp, CriticalRateUp, CriticalDamageUp, GiveDefenseDebuffUp 実装済み
+Phase 6-B（次）: マスタースキル由来パッシブの不足エフェクト実装
+  → データ読み込みは styles.json.passives[] で済み。DamageUpByOverDrive 等の追加が必要
+Phase 6-C（対象外）: スキルスロット起点パッシブ（generalize）
+  → バトル passive ではなく編成 UI フラグ → Drop
 Phase 6-D（対象外）: 装備起点パッシブ
   → 現在のデータにバトル passive なし → 保留
 ```

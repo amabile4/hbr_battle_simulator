@@ -71,11 +71,12 @@
 - `PRI-006` は完了（調査フェーズ）
   - 4 種類の passive source を調査し、実装ギャップを確定（詳細は `passive_implementation_tasklist.md` Phase 6 参照）
   - 通常スキル由来: データ読み込み済み、不足エフェクト型の追加が次の実装 → **Phase 6-A**
-  - マスタースキル由来: 57xxxxxx スキル ID のデータソース確立が必要 → **Phase 6-B**
-  - スキルスロット: generalize フラグ仕様未確定 → **Phase 6-C（調査後）**
+  - マスタースキル由来: 57xxxxxx パッシブは `styles.json` の `passives[]` に埋め込み済みで読み込み完了。不足エフェクト型（`DamageUpByOverDrive` 等）の追加が残り → **Phase 6-B**
+  - スキルスロット: `generalize` は編成 UI フラグ（バトル passive 非対象）→ **対象外に確定**（[ジェネライズ.md](../../help/HEAVEN_BURNS_RED/キャラクター/ジェネライズ.md) 参照）
   - 装備起点: バトル passive なし → **対象外**
-- 次の着手候補は **Phase 6-A**
-  - `src/turn/turn-controller.js` の `applyPassiveTimingInternal` に通常スキル由来の不足エフェクト型を追加
+- Phase 6-A は完了（Morale / DamageRateUp / DefenseDown / DefenseUp / CriticalRateUp / CriticalDamageUp / GiveDefenseDebuffUp 実装）
+- 次の着手候補は **Phase 6-B**
+  - `DamageUpByOverDrive`（341 件）、`GiveAttackBuffUp`（4 件）、`GiveHealUp`（3 件）の実装
 
 ## メモ
 
