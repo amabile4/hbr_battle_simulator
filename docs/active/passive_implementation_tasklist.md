@@ -6,7 +6,8 @@
 
 - パッシブ単体ではなく、関連する状態変化スキルの実装を同じ作業単位に含める
 - `condition` 実装と `timing` 実装は分けて管理する
-- `Token`, `MoraleLevel`, `MotivationLevel`, `Mark`, `Zone`, `Territory` は状態保持だけでなく増減スキル実装が必要
+- `Token`, `MoraleLevel`, `MotivationLevel`, `Zone`, `Territory` は状態保持だけでなく増減スキル実装が必要
+- `Mark` は battle start 時にパーティーの `elements` 構成から決まる永続状態として扱う
 - `Token` は独立プラン [`token_implementation_plan.md`](token_implementation_plan.md) を参照
 - `DpRate` / DP関連はパッシブに閉じないため [`../archive/20260309_completed_active_docs/dp_implementation_plan.md`](../archive/20260309_completed_active_docs/dp_implementation_plan.md) で別管理する
 - マスタースキル由来パッシブ、通常スキル由来パッシブは別系統として後段で扱う
@@ -64,7 +65,9 @@
   - 未実装は `DP回復で +1` と `被ダメージで -1` のイベントフック
   - 被弾入力モデル自体は `enemyAttackTargetCharacterIds` として UI / scenario / turnPlan / record に接続済み
 - [x] `FireMarkLevel`
-  - 共通基盤として `CharacterStyle.markStates`、各 `*MarkLevel()` 条件評価、`Fire/Ice/Thunder/Dark/LightMark` スキル適用は実装済み
+  - 共通基盤として `CharacterStyle.markStates` と各 `*MarkLevel()` 条件評価は実装済み
+  - battle start 時に、パーティー内の同属性 `elements` 人数ぶんだけ対象属性キャラへ永続で付与する
+  - 実行時の `Fire / Ice / Thunder / Dark / LightMark` skill_type では印状態を増減させない
   - 実データ回帰は `ThunderMarkLevel / DarkMarkLevel / LightMark` 経由で通している
   - 全属性印の常在効果は同型として実装済み
     - Lv1: スキル攻撃力+30% を preview / record modifier に反映
@@ -75,7 +78,7 @@
     - Lv6: ターン開始時 前衛SP+1 を実効
 - [x] `IceMarkLevel`
   - 共通基盤は `FireMarkLevel` と同じ実装を共有
-  - 氷 / 雷 / 闇 / 光 の印レベル条件評価、印状態付与、常在効果を `FireMarkLevel` と同じ実装で共有
+  - 氷 / 雷 / 闇 / 光 の印レベル条件評価、battle start 初期化、常在効果を `FireMarkLevel` と同じ実装で共有
   - 残課題は UI 表示拡張、Records / Passive Log での見える化、各属性の実データ回帰追加
 - [x] `IsZone`
 - [x] `IsTerritory`
@@ -83,7 +86,9 @@
 ### `IsZone` / `IsTerritory` 仕様メモ
 
 - `Zone` は属性フィールド状態として扱う
+- ヘルプ記載どおり、フィールド効果は敵/味方で共通の 1 つだけ存在でき、新しいものが常に上書きする
 - `Territory` は陣状態として扱う
+- ヘルプ記載どおり、陣も敵/味方で共通の 1 つだけ存在でき、新しいものが常に上書きする
 - `Zone` と `Territory` は別状態であり、同時に存在できる
 - `Zone` は後から展開されたものが上書きする
 - `Zone` は味方・敵のどちらも展開できる
@@ -91,6 +96,7 @@
 - `Territory` は `Zone` と独立して継続する特殊状態で、展開中は対応する特殊効果を受け続ける
 - `Territory` も将来のデータ差分に備えて継続ターンを持てる設計にする
 - 現時点で確認できた `ReviveTerritory` は `exitCond: None` / `exitVal: [0,0]` で、少なくとも現データ上は無期限
+- `ReviveTerritory` は turn start 時、DP破損中の味方がいれば味方全体の DP を 50% 回復して消失する
 - 現時点で確認できている条件出現は
   - `IsZone(Fire)` 1件
   - `IsTerritory(ReviveTerritory)` 2件
@@ -220,18 +226,21 @@
 - [ ] やる気減少スキル
   - `被ダメージで -1` のようなイベント起点は未実装
   - 被弾入力モデルの保存経路は実装済みで、残りは `MotivationLevel` への減少反映 hook のみ
-- [x] 属性印付与スキル
-  - `Fire / Ice / Thunder / Dark / Light` の `*Mark` 付与と `*MarkLevel()` 条件評価は実装済み
-  - 実機仕様に合わせて「属性人数ベースの印レベル」を採用
+- [x] 属性印の battle start 初期化
+  - `Fire / Ice / Thunder / Dark / Light` の `*MarkLevel()` 条件評価は実装済み
+  - 実機仕様に合わせて「属性人数ベースの印レベル」を battle start で固定付与する
+  - 実行時の `*Mark` skill_type は状態変化として扱わない
 - [x] 属性印の常在効果
   - 全属性を同型として実装済み
   - 残りは UI / Records / Passive Log での見える化
-- [ ] 属性印消費スキル
-  - 現時点では未着手
+- [x] 属性印は消費しない
+  - ヘルプ確認に基づき、battle start 取得後は永続で減少/消費しない前提へ修正
 - [x] フィールド展開スキル
-- [ ] フィールド解除/上書き処理
+- [x] フィールド解除/上書き処理
+  - `Zone` は duration tick と新規展開上書きを持ち、state / scenario / record に保持する
 - [x] 陣展開スキル
-- [ ] 陣解除/上書き処理
+- [x] 陣解除/上書き処理
+  - `Territory` は新規展開で上書きされ、`ReviveTerritory` は turn start 発動後に消失する
 - [x] DP現在値保持
 - [x] DP増減処理
   - Phase 4 の direct heal / regeneration grant / regeneration tick / HealDpByDamage trigger は実装済み

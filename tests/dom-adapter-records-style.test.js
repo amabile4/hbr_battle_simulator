@@ -781,9 +781,9 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
     sourceSide: 'player',
     remainingTurns: 7,
   });
-  assert.equal(adapter.state.party[0].dpState.currentDp, 84);
+  assert.equal(adapter.state.party[0].dpState.currentDp, 98);
   assert.equal(adapter.state.party[0].dpState.effectiveDpCap, 98);
-  assert.equal(adapter.state.party[1].dpState.currentDp, 0);
+  assert.equal(adapter.state.party[1].dpState.currentDp, 15);
   assert.equal(adapter.state.party[0].tokenState.current, 4);
   assert.equal(adapter.state.party[1].tokenState.current, 2);
   assert.equal(adapter.state.party[0].moraleState.current, 1);
@@ -792,11 +792,7 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   assert.equal(adapter.state.party[1].motivationState.current, 2);
   assert.equal(adapter.state.party[0].markStates.Fire.current, 2);
   assert.equal(adapter.state.party[1].markStates.Light.current, 1);
-  assert.deepEqual(adapter.state.turnState.territoryState, {
-    type: 'ReviveTerritory',
-    sourceSide: 'player',
-    remainingTurns: null,
-  });
+  assert.equal(adapter.state.turnState.territoryState, null);
   assert.deepEqual(adapter.materializeTurnPlanScenarioTurn(0).enemyAttackTargetCharacterIds, [
     adapter.state.party[0].characterId,
     adapter.state.party[1].characterId,

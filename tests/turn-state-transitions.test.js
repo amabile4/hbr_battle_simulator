@@ -1492,7 +1492,7 @@ test('MotivationLevel condition can trigger passives from current motivation sta
   assert.equal(state.party[0].sp.current, 3);
 });
 
-test('ThunderMark skill part increases thunder marks for matching ally targets', () => {
+test('ThunderMark skill part does not mutate intrinsic thunder mark levels', () => {
   const party = createSixMemberManualParty((idx) => {
     if (idx === 0) {
       return {
@@ -1515,24 +1515,66 @@ test('ThunderMark skill part increases thunder marks for matching ally targets',
       };
     }
     if (idx === 1) {
-      return { elements: ['Thunder'] };
+      return {
+        elements: ['Thunder'],
+        skills: [
+          {
+            id: 18601,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [{ skill_type: 'BuffDefence', target_type: 'Self', type: 'None' }],
+          },
+        ],
+      };
     }
     if (idx === 2) {
-      return { elements: ['Fire'] };
+      return {
+        elements: ['Fire'],
+        skills: [
+          {
+            id: 18602,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [{ skill_type: 'BuffDefence', target_type: 'Self', type: 'None' }],
+          },
+        ],
+      };
     }
     return {};
   });
   const state = createBattleStateFromParty(party);
   const preview = previewTurn(state, {
     0: { characterId: 'M1', skillId: 18600 },
-    1: { characterId: 'M2', skillId: 8001 },
-    2: { characterId: 'M3', skillId: 8002 },
+    1: { characterId: 'M2', skillId: 18601 },
+    2: { characterId: 'M3', skillId: 18602 },
   });
 
   const { nextState } = commitTurn(state, preview);
   assert.equal(nextState.party[0].markStates.Thunder.current, 2);
   assert.equal(nextState.party[1].markStates.Thunder.current, 2);
   assert.equal(nextState.party[2].markStates.Thunder.current, 0);
+});
+
+test('intrinsic mark levels are initialized from party element counts at battle start', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx <= 2) {
+      return { elements: ['Fire'] };
+    }
+    if (idx === 3) {
+      return { elements: ['Thunder'] };
+    }
+    return {};
+  });
+
+  const state = createBattleStateFromParty(party);
+
+  assert.equal(state.party[0].markStates.Fire.current, 3);
+  assert.equal(state.party[1].markStates.Fire.current, 3);
+  assert.equal(state.party[2].markStates.Fire.current, 3);
+  assert.equal(state.party[3].markStates.Thunder.current, 1);
+  assert.equal(state.party[4].markStates.Fire.current, 0);
 });
 
 test('DarkMarkLevel condition can trigger passives from current dark mark state', () => {
@@ -1562,7 +1604,7 @@ test('DarkMarkLevel condition can trigger passives from current dark mark state'
   assert.equal(result.spEvents[0]?.delta, 1);
 });
 
-test('LightMark passive timing applies light mark state on battle start', () => {
+test('LightMark passive timing keeps intrinsic light mark state unchanged at battle start', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? {
@@ -1583,8 +1625,7 @@ test('LightMark passive timing applies light mark state on battle start', () => 
   const result = applyPassiveTiming(state, 'OnBattleStart');
 
   assert.equal(state.party[0].markStates.Light.current, 1);
-  assert.equal(result.passiveEvents.length, 1);
-  assert.equal(result.passiveEvents[0]?.effectTypes.includes('LightMark'), true);
+  assert.equal(result.passiveEvents.length, 0);
 });
 
 test('猛火の進撃 grants ally-wide SP+5 when fire mark level is 6 or higher', () => {
@@ -1649,7 +1690,7 @@ test('猛火の進撃 triggers only once per sortie when passive limit is 1', ()
   assert.equal(second.passiveEvents.some((event) => event.passiveName === '猛火の進撃'), false);
 });
 
-test('夏のひより applies fire marks only to fire-element allies from real data', () => {
+test('夏のひより party keeps intrinsic fire marks only on fire-element allies', () => {
   const store = getStore();
   const styleIds = [1004307, 1001104, 1001204, 1001504, 1001401, 1001701];
   assert.equal(styleIds.length, 6);
@@ -1668,7 +1709,7 @@ test('夏のひより applies fire marks only to fire-element allies from real d
   }
   assert.equal(
     state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '夏のひより'),
-    true
+    false
   );
 });
 
@@ -5149,6 +5190,109 @@ test('ZoneUpEternal modifier makes deployed zone eternal', () => {
   assert.equal(committedRecord.actions[0].fieldStateApplied[0].powerRate, 1.95);
 });
 
+test('new field zone overwrites the previous active field zone', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 81020,
+            name: '火フィールド',
+            sp_cost: 0,
+            target_type: 'Field',
+            parts: [
+              {
+                skill_type: 'Zone',
+                target_type: 'Field',
+                elements: ['Fire'],
+                power: [1.8, 0],
+                effect: { exitCond: 'PlayerTurnEnd', exitVal: [8, 0] },
+              },
+            ],
+          },
+          {
+            id: 81022,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [{ skill_type: 'BuffDefence', target_type: 'Self', type: 'None' }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        skills: [
+          {
+            id: 81021,
+            name: '氷フィールド',
+            sp_cost: 0,
+            target_type: 'Field',
+            parts: [
+              {
+                skill_type: 'Zone',
+                target_type: 'Field',
+                elements: ['Ice'],
+                power: [1.8, 0],
+                effect: { exitCond: 'PlayerTurnEnd', exitVal: [8, 0] },
+              },
+            ],
+          },
+          {
+            id: 81023,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [{ skill_type: 'BuffDefence', target_type: 'Self', type: 'None' }],
+          },
+        ],
+      };
+    }
+    if (idx === 2) {
+      return {
+        skills: [
+          {
+            id: 81024,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [{ skill_type: 'BuffDefence', target_type: 'Self', type: 'None' }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 81020 },
+    1: { characterId: 'M2', skillId: 81023 },
+    2: { characterId: 'M3', skillId: 81024 },
+  });
+  const commit1 = commitTurn(state, preview1);
+  assert.deepEqual(commit1.nextState.turnState.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 7,
+    powerRate: 1.8,
+  });
+
+  const preview2 = previewTurn(commit1.nextState, {
+    0: { characterId: 'M1', skillId: 81022 },
+    1: { characterId: 'M2', skillId: 81021 },
+    2: { characterId: 'M3', skillId: 81024 },
+  });
+  const commit2 = commitTurn(commit1.nextState, preview2);
+
+  assert.deepEqual(commit2.nextState.turnState.zoneState, {
+    type: 'Ice',
+    sourceSide: 'player',
+    remainingTurns: 7,
+    powerRate: 1.8,
+  });
+});
+
 test('preview and damage context expose zone power for matching element skills', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -5204,6 +5348,7 @@ test('ReviveTerritory skill applies territory state and IsTerritory condition be
                 {
                   skill_type: 'ReviveTerritory',
                   target_type: 'Field',
+                  power: [0.5, 0],
                   effect: { exitCond: 'None', exitVal: [0, 0] },
                 },
               ],
@@ -5222,8 +5367,10 @@ test('ReviveTerritory skill applies territory state and IsTerritory condition be
     type: 'ReviveTerritory',
     sourceSide: 'player',
     remainingTurns: null,
+    powerRate: 0.5,
   });
   assert.equal(committedRecord.actions[0].fieldStateApplied[0].kind, 'territory');
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].powerRate, 0.5);
 
   const conditionalParty = createSixMemberManualParty((idx) =>
     idx === 0
@@ -5252,6 +5399,58 @@ test('ReviveTerritory skill applies territory state and IsTerritory condition be
 
   assert.equal(result.spEvents.length, 1);
   assert.equal(result.spEvents[0].delta, 1);
+});
+
+test('ReviveTerritory activates at turn start, heals all allies, and is consumed', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx <= 2) {
+      return {
+        dpState:
+          idx === 0
+            ? { baseMaxDp: 100, currentDp: 0 }
+            : idx === 1
+              ? { baseMaxDp: 100, currentDp: 20 }
+              : { baseMaxDp: 100, currentDp: 60 },
+        skills: [
+          {
+            id: 8210 + idx,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [{ skill_type: 'BuffDefence', target_type: 'Self', type: 'None' }],
+          },
+        ],
+      };
+    }
+    return {
+      dpState: { baseMaxDp: 100, currentDp: 40 },
+    };
+  });
+  const state = createBattleStateFromParty(party, {
+    territoryState: { type: 'ReviveTerritory', sourceSide: 'player', remainingTurns: null, powerRate: 0.5 },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8210 },
+    1: { characterId: 'M2', skillId: 8211 },
+    2: { characterId: 'M3', skillId: 8212 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.territoryState, null);
+  assert.equal(nextState.party[0].dpState.currentDp, 50);
+  assert.equal(nextState.party[1].dpState.currentDp, 70);
+  assert.equal(nextState.party[2].dpState.currentDp, 100);
+  assert.equal(nextState.party[3].dpState.currentDp, 90);
+  assert.equal(
+    committedRecord.dpEvents.some(
+      (event) =>
+        event.source === 'territory' &&
+        event.triggerType === 'ReviveTerritory' &&
+        event.characterId === 'M1'
+    ),
+    true
+  );
 });
 
 test('enemy down-turn status does not tick during OD/EX chain without base-turn advance', () => {

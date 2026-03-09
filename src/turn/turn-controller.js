@@ -64,10 +64,12 @@ const DP_EVENT_SOURCE_SKILL = 'dp_skill';
 const DP_EVENT_SOURCE_REGENERATION = 'dp_regeneration';
 const DEFAULT_STATUS_EFFECT_REMAINING = 1;
 const DEFAULT_REVIVE_DP_FLOOR = 1;
+const DEFAULT_REVIVE_TERRITORY_HEAL_RATE = 0.5;
 const AUTO_DP_CONSUMPTION_FLOOR = 1;
 const DEFAULT_AUTO_DOWN_TURN_REMAINING = 1;
 const DP_RATE_REFERENCE_MIN = 0;
 const DP_RATE_REFERENCE_MAX = 1;
+const REVIVE_TERRITORY_TYPE = 'ReviveTerritory';
 const MARK_LEVEL_CONDITION_TO_ELEMENT = Object.freeze({
   FireMarkLevel: 'Fire',
   IceMarkLevel: 'Ice',
@@ -82,6 +84,7 @@ const MARK_SKILL_TYPE_TO_ELEMENT = Object.freeze({
   DarkMark: 'Dark',
   LightMark: 'Light',
 });
+const INTRINSIC_MARK_ELEMENTS = Object.freeze([...new Set(Object.values(MARK_LEVEL_CONDITION_TO_ELEMENT))]);
 const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
 const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
 const EXTRA_ACTIVATION_STATUS_TYPE = 20;
@@ -949,6 +952,11 @@ function resolveZonePowerRate(part) {
   return Number.isFinite(power) ? power : null;
 }
 
+function resolveTerritoryPowerRate(part) {
+  const power = Number(part?.power?.[0] ?? NaN);
+  return Number.isFinite(power) ? power : null;
+}
+
 function deriveTerritoryTypeFromPart(part) {
   const skillType = String(part?.skill_type ?? '').trim();
   if (skillType && skillType !== '-1') {
@@ -1050,9 +1058,118 @@ function applyTerritoryPartToTurnState(turnState, part, sourceSide = 'player') {
     type,
     sourceSide: String(sourceSide ?? ''),
     remainingTurns: resolveFieldDuration(part),
+    ...(Number.isFinite(resolveTerritoryPowerRate(part))
+      ? { powerRate: resolveTerritoryPowerRate(part) }
+      : {}),
   };
   turnState.territoryState = next;
   return next;
+}
+
+function isBrokenDpState(dpState) {
+  const normalized = cloneDpState(dpState);
+  return Number(normalized.baseMaxDp ?? 0) > 0 && Number(normalized.currentDp ?? 0) <= 0;
+}
+
+function captureReviveTerritoryTurnStartTrigger(party, turnState) {
+  const territoryState = getTerritoryState(turnState);
+  if (!isFieldStateActive(territoryState) || String(territoryState?.type ?? '') !== REVIVE_TERRITORY_TYPE) {
+    return null;
+  }
+  const brokenTargetCharacterIds = (Array.isArray(party) ? party : [])
+    .filter((member) => isBrokenDpState(member?.dpState))
+    .map((member) => String(member?.characterId ?? '').trim())
+    .filter(Boolean);
+  if (brokenTargetCharacterIds.length === 0) {
+    return null;
+  }
+  return {
+    territoryState,
+    brokenTargetCharacterIds,
+  };
+}
+
+function createTerritoryDpEvent(turnState, territoryState, target, startDpState, endDpState) {
+  const startState = cloneDpState(startDpState ?? target?.dpState ?? {});
+  const endState = cloneDpState(endDpState ?? target?.dpState ?? {});
+  return {
+    actorCharacterId: null,
+    characterId: target.characterId,
+    source: 'territory',
+    territoryType: String(territoryState?.type ?? ''),
+    skillType: String(territoryState?.type ?? ''),
+    triggerType: String(territoryState?.type ?? ''),
+    delta: Number(endState.currentDp ?? 0) - Number(startState.currentDp ?? 0),
+    startDpState: startState,
+    endDpState: endState,
+    startDpRate: getDpRate(startState),
+    endDpRate: getDpRate(endState),
+    eventCeiling: Number(endState.effectiveDpCap ?? endState.baseMaxDp ?? 0),
+    isAmountResolved: true,
+    targetType: 'AllyAll',
+    targetCondition: '',
+  };
+}
+
+function applyReviveTerritoryTurnStartEffect(party, turnState, trigger) {
+  const territoryState = normalizeFieldState(trigger?.territoryState);
+  if (!territoryState || String(territoryState?.type ?? '') !== REVIVE_TERRITORY_TYPE) {
+    return { dpEvents: [], passiveEvents: [] };
+  }
+
+  const powerRate = Number(territoryState?.powerRate ?? DEFAULT_REVIVE_TERRITORY_HEAL_RATE);
+  const resolvedPowerRate =
+    Number.isFinite(powerRate) && powerRate > 0 ? powerRate : DEFAULT_REVIVE_TERRITORY_HEAL_RATE;
+  const dpEvents = [];
+
+  for (const target of party ?? []) {
+    const startDpState = cloneDpState(target?.dpState ?? {});
+    const baseMaxDp = Number(startDpState.baseMaxDp ?? 0);
+    if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0) {
+      continue;
+    }
+    const amount = baseMaxDp * resolvedPowerRate;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+    const change = target.setDpState({
+      currentDp: Number(startDpState.currentDp ?? 0) + amount,
+      effectiveDpCap: Number(startDpState.effectiveDpCap ?? baseMaxDp),
+    });
+    dpEvents.push(
+      createTerritoryDpEvent(
+        turnState,
+        territoryState,
+        target,
+        startDpState,
+        cloneDpState(change.endDpState)
+      )
+    );
+  }
+
+  turnState.territoryState = null;
+
+  return {
+    dpEvents,
+    passiveEvents: [
+      {
+        turnLabel: String(turnState?.turnLabel ?? ''),
+        turnType: String(turnState?.turnType ?? ''),
+        timing: 'OnEveryTurn',
+        characterId: '',
+        characterName: '',
+        passiveId: 0,
+        passiveName: REVIVE_TERRITORY_TYPE,
+        passiveDesc: 'Turn-start territory activation',
+        source: 'territory',
+        territoryType: REVIVE_TERRITORY_TYPE,
+        effectTypes: [REVIVE_TERRITORY_TYPE],
+        dpDelta: dpEvents.reduce((sum, event) => sum + Number(event?.delta ?? 0), 0),
+        brokenTargetCharacterIds: [...(trigger?.brokenTargetCharacterIds ?? [])],
+        consumed: true,
+      },
+    ],
+  };
 }
 
 function getEnemyResistanceRatePercent(turnState, targetIndex, element) {
@@ -2081,18 +2198,30 @@ function getMotivationTargetLevel(part) {
   return 0;
 }
 
-function resolvePartyMarkLevelForElement(state, element) {
-  const key = String(element ?? '').trim();
-  if (!key) {
-    return 0;
-  }
-  let count = 0;
-  for (const member of state?.party ?? []) {
-    if (Array.isArray(member?.elements) && member.elements.includes(key)) {
-      count += 1;
+function initializeIntrinsicMarkStatesFromParty(party = []) {
+  const elementCounts = Object.fromEntries(INTRINSIC_MARK_ELEMENTS.map((element) => [element, 0]));
+  for (const member of party) {
+    for (const element of member?.elements ?? []) {
+      const key = String(element ?? '').trim();
+      if (Object.prototype.hasOwnProperty.call(elementCounts, key)) {
+        elementCounts[key] += 1;
+      }
     }
   }
-  return count;
+
+  for (const member of party) {
+    const memberElements = new Set((member?.elements ?? []).map((element) => String(element ?? '').trim()));
+    for (const element of INTRINSIC_MARK_ELEMENTS) {
+      const markState = member?.markStates?.[element];
+      if (!markState || !memberElements.has(element)) {
+        continue;
+      }
+      if (Number(markState.current ?? 0) > 0) {
+        continue;
+      }
+      markState.current = Number(elementCounts[element] ?? 0);
+    }
+  }
 }
 
 function resolveIntrinsicMarkModifiersForMember(member) {
@@ -2177,71 +2306,8 @@ function applyIntrinsicMarkTurnStartRecovery(party) {
   return recoveryEvents;
 }
 
-function applyMarkEffectsFromActions(state, previewRecord) {
-  const events = [];
-
-  for (const actionEntry of previewRecord.actions ?? []) {
-    const actor = findMemberByCharacterId(state, actionEntry.characterId);
-    if (!actor) {
-      continue;
-    }
-    const skill = actor.getSkill(actionEntry.skillId);
-    if (!skill) {
-      continue;
-    }
-
-    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
-    for (const part of effectiveParts ?? []) {
-      const markElement = MARK_SKILL_TYPE_TO_ELEMENT[String(part?.skill_type ?? '').trim()];
-      if (!markElement) {
-        continue;
-      }
-      const conditionSkill = createConditionSkillContext(skill, part);
-      const condTexts = [part?.cond, part?.hit_condition]
-        .map((value) => String(value ?? '').trim())
-        .filter(Boolean);
-      const condSatisfied = condTexts.every((expr) =>
-        evaluateConditionExpression(expr, state, actor, conditionSkill, actionEntry).result
-      );
-      if (!condSatisfied) {
-        continue;
-      }
-      const level = resolvePartyMarkLevelForElement(state, markElement);
-      if (!level) {
-        continue;
-      }
-      const targetCharacterIds = resolveSupportTargetCharacterIds(
-        state,
-        actor,
-        part?.target_type,
-        actionEntry?.targetCharacterId
-      );
-      for (const targetCharacterId of targetCharacterIds) {
-        const target = findMemberByCharacterId(state, targetCharacterId);
-        if (!target) {
-          continue;
-        }
-        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
-          continue;
-        }
-        const change = target.setMarkLevel(markElement, level);
-        if (!change) {
-          continue;
-        }
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          source: 'mark_skill',
-          skillId: skill.skillId,
-          skillName: skill.name,
-          triggerType: `${markElement}Mark`,
-          ...change,
-        });
-      }
-    }
-  }
-
-  return events;
+function applyMarkEffectsFromActions() {
+  return [];
 }
 
 function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
@@ -4738,35 +4804,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         {
-          const markElement = MARK_SKILL_TYPE_TO_ELEMENT[skillType];
-          if (markElement) {
-            const level = resolvePartyMarkLevelForElement(state, markElement);
-            if (!level) {
-              continue;
-            }
-            const targetCharacterIds = resolveSupportTargetCharacterIds(
-              state,
-              member,
-              part?.target_type,
-              options.targetCharacterId ?? null
-            );
-            if (targetCharacterIds.length === 0) {
-              continue;
-            }
-            for (const targetCharacterId of targetCharacterIds) {
-              const target = findMemberByCharacterId(state, targetCharacterId);
-              if (!target) {
-                continue;
-              }
-              if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
-                continue;
-              }
-              const change = target.setMarkLevel(markElement, level);
-              if (!change) {
-                continue;
-              }
-              matched = true;
-            }
+          if (MARK_SKILL_TYPE_TO_ELEMENT[skillType]) {
             continue;
           }
         }
@@ -5113,6 +5151,7 @@ function applyRecoveryPipeline(party, turnState) {
   const epEvents = [];
   const dpEvents = [];
   const passiveEvents = [];
+  const reviveTerritoryTrigger = captureReviveTerritoryTurnStartTrigger(party, turnState);
 
   for (const member of party) {
     const base = member.recoverBaseSP(BASE_SP_RECOVERY);
@@ -5156,6 +5195,16 @@ function applyRecoveryPipeline(party, turnState) {
   }
   if (passiveResult.passiveEvents.length > 0) {
     passiveEvents.push(...passiveResult.passiveEvents);
+  }
+
+  if (reviveTerritoryTrigger) {
+    const territoryResult = applyReviveTerritoryTurnStartEffect(party, turnState, reviveTerritoryTrigger);
+    if (territoryResult.dpEvents.length > 0) {
+      dpEvents.push(...territoryResult.dpEvents);
+    }
+    if (territoryResult.passiveEvents.length > 0) {
+      passiveEvents.push(...territoryResult.passiveEvents);
+    }
   }
 
   const isFirstOdAction =
@@ -5339,6 +5388,7 @@ function computeNextTurnState(current, grantedExtraCharacterIds = []) {
 export function createBattleStateFromParty(party, turnState) {
   const members = Array.isArray(party) ? party : party.members;
   const next = createBattleState(members, turnState);
+  initializeIntrinsicMarkStatesFromParty(next.party);
   if (!next.turnState.transcendence) {
     next.turnState.transcendence = buildInitialTranscendenceStateFromParty(next.party);
   }
@@ -5736,6 +5786,7 @@ export function applyInitialPassiveState(state) {
     return state;
   }
 
+  initializeIntrinsicMarkStatesFromParty(state.party);
   const battleStartResult = applyPassiveTimingInternal(state, BATTLE_START_PASSIVE_TIMINGS);
   applyIntrinsicMarkTurnStartRecovery(state.party);
   const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
