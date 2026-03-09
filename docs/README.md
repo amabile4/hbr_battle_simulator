@@ -50,7 +50,7 @@ docs/
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
-注記: 2026-03-09 時点で `PRI-003`（被弾トークン / やる気減少）と `PRI-004`（Field / Territory の解除・上書き）は [`active/implementation_priority_tasklist.md`](active/implementation_priority_tasklist.md) 上で完了扱い。次の優先は `PRI-005`（状態系 UI / Records / Passive Log の見える化）。
+注記: `PRI-003`〜`PRI-005` が完了（被弾トークン / やる気減少 / Field 解除・上書き / Records stateSnapshot 追加 / Token 通常 UI 表示確認）。次の優先は `PRI-006`（Phase 6 拡張）。
 
 ---
 

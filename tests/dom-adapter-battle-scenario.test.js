@@ -1106,6 +1106,43 @@ test('runNextScenarioTurn reports executed and completed status through shared c
   assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Scenario completed (1 turns).');
 });
 
+test('renderPartyState shows Token value for member with token passive', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // Token passive をメンバーに直接設定し、Token 値を 3 にする
+  const member = adapter.state.party[0];
+  member.passives = [{ id: 1, name: 'Token passive', timing: 'OnEveryTurn', condition: '', parts: [{ skill_type: 'TokenSetByAttacked', power: [1] }] }];
+  member.tokenState.current = 3;
+  adapter.renderPartyState();
+
+  const partyStateEl = root.querySelector('[data-role="party-state"]');
+  assert.ok(partyStateEl, 'party-state element must exist');
+  const html = partyStateEl.innerHTML;
+  assert.ok(html.includes('Token=3'), 'Token value must appear in party-state when member has token passive');
+});
+
+test('renderPartyState does not show Token value for member without token passive', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // passives なしのメンバー（デフォルト）の Token 値を確認
+  for (const member of adapter.state.party) {
+    member.passives = [];
+    member.tokenState.current = 5;
+  }
+  adapter.renderPartyState();
+
+  const partyStateEl = root.querySelector('[data-role="party-state"]');
+  assert.ok(partyStateEl, 'party-state element must exist');
+  const html = partyStateEl.innerHTML;
+  assert.ok(!html.includes('Token='), 'Token value must not appear for members without token passive');
+});
+
 test('scenario ignores preemptiveOdLevel when current turn is not normal (OD/EX continuation)', () => {
   const store = getStore();
   const { root } = createRoot();

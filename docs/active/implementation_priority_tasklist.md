@@ -27,7 +27,7 @@
 | P1 | `PRI-002` | `done` | 被弾イベント入力モデルの設計と接続 | [`token_implementation_plan.md`](token_implementation_plan.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | `TokenSetByAttacked` と `やる気減少` が同じ「誰が被弾したか」入力に依存しており、1回の設計で 2 系統を進められる | UI 入力経路、engine hook 呼び出し位置、record への残し方、最小テスト方針が定義されている |
 | P2 | `PRI-003` | `done` | 被弾トークン / やる気減少の実装 | [`token_implementation_plan.md`](token_implementation_plan.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | P1 が固まれば最短で効果が出る未実装 mechanic 群 | `TokenSetByAttacked` の UI 接続と、被ダメージ起点の `Motivation -1` がテスト込みで動作する |
 | P3 | `PRI-004` | `done` | Field / Territory の解除・上書き | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | フィールド系の残り仕様をまとめて閉じられる | Zone / Territory の解除・上書きの状態遷移が turnPlan / scenario / record と整合した形で実装される |
-| P4 | `PRI-005` | `todo` | 状態系 UI / Records / Passive Log の見える化 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`ui_parallel_interface_spec.md`](ui_parallel_interface_spec.md) | デバッグ効率は高いが、P0-P3 ほどのアンブロッカーではない | Mark / Zone / Territory の見える化方針と表示箇所が docs と UI の両方で揃う |
+| P4 | `PRI-005` | `done` | 状態系 UI / Records / Passive Log の見える化 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`ui_parallel_interface_spec.md`](ui_parallel_interface_spec.md) | デバッグ効率は高いが、P0-P3 ほどのアンブロッカーではない | Mark / Zone / Territory の見える化方針と表示箇所が docs と UI の両方で揃う |
 | P5 | `PRI-006` | `todo` | Phase 6 拡張（master / normal / slot / equip 起点 passive） | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | 面積が広く、前段の契約整理が済んでからでないと危険 | 対象範囲の分割順、最初に着手する source 系統、テスト方針が決まっている |
 
 ## 次に着手する具体的な 1 本
@@ -64,9 +64,12 @@
 - `PRI-003` は完了
   - `TokenSetByAttacked` と被ダメージ起点 `Motivation -1` はどちらも `enemyAttackTargetCharacterIds` を共通入力として commit 境界で反映する
   - `被ダメージで -1` は実データ固有の `skill_type` ではなく、[`../../help/HEAVEN_BURNS_RED/バトル/やる気.md`](../../help/HEAVEN_BURNS_RED/バトル/やる気.md) のヘルプ仕様に基づく `Motivation` 状態の共通ルールとして実装した
-- 次の着手候補は `PRI-005`
-  - Mark / Zone / Territory の state を party state / records / passive log 上で追いやすくする
-  - scenario / turnPlan 再生時に state 系差分の確認コストを下げる
+- `PRI-005` は完了
+  - `committedRecord.stateSnapshot` に `markStateByPartyIndex` / `zoneState` / `territoryState` / `tokenStateByPartyIndex` を追加（`commitTurn` 時に次状態スナップショットを付加）
+  - Token 値は `hasTokenPassiveSupport` 条件で party-state 表示領域に既に出力済みであることを確認・DOM テスト追加
+  - Mark の passive 変化（`MARK_SKILL_TYPE_TO_ELEMENT` 系）は既存設計上「イントリンシック mark は passive から直接変更しない」ため PRI-006 対象として保留
+- 次の着手候補は `PRI-006`
+  - Phase 6 拡張（master / normal / slot / equip 起点 passive）
 
 ## メモ
 

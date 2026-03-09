@@ -5764,6 +5764,16 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   committed.dpEvents = structuredClone([...actionDpEvents, ...recoveryDpEvents, ...boundaryDpEvents]);
   committed.enemyAttackEvents = structuredClone(enemyAttackEvents);
   committed.enemyAttackTargetCharacterIds = structuredClone(enemyAttackTargetCharacterIds);
+  committed.stateSnapshot = {
+    markStateByPartyIndex: Object.fromEntries(
+      nextState.party.map((m) => [m.partyIndex, structuredClone(m.markStates ?? {})])
+    ),
+    zoneState: structuredClone(nextState.turnState.zoneState ?? null),
+    territoryState: structuredClone(nextState.turnState.territoryState ?? null),
+    tokenStateByPartyIndex: Object.fromEntries(
+      nextState.party.map((m) => [m.partyIndex, structuredClone(m.tokenState ?? { current: 0, min: 0, max: 10 })])
+    ),
+  };
 
   return {
     nextState,

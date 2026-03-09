@@ -7312,3 +7312,45 @@ test('OnOverdriveStart passive does not fire on non-OD timing (OnPlayerTurnStart
 
   assert.equal(result.spEvents.length, 0, 'OnOverdriveStart passive must not fire on OnPlayerTurnStart');
 });
+
+test('commitTurn includes stateSnapshot with markStateByPartyIndex, zoneState, territoryState, tokenStateByPartyIndex', () => {
+  const party = createSixMemberManualParty(() => ({}));
+  const state = createBattleStateFromParty(party);
+  const actions = buildActionDict(new Party(party.members));
+  const preview = previewTurn(state, actions);
+  const { committedRecord } = commitTurn(state, preview);
+
+  assert.ok(committedRecord.stateSnapshot !== undefined, 'stateSnapshot must exist');
+  assert.ok(
+    typeof committedRecord.stateSnapshot.markStateByPartyIndex === 'object' &&
+      committedRecord.stateSnapshot.markStateByPartyIndex !== null,
+    'markStateByPartyIndex must be an object'
+  );
+  assert.ok(
+    committedRecord.stateSnapshot.zoneState === null ||
+      typeof committedRecord.stateSnapshot.zoneState === 'object',
+    'zoneState must be null or object'
+  );
+  assert.ok(
+    committedRecord.stateSnapshot.territoryState === null ||
+      typeof committedRecord.stateSnapshot.territoryState === 'object',
+    'territoryState must be null or object'
+  );
+  assert.ok(
+    typeof committedRecord.stateSnapshot.tokenStateByPartyIndex === 'object' &&
+      committedRecord.stateSnapshot.tokenStateByPartyIndex !== null,
+    'tokenStateByPartyIndex must be an object'
+  );
+
+  // 6メンバー全員のエントリが存在する
+  for (let i = 0; i < 6; i++) {
+    assert.ok(
+      committedRecord.stateSnapshot.markStateByPartyIndex[i] !== undefined,
+      `markStateByPartyIndex[${i}] must exist`
+    );
+    assert.ok(
+      committedRecord.stateSnapshot.tokenStateByPartyIndex[i] !== undefined,
+      `tokenStateByPartyIndex[${i}] must exist`
+    );
+  }
+});
