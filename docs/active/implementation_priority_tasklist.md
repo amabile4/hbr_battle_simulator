@@ -28,7 +28,7 @@
 | P2 | `PRI-003` | `done` | 被弾トークン / やる気減少の実装 | [`token_implementation_plan.md`](token_implementation_plan.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | P1 が固まれば最短で効果が出る未実装 mechanic 群 | `TokenSetByAttacked` の UI 接続と、被ダメージ起点の `Motivation -1` がテスト込みで動作する |
 | P3 | `PRI-004` | `done` | Field / Territory の解除・上書き | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | フィールド系の残り仕様をまとめて閉じられる | Zone / Territory の解除・上書きの状態遷移が turnPlan / scenario / record と整合した形で実装される |
 | P4 | `PRI-005` | `done` | 状態系 UI / Records / Passive Log の見える化 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`ui_parallel_interface_spec.md`](ui_parallel_interface_spec.md) | デバッグ効率は高いが、P0-P3 ほどのアンブロッカーではない | Mark / Zone / Territory の見える化方針と表示箇所が docs と UI の両方で揃う |
-| P5 | `PRI-006` | `todo` | Phase 6 拡張（master / normal / slot / equip 起点 passive） | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | 面積が広く、前段の契約整理が済んでからでないと危険 | 対象範囲の分割順、最初に着手する source 系統、テスト方針が決まっている |
+| P5 | `PRI-006` | `done` | Phase 6 拡張（master / normal / slot / equip 起点 passive） | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | 面積が広く、前段の契約整理が済んでからでないと危険 | 対象範囲の分割順、最初に着手する source 系統、テスト方針が決まっている |
 
 ## 次に着手する具体的な 1 本
 
@@ -68,8 +68,14 @@
   - `committedRecord.stateSnapshot` に `markStateByPartyIndex` / `zoneState` / `territoryState` / `tokenStateByPartyIndex` を追加（`commitTurn` 時に次状態スナップショットを付加）
   - Token 値は `hasTokenPassiveSupport` 条件で party-state 表示領域に既に出力済みであることを確認・DOM テスト追加
   - Mark の passive 変化（`MARK_SKILL_TYPE_TO_ELEMENT` 系）は既存設計上「イントリンシック mark は passive から直接変更しない」ため PRI-006 対象として保留
-- 次の着手候補は `PRI-006`
-  - Phase 6 拡張（master / normal / slot / equip 起点 passive）
+- `PRI-006` は完了（調査フェーズ）
+  - 4 種類の passive source を調査し、実装ギャップを確定（詳細は `passive_implementation_tasklist.md` Phase 6 参照）
+  - 通常スキル由来: データ読み込み済み、不足エフェクト型の追加が次の実装 → **Phase 6-A**
+  - マスタースキル由来: 57xxxxxx スキル ID のデータソース確立が必要 → **Phase 6-B**
+  - スキルスロット: generalize フラグ仕様未確定 → **Phase 6-C（調査後）**
+  - 装備起点: バトル passive なし → **対象外**
+- 次の着手候補は **Phase 6-A**
+  - `src/turn/turn-controller.js` の `applyPassiveTimingInternal` に通常スキル由来の不足エフェクト型を追加
 
 ## メモ
 

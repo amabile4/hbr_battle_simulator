@@ -50,7 +50,7 @@ docs/
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
-注記: `PRI-003`〜`PRI-005` が完了（被弾トークン / やる気減少 / Field 解除・上書き / Records stateSnapshot 追加 / Token 通常 UI 表示確認）。次の優先は `PRI-006`（Phase 6 拡張）。
+注記: `PRI-003`〜`PRI-006` が完了。PRI-006 は Phase 6 passive source 調査フェーズ完了（通常スキル由来/マスタースキル由来/スキルスロット/装備起点の実装ギャップを確定）。次の着手は **Phase 6-A**（通常スキル由来の不足エフェクト実装）。
 
 ---
 

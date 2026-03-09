@@ -307,10 +307,58 @@
 
 ## Phase 6: 将来拡張
 
-- [ ] マスタースキル由来パッシブ
-- [ ] 通常スキル由来パッシブ
-- [ ] スキルスロット起点パッシブ
-- [ ] 装備起点パッシブ
+> 📅 PRI-006 調査完了: 2026-03-09
+
+### 調査結果サマリー
+
+| source | データ読み込み | 処理パイプライン | エフェクト適用 | 状態 |
+|--------|--------------|----------------|--------------|------|
+| 通常スキル由来（skills.json `passive` フィールド） | ✅ 実装済み | ✅ 実装済み | ❌ 未実装 | **エフェクト追加のみ** |
+| マスタースキル由来（ability_tree PassiveSkill ノード） | ❌ 未実装 | ❌ 未着手 | ❌ 未着手 | **データソース確立から** |
+| スキルスロット起点（generalize フラグ） | データは存在 | ❌ 未着手 | ❌ 未着手 | **仕様未確定** |
+| 装備起点（accessories / chips） | バトル passive なし | — | — | **対象外** |
+
+### 通常スキル由来パッシブ（skills.json の `passive` フィールド）
+
+- `skills.json` に `passive` フィールドを持つスキルが 26 件（`is_restricted: 1`、コマンド選択不可）
+- `listTriggeredSkillsByStyleId` → `toPassiveLikeEntryFromTriggeredSkill` → `getPassiveEntriesForMember` → `applyPassiveTimingInternal` のパイプラインは**実装済み**
+- **ギャップ**: `DefenseDown` 等のエフェクト種別が `unsupported` としてログされている
+- **実装内容**: `src/turn/turn-controller.js` の `applyPassiveTimingInternal` に不足エフェクト型を追加（実データの skill_type 要確認）
+- [ ] 通常スキル由来パッシブの不足エフェクト実装（Phase 6-A）
+
+### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
+
+- `styles.json` の `ability_tree` に `PassiveSkill` ノードが存在
+- 参照スキル ID は `57xxxxxx` 系（167 ユニーク）→ **`skills.json` に存在しない**
+- `listPassivesByStyleId`（`src/data/hbr-data-store.js:887`）は `style.passives` と `passives.json` のみ読み、`ability_tree` は非対応
+- **実装内容**: 57xxxxxx スキル ID の実データソース確認 → `listPassivesByStyleId` 拡張 → `getPassiveEntriesForMember` へ統合
+- [ ] 57xxxxxx スキル ID のデータソース確認（abilities.json 等）
+- [ ] マスタースキル由来パッシブのデータ読み込み実装（Phase 6-B）
+
+### スキルスロット起点パッシブ（generalize フラグ）
+
+- `styles.json` の一部スタイルに `generalize: true/false` フィールドが存在（55 スタイルに値あり）
+- フラグの意味が未確定（他スロットへのパッシブ適用可能化か否か）
+- **次アクション**: `help/` ディレクトリまたはゲーム仕様ドキュメントで `generalize` の意味を調査
+- [ ] generalize フラグ仕様の調査と確認（Phase 6-C、仕様確定後に判断）
+
+### 装備起点パッシブ（accessories / chips）
+
+- `accessories.json`（500 件）・`chips.json`（36 件）ともに、`effects` はステータスブーストのみでバトル passive なし
+- **現時点では実装対象外**
+
+### 優先実装順
+
+```
+Phase 6-A（最初）: 通常スキル由来パッシブの不足エフェクト実装
+  → データ読み込みは済み、applyPassiveTimingInternal へのエフェクト型追加のみで完結
+Phase 6-B（次）: マスタースキル由来パッシブのデータソース確立
+  → 57xxxxxx ID の実データ確認から着手
+Phase 6-C（調査後）: スキルスロット起点パッシブ
+  → generalize 仕様確定後に判断
+Phase 6-D（対象外）: 装備起点パッシブ
+  → 現在のデータにバトル passive なし → 保留
+```
 
 ## 優先着手順
 
