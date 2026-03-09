@@ -7516,3 +7516,77 @@ test('DamageUpByOverDrive passive records damageUpByOverDriveRate and is not uns
     'DamageUpByOverDrive should not appear in unsupportedEffectTypes'
   );
 });
+
+test('Talisman passive activates talisman state on enemy at battle start', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          triggeredSkills: [
+            {
+              id: 46401601,
+              name: '貼ったりましょう！',
+              passive: { timing: 'OnBattleStart', condition: '', activ_rate: 0, effect: '', auto_type: 'None', limit: 0 },
+              parts: [{ skill_type: 'Talisman', target_type: 'All', power: [0, 0], value: [0, 0] }],
+              sourceType: 'triggered',
+              isTriggeredSkillPassive: true,
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  assert.equal(state.turnState.enemyState?.talismanState?.active, false, 'talisman inactive before');
+  const result = applyPassiveTiming(state, 'OnBattleStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === '貼ったりましょう！');
+  assert.ok(event, 'Talisman passive should fire');
+  assert.equal(state.turnState.enemyState?.talismanState?.active, true, 'talisman should be active');
+  assert.equal(state.turnState.enemyState?.talismanState?.level, 0, 'talisman level should be 0');
+});
+
+test('Talisman passive increases level when talisman is already active', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 99801,
+              name: '霊符レベルアップ',
+              timing: 'OnPlayerTurnStart',
+              condition: '',
+              parts: [{ skill_type: 'Talisman', target_type: 'All', power: [2, 0], value: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  // Pre-activate talisman
+  state.turnState.enemyState.talismanState = { active: true, level: 3, maxLevel: 10 };
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === '霊符レベルアップ');
+  assert.ok(event, 'Talisman level-up passive should fire when talisman is active');
+  assert.equal(state.turnState.enemyState?.talismanState?.level, 5, 'talisman level should be 3+2=5');
+});
+
+test('Talisman level-up passive does not fire when talisman is not active', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 99802,
+              name: '霊符レベルアップ（条件あり）',
+              timing: 'OnPlayerTurnStart',
+              condition: '',
+              parts: [{ skill_type: 'Talisman', target_type: 'All', power: [2, 0], value: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  // talismanState is inactive (default)
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === '霊符レベルアップ（条件あり）');
+  assert.equal(event, undefined, 'Talisman level-up passive should NOT fire when talisman is inactive');
+});

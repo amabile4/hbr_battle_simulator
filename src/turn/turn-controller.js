@@ -844,6 +844,7 @@ function getEnemyState(turnState) {
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
+      talismanState: { active: false, level: 0, maxLevel: 10 },
     };
   }
   const enemyCount = clampEnemyCount(state.enemyCount ?? DEFAULT_ENEMY_COUNT);
@@ -866,6 +867,37 @@ function getEnemyState(turnState) {
       state.enemyNamesByEnemy && typeof state.enemyNamesByEnemy === 'object' ? state.enemyNamesByEnemy : {},
     zoneConfigByEnemy:
       state.zoneConfigByEnemy && typeof state.zoneConfigByEnemy === 'object' ? state.zoneConfigByEnemy : {},
+    talismanState:
+      state.talismanState && typeof state.talismanState === 'object'
+        ? {
+            active: Boolean(state.talismanState.active),
+            level: Number(state.talismanState.level ?? 0),
+            maxLevel: Number(state.talismanState.maxLevel ?? 10),
+          }
+        : { active: false, level: 0, maxLevel: 10 },
+  };
+}
+
+function getTalismanState(turnState) {
+  const raw = turnState?.enemyState?.talismanState;
+  if (!raw || typeof raw !== 'object') {
+    return { active: false, level: 0, maxLevel: 10 };
+  }
+  return {
+    active: Boolean(raw.active),
+    level: Math.max(0, Number(raw.level ?? 0)),
+    maxLevel: Math.max(1, Number(raw.maxLevel ?? 10)),
+  };
+}
+
+function setTalismanState(turnState, next) {
+  if (!turnState.enemyState || typeof turnState.enemyState !== 'object') {
+    turnState.enemyState = {};
+  }
+  turnState.enemyState.talismanState = {
+    active: Boolean(next.active),
+    level: Math.max(0, Math.min(Number(next.maxLevel ?? 10), Number(next.level ?? 0))),
+    maxLevel: Math.max(1, Number(next.maxLevel ?? 10)),
   };
 }
 
@@ -5299,8 +5331,34 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'Talisman') {
-          // Enemy-state effect. Log passive event but don't modify enemy state.
-          matched = true;
+          const levelDelta = Number(part?.power?.[0] ?? 0);
+          // value[0] === 1 means "only apply if talisman is already active"
+          const requiresActive = Number(part?.value?.[0] ?? 0) === 1;
+          const currentTalisman = getTalismanState(turnState);
+          if (requiresActive && !currentTalisman.active) {
+            continue;
+          }
+          if (levelDelta === 0) {
+            // Initial activation: apply talisman to enemy at level 0
+            if (!currentTalisman.active) {
+              setTalismanState(turnState, { ...currentTalisman, active: true, level: 0 });
+              matched = true;
+            }
+          } else {
+            // Level increase
+            const newLevel = Math.min(
+              currentTalisman.maxLevel,
+              (currentTalisman.active ? currentTalisman.level : 0) + levelDelta
+            );
+            if (newLevel > currentTalisman.level || !currentTalisman.active) {
+              setTalismanState(turnState, {
+                ...currentTalisman,
+                active: currentTalisman.active,
+                level: newLevel,
+              });
+              matched = true;
+            }
+          }
           continue;
         }
 
