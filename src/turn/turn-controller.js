@@ -153,6 +153,7 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   ConsumeSp: Object.freeze({ tier: 'implemented', note: 'selected skill cost is tracked now' }),
   IsAttackNormal: Object.freeze({ tier: 'implemented', note: 'selected action can be checked now' }),
   IsBroken: Object.freeze({ tier: 'implemented', note: 'self flag and enemy manual Break status are tracked now' }),
+  IsTalisman: Object.freeze({ tier: 'implemented', note: 'enemy talisman active state is tracked in enemyState.talismanState' }),
   IsNatureElement: Object.freeze({ tier: 'ready_now', note: 'can be derived from style elements without new state' }),
   IsCharacter: Object.freeze({ tier: 'ready_now', note: 'target member identity is available without new state' }),
   ConquestBikeLevel: Object.freeze({ tier: 'implemented', note: 'currently fixed at 160; UI override is future work' }),
@@ -700,6 +701,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
       return {
         known: true,
         value: member?.isBreak ? 1 : 0,
+      };
+    case 'IsTalisman':
+      return {
+        known: true,
+        value: getTalismanState(state?.turnState).active ? 1 : 0,
       };
     case 'IsHitWeak':
       return isHitWeakBySkillContext(state, skill, actionEntry);
@@ -2507,6 +2513,41 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
   return events;
 }
 
+function applyTalismanLevelIncrementsFromActions(state, previewRecord) {
+  // 霊符仕様: 霊符状態の敵がプレイヤーの攻撃を受けるごとに霊符レベル+1（Hit数不問、1攻撃=+1）
+  const currentTalisman = getTalismanState(state.turnState);
+  if (!currentTalisman.active) {
+    return 0;
+  }
+
+  let attackCount = 0;
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    if (hasDamagePartInParts(effectiveParts)) {
+      attackCount += 1;
+    }
+  }
+
+  if (attackCount === 0) {
+    return 0;
+  }
+
+  const newLevel = Math.min(currentTalisman.maxLevel, currentTalisman.level + attackCount);
+  const delta = newLevel - currentTalisman.level;
+  if (delta > 0) {
+    setTalismanState(state.turnState, { ...currentTalisman, level: newLevel });
+  }
+  return delta;
+}
+
 function applyMotivationEffectsFromActions(state, previewRecord) {
   const events = [];
 
@@ -2721,6 +2762,7 @@ function tickEnemyStatuses(turnState) {
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
+    talismanState: enemyState.talismanState ?? { active: false, level: 0, maxLevel: 10 },
   };
   const downTurnTargetsAfter = new Set(
     getActiveEnemyStatuses(turnState, ENEMY_STATUS_DOWN_TURN).map((status) => Number(status?.targetIndex ?? -1))
@@ -5994,6 +6036,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const actionDpEvents = applyDpEffectsFromActions(state, previewRecord);
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord, actionDpEvents);
   const moraleEvents = applyMoraleEffectsFromActions(state, previewRecord);
+  applyTalismanLevelIncrementsFromActions(state, previewRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
   const markEvents = applyMarkEffectsFromActions(state, previewRecord);
   const fieldStateEvents = applyFieldStateFromActions(state, previewRecord);
@@ -6179,6 +6222,11 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     }
     tickEnemyStatuses(nextTurnState);
     boundaryDpEvents.push(...applyEnemyTurnEndDpEffects(state.party));
+    // 霊符仕様: 敵の行動終了時に霊符レベルを0にリセット
+    const talismanAtEnemyTurnEnd = getTalismanState(nextTurnState);
+    if (talismanAtEnemyTurnEnd.active && talismanAtEnemyTurnEnd.level > 0) {
+      setTalismanState(nextTurnState, { ...talismanAtEnemyTurnEnd, level: 0 });
+    }
   }
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 

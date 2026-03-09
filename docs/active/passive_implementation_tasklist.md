@@ -333,7 +333,7 @@
     - `Talisman`: 敵側 `talismanState`（`active`, `level`, `maxLevel`）として実装。初期付与・レベル増加対応
     - `AdditionalHit*`（9種）: 正規パッシブは passive-level スキップ。トリガースキルパッシブはログ登録のみ
     - `AdditionalTurn`, `BreakDownTurnUp`, `HealSkillUsedCount`, `ReplaceNormalSkill`, `ReplacePursuit`: ホワイトリスト化・サイレントスキップ（アクション時対応または対象外）
-  - 未実装（将来課題）: 被弾時の自動霊符レベル増加、敵ターン終了時のリセット、`IsTalisman` 条件評価
+  - ✅ 完了: 被弾時の自動霊符レベル増加（`applyTalismanLevelIncrementsFromActions`）、敵ターン終了時のリセット、`IsTalisman` 条件評価
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 

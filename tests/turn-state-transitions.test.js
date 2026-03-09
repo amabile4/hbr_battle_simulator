@@ -7590,3 +7590,131 @@ test('Talisman level-up passive does not fire when talisman is not active', () =
   const event = result.passiveEvents.find((e) => e.passiveName === '霊符レベルアップ（条件あり）');
   assert.equal(event, undefined, 'Talisman level-up passive should NOT fire when talisman is inactive');
 });
+
+test('Talisman level increments by 1 per attack action during OD sub-turn (no reset)', () => {
+  // OD sub-turn を使用するとターンインデックスが進まず敵ターン終了リセットが発生しないため、
+  // レベル増加のみを独立してテストできる。
+  const party = createSixMemberManualParty();
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 300;
+  state = activateOverdrive(state, 3, 'preemptive'); // OD3: remainingOdActions=3
+  // talisman を active=true, level=2 にセット
+  state.turnState.enemyState.talismanState = { active: true, level: 2, maxLevel: 10 };
+
+  // M1, M2, M3 それぞれが AttackNormal スキルを使用（3 攻撃）
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // OD sub-turn のためターンインデックス変化なし → 敵ターン終了リセットなし
+  assert.equal(nextState.turnState.turnType, 'od', 'should remain OD sub-turn');
+  // 3 攻撃 → level 2 + 3 = 5
+  assert.equal(
+    nextState.turnState.enemyState?.talismanState?.level,
+    5,
+    'talisman level should increment by 1 for each attack action'
+  );
+});
+
+test('Talisman level does not increment for non-attack skills', () => {
+  // M1 が Heal スキルのみを持つ構成で OD1 sub-turn を使用。
+  // ターンインデックスは進まない（preemptive OD で OD 終了後も同一ターン文脈）ため
+  // 敵ターン終了リセットなし。非攻撃スキルでは霊符レベルが増加しないことを確認する。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 8000,
+              name: '回復',
+              sp_cost: 0,
+              parts: [{ skill_type: 'Heal', target_type: 'Self', type: 'None' }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive'); // OD1: remainingOdActions=1
+  state.turnState.enemyState.talismanState = { active: true, level: 3, maxLevel: 10 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // OD1 preemptive 終了 → normal ターンに戻るがターンインデックスは進まない
+  // → 敵ターン終了リセットなし → level は 3 のまま
+  assert.equal(
+    nextState.turnState.enemyState?.talismanState?.level,
+    3,
+    'talisman level should not change for non-attack skills'
+  );
+});
+
+test('Talisman level resets to 0 when base turn index advances (enemy turn end)', () => {
+  const party = createSixMemberManualParty();
+  const state = createBattleStateFromParty(party);
+  // talisman を active=true, level=5 にセット
+  state.turnState.enemyState.talismanState = { active: true, level: 5, maxLevel: 10 };
+  // 通常ターンでコミット → ターンインデックスが進み敵ターン終了でリセット
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(
+    nextState.turnState.enemyState?.talismanState?.level,
+    0,
+    'talisman level should reset to 0 at enemy turn end'
+  );
+  assert.equal(
+    nextState.turnState.enemyState?.talismanState?.active,
+    true,
+    'talisman should remain active after reset'
+  );
+});
+
+test('IsTalisman condition evaluates correctly based on talisman active state', () => {
+  // IsTalisman()==1 条件付きパッシブで発火確認
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 99803,
+              name: '霊符条件パッシブ',
+              timing: 'OnPlayerTurnStart',
+              condition: 'IsTalisman()==1',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+
+  // active=true の場合: パッシブが発火する
+  const stateActive = createBattleStateFromParty(party);
+  stateActive.turnState.enemyState.talismanState = { active: true, level: 3, maxLevel: 10 };
+  const resultActive = applyPassiveTiming(stateActive, 'OnPlayerTurnStart');
+  assert.ok(
+    resultActive.passiveEvents.some((e) => e.passiveName === '霊符条件パッシブ'),
+    'IsTalisman passive should fire when talisman is active'
+  );
+
+  // active=false の場合: パッシブが発火しない
+  const stateInactive = createBattleStateFromParty(party);
+  stateInactive.turnState.enemyState.talismanState = { active: false, level: 0, maxLevel: 10 };
+  const resultInactive = applyPassiveTiming(stateInactive, 'OnPlayerTurnStart');
+  assert.equal(
+    resultInactive.passiveEvents.find((e) => e.passiveName === '霊符条件パッシブ'),
+    undefined,
+    'IsTalisman passive should NOT fire when talisman is inactive'
+  );
+});
