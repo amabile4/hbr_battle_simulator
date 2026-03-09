@@ -4705,7 +4705,20 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       const unsupportedEffectTypes = new Set();
       const fieldEvents = [];
       let unsupportedMatched = false;
-      for (const part of resolvePassiveEffectiveParts(passive, state, member)) {
+      const effectiveParts = resolvePassiveEffectiveParts(passive, state, member);
+      // AdditionalHit* parts are trigger conditions for action-time effects, not passive-timing effects.
+      const hasAdditionalHitTrigger = effectiveParts.some((p) =>
+        String(p?.skill_type ?? '').startsWith('AdditionalHit')
+      );
+      if (hasAdditionalHitTrigger) {
+        if (passive?.isTriggeredSkillPassive !== true) {
+          // Regular passive: skip entirely (action-conditional, handled at action time)
+          continue;
+        }
+        // Triggered skill passive: register in passive log without applying conditional effects
+        matched = true;
+      }
+      for (const part of hasAdditionalHitTrigger ? [] : effectiveParts) {
         const skillType = String(part?.skill_type ?? '');
         if (skillType) {
           effectTypes.add(skillType);
@@ -4757,6 +4770,15 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'OverDrivePointUp' &&
           skillType !== 'DebuffGuard' &&
           skillType !== 'BreakGuard' &&
+          skillType !== 'Funnel' &&
+          skillType !== 'HighBoost' &&
+          skillType !== 'Talisman' &&
+          skillType !== 'AdditionalTurn' &&
+          skillType !== 'HealSkillUsedCount' &&
+          skillType !== 'ReplaceNormalSkill' &&
+          skillType !== 'ReplacePursuit' &&
+          skillType !== 'BuffCharge' &&
+          skillType !== 'BreakDownTurnUp' &&
           !MARK_SKILL_TYPE_TO_ELEMENT[skillType]
         ) {
           if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
@@ -5206,6 +5228,112 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             target.applyTokenDelta(delta);
             matched = true;
           }
+          continue;
+        }
+
+        if (skillType === 'Funnel') {
+          const hitBonus = Number(part?.power?.[0] ?? 0);
+          const damageBonus = Number(part?.value?.[0] ?? 0);
+          if (!Number.isFinite(hitBonus) || hitBonus <= 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          const limitType = String(part?.effect?.limitType ?? 'Default');
+          const exitCond = String(part?.effect?.exitCond ?? 'Count');
+          const exitValArr = Array.isArray(part?.effect?.exitVal) ? part.effect.exitVal : [];
+          const remaining = Number.isFinite(Number(exitValArr[0])) ? Number(exitValArr[0]) : 1;
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            target.addStatusEffect({
+              statusType: 'Funnel',
+              limitType,
+              exitCond,
+              remaining,
+              power: hitBonus,
+              sourcePassiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              sourcePassiveName: String(passive?.name ?? ''),
+              metadata: {
+                damageBonus: Number.isFinite(damageBonus) ? damageBonus : 0,
+                targetType: String(part?.target_type ?? ''),
+              },
+            });
+            matched = true;
+          }
+          continue;
+        }
+
+        if (skillType === 'HighBoost') {
+          // Permanent damage multiplier buff. Log passive event; no member state change yet.
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            matched = true;
+            break;
+          }
+          continue;
+        }
+
+        if (skillType === 'Talisman') {
+          // Enemy-state effect. Log passive event but don't modify enemy state.
+          matched = true;
+          continue;
+        }
+
+        if (skillType === 'BuffCharge') {
+          // Charge/stacking buff. Log passive event; no state change.
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            matched = true;
+            break;
+          }
+          continue;
+        }
+
+        if (
+          skillType === 'AdditionalTurn' ||
+          skillType === 'BreakDownTurnUp' ||
+          skillType === 'HealSkillUsedCount' ||
+          skillType === 'ReplaceNormalSkill' ||
+          skillType === 'ReplacePursuit'
+        ) {
+          // These effects are handled at action time or are out of scope for passive timing.
           continue;
         }
 
