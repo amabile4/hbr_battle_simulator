@@ -4748,6 +4748,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'DamageUpByOverDrive' &&
           skillType !== 'GiveAttackBuffUp' &&
           skillType !== 'GiveHealUp' &&
+          skillType !== 'ReduceSp' &&
+          skillType !== 'OverwriteSp' &&
+          skillType !== 'SpLimitOverwrite' &&
+          skillType !== 'EpLimitOverwrite' &&
+          skillType !== 'TokenSet' &&
           skillType !== 'OverDrivePointUp' &&
           skillType !== 'DebuffGuard' &&
           skillType !== 'BreakGuard' &&
@@ -5044,6 +5049,143 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             else if (skillType === 'DamageUpByOverDrive') totalDamageUpByOverDriveRate += amount;
             else if (skillType === 'GiveAttackBuffUp') totalGiveAttackBuffUpRate += amount;
             else if (skillType === 'GiveHealUp') totalGiveHealUpRate += amount;
+          }
+          continue;
+        }
+
+        if (skillType === 'ReduceSp' || skillType === 'OverwriteSp') {
+          const power = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(power) || power === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            // ReduceSp: power[0] is the reduction amount (positive → negate)
+            // OverwriteSp: power[0] is the target value → delta = target - current
+            const delta =
+              skillType === 'ReduceSp' ? -power : power - Number(target.sp.current ?? 0);
+            const change = target.applySpDelta(delta, 'passive');
+            spEvents.push({
+              actorCharacterId: member.characterId,
+              characterId: target.characterId,
+              source: 'sp_passive',
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              targetType: String(part?.target_type ?? ''),
+              ...change,
+            });
+            matched = true;
+            totalDelta += Number(change?.delta ?? 0);
+          }
+          continue;
+        }
+
+        if (skillType === 'SpLimitOverwrite' || skillType === 'EpLimitOverwrite') {
+          const newMax = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(newMax) || newMax <= 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const isEp = skillType === 'EpLimitOverwrite';
+            const pool = isEp ? target.ep : target.sp;
+            const startCurrent = Number(pool.current ?? 0);
+            pool.max = newMax;
+            if (pool.current > newMax) {
+              pool.current = newMax;
+            }
+            target._revision += 1;
+            const currentChange = pool.current - startCurrent;
+            if (isEp) {
+              epEvents.push({
+                actorCharacterId: member.characterId,
+                characterId: target.characterId,
+                source: 'ep_passive',
+                passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                passiveName: String(passive?.name ?? ''),
+                targetType: String(part?.target_type ?? ''),
+                delta: currentChange,
+                startEP: startCurrent,
+                endEP: pool.current,
+                eventCeiling: newMax,
+                epMaxChanged: newMax,
+              });
+              totalEpDelta += currentChange;
+            } else {
+              spEvents.push({
+                actorCharacterId: member.characterId,
+                characterId: target.characterId,
+                source: 'sp_passive',
+                passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                passiveName: String(passive?.name ?? ''),
+                targetType: String(part?.target_type ?? ''),
+                delta: currentChange,
+                startSP: startCurrent,
+                endSP: pool.current,
+                eventCeiling: newMax,
+                spMaxChanged: newMax,
+              });
+              totalDelta += currentChange;
+            }
+            matched = true;
+          }
+          continue;
+        }
+
+        if (skillType === 'TokenSet') {
+          const delta = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(delta) || delta <= 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            target.applyTokenDelta(delta);
+            matched = true;
           }
           continue;
         }

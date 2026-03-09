@@ -75,8 +75,11 @@
   - スキルスロット: `generalize` は編成 UI フラグ（バトル passive 非対象）→ **対象外に確定**（[ジェネライズ.md](../../help/HEAVEN_BURNS_RED/キャラクター/ジェネライズ.md) 参照）
   - 装備起点: バトル passive なし → **対象外**
 - Phase 6-A は完了（Morale / DamageRateUp / DefenseDown / DefenseUp / CriticalRateUp / CriticalDamageUp / GiveDefenseDebuffUp 実装）
-- 次の着手候補は **Phase 6-B**
-  - `DamageUpByOverDrive`（341 件）、`GiveAttackBuffUp`（4 件）、`GiveHealUp`（3 件）の実装
+- Phase 6-A 追加完了（`TokenSet` passive: `OnEveryTurn`/`OnBattleStart`/`OnAdditionalTurnStart` timing でのトークン +N delta）
+  - `TokenSet` の `skill_type` は「トークンをN上昇」（delta +N）であり、絶対値セットではないことを確認済み
+  - 既存の token skill テスト（MiOhshima/MuOhshima/IrOhshima）の期待値を ボルテージ passive 発火分に合わせて更新済み
+- Phase 6-B は完了（DamageUpByOverDrive / GiveAttackBuffUp / GiveHealUp 実装）
+- 次の着手候補: Phase 6 後段対応（`OverwriteSp`, `SpLimitOverwrite`, `AdditionalHit*` 等）は現時点で優先度低
 
 ## メモ
 

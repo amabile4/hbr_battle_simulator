@@ -2543,10 +2543,11 @@ test('real token consume skill 星降るシャンデリア・グラス spends 5 
   const entry = committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
   assert.equal(actor.characterId, 'IrOhshima');
-  assert.equal(nextState.party[0].tokenState.current, 6);
+  // IrOhshima has ボルテージ passive (OnEveryTurn, TokenSet +1) that fires in recovery pipeline
+  assert.equal(nextState.party[0].tokenState.current, 7); // 7-5+4=6 from skill, +1 from passive
   assert.deepEqual(
     nextState.party.map((member) => Number(member.tokenState?.current ?? 0)),
-    [6, 3, 3, 3, 3, 3]
+    [7, 3, 3, 3, 3, 3]
   );
   assert.deepEqual(
     nextState.party.map((member) => Number(member.moraleState?.current ?? 0)),
@@ -2614,7 +2615,8 @@ test('サマーグレイス is usable outside OD and blocked during OD', () => {
   assert.equal(actor.characterId, 'MuOhshima');
   assert.equal(preview.actions[0].spCost, 4);
   assert.equal(preview.actions[0].startToken, 0);
-  assert.equal(nextState.party[0].tokenState.current, 1);
+  // MuOhshima has ボルテージ passive (OnEveryTurn, TokenSet +1) that fires in recovery pipeline
+  assert.equal(nextState.party[0].tokenState.current, 2); // 1 from skill + 1 from passive
   assert.equal(
     (entry.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 1),
     true
@@ -2657,8 +2659,10 @@ test('真夏のひんやりショック！ consumes all token and converts it to
   assert.equal(actor.characterId, 'MuOhshima');
   assert.equal(preview.actions[0].consumeType, 'Token');
   assert.equal(preview.actions[0].startToken, 4);
-  assert.equal(preview.actions[0].endToken, 0);
-  assert.equal(nextState.party[0].tokenState.current, 0);
+  // commitTurn overwrites entry.endToken with post-recovery value (0 from cost + 1 from passive)
+  assert.equal(preview.actions[0].endToken, 1);
+  // MuOhshima has ボルテージ passive (OnEveryTurn, TokenSet +1) that fires in recovery pipeline
+  assert.equal(nextState.party[0].tokenState.current, 1); // 4-4=0 from skill, +1 from passive
   assert.equal(entry.odGaugeGain, 40);
   assert.equal(nextState.turnState.odGauge, 80);
   assert.equal((entry.tokenChanges ?? []).some((item) => item.source === 'cost' && item.delta === -4), true);
@@ -2797,9 +2801,10 @@ test('バーテンダーズ・チョイス splits first and second use for token
   state = commit1.nextState;
 
   assert.equal(state.turnState.odGauge, 85);
+  // MiOhshima has ボルテージ passive (OnEveryTurn, TokenSet +1) that fires in recovery pipeline
   assert.deepEqual(
     state.party.map((member) => Number(member.tokenState?.current ?? 0)),
-    [2, 2, 2, 0, 0, 0]
+    [3, 2, 2, 0, 0, 0] // MiOhshima: 0+2(skill)+1(passive)=3, others: 0+2(skill)=2
   );
   assert.deepEqual(
     state.party.map((member) => Number(member.sp?.current ?? 0)),
@@ -2816,12 +2821,53 @@ test('バーテンダーズ・チョイス splits first and second use for token
   assert.equal(state.turnState.odGauge, 70);
   assert.deepEqual(
     state.party.map((member) => Number(member.tokenState?.current ?? 0)),
-    [4, 4, 4, 0, 0, 0]
+    [6, 4, 4, 0, 0, 0] // MiOhshima: 3+2(skill)+1(passive)=6, others: 2+2(skill)=4
   );
   assert.deepEqual(
     state.party.map((member) => Number(member.sp?.current ?? 0)),
     [17, 17, 17, 17, 17, 17]
   );
+});
+
+test('TokenSet OnEveryTurn passive increments token each turn via recovery pipeline', () => {
+  const store = getStore();
+  // MiOhshima has ボルテージ (OnEveryTurn, TokenSet +1)
+  const actorStyleId = findStyleIdBySkillId(store, 46006308);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], { initialSP: 10 });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+  assert.equal(actor.characterId, 'MiOhshima');
+  assert.equal(actor.tokenState.current, 0);
+
+  // First commitTurn: no skill used, recovery pipeline fires OnEveryTurn
+  const preview1 = previewTurn(state, { 0: { characterId: actor.characterId, skillId: actor.skills[0].skillId } });
+  const { nextState: state1 } = commitTurn(state, preview1);
+  // ボルテージ fires: token 0+1=1
+  assert.equal(state1.party[0].tokenState.current, 1);
+
+  // Second commitTurn: ボルテージ fires again: token 1+1=2
+  const preview2 = previewTurn(state1, { 0: { characterId: actor.characterId, skillId: actor.skills[0].skillId } });
+  const { nextState: state2 } = commitTurn(state1, preview2);
+  assert.equal(state2.party[0].tokenState.current, 2);
+});
+
+test('TokenSet OnBattleStart passive increments token at battle start via applyInitialPassiveState', () => {
+  const store = getStore();
+  // IrOhshima has 洗練 (OnBattleStart, TokenSet +5, condition: front)
+  const actorStyleId = findStyleIdBySkillId(store, 46006511);
+  const others = getSixUsableStyleIds(store).filter((id) => Number(id) !== actorStyleId);
+  const party = store.buildPartyFromStyleIds([actorStyleId, ...others.slice(0, 5)], { initialSP: 10 });
+  let state = createBattleStateFromParty(party);
+  state = applyInitialPassiveState(state);
+  const actor = state.party[0];
+
+  assert.equal(actor.characterId, 'IrOhshima');
+  // 洗練 fires at OnBattleStart for front members: +5 token
+  // ボルテージ fires at OnEveryTurn: +1 token
+  assert.equal(actor.tokenState.current, 6); // 5 (OnBattleStart) + 1 (OnEveryTurn)
+  // Others have no TokenSet passives
+  assert.equal(state.party[1].tokenState.current, 0);
 });
 
 test('preemptive od returns to same normal turn context after remaining actions consumed', () => {

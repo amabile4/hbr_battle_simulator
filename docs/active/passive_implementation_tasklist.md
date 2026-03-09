@@ -326,6 +326,7 @@
 - **実装内容**: `src/turn/turn-controller.js` の `applyPassiveTimingInternal` に不足エフェクト型を追加
 - [x] 通常スキル由来パッシブの不足エフェクト実装（Phase 6-A）
   - 実装済み: `Morale`, `DamageRateUp`, `DefenseDown`, `DefenseUp`, `CriticalRateUp`, `CriticalDamageUp`, `GiveDefenseDebuffUp`
+  - 実装済み: `TokenSet`（`OnEveryTurn`/`OnBattleStart`/`OnAdditionalTurnStart` timing でのトークン +N delta 処理）
   - 後段対応: `AdditionalHit*`, `HealSkillUsedCount`, `OverwriteSp`, `SpLimitOverwrite`, `ReplaceNormalSkill`, `ReplacePursuit`, `Talisman`, `HighBoost`
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
@@ -336,9 +337,9 @@
   - `abilities.json` などの別データソースは不要だった
 - **実際のギャップ**: 不足エフェクト型。最多は `DamageUpByOverDrive`（341 件）
 - [x] 57xxxxxx スキル ID のデータソース確認 → `styles.json` の `passives[]` に存在（確認完了）
-- [ ] `DamageUpByOverDrive` 等の不足エフェクト実装（Phase 6-B）
-  - `DamageUpByOverDrive` (341)、`GiveAttackBuffUp` (4)、`GiveHealUp` (3) が主要対象
-  - `AdditionalTurn`、`Funnel`、キャラクター固有型は後段
+- [x] `DamageUpByOverDrive` 等の不足エフェクト実装（Phase 6-B）
+  - 実装済み: `DamageUpByOverDrive` (341)、`GiveAttackBuffUp` (4)、`GiveHealUp` (3)
+  - 後段: `AdditionalTurn`、`Funnel`、キャラクター固有型
 
 ### スキルスロット起点パッシブ（generalize フラグ）→ 対象外
 
@@ -357,9 +358,9 @@
 
 ```
 Phase 6-A（完了）: 通常スキル由来パッシブの不足エフェクト実装
-  → Morale, DamageRateUp, DefenseDown, DefenseUp, CriticalRateUp, CriticalDamageUp, GiveDefenseDebuffUp 実装済み
-Phase 6-B（次）: マスタースキル由来パッシブの不足エフェクト実装
-  → データ読み込みは styles.json.passives[] で済み。DamageUpByOverDrive 等の追加が必要
+  → Morale, DamageRateUp, DefenseDown, DefenseUp, CriticalRateUp, CriticalDamageUp, GiveDefenseDebuffUp, TokenSet 実装済み
+Phase 6-B（完了）: マスタースキル由来パッシブの不足エフェクト実装
+  → DamageUpByOverDrive, GiveAttackBuffUp, GiveHealUp 実装済み
 Phase 6-C（対象外）: スキルスロット起点パッシブ（generalize）
   → バトル passive ではなく編成 UI フラグ → Drop
 Phase 6-D（対象外）: 装備起点パッシブ
