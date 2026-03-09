@@ -84,22 +84,45 @@ def process_keyword(keywords, skills_data, passives_data):
         "passives": matched_passives
     }
 
+import sys
+
 def main():
     """
     一括再生成する場合はこの main を実行します。
     ※一部手動で修正・除外したファイル（例: EXスキル連続発動.md など）があるため、
     全上書きする場合は注意して実行してください。
     """
-    rootDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    json_dir = os.path.join(rootDir, "data", "json") if os.path.exists(os.path.join(rootDir, "data", "json")) else os.path.join(rootDir, "json")
+    
+    if len(sys.argv) < 2:
+        print("Usage: python3 help/scripts/populate_templates.py <keyword | --all>")
+        print("\nExamples:")
+        print("  python3 help/scripts/populate_templates.py --all      # すべてのファイルを更新します（SKIP_LISTにある手動更新ファイルは除外）")
+        print("  python3 help/scripts/populate_templates.py 闘志        # '闘志.md' のみを更新します（単体更新の場合はSKIP_LISTを無視して更新可能です）")
+        print("\n引数を指定せずに実行したため、処理を中断しました。")
+        sys.exit(1)
+        
+    target_arg = sys.argv[1]
+    
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    json_dir = os.path.join(project_root, "data", "json") if os.path.exists(os.path.join(project_root, "data", "json")) else os.path.join(project_root, "json")
     
     skills_data = load_json(os.path.join(json_dir, 'skills.json'))
     passives_data = load_json(os.path.join(json_dir, 'passives.json'))
     
     base_dirs = [
-        os.path.join(rootDir, "help/HEAVEN_BURNS_RED/バトル"),
-        os.path.join(rootDir, "help/HEAVEN_BURNS_RED/キャラクター")
+        os.path.join(project_root, "help", "HEAVEN_BURNS_RED", "バトル"),
+        os.path.join(project_root, "help", "HEAVEN_BURNS_RED", "キャラクター")
     ]
+    
+    # 手動スキップリスト (引数指定時は無視して強制実行される仕様でもOKですが、安全のため残します)
+    SKIP_LIST = ["脆弱", "心眼", "やる気", "EXスキル連続発動", "ハッキング"]
+    
+    # 検索エイリアス（表記揺れ）マップ
+    ALIAS_MAP = {
+        "BREAK": ["ブレイク"],
+        "OVERDRIVE": ["ODゲージ", "OD中", "オーバードライブ"],
+        "フィールド効果": ["フィールド"]
+    }
     
     updated_count = 0
     no_match_count = 0
@@ -115,16 +138,30 @@ def main():
             filepath = os.path.join(base_dir, filename)
             keyword = os.path.splitext(filename)[0]
             
+            # 引数指定によるフィルタ
+            if target_arg != "--all" and keyword != target_arg:
+                continue
+            
             # 手動で「ヒットなし」としたりカスタマイズしたファイルはここで除外する
-            if keyword in ["脆弱", "心眼", "やる気", "EXスキル連続発動", "BREAK", "OVERDRIVE"]:
+            # ただし、単発指定の時は強制実行したい場合はコメントアウトなどを調整してください
+            if target_arg == "--all" and keyword in SKIP_LIST:
                 continue
                 
-            result = process_keyword([keyword], skills_data, passives_data)
+            # エイリアスの適用
+            search_keywords = ALIAS_MAP.get(keyword, [keyword])
+            
+            result = process_keyword(search_keywords, skills_data, passives_data)
             
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
                 
             internal_section = "## シミュレーター実装情報\n"
+            
+            if len(search_keywords) > 1 or search_keywords[0] != keyword:
+                alias_display = " または ".join(search_keywords)
+                internal_section += f"- **検索エイリアス (表記揺れ)**: `{alias_display}`\n"
+            else:
+                alias_display = keyword
             
             if result:
                 if result["skill_type"]:
@@ -135,20 +172,24 @@ def main():
                 if result["cond"]:
                     internal_section += f"- **条件判定名**: `{result['cond']}` などを利用\n"
                     
-                internal_section += f"\n### 所持スタイルリスト\n"
+                internal_section += f"\n### 所持スタイルリスト ({alias_display} での検索結果)\n"
                 
+                # 最大5件ずつ表示する制限
                 if result["skills"]:
                     internal_section += f"\n#### スキル (skills.json)\n"
-                    # サンプルとして最大5件に絞るなら result["skills"][:5]
-                    for m in result["skills"]:
+                    for m in result["skills"][:5]:
                         chara = m['chara'] if m['chara'] else "共通/敵"
                         internal_section += f"- **{chara}** [{m['style']}]\n  - {m['name']}\n  - {m['desc']}\n"
+                    if len(result["skills"]) > 5:
+                        internal_section += f"- ...他 {len(result['skills'])-5} 件\n"
                         
                 if result["passives"]:
                     internal_section += f"\n#### パッシブ (passives.json)\n"
-                    for m in result["passives"]:
+                    for m in result["passives"][:5]:
                         chara = m['chara'] if m['chara'] else "共通/敵"
                         internal_section += f"- **{chara}** [{m['style']}]\n  - {m['name']}\n  - {m['desc']}\n"
+                    if len(result["passives"]) > 5:
+                        internal_section += f"- ...他 {len(result['passives'])-5} 件\n"
                 updated_count += 1
             else:
                 internal_section += "説明文(desc)の完全一致によるヒットなし。\n\n<!-- この機能や仕様が本シミュレーターでどのように実装されているか、あるいは実装予定か、制限事項などを追記してください。 -->\n"
