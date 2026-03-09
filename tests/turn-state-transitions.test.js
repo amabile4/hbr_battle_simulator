@@ -4,6 +4,7 @@ import {
   activateOverdrive,
   analyzePassiveTimingCoverage,
   analyzePassiveConditionSupport,
+  applyEnemyAttackMotivationTriggers,
   applyEnemyAttackTokenTriggers,
   applyPassiveTiming,
   CharacterStyle,
@@ -892,6 +893,42 @@ test('TokenSetByAttacked grants token when enemy attack trigger is applied to th
   assert.equal(member.tokenState.current, 1);
 });
 
+test('enemy attack reduces motivation by 1 for attacked members with motivation state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialMotivation: 5,
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const events = applyEnemyAttackMotivationTriggers(state, ['M1']);
+  const member = state.party.find((item) => item.characterId === 'M1');
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].triggerType, 'MotivationDamage');
+  assert.equal(events[0].delta, -1);
+  assert.equal(member?.motivationState.current, 4);
+});
+
+test('enemy attack motivation decrease clamps at level 1', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialMotivation: 1,
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const events = applyEnemyAttackMotivationTriggers(state, ['M1']);
+  const member = state.party.find((item) => item.characterId === 'M1');
+
+  assert.equal(events.length, 0);
+  assert.equal(member?.motivationState.current, 1);
+});
+
 test('commitTurn records enemy attack token triggers when attacked targets are provided', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -933,6 +970,44 @@ test('commitTurn records enemy attack token triggers when attacked targets are p
         event.triggerType === 'TokenSetByAttacked' &&
         event.source === 'enemy_attack' &&
         event.tokenDelta === 1
+    ),
+    true
+  );
+});
+
+test('commitTurn records enemy attack motivation loss when attacked targets are provided', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialMotivation: 4,
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002, targetEnemyIndex: 0 },
+  });
+
+  const { nextState, committedRecord } = commitTurn(state, preview, [], {
+    enemyAttackTargetCharacterIds: ['M1'],
+  });
+  const member = nextState.party.find((item) => item.characterId === 'M1');
+
+  assert.equal(member?.motivationState.current, 3);
+  assert.deepEqual(committedRecord.enemyAttackTargetCharacterIds, ['M1']);
+  assert.equal(committedRecord.enemyAttackEvents.length, 1);
+  assert.equal(committedRecord.enemyAttackEvents[0].characterId, 'M1');
+  assert.equal(committedRecord.enemyAttackEvents[0].triggerType, 'MotivationDamage');
+  assert.equal(committedRecord.enemyAttackEvents[0].delta, -1);
+  assert.equal(
+    committedRecord.passiveEvents.some(
+      (event) =>
+        event.characterId === 'M1' &&
+        event.triggerType === 'MotivationDamage' &&
+        event.source === 'enemy_attack' &&
+        event.motivationDelta === -1
     ),
     true
   );

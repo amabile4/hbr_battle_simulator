@@ -17,6 +17,7 @@ export {
   grantExtraTurn,
   applyInitialPassiveState,
   applyPassiveTiming,
+  applyEnemyAttackMotivationTriggers,
   applyEnemyAttackTokenTriggers,
   BASE_SP_RECOVERY,
   SUPPORTED_PASSIVE_TIMINGS,

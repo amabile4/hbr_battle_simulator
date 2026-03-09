@@ -16,6 +16,28 @@ async function fetchJson(path) {
   return response.json();
 }
 
+function isOptionalJsonMissing(error, path) {
+  const message = String(error?.message ?? error ?? '');
+  return (
+    message.includes(`Failed to fetch ${path}: 404`) ||
+    message.includes('Failed to fetch dynamically imported module') ||
+    message.includes('Cannot find module') ||
+    message.includes('Importing a module script failed')
+  );
+}
+
+async function fetchJsonOrFallback(path, fallback) {
+  try {
+    return await fetchJson(path);
+  } catch (error) {
+    if (!isOptionalJsonMissing(error, path)) {
+      throw error;
+    }
+    console.warn(`Optional JSON missing, using fallback for ${path}`, error);
+    return fallback;
+  }
+}
+
 async function main() {
   const payload = {
     characters: await fetchJson('../json/characters.json'),
@@ -27,7 +49,7 @@ async function main() {
     epRuleOverrides: await fetchJson('../json/ep_rule_overrides.json'),
     transcendenceRuleOverrides: await fetchJson('../json/transcendence_rule_overrides.json'),
     skillDbSchema: await fetchJson('../json/new_skill_database.schema.json'),
-    skillDbDraft: await fetchJson('../json/reports/migration/new_skill_database.draft.json'),
+    skillDbDraft: await fetchJsonOrFallback('../json/reports/migration/new_skill_database.draft.json', {}),
   };
 
   const store = HbrDataStore.fromRawData(payload);

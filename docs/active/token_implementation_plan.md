@@ -270,7 +270,8 @@
 
 - `TokenSetByAttacked`
   - engine / UI / scenario / turnPlan / record の接続は完了
-  - 残りは被ダメージ起点 `Motivation -1` と共有する入力 UX の磨き込み、必要なら passive log 表示の拡張
+  - `enemyAttackTargetCharacterIds` は被ダメージ起点 `Motivation -1` と共通の commit hook として確定した
+  - `enemyAttackEvents` / passive log に token / motivation の両方を残せる
 - `TokenAttack` はダメージ計算自体には未接続
   - 現シミュレータのスコープでは preview / record / `damageContext` 露出までで十分
 - `TokenChangeTimeline` は独立効果としては扱わない

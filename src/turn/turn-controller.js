@@ -65,6 +65,10 @@ const DP_EVENT_SOURCE_REGENERATION = 'dp_regeneration';
 const DEFAULT_STATUS_EFFECT_REMAINING = 1;
 const DEFAULT_REVIVE_DP_FLOOR = 1;
 const DEFAULT_REVIVE_TERRITORY_HEAL_RATE = 0.5;
+const MOTIVATION_DAMAGE_TAKEN_DELTA = -1;
+const MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE = 'MotivationDamage';
+const MOTIVATION_DAMAGE_TAKEN_PASSIVE_NAME = 'Motivation';
+const MOTIVATION_DAMAGE_TAKEN_PASSIVE_DESC = 'Motivation decreases when taking enemy damage';
 const AUTO_DP_CONSUMPTION_FLOOR = 1;
 const DEFAULT_AUTO_DOWN_TURN_REMAINING = 1;
 const DP_RATE_REFERENCE_MIN = 0;
@@ -2538,11 +2542,7 @@ function applyMotivationEffectsFromActions(state, previewRecord) {
 
 export function applyEnemyAttackTokenTriggers(state, targetCharacterIds = []) {
   const events = [];
-  const ids = [...new Set(
-    (Array.isArray(targetCharacterIds) ? targetCharacterIds : [targetCharacterIds])
-      .map((id) => String(id ?? '').trim())
-      .filter(Boolean)
-  )];
+  const ids = normalizeEnemyAttackTargetCharacterIds(targetCharacterIds);
 
   for (const characterId of ids) {
     const target = findMemberByCharacterId(state, characterId);
@@ -2581,11 +2581,52 @@ export function applyEnemyAttackTokenTriggers(state, targetCharacterIds = []) {
   return events;
 }
 
+function normalizeEnemyAttackTargetCharacterIds(targetCharacterIds = []) {
+  return [...new Set(
+    (Array.isArray(targetCharacterIds) ? targetCharacterIds : [targetCharacterIds])
+      .map((id) => String(id ?? '').trim())
+      .filter(Boolean)
+  )];
+}
+
+export function applyEnemyAttackMotivationTriggers(state, targetCharacterIds = []) {
+  const events = [];
+  const ids = normalizeEnemyAttackTargetCharacterIds(targetCharacterIds);
+
+  for (const characterId of ids) {
+    const target = findMemberByCharacterId(state, characterId);
+    if (!target) {
+      continue;
+    }
+    const currentMotivation = Number(target.motivationState?.current ?? 0);
+    if (!Number.isFinite(currentMotivation) || currentMotivation <= 0) {
+      continue;
+    }
+    const change = target.setMotivationLevel(Math.max(1, currentMotivation + MOTIVATION_DAMAGE_TAKEN_DELTA));
+    if (Number(change?.delta ?? 0) === 0) {
+      continue;
+    }
+    events.push({
+      actorCharacterId: target.characterId,
+      characterId: target.characterId,
+      source: 'motivation_status',
+      passiveId: 0,
+      passiveName: MOTIVATION_DAMAGE_TAKEN_PASSIVE_NAME,
+      passiveDesc: MOTIVATION_DAMAGE_TAKEN_PASSIVE_DESC,
+      triggerType: MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE,
+      ...change,
+    });
+  }
+
+  return events;
+}
+
 function createEnemyAttackPassiveEvents(turnState, state, enemyAttackEvents = []) {
   return (Array.isArray(enemyAttackEvents) ? enemyAttackEvents : [])
     .filter((event) => event && typeof event === 'object')
     .map((event) => {
       const member = findMemberByCharacterId(state, event.characterId);
+      const passiveName = String(event.passiveName ?? event.triggerType ?? '');
       return {
         turnLabel: String(turnState?.turnLabel ?? ''),
         timing: 'EnemyAttack',
@@ -2594,12 +2635,17 @@ function createEnemyAttackPassiveEvents(turnState, state, enemyAttackEvents = []
         characterId: String(event.characterId ?? ''),
         characterName: String(member?.characterName ?? event.characterId ?? ''),
         passiveId: Number(event.passiveId ?? 0),
-        passiveName: String(event.passiveName ?? ''),
-        passiveDesc: `${String(event.passiveName ?? '')} (Enemy Attack)`,
+        passiveName,
+        passiveDesc: String(event.passiveDesc ?? '').trim() || `${passiveName} (Enemy Attack)`,
         triggerType: String(event.triggerType ?? ''),
         effectTypes: [String(event.triggerType ?? '')].filter(Boolean),
         unsupportedEffectTypes: [],
-        tokenDelta: Number(event.delta ?? 0),
+        ...(String(event.triggerType ?? '') === 'TokenSetByAttacked'
+          ? { tokenDelta: Number(event.delta ?? 0) }
+          : {}),
+        ...(String(event.triggerType ?? '') === MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE
+          ? { motivationDelta: Number(event.delta ?? 0) }
+          : {}),
       };
     });
 }
@@ -5665,10 +5711,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   // Enemy statuses tick on enemy-turn consumption only.
   // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
-    const tokenAttackEvents = applyEnemyAttackTokenTriggers(state, enemyAttackTargetCharacterIds);
-    if (tokenAttackEvents.length > 0) {
-      enemyAttackEvents.push(...tokenAttackEvents);
-      boundaryPassiveEvents.push(...createEnemyAttackPassiveEvents(nextTurnState, state, tokenAttackEvents));
+    const attackEvents = [
+      ...applyEnemyAttackTokenTriggers(state, enemyAttackTargetCharacterIds),
+      ...applyEnemyAttackMotivationTriggers(state, enemyAttackTargetCharacterIds),
+    ];
+    if (attackEvents.length > 0) {
+      enemyAttackEvents.push(...attackEvents);
+      boundaryPassiveEvents.push(...createEnemyAttackPassiveEvents(nextTurnState, state, attackEvents));
     }
     tickEnemyStatuses(nextTurnState);
     boundaryDpEvents.push(...applyEnemyTurnEndDpEffects(state.party));

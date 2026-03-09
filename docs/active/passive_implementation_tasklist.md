@@ -62,8 +62,9 @@
   - 選択値は localStorage 保存、`turnPlanBaseSetup`、record snapshot / JSON export に保持
   - `Motivation` スキルによる明示レベル上書きは実装済み
   - `OnFirstBattleStart` のランダム付与系は、シミュレータでは手動初期値を優先して no-op として扱う
-  - 未実装は `DP回復で +1` と `被ダメージで -1` のイベントフック
-  - 被弾入力モデル自体は `enemyAttackTargetCharacterIds` として UI / scenario / turnPlan / record に接続済み
+  - `被ダメージで -1` は `enemyAttackTargetCharacterIds` を使う共通 hook として engine / record / passive log まで実装済み
+  - `敵からダメージを受けると1段階減少` はヘルプ仕様に基づく `Motivation` 状態の共通ルールとして扱い、専用 `skill_type` は要求しない
+  - 未実装は `DP回復で +1` のイベントフック
 - [x] `FireMarkLevel`
   - 共通基盤として `CharacterStyle.markStates` と各 `*MarkLevel()` 条件評価は実装済み
   - battle start 時に、パーティー内の同属性 `elements` 人数ぶんだけ対象属性キャラへ永続で付与する
@@ -223,9 +224,9 @@
   - `Motivation` による明示レベル設定は実装済み
   - やる気付与元スタイルが編成内にいる時だけ初期値選択 UI を有効化し、既定値は `普通(3)` にする
   - やる気付与元がいない時は初期値 `0` / 非表示とする
-- [ ] やる気減少スキル
-  - `被ダメージで -1` のようなイベント起点は未実装
-  - 被弾入力モデルの保存経路は実装済みで、残りは `MotivationLevel` への減少反映 hook のみ
+- [x] やる気減少スキル
+  - `被ダメージで -1` は `enemyAttackTargetCharacterIds` を使う共通 hook として実装済み
+  - `Motivation` の最低段階は `1` として扱い、被弾では `0` まで落とさない
 - [x] 属性印の battle start 初期化
   - `Fire / Ice / Thunder / Dark / Light` の `*MarkLevel()` 条件評価は実装済み
   - 実機仕様に合わせて「属性人数ベースの印レベル」を battle start で固定付与する
