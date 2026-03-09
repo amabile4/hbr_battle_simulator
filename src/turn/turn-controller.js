@@ -1006,6 +1006,7 @@ function toPassiveLikeEntryFromTriggeredSkill(skill) {
     limit: Number(skill.passive.limit ?? 0),
     requiredLimitBreakLevel: 0,
     sourceType: String(skill.sourceType ?? 'triggeredSkill'),
+    isTriggeredSkillPassive: true,
     sourceMeta:
       skill.sourceMeta && typeof skill.sourceMeta === 'object' ? structuredClone(skill.sourceMeta) : null,
     labels: null,
@@ -4876,10 +4877,10 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
 
         {
           if (MARK_SKILL_TYPE_TO_ELEMENT[skillType]) {
-            // For triggered skills (sourceType==='triggered'), log the passive event even though
+            // For triggered skills (isTriggeredSkillPassive===true), log the passive event even though
             // mark state is managed by initializeIntrinsicMarkStatesFromParty.
             // For regular passives (database/style), skip silently.
-            if (String(passive?.sourceType ?? '') === 'triggered') {
+            if (passive?.isTriggeredSkillPassive === true) {
               const targets = resolvePassiveTargetMembers(
                 state,
                 member,
