@@ -5296,6 +5296,8 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
               exitCond,
               remaining,
               power: hitBonus,
+              // 単独発動仕様: パッシブ由来として明示（スキル由来と別枠で共存可能）
+              sourceType: 'passive',
               sourcePassiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
               sourcePassiveName: String(passive?.name ?? ''),
               metadata: {

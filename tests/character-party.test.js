@@ -204,6 +204,86 @@ test('statusEffects support Funnel stacking: Default stacks, Only keeps stronges
   );
 });
 
+test('単独発動: skill-origin Only and passive-origin Only coexist as separate slots', () => {
+  const member = new CharacterStyle({
+    characterId: 'TEST',
+    characterName: 'TEST',
+    styleId: 1,
+    styleName: 'Test Style',
+    partyIndex: 0,
+    position: 0,
+    initialSP: 10,
+    skills: [],
+  });
+
+  // スキル由来の[単独発動] Funnel (sourceType='skill', デフォルト)
+  member.addStatusEffect({
+    statusType: 'Funnel',
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 3,
+    power: 5,
+    sourceType: 'skill',
+  });
+  // パッシブ由来の[単独発動] Funnel (sourceType='passive') — 別枠で共存可能
+  member.addStatusEffect({
+    statusType: 'Funnel',
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 3,
+    power: 3,
+    sourceType: 'passive',
+  });
+
+  const effective = member.resolveEffectiveFunnelEffects();
+  // スキル枠(power=5) とパッシブ枠(power=3) の両方が返る
+  assert.deepEqual(
+    effective.map((item) => ({ limitType: item.limitType, sourceType: item.sourceType, power: item.power })),
+    [
+      { limitType: 'Only', sourceType: 'skill', power: 5 },
+      { limitType: 'Only', sourceType: 'passive', power: 3 },
+    ]
+  );
+});
+
+test('単独発動: 同じ sourceType の Only は最強のみ有効（2つ同時不可）', () => {
+  const member = new CharacterStyle({
+    characterId: 'TEST',
+    characterName: 'TEST',
+    styleId: 1,
+    styleName: 'Test Style',
+    partyIndex: 0,
+    position: 0,
+    initialSP: 10,
+    skills: [],
+  });
+
+  // パッシブ由来の[単独発動]が2つある場合、最強の1つのみ有効
+  member.addStatusEffect({
+    statusType: 'Funnel',
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 3,
+    power: 3,
+    sourceType: 'passive',
+  });
+  member.addStatusEffect({
+    statusType: 'Funnel',
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 3,
+    power: 6,
+    sourceType: 'passive',
+  });
+
+  const effective = member.resolveEffectiveFunnelEffects();
+  // power=6 の1つだけ返る
+  assert.deepEqual(
+    effective.map((item) => ({ limitType: item.limitType, sourceType: item.sourceType, power: item.power })),
+    [{ limitType: 'Only', sourceType: 'passive', power: 6 }]
+  );
+});
+
 test('consumeFunnelEffects consumes highest two count-based effects', () => {
   const member = new CharacterStyle({
     characterId: 'TEST',

@@ -116,6 +116,8 @@ function normalizeStatusEffect(effect, fallbackId = 1) {
     effect?.sourceSkillId === undefined || effect?.sourceSkillId === null
       ? null
       : Number(effect.sourceSkillId);
+  // 単独発動仕様: 'skill'（アクティブスキル由来）と 'passive'（パッシブ由来）を区別する
+  const sourceType = String(effect?.sourceType ?? 'skill');
 
   return {
     effectId: Number.isFinite(effectId) ? effectId : fallbackId,
@@ -124,6 +126,7 @@ function normalizeStatusEffect(effect, fallbackId = 1) {
     exitCond,
     remaining: Number.isFinite(remaining) ? remaining : 0,
     power: Number.isFinite(power) ? power : 0,
+    sourceType,
     sourceSkillId: Number.isFinite(sourceSkillId) ? sourceSkillId : null,
     sourceSkillLabel: String(effect?.sourceSkillLabel ?? ''),
     sourceSkillName: String(effect?.sourceSkillName ?? ''),
@@ -761,11 +764,19 @@ export class CharacterStyle {
   resolveEffectiveStatusEffects(statusType) {
     const active = this.getStatusEffectsByType(statusType, { activeOnly: true });
     const defaults = active.filter((effect) => String(effect.limitType) !== 'Only');
-    const onlyCandidates = active
-      .filter((effect) => String(effect.limitType) === 'Only')
+    const onlyCandidates = active.filter((effect) => String(effect.limitType) === 'Only');
+    // 単独発動仕様: スキル由来とパッシブ由来は別枠のため、それぞれ最強の1枠を選ぶ
+    const skillOnlyCandidates = onlyCandidates
+      .filter((effect) => String(effect.sourceType ?? 'skill') !== 'passive')
       .sort(sortStatusEffectsByPriority);
-    if (onlyCandidates.length > 0) {
-      defaults.push(onlyCandidates[0]);
+    const passiveOnlyCandidates = onlyCandidates
+      .filter((effect) => String(effect.sourceType ?? 'skill') === 'passive')
+      .sort(sortStatusEffectsByPriority);
+    if (skillOnlyCandidates.length > 0) {
+      defaults.push(skillOnlyCandidates[0]);
+    }
+    if (passiveOnlyCandidates.length > 0) {
+      defaults.push(passiveOnlyCandidates[0]);
     }
     return defaults.sort(sortStatusEffectsByPriority);
   }
