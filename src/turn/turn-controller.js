@@ -4696,6 +4696,9 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       let totalCriticalRateUpRate = 0;
       let totalCriticalDamageUpRate = 0;
       let totalGiveDefenseDebuffUpRate = 0;
+      let totalDamageUpByOverDriveRate = 0;
+      let totalGiveAttackBuffUpRate = 0;
+      let totalGiveHealUpRate = 0;
       const appliedStatusEffects = [];
       const effectTypes = new Set();
       const unsupportedEffectTypes = new Set();
@@ -4742,6 +4745,9 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'CriticalRateUp' &&
           skillType !== 'CriticalDamageUp' &&
           skillType !== 'GiveDefenseDebuffUp' &&
+          skillType !== 'DamageUpByOverDrive' &&
+          skillType !== 'GiveAttackBuffUp' &&
+          skillType !== 'GiveHealUp' &&
           skillType !== 'OverDrivePointUp' &&
           skillType !== 'DebuffGuard' &&
           skillType !== 'BreakGuard' &&
@@ -4998,7 +5004,10 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType === 'DefenseUp' ||
           skillType === 'CriticalRateUp' ||
           skillType === 'CriticalDamageUp' ||
-          skillType === 'GiveDefenseDebuffUp'
+          skillType === 'GiveDefenseDebuffUp' ||
+          skillType === 'DamageUpByOverDrive' ||
+          skillType === 'GiveAttackBuffUp' ||
+          skillType === 'GiveHealUp'
         ) {
           const amount = Number(part?.power?.[0] ?? 0);
           if (!Number.isFinite(amount) || amount === 0) {
@@ -5032,6 +5041,9 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             else if (skillType === 'CriticalRateUp') totalCriticalRateUpRate += amount;
             else if (skillType === 'CriticalDamageUp') totalCriticalDamageUpRate += amount;
             else if (skillType === 'GiveDefenseDebuffUp') totalGiveDefenseDebuffUpRate += amount;
+            else if (skillType === 'DamageUpByOverDrive') totalDamageUpByOverDriveRate += amount;
+            else if (skillType === 'GiveAttackBuffUp') totalGiveAttackBuffUpRate += amount;
+            else if (skillType === 'GiveHealUp') totalGiveHealUpRate += amount;
           }
           continue;
         }
@@ -5094,6 +5106,9 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             criticalRateUpRate: totalCriticalRateUpRate,
             criticalDamageUpRate: totalCriticalDamageUpRate,
             giveDefenseDebuffUpRate: totalGiveDefenseDebuffUpRate,
+            damageUpByOverDriveRate: totalDamageUpByOverDriveRate,
+            giveAttackBuffUpRate: totalGiveAttackBuffUpRate,
+            giveHealUpRate: totalGiveHealUpRate,
             odGaugeDelta: totalOdGaugeDelta,
             appliedStatusEffects,
             fieldEvents,

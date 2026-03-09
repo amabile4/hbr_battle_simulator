@@ -7439,3 +7439,32 @@ test('CriticalRateUp and CriticalDamageUp passives record rates in passiveEvent'
   assert.ok((event.criticalRateUpRate ?? 0) > 0, 'criticalRateUpRate should be positive');
   assert.ok((event.criticalDamageUpRate ?? 0) > 0, 'criticalDamageUpRate should be positive');
 });
+
+test('DamageUpByOverDrive passive records damageUpByOverDriveRate and is not unsupported', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 57000999,
+              name: 'ODダメージ上昇',
+              timing: 'OnOverdriveStart',
+              condition: '',
+              parts: [{ skill_type: 'DamageUpByOverDrive', target_type: 'Self', power: [0.5] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  // OD timing 発火のため turnState を OD に設定
+  state.turnState.turnType = 'od';
+  const result = applyPassiveTiming(state, 'OnOverdriveStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === 'ODダメージ上昇');
+  assert.ok(event, 'DamageUpByOverDrive passive should fire');
+  assert.ok((event.damageUpByOverDriveRate ?? 0) > 0, 'damageUpByOverDriveRate should be positive');
+  assert.ok(
+    !event.unsupportedEffectTypes?.includes('DamageUpByOverDrive'),
+    'DamageUpByOverDrive should not appear in unsupportedEffectTypes'
+  );
+});
