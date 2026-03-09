@@ -313,8 +313,8 @@
 
 | source | データ読み込み | 処理パイプライン | エフェクト適用 | 状態 |
 |--------|--------------|----------------|--------------|------|
-| 通常スキル由来（skills.json `passive` フィールド） | ✅ 実装済み | ✅ 実装済み | ✅ Phase 6-A 完了 | **残り複雑型は後段** |
-| マスタースキル由来（ability_tree PassiveSkill ノード） | ✅ 実装済み | ✅ 実装済み | 🔄 エフェクト追加中 | **Phase 6-B: 不足エフェクト実装** |
+| 通常スキル由来（skills.json `passive` フィールド） | ✅ 実装済み | ✅ 実装済み | ✅ Phase 6-A 完了 | **後段エフェクト実装完了** |
+| マスタースキル由来（ability_tree PassiveSkill ノード） | ✅ 実装済み | ✅ 実装済み | ✅ Phase 6-B 完了 | **後段エフェクト実装完了** |
 | スキルスロット起点（generalize フラグ） | — | — | — | **対象外（編成 UI フラグ）** |
 | 装備起点（accessories / chips） | バトル passive なし | — | — | **対象外** |
 
@@ -327,7 +327,13 @@
 - [x] 通常スキル由来パッシブの不足エフェクト実装（Phase 6-A）
   - 実装済み: `Morale`, `DamageRateUp`, `DefenseDown`, `DefenseUp`, `CriticalRateUp`, `CriticalDamageUp`, `GiveDefenseDebuffUp`
   - 実装済み: `TokenSet`（`OnEveryTurn`/`OnBattleStart`/`OnAdditionalTurnStart` timing でのトークン +N delta 処理）
-  - 後段対応: `AdditionalHit*`, `HealSkillUsedCount`, `OverwriteSp`, `SpLimitOverwrite`, `ReplaceNormalSkill`, `ReplacePursuit`, `Talisman`, `HighBoost`
+  - [x] 後段エフェクト実装完了（Phase 6 後段）
+    - `Funnel`: `addStatusEffect` で連撃ボーナス付与（OnBattleStart/OnFirstBattleStart）
+    - `HighBoost`、`BuffCharge`: ホワイトリスト化・パッシブイベント記録のみ（状態変化なし）
+    - `Talisman`: 敵側 `talismanState`（`active`, `level`, `maxLevel`）として実装。初期付与・レベル増加対応
+    - `AdditionalHit*`（9種）: 正規パッシブは passive-level スキップ。トリガースキルパッシブはログ登録のみ
+    - `AdditionalTurn`, `BreakDownTurnUp`, `HealSkillUsedCount`, `ReplaceNormalSkill`, `ReplacePursuit`: ホワイトリスト化・サイレントスキップ（アクション時対応または対象外）
+  - 未実装（将来課題）: 被弾時の自動霊符レベル増加、敵ターン終了時のリセット、`IsTalisman` 条件評価
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 
@@ -339,7 +345,8 @@
 - [x] 57xxxxxx スキル ID のデータソース確認 → `styles.json` の `passives[]` に存在（確認完了）
 - [x] `DamageUpByOverDrive` 等の不足エフェクト実装（Phase 6-B）
   - 実装済み: `DamageUpByOverDrive` (341)、`GiveAttackBuffUp` (4)、`GiveHealUp` (3)
-  - 後段: `AdditionalTurn`、`Funnel`、キャラクター固有型
+  - [x] 後段エフェクト実装完了（Phase 6 後段と共に対応済み）
+    - `AdditionalTurn`、`Funnel`: ホワイトリスト化（`Funnel` は `addStatusEffect` で実装、`AdditionalTurn` はサイレントスキップ）
 
 ### スキルスロット起点パッシブ（generalize フラグ）→ 対象外
 
