@@ -4689,6 +4689,13 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       let totalMotivationDelta = 0;
       let totalAttackUpRate = 0;
       let totalOdGaugeDelta = 0;
+      let totalMoraleDelta = 0;
+      let totalDamageRateUpRate = 0;
+      let totalDefenseDownRate = 0;
+      let totalDefenseUpRate = 0;
+      let totalCriticalRateUpRate = 0;
+      let totalCriticalDamageUpRate = 0;
+      let totalGiveDefenseDebuffUpRate = 0;
       const appliedStatusEffects = [];
       const effectTypes = new Set();
       const unsupportedEffectTypes = new Set();
@@ -4727,7 +4734,14 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'HealDpRate' &&
           skillType !== 'ReviveDpRate' &&
           skillType !== 'Motivation' &&
+          skillType !== 'Morale' &&
           skillType !== 'AttackUp' &&
+          skillType !== 'DamageRateUp' &&
+          skillType !== 'DefenseDown' &&
+          skillType !== 'DefenseUp' &&
+          skillType !== 'CriticalRateUp' &&
+          skillType !== 'CriticalDamageUp' &&
+          skillType !== 'GiveDefenseDebuffUp' &&
           skillType !== 'OverDrivePointUp' &&
           skillType !== 'DebuffGuard' &&
           skillType !== 'BreakGuard' &&
@@ -4949,6 +4963,79 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
+        if (skillType === 'Morale') {
+          const amount = getMoraleAmount(part);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const change = target.applyMoraleDelta(amount);
+            matched = true;
+            totalMoraleDelta += Number(change?.delta ?? 0);
+          }
+          continue;
+        }
+
+        if (
+          skillType === 'DamageRateUp' ||
+          skillType === 'DefenseDown' ||
+          skillType === 'DefenseUp' ||
+          skillType === 'CriticalRateUp' ||
+          skillType === 'CriticalDamageUp' ||
+          skillType === 'GiveDefenseDebuffUp'
+        ) {
+          const amount = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          let matchedTarget = false;
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            matchedTarget = true;
+          }
+          if (matchedTarget) {
+            matched = true;
+            if (skillType === 'DamageRateUp') totalDamageRateUpRate += amount;
+            else if (skillType === 'DefenseDown') totalDefenseDownRate += amount;
+            else if (skillType === 'DefenseUp') totalDefenseUpRate += amount;
+            else if (skillType === 'CriticalRateUp') totalCriticalRateUpRate += amount;
+            else if (skillType === 'CriticalDamageUp') totalCriticalDamageUpRate += amount;
+            else if (skillType === 'GiveDefenseDebuffUp') totalGiveDefenseDebuffUpRate += amount;
+          }
+          continue;
+        }
+
         const amount = Number(part?.power?.[0] ?? 0);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
@@ -4999,7 +5086,14 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             epDelta: totalEpDelta,
             dpDelta: totalDpDelta,
             motivationDelta: totalMotivationDelta,
+            moraleDelta: totalMoraleDelta,
             attackUpRate: totalAttackUpRate,
+            damageRateUpRate: totalDamageRateUpRate,
+            defenseDownRate: totalDefenseDownRate,
+            defenseUpRate: totalDefenseUpRate,
+            criticalRateUpRate: totalCriticalRateUpRate,
+            criticalDamageUpRate: totalCriticalDamageUpRate,
+            giveDefenseDebuffUpRate: totalGiveDefenseDebuffUpRate,
             odGaugeDelta: totalOdGaugeDelta,
             appliedStatusEffects,
             fieldEvents,

@@ -1390,7 +1390,7 @@ test('commitTurn applies OnEnemyTurnStart HealDpRate passive when base turn adva
   );
 });
 
-test('unsupported OnEnemyTurnStart DefenseUp passive logs only when DpRate condition matches', () => {
+test('DefenseUp passive fires only when DpRate condition matches and records defenseUpRate', () => {
   const createParty = (currentDp) =>
     createSixMemberManualParty((idx) =>
       idx === 0
@@ -1410,14 +1410,17 @@ test('unsupported OnEnemyTurnStart DefenseUp passive logs only when DpRate condi
         : { baseMaxDp: 70 }
     );
 
+  // DpRate==0 (currentDp=0) → condition true → should fire as supported DefenseUp
   const highState = createBattleStateFromParty(createParty(0));
   const highResult = applyPassiveTiming(highState, 'OnEnemyTurnStart');
   assert.ok(
     highResult.passiveEvents.some(
-      (event) => event.passiveName === '堅忍' && event.unsupportedEffectTypes?.includes('DefenseUp')
-    )
+      (event) => event.passiveName === '堅忍' && (event.defenseUpRate ?? 0) > 0
+    ),
+    'DefenseUp passive should fire and record defenseUpRate when condition is met'
   );
 
+  // DpRate==1 (currentDp=70) → condition false → should not fire
   const lowState = createBattleStateFromParty(createParty(70));
   const lowResult = applyPassiveTiming(lowState, 'OnEnemyTurnStart');
   assert.equal(lowResult.passiveEvents.length, 0);
@@ -7353,4 +7356,86 @@ test('commitTurn includes stateSnapshot with markStateByPartyIndex, zoneState, t
       `tokenStateByPartyIndex[${i}] must exist`
     );
   }
+});
+
+test('Morale passive applies morale delta and records moraleDelta in passiveEvent', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialMorale: 3,
+          passives: [
+            {
+              id: 99901,
+              name: '士気増加パッシブ',
+              timing: 'OnPlayerTurnStart',
+              condition: '',
+              parts: [{ skill_type: 'Morale', target_type: 'Self', power: [2] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === '士気増加パッシブ');
+  assert.ok(event, 'Morale passive should fire');
+  assert.ok((event.moraleDelta ?? 0) !== 0, 'moraleDelta should be non-zero');
+  assert.ok(
+    !event.unsupportedEffectTypes?.includes('Morale'),
+    'Morale should not appear in unsupportedEffectTypes'
+  );
+});
+
+test('DamageRateUp passive records damageRateUpRate in passiveEvent and is not unsupported', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 99902,
+              name: 'ダメージ上昇パッシブ',
+              timing: 'OnPlayerTurnStart',
+              condition: '',
+              parts: [{ skill_type: 'DamageRateUp', target_type: 'Self', power: [0.2] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === 'ダメージ上昇パッシブ');
+  assert.ok(event, 'DamageRateUp passive should fire');
+  assert.ok((event.damageRateUpRate ?? 0) > 0, 'damageRateUpRate should be positive');
+  assert.ok(
+    !event.unsupportedEffectTypes?.includes('DamageRateUp'),
+    'DamageRateUp should not appear in unsupportedEffectTypes'
+  );
+});
+
+test('CriticalRateUp and CriticalDamageUp passives record rates in passiveEvent', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 99903,
+              name: 'クリ率パッシブ',
+              timing: 'OnBattleStart',
+              condition: '',
+              parts: [
+                { skill_type: 'CriticalRateUp', target_type: 'Self', power: [0.1] },
+                { skill_type: 'CriticalDamageUp', target_type: 'Self', power: [0.15] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnBattleStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === 'クリ率パッシブ');
+  assert.ok(event, 'CriticalRateUp/CriticalDamageUp passive should fire');
+  assert.ok((event.criticalRateUpRate ?? 0) > 0, 'criticalRateUpRate should be positive');
+  assert.ok((event.criticalDamageUpRate ?? 0) > 0, 'criticalDamageUpRate should be positive');
 });
