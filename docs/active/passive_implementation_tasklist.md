@@ -313,7 +313,7 @@
 
 | source | データ読み込み | 処理パイプライン | エフェクト適用 | 状態 |
 |--------|--------------|----------------|--------------|------|
-| 通常スキル由来（skills.json `passive` フィールド） | ✅ 実装済み | ✅ 実装済み | ❌ 未実装 | **エフェクト追加のみ** |
+| 通常スキル由来（skills.json `passive` フィールド） | ✅ 実装済み | ✅ 実装済み | ✅ Phase 6-A 完了 | **残り複雑型は後段** |
 | マスタースキル由来（ability_tree PassiveSkill ノード） | ❌ 未実装 | ❌ 未着手 | ❌ 未着手 | **データソース確立から** |
 | スキルスロット起点（generalize フラグ） | データは存在 | ❌ 未着手 | ❌ 未着手 | **仕様未確定** |
 | 装備起点（accessories / chips） | バトル passive なし | — | — | **対象外** |
@@ -323,8 +323,10 @@
 - `skills.json` に `passive` フィールドを持つスキルが 26 件（`is_restricted: 1`、コマンド選択不可）
 - `listTriggeredSkillsByStyleId` → `toPassiveLikeEntryFromTriggeredSkill` → `getPassiveEntriesForMember` → `applyPassiveTimingInternal` のパイプラインは**実装済み**
 - **ギャップ**: `DefenseDown` 等のエフェクト種別が `unsupported` としてログされている
-- **実装内容**: `src/turn/turn-controller.js` の `applyPassiveTimingInternal` に不足エフェクト型を追加（実データの skill_type 要確認）
-- [ ] 通常スキル由来パッシブの不足エフェクト実装（Phase 6-A）
+- **実装内容**: `src/turn/turn-controller.js` の `applyPassiveTimingInternal` に不足エフェクト型を追加
+- [x] 通常スキル由来パッシブの不足エフェクト実装（Phase 6-A）
+  - 実装済み: `Morale`, `DamageRateUp`, `DefenseDown`, `DefenseUp`, `CriticalRateUp`, `CriticalDamageUp`, `GiveDefenseDebuffUp`
+  - 後段対応: `AdditionalHit*`, `HealSkillUsedCount`, `OverwriteSp`, `SpLimitOverwrite`, `ReplaceNormalSkill`, `ReplacePursuit`, `Talisman`, `HighBoost`
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 
