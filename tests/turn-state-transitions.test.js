@@ -8272,3 +8272,94 @@ test('AdditionalHitOnHealedSpWithoutSelfHeal does NOT fire when skill only heals
   const spChange = (entry.spChanges ?? []).find((c) => c.source === 'sp_passive');
   assert.ok(!spChange, 'sp_passive should NOT fire when the skill only heals Self SP');
 });
+
+test('AdditionalHitOnBreaking + AdditionalTurn: passive trigger grants extra turn when breakHitCount > 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ENCORE1',
+          characterName: 'ENCORE1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 99960,
+              name: 'アンコールテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99961,
+              name: 'Break Skill 2',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'ENCORE1', skillId: 99961, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  // When break occurs, passive grants extra turn for ENCORE1
+  assert.equal(
+    nextState.turnState.turnType,
+    'extra',
+    'next turn should be extra when AdditionalHitOnBreaking+AdditionalTurn fires'
+  );
+  assert.ok(
+    (nextState.turnState.extraTurnState?.allowedCharacterIds ?? []).includes('ENCORE1'),
+    'ENCORE1 should be in allowedCharacterIds for the extra turn'
+  );
+});
+
+test('AdditionalHitOnBreaking + AdditionalTurn does NOT grant extra turn when breakHitCount is 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ENCORE2',
+          characterName: 'ENCORE2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 99970,
+              name: 'アンコールテスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99971,
+              name: 'No-Break Skill 2',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'ENCORE2', skillId: 99971, breakHitCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.notEqual(
+    nextState.turnState.turnType,
+    'extra',
+    'next turn should NOT be extra when no break occurred'
+  );
+});

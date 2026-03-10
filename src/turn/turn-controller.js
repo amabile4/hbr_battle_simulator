@@ -2367,6 +2367,7 @@ function applyMarkEffectsFromActions() {
 function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   const moraleEvents = [];
   const spEvents = [];
+  const additionalTurnGrantedIds = [];
 
   for (const passive of actor.passives ?? []) {
     const timing = String(passive?.timing ?? '').trim();
@@ -2525,15 +2526,36 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         }
         continue;
       }
+
+      if (effectType === 'AdditionalTurn') {
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+            continue;
+          }
+          additionalTurnGrantedIds.push(targetCharacterId);
+        }
+        continue;
+      }
     }
   }
 
-  return { moraleEvents, spEvents };
+  return { moraleEvents, spEvents, additionalTurnGrantedIds };
 }
 
 function applyMoraleEffectsFromActions(state, previewRecord) {
   const moraleEvents = [];
   const spPassiveEvents = [];
+  const additionalTurnPassiveGrantedIds = [];
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
@@ -2597,9 +2619,10 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     const triggerResult = applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry);
     moraleEvents.push(...triggerResult.moraleEvents);
     spPassiveEvents.push(...triggerResult.spEvents);
+    additionalTurnPassiveGrantedIds.push(...triggerResult.additionalTurnGrantedIds);
   }
 
-  return { moraleEvents, spPassiveEvents };
+  return { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds };
 }
 
 function applyTalismanLevelIncrementsFromActions(state, previewRecord) {
@@ -6370,7 +6393,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const actionDpEvents = applyDpEffectsFromActions(state, previewRecord);
   const dpHealMotivationEvents = applyMotivationFromDpHealEvents(state, actionDpEvents);
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord, actionDpEvents);
-  const { moraleEvents, spPassiveEvents } = applyMoraleEffectsFromActions(state, previewRecord);
+  const { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds } = applyMoraleEffectsFromActions(state, previewRecord);
   applyTalismanLevelIncrementsFromActions(state, previewRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
   const markEvents = applyMarkEffectsFromActions(state, previewRecord);
@@ -6489,7 +6512,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     member.incrementSkillUseById(entry.skillId);
   }
 
-  const grantedExtraCharacterIds = deriveGrantedExtraTurnCharacterIds(state, previewRecord);
+  const grantedExtraCharacterIds = [
+    ...deriveGrantedExtraTurnCharacterIds(state, previewRecord),
+    ...additionalTurnPassiveGrantedIds,
+  ];
   updateReinforcedModeStateAfterTurn(state);
   applyTurnBasedStatusExpiry(state, previewRecord);
 
