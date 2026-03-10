@@ -6995,10 +6995,8 @@ test('commitTurn records OnEnemyTurnStart passive events when base turn advances
   const { nextState, committedRecord } = commitTurn(state, preview);
 
   assert.equal(nextState.turnState.turnIndex, 2);
-  assert.equal(committedRecord.passiveEvents.length, 1);
-  assert.equal(committedRecord.passiveEvents[0].timing, 'OnEnemyTurnStart');
-  assert.equal(committedRecord.passiveEvents[0].passiveName, '銀氷の加護');
-  assert.deepEqual(committedRecord.passiveEvents[0].unsupportedEffectTypes, ['BorderRefPDownByAdmiral']);
+  // BorderRefPDownByAdmiral is a silent-skip (action-time Admiral mechanic); no passive event logged.
+  assert.equal(committedRecord.passiveEvents.length, 0);
 });
 
 test('OnEveryTurnIncludeSpecial ReduceSp lowers self skill cost at action selection time', () => {
@@ -7940,4 +7938,56 @@ test('TokenSetByAttacking passive is silently skipped at timing boundary (handle
   const result = applyPassiveTiming(state, 'OnFirstBattleStart');
   const event = result.passiveEvents.find((e) => e.passiveName === '戦勲テスト');
   assert.ok(!event, 'TokenSetByAttacking at timing boundary should be silently skipped (no event)');
+});
+
+test('AdditionalHitOnBreaking passive is silently skipped at timing boundary (no event, not unsupported)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 99902,
+              name: '破砕テスト',
+              timing: 'OnFirstBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnFirstBattleStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === '破砕テスト');
+  assert.ok(!event, 'AdditionalHitOnBreaking should be silently skipped (no passive event)');
+  assert.ok(
+    !result.passiveEvents.some((e) => (e.unsupportedEffectTypes ?? []).includes('AdditionalHitOnBreaking')),
+    'AdditionalHitOnBreaking must not appear in unsupportedEffectTypes'
+  );
+});
+
+test('StunRandom passive logs a passive event (log-only, not unsupported)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 99903,
+              name: '威嚇テスト',
+              timing: 'OnBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'StunRandom', target_type: 'Self', power: [0.5, 0], value: [0, 0], target_condition: '' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnBattleStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === '威嚇テスト');
+  assert.ok(event, 'StunRandom should log a passive event');
+  assert.ok(
+    !(event.unsupportedEffectTypes ?? []).includes('StunRandom'),
+    'StunRandom must not appear in unsupportedEffectTypes'
+  );
 });

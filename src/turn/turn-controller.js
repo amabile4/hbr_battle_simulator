@@ -4917,6 +4917,34 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'DamageRateUpPerToken' &&
           skillType !== 'AttackUpPerToken' &&
           skillType !== 'DefenseUpPerToken' &&
+          skillType !== 'AdditionalHitOnExtraSkill' &&
+          skillType !== 'AdditionalHitOnBreaking' &&
+          skillType !== 'AdditionalHitOnKillCount' &&
+          skillType !== 'AdditionalHitOnHealedSpWithoutSelfHeal' &&
+          skillType !== 'AdditionalHitOnSpecifiedSkill' &&
+          skillType !== 'AdditionalHitOnRemovingBuff' &&
+          skillType !== 'AdditionalHitOnKill' &&
+          skillType !== 'AdditionalHitOnZone' &&
+          skillType !== 'AdditionalHitOnOverDrivePointDownSkill' &&
+          skillType !== 'AdditionalHitOnPursuit' &&
+          skillType !== 'ZoneUpEternal' &&
+          skillType !== 'DoubleActionExtraSkill' &&
+          skillType !== 'ShadowClone' &&
+          skillType !== 'BorderRefPDownByAdmiral' &&
+          skillType !== 'ExecuteSkillOnPreTurn' &&
+          skillType !== 'RemoveSpecialStatus' &&
+          skillType !== 'ArrowCherryBlossoms' &&
+          skillType !== 'NegativeMind' &&
+          skillType !== 'Makeup' &&
+          skillType !== 'Mocktail' &&
+          skillType !== 'SpecialCommandCountUp' &&
+          skillType !== 'StunRandom' &&
+          skillType !== 'GiveDebuffTurnUp' &&
+          skillType !== 'SkillCondition' &&
+          skillType !== 'IgnoreEShieldElement' &&
+          skillType !== 'Dodge' &&
+          skillType !== 'SkillLimitCountUp' &&
+          skillType !== 'Misfortune' &&
           !MARK_SKILL_TYPE_TO_ELEMENT[skillType]
         ) {
           if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
@@ -5599,6 +5627,64 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType === 'ReplacePursuit'
         ) {
           // These effects are handled at action time or are out of scope for passive timing.
+          continue;
+        }
+
+        if (
+          skillType === 'AdditionalHitOnExtraSkill' ||
+          skillType === 'AdditionalHitOnBreaking' ||
+          skillType === 'AdditionalHitOnKillCount' ||
+          skillType === 'AdditionalHitOnHealedSpWithoutSelfHeal' ||
+          skillType === 'AdditionalHitOnSpecifiedSkill' ||
+          skillType === 'AdditionalHitOnRemovingBuff' ||
+          skillType === 'AdditionalHitOnKill' ||
+          skillType === 'AdditionalHitOnZone' ||
+          skillType === 'AdditionalHitOnOverDrivePointDownSkill' ||
+          skillType === 'AdditionalHitOnPursuit' ||
+          skillType === 'ZoneUpEternal' ||
+          skillType === 'DoubleActionExtraSkill' ||
+          skillType === 'ShadowClone' ||
+          skillType === 'BorderRefPDownByAdmiral' ||
+          skillType === 'ExecuteSkillOnPreTurn' ||
+          skillType === 'RemoveSpecialStatus' ||
+          skillType === 'ArrowCherryBlossoms' ||
+          skillType === 'NegativeMind' ||
+          skillType === 'Makeup' ||
+          skillType === 'Mocktail' ||
+          skillType === 'SpecialCommandCountUp'
+        ) {
+          // Action-time attack modifiers or character-specific mechanics; silent-skip at timing boundary.
+          continue;
+        }
+
+        if (
+          skillType === 'StunRandom' ||
+          skillType === 'GiveDebuffTurnUp' ||
+          skillType === 'SkillCondition' ||
+          skillType === 'IgnoreEShieldElement' ||
+          skillType === 'Dodge' ||
+          skillType === 'SkillLimitCountUp' ||
+          skillType === 'Misfortune'
+        ) {
+          // Effects that modify combat behaviour without changing tracked state.
+          // Log the passive event so users see the passive is active.
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            matched = true;
+            break;
+          }
           continue;
         }
 

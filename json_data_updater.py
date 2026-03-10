@@ -38,7 +38,6 @@ DEFAULT_DATASETS = [
     "passives",
     "skills",
     "styles",
-    "support_skills",
 ]
 
 
