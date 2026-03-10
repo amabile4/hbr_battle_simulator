@@ -304,20 +304,23 @@ export class HbrDataStore {
     if (!mainStyle) return [];
     const mainTier = String(mainStyle.tier ?? '').toUpperCase();
     if (!['SS', 'SSR'].includes(mainTier)) return [];
-    const mainElements = new Set(
-      (Array.isArray(mainStyle.elements) ? mainStyle.elements : []).filter(
-        (el) => el && String(el) !== 'None'
-      )
-    );
-    if (mainElements.size === 0) return [];
+    // 'None' 文字列と空配列はどちらも「無属性」として扱い、有効属性のみ抽出する
+    const toEffective = (elements) =>
+      (Array.isArray(elements) ? elements : []).filter((el) => el && String(el) !== 'None');
+    const mainEffective = toEffective(mainStyle.elements);
+    const mainIsNone = mainEffective.length === 0;
+    const mainElementSet = new Set(mainEffective);
     return this.styles.filter((s) => {
       if (Number(s.id) === Number(mainStyleId)) return false;
       const tier = String(s.tier ?? '').toUpperCase();
       if (!['SS', 'SSR'].includes(tier)) return false;
-      const sElements = (Array.isArray(s.elements) ? s.elements : []).filter(
-        (el) => el && String(el) !== 'None'
-      );
-      return sElements.some((el) => mainElements.has(el));
+      const sEffective = toEffective(s.elements);
+      if (mainIsNone) {
+        // 無属性メインは、無属性（有効属性なし）の候補のみとマッチ
+        return sEffective.length === 0;
+      }
+      // 通常属性メインは、有効属性が一致する候補とマッチ（'None' は無視）
+      return sEffective.some((el) => mainElementSet.has(el));
     });
   }
 
