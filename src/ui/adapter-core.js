@@ -118,6 +118,8 @@ export function createInitializedBattleSnapshot({
   moraleStateByPartyIndex = {},
   motivationStateByPartyIndex = {},
   markStateByPartyIndex = {},
+  supportStyleIdsByPartyIndex = {},
+  supportLimitBreakLevelsByPartyIndex = {},
   initialOdGauge,
   enemyCount,
   enemyNamesByEnemy = {},
@@ -147,6 +149,8 @@ export function createInitializedBattleSnapshot({
     limitBreakLevelsByPartyIndex,
     drivePierceByPartyIndex,
     normalAttackElementsByPartyIndex,
+    supportStyleIdsByPartyIndex,
+    supportLimitBreakLevelsByPartyIndex,
   });
   applyInitialPartyStateOverrides(party, {
     tokenStateByPartyIndex,

@@ -32,3 +32,7 @@ export { BattleDomAdapter } from './ui/dom-adapter.js';
 export { validateDocument, validateBySchema } from './data/schema-validator.js';
 export { HbrDataStore } from './data/hbr-data-store.js';
 export { buildDamageCalculationContext } from './domain/damage-calculation-context.js';
+export {
+  resolveSupportPassiveEntry,
+  buildSupportPassive,
+} from './domain/support-skills-resolver.js';

@@ -247,6 +247,8 @@ export class CharacterStyle {
         ? structuredClone(input.transcendenceRule)
         : null;
     this.limitBreakLevel = Number(input.limitBreakLevel ?? 0);
+    this.supportStyleId = input.supportStyleId != null ? Number(input.supportStyleId) : null;
+    this.supportStyleLimitBreakLevel = Number(input.supportStyleLimitBreakLevel ?? 0);
     this.drivePiercePercent = Number(input.drivePiercePercent ?? 0);
     this.normalAttackElements = Object.freeze(
       Array.isArray(input.normalAttackElements)
@@ -930,6 +932,8 @@ export class CharacterStyle {
       styleId: this.styleId,
       styleName: this.styleName,
       limitBreakLevel: this.limitBreakLevel,
+      supportStyleId: this.supportStyleId,
+      supportStyleLimitBreakLevel: this.supportStyleLimitBreakLevel,
       partyIndex: this.partyIndex,
       position: this.position,
       normalAttackElements: [...this.normalAttackElements],

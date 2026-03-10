@@ -9,6 +9,10 @@ import {
 } from '../domain/skill-classifiers.js';
 import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
 import { validateDocument } from './schema-validator.js';
+import {
+  resolveSupportPassiveEntry,
+  buildSupportPassive,
+} from '../domain/support-skills-resolver.js';
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
@@ -173,6 +177,7 @@ export class HbrDataStore {
     this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
     this.epRuleOverrides = payload.epRuleOverrides ?? [];
     this.transcendenceRuleOverrides = payload.transcendenceRuleOverrides ?? [];
+    this.supportSkills = payload.supportSkills ?? [];
 
     this.skillDbSchema = payload.skillDbSchema;
     this.skillDbDraft = payload.skillDbDraft;
@@ -193,6 +198,9 @@ export class HbrDataStore {
     );
     this.canonicalSkillById = new Map(
       (this.skillDbDraft.canonicalSkills ?? []).map((row) => [Number(row.skillId), row])
+    );
+    this.supportSkillsByLabel = new Map(
+      this.supportSkills.map((g) => [String(g.label ?? ''), g])
     );
   }
 
@@ -262,6 +270,7 @@ export class HbrDataStore {
       transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
       skillDbSchema: readJson(resolve(dir, 'new_skill_database.schema.json')),
       skillDbDraft: readJsonOrFallback(resolve(dir, 'reports/migration/new_skill_database.draft.json'), {}),
+      supportSkills: readJsonOrFallback(resolve(dir, 'support_skills.json'), []),
     });
   }
 
@@ -282,6 +291,43 @@ export class HbrDataStore {
       skillDbSchema: payload.skillDbSchema ?? {},
       skillDbDraft: payload.skillDbDraft ?? {},
       skillAvailability: payload.skillAvailability ?? {},
+      supportSkills: payload.supportSkills ?? [],
+    });
+  }
+
+  getSupportGroupByLabel(resonanceLabel) {
+    return this.supportSkillsByLabel.get(String(resonanceLabel ?? '')) ?? null;
+  }
+
+  listSupportStyleCandidates(mainStyleId) {
+    const mainStyle = this.getStyleById(mainStyleId);
+    if (!mainStyle) return [];
+    const mainTier = String(mainStyle.tier ?? '').toUpperCase();
+    if (!['SS', 'SSR'].includes(mainTier)) return [];
+    const mainElements = new Set(Array.isArray(mainStyle.elements) ? mainStyle.elements : []);
+    if (mainElements.size === 0) return [];
+    return this.styles.filter((s) => {
+      if (Number(s.id) === Number(mainStyleId)) return false;
+      const tier = String(s.tier ?? '').toUpperCase();
+      if (!['SS', 'SSR'].includes(tier)) return false;
+      const sElements = Array.isArray(s.elements) ? s.elements : [];
+      return sElements.some((el) => mainElements.has(el));
+    });
+  }
+
+  resolveSupportSkillPassive(supportStyleId, limitBreakLevel) {
+    const supportStyle = this.getStyleById(supportStyleId);
+    if (!supportStyle) return null;
+    const resonance = supportStyle.resonance;
+    if (!resonance) return null;
+    const group = this.getSupportGroupByLabel(resonance);
+    if (!group) return null;
+    const entry = resolveSupportPassiveEntry(group, Number(limitBreakLevel ?? 0));
+    if (!entry?.passive) return null;
+    return buildSupportPassive(entry.passive, {
+      supportGroupLabel: String(resonance),
+      supportStyleId: Number(supportStyleId),
+      limitBreakLevel: Number(limitBreakLevel ?? 0),
     });
   }
 
@@ -1067,6 +1113,8 @@ export class HbrDataStore {
     normalAttackElements = [],
     equippedSkillIds = null,
     limitBreakLevel = null,
+    supportStyleId = null,
+    supportStyleLimitBreakLevel = 0,
   }) {
     const style = this.getStyleById(styleId);
     if (!style) {
@@ -1105,7 +1153,12 @@ export class HbrDataStore {
     const normalizedLimitBreak = Number.isFinite(Number(limitBreakLevel))
       ? Math.max(0, Math.min(maxLimitBreak, Number(limitBreakLevel)))
       : maxLimitBreak;
-    const passives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
+    const mainPassives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
+    const supportPassive =
+      supportStyleId != null
+        ? this.resolveSupportSkillPassive(Number(supportStyleId), Number(supportStyleLimitBreakLevel))
+        : null;
+    const passives = supportPassive ? [...mainPassives, supportPassive] : mainPassives;
     const epRule = this.getEpRuleForStyle(style, character);
     const ep = epRule?.ep ?? {};
     const hasEpRelatedSkill = allStyleSkills.some((skill) => {
@@ -1148,6 +1201,8 @@ export class HbrDataStore {
       epOdMax,
       epRule,
       limitBreakLevel: normalizedLimitBreak,
+      supportStyleId: supportStyleId != null ? Number(supportStyleId) : null,
+      supportStyleLimitBreakLevel: Number(supportStyleLimitBreakLevel ?? 0),
       skills: styleSkills,
       triggeredSkills,
       passives,
@@ -1169,6 +1224,8 @@ export class HbrDataStore {
     const normalAttackElementsByPartyIndex = options.normalAttackElementsByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
     const limitBreakLevelsByPartyIndex = options.limitBreakLevelsByPartyIndex ?? {};
+    const supportStyleIdsByPartyIndex = options.supportStyleIdsByPartyIndex ?? {};
+    const supportLimitBreakLevelsByPartyIndex = options.supportLimitBreakLevelsByPartyIndex ?? {};
 
     const members = styleIds.map((styleId, index) =>
       this.buildCharacterStyle({
@@ -1190,6 +1247,8 @@ export class HbrDataStore {
           ? skillSetsByPartyIndex[index]
           : null,
         limitBreakLevel: Number(limitBreakLevelsByPartyIndex[index]),
+        supportStyleId: supportStyleIdsByPartyIndex[index] ?? null,
+        supportStyleLimitBreakLevel: Number(supportLimitBreakLevelsByPartyIndex[index] ?? 0),
       })
     );
 

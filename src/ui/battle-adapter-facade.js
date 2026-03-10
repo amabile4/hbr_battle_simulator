@@ -43,6 +43,8 @@ export class BattleAdapterFacade {
       styleIds: options.styleIds,
       skillSetsByPartyIndex: options.skillSetsByPartyIndex,
       limitBreakLevelsByPartyIndex: options.limitBreakLevelsByPartyIndex,
+      supportStyleIdsByPartyIndex: options.supportStyleIdsByPartyIndex,
+      supportLimitBreakLevelsByPartyIndex: options.supportLimitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex: options.drivePierceByPartyIndex,
       normalAttackElementsByPartyIndex: options.normalAttackElementsByPartyIndex,
       startSpEquipByPartyIndex: options.startSpEquipByPartyIndex,
