@@ -2369,6 +2369,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   const spEvents = [];
   const additionalTurnGrantedIds = [];
   const dpEvents = [];
+  const passiveTriggerEvents = [];
 
   for (const passive of actor.passives ?? []) {
     const timing = String(passive?.timing ?? '').trim();
@@ -2428,6 +2429,10 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         return (skill.parts ?? []).some(
           (ep) => String(ep?.skill_type ?? '') === 'HealSp' && String(ep?.target_type ?? '') !== 'Self'
         );
+      }
+      if (skillType === 'AdditionalHitOnRemovingBuff') {
+        // Fires when the actor uses a skill that removes buffs from enemies (RemoveBuff part).
+        return (skill.parts ?? []).some((ep) => String(ep?.skill_type ?? '') === 'RemoveBuff');
       }
       return false;
     });
@@ -2590,10 +2595,28 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         }
         continue;
       }
+
+      if (effectType === 'AttackUp') {
+        // Log-only: no buff duration system; record the effect for planning visibility.
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        passiveTriggerEvents.push(
+          createPassiveTriggerEvent(state.turnState, actor, passive, {
+            source: 'passive_trigger',
+            effectTypes: ['AttackUp'],
+            attackUpRate: amount,
+            triggerSkillId: Number(skill?.skillId ?? 0),
+            triggerSkillName: String(skill?.name ?? ''),
+          })
+        );
+        continue;
+      }
     }
   }
 
-  return { moraleEvents, spEvents, additionalTurnGrantedIds, dpEvents };
+  return { moraleEvents, spEvents, additionalTurnGrantedIds, dpEvents, passiveTriggerEvents };
 }
 
 function applyMoraleEffectsFromActions(state, previewRecord) {
@@ -2601,6 +2624,7 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
   const spPassiveEvents = [];
   const additionalTurnPassiveGrantedIds = [];
   const dpPassiveEvents = [];
+  const passiveTriggerEvents = [];
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
@@ -2666,9 +2690,10 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     spPassiveEvents.push(...triggerResult.spEvents);
     additionalTurnPassiveGrantedIds.push(...triggerResult.additionalTurnGrantedIds);
     dpPassiveEvents.push(...triggerResult.dpEvents);
+    passiveTriggerEvents.push(...triggerResult.passiveTriggerEvents);
   }
 
-  return { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents };
+  return { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents, passiveTriggerEvents };
 }
 
 function applyTalismanLevelIncrementsFromActions(state, previewRecord) {
@@ -6525,7 +6550,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const actionDpEvents = applyDpEffectsFromActions(state, previewRecord);
   const dpHealMotivationEvents = applyMotivationFromDpHealEvents(state, actionDpEvents);
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord, actionDpEvents);
-  const { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents } = applyMoraleEffectsFromActions(state, previewRecord);
+  const { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents, passiveTriggerEvents } = applyMoraleEffectsFromActions(state, previewRecord);
   const dpPassiveMotivationEvents = applyMotivationFromDpHealEvents(state, dpPassiveEvents);
   applyTalismanLevelIncrementsFromActions(state, previewRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
@@ -6767,7 +6792,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const snapAfter = snapshotPartyByPartyIndex(nextState.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   committed.transcendence = transcendenceSummary;
-  committed.passiveEvents = structuredClone([...currentTurnPassiveEvents, ...boundaryPassiveEvents]);
+  committed.passiveEvents = structuredClone([...currentTurnPassiveEvents, ...passiveTriggerEvents, ...boundaryPassiveEvents]);
   committed.dpEvents = structuredClone([...actionDpEvents, ...dpPassiveEvents, ...recoveryDpEvents, ...boundaryDpEvents]);
   committed.enemyAttackEvents = structuredClone(enemyAttackEvents);
   committed.enemyAttackTargetCharacterIds = structuredClone(enemyAttackTargetCharacterIds);

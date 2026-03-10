@@ -8576,3 +8576,140 @@ test('AdditionalHitOnBreaking + BreakDownTurnUp does NOT fire when breakHitCount
   const bdt = (entry?.enemyStatusChanges ?? []).find((ev) => ev.mode === 'BreakDownTurnUp');
   assert.ok(!bdt, 'BreakDownTurnUp should NOT fire when breakHitCount is 0');
 });
+
+test('AdditionalHitOnBreaking + AttackUp: records passive event with attackUpRate (破砕の喝采)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'HASAN1',
+          characterName: 'HASAN1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 99995,
+              name: '破砕の喝采テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.6, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99996,
+              name: 'Break Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'HASAN1', skillId: 99996, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // PassiveTriggerEvent for AttackUp should be in committedRecord.passiveEvents
+  const evt = (committedRecord.passiveEvents ?? []).find(
+    (e) => e.effectTypes?.includes('AttackUp') && e.source === 'passive_trigger'
+  );
+  assert.ok(evt, 'passiveEvents should include AttackUp trigger event when break occurs');
+  assert.ok(
+    Math.abs(Number(evt.attackUpRate) - 0.6) < 0.01,
+    `attackUpRate should be 0.6, got ${evt.attackUpRate}`
+  );
+});
+
+test('AdditionalHitOnRemovingBuff + AttackUp: fires when skill has RemoveBuff part (浄化の喝采)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KIRINO1',
+          characterName: 'KIRINO1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 99997,
+              name: '浄化の喝采テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnRemovingBuff', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.6, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99998,
+              name: 'Debuff Remove Skill',
+              sp_cost: 4,
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' },
+                { skill_type: 'RemoveBuff', target_type: 'All' },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KIRINO1', skillId: 99998 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  const evt = (committedRecord.passiveEvents ?? []).find(
+    (e) => e.effectTypes?.includes('AttackUp') && e.source === 'passive_trigger'
+  );
+  assert.ok(evt, 'passiveEvents should include AttackUp trigger event when RemoveBuff skill used');
+});
+
+test('AdditionalHitOnRemovingBuff does NOT fire when skill has no RemoveBuff part', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KIRINO2',
+          characterName: 'KIRINO2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 99999,
+              name: '浄化の喝采テスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnRemovingBuff', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.6, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100000,
+              name: 'Normal Attack',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KIRINO2', skillId: 100000 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  const evt = (committedRecord.passiveEvents ?? []).find(
+    (e) => e.effectTypes?.includes('AttackUp') && e.source === 'passive_trigger'
+  );
+  assert.ok(!evt, 'AttackUp should NOT fire when skill has no RemoveBuff part');
+});
