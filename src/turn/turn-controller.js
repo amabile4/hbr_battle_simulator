@@ -1085,7 +1085,14 @@ function resolveZoneUpEternalParts(member) {
 function hasActiveZoneUpEternalModifier(state, member, skill = null, actionEntry = null) {
   for (const { passive, part } of resolveZoneUpEternalParts(member)) {
     const timing = String(passive?.timing ?? '').trim();
-    if (timing !== 'OnBattleStart' && timing !== 'OnFirstBattleStart') {
+    // ZoneUpEternal applies at battle-start timings (always active) or player-turn timings
+    // (condition evaluated at zone-deployment time, e.g. MoraleLevel()>=6 on OnPlayerTurnStart)
+    const isValidTiming =
+      timing === 'OnBattleStart' ||
+      timing === 'OnFirstBattleStart' ||
+      timing === 'OnPlayerTurnStart' ||
+      timing === 'OnEveryTurn';
+    if (!isValidTiming) {
       continue;
     }
     if (!evaluatePassiveSelfConditions(passive, part, state, member, skill, actionEntry)) {

@@ -5317,6 +5317,72 @@ test('ZoneUpEternal modifier makes deployed zone eternal', () => {
   assert.equal(committedRecord.actions[0].fieldStateApplied[0].powerRate, 1.95);
 });
 
+test('ZoneUpEternal with OnPlayerTurnStart timing and MoraleLevel condition activates when morale >= 6', () => {
+  const makeParty = (initialMorale) =>
+    createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            elements: ['Fire'],
+            initialMorale,
+            skills: [
+              {
+                id: 8103,
+                name: '火フィールド',
+                sp_cost: 0,
+                target_type: 'Field',
+                parts: [
+                  {
+                    skill_type: 'Zone',
+                    target_type: 'Field',
+                    elements: ['Fire'],
+                    power: [1.35, 0],
+                    effect: { exitCond: 'PlayerTurnEnd', exitVal: [4, 0] },
+                  },
+                ],
+              },
+            ],
+            passives: [
+              {
+                id: 90003,
+                name: '武運長久テスト',
+                timing: 'OnPlayerTurnStart',
+                condition: 'MoraleLevel()>=6',
+                parts: [
+                  {
+                    skill_type: 'ZoneUpEternal',
+                    target_type: 'Self',
+                    power: [0.15, 0],
+                    effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+                  },
+                ],
+              },
+            ],
+          }
+        : {}
+    );
+
+  // morale=6 → ZoneUpEternal condition satisfied → zone becomes eternal
+  const highMoraleState = createBattleStateFromParty(makeParty(6));
+  const { nextState: highNext } = commitTurn(
+    highMoraleState,
+    previewTurn(highMoraleState, { 0: { characterId: 'M1', skillId: 8103 } })
+  );
+  assert.equal(highNext.turnState.zoneState?.remainingTurns, null, 'zone should be eternal when morale>=6');
+  assert.equal(highNext.turnState.zoneState?.powerRate, 1.5, 'zone powerRate should include ZoneUpEternal bonus');
+
+  // morale=5 → condition not satisfied → zone keeps its original duration (4 turns, ticks to 3 after commit)
+  const lowMoraleState = createBattleStateFromParty(makeParty(5));
+  const { nextState: lowNext } = commitTurn(
+    lowMoraleState,
+    previewTurn(lowMoraleState, { 0: { characterId: 'M1', skillId: 8103 } })
+  );
+  assert.ok(
+    typeof lowNext.turnState.zoneState?.remainingTurns === 'number',
+    'zone should have finite duration when morale<6'
+  );
+  assert.notEqual(lowNext.turnState.zoneState?.remainingTurns, null, 'zone should not be eternal when morale<6');
+});
+
 test('new field zone overwrites the previous active field zone', () => {
   const party = createSixMemberManualParty((idx) => {
     if (idx === 0) {
