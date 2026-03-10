@@ -1114,6 +1114,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.syncMotivationSelectionControls();
         this.updateSlotSummary(slot);
         this.renderSelectionSummary();
+        this.updateSupportSlotVisibility(slot, target.value);
+        this.populateSupportStyleSelect(slot, target.value);
+      }
+
+      if (target.matches('[data-role="support-style-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        this.populateSupportLimitBreakSelect(slot, target.value);
       }
 
       if (target.matches('[data-role="limit-break-select"]')) {
@@ -1533,6 +1540,29 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       wrapper.appendChild(startSpEquipSelect);
       wrapper.appendChild(normalAttackBeltSelect);
       wrapper.appendChild(motivationSelect);
+
+      const supportStyleSelect = this.doc.createElement('select');
+      supportStyleSelect.setAttribute('data-role', 'support-style-select');
+      supportStyleSelect.setAttribute('data-slot', String(i));
+      supportStyleSelect.style.display = 'none'; // 初期非表示
+      const supportStyleEmptyOpt = this.doc.createElement('option');
+      supportStyleEmptyOpt.value = '';
+      supportStyleEmptyOpt.textContent = '（サポートなし）';
+      supportStyleSelect.appendChild(supportStyleEmptyOpt);
+      wrapper.appendChild(supportStyleSelect);
+
+      const supportLbSelect = this.doc.createElement('select');
+      supportLbSelect.setAttribute('data-role', 'support-lb-select');
+      supportLbSelect.setAttribute('data-slot', String(i));
+      supportLbSelect.style.display = 'none'; // 初期非表示
+      for (let lb = 0; lb <= 4; lb++) {
+        const opt = this.doc.createElement('option');
+        opt.value = String(lb);
+        opt.textContent = `LB${lb}`;
+        supportLbSelect.appendChild(opt);
+      }
+      wrapper.appendChild(supportLbSelect);
+
       wrapper.appendChild(initialBreakLabel);
       wrapper.appendChild(initialDpBaseLabel);
       wrapper.appendChild(initialDpCurrentInput);
@@ -1557,6 +1587,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.populatePassiveList(i, initial.styleId);
       this.syncInitialDpSelectionControls(i);
       this.updateSlotSummary(i);
+      this.updateSupportSlotVisibility(i, initial.styleId);
+      this.populateSupportStyleSelect(i, initial.styleId);
     }
 
     this.syncMotivationSelectionControls();
@@ -1719,6 +1751,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const motivationSelect = this.root.querySelector(
         `[data-role="motivation-select"][data-slot="${i}"]`
       );
+      const supportStyleSelect = this.root.querySelector(
+        `[data-role="support-style-select"][data-slot="${i}"]`
+      );
+      const supportLbSelect = this.root.querySelector(
+        `[data-role="support-lb-select"][data-slot="${i}"]`
+      );
       const initialBreakCheckbox = this.root.querySelector(
         `[data-role="initial-break-checkbox"][data-slot="${i}"]`
       );
@@ -1747,6 +1785,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         initialDpCurrent: normalizedDpState.currentDp,
         initialDpCap: normalizedDpState.effectiveDpCap,
         checkedSkillIds,
+        supportStyleId: Number(supportStyleSelect?.value) || null,
+        supportStyleLimitBreakLevel: Number(supportLbSelect?.value) || 0,
       });
     }
 
@@ -1804,6 +1844,23 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.populateLimitBreakSelect(i, styleSelect?.value ?? '', row.limitBreakLevel);
       if ((lbSelect?.value ?? '') !== beforeLb) {
         changedCount += 1;
+      }
+
+      // サポートスタイル: 先に populateStyleSelect → value セット → populateLbSelect → value セット
+      this.updateSupportSlotVisibility(i, styleSelect?.value ?? '');
+      this.populateSupportStyleSelect(i, styleSelect?.value ?? '');
+      const supportStyleSelect = this.root.querySelector(
+        `[data-role="support-style-select"][data-slot="${i}"]`
+      );
+      if (supportStyleSelect && row.supportStyleId != null) {
+        supportStyleSelect.value = String(row.supportStyleId);
+        this.populateSupportLimitBreakSelect(i, supportStyleSelect.value);
+        const supportLbSelect = this.root.querySelector(
+          `[data-role="support-lb-select"][data-slot="${i}"]`
+        );
+        if (supportLbSelect) {
+          supportLbSelect.value = String(row.supportStyleLimitBreakLevel ?? 0);
+        }
       }
 
       const drivePierceSelect = this.root.querySelector(
@@ -2173,6 +2230,54 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
   }
 
+  updateSupportSlotVisibility(slotIndex, mainStyleId) {
+    const styleSelect = this.root.querySelector(`[data-role="support-style-select"][data-slot="${slotIndex}"]`);
+    const lbSelect = this.root.querySelector(`[data-role="support-lb-select"][data-slot="${slotIndex}"]`);
+    if (!styleSelect) return;
+    const style = this.dataStore?.getStyleById(Number(mainStyleId));
+    const tier = String(style?.tier ?? '').toUpperCase();
+    const visible = ['SS', 'SSR'].includes(tier);
+    styleSelect.style.display = visible ? '' : 'none';
+    if (lbSelect) lbSelect.style.display = visible ? '' : 'none';
+    if (!visible) {
+      styleSelect.value = '';
+      if (lbSelect) lbSelect.value = '0';
+    }
+  }
+
+  populateSupportStyleSelect(slotIndex, mainStyleId) {
+    const select = this.root.querySelector(`[data-role="support-style-select"][data-slot="${slotIndex}"]`);
+    if (!select) return;
+    const candidates = this.dataStore?.listSupportStyleCandidates(Number(mainStyleId)) ?? [];
+    select.innerHTML = '';
+    const emptyOpt = this.doc.createElement('option');
+    emptyOpt.value = '';
+    emptyOpt.textContent = '（サポートなし）';
+    select.appendChild(emptyOpt);
+    for (const s of candidates) {
+      const opt = this.doc.createElement('option');
+      opt.value = String(s.id);
+      opt.textContent = `[${s.tier}] ${s.name}`;
+      select.appendChild(opt);
+    }
+  }
+
+  populateSupportLimitBreakSelect(slotIndex, supportStyleId) {
+    const select = this.root.querySelector(`[data-role="support-lb-select"][data-slot="${slotIndex}"]`);
+    if (!select) return;
+    const style = supportStyleId ? this.dataStore?.getStyleById(Number(supportStyleId)) : null;
+    const maxLb = style ? (this.dataStore?.getStyleLimitBreakMax(style) ?? 4) : 4;
+    const currentValue = Number(select.value ?? 0);
+    select.innerHTML = '';
+    for (let lb = 0; lb <= maxLb; lb++) {
+      const opt = this.doc.createElement('option');
+      opt.value = String(lb);
+      opt.textContent = `LB${lb}`;
+      select.appendChild(opt);
+    }
+    select.value = String(Math.min(currentValue, maxLb));
+  }
+
   populatePassiveList(slotIndex, styleId) {
     const container = this.root.querySelector(
       `[data-role="passive-list"][data-slot="${slotIndex}"]`
@@ -2270,6 +2375,24 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       out[i] = toInt(select?.value, START_SP_EQUIP_DEFAULT);
     }
     return out;
+  }
+
+  readSupportStyleMapFromDom() {
+    const map = {};
+    for (let i = 0; i < 6; i++) {
+      const select = this.root.querySelector(`[data-role="support-style-select"][data-slot="${i}"]`);
+      if (select?.value) map[i] = Number(select.value);
+    }
+    return map;
+  }
+
+  readSupportLbMapFromDom() {
+    const map = {};
+    for (let i = 0; i < 6; i++) {
+      const select = this.root.querySelector(`[data-role="support-lb-select"][data-slot="${i}"]`);
+      if (select) map[i] = Number(select.value ?? 0);
+    }
+    return map;
   }
 
   readDrivePierceMapFromDom() {
@@ -2513,6 +2636,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? this.readSkillSetMapFromDom();
     const limitBreakLevelsByPartyIndex =
       options.limitBreakLevelsByPartyIndex ?? this.readLimitBreakMapFromDom();
+    const supportStyleIdsByPartyIndex =
+      options.supportStyleIdsByPartyIndex ?? this.readSupportStyleMapFromDom();
+    const supportLimitBreakLevelsByPartyIndex =
+      options.supportLimitBreakLevelsByPartyIndex ?? this.readSupportLbMapFromDom();
     const drivePierceByPartyIndex =
       options.drivePierceByPartyIndex ?? this.readDrivePierceMapFromDom();
     const normalAttackElementsByPartyIndex =
@@ -2569,6 +2696,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       styleIds,
       skillSetsByPartyIndex,
       limitBreakLevelsByPartyIndex,
+      supportStyleIdsByPartyIndex,
+      supportLimitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
       normalAttackElementsByPartyIndex,
       initialMotivationByPartyIndex,
