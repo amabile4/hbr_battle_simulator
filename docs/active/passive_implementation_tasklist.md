@@ -354,7 +354,11 @@
     - 結果: `applyMoraleEffectsFromActions` が `{ moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents }` を返すように変更
     - `HealDpRate` 効果: `baseMaxDp * rate` で対象 DP を回復し、`dp_passive` ソースとして `record.dpEvents` / `entry.dpChanges` に記録
       - `dpPassiveMotivationEvents` として やる気+1 フックも接続済み
-    - 対応済みパッシブ: 激動, アンコール, 破竹の勢い, 愛嬌, お裾分け, クロノチェイン, 追加支援, 元気注入, 意気軒昂, 貴様に託した, 二度咲き, 慶福の一矢 等
+    - `BreakDownTurnUp` 効果: 全アクティブ DownTurn ステータスを `power[0]` ターン延長。`applyBreakDownTurnUpFromActions` として `applyEnemyBreakEffectsFromActions` の後で実行
+      - `entry.enemyStatusChanges` に `mode: 'BreakDownTurnUp'` イベントとして記録
+    - `AttackUp` 効果（ログのみ）: 攻撃バフ期間管理システム未実装のため状態変化なし。`committed.passiveEvents` に `attackUpRate` を持つイベントとして記録
+    - `AdditionalHitOnRemovingBuff` トリガー: スキルに `RemoveBuff` パーツがある場合に発火
+    - 対応済みパッシブ: 激動, アンコール, 破竹の勢い, 愛嬌, お裾分け, クロノチェイン, 追加支援, 元気注入, 意気軒昂, 貴様に託した, 二度咲き, 慶福の一矢, 破砕の喝采, 浄化の喝采, ひれ伏すでゲス！ 等
   - ✅ 完了: `ZoneUpEternal` の `OnPlayerTurnStart` / `OnEveryTurn` timing 対応
     - `hasActiveZoneUpEternalModifier` が `OnBattleStart/OnFirstBattleStart` 限定だった制約を解除
 
