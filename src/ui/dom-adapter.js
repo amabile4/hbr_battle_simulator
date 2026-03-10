@@ -1012,7 +1012,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return;
     }
 
-    this.bindSafeClickAction('[data-action="initialize"]', this.initializeBattle);
+    this.bindSafeClickAction('[data-action="initialize"]', () => this.initializeBattle());
     this.bindSafeClickAction('[data-action="preview"]', this.previewCurrentTurn);
     this.bindSafeClickAction('[data-action="commit"]', this.commitCurrentTurn);
     this.bindSafeClickAction('[data-action="open-od"]', () => this.openOdDialog('normal'));

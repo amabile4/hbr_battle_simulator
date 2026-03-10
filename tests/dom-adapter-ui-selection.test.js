@@ -937,3 +937,21 @@ test('initialize battle applies selected motivation and preserves it in turn pla
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['1'].currentDp, 17);
   assert.equal(adapter.turnPlanBaseSetup.initialDpStateByPartyIndex['1'].effectiveDpCap, 50);
 });
+
+test('InitializeBattle ボタン click で buildPartyFromStyleIds エラーにならないこと', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // ボタンクリックで MouseEvent が initializeBattle の第一引数に渡されると
+  // styleIds = MouseEvent になり "requires exactly 6 style IDs" エラーになる（修正前の挙動）
+  const btn = root.querySelector('[data-action="initialize"]');
+  btn.dispatchEvent(new win.Event('click', { bubbles: true }));
+
+  const status = adapter.getStatus?.() ?? '';
+  assert.ok(
+    !String(status).startsWith('Error:'),
+    `Expected no error but got: ${status}`
+  );
+});
