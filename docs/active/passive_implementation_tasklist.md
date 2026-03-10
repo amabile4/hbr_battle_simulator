@@ -351,8 +351,10 @@
     - `OverDrivePointUp` 効果: `state.turnState.odGauge` を直接更新（`resolveOverDrivePointUpPowerPercent` 経由）
     - `AdditionalTurn` 効果: `grantedExtraCharacterIds` に追加し extra turn を付与
     - `OnPlayerTurnStart` timing の対応（カレン専用パッシブ `貴様に託した` 向け）
-    - 結果: `applyMoraleEffectsFromActions` が `{ moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds }` を返すように変更
-    - 対応済みパッシブ: 激動, アンコール, 破竹の勢い, 愛嬌, お裾分け, クロノチェイン, 追加支援, 元気注入, 意気軒昂, 貴様に託した, 二度咲き 等
+    - 結果: `applyMoraleEffectsFromActions` が `{ moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents }` を返すように変更
+    - `HealDpRate` 効果: `baseMaxDp * rate` で対象 DP を回復し、`dp_passive` ソースとして `record.dpEvents` / `entry.dpChanges` に記録
+      - `dpPassiveMotivationEvents` として やる気+1 フックも接続済み
+    - 対応済みパッシブ: 激動, アンコール, 破竹の勢い, 愛嬌, お裾分け, クロノチェイン, 追加支援, 元気注入, 意気軒昂, 貴様に託した, 二度咲き, 慶福の一矢 等
   - ✅ 完了: `ZoneUpEternal` の `OnPlayerTurnStart` / `OnEveryTurn` timing 対応
     - `hasActiveZoneUpEternalModifier` が `OnBattleStart/OnFirstBattleStart` 限定だった制約を解除
 

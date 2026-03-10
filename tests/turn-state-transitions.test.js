@@ -8363,3 +8363,122 @@ test('AdditionalHitOnBreaking + AdditionalTurn does NOT grant extra turn when br
     'next turn should NOT be extra when no break occurred'
   );
 });
+
+test('AdditionalHitOnExtraSkill + HealDpRate: DP healed to AllyFront targets when EX skill used', () => {
+  // 慶福の一矢: EXスキル使用後、前衛全員のDPを+30%回復するパッシブのテスト
+  const BASE_MAX_DP = 1000;
+  const INITIAL_DP = 500;
+  const HEAL_RATE = 0.3; // power[0]=0.3 → 30% of baseMaxDp
+
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KOYUKI1',
+          characterName: 'KOYUKI1',
+          initialSP: 15,
+          initialDp: INITIAL_DP,
+          baseMaxDp: BASE_MAX_DP,
+          passives: [
+            {
+              id: 99980,
+              name: '慶福の一矢テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealDpRate', target_type: 'AllyFront', power: [HEAL_RATE, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99981,
+              name: 'EX Non-Attack',
+              sp_cost: 12,
+              is_restricted: 1,
+              // Non-attack EX skill to avoid confounding OD-based DP effects
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+          ],
+        }
+      : { initialDp: INITIAL_DP, baseMaxDp: BASE_MAX_DP }
+  );
+  const state = createBattleStateFromParty(party);
+  const actor = state.party.find((m) => m.characterId === 'KOYUKI1');
+  const initialActorDp = Number(actor?.dpState?.currentDp ?? 0);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'KOYUKI1', skillId: 99981 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+
+  // EX skill triggers HealDpRate passive: each AllyFront member gets +30% baseMaxDp DP
+  const expectedHeal = BASE_MAX_DP * HEAL_RATE; // 300
+
+  // Actor's own DP should increase (they are in AllyFront)
+  const actorAfter = nextState.party.find((m) => m.characterId === 'KOYUKI1');
+  const finalActorDp = Number(actorAfter?.dpState?.currentDp ?? 0);
+  assert.ok(
+    Math.abs(finalActorDp - (initialActorDp + expectedHeal)) < 1,
+    `Actor DP should increase by ${expectedHeal}: initial=${initialActorDp}, final=${finalActorDp}`
+  );
+
+  // dpChanges in the committed record should contain a dp_passive entry for the actor
+  const entry = committedRecord.actions.find((item) => item.characterId === 'KOYUKI1');
+  const dpChange = (entry?.dpChanges ?? []).find((c) => c.source === 'dp_passive');
+  assert.ok(dpChange, 'dpChanges should include dp_passive entry from HealDpRate passive trigger');
+  assert.ok(
+    Math.abs(dpChange.delta - expectedHeal) < 1,
+    `dp_passive delta should be ~${expectedHeal}, got ${dpChange.delta}`
+  );
+});
+
+test('AdditionalHitOnExtraSkill + HealDpRate does NOT fire when non-EX skill used', () => {
+  const BASE_MAX_DP = 1000;
+  const INITIAL_DP = 500;
+
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KOYUKI2',
+          characterName: 'KOYUKI2',
+          initialSP: 10,
+          initialDp: INITIAL_DP,
+          baseMaxDp: BASE_MAX_DP,
+          passives: [
+            {
+              id: 99982,
+              name: '慶福の一矢テスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealDpRate', target_type: 'AllyFront', power: [0.3, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99983,
+              name: 'Normal Attack',
+              sp_cost: 3,
+              // Not an EX skill (is_restricted not set)
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : { initialDp: INITIAL_DP, baseMaxDp: BASE_MAX_DP }
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'KOYUKI2', skillId: 99983 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  const entry = committedRecord.actions.find((item) => item.characterId === 'KOYUKI2');
+  const dpChange = (entry?.dpChanges ?? []).find((c) => c.source === 'dp_passive');
+  assert.ok(!dpChange, 'dp_passive should NOT appear when non-EX skill is used');
+});
