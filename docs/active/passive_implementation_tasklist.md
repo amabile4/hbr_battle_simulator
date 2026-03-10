@@ -334,6 +334,16 @@
     - `AdditionalHit*`（9種）: 正規パッシブは passive-level スキップ。トリガースキルパッシブはログ登録のみ
     - `AdditionalTurn`, `BreakDownTurnUp`, `HealSkillUsedCount`, `ReplaceNormalSkill`, `ReplacePursuit`: ホワイトリスト化・サイレントスキップ（アクション時対応または対象外）
   - ✅ 完了: 被弾時の自動霊符レベル増加（`applyTalismanLevelIncrementsFromActions`）、敵ターン終了時のリセット、`IsTalisman` 条件評価
+  - ✅ 完了: `HealSpRandom`（`value[0]` を SP量として使用）、`OverDrivePointUpRandom`（`value[0]*100` を OD%として使用）
+  - ✅ 完了: 残存 unwhitelisted 型の一括対応（30種）
+    - サイレントスキップ（アクション時対応または対象外）:
+      `AdditionalHitOnExtraSkill`, `AdditionalHitOnBreaking`, `AdditionalHitOnKillCount`, `AdditionalHitOnHealedSpWithoutSelfHeal`,
+      `AdditionalHitOnSpecifiedSkill`, `AdditionalHitOnRemovingBuff`, `AdditionalHitOnKill`,
+      `AdditionalHitOnZone`, `AdditionalHitOnOverDrivePointDownSkill`, `AdditionalHitOnPursuit`,
+      `ZoneUpEternal`, `DoubleActionExtraSkill`, `ShadowClone`, `BorderRefPDownByAdmiral`,
+      `ExecuteSkillOnPreTurn`, `RemoveSpecialStatus`, `ArrowCherryBlossoms`, `NegativeMind`, `Makeup`, `Mocktail`, `SpecialCommandCountUp`
+    - ログのみ（状態変化なし、パッシブイベント記録）:
+      `StunRandom`, `GiveDebuffTurnUp`, `SkillCondition`, `IgnoreEShieldElement`, `Dodge`, `SkillLimitCountUp`, `Misfortune`
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 
