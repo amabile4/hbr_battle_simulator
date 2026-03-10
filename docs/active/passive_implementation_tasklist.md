@@ -64,7 +64,7 @@
   - `OnFirstBattleStart` のランダム付与系は、シミュレータでは手動初期値を優先して no-op として扱う
   - `被ダメージで -1` は `enemyAttackTargetCharacterIds` を使う共通 hook として engine / record / passive log まで実装済み
   - `敵からダメージを受けると1段階減少` はヘルプ仕様に基づく `Motivation` 状態の共通ルールとして扱い、専用 `skill_type` は要求しない
-  - 未実装は `DP回復で +1` のイベントフック
+  - `DP回復で +1` のイベントフック: `applyMotivationFromDpHealEvents` として実装済み（`DP_EVENT_KINDS.DIRECT_HEAL` を検知し、被回復キャラ毎に最大 1 段階上昇）
 - [x] `FireMarkLevel`
   - 共通基盤として `CharacterStyle.markStates` と各 `*MarkLevel()` 条件評価は実装済み
   - battle start 時に、パーティー内の同属性 `elements` 人数ぶんだけ対象属性キャラへ永続で付与する
@@ -347,6 +347,10 @@
   - 実装済み: `DamageUpByOverDrive` (341)、`GiveAttackBuffUp` (4)、`GiveHealUp` (3)
   - [x] 後段エフェクト実装完了（Phase 6 後段と共に対応済み）
     - `AdditionalTurn`、`Funnel`: ホワイトリスト化（`Funnel` は `addStatusEffect` で実装、`AdditionalTurn` はサイレントスキップ）
+  - [x] `GiveDefenseDebuffUp` on `OnOverdriveStart` 動作確認済み（style 1005106 "Lead by Example" の 1 件）
+    - `applyPassiveTimingInternal` は `OnOverdriveStart` 指定で `giveDefenseDebuffUpRate` を正しく記録する
+    - `activateOverdrive` 経由では effectType のみ記録（rate 値なし）。プランニングツールとして問題なし
+    - テスト追加済み: `GiveDefenseDebuffUp passive on OnOverdriveStart records giveDefenseDebuffUpRate`
 
 ### スキルスロット起点パッシブ（generalize フラグ）→ 対象外
 

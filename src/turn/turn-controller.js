@@ -69,6 +69,10 @@ const MOTIVATION_DAMAGE_TAKEN_DELTA = -1;
 const MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE = 'MotivationDamage';
 const MOTIVATION_DAMAGE_TAKEN_PASSIVE_NAME = 'Motivation';
 const MOTIVATION_DAMAGE_TAKEN_PASSIVE_DESC = 'Motivation decreases when taking enemy damage';
+const MOTIVATION_DP_HEAL_DELTA = 1;
+const MOTIVATION_DP_HEAL_TRIGGER_TYPE = 'MotivationDpHeal';
+const MOTIVATION_DP_HEAL_PASSIVE_NAME = 'Motivation';
+const MOTIVATION_DP_HEAL_PASSIVE_DESC = 'Motivation increases when receiving DP heal from active skill';
 const AUTO_DP_CONSUMPTION_FLOOR = 1;
 const DEFAULT_AUTO_DOWN_TURN_REMAINING = 1;
 const DP_RATE_REFERENCE_MIN = 0;
@@ -2692,6 +2696,57 @@ export function applyEnemyAttackMotivationTriggers(state, targetCharacterIds = [
     });
   }
 
+  return events;
+}
+
+// やる気仕様: 「味方のアクティブスキルでDP回復効果を受けると1段階上昇」
+// DIRECT_DP_HEAL_SKILL_TYPES (HealDp, HealDpRate, ReviveDp, ReviveDpRate) によるDP増加時にトリガー
+// RegenerationDpTick / HealDpByDamage は対象外
+function applyMotivationFromDpHealEvents(state, dpEvents) {
+  const events = [];
+  const healedCharacterIds = new Set();
+  for (const event of dpEvents ?? []) {
+    if (String(event?.triggerType ?? '') !== DP_EVENT_KINDS.DIRECT_HEAL) {
+      continue;
+    }
+    // 実際にDPが増加した場合のみ（上限等で変化なしのケースを除外）
+    const startDp = Number(event?.startDpState?.currentDp ?? 0);
+    const endDp = Number(event?.endDpState?.currentDp ?? 0);
+    if (endDp <= startDp) {
+      continue;
+    }
+    const characterId = String(event?.characterId ?? '');
+    if (!characterId || healedCharacterIds.has(characterId)) {
+      continue;
+    }
+    const target = findMemberByCharacterId(state, characterId);
+    if (!target) {
+      continue;
+    }
+    const currentMotivation = Number(target.motivationState?.current ?? 0);
+    if (!Number.isFinite(currentMotivation) || currentMotivation <= 0) {
+      continue;
+    }
+    const maxMotivation = Number(target.motivationState?.max ?? 5);
+    if (currentMotivation >= maxMotivation) {
+      continue;
+    }
+    const change = target.setMotivationLevel(Math.min(maxMotivation, currentMotivation + MOTIVATION_DP_HEAL_DELTA));
+    if (Number(change?.delta ?? 0) === 0) {
+      continue;
+    }
+    healedCharacterIds.add(characterId);
+    events.push({
+      actorCharacterId: String(event?.actorCharacterId ?? characterId),
+      characterId,
+      source: 'motivation_status',
+      passiveId: 0,
+      passiveName: MOTIVATION_DP_HEAL_PASSIVE_NAME,
+      passiveDesc: MOTIVATION_DP_HEAL_PASSIVE_DESC,
+      triggerType: MOTIVATION_DP_HEAL_TRIGGER_TYPE,
+      ...change,
+    });
+  }
   return events;
 }
 
@@ -6034,6 +6089,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
   const skillSpEvents = applySkillSpGains(state, previewRecord);
   const actionDpEvents = applyDpEffectsFromActions(state, previewRecord);
+  const dpHealMotivationEvents = applyMotivationFromDpHealEvents(state, actionDpEvents);
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord, actionDpEvents);
   const moraleEvents = applyMoraleEffectsFromActions(state, previewRecord);
   applyTalismanLevelIncrementsFromActions(state, previewRecord);
@@ -6104,7 +6160,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         eventCeiling: ev.eventCeiling,
       }));
     entry.moraleChanges = [...(entry.moraleChanges ?? []), ...extraMoraleChanges];
-    const extraMotivationChanges = motivationEvents
+    const extraMotivationChanges = [...motivationEvents, ...dpHealMotivationEvents]
       .filter((ev) => ev.characterId === entry.characterId)
       .map((ev) => ({
         source: ev.source,

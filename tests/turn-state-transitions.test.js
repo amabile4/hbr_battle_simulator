@@ -7517,6 +7517,34 @@ test('DamageUpByOverDrive passive records damageUpByOverDriveRate and is not uns
   );
 });
 
+test('GiveDefenseDebuffUp passive on OnOverdriveStart records giveDefenseDebuffUpRate and is not unsupported', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 57001000,
+              name: '防デバフ強化',
+              timing: 'OnOverdriveStart',
+              condition: '',
+              parts: [{ skill_type: 'GiveDefenseDebuffUp', target_type: 'Self', power: [0.15] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.turnType = 'od';
+  const result = applyPassiveTiming(state, 'OnOverdriveStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === '防デバフ強化');
+  assert.ok(event, 'GiveDefenseDebuffUp passive should fire');
+  assert.ok((event.giveDefenseDebuffUpRate ?? 0) > 0, 'giveDefenseDebuffUpRate should be positive');
+  assert.ok(
+    !event.unsupportedEffectTypes?.includes('GiveDefenseDebuffUp'),
+    'GiveDefenseDebuffUp should not appear in unsupportedEffectTypes'
+  );
+});
+
 test('Talisman passive activates talisman state on enemy at battle start', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -7717,4 +7745,123 @@ test('IsTalisman condition evaluates correctly based on talisman active state', 
     undefined,
     'IsTalisman passive should NOT fire when talisman is inactive'
   );
+});
+
+// ===== やる気 DP回復フック テスト =====
+
+test('Motivation increases by 1 when receiving direct DP heal from active skill', () => {
+  // M1 が M2 に HealDpRate スキルを使用 → M2 のやる気が +1 されることを確認
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 8000,
+            name: 'DP回復',
+            sp_cost: 0,
+            parts: [{ skill_type: 'HealDpRate', target_type: 'AllyAll', power: [0.5, 0], value: [1, 0] }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      // M2: DP 50/100, やる気 3（普通）
+      return {
+        baseMaxDp: 100,
+        currentDp: 50,
+        initialMotivation: 3,
+        skills: [{ id: 8001, name: '通常', sp_cost: 0, parts: [] }],
+      };
+    }
+    return {};
+  });
+  let state = createBattleStateFromParty(party);
+  // OD1 preemptive でターンインデックス変化なし（やる気リセット等を避ける）
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  const m2 = nextState.party.find((m) => m.characterId === 'M2');
+  assert.equal(
+    m2.motivationState.current,
+    4,
+    'M2 motivation should increase by 1 after receiving DP heal'
+  );
+});
+
+test('Motivation does not increase when DP is already full', () => {
+  // M2 の DP が満タン → HealDpRate を受けても増加なし → やる気も変化しない
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 8000,
+            name: 'DP回復',
+            sp_cost: 0,
+            parts: [{ skill_type: 'HealDpRate', target_type: 'AllyAll', power: [0.5, 0], value: [1, 0] }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      // M2: DP 満タン（100/100）, やる気 3
+      return {
+        baseMaxDp: 100,
+        currentDp: 100,
+        initialMotivation: 3,
+        skills: [{ id: 8001, name: '通常', sp_cost: 0, parts: [] }],
+      };
+    }
+    return {};
+  });
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 8000 } });
+  const { nextState } = commitTurn(state, preview);
+
+  const m2 = nextState.party.find((m) => m.characterId === 'M2');
+  assert.equal(m2.motivationState.current, 3, 'Motivation should not change when DP is already full');
+});
+
+test('Motivation does not increase beyond max level 5', () => {
+  // やる気 5（絶好調）→ DP回復を受けても変化しない
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 8000,
+            name: 'DP回復',
+            sp_cost: 0,
+            parts: [{ skill_type: 'HealDpRate', target_type: 'AllyAll', power: [0.5, 0], value: [1, 0] }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        baseMaxDp: 100,
+        currentDp: 50,
+        initialMotivation: 5, // 最大
+        skills: [{ id: 8001, name: '通常', sp_cost: 0, parts: [] }],
+      };
+    }
+    return {};
+  });
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 8000 } });
+  const { nextState } = commitTurn(state, preview);
+
+  const m2 = nextState.party.find((m) => m.characterId === 'M2');
+  assert.equal(m2.motivationState.current, 5, 'Motivation should not exceed max level');
 });
