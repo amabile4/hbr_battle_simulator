@@ -1,6 +1,6 @@
 # Support Skills（サポート枠・共鳴アビリティ）実装タスクリスト
 
-> **ステータス**: ✅ 完了 | 📅 最終更新: 2026-03-11
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-11（Phase 2 タスク追加）
 
 ## 方針
 
@@ -513,3 +513,54 @@ git commit -m "test: add support skills unit tests and mark implementation compl
 - [x] サポートスタイル選択後に LB レベル選択が表示される（手動確認）
 - [x] バトル開始後、共鳴アビリティ効果が OnBattleStart パッシブとして発動する（手動確認）
 - [x] このファイルのステータスを `✅ 完了` に変更し、`docs/README.md` の該当行を更新する
+
+---
+
+## 追加タスク（Phase 2: 品質確認・未実装対応）
+
+> **ステータス**: 🟢 進行中 | 📅 追加日: 2026-03-11
+
+### Task A: パッシブログへの共鳴アビリティ表示確認
+
+**目的**: `initializeBattle` 後に共鳴アビリティ（OnBattleStart 等）のパッシブが Passive Log に正しく表示されることをテストで保証する。
+
+**現状**: `dom-adapter.js` line 2749 で `appendPassiveLogEvents(passiveEventsLastApplied)` が呼ばれており、動作している可能性が高い。しかし、テストによる保証がない。
+
+**作業**:
+- [ ] `tests/dom-adapter-ui-selection.test.js` にインテグレーションテストを追加
+  - supportStyleId 付きで `buildCharacterStyle` → `initializeBattle` → `adapter.passiveLogEntries` に共鳴アビリティ名が含まれること
+  - OnBattleStart timing の passive が passiveLogEntries に記録されること
+
+---
+
+### Task B: 共鳴アビリティ全タイミング・全 skill_type の動作確認
+
+**目的**: `support_skills.json` の 6 timing × 14 skill_type が正しく評価されることを確認する。
+
+**現状**:
+- timing: OnBattleStart / OnEveryTurn / OnFirstBattleStart / OnPlayerTurnStart / OnBattleWin / OnOverdriveStart → すべて `SUPPORTED_PASSIVE_TIMINGS` 内
+- skill_type: 14種（HealDpRate, AttackUp, DefenseUp, DamageRateUp, OverDrivePointUp, Morale, Mocktail, GiveAttackBuffUp, GiveDefenseDebuffUp, AdditionalHitOnBreaking, AdditionalHitOnHealedSpWithoutSelfHeal, BIYamawakiServant, HealSkillUsedCount, SkillLimitCountUp）→ すべて実装済みリストに存在
+
+**作業**:
+- [ ] 主要 timing × skill_type 組み合わせのユニットテスト追加
+  - `OnBattleStart` + `HealDpRate` / `AttackUp` / `DefenseUp`
+  - `OnEveryTurn` + `OverDrivePointUp` / `Morale`
+  - `OnOverdriveStart` + `DamageRateUp`
+  - `OnBattleWin` + `SkillLimitCountUp`
+- [ ] `BIYamawakiServant` の挙動確認（特定キャラ固有処理のため要確認）
+- [ ] 未発動の skill_type がある場合はバグとして修正
+
+---
+
+### Task C: GiveAttackBuffUp / GiveDefenseDebuffUp の状態変化付与対応
+
+**目的**: バフ付与型共鳴アビリティが戦闘計算に正しく反映されているか確認・修正する。
+
+**現状**: `GiveAttackBuffUp` / `GiveDefenseDebuffUp` は実装済みリストに存在するが、パッシブ発動時に「バフ状態」として継続管理されているか、戦闘計算（ダメージレート計算等）に反映されているかは未確認。
+
+**作業**:
+- [ ] `applyPassiveTimingInternal` 内の `GiveAttackBuffUp` / `GiveDefenseDebuffUp` 処理コードを確認
+- [ ] バフが戦闘計算（`attackUpRate` / `defenseDownRate` 等）に反映されているか確認
+- [ ] 未反映の場合、適切な状態管理（BuffState / passiveEventDetail 等）への追加を実装
+- [ ] パッシブログにバフ付与のエントリが表示されること確認
+- [ ] `npm test` で全テスト PASS を確認してコミット

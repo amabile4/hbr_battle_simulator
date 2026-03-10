@@ -1121,6 +1121,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (target.matches('[data-role="support-style-select"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
         this.populateSupportLimitBreakSelect(slot, target.value);
+        const lbVal = this.root.querySelector(`[data-role="support-lb-select"][data-slot="${slot}"]`)?.value ?? '0';
+        this.updateResonanceDetail(slot, target.value, lbVal);
+      }
+
+      if (target.matches('[data-role="support-lb-select"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        const supportStyleVal = this.root.querySelector(`[data-role="support-style-select"][data-slot="${slot}"]`)?.value ?? '';
+        this.updateResonanceDetail(slot, supportStyleVal, target.value);
       }
 
       if (target.matches('[data-role="limit-break-select"]')) {
@@ -1563,6 +1571,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       }
       wrapper.appendChild(supportLbSelect);
 
+      const resonanceDetail = this.doc.createElement('div');
+      resonanceDetail.setAttribute('data-role', 'resonance-detail');
+      resonanceDetail.setAttribute('data-slot', String(i));
+      wrapper.appendChild(resonanceDetail);
+
       wrapper.appendChild(initialBreakLabel);
       wrapper.appendChild(initialDpBaseLabel);
       wrapper.appendChild(initialDpCurrentInput);
@@ -1861,6 +1874,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         if (supportLbSelect) {
           supportLbSelect.value = String(row.supportStyleLimitBreakLevel ?? 0);
         }
+        this.updateResonanceDetail(
+          i,
+          String(row.supportStyleId ?? ''),
+          String(row.supportStyleLimitBreakLevel ?? '0')
+        );
       }
 
       const drivePierceSelect = this.root.querySelector(
@@ -2257,7 +2275,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     for (const s of candidates) {
       const opt = this.doc.createElement('option');
       opt.value = String(s.id);
-      opt.textContent = `[${s.tier}] ${s.name}`;
+      const charaJp = String(s.chara ?? '').split('—')[0].trim();
+      opt.textContent = charaJp ? `[${s.tier}] ${s.name} / ${charaJp}` : `[${s.tier}] ${s.name}`;
       select.appendChild(opt);
     }
   }
@@ -2276,6 +2295,27 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       select.appendChild(opt);
     }
     select.value = String(Math.min(currentValue, maxLb));
+  }
+
+  updateResonanceDetail(slotIndex, supportStyleId, lbLevel) {
+    const container = this.root.querySelector(
+      `[data-role="resonance-detail"][data-slot="${slotIndex}"]`
+    );
+    if (!container) return;
+    if (!supportStyleId) {
+      container.textContent = '';
+      return;
+    }
+    const passive = this.dataStore?.resolveSupportSkillPassive(
+      Number(supportStyleId),
+      Number(lbLevel ?? 0)
+    );
+    if (!passive) {
+      container.textContent = '';
+      return;
+    }
+    const desc = String(passive.desc ?? '').replace(/\n/g, ' ').trim();
+    container.textContent = `[共鳴] ${passive.name}: ${desc}`;
   }
 
   populatePassiveList(slotIndex, styleId) {
