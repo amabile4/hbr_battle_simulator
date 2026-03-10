@@ -2365,11 +2365,16 @@ function applyMarkEffectsFromActions() {
 }
 
 function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
-  const events = [];
+  const moraleEvents = [];
+  const spEvents = [];
 
   for (const passive of actor.passives ?? []) {
     const timing = String(passive?.timing ?? '').trim();
-    if (timing !== 'OnFirstBattleStart' && timing !== 'OnBattleStart') {
+    if (
+      timing !== 'OnFirstBattleStart' &&
+      timing !== 'OnBattleStart' &&
+      timing !== 'OnPlayerTurnStart'
+    ) {
       continue;
     }
 
@@ -2408,6 +2413,20 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         }
         return false;
       }
+      if (skillType === 'AdditionalHitOnBreaking') {
+        const breakHitCount = Math.max(0, Number(actionEntry?.breakHitCount ?? 0));
+        if (breakHitCount > 0) {
+          triggerMultiplier = breakHitCount;
+          return true;
+        }
+        return false;
+      }
+      if (skillType === 'AdditionalHitOnHealedSpWithoutSelfHeal') {
+        // Fires when the actor uses a skill that heals SP to targets other than self.
+        return (skill.parts ?? []).some(
+          (ep) => String(ep?.skill_type ?? '') === 'HealSp' && String(ep?.target_type ?? '') !== 'Self'
+        );
+      }
       return false;
     });
 
@@ -2416,48 +2435,105 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
     }
 
     for (const part of parts) {
-      if (String(part?.skill_type ?? '').trim() !== 'Morale') {
-        continue;
-      }
-      const amount = getMoraleAmount(part) * Math.max(1, triggerMultiplier || 1);
-      if (!amount) {
-        continue;
-      }
-      const targetCharacterIds = resolveSupportTargetCharacterIds(
-        state,
-        actor,
-        part?.target_type,
-        actionEntry?.targetCharacterId
-      );
-      for (const targetCharacterId of targetCharacterIds) {
-        const target = findMemberByCharacterId(state, targetCharacterId);
-        if (!target) {
+      const effectType = String(part?.skill_type ?? '').trim();
+
+      if (effectType === 'Morale') {
+        const amount = getMoraleAmount(part) * Math.max(1, triggerMultiplier || 1);
+        if (!amount) {
           continue;
         }
-        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+            continue;
+          }
+          const change = target.applyMoraleDelta(amount);
+          moraleEvents.push({
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            source: 'morale_passive',
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            triggerType: 'MoralePassiveTrigger',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            ...change,
+          });
+        }
+        continue;
+      }
+
+      if (effectType === 'HealSp') {
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
-        const change = target.applyMoraleDelta(amount);
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          source: 'morale_passive',
-          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
-          passiveName: String(passive?.name ?? ''),
-          triggerType: 'MoralePassiveTrigger',
-          skillId: skill.skillId,
-          skillName: skill.name,
-          ...change,
-        });
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+            continue;
+          }
+          const change = target.applySpDelta(amount, 'passive', null);
+          spEvents.push({
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            triggerType: 'SpPassiveTrigger',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            ...change,
+            source: 'sp_passive',
+          });
+        }
+        continue;
+      }
+
+      if (effectType === 'OverDrivePointUp') {
+        const amount = resolveOverDrivePointUpPowerPercent(part);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        if (targetCharacterIds.includes(actor.characterId)) {
+          state.turnState.odGauge = clampOdGauge(
+            truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0) + Number(amount))
+          );
+        }
+        continue;
       }
     }
   }
 
-  return events;
+  return { moraleEvents, spEvents };
 }
 
 function applyMoraleEffectsFromActions(state, previewRecord) {
-  const events = [];
+  const moraleEvents = [];
+  const spPassiveEvents = [];
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
@@ -2506,7 +2582,7 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
           continue;
         }
         const change = target.applyMoraleDelta(amount);
-        events.push({
+        moraleEvents.push({
           actorCharacterId: actor.characterId,
           characterId: target.characterId,
           source: 'morale_skill',
@@ -2518,10 +2594,12 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
       }
     }
 
-    events.push(...applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry));
+    const triggerResult = applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry);
+    moraleEvents.push(...triggerResult.moraleEvents);
+    spPassiveEvents.push(...triggerResult.spEvents);
   }
 
-  return events;
+  return { moraleEvents, spPassiveEvents };
 }
 
 function applyTalismanLevelIncrementsFromActions(state, previewRecord) {
@@ -6292,7 +6370,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const actionDpEvents = applyDpEffectsFromActions(state, previewRecord);
   const dpHealMotivationEvents = applyMotivationFromDpHealEvents(state, actionDpEvents);
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord, actionDpEvents);
-  const moraleEvents = applyMoraleEffectsFromActions(state, previewRecord);
+  const { moraleEvents, spPassiveEvents } = applyMoraleEffectsFromActions(state, previewRecord);
   applyTalismanLevelIncrementsFromActions(state, previewRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
   const markEvents = applyMarkEffectsFromActions(state, previewRecord);
@@ -6306,7 +6384,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     computeTranscendenceTurnSummary(state, previewRecord)
   );
   const recovery = applyRecoveryPipeline(state.party, state.turnState);
-  const recoveryEvents = [...skillSpEvents, ...recovery.spEvents];
+  const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
   const recoveryDpEvents = Array.isArray(recovery.dpEvents) ? [...recovery.dpEvents] : [];
 

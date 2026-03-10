@@ -344,6 +344,16 @@
       `ExecuteSkillOnPreTurn`, `RemoveSpecialStatus`, `ArrowCherryBlossoms`, `NegativeMind`, `Makeup`, `Mocktail`, `SpecialCommandCountUp`
     - ログのみ（状態変化なし、パッシブイベント記録）:
       `StunRandom`, `GiveDebuffTurnUp`, `SkillCondition`, `IgnoreEShieldElement`, `Dodge`, `SkillLimitCountUp`, `Misfortune`
+  - ✅ 完了: トリガー型パッシブの効果エンジン拡張（`applyMoralePassiveTriggerEffects` 汎用化）
+    - `AdditionalHitOnBreaking` トリガー: `actionEntry.breakHitCount > 0` で発火
+    - `AdditionalHitOnHealedSpWithoutSelfHeal` トリガー: スキルに HealSp (非Self) parts があるとき発火
+    - `HealSp` 効果: `applySpDelta('passive')` で SP付与、`sp_passive` ソースとして spChanges に記録
+    - `OverDrivePointUp` 効果: `state.turnState.odGauge` を直接更新（`resolveOverDrivePointUpPowerPercent` 経由）
+    - `OnPlayerTurnStart` timing の対応（カレン専用パッシブ `貴様に託した` 向け）
+    - 結果: `applyMoraleEffectsFromActions` が `{ moraleEvents, spPassiveEvents }` を返すように変更
+    - `spPassiveEvents` は `commitTurn` 内で `recoveryEvents` に追加し `entry.spChanges` に反映
+  - ✅ 完了: `ZoneUpEternal` の `OnPlayerTurnStart` / `OnEveryTurn` timing 対応
+    - `hasActiveZoneUpEternalModifier` が `OnBattleStart/OnFirstBattleStart` 限定だった制約を解除
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 

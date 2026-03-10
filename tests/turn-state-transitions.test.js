@@ -8057,3 +8057,218 @@ test('StunRandom passive logs a passive event (log-only, not unsupported)', () =
     'StunRandom must not appear in unsupportedEffectTypes'
   );
 });
+
+test('AdditionalHitOnBreaking + HealSp: SP healed for self when breakHitCount > 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK1',
+          characterName: 'BREAK1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 99910,
+              name: '激動テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99911,
+              name: 'Break Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BREAK1', skillId: 99911, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === 'BREAK1');
+  const spChange = (entry.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'spChanges should include sp_passive source from passive trigger');
+  assert.equal(spChange.delta, 8, 'HealSp passive trigger should add 8 SP');
+});
+
+test('AdditionalHitOnBreaking + HealSp does NOT fire when breakHitCount is 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK2',
+          characterName: 'BREAK2',
+          initialSP: 5,
+          passives: [
+            {
+              id: 99920,
+              name: '激動テスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99921,
+              name: 'No-Break Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BREAK2', skillId: 99921, breakHitCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord: rec2 } = commitTurn(state, preview);
+  const entry2 = rec2.actions.find((item) => item.characterId === 'BREAK2');
+  const spChange2 = (entry2.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spChange2, 'sp_passive should not appear when breakHitCount is 0');
+});
+
+test('AdditionalHitOnExtraSkill + OverDrivePointUp: OD gauge increases when EX skill used', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'EX1',
+          characterName: 'EX1',
+          initialSP: 15,
+          passives: [
+            {
+              id: 99930,
+              name: '追加支援テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.1, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99931,
+              name: 'EX Skill Test',
+              sp_cost: 12,
+              is_restricted: 1,
+              // Non-attack EX skill so no extra OD from applyOdGaugeFromActions
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'EX1', skillId: 99931 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  // OD gauge is in 0-100 scale; power[0]=0.1 → resolveOverDrivePointUpPowerPercent returns 10 (10%)
+  // No attack in skill so no additional OD from applyOdGaugeFromActions
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - (initialOdGauge + 10)) < 0.1,
+    `OD gauge should increase by 10 (10%): initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+test('AdditionalHitOnHealedSpWithoutSelfHeal + HealSp: self SP healed when skill heals ally SP', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'HEALER1',
+          characterName: 'HEALER1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 99940,
+              name: '愛嬌テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [3, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99941,
+              name: 'AllyHeal Skill',
+              sp_cost: 4,
+              parts: [{ skill_type: 'HealSp', target_type: 'AllyFront', power: [5, 0], value: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'HEALER1', skillId: 99941 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === 'HEALER1');
+  // SP: start 10, pay 4 → 6, skill heals self via AllyFront (+5) = 11, then passive trigger +3 = 14
+  // (AllyFront includes the actor if they are in front)
+  const spChange = (entry.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'spChanges should include sp_passive from AdditionalHitOnHealedSpWithoutSelfHeal trigger');
+  assert.equal(spChange.delta, 3, 'HealSp passive trigger should add 3 SP');
+});
+
+test('AdditionalHitOnHealedSpWithoutSelfHeal does NOT fire when skill only heals Self SP', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'SELFHEAL1',
+          characterName: 'SELFHEAL1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 99950,
+              name: '愛嬌テスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [3, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99951,
+              name: 'SelfHeal Skill',
+              sp_cost: 5,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'SELFHEAL1', skillId: 99951 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((item) => item.characterId === 'SELFHEAL1');
+  const spChange = (entry.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spChange, 'sp_passive should NOT fire when the skill only heals Self SP');
+});
