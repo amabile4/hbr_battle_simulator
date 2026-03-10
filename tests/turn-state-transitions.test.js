@@ -8482,3 +8482,97 @@ test('AdditionalHitOnExtraSkill + HealDpRate does NOT fire when non-EX skill use
   const dpChange = (entry?.dpChanges ?? []).find((c) => c.source === 'dp_passive');
   assert.ok(!dpChange, 'dp_passive should NOT appear when non-EX skill is used');
 });
+
+test('AdditionalHitOnBreaking + BreakDownTurnUp: extends DownTurn remaining when break occurs (ひれ伏すでゲス！)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BUNGO1',
+          characterName: 'BUNGO1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 100340603,
+              name: 'ひれ伏すでゲス！',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'AllyAll', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'BreakDownTurnUp', target_type: 'None', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99990,
+              name: 'Break Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // Manually set a DownTurn on enemy 0 (remaining 3 turns) to simulate pre-existing break state
+  // We simulate the break by providing breakHitCount=1, which means the passive fires,
+  // and applyEnemyBreakEffectsFromActions adds a new DownTurn (3 turns default),
+  // then applyBreakDownTurnUpFromActions extends it by 1.
+  const preview = previewTurn(state, {
+    0: { characterId: 'BUNGO1', skillId: 99990, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // The BreakDownTurnUp event should appear in entry.enemyStatusChanges
+  const entry = committedRecord.actions.find((item) => item.characterId === 'BUNGO1');
+  const bdt = (entry?.enemyStatusChanges ?? []).find((ev) => ev.mode === 'BreakDownTurnUp');
+  assert.ok(bdt, 'enemyStatusChanges should include BreakDownTurnUp event when break occurs');
+  assert.equal(bdt.extension, 1, 'BreakDownTurnUp extension should be 1');
+  // The event's remainingTurns = DEFAULT_AUTO_DOWN_TURN_REMAINING(1) + extension(1) = 2
+  assert.equal(bdt.remainingTurns, 2, 'BreakDownTurnUp event remainingTurns should be 2 after extension');
+});
+
+test('AdditionalHitOnBreaking + BreakDownTurnUp does NOT fire when breakHitCount is 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BUNGO2',
+          characterName: 'BUNGO2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 100340604,
+              name: 'ひれ伏すでゲス！2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'AllyAll', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'BreakDownTurnUp', target_type: 'None', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99991,
+              name: 'Normal Attack',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'BUNGO2', skillId: 99991, breakHitCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  const entry = committedRecord.actions.find((item) => item.characterId === 'BUNGO2');
+  const bdt = (entry?.enemyStatusChanges ?? []).find((ev) => ev.mode === 'BreakDownTurnUp');
+  assert.ok(!bdt, 'BreakDownTurnUp should NOT fire when breakHitCount is 0');
+});

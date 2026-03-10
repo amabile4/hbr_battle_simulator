@@ -4300,6 +4300,92 @@ function findMemberByCharacterId(state, characterId) {
   return state.party.find((member) => member.characterId === characterId) ?? null;
 }
 
+// ブレイク時にダウンターンを延長するパッシブ（ひれ伏すでゲス！など）を処理する。
+// applyEnemyBreakEffectsFromActions の後に呼ぶことで、同ターン付与のDownTurnも対象にできる。
+function applyBreakDownTurnUpFromActions(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const breakHitCount = Math.max(0, Number(actionEntry?.breakHitCount ?? 0));
+    if (breakHitCount === 0) {
+      continue;
+    }
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId) ?? null;
+
+    for (const passive of actor.passives ?? []) {
+      const timing = String(passive?.timing ?? '').trim();
+      if (
+        timing !== 'OnFirstBattleStart' &&
+        timing !== 'OnBattleStart' &&
+        timing !== 'OnPlayerTurnStart'
+      ) {
+        continue;
+      }
+
+      const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+
+      // Check AdditionalHitOnBreaking trigger
+      const hasTrigger = parts.some((part) => {
+        if (String(part?.skill_type ?? '') !== 'AdditionalHitOnBreaking') {
+          return false;
+        }
+        const conditions = [passive?.condition, part?.cond, part?.hit_condition]
+          .map((value) => String(value ?? '').trim())
+          .filter(Boolean);
+        const conditionSkill = createConditionSkillContext(skill ?? { parts: [] }, part);
+        return conditions.every((expr) =>
+          evaluateConditionExpression(expr, state, actor, conditionSkill, actionEntry).result
+        );
+      });
+
+      if (!hasTrigger) {
+        continue;
+      }
+
+      for (const part of parts) {
+        if (String(part?.skill_type ?? '') !== 'BreakDownTurnUp') {
+          continue;
+        }
+        const extension = Math.max(0, Number(part?.power?.[0] ?? 0));
+        if (extension === 0) {
+          continue;
+        }
+        // Extend all currently active DownTurn statuses
+        const activeDownTurns = getActiveEnemyStatuses(state.turnState, ENEMY_STATUS_DOWN_TURN);
+        for (const status of activeDownTurns) {
+          const targetIndex = Number(status?.targetIndex ?? -1);
+          if (targetIndex < 0) {
+            continue;
+          }
+          const currentRemaining = Number(status?.remainingTurns ?? 0);
+          const newRemaining = currentRemaining + extension;
+          upsertEnemyStatus(state.turnState, {
+            statusType: ENEMY_STATUS_DOWN_TURN,
+            targetIndex,
+            remainingTurns: newRemaining,
+          });
+          events.push({
+            actorCharacterId: actor.characterId,
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            mode: 'BreakDownTurnUp',
+            targetIndex,
+            statusType: ENEMY_STATUS_DOWN_TURN,
+            extension,
+            remainingTurns: newRemaining,
+          });
+        }
+      }
+    }
+  }
+
+  return events;
+}
+
 function hasReinforcedMode(member) {
   if (member.isReinforcedMode) {
     return true;
@@ -6448,6 +6534,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const guardEvents = applyGuardEffectsFromActions(state, previewRecord);
   const enemyBreakEvents = applyEnemyBreakEffectsFromActions(state, previewRecord);
+  const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
   const transcendenceSummary = applyTranscendenceTurnSummary(
     state,
@@ -6556,9 +6643,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     entry.fieldStateApplied = fieldStateEvents.filter(
       (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
     );
-    entry.enemyStatusChanges = enemyBreakEvents.filter(
-      (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-    );
+    entry.enemyStatusChanges = [
+      ...enemyBreakEvents.filter(
+        (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
+      ),
+      ...breakDownTurnUpEvents.filter((ev) => ev.actorCharacterId === entry.characterId),
+    ];
     member.incrementSkillUseById(entry.skillId);
   }
 
