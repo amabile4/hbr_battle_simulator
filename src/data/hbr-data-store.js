@@ -304,13 +304,19 @@ export class HbrDataStore {
     if (!mainStyle) return [];
     const mainTier = String(mainStyle.tier ?? '').toUpperCase();
     if (!['SS', 'SSR'].includes(mainTier)) return [];
-    const mainElements = new Set(Array.isArray(mainStyle.elements) ? mainStyle.elements : []);
+    const mainElements = new Set(
+      (Array.isArray(mainStyle.elements) ? mainStyle.elements : []).filter(
+        (el) => el && String(el) !== 'None'
+      )
+    );
     if (mainElements.size === 0) return [];
     return this.styles.filter((s) => {
       if (Number(s.id) === Number(mainStyleId)) return false;
       const tier = String(s.tier ?? '').toUpperCase();
       if (!['SS', 'SSR'].includes(tier)) return false;
-      const sElements = Array.isArray(s.elements) ? s.elements : [];
+      const sElements = (Array.isArray(s.elements) ? s.elements : []).filter(
+        (el) => el && String(el) !== 'None'
+      );
       return sElements.some((el) => mainElements.has(el));
     });
   }

@@ -223,6 +223,102 @@ test('listSupportStyleCandidates: 属性(elements)が一致しなければ武器
   }
 });
 
+test('listSupportStyleCandidates: 複数elements(Dark+Fire)の場合、DarkもFireも両方の属性から候補に含まれること', () => {
+  const store = getStore();
+  // 実データ: Dark+Fire の SSR スタイルを使用（id: 1001108）
+  const mainStyle = store.styles.find(
+    (s) => Array.isArray(s.elements) && s.elements.length >= 2 &&
+           ['SS', 'SSR'].includes(String(s.tier ?? '').toUpperCase())
+  );
+  if (!mainStyle) return;
+
+  const candidates = store.listSupportStyleCandidates(mainStyle.id);
+  const candidateIds = new Set(candidates.map((c) => Number(c.id)));
+  const mainEls = mainStyle.elements.filter((el) => el && el !== 'None');
+
+  // 各属性について「その属性を持つ SS/SSR スタイル」が候補に含まれることを確認
+  for (const el of mainEls) {
+    const sameElStyles = store.styles.filter(
+      (s) =>
+        Number(s.id) !== Number(mainStyle.id) &&
+        ['SS', 'SSR'].includes(String(s.tier ?? '').toUpperCase()) &&
+        Array.isArray(s.elements) &&
+        s.elements.includes(el)
+    );
+    assert.ok(
+      sameElStyles.length > 0,
+      `test setup: should find SS/SSR style with element "${el}"`
+    );
+    for (const s of sameElStyles) {
+      assert.ok(
+        candidateIds.has(Number(s.id)),
+        `Style id=${s.id} with element "${el}" should be in candidates for multi-element main style`
+      );
+    }
+  }
+});
+
+test('listSupportStyleCandidates: Fire+None の場合、Noneのみを持つスタイルは候補に含まれないこと（無属性は除外）', () => {
+  const store = HbrDataStore.fromRawData({
+    characters: [],
+    skills: [],
+    passivesDb: [],
+    skillRules: {},
+    epRules: {},
+    supportSkills: [],
+    styles: [
+      { id: 101, tier: 'SS', elements: ['Fire', 'None'], weapon: 'Slash', chara_label: 'MainA', name: 'Main Fire+None' },
+      { id: 102, tier: 'SS', elements: ['None'],         weapon: 'Stab',  chara_label: 'CandB', name: 'Cand None only' },
+      { id: 103, tier: 'SS', elements: ['Fire'],         weapon: 'Strike', chara_label: 'CandC', name: 'Cand Fire only' },
+      { id: 104, tier: 'SS', elements: ['None', 'Dark'], weapon: 'Slash',  chara_label: 'CandD', name: 'Cand None+Dark' },
+    ],
+  });
+
+  const candidates = store.listSupportStyleCandidates(101);
+  const candidateIds = new Set(candidates.map((c) => Number(c.id)));
+
+  // Fire属性の候補は含まれる
+  assert.ok(candidateIds.has(103), 'Style with Fire element should be included');
+  // Noneのみの候補は含まれない
+  assert.ok(!candidateIds.has(102), 'Style with only None element should NOT be included');
+  // None+Darkの候補も None では含まれない（Dark も持たないので除外）
+  assert.ok(!candidateIds.has(104), 'Style with None+Dark should NOT be included when main has only Fire (no Dark)');
+});
+
+test('listSupportStyleCandidates: Fire+None のメインに対し、共鳴アビリティもFireのみから得られること', () => {
+  const store = HbrDataStore.fromRawData({
+    characters: [],
+    skills: [],
+    passivesDb: [],
+    skillRules: {},
+    epRules: {},
+    supportSkills: [
+      {
+        id: 1,
+        label: 'MockGroup',
+        list: [{ id: 9001, lb_lv: 0, passive: { id: 9001, name: 'MockPassive', timing: 'OnBattleStart', parts: [], desc: 'test' } }],
+        styles: [],
+      },
+    ],
+    styles: [
+      { id: 101, tier: 'SS', elements: ['Fire', 'None'], weapon: 'Slash', chara_label: 'MainA', name: 'Main Fire+None', resonance: null },
+      { id: 102, tier: 'SS', elements: ['None'],         weapon: 'Stab',  chara_label: 'CandB', name: 'Cand None only', resonance: 'MockGroup' },
+      { id: 103, tier: 'SS', elements: ['Fire'],         weapon: 'Strike', chara_label: 'CandC', name: 'Cand Fire only', resonance: 'MockGroup' },
+    ],
+  });
+
+  // None属性のスタイル(id=102)は候補に含まれないため、共鳴アビリティも得られない
+  const candidates = store.listSupportStyleCandidates(101);
+  const candidateIds = new Set(candidates.map((c) => Number(c.id)));
+  assert.ok(!candidateIds.has(102), 'None-element support style should not be selectable');
+  assert.ok(candidateIds.has(103), 'Fire-element support style should be selectable');
+
+  // Fire属性(id=103)から共鳴アビリティは解決できる
+  const passive = store.resolveSupportSkillPassive(103, 0);
+  assert.ok(passive !== null, 'Fire-element support style should resolve resonance passive');
+  assert.equal(passive.sourceType, 'support');
+});
+
 test('dataStore.resolveSupportSkillPassive(resonanceNullStyleId, 0): resonance なしは null', () => {
   const store = getStore();
   const styleWithoutResonance = store.styles.find(
