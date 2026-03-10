@@ -1851,9 +1851,10 @@ test('six-fire real-data opening SP includes fire mark level 6 recovery before t
 
   applyInitialPassiveState(state);
 
+  // Index 2 (style 1001106 "つかの間の安息"): 吉報 passive (HealSpRandom lb=3) adds +3 SP at OnEveryTurn
   assert.deepEqual(
     state.party.map((member) => member.sp.current),
-    [13, 12, 12, 11, 11, 11]
+    [13, 12, 15, 11, 11, 11]
   );
 });
 
@@ -7864,4 +7865,79 @@ test('Motivation does not increase beyond max level 5', () => {
 
   const m2 = nextState.party.find((m) => m.characterId === 'M2');
   assert.equal(m2.motivationState.current, 5, 'Motivation should not exceed max level');
+});
+
+test('HealSpRandom passive heals SP using value[0] as amount (always succeeds)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          position: 0, // front
+          passives: [
+            {
+              id: 99901,
+              name: '吉報テスト',
+              timing: 'OnEveryTurn',
+              condition: 'IsFront()',
+              parts: [{ skill_type: 'HealSpRandom', target_type: 'Self', power: [0.3, 0], value: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+  const event = result.passiveEvents.find((e) => e.passiveName === '吉報テスト');
+  assert.ok(event, 'HealSpRandom passive should fire');
+  assert.ok(!event.unsupportedEffectTypes?.includes('HealSpRandom'), 'should not be unsupported');
+  const m1 = state.party.find((m) => m.characterId === 'M1');
+  assert.equal(m1.sp.current, 8, 'SP should increase by value[0]=3');
+});
+
+test('OverDrivePointUpRandom passive increases OD gauge using value[0]*100 (always succeeds)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          position: 0, // front
+          passives: [
+            {
+              id: 99902,
+              name: '福運テスト',
+              timing: 'OnEveryTurn',
+              condition: 'IsFront()',
+              parts: [{ skill_type: 'OverDrivePointUpRandom', target_type: 'Self', power: [0.3, 0], value: [0.1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 50;
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+  const event = result.passiveEvents.find((e) => e.passiveName === '福運テスト');
+  assert.ok(event, 'OverDrivePointUpRandom passive should fire');
+  assert.ok(!event.unsupportedEffectTypes?.includes('OverDrivePointUpRandom'), 'should not be unsupported');
+  assert.equal(state.turnState.odGauge, 60, 'OD gauge should increase by value[0]*100=10%');
+});
+
+test('TokenSetByAttacking passive is silently skipped at timing boundary (handled at action time)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 99903,
+              name: '戦勲テスト',
+              timing: 'OnFirstBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'TokenSetByAttacking', target_type: 'Self', power: [1, 0], value: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const result = applyPassiveTiming(state, 'OnFirstBattleStart');
+  const event = result.passiveEvents.find((e) => e.passiveName === '戦勲テスト');
+  assert.ok(!event, 'TokenSetByAttacking at timing boundary should be silently skipped (no event)');
 });

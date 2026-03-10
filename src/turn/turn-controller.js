@@ -4908,6 +4908,15 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'ReplacePursuit' &&
           skillType !== 'BuffCharge' &&
           skillType !== 'BreakDownTurnUp' &&
+          skillType !== 'HealSpRandom' &&
+          skillType !== 'OverDrivePointUpRandom' &&
+          skillType !== 'TokenSetByAttacking' &&
+          skillType !== 'TokenSetByAttacked' &&
+          skillType !== 'TokenSetByHealedDp' &&
+          skillType !== 'BIYamawakiServant' &&
+          skillType !== 'DamageRateUpPerToken' &&
+          skillType !== 'AttackUpPerToken' &&
+          skillType !== 'DefenseUpPerToken' &&
           !MARK_SKILL_TYPE_TO_ELEMENT[skillType]
         ) {
           if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
@@ -5463,6 +5472,105 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
 
         if (skillType === 'BuffCharge') {
           // Charge/stacking buff. Log passive event; no state change.
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            matched = true;
+            break;
+          }
+          continue;
+        }
+
+        if (skillType === 'HealSpRandom') {
+          // 確率でSP回復: power[0] = probability (always succeeds in simulator), value[0] = SP amount
+          const amount = Number(part?.value?.[0] ?? 0);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const change = target.applySpDelta(amount, 'passive');
+            spEvents.push({
+              actorCharacterId: member.characterId,
+              characterId: target.characterId,
+              source: 'sp_passive',
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              targetType: String(part?.target_type ?? ''),
+              ...change,
+            });
+            matched = true;
+            totalDelta += Number(change?.delta ?? 0);
+          }
+          continue;
+        }
+
+        if (skillType === 'OverDrivePointUpRandom') {
+          // 確率でODゲージ増加: power[0] = probability (always succeeds), value[0] = gauge% (e.g. 0.1 → 10%)
+          const amount = truncateToTwoDecimals(Number(part?.value?.[0] ?? 0) * 100);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (!targetCharacterIds.includes(member.characterId)) {
+            continue;
+          }
+          turnState.odGauge = clampOdGauge(
+            truncateToTwoDecimals(Number(turnState.odGauge ?? 0) + amount)
+          );
+          matched = true;
+          totalOdGaugeDelta += amount;
+          continue;
+        }
+
+        if (
+          skillType === 'TokenSetByAttacking' ||
+          skillType === 'TokenSetByAttacked' ||
+          skillType === 'TokenSetByHealedDp' ||
+          skillType === 'BIYamawakiServant'
+        ) {
+          // Action-time or character-specific triggers; handled outside the timing pipeline.
+          continue;
+        }
+
+        if (
+          skillType === 'DamageRateUpPerToken' ||
+          skillType === 'AttackUpPerToken' ||
+          skillType === 'DefenseUpPerToken'
+        ) {
+          // Per-token rate modifiers; resolved at action/preview time via dedicated resolvers.
+          // Log the passive event (matched=true) so the user sees the passive is active.
           const targetCharacterIds = resolveSupportTargetCharacterIds(
             state,
             member,
