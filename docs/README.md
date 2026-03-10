@@ -43,6 +43,7 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
+| [active/support_skills_implementation_tasklist.md](active/support_skills_implementation_tasklist.md) | ✅ 完了 | サポート枠・共鳴アビリティ実装の7ステップタスクリスト | 2026-03-11 |
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次に進める実装テーマの優先順位と再開順 | 2026-03-09 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画 | 2026-03-09 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-08 |
