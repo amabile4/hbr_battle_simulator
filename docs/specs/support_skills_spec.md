@@ -1,20 +1,15 @@
-# Support Skills & Resonance Abilities Specification
+# サポートスキル・共鳴アビリティ仕様
 
-## Overview
+## 概要
+本書は、HEAVEN BURNS RED Battle Simulator における**サポートスキル**（別名：共鳴アビリティ / Resonance Abilities）のデータ構造と、そのシミュレーター実装に向けた仕様についてまとめたものです。
 
-This document outlines the findings and implementation specifications for **Support Skills** (also known as Resonance Abilities / 共鳴アビリティ) within the HEAVEN BURNS RED Battle Simulator data structure.
+### 1. データソース
+共鳴アビリティのプライマリ・データソースは、**`docs/specs/support_skills.json`**（マスターデータサーバーから別途取得された参考データ）です。
+通常のスキル(`skills.json`)やパッシブスキル(`passives.json`)とは異なり、独自構造の別ファイルとして管理されています。
 
-### 1. Data Source
-
-The primary data source for Resonance Abilities is **`json/support_skills.json`**.
-Unlike standard active skills (`skills.json`) or passive skills (`passives.json`), Resonance Abilities are maintained in a completely separate JSON endpoint on the master data server.
-
-### 2. Linkage to Styles
-
-A Style is granted a Resonance Ability if it has the `resonance` key defined in `json/styles.json`.
-
-- **Example from `styles.json`**:
-
+### 2. スタイルとの紐付け
+あるスタイルが共鳴アビリティを持っている場合、`json/styles.json` 内の該当スタイル定義に `resonance` というキーが存在します。
+- **`styles.json` 側の例**:
   ```json
   {
     "id": 1006506,
@@ -22,29 +17,22 @@ A Style is granted a Resonance Ability if it has the `resonance` key defined in 
     "resonance": "SupportSkill_IrOhshima01"
   }
   ```
+この `resonance` の値（例: `"SupportSkill_IrOhshima01"`）は、後述する `support_skills.json` の `styles` 配列内にある `group` キーと対応しています。
 
-The `resonance` value (e.g., `"SupportSkill_IrOhshima01"`) corresponds to the `group` key within the `styles` array inside `support_skills.json`.
+### 3. `support_skills.json` の構造
+`support_skills.json` には、主に `skills` と `styles` の2つの配列が含まれています。
 
-### 3. Structure of `support_skills.json`
+#### `skills` 配列
+実際のアビリティ効果とロジックを定義する配列です。各エントリは1つのサポートスキルを表し、効果量(`power`, `value`)や上限増分(`diff_for_max`)などは、サポートにセットされたスタイルの限界突破レベル（Limit Break）等に応じて変動するように設定されています。
+- 主なフィールド:
+  - `id`: サポートスキル固有の内部ID
+  - `name`: 画面に表示される共鳴アビリティ名（例: `"素敵な夜"`, `"フィーバー・サマータイム"` 等）
+  - `desc`: アビリティ効果の説明文
+  - `parts`: 通常の `skills.json` や `passives.json` と同様に、内部効果ロジック(`skill_type`, `power`, `exitCond` 等)が定義される配列
 
-`support_skills.json` contains two main arrays: `skills` and `styles`.
-
-#### `skills` Array
-
-This array defines the actual abilities. Each entry represents a support skill and includes varying `power` / `value` / `diff_for_max` fields that scale based on the condition (which is typically tied to the Limit Break level of the style set in the support slot).
-
-- Important fields per entry in `skills`:
-  - `id`: The internal support skill ID.
-  - `name`: The visible name of the Resonance Ability (e.g., `"素敵な夜"` for Mocktail, `"フィーバー・サマータイム"`).
-  - `desc`: A description of what the support skill does.
-  - `parts`: The actual skill logic (similar to standard `skills.json` or `passives.json`), defining `skill_type`, `effect_type`, `power`, `value`, etc.
-
-#### `styles` Array
-
-This array acts as the bridge mapping specific Character/Style IDs to the Support Skill groups.
-
-- Example:
-
+#### `styles` 配列
+特定のキャラクター/スタイルIDと、サポートスキルグループ（`resonance`）を橋渡しするためのマッピング配列です。
+- 例:
   ```json
   "styles": [
     {
@@ -54,20 +42,17 @@ This array acts as the bridge mapping specific Character/Style IDs to the Suppor
     }
   ]
   ```
+これにより、内部ID (`1006506`) が `"SupportSkill_IrOhshima01"` というグループに紐付けられます。（※実装としては、この情報や `styles.json` 内の `"resonance"` フィールドをもとに、対象のスキル効果を紐解くことになります）
 
-This links the internal ID (`1006506`) to the group `"SupportSkill_IrOhshima01"`. The implementation must find the corresponding skill set within the `skills` array that shares the ID mapped internally by this relationship (though often, the `skills` array elements directly match by character context or internal reference IDs).
+### 4. 共鳴アビリティの性質
+- **発動条件**: 対象のスタイルが、**同じ元素属性を持つSS/SSRメインスタイルの「サポート枠」に編成されている場合のみ**、パッシブバフとしてバトル中に発動します。
+- **効果の変動（限界突破）**: 多くのサポートスキルは、サポート枠にセットされたスタイルの限界突破状態（無凸〜完凸など）に応じて効果スケールが変わります。シミュレーターで計算する際は、この限界突破レベルを加味してパラメータ（補正値）を決定する必要があります。
+- **メイン編成時の無効化**: 共鳴アビリティを持つスタイル自身をメイン枠に直接出撃させた場合は、この「共鳴アビリティ」は発動せず、効果はパーティに付与されません。
 
-### 4. Characteristics of Resonance Abilities
+### 5. シミュレーター実装に向けたロードマップ
+シミュレーターにサポート枠および共鳴アビリティを実装するための手順は以下の通りです。
 
-- **Trigger**: They function strictly as passive buffs that activate *only* when the style possessing them is placed in the **Support Slot** of an SS/SSR main style of the same element.
-- **Scaling**: Many support skills have effects that scale up based on the Limit Break (限界突破) tiers in the game. When building the simulator logic, the parameter calculations for these skills must account for the Support Style's current Limit Break level.
-- **Exclusion**: If a style with a Resonance Ability is placed in the Main Slot and enters battle directly, the Resonance Ability is **ignored** and does not grant its passive effect to the party.
-
-### 5. Implementation Roadmap
-
-To integrate this into the simulator:
-
-1. **Data Loading**: Ensure `support_skills.json` is loaded alongside other asset databases in the simulator's initialization phase.
-2. **Party Formation UI**: Allow users to set a `supportStyleId` (from a list of valid same-element styles) for any SS/SSR character in the party.
-3. **Stat Bonus**: Automatically apply `10%` of the support style's total stats (post-Limit Break, post-level calculations) to the main style.
-4. **Passive Injection (Resonance)**: During battle initialization (or Turn Start depending on the exact `timing`/`cond` of the skill), verify if `mainStyle.supportStyleId` has a valid `resonance` mapping in `styles.json`. If true, extract the corresponding skill from `support_skills.json` and inject it into the main style's active passive effects pool.
+1. **データ取得**: `support_skills.json` は自動更新の対象外とし、`docs/specs/` 配下に静的な参考データとして配置する。
+2. **編成UIの改修**: SSまたはSSRのキャラクタースロットに対して、属性一致のサポートスタイル(`supportStyleId`)を設定できるようにする。
+3. **ステータスボーナス処理**: 戦闘開始前の初期化タイミングで、サポート枠にセットされたスタイルの最終ステータス（限界突破・レベル反映後）の**10%**を、メインスタイルの基礎パラメータへ加算する。
+4. **パッシブ効果の動的注入**: バトル開始時（または該当アビリティのTriggerタイミングにあわせて）、`mainStyle.supportStyleId` ベースのスタイルが持つ `resonance` キーを参照し、関連するサポートスキルの効果（モクテル付与、スキル攻撃力アップ等）を抽出のうえ、メインスタイルのパッシブループ/初期バフ状態へ直接付与する（例: `resolveSupportSkills()` のような処理層を設ける）。
