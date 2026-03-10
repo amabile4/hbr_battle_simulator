@@ -533,6 +533,24 @@ git commit -m "test: add support skills unit tests and mark implementation compl
 
 ---
 
+### Task A-0: 属性フィルタリング仕様の明示的テスト（完了）
+
+**目的**: `listSupportStyleCandidates` が元素属性（elements）のみで絞り込み、武器種別（weapon）を条件に使わないことをテストで保証する。
+
+**確定仕様**（`help/HEAVEN_BURNS_RED/バトル/サポート枠.md` に追記済み）:
+- 絞り込み条件は「元素属性（elements）」のみ
+- 武器種別（Slash/Stab/Strike 等）は条件に含まれない
+
+**作業**:
+- [x] `tests/support-skills.test.js` に3テスト追加（2026-03-11）:
+  - `属性(elements)のみで絞り込む — すべての候補がメインと共通elements を持つこと`
+  - `武器種別(weapon)が異なっても属性(elements)が一致すれば候補に含まれること`
+  - `属性(elements)が一致しなければ武器種別(weapon)が同じでも候補に含まれないこと`
+- [x] `help/HEAVEN_BURNS_RED/バトル/サポート枠.md` に武器種別除外の明記を追加
+- [x] `npm test` 全 430 件 PASS 確認済み
+
+---
+
 ### Task B: 共鳴アビリティ全タイミング・全 skill_type の動作確認
 
 **目的**: `support_skills.json` の 6 timing × 14 skill_type が正しく評価されることを確認する。
