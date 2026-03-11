@@ -3587,6 +3587,126 @@ function resolvePassiveDamageRateUpPerTokenForMember(state, targetMember, timing
   return { totalRate, matchedPassives };
 }
 
+function resolvePassiveAttackUpPerTokenForMember(state, targetMember, timings = []) {
+  if (!state || !targetMember) {
+    return { totalRate: 0, matchedPassives: [] };
+  }
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  let totalRate = 0;
+  const matchedPassives = [];
+
+  for (const actor of state.party ?? []) {
+    for (const passive of actor.passives ?? []) {
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      let passiveRate = 0;
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
+        if (String(part?.skill_type ?? '') !== 'AttackUpPerToken') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          targetMember.characterId
+        );
+        if (!targetCharacterIds.includes(targetMember.characterId)) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
+          continue;
+        }
+        const tokenCount = Number(actor?.tokenState?.current ?? 0);
+        const perTokenRate = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(tokenCount) || !Number.isFinite(perTokenRate) || perTokenRate === 0) {
+          continue;
+        }
+        const amount = tokenCount * perTokenRate;
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        passiveRate += amount;
+        totalRate += amount;
+      }
+      if (passiveRate !== 0) {
+        matchedPassives.push({
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          passiveDesc: String(passive?.desc ?? ''),
+          timing: String(passive?.timing ?? ''),
+          attackUpRate: passiveRate,
+        });
+      }
+    }
+  }
+
+  return { totalRate, matchedPassives };
+}
+
+function resolvePassiveDefenseUpPerTokenForMember(state, targetMember, timings = []) {
+  if (!state || !targetMember) {
+    return { totalRate: 0, matchedPassives: [] };
+  }
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  let totalRate = 0;
+  const matchedPassives = [];
+
+  for (const actor of state.party ?? []) {
+    for (const passive of actor.passives ?? []) {
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      let passiveRate = 0;
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
+        if (String(part?.skill_type ?? '') !== 'DefenseUpPerToken') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          targetMember.characterId
+        );
+        if (!targetCharacterIds.includes(targetMember.characterId)) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
+          continue;
+        }
+        const tokenCount = Number(actor?.tokenState?.current ?? 0);
+        const perTokenRate = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(tokenCount) || !Number.isFinite(perTokenRate) || perTokenRate === 0) {
+          continue;
+        }
+        const amount = tokenCount * perTokenRate;
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        passiveRate += amount;
+        totalRate += amount;
+      }
+      if (passiveRate !== 0) {
+        matchedPassives.push({
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          passiveDesc: String(passive?.desc ?? ''),
+          timing: String(passive?.timing ?? ''),
+          defenseUpPerTokenRate: passiveRate,
+        });
+      }
+    }
+  }
+
+  return { totalRate, matchedPassives };
+}
+
 export function resolveEffectiveSkillForAction(state, member, skill) {
   if (!skill || !member || !state) {
     return skill;
@@ -3908,6 +4028,8 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
       ),
       damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
+      attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
+      defenseUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpPerTokenRate ?? 0),
       markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
       markDamageTakenDownRate: Number(actionEntry?.specialPassiveModifiers?.markDamageTakenDownRate ?? 0),
       markDevastationRateUp: Number(actionEntry?.specialPassiveModifiers?.markDevastationRateUp ?? 0),
@@ -4747,6 +4869,16 @@ function previewActionEntries(state, sortedActions) {
       member,
       'OnPlayerTurnStart'
     );
+    const attackUpPerToken = resolvePassiveAttackUpPerTokenForMember(
+      state,
+      member,
+      'OnPlayerTurnStart'
+    );
+    const defenseUpPerToken = resolvePassiveDefenseUpPerTokenForMember(
+      state,
+      member,
+      'OnEnemyTurnStart'
+    );
     const zoneMatch = skillMatchesActiveZone(state, effectiveSkill, member);
     const zonePowerRate = zoneMatch.matched ? Number(zoneMatch.zoneState?.powerRate ?? 0) : 0;
     const tokenAttackContext = resolveTokenAttackContext(
@@ -4839,9 +4971,13 @@ function previewActionEntries(state, sortedActions) {
       dpChanges: [],
       specialPassiveModifiers: {
         attackUpRate:
-          Number(specialAttackUp.totalRate ?? 0) + Number(intrinsicMarkModifiers.attackUpRate ?? 0),
+          Number(specialAttackUp.totalRate ?? 0) +
+          Number(intrinsicMarkModifiers.attackUpRate ?? 0) +
+          Number(attackUpPerToken.totalRate ?? 0),
         markAttackUpRate: Number(intrinsicMarkModifiers.attackUpRate ?? 0),
+        attackUpPerTokenRate: Number(attackUpPerToken.totalRate ?? 0),
         damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
+        defenseUpPerTokenRate: Number(defenseUpPerToken.totalRate ?? 0),
         zonePowerRate,
         markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
         markDevastationRateUp: Number(intrinsicMarkModifiers.devastationRateUp ?? 0),
@@ -4851,6 +4987,8 @@ function previewActionEntries(state, sortedActions) {
       tokenAttackContext,
       specialPassiveEvents: [
         ...specialAttackUp.matchedPassives,
+        ...attackUpPerToken.matchedPassives,
+        ...defenseUpPerToken.matchedPassives,
         ...damageRateUpPerToken.matchedPassives,
       ],
       breakHitCount: Number(action?.breakHitCount ?? 0),

@@ -9123,3 +9123,261 @@ test('ReduceSp (OnOverdriveStart): OD中のみ自身のスキルコスト -2 が
   });
   assert.equal(previewOd.actions[0].spCost, 6, 'OD中: spCost 8 → 6 (飛躍 -2)');
 });
+
+test('AttackUpPerToken (Self / 高揚相当): トークン数に応じて attackUpRate が増加する', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `KK${idx + 1}`,
+      characterName: `KK${idx + 1}`,
+      styleId: 3000 + idx,
+      styleName: `KKS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      initialToken: idx === 0 ? 2 : 0,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100210403,
+                name: '高揚',
+                desc: '行動開始時 前衛にいると トークン1つにつき 攻撃力+5%',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'AttackUpPerToken', target_type: 'Self', power: [0.05, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 30000 + idx, name: 'Act', label: `KKSkill${idx + 1}`, sp_cost: 4, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  // token=2 → attackUpRate = 0.10
+  const preview = previewTurn(state, {
+    0: { characterId: 'KK1', skillId: 30000 },
+  });
+  assert.equal(
+    preview.actions[0].specialPassiveModifiers?.attackUpPerTokenRate,
+    0.1,
+    'attackUpPerTokenRate = token(2) × 0.05 = 0.10'
+  );
+  assert.ok(
+    (preview.actions[0].specialPassiveEvents ?? []).some((e) => e.passiveName === '高揚'),
+    'specialPassiveEvents に高揚が記録されている'
+  );
+});
+
+test('AttackUpPerToken (Self / 高揚相当): token=0 のとき attackUpRate への寄与は 0', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `KK2${idx + 1}`,
+      characterName: `KK2${idx + 1}`,
+      styleId: 3100 + idx,
+      styleName: `KK2S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      initialToken: 0,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100210404,
+                name: '高揚',
+                desc: '行動開始時 前衛にいると トークン1つにつき 攻撃力+5%',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'AttackUpPerToken', target_type: 'Self', power: [0.05, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 30100 + idx, name: 'Act', label: `KK2Skill${idx + 1}`, sp_cost: 4, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'KK21', skillId: 30100 },
+  });
+  assert.equal(
+    Number(preview.actions[0].specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
+    0,
+    'token=0 のとき attackUpPerTokenRate = 0'
+  );
+});
+
+test('AttackUpPerToken (AllyAll / 激励相当): actor のトークンが味方全体の attackUpRate に反映される', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `GK${idx + 1}`,
+      characterName: `GK${idx + 1}`,
+      styleId: 3200 + idx,
+      styleName: `GKS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      initialToken: idx === 0 ? 3 : 0,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100410803,
+                name: '激励',
+                desc: '行動開始時 自身のトークン1つにつき 味方全体の攻撃力+3%',
+                timing: 'OnPlayerTurnStart',
+                condition: '',
+                parts: [{ skill_type: 'AttackUpPerToken', target_type: 'AllyAll', power: [0.03, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 30200 + idx, name: 'Act', label: `GKSkill${idx + 1}`, sp_cost: 4, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  // GK1(actor, token=3) → 全前衛の attackUpPerTokenRate = 0.09
+  const preview = previewTurn(state, {
+    0: { characterId: 'GK1', skillId: 30200 },
+    1: { characterId: 'GK2', skillId: 30201 },
+    2: { characterId: 'GK3', skillId: 30202 },
+  });
+  for (let i = 0; i < 3; i++) {
+    assert.equal(
+      preview.actions[i].specialPassiveModifiers?.attackUpPerTokenRate,
+      0.09,
+      `GK${i + 1}: attackUpPerTokenRate = actor token(3) × 0.03 = 0.09`
+    );
+  }
+});
+
+test('AttackUpPerToken (IsFront condition): 後衛メンバーへの preview では適用されない', () => {
+  // 後衛（position=3）の actor は IsFront() = false なので passive が発動しない
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `BK${idx + 1}`,
+      characterName: `BK${idx + 1}`,
+      styleId: 3300 + idx,
+      styleName: `BKS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      initialToken: idx === 3 ? 5 : 0,
+      passives:
+        idx === 3
+          ? [
+              {
+                id: 100210405,
+                name: '高揚',
+                desc: '行動開始時 前衛にいると トークン1つにつき 攻撃力+5%',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'AttackUpPerToken', target_type: 'Self', power: [0.05, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 30300 + idx, name: 'Act', label: `BKSkill${idx + 1}`, sp_cost: 4, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  // 前衛（BK1）の preview を確認 → 後衛 actor の passive は発動しない
+  const preview = previewTurn(state, {
+    0: { characterId: 'BK1', skillId: 30300 },
+  });
+  assert.equal(
+    Number(preview.actions[0].specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
+    0,
+    '後衛 actor (position=3) の IsFront() 条件不成立 → attackUpPerTokenRate = 0'
+  );
+});
+
+test('DefenseUpPerToken (Self / 鉄壁相当): トークン数に応じて defenseUpPerTokenRate が設定される', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `TW${idx + 1}`,
+      characterName: `TW${idx + 1}`,
+      styleId: 3400 + idx,
+      styleName: `TWS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      initialToken: idx === 0 ? 2 : 0,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100420105,
+                name: '鉄壁',
+                desc: '敵行動開始時 前衛にいると トークン1つにつき 防御力+7%',
+                timing: 'OnEnemyTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'DefenseUpPerToken', target_type: 'Self', power: [0.07, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 30400 + idx, name: 'Act', label: `TWSkill${idx + 1}`, sp_cost: 4, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'TW1', skillId: 30400 },
+  });
+  assert.equal(
+    preview.actions[0].specialPassiveModifiers?.defenseUpPerTokenRate,
+    0.14,
+    'defenseUpPerTokenRate = token(2) × 0.07 = 0.14'
+  );
+  assert.ok(
+    (preview.actions[0].specialPassiveEvents ?? []).some((e) => e.passiveName === '鉄壁'),
+    'specialPassiveEvents に鉄壁が記録されている'
+  );
+});
+
+test('AttackUpPerToken + AttackUp の合算: specialPassiveModifiers.attackUpRate が両方の合計になる', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `CM${idx + 1}`,
+      characterName: `CM${idx + 1}`,
+      styleId: 3500 + idx,
+      styleName: `CMS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      initialToken: idx === 0 ? 3 : 0,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 200001,
+                name: 'テスト攻撃上昇',
+                desc: 'OnEveryTurnIncludeSpecial: 自身の攻撃力+10%',
+                timing: 'OnEveryTurnIncludeSpecial',
+                condition: '',
+                parts: [{ skill_type: 'AttackUp', target_type: 'Self', power: [0.1, 0] }],
+              },
+              {
+                id: 200002,
+                name: '高揚',
+                desc: 'OnPlayerTurnStart: トークン1つにつき 攻撃力+5%',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'AttackUpPerToken', target_type: 'Self', power: [0.05, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 30500 + idx, name: 'Act', label: `CMSkill${idx + 1}`, sp_cost: 4, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'CM1', skillId: 30500 },
+  });
+  // attackUpRate = AttackUp(0.1) + AttackUpPerToken(3 × 0.05 = 0.15) = 0.25
+  assert.ok(
+    Math.abs(preview.actions[0].specialPassiveModifiers.attackUpRate - 0.25) < 1e-9,
+    `attackUpRate = 0.25 (AttackUp 0.10 + AttackUpPerToken 0.15), got ${preview.actions[0].specialPassiveModifiers.attackUpRate}`
+  );
+  assert.ok(
+    Math.abs(preview.actions[0].specialPassiveModifiers.attackUpPerTokenRate - 0.15) < 1e-9,
+    `breakdown: attackUpPerTokenRate = 0.15, got ${preview.actions[0].specialPassiveModifiers.attackUpPerTokenRate}`
+  );
+});

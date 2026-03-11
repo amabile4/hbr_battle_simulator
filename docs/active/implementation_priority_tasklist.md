@@ -87,7 +87,12 @@
 - **OnOverdriveStart 非EPパッシブ補強は完了（2026-03-12）**: 計486テストPASS
   - `HealSp`（旭日昇天 Self / エクスタシー AllyAll）: `applyPassiveSpOnOverdriveStart` を新設し `activateOverdrive` で呼ぶ
   - `AttackUp`（専心 ×3）: `previewActionEntries` の `resolvePassiveAttackUpForMember` に `OnOverdriveStart`（OD中のみ）を追加
-- 次の着手候補: `AttackUpPerToken` / `DefenseUpPerToken` 実装（案B）
+- **AttackUpPerToken / DefenseUpPerToken 実装は完了（2026-03-12）**: 計492テストPASS
+  - `resolvePassiveAttackUpPerTokenForMember` / `resolvePassiveDefenseUpPerTokenForMember` を追加
+  - `previewActionEntries` で `OnPlayerTurnStart`（高揚・激励）/ `OnEnemyTurnStart`（鉄壁）を解決
+  - `specialPassiveModifiers.attackUpPerTokenRate` / `defenseUpPerTokenRate` フィールドを追加
+  - record assembler に両フィールドを追加、6テスト追加（T6〜T11）
+- 次の着手候補: `implementation_priority_tasklist.md` で判断
 
 ## メモ
 

@@ -46,6 +46,7 @@ docs/
 | [active/support_skills_implementation_tasklist.md](active/support_skills_implementation_tasklist.md) | ✅ 完了 | サポート枠・共鳴アビリティ実装タスクリスト（Phase 1〜2 全完了・全446テストPASS） | 2026-03-11 |
 | [active/resonance_full_coverage_tasklist.md](active/resonance_full_coverage_tasklist.md) | ✅ 完了 | 共鳴アビリティ全21グループ テストカバレッジ計画（22テスト・全468テストPASS） | 2026-03-11 |
 | [active/ui_support_slot_improvement_tasklist.md](active/ui_support_slot_improvement_tasklist.md) | ✅ 完了 | サポート枠UI改善：共鳴アビリティ表示強化・フィルタリング機能・バグ修正（全476テストPASS） | 2026-03-12 |
+| [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次に進める実装テーマの優先順位と再開順 | 2026-03-09 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画 | 2026-03-09 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-08 |
@@ -53,7 +54,7 @@ docs/
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
-注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了（HealSp AllyAll/Self・AttackUp OD中、4テスト追加）。全486テストPASS。次の着手は `implementation_priority_tasklist.md` で判断。
+注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了（HealSp AllyAll/Self・AttackUp OD中、4テスト追加）。AttackUpPerToken / DefenseUpPerToken 実装完了（高揚・激励・鉄壁、6テスト追加）。全492テストPASS。次の着手は `implementation_priority_tasklist.md` で判断。
 
 ---
 
