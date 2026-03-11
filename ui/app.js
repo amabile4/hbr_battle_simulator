@@ -50,6 +50,7 @@ async function main() {
     transcendenceRuleOverrides: await fetchJson('../json/transcendence_rule_overrides.json'),
     skillDbSchema: await fetchJson('../json/new_skill_database.schema.json'),
     skillDbDraft: await fetchJsonOrFallback('../json/reports/migration/new_skill_database.draft.json', {}),
+    supportSkills: await fetchJsonOrFallback('../json/support_skills.json', []),
   };
 
   const store = HbrDataStore.fromRawData(payload);
