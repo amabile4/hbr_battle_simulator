@@ -80,7 +80,11 @@
   - 既存の token skill テスト（MiOhshima/MuOhshima/IrOhshima）の期待値を ボルテージ passive 発火分に合わせて更新済み
 - Phase 6-B は完了（DamageUpByOverDrive / GiveAttackBuffUp / GiveHealUp 実装）
 - **Support Skills Phase 2 は完了（2026-03-11）**: Task A（initializeBattle後パッシブログテスト）、Task B（全timing×skill_typeテスト）、Task C（GiveAttackBuffUp/GiveDefenseDebuffUpはスコープ外と確認）。計446テストPASS。
-- 次の着手候補: Phase 6 後段対応（`OverwriteSp`, `SpLimitOverwrite`, `AdditionalHit*` 等）は現時点で優先度低
+- **SpLimitOverwrite / ReduceSp 全timing対応は完了（2026-03-12）**: 計482テストPASS
+  - `SpLimitOverwrite`（歴戦）: `applyInitialPassiveState` で sp.max = 30 を正しく設定（テスト追加）
+  - `ReduceSp` の `applyPassiveTimingInternal` 誤SP減算を廃止（`ReduceSp` は常にスキルコスト表示時に反映）
+  - `resolveEffectiveSkillForAction` に `OnFirstBattleStart`（蒼天・氷天・火天・雷天等の永続）、`OnAdditionalTurnStart`（追加ターン中）、`OnOverdriveStart`（OD中）タイミング対応を追加
+- 次の着手候補: `AdditionalHit*` 等の Phase 6 後段対応
 
 ## メモ
 
