@@ -8713,3 +8713,247 @@ test('AdditionalHitOnRemovingBuff does NOT fire when skill has no RemoveBuff par
   );
   assert.ok(!evt, 'AttackUp should NOT fire when skill has no RemoveBuff part');
 });
+
+test('SpLimitOverwrite (歴戦): applyInitialPassiveState で sp.max が 30 になる', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `SL${idx + 1}`,
+      characterName: `SL${idx + 1}`,
+      styleId: 2000 + idx,
+      styleName: `SLS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 101010300,
+                name: '歴戦',
+                desc: '自身のSPの上限が30になる',
+                timing: 'OnFirstBattleStart',
+                condition: '',
+                parts: [{ skill_type: 'SpLimitOverwrite', target_type: 'Self', power: [30, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29000 + idx, name: 'Act', label: `SLSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  assert.equal(state.party[0].sp.max, 20, 'applyInitialPassiveState 前の sp.max は 20');
+  applyInitialPassiveState(state);
+  assert.equal(state.party[0].sp.max, 30, '歴戦により sp.max が 30 になる');
+  assert.equal(state.party[0].sp.current, 20, 'sp.current は変化しない');
+  for (let i = 1; i < 6; i++) {
+    assert.equal(state.party[i].sp.max, 20, `party[${i}] の sp.max は変化しない`);
+  }
+});
+
+test('SpLimitOverwrite (歴戦): sp.max 30 になると回復上限も 30 になる', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `SL2${idx + 1}`,
+      characterName: `SL2${idx + 1}`,
+      styleId: 2100 + idx,
+      styleName: `SL2S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 101010301,
+                name: '歴戦',
+                desc: '自身のSPの上限が30になる',
+                timing: 'OnFirstBattleStart',
+                condition: '',
+                parts: [{ skill_type: 'SpLimitOverwrite', target_type: 'Self', power: [30, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29050 + idx, name: 'Act', label: `SL2Skill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  applyInitialPassiveState(state);
+  assert.equal(state.party[0].sp.max, 30, '歴戦後: sp.max = 30');
+  // previewTurn で回復後 sp が 30 上限に収まることを確認
+  const preview = previewTurn(state, {
+    0: { characterId: 'SL21', skillId: 29050 },
+    1: { characterId: 'SL22', skillId: 29051 },
+    2: { characterId: 'SL23', skillId: 29052 },
+  });
+  const actor = preview.actions.find((a) => a.characterId === 'SL21');
+  assert.ok(actor, 'SL21 の action が存在する');
+  assert.ok(actor.endSP <= 30, `endSP (${actor.endSP}) は sp.max (30) 以下`);
+});
+
+test('ReduceSp (OnFirstBattleStart / 蒼天): 全味方スキルコスト -1 が preview に反映される', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ST${idx + 1}`,
+      characterName: `ST${idx + 1}`,
+      styleId: 2200 + idx,
+      styleName: `STS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100210701,
+                name: '蒼天',
+                desc: '味方全体の消費SPが常時-1',
+                timing: 'OnFirstBattleStart',
+                condition: '',
+                parts: [{ skill_type: 'ReduceSp', target_type: 'AllyAll', power: [1, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29100 + idx, name: 'Act', label: `STSkill${idx + 1}`, sp_cost: 5, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'ST1', skillId: 29100 },
+    1: { characterId: 'ST2', skillId: 29101 },
+    2: { characterId: 'ST3', skillId: 29102 },
+  });
+  assert.equal(preview.actions[0].spCost, 4, 'ST1（蒼天 actor）: spCost 5 → 4');
+  assert.equal(preview.actions[1].spCost, 4, 'ST2: spCost 5 → 4');
+  assert.equal(preview.actions[2].spCost, 4, 'ST3: spCost 5 → 4');
+});
+
+test('ReduceSp (OnFirstBattleStart / 氷天): 氷属性味方のみ -1 適用、非氷属性は変化なし', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `IC${idx + 1}`,
+      characterName: `IC${idx + 1}`,
+      styleId: 2300 + idx,
+      styleName: `ICS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      elements: idx === 1 ? ['Ice'] : [],
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100111101,
+                name: '氷天',
+                desc: '味方全体の氷属性スタイルの消費SPが常時-1',
+                timing: 'OnFirstBattleStart',
+                condition: '',
+                parts: [
+                  {
+                    skill_type: 'ReduceSp',
+                    target_type: 'AllyAll',
+                    target_condition: 'IsNatureElement(Ice)',
+                    power: [1, 0],
+                  },
+                ],
+              },
+            ]
+          : [],
+      skills: [{ id: 29200 + idx, name: 'Act', label: `ICSkill${idx + 1}`, sp_cost: 5, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'IC1', skillId: 29200 },
+    1: { characterId: 'IC2', skillId: 29201 },
+    2: { characterId: 'IC3', skillId: 29202 },
+  });
+  assert.equal(preview.actions[0].spCost, 5, 'IC1（非氷属性）: spCost 変化なし');
+  assert.equal(preview.actions[1].spCost, 4, 'IC2（氷属性）: spCost 5 → 4 (氷天 -1)');
+  assert.equal(preview.actions[2].spCost, 5, 'IC3（非氷属性）: spCost 変化なし');
+});
+
+test('ReduceSp (OnAdditionalTurnStart): 追加ターン中のみ自身のスキルコスト -2 が反映される', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `QR${idx + 1}`,
+      characterName: `QR${idx + 1}`,
+      styleId: 2400 + idx,
+      styleName: `QRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100330503,
+                name: 'クイックリキャスト',
+                desc: '追加ターン中のとき 自身の消費SPが-2',
+                timing: 'OnAdditionalTurnStart',
+                condition: '',
+                parts: [{ skill_type: 'ReduceSp', target_type: 'Self', power: [2, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29300 + idx, name: 'Act', label: `QRSkill${idx + 1}`, sp_cost: 8, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  // 通常ターン: ReduceSp は適用されない
+  const previewNormal = previewTurn(state, {
+    0: { characterId: 'QR1', skillId: 29300 },
+  });
+  assert.equal(previewNormal.actions[0].spCost, 8, '通常ターン: spCost 変化なし');
+
+  // 追加ターン: ReduceSp が適用される
+  const extraState = grantExtraTurn(state, ['QR1']);
+  const previewExtra = previewTurn(extraState, {
+    0: { characterId: 'QR1', skillId: 29300 },
+  });
+  assert.equal(previewExtra.actions[0].spCost, 6, '追加ターン: spCost 8 → 6 (クイックリキャスト -2)');
+});
+
+test('ReduceSp (OnOverdriveStart): OD中のみ自身のスキルコスト -2 が反映される', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `OV${idx + 1}`,
+      characterName: `OV${idx + 1}`,
+      styleId: 2500 + idx,
+      styleName: `OVS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100510603,
+                name: '飛躍',
+                desc: 'オーバードライブ中 自身の消費SPが-2',
+                timing: 'OnOverdriveStart',
+                condition: '',
+                parts: [{ skill_type: 'ReduceSp', target_type: 'Self', power: [2, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29400 + idx, name: 'Act', label: `OVSkill${idx + 1}`, sp_cost: 8, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  // 通常ターン: ReduceSp は適用されない
+  const previewNormal = previewTurn(state, {
+    0: { characterId: 'OV1', skillId: 29400 },
+  });
+  assert.equal(previewNormal.actions[0].spCost, 8, '通常ターン: spCost 変化なし');
+
+  // OD中: ReduceSp が適用される
+  state.turnState.odGauge = 100;
+  const odState = activateOverdrive(state, 1, 'preemptive');
+  assert.equal(odState.turnState.turnType, 'od', 'OD 状態確認');
+  const previewOd = previewTurn(odState, {
+    0: { characterId: 'OV1', skillId: 29400 },
+  });
+  assert.equal(previewOd.actions[0].spCost, 6, 'OD中: spCost 8 → 6 (飛躍 -2)');
+});

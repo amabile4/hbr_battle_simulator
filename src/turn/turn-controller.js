@@ -3597,7 +3597,14 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
   if (consumeType !== 'Sp' || !Number.isFinite(baseSpCost) || baseSpCost <= 0) {
     return effective;
   }
-  const reduceSp = resolvePassiveReduceSpForMember(state, member, 'OnEveryTurnIncludeSpecial');
+  const reduceSpTimings = ['OnFirstBattleStart', 'OnBattleStart', 'OnEveryTurnIncludeSpecial'];
+  if (String(state?.turnState?.turnType ?? '') === 'extra') {
+    reduceSpTimings.push('OnAdditionalTurnStart');
+  }
+  if (isOverDriveActive(state?.turnState)) {
+    reduceSpTimings.push('OnOverdriveStart');
+  }
+  const reduceSp = resolvePassiveReduceSpForMember(state, member, reduceSpTimings);
   if (!Number.isFinite(reduceSp) || reduceSp <= 0) {
     return effective;
   }
@@ -5525,7 +5532,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
-        if (skillType === 'ReduceSp' || skillType === 'OverwriteSp') {
+        if (skillType === 'OverwriteSp') {
           const power = Number(part?.power?.[0] ?? 0);
           if (!Number.isFinite(power) || power === 0) {
             continue;
