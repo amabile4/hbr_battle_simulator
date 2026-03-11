@@ -1,6 +1,6 @@
 # Support Skills（サポート枠・共鳴アビリティ）実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-11（Phase 2 タスク追加）
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-11（Phase 2 Task A-1 追加・修正完了）
 
 ## 方針
 
@@ -518,7 +518,37 @@ git commit -m "test: add support skills unit tests and mark implementation compl
 
 ## 追加タスク（Phase 2: 品質確認・未実装対応）
 
-> **ステータス**: 🟢 進行中 | 📅 追加日: 2026-03-11
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-11
+
+### Task A-1: キャラクター選択画面 passive-list に共鳴アビリティが表示されないバグ修正（完了）
+
+**問題**: 無属性 SS/SSR スタイル（例: 豊後弥生「悪の軍団進軍開始でゲス！」）にサポートスタイル（例: 佐月マリ「魔王に仕えし混沌の謀臣」）をセットしても、キャラクター選択画面の `passive-list` に共鳴アビリティ「暗躍」が表示されなかった。
+
+**根本原因（2点）**:
+1. `populatePassiveList` がメインスタイルのパッシブのみ取得していた（`listPassivesByStyleId` のみ呼び出し）。サポートスタイルの共鳴アビリティ（`resolveSupportSkillPassive`）を参照していなかった。
+2. `support-style-select` および `support-lb-select` の change イベントハンドラが `populatePassiveList` を呼んでいなかった。
+
+**修正内容**:
+- `populatePassiveList`: サポートスタイルセレクトと LB セレクトの値を DOM から読み取り、`resolveSupportSkillPassive` でパッシブを取得して `名前(共鳴)` 形式で追記するよう変更。
+- `support-style-select` change ハンドラに `populatePassiveList` 呼び出しを追加。
+- `support-lb-select` change ハンドラに `populatePassiveList` 呼び出しを追加。
+
+**作業**:
+- [x] `src/ui/dom-adapter.js` の `populatePassiveList` を修正（共鳴アビリティを `名前(共鳴)` で追記）
+- [x] `support-style-select` / `support-lb-select` change ハンドラから `populatePassiveList` を呼ぶよう追加
+- [x] `tests/dom-adapter-ui-selection.test.js` に4テスト追加:
+  - サポートスタイル選択時に passive-list に共鳴アビリティ名が表示されること（豊後弥生 + 佐月マリ）
+  - applySelectionState でサポート込みの状態を復元すると passive-list に共鳴アビリティが表示されること
+  - サポートスタイルを解除すると passive-list から共鳴アビリティが消えること
+  - サポートLBレベル変更時も passive-list が更新されること
+- [x] `npm test` 全 440 件 PASS 確認済み（2026-03-11）
+
+**気づき（実装詳細）**:
+- `listPassivesByStyleId` は `styles.json` の `passives` フィールドと `passives.json` のマッチングで主パッシブを返すが、共鳴アビリティは `support_skills.json` 由来のため別取得が必要。
+- `applySelectionState` は `populatePassiveList` を最後に呼ぶため、DOM にサポートスタイルがセットされていれば共鳴パッシブを正しく含める。
+- 無属性（`elements: []`）の場合も `listSupportStyleCandidates` の無属性マッチング修正（Task A-0 後続コミット）により正しく候補が表示される。
+
+---
 
 ### Task A: パッシブログへの共鳴アビリティ表示確認
 

@@ -1123,12 +1123,16 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.populateSupportLimitBreakSelect(slot, target.value);
         const lbVal = this.root.querySelector(`[data-role="support-lb-select"][data-slot="${slot}"]`)?.value ?? '0';
         this.updateResonanceDetail(slot, target.value, lbVal);
+        const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+        this.populatePassiveList(slot, styleSelect?.value ?? '');
       }
 
       if (target.matches('[data-role="support-lb-select"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
         const supportStyleVal = this.root.querySelector(`[data-role="support-style-select"][data-slot="${slot}"]`)?.value ?? '';
         this.updateResonanceDetail(slot, supportStyleVal, target.value);
+        const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+        this.populatePassiveList(slot, styleSelect?.value ?? '');
       }
 
       if (target.matches('[data-role="limit-break-select"]')) {
@@ -2331,20 +2335,35 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
     const limitBreakLevel = toInt(lbSelect?.value, 0);
     const passives = this.dataStore.listPassivesByStyleId(styleId, { limitBreakLevel });
-    if (passives.length === 0) {
+
+    const supportStyleSelect = this.root.querySelector(
+      `[data-role="support-style-select"][data-slot="${slotIndex}"]`
+    );
+    const supportLbSelect = this.root.querySelector(
+      `[data-role="support-lb-select"][data-slot="${slotIndex}"]`
+    );
+    const supportStyleId = supportStyleSelect?.value;
+    const supportLbLevel = toInt(supportLbSelect?.value, 0);
+    const supportPassive = supportStyleId
+      ? this.dataStore?.resolveSupportSkillPassive(Number(supportStyleId), supportLbLevel)
+      : null;
+
+    if (passives.length === 0 && !supportPassive) {
       container.textContent = 'Passives: -';
       this.renderConditionSupportSummary(styleId, passives);
       return;
     }
     const analyzed = analyzePassiveConditionSupport(passives);
-    container.textContent = `Passives: ${passives
-      .map((p) => {
-        const support = analyzed.perPassive.find((item) => Number(item.passiveId) === Number(p.passiveId));
-        const pending = (support?.functions ?? []).filter((item) => item.tier !== 'implemented').map((item) => item.name);
-        const suffix = pending.length > 0 ? ` [review: ${pending.join('/')}]` : '';
-        return `${p.name}(LB${p.requiredLimitBreakLevel ?? 0})${suffix}`;
-      })
-      .join(', ')}`;
+    const passiveTexts = passives.map((p) => {
+      const support = analyzed.perPassive.find((item) => Number(item.passiveId) === Number(p.passiveId));
+      const pending = (support?.functions ?? []).filter((item) => item.tier !== 'implemented').map((item) => item.name);
+      const suffix = pending.length > 0 ? ` [review: ${pending.join('/')}]` : '';
+      return `${p.name}(LB${p.requiredLimitBreakLevel ?? 0})${suffix}`;
+    });
+    if (supportPassive) {
+      passiveTexts.push(`${supportPassive.name}(共鳴)`);
+    }
+    container.textContent = `Passives: ${passiveTexts.join(', ')}`;
     this.renderConditionSupportSummary(styleId, passives);
   }
 
