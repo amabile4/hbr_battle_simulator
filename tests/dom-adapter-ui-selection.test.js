@@ -1231,3 +1231,167 @@ test('OnOverdriveStart 共鳴アビリティ (SupportSkill_CSugahara01 / GiveAtt
   assert.ok(entry, 'passiveLogEntries should contain OnOverdriveStart resonance passive "ブレイズ・エンジン"');
   assert.equal(entry.characterName, '茅森 月歌', 'resonance passive should be attributed to the main character');
 });
+
+// -----------------------------------------------------------------------
+// サポート枠フィルタリング & resonance-detail 表示テスト
+// -----------------------------------------------------------------------
+
+test('support-resonance-filter「共鳴あり」選択後: support-style-select のオプションが全て resonance 非空スタイルのみになること', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // 豊後弥生 (無属性SSR, id=1003406) を選択してサポート枠を開く
+  adapter.applySelectionState({
+    partySelections: [{ characterLabel: 'YBungo', styleId: 1003406 }],
+  });
+
+  const filterSelect = root.querySelector('[data-role="support-resonance-filter"][data-slot="0"]');
+  assert.ok(filterSelect, 'support-resonance-filter should exist for slot 0');
+
+  // フィルタを「共鳴あり」に変更
+  filterSelect.value = 'with';
+  filterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const supportSelect = root.querySelector('[data-role="support-style-select"][data-slot="0"]');
+  const nonEmptyOptions = Array.from(supportSelect.options).filter((o) => o.value !== '');
+  assert.ok(nonEmptyOptions.length > 0, 'should have at least one option after filter');
+
+  // 全オプションのテキストに ★ マークが付いていることを確認（共鳴あり = ★ 付き）
+  for (const opt of nonEmptyOptions) {
+    assert.ok(
+      opt.textContent.includes('★'),
+      `Option "${opt.textContent}" (value=${opt.value}) should have ★ mark when filter is "with"`
+    );
+    // データストアで resonance フィールドが非空であることも確認
+    const styleId = Number(opt.value);
+    const s = store.getStyleById(styleId);
+    assert.ok(
+      s && s.resonance && String(s.resonance).trim(),
+      `Style id=${styleId} should have non-empty resonance field when filter is "with"`
+    );
+  }
+});
+
+test('support-resonance-filter「共鳴なし」選択後: support-style-select のオプションが全て resonance 空スタイルのみになること', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.applySelectionState({
+    partySelections: [{ characterLabel: 'YBungo', styleId: 1003406 }],
+  });
+
+  const filterSelect = root.querySelector('[data-role="support-resonance-filter"][data-slot="0"]');
+  assert.ok(filterSelect, 'support-resonance-filter should exist for slot 0');
+
+  // フィルタを「共鳴なし」に変更
+  filterSelect.value = 'without';
+  filterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const supportSelect = root.querySelector('[data-role="support-style-select"][data-slot="0"]');
+  const nonEmptyOptions = Array.from(supportSelect.options).filter((o) => o.value !== '');
+  assert.ok(nonEmptyOptions.length > 0, 'should have at least one option after filter');
+
+  // 全オプションのテキストに ★ マークが付いていないことを確認（共鳴なし = ★ なし）
+  for (const opt of nonEmptyOptions) {
+    assert.ok(
+      !opt.textContent.includes('★'),
+      `Option "${opt.textContent}" (value=${opt.value}) should NOT have ★ mark when filter is "without"`
+    );
+    const styleId = Number(opt.value);
+    const s = store.getStyleById(styleId);
+    assert.ok(
+      s && (!s.resonance || !String(s.resonance).trim()),
+      `Style id=${styleId} should have empty resonance field when filter is "without"`
+    );
+  }
+});
+
+test('support-resonance-filter「すべて」選択後: 候補が共鳴あり + 共鳴なし の両方を含む全件表示になること', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.applySelectionState({
+    partySelections: [{ characterLabel: 'YBungo', styleId: 1003406 }],
+  });
+
+  const filterSelect = root.querySelector('[data-role="support-resonance-filter"][data-slot="0"]');
+  const supportSelect = root.querySelector('[data-role="support-style-select"][data-slot="0"]');
+
+  // まず「共鳴あり」に絞り込んで件数を記録
+  filterSelect.value = 'with';
+  filterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const withCount = Array.from(supportSelect.options).filter((o) => o.value !== '').length;
+
+  // 次に「すべて」に戻す
+  filterSelect.value = 'all';
+  filterSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+  const allCount = Array.from(supportSelect.options).filter((o) => o.value !== '').length;
+
+  assert.ok(allCount > withCount, `"all" filter (${allCount}) should show more options than "with" filter (${withCount})`);
+
+  // 共鳴ありと共鳴なしの両方が含まれることを確認
+  const nonEmptyOptions = Array.from(supportSelect.options).filter((o) => o.value !== '');
+  const hasWithMark = nonEmptyOptions.some((o) => o.textContent.includes('★'));
+  const hasWithoutMark = nonEmptyOptions.some((o) => !o.textContent.includes('★'));
+  assert.ok(hasWithMark, '"all" filter should include options with ★ mark (resonance present)');
+  assert.ok(hasWithoutMark, '"all" filter should include options without ★ mark (no resonance)');
+});
+
+test('resonance-detail: 共鳴ありスタイル選択時にパッシブ名と説明が表示されること', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // 豊後弥生でサポート枠を開く
+  adapter.applySelectionState({
+    partySelections: [{ characterLabel: 'YBungo', styleId: 1003406 }],
+  });
+
+  // 共鳴ありスタイル (id=1001109, 31A / "Beat Down, Rise Up") を選択
+  const supportSelect = root.querySelector('[data-role="support-style-select"][data-slot="0"]');
+  supportSelect.value = '1001109';
+  supportSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const resonanceDetail = root.querySelector('[data-role="resonance-detail"][data-slot="0"]');
+  assert.ok(resonanceDetail, 'resonance-detail should exist');
+  const text = resonanceDetail.textContent;
+  assert.ok(
+    text.includes('Beat Down, Rise Up'),
+    `resonance-detail should contain passive name "Beat Down, Rise Up" but got: "${text}"`
+  );
+  assert.ok(
+    text.includes('[共鳴]'),
+    `resonance-detail should contain "[共鳴]" prefix but got: "${text}"`
+  );
+});
+
+test('resonance-detail: 共鳴なしスタイル選択時に「共鳴アビリティなし」が表示されること', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.applySelectionState({
+    partySelections: [{ characterLabel: 'YBungo', styleId: 1003406 }],
+  });
+
+  // 共鳴なしスタイル (id=1001103, resonance="") を選択
+  const supportSelect = root.querySelector('[data-role="support-style-select"][data-slot="0"]');
+  supportSelect.value = '1001103';
+  supportSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  const resonanceDetail = root.querySelector('[data-role="resonance-detail"][data-slot="0"]');
+  assert.ok(resonanceDetail, 'resonance-detail should exist');
+  const text = resonanceDetail.textContent;
+  assert.ok(
+    text.includes('共鳴アビリティなし'),
+    `resonance-detail should contain "共鳴アビリティなし" for style without resonance but got: "${text}"`
+  );
+});

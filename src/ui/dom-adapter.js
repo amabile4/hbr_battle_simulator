@@ -1118,6 +1118,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.populateSupportStyleSelect(slot, target.value);
       }
 
+      if (target.matches('[data-role="support-resonance-filter"]')) {
+        const slot = toInt(target.getAttribute('data-slot'), 0);
+        const styleSelect = this.root.querySelector(`[data-role="style-select"][data-slot="${slot}"]`);
+        this.populateSupportStyleSelect(slot, styleSelect?.value ?? '');
+      }
+
       if (target.matches('[data-role="support-style-select"]')) {
         const slot = toInt(target.getAttribute('data-slot'), 0);
         this.populateSupportLimitBreakSelect(slot, target.value);
@@ -1552,6 +1558,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       wrapper.appendChild(startSpEquipSelect);
       wrapper.appendChild(normalAttackBeltSelect);
       wrapper.appendChild(motivationSelect);
+
+      const supportResonanceFilter = this.doc.createElement('select');
+      supportResonanceFilter.setAttribute('data-role', 'support-resonance-filter');
+      supportResonanceFilter.setAttribute('data-slot', String(i));
+      supportResonanceFilter.style.display = 'none'; // 初期非表示
+      for (const [val, label] of [['all', 'すべて'], ['with', '共鳴あり'], ['without', '共鳴なし']]) {
+        const opt = this.doc.createElement('option');
+        opt.value = val;
+        opt.textContent = label;
+        supportResonanceFilter.appendChild(opt);
+      }
+      wrapper.appendChild(supportResonanceFilter);
 
       const supportStyleSelect = this.doc.createElement('select');
       supportStyleSelect.setAttribute('data-role', 'support-style-select');
@@ -2253,12 +2271,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   updateSupportSlotVisibility(slotIndex, mainStyleId) {
+    const filterSelect = this.root.querySelector(`[data-role="support-resonance-filter"][data-slot="${slotIndex}"]`);
     const styleSelect = this.root.querySelector(`[data-role="support-style-select"][data-slot="${slotIndex}"]`);
     const lbSelect = this.root.querySelector(`[data-role="support-lb-select"][data-slot="${slotIndex}"]`);
     if (!styleSelect) return;
     const style = this.dataStore?.getStyleById(Number(mainStyleId));
     const tier = String(style?.tier ?? '').toUpperCase();
     const visible = ['SS', 'SSR'].includes(tier);
+    if (filterSelect) filterSelect.style.display = visible ? '' : 'none';
     styleSelect.style.display = visible ? '' : 'none';
     if (lbSelect) lbSelect.style.display = visible ? '' : 'none';
     if (!visible) {
@@ -2270,7 +2290,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   populateSupportStyleSelect(slotIndex, mainStyleId) {
     const select = this.root.querySelector(`[data-role="support-style-select"][data-slot="${slotIndex}"]`);
     if (!select) return;
-    const candidates = this.dataStore?.listSupportStyleCandidates(Number(mainStyleId)) ?? [];
+    const filterSelect = this.root.querySelector(`[data-role="support-resonance-filter"][data-slot="${slotIndex}"]`);
+    const filterMode = filterSelect?.value ?? 'all';
+    const allCandidates = this.dataStore?.listSupportStyleCandidates(Number(mainStyleId)) ?? [];
+    const candidates = allCandidates.filter((s) => {
+      if (filterMode === 'with') return Boolean(s.resonance && String(s.resonance).trim());
+      if (filterMode === 'without') return !s.resonance || !String(s.resonance).trim();
+      return true;
+    });
+    const prevValue = select.value;
     select.innerHTML = '';
     const emptyOpt = this.doc.createElement('option');
     emptyOpt.value = '';
@@ -2280,8 +2308,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const opt = this.doc.createElement('option');
       opt.value = String(s.id);
       const charaJp = String(s.chara ?? '').split('—')[0].trim();
-      opt.textContent = charaJp ? `[${s.tier}] ${s.name} / ${charaJp}` : `[${s.tier}] ${s.name}`;
+      const resonanceMark = (s.resonance && String(s.resonance).trim()) ? ' ★' : '';
+      opt.textContent = charaJp
+        ? `[${s.tier}] ${s.name} / ${charaJp}${resonanceMark}`
+        : `[${s.tier}] ${s.name}${resonanceMark}`;
       select.appendChild(opt);
+    }
+    // フィルタ後も以前の選択を維持できるなら維持する
+    if (prevValue && [...select.options].some((o) => o.value === prevValue)) {
+      select.value = prevValue;
     }
   }
 
@@ -2307,7 +2342,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
     if (!container) return;
     if (!supportStyleId) {
-      container.textContent = '';
+      container.innerHTML = '';
       return;
     }
     const passive = this.dataStore?.resolveSupportSkillPassive(
@@ -2315,11 +2350,27 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       Number(lbLevel ?? 0)
     );
     if (!passive) {
-      container.textContent = '';
+      // サポートスタイルが存在するが共鳴アビリティなし
+      const span = this.doc.createElement('span');
+      span.className = 'resonance-no-ability';
+      span.textContent = '（共鳴アビリティなし）';
+      container.innerHTML = '';
+      container.appendChild(span);
       return;
     }
-    const desc = String(passive.desc ?? '').replace(/\n/g, ' ').trim();
-    container.textContent = `[共鳴] ${passive.name}: ${desc}`;
+    const nameEl = this.doc.createElement('strong');
+    nameEl.textContent = `[共鳴] ${passive.name}`;
+    const desc = String(passive.desc ?? '').trim();
+    container.innerHTML = '';
+    container.appendChild(nameEl);
+    if (desc) {
+      container.appendChild(this.doc.createTextNode(': '));
+      const descLines = desc.split('\n');
+      for (let li = 0; li < descLines.length; li++) {
+        if (li > 0) container.appendChild(this.doc.createElement('br'));
+        container.appendChild(this.doc.createTextNode(descLines[li]));
+      }
+    }
   }
 
   populatePassiveList(slotIndex, styleId) {
