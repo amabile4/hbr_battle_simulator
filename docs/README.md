@@ -53,7 +53,7 @@ docs/
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
-注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト・全468テストPASS）。サポート枠UI改善完了（共鳴表示強化・フィルタ機能・ブラウザバグ修正）。SpLimitOverwrite / ReduceSp 全timing対応完了（6テスト追加）。全482テストPASS。次の着手は `implementation_priority_tasklist.md` で判断。
+注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了（HealSp AllyAll/Self・AttackUp OD中、4テスト追加）。全486テストPASS。次の着手は `implementation_priority_tasklist.md` で判断。
 
 ---
 

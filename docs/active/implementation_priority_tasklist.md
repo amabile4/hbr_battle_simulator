@@ -84,7 +84,10 @@
   - `SpLimitOverwrite`（歴戦）: `applyInitialPassiveState` で sp.max = 30 を正しく設定（テスト追加）
   - `ReduceSp` の `applyPassiveTimingInternal` 誤SP減算を廃止（`ReduceSp` は常にスキルコスト表示時に反映）
   - `resolveEffectiveSkillForAction` に `OnFirstBattleStart`（蒼天・氷天・火天・雷天等の永続）、`OnAdditionalTurnStart`（追加ターン中）、`OnOverdriveStart`（OD中）タイミング対応を追加
-- 次の着手候補: `AdditionalHit*` 等の Phase 6 後段対応
+- **OnOverdriveStart 非EPパッシブ補強は完了（2026-03-12）**: 計486テストPASS
+  - `HealSp`（旭日昇天 Self / エクスタシー AllyAll）: `applyPassiveSpOnOverdriveStart` を新設し `activateOverdrive` で呼ぶ
+  - `AttackUp`（専心 ×3）: `previewActionEntries` の `resolvePassiveAttackUpForMember` に `OnOverdriveStart`（OD中のみ）を追加
+- 次の着手候補: `AttackUpPerToken` / `DefenseUpPerToken` 実装（案B）
 
 ## メモ
 

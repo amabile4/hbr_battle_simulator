@@ -8914,6 +8914,172 @@ test('ReduceSp (OnAdditionalTurnStart): 追加ターン中のみ自身のスキ�
   assert.equal(previewExtra.actions[0].spCost, 6, '追加ターン: spCost 8 → 6 (クイックリキャスト -2)');
 });
 
+test('HealSp (OnOverdriveStart / Self / 旭日昇天相当): activateOverdrive 後に自身のSPが増加する', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HS${idx + 1}`,
+      characterName: `HS${idx + 1}`,
+      styleId: 2600 + idx,
+      styleName: `HSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100510601,
+                name: '旭日昇天',
+                desc: 'オーバードライブ開始時 自身のSP+5',
+                timing: 'OnOverdriveStart',
+                condition: '',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [5, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29500 + idx, name: 'Act', label: `HSSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  assert.equal(state.party[0].sp.current, 10, 'OD前: SP = 10');
+  state.turnState.odGauge = 100;
+  const odState = activateOverdrive(state, 1, 'preemptive');
+  assert.equal(odState.party[0].sp.current, 15, 'OD開始後: SP 10 → 15 (旭日昇天 +5)');
+  for (let i = 1; i < 6; i++) {
+    assert.equal(odState.party[i].sp.current, 10, `party[${i}]: SP 変化なし`);
+  }
+  assert.ok(
+    odState.turnState.passiveEventsLastApplied.some((e) => e.passiveName === '旭日昇天'),
+    'passiveEvents に旭日昇天が記録されている'
+  );
+});
+
+test('HealSp (OnOverdriveStart / AllyAll / エクスタシー相当): activateOverdrive 後に全員のSPが増加する', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EC${idx + 1}`,
+      characterName: `EC${idx + 1}`,
+      styleId: 2700 + idx,
+      styleName: `ECS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100660603,
+                name: 'エクスタシー',
+                desc: 'オーバードライブ開始時 味方全体のSP+5',
+                timing: 'OnOverdriveStart',
+                condition: '',
+                parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [5, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29600 + idx, name: 'Act', label: `ECSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 100;
+  const odState = activateOverdrive(state, 1, 'preemptive');
+  for (let i = 0; i < 6; i++) {
+    assert.equal(odState.party[i].sp.current, 15, `party[${i}]: SP 10 → 15 (エクスタシー AllyAll +5)`);
+  }
+  assert.ok(
+    odState.turnState.passiveEventsLastApplied.some((e) => e.passiveName === 'エクスタシー'),
+    'passiveEvents にエクスタシーが記録されている'
+  );
+});
+
+test('HealSp (OnOverdriveStart): SP上限を超えない（cap確認）', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HC${idx + 1}`,
+      characterName: `HC${idx + 1}`,
+      styleId: 2900 + idx,
+      styleName: `HCS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 18,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100510602,
+                name: '旭日昇天',
+                desc: 'オーバードライブ開始時 自身のSP+5',
+                timing: 'OnOverdriveStart',
+                condition: '',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [5, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29800 + idx, name: 'Act', label: `HCSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 100;
+  const odState = activateOverdrive(state, 1, 'preemptive');
+  assert.equal(odState.party[0].sp.current, 20, 'SP 18+5=23 → cap 20 に収まる');
+});
+
+test('AttackUp (OnOverdriveStart / 専心相当): OD中の preview に attackUpRate が反映される', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `SS${idx + 1}`,
+      characterName: `SS${idx + 1}`,
+      styleId: 2800 + idx,
+      styleName: `SSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100510303,
+                name: '専心',
+                desc: 'オーバードライブ開始時 前衛にいると 自身のスキル攻撃力+20%',
+                timing: 'OnOverdriveStart',
+                condition: '',
+                parts: [{ skill_type: 'AttackUp', target_type: 'Self', power: [0.2, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29700 + idx, name: 'Act', label: `SSSkill${idx + 1}`, sp_cost: 4, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  // 通常ターン: attackUpRate は 0
+  const previewNormal = previewTurn(state, {
+    0: { characterId: 'SS1', skillId: 29700 },
+  });
+  assert.equal(
+    Number(previewNormal.actions[0].specialPassiveModifiers?.attackUpRate ?? 0),
+    0,
+    '通常ターン: attackUpRate = 0'
+  );
+
+  // OD中: attackUpRate = 0.2
+  state.turnState.odGauge = 100;
+  const odState = activateOverdrive(state, 1, 'preemptive');
+  assert.equal(odState.turnState.turnType, 'od', 'OD状態確認');
+  const previewOd = previewTurn(odState, {
+    0: { characterId: 'SS1', skillId: 29700 },
+  });
+  assert.equal(
+    previewOd.actions[0].specialPassiveModifiers?.attackUpRate,
+    0.2,
+    'OD中: attackUpRate = 0.2 (専心 +20%)'
+  );
+  assert.ok(
+    (previewOd.actions[0].specialPassiveEvents ?? []).some((e) => e.passiveName === '専心'),
+    'specialPassiveEvents に専心が記録されている'
+  );
+});
+
 test('ReduceSp (OnOverdriveStart): OD中のみ自身のスキルコスト -2 が反映される', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

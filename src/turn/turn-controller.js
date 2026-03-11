@@ -4737,7 +4737,11 @@ function previewActionEntries(state, sortedActions) {
     const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
     const preview = member.previewSkillUseResolved(effectiveSkill);
     const hitInfo = resolveEffectivePreviewHitCount(effectiveSkill, state, member);
-    const specialAttackUp = resolvePassiveAttackUpForMember(state, member, 'OnEveryTurnIncludeSpecial');
+    const attackUpTimings = ['OnEveryTurnIncludeSpecial'];
+    if (isOverDriveActive(state?.turnState)) {
+      attackUpTimings.push('OnOverdriveStart');
+    }
+    const specialAttackUp = resolvePassiveAttackUpForMember(state, member, attackUpTimings);
     const damageRateUpPerToken = resolvePassiveDamageRateUpPerTokenForMember(
       state,
       member,
@@ -5015,6 +5019,76 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
     }
   }
   return { epEvents: events, passiveEvents };
+}
+
+function applyPassiveSpOnOverdriveStart(state) {
+  const spEvents = [];
+  const passiveEvents = [];
+
+  for (const actor of state.party ?? []) {
+    for (const passive of actor.passives ?? []) {
+      if (String(passive.timing ?? '') !== 'OnOverdriveStart') {
+        continue;
+      }
+      const effectTypes = new Set();
+      let totalSpDelta = 0;
+      let matched = false;
+
+      for (const part of passive.parts ?? []) {
+        const skillType = String(part.skill_type ?? '');
+        if (skillType !== 'HealSp') {
+          continue;
+        }
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          null
+        );
+        for (const targetId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetId);
+          if (!target) {
+            continue;
+          }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+            continue;
+          }
+          const change = target.applySpDelta(amount, 'passive');
+          spEvents.push({
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            source: 'sp_passive',
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            targetType: String(part?.target_type ?? ''),
+            ...change,
+          });
+          matched = true;
+          totalSpDelta += Number(change?.delta ?? 0);
+          effectTypes.add(skillType);
+        }
+      }
+
+      if (matched) {
+        passiveEvents.push(
+          createPassiveTriggerEvent(state.turnState, actor, passive, {
+            source: 'passive',
+            effectTypes: [...effectTypes],
+            spDelta: totalSpDelta,
+          })
+        );
+      }
+    }
+  }
+
+  return { spEvents, passiveEvents };
 }
 
 function evaluatePassiveSelfConditions(passive, part, state, member) {
@@ -6874,6 +6948,8 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
     });
     passiveEvents.push(...passiveResult.passiveEvents);
   }
+  const spPassiveResult = applyPassiveSpOnOverdriveStart(nextState);
+  passiveEvents.push(...spPassiveResult.passiveEvents);
   nextState.turnState.passiveEventsLastApplied = passiveEvents;
 
   return nextState;
