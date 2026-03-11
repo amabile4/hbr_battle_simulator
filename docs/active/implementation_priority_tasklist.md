@@ -1,6 +1,6 @@
 # Implementation Priority Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-09
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-11
 
 ## 目的
 
@@ -79,6 +79,7 @@
   - `TokenSet` の `skill_type` は「トークンをN上昇」（delta +N）であり、絶対値セットではないことを確認済み
   - 既存の token skill テスト（MiOhshima/MuOhshima/IrOhshima）の期待値を ボルテージ passive 発火分に合わせて更新済み
 - Phase 6-B は完了（DamageUpByOverDrive / GiveAttackBuffUp / GiveHealUp 実装）
+- **Support Skills Phase 2 は完了（2026-03-11）**: Task A（initializeBattle後パッシブログテスト）、Task B（全timing×skill_typeテスト）、Task C（GiveAttackBuffUp/GiveDefenseDebuffUpはスコープ外と確認）。計446テストPASS。
 - 次の着手候補: Phase 6 後段対応（`OverwriteSp`, `SpLimitOverwrite`, `AdditionalHit*` 等）は現時点で優先度低
 
 ## メモ

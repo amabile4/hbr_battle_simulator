@@ -43,7 +43,8 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-| [active/support_skills_implementation_tasklist.md](active/support_skills_implementation_tasklist.md) | 🟢 進行中 | サポート枠・共鳴アビリティ実装タスクリスト（Phase 2: 品質確認・状態変化対応追加） | 2026-03-11 |
+| [active/support_skills_implementation_tasklist.md](active/support_skills_implementation_tasklist.md) | ✅ 完了 | サポート枠・共鳴アビリティ実装タスクリスト（Phase 1〜2 全完了・全446テストPASS） | 2026-03-11 |
+| [active/resonance_full_coverage_tasklist.md](active/resonance_full_coverage_tasklist.md) | ✅ 完了 | 共鳴アビリティ全21グループ テストカバレッジ計画（22テスト・全468テストPASS） | 2026-03-11 |
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次に進める実装テーマの優先順位と再開順 | 2026-03-09 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画 | 2026-03-09 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-08 |
@@ -51,7 +52,7 @@ docs/
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
-注記: Phase 6-A 完了。Phase 6-C（generalize）は編成 UI フラグのためバトル passive 対象外と確定。次の着手は **Phase 6-B**（`DamageUpByOverDrive` 等マスタースキル由来不足エフェクト実装）。
+注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト・全468テストPASS）。次の着手は `implementation_priority_tasklist.md` で判断。
 
 ---
 

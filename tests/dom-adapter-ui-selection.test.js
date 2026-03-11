@@ -1095,3 +1095,139 @@ test('サポートLBレベル変更時も passive-list が更新されること'
     `passive-list should still contain "暗躍" after LB level change but got: "${passiveList.textContent}"`
   );
 });
+
+test('initializeBattle 後のパッシブログに OnBattleStart 共鳴アビリティが表示されること', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // スロット0: 茅森 月歌 (Glorious Blades, Ice SSR)
+  // サポート: 東城 つかさ (哀情のラメント, Ice SS, 31A共鳴 / Beat Down, Rise Up / OnBattleStart)
+  adapter.initializeBattle(
+    [1001111, 1001204, 1001504, 1001401, 1001701, 1001301],
+    {
+      supportStyleIdsByPartyIndex: { 0: 1001408 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+    }
+  );
+
+  const text = root.querySelector('[data-role="passive-log-output"]')?.textContent ?? '';
+  assert.ok(
+    text.includes('Beat Down, Rise Up'),
+    `passive log should contain resonance passive "Beat Down, Rise Up" but got: "${text}"`
+  );
+});
+
+test('OnBattleStart timing の共鳴パッシブが passiveLogEntries に記録されること', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // スロット0: 茅森 月歌 (Glorious Blades, Ice SSR)
+  // サポート: 東城 つかさ (哀情のラメント, Ice SS, 31A共鳴 / Beat Down, Rise Up / OnBattleStart)
+  adapter.initializeBattle(
+    [1001111, 1001204, 1001504, 1001401, 1001701, 1001301],
+    {
+      supportStyleIdsByPartyIndex: { 0: 1001408 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+    }
+  );
+
+  const resonanceEntry = adapter.passiveLogEntries.find((e) => e.passiveName === 'Beat Down, Rise Up');
+  assert.ok(resonanceEntry, 'passiveLogEntries should contain Beat Down, Rise Up resonance passive');
+  assert.equal(resonanceEntry.characterName, '茅森 月歌', 'resonance passive should be attributed to the main character');
+});
+
+test('OnFirstBattleStart 共鳴アビリティ (31C / SkillLimitCountUp) が initializeBattle 後に passiveLogEntries に記録されること', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // スロット0: 茅森 月歌 (ナイトクルーズ・エスコート, Thunder SS)
+  // サポート: 比村 伊勢弥 (Daydream Believer, Thunder SS, 31C共鳴 / Failure Is Not an Option / OnFirstBattleStart)
+  adapter.initializeBattle(
+    [1001107, 1001204, 1001504, 1001401, 1001301, 1001701],
+    {
+      supportStyleIdsByPartyIndex: { 0: 1003106 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+    }
+  );
+
+  const entry = adapter.passiveLogEntries.find((e) => e.passiveName === 'Failure Is Not an Option');
+  assert.ok(entry, 'passiveLogEntries should contain OnFirstBattleStart resonance passive "Failure Is Not an Option"');
+  assert.equal(entry.characterName, '茅森 月歌', 'resonance passive should be attributed to the main character');
+});
+
+test('OnEveryTurn 共鳴アビリティ (SupportSkill_ADate01 / OverDrivePointUp) がターンコミット後に passiveLogEntries に記録されること', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // スロット0: 茅森 月歌 (Glorious Blades, Ice SSR)
+  // サポート: 伊達 朱雀 (Holiday Star Night, Ice SS, SupportSkill_ADate01共鳴 / ホーリーグレイス / OnEveryTurn)
+  adapter.initializeBattle(
+    [1001111, 1001204, 1001504, 1001401, 1001301, 1001701],
+    {
+      supportStyleIdsByPartyIndex: { 0: 1005504 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+    }
+  );
+
+  setFrontlineNormalAttackSelections(adapter, root, win);
+  adapter.commitCurrentTurn();
+
+  const entry = adapter.passiveLogEntries.find((e) => e.passiveName === 'ホーリーグレイス');
+  assert.ok(entry, 'passiveLogEntries should contain OnEveryTurn resonance passive "ホーリーグレイス"');
+  assert.equal(entry.characterName, '茅森 月歌', 'resonance passive should be attributed to the main character');
+});
+
+test('OnPlayerTurnStart 共鳴アビリティ (31D / AttackUp+DamageRateUp) が initializeBattle 後の T1 に passiveLogEntries に記録されること', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // スロット0: 茅森 月歌 (Glorious Blades, Ice SSR)
+  // サポート: 二階堂 みるく (Holiday Ring a Bell, Ice SS, 31D共鳴 / Fly High! / OnPlayerTurnStart)
+  adapter.initializeBattle(
+    [1001111, 1001204, 1001504, 1001401, 1001301, 1001701],
+    {
+      supportStyleIdsByPartyIndex: { 0: 1005104 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+    }
+  );
+
+  const entry = adapter.passiveLogEntries.find((e) => e.passiveName === 'Fly High!');
+  assert.ok(entry, 'passiveLogEntries should contain OnPlayerTurnStart resonance passive "Fly High!"');
+  assert.equal(entry.characterName, '茅森 月歌', 'resonance passive should be attributed to the main character');
+});
+
+test('OnOverdriveStart 共鳴アビリティ (SupportSkill_CSugahara01 / GiveAttackBuffUp) が OD 開始後に passiveLogEntries に記録されること', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  // スロット0: 茅森 月歌 (Glorious Blades, Ice SSR)
+  // サポート: 菅原 千紗 (ロリータ・ストイック, Ice SS, SupportSkill_CSugahara01共鳴 / ブレイズ・エンジン / OnOverdriveStart)
+  adapter.initializeBattle(
+    [1001111, 1001204, 1001504, 1001401, 1001301, 1001701],
+    {
+      supportStyleIdsByPartyIndex: { 0: 1004406 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+    }
+  );
+
+  adapter.state.turnState.odGauge = 120;
+  adapter.renderTurnStatus();
+  adapter.openOdDialog('normal');
+  adapter.confirmOdDialog('normal');
+
+  const entry = adapter.passiveLogEntries.find((e) => e.passiveName === 'ブレイズ・エンジン');
+  assert.ok(entry, 'passiveLogEntries should contain OnOverdriveStart resonance passive "ブレイズ・エンジン"');
+  assert.equal(entry.characterName, '茅森 月歌', 'resonance passive should be attributed to the main character');
+});
