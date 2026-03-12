@@ -53,6 +53,7 @@ docs/
 | [active/token_implementation_plan.md](active/token_implementation_plan.md) | 🟢 進行中 | Token状態システム独立実装計画 | 2026-03-09 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
+| [active/shredding_implementation_tasklist.md](active/shredding_implementation_tasklist.md) | 🟡 調査完了 | 速弾き（Shredding）状態実装タスクリスト（JSON調査・ギャップ分析完了・実装待ち） | 2026-03-12 |
 
 注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了。AttackUpPerToken / DefenseUpPerToken 実装完了（高揚・激励・鉄壁）。SP条件スキル（Sp()<0 / Sp()>0 / Sp()>19）spec文書作成・8テスト追加。全500テストPASS。次の着手は `implementation_priority_tasklist.md` で判断。
 
