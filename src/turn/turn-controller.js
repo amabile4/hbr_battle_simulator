@@ -7108,6 +7108,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     tokenStateByPartyIndex: Object.fromEntries(
       nextState.party.map((m) => [m.partyIndex, structuredClone(m.tokenState ?? { current: 0, min: 0, max: 10 })])
     ),
+    shreddingTurnsRemainingByPartyIndex: Object.fromEntries(
+      nextState.party.map((m) => [m.partyIndex, Number(m.shreddingTurnsRemaining ?? 0)])
+    ),
   };
 
   return {
