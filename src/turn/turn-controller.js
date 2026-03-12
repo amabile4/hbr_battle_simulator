@@ -4665,6 +4665,26 @@ function applyTurnBasedStatusExpiry(state, previewRecord) {
   return events;
 }
 
+function tickShreddingTurns(state, previewRecord) {
+  const processed = new Set();
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const characterId = String(actionEntry?.characterId ?? '');
+    if (!characterId || processed.has(characterId)) {
+      continue;
+    }
+    processed.add(characterId);
+    const member = findMemberByCharacterId(state, characterId);
+    if (!member || !member.isShredding) {
+      continue;
+    }
+    member.shreddingTurnsRemaining -= 1;
+    if (member.shreddingTurnsRemaining <= 0) {
+      member.shreddingTurnsRemaining = 0;
+    }
+    member._revision += 1;
+  }
+}
+
 function syncExtraActiveFlags(party, allowedCharacterIds = []) {
   const allowed = new Set(allowedCharacterIds);
   for (const member of party) {
@@ -6946,6 +6966,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   ];
   updateReinforcedModeStateAfterTurn(state);
   applyTurnBasedStatusExpiry(state, previewRecord);
+  tickShreddingTurns(state, previewRecord);
 
   if (applySwapOnCommit) {
     applySwapEvents(state, swapEvents);
