@@ -90,10 +90,10 @@ test('T02: 31B (Love and Peace) Turn()<=3 の境界: T3 でも発動すること
   assert.ok(entries.length > 0, '3ターンコミット後も Love and Peace が passiveLogEntries に存在すること');
 });
 
-test('T03: 31B (Love and Peace) OnEveryTurn が複数ターンにわたって継続して passiveLogEntries に記録されること（Turn()<=3 条件は現在 unknown 評価のため毎ターン発動）', () => {
-  // 注意: Turn()<=3 条件は現在の実装で unknown（未実装）として処理されるため、
-  // 条件は true として評価され、3ターン目以降も発動し続ける。
-  // このテストは OnEveryTurn パッシブが毎ターン継続発動することを確認する。
+test('T03: 31B (Love and Peace) Turn()<=3 境界: T5 以降は新規発動しないこと', () => {
+  // Turn() 条件は実装済み。applyRecoveryPipeline は前ターンの状態で評価するため、
+  // T3 の回復イベントが T4 のコミット記録に含まれる（1ターン遅延）。
+  // T5 以降は T4 の回復（turnIdx=4 > 3 = false）も含まず、新規イベントが記録されないことを確認。
   const store = getStore();
   const { root, win } = createRoot();
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
@@ -112,14 +112,16 @@ test('T03: 31B (Love and Peace) OnEveryTurn が複数ターンにわたって継
   }
   const countAfterT4 = adapter.passiveLogEntries.filter((e) => e.passiveName === 'Love and Peace').length;
 
-  // 5ターン目コミット後も件数が増えること（Turn()条件が unknown のため毎ターン発動）
+  // 5ターン目コミット後は件数が増えないこと（T4 の回復は turnIdx=4>3 で条件不成立）
   setFrontlineNormalAttackSelections(adapter, root, win);
   adapter.commitCurrentTurn();
   const countAfterT5 = adapter.passiveLogEntries.filter((e) => e.passiveName === 'Love and Peace').length;
 
-  assert.ok(
-    countAfterT5 > countAfterT4,
-    `T5コミット後も Love and Peace が追加されること（Turn()条件は unknown のため毎ターン発動、T4=${countAfterT4}, T5=${countAfterT5}）`
+  assert.ok(countAfterT4 > 0, `T4 までに Love and Peace が発動していること（count=${countAfterT4}）`);
+  assert.equal(
+    countAfterT5,
+    countAfterT4,
+    `T5 コミット後は Love and Peace が追加されないこと（T4 回復は Turn()=4>3 で条件不成立、T4=${countAfterT4}, T5=${countAfterT5}）`
   );
 });
 

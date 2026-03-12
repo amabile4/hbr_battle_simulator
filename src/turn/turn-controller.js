@@ -730,6 +730,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
         known: true,
         value: Number(skill?.spCost ?? skill?.sp_cost ?? 0),
       };
+    case 'Turn':
+      return {
+        known: true,
+        value: Number(state?.turnState?.turnIndex ?? 1),
+      };
     default:
       return {
         known: false,
@@ -2396,9 +2401,11 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         .map((value) => String(value ?? '').trim())
         .filter(Boolean);
       const conditionSkill = createConditionSkillContext(skill, part);
-      const matchedConditions = conditions.every((expr) =>
-        evaluateConditionExpression(expr, state, actor, conditionSkill, actionEntry).result
-      );
+      const matchedConditions = conditions.every((expr) => {
+        const evaluated = evaluateConditionExpression(expr, state, actor, conditionSkill, actionEntry);
+        // 未実装条件が含まれる場合はパッシブを発動させない
+        return evaluated.unknownCount === 0 && evaluated.result;
+      });
       if (!matchedConditions) {
         return false;
       }
@@ -3226,10 +3233,11 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
 function evaluateConditionExpression(expression, state, member, skill, actionEntry = null) {
   const text = String(expression ?? '').trim();
   if (!text) {
-    return { result: true, knownCount: 0 };
+    return { result: true, knownCount: 0, unknownCount: 0 };
   }
 
   let knownCount = 0;
+  let unknownCount = 0;
   const orClauses = splitTopLevel(text, '||');
   let orResult = false;
 
@@ -3240,6 +3248,8 @@ function evaluateConditionExpression(expression, state, member, skill, actionEnt
       const evaluated = evaluateSingleConditionClause(clause, state, member, skill, actionEntry);
       if (evaluated.known) {
         knownCount += 1;
+      } else {
+        unknownCount += 1;
       }
       if (!evaluated.value) {
         andResult = false;
@@ -3252,7 +3262,7 @@ function evaluateConditionExpression(expression, state, member, skill, actionEnt
     }
   }
 
-  return { result: orResult, knownCount };
+  return { result: orResult, knownCount, unknownCount };
 }
 
 function evaluateSkillConditionExpression(expression, state, member, skill) {
@@ -5312,7 +5322,11 @@ function evaluatePassiveSelfConditions(passive, part, state, member) {
     .map((value) => String(value ?? '').trim())
     .filter(Boolean);
   const conditionSkill = createConditionSkillContext(passive, part);
-  return conditions.every((expr) => evaluateConditionExpression(expr, state, member, conditionSkill).result);
+  return conditions.every((expr) => {
+    const evaluated = evaluateConditionExpression(expr, state, member, conditionSkill);
+    // 未実装条件が含まれる場合はパッシブを発動させない
+    return evaluated.unknownCount === 0 && evaluated.result;
+  });
 }
 
 function resolvePassiveTargetMembers(state, actorMember, part, preferredTargetCharacterId = null) {

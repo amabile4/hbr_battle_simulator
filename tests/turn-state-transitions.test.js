@@ -9572,3 +9572,84 @@ test('スキル cond Sp()>19: SP = 20 のとき previewTurn が成功する（sp
   assert.equal(preview.actions[0].startSP, 20, 'startSP = 20');
   assert.equal(preview.actions[0].endSP, 20, 'sp_cost: 0 なので SP 変化なし');
 });
+
+// --- 未実装バフ状態条件パッシブの誤発動修正テスト ---
+
+test('未実装 SpecialStatusCountByType 条件のパッシブは発動しない', () => {
+  // statusType 144（歌姫の加護）は未実装 → unknown → パッシブを発動させない
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          passives: [
+            {
+              id: 99001,
+              name: 'レゾナンス',
+              desc: '歌姫の加護状態のとき SP+2',
+              timing: 'OnPlayerTurnStart',
+              condition: 'SpecialStatusCountByType(144)>0',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  const member = state.party.find((item) => item.characterId === 'M1');
+  assert.equal(member.sp.current, 5, '未実装状態条件のため SP は増加しない');
+});
+
+test('実装済み SpecialStatusCountByType(20) 条件のパッシブは isExtraActive=true のとき発動する', () => {
+  // statusType 20（追加ターン状態）は実装済み → known → isExtraActive=true なら発動
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          passives: [
+            {
+              id: 99002,
+              name: '速弾き追加SP',
+              desc: '追加ターン状態のとき SP+2',
+              timing: 'OnPlayerTurnStart',
+              condition: 'SpecialStatusCountByType(20)>0',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  // 追加ターン状態を付与
+  const member = state.party.find((item) => item.characterId === 'M1');
+  member.isExtraActive = true;
+
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(member.sp.current, 7, 'isExtraActive=true のため SP+2 が適用される');
+});
+
+test('条件なしパッシブは正常に発動する（リグレッション確認）', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          passives: [
+            {
+              id: 99003,
+              name: '無条件SP回復',
+              desc: 'ターン開始時 SP+3',
+              timing: 'OnPlayerTurnStart',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  const member = state.party.find((item) => item.characterId === 'M1');
+  assert.equal(member.sp.current, 8, '条件なしパッシブは発動して SP+3');
+});
