@@ -9381,3 +9381,194 @@ test('AttackUpPerToken + AttackUp の合算: specialPassiveModifiers.attackUpRat
     `breakdown: attackUpPerTokenRate = 0.15, got ${preview.actions[0].specialPassiveModifiers.attackUpPerTokenRate}`
   );
 });
+
+// ─────────────────────────────────────────────────────────────
+// SP条件スキル（cond: Sp()...）テスト
+// 仕様: docs/specs/sp_condition_skill_spec.md
+// ─────────────────────────────────────────────────────────────
+
+function buildSpCondTestParty(actorOverrides) {
+  const members = Array.from({ length: 6 }, (_, idx) => {
+    const isActor = idx === 0;
+    return new CharacterStyle({
+      characterId: `SC${idx + 1}`,
+      characterName: `SC${idx + 1}`,
+      styleId: 3000 + idx,
+      styleName: `SCS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      ...(isActor ? actorOverrides : {}),
+    });
+  });
+  return new Party(members);
+}
+
+test('スキル cond Sp()<0: SP >= 0 のとき previewTurn がエラーをスローする', () => {
+  const party = buildSpCondTestParty({
+    initialSP: 0,
+    skills: [
+      {
+        id: 46008209,
+        name: '春の宵の塵に同じ',
+        label: 'LShanhuaSkill53',
+        sp_cost: 0,
+        cond: 'Sp()<0',
+        parts: [{ skill_type: 'FixedHpDamageRateAttack', target_type: 'Single', power: [0.15, 0] }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+  assert.throws(
+    () => previewTurn(state, { 0: { characterId: 'SC1', skillId: 46008209 } }),
+    /cannot be used because cond is not satisfied/,
+    'SP = 0 では Sp()<0 条件を満たさないためエラー'
+  );
+});
+
+test('スキル cond Sp()<0: SP < 0 のとき（spMin 設定済み）previewTurn が成功する', () => {
+  const party = buildSpCondTestParty({
+    initialSP: -3,
+    spMin: -5,
+    skills: [
+      {
+        id: 46008209,
+        name: '春の宵の塵に同じ',
+        label: 'LShanhuaSkill53',
+        sp_cost: 0,
+        cond: 'Sp()<0',
+        parts: [{ skill_type: 'FixedHpDamageRateAttack', target_type: 'Single', power: [0.15, 0] }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, { 0: { characterId: 'SC1', skillId: 46008209 } });
+  assert.equal(preview.actions[0].startSP, -3, 'startSP = -3');
+  assert.equal(preview.actions[0].endSP, -3, 'sp_cost: 0 なので SP 変化なし');
+  assert.equal(preview.actions[0].spCost, 0, 'spCost = 0');
+});
+
+test('スキル cond Sp()<0: SP = -5 のとき（sp.min = -5 の下限）preview が成功する', () => {
+  const party = buildSpCondTestParty({
+    initialSP: -5,
+    spMin: -5,
+    skills: [
+      {
+        id: 46008209,
+        name: '春の宵の塵に同じ',
+        label: 'LShanhuaSkill53',
+        sp_cost: 0,
+        cond: 'Sp()<0',
+        parts: [{ skill_type: 'FixedHpDamageRateAttack', target_type: 'Single', power: [0.15, 0] }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, { 0: { characterId: 'SC1', skillId: 46008209 } });
+  assert.equal(preview.actions[0].startSP, -5, 'startSP = -5');
+});
+
+test('スキル cond Sp()>0 + sp_cost -1: SP = 0 のとき previewTurn がエラーをスローする', () => {
+  const party = buildSpCondTestParty({
+    initialSP: 0,
+    skills: [
+      {
+        id: 46007514,
+        name: '疾きこと風の如し',
+        label: 'INatsumeSkill53',
+        sp_cost: -1,
+        cond: 'Sp()>0',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+  assert.throws(
+    () => previewTurn(state, { 0: { characterId: 'SC1', skillId: 46007514 } }),
+    /cannot be used because cond is not satisfied/,
+    'SP = 0 では Sp()>0 条件を満たさないためエラー'
+  );
+});
+
+test('スキル cond Sp()>0 + sp_cost -1: SP > 0 のとき全 SP を消費して endSP = 0 になる', () => {
+  const party = buildSpCondTestParty({
+    initialSP: 15,
+    skills: [
+      {
+        id: 46007514,
+        name: '疾きこと風の如し',
+        label: 'INatsumeSkill53',
+        sp_cost: -1,
+        cond: 'Sp()>0',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, { 0: { characterId: 'SC1', skillId: 46007514 } });
+  assert.equal(preview.actions[0].startSP, 15, 'startSP = 15');
+  assert.equal(preview.actions[0].endSP, 0, 'sp_cost=-1 の全SP消費により endSP = 0');
+  assert.equal(preview.actions[0].spCost, -1, 'スキル定義の spCost = -1 がそのまま出力される');
+});
+
+test('スキル cond Sp()>0 + sp_cost -1: SP = 1 のとき全 SP を消費して endSP = 0 になる', () => {
+  const party = buildSpCondTestParty({
+    initialSP: 1,
+    skills: [
+      {
+        id: 46007514,
+        name: '疾きこと風の如し',
+        label: 'INatsumeSkill53',
+        sp_cost: -1,
+        cond: 'Sp()>0',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, { 0: { characterId: 'SC1', skillId: 46007514 } });
+  assert.equal(preview.actions[0].startSP, 1);
+  assert.equal(preview.actions[0].endSP, 0, 'SP 1 を全消費 → endSP = 0');
+});
+
+test('スキル cond Sp()>19: SP = 19 のとき previewTurn がエラーをスローする', () => {
+  const party = buildSpCondTestParty({
+    initialSP: 19,
+    skills: [
+      {
+        id: 46007513,
+        name: 'アオナツの夢',
+        label: 'INatsumeSkill05',
+        sp_cost: 0,
+        cond: 'Sp()>19',
+        parts: [{ skill_type: 'BuffCharge', target_type: 'Self', power: [0.2, 0.3] }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+  assert.throws(
+    () => previewTurn(state, { 0: { characterId: 'SC1', skillId: 46007513 } }),
+    /cannot be used because cond is not satisfied/,
+    'SP = 19 では Sp()>19 条件を満たさないためエラー'
+  );
+});
+
+test('スキル cond Sp()>19: SP = 20 のとき previewTurn が成功する（sp_cost: 0）', () => {
+  const party = buildSpCondTestParty({
+    initialSP: 20,
+    skills: [
+      {
+        id: 46007513,
+        name: 'アオナツの夢',
+        label: 'INatsumeSkill05',
+        sp_cost: 0,
+        cond: 'Sp()>19',
+        parts: [{ skill_type: 'BuffCharge', target_type: 'Self', power: [0.2, 0.3] }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, { 0: { characterId: 'SC1', skillId: 46007513 } });
+  assert.equal(preview.actions[0].startSP, 20, 'startSP = 20');
+  assert.equal(preview.actions[0].endSP, 20, 'sp_cost: 0 なので SP 変化なし');
+});
