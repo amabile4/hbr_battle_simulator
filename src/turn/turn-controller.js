@@ -788,17 +788,25 @@ function resolveSingleArgConditionValue(name, argRaw, state, member) {
             ? 1
             : 0,
       };
-    case 'SpecialStatusCountByType':
-      if (arg === '20') {
+    case 'SpecialStatusCountByType': {
+      const typeId = Number(arg);
+      if (typeId === 20) {
         return {
           known: true,
           value: member?.isExtraActive ? 1 : 0,
+        };
+      }
+      if (IMPLEMENTED_SPECIAL_STATUS_TYPES.has(typeId)) {
+        return {
+          known: true,
+          value: hasSpecialStatus(member, typeId) ? 1 : 0,
         };
       }
       return {
         known: false,
         value: true,
       };
+    }
     default:
       return {
         known: false,
@@ -4377,6 +4385,20 @@ function applyGuardEffectsFromActions(state, previewRecord) {
   return events;
 }
 
+// T02: SpecialStatusCountByType 状態保持チェックヘルパー
+const IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([25, 78, 79, 122, 124, 125, 144, 155, 164]);
+
+function hasSpecialStatus(member, typeId) {
+  if (!Array.isArray(member?.statusEffects)) return false;
+  const id = Number(typeId);
+  return member.statusEffects.some((e) => {
+    if (Number(e.metadata?.specialStatusTypeId) !== id) return false;
+    // Eternal 状態は remaining=0 でも有効
+    if (String(e.exitCond ?? '') === 'Eternal') return true;
+    return Number(e.remaining ?? 0) > 0;
+  });
+}
+
 function applyShreddingEffectsFromActions(state, previewRecord) {
   const events = [];
   for (const actionEntry of previewRecord.actions ?? []) {
@@ -4413,6 +4435,63 @@ function applyShreddingEffectsFromActions(state, previewRecord) {
           skillId: Number(skill.skillId ?? 0),
           skillName: String(skill.name ?? ''),
           turns,
+        });
+      }
+    }
+  }
+  return events;
+}
+
+// T04: バフ系特殊状態の付与（SpecialStatusCountByType 対応）
+const BUFF_SKILL_TYPE_TO_STATUS_ID = Object.freeze({
+  BuffCharge: 25,
+  MindEye: 78,
+  Dodge: 122,
+  ShadowClone: 125,
+  Diva: 144,
+  Makeup: 164,
+  EternalOath: 124,
+  BIYamawakiServant: 155,
+});
+
+function applyBuffStatusEffectsFromActions(state, previewRecord) {
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      const skillType = String(part?.skill_type ?? '').trim();
+      const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID[skillType];
+      if (statusTypeId == null) {
+        continue;
+      }
+      const exitCond = String(part?.effect?.exitCond ?? 'Count');
+      const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill });
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          statusTypeId,
+          skillId: Number(skill.skillId ?? 0),
+          skillName: String(skill.name ?? ''),
         });
       }
     }
@@ -6854,6 +6933,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       endMotivation: entry.endMotivation,
       baseRevision: entry._baseRevision,
     });
+    // T05: specialStatusTypeId 付きの Count 型特殊状態をスキル使用後にデクリメント
+    member.tickSpecialStatusCountEffects();
   }
 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
@@ -6871,6 +6952,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const guardEvents = applyGuardEffectsFromActions(state, previewRecord);
   const shreddingEvents = applyShreddingEffectsFromActions(state, previewRecord);
   const newlyShreddedIds = new Set(shreddingEvents.map((ev) => String(ev.characterId)));
+  applyBuffStatusEffectsFromActions(state, previewRecord);
   const enemyBreakEvents = applyEnemyBreakEffectsFromActions(state, previewRecord);
   const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);

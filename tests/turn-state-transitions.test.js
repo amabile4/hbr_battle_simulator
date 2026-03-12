@@ -9630,6 +9630,411 @@ test('実装済み SpecialStatusCountByType(20) 条件のパッシブは isExtra
   assert.equal(member.sp.current, 7, 'isExtraActive=true のため SP+2 が適用される');
 });
 
+// ─── T06〜T13: SpecialStatusCountByType 状態の付与・判定・解除テスト ───
+
+// ヘルパー: specialStatusTypeId が typeId で active なエントリ数を返す
+function countActiveSpecialStatus(member, typeId) {
+  return member.statusEffects.filter(
+    (e) =>
+      Number(e.metadata?.specialStatusTypeId) === typeId &&
+      (String(e.exitCond) === 'Eternal' || Number(e.remaining) > 0)
+  ).length;
+}
+
+test('T06: BuffCharge(25) — commitTurnで付与・パッシブ発動・次スキル使用で解除', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30001,
+              name: 'BuffChargeSkill',
+              label: 'TestBuffCharge',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'BuffCharge',
+                  target_type: 'Self',
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+            { id: 30002, name: 'Attack', label: 'TestAtk', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+          ],
+          passives: [
+            {
+              id: 91001,
+              name: '充填',
+              desc: 'チャージ状態のとき SP+1',
+              timing: 'OnPlayerTurnStart',
+              condition: 'SpecialStatusCountByType(25)>0',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  // 付与テスト: BuffChargeスキル使用後に状態が付与される
+  let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30001 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 25), 1, 'BuffCharge後にspecialStatus(25)が付与される');
+
+  // 判定テスト: SpecialStatusCountByType(25)>0 パッシブが発動する
+  const spBefore = state.party.find((m) => m.characterId === 'M1').sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const spAfter = state.party.find((m) => m.characterId === 'M1').sp.current;
+  assert.equal(spAfter - spBefore, 1, 'チャージ状態のときパッシブ(充填)が発動してSP+1');
+
+  // 解除テスト: 次スキル使用後にチャージ状態が消える
+  preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30002 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 25), 0, 'スキル使用後にチャージ状態が解除される');
+});
+
+test('T07: MindEye(78) — commitTurnで付与・パッシブ発動・次スキル使用で解除', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30011,
+              name: 'MindEyeSkill',
+              label: 'TestMindEye',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'MindEye',
+                  target_type: 'Self',
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+            { id: 30012, name: 'Attack', label: 'TestAtk2', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+          ],
+          passives: [
+            {
+              id: 91002,
+              name: '心眼の境地',
+              desc: '前衛&心眼状態のとき スキル攻撃力+15%',
+              timing: 'OnPlayerTurnStart',
+              condition: 'SpecialStatusCountByType(78)>0&&IsFront()',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  // 付与テスト
+  let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30011 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 78), 1, 'MindEye後にspecialStatus(78)が付与される');
+
+  // 判定テスト
+  const spBefore = state.party.find((m) => m.characterId === 'M1').sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore, 1, '心眼状態のときパッシブが発動');
+
+  // 解除テスト
+  preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30012 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 78), 0, 'スキル使用後に心眼状態が解除される');
+});
+
+test('T08: Dodge(122) — commitTurnで前衛全員に付与・解除', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30021,
+              name: 'DodgeSkill',
+              label: 'TestDodge',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'Dodge',
+                  target_type: 'AllyFront',
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+            { id: 30022, name: 'Attack', label: 'TestAtk3', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  // 付与テスト: AllyFront（前衛3人）全員にDodge状態が付与される
+  let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30021 } });
+  state = commitTurn(state, preview).nextState;
+  const frontMembers = state.party.filter((m) => Number(m.position) <= 2);
+  for (const m of frontMembers) {
+    assert.equal(countActiveSpecialStatus(m, 122), 1, `前衛 ${m.characterId} にDodge(122)が付与される`);
+  }
+
+  // 解除テスト: スキル使用後にM1のDodge状態が消える
+  preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30022 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 122), 0, 'スキル使用後にM1のDodge状態が解除される');
+});
+
+test('T09: ShadowClone(125) — exitVal=[2,0]: 2スキル使用後に解除', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30031,
+              name: 'ShadowCloneSkill',
+              label: 'TestShadowClone',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'ShadowClone',
+                  target_type: 'Self',
+                  effect: { exitCond: 'Count', exitVal: [2, 0] },
+                },
+              ],
+            },
+            { id: 30032, name: 'Attack', label: 'TestAtk4', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  // 付与テスト
+  let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30031 } });
+  state = commitTurn(state, preview).nextState;
+  const m1 = state.party.find((m) => m.characterId === 'M1');
+  const shadow = m1.statusEffects.find((e) => Number(e.metadata?.specialStatusTypeId) === 125);
+  assert.ok(shadow, '影分身状態が付与される');
+  assert.equal(shadow.remaining, 2, 'exitVal=[2,0] なので remaining=2');
+
+  // 1回スキル使用 → remaining=1
+  preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30032 } });
+  state = commitTurn(state, preview).nextState;
+  const shadow2 = state.party.find((m) => m.characterId === 'M1').statusEffects.find((e) => Number(e.metadata?.specialStatusTypeId) === 125);
+  assert.ok(shadow2, '1回使用後も影分身状態が残る');
+  assert.equal(shadow2.remaining, 1, '1回使用後はremaining=1');
+
+  // 2回目スキル使用 → 解除
+  preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30032 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 125), 0, '2回使用後に影分身状態が解除される');
+});
+
+test('T10: Diva(144) — PlayerTurnEnd型: commitTurn×6後に解除・パッシブ(レゾナンス相当)が加護中のみ発動', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30041,
+              name: 'DivaSkill',
+              label: 'TestDiva',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'Diva',
+                  target_type: 'AllyAll',
+                  effect: { exitCond: 'PlayerTurnEnd', exitVal: [5, 0] },
+                },
+              ],
+            },
+            { id: 30042, name: 'Attack', label: 'TestAtk5', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+          ],
+          passives: [
+            {
+              id: 91003,
+              name: 'レゾナンス相当',
+              desc: '歌姫の加護状態のとき SP+2',
+              timing: 'OnPlayerTurnStart',
+              condition: 'SpecialStatusCountByType(144)>0',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  // 付与テスト: DivaスキルでAllyAll（全員）に付与される
+  let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30041 } });
+  state = commitTurn(state, preview).nextState;
+  for (const m of state.party) {
+    assert.equal(countActiveSpecialStatus(m, 144), 1, `全員(${m.characterId})にDiva(144)が付与される`);
+  }
+
+  // 判定テスト: 加護状態のとき、加護中のみパッシブが発動
+  const spBefore = state.party.find((m) => m.characterId === 'M1').sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore, 2, '歌姫の加護中にパッシブが発動してSP+2');
+
+  // 解除テスト: 5ターン後（PlayerTurnEnd×5）に状態が消える
+  // commitTurn のたびに PlayerTurnEnd がデクリメントされる
+  for (let i = 0; i < 5; i++) {
+    preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30042 } });
+    state = commitTurn(state, preview).nextState;
+  }
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 144), 0, '5ターン後にDiva状態が解除される');
+
+  // 加護解除後はパッシブが発動しない
+  const spBefore2 = state.party.find((m) => m.characterId === 'M1').sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore2, 0, '歌姫の加護解除後はパッシブが発動しない');
+});
+
+test('T11: Makeup(164) — applySpecialStatus直接付与・パッシブ発動・Count解除', () => {
+  // Makeupはpassives.jsonで付与されるため、applySpecialStatusを直接使用してテスト
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            { id: 30051, name: 'Attack', label: 'TestAtk6', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+          ],
+          passives: [
+            {
+              id: 91004,
+              name: '耽美',
+              desc: '前衛&メイクアップ状態のとき スキル攻撃力+50%',
+              timing: 'OnPlayerTurnStart',
+              condition: 'SpecialStatusCountByType(164)>0&&IsFront()',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+  const m1 = state.party.find((m) => m.characterId === 'M1');
+
+  // 付与テスト: applySpecialStatus直接呼び出し
+  m1.applySpecialStatus(164, 1, 'Count', {});
+  assert.equal(countActiveSpecialStatus(m1, 164), 1, 'applySpecialStatus(164)で状態が付与される');
+
+  // 判定テスト: 前衛&メイクアップ状態のときパッシブが発動
+  const spBefore = m1.sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(m1.sp.current - spBefore, 2, 'メイクアップ状態のときパッシブが発動してSP+2');
+
+  // 解除テスト: スキル使用後にメイクアップ状態が消える
+  const preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30051 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 164), 0, 'スキル使用後にメイクアップ状態が解除される');
+});
+
+test('T12: EternalOath(124) — Eternal型: commitTurnで付与・解除なし・CountBCパッシブ発動', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30061,
+              name: 'EternalOathSkill',
+              label: 'TestEternalOath',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'EternalOath',
+                  target_type: 'AllySingleWithoutSelf',
+                  effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+                },
+              ],
+            },
+            { id: 30062, name: 'Attack', label: 'TestAtk7', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+          ],
+          passives: [
+            {
+              id: 91005,
+              name: 'エンゲージリンク相当',
+              desc: '前衛にいると 永遠なる誓い状態の味方がいるときSP+1',
+              timing: 'OnPlayerTurnStart',
+              condition: 'IsFront()&&CountBC(IsPlayer()&&SpecialStatusCountByType(124)>0)>0',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  // 付与テスト: 対象メンバー（M2）にEternalOathが付与される
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 30061, targetCharacterId: 'M2' },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M2'), 124), 1, 'M2にEternalOath(124)が付与される');
+
+  // Eternal型は複数ターン経過しても消えない
+  const preview2 = previewTurn(state, { 0: { characterId: 'M1', skillId: 30062 } });
+  state = commitTurn(state, preview2).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M2'), 124), 1, 'Eternal型なので2ターン後も状態が残る');
+
+  // CountBCパッシブ発動テスト: 永遠なる誓い状態の味方がいるときM1のパッシブが発動
+  const spBefore = state.party.find((m) => m.characterId === 'M1').sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore, 1, '永遠なる誓い状態の味方がいるとき前衛M1のパッシブが発動');
+});
+
+test('T13: BIYamawakiServant(155) — Eternal型: 複数付与・CountBC(>=6)判定', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30071,
+              name: 'ServantSkill',
+              label: 'TestServant',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'BIYamawakiServant',
+                  target_type: 'AllySingleWithoutSelf',
+                  effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+                },
+              ],
+            },
+          ],
+          passives: [
+            {
+              id: 91006,
+              name: '魔王軍の大攻勢相当',
+              desc: 'しもべ6人以上のとき OD+100%相当',
+              timing: 'OnPlayerTurnStart',
+              condition: 'CountBC(IsPlayer()&&SpecialStatusCountByType(155)>=1)>=6',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // 6人全員に手動でBIYamawakiServant状態を付与
+  for (const m of state.party) {
+    m.applySpecialStatus(155, 0, 'Eternal', {});
+  }
+
+  // CountBC(>=6)テスト: 6人全員がしもべ状態のときパッシブが発動
+  const spBefore = state.party.find((m) => m.characterId === 'M1').sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore, 3, 'しもべ状態6人以上のときパッシブが発動してSP+3');
+});
+
 test('条件なしパッシブは正常に発動する（リグレッション確認）', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

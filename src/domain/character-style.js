@@ -9,6 +9,19 @@ import {
 export const MAX_PARTY_POSITION = 5;
 export const SHREDDING_SP_MIN = -30;
 
+// SpecialStatusCountByType の数値IDと statusEffects.statusType 文字列のマッピング
+export const SPECIAL_STATUS_TYPE_NAMES = Object.freeze({
+  25: 'BuffCharge',
+  78: 'MindEye',
+  79: 'ImprisonRandom',
+  122: 'Dodge',
+  124: 'EternalOath',
+  125: 'ShadowClone',
+  144: 'Diva',
+  155: 'BIYamawakiServant',
+  164: 'Makeup',
+});
+
 export function normalizePartyPosition(position) {
   const numericPosition = Number(position);
   if (!Number.isInteger(numericPosition) || numericPosition < 0 || numericPosition > MAX_PARTY_POSITION) {
@@ -137,6 +150,8 @@ function normalizeStatusEffect(effect, fallbackId = 1) {
 }
 
 function isActiveStatusEffect(effect) {
+  // Eternal 状態は remaining に関わらず常にアクティブ
+  if (String(effect?.exitCond ?? '') === 'Eternal') return true;
   return Number(effect?.remaining ?? 0) > 0;
 }
 
@@ -723,6 +738,37 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
+  applySpecialStatus(typeId, remaining, exitCond, context = {}) {
+    const id = Number(typeId);
+    const statusType = SPECIAL_STATUS_TYPE_NAMES[id] ?? `SpecialStatus_${id}`;
+    const cond = String(exitCond ?? 'Count');
+    // Eternal 状態は remaining=0 でも isActiveStatusEffect が true を返す
+    const effectiveRemaining = cond === 'Eternal' ? 0 : Math.max(1, Number(remaining) || 1);
+    const skill = context?.skill ?? null;
+
+    // 同一 typeId の既存エントリがあれば残りターン数を max 採用で更新
+    const existing = this.statusEffects.find(
+      (e) => Number(e.metadata?.specialStatusTypeId) === id
+    );
+    if (existing) {
+      if (cond !== 'Eternal') {
+        existing.remaining = Math.max(existing.remaining, effectiveRemaining);
+      }
+      this._revision += 1;
+      return;
+    }
+
+    this.addStatusEffect({
+      statusType,
+      exitCond: cond,
+      remaining: effectiveRemaining,
+      sourceSkillId: skill?.skillId ?? null,
+      sourceSkillLabel: String(skill?.label ?? ''),
+      sourceSkillName: String(skill?.name ?? ''),
+      metadata: { specialStatusTypeId: id },
+    });
+  }
+
   tickReinforcedModeTurnIfActionable(isActionable, options = {}) {
     if (!isActionable) {
       return;
@@ -885,6 +931,24 @@ export class CharacterStyle {
     }
 
     return ticked;
+  }
+
+  // T05: specialStatusTypeId を持つ Count 型特殊状態のみをデクリメント
+  // 既存の MindEye 等（consumeMindEyeEffects で管理）には影響しない
+  tickSpecialStatusCountEffects() {
+    let changed = false;
+    for (const effect of this.statusEffects) {
+      if (String(effect.exitCond) !== 'Count') continue;
+      if (!isActiveStatusEffect(effect)) continue;
+      if (effect.metadata?.specialStatusTypeId == null) continue;
+      effect.remaining = Math.max(0, Number(effect.remaining) - 1);
+      changed = true;
+    }
+    const beforeLen = this.statusEffects.length;
+    this.statusEffects = this.statusEffects.filter((e) => isActiveStatusEffect(e));
+    if (changed || this.statusEffects.length !== beforeLen) {
+      this._revision += 1;
+    }
   }
 
   getFunnelEffects(options = {}) {

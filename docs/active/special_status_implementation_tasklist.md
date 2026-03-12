@@ -1,6 +1,6 @@
 # SpecialStatusCountByType バフ状態 実装タスクリスト
 
-> **ステータス**: 🚧 実装中 | 📅 開始: 2026-03-13
+> **ステータス**: ✅ 完了（T14/T15除く低優先度） | 📅 開始: 2026-03-13 | 📅 完了: 2026-03-13
 
 ---
 
@@ -51,7 +51,7 @@
 
 ### フェーズ1: 基盤実装
 
-- [ ] **T01**: `CharacterStyle.applySpecialStatus()` メソッドを実装
+- [x] **T01**: `CharacterStyle.applySpecialStatus()` メソッドを実装
   - **対象**: `src/domain/character-style.js`
   - 引数: `(typeId: number, remaining: number, exitCond: string, context: { skill? })`
   - `metadata.specialStatusTypeId: typeId` を持つ statusEffects エントリを追加
@@ -59,12 +59,12 @@
   - `statusType` 文字列は定数マップ `SPECIAL_STATUS_TYPE_NAMES` で管理
   - テスト: `applySpecialStatus(25, 1, 'Count', {})` 後に `statusEffects` に追加されること
 
-- [ ] **T02**: `hasSpecialStatus(member, typeId)` ヘルパーを実装
+- [x] **T02**: `hasSpecialStatus(member, typeId)` ヘルパーを実装
   - **対象**: `src/turn/turn-controller.js`
   - `member.statusEffects.some(e => Number(e.metadata?.specialStatusTypeId) === typeId && isActiveStatusEffect(e))`
   - テスト: 付与済みメンバーで `true`、未付与/期限切れで `false`
 
-- [ ] **T03**: `resolveSingleArgConditionValue` の `SpecialStatusCountByType` を拡張
+- [x] **T03**: `resolveSingleArgConditionValue` の `SpecialStatusCountByType` を拡張
   - **対象**: `src/turn/turn-controller.js` (line ~786)
   - 実装済み type 20 はそのまま維持
   - `IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([25, 78, 79, 122, 124, 125, 144, 155, 164])` を定数化
@@ -74,7 +74,7 @@
 
 ### フェーズ2: 付与ロジック
 
-- [ ] **T04**: `applyBuffStatusEffectsFromActions(state, previewRecord)` を実装
+- [x] **T04**: `applyBuffStatusEffectsFromActions(state, previewRecord)` を実装
   - **対象**: `src/turn/turn-controller.js`（新関数）
   - `applyShreddingEffectsFromActions` と同じ構造
   - 処理対象 skill_type と statusTypeId のマッピング:
@@ -87,7 +87,7 @@
   - `commitTurn` 内 `applyShreddingEffectsFromActions` 直後に挿入
   - テスト: 各 skill_type 使用後に対象メンバーの `statusEffects` に追加されること
 
-- [ ] **T05**: exitCond='Count' 状態の解除タイミングを実装
+- [x] **T05**: exitCond='Count' 状態の解除タイミングを実装
   - **対象**: `src/turn/turn-controller.js` の `commitTurn` 内
   - `member.commitSkillPreview(...)` 呼び出し直後に `member.tickStatusEffectsByExitCond('Count')` を追加
   - アクターのみに適用（スキルを使用したキャラクターのみ）
@@ -95,45 +95,45 @@
 
 ### フェーズ3: 各状態の個別確認とテスト（優先度A）
 
-- [ ] **T06**: チャージ状態（ID: 25, skill_type: BuffCharge）
+- [x] **T06**: チャージ状態（ID: 25, skill_type: BuffCharge）
   - `json/skills.json` で `BuffCharge` 使用スキルの exitCond/exitVal/target_type を確認
   - 付与テスト: BuffCharge スキル使用 → `hasSpecialStatus(member, 25)` が true
   - 判定テスト: `SpecialStatusCountByType(25)>0` 条件のパッシブが発動
   - 解除テスト: スキル使用後（Count型）に状態が消えること
   - CountBC テスト: `CountBC(IsPlayer() && SpecialStatusCountByType(25) > 0)>0` が保持者いるとき true
 
-- [ ] **T07**: 心眼状態（ID: 78, skill_type: MindEye）
+- [x] **T07**: 心眼状態（ID: 78, skill_type: MindEye）
   - `json/skills.json` で MindEye の exitCond/exitVal を確認
   - 付与・判定・解除の3テスト
   - パッシブ発動テスト: `SpecialStatusCountByType(78)>0 && IsFront()` 条件
 
-- [ ] **T08**: 回避状態（ID: 122, skill_type: Dodge）
+- [x] **T08**: 回避状態（ID: 122, skill_type: Dodge）
   - exitCond='Count', limitType='Once' の挙動確認（同一キャラへの重複付与が上書きされるか）
   - 付与・判定・解除の3テスト
   - 前衛条件テスト: `SpecialStatusCountByType(122)>0 && IsFront()` 条件
 
-- [ ] **T09**: 影分身状態（ID: 125, skill_type: ShadowClone）
+- [x] **T09**: 影分身状態（ID: 125, skill_type: ShadowClone）
   - `json/skills.json` で ShadowClone の exitCond/exitVal を確認（PlayerTurnEnd 想定）
   - 付与・判定・解除の3テスト
 
-- [ ] **T10**: 歌姫の加護状態（ID: 144, skill_type: Diva）
+- [x] **T10**: 歌姫の加護状態（ID: 144, skill_type: Diva）
   - `json/skills.json` で Diva の exitCond/exitVal を確認
   - 付与・判定・解除の3テスト
   - パッシブ発動テスト: 「レゾナンス」(SP+2) が歌姫の加護中のみ発動すること
 
-- [ ] **T11**: メイクアップ状態（ID: 164, skill_type: Makeup）
+- [x] **T11**: メイクアップ状態（ID: 164, skill_type: Makeup）
   - `json/skills.json` で Makeup の exitCond/exitVal を確認
   - 付与・判定・解除の3テスト
   - パッシブ発動テスト: `SpecialStatusCountByType(164)>0 && IsFront()` 条件
 
 ### フェーズ4: CountBC対象状態（優先度B）
 
-- [ ] **T12**: 永遠なる誓い状態（ID: 124, skill_type: EternalOath）
+- [x] **T12**: 永遠なる誓い状態（ID: 124, skill_type: EternalOath）
   - `json/skills.json` で EternalOath の target_type/exitCond を確認
   - 複数メンバーへの付与テスト
   - CountBC テスト: `CountBC(IsPlayer() && SpecialStatusCountByType(124)>0)>0`
 
-- [ ] **T13**: 山脇様のしもべ状態（ID: 155, skill_type: BIYamawakiServant）
+- [x] **T13**: 山脇様のしもべ状態（ID: 155, skill_type: BIYamawakiServant）
   - `json/skills.json` で BIYamawakiServant の target_type/exitCond を確認
   - 複数メンバーへの付与テスト
   - CountBC テスト: `CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=6`（6人以上条件）
@@ -153,7 +153,7 @@
 
 ### フェーズ6: 完了処理
 
-- [ ] **T16**: 全テスト通過確認
+- [x] **T16**: 全テスト通過確認
   - `npm test` で全テスト PASS（リグレッションなし）
   - 追加テスト分も含めて PASS になること
 
