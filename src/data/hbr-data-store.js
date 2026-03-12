@@ -171,7 +171,18 @@ export class HbrDataStore {
   constructor(payload) {
     this.characters = payload.characters;
     this.styles = payload.styles;
-    this.skills = payload.skills;
+    this.skills = (payload.skills ?? []).map((skill) => {
+      // is_adv: true かつ sp_cost > 0 のスキルは「SP0以上であれば使用可能」条件を持つ（仕組みB）
+      if (skill.is_adv === true && Number(skill.sp_cost ?? 0) > 0) {
+        const existingCond = String(skill.cond ?? '').trim();
+        const addedCond = 'Sp()>=0';
+        return {
+          ...skill,
+          cond: existingCond ? `${existingCond}&&${addedCond}` : addedCond,
+        };
+      }
+      return skill;
+    });
     this.passives = payload.passives;
     this.accessories = payload.accessories ?? [];
     this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
