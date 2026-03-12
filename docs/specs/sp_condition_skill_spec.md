@@ -110,6 +110,7 @@ export function applySpChange(current, delta, min, eventCeiling) {
 | `SpMinOverwrite` passive | データなし | 専用 passive は存在しない（UI の FORCE_RESOURCE_MIN で代替） |
 | 「消費 SP に応じて威力上昇」計算 | 未実装 | `sp_cost: -1` の消費量をダメージ計算に反映する仕組みが必要（将来実装候補） |
 | 「SP30まで上限突破可」（アオナツの夢） | 別途実装済み | `SpLimitOverwrite` passive で `sp.max = 30` を設定（歴戦パッシブ） |
+| 速弾き（Shredding）状態 | 未実装 | 芳岡ユイの「かき鳴らせキラーチューン」(id=46040604) が付与するバフ状態。速弾き中は全スキルが SP>=0 で使用可能になり SP がマイナスに突入する。`sp.min` の動的変更・状態管理が必要。詳細は `docs/active/shredding_implementation_tasklist.md` を参照。 |
 
 ---
 
