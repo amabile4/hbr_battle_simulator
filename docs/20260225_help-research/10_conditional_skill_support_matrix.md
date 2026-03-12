@@ -17,14 +17,36 @@ Generated: 2026-03-01T14:35:27.528Z
 ## Supported Expression Patterns
 - `PlayedSkillCount(...) <op> N`
 - `BreakHitCount() <op> N`
-- `SpecialStatusCountByType(20) <op> N`
+- `SpecialStatusCountByType(n) <op> N` (See mapping below)
 - `OverDriveGauge() <op> N`
 - `Sp() <op> N`
 - `IsOverDrive()` / `IsOverDrive()<op>N`
 - `IsReinforcedMode()` / `IsReinforcedMode()<op>N`
 - `CountBC(...) <op> N` の一部（`IsPlayer()` / `IsFront()==0&&IsPlayer()` / ExtraTurn系）
 
+## SpecialStatusCountByType(n) 推測マッピング
+
+各種条件式に登場する `SpecialStatusCountByType(n)` の `n` 値と、関連する説明テキストから推測されるステータス名の対応表です。
+
+| ID | 推測ステータス名 | 主な該当スキル・パッシブ / テキストの例 |
+| --- | --- | --- |
+| **12** | 挑発 / 注目 | `スパークル・トライショット+` 等 (挑発または注目状態の敵がいるとき) ※57とペア |
+| **20** | 追加ターン | `先導のカリスマ`、`ごきげんダンス` 等 (追加ターン中 / 追加ターン中を除く) |
+| **25** | 連撃 / 闘志 等 (推定) | 丸山奏多(`充填`)、松岡チロル(`クライマックス・アクション`) 等の専用パッシブ |
+| **57** | 挑発 / 注目 | 12と併用され「挑発または注目状態の敵がいるとき」の判定に使われる |
+| **78** | 心眼 | 茅森月歌(`心眼の境地` / `王の眼差し`) |
+| **79** | 厄 または 恐怖 (推定) | 大島五十鈴(`脱出術` - スキルや通常攻撃被弾による被状態異常など) |
+| **122** | 注目系 (推定) | 水瀬すもも(`演舞`: 茹だるアサシン等) 専用パッシブ |
+| **124** | 永遠なる誓い (推定) | シャルロッタ(`エンゲージリンク`等のパッシブ) 専用効果 |
+| **125** | 影分身 | `レッドラウンドイリュージョン`(神崎)、`浮き浮きサニー・ボマー`(佐月) |
+| **144** | 歌姫の加護 | 茅森月歌(`月光` / `レゾナンス`) 専用ステータス |
+| **146** | ネガティブ | 伊達朱里(`御祈祷オーバーヒート`: 自身がネガティブ状態でないとき) |
+| **155** | 山脇様のしもべ | 豊後弥生(`メガデストロイヤー`)、山脇・豊後の専用パッシブ群 |
+| **164** | 魅了系 / 防御Down (推定) | 大島二以奈(`耽美` - 渚のピュアメモリー) |
+| **172** | 超ダウン | 朝倉可憐(`シンメトリー・リベレーション`: 超ダウン中の敵がいるとき) |
+
 ## Skill List
+
 | status | id | chara | skill | cond_supported/total | conditions |
 |---|---:|---|---|---:|---|
 | 未対応 | 46001113 | 茅森 月歌 | 黒曜のオーバーロード | 0/2 | [unsupported] part.cond(DamageRateChangeAttackSkill): IsHitWeak()<br>[unsupported] part.cond(DamageRateChangeAttackSkill): IsHitWeak() |
