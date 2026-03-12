@@ -4360,6 +4360,49 @@ function applyGuardEffectsFromActions(state, previewRecord) {
   return events;
 }
 
+function applyShreddingEffectsFromActions(state, previewRecord) {
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      const skillType = String(part?.skill_type ?? '').trim();
+      if (skillType !== 'Shredding') {
+        continue;
+      }
+      const turns = Number(part?.effect?.exitVal?.[0] ?? 1);
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        target.applyShredding(turns);
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          skillId: Number(skill.skillId ?? 0),
+          skillName: String(skill.name ?? ''),
+          turns,
+        });
+      }
+    }
+  }
+  return events;
+}
+
 function applyEnemyBreakEffectsFromActions(state, previewRecord) {
   const events = [];
   for (const actionEntry of previewRecord.actions ?? []) {
@@ -6777,6 +6820,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const fieldStateEvents = applyFieldStateFromActions(state, previewRecord);
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const guardEvents = applyGuardEffectsFromActions(state, previewRecord);
+  const shreddingEvents = applyShreddingEffectsFromActions(state, previewRecord);
   const enemyBreakEvents = applyEnemyBreakEffectsFromActions(state, previewRecord);
   const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
