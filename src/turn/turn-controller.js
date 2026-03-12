@@ -4672,7 +4672,7 @@ function applyTurnBasedStatusExpiry(state, previewRecord) {
   return events;
 }
 
-function tickShreddingTurns(state, previewRecord) {
+function tickShreddingTurns(state, previewRecord, skipCharacterIds = new Set()) {
   const processed = new Set();
   for (const actionEntry of previewRecord.actions ?? []) {
     const characterId = String(actionEntry?.characterId ?? '');
@@ -4680,6 +4680,10 @@ function tickShreddingTurns(state, previewRecord) {
       continue;
     }
     processed.add(characterId);
+    // 今ターンで速弾きが付与されたメンバーは同ターン内でカウントダウンしない
+    if (skipCharacterIds.has(characterId)) {
+      continue;
+    }
     const member = findMemberByCharacterId(state, characterId);
     if (!member || !member.isShredding) {
       continue;
@@ -4905,14 +4909,6 @@ function validateActionDict(state, actions, options = {}) {
         }
       }
 
-      // 速弾き中: SP全消費スキル(sp_cost=-1)を除き、SP >= 0 であれば使用可能
-      // sp_cost=-1 スキルには速弾き効果が適用されない（仕様 D4）
-      const rawSkillCost = Number(effectiveSkill?.spCost ?? skill.spCost ?? 0);
-      if (member.isShredding && rawSkillCost !== -1 && member.sp.current < 0) {
-        throw new Error(
-          `Skill ${skill.skillId} cannot be used because SP is negative during Shredding.`
-        );
-      }
     }
 
     return {
@@ -6860,6 +6856,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
   const guardEvents = applyGuardEffectsFromActions(state, previewRecord);
   const shreddingEvents = applyShreddingEffectsFromActions(state, previewRecord);
+  const newlyShreddedIds = new Set(shreddingEvents.map((ev) => String(ev.characterId)));
   const enemyBreakEvents = applyEnemyBreakEffectsFromActions(state, previewRecord);
   const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
@@ -6985,7 +6982,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   ];
   updateReinforcedModeStateAfterTurn(state);
   applyTurnBasedStatusExpiry(state, previewRecord);
-  tickShreddingTurns(state, previewRecord);
+  tickShreddingTurns(state, previewRecord, newlyShreddedIds);
 
   if (applySwapOnCommit) {
     applySwapEvents(state, swapEvents);
