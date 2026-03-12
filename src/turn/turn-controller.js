@@ -152,6 +152,7 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   CountBC: Object.freeze({ tier: 'implemented', note: 'implemented only for supported nested predicates' }),
   IsOverDrive: Object.freeze({ tier: 'implemented', note: 'turn type is tracked now' }),
   IsReinforcedMode: Object.freeze({ tier: 'implemented', note: 'character state is tracked now' }),
+  IsShredding: Object.freeze({ tier: 'implemented', note: 'shreddingTurnsRemaining is tracked now' }),
   IsFront: Object.freeze({ tier: 'implemented', note: 'position is tracked now' }),
   IsDead: Object.freeze({ tier: 'implemented', note: 'alive state is tracked now' }),
   BreakDownTurn: Object.freeze({ tier: 'implemented', note: 'enemy DownTurn is tracked now' }),
@@ -691,6 +692,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
       return {
         known: true,
         value: hasReinforcedMode(member) ? 1 : 0,
+      };
+    case 'IsShredding':
+      return {
+        known: true,
+        value: member?.isShredding ? 1 : 0,
       };
     case 'IsFront':
       return {
