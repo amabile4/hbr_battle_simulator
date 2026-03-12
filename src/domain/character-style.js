@@ -312,6 +312,7 @@ export class CharacterStyle {
       this.statusEffects.reduce((max, effect) => Math.max(max, Number(effect.effectId ?? 0)), 0) + 1;
     this.reinforcedTurnsRemaining = Number(input.reinforcedTurnsRemaining ?? 0);
     this.actionDisabledTurns = Number(input.actionDisabledTurns ?? 0);
+    this.shreddingTurnsRemaining = Number(input.shreddingTurnsRemaining ?? 0);
 
     this.skills = Object.freeze(
       (input.skills ?? []).map((skill) => normalizeSkill(skill, skill.canonicalSkill))
@@ -710,6 +711,16 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
+  get isShredding() {
+    return this.shreddingTurnsRemaining > 0;
+  }
+
+  applyShredding(turns) {
+    const n = Math.max(1, Number(turns) || 1);
+    this.shreddingTurnsRemaining = Math.max(this.shreddingTurnsRemaining, n);
+    this._revision += 1;
+  }
+
   tickReinforcedModeTurnIfActionable(isActionable, options = {}) {
     if (!isActionable) {
       return;
@@ -952,6 +963,7 @@ export class CharacterStyle {
       isReinforcedMode: this.isReinforcedMode,
       reinforcedTurnsRemaining: this.reinforcedTurnsRemaining,
       actionDisabledTurns: this.actionDisabledTurns,
+      shreddingTurnsRemaining: this.shreddingTurnsRemaining,
       epRule: this.epRule ? structuredClone(this.epRule) : null,
       statusEffects: structuredClone(this.statusEffects),
       skillUseCounts: Object.fromEntries(this.skillUseCounts.entries()),
