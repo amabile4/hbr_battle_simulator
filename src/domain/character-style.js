@@ -7,6 +7,7 @@ import {
 } from '../config/battle-defaults.js';
 
 export const MAX_PARTY_POSITION = 5;
+export const SHREDDING_SP_MIN = -30;
 
 export function normalizePartyPosition(position) {
   const numericPosition = Number(position);
@@ -718,6 +719,7 @@ export class CharacterStyle {
   applyShredding(turns) {
     const n = Math.max(1, Number(turns) || 1);
     this.shreddingTurnsRemaining = Math.max(this.shreddingTurnsRemaining, n);
+    this.sp.min = Math.min(this.sp.min, SHREDDING_SP_MIN);
     this._revision += 1;
   }
 

@@ -8,6 +8,7 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import { isNormalAttackSkill } from '../domain/skill-classifiers.js';
+import { SHREDDING_SP_MIN } from '../domain/character-style.js';
 import {
   OD_RECOVERY_BY_LEVEL,
   OD_COST_BY_LEVEL,
@@ -4680,6 +4681,9 @@ function tickShreddingTurns(state, previewRecord) {
     member.shreddingTurnsRemaining -= 1;
     if (member.shreddingTurnsRemaining <= 0) {
       member.shreddingTurnsRemaining = 0;
+      if (member.sp.min <= SHREDDING_SP_MIN) {
+        member.sp.min = 0;
+      }
     }
     member._revision += 1;
   }
