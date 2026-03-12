@@ -4898,6 +4898,15 @@ function validateActionDict(state, actions, options = {}) {
           );
         }
       }
+
+      // 速弾き中: SP全消費スキル(sp_cost=-1)を除き、SP >= 0 であれば使用可能
+      // sp_cost=-1 スキルには速弾き効果が適用されない（仕様 D4）
+      const rawSkillCost = Number(effectiveSkill?.spCost ?? skill.spCost ?? 0);
+      if (member.isShredding && rawSkillCost !== -1 && member.sp.current < 0) {
+        throw new Error(
+          `Skill ${skill.skillId} cannot be used because SP is negative during Shredding.`
+        );
+      }
     }
 
     return {
