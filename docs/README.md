@@ -54,7 +54,7 @@ docs/
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
-注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了（HealSp AllyAll/Self・AttackUp OD中、4テスト追加）。AttackUpPerToken / DefenseUpPerToken 実装完了（高揚・激励・鉄壁、6テスト追加）。全492テストPASS。次の着手は `implementation_priority_tasklist.md` で判断。
+注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了。AttackUpPerToken / DefenseUpPerToken 実装完了（高揚・激励・鉄壁）。SP条件スキル（Sp()<0 / Sp()>0 / Sp()>19）spec文書作成・8テスト追加。全500テストPASS。次の着手は `implementation_priority_tasklist.md` で判断。
 
 ---
 
@@ -69,6 +69,7 @@ docs/
 | [specs/runs/RUN_20260228_001/open_questions.md](specs/runs/RUN_20260228_001/open_questions.md) | ユーザー確認が必要な未決事項（Q-S001等） | 2026-02-28 |
 | [specs/gui_design_spec.md](specs/gui_design_spec.md) | GUI設計仕様 | 2026-03-07 |
 | [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（ドライブピアス補正式・実機照合済み） | 2026-03-01 |
+| [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
 
 ---
 
