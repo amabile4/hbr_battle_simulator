@@ -103,15 +103,15 @@ export function applySpChange(current, delta, min, eventCeiling) {
 
 ---
 
-## 5. 未実装・スコープ外
+## 5. 周辺事項・スコープ補足
 
 | 項目 | 状態 | 備考 |
 |------|------|------|
 | `SpMinOverwrite` passive | データなし | 専用 passive は存在しない（UI の FORCE_RESOURCE_MIN で代替） |
 | 「消費 SP に応じて威力上昇」計算 | 未実装 | `sp_cost: -1` の消費量をダメージ計算に反映する仕組みが必要（将来実装候補） |
 | 「SP30まで上限突破可」（アオナツの夢） | 別途実装済み | `SpLimitOverwrite` passive で `sp.max = 30` を設定（歴戦パッシブ） |
-| 速弾き（Shredding）状態 | 未実装 | 芳岡ユイの「かき鳴らせキラーチューン」(id=46040604) が付与するバフ状態。速弾き中は全スキルが SP>=0 で使用可能になり SP がマイナスに突入する。`sp.min` の動的変更・状態管理が必要。詳細は `docs/active/shredding_implementation_tasklist.md` を参照。 |
-| `is_adv: true` スキルの SP>=0 条件（仕組みB） | 未実装 | `is_adv: true && sp_cost > 0` のスキル（全37件）は速弾き状態なしでも常に SP>=0 で使用可能。`is_adv` が完全識別子（`is_adv: false` で SP0以上条件を持つスキルは 0 件）。`hbr-data-store.js` のロード時に `cond: 'Sp()>=0'` を付与して既存 cond 評価パスで処理する計画。 |
+| 速弾き（Shredding）状態 | 別途実装済み | 芳岡ユイの「かき鳴らせキラーチューン」(id=46040604) が付与するバフ状態。速弾き中は全スキルが SP>=0 で使用可能になり SP がマイナスに突入する。`sp.min` の動的変更・状態管理まで実装済み。詳細は `docs/active/shredding_implementation_tasklist.md` を参照。 |
+| `is_adv: true` スキルの SP>=0 条件（仕組みB） | 別途実装済み | `is_adv: true && sp_cost > 0` のスキル（全37件）は速弾き状態なしでも常に SP>=0 で使用可能。`is_adv` を識別子として `hbr-data-store.js` のロード時に `cond: 'Sp()>=0'` を付与する形で実装済み。 |
 
 ---
 

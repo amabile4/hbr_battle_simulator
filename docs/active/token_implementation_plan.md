@@ -1,6 +1,6 @@
 # Token Implementation Plan
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-09
+> **ステータス**: ✅ 完了 | 📅 最終更新: 2026-03-13 | 📅 実装完了: 2026-03-12
 
 ## 概要
 
@@ -18,6 +18,24 @@
 - `TokenAttack`
 
 を扱い、その上にキャラクター固有の発火条件を個別モジュールで載せる。
+
+## 完了判定（2026-03-13）
+
+- 共通 token 基盤
+  - `CharacterStyle.tokenState`
+  - `TokenSet`
+  - `TokenSetByAttacking`
+  - `TokenSetByAttacked`
+  - `TokenSetByHealedDp`
+  - `consume_type: Token`
+  - `Token()`
+  は実装済み
+- token 依存補正
+  - `TokenAttack` の preview / record / `damageContext` 露出
+  - `DamageRateUpPerToken`
+  - `OverDrivePointUpByToken`
+  までを本 plan の完了スコープとして実装済み
+- `TokenChangeTimeline` や token 消費量を使う厳密ダメージ式は独立効果として扱わない方針のため、未完了ではなくスコープ外メモとして残す
 
 ## トークン所持キャラクター
 
@@ -266,7 +284,7 @@
   - [x] `Token()`
   - [x] `TokenAttack` の preview / record / `damageContext` 露出
 
-## 現在の残課題
+## 完了時点の補足メモ
 
 - `TokenSetByAttacked`
   - engine / UI / scenario / turnPlan / record の接続は完了
