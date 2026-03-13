@@ -46,6 +46,26 @@ const ENEMY_STATUS_BREAK = 'Break';
 const ENEMY_STATUS_STRONG_BREAK = 'StrongBreak';
 const ENEMY_STATUS_SUPER_DOWN = 'SuperDown';
 const ENEMY_STATUS_DEAD = 'Dead';
+const ENEMY_STATUS_PROVOKE = 'Provoke';
+const ENEMY_STATUS_ATTENTION = 'Attention';
+const ENEMY_SPECIAL_STATUS_TYPE_TO_NAME = Object.freeze({
+  12: ENEMY_STATUS_PROVOKE,
+  57: ENEMY_STATUS_ATTENTION,
+});
+const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
+  new Set([
+    'DefenseDown',
+    'Fragile',
+    'AttackDown',
+    'ResistDown',
+    'ResistDownOverwrite',
+    ENEMY_STATUS_PROVOKE,
+    ENEMY_STATUS_ATTENTION,
+  ])
+);
+const ENEMY_STATUS_POWER_DURATION_SKILL_TYPES = Object.freeze(
+  new Set([ENEMY_STATUS_PROVOKE, ENEMY_STATUS_ATTENTION])
+);
 const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp', 'ReviveDpRate']));
 const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
 const DP_HEAL_SKILL_TYPES = Object.freeze(
@@ -887,6 +907,170 @@ function splitTopLevel(expression, separator) {
   return out.filter(Boolean);
 }
 
+function normalizeEnemyStatusElements(elements) {
+  if (!Array.isArray(elements)) {
+    return [];
+  }
+  return [...new Set(elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
+}
+
+function getEnemyStatusPowerValue(status) {
+  const raw = Array.isArray(status?.power) ? status.power[0] : status?.power;
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getEnemyStatusDefaultRemainingTurns(statusType, status) {
+  if (ENEMY_STATUS_POWER_DURATION_SKILL_TYPES.has(String(statusType ?? ''))) {
+    const fromPower = getEnemyStatusPowerValue(status);
+    if (Number.isFinite(fromPower) && fromPower > 0) {
+      return fromPower;
+    }
+  }
+  return 1;
+}
+
+function normalizeEnemyStatus(status, enemyCount = DEFAULT_ENEMY_COUNT) {
+  if (!status || typeof status !== 'object') {
+    return null;
+  }
+  const statusType = String(status?.statusType ?? status?.skill_type ?? '').trim();
+  if (!statusType) {
+    return null;
+  }
+  const normalizedEnemyCount = clampEnemyCount(enemyCount);
+  const targetRaw = status?.targetIndex ?? status?.target ?? 0;
+  const targetIndex = Math.max(
+    0,
+    Math.min(
+      normalizedEnemyCount - 1,
+      Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : 0
+    )
+  );
+  const exitCond = String(status?.exitCond ?? status?.effect?.exitCond ?? '').trim();
+  const limitType = String(status?.limitType ?? status?.effect?.limitType ?? '').trim();
+  const rawRemaining =
+    status?.remainingTurns ??
+    status?.remaining ??
+    (Array.isArray(status?.effect?.exitVal) ? status.effect.exitVal[0] : undefined);
+  const isAlwaysActive =
+    exitCond === 'Eternal' ||
+    statusType === ENEMY_STATUS_BREAK ||
+    statusType === ENEMY_STATUS_STRONG_BREAK ||
+    statusType === ENEMY_STATUS_SUPER_DOWN ||
+    statusType === ENEMY_STATUS_DEAD;
+  const remainingTurns = isAlwaysActive
+    ? Number.isFinite(Number(rawRemaining))
+      ? Number(rawRemaining)
+      : 0
+    : Number.isFinite(Number(rawRemaining)) && Number(rawRemaining) > 0
+      ? Number(rawRemaining)
+      : getEnemyStatusDefaultRemainingTurns(statusType, status);
+  const power = getEnemyStatusPowerValue(status);
+  const normalized = {
+    statusType,
+    targetIndex,
+    remainingTurns,
+  };
+  if (power !== null) {
+    normalized.power = power;
+  }
+  const elements = normalizeEnemyStatusElements(status?.elements);
+  if (elements.length > 0) {
+    normalized.elements = elements;
+  }
+  if (limitType) {
+    normalized.limitType = limitType;
+  }
+  if (exitCond) {
+    normalized.exitCond = exitCond;
+  }
+  const sourceSkillId =
+    status?.sourceSkillId === undefined || status?.sourceSkillId === null
+      ? null
+      : Number(status.sourceSkillId);
+  if (Number.isFinite(sourceSkillId)) {
+    normalized.sourceSkillId = sourceSkillId;
+  }
+  const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
+  if (sourceSkillName) {
+    normalized.sourceSkillName = sourceSkillName;
+  }
+  const sourceSkillLabel = String(status?.sourceSkillLabel ?? '').trim();
+  if (sourceSkillLabel) {
+    normalized.sourceSkillLabel = sourceSkillLabel;
+  }
+  if (status?.metadata && typeof status.metadata === 'object') {
+    normalized.metadata = structuredClone(status.metadata);
+  }
+  return normalized;
+}
+
+function getEnemyStatusIdentityKey(status) {
+  const normalized = normalizeEnemyStatus(status);
+  if (!normalized) {
+    return '';
+  }
+  const elements = normalizeEnemyStatusElements(normalized.elements);
+  return `${normalized.statusType}|${elements.join(',')}`;
+}
+
+function mergeEnemyStatuses(current, next) {
+  const normalizedCurrent = normalizeEnemyStatus(current);
+  const normalizedNext = normalizeEnemyStatus(next);
+  if (!normalizedCurrent) {
+    return normalizedNext;
+  }
+  if (!normalizedNext) {
+    return normalizedCurrent;
+  }
+  const merged = {
+    ...normalizedCurrent,
+    ...normalizedNext,
+    statusType: normalizedNext.statusType,
+    targetIndex: normalizedNext.targetIndex,
+    remainingTurns:
+      Number.isFinite(Number(normalizedCurrent.remainingTurns)) && Number.isFinite(Number(normalizedNext.remainingTurns))
+        ? Math.max(Number(normalizedCurrent.remainingTurns), Number(normalizedNext.remainingTurns))
+        : Number(normalizedNext.remainingTurns ?? normalizedCurrent.remainingTurns ?? 0),
+  };
+  const currentPower = getEnemyStatusPowerValue(normalizedCurrent);
+  const nextPower = getEnemyStatusPowerValue(normalizedNext);
+  if (currentPower !== null || nextPower !== null) {
+    merged.power =
+      currentPower !== null && nextPower !== null
+        ? Math.max(currentPower, nextPower)
+        : nextPower ?? currentPower;
+  }
+  const elements = normalizeEnemyStatusElements(
+    normalizedNext.elements?.length > 0 ? normalizedNext.elements : normalizedCurrent.elements
+  );
+  if (elements.length > 0) {
+    merged.elements = elements;
+  } else {
+    delete merged.elements;
+  }
+  if (!merged.limitType) {
+    delete merged.limitType;
+  }
+  if (!merged.exitCond) {
+    delete merged.exitCond;
+  }
+  if (!Number.isFinite(Number(merged.sourceSkillId ?? NaN))) {
+    delete merged.sourceSkillId;
+  }
+  if (!String(merged.sourceSkillName ?? '').trim()) {
+    delete merged.sourceSkillName;
+  }
+  if (!String(merged.sourceSkillLabel ?? '').trim()) {
+    delete merged.sourceSkillLabel;
+  }
+  if (!merged.metadata) {
+    delete merged.metadata;
+  }
+  return merged;
+}
+
 function getEnemyState(turnState) {
   const state = turnState?.enemyState;
   if (!state || typeof state !== 'object') {
@@ -905,7 +1089,9 @@ function getEnemyState(turnState) {
   const enemyCount = clampEnemyCount(state.enemyCount ?? DEFAULT_ENEMY_COUNT);
   return {
     enemyCount,
-    statuses: Array.isArray(state.statuses) ? state.statuses : [],
+    statuses: Array.isArray(state.statuses)
+      ? state.statuses.map((status) => normalizeEnemyStatus(status, enemyCount)).filter(Boolean)
+      : [],
     damageRatesByEnemy:
       state.damageRatesByEnemy && typeof state.damageRatesByEnemy === 'object' ? state.damageRatesByEnemy : {},
     destructionRateByEnemy:
@@ -1509,14 +1695,21 @@ function removeEnemyStatuses(turnState, targetIndex, statusTypes = []) {
 
 function upsertEnemyStatus(turnState, status) {
   const enemyState = getEnemyState(turnState);
-  const targetIndex = Number(status?.targetIndex ?? 0);
-  const statusType = String(status?.statusType ?? '');
-  const remainingTurns = Number(status?.remainingTurns ?? 0);
+  const normalized = normalizeEnemyStatus(status, enemyState.enemyCount);
+  if (!normalized) {
+    return;
+  }
+  const targetIndex = Number(normalized.targetIndex ?? 0);
+  const identityKey = getEnemyStatusIdentityKey(normalized);
+  const matched = enemyState.statuses.find(
+    (current) =>
+      Number(current?.targetIndex ?? -1) === targetIndex && getEnemyStatusIdentityKey(current) === identityKey
+  );
   const nextStatuses = enemyState.statuses.filter(
     (current) =>
-      Number(current?.targetIndex ?? -1) !== targetIndex || String(current?.statusType ?? '') !== statusType
+      Number(current?.targetIndex ?? -1) !== targetIndex || getEnemyStatusIdentityKey(current) !== identityKey
   );
-  nextStatuses.push({ statusType, targetIndex, remainingTurns });
+  nextStatuses.push(mergeEnemyStatuses(matched, normalized));
   turnState.enemyState = {
     ...enemyState,
     statuses: nextStatuses,
@@ -1671,7 +1864,9 @@ function countAliveBrokenEnemiesWithMinDestructionRate(turnState, minRatePercent
 
 function isEnemyStatusPersistent(status) {
   const statusType = String(status?.statusType ?? '');
+  const exitCond = String(status?.exitCond ?? '');
   return (
+    exitCond === 'Eternal' ||
     statusType === ENEMY_STATUS_BREAK ||
     statusType === ENEMY_STATUS_STRONG_BREAK ||
     statusType === ENEMY_STATUS_SUPER_DOWN ||
@@ -1759,6 +1954,22 @@ function countAliveEnemiesWithStatus(turnState, statusType) {
     targets.add(idx);
   }
   return targets.size;
+}
+
+function getEnemyStatusRemainingTurns(turnState, targetIndex, statusType) {
+  const target = Number(targetIndex);
+  let remainingTurns = 0;
+  for (const status of getActiveEnemyStatuses(turnState, statusType)) {
+    if (Number(status?.targetIndex ?? -1) !== target) {
+      continue;
+    }
+    remainingTurns = Math.max(remainingTurns, Number(status?.remainingTurns ?? 0));
+  }
+  return remainingTurns;
+}
+
+function getEnemySpecialStatusNameByType(typeId) {
+  return ENEMY_SPECIAL_STATUS_TYPE_TO_NAME[Number(typeId)] ?? null;
 }
 
 function getActionTargetEnemyIndexes(state, actionEntry, skill) {
@@ -3022,11 +3233,7 @@ function tickEnemyStatuses(turnState) {
   const nextStatuses = enemyState.statuses
     .map((status) => {
       if (isEnemyStatusPersistent(status)) {
-        return {
-          statusType: String(status?.statusType ?? ''),
-          targetIndex: Number(status?.targetIndex ?? 0),
-          remainingTurns: Number(status?.remainingTurns ?? 0),
-        };
+        return normalizeEnemyStatus(status, enemyState.enemyCount);
       }
       const remainingTurns = Number(status?.remainingTurns ?? 0);
       if (!Number.isFinite(remainingTurns) || remainingTurns <= 0) {
@@ -3036,11 +3243,7 @@ function tickEnemyStatuses(turnState) {
       if (nextTurns <= 0) {
         return null;
       }
-      return {
-        statusType: String(status?.statusType ?? ''),
-        targetIndex: Number(status?.targetIndex ?? 0),
-        remainingTurns: nextTurns,
-      };
+      return normalizeEnemyStatus({ ...status, remainingTurns: nextTurns }, enemyState.enemyCount);
     })
     .filter(Boolean);
   turnState.enemyState = {
@@ -3065,6 +3268,105 @@ function tickEnemyStatuses(turnState) {
   }
   turnState.zoneState = tickFieldState(turnState.zoneState);
   turnState.territoryState = tickFieldState(turnState.territoryState);
+}
+
+function resolveEnemyConditionFunctionValue(name, argRaw, state, targetIndex) {
+  const arg = String(argRaw ?? '').trim();
+  switch (name) {
+    case 'IsPlayer':
+      return { known: true, value: 0 };
+    case 'IsDead':
+      return {
+        known: true,
+        value: isEnemyDead(state?.turnState, targetIndex) ? 1 : 0,
+      };
+    case 'IsBroken':
+      return {
+        known: true,
+        value: hasEnemyStatus(state?.turnState, targetIndex, ENEMY_STATUS_BREAK) ? 1 : 0,
+      };
+    case 'BreakDownTurn':
+      return {
+        known: true,
+        value: getEnemyStatusRemainingTurns(state?.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN),
+      };
+    case 'DamageRate':
+      return {
+        known: true,
+        value: getEnemyDestructionRatePercent(state?.turnState, targetIndex),
+      };
+    case 'IsWeakElement':
+      if (!arg) {
+        return { known: false, value: true };
+      }
+      return {
+        known: true,
+        value: isEnemyWeakToElement(state?.turnState, targetIndex, arg) ? 1 : 0,
+      };
+    case 'SpecialStatusCountByType': {
+      const statusType = getEnemySpecialStatusNameByType(arg);
+      if (!statusType) {
+        return { known: false, value: true };
+      }
+      return {
+        known: true,
+        value: hasEnemyStatus(state?.turnState, targetIndex, statusType) ? 1 : 0,
+      };
+    }
+    default:
+      return { known: false, value: true };
+  }
+}
+
+function evaluateEnemyCountBcClause(clause, state, targetIndex) {
+  const text = String(clause ?? '').trim();
+  if (!text) {
+    return { known: true, value: true };
+  }
+
+  {
+    const m = text.match(FUNCTION_COMPARISON_CONDITION_RE);
+    if (m) {
+      const resolved = resolveEnemyConditionFunctionValue(m[1], m[2], state, targetIndex);
+      if (!resolved.known) {
+        return { known: false, value: true };
+      }
+      return {
+        known: true,
+        value: compareNumbers(Number(resolved.value), m[3], Number(m[4])),
+      };
+    }
+  }
+
+  {
+    const m = text.match(REVERSE_FUNCTION_COMPARISON_CONDITION_RE);
+    if (m) {
+      const resolved = resolveEnemyConditionFunctionValue(m[3], m[4], state, targetIndex);
+      if (!resolved.known) {
+        return { known: false, value: true };
+      }
+      return {
+        known: true,
+        value: compareNumbers(Number(m[1]), m[2], Number(resolved.value)),
+      };
+    }
+  }
+
+  {
+    const m = text.match(BARE_FUNCTION_CALL_CONDITION_RE);
+    if (m) {
+      const resolved = resolveEnemyConditionFunctionValue(m[1], m[2], state, targetIndex);
+      if (!resolved.known) {
+        return { known: false, value: true };
+      }
+      return {
+        known: true,
+        value: Boolean(Number(resolved.value)),
+      };
+    }
+  }
+
+  return { known: false, value: true };
 }
 
 function evaluateCountBCPredicate(innerExpression, state, member) {
@@ -3134,63 +3436,26 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
     return { known: true, value: count };
   }
 
-  const hasAllBrokenEnemyClauses =
-    clauses.length === 3 &&
-    clauses.includes('IsPlayer()==0') &&
-    clauses.includes('IsDead()==0') &&
-    clauses.includes('IsBroken()==1');
-  if (hasAllBrokenEnemyClauses) {
-    const count = countAliveEnemiesWithStatus(state?.turnState, ENEMY_STATUS_BREAK);
-    return { known: true, value: count };
-  }
-
-  const hasBrokenAndHighDamageEnemyClauses =
-    clauses.length === 4 &&
-    clauses.includes('IsPlayer()==0') &&
-    clauses.includes('IsDead()==0') &&
-    clauses.includes('IsBroken()==1') &&
-    clauses.some((clause) => clause.startsWith('DamageRate()'));
-  if (hasBrokenAndHighDamageEnemyClauses) {
-    const damageRateClause = clauses.find((clause) => clause.startsWith('DamageRate()')) ?? '';
-    const match = damageRateClause.match(DAMAGE_RATE_CONDITION_RE);
-    if (!match || match[1] !== '>=') {
-      return { known: false, value: true };
+  if (clauses.includes('IsPlayer()==0')) {
+    let count = 0;
+    const enemyCount = getEnemyState(state?.turnState).enemyCount;
+    for (let targetIndex = 0; targetIndex < enemyCount; targetIndex += 1) {
+      let matched = true;
+      for (const clause of clauses) {
+        const evaluated = evaluateEnemyCountBcClause(clause, state, targetIndex);
+        if (!evaluated.known) {
+          return { known: false, value: true };
+        }
+        if (!evaluated.value) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) {
+        count += 1;
+      }
     }
-    return {
-      known: true,
-      value: countAliveBrokenEnemiesWithMinDestructionRate(state?.turnState, Number(match[2])),
-    };
-  }
-
-  const hasAllDownTurnEnemyClauses =
-    clauses.length === 3 &&
-    clauses.includes('IsPlayer()==0') &&
-    clauses.includes('IsDead()==0') &&
-    clauses.includes('BreakDownTurn()>0');
-  if (hasAllDownTurnEnemyClauses) {
-    const count = countAliveEnemiesWithStatus(state?.turnState, ENEMY_STATUS_DOWN_TURN);
     return { known: true, value: count };
-  }
-
-  const hasAllDeadEnemyClauses =
-    clauses.length === 2 && clauses.includes('IsPlayer()==0') && clauses.includes('IsDead()==1');
-  if (hasAllDeadEnemyClauses) {
-    return { known: true, value: countDeadEnemies(state?.turnState) };
-  }
-
-  const weakElementClause = clauses.find((clause) => IS_WEAK_ELEMENT_PREDICATE_RE.test(clause));
-  const hasAllWeakElementEnemyClauses =
-    clauses.length === 3 &&
-    clauses.includes('IsPlayer()==0') &&
-    clauses.includes('IsDead()==0') &&
-    Boolean(weakElementClause);
-  if (hasAllWeakElementEnemyClauses) {
-    const match = weakElementClause.match(IS_WEAK_ELEMENT_CLAUSE_RE);
-    const element = String(match?.[1] ?? '').trim();
-    return {
-      known: true,
-      value: countEnemiesWeakToElement(state?.turnState, element),
-    };
   }
 
   return { known: false, value: true };
@@ -4530,11 +4795,14 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
     if (!actor) {
       continue;
     }
-    const skill = actor.getSkill(actionEntry.skillId);
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
     if (!skill) {
       continue;
     }
-    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
     for (const part of effectiveParts ?? []) {
       const skillType = String(part?.skill_type ?? '').trim();
       const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID[skillType];
@@ -4568,6 +4836,103 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
   return events;
 }
 
+function getEnemyStatusRemainingTurnsFromPart(skillType, part) {
+  const exitCond = String(part?.effect?.exitCond ?? '').trim();
+  if (exitCond === 'Eternal') {
+    return 0;
+  }
+  const exitTurns = Array.isArray(part?.effect?.exitVal) ? Number(part.effect.exitVal[0] ?? 0) : 0;
+  if (Number.isFinite(exitTurns) && exitTurns > 0) {
+    return exitTurns;
+  }
+  if (ENEMY_STATUS_POWER_DURATION_SKILL_TYPES.has(String(skillType ?? ''))) {
+    const turns = Number(part?.power?.[0] ?? 0);
+    if (Number.isFinite(turns) && turns > 0) {
+      return turns;
+    }
+  }
+  return 1;
+}
+
+function applyEnemyStatusEffectsFromActions(state, previewRecord) {
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+    const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      const skillType = String(part?.skill_type ?? '').trim();
+      if (!ENEMY_STATUS_SKILL_TYPES.has(skillType)) {
+        continue;
+      }
+      const targetingSkill = {
+        ...skill,
+        targetType: String(part?.target_type ?? skill.targetType ?? ''),
+      };
+      const baseConditionSkill = createConditionSkillContext(targetingSkill, part);
+      const conditionTexts = [part?.cond, part?.hit_condition, part?.target_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, targetingSkill);
+      for (const targetIndex of targetEnemyIndexes) {
+        const conditionSkill = {
+          ...baseConditionSkill,
+          targetEnemyIndex: Number(targetIndex),
+        };
+        const targetActionEntry = {
+          ...actionEntry,
+          targetEnemyIndex: Number(targetIndex),
+        };
+        const condSatisfied = conditionTexts.every((expr) =>
+          evaluateConditionExpression(expr, state, actor, conditionSkill, targetActionEntry).result
+        );
+        if (!condSatisfied) {
+          continue;
+        }
+        const appliedStatus = normalizeEnemyStatus(
+          {
+            statusType: skillType,
+            targetIndex,
+            remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
+            power: getEnemyStatusPowerValue(part),
+            elements: normalizeEnemyStatusElements(part?.elements),
+            limitType: String(part?.effect?.limitType ?? ''),
+            exitCond: String(part?.effect?.exitCond ?? ''),
+            sourceSkillId: Number(skill.skillId ?? 0),
+            sourceSkillName: String(skill.name ?? ''),
+            sourceSkillLabel: String(skill.label ?? ''),
+            metadata: {
+              targetType: String(part?.target_type ?? ''),
+            },
+          },
+          getEnemyState(state?.turnState).enemyCount
+        );
+        if (!appliedStatus) {
+          continue;
+        }
+        upsertEnemyStatus(state.turnState, appliedStatus);
+        events.push({
+          actorCharacterId: actor.characterId,
+          skillId: Number(skill.skillId ?? 0),
+          skillName: String(skill.name ?? ''),
+          mode: 'EnemyStatus',
+          ...appliedStatus,
+        });
+      }
+    }
+  }
+  return events;
+}
+
 function applyEnemyBreakEffectsFromActions(state, previewRecord) {
   const events = [];
   for (const actionEntry of previewRecord.actions ?? []) {
@@ -4575,11 +4940,14 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
     if (!actor) {
       continue;
     }
-    const skill = actor.getSkill(actionEntry.skillId);
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
     if (!skill) {
       continue;
     }
-    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
     for (const part of effectiveParts ?? []) {
       const skillType = String(part?.skill_type ?? '').trim();
       if (skillType !== 'SuperBreak' && skillType !== 'SuperBreakDown') {
@@ -7032,6 +7400,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const shreddingEvents = applyShreddingEffectsFromActions(state, previewRecord);
   const newlyShreddedIds = new Set(shreddingEvents.map((ev) => String(ev.characterId)));
   applyBuffStatusEffectsFromActions(state, previewRecord);
+  const enemyStatusEvents = applyEnemyStatusEffectsFromActions(state, previewRecord);
   const enemyBreakEvents = applyEnemyBreakEffectsFromActions(state, previewRecord);
   const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
@@ -7143,6 +7512,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
     );
     entry.enemyStatusChanges = [
+      ...enemyStatusEvents.filter(
+        (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
+      ),
       ...enemyBreakEvents.filter(
         (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
       ),

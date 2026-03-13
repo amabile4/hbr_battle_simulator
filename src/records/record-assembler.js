@@ -24,14 +24,36 @@ export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceI
   };
 }
 
+function isEnemyStatusActiveForRecord(status) {
+  const statusType = String(status?.statusType ?? '');
+  const exitCond = String(status?.exitCond ?? '');
+  if (
+    exitCond === 'Eternal' ||
+    statusType === 'Break' ||
+    statusType === 'StrongBreak' ||
+    statusType === 'SuperDown' ||
+    statusType === 'Dead'
+  ) {
+    return true;
+  }
+  return Number(status?.remainingTurns ?? 0) > 0;
+}
+
+function formatEnemyStatusDurationLabel(status) {
+  return String(status?.exitCond ?? '') === 'Eternal'
+    ? 'Eternal'
+    : String(Number(status?.remainingTurns ?? 0));
+}
+
 function formatEnemyStatusSummary(turnState) {
   const statuses = Array.isArray(turnState?.enemyState?.statuses) ? turnState.enemyState.statuses : [];
   const active = statuses
-    .filter((s) => Number(s?.remainingTurns ?? 0) > 0)
+    .filter((s) => isEnemyStatusActiveForRecord(s))
     .map((s) => ({
       statusType: String(s?.statusType ?? ''),
       targetIndex: Number(s?.targetIndex ?? -1),
       remainingTurns: Number(s?.remainingTurns ?? 0),
+      exitCond: String(s?.exitCond ?? ''),
     }))
     .filter((s) => s.statusType && Number.isFinite(s.targetIndex) && s.targetIndex >= 0)
     .sort((a, b) => a.targetIndex - b.targetIndex || a.statusType.localeCompare(b.statusType));
@@ -39,7 +61,7 @@ function formatEnemyStatusSummary(turnState) {
     return '';
   }
   return active
-    .map((s) => `${s.statusType}:E${s.targetIndex + 1}(${s.remainingTurns})`)
+    .map((s) => `${s.statusType}:E${s.targetIndex + 1}(${formatEnemyStatusDurationLabel(s)})`)
     .join('|');
 }
 

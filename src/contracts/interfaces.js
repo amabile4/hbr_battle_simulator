@@ -26,6 +26,60 @@ export function buildPositionMap(partyMembers) {
   return Object.freeze(map);
 }
 
+function normalizeEnemyStatusForClone(status, enemyCount = DEFAULT_ENEMY_COUNT) {
+  if (!status || typeof status !== 'object') {
+    return null;
+  }
+  const statusType = String(status?.statusType ?? status?.skill_type ?? '').trim();
+  if (!statusType) {
+    return null;
+  }
+  const normalizedEnemyCount = Math.max(1, Number(enemyCount ?? DEFAULT_ENEMY_COUNT));
+  const targetRaw = status?.targetIndex ?? status?.target ?? 0;
+  const targetIndex = Math.max(
+    0,
+    Math.min(
+      normalizedEnemyCount - 1,
+      Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : 0
+    )
+  );
+  const normalized = {
+    statusType,
+    targetIndex,
+    remainingTurns: Number(status?.remainingTurns ?? status?.remaining ?? 0),
+  };
+  const powerRaw = Array.isArray(status?.power) ? status.power[0] : status?.power;
+  if (Number.isFinite(Number(powerRaw))) {
+    normalized.power = Number(powerRaw);
+  }
+  if (Array.isArray(status?.elements)) {
+    normalized.elements = [...new Set(status.elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
+  }
+  const limitType = String(status?.limitType ?? '').trim();
+  if (limitType) {
+    normalized.limitType = limitType;
+  }
+  const exitCond = String(status?.exitCond ?? '').trim();
+  if (exitCond) {
+    normalized.exitCond = exitCond;
+  }
+  if (Number.isFinite(Number(status?.sourceSkillId))) {
+    normalized.sourceSkillId = Number(status.sourceSkillId);
+  }
+  const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
+  if (sourceSkillName) {
+    normalized.sourceSkillName = sourceSkillName;
+  }
+  const sourceSkillLabel = String(status?.sourceSkillLabel ?? '').trim();
+  if (sourceSkillLabel) {
+    normalized.sourceSkillLabel = sourceSkillLabel;
+  }
+  if (status?.metadata && typeof status.metadata === 'object') {
+    normalized.metadata = structuredClone(status.metadata);
+  }
+  return normalized;
+}
+
 export function toCharacterSnapshot(character) {
   return Object.freeze({
     characterId: character.characterId,
@@ -102,16 +156,15 @@ export function createInitialTurnState() {
 }
 
 export function cloneTurnState(turnState) {
+  const enemyCount = Number(turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
   const enemyState =
     turnState?.enemyState && typeof turnState.enemyState === 'object'
       ? {
-          enemyCount: Number(turnState.enemyState.enemyCount ?? 1),
+          enemyCount,
           statuses: Array.isArray(turnState.enemyState.statuses)
-            ? turnState.enemyState.statuses.map((status) => ({
-                statusType: String(status?.statusType ?? ''),
-                targetIndex: Number(status?.targetIndex ?? 0),
-                remainingTurns: Number(status?.remainingTurns ?? 0),
-              }))
+            ? turnState.enemyState.statuses
+                .map((status) => normalizeEnemyStatusForClone(status, enemyCount))
+                .filter(Boolean)
             : [],
           damageRatesByEnemy:
             turnState.enemyState.damageRatesByEnemy &&

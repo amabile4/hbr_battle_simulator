@@ -1782,6 +1782,62 @@ test('skill-level overwrite_cond can reference IsCharging on the actor', () => {
   assert.equal(chargePreview.actions[0].spCost, 0);
 });
 
+test('skill-level overwrite_cond can reference enemy-side SpecialStatusCountByType(12/57)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 20,
+          skills: [
+            {
+              id: 18245,
+              name: 'Enemy Provoke Half',
+              label: 'EnemyProvokeHalf',
+              sp_cost: 14,
+              overwrite: 7,
+              overwrite_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0',
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+            {
+              id: 18246,
+              name: 'Enemy Attention Free',
+              label: 'EnemyAttentionFree',
+              sp_cost: 9,
+              overwrite: 0,
+              overwrite_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0',
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  let preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18245, targetEnemyIndex: 0 },
+  });
+  assert.equal(preview.actions[0].spCost, 14);
+
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [{ statusType: 'Provoke', targetIndex: 1, remainingTurns: 2 }],
+  };
+  preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18245, targetEnemyIndex: 0 },
+  });
+  assert.equal(preview.actions[0].spCost, 7);
+
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [{ statusType: 'Attention', targetIndex: 0, remainingTurns: 2 }],
+  };
+  preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18246, targetEnemyIndex: 0 },
+  });
+  assert.equal(preview.actions[0].spCost, 0);
+});
+
 test('skill-level overwrite_cond falls back to base cost when the condition remains unknown', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -1794,7 +1850,7 @@ test('skill-level overwrite_cond falls back to base cost when the condition rema
               label: 'UnknownEnemyCond',
               sp_cost: 14,
               overwrite: 0,
-              overwrite_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0',
+              overwrite_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(172)>0)>0',
               target_type: 'Single',
               parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
             },
@@ -1836,6 +1892,99 @@ test('ヘイルストーム halves SP cost while Dodge is active in real data', 
   state.party[0].applySpecialStatus(122, 1, 'Count', {});
   const dodgePreview = previewActorSkill(state, skillId);
   assert.equal(dodgePreview.actions[0].spCost, 7);
+});
+
+test('スパークル・トライエッジ+ halves SP cost when enemy Provoke or Attention is active in real data', () => {
+  const store = getStore();
+  const skillId = 46002361;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  let preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 14);
+
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [{ statusType: 'Provoke', targetIndex: 1, remainingTurns: 2 }],
+  };
+  preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 7);
+
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [{ statusType: 'Attention', targetIndex: 0, remainingTurns: 2 }],
+  };
+  preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 7);
+});
+
+test('迅雷風烈 records DefenseDown enemy status in real data', () => {
+  const store = getStore();
+  const skillId = 46001112;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const event = action.enemyStatusChanges.find((item) => item.statusType === 'DefenseDown');
+
+  assert.ok(event);
+  assert.equal(event.mode, 'EnemyStatus');
+  assert.equal(event.targetIndex, 0);
+  assert.equal(event.remainingTurns, 1);
+  assert.equal(event.power, 0.3);
+});
+
+test('まだまだ行くで！ applies Fragile enemy status in real data', () => {
+  const store = getStore();
+  const skillId = 46001314;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const fragile = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'Fragile' && status.targetIndex === 0
+  );
+
+  assert.ok(fragile);
+  assert.equal(fragile.power, 0.3);
+  assert.equal(fragile.exitCond, 'Eternal');
+});
+
+test('フレイムテンペスト records AttackDown enemy status in real data', () => {
+  const store = getStore();
+  const skillId = 46001705;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const event = action.enemyStatusChanges.find((item) => item.statusType === 'AttackDown');
+
+  assert.ok(event);
+  assert.equal(event.mode, 'EnemyStatus');
+  assert.equal(event.targetIndex, 0);
+  assert.equal(event.remainingTurns, 1);
+  assert.equal(event.power, 0.2);
+});
+
+test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in real data', () => {
+  const store = getStore();
+  const skillId = 46001411;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const overwriteStatus = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'ResistDownOverwrite' && status.targetIndex === 0
+  );
+  const resistStatus = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'ResistDown' && status.targetIndex === 0
+  );
+
+  assert.ok(overwriteStatus);
+  assert.equal(overwriteStatus.exitCond, 'Eternal');
+  assert.deepEqual(overwriteStatus.elements, ['Dark']);
+  assert.equal(overwriteStatus.power, 0);
+  assert.ok(resistStatus);
+  assert.equal(resistStatus.exitCond, 'Eternal');
+  assert.deepEqual(resistStatus.elements, ['Dark']);
+  assert.equal(resistStatus.power, 0.45);
 });
 
 test('スペクタクルアート becomes free only under a non-fire active zone in real data', () => {
@@ -4565,6 +4714,80 @@ test('non-damaging debuff skill with hit_count does not increase OD gauge', () =
   const { nextState } = commitTurn(state, preview);
 
   assert.equal(nextState.turnState.odGauge, 0);
+});
+
+test('enemy debuff statuses preserve fields and tick on enemy turn end', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18260,
+              name: 'Enemy Debuff',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                {
+                  skill_type: 'DefenseDown',
+                  target_type: 'Single',
+                  elements: ['Thunder'],
+                  power: [0.3, 0],
+                  effect: { limitType: 'Default', exitCond: 'EnemyTurnEnd', exitVal: [2, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : idx === 1
+        ? {
+            skills: [
+              {
+                id: 18261,
+                name: 'プロテクション',
+                sp_cost: 0,
+                target_type: 'Self',
+                parts: [
+                  {
+                    skill_type: 'DefenseUp',
+                    target_type: 'Self',
+                    power: [0.2, 0],
+                    effect: { limitType: 'Default', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                  },
+                ],
+              },
+            ],
+          }
+        : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  let preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18260, targetEnemyIndex: 0 },
+  });
+  let committed = commitTurn(state, preview);
+  let action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+  let status = committed.nextState.turnState.enemyState.statuses.find(
+    (item) => item.statusType === 'DefenseDown' && item.targetIndex === 0
+  );
+
+  assert.equal(action.enemyStatusChanges.length, 1);
+  assert.equal(action.enemyStatusChanges[0].mode, 'EnemyStatus');
+  assert.equal(action.enemyStatusChanges[0].statusType, 'DefenseDown');
+  assert.equal(action.enemyStatusChanges[0].power, 0.3);
+  assert.deepEqual(action.enemyStatusChanges[0].elements, ['Thunder']);
+  assert.equal(status.remainingTurns, 1);
+  assert.equal(status.power, 0.3);
+  assert.deepEqual(status.elements, ['Thunder']);
+  assert.equal(status.exitCond, 'EnemyTurnEnd');
+
+  preview = previewTurn(committed.nextState, {
+    1: { characterId: 'M2', skillId: 18261 },
+  });
+  committed = commitTurn(committed.nextState, preview);
+  status = committed.nextState.turnState.enemyState.statuses.find(
+    (item) => item.statusType === 'DefenseDown' && item.targetIndex === 0
+  );
+  assert.equal(status, undefined);
 });
 
 test('non-damaging skill-switch with hit_count does not increase OD gauge', () => {

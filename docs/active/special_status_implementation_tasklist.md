@@ -1,6 +1,6 @@
 # SpecialStatusCountByType バフ状態 実装タスクリスト
 
-> **ステータス**: ✅ 完了（T14/T15除く低優先度） | 📅 開始: 2026-03-13 | 📅 完了: 2026-03-13 | 📅 SP関連テスト追加: 2026-03-13
+> **ステータス**: ✅ 完了（T14除く低優先度） | 📅 開始: 2026-03-13 | 📅 完了: 2026-03-13 | 📅 PRI-011 吸収更新: 2026-03-14 | 📅 SP関連テスト追加: 2026-03-13
 
 ---
 
@@ -145,11 +145,11 @@
 
 ### フェーズ5: 敵状態（優先度C）
 
-- [ ] **T15**: 挑発(12)・注目(57) 敵状態の CountBC 評価
-  - `evaluateCountBCPredicate` の敵側ハードコードパターンを拡張
-  - `CountBC(IsPlayer()==0 && SpecialStatusCountByType(12)>0)>0` をサポート
-  - `turnState.enemyState.statuses` に `{ type: 12|57, active: boolean }` フラグを追加
-  - UI での挑発/注目入力手段の検討（他の敵状態実装と合わせて検討）
+- [x] **T15**: 挑発(12)・注目(57) 敵状態の CountBC 評価
+  - `evaluateCountBCPredicate` の敵側評価を enemy 単位 clause 判定へ一般化
+  - `CountBC(IsPlayer()==0 && SpecialStatusCountByType(12)>0)>0` / `57` をサポート
+  - `turnState.enemyState.statuses` の一般 status 基盤へ `Provoke` / `Attention` として統合
+  - 実装は `PRI-011`（敵状態異常基盤）で吸収
 
 ### フェーズ6: 完了処理
 
@@ -196,7 +196,7 @@
 2. `tickStatusEffectsByExitCond('Count')` は**アクターのみ**に適用すること（ターゲットには適用しない）
 3. exitCond='Count' の状態: スキル使用 → tick → remaining=0 → 自動削除の順序を確認すること
 4. limitType='Once' の Dodge などは重複付与防止を `normalizeStatusEffect` の既存 `limitType` フィールドで対応できるか確認すること
-5. T14(拘束), T15(挑発/注目) は低優先度。他タスク完了後に着手すること
+5. T14(拘束) は低優先度。T15(挑発/注目) は PRI-011 で完了
 
 ---
 

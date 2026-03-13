@@ -140,23 +140,75 @@ function isPersistentEnemyStatus(statusType) {
 }
 
 function isEnemyStatusActive(status) {
-  if (isPersistentEnemyStatus(status?.statusType)) {
+  if (String(status?.exitCond ?? '') === 'Eternal' || isPersistentEnemyStatus(status?.statusType)) {
     return true;
   }
   return Number(status?.remainingTurns ?? 0) > 0;
 }
 
-function normalizeEnemyStatusForUi(status) {
+function normalizeEnemyStatusElementsForUi(elements) {
+  if (!Array.isArray(elements)) {
+    return [];
+  }
+  return [...new Set(elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
+}
+
+function normalizeEnemyStatusForUi(status, enemyCount = DEFAULT_ENEMY_COUNT) {
   const statusType = String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN);
-  const targetIndex = Number(status?.targetIndex ?? 0);
-  const remainingTurns = isPersistentEnemyStatus(statusType)
+  const normalizedEnemyCount = Math.max(1, Number(enemyCount ?? DEFAULT_ENEMY_COUNT));
+  const targetRaw = status?.targetIndex ?? status?.target ?? 0;
+  const targetIndex = Math.max(
+    0,
+    Math.min(
+      normalizedEnemyCount - 1,
+      Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : 0
+    )
+  );
+  const exitCond = String(status?.exitCond ?? '').trim();
+  const remainingTurns = exitCond === 'Eternal' || isPersistentEnemyStatus(statusType)
     ? Number(status?.remainingTurns ?? 0)
     : Math.max(1, toInt(status?.remainingTurns, 1));
-  return {
+  const normalized = {
     statusType,
     targetIndex,
     remainingTurns,
   };
+  const powerRaw = Array.isArray(status?.power) ? status.power[0] : status?.power;
+  if (Number.isFinite(Number(powerRaw))) {
+    normalized.power = Number(powerRaw);
+  }
+  const elements = normalizeEnemyStatusElementsForUi(status?.elements);
+  if (elements.length > 0) {
+    normalized.elements = elements;
+  }
+  const limitType = String(status?.limitType ?? '').trim();
+  if (limitType) {
+    normalized.limitType = limitType;
+  }
+  if (exitCond) {
+    normalized.exitCond = exitCond;
+  }
+  if (Number.isFinite(Number(status?.sourceSkillId))) {
+    normalized.sourceSkillId = Number(status.sourceSkillId);
+  }
+  const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
+  if (sourceSkillName) {
+    normalized.sourceSkillName = sourceSkillName;
+  }
+  const sourceSkillLabel = String(status?.sourceSkillLabel ?? '').trim();
+  if (sourceSkillLabel) {
+    normalized.sourceSkillLabel = sourceSkillLabel;
+  }
+  if (status?.metadata && typeof status.metadata === 'object') {
+    normalized.metadata = structuredClone(status.metadata);
+  }
+  return normalized;
+}
+
+function getEnemyStatusIdentityKeyForUi(status) {
+  const normalized = normalizeEnemyStatusForUi(status);
+  const elements = normalizeEnemyStatusElementsForUi(normalized?.elements);
+  return `${String(normalized?.statusType ?? '')}|${elements.join(',')}`;
 }
 
 // Enemy damage-rate coefficients represent physical/element resistance and weakness,
@@ -223,7 +275,7 @@ function buildEnemyStateForUi(current = {}, enemyCount = DEFAULT_ENEMY_COUNT, ov
   return {
     enemyCount,
     statuses: Array.isArray(overrides.statuses ?? current.statuses)
-      ? (overrides.statuses ?? current.statuses).map((status) => normalizeEnemyStatusForUi(status))
+      ? (overrides.statuses ?? current.statuses).map((status) => normalizeEnemyStatusForUi(status, enemyCount))
       : [],
     damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(
       overrides.damageRatesByEnemy ?? current.damageRatesByEnemy
@@ -2865,11 +2917,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const enemyStatuses =
       options.enemyStatuses ??
       (Array.isArray(this.state?.turnState?.enemyState?.statuses)
-        ? this.state.turnState.enemyState.statuses.map((status) => ({
-            statusType: String(status?.statusType ?? ''),
-            targetIndex: Number(status?.targetIndex ?? 0),
-            remainingTurns: Number(status?.remainingTurns ?? 0),
-          }))
+        ? this.state.turnState.enemyState.statuses.map((status) =>
+            normalizeEnemyStatusForUi(status, this.readEnemyCountFromDom())
+          )
         : []);
     const enemyZoneConfigByEnemy =
       options.enemyZoneConfigByEnemy ??
@@ -3226,7 +3276,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         .filter((status) => isEnemyStatusActive(status))
         .filter((status) => Number(status?.targetIndex ?? -1) >= 0)
         .filter((status) => Number(status?.targetIndex ?? -1) < enemyCount)
-        .map((status) => normalizeEnemyStatusForUi(status))
+        .map((status) => normalizeEnemyStatusForUi(status, enemyCount))
       : [];
     this.state.turnState.enemyState = buildEnemyStateForUi(current, enemyCount, { statuses });
   }
@@ -3518,7 +3568,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         }
         return currentType !== statusType;
       })
-      .map((status) => normalizeEnemyStatusForUi(status));
+      .map((status) =>
+        normalizeEnemyStatusForUi(status, Number(this.state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT))
+      );
 
     if (statusType === ENEMY_STATUS_DOWN_TURN) {
       nextStatuses.push({
@@ -4461,13 +4513,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (!status || typeof status !== 'object') {
         continue;
       }
-      const statusType = String(status.statusType ?? ENEMY_STATUS_DOWN_TURN);
-      const targetRaw = status.targetIndex ?? status.target ?? 0;
-      const targetIndex = Math.max(0, Math.min(enemyCount - 1, toInt(targetRaw, 0)));
-      const remainingTurns = isPersistentEnemyStatus(statusType)
-        ? 0
-        : Math.max(1, toInt(status.remainingTurns, 1));
-      next.push({ statusType, targetIndex, remainingTurns });
+      next.push(normalizeEnemyStatusForUi(status, enemyCount));
     }
     this.state.turnState.enemyState = reconcileEnemySpecialBreakStateForUi(
       buildEnemyStateForUi(this.state.turnState.enemyState, enemyCount, { statuses: next })
@@ -4886,11 +4932,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       destructionRateCapByEnemy: normalizeEnemyDestructionRateCapByEnemy(setup.enemyDestructionRateCaps),
       breakStateByEnemy: normalizeEnemyBreakStateByEnemy(setup.enemyBreakStates),
       enemyStatuses: Array.isArray(setup.enemyStatuses)
-        ? setup.enemyStatuses.map((status) => ({
-            statusType: String(status?.statusType ?? ''),
-            targetIndex: Number(status?.targetIndex ?? status?.target ?? 0),
-            remainingTurns: Number(status?.remainingTurns ?? 0),
-          }))
+        ? setup.enemyStatuses.map((status) => normalizeEnemyStatusForUi(status, Number(setup.enemyCount ?? DEFAULT_ENEMY_COUNT)))
         : [],
       zoneState: normalizeFieldStateForScenario(setup.zoneState),
       territoryState: normalizeFieldStateForScenario(setup.territoryState),
@@ -5341,26 +5383,28 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         if (!status || typeof status !== 'object') {
           continue;
         }
-        const statusType = String(status.statusType ?? ENEMY_STATUS_DOWN_TURN);
         const targetIndex = this.resolveScenarioEnemyStatusTargetIndex(status);
-        const remainingTurns = isPersistentEnemyStatus(statusType)
-          ? 0
-          : Math.max(1, toInt(status.remainingTurns, 1));
+        const normalizedStatus = normalizeEnemyStatusForUi(
+          { ...status, targetIndex },
+          this.readEnemyCountFromDom()
+        );
+        const statusType = String(normalizedStatus?.statusType ?? ENEMY_STATUS_DOWN_TURN);
+        const identityKey = getEnemyStatusIdentityKeyForUi(normalizedStatus);
         const filtered = merged.filter((item) => {
-          const currentType = String(item.statusType ?? '');
-          const currentTarget = Number(item.targetIndex);
+          const currentTarget = Number(item?.targetIndex);
           if (currentTarget !== targetIndex) {
             return true;
           }
           if (statusType === ENEMY_STATUS_DOWN_TURN) {
+            const currentType = String(item?.statusType ?? '');
             return currentType !== ENEMY_STATUS_DOWN_TURN && currentType !== ENEMY_STATUS_BREAK;
           }
-          return currentType !== statusType;
+          return getEnemyStatusIdentityKeyForUi(item) !== identityKey;
         });
         if (statusType === ENEMY_STATUS_DOWN_TURN) {
           filtered.push({ statusType: ENEMY_STATUS_BREAK, targetIndex, remainingTurns: 0 });
         }
-        filtered.push({ statusType, targetIndex, remainingTurns });
+        filtered.push(normalizedStatus);
         merged.length = 0;
         merged.push(...filtered);
       }
@@ -6419,23 +6463,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
     const enemyStatuses = Array.isArray(plan.enemyStatuses)
       ? plan.enemyStatuses
-          .map((status) => ({
-            statusType: String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN),
-            targetIndex: Math.max(0, Math.min(normalizedEnemyCount - 1, toInt(status?.targetIndex ?? status?.target, 0))),
-            remainingTurns: isPersistentEnemyStatus(String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN))
-              ? 0
-              : Math.max(1, toInt(status?.remainingTurns, 1)),
-          }))
+          .map((status) => normalizeEnemyStatusForUi(status, normalizedEnemyCount))
           .filter((status) => status.statusType.length > 0)
       : Array.isArray(setupDelta.enemyStatuses)
         ? setupDelta.enemyStatuses
-          .map((status) => ({
-            statusType: String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN),
-            targetIndex: Math.max(0, Math.min(normalizedEnemyCount - 1, toInt(status?.targetIndex ?? status?.target, 0))),
-            remainingTurns: isPersistentEnemyStatus(String(status?.statusType ?? ENEMY_STATUS_DOWN_TURN))
-              ? 0
-              : Math.max(1, toInt(status?.remainingTurns, 1)),
-          }))
+          .map((status) => normalizeEnemyStatusForUi(status, normalizedEnemyCount))
           .filter((status) => status.statusType.length > 0)
         : [];
     const enemyNames = normalizeEnemyNamesByEnemy(
@@ -6617,11 +6649,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.state.turnState.enemyState?.destructionRateCapByEnemy
       ),
       enemyBreakStates: normalizeEnemyBreakStateByEnemy(this.state.turnState.enemyState?.breakStateByEnemy),
-      enemyStatuses: this.getEnemyStatuses().map((status) => ({
-        statusType: String(status?.statusType ?? ''),
-        targetIndex: Number(status?.targetIndex ?? 0),
-        remainingTurns: Number(status?.remainingTurns ?? 0),
-      })),
+      enemyStatuses: this.getEnemyStatuses().map((status) =>
+        normalizeEnemyStatusForUi(status, Number(this.state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT))
+      ),
       dpStateByPartyIndex: this.captureCurrentDpStateByPartyIndex(),
       tokenStateByPartyIndex: this.captureCurrentTokenStateByPartyIndex(),
       moraleStateByPartyIndex: this.captureCurrentMoraleStateByPartyIndex(),

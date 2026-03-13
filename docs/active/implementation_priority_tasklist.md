@@ -4,7 +4,7 @@
 >
 > **前回完了分**: [`../archive/20260313_priority_history_pri007_009.md`](../archive/20260313_priority_history_pri007_009.md) に `PRI-007`〜`PRI-009` を退避済み
 >
-> **判断メモ**: [`../20260306_tasklist/`](../20260306_tasklist/) は 2026-03-06 時点のスナップショットなので、件数は参考値として使う。2026-03-14 時点で `PRI-010`（skill-level `overwrite_cond`）、`Zone / Territory` 見える化、`ZoneUpEternal`、`SpecialStatusCountByType`、SP厳密モード整合までは完了済み
+> **判断メモ**: [`../20260306_tasklist/`](../20260306_tasklist/) は 2026-03-06 時点のスナップショットなので、件数は参考値として使う。2026-03-14 時点で `PRI-010`（skill-level `overwrite_cond`）、`PRI-011`（一般敵デバフ status 基盤 + enemy-side CountBC）、`Zone / Territory` 見える化、`ZoneUpEternal`、`SpecialStatusCountByType`、SP厳密モード整合までは完了済み
 
 ## 目的
 
@@ -22,19 +22,20 @@
 ## 再開時の読書順
 
 1. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
-2. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
-3. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
-4. [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv)
-5. [`overwrite_cond_implementation_tasklist.md`](overwrite_cond_implementation_tasklist.md)
-6. [`../archive/20260313_priority_history.md`](../archive/20260313_priority_history.md) / [`../archive/20260313_priority_history_pri007_009.md`](../archive/20260313_priority_history_pri007_009.md)
+2. [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md)
+3. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
+4. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
+5. [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv)
+6. [`overwrite_cond_implementation_tasklist.md`](overwrite_cond_implementation_tasklist.md)
+7. [`../archive/20260313_priority_history.md`](../archive/20260313_priority_history.md) / [`../archive/20260313_priority_history_pri007_009.md`](../archive/20260313_priority_history_pri007_009.md)
 
 ## 優先順位
 
 | 優先 | ID | 状態 | テーマ | 主な出典 | 先にやる理由 | 完了条件 |
 |------|----|------|--------|----------|--------------|----------|
 | P0 | `PRI-010` | `done` | `overwrite_cond` 実行接続と有効スキル解決の整理 | [`overwrite_cond_implementation_tasklist.md`](overwrite_cond_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv) | `overwrite_cond_unresolved` はスナップショット時点で 53 件あり、しかも `MoraleLevel` / `MotivationLevel` / `Token()` / `Mark` / `Zone` / `Sp()` / `DpRate()` など、すでに実装済みの条件群を活かせる。`resolveEffectiveSkillForAction()` も既に存在するため、レバレッジが最も高い | 完了。skill-level `overwrite_cond` が `overwrite` / `IsCharging()` / `IsTeam()` / strict mode 整合まで接続され、`npm run test:quick` 328 PASS を確認 |
-| P1 | `PRI-011` | `ready` | 敵状態異常基盤の拡張（既存 `enemyState.statuses` の活用） | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md) | `enemy_status_unimplemented` はスナップショット時点で 219 件と最大規模。`DefenseDown` / `Fragile` / `AttackDown` / `ResistDown` 系が通れば、active skill 本体・`overwrite_cond`・`CountBC` がまとめて前進する。`turnState.enemyState.statuses`、`upsertEnemyStatus()`、`tickEnemyStatuses()` は既にある | 敵状態異常の付与・上書き・期限減少・記録が通り、`CountBC(IsPlayer()==0...)` 系に接続される。`T15`（挑発/注目）も同時に閉じる |
-| P2 | `PRI-012` | `ready` | top-level `effect` の実挙動監査と必要分のみ接続 | [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv), [`../20260306_tasklist/skills_unimplemented_summary.md`](../20260306_tasklist/skills_unimplemented_summary.md) | `effect_unresolved` はスナップショット時点で 203 件あるが、`parts` だけで既に十分なものも混ざる可能性が高い。ここは即実装ではなく「実ギャップ監査 → 必要分だけ共有ハンドラへ接続」の順で進める方が安全 | `effect_unresolved` が「metadata-only」と「実際に挙動欠落」に分類され、欠落している effect label だけが既存 action/post-process パイプラインへ正規化接続される。二重適用しない実スキル回帰テストを持つ |
+| P1 | `PRI-011` | `done` | 敵状態異常基盤の拡張（既存 `enemyState.statuses` の活用） | [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md) | `enemy_status_unimplemented` はスナップショット時点で 219 件と最大規模。`DefenseDown` / `Fragile` / `AttackDown` / `ResistDown` 系が通れば、active skill 本体・`overwrite_cond`・`CountBC` がまとめて前進する。`turnState.enemyState.statuses`、`upsertEnemyStatus()`、`tickEnemyStatuses()` は既にある | 完了。一般敵デバフの付与・上書き・期限減少・記録が通り、enemy-side `CountBC(IsPlayer()==0...)` と `SpecialStatusCountByType(12/57)` を接続した。`npm run test:quick` 335 PASS を確認 |
+| P2 | `PRI-012` | `next` | top-level `effect` の実挙動監査と必要分のみ接続 | [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv), [`../20260306_tasklist/skills_unimplemented_summary.md`](../20260306_tasklist/skills_unimplemented_summary.md) | `effect_unresolved` はスナップショット時点で 203 件あるが、`parts` だけで既に十分なものも混ざる可能性が高い。ここは即実装ではなく「実ギャップ監査 → 必要分だけ共有ハンドラへ接続」の順で進める方が安全 | `effect_unresolved` が「metadata-only」と「実際に挙動欠落」に分類され、欠落している effect label だけが既存 action/post-process パイプラインへ正規化接続される。二重適用しない実スキル回帰テストを持つ |
 
 ## PRI-010 タスクリスト
 
@@ -53,17 +54,19 @@
 
 ## PRI-011 タスクリスト
 
-- [ ] 既存 `turnState.enemyState.statuses` のスキーマで扱う statusType 一覧を定義する
-- [ ] `DefenseDown` / `Fragile` / `AttackDown` / `ResistDown` / `ResistDownOverwrite` を優先実装する
+詳細は [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md) を参照。
+
+- [x] 既存 `turnState.enemyState.statuses` のスキーマで扱う statusType 一覧を定義する
+- [x] `DefenseDown` / `Fragile` / `AttackDown` / `ResistDown` / `ResistDownOverwrite` を優先実装する
 - [ ] 確率系 (`StunRandom` / `ConfusionRandom` / `ImprisonRandom`) は「まず simulator ルールをどう置くか」を決めてから接続する
-- [ ] `upsertEnemyStatus()` / `removeEnemyStatuses()` / `tickEnemyStatuses()` を一般敵デバフでも使う
-- [ ] `evaluateCountBCPredicate()` に敵状態 CountBC を接続する
-- [ ] [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) の `T15` をここで一緒に完了させる
-- [ ] `record` / scenario / enemy status UI で最小限の見える化と復元を確認する
-- [ ] 代表実データで回帰テストを追加する
-  - `ハードブレード` / `フレイムテンペスト`（防御/攻撃デバフ）
-  - `リミット・インパクト+`（Fragile + Stun）
-  - 挑発/注目依存の `overwrite_cond` / `SkillCondition`
+- [x] `upsertEnemyStatus()` / `removeEnemyStatuses()` / `tickEnemyStatuses()` を一般敵デバフでも使う
+- [x] `evaluateCountBCPredicate()` に敵状態 CountBC を接続する
+- [x] [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) の `T15` をここで一緒に完了させる
+- [x] `record` / scenario / enemy status UI で最小限の見える化と復元を確認する
+- [x] 代表実データで回帰テストを追加する
+  - `迅雷風烈` / `フレイムテンペスト`（防御/攻撃デバフ）
+  - `まだまだ行くで！` / `今宵、快楽ナイトメア`（Fragile / ResistDown）
+  - `スパークル・トライエッジ+`（挑発/注目依存の `overwrite_cond`）
 
 ## PRI-012 タスクリスト
 
@@ -84,5 +87,5 @@
 ## メモ
 
 - `2026-03-06` スナップショットの件数は優先度判断の参考値であり、現行コードの真値ではない
-- 次の実装着手は `PRI-011` から始める
+- 次の実装着手は `PRI-012` から始める
 - 各 PRI 完了時は、この文書と [`../README.md`](../README.md) を同じコミットで更新する

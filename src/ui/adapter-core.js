@@ -63,6 +63,60 @@ function normalizeMarkStates(rawMarkStates, fallbackMarkStates) {
   );
 }
 
+function normalizeEnemyStatusForSnapshot(status, enemyCount = 1) {
+  if (!status || typeof status !== 'object') {
+    return null;
+  }
+  const statusType = String(status?.statusType ?? status?.skill_type ?? '').trim();
+  if (!statusType) {
+    return null;
+  }
+  const normalizedEnemyCount = Math.max(1, Number(enemyCount ?? 1));
+  const targetRaw = status?.targetIndex ?? status?.target ?? 0;
+  const targetIndex = Math.max(
+    0,
+    Math.min(
+      normalizedEnemyCount - 1,
+      Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : 0
+    )
+  );
+  const normalized = {
+    statusType,
+    targetIndex,
+    remainingTurns: Number(status?.remainingTurns ?? status?.remaining ?? 0),
+  };
+  const powerRaw = Array.isArray(status?.power) ? status.power[0] : status?.power;
+  if (Number.isFinite(Number(powerRaw))) {
+    normalized.power = Number(powerRaw);
+  }
+  if (Array.isArray(status?.elements)) {
+    normalized.elements = [...new Set(status.elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
+  }
+  const limitType = String(status?.limitType ?? '').trim();
+  if (limitType) {
+    normalized.limitType = limitType;
+  }
+  const exitCond = String(status?.exitCond ?? '').trim();
+  if (exitCond) {
+    normalized.exitCond = exitCond;
+  }
+  if (Number.isFinite(Number(status?.sourceSkillId))) {
+    normalized.sourceSkillId = Number(status.sourceSkillId);
+  }
+  const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
+  if (sourceSkillName) {
+    normalized.sourceSkillName = sourceSkillName;
+  }
+  const sourceSkillLabel = String(status?.sourceSkillLabel ?? '').trim();
+  if (sourceSkillLabel) {
+    normalized.sourceSkillLabel = sourceSkillLabel;
+  }
+  if (status?.metadata && typeof status.metadata === 'object') {
+    normalized.metadata = structuredClone(status.metadata);
+  }
+  return normalized;
+}
+
 function applyInitialPartyStateOverrides(
   party,
   {
@@ -132,6 +186,7 @@ export function createInitializedBattleSnapshot({
   zoneState = null,
   territoryState = null,
 }) {
+  const baseTurnState = createInitialTurnState();
   const initialSpByPartyIndex = Object.fromEntries(
     Object.entries(startSpEquipByPartyIndex).map(([index, bonus]) => [
       Number(index),
@@ -160,16 +215,14 @@ export function createInitializedBattleSnapshot({
   });
 
   const initialTurnState = {
-    ...createInitialTurnState(),
+    ...baseTurnState,
     odGauge: Number(initialOdGauge),
     enemyState: {
       enemyCount: Number(enemyCount),
       statuses: Array.isArray(enemyStatuses)
-        ? enemyStatuses.map((status) => ({
-            statusType: String(status?.statusType ?? ''),
-            targetIndex: Number(status?.targetIndex ?? 0),
-            remainingTurns: Number(status?.remainingTurns ?? 0),
-          }))
+        ? enemyStatuses
+            .map((status) => normalizeEnemyStatusForSnapshot(status, enemyCount))
+            .filter(Boolean)
         : [],
       damageRatesByEnemy:
         damageRatesByEnemy && typeof damageRatesByEnemy === 'object' ? structuredClone(damageRatesByEnemy) : {},
@@ -189,6 +242,7 @@ export function createInitializedBattleSnapshot({
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)
           : {},
+      talismanState: structuredClone(baseTurnState.enemyState?.talismanState ?? { active: false, level: 0, maxLevel: 10 }),
     },
     zoneState: zoneState && typeof zoneState === 'object' ? structuredClone(zoneState) : null,
     territoryState: territoryState && typeof territoryState === 'object' ? structuredClone(territoryState) : null,
@@ -228,7 +282,11 @@ export function createInitializedBattleSnapshot({
         destructionRateCapByEnemy && typeof destructionRateCapByEnemy === 'object'
           ? structuredClone(destructionRateCapByEnemy)
           : {},
-      enemyStatuses: Array.isArray(enemyStatuses) ? structuredClone(enemyStatuses) : [],
+      enemyStatuses: Array.isArray(enemyStatuses)
+        ? enemyStatuses
+            .map((status) => normalizeEnemyStatusForSnapshot(status, enemyCount))
+            .filter(Boolean)
+        : [],
       breakStateByEnemy:
         breakStateByEnemy && typeof breakStateByEnemy === 'object' ? structuredClone(breakStateByEnemy) : {},
       enemyZoneConfigByEnemy:
