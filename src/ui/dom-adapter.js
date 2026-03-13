@@ -920,6 +920,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     this.lastActionTargetByPosition = new Map();
     this.turnPlanRecalcMode = 'strict';
     this.recordsSimpleMode = false;
+    this.spStrictMode = false;
     this.scenario = null;
     this.scenarioCursor = 0;
     this.scenarioStagedTurnIndex = null;
@@ -1097,6 +1098,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (target.matches('[data-role="records-simple-toggle"]')) {
         this.recordsSimpleMode = Boolean(target.checked);
         this.renderRecordTable();
+      }
+
+      if (target.matches('[data-role="sp-strict-mode-toggle"]')) {
+        this.spStrictMode = Boolean(target.checked);
+        this.invalidatePreviewState();
       }
 
       if (target.matches('[data-role="character-select"]')) {
@@ -3647,6 +3653,32 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (!this.state) {
       throw new Error('State is not initialized.');
     }
+
+    // SP厳密モードチェック（リプレイ時は options.skipStrictSpMode: true で除外）
+    if (this.isSpStrictModeEnabled() && !options.skipStrictSpMode) {
+      const actions = this.collectActionDictFromDom();
+      for (const member of this.getActionableFrontlineMembers()) {
+        const action = actions[String(member.position)];
+        if (!action) continue;
+        const skill = member.getSkill(action.skillId);
+        if (!skill) continue;
+        const consumeType = String(skill.consumeType ?? 'Sp');
+        const isSpConsuming =
+          consumeType !== 'Ep' &&
+          consumeType !== 'Token' &&
+          consumeType !== 'Morale' &&
+          consumeType !== 'Motivation';
+        const rawSpCost = Number(skill.spCost ?? 0);
+        if (isSpConsuming && rawSpCost > 0 && member.sp.current < rawSpCost) {
+          const name = member.characterName ?? member.characterId;
+          this.setStatus(
+            `[SP厳密モード] SP不足のためCommitできません — ${name}: ${rawSpCost}SP必要 / ${member.sp.current}SP`
+          );
+          return null;
+        }
+      }
+    }
+
     const previewOptions =
       options.previewOptions && typeof options.previewOptions === 'object' ? options.previewOptions : {};
     const shouldCaptureTurnPlan = options.skipTurnPlanCapture !== true && !this.isReplayingTurnPlans;
@@ -3903,6 +3935,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       skipTurnPlanCapture: true,
       forceOdOverride: isForceMode,
       forceResourceDeficit: isForceMode,
+      skipStrictSpMode: true,
       previewOptions: { skipSkillConditions: isForceMode },
     };
     const extraPreviewOptions =
@@ -5680,6 +5713,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   isForceOdEnabled() {
     const toggle = this.root.querySelector('[data-role="force-od-toggle"]');
     return Boolean(toggle?.checked);
+  }
+
+  isSpStrictModeEnabled() {
+    return this.spStrictMode;
   }
 
   createPreemptiveOdCheckpoint() {

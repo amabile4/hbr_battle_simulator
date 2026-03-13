@@ -10035,6 +10035,180 @@ test('T13: BIYamawakiServant(155) — Eternal型: 複数付与・CountBC(>=6)判
   assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore, 3, 'しもべ状態6人以上のときパッシブが発動してSP+3');
 });
 
+test('T12b: EternalOath(124) + エンゲージリンク — AllyAll+target_conditionで誓い状態のメンバーのみSP+1', () => {
+  // 実際のエンゲージリンク (清廉なるニヴェースタ) のデータを模倣:
+  //   condition: IsFront() && CountBC(IsPlayer() && SpecialStatusCountByType(124)>0)>0
+  //   target_type: AllyAll, target_condition: SpecialStatusCountByType(124)>0, power: [1, 0]
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          passives: [
+            {
+              id: 92001,
+              name: 'エンゲージリンク相当(AllyAll)',
+              desc: '前衛にいるとき 永遠なる誓い状態の味方がいれば 誓い状態の全員にSP+1',
+              timing: 'OnEveryTurn',
+              condition: 'IsFront()&&CountBC(IsPlayer()&&SpecialStatusCountByType(124)>0)>0',
+              parts: [
+                {
+                  skill_type: 'HealSp',
+                  target_type: 'AllyAll',
+                  target_condition: 'SpecialStatusCountByType(124)>0',
+                  power: [1, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const m1 = state.party.find((m) => m.characterId === 'M1');
+  const m2 = state.party.find((m) => m.characterId === 'M2');
+  const m3 = state.party.find((m) => m.characterId === 'M3');
+
+  // EternalOath状態なし → CountBC=0 → passive条件不成立 → 誰もSP変化なし
+  const sp1Before = m1.sp.current;
+  const sp2Before = m2.sp.current;
+  applyPassiveTiming(state, 'OnEveryTurn');
+  assert.equal(m1.sp.current - sp1Before, 0, '誓い状態なし: M1のSP変化なし');
+  assert.equal(m2.sp.current - sp2Before, 0, '誓い状態なし: M2のSP変化なし');
+
+  // M2だけEternalOath状態付与 → M1のpassiveが発動、target_conditionでM2のみSP+1
+  m2.applySpecialStatus(124, 0, 'Eternal', {});
+  const sp1Before2 = m1.sp.current;
+  const sp2Before2 = m2.sp.current;
+  const sp3Before2 = m3.sp.current;
+  applyPassiveTiming(state, 'OnEveryTurn');
+  assert.equal(m1.sp.current - sp1Before2, 0, '誓い状態なし: M1はtarget_conditionで除外されSP変化なし');
+  assert.equal(m2.sp.current - sp2Before2, 1, '誓い状態あり: M2はtarget_conditionを満たしSP+1');
+  assert.equal(m3.sp.current - sp3Before2, 0, '誓い状態なし: M3はtarget_conditionで除外されSP変化なし');
+});
+
+test('T13b: BIYamawakiServant(155) + 世界を滅ぼすお手伝い — target_conditionでしもべ状態のメンバーのみSP+1', () => {
+  // 実際の「世界を滅ぼすお手伝いでゲス！」(悪の軍団進軍開始でゲス！) のデータを模倣:
+  //   condition: CountBC(IsPlayer() && SpecialStatusCountByType(155) > 0)>0
+  //   target_type: AllyAll, target_condition: SpecialStatusCountByType(155) > 0, power: [1, 0]
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          passives: [
+            {
+              id: 92002,
+              name: '世界を滅ぼすお手伝いでゲス！相当',
+              desc: 'しもべ状態の味方がいるとき しもべ状態の全員にSP+1',
+              timing: 'OnEveryTurn',
+              condition: 'CountBC(IsPlayer()&&SpecialStatusCountByType(155)>0)>0',
+              parts: [
+                {
+                  skill_type: 'HealSp',
+                  target_type: 'AllyAll',
+                  target_condition: 'SpecialStatusCountByType(155)>0',
+                  power: [1, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const m1 = state.party.find((m) => m.characterId === 'M1');
+  const m2 = state.party.find((m) => m.characterId === 'M2');
+  const m3 = state.party.find((m) => m.characterId === 'M3');
+
+  // しもべ状態なし → CountBC=0 → passive条件不成立 → 誰もSP変化なし
+  const sp1Before = m1.sp.current;
+  applyPassiveTiming(state, 'OnEveryTurn');
+  assert.equal(m1.sp.current - sp1Before, 0, 'しもべ状態なし: SP変化なし');
+
+  // M1とM2にしもべ状態付与 → M1のpassiveが発動、M1/M2はSP+1、M3はSP変化なし
+  m1.applySpecialStatus(155, 0, 'Eternal', {});
+  m2.applySpecialStatus(155, 0, 'Eternal', {});
+  const sp1Before2 = m1.sp.current;
+  const sp2Before2 = m2.sp.current;
+  const sp3Before2 = m3.sp.current;
+  applyPassiveTiming(state, 'OnEveryTurn');
+  assert.equal(m1.sp.current - sp1Before2, 1, 'しもべ状態あり: M1はtarget_conditionを満たしSP+1');
+  assert.equal(m2.sp.current - sp2Before2, 1, 'しもべ状態あり: M2はtarget_conditionを満たしSP+1');
+  assert.equal(m3.sp.current - sp3Before2, 0, 'しもべ状態なし: M3はtarget_conditionで除外されSP変化なし');
+});
+
+test('勇姿(ReduceSp/OnEveryTurnIncludeSpecial) — チャージ状態のメンバーのみSP消費-1', () => {
+  // 実際の「勇姿」(決起のレガリア) のデータを模倣:
+  //   condition: CountBC(IsPlayer() && SpecialStatusCountByType(25) > 0)>0
+  //   target_type: AllyAll, target_condition: SpecialStatusCountByType(25)>0, power: [1, 0]
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 10,
+        passives: [
+          {
+            id: 92003,
+            name: '勇姿相当',
+            desc: 'ターン開始時 チャージ状態の味方の消費SP-1',
+            timing: 'OnEveryTurnIncludeSpecial',
+            condition: 'CountBC(IsPlayer()&&SpecialStatusCountByType(25)>0)>0',
+            parts: [
+              {
+                skill_type: 'ReduceSp',
+                target_type: 'AllyAll',
+                target_condition: 'SpecialStatusCountByType(25)>0',
+                power: [1, 0],
+              },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        initialSP: 10,
+        skills: [
+          { id: 92011, name: 'コストスキル', sp_cost: 5, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+        ],
+      };
+    }
+    if (idx === 2) {
+      return {
+        initialSP: 10,
+        skills: [
+          { id: 92012, name: 'コストスキル(チャージなし)', sp_cost: 5, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const m2 = state.party.find((m) => m.characterId === 'M2');
+  const m3 = state.party.find((m) => m.characterId === 'M3');
+
+  // M2にチャージ状態を付与（M3にはなし）
+  m2.applySpecialStatus(25, 1, 'Count', {});
+
+  // previewTurnでM2とM3のSP消費を比較
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },    // M1はデフォルトの通常スキル
+    1: { characterId: 'M2', skillId: 92011 },    // M2: sp_cost=5、チャージ状態あり → 消費-1で4
+    2: { characterId: 'M3', skillId: 92012 },    // M3: sp_cost=5、チャージ状態なし → 消費5のまま
+  });
+
+  const m2Entry = preview.actions.find((a) => a.characterId === 'M2');
+  const m3Entry = preview.actions.find((a) => a.characterId === 'M3');
+
+  assert.equal(m2Entry.spCost, 4, 'チャージ状態のM2は勇姿でSP消費-1 (5→4)');
+  assert.equal(m3Entry.spCost, 5, 'チャージ状態なしのM3はSP消費そのまま (5)');
+
+  // commitTurn後のSP値でも確認（SP消費差が1あることを検証）
+  const { nextState } = commitTurn(state, preview);
+  const m2After = nextState.party.find((m) => m.characterId === 'M2');
+  const m3After = nextState.party.find((m) => m.characterId === 'M3');
+  // M2: 10 - 4 + base_recovery = M3より1多いはず
+  assert.equal(m2After.sp.current - m3After.sp.current, 1, 'commitTurn後: M2(チャージ)はM3より1SP多い（消費-1の差）');
+});
+
 test('条件なしパッシブは正常に発動する（リグレッション確認）', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

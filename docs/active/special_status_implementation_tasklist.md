@@ -1,6 +1,6 @@
 # SpecialStatusCountByType バフ状態 実装タスクリスト
 
-> **ステータス**: ✅ 完了（T14/T15除く低優先度） | 📅 開始: 2026-03-13 | 📅 完了: 2026-03-13
+> **ステータス**: ✅ 完了（T14/T15除く低優先度） | 📅 開始: 2026-03-13 | 📅 完了: 2026-03-13 | 📅 SP関連テスト追加: 2026-03-13
 
 ---
 
@@ -160,6 +160,21 @@
 - [x] **T17**: ドキュメント更新・コミット
   - 本ファイルのステータスを ✅ に更新
   - `docs/README.md` の更新（必要に応じて）
+
+### フェーズ7: SP関連パッシブの追加テスト（2026-03-13）
+
+> T12・T13 のテストは CountBC 判定のみで SP 回復の実際の値を検証していなかったため追加。
+
+- [x] **T12b**: EternalOath(124) + エンゲージリンク相当 — AllyAll + target_condition
+  - `target_condition: "SpecialStatusCountByType(124)>0"` で誓い状態のメンバーのみ SP+1 されることを確認
+  - 誓い状態なし → CountBC=0 → passive 条件不成立 → SP 変化なし も確認
+- [x] **T13b**: BIYamawakiServant(155) + 世界を滅ぼすお手伝い相当 — target_condition
+  - `target_condition: "SpecialStatusCountByType(155)>0"` でしもべ状態のメンバーのみ SP+1 されることを確認
+  - しもべ状態なし → passive 条件不成立 → SP 変化なし も確認
+- [x] **T勇姿**: ReduceSp / OnEveryTurnIncludeSpecial — チャージ状態のメンバーのみ SP 消費-1
+  - `previewTurn` の `spCost` でチャージ状態あり(4) / なし(5) の差を確認
+  - `commitTurn` 後の SP 値で消費差が1であることを確認
+  - 全 522 テスト PASS（archive 除く）
 
 ---
 
