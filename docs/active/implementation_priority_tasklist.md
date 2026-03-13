@@ -1,95 +1,85 @@
 # Implementation Priority Task List
 
-> **ステータス**: ✅ 完了 | 📅 最終更新: 2026-03-13
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-13
+>
+> **前回完了分**: [`../archive/20260313_priority_history_pri007_009.md`](../archive/20260313_priority_history_pri007_009.md) に `PRI-007`〜`PRI-009` を退避済み
+>
+> **判断メモ**: [`../20260306_tasklist/`](../20260306_tasklist/) は 2026-03-06 時点のスナップショットなので、件数は参考値として使い、2026-03-13 までに完了した `Zone / Territory` 見える化、`ZoneUpEternal`、`SpecialStatusCountByType`、SP厳密モード等は次優先候補から除外する
 
 ## 目的
 
-- `docs/active/` の再開起点を 1 本に絞る
-- 完了済みプランは archive へ退避し、次の実装順だけをここで管理する
-- 今後はこの文書を開けば、次に読むべきドキュメントと着手順が分かる状態を維持する
-- 2026-03-13 時点で `PRI-007`〜`PRI-009` はすべて完了。次の優先テーマは別 tasklist で再整理する
+- 次の実装波を `3` 本に絞り、再開時の判断コストを下げる
+- 既存の `passive / timing / record / scenario` 基盤を活かして前進できる課題を優先する
+- フル battle core（実ダメージ計算・敵AI・勝敗フロー）は別テーマとして切り離す
+
+## 優先度決定基準
+
+1. 既存基盤の再利用が大きく、短い実装サイクルで閉じられるか
+2. 1 本で複数の未対応スキル群を同時に前進させられるか
+3. `UI / record / scenario / tests` まで一気通貫で検証しやすいか
+4. フルダメージ計算や敵AIを前提にしなくても価値が出るか
 
 ## 再開時の読書順
 
-1. [`token_implementation_plan.md`](token_implementation_plan.md)（✅ 完了確認）
-2. [`shredding_implementation_tasklist.md`](shredding_implementation_tasklist.md)（✅ 完了確認）
-3. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)（完了内容参照）
-4. [`passive_timing_reference.md`](passive_timing_reference.md)
-5. [`ui_parallel_interface_spec.md`](ui_parallel_interface_spec.md)
-6. 必要に応じて [`../archive/20260313_priority_history.md`](../archive/20260313_priority_history.md)（旧履歴: PRI-001〜006）
+1. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
+2. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
+3. [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv)
+4. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
+5. [`../archive/20260313_priority_history.md`](../archive/20260313_priority_history.md) / [`../archive/20260313_priority_history_pri007_009.md`](../archive/20260313_priority_history_pri007_009.md)
 
 ## 優先順位
 
-| 優先 | ID | 状態 | テーマ | 主な出典 | 完了条件 |
-|------|----|------|--------|----------|----------|
-| P0 | `PRI-009` | `done` | ドキュメント整合性修正 | [`shredding_implementation_tasklist.md`](shredding_implementation_tasklist.md), [`token_implementation_plan.md`](token_implementation_plan.md), [`../README.md`](../README.md), [`../specs/sp_condition_skill_spec.md`](../specs/sp_condition_skill_spec.md) | shredding ✅・token ✅ として README/docs/spec を整合させる |
-| P1 | `PRI-008` | `done` | ZoneUpEternal 二効果分離実装 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`../../help/HEAVEN_BURNS_RED/バトル/フィールド効果.md`](../../help/HEAVEN_BURNS_RED/バトル/フィールド効果.md) | ZoneUpEternal が「フィールド性能+15%」と「有限ターン Zone の永続化」を混同せず適用する |
-| P2 | `PRI-007` | `done` | Zone / Territory 効果見える化 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | Zone/Territory の種類・効果がUIやレコードに表示される |
+| 優先 | ID | 状態 | テーマ | 主な出典 | 先にやる理由 | 完了条件 |
+|------|----|------|--------|----------|--------------|----------|
+| P0 | `PRI-010` | `ready` | `overwrite_cond` 実行接続と有効スキル解決の整理 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv) | `overwrite_cond_unresolved` はスナップショット時点で 53 件あり、しかも `MoraleLevel` / `MotivationLevel` / `Token()` / `Mark` / `Zone` / `Sp()` / `DpRate()` など、すでに実装済みの条件群を活かせる。`resolveEffectiveSkillForAction()` も既に存在するため、レバレッジが最も高い | `overwrite` + `overwrite_cond` のデータパターンが整理され、SPコスト上書きと条件分岐スキルが代表ケースで動く。未対応条件は安全に fallback し、実データ回帰テストが追加される |
+| P1 | `PRI-011` | `ready` | 敵状態異常基盤の拡張（既存 `enemyState.statuses` の活用） | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md) | `enemy_status_unimplemented` はスナップショット時点で 219 件と最大規模。`DefenseDown` / `Fragile` / `AttackDown` / `ResistDown` 系が通れば、active skill 本体・`overwrite_cond`・`CountBC` がまとめて前進する。`turnState.enemyState.statuses`、`upsertEnemyStatus()`、`tickEnemyStatuses()` は既にある | 敵状態異常の付与・上書き・期限減少・記録が通り、`CountBC(IsPlayer()==0...)` 系に接続される。`T15`（挑発/注目）も同時に閉じる |
+| P2 | `PRI-012` | `ready` | top-level `effect` の実挙動監査と必要分のみ接続 | [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv), [`../20260306_tasklist/skills_unimplemented_summary.md`](../20260306_tasklist/skills_unimplemented_summary.md) | `effect_unresolved` はスナップショット時点で 203 件あるが、`parts` だけで既に十分なものも混ざる可能性が高い。ここは即実装ではなく「実ギャップ監査 → 必要分だけ共有ハンドラへ接続」の順で進める方が安全 | `effect_unresolved` が「metadata-only」と「実際に挙動欠落」に分類され、欠落している effect label だけが既存 action/post-process パイプラインへ正規化接続される。二重適用しない実スキル回帰テストを持つ |
 
-## PRI-009 実装記録
+## PRI-010 タスクリスト
 
-- `docs/README.md` のステータス表記を現在の実装状態に合わせて更新した
-  - `token_implementation_plan.md` を `✅ 完了`
-  - `shredding_implementation_tasklist.md` を `✅ 完了`
-  - `implementation_priority_tasklist.md` は `PRI-007`〜`PRI-009` 完了記録として整理
-- `token_implementation_plan.md` は status line と末尾メモを見直し、未完了に見える表現を完了時点の補足へ置き換えた
-- `shredding_implementation_tasklist.md` は「実装ギャップ」を着手前の履歴として読める表現に直した
-- `docs/specs/sp_condition_skill_spec.md` に残っていた Shredding / `is_adv` 条件の「未実装」表記を実装済みに更新した
+- [ ] `json/skills.json` の `overwrite` / `overwrite_cond` を代表例で分類する
+- [ ] `SPコスト上書き` と `SkillCondition` 連動分岐を別パターンとして整理する
+- [ ] `resolveEffectiveSkillForAction()` で `overwrite_cond` を参照する実行経路を追加する
+- [ ] `unknown` 条件は現状どおり安全側 fallback にする
+- [ ] `IsCharging()` のような即詰めできる不足条件をこの wave に含める
+- [ ] 代表実データで回帰テストを追加する
+  - `ヘイルストーム`（回避中 SP半減）
+  - `スペクタクルアート`（非火 Zone 中 SP0）
+  - `燃やせ青春！マリンボール！`（やる気段階で分岐）
+  - `リミット・インパクト+`（31A 人数条件）
 
-## PRI-008 実装記録
+## PRI-011 タスクリスト
 
-### 背景
+- [ ] 既存 `turnState.enemyState.statuses` のスキーマで扱う statusType 一覧を定義する
+- [ ] `DefenseDown` / `Fragile` / `AttackDown` / `ResistDown` / `ResistDownOverwrite` を優先実装する
+- [ ] 確率系 (`StunRandom` / `ConfusionRandom` / `ImprisonRandom`) は「まず simulator ルールをどう置くか」を決めてから接続する
+- [ ] `upsertEnemyStatus()` / `removeEnemyStatuses()` / `tickEnemyStatuses()` を一般敵デバフでも使う
+- [ ] `evaluateCountBCPredicate()` に敵状態 CountBC を接続する
+- [ ] [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) の `T15` をここで一緒に完了させる
+- [ ] `record` / scenario / enemy status UI で最小限の見える化と復元を確認する
+- [ ] 代表実データで回帰テストを追加する
+  - `ハードブレード` / `フレイムテンペスト`（防御/攻撃デバフ）
+  - `リミット・インパクト+`（Fragile + Stun）
+  - 挑発/注目依存の `overwrite_cond` / `SkillCondition`
 
-- `ZoneUpEternal` は 1 つのパッシブで次の **2 効果** を持つ
-  - 展開する `Zone` の**効果量を `part.power[0]` 分だけ上乗せ**する
-  - **ターン指定あり**の `Zone` を **永続** (`remainingTurns = null`) に変える
-- 着手前の実装は `hasActiveZoneUpEternalModifier()` の boolean 判定を起点に、`+0.15` 固定加算と永続化を同時適用していた
-- このため、`power[0]` と永続化条件が分離されておらず、仕様変更や別値データに追従しづらい
+## PRI-012 タスクリスト
 
-### 実装結果
+- [ ] `effect_unresolved` 上位ラベルを「metadata-only」と「実欠落」に分類する
+- [ ] `parts` で既に十分な effect label は docs 上で明示し、実装対象から外す
+- [ ] 実欠落だけを virtual part か共有 post-process へ正規化接続する
+- [ ] `NormalBuff_Up` / `HealDp_Buff` / `DefaultDebuff` / `ProtectBuff` を優先監査する
+- [ ] `PRI-011` で追加した敵状態異常処理へ `DefaultDebuff` 系を繋ぐ
+- [ ] 二重適用を防ぐ回帰テストを追加する
 
-1. `ZoneUpEternal` 判定を boolean ではなく **構造化 modifier** として解決する形に置き換えた
-   - `resolveZoneUpEternalModifier()` が `{ active, powerBonusRate, makesFiniteZoneEternal, sourceParts }` を返す
-2. **効果量上昇**は `part.power[0]` を使用するように変更した
-   - `+0.15` の直書きを撤去し、複数 source があれば加算可能な形にした
-3. **永続化**は「展開された Zone が有限ターンかどうか」で判定するように変更した
-   - `remainingTurns !== null` のときのみ `null` に変換する
-   - 既に永続の Zone には **効果量上昇だけ**を適用する
-4. `part.effect.exitCond` は **ZoneUpEternal modifier 自体の有効期間**として扱う前提を docs / help に反映した
-   - `武運長久` は `OnPlayerTurnStart` かつ `effect.exitCond: PlayerTurnEnd / 1T`
-   - `天長地久` は `OnFirstBattleStart` かつ `effect.exitCond: Eternal`
-5. テストは「有限 Zone で両効果」「既に永続 Zone で性能上昇のみ」「modifier 非成立時の無効」を分離して確認した
+## 今回のスコープ外
 
-## PRI-008 実装チェックリスト
-
-- [x] `ZoneUpEternal` を二効果として扱う前提を tasklist / help に反映する
-- [x] `ZoneUpEternal` 解決器を boolean から構造化 modifier へ置き換える
-- [x] 効果量上昇を `part.power[0]` ベースへ変更し、`+0.15` 直書きを撤去する
-- [x] 永続化を「有限ターン Zone のみ」に限定する
-- [x] 既に永続の Zone で「効果量上昇のみ」が効くテストを追加する
-- [x] 有限ターン Zone で「効果量上昇 + 永続化」の両方が効くテストを追加する
-- [x] modifier 非成立時に neither 効果が入らないテストを維持/追加する
-- [x] 実装完了後に `PRI-008` / `passive_implementation_tasklist.md` / `docs/README.md` を同コミットで更新する
-
-## 今回までで確定したこと
-
-PRI-001〜006（P0〜P5）はすべて完了。詳細は [`../archive/20260313_priority_history.md`](../archive/20260313_priority_history.md) を参照。
-
-主な完了内容（2026-03-09〜03-13）:
-
-- **Phase 6-A/6-B 完了**: Morale / DamageRateUp / DefenseDown / DefenseUp / CriticalRateUp / CriticalDamageUp / GiveDefenseDebuffUp / DamageUpByOverDrive / GiveAttackBuffUp / GiveHealUp 実装
-- **Support Skills Phase 2 完了（2026-03-11）**: 全446テストPASS
-- **SpLimitOverwrite / ReduceSp 全timing対応完了（2026-03-12）**: 全482テストPASS
-- **OnOverdriveStart 非EPパッシブ補強完了（2026-03-12）**: 全486テストPASS
-- **AttackUpPerToken / DefenseUpPerToken 実装完了（2026-03-12）**: 全492テストPASS（高揚・激励・鉄壁）
-- **SpecialStatusCountByType バフ状態完全実装（2026-03-13）**: T01-T16完了・519テストPASS
-- **SP厳密モードトグル実装（2026-03-13）**: dom-adapterのみ変更・519テストPASS
-- **SP関連特殊状態パッシブ テスト補強（2026-03-13）**: T12b（エンゲージリンク AllyAll+target_condition）・T13b（世界を滅ぼすお手伝い target_condition）・勇姿（ReduceSp SP消費-1）追加・522テストPASS
-- **Zone / Territory 効果見える化完了（2026-03-13）**: turn status / record table に種類・source・継続・効果表示を追加
-- **ZoneUpEternal 二効果分離実装完了（2026-03-13）**: `part.power[0]` ベースの性能加算と有限 Zone 限定の永続化へ整理・`tests/turn-state-transitions.test.js` 247テストPASS
-- **ドキュメント整合性修正完了（2026-03-13）**: shredding / token / README / SP条件spec の状態表記を実装状況へ同期
+- 実ダメージ計算、敵AI、勝敗判定、戦闘終了フロー
+- `Random()` / `ConquestBikeLevel()` の UI override
+- [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) の `T14`（拘束状態の手動入力フック）
+- Mark / Territory の追加見える化改善だけを目的にした単独タスク
 
 ## メモ
 
-- archive に移した完了 docs は履歴参照用であり、今後の更新対象ではない
-- 実装が 1 つ完了したら、この文書の優先順位と `docs/README.md` を同じコミットで更新する
+- `2026-03-06` スナップショットの件数は優先度判断の参考値であり、現行コードの真値ではない
+- 次の実装着手は `PRI-010` から始める
+- 各 PRI 完了時は、この文書と [`../README.md`](../README.md) を同じコミットで更新する

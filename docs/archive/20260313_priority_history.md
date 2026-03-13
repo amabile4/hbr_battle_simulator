@@ -2,7 +2,7 @@
 
 > **ステータス**: 🗄️ アーカイブ | 📅 アーカイブ日: 2026-03-13
 >
-> **後継ドキュメント**: [`../active/implementation_priority_tasklist.md`](../active/implementation_priority_tasklist.md)（PRI-007〜009 を含む新版）
+> **後継ドキュメント**: [`../active/implementation_priority_tasklist.md`](../active/implementation_priority_tasklist.md)（最新版）
 
 ---
 
