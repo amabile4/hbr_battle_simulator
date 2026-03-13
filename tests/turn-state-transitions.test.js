@@ -5291,6 +5291,7 @@ test('ZoneUpEternal modifier makes deployed zone eternal', () => {
                 {
                   skill_type: 'ZoneUpEternal',
                   target_type: 'Field',
+                  power: [0.15, 0],
                   effect: { exitCond: 'Eternal', exitVal: [0, 0] },
                 },
               ],
@@ -5381,6 +5382,65 @@ test('ZoneUpEternal with OnPlayerTurnStart timing and MoraleLevel condition acti
     'zone should have finite duration when morale<6'
   );
   assert.notEqual(lowNext.turnState.zoneState?.remainingTurns, null, 'zone should not be eternal when morale<6');
+  assert.equal(lowNext.turnState.zoneState?.powerRate, 1.35, 'zone powerRate should not change when modifier is inactive');
+});
+
+test('ZoneUpEternal increases power without changing duration for already eternal zones', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          elements: ['Fire'],
+          skills: [
+            {
+              id: 81031,
+              name: '永続火フィールド',
+              sp_cost: 0,
+              target_type: 'Field',
+              parts: [
+                {
+                  skill_type: 'Zone',
+                  target_type: 'Field',
+                  elements: ['Fire'],
+                  power: [1.35, 0],
+                  effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+                },
+              ],
+            },
+          ],
+          passives: [
+            {
+              id: 90004,
+              name: '天長地久テスト',
+              timing: 'OnFirstBattleStart',
+              condition: '',
+              parts: [
+                {
+                  skill_type: 'ZoneUpEternal',
+                  target_type: 'Field',
+                  power: [0.2, 0],
+                  effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const { nextState, committedRecord } = commitTurn(
+    state,
+    previewTurn(state, { 0: { characterId: 'M1', skillId: 81031 } })
+  );
+
+  assert.deepEqual(nextState.turnState.zoneState, {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: null,
+    powerRate: 1.55,
+  });
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].remainingTurns, null);
+  assert.equal(committedRecord.actions[0].fieldStateApplied[0].powerRate, 1.55);
 });
 
 test('new field zone overwrites the previous active field zone', () => {

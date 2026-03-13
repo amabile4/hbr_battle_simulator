@@ -1102,7 +1102,9 @@ function resolveZoneUpEternalParts(member) {
   );
 }
 
-function hasActiveZoneUpEternalModifier(state, member, skill = null, actionEntry = null) {
+function resolveZoneUpEternalModifier(state, member, skill = null, actionEntry = null) {
+  let powerBonusRate = 0;
+  const sourceParts = [];
   for (const { passive, part } of resolveZoneUpEternalParts(member)) {
     const timing = String(passive?.timing ?? '').trim();
     // ZoneUpEternal applies at battle-start timings (always active) or player-turn timings
@@ -1118,9 +1120,16 @@ function hasActiveZoneUpEternalModifier(state, member, skill = null, actionEntry
     if (!evaluatePassiveSelfConditions(passive, part, state, member, skill, actionEntry)) {
       continue;
     }
-    return true;
+    const partPower = Number(part?.power?.[0] ?? 0);
+    powerBonusRate += Number.isFinite(partPower) ? partPower : 0;
+    sourceParts.push({ passive, part });
   }
-  return false;
+  return {
+    active: sourceParts.length > 0,
+    powerBonusRate,
+    makesFiniteZoneEternal: sourceParts.length > 0,
+    sourceParts,
+  };
 }
 
 function applyTerritoryPartToTurnState(turnState, part, sourceSide = 'player') {
@@ -6573,15 +6582,25 @@ function applyFieldStateFromActions(state, previewRecord) {
       if (!applied) {
         continue;
       }
-      if (skillType === 'Zone' && hasActiveZoneUpEternalModifier(state, actor, skill, actionEntry)) {
-        const nextPowerRate = Number(applied.powerRate ?? state.turnState.zoneState?.powerRate ?? 0) + 0.15;
-        applied.remainingTurns = null;
-        applied.powerRate = nextPowerRate;
-        state.turnState.zoneState = {
-          ...state.turnState.zoneState,
-          remainingTurns: null,
-          powerRate: nextPowerRate,
-        };
+      if (skillType === 'Zone') {
+        const zoneUpEternalModifier = resolveZoneUpEternalModifier(state, actor, skill, actionEntry);
+        if (zoneUpEternalModifier.active) {
+          const basePowerRate = Number(applied.powerRate ?? state.turnState.zoneState?.powerRate ?? 0);
+          const nextPowerRate = basePowerRate + Number(zoneUpEternalModifier.powerBonusRate ?? 0);
+          if (Number.isFinite(nextPowerRate) && nextPowerRate > 0) {
+            applied.powerRate = nextPowerRate;
+          }
+          if (zoneUpEternalModifier.makesFiniteZoneEternal && applied.remainingTurns !== null) {
+            applied.remainingTurns = null;
+          }
+          state.turnState.zoneState = {
+            ...state.turnState.zoneState,
+            ...(Number.isFinite(nextPowerRate) && nextPowerRate > 0 ? { powerRate: nextPowerRate } : {}),
+            ...(zoneUpEternalModifier.makesFiniteZoneEternal && applied.remainingTurns === null
+              ? { remainingTurns: null }
+              : {}),
+          };
+        }
       }
       events.push({
         actorCharacterId: actor.characterId,

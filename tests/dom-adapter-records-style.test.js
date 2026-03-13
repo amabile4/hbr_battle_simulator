@@ -291,7 +291,7 @@ test('records table supports simple mode toggle and keeps priority columns left 
 
   const simpleRow = tbody?.querySelector('tr');
   assert.ok(simpleRow);
-  assert.equal(simpleRow.children.length, 10);
+  assert.equal(simpleRow.children.length, 11);
   assert.equal(simpleRow.children[0].textContent, '1');
   assert.ok(simpleRow.children[1].querySelector('[data-action="turn-plan-edit-row"]'));
   assert.equal(simpleRow.children[2].textContent, String(adapter.recordStore.records[0]?.turnLabel ?? ''));
@@ -1159,7 +1159,51 @@ test('turn status shows current field and territory state', () => {
 
   assert.equal(
     root.querySelector('[data-role="field-state-label"]')?.textContent,
-    'Field=Fire(8) | Territory=ReviveTerritory'
+    'Field=Fire[味方, 8T, 火属性スキル] | Territory=ReviveTerritory[味方, 永続, DP破損時ターン開始: 味方DP50%回復後消滅]'
+  );
+});
+
+test('record table shows fieldState summary from state snapshot', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.recordStore.records = [
+    {
+      turnId: 1,
+      turnLabel: 'T1',
+      turnType: 'normal',
+      actions: [],
+      stateSnapshot: {
+        zoneState: {
+          type: 'Fire',
+          sourceSide: 'player',
+          remainingTurns: 7,
+          powerRate: 1.8,
+        },
+        territoryState: {
+          type: 'ReviveTerritory',
+          sourceSide: 'enemy',
+          remainingTurns: null,
+          powerRate: 0.5,
+        },
+      },
+    },
+  ];
+  adapter.renderRecordTable();
+
+  const headerTexts = [...root.querySelectorAll('[data-role="record-head"] th')].map(
+    (node) => node.textContent ?? ''
+  );
+  const fieldStateIndex = headerTexts.indexOf('fieldState');
+  assert.notEqual(fieldStateIndex, -1);
+
+  const row = root.querySelector('[data-role="record-body"] tr');
+  assert.ok(row);
+  assert.equal(
+    row.children[fieldStateIndex]?.textContent,
+    'Field=Fire[味方, 7T, 火属性スキル x1.80] | Territory=ReviveTerritory[敵, 永続, DP破損時ターン開始: 味方DP50%回復後消滅]'
   );
 });
 

@@ -365,7 +365,10 @@ test('enemy zone controls are shown only for field-holder enemies and apply enem
     sourceSide: 'enemy',
     remainingTurns: 6,
   });
-  assert.equal(root.querySelector('[data-role="field-state-label"]')?.textContent, 'Field=Thunder(6) | Territory=-');
+  assert.equal(
+    root.querySelector('[data-role="field-state-label"]')?.textContent,
+    'Field=Thunder[敵, 6T, 雷属性スキル] | Territory=-'
+  );
 });
 
 test('applyScenarioTurn applies and clears enemy status delta through shared helper', () => {

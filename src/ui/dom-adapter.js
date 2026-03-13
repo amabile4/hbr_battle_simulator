@@ -113,11 +113,14 @@ const SCENARIO_JSON_ERROR_PREFIX = 'Invalid scenario JSON';
 const RECORDS_JSON_DOWNLOAD_PREFIX = 'records';
 const JSON_FILE_EXTENSION = 'json';
 const JSON_DOWNLOAD_MIME_TYPE = 'application/json';
+const FIELD_RATE_DECIMAL_PLACES = 2;
+const FIELD_PERCENT_MULTIPLIER = 100;
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_BREAK = 'Break';
 const ENEMY_STATUS_STRONG_BREAK = 'StrongBreak';
 const ENEMY_STATUS_SUPER_DOWN = 'SuperDown';
 const ENEMY_STATUS_DEAD = 'Dead';
+const REVIVE_TERRITORY_TYPE = 'ReviveTerritory';
 const ENEMY_ZONE_TYPE_OPTIONS = Object.freeze([
   { value: 'Fire', label: '火' },
   { value: 'Ice', label: '氷' },
@@ -507,17 +510,81 @@ function formatConditionSupportLine(label, values) {
   return `${label}: ${list}`;
 }
 
+function trimTrailingZeros(value, fractionDigits = FIELD_RATE_DECIMAL_PLACES) {
+  return Number(value).toFixed(fractionDigits).replace(/\.?0+$/, '');
+}
+
+function formatFieldDurationLabel(remainingTurns) {
+  if (remainingTurns === null || remainingTurns === undefined) {
+    return '永続';
+  }
+  const turns = Number(remainingTurns);
+  return Number.isFinite(turns) ? `${Math.max(0, turns)}T` : '';
+}
+
+function formatFieldSourceLabel(sourceSide) {
+  const normalized = String(sourceSide ?? '').trim();
+  return FIELD_SOURCE_LABEL_BY_SIDE[normalized] ?? normalized;
+}
+
+function formatZoneEffectLabel(zoneState) {
+  const type = String(zoneState?.type ?? '').trim();
+  if (!type) {
+    return '';
+  }
+  const elementLabel = ELEMENT_BADGE_META[type]?.label ?? type;
+  const powerRate = Number(zoneState?.powerRate ?? 0);
+  if (Number.isFinite(powerRate) && powerRate > 0) {
+    return `${elementLabel}属性スキル x${powerRate.toFixed(FIELD_RATE_DECIMAL_PLACES)}`;
+  }
+  return `${elementLabel}属性スキル`;
+}
+
+function formatTerritoryEffectLabel(territoryState) {
+  const type = String(territoryState?.type ?? '').trim();
+  if (!type) {
+    return '';
+  }
+  const powerRate = Number(territoryState?.powerRate ?? 0);
+  if (type === REVIVE_TERRITORY_TYPE) {
+    const healPercent =
+      Number.isFinite(powerRate) && powerRate > 0
+        ? powerRate * FIELD_PERCENT_MULTIPLIER
+        : 50;
+    return `DP破損時ターン開始: 味方DP${trimTrailingZeros(healPercent)}%回復後消滅`;
+  }
+  if (Number.isFinite(powerRate) && powerRate > 0) {
+    return `効果倍率 x${powerRate.toFixed(FIELD_RATE_DECIMAL_PLACES)}`;
+  }
+  return '';
+}
+
+function formatSingleFieldStateLabel(label, state, effectFormatter) {
+  const normalizedState = state && typeof state === 'object' ? state : null;
+  const type = String(normalizedState?.type ?? '').trim();
+  if (!type) {
+    return `${label}=-`;
+  }
+  const details = [
+    formatFieldSourceLabel(normalizedState?.sourceSide),
+    formatFieldDurationLabel(normalizedState?.remainingTurns),
+    effectFormatter(normalizedState),
+  ].filter(Boolean);
+  return `${label}=${type}[${details.join(', ')}]`;
+}
+
+function formatFieldStateSummary(zoneState, territoryState) {
+  return [
+    formatSingleFieldStateLabel('Field', zoneState, formatZoneEffectLabel),
+    formatSingleFieldStateLabel('Territory', territoryState, formatTerritoryEffectLabel),
+  ].join(' | ');
+}
+
 function formatFieldStateLabel(turnState) {
   const zoneState = turnState?.zoneState && typeof turnState.zoneState === 'object' ? turnState.zoneState : null;
   const territoryState =
     turnState?.territoryState && typeof turnState.territoryState === 'object' ? turnState.territoryState : null;
-  const zoneText = zoneState?.type
-    ? `Field=${zoneState.type}${zoneState.remainingTurns === null ? '' : `(${zoneState.remainingTurns})`}`
-    : 'Field=-';
-  const territoryText = territoryState?.type
-    ? `Territory=${territoryState.type}${territoryState.remainingTurns === null ? '' : `(${territoryState.remainingTurns})`}`
-    : 'Territory=-';
-  return `${zoneText} | ${territoryText}`;
+  return formatFieldStateSummary(zoneState, territoryState);
 }
 
 function hasTokenPassiveSupport(member) {
@@ -766,6 +833,10 @@ const ELEMENT_BADGE_META = Object.freeze({
   Thunder: { label: '雷', className: 'attr-element-thunder' },
   Light: { label: '光', className: 'attr-element-light' },
   Dark: { label: '闇', className: 'attr-element-dark' },
+});
+const FIELD_SOURCE_LABEL_BY_SIDE = Object.freeze({
+  player: '味方',
+  enemy: '敵',
 });
 
 const WEAPON_BADGE_META = Object.freeze({
@@ -6915,12 +6986,30 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     ];
   }
 
+  formatRecordFieldState(record, plan = null) {
+    const stateSnapshot =
+      record?.stateSnapshot && typeof record.stateSnapshot === 'object' ? record.stateSnapshot : null;
+    const setupDelta = plan?.setupDelta && typeof plan.setupDelta === 'object' ? plan.setupDelta : null;
+    const zoneState = normalizeFieldStateForScenario(
+      stateSnapshot?.zoneState ?? record?.zoneState ?? plan?.zoneState ?? setupDelta?.zoneState ?? null
+    );
+    const territoryState = normalizeFieldStateForScenario(
+      stateSnapshot?.territoryState ??
+        record?.territoryState ??
+        plan?.territoryState ??
+        setupDelta?.territoryState ??
+        null
+    );
+    return formatFieldStateSummary(zoneState, territoryState);
+  }
+
   getRecordColumns(simpleMode = false) {
     const priority = [
       { key: 'turnId', label: 'turnId' },
       { key: 'ops', label: 'ops' },
       { key: 'turnLabel', label: 'turnLabel' },
       { key: 'odGaugeStart', label: 'odGaugeStart' },
+      { key: 'fieldState', label: 'fieldState' },
       { key: 'frontPos1Char', label: '前衛POS1キャラ' },
       { key: 'frontPos1Skill', label: '前衛POS1スキル' },
       { key: 'frontPos2Char', label: '前衛POS2キャラ' },
@@ -7026,6 +7115,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const enemyNames = this.serializeRecordField(record?.enemyNamesByEnemy, '-');
       const enemyAction = this.serializeRecordField(record?.enemyAction ?? plan?.enemyAction, '');
       const enemyStatus = this.serializeRecordField(record?.enemyStatusSummary, '-');
+      const fieldState = this.formatRecordFieldState(record, plan);
       const transcendence = this.serializeRecordField(record?.transcendence, '-');
       const frontlineColumns = this.formatFrontlineCharacterSkillColumns(record, plan);
       const actions = this.serializeRecordField(record?.actions ?? plan?.actions, '-');
@@ -7051,6 +7141,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         enemyNames,
         enemyAction,
         enemyStatus,
+        fieldState,
         transcendence,
         frontPos1Char: frontlineColumns[0],
         frontPos1Skill: frontlineColumns[1],

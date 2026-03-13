@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-09
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-13
 
 ## 方針
 
@@ -133,10 +133,27 @@
   - 基本的な継続ターン減少
   - `turnPlan` / scenario / `turnPlanBaseSetup` への `zoneState` / `territoryState` 保存と復元
   - 敵設定 UI からの手動 `Zone` 展開
+  - `Zone` / `Territory` の UI / record table 見える化
+  - `ZoneUpEternal` の効果量上昇を `part.power[0]` ベースで反映
+  - `ZoneUpEternal` の永続化を有限ターン `Zone` のみに限定
 - まだ未実装の範囲
   - 陣の種類追加時の個別効果適用
-  - `ZoneUpEternal` の効果量上昇側の反映
-  - `Zone` / `Territory` の効果内容そのものの見える化
+
+### `ZoneUpEternal` 実装注意メモ
+
+- `ZoneUpEternal` は **1) フィールド性能上昇** と **2) 有限ターン Zone の永続化** の 2 効果を同時に持つ
+- フィールド性能上昇は `part.power[0]` を使う
+  - 現在確認できる実データは `0.15` だが、実装は固定値にしない
+- 永続化は「展開された Zone が有限ターンかどうか」で判定する
+  - `remainingTurns !== null` の Zone だけ `null` に変換する
+  - 既に永続の Zone には性能上昇だけが乗る
+- `part.effect.exitCond` は `ZoneUpEternal` modifier 自体の有効期間として扱う
+  - `武運長久`: `OnPlayerTurnStart` + `PlayerTurnEnd / 1T`
+  - `天長地久`: `OnFirstBattleStart` + `Eternal`
+- したがって、実装では「modifier が有効か」「効果量をいくつ足すか」「永続化を行うか」を別々に解決する必要がある
+- 実装反映済み
+  - `resolveZoneUpEternalModifier()` が上記 3 点をまとめて解決する
+  - `Zone` 適用時は `part.power[0]` を `powerRate` に加算し、`remainingTurns !== null` の場合だけ永続化する
 
 ## Phase 4: timing の汎用実行基盤
 
@@ -360,7 +377,8 @@
     - `AdditionalHitOnRemovingBuff` トリガー: スキルに `RemoveBuff` パーツがある場合に発火
     - 対応済みパッシブ: 激動, アンコール, 破竹の勢い, 愛嬌, お裾分け, クロノチェイン, 追加支援, 元気注入, 意気軒昂, 貴様に託した, 二度咲き, 慶福の一矢, 破砕の喝采, 浄化の喝采, ひれ伏すでゲス！ 等
   - ✅ 完了: `ZoneUpEternal` の `OnPlayerTurnStart` / `OnEveryTurn` timing 対応
-    - `hasActiveZoneUpEternalModifier` が `OnBattleStart/OnFirstBattleStart` 限定だった制約を解除
+    - `resolveZoneUpEternalModifier()` が `OnBattleStart` / `OnFirstBattleStart` / `OnPlayerTurnStart` / `OnEveryTurn` を解決
+    - `part.power[0]` 加算と有限 `Zone` 限定の永続化を分離適用
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 

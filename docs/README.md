@@ -47,8 +47,8 @@ docs/
 | [active/resonance_full_coverage_tasklist.md](active/resonance_full_coverage_tasklist.md) | ✅ 完了 | 共鳴アビリティ全21グループ テストカバレッジ計画（22テスト・全468テストPASS） | 2026-03-11 |
 | [active/ui_support_slot_improvement_tasklist.md](active/ui_support_slot_improvement_tasklist.md) | ✅ 完了 | サポート枠UI改善：共鳴アビリティ表示強化・フィルタリング機能・バグ修正（全476テストPASS） | 2026-03-12 |
 | [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
-| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次に進める実装テーマの優先順位と再開順（PRI-007〜009） | 2026-03-13 |
-| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画 | 2026-03-09 |
+| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次に進める実装テーマの優先順位と再開順（次: PRI-009） | 2026-03-13 |
+| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画（Zone/Territory 見える化・ZoneUpEternal整理完了） | 2026-03-13 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-08 |
 | [active/token_implementation_plan.md](active/token_implementation_plan.md) | 🟢 進行中 | Token状態システム独立実装計画 | 2026-03-09 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
@@ -57,7 +57,7 @@ docs/
 | [active/special_status_implementation_tasklist.md](active/special_status_implementation_tasklist.md) | ✅ 完了 | SpecialStatusCountByType バフ状態の完全実装（T01-T16完了・T12b/T13b/T勇姿追加・522テストPASS）T14/T15は低優先度 | 2026-03-13 |
 | [active/sp_strict_mode_tasklist.md](active/sp_strict_mode_tasklist.md) | ✅ 完了 | SP厳密モード / 通常モード トグル実装（dom-adapterのみ変更・519テストPASS） | 2026-03-13 |
 
-注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了。AttackUpPerToken / DefenseUpPerToken 実装完了（高揚・激励・鉄壁）。SP条件スキル（Sp()<0 / Sp()>0 / Sp()>19）spec文書作成・8テスト追加。SpecialStatusCountByType バフ状態完全実装（T01-T16）。SP厳密モードトグル実装（dom-adapterのみ変更）。全519テストPASS。implementation_priority_tasklist.md を PRI-007〜009 で再作成（旧履歴は archive/20260313_priority_history.md）。SP関連特殊状態パッシブのテスト補強（T12b/T13b/勇姿 の3テスト追加・AllyAll+target_condition / ReduceSp SP消費減を確認）。全522テストPASS。次の着手は `implementation_priority_tasklist.md` で判断。
+注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了。AttackUpPerToken / DefenseUpPerToken 実装完了（高揚・激励・鉄壁）。SP条件スキル（Sp()<0 / Sp()>0 / Sp()>19）spec文書作成・8テスト追加。SpecialStatusCountByType バフ状態完全実装（T01-T16）。SP厳密モードトグル実装（dom-adapterのみ変更）。全519テストPASS。implementation_priority_tasklist.md を PRI-007〜009 で再作成（旧履歴は archive/20260313_priority_history.md）。SP関連特殊状態パッシブのテスト補強（T12b/T13b/勇姿 の3テスト追加・AllyAll+target_condition / ReduceSp SP消費減を確認）。Zone / Territory 効果見える化完了（turn status / record table）。全522テストPASS。ZoneUpEternal 二効果分離実装完了（`part.power[0]` 反映・有限 Zone のみ永続化・`tests/turn-state-transitions.test.js` 247テストPASS）。次の着手は `implementation_priority_tasklist.md` で判断。
 
 ---
 
