@@ -1,10 +1,10 @@
 # Implementation Priority Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-13
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-14
 >
 > **前回完了分**: [`../archive/20260313_priority_history_pri007_009.md`](../archive/20260313_priority_history_pri007_009.md) に `PRI-007`〜`PRI-009` を退避済み
 >
-> **判断メモ**: [`../20260306_tasklist/`](../20260306_tasklist/) は 2026-03-06 時点のスナップショットなので、件数は参考値として使い、2026-03-13 までに完了した `Zone / Territory` 見える化、`ZoneUpEternal`、`SpecialStatusCountByType`、SP厳密モード等は次優先候補から除外する
+> **判断メモ**: [`../20260306_tasklist/`](../20260306_tasklist/) は 2026-03-06 時点のスナップショットなので、件数は参考値として使う。2026-03-14 時点で `PRI-010`（skill-level `overwrite_cond`）、`Zone / Territory` 見える化、`ZoneUpEternal`、`SpecialStatusCountByType`、SP厳密モード整合までは完了済み
 
 ## 目的
 
@@ -22,27 +22,30 @@
 ## 再開時の読書順
 
 1. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
-2. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
-3. [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv)
-4. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
-5. [`../archive/20260313_priority_history.md`](../archive/20260313_priority_history.md) / [`../archive/20260313_priority_history_pri007_009.md`](../archive/20260313_priority_history_pri007_009.md)
+2. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
+3. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
+4. [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv)
+5. [`overwrite_cond_implementation_tasklist.md`](overwrite_cond_implementation_tasklist.md)
+6. [`../archive/20260313_priority_history.md`](../archive/20260313_priority_history.md) / [`../archive/20260313_priority_history_pri007_009.md`](../archive/20260313_priority_history_pri007_009.md)
 
 ## 優先順位
 
 | 優先 | ID | 状態 | テーマ | 主な出典 | 先にやる理由 | 完了条件 |
 |------|----|------|--------|----------|--------------|----------|
-| P0 | `PRI-010` | `ready` | `overwrite_cond` 実行接続と有効スキル解決の整理 | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv) | `overwrite_cond_unresolved` はスナップショット時点で 53 件あり、しかも `MoraleLevel` / `MotivationLevel` / `Token()` / `Mark` / `Zone` / `Sp()` / `DpRate()` など、すでに実装済みの条件群を活かせる。`resolveEffectiveSkillForAction()` も既に存在するため、レバレッジが最も高い | `overwrite` + `overwrite_cond` のデータパターンが整理され、SPコスト上書きと条件分岐スキルが代表ケースで動く。未対応条件は安全に fallback し、実データ回帰テストが追加される |
+| P0 | `PRI-010` | `done` | `overwrite_cond` 実行接続と有効スキル解決の整理 | [`overwrite_cond_implementation_tasklist.md`](overwrite_cond_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv) | `overwrite_cond_unresolved` はスナップショット時点で 53 件あり、しかも `MoraleLevel` / `MotivationLevel` / `Token()` / `Mark` / `Zone` / `Sp()` / `DpRate()` など、すでに実装済みの条件群を活かせる。`resolveEffectiveSkillForAction()` も既に存在するため、レバレッジが最も高い | 完了。skill-level `overwrite_cond` が `overwrite` / `IsCharging()` / `IsTeam()` / strict mode 整合まで接続され、`npm run test:quick` 328 PASS を確認 |
 | P1 | `PRI-011` | `ready` | 敵状態異常基盤の拡張（既存 `enemyState.statuses` の活用） | [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md) | `enemy_status_unimplemented` はスナップショット時点で 219 件と最大規模。`DefenseDown` / `Fragile` / `AttackDown` / `ResistDown` 系が通れば、active skill 本体・`overwrite_cond`・`CountBC` がまとめて前進する。`turnState.enemyState.statuses`、`upsertEnemyStatus()`、`tickEnemyStatuses()` は既にある | 敵状態異常の付与・上書き・期限減少・記録が通り、`CountBC(IsPlayer()==0...)` 系に接続される。`T15`（挑発/注目）も同時に閉じる |
 | P2 | `PRI-012` | `ready` | top-level `effect` の実挙動監査と必要分のみ接続 | [`../20260306_tasklist/unsupported_matrix.csv`](../20260306_tasklist/unsupported_matrix.csv), [`../20260306_tasklist/skills_unimplemented_summary.md`](../20260306_tasklist/skills_unimplemented_summary.md) | `effect_unresolved` はスナップショット時点で 203 件あるが、`parts` だけで既に十分なものも混ざる可能性が高い。ここは即実装ではなく「実ギャップ監査 → 必要分だけ共有ハンドラへ接続」の順で進める方が安全 | `effect_unresolved` が「metadata-only」と「実際に挙動欠落」に分類され、欠落している effect label だけが既存 action/post-process パイプラインへ正規化接続される。二重適用しない実スキル回帰テストを持つ |
 
 ## PRI-010 タスクリスト
 
-- [ ] `json/skills.json` の `overwrite` / `overwrite_cond` を代表例で分類する
-- [ ] `SPコスト上書き` と `SkillCondition` 連動分岐を別パターンとして整理する
-- [ ] `resolveEffectiveSkillForAction()` で `overwrite_cond` を参照する実行経路を追加する
-- [ ] `unknown` 条件は現状どおり安全側 fallback にする
-- [ ] `IsCharging()` のような即詰めできる不足条件をこの wave に含める
-- [ ] 代表実データで回帰テストを追加する
+詳細は [`overwrite_cond_implementation_tasklist.md`](overwrite_cond_implementation_tasklist.md) を参照。
+
+- [x] `json/skills.json` の `overwrite` / `overwrite_cond` を代表例で分類する
+- [x] `SPコスト上書き` と `SkillCondition` 連動分岐を別パターンとして整理する
+- [x] `resolveEffectiveSkillForAction()` で `overwrite_cond` を参照する実行経路を追加する
+- [x] `unknown` 条件は現状どおり安全側 fallback にする
+- [x] `IsCharging()` と `IsTeam()` をこの wave に含める
+- [x] 代表実データで回帰テストを追加する
   - `ヘイルストーム`（回避中 SP半減）
   - `スペクタクルアート`（非火 Zone 中 SP0）
   - `燃やせ青春！マリンボール！`（やる気段階で分岐）
@@ -81,5 +84,5 @@
 ## メモ
 
 - `2026-03-06` スナップショットの件数は優先度判断の参考値であり、現行コードの真値ではない
-- 次の実装着手は `PRI-010` から始める
+- 次の実装着手は `PRI-011` から始める
 - 各 PRI 完了時は、この文書と [`../README.md`](../README.md) を同じコミットで更新する

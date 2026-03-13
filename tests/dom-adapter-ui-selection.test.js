@@ -591,6 +591,60 @@ test('action selector displays Token cost for token consume skills', () => {
   assert.equal(text.includes('SP 5'), false);
 });
 
+test('SP strict mode uses overwrite_cond-adjusted effective cost', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `OC${idx + 1}`,
+      characterName: `OC${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `OCS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: idx === 0 ? 0 : 0,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 778500,
+                name: 'Zone Free',
+                label: 'ZoneFree',
+                sp_cost: 14,
+                overwrite: 0,
+                overwrite_cond: 'CountBC(IsZone(Fire)==0&&IsZone(None)==0)>0',
+                target_type: 'Field',
+                parts: [{ skill_type: 'Zone', target_type: 'Field', power: [1.8, 0] }],
+              },
+            ]
+          : [{ id: 778600 + idx, name: 'Normal', label: `O${idx}`, sp_cost: 0, consume_type: 'Sp' }],
+    })
+  );
+
+  adapter.party = new Party(members);
+  adapter.state = createBattleStateFromParty(adapter.party);
+  adapter.state.turnState.zoneState = {
+    type: 'Ice',
+    sourceSide: 'player',
+    remainingTurns: 8,
+    powerRate: 1.8,
+  };
+  adapter.spStrictMode = true;
+  adapter.renderActionSelectors();
+
+  const select = root.querySelector('[data-action-slot="0"]');
+  assert.ok(select);
+  select.value = '778500';
+
+  const committed = adapter.commitCurrentTurn();
+  const statusText = root.querySelector('[data-role="status"]')?.textContent ?? '';
+  assert.ok(committed, 'effective cost 0 should allow commit in strict mode');
+  assert.equal(statusText.includes('SP不足'), false);
+});
+
 test('action selector shows target selector for non-HealSp AllySingle skills', () => {
   const store = getStore();
   const { root } = createRoot();

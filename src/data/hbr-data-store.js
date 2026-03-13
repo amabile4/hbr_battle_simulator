@@ -1198,6 +1198,7 @@ export class HbrDataStore {
       characterName: normalizeCharacterName(character.name),
       styleId: Number(style.id),
       styleName: String(style.name),
+      team: String(style.team ?? ''),
       role: String(style.role ?? ''),
       elements: Array.isArray(style.elements) ? [...style.elements] : [],
       weaponType: String(style.type ?? ''),

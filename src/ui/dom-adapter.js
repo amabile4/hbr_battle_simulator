@@ -3733,13 +3733,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         if (!action) continue;
         const skill = member.getSkill(action.skillId);
         if (!skill) continue;
-        const consumeType = String(skill.consumeType ?? 'Sp');
+        const effectiveSkill = resolveEffectiveSkillForAction(this.state, member, skill);
+        const consumeType = String(effectiveSkill?.consumeType ?? effectiveSkill?.consume_type ?? 'Sp');
         const isSpConsuming =
           consumeType !== 'Ep' &&
           consumeType !== 'Token' &&
           consumeType !== 'Morale' &&
           consumeType !== 'Motivation';
-        const rawSpCost = Number(skill.spCost ?? 0);
+        const rawSpCost = Number(effectiveSkill?.spCost ?? effectiveSkill?.sp_cost ?? 0);
         if (isSpConsuming && rawSpCost > 0 && member.sp.current < rawSpCost) {
           const name = member.characterName ?? member.characterId;
           this.setStatus(

@@ -153,8 +153,10 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   IsOverDrive: Object.freeze({ tier: 'implemented', note: 'turn type is tracked now' }),
   IsReinforcedMode: Object.freeze({ tier: 'implemented', note: 'character state is tracked now' }),
   IsShredding: Object.freeze({ tier: 'implemented', note: 'shreddingTurnsRemaining is tracked now' }),
+  IsCharging: Object.freeze({ tier: 'implemented', note: 'BuffCharge special status is tracked now' }),
   IsFront: Object.freeze({ tier: 'implemented', note: 'position is tracked now' }),
   IsDead: Object.freeze({ tier: 'implemented', note: 'alive state is tracked now' }),
+  IsTeam: Object.freeze({ tier: 'implemented', note: 'member team is carried from style data now' }),
   BreakDownTurn: Object.freeze({ tier: 'implemented', note: 'enemy DownTurn is tracked now' }),
   ConsumeSp: Object.freeze({ tier: 'implemented', note: 'selected skill cost is tracked now' }),
   IsAttackNormal: Object.freeze({ tier: 'implemented', note: 'selected action can be checked now' }),
@@ -188,6 +190,7 @@ const DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER = Object.freeze({
   SS: 0,
   SSR: 0,
 });
+const SPECIAL_STATUS_TYPE_BUFF_CHARGE = 25;
 const CONDITION_FUNCTION_PATTERN = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
 export function analyzePassiveTimingCoverage(passives = []) {
@@ -698,6 +701,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
         known: true,
         value: member?.isShredding ? 1 : 0,
       };
+    case 'IsCharging':
+      return {
+        known: true,
+        value: hasSpecialStatus(member, SPECIAL_STATUS_TYPE_BUFF_CHARGE) ? 1 : 0,
+      };
     case 'IsFront':
       return {
         known: true,
@@ -757,6 +765,11 @@ function resolveSingleArgConditionValue(name, argRaw, state, member) {
         known: true,
         value: String(member?.characterId ?? '') === arg ? 1 : 0,
       };
+    case 'IsTeam':
+      return {
+        known: true,
+        value: String(member?.team ?? '') === arg ? 1 : 0,
+      };
     case 'IsWeakElement': {
       const targetIndex = Number(member?.__enemyTargetIndex ?? Number.NaN);
       if (!Number.isFinite(targetIndex) || targetIndex < 0) {
@@ -771,6 +784,12 @@ function resolveSingleArgConditionValue(name, argRaw, state, member) {
       };
     }
     case 'IsZone':
+      if (arg === 'None') {
+        return {
+          known: true,
+          value: isFieldStateActive(getZoneState(state?.turnState)) ? 0 : 1,
+        };
+      }
       return {
         known: true,
         value:
@@ -780,6 +799,12 @@ function resolveSingleArgConditionValue(name, argRaw, state, member) {
             : 0,
       };
     case 'IsTerritory':
+      if (arg === 'None') {
+        return {
+          known: true,
+          value: isFieldStateActive(getTerritoryState(state?.turnState)) ? 0 : 1,
+        };
+      }
       return {
         known: true,
         value:
@@ -3406,6 +3431,7 @@ function resolveEffectiveSkillVariant(skill, state, member) {
       cond: String(resolveSkillScalarField(skillLike, ['cond'], '')),
       iucCond: String(resolveSkillScalarField(skillLike, ['iucCond', 'iuc_cond'], '')),
       overwriteCond: String(resolveSkillScalarField(skillLike, ['overwriteCond', 'overwrite_cond'], '')),
+      overwrite: resolveSkillScalarField(skillLike, ['overwrite'], null),
       isRestricted: Number(resolveSkillScalarField(skillLike, ['isRestricted', 'is_restricted'], 0)) === 1,
       parts: [],
     };
@@ -3439,7 +3465,8 @@ function resolveEffectiveSkillVariant(skill, state, member) {
         hitCount: nested.hitCount,
         cond: mergeConditionExpressions(resolved.cond, nested.cond),
         iucCond: nested.iucCond,
-        overwriteCond: nested.overwriteCond,
+        overwriteCond: mergeConditionExpressions(resolved.overwriteCond, nested.overwriteCond),
+        overwrite: String(nested.overwriteCond ?? '').trim() ? nested.overwrite ?? resolved.overwrite : resolved.overwrite,
         isRestricted: nested.isRestricted,
       };
       resolved.parts.push(...nested.parts);
@@ -3458,9 +3485,34 @@ function resolveEffectiveSkillVariant(skill, state, member) {
     cond: String(effective.cond),
     iucCond: String(effective.iucCond),
     overwriteCond: String(effective.overwriteCond),
+    overwrite: effective.overwrite == null ? null : Number(effective.overwrite),
     isRestricted: Boolean(effective.isRestricted),
     parts: effective.parts,
   };
+}
+
+function resolveOverwriteSpCostIfSatisfied(effectiveSkill, state, member) {
+  const overwriteCond = String(effectiveSkill?.overwriteCond ?? '').trim();
+  if (!overwriteCond) {
+    return null;
+  }
+  const consumeType = String(effectiveSkill?.consumeType ?? effectiveSkill?.consume_type ?? 'Sp');
+  if (consumeType !== 'Sp') {
+    return null;
+  }
+  const rawOverwrite = effectiveSkill?.overwrite;
+  if (rawOverwrite === null || rawOverwrite === undefined || rawOverwrite === '') {
+    return null;
+  }
+  const overwriteValue = Number(rawOverwrite);
+  if (!Number.isFinite(overwriteValue)) {
+    return null;
+  }
+  const evaluation = evaluateConditionExpression(overwriteCond, state, member, effectiveSkill, null);
+  if (evaluation.unknownCount > 0 || !evaluation.result) {
+    return null;
+  }
+  return overwriteValue;
 }
 
 function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
@@ -3745,7 +3797,15 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
   if (!skill || !member || !state) {
     return skill;
   }
-  const effective = resolveEffectiveSkillVariant(skill, state, member);
+  const variantResolved = resolveEffectiveSkillVariant(skill, state, member);
+  const overwriteSpCost = resolveOverwriteSpCostIfSatisfied(variantResolved, state, member);
+  const effective =
+    overwriteSpCost === null
+      ? variantResolved
+      : {
+          ...variantResolved,
+          spCost: overwriteSpCost,
+        };
   const consumeType = String(effective?.consumeType ?? 'Sp');
   const baseSpCost = Number(effective?.spCost ?? 0);
   if (consumeType !== 'Sp' || !Number.isFinite(baseSpCost) || baseSpCost <= 0) {

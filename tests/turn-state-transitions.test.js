@@ -44,6 +44,103 @@ function findStyleIdBySkillId(store, skillId) {
   throw new Error(`style not found for skillId=${skillId}`);
 }
 
+function getUniqueTeamStyleIds(store, team, count, excludedStyleIds = []) {
+  const excludedIds = new Set(excludedStyleIds.map((id) => Number(id)));
+  const excludedChars = new Set(
+    excludedStyleIds
+      .map((id) => String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? ''))
+      .filter(Boolean)
+  );
+  const picked = [];
+  const seenChars = new Set();
+
+  for (const style of store.styles) {
+    if (String(style?.team ?? '') !== String(team)) {
+      continue;
+    }
+
+    const styleId = Number(style.id);
+    const charaLabel = String(style?.chara_label ?? style?.chara ?? '');
+    if (!Number.isFinite(styleId) || excludedIds.has(styleId) || excludedChars.has(charaLabel) || seenChars.has(charaLabel)) {
+      continue;
+    }
+
+    seenChars.add(charaLabel);
+    picked.push(styleId);
+    if (picked.length === count) {
+      return picked;
+    }
+  }
+
+  throw new Error(`Could not find ${count} unique team styles for team=${team}`);
+}
+
+function getUniqueNonTeamStyleIds(store, team, count, excludedStyleIds = []) {
+  const excludedIds = new Set(excludedStyleIds.map((id) => Number(id)));
+  const excludedChars = new Set(
+    excludedStyleIds
+      .map((id) => String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? ''))
+      .filter(Boolean)
+  );
+  const picked = [];
+  const seenChars = new Set();
+
+  for (const style of store.styles) {
+    if (String(style?.team ?? '') === String(team)) {
+      continue;
+    }
+
+    const styleId = Number(style.id);
+    const charaLabel = String(style?.chara_label ?? style?.chara ?? '');
+    if (!Number.isFinite(styleId) || excludedIds.has(styleId) || excludedChars.has(charaLabel) || seenChars.has(charaLabel)) {
+      continue;
+    }
+
+    seenChars.add(charaLabel);
+    picked.push(styleId);
+    if (picked.length === count) {
+      return picked;
+    }
+  }
+
+  throw new Error(`Could not find ${count} unique non-${team} styles`);
+}
+
+function buildSingleSkillRealDataParty(store, skillId, options = {}) {
+  const actorStyleId = findStyleIdBySkillId(store, skillId);
+  const actorStyle = store.getStyleById(actorStyleId);
+  const extraStyleIds = Array.isArray(options.extraStyleIds) ? options.extraStyleIds.map((id) => Number(id)) : [];
+  const excludedStyleIds = new Set([actorStyleId, ...extraStyleIds]);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const otherStyleIds = getSixUsableStyleIds(store).filter(
+    (id) => !excludedStyleIds.has(Number(id)) && String(store.getStyleById(id)?.chara_label ?? store.getStyleById(id)?.chara ?? '') !== actorCharaLabel
+  );
+  const styleIds = [actorStyleId, ...extraStyleIds, ...otherStyleIds.slice(0, 5 - extraStyleIds.length)];
+  if (styleIds.length !== 6) {
+    throw new Error(`Could not build 6-member party for skillId=${skillId}`);
+  }
+
+  return store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [skillId],
+    },
+    ...(options.buildOptions ?? {}),
+  });
+}
+
+function previewActorSkill(state, skillId, actionOverrides = {}) {
+  const actor = state.party[0];
+  return previewTurn(state, {
+    0: {
+      characterId: actor.characterId,
+      skillId,
+      targetEnemyIndex: 0,
+      ...actionOverrides,
+    },
+  });
+}
+
 function createSixMemberManualParty(factory) {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -1543,6 +1640,282 @@ test('SkillCondition supports reversed DpRate comparison clauses', () => {
     2: { characterId: 'M3', skillId: 8002 },
   });
   assert.equal(highPreview.actions[0].spCost, 0);
+});
+
+test('skill-level overwrite_cond halves SP cost on first use without SkillCondition parts', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 10,
+          skills: [
+            {
+              id: 18240,
+              name: 'First Use Half',
+              label: 'FirstUseHalf',
+              sp_cost: 10,
+              overwrite: 5,
+              overwrite_cond: 'CountBC(PlayedSkillCount(FirstUseHalf)>0)==0',
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const actions = {
+    0: { characterId: 'M1', skillId: 18240 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  const firstPreview = previewTurn(state, actions);
+  assert.equal(firstPreview.actions[0].spCost, 5);
+
+  const { nextState } = commitTurn(state, firstPreview);
+  const secondPreview = previewTurn(nextState, actions);
+  assert.equal(secondPreview.actions[0].spCost, 10);
+});
+
+test('skill-level overwrite_cond can set SP cost to 0 when a non-fire zone is active', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 14,
+          skills: [
+            {
+              id: 18241,
+              name: 'Zone Cost Override',
+              label: 'ZoneCostOverride',
+              sp_cost: 14,
+              overwrite: 0,
+              overwrite_cond: 'CountBC(IsZone(Fire)==0&&IsZone(None)==0)>0',
+              target_type: 'Field',
+              parts: [{ skill_type: 'Zone', target_type: 'Field', power: [1.8, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const actions = {
+    0: { characterId: 'M1', skillId: 18241 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  const noZonePreview = previewTurn(state, actions);
+  assert.equal(noZonePreview.actions[0].spCost, 14);
+
+  state.turnState.zoneState = { type: 'Ice', sourceSide: 'player', remainingTurns: 8, powerRate: 1.8 };
+  const activeZonePreview = previewTurn(state, actions);
+  assert.equal(activeZonePreview.actions[0].spCost, 0);
+});
+
+test('skill-level overwrite_cond can reference SpecialStatusCountByType on the actor', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 14,
+          skills: [
+            {
+              id: 18242,
+              name: 'Dodge Half',
+              label: 'DodgeHalf',
+              sp_cost: 14,
+              overwrite: 7,
+              overwrite_cond: 'CountBC(IsPlayer()==1&&IsCharacter(M1)==1&&SpecialStatusCountByType(122)>0)>0',
+              target_type: 'All',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const actions = {
+    0: { characterId: 'M1', skillId: 18242 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  const normalPreview = previewTurn(state, actions);
+  assert.equal(normalPreview.actions[0].spCost, 14);
+
+  state.party[0].applySpecialStatus(122, 1, 'Count', {});
+  const dodgePreview = previewTurn(state, actions);
+  assert.equal(dodgePreview.actions[0].spCost, 7);
+});
+
+test('skill-level overwrite_cond can reference IsCharging on the actor', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 7,
+          skills: [
+            {
+              id: 18243,
+              name: 'Charge Free',
+              label: 'ChargeFree',
+              sp_cost: 7,
+              overwrite: 0,
+              overwrite_cond: 'CountBC(IsPlayer()==1&&IsCharacter(M1)==1&&IsCharging()==1)>0',
+              target_type: 'AllyFront',
+              parts: [{ skill_type: 'DefenseUp', target_type: 'AllyFront', power: [0.3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const actions = {
+    0: { characterId: 'M1', skillId: 18243 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  const normalPreview = previewTurn(state, actions);
+  assert.equal(normalPreview.actions[0].spCost, 7);
+
+  state.party[0].applySpecialStatus(25, 1, 'Count', {});
+  const chargePreview = previewTurn(state, actions);
+  assert.equal(chargePreview.actions[0].spCost, 0);
+});
+
+test('skill-level overwrite_cond falls back to base cost when the condition remains unknown', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 14,
+          skills: [
+            {
+              id: 18244,
+              name: 'Unknown Enemy Cond',
+              label: 'UnknownEnemyCond',
+              sp_cost: 14,
+              overwrite: 0,
+              overwrite_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0',
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18244 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  assert.equal(preview.actions[0].spCost, 14);
+});
+
+test('ロココ・デストラクション applies overwrite_cond only on first use in real data', () => {
+  const store = getStore();
+  const skillId = 46002309;
+  let state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const firstPreview = previewActorSkill(state, skillId);
+  assert.equal(firstPreview.actions[0].spCost, 7);
+
+  state = commitTurn(state, firstPreview).nextState;
+  const secondPreview = previewActorSkill(state, skillId);
+  assert.equal(secondPreview.actions[0].spCost, 14);
+});
+
+test('ヘイルストーム halves SP cost while Dodge is active in real data', () => {
+  const store = getStore();
+  const skillId = 46002307;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const normalPreview = previewActorSkill(state, skillId);
+  assert.equal(normalPreview.actions[0].spCost, 14);
+
+  state.party[0].applySpecialStatus(122, 1, 'Count', {});
+  const dodgePreview = previewActorSkill(state, skillId);
+  assert.equal(dodgePreview.actions[0].spCost, 7);
+});
+
+test('スペクタクルアート becomes free only under a non-fire active zone in real data', () => {
+  const store = getStore();
+  const skillId = 46005222;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const noZonePreview = previewActorSkill(state, skillId);
+  assert.equal(noZonePreview.actions[0].spCost, 14);
+
+  state.turnState.zoneState = {
+    type: 'Ice',
+    sourceSide: 'player',
+    remainingTurns: 8,
+    powerRate: 1.8,
+  };
+  const activeZonePreview = previewActorSkill(state, skillId);
+  assert.equal(activeZonePreview.actions[0].spCost, 0);
+});
+
+test('スターダムロード becomes free while charging in real data', () => {
+  const store = getStore();
+  const skillId = 46007411;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const normalPreview = previewActorSkill(state, skillId);
+  assert.equal(normalPreview.actions[0].spCost, 7);
+
+  state.party[0].applySpecialStatus(25, 1, 'Count', {});
+  const chargingPreview = previewActorSkill(state, skillId);
+  assert.equal(chargingPreview.actions[0].spCost, 0);
+});
+
+test('リミット・インパクト+ halves SP cost only when at least 3 members are team 31A in real data', () => {
+  const store = getStore();
+  const skillId = 46001361;
+  const actorStyleId = findStyleIdBySkillId(store, skillId);
+  const extra31A = getUniqueTeamStyleIds(store, '31A', 2, [actorStyleId]);
+  const non31A = getUniqueNonTeamStyleIds(store, '31A', 5, [actorStyleId]);
+
+  const matchedState = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      extraStyleIds: extra31A,
+    })
+  );
+  const matchedPreview = previewActorSkill(matchedState, skillId);
+  assert.equal(matchedPreview.actions[0].spCost, 5);
+
+  const unmatchedState = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      extraStyleIds: non31A,
+    })
+  );
+  const unmatchedPreview = previewActorSkill(unmatchedState, skillId);
+  assert.equal(unmatchedPreview.actions[0].spCost, 10);
+});
+
+test('燃やせ青春！マリンボール！ applies parent overwrite_cond across SkillCondition branches in real data', () => {
+  const store = getStore();
+  const skillId = 46001121;
+
+  const highState = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      buildOptions: {
+        initialMotivationByPartyIndex: { 0: 5 },
+      },
+    })
+  );
+  const highPreview = previewActorSkill(highState, skillId);
+  assert.equal(highPreview.actions[0].spCost, 8);
+
+  const lowState = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      buildOptions: {
+        initialMotivationByPartyIndex: { 0: 3 },
+      },
+    })
+  );
+  const lowPreview = previewActorSkill(lowState, skillId);
+  assert.equal(lowPreview.actions[0].spCost, 16);
 });
 
 test('MotivationLevel condition can trigger passives from current motivation state', () => {

@@ -53,6 +53,10 @@ function normalizeSkill(skill, canonicalSkill) {
     cond: String(skill.cond ?? ''),
     iucCond: String(skill.iuc_cond ?? skill.iucCond ?? ''),
     overwriteCond: String(skill.overwrite_cond ?? skill.overwriteCond ?? ''),
+    overwrite:
+      skill.overwrite === undefined || skill.overwrite === null
+        ? canonicalSkill?.overwrite ?? null
+        : Number(skill.overwrite),
     additionalTurnRule:
       skill.additionalTurnRule && typeof skill.additionalTurnRule === 'object'
         ? structuredClone(skill.additionalTurnRule)
@@ -107,6 +111,7 @@ function createNoActionSkill() {
     cond: '',
     iucCond: '',
     overwriteCond: '',
+    overwrite: null,
     additionalTurnRule: null,
     parts: [],
     passive: null,
@@ -251,6 +256,7 @@ export class CharacterStyle {
     this.characterName = String(input.characterName);
     this.styleId = Number(input.styleId);
     this.styleName = String(input.styleName);
+    this.team = String(input.team ?? '');
     this.role = String(input.role ?? '');
     this.elements = Object.freeze(
       Array.isArray(input.elements)
