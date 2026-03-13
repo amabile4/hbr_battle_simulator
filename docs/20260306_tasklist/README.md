@@ -26,7 +26,7 @@
 - `overwrite_cond_unresolved`
   - `overwrite_cond` が記述されているが、現行実装で参照されない条件
 - `effect_unresolved`
-  - top-level `effect` が記述されているが、現行実装で参照されない特殊効果ラベル
+  - top-level `effect` のうち、metadata-only と判定した label を除いた「追加 runtime 接続が必要な可能性がある」特殊効果ラベル
 
 ## 再生成方法
 

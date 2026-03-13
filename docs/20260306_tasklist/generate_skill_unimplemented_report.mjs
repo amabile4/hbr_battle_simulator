@@ -8,6 +8,15 @@ const CONDITION_CATEGORY = 'state_condition_unimplemented';
 const ENEMY_STATUS_CATEGORY = 'enemy_status_unimplemented';
 const OVERWRITE_CATEGORY = 'overwrite_cond_unresolved';
 const EFFECT_CATEGORY = 'effect_unresolved';
+const METADATA_ONLY_EFFECT_LABELS = new Set([
+  'ChargeBuff',
+  'DefaultDebuff',
+  'FunnelUp',
+  'HealSp',
+  'MindEyeBuff',
+  'OverDriveUp',
+  'TokenUp',
+]);
 
 const ENEMY_STATUS_SKILL_TYPE_KEYWORDS =
   /(Down|Fragile|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
@@ -213,6 +222,14 @@ function isEnemyStatusCandidatePart(part) {
   return hasTimedEffect || hasStatusKeyword;
 }
 
+function shouldReportTopLevelEffect(effectLabel) {
+  const normalized = String(effectLabel ?? '').trim();
+  if (!normalized) {
+    return false;
+  }
+  return !METADATA_ONLY_EFFECT_LABELS.has(normalized);
+}
+
 function collectSkillLikeFields(rows, topSkill, skillLike, fieldPath) {
   const baseMeta = {
     skill_id: Number(topSkill?.id ?? ''),
@@ -240,7 +257,7 @@ function collectSkillLikeFields(rows, topSkill, skillLike, fieldPath) {
   }
 
   const effect = String(skillLike?.effect ?? '').trim();
-  if (effect) {
+  if (shouldReportTopLevelEffect(effect)) {
     rows.push(
       buildOccurrenceRow(baseMeta, {
         category: EFFECT_CATEGORY,
@@ -383,7 +400,12 @@ function buildSummaryMarkdown(catalogRows, occurrenceRows) {
   lines.push('');
   lines.push('## 補足');
   lines.push('');
-  lines.push('- `overwrite_cond` と top-level `effect` は、現行コードで参照されていないため全件「未確定/未実装」扱い。');
+  lines.push(
+    '- `overwrite_cond` は、現行コードで参照されない条件を「未確定/未実装」扱いとして集計する。'
+  );
+  lines.push(
+    `- top-level \`effect\` は、metadata-only label (${METADATA_ONLY_EFFECT_LABELS.size}種) を除外し、追加 runtime 接続が必要な label のみ \`effect_unresolved\` に残す。`
+  );
   lines.push('- 敵状態異常は `skills.json` 上の候補パーツを抽出し、`turn-controller` に適用ロジックが無いものを未実装として列挙。');
   lines.push('');
 
@@ -440,6 +462,7 @@ function main() {
 
   writeFileSync(resolve(OUTPUT_DIR, 'skills_unimplemented_occurrences.csv'), toCsv(occurrenceRows, occurrenceColumns));
   writeFileSync(resolve(OUTPUT_DIR, 'skills_unimplemented_catalog.csv'), toCsv(catalogRows, catalogColumns));
+  writeFileSync(resolve(OUTPUT_DIR, 'unsupported_matrix.csv'), toCsv(catalogRows, catalogColumns));
   writeFileSync(
     resolve(OUTPUT_DIR, 'skills_unimplemented_summary.md'),
     buildSummaryMarkdown(catalogRows, occurrenceRows)

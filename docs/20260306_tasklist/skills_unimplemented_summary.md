@@ -13,7 +13,7 @@
 | state_condition_unimplemented | 47 | 108 |
 | enemy_status_unimplemented | 16 | 219 |
 | overwrite_cond_unresolved | 37 | 53 |
-| effect_unresolved | 16 | 203 |
+| effect_unresolved | 9 | 129 |
 
 ## 条件式パーサーで実装済みの主な条件
 
@@ -27,5 +27,6 @@
 
 ## 補足
 
-- `overwrite_cond` と top-level `effect` は、現行コードで参照されていないため全件「未確定/未実装」扱い。
+- `overwrite_cond` は、現行コードで参照されない条件を「未確定/未実装」扱いとして集計する。
+- top-level `effect` は、metadata-only label (7種) を除外し、追加 runtime 接続が必要な label のみ `effect_unresolved` に残す。
 - 敵状態異常は `skills.json` 上の候補パーツを抽出し、`turn-controller` に適用ロジックが無いものを未実装として列挙。

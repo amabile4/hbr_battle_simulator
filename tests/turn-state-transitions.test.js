@@ -1987,6 +1987,70 @@ test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in 
   assert.equal(resistStatus.power, 0.45);
 });
 
+test('ハードブレード applies DefenseDown in real data despite top-level DefaultDebuff label', () => {
+  const store = getStore();
+  const skillId = 46001303;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const enemyStatus = action.enemyStatusChanges.find((status) => status.statusType === 'DefenseDown');
+
+  assert.ok(enemyStatus);
+  assert.equal(enemyStatus.power, 0.3);
+  assert.equal(enemyStatus.exitCond, 'EnemyTurnEnd');
+});
+
+test('炯眼の構え applies MindEye in real data despite top-level MindEyeBuff label', () => {
+  const store = getStore();
+  const skillId = 46001116;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const actor = committed.nextState.party[0];
+
+  assert.equal(countActiveSpecialStatus(actor, 78), 1);
+});
+
+test('聖域のカンタータ applies BuffCharge in real data despite top-level ChargeBuff label', () => {
+  const store = getStore();
+  const skillId = 46007303;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+
+  for (const member of committed.nextState.party.slice(0, 3)) {
+    assert.equal(countActiveSpecialStatus(member, 25), 1);
+  }
+});
+
+test('水影 applies Funnel in real data despite top-level FunnelUp label', () => {
+  const store = getStore();
+  const skillId = 46003504;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+
+  assert.equal(committed.nextState.party[0].getStatusEffectsByType('Funnel').length, 1);
+});
+
+test('クレール・ド・リュンヌ heals ally SP in real data despite top-level HealSp label', () => {
+  const store = getStore();
+  const skillId = 46002505;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  const target1 = state.party[1];
+  const target2 = state.party[2];
+
+  target1.applySpDelta(-5, 'active');
+  target2.applySpDelta(-4, 'active');
+  const before1 = Number(target1.sp.current ?? 0);
+  const before2 = Number(target2.sp.current ?? 0);
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+
+  assert.ok(Number(committed.nextState.party[1].sp.current ?? 0) > before1);
+  assert.ok(Number(committed.nextState.party[2].sp.current ?? 0) > before2);
+});
+
 test('スペクタクルアート becomes free only under a non-fire active zone in real data', () => {
   const store = getStore();
   const skillId = 46005222;
