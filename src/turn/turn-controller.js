@@ -66,6 +66,17 @@ const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
 const ENEMY_STATUS_POWER_DURATION_SKILL_TYPES = Object.freeze(
   new Set([ENEMY_STATUS_PROVOKE, ENEMY_STATUS_ATTENTION])
 );
+const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
+  AttackUp: 'AttackUp',
+  AttackUpIncludeNormal: 'AttackUp',
+  DefenseUp: 'DefenseUp',
+  CriticalRateUp: 'CriticalRateUp',
+  CriticalDamageUp: 'CriticalDamageUp',
+});
+const ACTIVE_BUFF_STATUS_SKILL_TYPES = Object.freeze(
+  new Set(Object.keys(ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE))
+);
+const ACTIVE_BUFF_STATUS_NORMAL_ATTACK_EFFECTS = Object.freeze(new Set(['NormalBuff_Up']));
 const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp', 'ReviveDpRate']));
 const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
 const DP_HEAL_SKILL_TYPES = Object.freeze(
@@ -3697,6 +3708,7 @@ function resolveEffectiveSkillVariant(skill, state, member) {
       iucCond: String(resolveSkillScalarField(skillLike, ['iucCond', 'iuc_cond'], '')),
       overwriteCond: String(resolveSkillScalarField(skillLike, ['overwriteCond', 'overwrite_cond'], '')),
       overwrite: resolveSkillScalarField(skillLike, ['overwrite'], null),
+      effect: String(resolveSkillScalarField(skillLike, ['effect'], '')),
       isRestricted: Number(resolveSkillScalarField(skillLike, ['isRestricted', 'is_restricted'], 0)) === 1,
       parts: [],
     };
@@ -3732,6 +3744,7 @@ function resolveEffectiveSkillVariant(skill, state, member) {
         iucCond: nested.iucCond,
         overwriteCond: mergeConditionExpressions(resolved.overwriteCond, nested.overwriteCond),
         overwrite: String(nested.overwriteCond ?? '').trim() ? nested.overwrite ?? resolved.overwrite : resolved.overwrite,
+        effect: String(nested.effect ?? resolved.effect ?? ''),
         isRestricted: nested.isRestricted,
       };
       resolved.parts.push(...nested.parts);
@@ -3751,6 +3764,7 @@ function resolveEffectiveSkillVariant(skill, state, member) {
     iucCond: String(effective.iucCond),
     overwriteCond: String(effective.overwriteCond),
     overwrite: effective.overwrite == null ? null : Number(effective.overwrite),
+    effect: String(effective.effect ?? skill?.effect ?? ''),
     isRestricted: Boolean(effective.isRestricted),
     parts: effective.parts,
   };
@@ -4056,6 +4070,121 @@ function resolvePassiveDefenseUpPerTokenForMember(state, targetMember, timings =
   }
 
   return { totalRate, matchedPassives };
+}
+
+function normalizeStatusEffectElements(elements) {
+  if (!Array.isArray(elements)) {
+    return [];
+  }
+  return [...new Set(elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
+}
+
+function resolveActiveBuffStatusType(skillTypeRaw) {
+  const skillType = String(skillTypeRaw ?? '').trim();
+  return ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE[skillType] ?? '';
+}
+
+function collectSkillElementsForPreview(state, member, skill) {
+  if (isNormalAttackSkill(skill)) {
+    return normalizeStatusEffectElements(member?.normalAttackElements);
+  }
+  const elements = new Set();
+  for (const part of resolveEffectiveSkillParts(skill, state, member)) {
+    for (const element of normalizeStatusEffectElements(part?.elements)) {
+      elements.add(element);
+    }
+  }
+  return [...elements];
+}
+
+function doesActiveBuffStatusEffectMatchSkill(effect, state, member, skill, skillElements) {
+  const effectElements = normalizeStatusEffectElements(effect?.elements);
+  if (effectElements.length > 0) {
+    return effectElements.some((element) => skillElements.includes(element));
+  }
+  if (
+    String(effect?.statusType ?? '') === 'AttackUp' &&
+    isNormalAttackSkill(skill) &&
+    effect?.metadata?.includeNormalAttack !== true &&
+    !ACTIVE_BUFF_STATUS_NORMAL_ATTACK_EFFECTS.has(String(effect?.metadata?.effectName ?? ''))
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function summarizeActiveBuffStatusEffect(effect) {
+  return {
+    effectId: Number(effect?.effectId ?? 0),
+    statusType: String(effect?.statusType ?? ''),
+    power: Number(effect?.power ?? 0),
+    limitType: String(effect?.limitType ?? ''),
+    exitCond: String(effect?.exitCond ?? ''),
+    remaining: Number(effect?.remaining ?? 0),
+    elements: normalizeStatusEffectElements(effect?.elements),
+    effectName: String(effect?.metadata?.effectName ?? ''),
+    sourceSkillId: Number(effect?.sourceSkillId ?? 0),
+    sourceSkillLabel: String(effect?.sourceSkillLabel ?? ''),
+    sourceSkillName: String(effect?.sourceSkillName ?? ''),
+  };
+}
+
+function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
+  if (!state || !member || !skill) {
+    return {
+      attackUpRate: 0,
+      defenseUpRate: 0,
+      criticalRateUpRate: 0,
+      criticalDamageUpRate: 0,
+      matchedEffects: [],
+    };
+  }
+
+  const skillElements = collectSkillElementsForPreview(state, member, skill);
+  const statusTypes = [
+    'AttackUp',
+    'DefenseUp',
+    'CriticalRateUp',
+    'CriticalDamageUp',
+  ];
+  const matchedEffects = [];
+  let attackUpRate = 0;
+  let defenseUpRate = 0;
+  let criticalRateUpRate = 0;
+  let criticalDamageUpRate = 0;
+
+  for (const statusType of statusTypes) {
+    for (const effect of member.resolveEffectiveStatusEffects(statusType)) {
+      if (!doesActiveBuffStatusEffectMatchSkill(effect, state, member, skill, skillElements)) {
+        continue;
+      }
+      const amount = Number(effect?.power ?? 0);
+      if (!Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+      matchedEffects.push(summarizeActiveBuffStatusEffect(effect));
+      if (statusType === 'AttackUp') attackUpRate += amount;
+      else if (statusType === 'DefenseUp') defenseUpRate += amount;
+      else if (statusType === 'CriticalRateUp') criticalRateUpRate += amount;
+      else if (statusType === 'CriticalDamageUp') criticalDamageUpRate += amount;
+    }
+  }
+
+  return {
+    attackUpRate,
+    defenseUpRate,
+    criticalRateUpRate,
+    criticalDamageUpRate,
+    matchedEffects,
+  };
+}
+
+function isCountConsumableActiveBuffStatusEffect(effect) {
+  return (
+    ACTIVE_BUFF_STATUS_SKILL_TYPES.has(String(effect?.statusType ?? '')) &&
+    String(effect?.exitCond ?? '') === 'Count' &&
+    effect?.metadata?.activeBuffStatus === true
+  );
 }
 
 export function resolveEffectiveSkillForAction(state, member, skill) {
@@ -4386,6 +4515,10 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       attackByOwnDpRateResolvedMultiplier: Number(
         actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
       ),
+      attackUpRate: Number(actionEntry?.specialPassiveModifiers?.attackUpRate ?? 0),
+      defenseUpRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpRate ?? 0),
+      criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
+      criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
       damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
       attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
       defenseUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpPerTokenRate ?? 0),
@@ -4546,6 +4679,120 @@ function resolveEffectivePreviewHitCount(skill, state, member) {
     funnelHitBonus,
     effectiveHitCount: Math.max(0, normalizedBase + funnelHitBonus),
   };
+}
+
+function isTimedActiveBuffPart(part) {
+  if (!part || typeof part !== 'object') {
+    return false;
+  }
+  const skillType = String(part?.skill_type ?? '').trim();
+  if (!ACTIVE_BUFF_STATUS_SKILL_TYPES.has(skillType)) {
+    return false;
+  }
+  const exitCond = String(part?.effect?.exitCond ?? '').trim();
+  const limitType = String(part?.effect?.limitType ?? '').trim();
+  return (exitCond && exitCond !== 'None') || (limitType && limitType !== 'None');
+}
+
+function addActiveBuffStatusEffect(target, skill, part) {
+  const skillType = String(part?.skill_type ?? '').trim();
+  const statusType = resolveActiveBuffStatusType(skillType);
+  if (!statusType) {
+    return null;
+  }
+  const power = Number(part?.power?.[0] ?? 0);
+  if (!Number.isFinite(power) || power === 0) {
+    return null;
+  }
+  const effectName = String(skill?.effect ?? '').trim();
+  const added = target.addStatusEffect({
+    statusType,
+    power,
+    elements: normalizeStatusEffectElements(part?.elements),
+    limitType: String(part?.effect?.limitType ?? 'Default'),
+    exitCond: String(part?.effect?.exitCond ?? 'Count'),
+    effect: {
+      exitVal: Array.isArray(part?.effect?.exitVal) ? part.effect.exitVal : [1, 0],
+    },
+    sourceSkillId: Number(skill?.skillId ?? skill?.id ?? 0),
+    sourceSkillLabel: String(skill?.label ?? ''),
+    sourceSkillName: String(skill?.name ?? ''),
+    metadata: {
+      activeBuffStatus: true,
+      effectName,
+      includeNormalAttack: skillType === 'AttackUpIncludeNormal',
+      onlyGroupKey: `${statusType}|${effectName}|${normalizeStatusEffectElements(part?.elements).join(',')}`,
+      targetType: String(part?.target_type ?? ''),
+      sourceSkillType: skillType,
+    },
+  });
+  return {
+    characterId: target.characterId,
+    effectId: Number(added?.effectId ?? 0),
+    statusType: String(added?.statusType ?? statusType),
+    power: Number(added?.power ?? power),
+    limitType: String(added?.limitType ?? ''),
+    exitCond: String(added?.exitCond ?? ''),
+    remaining: Number(added?.remaining ?? 0),
+    elements: normalizeStatusEffectElements(added?.elements),
+    effectName,
+  };
+}
+
+function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts) {
+      if (!isTimedActiveBuffPart(part)) {
+        continue;
+      }
+      const conditionSkill = createConditionSkillContext(skill, part);
+      if (!evaluateOdGaugePartCondition(part, state, actor, conditionSkill, actionEntry)) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        const added = addActiveBuffStatusEffect(target, skill, part);
+        if (!added) {
+          continue;
+        }
+        events.push({
+          actorCharacterId: actor.characterId,
+          targetCharacterId,
+          skillId: Number(skill?.skillId ?? 0),
+          skillName: String(skill?.name ?? ''),
+          sourceSkillLabel: String(skill?.label ?? ''),
+          ...added,
+        });
+      }
+    }
+  }
+  return events;
 }
 
 function applyFunnelEffectsFromActions(state, previewRecord) {
@@ -5498,6 +5745,11 @@ function previewActionEntries(state, sortedActions) {
       member.dpState
     );
     const intrinsicMarkModifiers = resolveIntrinsicMarkModifiersForMember(member);
+    const activeBuffStatusModifiers = resolveActiveBuffStatusModifiersForAction(
+      state,
+      member,
+      effectiveSkill
+    );
 
     return {
       characterId: member.characterId,
@@ -5573,11 +5825,22 @@ function previewActionEntries(state, sortedActions) {
             ]
           : [],
       dpChanges: [],
+      activeStatusEffectModifiers: {
+        attackUpRate: Number(activeBuffStatusModifiers.attackUpRate ?? 0),
+        defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
+        criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
+        criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
+      },
+      activeStatusEffects: structuredClone(activeBuffStatusModifiers.matchedEffects ?? []),
       specialPassiveModifiers: {
         attackUpRate:
+          Number(activeBuffStatusModifiers.attackUpRate ?? 0) +
           Number(specialAttackUp.totalRate ?? 0) +
           Number(intrinsicMarkModifiers.attackUpRate ?? 0) +
           Number(attackUpPerToken.totalRate ?? 0),
+        defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
+        criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
+        criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
         markAttackUpRate: Number(intrinsicMarkModifiers.attackUpRate ?? 0),
         attackUpPerTokenRate: Number(attackUpPerToken.totalRate ?? 0),
         damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
@@ -7382,6 +7645,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     });
     // T05: specialStatusTypeId 付きの Count 型特殊状態をスキル使用後にデクリメント
     member.tickSpecialStatusCountEffects();
+    member.tickStatusEffectsWhere(isCountConsumableActiveBuffStatusEffect);
   }
 
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
@@ -7396,6 +7660,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const markEvents = applyMarkEffectsFromActions(state, previewRecord);
   const fieldStateEvents = applyFieldStateFromActions(state, previewRecord);
   const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
+  const activeBuffStatusEvents = applyActiveBuffStatusEffectsFromActions(state, previewRecord);
   const guardEvents = applyGuardEffectsFromActions(state, previewRecord);
   const shreddingEvents = applyShreddingEffectsFromActions(state, previewRecord);
   const newlyShreddedIds = new Set(shreddingEvents.map((ev) => String(ev.characterId)));
@@ -7505,9 +7770,14 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     entry.funnelApplied = funnelEvents.filter(
       (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
     );
-    entry.statusEffectsApplied = guardEvents.filter(
-      (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-    );
+    entry.statusEffectsApplied = [
+      ...activeBuffStatusEvents.filter(
+        (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
+      ),
+      ...guardEvents.filter(
+        (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
+      ),
+    ];
     entry.fieldStateApplied = fieldStateEvents.filter(
       (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
     );

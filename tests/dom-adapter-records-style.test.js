@@ -199,6 +199,54 @@ test('party state shows small mark icons after motivation icon', () => {
   assert.deepEqual(levels, ['6', '2', '4', '1']);
 });
 
+test('party state shows visible status effects with element and duration labels', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const party = new Party(
+    Array.from({ length: 6 }, (_, idx) =>
+      new CharacterStyle({
+        characterId: `ST${idx + 1}`,
+        characterName: `ST${idx + 1}`,
+        styleId: idx + 31,
+        styleName: `STS${idx + 1}`,
+        partyIndex: idx,
+        position: idx,
+        initialSP: 10,
+        skills: [{ id: 9300 + idx, name: '通常', sp_cost: 0, parts: [] }],
+      })
+    )
+  );
+  const state = createBattleStateFromParty(party);
+  state.party[0].addStatusEffect({
+    statusType: 'AttackUp',
+    limitType: 'Only',
+    exitCond: 'Count',
+    remaining: 1,
+    power: 0.4,
+    elements: ['Ice'],
+    metadata: { effectName: 'IceBuff_Up' },
+  });
+  state.party[0].addStatusEffect({
+    statusType: 'CriticalRateUp',
+    limitType: 'Default',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 2,
+    power: 0.3,
+  });
+
+  adapter.party = party;
+  adapter.state = state;
+  adapter.renderPartyState();
+
+  const firstRow = root.querySelector('[data-role="party-state"] li')?.textContent ?? '';
+
+  assert.equal(firstRow.includes('Status=AttackUp[Ice](1)'), true);
+  assert.equal(firstRow.includes('CriticalRateUp(2)'), true);
+});
+
 test('save/load button honors confirm dialog cancellation', () => {
   const store = getStore();
   const { root, win } = createRoot();

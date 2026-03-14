@@ -106,4 +106,4 @@
 - metadata-only 7 label を generator から除外し、`effect_unresolved` を `16 keys / 203 occurrences` から `9 keys / 129 occurrences` へ圧縮
 - `DefaultDebuff` / `MindEyeBuff` / `ChargeBuff` / `FunnelUp` / `HealSp` は代表実スキル回帰を追加
 - 追加調査で `HealDp_Buff` も metadata-only と判断でき、runtime の残件は active buff status 基盤の不足へ収束した
-- 以後の実装は [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md) に引き継ぐ
+- 後継の [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md) で `NormalBuff_Up` / `ProtectBuff` / `CriticalBuff_Up` / 属性 buff 系を実装し、PRI-013 として完了した

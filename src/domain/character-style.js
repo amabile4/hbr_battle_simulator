@@ -53,6 +53,7 @@ function normalizeSkill(skill, canonicalSkill) {
     cond: String(skill.cond ?? ''),
     iucCond: String(skill.iuc_cond ?? skill.iucCond ?? ''),
     overwriteCond: String(skill.overwrite_cond ?? skill.overwriteCond ?? ''),
+    effect: String(skill.effect ?? canonicalSkill?.effect ?? ''),
     overwrite:
       skill.overwrite === undefined || skill.overwrite === null
         ? canonicalSkill?.overwrite ?? null
@@ -111,6 +112,7 @@ function createNoActionSkill() {
     cond: '',
     iucCond: '',
     overwriteCond: '',
+    effect: '',
     overwrite: null,
     additionalTurnRule: null,
     parts: [],
@@ -135,10 +137,13 @@ function normalizeStatusEffect(effect, fallbackId = 1) {
     effect?.sourceSkillId === undefined || effect?.sourceSkillId === null
       ? null
       : Number(effect.sourceSkillId);
+  const elements = Array.isArray(effect?.elements)
+    ? [...new Set(effect.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+    : [];
   // 単独発動仕様: 'skill'（アクティブスキル由来）と 'passive'（パッシブ由来）を区別する
   const sourceType = String(effect?.sourceType ?? 'skill');
 
-  return {
+  const normalized = {
     effectId: Number.isFinite(effectId) ? effectId : fallbackId,
     statusType,
     limitType,
@@ -152,6 +157,10 @@ function normalizeStatusEffect(effect, fallbackId = 1) {
     metadata:
       effect?.metadata && typeof effect.metadata === 'object' ? structuredClone(effect.metadata) : null,
   };
+  if (elements.length > 0) {
+    normalized.elements = elements;
+  }
+  return normalized;
 }
 
 function isActiveStatusEffect(effect) {
@@ -166,6 +175,18 @@ function sortStatusEffectsByPriority(a, b) {
     return powerDelta;
   }
   return Number(a?.effectId ?? 0) - Number(b?.effectId ?? 0);
+}
+
+function getStatusEffectOnlyGroupKey(effect) {
+  const explicit = String(effect?.metadata?.onlyGroupKey ?? '').trim();
+  if (explicit) {
+    return explicit;
+  }
+  const effectName = String(effect?.metadata?.effectName ?? '').trim();
+  const elements = Array.isArray(effect?.elements)
+    ? [...new Set(effect.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+    : [];
+  return `${effectName}|${elements.join(',')}`;
 }
 
 function createReinforcedModeFunnelEffect() {
@@ -833,18 +854,24 @@ export class CharacterStyle {
     const defaults = active.filter((effect) => String(effect.limitType) !== 'Only');
     const onlyCandidates = active.filter((effect) => String(effect.limitType) === 'Only');
     // 単独発動仕様: スキル由来とパッシブ由来は別枠のため、それぞれ最強の1枠を選ぶ
-    const skillOnlyCandidates = onlyCandidates
-      .filter((effect) => String(effect.sourceType ?? 'skill') !== 'passive')
-      .sort(sortStatusEffectsByPriority);
-    const passiveOnlyCandidates = onlyCandidates
-      .filter((effect) => String(effect.sourceType ?? 'skill') === 'passive')
-      .sort(sortStatusEffectsByPriority);
-    if (skillOnlyCandidates.length > 0) {
-      defaults.push(skillOnlyCandidates[0]);
-    }
-    if (passiveOnlyCandidates.length > 0) {
-      defaults.push(passiveOnlyCandidates[0]);
-    }
+    const collectOnlyCandidates = (candidates) => {
+      const grouped = new Map();
+      for (const effect of candidates) {
+        const key = getStatusEffectOnlyGroupKey(effect);
+        const current = grouped.get(key) ?? null;
+        if (!current || sortStatusEffectsByPriority(effect, current) < 0) {
+          grouped.set(key, effect);
+        }
+      }
+      return [...grouped.values()].sort(sortStatusEffectsByPriority);
+    };
+    const skillOnlyCandidates = collectOnlyCandidates(
+      onlyCandidates.filter((effect) => String(effect.sourceType ?? 'skill') !== 'passive')
+    );
+    const passiveOnlyCandidates = collectOnlyCandidates(
+      onlyCandidates.filter((effect) => String(effect.sourceType ?? 'skill') === 'passive')
+    );
+    defaults.push(...skillOnlyCandidates, ...passiveOnlyCandidates);
     return defaults.sort(sortStatusEffectsByPriority);
   }
 
@@ -937,6 +964,45 @@ export class CharacterStyle {
     }
 
     return ticked;
+  }
+
+  tickStatusEffectsWhere(predicate) {
+    if (typeof predicate !== 'function') {
+      return [];
+    }
+
+    const ticked = [];
+    let changed = false;
+    for (const effect of this.statusEffects) {
+      if (!isActiveStatusEffect(effect) || !predicate(effect)) {
+        continue;
+      }
+      const before = Number(effect.remaining);
+      effect.remaining = Math.max(0, before - 1);
+      ticked.push({
+        effectId: effect.effectId,
+        statusType: effect.statusType,
+        limitType: effect.limitType,
+        exitCond: effect.exitCond,
+        power: effect.power,
+        remainingBefore: before,
+        remainingAfter: effect.remaining,
+        elements: Array.isArray(effect.elements) ? structuredClone(effect.elements) : [],
+      });
+      changed = true;
+    }
+
+    const beforeLen = this.statusEffects.length;
+    this.statusEffects = this.statusEffects.filter((effect) => isActiveStatusEffect(effect));
+    if (this.statusEffects.length !== beforeLen) {
+      changed = true;
+    }
+
+    if (changed) {
+      this._revision += 1;
+    }
+
+    return ticked.sort((a, b) => sortStatusEffectsByPriority(a, b));
   }
 
   // T05: specialStatusTypeId を持つ Count 型特殊状態のみをデクリメント

@@ -129,6 +129,26 @@ function buildSingleSkillRealDataParty(store, skillId, options = {}) {
   });
 }
 
+function buildFullSkillRealDataParty(store, skillId, options = {}) {
+  const actorStyleId = findStyleIdBySkillId(store, skillId);
+  const actorStyle = store.getStyleById(actorStyleId);
+  const extraStyleIds = Array.isArray(options.extraStyleIds) ? options.extraStyleIds.map((id) => Number(id)) : [];
+  const excludedStyleIds = new Set([actorStyleId, ...extraStyleIds]);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const otherStyleIds = getSixUsableStyleIds(store).filter(
+    (id) => !excludedStyleIds.has(Number(id)) && String(store.getStyleById(id)?.chara_label ?? store.getStyleById(id)?.chara ?? '') !== actorCharaLabel
+  );
+  const styleIds = [actorStyleId, ...extraStyleIds, ...otherStyleIds.slice(0, 5 - extraStyleIds.length)];
+  if (styleIds.length !== 6) {
+    throw new Error(`Could not build 6-member party for skillId=${skillId}`);
+  }
+
+  return store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    ...(options.buildOptions ?? {}),
+  });
+}
+
 function previewActorSkill(state, skillId, actionOverrides = {}) {
   const actor = state.party[0];
   return previewTurn(state, {
@@ -139,6 +159,10 @@ function previewActorSkill(state, skillId, actionOverrides = {}) {
       ...actionOverrides,
     },
   });
+}
+
+function findActionByCharacterId(turnRecord, characterId) {
+  return (turnRecord?.actions ?? []).find((item) => String(item.characterId) === String(characterId));
 }
 
 function createSixMemberManualParty(factory) {
@@ -2049,6 +2073,187 @@ test('クレール・ド・リュンヌ heals ally SP in real data despite top-l
 
   assert.ok(Number(committed.nextState.party[1].sp.current ?? 0) > before1);
   assert.ok(Number(committed.nextState.party[2].sp.current ?? 0) > before2);
+});
+
+test('指揮行動 stores NormalBuff_Up as active AttackUp status on non-acting frontline allies in real data', () => {
+  const store = getStore();
+  const skillId = 46001134;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(
+    state,
+    previewActorSkill(state, skillId, {
+      targetCharacterId: state.party[1].characterId,
+    })
+  );
+  const actor = state.party[0];
+  const frontlineAlly = committed.nextState.party[1];
+  const action = findActionByCharacterId(committed.committedRecord, actor.characterId);
+  const stored = frontlineAlly.resolveEffectiveStatusEffects('AttackUp').find(
+    (effect) => effect.metadata?.effectName === 'NormalBuff_Up'
+  );
+
+  assert.ok(stored);
+  assert.equal(stored.exitCond, 'PlayerTurnEnd');
+  assert.equal(stored.metadata.includeNormalAttack, true);
+  assert.equal(
+    action.statusEffectsApplied.some(
+      (event) =>
+        event.statusType === 'AttackUp' &&
+        event.targetCharacterId === frontlineAlly.characterId &&
+        event.effectName === 'NormalBuff_Up'
+    ),
+    true
+  );
+});
+
+test('ご注文を伺います records DefenseUp status application together with TokenSet and Provoke in real data', () => {
+  const store = getStore();
+  const skillId = 46002105;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  const actor = state.party[0];
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = findActionByCharacterId(committed.committedRecord, actor.characterId);
+
+  assert.equal(
+    action.statusEffectsApplied.some(
+      (event) =>
+        event.statusType === 'DefenseUp' &&
+        event.targetCharacterId === actor.characterId &&
+        event.exitCond === 'EnemyTurnEnd'
+    ),
+    true
+  );
+  assert.equal(action.tokenChanges.some((event) => event.triggerType === 'TokenSet' && event.delta > 0), true);
+  assert.equal(action.enemyStatusChanges.some((event) => event.statusType === 'Provoke'), true);
+});
+
+test('一途なスマイル stores count-based critical statuses and exposes them on the next preview in real data', () => {
+  const store = getStore();
+  const skillId = 46002508;
+  const party = buildFullSkillRealDataParty(store, skillId, { buildOptions: { initialSP: 30 } });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  const firstCommit = commitTurn(
+    state,
+    previewActorSkill(state, skillId, {
+      targetCharacterId: actor.characterId,
+    })
+  );
+  const nextActor = firstCommit.nextState.party[0];
+  const criticalRate = nextActor.resolveEffectiveStatusEffects('CriticalRateUp')[0];
+  const criticalDamage = nextActor.resolveEffectiveStatusEffects('CriticalDamageUp')[0];
+  const followUpSkill = nextActor.skills.find(
+    (skill) =>
+      Number(skill.skillId ?? 0) !== skillId &&
+      (skill.parts ?? []).some((part) => String(part?.skill_type ?? '').includes('Attack'))
+  );
+
+  assert.ok(criticalRate);
+  assert.ok(criticalDamage);
+  assert.equal(criticalRate.metadata.effectName, 'CriticalBuff_Up');
+  assert.equal(criticalDamage.metadata.effectName, 'CriticalBuff_Up');
+  assert.equal(criticalRate.remaining, 1);
+  assert.equal(criticalDamage.remaining, 1);
+  assert.ok(followUpSkill, 'follow-up attack skill should exist on the real-data style');
+
+  const secondPreview = previewTurn(firstCommit.nextState, {
+    0: { characterId: nextActor.characterId, skillId: followUpSkill.skillId, targetEnemyIndex: 0 },
+  });
+  const secondAction = findActionByCharacterId(secondPreview, nextActor.characterId);
+
+  assert.equal(secondAction.specialPassiveModifiers.criticalRateUpRate, criticalRate.power);
+  assert.equal(secondAction.specialPassiveModifiers.criticalDamageUpRate, criticalDamage.power);
+  assert.equal(secondAction.activeStatusEffects.length, 2);
+
+  const secondCommit = commitTurn(firstCommit.nextState, secondPreview);
+  const afterUse = secondCommit.nextState.party[0];
+  const committedAction = findActionByCharacterId(secondCommit.committedRecord, afterUse.characterId);
+
+  assert.equal(afterUse.resolveEffectiveStatusEffects('CriticalRateUp').length, 0);
+  assert.equal(afterUse.resolveEffectiveStatusEffects('CriticalDamageUp').length, 0);
+  assert.equal(committedAction.damageContext.criticalRateUpRate, criticalRate.power);
+  assert.equal(committedAction.damageContext.criticalDamageUpRate, criticalDamage.power);
+});
+
+test('涙雨 / ホーリーエンハンス / ねこじゃらし store elemental AttackUp status metadata in real data', () => {
+  const store = getStore();
+  const cases = [
+    { skillId: 46001412, targetPartyIndex: 1, effectName: 'IceBuff_Up', element: 'Ice', limitType: 'Only', exitCond: 'PlayerTurnEnd' },
+    { skillId: 46001408, targetPartyIndex: 1, effectName: 'LightBuff_Up', element: 'Light', limitType: 'Default', exitCond: 'Count' },
+    { skillId: 46002308, targetPartyIndex: 0, effectName: 'ThunderBuff_Up', element: 'Thunder', limitType: 'Default', exitCond: 'Count' },
+  ];
+
+  for (const { skillId, targetPartyIndex, effectName, element, limitType, exitCond } of cases) {
+    const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+    const committed = commitTurn(state, previewActorSkill(state, skillId));
+    const target = committed.nextState.party[targetPartyIndex];
+    const stored = target.resolveEffectiveStatusEffects('AttackUp').find(
+      (effect) => effect.metadata?.effectName === effectName
+    );
+
+    assert.ok(stored, `${effectName} should be stored as AttackUp`);
+    assert.deepEqual(stored.elements, [element]);
+    assert.equal(stored.limitType, limitType);
+    assert.equal(stored.exitCond, exitCond);
+  }
+});
+
+test('極彩色 stores nested elemental critical buffs with the selected effect label in real data', () => {
+  const store = getStore();
+  const skillId = 46005207;
+  const state = createBattleStateFromParty(buildFullSkillRealDataParty(store, skillId, { buildOptions: { initialSP: 30 } }));
+  const actor = state.party[0];
+  state.turnState.zoneState = {
+    type: 'Fire',
+    sourceSide: 'player',
+    remainingTurns: 8,
+    powerRate: 1.8,
+  };
+
+  const committed = commitTurn(
+    state,
+    previewActorSkill(state, skillId, {
+      targetCharacterId: actor.characterId,
+    })
+  );
+  const nextActor = committed.nextState.party[0];
+  const criticalRate = nextActor.resolveEffectiveStatusEffects('CriticalRateUp')[0];
+  const criticalDamage = nextActor.resolveEffectiveStatusEffects('CriticalDamageUp')[0];
+
+  assert.ok(criticalRate);
+  assert.ok(criticalDamage);
+  assert.equal(criticalRate.metadata.effectName, 'FireBuff_Up');
+  assert.equal(criticalDamage.metadata.effectName, 'FireBuff_Up');
+  assert.deepEqual(criticalRate.elements, ['Fire']);
+  assert.deepEqual(criticalDamage.elements, ['Fire']);
+});
+
+test('リカバー remains HealDp-only and does not create active buff statuses in real data', () => {
+  const store = getStore();
+  const skillId = 46001104;
+  const state = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      buildOptions: {
+        initialDpStateByPartyIndex: {
+          0: { baseMaxDp: 1000, currentDp: 700, effectiveDpCap: 1000 },
+          1: { baseMaxDp: 1000, currentDp: 750, effectiveDpCap: 1000 },
+          2: { baseMaxDp: 1000, currentDp: 800, effectiveDpCap: 1000 },
+        },
+      },
+    })
+  );
+  const beforeDp = state.party.slice(0, 3).map((member) => Number(member.dpState.currentDp ?? 0));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = findActionByCharacterId(committed.committedRecord, state.party[0].characterId);
+  const afterDp = committed.nextState.party.slice(0, 3).map((member) => Number(member.dpState.currentDp ?? 0));
+
+  assert.equal(action.dpChanges.some((change) => change.triggerType === 'DirectDpHeal' && change.skillType === 'HealDp'), true);
+  assert.equal(afterDp.every((value, index) => value >= beforeDp[index]), true);
+  assert.deepEqual(action.statusEffectsApplied, []);
 });
 
 test('スペクタクルアート becomes free only under a non-fire active zone in real data', () => {
@@ -7484,6 +7689,151 @@ test('count-based MindEye is consumed by damage action only', () => {
   });
   state = commitTurn(state, preview).nextState;
   assert.equal(state.party.find((m) => m.characterId === 'ME1').resolveEffectiveMindEyeEffects().length, 1);
+});
+
+test('AttackUpIncludeNormal active buff status applies to normal attack preview and is consumed on use', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 25100,
+              name: 'Command Buff',
+              label: 'CommandBuff',
+              sp_cost: 0,
+              effect: 'NormalBuff_Up',
+              parts: [
+                {
+                  skill_type: 'AttackUpIncludeNormal',
+                  target_type: 'AllySingle',
+                  power: [0.4, 0],
+                  effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : idx === 1
+        ? {
+            skills: [
+              {
+                id: 25101,
+                name: '通常攻撃',
+                label: 'M2AttackNormal',
+                sp_cost: 0,
+                hit_count: 1,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+              },
+            ],
+          }
+        : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const firstPreview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25100, targetCharacterId: 'M2' },
+  });
+  const firstCommit = commitTurn(state, firstPreview);
+  const target = firstCommit.nextState.party.find((member) => member.characterId === 'M2');
+  const storedStatuses = target.resolveEffectiveStatusEffects('AttackUp');
+
+  assert.equal(storedStatuses.length, 1);
+  assert.equal(storedStatuses[0].metadata.effectName, 'NormalBuff_Up');
+  assert.equal(storedStatuses[0].metadata.includeNormalAttack, true);
+  assert.equal(storedStatuses[0].remaining, 1);
+
+  const nextPreview = previewTurn(firstCommit.nextState, {
+    1: { characterId: 'M2', skillId: 25101, targetEnemyIndex: 0 },
+  });
+  const nextAction = findActionByCharacterId(nextPreview, 'M2');
+
+  assert.equal(nextAction.activeStatusEffectModifiers.attackUpRate, 0.4);
+  assert.equal(nextAction.specialPassiveModifiers.attackUpRate, 0.4);
+  assert.equal(nextAction.activeStatusEffects.length, 1);
+  assert.equal(nextAction.activeStatusEffects[0].effectName, 'NormalBuff_Up');
+
+  const secondCommit = commitTurn(firstCommit.nextState, nextPreview);
+  const acted = secondCommit.nextState.party.find((member) => member.characterId === 'M2');
+  const committedAction = findActionByCharacterId(secondCommit.committedRecord, 'M2');
+
+  assert.equal(acted.resolveEffectiveStatusEffects('AttackUp').length, 0);
+  assert.equal(committedAction.damageContext.attackUpRate, 0.4);
+});
+
+test('elemental active AttackUp status applies only to matching element skills', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 25110,
+              name: 'Element Buff',
+              label: 'ElementBuff',
+              sp_cost: 0,
+              effect: 'IceBuff_Up',
+              parts: [
+                {
+                  skill_type: 'AttackUp',
+                  target_type: 'AllySingle',
+                  elements: ['Ice'],
+                  power: [0.5, 0],
+                  effect: { limitType: 'Only', exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+        }
+      : idx === 1
+        ? {
+            skills: [
+              {
+                id: 25111,
+                name: 'Ice Slash',
+                label: 'IceSlash',
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Ice'] }],
+              },
+              {
+                id: 25112,
+                name: 'Fire Slash',
+                label: 'FireSlash',
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }],
+              },
+            ],
+          }
+        : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const firstCommit = commitTurn(
+    state,
+    previewTurn(state, {
+      0: { characterId: 'M1', skillId: 25110, targetCharacterId: 'M2' },
+    })
+  );
+  const target = firstCommit.nextState.party.find((member) => member.characterId === 'M2');
+  const stored = target.resolveEffectiveStatusEffects('AttackUp');
+
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].metadata.effectName, 'IceBuff_Up');
+  assert.deepEqual(stored[0].elements, ['Ice']);
+  assert.equal(stored[0].limitType, 'Only');
+
+  const icePreview = previewTurn(firstCommit.nextState, {
+    1: { characterId: 'M2', skillId: 25111, targetEnemyIndex: 0 },
+  });
+  const firePreview = previewTurn(firstCommit.nextState, {
+    1: { characterId: 'M2', skillId: 25112, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(findActionByCharacterId(icePreview, 'M2').specialPassiveModifiers.attackUpRate, 0.5);
+  assert.deepEqual(findActionByCharacterId(icePreview, 'M2').activeStatusEffects[0].elements, ['Ice']);
+  assert.equal(findActionByCharacterId(firePreview, 'M2').specialPassiveModifiers.attackUpRate, 0);
+  assert.deepEqual(findActionByCharacterId(firePreview, 'M2').activeStatusEffects, []);
 });
 
 test('applyInitialPassiveState applies battle-start and turn-start SP passives', () => {

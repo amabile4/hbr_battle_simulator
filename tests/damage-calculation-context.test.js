@@ -37,6 +37,10 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     attackByOwnDpRateLowDpMultiplier: 0,
     attackByOwnDpRateHighDpMultiplier: 0,
     attackByOwnDpRateResolvedMultiplier: 0,
+    attackUpRate: 0,
+    defenseUpRate: 0,
+    criticalRateUpRate: 0,
+    criticalDamageUpRate: 0,
     damageRateUpPerTokenRate: 0,
     markAttackUpRate: 0,
     markDamageTakenDownRate: 0,
@@ -83,6 +87,10 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     attackByOwnDpRateLowDpMultiplier: '1.8',
     attackByOwnDpRateHighDpMultiplier: '1.2',
     attackByOwnDpRateResolvedMultiplier: '1.8',
+    attackUpRate: '0.25',
+    defenseUpRate: '0.15',
+    criticalRateUpRate: '0.35',
+    criticalDamageUpRate: '0.45',
     damageRateUpPerTokenRate: '0.1',
     markAttackUpRate: '30',
     markDamageTakenDownRate: '10',
@@ -101,6 +109,10 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.tokenAttackRatePerToken, 12.5);
   assert.equal(context.tokenAttackTotalRate, 62.5);
   assert.equal(context.attackByOwnDpRateResolvedMultiplier, 1.8);
+  assert.equal(context.attackUpRate, 0.25);
+  assert.equal(context.defenseUpRate, 0.15);
+  assert.equal(context.criticalRateUpRate, 0.35);
+  assert.equal(context.criticalDamageUpRate, 0.45);
   assert.equal(context.damageRateUpPerTokenRate, 0.1);
   assert.equal(context.markCriticalDamageUp, 40);
   assert.equal(context.overDrivePointUpByTokenTotalPercent, 12.5);

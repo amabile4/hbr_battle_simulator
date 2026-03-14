@@ -4,7 +4,7 @@
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
-> **判断メモ**: `PRI-012` 完了後に現行コード基準の ad-hoc survey を取り直した。top-level `effect` の残件は label 個別実装ではなく、active skill 由来 `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp` の持続状態未接続へ収束している。現時点の真の残件は、おおむね `active buff status 38 signature`、条件式 `6 clause`、`overwrite_cond` `4 clause`、敵状態異常 `9 type`
+> **判断メモ**: `PRI-013` を完了し、top-level `effect` の runtime 残件は active buff status 基盤で吸収できた。次の真の残件は、おおむね条件式 `6 clause`、`overwrite_cond` `4 clause`、敵状態異常 `9 type`
 
 ## 目的
 
@@ -33,19 +33,19 @@
 
 | 優先 | ID | 状態 | テーマ | 主な出典 | 先にやる理由 | 完了条件 |
 |------|----|------|--------|----------|--------------|----------|
-| P0 | `PRI-013` | `todo` | active buff status 基盤（active skill 由来 `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp`） | [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md), [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | 残る top-level `effect` label は実質これ 1 本に集約できる。現行 survey でも timed buff part は 38 signature あり、`NormalBuff_Up` / `ProtectBuff` / `CriticalBuff_Up` / 属性 buff 系をまとめて前進できる。`CharacterStyle.statusEffects` と `tickStatusEffectsByExitCond()` は既にある | active skill の buff part が `statusEffects` として保存され、`Count` / `PlayerTurnEnd` / `EnemyTurnEnd` を跨いで維持・減衰する。preview / record / state snapshot から参照でき、`top_level_effect_implementation_tasklist.md` を完了化できる |
-| P1 | `PRI-014` | `todo` | 条件式残件と未対応レポート生成器の同期 | [`../20260306_tasklist/generate_skill_unimplemented_report.mjs`](../20260306_tasklist/generate_skill_unimplemented_report.mjs), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/skills_unimplemented_summary.md`](../20260306_tasklist/skills_unimplemented_summary.md) | 現行 survey で真の条件式 gap は `6 clause` まで減っている。`HasSkill()` / `RemoveDebuffCount()` / `TargetBreakDownTurn()` / `0.0 < DpRate()` 正規化 / `SpecialStatusCountByType(146)` を片付けると、unsupported report が再び優先順位判断に使える | 残件 clause を parser か simulator ルールで整理し、generator が現行 evaluator と同じ判定を返す。`skills_unimplemented_summary.md` / `unsupported_matrix.csv` を再生成して docs に同期する |
-| P2 | `PRI-015` | `todo` | 残り敵状態異常と関連 `overwrite_cond` / `CountBC` の整理 | [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md) | 残件は `StunRandom` / `Misfortune` / `ConfusionRandom` / `ImprisonRandom` / `HealDown` / `Cover` / `Talisman` / `SuperBreakDown` など少数精鋭へ圧縮済み。ここを決めると enemy-side special status `3 / 22 / 172` 系の `overwrite_cond` と `CountBC` も同時に閉じられる | simulator ルールが定義され、必要な enemy status が `turnState.enemyState.statuses` で保持される。関連 `overwrite_cond` / `CountBC` が回帰テスト付きで解決する |
+| 完了 | `PRI-013` | `done` | active buff status 基盤（active skill 由来 `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp`） | [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md), [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | `NormalBuff_Up` / `ProtectBuff` / `CriticalBuff_Up` / 属性 buff 系を `statusEffects` 基盤へ接続し、preview / record / UI まで可視化できた。`HealDp_Buff` も metadata-only 回帰で固定済み | active skill の buff part が `statusEffects` として保存され、`Count` / `PlayerTurnEnd` / `EnemyTurnEnd` の減衰、preview / record / UI 表示、代表実データ回帰まで完了 |
+| P0 | `PRI-014` | `todo` | 条件式残件と未対応レポート生成器の同期 | [`../20260306_tasklist/generate_skill_unimplemented_report.mjs`](../20260306_tasklist/generate_skill_unimplemented_report.mjs), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/skills_unimplemented_summary.md`](../20260306_tasklist/skills_unimplemented_summary.md) | 現行 survey で真の条件式 gap は `6 clause` まで減っている。`HasSkill()` / `RemoveDebuffCount()` / `TargetBreakDownTurn()` / `0.0 < DpRate()` 正規化 / `SpecialStatusCountByType(146)` を片付けると、unsupported report が再び優先順位判断に使える | 残件 clause を parser か simulator ルールで整理し、generator が現行 evaluator と同じ判定を返す。`skills_unimplemented_summary.md` / `unsupported_matrix.csv` を再生成して docs に同期する |
+| P1 | `PRI-015` | `todo` | 残り敵状態異常と関連 `overwrite_cond` / `CountBC` の整理 | [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md) | 残件は `StunRandom` / `Misfortune` / `ConfusionRandom` / `ImprisonRandom` / `HealDown` / `Cover` / `Talisman` / `SuperBreakDown` など少数精鋭へ圧縮済み。ここを決めると enemy-side special status `3 / 22 / 172` 系の `overwrite_cond` と `CountBC` も同時に閉じられる | simulator ルールが定義され、必要な enemy status が `turnState.enemyState.statuses` で保持される。関連 `overwrite_cond` / `CountBC` が回帰テスト付きで解決する |
 
 ## PRI-013 タスクリスト
 
 詳細は [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md) を参照。
 
-- [ ] active skill 由来の timed buff を `statusEffects` に正規化する
-- [ ] `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp` の `Count` / `PlayerTurnEnd` / `EnemyTurnEnd` を扱う
-- [ ] 属性付き buff と無属性 buff を同じ基盤で扱う
-- [ ] preview / record / state snapshot から現在有効な buff を追えるようにする
-- [ ] `NormalBuff_Up` / `ProtectBuff` / `CriticalBuff_Up` / 属性 buff 系の代表実データ回帰を追加する
+- [x] active skill 由来の timed buff を `statusEffects` に正規化する
+- [x] `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp` の `Count` / `PlayerTurnEnd` / `EnemyTurnEnd` を扱う
+- [x] 属性付き buff と無属性 buff を同じ基盤で扱う
+- [x] preview / record / state snapshot から現在有効な buff を追えるようにする
+- [x] `NormalBuff_Up` / `ProtectBuff` / `CriticalBuff_Up` / 属性 buff 系の代表実データ回帰を追加する
 
 ## PRI-014 タスクリスト
 

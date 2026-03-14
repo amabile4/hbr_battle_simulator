@@ -1,6 +1,6 @@
 # Active Buff Status 実装タスクリスト（PRI-013）
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 📅 最終更新: 2026-03-14
+> **ステータス**: ✅ 完了 | 📅 開始: 2026-03-14 | 📅 最終更新: 2026-03-14
 
 ## 目的
 
@@ -60,7 +60,7 @@
 
 ### フェーズ1: status schema
 
-- [ ] **T01**: active buff 用 `statusEffects` の保存スキーマを定義する
+- [x] **T01**: active buff 用 `statusEffects` の保存スキーマを定義する
   - `statusType`
   - `power`
   - `limitType`
@@ -68,34 +68,34 @@
   - `remaining`
   - `sourceType = skill`
   - 属性情報（`elements`）の保持方法
-- [ ] **T02**: `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp` で共通化できる helper を切り出す
-- [ ] **T03**: `Default` / `Only` の共存ルールが既存 `resolveEffectiveStatusEffects()` と矛盾しないことを確認する
+- [x] **T02**: `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp` で共通化できる helper を切り出す
+- [x] **T03**: `Default` / `Only` の共存ルールが既存 `resolveEffectiveStatusEffects()` と矛盾しないことを確認する
 
 ### フェーズ2: action → statusEffects 接続
 
-- [ ] **T04**: active skill 実行時に buff part を `statusEffects` へ付与する
-- [ ] **T05**: `Count` / `PlayerTurnEnd` / `EnemyTurnEnd` の期限管理を commit 順序込みで確認する
-- [ ] **T06**: `ProtectBuff` 系（`DefenseUp` + `Provoke`）が既存 `Provoke` 実装と二重適用しないことを確認する
+- [x] **T04**: active skill 実行時に buff part を `statusEffects` へ付与する
+- [x] **T05**: `Count` / `PlayerTurnEnd` / `EnemyTurnEnd` の期限管理を commit 順序込みで確認する
+- [x] **T06**: `ProtectBuff` 系（`DefenseUp` + `Provoke`）が既存 `Provoke` 実装と二重適用しないことを確認する
 
 ### フェーズ3: preview / record 可視化
 
-- [ ] **T07**: 有効 buff を preview action modifier か action meta へ反映する入口を作る
-- [ ] **T08**: `record` / state snapshot / scenario 再計算で buff 状態が落ちないことを確認する
-- [ ] **T09**: DOM / record table で最低限の見える化を行う
+- [x] **T07**: 有効 buff を preview action modifier か action meta へ反映する入口を作る
+- [x] **T08**: `record` / state snapshot / scenario 再計算で buff 状態が落ちないことを確認する
+- [x] **T09**: DOM / record table で最低限の見える化を行う
 
 ### フェーズ4: 実データ回帰
 
-- [ ] **T10**: `指揮行動` で `NormalBuff_Up` が active `AttackUp` status として残ることを確認する
-- [ ] **T11**: `ご注文を伺います` で `DefenseUp` + `Provoke` + `TokenSet` が同時成立することを確認する
-- [ ] **T12**: `一途なスマイル` で `CriticalRateUp` + `CriticalDamageUp` が `Count` 型で残ることを確認する
-- [ ] **T13**: `涙雨` / `ホーリーエンハンス` / `ねこじゃらし` で属性付き `AttackUp` が付与されることを確認する
-- [ ] **T14**: `極彩色` で `SkillCondition` nested skill の属性別 critical buff が保存されることを確認する
-- [ ] **T15**: `リカバー` を `HealDp_Buff` metadata-only の回帰として固定し、runtime gap から除外できる材料を残す
+- [x] **T10**: `指揮行動` で `NormalBuff_Up` が active `AttackUp` status として残ることを確認する
+- [x] **T11**: `ご注文を伺います` で `DefenseUp` + `Provoke` + `TokenSet` が同時成立することを確認する
+- [x] **T12**: `一途なスマイル` で `CriticalRateUp` + `CriticalDamageUp` が `Count` 型で残ることを確認する
+- [x] **T13**: `涙雨` / `ホーリーエンハンス` / `ねこじゃらし` で属性付き `AttackUp` が付与されることを確認する
+- [x] **T14**: `極彩色` で `SkillCondition` nested skill の属性別 critical buff が保存されることを確認する
+- [x] **T15**: `リカバー` を `HealDp_Buff` metadata-only の回帰として固定し、runtime gap から除外できる材料を残す
 
 ### フェーズ5: docs 同期
 
-- [ ] **T16**: [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md) を完了化する
-- [ ] **T17**: [`implementation_priority_tasklist.md`](implementation_priority_tasklist.md) と [`../README.md`](../README.md) を同期する
+- [x] **T16**: [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md) を完了化する
+- [x] **T17**: [`implementation_priority_tasklist.md`](implementation_priority_tasklist.md) と [`../README.md`](../README.md) を同期する
 
 ## 完了条件
 
@@ -103,3 +103,16 @@
 - `Count` / `PlayerTurnEnd` / `EnemyTurnEnd` の減衰が commit 後状態で確認できる
 - 代表スキル回帰で `NormalBuff_Up` / `ProtectBuff` / `CriticalBuff_Up` / 属性 buff 系が成立する
 - `top_level_effect_implementation_tasklist.md` を「残件は active buff status 基盤へ吸収済み」として閉じられる
+
+## 実装結果
+
+- `turn-controller` に active buff status の付与・preview 参照・`Count` 消費を追加した
+- `CharacterStyle.statusEffects` で `elements` / `effectName` / `includeNormalAttack` を保持し、`Only` は effect label + 属性ごとに共存できるよう整理した
+- `NormalBuff_Up` / `ProtectBuff` / `CriticalBuff_Up` / `IceBuff_Up` / `LightBuff_Up` / `ThunderBuff_Up` / `FireBuff_Up` の代表実データ回帰を追加した
+- DOM の party state 表示に active buff status の最小見える化を追加した
+
+## 検証
+
+- `node --test tests/character-party.test.js tests/turn-state-transitions.test.js tests/dom-adapter-records-style.test.js` : 341 PASS
+- `node --test tests/dom-adapter-ui-selection.test.js` : 54 PASS
+- `npm run test:quick` : 349 PASS

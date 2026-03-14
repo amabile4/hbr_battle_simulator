@@ -669,6 +669,16 @@ const PARTY_STATE_MARK_ICON_BY_ELEMENT = Object.freeze({
   Dark: './assets/marks/DarkMark.svg',
   Light: './assets/marks/LightMark.svg',
 });
+const PARTY_STATE_VISIBLE_STATUS_TYPES = Object.freeze([
+  'AttackUp',
+  'DefenseUp',
+  'CriticalRateUp',
+  'CriticalDamageUp',
+  'Funnel',
+  'MindEye',
+  'DebuffGuard',
+  'BreakGuard',
+]);
 
 function formatPartyStateMarkIcons(member) {
   const states = member?.markStates && typeof member.markStates === 'object' ? member.markStates : {};
@@ -687,6 +697,29 @@ function formatPartyStateMarkIcons(member) {
     );
   }
   return icons.join('');
+}
+
+function formatPartyStateStatusEffects(member) {
+  if (!member || typeof member.resolveEffectiveStatusEffects !== 'function') {
+    return '';
+  }
+  const labels = [];
+  for (const statusType of PARTY_STATE_VISIBLE_STATUS_TYPES) {
+    for (const effect of member.resolveEffectiveStatusEffects(statusType)) {
+      const elements = Array.isArray(effect?.elements)
+        ? effect.elements.map((value) => String(value ?? '').trim()).filter(Boolean)
+        : [];
+      const elementLabel = elements.length > 0 ? `[${elements.join('/')}]` : '';
+      const duration =
+        String(effect?.exitCond ?? '') === 'Eternal'
+          ? '∞'
+          : Number.isFinite(Number(effect?.remaining))
+            ? String(Number(effect.remaining))
+            : '?';
+      labels.push(`${statusType}${elementLabel}(${duration})`);
+    }
+  }
+  return labels.length > 0 ? ` / Status=${labels.join(',')}` : '';
 }
 
 function memberHasMotivationSource(member) {
@@ -6278,10 +6311,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
           ? ` / ${formatMotivationIcon(member.motivationState?.current ?? 3)}`
           : '';
         const markText = formatPartyStateMarkIcons(member);
+        const statusText = formatPartyStateStatusEffects(member);
         if (String(member.characterId) === 'NNanase') {
-          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${dpText}${tokenText}${moraleText}${motivationText}${markText}</li>`;
+          return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current} / EP=${member.ep.current}${dpText}${tokenText}${moraleText}${motivationText}${statusText}${markText}</li>`;
         }
-        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${dpText}${tokenText}${moraleText}${motivationText}${markText}</li>`;
+        return `<li>Pos ${member.position + 1} [${frontBack}] ${member.characterName}${extraTag}${kishinTag} SP=${member.sp.current}${dpText}${tokenText}${moraleText}${motivationText}${statusText}${markText}</li>`;
       })
       .join('');
 
