@@ -1,6 +1,6 @@
 # SpecialStatusCountByType バフ状態 実装タスクリスト
 
-> **ステータス**: ✅ 完了（T14は PRI-017 へ分離） | 📅 開始: 2026-03-13 | 📅 完了: 2026-03-13 | 📅 PRI-011 吸収更新: 2026-03-14 | 📅 SP関連テスト追加: 2026-03-13 | 📅 PRI-016 連携更新: 2026-03-14
+> **ステータス**: ✅ 完了（T14 は PRI-017 で完了） | 📅 開始: 2026-03-13 | 📅 完了: 2026-03-13 | 📅 PRI-011 吸収更新: 2026-03-14 | 📅 SP関連テスト追加: 2026-03-13 | 📅 PRI-016 連携更新: 2026-03-14 | 📅 PRI-017 完了更新: 2026-03-14
 
 ---
 
@@ -138,11 +138,11 @@
   - 複数メンバーへの付与テスト
   - CountBC テスト: `CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=6`（6人以上条件）
 
-- [ ] **T14**: 拘束状態（ID: 79）の CountBC 判定実装
+- [x] **T14**: 拘束状態（ID: 79）の CountBC 判定実装
   - 拘束は「敵からプレイヤーへの付与」のため、シミュレータでは手動入力に相当
-  - `PRI-016` では enemy-side 残件に吸収せず、`PRI-017`（player-side manual hook）へ分離
-  - 最低限: `hasSpecialStatus(member, 79)` が動作することの確認テスト
-  - UI フック（低優先度）: `applySpecialStatus(79, N, 'PlayerTurnEnd', {})` を呼ぶ手段の検討
+  - `PRI-017` で `statusEffectsByPartyIndex` schema を導入し、setup / scenario / replay / record へ manual hook を接続した
+  - `CountBC(IsPlayer()==1&&SpecialStatusCountByType(79)>0)` の preview / passive 初期評価 / scenario 回帰を追加済み
+  - 専用 GUI フォームは未追加だが、scenario / record bridge と runtime 条件評価は完了
 
 ### フェーズ5: 敵状態（優先度C）
 
@@ -197,7 +197,7 @@
 2. `tickStatusEffectsByExitCond('Count')` は**アクターのみ**に適用すること（ターゲットには適用しない）
 3. exitCond='Count' の状態: スキル使用 → tick → remaining=0 → 自動削除の順序を確認すること
 4. limitType='Once' の Dodge などは重複付与防止を `normalizeStatusEffect` の既存 `limitType` フィールドで対応できるか確認すること
-5. T14(拘束) は `PRI-017` で player-side manual hook として扱う。T15(挑発/注目) は PRI-011 で完了
+5. T14(拘束) は `PRI-017` で player-side manual hook として完了した。T15(挑発/注目) は PRI-011 で完了
 
 ---
 

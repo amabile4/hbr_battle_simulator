@@ -8551,6 +8551,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     markStateByPartyIndex: Object.fromEntries(
       nextState.party.map((m) => [m.partyIndex, structuredClone(m.markStates ?? {})])
     ),
+    statusEffectsByPartyIndex: Object.fromEntries(
+      nextState.party.map((m) => [m.partyIndex, structuredClone(m.statusEffects ?? [])])
+    ),
     zoneState: structuredClone(nextState.turnState.zoneState ?? null),
     territoryState: structuredClone(nextState.turnState.territoryState ?? null),
     tokenStateByPartyIndex: Object.fromEntries(

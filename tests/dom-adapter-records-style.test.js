@@ -705,6 +705,7 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   adapter.state.party[1].motivationState.current = 2;
   adapter.state.party[0].markStates.Fire.current = 2;
   adapter.state.party[1].markStates.Light.current = 1;
+  adapter.state.party[0].applySpecialStatus(79, 1, 'PlayerTurnEnd', {});
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -778,6 +779,12 @@ test('turn plan recalculation preserves multi-enemy setup delta', () => {
   assert.equal(adapter.turnPlans[0].setupDelta.motivationStateByPartyIndex['1'].current, 2);
   assert.equal(adapter.turnPlans[0].setupDelta.markStateByPartyIndex['0'].Fire.current, 2);
   assert.equal(adapter.turnPlans[0].setupDelta.markStateByPartyIndex['1'].Light.current, 1);
+  assert.equal(
+    adapter.turnPlans[0].setupDelta.statusEffectsByPartyIndex['0'].some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === 79
+    ),
+    true
+  );
   assert.deepEqual(adapter.turnPlans[0].enemyAttackTargetCharacterIds, [
     adapter.state.party[0].characterId,
     adapter.state.party[1].characterId,

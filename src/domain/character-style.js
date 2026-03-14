@@ -121,7 +121,7 @@ function createNoActionSkill() {
   };
 }
 
-function normalizeStatusEffect(effect, fallbackId = 1) {
+export function normalizeStatusEffect(effect, fallbackId = 1) {
   const effectId = Number(effect?.effectId ?? effect?.id ?? fallbackId);
   const statusType = String(
     effect?.statusType ?? effect?.type ?? effect?.skillType ?? effect?.skill_type ?? ''

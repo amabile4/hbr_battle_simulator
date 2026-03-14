@@ -14,6 +14,10 @@ import {
 import { BattleAdapterFacade } from './battle-adapter-facade.js';
 import { BattleDomView } from './dom-view.js';
 import {
+  normalizeStatusEffectsByPartyIndex,
+  replaceStatusEffectsByPartyIndex,
+} from './adapter-core.js';
+import {
   START_SP_BASE,
   START_SP_FIXED_BONUS,
   DEFAULT_INITIAL_SP,
@@ -2940,6 +2944,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       options.markStateByPartyIndex && typeof options.markStateByPartyIndex === 'object'
         ? options.markStateByPartyIndex
         : {};
+    const statusEffectsByPartyIndex =
+      options.statusEffectsByPartyIndex && typeof options.statusEffectsByPartyIndex === 'object'
+        ? options.statusEffectsByPartyIndex
+        : {};
     const initialOdGauge =
       options.initialOdGauge ?? (options.skipInitialOdRead ? 0 : this.readInitialOdGaugeFromDom());
     const enemyNamesByEnemy =
@@ -2977,6 +2985,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       moraleStateByPartyIndex,
       motivationStateByPartyIndex,
       markStateByPartyIndex,
+      statusEffectsByPartyIndex,
       startSpEquipByPartyIndex,
       initialOdGauge,
       enemyCount: this.readEnemyCountFromDom(),
@@ -4737,6 +4746,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     );
   }
 
+  captureCurrentStatusEffectsByPartyIndex() {
+    if (!this.state?.party) {
+      return {};
+    }
+    return Object.fromEntries(
+      this.state.party.map((member) => [String(member.partyIndex), structuredClone(member.statusEffects ?? [])])
+    );
+  }
+
   applyScenarioTokenStateByPartyIndex(tokenStateByPartyIndex = {}) {
     if (!this.state?.party) {
       return;
@@ -4754,6 +4772,17 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       }
       member.tokenState = structuredClone(next);
     }
+    this.refreshMutationUi({ partyState: true });
+  }
+
+  applyScenarioStatusEffectsByPartyIndex(statusEffectsByPartyIndex = {}) {
+    if (!this.state?.party) {
+      return;
+    }
+    replaceStatusEffectsByPartyIndex(
+      this.state.party,
+      normalizeStatusEffectsByPartyIndex(statusEffectsByPartyIndex)
+    );
     this.refreshMutationUi({ partyState: true });
   }
 
@@ -4958,6 +4987,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       markStateByPartyIndex:
         setup.markStateByPartyIndex && typeof setup.markStateByPartyIndex === 'object'
           ? structuredClone(setup.markStateByPartyIndex)
+          : {},
+      statusEffectsByPartyIndex:
+        setup.statusEffectsByPartyIndex && typeof setup.statusEffectsByPartyIndex === 'object'
+          ? structuredClone(setup.statusEffectsByPartyIndex)
           : {},
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(setup.enemyNames),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(setup.enemyDamageRates),
@@ -5374,6 +5407,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (turn.markStateByPartyIndex && typeof turn.markStateByPartyIndex === 'object') {
       this.applyScenarioMarkStateByPartyIndex(turn.markStateByPartyIndex);
+    }
+    if (turn.statusEffectsByPartyIndex && typeof turn.statusEffectsByPartyIndex === 'object') {
+      this.applyScenarioStatusEffectsByPartyIndex(turn.statusEffectsByPartyIndex);
     }
     if (Array.isArray(turn.enemyNames) || (turn.enemyNames && typeof turn.enemyNames === 'object')) {
       this.applyScenarioEnemyNames(turn.enemyNames);
@@ -6555,6 +6591,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       plan.markStateByPartyIndex ?? setupDelta.markStateByPartyIndex,
       this.state?.party
     );
+    const statusEffectsByPartyIndex = normalizeStatusEffectsByPartyIndex(
+      plan.statusEffectsByPartyIndex ?? setupDelta.statusEffectsByPartyIndex
+    );
     const enemyAttackTargetCharacterIds = this.normalizeEnemyAttackTargetCharacterIds(
       plan.enemyAttackTargetCharacterIds
     );
@@ -6620,6 +6659,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         ...(Object.keys(moraleStateByPartyIndex).length > 0 ? { moraleStateByPartyIndex } : {}),
         ...(Object.keys(motivationStateByPartyIndex).length > 0 ? { motivationStateByPartyIndex } : {}),
         ...(Object.keys(markStateByPartyIndex).length > 0 ? { markStateByPartyIndex } : {}),
+        ...(Object.keys(statusEffectsByPartyIndex).length > 0 ? { statusEffectsByPartyIndex } : {}),
         ...(zoneState ? { zoneState } : {}),
         ...(territoryState ? { territoryState } : {}),
       },
@@ -6691,6 +6731,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       moraleStateByPartyIndex: this.captureCurrentMoraleStateByPartyIndex(),
       motivationStateByPartyIndex: this.captureCurrentMotivationStateByPartyIndex(),
       markStateByPartyIndex: this.captureCurrentMarkStateByPartyIndex(),
+      statusEffectsByPartyIndex: this.captureCurrentStatusEffectsByPartyIndex(),
       zoneState: normalizeFieldStateForScenario(this.state.turnState?.zoneState),
       territoryState: normalizeFieldStateForScenario(this.state.turnState?.territoryState),
       enemyAttackTargetCharacterIds: this.readEnemyAttackTargetCharacterIdsFromDom(),
@@ -6741,6 +6782,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
     if (Object.keys(normalized.setupDelta.markStateByPartyIndex ?? {}).length > 0) {
       out.markStateByPartyIndex = structuredClone(normalized.setupDelta.markStateByPartyIndex);
+    }
+    if (Object.keys(normalized.setupDelta.statusEffectsByPartyIndex ?? {}).length > 0) {
+      out.statusEffectsByPartyIndex = structuredClone(normalized.setupDelta.statusEffectsByPartyIndex);
     }
     if (normalized.setupDelta.zoneState) {
       out.zoneState = structuredClone(normalized.setupDelta.zoneState);
@@ -6825,6 +6869,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       moraleStateByPartyIndex: base.moraleStateByPartyIndex,
       motivationStateByPartyIndex: base.motivationStateByPartyIndex,
       markStateByPartyIndex: base.markStateByPartyIndex,
+      statusEffectsByPartyIndex: base.statusEffectsByPartyIndex,
       initialOdGauge: Number(base.initialOdGauge ?? 0),
       enemyNamesByEnemy: normalizeEnemyNamesByEnemy(base.enemyNamesByEnemy),
       damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(base.damageRatesByEnemy),

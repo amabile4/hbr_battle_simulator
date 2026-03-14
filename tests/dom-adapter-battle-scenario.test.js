@@ -494,6 +494,9 @@ test('scenario runner loads setup and executes turns deterministically', () => {
         0: { Fire: { current: 2, min: 0, max: 6 } },
         1: { Light: { current: 1, min: 0, max: 6 } },
       },
+      statusEffectsByPartyIndex: {
+        0: [{ specialStatusTypeId: 79, exitCond: 'PlayerTurnEnd', remainingTurns: 1 }],
+      },
       initialOdGauge: 100,
       enemyStatuses: [
         { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
@@ -558,6 +561,12 @@ test('scenario runner loads setup and executes turns deterministically', () => {
   assert.equal(adapter.state.party[1].motivationState.current, 2);
   assert.equal(adapter.state.party[0].markStates.Fire.current, 2);
   assert.equal(adapter.state.party[1].markStates.Light.current, 1);
+  assert.equal(
+    adapter.state.party[0].statusEffects.some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === 79 && Number(effect.remaining) === 1
+    ),
+    true
+  );
 
   adapter.runAllScenarioTurns();
   assert.equal(adapter.recordStore.records.length, 2);
@@ -609,6 +618,9 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
       markStateByPartyIndex: {
         0: { Fire: { current: 2, min: 0, max: 6 } },
         1: { Light: { current: 1, min: 0, max: 6 } },
+      },
+      statusEffectsByPartyIndex: {
+        0: [{ specialStatusTypeId: 79, exitCond: 'PlayerTurnEnd', remainingTurns: 1 }],
       },
       enemyStatuses: [
         { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
@@ -664,6 +676,12 @@ test('turn plan base setup stores multi-enemy initial state from setup', () => {
   assert.equal(adapter.turnPlanBaseSetup.motivationStateByPartyIndex['1'].current, 2);
   assert.equal(adapter.turnPlanBaseSetup.markStateByPartyIndex['0'].Fire.current, 2);
   assert.equal(adapter.turnPlanBaseSetup.markStateByPartyIndex['1'].Light.current, 1);
+  assert.equal(
+    adapter.turnPlanBaseSetup.statusEffectsByPartyIndex['0'].some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === 79
+    ),
+    true
+  );
   assert.deepEqual(adapter.turnPlanBaseSetup.zoneState, {
     type: 'Fire',
     sourceSide: 'player',
@@ -698,6 +716,7 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   adapter.state.party[1].motivationState.current = 2;
   adapter.state.party[0].markStates.Fire.current = 2;
   adapter.state.party[1].markStates.Light.current = 1;
+  adapter.state.party[0].applySpecialStatus(79, 1, 'PlayerTurnEnd', {});
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -739,6 +758,7 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   adapter.state.party[1].motivationState.current = 2;
   adapter.state.party[0].markStates.Fire.current = 2;
   adapter.state.party[1].markStates.Light.current = 1;
+  adapter.state.party[0].applySpecialStatus(79, 1, 'PlayerTurnEnd', {});
   adapter.state.turnState.zoneState = {
     type: 'Fire',
     sourceSide: 'player',
@@ -771,6 +791,9 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
     0: structuredClone(adapter.state.party[0].markStates),
     1: structuredClone(adapter.state.party[1].markStates),
   };
+  adapter.turnPlanBaseSetup.statusEffectsByPartyIndex = {
+    0: structuredClone(adapter.state.party[0].statusEffects),
+  };
   adapter.turnPlanBaseSetup.destructionRateByEnemy = { 0: 300 };
   adapter.turnPlanBaseSetup.destructionRateCapByEnemy = { 0: 600 };
   adapter.turnPlanBaseSetup.breakStateByEnemy = {
@@ -795,6 +818,8 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   adapter.state.party[1].motivationState.current = 0;
   adapter.state.party[0].markStates.Fire.current = 0;
   adapter.state.party[1].markStates.Light.current = 0;
+  adapter.state.party[0].statusEffects = [];
+  adapter.state.party[0]._nextStatusEffectId = 1;
   adapter.state.turnState.zoneState = null;
   adapter.state.turnState.territoryState = null;
 
@@ -849,6 +874,12 @@ test('reinitialize from turn plan base restores multi-enemy initial state', () =
   assert.equal(adapter.state.party[1].motivationState.current, 2);
   assert.equal(adapter.state.party[0].markStates.Fire.current, 2);
   assert.equal(adapter.state.party[1].markStates.Light.current, 1);
+  assert.equal(
+    adapter.state.party[0].statusEffects.some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === 79
+    ),
+    true
+  );
 });
 
 test('scenario turn overrides apply party state maps and attacked target checkboxes', () => {
@@ -875,6 +906,10 @@ test('scenario turn overrides apply party state maps and attacked target checkbo
       0: { Fire: { current: 2, min: 0, max: 6 } },
       1: { Light: { current: 1, min: 0, max: 6 } },
     },
+    statusEffectsByPartyIndex: {
+      0: [{ specialStatusTypeId: 79, exitCond: 'PlayerTurnEnd', remainingTurns: 1 }],
+      1: [],
+    },
     enemyAttackTargetCharacterIds: targetIds,
   });
 
@@ -886,6 +921,13 @@ test('scenario turn overrides apply party state maps and attacked target checkbo
   assert.equal(adapter.state.party[1].motivationState.current, 2);
   assert.equal(adapter.state.party[0].markStates.Fire.current, 2);
   assert.equal(adapter.state.party[1].markStates.Light.current, 1);
+  assert.equal(
+    adapter.state.party[0].statusEffects.some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === 79
+    ),
+    true
+  );
+  assert.deepEqual(adapter.state.party[1].statusEffects, []);
   assert.deepEqual(adapter.enemyAttackTargetCharacterIds, targetIds);
 
   const checkedIds = [...root.querySelectorAll('[data-role="enemy-attack-target-checkbox"]')]

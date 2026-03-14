@@ -55,6 +55,7 @@ export class BattleAdapterFacade {
       moraleStateByPartyIndex: options.moraleStateByPartyIndex,
       motivationStateByPartyIndex: options.motivationStateByPartyIndex,
       markStateByPartyIndex: options.markStateByPartyIndex,
+      statusEffectsByPartyIndex: options.statusEffectsByPartyIndex,
       initialOdGauge: options.initialOdGauge,
       enemyCount: options.enemyCount,
       enemyNamesByEnemy: options.enemyNamesByEnemy,

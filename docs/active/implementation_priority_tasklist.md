@@ -4,7 +4,7 @@
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
-> **判断メモ**: `PRI-016` を完了し、residual enemy status 10 key を action / passive runtime へ接続した。再生成後の unsupported report は `state_condition` `0`, `overwrite_cond` `0`, `enemy_status` `0`, `effect` `0`
+> **判断メモ**: `PRI-017` を完了し、player-side `ImprisonRandom` manual hook を `statusEffectsByPartyIndex` schema で setup / scenario / replay / record へ接続した。unsupported report は引き続き `state_condition` `0`, `overwrite_cond` `0`, `enemy_status` `0`, `effect` `0`。次優先は未設定で、必要時に全体再調査から再開する
 
 ## 目的
 
@@ -24,12 +24,13 @@
 1. [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md)
 2. [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md)
 3. [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md)
-4. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
-5. [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md)
-6. [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md)
-7. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
-8. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
-9. [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md)
+4. [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md)
+5. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
+6. [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md)
+7. [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md)
+8. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
+9. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
+10. [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md)
 
 ## 優先順位
 
@@ -39,7 +40,7 @@
 | 完了 | `PRI-014` | `done` | 条件式残件と未対応レポート生成器の同期 | [`condition_report_sync_tasklist.md`](condition_report_sync_tasklist.md), [`../20260306_tasklist/generate_skill_unimplemented_report.mjs`](../20260306_tasklist/generate_skill_unimplemented_report.mjs), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`../20260306_tasklist/skills_unimplemented_summary.md`](../20260306_tasklist/skills_unimplemented_summary.md) | runtime と generator の差分が false positive の主因になっていた。ここを閉じると unsupported report が再び次優先判断に使える | `HasSkill()` / `RemoveDebuffCount()` / `TargetBreakDownTurn()` / `SpecialStatusCountByType(146)` が runtime で解決し、レポート再生成後の残件が `state_condition 1` / `overwrite_cond 3` / `effect 0` になる |
 | 完了 | `PRI-015` | `done` | enemy-side `SpecialStatusCountByType(3/22/172)` と enemy status report 同期 | [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md), [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`condition_report_sync_tasklist.md`](condition_report_sync_tasklist.md) | 調査で `DefenseDown` / `Fragile` / `SuperDown` 条件と report false positive が残差の本体と判明した。ここを閉じると条件残件は消え、次 priority を未接続 enemy status 残件へ絞れる | `SpecialStatusCountByType(3/22/172)` が runtime で解決し、generator が runtime 実装済み enemy status を未対応として再報告しない |
 | 完了 | `PRI-016` | `done` | residual enemy status クローズ（確率系 / 補助 debuff / enemy buff / passive enemy debuff） | [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) | `PRI-015` 後の残件 10 key を generic enemy status 基盤へ吸収し、`PlayerTurnEnd` passive debuff と variant 配下 status も接続した。これで unsupported report を再び全カテゴリ 0 件へ戻せた | `StunRandom` / `ConfusionRandom` / `ImprisonRandom` / `Misfortune` / `HealDown` / `Hacking` / `Cover` / enemy-target `AttackUp` / `DefenseUp` / passive `DefenseDown` が runtime / report / tests まで同期される |
-| P0 | `PRI-017` | `todo` | player-side enemy inflicted status manual hook（`T14` / scenario bridge） | [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | unsupported report は 0 件化したため、明示的な残 gap は `SpecialStatusCountByType(79)` を扱う player-side 手動拘束 hook に収束した。enemy AI 未実装でも scenario / manual setup の価値が高い | player-side `ImprisonRandom` / `SpecialStatusCountByType(79)` を手動 state で注入でき、CountBC / preview / record / scenario が同じ表現で扱える |
+| 完了 | `PRI-017` | `done` | player-side enemy inflicted status manual hook（`T14` / scenario bridge） | [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | unsupported report は 0 件化したため、明示的な残 gap は `SpecialStatusCountByType(79)` を扱う player-side 手動拘束 hook に収束していた。manual state / scenario / replay を同じ schema で通すことで、enemy AI 未実装でも planning 価値を維持できた | player-side `ImprisonRandom` / `SpecialStatusCountByType(79)` を `statusEffectsByPartyIndex` で注入でき、CountBC / preview / passive 初期評価 / record / scenario / replay が同じ表現で扱える |
 
 ## PRI-013 タスクリスト
 
@@ -77,9 +78,9 @@
 
 ## PRI-017 タスクリスト
 
-- [ ] player-side `SpecialStatusCountByType(79)` / `ImprisonRandom` の手動付与スキーマを決める
-- [ ] scenario / setup / record で player-side enemy inflicted status を保持できるようにする
-- [ ] CountBC(プレイヤー側) と preview 表示を同じ manual state から評価できるようにする
+- [x] player-side `SpecialStatusCountByType(79)` / `ImprisonRandom` の手動付与スキーマを決める
+- [x] scenario / setup / record で player-side enemy inflicted status を保持できるようにする
+- [x] CountBC(プレイヤー側) と preview 表示を同じ manual state から評価できるようにする
 
 ## 今回のスコープ外
 

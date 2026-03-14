@@ -1771,6 +1771,41 @@ test('skill-level overwrite_cond can reference SpecialStatusCountByType on the a
   assert.equal(dodgePreview.actions[0].spCost, 7);
 });
 
+test('skill-level overwrite_cond can reference manual player-side ImprisonRandom via CountBC', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 8,
+          skills: [
+            {
+              id: 18242_79,
+              name: 'Imprison Free',
+              label: 'ImprisonFree',
+              sp_cost: 8,
+              overwrite: 0,
+              overwrite_cond: 'CountBC(IsPlayer()==1&&SpecialStatusCountByType(79)>0)>0',
+              target_type: 'All',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const actions = {
+    0: { characterId: 'M1', skillId: 18242_79 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  const normalPreview = previewTurn(state, actions);
+  assert.equal(normalPreview.actions[0].spCost, 8);
+
+  state.party[1].applySpecialStatus(79, 1, 'PlayerTurnEnd', {});
+  const imprisonPreview = previewTurn(state, actions);
+  assert.equal(imprisonPreview.actions[0].spCost, 0);
+});
+
 test('skill-level overwrite_cond can reference IsCharging on the actor', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -9034,9 +9069,10 @@ test('OnOverdriveStart passive does not fire on non-OD timing (OnPlayerTurnStart
   assert.equal(result.spEvents.length, 0, 'OnOverdriveStart passive must not fire on OnPlayerTurnStart');
 });
 
-test('commitTurn includes stateSnapshot with markStateByPartyIndex, zoneState, territoryState, tokenStateByPartyIndex', () => {
+test('commitTurn includes stateSnapshot with markStateByPartyIndex, statusEffectsByPartyIndex, zoneState, territoryState, tokenStateByPartyIndex', () => {
   const party = createSixMemberManualParty(() => ({}));
   const state = createBattleStateFromParty(party);
+  state.party[4].applySpecialStatus(79, 1, 'PlayerTurnEnd', {});
   const actions = buildActionDict(new Party(party.members));
   const preview = previewTurn(state, actions);
   const { committedRecord } = commitTurn(state, preview);
@@ -9046,6 +9082,11 @@ test('commitTurn includes stateSnapshot with markStateByPartyIndex, zoneState, t
     typeof committedRecord.stateSnapshot.markStateByPartyIndex === 'object' &&
       committedRecord.stateSnapshot.markStateByPartyIndex !== null,
     'markStateByPartyIndex must be an object'
+  );
+  assert.ok(
+    typeof committedRecord.stateSnapshot.statusEffectsByPartyIndex === 'object' &&
+      committedRecord.stateSnapshot.statusEffectsByPartyIndex !== null,
+    'statusEffectsByPartyIndex must be an object'
   );
   assert.ok(
     committedRecord.stateSnapshot.zoneState === null ||
@@ -9066,6 +9107,10 @@ test('commitTurn includes stateSnapshot with markStateByPartyIndex, zoneState, t
   // 6メンバー全員のエントリが存在する
   for (let i = 0; i < 6; i++) {
     assert.ok(
+      committedRecord.stateSnapshot.statusEffectsByPartyIndex[i] !== undefined,
+      `statusEffectsByPartyIndex[${i}] must exist`
+    );
+    assert.ok(
       committedRecord.stateSnapshot.markStateByPartyIndex[i] !== undefined,
       `markStateByPartyIndex[${i}] must exist`
     );
@@ -9074,6 +9119,12 @@ test('commitTurn includes stateSnapshot with markStateByPartyIndex, zoneState, t
       `tokenStateByPartyIndex[${i}] must exist`
     );
   }
+  assert.equal(
+    committedRecord.stateSnapshot.statusEffectsByPartyIndex['4'].some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === 79
+    ),
+    true
+  );
 });
 
 test('Morale passive applies morale delta and records moraleDelta in passiveEvent', () => {

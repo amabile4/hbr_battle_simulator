@@ -7,11 +7,18 @@ import {
 import { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from '../records/record-store.js';
 import { createInitialTurnState } from '../contracts/interfaces.js';
 import { DEFAULT_MARK_LEVEL_MAX, MARK_STATE_ELEMENTS } from '../config/battle-defaults.js';
+import { normalizeStatusEffect, SPECIAL_STATUS_TYPE_NAMES } from '../domain/character-style.js';
 
 const DEFAULT_STATE_MIN = 0;
 const DEFAULT_TOKEN_STATE_MAX = 10;
 const DEFAULT_MORALE_STATE_MAX = 10;
 const DEFAULT_MOTIVATION_STATE_MAX = 5;
+const DEFAULT_MANUAL_STATUS_EXIT_COND = 'PlayerTurnEnd';
+const SPECIAL_STATUS_TYPE_IDS_BY_NAME = Object.freeze(
+  Object.fromEntries(
+    Object.entries(SPECIAL_STATUS_TYPE_NAMES).map(([typeId, statusType]) => [String(statusType), Number(typeId)])
+  )
+);
 
 function canSwapByExtraState(a, b, hasAnyExtra = false) {
   if (hasAnyExtra) {
@@ -117,6 +124,115 @@ function normalizeEnemyStatusForSnapshot(status, enemyCount = 1) {
   return normalized;
 }
 
+function isActiveStatusEffectForSnapshot(effect) {
+  if (String(effect?.exitCond ?? '') === 'Eternal') {
+    return true;
+  }
+  return Number(effect?.remaining ?? 0) > 0;
+}
+
+function normalizePlayerStatusEffectForSnapshot(effect, fallbackId = 1) {
+  if (!effect || typeof effect !== 'object') {
+    return null;
+  }
+
+  const hasStatusType =
+    effect.statusType !== undefined ||
+    effect.type !== undefined ||
+    effect.skillType !== undefined ||
+    effect.skill_type !== undefined;
+  const explicitTypeId = Number(effect.specialStatusTypeId ?? effect.statusTypeId ?? effect.typeId);
+  const rawStatusType = String(
+    effect.statusType ?? effect.type ?? effect.skillType ?? effect.skill_type ?? ''
+  ).trim();
+  const inferredTypeId = SPECIAL_STATUS_TYPE_IDS_BY_NAME[rawStatusType];
+  const shorthandTypeId = Number.isFinite(explicitTypeId) ? explicitTypeId : inferredTypeId;
+
+  if (!hasStatusType && !Number.isFinite(shorthandTypeId)) {
+    return null;
+  }
+
+  if (!hasStatusType) {
+    const exitCond =
+      String(effect.exitCond ?? DEFAULT_MANUAL_STATUS_EXIT_COND).trim() || DEFAULT_MANUAL_STATUS_EXIT_COND;
+    const remaining =
+      effect.remaining ??
+      effect.remainingTurns ??
+      effect.duration ??
+      (exitCond === 'Eternal' ? 0 : 1);
+    const metadata =
+      effect.metadata && typeof effect.metadata === 'object' ? structuredClone(effect.metadata) : {};
+    metadata.specialStatusTypeId = shorthandTypeId;
+    return normalizeStatusEffect(
+      {
+        effectId: effect.effectId ?? effect.id ?? fallbackId,
+        statusType: SPECIAL_STATUS_TYPE_NAMES[shorthandTypeId] ?? `SpecialStatus_${shorthandTypeId}`,
+        limitType: String(effect.limitType ?? 'Default'),
+        exitCond,
+        remaining,
+        power: Array.isArray(effect.power) ? effect.power[0] : effect.power ?? 0,
+        elements: Array.isArray(effect.elements) ? effect.elements : [],
+        sourceType: String(effect.sourceType ?? 'manual'),
+        sourceSkillId: effect.sourceSkillId ?? null,
+        sourceSkillLabel: String(effect.sourceSkillLabel ?? ''),
+        sourceSkillName: String(effect.sourceSkillName ?? ''),
+        metadata,
+      },
+      fallbackId
+    );
+  }
+
+  const metadata =
+    effect.metadata && typeof effect.metadata === 'object' ? structuredClone(effect.metadata) : {};
+  if (Number.isFinite(shorthandTypeId) && metadata.specialStatusTypeId == null) {
+    metadata.specialStatusTypeId = shorthandTypeId;
+  }
+  return normalizeStatusEffect(
+    {
+      ...effect,
+      sourceType: String(effect.sourceType ?? 'manual'),
+      metadata,
+    },
+    fallbackId
+  );
+}
+
+export function normalizeStatusEffectsByPartyIndex(statusEffectsByPartyIndex = {}) {
+  if (!statusEffectsByPartyIndex || typeof statusEffectsByPartyIndex !== 'object') {
+    return {};
+  }
+  const out = {};
+  for (const [partyIndex, effects] of Object.entries(statusEffectsByPartyIndex)) {
+    if (!Number.isFinite(Number(partyIndex)) || !Array.isArray(effects)) {
+      continue;
+    }
+    out[String(Number(partyIndex))] = effects
+      .map((effect, idx) => normalizePlayerStatusEffectForSnapshot(effect, idx + 1))
+      .filter(
+        (effect) =>
+          effect &&
+          String(effect.statusType ?? '').trim().length > 0 &&
+          isActiveStatusEffectForSnapshot(effect)
+      );
+  }
+  return out;
+}
+
+export function replaceStatusEffectsByPartyIndex(party, statusEffectsByPartyIndex = {}) {
+  const members = getPartyMembers(party);
+  const normalized = normalizeStatusEffectsByPartyIndex(statusEffectsByPartyIndex);
+  for (const [partyIndex, effects] of Object.entries(normalized)) {
+    const member = members.find((item) => String(item.partyIndex) === String(partyIndex));
+    if (!member) {
+      continue;
+    }
+    member.statusEffects = effects.map((effect) => structuredClone(effect));
+    member._nextStatusEffectId =
+      member.statusEffects.reduce((max, effect) => Math.max(max, Number(effect?.effectId ?? 0)), 0) + 1;
+    member._revision += 1;
+  }
+}
+
 function applyInitialPartyStateOverrides(
   party,
   {
@@ -124,6 +240,7 @@ function applyInitialPartyStateOverrides(
     moraleStateByPartyIndex = {},
     motivationStateByPartyIndex = {},
     markStateByPartyIndex = {},
+    statusEffectsByPartyIndex = {},
   } = {}
 ) {
   const members = getPartyMembers(party);
@@ -154,6 +271,7 @@ function applyInitialPartyStateOverrides(
       member.markStates = normalizeMarkStates(markStateByPartyIndex[key], member.markStates);
     }
   }
+  replaceStatusEffectsByPartyIndex(party, statusEffectsByPartyIndex);
 }
 
 export function createInitializedBattleSnapshot({
@@ -172,6 +290,7 @@ export function createInitializedBattleSnapshot({
   moraleStateByPartyIndex = {},
   motivationStateByPartyIndex = {},
   markStateByPartyIndex = {},
+  statusEffectsByPartyIndex = {},
   supportStyleIdsByPartyIndex = {},
   supportLimitBreakLevelsByPartyIndex = {},
   initialOdGauge,
@@ -212,6 +331,7 @@ export function createInitializedBattleSnapshot({
     moraleStateByPartyIndex,
     motivationStateByPartyIndex,
     markStateByPartyIndex,
+    statusEffectsByPartyIndex,
   });
 
   const initialTurnState = {
@@ -268,6 +388,7 @@ export function createInitializedBattleSnapshot({
       moraleStateByPartyIndex: structuredClone(moraleStateByPartyIndex),
       motivationStateByPartyIndex: structuredClone(motivationStateByPartyIndex),
       markStateByPartyIndex: structuredClone(markStateByPartyIndex),
+      statusEffectsByPartyIndex: structuredClone(normalizeStatusEffectsByPartyIndex(statusEffectsByPartyIndex)),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
       enemyNamesByEnemy:

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { CharacterStyle, createBattleStateFromParty, Party } from '../src/index.js';
-import { queueSwapState } from '../src/ui/adapter-core.js';
+import { createInitializedBattleSnapshot, queueSwapState } from '../src/ui/adapter-core.js';
 
 function createPartyState() {
   const party = new Party(
@@ -69,4 +69,84 @@ test('queueSwapState records swap event and updates positions once', () => {
   assert.equal(state.party.find((member) => member.characterId === 'A4')?.position, 0);
   assert.equal(pendingSwapEvents.length, 1);
   assert.deepEqual(pendingSwapEvents[0], result.event);
+});
+
+test('createInitializedBattleSnapshot applies statusEffectsByPartyIndex before initial passive evaluation', () => {
+  const party = new Party(
+    Array.from({ length: 6 }, (_, idx) =>
+      new CharacterStyle({
+        characterId: `S${idx + 1}`,
+        characterName: `Status${idx + 1}`,
+        styleId: idx + 1,
+        styleName: `Style${idx + 1}`,
+        partyIndex: idx,
+        position: idx,
+        initialSP: 10,
+        passives:
+          idx === 0
+            ? [
+                {
+                  id: 9501,
+                  name: '拘束検知',
+                  timing: 'OnFirstBattleStart',
+                  condition: 'CountBC(IsPlayer()==1&&SpecialStatusCountByType(79)>0)>0',
+                  parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+                },
+              ]
+            : [],
+        skills: [
+          {
+            id: 9900 + idx,
+            name: `Skill${idx + 1}`,
+            sp_cost: 0,
+            parts: idx <= 2 ? [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }] : [],
+          },
+        ],
+      })
+    )
+  );
+  const fakeStore = {
+    buildPartyFromStyleIds() {
+      return party;
+    },
+  };
+
+  const snapshot = createInitializedBattleSnapshot({
+    dataStore: fakeStore,
+    initialSP: 10,
+    styleIds: [1, 2, 3, 4, 5, 6],
+    skillSetsByPartyIndex: {},
+    limitBreakLevelsByPartyIndex: {},
+    drivePierceByPartyIndex: {},
+    normalAttackElementsByPartyIndex: {},
+    startSpEquipByPartyIndex: {},
+    initialMotivationByPartyIndex: {},
+    initialDpStateByPartyIndex: {},
+    initialBreakByPartyIndex: {},
+    tokenStateByPartyIndex: {},
+    moraleStateByPartyIndex: {},
+    motivationStateByPartyIndex: {},
+    markStateByPartyIndex: {},
+    statusEffectsByPartyIndex: {
+      1: [{ specialStatusTypeId: 79, exitCond: 'PlayerTurnEnd', remainingTurns: 1 }],
+    },
+    supportStyleIdsByPartyIndex: {},
+    supportLimitBreakLevelsByPartyIndex: {},
+    initialOdGauge: 0,
+    enemyCount: 1,
+  });
+
+  assert.equal(snapshot.state.party[0].sp.current, 12);
+  assert.equal(
+    snapshot.state.party[1].statusEffects.some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === 79 && Number(effect.remaining) === 1
+    ),
+    true
+  );
+  assert.equal(
+    snapshot.turnPlanBaseSetup.statusEffectsByPartyIndex['1'].some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === 79
+    ),
+    true
+  );
 });
