@@ -1,6 +1,6 @@
 # Top-level Effect 実装タスクリスト（PRI-012）
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 📅 最終更新: 2026-03-14
+> **ステータス**: ✅ 完了 | 📅 開始: 2026-03-14 | 📅 最終更新: 2026-03-14
 
 ## 目的
 
@@ -20,7 +20,7 @@
   - `MindEyeBuff`
   - `OverDriveUp`
   - `TokenUp`
-- 現時点で unresolved に残す label は active buff 系中心
+- 現時点で unresolved に残していた label は active buff 系中心だった
   - `NormalBuff_Up`
   - `HealDp_Buff`
   - `ProtectBuff`
@@ -83,9 +83,11 @@
 
 - [x] **T07**: `DefaultDebuff` / `MindEyeBuff` の代表スキル実データ回帰を追加する
 - [x] **T08**: `ChargeBuff` / `FunnelUp` / `HealSp` の代表スキル実データ回帰を追加する
-- [ ] **T09**: unresolved に残した effect label の runtime gap を次 wave の実装対象として整理する
-  - `ProtectBuff` は active `DefenseUp`
-  - `NormalBuff_Up` / `CriticalBuff_Up` / 属性 buff 系は active buff status 基盤が論点
+- [x] **T09**: unresolved に残した effect label の runtime gap を次 wave の実装対象として整理する
+  - `HealDp_Buff` は `HealDp` part だけで成立する metadata-only label と判断
+  - `ProtectBuff` は active `DefenseUp` + 既存 `Provoke` / `TokenSet`
+  - `NormalBuff_Up` / `CriticalBuff_Up` / 属性 buff 系は active buff status 基盤へ切り出し
+  - 後継は [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md)
 
 ### フェーズ4: docs 同期
 
@@ -103,4 +105,5 @@
 
 - metadata-only 7 label を generator から除外し、`effect_unresolved` を `16 keys / 203 occurrences` から `9 keys / 129 occurrences` へ圧縮
 - `DefaultDebuff` / `MindEyeBuff` / `ChargeBuff` / `FunnelUp` / `HealSp` は代表実スキル回帰を追加
-- 残件は top-level `effect` というより active buff status 基盤の不足として切り出された
+- 追加調査で `HealDp_Buff` も metadata-only と判断でき、runtime の残件は active buff status 基盤の不足へ収束した
+- 以後の実装は [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md) に引き継ぐ
