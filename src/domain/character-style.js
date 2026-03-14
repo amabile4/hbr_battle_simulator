@@ -18,6 +18,7 @@ export const SPECIAL_STATUS_TYPE_NAMES = Object.freeze({
   124: 'EternalOath',
   125: 'ShadowClone',
   144: 'Diva',
+  146: 'NegativeState',
   155: 'BIYamawakiServant',
   164: 'Makeup',
 });
@@ -397,6 +398,27 @@ export class CharacterStyle {
       return [createNoActionSkill()];
     }
     return this.skills.filter((skill) => !skill.isPassive);
+  }
+
+  hasSkillReference(skillRef) {
+    const key = String(skillRef ?? '').trim();
+    if (!key) {
+      return false;
+    }
+    const numericId = Number(key);
+    const matches = (skill) => {
+      if (!skill || typeof skill !== 'object') {
+        return false;
+      }
+      if (String(skill.label ?? '').trim() === key) {
+        return true;
+      }
+      if (Number.isFinite(numericId) && Number(skill.skillId ?? skill.id ?? Number.NaN) === numericId) {
+        return true;
+      }
+      return false;
+    };
+    return [...(this.skills ?? []), ...(this.triggeredSkills ?? [])].some(matches);
   }
 
   previewSkillUse(skillId) {
@@ -1003,6 +1025,36 @@ export class CharacterStyle {
     }
 
     return ticked.sort((a, b) => sortStatusEffectsByPriority(a, b));
+  }
+
+  removeStatusEffectsWhere(predicate, removeCount = Number.POSITIVE_INFINITY) {
+    if (typeof predicate !== 'function') {
+      return [];
+    }
+
+    let remainingRemovals = Math.max(0, Number(removeCount));
+    const removed = [];
+    const nextEffects = [];
+
+    for (const effect of this.statusEffects) {
+      const shouldRemove =
+        remainingRemovals > 0 &&
+        isActiveStatusEffect(effect) &&
+        predicate(effect);
+      if (shouldRemove) {
+        removed.push(structuredClone(effect));
+        remainingRemovals -= 1;
+        continue;
+      }
+      nextEffects.push(effect);
+    }
+
+    if (removed.length > 0 || nextEffects.length !== this.statusEffects.length) {
+      this.statusEffects = nextEffects.filter((effect) => isActiveStatusEffect(effect));
+      this._revision += 1;
+    }
+
+    return removed;
   }
 
   // T05: specialStatusTypeId を持つ Count 型特殊状態のみをデクリメント

@@ -47,7 +47,8 @@ docs/
 | [active/resonance_full_coverage_tasklist.md](active/resonance_full_coverage_tasklist.md) | ✅ 完了 | 共鳴アビリティ全21グループ テストカバレッジ計画（22テスト・全468テストPASS） | 2026-03-11 |
 | [active/ui_support_slot_improvement_tasklist.md](active/ui_support_slot_improvement_tasklist.md) | ✅ 完了 | サポート枠UI改善：共鳴アビリティ表示強化・フィルタリング機能・バグ修正（全476テストPASS） | 2026-03-12 |
 | [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
-| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 実装優先順位 PRI-014〜015（PRI-013 完了。次優先は PRI-014: 条件式/レポート同期、その次が PRI-015: 残り enemy status） | 2026-03-14 |
+| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 実装優先順位 PRI-015（PRI-014 完了。次優先は 残り enemy status と enemy-side `SpecialStatusCountByType(3/22/172)` 条件） | 2026-03-14 |
+| [active/condition_report_sync_tasklist.md](active/condition_report_sync_tasklist.md) | ✅ 完了 | PRI-014: 条件 evaluator と未対応レポート生成器を同期し、`HasSkill` / `RemoveDebuffCount` / `TargetBreakDownTurn` / `SpecialStatusCountByType(146)` を解消 | 2026-03-14 |
 | [active/active_buff_status_implementation_tasklist.md](active/active_buff_status_implementation_tasklist.md) | ✅ 完了 | PRI-013: active skill 由来 `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp` の持続 status 基盤（349テストPASS） | 2026-03-14 |
 | [active/enemy_status_implementation_tasklist.md](active/enemy_status_implementation_tasklist.md) | ✅ 完了 | PRI-011: 一般敵デバフ status 基盤、enemy-side CountBC、挑発/注目条件を実装（335テストPASS） | 2026-03-14 |
 | [active/top_level_effect_implementation_tasklist.md](active/top_level_effect_implementation_tasklist.md) | ✅ 完了 | PRI-012: top-level effect 監査を完了し、残件を active buff status 基盤へ切り出し | 2026-03-14 |

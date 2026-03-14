@@ -1,5 +1,6 @@
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { listUnsupportedConditionClausesByRuntimeSupport } from '../../src/turn/turn-controller.js';
 
 const OUTPUT_DIR = resolve('docs/20260306_tasklist');
 const SKILLS_PATH = resolve('json/skills.json');
@@ -8,13 +9,22 @@ const CONDITION_CATEGORY = 'state_condition_unimplemented';
 const ENEMY_STATUS_CATEGORY = 'enemy_status_unimplemented';
 const OVERWRITE_CATEGORY = 'overwrite_cond_unresolved';
 const EFFECT_CATEGORY = 'effect_unresolved';
-const METADATA_ONLY_EFFECT_LABELS = new Set([
+const IGNORED_TOP_LEVEL_EFFECT_LABELS = new Set([
   'ChargeBuff',
+  'CriticalBuff_Up',
+  'DarkBuff_Up',
   'DefaultDebuff',
+  'FireBuff_Up',
   'FunnelUp',
+  'HealDp_Buff',
   'HealSp',
+  'IceBuff_Up',
+  'LightBuff_Up',
   'MindEyeBuff',
+  'NormalBuff_Up',
   'OverDriveUp',
+  'ProtectBuff',
+  'ThunderBuff_Up',
   'TokenUp',
 ]);
 
@@ -194,7 +204,7 @@ function addOccurrencesFromConditionField(rows, baseMeta, fieldPath, expression)
   if (!expr) {
     return;
   }
-  const unsupportedClauses = listUnsupportedConditionClauses(expr);
+  const unsupportedClauses = listUnsupportedConditionClausesByRuntimeSupport(expr);
   for (const clause of unsupportedClauses) {
     rows.push(
       buildOccurrenceRow(baseMeta, {
@@ -227,7 +237,7 @@ function shouldReportTopLevelEffect(effectLabel) {
   if (!normalized) {
     return false;
   }
-  return !METADATA_ONLY_EFFECT_LABELS.has(normalized);
+  return !IGNORED_TOP_LEVEL_EFFECT_LABELS.has(normalized);
 }
 
 function collectSkillLikeFields(rows, topSkill, skillLike, fieldPath) {
@@ -244,16 +254,19 @@ function collectSkillLikeFields(rows, topSkill, skillLike, fieldPath) {
 
   const overwriteCond = String(skillLike?.overwrite_cond ?? skillLike?.overwriteCond ?? '').trim();
   if (overwriteCond) {
-    rows.push(
-      buildOccurrenceRow(baseMeta, {
-        category: OVERWRITE_CATEGORY,
-        item_key: overwriteCond,
-        field_path: `${fieldPath}.overwrite_cond`,
-        condition_expression: overwriteCond,
-        unsupported_clause: overwriteCond,
-        note: 'overwrite_cond は実行ロジック未接続',
-      })
-    );
+    const unsupportedClauses = listUnsupportedConditionClausesByRuntimeSupport(overwriteCond);
+    for (const clause of unsupportedClauses) {
+      rows.push(
+        buildOccurrenceRow(baseMeta, {
+          category: OVERWRITE_CATEGORY,
+          item_key: clause,
+          field_path: `${fieldPath}.overwrite_cond`,
+          condition_expression: overwriteCond,
+          unsupported_clause: clause,
+          note: 'overwrite_cond に未対応 clause が残っている',
+        })
+      );
+    }
   }
 
   const effect = String(skillLike?.effect ?? '').trim();
@@ -284,18 +297,21 @@ function collectSkillLikeFields(rows, topSkill, skillLike, fieldPath) {
 
     const partOverwriteCond = String(part?.overwrite_cond ?? '').trim();
     if (partOverwriteCond) {
-      rows.push(
-        buildOccurrenceRow(baseMeta, {
-          category: OVERWRITE_CATEGORY,
-          item_key: partOverwriteCond,
-          field_path: `${partPath}.overwrite_cond`,
-          condition_expression: partOverwriteCond,
-          unsupported_clause: partOverwriteCond,
-          part_skill_type: String(part?.skill_type ?? ''),
-          target_type: String(part?.target_type ?? ''),
-          note: 'part.overwrite_cond は実行ロジック未接続',
-        })
-      );
+      const unsupportedClauses = listUnsupportedConditionClausesByRuntimeSupport(partOverwriteCond);
+      for (const clause of unsupportedClauses) {
+        rows.push(
+          buildOccurrenceRow(baseMeta, {
+            category: OVERWRITE_CATEGORY,
+            item_key: clause,
+            field_path: `${partPath}.overwrite_cond`,
+            condition_expression: partOverwriteCond,
+            unsupported_clause: clause,
+            part_skill_type: String(part?.skill_type ?? ''),
+            target_type: String(part?.target_type ?? ''),
+            note: 'part.overwrite_cond に未対応 clause が残っている',
+          })
+        );
+      }
     }
 
     if (isEnemyStatusCandidatePart(part)) {
@@ -392,19 +408,17 @@ function buildSummaryMarkdown(catalogRows, occurrenceRows) {
   lines.push('');
   lines.push('- `PlayedSkillCount(...)` 比較');
   lines.push('- `BreakHitCount()` 比較');
-  lines.push('- `SpecialStatusCountByType(20)` 比較');
-  lines.push('- `OverDriveGauge()` 比較');
-  lines.push('- `Sp()` 比較');
-  lines.push('- `IsOverDrive()` / `IsReinforcedMode()` (真偽・数値比較)');
-  lines.push('- `CountBC(...)` は限定対応 (実装済み inner 式のみ)');
+  lines.push('- `SpecialStatusCountByType(...)` 比較（tracked special status のみ）');
+  lines.push('- `OverDriveGauge()` / `Sp()` / `Ep()` / `DpRate()` 比較');
+  lines.push('- `IsOverDrive()` / `IsReinforcedMode()` / `IsCharging()` / `IsFront()` / `HasSkill()` / `TargetBreakDownTurn()` / `RemoveDebuffCount()`');
+  lines.push('- `IsNatureElement(...)` / `IsCharacter(...)` / `IsTeam(...)` / `IsWeakElement(...)` / `IsZone(...)` / `IsTerritory(...)`');
+  lines.push('- `CountBC(...)` は runtime evaluator と同じ nested clause だけ対応');
   lines.push('');
   lines.push('## 補足');
   lines.push('');
+  lines.push('- `overwrite_cond` は、expression 全体ではなく未対応 clause のみを集計する。');
   lines.push(
-    '- `overwrite_cond` は、現行コードで参照されない条件を「未確定/未実装」扱いとして集計する。'
-  );
-  lines.push(
-    `- top-level \`effect\` は、metadata-only label (${METADATA_ONLY_EFFECT_LABELS.size}種) を除外し、追加 runtime 接続が必要な label のみ \`effect_unresolved\` に残す。`
+    `- top-level \`effect\` は、metadata-only / active-buff吸収済み label (${IGNORED_TOP_LEVEL_EFFECT_LABELS.size}種) を除外し、追加 runtime 接続が必要な label のみ \`effect_unresolved\` に残す。`
   );
   lines.push('- 敵状態異常は `skills.json` 上の候補パーツを抽出し、`turn-controller` に適用ロジックが無いものを未実装として列挙。');
   lines.push('');

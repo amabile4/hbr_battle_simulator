@@ -76,6 +76,30 @@ const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
 const ACTIVE_BUFF_STATUS_SKILL_TYPES = Object.freeze(
   new Set(Object.keys(ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE))
 );
+const SPECIAL_STATUS_TYPE_NEGATIVE_STATE = 146;
+const REMOVABLE_PLAYER_DEBUFF_STATUS_TYPES = Object.freeze(
+  new Set([
+    'AttackDown',
+    'DefenseDown',
+    'CriticalRateDown',
+    'CriticalDamageDown',
+    'FireAttackDown',
+    'IceAttackDown',
+    'ThunderAttackDown',
+    'LightAttackDown',
+    'DarkAttackDown',
+    'FireDefenseDown',
+    'IceDefenseDown',
+    'ThunderDefenseDown',
+    'LightDefenseDown',
+    'DarkDefenseDown',
+    'Virus',
+    'Misfortune',
+    'NegativeMind',
+    'NegativeState',
+    `SpecialStatus_${SPECIAL_STATUS_TYPE_NEGATIVE_STATE}`,
+  ])
+);
 const ACTIVE_BUFF_STATUS_NORMAL_ATTACK_EFFECTS = Object.freeze(new Set(['NormalBuff_Up']));
 const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp', 'ReviveDpRate']));
 const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
@@ -188,7 +212,16 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   IsFront: Object.freeze({ tier: 'implemented', note: 'position is tracked now' }),
   IsDead: Object.freeze({ tier: 'implemented', note: 'alive state is tracked now' }),
   IsTeam: Object.freeze({ tier: 'implemented', note: 'member team is carried from style data now' }),
+  HasSkill: Object.freeze({ tier: 'implemented', note: 'member skill and triggered skill labels are tracked now' }),
   BreakDownTurn: Object.freeze({ tier: 'implemented', note: 'enemy DownTurn is tracked now' }),
+  TargetBreakDownTurn: Object.freeze({
+    tier: 'implemented',
+    note: 'selected target enemy DownTurn is tracked now',
+  }),
+  RemoveDebuffCount: Object.freeze({
+    tier: 'implemented',
+    note: 'RemoveDebuff action result is tracked in action context now',
+  }),
   ConsumeSp: Object.freeze({ tier: 'implemented', note: 'selected skill cost is tracked now' }),
   IsAttackNormal: Object.freeze({ tier: 'implemented', note: 'selected action can be checked now' }),
   IsBroken: Object.freeze({ tier: 'implemented', note: 'self flag and enemy manual Break status are tracked now' }),
@@ -311,6 +344,215 @@ export function analyzePassiveConditionSupport(passives = []) {
       Object.entries(summary).map(([tier, values]) => [tier, [...values].sort((a, b) => a.localeCompare(b, 'en'))])
     ),
   };
+}
+
+function isSupportedPlayerConditionFunctionSyntax(name, argRaw) {
+  const key = String(name ?? '').trim();
+  const arg = String(argRaw ?? '').trim();
+  if (MARK_LEVEL_CONDITION_TO_ELEMENT[key]) {
+    return !arg;
+  }
+
+  if (!arg) {
+    return (
+      key === 'BreakHitCount' ||
+      key === 'OverDriveGauge' ||
+      key === 'Sp' ||
+      key === 'Ep' ||
+      key === 'ConquestBikeLevel' ||
+      key === 'Random' ||
+      key === 'Token' ||
+      key === 'MoraleLevel' ||
+      key === 'MotivationLevel' ||
+      key === 'DpRate' ||
+      key === 'IsOverDrive' ||
+      key === 'IsReinforcedMode' ||
+      key === 'IsShredding' ||
+      key === 'IsCharging' ||
+      key === 'IsFront' ||
+      key === 'IsDead' ||
+      key === 'IsBroken' ||
+      key === 'IsTalisman' ||
+      key === 'IsHitWeak' ||
+      key === 'IsAttackNormal' ||
+      key === 'ConsumeSp' ||
+      key === 'Turn' ||
+      key === 'TargetBreakDownTurn' ||
+      key === 'RemoveDebuffCount'
+    );
+  }
+
+  if (
+    key === 'IsNatureElement' ||
+    key === 'IsCharacter' ||
+    key === 'IsTeam' ||
+    key === 'IsWeakElement' ||
+    key === 'IsZone' ||
+    key === 'IsTerritory' ||
+    key === 'HasSkill'
+  ) {
+    return true;
+  }
+
+  if (key === 'SpecialStatusCountByType') {
+    const typeId = Number(arg);
+    return typeId === EXTRA_ACTIVATION_STATUS_TYPE || IMPLEMENTED_SPECIAL_STATUS_TYPES.has(typeId);
+  }
+
+  return false;
+}
+
+function isSupportedEnemyConditionFunctionSyntax(name, argRaw) {
+  const key = String(name ?? '').trim();
+  const arg = String(argRaw ?? '').trim();
+  if (!arg) {
+    return (
+      key === 'IsPlayer' ||
+      key === 'IsDead' ||
+      key === 'IsBroken' ||
+      key === 'BreakDownTurn' ||
+      key === 'DamageRate'
+    );
+  }
+  if (key === 'IsWeakElement') {
+    return true;
+  }
+  if (key === 'SpecialStatusCountByType') {
+    return Boolean(getEnemySpecialStatusNameByType(arg));
+  }
+  return false;
+}
+
+function isSupportedCountBcPlayerClauseSyntax(clause) {
+  const text = String(clause ?? '').trim();
+  const compact = text.replace(CONDITION_WHITESPACE_RE, '');
+  if (!text) {
+    return true;
+  }
+  if (compact === 'IsPlayer()' || compact === 'IsPlayer()==1') {
+    return true;
+  }
+  return isSupportedConditionClauseByRuntimeSupport(text);
+}
+
+function isSupportedCountBcEnemyClauseSyntax(clause) {
+  const text = String(clause ?? '').trim();
+  if (!text) {
+    return true;
+  }
+
+  {
+    const m = text.match(FUNCTION_COMPARISON_CONDITION_RE);
+    if (m) {
+      return isSupportedEnemyConditionFunctionSyntax(m[1], m[2]);
+    }
+  }
+
+  {
+    const m = text.match(REVERSE_FUNCTION_COMPARISON_CONDITION_RE);
+    if (m) {
+      return isSupportedEnemyConditionFunctionSyntax(m[3], m[4]);
+    }
+  }
+
+  {
+    const m = text.match(BARE_FUNCTION_CALL_CONDITION_RE);
+    if (m) {
+      return isSupportedEnemyConditionFunctionSyntax(m[1], m[2]);
+    }
+  }
+
+  return false;
+}
+
+function isSupportedCountBcPredicateByRuntimeSupport(innerExpression) {
+  const inner = String(innerExpression ?? '').trim();
+  if (!inner) {
+    return false;
+  }
+  if (splitTopLevel(inner, '||').length > 1) {
+    return false;
+  }
+
+  const clauses = splitTopLevel(inner, '&&');
+  const compactClauses = clauses.map((clause) => String(clause ?? '').replace(CONDITION_WHITESPACE_RE, ''));
+  if (clauses.length === 0) {
+    return false;
+  }
+
+  if (compactClauses.includes('IsPlayer()==0')) {
+    return clauses.every((clause) => isSupportedCountBcEnemyClauseSyntax(clause));
+  }
+
+  return clauses.every((clause) => isSupportedCountBcPlayerClauseSyntax(clause));
+}
+
+function isSupportedConditionClauseByRuntimeSupport(clause) {
+  const text = String(clause ?? '').trim();
+  if (!text) {
+    return true;
+  }
+
+  if (text.match(PLAYED_SKILL_COUNT_CONDITION_RE)) {
+    return true;
+  }
+
+  if (text.match(SPECIAL_STATUS_COUNT_BY_TYPE_CONDITION_RE)) {
+    return true;
+  }
+
+  {
+    const m = text.match(COUNT_BC_CONDITION_RE);
+    if (m) {
+      return isSupportedCountBcPredicateByRuntimeSupport(m[1]);
+    }
+  }
+
+  {
+    const m = text.match(FUNCTION_COMPARISON_CONDITION_RE);
+    if (m) {
+      return isSupportedPlayerConditionFunctionSyntax(m[1], m[2]);
+    }
+  }
+
+  {
+    const m = text.match(REVERSE_FUNCTION_COMPARISON_CONDITION_RE);
+    if (m) {
+      return isSupportedPlayerConditionFunctionSyntax(m[3], m[4]);
+    }
+  }
+
+  {
+    const m = text.match(BARE_FUNCTION_CALL_CONDITION_RE);
+    if (m) {
+      return isSupportedPlayerConditionFunctionSyntax(m[1], m[2]);
+    }
+  }
+
+  return false;
+}
+
+export function listUnsupportedConditionClausesByRuntimeSupport(expression) {
+  const text = String(expression ?? '').trim();
+  if (!text) {
+    return [];
+  }
+
+  const unsupported = new Set();
+  const orClauses = splitTopLevel(text, '||');
+  for (const orClause of orClauses) {
+    const andClauses = splitTopLevel(orClause, '&&');
+    for (const clause of andClauses) {
+      const normalized = String(clause ?? '').trim();
+      if (!normalized) {
+        continue;
+      }
+      if (!isSupportedConditionClauseByRuntimeSupport(normalized)) {
+        unsupported.add(normalized);
+      }
+    }
+  }
+  return [...unsupported];
 }
 
 function clampOdGauge(value) {
@@ -717,6 +959,11 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
         known: true,
         value: getDpRate(member?.dpState),
       };
+    case 'RemoveDebuffCount':
+      return {
+        known: true,
+        value: Number(actionEntry?.removeDebuffCount ?? 0),
+      };
     case 'IsOverDrive':
       return {
         known: true,
@@ -769,6 +1016,19 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
         known: true,
         value: Number(skill?.spCost ?? skill?.sp_cost ?? 0),
       };
+    case 'TargetBreakDownTurn': {
+      const targetIndex = getConditionTargetEnemyIndex(state, skill, actionEntry);
+      if (!Number.isFinite(targetIndex) || targetIndex < 0) {
+        return {
+          known: false,
+          value: true,
+        };
+      }
+      return {
+        known: true,
+        value: getEnemyStatusRemainingTurns(state?.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN),
+      };
+    }
     case 'Turn':
       return {
         known: true,
@@ -800,6 +1060,11 @@ function resolveSingleArgConditionValue(name, argRaw, state, member) {
       return {
         known: true,
         value: String(member?.team ?? '') === arg ? 1 : 0,
+      };
+    case 'HasSkill':
+      return {
+        known: true,
+        value: typeof member?.hasSkillReference === 'function' && member.hasSkillReference(arg) ? 1 : 0,
       };
     case 'IsWeakElement': {
       const targetIndex = Number(member?.__enemyTargetIndex ?? Number.NaN);
@@ -4967,7 +5232,7 @@ function applyGuardEffectsFromActions(state, previewRecord) {
 }
 
 // T02: SpecialStatusCountByType 状態保持チェックヘルパー
-const IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([25, 78, 79, 122, 124, 125, 144, 155, 164]);
+const IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([25, 78, 79, 122, 124, 125, 144, 146, 155, 164]);
 
 function hasSpecialStatus(member, typeId) {
   if (!Array.isArray(member?.statusEffects)) return false;
@@ -5030,6 +5295,7 @@ const BUFF_SKILL_TYPE_TO_STATUS_ID = Object.freeze({
   Dodge: 122,
   ShadowClone: 125,
   Diva: 144,
+  NegativeMind: 146,
   Makeup: 164,
   EternalOath: 124,
   BIYamawakiServant: 155,
@@ -5705,6 +5971,68 @@ function validateActionDict(state, actions, options = {}) {
   return entries;
 }
 
+function isRemovablePlayerDebuffStatusEffect(effect) {
+  if (!effect || typeof effect !== 'object') {
+    return false;
+  }
+  if (String(effect.exitCond ?? '') !== 'Eternal' && Number(effect.remaining ?? 0) <= 0) {
+    return false;
+  }
+  if (effect.metadata?.isDebuff === true) {
+    return true;
+  }
+  if (Number(effect.metadata?.specialStatusTypeId) === SPECIAL_STATUS_TYPE_NEGATIVE_STATE) {
+    return true;
+  }
+  return REMOVABLE_PLAYER_DEBUFF_STATUS_TYPES.has(String(effect.statusType ?? '').trim());
+}
+
+function countRemovablePlayerDebuffStatuses(member) {
+  if (!Array.isArray(member?.statusEffects)) {
+    return 0;
+  }
+  return member.statusEffects.filter((effect) => isRemovablePlayerDebuffStatusEffect(effect)).length;
+}
+
+function resolveRemoveDebuffCountForAction(state, actor, skill, actionEntry) {
+  if (!actor || !skill) {
+    return 0;
+  }
+
+  let total = 0;
+  const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
+  for (const part of effectiveParts ?? []) {
+    if (String(part?.skill_type ?? '').trim() !== 'RemoveDebuff') {
+      continue;
+    }
+    const amount = Math.max(0, Number(part?.power?.[0] ?? 0));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+    const conditionSkill = createConditionSkillContext(skill, part);
+    if (!evaluateOdGaugePartCondition(part, state, actor, conditionSkill, actionEntry)) {
+      continue;
+    }
+    const targetCharacterIds = resolveSupportTargetCharacterIds(
+      state,
+      actor,
+      part?.target_type,
+      actionEntry?.targetCharacterId
+    );
+    for (const targetCharacterId of targetCharacterIds) {
+      const target = findMemberByCharacterId(state, targetCharacterId);
+      if (!target) {
+        continue;
+      }
+      if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+        continue;
+      }
+      total += Math.min(amount, countRemovablePlayerDebuffStatuses(target));
+    }
+  }
+  return total;
+}
+
 function previewActionEntries(state, sortedActions) {
   return sortedActions.map(({ member, position, skill, action }) => {
     const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
@@ -5860,6 +6188,7 @@ function previewActionEntries(state, sortedActions) {
       ],
       breakHitCount: Number(action?.breakHitCount ?? 0),
       killCount: Number(action?.killCount ?? 0),
+      removeDebuffCount: resolveRemoveDebuffCountForAction(state, member, effectiveSkill, action),
       targetCharacterId: String(action?.targetCharacterId ?? ''),
       targetEnemyIndex:
         Number.isFinite(Number(action?.targetEnemyIndex)) ? Number(action.targetEnemyIndex) : null,
@@ -7161,6 +7490,76 @@ function applySkillSelfEpGains(state, previewRecord) {
   return events;
 }
 
+function applyRemoveDebuffEffectsFromActions(state, previewRecord) {
+  const events = [];
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      if (String(part?.skill_type ?? '').trim() !== 'RemoveDebuff') {
+        continue;
+      }
+
+      const amount = Math.max(0, Number(part?.power?.[0] ?? 0));
+      if (!Number.isFinite(amount) || amount <= 0) {
+        continue;
+      }
+
+      const conditionSkill = createConditionSkillContext(skill, part);
+      if (!evaluateOdGaugePartCondition(part, state, actor, conditionSkill, actionEntry)) {
+        continue;
+      }
+
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+
+        const removed = typeof target.removeStatusEffectsWhere === 'function'
+          ? target.removeStatusEffectsWhere(isRemovablePlayerDebuffStatusEffect, amount)
+          : [];
+        if (removed.length === 0) {
+          continue;
+        }
+
+        events.push({
+          actorCharacterId: actor.characterId,
+          characterId: target.characterId,
+          skillId: Number(skill.skillId ?? 0),
+          skillName: String(skill.name ?? ''),
+          removedCount: removed.length,
+          removedStatusTypes: removed.map((effect) => String(effect?.statusType ?? '')).filter(Boolean),
+        });
+      }
+    }
+  }
+
+  return events;
+}
+
 function applySkillSpGains(state, previewRecord) {
   const events = [];
 
@@ -7648,6 +8047,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     member.tickStatusEffectsWhere(isCountConsumableActiveBuffStatusEffect);
   }
 
+  const removeDebuffEvents = applyRemoveDebuffEffectsFromActions(state, previewRecord);
   const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
   const skillSpEvents = applySkillSpGains(state, previewRecord);
   const actionDpEvents = applyDpEffectsFromActions(state, previewRecord);
@@ -7778,6 +8178,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
       ),
     ];
+    entry.statusEffectsRemoved = removeDebuffEvents.filter(
+      (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
+    );
     entry.fieldStateApplied = fieldStateEvents.filter(
       (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
     );

@@ -1941,6 +1941,277 @@ test('スパークル・トライエッジ+ halves SP cost when enemy Provoke or
   assert.equal(preview.actions[0].spCost, 7);
 });
 
+test('御祈祷オーバーヒート resolves SpecialStatusCountByType(146) in overwrite_cond and SkillCondition', () => {
+  const store = getStore();
+  const skillId = 46005511;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  let preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 8);
+  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 3);
+
+  state.party[0].applySpecialStatus(146, 3, 'PlayerTurnEnd', {});
+  preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 16);
+  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 18);
+});
+
+test('HasSkill() condition can resolve triggered skill labels at preview time', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 18270,
+            label: 'ConditionalSkill',
+            name: 'Conditional Skill',
+            sp_cost: 0,
+            cond: 'HasSkill(TargetSkill)==1',
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+          },
+        ],
+        triggeredSkills: [
+          {
+            id: 18271,
+            label: 'TargetSkill',
+            name: 'Triggered Skill',
+            sp_cost: 0,
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+          },
+        ],
+      };
+    }
+    if (idx <= 2) {
+      return {
+        skills: [
+          {
+            id: 18280 + idx,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [
+              {
+                skill_type: 'DefenseUp',
+                target_type: 'Self',
+                power: [0.1, 0],
+                effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const actions = {
+    0: { characterId: 'M1', skillId: 18270, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 18281 },
+    2: { characterId: 'M3', skillId: 18282 },
+  };
+
+  assert.doesNotThrow(() => previewTurn(createBattleStateFromParty(party), actions));
+
+  const missingSkillParty = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 18272,
+            label: 'ConditionalSkill',
+            name: 'Conditional Skill',
+            sp_cost: 0,
+            cond: 'HasSkill(TargetSkill)==1',
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+          },
+        ],
+      };
+    }
+    if (idx <= 2) {
+      return {
+        skills: [
+          {
+            id: 18290 + idx,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [
+              {
+                skill_type: 'DefenseUp',
+                target_type: 'Self',
+                power: [0.1, 0],
+                effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+
+  assert.throws(
+    () =>
+      previewTurn(createBattleStateFromParty(missingSkillParty), {
+        0: { characterId: 'M1', skillId: 18272, targetEnemyIndex: 0 },
+        1: { characterId: 'M2', skillId: 18291 },
+        2: { characterId: 'M3', skillId: 18292 },
+      }),
+    /cond is not satisfied/
+  );
+});
+
+test('RemoveDebuffCount()>0 enables follow-up buff and removes tracked debuff statuses', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        statusEffects: [
+          {
+            statusType: 'NegativeState',
+            exitCond: 'PlayerTurnEnd',
+            remaining: 3,
+            metadata: { specialStatusTypeId: 146, isDebuff: true },
+          },
+        ],
+        skills: [
+          {
+            id: 18300,
+            name: 'Debuff Cleanse',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [
+              { skill_type: 'RemoveDebuff', target_type: 'Self', power: [1, 0] },
+              {
+                skill_type: 'AttackUp',
+                target_type: 'Self',
+                power: [0.5, 0],
+                hit_condition: 'RemoveDebuffCount()>0',
+                effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx <= 2) {
+      return {
+        skills: [
+          {
+            id: 18310 + idx,
+            name: 'プロテクション',
+            sp_cost: 0,
+            target_type: 'Self',
+            parts: [
+              {
+                skill_type: 'DefenseUp',
+                target_type: 'Self',
+                power: [0.1, 0],
+                effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18300 },
+    1: { characterId: 'M2', skillId: 18311 },
+    2: { characterId: 'M3', skillId: 18312 },
+  });
+  assert.equal(findActionByCharacterId(preview, 'M1').removeDebuffCount, 1);
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const actor = nextState.party[0];
+  const action = findActionByCharacterId(committedRecord, 'M1');
+
+  assert.equal(actor.statusEffects.some((effect) => Number(effect.metadata?.specialStatusTypeId) === 146), false);
+  assert.ok(actor.resolveEffectiveStatusEffects('AttackUp').length > 0);
+  assert.equal(action.statusEffectsApplied.some((event) => event.statusType === 'AttackUp'), true);
+  assert.equal(action.statusEffectsRemoved.some((event) => event.removedCount === 1), true);
+});
+
+test('TargetBreakDownTurn()>0 evaluates against the selected enemy target', () => {
+  const createParty = () =>
+    createSixMemberManualParty((idx) => {
+      if (idx === 0) {
+        return {
+          initialSP: 5,
+          skills: [
+            {
+              id: 18320,
+              name: 'Target DownTurn Check',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                {
+                  skill_type: 'HealSp',
+                  target_type: 'Self',
+                  power: [2, 0],
+                  cond: 'TargetBreakDownTurn()>0',
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (idx <= 2) {
+        return {
+          skills: [
+            {
+              id: 18330 + idx,
+              name: 'プロテクション',
+              sp_cost: 0,
+              target_type: 'Self',
+              parts: [
+                {
+                  skill_type: 'DefenseUp',
+                  target_type: 'Self',
+                  power: [0.1, 0],
+                  effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+        };
+      }
+      return {};
+    });
+
+  const downState = createBattleStateFromParty(createParty());
+  downState.turnState.enemyState = {
+    ...downState.turnState.enemyState,
+    enemyCount: 2,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+  };
+  const downPreview = previewTurn(downState, {
+    0: { characterId: 'M1', skillId: 18320, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 18331 },
+    2: { characterId: 'M3', skillId: 18332 },
+  });
+  const downCommit = commitTurn(downState, downPreview);
+  assert.equal(downCommit.nextState.party[0].sp.current, 9);
+
+  const missState = createBattleStateFromParty(createParty());
+  missState.turnState.enemyState = {
+    ...missState.turnState.enemyState,
+    enemyCount: 2,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2 }],
+  };
+  const missPreview = previewTurn(missState, {
+    0: { characterId: 'M1', skillId: 18320, targetEnemyIndex: 1 },
+    1: { characterId: 'M2', skillId: 18331 },
+    2: { characterId: 'M3', skillId: 18332 },
+  });
+  const missCommit = commitTurn(missState, missPreview);
+  assert.equal(missCommit.nextState.party[0].sp.current, 7);
+});
+
 test('迅雷風烈 records DefenseDown enemy status in real data', () => {
   const store = getStore();
   const skillId = 46001112;
