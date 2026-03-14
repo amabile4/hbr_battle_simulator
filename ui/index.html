@@ -212,6 +212,7 @@
           </select>
         </label>
         <button data-action="swap" type="button">Apply Swap</button>
+        <span data-role="swap-legacy-note"></span>
       </div>
       <div class="row">
         <button data-action="preview" type="button">Preview Turn</button>
@@ -306,6 +307,33 @@
       </div>
       <div class="row" data-role="turn-plan-edit-toolbar" hidden>
         <strong data-role="turn-plan-edit-title"></strong>
+        <div data-role="replay-turn-edit-panel" hidden>
+          <div data-role="replay-slot-editor"></div>
+          <div class="row">
+            <label><input data-role="replay-op-kishinka" type="checkbox" /> 鬼神化</label>
+            <label>
+              <input data-role="replay-op-preemptive-od-enabled" type="checkbox" /> 通常OD
+              <select data-role="replay-op-preemptive-od-level">
+                <option value="1">OD1</option>
+                <option value="2">OD2</option>
+                <option value="3">OD3</option>
+              </select>
+            </label>
+            <label>
+              <input data-role="replay-op-interrupt-od-enabled" type="checkbox" /> 割込OD予約
+              <select data-role="replay-op-interrupt-od-level">
+                <option value="1">OD1</option>
+                <option value="2">OD2</option>
+                <option value="3">OD3</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            Turn Note
+            <textarea data-role="replay-turn-note" rows="3" placeholder="このターンでやることメモ"></textarea>
+          </label>
+          <div data-role="replay-turn-edit-hint"></div>
+        </div>
         <button data-action="turn-plan-edit-save" type="button">この内容で保存</button>
         <button data-action="turn-plan-edit-cancel" type="button">編集キャンセル</button>
       </div>

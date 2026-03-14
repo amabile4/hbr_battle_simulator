@@ -472,6 +472,39 @@ test('turn plan edit row starts staged edit session and updates status message',
   assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Turn 1 を編集中です。');
 });
 
+test('ReplayScript edit toolbar exposes slot editor and deprecates legacy swap controls', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+
+  root.querySelector('[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]').click();
+
+  const panel = root.querySelector('[data-role="replay-turn-edit-panel"]');
+  const slotSelects = [...root.querySelectorAll('[data-role="replay-slot-style-select"]')];
+  const swapButton = root.querySelector('[data-action="swap"]');
+  const legacyNote = root.querySelector('[data-role="swap-legacy-note"]')?.textContent ?? '';
+
+  assert.equal(panel.hidden, false);
+  assert.equal(slotSelects.length, 6);
+  assert.equal(swapButton.disabled, true);
+  assert.equal(legacyNote.includes('slot editor'), true);
+
+  const pos0Select = root.querySelector('[data-role="replay-slot-style-select"][data-position="0"]');
+  const pos4StyleId = Number(adapter.party.getByPosition(4).styleId);
+  pos0Select.value = String(pos4StyleId);
+  pos0Select.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  assert.equal(Number(adapter.party.getByPosition(0).styleId), pos4StyleId);
+
+  root.querySelector('[data-action="turn-plan-edit-save"]').click();
+
+  assert.equal(Number(adapter.replayScript.turns[0].slots[0].styleId), pos4StyleId);
+});
+
 test('commitCurrentTurn captures lightweight replay slots, operations, and note alongside turn plan', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -555,6 +588,55 @@ test('commitCurrentTurn captures preemptive OD activation into lightweight repla
   assert.deepEqual(adapter.replayScript.turns[0].operations, [
     { type: 'ActivatePreemptiveOd', payload: { level: 3 } },
   ]);
+});
+
+test('ReplayScript edit toolbar saves operations and note while preserving unknown entries', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.replayScript.turns[0] = {
+    ...adapter.replayScript.turns[0],
+    operations: [{ type: 'FutureOperation', payload: { keep: true } }],
+    overrideEntries: [{ type: 'FutureOverride', payload: { keep: true } }],
+    note: 'before',
+  };
+
+  root.querySelector('[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]').click();
+
+  const interruptToggle = root.querySelector('[data-role="replay-op-interrupt-od-enabled"]');
+  const interruptLevel = root.querySelector('[data-role="replay-op-interrupt-od-level"]');
+  const note = root.querySelector('[data-role="replay-turn-note"]');
+
+  interruptToggle.checked = true;
+  interruptToggle.dispatchEvent(new win.Event('change', { bubbles: true }));
+  interruptLevel.value = '2';
+  interruptLevel.dispatchEvent(new win.Event('change', { bubbles: true }));
+  note.value = 'updated memo';
+  note.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  root.querySelector('[data-role="turn-plan-recalc-mode"]').value = 'force';
+  root.querySelector('[data-action="turn-plan-edit-save"]').click();
+
+  const savedTurn = adapter.replayScript.turns[0];
+  assert.equal(savedTurn.note, 'updated memo');
+  assert.equal(
+    savedTurn.operations.some(
+      (entry) => entry.type === 'ReserveInterruptOd' && Number(entry.payload?.level ?? 0) === 2
+    ),
+    true
+  );
+  assert.equal(
+    savedTurn.operations.some((entry) => entry.type === 'FutureOperation' && entry.payload?.keep === true),
+    true
+  );
+  assert.equal(
+    savedTurn.overrideEntries.some((entry) => entry.type === 'FutureOverride' && entry.payload?.keep === true),
+    true
+  );
 });
 
 test('recalculateReplayScript aligns positions from slots and replays without duplicating script turns', () => {

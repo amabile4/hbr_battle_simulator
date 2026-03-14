@@ -1256,6 +1256,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     });
 
     this.bindSafeRootListener('change', this.handleRootChangeEvent);
+    this.bindSafeRootListener('input', this.handleRootInputEvent);
     this.bindSafeRootListener('click', this.handleTurnPlanRowActionClick);
 
     this._bound = true;
@@ -1491,6 +1492,67 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         this.invalidatePreviewState();
         this.refreshMutationUi({ odControls: true });
       }
+
+      if (target.matches('[data-role="replay-slot-style-select"]')) {
+        const position = toInt(target.getAttribute('data-position'), -1);
+        if (position >= 0) {
+          this.applyReplaySlotStyleSelection(position, target.value);
+        }
+      }
+
+      if (target.matches('[data-role="replay-op-kishinka"]')) {
+        const draft = this.ensureReplayTurnEditDraft();
+        if (draft) {
+          draft.activateKishinka = Boolean(target.checked);
+          this.renderTurnPlanEditControls();
+        }
+      }
+
+      if (target.matches('[data-role="replay-op-preemptive-od-enabled"]')) {
+        const draft = this.ensureReplayTurnEditDraft();
+        if (draft) {
+          draft.preemptiveOdLevel = target.checked ? Number(draft.preemptiveOdLevel ?? 1) : null;
+          this.renderTurnPlanEditControls();
+        }
+      }
+
+      if (target.matches('[data-role="replay-op-preemptive-od-level"]')) {
+        const draft = this.ensureReplayTurnEditDraft();
+        if (draft) {
+          draft.preemptiveOdLevel = Number(target.value ?? 1);
+          this.renderTurnPlanEditControls();
+        }
+      }
+
+      if (target.matches('[data-role="replay-op-interrupt-od-enabled"]')) {
+        const draft = this.ensureReplayTurnEditDraft();
+        if (draft) {
+          draft.interruptOdLevel = target.checked ? Number(draft.interruptOdLevel ?? 1) : null;
+          this.renderTurnPlanEditControls();
+        }
+      }
+
+      if (target.matches('[data-role="replay-op-interrupt-od-level"]')) {
+        const draft = this.ensureReplayTurnEditDraft();
+        if (draft) {
+          draft.interruptOdLevel = Number(target.value ?? 1);
+          this.renderTurnPlanEditControls();
+        }
+      }
+  }
+
+  handleRootInputEvent(event) {
+    const target = this.getEventTargetElement(event);
+    if (!target) {
+      return;
+    }
+
+    if (target.matches('[data-role="replay-turn-note"]')) {
+      const draft = this.ensureReplayTurnEditDraft();
+      if (draft) {
+        draft.note = String(target.value ?? '');
+      }
+    }
   }
 
   handleTurnPlanRowActionClick(event) {
@@ -4366,8 +4428,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   finalizeTurnPlanEditSession(session) {
+    if (this.isReplayScriptEditSession(session)) {
+      session.replayTurnEditDraft = this.buildReplayTurnEditDraft(
+        this.replayScript?.turns?.[session.sourceIndex] ?? null
+      );
+    }
     this.turnPlanEditSession = session;
     this.refreshMutationUi({
+      swapSelectors: true,
       turnPlanEditControls: true,
       recordTable: true,
     });
@@ -5902,6 +5970,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
     const fromSelect = this.root.querySelector('[data-role="swap-from"]');
     const toSelect = this.root.querySelector('[data-role="swap-to"]');
+    const swapButton = this.root.querySelector('[data-action="swap"]');
+    const legacyNote = this.root.querySelector('[data-role="swap-legacy-note"]');
     if (!fromSelect || !toSelect) {
       return;
     }
@@ -5925,6 +5995,18 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const hasPrevFrom = [...fromSelect.options].some((option) => option.value === prevFrom);
     fromSelect.value = hasPrevFrom ? prevFrom : fromSelect.options[0]?.value ?? '0';
     this.renderSwapToOptions(toInt(fromSelect.value, 0), prevTo);
+
+    const isLegacySwapDeprecated = this.isReplayScriptEditSession();
+    fromSelect.disabled = isLegacySwapDeprecated;
+    toSelect.disabled = isLegacySwapDeprecated || toSelect.options.length === 0;
+    if (swapButton) {
+      swapButton.disabled = isLegacySwapDeprecated || toSelect.options.length === 0;
+    }
+    if (legacyNote) {
+      legacyNote.textContent = isLegacySwapDeprecated
+        ? 'ReplayScript編集では swap ではなく slot editor で位置を直接変更します。'
+        : '';
+    }
   }
 
   renderSwapToOptions(fromPositionIndex, preferredTo = null) {
@@ -6595,6 +6677,186 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return 'strict';
   }
 
+  isReplayScriptEditSession(session = this.turnPlanEditSession) {
+    return Boolean(session) && this.getEditableTurnSourceKind() === 'replayScript';
+  }
+
+  buildReplayTurnEditDraft(turn = {}) {
+    const normalized = normalizeLightweightReplayTurn(turn);
+    const draft = {
+      activateKishinka: false,
+      preemptiveOdLevel: null,
+      interruptOdLevel: null,
+      unknownOperations: [],
+      note: String(normalized.note ?? ''),
+      overrideEntries: structuredClone(normalized.overrideEntries ?? []),
+    };
+    for (const operation of normalized.operations) {
+      const type = String(operation?.type ?? '').trim();
+      const payload = operation?.payload && typeof operation.payload === 'object' ? operation.payload : {};
+      if (type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA) {
+        draft.activateKishinka = true;
+        continue;
+      }
+      if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
+        draft.preemptiveOdLevel = Number(payload.level ?? operation.level ?? 1);
+        continue;
+      }
+      if (type === REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD) {
+        draft.interruptOdLevel = Number(payload.level ?? operation.level ?? 1);
+        continue;
+      }
+      draft.unknownOperations.push(structuredClone(operation));
+    }
+    return draft;
+  }
+
+  ensureReplayTurnEditDraft(session = this.turnPlanEditSession) {
+    if (!this.isReplayScriptEditSession(session)) {
+      return null;
+    }
+    if (!session.replayTurnEditDraft) {
+      const sourceTurn = this.replayScript?.turns?.[session.sourceIndex] ?? null;
+      session.replayTurnEditDraft = this.buildReplayTurnEditDraft(sourceTurn);
+    }
+    return session.replayTurnEditDraft;
+  }
+
+  buildReplayTurnOperationsFromDraft(draft = null) {
+    if (!draft || typeof draft !== 'object') {
+      return [];
+    }
+    const operations = Array.isArray(draft.unknownOperations)
+      ? draft.unknownOperations.map((entry) => structuredClone(entry))
+      : [];
+    if (draft.activateKishinka) {
+      operations.unshift({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA });
+    }
+    if (Number.isFinite(Number(draft.preemptiveOdLevel))) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
+        payload: { level: Number(draft.preemptiveOdLevel) },
+      });
+    }
+    if (Number.isFinite(Number(draft.interruptOdLevel))) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
+        payload: { level: Number(draft.interruptOdLevel) },
+      });
+    }
+    return operations;
+  }
+
+  applyReplaySlotStyleSelection(targetPosition, nextStyleId) {
+    if (!this.isReplayScriptEditSession() || !this.state?.party || !this.party) {
+      return;
+    }
+    const desiredStyleId = Number(nextStyleId);
+    if (!Number.isFinite(desiredStyleId)) {
+      return;
+    }
+    const currentMember = this.party.getByPosition(targetPosition);
+    const desiredMember =
+      this.state.party.find((member) => Number(member?.styleId) === desiredStyleId) ?? null;
+    if (!currentMember || !desiredMember || currentMember === desiredMember) {
+      return;
+    }
+
+    const desiredPosition = Number(desiredMember.position);
+    desiredMember.setPosition(targetPosition);
+    currentMember.setPosition(desiredPosition);
+    this.state.positionMap = buildPositionMap(this.state.party);
+    this.invalidatePreviewState();
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+      turnStatus: true,
+      turnPlanEditControls: true,
+      odControls: true,
+    });
+    this.setStatus(`Replay slot updated: Pos ${targetPosition + 1} <- ${desiredMember.characterName}`);
+  }
+
+  renderReplayTurnEditPanel(session = this.turnPlanEditSession) {
+    const panel = this.root.querySelector('[data-role="replay-turn-edit-panel"]');
+    if (!panel) {
+      return;
+    }
+    const isReplayEditor = this.isReplayScriptEditSession(session);
+    panel.hidden = !isReplayEditor;
+    if (!isReplayEditor) {
+      return;
+    }
+
+    const slotEditor = this.root.querySelector('[data-role="replay-slot-editor"]');
+    if (slotEditor) {
+      slotEditor.innerHTML = '';
+      const members = this.state?.party?.slice().sort((a, b) => a.position - b.position) ?? [];
+      for (let position = 0; position < PARTY_SLOT_COUNT; position += 1) {
+        const row = this.doc.createElement('label');
+        row.className = 'style-slot';
+        row.textContent = `Slot ${position + 1} `;
+        const select = this.doc.createElement('select');
+        select.setAttribute('data-role', 'replay-slot-style-select');
+        select.setAttribute('data-position', String(position));
+        for (const member of members) {
+          const option = this.doc.createElement('option');
+          option.value = String(member.styleId);
+          option.textContent = `${member.characterName} / ${member.styleName}`;
+          if (Number(member.position) === position) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        }
+        row.appendChild(select);
+        slotEditor.appendChild(row);
+      }
+    }
+
+    const draft = this.ensureReplayTurnEditDraft(session);
+    const kishinkaToggle = this.root.querySelector('[data-role="replay-op-kishinka"]');
+    if (kishinkaToggle) {
+      kishinkaToggle.checked = Boolean(draft?.activateKishinka);
+    }
+
+    const preemptiveToggle = this.root.querySelector('[data-role="replay-op-preemptive-od-enabled"]');
+    const preemptiveLevel = this.root.querySelector('[data-role="replay-op-preemptive-od-level"]');
+    if (preemptiveToggle) {
+      preemptiveToggle.checked = Number.isFinite(Number(draft?.preemptiveOdLevel));
+    }
+    if (preemptiveLevel) {
+      preemptiveLevel.value = String(Number(draft?.preemptiveOdLevel ?? 1));
+      preemptiveLevel.disabled = !Boolean(preemptiveToggle?.checked);
+    }
+
+    const interruptToggle = this.root.querySelector('[data-role="replay-op-interrupt-od-enabled"]');
+    const interruptLevel = this.root.querySelector('[data-role="replay-op-interrupt-od-level"]');
+    if (interruptToggle) {
+      interruptToggle.checked = Number.isFinite(Number(draft?.interruptOdLevel));
+    }
+    if (interruptLevel) {
+      interruptLevel.value = String(Number(draft?.interruptOdLevel ?? 1));
+      interruptLevel.disabled = !Boolean(interruptToggle?.checked);
+    }
+
+    const note = this.root.querySelector('[data-role="replay-turn-note"]');
+    if (note) {
+      note.value = String(draft?.note ?? '');
+    }
+
+    const hint = this.root.querySelector('[data-role="replay-turn-edit-hint"]');
+    if (hint) {
+      const unknownOperationCount = Array.isArray(draft?.unknownOperations) ? draft.unknownOperations.length : 0;
+      const overrideCount = Array.isArray(draft?.overrideEntries) ? draft.overrideEntries.length : 0;
+      const preservedText =
+        unknownOperationCount > 0 || overrideCount > 0
+          ? ` / 未表示 operation ${unknownOperationCount} 件・override ${overrideCount} 件は保持されます`
+          : '';
+      hint.textContent = `slot の並びはここで直接編集し、skill / target は上の action selector で編集します${preservedText}`;
+    }
+  }
+
   renderTurnPlanEditControls() {
     const toolbar = this.root.querySelector('[data-role="turn-plan-edit-toolbar"]');
     const title = this.root.querySelector('[data-role="turn-plan-edit-title"]');
@@ -6607,9 +6869,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       if (title) {
         title.textContent = '';
       }
+      this.renderReplayTurnEditPanel(null);
       return;
     }
     toolbar.hidden = false;
+    this.renderReplayTurnEditPanel(session);
     if (!title) {
       return;
     }
@@ -6975,10 +7239,12 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     });
   }
 
-  captureCurrentReplayTurnFromDom() {
+  captureCurrentReplayTurnFromDom(options = {}) {
     if (!this.state) {
       throw new Error('State is not initialized.');
     }
+    const editorDraft =
+      options.editorDraft && typeof options.editorDraft === 'object' ? options.editorDraft : null;
 
     const actionDict = this.collectActionDictFromDom();
     const membersByPosition = Array.from({ length: PARTY_SLOT_COUNT }, () => null);
@@ -7001,34 +7267,43 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return slot;
     });
 
-    const operations = [];
-    const isPreemptiveOdStep1 =
-      String(this.state.turnState.turnType ?? '') === 'od' &&
-      String(this.state.turnState.odContext ?? '') === 'preemptive' &&
-      Number(this.state.turnState.remainingOdActions ?? 0) === Number(this.state.turnState.odLevel ?? 0);
-    if (this.kishinkaActivatedThisTurn) {
-      operations.push({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA });
-    }
-    if (isPreemptiveOdStep1) {
-      operations.push({
-        type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
-        payload: { level: Number(this.state.turnState.odLevel ?? 0) },
-      });
-    }
-    const interruptOdLevel = Number(this.pendingInterruptOdLevel ?? 0);
-    if (Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3) {
-      operations.push({
-        type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
-        payload: { level: interruptOdLevel },
-      });
-    }
+    const operations = editorDraft
+      ? this.buildReplayTurnOperationsFromDraft(editorDraft)
+      : (() => {
+          const nextOperations = [];
+          const isPreemptiveOdStep1 =
+            String(this.state.turnState.turnType ?? '') === 'od' &&
+            String(this.state.turnState.odContext ?? '') === 'preemptive' &&
+            Number(this.state.turnState.remainingOdActions ?? 0) === Number(this.state.turnState.odLevel ?? 0);
+          if (this.kishinkaActivatedThisTurn) {
+            nextOperations.push({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA });
+          }
+          if (isPreemptiveOdStep1) {
+            nextOperations.push({
+              type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
+              payload: { level: Number(this.state.turnState.odLevel ?? 0) },
+            });
+          }
+          const interruptOdLevel = Number(this.pendingInterruptOdLevel ?? 0);
+          if (Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3) {
+            nextOperations.push({
+              type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
+              payload: { level: interruptOdLevel },
+            });
+          }
+          return nextOperations;
+        })();
 
     return normalizeLightweightReplayTurn({
       turn: Number(this.state.turnState?.turnIndex ?? 1),
       slots,
       operations,
-      note: typeof this.turnNoteDraft === 'string' ? this.turnNoteDraft : '',
-      overrideEntries: [],
+      note: editorDraft
+        ? String(editorDraft.note ?? '')
+        : typeof this.turnNoteDraft === 'string'
+          ? this.turnNoteDraft
+          : '',
+      overrideEntries: editorDraft ? structuredClone(editorDraft.overrideEntries ?? []) : [],
     });
   }
 
@@ -7641,7 +7916,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (!session) {
       throw new Error('TurnPlan編集セッションがありません。');
     }
-    const editableTurn = this.captureEditableTurnFromDom();
+    const editableTurn =
+      this.getEditableTurnSourceKind() === 'replayScript'
+        ? this.captureCurrentReplayTurnFromDom({ editorDraft: this.ensureReplayTurnEditDraft(session) })
+        : this.captureEditableTurnFromDom();
     if (this.getEditableTurnSourceKind() === 'replayScript') {
       if (session.type === 'insert') {
         this.replayScript.turns.splice(session.targetIndex, 0, editableTurn);

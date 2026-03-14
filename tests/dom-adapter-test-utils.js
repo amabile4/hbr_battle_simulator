@@ -29,6 +29,7 @@ export function createRoot() {
       <select data-role="swap-from"><option value="0">0</option></select>
       <select data-role="swap-to"><option value="3">3</option></select>
       <button data-action="swap"></button>
+      <span data-role="swap-legacy-note"></span>
       <button data-action="preview"></button>
       <button data-action="commit"></button>
       <button data-action="open-interrupt-od"></button>
@@ -55,6 +56,20 @@ export function createRoot() {
       <span data-role="turn-plan-recalc-status"></span>
       <div data-role="turn-plan-edit-toolbar" hidden>
         <span data-role="turn-plan-edit-title"></span>
+        <div data-role="replay-turn-edit-panel" hidden>
+          <div data-role="replay-slot-editor"></div>
+          <label><input data-role="replay-op-kishinka" type="checkbox" /></label>
+          <label>
+            <input data-role="replay-op-preemptive-od-enabled" type="checkbox" />
+            <select data-role="replay-op-preemptive-od-level"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+          </label>
+          <label>
+            <input data-role="replay-op-interrupt-od-enabled" type="checkbox" />
+            <select data-role="replay-op-interrupt-od-level"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+          </label>
+          <textarea data-role="replay-turn-note"></textarea>
+          <span data-role="replay-turn-edit-hint"></span>
+        </div>
         <button data-action="turn-plan-edit-save"></button>
         <button data-action="turn-plan-edit-cancel"></button>
       </div>

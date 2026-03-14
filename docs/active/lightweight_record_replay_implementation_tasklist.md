@@ -104,10 +104,10 @@
 
 ### T06: UI 編集導線の切替
 
-- [ ] turn 編集 UI を `slots[6]` 中心に切り替える
-- [ ] `operations[]` 編集 UI を追加する
-- [ ] `note` 入力 UI を追加する
-- [ ] 旧 swap 行編集 UI を縮退または非推奨化する
+- [x] turn 編集 UI を `slots[6]` 中心に切り替える
+- [x] `operations[]` 編集 UI を追加する
+- [x] `note` 入力 UI を追加する
+- [x] 旧 swap 行編集 UI を縮退または非推奨化する
 
 完了条件:
 
@@ -170,6 +170,7 @@
 - 2026-03-14: `turnPlanBaseSetup` に support setup を追加し、`ReplayScript.setup` の stable core と同期
 - 2026-03-14: T04 を実装。`recalculateReplayScript()` / slot position alignment / operation materialization / best-effort force replay / unknown entry warning を追加し、`turnPlans` を介さず `ReplayScript` から battle を再演できるようにした
 - 2026-03-14: T05 を実装。record table / edit staging / recalc button / export が `ReplayScript` 優先で動くように切り替え、`recordStore.records` を derived output として再生成する経路へ統一。legacy `turnPlans` は mirror/bridge としてのみ残置
+- 2026-03-14: T06 を実装。record edit toolbar に slot editor / operation editor / note textarea を追加し、ReplayScript 編集時は swap UI を非推奨化。save 時は draft から `operations[]` / `note` / preserved unknown entries を正本へ戻す
 
 ## 今回のスコープ外
 

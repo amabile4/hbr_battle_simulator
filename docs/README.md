@@ -49,7 +49,7 @@ docs/
 | [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次優先 PRI-018（スキル使用回数制約と回復機能）を設定。 | 2026-03-14 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | `TurnAction` を正本に寄せ、Commit 時 Position を保存し `record` を再生成物へ戻す軽量 replay/edit 設計案 | 2026-03-14 |
-| [active/lightweight_record_replay_implementation_tasklist.md](active/lightweight_record_replay_implementation_tasklist.md) | 🟢 進行中 | T01-T05 完了。`ReplayScript` schema / dual-write capture / best-effort replay / record derived output 化を実装し、次は UI 編集導線の切替 | 2026-03-14 |
+| [active/lightweight_record_replay_implementation_tasklist.md](active/lightweight_record_replay_implementation_tasklist.md) | 🟢 進行中 | T01-T06 完了。`ReplayScript` schema / replay / derived record / slot-operation-note editor を実装し、次は setup の extensible 化 | 2026-03-14 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
 | [active/player_status_manual_hook_implementation_tasklist.md](active/player_status_manual_hook_implementation_tasklist.md) | ✅ 完了 | PRI-017: player-side `ImprisonRandom` manual hook を `statusEffectsByPartyIndex` schema で setup / scenario / replay / record に接続 | 2026-03-14 |
 | [active/enemy_status_closure_implementation_tasklist.md](active/enemy_status_closure_implementation_tasklist.md) | ✅ 完了 | PRI-016: residual enemy status 10 key を action / passive runtime へ接続し、unsupported report を全カテゴリ 0 件化 | 2026-03-14 |
