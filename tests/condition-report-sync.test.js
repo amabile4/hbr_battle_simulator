@@ -36,7 +36,7 @@ test('report helper keeps unknown enemy-side special status ids unresolved', () 
   assert.deepEqual(listUnsupportedConditionClausesByRuntimeSupport(unresolved), [unresolved]);
 });
 
-test('enemy status report helper matches PRI-015 runtime support boundary', () => {
+test('enemy status report helper matches PRI-016 runtime support boundary', () => {
   const supportedActionDefenseDown = classifyEnemyStatusPartRuntimeSupport(
     {
       skill_type: 'DefenseDown',
@@ -59,6 +59,28 @@ test('enemy status report helper matches PRI-015 runtime support boundary', () =
   assert.equal(supportedActionSuperBreakDown.isEnemyStatusCandidate, true);
   assert.equal(supportedActionSuperBreakDown.supported, true);
 
+  const supportedActionMisfortune = classifyEnemyStatusPartRuntimeSupport(
+    {
+      skill_type: 'Misfortune',
+      target_type: 'Single',
+      effect: { exitCond: 'EnemyTurnEnd', limitType: 'None' },
+    },
+    { isPassiveSource: false }
+  );
+  assert.equal(supportedActionMisfortune.isEnemyStatusCandidate, true);
+  assert.equal(supportedActionMisfortune.supported, true);
+
+  const supportedActionEnemyAttackUp = classifyEnemyStatusPartRuntimeSupport(
+    {
+      skill_type: 'AttackUp',
+      target_type: 'All',
+      effect: { exitCond: 'Eternal', limitType: 'Default' },
+    },
+    { isPassiveSource: false }
+  );
+  assert.equal(supportedActionEnemyAttackUp.isEnemyStatusCandidate, true);
+  assert.equal(supportedActionEnemyAttackUp.supported, true);
+
   const supportedPassiveTalisman = classifyEnemyStatusPartRuntimeSupport(
     {
       skill_type: 'Talisman',
@@ -70,18 +92,7 @@ test('enemy status report helper matches PRI-015 runtime support boundary', () =
   assert.equal(supportedPassiveTalisman.isEnemyStatusCandidate, true);
   assert.equal(supportedPassiveTalisman.supported, true);
 
-  const unsupportedActionMisfortune = classifyEnemyStatusPartRuntimeSupport(
-    {
-      skill_type: 'Misfortune',
-      target_type: 'Single',
-      effect: { exitCond: 'EnemyTurnEnd', limitType: 'None' },
-    },
-    { isPassiveSource: false }
-  );
-  assert.equal(unsupportedActionMisfortune.isEnemyStatusCandidate, true);
-  assert.equal(unsupportedActionMisfortune.supported, false);
-
-  const unsupportedPassiveDefenseDown = classifyEnemyStatusPartRuntimeSupport(
+  const supportedPassiveDefenseDown = classifyEnemyStatusPartRuntimeSupport(
     {
       skill_type: 'DefenseDown',
       target_type: 'All',
@@ -89,6 +100,28 @@ test('enemy status report helper matches PRI-015 runtime support boundary', () =
     },
     { isPassiveSource: true }
   );
-  assert.equal(unsupportedPassiveDefenseDown.isEnemyStatusCandidate, true);
-  assert.equal(unsupportedPassiveDefenseDown.supported, false);
+  assert.equal(supportedPassiveDefenseDown.isEnemyStatusCandidate, true);
+  assert.equal(supportedPassiveDefenseDown.supported, true);
+
+  const allyAttackUp = classifyEnemyStatusPartRuntimeSupport(
+    {
+      skill_type: 'AttackUp',
+      target_type: 'AllyAll',
+      effect: { exitCond: 'PlayerTurnEnd', limitType: 'Default' },
+    },
+    { isPassiveSource: false }
+  );
+  assert.equal(allyAttackUp.isEnemyStatusCandidate, false);
+  assert.equal(allyAttackUp.supported, false);
+
+  const unsupportedActionPoison = classifyEnemyStatusPartRuntimeSupport(
+    {
+      skill_type: 'Poison',
+      target_type: 'Single',
+      effect: { exitCond: 'EnemyTurnEnd', limitType: 'None' },
+    },
+    { isPassiveSource: false }
+  );
+  assert.equal(unsupportedActionPoison.isEnemyStatusCandidate, true);
+  assert.equal(unsupportedActionPoison.supported, false);
 });

@@ -11,7 +11,7 @@
 | category | unique_keys | occurrences |
 |---|---:|---:|
 | state_condition_unimplemented | 0 | 0 |
-| enemy_status_unimplemented | 10 | 40 |
+| enemy_status_unimplemented | 0 | 0 |
 | overwrite_cond_unresolved | 0 | 0 |
 | effect_unresolved | 0 | 0 |
 

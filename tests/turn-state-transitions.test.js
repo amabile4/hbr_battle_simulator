@@ -206,7 +206,7 @@ test('consume_type Token spends token instead of SP on preview and commit', () =
         }
       : {}
   );
-  const state = createBattleStateFromParty(party);
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
 
   const preview = previewTurn(state, {
     0: { characterId: 'M1', skillId: 18000, targetEnemyIndex: 0 },
@@ -2332,6 +2332,143 @@ test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in 
   assert.equal(resistStatus.power, 0.45);
 });
 
+test('スタンブレード deterministically records StunRandom enemy status in real data', () => {
+  const store = getStore();
+  const skillId = 46001302;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const event = action.enemyStatusChanges.find((item) => item.statusType === 'StunRandom');
+
+  assert.ok(event);
+  assert.equal(event.mode, 'EnemyStatus');
+  assert.equal(event.targetIndex, 0);
+  assert.equal(event.remainingTurns, 1);
+  assert.equal(event.power, 0.3);
+  assert.equal(event.exitCond, 'EnemyTurnEnd');
+});
+
+test('ナイトフォール stores Misfortune with duration derived from power in real data', () => {
+  const store = getStore();
+  const skillId = 46001310;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const event = action.enemyStatusChanges.find((item) => item.statusType === 'Misfortune');
+  const nextStatus = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'Misfortune' && status.targetIndex === 0
+  );
+
+  assert.ok(event);
+  assert.equal(event.remainingTurns, 2);
+  assert.equal(event.power, 2);
+  assert.ok(nextStatus);
+  assert.equal(nextStatus.remainingTurns, 1);
+});
+
+test('コードダクネス stores Hacking from the selected SkillSwitch variant in real data', () => {
+  const store = getStore();
+  const skillId = 46001215;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const hacking = action.enemyStatusChanges.find((item) => item.statusType === 'Hacking');
+  const fragile = action.enemyStatusChanges.find((item) => item.statusType === 'Fragile');
+
+  assert.ok(hacking);
+  assert.equal(hacking.remainingTurns, 2);
+  assert.equal(hacking.exitCond, 'EnemyTurnEnd');
+  assert.ok(fragile);
+  assert.equal(fragile.remainingTurns, 2);
+});
+
+test('エンジェルズ・ウィング stores Cover with duration derived from power in real data', () => {
+  const store = getStore();
+  const skillId = 46002106;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const event = action.enemyStatusChanges.find((item) => item.statusType === 'Cover');
+  const nextStatus = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'Cover' && status.targetIndex === 0
+  );
+
+  assert.ok(event);
+  assert.equal(event.remainingTurns, 2);
+  assert.equal(event.power, 2);
+  assert.ok(nextStatus);
+  assert.equal(nextStatus.remainingTurns, 1);
+});
+
+test('ヒットチャートからの一閃 stores eternal HealDown enemy status in real data', () => {
+  const store = getStore();
+  const skillId = 46001311;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const healDown = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'HealDown' && status.targetIndex === 0
+  );
+
+  assert.ok(healDown);
+  assert.equal(healDown.exitCond, 'Eternal');
+  assert.equal(healDown.limitType, 'Once');
+  assert.equal(healDown.power, 1);
+});
+
+test('背水のギャンビット stores enemy-target AttackUp in real data', () => {
+  const store = getStore();
+  const skillId = 46008314;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const attackUp = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'AttackUp' && status.targetIndex === 0
+  );
+
+  assert.ok(attackUp);
+  assert.equal(attackUp.exitCond, 'Eternal');
+  assert.equal(attackUp.power, 0.5);
+});
+
+test('ー◯◯◯ selects the deterministic SkillRandom failure branch and stores DefenseUp in real data', () => {
+  const store = getStore();
+  const skillId = 46003414;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const event = action.enemyStatusChanges.find((item) => item.statusType === 'DefenseUp');
+  const nextStatus = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DefenseUp' && status.targetIndex === 0
+  );
+
+  assert.ok(event);
+  assert.equal(event.remainingTurns, 3);
+  assert.equal(event.power, 0.5);
+  assert.ok(nextStatus);
+  assert.equal(nextStatus.remainingTurns, 2);
+});
+
+test('怪物球威 applies passive DefenseDown enemy status at battle start in real data', () => {
+  const store = getStore();
+  const skillId = 46401101;
+  const state = applyInitialPassiveState(createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId)));
+
+  const defenseDown = state.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DefenseDown' && status.targetIndex === 0
+  );
+
+  assert.ok(defenseDown);
+  assert.equal(defenseDown.exitCond, 'PlayerTurnEnd');
+  assert.equal(defenseDown.remainingTurns, 1);
+  assert.equal(defenseDown.power, 0.1);
+});
+
 test('ハードブレード applies DefenseDown in real data despite top-level DefaultDebuff label', () => {
   const store = getStore();
   const skillId = 46001303;
@@ -2675,11 +2812,12 @@ test('MotivationLevel condition can trigger passives from current motivation sta
         }
       : {}
   );
-  const state = createBattleStateFromParty(party);
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  assert.equal(state.party[0].sp.current, 3);
   const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
 
   assert.equal(result.spEvents.length, 1);
-  assert.equal(state.party[0].sp.current, 3);
+  assert.equal(state.party[0].sp.current, 5);
 });
 
 test('ThunderMark skill part does not mutate intrinsic thunder mark levels', () => {
@@ -5378,6 +5516,82 @@ test('enemy debuff statuses preserve fields and tick on enemy turn end', () => {
     (item) => item.statusType === 'DefenseDown' && item.targetIndex === 0
   );
   assert.equal(status, undefined);
+});
+
+test('PlayerTurnEnd enemy debuff expires before the next recovery pipeline when passive limit is 1', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              passiveId: 18880,
+              name: 'One Turn Enemy Debuff',
+              timing: 'OnPlayerTurnStart',
+              condition: 'IsFront()',
+              limit: 1,
+              parts: [
+                {
+                  skill_type: 'DefenseDown',
+                  target_type: 'All',
+                  power: [0.1, 0],
+                  effect: { limitType: 'None', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 18262,
+              name: 'Strike',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : idx <= 2
+        ? {
+            skills: [
+              {
+                id: 18270 + idx,
+                name: 'プロテクション',
+                sp_cost: 0,
+                target_type: 'Self',
+                parts: [
+                  {
+                    skill_type: 'DefenseUp',
+                    target_type: 'Self',
+                    power: [0.2, 0],
+                    effect: { limitType: 'Default', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                  },
+                ],
+              },
+            ],
+          }
+        : {}
+  );
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+
+  assert.equal(
+    state.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'DefenseDown' && status.targetIndex === 0
+    ),
+    true
+  );
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18262, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 18271 },
+    2: { characterId: 'M3', skillId: 18272 },
+  });
+  const committed = commitTurn(state, preview);
+
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'DefenseDown' && status.targetIndex === 0
+    ),
+    false
+  );
 });
 
 test('non-damaging skill-switch with hit_count does not increase OD gauge', () => {
