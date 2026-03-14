@@ -73,6 +73,7 @@ test('initializeBattleState resets turn-plan state unless preserveTurnPlans is t
   facade.turnPlanReplayError = new Error('stale');
   facade.turnPlanReplayWarnings = ['warn'];
   facade.turnPlanEditSession = { active: true };
+  facade.replayScript.turns = [{ turn: 1 }];
 
   facade.initializeBattleState(createInitializeOptions());
 
@@ -82,6 +83,8 @@ test('initializeBattleState resets turn-plan state unless preserveTurnPlans is t
   assert.deepEqual(facade.turnPlanReplayWarnings, []);
   assert.equal(facade.turnPlanEditSession, null);
   assert.equal(facade.turnPlanBaseSetup.forceOdToggle, false);
+  assert.deepEqual(facade.replayScript.turns, []);
+  assert.deepEqual(facade.replayScript.setup.styleIds, [101, 102, 103, 104, 105, 106]);
 });
 
 test('initializeBattleState preserves turn-plan state when preserveTurnPlans is requested', () => {
@@ -91,6 +94,7 @@ test('initializeBattleState preserves turn-plan state when preserveTurnPlans is 
   facade.turnPlanReplayError = new Error('stale');
   facade.turnPlanReplayWarnings = ['warn'];
   facade.turnPlanEditSession = { active: true };
+  facade.replayScript.turns = [{ turn: 1 }];
 
   facade.initializeBattleState(
     createInitializeOptions({
@@ -105,16 +109,26 @@ test('initializeBattleState preserves turn-plan state when preserveTurnPlans is 
   assert.deepEqual(facade.turnPlanReplayWarnings, ['warn']);
   assert.deepEqual(facade.turnPlanEditSession, { active: true });
   assert.equal(facade.turnPlanBaseSetup.forceOdToggle, true);
+  assert.deepEqual(facade.replayScript.turns, [{ turn: 1, slots: [{ styleId: null, skillId: null }, { styleId: null, skillId: null }, { styleId: null, skillId: null }, { styleId: null, skillId: null }, { styleId: null, skillId: null }, { styleId: null, skillId: null }], operations: [], note: '', overrideEntries: [] }]);
+  assert.deepEqual(facade.replayScript.setup.styleIds, [101, 102, 103, 104, 105, 106]);
 });
 
-test('commitCurrentTurnState captures turn plan and clears transient preview state', () => {
+test('commitCurrentTurnState captures turn plan and replay turn and clears transient preview state', () => {
   const facade = new BattleAdapterFacade({ dataStore: createStubDataStore(), initialSP: 10 });
   facade.initializeBattleState(createInitializeOptions());
   facade.previewCurrentTurnState({ actions: createFrontlineActions(), enemyCount: 1 });
+  facade.turnNoteDraft = 'commit memo';
 
   const committedRecord = facade.commitCurrentTurnState({
     shouldCaptureTurnPlan: true,
     capturedTurnPlan: { turnId: 'TURN-1' },
+    shouldCaptureReplayTurn: true,
+    capturedReplayTurn: {
+      turn: 1,
+      slots: [{ styleId: 101, skillId: 9100 }],
+      operations: [{ type: 'UnknownOperation', level: 3 }],
+      note: 'commit memo',
+    },
   });
 
   assert.equal(typeof committedRecord.turnLabel, 'string');
@@ -125,9 +139,20 @@ test('commitCurrentTurnState captures turn plan and clears transient preview sta
   assert.equal(facade.interruptOdProjection, null);
   assert.equal(facade.preemptiveOdCheckpoint, null);
   assert.equal(facade.kishinkaActivatedThisTurn, false);
+  assert.equal(facade.turnNoteDraft, '');
   assert.deepEqual(facade.turnPlans, [{ turnId: 'TURN-1' }]);
   assert.deepEqual(facade.turnPlanComputedRecords, [...facade.recordStore.records]);
   assert.equal(facade.turnPlanReplayError, null);
   assert.deepEqual(facade.turnPlanReplayWarnings, []);
   assert.equal(facade.turnPlanEditSession, null);
+  assert.equal(facade.replayScript.turns.length, 1);
+  assert.deepEqual(facade.replayScript.turns[0].slots[0], {
+    styleId: 101,
+    skillId: 9100,
+    target: { type: 'none' },
+  });
+  assert.deepEqual(facade.replayScript.turns[0].operations, [
+    { type: 'UnknownOperation', payload: { level: 3 } },
+  ]);
+  assert.equal(facade.replayScript.turns[0].note, 'commit memo');
 });

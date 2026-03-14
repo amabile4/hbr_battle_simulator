@@ -472,6 +472,91 @@ test('turn plan edit row starts staged edit session and updates status message',
   assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Turn 1 を編集中です。');
 });
 
+test('commitCurrentTurn captures lightweight replay slots, operations, and note alongside turn plan', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const frontline = adapter.party.getFrontline();
+  const normalSkill = frontline[0]?.getActionSkills()?.[0] ?? null;
+  const secondSkill = frontline[1]?.getActionSkills()?.[0] ?? null;
+  if (!frontline[0] || !frontline[1] || !normalSkill || !secondSkill) {
+    return;
+  }
+
+  const normalSelect = root.querySelector(`[data-action-slot="${frontline[0].position}"]`);
+  const supportSelect = root.querySelector(`[data-action-slot="${frontline[1].position}"]`);
+  normalSelect.value = String(normalSkill.skillId);
+  supportSelect.value = String(secondSkill.skillId);
+  adapter.turnNoteDraft = '3T目の押し込みメモ';
+  adapter.kishinkaActivatedThisTurn = true;
+  adapter.pendingInterruptOdLevel = 2;
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn({ forceOdOverride: true, forceResourceDeficit: true });
+
+  assert.equal(adapter.turnPlans.length, 1);
+  assert.equal(adapter.replayScript.turns.length, 1);
+  assert.deepEqual(adapter.replayScript.turns[0].slots[0], {
+    styleId: Number(frontline[0].styleId),
+    skillId: Number(normalSkill.skillId),
+    target: { type: 'enemy', enemyIndex: 0 },
+  });
+  assert.deepEqual(adapter.replayScript.turns[0].slots[1], {
+    styleId: Number(frontline[1].styleId),
+    skillId: Number(secondSkill.skillId),
+    target: { type: 'enemy', enemyIndex: 0 },
+  });
+  assert.deepEqual(
+    adapter.replayScript.turns[0].slots.slice(3).map((slot) => slot.skillId),
+    [null, null, null]
+  );
+  assert.deepEqual(adapter.replayScript.turns[0].operations, [
+    { type: 'ActivateKishinka' },
+    { type: 'ReserveInterruptOd', payload: { level: 2 } },
+  ]);
+  assert.equal(adapter.replayScript.turns[0].note, '3T目の押し込みメモ');
+  assert.equal(adapter.turnNoteDraft, '');
+});
+
+test('captureReplayTargetFromAction resolves ally target to styleId', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  const frontline = adapter.party.getFrontline();
+  const target = adapter.captureReplayTargetFromAction({
+    targetCharacterId: String(frontline[0]?.characterId ?? ''),
+  });
+
+  assert.deepEqual(target, {
+    type: 'ally',
+    styleId: Number(frontline[0]?.styleId ?? 0),
+  });
+});
+
+test('commitCurrentTurn captures preemptive OD activation into lightweight replay operations', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.state.turnState.turnType = 'od';
+  adapter.state.turnState.odContext = 'preemptive';
+  adapter.state.turnState.odLevel = 3;
+  adapter.state.turnState.remainingOdActions = 3;
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+
+  assert.equal(adapter.replayScript.turns.length, 1);
+  assert.deepEqual(adapter.replayScript.turns[0].operations, [
+    { type: 'ActivatePreemptiveOd', payload: { level: 3 } },
+  ]);
+});
+
 test('turn plan edit row surfaces contextual error when source turn staging fails', () => {
   const store = getStore();
   const { root } = createRoot();

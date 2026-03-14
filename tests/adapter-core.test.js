@@ -150,3 +150,45 @@ test('createInitializedBattleSnapshot applies statusEffectsByPartyIndex before i
     true
   );
 });
+
+test('createInitializedBattleSnapshot keeps support setup in turnPlanBaseSetup', () => {
+  const fakeStore = {
+    buildPartyFromStyleIds(styleIds) {
+      return new Party(
+        styleIds.map((styleId, idx) =>
+          new CharacterStyle({
+            characterId: `SUP${idx + 1}`,
+            characterName: `Support${idx + 1}`,
+            styleId: Number(styleId),
+            styleName: `SupportStyle${idx + 1}`,
+            partyIndex: idx,
+            position: idx,
+            initialSP: 10,
+            skills: [{ id: 9900 + idx, name: `Skill${idx + 1}`, sp_cost: 0, parts: [] }],
+          })
+        )
+      );
+    },
+  };
+
+  const snapshot = createInitializedBattleSnapshot({
+    dataStore: fakeStore,
+    initialSP: 10,
+    styleIds: [1, 2, 3, 4, 5, 6],
+    skillSetsByPartyIndex: {},
+    limitBreakLevelsByPartyIndex: {},
+    drivePierceByPartyIndex: {},
+    normalAttackElementsByPartyIndex: {},
+    startSpEquipByPartyIndex: {},
+    initialMotivationByPartyIndex: {},
+    initialDpStateByPartyIndex: {},
+    initialBreakByPartyIndex: {},
+    supportStyleIdsByPartyIndex: { 0: 1001408 },
+    supportLimitBreakLevelsByPartyIndex: { 0: 3 },
+    initialOdGauge: 0,
+    enemyCount: 1,
+  });
+
+  assert.deepEqual(snapshot.turnPlanBaseSetup.supportStyleIdsByPartyIndex, { 0: 1001408 });
+  assert.deepEqual(snapshot.turnPlanBaseSetup.supportLimitBreakLevelsByPartyIndex, { 0: 3 });
+});

@@ -376,6 +376,8 @@ export function createInitializedBattleSnapshot({
     state,
     turnPlanBaseSetup: {
       styleIds: [...styleIds].map((id) => Number(id)),
+      supportStyleIdsByPartyIndex: structuredClone(supportStyleIdsByPartyIndex),
+      supportLimitBreakLevelsByPartyIndex: structuredClone(supportLimitBreakLevelsByPartyIndex),
       skillSetsByPartyIndex: structuredClone(skillSetsByPartyIndex),
       limitBreakLevelsByPartyIndex: structuredClone(limitBreakLevelsByPartyIndex),
       drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),

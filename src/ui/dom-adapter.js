@@ -12,6 +12,11 @@ import {
   isNormalAttackSkill,
 } from '../domain/skill-classifiers.js';
 import { BattleAdapterFacade } from './battle-adapter-facade.js';
+import {
+  REPLAY_OPERATION_TYPES,
+  REPLAY_TARGET_TYPES,
+  normalizeLightweightReplayTurn,
+} from './lightweight-replay-script.js';
 import { BattleDomView } from './dom-view.js';
 import {
   normalizeStatusEffectsByPartyIndex,
@@ -3848,7 +3853,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const previewOptions =
       options.previewOptions && typeof options.previewOptions === 'object' ? options.previewOptions : {};
     const shouldCaptureTurnPlan = options.skipTurnPlanCapture !== true && !this.isReplayingTurnPlans;
+    const shouldCaptureReplayTurn = options.skipReplayScriptCapture !== true && !this.isReplayingTurnPlans;
     const capturedTurnPlan = shouldCaptureTurnPlan ? this.captureCurrentTurnPlanFromDom() : null;
+    const capturedReplayTurn = shouldCaptureReplayTurn ? this.captureCurrentReplayTurnFromDom() : null;
 
     if (!this.previewRecord) {
       this.previewCurrentTurn(previewOptions);
@@ -3864,6 +3871,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       enemyAttackTargetCharacterIds: this.readEnemyAttackTargetCharacterIdsFromDom(),
       shouldCaptureTurnPlan,
       capturedTurnPlan,
+      shouldCaptureReplayTurn,
+      capturedReplayTurn,
     });
     this.setEnemyAttackTargetCharacterIds([]);
     this.appendPassiveLogEvents(committedRecord?.passiveEvents ?? []);
@@ -6741,6 +6750,88 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       interruptOdLevel: this.pendingInterruptOdLevel,
       kishinka: this.kishinkaActivatedThisTurn,
     });
+  }
+
+  captureCurrentReplayTurnFromDom() {
+    if (!this.state) {
+      throw new Error('State is not initialized.');
+    }
+
+    const actionDict = this.collectActionDictFromDom();
+    const membersByPosition = Array.from({ length: PARTY_SLOT_COUNT }, () => null);
+    for (const member of this.state.party ?? []) {
+      const position = Number(member?.position);
+      if (Number.isInteger(position) && position >= 0 && position < PARTY_SLOT_COUNT) {
+        membersByPosition[position] = member;
+      }
+    }
+
+    const slots = membersByPosition.map((member, position) => {
+      const action = actionDict[String(position)] ?? null;
+      const slot = {
+        styleId: Number(member?.styleId ?? NaN),
+        skillId: Number.isFinite(Number(action?.skillId)) ? Number(action.skillId) : null,
+      };
+      if (slot.skillId !== null) {
+        slot.target = this.captureReplayTargetFromAction(action);
+      }
+      return slot;
+    });
+
+    const operations = [];
+    const isPreemptiveOdStep1 =
+      String(this.state.turnState.turnType ?? '') === 'od' &&
+      String(this.state.turnState.odContext ?? '') === 'preemptive' &&
+      Number(this.state.turnState.remainingOdActions ?? 0) === Number(this.state.turnState.odLevel ?? 0);
+    if (this.kishinkaActivatedThisTurn) {
+      operations.push({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA });
+    }
+    if (isPreemptiveOdStep1) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
+        payload: { level: Number(this.state.turnState.odLevel ?? 0) },
+      });
+    }
+    const interruptOdLevel = Number(this.pendingInterruptOdLevel ?? 0);
+    if (Number.isFinite(interruptOdLevel) && interruptOdLevel >= 1 && interruptOdLevel <= 3) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
+        payload: { level: interruptOdLevel },
+      });
+    }
+
+    return normalizeLightweightReplayTurn({
+      turn: Number(this.state.turnState?.turnIndex ?? 1),
+      slots,
+      operations,
+      note: typeof this.turnNoteDraft === 'string' ? this.turnNoteDraft : '',
+      overrideEntries: [],
+    });
+  }
+
+  captureReplayTargetFromAction(action = {}) {
+    if (Number.isFinite(Number(action?.targetEnemyIndex))) {
+      return {
+        type: REPLAY_TARGET_TYPES.ENEMY,
+        enemyIndex: Math.max(0, toInt(action.targetEnemyIndex, 0)),
+      };
+    }
+    const targetCharacterId = String(action?.targetCharacterId ?? '').trim();
+    if (!targetCharacterId) {
+      return { type: REPLAY_TARGET_TYPES.NONE };
+    }
+    const targetMember = (this.state?.party ?? []).find((member) => String(member?.characterId) === targetCharacterId);
+    const styleId = Number(targetMember?.styleId);
+    if (Number.isFinite(styleId)) {
+      return {
+        type: REPLAY_TARGET_TYPES.ALLY,
+        styleId,
+      };
+    }
+    return {
+      type: REPLAY_TARGET_TYPES.ALLY,
+      characterId: targetCharacterId,
+    };
   }
 
   toScenarioTurnFromTurnPlan(plan) {

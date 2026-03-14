@@ -10,6 +10,11 @@ import {
   exportCsvText,
   exportRecordsJsonText,
 } from './adapter-core.js';
+import {
+  createEmptyLightweightReplayScript,
+  createLightweightReplayScriptFromBaseSetup,
+  normalizeLightweightReplayTurn,
+} from './lightweight-replay-script.js';
 
 export class BattleAdapterFacade {
   constructor({ dataStore, initialSP = DEFAULT_INITIAL_SP }) {
@@ -34,6 +39,8 @@ export class BattleAdapterFacade {
     this.turnPlanEditSession = null;
     this.turnPlanBaseSetup = null;
     this.isReplayingTurnPlans = false;
+    this.replayScript = createEmptyLightweightReplayScript();
+    this.turnNoteDraft = '';
   }
 
   initializeBattleState(options = {}) {
@@ -79,6 +86,7 @@ export class BattleAdapterFacade {
     this.preemptiveOdCheckpoint = null;
     this.kishinkaActivatedThisTurn = false;
     this.passiveLogEntries = [];
+    this.turnNoteDraft = '';
 
     if (!options.preserveTurnPlans) {
       this.turnPlans = [];
@@ -92,6 +100,10 @@ export class BattleAdapterFacade {
       ...snapshot.turnPlanBaseSetup,
       forceOdToggle: Boolean(options.forceOdToggle ?? false),
     };
+    this.replayScript = createLightweightReplayScriptFromBaseSetup(
+      this.turnPlanBaseSetup,
+      options.preserveTurnPlans ? this.replayScript : null
+    );
 
     return this.state;
   }
@@ -136,6 +148,7 @@ export class BattleAdapterFacade {
     this.interruptOdProjection = null;
     this.preemptiveOdCheckpoint = null;
     this.kishinkaActivatedThisTurn = false;
+    this.turnNoteDraft = '';
 
     if (options.shouldCaptureTurnPlan && options.capturedTurnPlan) {
       this.turnPlans.push(options.capturedTurnPlan);
@@ -143,6 +156,9 @@ export class BattleAdapterFacade {
       this.turnPlanReplayError = null;
       this.turnPlanReplayWarnings = [];
       this.turnPlanEditSession = null;
+    }
+    if (options.shouldCaptureReplayTurn && options.capturedReplayTurn) {
+      this.replayScript.turns.push(normalizeLightweightReplayTurn(options.capturedReplayTurn));
     }
 
     return committedRecord;
@@ -156,6 +172,8 @@ export class BattleAdapterFacade {
     this.turnPlanReplayError = null;
     this.turnPlanReplayWarnings = [];
     this.turnPlanEditSession = null;
+    this.replayScript = createLightweightReplayScriptFromBaseSetup(this.turnPlanBaseSetup);
+    this.turnNoteDraft = '';
   }
 
   exportCsvState() {

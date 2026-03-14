@@ -49,10 +49,10 @@
 
 ### T01: schema 固定
 
-- [ ] `ReplayScript` / `ReplayTurn` / `TurnSlot` の JSON shape を確定する
-- [ ] `setupEntries[]` / `operations[]` / `overrideEntries[]` の envelope shape を確定する
-- [ ] `note` の round-trip 仕様を確定する
-- [ ] stable core と extension lane の境界を明文化する
+- [x] `ReplayScript` / `ReplayTurn` / `TurnSlot` の JSON shape を確定する
+- [x] `setupEntries[]` / `operations[]` / `overrideEntries[]` の envelope shape を確定する
+- [x] `note` の round-trip 仕様を確定する
+- [x] stable core と extension lane の境界を明文化する
 
 完了条件:
 
@@ -60,10 +60,10 @@
 
 ### T02: typed envelope 基盤
 
-- [ ] `setupEntries[]` handler registry を core 層に用意する
-- [ ] `operations[]` handler registry を core 層に用意する
-- [ ] `overrideEntries[]` handler registry を core 層に用意する
-- [ ] 未知 type を preserve する serialization/deserialization を用意する
+- [x] `setupEntries[]` handler registry を core 層に用意する
+- [x] `operations[]` handler registry を core 層に用意する
+- [x] `overrideEntries[]` handler registry を core 層に用意する
+- [x] 未知 type を preserve する serialization/deserialization を用意する
 
 完了条件:
 
@@ -71,10 +71,10 @@
 
 ### T03: current state から lightweight script を capture
 
-- [ ] commit 時に current turn を `slots[6]` として capture する
-- [ ] `鬼神化` / `通常OD` / `割込OD予約` を `operations[]` に capture する
-- [ ] turn ごとの自由入力メモを `note` として capture する
-- [ ] 現行 `turnPlans` capture と並行稼働させる場合の bridge を決める
+- [x] commit 時に current turn を `slots[6]` として capture する
+- [x] `鬼神化` / `通常OD` / `割込OD予約` を `operations[]` に capture する
+- [x] turn ごとの自由入力メモを `note` として capture する
+- [x] 現行 `turnPlans` capture と並行稼働させる場合の bridge を決める
 
 完了条件:
 
@@ -145,9 +145,9 @@
 
 ### T10: テスト整備
 
-- [ ] slot 一体型保存で style/skill mismatch が起きない回帰を追加する
-- [ ] `operations[]` round-trip テストを追加する
-- [ ] `note` round-trip テストを追加する
+- [x] slot 一体型保存で style/skill mismatch が起きない回帰を追加する
+- [x] `operations[]` round-trip テストを追加する
+- [x] `note` round-trip テストを追加する
 - [ ] negative OD/SP 許容の best-effort replay テストを追加する
 - [ ] unknown `type` preserve/no-op テストを追加する
 
@@ -157,11 +157,17 @@
 
 ## 受け入れ条件
 
-- [ ] 1 turn の保存単位が `slots[6]` であり、style と skill が分離しない
-- [ ] `鬼神化` / `通常OD` / `割込OD予約` / `note` を同じ turn に保存できる
+- [x] 1 turn の保存単位が `slots[6]` であり、style と skill が分離しない
+- [x] `鬼神化` / `通常OD` / `割込OD予約` / `note` を同じ turn に保存できる
 - [ ] replay は最後まで走り、OD/SP のマイナス値で停止しない
-- [ ] `setupEntries[]` / `operations[]` / `overrideEntries[]` に未知 type が来ても保持できる
+- [x] `setupEntries[]` / `operations[]` / `overrideEntries[]` に未知 type が来ても保持できる
 - [ ] `record` が derived output として再生成される
+
+## 実装メモ
+
+- 2026-03-14: T01-T03 を実装。`src/ui/lightweight-replay-script.js` に `ReplayScript` schema / typed envelope registry / unknown type preserve 正規化を追加し、`BattleAdapterFacade` と `BattleDomAdapter` で `turnPlans` と並行する dual-write capture を開始
+- 2026-03-14: `turnNoteDraft` を capture 対象として追加。UI 入力は未着手だが、commit 経路では `note` round-trip が成立
+- 2026-03-14: `turnPlanBaseSetup` に support setup を追加し、`ReplayScript.setup` の stable core と同期
 
 ## 今回のスコープ外
 
