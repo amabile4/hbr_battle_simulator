@@ -115,9 +115,9 @@
 
 ### T07: setup の extensible 化
 
-- [ ] 初期編成など stable core と、可変 setup 状態を分離する
-- [ ] 事前状態は `setupEntries[]` に寄せる
-- [ ] future setup type を追加しやすい registry / dispatcher 構成にする
+- [x] 初期編成など stable core と、可変 setup 状態を分離する
+- [x] 事前状態は `setupEntries[]` に寄せる
+- [x] future setup type を追加しやすい registry / dispatcher 構成にする
 
 完了条件:
 
@@ -125,9 +125,9 @@
 
 ### T08: legacy bridge / migration
 
-- [ ] 現行 `turnPlans` から `ReplayScript` への変換 helper を作る
-- [ ] 必要なら dual-write 期間を設ける
-- [ ] 既存 scenario / record / export との互換境界を明文化する
+- [x] 現行 `turnPlans` から `ReplayScript` への変換 helper を作る
+- [x] 必要なら dual-write 期間を設ける
+- [x] 既存 scenario / record / export との互換境界を明文化する
 
 完了条件:
 
@@ -171,6 +171,8 @@
 - 2026-03-14: T04 を実装。`recalculateReplayScript()` / slot position alignment / operation materialization / best-effort force replay / unknown entry warning を追加し、`turnPlans` を介さず `ReplayScript` から battle を再演できるようにした
 - 2026-03-14: T05 を実装。record table / edit staging / recalc button / export が `ReplayScript` 優先で動くように切り替え、`recordStore.records` を derived output として再生成する経路へ統一。legacy `turnPlans` は mirror/bridge としてのみ残置
 - 2026-03-14: T06 を実装。record edit toolbar に slot editor / operation editor / note textarea を追加し、ReplayScript 編集時は swap UI を非推奨化。save 時は draft から `operations[]` / `note` / preserved unknown entries を正本へ戻す
+- 2026-03-14: T07 を実装。`ReplaySetup` の known pre-state を `setupEntries[]` へ migrate し、`reinitializeFromReplayScriptBase()` で registry / dispatcher 経由の適用へ切り替えた。legacy fixed field は互換入力として吸収し、`preserveTurnPlans` 時は既存 `setupEntries[]` を base 再初期化で失わないよう merge 優先順位を調整
+- 2026-03-15: T08 を実装。legacy `turnPlans` を `base styleIds + swaps + actions.positionIndex` から静的に `ReplayScript.turns` へ変換する migration helper を追加し、`overrideEntries[]` registry で `enemyAction` / party state map / field state / enemy config を bridge した。`turnPlans` mirror は dual-write のまま残しつつ、ReplayScript が空で turnPlans のみ存在する場合は lazy migration で編集正本を ReplayScript 側へ寄せる
 
 ## 今回のスコープ外
 

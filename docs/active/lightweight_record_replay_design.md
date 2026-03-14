@@ -86,9 +86,6 @@ ReplaySetup = {
   skillSetsByPartyIndex?,
   limitBreakLevelsByPartyIndex?,
   initialOdGauge?,
-  initialDpStateByPartyIndex?,
-  initialBreakByPartyIndex?,
-  initialMotivationByPartyIndex?,
   setupEntries?
 }
 ```
@@ -108,6 +105,17 @@ SetupEntry = {
   payload?
 }
 ```
+
+known setup entry の例:
+
+- `InitialMotivationByPartyIndex`
+- `InitialDpStateByPartyIndex`
+- `InitialBreakByPartyIndex`
+- `TokenStateByPartyIndex`
+- `MoraleStateByPartyIndex`
+- `MotivationStateByPartyIndex`
+- `MarkStateByPartyIndex`
+- `StatusEffectsByPartyIndex`
 
 ### 3. 各ターン
 
@@ -416,6 +424,13 @@ OverrideEntry = {
 
 - 旧 `turnPlans` は legacy import/debug 用に限定する
 - 常用編集経路から外す
+
+## 互換境界
+
+- 既存 `turnPlans` は当面 mirror/bridge として残し、ReplayScript が空で turnPlans だけ存在する場合は migration helper で `ReplayScript.turns` を再構築する
+- `turnPlans` の `enemyAction` / state map / field state / enemy config は `ReplayTurn.overrideEntries[]` に移して bridge する
+- `scenario` JSON/CSV import は従来どおり scenario layer の責務とし、ReplayScript へ自動変換しない
+- `record` / CSV / records JSON export は従来どおり derived output の責務とし、ReplayScript から再生成した結果を出力する
 
 ## この設計で得たい挙動
 

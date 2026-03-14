@@ -14,6 +14,82 @@ export const REPLAY_OPERATION_TYPES = Object.freeze({
   RESERVE_INTERRUPT_OD: 'ReserveInterruptOd',
 });
 
+export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
+  INITIAL_MOTIVATION_BY_PARTY_INDEX: 'InitialMotivationByPartyIndex',
+  INITIAL_DP_STATE_BY_PARTY_INDEX: 'InitialDpStateByPartyIndex',
+  INITIAL_BREAK_BY_PARTY_INDEX: 'InitialBreakByPartyIndex',
+  TOKEN_STATE_BY_PARTY_INDEX: 'TokenStateByPartyIndex',
+  MORALE_STATE_BY_PARTY_INDEX: 'MoraleStateByPartyIndex',
+  MOTIVATION_STATE_BY_PARTY_INDEX: 'MotivationStateByPartyIndex',
+  MARK_STATE_BY_PARTY_INDEX: 'MarkStateByPartyIndex',
+  STATUS_EFFECTS_BY_PARTY_INDEX: 'StatusEffectsByPartyIndex',
+});
+
+export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
+  ENEMY_COUNT: 'EnemyCount',
+  ENEMY_ACTION: 'EnemyAction',
+  ENEMY_NAMES: 'EnemyNames',
+  ENEMY_DAMAGE_RATES: 'EnemyDamageRates',
+  ENEMY_DESTRUCTION_RATES: 'EnemyDestructionRates',
+  ENEMY_DESTRUCTION_RATE_CAPS: 'EnemyDestructionRateCaps',
+  ENEMY_BREAK_STATES: 'EnemyBreakStates',
+  ENEMY_STATUSES: 'EnemyStatuses',
+  DP_STATE_BY_PARTY_INDEX: 'DpStateByPartyIndex',
+  TOKEN_STATE_BY_PARTY_INDEX: 'TokenStateByPartyIndex',
+  MORALE_STATE_BY_PARTY_INDEX: 'MoraleStateByPartyIndex',
+  MOTIVATION_STATE_BY_PARTY_INDEX: 'MotivationStateByPartyIndex',
+  MARK_STATE_BY_PARTY_INDEX: 'MarkStateByPartyIndex',
+  STATUS_EFFECTS_BY_PARTY_INDEX: 'StatusEffectsByPartyIndex',
+  ZONE_STATE: 'ZoneState',
+  TERRITORY_STATE: 'TerritoryState',
+  ENEMY_ATTACK_TARGET_CHARACTER_IDS: 'EnemyAttackTargetCharacterIds',
+});
+
+function cloneReplayPayload(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (isPlainObject(value) || Array.isArray(value)) {
+    return structuredClone(value);
+  }
+  return value;
+}
+
+function isEmptyReplayPayload(value) {
+  if (value === null || value === undefined) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  if (isPlainObject(value)) {
+    return Object.keys(value).length === 0;
+  }
+  return false;
+}
+
+function createReplaySetupEntryDefinition(legacyField) {
+  return Object.freeze({
+    legacyField,
+    applyToInitializeOptions(initializeOptions, payload) {
+      initializeOptions[legacyField] = cloneReplayPayload(payload) ?? {};
+    },
+  });
+}
+
+function createReplayOverrideEntryDefinition(fieldName) {
+  return Object.freeze({
+    fieldName,
+    applyToScenarioTurn(scenarioTurn, payload) {
+      const nextPayload = cloneReplayPayload(payload);
+      if (nextPayload === undefined) {
+        return;
+      }
+      scenarioTurn[fieldName] = nextPayload;
+    },
+  });
+}
+
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -87,13 +163,134 @@ function createTypedEnvelopeRegistry(definitions = {}) {
   });
 }
 
-export const replaySetupEntryRegistry = createTypedEnvelopeRegistry();
+export const replaySetupEntryRegistry = createTypedEnvelopeRegistry({
+  [REPLAY_SETUP_ENTRY_TYPES.INITIAL_MOTIVATION_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'initialMotivationByPartyIndex'
+  ),
+  [REPLAY_SETUP_ENTRY_TYPES.INITIAL_DP_STATE_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'initialDpStateByPartyIndex'
+  ),
+  [REPLAY_SETUP_ENTRY_TYPES.INITIAL_BREAK_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'initialBreakByPartyIndex'
+  ),
+  [REPLAY_SETUP_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'tokenStateByPartyIndex'
+  ),
+  [REPLAY_SETUP_ENTRY_TYPES.MORALE_STATE_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'moraleStateByPartyIndex'
+  ),
+  [REPLAY_SETUP_ENTRY_TYPES.MOTIVATION_STATE_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'motivationStateByPartyIndex'
+  ),
+  [REPLAY_SETUP_ENTRY_TYPES.MARK_STATE_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'markStateByPartyIndex'
+  ),
+  [REPLAY_SETUP_ENTRY_TYPES.STATUS_EFFECTS_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'statusEffectsByPartyIndex'
+  ),
+});
 export const replayOperationRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA]: Object.freeze({ timing: 'beforeCommit' }),
   [REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD]: Object.freeze({ timing: 'beforeCommit' }),
   [REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD]: Object.freeze({ timing: 'afterCommitReservation' }),
 });
-export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry();
+export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT]: createReplayOverrideEntryDefinition('enemyCount'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ACTION]: createReplayOverrideEntryDefinition('enemyAction'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_NAMES]: createReplayOverrideEntryDefinition('enemyNames'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DAMAGE_RATES]: createReplayOverrideEntryDefinition('enemyDamageRates'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATES]:
+    createReplayOverrideEntryDefinition('enemyDestructionRates'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATE_CAPS]:
+    createReplayOverrideEntryDefinition('enemyDestructionRateCaps'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES]: createReplayOverrideEntryDefinition('enemyBreakStates'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES]: createReplayOverrideEntryDefinition('enemyStatuses'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX]:
+    createReplayOverrideEntryDefinition('dpStateByPartyIndex'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX]:
+    createReplayOverrideEntryDefinition('tokenStateByPartyIndex'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.MORALE_STATE_BY_PARTY_INDEX]:
+    createReplayOverrideEntryDefinition('moraleStateByPartyIndex'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.MOTIVATION_STATE_BY_PARTY_INDEX]:
+    createReplayOverrideEntryDefinition('motivationStateByPartyIndex'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.MARK_STATE_BY_PARTY_INDEX]:
+    createReplayOverrideEntryDefinition('markStateByPartyIndex'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.STATUS_EFFECTS_BY_PARTY_INDEX]:
+    createReplayOverrideEntryDefinition('statusEffectsByPartyIndex'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ZONE_STATE]: createReplayOverrideEntryDefinition('zoneState'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.TERRITORY_STATE]: createReplayOverrideEntryDefinition('territoryState'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ATTACK_TARGET_CHARACTER_IDS]:
+    createReplayOverrideEntryDefinition('enemyAttackTargetCharacterIds'),
+});
+
+function collectLegacyReplaySetupEntries(setup = {}, explicitTypes = new Set()) {
+  const source = isPlainObject(setup) ? setup : {};
+  const entries = [];
+  for (const type of replaySetupEntryRegistry.listTypes()) {
+    if (explicitTypes.has(type)) {
+      continue;
+    }
+    const definition = replaySetupEntryRegistry.get(type);
+    const legacyField = String(definition?.legacyField ?? '').trim();
+    if (!legacyField || !(legacyField in source)) {
+      continue;
+    }
+    const payload = cloneReplayPayload(source[legacyField]);
+    if (isEmptyReplayPayload(payload)) {
+      continue;
+    }
+    entries.push({ type, payload });
+  }
+  return entries;
+}
+
+export function getReplaySetupEntries(setup = {}) {
+  const source = isPlainObject(setup) ? setup : {};
+  const explicitEntries = replaySetupEntryRegistry.normalizeEntries(source.setupEntries);
+  const explicitTypes = new Set(explicitEntries.map((entry) => String(entry.type ?? '')));
+  return [...collectLegacyReplaySetupEntries(source, explicitTypes), ...explicitEntries];
+}
+
+function mergeReplaySetupEntries(preferredSetup = {}, fallbackSetup = {}) {
+  const preferredEntries = getReplaySetupEntries(preferredSetup);
+  const preferredTypes = new Set(preferredEntries.map((entry) => String(entry.type ?? '')));
+  const fallbackEntries = getReplaySetupEntries(fallbackSetup).filter(
+    (entry) => !preferredTypes.has(String(entry.type ?? ''))
+  );
+  return [...fallbackEntries, ...preferredEntries];
+}
+
+export function applyReplaySetupEntriesToInitializeOptions(setup = {}, initializeOptions = {}, warnings = []) {
+  for (const entry of getReplaySetupEntries(setup)) {
+    const type = String(entry?.type ?? '').trim();
+    if (!type) {
+      continue;
+    }
+    const definition = replaySetupEntryRegistry.get(type);
+    if (typeof definition?.applyToInitializeOptions !== 'function') {
+      warnings.push(`setup entry ignored: ${type}`);
+      continue;
+    }
+    definition.applyToInitializeOptions(initializeOptions, entry.payload);
+  }
+  return initializeOptions;
+}
+
+export function applyReplayOverrideEntriesToScenarioTurn(entries = [], scenarioTurn = {}, warnings = []) {
+  for (const entry of replayOverrideEntryRegistry.normalizeEntries(entries)) {
+    const type = String(entry?.type ?? '').trim();
+    if (!type) {
+      continue;
+    }
+    const definition = replayOverrideEntryRegistry.get(type);
+    if (typeof definition?.applyToScenarioTurn !== 'function') {
+      warnings.push(`override entry ignored: ${type}`);
+      continue;
+    }
+    definition.applyToScenarioTurn(scenarioTurn, entry.payload);
+  }
+  return scenarioTurn;
+}
 
 export function normalizeReplayTarget(target) {
   if (target === null || target === undefined || target === '') {
@@ -199,10 +396,7 @@ export function normalizeLightweightReplaySetup(setup = {}) {
     skillSetsByPartyIndex: clonePlainObject(source.skillSetsByPartyIndex),
     limitBreakLevelsByPartyIndex: clonePlainObject(source.limitBreakLevelsByPartyIndex),
     initialOdGauge: Number.isFinite(Number(source.initialOdGauge)) ? Number(source.initialOdGauge) : 0,
-    initialDpStateByPartyIndex: clonePlainObject(source.initialDpStateByPartyIndex),
-    initialBreakByPartyIndex: clonePlainObject(source.initialBreakByPartyIndex),
-    initialMotivationByPartyIndex: clonePlainObject(source.initialMotivationByPartyIndex),
-    setupEntries: replaySetupEntryRegistry.normalizeEntries(source.setupEntries),
+    setupEntries: mergeReplaySetupEntries(source),
   };
 }
 
@@ -235,11 +429,7 @@ export function createLightweightReplaySetupFromBaseSetup(baseSetup = {}, existi
     skillSetsByPartyIndex: base.skillSetsByPartyIndex ?? existing.skillSetsByPartyIndex,
     limitBreakLevelsByPartyIndex: base.limitBreakLevelsByPartyIndex ?? existing.limitBreakLevelsByPartyIndex,
     initialOdGauge: base.initialOdGauge ?? existing.initialOdGauge,
-    initialDpStateByPartyIndex: base.initialDpStateByPartyIndex ?? existing.initialDpStateByPartyIndex,
-    initialBreakByPartyIndex: base.initialBreakByPartyIndex ?? existing.initialBreakByPartyIndex,
-    initialMotivationByPartyIndex:
-      base.initialMotivationByPartyIndex ?? existing.initialMotivationByPartyIndex,
-    setupEntries: base.setupEntries ?? existing.setupEntries,
+    setupEntries: mergeReplaySetupEntries(existing, base),
   });
 }
 

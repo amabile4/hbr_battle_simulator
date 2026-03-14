@@ -13,7 +13,11 @@ import {
 } from '../domain/skill-classifiers.js';
 import { BattleAdapterFacade } from './battle-adapter-facade.js';
 import {
+  applyReplaySetupEntriesToInitializeOptions,
+  applyReplayOverrideEntriesToScenarioTurn,
+  createLightweightReplayScriptFromBaseSetup,
   REPLAY_OPERATION_TYPES,
+  REPLAY_OVERRIDE_ENTRY_TYPES,
   REPLAY_TARGET_TYPES,
   normalizeLightweightReplayTurn,
 } from './lightweight-replay-script.js';
@@ -52,6 +56,22 @@ function toOptionalNumber(value) {
   }
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
+}
+
+function hasReplayMigrationPayload(payload) {
+  if (payload === null || payload === undefined) {
+    return false;
+  }
+  if (typeof payload === 'string') {
+    return payload.trim().length > 0;
+  }
+  if (Array.isArray(payload)) {
+    return payload.length > 0;
+  }
+  if (payload && typeof payload === 'object') {
+    return Object.keys(payload).length > 0;
+  }
+  return true;
 }
 
 function normalizeName(name) {
@@ -6922,7 +6942,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   hasReplayScriptEditorSource() {
-    return Array.isArray(this.replayScript?.turns) && this.replayScript.turns.length > 0;
+    this.ensureReplayScriptBridgeFromTurnPlans();
+    return this.hasReplayScriptTurns();
   }
 
   getEditableTurnSourceKind() {
@@ -7332,6 +7353,254 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     };
   }
 
+  buildReplayTargetFromLegacyTurnPlanAction(action = {}, styleIdByCharacterId = new Map()) {
+    if (Number.isFinite(Number(action?.targetEnemyIndex))) {
+      return {
+        type: REPLAY_TARGET_TYPES.ENEMY,
+        enemyIndex: Math.max(0, toInt(action.targetEnemyIndex, 0)),
+      };
+    }
+    const targetCharacterId = String(action?.targetCharacterId ?? '').trim();
+    if (!targetCharacterId) {
+      return { type: REPLAY_TARGET_TYPES.NONE };
+    }
+    const targetStyleId = toOptionalNumber(styleIdByCharacterId.get(targetCharacterId));
+    if (Number.isFinite(targetStyleId)) {
+      return {
+        type: REPLAY_TARGET_TYPES.ALLY,
+        styleId: targetStyleId,
+      };
+    }
+    return {
+      type: REPLAY_TARGET_TYPES.ALLY,
+      characterId: targetCharacterId,
+    };
+  }
+
+  buildLegacyReplayPartyIdentityMaps() {
+    const members = Array.isArray(this.state?.initialParty)
+      ? this.state.initialParty
+      : Array.isArray(this.party?.members)
+        ? this.party.members
+        : Array.isArray(this.state?.party)
+          ? this.state.party
+          : [];
+    const styleIdByCharacterId = new Map();
+    for (const member of members) {
+      const characterId = String(member?.characterId ?? '').trim();
+      const styleId = toOptionalNumber(member?.styleId);
+      if (!characterId || !Number.isFinite(styleId)) {
+        continue;
+      }
+      styleIdByCharacterId.set(characterId, styleId);
+    }
+    return { styleIdByCharacterId };
+  }
+
+  resolveLegacyReplayPositionByStyleId(styleId, currentStyleIds = []) {
+    const numericStyleId = toOptionalNumber(styleId);
+    if (!Number.isFinite(numericStyleId)) {
+      return -1;
+    }
+    return currentStyleIds.findIndex((value) => Number(value) === numericStyleId);
+  }
+
+  resolveLegacyTurnPlanActionPosition(action = {}, currentStyleIds = [], styleIdByCharacterId = new Map()) {
+    if (Number.isFinite(Number(action?.positionIndex))) {
+      return Math.max(0, Math.min(PARTY_SLOT_COUNT - 1, toInt(action.positionIndex, 0)));
+    }
+    const actorStyleId = toOptionalNumber(styleIdByCharacterId.get(String(action?.characterId ?? '').trim()));
+    return this.resolveLegacyReplayPositionByStyleId(actorStyleId, currentStyleIds);
+  }
+
+  resolveLegacyTurnPlanSwapPosition(swap = {}, endpoint = 'from', currentStyleIds = [], styleIdByCharacterId = new Map()) {
+    const styleKey = endpoint === 'to' ? 'toStyleId' : 'fromStyleId';
+    const characterKey = endpoint === 'to' ? 'toCharacterId' : 'fromCharacterId';
+    const styleId = toOptionalNumber(swap?.[styleKey]);
+    const directPosition = this.resolveLegacyReplayPositionByStyleId(styleId, currentStyleIds);
+    if (directPosition >= 0) {
+      return directPosition;
+    }
+    const characterId = String(swap?.[characterKey] ?? '').trim();
+    if (!characterId) {
+      return -1;
+    }
+    const mappedStyleId = toOptionalNumber(styleIdByCharacterId.get(characterId));
+    return this.resolveLegacyReplayPositionByStyleId(mappedStyleId, currentStyleIds);
+  }
+
+  buildReplayTurnOperationsFromLegacyTurnPlan(plan = {}) {
+    const normalized = this.normalizeTurnPlan(plan);
+    const operations = [];
+    if (normalized.kishinka) {
+      operations.push({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA });
+    }
+    if (normalized.preemptiveOdLevel !== null) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
+        payload: { level: Number(normalized.preemptiveOdLevel) },
+      });
+    }
+    if (normalized.interruptOdLevel !== null) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
+        payload: { level: Number(normalized.interruptOdLevel) },
+      });
+    }
+    return operations;
+  }
+
+  buildReplayTurnOverrideEntriesFromTurnPlan(plan = {}) {
+    const normalized = this.normalizeTurnPlan(plan);
+    const overrideEntries = [];
+    const push = (type, payload) => {
+      if (!hasReplayMigrationPayload(payload)) {
+        return;
+      }
+      overrideEntries.push({
+        type,
+        payload: structuredClone(payload),
+      });
+    };
+
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, normalized.enemyCount);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ACTION, normalized.enemyAction);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_NAMES, normalized.setupDelta.enemyNames);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DAMAGE_RATES, normalized.setupDelta.enemyDamageRates);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATES, normalized.setupDelta.enemyDestructionRates);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATE_CAPS, normalized.setupDelta.enemyDestructionRateCaps);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES, normalized.setupDelta.enemyBreakStates);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES, normalized.setupDelta.enemyStatuses);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX, normalized.setupDelta.dpStateByPartyIndex);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX, normalized.setupDelta.tokenStateByPartyIndex);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.MORALE_STATE_BY_PARTY_INDEX, normalized.setupDelta.moraleStateByPartyIndex);
+    push(
+      REPLAY_OVERRIDE_ENTRY_TYPES.MOTIVATION_STATE_BY_PARTY_INDEX,
+      normalized.setupDelta.motivationStateByPartyIndex
+    );
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.MARK_STATE_BY_PARTY_INDEX, normalized.setupDelta.markStateByPartyIndex);
+    push(
+      REPLAY_OVERRIDE_ENTRY_TYPES.STATUS_EFFECTS_BY_PARTY_INDEX,
+      normalized.setupDelta.statusEffectsByPartyIndex
+    );
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.ZONE_STATE, normalized.setupDelta.zoneState);
+    push(REPLAY_OVERRIDE_ENTRY_TYPES.TERRITORY_STATE, normalized.setupDelta.territoryState);
+    push(
+      REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ATTACK_TARGET_CHARACTER_IDS,
+      normalized.enemyAttackTargetCharacterIds
+    );
+
+    return overrideEntries;
+  }
+
+  migrateLegacyTurnPlanToReplayTurn(plan = {}, currentStyleIds = [], identityMaps = {}, turnNumber = 1, warnings = []) {
+    const normalized = this.normalizeTurnPlan(plan);
+    const styleIdByCharacterId =
+      identityMaps.styleIdByCharacterId instanceof Map ? identityMaps.styleIdByCharacterId : new Map();
+    const nextStyleIds = Array.from({ length: PARTY_SLOT_COUNT }, (_, index) => {
+      const styleId = toOptionalNumber(currentStyleIds[index]);
+      return Number.isFinite(styleId) ? styleId : null;
+    });
+
+    for (const swap of normalized.swaps) {
+      const from = this.resolveLegacyTurnPlanSwapPosition(swap, 'from', nextStyleIds, styleIdByCharacterId);
+      const to = this.resolveLegacyTurnPlanSwapPosition(swap, 'to', nextStyleIds, styleIdByCharacterId);
+      if (from < 0 || to < 0 || from === to) {
+        warnings.push('legacy turnPlan swap could not be migrated exactly.');
+        continue;
+      }
+      const temp = nextStyleIds[from];
+      nextStyleIds[from] = nextStyleIds[to];
+      nextStyleIds[to] = temp;
+    }
+
+    const slots = nextStyleIds.map((styleId) => ({
+      styleId,
+      skillId: null,
+    }));
+    const usedPositions = new Set();
+    for (const action of normalized.actions) {
+      const position = this.resolveLegacyTurnPlanActionPosition(action, nextStyleIds, styleIdByCharacterId);
+      if (!Number.isInteger(position) || position < 0 || position >= PARTY_SLOT_COUNT) {
+        warnings.push('legacy turnPlan action position could not be resolved.');
+        continue;
+      }
+      if (usedPositions.has(position)) {
+        warnings.push(`legacy turnPlan action replaced at Pos ${position + 1}.`);
+      }
+      usedPositions.add(position);
+      const slotStyleId =
+        Number.isFinite(toOptionalNumber(nextStyleIds[position]))
+          ? toOptionalNumber(nextStyleIds[position])
+          : toOptionalNumber(styleIdByCharacterId.get(String(action.characterId ?? '').trim()));
+      slots[position] = {
+        styleId: Number.isFinite(slotStyleId) ? slotStyleId : null,
+        skillId: Number(action.skillId),
+        target: this.buildReplayTargetFromLegacyTurnPlanAction(action, styleIdByCharacterId),
+      };
+    }
+
+    return normalizeLightweightReplayTurn({
+      turn: Number(turnNumber),
+      slots,
+      operations: this.buildReplayTurnOperationsFromLegacyTurnPlan(normalized),
+      note: '',
+      overrideEntries: this.buildReplayTurnOverrideEntriesFromTurnPlan(normalized),
+    });
+  }
+
+  migrateLegacyTurnPlansToReplayScript() {
+    const baseSetup =
+      this.turnPlanBaseSetup && typeof this.turnPlanBaseSetup === 'object' ? this.turnPlanBaseSetup : {};
+    const script = createLightweightReplayScriptFromBaseSetup(baseSetup, this.replayScript);
+    script.turns = [];
+    const warningsByTurn = [];
+    if (!Array.isArray(this.turnPlans) || this.turnPlans.length === 0) {
+      return { script, migrated: 0, warningsByTurn };
+    }
+
+    const identityMaps = this.buildLegacyReplayPartyIdentityMaps();
+    const currentStyleIds = Array.from({ length: PARTY_SLOT_COUNT }, (_, index) => {
+      const styleId = toOptionalNumber(baseSetup.styleIds?.[index]);
+      return Number.isFinite(styleId) ? styleId : null;
+    });
+    for (let index = 0; index < this.turnPlans.length; index += 1) {
+      const warnings = [];
+      warningsByTurn[index] = warnings;
+      const replayTurn = this.migrateLegacyTurnPlanToReplayTurn(
+        this.turnPlans[index],
+        currentStyleIds,
+        identityMaps,
+        index + 1,
+        warnings
+      );
+      script.turns.push(replayTurn);
+      for (let position = 0; position < PARTY_SLOT_COUNT; position += 1) {
+        currentStyleIds[position] = replayTurn.slots[position]?.styleId ?? null;
+      }
+    }
+    return { script, migrated: script.turns.length, warningsByTurn };
+  }
+
+  hasReplayScriptTurns() {
+    return Array.isArray(this.replayScript?.turns) && this.replayScript.turns.length > 0;
+  }
+
+  ensureReplayScriptBridgeFromTurnPlans() {
+    if (this.hasReplayScriptTurns()) {
+      return false;
+    }
+    if (!Array.isArray(this.turnPlans) || this.turnPlans.length === 0) {
+      return false;
+    }
+    const migration = this.migrateLegacyTurnPlansToReplayScript();
+    if (!Array.isArray(migration.script?.turns) || migration.script.turns.length === 0) {
+      return false;
+    }
+    this.replayScript = migration.script;
+    return true;
+  }
+
   toScenarioTurnFromTurnPlan(plan) {
     const normalized = this.normalizeTurnPlan(plan);
     const out = {
@@ -7496,47 +7765,45 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       forceToggle.checked = Boolean(fallbackBase.forceOdToggle);
     }
 
-    this.initializeBattle(styleIds, {
-      supportStyleIdsByPartyIndex:
-        setup.supportStyleIdsByPartyIndex ?? fallbackBase.supportStyleIdsByPartyIndex ?? {},
-      supportLimitBreakLevelsByPartyIndex:
-        setup.supportLimitBreakLevelsByPartyIndex ?? fallbackBase.supportLimitBreakLevelsByPartyIndex ?? {},
-      skillSetsByPartyIndex: setup.skillSetsByPartyIndex ?? fallbackBase.skillSetsByPartyIndex,
-      limitBreakLevelsByPartyIndex: setup.limitBreakLevelsByPartyIndex ?? fallbackBase.limitBreakLevelsByPartyIndex,
-      drivePierceByPartyIndex: fallbackBase.drivePierceByPartyIndex,
-      normalAttackElementsByPartyIndex: fallbackBase.normalAttackElementsByPartyIndex,
-      startSpEquipByPartyIndex: fallbackBase.startSpEquipByPartyIndex,
-      initialMotivationByPartyIndex:
-        setup.initialMotivationByPartyIndex ?? fallbackBase.initialMotivationByPartyIndex,
-      initialDpStateByPartyIndex: setup.initialDpStateByPartyIndex ?? fallbackBase.initialDpStateByPartyIndex,
-      initialBreakByPartyIndex: setup.initialBreakByPartyIndex ?? fallbackBase.initialBreakByPartyIndex,
-      tokenStateByPartyIndex: fallbackBase.tokenStateByPartyIndex,
-      moraleStateByPartyIndex: fallbackBase.moraleStateByPartyIndex,
-      motivationStateByPartyIndex: fallbackBase.motivationStateByPartyIndex,
-      markStateByPartyIndex: fallbackBase.markStateByPartyIndex,
-      statusEffectsByPartyIndex: fallbackBase.statusEffectsByPartyIndex,
-      initialOdGauge: Number(setup.initialOdGauge ?? fallbackBase.initialOdGauge ?? 0),
-      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(fallbackBase.enemyNamesByEnemy),
-      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(fallbackBase.damageRatesByEnemy),
-      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(fallbackBase.destructionRateByEnemy),
-      destructionRateCapByEnemy: normalizeEnemyDestructionRateCapByEnemy(fallbackBase.destructionRateCapByEnemy),
-      enemyStatuses: Array.isArray(fallbackBase.enemyStatuses) ? structuredClone(fallbackBase.enemyStatuses) : [],
-      breakStateByEnemy: normalizeEnemyBreakStateByEnemy(fallbackBase.breakStateByEnemy),
-      enemyZoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(fallbackBase.enemyZoneConfigByEnemy),
-      zoneState: normalizeFieldStateForScenario(fallbackBase.zoneState),
-      territoryState: normalizeFieldStateForScenario(fallbackBase.territoryState),
-      skipInitialOdRead: true,
-      preserveTurnPlans: true,
-      suppressAutoSave: true,
-      silent: true,
-    });
-    for (const entry of Array.isArray(setup.setupEntries) ? setup.setupEntries : []) {
-      const type = String(entry?.type ?? '').trim();
-      if (!type) {
-        continue;
-      }
-      warnings.push(`setup entry ignored: ${type}`);
-    }
+    const initializeOptions = applyReplaySetupEntriesToInitializeOptions(
+      setup,
+      {
+        supportStyleIdsByPartyIndex:
+          setup.supportStyleIdsByPartyIndex ?? fallbackBase.supportStyleIdsByPartyIndex ?? {},
+        supportLimitBreakLevelsByPartyIndex:
+          setup.supportLimitBreakLevelsByPartyIndex ?? fallbackBase.supportLimitBreakLevelsByPartyIndex ?? {},
+        skillSetsByPartyIndex: setup.skillSetsByPartyIndex ?? fallbackBase.skillSetsByPartyIndex,
+        limitBreakLevelsByPartyIndex: setup.limitBreakLevelsByPartyIndex ?? fallbackBase.limitBreakLevelsByPartyIndex,
+        drivePierceByPartyIndex: fallbackBase.drivePierceByPartyIndex,
+        normalAttackElementsByPartyIndex: fallbackBase.normalAttackElementsByPartyIndex,
+        startSpEquipByPartyIndex: fallbackBase.startSpEquipByPartyIndex,
+        initialMotivationByPartyIndex: fallbackBase.initialMotivationByPartyIndex,
+        initialDpStateByPartyIndex: fallbackBase.initialDpStateByPartyIndex,
+        initialBreakByPartyIndex: fallbackBase.initialBreakByPartyIndex,
+        tokenStateByPartyIndex: fallbackBase.tokenStateByPartyIndex,
+        moraleStateByPartyIndex: fallbackBase.moraleStateByPartyIndex,
+        motivationStateByPartyIndex: fallbackBase.motivationStateByPartyIndex,
+        markStateByPartyIndex: fallbackBase.markStateByPartyIndex,
+        statusEffectsByPartyIndex: fallbackBase.statusEffectsByPartyIndex,
+        initialOdGauge: Number(setup.initialOdGauge ?? fallbackBase.initialOdGauge ?? 0),
+        enemyNamesByEnemy: normalizeEnemyNamesByEnemy(fallbackBase.enemyNamesByEnemy),
+        damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(fallbackBase.damageRatesByEnemy),
+        destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(fallbackBase.destructionRateByEnemy),
+        destructionRateCapByEnemy: normalizeEnemyDestructionRateCapByEnemy(fallbackBase.destructionRateCapByEnemy),
+        enemyStatuses: Array.isArray(fallbackBase.enemyStatuses) ? structuredClone(fallbackBase.enemyStatuses) : [],
+        breakStateByEnemy: normalizeEnemyBreakStateByEnemy(fallbackBase.breakStateByEnemy),
+        enemyZoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(fallbackBase.enemyZoneConfigByEnemy),
+        zoneState: normalizeFieldStateForScenario(fallbackBase.zoneState),
+        territoryState: normalizeFieldStateForScenario(fallbackBase.territoryState),
+        skipInitialOdRead: true,
+        preserveTurnPlans: true,
+        suppressAutoSave: true,
+        silent: true,
+      },
+      warnings
+    );
+
+    this.initializeBattle(styleIds, initializeOptions);
     if (forceMode) {
       this.enableForceResourceDeficitMode();
     }
@@ -7712,11 +7979,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       }
     }
 
-    for (const entry of normalized.overrideEntries) {
-      const type = String(entry?.type ?? '').trim();
-      if (type) {
-        warn(`override entry ignored: ${type}`);
-      }
+    const overrideWarnings = [];
+    applyReplayOverrideEntriesToScenarioTurn(normalized.overrideEntries, scenarioTurn, overrideWarnings);
+    for (const message of overrideWarnings) {
+      warn(message);
     }
 
     const actions = [];
@@ -7767,6 +8033,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   recalculateReplayScript(options = {}) {
+    this.ensureReplayScriptBridgeFromTurnPlans();
     const mode = String(options.mode ?? 'force') === 'force' ? 'force' : 'strict';
     this.turnPlanRecalcMode = mode;
     if (!Array.isArray(this.replayScript?.turns) || this.replayScript.turns.length === 0) {

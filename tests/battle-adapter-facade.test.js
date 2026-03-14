@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { CharacterStyle, Party } from '../src/index.js';
 import { BattleAdapterFacade } from '../src/ui/battle-adapter-facade.js';
+import { REPLAY_SETUP_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 
 function createStubDataStore() {
   return {
@@ -94,6 +95,10 @@ test('initializeBattleState preserves turn-plan state when preserveTurnPlans is 
   facade.turnPlanReplayError = new Error('stale');
   facade.turnPlanReplayWarnings = ['warn'];
   facade.turnPlanEditSession = { active: true };
+  facade.replayScript.setup.setupEntries = [
+    { type: REPLAY_SETUP_ENTRY_TYPES.INITIAL_BREAK_BY_PARTY_INDEX, payload: { 4: true } },
+    { type: 'FutureSetup', payload: { enabled: true } },
+  ];
   facade.replayScript.turns = [{ turn: 1 }];
 
   facade.initializeBattleState(
@@ -111,6 +116,14 @@ test('initializeBattleState preserves turn-plan state when preserveTurnPlans is 
   assert.equal(facade.turnPlanBaseSetup.forceOdToggle, true);
   assert.deepEqual(facade.replayScript.turns, [{ turn: 1, slots: [{ styleId: null, skillId: null }, { styleId: null, skillId: null }, { styleId: null, skillId: null }, { styleId: null, skillId: null }, { styleId: null, skillId: null }, { styleId: null, skillId: null }], operations: [], note: '', overrideEntries: [] }]);
   assert.deepEqual(facade.replayScript.setup.styleIds, [101, 102, 103, 104, 105, 106]);
+  assert.deepEqual(facade.replayScript.setup.setupEntries.at(-2), {
+    type: REPLAY_SETUP_ENTRY_TYPES.INITIAL_BREAK_BY_PARTY_INDEX,
+    payload: { 4: true },
+  });
+  assert.deepEqual(facade.replayScript.setup.setupEntries.at(-1), {
+    type: 'FutureSetup',
+    payload: { enabled: true },
+  });
 });
 
 test('commitCurrentTurnState captures turn plan and replay turn and clears transient preview state', () => {

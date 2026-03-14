@@ -7,6 +7,10 @@ import {
   Party,
   createBattleStateFromParty,
 } from '../src/index.js';
+import {
+  REPLAY_OVERRIDE_ENTRY_TYPES,
+  REPLAY_SETUP_ENTRY_TYPES,
+} from '../src/ui/lightweight-replay-script.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 import { createRoot } from './dom-adapter-test-utils.js';
 
@@ -713,6 +717,112 @@ test('recalculateReplayScript keeps unknown setup/operation/override as warnings
     true
   );
   assert.equal(Number(adapter.state.turnState.odGauge) < 0, true);
+});
+
+test('reinitializeFromReplayScriptBase applies known setupEntries and warns only for unknown types', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+  adapter.initializeBattle();
+  adapter.replayScript.setup = {
+    ...adapter.replayScript.setup,
+    setupEntries: [
+      {
+        type: REPLAY_SETUP_ENTRY_TYPES.INITIAL_MOTIVATION_BY_PARTY_INDEX,
+        payload: { 0: 5, 1: 4 },
+      },
+      {
+        type: REPLAY_SETUP_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX,
+        payload: { 0: { current: 7, min: 0, max: 10 } },
+      },
+      {
+        type: 'FutureSetup',
+        payload: { enabled: true },
+      },
+    ],
+  };
+
+  const warnings = [];
+  adapter.reinitializeFromReplayScriptBase({ warnings });
+
+  assert.equal(adapter.party.members[0].motivationState.current, 5);
+  assert.equal(adapter.party.members[1].motivationState.current, 4);
+  assert.equal(adapter.party.members[0].tokenState.current, 7);
+  assert.equal(warnings.some((message) => String(message).includes('FutureSetup')), true);
+  assert.equal(
+    warnings.some((message) =>
+      String(message).includes(REPLAY_SETUP_ENTRY_TYPES.INITIAL_MOTIVATION_BY_PARTY_INDEX)
+    ),
+    false
+  );
+  assert.equal(
+    warnings.some((message) =>
+      String(message).includes(REPLAY_SETUP_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX)
+    ),
+    false
+  );
+});
+
+test('turnPlans-only state is auto-migrated to ReplayScript for editing', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.turnPlans[0] = {
+    ...adapter.turnPlans[0],
+    enemyAction: 'Legacy Swipe',
+    tokenStateByPartyIndex: {
+      0: { current: 7, min: 0, max: 10 },
+    },
+  };
+  adapter.replayScript.turns = [];
+
+  const sourceKind = adapter.getEditableTurnSourceKind();
+
+  assert.equal(sourceKind, 'replayScript');
+  assert.equal(adapter.replayScript.turns.length, 1);
+  assert.equal(
+    adapter.replayScript.turns[0].overrideEntries.some(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ACTION && entry.payload === 'Legacy Swipe'
+    ),
+    true
+  );
+  assert.equal(
+    adapter.replayScript.turns[0].overrideEntries.some(
+      (entry) =>
+        entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX &&
+        entry.payload?.['0']?.current === 7
+    ),
+    true
+  );
+});
+
+test('migrated ReplayScript overrideEntries preserve legacy enemyAction and party state on replay', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.turnPlans[0] = {
+    ...adapter.turnPlans[0],
+    enemyAction: 'Legacy Swipe',
+    tokenStateByPartyIndex: {
+      0: { current: 7, min: 0, max: 10 },
+    },
+  };
+  adapter.replayScript.turns = [];
+
+  const replayed = adapter.recalculateReplayScript({ mode: 'force' });
+
+  assert.equal(replayed, 1);
+  assert.equal(adapter.recordStore.records[0]?.enemyAction, 'Legacy Swipe');
+  assert.equal(adapter.state.party[0].tokenState.current, 7);
 });
 
 test('record table and recalc button use ReplayScript even when turnPlans mirror is empty', () => {
