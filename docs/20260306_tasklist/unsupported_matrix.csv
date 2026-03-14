@@ -1,40 +1,20 @@
 category,item_key,occurrences,field_path,condition_expression,unsupported_clause,part_skill_type,target_type,effect_exit_cond,effect_limit_type,note,skill_id,character_name,style_name,skill_name,skill_desc
-enemy_status_unimplemented,DefenseDown,120,skills[11].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001112,茅森 月歌,ナイトクルーズ・エスコート,迅雷風烈,"迅雷の力をその身に纏わせ 敵の防御力を下げ
-雷鳴の如く敵を貫く [対HP+50%]"
-enemy_status_unimplemented,Fragile,29,skills[36].parts[0].strval[0].parts[2],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
-さらに 獄炎の砲撃 [対DP+100%] [スイッチで属性変化]"
-enemy_status_unimplemented,AttackDown,15,skills[92].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001705,國見 タマ,魔法の国のエレメンタル,フレイムテンペスト,"炎の力を宿した刃で敵を斬り刻む
-さらに 攻撃力を下げる"
-enemy_status_unimplemented,StunRandom,9,skills[40].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001302,逢川 めぐみ,Plain or Wild,スタンブレード,"敵を叩きつけて攻撃
+enemy_status_unimplemented,StunRandom,9,skills[40].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001302,逢川 めぐみ,Plain or Wild,スタンブレード,"敵を叩きつけて攻撃
 さらに 確率でスタンさせる"
-enemy_status_unimplemented,Misfortune,8,skills[48].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001310,逢川 めぐみ,トワイライト・グロース,ナイトフォール,"闇を宿した大剣を叩きつけて敵を攻撃
+enemy_status_unimplemented,Misfortune,8,skills[48].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001310,逢川 めぐみ,トワイライト・グロース,ナイトフォール,"闇を宿した大剣を叩きつけて敵を攻撃
 さらに2ターン厄状態にする"
-enemy_status_unimplemented,ResistDown,8,skills[52].parts[0].strval[0].parts[1],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001315,逢川 めぐみ,スペシャルナイト・ガールズジャム,最高潮！アオハルオンステージ,"敵全体の氷属性防御力と氷弱点の敵の氷耐性を下げ(ターン永続)
-氷属性強化フィールド(大)を8ターン展開する"
-enemy_status_unimplemented,ConfusionRandom,7,skills[248].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46003506,神崎 アーデルハイド,ごちゃまぜ忍法大乱闘,滅殺影分身,"忍術で分身を作り出し 全体を斬りつける [破壊率大]
+enemy_status_unimplemented,ConfusionRandom,7,skills[248].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46003506,神崎 アーデルハイド,ごちゃまぜ忍法大乱闘,滅殺影分身,"忍術で分身を作り出し 全体を斬りつける [破壊率大]
 さらに 確率で混乱させる"
-enemy_status_unimplemented,ResistDownOverwrite,6,skills[65].parts[0],,,ResistDownOverwrite,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46001411,東城 つかさ,バニーファイト・デビエーション,今宵、快楽ナイトメア,"前衛の闇属性スタイルの 連撃数(小ダメージ)を3〜5回上げ
-敵全体の闇耐性を消し去り 闇耐性を下げる(ターン永続)"
-enemy_status_unimplemented,ImprisonRandom,5,skills[164].parts[1],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46002503,柊木 梢,戦場の聳動,ミストサイス,"鎌で連撃し
+enemy_status_unimplemented,ImprisonRandom,5,skills[164].parts[1],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46002503,柊木 梢,戦場の聳動,ミストサイス,"鎌で連撃し
 霊能の力で強攻撃を封じる"
-enemy_status_unimplemented,HealDown,3,skills[49].parts[3],,,HealDown,Single,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46001311,逢川 めぐみ,トワイライト・グロース,ヒットチャートからの一閃,"敵の防御力と闇属性防御力を下げ(ターン永続) 闇属性で攻撃
+enemy_status_unimplemented,HealDown,3,skills[49].parts[3],,,HealDown,Single,Eternal,Once,敵状態異常付与の action 反映は未実装,46001311,逢川 めぐみ,トワイライト・グロース,ヒットチャートからの一閃,"敵の防御力と闇属性防御力を下げ(ターン永続) 闇属性で攻撃
 さらに 敵の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,AttackUp,2,skills[240].parts[0].strval[1].parts[2],,,AttackUp,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003432,豊後 弥生,あちきと愉快な仲間たち,想像の翼,"全体に銃弾の雨を降らせ DP防御力を著しく下げる
+enemy_status_unimplemented,AttackUp,2,skills[240].parts[0].strval[1].parts[2],,,AttackUp,All,EnemyTurnEnd,Default,敵状態異常付与の action 反映は未実装,46003432,豊後 弥生,あちきと愉快な仲間たち,想像の翼,"全体に銃弾の雨を降らせ DP防御力を著しく下げる
 運が悪いと敵の攻撃力が2ターン上がる"
-enemy_status_unimplemented,Cover,2,skills[111].parts[1],,,Cover,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46002106,蒼井 えりか,ココロ・Inspire,エンジェルズ・ウィング,"奇跡の盾で 自身を2回ダメージ無効にし 
+enemy_status_unimplemented,Cover,2,skills[111].parts[1],,,Cover,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46002106,蒼井 えりか,ココロ・Inspire,エンジェルズ・ウィング,"奇跡の盾で 自身を2回ダメージ無効にし 
 全体攻撃も含め 敵の攻撃を自身に集中させる"
-enemy_status_unimplemented,Hacking,2,skills[36].parts[0].strval[0].parts[1],,,Hacking,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
+enemy_status_unimplemented,Hacking,2,skills[36].parts[0].strval[0].parts[1],,,Hacking,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
 さらに 獄炎の砲撃 [対DP+100%] [スイッチで属性変化]"
-enemy_status_unimplemented,DefenseUp,1,skills[236].parts[0].strval[1].parts[2],,,DefenseUp,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003414,豊後 弥生,お花見怪人クシダンゴ,ー◯◯◯,"狙いを定めて 銃弾を放ちつつ SPを10回復
+enemy_status_unimplemented,DefenseDown,1,skills[667].parts[0],,,DefenseDown,All,PlayerTurnEnd,None,敵状態異常付与の passive timing 反映は未実装,46401101,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,怪物球威,行動開始時 前衛にいると敵の防御力を10%下げる
+enemy_status_unimplemented,DefenseUp,1,skills[236].parts[0].strval[1].parts[2],,,DefenseUp,Single,EnemyTurnEnd,Default,敵状態異常付与の action 反映は未実装,46003414,豊後 弥生,お花見怪人クシダンゴ,ー◯◯◯,"狙いを定めて 銃弾を放ちつつ SPを10回復
 運が悪いと敵の防御力が3ターン上がる"
-enemy_status_unimplemented,SuperBreakDown,1,skills[84].parts[1],,,SuperBreakDown,Single,None,None,敵状態異常付与の適用処理は turn-controller に未実装,46001522,朝倉 可憐,CODE:Virtual Killer,ナイトキルエッジ,"敵に8連撃 [貫通クリティカル] [対DP+50%]【カレン 専用】
-敵をダウンさせる または ダウンターン中の敵に攻撃時 超ダウンにする"
-enemy_status_unimplemented,Talisman,1,skills[671].parts[0],,,Talisman,All,Eternal,None,敵状態異常付与の適用処理は turn-controller に未実装,46401601,國見 タマ,ようこそ♪ナイトメア・パレード,貼ったりましょう！,バトル開始時 敵に霊符状態(ターン永続/解除不可)を付与する
-overwrite_cond_unresolved,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,1,skills[85].overwrite_cond,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,,,,,overwrite_cond に未対応 clause が残っている,46001523,朝倉 可憐,CODE:Virtual Killer,シンメトリー・リベレーション,"敵に10連撃 [破壊率超特大] [貫通クリティカル] 【朝倉可憐 専用】
-さらに 超ダウン中の敵がいるとき 消費SP0 かつ [破壊率絶大]"
-overwrite_cond_unresolved,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,1,skills[308].overwrite_cond,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,,,,,overwrite_cond に未対応 clause が残っている,46004307,桐生 美也,豊楽ノ神秘,御稲荷神話,"2ターンの間敵の防御力を下げ 脆弱状態にし 稲妻で強襲する
-脆弱状態の敵がいるとき 消費SPが半減"
-overwrite_cond_unresolved,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,1,skills[221].overwrite_cond,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,,,,,overwrite_cond に未対応 clause が残っている,46003307,天音 巫呼,山脇様の手下：マジカルにゃん,にゃんこ大魔法,"敵の氷属性防御力を2ターン下げ 知性依存の氷の閃光を放つ
-防御力ダウン状態の敵がいるとき 消費SPが半減"
-state_condition_unimplemented,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,1,skills[85].parts[0].cond,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,,,,,,46001523,朝倉 可憐,CODE:Virtual Killer,シンメトリー・リベレーション,"敵に10連撃 [破壊率超特大] [貫通クリティカル] 【朝倉可憐 専用】
-さらに 超ダウン中の敵がいるとき 消費SP0 かつ [破壊率絶大]"

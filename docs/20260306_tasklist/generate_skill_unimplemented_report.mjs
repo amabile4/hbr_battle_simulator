@@ -1,6 +1,9 @@
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { listUnsupportedConditionClausesByRuntimeSupport } from '../../src/turn/turn-controller.js';
+import {
+  classifyEnemyStatusPartRuntimeSupport,
+  listUnsupportedConditionClausesByRuntimeSupport,
+} from '../../src/turn/turn-controller.js';
 
 const OUTPUT_DIR = resolve('docs/20260306_tasklist');
 const SKILLS_PATH = resolve('json/skills.json');
@@ -27,10 +30,6 @@ const IGNORED_TOP_LEVEL_EFFECT_LABELS = new Set([
   'ThunderBuff_Up',
   'TokenUp',
 ]);
-
-const ENEMY_STATUS_SKILL_TYPE_KEYWORDS =
-  /(Down|Fragile|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
-const ENEMY_TARGET_TYPES = new Set(['Single', 'All', 'EnemySingle', 'EnemyAll']);
 
 function splitTopLevel(expression, separator) {
   const text = String(expression ?? '');
@@ -218,20 +217,6 @@ function addOccurrencesFromConditionField(rows, baseMeta, fieldPath, expression)
   }
 }
 
-function isEnemyStatusCandidatePart(part) {
-  const targetType = String(part?.target_type ?? '').trim();
-  if (!ENEMY_TARGET_TYPES.has(targetType)) {
-    return false;
-  }
-
-  const skillType = String(part?.skill_type ?? '').trim();
-  const exitCond = String(part?.effect?.exitCond ?? '').trim();
-  const limitType = String(part?.effect?.limitType ?? '').trim();
-  const hasTimedEffect = (exitCond && exitCond !== 'None') || (limitType && limitType !== 'None');
-  const hasStatusKeyword = ENEMY_STATUS_SKILL_TYPE_KEYWORDS.test(skillType);
-  return hasTimedEffect || hasStatusKeyword;
-}
-
 function shouldReportTopLevelEffect(effectLabel) {
   const normalized = String(effectLabel ?? '').trim();
   if (!normalized) {
@@ -314,7 +299,10 @@ function collectSkillLikeFields(rows, topSkill, skillLike, fieldPath) {
       }
     }
 
-    if (isEnemyStatusCandidatePart(part)) {
+    const enemyStatusSupport = classifyEnemyStatusPartRuntimeSupport(part, {
+      isPassiveSource: Boolean(skillLike?.passive),
+    });
+    if (enemyStatusSupport.isEnemyStatusCandidate && !enemyStatusSupport.supported) {
       rows.push(
         buildOccurrenceRow(baseMeta, {
           category: ENEMY_STATUS_CATEGORY,
@@ -324,7 +312,10 @@ function collectSkillLikeFields(rows, topSkill, skillLike, fieldPath) {
           target_type: String(part?.target_type ?? ''),
           effect_exit_cond: String(part?.effect?.exitCond ?? ''),
           effect_limit_type: String(part?.effect?.limitType ?? ''),
-          note: '敵状態異常付与の適用処理は turn-controller に未実装',
+          note:
+            enemyStatusSupport.sourceKind === 'passive'
+              ? '敵状態異常付与の passive timing 反映は未実装'
+              : '敵状態異常付与の action 反映は未実装',
         })
       );
     }
@@ -420,7 +411,7 @@ function buildSummaryMarkdown(catalogRows, occurrenceRows) {
   lines.push(
     `- top-level \`effect\` は、metadata-only / active-buff吸収済み label (${IGNORED_TOP_LEVEL_EFFECT_LABELS.size}種) を除外し、追加 runtime 接続が必要な label のみ \`effect_unresolved\` に残す。`
   );
-  lines.push('- 敵状態異常は `skills.json` 上の候補パーツを抽出し、`turn-controller` に適用ロジックが無いものを未実装として列挙。');
+  lines.push('- 敵状態異常は runtime helper で supported / unsupported を判定し、未接続の part のみ `enemy_status_unimplemented` に残す。');
   lines.push('');
 
   return lines.join('\n');

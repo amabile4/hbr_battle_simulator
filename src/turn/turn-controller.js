@@ -48,9 +48,17 @@ const ENEMY_STATUS_SUPER_DOWN = 'SuperDown';
 const ENEMY_STATUS_DEAD = 'Dead';
 const ENEMY_STATUS_PROVOKE = 'Provoke';
 const ENEMY_STATUS_ATTENTION = 'Attention';
+const ENEMY_SPECIAL_STATUS_TYPE_DEFENSE_DOWN = 3;
+const ENEMY_SPECIAL_STATUS_TYPE_PROVOKE = 12;
+const ENEMY_SPECIAL_STATUS_TYPE_FRAGILE = 22;
+const ENEMY_SPECIAL_STATUS_TYPE_ATTENTION = 57;
+const ENEMY_SPECIAL_STATUS_TYPE_SUPER_DOWN = 172;
 const ENEMY_SPECIAL_STATUS_TYPE_TO_NAME = Object.freeze({
-  12: ENEMY_STATUS_PROVOKE,
-  57: ENEMY_STATUS_ATTENTION,
+  [ENEMY_SPECIAL_STATUS_TYPE_DEFENSE_DOWN]: 'DefenseDown',
+  [ENEMY_SPECIAL_STATUS_TYPE_PROVOKE]: ENEMY_STATUS_PROVOKE,
+  [ENEMY_SPECIAL_STATUS_TYPE_FRAGILE]: 'Fragile',
+  [ENEMY_SPECIAL_STATUS_TYPE_ATTENTION]: ENEMY_STATUS_ATTENTION,
+  [ENEMY_SPECIAL_STATUS_TYPE_SUPER_DOWN]: ENEMY_STATUS_SUPER_DOWN,
 });
 const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
   new Set([
@@ -66,6 +74,13 @@ const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
 const ENEMY_STATUS_POWER_DURATION_SKILL_TYPES = Object.freeze(
   new Set([ENEMY_STATUS_PROVOKE, ENEMY_STATUS_ATTENTION])
 );
+const SUPPORTED_ACTION_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(
+  new Set([...ENEMY_STATUS_SKILL_TYPES, 'SuperBreak', 'SuperBreakDown'])
+);
+const SUPPORTED_PASSIVE_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(new Set(['Talisman']));
+const ENEMY_STATUS_REPORT_TARGET_TYPES = Object.freeze(new Set(['Single', 'All', 'EnemySingle', 'EnemyAll']));
+const ENEMY_STATUS_REPORT_KEYWORD_RE =
+  /(Down|Fragile|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
 const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
   AttackUp: 'AttackUp',
   AttackUpIncludeNormal: 'AttackUp',
@@ -553,6 +568,44 @@ export function listUnsupportedConditionClausesByRuntimeSupport(expression) {
     }
   }
   return [...unsupported];
+}
+
+export function classifyEnemyStatusPartRuntimeSupport(part, options = {}) {
+  const skillType = String(part?.skill_type ?? '').trim();
+  const targetType = String(part?.target_type ?? '').trim();
+  const exitCond = String(part?.effect?.exitCond ?? '').trim();
+  const limitType = String(part?.effect?.limitType ?? '').trim();
+  const isPassiveSource = options?.isPassiveSource === true;
+  const hasTimedEffect = (exitCond && exitCond !== 'None') || (limitType && limitType !== 'None');
+  const hasStatusKeyword =
+    ENEMY_STATUS_REPORT_KEYWORD_RE.test(skillType) || skillType === 'SuperBreak' || skillType === 'SuperBreakDown';
+  const isEnemyStatusCandidate =
+    Boolean(skillType) && ENEMY_STATUS_REPORT_TARGET_TYPES.has(targetType) && (hasTimedEffect || hasStatusKeyword);
+  if (!isEnemyStatusCandidate) {
+    return {
+      isEnemyStatusCandidate: false,
+      supported: false,
+      skillType,
+      targetType,
+      exitCond,
+      limitType,
+      sourceKind: isPassiveSource ? 'passive' : 'action',
+    };
+  }
+
+  const supported = isPassiveSource
+    ? SUPPORTED_PASSIVE_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT.has(skillType)
+    : SUPPORTED_ACTION_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT.has(skillType);
+
+  return {
+    isEnemyStatusCandidate: true,
+    supported,
+    skillType,
+    targetType,
+    exitCond,
+    limitType,
+    sourceKind: isPassiveSource ? 'passive' : 'action',
+  };
 }
 
 function clampOdGauge(value) {

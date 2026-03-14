@@ -1874,7 +1874,7 @@ test('skill-level overwrite_cond falls back to base cost when the condition rema
               label: 'UnknownEnemyCond',
               sp_cost: 14,
               overwrite: 0,
-              overwrite_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(172)>0)>0',
+              overwrite_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(999)>0)>0',
               target_type: 'Single',
               parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
             },
@@ -1954,6 +1954,56 @@ test('御祈祷オーバーヒート resolves SpecialStatusCountByType(146) in o
   preview = previewActorSkill(state, skillId);
   assert.equal(preview.actions[0].spCost, 16);
   assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 18);
+});
+
+test('にゃんこ大魔法 halves SP cost when enemy DefenseDown is active in real data', () => {
+  const store = getStore();
+  const skillId = 46003307;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  let preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 14);
+
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [{ statusType: 'DefenseDown', targetIndex: 0, remainingTurns: 2 }],
+  };
+  preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 7);
+});
+
+test('御稲荷神話 halves SP cost when enemy Fragile is active in real data', () => {
+  const store = getStore();
+  const skillId = 46004307;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  let preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 14);
+
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [{ statusType: 'Fragile', targetIndex: 0, remainingTurns: 2 }],
+  };
+  preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 7);
+});
+
+test('シンメトリー・リベレーション resolves SuperDown enemy condition in overwrite_cond and SkillCondition', () => {
+  const store = getStore();
+  const skillId = 46001523;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  let preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 16);
+  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 30);
+
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [{ statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 }],
+  };
+  preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 0);
+  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 37.5);
 });
 
 test('HasSkill() condition can resolve triggered skill labels at preview time', () => {

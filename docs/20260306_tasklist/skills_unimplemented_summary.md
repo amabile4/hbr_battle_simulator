@@ -10,9 +10,9 @@
 
 | category | unique_keys | occurrences |
 |---|---:|---:|
-| state_condition_unimplemented | 1 | 1 |
-| enemy_status_unimplemented | 16 | 219 |
-| overwrite_cond_unresolved | 3 | 3 |
+| state_condition_unimplemented | 0 | 0 |
+| enemy_status_unimplemented | 10 | 40 |
+| overwrite_cond_unresolved | 0 | 0 |
 | effect_unresolved | 0 | 0 |
 
 ## 条件式パーサーで実装済みの主な条件
@@ -29,4 +29,4 @@
 
 - `overwrite_cond` は、expression 全体ではなく未対応 clause のみを集計する。
 - top-level `effect` は、metadata-only / active-buff吸収済み label (16種) を除外し、追加 runtime 接続が必要な label のみ `effect_unresolved` に残す。
-- 敵状態異常は `skills.json` 上の候補パーツを抽出し、`turn-controller` に適用ロジックが無いものを未実装として列挙。
+- 敵状態異常は runtime helper で supported / unsupported を判定し、未接続の part のみ `enemy_status_unimplemented` に残す。

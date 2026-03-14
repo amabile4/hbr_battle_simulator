@@ -1,445 +1,80 @@
 category,item_key,field_path,condition_expression,unsupported_clause,part_skill_type,target_type,effect_exit_cond,effect_limit_type,note,skill_id,character_name,style_name,skill_name,skill_desc
-enemy_status_unimplemented,DefenseDown,skills[11].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001112,茅森 月歌,ナイトクルーズ・エスコート,迅雷風烈,"迅雷の力をその身に纏わせ 敵の防御力を下げ
-雷鳴の如く敵を貫く [対HP+50%]"
-enemy_status_unimplemented,DefenseDown,skills[12].parts[0].strval[0].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001113,茅森 月歌,The Feel of the Throne,黒曜のオーバーロード,"敵の闇属性防御力を下げ 暗黒の太陽で10連撃 [対HP+100%]
-さらに 敵の弱点をついたとき 威力上昇 [スイッチで属性変化]"
-enemy_status_unimplemented,DefenseDown,skills[12].parts[0].strval[1].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001113,茅森 月歌,The Feel of the Throne,黒曜のオーバーロード,"敵の闇属性防御力を下げ 暗黒の太陽で10連撃 [対HP+100%]
-さらに 敵の弱点をついたとき 威力上昇 [スイッチで属性変化]"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[0].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[0].parts[3],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[0].parts[4],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[0].parts[5],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[1].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[1].parts[3],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[1].parts[4],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[1].parts[5],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[2].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[2].parts[3],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[16].parts[0].strval[3].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001121,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,燃やせ青春！マリンボール！,"3ターンの間 自身のスキル攻撃力を著しく上げ[単独発動]
-敵に光属性攻撃[対HP+50%] 自身のやる気に応じて スキル性能が上昇"
-enemy_status_unimplemented,Hacking,skills[36].parts[0].strval[0].parts[1],,,Hacking,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
+enemy_status_unimplemented,Hacking,skills[36].parts[0].strval[0].parts[1],,,Hacking,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
 さらに 獄炎の砲撃 [対DP+100%] [スイッチで属性変化]"
-enemy_status_unimplemented,Fragile,skills[36].parts[0].strval[0].parts[2],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
+enemy_status_unimplemented,Hacking,skills[36].parts[0].strval[1].parts[1],,,Hacking,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
 さらに 獄炎の砲撃 [対DP+100%] [スイッチで属性変化]"
-enemy_status_unimplemented,Hacking,skills[36].parts[0].strval[1].parts[1],,,Hacking,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
-さらに 獄炎の砲撃 [対DP+100%] [スイッチで属性変化]"
-enemy_status_unimplemented,Fragile,skills[36].parts[0].strval[1].parts[2],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001215,和泉 ユキ,傍らのプリンセス,コードダクネス,"2ターンの間 敵をハッキング状態かつ脆弱状態にし
-さらに 獄炎の砲撃 [対DP+100%] [スイッチで属性変化]"
-enemy_status_unimplemented,StunRandom,skills[40].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001302,逢川 めぐみ,Plain or Wild,スタンブレード,"敵を叩きつけて攻撃
+enemy_status_unimplemented,StunRandom,skills[40].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001302,逢川 めぐみ,Plain or Wild,スタンブレード,"敵を叩きつけて攻撃
 さらに 確率でスタンさせる"
-enemy_status_unimplemented,DefenseDown,skills[41].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001303,逢川 めぐみ,Impact Stream,ハードブレード,"振り上げた力で  敵を強打
-さらに 防御力を下げる"
-enemy_status_unimplemented,Fragile,skills[42].parts[1],,,Fragile,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001304,逢川 めぐみ,一夜の夢,ネイキッドイレイザー,"大剣を大振りして 全体を攻撃
-さらに 脆弱状態にする"
-enemy_status_unimplemented,StunRandom,skills[43].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001305,逢川 めぐみ,Ikki Burst Strike,フルスイング,"大剣を振り回し 全体を薙ぎ払う
+enemy_status_unimplemented,StunRandom,skills[43].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001305,逢川 めぐみ,Ikki Burst Strike,フルスイング,"大剣を振り回し 全体を薙ぎ払う
 さらに 確率でスタンさせる"
-enemy_status_unimplemented,StunRandom,skills[44].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001306,逢川 めぐみ,Ikki Burst Strike,リミット・インパクト,"限界を超えた力で 遥か空中から一撃
+enemy_status_unimplemented,StunRandom,skills[44].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001306,逢川 めぐみ,Ikki Burst Strike,リミット・インパクト,"限界を超えた力で 遥か空中から一撃
 さらに 高確率でスタンさせる"
-enemy_status_unimplemented,StunRandom,skills[45].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001307,逢川 めぐみ,一夜の夢,ブレイブ・ストライク,"セラフの力で光を宿し 敵全体を一刀両断
+enemy_status_unimplemented,StunRandom,skills[45].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001307,逢川 めぐみ,一夜の夢,ブレイブ・ストライク,"セラフの力で光を宿し 敵全体を一刀両断
 さらに 高確率でスタンさせる"
-enemy_status_unimplemented,DefenseDown,skills[47].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001309,逢川 めぐみ,心、躍るFuel,神楽浄火・閃,"烏有の地に炎を宿し 火属性強化フィールド(大)を8ターン展開
-敵の火属性防御力を2ターン下げ 激烈な炎で焼き尽くす"
-enemy_status_unimplemented,Misfortune,skills[48].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001310,逢川 めぐみ,トワイライト・グロース,ナイトフォール,"闇を宿した大剣を叩きつけて敵を攻撃
+enemy_status_unimplemented,Misfortune,skills[48].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001310,逢川 めぐみ,トワイライト・グロース,ナイトフォール,"闇を宿した大剣を叩きつけて敵を攻撃
 さらに2ターン厄状態にする"
-enemy_status_unimplemented,DefenseDown,skills[49].parts[1],,,DefenseDown,Single,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001311,逢川 めぐみ,トワイライト・グロース,ヒットチャートからの一閃,"敵の防御力と闇属性防御力を下げ(ターン永続) 闇属性で攻撃
+enemy_status_unimplemented,HealDown,skills[49].parts[3],,,HealDown,Single,Eternal,Once,敵状態異常付与の action 反映は未実装,46001311,逢川 めぐみ,トワイライト・グロース,ヒットチャートからの一閃,"敵の防御力と闇属性防御力を下げ(ターン永続) 闇属性で攻撃
 さらに 敵の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,DefenseDown,skills[49].parts[2],,,DefenseDown,Single,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001311,逢川 めぐみ,トワイライト・グロース,ヒットチャートからの一閃,"敵の防御力と闇属性防御力を下げ(ターン永続) 闇属性で攻撃
-さらに 敵の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,HealDown,skills[49].parts[3],,,HealDown,Single,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46001311,逢川 めぐみ,トワイライト・グロース,ヒットチャートからの一閃,"敵の防御力と闇属性防御力を下げ(ターン永続) 闇属性で攻撃
-さらに 敵の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,DefenseDown,skills[50].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001312,逢川 めぐみ,ネバーエンド・サマー,潮風ハイボルテージ,"雷属性強化フィールド(大)を8ターン展開し
-敵全体の雷属性防御力を2ターン下げ 渦巻く魚群で雷撃する"
-enemy_status_unimplemented,Fragile,skills[51].parts[1],,,Fragile,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001314,逢川 めぐみ,スペシャルナイト・ガールズジャム,まだまだ行くで！,"大剣の一振りで全体を攻撃 さらに 自身のDPを大きく犠牲にし
-敵全体を脆弱状態にする(ターン永続) ブレイク中は使用不可"
-enemy_status_unimplemented,DefenseDown,skills[52].parts[0].strval[0].parts[0],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001315,逢川 めぐみ,スペシャルナイト・ガールズジャム,最高潮！アオハルオンステージ,"敵全体の氷属性防御力と氷弱点の敵の氷耐性を下げ(ターン永続)
-氷属性強化フィールド(大)を8ターン展開する"
-enemy_status_unimplemented,ResistDown,skills[52].parts[0].strval[0].parts[1],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001315,逢川 めぐみ,スペシャルナイト・ガールズジャム,最高潮！アオハルオンステージ,"敵全体の氷属性防御力と氷弱点の敵の氷耐性を下げ(ターン永続)
-氷属性強化フィールド(大)を8ターン展開する"
-enemy_status_unimplemented,DefenseDown,skills[52].parts[0].strval[1].parts[0],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001315,逢川 めぐみ,スペシャルナイト・ガールズジャム,最高潮！アオハルオンステージ,"敵全体の氷属性防御力と氷弱点の敵の氷耐性を下げ(ターン永続)
-氷属性強化フィールド(大)を8ターン展開する"
-enemy_status_unimplemented,ResistDown,skills[52].parts[0].strval[1].parts[1],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001315,逢川 めぐみ,スペシャルナイト・ガールズジャム,最高潮！アオハルオンステージ,"敵全体の氷属性防御力と氷弱点の敵の氷耐性を下げ(ターン永続)
-氷属性強化フィールド(大)を8ターン展開する"
-enemy_status_unimplemented,StunRandom,skills[53].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46001361,逢川 めぐみ,Ikki Burst Strike,リミット・インパクト+,"敵を脆弱状態にし 遥か空中から一撃を与え 高確率でスタン
+enemy_status_unimplemented,StunRandom,skills[53].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46001361,逢川 めぐみ,Ikki Burst Strike,リミット・インパクト+,"敵を脆弱状態にし 遥か空中から一撃を与え 高確率でスタン
 31Aの隊員が3人以上のとき消費SP半減"
-enemy_status_unimplemented,Fragile,skills[53].parts[2],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001361,逢川 めぐみ,Ikki Burst Strike,リミット・インパクト+,"敵を脆弱状態にし 遥か空中から一撃を与え 高確率でスタン
-31Aの隊員が3人以上のとき消費SP半減"
-enemy_status_unimplemented,DefenseDown,skills[59].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001405,東城 つかさ,真夏のPrayer,シルキーフレア,"敵全体の火属性防御力を下げ
-炎の銃弾で貫く"
-enemy_status_unimplemented,ResistDownOverwrite,skills[65].parts[0],,,ResistDownOverwrite,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46001411,東城 つかさ,バニーファイト・デビエーション,今宵、快楽ナイトメア,"前衛の闇属性スタイルの 連撃数(小ダメージ)を3〜5回上げ
-敵全体の闇耐性を消し去り 闇耐性を下げる(ターン永続)"
-enemy_status_unimplemented,ResistDown,skills[65].parts[2],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001411,東城 つかさ,バニーファイト・デビエーション,今宵、快楽ナイトメア,"前衛の闇属性スタイルの 連撃数(小ダメージ)を3〜5回上げ
-敵全体の闇耐性を消し去り 闇耐性を下げる(ターン永続)"
-enemy_status_unimplemented,DefenseDown,skills[82].parts[0].strval[0].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001513,朝倉 可憐,Twinkle Eclosion,レッドスピネル,"敵全体の火属性防御力を下げ 
-炎の力を宿した鎌で攻撃 [破壊率大] [スイッチで属性変化]"
-enemy_status_unimplemented,DefenseDown,skills[82].parts[0].strval[1].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001513,朝倉 可憐,Twinkle Eclosion,レッドスピネル,"敵全体の火属性防御力を下げ 
-炎の力を宿した鎌で攻撃 [破壊率大] [スイッチで属性変化]"
-enemy_status_unimplemented,SuperBreakDown,skills[84].parts[1],,,SuperBreakDown,Single,None,None,敵状態異常付与の適用処理は turn-controller に未実装,46001522,朝倉 可憐,CODE:Virtual Killer,ナイトキルエッジ,"敵に8連撃 [貫通クリティカル] [対DP+50%]【カレン 専用】
-敵をダウンさせる または ダウンターン中の敵に攻撃時 超ダウンにする"
-overwrite_cond_unresolved,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,skills[85].overwrite_cond,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,,,,,overwrite_cond に未対応 clause が残っている,46001523,朝倉 可憐,CODE:Virtual Killer,シンメトリー・リベレーション,"敵に10連撃 [破壊率超特大] [貫通クリティカル] 【朝倉可憐 専用】
-さらに 超ダウン中の敵がいるとき 消費SP0 かつ [破壊率絶大]"
-state_condition_unimplemented,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,skills[85].parts[0].cond,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0,,,,,,46001523,朝倉 可憐,CODE:Virtual Killer,シンメトリー・リベレーション,"敵に10連撃 [破壊率超特大] [貫通クリティカル] 【朝倉可憐 専用】
-さらに 超ダウン中の敵がいるとき 消費SP0 かつ [破壊率絶大]"
-enemy_status_unimplemented,AttackDown,skills[92].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001705,國見 タマ,魔法の国のエレメンタル,フレイムテンペスト,"炎の力を宿した刃で敵を斬り刻む
-さらに 攻撃力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[103].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001716,國見 タマ,ようこそ♪ナイトメア・パレード,秘技！霊符トルネード,"敵全体の氷属性防御力を下げ 脆弱状態にし 氷属性攻撃
-ダウンターン中の敵がいるとき 消費SP0 かつスキル回数を消費しない"
-enemy_status_unimplemented,Fragile,skills[103].parts[2],,,Fragile,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46001716,國見 タマ,ようこそ♪ナイトメア・パレード,秘技！霊符トルネード,"敵全体の氷属性防御力を下げ 脆弱状態にし 氷属性攻撃
-ダウンターン中の敵がいるとき 消費SP0 かつスキル回数を消費しない"
-enemy_status_unimplemented,Cover,skills[111].parts[1],,,Cover,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46002106,蒼井 えりか,ココロ・Inspire,エンジェルズ・ウィング,"奇跡の盾で 自身を2回ダメージ無効にし 
+enemy_status_unimplemented,Cover,skills[111].parts[1],,,Cover,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46002106,蒼井 えりか,ココロ・Inspire,エンジェルズ・ウィング,"奇跡の盾で 自身を2回ダメージ無効にし 
 全体攻撃も含め 敵の攻撃を自身に集中させる"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[0].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[0].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[1].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[1].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[2].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[2].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[2].parts[4],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[3].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[3].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[3].parts[4],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[4].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[4].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[4].parts[4],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[4].parts[5],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[5].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[5].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[5].parts[4],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[119].parts[0].strval[5].parts[5],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002114,蒼井 えりか,ヒカル・Mermaid Vacation,くぎづけ♡ラブリービーム,"2ターンの間 敵全体の闇属性防御力と防御力を下げ 闇属性攻撃
-さらに 自身の士気レベルが高いほど 効果が追加またはスキル性能が上昇"
-enemy_status_unimplemented,DefenseDown,skills[138].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002304,水瀬 すもも,茹だるアサシン,ランブルシャーク,"渾身の力で 敵を斬り裂く [対HP+30%]
-さらに 防御力を下げる"
-enemy_status_unimplemented,AttackDown,skills[152].parts[0].strval[0].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002405,樋口 聖華,生者のホメオスタシス,トリック・カノン,"雷属性強化フィールドを展開し
-電撃で敵を両断 ランダムで弱体効果 "
-enemy_status_unimplemented,DefenseDown,skills[152].parts[0].strval[1].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002405,樋口 聖華,生者のホメオスタシス,トリック・カノン,"雷属性強化フィールドを展開し
-電撃で敵を両断 ランダムで弱体効果 "
-enemy_status_unimplemented,AttackDown,skills[160].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002461,樋口 聖華,生者のホメオスタシス,トリック・カノン+,"雷属性強化フィールドを展開し
-敵の攻撃力と防御力を下げ 電撃で両断"
-enemy_status_unimplemented,DefenseDown,skills[160].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002461,樋口 聖華,生者のホメオスタシス,トリック・カノン+,"雷属性強化フィールドを展開し
-敵の攻撃力と防御力を下げ 電撃で両断"
-enemy_status_unimplemented,DefenseDown,skills[163].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002502,柊木 梢,在りし日の雑踏,ミストイングレイブ,"鋭利な刃で 敵を斬り刻み
-さらに 雷属性防御力を下げる"
-enemy_status_unimplemented,ImprisonRandom,skills[164].parts[1],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46002503,柊木 梢,戦場の聳動,ミストサイス,"鎌で連撃し
+enemy_status_unimplemented,ImprisonRandom,skills[164].parts[1],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46002503,柊木 梢,戦場の聳動,ミストサイス,"鎌で連撃し
 霊能の力で強攻撃を封じる"
-enemy_status_unimplemented,ImprisonRandom,skills[165].parts[1],,,ImprisonRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46002504,柊木 梢,蒼きノクターン,ミストスラッシュ,"鎌を投げつけ 全体を斬り刻み
+enemy_status_unimplemented,ImprisonRandom,skills[165].parts[1],,,ImprisonRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46002504,柊木 梢,蒼きノクターン,ミストスラッシュ,"鎌を投げつけ 全体を斬り刻み
 霊能の力で強攻撃を封じる"
-enemy_status_unimplemented,Misfortune,skills[167].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46002506,柊木 梢,終劇のナイトフォール,カースサイス,"鎌を振り回して連撃
+enemy_status_unimplemented,Misfortune,skills[167].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46002506,柊木 梢,終劇のナイトフォール,カースサイス,"鎌を振り回して連撃
 さらに 2ターン厄状態にする"
-enemy_status_unimplemented,Fragile,skills[168].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002507,柊木 梢,終劇のナイトフォール,フリージング・スペル,"霊能の力を解放させて 敵を脆弱状態にし
-冷気を纏いし刃で斬り刻む"
-enemy_status_unimplemented,DefenseDown,skills[181].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46002607,ビャッコ,のもけいしさや,破壊の女王,"敵の雷属性防御力を2ターン下げ 雷の砲弾を放つ [破壊率大]
-敵の弱点をついたとき威力が少し上がり かつ [破壊率超特大]"
-enemy_status_unimplemented,AttackDown,skills[209].parts[1],,,AttackDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003208,桜庭 星羅,今日のあなたの運勢は？,シャインテラー,"光の力を宿した回転する盾を全体に叩きつけ
-さらに 攻撃力を下げる"
-enemy_status_unimplemented,Cover,skills[210].parts[1],,,Cover,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46003209,桜庭 星羅,Sanctuary Veil,聖女の守護,"自身にブレイクガード(1回)を付与し
+enemy_status_unimplemented,Cover,skills[210].parts[1],,,Cover,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46003209,桜庭 星羅,Sanctuary Veil,聖女の守護,"自身にブレイクガード(1回)を付与し
 全体攻撃も含め 敵の攻撃を自身に集中させる"
-enemy_status_unimplemented,StunRandom,skills[216].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46003302,天音 巫呼,夢浮橋辿る赤,魔莢,"魔弾の力で 全体を銃撃
+enemy_status_unimplemented,StunRandom,skills[216].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46003302,天音 巫呼,夢浮橋辿る赤,魔莢,"魔弾の力で 全体を銃撃
 さらに 確率でスタンさせる"
-enemy_status_unimplemented,DefenseDown,skills[217].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003303,天音 巫呼,悠久渇望の魔術師,ウィザードショット,"銃で敵を狙撃する
-さらに 防御力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[219].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003305,天音 巫呼,エクスペリメンタルなキミ,デストロイ,"防御力を下げる魔法陣を展開し
-大魔術6連で 全体に知性依存の攻撃"
-overwrite_cond_unresolved,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,skills[221].overwrite_cond,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0,,,,,overwrite_cond に未対応 clause が残っている,46003307,天音 巫呼,山脇様の手下：マジカルにゃん,にゃんこ大魔法,"敵の氷属性防御力を2ターン下げ 知性依存の氷の閃光を放つ
-防御力ダウン状態の敵がいるとき 消費SPが半減"
-enemy_status_unimplemented,DefenseDown,skills[221].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003307,天音 巫呼,山脇様の手下：マジカルにゃん,にゃんこ大魔法,"敵の氷属性防御力を2ターン下げ 知性依存の氷の閃光を放つ
-防御力ダウン状態の敵がいるとき 消費SPが半減"
-enemy_status_unimplemented,DefenseDown,skills[223].parts[0],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003309,天音 巫呼,至高のひととき,ウィッチ・オブ・カーマイン,"無数の魔導書を展開し 2ターンの間敵の光属性防御力を下げ
-脆弱状態にする さらに 自身に追加ターン"
-enemy_status_unimplemented,Fragile,skills[223].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003309,天音 巫呼,至高のひととき,ウィッチ・オブ・カーマイン,"無数の魔導書を展開し 2ターンの間敵の光属性防御力を下げ
-脆弱状態にする さらに 自身に追加ターン"
-enemy_status_unimplemented,StunRandom,skills[226].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46003318,天音 巫呼,薄闇に結ぶ調合式,夜更けの秘薬,"敵単体に銃攻撃
+enemy_status_unimplemented,StunRandom,skills[226].parts[1],,,StunRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46003318,天音 巫呼,薄闇に結ぶ調合式,夜更けの秘薬,"敵単体に銃攻撃
 さらに 高確率でスタンさせる"
-enemy_status_unimplemented,DefenseDown,skills[227].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003361,天音 巫呼,エクスペリメンタルなキミ,デストロイ+,"敵全体の防御力を大きく下げる魔法陣を展開し
-大魔術6連で 知性依存の攻撃 初回使用時 消費SPを半減する"
-enemy_status_unimplemented,DefenseDown,skills[232].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003404,豊後 弥生,夜空のShining Star,ビスコッティ,"全体に銃弾を乱射 [対DP+30%]
-さらに 氷属性防御力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[235].parts[0].strval[0].parts[1],,,DefenseDown,Single,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003411,豊後 弥生,Happy Legion,セイクリッド・クワイア,"防御力を犠牲に 光のエネルギーを放つ [対DP+50%]
-初回使用時 威力が上昇し 敵の防御力を下げる(ターン永続)"
-enemy_status_unimplemented,DefenseUp,skills[236].parts[0].strval[1].parts[2],,,DefenseUp,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003414,豊後 弥生,お花見怪人クシダンゴ,ー◯◯◯,"狙いを定めて 銃弾を放ちつつ SPを10回復
+enemy_status_unimplemented,DefenseUp,skills[236].parts[0].strval[1].parts[2],,,DefenseUp,Single,EnemyTurnEnd,Default,敵状態異常付与の action 反映は未実装,46003414,豊後 弥生,お花見怪人クシダンゴ,ー◯◯◯,"狙いを定めて 銃弾を放ちつつ SPを10回復
 運が悪いと敵の防御力が3ターン上がる"
-enemy_status_unimplemented,DefenseDown,skills[240].parts[0].strval[0].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003432,豊後 弥生,あちきと愉快な仲間たち,想像の翼,"全体に銃弾の雨を降らせ DP防御力を著しく下げる
+enemy_status_unimplemented,AttackUp,skills[240].parts[0].strval[1].parts[2],,,AttackUp,All,EnemyTurnEnd,Default,敵状態異常付与の action 反映は未実装,46003432,豊後 弥生,あちきと愉快な仲間たち,想像の翼,"全体に銃弾の雨を降らせ DP防御力を著しく下げる
 運が悪いと敵の攻撃力が2ターン上がる"
-enemy_status_unimplemented,DefenseDown,skills[240].parts[0].strval[1].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003432,豊後 弥生,あちきと愉快な仲間たち,想像の翼,"全体に銃弾の雨を降らせ DP防御力を著しく下げる
-運が悪いと敵の攻撃力が2ターン上がる"
-enemy_status_unimplemented,AttackUp,skills[240].parts[0].strval[1].parts[2],,,AttackUp,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003432,豊後 弥生,あちきと愉快な仲間たち,想像の翼,"全体に銃弾の雨を降らせ DP防御力を著しく下げる
-運が悪いと敵の攻撃力が2ターン上がる"
-enemy_status_unimplemented,ConfusionRandom,skills[248].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46003506,神崎 アーデルハイド,ごちゃまぜ忍法大乱闘,滅殺影分身,"忍術で分身を作り出し 全体を斬りつける [破壊率大]
+enemy_status_unimplemented,ConfusionRandom,skills[248].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46003506,神崎 アーデルハイド,ごちゃまぜ忍法大乱闘,滅殺影分身,"忍術で分身を作り出し 全体を斬りつける [破壊率大]
 さらに 確率で混乱させる"
-enemy_status_unimplemented,ImprisonRandom,skills[249].parts[1],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46003507,神崎 アーデルハイド,氷花のHexerei,神崎流忍術・氷塵,"敵を凍てつかせて強攻撃を封じ 薙ぎ払う [破壊率大]
+enemy_status_unimplemented,ImprisonRandom,skills[249].parts[1],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46003507,神崎 アーデルハイド,氷花のHexerei,神崎流忍術・氷塵,"敵を凍てつかせて強攻撃を封じ 薙ぎ払う [破壊率大]
 敵の弱点をついたとき 威力上昇かつ [破壊率特大]"
-enemy_status_unimplemented,ConfusionRandom,skills[256].parts[2],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46003561,神崎 アーデルハイド,ごちゃまぜ忍法大乱闘,滅殺影分身+,"自身を影分身状態(2回)にし 全体を斬りつける [破壊率特大]
+enemy_status_unimplemented,ConfusionRandom,skills[256].parts[2],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46003561,神崎 アーデルハイド,ごちゃまぜ忍法大乱闘,滅殺影分身+,"自身を影分身状態(2回)にし 全体を斬りつける [破壊率特大]
 さらに 確率で混乱させる"
-enemy_status_unimplemented,DefenseDown,skills[269].parts[0].strval[0].parts[0],,,DefenseDown,Single,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,Fragile,skills[269].parts[0].strval[0].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,DefenseDown,skills[269].parts[0].strval[1].parts[0],,,DefenseDown,Single,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,Fragile,skills[269].parts[0].strval[1].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,DefenseDown,skills[269].parts[0].strval[1].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,DefenseDown,skills[269].parts[0].strval[2].parts[0],,,DefenseDown,Single,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,Fragile,skills[269].parts[0].strval[2].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,DefenseDown,skills[269].parts[0].strval[2].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,DefenseDown,skills[269].parts[0].strval[3].parts[0],,,DefenseDown,Single,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,Fragile,skills[269].parts[0].strval[3].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,DefenseDown,skills[269].parts[0].strval[3].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46003619,佐月 マリ,魔王に仕えし混沌の謀臣,ドミネーション・グラビティ,"敵の防御力を下げ(ターン永続) 脆弱状態にする
-さらに 使用するたびに効果が追加またはスキル性能が上昇(最大4回)"
-enemy_status_unimplemented,DefenseDown,skills[300].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004216,月城 最中,灼熱！炎のサービスエース,爆裂サーブ,"炎を纏う大剣で全体を攻撃
-さらに 防御力を下げる"
-enemy_status_unimplemented,Fragile,skills[303].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004302,桐生 美也,幽幻閑寂いとらうたし,呪怨の矢,"敵を脆弱状態にしつつ
-狙いを定めた銃口から矢を放つ"
-enemy_status_unimplemented,Fragile,skills[304].parts[1],,,Fragile,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004303,桐生 美也,神祠見舞う儚さかな,薙の矢,"無数の矢を放ち 全体を攻撃
-さらに 脆弱状態にする"
-enemy_status_unimplemented,Misfortune,skills[305].parts[1],,,Misfortune,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46004304,桐生 美也,星林遣らずの雨,神妙,"厄災をもたらす無数の矢で 全体を攻撃
+enemy_status_unimplemented,Misfortune,skills[305].parts[1],,,Misfortune,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46004304,桐生 美也,星林遣らずの雨,神妙,"厄災をもたらす無数の矢で 全体を攻撃
 さらに 2ターン厄状態にする"
-enemy_status_unimplemented,Misfortune,skills[307].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46004306,桐生 美也,豊楽ノ神秘,天変の相,"凶兆の矢で敵を貫き 2ターン厄状態にする
+enemy_status_unimplemented,Misfortune,skills[307].parts[1],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46004306,桐生 美也,豊楽ノ神秘,天変の相,"凶兆の矢で敵を貫き 2ターン厄状態にする
 さらに 自身に追加ターン"
-overwrite_cond_unresolved,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,skills[308].overwrite_cond,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0,,,,,overwrite_cond に未対応 clause が残っている,46004307,桐生 美也,豊楽ノ神秘,御稲荷神話,"2ターンの間敵の防御力を下げ 脆弱状態にし 稲妻で強襲する
-脆弱状態の敵がいるとき 消費SPが半減"
-enemy_status_unimplemented,DefenseDown,skills[308].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004307,桐生 美也,豊楽ノ神秘,御稲荷神話,"2ターンの間敵の防御力を下げ 脆弱状態にし 稲妻で強襲する
-脆弱状態の敵がいるとき 消費SPが半減"
-enemy_status_unimplemented,Fragile,skills[308].parts[2],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004307,桐生 美也,豊楽ノ神秘,御稲荷神話,"2ターンの間敵の防御力を下げ 脆弱状態にし 稲妻で強襲する
-脆弱状態の敵がいるとき 消費SPが半減"
-enemy_status_unimplemented,DefenseDown,skills[310].parts[1],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004309,桐生 美也,たまゆら、一夜の夢火,氷華、千射万箭,"敵全体の防御力と氷属性防御力を下げ(ターン永続) 氷属性で攻撃
+enemy_status_unimplemented,HealDown,skills[310].parts[3],,,HealDown,All,Eternal,Once,敵状態異常付与の action 反映は未実装,46004309,桐生 美也,たまゆら、一夜の夢火,氷華、千射万箭,"敵全体の防御力と氷属性防御力を下げ(ターン永続) 氷属性で攻撃
 さらに 敵全体の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,DefenseDown,skills[310].parts[2],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004309,桐生 美也,たまゆら、一夜の夢火,氷華、千射万箭,"敵全体の防御力と氷属性防御力を下げ(ターン永続) 氷属性で攻撃
-さらに 敵全体の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,HealDown,skills[310].parts[3],,,HealDown,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46004309,桐生 美也,たまゆら、一夜の夢火,氷華、千射万箭,"敵全体の防御力と氷属性防御力を下げ(ターン永続) 氷属性で攻撃
-さらに 敵全体の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,AttackDown,skills[311].parts[1],,,AttackDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004310,桐生 美也,光のどけき春の日に,花の散るらむ,"敵全体に凍てつく矢を放ち
-さらに 攻撃力を下げる"
-enemy_status_unimplemented,AttackDown,skills[313].parts[2],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004361,桐生 美也,星林遣らずの雨,光芒一閃+,"光属性強化フィールドを展開し 敵の防御力を下げる(ターン永続)
-さらに 攻撃力を下げ 知性依存のまばゆい光の矢で 敵を射抜く"
-enemy_status_unimplemented,DefenseDown,skills[313].parts[3],,,DefenseDown,Single,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004361,桐生 美也,星林遣らずの雨,光芒一閃+,"光属性強化フィールドを展開し 敵の防御力を下げる(ターン永続)
-さらに 攻撃力を下げ 知性依存のまばゆい光の矢で 敵を射抜く"
-enemy_status_unimplemented,AttackDown,skills[319].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004405,菅原 千恵,終末ロリータ白書,ディミニッシュ・レイ,"高圧エネルギー弾を放ちつつ
-攻撃力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[333].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004505,小笠原 緋雨,朧月夜のバレット,夜雨,"集中的な銃撃で 敵にダメージ
-さらに 光と闇の属性防御力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[333].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004505,小笠原 緋雨,朧月夜のバレット,夜雨,"集中的な銃撃で 敵にダメージ
-さらに 光と闇の属性防御力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[339].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004513,小笠原 緋雨,夏宵色のガーネット,目覚まし見て氷結,"敵全体に攻撃し 氷属性防御力を下げる
-さらに 追加ターン"
-enemy_status_unimplemented,ResistDownOverwrite,skills[340].parts[1],,,ResistDownOverwrite,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46004514,小笠原 緋雨,夏宵色のガーネット,放課後の淡いスリル,"敵全体の氷耐性を消し去り 氷耐性を下げる(ターン永続)
-防御力を下げ 凍てつく刃を放つ 追加ターン中は消費SPが半減"
-enemy_status_unimplemented,ResistDown,skills[340].parts[2],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004514,小笠原 緋雨,夏宵色のガーネット,放課後の淡いスリル,"敵全体の氷耐性を消し去り 氷耐性を下げる(ターン永続)
-防御力を下げ 凍てつく刃を放つ 追加ターン中は消費SPが半減"
-enemy_status_unimplemented,DefenseDown,skills[340].parts[3],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46004514,小笠原 緋雨,夏宵色のガーネット,放課後の淡いスリル,"敵全体の氷耐性を消し去り 氷耐性を下げる(ターン永続)
-防御力を下げ 凍てつく刃を放つ 追加ターン中は消費SPが半減"
-enemy_status_unimplemented,AttackDown,skills[359].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005105,二階堂 三郷,無上の終局,極点の一手,"天賦の才で新たな一手に到達し 敵を攻撃
-さらに 攻撃力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[364].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005114,二階堂 三郷,Lead by Example,追風,"敵全体の火属性防御力を下げ 火属性攻撃
-オーバードライブ中は消費SPが半減"
-enemy_status_unimplemented,ResistDownOverwrite,skills[365].parts[0].strval[0].parts[1],,,ResistDownOverwrite,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46005117,二階堂 三郷,Lead by Example,国士無双,"敵全体の火耐性を消し去り 火耐性を下げる(ターン永続) 
-防御力を下げ 火属性で攻撃 オーバードライブ中は自身に追加ターン"
-enemy_status_unimplemented,ResistDown,skills[365].parts[0].strval[0].parts[2],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005117,二階堂 三郷,Lead by Example,国士無双,"敵全体の火耐性を消し去り 火耐性を下げる(ターン永続) 
-防御力を下げ 火属性で攻撃 オーバードライブ中は自身に追加ターン"
-enemy_status_unimplemented,DefenseDown,skills[365].parts[0].strval[0].parts[3],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005117,二階堂 三郷,Lead by Example,国士無双,"敵全体の火耐性を消し去り 火耐性を下げる(ターン永続) 
-防御力を下げ 火属性で攻撃 オーバードライブ中は自身に追加ターン"
-enemy_status_unimplemented,ResistDownOverwrite,skills[365].parts[0].strval[1].parts[1],,,ResistDownOverwrite,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46005117,二階堂 三郷,Lead by Example,国士無双,"敵全体の火耐性を消し去り 火耐性を下げる(ターン永続) 
-防御力を下げ 火属性で攻撃 オーバードライブ中は自身に追加ターン"
-enemy_status_unimplemented,ResistDown,skills[365].parts[0].strval[1].parts[2],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005117,二階堂 三郷,Lead by Example,国士無双,"敵全体の火耐性を消し去り 火耐性を下げる(ターン永続) 
-防御力を下げ 火属性で攻撃 オーバードライブ中は自身に追加ターン"
-enemy_status_unimplemented,DefenseDown,skills[365].parts[0].strval[1].parts[3],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005117,二階堂 三郷,Lead by Example,国士無双,"敵全体の火耐性を消し去り 火耐性を下げる(ターン永続) 
-防御力を下げ 火属性で攻撃 オーバードライブ中は自身に追加ターン"
-enemy_status_unimplemented,DefenseDown,skills[381].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005302,命 吹雪,Metal Crazy,レイジングシャウト,"闘気の刃で 全体を斬り刻み
-さらに 防御力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[382].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005303,命 吹雪,終末なにする？,先に逝くなよ,"鋭い斬撃で 敵を斬り裂く
-さらに 闇属性防御力を下げる"
-enemy_status_unimplemented,Fragile,skills[383].parts[0].strval[0].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005304,命 吹雪,終末なにする？,破滅でおやすみ,"茨の斬撃で敵を脆弱状態にし 赤き無数の棘が終焉に誘う
+enemy_status_unimplemented,Misfortune,skills[383].parts[0].strval[0].parts[2],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46005304,命 吹雪,終末なにする？,破滅でおやすみ,"茨の斬撃で敵を脆弱状態にし 赤き無数の棘が終焉に誘う
 オーバードライブ中は威力が上昇し その後2ターンの間 厄状態にする"
-enemy_status_unimplemented,Misfortune,skills[383].parts[0].strval[0].parts[2],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46005304,命 吹雪,終末なにする？,破滅でおやすみ,"茨の斬撃で敵を脆弱状態にし 赤き無数の棘が終焉に誘う
-オーバードライブ中は威力が上昇し その後2ターンの間 厄状態にする"
-enemy_status_unimplemented,Fragile,skills[383].parts[0].strval[1].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005304,命 吹雪,終末なにする？,破滅でおやすみ,"茨の斬撃で敵を脆弱状態にし 赤き無数の棘が終焉に誘う
-オーバードライブ中は威力が上昇し その後2ターンの間 厄状態にする"
-enemy_status_unimplemented,StunRandom,skills[384].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46005307,命 吹雪,Silent Reverberations,R.I.P.,"鋭利な刃で 全体を斬りつける
+enemy_status_unimplemented,StunRandom,skills[384].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46005307,命 吹雪,Silent Reverberations,R.I.P.,"鋭利な刃で 全体を斬りつける
 さらに 確率でスタンさせる"
-enemy_status_unimplemented,DefenseDown,skills[411].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005602,瑞原 あいな,深き海の学び手,ラブカ・ブレード,"大剣を振り回し 全体を薙ぎ払う
-さらに 防御力を下げる"
-enemy_status_unimplemented,Fragile,skills[412].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005603,瑞原 あいな,アビスからの誘い,ディープブロー,"振り上げた力で 敵を強打
-さらに 脆弱状態にする"
-enemy_status_unimplemented,Fragile,skills[413].parts[1],,,Fragile,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005604,瑞原 あいな,ロックアップオルカ,大海原,"渾身の力で大剣を振り 全体を攻撃
-さらに 脆弱状態にする"
-enemy_status_unimplemented,DefenseDown,skills[416].parts[0].strval[0].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005607,瑞原 あいな,ラッシュ！スタブ！ツナ！,豪快！パイレーツキャノン,"敵の数が少ないほど自身の連撃数(小ダメージ)が上昇(最大10回)
-巨大な大砲からの砲撃で 敵全体の防御力を下げ 闇属性5連撃"
-enemy_status_unimplemented,DefenseDown,skills[416].parts[0].strval[1].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005607,瑞原 あいな,ラッシュ！スタブ！ツナ！,豪快！パイレーツキャノン,"敵の数が少ないほど自身の連撃数(小ダメージ)が上昇(最大10回)
-巨大な大砲からの砲撃で 敵全体の防御力を下げ 闇属性5連撃"
-enemy_status_unimplemented,DefenseDown,skills[416].parts[0].strval[2].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005607,瑞原 あいな,ラッシュ！スタブ！ツナ！,豪快！パイレーツキャノン,"敵の数が少ないほど自身の連撃数(小ダメージ)が上昇(最大10回)
-巨大な大砲からの砲撃で 敵全体の防御力を下げ 闇属性5連撃"
-enemy_status_unimplemented,DefenseDown,skills[417].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005614,瑞原 あいな,ラッシュ！スタブ！ツナ！,ヌラルジャ,"敵全体の闇属性防御力を下げ 闇属性攻撃
-オーバードライブ中は消費SPが半減"
-enemy_status_unimplemented,DefenseDown,skills[418].parts[1],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005615,瑞原 あいな,溟海に捧ぐアフェクション,ジェリーフィッシュ・ダンス,"敵全体の防御力と火属性防御力を下げ(ターン永続) 火属性で攻撃
+enemy_status_unimplemented,HealDown,skills[418].parts[3],,,HealDown,All,Eternal,Once,敵状態異常付与の action 反映は未実装,46005615,瑞原 あいな,溟海に捧ぐアフェクション,ジェリーフィッシュ・ダンス,"敵全体の防御力と火属性防御力を下げ(ターン永続) 火属性で攻撃
 さらに 敵全体の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,DefenseDown,skills[418].parts[2],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005615,瑞原 あいな,溟海に捧ぐアフェクション,ジェリーフィッシュ・ダンス,"敵全体の防御力と火属性防御力を下げ(ターン永続) 火属性で攻撃
-さらに 敵全体の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,HealDown,skills[418].parts[3],,,HealDown,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46005615,瑞原 あいな,溟海に捧ぐアフェクション,ジェリーフィッシュ・ダンス,"敵全体の防御力と火属性防御力を下げ(ターン永続) 火属性で攻撃
-さらに 敵全体の回復力を致命的に下げる(ターン永続)"
-enemy_status_unimplemented,DefenseDown,skills[419].parts[0].strval[0].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005616,瑞原 あいな,キラキラサマーへ、ジャンプイン！,レインボーミラクルスライダー,"2ターンの間 敵の防御力と雷属性防御力を下げ 雷属性の8連撃
-ダウンターン中の敵がいるとき 消費SP0 かつ [破壊率超特大]"
-enemy_status_unimplemented,DefenseDown,skills[419].parts[0].strval[0].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005616,瑞原 あいな,キラキラサマーへ、ジャンプイン！,レインボーミラクルスライダー,"2ターンの間 敵の防御力と雷属性防御力を下げ 雷属性の8連撃
-ダウンターン中の敵がいるとき 消費SP0 かつ [破壊率超特大]"
-enemy_status_unimplemented,DefenseDown,skills[419].parts[0].strval[1].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005616,瑞原 あいな,キラキラサマーへ、ジャンプイン！,レインボーミラクルスライダー,"2ターンの間 敵の防御力と雷属性防御力を下げ 雷属性の8連撃
-ダウンターン中の敵がいるとき 消費SP0 かつ [破壊率超特大]"
-enemy_status_unimplemented,DefenseDown,skills[419].parts[0].strval[1].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46005616,瑞原 あいな,キラキラサマーへ、ジャンプイン！,レインボーミラクルスライダー,"2ターンの間 敵の防御力と雷属性防御力を下げ 雷属性の8連撃
-ダウンターン中の敵がいるとき 消費SP0 かつ [破壊率超特大]"
-enemy_status_unimplemented,AttackDown,skills[426].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006105,大島 一千子,果てなき慈愛の守護者,滾る激情,"炎の力を宿したエネルギー弾を放つ
-さらに 攻撃力を下げる"
-enemy_status_unimplemented,Fragile,skills[428].parts[0].strval[0].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006107,大島 一千子,Sweet Phantasy,とどけ！ 誓いのしるし,"敵を2ターン脆弱状態にし 体力依存の白き鳩が閃火の如く敵を貫く
-挑発または注目状態の敵がいるとき 消費SPが半減"
-enemy_status_unimplemented,Fragile,skills[428].parts[0].strval[1].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006107,大島 一千子,Sweet Phantasy,とどけ！ 誓いのしるし,"敵を2ターン脆弱状態にし 体力依存の白き鳩が閃火の如く敵を貫く
-挑発または注目状態の敵がいるとき 消費SPが半減"
-enemy_status_unimplemented,ResistDownOverwrite,skills[430].parts[1],,,ResistDownOverwrite,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46006111,大島 一千子,導きのルーセント,インフィニティ・ハレーション,"敵全体の光耐性を消し去り 光耐性と防御力を下げ(ターン永続) 
-知性依存の光属性全体攻撃 さらに ODゲージ+50%"
-enemy_status_unimplemented,ResistDown,skills[430].parts[2],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006111,大島 一千子,導きのルーセント,インフィニティ・ハレーション,"敵全体の光耐性を消し去り 光耐性と防御力を下げ(ターン永続) 
-知性依存の光属性全体攻撃 さらに ODゲージ+50%"
-enemy_status_unimplemented,DefenseDown,skills[430].parts[3],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006111,大島 一千子,導きのルーセント,インフィニティ・ハレーション,"敵全体の光耐性を消し去り 光耐性と防御力を下げ(ターン永続) 
-知性依存の光属性全体攻撃 さらに ODゲージ+50%"
-enemy_status_unimplemented,ConfusionRandom,skills[466].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46006502,大島 五十鈴,五十鈴の秘密,トラブルメーカー,"鎌を投げつけ 全体を斬り刻み
+enemy_status_unimplemented,ConfusionRandom,skills[466].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46006502,大島 五十鈴,五十鈴の秘密,トラブルメーカー,"鎌を投げつけ 全体を斬り刻み
 さらに 確率で混乱させる"
-enemy_status_unimplemented,DefenseDown,skills[467].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006503,大島 五十鈴,勝利への鍵,怒裂昂,"渾身の力で鎌を投げつけ 全体を斬り刻み
-さらに 火属性防御力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[468].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006504,大島 五十鈴,勝利への鍵,魔炎閃獄門,"解き放たれし力で 敵の防御力を下げ
-地獄の業火で焼き尽くす"
-enemy_status_unimplemented,DefenseDown,skills[469].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006505,大島 五十鈴,ピースフルフレーバー,ヴィクタープラクティス,"鎌を振り回して連撃
-さらに 火属性防御力を下げる"
-enemy_status_unimplemented,ConfusionRandom,skills[470].parts[1],,,ConfusionRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46006506,大島 五十鈴,湯上がり夢現郷,露わな鋒,"鋭利な刃で 敵を斬り刻み
+enemy_status_unimplemented,ConfusionRandom,skills[470].parts[1],,,ConfusionRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46006506,大島 五十鈴,湯上がり夢現郷,露わな鋒,"鋭利な刃で 敵を斬り刻み
 さらに 確率で混乱させる"
-enemy_status_unimplemented,DefenseDown,skills[471].parts[0],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006507,大島 五十鈴,湯上がり夢現郷,ほてるししむら,"敵全体に降り注ぐ アッツアツの温泉により
-防御力を大きく下げ さらにDP防御力を著しく下げる"
-enemy_status_unimplemented,DefenseDown,skills[471].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006507,大島 五十鈴,湯上がり夢現郷,ほてるししむら,"敵全体に降り注ぐ アッツアツの温泉により
-防御力を大きく下げ さらにDP防御力を著しく下げる"
-enemy_status_unimplemented,Fragile,skills[472].parts[1],,,Fragile,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006508,大島 五十鈴,Magic of Smile,イリュージョン,"鎌を投げつけ 全体を斬り刻み
-さらに 脆弱状態にする"
-enemy_status_unimplemented,DefenseDown,skills[473].parts[0],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006509,大島 五十鈴,Magic of Smile,スポットライトよ永遠に,"光属性強化フィールド(大)を8ターン展開し
-敵全体の光属性防御力と防御力を2ターン下げる"
-enemy_status_unimplemented,DefenseDown,skills[473].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006509,大島 五十鈴,Magic of Smile,スポットライトよ永遠に,"光属性強化フィールド(大)を8ターン展開し
-敵全体の光属性防御力と防御力を2ターン下げる"
-enemy_status_unimplemented,DefenseDown,skills[476].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46006561,大島 五十鈴,勝利への鍵,魔炎閃獄門+,"2ターンの間敵の防御力を下げ 地獄の業火で焼き尽くす
-31Eの隊員が3人以上のとき消費SP半減"
-enemy_status_unimplemented,ConfusionRandom,skills[509].parts[2],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46007210,丸山 奏多,スマイリー・ブルーム,回る！ぽんぽこ花吹雪,"前衛のスキル攻撃の破壊率上昇量を上げ レッサーパンダボールを発射
+enemy_status_unimplemented,ConfusionRandom,skills[509].parts[2],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46007210,丸山 奏多,スマイリー・ブルーム,回る！ぽんぽこ花吹雪,"前衛のスキル攻撃の破壊率上昇量を上げ レッサーパンダボールを発射
 敵全体に光属性攻撃[破壊率超特大] さらに高確率で3ターン混乱させる"
-enemy_status_unimplemented,DefenseDown,skills[511].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007212,丸山 奏多,チェックメイトは敗北の味,フォトン・バレット,"敵全体の光属性防御力を下げ
-光の砲弾を放つ[対DP+30%]"
-enemy_status_unimplemented,AttackDown,skills[531].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007406,松岡 チロル,内緒のコーヒーブレイク,そよ風に吹かれて,"敵単体に光属性で攻撃し 2ターンの間攻撃力を下げる
-初回使用時 消費SPを半減する"
-enemy_status_unimplemented,Fragile,skills[551].parts[0].strval[0].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007605,黒沢 真希,ハレの日の仏恥義理,覇道妄執我突邁進,"敵を威圧で脆弱状態にして 大剣を投げ飛ばす [破壊率大]
-チャージ中は威力が上昇し かつ [破壊率特大]"
-enemy_status_unimplemented,Fragile,skills[551].parts[0].strval[1].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007605,黒沢 真希,ハレの日の仏恥義理,覇道妄執我突邁進,"敵を威圧で脆弱状態にして 大剣を投げ飛ばす [破壊率大]
-チャージ中は威力が上昇し かつ [破壊率特大]"
-enemy_status_unimplemented,DefenseDown,skills[553].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007609,黒沢 真希,青あらし走死走愛,走り屋に夜露死苦,"2ターンの間敵の防御力とDP防御力と雷属性防御力を下げ
-雷を纏った車輪のごとく""特攻""んで 8連撃"
-enemy_status_unimplemented,DefenseDown,skills[553].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007609,黒沢 真希,青あらし走死走愛,走り屋に夜露死苦,"2ターンの間敵の防御力とDP防御力と雷属性防御力を下げ
-雷を纏った車輪のごとく""特攻""んで 8連撃"
-enemy_status_unimplemented,DefenseDown,skills[553].parts[3],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007609,黒沢 真希,青あらし走死走愛,走り屋に夜露死苦,"2ターンの間敵の防御力とDP防御力と雷属性防御力を下げ
-雷を纏った車輪のごとく""特攻""んで 8連撃"
-enemy_status_unimplemented,Fragile,skills[555].parts[0].strval[0].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007661,黒沢 真希,ハレの日の仏恥義理,覇道妄執我突邁進+,"2ターンの間敵の防御力を下げ 脆弱状態にして攻撃 [破壊率大]
-チャージ中は威力が上昇し かつ [破壊率特大]"
-enemy_status_unimplemented,DefenseDown,skills[555].parts[0].strval[0].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007661,黒沢 真希,ハレの日の仏恥義理,覇道妄執我突邁進+,"2ターンの間敵の防御力を下げ 脆弱状態にして攻撃 [破壊率大]
-チャージ中は威力が上昇し かつ [破壊率特大]"
-enemy_status_unimplemented,Fragile,skills[555].parts[0].strval[1].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007661,黒沢 真希,ハレの日の仏恥義理,覇道妄執我突邁進+,"2ターンの間敵の防御力を下げ 脆弱状態にして攻撃 [破壊率大]
-チャージ中は威力が上昇し かつ [破壊率特大]"
-enemy_status_unimplemented,DefenseDown,skills[555].parts[0].strval[1].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46007661,黒沢 真希,ハレの日の仏恥義理,覇道妄執我突邁進+,"2ターンの間敵の防御力を下げ 脆弱状態にして攻撃 [破壊率大]
-チャージ中は威力が上昇し かつ [破壊率特大]"
-enemy_status_unimplemented,DefenseDown,skills[570].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008203,李 映夏,武を成すは天に在り,臥龍演舞斬,"洗練された剣舞で 敵を斬り裂き
-さらに 防御力を下げる"
-enemy_status_unimplemented,DefenseDown,skills[575].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008208,李 映夏,春宵ウォーアイニー,螳螂之斧,"闘気の刃で 全体を斬り刻み 防御力を下げる
-SPが0以上であれば使用可能"
-enemy_status_unimplemented,DefenseDown,skills[576].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008209,李 映夏,春宵ウォーアイニー,春の宵の塵に同じ,"敵に現在HPの15〜30%のHP割合ダメージ(最大100万)
-さらに防御力を2ターン下げる SPが0未満のときのみ使用可能"
-enemy_status_unimplemented,DefenseDown,skills[590].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008310,アイリーン・レドメイン,ベルガモットの安らぎ,ティーブレイク,"全体に氷の銃弾を乱射 [対DP+30%]
-さらに 氷属性防御力を下げる SP0以上で使用可能"
-enemy_status_unimplemented,DefenseDown,skills[591].parts[0].strval[0].parts[1],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008311,アイリーン・レドメイン,霧煙る街の名探偵,セレスティアルショット,"敵全体の防御力を下げ(ターン永続)  8連撃の銃撃[破壊率特大]
-SPが0以上であれば使用可能 OD中は[破壊率超特大] "
-enemy_status_unimplemented,DefenseDown,skills[591].parts[0].strval[1].parts[1],,,DefenseDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008311,アイリーン・レドメイン,霧煙る街の名探偵,セレスティアルショット,"敵全体の防御力を下げ(ターン永続)  8連撃の銃撃[破壊率特大]
-SPが0以上であれば使用可能 OD中は[破壊率超特大] "
-enemy_status_unimplemented,AttackUp,skills[592].parts[1],,,AttackUp,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008314,アイリーン・レドメイン,霧煙る街の名探偵,背水のギャンビット,"前衛の士気レベルを5上昇させる(最大レベル10)
+enemy_status_unimplemented,AttackUp,skills[592].parts[1],,,AttackUp,All,Eternal,Default,敵状態異常付与の action 反映は未実装,46008314,アイリーン・レドメイン,霧煙る街の名探偵,背水のギャンビット,"前衛の士気レベルを5上昇させる(最大レベル10)
 敵全体の攻撃力が大きく上がる(ターン永続) SPが0以上であれば使用可能"
-enemy_status_unimplemented,AttackDown,skills[596].parts[1],,,AttackDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008402,ヴリティカ・バラクリシュナン,華麗なるアプサラス,トータルサブトラクション,"回転する盾を 全体に叩きつけ
-さらに 攻撃力を下げる"
-enemy_status_unimplemented,AttackDown,skills[599].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008405,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー,"10連撃で強襲して強攻撃を封じ 3ターンの間厄状態にさせ
+enemy_status_unimplemented,ImprisonRandom,skills[599].parts[2],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46008405,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー,"10連撃で強襲して強攻撃を封じ 3ターンの間厄状態にさせ
 攻撃力を下げる SPが0以上であれば使用可能"
-enemy_status_unimplemented,ImprisonRandom,skills[599].parts[2],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46008405,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー,"10連撃で強襲して強攻撃を封じ 3ターンの間厄状態にさせ
+enemy_status_unimplemented,Misfortune,skills[599].parts[3],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46008405,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー,"10連撃で強襲して強攻撃を封じ 3ターンの間厄状態にさせ
 攻撃力を下げる SPが0以上であれば使用可能"
-enemy_status_unimplemented,Misfortune,skills[599].parts[3],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46008405,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー,"10連撃で強襲して強攻撃を封じ 3ターンの間厄状態にさせ
-攻撃力を下げる SPが0以上であれば使用可能"
-enemy_status_unimplemented,AttackDown,skills[604].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008461,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー+,"強攻撃を封じ 3ターンの間厄状態にして攻撃力を下げる 10連撃
+enemy_status_unimplemented,ImprisonRandom,skills[604].parts[2],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46008461,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー+,"強攻撃を封じ 3ターンの間厄状態にして攻撃力を下げる 10連撃
 SP0以上で使用可能 自身がDP100%以上のとき 消費SP半減"
-enemy_status_unimplemented,ImprisonRandom,skills[604].parts[2],,,ImprisonRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46008461,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー+,"強攻撃を封じ 3ターンの間厄状態にして攻撃力を下げる 10連撃
+enemy_status_unimplemented,Misfortune,skills[604].parts[3],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46008461,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー+,"強攻撃を封じ 3ターンの間厄状態にして攻撃力を下げる 10連撃
 SP0以上で使用可能 自身がDP100%以上のとき 消費SP半減"
-enemy_status_unimplemented,Misfortune,skills[604].parts[3],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46008461,ヴリティカ・バラクリシュナン,凛々しきドゥルガー,狂気乱舞のカーリー+,"強攻撃を封じ 3ターンの間厄状態にして攻撃力を下げる 10連撃
-SP0以上で使用可能 自身がDP100%以上のとき 消費SP半減"
-enemy_status_unimplemented,StunRandom,skills[618].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46008602,シャルロッタ・スコポフスカヤ,北風の使者,ディザスター,"広範囲に砲撃を放ち
+enemy_status_unimplemented,StunRandom,skills[618].parts[1],,,StunRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46008602,シャルロッタ・スコポフスカヤ,北風の使者,ディザスター,"広範囲に砲撃を放ち
 さらに 確率でスタンさせる"
-enemy_status_unimplemented,ConfusionRandom,skills[620].parts[1],,,ConfusionRandom,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46008604,シャルロッタ・スコポフスカヤ,逆境に咲く華,狼狽プーリァ,"集中的な砲撃を放ちつつ
+enemy_status_unimplemented,ConfusionRandom,skills[620].parts[1],,,ConfusionRandom,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46008604,シャルロッタ・スコポフスカヤ,逆境に咲く華,狼狽プーリァ,"集中的な砲撃を放ちつつ
 さらに 確率で混乱させる"
-enemy_status_unimplemented,DefenseDown,skills[621].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008605,シャルロッタ・スコポフスカヤ,逆境に咲く華,君に咲くグラナータ,"敵全体の防御力と闇属性防御力を下げ 手榴弾を闇の弾丸で貫き
-爆発に巻き込む SPが0以上であれば使用可能"
-enemy_status_unimplemented,DefenseDown,skills[621].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008605,シャルロッタ・スコポフスカヤ,逆境に咲く華,君に咲くグラナータ,"敵全体の防御力と闇属性防御力を下げ 手榴弾を闇の弾丸で貫き
-爆発に巻き込む SPが0以上であれば使用可能"
-enemy_status_unimplemented,DefenseDown,skills[622].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008606,シャルロッタ・スコポフスカヤ,とこしえの想い,ザヴィーシマスチ,"広範囲に砲撃を放ち
-さらに 雷属性防御力を下げる"
-enemy_status_unimplemented,ResistDownOverwrite,skills[623].parts[1],,,ResistDownOverwrite,All,Eternal,Once,敵状態異常付与の適用処理は turn-controller に未実装,46008607,シャルロッタ・スコポフスカヤ,とこしえの想い,純潔のパツィルーイ,"結晶の力で 敵全体の雷耐性を消し去り 雷耐性を下げる(ターン永続)
-脆弱状態にし 真紅の雷撃を放つ SP0以上で使用可能"
-enemy_status_unimplemented,ResistDown,skills[623].parts[2],,,ResistDown,All,Eternal,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008607,シャルロッタ・スコポフスカヤ,とこしえの想い,純潔のパツィルーイ,"結晶の力で 敵全体の雷耐性を消し去り 雷耐性を下げる(ターン永続)
-脆弱状態にし 真紅の雷撃を放つ SP0以上で使用可能"
-enemy_status_unimplemented,Fragile,skills[623].parts[3],,,Fragile,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008607,シャルロッタ・スコポフスカヤ,とこしえの想い,純潔のパツィルーイ,"結晶の力で 敵全体の雷耐性を消し去り 雷耐性を下げる(ターン永続)
-脆弱状態にし 真紅の雷撃を放つ SP0以上で使用可能"
-enemy_status_unimplemented,DefenseDown,skills[628].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008661,シャルロッタ・スコポフスカヤ,逆境に咲く華,君に咲くグラナータ+,"2ターンの間敵全体の防御力と闇属性防御力を下げ
-手榴弾を闇の弾丸で貫き爆発に巻き込む SPが0以上であれば使用可能"
-enemy_status_unimplemented,DefenseDown,skills[628].parts[2],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46008661,シャルロッタ・スコポフスカヤ,逆境に咲く華,君に咲くグラナータ+,"2ターンの間敵全体の防御力と闇属性防御力を下げ
-手榴弾を闇の弾丸で貫き爆発に巻き込む SPが0以上であれば使用可能"
-enemy_status_unimplemented,AttackDown,skills[642].parts[1],,,AttackDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46040302,入江 みゆき,Pure Cosmos,ダウンビート,"回転する盾を 全体に叩きつけ
-さらに 攻撃力を下げる"
-enemy_status_unimplemented,ConfusionRandom,skills[647].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46040402,渕田 ひさ子,Finally found our silver lining,ヴァンダリズム,"セラフを大振りして 全体を攻撃
+enemy_status_unimplemented,ConfusionRandom,skills[647].parts[1],,,ConfusionRandom,All,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46040402,渕田 ひさ子,Finally found our silver lining,ヴァンダリズム,"セラフを大振りして 全体を攻撃
 さらに 確率で混乱させる"
-enemy_status_unimplemented,DefenseDown,skills[648].parts[1],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46040403,渕田 ひさ子,Finally found our silver lining,コールドクラッシュ,"氷の力を宿したセラフで 敵を強打
-さらに 氷属性防御力を下げる"
-enemy_status_unimplemented,AttackDown,skills[657].parts[1],,,AttackDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46041402,手塚 咲,希望の暁,一点突破,"敵単体の攻撃力を2ターン下げ 雷属性の攻撃
-さらに 敵の攻撃を自身に集中させる"
-enemy_status_unimplemented,DefenseDown,skills[658].parts[1],,,DefenseDown,All,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46041403,手塚 咲,希望の暁,天駆の鉄槌,"敵全体の防御力を下げ 雷槍で穿つ [破壊率特大]
-さらに 鬼神状態中は自身に追加ターン"
-enemy_status_unimplemented,Fragile,skills[666].parts[0].strval[0].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46053161,命 吹雪,終末なにする？,破滅でおやすみ+,"2ターンの間 敵の防御力を下げ  脆弱状態にし 赤き棘で終焉に誘う 
+enemy_status_unimplemented,Misfortune,skills[666].parts[0].strval[0].parts[3],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の action 反映は未実装,46053161,命 吹雪,終末なにする？,破滅でおやすみ+,"2ターンの間 敵の防御力を下げ  脆弱状態にし 赤き棘で終焉に誘う 
 オーバードライブ中は威力が上昇し 2ターンの間 厄状態にする"
-enemy_status_unimplemented,DefenseDown,skills[666].parts[0].strval[0].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46053161,命 吹雪,終末なにする？,破滅でおやすみ+,"2ターンの間 敵の防御力を下げ  脆弱状態にし 赤き棘で終焉に誘う 
-オーバードライブ中は威力が上昇し 2ターンの間 厄状態にする"
-enemy_status_unimplemented,Misfortune,skills[666].parts[0].strval[0].parts[3],,,Misfortune,Single,EnemyTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46053161,命 吹雪,終末なにする？,破滅でおやすみ+,"2ターンの間 敵の防御力を下げ  脆弱状態にし 赤き棘で終焉に誘う 
-オーバードライブ中は威力が上昇し 2ターンの間 厄状態にする"
-enemy_status_unimplemented,Fragile,skills[666].parts[0].strval[1].parts[1],,,Fragile,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46053161,命 吹雪,終末なにする？,破滅でおやすみ+,"2ターンの間 敵の防御力を下げ  脆弱状態にし 赤き棘で終焉に誘う 
-オーバードライブ中は威力が上昇し 2ターンの間 厄状態にする"
-enemy_status_unimplemented,DefenseDown,skills[666].parts[0].strval[1].parts[2],,,DefenseDown,Single,EnemyTurnEnd,Default,敵状態異常付与の適用処理は turn-controller に未実装,46053161,命 吹雪,終末なにする？,破滅でおやすみ+,"2ターンの間 敵の防御力を下げ  脆弱状態にし 赤き棘で終焉に誘う 
-オーバードライブ中は威力が上昇し 2ターンの間 厄状態にする"
-enemy_status_unimplemented,DefenseDown,skills[667].parts[0],,,DefenseDown,All,PlayerTurnEnd,None,敵状態異常付与の適用処理は turn-controller に未実装,46401101,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,怪物球威,行動開始時 前衛にいると敵の防御力を10%下げる
-enemy_status_unimplemented,Talisman,skills[671].parts[0],,,Talisman,All,Eternal,None,敵状態異常付与の適用処理は turn-controller に未実装,46401601,國見 タマ,ようこそ♪ナイトメア・パレード,貼ったりましょう！,バトル開始時 敵に霊符状態(ターン永続/解除不可)を付与する
+enemy_status_unimplemented,DefenseDown,skills[667].parts[0],,,DefenseDown,All,PlayerTurnEnd,None,敵状態異常付与の passive timing 反映は未実装,46401101,茅森 月歌,白熱！勝利を呼ぶ一球入魂！,怪物球威,行動開始時 前衛にいると敵の防御力を10%下げる
