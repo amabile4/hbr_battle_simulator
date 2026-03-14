@@ -4,7 +4,7 @@
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
-> **判断メモ**: `PRI-017` を完了し、player-side `ImprisonRandom` manual hook を `statusEffectsByPartyIndex` schema で setup / scenario / replay / record へ接続した。unsupported report は引き続き `state_condition` `0`, `overwrite_cond` `0`, `enemy_status` `0`, `effect` `0`。次優先は未設定で、必要時に全体再調査から再開する
+> **判断メモ**: 全トラッキングで未対応条件が `0` 件となったため、「未実装機能」のうちシミュレータの計画価値に直結する「スキル使用回数制約と回復機能の厳密適用」を次優先 `PRI-018` として設定した。
 
 ## 目的
 
@@ -41,6 +41,7 @@
 | 完了 | `PRI-015` | `done` | enemy-side `SpecialStatusCountByType(3/22/172)` と enemy status report 同期 | [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md), [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`condition_report_sync_tasklist.md`](condition_report_sync_tasklist.md) | 調査で `DefenseDown` / `Fragile` / `SuperDown` 条件と report false positive が残差の本体と判明した。ここを閉じると条件残件は消え、次 priority を未接続 enemy status 残件へ絞れる | `SpecialStatusCountByType(3/22/172)` が runtime で解決し、generator が runtime 実装済み enemy status を未対応として再報告しない |
 | 完了 | `PRI-016` | `done` | residual enemy status クローズ（確率系 / 補助 debuff / enemy buff / passive enemy debuff） | [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) | `PRI-015` 後の残件 10 key を generic enemy status 基盤へ吸収し、`PlayerTurnEnd` passive debuff と variant 配下 status も接続した。これで unsupported report を再び全カテゴリ 0 件へ戻せた | `StunRandom` / `ConfusionRandom` / `ImprisonRandom` / `Misfortune` / `HealDown` / `Hacking` / `Cover` / enemy-target `AttackUp` / `DefenseUp` / passive `DefenseDown` が runtime / report / tests まで同期される |
 | 完了 | `PRI-017` | `done` | player-side enemy inflicted status manual hook（`T14` / scenario bridge） | [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | unsupported report は 0 件化したため、明示的な残 gap は `SpecialStatusCountByType(79)` を扱う player-side 手動拘束 hook に収束していた。manual state / scenario / replay を同じ schema で通すことで、enemy AI 未実装でも planning 価値を維持できた | player-side `ImprisonRandom` / `SpecialStatusCountByType(79)` を `statusEffectsByPartyIndex` で注入でき、CountBC / preview / passive 初期評価 / record / scenario / replay が同じ表現で扱える |
+| 次優先 | `PRI-018` | `todo` | スキル使用回数制約と回復機能の厳密適用 | `../20260306_tasklist/implementation_status.md` | damage calculation 突入前に、シミュレータの「計画」としての要である「有限スキルの残弾」を正確に判定できるようにする | `HealSkillUsedCount` / `SkillLimitCountUp` の効果が反映され、上限を超えたスキル入力が UI / scenario / turn-controller で validate 弾きされること |
 
 ## PRI-013 タスクリスト
 
@@ -81,6 +82,16 @@
 - [x] player-side `SpecialStatusCountByType(79)` / `ImprisonRandom` の手動付与スキーマを決める
 - [x] scenario / setup / record で player-side enemy inflicted status を保持できるようにする
 - [x] CountBC(プレイヤー側) と preview 表示を同じ manual state から評価できるようにする
+
+## PRI-018 タスクリスト
+
+詳細は [`skill_limit_implementation_tasklist.md`](skill_limit_implementation_tasklist.md) を参照。
+
+- [ ] スキル固有の「最大使用可能回数（`limit`）」の取得と `SkillLimitCountUp` による上限増加の評価
+- [ ] 指定時点のターンにおける「各スキルの使用済み回数」の算出
+- [ ] `HealSkillUsedCount` 効果による使用回数回復の適用（対象スキルの絞り込み条件含む）
+- [ ] `turn-controller` / `scenario` 実行時に、残弾 0 のスキル入力をエラーとして validate する仕組み
+- [ ] UI で、残弾 0 になったスキルを `disabled` あるいは warning 表示する対応
 
 ## 今回のスコープ外
 

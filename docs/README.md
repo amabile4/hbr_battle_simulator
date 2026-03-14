@@ -47,7 +47,8 @@ docs/
 | [active/resonance_full_coverage_tasklist.md](active/resonance_full_coverage_tasklist.md) | ✅ 完了 | 共鳴アビリティ全21グループ テストカバレッジ計画（22テスト・全468テストPASS） | 2026-03-11 |
 | [active/ui_support_slot_improvement_tasklist.md](active/ui_support_slot_improvement_tasklist.md) | ✅ 完了 | サポート枠UI改善：共鳴アビリティ表示強化・フィルタリング機能・バグ修正（全476テストPASS） | 2026-03-12 |
 | [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
-| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 実装優先順位 PRI-017 完了。player-side `ImprisonRandom` manual hook を scenario / replay / record へ接続し、次優先は未設定 | 2026-03-14 |
+| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次優先 PRI-018（スキル使用回数制約と回復機能）を設定。 | 2026-03-14 |
+| [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
 | [active/player_status_manual_hook_implementation_tasklist.md](active/player_status_manual_hook_implementation_tasklist.md) | ✅ 完了 | PRI-017: player-side `ImprisonRandom` manual hook を `statusEffectsByPartyIndex` schema で setup / scenario / replay / record に接続 | 2026-03-14 |
 | [active/enemy_status_closure_implementation_tasklist.md](active/enemy_status_closure_implementation_tasklist.md) | ✅ 完了 | PRI-016: residual enemy status 10 key を action / passive runtime へ接続し、unsupported report を全カテゴリ 0 件化 | 2026-03-14 |
 | [active/enemy_residual_status_implementation_tasklist.md](active/enemy_residual_status_implementation_tasklist.md) | ✅ 完了 | PRI-015: enemy-side `SpecialStatusCountByType(3/22/172)` と enemy status report false positive を解消（condition 0件化、enemy status 10 keys / 40 occurrences） | 2026-03-14 |
