@@ -976,7 +976,7 @@ test('ReplayScript-derived records remain export source when legacy turnPlans mi
   assert.equal(csv.includes(String(firstRecord?.turnLabel ?? '')), true);
 });
 
-test('turn plan edit row surfaces contextual error when source turn staging fails', () => {
+test('turn plan edit row keeps editor open with force fallback when source turn staging is recoverable', () => {
   const store = getStore();
   const { root } = createRoot();
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
@@ -998,9 +998,80 @@ test('turn plan edit row surfaces contextual error when source turn staging fail
 
   editButton.click();
 
-  assert.equal(adapter.turnPlanEditSession, null);
+  assert.equal(adapter.turnPlanEditSession?.type, 'edit');
+  assert.equal(adapter.turnPlanEditSession?.targetIndex, 0);
   assert.equal(
-    (root.querySelector('[data-role="status"]')?.textContent ?? '').includes('TurnPlan編集開始に失敗: Turn 1'),
+    (root.querySelector('[data-role="status"]')?.textContent ?? '').includes(
+      'edit stage force fallback: Cannot align action position: skill 99999999 is not usable at Pos 1.'
+    ),
+    true
+  );
+  assert.equal(
+    adapter.replayScriptReplayWarnings.turns[0]?.some((warning) =>
+      String(warning).includes('Cannot align action position: skill 99999999 is not usable at Pos 1.')
+    ),
+    true
+  );
+});
+
+test('turn plan edit row reopens strict-invalid replay turn via force fallback', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.replayScript.turns[0] = {
+    ...adapter.replayScript.turns[0],
+    operations: [{ type: 'ActivatePreemptiveOd', payload: { level: 3 } }],
+  };
+  root.querySelector('[data-role="turn-plan-recalc-mode"]').value = 'strict';
+
+  const editButtonSelector = '[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]';
+  root.querySelector(editButtonSelector).click();
+
+  assert.equal(adapter.turnPlanEditSession?.type, 'edit');
+  assert.equal(adapter.turnPlanEditSession?.targetIndex, 0);
+  assert.equal(
+    (root.querySelector('[data-role="status"]')?.textContent ?? '').includes('edit stage force fallback: OD3 requires 300% gauge'),
+    true
+  );
+  assert.equal(
+    adapter.replayScriptReplayWarnings.turns[0]?.some((warning) =>
+      String(warning).includes('edit stage force fallback: OD3 requires 300% gauge')
+    ),
+    true
+  );
+
+  root.querySelector('[data-action="turn-plan-edit-save"]').click();
+
+  assert.equal(adapter.turnPlanEditSession, null);
+  assert.equal(adapter.replayScriptReplayError?.index, 0);
+  assert.equal(
+    (root.querySelector('[data-role="status"]')?.textContent ?? '').includes('軽量再計算停止: Turn 1 / OD3 requires 300% gauge'),
+    true
+  );
+
+  root.querySelector(editButtonSelector).click();
+
+  assert.equal(adapter.turnPlanEditSession?.type, 'edit');
+  const preemptiveToggle = root.querySelector('[data-role="replay-op-preemptive-od-enabled"]');
+  assert.equal(preemptiveToggle.checked, true);
+  preemptiveToggle.checked = false;
+  preemptiveToggle.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  root.querySelector('[data-action="turn-plan-edit-save"]').click();
+
+  assert.equal(adapter.turnPlanEditSession, null);
+  assert.equal(adapter.replayScriptReplayError, null);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(
+    adapter.replayScript.turns[0].operations.some((entry) => entry.type === 'ActivatePreemptiveOd'),
+    false
+  );
+  assert.equal(
+    (root.querySelector('[data-role="status"]')?.textContent ?? '').includes('軽量再計算完了: 1/1 turns (strict)'),
     true
   );
 });

@@ -106,6 +106,41 @@ function getUniqueNonTeamStyleIds(store, team, count, excludedStyleIds = []) {
   throw new Error(`Could not find ${count} unique non-${team} styles`);
 }
 
+function getUniqueStyleIdsByPredicate(store, predicate, count, excludedStyleIds = []) {
+  const excludedIds = new Set(excludedStyleIds.map((id) => Number(id)));
+  const excludedChars = new Set(
+    excludedStyleIds
+      .map((id) => String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? ''))
+      .filter(Boolean)
+  );
+  const picked = [];
+  const seenChars = new Set();
+
+  for (const style of store.styles) {
+    const styleId = Number(style?.id);
+    const charaLabel = String(style?.chara_label ?? style?.chara ?? '');
+    if (
+      !Number.isFinite(styleId) ||
+      excludedIds.has(styleId) ||
+      excludedChars.has(charaLabel) ||
+      seenChars.has(charaLabel) ||
+      !Array.isArray(style?.skills) ||
+      style.skills.length === 0 ||
+      !predicate(style)
+    ) {
+      continue;
+    }
+
+    seenChars.add(charaLabel);
+    picked.push(styleId);
+    if (picked.length === count) {
+      return picked;
+    }
+  }
+
+  throw new Error(`Could not find ${count} styles that satisfy predicate`);
+}
+
 function buildSingleSkillRealDataParty(store, skillId, options = {}) {
   const actorStyleId = findStyleIdBySkillId(store, skillId);
   const actorStyle = store.getStyleById(actorStyleId);
@@ -2915,12 +2950,12 @@ test('ThunderMark skill part does not mutate intrinsic thunder mark levels', () 
   });
 
   const { nextState } = commitTurn(state, preview);
-  assert.equal(nextState.party[0].markStates.Thunder.current, 2);
-  assert.equal(nextState.party[1].markStates.Thunder.current, 2);
+  assert.equal(nextState.party[0].markStates.Thunder.current, 0);
+  assert.equal(nextState.party[1].markStates.Thunder.current, 0);
   assert.equal(nextState.party[2].markStates.Thunder.current, 0);
 });
 
-test('intrinsic mark levels are initialized from party element counts at battle start', () => {
+test('intrinsic mark levels stay at zero when no mark-granting passive-like source exists', () => {
   const party = createSixMemberManualParty((idx) => {
     if (idx <= 2) {
       return { elements: ['Fire'] };
@@ -2933,11 +2968,87 @@ test('intrinsic mark levels are initialized from party element counts at battle 
 
   const state = createBattleStateFromParty(party);
 
-  assert.equal(state.party[0].markStates.Fire.current, 3);
-  assert.equal(state.party[1].markStates.Fire.current, 3);
-  assert.equal(state.party[2].markStates.Fire.current, 3);
-  assert.equal(state.party[3].markStates.Thunder.current, 1);
+  assert.equal(state.party[0].markStates.Fire.current, 0);
+  assert.equal(state.party[1].markStates.Fire.current, 0);
+  assert.equal(state.party[2].markStates.Fire.current, 0);
+  assert.equal(state.party[3].markStates.Thunder.current, 0);
   assert.equal(state.party[4].markStates.Fire.current, 0);
+});
+
+test('intrinsic mark levels are initialized when a battle-start mark passive exists', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        elements: ['Thunder'],
+        passives: [
+          {
+            id: 18605,
+            name: 'Thunder Mark Start',
+            timing: 'OnFirstBattleStart',
+            condition: '',
+            parts: [{ skill_type: 'ThunderMark', target_type: 'AllyAll', target_condition: '' }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return { elements: ['Thunder'] };
+    }
+    if (idx === 2) {
+      return { elements: ['Fire'] };
+    }
+    return {};
+  });
+
+  const state = createBattleStateFromParty(party);
+
+  assert.equal(state.party[0].markStates.Thunder.current, 2);
+  assert.equal(state.party[1].markStates.Thunder.current, 2);
+  assert.equal(state.party[2].markStates.Fire.current, 0);
+});
+
+test('real-data 雷の印 passive gates intrinsic thunder mark initialization', () => {
+  const store = getStore();
+  const thunderMarkProviderStyleId = 1002604;
+  const thunderAllyStyleId = getUniqueStyleIdsByPredicate(
+    store,
+    (style) => Array.isArray(style?.elements) && style.elements.includes('Thunder'),
+    1,
+    [thunderMarkProviderStyleId]
+  )[0];
+  const fillerStyleIds = getUniqueStyleIdsByPredicate(
+    store,
+    (style) => !Array.isArray(style?.elements) || !style.elements.includes('Thunder'),
+    5,
+    [thunderMarkProviderStyleId, thunderAllyStyleId]
+  );
+
+  const noProviderState = createBattleStateFromParty(
+    store.buildPartyFromStyleIds([thunderAllyStyleId, ...fillerStyleIds], { initialSP: 10 })
+  );
+  const withProviderState = createBattleStateFromParty(
+    store.buildPartyFromStyleIds(
+      [thunderMarkProviderStyleId, thunderAllyStyleId, ...fillerStyleIds.slice(0, 4)],
+      { initialSP: 10 }
+    )
+  );
+
+  const noProviderThunderMember = noProviderState.party.find(
+    (member) => Number(member.styleId) === thunderAllyStyleId
+  );
+  const providerThunderMember = withProviderState.party.find(
+    (member) => Number(member.styleId) === thunderMarkProviderStyleId
+  );
+  const alliedThunderMember = withProviderState.party.find(
+    (member) => Number(member.styleId) === thunderAllyStyleId
+  );
+
+  assert.ok(noProviderThunderMember);
+  assert.ok(providerThunderMember);
+  assert.ok(alliedThunderMember);
+  assert.equal(noProviderThunderMember.markStates.Thunder.current, 0);
+  assert.equal(providerThunderMember.markStates.Thunder.current, 2);
+  assert.equal(alliedThunderMember.markStates.Thunder.current, 2);
 });
 
 test('DarkMarkLevel condition can trigger passives from current dark mark state', () => {

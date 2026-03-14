@@ -2944,6 +2944,7 @@ function getMotivationTargetLevel(part) {
 
 function initializeIntrinsicMarkStatesFromParty(party = []) {
   const elementCounts = Object.fromEntries(INTRINSIC_MARK_ELEMENTS.map((element) => [element, 0]));
+  const enabledElements = resolveIntrinsicMarkEnabledElementsFromParty(party);
   for (const member of party) {
     for (const element of member?.elements ?? []) {
       const key = String(element ?? '').trim();
@@ -2957,7 +2958,7 @@ function initializeIntrinsicMarkStatesFromParty(party = []) {
     const memberElements = new Set((member?.elements ?? []).map((element) => String(element ?? '').trim()));
     for (const element of INTRINSIC_MARK_ELEMENTS) {
       const markState = member?.markStates?.[element];
-      if (!markState || !memberElements.has(element)) {
+      if (!markState || !memberElements.has(element) || !enabledElements.has(element)) {
         continue;
       }
       if (Number(markState.current ?? 0) > 0) {
@@ -2966,6 +2967,25 @@ function initializeIntrinsicMarkStatesFromParty(party = []) {
       markState.current = Number(elementCounts[element] ?? 0);
     }
   }
+}
+
+function resolveIntrinsicMarkEnabledElementsFromParty(party = []) {
+  const enabledElements = new Set();
+  for (const member of party ?? []) {
+    for (const passive of getPassiveEntriesForMember(member)) {
+      const timing = String(passive?.timing ?? '').trim();
+      if (!BATTLE_START_PASSIVE_TIMINGS.includes(timing)) {
+        continue;
+      }
+      for (const part of passive?.parts ?? []) {
+        const element = MARK_SKILL_TYPE_TO_ELEMENT[String(part?.skill_type ?? '').trim()];
+        if (element) {
+          enabledElements.add(element);
+        }
+      }
+    }
+  }
+  return enabledElements;
 }
 
 function resolveIntrinsicMarkModifiersForMember(member) {

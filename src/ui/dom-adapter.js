@@ -4446,10 +4446,15 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   getTurnPlanEditSessionStatusMessage(session) {
+    const fallbackMessage = String(session?.stageFallbackMessage ?? '').trim();
     if (session?.type === 'insert') {
-      return `Turn ${session.targetIndex + 1} に挿入する内容を編集中です。`;
+      return fallbackMessage
+        ? `Turn ${session.targetIndex + 1} に挿入する内容を編集中です。 / ${fallbackMessage}`
+        : `Turn ${session.targetIndex + 1} に挿入する内容を編集中です。`;
     }
-    return `Turn ${session?.targetIndex + 1} を編集中です。`;
+    return fallbackMessage
+      ? `Turn ${session?.targetIndex + 1} を編集中です。 / ${fallbackMessage}`
+      : `Turn ${session?.targetIndex + 1} を編集中です。`;
   }
 
   finalizeTurnPlanEditSession(session) {
@@ -4465,6 +4470,59 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       recordTable: true,
     });
     this.setStatus(this.getTurnPlanEditSessionStatusMessage(session));
+  }
+
+  stageReplayScriptEditSession(session, mode, options = {}) {
+    const setupWarnings = [];
+    const isForceMode = mode === 'force';
+    const stageWarnings = [];
+    const fallbackMessage = String(options.fallbackMessage ?? '').trim();
+    this.reinitializeFromReplayScriptBase({
+      forceMode: isForceMode,
+      warnings: setupWarnings,
+    });
+    this.recordStore = createBattleRecordStore();
+    this.replayScriptComputedRecords = [];
+    this.replayScriptReplayError = null;
+    this.replayScriptReplayWarnings = { setup: setupWarnings, turns: [] };
+    for (let i = 0; i < session.sourceIndex; i += 1) {
+      const result = this.replayReplayScriptAtIndex(i, mode);
+      if (result.shouldStop) {
+        throw new Error(this.getEditableReplayErrorMessage() || `ReplayScript turn ${i + 1} failed.`);
+      }
+    }
+    const sourceTurn = this.replayScript?.turns?.[session.sourceIndex] ?? null;
+    if (!sourceTurn) {
+      throw new Error(`ReplayScript turn not found: ${session.sourceIndex + 1}`);
+    }
+    const scenarioTurn = this.materializeReplayScriptScenarioTurn(sourceTurn, {
+      forceMode: isForceMode,
+      onWarning: (message) => stageWarnings.push(String(message)),
+    });
+    this.alignReplayScriptTurnPositions(sourceTurn.slots, {
+      forceMode: isForceMode,
+      onWarning: (message) => stageWarnings.push(String(message)),
+    });
+    this.applyScenarioTurn(scenarioTurn, {
+      mode: 'stage',
+      recalcMode: mode,
+      onWarning: (message) => stageWarnings.push(String(message)),
+    });
+    if (fallbackMessage) {
+      stageWarnings.unshift(fallbackMessage);
+    }
+    this.replayScriptReplayWarnings.turns[session.sourceIndex] = stageWarnings;
+  }
+
+  stageLegacyTurnPlanEditSession(session, mode, options = {}) {
+    const fallbackMessage = String(options.fallbackMessage ?? '').trim();
+    this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
+    this.replayTurnPlansBeforeIndex(session.sourceIndex, mode);
+    const sourceTurn = this.materializeTurnPlanScenarioTurn(session.sourceIndex);
+    this.applyScenarioTurn(sourceTurn, { mode: 'stage', recalcMode: mode });
+    if (fallbackMessage) {
+      this.turnPlanReplayWarnings[session.sourceIndex] = [fallbackMessage];
+    }
   }
 
   stringifyRecordFieldValue(value) {
@@ -8218,49 +8276,43 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const mode = this.getTurnPlanRecalcModeFromDom();
     if (this.getEditableTurnSourceKind() === 'replayScript') {
       this.runInReplayScriptSession(() => {
-        const setupWarnings = [];
-        this.reinitializeFromReplayScriptBase({
-          forceMode: mode === 'force',
-          warnings: setupWarnings,
-        });
-        this.recordStore = createBattleRecordStore();
-        this.replayScriptComputedRecords = [];
-        this.replayScriptReplayError = null;
-        this.replayScriptReplayWarnings = { setup: setupWarnings, turns: [] };
-        for (let i = 0; i < session.sourceIndex; i += 1) {
-          const result = this.replayReplayScriptAtIndex(i, mode);
-          if (result.shouldStop) {
-            throw new Error(this.getEditableReplayErrorMessage() || `ReplayScript turn ${i + 1} failed.`);
-          }
-        }
+        const nextSession = { ...session, stageFallbackMessage: null };
         try {
-          const sourceTurn = this.replayScript?.turns?.[session.sourceIndex] ?? null;
-          if (!sourceTurn) {
-            throw new Error(`ReplayScript turn not found: ${session.sourceIndex + 1}`);
-          }
-          const scenarioTurn = this.materializeReplayScriptScenarioTurn(sourceTurn, {
-            forceMode: mode === 'force',
-          });
-          this.alignReplayScriptTurnPositions(sourceTurn.slots, { forceMode: mode === 'force' });
-          this.applyScenarioTurn(scenarioTurn, { mode: 'stage', recalcMode: mode });
+          this.stageReplayScriptEditSession(nextSession, mode);
         } catch (error) {
-          throw this.buildTurnPlanEditStageError(session, error);
+          if (mode === 'force') {
+            throw this.buildTurnPlanEditStageError(nextSession, error);
+          }
+          const fallbackMessage = `edit stage force fallback: ${this.getErrorMessage(error)}`;
+          try {
+            nextSession.stageFallbackMessage = fallbackMessage;
+            this.stageReplayScriptEditSession(nextSession, 'force', { fallbackMessage });
+          } catch (fallbackError) {
+            throw this.buildTurnPlanEditStageError(nextSession, fallbackError);
+          }
         }
-        this.finalizeTurnPlanEditSession(session);
+        this.finalizeTurnPlanEditSession(nextSession);
       });
       return;
     }
 
     this.runInTurnPlanReplaySession(() => {
-      this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
-      this.replayTurnPlansBeforeIndex(session.sourceIndex, mode);
+      const nextSession = { ...session, stageFallbackMessage: null };
       try {
-        const sourceTurn = this.materializeTurnPlanScenarioTurn(session.sourceIndex);
-        this.applyScenarioTurn(sourceTurn, { mode: 'stage', recalcMode: mode });
+        this.stageLegacyTurnPlanEditSession(nextSession, mode);
       } catch (error) {
-        throw this.buildTurnPlanEditStageError(session, error);
+        if (mode === 'force') {
+          throw this.buildTurnPlanEditStageError(nextSession, error);
+        }
+        const fallbackMessage = `edit stage force fallback: ${this.getErrorMessage(error)}`;
+        try {
+          nextSession.stageFallbackMessage = fallbackMessage;
+          this.stageLegacyTurnPlanEditSession(nextSession, 'force', { fallbackMessage });
+        } catch (fallbackError) {
+          throw this.buildTurnPlanEditStageError(nextSession, fallbackError);
+        }
       }
-      this.finalizeTurnPlanEditSession(session);
+      this.finalizeTurnPlanEditSession(nextSession);
     });
   }
 
