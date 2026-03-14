@@ -1,0 +1,177 @@
+# 軽量 Record / Replay / Edit 実装タスクリスト
+
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14
+>
+> **前提設計**:
+> [`lightweight_record_replay_design.md`](lightweight_record_replay_design.md)
+>
+> **前提調査**:
+> [`../20260314_record_replay_edit_investigation/README.md`](../20260314_record_replay_edit_investigation/README.md)
+
+## 目的
+
+- 編集正本を `ReplayScript` に切り替える
+- `record` を完全に derived output へ戻す
+- `slots[6]` を基本単位にして、style と skill のズレを防ぐ
+- `setup` / `operations` / `overrideEntries` を typed envelope として実装し、将来の増減に耐える
+- replay は best-effort で最後まで走り、OD/SP 等の不正値は許容する
+
+## 実装原則
+
+1. `slots[6]` が turn の正本である
+2. `recordStore.records` は replay 結果から毎回再生成する
+3. replay は gameplay 上の矛盾では停止しない
+4. `setupEntries[]` / `operations[]` / `overrideEntries[]` は typed envelope とする
+5. 未知の `type` は round-trip で保持し、executor では no-op + warning でよい
+6. `note` は保存対象だが、シミュレーションには影響させない
+
+## 実装対象
+
+### 正本 schema
+
+- `ReplayScript`
+- `ReplaySetup`
+- `ReplayTurn`
+- `TurnSlot`
+- `SetupEntry`
+- `TurnOperation`
+- `OverrideEntry`
+
+### 実装レイヤ
+
+- `src/ui/adapter-core.js`
+- `src/ui/battle-adapter-facade.js`
+- `src/ui/dom-adapter.js`
+- 必要なら `src/contracts/interfaces.js`
+- 必要なら `src/records/` の export 周辺
+
+## タスク
+
+### T01: schema 固定
+
+- [ ] `ReplayScript` / `ReplayTurn` / `TurnSlot` の JSON shape を確定する
+- [ ] `setupEntries[]` / `operations[]` / `overrideEntries[]` の envelope shape を確定する
+- [ ] `note` の round-trip 仕様を確定する
+- [ ] stable core と extension lane の境界を明文化する
+
+完了条件:
+
+- docs 上で `slots[6]` / typed envelope / `note` の schema が矛盾なく定義されている
+
+### T02: typed envelope 基盤
+
+- [ ] `setupEntries[]` handler registry を core 層に用意する
+- [ ] `operations[]` handler registry を core 層に用意する
+- [ ] `overrideEntries[]` handler registry を core 層に用意する
+- [ ] 未知 type を preserve する serialization/deserialization を用意する
+
+完了条件:
+
+- schema に新しい `type` を追加しても、既存 load/save/replay が壊れない
+
+### T03: current state から lightweight script を capture
+
+- [ ] commit 時に current turn を `slots[6]` として capture する
+- [ ] `鬼神化` / `通常OD` / `割込OD予約` を `operations[]` に capture する
+- [ ] turn ごとの自由入力メモを `note` として capture する
+- [ ] 現行 `turnPlans` capture と並行稼働させる場合の bridge を決める
+
+完了条件:
+
+- 1 turn commit 後に、style/skill/target が同じ slot に入った lightweight script が得られる
+
+### T04: best-effort replay executor
+
+- [ ] `ReplayScript` から battle を再初期化する executor を作る
+- [ ] `slots[6]` を current turn state に反映して commit する処理を作る
+- [ ] `operations[]` を現行 runtime timing に従って適用する
+- [ ] OD/SP 等がマイナスになっても停止しない挙動にする
+- [ ] 未知 operation / override は no-op + warning にする
+
+完了条件:
+
+- gameplay 上の不自然値が出ても replay が最後まで完走する
+
+### T05: record 再生成への切替
+
+- [ ] replay 実行結果から `recordStore.records` を再生成する
+- [ ] table / preview / export が derived record を使うよう整理する
+- [ ] `record` を編集正本として扱うコード経路を外す
+
+完了条件:
+
+- 編集正本が `ReplayScript` のみになり、record は出力専用になる
+
+### T06: UI 編集導線の切替
+
+- [ ] turn 編集 UI を `slots[6]` 中心に切り替える
+- [ ] `operations[]` 編集 UI を追加する
+- [ ] `note` 入力 UI を追加する
+- [ ] 旧 swap 行編集 UI を縮退または非推奨化する
+
+完了条件:
+
+- ユーザーが「turn / 6 slot / operation / note」を直接編集できる
+
+### T07: setup の extensible 化
+
+- [ ] 初期編成など stable core と、可変 setup 状態を分離する
+- [ ] 事前状態は `setupEntries[]` に寄せる
+- [ ] future setup type を追加しやすい registry / dispatcher 構成にする
+
+完了条件:
+
+- setup への新規状態追加で schema の全面更新が不要になる
+
+### T08: legacy bridge / migration
+
+- [ ] 現行 `turnPlans` から `ReplayScript` への変換 helper を作る
+- [ ] 必要なら dual-write 期間を設ける
+- [ ] 既存 scenario / record / export との互換境界を明文化する
+
+完了条件:
+
+- 既存データ/既存UIから段階移行できる
+
+### T09: warning / diagnostics
+
+- [ ] no-op 扱いした unknown type を UI へ表示できるようにする
+- [ ] replay 中に発生した best-effort 補正や不自然値を補助表示できるようにする
+- [ ] 停止ではなく「最後まで走った上で warning を返す」形に揃える
+
+完了条件:
+
+- 実行継続と診断表示が両立する
+
+### T10: テスト整備
+
+- [ ] slot 一体型保存で style/skill mismatch が起きない回帰を追加する
+- [ ] `operations[]` round-trip テストを追加する
+- [ ] `note` round-trip テストを追加する
+- [ ] negative OD/SP 許容の best-effort replay テストを追加する
+- [ ] unknown `type` preserve/no-op テストを追加する
+
+完了条件:
+
+- 主要ケースが unit/integration test で固定されている
+
+## 受け入れ条件
+
+- [ ] 1 turn の保存単位が `slots[6]` であり、style と skill が分離しない
+- [ ] `鬼神化` / `通常OD` / `割込OD予約` / `note` を同じ turn に保存できる
+- [ ] replay は最後まで走り、OD/SP のマイナス値で停止しない
+- [ ] `setupEntries[]` / `operations[]` / `overrideEntries[]` に未知 type が来ても保持できる
+- [ ] `record` が derived output として再生成される
+
+## 今回のスコープ外
+
+- ダメージ計算の厳密化
+- gameplay 上あり得ない値を防ぐための guard 強化
+- 未知 type の自動 UI 生成
+- 旧 rich turnPlan の完全削除
+
+## メモ
+
+- このタスクは「数値を常に正しくする」より、「軽く保存し、最後まで再演し、人間が直せる」ことを優先する
+- extensible schema は必須であり、固定 key を増やし続ける設計は避ける
+- `setup` / `operations` / `overrideEntries` の増減は将来の前提として扱う

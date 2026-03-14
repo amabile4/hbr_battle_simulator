@@ -48,6 +48,8 @@ docs/
 | [active/ui_support_slot_improvement_tasklist.md](active/ui_support_slot_improvement_tasklist.md) | ✅ 完了 | サポート枠UI改善：共鳴アビリティ表示強化・フィルタリング機能・バグ修正（全476テストPASS） | 2026-03-12 |
 | [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次優先 PRI-018（スキル使用回数制約と回復機能）を設定。 | 2026-03-14 |
+| [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | `TurnAction` を正本に寄せ、Commit 時 Position を保存し `record` を再生成物へ戻す軽量 replay/edit 設計案 | 2026-03-14 |
+| [active/lightweight_record_replay_implementation_tasklist.md](active/lightweight_record_replay_implementation_tasklist.md) | 🟢 進行中 | `slots[6]` 正本・typed envelope・best-effort replay を実装するための段階的タスクリスト | 2026-03-14 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
 | [active/player_status_manual_hook_implementation_tasklist.md](active/player_status_manual_hook_implementation_tasklist.md) | ✅ 完了 | PRI-017: player-side `ImprisonRandom` manual hook を `statusEffectsByPartyIndex` schema で setup / scenario / replay / record に接続 | 2026-03-14 |
 | [active/enemy_status_closure_implementation_tasklist.md](active/enemy_status_closure_implementation_tasklist.md) | ✅ 完了 | PRI-016: residual enemy status 10 key を action / passive runtime へ接続し、unsupported report を全カテゴリ 0 件化 | 2026-03-14 |
@@ -86,6 +88,12 @@ docs/
 ---
 
 ## 📦 スナップショット（日付別・変更しない）
+
+### 20260314_record_replay_edit_investigation/ — 記録・再生・編集機能の現状調査（2026-03-14実施）
+
+| ドキュメント | 概要 |
+|-------------|------|
+| [20260314_record_replay_edit_investigation/README.md](20260314_record_replay_edit_investigation/README.md) | `recordStore.records` / `turnPlans` / `turnPlanBaseSetup` の責務分離、再計算経路、シンプル記録モデルとの乖離を整理した調査メモ |
 
 ### 20260308_code-review/ — コードレビュー（2026-03-08実施）
 
