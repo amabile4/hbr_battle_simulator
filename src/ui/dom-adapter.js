@@ -58,6 +58,11 @@ function toOptionalNumber(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function normalizeReplayOperationOdLevel(value) {
+  const numeric = toOptionalNumber(value);
+  return numeric !== null && OD_LEVELS.includes(numeric) ? numeric : null;
+}
+
 function hasReplayMigrationPayload(payload) {
   if (payload === null || payload === undefined) {
     return false;
@@ -6719,11 +6724,11 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         continue;
       }
       if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
-        draft.preemptiveOdLevel = Number(payload.level ?? operation.level ?? 1);
+        draft.preemptiveOdLevel = normalizeReplayOperationOdLevel(payload.level ?? operation.level ?? 1);
         continue;
       }
       if (type === REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD) {
-        draft.interruptOdLevel = Number(payload.level ?? operation.level ?? 1);
+        draft.interruptOdLevel = normalizeReplayOperationOdLevel(payload.level ?? operation.level ?? 1);
         continue;
       }
       draft.unknownOperations.push(structuredClone(operation));
@@ -6749,19 +6754,21 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const operations = Array.isArray(draft.unknownOperations)
       ? draft.unknownOperations.map((entry) => structuredClone(entry))
       : [];
+    const preemptiveOdLevel = normalizeReplayOperationOdLevel(draft.preemptiveOdLevel);
+    const interruptOdLevel = normalizeReplayOperationOdLevel(draft.interruptOdLevel);
     if (draft.activateKishinka) {
       operations.unshift({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA });
     }
-    if (Number.isFinite(Number(draft.preemptiveOdLevel))) {
+    if (preemptiveOdLevel !== null) {
       operations.push({
         type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
-        payload: { level: Number(draft.preemptiveOdLevel) },
+        payload: { level: preemptiveOdLevel },
       });
     }
-    if (Number.isFinite(Number(draft.interruptOdLevel))) {
+    if (interruptOdLevel !== null) {
       operations.push({
         type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
-        payload: { level: Number(draft.interruptOdLevel) },
+        payload: { level: interruptOdLevel },
       });
     }
     return operations;
@@ -6843,20 +6850,20 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     const preemptiveToggle = this.root.querySelector('[data-role="replay-op-preemptive-od-enabled"]');
     const preemptiveLevel = this.root.querySelector('[data-role="replay-op-preemptive-od-level"]');
     if (preemptiveToggle) {
-      preemptiveToggle.checked = Number.isFinite(Number(draft?.preemptiveOdLevel));
+      preemptiveToggle.checked = normalizeReplayOperationOdLevel(draft?.preemptiveOdLevel) !== null;
     }
     if (preemptiveLevel) {
-      preemptiveLevel.value = String(Number(draft?.preemptiveOdLevel ?? 1));
+      preemptiveLevel.value = String(normalizeReplayOperationOdLevel(draft?.preemptiveOdLevel) ?? 1);
       preemptiveLevel.disabled = !Boolean(preemptiveToggle?.checked);
     }
 
     const interruptToggle = this.root.querySelector('[data-role="replay-op-interrupt-od-enabled"]');
     const interruptLevel = this.root.querySelector('[data-role="replay-op-interrupt-od-level"]');
     if (interruptToggle) {
-      interruptToggle.checked = Number.isFinite(Number(draft?.interruptOdLevel));
+      interruptToggle.checked = normalizeReplayOperationOdLevel(draft?.interruptOdLevel) !== null;
     }
     if (interruptLevel) {
-      interruptLevel.value = String(Number(draft?.interruptOdLevel ?? 1));
+      interruptLevel.value = String(normalizeReplayOperationOdLevel(draft?.interruptOdLevel) ?? 1);
       interruptLevel.disabled = !Boolean(interruptToggle?.checked);
     }
 

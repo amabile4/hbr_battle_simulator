@@ -643,6 +643,54 @@ test('ReplayScript edit toolbar saves operations and note while preserving unkno
   );
 });
 
+test('ReplayScript edit toolbar allows clearing preemptive and interrupt OD reservations', () => {
+  const store = getStore();
+  const { root, win } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.replayScript.turns[0] = {
+    ...adapter.replayScript.turns[0],
+    operations: [
+      { type: 'ActivatePreemptiveOd', payload: { level: 1 } },
+      { type: 'ReserveInterruptOd', payload: { level: 1 } },
+    ],
+  };
+  root.querySelector('[data-role="turn-plan-recalc-mode"]').value = 'force';
+
+  root.querySelector('[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]').click();
+
+  const preemptiveToggle = root.querySelector('[data-role="replay-op-preemptive-od-enabled"]');
+  const interruptToggle = root.querySelector('[data-role="replay-op-interrupt-od-enabled"]');
+
+  assert.equal(preemptiveToggle.checked, true);
+  assert.equal(interruptToggle.checked, true);
+
+  preemptiveToggle.checked = false;
+  preemptiveToggle.dispatchEvent(new win.Event('change', { bubbles: true }));
+  interruptToggle.checked = false;
+  interruptToggle.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+  assert.equal(root.querySelector('[data-role="replay-op-preemptive-od-enabled"]').checked, false);
+  assert.equal(root.querySelector('[data-role="replay-op-preemptive-od-level"]').disabled, true);
+  assert.equal(root.querySelector('[data-role="replay-op-interrupt-od-enabled"]').checked, false);
+  assert.equal(root.querySelector('[data-role="replay-op-interrupt-od-level"]').disabled, true);
+
+  root.querySelector('[data-action="turn-plan-edit-save"]').click();
+
+  const savedTurn = adapter.replayScript.turns[0];
+  assert.equal(
+    savedTurn.operations.some((entry) => entry.type === 'ActivatePreemptiveOd'),
+    false
+  );
+  assert.equal(
+    savedTurn.operations.some((entry) => entry.type === 'ReserveInterruptOd'),
+    false
+  );
+});
+
 test('recalculateReplayScript aligns positions from slots and replays without duplicating script turns', () => {
   const store = getStore();
   const { root } = createRoot();
