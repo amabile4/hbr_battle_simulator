@@ -1,23 +1,17 @@
 {
   "name": "hbr-battle-simulator",
-  "version": "1.0.0",
-  "description": "ヘブンバーンズレッド戦闘シミュレータ",
+  "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage",
-    "dev": "python3 -m http.server 8080",
-    "analyze:migration": "node json/scripts/build_skill_migration_artifacts.mjs",
-    "analyze:migration:delta": "node json/scripts/compare_migration_metrics.mjs",
-    "analyze:migration:all": "npm run analyze:migration && npm run analyze:migration:delta"
+    "test": "node --test tests/**/*.test.js",
+    "test:quick": "node --test tests/adapter-core.test.js tests/battle-adapter-facade.test.js tests/character-party.test.js tests/data-store-operations.test.js tests/damage-calculation-context.test.js tests/real-data-mechanics-coverage.test.js tests/schema-validation.test.js tests/turn-preview.test.js tests/record-system.test.js tests/turn-state-transitions.test.js",
+    "test:dom": "HBR_TEST_CHARACTER_LABELS=RKayamori,YIzumi,MAikawa,TTojo,KAsakura,TKunimi,EAoi,MuOhshima,STezuka,MTsukishiro,MKiryu,KMaruyama,NNanase node --test tests/dom-adapter-battle-scenario.test.js",
+    "test:dom:full": "HBR_TEST_CHARACTER_LABELS=RKayamori,YIzumi,MAikawa,TTojo,KAsakura,TKunimi,EAoi,MuOhshima,STezuka,MTsukishiro,MKiryu,KMaruyama,NNanase node --test tests/dom-adapter-battle-scenario.test.js tests/dom-adapter-records-style.test.js tests/dom-adapter-ui-selection.test.js",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^1.0.4",
-    "@vitest/ui": "^1.0.4",
-    "jsdom": "^23.0.1",
-    "playwright": "^1.58.2",
-    "vitest": "^1.0.4"
+    "@playwright/test": "^1.58.2",
+    "jsdom": "^28.1.0"
   }
 }

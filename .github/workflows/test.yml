@@ -1,202 +1,36 @@
-name: 🧪 Tests
+name: Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
-    name: 🔍 Unit Tests
+    name: Unit Tests
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
-        node-version: [18, 20]
-    
+        node-version: [20, 22]
+
     steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-        
-      - name: 📦 Setup Node.js ${{ matrix.node-version }}
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          
-      - name: 🔧 Install dependencies
-        run: npm ci
-        
-      - name: 🧪 Run tests
+
+      - run: npm ci
+
+      - name: Quick tests
+        run: npm run test:quick
+
+      - name: DOM tests (full)
+        run: npm run test:dom:full
+
+      - name: All tests
         run: npm test
-        
-      - name: 📊 Generate coverage report
-        run: npm run test:coverage
-        
-      - name: 📈 Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage/lcov.info
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
-
-  lint:
-    name: 🔍 Code Quality
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-        
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          
-      - name: 🔧 Install dependencies
-        run: npm ci
-        
-      - name: 🎨 Check code style (future)
-        run: echo "ESLint/Prettier will be added here"
-        
-      - name: 🔍 Check for secrets
-        run: |
-          echo "Checking for potential secrets..."
-          if grep -r "api.key\|password\|secret" --include="*.js" --include="*.json" --exclude-dir=node_modules --exclude-dir=.git .; then
-            echo "⚠️ Potential secrets found!"
-            exit 1
-          fi
-          echo "✅ No secrets detected"
-
-  data-validation:
-    name: 📊 Data Validation
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-        
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          
-      - name: 🔧 Install dependencies
-        run: npm ci
-        
-      - name: 🗃️ Validate skill database
-        run: |
-          echo "🔍 Validating skillDatabase.json..."
-          node -e "
-            const fs = require('fs');
-            try {
-              const data = JSON.parse(fs.readFileSync('skillDatabase.json', 'utf8'));
-              console.log('✅ JSON is valid');
-              console.log('📊 Characters:', Object.keys(data.characters).length);
-              console.log('📊 Total skills:', Object.values(data.characters).flat().length);
-            } catch (error) {
-              console.error('❌ JSON validation failed:', error.message);
-              process.exit(1);
-            }
-          "
-
-  deployment-check:
-    name: 🚀 Deployment Check
-    runs-on: ubuntu-latest
-    needs: [test, lint, data-validation]
-    
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-        
-      - name: 🌐 Test static file serving
-        run: |
-          echo "🔍 Checking static files..."
-          
-          # HTMLファイルの存在確認
-          if [ ! -f "hbr_gui_simulator_modular.html" ]; then
-            echo "❌ Main HTML file not found"
-            exit 1
-          fi
-          
-          # JSファイルの存在確認
-          for file in js/*.js; do
-            if [ ! -f "$file" ]; then
-              echo "❌ Missing JS file: $file"
-              exit 1
-            fi
-          done
-          
-          # CSSファイルの存在確認
-          for file in css/*.css; do
-            if [ ! -f "$file" ]; then
-              echo "❌ Missing CSS file: $file"
-              exit 1
-            fi
-          done
-          
-          echo "✅ All static files found"
-          
-      - name: 🐍 Test Python server
-        run: |
-          echo "🔍 Testing Python HTTP server..."
-          
-          # Pythonサーバーをバックグラウンドで起動
-          python3 -m http.server 8080 &
-          SERVER_PID=$!
-          
-          # サーバーの起動を待つ
-          sleep 3
-          
-          # ヘルスチェック
-          if curl -f http://localhost:8080/hbr_gui_simulator_modular.html > /dev/null 2>&1; then
-            echo "✅ Server responds correctly"
-          else
-            echo "❌ Server health check failed"
-            kill $SERVER_PID
-            exit 1
-          fi
-          
-          # サーバー停止
-          kill $SERVER_PID
-          echo "✅ Python server test completed"
-
-  notify:
-    name: 📢 Notification
-    runs-on: ubuntu-latest
-    needs: [test, lint, data-validation, deployment-check]
-    if: always()
-    
-    steps:
-      - name: 📊 Test Results Summary
-        run: |
-          echo "## 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ needs.test.result }}" == "success" ]; then
-            echo "✅ **Unit Tests**: Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Unit Tests**: Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ needs.lint.result }}" == "success" ]; then
-            echo "✅ **Code Quality**: Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Code Quality**: Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ needs.data-validation.result }}" == "success" ]; then
-            echo "✅ **Data Validation**: Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Data Validation**: Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ "${{ needs.deployment-check.result }}" == "success" ]; then
-            echo "✅ **Deployment Check**: Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Deployment Check**: Failed" >> $GITHUB_STEP_SUMMARY
-          fi

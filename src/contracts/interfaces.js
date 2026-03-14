@@ -1,0 +1,352 @@
+import {
+  DEFAULT_DESTRUCTION_RATE_PERCENT,
+  DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+  DEFAULT_ENEMY_COUNT,
+} from '../config/battle-defaults.js';
+import { cloneDpState } from '../domain/dp-state.js';
+
+export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
+export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
+export const RECORD_STATUSES = Object.freeze(['preview', 'committed']);
+
+export function buildPositionMap(partyMembers) {
+  if (!Array.isArray(partyMembers) || partyMembers.length !== 6) {
+    throw new Error('buildPositionMap requires 6 party members.');
+  }
+
+  const map = new Array(6).fill(-1);
+  partyMembers.forEach((member, partyIdx) => {
+    const pos = Number(member.position);
+    if (pos < 0 || pos > 5 || map[pos] !== -1) {
+      throw new Error(`Invalid party position mapping at position ${pos}.`);
+    }
+    map[pos] = partyIdx;
+  });
+
+  return Object.freeze(map);
+}
+
+function normalizeEnemyStatusForClone(status, enemyCount = DEFAULT_ENEMY_COUNT) {
+  if (!status || typeof status !== 'object') {
+    return null;
+  }
+  const statusType = String(status?.statusType ?? status?.skill_type ?? '').trim();
+  if (!statusType) {
+    return null;
+  }
+  const normalizedEnemyCount = Math.max(1, Number(enemyCount ?? DEFAULT_ENEMY_COUNT));
+  const targetRaw = status?.targetIndex ?? status?.target ?? 0;
+  const targetIndex = Math.max(
+    0,
+    Math.min(
+      normalizedEnemyCount - 1,
+      Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : 0
+    )
+  );
+  const normalized = {
+    statusType,
+    targetIndex,
+    remainingTurns: Number(status?.remainingTurns ?? status?.remaining ?? 0),
+  };
+  const powerRaw = Array.isArray(status?.power) ? status.power[0] : status?.power;
+  if (Number.isFinite(Number(powerRaw))) {
+    normalized.power = Number(powerRaw);
+  }
+  if (Array.isArray(status?.elements)) {
+    normalized.elements = [...new Set(status.elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
+  }
+  const limitType = String(status?.limitType ?? '').trim();
+  if (limitType) {
+    normalized.limitType = limitType;
+  }
+  const exitCond = String(status?.exitCond ?? '').trim();
+  if (exitCond) {
+    normalized.exitCond = exitCond;
+  }
+  if (Number.isFinite(Number(status?.sourceSkillId))) {
+    normalized.sourceSkillId = Number(status.sourceSkillId);
+  }
+  const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
+  if (sourceSkillName) {
+    normalized.sourceSkillName = sourceSkillName;
+  }
+  const sourceSkillLabel = String(status?.sourceSkillLabel ?? '').trim();
+  if (sourceSkillLabel) {
+    normalized.sourceSkillLabel = sourceSkillLabel;
+  }
+  if (status?.metadata && typeof status.metadata === 'object') {
+    normalized.metadata = structuredClone(status.metadata);
+  }
+  return normalized;
+}
+
+export function toCharacterSnapshot(character) {
+  return Object.freeze({
+    characterId: character.characterId,
+    characterName: character.characterName,
+    partyIndex: character.partyIndex,
+    positionIndex: character.position,
+    isFront: character.position <= 2,
+    normalAttackElements: Object.freeze([...(character.normalAttackElements ?? [])]),
+    sp: Object.freeze({ ...character.sp }),
+    ep: Object.freeze({ ...character.ep }),
+    dpState: Object.freeze(cloneDpState(character.dpState ?? {})),
+    tokenState: Object.freeze({ ...(character.tokenState ?? { current: 0, min: 0, max: 10 }) }),
+    moraleState: Object.freeze({ ...(character.moraleState ?? { current: 0, min: 0, max: 10 }) }),
+    motivationState: Object.freeze({ ...(character.motivationState ?? { current: 0, min: 0, max: 5 }) }),
+    markStates: Object.freeze(
+      Object.fromEntries(
+        Object.entries(character.markStates ?? {}).map(([element, state]) => [
+          String(element),
+          Object.freeze({ ...(state ?? { current: 0, min: 0, max: 10 }) }),
+        ])
+      )
+    ),
+    statusEffects: Object.freeze(
+      Array.isArray(character.statusEffects)
+        ? character.statusEffects.map((effect) => Object.freeze(structuredClone(effect)))
+        : []
+    ),
+    isAlive: Boolean(character.isAlive),
+    isBreak: Boolean(character.isBreak),
+    isExtraActive: Boolean(character.isExtraActive),
+    isReinforcedMode: Boolean(character.isReinforcedMode),
+    reinforcedTurnsRemaining: Number(character.reinforcedTurnsRemaining ?? 0),
+    actionDisabledTurns: Number(character.actionDisabledTurns ?? 0),
+    revision: Number(character.revision ?? 0),
+  });
+}
+
+export function snapshotPartyByPartyIndex(partyMembers) {
+  return [...partyMembers]
+    .sort((a, b) => a.partyIndex - b.partyIndex)
+    .map((member) => toCharacterSnapshot(member));
+}
+
+export function createInitialTurnState() {
+  return Object.freeze({
+    turnIndex: 1,
+    sequenceId: 1,
+    turnType: 'normal',
+    turnLabel: 'T1',
+    odGauge: 0,
+    odLevel: 0,
+    remainingOdActions: 0,
+    odContext: null,
+    odSuspended: false,
+    odPending: false,
+    enemyState: {
+      enemyCount: DEFAULT_ENEMY_COUNT,
+      statuses: [],
+      damageRatesByEnemy: {},
+      destructionRateByEnemy: {},
+      destructionRateCapByEnemy: {},
+      breakStateByEnemy: {},
+      enemyNamesByEnemy: {},
+      zoneConfigByEnemy: {},
+      talismanState: { active: false, level: 0, maxLevel: 10 },
+    },
+    zoneState: null,
+    territoryState: null,
+    transcendence: null,
+    extraTurnState: null,
+    passiveEventsLastApplied: [],
+    passiveUsageCounts: {},
+  });
+}
+
+export function cloneTurnState(turnState) {
+  const enemyCount = Number(turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  const enemyState =
+    turnState?.enemyState && typeof turnState.enemyState === 'object'
+      ? {
+          enemyCount,
+          statuses: Array.isArray(turnState.enemyState.statuses)
+            ? turnState.enemyState.statuses
+                .map((status) => normalizeEnemyStatusForClone(status, enemyCount))
+                .filter(Boolean)
+            : [],
+          damageRatesByEnemy:
+            turnState.enemyState.damageRatesByEnemy &&
+            typeof turnState.enemyState.damageRatesByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.damageRatesByEnemy).map(([targetIndex, rates]) => [
+                    String(targetIndex),
+                    rates && typeof rates === 'object' ? { ...rates } : {},
+                  ])
+                )
+              : {},
+          destructionRateByEnemy:
+            turnState.enemyState.destructionRateByEnemy &&
+            typeof turnState.enemyState.destructionRateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.destructionRateByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) ? Number(value) : DEFAULT_DESTRUCTION_RATE_PERCENT,
+                  ])
+                )
+              : {},
+          destructionRateCapByEnemy:
+            turnState.enemyState.destructionRateCapByEnemy &&
+            typeof turnState.enemyState.destructionRateCapByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.destructionRateCapByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) ? Number(value) : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                  ])
+                )
+              : {},
+          breakStateByEnemy:
+            turnState.enemyState.breakStateByEnemy && typeof turnState.enemyState.breakStateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.breakStateByEnemy).map(([targetIndex, state]) => [
+                    String(targetIndex),
+                    state && typeof state === 'object'
+                      ? {
+                          baseCap: Number.isFinite(Number(state.baseCap))
+                            ? Number(state.baseCap)
+                            : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                          strongBreakActive: Boolean(state.strongBreakActive),
+                          superDown:
+                            state.superDown && typeof state.superDown === 'object'
+                              ? {
+                                  preRate: Number.isFinite(Number(state.superDown.preRate))
+                                    ? Number(state.superDown.preRate)
+                                    : DEFAULT_DESTRUCTION_RATE_PERCENT,
+                                  preCap: Number.isFinite(Number(state.superDown.preCap))
+                                    ? Number(state.superDown.preCap)
+                                    : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                                }
+                              : null,
+                        }
+                      : {
+                          baseCap: DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                          strongBreakActive: false,
+                          superDown: null,
+                        },
+                  ])
+                )
+              : {},
+          enemyNamesByEnemy:
+            turnState.enemyState.enemyNamesByEnemy &&
+            typeof turnState.enemyState.enemyNamesByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.enemyNamesByEnemy).map(([targetIndex, name]) => [
+                    String(targetIndex),
+                    String(name ?? ''),
+                  ])
+                )
+              : {},
+          zoneConfigByEnemy:
+            turnState.enemyState.zoneConfigByEnemy &&
+            typeof turnState.enemyState.zoneConfigByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.zoneConfigByEnemy).map(([targetIndex, config]) => [
+                    String(targetIndex),
+                    config && typeof config === 'object'
+                      ? {
+                          enabled: Boolean(config.enabled),
+                          type: String(config.type ?? ''),
+                          remainingTurns:
+                            config.remainingTurns === null || config.remainingTurns === undefined
+                              ? null
+                              : Number(config.remainingTurns ?? 0),
+                        }
+                      : { enabled: false, type: '', remainingTurns: 8 },
+                  ])
+                )
+              : {},
+          talismanState:
+            turnState.enemyState.talismanState &&
+            typeof turnState.enemyState.talismanState === 'object'
+              ? {
+                  active: Boolean(turnState.enemyState.talismanState.active),
+                  level: Number(turnState.enemyState.talismanState.level ?? 0),
+                  maxLevel: Number(turnState.enemyState.talismanState.maxLevel ?? 10),
+                }
+              : { active: false, level: 0, maxLevel: 10 },
+        }
+        : {
+          enemyCount: DEFAULT_ENEMY_COUNT,
+          statuses: [],
+          damageRatesByEnemy: {},
+          destructionRateByEnemy: {},
+          destructionRateCapByEnemy: {},
+          breakStateByEnemy: {},
+          enemyNamesByEnemy: {},
+          zoneConfigByEnemy: {},
+          talismanState: { active: false, level: 0, maxLevel: 10 },
+        };
+  const zoneState =
+    turnState?.zoneState && typeof turnState.zoneState === 'object'
+      ? {
+          type: String(turnState.zoneState.type ?? ''),
+          sourceSide: String(turnState.zoneState.sourceSide ?? ''),
+          remainingTurns:
+            turnState.zoneState.remainingTurns === null || turnState.zoneState.remainingTurns === undefined
+              ? null
+              : Number(turnState.zoneState.remainingTurns ?? 0),
+          ...(Number.isFinite(Number(turnState.zoneState.powerRate))
+            ? { powerRate: Number(turnState.zoneState.powerRate) }
+            : {}),
+        }
+      : null;
+  const territoryState =
+    turnState?.territoryState && typeof turnState.territoryState === 'object'
+      ? {
+          type: String(turnState.territoryState.type ?? ''),
+          sourceSide: String(turnState.territoryState.sourceSide ?? ''),
+          remainingTurns:
+            turnState.territoryState.remainingTurns === null || turnState.territoryState.remainingTurns === undefined
+              ? null
+              : Number(turnState.territoryState.remainingTurns ?? 0),
+          ...(Number.isFinite(Number(turnState.territoryState.powerRate))
+            ? { powerRate: Number(turnState.territoryState.powerRate) }
+            : {}),
+        }
+      : null;
+  return {
+    ...turnState,
+    enemyState,
+    zoneState,
+    territoryState,
+    transcendence: turnState.transcendence
+      ? {
+          ...turnState.transcendence,
+        }
+      : null,
+    extraTurnState: turnState.extraTurnState
+      ? {
+          ...turnState.extraTurnState,
+          allowedCharacterIds: [...turnState.extraTurnState.allowedCharacterIds],
+        }
+      : null,
+    passiveEventsLastApplied: Array.isArray(turnState?.passiveEventsLastApplied)
+      ? turnState.passiveEventsLastApplied.map((event) => ({ ...event }))
+      : [],
+    passiveUsageCounts:
+      turnState?.passiveUsageCounts && typeof turnState.passiveUsageCounts === 'object'
+        ? Object.fromEntries(
+            Object.entries(turnState.passiveUsageCounts).map(([key, count]) => [
+              String(key),
+              Number(count ?? 0),
+            ])
+          )
+        : {},
+  };
+}
+
+export function createBattleState(partyMembers, turnState = createInitialTurnState()) {
+  if (!Array.isArray(partyMembers) || partyMembers.length !== 6) {
+    throw new Error('createBattleState requires exactly 6 party members.');
+  }
+
+  const initialParty = snapshotPartyByPartyIndex(partyMembers);
+
+  return {
+    party: [...partyMembers],
+    turnState: cloneTurnState(turnState),
+    positionMap: buildPositionMap(partyMembers),
+    initialParty,
+  };
+}

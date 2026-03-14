@@ -1,0 +1,45 @@
+[
+  {
+    "id": 46003115,
+    "label": "BIYamawakiSkill08",
+    "name": "ごきげんダンス",
+    "sp_cost": 6,
+    "target_type": "AllySingleWithoutSelf",
+    "consume_type": "Sp",
+    "is_restricted": 1,
+    "auto_priority": 6,
+    "cond": "CountBC(IsPlayer())>1",
+    "iuc_cond": "",
+    "parts": [
+      {},
+      {},
+      {
+        "skill_type": "AdditionalTurn",
+        "target_type": "Self",
+        "extra_turn_grant_enabled_in_extra_turn": false
+      }
+    ],
+    "extra_turn_rules": {
+      "skill_usable_in_extra_turn": true,
+      "additional_turn_grant_in_extra_turn": false
+    },
+    "notes": "Source data does not explicitly encode the partial extra-turn restriction. Remove when upstream data has dedicated flags."
+  },
+  {
+    "id": 46005616,
+    "label": "AMizuharaSkill54",
+    "name": "レインボーミラクルスライダー",
+    "parts": [
+      {
+        "strval": [
+          {
+            "id": 46005617,
+            "sp_cost": 0
+          },
+          {}
+        ]
+      }
+    ],
+    "notes": "Upstream data inconsistency: DownTurn branch (46005617) should consume SP0."
+  }
+]

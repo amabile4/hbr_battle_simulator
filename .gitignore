@@ -74,26 +74,14 @@ config/staging.js
 .history/
 .vscode-test/
 
-# External JSON symlinks (managed in seraphdb)
-json/accessories.json
-json/arts_items.json
-json/battles.json
-json/boosters.json
-json/characters.json
-json/chips.json
-json/conquest.json
-json/cooking.json
-json/enemies.json
-json/events.json
-json/gachasim.json
-json/items.json
-json/levels.json
-json/missions.json
-json/packs.json
-json/passives.json
-json/skills.json
-json/styles.json
+# External JSON files are now tracked in this repository
 skillDatabase.json
 
 .cli-home
 scripts/run_gemini_api.sh
+
+# Local IDE metadata
+.kiro/
+
+# Claude Code local settings (machine-specific, not shared)
+.claude/

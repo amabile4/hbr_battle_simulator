@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HBR Battle Simulator Adapter Demo</title>
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet" />
+  <style>
+    body { font-family: Georgia, 'Times New Roman', serif; margin: 24px; color: #1f2d3d; overflow-x: hidden; }
+    .row { margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+    [hidden] { display: none !important; }
+    .panel { border: 1px solid #c4ccd8; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .panel-header h2 { margin: 0; }
+    .style-slot, .action-slot { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; }
+    .party-slot { border: 1px solid #d6dce6; border-radius: 6px; padding: 8px; min-width: 280px; display: grid; gap: 6px; }
+    [data-role="skill-checklist"] { max-height: 180px; overflow: auto; border: 1px solid #e3e8ef; padding: 6px; border-radius: 4px; }
+    .skill-check-item { display: block; font-size: 0.9rem; margin-bottom: 4px; }
+    .attr-badge-row { display: inline-flex; gap: 4px; align-items: center; margin: 2px 0; }
+    .attr-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.4em;
+      height: 1.4em;
+      border-radius: 999px;
+      border: 2px solid #fff;
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.78rem;
+      line-height: 1;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+    }
+    .attr-element-fire { background: #c85b5b; }
+    .attr-element-ice { background: #648ed0; }
+    .attr-element-thunder { background: #9a9035; }
+    .attr-element-light { background: #f2f2f2; color: #111; text-shadow: none; }
+    .attr-element-dark { background: #3d3557; }
+    .attr-weapon-slash { background: #7a3db6; }
+    .attr-weapon-stab { background: #d9782b; }
+    .attr-weapon-strike { background: #3e9b52; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #c4ccd8; padding: 6px; text-align: left; }
+    .records-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border: 1px solid #c4ccd8;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .records-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+    }
+    .records-table th, .records-table td {
+      white-space: nowrap;
+      vertical-align: top;
+    }
+    [data-role="passive-log-output"] {
+      max-height: 16rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      white-space: pre-wrap;
+    }
+    pre, textarea { width: 100%; min-height: 120px; }
+    ul { margin: 0; padding-left: 18px; }
+    .turn-label-fixed {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+      display: inline-block;
+      min-width: 62ch;
+    }
+    .field-state-fixed {
+      display: inline-block;
+      min-width: 24ch;
+      margin-left: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+    }
+    .mark-icon-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .mark-icon {
+      width: 0.95rem;
+      height: 0.95rem;
+      object-fit: contain;
+      vertical-align: middle;
+    }
+    .mark-level {
+      font-size: 0.72rem;
+      line-height: 1;
+      margin-left: -1px;
+    }
+    [data-role="resonance-detail"] {
+      font-size: 0.82rem;
+      background: #eef4ff;
+      border-left: 3px solid #5b8fd6;
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: #1a3a6b;
+      line-height: 1.4;
+    }
+    [data-role="resonance-detail"]:empty {
+      display: none;
+    }
+    .resonance-no-ability {
+      color: #888;
+      font-style: italic;
+    }
+    [data-role="support-resonance-filter"] {
+      font-size: 0.82rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>HBR Battle Simulator UI Adapter Demo</h1>
+
+  <div id="app">
+    <div class="panel">
+      <h2>Character Selection</h2>
+      <div data-role="style-slots" class="row"></div>
+      <p><strong>Selections:</strong> <span data-role="selection-summary"></span></p>
+      <div class="row">
+        <label>Selection Slot
+          <select data-role="selection-slot-select"></select>
+        </label>
+        <button data-action="save-selection" type="button">Save Selection</button>
+        <button data-action="load-selection" type="button">Load Selection</button>
+        <button data-action="clear-selection-slot" type="button">Clear Slot</button>
+      </div>
+      <pre data-role="selection-slot-preview"></pre>
+      <div class="row">
+        <label>Initial OD%
+          <input
+            data-role="initial-od-gauge"
+            type="number"
+            step="0.01"
+            min="-999.99"
+            max="300"
+            value="0"
+          />
+        </label>
+        <button data-action="initialize" type="button">Initialize Battle</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Turn Controls</h2>
+      <div class="row">
+        <label>Enemy Action <input data-role="enemy-action" type="text" placeholder="optional" /></label>
+        <label>Enemy Count
+          <select data-role="enemy-count">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+        </label>
+        <label>Enemy Status
+          <select data-role="enemy-status-type">
+            <option value="DownTurn" selected>DownTurn</option>
+            <option value="Break">Break</option>
+            <option value="Dead">Dead</option>
+          </select>
+        </label>
+        <label>Target
+          <select data-role="enemy-status-target">
+            <option value="0" selected>Enemy 1</option>
+          </select>
+        </label>
+        <label>Turns
+          <input data-role="enemy-status-turns" type="number" min="1" step="1" value="1" />
+        </label>
+        <button data-action="enemy-status-apply" type="button">状態付与</button>
+        <button data-action="enemy-status-clear" type="button">状態解除</button>
+      </div>
+      <p><strong data-role="enemy-status-list">Enemy Status: -</strong></p>
+      <div data-role="enemy-config-list" class="stack"></div>
+      <div class="row" data-role="enemy-zone-controls" hidden>
+        <strong>Enemy Field</strong>
+        <label>Source
+          <select data-role="enemy-zone-source"></select>
+        </label>
+        <button data-action="enemy-zone-apply" type="button">敵フィールド展開</button>
+      </div>
+      <div data-role="action-slots" class="row"></div>
+      <div class="row">
+        <label>Swap From
+          <select data-role="swap-from">
+            <option value="0">Pos 1</option>
+            <option value="1">Pos 2</option>
+            <option value="2">Pos 3</option>
+            <option value="3">Pos 4</option>
+            <option value="4">Pos 5</option>
+            <option value="5">Pos 6</option>
+          </select>
+        </label>
+        <label>Swap To
+          <select data-role="swap-to">
+            <option value="0">Pos 1</option>
+            <option value="1">Pos 2</option>
+            <option value="2">Pos 3</option>
+            <option value="3">Pos 4</option>
+            <option value="4">Pos 5</option>
+            <option value="5">Pos 6</option>
+          </select>
+        </label>
+        <button data-action="swap" type="button">Apply Swap</button>
+        <span data-role="swap-legacy-note"></span>
+      </div>
+      <div class="row">
+        <button data-action="preview" type="button">Preview Turn</button>
+        <button data-action="commit" type="button">Commit Turn</button>
+        <button data-action="open-interrupt-od" type="button">割込OD</button>
+        <span data-role="interrupt-od-badge"></span>
+        <span data-role="interrupt-od-projection" hidden></span>
+      </div>
+      <div class="row">
+        <button data-action="open-od" type="button">OD発動</button>
+        <button data-action="kishinka" type="button" hidden>鬼神化</button>
+        <span data-role="kishinka-state"></span>
+        <label>デバッグ：OD強制発動 <input data-role="force-od-toggle" type="checkbox" /></label>
+        <label>SP厳密モード <input data-role="sp-strict-mode-toggle" type="checkbox" /></label>
+      </div>
+      <div class="row" data-role="od-dialog">
+        <strong>通常OD発動</strong>
+        <label>ODレベル
+          <select data-role="od-level">
+            <option value="1">OD1</option>
+            <option value="2">OD2</option>
+            <option value="3">OD3</option>
+          </select>
+        </label>
+        <button data-action="od-confirm" type="button">通常OD発動</button>
+        <button data-action="od-cancel" type="button">キャンセル</button>
+      </div>
+      <div class="row" data-role="interrupt-od-dialog" hidden>
+        <strong>割込OD発動</strong>
+        <label>ODレベル
+          <select data-role="interrupt-od-level">
+            <option value="1">OD1</option>
+            <option value="2">OD2</option>
+            <option value="3">OD3</option>
+          </select>
+        </label>
+        <button data-action="interrupt-od-confirm" type="button">割込OD発動</button>
+        <button data-action="interrupt-od-cancel" type="button">キャンセル</button>
+      </div>
+      <p><strong>Turn:</strong> <span data-role="turn-label" class="turn-label-fixed"></span><span data-role="field-state-label" class="field-state-fixed"></span></p>
+      <ul data-role="party-state"></ul>
+      <div data-role="dp-debug-list" class="row"></div>
+      <div data-role="token-debug-list" class="row"></div>
+      <div data-role="enemy-attack-target-controls" class="row"></div>
+      <p><strong>Status:</strong> <span data-role="status"></span></p>
+    </div>
+
+    <div class="panel">
+      <h2>Scenario Runner (JSON)</h2>
+      <p>Setup + turn operations can be replayed from JSON.</p>
+      <textarea data-role="scenario-json" placeholder='{"version":1,"setup":{},"turns":[]}'></textarea>
+      <div class="row">
+        <button data-action="scenario-load" type="button">Load Scenario</button>
+        <button data-action="scenario-apply-setup" type="button">Apply Setup</button>
+        <button data-action="scenario-stage-next" type="button">Stage Current Turn (No Commit)</button>
+        <button data-action="scenario-run-next" type="button">Run Next Turn</button>
+        <button data-action="scenario-run-all" type="button">Run All Turns</button>
+      </div>
+      <p><strong>Scenario:</strong> <span data-role="scenario-status">Not loaded</span></p>
+    </div>
+
+    <div class="panel">
+      <h2>Preview</h2>
+      <pre data-role="preview-output"></pre>
+    </div>
+
+    <div class="panel">
+      <h2>Condition Support</h2>
+      <pre data-role="condition-support-summary"></pre>
+    </div>
+
+    <div class="panel">
+      <h2>Passive Log</h2>
+      <pre data-role="passive-log-output"></pre>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Records</h2>
+        <label><input data-role="records-simple-toggle" type="checkbox" /> 簡易表示</label>
+      </div>
+      <div class="row">
+        <button data-action="clear-records" type="button">Clear Records</button>
+        <label>再計算モード
+          <select data-role="turn-plan-recalc-mode">
+            <option value="strict">Strict (途中停止)</option>
+            <option value="force">Force (強引継続)</option>
+          </select>
+        </label>
+        <button data-action="turn-plan-recalc" type="button">全ターン再計算</button>
+        <span data-role="turn-plan-recalc-status"></span>
+      </div>
+      <pre data-role="turn-plan-recalc-diagnostics" hidden></pre>
+      <div class="row" data-role="turn-plan-edit-toolbar" hidden>
+        <strong data-role="turn-plan-edit-title"></strong>
+        <div data-role="replay-turn-edit-panel" hidden>
+          <div data-role="replay-slot-editor"></div>
+          <div class="row">
+            <label><input data-role="replay-op-kishinka" type="checkbox" /> 鬼神化</label>
+            <label>
+              <input data-role="replay-op-preemptive-od-enabled" type="checkbox" /> 通常OD
+              <select data-role="replay-op-preemptive-od-level">
+                <option value="1">OD1</option>
+                <option value="2">OD2</option>
+                <option value="3">OD3</option>
+              </select>
+            </label>
+            <label>
+              <input data-role="replay-op-interrupt-od-enabled" type="checkbox" /> 割込OD予約
+              <select data-role="replay-op-interrupt-od-level">
+                <option value="1">OD1</option>
+                <option value="2">OD2</option>
+                <option value="3">OD3</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            Turn Note
+            <textarea data-role="replay-turn-note" rows="3" placeholder="このターンでやることメモ"></textarea>
+          </label>
+          <div data-role="replay-turn-edit-hint"></div>
+        </div>
+        <button data-action="turn-plan-edit-save" type="button">この内容で保存</button>
+        <button data-action="turn-plan-edit-cancel" type="button">編集キャンセル</button>
+      </div>
+      <div class="records-table-wrap" data-role="records-scroll">
+        <table class="records-table">
+          <thead>
+            <tr data-role="record-head">
+              <th>turnId</th>
+              <th>turnLabel</th>
+              <th>turnType</th>
+              <th>turnIndex</th>
+              <th>recordStatus</th>
+              <th>odTurnStart</th>
+              <th>odContext</th>
+              <th>isExtraTurn</th>
+              <th>remainingOD</th>
+              <th>odGaugeStart</th>
+              <th>enemyCount</th>
+              <th>enemyAction</th>
+              <th>enemyStatus</th>
+              <th>transcendence</th>
+              <th>前衛POS1キャラ</th>
+              <th>前衛POS1スキル</th>
+              <th>前衛POS2キャラ</th>
+              <th>前衛POS2スキル</th>
+              <th>前衛POS3キャラ</th>
+              <th>前衛POS3スキル</th>
+              <th>actions</th>
+              <th>swapEvents</th>
+              <th>snapBefore</th>
+              <th>snapAfter</th>
+              <th>effectSnapshots</th>
+              <th>createdAt</th>
+              <th>committedAt</th>
+              <th>status</th>
+              <th>ops</th>
+            </tr>
+          </thead>
+          <tbody data-role="record-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>CSV Export</h2>
+      <div class="row">
+        <button data-action="export-csv" type="button">Export CSV</button>
+      </div>
+      <textarea data-role="csv-output"></textarea>
+    </div>
+
+    <div class="panel">
+      <h2>Records JSON Save</h2>
+      <div class="row">
+        <button data-action="export-records-json" type="button">Save Records JSON</button>
+      </div>
+      <textarea data-role="records-json-output"></textarea>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "node:fs": "./shims/node-fs.js",
+        "node:path": "./shims/node-path.js"
+      }
+    }
+  </script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

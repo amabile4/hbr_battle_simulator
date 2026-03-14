@@ -18,6 +18,20 @@
 - **コードサンプル**: 20250526004832-code_sample.py
 - **データ構造定義**: 20250526004832-data_structures.py
 
+## GitHub Pages 公開手順
+
+このリポジトリは `ui/index.html` をデモ画面として公開できます。  
+ルート `index.html` は自動的に `ui/index.html` へ遷移するため、Pages の公開URLをそのまま開けば動作します。
+
+1. GitHub の対象リポジトリで `Settings` -> `Pages` を開く
+2. `Build and deployment` で `Source: Deploy from a branch` を選択
+3. Branch は公開したいブランチ（例: `main`）、Folder は `/(root)` を選択
+4. 保存後、反映完了を待って公開URLにアクセス
+
+補足:
+- JSON データは `json/*.json` を相対パスで読み込みます（`ui` から見て `../json`）。
+- GitHub Pages では静的ファイルとして配信されるため、追加のサーバ設定は不要です。
+
 ## データ更新時の分析手順（運用）
 
 `seraphdb` 側で JSON が更新された後、以下で同じ分析を再実行し、増分を確認する。
