@@ -46,6 +46,14 @@ function toInt(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function toOptionalNumber(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 function normalizeName(name) {
   return String(name ?? '')
     .split('—')[0]
@@ -3852,8 +3860,9 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
     const previewOptions =
       options.previewOptions && typeof options.previewOptions === 'object' ? options.previewOptions : {};
-    const shouldCaptureTurnPlan = options.skipTurnPlanCapture !== true && !this.isReplayingTurnPlans;
-    const shouldCaptureReplayTurn = options.skipReplayScriptCapture !== true && !this.isReplayingTurnPlans;
+    const isReplayingDerivedEditor = this.isReplayingTurnPlans || this.isReplayingReplayScript;
+    const shouldCaptureTurnPlan = options.skipTurnPlanCapture !== true && !isReplayingDerivedEditor;
+    const shouldCaptureReplayTurn = options.skipReplayScriptCapture !== true && !isReplayingDerivedEditor;
     const capturedTurnPlan = shouldCaptureTurnPlan ? this.captureCurrentTurnPlanFromDom() : null;
     const capturedReplayTurn = shouldCaptureReplayTurn ? this.captureCurrentReplayTurnFromDom() : null;
 
@@ -4127,6 +4136,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     };
   }
 
+  buildReplayScriptReplayCommitOptions(mode, overrides = {}) {
+    return this.buildTurnPlanReplayCommitOptions(mode, {
+      skipReplayScriptCapture: true,
+      ...overrides,
+    });
+  }
+
   replayTurnPlanTurn(turn, mode, warnings = []) {
     this.applyScenarioTurn(turn, {
       mode: 'commit',
@@ -4222,6 +4238,91 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return action();
     } finally {
       this.isReplayingTurnPlans = false;
+      if (refreshUi) {
+        this.refreshMutationUi({
+          actionSelectors: true,
+          partyState: true,
+          swapSelectors: true,
+          turnStatus: true,
+          enemyStatusControls: true,
+          kishinkaControls: true,
+          odControls: true,
+          recordTable: true,
+          turnPlanEditControls: true,
+        });
+      }
+    }
+  }
+
+  resetReplayScriptReplayResults() {
+    this.recordStore = createBattleRecordStore();
+    this.replayScriptComputedRecords = [];
+    this.resetReplayScriptReplayDiagnostics();
+  }
+
+  resetReplayScriptReplayDiagnostics() {
+    this.replayScriptReplayError = null;
+    this.replayScriptReplayWarnings = { setup: [], turns: [] };
+  }
+
+  buildReplayScriptReplayError(index, mode, error) {
+    return {
+      index,
+      message: this.getErrorMessage(error),
+      mode,
+    };
+  }
+
+  attemptReplayScriptForceFallback(index, mode, warnings = []) {
+    try {
+      this.resetTurnReplayTransientState();
+      this.commitCurrentTurn(this.buildReplayScriptReplayCommitOptions('force'));
+      this.replayScriptReplayError = null;
+      return { applied: 1, shouldStop: false };
+    } catch (fallbackError) {
+      warnings.push(`force fallback failed: ${fallbackError.message}`);
+      this.replayScriptReplayError = this.buildReplayScriptReplayError(index, mode, fallbackError);
+      return { applied: 0, shouldStop: true };
+    }
+  }
+
+  handleReplayScriptReplayFailure(index, mode, error, warnings = []) {
+    this.replayScriptReplayError = this.buildReplayScriptReplayError(index, mode, error);
+    if (mode !== 'force') {
+      return { applied: 0, shouldStop: true };
+    }
+    warnings.push(`force fallback: ${error.message}`);
+    return this.attemptReplayScriptForceFallback(index, mode, warnings);
+  }
+
+  finalizeReplayScriptReplay(applied, mode) {
+    this.replayScriptComputedRecords = [...this.recordStore.records];
+    if (this.replayScriptReplayError) {
+      const turnId = this.replayScriptReplayError.index + 1;
+      this.setStatus(`軽量再計算停止: Turn ${turnId} / ${this.replayScriptReplayError.message}`);
+      return;
+    }
+
+    const setupWarnings = Array.isArray(this.replayScriptReplayWarnings?.setup)
+      ? this.replayScriptReplayWarnings.setup.length
+      : 0;
+    const turnWarnings = (Array.isArray(this.replayScriptReplayWarnings?.turns)
+      ? this.replayScriptReplayWarnings.turns
+      : []
+    ).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+    const warningCount = setupWarnings + turnWarnings;
+    this.setStatus(
+      `軽量再計算完了: ${applied}/${this.replayScript.turns.length} turns (${mode}${warningCount > 0 ? ` / warnings=${warningCount}` : ''})`
+    );
+  }
+
+  runInReplayScriptSession(action, options = {}) {
+    const refreshUi = options.refreshUi === true;
+    this.isReplayingReplayScript = true;
+    try {
+      return action();
+    } finally {
+      this.isReplayingReplayScript = false;
       if (refreshUi) {
         this.refreshMutationUi({
           actionSelectors: true,
@@ -6948,6 +7049,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       forceToggle.checked = Boolean(base.forceOdToggle);
     }
     this.initializeBattle(base.styleIds, {
+      supportStyleIdsByPartyIndex: base.supportStyleIdsByPartyIndex,
+      supportLimitBreakLevelsByPartyIndex: base.supportLimitBreakLevelsByPartyIndex,
       skillSetsByPartyIndex: base.skillSetsByPartyIndex,
       limitBreakLevelsByPartyIndex: base.limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex: base.drivePierceByPartyIndex,
@@ -6979,6 +7082,326 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (forceMode) {
       this.enableForceResourceDeficitMode();
     }
+  }
+
+  reinitializeFromReplayScriptBase({ forceMode = false, warnings = [] } = {}) {
+    const fallbackBase = this.turnPlanBaseSetup && typeof this.turnPlanBaseSetup === 'object' ? this.turnPlanBaseSetup : {};
+    const setup = this.replayScript?.setup && typeof this.replayScript.setup === 'object' ? this.replayScript.setup : {};
+    const styleIds = Array.isArray(setup.styleIds) && setup.styleIds.length > 0 ? setup.styleIds : fallbackBase.styleIds;
+    if (!Array.isArray(styleIds) || styleIds.length !== PARTY_SLOT_COUNT) {
+      throw new Error('ReplayScript setup is missing styleIds[6].');
+    }
+
+    const enemyCount = Number(fallbackBase.enemyCount ?? DEFAULT_ENEMY_COUNT);
+    this.setDomValue('[data-role="enemy-count"]', enemyCount);
+    const forceToggle = this.root.querySelector('[data-role="force-od-toggle"]');
+    if (forceToggle && typeof fallbackBase.forceOdToggle === 'boolean') {
+      forceToggle.checked = Boolean(fallbackBase.forceOdToggle);
+    }
+
+    this.initializeBattle(styleIds, {
+      supportStyleIdsByPartyIndex:
+        setup.supportStyleIdsByPartyIndex ?? fallbackBase.supportStyleIdsByPartyIndex ?? {},
+      supportLimitBreakLevelsByPartyIndex:
+        setup.supportLimitBreakLevelsByPartyIndex ?? fallbackBase.supportLimitBreakLevelsByPartyIndex ?? {},
+      skillSetsByPartyIndex: setup.skillSetsByPartyIndex ?? fallbackBase.skillSetsByPartyIndex,
+      limitBreakLevelsByPartyIndex: setup.limitBreakLevelsByPartyIndex ?? fallbackBase.limitBreakLevelsByPartyIndex,
+      drivePierceByPartyIndex: fallbackBase.drivePierceByPartyIndex,
+      normalAttackElementsByPartyIndex: fallbackBase.normalAttackElementsByPartyIndex,
+      startSpEquipByPartyIndex: fallbackBase.startSpEquipByPartyIndex,
+      initialMotivationByPartyIndex:
+        setup.initialMotivationByPartyIndex ?? fallbackBase.initialMotivationByPartyIndex,
+      initialDpStateByPartyIndex: setup.initialDpStateByPartyIndex ?? fallbackBase.initialDpStateByPartyIndex,
+      initialBreakByPartyIndex: setup.initialBreakByPartyIndex ?? fallbackBase.initialBreakByPartyIndex,
+      tokenStateByPartyIndex: fallbackBase.tokenStateByPartyIndex,
+      moraleStateByPartyIndex: fallbackBase.moraleStateByPartyIndex,
+      motivationStateByPartyIndex: fallbackBase.motivationStateByPartyIndex,
+      markStateByPartyIndex: fallbackBase.markStateByPartyIndex,
+      statusEffectsByPartyIndex: fallbackBase.statusEffectsByPartyIndex,
+      initialOdGauge: Number(setup.initialOdGauge ?? fallbackBase.initialOdGauge ?? 0),
+      enemyNamesByEnemy: normalizeEnemyNamesByEnemy(fallbackBase.enemyNamesByEnemy),
+      damageRatesByEnemy: normalizeEnemyDamageRatesByEnemy(fallbackBase.damageRatesByEnemy),
+      destructionRateByEnemy: normalizeEnemyDestructionRateByEnemy(fallbackBase.destructionRateByEnemy),
+      destructionRateCapByEnemy: normalizeEnemyDestructionRateCapByEnemy(fallbackBase.destructionRateCapByEnemy),
+      enemyStatuses: Array.isArray(fallbackBase.enemyStatuses) ? structuredClone(fallbackBase.enemyStatuses) : [],
+      breakStateByEnemy: normalizeEnemyBreakStateByEnemy(fallbackBase.breakStateByEnemy),
+      enemyZoneConfigByEnemy: normalizeEnemyZoneConfigByEnemy(fallbackBase.enemyZoneConfigByEnemy),
+      zoneState: normalizeFieldStateForScenario(fallbackBase.zoneState),
+      territoryState: normalizeFieldStateForScenario(fallbackBase.territoryState),
+      skipInitialOdRead: true,
+      preserveTurnPlans: true,
+      suppressAutoSave: true,
+      silent: true,
+    });
+    for (const entry of Array.isArray(setup.setupEntries) ? setup.setupEntries : []) {
+      const type = String(entry?.type ?? '').trim();
+      if (!type) {
+        continue;
+      }
+      warnings.push(`setup entry ignored: ${type}`);
+    }
+    if (forceMode) {
+      this.enableForceResourceDeficitMode();
+    }
+  }
+
+  alignReplayScriptTurnPositions(slots = [], options = {}) {
+    if (!this.state || !this.party || !Array.isArray(slots) || slots.length === 0) {
+      return;
+    }
+    const warn = typeof options.onWarning === 'function' ? options.onWarning : () => {};
+    const isForceMode = Boolean(options.forceMode);
+    const desiredMembersByPosition = new Array(PARTY_SLOT_COUNT).fill(null);
+    const assigned = new Set();
+    let changed = false;
+
+    for (let position = 0; position < PARTY_SLOT_COUNT; position += 1) {
+      const slot = slots[position] ?? null;
+      const styleId = toOptionalNumber(slot?.styleId);
+      const resolved = this.executeScenarioStep(() => {
+        if (!Number.isFinite(styleId)) {
+          throw new Error(`slot ${position + 1} is missing styleId.`);
+        }
+        const member = this.party.members.find((item) => Number(item?.styleId) === styleId) ?? null;
+        if (!member) {
+          throw new Error(`style ${styleId} is not present in current party.`);
+        }
+        if (assigned.has(member)) {
+          throw new Error(`style ${styleId} is assigned to multiple replay slots.`);
+        }
+        assigned.add(member);
+        desiredMembersByPosition[position] = member;
+        return member;
+      }, {
+        onWarning: isForceMode ? warn : null,
+        warningPrefix: 'position resolution skipped',
+      });
+      if (resolved === null && !isForceMode) {
+        throw new Error(`Failed to resolve replay slot at position ${position + 1}.`);
+      }
+    }
+
+    for (let position = 0; position < PARTY_SLOT_COUNT; position += 1) {
+      const desiredMember = desiredMembersByPosition[position];
+      if (!desiredMember) {
+        continue;
+      }
+      const aligned = this.executeScenarioStep(() => {
+        const currentMember = this.party.getByPosition(position);
+        if (!currentMember) {
+          throw new Error(`No member at position ${position + 1}.`);
+        }
+        if (currentMember === desiredMember) {
+          return false;
+        }
+        const desiredPosition = Number(desiredMember.position);
+        desiredMember.setPosition(position);
+        currentMember.setPosition(desiredPosition);
+        changed = true;
+        return true;
+      }, {
+        onWarning: isForceMode ? warn : null,
+        warningPrefix: 'position alignment skipped',
+      });
+      if (aligned === null && !isForceMode) {
+        throw new Error(`Failed to align replay slot at position ${position + 1}.`);
+      }
+    }
+
+    if (!changed) {
+      return;
+    }
+    this.state.positionMap = buildPositionMap(this.state.party);
+    this.previewRecord = null;
+    this.writePreviewOutput('');
+    this.refreshMutationUi({
+      actionSelectors: true,
+      partyState: true,
+      swapSelectors: true,
+      turnStatus: true,
+    });
+  }
+
+  buildScenarioActionFromReplaySlot(slot, position, options = {}) {
+    const warn = typeof options.onWarning === 'function' ? options.onWarning : () => {};
+    const isForceMode = Boolean(options.forceMode);
+    const skillId = toOptionalNumber(slot?.skillId);
+    if (!Number.isFinite(skillId)) {
+      return null;
+    }
+
+    const action = {
+      positionIndex: position,
+      skillId,
+    };
+    const target = slot?.target && typeof slot.target === 'object' ? slot.target : null;
+    if (!target || String(target.type ?? '') === REPLAY_TARGET_TYPES.NONE) {
+      return action;
+    }
+
+    if (String(target.type ?? '') === REPLAY_TARGET_TYPES.ENEMY) {
+      const enemyIndex = Number(target.enemyIndex ?? target.targetEnemyIndex);
+      if (!Number.isFinite(enemyIndex)) {
+        if (isForceMode) {
+          warn(`target ignored: invalid enemy target at Pos ${position + 1}`);
+          return action;
+        }
+        throw new Error(`Invalid enemy target at Pos ${position + 1}.`);
+      }
+      action.targetEnemyIndex = Math.max(0, Math.trunc(enemyIndex));
+      return action;
+    }
+
+    if (String(target.type ?? '') === REPLAY_TARGET_TYPES.ALLY) {
+      const targetStyleId = toOptionalNumber(target.styleId ?? target.targetStyleId);
+      if (Number.isFinite(targetStyleId)) {
+        const targetMember = this.party.members.find((member) => Number(member?.styleId) === targetStyleId) ?? null;
+        if (!targetMember) {
+          if (isForceMode) {
+            warn(`target ignored: ally style ${targetStyleId} not found at Pos ${position + 1}`);
+            return action;
+          }
+          throw new Error(`Ally target style ${targetStyleId} not found at Pos ${position + 1}.`);
+        }
+        action.targetCharacterId = String(targetMember.characterId);
+        return action;
+      }
+      const targetCharacterId = String(target.characterId ?? target.targetCharacterId ?? '').trim();
+      if (targetCharacterId) {
+        action.targetCharacterId = targetCharacterId;
+        return action;
+      }
+    }
+
+    if (isForceMode) {
+      warn(`target ignored: unknown target at Pos ${position + 1}`);
+      return action;
+    }
+    throw new Error(`Unknown replay target at Pos ${position + 1}.`);
+  }
+
+  materializeReplayScriptScenarioTurn(turn = {}, options = {}) {
+    const normalized = normalizeLightweightReplayTurn(turn);
+    const warn = typeof options.onWarning === 'function' ? options.onWarning : () => {};
+    const scenarioTurn = { commit: true };
+
+    for (const operation of normalized.operations) {
+      const type = String(operation?.type ?? '').trim();
+      const payload = operation?.payload && typeof operation.payload === 'object' ? operation.payload : {};
+      if (type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA) {
+        scenarioTurn.kishinka = true;
+        continue;
+      }
+      if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
+        const level = toOptionalNumber(payload.level ?? operation.level);
+        if (Number.isFinite(level) && OD_LEVELS.includes(level)) {
+          scenarioTurn.preemptiveOdLevel = level;
+        } else {
+          warn(`operation ignored: ${type}`);
+        }
+        continue;
+      }
+      if (type === REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD) {
+        const level = toOptionalNumber(payload.level ?? operation.level);
+        if (Number.isFinite(level) && OD_LEVELS.includes(level)) {
+          scenarioTurn.interruptOdLevel = level;
+        } else {
+          warn(`operation ignored: ${type}`);
+        }
+        continue;
+      }
+      if (type) {
+        warn(`operation ignored: ${type}`);
+      }
+    }
+
+    for (const entry of normalized.overrideEntries) {
+      const type = String(entry?.type ?? '').trim();
+      if (type) {
+        warn(`override entry ignored: ${type}`);
+      }
+    }
+
+    const actions = [];
+    for (let position = 0; position < normalized.slots.length; position += 1) {
+      const action = this.buildScenarioActionFromReplaySlot(normalized.slots[position], position, options);
+      if (action) {
+        actions.push(action);
+      }
+    }
+    if (actions.length > 0) {
+      scenarioTurn.actions = actions;
+    }
+    return scenarioTurn;
+  }
+
+  replayReplayScriptTurn(turn, mode, warnings = []) {
+    const isForceMode = String(mode ?? 'strict') === 'force';
+    const normalized = normalizeLightweightReplayTurn(turn);
+    this.alignReplayScriptTurnPositions(normalized.slots, {
+      forceMode: isForceMode,
+      onWarning: (message) => warnings.push(String(message)),
+    });
+    const scenarioTurn = this.materializeReplayScriptScenarioTurn(normalized, {
+      forceMode: isForceMode,
+      onWarning: (message) => warnings.push(String(message)),
+    });
+    this.applyScenarioTurn(scenarioTurn, {
+      mode: 'commit',
+      recalcMode: mode,
+      onWarning: (message) => warnings.push(String(message)),
+      commitOptions: this.buildReplayScriptReplayCommitOptions(mode),
+    });
+  }
+
+  replayReplayScriptAtIndex(index, mode) {
+    const warnings = [];
+    this.replayScriptReplayWarnings.turns[index] = warnings;
+    try {
+      const turn = this.replayScript?.turns?.[index] ?? null;
+      if (!turn) {
+        throw new Error(`ReplayScript turn not found: ${index + 1}`);
+      }
+      this.replayReplayScriptTurn(turn, mode, warnings);
+      return { applied: 1, shouldStop: false };
+    } catch (error) {
+      return this.handleReplayScriptReplayFailure(index, mode, error, warnings);
+    }
+  }
+
+  recalculateReplayScript(options = {}) {
+    const mode = String(options.mode ?? 'force') === 'force' ? 'force' : 'strict';
+    if (!Array.isArray(this.replayScript?.turns) || this.replayScript.turns.length === 0) {
+      this.resetReplayScriptReplayResults();
+      this.refreshMutationUi({
+        recordTable: true,
+        turnPlanEditControls: true,
+      });
+      this.setStatus('再計算対象のReplayScript turn がありません。');
+      return 0;
+    }
+
+    return this.runInReplayScriptSession(() => {
+      const setupWarnings = [];
+      this.reinitializeFromReplayScriptBase({
+        forceMode: mode === 'force',
+        warnings: setupWarnings,
+      });
+      this.recordStore = createBattleRecordStore();
+      this.replayScriptComputedRecords = [];
+      this.replayScriptReplayError = null;
+      this.replayScriptReplayWarnings = { setup: setupWarnings, turns: [] };
+      let applied = 0;
+      for (let i = 0; i < this.replayScript.turns.length; i += 1) {
+        const result = this.replayReplayScriptAtIndex(i, mode);
+        applied += result.applied;
+        if (result.shouldStop) {
+          break;
+        }
+      }
+      this.finalizeReplayScriptReplay(applied, mode);
+      return this.recordStore.records.length;
+    }, { refreshUi: true });
   }
 
   recalculateTurnPlans(options = {}) {

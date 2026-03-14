@@ -82,11 +82,11 @@
 
 ### T04: best-effort replay executor
 
-- [ ] `ReplayScript` から battle を再初期化する executor を作る
-- [ ] `slots[6]` を current turn state に反映して commit する処理を作る
-- [ ] `operations[]` を現行 runtime timing に従って適用する
-- [ ] OD/SP 等がマイナスになっても停止しない挙動にする
-- [ ] 未知 operation / override は no-op + warning にする
+- [x] `ReplayScript` から battle を再初期化する executor を作る
+- [x] `slots[6]` を current turn state に反映して commit する処理を作る
+- [x] `operations[]` を現行 runtime timing に従って適用する
+- [x] OD/SP 等がマイナスになっても停止しない挙動にする
+- [x] 未知 operation / override は no-op + warning にする
 
 完了条件:
 
@@ -148,8 +148,8 @@
 - [x] slot 一体型保存で style/skill mismatch が起きない回帰を追加する
 - [x] `operations[]` round-trip テストを追加する
 - [x] `note` round-trip テストを追加する
-- [ ] negative OD/SP 許容の best-effort replay テストを追加する
-- [ ] unknown `type` preserve/no-op テストを追加する
+- [x] negative OD/SP 許容の best-effort replay テストを追加する
+- [x] unknown `type` preserve/no-op テストを追加する
 
 完了条件:
 
@@ -159,7 +159,7 @@
 
 - [x] 1 turn の保存単位が `slots[6]` であり、style と skill が分離しない
 - [x] `鬼神化` / `通常OD` / `割込OD予約` / `note` を同じ turn に保存できる
-- [ ] replay は最後まで走り、OD/SP のマイナス値で停止しない
+- [x] replay は最後まで走り、OD/SP のマイナス値で停止しない
 - [x] `setupEntries[]` / `operations[]` / `overrideEntries[]` に未知 type が来ても保持できる
 - [ ] `record` が derived output として再生成される
 
@@ -168,6 +168,7 @@
 - 2026-03-14: T01-T03 を実装。`src/ui/lightweight-replay-script.js` に `ReplayScript` schema / typed envelope registry / unknown type preserve 正規化を追加し、`BattleAdapterFacade` と `BattleDomAdapter` で `turnPlans` と並行する dual-write capture を開始
 - 2026-03-14: `turnNoteDraft` を capture 対象として追加。UI 入力は未着手だが、commit 経路では `note` round-trip が成立
 - 2026-03-14: `turnPlanBaseSetup` に support setup を追加し、`ReplayScript.setup` の stable core と同期
+- 2026-03-14: T04 を実装。`recalculateReplayScript()` / slot position alignment / operation materialization / best-effort force replay / unknown entry warning を追加し、`turnPlans` を介さず `ReplayScript` から battle を再演できるようにした
 
 ## 今回のスコープ外
 

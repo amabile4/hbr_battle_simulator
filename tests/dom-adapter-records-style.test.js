@@ -557,6 +557,82 @@ test('commitCurrentTurn captures preemptive OD activation into lightweight repla
   ]);
 });
 
+test('recalculateReplayScript aligns positions from slots and replays without duplicating script turns', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  assert.equal(adapter.replayScript.turns.length, 1);
+
+  const originalTurn = structuredClone(adapter.replayScript.turns[0]);
+  const swappedSlots = [...originalTurn.slots];
+  [swappedSlots[0], swappedSlots[1]] = [swappedSlots[1], swappedSlots[0]];
+  adapter.replayScript.turns[0] = {
+    ...originalTurn,
+    slots: swappedSlots,
+  };
+
+  const replayed = adapter.recalculateReplayScript({ mode: 'force' });
+
+  assert.equal(replayed, 1);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(adapter.replayScriptComputedRecords.length, 1);
+  assert.equal(adapter.replayScript.turns.length, 1);
+  assert.equal(adapter.replayScriptReplayError, null);
+  assert.equal(
+    adapter.state.party.find((member) => Number(member.styleId) === Number(swappedSlots[0].styleId))?.position,
+    0
+  );
+  assert.equal(
+    adapter.state.party.find((member) => Number(member.styleId) === Number(swappedSlots[1].styleId))?.position,
+    1
+  );
+});
+
+test('recalculateReplayScript keeps unknown setup/operation/override as warnings and allows OD deficit in force mode', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.replayScript.setup.setupEntries = [{ type: 'FutureSetup', payload: { enabled: true } }];
+  adapter.replayScript.turns[0] = {
+    ...adapter.replayScript.turns[0],
+    operations: [
+      { type: 'ActivatePreemptiveOd', payload: { level: 3 } },
+      { type: 'FutureOperation', payload: { keep: true } },
+    ],
+    overrideEntries: [{ type: 'FutureOverride', payload: { level: 1 } }],
+  };
+
+  const replayed = adapter.recalculateReplayScript({ mode: 'force' });
+
+  assert.equal(replayed, 1);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(adapter.replayScriptComputedRecords.length, 1);
+  assert.equal(adapter.replayScriptReplayError, null);
+  assert.equal(Array.isArray(adapter.replayScriptReplayWarnings.setup), true);
+  assert.equal(
+    adapter.replayScriptReplayWarnings.setup.some((message) => String(message).includes('FutureSetup')),
+    true
+  );
+  assert.equal(Array.isArray(adapter.replayScriptReplayWarnings.turns[0]), true);
+  assert.equal(
+    adapter.replayScriptReplayWarnings.turns[0].some((message) => String(message).includes('FutureOperation')),
+    true
+  );
+  assert.equal(
+    adapter.replayScriptReplayWarnings.turns[0].some((message) => String(message).includes('FutureOverride')),
+    true
+  );
+  assert.equal(Number(adapter.state.turnState.odGauge) < 0, true);
+});
+
 test('turn plan edit row surfaces contextual error when source turn staging fails', () => {
   const store = getStore();
   const { root } = createRoot();

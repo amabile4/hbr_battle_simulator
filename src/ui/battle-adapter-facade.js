@@ -39,7 +39,11 @@ export class BattleAdapterFacade {
     this.turnPlanEditSession = null;
     this.turnPlanBaseSetup = null;
     this.isReplayingTurnPlans = false;
+    this.isReplayingReplayScript = false;
     this.replayScript = createEmptyLightweightReplayScript();
+    this.replayScriptComputedRecords = [];
+    this.replayScriptReplayError = null;
+    this.replayScriptReplayWarnings = { setup: [], turns: [] };
     this.turnNoteDraft = '';
   }
 
@@ -87,6 +91,9 @@ export class BattleAdapterFacade {
     this.kishinkaActivatedThisTurn = false;
     this.passiveLogEntries = [];
     this.turnNoteDraft = '';
+    this.replayScriptComputedRecords = [];
+    this.replayScriptReplayError = null;
+    this.replayScriptReplayWarnings = { setup: [], turns: [] };
 
     if (!options.preserveTurnPlans) {
       this.turnPlans = [];
@@ -159,6 +166,9 @@ export class BattleAdapterFacade {
     }
     if (options.shouldCaptureReplayTurn && options.capturedReplayTurn) {
       this.replayScript.turns.push(normalizeLightweightReplayTurn(options.capturedReplayTurn));
+      this.replayScriptComputedRecords = [...this.recordStore.records];
+      this.replayScriptReplayError = null;
+      this.replayScriptReplayWarnings = { setup: [], turns: [] };
     }
 
     return committedRecord;
@@ -173,6 +183,9 @@ export class BattleAdapterFacade {
     this.turnPlanReplayWarnings = [];
     this.turnPlanEditSession = null;
     this.replayScript = createLightweightReplayScriptFromBaseSetup(this.turnPlanBaseSetup);
+    this.replayScriptComputedRecords = [];
+    this.replayScriptReplayError = null;
+    this.replayScriptReplayWarnings = { setup: [], turns: [] };
     this.turnNoteDraft = '';
   }
 
