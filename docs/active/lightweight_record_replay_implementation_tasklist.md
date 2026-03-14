@@ -94,9 +94,9 @@
 
 ### T05: record 再生成への切替
 
-- [ ] replay 実行結果から `recordStore.records` を再生成する
-- [ ] table / preview / export が derived record を使うよう整理する
-- [ ] `record` を編集正本として扱うコード経路を外す
+- [x] replay 実行結果から `recordStore.records` を再生成する
+- [x] table / preview / export が derived record を使うよう整理する
+- [x] `record` を編集正本として扱うコード経路を外す
 
 完了条件:
 
@@ -161,7 +161,7 @@
 - [x] `鬼神化` / `通常OD` / `割込OD予約` / `note` を同じ turn に保存できる
 - [x] replay は最後まで走り、OD/SP のマイナス値で停止しない
 - [x] `setupEntries[]` / `operations[]` / `overrideEntries[]` に未知 type が来ても保持できる
-- [ ] `record` が derived output として再生成される
+- [x] `record` が derived output として再生成される
 
 ## 実装メモ
 
@@ -169,6 +169,7 @@
 - 2026-03-14: `turnNoteDraft` を capture 対象として追加。UI 入力は未着手だが、commit 経路では `note` round-trip が成立
 - 2026-03-14: `turnPlanBaseSetup` に support setup を追加し、`ReplayScript.setup` の stable core と同期
 - 2026-03-14: T04 を実装。`recalculateReplayScript()` / slot position alignment / operation materialization / best-effort force replay / unknown entry warning を追加し、`turnPlans` を介さず `ReplayScript` から battle を再演できるようにした
+- 2026-03-14: T05 を実装。record table / edit staging / recalc button / export が `ReplayScript` 優先で動くように切り替え、`recordStore.records` を derived output として再生成する経路へ統一。legacy `turnPlans` は mirror/bridge としてのみ残置
 
 ## 今回のスコープ外
 

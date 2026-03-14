@@ -633,6 +633,68 @@ test('recalculateReplayScript keeps unknown setup/operation/override as warnings
   assert.equal(Number(adapter.state.turnState.odGauge) < 0, true);
 });
 
+test('record table and recalc button use ReplayScript even when turnPlans mirror is empty', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.turnPlans = [];
+  adapter.replayScript.turns[0] = {
+    ...adapter.replayScript.turns[0],
+    operations: [{ type: 'ActivatePreemptiveOd', payload: { level: 3 } }],
+  };
+
+  adapter.renderRecordTable();
+  const row = root.querySelector('[data-role="record-body"] tr');
+  const editButton = root.querySelector(
+    '[data-role="record-body"] tr:nth-child(1) [data-action="turn-plan-edit-row"]'
+  );
+  assert.ok(row);
+  assert.ok(editButton);
+  assert.equal(editButton.disabled, false);
+
+  root.querySelector('[data-role="turn-plan-recalc-mode"]').value = 'force';
+  root.querySelector('[data-action="turn-plan-recalc"]').click();
+
+  assert.equal(adapter.replayScriptReplayError, null);
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(adapter.turnPlanRecalcMode, 'force');
+  assert.equal(root.querySelector('[data-role="turn-plan-recalc-mode"]')?.value, 'force');
+  assert.equal(root.querySelector('[data-role="status"]')?.textContent?.includes('軽量再計算完了'), true);
+});
+
+test('ReplayScript-derived records remain export source when legacy turnPlans mirror is empty', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
+  adapter.mount();
+
+  adapter.previewCurrentTurn();
+  adapter.commitCurrentTurn();
+  adapter.turnPlans = [];
+  adapter.replayScript.turns[0] = {
+    ...adapter.replayScript.turns[0],
+    operations: [{ type: 'ActivatePreemptiveOd', payload: { level: 3 } }],
+  };
+
+  adapter.recalculateReplayScript({ mode: 'force' });
+
+  const csv = adapter.exportCsv();
+  const json = adapter.exportRecordsJson();
+  const parsed = JSON.parse(json);
+  const firstRecord = adapter.recordStore.records[0];
+
+  assert.equal(adapter.recordStore.records.length, 1);
+  assert.equal(parsed.recordStore.records.length, 1);
+  assert.equal(parsed.recordStore.records[0].turnLabel, firstRecord?.turnLabel);
+  assert.equal(root.querySelector('[data-role="csv-output"]')?.value, csv);
+  assert.equal(root.querySelector('[data-role="records-json-output"]')?.value, json);
+  assert.equal(csv.includes(String(firstRecord?.turnLabel ?? '')), true);
+});
+
 test('turn plan edit row surfaces contextual error when source turn staging fails', () => {
   const store = getStore();
   const { root } = createRoot();
@@ -641,14 +703,11 @@ test('turn plan edit row surfaces contextual error when source turn staging fail
 
   adapter.previewCurrentTurn();
   adapter.commitCurrentTurn();
-  adapter.turnPlans[0] = {
-    ...adapter.turnPlans[0],
-    actions: [
-      {
-        ...adapter.turnPlans[0].actions[0],
-        skillId: 99999999,
-      },
-    ],
+  adapter.replayScript.turns[0] = {
+    ...adapter.replayScript.turns[0],
+    slots: adapter.replayScript.turns[0].slots.map((slot, index) =>
+      index === 0 ? { ...slot, skillId: 99999999 } : slot
+    ),
   };
 
   const editButton = root.querySelector(
@@ -761,15 +820,15 @@ test('turn plan edit staging in force mode replays earlier invalid turns via sha
   assert.equal(adapter.turnPlans.length, 2);
 
   root.querySelector('[data-role="turn-plan-recalc-mode"]').value = 'force';
-  const originalReplayTurnPlanTurn = adapter.replayTurnPlanTurn;
+  const originalReplayReplayScriptTurn = adapter.replayReplayScriptTurn;
   let replayCount = 0;
-  adapter.replayTurnPlanTurn = function replayTurnPlanTurnWithFailure(...args) {
+  adapter.replayReplayScriptTurn = function replayReplayScriptTurnWithFailure(...args) {
     if (replayCount === 0) {
       replayCount += 1;
       throw new Error('forced prior replay failure');
     }
     replayCount += 1;
-    return originalReplayTurnPlanTurn.apply(this, args);
+    return originalReplayReplayScriptTurn.apply(this, args);
   };
 
   const editButton = root.querySelector(
@@ -779,14 +838,14 @@ test('turn plan edit staging in force mode replays earlier invalid turns via sha
   try {
     editButton.click();
   } finally {
-    adapter.replayTurnPlanTurn = originalReplayTurnPlanTurn;
+    adapter.replayReplayScriptTurn = originalReplayReplayScriptTurn;
   }
 
   assert.equal(adapter.turnPlanEditSession?.type, 'edit');
   assert.equal(adapter.turnPlanEditSession?.targetIndex, 1);
   assert.equal(root.querySelector('[data-role="status"]')?.textContent, 'Turn 2 を編集中です。');
   assert.equal(
-    adapter.turnPlanReplayWarnings[0]?.some((warning) =>
+    adapter.replayScriptReplayWarnings.turns[0]?.some((warning) =>
       String(warning).includes('force fallback: forced prior replay failure')
     ),
     true

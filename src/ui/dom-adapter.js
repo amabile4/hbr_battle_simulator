@@ -1214,9 +1214,13 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.writePassiveLogOutput('');
       this.setStatus('Records cleared.');
     });
-    this.bindSafeClickAction('[data-action="turn-plan-recalc"]', () =>
-      this.recalculateTurnPlans({ mode: this.getTurnPlanRecalcModeFromDom() })
-    );
+    this.bindSafeClickAction('[data-action="turn-plan-recalc"]', () => {
+      const mode = this.getTurnPlanRecalcModeFromDom();
+      if (this.getEditableTurnSourceKind() === 'replayScript') {
+        return this.recalculateReplayScript({ mode });
+      }
+      return this.recalculateTurnPlans({ mode });
+    });
     this.bindSafeClickAction('[data-action="turn-plan-edit-save"]', this.saveTurnPlanEditFromDom);
     this.bindSafeClickAction('[data-action="turn-plan-edit-cancel"]', this.cancelTurnPlanEdit);
     this.bindSafeClickAction('[data-action="scenario-load"]', this.loadScenarioFromDom);
@@ -6621,12 +6625,29 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (!node) {
       return;
     }
-    const warningCount = this.turnPlanReplayWarnings.reduce(
-      (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
-      0
-    );
-    if (this.turnPlanReplayError) {
-      node.textContent = `再計算: ${this.turnPlanRecalcMode} / Error@${this.turnPlanReplayError.index + 1}`;
+    const sourceKind = this.getEditableTurnSourceKind();
+    let warningCount = 0;
+    let errorIndex = null;
+    if (sourceKind === 'replayScript') {
+      warningCount += Array.isArray(this.replayScriptReplayWarnings?.setup)
+        ? this.replayScriptReplayWarnings.setup.length
+        : 0;
+      warningCount += (Array.isArray(this.replayScriptReplayWarnings?.turns) ? this.replayScriptReplayWarnings.turns : [])
+        .reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+      errorIndex = Number.isInteger(Number(this.replayScriptReplayError?.index))
+        ? Number(this.replayScriptReplayError.index)
+        : null;
+    } else {
+      warningCount = this.turnPlanReplayWarnings.reduce(
+        (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+        0
+      );
+      errorIndex = Number.isInteger(Number(this.turnPlanReplayError?.index))
+        ? Number(this.turnPlanReplayError.index)
+        : null;
+    }
+    if (errorIndex !== null) {
+      node.textContent = `再計算: ${this.turnPlanRecalcMode} / Error@${errorIndex + 1}`;
       return;
     }
     if (warningCount > 0) {
@@ -6634,6 +6655,107 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       return;
     }
     node.textContent = `再計算: ${this.turnPlanRecalcMode}`;
+  }
+
+  hasReplayScriptEditorSource() {
+    return Array.isArray(this.replayScript?.turns) && this.replayScript.turns.length > 0;
+  }
+
+  getEditableTurnSourceKind() {
+    if (this.hasReplayScriptEditorSource()) {
+      return 'replayScript';
+    }
+    if (Array.isArray(this.turnPlans) && this.turnPlans.length > 0) {
+      return 'turnPlans';
+    }
+    return 'none';
+  }
+
+  getEditableTurns() {
+    if (this.hasReplayScriptEditorSource()) {
+      return this.replayScript.turns;
+    }
+    return Array.isArray(this.turnPlans) ? this.turnPlans : [];
+  }
+
+  getEditableTurnCount() {
+    return this.getEditableTurns().length;
+  }
+
+  getEditableReplayWarningsAt(index) {
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      return Array.isArray(this.replayScriptReplayWarnings?.turns?.[index])
+        ? this.replayScriptReplayWarnings.turns[index]
+        : [];
+    }
+    return Array.isArray(this.turnPlanReplayWarnings?.[index]) ? this.turnPlanReplayWarnings[index] : [];
+  }
+
+  getEditableReplayErrorIndex() {
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      return Number(this.replayScriptReplayError?.index);
+    }
+    return Number(this.turnPlanReplayError?.index);
+  }
+
+  getEditableReplayErrorMessage() {
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      return this.replayScriptReplayError?.message ?? '';
+    }
+    return this.turnPlanReplayError?.message ?? '';
+  }
+
+  captureEditableTurnFromDom() {
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      return this.captureCurrentReplayTurnFromDom();
+    }
+    return this.captureCurrentTurnPlanFromDom();
+  }
+
+  syncLegacyTurnPlanMirrorFromDom(session = null) {
+    if (!Array.isArray(this.turnPlans) || this.turnPlans.length === 0) {
+      return;
+    }
+    const plan = this.captureCurrentTurnPlanFromDom();
+    if (!session) {
+      return;
+    }
+    if (session.type === 'insert') {
+      this.turnPlans.splice(session.targetIndex, 0, plan);
+      return;
+    }
+    this.turnPlans[session.targetIndex] = plan;
+  }
+
+  syncLegacyTurnPlanMirrorDelete(index) {
+    if (!Array.isArray(this.turnPlans) || index < 0 || index >= this.turnPlans.length) {
+      return;
+    }
+    this.turnPlans.splice(index, 1);
+  }
+
+  syncLegacyTurnPlanMirrorMove(index, nextIndex) {
+    if (
+      !Array.isArray(this.turnPlans) ||
+      index < 0 ||
+      nextIndex < 0 ||
+      index >= this.turnPlans.length ||
+      nextIndex >= this.turnPlans.length
+    ) {
+      return;
+    }
+    const temp = this.turnPlans[index];
+    this.turnPlans[index] = this.turnPlans[nextIndex];
+    this.turnPlans[nextIndex] = temp;
+  }
+
+  resolveEditableTurnIndex(turnId) {
+    const index = Number(turnId) - 1;
+    const turns = this.getEditableTurns();
+    if (!Number.isInteger(index) || index < 0 || index >= turns.length) {
+      throw new Error(`Editable turn not found: ${turnId}`);
+    }
+    return index;
   }
 
   normalizeTurnPlan(plan = {}) {
@@ -7371,6 +7493,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   recalculateReplayScript(options = {}) {
     const mode = String(options.mode ?? 'force') === 'force' ? 'force' : 'strict';
+    this.turnPlanRecalcMode = mode;
     if (!Array.isArray(this.replayScript?.turns) || this.replayScript.turns.length === 0) {
       this.resetReplayScriptReplayResults();
       this.refreshMutationUi({
@@ -7435,6 +7558,41 @@ export class BattleDomAdapter extends BattleAdapterFacade {
 
   stageTurnPlanSession(session) {
     const mode = this.getTurnPlanRecalcModeFromDom();
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      this.runInReplayScriptSession(() => {
+        const setupWarnings = [];
+        this.reinitializeFromReplayScriptBase({
+          forceMode: mode === 'force',
+          warnings: setupWarnings,
+        });
+        this.recordStore = createBattleRecordStore();
+        this.replayScriptComputedRecords = [];
+        this.replayScriptReplayError = null;
+        this.replayScriptReplayWarnings = { setup: setupWarnings, turns: [] };
+        for (let i = 0; i < session.sourceIndex; i += 1) {
+          const result = this.replayReplayScriptAtIndex(i, mode);
+          if (result.shouldStop) {
+            throw new Error(this.getEditableReplayErrorMessage() || `ReplayScript turn ${i + 1} failed.`);
+          }
+        }
+        try {
+          const sourceTurn = this.replayScript?.turns?.[session.sourceIndex] ?? null;
+          if (!sourceTurn) {
+            throw new Error(`ReplayScript turn not found: ${session.sourceIndex + 1}`);
+          }
+          const scenarioTurn = this.materializeReplayScriptScenarioTurn(sourceTurn, {
+            forceMode: mode === 'force',
+          });
+          this.alignReplayScriptTurnPositions(sourceTurn.slots, { forceMode: mode === 'force' });
+          this.applyScenarioTurn(scenarioTurn, { mode: 'stage', recalcMode: mode });
+        } catch (error) {
+          throw this.buildTurnPlanEditStageError(session, error);
+        }
+        this.finalizeTurnPlanEditSession(session);
+      });
+      return;
+    }
+
     this.runInTurnPlanReplaySession(() => {
       this.reinitializeFromTurnPlanBase({ forceMode: mode === 'force' });
       this.replayTurnPlansBeforeIndex(session.sourceIndex, mode);
@@ -7449,7 +7607,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   startTurnPlanEdit(turnId) {
-    const index = this.resolveTurnPlanIndex(turnId);
+    const index = this.resolveEditableTurnIndex(turnId);
     this.stageTurnPlanSession({
       type: 'edit',
       sourceIndex: index,
@@ -7458,7 +7616,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   startTurnPlanInsert(turnId, direction = 'before') {
-    const index = this.resolveTurnPlanIndex(turnId);
+    const index = this.resolveEditableTurnIndex(turnId);
     const targetIndex = direction === 'after' ? index + 1 : index;
     this.stageTurnPlanSession({
       type: 'insert',
@@ -7467,19 +7625,14 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     });
   }
 
-  resolveTurnPlanIndex(turnId) {
-    const index = Number(turnId) - 1;
-    if (!Number.isInteger(index) || index < 0 || index >= this.turnPlans.length) {
-      throw new Error(`TurnPlan not found: ${turnId}`);
-    }
-    return index;
-  }
-
   finalizeTurnPlanMutation(options = {}) {
     const mode =
       String(options.mode ?? this.getTurnPlanRecalcModeFromDom()) === 'force' ? 'force' : 'strict';
     this.turnPlanEditSession = null;
     this.kishinkaActivatedThisTurn = false;
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      return this.recalculateReplayScript({ mode });
+    }
     return this.recalculateTurnPlans({ mode });
   }
 
@@ -7488,11 +7641,20 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     if (!session) {
       throw new Error('TurnPlan編集セッションがありません。');
     }
-    const plan = this.captureCurrentTurnPlanFromDom();
-    if (session.type === 'insert') {
-      this.turnPlans.splice(session.targetIndex, 0, plan);
+    const editableTurn = this.captureEditableTurnFromDom();
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      if (session.type === 'insert') {
+        this.replayScript.turns.splice(session.targetIndex, 0, editableTurn);
+      } else {
+        this.replayScript.turns[session.targetIndex] = editableTurn;
+      }
+      this.syncLegacyTurnPlanMirrorFromDom(session);
     } else {
-      this.turnPlans[session.targetIndex] = plan;
+      if (session.type === 'insert') {
+        this.turnPlans.splice(session.targetIndex, 0, editableTurn);
+      } else {
+        this.turnPlans[session.targetIndex] = editableTurn;
+      }
     }
     this.finalizeTurnPlanMutation();
   }
@@ -7505,24 +7667,37 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   deleteTurnPlanRow(turnId) {
-    const index = this.resolveTurnPlanIndex(turnId);
-    this.turnPlans.splice(index, 1);
+    const index = this.resolveEditableTurnIndex(turnId);
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      this.replayScript.turns.splice(index, 1);
+      this.syncLegacyTurnPlanMirrorDelete(index);
+    } else {
+      this.turnPlans.splice(index, 1);
+    }
     this.finalizeTurnPlanMutation();
   }
 
   moveTurnPlanRow(turnId, delta) {
-    const index = this.resolveTurnPlanIndex(turnId);
+    const index = this.resolveEditableTurnIndex(turnId);
     const nextIndex = index + Number(delta);
+    const turns = this.getEditableTurns();
     if (
       !Number.isInteger(nextIndex) ||
       nextIndex < 0 ||
-      nextIndex >= this.turnPlans.length
+      nextIndex >= turns.length
     ) {
       return;
     }
-    const temp = this.turnPlans[index];
-    this.turnPlans[index] = this.turnPlans[nextIndex];
-    this.turnPlans[nextIndex] = temp;
+    if (this.getEditableTurnSourceKind() === 'replayScript') {
+      const temp = this.replayScript.turns[index];
+      this.replayScript.turns[index] = this.replayScript.turns[nextIndex];
+      this.replayScript.turns[nextIndex] = temp;
+      this.syncLegacyTurnPlanMirrorMove(index, nextIndex);
+    } else {
+      const temp = this.turnPlans[index];
+      this.turnPlans[index] = this.turnPlans[nextIndex];
+      this.turnPlans[nextIndex] = temp;
+    }
     this.finalizeTurnPlanMutation();
   }
 
@@ -7558,7 +7733,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     return rawName ? `${defaultLabel} (${rawName})` : defaultLabel;
   }
 
-  formatFrontlineCharacterSkillColumns(record, plan = null) {
+  formatFrontlineCharacterSkillColumns(record, plan = null, replayTurn = null) {
     const actions = Array.isArray(record?.actions)
       ? record.actions
       : Array.isArray(plan?.actions)
@@ -7598,6 +7773,36 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const enemyTargetLabel = this.formatEnemyTargetLabel(action, enemyNamesByEnemy);
       const skill = enemyTargetLabel ? `${skillBase} -> ${enemyTargetLabel}` : skillBase;
       slots[normalizedPosition] = { character, skill };
+    }
+
+    if (actions.length === 0 && replayTurn && Array.isArray(replayTurn.slots)) {
+      for (let position = 0; position < Math.min(3, replayTurn.slots.length); position += 1) {
+        const slot = replayTurn.slots[position] ?? null;
+        const styleId = toOptionalNumber(slot?.styleId);
+        const skillId = toOptionalNumber(slot?.skillId);
+        if (!Number.isFinite(styleId) && !Number.isFinite(skillId)) {
+          continue;
+        }
+        const member =
+          this.party?.members?.find((item) => Number(item?.styleId) === styleId) ??
+          this.state?.party?.find((item) => Number(item?.styleId) === styleId) ??
+          null;
+        const character = String(member?.characterName ?? (Number.isFinite(styleId) ? `style:${styleId}` : '-'));
+        let skill = Number.isFinite(skillId) ? `skill:${skillId}` : '-';
+        if (slot?.target && String(slot.target.type ?? '') === REPLAY_TARGET_TYPES.ENEMY) {
+          const enemyTargetLabel = this.formatEnemyTargetLabel({ targetEnemyIndex: slot.target.enemyIndex }, enemyNamesByEnemy);
+          skill = enemyTargetLabel ? `${skill} -> ${enemyTargetLabel}` : skill;
+        }
+        if (slot?.target && String(slot.target.type ?? '') === REPLAY_TARGET_TYPES.ALLY) {
+          const targetStyleId = toOptionalNumber(slot.target.styleId ?? slot.target.targetStyleId);
+          if (Number.isFinite(targetStyleId)) {
+            const targetMember = this.party?.members?.find((item) => Number(item?.styleId) === targetStyleId) ?? null;
+            const targetLabel = String(targetMember?.characterName ?? `style:${targetStyleId}`);
+            skill = `${skill} -> ${targetLabel}`;
+          }
+        }
+        slots[position] = { character, skill };
+      }
     }
 
     return [
@@ -7669,15 +7874,16 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     ];
   }
 
-  createRecordOpsCell(turnId, plan, rowIndex) {
+  createRecordOpsCell(turnId, editableTurn, rowIndex) {
+    const editableCount = this.getEditableTurnCount();
     const ops = this.doc.createElement('td');
     ops.innerHTML =
-      `<button type="button" data-action="turn-plan-edit-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>編集</button>` +
-      `<button type="button" data-action="turn-plan-insert-before-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+前</button>` +
-      `<button type="button" data-action="turn-plan-insert-after-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>+後</button>` +
-      `<button type="button" data-action="turn-plan-delete-row" data-turn-id="${turnId}" ${plan ? '' : 'disabled'}>削除</button>` +
-      `<button type="button" data-action="turn-plan-move-up-row" data-turn-id="${turnId}" ${rowIndex <= 0 || !plan ? 'disabled' : ''}>↑</button>` +
-      `<button type="button" data-action="turn-plan-move-down-row" data-turn-id="${turnId}" ${rowIndex >= this.turnPlans.length - 1 || !plan ? 'disabled' : ''}>↓</button>`;
+      `<button type="button" data-action="turn-plan-edit-row" data-turn-id="${turnId}" ${editableTurn ? '' : 'disabled'}>編集</button>` +
+      `<button type="button" data-action="turn-plan-insert-before-row" data-turn-id="${turnId}" ${editableTurn ? '' : 'disabled'}>+前</button>` +
+      `<button type="button" data-action="turn-plan-insert-after-row" data-turn-id="${turnId}" ${editableTurn ? '' : 'disabled'}>+後</button>` +
+      `<button type="button" data-action="turn-plan-delete-row" data-turn-id="${turnId}" ${editableTurn ? '' : 'disabled'}>削除</button>` +
+      `<button type="button" data-action="turn-plan-move-up-row" data-turn-id="${turnId}" ${rowIndex <= 0 || !editableTurn ? 'disabled' : ''}>↑</button>` +
+      `<button type="button" data-action="turn-plan-move-down-row" data-turn-id="${turnId}" ${rowIndex >= editableCount - 1 || !editableTurn ? 'disabled' : ''}>↓</button>`;
     return ops;
   }
 
@@ -7704,20 +7910,25 @@ export class BattleDomAdapter extends BattleAdapterFacade {
     }
 
     tbody.innerHTML = '';
-    const totalRows = Math.max(this.turnPlans.length, this.recordStore.records.length);
+    const editableTurns = this.getEditableTurns();
+    const totalRows = Math.max(editableTurns.length, this.recordStore.records.length);
     for (let i = 0; i < totalRows; i += 1) {
       const turnId = i + 1;
-      const plan = this.turnPlans[i] ?? null;
+      const editableTurn = editableTurns[i] ?? null;
+      const replayTurn = this.getEditableTurnSourceKind() === 'replayScript' ? editableTurn : null;
+      const plan = this.getEditableTurnSourceKind() === 'turnPlans' ? editableTurn : null;
       const record = this.recordStore.records[i] ?? null;
-      const warningList = Array.isArray(this.turnPlanReplayWarnings[i]) ? this.turnPlanReplayWarnings[i] : [];
-      const isError = Number(this.turnPlanReplayError?.index) === i;
+      const warningList = this.getEditableReplayWarningsAt(i);
+      const isError = this.getEditableReplayErrorIndex() === i;
       const statusText = isError
-        ? `Error: ${this.turnPlanReplayError?.message ?? ''}`
+        ? `Error: ${this.getEditableReplayErrorMessage()}`
         : warningList.length > 0
           ? `Warn(${warningList.length})`
           : record
             ? 'OK'
-            : '未確定';
+            : editableTurn
+              ? 'scripted'
+              : '未確定';
       const tr = this.doc.createElement('tr');
       if (this.turnPlanEditSession && this.turnPlanEditSession.targetIndex === i) {
         tr.setAttribute('data-editing', 'true');
@@ -7726,7 +7937,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const turnLabel = record?.turnLabel ?? '未確定';
       const turnType = record?.turnType ?? '-';
       const turnIndex = this.serializeRecordField(record?.turnIndex, '-');
-      const recordStatus = record?.recordStatus ?? (plan ? 'planned' : '-');
+      const recordStatus = record?.recordStatus ?? (editableTurn ? 'scripted' : '-');
       const odTurnStart = this.serializeRecordField(record?.odTurnLabelAtStart, '-');
       const odContext = this.serializeRecordField(record?.odContext, '-');
       const isExtraTurn = this.serializeRecordField(record?.isExtraTurn, '-');
@@ -7741,8 +7952,8 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       const enemyStatus = this.serializeRecordField(record?.enemyStatusSummary, '-');
       const fieldState = this.formatRecordFieldState(record, plan);
       const transcendence = this.serializeRecordField(record?.transcendence, '-');
-      const frontlineColumns = this.formatFrontlineCharacterSkillColumns(record, plan);
-      const actions = this.serializeRecordField(record?.actions ?? plan?.actions, '-');
+      const frontlineColumns = this.formatFrontlineCharacterSkillColumns(record, plan, replayTurn);
+      const actions = this.serializeRecordField(record?.actions ?? plan?.actions ?? replayTurn?.slots, '-');
       const swapEvents = this.serializeRecordField(record?.swapEvents ?? plan?.swaps, '-');
       const snapBefore = this.serializeRecordField(record?.snapBefore, '-');
       const snapAfter = this.serializeRecordField(record?.snapAfter, '-');
@@ -7784,7 +7995,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       };
       for (const column of columns) {
         if (column.key === 'ops') {
-          tr.appendChild(this.createRecordOpsCell(turnId, plan, i));
+          tr.appendChild(this.createRecordOpsCell(turnId, editableTurn, i));
           continue;
         }
         const td = this.doc.createElement('td');
