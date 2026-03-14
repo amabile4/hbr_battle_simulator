@@ -717,6 +717,14 @@ test('recalculateReplayScript keeps unknown setup/operation/override as warnings
     true
   );
   assert.equal(Number(adapter.state.turnState.odGauge) < 0, true);
+  const recalcStatus = root.querySelector('[data-role="turn-plan-recalc-status"]')?.textContent ?? '';
+  const diagnosticsText = root.querySelector('[data-role="turn-plan-recalc-diagnostics"]')?.textContent ?? '';
+  assert.equal(recalcStatus.includes('Warnings='), true);
+  assert.equal(recalcStatus.includes('Diagnostics='), true);
+  assert.equal(diagnosticsText.includes('FutureSetup'), true);
+  assert.equal(diagnosticsText.includes('FutureOperation'), true);
+  assert.equal(diagnosticsText.includes('FutureOverride'), true);
+  assert.equal(diagnosticsText.includes('Final: OD='), true);
 });
 
 test('reinitializeFromReplayScriptBase applies known setupEntries and warns only for unknown types', () => {
@@ -823,6 +831,39 @@ test('migrated ReplayScript overrideEntries preserve legacy enemyAction and part
   assert.equal(replayed, 1);
   assert.equal(adapter.recordStore.records[0]?.enemyAction, 'Legacy Swipe');
   assert.equal(adapter.state.party[0].tokenState.current, 7);
+});
+
+test('replay diagnostics panel shows negative SP anomalies after force replay', () => {
+  const store = getStore();
+  const { root } = createRoot();
+  const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 0 });
+  adapter.mount();
+
+  const actor = adapter.party.getFrontline()[0];
+  const expensiveSkill =
+    actor
+      .getActionSkills()
+      .filter((skill) => Number(skill.spCost ?? 0) >= 5)
+      .sort((a, b) => Number(b.spCost ?? 0) - Number(a.spCost ?? 0))[0] ?? null;
+  if (!expensiveSkill) {
+    return;
+  }
+  const actorPosition = Number(actor.position);
+  for (let i = 0; i < 2; i += 1) {
+    const actionSelect = root.querySelector(`[data-action-slot="${actorPosition}"]`);
+    if (actionSelect) {
+      actionSelect.value = String(expensiveSkill.skillId);
+    }
+    adapter.previewCurrentTurn();
+    adapter.commitCurrentTurn();
+  }
+
+  adapter.recalculateReplayScript({ mode: 'force' });
+
+  const diagnosticsText = root.querySelector('[data-role="turn-plan-recalc-diagnostics"]')?.textContent ?? '';
+  assert.equal(diagnosticsText.includes('Diagnostics'), true);
+  assert.equal(diagnosticsText.includes(`${actor.characterName} / ${expensiveSkill.name} SP=`), true);
+  assert.equal(diagnosticsText.includes(`Final: ${actor.characterName} SP=`), true);
 });
 
 test('record table and recalc button use ReplayScript even when turnPlans mirror is empty', () => {

@@ -1,6 +1,6 @@
 # 軽量 Record / Replay / Edit 実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14
+> **ステータス**: ✅ 完了 | 📅 開始: 2026-03-14 | ✅ 完了: 2026-03-15
 >
 > **前提設計**:
 > [`lightweight_record_replay_design.md`](lightweight_record_replay_design.md)
@@ -135,9 +135,9 @@
 
 ### T09: warning / diagnostics
 
-- [ ] no-op 扱いした unknown type を UI へ表示できるようにする
-- [ ] replay 中に発生した best-effort 補正や不自然値を補助表示できるようにする
-- [ ] 停止ではなく「最後まで走った上で warning を返す」形に揃える
+- [x] no-op 扱いした unknown type を UI へ表示できるようにする
+- [x] replay 中に発生した best-effort 補正や不自然値を補助表示できるようにする
+- [x] 停止ではなく「最後まで走った上で warning を返す」形に揃える
 
 完了条件:
 
@@ -173,6 +173,7 @@
 - 2026-03-14: T06 を実装。record edit toolbar に slot editor / operation editor / note textarea を追加し、ReplayScript 編集時は swap UI を非推奨化。save 時は draft から `operations[]` / `note` / preserved unknown entries を正本へ戻す
 - 2026-03-14: T07 を実装。`ReplaySetup` の known pre-state を `setupEntries[]` へ migrate し、`reinitializeFromReplayScriptBase()` で registry / dispatcher 経由の適用へ切り替えた。legacy fixed field は互換入力として吸収し、`preserveTurnPlans` 時は既存 `setupEntries[]` を base 再初期化で失わないよう merge 優先順位を調整
 - 2026-03-15: T08 を実装。legacy `turnPlans` を `base styleIds + swaps + actions.positionIndex` から静的に `ReplayScript.turns` へ変換する migration helper を追加し、`overrideEntries[]` registry で `enemyAction` / party state map / field state / enemy config を bridge した。`turnPlans` mirror は dual-write のまま残しつつ、ReplayScript が空で turnPlans のみ存在する場合は lazy migration で編集正本を ReplayScript 側へ寄せる
+- 2026-03-15: T09 を実装。records panel に diagnostics 表示を追加し、unknown `setup` / `operation` / `override` warning の本文、force fallback warning、負の OD/SP/EP などの best-effort anomaly を UI から参照できるようにした。再計算ステータスも warning 件数に加えて diagnostics 件数を表示する
 
 ## 今回のスコープ外
 

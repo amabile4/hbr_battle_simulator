@@ -6930,15 +6930,124 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         ? Number(this.turnPlanReplayError.index)
         : null;
     }
+    const diagnosticCount = this.collectEditableReplayAnomalyLines().length;
     if (errorIndex !== null) {
-      node.textContent = `再計算: ${this.turnPlanRecalcMode} / Error@${errorIndex + 1}`;
+      node.textContent = `再計算: ${this.turnPlanRecalcMode} / Error@${errorIndex + 1}${diagnosticCount > 0 ? ` / Diagnostics=${diagnosticCount}` : ''}`;
       return;
     }
-    if (warningCount > 0) {
-      node.textContent = `再計算: ${this.turnPlanRecalcMode} / Warnings=${warningCount}`;
+    if (warningCount > 0 || diagnosticCount > 0) {
+      node.textContent = `再計算: ${this.turnPlanRecalcMode}${warningCount > 0 ? ` / Warnings=${warningCount}` : ''}${diagnosticCount > 0 ? ` / Diagnostics=${diagnosticCount}` : ''}`;
       return;
     }
     node.textContent = `再計算: ${this.turnPlanRecalcMode}`;
+  }
+
+  appendReplayDiagnosticLine(lines, seen, line) {
+    const normalized = String(line ?? '').trim();
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    lines.push(normalized);
+  }
+
+  collectEditableReplayWarningLines() {
+    const lines = [];
+    const seen = new Set();
+    const sourceKind = this.getEditableTurnSourceKind();
+    if (sourceKind === 'replayScript') {
+      for (const message of Array.isArray(this.replayScriptReplayWarnings?.setup)
+        ? this.replayScriptReplayWarnings.setup
+        : []) {
+        this.appendReplayDiagnosticLine(lines, seen, `Setup: ${message}`);
+      }
+      for (const [index, warningList] of (Array.isArray(this.replayScriptReplayWarnings?.turns)
+        ? this.replayScriptReplayWarnings.turns
+        : []
+      ).entries()) {
+        for (const message of Array.isArray(warningList) ? warningList : []) {
+          this.appendReplayDiagnosticLine(lines, seen, `Turn ${index + 1}: ${message}`);
+        }
+      }
+      return lines;
+    }
+    for (const [index, warningList] of (Array.isArray(this.turnPlanReplayWarnings)
+      ? this.turnPlanReplayWarnings
+      : []
+    ).entries()) {
+      for (const message of Array.isArray(warningList) ? warningList : []) {
+        this.appendReplayDiagnosticLine(lines, seen, `Turn ${index + 1}: ${message}`);
+      }
+    }
+    return lines;
+  }
+
+  collectEditableReplayAnomalyLines() {
+    const lines = [];
+    const seen = new Set();
+    for (const [index, record] of (Array.isArray(this.recordStore?.records) ? this.recordStore.records : []).entries()) {
+      const odGaugeAtStart = Number(record?.odGaugeAtStart);
+      if (Number.isFinite(odGaugeAtStart) && odGaugeAtStart < 0) {
+        this.appendReplayDiagnosticLine(
+          lines,
+          seen,
+          `Turn ${index + 1}: OD開始値 ${formatGaugePercent(odGaugeAtStart)}%`
+        );
+      }
+      for (const action of Array.isArray(record?.actions) ? record.actions : []) {
+        const actor = String(action?.characterName ?? action?.characterId ?? '-').trim() || '-';
+        const skill = String(action?.skillName ?? action?.skillLabel ?? '').trim();
+        const actionLabel = skill ? `${actor} / ${skill}` : actor;
+        const endSp = Number(action?.endSP);
+        if (Number.isFinite(endSp) && endSp < 0) {
+          this.appendReplayDiagnosticLine(lines, seen, `Turn ${index + 1}: ${actionLabel} SP=${endSp}`);
+        }
+        const endEp = Number(action?.endEP);
+        if (Number.isFinite(endEp) && endEp < 0) {
+          this.appendReplayDiagnosticLine(lines, seen, `Turn ${index + 1}: ${actionLabel} EP=${endEp}`);
+        }
+      }
+    }
+    const finalOdGauge = Number(this.state?.turnState?.odGauge);
+    if (Number.isFinite(finalOdGauge) && finalOdGauge < 0) {
+      this.appendReplayDiagnosticLine(lines, seen, `Final: OD=${formatGaugePercent(finalOdGauge)}%`);
+    }
+    for (const member of Array.isArray(this.state?.party) ? this.state.party : []) {
+      const memberName = String(member?.characterName ?? member?.characterId ?? '-').trim() || '-';
+      const currentSp = Number(member?.sp?.current);
+      if (Number.isFinite(currentSp) && currentSp < 0) {
+        this.appendReplayDiagnosticLine(lines, seen, `Final: ${memberName} SP=${currentSp}`);
+      }
+      const currentEp = Number(member?.ep?.current);
+      if (Number.isFinite(currentEp) && currentEp < 0) {
+        this.appendReplayDiagnosticLine(lines, seen, `Final: ${memberName} EP=${currentEp}`);
+      }
+    }
+    return lines;
+  }
+
+  renderTurnPlanRecalcDiagnostics() {
+    const node = this.root.querySelector('[data-role="turn-plan-recalc-diagnostics"]');
+    if (!node) {
+      return;
+    }
+    const sections = [];
+    const errorIndex = this.getEditableReplayErrorIndex();
+    const errorMessage = this.getEditableReplayErrorMessage();
+    if (Number.isInteger(errorIndex) && errorMessage) {
+      sections.push(`Error\nTurn ${errorIndex + 1}: ${errorMessage}`);
+    }
+    const warningLines = this.collectEditableReplayWarningLines();
+    if (warningLines.length > 0) {
+      sections.push(`Warnings\n${warningLines.join('\n')}`);
+    }
+    const anomalyLines = this.collectEditableReplayAnomalyLines();
+    if (anomalyLines.length > 0) {
+      sections.push(`Diagnostics\n${anomalyLines.join('\n')}`);
+    }
+    const text = sections.join('\n\n');
+    node.hidden = text.length === 0;
+    node.textContent = text;
   }
 
   hasReplayScriptEditorSource() {
@@ -8446,6 +8555,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       this.recordsSimpleMode = Boolean(simpleToggle.checked);
     }
     this.renderTurnPlanRecalcStatus();
+    this.renderTurnPlanRecalcDiagnostics();
 
     const columns = this.getRecordColumns(this.recordsSimpleMode);
     const headerLabels = columns.map((column) => column.label);

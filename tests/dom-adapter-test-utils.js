@@ -54,6 +54,7 @@ export function createRoot() {
       <select data-role="turn-plan-recalc-mode"><option value="strict">strict</option><option value="force">force</option></select>
       <button data-action="turn-plan-recalc"></button>
       <span data-role="turn-plan-recalc-status"></span>
+      <pre data-role="turn-plan-recalc-diagnostics" hidden></pre>
       <div data-role="turn-plan-edit-toolbar" hidden>
         <span data-role="turn-plan-edit-title"></span>
         <div data-role="replay-turn-edit-panel" hidden>
