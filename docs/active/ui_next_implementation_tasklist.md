@@ -2,7 +2,7 @@
 
 > **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶（最小化 未） / T03 ✅（T08で完了確認） / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T08 ✅ / T08-UX ✅ / T09-Engine ✅ / T09-UI ✅ / T10 ✅ / T11 ✅ / T12 🔶（基盤実装済み）
+> **進捗サマリー**: T01 ✅ / T02 🔶（最小化 未） / T03 ✅（T08で完了確認） / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T08 ✅ / T08-UX ✅ / T09-Engine ✅ / T09-UI ✅ / T10 ✅ / T11 ✅ / T12 🔶（基盤・UX改善済み）
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -271,11 +271,30 @@
 - [x] `TurnEngineManager` / `TurnAreaController` を `app.js` から初期化
 - [x] `buildReplaySetupFromSnapshot()` ヘルパーを追加
 
+#### T12-UX: TurnRow UX 改善（実装済み）
+- [x] プリセット保存/読込（localStorage: 3スロット、折りたたみ式）
+- [x] D&D スキル追従バグ修正（partyIndex キーで保存 + DOM data-party-index 属性で state 経由不使用）
+- [x] 後衛→前衛 D&D 対応（`draggable` 属性付与）
+- [x] SP 表示セマンティクス修正（コミット済み行も stateBefore.SP を表示）
+- [x] EX / OD ラベル先読み（未コミット行も stateBefore.turnState.turnType から判定）
+- [x] OD ゲージ `000.00%` フォーマット化 + Before→After 表示（コミット済み行）
+- [x] コンテナクエリ対応レスポンシブ（`#turn-area` の実幅で 40/48/64px・2:1→1:1 を段階変化）
+- [x] SP バッジを黒縁取り白文字にしてアイコン画像を極力隠さない表示に変更
+
 #### T12-E（後続）: 未実装
 - [ ] 開始後に `Initial Setup` を最小化できる
 - [ ] `Initial Setup` の変更を turn 1 から全再計算できる
 - [ ] operations（kishinka/割り込みOD）の UI
 - [ ] 最低限の error 表示（スキル使用失敗等のフィードバック）
+- [x] **SP 表示バグ修正**（コミット済み行が常に最新 SP を表示する問題）
+  - 詳細: [ui_next_engine_fix_tasklist.md](ui_next_engine_fix_tasklist.md) Task A
+  - `turn-row.js` の `#buildFrontSlotHtml` / `#buildBackSlotHtml` で
+    コミット済み行は `record.snapBefore.find(s => s.partyIndex === member.partyIndex).sp.current` を使うよう修正
+  - エンジン変更不要（`committedRecord.snapBefore` に mutation 前の不変コピーが既に存在）
+- [x] **OD ゲージ: 未コミット行の After 値ライブプレビュー**
+  - 詳細: [ui_next_engine_fix_tasklist.md](ui_next_engine_fix_tasklist.md) Task B
+  - `TurnEngineManager.previewCurrentTurn(slotActions)` を追加
+  - 未コミット行のスキル変更 → `previewCurrentTurn` → `→000.00%` をリアルタイム表示
 
 完了条件:
 
@@ -286,7 +305,7 @@
 - [x] D&D でターン内のスロット順を入れ替えできる
 - [ ] 「`Initial Setup > Party Setup` を中心に、style 選択と D&D ができ、後続の enemy / stage setup を差し込める新ページ」が成立している（T12-E 完了後）
 
-> 🔶 T12 部分完了（2026-03-15）: T12-A〜D 実装済み（TurnEngineManager / TurnRow / TurnArea / app.js 統合）。T12-E（最小化・再計算・OD 操作・エラー表示）は未実装。
+> 🔶 T12 部分完了（2026-03-15〜03-16）: T12-A〜D + T12-UX 実装済み。T12-E（最小化・再計算・OD 操作・エラー表示・OD ゲージ未コミット After 値プレビュー）は未実装。
 
 ## メモ
 

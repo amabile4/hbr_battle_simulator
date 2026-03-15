@@ -10,6 +10,14 @@ import {
  * - GUI は position キーのスロット操作だけを渡す
  * - 内部で previewTurn → commitTurn の 2段階を処理する
  * - 過去ターンのスロット変更は recalculateFrom() で該当ターン以降を再計算する
+ *
+ * ⚠️ 既知の制限（エンジン側修正待ち）:
+ *   commitTurn() は nextState = { ...state, party: [...state.party] } という shallow copy を行い、
+ *   commitSkillPreview() が CharacterStyle を in-place mutation するため、
+ *   全 state が party メンバーの SP 参照を共有する。
+ *   結果として「コミット済み行の SP 表示」が常に最新ターン後の値になるバグがある。
+ *   → 修正方針: src/records/record-assembler.js で committedRecord に spAtTurnStart を追加する。
+ *      詳細: docs/active/ui_next_engine_fix_tasklist.md
  */
 export class TurnEngineManager {
   #initialState = null;
@@ -111,6 +119,26 @@ export class TurnEngineManager {
   }
 
   /**
+   * 未コミット行のスキル選択に基づいて現在ターンをプレビューし、表示用の予測値を返す。
+   * state は変更しない（previewTurnRecord は mutation を行わない）。
+   *
+   * @param {Object<number, {skillId: number|null}>} slotActions position キー
+   * @returns {{ odGaugeAfter: number } | null} プレビュー失敗時は null
+   */
+  previewCurrentTurn(slotActions = {}) {
+    const state = this.currentState;
+    const actions = this.#buildActionsDict(state, slotActions);
+    try {
+      const previewRecord = previewTurnRecord(state, actions, null, 1);
+      return {
+        odGaugeAfter: Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * 指定ターンのスロットを更新して recalculateFrom を実行する。
    * コミット済みターンの過去編集に使用。
    * @param {number} turnIndex
@@ -169,6 +197,11 @@ export class TurnEngineManager {
       if (action?.skillId == null) continue;
       const member = state.party.find((m) => m.position === position);
       if (!member) continue;
+      // EX ターン: allowedCharacterIds に含まれないメンバーのアクションは除外する
+      if (state.turnState?.turnType === 'extra') {
+        const allowed = state.turnState.extraTurnState?.allowedCharacterIds ?? [];
+        if (!allowed.includes(member.characterId)) continue;
+      }
       // getSkill で有効性を確認（無効なら null が返る）
       const skill = member.getSkill(action.skillId);
       if (!skill) continue;

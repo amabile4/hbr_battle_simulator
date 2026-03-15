@@ -49,6 +49,7 @@ export class TurnAreaController {
       onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
       onCommit: (ti) => this.#handleCommit(ti),
       onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
+      onPreviewRequest: (ti, slotActions) => this.#handlePreviewRequest(ti, slotActions),
     });
 
     row.mount();
@@ -87,6 +88,16 @@ export class TurnAreaController {
       this.#refreshRowsFrom(turnIndex);
     }
     // 未コミット行のスキル変更は commitNextTurn 時に収集するため何もしない
+  }
+
+  /**
+   * 未コミット行のスキル変更によるプレビューリクエスト。
+   * TurnEngineManager に現在ターンをプレビューさせ、OD After 値を更新する。
+   */
+  #handlePreviewRequest(turnIndex, slotActions) {
+    const preview = this.#engineManager.previewCurrentTurn(slotActions);
+    const lastRow = this.#rowControllers.at(-1);
+    lastRow?.updateOdPreview(preview?.odGaugeAfter ?? null);
   }
 
   /**

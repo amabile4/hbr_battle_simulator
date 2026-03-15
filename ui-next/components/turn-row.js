@@ -1,5 +1,10 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
 
+/** OD ゲージ値を "000.00%" 形式にフォーマットする */
+function formatOdGauge(value) {
+  return Number(value ?? 0).toFixed(2).padStart(6, '0') + '%';
+}
+
 /**
  * 1ターン分の横長コンテナ UI
  *
@@ -17,13 +22,14 @@ export class TurnRowController {
   #onSlotChange;
   #onCommit;
   #onNoteChange;
+  #onPreviewRequest;
 
   // D&D 用
   #dragSrcPosition = null;
   // update() 時にスキル選択を保持するための一時フィールド
   #savedSlotActions = null;
 
-  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange }) {
+  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest }) {
     this.#root = root;
     this.#store = store;
     this.#turnIndex = turnIndex;
@@ -33,6 +39,7 @@ export class TurnRowController {
     this.#onSlotChange = onSlotChange;
     this.#onCommit = onCommit;
     this.#onNoteChange = onNoteChange;
+    this.#onPreviewRequest = onPreviewRequest;
   }
 
   mount() {
@@ -76,6 +83,19 @@ export class TurnRowController {
 
   getCurrentNote() {
     return this.#root.querySelector('[data-role="note"]')?.value ?? '';
+  }
+
+  /**
+   * 未コミット行の OD After 表示をリアルタイム更新する。
+   * TurnAreaController から previewCurrentTurn の結果を受けて呼ばれる。
+   * @param {number|null} odGaugeAfter null の場合は "→ —" に戻す
+   */
+  updateOdPreview(odGaugeAfter) {
+    const el = this.#root.querySelector('[data-od-after]');
+    if (!el) return;
+    el.textContent = odGaugeAfter != null
+      ? `→${formatOdGauge(odGaugeAfter)}`
+      : '→ —';
   }
 
   // ---- private ----
@@ -126,10 +146,14 @@ export class TurnRowController {
       <div class="flex items-stretch gap-px border-b border-gray-200 bg-white
                   hover:bg-gray-50 transition-colors ${isCommitted ? '' : 'bg-blue-50/30'}">
         ${turnInfoHtml}
-        <div class="flex gap-px flex-1">
-          ${frontSlots}
-          <div class="w-px bg-gray-200 self-stretch mx-0.5"></div>
-          ${backSlots}
+        <div class="flex gap-px flex-1 min-w-0">
+          <div data-turn-front-group class="flex gap-px min-w-0">
+            ${frontSlots}
+          </div>
+          <div class="w-px bg-gray-200 self-stretch mx-0.5 flex-shrink-0"></div>
+          <div data-turn-back-group class="flex gap-px min-w-0">
+            ${backSlots}
+          </div>
         </div>
         ${buttonHtml}
         ${noteHtml}
@@ -138,20 +162,38 @@ export class TurnRowController {
 
   #buildTurnInfoHtml(isCommitted) {
     if (!isCommitted) {
-      // 未コミット行: 次のターン番号を仮表示
-      const nextTurnNo = (this.#stateBefore?.turnState?.turnIndex ?? 1);
+      // 未コミット行: stateBefore の turnState から EX / OD ラベルを先読みする
+      const turnState = this.#stateBefore?.turnState;
+      const nextTurnNo = turnState?.turnIndex ?? 1;
+      const turnType = String(turnState?.turnType ?? '');
+      const isExtra = turnType === 'extra';
+      const odTurnLabel = turnType === 'od' ? String(turnState?.turnLabel ?? '') : '';
+      const odMatch = odTurnLabel.match(/^(OD\d+)/);
+      const odLabel = isExtra ? 'EX' : (odMatch ? odMatch[1] : '');
+      const isOd = !isExtra && odLabel !== '';
+      const odLabelClass = isExtra
+        ? 'bg-amber-100 text-amber-700'
+        : isOd
+          ? 'bg-purple-100 text-purple-700'
+          : '';
+      const odGaugeBefore = formatOdGauge(this.#stateBefore?.turnState?.odGauge);
       return `
-        <div class="flex-shrink-0 w-14 flex flex-col items-center justify-center
+        <div class="flex-shrink-0 w-[76px] flex flex-col items-center justify-center
                     gap-0.5 px-1 py-1 bg-gray-50 border-r border-gray-200 text-gray-400">
           <span class="text-xs font-bold">T${nextTurnNo}</span>
-          <span class="text-xs">—</span>
+          ${odLabel
+            ? `<span class="text-xs px-1 rounded font-medium ${odLabelClass}">${odLabel}</span>`
+            : '<span class="text-xs">—</span>'}
+          <span class="font-mono text-[10px] text-gray-400 leading-none">${odGaugeBefore}</span>
+          <span data-od-after class="font-mono text-[10px] text-gray-300 leading-none">→ —</span>
         </div>`;
     }
 
     const rec = this.#record;
     const turnNo = rec.turnIndex ?? '?';
     const seqId = rec.turnId ?? '?';
-    const odGauge = Number(rec.projections?.odGaugeAtEnd ?? rec.odGaugeAtStart ?? 0).toFixed(0);
+    const odGaugeBefore = formatOdGauge(rec.odGaugeAtStart);
+    const odGaugeAfter  = formatOdGauge(rec.projections?.odGaugeAtEnd ?? rec.odGaugeAtStart);
     const isExtra = rec.isExtraTurn;
     const odMatch = String(rec.odTurnLabelAtStart ?? '').match(/^(OD\d+)/);
     const odLabel = isExtra ? 'EX' : (odMatch ? odMatch[1] : '');
@@ -163,13 +205,14 @@ export class TurnRowController {
         : '';
 
     return `
-      <div class="flex-shrink-0 w-14 flex flex-col items-center justify-center
+      <div class="flex-shrink-0 w-[76px] flex flex-col items-center justify-center
                   gap-0.5 px-1 py-1 bg-gray-50 border-r border-gray-200">
         <span class="text-xs font-bold text-gray-700">T${turnNo}</span>
         ${odLabel
           ? `<span class="text-xs px-1 rounded font-medium ${odLabelClass}">${odLabel}</span>`
           : '<span class="text-xs text-gray-300">—</span>'}
-        <span class="text-xs text-gray-400">${odGauge}%</span>
+        <span class="font-mono text-[10px] text-gray-500 leading-none">${odGaugeBefore}</span>
+        <span class="font-mono text-[10px] text-gray-400 leading-none">→${odGaugeAfter}</span>
         <span class="text-xs text-gray-300">#${seqId}</span>
       </div>`;
   }
@@ -180,19 +223,64 @@ export class TurnRowController {
     return rawStyle ? resolveStyleImageUrl(rawStyle) : '';
   }
 
+  /** EX ターン中かどうかを判定する（未コミット行専用）。*/
+  #isExtraTurn() {
+    return this.#stateBefore?.turnState?.turnType === 'extra';
+  }
+
+  /**
+   * EX ターンでこのメンバーが行動可能かを判定する。
+   * エンジンの isMemberActionableInCurrentTurn と同じロジック。
+   * 未コミット行でのみ使用（コミット済み行は record に結果が確定している）。
+   */
+  #isActionable(member) {
+    const turnState = this.#stateBefore?.turnState;
+    if (turnState?.turnType !== 'extra') return true;
+    const allowed = turnState.extraTurnState?.allowedCharacterIds ?? [];
+    return allowed.includes(member.characterId);
+  }
+
+  /**
+   * D&D によるポジション入れ替えが許可されているかを判定する。
+   * ドメイン層の canSwapWith() と同じロジック。
+   * EX ターン中: 両方のメンバーが allowedCharacterIds に含まれる場合のみ許可。
+   */
+  #isSwapAllowed(srcPosition, dstPosition) {
+    if (!this.#isExtraTurn()) return true;
+    const party = this.#stateBefore?.party;
+    const src = party?.find((m) => m.position === srcPosition);
+    const dst = party?.find((m) => m.position === dstPosition);
+    const allowed = new Set(this.#stateBefore?.turnState?.extraTurnState?.allowedCharacterIds ?? []);
+    return allowed.has(src?.characterId) && allowed.has(dst?.characterId);
+  }
+
   #buildFrontSlotHtml(member, isCommitted) {
     const imageUrl = this.#resolveImageUrl(member);
 
-    // SP: コミット済み・未コミットともにそのターン開始時の SP（stateBefore）を表示する。
-    // stateAfter（ターン後SP）は次のターンの stateBefore と同値なので冗長であり、
-    // 「T1 の表示が T2 開始後に書き換わったように見える」混乱を防ぐ。
-    const spDisplay = member.sp?.current ?? '—';
-
-    // スキル選択肢
+    // スキル選択肢（replaySlot は inactive 判定でも必要なため先に算出）
     const skills = member.getActionSkills ? member.getActionSkills() : [];
     const replaySlot = isCommitted
       ? (this.#record?.actions?.find?.(a => a.positionIndex === member.position) ?? null)
       : null;
+
+    // EX ターンで行動しなかったメンバーは inactive スロット表示にする。
+    //   - 未コミット行: allowedCharacterIds に含まれない → EX待機
+    //   - コミット済み行: EX ターンで action が null → EX待機（コミット後も同様に表示）
+    if (!isCommitted && !this.#isActionable(member)) {
+      return this.#buildInactiveSlotHtml(member, imageUrl, isCommitted);
+    }
+    if (isCommitted && this.#record?.isExtraTurn && replaySlot === null) {
+      return this.#buildInactiveSlotHtml(member, imageUrl, isCommitted);
+    }
+
+    // SP: ターン開始前の値（stateBefore 時点）を表示する。
+    // コミット済み行: CharacterStyle は commitSkillPreview() による in-place mutation で
+    //   常に最新ターン後の値を持つため、member.sp?.current は誤り。
+    //   代わりに previewTurn が mutation 前に取得した不変コピー（record.snapBefore）から読む。
+    // 未コミット行: currentState は常に最新なので member.sp?.current が正しい。
+    const spDisplay = isCommitted
+      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
+      : (member.sp?.current ?? '—');
     // コミット済み: record から復元 / 未コミット: D&D 後の保存値（partyIndex キー）→ なければ先頭スキル
     // TODO: skills[0] が通常攻撃/指揮行動であることは JSON 挿入順への暗黙依存。
     //       CharacterStyle.getDefaultActionSkillId() が追加されたらそちらに移行する。
@@ -212,10 +300,13 @@ export class TurnRowController {
 
     const selectDisabled = isCommitted ? 'disabled' : '';
 
+    // EX ターン: 非行動可能メンバーは #buildInactiveSlotHtml で早期 return 済みのため、
+    // ここに到達するメンバーは全員 allowedCharacterIds に含まれる。draggable に EX 制限不要。
+    const draggable = !isCommitted;
     return `
-      <div draggable="${!isCommitted}" data-turn-slot data-position="${member.position}"
+      <div draggable="${draggable}" data-turn-slot data-position="${member.position}"
            class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
-                  ${!isCommitted ? 'cursor-grab active:cursor-grabbing' : ''}">
+                  ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
         <!-- スキル select -->
         <div class="px-0.5 pt-0.5">
           <select data-skill-select data-position="${member.position}" data-party-index="${member.partyIndex}" ${selectDisabled}
@@ -227,31 +318,70 @@ export class TurnRowController {
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース -->
         <div class="flex items-start gap-1 p-0.5">
-          <div class="relative w-10 h-10 flex-shrink-0 overflow-hidden rounded-sm bg-gray-100">
+          <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-100">
             ${imageUrl
               ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
                       class="w-full h-full object-cover" />`
               : `<div class="w-full h-full flex items-center justify-center text-gray-300">？</div>`
             }
-            <div class="absolute top-0 right-0 bg-black/60 text-white rounded-bl
-                        text-xs px-0.5 leading-none font-bold min-w-[16px] text-center">
+            <div data-sp-badge class="absolute -top-0.5 -right-0.5 text-white font-bold leading-none text-center px-1 py-0.5 min-w-[20px]"
+                 style="text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.9);">
               ${spDisplay}
             </div>
           </div>
           <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
-          <div class="flex-1 min-w-0 h-10"></div>
+          <div data-slot-info-space class="flex-1 min-w-0"></div>
+        </div>
+      </div>`;
+  }
+
+  /** EX ターンで行動しなかった前衛メンバー用スロット（スキル select なし）。
+   *  未コミット行: amber 色で「EX待機」表示。
+   *  コミット済み行: gray 色で「EX待機」表示（後衛スロットと同トーン）。
+   */
+  #buildInactiveSlotHtml(member, imageUrl, isCommitted) {
+    const sp = isCommitted
+      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
+      : (member.sp?.current ?? '—');
+    const labelClass = isCommitted
+      ? 'text-gray-300 border-gray-100 bg-gray-50'
+      : 'text-amber-400 border-amber-100 bg-amber-50';
+    return `
+      <div data-turn-slot data-position="${member.position}"
+           class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none">
+        <div class="px-0.5 pt-0.5">
+          <div class="w-full text-xs rounded px-0.5 py-px border ${labelClass}">EX待機</div>
+        </div>
+        <div class="flex items-start gap-1 p-0.5">
+          <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
+            ${imageUrl
+              ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                      class="w-full h-full object-cover opacity-40" />`
+              : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
+            }
+            <div data-sp-badge class="absolute -top-0.5 -right-0.5 text-white font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-60"
+                 style="text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
+              ${sp}
+            </div>
+          </div>
+          <div data-slot-info-space class="flex-1 min-w-0"></div>
         </div>
       </div>`;
   }
 
   #buildBackSlotHtml(member, isCommitted) {
     const imageUrl = this.#resolveImageUrl(member);
-    const sp = member.sp?.current ?? '—';
+    // コミット済み行: #buildFrontSlotHtml と同様に snapBefore から読む
+    const sp = isCommitted
+      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
+      : (member.sp?.current ?? '—');
 
+    // EX ターン: allowedCharacterIds に含まれない後衛メンバーはドラッグ不可
+    const draggable = !isCommitted && (!this.#isExtraTurn() || this.#isActionable(member));
     return `
-      <div draggable="${!isCommitted}" data-turn-slot data-position="${member.position}"
+      <div draggable="${draggable}" data-turn-slot data-position="${member.position}"
            class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
-                  ${!isCommitted ? 'cursor-grab active:cursor-grabbing' : ''}">
+                  ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
         <!-- スキル select プレースホルダー（高さ揃え用） -->
         <div class="px-0.5 pt-0.5">
           <div class="w-full text-xs text-gray-300 border border-gray-100 rounded px-0.5 py-px
@@ -259,19 +389,19 @@ export class TurnRowController {
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース -->
         <div class="flex items-start gap-1 p-0.5">
-          <div class="relative w-10 h-10 flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
+          <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
             ${imageUrl
               ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
                       class="w-full h-full object-cover opacity-60" />`
               : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
             }
-            <div class="absolute top-0 right-0 bg-black/40 text-white rounded-bl
-                        text-xs px-0.5 leading-none min-w-[16px] text-center">
+            <div data-sp-badge class="absolute -top-0.5 -right-0.5 text-white font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-80"
+                 style="text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
               ${sp}
             </div>
           </div>
           <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
-          <div class="flex-1 min-w-0 h-10"></div>
+          <div data-slot-info-space class="flex-1 min-w-0"></div>
         </div>
       </div>`;
   }
@@ -291,13 +421,23 @@ export class TurnRowController {
   }
 
   #bindEvents() {
-    // スキル select 変更（コミット済み行のみ、未コミット行は commitNextTurn 時に収集）
+    // スキル select 変更（コミット済み行）
     if (this.#record !== null) {
       this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
         sel.addEventListener('change', () => {
           const position = Number(sel.dataset.position);
           const skillId = sel.value === '' ? null : Number(sel.value);
           this.#onSlotChange?.(this.#turnIndex, position, { skillId });
+        });
+      });
+    }
+
+    // スキル select 変更（未コミット行: OD After プレビューをリクエスト）
+    if (this.#record === null) {
+      this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
+        sel.addEventListener('change', () => {
+          const slotActions = this.getCurrentSlotActions();
+          this.#onPreviewRequest?.(this.#turnIndex, slotActions);
         });
       });
     }
@@ -338,6 +478,9 @@ export class TurnRowController {
 
       el.addEventListener('dragover', (e) => {
         if (this.#dragSrcPosition === null) return;
+        const dst = Number(el.dataset.position);
+        // EX ターン: 両者が allowedCharacterIds に含まれない組み合わせはドロップ不可
+        if (!this.#isSwapAllowed(this.#dragSrcPosition, dst)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         slots.forEach((s) => s.classList.remove('ring-2', 'ring-blue-400'));
@@ -353,7 +496,7 @@ export class TurnRowController {
         e.preventDefault();
         const dst = Number(el.dataset.position);
         const src = this.#dragSrcPosition;
-        if (src !== null && src !== dst) {
+        if (src !== null && src !== dst && this.#isSwapAllowed(src, dst)) {
           this.#onSlotChange?.(this.#turnIndex, src, { swapWith: dst });
         }
         slots.forEach((s) => s.classList.remove('ring-2', 'ring-blue-400'));
