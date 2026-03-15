@@ -223,17 +223,21 @@ export class TurnRowController {
             ${skillOptions}
           </select>
         </div>
-        <!-- アイコン + SP オーバーレイ -->
-        <div class="relative aspect-square overflow-hidden bg-gray-100">
-          ${imageUrl
-            ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
-                    class="w-full h-full object-cover" />`
-            : `<div class="w-full h-full flex items-center justify-center text-gray-300 text-lg">？</div>`
-          }
-          <div class="absolute top-0.5 right-0.5 bg-black/60 text-white rounded
-                      text-xs px-0.5 leading-none font-bold min-w-[18px] text-center">
-            ${spAfter}
+        <!-- アイコン（固定サイズ）＋ 情報スペース -->
+        <div class="flex items-start gap-1 p-0.5">
+          <div class="relative w-10 h-10 flex-shrink-0 overflow-hidden rounded-sm bg-gray-100">
+            ${imageUrl
+              ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                      class="w-full h-full object-cover" />`
+              : `<div class="w-full h-full flex items-center justify-center text-gray-300">？</div>`
+            }
+            <div class="absolute top-0 right-0 bg-black/60 text-white rounded-bl
+                        text-xs px-0.5 leading-none font-bold min-w-[16px] text-center">
+              ${spAfter}
+            </div>
           </div>
+          <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
+          <div class="flex-1 min-w-0 h-10"></div>
         </div>
       </div>`;
   }
@@ -251,17 +255,21 @@ export class TurnRowController {
           <div class="w-full text-xs text-gray-300 border border-gray-100 rounded px-0.5 py-px
                       bg-gray-50">後衛</div>
         </div>
-        <!-- アイコン + SP オーバーレイ -->
-        <div class="relative aspect-square overflow-hidden bg-gray-50">
-          ${imageUrl
-            ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
-                    class="w-full h-full object-cover opacity-60" />`
-            : `<div class="w-full h-full flex items-center justify-center text-gray-200 text-lg">？</div>`
-          }
-          <div class="absolute top-0.5 right-0.5 bg-black/40 text-white rounded
-                      text-xs px-0.5 leading-none min-w-[18px] text-center">
-            ${sp}
+        <!-- アイコン（固定サイズ）＋ 情報スペース -->
+        <div class="flex items-start gap-1 p-0.5">
+          <div class="relative w-10 h-10 flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
+            ${imageUrl
+              ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                      class="w-full h-full object-cover opacity-60" />`
+              : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
+            }
+            <div class="absolute top-0 right-0 bg-black/40 text-white rounded-bl
+                        text-xs px-0.5 leading-none min-w-[16px] text-center">
+              ${sp}
+            </div>
           </div>
+          <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
+          <div class="flex-1 min-w-0 h-10"></div>
         </div>
       </div>`;
   }
