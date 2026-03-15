@@ -81,42 +81,51 @@ const ROLE_OPTIONS = [
 const FILTER_KEY = { tier: 'tiers', type: 'types', element: 'elements', role: 'roles' };
 
 function filterBarHtml() {
-  const row = (label, btns) => `
-    <div class="flex items-center gap-1.5">
-      <span class="text-xs text-gray-400 shrink-0 w-7">${label}</span>
-      <div class="flex gap-0.5 flex-wrap">${btns}</div>
-    </div>`;
+  // アイコンのみのボタン（tier / type）
+  const iconBtn = (filterType, value, iconUrl, altText) =>
+    `<button data-filter-type="${filterType}" data-filter-value="${value}"
+             title="${altText}"
+             class="w-8 h-8 rounded border border-gray-200 bg-white
+                    hover:bg-gray-50 transition-colors flex items-center justify-center">
+       <img src="${iconUrl}" alt="${altText}" class="w-6 h-6 object-contain" />
+     </button>`;
 
-  const btn = (type, value, label, iconUrl = '') => {
-    const iconHtml = iconUrl
-      ? `<img src="${iconUrl}" alt="" class="w-3.5 h-3.5 object-contain inline-block" />`
-      : '';
-    return `<button data-filter-type="${type}" data-filter-value="${value}"
-             class="text-xs px-1.5 py-0.5 rounded border border-gray-200
-                    text-gray-500 hover:bg-gray-50 transition-colors leading-tight
-                    flex items-center gap-0.5"
-     >${iconHtml}${label}</button>`;
-  };
+  // テキストのみのボタン（element / role）
+  const textBtn = (filterType, value, label) =>
+    `<button data-filter-type="${filterType}" data-filter-value="${value}"
+             class="text-xs px-2 py-1 rounded border border-gray-200
+                    text-gray-600 hover:bg-gray-50 transition-colors leading-tight">
+       ${label}
+     </button>`;
 
   const tierBtns = TIER_OPTIONS.map((t) =>
-    btn('tier', t, t, resolveUiAssetUrl(`IconRarity${t}.webp`))
+    iconBtn('tier', t, resolveUiAssetUrl(`IconRarity${t}.webp`), t)
   ).join('');
 
   const typeBtns = WEAPON_TYPE_OPTIONS.map((w) =>
-    btn('type', w.value, w.label, resolveUiAssetUrl(`${w.value}.webp`))
+    iconBtn('type', w.value, resolveUiAssetUrl(`${w.value}.webp`), w.label)
   ).join('');
+
+  const elementBtns = ELEMENT_OPTIONS.map((e) => textBtn('element', e.value, e.label)).join('');
+  const roleBtns = ROLE_OPTIONS.map((r) => textBtn('role', r.value, r.label)).join('');
 
   return `
     <div id="picker-filter-bar"
-         class="px-3 py-2 border-b border-gray-100 shrink-0 flex flex-col gap-1">
-      ${row('レア', tierBtns)}
-      ${row('属性', ELEMENT_OPTIONS.map((e) => btn('element', e.value, e.label)).join(''))}
-      ${row('種別', typeBtns)}
-      ${row('役割', ROLE_OPTIONS.map((r) => btn('role', r.value, r.label)).join(''))}
-      <div class="flex justify-end">
+         class="px-3 pt-2 pb-1 border-b border-gray-100 shrink-0 flex flex-col gap-1">
+      <!-- 行1: レアリティ -->
+      <div class="flex gap-1 flex-wrap">${tierBtns}</div>
+      <!-- 行2: 種別 + 属性 -->
+      <div class="flex gap-1 flex-wrap items-center">
+        ${typeBtns}
+        <div class="w-px h-5 bg-gray-200 mx-0.5"></div>
+        ${elementBtns}
+      </div>
+      <!-- 行3: ロール -->
+      <div class="flex gap-1 flex-wrap items-center">
+        ${roleBtns}
         <button id="picker-reset-filters"
-                class="text-xs text-gray-400 hover:text-gray-600 underline leading-none">
-          フィルタ解除
+                class="ml-auto text-xs text-gray-400 hover:text-gray-600 underline leading-none">
+          解除
         </button>
       </div>
     </div>
