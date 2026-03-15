@@ -66,6 +66,7 @@ export class PartySetupController {
   #picker;
   #activeSlotIndex = null;
   #activeMode = 'main'; // 'main' | 'support'
+  #dragSrcIndex = null;
 
   constructor({ root, pickerOverlay, store }) {
     this.#root = root;
@@ -139,6 +140,54 @@ export class PartySetupController {
         else if (field === 'morale') this.#slots[idx].morale = val;
       });
     });
+
+    // D&D によるスロット入れ替え
+    this.#root.querySelectorAll('[data-slot]').forEach((el) => {
+      el.addEventListener('dragstart', (e) => {
+        this.#dragSrcIndex = Number(el.dataset.slot);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', ''); // Firefox 必須
+        // ghost image 生成後に元スロットを薄くする
+        requestAnimationFrame(() => el.classList.add('opacity-40'));
+      });
+
+      el.addEventListener('dragend', () => {
+        el.classList.remove('opacity-40');
+        this.#dragSrcIndex = null;
+      });
+
+      el.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      });
+
+      el.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (this.#dragSrcIndex !== null && this.#dragSrcIndex !== Number(el.dataset.slot)) {
+          el.classList.add('ring-2', 'ring-inset', 'ring-blue-400');
+        }
+      });
+
+      el.addEventListener('dragleave', (e) => {
+        // 子要素への移動では highlight を外さない
+        if (!el.contains(e.relatedTarget)) {
+          el.classList.remove('ring-2', 'ring-inset', 'ring-blue-400');
+        }
+      });
+
+      el.addEventListener('drop', (e) => {
+        e.preventDefault();
+        el.classList.remove('ring-2', 'ring-inset', 'ring-blue-400');
+        const dst = Number(el.dataset.slot);
+        if (this.#dragSrcIndex !== null && this.#dragSrcIndex !== dst) {
+          const tmp = this.#slots[this.#dragSrcIndex];
+          this.#slots[this.#dragSrcIndex] = this.#slots[dst];
+          this.#slots[dst] = tmp;
+          this.#render();
+        }
+        this.#dragSrcIndex = null;
+      });
+    });
   }
 
   #slotHtml(index, moraleVisible) {
@@ -149,19 +198,21 @@ export class PartySetupController {
     const lbOptions = makeLbOptions(style);
 
     return `
-      <div class="flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden
-                  text-xs shadow-sm">
+      <div draggable="true" data-slot="${index}"
+           class="flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden
+                  text-xs shadow-sm transition-opacity">
 
-        <!-- スロット番号 -->
+        <!-- スロット番号（ドラッグハンドル） -->
         <div class="flex items-center justify-center bg-gray-50 border-b border-gray-100
-                    py-0.5 text-gray-400 font-bold text-xs">${index + 1}</div>
+                    py-0.5 text-gray-400 font-bold text-xs cursor-grab active:cursor-grabbing
+                    select-none">${index + 1}</div>
 
         <!-- main icon -->
         <button data-action="open-picker" data-slot-index="${index}" data-mode="main"
                 class="relative w-full aspect-square bg-gray-100 hover:opacity-80
                        transition-opacity cursor-pointer overflow-hidden group">
           ${imageUrl
-            ? `<img src="${imageUrl}" alt="${style?.name ?? ''}"
+            ? `<img src="${imageUrl}" alt="${style?.name ?? ''}" draggable="false"
                     class="w-full h-full object-cover" />`
             : `<div class="w-full h-full flex items-center justify-center
                           text-gray-300 text-2xl group-hover:text-blue-300 transition-colors">＋</div>`

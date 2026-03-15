@@ -2,7 +2,7 @@
 
 > **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶（support icon・最小化 未） / T03 🔶（support icon 未） / T04 ✅ / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T05〜T08・T11・T12 未着手
+> **進捗サマリー**: T01 ✅ / T02 🔶（support icon・最小化 未） / T03 🔶（support icon 未） / T04 ✅ / T05 ✅ / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T06〜T08・T11・T12 未着手
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -81,13 +81,17 @@
 
 ### T05: D&D による position 入れ替え
 
-- [ ] slot の drag start / hover / drop を実装する
-- [ ] ドロップ時に slot 単位で main / support / listbox 設定をまとめて入れ替える
-- [ ] accidental drag を減らすための最小ガードを入れる
+- [x] slot の drag start / hover / drop を実装する
+- [x] ドロップ時に slot 単位で style・listbox 設定をまとめてスワップする
+- [x] accidental drag ガード: スロット番号ヘッダーに `cursor-grab` を表示し、img に `draggable="false"` を付与
+- [x] ドラッグ中の元スロットを半透明（opacity-40）、ドロップ先を青枠（ring-blue-400）でハイライト
+- [x] `dragleave` の誤発火（子要素移動時）を `el.contains(e.relatedTarget)` で抑制
 
 完了条件:
 
-- slot panel をドラッグして順番を入れ替えられる
+- [x] slot panel をドラッグして順番を入れ替えられる
+
+> ✅ T05 完了（2026-03-15）: HTML5 D&D。`#slots` 配列ごとスワップするため style 画像・listbox 選択状態が一緒に入れ替わる。
 
 ### T06: Style Picker shell
 
