@@ -48,6 +48,9 @@ docs/
 | [active/ui_support_slot_improvement_tasklist.md](active/ui_support_slot_improvement_tasklist.md) | ✅ 完了 | サポート枠UI改善：共鳴アビリティ表示強化・フィルタリング機能・バグ修正（全476テストPASS） | 2026-03-12 |
 | [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次優先 PRI-018（スキル使用回数制約と回復機能）を設定。 | 2026-03-14 |
+| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | 新規 `ui-next` ページの設計メモ。既存 UI 非依存、style 画像利用、engine との境界を整理 | 2026-03-15 |
+| [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | 過去に作成した GUI モックアップ前提のレイアウト設計書を `ui-next` 用資料として移管 | 2026-03-15 |
+| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | 新規 `ui-next` ページ実装タスクリスト。entry 作成、style 画像表示、D&D、engine bridge を段階化 | 2026-03-15 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | `TurnAction` を正本に寄せ、Commit 時 Position を保存し `record` を再生成物へ戻す軽量 replay/edit 設計案 | 2026-03-14 |
 | [active/lightweight_record_replay_implementation_tasklist.md](active/lightweight_record_replay_implementation_tasklist.md) | ✅ 完了 | T01-T10 完了。`ReplayScript` 正本化、best-effort replay、extensible setup/override、legacy turnPlan bridge、warning/diagnostics UI まで実装完了 | 2026-03-15 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
@@ -81,7 +84,6 @@ docs/
 | [specs/runs/RUN_20260228_001/interfaces.ts](specs/runs/RUN_20260228_001/interfaces.ts) | TypeScript全体インターフェース定義 | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/decision_log.md](specs/runs/RUN_20260228_001/decision_log.md) | 設計意思決定ログ（DEC-001〜012） | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/open_questions.md](specs/runs/RUN_20260228_001/open_questions.md) | ユーザー確認が必要な未決事項（Q-S001等） | 2026-02-28 |
-| [specs/gui_design_spec.md](specs/gui_design_spec.md) | GUI設計仕様 | 2026-03-07 |
 | [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（ドライブピアス補正式・実機照合済み） | 2026-03-01 |
 | [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
 
