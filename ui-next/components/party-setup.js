@@ -93,18 +93,21 @@ export class PartySetupController {
   }
 
   #render() {
+    // やる気パッシブ持ちが1人でもいれば全スロットにやる気 select を表示
+    const moraleVisible = this.#slots.some((s) => hasMoralePassive(s.style));
+
     this.#root.innerHTML = `
       <div class="p-2 space-y-2">
         <div>
           <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">前衛</div>
           <div class="grid grid-cols-3 gap-1">
-            ${[0, 1, 2].map((i) => this.#slotHtml(i)).join('')}
+            ${[0, 1, 2].map((i) => this.#slotHtml(i, moraleVisible)).join('')}
           </div>
         </div>
         <div>
           <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">後衛</div>
           <div class="grid grid-cols-3 gap-1">
-            ${[3, 4, 5].map((i) => this.#slotHtml(i)).join('')}
+            ${[3, 4, 5].map((i) => this.#slotHtml(i, moraleVisible)).join('')}
           </div>
         </div>
       </div>
@@ -138,13 +141,12 @@ export class PartySetupController {
     });
   }
 
-  #slotHtml(index) {
+  #slotHtml(index, moraleVisible) {
     const slot = this.#slots[index];
     const style = slot.style;
     const imageUrl = style ? resolveStyleImageUrl(style) : '';
     const charaName = style ? extractCharaName(style) : null;
     const lbOptions = makeLbOptions(style);
-    const moraleVisible = hasMoralePassive(style);
 
     return `
       <div class="flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden
