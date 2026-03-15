@@ -66,15 +66,15 @@ const WEAPON_TYPE_OPTIONS = [
 ];
 
 const ROLE_OPTIONS = [
-  { value: 'Attacker', label: 'アタッカー',   short: 'ATK' },
-  { value: 'Blaster',  label: 'ブラスター',   short: 'BLS' },
-  { value: 'Breaker',  label: 'ブレイカー',   short: 'BRK' },
-  { value: 'Buffer',   label: 'バッファー',   short: 'BUF' },
-  { value: 'Debuffer', label: 'デバッファー', short: 'DEB' },
-  { value: 'Defender', label: 'ディフェンダー', short: 'DEF' },
-  { value: 'Healer',   label: 'ヒーラー',     short: 'HLR' },
-  { value: 'Rider',    label: 'ライダー',     short: 'RDR' },
-  { value: 'Admiral',  label: '司令',         short: '司令' },
+  { value: 'Attacker', short: 'ATK' },
+  { value: 'Blaster',  short: 'BLS' },
+  { value: 'Breaker',  short: 'BRK' },
+  { value: 'Buffer',   short: 'BUF' },
+  { value: 'Debuffer', short: 'DEB' },
+  { value: 'Defender', short: 'DEF' },
+  { value: 'Healer',   short: 'HLR' },
+  { value: 'Rider',    short: 'RDR' },
+  { value: 'Admiral',  short: 'ADM' },
 ];
 
 /** フィルタカテゴリ文字列 → #filters のキー */
@@ -113,7 +113,7 @@ function filterBarHtml() {
              class="text-xs px-2 py-1 rounded border border-gray-200
                     text-gray-600 hover:bg-gray-50 transition-colors leading-tight shrink-0">
        <span class="sm:hidden">${r.short}</span>
-       <span class="hidden sm:inline">${r.label}</span>
+       <span class="hidden sm:inline">${r.value}</span>
      </button>`;
 
   return `
