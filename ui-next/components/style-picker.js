@@ -1,4 +1,4 @@
-import { resolveStyleImageUrl, resolveStyleAssetUrl } from '../../src/ui/style-asset-url.js';
+import { resolveStyleImageUrl, resolveStyleAssetUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 
 function extractCharaName(style) {
   const raw = String(style?.chara ?? '');
@@ -59,17 +59,10 @@ const ELEMENT_OPTIONS = [
   { value: 'Dark',    label: '闇' },
 ];
 
-const WEAPON_OPTIONS = [
-  { value: 'Sword',       label: '剣' },
-  { value: 'DoubleSword', label: '双剣' },
-  { value: 'LargeSword',  label: '大剣' },
-  { value: 'Lance',       label: '槍' },
-  { value: 'Scythe',      label: '鎌' },
-  { value: 'Cannon',      label: '砲' },
-  { value: 'Gun',         label: '銃' },
-  { value: 'Claw',        label: '爪' },
-  { value: 'Shield',      label: '盾' },
-  { value: 'Bike',        label: 'バイク' },
+const WEAPON_TYPE_OPTIONS = [
+  { value: 'Slash',  label: '斬' },
+  { value: 'Stab',   label: '突' },
+  { value: 'Strike', label: '打' },
 ];
 
 const ROLE_OPTIONS = [
@@ -85,7 +78,7 @@ const ROLE_OPTIONS = [
 ];
 
 /** フィルタカテゴリ文字列 → #filters のキー */
-const FILTER_KEY = { tier: 'tiers', weapon: 'weapons', element: 'elements', role: 'roles' };
+const FILTER_KEY = { tier: 'tiers', type: 'types', element: 'elements', role: 'roles' };
 
 function filterBarHtml() {
   const row = (label, btns) => `
@@ -93,18 +86,32 @@ function filterBarHtml() {
       <span class="text-xs text-gray-400 shrink-0 w-7">${label}</span>
       <div class="flex gap-0.5 flex-wrap">${btns}</div>
     </div>`;
-  const btn = (type, value, label) =>
-    `<button data-filter-type="${type}" data-filter-value="${value}"
+
+  const btn = (type, value, label, iconUrl = '') => {
+    const iconHtml = iconUrl
+      ? `<img src="${iconUrl}" alt="" class="w-3.5 h-3.5 object-contain inline-block" />`
+      : '';
+    return `<button data-filter-type="${type}" data-filter-value="${value}"
              class="text-xs px-1.5 py-0.5 rounded border border-gray-200
-                    text-gray-500 hover:bg-gray-50 transition-colors leading-tight"
-     >${label}</button>`;
+                    text-gray-500 hover:bg-gray-50 transition-colors leading-tight
+                    flex items-center gap-0.5"
+     >${iconHtml}${label}</button>`;
+  };
+
+  const tierBtns = TIER_OPTIONS.map((t) =>
+    btn('tier', t, t, resolveUiAssetUrl(`IconRarity${t}.webp`))
+  ).join('');
+
+  const typeBtns = WEAPON_TYPE_OPTIONS.map((w) =>
+    btn('type', w.value, w.label, resolveUiAssetUrl(`${w.value}.webp`))
+  ).join('');
 
   return `
     <div id="picker-filter-bar"
          class="px-3 py-2 border-b border-gray-100 shrink-0 flex flex-col gap-1">
-      ${row('レア', TIER_OPTIONS.map((t) => btn('tier', t, t)).join(''))}
+      ${row('レア', tierBtns)}
       ${row('属性', ELEMENT_OPTIONS.map((e) => btn('element', e.value, e.label)).join(''))}
-      ${row('武器', WEAPON_OPTIONS.map((w) => btn('weapon', w.value, w.label)).join(''))}
+      ${row('種別', typeBtns)}
       ${row('役割', ROLE_OPTIONS.map((r) => btn('role', r.value, r.label)).join(''))}
       <div class="flex justify-end">
         <button id="picker-reset-filters"
@@ -131,7 +138,7 @@ export class StylePickerController {
   #showNames = false;
   #currentStyle = null;
   #mode = 'main'; // 'main' | 'support'
-  #filters = { tiers: new Set(), weapons: new Set(), elements: new Set(), roles: new Set() };
+  #filters = { tiers: new Set(), types: new Set(), elements: new Set(), roles: new Set() };
 
   constructor({ overlay, styles, onSelect }) {
     this.#overlay = overlay;
@@ -215,10 +222,10 @@ export class StylePickerController {
   // ---- private ----
 
   #filteredStyles() {
-    const { tiers, weapons, elements, roles } = this.#filters;
+    const { tiers, types, elements, roles } = this.#filters;
     return this.#styles.filter((style) => {
       if (tiers.size > 0 && !tiers.has(style.tier)) return false;
-      if (weapons.size > 0 && !weapons.has(style.weapon?.type)) return false;
+      if (types.size > 0 && !types.has(style.type)) return false;
       if (elements.size > 0) {
         const els = style.elements ?? [];
         const match = [...elements].some((e) => (e === '' ? els.length === 0 : els.includes(e)));
