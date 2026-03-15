@@ -4,7 +4,7 @@ import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
  * 1ターン分の横長コンテナ UI
  *
  * - 未コミット行: record=null、stateBefore のみ（スキル選択 + Commit ボタン表示）
- * - コミット済み行: record あり、stateBefore/stateAfter で SP 表示
+ * - コミット済み行: record あり、stateBefore の SP をそのまま表示
  * - スロットは commit 時点の position 順で表示
  */
 export class TurnRowController {
@@ -182,9 +182,11 @@ export class TurnRowController {
 
   #buildFrontSlotHtml(member, isCommitted) {
     const imageUrl = this.#resolveImageUrl(member);
-    const spAfter = isCommitted
-      ? (this.#stateAfter?.party.find((m) => m.partyIndex === member.partyIndex)?.sp?.current ?? '—')
-      : (member.sp?.current ?? '—');
+
+    // SP: コミット済み・未コミットともにそのターン開始時の SP（stateBefore）を表示する。
+    // stateAfter（ターン後SP）は次のターンの stateBefore と同値なので冗長であり、
+    // 「T1 の表示が T2 開始後に書き換わったように見える」混乱を防ぐ。
+    const spDisplay = member.sp?.current ?? '—';
 
     // スキル選択肢
     const skills = member.getActionSkills ? member.getActionSkills() : [];
@@ -233,7 +235,7 @@ export class TurnRowController {
             }
             <div class="absolute top-0 right-0 bg-black/60 text-white rounded-bl
                         text-xs px-0.5 leading-none font-bold min-w-[16px] text-center">
-              ${spAfter}
+              ${spDisplay}
             </div>
           </div>
           <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
