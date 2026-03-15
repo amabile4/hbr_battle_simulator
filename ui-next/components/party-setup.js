@@ -59,6 +59,9 @@ function selectHtml(dataField, slotIndex, options, currentValue, cls = '') {
  * - 6スロット（front 3 + back 3）
  * - 各スロット: main icon → listbox 群（LB/DP/SP装備/属性ベルト/やる気）→ support icon
  * - main/support icon クリックで Style Picker を開く
+ * - 重複排除ルール:
+ *   - メイン同士: 同一キャラクター不可 → 既存をクリア
+ *   - メイン↔サポート / サポート同士: 同一スタイル不可 → 既存をクリア
  */
 export class PartySetupController {
   #slots;
@@ -74,6 +77,8 @@ export class PartySetupController {
     this.#slots = Array.from({ length: 6 }, () => ({
       styleId: null,
       style: null,
+      supportStyleId: null,
+      supportStyle: null,
       lb: 0,
       drivePierce: 0,
       spEquipId: '',
@@ -84,13 +89,65 @@ export class PartySetupController {
     this.#picker = new StylePickerController({
       overlay: pickerOverlay,
       styles: store.styles,
+      store: store,
       onSelect: (style) => this.#onStyleSelected(style),
+      onSlotSwitch: (slotIndex, mode) => {
+        this.#activeSlotIndex = slotIndex;
+        this.#activeMode = mode;
+        const slot = this.#slots[slotIndex];
+        const current =
+          mode === 'main' ? (slot.style ?? null) : (slot.supportStyle ?? null);
+        const mainStyle = mode === 'support' ? (slot.style ?? null) : null;
+        this.#picker.open(current, mode, mainStyle, this.#getPartyContext());
+      },
     });
   }
 
   mount() {
     this.#picker.mount();
     this.#render();
+  }
+
+  // ---- private ----
+
+  #getPartyContext() {
+    return {
+      slots: this.#slots.map((s) => ({ style: s.style, supportStyle: s.supportStyle })),
+      slotIndex: this.#activeSlotIndex ?? 0,
+      mode: this.#activeMode,
+    };
+  }
+
+  /**
+   * 連続選択での次の空きスロットを返す
+   * - main モード中: 残りのメイン空きスロット → なければサポート空きスロット（スロット0から）
+   * - support モード中: 残りのサポート空きスロットのみ
+   * @returns {{ slotIndex: number, mode: string } | null}
+   */
+  #findNextEmptySlot() {
+    const start = (this.#activeSlotIndex ?? 0) + 1;
+
+    if (this.#activeMode === 'main') {
+      // まずメインの残り空きを探す
+      for (let i = start; i < 6; i++) {
+        if (!this.#slots[i].style) return { slotIndex: i, mode: 'main' };
+      }
+      // メインが埋まったらサポートの空き（スロット0から）を探す
+      for (let i = 0; i < 6; i++) {
+        const slot = this.#slots[i];
+        const enabled = slot.style?.tier === 'SS' || slot.style?.tier === 'SSR';
+        if (enabled && !slot.supportStyle) return { slotIndex: i, mode: 'support' };
+      }
+    } else {
+      // support モード: 残りのサポート空きスロットのみ
+      for (let i = start; i < 6; i++) {
+        const slot = this.#slots[i];
+        const enabled = slot.style?.tier === 'SS' || slot.style?.tier === 'SSR';
+        if (enabled && !slot.supportStyle) return { slotIndex: i, mode: 'support' };
+      }
+    }
+
+    return null;
   }
 
   #render() {
@@ -119,11 +176,13 @@ export class PartySetupController {
       el.addEventListener('click', () => {
         this.#activeSlotIndex = Number(el.dataset.slotIndex);
         this.#activeMode = el.dataset.mode;
+        const slot = this.#slots[this.#activeSlotIndex];
         const current =
           this.#activeMode === 'main'
-            ? (this.#slots[this.#activeSlotIndex]?.style ?? null)
-            : null; // support は T08 で実装
-        this.#picker.open(current, this.#activeMode);
+            ? (slot?.style ?? null)
+            : (slot?.supportStyle ?? null);
+        const mainStyle = this.#activeMode === 'support' ? (slot?.style ?? null) : null;
+        this.#picker.open(current, this.#activeMode, mainStyle, this.#getPartyContext());
       });
     });
 
@@ -146,8 +205,7 @@ export class PartySetupController {
       el.addEventListener('dragstart', (e) => {
         this.#dragSrcIndex = Number(el.dataset.slot);
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', ''); // Firefox 必須
-        // ghost image 生成後に元スロットを薄くする
+        e.dataTransfer.setData('text/plain', '');
         requestAnimationFrame(() => el.classList.add('opacity-40'));
       });
 
@@ -169,7 +227,6 @@ export class PartySetupController {
       });
 
       el.addEventListener('dragleave', (e) => {
-        // 子要素への移動では highlight を外さない
         if (!el.contains(e.relatedTarget)) {
           el.classList.remove('ring-2', 'ring-inset', 'ring-blue-400');
         }
@@ -197,6 +254,19 @@ export class PartySetupController {
     const charaName = style ? extractCharaName(style) : null;
     const lbOptions = makeLbOptions(style);
 
+    const supportStyle = slot.supportStyle;
+    const supportImageUrl = supportStyle ? resolveStyleImageUrl(supportStyle) : '';
+    const supportCharaName = supportStyle ? extractCharaName(supportStyle) : null;
+    // SS/SSR のみサポート枠が有効
+    const supportEnabled = style?.tier === 'SS' || style?.tier === 'SSR';
+    // メインが SSR → 煌めき
+    const mainSsr  = style?.tier === 'SSR';
+    const mainRing = mainSsr ? 'ring-2 ring-purple-400' : '';
+    // メインが SSR かつサポートが共鳴アビリティ持ち → 共鳴アビリティ発動 → 煌めき
+    // （属性一致チェックは StylePicker 側で済んでいるためここでは不要）
+    const supportSsr = mainSsr && !!supportStyle?.resonance;
+    const supportRing = supportSsr ? 'ring-2 ring-purple-400' : '';
+
     return `
       <div draggable="true" data-slot="${index}"
            class="flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden
@@ -209,11 +279,13 @@ export class PartySetupController {
 
         <!-- main icon -->
         <button data-action="open-picker" data-slot-index="${index}" data-mode="main"
-                class="relative w-full aspect-square bg-gray-100 hover:opacity-80
-                       transition-opacity cursor-pointer overflow-hidden group">
+                class="relative w-full aspect-square hover:opacity-80
+                       transition-opacity cursor-pointer overflow-hidden group ${mainRing}
+                       ${mainSsr ? 'ssr-resonance-bg-subtle' : 'bg-gray-100'}">
           ${imageUrl
             ? `<img src="${imageUrl}" alt="${style?.name ?? ''}" draggable="false"
-                    class="w-full h-full object-cover" />`
+                    class="w-full h-full object-cover" />
+               ${mainSsr ? '<div class="absolute inset-0 pointer-events-none ssr-resonance-overlay"></div>' : ''}`
             : `<div class="w-full h-full flex items-center justify-center
                           text-gray-300 text-2xl group-hover:text-blue-300 transition-colors">＋</div>`
           }
@@ -239,14 +311,35 @@ export class PartySetupController {
 
         <!-- support icon -->
         <button data-action="open-picker" data-slot-index="${index}" data-mode="support"
-                class="w-full aspect-square bg-gray-50 hover:bg-blue-50
-                       transition-colors cursor-pointer flex items-center justify-center
-                       border-t border-gray-100 group">
-          <div class="text-gray-300 text-xs group-hover:text-blue-300 transition-colors
-                      flex flex-col items-center gap-0.5">
-            <span class="text-lg leading-none">＋</span>
-            <span style="font-size:8px">SUP</span>
-          </div>
+                ${!supportEnabled ? 'disabled' : ''}
+                class="relative w-full aspect-square overflow-hidden
+                       border-t border-gray-100 group ${supportRing}
+                       ${supportSsr ? 'ssr-resonance-bg-subtle' : ''}
+                       ${supportEnabled
+                         ? 'cursor-pointer hover:opacity-80 transition-opacity'
+                         : 'cursor-not-allowed opacity-40'}">
+          ${supportImageUrl
+            ? `<img src="${supportImageUrl}" alt="${supportStyle?.name ?? ''}" draggable="false"
+                    class="w-full h-full object-cover" />
+               ${supportSsr ? '<div class="absolute inset-0 pointer-events-none ssr-resonance-overlay"></div>' : ''}`
+            : `<div class="w-full h-full flex items-center justify-center
+                          ${!supportSsr ? (supportEnabled ? 'bg-gray-50' : 'bg-gray-100') : ''}
+                          flex-col gap-0.5">
+                 <span class="text-lg leading-none
+                              ${supportEnabled ? 'text-gray-300 group-hover:text-blue-300' : 'text-gray-200'}
+                              transition-colors">＋</span>
+                 <span style="font-size:8px"
+                       class="${supportEnabled ? 'text-gray-400' : 'text-gray-300'}">SUP</span>
+               </div>`
+          }
+          ${supportCharaName
+            ? `<div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white
+                          text-center leading-tight px-0.5 py-0.5"
+                    style="font-size:7px">${supportCharaName}</div>`
+            : ''
+          }
+          <div class="absolute top-0.5 left-0.5 bg-black/40 text-white rounded px-0.5 leading-none"
+               style="font-size:7px">SUP</div>
         </button>
 
       </div>
@@ -255,13 +348,58 @@ export class PartySetupController {
 
   #onStyleSelected(style) {
     if (this.#activeSlotIndex == null) return;
-    const slot = this.#slots[this.#activeSlotIndex];
-    if (this.#activeMode === 'main') {
-      slot.styleId = style.id;
-      slot.style = style;
-      slot.lb = 0; // style 変更時に LB をリセット
+    const idx = this.#activeSlotIndex;
+    const mode = this.#activeMode;
+
+    if (mode === 'main') {
+      // メイン同士: 同一キャラクター不可 → 既存をクリア
+      this.#slots.forEach((s, i) => {
+        if (i !== idx && s.style?.chara_label === style.chara_label) {
+          s.style = null;
+          s.styleId = null;
+        }
+      });
+      // メイン↔サポート: 同一スタイル不可 → 既存サポートをクリア
+      this.#slots.forEach((s) => {
+        if (s.supportStyle?.id === style.id) {
+          s.supportStyle = null;
+          s.supportStyleId = null;
+        }
+      });
+      this.#slots[idx].style = style;
+      this.#slots[idx].styleId = style.id;
+      this.#slots[idx].lb = 0;
+    } else {
+      // サポート同士: 同一スタイル不可 → 既存サポートをクリア
+      // ※ メインにセット済みのスタイルは picker 側でグレーアウト済みのため到達しない
+      this.#slots.forEach((s, i) => {
+        if (i !== idx && s.supportStyle?.id === style.id) {
+          s.supportStyle = null;
+          s.supportStyleId = null;
+        }
+      });
+      this.#slots[idx].supportStyle = style;
+      this.#slots[idx].supportStyleId = style.id;
     }
-    this.#activeSlotIndex = null;
+
     this.#render();
+
+    // 続けて選ぶモード: 次の空きスロットへ自動進行
+    if (this.#picker.isContinuousMode) {
+      const next = this.#findNextEmptySlot();
+      if (next !== null) {
+        this.#activeSlotIndex = next.slotIndex;
+        this.#activeMode = next.mode;
+        const slot = this.#slots[next.slotIndex];
+        const current = next.mode === 'main' ? slot.style : slot.supportStyle;
+        const mainStyle = next.mode === 'support' ? slot.style : null;
+        this.#picker.open(current, next.mode, mainStyle, this.#getPartyContext());
+        return; // activeSlotIndex をリセットしない
+      }
+      // 空きがなくなったら閉じる
+      this.#picker.close();
+    }
+
+    this.#activeSlotIndex = null;
   }
 }

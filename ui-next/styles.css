@@ -32,6 +32,54 @@
 .attr-weapon-stab   { background: #d9782b; }
 .attr-weapon-strike { background: #3e9b52; }
 
+/* SSR レゾナンス: 空スロット用の薄いグラデーション背景（画像なし時のボタン背景） */
+.ssr-resonance-bg-subtle {
+  background: linear-gradient(135deg,
+    rgba(124, 58, 237, 0.10) 0%,
+    rgba(217, 70, 239, 0.08) 50%,
+    rgba(34, 211, 238, 0.10) 100%
+  );
+}
+
+/* SSR レゾナンス: 画像の上に重ねる薄いグラデーションオーバーレイ */
+.ssr-resonance-overlay {
+  background: linear-gradient(135deg,
+    rgba(124, 58, 237, 0.22) 0%,
+    rgba(217, 70, 239, 0.18) 50%,
+    rgba(34, 211, 238, 0.22) 100%
+  );
+}
+
+/* Style Picker: strip + filter 行のレスポンシブレイアウト
+   広い画面 → 3カラム grid（strip 左固定 / filter 全幅真中 / 空の対称列）
+   狭い画面 → flex column（strip → filter → body と縦積み） */
+.picker-strip-filter-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  flex-shrink: 0;
+  border-bottom: 1px solid #f3f4f6; /* gray-100 */
+}
+@media (max-width: 600px) {
+  .picker-strip-filter-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .picker-strip-filter-balance { display: none; }
+  #picker-slot-strip {
+    border-right: none !important;
+    border-bottom: 1px solid #f3f4f6;
+  }
+}
+
+/* support モード: 共鳴アビリティ持ちカードの縁取り（ring と衝突しない outline を使用） */
+.has-resonance {
+  outline: 2px solid #d97706; /* amber-600 / gold */
+  outline-offset: 0;
+}
+
+
 /* line-clamp ユーティリティ（CDN版 Tailwind では要明示） */
 .line-clamp-1 {
   overflow: hidden;

@@ -2,7 +2,7 @@
 
 > **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶（support icon・最小化 未） / T03 🔶（support icon 未） / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T08・T11・T12 未着手
+> **進捗サマリー**: T01 ✅ / T02 🔶（最小化 未） / T03 ✅ / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T08 ✅ / T08-UX ✅ / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T11・T12 未着手
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -123,24 +123,66 @@
 
 ### T08: main / support 選択導線
 
-- [ ] `main style icon` クリックで picker を開く
-- [ ] `support style icon` クリックで picker を開く
-- [ ] `main` mode は 1 click で選択確定して元画面へ戻る
-- [ ] `support` mode は hover preview を表示する
-- [ ] `support` mode は 1 click 目で詳細表示を固定する
-- [ ] `support` mode は同じ card への 2 click 目で選択確定して元画面へ戻る
-- [ ] support 詳細表示に `共鳴アビリティ名 / 効果説明 / LB MAX 性能値` を出す
-- [ ] picker の filter 状態と scroll 位置を保持する
-- [ ] 選択確定時に重複を排除する（下記ルール）
+- [x] `main style icon` クリックで picker を開く
+- [x] `support style icon` クリックで picker を開く
+- [x] `main` mode は 1 click で選択確定して元画面へ戻る
+- [x] `support` mode は hover preview を表示する
+- [x] `support` mode は 1 click 目で詳細表示を固定する
+- [x] `support` mode は同じ card への 2 click 目で選択確定して元画面へ戻る
+- [x] support 詳細表示に `共鳴アビリティ名 / 効果説明 / LB MAX 性能値` を出す
+- [x] picker の filter 状態と scroll 位置を保持する
+- [x] 選択確定時に重複を排除する（下記ルール）
   - メイン同士: 同一キャラクター不可 → 既存スロットをクリア
   - メイン↔サポート: 同一スタイル不可 → 既存スロットをクリア（同一キャラの別スタイルはOK）
   - サポート同士: 同一スタイル不可 → 既存スロットをクリア（同一キャラの別スタイルはOK）
 
 完了条件:
 
-- slot ごとに main / support style を意図した操作モデルで差し替えられる
-- メイン同士で同一キャラクターが重複しない
-- メイン↔サポート / サポート同士で同一スタイルが重複しない
+- [x] slot ごとに main / support style を意図した操作モデルで差し替えられる
+- [x] メイン同士で同一キャラクターが重複しない
+- [x] メイン↔サポート / サポート同士で同一スタイルが重複しない
+
+> ✅ T08 完了（2026-03-15）: main 1クリック確定・support 2クリック確定（1クリックで固定→amber ring、2クリック目で確定）。hover でプレビュー・fixed で固定・共鳴アビリティ名/desc/LB MAX 表示。support パネルに「すべて / ★共鳴あり / 共鳴なし」フィルタートグル追加。support モードでメインの属性によるフィルタ自動適用。SS/SSR 以外のメインスロットではサポート枠を disabled 表示。重複排除ルール3ケース実装済み。
+
+### T08-UX: Slot Strip 改善・連続選択強化・UX全般改善
+
+#### Strip レイアウト
+- [x] Slot strip を 6×2（上段 M: main、下段 S: support）に変更する
+- [x] Strip の上段クリック → main モードで選択、下段クリック → support モードで選択
+- [x] 連続選択（続けて選ぶ）でメイン全6枠→サポート全6枠の順に自動進行する
+- [x] Strip ボタンサイズを w-8→w-10 に拡大
+- [x] Strip と Filter bar を同一行に配置（3カラム grid: strip 左固定 / filter 全幅真中 / 空の対称列）
+- [x] 幅 600px 以下では strip → filter → body の縦積みにフォールバック
+
+#### Style グリッド
+- [x] チームラベルを固定幅列（40px）に配置し、アイコンはその右から開始する
+- [x] 折り返し時もアイコンがラベル列に食い込まない（flex-wrap レイアウトに変更）
+
+#### SSR / 共鳴アビリティの視覚表現
+- [x] Strip M行: メインが SSR → 紫リング（`ring-2 ring-purple-400`）
+- [x] Strip S行: メインが SSR かつサポートが `resonance` 持ち → 紫リング
+- [x] Party Setup メインアイコン: SSR → 薄いグラデーション背景（`ssr-resonance-bg-subtle`）＋ 画像あり時はオーバーレイ（`ssr-resonance-overlay`）
+- [x] Party Setup サポートアイコン: メインが SSR かつサポートが `resonance` 持ち → 同じグラデーション
+- [x] Style Picker 共鳴アビリティ詳細パネルの背景も同じグラデーション（`border-purple-100`）
+- [x] 煌めき条件を `style.tier === 'SSR'`（メイン）＋ `supportStyle.resonance` truthy（サポート）で統一（tier 問わず、属性一致はPicker側で保証済み）
+
+#### サポート選択 UX
+- [x] 2クリック確定を廃止 → mousedown でプレビュー固定・mouseup で確定（マウス）
+- [x] touchstart でプレビュー固定・touchend（同カード上）で確定（タブレット対応）
+- [x] `elementFromPoint` でタッチ離し位置を検証し、カード外リリース時はキャンセル
+- [x] メインにセット済みのスタイルをサポート選択時にグレーアウト・選択不可にする（メイン優先ルール）
+- [x] グレーアウトカードのホバーテキストに「（メインにセット済み）」を表示
+
+完了条件:
+
+- [x] Strip で 12 マスの選択状態が一覧できる
+- [x] Strip クリックで main / support を問わず自由に編集対象を切り替えられる
+- [x] 連続選択でメイン→サポートの境界を自動的に跨ぐ
+- [x] SSR / 共鳴アビリティ発動中のスロットが視覚的に識別できる
+- [x] サポート選択が 1アクション（押して離す）で完結する
+- [x] メイン使用中スタイルがサポートで誤選択されない
+
+> ✅ T08-UX 完了（2026-03-15）: Strip 6×2・スロットクリック切替・連続選択境界越え・strip+filter 横並び（3カラム grid）・狭い画面縦積み・チームラベル固定列・SSRグラデーション表現（party-setup / strip 統一条件）・サポート mousedown/touchstart 確定 UX・メインセット済みグレーアウト。
 
 ### T09: engine bridge の最小接続
 
