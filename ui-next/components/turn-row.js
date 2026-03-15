@@ -20,6 +20,8 @@ export class TurnRowController {
 
   // D&D 用
   #dragSrcPosition = null;
+  // update() 時にスキル選択を保持するための一時フィールド
+  #savedSlotActions = null;
 
   constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange }) {
     this.#root = root;
@@ -39,10 +41,15 @@ export class TurnRowController {
   }
 
   update({ record, stateBefore, stateAfter }) {
+    // 未コミット行→未コミット行の再描画（D&D など）ではスキル選択を保持する
+    if (this.#record === null && record === null) {
+      this.#savedSlotActions = this.getCurrentSlotActions();
+    }
     this.#record = record;
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
     this.#root.innerHTML = this.#buildHtml();
+    this.#savedSlotActions = null;
     this.#bindEvents();
   }
 
@@ -131,13 +138,14 @@ export class TurnRowController {
         </div>`;
     }
 
-    const ts = this.#record.turnState ?? {};
-    const turnNo = ts.turnIndex ?? '?';
-    const seqId = ts.sequenceId ?? '?';
-    const odGauge = Number(this.#record.projections?.odGaugeAtEnd ?? ts.odGauge ?? 0).toFixed(0);
-    const isExtra = ts.turnType === 'extra';
-    const isOd = ts.odLevel > 0;
-    const odLabel = isExtra ? 'EX' : isOd ? `OD${ts.odLevel}` : '';
+    const rec = this.#record;
+    const turnNo = rec.turnIndex ?? '?';
+    const seqId = rec.turnId ?? '?';
+    const odGauge = Number(rec.projections?.odGaugeAtEnd ?? rec.odGaugeAtStart ?? 0).toFixed(0);
+    const isExtra = rec.isExtraTurn;
+    const odMatch = String(rec.odTurnLabelAtStart ?? '').match(/^(OD\d+)/);
+    const odLabel = isExtra ? 'EX' : (odMatch ? odMatch[1] : '');
+    const isOd = !isExtra && odLabel !== '';
     const odLabelClass = isExtra
       ? 'bg-amber-100 text-amber-700'
       : isOd
@@ -171,14 +179,16 @@ export class TurnRowController {
     // スキル選択肢
     const skills = member.getActionSkills ? member.getActionSkills() : [];
     const replaySlot = isCommitted
-      ? (this.#record?.actions?.find?.(a => a.position === member.position) ?? null)
+      ? (this.#record?.actions?.find?.(a => a.positionIndex === member.position) ?? null)
       : null;
+    // コミット済み: record から復元 / 未コミット: D&D 後の保存値 → なければ先頭スキル
     const selectedSkillId = isCommitted
-      ? (replaySlot?.skillId ?? replaySlot?.action?.skillId ?? null)
-      : null;
+      ? (replaySlot?.skillId ?? null)
+      : (this.#savedSlotActions?.[member.position]?.skillId ?? skills[0]?.skillId ?? null);
 
+    const hasSelection = selectedSkillId != null;
     const skillOptions = [
-      `<option value="">— スキル選択 —</option>`,
+      `<option value=""${hasSelection ? '' : ' selected'}>— スキル選択 —</option>`,
       ...skills.map((s) => {
         const selected = selectedSkillId === s.skillId ? 'selected' : '';
         const cost = s.spCost > 0 ? `SP${s.spCost} ` : '';
