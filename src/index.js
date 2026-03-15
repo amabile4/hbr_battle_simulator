@@ -29,6 +29,7 @@ export {
 export { fromSnapshot, commitRecord, buildTurnContext } from './records/record-assembler.js';
 export { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from './records/record-store.js';
 export { BattleDomAdapter } from './ui/dom-adapter.js';
+export { resolveStyleAssetUrl, resolveStyleImageUrl } from './ui/style-asset-url.js';
 export { validateDocument, validateBySchema } from './data/schema-validator.js';
 export { HbrDataStore } from './data/hbr-data-store.js';
 export { buildDamageCalculationContext } from './domain/damage-calculation-context.js';
