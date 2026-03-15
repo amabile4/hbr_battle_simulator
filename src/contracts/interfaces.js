@@ -10,8 +10,8 @@ export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
 export const RECORD_STATUSES = Object.freeze(['preview', 'committed']);
 
 export function buildPositionMap(partyMembers) {
-  if (!Array.isArray(partyMembers) || partyMembers.length !== 6) {
-    throw new Error('buildPositionMap requires 6 party members.');
+  if (!Array.isArray(partyMembers) || partyMembers.length < 3 || partyMembers.length > 6) {
+    throw new Error('buildPositionMap requires 3~6 party members.');
   }
 
   const map = new Array(6).fill(-1);
@@ -337,8 +337,8 @@ export function cloneTurnState(turnState) {
 }
 
 export function createBattleState(partyMembers, turnState = createInitialTurnState()) {
-  if (!Array.isArray(partyMembers) || partyMembers.length !== 6) {
-    throw new Error('createBattleState requires exactly 6 party members.');
+  if (!Array.isArray(partyMembers) || partyMembers.length < 3 || partyMembers.length > 6) {
+    throw new Error('createBattleState requires 3~6 party members.');
   }
 
   const initialParty = snapshotPartyByPartyIndex(partyMembers);

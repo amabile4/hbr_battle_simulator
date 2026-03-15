@@ -1231,8 +1231,8 @@ export class HbrDataStore {
   }
 
   buildPartyFromStyleIds(styleIds, options = {}) {
-    if (!Array.isArray(styleIds) || styleIds.length !== 6) {
-      throw new Error('buildPartyFromStyleIds requires exactly 6 style IDs.');
+    if (!Array.isArray(styleIds) || styleIds.length < 3 || styleIds.length > 6) {
+      throw new Error('buildPartyFromStyleIds requires 3~6 style IDs.');
     }
 
     const initialSP = options.initialSP ?? DEFAULT_INITIAL_SP;

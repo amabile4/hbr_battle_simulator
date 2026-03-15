@@ -1,11 +1,12 @@
 import { canSwapWith, normalizePartyPosition } from './character-style.js';
 
+export const MIN_PARTY_SIZE = 3;
 export const MAX_PARTY_SIZE = 6;
 
 export class Party {
   constructor(members) {
-    if (!Array.isArray(members) || members.length !== MAX_PARTY_SIZE) {
-      throw new Error(`Party must have exactly ${MAX_PARTY_SIZE} members.`);
+    if (!Array.isArray(members) || members.length < MIN_PARTY_SIZE || members.length > MAX_PARTY_SIZE) {
+      throw new Error(`Party must have ${MIN_PARTY_SIZE}~${MAX_PARTY_SIZE} members.`);
     }
 
     this.members = [...members];
