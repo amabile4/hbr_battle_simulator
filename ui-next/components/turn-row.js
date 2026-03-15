@@ -103,7 +103,7 @@ export class TurnRowController {
     // スロット（後衛 position 3-5）
     const backSlots = members
       .filter((m) => m.position >= 3)
-      .map((m) => this.#buildBackSlotHtml(m))
+      .map((m) => this.#buildBackSlotHtml(m, isCommitted))
       .join('');
 
     // ボタン列
@@ -238,13 +238,14 @@ export class TurnRowController {
       </div>`;
   }
 
-  #buildBackSlotHtml(member) {
+  #buildBackSlotHtml(member, isCommitted) {
     const imageUrl = this.#resolveImageUrl(member);
     const sp = member.sp?.current ?? '—';
 
     return `
-      <div data-turn-slot data-position="${member.position}"
-           class="flex flex-col w-14 border-r border-gray-100 last:border-r-0">
+      <div draggable="${!isCommitted}" data-turn-slot data-position="${member.position}"
+           class="flex flex-col w-14 border-r border-gray-100 last:border-r-0 select-none
+                  ${!isCommitted ? 'cursor-grab active:cursor-grabbing' : ''}">
         <!-- スキル select プレースホルダー（高さ揃え用） -->
         <div class="px-0.5 pt-0.5">
           <div class="w-full text-xs text-gray-300 border border-gray-100 rounded px-0.5 py-px
