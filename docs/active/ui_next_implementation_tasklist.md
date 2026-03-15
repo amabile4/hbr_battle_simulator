@@ -1,6 +1,8 @@
 # UI Next 実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
+>
+> **進捗サマリー**: T01 ✅ / T02 🔶（listbox・support icon・最小化 未） / T03 🔶（support icon 未） / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T04〜T08・T11・T12 未着手
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -27,35 +29,41 @@
 
 ### T01: 新 UI の entry 作成
 
-- [ ] `ui-next/` の entry files を作成する
-- [ ] 新 UI 用の最小表示ページを表示できるようにする
-- [ ] 既存 `ui/index.html` に影響を与えないことを確認する
+- [x] `ui-next/` の entry files を作成する
+- [x] 新 UI 用の最小表示ページを表示できるようにする
+- [x] 既存 `ui/index.html` に影響を与えないことを確認する
 
 完了条件:
 
-- 新 UI の空ページが独立して開ける
+- [x] 新 UI の空ページが独立して開ける
+
+> ✅ T01 完了（2026-03-15）: `ui-next/index.html`, `ui-next/app.js` 作成。`importmap` で `node:fs` / `node:path` を既存 shim に差し替え済み。
 
 ### T02: Party Setup shell
 
-- [ ] `Initial Setup` container の中に `Party Setup` block を置く
-- [ ] `front 3 + back 3` の 6 slot panel を横並びに表示する
-- [ ] slot panel の基本構成を `main icon -> listbox 群 -> support icon` で組む
-- [ ] 未選択 slot の empty state と略称 placeholder を定義する
+- [x] `Initial Setup` container の中に `Party Setup` block を置く
+- [x] `front 3 + back 3` の 6 slot panel を横並びに表示する
+- [ ] slot panel の基本構成を `main icon -> listbox 群 -> support icon` で組む（T04 と合わせて実装）
+- [x] 未選択 slot の empty state と略称 placeholder を定義する
 - [ ] シミュレーター開始後に `Initial Setup` 全体を最小化または再表示できる骨格を入れる
 
 完了条件:
 
-- `Initial Setup > Party Setup` の構造が 1 画面で見え、開始後に邪魔にならない退避導線がある
+- [ ] `Initial Setup > Party Setup` の構造が 1 画面で見え、開始後に邪魔にならない退避導線がある
+
+> 🔶 T02 部分完了（2026-03-15）: 6 slot パネル（front 3 + back 3）・3タブシェル（Party/Enemy/Stage）・empty state 実装済み。listbox 縦積み・support icon・最小化骨格は T04 以降で実装予定。
 
 ### T03: style 画像表示基盤
 
-- [ ] `resolveStyleImageUrl()` を使って main / support style 画像を描画する
-- [ ] 画像未設定時の fallback 表示を決める
-- [ ] slot panel に style 名 / character 名の最小情報を表示する
+- [x] `resolveStyleImageUrl()` を使って main / support style 画像を描画する（main icon 実装済み）
+- [x] 画像未設定時の fallback 表示を決める（`?` プレースホルダー）
+- [x] slot panel に style 名 / character 名の最小情報を表示する
 
 完了条件:
 
-- 6 slot の main / support icon が style 画像つきで描画できる
+- [ ] 6 slot の main / support icon が style 画像つきで描画できる（support icon は T08 で実装予定）
+
+> 🔶 T03 部分完了（2026-03-15）: main icon の `resolveStyleImageUrl()` 描画・fallback・style 名表示実装済み。Style Picker（全画面アイコン高密度 grid）から main style を選択してスロットに反映できる。team 別グループ化・キャラ昇順→レアリティ昇順→実装順ソート・名前表示トグル・ホバー title（`[style名] キャラ名`）実装済み。support icon は T08 で実装予定。
 
 ### T04: slot listbox 群
 
@@ -116,7 +124,7 @@
 
 ### T09: engine bridge の最小接続
 
-- [ ] `HbrDataStore` 読み込みを新 UI entry から接続する
+- [x] `HbrDataStore` 読み込みを新 UI entry から接続する
 - [ ] 6 slot の表示状態を party / battle state と同期できるようにする
 - [ ] 初期 battle state の生成まで接続する
 - [ ] `Initial Setup` の設定変更を初期 battle state の更新として扱えるようにする
@@ -125,17 +133,21 @@
 
 完了条件:
 
-- 新 UI から battle state の初期化と「初期設定変更後の全再計算」まで到達できる
+- [ ] 新 UI から battle state の初期化と「初期設定変更後の全再計算」まで到達できる
+
+> 🔶 T09 部分着手（2026-03-15）: `HbrDataStore.fromRawData()` を `ui-next/app.js` から接続済み。battle state 同期以降は未実装。
 
 ### T10: Enemy / Stage Setup extension point
 
-- [ ] `Initial Setup` 配下に `Enemy Setup` block を差し込める構造にする
-- [ ] `Initial Setup` 配下に `Stage Setup` block を差し込める構造にする
-- [ ] 初回マイルストーンでは placeholder または reserved area に留め、full 実装を必須にしない
+- [x] `Initial Setup` 配下に `Enemy Setup` block を差し込める構造にする
+- [x] `Initial Setup` 配下に `Stage Setup` block を差し込める構造にする
+- [x] 初回マイルストーンでは placeholder または reserved area に留め、full 実装を必須にしない
 
 完了条件:
 
-- `Party Setup` 実装を壊さずに `Enemy Setup` / `Stage Setup` を後から追加できる構造になっている
+- [x] `Party Setup` 実装を壊さずに `Enemy Setup` / `Stage Setup` を後から追加できる構造になっている
+
+> ✅ T10 完了（2026-03-15）: InitialSetup の3タブシェル（Party/Enemy/Stage）として placeholder 実装済み。`initial-setup.js` の `TABS` 配列に追加するだけで拡張可能な構造。
 
 ### T11: replay/edit 連携方針の固定
 

@@ -1,0 +1,16 @@
+/* ui-next 追加スタイル（Tailwind CDN で補えないもの） */
+
+/* line-clamp ユーティリティ（CDN版 Tailwind では要明示） */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

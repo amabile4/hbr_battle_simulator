@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HBR Battle Simulator — ui-next</title>
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet" />
+  <script type="importmap">
+    {
+      "imports": {
+        "node:fs": "../ui/shims/node-fs.js",
+        "node:path": "../ui/shims/node-path.js"
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="bg-gray-50 text-gray-900 h-screen flex flex-col overflow-hidden">
+
+  <!-- ヘッダー -->
+  <header class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 shrink-0">
+    <h1 class="text-base font-bold tracking-tight">HBR Battle Simulator</h1>
+    <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">ui-next</span>
+    <a href="../ui/index.html" class="ml-auto text-xs text-blue-500 hover:underline">旧UI へ</a>
+  </header>
+
+  <!-- メインレイアウト: 左ペイン + 右ペイン -->
+  <main id="app" class="flex-1 flex overflow-hidden">
+
+    <!-- 左ペイン: TurnController / Records -->
+    <section id="turn-area" class="flex-1 overflow-y-auto p-6 border-r border-gray-200">
+      <div class="text-sm text-gray-400 text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+        TurnController &amp; Records<br />
+        <span class="text-xs">(TODO)</span>
+      </div>
+    </section>
+
+    <!-- 右ペイン: InitialSetup -->
+    <aside id="setup-area" class="w-96 shrink-0 overflow-y-auto bg-white border-l border-gray-100">
+      <div id="initial-setup-root"></div>
+    </aside>
+
+  </main>
+
+  <!-- Style Picker: 全画面オーバーレイ -->
+  <div id="style-picker-overlay" class="hidden fixed inset-0 z-50"></div>
+
+  <!-- エラー表示 -->
+  <div data-role="status" class="hidden fixed bottom-4 right-4 bg-red-100 text-red-700 text-sm px-4 py-2 rounded-lg shadow-md"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
