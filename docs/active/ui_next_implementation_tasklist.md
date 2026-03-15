@@ -2,7 +2,7 @@
 
 > **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶（listbox・support icon・最小化 未） / T03 🔶（support icon 未） / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T04〜T08・T11・T12 未着手
+> **進捗サマリー**: T01 ✅ / T02 🔶（support icon・最小化 未） / T03 🔶（support icon 未） / T04 ✅ / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T05〜T08・T11・T12 未着手
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -43,7 +43,7 @@
 
 - [x] `Initial Setup` container の中に `Party Setup` block を置く
 - [x] `front 3 + back 3` の 6 slot panel を横並びに表示する
-- [ ] slot panel の基本構成を `main icon -> listbox 群 -> support icon` で組む（T04 と合わせて実装）
+- [x] slot panel の基本構成を `main icon -> listbox 群 -> support icon` で組む（T04 と合わせて実装）
 - [x] 未選択 slot の empty state と略称 placeholder を定義する
 - [ ] シミュレーター開始後に `Initial Setup` 全体を最小化または再表示できる骨格を入れる
 
@@ -51,7 +51,7 @@
 
 - [ ] `Initial Setup > Party Setup` の構造が 1 画面で見え、開始後に邪魔にならない退避導線がある
 
-> 🔶 T02 部分完了（2026-03-15）: 6 slot パネル（front 3 + back 3）・3タブシェル（Party/Enemy/Stage）・empty state 実装済み。listbox 縦積み・support icon・最小化骨格は T04 以降で実装予定。
+> 🔶 T02 部分完了（2026-03-15）: 6 slot パネル（front 3 + back 3）・3タブシェル（Party/Enemy/Stage）・empty state 実装済み。listbox 縦積み・右ペインスライドアウト実装済み（T04と同時）。support icon 選択・最小化骨格は T05〜T08 で実装予定。
 
 ### T03: style 画像表示基盤
 
@@ -67,13 +67,16 @@
 
 ### T04: slot listbox 群
 
-- [ ] `LB` `ドライブピアス` `SP装備` `属性ベルト` `やる気` の listbox を縦積みで配置する
-- [ ] icon 幅と listbox 幅を揃える
-- [ ] 未選択時の placeholder 表示を入れる
+- [x] `LB`（限突 0〜N）`ドライブピアス`（DP なし/+10/+12/+15）`SP装備`（なし/SP+1/SP+2/SP+3）`属性ベルト` の listbox を縦積みで配置する
+- [x] `やる気` は やる気パッシブ（label に `Morale` 含む）を持つスタイルがセットされた時だけ表示する
+- [x] icon 幅と listbox 幅を揃える
+- [x] 未選択時の placeholder 表示（empty state）を入れる
 
 完了条件:
 
-- slot panel 内の基本設定が listbox で編集できる
+- [x] slot panel 内の基本設定が listbox で編集できる
+
+> ✅ T04 完了（2026-03-15）: LB→「限突 N」表記・SP装備→固定4択・やる気→Moraleパッシブ持ちスタイル時のみ表示。DRIVE_PIERCE_OPTIONS を battle-defaults.js から再利用。右ペインスライドアウトも同時実装。
 
 ### T05: D&D による position 入れ替え
 
