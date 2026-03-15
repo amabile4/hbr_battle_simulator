@@ -25,6 +25,9 @@ const MORALE_OPTIONS = [
   { value: 'normal', label: '標準' },
 ];
 
+const PRESET_STORAGE_KEY = 'hbr.ui_next.party_presets.v1';
+const PRESET_COUNT = 3;
+
 function extractCharaName(style) {
   const raw = String(style?.chara ?? '');
   const jpPart = raw.split('—')[0].trim();
@@ -66,6 +69,7 @@ function selectHtml(dataField, slotIndex, options, currentValue, cls = '') {
 export class PartySetupController {
   #slots;
   #root;
+  #store;
   #picker;
   #onChange;
   #activeSlotIndex = null;
@@ -75,6 +79,7 @@ export class PartySetupController {
   constructor({ root, pickerOverlay, store, onChange = null }) {
     this.#onChange = onChange;
     this.#root = root;
+    this.#store = store;
 
     this.#slots = Array.from({ length: 6 }, () => ({
       styleId: null,
@@ -139,6 +144,78 @@ export class PartySetupController {
 
   // ---- private ----
 
+  // ---- preset ----
+
+  #readPresets() {
+    try {
+      const raw = localStorage.getItem(PRESET_STORAGE_KEY);
+      if (!raw) return Array(PRESET_COUNT).fill(null);
+      const parsed = JSON.parse(raw);
+      return Array.from({ length: PRESET_COUNT }, (_, i) => parsed[i] ?? null);
+    } catch {
+      return Array(PRESET_COUNT).fill(null);
+    }
+  }
+
+  #writePresets(presets) {
+    try {
+      localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(presets));
+    } catch (e) {
+      console.warn('PartySetupController: failed to save presets', e);
+    }
+  }
+
+  #makePresetLabel() {
+    const names = this.#slots
+      .slice(0, 3)
+      .filter((s) => s.style)
+      .map((s) => extractCharaName(s.style));
+    return names.length > 0 ? names.join('・') : '（空）';
+  }
+
+  #savePreset(index) {
+    const presets = this.#readPresets();
+    presets[index] = {
+      label: this.#makePresetLabel(),
+      savedAt: new Date().toISOString(),
+      slots: this.#slots.map((s) => ({
+        styleId: s.styleId ?? null,
+        supportStyleId: s.supportStyleId ?? null,
+        lb: s.lb,
+        drivePierce: s.drivePierce,
+        spEquipId: s.spEquipId,
+        belt: s.belt,
+        morale: s.morale,
+      })),
+    };
+    this.#writePresets(presets);
+    this.#render();
+  }
+
+  #loadPreset(index) {
+    const preset = this.#readPresets()[index];
+    if (!preset) return;
+    this.#slots = preset.slots.map((s) => {
+      const style = s.styleId ? (this.#store.getStyleById(s.styleId) ?? null) : null;
+      const supportStyle = s.supportStyleId ? (this.#store.getStyleById(s.supportStyleId) ?? null) : null;
+      return {
+        styleId: style ? s.styleId : null,
+        style,
+        supportStyleId: supportStyle ? s.supportStyleId : null,
+        supportStyle,
+        lb: s.lb ?? 0,
+        drivePierce: s.drivePierce ?? 0,
+        spEquipId: s.spEquipId ?? '',
+        belt: s.belt ?? '',
+        morale: s.morale ?? 'normal',
+      };
+    });
+    this.#render();
+    this.#notifyChange();
+  }
+
+  // ---- /preset ----
+
   #notifyChange() {
     this.#onChange?.(this.getSnapshot());
   }
@@ -186,15 +263,41 @@ export class PartySetupController {
   #render() {
     // やる気パッシブ持ちが1人でもいれば全スロットにやる気 select を表示
     const moraleVisible = this.#slots.some((s) => hasMoralePassive(s.style));
+    const presets = this.#readPresets();
 
     this.#root.innerHTML = `
       <div class="p-2 space-y-2">
+        <!-- プリセット -->
+        <div>
+          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">プリセット</div>
+          <div class="flex flex-col gap-0.5">
+            ${presets.map((p, i) => `
+              <div class="flex items-center gap-1 rounded border border-gray-100 bg-gray-50 px-1.5 py-0.5">
+                <span class="flex-1 text-xs truncate min-w-0 ${p ? 'text-gray-700' : 'text-gray-300'}">
+                  ${i + 1}. ${p ? p.label : '未保存'}
+                </span>
+                <button data-action="load-preset" data-preset-index="${i}"
+                        ${!p ? 'disabled' : ''}
+                        class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
+                               bg-blue-50 text-blue-600 border border-blue-200
+                               hover:bg-blue-100 transition-colors
+                               disabled:opacity-30 disabled:cursor-not-allowed">読込</button>
+                <button data-action="save-preset" data-preset-index="${i}"
+                        class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
+                               bg-gray-100 text-gray-600 border border-gray-200
+                               hover:bg-gray-200 transition-colors">保存</button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        <!-- 前衛 -->
         <div>
           <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">前衛</div>
           <div class="grid grid-cols-3 gap-1">
             ${[0, 1, 2].map((i) => this.#slotHtml(i, moraleVisible)).join('')}
           </div>
         </div>
+        <!-- 後衛 -->
         <div>
           <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">後衛</div>
           <div class="grid grid-cols-3 gap-1">
@@ -232,6 +335,14 @@ export class PartySetupController {
         else if (field === 'morale') this.#slots[idx].morale = val;
         this.#notifyChange();
       });
+    });
+
+    // プリセット保存・読込
+    this.#root.querySelectorAll('[data-action="save-preset"]').forEach((el) => {
+      el.addEventListener('click', () => this.#savePreset(Number(el.dataset.presetIndex)));
+    });
+    this.#root.querySelectorAll('[data-action="load-preset"]').forEach((el) => {
+      el.addEventListener('click', () => this.#loadPreset(Number(el.dataset.presetIndex)));
     });
 
     // D&D によるスロット入れ替え
