@@ -75,6 +75,7 @@ export class PartySetupController {
   #activeSlotIndex = null;
   #activeMode = 'main'; // 'main' | 'support'
   #dragSrcIndex = null;
+  #presetExpanded = false;
 
   constructor({ root, pickerOverlay, store, onChange = null }) {
     this.#onChange = onChange;
@@ -267,28 +268,36 @@ export class PartySetupController {
 
     this.#root.innerHTML = `
       <div class="p-2 space-y-2">
-        <!-- プリセット -->
-        <div>
-          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">プリセット</div>
-          <div class="flex flex-col gap-0.5">
-            ${presets.map((p, i) => `
-              <div class="flex items-center gap-1 rounded border border-gray-100 bg-gray-50 px-1.5 py-0.5">
-                <span class="flex-1 text-xs truncate min-w-0 ${p ? 'text-gray-700' : 'text-gray-300'}">
-                  ${i + 1}. ${p ? p.label : '未保存'}
-                </span>
-                <button data-action="load-preset" data-preset-index="${i}"
-                        ${!p ? 'disabled' : ''}
-                        class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
-                               bg-blue-50 text-blue-600 border border-blue-200
-                               hover:bg-blue-100 transition-colors
-                               disabled:opacity-30 disabled:cursor-not-allowed">読込</button>
-                <button data-action="save-preset" data-preset-index="${i}"
-                        class="flex-shrink-0 text-xs px-1.5 py-0.5 rounded
-                               bg-gray-100 text-gray-600 border border-gray-200
-                               hover:bg-gray-200 transition-colors">保存</button>
-              </div>
-            `).join('')}
-          </div>
+        <!-- プリセット（折りたたみ） -->
+        <div class="border border-gray-100 rounded">
+          <button data-action="toggle-preset"
+                  class="w-full flex items-center gap-1 px-2 py-1 text-xs text-gray-400
+                         hover:text-gray-600 hover:bg-gray-50 transition-colors select-none">
+            <span>${this.#presetExpanded ? '▼' : '▶'}</span>
+            <span class="font-semibold uppercase tracking-wide">プリセット</span>
+            ${!this.#presetExpanded ? `<span class="ml-auto flex gap-1">
+              ${presets.map((p, i) => `<span class="w-2 h-2 rounded-full ${p ? 'bg-blue-400' : 'bg-gray-200'}"></span>`).join('')}
+            </span>` : ''}
+          </button>
+          ${this.#presetExpanded ? `
+            <div class="flex gap-1 px-1.5 pb-1.5">
+              ${presets.map((p, i) => `
+                <div class="flex items-center gap-0.5 flex-1">
+                  <span class="text-xs font-bold text-gray-300 w-3 text-center leading-none">${i + 1}</span>
+                  <button data-action="save-preset" data-preset-index="${i}"
+                          class="flex-1 text-xs py-0.5 rounded bg-gray-100 text-gray-500
+                                 border border-gray-200 hover:bg-gray-200 transition-colors
+                                 leading-none">保</button>
+                  <button data-action="load-preset" data-preset-index="${i}"
+                          ${!p ? 'disabled' : ''}
+                          class="flex-1 text-xs py-0.5 rounded bg-blue-50 text-blue-600
+                                 border border-blue-200 hover:bg-blue-100 transition-colors
+                                 disabled:opacity-30 disabled:cursor-not-allowed
+                                 leading-none">読</button>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
         </div>
         <!-- 前衛 -->
         <div>
@@ -335,6 +344,12 @@ export class PartySetupController {
         else if (field === 'morale') this.#slots[idx].morale = val;
         this.#notifyChange();
       });
+    });
+
+    // プリセット折りたたみトグル
+    this.#root.querySelector('[data-action="toggle-preset"]')?.addEventListener('click', () => {
+      this.#presetExpanded = !this.#presetExpanded;
+      this.#render();
     });
 
     // プリセット保存・読込

@@ -41,15 +41,18 @@ export class TurnRowController {
   }
 
   update({ record, stateBefore, stateAfter }) {
-    // 未コミット行→未コミット行の再描画（D&D など）ではスキル選択を保持する
-    // position ではなく partyIndex をキーにすることで、D&D 後もキャラにスキルが追従する
+    // 未コミット行→未コミット行の再描画（D&D など）ではスキル選択を保持する。
+    // DOM の data-party-index 属性から直接 partyIndex を読むことで、
+    // swapCurrentPositions() による state の事前書き換えの影響を受けない。
     if (this.#record === null && record === null) {
-      const byPosition = this.getCurrentSlotActions();
       const byPartyIndex = {};
-      for (const [posStr, action] of Object.entries(byPosition)) {
-        const member = this.#stateBefore?.party?.find((m) => m.position === Number(posStr));
-        if (member) byPartyIndex[member.partyIndex] = action;
-      }
+      this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
+        const partyIndex = Number(sel.dataset.partyIndex);
+        const skillId = sel.value === '' ? null : Number(sel.value);
+        if (skillId != null && Number.isFinite(partyIndex)) {
+          byPartyIndex[partyIndex] = { skillId };
+        }
+      });
       this.#savedSlotActions = byPartyIndex;
     }
     this.#record = record;
@@ -213,7 +216,7 @@ export class TurnRowController {
                   ${!isCommitted ? 'cursor-grab active:cursor-grabbing' : ''}">
         <!-- スキル select -->
         <div class="px-0.5 pt-0.5">
-          <select data-skill-select data-position="${member.position}" ${selectDisabled}
+          <select data-skill-select data-position="${member.position}" data-party-index="${member.partyIndex}" ${selectDisabled}
                   class="w-full text-xs border border-gray-200 rounded px-0.5 py-px
                          ${isCommitted ? 'bg-gray-50 text-gray-500' : 'bg-white'}
                          focus:outline-none focus:ring-1 focus:ring-blue-300">
