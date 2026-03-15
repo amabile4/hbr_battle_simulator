@@ -80,6 +80,45 @@
 }
 
 
+/* ============================================================
+   Turn area: コンテナクエリ（ビューポード幅ではなくコンテナ幅で分岐）
+   PartySetup 表示/非表示にかかわらず実際のターン列幅で段階的に変化する
+   ============================================================ */
+
+#turn-area {
+  container-type: inline-size;
+  container-name: turn-area;
+}
+
+/* 前衛:後衛 flex 比率 — デフォルト 2:1（後衛が先に詰まる） */
+[data-turn-front-group] { flex: 2; }
+[data-turn-back-group]  { flex: 1; }
+
+/* アイコンサイズ — デフォルト 40px */
+[data-turn-slot-icon] { width: 2.5rem; height: 2.5rem; }
+
+/* SP バッジ フォントサイズ — デフォルト text-sm */
+[data-sp-badge] { font-size: 0.875rem; }
+
+/* 情報スペース高さ — アイコンに連動 */
+[data-slot-info-space] { height: 2.5rem; }
+
+/* 560px 以上: アイコン 48px、比率 2:1 維持 */
+@container turn-area (min-width: 560px) {
+  [data-turn-slot-icon]  { width: 3rem; height: 3rem; }
+  [data-sp-badge]        { font-size: 1rem; }
+  [data-slot-info-space] { height: 3rem; }
+}
+
+/* 720px 以上: アイコン 64px、均等 6 等分 */
+@container turn-area (min-width: 720px) {
+  [data-turn-front-group] { flex: 1; }
+  [data-turn-back-group]  { flex: 1; }
+  [data-turn-slot-icon]   { width: 4rem; height: 4rem; }
+  [data-sp-badge]         { font-size: 1.25rem; }
+  [data-slot-info-space]  { height: 4rem; }
+}
+
 /* line-clamp ユーティリティ（CDN版 Tailwind では要明示） */
 .line-clamp-1 {
   overflow: hidden;
