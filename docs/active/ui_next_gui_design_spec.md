@@ -5,12 +5,42 @@
 本ドキュメントは、ヘブンバーンズレッドの戦闘シミュレータのWebアプリケーションに向けた画面レイアウトおよびデザイン設計を定義するものです。
 フロントエンド実装（主にReact + Tailwind CSS）において、コンポーネントの配置やレイアウト構成を生成AIが解釈・実装しやすくなるように構造化されています。
 
+## 現在の正本との関係
+
+- 画面責務と操作導線の正本は [ui_next_design.md](ui_next_design.md) とする
+- 本ドキュメントと添付モック画像は、配色・余白・視線誘導の参考資料として使う
+- 初回実装のレイアウトは「`Initial Setup` 配下に 6 本の縦長 slot panel を並べる `Party Setup`」と「full-screen `Style Picker`」を優先する
+- 既存の 2 カラム SPA モックは将来の統合レイアウト候補として保持し、初回 UI Next 実装の固定仕様とはみなさない
+
 ## 目指すデザインモックアップ
 YouTubeなどのモダンな動画・情報サイトを参考にした、視認性の高いクリーンな「ライトテーマ」を基調としています。
 
 ![UI Mockup](./ui_next_mockup_light.png)
 
 *※ 上記モックアップは雰囲気・配色の参考です。実際のゲーム画面エリアの画像は、提供された「ヘブンバーンズレッドの実際のゲーム操作画面のスクリーンショット（ラフ画像で提示されたもの）」をそのまま維持して使用します。*
+
+## UI Next 初回マイルストーンで優先する画面像
+
+### Initial Setup / Party Setup
+
+- 6 本の縦長 slot panel を横並びに配置する
+- 並び順は `front 3 + back 3`
+- 各 panel は `main style icon -> listbox 群 -> support style icon` の縦構成とする
+- slot panel は party 全体を狭い横幅で見渡せることを優先する
+- panel は D&D で並べ替えられる
+- シミュレーター開始後は非表示または最小化し、必要時に再表示できる構造にする
+- 将来は同じ `Initial Setup` 配下に `Enemy Setup` / `Stage Setup` を追加できる構造とする
+
+### Style Picker
+
+- main / support icon クリックで開く全画面 picker とする
+- 画面上部に filter bar を置く
+- 本体は team ごとの style icon grid とする
+- grid は右端で折り返し、横スクロールは使わない
+- 1 style を選んだら元の `Party Setup` に戻る
+- `main` は 1 click で選択する
+- `support` は hover preview と click-to-pin を持ち、同じ card への 2 click 目で確定する
+- `support` の詳細表示は共鳴アビリティ名・効果説明・`LB MAX` 性能値を含む
 
 ---
 
