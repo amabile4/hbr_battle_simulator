@@ -2,7 +2,7 @@
 
 > **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶（support icon・最小化 未） / T03 🔶（support icon 未） / T04 ✅ / T05 ✅ / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T06〜T08・T11・T12 未着手
+> **進捗サマリー**: T01 ✅ / T02 🔶（support icon・最小化 未） / T03 🔶（support icon 未） / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T08・T11・T12 未着手
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -95,25 +95,31 @@
 
 ### T06: Style Picker shell
 
-- [ ] full-screen picker を追加する
-- [ ] picker 上部に filter bar を固定配置する
-- [ ] team 別 style icon grid を横並び折り返しで表示する
-- [ ] `main` / `support` mode を切り替えられる picker shell にする
+- [x] full-screen picker を追加する
+- [x] picker 上部に filter bar を固定配置する（tier / 属性 / 武器 / 役割の4行）
+- [x] team 別 style icon grid を横並び折り返しで表示する
+- [x] `main` / `support` mode を `open(style, mode)` で受け取りヘッダーに表示する骨格を追加
 
 完了条件:
 
-- main / support のどちらからでも full-screen picker を開ける
+- [x] main / support のどちらからでも full-screen picker を開ける
+
+> ✅ T06 完了（2026-03-15）: filter bar シェル追加（shrink-0 固定）。open(style, mode) に mode 引数追加、ヘッダーに「メイン/サポートスタイルを選ぶ」表示。T07 と同時実装。
 
 ### T07: Style Picker filter / ordering
 
-- [ ] team ごとの style 順を `characters.json` と `cards[]` の出現順に揃える
-- [ ] rarity / weapon / element / role filter を表示する
-- [ ] filter 対象外の style を非表示にし、左詰めで再配置する
-- [ ] `無` 属性を `elements.length === 0` として扱う
+- [x] team ごとの style 順をキャラ昇順 → レアリティ昇順 → 実装順でソートする
+- [x] tier / 属性 / 武器 / 役割 filter を実装する（同一カテゴリ内 OR、カテゴリ間 AND）
+- [x] filter 対象外の style を非表示にし、空 team セクションは描画しない
+- [x] `無` 属性を `elements.length === 0` として扱う
+- [x] カウント表示を「絞り込み後件数 / 全件数」に変更
+- [x] scroll 位置を `#renderBody()` をまたいで保持する
 
 完了条件:
 
-- filter 付き team grid から style を選べる
+- [x] filter 付き team grid から style を選べる
+
+> ✅ T07 完了（2026-03-15）: T06 と同時実装。#filters = { tiers/weapons/elements/roles: Set }。フィルタ解除ボタンあり。filter/scroll 状態は open をまたいで保持。
 
 ### T08: main / support 選択導線
 

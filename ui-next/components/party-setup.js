@@ -123,7 +123,7 @@ export class PartySetupController {
           this.#activeMode === 'main'
             ? (this.#slots[this.#activeSlotIndex]?.style ?? null)
             : null; // support は T08 で実装
-        this.#picker.open(current);
+        this.#picker.open(current, this.#activeMode);
       });
     });
 
