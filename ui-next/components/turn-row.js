@@ -42,8 +42,15 @@ export class TurnRowController {
 
   update({ record, stateBefore, stateAfter }) {
     // 未コミット行→未コミット行の再描画（D&D など）ではスキル選択を保持する
+    // position ではなく partyIndex をキーにすることで、D&D 後もキャラにスキルが追従する
     if (this.#record === null && record === null) {
-      this.#savedSlotActions = this.getCurrentSlotActions();
+      const byPosition = this.getCurrentSlotActions();
+      const byPartyIndex = {};
+      for (const [posStr, action] of Object.entries(byPosition)) {
+        const member = this.#stateBefore?.party?.find((m) => m.position === Number(posStr));
+        if (member) byPartyIndex[member.partyIndex] = action;
+      }
+      this.#savedSlotActions = byPartyIndex;
     }
     this.#record = record;
     this.#stateBefore = stateBefore;
@@ -181,12 +188,12 @@ export class TurnRowController {
     const replaySlot = isCommitted
       ? (this.#record?.actions?.find?.(a => a.positionIndex === member.position) ?? null)
       : null;
-    // コミット済み: record から復元 / 未コミット: D&D 後の保存値 → なければ先頭スキル
+    // コミット済み: record から復元 / 未コミット: D&D 後の保存値（partyIndex キー）→ なければ先頭スキル
     // TODO: skills[0] が通常攻撃/指揮行動であることは JSON 挿入順への暗黙依存。
     //       CharacterStyle.getDefaultActionSkillId() が追加されたらそちらに移行する。
     const selectedSkillId = isCommitted
       ? (replaySlot?.skillId ?? null)
-      : (this.#savedSlotActions?.[member.position]?.skillId ?? skills[0]?.skillId ?? null);
+      : (this.#savedSlotActions?.[member.partyIndex]?.skillId ?? skills[0]?.skillId ?? null);
 
     const hasSelection = selectedSkillId != null;
     const skillOptions = [
