@@ -66,42 +66,21 @@ const WEAPON_TYPE_OPTIONS = [
 ];
 
 const ROLE_OPTIONS = [
-  { value: 'Attacker', label: 'ATK' },
-  { value: 'Blaster',  label: 'BLS' },
-  { value: 'Breaker',  label: 'BRK' },
-  { value: 'Buffer',   label: 'BUF' },
-  { value: 'Debuffer', label: 'DEB' },
-  { value: 'Defender', label: 'DEF' },
-  { value: 'Healer',   label: 'HLR' },
-  { value: 'Rider',    label: 'RDR' },
-  { value: 'Admiral',  label: '司令' },
+  { value: 'Attacker', label: 'アタッカー',   short: 'ATK' },
+  { value: 'Blaster',  label: 'ブラスター',   short: 'BLS' },
+  { value: 'Breaker',  label: 'ブレイカー',   short: 'BRK' },
+  { value: 'Buffer',   label: 'バッファー',   short: 'BUF' },
+  { value: 'Debuffer', label: 'デバッファー', short: 'DEB' },
+  { value: 'Defender', label: 'ディフェンダー', short: 'DEF' },
+  { value: 'Healer',   label: 'ヒーラー',     short: 'HLR' },
+  { value: 'Rider',    label: 'ライダー',     short: 'RDR' },
+  { value: 'Admiral',  label: '司令',         short: '司令' },
 ];
 
 /** フィルタカテゴリ文字列 → #filters のキー */
 const FILTER_KEY = { tier: 'tiers', type: 'types', element: 'elements', role: 'roles' };
 
 function filterBarHtml() {
-  // レアリティ: 画像アイコンボタン
-  const tierBtn = (t) =>
-    `<button data-filter-type="tier" data-filter-value="${t}" title="${t}"
-             class="w-8 h-8 rounded border border-gray-200 bg-white
-                    hover:bg-gray-50 transition-colors flex items-center justify-center shrink-0">
-       <img src="${resolveUiAssetUrl(`IconRarity${t}.webp`)}" alt="${t}" class="w-6 h-6 object-contain" />
-     </button>`;
-
-  // 種別・属性: attr-badge スタイルのバッジボタン
-  const badgeBtn = (filterType, value, label, cssClass) =>
-    `<button data-filter-type="${filterType}" data-filter-value="${value}"
-             title="${label}" class="attr-badge ${cssClass}">${label}</button>`;
-
-  // ロール: テキストボタン
-  const roleBtn = (r) =>
-    `<button data-filter-type="role" data-filter-value="${r.value}"
-             class="text-xs px-2 py-1 rounded border border-gray-200
-                    text-gray-600 hover:bg-gray-50 transition-colors leading-tight">
-       ${r.label}
-     </button>`;
-
   const ELEMENT_CSS = {
     Fire: 'attr-element-fire', Ice: 'attr-element-ice', Thunder: 'attr-element-thunder',
     Light: 'attr-element-light', Dark: 'attr-element-dark', '': 'attr-element-none',
@@ -110,24 +89,55 @@ function filterBarHtml() {
     Slash: 'attr-weapon-slash', Stab: 'attr-weapon-stab', Strike: 'attr-weapon-strike',
   };
 
+  // 行1: レアリティ画像ボタン
+  const tierBtn = (t) =>
+    `<button data-filter-type="tier" data-filter-value="${t}" title="${t}"
+             class="w-10 h-10 rounded border border-gray-200 bg-white
+                    hover:bg-gray-50 transition-colors flex items-center justify-center shrink-0">
+       <img src="${resolveUiAssetUrl(`IconRarity${t}.webp`)}" alt="${t}" class="w-8 h-8 object-contain" />
+     </button>`;
+
+  // 行2: 種別・属性バッジ（グループ単位で nowrap、グループ間は wrap 可）
+  const badgeBtn = (filterType, value, label, cssClass) =>
+    `<button data-filter-type="${filterType}" data-filter-value="${value}"
+             title="${label}" class="attr-badge ${cssClass}">${label}</button>`;
+
+  const typeBtns = WEAPON_TYPE_OPTIONS
+    .map((w) => badgeBtn('type', w.value, w.label, TYPE_CSS[w.value])).join('');
+  const elementBtns = ELEMENT_OPTIONS
+    .map((e) => badgeBtn('element', e.value, e.label, ELEMENT_CSS[e.value])).join('');
+
+  // 行3: ロール（広い時フルネーム、狭い時短縮語）
+  const roleBtn = (r) =>
+    `<button data-filter-type="role" data-filter-value="${r.value}"
+             class="text-xs px-2 py-1 rounded border border-gray-200
+                    text-gray-600 hover:bg-gray-50 transition-colors leading-tight shrink-0">
+       <span class="sm:hidden">${r.short}</span>
+       <span class="hidden sm:inline">${r.label}</span>
+     </button>`;
+
   return `
     <div id="picker-filter-bar"
-         class="px-3 pt-2 pb-1 border-b border-gray-100 shrink-0 flex flex-col gap-1">
+         class="px-3 pt-2 pb-1 border-b border-gray-100 shrink-0 flex flex-col gap-1.5">
       <!-- 行1: レアリティ -->
-      <div class="flex gap-1 flex-wrap">
+      <div class="flex gap-1.5 justify-center">
         ${TIER_OPTIONS.map(tierBtn).join('')}
       </div>
-      <!-- 行2: 種別 + 属性 -->
-      <div class="flex gap-1 flex-wrap items-center">
-        ${WEAPON_TYPE_OPTIONS.map((w) => badgeBtn('type', w.value, w.label, TYPE_CSS[w.value])).join('')}
-        <div class="w-px h-5 bg-gray-200 mx-0.5 shrink-0"></div>
-        ${ELEMENT_OPTIONS.map((e) => badgeBtn('element', e.value, e.label, ELEMENT_CSS[e.value])).join('')}
+      <!-- 行2: 種別グループ + 属性グループ（グループ内は nowrap、グループ間は wrap 可） -->
+      <div class="flex gap-1.5 flex-wrap justify-center items-center">
+        <div class="flex gap-1.5 shrink-0 items-center">
+          ${typeBtns}
+        </div>
+        <div class="w-px h-5 bg-gray-200 shrink-0"></div>
+        <div class="flex gap-1.5 shrink-0 items-center">
+          ${elementBtns}
+        </div>
       </div>
       <!-- 行3: ロール -->
-      <div class="flex gap-1 flex-wrap items-center">
+      <div class="flex gap-1 flex-wrap justify-center items-center">
         ${ROLE_OPTIONS.map(roleBtn).join('')}
         <button id="picker-reset-filters"
-                class="ml-auto text-xs text-gray-400 hover:text-gray-600 underline leading-none shrink-0">
+                class="text-xs text-gray-400 hover:text-gray-600 underline leading-none shrink-0 ml-1">
           解除
         </button>
       </div>

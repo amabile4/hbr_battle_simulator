@@ -5,13 +5,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6em;
-  height: 1.6em;
+  width: 2em;
+  height: 2em;
   border-radius: 999px;
   border: 2px solid #fff;
   color: #fff;
   font-weight: 700;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   line-height: 1;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
