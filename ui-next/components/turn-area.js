@@ -91,26 +91,14 @@ export class TurnAreaController {
 
   /**
    * 未コミット行でのスロット D&D 入れ替え。
-   * stateBefore の party の position を入れ替えて TurnRow を再描画する。
-   * （エンジン side effects なし — commit 時に新しい positions として処理される）
+   * ポジション変更は TurnEngineManager に委譲し、UI は再描画のみ担当する。
    */
   #handleSwap(turnIndex, srcPosition, dstPosition) {
-    const state = this.#engineManager.currentState;
-    if (!state?.party) return;
-
-    // party の position をメモリ上で入れ替え（state は mutable オブジェクト想定）
-    const src = state.party.find((m) => m.position === srcPosition);
-    const dst = state.party.find((m) => m.position === dstPosition);
-    if (!src || !dst) return;
-
-    src.position = dstPosition;
-    dst.position = srcPosition;
-
-    // 未コミット行（最後の行）を再描画
+    this.#engineManager.swapCurrentPositions(srcPosition, dstPosition);
     const lastRow = this.#rowControllers.at(-1);
     lastRow?.update({
       record: null,
-      stateBefore: state,
+      stateBefore: this.#engineManager.currentState,
       stateAfter: null,
     });
   }

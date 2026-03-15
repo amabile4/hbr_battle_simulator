@@ -129,6 +129,23 @@ export class TurnEngineManager {
   }
 
   /**
+   * 未コミット行の入力対象となる現在 state でポジションを入れ替える。
+   * D&D によるコミット前のパーティー順変更に使用。
+   * UI コントローラーが state を直接変更しないよう、変更はここに閉じる。
+   * @param {number} srcPosition
+   * @param {number} dstPosition
+   */
+  swapCurrentPositions(srcPosition, dstPosition) {
+    const state = this.currentState;
+    if (!state?.party) return;
+    const src = state.party.find((m) => m.position === srcPosition);
+    const dst = state.party.find((m) => m.position === dstPosition);
+    if (!src || !dst) return;
+    src.position = dstPosition;
+    dst.position = srcPosition;
+  }
+
+  /**
    * ターンのメモを更新する（再計算不要）。
    * @param {number} turnIndex
    * @param {string} note

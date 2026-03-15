@@ -182,6 +182,8 @@ export class TurnRowController {
       ? (this.#record?.actions?.find?.(a => a.positionIndex === member.position) ?? null)
       : null;
     // コミット済み: record から復元 / 未コミット: D&D 後の保存値 → なければ先頭スキル
+    // TODO: skills[0] が通常攻撃/指揮行動であることは JSON 挿入順への暗黙依存。
+    //       CharacterStyle.getDefaultActionSkillId() が追加されたらそちらに移行する。
     const selectedSkillId = isCommitted
       ? (replaySlot?.skillId ?? null)
       : (this.#savedSlotActions?.[member.position]?.skillId ?? skills[0]?.skillId ?? null);
