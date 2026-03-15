@@ -66,15 +66,10 @@ skillDatabase.json - キャラクター・スキルデータ
 - Google Spreadsheet互換の特定CSV形式でデータ出力
 - モジュラー設計により保守性と機能追加が容易
 
-## Branch And Merge Conventions
+## Repo Workflow
 
-- `main` は安定した共通土台であり、共有アセット、共有 resolver、共有 contract、既存 engine の確定 bugfix を入れる正本ブランチとして扱う。
-- 既存 engine 改修は `feature/engine-<topic>`、新 UI は `feature/ui-next-<topic>` の命名を基本とする。
-- `feature/ui-next-*` は新 UI 専用ブランチとして扱い、既存ページの直接改造ではなく、新規ページや新規 UI ルートでの実装を優先する。
-- engine bugfix や shared 変更を `feature/ui-next-*` 側だけで正本化しない。再利用する変更は、原則 `main` に先に入れるか、`feature/engine-*` から `main` へ入れてから `ui-next` 側へ取り込む。
-- `feature/ui-next-*` と `feature/engine-*` の間で直接 merge する運用は原則避け、共有変更は `main` を経由して伝播させる。
-- `feature/ui-next-*` は `main` を定期的に取り込み、engine 側の bugfix や shared 変更を追従してよい。履歴の分かりやすさを優先し、必要なら `merge main` を選んでよい。
-- 片方のブランチだけで使う試験実装を shared 層へ先に混ぜない。shared 化するのは、複数ブランチで使うことが明確になってからにする。
+- project 固有の branch 命名、merge 方針、shared 変更の流し方は [docs/specs/repo_workflow.md](docs/specs/repo_workflow.md) を参照する。
+- 同じ repo で複数の `git` コマンドを並列実行しない。git は必ず直列に実行する。
 
 ## Documentation Conventions
 
