@@ -212,7 +212,7 @@ export class TurnRowController {
 
     return `
       <div draggable="${!isCommitted}" data-turn-slot data-position="${member.position}"
-           class="flex flex-col w-20 border-r border-gray-100 last:border-r-0 select-none
+           class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
                   ${!isCommitted ? 'cursor-grab active:cursor-grabbing' : ''}">
         <!-- スキル select -->
         <div class="px-0.5 pt-0.5">
@@ -244,7 +244,7 @@ export class TurnRowController {
 
     return `
       <div draggable="${!isCommitted}" data-turn-slot data-position="${member.position}"
-           class="flex flex-col w-14 border-r border-gray-100 last:border-r-0 select-none
+           class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
                   ${!isCommitted ? 'cursor-grab active:cursor-grabbing' : ''}">
         <!-- スキル select プレースホルダー（高さ揃え用） -->
         <div class="px-0.5 pt-0.5">
