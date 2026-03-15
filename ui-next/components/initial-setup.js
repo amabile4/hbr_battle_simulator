@@ -17,12 +17,16 @@ export class InitialSetupController {
   #root;
   #pickerOverlay;
   #store;
+  #onApply;
+  #partySetup = null;
+  #applyBtn = null;
   #activeTab = 'party';
 
-  constructor({ root, pickerOverlay, store }) {
+  constructor({ root, pickerOverlay, store, onApply = null }) {
     this.#root = root;
     this.#pickerOverlay = pickerOverlay;
     this.#store = store;
+    this.#onApply = onApply;
   }
 
   mount() {
@@ -47,6 +51,17 @@ export class InitialSetupController {
         <!-- Party タブコンテンツ -->
         <div data-tab-content="party">
           <div id="party-setup-root"></div>
+          <div class="sticky bottom-0 bg-white border-t border-gray-200 px-3 py-2">
+            <button data-role="apply-btn" disabled
+                    class="w-full text-sm py-1.5 rounded-md font-medium bg-blue-500 text-white
+                           disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors">
+              Apply
+            </button>
+            <p data-role="apply-hint"
+               class="text-xs text-center text-gray-400 mt-1 hidden">
+              前衛3スロットを設定してください
+            </p>
+          </div>
         </div>
 
         <!-- Enemy タブコンテンツ -->
@@ -68,14 +83,30 @@ export class InitialSetupController {
       btn.addEventListener('click', () => this.#switchTab(btn.dataset.tab));
     });
 
+    // Apply ボタン・ヒントへの参照
+    this.#applyBtn = this.#root.querySelector('[data-role="apply-btn"]');
+    const applyHint = this.#root.querySelector('[data-role="apply-hint"]');
+
     // PartySetup を初期化（1回のみ）
     const partyRoot = this.#root.querySelector('#party-setup-root');
-    const partySetup = new PartySetupController({
+    this.#partySetup = new PartySetupController({
       root: partyRoot,
       pickerOverlay: this.#pickerOverlay,
       store: this.#store,
+      onChange: (snapshot) => {
+        this.#applyBtn.disabled = !snapshot.isFrontFilled;
+        applyHint.classList.toggle('hidden', snapshot.isFrontFilled);
+      },
     });
-    partySetup.mount();
+    this.#partySetup.mount();
+
+    // Apply クリック
+    this.#applyBtn.addEventListener('click', () => {
+      if (this.#applyBtn.disabled) return;
+      const snapshot = this.#partySetup.getSnapshot();
+      if (!snapshot.isFrontFilled) return;
+      this.#onApply?.(snapshot);
+    });
   }
 
   #switchTab(tabId) {

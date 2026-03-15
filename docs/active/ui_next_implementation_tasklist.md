@@ -2,7 +2,7 @@
 
 > **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶（最小化 未） / T03 ✅ / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T08 ✅ / T08-UX ✅ / T09 🔶（HbrDataStore 接続のみ） / T10 ✅ / T11・T12 未着手
+> **進捗サマリー**: T01 ✅ / T02 🔶（最小化 未） / T03 ✅ / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T08 ✅ / T08-UX ✅ / T09-Engine ✅ / T09-UI ✅ / T10 ✅ / T11・T12 未着手
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -184,20 +184,39 @@
 
 > ✅ T08-UX 完了（2026-03-15）: Strip 6×2・スロットクリック切替・連続選択境界越え・strip+filter 横並び（3カラム grid）・狭い画面縦積み・チームラベル固定列・SSRグラデーション表現（party-setup / strip 統一条件）・サポート mousedown/touchstart 確定 UX・メインセット済みグレーアウト。
 
-### T09: engine bridge の最小接続
+### T09-Engine: engine の部分パーティー対応（先行実施）
+
+- [x] `src/domain/party.js`: `MIN_PARTY_SIZE = 3` / `MAX_PARTY_SIZE = 6` 定数を追加し、`Party` コンストラクタを 3〜6名対応に変更
+- [x] `src/contracts/interfaces.js`: `buildPositionMap` / `createBattleState` を `MIN_PARTY_SIZE`〜`MAX_PARTY_SIZE` 対応に変更（定数は `party.js` からインポート）
+- [x] `src/data/hbr-data-store.js`: `buildPartyFromStyleIds` を `MIN_PARTY_SIZE`〜`MAX_PARTY_SIZE` 対応に変更
+- [x] 影響範囲の既存テストを確認・修正する（605件 pass 確認済み）
+
+完了条件:
+
+- [x] 3〜6名パーティーで `Party` / `createBattleState` / `buildPartyFromStyleIds` が正常動作する
+- [x] 既存テスト（605件）がすべて pass する
+
+> ✅ T09-Engine 完了（2026-03-15）: `MIN_PARTY_SIZE=3` / `MAX_PARTY_SIZE=6` を `party.js` で定義し `interfaces.js` / `hbr-data-store.js` からインポート。マジックナンバーなし。`feature/engine-partial-party` → `main` → `feature/ui-next-initial` のフローで取り込み済み。
+
+### T09-UI: engine bridge の最小接続（T09-Engine 完了後に実施）
 
 - [x] `HbrDataStore` 読み込みを新 UI entry から接続する
-- [ ] 6 slot の表示状態を party / battle state と同期できるようにする
-- [ ] 初期 battle state の生成まで接続する
-- [ ] `Initial Setup` の設定変更を初期 battle state の更新として扱えるようにする
+- [x] `party-setup.js`: `getSnapshot()` 追加（`isFrontFilled` + null 含む 6 要素の raw 状態）
+- [x] `party-setup.js`: `#onChange` / `#notifyChange()` コールバック対応（slot 変更時に Apply ボタン更新）
+- [x] `initial-setup.js`: Apply ボタン追加（前衛 3 スロット埋まりで enabled）
+- [x] `ui-next/engine/battle-state-manager.js`: 新規作成（後衛空き左詰め + `createInitializedBattleSnapshot` 呼び出し）
+- [x] `app.js`: `BattleStateManager` 接続・左ペイン最小表示（`renderBattleStatePreview`）
 - [ ] `Apply` 操作で既存の turn script / replay script を turn 1 から再計算できるようにする
 - [ ] 編集中は現在のシミュレート結果を即破棄しないようにする
 
 完了条件:
 
-- [ ] 新 UI から battle state の初期化と「初期設定変更後の全再計算」まで到達できる
+- [x] 前衛 3 スロット入力後、Apply ボタンがアクティブになる
+- [x] Apply で BattleState が生成され、左ペインにキャラ名・SP が表示される
+- [x] 後衛スロットを一部空のまま Apply → 左詰めで 3〜5名 BattleState が生成される
+- [ ] 新 UI から「初期設定変更後の全再計算」まで到達できる
 
-> 🔶 T09 部分着手（2026-03-15）: `HbrDataStore.fromRawData()` を `ui-next/app.js` から接続済み。battle state 同期以降は未実装。
+> ✅ T09-UI 部分完了（2026-03-15）: Apply ボタン連携・`BattleStateManager`（後衛左詰め）・左ペイン BattleState 表示まで実装済み。turn 1 からの全再計算は未実装。
 
 ### T10: Enemy / Stage Setup extension point
 

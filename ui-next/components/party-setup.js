@@ -67,11 +67,13 @@ export class PartySetupController {
   #slots;
   #root;
   #picker;
+  #onChange;
   #activeSlotIndex = null;
   #activeMode = 'main'; // 'main' | 'support'
   #dragSrcIndex = null;
 
-  constructor({ root, pickerOverlay, store }) {
+  constructor({ root, pickerOverlay, store, onChange = null }) {
+    this.#onChange = onChange;
     this.#root = root;
 
     this.#slots = Array.from({ length: 6 }, () => ({
@@ -108,7 +110,38 @@ export class PartySetupController {
     this.#render();
   }
 
+  // ---- public ----
+
+  /**
+   * 現在のスロット状態のスナップショットを返す。
+   * null 含む 6 要素の raw 状態（左詰めは BattleStateManager が行う）。
+   * @returns {{ isFrontFilled: boolean, styleIds: (number|null)[], ... }}
+   */
+  getSnapshot() {
+    const styleIds = this.#slots.map((s) => s.styleId ?? null);
+    const isFrontFilled = styleIds.slice(0, 3).every((id) => id !== null);
+    return {
+      isFrontFilled,
+      styleIds,
+      supportStyleIds: this.#slots.map((s) => s.supportStyleId ?? null),
+      limitBreakLevelsByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [i, s.lb])
+      ),
+      drivePierceByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [i, s.drivePierce])
+      ),
+      // '' = SP装備なし → bonus 0、'1'/'2'/'3' → 数値変換
+      startSpEquipByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [i, s.spEquipId === '' ? 0 : Number(s.spEquipId)])
+      ),
+    };
+  }
+
   // ---- private ----
+
+  #notifyChange() {
+    this.#onChange?.(this.getSnapshot());
+  }
 
   #getPartyContext() {
     return {
@@ -197,6 +230,7 @@ export class PartySetupController {
         else if (field === 'spEquip') this.#slots[idx].spEquipId = val;
         else if (field === 'belt') this.#slots[idx].belt = val;
         else if (field === 'morale') this.#slots[idx].morale = val;
+        this.#notifyChange();
       });
     });
 
@@ -241,6 +275,7 @@ export class PartySetupController {
           this.#slots[this.#dragSrcIndex] = this.#slots[dst];
           this.#slots[dst] = tmp;
           this.#render();
+          this.#notifyChange();
         }
         this.#dragSrcIndex = null;
       });
@@ -383,6 +418,7 @@ export class PartySetupController {
     }
 
     this.#render();
+    this.#notifyChange();
 
     // 続けて選ぶモード: 次の空きスロットへ自動進行
     if (this.#picker.isContinuousMode) {
