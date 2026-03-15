@@ -38,11 +38,7 @@ function makeLbOptions(style) {
 }
 
 function hasMoralePassive(style) {
-  return (
-    style?.passives?.some(
-      (p) => p.label?.includes('Morale') || p.label?.includes('Motivation')
-    ) ?? false
-  );
+  return style?.passives?.some((p) => p.label?.includes('Motivation')) ?? false;
 }
 
 function selectHtml(dataField, slotIndex, options, currentValue, cls = '') {

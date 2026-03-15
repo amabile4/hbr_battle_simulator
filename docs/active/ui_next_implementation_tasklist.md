@@ -69,7 +69,7 @@
 ### T04: slot listbox 群
 
 - [x] `LB`（限突 0〜N）`ドライブピアス`（DP なし/+10/+12/+15）`SP装備`（なし/SP+1/SP+2/SP+3）`属性ベルト` の listbox を縦積みで配置する
-- [x] `やる気` は やる気パッシブ（label に `Morale` または `Motivation` 含む）を持つスタイルがセットされた時だけ表示する
+- [x] `やる気` は やる気パッシブ（label に `Motivation` 含む）を持つスタイルがセットされた時だけ表示する（`Morale` は士気系で別物）
 - [x] icon 幅と listbox 幅を揃える
 - [x] 未選択時の placeholder 表示（empty state）を入れる
 
@@ -77,7 +77,7 @@
 
 - [x] slot panel 内の基本設定が listbox で編集できる
 
-> ✅ T04 完了（2026-03-15）: LB→「限突 N」表記・SP装備→固定4択・やる気→Morale/Motivationパッシブ持ちスタイル時のみ表示（8スタイル対象）。DRIVE_PIERCE_OPTIONS を battle-defaults.js から再利用。右ペインスライドアウトも同時実装。
+> ✅ T04 完了（2026-03-15）: LB→「限突 N」表記・SP装備→固定4択・やる気→Motivationパッシブ（label に `Motivation` 含む）持ちスタイル時のみ表示（3スタイル対象）。`Morale` は「士気」系パッシブで別物。DRIVE_PIERCE_OPTIONS を battle-defaults.js から再利用。右ペインスライドアウトも同時実装。
 
 ### T05: D&D による position 入れ替え
 
