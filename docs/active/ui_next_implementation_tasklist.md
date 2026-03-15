@@ -2,7 +2,7 @@
 
 > **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶（最小化 未） / T03 ✅ / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T08 ✅ / T08-UX ✅ / T09-Engine ✅ / T09-UI ✅ / T10 ✅ / T11・T12 未着手
+> **進捗サマリー**: T01 ✅ / T02 🔶（最小化 未） / T03 ✅（T08で完了確認） / T04 ✅ / T05 ✅ / T06 ✅ / T07 ✅ / T08 ✅ / T08-UX ✅ / T09-Engine ✅ / T09-UI ✅ / T10 ✅ / T11 ✅ / T12 🔶（基盤実装済み）
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -62,9 +62,9 @@
 
 完了条件:
 
-- [ ] 6 slot の main / support icon が style 画像つきで描画できる（support icon は T08 で実装予定）
+- [x] 6 slot の main / support icon が style 画像つきで描画できる
 
-> 🔶 T03 部分完了（2026-03-15）: main icon の `resolveStyleImageUrl()` 描画・fallback（＋プレースホルダー）・キャラ名オーバーレイ実装済み。Style Picker（全画面アイコン高密度 grid）から main style を選択してスロットに反映できる。team 別グループ化・キャラ昇順→レアリティ昇順→実装順ソート・名前表示トグル・ホバー title（`[style名] キャラ名`）実装済み。support icon は T08 で実装予定。
+> ✅ T03 完了（2026-03-15）: main icon の `resolveStyleImageUrl()` 描画・fallback（＋プレースホルダー）・キャラ名オーバーレイ実装済み。Style Picker（全画面アイコン高密度 grid）から main style を選択してスロットに反映できる。team 別グループ化・キャラ昇順→レアリティ昇順→実装順ソート・名前表示トグル・ホバー title（`[style名] キャラ名`）実装済み。support icon の画像描画（`resolveStyleImageUrl()` + SSR共鳴グラデーション）は T08 で実装済み。
 
 ### T04: slot listbox 群
 
@@ -232,31 +232,61 @@
 
 ### T11: replay/edit 連携方針の固定
 
-- [ ] 新 UI が `ReplayScript` を直接編集するかを決める
-- [ ] turn / slots / operations / note のうち、初回で扱う範囲を固定する
-- [ ] 旧編集 UI と新 UI の責務境界を整理する
+- [x] 新 UI が `LightweightReplayScript` を正本として直接保持・編集する
+- [x] turn / slots / operations / note のうち、初回スコープを固定する
+      → **slots（スキル選択）+ note** が初回スコープ
+      → operations（kishinka/割り込みOD）/ overrideEntries（enemy情報上書き）は後続タスク
+- [x] 旧 UI と新 UI の責務境界を整理する
+      → engine 純粋関数（`previewTurn`/`commitTurn`）を新 UI から直接呼ぶ。旧 UI コードは参照のみ
+      → `TurnEngineManager` が ReplayScript 管理 + engine bridge を担当
 
 完了条件:
 
-- 新 UI がどこまで編集対象を持つか文書で固定されている
+- [x] 新 UI がどこまで編集対象を持つか文書で固定されている
+
+> ✅ T11 完了（2026-03-15）: 設計方針を確定。ReplayScript 正本方式・初回スコープ（slots+note）・engine 純粋関数直接呼び出し方式。
 
 ### T12: 新 UI 初回リリースの最低ライン
 
-- [ ] 6 slot 表示
-- [ ] D&D 入れ替え
-- [ ] style 画像描画
-- [ ] listbox 編集
-- [ ] main / support picker
-- [ ] support 共鳴アビリティ詳細表示
+#### T12-A: TurnEngineManager（engine bridge）
+- [x] `ui-next/engine/turn-engine-manager.js` 新規作成
+  - ReplayScript 保持・`commitNextTurn`・`recalculateFrom`・`updateSlot`・`updateNote`
+  - `previewTurnRecord`/`commitTurnRecord`（adapter-core.js）を直接呼ぶ
+
+#### T12-B: TurnRow UI（1ターン横長コンテナ）
+- [x] `ui-next/components/turn-row.js` 新規作成
+  - ターン情報列（turnIndex, OD/extra, OD%）
+  - 前衛スロット: スキル select + スタイルアイコン + SP オーバーレイ
+  - 後衛スロット: アイコン + SP（スキル選択なし）
+  - Commit ボタン（未コミット行のみ）・メモ欄
+  - スロット D&D（未コミット行）
+
+#### T12-C: TurnArea（ターンリスト管理）
+- [x] `ui-next/components/turn-area.js` 新規作成
+  - Apply → `initialize()` → ターン1入力行表示
+  - Commit → `commitNextTurn` → 次のターン行を追加
+  - 過去ターン編集 → `updateSlot` → `recalculateFrom` → 行を再描画
+
+#### T12-D: app.js 統合
+- [x] `TurnEngineManager` / `TurnAreaController` を `app.js` から初期化
+- [x] `buildReplaySetupFromSnapshot()` ヘルパーを追加
+
+#### T12-E（後続）: 未実装
 - [ ] 開始後に `Initial Setup` を最小化できる
 - [ ] `Initial Setup` の変更を turn 1 から全再計算できる
-- [ ] `Enemy Setup` / `Stage Setup` の extension point がある
-- [ ] 初期化導線
-- [ ] 最低限の error 表示
+- [ ] operations（kishinka/割り込みOD）の UI
+- [ ] 最低限の error 表示（スキル使用失敗等のフィードバック）
 
 完了条件:
 
-- 「`Initial Setup > Party Setup` を中心に、style 選択と D&D ができ、後続の enemy / stage setup を差し込める新ページ」が成立している
+- [x] Apply → ターン1入力行が表示される
+- [x] スキル select にキャラのスキル一覧が表示される
+- [x] Commit → SP が変化したターン2行が追加される
+- [x] 過去ターンのスキル変更 → 自動再計算
+- [x] D&D でターン内のスロット順を入れ替えできる
+- [ ] 「`Initial Setup > Party Setup` を中心に、style 選択と D&D ができ、後続の enemy / stage setup を差し込める新ページ」が成立している（T12-E 完了後）
+
+> 🔶 T12 部分完了（2026-03-15）: T12-A〜D 実装済み（TurnEngineManager / TurnRow / TurnArea / app.js 統合）。T12-E（最小化・再計算・OD 操作・エラー表示）は未実装。
 
 ## メモ
 
