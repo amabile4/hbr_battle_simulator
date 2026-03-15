@@ -59,6 +59,7 @@ async function main() {
   const turnEngineManager = new TurnEngineManager();
   const turnArea = new TurnAreaController({
     root: document.querySelector('#turn-area'),
+    store,
     engineManager: turnEngineManager,
   });
 

@@ -9,6 +9,7 @@ import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
  */
 export class TurnRowController {
   #root;
+  #store;
   #turnIndex;
   #record;
   #stateBefore;
@@ -20,8 +21,9 @@ export class TurnRowController {
   // D&D 用
   #dragSrcPosition = null;
 
-  constructor({ root, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange }) {
+  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange }) {
     this.#root = root;
+    this.#store = store;
     this.#turnIndex = turnIndex;
     this.#record = record;
     this.#stateBefore = stateBefore;
@@ -154,8 +156,14 @@ export class TurnRowController {
       </div>`;
   }
 
+  /** member.styleId から raw style 経由で画像 URL を取得する */
+  #resolveImageUrl(member) {
+    const rawStyle = this.#store?.getStyleById?.(member.styleId);
+    return rawStyle ? resolveStyleImageUrl(rawStyle) : '';
+  }
+
   #buildFrontSlotHtml(member, isCommitted) {
-    const imageUrl = resolveStyleImageUrl(member);
+    const imageUrl = this.#resolveImageUrl(member);
     const spAfter = isCommitted
       ? (this.#stateAfter?.party.find((m) => m.partyIndex === member.partyIndex)?.sp?.current ?? '—')
       : (member.sp?.current ?? '—');
@@ -209,7 +217,7 @@ export class TurnRowController {
   }
 
   #buildBackSlotHtml(member) {
-    const imageUrl = resolveStyleImageUrl(member);
+    const imageUrl = this.#resolveImageUrl(member);
     const sp = member.sp?.current ?? '—';
 
     return `

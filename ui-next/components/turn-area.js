@@ -10,11 +10,13 @@ import { TurnRowController } from './turn-row.js';
  */
 export class TurnAreaController {
   #root;
+  #store;
   #engineManager;
   #rowControllers = [];
 
-  constructor({ root, engineManager }) {
+  constructor({ root, store, engineManager }) {
     this.#root = root;
+    this.#store = store;
     this.#engineManager = engineManager;
   }
 
@@ -39,6 +41,7 @@ export class TurnAreaController {
 
     const row = new TurnRowController({
       root: rowEl,
+      store: this.#store,
       turnIndex,
       record: null,
       stateBefore: this.#engineManager.currentState,
