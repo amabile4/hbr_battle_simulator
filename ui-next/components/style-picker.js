@@ -81,50 +81,53 @@ const ROLE_OPTIONS = [
 const FILTER_KEY = { tier: 'tiers', type: 'types', element: 'elements', role: 'roles' };
 
 function filterBarHtml() {
-  // アイコンのみのボタン（tier / type）
-  const iconBtn = (filterType, value, iconUrl, altText) =>
-    `<button data-filter-type="${filterType}" data-filter-value="${value}"
-             title="${altText}"
+  // レアリティ: 画像アイコンボタン
+  const tierBtn = (t) =>
+    `<button data-filter-type="tier" data-filter-value="${t}" title="${t}"
              class="w-8 h-8 rounded border border-gray-200 bg-white
-                    hover:bg-gray-50 transition-colors flex items-center justify-center">
-       <img src="${iconUrl}" alt="${altText}" class="w-6 h-6 object-contain" />
+                    hover:bg-gray-50 transition-colors flex items-center justify-center shrink-0">
+       <img src="${resolveUiAssetUrl(`IconRarity${t}.webp`)}" alt="${t}" class="w-6 h-6 object-contain" />
      </button>`;
 
-  // テキストのみのボタン（element / role）
-  const textBtn = (filterType, value, label) =>
+  // 種別・属性: attr-badge スタイルのバッジボタン
+  const badgeBtn = (filterType, value, label, cssClass) =>
     `<button data-filter-type="${filterType}" data-filter-value="${value}"
+             title="${label}" class="attr-badge ${cssClass}">${label}</button>`;
+
+  // ロール: テキストボタン
+  const roleBtn = (r) =>
+    `<button data-filter-type="role" data-filter-value="${r.value}"
              class="text-xs px-2 py-1 rounded border border-gray-200
                     text-gray-600 hover:bg-gray-50 transition-colors leading-tight">
-       ${label}
+       ${r.label}
      </button>`;
 
-  const tierBtns = TIER_OPTIONS.map((t) =>
-    iconBtn('tier', t, resolveUiAssetUrl(`IconRarity${t}.webp`), t)
-  ).join('');
-
-  const typeBtns = WEAPON_TYPE_OPTIONS.map((w) =>
-    iconBtn('type', w.value, resolveUiAssetUrl(`${w.value}.webp`), w.label)
-  ).join('');
-
-  const elementBtns = ELEMENT_OPTIONS.map((e) => textBtn('element', e.value, e.label)).join('');
-  const roleBtns = ROLE_OPTIONS.map((r) => textBtn('role', r.value, r.label)).join('');
+  const ELEMENT_CSS = {
+    Fire: 'attr-element-fire', Ice: 'attr-element-ice', Thunder: 'attr-element-thunder',
+    Light: 'attr-element-light', Dark: 'attr-element-dark', '': 'attr-element-none',
+  };
+  const TYPE_CSS = {
+    Slash: 'attr-weapon-slash', Stab: 'attr-weapon-stab', Strike: 'attr-weapon-strike',
+  };
 
   return `
     <div id="picker-filter-bar"
          class="px-3 pt-2 pb-1 border-b border-gray-100 shrink-0 flex flex-col gap-1">
       <!-- 行1: レアリティ -->
-      <div class="flex gap-1 flex-wrap">${tierBtns}</div>
+      <div class="flex gap-1 flex-wrap">
+        ${TIER_OPTIONS.map(tierBtn).join('')}
+      </div>
       <!-- 行2: 種別 + 属性 -->
       <div class="flex gap-1 flex-wrap items-center">
-        ${typeBtns}
-        <div class="w-px h-5 bg-gray-200 mx-0.5"></div>
-        ${elementBtns}
+        ${WEAPON_TYPE_OPTIONS.map((w) => badgeBtn('type', w.value, w.label, TYPE_CSS[w.value])).join('')}
+        <div class="w-px h-5 bg-gray-200 mx-0.5 shrink-0"></div>
+        ${ELEMENT_OPTIONS.map((e) => badgeBtn('element', e.value, e.label, ELEMENT_CSS[e.value])).join('')}
       </div>
       <!-- 行3: ロール -->
       <div class="flex gap-1 flex-wrap items-center">
-        ${roleBtns}
+        ${ROLE_OPTIONS.map(roleBtn).join('')}
         <button id="picker-reset-filters"
-                class="ml-auto text-xs text-gray-400 hover:text-gray-600 underline leading-none">
+                class="ml-auto text-xs text-gray-400 hover:text-gray-600 underline leading-none shrink-0">
           解除
         </button>
       </div>
@@ -249,11 +252,15 @@ export class StylePickerController {
     this.#overlay.querySelectorAll('[data-filter-type]').forEach((btn) => {
       const set = this.#filters[FILTER_KEY[btn.dataset.filterType]];
       const active = set.has(btn.dataset.filterValue);
-      btn.classList.toggle('border-blue-400', active);
-      btn.classList.toggle('bg-blue-50', active);
-      btn.classList.toggle('text-blue-600', active);
-      btn.classList.toggle('border-gray-200', !active);
-      btn.classList.toggle('text-gray-500', !active);
+      if (btn.classList.contains('attr-badge')) {
+        // バッジボタン（element / type）: active クラスで青枠
+        btn.classList.toggle('active', active);
+      } else {
+        // 画像ボタン（tier）またはテキストボタン（role）
+        btn.classList.toggle('ring-2', active);
+        btn.classList.toggle('ring-blue-400', active);
+        btn.classList.toggle('ring-inset', active);
+      }
     });
   }
 

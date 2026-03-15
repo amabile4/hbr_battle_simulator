@@ -1,5 +1,37 @@
 /* ui-next 追加スタイル（Tailwind CDN で補えないもの） */
 
+/* 属性・武器種バッジ（旧 ui/index.html の attr-badge を移植） */
+.attr-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.72rem;
+  line-height: 1;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: opacity 0.15s, outline 0.1s;
+}
+.attr-badge:hover { opacity: 0.85; }
+.attr-badge.active { outline: 2px solid #3b82f6; outline-offset: 1px; }
+
+.attr-element-fire    { background: #c85b5b; }
+.attr-element-ice     { background: #648ed0; }
+.attr-element-thunder { background: #9a9035; }
+.attr-element-light   { background: #f2f2f2; color: #111; text-shadow: none; }
+.attr-element-dark    { background: #3d3557; }
+.attr-element-none    { background: #9ca3af; }
+
+.attr-weapon-slash  { background: #7a3db6; }
+.attr-weapon-stab   { background: #d9782b; }
+.attr-weapon-strike { background: #3e9b52; }
+
 /* line-clamp ユーティリティ（CDN版 Tailwind では要明示） */
 .line-clamp-1 {
   overflow: hidden;
