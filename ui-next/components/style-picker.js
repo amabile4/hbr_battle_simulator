@@ -119,9 +119,18 @@ function filterBarHtml() {
   return `
     <div id="picker-filter-bar"
          class="px-3 pt-2 pb-1 border-b border-gray-100 shrink-0 flex flex-col gap-1.5">
-      <!-- 行1: レアリティ -->
-      <div class="flex gap-1.5 justify-center">
-        ${TIER_OPTIONS.map(tierBtn).join('')}
+      <!-- 行1: レアリティ（中央）+ 解除（右端） -->
+      <div class="flex items-center">
+        <div class="flex-1"></div>
+        <div class="flex gap-1.5">
+          ${TIER_OPTIONS.map(tierBtn).join('')}
+        </div>
+        <div class="flex-1 flex justify-end">
+          <button id="picker-reset-filters"
+                  class="text-xs text-gray-400 hover:text-gray-600 underline leading-none">
+            解除
+          </button>
+        </div>
       </div>
       <!-- 行2: 種別グループ + 属性グループ（グループ内は nowrap、グループ間は wrap 可） -->
       <div class="flex gap-1.5 flex-wrap justify-center items-center">
@@ -136,10 +145,6 @@ function filterBarHtml() {
       <!-- 行3: ロール -->
       <div class="flex gap-1 flex-wrap justify-center items-center">
         ${ROLE_OPTIONS.map(roleBtn).join('')}
-        <button id="picker-reset-filters"
-                class="text-xs text-gray-400 hover:text-gray-600 underline leading-none shrink-0 ml-1">
-          解除
-        </button>
       </div>
     </div>
   `;
