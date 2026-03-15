@@ -45,13 +45,14 @@
 - [x] `front 3 + back 3` の 6 slot panel を横並びに表示する
 - [x] slot panel の基本構成を `main icon -> listbox 群 -> support icon` で組む（T04 と合わせて実装）
 - [x] 未選択 slot の empty state と略称 placeholder を定義する
-- [ ] シミュレーター開始後に `Initial Setup` 全体を最小化または再表示できる骨格を入れる
+- [x] `Initial Setup` 右ペインをスライドアウト（⚙ 設定 ◀/▶ ボタン）で開閉できる骨格を入れる
+- [ ] シミュレーター開始後（Apply 後）に `Initial Setup` を最小化する連携は T09 で実装
 
 完了条件:
 
-- [ ] `Initial Setup > Party Setup` の構造が 1 画面で見え、開始後に邪魔にならない退避導線がある
+- [x] `Initial Setup > Party Setup` の構造が 1 画面で見え、退避導線（スライドアウト）がある
 
-> 🔶 T02 部分完了（2026-03-15）: 6 slot パネル（front 3 + back 3）・3タブシェル（Party/Enemy/Stage）・empty state 実装済み。listbox 縦積み・右ペインスライドアウト実装済み（T04と同時）。support icon 選択・最小化骨格は T05〜T08 で実装予定。
+> 🔶 T02 部分完了（2026-03-15）: 6 slot パネル（front 3 + back 3）・3タブシェル（Party/Enemy/Stage）・empty state・listbox 縦積み・右ペインスライドアウト（ヘッダーボタン）実装済み。Apply 後の連携は T09 で実装予定。
 
 ### T03: style 画像表示基盤
 
@@ -63,12 +64,12 @@
 
 - [ ] 6 slot の main / support icon が style 画像つきで描画できる（support icon は T08 で実装予定）
 
-> 🔶 T03 部分完了（2026-03-15）: main icon の `resolveStyleImageUrl()` 描画・fallback・style 名表示実装済み。Style Picker（全画面アイコン高密度 grid）から main style を選択してスロットに反映できる。team 別グループ化・キャラ昇順→レアリティ昇順→実装順ソート・名前表示トグル・ホバー title（`[style名] キャラ名`）実装済み。support icon は T08 で実装予定。
+> 🔶 T03 部分完了（2026-03-15）: main icon の `resolveStyleImageUrl()` 描画・fallback（＋プレースホルダー）・キャラ名オーバーレイ実装済み。Style Picker（全画面アイコン高密度 grid）から main style を選択してスロットに反映できる。team 別グループ化・キャラ昇順→レアリティ昇順→実装順ソート・名前表示トグル・ホバー title（`[style名] キャラ名`）実装済み。support icon は T08 で実装予定。
 
 ### T04: slot listbox 群
 
 - [x] `LB`（限突 0〜N）`ドライブピアス`（DP なし/+10/+12/+15）`SP装備`（なし/SP+1/SP+2/SP+3）`属性ベルト` の listbox を縦積みで配置する
-- [x] `やる気` は やる気パッシブ（label に `Morale` 含む）を持つスタイルがセットされた時だけ表示する
+- [x] `やる気` は やる気パッシブ（label に `Morale` または `Motivation` 含む）を持つスタイルがセットされた時だけ表示する
 - [x] icon 幅と listbox 幅を揃える
 - [x] 未選択時の placeholder 表示（empty state）を入れる
 
@@ -76,7 +77,7 @@
 
 - [x] slot panel 内の基本設定が listbox で編集できる
 
-> ✅ T04 完了（2026-03-15）: LB→「限突 N」表記・SP装備→固定4択・やる気→Moraleパッシブ持ちスタイル時のみ表示。DRIVE_PIERCE_OPTIONS を battle-defaults.js から再利用。右ペインスライドアウトも同時実装。
+> ✅ T04 完了（2026-03-15）: LB→「限突 N」表記・SP装備→固定4択・やる気→Morale/Motivationパッシブ持ちスタイル時のみ表示（8スタイル対象）。DRIVE_PIERCE_OPTIONS を battle-defaults.js から再利用。右ペインスライドアウトも同時実装。
 
 ### T05: D&D による position 入れ替え
 
