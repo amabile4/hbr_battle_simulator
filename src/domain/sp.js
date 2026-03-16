@@ -12,8 +12,9 @@ export const SP_CHANGE_SOURCES = Object.freeze([
  * 回復時のみ凍結ルールを適用し、消費時は下限のみを見る。
  */
 export function applySpChange(current, delta, min, eventCeiling) {
-  if (!Number.isFinite(current) || !Number.isFinite(delta) || !Number.isFinite(min)) {
-    throw new Error('applySpChange requires finite numeric current/delta/min.');
+  // min は Number.NEGATIVE_INFINITY（下限なし）を許容する。
+  if (!Number.isFinite(current) || !Number.isFinite(delta) || typeof min !== 'number' || Number.isNaN(min)) {
+    throw new Error('applySpChange requires finite numeric current/delta (min may be -Infinity for no floor).');
   }
 
   if (delta > 0) {
