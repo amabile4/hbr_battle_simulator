@@ -219,10 +219,15 @@ export class TurnEngineManager {
       const previewRecord = previewTurnRecord(state, actions, null, 1);
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
 
-      // 割込OD 発動可能レベル: 通常ターン・EXターンで判定（OD中のみ不可）
-      // 旧UI準拠: isOdTurn のみ禁止。EXターン中は割込OD可能。
+      // 割込OD 発動可能レベル判定:
+      //   通常ターン・単独EXターン → 可能
+      //   OD中（turnType:'od'）       → 不可（OD中は発動不可）
+      //   OD中のEXターン              → 不可（odSuspended:true でODが一時停止中）
+      //     ※ OD+EX は advanceTurnState が odSuspended フラグで管理する。
+      //       turnType が 'extra' でも odSuspended=true なら OD 文脈内のため禁止。
       const turnType = String(state.turnState?.turnType ?? '');
-      const activatableInterrupt = turnType !== 'od'
+      const odSuspended = Boolean(state.turnState?.odSuspended);
+      const activatableInterrupt = (turnType !== 'od' && !odSuspended)
         ? [1, 2, 3].filter((level) => odGaugeAfter >= getOdGaugeRequirement(level))
         : [];
 
