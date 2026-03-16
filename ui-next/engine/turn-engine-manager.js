@@ -219,15 +219,8 @@ export class TurnEngineManager {
       const previewRecord = previewTurnRecord(state, actions, null, 1);
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
 
-      // 割込OD 発動可能レベル判定:
-      //   通常ターン・単独EXターン → 可能
-      //   OD中（turnType:'od'）       → 不可（OD中は発動不可）
-      //   OD中のEXターン              → 不可（odSuspended:true でODが一時停止中）
-      //     ※ OD+EX は advanceTurnState が odSuspended フラグで管理する。
-      //       turnType が 'extra' でも odSuspended=true なら OD 文脈内のため禁止。
-      const turnType = String(state.turnState?.turnType ?? '');
-      const odSuspended = Boolean(state.turnState?.odSuspended);
-      const activatableInterrupt = (turnType !== 'od' && !odSuspended)
+      const { canInterrupt } = this.#getOdActivationStatus(state.turnState);
+      const activatableInterrupt = canInterrupt
         ? [1, 2, 3].filter((level) => odGaugeAfter >= getOdGaugeRequirement(level))
         : [];
 
@@ -257,17 +250,52 @@ export class TurnEngineManager {
 
   /**
    * 現在 state で発動可能な先制OD レベル一覧を返す。
-   * 通常ターン（turnType === 'normal'）のみ発動可能。
-   * - EXターン: EXは「通常ターン終了後の追加行動」のため、先制OD（行動前発動）は意味をなさない
-   * - OD中: 発動不可
    * @returns {number[]} 発動可能なレベルのリスト（例: [1, 2]）
    */
   getActivatablePreemptiveOdLevels() {
     const state = this.currentState;
     const gauge = Number(state?.turnState?.odGauge ?? 0);
-    const turnType = String(state?.turnState?.turnType ?? '');
-    if (turnType !== 'normal') return [];
+    const { canPreemptive } = this.#getOdActivationStatus(state?.turnState);
+    if (!canPreemptive) return [];
     return [1, 2, 3].filter((level) => gauge >= getOdGaugeRequirement(level));
+  }
+
+  /**
+   * ターン・OD状態・追加状態の三軸を見て、OD発動が可能な文脈かどうかを判定する。
+   *
+   * (1) ターン種別 (turnType): 'normal' / 'od' / 'extra'
+   * (2) OD状態: odSuspended（EX割込中でOD一時停止）/ odPending（EX後にOD発動予約）
+   * (3) 追加状態: extraTurnState（EXターンの行動可能キャラ情報）
+   *
+   * 先制OD (canPreemptive): 通常ターンかつ OD/EX 文脈でない場合のみ可能
+   * 割込OD (canInterrupt) : OD 文脈でなければ可能（単独EXターンは許可）
+   *
+   * @param {object} turnState
+   * @returns {{ canPreemptive: boolean, canInterrupt: boolean }}
+   */
+  #getOdActivationStatus(turnState) {
+    // (1) ターン種別
+    const turnType = String(turnState?.turnType ?? '');
+    const isOdTurn    = turnType === 'od';
+    const isExtraTurn = turnType === 'extra';
+
+    // (2) OD状態: 一時停止中（OD中のEX）/ 発動予約中（EX後にOD）
+    const odSuspended = Boolean(turnState?.odSuspended);
+    const odPending   = Boolean(turnState?.odPending);
+
+    // (3) 追加状態: EXターンの行動許可情報が存在するか
+    const hasExtraState = turnState?.extraTurnState != null;
+
+    // OD文脈: 直接OD中 / OD一時停止中のEX / OD発動待機中のEX
+    const inOdContext = isOdTurn || odSuspended || odPending;
+
+    // 追加ターン文脈: turnType または extraTurnState で判定
+    const inExtraContext = isExtraTurn || hasExtraState;
+
+    return {
+      canPreemptive: !inOdContext && !inExtraContext,
+      canInterrupt:  !inOdContext,
+    };
   }
 
   /**
