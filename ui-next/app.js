@@ -33,12 +33,14 @@ async function fetchJsonOrFallback(path, fallback) {
   }
 }
 
+let _statusTimer = null;
 function showStatus(msg) {
   const el = document.querySelector('[data-role="status"]');
-  if (el) {
-    el.textContent = msg;
-    el.classList.remove('hidden');
-  }
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(_statusTimer);
+  _statusTimer = setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
 async function main() {
@@ -57,27 +59,44 @@ async function main() {
   const store = HbrDataStore.fromRawData(payload);
   const battleStateManager = new BattleStateManager({ store });
   const turnEngineManager = new TurnEngineManager();
+
+  // initialSetup は turnArea の onTurnCommitted から参照するため let で先行宣言する
+  let initialSetup;
+
   const turnArea = new TurnAreaController({
     root: document.querySelector('#turn-area'),
     store,
     engineManager: turnEngineManager,
+    onError: (err) => showStatus(`ターン実行エラー: ${err.message}`),
+    onTurnCommitted: () => initialSetup?.setHasRecords(true),
   });
 
   const setupRoot = document.querySelector('#initial-setup-root');
   const pickerOverlay = document.querySelector('#style-picker-overlay');
 
-  const initialSetup = new InitialSetupController({
+  initialSetup = new InitialSetupController({
     root: setupRoot,
     pickerOverlay,
     store,
     onApply: (snapshot) => {
       try {
         const state = battleStateManager.buildFromSnapshot(snapshot);
-        // snapshot から ReplayScript の setup を生成
         const replaySetup = buildReplaySetupFromSnapshot(snapshot);
         turnArea.initialize(state, replaySetup);
+        initialSetup.setHasRecords(false);
+        window.collapseSetup?.();
       } catch (err) {
         showStatus(`BattleState 生成エラー: ${err.message}`);
+        console.error(err);
+      }
+    },
+    onRecalculate: (snapshot) => {
+      try {
+        const state = battleStateManager.buildFromSnapshot(snapshot);
+        turnArea.reinitialize(state);
+        window.collapseSetup?.();
+      } catch (err) {
+        showStatus(`再計算エラー: ${err.message}`);
         console.error(err);
       }
     },

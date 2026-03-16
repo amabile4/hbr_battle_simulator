@@ -18,15 +18,29 @@ export class InitialSetupController {
   #pickerOverlay;
   #store;
   #onApply;
+  #onRecalculate;
   #partySetup = null;
   #applyBtn = null;
+  #recalcBtn = null;
+  #hasRecords = false;
   #activeTab = 'party';
 
-  constructor({ root, pickerOverlay, store, onApply = null }) {
+  constructor({ root, pickerOverlay, store, onApply = null, onRecalculate = null }) {
     this.#root = root;
     this.#pickerOverlay = pickerOverlay;
     this.#store = store;
     this.#onApply = onApply;
+    this.#onRecalculate = onRecalculate;
+  }
+
+  /**
+   * 記録の有無を外部から通知する。
+   * commitNextTurn 成功時に true、戦闘開始（initialize）時に false を渡す。
+   * @param {boolean} hasRecords
+   */
+  setHasRecords(hasRecords) {
+    this.#hasRecords = hasRecords;
+    this.#updateFooterButtons();
   }
 
   mount() {
@@ -51,14 +65,19 @@ export class InitialSetupController {
         <!-- Party タブコンテンツ -->
         <div data-tab-content="party">
           <div id="party-setup-root"></div>
-          <div class="sticky bottom-0 bg-white border-t border-gray-200 px-3 py-2">
+          <div class="sticky bottom-0 bg-white border-t border-gray-200 px-3 py-2 space-y-1.5">
+            <button data-role="recalc-btn" hidden disabled
+                    class="w-full text-sm py-1.5 rounded-md font-medium bg-amber-500 text-white
+                           disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber-600 transition-colors">
+              ↺ 設定を反映
+            </button>
             <button data-role="apply-btn" disabled
                     class="w-full text-sm py-1.5 rounded-md font-medium bg-blue-500 text-white
                            disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors">
-              Apply
+              ▶ 戦闘開始
             </button>
             <p data-role="apply-hint"
-               class="text-xs text-center text-gray-400 mt-1 hidden">
+               class="text-xs text-center text-gray-400 hidden">
               前衛3スロットを設定してください
             </p>
           </div>
@@ -83,9 +102,9 @@ export class InitialSetupController {
       btn.addEventListener('click', () => this.#switchTab(btn.dataset.tab));
     });
 
-    // Apply ボタン・ヒントへの参照
+    // ボタン・ヒントへの参照
     this.#applyBtn = this.#root.querySelector('[data-role="apply-btn"]');
-    const applyHint = this.#root.querySelector('[data-role="apply-hint"]');
+    this.#recalcBtn = this.#root.querySelector('[data-role="recalc-btn"]');
 
     // PartySetup を初期化（1回のみ）
     const partyRoot = this.#root.querySelector('#party-setup-root');
@@ -93,20 +112,43 @@ export class InitialSetupController {
       root: partyRoot,
       pickerOverlay: this.#pickerOverlay,
       store: this.#store,
-      onChange: (snapshot) => {
-        this.#applyBtn.disabled = !snapshot.isFrontFilled;
-        applyHint.classList.toggle('hidden', snapshot.isFrontFilled);
-      },
+      onChange: () => this.#updateFooterButtons(),
     });
     this.#partySetup.mount();
 
-    // Apply クリック
+    // 戦闘開始クリック
     this.#applyBtn.addEventListener('click', () => {
       if (this.#applyBtn.disabled) return;
       const snapshot = this.#partySetup.getSnapshot();
       if (!snapshot.isFrontFilled) return;
       this.#onApply?.(snapshot);
     });
+
+    // 設定を反映クリック
+    this.#recalcBtn.addEventListener('click', () => {
+      if (this.#recalcBtn.disabled) return;
+      const snapshot = this.#partySetup.getSnapshot();
+      if (!snapshot.isFrontFilled) return;
+      this.#onRecalculate?.(snapshot);
+    });
+  }
+
+  /** ボタンの有効/無効・表示を partySetup の状態と hasRecords に基づいて更新する */
+  #updateFooterButtons() {
+    if (!this.#applyBtn) return;
+    const snapshot = this.#partySetup?.getSnapshot();
+    const filled = snapshot?.isFrontFilled ?? false;
+
+    this.#applyBtn.disabled = !filled;
+
+    const applyHint = this.#root.querySelector('[data-role="apply-hint"]');
+    applyHint?.classList.toggle('hidden', filled);
+
+    // ↺ 設定を反映: 記録がある時のみ表示・前衛が埋まっている時のみ有効
+    if (this.#recalcBtn) {
+      this.#recalcBtn.hidden = !this.#hasRecords;
+      this.#recalcBtn.disabled = !(filled && this.#hasRecords);
+    }
   }
 
   #switchTab(tabId) {

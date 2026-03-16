@@ -281,11 +281,20 @@
 - [x] コンテナクエリ対応レスポンシブ（`#turn-area` の実幅で 40/48/64px・2:1→1:1 を段階変化）
 - [x] SP バッジを黒縁取り白文字にしてアイコン画像を極力隠さない表示に変更
 
-#### T12-E（後続）: 未実装
-- [ ] 開始後に `Initial Setup` を最小化できる
-- [ ] `Initial Setup` の変更を turn 1 から全再計算できる
-- [ ] operations（kishinka/割り込みOD）の UI
-- [ ] 最低限の error 表示（スキル使用失敗等のフィードバック）
+#### T12-E（後続）: 一部実装済み
+- [x] 開始後に `Initial Setup` を最小化できる（T12-E-1 完了）
+- [x] `Initial Setup` の変更を turn 1 から全再計算できる（T12-E-2 完了）
+- [x] **OD 発動・割込OD UI**（T12-E-3 完了）
+  - `TurnEngineManager`: `#pendingPreemptiveOdLevel` / `#pendingInterruptOdLevel` pending フラグ管理
+  - `setPendingPreemptiveOd(level)` / `setPendingInterruptOd(level)` / `getActivatablePreemptiveOdLevels()` 追加
+  - `commitNextTurn`: pending 先制OD を commit 前に `activateOverdrive` 実行、割込OD を `interruptOdLevel` で commit
+  - `previewCurrentTurn`: pending 先制OD 加味・`activatableInterrupt` 返却
+  - `recalculateFrom`: `ACTIVATE_PREEMPTIVE_OD` / `RESERVE_INTERRUPT_OD` operations を再現
+  - `TurnRow`: ボタン列に先制OD / 割込OD select 追加（発動不可レベルは disabled）
+  - `TurnArea`: `#handleOdChange` / `#buildOdState` 追加。スキル変更時に `updateInterruptOdCandidates` で候補更新
+  - **旧実装比較**: checkpoint/restore（70行）を排除。両 OD を対称的な pending フラグで管理
+  - kishinka は別タスク（将来）
+- [x] 最低限の error 表示（スキル使用失敗等のフィードバック）（T12-E-4 完了）
 - [x] **SP 表示バグ修正**（コミット済み行が常に最新 SP を表示する問題）
   - 詳細: [ui_next_engine_fix_tasklist.md](ui_next_engine_fix_tasklist.md) Task A
   - `turn-row.js` の `#buildFrontSlotHtml` / `#buildBackSlotHtml` で
@@ -305,7 +314,81 @@
 - [x] D&D でターン内のスロット順を入れ替えできる
 - [ ] 「`Initial Setup > Party Setup` を中心に、style 選択と D&D ができ、後続の enemy / stage setup を差し込める新ページ」が成立している（T12-E 完了後）
 
-> 🔶 T12 部分完了（2026-03-15〜03-16）: T12-A〜D + T12-UX 実装済み。T12-E（最小化・再計算・OD 操作・エラー表示・OD ゲージ未コミット After 値プレビュー）は未実装。
+> 🔶 T12 部分完了（2026-03-15〜03-16）: T12-A〜D + T12-UX + T12-E-1〜E-4 実装済み。kishinka は将来タスク。
+
+---
+
+## 次セッション引き継ぎ（2026-03-16 時点）
+
+### 現在地
+
+**T12-E が次の作業対象**。以下の順で進めることを推奨する。
+
+```
+T12-E-1: Initial Setup 最小化（Apply 後）           ← 最優先・実装簡単
+T12-E-4: エラー表示（スキル失敗フィードバック）        ← 次点・実装簡単
+T12-E-2: Initial Setup 変更後の全再計算              ← TurnEngineManager 改修が必要
+T12-E-3: operations（kishinka / 割り込みOD）UI       ← 最難・後続タスクとして分離可
+```
+
+### T12-E-1: Initial Setup 最小化（Apply 後）
+
+**実装ポイント**:
+- `app.js` の `onApply` コールバック内で、右ペイン（`#setup-area`）をスライドアウト
+- `index.html` の toggle ボタン（`#toggle-setup`）と同じ `translateX(100%)` ロジックを再利用
+- Apply 後は「⚙ 設定 ▶」状態にして、ユーザーが再展開できるようにする
+- `InitialSetupController` に `collapse()` / `expand()` メソッドを追加するか、`app.js` 側で DOM 操作するか選ぶ
+
+**参照ファイル**:
+- `ui-next/index.html:67-81` — toggle ロジック（setupOpen フラグ・translateX・textContent）
+- `ui-next/app.js:73-84` — `onApply` コールバック
+
+### T12-E-4: エラー表示
+
+**実装ポイント**:
+- `index.html` に既存の `[data-role="status"]` エラーパネルがある（`app.js:36-41` の `showStatus()`）
+- `TurnAreaController` に `onError` コールバックを追加して、`commitNextTurn` 失敗時に呼ぶ
+- `turn-row.js` の `#handleCommit` → `TurnAreaController` → `showStatus()` の経路を繋ぐ
+- エラー内容: SP 不足・スキル制約違反などはエンジンが例外で返す
+
+### T12-E-2: 全再計算（Initial Setup 変更後）
+
+**実装ポイント**:
+- `TurnEngineManager.recalculateAll(newInitialState, newReplaySetup)` を追加する
+- `TurnAreaController.reinitialize(newState, newReplaySetup)` を追加（initialize との違いは既存ターン列を保持しつつ再計算）
+- `app.js` の `onApply` コールバックが 2 回目以降呼ばれた場合に reinitialize を呼ぶ
+
+**注意**: 既コミット済みターンの ReplayScript（slots + note）は保持し、新 BattleState で再計算のみする。
+`TurnEngineManager.recalculateFrom(0)` が既に存在するため、初期状態を差し替えて全ターン再計算する形で実装できる可能性がある。
+
+**参照ファイル**:
+- `ui-next/engine/turn-engine-manager.js` — `recalculateFrom(fromIndex)` の実装を確認してから設計する
+
+### T12-E-3: operations（kishinka / 割り込みOD）
+
+**実装ポイント（後続タスクとして独立させること）**:
+- kishinka: `src/turn/turn-controller.js` の `activateReinforcedMode` + OD ゲージ処理
+  → 旧UI実装: `dom-adapter.js:6570-6600` が参考（ただし直接 state 変更なので注意）
+  → 新UI: `TurnEngineManager` にメソッドを追加し、エンジン経由で state を更新する
+- 割り込みOD: `src/turn/turn-controller.js:8593` の `activateOverdrive(state, level, 'interrupt')`
+  → 旧UI実装: `dom-adapter.js:7395-7470`（`isPreemptiveOdStep1` の重複判定に注意）
+  → 新UI: `TurnEngineManager.activateInterruptOd(level)` として分離実装する
+
+**ゲームルール参照**:
+- OD発動: `docs/specs/ui_next_game_rules_index.md` §D（activateOverdrive の行番号・引数）
+- 設計原則: `docs/specs/dev_principles.md` §5 の原則2・5（state 直接変更禁止）
+
+### その他の参照情報
+
+| 参照先 | 用途 |
+|--------|------|
+| `docs/specs/ui_next_game_rules_index.md` | ゲームルール辞書（エンジン関数・行番号） |
+| `docs/specs/dev_principles.md` §5 | 新UI設計指針・やってはいけない例（旧実装引用） |
+| `ui-next/engine/turn-engine-manager.js` | engine bridge の現状実装 |
+| `src/ui/adapter-core.js:425` | `queueSwapState`・swap キューイングの参考 |
+| `src/ui/dom-adapter.js` | 旧UI実装（grep で参照・編集は不可） |
+
+---
 
 ## メモ
 

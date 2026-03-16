@@ -1,8 +1,16 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
 
-/** OD ゲージ値を "000.00%" 形式にフォーマットする */
+/**
+ * OD ゲージ値を "000.00%" 形式にフォーマットする。
+ * 負の値は "-000.00%" 形式（符号の後ろをゼロ埋め）。
+ * エンジン仕様の範囲は [-999.99, 300]。
+ */
 function formatOdGauge(value) {
-  return Number(value ?? 0).toFixed(2).padStart(6, '0') + '%';
+  const num = Number(value ?? 0);
+  if (num < 0) {
+    return '-' + Math.abs(num).toFixed(2).padStart(6, '0') + '%';
+  }
+  return num.toFixed(2).padStart(6, '0') + '%';
 }
 
 /**
@@ -23,13 +31,16 @@ export class TurnRowController {
   #onCommit;
   #onNoteChange;
   #onPreviewRequest;
+  #onOdChange;
+  // OD 選択状態（未コミット行のみ使用）
+  #odState = null;  // { preemptiveOdLevel, interruptOdLevel, activatablePreemptive, activatableInterrupt }
 
   // D&D 用
   #dragSrcPosition = null;
   // update() 時にスキル選択を保持するための一時フィールド
   #savedSlotActions = null;
 
-  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest }) {
+  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest, onOdChange, odState = null }) {
     this.#root = root;
     this.#store = store;
     this.#turnIndex = turnIndex;
@@ -40,6 +51,8 @@ export class TurnRowController {
     this.#onCommit = onCommit;
     this.#onNoteChange = onNoteChange;
     this.#onPreviewRequest = onPreviewRequest;
+    this.#onOdChange = onOdChange;
+    this.#odState = odState;
   }
 
   mount() {
@@ -47,7 +60,7 @@ export class TurnRowController {
     this.#bindEvents();
   }
 
-  update({ record, stateBefore, stateAfter }) {
+  update({ record, stateBefore, stateAfter, odState = undefined }) {
     // 未コミット行→未コミット行の再描画（D&D など）ではスキル選択を保持する。
     // DOM の data-party-index 属性から直接 partyIndex を読むことで、
     // swapCurrentPositions() による state の事前書き換えの影響を受けない。
@@ -65,9 +78,32 @@ export class TurnRowController {
     this.#record = record;
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
+    if (odState !== undefined) this.#odState = odState;
     this.#root.innerHTML = this.#buildHtml();
     this.#savedSlotActions = null;
     this.#bindEvents();
+  }
+
+  /**
+   * 割込OD 発動可能候補を部分更新する（全再描画なし）。
+   * スキル変更のたびに previewCurrentTurn が返す候補を反映する。
+   * @param {number[]} candidates 発動可能レベルの配列（例: [1, 2]）
+   */
+  updateInterruptOdCandidates(candidates) {
+    const sel = this.#root.querySelector('[data-od-type="interrupt"]');
+    if (!sel) return;
+    [...sel.options].forEach((opt) => {
+      const lv = Number(opt.value);
+      if (lv >= 1 && lv <= 3) {
+        opt.disabled = !candidates.includes(lv);
+      }
+    });
+    // 選択中レベルが候補から外れた場合はリセット
+    const currentLv = Number(sel.value);
+    if (currentLv >= 1 && !candidates.includes(currentLv)) {
+      sel.value = '';
+      this.#onOdChange?.(this.#turnIndex, 'interrupt', null);
+    }
   }
 
   /** コミットボタン押下時に呼ばれる前に TurnAreaController が現在のスロット選択を収集するため */
@@ -408,15 +444,59 @@ export class TurnRowController {
 
   #buildButtonHtml(isCommitted) {
     if (isCommitted) {
-      return `<div class="flex-shrink-0 w-12"></div>`;
+      return `<div class="flex-shrink-0 w-[72px]"></div>`;
     }
+
+    const od = this.#odState;
+    const preemptiveLevel = od?.preemptiveOdLevel ?? null;
+    const interruptLevel  = od?.interruptOdLevel  ?? null;
+    const canPreemptive   = od?.activatablePreemptive ?? [];
+    const canInterrupt    = od?.activatableInterrupt  ?? [];
+
+    // 先制OD select オプション
+    const preemptiveOptions = [
+      `<option value="">先制—</option>`,
+      ...[1, 2, 3].map((lv) => {
+        const disabled  = !canPreemptive.includes(lv) ? 'disabled' : '';
+        const selected  = preemptiveLevel === lv ? 'selected' : '';
+        return `<option value="${lv}" ${disabled} ${selected}>OD${lv}</option>`;
+      }),
+    ].join('');
+
+    // 割込OD select オプション
+    const interruptOptions = [
+      `<option value="">割込—</option>`,
+      ...[1, 2, 3].map((lv) => {
+        const disabled  = !canInterrupt.includes(lv) ? 'disabled' : '';
+        const selected  = interruptLevel === lv ? 'selected' : '';
+        return `<option value="${lv}" ${disabled} ${selected}>OD${lv}</option>`;
+      }),
+    ].join('');
+
+    const preemptiveActive = preemptiveLevel != null;
+    const interruptActive  = interruptLevel  != null;
+
     return `
-      <div class="flex-shrink-0 w-12 flex flex-col items-center justify-center gap-1 px-1 py-1">
+      <div class="flex-shrink-0 w-[72px] flex flex-col items-stretch justify-center gap-0.5 px-1 py-1">
         <button data-role="commit-btn"
                 class="w-full text-xs py-1 rounded bg-blue-500 text-white font-medium
                        hover:bg-blue-600 active:bg-blue-700 transition-colors">
           実行
         </button>
+        <select data-od-type="preemptive" title="先制OD"
+                class="w-full text-[11px] border rounded px-0.5 py-px focus:outline-none focus:ring-1
+                       ${preemptiveActive
+                         ? 'border-purple-400 bg-purple-100 text-purple-700 font-semibold focus:ring-purple-300'
+                         : 'border-gray-200 bg-white text-gray-400 focus:ring-gray-300'}">
+          ${preemptiveOptions}
+        </select>
+        <select data-od-type="interrupt" title="割込OD"
+                class="w-full text-[11px] border rounded px-0.5 py-px focus:outline-none focus:ring-1
+                       ${interruptActive
+                         ? 'border-orange-400 bg-orange-100 text-orange-700 font-semibold focus:ring-orange-300'
+                         : 'border-gray-200 bg-white text-gray-400 focus:ring-gray-300'}">
+          ${interruptOptions}
+        </select>
       </div>`;
   }
 
@@ -453,6 +533,17 @@ export class TurnRowController {
     noteEl?.addEventListener('input', () => {
       this.#onNoteChange?.(this.#turnIndex, noteEl.value);
     });
+
+    // OD select（未コミット行のみ）
+    if (this.#record === null) {
+      this.#root.querySelectorAll('[data-od-type]').forEach((sel) => {
+        sel.addEventListener('change', () => {
+          const odType = sel.dataset.odType;  // 'preemptive' | 'interrupt'
+          const level = sel.value === '' ? null : Number(sel.value);
+          this.#onOdChange?.(this.#turnIndex, odType, level);
+        });
+      });
+    }
 
     // D&D（未コミット行のみ）
     if (this.#record === null) {

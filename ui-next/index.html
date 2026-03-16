@@ -64,9 +64,9 @@
     const setupArea = document.getElementById('setup-area');
     let setupOpen = true;
 
-    toggleBtn.addEventListener('click', () => {
-      setupOpen = !setupOpen;
-      if (setupOpen) {
+    function applySetupOpen(open) {
+      setupOpen = open;
+      if (open) {
         setupArea.style.transform = '';
         setupArea.style.width = '';
         setupArea.style.minWidth = '';
@@ -77,7 +77,12 @@
         setupArea.style.minWidth = '0';
         toggleBtn.textContent = '⚙ 設定 ▶';
       }
-    });
+    }
+
+    toggleBtn.addEventListener('click', () => applySetupOpen(!setupOpen));
+
+    // app.js から Apply 後に呼び出して右ペインを閉じる
+    window.collapseSetup = () => applySetupOpen(false);
   </script>
 </body>
 </html>

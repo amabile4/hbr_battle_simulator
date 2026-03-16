@@ -51,7 +51,7 @@ docs/
 | [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | `Initial Setup` を上位概念に置き、`Party Setup / Enemy Setup / Stage Setup` と full-screen `Style Picker` の責務を整理した UI Next 設計メモ | 2026-03-15 |
 | [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next 初回マイルストーン向けに、`Initial Setup > Party Setup` と picker を優先し、後続の `Enemy Setup / Stage Setup` 拡張点も示した GUI モック参照資料 | 2026-03-15 |
 | [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | `Initial Setup` / `Style Picker` の 2 層、`Party Setup` 実装、`Enemy Setup / Stage Setup` 拡張点、engine bridge を段階化した UI Next 実装タスクリスト | 2026-03-15 |
-| [active/ui_next_old_impl_reference_tasklist.md](active/ui_next_old_impl_reference_tasklist.md) | 🟢 進行中 | 旧実装（js/）のゲームルール索引化・肥大化原因分析・新 UI 設計指針策定タスクリスト | 2026-03-16 |
+| [active/ui_next_old_impl_reference_tasklist.md](active/ui_next_old_impl_reference_tasklist.md) | ✅ 完了 | 旧実装（ui/）のゲームルール索引化・肥大化原因分析・新 UI 設計指針策定タスクリスト（T01〜T04 全完了） | 2026-03-16 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | `TurnAction` を正本に寄せ、Commit 時 Position を保存し `record` を再生成物へ戻す軽量 replay/edit 設計案 | 2026-03-14 |
 | [active/lightweight_record_replay_implementation_tasklist.md](active/lightweight_record_replay_implementation_tasklist.md) | ✅ 完了 | T01-T10 完了。`ReplayScript` 正本化、best-effort replay、extensible setup/override、legacy turnPlan bridge、warning/diagnostics UI まで実装完了 | 2026-03-15 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
@@ -88,7 +88,8 @@ docs/
 | [specs/repo_workflow.md](specs/repo_workflow.md) | project 固有の branch 命名、merge 方針、shared 変更の流し方、git 実行安全ルール | 2026-03-15 |
 | [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（ドライブピアス補正式・実機照合済み） | 2026-03-01 |
 | [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
-| [specs/dev_principles.md](specs/dev_principles.md) | 開発原則：バグ切り分け・UI/エンジン責務境界・安易な実装禁止事項 | 2026-03-16 |
+| [specs/dev_principles.md](specs/dev_principles.md) | 開発原則：バグ切り分け・UI/エンジン責務境界・安易な実装禁止事項・新UI設計指針（原則1〜5） | 2026-03-16 |
+| [specs/ui_next_game_rules_index.md](specs/ui_next_game_rules_index.md) | UI Next 旧実装参照インデックス：旧UIファイル構造・spec要素対応表・エンジン層ゲームルール辞書（A〜E カテゴリ） | 2026-03-16 |
 
 ---
 

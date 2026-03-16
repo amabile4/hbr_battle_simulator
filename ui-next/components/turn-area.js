@@ -7,17 +7,22 @@ import { TurnRowController } from './turn-row.js';
  * - Commit → commitNextTurn → 次のターン行を追加
  * - 過去ターンのスロット変更 → updateSlot → recalculateFrom → refreshRows
  * - D&D swap → onSlotChange の swapWith フィールドで検知してポジション入れ替え
+ * - OD 操作 → onOdChange で TurnEngineManager の pending フラグを更新
  */
 export class TurnAreaController {
   #root;
   #store;
   #engineManager;
+  #onError;
+  #onTurnCommitted;
   #rowControllers = [];
 
-  constructor({ root, store, engineManager }) {
+  constructor({ root, store, engineManager, onError = null, onTurnCommitted = null }) {
     this.#root = root;
     this.#store = store;
     this.#engineManager = engineManager;
+    this.#onError = onError;
+    this.#onTurnCommitted = onTurnCommitted;
   }
 
   /**
@@ -30,6 +35,28 @@ export class TurnAreaController {
     this.#root.innerHTML = '';
     this.#rowControllers = [];
     this.#appendInputRow();
+  }
+
+  /**
+   * ターン列を保持したまま初期 BattleState を差し替えて全再計算する。
+   * Party Setup 変更後の「↺ 設定を反映」に使用。
+   * @param {object} newInitialState 新しい初期 BattleState
+   */
+  reinitialize(newInitialState) {
+    if (this.#engineManager.committedTurnCount === 0) {
+      // 記録がなければ通常の initialize と同じ（入力行の stateBefore だけ更新）
+      this.#engineManager.recalculateAll(newInitialState);
+      const lastRow = this.#rowControllers.at(-1);
+      lastRow?.update({
+        record: null,
+        stateBefore: this.#engineManager.currentState,
+        stateAfter: null,
+        odState: this.#buildOdState([]),
+      });
+      return;
+    }
+    this.#engineManager.recalculateAll(newInitialState);
+    this.#refreshRowsFrom(0);
   }
 
   // ---- private ----
@@ -46,10 +73,12 @@ export class TurnAreaController {
       record: null,
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
+      odState: this.#buildOdState([]),
       onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
       onCommit: (ti) => this.#handleCommit(ti),
       onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
       onPreviewRequest: (ti, slotActions) => this.#handlePreviewRequest(ti, slotActions),
+      onOdChange: (ti, odType, level) => this.#handleOdChange(ti, odType, level),
     });
 
     row.mount();
@@ -65,7 +94,7 @@ export class TurnAreaController {
       this.#engineManager.commitNextTurn(slotActions, { note });
     } catch (err) {
       console.error('TurnAreaController: commitNextTurn failed:', err);
-      // TODO: エラー表示
+      this.#onError?.(err);
       return;
     }
 
@@ -73,6 +102,8 @@ export class TurnAreaController {
     this.#refreshRow(turnIndex);
     // 次のターン入力行を追加
     this.#appendInputRow();
+    // 記録が生まれたことを通知（↺ 設定を反映ボタンの有効化に使用）
+    this.#onTurnCommitted?.();
   }
 
   #handleSlotChange(turnIndex, position, action) {
@@ -91,26 +122,58 @@ export class TurnAreaController {
   }
 
   /**
+   * 未コミット行の OD 操作。
+   * TurnEngineManager の pending フラグを更新し、入力行を再描画する。
+   * @param {number} turnIndex
+   * @param {'preemptive'|'interrupt'} odType
+   * @param {number|null} level
+   */
+  #handleOdChange(turnIndex, odType, level) {
+    if (odType === 'preemptive') {
+      this.#engineManager.setPendingPreemptiveOd(level);
+    } else {
+      this.#engineManager.setPendingInterruptOd(level);
+    }
+
+    // 先制OD 変更はプレビュー結果（スキル/OD%）が変わるため全再描画
+    const lastRow = this.#rowControllers.at(-1);
+    const slotActions = lastRow?.getCurrentSlotActions() ?? {};
+    const preview = this.#engineManager.previewCurrentTurn(slotActions);
+
+    lastRow?.update({
+      record: null,
+      stateBefore: this.#engineManager.currentState,
+      stateAfter: null,
+      odState: this.#buildOdState(preview?.activatableInterrupt ?? []),
+    });
+    // OD After ゲージを更新
+    lastRow?.updateOdPreview(preview?.odGaugeAfter ?? null);
+  }
+
+  /**
    * 未コミット行のスキル変更によるプレビューリクエスト。
-   * TurnEngineManager に現在ターンをプレビューさせ、OD After 値を更新する。
+   * TurnEngineManager に現在ターンをプレビューさせ、OD After 値と割込OD候補を更新する。
    */
   #handlePreviewRequest(turnIndex, slotActions) {
     const preview = this.#engineManager.previewCurrentTurn(slotActions);
     const lastRow = this.#rowControllers.at(-1);
     lastRow?.updateOdPreview(preview?.odGaugeAfter ?? null);
+    lastRow?.updateInterruptOdCandidates(preview?.activatableInterrupt ?? []);
   }
 
   /**
    * 未コミット行でのスロット D&D 入れ替え。
-   * ポジション変更は TurnEngineManager に委譲し、UI は再描画のみ担当する。
    */
   #handleSwap(turnIndex, srcPosition, dstPosition) {
     this.#engineManager.swapCurrentPositions(srcPosition, dstPosition);
     const lastRow = this.#rowControllers.at(-1);
+    const slotActions = lastRow?.getCurrentSlotActions() ?? {};
+    const preview = this.#engineManager.previewCurrentTurn(slotActions);
     lastRow?.update({
       record: null,
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
+      odState: this.#buildOdState(preview?.activatableInterrupt ?? []),
     });
   }
 
@@ -139,6 +202,20 @@ export class TurnAreaController {
       record: null,
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
+      odState: this.#buildOdState([]),
     });
+  }
+
+  /**
+   * 未コミット行に渡す odState を構築する。
+   * @param {number[]} activatableInterrupt プレビュー結果から得た割込OD候補（なければ []）
+   */
+  #buildOdState(activatableInterrupt) {
+    return {
+      preemptiveOdLevel:    this.#engineManager.pendingPreemptiveOdLevel,
+      interruptOdLevel:     this.#engineManager.pendingInterruptOdLevel,
+      activatablePreemptive: this.#engineManager.getActivatablePreemptiveOdLevels(),
+      activatableInterrupt,
+    };
   }
 }
