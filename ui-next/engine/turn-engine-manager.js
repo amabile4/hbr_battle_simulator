@@ -14,13 +14,10 @@ import {
  * - 内部で previewTurn → commitTurn の 2段階を処理する
  * - 過去ターンのスロット変更は recalculateFrom() で該当ターン以降を再計算する
  *
- * ⚠️ 既知の制限（エンジン側修正待ち）:
- *   commitTurn() は nextState = { ...state, party: [...state.party] } という shallow copy を行い、
- *   commitSkillPreview() が CharacterStyle を in-place mutation するため、
- *   全 state が party メンバーの SP 参照を共有する。
- *   結果として「コミット済み行の SP 表示」が常に最新ターン後の値になるバグがある。
- *   → 修正方針: src/records/record-assembler.js で committedRecord に spAtTurnStart を追加する。
- *      詳細: docs/active/ui_next_engine_fix_tasklist.md
+ * ✅ engine 修正済み（PR #4）:
+ *   commitTurn() が party: state.party.map(m => m.clone()) で deep copy するため、
+ *   各ターンの CharacterStyle インスタンスは独立している。
+ *   recalculateFrom() は #alignPositionsToSlots で各ターンの position を slots から復元する。
  */
 export class TurnEngineManager {
   #initialState = null;
@@ -145,11 +142,16 @@ export class TurnEngineManager {
       ? this.#initialState
       : this.#computedStates[fromIndex - 1];
 
-    let state = baseState;
+    // baseState の party を clone して作業用コピーを作る。
+    // #alignPositionsToSlots が position を書き換えるため、permanent state を汚染しないよう独立させる。
+    let state = { ...baseState, party: baseState.party.map((m) => m.clone()) };
     const turns = this.#replayScript.turns;
 
     for (let i = fromIndex; i < turns.length; i++) {
       const turn = turns[i];
+      // replayTurn.slots[i].styleId に記録された配置に従い、各メンバーの position を復元する。
+      // commitTurnRecord が party を deep copy するため、この mutation は次のターン以降の state に影響しない。
+      this.#alignPositionsToSlots(state, turn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
 
       // 先制OD operation を再現
@@ -387,5 +389,21 @@ export class TurnEngineManager {
     if (!op) return null;
     const level = Number(op.payload?.level ?? op.level);
     return Number.isFinite(level) && level >= 1 && level <= 3 ? level : null;
+  }
+
+  /**
+   * replayTurn.slots[i].styleId に基づいて state.party の各メンバーの position を復元する。
+   * D&D ポジション変更を recalculateFrom で正確に再現するために使用する。
+   * commitTurnRecord が party を deep copy するため、この mutation は次のターン以降の state に影響しない。
+   * @param {object} state BattleState（作業用コピー）
+   * @param {object} replayTurn LightweightReplayTurn
+   */
+  #alignPositionsToSlots(state, replayTurn) {
+    for (let i = 0; i < replayTurn.slots.length; i++) {
+      const slot = replayTurn.slots[i];
+      if (slot?.styleId == null) continue;
+      const member = state.party.find((m) => m.styleId === slot.styleId);
+      if (member) member.position = i;
+    }
   }
 }
