@@ -219,9 +219,10 @@ export class TurnEngineManager {
       const previewRecord = previewTurnRecord(state, actions, null, 1);
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
 
-      // 割込OD 発動可能レベル: 通常ターンのみ判定（OD中・EX中は不可）
-      const isTurnNormal = String(state.turnState?.turnType ?? '') === 'normal';
-      const activatableInterrupt = isTurnNormal
+      // 割込OD 発動可能レベル: 通常ターン・EXターンで判定（OD中のみ不可）
+      // 旧UI準拠: isOdTurn のみ禁止。EXターン中は割込OD可能。
+      const turnType = String(state.turnState?.turnType ?? '');
+      const activatableInterrupt = turnType !== 'od'
         ? [1, 2, 3].filter((level) => odGaugeAfter >= getOdGaugeRequirement(level))
         : [];
 
@@ -251,14 +252,14 @@ export class TurnEngineManager {
 
   /**
    * 現在 state で発動可能な先制OD レベル一覧を返す。
-   * 通常ターン以外（OD中・EX中）は常に空配列。
+   * OD中（turnType === 'od'）のみ禁止。通常ターン・EXターンは発動可能。
    * @returns {number[]} 発動可能なレベルのリスト（例: [1, 2]）
    */
   getActivatablePreemptiveOdLevels() {
     const state = this.currentState;
     const gauge = Number(state?.turnState?.odGauge ?? 0);
     const turnType = String(state?.turnState?.turnType ?? '');
-    if (turnType !== 'normal') return [];
+    if (turnType === 'od') return [];
     return [1, 2, 3].filter((level) => gauge >= getOdGaugeRequirement(level));
   }
 
