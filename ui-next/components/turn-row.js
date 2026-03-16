@@ -317,6 +317,7 @@ export class TurnRowController {
     const spDisplay = isCommitted
       ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
       : (member.sp?.current ?? '—');
+    const spColor = typeof spDisplay === 'number' && spDisplay < 0 ? '#ef4444' : '#ffffff';
     // コミット済み: record から復元 / 未コミット: D&D 後の保存値（partyIndex キー）→ なければ先頭スキル
     // TODO: skills[0] が通常攻撃/指揮行動であることは JSON 挿入順への暗黙依存。
     //       CharacterStyle.getDefaultActionSkillId() が追加されたらそちらに移行する。
@@ -360,8 +361,8 @@ export class TurnRowController {
                       class="w-full h-full object-cover" />`
               : `<div class="w-full h-full flex items-center justify-center text-gray-300">？</div>`
             }
-            <div data-sp-badge class="absolute -top-0.5 -right-0.5 text-white font-bold leading-none text-center px-1 py-0.5 min-w-[20px]"
-                 style="text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.9);">
+            <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px]"
+                 style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.9);">
               ${spDisplay}
             </div>
           </div>
@@ -379,6 +380,7 @@ export class TurnRowController {
     const sp = isCommitted
       ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
       : (member.sp?.current ?? '—');
+    const spColor = typeof sp === 'number' && sp < 0 ? '#ef4444' : '#ffffff';
     const labelClass = isCommitted
       ? 'text-gray-300 border-gray-100 bg-gray-50'
       : 'text-amber-400 border-amber-100 bg-amber-50';
@@ -395,8 +397,8 @@ export class TurnRowController {
                       class="w-full h-full object-cover opacity-40" />`
               : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
             }
-            <div data-sp-badge class="absolute -top-0.5 -right-0.5 text-white font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-60"
-                 style="text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
+            <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-60"
+                 style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
               ${sp}
             </div>
           </div>
@@ -411,6 +413,7 @@ export class TurnRowController {
     const sp = isCommitted
       ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
       : (member.sp?.current ?? '—');
+    const spColor = typeof sp === 'number' && sp < 0 ? '#ef4444' : '#ffffff';
 
     // EX ターン: allowedCharacterIds に含まれない後衛メンバーはドラッグ不可
     const draggable = !isCommitted && (!this.#isExtraTurn() || this.#isActionable(member));
@@ -431,8 +434,8 @@ export class TurnRowController {
                       class="w-full h-full object-cover opacity-60" />`
               : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
             }
-            <div data-sp-badge class="absolute -top-0.5 -right-0.5 text-white font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-80"
-                 style="text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
+            <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-80"
+                 style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
               ${sp}
             </div>
           </div>
