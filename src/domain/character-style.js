@@ -485,12 +485,9 @@ export class CharacterStyle {
     if (consumeType === 'Motivation' && rawCost === -1) {
       deltaMotivation = -startMotivation;
     }
-    // Sp()>=0 条件を持つスキル（is_adv: true && sp_cost > 0）は SP がマイナスになることを許容する。
-    // 例: SP7 で SP10 消費スキル → SP-3（0 にクランプしない）。
-    const spMin = String(skill.cond ?? '').includes('Sp()>=0')
-      ? Number.NEGATIVE_INFINITY
-      : this.sp.min;
-    const endSP = applySpChange(startSP, deltaSP, spMin, Number.POSITIVE_INFINITY);
+    // シミュレーター方針: SP は常にマイナスを許容する（下限なし）。
+    // ユーザーが編集でSPが不足しても、マイナス値をそのまま表示してユーザーが判断する。
+    const endSP = applySpChange(startSP, deltaSP, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY);
     const endEP = applySpChange(startEP, deltaEP, this.ep.min, Number.POSITIVE_INFINITY);
     const endToken = applySpChange(
       startToken,

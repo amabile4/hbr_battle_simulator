@@ -325,3 +325,64 @@ test('"SPが0以上" スキル（仕組みB）: SP < 0 のとき使用不可', (
     'SP < 0 のとき Sp()>=0 条件を満たさないためエラー'
   );
 });
+
+// ─────────────────────────────────────────────────────────────
+// T15: SP3 + sp_cost=15 の is_adv スキル — SP が -12 になることを確認（SP0 クランプなし）
+// ─────────────────────────────────────────────────────────────
+
+test('SP 下限なし: SP3 + sp_cost=15 (is_adv=true) → endSP = -12', () => {
+  const party = buildShreddingParty({
+    0: {
+      initialSP: 3,
+      skills: [
+        {
+          id: ADV_SKILL_ID,
+          name: 'トゥルーペネトレーター相当',
+          sp_cost: 15,
+          is_adv: true,
+          cond: 'Sp()>=0',
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+        },
+      ],
+    },
+  });
+
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'SH1', skillId: ADV_SKILL_ID, targetEnemyIndex: 0 },
+    1: { characterId: 'SH2', skillId: NORMAL_SKILL_ID + 1 },
+    2: { characterId: 'SH3', skillId: NORMAL_SKILL_ID + 2 },
+  });
+
+  const entry = preview.actions.find((a) => a.characterId === 'SH1');
+  assert.equal(entry.startSP, 3, 'startSP = 3');
+  assert.equal(entry.endSP, -12, 'endSP = -12（SP3 - 15 = -12、SP0 にクランプされない）');
+});
+
+test('SP 下限なし: SP3 + sp_cost=15 (is_adv=false、通常スキル) → endSP = -12', () => {
+  const party = buildShreddingParty({
+    0: {
+      initialSP: 3,
+      skills: [
+        {
+          id: ADV_SKILL_ID,
+          name: '通常高コストスキル',
+          sp_cost: 15,
+          is_adv: false,
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+        },
+      ],
+    },
+  });
+
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'SH1', skillId: ADV_SKILL_ID, targetEnemyIndex: 0 },
+    1: { characterId: 'SH2', skillId: NORMAL_SKILL_ID + 1 },
+    2: { characterId: 'SH3', skillId: NORMAL_SKILL_ID + 2 },
+  });
+
+  const entry = preview.actions.find((a) => a.characterId === 'SH1');
+  assert.equal(entry.startSP, 3, 'startSP = 3');
+  assert.equal(entry.endSP, -12, 'endSP = -12（is_adv=false でも SP0 クランプなし）');
+});
