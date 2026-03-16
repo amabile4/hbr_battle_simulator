@@ -252,14 +252,16 @@ export class TurnEngineManager {
 
   /**
    * 現在 state で発動可能な先制OD レベル一覧を返す。
-   * OD中（turnType === 'od'）のみ禁止。通常ターン・EXターンは発動可能。
+   * 通常ターン（turnType === 'normal'）のみ発動可能。
+   * - EXターン: EXは「通常ターン終了後の追加行動」のため、先制OD（行動前発動）は意味をなさない
+   * - OD中: 発動不可
    * @returns {number[]} 発動可能なレベルのリスト（例: [1, 2]）
    */
   getActivatablePreemptiveOdLevels() {
     const state = this.currentState;
     const gauge = Number(state?.turnState?.odGauge ?? 0);
     const turnType = String(state?.turnState?.turnType ?? '');
-    if (turnType === 'od') return [];
+    if (turnType !== 'normal') return [];
     return [1, 2, 3].filter((level) => gauge >= getOdGaugeRequirement(level));
   }
 
