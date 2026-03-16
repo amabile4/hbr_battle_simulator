@@ -1,4 +1,5 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
+import { formatSkillCostLabel } from '../utils/skill-label.js';
 
 /**
  * OD ゲージ値を "000.00%" 形式にフォーマットする。
@@ -327,12 +328,14 @@ export class TurnRowController {
       : (this.#savedSlotActions?.[member.partyIndex]?.skillId ?? skills[0]?.skillId ?? null);
 
     const hasSelection = selectedSkillId != null;
+    // this.#stateBefore が null の場合は formatSkillCostLabel が raw spCost をフォールバック表示する。
+    const stateForCost = this.#stateBefore ?? null;
     const skillOptions = [
       `<option value=""${hasSelection ? '' : ' selected'}>— スキル選択 —</option>`,
       ...skills.map((s) => {
         const selected = selectedSkillId === s.skillId ? 'selected' : '';
-        const cost = s.spCost > 0 ? `SP${s.spCost} ` : '';
-        return `<option value="${s.skillId}" ${selected}>${cost}${s.name}</option>`;
+        const costLabel = formatSkillCostLabel(s, member, stateForCost);
+        return `<option value="${s.skillId}" ${selected}>${costLabel} ${s.name}</option>`;
       }),
     ].join('');
 
