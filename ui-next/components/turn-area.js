@@ -46,13 +46,7 @@ export class TurnAreaController {
     if (this.#engineManager.committedTurnCount === 0) {
       // 記録がなければ通常の initialize と同じ（入力行の stateBefore だけ更新）
       this.#engineManager.recalculateAll(newInitialState);
-      const lastRow = this.#rowControllers.at(-1);
-      lastRow?.update({
-        record: null,
-        stateBefore: this.#engineManager.currentState,
-        stateAfter: null,
-        odState: this.#buildOdState([]),
-      });
+      this.#refreshInputRow();
       return;
     }
     this.#engineManager.recalculateAll(newInitialState);
@@ -83,6 +77,8 @@ export class TurnAreaController {
 
     row.mount();
     this.#rowControllers.push(row);
+    // 初期描画後にプレビューを実行して割込OD候補・OD After ゲージを反映
+    this.#refreshInputRow();
   }
 
   #handleCommit(turnIndex) {
@@ -135,19 +131,8 @@ export class TurnAreaController {
       this.#engineManager.setPendingInterruptOd(level);
     }
 
-    // 先制OD 変更はプレビュー結果（スキル/OD%）が変わるため全再描画
-    const lastRow = this.#rowControllers.at(-1);
-    const slotActions = lastRow?.getCurrentSlotActions() ?? {};
-    const preview = this.#engineManager.previewCurrentTurn(slotActions);
-
-    lastRow?.update({
-      record: null,
-      stateBefore: this.#engineManager.currentState,
-      stateAfter: null,
-      odState: this.#buildOdState(preview?.activatableInterrupt ?? []),
-    });
-    // OD After ゲージを更新
-    lastRow?.updateOdPreview(preview?.odGaugeAfter ?? null);
+    // OD 変更でプレビュー結果（スキル/OD%）が変わるため未コミット行を全再描画
+    this.#refreshInputRow();
   }
 
   /**
@@ -166,15 +151,7 @@ export class TurnAreaController {
    */
   #handleSwap(turnIndex, srcPosition, dstPosition) {
     this.#engineManager.swapCurrentPositions(srcPosition, dstPosition);
-    const lastRow = this.#rowControllers.at(-1);
-    const slotActions = lastRow?.getCurrentSlotActions() ?? {};
-    const preview = this.#engineManager.previewCurrentTurn(slotActions);
-    lastRow?.update({
-      record: null,
-      stateBefore: this.#engineManager.currentState,
-      stateAfter: null,
-      odState: this.#buildOdState(preview?.activatableInterrupt ?? []),
-    });
+    this.#refreshInputRow();
   }
 
   /** 指定インデックスのコミット済み行を最新データで再描画 */
@@ -196,14 +173,27 @@ export class TurnAreaController {
     for (let i = fromIndex; i < committedCount && i < this.#rowControllers.length - 1; i++) {
       this.#refreshRow(i);
     }
-    // 未コミット行（最後の行）の stateBefore を更新
+    // 未コミット行（最後の行）を stateBefore + プレビュー結果で更新
+    this.#refreshInputRow();
+  }
+
+  /**
+   * 未コミット行のプレビューを実行して OD 状態・After ゲージを更新する共通処理。
+   * - 初回行追加・D&D swap・過去ターン再計算後など、
+   *   スキル変更イベントが発生しない全ての場面で呼ぶこと。
+   */
+  #refreshInputRow() {
     const lastRow = this.#rowControllers.at(-1);
-    lastRow?.update({
+    if (!lastRow) return;
+    const slotActions = lastRow.getCurrentSlotActions();
+    const preview = this.#engineManager.previewCurrentTurn(slotActions);
+    lastRow.update({
       record: null,
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
-      odState: this.#buildOdState([]),
+      odState: this.#buildOdState(preview?.activatableInterrupt ?? []),
     });
+    lastRow.updateOdPreview(preview?.odGaugeAfter ?? null);
   }
 
   /**
