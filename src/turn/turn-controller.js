@@ -8529,7 +8529,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
 
   let nextState = {
     ...state,
-    party: [...state.party],
+    party: state.party.map((m) => m.clone()),
     positionMap: buildPositionMap(state.party),
     turnState: nextTurnState,
   };

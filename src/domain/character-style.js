@@ -1131,6 +1131,60 @@ export class CharacterStyle {
     this.incrementSkillUseByLabel(key);
   }
 
+  /**
+   * このインスタンスの完全な独立コピーを返す。
+   * snapshot() と同じコピー戦略を使い、全 mutable フィールドを独立させる。
+   * commitTurnRecord が nextState を生成する際に party メンバーの共有参照を防ぐために使用する。
+   */
+  clone() {
+    const c = Object.create(CharacterStyle.prototype);
+    // immutable フィールド（参照コピー）
+    c.characterId = this.characterId;
+    c.characterName = this.characterName;
+    c.styleId = this.styleId;
+    c.styleName = this.styleName;
+    c.team = this.team;
+    c.role = this.role;
+    c.weaponType = this.weaponType;
+    c.elements = this.elements;
+    c.normalAttackElements = this.normalAttackElements;
+    c.transcendenceRule = this.transcendenceRule;
+    c.limitBreakLevel = this.limitBreakLevel;
+    c.supportStyleId = this.supportStyleId;
+    c.supportStyleLimitBreakLevel = this.supportStyleLimitBreakLevel;
+    c.drivePiercePercent = this.drivePiercePercent;
+    c.partyIndex = this.partyIndex;
+    c.skills = this.skills;
+    c.triggeredSkills = this.triggeredSkills;
+    c.passives = this.passives;
+    c.effects = this.effects;
+    // mutable primitive
+    c.position = this.position;
+    c.isAlive = this.isAlive;
+    c.isBreak = this.isBreak;
+    c.isExtraActive = this.isExtraActive;
+    c.isReinforcedMode = this.isReinforcedMode;
+    c.reinforcedTurnsRemaining = this.reinforcedTurnsRemaining;
+    c.actionDisabledTurns = this.actionDisabledTurns;
+    c.shreddingTurnsRemaining = this.shreddingTurnsRemaining;
+    c._nextStatusEffectId = this._nextStatusEffectId;
+    c._revision = this._revision;
+    // mutable object（snapshot() と同じ戦略）
+    c.sp = { ...this.sp };
+    c.ep = { ...this.ep };
+    c.dpState = cloneDpState(this.dpState);
+    c.tokenState = { ...this.tokenState };
+    c.moraleState = { ...this.moraleState };
+    c.motivationState = { ...this.motivationState };
+    c.markStates = Object.fromEntries(
+      Object.entries(this.markStates ?? {}).map(([k, v]) => [k, { ...v }])
+    );
+    c.epRule = this.epRule ? structuredClone(this.epRule) : null;
+    c.statusEffects = structuredClone(this.statusEffects);
+    c.skillUseCounts = new Map(this.skillUseCounts);
+    return c;
+  }
+
   snapshot() {
     return {
       characterId: this.characterId,
