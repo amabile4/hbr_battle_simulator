@@ -181,19 +181,29 @@ export class TurnAreaController {
    * 未コミット行のプレビューを実行して OD 状態・After ゲージを更新する共通処理。
    * - 初回行追加・D&D swap・過去ターン再計算後など、
    *   スキル変更イベントが発生しない全ての場面で呼ぶこと。
+   *
+   * 2フェーズで処理する理由:
+   *   D&D swap 後は swapCurrentPositions() でエンジン側のポジションが更新済みだが、
+   *   DOM はまだ旧ポジションのまま。先に update() で DOM を最新ポジションに揃えてから
+   *   getCurrentSlotActions() を読まないと、#buildActionsDict で
+   *   「キャラA のポジションに キャラB のスキル」という誤マッピングが生じ、
+   *   超越ゲージ計算（属性マッチング）が狂ってOD値がずれる。
    */
   #refreshInputRow() {
     const lastRow = this.#rowControllers.at(-1);
     if (!lastRow) return;
-    const slotActions = lastRow.getCurrentSlotActions();
-    const preview = this.#engineManager.previewCurrentTurn(slotActions);
+    // Phase 1: DOM を最新の currentState ポジションで更新（割込OD候補は暫定空）
     lastRow.update({
       record: null,
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
-      odState: this.#buildOdState(preview?.activatableInterrupt ?? []),
+      odState: this.#buildOdState([]),
     });
+    // Phase 2: 更新後の DOM から正確な slotActions を読んでプレビュー実行
+    const slotActions = lastRow.getCurrentSlotActions();
+    const preview = this.#engineManager.previewCurrentTurn(slotActions);
     lastRow.updateOdPreview(preview?.odGaugeAfter ?? null);
+    lastRow.updateInterruptOdCandidates(preview?.activatableInterrupt ?? []);
   }
 
   /**
