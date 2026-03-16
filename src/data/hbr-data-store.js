@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CharacterStyle } from '../domain/character-style.js';
-import { Party } from '../domain/party.js';
+import { Party, MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 import {
   isAdmiralCommandSkill as isAdmiralCommandSkillClassifier,
   isNormalAttackSkill as isNormalAttackSkillClassifier,
@@ -1231,8 +1231,8 @@ export class HbrDataStore {
   }
 
   buildPartyFromStyleIds(styleIds, options = {}) {
-    if (!Array.isArray(styleIds) || styleIds.length !== 6) {
-      throw new Error('buildPartyFromStyleIds requires exactly 6 style IDs.');
+    if (!Array.isArray(styleIds) || styleIds.length < MIN_PARTY_SIZE || styleIds.length > MAX_PARTY_SIZE) {
+      throw new Error(`buildPartyFromStyleIds requires ${MIN_PARTY_SIZE}~${MAX_PARTY_SIZE} style IDs.`);
     }
 
     const initialSP = options.initialSP ?? DEFAULT_INITIAL_SP;

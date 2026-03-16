@@ -4,14 +4,15 @@ import {
   DEFAULT_ENEMY_COUNT,
 } from '../config/battle-defaults.js';
 import { cloneDpState } from '../domain/dp-state.js';
+import { MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 
 export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
 export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
 export const RECORD_STATUSES = Object.freeze(['preview', 'committed']);
 
 export function buildPositionMap(partyMembers) {
-  if (!Array.isArray(partyMembers) || partyMembers.length !== 6) {
-    throw new Error('buildPositionMap requires 6 party members.');
+  if (!Array.isArray(partyMembers) || partyMembers.length < MIN_PARTY_SIZE || partyMembers.length > MAX_PARTY_SIZE) {
+    throw new Error(`buildPositionMap requires ${MIN_PARTY_SIZE}~${MAX_PARTY_SIZE} party members.`);
   }
 
   const map = new Array(6).fill(-1);
@@ -337,8 +338,8 @@ export function cloneTurnState(turnState) {
 }
 
 export function createBattleState(partyMembers, turnState = createInitialTurnState()) {
-  if (!Array.isArray(partyMembers) || partyMembers.length !== 6) {
-    throw new Error('createBattleState requires exactly 6 party members.');
+  if (!Array.isArray(partyMembers) || partyMembers.length < MIN_PARTY_SIZE || partyMembers.length > MAX_PARTY_SIZE) {
+    throw new Error(`createBattleState requires ${MIN_PARTY_SIZE}~${MAX_PARTY_SIZE} party members.`);
   }
 
   const initialParty = snapshotPartyByPartyIndex(partyMembers);
