@@ -585,7 +585,9 @@ export class CharacterStyle {
     const numericDelta = Number(delta);
     const startSP = this.sp.current;
     const eventCeiling = getEventCeiling(source, this.sp.max, skillCeiling);
-    const endSP = applySpChange(startSP, numericDelta, this.sp.min, eventCeiling);
+    // シミュレーター方針: SP は常にマイナスを許容する（下限なし）。
+    // SP=-10 で回復+5 → -5（0 にクランプしない）。
+    const endSP = applySpChange(startSP, numericDelta, Number.NEGATIVE_INFINITY, eventCeiling);
     this.sp.current = endSP;
     this._revision += 1;
 
