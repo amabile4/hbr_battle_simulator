@@ -198,58 +198,59 @@ export class TurnRowController {
 
   #buildTurnInfoHtml(isCommitted) {
     if (!isCommitted) {
-      // 未コミット行: stateBefore の turnState から EX / OD ラベルを先読みする
+      // 未コミット行: stateBefore の turnState から OD / EX 状態を先読みする
       const turnState = this.#stateBefore?.turnState;
       const nextTurnNo = turnState?.turnIndex ?? 1;
-      const turnType = String(turnState?.turnType ?? '');
-      const isExtra = turnType === 'extra';
-      const odTurnLabel = turnType === 'od' ? String(turnState?.turnLabel ?? '') : '';
-      const odMatch = odTurnLabel.match(/^(OD\d+)/);
-      const odLabel = isExtra ? 'EX' : (odMatch ? odMatch[1] : '');
-      const isOd = !isExtra && odLabel !== '';
-      const odLabelClass = isExtra
-        ? 'bg-amber-100 text-amber-700'
-        : isOd
-          ? 'bg-purple-100 text-purple-700'
-          : '';
-      const odGaugeBefore = formatOdGauge(this.#stateBefore?.turnState?.odGauge);
+      const turnType   = String(turnState?.turnType ?? '');
+      const isOdTurn     = turnType === 'od';
+      const isExtraTurn  = turnType === 'extra';
+      const odSuspended  = Boolean(turnState?.odSuspended);
+      // OD文脈 = ODターン or OD一時停止中（EX中のOD）
+      const inOd = isOdTurn || odSuspended;
+      const inEx = isExtraTurn;
+      // ODレベルラベル: turnLabel から "OD1" 等を抽出
+      const odTurnLabel  = String(turnState?.turnLabel ?? '');
+      const odMatch      = odTurnLabel.match(/^(OD\d+)/);
+      const odLevelLabel = inOd ? (odMatch ? odMatch[1] : 'OD') : '';
+      const odGaugeBefore = formatOdGauge(turnState?.odGauge);
       return `
-        <div class="flex-shrink-0 w-[76px] flex flex-col items-center justify-center
-                    gap-0.5 px-1 py-1 bg-gray-50 border-r border-gray-200 text-gray-400">
-          <span class="text-xs font-bold">T${nextTurnNo}</span>
-          ${odLabel
-            ? `<span class="text-xs px-1 rounded font-medium ${odLabelClass}">${odLabel}</span>`
-            : '<span class="text-xs">—</span>'}
-          <span class="font-mono text-[10px] text-gray-400 leading-none">${odGaugeBefore}</span>
-          <span data-od-after class="font-mono text-[10px] text-gray-300 leading-none">→ —</span>
+        <div class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
+                    gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
+          <div class="flex items-center gap-1 text-xs font-bold text-gray-900 flex-wrap leading-none">
+            <span>T${nextTurnNo}</span>
+            ${odLevelLabel ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
+            ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
+          </div>
+          <div class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
+            ${odGaugeBefore}<span data-od-after class="text-gray-400">→ —</span>
+          </div>
         </div>`;
     }
 
     const rec = this.#record;
     const turnNo = rec.turnIndex ?? '?';
-    const seqId = rec.turnId ?? '?';
+    const seqId  = rec.turnId ?? '?';
     const odGaugeBefore = formatOdGauge(rec.odGaugeAtStart);
     const odGaugeAfter  = formatOdGauge(rec.projections?.odGaugeAtEnd ?? rec.odGaugeAtStart);
-    const isExtra = rec.isExtraTurn;
-    const odMatch = String(rec.odTurnLabelAtStart ?? '').match(/^(OD\d+)/);
-    const odLabel = isExtra ? 'EX' : (odMatch ? odMatch[1] : '');
-    const isOd = !isExtra && odLabel !== '';
-    const odLabelClass = isExtra
-      ? 'bg-amber-100 text-amber-700'
-      : isOd
-        ? 'bg-purple-100 text-purple-700'
-        : '';
+    const isExtraTurn   = rec.isExtraTurn;
+    const odMatch       = String(rec.odTurnLabelAtStart ?? '').match(/^(OD\d+)/);
+    const odLevelLabel  = odMatch ? odMatch[1] : '';
+    // OD文脈 = ODレベルラベルあり（コミット済みではodSuspendedをodTurnLabelAtStartで兼用）
+    const inOd = !!odLevelLabel;
+    const inEx = isExtraTurn;
 
     return `
-      <div class="flex-shrink-0 w-[76px] flex flex-col items-center justify-center
-                  gap-0.5 px-1 py-1 bg-gray-50 border-r border-gray-200">
-        <span class="text-xs font-bold text-gray-700">T${turnNo}</span>
-        ${odLabel
-          ? `<span class="text-xs px-1 rounded font-medium ${odLabelClass}">${odLabel}</span>`
-          : '<span class="text-xs text-gray-300">—</span>'}
-        <span class="font-mono text-[10px] text-gray-500 leading-none">${odGaugeBefore}</span>
-        <span class="font-mono text-[10px] text-gray-400 leading-none">→${odGaugeAfter}</span>
-        <span class="text-xs text-gray-300">#${seqId}</span>
+      <div class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
+                  gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
+        <div class="flex items-center gap-1 text-xs font-bold text-gray-900 flex-wrap leading-none">
+          <span class="text-gray-400 font-normal">#${seqId}</span>
+          <span>T${turnNo}</span>
+          ${inOd ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
+          ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
+        </div>
+        <div class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
+          ${odGaugeBefore}→${odGaugeAfter}
+        </div>
       </div>`;
   }
 
