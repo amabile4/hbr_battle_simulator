@@ -291,7 +291,8 @@ test('"SPが0以上" スキル（仕組みB）: SP = 0 のとき使用可能', (
 
   const entry = preview.actions.find((a) => a.characterId === 'SH1');
   assert.equal(entry.startSP, 0, 'startSP = 0');
-  assert.equal(entry.endSP, 0, 'endSP = 0（sp_cost=10 だが sp.min=0 にクランプ）');
+  // 修正後: Sp()>=0 スキルは SP がマイナスになることを許容する（0 にクランプしない）
+  assert.equal(entry.endSP, -10, 'endSP = -10（sp_cost=10 を消費して SP0→SP-10）');
 });
 
 test('"SPが0以上" スキル（仕組みB）: SP < 0 のとき使用不可', () => {
