@@ -4663,13 +4663,24 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
     reduceSpTimings.push('OnOverdriveStart');
   }
   const reduceSp = resolvePassiveReduceSpForMember(state, member, reduceSpTimings);
-  if (!Number.isFinite(reduceSp) || reduceSp <= 0) {
+  const resolvedSpCost =
+    Number.isFinite(reduceSp) && reduceSp > 0
+      ? Math.max(0, baseSpCost - reduceSp)
+      : baseSpCost;
+
+  // 鬼神化中 STezuka: Ep/Morale/Motivation/-1 以外のSP消費を強制0に
+  // （consumeType === 'Sp' かつ baseSpCost > 0 はL4655の早期returnで保証済み）
+  if (
+    String(member?.characterId) === TEZUKA_CHARACTER_ID &&
+    Boolean(member?.isReinforcedMode)
+  ) {
+    return { ...effective, spCost: 0 };
+  }
+
+  if (resolvedSpCost === baseSpCost) {
     return effective;
   }
-  return {
-    ...effective,
-    spCost: Math.max(0, baseSpCost - reduceSp),
-  };
+  return { ...effective, spCost: resolvedSpCost };
 }
 
 function resolveEffectiveSkillParts(skill, state, member) {
