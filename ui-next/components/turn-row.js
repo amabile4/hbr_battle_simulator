@@ -1,5 +1,21 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
 import { formatSkillCostLabel } from '../utils/skill-label.js';
+import { getExcludedSkillIds } from '../utils/skill-filter.js';
+import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
+
+const ATTACK_TYPE_MAP = {
+  Slash:  { label: '斬', cls: 'bg-red-100 text-red-700' },
+  Stab:   { label: '刺', cls: 'bg-blue-100 text-blue-700' },
+  Strike: { label: '打', cls: 'bg-stone-100 text-stone-700' },
+};
+
+const ELEMENT_MAP = {
+  Fire:    { label: '火', cls: 'bg-orange-100 text-orange-700' },
+  Ice:     { label: '氷', cls: 'bg-cyan-100 text-cyan-700' },
+  Thunder: { label: '雷', cls: 'bg-yellow-100 text-yellow-700' },
+  Dark:    { label: '闇', cls: 'bg-purple-100 text-purple-700' },
+  Light:   { label: '光', cls: 'bg-amber-100 text-amber-700' },
+};
 
 /**
  * OD ゲージ値を "000.00%" 形式にフォーマットする。
@@ -59,6 +75,52 @@ export class TurnRowController {
   mount() {
     this.#root.innerHTML = this.#buildHtml();
     this.#bindEvents();
+  }
+
+  /**
+   * フィルタ変更時にフロントスロットの skill select の innerHTML のみを差し替える。
+   * 全再描画を避けるための軽量更新メソッド。
+   */
+  refreshSkillSelects() {
+    const members = this.#getMembersInPositionOrder();
+    const isCommitted = this.#record !== null;
+    const stateForCost = this.#stateBefore ?? null;
+
+    for (const member of members.filter((m) => m.position <= 2)) {
+      const sel = this.#root.querySelector(
+        `[data-skill-select][data-position="${member.position}"]`,
+      );
+      if (!sel) continue;
+
+      const skills = member.getActionSkills ? member.getActionSkills() : [];
+      const excludedIds = getExcludedSkillIds(member.styleId);
+      const visibleSkills =
+        excludedIds.size > 0 ? skills.filter((s) => !excludedIds.has(s.skillId)) : skills;
+
+      const replaySlot = isCommitted
+        ? (this.#record?.actions?.find?.((a) => a.positionIndex === member.position) ?? null)
+        : null;
+      const currentValue = sel.value === '' ? null : Number(sel.value);
+      const selectedSkillId = isCommitted ? (replaySlot?.skillId ?? null) : currentValue;
+      const hasSelection =
+        selectedSkillId != null && visibleSkills.some((s) => s.skillId === selectedSkillId);
+
+      sel.innerHTML = [
+        `<option value=""${hasSelection ? '' : ' selected'}>— スキル選択 —</option>`,
+        ...visibleSkills.map((s) => {
+          const selected = s.skillId === selectedSkillId ? 'selected' : '';
+          const costLabel = formatSkillCostLabel(s, member, stateForCost);
+          return `<option value="${s.skillId}" ${selected}>${costLabel} ${s.name}</option>`;
+        }),
+      ].join('');
+
+      const badgeEl = this.#root.querySelector(`[data-skill-badges][data-position="${member.position}"]`);
+      if (badgeEl) {
+        const newSelectedId = hasSelection ? selectedSkillId : null;
+        const badgeSkill = newSelectedId != null ? skills.find((s) => s.skillId === newSelectedId) ?? null : null;
+        badgeEl.innerHTML = this.#buildSkillBadgesHtml(badgeSkill, member, stateForCost);
+      }
+    }
   }
 
   update({ record, stateBefore, stateAfter, odState = undefined }) {
@@ -136,6 +198,24 @@ export class TurnRowController {
   }
 
   // ---- private ----
+
+  #buildSkillBadgesHtml(skill, member, state) {
+    if (!skill) return '';
+    let effective = skill;
+    if (state && member) {
+      try { effective = resolveEffectiveSkillForAction(state, member, skill) ?? skill; } catch { /* noop */ }
+    }
+    const parts = effective.parts ?? [];
+    const types = [...new Set(parts.map((p) => p.type).filter((t) => t && t in ATTACK_TYPE_MAP))];
+    const elems = [...new Set(
+      parts.flatMap((p) => (Array.isArray(p.elements) ? p.elements : [])).filter((e) => e in ELEMENT_MAP)
+    )];
+    if (types.length === 0 && elems.length === 0) return '';
+    return [
+      ...types.map((t) => `<span class="text-[9px] px-0.5 rounded leading-none ${ATTACK_TYPE_MAP[t].cls}">${ATTACK_TYPE_MAP[t].label}</span>`),
+      ...elems.map((e) => `<span class="text-[9px] px-0.5 rounded leading-none ${ELEMENT_MAP[e].cls}">${ELEMENT_MAP[e].label}</span>`),
+    ].join('');
+  }
 
   /** commit 済みターンの position 順メンバーリスト（snapBefore ベース） */
   #getMembersInPositionOrder() {
@@ -327,12 +407,24 @@ export class TurnRowController {
       ? (replaySlot?.skillId ?? null)
       : (this.#savedSlotActions?.[member.partyIndex]?.skillId ?? skills[0]?.skillId ?? null);
 
-    const hasSelection = selectedSkillId != null;
     // this.#stateBefore が null の場合は formatSkillCostLabel が raw spCost をフォールバック表示する。
     const stateForCost = this.#stateBefore ?? null;
+
+    // フィルタ適用: 除外スキルを option から除く
+    const excludedSkillIds = getExcludedSkillIds(member.styleId);
+    const visibleSkills = excludedSkillIds.size > 0
+      ? skills.filter((s) => !excludedSkillIds.has(s.skillId))
+      : skills;
+
+    // 選択中スキルがフィルタで非表示になった場合は "— スキル選択 —" に fallback
+    const hasSelection = selectedSkillId != null && visibleSkills.some((s) => s.skillId === selectedSkillId);
+    // バッジ表示用: フィルタで非表示でも全件から引く（コミット済み行で正しく表示するため）
+    const selectedSkill = hasSelection
+      ? (skills.find((s) => s.skillId === selectedSkillId) ?? null)
+      : null;
     const skillOptions = [
       `<option value=""${hasSelection ? '' : ' selected'}>— スキル選択 —</option>`,
-      ...skills.map((s) => {
+      ...visibleSkills.map((s) => {
         const selected = selectedSkillId === s.skillId ? 'selected' : '';
         const costLabel = formatSkillCostLabel(s, member, stateForCost);
         return `<option value="${s.skillId}" ${selected}>${costLabel} ${s.name}</option>`;
@@ -356,6 +448,11 @@ export class TurnRowController {
                          focus:outline-none focus:ring-1 focus:ring-blue-300">
             ${skillOptions}
           </select>
+        </div>
+        <!-- 属性バッジ（スキル select 直下） -->
+        <div data-skill-badges data-position="${member.position}"
+             class="px-0.5 flex flex-wrap gap-px min-h-[12px]">
+          ${this.#buildSkillBadgesHtml(selectedSkill, member, stateForCost)}
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース -->
         <div class="flex items-start gap-1 p-0.5">
@@ -525,6 +622,9 @@ export class TurnRowController {
         sel.addEventListener('change', () => {
           const slotActions = this.getCurrentSlotActions();
           this.#onPreviewRequest?.(this.#turnIndex, slotActions);
+          // バッジ更新
+          const newSkillId = sel.value === '' ? null : Number(sel.value);
+          this.#updateSkillBadges(Number(sel.dataset.position), newSkillId);
         });
       });
     }
@@ -556,6 +656,14 @@ export class TurnRowController {
     if (this.#record === null) {
       this.#bindDragAndDrop();
     }
+  }
+
+  #updateSkillBadges(position, skillId) {
+    const badgeEl = this.#root.querySelector(`[data-skill-badges][data-position="${position}"]`);
+    if (!badgeEl) return;
+    const member = this.#stateBefore?.party?.find((m) => m.position === position);
+    const skill = skillId != null ? (member?.getSkill?.(skillId) ?? null) : null;
+    badgeEl.innerHTML = this.#buildSkillBadgesHtml(skill, member, this.#stateBefore);
   }
 
   #bindDragAndDrop() {
