@@ -7967,6 +7967,14 @@ function applyFieldStateFromActions(state, previewRecord) {
 }
 
 function applyRecoveryPipeline(party, turnState) {
+  // 追加ターン（extra turn）中は通常ターン開始時の SP 回復パイプラインをスキップする。
+  // extra turn は既存ターンの延長であり、独立したターン開始処理を持たないため、
+  // 全メンバーへの基本 SP 回復（+2）や OnEveryTurn/OnPlayerTurnStart パッシブを
+  // ここで適用すると「関係ないメンバーの SP が増え続ける」バグが発生する。
+  if (String(turnState?.turnType ?? '') === 'extra') {
+    return { spEvents: [], epEvents: [], dpEvents: [], passiveEvents: [] };
+  }
+
   const recoveryEvents = [];
   const epEvents = [];
   const dpEvents = [];

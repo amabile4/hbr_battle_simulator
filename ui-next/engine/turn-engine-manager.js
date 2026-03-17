@@ -46,6 +46,24 @@ export class TurnEngineManager {
     return this.#computedStates.at(-1) ?? this.#initialState;
   }
 
+  /**
+   * pending な鬼神化・先制OD を適用した表示用 state を返す（未コミット行のスキルコスト表示用）。
+   * 鬼神化 pending 中は isReinforcedMode === true の state を返すため、
+   * TurnRowController のスキルコスト計算で SP が 0 表示になる。
+   */
+  get currentStateWithPending() {
+    let state = this.currentState;
+    if (this.#pendingKishinka) {
+      state = this.#applyKishinkaToState(state);
+    }
+    if (this.#pendingPreemptiveOdLevel != null) {
+      try {
+        state = activateOverdrive(state, this.#pendingPreemptiveOdLevel, 'preemptive');
+      } catch { /* 発動条件不成立時はそのまま */ }
+    }
+    return state;
+  }
+
   get committedTurnCount() {
     return this.#replayScript?.turns.length ?? 0;
   }
@@ -412,6 +430,24 @@ export class TurnEngineManager {
   updateNote(turnIndex, note) {
     const turn = this.#replayScript?.turns[turnIndex];
     if (turn) turn.note = String(note ?? '');
+  }
+
+  /**
+   * 指定ターンのコミット済み行に渡す stateBefore を返す。
+   * 鬼神化 operation（ACTIVATE_KISHINKA）がある場合は適用済み state を返す。
+   * これにより、鬼神化後にコミットした SP0 スキルが再描画時も正しく選択状態を保持する。
+   * @param {number} turnIndex 0始まりのターンインデックス
+   * @returns {object} BattleState
+   */
+  getStateBefore(turnIndex) {
+    const rawBefore = turnIndex === 0
+      ? this.#initialState
+      : this.#computedStates[turnIndex - 1];
+    const turn = this.#replayScript?.turns?.[turnIndex];
+    const hasKishinka = Array.isArray(turn?.operations) &&
+      turn.operations.some((o) => o?.type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA);
+    if (!hasKishinka) return rawBefore;
+    return this.#applyKishinkaToState(rawBefore);
   }
 
   // ---- private ----

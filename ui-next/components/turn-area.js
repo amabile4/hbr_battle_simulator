@@ -184,9 +184,9 @@ export class TurnAreaController {
     const row = this.#rowControllers[turnIndex];
     if (!row) return;
     const record = this.#engineManager.computedRecords[turnIndex];
-    const stateBefore = turnIndex === 0
-      ? this.#engineManager.initialState
-      : this.#engineManager.computedStates[turnIndex - 1];
+    // 鬼神化 operation がある場合は鬼神化適用済み state を返す。
+    // これにより SP0 でコミットしたスキルが鬼神化終了後も正しく選択状態を保持する。
+    const stateBefore = this.#engineManager.getStateBefore(turnIndex);
     const stateAfter = this.#engineManager.computedStates[turnIndex];
     row.update({ record, stateBefore, stateAfter });
   }
@@ -218,9 +218,11 @@ export class TurnAreaController {
     const lastRow = this.#rowControllers.at(-1);
     if (!lastRow) return;
     // Phase 1: DOM を最新の currentState ポジションで更新（割込OD候補は暫定空）
+    // pending な鬼神化・先制OD を適用した state を渡すことで、鬼神化 pending 中に
+    // スキルリストの SP コスト（0表示）が正しく反映される。
     lastRow.update({
       record: null,
-      stateBefore: this.#engineManager.currentState,
+      stateBefore: this.#engineManager.currentStateWithPending,
       stateAfter: null,
       odState: this.#buildOdState([]),
     });
