@@ -1,6 +1,8 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
 import { DRIVE_PIERCE_OPTIONS } from '../../src/config/battle-defaults.js';
 import { StylePickerController } from './style-picker.js';
+import { SkillFilterPanel } from './skill-filter-panel.js';
+import { clearFilterForStyle } from '../utils/skill-filter.js';
 
 // tier ごとの LB 上限（hbr-data-store.js の LIMIT_BREAK_MAX_BY_TIER と同値）
 const LB_MAX = { A: 20, S: 10, SS: 4, SSR: 4 };
@@ -71,6 +73,7 @@ export class PartySetupController {
   #root;
   #store;
   #picker;
+  #filterPanel;
   #onChange;
   #activeSlotIndex = null;
   #activeMode = 'main'; // 'main' | 'support'
@@ -113,6 +116,8 @@ export class PartySetupController {
 
   mount() {
     this.#picker.mount();
+    this.#filterPanel = new SkillFilterPanel();
+    this.#filterPanel.mount(document.body);
     this.#render();
   }
 
@@ -360,6 +365,15 @@ export class PartySetupController {
       el.addEventListener('click', () => this.#loadPreset(Number(el.dataset.presetIndex)));
     });
 
+    // スキル絞込ボタン
+    this.#root.querySelectorAll('[data-action="open-filter"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.slotIndex);
+        const style = this.#slots[idx]?.style;
+        if (style) this.#filterPanel.open(style, btn);
+      });
+    });
+
     // D&D によるスロット入れ替え
     this.#root.querySelectorAll('[data-slot]').forEach((el) => {
       el.addEventListener('dragstart', (e) => {
@@ -470,6 +484,13 @@ export class PartySetupController {
           ${moraleVisible ? selectHtml('morale', index, MORALE_OPTIONS, slot.morale) : ''}
         </div>
 
+        <!-- スキル絞込ボタン -->
+        <button data-action="open-filter" data-slot-index="${index}"
+                class="text-xs text-gray-400 hover:text-gray-600 px-1 py-px w-full
+                       transition-colors ${slot.style ? '' : 'invisible'}">
+          🔧 スキル絞込
+        </button>
+
         <!-- support icon -->
         <button data-action="open-picker" data-slot-index="${index}" data-mode="support"
                 ${!supportEnabled ? 'disabled' : ''}
@@ -511,6 +532,14 @@ export class PartySetupController {
     if (this.#activeSlotIndex == null) return;
     const idx = this.#activeSlotIndex;
     const mode = this.#activeMode;
+
+    // スタイル変更時: 旧スタイルのフィルタ設定をリセット（新スタイルは全件表示）
+    if (mode === 'main') {
+      const oldStyleId = this.#slots[idx]?.styleId;
+      if (oldStyleId && oldStyleId !== style.id) {
+        clearFilterForStyle(oldStyleId);
+      }
+    }
 
     if (mode === 'main') {
       // メイン同士: 同一キャラクター不可 → 既存をクリア

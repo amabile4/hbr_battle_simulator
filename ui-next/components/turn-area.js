@@ -23,6 +23,11 @@ export class TurnAreaController {
     this.#engineManager = engineManager;
     this.#onError = onError;
     this.#onTurnCommitted = onTurnCommitted;
+
+    // スキル絞込変更時に全行の skill select を再描画する
+    document.addEventListener('hbr:skill-filter-changed', () => {
+      this.#refreshAllSkillSelects();
+    });
   }
 
   /**
@@ -54,6 +59,13 @@ export class TurnAreaController {
   }
 
   // ---- private ----
+
+  /** フィルタ変更時に全行（コミット済み + 入力行）の skill select を再描画する */
+  #refreshAllSkillSelects() {
+    for (const row of this.#rowControllers) {
+      row.refreshSkillSelects();
+    }
+  }
 
   #appendInputRow() {
     const turnIndex = this.#rowControllers.length;
