@@ -142,7 +142,7 @@
   [data-turn-note] {
     flex: 1 1 auto !important;
     width: auto !important;
-    min-width: 60px;
+    min-width: 40px;
     border-bottom: 1px solid #e5e7eb;
   }
   [data-turn-note] textarea {
@@ -157,9 +157,7 @@
     width: 100%;
   }
 
-  /* スロット内: 前衛・後衛を均等分割 */
-  [data-turn-front-group] { flex: 1; }
-  [data-turn-back-group]  { flex: 1; }
+  /* スロット内: デフォルト 2:1（前衛66%・後衛33%）を維持 */
 }
 
 /* 560px 以上: アイコン 48px、比率 2:1 維持 */

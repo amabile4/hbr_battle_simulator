@@ -55,6 +55,8 @@ export class TurnRowController {
 
   // D&D 用
   #dragSrcPosition = null;
+  // タップ swap 用（iOS 代替操作・クリック swap 兼用）
+  #selectedSlotPosition = null;
   // update() 時にスキル選択を保持するための一時フィールド
   #savedSlotActions = null;
 
@@ -140,6 +142,8 @@ export class TurnRowController {
       });
       this.#savedSlotActions = byPartyIndex;
     }
+    // コミット済みになったら選択状態をリセット
+    if (record !== null) this.#selectedSlotPosition = null;
     this.#record = record;
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
@@ -147,6 +151,8 @@ export class TurnRowController {
     this.#root.innerHTML = this.#buildHtml();
     this.#savedSlotActions = null;
     this.#bindEvents();
+    // 再描画後に選択ビジュアルを復元
+    if (this.#selectedSlotPosition !== null) this.#updateSelectionVisual();
   }
 
   /**
@@ -253,8 +259,8 @@ export class TurnRowController {
       ? (this.#record?.note ?? '')
       : (this.#root.querySelector('[data-role="note"]')?.value ?? '');
     const noteHtml = `
-      <div data-turn-note class="flex-shrink-0 w-24">
-        <textarea data-role="note" rows="3"
+      <div data-turn-note class="flex-shrink-0 w-14">
+        <textarea data-role="note" rows="2"
                   class="w-full h-full text-xs border border-gray-200 rounded px-1 py-0.5
                          resize-none focus:outline-none focus:ring-1 focus:ring-blue-300
                          ${isCommitted ? 'bg-gray-50' : 'bg-white'}"
@@ -550,7 +556,7 @@ export class TurnRowController {
 
   #buildButtonHtml(isCommitted) {
     if (isCommitted) {
-      return `<div data-turn-buttons class="flex-shrink-0 w-[88px]"></div>`;
+      return `<div data-turn-buttons class="flex-shrink-0 w-[80px]"></div>`;
     }
 
     const od = this.#odState;
@@ -582,23 +588,23 @@ export class TurnRowController {
     const preemptiveActive = preemptiveLevel != null;
     const interruptActive  = interruptLevel  != null;
 
-    // 鬼神化ボタン（手塚咲がパーティにいる場合のみ表示）
+    // 鬼神化セル（2×2 グリッドの右下：手塚咲がいる場合のみ）
     const ks = od?.kishinkaStatus ?? { hasTezuka: false };
     let kishinkaHtml = '';
     if (ks.hasTezuka) {
       if (ks.isActive) {
-        kishinkaHtml = `<div class="text-center text-[9px] leading-tight text-purple-700 font-semibold bg-purple-100 border border-purple-300 rounded px-1 py-0.5">
+        kishinkaHtml = `<div class="flex items-center justify-center text-center text-[9px] leading-tight text-purple-700 font-semibold bg-purple-100 border border-purple-300 rounded px-0.5 py-0.5">
           鬼神化中<br>残${ks.turnsRemaining}T
         </div>`;
       } else if (ks.actionDisabledTurns > 0) {
-        kishinkaHtml = `<div class="text-center text-[9px] leading-tight text-gray-500 bg-gray-100 border border-gray-300 rounded px-1 py-0.5">
+        kishinkaHtml = `<div class="flex items-center justify-center text-center text-[9px] leading-tight text-gray-500 bg-gray-100 border border-gray-300 rounded px-0.5 py-0.5">
           行動不能<br>残${ks.actionDisabledTurns}T
         </div>`;
       } else {
         const kActive = Boolean(ks.activePending);
         kishinkaHtml = `<button data-role="kishinka-btn"
           title="${kActive ? '鬼神化予約を解除' : '鬼神化を予約（OD+15%）'}"
-          class="w-full text-[9px] leading-tight rounded px-1 py-0.5 border font-semibold
+          class="w-full h-full text-[9px] leading-tight rounded px-0.5 py-0.5 border font-semibold
                  ${kActive
                    ? 'bg-purple-600 text-white border-purple-600'
                    : 'bg-white text-purple-700 border-purple-400 hover:bg-purple-50'}">
@@ -607,22 +613,23 @@ export class TurnRowController {
       }
     }
 
+    // 2×2 グリッド: [実行][先制OD] / [割込OD][鬼神化]
     return `
-      <div data-turn-buttons class="flex-shrink-0 w-[88px] flex flex-col items-stretch justify-center gap-0.5 px-1 py-1">
+      <div data-turn-buttons class="flex-shrink-0 w-[80px] grid grid-cols-2 gap-0.5 px-1 py-1">
         <button data-role="commit-btn"
-                class="w-full text-xs py-1 rounded bg-blue-500 text-white font-medium
+                class="text-xs py-0.5 rounded bg-blue-500 text-white font-medium
                        hover:bg-blue-600 active:bg-blue-700 transition-colors">
           実行
         </button>
         <select data-od-type="preemptive" title="先制OD"
-                class="w-full text-[11px] border rounded px-0.5 py-px focus:outline-none focus:ring-1
+                class="w-full text-[10px] border rounded px-0.5 py-px focus:outline-none focus:ring-1
                        ${preemptiveActive
                          ? 'border-purple-400 bg-purple-100 text-purple-700 font-semibold focus:ring-purple-300'
                          : 'border-gray-200 bg-white text-gray-400 focus:ring-gray-300'}">
           ${preemptiveOptions}
         </select>
         <select data-od-type="interrupt" title="割込OD"
-                class="w-full text-[11px] border rounded px-0.5 py-px focus:outline-none focus:ring-1
+                class="w-full text-[10px] border rounded px-0.5 py-px focus:outline-none focus:ring-1
                        ${interruptActive
                          ? 'border-orange-400 bg-orange-100 text-orange-700 font-semibold focus:ring-orange-300'
                          : 'border-gray-200 bg-white text-gray-400 focus:ring-gray-300'}">
@@ -688,10 +695,67 @@ export class TurnRowController {
       });
     }
 
+    // アイコンタップ swap（未コミット行のみ）
+    // D&D が使えない iOS での入れ替え手段：タップで選択→別アイコンタップで交換
+    if (this.#record === null) {
+      this.#root.querySelectorAll('[data-turn-slot-icon]').forEach((icon) => {
+        icon.style.cursor = 'pointer';
+        icon.addEventListener('click', (e) => {
+          // スキル select の誤検知を防ぐ（click が icon 内から来た場合のみ）
+          e.stopPropagation();
+          const slotEl = icon.closest('[data-turn-slot]');
+          if (!slotEl) return;
+          const position = Number(slotEl.dataset.position);
+          this.#handleIconTap(position);
+        });
+      });
+    }
+
     // D&D（未コミット行のみ）
     if (this.#record === null) {
       this.#bindDragAndDrop();
     }
+  }
+
+  /**
+   * アイコンタップ時の swap 処理。
+   * 1回目: 選択状態にしてアンバーリングを表示。
+   * 2回目（同じ）: 選択解除。
+   * 2回目（別スロット）: 2スロットを入れ替え。
+   * @param {number} position
+   */
+  #handleIconTap(position) {
+    if (this.#selectedSlotPosition === null) {
+      this.#selectedSlotPosition = position;
+      this.#updateSelectionVisual();
+    } else if (this.#selectedSlotPosition === position) {
+      this.#selectedSlotPosition = null;
+      this.#updateSelectionVisual();
+    } else {
+      const srcPos = this.#selectedSlotPosition;
+      // EX ターン制約チェック（D&D と同じルール）
+      if (!this.#isSwapAllowed(srcPos, position)) {
+        this.#selectedSlotPosition = null;
+        this.#updateSelectionVisual();
+        return;
+      }
+      this.#selectedSlotPosition = null;  // swap 前にリセット
+      this.#onSlotChange?.(this.#turnIndex, srcPos, { swapWith: position });
+    }
+  }
+
+  /** 選択中スロットのアイコンにアンバーリングを付ける（DOM 直接操作）。 */
+  #updateSelectionVisual() {
+    this.#root.querySelectorAll('[data-turn-slot]').forEach((slotEl) => {
+      const pos = Number(slotEl.dataset.position);
+      const iconEl = slotEl.querySelector('[data-turn-slot-icon]');
+      if (!iconEl) return;
+      if (pos === this.#selectedSlotPosition) {
+        iconEl.classList.add('ring-2', 'ring-amber-400', 'bg-amber-50');
+      } else {
+        iconEl.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-50');
+      }
+    });
   }
 
   #updateSkillBadges(position, skillId) {
