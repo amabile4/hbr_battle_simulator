@@ -353,6 +353,9 @@ export class StylePickerController {
     });
 
     // サポートモード: touchstart でプレビュー固定 → touchend で確定
+    // iOS Safari: touchstart 内で #renderBody() を呼ぶと touch target 要素が DOM から
+    // 破棄されて touchcancel が発火し、#pressedStyleId がリセットされてしまう。
+    // 代わりに直接 classList 操作で amber ring を付与し、DOM 再構築を避ける。
     body.addEventListener('touchstart', (e) => {
       if (this.#mode !== 'support') return;
       const btn = e.target.closest('[data-style-id]');
@@ -362,7 +365,8 @@ export class StylePickerController {
       if (!style) return;
       this.#pressedStyleId = styleId;
       this.#showSupportDetail(style, true);
-      this.#renderBody();
+      // #renderBody() を呼ばず直接 DOM を更新（iOS touchcancel 防止）
+      btn.classList.add('ring-2', 'ring-amber-400', 'bg-amber-50');
     }, { passive: true });
 
     body.addEventListener('touchend', (e) => {
@@ -378,6 +382,7 @@ export class StylePickerController {
         if (style) {
           this.#onSelect(style);
           if (!this.#continuousMode) this.close();
+          else this.#renderBody();
           return;
         }
       }
