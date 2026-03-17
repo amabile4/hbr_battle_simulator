@@ -178,6 +178,16 @@
   [data-slot-info-space]  { height: 4rem; }
 }
 
+/* Style Picker ダイアログ: max-height に dvh を使用
+   - max-height: 90vh  ... fallback（dvh 非対応ブラウザ用）
+   - max-height: 90dvh ... Dynamic Viewport Height（iOS Safari 15.4+ / Chrome 108+）
+                         dvh はブラウザ UI（アドレスバー・タブバー）が出ているときも
+                         「今見えている高さ」を返すため、ダイアログが画面外にはみ出さない。 */
+.picker-dialog {
+  max-height: 90vh;
+  max-height: 90dvh;
+}
+
 /* line-clamp ユーティリティ（CDN版 Tailwind では要明示） */
 .line-clamp-1 {
   overflow: hidden;

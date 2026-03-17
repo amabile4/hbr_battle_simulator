@@ -185,7 +185,7 @@ export class StylePickerController {
     this.#overlay.innerHTML = `
       <div id="picker-backdrop"
            class="fixed inset-0 bg-black/60 flex items-start justify-center pt-8 px-4 pb-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+        <div class="picker-dialog bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col">
           <header class="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 shrink-0">
             <span id="picker-mode-label" class="font-semibold text-gray-800 text-sm">スタイルを選ぶ</span>
             <span id="picker-count" class="text-xs text-gray-400"></span>
@@ -228,7 +228,7 @@ export class StylePickerController {
               スタイルにカーソルを合わせると共鳴アビリティを確認できます
             </div>
           </div>
-          <div id="picker-body" class="overflow-y-auto p-3 flex flex-col gap-3"></div>
+          <div id="picker-body" class="overflow-y-auto flex-1 min-h-0 p-3 flex flex-col gap-3"></div>
         </div>
       </div>
     `;
