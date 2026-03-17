@@ -65,7 +65,8 @@ export class InitialSetupController {
         <!-- Party タブコンテンツ -->
         <div data-tab-content="party">
           <div id="party-setup-root"></div>
-          <div class="sticky bottom-0 bg-white border-t border-gray-200 px-3 py-2 space-y-1.5">
+          <div class="sticky bottom-0 bg-white border-t border-gray-200 px-3 pt-2 pb-safe space-y-1.5"
+               style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom))">
             <button data-role="recalc-btn" hidden disabled
                     class="w-full text-sm py-1.5 rounded-md font-medium bg-amber-500 text-white
                            disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber-600 transition-colors">

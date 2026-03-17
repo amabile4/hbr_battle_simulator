@@ -178,6 +178,24 @@
   [data-slot-info-space]  { height: 4rem; }
 }
 
+/* ============================================================
+   dvh / セーフエリア ユーティリティ
+   Tailwind CDN では dvh / env() が未対応のため CSS で補う
+   ============================================================ */
+
+/* T20-A: h-screen (100vh) を上書きして動的 viewport 高さに揃える
+   ブラウザ UI（アドレスバー・タブバー）が出ていても
+   「今見えている高さ」で計算される。iOS Safari 15.4+ / Chrome 108+ 対応。
+   古いブラウザでは h-screen (100vh) がそのままフォールバックとして機能する。 */
+.h-dvh { height: 100dvh; }
+
+/* T20-B: sticky/fixed のフッターをホームインジケーター・ノッチより上に配置する
+   viewport-fit=cover と合わせて使用する。
+   非対応ブラウザや safe-area-inset-bottom = 0 の端末では余白なし。 */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* Style Picker ダイアログ: max-height に dvh を使用
    - max-height: 90vh  ... fallback（dvh 非対応ブラウザ用）
    - max-height: 90dvh ... Dynamic Viewport Height（iOS Safari 15.4+ / Chrome 108+）
