@@ -2,7 +2,7 @@
 
 > **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶 / T03〜T12 ✅（T12-E-3まで） / T13-A ✅ / T13-B ✅ / T13-C 🔶（属性バッジ✅・スイッチスキル❌） / T14〜T19 ❌ 未着手
+> **進捗サマリー**: T01 ✅ / T02 🔶 / T03〜T12 ✅（T12-E-3まで） / T13-A ✅ / T13-B ✅ / T13-C 🔶（属性バッジ✅・スイッチスキル❌） / T14〜T19 ❌ 未着手 / **T20 ❌ iOS レスポンシブ対応（使用不能バグ・最高優先）**
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -640,21 +640,195 @@ SP に影響するバフ/デバフ（SP回復UP/DOWN等）と OD ゲージへの
 
 ---
 
-## 優先度サマリ（2026-03-16 更新）
+### T20: iOS / モバイル レスポンシブ対応
+
+> **発端**: iOS Safari / Chrome で「▶ 戦闘開始」ボタンがブラウザ UI（タブバー）に隠れて押せない
+> **優先度**: **最高**（使用不能バグのため）
+> **発見日**: 2026-03-17
+
+#### 根因の整理
+
+iOS Safari / Chrome では viewport の計算が Desktop と異なる：
+
+```
+物理画面
+┌──────────────────────┐
+│  アドレスバー (~50px)  │  ← ブラウザ UI（100vh の外側）
+├──────────────────────┤  ← 100vh 上端（最大 viewport）
+│                      │
+│  コンテンツ領域        │  ← 実際に見える領域は 100vh より小さい
+│                      │
+│  ▶ 戦闘開始           │  ← sticky bottom-0 はここのつもり
+├──────────────────────┤  ← 100vh 下端（実際はここが見えない）
+│  タブバー (~83px)     │  ← ブラウザ UI がコンテンツを隠す
+└──────────────────────┘
+```
+
+| 問題番号 | 症状 | 原因 |
+|----------|------|------|
+| P-A | ページ全体がタブバー分だけはみ出す | `h-screen` = `100vh` が iOS 最大 viewport で計算される |
+| P-B | `sticky bottom-0` ボタンがタブバー・ホームインジケーターと重なる | `env(safe-area-inset-bottom)` が未設定 |
+| P-C | モバイル縦画面（375px 以下）で setup-area（`w-96` = 384px）が turn-area を隠す | 小画面レイアウト未対応 |
+
+#### T20-A: `dvh` による高さ修正 【最優先・P-A 解消】
+
+**修正方針**: `100vh` の代わりに `100dvh`（Dynamic Viewport Height）を使う。
+`dvh` はブラウザ UI が出ている・隠れているに関わらず「今見えている高さ」を返す。
+
+- サポート状況: iOS Safari 15.4+（2022〜）/ Chrome 108+（2022〜）
+- 古いブラウザ向けフォールバックとして `100vh` を先に書く
+
+**変更ファイル**: `ui-next/index.html`, `ui-next/styles.css`
+
+```html
+<!-- index.html body クラス変更 -->
+<!-- before: class="bg-gray-50 text-gray-900 h-screen flex flex-col overflow-hidden" -->
+<!-- after:  class="bg-gray-50 text-gray-900 flex flex-col overflow-hidden h-screen h-dvh" -->
+```
+
+```css
+/* styles.css に追加: h-screen を上書きする dvh ユーティリティ */
+.h-dvh {
+  height: 100dvh; /* フォールバックは h-screen（100vh）が先に宣言済み */
+}
+```
+
+- [ ] `index.html`: `body` クラスに `h-dvh` 追加（`h-screen` との併記でフォールバック）
+- [ ] `styles.css`: `.h-dvh { height: 100dvh; }` を追加
+
+完了条件:
+- [ ] iPhone Safari でページを開き、コンテンツがタブバーに隠れない
+
+#### T20-B: セーフエリア対応 【最優先・P-B 解消】
+
+**修正方針**: `viewport-fit=cover` + `env(safe-area-inset-bottom)` でボタンをホームインジケーター・タブバーより上に配置する。
+
+**変更ファイル**: `ui-next/index.html`, `ui-next/styles.css`, `ui-next/components/initial-setup.js`
+
+```html
+<!-- index.html: viewport-fit=cover を追加 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+```
+
+```css
+/* styles.css に追加 */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* sticky フッター全体に適用するクラス */
+.footer-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+```
+
+```javascript
+// initial-setup.js: sticky footer div のクラスに pb-safe を追加
+// before: class="sticky bottom-0 bg-white border-t border-gray-200 px-3 py-2 space-y-1.5"
+// after:  class="sticky bottom-0 bg-white border-t border-gray-200 px-3 pt-2 pb-safe space-y-1.5"
+```
+
+エラートースト（`fixed bottom-4 right-4`）も同様に対処:
+```html
+<!-- index.html: bottom-4 → bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] -->
+```
+
+- [ ] `index.html`: `viewport-fit=cover` 追加
+- [ ] `styles.css`: `.pb-safe` / `.footer-safe` ユーティリティ追加
+- [ ] `initial-setup.js`: `sticky bottom-0` フッターに `pb-safe` 適用
+- [ ] `index.html`: エラートーストに safe-area 考慮の `bottom` 値を設定
+
+完了条件:
+- [ ] iPhone Safari でスクロール後「▶ 戦闘開始」がホームインジケーターより上に表示される
+- [ ] ノッチなし iPhone（SE 等）でも余分な余白が出ない（フォールバック値 `0px`）
+
+#### T20-C: モバイル縦画面レイアウト【次点・P-C 解消】
+
+**現状の問題**: `main` は `flex-row`（横並び）で `setup-area` が `w-96`（384px）固定。
+iPhone SE（375px）だと setup-area 単独で画面幅を超え、turn-area が見えない。
+
+**修正方針**: `sm:` ブレークポイント（640px）境界でレイアウトを切り替える。
+
+```
+640px 未満（モバイル縦）:
+┌──────────────────────────┐
+│ header                   │
+├──────────────────────────┤
+│ setup-area（上段）        │  ← full-width、max-h 制限 + overflow-y-auto
+│  ▶ 戦闘開始              │
+├──────────────────────────┤
+│ turn-area（下段）         │  ← flex-1、スクロール
+└──────────────────────────┘
+
+640px 以上（タブレット / デスクトップ）:
+┌──────────────────────────────────────┐
+│ header                               │
+├──────────────────┬───────────────────┤
+│ turn-area（左）  │ setup-area（右）  │
+│  flex-1          │  w-96             │
+└──────────────────┴───────────────────┘
+```
+
+**変更ファイル**: `ui-next/index.html`, `ui-next/styles.css`
+
+```html
+<!-- index.html: main の flex 方向をレスポンシブに -->
+<main id="app" class="flex-1 flex flex-col-reverse sm:flex-row overflow-hidden">
+  <!-- turn-area: モバイルでは下段、sm以上では左ペイン -->
+  <section id="turn-area" class="flex-1 overflow-y-auto p-2 sm:p-6 min-h-0">
+  <!-- setup-area: モバイルでは上段 full-width + max-h 制限、sm以上では右ペイン w-96 -->
+  <aside id="setup-area"
+         class="w-full sm:w-96 shrink-0 overflow-y-auto
+                max-h-[50dvh] sm:max-h-none
+                bg-white border-b sm:border-b-0 sm:border-l border-gray-200
+                transition-transform duration-300">
+```
+
+- [ ] `index.html`: `main` を `flex-col-reverse sm:flex-row` に変更
+- [ ] `index.html`: `setup-area` を `w-full sm:w-96` / `max-h-[50dvh] sm:max-h-none` / `border-b sm:border-l` に変更
+- [ ] `index.html`: `turn-area` の padding を `p-2 sm:p-6` に縮小（モバイルで余白節約）
+- [ ] `index.html`: setup-area の `transition-transform` スライドアウトがモバイルで動作するか確認（`translateX` → モバイルは `translateY` に変更が必要な場合あり）
+
+> ⚠️ モバイルでの setup-area スライドアウト挙動は T20-C 実装後に確認・調整すること
+
+完了条件:
+- [ ] iPhone SE（375px）で setup-area と turn-area が両方見える
+- [ ] setup-area が半分程度の高さに収まり、turn-area がスクロール可能
+- [ ] sm 以上（タブレット / PC）で従来の横並びレイアウトが維持される
+
+#### T20-D: タッチ操作 UX 改善【後回し可】
+
+- [ ] ボタンのタップターゲットを `min-h-[44px]` に統一（iOS HIG 基準）
+- [ ] D&D がモバイルで使えないことをユーザーにガイドする（touch event 未対応）
+  - 代替手段（スワップボタン等）は T21 以降で検討
+- [ ] モバイルでの `select` (スキル選択 / LB等) タップ時のネイティブ picker との干渉確認
+
+完了条件:
+- [ ] 主要ボタンが 44px 以上のタップターゲットを持つ
+
+---
+
+> ❌ T20 未着手（2026-03-17 起票）
+
+---
+
+## 優先度サマリ（2026-03-17 更新）
 
 本シミュレータは SP/OD 計算機であるため、下記の優先順で実装する。
 
 | 優先度 | タスク | 理由 |
 |--------|--------|------|
-| **最高** | T13-A スキルコスト詳細 | SP 消費量がリアルタイムで見える |
-| **最高** | T13-B スキル非表示フィルタ | 操作ミス防止・選択精度向上 |
+| **最高** | T20-A/B iOS viewport/セーフエリア | 使用不能バグ（ボタンが押せない） |
+| **最高** | T13-A スキルコスト詳細 | SP 消費量がリアルタイムで見える ✅ |
+| **最高** | T13-B スキル非表示フィルタ | 操作ミス防止・選択精度向上 ✅ |
+| **高** | T20-C モバイルレイアウト | 375px 以下で画面が使えない |
 | **高** | T15 鬼神化 | OD +15% の計算精度に直結 |
 | **高** | T14-A バフ/デバフ・鬼神化バッジ | SP/OD 影響ステータスの可視化 |
 | **高** | T16 Enemy Setup | 正しい敵設定なしに OD 計算が完結しない |
-| **中** | T13-C 属性バッジ + スイッチスキル | 戦術判断の補助 |
+| **中** | T13-C 属性バッジ（バッジ部分） ✅ | 戦術判断の補助 |
 | **中** | T17 CSV Export | 計算結果の記録・共有 |
 | **中** | T14-B DP 表示 | OD 計算補助 |
 | **中** | T18 Scenario Runner | CSV 再生・検証用 |
+| **低** | T20-D タッチ UX | 使えないわけではない |
 | **低** | T19 use_count 表示 | 複雑な仕様調査が先決 |
 
 ---
