@@ -49,15 +49,16 @@ export class TurnRowController {
   #onNoteChange;
   #onPreviewRequest;
   #onOdChange;
+  #onKishinkaActivate;
   // OD 選択状態（未コミット行のみ使用）
-  #odState = null;  // { preemptiveOdLevel, interruptOdLevel, activatablePreemptive, activatableInterrupt }
+  #odState = null;  // { preemptiveOdLevel, interruptOdLevel, activatablePreemptive, activatableInterrupt, kishinkaStatus }
 
   // D&D 用
   #dragSrcPosition = null;
   // update() 時にスキル選択を保持するための一時フィールド
   #savedSlotActions = null;
 
-  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest, onOdChange, odState = null }) {
+  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest, onOdChange, onKishinkaActivate, odState = null }) {
     this.#root = root;
     this.#store = store;
     this.#turnIndex = turnIndex;
@@ -69,6 +70,7 @@ export class TurnRowController {
     this.#onNoteChange = onNoteChange;
     this.#onPreviewRequest = onPreviewRequest;
     this.#onOdChange = onOdChange;
+    this.#onKishinkaActivate = onKishinkaActivate;
     this.#odState = odState;
   }
 
@@ -548,7 +550,7 @@ export class TurnRowController {
 
   #buildButtonHtml(isCommitted) {
     if (isCommitted) {
-      return `<div data-turn-buttons class="flex-shrink-0 w-[72px]"></div>`;
+      return `<div data-turn-buttons class="flex-shrink-0 w-[88px]"></div>`;
     }
 
     const od = this.#odState;
@@ -580,8 +582,33 @@ export class TurnRowController {
     const preemptiveActive = preemptiveLevel != null;
     const interruptActive  = interruptLevel  != null;
 
+    // 鬼神化ボタン（手塚咲がパーティにいる場合のみ表示）
+    const ks = od?.kishinkaStatus ?? { hasTezuka: false };
+    let kishinkaHtml = '';
+    if (ks.hasTezuka) {
+      if (ks.isActive) {
+        kishinkaHtml = `<div class="text-center text-[9px] leading-tight text-purple-700 font-semibold bg-purple-100 border border-purple-300 rounded px-1 py-0.5">
+          鬼神化中<br>残${ks.turnsRemaining}T
+        </div>`;
+      } else if (ks.actionDisabledTurns > 0) {
+        kishinkaHtml = `<div class="text-center text-[9px] leading-tight text-gray-500 bg-gray-100 border border-gray-300 rounded px-1 py-0.5">
+          行動不能<br>残${ks.actionDisabledTurns}T
+        </div>`;
+      } else {
+        const kActive = Boolean(ks.activePending);
+        kishinkaHtml = `<button data-role="kishinka-btn"
+          title="${kActive ? '鬼神化予約を解除' : '鬼神化を予約（OD+15%）'}"
+          class="w-full text-[9px] leading-tight rounded px-1 py-0.5 border font-semibold
+                 ${kActive
+                   ? 'bg-purple-600 text-white border-purple-600'
+                   : 'bg-white text-purple-700 border-purple-400 hover:bg-purple-50'}">
+          ${kActive ? '鬼神化✓' : '鬼神化'}
+        </button>`;
+      }
+    }
+
     return `
-      <div data-turn-buttons class="flex-shrink-0 w-[72px] flex flex-col items-stretch justify-center gap-0.5 px-1 py-1">
+      <div data-turn-buttons class="flex-shrink-0 w-[88px] flex flex-col items-stretch justify-center gap-0.5 px-1 py-1">
         <button data-role="commit-btn"
                 class="w-full text-xs py-1 rounded bg-blue-500 text-white font-medium
                        hover:bg-blue-600 active:bg-blue-700 transition-colors">
@@ -601,6 +628,7 @@ export class TurnRowController {
                          : 'border-gray-200 bg-white text-gray-400 focus:ring-gray-300'}">
           ${interruptOptions}
         </select>
+        ${kishinkaHtml}
       </div>`;
   }
 
@@ -649,6 +677,14 @@ export class TurnRowController {
           const level = sel.value === '' ? null : Number(sel.value);
           this.#onOdChange?.(this.#turnIndex, odType, level);
         });
+      });
+    }
+
+    // 鬼神化ボタン（未コミット行のみ）
+    if (this.#record === null) {
+      const kishinkaBtn = this.#root.querySelector('[data-role="kishinka-btn"]');
+      kishinkaBtn?.addEventListener('click', () => {
+        this.#onKishinkaActivate?.(this.#turnIndex);
       });
     }
 

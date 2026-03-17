@@ -1,11 +1,14 @@
 import { previewTurnRecord, commitTurnRecord } from '../../src/ui/adapter-core.js';
 import { activateOverdrive } from '../../src/turn/turn-controller.js';
-import { getOdGaugeRequirement } from '../../src/config/battle-defaults.js';
+import { getOdGaugeRequirement, REINFORCED_MODE_OD_GAUGE_BONUS, OD_GAUGE_MAX_PERCENT } from '../../src/config/battle-defaults.js';
 import {
   createEmptyLightweightReplayScript,
   normalizeLightweightReplayTurn,
   REPLAY_OPERATION_TYPES,
 } from '../../src/ui/lightweight-replay-script.js';
+
+// turn-controller.js の TEZUKA_CHARACTER_ID と同値
+const TEZUKA_CHARACTER_ID = 'STezuka';
 
 /**
  * LightweightReplayScript を正本として保持し、previewTurn/commitTurn を透過的に管理するクラス。
@@ -28,6 +31,7 @@ export class TurnEngineManager {
   // 未コミット行の OD 予約（commit 時にクリア）
   #pendingPreemptiveOdLevel = null;  // number | null
   #pendingInterruptOdLevel = null;   // number | null
+  #pendingKishinka = false;          // boolean
 
   get replayScript() { return this.#replayScript; }
   get computedRecords() { return this.#computedRecords; }
@@ -35,6 +39,7 @@ export class TurnEngineManager {
   get initialState() { return this.#initialState; }
   get pendingPreemptiveOdLevel() { return this.#pendingPreemptiveOdLevel; }
   get pendingInterruptOdLevel() { return this.#pendingInterruptOdLevel; }
+  get pendingKishinka() { return this.#pendingKishinka; }
 
   /** Apply 後に呼ぶ。初期 BattleState と空の ReplayScript を設定する。*/
   get currentState() {
@@ -57,6 +62,7 @@ export class TurnEngineManager {
     this.#computedRecords = [];
     this.#pendingPreemptiveOdLevel = null;
     this.#pendingInterruptOdLevel = null;
+    this.#pendingKishinka = false;
   }
 
   /**
@@ -71,6 +77,11 @@ export class TurnEngineManager {
    */
   commitNextTurn(slotActions = {}, options = {}) {
     let state = this.currentState;
+
+    // 鬼神化が pending の場合は commit 前に発動（先制OD より先に適用）
+    if (this.#pendingKishinka) {
+      state = this.#applyKishinkaToState(state);
+    }
 
     // 先制OD が pending の場合は commit 前に発動
     const preemptiveLevel = this.#pendingPreemptiveOdLevel;
@@ -90,6 +101,9 @@ export class TurnEngineManager {
 
     // operations を構築してから ReplayTurn を生成
     const operations = [];
+    if (this.#pendingKishinka) {
+      operations.push({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA, payload: {} });
+    }
     if (preemptiveLevel != null) {
       operations.push({ type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD, payload: { level: preemptiveLevel } });
     }
@@ -106,6 +120,7 @@ export class TurnEngineManager {
     this.#computedRecords.push(committedRecord);
 
     // pending をリセット
+    this.#pendingKishinka = false;
     this.#pendingPreemptiveOdLevel = null;
     this.#pendingInterruptOdLevel = null;
 
@@ -135,6 +150,7 @@ export class TurnEngineManager {
     this.#computedStates.splice(fromIndex);
     this.#computedRecords.splice(fromIndex);
     // 過去ターンを再計算するため、未コミット pending は無効化する
+    this.#pendingKishinka = false;
     this.#pendingPreemptiveOdLevel = null;
     this.#pendingInterruptOdLevel = null;
 
@@ -153,6 +169,21 @@ export class TurnEngineManager {
       // commitTurnRecord が party を deep copy するため、この mutation は次のターン以降の state に影響しない。
       this.#alignPositionsToSlots(state, turn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
+
+      // 鬼神化 operation を再現（recalculateFrom はクローン済み party を使うので直接 mutate 可）
+      const hasKishinka = Array.isArray(turn.operations) &&
+        turn.operations.some((o) => o?.type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA);
+      if (hasKishinka) {
+        const tezuka = state.party.find((m) => m.characterId === TEZUKA_CHARACTER_ID);
+        if (tezuka && !tezuka.isReinforcedMode) {
+          tezuka.activateReinforcedMode(3);
+          const newOdGauge = Math.min(
+            OD_GAUGE_MAX_PERCENT,
+            Number(state.turnState.odGauge ?? 0) + REINFORCED_MODE_OD_GAUGE_BONUS,
+          );
+          state = { ...state, turnState: { ...state.turnState, odGauge: Number(newOdGauge.toFixed(2)) } };
+        }
+      }
 
       // 先制OD operation を再現
       const preemptiveLevel = this.#extractOperationLevel(
@@ -205,6 +236,11 @@ export class TurnEngineManager {
   previewCurrentTurn(slotActions = {}) {
     let state = this.currentState;
 
+    // 鬼神化が pending の場合は発動後の state でプレビュー（SP 0 をリアルタイム反映）
+    if (this.#pendingKishinka) {
+      state = this.#applyKishinkaToState(state);
+    }
+
     // 先制OD が pending の場合は発動後の state でプレビュー
     if (this.#pendingPreemptiveOdLevel != null) {
       try {
@@ -246,6 +282,42 @@ export class TurnEngineManager {
    */
   setPendingInterruptOd(level) {
     this.#pendingInterruptOdLevel = level != null ? Number(level) : null;
+  }
+
+  /**
+   * 鬼神化の予約を設定/解除する。
+   * @param {boolean} active
+   */
+  setPendingKishinka(active) {
+    this.#pendingKishinka = Boolean(active);
+  }
+
+  /**
+   * 現在 state で鬼神化が発動可能かを返す。
+   * 手塚咲がパーティにいて、鬼神化中でも行動不能中でもない場合に true。
+   * @returns {boolean}
+   */
+  isKishinkaAvailable() {
+    const tezuka = this.currentState?.party?.find((m) => m.characterId === TEZUKA_CHARACTER_ID);
+    if (!tezuka) return false;
+    return !tezuka.isReinforcedMode && !(Number(tezuka.actionDisabledTurns ?? 0) > 0);
+  }
+
+  /**
+   * 鬼神化の UI 表示用ステータスを返す。
+   * @returns {{ hasTezuka: boolean, available?: boolean, activePending?: boolean, isActive?: boolean, turnsRemaining?: number, actionDisabledTurns?: number }}
+   */
+  getKishinkaStatus() {
+    const tezuka = this.currentState?.party?.find((m) => m.characterId === TEZUKA_CHARACTER_ID);
+    if (!tezuka) return { hasTezuka: false };
+    return {
+      hasTezuka: true,
+      available: this.isKishinkaAvailable(),
+      activePending: this.#pendingKishinka,
+      isActive: Boolean(tezuka.isReinforcedMode),
+      turnsRemaining: Number(tezuka.reinforcedTurnsRemaining ?? 0),
+      actionDisabledTurns: Number(tezuka.actionDisabledTurns ?? 0),
+    };
   }
 
   /**
@@ -343,6 +415,28 @@ export class TurnEngineManager {
   }
 
   // ---- private ----
+
+  /**
+   * state の party をクローンし、手塚咲の鬼神化を適用した新しい state を返す。
+   * currentState を破壊しないために必ずクローンを使うこと。
+   * @param {object} state BattleState
+   * @returns {object} 新しい BattleState
+   */
+  #applyKishinkaToState(state) {
+    const clonedParty = state.party.map((m) => m.clone());
+    const tezuka = clonedParty.find((m) => m.characterId === TEZUKA_CHARACTER_ID);
+    if (!tezuka) return state;
+    tezuka.activateReinforcedMode(3);
+    const newOdGauge = Math.min(
+      OD_GAUGE_MAX_PERCENT,
+      Number(state.turnState.odGauge ?? 0) + REINFORCED_MODE_OD_GAUGE_BONUS,
+    );
+    return {
+      ...state,
+      party: clonedParty,
+      turnState: { ...state.turnState, odGauge: Number(newOdGauge.toFixed(2)) },
+    };
+  }
 
   /**
    * GUI の slotActions（position キー）を previewTurn 用 actions dict に変換する。

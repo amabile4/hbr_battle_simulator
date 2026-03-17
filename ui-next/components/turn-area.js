@@ -85,6 +85,7 @@ export class TurnAreaController {
       onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
       onPreviewRequest: (ti, slotActions) => this.#handlePreviewRequest(ti, slotActions),
       onOdChange: (ti, odType, level) => this.#handleOdChange(ti, odType, level),
+      onKishinkaActivate: (ti) => this.#handleKishinkaActivate(ti),
     });
 
     row.mount();
@@ -144,6 +145,18 @@ export class TurnAreaController {
     }
 
     // OD 変更でプレビュー結果（スキル/OD%）が変わるため未コミット行を全再描画
+    this.#refreshInputRow();
+  }
+
+  /**
+   * 未コミット行の鬼神化予約トグル。
+   * pending フラグを反転して入力行を再描画する。
+   * @param {number} _turnIndex
+   */
+  #handleKishinkaActivate(_turnIndex) {
+    const current = this.#engineManager.pendingKishinka;
+    this.#engineManager.setPendingKishinka(!current);
+    // 鬼神化で SP コスト・OD% が変わるため再描画
     this.#refreshInputRow();
   }
 
@@ -228,6 +241,7 @@ export class TurnAreaController {
       interruptOdLevel:     this.#engineManager.pendingInterruptOdLevel,
       activatablePreemptive: this.#engineManager.getActivatablePreemptiveOdLevels(),
       activatableInterrupt,
+      kishinkaStatus:       this.#engineManager.getKishinkaStatus(),
     };
   }
 }

@@ -1,8 +1,8 @@
 # UI Next 実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-15
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-17
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶 / T03〜T12 ✅（T12-E-3まで） / T13-A ✅ / T13-B ✅ / T13-C 🔶（属性バッジ✅・スイッチスキル❌） / T14〜T19 ❌ 未着手 / **T20 🔶 iOS レスポンシブ対応（A/B/C 完了・D 未着手）**
+> **進捗サマリー**: T01 ✅ / T02 🔶 / T03〜T12 ✅（T12-E-3まで） / T13-A ✅ / T13-B ✅ / T13-C 🔶（属性バッジ✅・スイッチスキル❌） / T14 ❌ / T15 ✅ / T16〜T19 ❌ 未着手 / **T20 🔶 iOS レスポンシブ対応（A/B/C 完了・D 未着手）**
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -502,27 +502,23 @@ SP に影響するバフ/デバフ（SP回復UP/DOWN等）と OD ゲージへの
 > **旧実装**: `dom-adapter.js:L6536-L6600`
 
 #### T15-A: TurnEngineManager 拡張
-- [ ] `TurnEngineManager.activateKishinka()` を追加
-  - 手塚咲メンバーの特定（`characterId === 'STezuka'`）
-  - 前提チェック（`isReinforcedMode` / `actionDisabledTurns`）
-  - `member.activateReinforcedMode(3)` 呼び出し
-  - OD ゲージ +15% 更新（`REINFORCED_MODE_OD_GAUGE_BONUS`）
-  - `kishinkaActivatedThisTurn` フラグ管理
-  - プレビュー再計算トリガー
-- [ ] `isKishinkaAvailable()` メソッドを追加（ボタン活性判定用）
-- [ ] `recalculateFrom()` で `ACTIVATE_KISHINKA` operation を再現できるようにする
+- [x] `#pendingKishinka` フラグ追加（`setPendingKishinka()` / `isKishinkaAvailable()` / `getKishinkaStatus()`）
+- [x] `#applyKishinkaToState(state)` — party クローン + `activateReinforcedMode(3)` + OD +15%
+- [x] `commitNextTurn` に鬼神化 → 先制OD の順で適用、`ACTIVATE_KISHINKA` operation を記録
+- [x] `previewCurrentTurn` に pending 鬼神化を反映（SP 0 リアルタイム表示）
+- [x] `recalculateFrom()` で `ACTIVATE_KISHINKA` operation を再現
 
 #### T15-B: TurnRow UI
-- [ ] 鬼神化ボタンを OD/割込OD ボタン列に追加（手塚咲パーティ時のみ表示）
-- [ ] ボタン活性/非活性を `isKishinkaAvailable()` で制御
-- [ ] 発動成功後にステータスメッセージ表示
+- [x] 鬼神化ボタンを OD/割込OD ボタン列に追加（手塚咲パーティ時のみ表示）
+- [x] 5状態表示: 通常/予約済（紫塗り）/鬼神化中バッジ/行動不能バッジ/非表示
+- [x] `TurnArea.#handleKishinkaActivate` 接続・`#buildOdState` に `kishinkaStatus` 追加
 
 完了条件:
-- [ ] 手塚咲がパーティにいる場合に鬼神化ボタンが表示される
-- [ ] 鬼神化発動 → OD +15% + 鬼神化中バッジが表示される
-- [ ] 再計算時に kishinka 操作が再現される
+- [x] 手塚咲がパーティにいる場合に鬼神化ボタンが表示される
+- [x] 鬼神化発動 → OD +15% + 鬼神化中バッジが表示される
+- [x] 再計算時に kishinka 操作が再現される
 
-> ❌ T15 未着手
+> ✅ T15 完了（2026-03-17）: `#pendingKishinka` フラグ方式（先制OD・割込ODと対称設計）。party クローンで `currentState` を破壊しない安全な実装。`ACTIVATE_KISHINKA` operation を記録し `recalculateFrom` で再現可能。既存テスト 630件 PASS。
 
 ---
 
