@@ -556,7 +556,7 @@ test('action selector displays SP ALL for sp_cost -1 skills', () => {
 
   const select = root.querySelector('[data-action-slot="0"]');
   const text = select?.options?.[0]?.textContent ?? '';
-  assert.equal(text.includes('SP ALL'), true);
+  assert.equal(text.includes('(*)'), true);
 });
 
 test('action selector displays Token cost for token consume skills', () => {
@@ -587,7 +587,7 @@ test('action selector displays Token cost for token consume skills', () => {
 
   const select = root.querySelector('[data-action-slot="0"]');
   const text = select?.options?.[0]?.textContent ?? '';
-  assert.equal(text.includes('Token 5'), true);
+  assert.equal(text.includes('T(5)'), true);
   assert.equal(text.includes('SP 5'), false);
 });
 
@@ -732,7 +732,7 @@ test('action selector hit label shows base+funnel while reinforced', () => {
   const select = root.querySelector('[data-action-slot="0"]');
   const hasFunnelHitLabel = [...select.options].some((opt) => /Hit\s+\d+\+3\b/.test(opt.textContent));
   assert.equal(hasFunnelHitLabel, true);
-  const hasSpZeroCost = [...select.options].some((opt) => /\(SP 0 \/ Hit /.test(opt.textContent));
+  const hasSpZeroCost = [...select.options].some((opt) => /\(0\) \/ Hit /.test(opt.textContent));
   assert.equal(hasSpZeroCost, true);
 });
 

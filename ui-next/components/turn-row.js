@@ -114,7 +114,7 @@ export class TurnRowController {
         ...visibleSkills.map((s) => {
           const selected = s.skillId === selectedSkillId ? 'selected' : '';
           const costLabel = formatSkillCostLabel(s, member, stateForCost);
-          return `<option value="${s.skillId}" ${selected}>${costLabel} ${s.name}</option>`;
+          return `<option value="${s.skillId}" ${selected}>${costLabel}${s.name}</option>`;
         }),
       ].join('');
 
@@ -435,7 +435,7 @@ export class TurnRowController {
       ...visibleSkills.map((s) => {
         const selected = selectedSkillId === s.skillId ? 'selected' : '';
         const costLabel = formatSkillCostLabel(s, member, stateForCost);
-        return `<option value="${s.skillId}" ${selected}>${costLabel} ${s.name}</option>`;
+        return `<option value="${s.skillId}" ${selected}>${costLabel}${s.name}</option>`;
       }),
     ].join('');
 

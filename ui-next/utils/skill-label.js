@@ -13,7 +13,7 @@ import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.j
  * @param {object} skill        CharacterStyle.getActionSkills() の要素
  * @param {object|null} member  BattleState.party の要素
  * @param {object|null} state   BattleState
- * @returns {string}  例: 'SP 4' / 'SP 0' / 'EP 3' / 'Token 2' / 'SP ALL' / 'Morale ALL'
+ * @returns {string}  例: '(4)' / '(0)' / 'E(3)' / 'T(2)' / 'M(3)' / '(*)' / 'T(*)' / 'M(*)'
  */
 export function formatSkillCostLabel(skill, member = null, state = null) {
   const effectiveSkill =
@@ -21,15 +21,10 @@ export function formatSkillCostLabel(skill, member = null, state = null) {
   const consumeType = String(effectiveSkill?.consumeType ?? effectiveSkill?.consume_type ?? 'Sp');
   const consumeTypeLower = consumeType.toLowerCase();
   const costRaw = Number(effectiveSkill?.spCost ?? effectiveSkill?.sp_cost ?? 0);
+  const n = costRaw === -1 ? '*' : String(costRaw);
 
-  if (consumeTypeLower === 'token') {
-    return costRaw === -1 ? 'Token ALL' : `Token ${costRaw}`;
-  }
-  if (consumeTypeLower === 'morale') {
-    return costRaw === -1 ? 'Morale ALL' : `Morale ${costRaw}`;
-  }
-  if (consumeTypeLower !== 'ep' && costRaw === -1) {
-    return 'SP ALL';
-  }
-  return consumeTypeLower === 'ep' ? `EP ${costRaw}` : `SP ${costRaw}`;
+  if (consumeTypeLower === 'token') return `T(${n})`;
+  if (consumeTypeLower === 'morale') return `M(${n})`;
+  if (consumeTypeLower === 'ep') return `E(${n})`;
+  return `(${n})`;
 }

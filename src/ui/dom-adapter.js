@@ -548,16 +548,11 @@ function formatSkillCostLabel(skill, member = null, state = null) {
   const consumeType = String(effectiveSkill?.consumeType ?? effectiveSkill?.consume_type ?? 'Sp');
   const consumeTypeLower = consumeType.toLowerCase();
   const costRaw = Number(effectiveSkill?.spCost ?? effectiveSkill?.sp_cost ?? 0);
-  if (consumeTypeLower === 'token') {
-    return costRaw === -1 ? 'Token ALL' : `Token ${costRaw}`;
-  }
-  if (consumeTypeLower === 'morale') {
-    return costRaw === -1 ? 'Morale ALL' : `Morale ${costRaw}`;
-  }
-  if (consumeTypeLower !== 'ep' && costRaw === -1) {
-    return 'SP ALL';
-  }
-  return consumeTypeLower === 'ep' ? `EP ${costRaw}` : `SP ${costRaw}`;
+  const n = costRaw === -1 ? '*' : String(costRaw);
+  if (consumeTypeLower === 'token') return `T(${n})`;
+  if (consumeTypeLower === 'morale') return `M(${n})`;
+  if (consumeTypeLower === 'ep') return `E(${n})`;
+  return `(${n})`;
 }
 
 function formatGaugePercent(value) {
@@ -1655,7 +1650,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
       for (const badge of this.buildAttributeBadgeNodes(attrs)) {
         row.appendChild(badge);
       }
-      row.append(` ${skill.name} (${costLabel})${sourceBadge}`);
+      row.append(` ${skill.name} ${costLabel}${sourceBadge}`);
       container.appendChild(row);
     }
   }
@@ -3192,7 +3187,7 @@ export class BattleDomAdapter extends BattleAdapterFacade {
         option.value = String(skill.skillId);
         const costLabel = formatSkillCostLabel(skill, member, this.state);
         const hitLabel = formatSkillHitLabel(skill, member, this.state);
-        option.textContent = `${skill.name} (${costLabel} / Hit ${hitLabel})`;
+        option.textContent = `${skill.name} ${costLabel} / Hit ${hitLabel}`;
         select.appendChild(option);
       }
 

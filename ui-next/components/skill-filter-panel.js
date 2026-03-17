@@ -21,10 +21,11 @@ function getActionSkillsFromRaw(style) {
 function rawCostLabel(skill) {
   const consumeType = String(skill.consume_type ?? skill.consumeType ?? 'Sp').toLowerCase();
   const cost = Number(skill.sp_cost ?? skill.spCost ?? 0);
-  if (consumeType === 'token') return cost === -1 ? 'Token ALL' : `Token ${cost}`;
-  if (consumeType === 'morale') return cost === -1 ? 'Morale ALL' : `Morale ${cost}`;
-  if (consumeType !== 'ep' && cost === -1) return 'SP ALL';
-  return consumeType === 'ep' ? `EP ${cost}` : `SP ${cost}`;
+  const n = cost === -1 ? '*' : String(cost);
+  if (consumeType === 'token') return `T(${n})`;
+  if (consumeType === 'morale') return `M(${n})`;
+  if (consumeType === 'ep') return `E(${n})`;
+  return `(${n})`;
 }
 
 /**
