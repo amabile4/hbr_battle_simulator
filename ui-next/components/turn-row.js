@@ -251,7 +251,7 @@ export class TurnRowController {
       ? (this.#record?.note ?? '')
       : (this.#root.querySelector('[data-role="note"]')?.value ?? '');
     const noteHtml = `
-      <div class="flex-shrink-0 w-24">
+      <div data-turn-note class="flex-shrink-0 w-24">
         <textarea data-role="note" rows="3"
                   class="w-full h-full text-xs border border-gray-200 rounded px-1 py-0.5
                          resize-none focus:outline-none focus:ring-1 focus:ring-blue-300
@@ -260,10 +260,10 @@ export class TurnRowController {
       </div>`;
 
     return `
-      <div class="flex items-stretch gap-px border-b border-gray-200 bg-white
+      <div data-turn-row class="flex items-stretch gap-px border-b border-gray-200 bg-white
                   hover:bg-gray-50 transition-colors ${isCommitted ? '' : 'bg-blue-50/30'}">
         ${turnInfoHtml}
-        <div class="flex gap-px flex-1 min-w-0">
+        <div data-turn-slots class="flex gap-px flex-1 min-w-0">
           <div data-turn-front-group class="flex gap-px min-w-0">
             ${frontSlots}
           </div>
@@ -295,14 +295,14 @@ export class TurnRowController {
       const odLevelLabel = inOd ? (odMatch ? odMatch[1] : 'OD') : '';
       const odGaugeBefore = formatOdGauge(turnState?.odGauge);
       return `
-        <div class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
+        <div data-turn-info class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
                     gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
           <div class="flex items-center gap-1 text-xs font-bold text-gray-900 flex-wrap leading-none">
             <span>T${nextTurnNo}</span>
             ${odLevelLabel ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
             ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
           </div>
-          <div class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
+          <div data-turn-od-gauge class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
             ${odGaugeBefore}<span data-od-after class="text-gray-400">→ —</span>
           </div>
         </div>`;
@@ -321,7 +321,7 @@ export class TurnRowController {
     const inEx = isExtraTurn;
 
     return `
-      <div class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
+      <div data-turn-info class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
                   gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
         <div class="flex items-center gap-1 text-xs font-bold text-gray-900 flex-wrap leading-none">
           <span class="text-gray-400 font-normal">#${seqId}</span>
@@ -329,7 +329,7 @@ export class TurnRowController {
           ${inOd ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
           ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
         </div>
-        <div class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
+        <div data-turn-od-gauge class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
           ${odGaugeBefore}→${odGaugeAfter}
         </div>
       </div>`;
@@ -548,7 +548,7 @@ export class TurnRowController {
 
   #buildButtonHtml(isCommitted) {
     if (isCommitted) {
-      return `<div class="flex-shrink-0 w-[72px]"></div>`;
+      return `<div data-turn-buttons class="flex-shrink-0 w-[72px]"></div>`;
     }
 
     const od = this.#odState;
@@ -581,7 +581,7 @@ export class TurnRowController {
     const interruptActive  = interruptLevel  != null;
 
     return `
-      <div class="flex-shrink-0 w-[72px] flex flex-col items-stretch justify-center gap-0.5 px-1 py-1">
+      <div data-turn-buttons class="flex-shrink-0 w-[72px] flex flex-col items-stretch justify-center gap-0.5 px-1 py-1">
         <button data-role="commit-btn"
                 class="w-full text-xs py-1 rounded bg-blue-500 text-white font-medium
                        hover:bg-blue-600 active:bg-blue-700 transition-colors">
