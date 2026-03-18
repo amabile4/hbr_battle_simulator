@@ -5,7 +5,7 @@ import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.j
 
 const ATTACK_TYPE_MAP = {
   Slash:  { label: '斬', cls: 'bg-red-100 text-red-700' },
-  Stab:   { label: '刺', cls: 'bg-blue-100 text-blue-700' },
+  Stab:   { label: '突', cls: 'bg-blue-100 text-blue-700' },
   Strike: { label: '打', cls: 'bg-stone-100 text-stone-700' },
 };
 
