@@ -1,4 +1,5 @@
 import { getExcludedSkillIds, setExcludedSkillIds } from '../utils/skill-filter.js';
+import { isNormalAttackSkill, isAdmiralCommandSkill } from '../../src/domain/skill-classifiers.js';
 
 /**
  * 生スタイルデータからアクションスキル（非パッシブ）を抽出する。
@@ -39,6 +40,11 @@ export class SkillFilterPanel {
   #panelEl = null;
   #currentStyle = null;
   #outsideClickHandler = null;
+  #store = null;
+
+  constructor({ store = null } = {}) {
+    this.#store = store;
+  }
 
   /**
    * コンテナに fixed パネル DOM を追加する（初期は非表示）。
@@ -66,7 +72,10 @@ export class SkillFilterPanel {
     this.#currentStyle = style;
     const styleId = style?.id;
     const excludedSet = getExcludedSkillIds(styleId);
-    const skills = getActionSkillsFromRaw(style);
+    const skills = (this.#store
+      ? this.#store.listSkillsByStyleId(styleId)
+      : getActionSkillsFromRaw(style)
+    ).filter((s) => !isNormalAttackSkill(s) && !isAdmiralCommandSkill(s));
 
     panel.innerHTML = `
       <div class="flex justify-between items-center mb-2">
@@ -89,12 +98,14 @@ export class SkillFilterPanel {
           const checked = !excludedSet.has(skillId) ? 'checked' : '';
           const cost = rawCostLabel(s);
           const name = String(s.name ?? '');
+          const sourceLabel = (s.sourceType ?? 'style') === 'master' ? '[M]' : '';
           return `
             <label class="flex items-center gap-1 text-xs cursor-pointer
                           hover:bg-gray-50 rounded px-1 py-0.5">
               <input type="checkbox" value="${skillId}" ${checked}
                      class="cursor-pointer flex-shrink-0">
               <span class="text-gray-400 flex-shrink-0">${cost}</span>
+              ${sourceLabel ? `<span class="text-[10px] text-purple-400 flex-shrink-0">${sourceLabel}</span>` : ''}
               <span class="text-gray-700 truncate">${name}</span>
             </label>`;
         }).join('')}
@@ -174,7 +185,10 @@ export class SkillFilterPanel {
   #onClearAll() {
     const styleId = this.#currentStyle?.id;
     if (!styleId) return;
-    const skills = getActionSkillsFromRaw(this.#currentStyle);
+    const skills = (this.#store
+      ? this.#store.listSkillsByStyleId(styleId)
+      : getActionSkillsFromRaw(this.#currentStyle)
+    ).filter((s) => !isNormalAttackSkill(s) && !isAdmiralCommandSkill(s));
     const allIds = new Set(skills.map((s) => Number(s.id ?? s.skillId)));
     setExcludedSkillIds(styleId, allIds);
     this.#panelEl.querySelectorAll('input[type="checkbox"]').forEach((cb) => {

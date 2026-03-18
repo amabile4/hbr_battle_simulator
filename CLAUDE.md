@@ -66,6 +66,14 @@ skillDatabase.json - キャラクター・スキルデータ
 - Google Spreadsheet互換の特定CSV形式でデータ出力
 - モジュラー設計により保守性と機能追加が容易
 
+## json/ フォルダの取り扱い
+
+- `json/` フォルダ配下のファイルは全て **1行のminified JSON** であるため、`grep` / `rg` によるテキスト検索は機能しない。
+- これらのファイルを検索・調査する際は必ず `jq` または `node` の JSON パーサーを使うこと。
+  - 例（jq）: `cat json/foo.json | jq '.key'`
+  - 例（node）: `node -e "const d=require('./json/foo.json'); console.log(JSON.stringify(d.key, null, 2))"`
+- Grep ツールや grep コマンドで `json/` 以下を検索しない。
+
 ## Repo Workflow
 
 - project 固有の branch 命名、merge 方針、shared 変更の流し方は [docs/specs/repo_workflow.md](docs/specs/repo_workflow.md) を参照する。

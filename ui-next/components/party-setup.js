@@ -91,6 +91,7 @@ export class PartySetupController {
       supportStyleId: null,
       supportStyle: null,
       lb: 0,
+      supportLb: 0,
       drivePierce: 0,
       spEquipId: '',
       belt: '',
@@ -116,7 +117,7 @@ export class PartySetupController {
 
   mount() {
     this.#picker.mount();
-    this.#filterPanel = new SkillFilterPanel();
+    this.#filterPanel = new SkillFilterPanel({ store: this.#store });
     this.#filterPanel.mount(document.body);
     this.#render();
   }
@@ -137,6 +138,9 @@ export class PartySetupController {
       supportStyleIds: this.#slots.map((s) => s.supportStyleId ?? null),
       limitBreakLevelsByPartyIndex: Object.fromEntries(
         this.#slots.map((s, i) => [i, s.lb])
+      ),
+      supportLimitBreakLevelsByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [i, s.supportLb ?? 0])
       ),
       drivePierceByPartyIndex: Object.fromEntries(
         this.#slots.map((s, i) => [i, s.drivePierce])
@@ -188,6 +192,7 @@ export class PartySetupController {
         styleId: s.styleId ?? null,
         supportStyleId: s.supportStyleId ?? null,
         lb: s.lb,
+        supportLb: s.supportLb ?? 0,
         drivePierce: s.drivePierce,
         spEquipId: s.spEquipId,
         belt: s.belt,
@@ -210,6 +215,7 @@ export class PartySetupController {
         supportStyleId: supportStyle ? s.supportStyleId : null,
         supportStyle,
         lb: s.lb ?? 0,
+        supportLb: s.supportLb ?? 0,
         drivePierce: s.drivePierce ?? 0,
         spEquipId: s.spEquipId ?? '',
         belt: s.belt ?? '',
@@ -343,6 +349,7 @@ export class PartySetupController {
         const field = el.dataset.field;
         const val = el.value;
         if (field === 'lb') this.#slots[idx].lb = Number(val);
+        else if (field === 'supportLb') this.#slots[idx].supportLb = Number(val);
         else if (field === 'drivePierce') this.#slots[idx].drivePierce = Number(val);
         else if (field === 'spEquip') this.#slots[idx].spEquipId = val;
         else if (field === 'belt') this.#slots[idx].belt = val;
@@ -491,38 +498,47 @@ export class PartySetupController {
           🔧 スキル絞込
         </button>
 
-        <!-- support icon -->
-        <button data-action="open-picker" data-slot-index="${index}" data-mode="support"
-                ${!supportEnabled ? 'disabled' : ''}
-                class="relative w-full aspect-square overflow-hidden
-                       border-t border-gray-100 group ${supportRing}
-                       ${supportSsr ? 'ssr-resonance-bg-subtle' : ''}
-                       ${supportEnabled
-                         ? 'cursor-pointer hover:opacity-80 transition-opacity'
-                         : 'cursor-not-allowed opacity-40'}">
-          ${supportImageUrl
-            ? `<img src="${supportImageUrl}" alt="${supportStyle?.name ?? ''}" draggable="false"
-                    class="w-full h-full object-cover" />
-               ${supportSsr ? '<div class="absolute inset-0 pointer-events-none ssr-resonance-overlay"></div>' : ''}`
-            : `<div class="w-full h-full flex items-center justify-center
-                          ${!supportSsr ? (supportEnabled ? 'bg-gray-50' : 'bg-gray-100') : ''}
-                          flex-col gap-0.5">
-                 <span class="text-lg leading-none
-                              ${supportEnabled ? 'text-gray-300 group-hover:text-blue-300' : 'text-gray-200'}
-                              transition-colors">＋</span>
-                 <span style="font-size:8px"
-                       class="${supportEnabled ? 'text-gray-400' : 'text-gray-300'}">SUP</span>
-               </div>`
-          }
-          ${supportCharaName
-            ? `<div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white
-                          text-center leading-tight px-0.5 py-0.5"
-                    style="font-size:7px">${supportCharaName}</div>`
-            : ''
-          }
-          <div class="absolute top-0.5 left-0.5 bg-black/40 text-white rounded px-0.5 leading-none"
-               style="font-size:7px">SUP</div>
-        </button>
+        <!-- support section: flex-row（アイコン左固定 w-14 + LB select 右） -->
+        <div class="border-t border-gray-100">
+          ${supportEnabled ? `
+            <div class="flex items-stretch">
+              <button data-action="open-picker" data-slot-index="${index}" data-mode="support"
+                      class="relative w-14 flex-shrink-0 overflow-hidden group ${supportRing}
+                             ${supportSsr ? 'ssr-resonance-bg-subtle' : 'bg-gray-50'}
+                             cursor-pointer hover:opacity-80 transition-opacity">
+                ${supportImageUrl
+                  ? `<img src="${supportImageUrl}" alt="${supportStyle?.name ?? ''}" draggable="false"
+                          class="w-full h-full object-cover" />
+                     ${supportSsr ? '<div class="absolute inset-0 pointer-events-none ssr-resonance-overlay"></div>' : ''}`
+                  : `<div class="w-full h-full flex items-center justify-center
+                                ${!supportSsr ? 'bg-gray-50' : ''}
+                                flex-col gap-0.5">
+                       <span class="text-sm leading-none text-gray-300 group-hover:text-blue-300 transition-colors">＋</span>
+                       <span style="font-size:7px" class="text-gray-400">SUP</span>
+                     </div>`
+                }
+                ${supportCharaName
+                  ? `<div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white
+                                text-center leading-tight px-0.5 py-0.5"
+                          style="font-size:6px">${supportCharaName}</div>`
+                  : ''
+                }
+                <div class="absolute top-0.5 left-0.5 bg-black/40 text-white rounded px-0.5 leading-none"
+                     style="font-size:7px">SUP</div>
+              </button>
+              <div class="flex items-center flex-1 px-1 bg-gray-50">
+                ${supportStyle
+                  ? selectHtml('supportLb', index, makeLbOptions(supportStyle).map(o => ({ value: o.value, label: String(o.value) })), slot.supportLb)
+                  : `<span class="text-[9px] text-gray-300 w-full text-center">LB設定</span>`
+                }
+              </div>
+            </div>
+          ` : `
+            <div class="h-7 flex items-center justify-center opacity-30 bg-gray-50">
+              <span style="font-size:9px" class="text-gray-400">SUP 非対応</span>
+            </div>
+          `}
+        </div>
 
       </div>
     `;

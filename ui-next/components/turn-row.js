@@ -1,20 +1,21 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
+import { isNormalAttackSkill, isAdmiralCommandSkill } from '../../src/domain/skill-classifiers.js';
 import { formatSkillCostLabel } from '../utils/skill-label.js';
 import { getExcludedSkillIds } from '../utils/skill-filter.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 
 const ATTACK_TYPE_MAP = {
-  Slash:  { label: '斬', cls: 'bg-red-100 text-red-700' },
-  Stab:   { label: '突', cls: 'bg-blue-100 text-blue-700' },
-  Strike: { label: '打', cls: 'bg-stone-100 text-stone-700' },
+  Slash:  { img: '/assets/ui/Slash.webp',  alt: '斬' },
+  Stab:   { img: '/assets/ui/Stab.webp',   alt: '突' },
+  Strike: { img: '/assets/ui/Strike.webp', alt: '打' },
 };
 
 const ELEMENT_MAP = {
-  Fire:    { label: '火', cls: 'bg-orange-100 text-orange-700' },
-  Ice:     { label: '氷', cls: 'bg-cyan-100 text-cyan-700' },
-  Thunder: { label: '雷', cls: 'bg-yellow-100 text-yellow-700' },
-  Dark:    { label: '闇', cls: 'bg-purple-100 text-purple-700' },
-  Light:   { label: '光', cls: 'bg-amber-100 text-amber-700' },
+  Fire:    { img: '/assets/ui/Fire.webp',    alt: '火' },
+  Ice:     { img: '/assets/ui/Ice.webp',     alt: '氷' },
+  Thunder: { img: '/assets/ui/Thunder.webp', alt: '雷' },
+  Dark:    { img: '/assets/ui/Dark.webp',    alt: '闇' },
+  Light:   { img: '/assets/ui/Light.webp',   alt: '光' },
 };
 
 /**
@@ -99,7 +100,9 @@ export class TurnRowController {
       const skills = member.getActionSkills ? member.getActionSkills() : [];
       const excludedIds = getExcludedSkillIds(member.styleId);
       const visibleSkills =
-        excludedIds.size > 0 ? skills.filter((s) => !excludedIds.has(s.skillId)) : skills;
+        excludedIds.size > 0
+          ? skills.filter((s) => isNormalAttackSkill(s) || isAdmiralCommandSkill(s) || !excludedIds.has(s.skillId))
+          : skills;
 
       const replaySlot = isCommitted
         ? (this.#record?.actions?.find?.((a) => a.positionIndex === member.position) ?? null)
@@ -263,8 +266,8 @@ export class TurnRowController {
     )];
     if (types.length === 0 && elems.length === 0) return '';
     return [
-      ...types.map((t) => `<span class="text-[10px] font-medium rounded flex items-center justify-center ${ATTACK_TYPE_MAP[t].cls}">${ATTACK_TYPE_MAP[t].label}</span>`),
-      ...elems.map((e) => `<span class="text-[10px] font-medium rounded flex items-center justify-center ${ELEMENT_MAP[e].cls}">${ELEMENT_MAP[e].label}</span>`),
+      ...types.map((t) => `<img src="${ATTACK_TYPE_MAP[t].img}" alt="${ATTACK_TYPE_MAP[t].alt}" class="w-6 h-6 object-contain" />`),
+      ...elems.map((e) => `<img src="${ELEMENT_MAP[e].img}" alt="${ELEMENT_MAP[e].alt}" class="w-6 h-6 object-contain" />`),
     ].join('');
   }
 
