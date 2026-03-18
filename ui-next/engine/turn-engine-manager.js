@@ -113,7 +113,18 @@ export class TurnEngineManager {
     );
 
     const interruptLevel = options.interruptOdLevel ?? this.#pendingInterruptOdLevel ?? 0;
-    const { nextState, committedRecord } = commitTurnRecord(state, previewRecord, [], {
+
+    // commitTurn は state.party メンバーを in-place 変更する（updateReinforcedModeStateAfterTurn 等）。
+    // #applyKishinkaToState や activateOverdrive を経ていない場合、state は computedStates[N-1] の
+    // 直接参照となり、commitTurnRecord 後に computedStates[N-1].party が汚染される。
+    // getStateBefore(N) = computedStates[N-1] を参照する committed 行の stateBefore が
+    // 変異した state を返してしまい、getActionSkills() が誤った結果を返すバグの原因となる。
+    // → party をクローンした作業用 state を commitTurnRecord に渡すことで汚染を防ぐ。
+    const stateForCommit = this.#pendingKishinka || preemptiveLevel != null
+      ? state  // #applyKishinkaToState / activateOverdrive で既にクローン済み
+      : { ...state, party: state.party.map((m) => m.clone()) };
+
+    const { nextState, committedRecord } = commitTurnRecord(stateForCommit, previewRecord, [], {
       interruptOdLevel: interruptLevel,
     });
 
@@ -184,7 +195,10 @@ export class TurnEngineManager {
     for (let i = fromIndex; i < turns.length; i++) {
       const turn = turns[i];
       // replayTurn.slots[i].styleId に記録された配置に従い、各メンバーの position を復元する。
-      // commitTurnRecord が party を deep copy するため、この mutation は次のターン以降の state に影響しない。
+      // commitTurnRecord は state.party メンバーを in-place 変更するため、
+      // state が computedStates[i-1] を参照している場合は汚染が発生する。
+      // → 各イテレーション先頭で party をクローンして作業用コピーを確保する。
+      state = { ...state, party: state.party.map((m) => m.clone()) };
       this.#alignPositionsToSlots(state, turn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
 
