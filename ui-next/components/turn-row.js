@@ -112,19 +112,16 @@ export class TurnRowController {
       const hasSelection =
         selectedSkillId != null && visibleSkills.some((s) => s.skillId === selectedSkillId);
 
-      sel.innerHTML = [
-        `<option value=""${hasSelection ? '' : ' selected'}>— スキル選択 —</option>`,
-        ...visibleSkills.map((s) => {
-          const selected = s.skillId === selectedSkillId ? 'selected' : '';
-          const costLabel = formatSkillCostLabel(s, member, stateForCost);
-          return `<option value="${s.skillId}" ${selected}>${costLabel}${s.name}</option>`;
-        }),
-      ].join('');
+      const effectiveSelectedId = hasSelection ? selectedSkillId : (visibleSkills[0]?.skillId ?? null);
+      sel.innerHTML = visibleSkills.map((s) => {
+        const isSelected = s.skillId === effectiveSelectedId;
+        const costLabel = formatSkillCostLabel(s, member, stateForCost);
+        return `<option value="${s.skillId}"${isSelected ? ' selected' : ''}>${costLabel}${s.name}</option>`;
+      }).join('');
 
       const badgeEl = this.#root.querySelector(`[data-skill-badges][data-position="${member.position}"]`);
       if (badgeEl) {
-        const newSelectedId = hasSelection ? selectedSkillId : null;
-        const badgeSkill = newSelectedId != null ? skills.find((s) => s.skillId === newSelectedId) ?? null : null;
+        const badgeSkill = effectiveSelectedId != null ? skills.find((s) => s.skillId === effectiveSelectedId) ?? null : null;
         badgeEl.innerHTML = this.#buildSkillBadgesHtml(badgeSkill, member, stateForCost);
       }
     }
@@ -473,24 +470,23 @@ export class TurnRowController {
 
     // フィルタ適用: 除外スキルを option から除く
     const excludedSkillIds = getExcludedSkillIds(member.styleId);
+    // フィルタ適用: 通常攻撃・指揮行動は除外対象から除く
     const visibleSkills = excludedSkillIds.size > 0
-      ? skills.filter((s) => !excludedSkillIds.has(s.skillId))
+      ? skills.filter((s) => isNormalAttackSkill(s) || isAdmiralCommandSkill(s) || !excludedSkillIds.has(s.skillId))
       : skills;
 
-    // 選択中スキルがフィルタで非表示になった場合は "— スキル選択 —" に fallback
+    // 選択中スキルがフィルタで非表示になった場合は先頭スキルにフォールバック
     const hasSelection = selectedSkillId != null && visibleSkills.some((s) => s.skillId === selectedSkillId);
+    const effectiveSelectedId = hasSelection ? selectedSkillId : (visibleSkills[0]?.skillId ?? null);
     // バッジ表示用: フィルタで非表示でも全件から引く（コミット済み行で正しく表示するため）
-    const selectedSkill = hasSelection
-      ? (skills.find((s) => s.skillId === selectedSkillId) ?? null)
+    const selectedSkill = effectiveSelectedId != null
+      ? (skills.find((s) => s.skillId === effectiveSelectedId) ?? null)
       : null;
-    const skillOptions = [
-      `<option value=""${hasSelection ? '' : ' selected'}>— スキル選択 —</option>`,
-      ...visibleSkills.map((s) => {
-        const selected = selectedSkillId === s.skillId ? 'selected' : '';
-        const costLabel = formatSkillCostLabel(s, member, stateForCost);
-        return `<option value="${s.skillId}" ${selected}>${costLabel}${s.name}</option>`;
-      }),
-    ].join('');
+    const skillOptions = visibleSkills.map((s) => {
+      const isSelected = s.skillId === effectiveSelectedId;
+      const costLabel = formatSkillCostLabel(s, member, stateForCost);
+      return `<option value="${s.skillId}"${isSelected ? ' selected' : ''}>${costLabel}${s.name}</option>`;
+    }).join('');
 
     const selectDisabled = isCommitted ? 'disabled' : '';
 
