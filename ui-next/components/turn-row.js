@@ -262,8 +262,8 @@ export class TurnRowController {
     )];
     if (types.length === 0 && elems.length === 0) return '';
     return [
-      ...types.map((t) => `<span class="text-[9px] px-0.5 rounded leading-none ${ATTACK_TYPE_MAP[t].cls}">${ATTACK_TYPE_MAP[t].label}</span>`),
-      ...elems.map((e) => `<span class="text-[9px] px-0.5 rounded leading-none ${ELEMENT_MAP[e].cls}">${ELEMENT_MAP[e].label}</span>`),
+      ...types.map((t) => `<span class="text-[10px] font-medium rounded flex items-center justify-center ${ATTACK_TYPE_MAP[t].cls}">${ATTACK_TYPE_MAP[t].label}</span>`),
+      ...elems.map((e) => `<span class="text-[10px] font-medium rounded flex items-center justify-center ${ELEMENT_MAP[e].cls}">${ELEMENT_MAP[e].label}</span>`),
     ].join('');
   }
 
@@ -500,7 +500,7 @@ export class TurnRowController {
         <!-- 属性バッジ（左）＋ スキル select（右）横並び -->
         <div class="flex items-center gap-0.5 px-0.5 pt-0.5">
           <div data-skill-badges data-position="${member.position}"
-               class="flex flex-col gap-px flex-shrink-0">
+               class="grid grid-cols-2 gap-px flex-shrink-0 self-stretch">
             ${this.#buildSkillBadgesHtml(selectedSkill, member, stateForCost)}
           </div>
           <select data-skill-select data-position="${member.position}" data-party-index="${member.partyIndex}" ${selectDisabled}
