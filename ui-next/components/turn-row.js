@@ -207,6 +207,45 @@ export class TurnRowController {
 
   // ---- private ----
 
+  /**
+   * トークン表示 HTML を生成する。
+   * 5×2 グリッドに白丸を並べ、active 個数 = current 値。
+   * current が 0 かつ max が 0 以下なら空文字を返す（非表示）。
+   * @param {number} current
+   * @param {number} max
+   */
+  #buildTokenHtml(current, max) {
+    if (current <= 0) return '';
+    const effective = Math.min(Math.max(0, current), max);
+    const total = Math.max(max, 10);
+    const dots = Array.from({ length: total }, (_, i) => {
+      if (i < effective) return '<span class="token-dot active"></span>';
+      if (i === effective) return '<span class="token-dot afterglow"></span>';
+      return '<span class="token-dot"></span>';
+    });
+    return `<div class="token-grid">${dots.join('')}</div>`;
+  }
+
+  /**
+   * 士気（Morale）表示 HTML を生成する。
+   * 大丸（5px）= 2 士気、小丸（3px）= 1 士気として組み合わせ表示。
+   * current が 0 なら空文字を返す（非表示）。
+   * @param {number} current
+   */
+  #buildMoraleHtml(current) {
+    if (current <= 0) return '';
+    const bigCount = Math.floor(current / 2);
+    const hasSmall = (current % 2) === 1;
+    const dots = [
+      ...Array.from({ length: bigCount }, () => '<span class="morale-dot-big"></span>'),
+      ...(hasSmall ? ['<span class="morale-dot-small"></span>'] : []),
+    ].join('');
+    return `<div class="morale-display">
+      <img src="/assets/ui/Morale.webp" class="morale-icon" alt="士気" />
+      <div class="morale-dots">${dots}</div>
+    </div>`;
+  }
+
   #buildSkillBadgesHtml(skill, member, state) {
     if (!skill) return '';
     let effective = skill;
@@ -404,9 +443,16 @@ export class TurnRowController {
     //   常に最新ターン後の値を持つため、member.sp?.current は誤り。
     //   代わりに previewTurn が mutation 前に取得した不変コピー（record.snapBefore）から読む。
     // 未コミット行: currentState は常に最新なので member.sp?.current が正しい。
+    const snapEntry = isCommitted
+      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex) ?? null)
+      : null;
     const spDisplay = isCommitted
-      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
+      ? (snapEntry?.sp?.current ?? '—')
       : (member.sp?.current ?? '—');
+    // トークン・士気（ターン開始前の値）
+    const tokenCurrent  = isCommitted ? (snapEntry?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
+    const tokenMax      = isCommitted ? (snapEntry?.tokenState?.max      ?? 10) : (member.tokenState?.max      ?? 10);
+    const moraleCurrent = isCommitted ? (snapEntry?.moraleState?.current ?? 0) : (member.moraleState?.current ?? 0);
     const spColor = typeof spDisplay === 'number' && spDisplay < 0 ? '#ef4444' : '#ffffff';
     // コミット済み: record から復元 / 未コミット: D&D 後の保存値（partyIndex キー）→ なければ先頭スキル
     // TODO: skills[0] が通常攻撃/指揮行動であることは JSON 挿入順への暗黙依存。
@@ -475,8 +521,11 @@ export class TurnRowController {
               ${spDisplay}
             </div>
           </div>
-          <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
-          <div data-slot-info-space class="flex-1 min-w-0"></div>
+          <!-- トークン・士気表示スペース -->
+          <div data-slot-info-space class="flex-1 min-w-0 flex flex-col gap-0.5 justify-start pt-0.5">
+            ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
+            ${this.#buildMoraleHtml(moraleCurrent)}
+          </div>
         </div>
       </div>`;
   }
@@ -486,9 +535,15 @@ export class TurnRowController {
    *  コミット済み行: gray 色で「EX待機」表示（後衛スロットと同トーン）。
    */
   #buildInactiveSlotHtml(member, imageUrl, isCommitted) {
+    const inactiveSnap = isCommitted
+      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex) ?? null)
+      : null;
     const sp = isCommitted
-      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
+      ? (inactiveSnap?.sp?.current ?? '—')
       : (member.sp?.current ?? '—');
+    const tokenCurrent  = isCommitted ? (inactiveSnap?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
+    const tokenMax      = isCommitted ? (inactiveSnap?.tokenState?.max      ?? 10) : (member.tokenState?.max      ?? 10);
+    const moraleCurrent = isCommitted ? (inactiveSnap?.moraleState?.current ?? 0) : (member.moraleState?.current ?? 0);
     const spColor = typeof sp === 'number' && sp < 0 ? '#ef4444' : '#ffffff';
     const labelClass = isCommitted
       ? 'text-gray-300 border-gray-100 bg-gray-50'
@@ -511,7 +566,10 @@ export class TurnRowController {
               ${sp}
             </div>
           </div>
-          <div data-slot-info-space class="flex-1 min-w-0"></div>
+          <div data-slot-info-space class="flex-1 min-w-0 flex flex-col gap-0.5 justify-start pt-0.5 opacity-50">
+            ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
+            ${this.#buildMoraleHtml(moraleCurrent)}
+          </div>
         </div>
       </div>`;
   }
@@ -519,9 +577,15 @@ export class TurnRowController {
   #buildBackSlotHtml(member, isCommitted) {
     const imageUrl = this.#resolveImageUrl(member);
     // コミット済み行: #buildFrontSlotHtml と同様に snapBefore から読む
+    const backSnap = isCommitted
+      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex) ?? null)
+      : null;
     const sp = isCommitted
-      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex)?.sp?.current ?? '—')
+      ? (backSnap?.sp?.current ?? '—')
       : (member.sp?.current ?? '—');
+    const tokenCurrent  = isCommitted ? (backSnap?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
+    const tokenMax      = isCommitted ? (backSnap?.tokenState?.max      ?? 10) : (member.tokenState?.max      ?? 10);
+    const moraleCurrent = isCommitted ? (backSnap?.moraleState?.current ?? 0) : (member.moraleState?.current ?? 0);
     const spColor = typeof sp === 'number' && sp < 0 ? '#ef4444' : '#ffffff';
 
     // EX ターン: allowedCharacterIds に含まれない後衛メンバーはドラッグ不可
@@ -548,8 +612,11 @@ export class TurnRowController {
               ${sp}
             </div>
           </div>
-          <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
-          <div data-slot-info-space class="flex-1 min-w-0"></div>
+          <!-- トークン・士気表示スペース（後衛：薄く表示） -->
+          <div data-slot-info-space class="flex-1 min-w-0 flex flex-col gap-0.5 justify-start pt-0.5 opacity-70">
+            ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
+            ${this.#buildMoraleHtml(moraleCurrent)}
+          </div>
         </div>
       </div>`;
   }
