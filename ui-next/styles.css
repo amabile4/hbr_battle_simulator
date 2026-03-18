@@ -256,20 +256,20 @@
   align-items: center;
   margin-top: 1px;
 }
-.morale-dot-big {
+/* 白丸: 5士気を表す（赤枠・白抜き） */
+.morale-dot-white {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   border: 1.5px solid #dc2626;
   background: #ffffff;
-  box-shadow: 0 0 2px rgba(220, 38, 38, 0.4);
 }
-.morale-dot-small {
-  width: 5px;
-  height: 5px;
+/* 赤丸: 1士気を表す（赤塗り） */
+.morale-dot-red {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 1px solid #dc2626;
-  background: #ffffff;
+  background: #dc2626;
 }
 
 /* line-clamp ユーティリティ（CDN版 Tailwind では要明示） */

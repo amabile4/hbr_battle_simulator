@@ -237,11 +237,12 @@ export class TurnRowController {
   #buildMoraleHtml(current) {
     const cur = Number(current);
     if (!Number.isFinite(cur) || cur <= 0) return '';
-    const bigCount = Math.floor(cur / 2);
-    const hasSmall = (cur % 2) === 1;
+    // 白丸1個=5士気、赤丸1個=1士気
+    const whiteDots = Math.floor(cur / 5);
+    const redDots   = cur % 5;
     const dots = [
-      ...Array.from({ length: bigCount }, () => '<span class="morale-dot-big"></span>'),
-      ...(hasSmall ? ['<span class="morale-dot-small"></span>'] : []),
+      ...Array.from({ length: whiteDots }, () => '<span class="morale-dot-white"></span>'),
+      ...Array.from({ length: redDots   }, () => '<span class="morale-dot-red"></span>'),
     ].join('');
     return `<div class="morale-display">
       <img src="/assets/ui/Morale.webp" class="morale-icon" alt="士気" />
