@@ -7966,7 +7966,7 @@ function applyFieldStateFromActions(state, previewRecord) {
   return events;
 }
 
-function applyRecoveryPipeline(party, turnState) {
+function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false } = {}) {
   // 追加ターン（extra turn）中は通常ターン開始時の SP 回復パイプラインをスキップする。
   // extra turn は既存ターンの延長であり、独立したターン開始処理を持たないため、
   // 全メンバーへの基本 SP 回復（+2）や OnEveryTurn/OnPlayerTurnStart パッシブを
@@ -7979,59 +7979,66 @@ function applyRecoveryPipeline(party, turnState) {
   const epEvents = [];
   const dpEvents = [];
   const passiveEvents = [];
-  const reviveTerritoryTrigger = captureReviveTerritoryTurnStartTrigger(party, turnState);
 
-  for (const member of party) {
-    const base = member.recoverBaseSP(BASE_SP_RECOVERY);
-    recoveryEvents.push({
-      characterId: member.characterId,
-      source: 'base',
-      ...base,
-    });
+  // skipTurnStartRecovery=true の場合はターン開始時の基本回復・EP回復・パッシブをスキップする。
+  // （次のターンが EX ターンになる場合：EX ターンは独立したターン開始処理を持たないため）
+  // OD 発動ボーナス（isFirstOdAction）は「ターン開始」ではなく「OD 起動時の一回限りのボーナス」
+  // であるため、EX 遷移時でも適用される。
+  if (!skipTurnStartRecovery) {
+    const reviveTerritoryTrigger = captureReviveTerritoryTurnStartTrigger(party, turnState);
 
-    const epRole = applyRoleEpGain(member, turnState);
-    if (epRole) {
-      epEvents.push(epRole);
+    for (const member of party) {
+      const base = member.recoverBaseSP(BASE_SP_RECOVERY);
+      recoveryEvents.push({
+        characterId: member.characterId,
+        source: 'base',
+        ...base,
+      });
+
+      const epRole = applyRoleEpGain(member, turnState);
+      if (epRole) {
+        epEvents.push(epRole);
+      }
+
+      const passiveSkillEvents = applyPassiveSkillEpTurnStart(member, turnState);
+      if (passiveSkillEvents.length > 0) {
+        epEvents.push(...passiveSkillEvents);
+      }
     }
 
-    const passiveSkillEvents = applyPassiveSkillEpTurnStart(member, turnState);
-    if (passiveSkillEvents.length > 0) {
-      epEvents.push(...passiveSkillEvents);
+    const intrinsicMarkRecoveryEvents = applyIntrinsicMarkTurnStartRecovery(party);
+    if (intrinsicMarkRecoveryEvents.length > 0) {
+      recoveryEvents.push(...intrinsicMarkRecoveryEvents);
     }
-  }
 
-  const intrinsicMarkRecoveryEvents = applyIntrinsicMarkTurnStartRecovery(party);
-  if (intrinsicMarkRecoveryEvents.length > 0) {
-    recoveryEvents.push(...intrinsicMarkRecoveryEvents);
-  }
-
-  const passiveResult = applyPassiveTimingInternal(
-    {
-      party,
-      turnState,
-    },
-    TURN_START_PASSIVE_TIMINGS
-  );
-  if (passiveResult.spEvents.length > 0) {
-    recoveryEvents.push(...passiveResult.spEvents);
-  }
-  if (passiveResult.epEvents.length > 0) {
-    epEvents.push(...passiveResult.epEvents);
-  }
-  if (passiveResult.dpEvents.length > 0) {
-    dpEvents.push(...passiveResult.dpEvents);
-  }
-  if (passiveResult.passiveEvents.length > 0) {
-    passiveEvents.push(...passiveResult.passiveEvents);
-  }
-
-  if (reviveTerritoryTrigger) {
-    const territoryResult = applyReviveTerritoryTurnStartEffect(party, turnState, reviveTerritoryTrigger);
-    if (territoryResult.dpEvents.length > 0) {
-      dpEvents.push(...territoryResult.dpEvents);
+    const passiveResult = applyPassiveTimingInternal(
+      {
+        party,
+        turnState,
+      },
+      TURN_START_PASSIVE_TIMINGS
+    );
+    if (passiveResult.spEvents.length > 0) {
+      recoveryEvents.push(...passiveResult.spEvents);
     }
-    if (territoryResult.passiveEvents.length > 0) {
-      passiveEvents.push(...territoryResult.passiveEvents);
+    if (passiveResult.epEvents.length > 0) {
+      epEvents.push(...passiveResult.epEvents);
+    }
+    if (passiveResult.dpEvents.length > 0) {
+      dpEvents.push(...passiveResult.dpEvents);
+    }
+    if (passiveResult.passiveEvents.length > 0) {
+      passiveEvents.push(...passiveResult.passiveEvents);
+    }
+
+    if (reviveTerritoryTrigger) {
+      const territoryResult = applyReviveTerritoryTurnStartEffect(party, turnState, reviveTerritoryTrigger);
+      if (territoryResult.dpEvents.length > 0) {
+        dpEvents.push(...territoryResult.dpEvents);
+      }
+      if (territoryResult.passiveEvents.length > 0) {
+        passiveEvents.push(...territoryResult.passiveEvents);
+      }
     }
   }
 
@@ -8324,6 +8331,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const tokenEvents = applyTokenEffectsFromActions(state, previewRecord, actionDpEvents);
   const { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents, passiveTriggerEvents } = applyMoraleEffectsFromActions(state, previewRecord);
   const dpPassiveMotivationEvents = applyMotivationFromDpHealEvents(state, dpPassiveEvents);
+  // EXターン遷移判定を applyRecoveryPipeline より前に確定させる
+  // （normal/od → extra 遷移時にSP回復が実行されるバグを防ぐため）
+  const grantedExtraCharacterIds = [
+    ...deriveGrantedExtraTurnCharacterIds(state, previewRecord),
+    ...additionalTurnPassiveGrantedIds,
+  ];
   applyTalismanLevelIncrementsFromActions(state, previewRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
   const markEvents = applyMarkEffectsFromActions(state, previewRecord);
@@ -8343,7 +8356,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     computeTranscendenceTurnSummary(state, previewRecord)
   );
   tickEnemyStatusDurations(state.turnState, 'PlayerTurnEnd');
-  const recovery = applyRecoveryPipeline(state.party, state.turnState);
+  // EXターンへ遷移する場合はターン開始回復をスキップ（OD発動ボーナスは除く）
+  const recovery = applyRecoveryPipeline(state.party, state.turnState, {
+    skipTurnStartRecovery: grantedExtraCharacterIds.length > 0,
+  });
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
   const recoveryDpEvents = Array.isArray(recovery.dpEvents) ? [...recovery.dpEvents] : [];
@@ -8466,10 +8482,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     member.incrementSkillUseById(entry.skillId);
   }
 
-  const grantedExtraCharacterIds = [
-    ...deriveGrantedExtraTurnCharacterIds(state, previewRecord),
-    ...additionalTurnPassiveGrantedIds,
-  ];
   updateReinforcedModeStateAfterTurn(state);
   applyTurnBasedStatusExpiry(state, previewRecord);
   tickShreddingTurns(state, previewRecord, newlyShreddedIds);
