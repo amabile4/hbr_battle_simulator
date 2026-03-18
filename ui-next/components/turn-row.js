@@ -497,19 +497,18 @@ export class TurnRowController {
       <div draggable="${draggable}" data-turn-slot data-position="${member.position}"
            class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
                   ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
-        <!-- スキル select -->
-        <div class="px-0.5 pt-0.5">
+        <!-- 属性バッジ（左）＋ スキル select（右）横並び -->
+        <div class="flex items-center gap-0.5 px-0.5 pt-0.5">
+          <div data-skill-badges data-position="${member.position}"
+               class="flex flex-col gap-px flex-shrink-0">
+            ${this.#buildSkillBadgesHtml(selectedSkill, member, stateForCost)}
+          </div>
           <select data-skill-select data-position="${member.position}" data-party-index="${member.partyIndex}" ${selectDisabled}
-                  class="w-full text-xs border border-gray-200 rounded px-0.5 py-px
+                  class="flex-1 min-w-0 text-xs border border-gray-200 rounded px-0.5 py-px
                          ${isCommitted ? 'bg-gray-50 text-gray-500' : 'bg-white'}
                          focus:outline-none focus:ring-1 focus:ring-blue-300">
             ${skillOptions}
           </select>
-        </div>
-        <!-- 属性バッジ（スキル select 直下） -->
-        <div data-skill-badges data-position="${member.position}"
-             class="px-0.5 flex flex-wrap gap-px min-h-[12px]">
-          ${this.#buildSkillBadgesHtml(selectedSkill, member, stateForCost)}
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
         <div class="flex flex-col p-0.5 gap-0.5">
