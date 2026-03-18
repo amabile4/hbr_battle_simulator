@@ -215,9 +215,11 @@ export class TurnRowController {
    * @param {number} max
    */
   #buildTokenHtml(current, max) {
-    if (current <= 0) return '';
-    const effective = Math.min(Math.max(0, current), max);
-    const total = Math.max(max, 10);
+    const cur = Number(current);
+    const mx  = Number(max);
+    if (!Number.isFinite(cur) || cur <= 0 || !Number.isFinite(mx) || mx <= 0) return '';
+    const effective = Math.min(cur, mx);
+    const total = Math.max(mx, 10);
     const dots = Array.from({ length: total }, (_, i) => {
       if (i < effective) return '<span class="token-dot active"></span>';
       if (i === effective) return '<span class="token-dot afterglow"></span>';
@@ -233,9 +235,10 @@ export class TurnRowController {
    * @param {number} current
    */
   #buildMoraleHtml(current) {
-    if (current <= 0) return '';
-    const bigCount = Math.floor(current / 2);
-    const hasSmall = (current % 2) === 1;
+    const cur = Number(current);
+    if (!Number.isFinite(cur) || cur <= 0) return '';
+    const bigCount = Math.floor(cur / 2);
+    const hasSmall = (cur % 2) === 1;
     const dots = [
       ...Array.from({ length: bigCount }, () => '<span class="morale-dot-big"></span>'),
       ...(hasSmall ? ['<span class="morale-dot-small"></span>'] : []),
