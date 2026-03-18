@@ -100,8 +100,8 @@
 /* SP バッジ フォントサイズ — デフォルト text-sm */
 [data-sp-badge] { font-size: 0.875rem; }
 
-/* 情報スペース高さ — アイコンに連動 */
-[data-slot-info-space] { height: 2.5rem; }
+/* 情報スペース高さ — アイコンに連動（バフ/デバフ用余白として min-height のみ保持） */
+[data-slot-info-space] { min-height: 1rem; }
 
 /* ============================================================
    狭い画面（< 480px）: 2行レイアウト
@@ -164,7 +164,7 @@
 @container turn-area (min-width: 560px) {
   [data-turn-slot-icon]  { width: 3rem; height: 3rem; }
   [data-sp-badge]        { font-size: 1rem; }
-  [data-slot-info-space] { height: 3rem; }
+  [data-slot-info-space] { min-height: 1rem; }
 }
 
 /* 720px 以上: アイコン 64px、均等 6 等分 */
@@ -173,7 +173,7 @@
   [data-turn-back-group]  { flex: 1; }
   [data-turn-slot-icon]   { width: 4rem; height: 4rem; }
   [data-sp-badge]         { font-size: 1.25rem; }
-  [data-slot-info-space]  { height: 4rem; }
+  [data-slot-info-space]  { min-height: 1rem; }
 }
 
 /* ============================================================
@@ -209,29 +209,29 @@
    ============================================================ */
 .token-grid {
   display: grid;
-  grid-template-columns: repeat(5, 4px);
-  grid-template-rows: repeat(2, 4px);
-  gap: 1px;
+  grid-template-columns: repeat(5, 6px);
+  grid-template-rows: repeat(2, 6px);
+  gap: 1.5px;
   border: 1px solid #dc2626;
-  padding: 1px;
-  border-radius: 2px;
+  padding: 2px;
+  border-radius: 3px;
   /* 右端のグロー（残光） */
-  box-shadow: 2px 0 4px rgba(255, 255, 255, 0.25);
+  box-shadow: 3px 0 6px rgba(255, 255, 255, 0.3);
 }
 .token-dot {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.15);
 }
 .token-dot.active {
   background: #ffffff;
-  box-shadow: 0 0 2px 1px rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 3px 1px rgba(255, 255, 255, 0.8);
 }
 /* 最後の active ドットの直後（afterglow）: 薄く光る残像 */
 .token-dot.afterglow {
-  background: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 2px rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.5);
 }
 
 /* ============================================================
@@ -244,27 +244,29 @@
   gap: 1px;
 }
 .morale-icon {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   object-fit: contain;
   display: block;
 }
 .morale-dots {
   display: flex;
   flex-wrap: wrap;
-  gap: 1px;
+  gap: 2px;
   align-items: center;
+  margin-top: 1px;
 }
 .morale-dot-big {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 1px solid #dc2626;
+  border: 1.5px solid #dc2626;
   background: #ffffff;
+  box-shadow: 0 0 2px rgba(220, 38, 38, 0.4);
 }
 .morale-dot-small {
-  width: 3px;
-  height: 3px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   border: 1px solid #dc2626;
   background: #ffffff;

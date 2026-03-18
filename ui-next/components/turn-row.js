@@ -508,21 +508,25 @@ export class TurnRowController {
              class="px-0.5 flex flex-wrap gap-px min-h-[12px]">
           ${this.#buildSkillBadgesHtml(selectedSkill, member, stateForCost)}
         </div>
-        <!-- アイコン（固定サイズ）＋ 情報スペース -->
-        <div class="flex items-start gap-1 p-0.5">
-          <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-100">
-            ${imageUrl
-              ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
-                      class="w-full h-full object-cover" />`
-              : `<div class="w-full h-full flex items-center justify-center text-gray-300">？</div>`
-            }
-            <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px]"
-                 style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.9);">
-              ${spDisplay}
+        <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
+        <div class="flex flex-col p-0.5 gap-0.5">
+          <div class="flex items-start gap-1">
+            <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-100">
+              ${imageUrl
+                ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                        class="w-full h-full object-cover" />`
+                : `<div class="w-full h-full flex items-center justify-center text-gray-300">？</div>`
+              }
+              <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px]"
+                   style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.9);">
+                ${spDisplay}
+              </div>
             </div>
+            <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
+            <div data-slot-info-space class="flex-1 min-w-0"></div>
           </div>
-          <!-- トークン・士気表示スペース -->
-          <div data-slot-info-space class="flex-1 min-w-0 flex flex-col gap-0.5 justify-start pt-0.5">
+          <!-- アイコン直下: トークン・士気 -->
+          <div class="flex items-center gap-1.5 flex-wrap px-0.5">
             ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
             ${this.#buildMoraleHtml(moraleCurrent)}
           </div>
@@ -554,19 +558,22 @@ export class TurnRowController {
         <div class="px-0.5 pt-0.5">
           <div class="w-full text-xs rounded px-0.5 py-px border ${labelClass}">EX待機</div>
         </div>
-        <div class="flex items-start gap-1 p-0.5">
-          <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
-            ${imageUrl
-              ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
-                      class="w-full h-full object-cover opacity-40" />`
-              : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
-            }
-            <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-60"
-                 style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
-              ${sp}
+        <div class="flex flex-col p-0.5 gap-0.5 opacity-50">
+          <div class="flex items-start gap-1">
+            <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
+              ${imageUrl
+                ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                        class="w-full h-full object-cover opacity-40" />`
+                : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
+              }
+              <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px]"
+                   style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
+                ${sp}
+              </div>
             </div>
+            <div data-slot-info-space class="flex-1 min-w-0"></div>
           </div>
-          <div data-slot-info-space class="flex-1 min-w-0 flex flex-col gap-0.5 justify-start pt-0.5 opacity-50">
+          <div class="flex items-center gap-1.5 flex-wrap px-0.5">
             ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
             ${this.#buildMoraleHtml(moraleCurrent)}
           </div>
@@ -599,21 +606,25 @@ export class TurnRowController {
           <div class="w-full text-xs text-gray-300 border border-gray-100 rounded px-0.5 py-px
                       bg-gray-50">後衛</div>
         </div>
-        <!-- アイコン（固定サイズ）＋ 情報スペース -->
-        <div class="flex items-start gap-1 p-0.5">
-          <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
-            ${imageUrl
-              ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
-                      class="w-full h-full object-cover opacity-60" />`
-              : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
-            }
-            <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-80"
-                 style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
-              ${sp}
+        <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
+        <div class="flex flex-col p-0.5 gap-0.5 opacity-70">
+          <div class="flex items-start gap-1">
+            <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
+              ${imageUrl
+                ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                        class="w-full h-full object-cover opacity-60" />`
+                : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
+              }
+              <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-80"
+                   style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
+                ${sp}
+              </div>
             </div>
+            <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
+            <div data-slot-info-space class="flex-1 min-w-0"></div>
           </div>
-          <!-- トークン・士気表示スペース（後衛：薄く表示） -->
-          <div data-slot-info-space class="flex-1 min-w-0 flex flex-col gap-0.5 justify-start pt-0.5 opacity-70">
+          <!-- アイコン直下: トークン・士気（後衛） -->
+          <div class="flex items-center gap-1.5 flex-wrap px-0.5">
             ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
             ${this.#buildMoraleHtml(moraleCurrent)}
           </div>
