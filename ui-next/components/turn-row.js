@@ -1,21 +1,21 @@
-import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
+import { resolveStyleImageUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import { isNormalAttackSkill, isAdmiralCommandSkill } from '../../src/domain/skill-classifiers.js';
 import { formatSkillCostLabel } from '../utils/skill-label.js';
 import { getExcludedSkillIds } from '../utils/skill-filter.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 
 const ATTACK_TYPE_MAP = {
-  Slash:  { img: '/assets/ui/Slash.webp',  alt: '斬' },
-  Stab:   { img: '/assets/ui/Stab.webp',   alt: '突' },
-  Strike: { img: '/assets/ui/Strike.webp', alt: '打' },
+  Slash:  { img: resolveUiAssetUrl('Slash.webp'),  alt: '斬' },
+  Stab:   { img: resolveUiAssetUrl('Stab.webp'),   alt: '突' },
+  Strike: { img: resolveUiAssetUrl('Strike.webp'), alt: '打' },
 };
 
 const ELEMENT_MAP = {
-  Fire:    { img: '/assets/ui/Fire.webp',    alt: '火' },
-  Ice:     { img: '/assets/ui/Ice.webp',     alt: '氷' },
-  Thunder: { img: '/assets/ui/Thunder.webp', alt: '雷' },
-  Dark:    { img: '/assets/ui/Dark.webp',    alt: '闇' },
-  Light:   { img: '/assets/ui/Light.webp',   alt: '光' },
+  Fire:    { img: resolveUiAssetUrl('Fire.webp'),    alt: '火' },
+  Ice:     { img: resolveUiAssetUrl('Ice.webp'),     alt: '氷' },
+  Thunder: { img: resolveUiAssetUrl('Thunder.webp'), alt: '雷' },
+  Dark:    { img: resolveUiAssetUrl('Dark.webp'),    alt: '闇' },
+  Light:   { img: resolveUiAssetUrl('Light.webp'),   alt: '光' },
 };
 
 /**
@@ -245,7 +245,7 @@ export class TurnRowController {
       ...Array.from({ length: redDots   }, () => '<span class="morale-dot-red"></span>'),
     ].join('');
     return `<div class="morale-display">
-      <img src="/assets/ui/Morale.webp" class="morale-icon" alt="士気" />
+      <img src="${resolveUiAssetUrl('Morale.webp')}" class="morale-icon" alt="士気" />
       <div class="morale-dots">${dots}</div>
     </div>`;
   }
