@@ -500,7 +500,7 @@ export class TurnRowController {
         <!-- 属性バッジ（左）＋ スキル select（右）横並び -->
         <div class="flex items-center gap-0.5 px-0.5 pt-0.5">
           <div data-skill-badges data-position="${member.position}"
-               class="grid grid-cols-2 gap-px flex-shrink-0 self-stretch">
+               class="hidden sm:grid grid-cols-2 gap-px flex-shrink-0 self-stretch">
             ${this.#buildSkillBadgesHtml(selectedSkill, member, stateForCost)}
           </div>
           <select data-skill-select data-position="${member.position}" data-party-index="${member.partyIndex}" ${selectDisabled}
