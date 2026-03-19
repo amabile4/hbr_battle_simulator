@@ -4,6 +4,10 @@ import { formatSkillCostLabel } from '../utils/skill-label.js';
 import { getExcludedSkillIds } from '../utils/skill-filter.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 
+// select 幅の閾値（px）：スキルバッジ・SPコスト表示の切り替えに使用
+const BADGE_MIN_SELECT_WIDTH = 90;
+const COST_MIN_SELECT_WIDTH  = 60;
+
 const ATTACK_TYPE_MAP = {
   Slash:  { img: resolveUiAssetUrl('Slash.webp'),  alt: '斬' },
   Stab:   { img: resolveUiAssetUrl('Stab.webp'),   alt: '突' },
@@ -116,8 +120,9 @@ export class TurnRowController {
       sel.innerHTML = visibleSkills.map((s) => {
         const isSelected = s.skillId === effectiveSelectedId;
         const costLabel = formatSkillCostLabel(s, member, stateForCost);
-        return `<option value="${s.skillId}"${isSelected ? ' selected' : ''}>${costLabel}${s.name}</option>`;
+        return `<option value="${s.skillId}" data-cost-label="${costLabel}" data-skill-name="${s.name}"${isSelected ? ' selected' : ''}>${costLabel}${s.name}</option>`;
       }).join('');
+      this.#applyWidthBasedVisibility(sel);
 
       const badgeEl = this.#root.querySelector(`[data-skill-badges][data-position="${member.position}"]`);
       if (badgeEl) {
@@ -485,7 +490,7 @@ export class TurnRowController {
     const skillOptions = visibleSkills.map((s) => {
       const isSelected = s.skillId === effectiveSelectedId;
       const costLabel = formatSkillCostLabel(s, member, stateForCost);
-      return `<option value="${s.skillId}"${isSelected ? ' selected' : ''}>${costLabel}${s.name}</option>`;
+      return `<option value="${s.skillId}" data-cost-label="${costLabel}" data-skill-name="${s.name}"${isSelected ? ' selected' : ''}>${costLabel}${s.name}</option>`;
     }).join('');
 
     const selectDisabled = isCommitted ? 'disabled' : '';
@@ -500,7 +505,7 @@ export class TurnRowController {
         <!-- 属性バッジ（左）＋ スキル select（右）横並び -->
         <div class="flex items-center gap-0.5 px-0.5 pt-0.5">
           <div data-skill-badges data-position="${member.position}"
-               class="hidden sm:grid grid-cols-2 gap-px flex-shrink-0 self-stretch">
+               class="grid grid-cols-2 gap-px flex-shrink-0 self-stretch">
             ${this.#buildSkillBadgesHtml(selectedSkill, member, stateForCost)}
           </div>
           <select data-skill-select data-position="${member.position}" data-party-index="${member.partyIndex}" ${selectDisabled}
@@ -795,6 +800,9 @@ export class TurnRowController {
     if (this.#record === null) {
       this.#bindDragAndDrop();
     }
+
+    // select 幅監視（バッジ・SPコスト表示切り替え）
+    this.#bindResizeObserver();
   }
 
   /**
@@ -844,6 +852,49 @@ export class TurnRowController {
     const member = this.#stateBefore?.party?.find((m) => m.position === position);
     const skill = skillId != null ? (member?.getSkill?.(skillId) ?? null) : null;
     badgeEl.innerHTML = this.#buildSkillBadgesHtml(skill, member, this.#stateBefore);
+  }
+
+  /**
+   * select 幅に応じてバッジ表示・SPコスト表示を切り替える。
+   * ResizeObserver コールバックおよび refreshSkillSelects() から呼ばれる。
+   */
+  #applyWidthBasedVisibility(selectEl) {
+    const width = selectEl.offsetWidth;
+    const position = Number(selectEl.dataset.position);
+
+    // バッジ表示制御
+    const badgeEl = this.#root.querySelector(`[data-skill-badges][data-position="${position}"]`);
+    if (badgeEl) {
+      badgeEl.style.display = width >= BADGE_MIN_SELECT_WIDTH ? '' : 'none';
+    }
+
+    // SPコスト表示制御（option.textContent を直接更新、value は維持）
+    const showCost = width >= COST_MIN_SELECT_WIDTH;
+    Array.from(selectEl.options).forEach((opt) => {
+      const cost = opt.dataset.costLabel ?? '';
+      const name = opt.dataset.skillName ?? '';
+      if (cost || name) {
+        opt.textContent = showCost ? `${cost}${name}` : name;
+      }
+    });
+  }
+
+  /**
+   * 前衛スロットの select 幅を監視し、幅変化時にバッジ・SPコストを更新する。
+   */
+  #bindResizeObserver() {
+    const selects = this.#root.querySelectorAll('[data-skill-select]');
+    if (!selects.length) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        this.#applyWidthBasedVisibility(entry.target);
+      }
+    });
+    selects.forEach((sel) => {
+      observer.observe(sel);
+      // ResizeObserver は初回コールバックが非同期のため即時も適用
+      this.#applyWidthBasedVisibility(sel);
+    });
   }
 
   #bindDragAndDrop() {
