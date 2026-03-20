@@ -17,8 +17,11 @@ import {
 
 test('operation registry keeps known operation definitions and preserves unknown envelopes', () => {
   assert.equal(replayOperationRegistry.has(REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA), true);
+  assert.equal(replayOperationRegistry.has(REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI), true);
   assert.deepEqual(replayOperationRegistry.get(REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD), {
     timing: 'afterCommitReservation',
+    displayLabel: '割込OD',
+    allowMultiple: false,
   });
 
   const turn = normalizeLightweightReplayTurn({
@@ -36,6 +39,27 @@ test('operation registry keeps known operation definitions and preserves unknown
     { type: 'FutureOperation', payload: { marker: 'preserve-me' } },
   ]);
   assert.equal(turn.note, 'memo');
+});
+
+test('normalizeLightweightReplayTurn preserves duplicate Makai Kihei operations', () => {
+  const turn = normalizeLightweightReplayTurn({
+    turn: 1,
+    slots: [],
+    operations: [
+      { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI },
+      { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI },
+      { type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA },
+    ],
+  });
+
+  assert.deepEqual(
+    turn.operations.map((operation) => operation.type),
+    [
+      REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI,
+      REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI,
+      REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA,
+    ]
+  );
 });
 
 test('override registry applies known scenario fields and warns only for unknown types', () => {

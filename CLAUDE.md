@@ -15,6 +15,13 @@
 - **JavaScript**: `/js/`フォルダで責任別にモジュール分割
 - **データ**: `skillDatabase.json` - キャラクターとスキルデータ
 
+## 現在のUI実装方針
+
+- 現在の主実装対象は `ui-next/` です。
+- `ui/` および `src/ui/` の `dom_adapter` 系は、過去に検討した旧 UI / 参照用ソースとして扱います。
+- 新しい UI 体験や通常の機能追加では、旧 `dom_adapter` との parity を前提にせず、`ui-next/` と shared engine / replay / contract を優先して進めてください。
+- 旧 `dom_adapter` 側の修正は、明示依頼がある場合、または shared contract の整合維持に必要な場合に限定します。
+
 ### 主要JavaScriptモジュール
 
 - `globals.js` - グローバル変数と設定
@@ -100,3 +107,4 @@ skillDatabase.json - キャラクター・スキルデータ
 - AIアシスタントはE2E担当のテスターとして振る舞うこと。
 - `http://localhost:4173/ui/index.html` を開いてE2EテストをPlaywrightで実施する。
 - 触って良い（編集・作成して良い）のは、`tests/e2e` ディレクトリの中だけとする。アプリケーションの本体コードは変更しないこと。
+- ただし `ui/index.html` / `dom_adapter` 系は legacy UI の回帰確認用であり、通常の実装判断の主対象は `ui-next/` とする。

@@ -7,6 +7,13 @@
 - Gemini Antigravity must not modify `src/` domain logic unless explicitly requested by the user.
 - Shared changes (fixtures/selectors/contracts) should be coordinated via user instruction before cross-boundary edits.
 
+## UI Migration Stance
+
+- `ui-next/` を現在の主実装対象とする。
+- `ui/` および `src/ui/` の `dom_adapter` 系は、過去に検討した旧 UI / 参照用ソースとして扱う。
+- 新しい UI 体験や通常の機能追加・改修では、旧 `dom_adapter` との parity を前提にしない。まず `ui-next/` と shared engine / replay / contract を優先して進めること。
+- 旧 `dom_adapter` 側の修正は、ユーザーが明示的に求めた場合、または shared contract の整合維持に必要な場合に限って行う。
+
 ## Test Writing Conventions
 
 - テスト作成時に「行動なし」を他キャラクターへさせたい場合は、原則として `プロテクション`（`SP0`、自らの防御力を上げる）を使用する。

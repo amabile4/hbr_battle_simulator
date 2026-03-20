@@ -13,11 +13,23 @@ import {
   normalizeLightweightReplayTurn,
   REPLAY_OPERATION_TYPES,
   REPLAY_OVERRIDE_ENTRY_TYPES,
+  replayOperationRegistry,
 } from '../../src/ui/lightweight-replay-script.js';
 import { normalizeTurnReplayTarget } from '../utils/turn-targeting.js';
 
 // turn-controller.js の TEZUKA_CHARACTER_ID と同値
 const TEZUKA_CHARACTER_ID = 'STezuka';
+const MAKAI_KIHEI_STYLE_ID = 1003108;
+const MAKAI_KIHEI_PASSIVE_LABEL = 'Passive.Machina_Demon';
+const MAKAI_KIHEI_SKILL_LABEL = 'BIYamawakiSkill55b';
+const MAKAI_KIHEI_MAX_USES = 3;
+const MAKAI_KIHEI_DEFAULT_POSITION = 0;
+
+const BEFORE_COMMIT_OPERATION_TYPES = new Set(
+  Object.entries(REPLAY_OPERATION_TYPES)
+    .filter(([, type]) => replayOperationRegistry.get(type)?.timing === 'beforeCommit')
+    .map(([, type]) => type)
+);
 
 /**
  * LightweightReplayScript を正本として保持し、previewTurn/commitTurn を透過的に管理するクラス。
@@ -40,7 +52,7 @@ export class TurnEngineManager {
   // 未コミット行の OD 予約（commit 時にクリア）
   #pendingPreemptiveOdLevel = null;  // number | null
   #pendingInterruptOdLevel = null;   // number | null
-  #pendingKishinka = false;          // boolean
+  #pendingSpecialOperations = [];    // ReplayOperation[]
 
   get replayScript() { return this.#replayScript; }
   get computedRecords() { return this.#computedRecords; }
@@ -48,7 +60,9 @@ export class TurnEngineManager {
   get initialState() { return this.#initialState; }
   get pendingPreemptiveOdLevel() { return this.#pendingPreemptiveOdLevel; }
   get pendingInterruptOdLevel() { return this.#pendingInterruptOdLevel; }
-  get pendingKishinka() { return this.#pendingKishinka; }
+  get pendingSpecialOperations() {
+    return this.#pendingSpecialOperations.map((operation) => structuredClone(operation));
+  }
 
   /** Apply 後に呼ぶ。初期 BattleState と空の ReplayScript を設定する。*/
   get currentState() {
@@ -61,16 +75,19 @@ export class TurnEngineManager {
    * TurnRowController のスキルコスト計算で SP が 0 表示になる。
    */
   get currentStateWithPending() {
-    let state = this.currentState;
-    if (this.#pendingKishinka) {
-      state = this.#applyKishinkaToState(state);
+    return this.getCurrentStateWithPending();
+  }
+
+  getCurrentStateWithPending(enemyCount = null) {
+    try {
+      return this.#applyBeforeCommitOperationsToState(
+        this.currentState,
+        this.#buildPendingBeforeCommitOperations(),
+        { enemyCount }
+      );
+    } catch {
+      return this.currentState;
     }
-    if (this.#pendingPreemptiveOdLevel != null) {
-      try {
-        state = activateOverdrive(state, this.#pendingPreemptiveOdLevel, 'preemptive');
-      } catch { /* 発動条件不成立時はそのまま */ }
-    }
-    return state;
   }
 
   get committedTurnCount() {
@@ -89,7 +106,7 @@ export class TurnEngineManager {
     this.#computedRecords = [];
     this.#pendingPreemptiveOdLevel = null;
     this.#pendingInterruptOdLevel = null;
-    this.#pendingKishinka = false;
+    this.#pendingSpecialOperations = [];
   }
 
   /**
@@ -103,19 +120,15 @@ export class TurnEngineManager {
    * @returns {object} committedRecord
    */
   commitNextTurn(slotActions = {}, options = {}) {
-    let state = this.currentState;
-    const enemyCount = clampEnemyCount(options.enemyCount ?? state?.turnState?.enemyState?.enemyCount);
-
-    // 鬼神化が pending の場合は commit 前に発動（先制OD より先に適用）
-    if (this.#pendingKishinka) {
-      state = this.#applyKishinkaToState(state);
-    }
-
-    // 先制OD が pending の場合は commit 前に発動
-    const preemptiveLevel = this.#pendingPreemptiveOdLevel;
-    if (preemptiveLevel != null) {
-      state = activateOverdrive(state, preemptiveLevel, 'preemptive');
-    }
+    const operations = this.#buildCommittedOperations();
+    const enemyCount = clampEnemyCount(
+      options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
+    );
+    let state = this.#applyBeforeCommitOperationsToState(
+      this.currentState,
+      operations,
+      { enemyCount }
+    );
 
     const actions = this.#buildActionsDict(state, slotActions);
     const previewRecord = previewTurnRecord(
@@ -130,25 +143,11 @@ export class TurnEngineManager {
     // getStateBefore(N) = computedStates[N-1] を参照する committed 行の stateBefore が
     // 変異した state を返してしまい、getActionSkills() が誤った結果を返すバグの原因となる。
     // → party をクローンした作業用 state を commitTurnRecord に渡すことで汚染を防ぐ。
-    const stateForCommit = this.#pendingKishinka || preemptiveLevel != null
-      ? state  // #applyKishinkaToState / activateOverdrive で既にクローン済み
-      : { ...state, party: state.party.map((m) => m.clone()) };
+    const stateForCommit = { ...state, party: state.party.map((m) => m.clone()) };
 
     const { nextState, committedRecord } = commitTurnRecord(stateForCommit, previewRecord, [], {
       interruptOdLevel: interruptLevel,
     });
-
-    // operations を構築してから ReplayTurn を生成
-    const operations = [];
-    if (this.#pendingKishinka) {
-      operations.push({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA, payload: {} });
-    }
-    if (preemptiveLevel != null) {
-      operations.push({ type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD, payload: { level: preemptiveLevel } });
-    }
-    if (this.#pendingInterruptOdLevel != null) {
-      operations.push({ type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD, payload: { level: this.#pendingInterruptOdLevel } });
-    }
 
     // slotActions は currentState（先制OD 適用前）の position を基準に記録
     const replayTurn = this.#buildReplayTurn(
@@ -159,9 +158,9 @@ export class TurnEngineManager {
     this.#computedRecords.push(committedRecord);
 
     // pending をリセット
-    this.#pendingKishinka = false;
     this.#pendingPreemptiveOdLevel = null;
     this.#pendingInterruptOdLevel = null;
+    this.#pendingSpecialOperations = [];
 
     return committedRecord;
   }
@@ -189,9 +188,9 @@ export class TurnEngineManager {
     this.#computedStates.splice(fromIndex);
     this.#computedRecords.splice(fromIndex);
     // 過去ターンを再計算するため、未コミット pending は無効化する
-    this.#pendingKishinka = false;
     this.#pendingPreemptiveOdLevel = null;
     this.#pendingInterruptOdLevel = null;
+    this.#pendingSpecialOperations = [];
 
     const baseState = fromIndex === 0
       ? this.#initialState
@@ -211,39 +210,17 @@ export class TurnEngineManager {
       state = { ...state, party: state.party.map((m) => m.clone()) };
       this.#alignPositionsToSlots(state, turn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
-
-      // 鬼神化 operation を再現（recalculateFrom はクローン済み party を使うので直接 mutate 可）
-      const hasKishinka = Array.isArray(turn.operations) &&
-        turn.operations.some((o) => o?.type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA);
-      if (hasKishinka) {
-        const tezuka = state.party.find((m) => m.characterId === TEZUKA_CHARACTER_ID);
-        if (tezuka && !tezuka.isReinforcedMode) {
-          tezuka.activateReinforcedMode(3);
-          const newOdGauge = Math.min(
-            OD_GAUGE_MAX_PERCENT,
-            Number(state.turnState.odGauge ?? 0) + REINFORCED_MODE_OD_GAUGE_BONUS,
-          );
-          state = { ...state, turnState: { ...state.turnState, odGauge: Number(newOdGauge.toFixed(2)) } };
-        }
-      }
-
-      // 先制OD operation を再現
-      const preemptiveLevel = this.#extractOperationLevel(
-        turn.operations, REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD
-      );
-      if (preemptiveLevel != null) {
-        try {
-          state = activateOverdrive(state, preemptiveLevel, 'preemptive');
-        } catch (err) {
-          console.warn(`TurnEngineManager.recalculateFrom: activateOverdrive failed at turn ${i}:`, err.message);
-          this.#computedStates.push(state);
-          this.#computedRecords.push(null);
-          break;
-        }
+      const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
+      try {
+        state = this.#applyBeforeCommitOperationsToState(state, turn.operations, { enemyCount });
+      } catch (err) {
+        console.warn(`TurnEngineManager.recalculateFrom: before-commit operations failed at turn ${i}:`, err.message);
+        this.#computedStates.push(state);
+        this.#computedRecords.push(null);
+        break;
       }
 
       const actions = this.#buildActionsDict(state, slotActions);
-      const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
 
       // 割込OD operation を再現
       const interruptLevel = this.#extractOperationLevel(
@@ -277,20 +254,18 @@ export class TurnEngineManager {
    * @returns {{ odGaugeAfter: number, activatableInterrupt: number[] } | null}
    */
   previewCurrentTurn(slotActions = {}, options = {}) {
+    const enemyCount = clampEnemyCount(
+      options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
+    );
     let state = this.currentState;
-
-    // 鬼神化が pending の場合は発動後の state でプレビュー（SP 0 をリアルタイム反映）
-    if (this.#pendingKishinka) {
-      state = this.#applyKishinkaToState(state);
-    }
-
-    // 先制OD が pending の場合は発動後の state でプレビュー
-    if (this.#pendingPreemptiveOdLevel != null) {
-      try {
-        state = activateOverdrive(state, this.#pendingPreemptiveOdLevel, 'preemptive');
-      } catch {
-        return null;
-      }
+    try {
+      state = this.#applyBeforeCommitOperationsToState(
+        state,
+        this.#buildPendingBeforeCommitOperations(),
+        { enemyCount }
+      );
+    } catch {
+      return null;
     }
 
     const actions = this.#buildActionsDict(state, slotActions);
@@ -299,7 +274,7 @@ export class TurnEngineManager {
         state,
         actions,
         null,
-        clampEnemyCount(options.enemyCount ?? state?.turnState?.enemyState?.enemyCount)
+        enemyCount
       );
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
 
@@ -332,12 +307,41 @@ export class TurnEngineManager {
     this.#pendingInterruptOdLevel = level != null ? Number(level) : null;
   }
 
-  /**
-   * 鬼神化の予約を設定/解除する。
-   * @param {boolean} active
-   */
-  setPendingKishinka(active) {
-    this.#pendingKishinka = Boolean(active);
+  addPendingSpecialOperation(operation) {
+    const normalized = this.#normalizeReplayOperation(operation);
+    if (!normalized) {
+      return false;
+    }
+    const definition = replayOperationRegistry.get(normalized.type);
+    if (definition?.allowMultiple === false) {
+      const alreadyQueued = this.#pendingSpecialOperations.some((entry) => entry?.type === normalized.type);
+      if (alreadyQueued) {
+        return false;
+      }
+    }
+    if (
+      normalized.type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA &&
+      !this.isKishinkaAvailable()
+    ) {
+      return false;
+    }
+    if (
+      normalized.type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI &&
+      !this.getMakaiKiheiStatus().available
+    ) {
+      return false;
+    }
+    this.#pendingSpecialOperations.push(normalized);
+    return true;
+  }
+
+  removePendingSpecialOperation(index) {
+    const numericIndex = Number(index);
+    if (!Number.isInteger(numericIndex) || numericIndex < 0 || numericIndex >= this.#pendingSpecialOperations.length) {
+      return false;
+    }
+    this.#pendingSpecialOperations.splice(numericIndex, 1);
+    return true;
   }
 
   /**
@@ -361,10 +365,44 @@ export class TurnEngineManager {
     return {
       hasTezuka: true,
       available: this.isKishinkaAvailable(),
-      activePending: this.#pendingKishinka,
+      activePending: this.#pendingSpecialOperations.some(
+        (operation) => operation?.type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA
+      ),
       isActive: Boolean(tezuka.isReinforcedMode),
       turnsRemaining: Number(tezuka.reinforcedTurnsRemaining ?? 0),
       actionDisabledTurns: Number(tezuka.actionDisabledTurns ?? 0),
+    };
+  }
+
+  getMakaiKiheiStatus() {
+    const actor = this.currentState?.party?.find((member) => Number(member?.styleId) === MAKAI_KIHEI_STYLE_ID) ?? null;
+    if (!actor || !this.#getMakaiKiheiEmbeddedSkill(actor)) {
+      return {
+        hasYamawaki: false,
+        available: false,
+        remainingUses: 0,
+        pendingCount: 0,
+        maxUses: MAKAI_KIHEI_MAX_USES,
+      };
+    }
+    const committedCount = this.#countReplayOperations(
+      this.#replayScript?.turns?.flatMap((turn) => turn?.operations ?? []) ?? [],
+      REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI
+    );
+    const pendingCount = this.#countReplayOperations(
+      this.#pendingSpecialOperations,
+      REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI
+    );
+    const remainingUses = Math.max(
+      0,
+      MAKAI_KIHEI_MAX_USES - committedCount - pendingCount
+    );
+    return {
+      hasYamawaki: true,
+      available: remainingUses > 0,
+      remainingUses,
+      pendingCount,
+      maxUses: MAKAI_KIHEI_MAX_USES,
     };
   }
 
@@ -372,8 +410,12 @@ export class TurnEngineManager {
    * 現在 state で発動可能な先制OD レベル一覧を返す。
    * @returns {number[]} 発動可能なレベルのリスト（例: [1, 2]）
    */
-  getActivatablePreemptiveOdLevels() {
-    const state = this.currentState;
+  getActivatablePreemptiveOdLevels(enemyCount = null) {
+    const state = this.#applyBeforeCommitOperationsToState(
+      this.currentState,
+      this.#pendingSpecialOperations,
+      { enemyCount }
+    );
     const gauge = Number(state?.turnState?.odGauge ?? 0);
     const { canPreemptive } = this.#getOdActivationStatus(state?.turnState);
     if (!canPreemptive) return [];
@@ -436,6 +478,19 @@ export class TurnEngineManager {
     this.recalculateFrom(turnIndex);
   }
 
+  updateOperations(turnIndex, operations) {
+    const turn = this.#replayScript?.turns[turnIndex];
+    if (!turn) return;
+    turn.operations = (Array.isArray(operations) ? operations : [])
+      .map((operation) => this.#normalizeReplayOperation(operation))
+      .filter(Boolean);
+    this.recalculateFrom(turnIndex);
+  }
+
+  getReplayTurn(turnIndex) {
+    return this.#replayScript?.turns?.[turnIndex] ?? null;
+  }
+
   /**
    * 未コミット行の入力対象となる現在 state でポジションを入れ替える。
    * D&D によるコミット前のパーティー順変更に使用。
@@ -474,13 +529,209 @@ export class TurnEngineManager {
       ? this.#initialState
       : this.#computedStates[turnIndex - 1];
     const turn = this.#replayScript?.turns?.[turnIndex];
-    const hasKishinka = Array.isArray(turn?.operations) &&
-      turn.operations.some((o) => o?.type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA);
-    if (!hasKishinka) return rawBefore;
-    return this.#applyKishinkaToState(rawBefore);
+    if (!Array.isArray(turn?.operations) || turn.operations.length === 0) {
+      return rawBefore;
+    }
+    try {
+      const enemyCount = this.#resolveReplayTurnEnemyCount(turn, rawBefore);
+      return this.#applyBeforeCommitOperationsToState(rawBefore, turn.operations, { enemyCount });
+    } catch {
+      return rawBefore;
+    }
   }
 
   // ---- private ----
+
+  #normalizeReplayOperation(operation = {}) {
+    if (!operation || typeof operation !== 'object') {
+      return null;
+    }
+    const type = String(operation.type ?? '').trim();
+    if (!type) {
+      return null;
+    }
+    const normalized = { type };
+    const payload = operation.payload && typeof operation.payload === 'object'
+      ? structuredClone(operation.payload)
+      : {};
+    if (Object.keys(payload).length > 0) {
+      normalized.payload = payload;
+    }
+    return normalized;
+  }
+
+  #buildPendingBeforeCommitOperations() {
+    const operations = this.#pendingSpecialOperations.map((operation) => structuredClone(operation));
+    if (this.#pendingPreemptiveOdLevel != null) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
+        payload: { level: this.#pendingPreemptiveOdLevel },
+      });
+    }
+    return operations;
+  }
+
+  #buildCommittedOperations() {
+    const operations = this.#buildPendingBeforeCommitOperations();
+    if (this.#pendingInterruptOdLevel != null) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
+        payload: { level: this.#pendingInterruptOdLevel },
+      });
+    }
+    return operations;
+  }
+
+  #applyBeforeCommitOperationsToState(state, operations = [], options = {}) {
+    let nextState = this.#withEnemyCount(state, options.enemyCount);
+    for (const operation of Array.isArray(operations) ? operations : []) {
+      const type = String(operation?.type ?? '').trim();
+      if (!BEFORE_COMMIT_OPERATION_TYPES.has(type)) {
+        continue;
+      }
+      if (type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA) {
+        nextState = this.#applyKishinkaOperation(nextState);
+        continue;
+      }
+      if (type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI) {
+        nextState = this.#applyMakaiKiheiToState(nextState);
+        continue;
+      }
+      if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
+        const level = this.#extractOperationLevel([operation], REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD);
+        if (level != null) {
+          nextState = activateOverdrive(nextState, level, 'preemptive');
+        }
+      }
+    }
+    return nextState;
+  }
+
+  #withEnemyCount(state, enemyCount) {
+    const normalizedEnemyCount = clampEnemyCount(
+      enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+    );
+    if (Number(state?.turnState?.enemyState?.enemyCount) === normalizedEnemyCount) {
+      return state;
+    }
+    return {
+      ...state,
+      turnState: {
+        ...state.turnState,
+        enemyState: {
+          ...state.turnState?.enemyState,
+          enemyCount: normalizedEnemyCount,
+        },
+      },
+    };
+  }
+
+  #applyKishinkaOperation(state) {
+    const tezuka = state?.party?.find((member) => member.characterId === TEZUKA_CHARACTER_ID) ?? null;
+    if (!tezuka || tezuka.isReinforcedMode || Number(tezuka.actionDisabledTurns ?? 0) > 0) {
+      return state;
+    }
+    return this.#applyKishinkaToState(state);
+  }
+
+  #applyMakaiKiheiToState(state) {
+    const actor = state?.party?.find((member) => Number(member?.styleId) === MAKAI_KIHEI_STYLE_ID) ?? null;
+    const embeddedSkill = this.#getMakaiKiheiEmbeddedSkill(actor);
+    if (!actor || !embeddedSkill) {
+      return state;
+    }
+
+    const workingState = {
+      ...state,
+      party: state.party.map((member) => member.clone()),
+      turnState: { ...state.turnState },
+    };
+    const workingActor =
+      workingState.party.find((member) => Number(member?.styleId) === MAKAI_KIHEI_STYLE_ID) ?? null;
+    if (!workingActor) {
+      return state;
+    }
+    this.#moveActorToFrontForOperationPreview(workingState, workingActor);
+    const previewSkill = this.#createEmbeddedPreviewSkill(embeddedSkill);
+    workingActor.skills = Object.freeze([...(workingActor.skills ?? []), previewSkill]);
+
+    let previewRecord = null;
+    try {
+      previewRecord = previewTurnRecord(
+        workingState,
+        { [workingActor.position]: { skillId: previewSkill.skillId } },
+        null,
+        clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT)
+      );
+    } catch {
+      return state;
+    }
+    const odGaugeAfter = Number(previewRecord?.projections?.odGaugeAtEnd ?? state?.turnState?.odGauge ?? 0);
+    if (!Number.isFinite(odGaugeAfter)) {
+      return state;
+    }
+    return {
+      ...state,
+      turnState: {
+        ...state.turnState,
+        odGauge: Number(odGaugeAfter.toFixed(2)),
+      },
+    };
+  }
+
+  #moveActorToFrontForOperationPreview(state, actor) {
+    if (!state?.party || !actor || Number(actor.position) <= 2) {
+      return;
+    }
+    const currentFront = state.party.find((member) => Number(member?.position) === MAKAI_KIHEI_DEFAULT_POSITION) ?? null;
+    const originalPosition = Number(actor.position);
+    actor.position = MAKAI_KIHEI_DEFAULT_POSITION;
+    if (currentFront && currentFront !== actor) {
+      currentFront.position = originalPosition;
+    }
+  }
+
+  #createEmbeddedPreviewSkill(embeddedSkill = {}) {
+    return {
+      skillId: Number(embeddedSkill.id ?? embeddedSkill.skillId),
+      label: String(embeddedSkill.label ?? MAKAI_KIHEI_SKILL_LABEL),
+      name: String(embeddedSkill.name ?? '騎兵起動'),
+      desc: String(embeddedSkill.desc ?? ''),
+      targetType: String(embeddedSkill.target_type ?? embeddedSkill.targetType ?? 'All'),
+      spCost: Number(embeddedSkill.sp_cost ?? embeddedSkill.spCost ?? 0),
+      sourceType: 'system',
+      isPassive: false,
+      type: 'damage',
+      consumeType: String(embeddedSkill.consume_type ?? embeddedSkill.consumeType ?? 'Sp'),
+      hitCount: Number(embeddedSkill.hit_count ?? embeddedSkill.hitCount ?? 0),
+      isRestricted: Number(embeddedSkill.is_restricted ?? embeddedSkill.isRestricted ?? 0) === 1,
+      hits: Array.isArray(embeddedSkill.hits) ? structuredClone(embeddedSkill.hits) : [],
+      maxLevel: embeddedSkill.max_level ?? embeddedSkill.maxLevel ?? null,
+      cond: String(embeddedSkill.cond ?? ''),
+      iucCond: String(embeddedSkill.iuc_cond ?? embeddedSkill.iucCond ?? ''),
+      overwriteCond: String(embeddedSkill.overwrite_cond ?? embeddedSkill.overwriteCond ?? ''),
+      effect: String(embeddedSkill.effect ?? ''),
+      overwrite: embeddedSkill.overwrite ?? null,
+      additionalTurnRule: null,
+      parts: Array.isArray(embeddedSkill.parts) ? structuredClone(embeddedSkill.parts) : [],
+      passive: null,
+    };
+  }
+
+  #getMakaiKiheiEmbeddedSkill(actor) {
+    const passive = actor?.passives?.find?.((entry) => String(entry?.label ?? '') === MAKAI_KIHEI_PASSIVE_LABEL) ?? null;
+    const part = passive?.parts?.find?.((entry) => String(entry?.skill_type ?? '') === 'SpecialCommandCountUp') ?? null;
+    const embeddedSkill = part?.strval?.find?.((entry) => entry && typeof entry === 'object' && String(entry.label ?? '') === MAKAI_KIHEI_SKILL_LABEL)
+      ?? part?.strval?.find?.((entry) => entry && typeof entry === 'object')
+      ?? null;
+    return embeddedSkill && typeof embeddedSkill === 'object' ? embeddedSkill : null;
+  }
+
+  #countReplayOperations(operations = [], type) {
+    return (Array.isArray(operations) ? operations : []).filter(
+      (operation) => String(operation?.type ?? '') === String(type)
+    ).length;
+  }
 
   /**
    * state の party をクローンし、手塚咲の鬼神化を適用した新しい state を返す。

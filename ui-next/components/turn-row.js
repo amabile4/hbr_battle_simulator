@@ -5,6 +5,10 @@ import { formatSkillCostLabel } from '../utils/skill-label.js';
 import { getExcludedSkillIds } from '../utils/skill-filter.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 import {
+  getReplayOperationDisplayLabel,
+  REPLAY_OPERATION_TYPES,
+} from '../../src/ui/lightweight-replay-script.js';
+import {
   coerceTurnReplayTarget,
   formatTurnTargetLabel,
   normalizeTurnReplayTarget,
@@ -58,6 +62,8 @@ export class TurnRowController {
   #store;
   #turnIndex;
   #record;
+  #replayTurn;
+  #operations;
   #stateBefore;
   #stateAfter;
   #onSlotChange;
@@ -65,9 +71,11 @@ export class TurnRowController {
   #onNoteChange;
   #onPreviewRequest;
   #onOdChange;
-  #onKishinkaActivate;
+  #onOperationAdd;
+  #onOperationRemove;
   // OD 選択状態（未コミット行のみ使用）
-  #odState = null;  // { preemptiveOdLevel, interruptOdLevel, activatablePreemptive, activatableInterrupt, kishinkaStatus }
+  #odState = null;  // { preemptiveOdLevel, interruptOdLevel, activatablePreemptive, activatableInterrupt }
+  #operationState = null; // { kishinkaStatus, makaiKiheiStatus }
 
   // D&D 用
   #dragSrcPosition = null;
@@ -81,11 +89,35 @@ export class TurnRowController {
   // Simulator Settings パラメータ
   #simulatorSettings = null;
 
-  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest, onOdChange, onKishinkaActivate, odState = null, simulatorSettings = null }) {
+  constructor({
+    root,
+    store,
+    turnIndex,
+    record,
+    replayTurn = null,
+    operations = [],
+    operationState = null,
+    stateBefore,
+    stateAfter,
+    onSlotChange,
+    onCommit,
+    onNoteChange,
+    onPreviewRequest,
+    onOdChange,
+    onOperationAdd,
+    onOperationRemove,
+    odState = null,
+    simulatorSettings = null,
+  }) {
     this.#root = root;
     this.#store = store;
     this.#turnIndex = turnIndex;
     this.#record = record;
+    this.#replayTurn = replayTurn;
+    this.#operations = Array.isArray(operations) ? operations.map((operation) => structuredClone(operation)) : [];
+    this.#operationState = operationState && typeof operationState === 'object'
+      ? structuredClone(operationState)
+      : null;
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
     this.#onSlotChange = onSlotChange;
@@ -93,7 +125,8 @@ export class TurnRowController {
     this.#onNoteChange = onNoteChange;
     this.#onPreviewRequest = onPreviewRequest;
     this.#onOdChange = onOdChange;
-    this.#onKishinkaActivate = onKishinkaActivate;
+    this.#onOperationAdd = onOperationAdd;
+    this.#onOperationRemove = onOperationRemove;
     this.#odState = odState;
     this.#simulatorSettings = normalizeSimulatorSettings(simulatorSettings);
   }
@@ -151,6 +184,9 @@ export class TurnRowController {
 
   update({
     record,
+    replayTurn = undefined,
+    operations = undefined,
+    operationState = undefined,
     stateBefore,
     stateAfter,
     odState = undefined,
@@ -192,6 +228,17 @@ export class TurnRowController {
     if (record !== null) this.#selectedSlotPosition = null;
     this.#openTargetPickerPartyIndex = openTargetPickerPartyIndex;
     this.#record = record;
+    if (replayTurn !== undefined) this.#replayTurn = replayTurn;
+    if (operations !== undefined) {
+      this.#operations = Array.isArray(operations)
+        ? operations.map((operation) => structuredClone(operation))
+        : [];
+    }
+    if (operationState !== undefined) {
+      this.#operationState = operationState && typeof operationState === 'object'
+        ? structuredClone(operationState)
+        : null;
+    }
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
     if (odState !== undefined) this.#odState = odState;
@@ -278,6 +325,45 @@ export class TurnRowController {
 
   getCurrentNote() {
     return this.#root.querySelector('[data-role="note"]')?.value ?? '';
+  }
+
+  #getOperationChipTone(operation) {
+    const type = String(operation?.type ?? '');
+    if (type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA) {
+      return 'border-purple-200 bg-purple-50 text-purple-700';
+    }
+    if (type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI) {
+      return 'border-rose-200 bg-rose-50 text-rose-700';
+    }
+    if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
+      return 'border-indigo-200 bg-indigo-50 text-indigo-700';
+    }
+    if (type === REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD) {
+      return 'border-orange-200 bg-orange-50 text-orange-700';
+    }
+    return 'border-gray-200 bg-gray-50 text-gray-600';
+  }
+
+  #buildOperationChipsHtml() {
+    if (!Array.isArray(this.#operations) || this.#operations.length === 0) {
+      return '';
+    }
+    return `
+      <div data-role="operation-chip-list" class="flex flex-wrap gap-1 pb-1">
+        ${this.#operations.map((operation, index) => `
+          <span data-role="operation-chip"
+                data-operation-index="${index}"
+                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${this.#getOperationChipTone(operation)}">
+            <span>${getReplayOperationDisplayLabel(operation)}</span>
+            <button type="button"
+                    data-role="operation-chip-remove"
+                    data-operation-index="${index}"
+                    class="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/80 text-[10px] leading-none hover:bg-white"
+                    aria-label="${getReplayOperationDisplayLabel(operation)} を削除">×</button>
+          </span>
+        `).join('')}
+      </div>
+    `;
   }
 
   /**
@@ -553,10 +639,12 @@ export class TurnRowController {
 
     // メモ欄
     const noteValue = isCommitted
-      ? (this.#record?.note ?? '')
+      ? (this.#replayTurn?.note ?? '')
       : (this.#root.querySelector('[data-role="note"]')?.value ?? '');
+    const operationChipsHtml = this.#buildOperationChipsHtml();
     const noteHtml = `
-      <div data-turn-note class="flex-shrink-0 w-14">
+      <div data-turn-note class="flex-shrink-0 w-28">
+        ${operationChipsHtml}
         <textarea data-role="note" rows="2"
                   class="w-full h-full text-xs border border-gray-200 rounded px-1 py-0.5
                          resize-none focus:outline-none focus:ring-1 focus:ring-blue-300
@@ -929,7 +1017,7 @@ export class TurnRowController {
 
   #buildButtonHtml(isCommitted) {
     if (isCommitted) {
-      return `<div data-turn-buttons class="flex-shrink-0 w-[80px]"></div>`;
+      return `<div data-turn-buttons class="flex-shrink-0 w-[110px]"></div>`;
     }
 
     const od = this.#odState;
@@ -961,8 +1049,9 @@ export class TurnRowController {
     const preemptiveActive = preemptiveLevel != null;
     const interruptActive  = interruptLevel  != null;
 
-    // 鬼神化セル（2×2 グリッドの右下：手塚咲がいる場合のみ）
-    const ks = od?.kishinkaStatus ?? { hasTezuka: false };
+    const operationState = this.#operationState ?? {};
+    const ks = operationState.kishinkaStatus ?? { hasTezuka: false };
+    const makai = operationState.makaiKiheiStatus ?? { hasYamawaki: false };
     let kishinkaHtml = '';
     if (ks.hasTezuka) {
       if (ks.isActive) {
@@ -976,21 +1065,35 @@ export class TurnRowController {
       } else {
         const kActive = Boolean(ks.activePending);
         kishinkaHtml = `<button data-role="kishinka-btn"
-          title="${kActive ? '鬼神化予約を解除' : '鬼神化を予約（OD+15%）'}"
+          title="${kActive ? '鬼神化は操作タグから取り消せます' : '鬼神化を操作タグに追加（OD+15%）'}"
+          ${kActive ? 'disabled' : ''}
           class="w-full h-full text-[9px] leading-tight rounded px-0.5 py-0.5 border font-semibold
-                 ${kActive
-                   ? 'bg-purple-600 text-white border-purple-600'
-                   : 'bg-white text-purple-700 border-purple-400 hover:bg-purple-50'}">
-          ${kActive ? '鬼神化✓' : '鬼神化'}
+                   ${kActive
+                     ? 'bg-purple-200 text-purple-700 border-purple-300 cursor-not-allowed'
+                     : 'bg-white text-purple-700 border-purple-400 hover:bg-purple-50'}">
+          ${kActive ? '鬼神化待機' : '鬼神化'}
         </button>`;
       }
     }
 
-    // 2×2 グリッド: [実行][先制OD] / [割込OD][鬼神化]
+    let makaiHtml = '';
+    if (makai.hasYamawaki) {
+      makaiHtml = `<button data-role="makai-kihei-btn"
+        title="騎兵起動を操作タグに追加"
+        ${makai.available ? '' : 'disabled'}
+        class="w-full h-full text-[9px] leading-tight rounded px-0.5 py-0.5 border font-semibold
+               ${makai.available
+                 ? 'bg-white text-rose-700 border-rose-400 hover:bg-rose-50'
+                 : 'bg-rose-100 text-rose-300 border-rose-200 cursor-not-allowed'}">
+        騎兵起動<br>残${makai.remainingUses}
+      </button>`;
+    }
+
+    // 2×3 グリッド: [実行 実行] / [先制OD 割込OD] / [鬼神化 騎兵起動]
     return `
-      <div data-turn-buttons class="flex-shrink-0 w-[80px] grid grid-cols-2 gap-0.5 px-1 py-1">
+      <div data-turn-buttons class="flex-shrink-0 w-[110px] grid grid-cols-2 gap-0.5 px-1 py-1 auto-rows-[minmax(24px,auto)]">
         <button data-role="commit-btn"
-                class="text-xs py-0.5 rounded bg-blue-500 text-white font-medium
+                class="col-span-2 text-xs py-0.5 rounded bg-blue-500 text-white font-medium
                        hover:bg-blue-600 active:bg-blue-700 transition-colors">
           実行
         </button>
@@ -1009,6 +1112,7 @@ export class TurnRowController {
           ${interruptOptions}
         </select>
         ${kishinkaHtml}
+        ${makaiHtml}
       </div>`;
   }
 
@@ -1121,6 +1225,15 @@ export class TurnRowController {
       this.#onNoteChange?.(this.#turnIndex, noteEl.value);
     });
 
+    this.#root.querySelectorAll('[data-role="operation-chip-remove"]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const operationIndex = Number(button.dataset.operationIndex);
+        this.#onOperationRemove?.(this.#turnIndex, operationIndex);
+      });
+    });
+
     // OD select（未コミット行のみ）
     if (this.#record === null) {
       this.#root.querySelectorAll('[data-od-type]').forEach((sel) => {
@@ -1132,11 +1245,15 @@ export class TurnRowController {
       });
     }
 
-    // 鬼神化ボタン（未コミット行のみ）
+    // special operation ボタン（未コミット行のみ）
     if (this.#record === null) {
       const kishinkaBtn = this.#root.querySelector('[data-role="kishinka-btn"]');
       kishinkaBtn?.addEventListener('click', () => {
-        this.#onKishinkaActivate?.(this.#turnIndex);
+        this.#onOperationAdd?.(this.#turnIndex, { type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA });
+      });
+      const makaiBtn = this.#root.querySelector('[data-role="makai-kihei-btn"]');
+      makaiBtn?.addEventListener('click', () => {
+        this.#onOperationAdd?.(this.#turnIndex, { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI });
       });
     }
 

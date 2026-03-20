@@ -190,6 +190,18 @@
 - committed 行の explicit target summary は現在設定が `simple` でも表示を保持する
 - target の保存形式は replay target に統一し、engine 実行直前に `targetEnemyIndex` / `targetCharacterId` へ変換する
 
+### Turn 行の special operation UI
+
+- 右端のメモ欄は `operation chips + free text note` の 2 層にする
+- 自動生成される操作履歴は `note` 文字列へ追記せず、`LightweightReplayTurn.operations` を正本として chip 表示する
+- chip は pending 行と committed 行の両方で `×` 削除でき、committed 行の削除時はその turn から再計算する
+- 現在の chip 対象は `鬼神化` / `騎兵起動` / `先制OD` / `割込OD`
+- before-commit 系 operation の適用順は `special operation -> 先制OD -> 通常 action preview/commit` とする
+- `騎兵起動` は `SS<レゾナンス>[誇り高き魔王の凱旋] 山脇・ボン・イヴァール` が所属しているときだけ未コミット行に表示する
+- `騎兵起動` は同一 turn 内に複数回積めるが、残回数 3 を超えて追加できない
+- `騎兵起動` の残回数は battle state に持たず、committed replay turns と current pending operations の prefix から導出する
+- `騎兵起動` Phase 1 は OD 上昇だけを正確に反映し、ダメージと `FearOfDevil` は後続フェーズで扱う
+
 ## Screen 2: Style Picker
 
 ### 役割

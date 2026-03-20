@@ -82,16 +82,20 @@ export class TurnAreaController {
       store: this.#store,
       turnIndex,
       record: null,
+      replayTurn: null,
+      operations: this.#engineManager.pendingSpecialOperations,
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
-      odState: this.#buildOdState([]),
+      odState: this.#buildOdState([], null),
+      operationState: this.#buildOperationState(),
       simulatorSettings: this.#simulatorSettings,
       onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
       onCommit: (ti) => this.#handleCommit(ti),
       onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
       onPreviewRequest: (ti, slotActions) => this.#handlePreviewRequest(ti, slotActions),
       onOdChange: (ti, odType, level) => this.#handleOdChange(ti, odType, level),
-      onKishinkaActivate: (ti) => this.#handleKishinkaActivate(ti),
+      onOperationAdd: (ti, operation) => this.#handleOperationAdd(ti, operation),
+      onOperationRemove: (ti, operationIndex) => this.#handleOperationRemove(ti, operationIndex),
     });
 
     row.mount();
@@ -155,15 +159,30 @@ export class TurnAreaController {
     this.#refreshInputRow();
   }
 
-  /**
-   * 未コミット行の鬼神化予約トグル。
-   * pending フラグを反転して入力行を再描画する。
-   * @param {number} _turnIndex
-   */
-  #handleKishinkaActivate(_turnIndex) {
-    const current = this.#engineManager.pendingKishinka;
-    this.#engineManager.setPendingKishinka(!current);
-    // 鬼神化で SP コスト・OD% が変わるため再描画
+  #handleOperationAdd(turnIndex, operation) {
+    if (turnIndex < this.#engineManager.committedTurnCount) {
+      return;
+    }
+    if (!this.#engineManager.addPendingSpecialOperation(operation)) {
+      return;
+    }
+    this.#refreshInputRow();
+  }
+
+  #handleOperationRemove(turnIndex, operationIndex) {
+    if (turnIndex < this.#engineManager.committedTurnCount) {
+      const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
+      if (!replayTurn) {
+        return;
+      }
+      const nextOperations = replayTurn.operations.filter((_, index) => index !== operationIndex);
+      this.#engineManager.updateOperations(turnIndex, nextOperations);
+      this.#refreshRowsFrom(turnIndex);
+      return;
+    }
+    if (!this.#engineManager.removePendingSpecialOperation(operationIndex)) {
+      return;
+    }
     this.#refreshInputRow();
   }
 
@@ -192,11 +211,20 @@ export class TurnAreaController {
     const row = this.#rowControllers[turnIndex];
     if (!row) return;
     const record = this.#engineManager.computedRecords[turnIndex];
+    const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
     // 鬼神化 operation がある場合は鬼神化適用済み state を返す。
     // これにより SP0 でコミットしたスキルが鬼神化終了後も正しく選択状態を保持する。
     const stateBefore = this.#engineManager.getStateBefore(turnIndex);
     const stateAfter = this.#engineManager.computedStates[turnIndex];
-    row.update({ record, stateBefore, stateAfter, simulatorSettings: this.#simulatorSettings });
+    row.update({
+      record,
+      replayTurn,
+      operations: replayTurn?.operations ?? [],
+      operationState: null,
+      stateBefore,
+      stateAfter,
+      simulatorSettings: this.#simulatorSettings,
+    });
   }
 
   /** fromIndex 以降の全行を再描画する */
@@ -225,31 +253,40 @@ export class TurnAreaController {
   #refreshInputRow() {
     const lastRow = this.#rowControllers.at(-1);
     if (!lastRow) return;
+    const enemyCount = lastRow.getCurrentEnemyCount();
     // Phase 1: DOM を最新の currentState ポジションで更新（割込OD候補は暫定空）
     // pending な鬼神化・先制OD を適用した state を渡すことで、鬼神化 pending 中に
     // スキルリストの SP コスト（0表示）が正しく反映される。
     lastRow.update({
       record: null,
-      stateBefore: this.#engineManager.currentStateWithPending,
+      replayTurn: null,
+      operations: this.#engineManager.pendingSpecialOperations,
+      stateBefore: this.#engineManager.getCurrentStateWithPending(enemyCount),
       stateAfter: null,
-      odState: this.#buildOdState([]),
+      odState: this.#buildOdState([], enemyCount),
+      operationState: this.#buildOperationState(),
       simulatorSettings: this.#simulatorSettings,
     });
     // Phase 2: 更新後の DOM から正確な slotActions を読んでプレビュー実行
     const slotActions = lastRow.getCurrentSlotActions();
-    const enemyCount = lastRow.getCurrentEnemyCount();
     const preview = this.#engineManager.previewCurrentTurn(slotActions, { enemyCount });
     lastRow.updateOdPreview(preview?.odGaugeAfter ?? null);
     lastRow.updateInterruptOdCandidates(preview?.activatableInterrupt ?? []);
   }
 
-  #buildOdState(activatableInterrupt) {
+  #buildOdState(activatableInterrupt, enemyCount = null) {
     return {
       preemptiveOdLevel:    this.#engineManager.pendingPreemptiveOdLevel,
       interruptOdLevel:     this.#engineManager.pendingInterruptOdLevel,
-      activatablePreemptive: this.#engineManager.getActivatablePreemptiveOdLevels(),
+      activatablePreemptive: this.#engineManager.getActivatablePreemptiveOdLevels(enemyCount),
       activatableInterrupt,
-      kishinkaStatus:       this.#engineManager.getKishinkaStatus(),
+    };
+  }
+
+  #buildOperationState() {
+    return {
+      kishinkaStatus: this.#engineManager.getKishinkaStatus(),
+      makaiKiheiStatus: this.#engineManager.getMakaiKiheiStatus(),
     };
   }
 }
