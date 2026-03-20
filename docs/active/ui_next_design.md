@@ -177,6 +177,9 @@
   - `targetSelection.enemyMode: 'simple' | 'manual'`
   - `targetSelection.allyMode: 'simple' | 'manual'`
 - この設定は replay や stage 状態ではなく、session-level の UI 設定として扱う
+- `Simulator Settings` には current session の JSON 保存 / 読込ボタンを置く
+- save/load の正本は `SessionSnapshotV1` とし、`setup / simulatorSettings / validationPolicy / replayScript` を保存する
+- `validationPolicy` は当面 permissive input を維持する箱としてのみ使い、既定値はすべて `true` とする
 
 ### Turn 行の manual target UI
 
@@ -202,6 +205,25 @@
 - `騎兵起動` の残回数は battle state に持たず、committed replay turns と current pending operations の prefix から導出する
 - `騎兵起動` Phase 1 は OD 上昇だけを正確に反映し、ダメージと `FearOfDevil` は後続フェーズで扱う
 
+### Turn 行の manual break attribution UI
+
+- `DownTurn` は direct 入力させず、「この行動で break した敵」を action ごとに複数選択できる UI とする
+- 常設 picker は置かず、右側ボタン群に `ブレイク` ボタンを置き、押したときだけフローティング editor panel を開く
+- panel 内では前衛 actor ごとに敵 chip (`E1 / E2 / E3`) を複数選択できる
+- 行上の常設表示は要約 1 件ではなく、`actor→enemy ブレイク` の chip 群とする
+  - 例: `ワッキー→E1 ブレイク`
+  - 敵名がある場合は `ワッキー→ワイバーン ブレイク` のように enemy label を使う
+- actor 表示名は `名 / 愛称 / フルネーム` の候補から最短のものを使う
+  - `characters.json.name` の 3 セグメント目にある日本語愛称を候補に含める
+  - `姓 名` の場合は名を候補に含める
+  - 同一長の場合は `名 → 愛称 → フルネーム` の順で採る
+- 保存値は `ReplayTurn.overrideEntries.ActionOutcomeOverrides` とし、payload は `{ position, outcome: 'Break', enemyIndexes }[]` に固定する
+- committed 行でも同じ `ブレイク` editor で manual break attribution を編集でき、変更後はその turn から再計算する
+- `DownTurn` は保存しない
+  - replay 時に manual break を action context へ注入する
+  - shared runtime が `Break + DownTurn + breakHitCount` を派生させる
+  - break 起点 passive や `BreakDownTurnUp` はその派生結果を見る
+
 ## 2026-03-20 時点の責務境界
 
 ### Shared runtime (`src/`)
@@ -209,12 +231,14 @@
 - `src/turn/turn-operations.js` を special operation の shared runtime 正本とする
 - 鬼神化 / 騎兵起動 / 先制OD の before-commit 適用順、state capability 判定、`enemyCount` を受けた state 変換はここで扱う
 - `LightweightReplayScript` の contract は machine-readable な `type / timing / allowMultiple` のみを持ち、表示文言を持たない
+- manual break の最終反映は `turn-controller` 側で行い、`ActionOutcomeOverrides` から注入された `manualBreakEnemyIndexes` と `breakHitCount` を見て `Break + DownTurn` を派生させる
 
 ### UI Next engine (`ui-next/engine`)
 
 - `TurnEngineManager` は replay script、pending queue、commit / preview / recalculate orchestration を担当する
 - special operation のゲームルール自体は shared runtime を呼ぶだけにし、manager 側へ閉じ込めない
 - 未コミット input row 用には `buildInputRowSnapshot()` を正本 API とし、`stateBefore` / OD preview / operation status をまとめて返す
+- session save/load の入口では `SessionSnapshotV1` を受け取り、`validationPolicy` を保持したまま replay script の再生と committed row 復元を担当する
 
 ### UI components (`ui-next/components`)
 
@@ -222,6 +246,7 @@
 - `TurnRowController` は未コミット row の draft state を保持する
   - `slotActions`
   - `enemyCount`
+  - `actionOutcomeOverrides`
   - `targets`
   - `note`
   - `openTargetPickerPartyIndex`

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
+import { DEFAULT_VALIDATION_POLICY } from '../ui-next/utils/validation-policy.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
@@ -60,6 +61,18 @@ function createMakaiKiheiPassive() {
           -1,
         ],
       },
+    ],
+  };
+}
+
+function createBreakHealPassive() {
+  return {
+    id: 99910,
+    name: '激動テスト',
+    timing: 'OnFirstBattleStart',
+    parts: [
+      { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0] },
+      { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0] },
     ],
   };
 }
@@ -307,4 +320,106 @@ test('TurnEngineManager buildInputRowSnapshot resolves partyIndex keyed draft ac
   assert.equal(snapshot.stateBefore.party.find((member) => member.partyIndex === 0)?.position, 1);
   assert.equal(snapshot.slotActions[1]?.skillId, 9050);
   assert.deepEqual(snapshot.slotActions[1]?.target, { type: 'enemy', enemyIndex: 1 });
+});
+
+test('TurnEngineManager stores manual break attribution and replays break-triggered passive effects', () => {
+  const actorSkill = createSkill({
+    id: 9060,
+    name: 'Break Follow',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createInitialState(actorSkill, {
+      passives: [createBreakHealPassive()],
+    }),
+    {},
+    { validationPolicy: DEFAULT_VALIDATION_POLICY }
+  );
+
+  const actionOutcomeOverrides = [
+    {
+      position: 0,
+      outcome: 'Break',
+      enemyIndexes: [0, 2],
+    },
+  ];
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9060 },
+    },
+    {
+      enemyCount: 3,
+      note: 'manual-break test',
+      actionOutcomeOverrides,
+    }
+  );
+
+  const action = committedRecord.actions.find((entry) => entry.positionIndex === 0);
+  const spPassiveChange = action.spChanges.find((change) => change.source === 'sp_passive');
+
+  assert.equal(action.breakHitCount, 2);
+  assert.deepEqual(action.manualBreakEnemyIndexes, [0, 2]);
+  assert.equal(spPassiveChange?.delta, 8);
+  assert.deepEqual(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+    )?.payload,
+    actionOutcomeOverrides
+  );
+  assert.equal(
+    action.enemyStatusChanges.some(
+      (change) =>
+        change.statusType === 'DownTurn' &&
+        change.targetIndex === 2 &&
+        change.source === 'manual'
+    ),
+    true
+  );
+
+  manager.recalculateFrom(0);
+
+  const replayedAction = manager.computedRecords[0]?.actions.find((entry) => entry.positionIndex === 0);
+  assert.equal(replayedAction?.breakHitCount, 2);
+  assert.deepEqual(replayedAction?.manualBreakEnemyIndexes, [0, 2]);
+  assert.equal(
+    replayedAction?.spChanges.some((change) => change.source === 'sp_passive'),
+    true
+  );
+  assert.equal(
+    replayedAction?.enemyStatusChanges.some(
+      (change) =>
+        change.statusType === 'DownTurn' &&
+        change.targetIndex === 2 &&
+        change.source === 'manual'
+    ),
+    true
+  );
+});
+
+test('TurnEngineManager loadReplayScript restores validationPolicy and committed rows', () => {
+  const actorSkill = createSkill({
+    id: 9070,
+    name: 'Replay Slash',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  manager.commitNextTurn({ 0: { skillId: 9070 } }, { enemyCount: 2, note: 'saved' });
+
+  const restored = new TurnEngineManager();
+  restored.loadReplayScript(initialState, manager.replayScript, {
+    validationPolicy: {
+      allowInsufficientSp: true,
+      allowInsufficientOd: true,
+      allowUseCountOverflow: true,
+    },
+  });
+
+  assert.equal(restored.committedTurnCount, 1);
+  assert.equal(restored.computedRecords[0]?.enemyCount, 2);
+  assert.equal(restored.validationPolicy.allowUseCountOverflow, true);
 });

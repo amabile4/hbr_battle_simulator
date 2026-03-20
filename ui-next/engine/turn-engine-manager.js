@@ -15,12 +15,20 @@ import {
 import {
   applyReplayOverrideEntriesToScenarioTurn,
   createEmptyLightweightReplayScript,
+  normalizeLightweightReplayScript,
   normalizeLightweightReplayTurn,
   REPLAY_OPERATION_TYPES,
   REPLAY_OVERRIDE_ENTRY_TYPES,
   replayOperationRegistry,
 } from '../../src/ui/lightweight-replay-script.js';
 import { normalizeTurnReplayTarget } from '../utils/turn-targeting.js';
+import {
+  buildActionOutcomeOverrideEntry,
+  getActionOutcomeOverridesFromOverrideEntries,
+  getBreakEnemyIndexesForPosition,
+  normalizeActionOutcomeOverrides,
+} from '../utils/action-outcome-overrides.js';
+import { normalizeValidationPolicy } from '../utils/validation-policy.js';
 
 /**
  * LightweightReplayScript を正本として保持し、previewTurn/commitTurn を透過的に管理するクラス。
@@ -44,6 +52,7 @@ export class TurnEngineManager {
   #pendingPreemptiveOdLevel = null;  // number | null
   #pendingInterruptOdLevel = null;   // number | null
   #pendingSpecialOperations = [];    // ReplayOperation[]
+  #validationPolicy = normalizeValidationPolicy();
 
   get replayScript() { return this.#replayScript; }
   get computedRecords() { return this.#computedRecords; }
@@ -53,6 +62,9 @@ export class TurnEngineManager {
   get pendingInterruptOdLevel() { return this.#pendingInterruptOdLevel; }
   get pendingSpecialOperations() {
     return this.#pendingSpecialOperations.map((operation) => structuredClone(operation));
+  }
+  get validationPolicy() {
+    return structuredClone(this.#validationPolicy);
   }
 
   /** Apply 後に呼ぶ。初期 BattleState と空の ReplayScript を設定する。*/
@@ -90,7 +102,7 @@ export class TurnEngineManager {
    * @param {object} initialState BattleState
    * @param {object} replaySetup  LightweightReplaySetup（setup のみ）
    */
-  initialize(initialState, replaySetup = {}) {
+  initialize(initialState, replaySetup = {}, options = {}) {
     this.#initialState = initialState;
     this.#replayScript = createEmptyLightweightReplayScript(replaySetup);
     this.#computedStates = [];
@@ -98,6 +110,19 @@ export class TurnEngineManager {
     this.#pendingPreemptiveOdLevel = null;
     this.#pendingInterruptOdLevel = null;
     this.#pendingSpecialOperations = [];
+    this.#validationPolicy = normalizeValidationPolicy(options.validationPolicy);
+  }
+
+  loadReplayScript(initialState, replayScript = {}, options = {}) {
+    this.#initialState = initialState;
+    this.#replayScript = normalizeLightweightReplayScript(replayScript);
+    this.#computedStates = [];
+    this.#computedRecords = [];
+    this.#pendingPreemptiveOdLevel = null;
+    this.#pendingInterruptOdLevel = null;
+    this.#pendingSpecialOperations = [];
+    this.#validationPolicy = normalizeValidationPolicy(options.validationPolicy);
+    this.recalculateFrom(0);
   }
 
   /**
@@ -115,13 +140,17 @@ export class TurnEngineManager {
     const enemyCount = clampEnemyCount(
       options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
+    const actionOutcomeOverrides = normalizeActionOutcomeOverrides(
+      options.actionOutcomeOverrides,
+      enemyCount
+    );
     let state = applyBeforeCommitOperations(
       this.currentState,
       operations,
       { enemyCount }
     );
 
-    const actions = this.#buildActionsDict(state, slotActions);
+    const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides);
     const previewRecord = previewTurnRecord(
       state, actions, options.enemyAction ?? null, enemyCount
     );
@@ -142,7 +171,12 @@ export class TurnEngineManager {
 
     // slotActions は currentState（先制OD 適用前）の position を基準に記録
     const replayTurn = this.#buildReplayTurn(
-      this.currentState, slotActions, options.note ?? '', operations, enemyCount
+      this.currentState,
+      slotActions,
+      options.note ?? '',
+      operations,
+      enemyCount,
+      actionOutcomeOverrides
     );
     this.#replayScript.turns.push(replayTurn);
     this.#computedStates.push(nextState);
@@ -202,6 +236,7 @@ export class TurnEngineManager {
       this.#alignPositionsToSlots(state, turn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
       const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
+      const actionOutcomeOverrides = this.#resolveReplayTurnActionOutcomeOverrides(turn, enemyCount);
       try {
         state = applyBeforeCommitOperations(state, turn.operations, { enemyCount });
       } catch (err) {
@@ -211,7 +246,7 @@ export class TurnEngineManager {
         break;
       }
 
-      const actions = this.#buildActionsDict(state, slotActions);
+      const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides);
 
       // 割込OD operation を再現
       const interruptLevel = this.#extractOperationLevel(
@@ -248,6 +283,10 @@ export class TurnEngineManager {
     const enemyCount = clampEnemyCount(
       options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
+    const actionOutcomeOverrides = normalizeActionOutcomeOverrides(
+      options.actionOutcomeOverrides,
+      enemyCount
+    );
     let state = this.currentState;
     try {
       state = applyBeforeCommitOperations(
@@ -259,12 +298,16 @@ export class TurnEngineManager {
       return null;
     }
 
-    return this.#previewResolvedTurn(state, slotActions, enemyCount);
+    return this.#previewResolvedTurn(state, slotActions, enemyCount, actionOutcomeOverrides);
   }
 
-  buildInputRowSnapshot({ slotActions = {}, enemyCount = null } = {}) {
+  buildInputRowSnapshot({ slotActions = {}, enemyCount = null, actionOutcomeOverrides = [] } = {}) {
     const normalizedEnemyCount = clampEnemyCount(
       enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
+    );
+    const normalizedActionOutcomeOverrides = normalizeActionOutcomeOverrides(
+      actionOutcomeOverrides,
+      normalizedEnemyCount
     );
     let stateBefore = this.currentState;
     try {
@@ -285,7 +328,8 @@ export class TurnEngineManager {
     const preview = this.#previewResolvedTurn(
       stateBefore,
       resolvedSlotActions,
-      normalizedEnemyCount
+      normalizedEnemyCount,
+      normalizedActionOutcomeOverrides
     );
 
     return {
@@ -494,6 +538,36 @@ export class TurnEngineManager {
     this.recalculateFrom(turnIndex);
   }
 
+  updateEnemyCount(turnIndex, enemyCount) {
+    const turn = this.#replayScript?.turns[turnIndex];
+    if (!turn) return;
+    const normalizedEnemyCount = clampEnemyCount(enemyCount);
+    this.#replaceReplayOverrideEntry(turn, REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, normalizedEnemyCount);
+    const actionOutcomeOverrides = normalizeActionOutcomeOverrides(
+      this.#resolveReplayTurnActionOutcomeOverrides(turn, normalizedEnemyCount),
+      normalizedEnemyCount
+    );
+    this.#replaceReplayOverrideEntry(
+      turn,
+      REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+      actionOutcomeOverrides.length > 0 ? actionOutcomeOverrides : null
+    );
+    this.recalculateFrom(turnIndex);
+  }
+
+  updateActionOutcomeOverrides(turnIndex, actionOutcomeOverrides) {
+    const turn = this.#replayScript?.turns[turnIndex];
+    if (!turn) return;
+    const enemyCount = this.#resolveReplayTurnEnemyCount(turn, this.getStateBefore(turnIndex));
+    const normalized = normalizeActionOutcomeOverrides(actionOutcomeOverrides, enemyCount);
+    this.#replaceReplayOverrideEntry(
+      turn,
+      REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+      normalized.length > 0 ? normalized : null
+    );
+    this.recalculateFrom(turnIndex);
+  }
+
   getReplayTurn(turnIndex) {
     return this.#replayScript?.turns?.[turnIndex] ?? null;
   }
@@ -589,8 +663,8 @@ export class TurnEngineManager {
     return operations;
   }
 
-  #previewResolvedTurn(state, slotActions = {}, enemyCount) {
-    const actions = this.#buildActionsDict(state, slotActions);
+  #previewResolvedTurn(state, slotActions = {}, enemyCount, actionOutcomeOverrides = []) {
+    const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides);
     try {
       const previewRecord = previewTurnRecord(state, actions, null, enemyCount);
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
@@ -639,7 +713,7 @@ export class TurnEngineManager {
    * GUI の slotActions（position キー）を previewTurn 用 actions dict に変換する。
    * action.styleId が指定されている場合は styleId でメンバーを検索する。
    */
-  #buildActionsDict(state, slotActions) {
+  #buildActionsDict(state, slotActions, actionOutcomeOverrides = []) {
     const actions = {};
     for (const [posStr, action] of Object.entries(slotActions)) {
       const slotPosition = Number(posStr);
@@ -663,10 +737,17 @@ export class TurnEngineManager {
       if (!skill) continue;
 
       const materializedTarget = this.#materializeActionTarget(state, action.target);
+      const breakEnemyIndexes = getBreakEnemyIndexesForPosition(actionOutcomeOverrides, member.position);
 
       actions[member.position] = {
         skillId: action.skillId,
         ...materializedTarget,
+        ...(breakEnemyIndexes.length > 0
+          ? {
+              breakHitCount: breakEnemyIndexes.length,
+              manualBreakEnemyIndexes: breakEnemyIndexes,
+            }
+          : {}),
       };
     }
     return actions;
@@ -688,7 +769,14 @@ export class TurnEngineManager {
   }
 
   /** commit 時点の state + slotActions から LightweightReplayTurn を生成する */
-  #buildReplayTurn(state, slotActions, note = '', operations = [], enemyCount = DEFAULT_ENEMY_COUNT) {
+  #buildReplayTurn(
+    state,
+    slotActions,
+    note = '',
+    operations = [],
+    enemyCount = DEFAULT_ENEMY_COUNT,
+    actionOutcomeOverrides = []
+  ) {
     const slots = Array.from({ length: 6 }, (_, position) => {
       const member = state.party.find((m) => m.position === position);
       const action = slotActions[position];
@@ -699,17 +787,29 @@ export class TurnEngineManager {
       };
     });
     const normalizedEnemyCount = clampEnemyCount(enemyCount);
+    const normalizedActionOutcomeOverrides = normalizeActionOutcomeOverrides(
+      actionOutcomeOverrides,
+      normalizedEnemyCount
+    );
+    const overrideEntries = [
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
+        payload: normalizedEnemyCount,
+      },
+    ];
+    const actionOutcomeOverrideEntry = buildActionOutcomeOverrideEntry(
+      normalizedActionOutcomeOverrides,
+      normalizedEnemyCount
+    );
+    if (actionOutcomeOverrideEntry) {
+      overrideEntries.push(actionOutcomeOverrideEntry);
+    }
     return normalizeLightweightReplayTurn({
       turn: state.turnState?.turnIndex ?? null,
       slots,
       note,
       operations,
-      overrideEntries: [
-        {
-          type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
-          payload: normalizedEnemyCount,
-        },
-      ],
+      overrideEntries,
     });
   }
 
@@ -719,6 +819,30 @@ export class TurnEngineManager {
     return clampEnemyCount(
       scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
     );
+  }
+
+  #resolveReplayTurnActionOutcomeOverrides(replayTurn, enemyCount) {
+    return getActionOutcomeOverridesFromOverrideEntries(
+      replayTurn?.overrideEntries ?? [],
+      enemyCount
+    );
+  }
+
+  #replaceReplayOverrideEntry(turn, type, payload) {
+    const nextOverrideEntries = (Array.isArray(turn?.overrideEntries) ? turn.overrideEntries : [])
+      .filter((entry) => String(entry?.type ?? '') !== String(type))
+      .map((entry) => structuredClone(entry));
+    const hasPayload =
+      payload !== null &&
+      payload !== undefined &&
+      (!Array.isArray(payload) || payload.length > 0);
+    if (hasPayload) {
+      nextOverrideEntries.push({
+        type,
+        payload: structuredClone(payload),
+      });
+    }
+    turn.overrideEntries = nextOverrideEntries;
   }
 
   #materializeActionTarget(state, target) {

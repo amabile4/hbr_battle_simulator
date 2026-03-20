@@ -29,13 +29,25 @@ export class InitialSetupController {
   #recalcBtn = null;
   #hasRecords = false;
   #activeTab = 'party';
+  #onSaveSession;
+  #onLoadSession;
 
-  constructor({ root, pickerOverlay, store, onApply = null, onRecalculate = null }) {
+  constructor({
+    root,
+    pickerOverlay,
+    store,
+    onApply = null,
+    onRecalculate = null,
+    onSaveSession = null,
+    onLoadSession = null,
+  }) {
     this.#root = root;
     this.#pickerOverlay = pickerOverlay;
     this.#store = store;
     this.#onApply = onApply;
     this.#onRecalculate = onRecalculate;
+    this.#onSaveSession = onSaveSession;
+    this.#onLoadSession = onLoadSession;
   }
 
   /**
@@ -133,6 +145,23 @@ export class InitialSetupController {
                 </span>
               </span>
             </label>
+            <div class="space-y-2 border-t border-gray-200 pt-4">
+              <h3 class="font-bold text-gray-700">セッション</h3>
+              <button type="button"
+                      data-role="session-save-btn"
+                      class="w-full rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-sm font-medium text-sky-700 hover:bg-sky-100 transition-colors">
+                現在の行動レコードを JSON 保存
+              </button>
+              <button type="button"
+                      data-role="session-load-btn"
+                      class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                保存済み JSON を読み込む
+              </button>
+              <input type="file"
+                     data-role="session-load-input"
+                     accept="application/json,.json"
+                     hidden />
+            </div>
           </div>
         </div>
       </div>
@@ -172,27 +201,70 @@ export class InitialSetupController {
       if (!snapshot.isFrontFilled) return;
       this.#onRecalculate?.(this.getSetupSnapshot(snapshot));
     });
+
+    const saveBtn = this.#root.querySelector('[data-role="session-save-btn"]');
+    saveBtn?.addEventListener('click', () => {
+      this.#onSaveSession?.(this.getSetupSnapshot(this.#partySetup.getSnapshot()));
+    });
+
+    const loadInput = this.#root.querySelector('[data-role="session-load-input"]');
+    const loadBtn = this.#root.querySelector('[data-role="session-load-btn"]');
+    loadBtn?.addEventListener('click', () => {
+      loadInput?.click();
+    });
+    loadInput?.addEventListener('change', async () => {
+      const file = loadInput.files?.[0] ?? null;
+      if (!file) {
+        return;
+      }
+      try {
+        const text = await file.text();
+        this.#onLoadSession?.(text);
+      } finally {
+        loadInput.value = '';
+      }
+    });
   }
 
   /**
    * InitialSetup 全体の設定（Party設定 + Enemy設定）を結合して返す
    */
   getSetupSnapshot(partySnapshot) {
+    return {
+      party: partySnapshot,
+      simulatorSettings: this.getSimulatorSettings(),
+    };
+  }
+
+  getSimulatorSettings() {
     const enemyMode = this.#root.querySelector('[data-role="enemy-target-simplify-toggle"]')?.checked
       ? TARGET_SELECTION_MODES.SIMPLE
       : TARGET_SELECTION_MODES.MANUAL;
     const allyMode = this.#root.querySelector('[data-role="ally-target-simplify-toggle"]')?.checked
       ? TARGET_SELECTION_MODES.SIMPLE
       : TARGET_SELECTION_MODES.MANUAL;
-    return {
-      party: partySnapshot,
-      simulatorSettings: normalizeSimulatorSettings({
-        targetSelection: {
-          enemyMode,
-          allyMode,
-        },
-      }),
-    };
+    return normalizeSimulatorSettings({
+      targetSelection: {
+        enemyMode,
+        allyMode,
+      },
+    });
+  }
+
+  applySetupSnapshot(snapshot = {}) {
+    this.#partySetup?.applySnapshot(snapshot.party ?? {});
+    const simulatorSettings = normalizeSimulatorSettings(snapshot.simulatorSettings);
+    const enemyMode = simulatorSettings.targetSelection.enemyMode;
+    const allyMode = simulatorSettings.targetSelection.allyMode;
+    const enemyToggle = this.#root.querySelector('[data-role="enemy-target-simplify-toggle"]');
+    if (enemyToggle) {
+      enemyToggle.checked = enemyMode === TARGET_SELECTION_MODES.SIMPLE;
+    }
+    const allyToggle = this.#root.querySelector('[data-role="ally-target-simplify-toggle"]');
+    if (allyToggle) {
+      allyToggle.checked = allyMode === TARGET_SELECTION_MODES.SIMPLE;
+    }
+    this.#updateFooterButtons();
   }
 
   /** ボタンの有効/無効・表示を partySetup の状態と hasRecords に基づいて更新する */

@@ -37,11 +37,22 @@ export class TurnAreaController {
    * @param {object} replaySetup  LightweightReplaySetup
    * @param {object} simulatorSettings Simulator UI settings
    */
-  initialize(initialState, replaySetup = {}, simulatorSettings = {}) {
-    this.#engineManager.initialize(initialState, replaySetup);
+  initialize(initialState, replaySetup = {}, simulatorSettings = {}, validationPolicy = {}) {
+    this.#engineManager.initialize(initialState, replaySetup, { validationPolicy });
     this.#simulatorSettings = simulatorSettings;
     this.#root.innerHTML = '';
     this.#rowControllers = [];
+    this.#appendInputRow();
+  }
+
+  loadSession(initialState, replayScript, simulatorSettings = {}, validationPolicy = {}) {
+    this.#engineManager.loadReplayScript(initialState, replayScript, { validationPolicy });
+    this.#simulatorSettings = simulatorSettings;
+    this.#root.innerHTML = '';
+    this.#rowControllers = [];
+    for (let turnIndex = 0; turnIndex < this.#engineManager.committedTurnCount; turnIndex += 1) {
+      this.#appendCommittedRow(turnIndex);
+    }
     this.#appendInputRow();
   }
 
@@ -104,12 +115,45 @@ export class TurnAreaController {
       onOdChange: (ti, odType, level) => this.#handleOdChange(ti, odType, level),
       onOperationAdd: (ti, operation) => this.#handleOperationAdd(ti, operation),
       onOperationRemove: (ti, operationIndex) => this.#handleOperationRemove(ti, operationIndex),
+      onEnemyCountChange: (ti, enemyCount) => this.#handleEnemyCountChange(ti, enemyCount),
+      onActionOutcomeChange: (ti, actionOutcomeOverrides) =>
+        this.#handleActionOutcomeChange(ti, actionOutcomeOverrides),
     });
 
     row.mount();
     this.#rowControllers.push(row);
     // 初期描画後にプレビューを実行して割込OD候補・OD After ゲージを反映
     this.#refreshInputRow();
+  }
+
+  #appendCommittedRow(turnIndex) {
+    const rowEl = document.createElement('div');
+    this.#root.appendChild(rowEl);
+    const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
+    const row = new TurnRowController({
+      root: rowEl,
+      store: this.#store,
+      turnIndex,
+      record: this.#engineManager.computedRecords[turnIndex],
+      replayTurn,
+      operations: replayTurn?.operations ?? [],
+      operationState: null,
+      stateBefore: this.#engineManager.getStateBefore(turnIndex),
+      stateAfter: this.#engineManager.computedStates[turnIndex],
+      simulatorSettings: this.#simulatorSettings,
+      onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
+      onCommit: () => {},
+      onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: (ti, operationIndex) => this.#handleOperationRemove(ti, operationIndex),
+      onEnemyCountChange: (ti, enemyCount) => this.#handleEnemyCountChange(ti, enemyCount),
+      onActionOutcomeChange: (ti, actionOutcomeOverrides) =>
+        this.#handleActionOutcomeChange(ti, actionOutcomeOverrides),
+    });
+    row.mount();
+    this.#rowControllers.push(row);
   }
 
   #handleCommit(turnIndex) {
@@ -119,10 +163,15 @@ export class TurnAreaController {
     const snapshot = this.#engineManager.buildInputRowSnapshot({
       slotActions: row.getCurrentSlotActions(),
       enemyCount,
+      actionOutcomeOverrides: row.getCurrentActionOutcomeOverrides(),
     });
 
     try {
-      this.#engineManager.commitNextTurn(snapshot.slotActions, { note, enemyCount });
+      this.#engineManager.commitNextTurn(snapshot.slotActions, {
+        note,
+        enemyCount,
+        actionOutcomeOverrides: row.getCurrentActionOutcomeOverrides(),
+      });
     } catch (err) {
       console.error('TurnAreaController: commitNextTurn failed:', err);
       this.#onError?.(err);
@@ -197,6 +246,22 @@ export class TurnAreaController {
     this.#refreshInputRow();
   }
 
+  #handleEnemyCountChange(turnIndex, enemyCount) {
+    if (turnIndex >= this.#engineManager.committedTurnCount) {
+      return;
+    }
+    this.#engineManager.updateEnemyCount(turnIndex, enemyCount);
+    this.#refreshRowsFrom(turnIndex);
+  }
+
+  #handleActionOutcomeChange(turnIndex, actionOutcomeOverrides) {
+    if (turnIndex >= this.#engineManager.committedTurnCount) {
+      return;
+    }
+    this.#engineManager.updateActionOutcomeOverrides(turnIndex, actionOutcomeOverrides);
+    this.#refreshRowsFrom(turnIndex);
+  }
+
   /**
    * 未コミット行のスキル変更によるプレビューリクエスト。
    */
@@ -251,6 +316,7 @@ export class TurnAreaController {
     const snapshot = this.#engineManager.buildInputRowSnapshot({
       slotActions: lastRow.getCurrentSlotActions(),
       enemyCount,
+      actionOutcomeOverrides: lastRow.getCurrentActionOutcomeOverrides(),
     });
     lastRow.update({
       record: null,

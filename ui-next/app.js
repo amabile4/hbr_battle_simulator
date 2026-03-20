@@ -3,6 +3,12 @@ import { InitialSetupController } from './components/initial-setup.js';
 import { BattleStateManager } from './engine/battle-state-manager.js';
 import { TurnEngineManager } from './engine/turn-engine-manager.js';
 import { TurnAreaController } from './components/turn-area.js';
+import { createEmptyLightweightReplayScript } from '../src/ui/lightweight-replay-script.js';
+import {
+  normalizeSessionSnapshot,
+  serializeSessionSnapshot,
+} from './utils/session-snapshot.js';
+import { DEFAULT_VALIDATION_POLICY } from './utils/validation-policy.js';
 
 async function fetchJson(path) {
   if (window.location.protocol === 'file:') {
@@ -41,6 +47,26 @@ function showStatus(msg) {
   el.classList.remove('hidden');
   clearTimeout(_statusTimer);
   _statusTimer = setTimeout(() => el.classList.add('hidden'), 5000);
+}
+
+function downloadTextFile(text, filename) {
+  const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
+function makeSessionFilename() {
+  const stamp = new Date().toISOString().replace(/[:]/g, '-');
+  return `ui_next_session_${stamp}.json`;
 }
 
 async function main() {
@@ -82,7 +108,7 @@ async function main() {
       try {
         const state = battleStateManager.buildFromSnapshot(snapshot.party);
         const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
-        turnArea.initialize(state, replaySetup, snapshot.simulatorSettings);
+        turnArea.initialize(state, replaySetup, snapshot.simulatorSettings, DEFAULT_VALIDATION_POLICY);
         initialSetup.setHasRecords(false);
         window.collapseSetup?.();
       } catch (err) {
@@ -97,6 +123,50 @@ async function main() {
         window.collapseSetup?.();
       } catch (err) {
         showStatus(`再計算エラー: ${err.message}`);
+        console.error(err);
+      }
+    },
+    onSaveSession: (snapshot) => {
+      try {
+        if (!snapshot?.party?.isFrontFilled) {
+          throw new Error('前衛3スロットを設定してください。');
+        }
+        const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
+        const replayScript = turnEngineManager.replayScript
+          ? structuredClone(turnEngineManager.replayScript)
+          : createEmptyLightweightReplayScript(replaySetup);
+        const sessionText = serializeSessionSnapshot({
+          setup: snapshot.party,
+          simulatorSettings: snapshot.simulatorSettings,
+          validationPolicy: turnEngineManager.validationPolicy ?? DEFAULT_VALIDATION_POLICY,
+          replayScript,
+        });
+        downloadTextFile(sessionText, makeSessionFilename());
+        showStatus('セッション JSON を保存しました。');
+      } catch (err) {
+        showStatus(`保存エラー: ${err.message}`);
+        console.error(err);
+      }
+    },
+    onLoadSession: (text) => {
+      try {
+        const session = normalizeSessionSnapshot(JSON.parse(text));
+        initialSetup.applySetupSnapshot({
+          party: session.setup,
+          simulatorSettings: session.simulatorSettings,
+        });
+        const state = battleStateManager.buildFromSnapshot(session.setup);
+        turnArea.loadSession(
+          state,
+          session.replayScript,
+          session.simulatorSettings,
+          session.validationPolicy,
+        );
+        initialSetup.setHasRecords(session.replayScript.turns.length > 0);
+        window.collapseSetup?.();
+        showStatus(`セッションを読み込みました (${session.replayScript.turns.length} turns).`);
+      } catch (err) {
+        showStatus(`読込エラー: ${err.message}`);
         console.error(err);
       }
     },

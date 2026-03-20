@@ -128,3 +128,47 @@ test('InitialSetupController getSetupSnapshot returns split simulator target sel
       TARGET_SELECTION_MODES.SIMPLE,
     );
   }));
+
+test('InitialSetupController exposes session save/load controls in Simulator Settings', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="simulator"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(root.querySelector('[data-role="session-save-btn"]'));
+    assert.ok(root.querySelector('[data-role="session-load-btn"]'));
+    assert.ok(root.querySelector('[data-role="session-load-input"]'));
+  }));
+
+test('InitialSetupController applySetupSnapshot restores simulator toggles', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySetupSnapshot({
+      party: {
+        styleIds: [null, null, null, null, null, null],
+        supportStyleIds: [null, null, null, null, null, null],
+      },
+      simulatorSettings: {
+        targetSelection: {
+          enemyMode: TARGET_SELECTION_MODES.MANUAL,
+          allyMode: TARGET_SELECTION_MODES.SIMPLE,
+        },
+      },
+    });
+
+    assert.equal(root.querySelector('[data-role="enemy-target-simplify-toggle"]').checked, false);
+    assert.equal(root.querySelector('[data-role="ally-target-simplify-toggle"]').checked, true);
+  }));

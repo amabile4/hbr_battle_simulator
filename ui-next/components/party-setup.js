@@ -152,6 +152,32 @@ export class PartySetupController {
     };
   }
 
+  applySnapshot(snapshot = {}) {
+    this.#slots = Array.from({ length: 6 }, (_, index) => {
+      const styleId = snapshot?.styleIds?.[index] ?? null;
+      const supportStyleId = snapshot?.supportStyleIds?.[index] ?? null;
+      const style = styleId ? (this.#store.getStyleById(styleId) ?? null) : null;
+      const supportStyle = supportStyleId ? (this.#store.getStyleById(supportStyleId) ?? null) : null;
+      return {
+        styleId: style ? Number(styleId) : null,
+        style,
+        supportStyleId: style && supportStyle ? Number(supportStyleId) : null,
+        supportStyle: style ? supportStyle : null,
+        lb: Number(snapshot?.limitBreakLevelsByPartyIndex?.[index] ?? 0),
+        supportLb: Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0),
+        drivePierce: Number(snapshot?.drivePierceByPartyIndex?.[index] ?? 0),
+        spEquipId:
+          Number(snapshot?.startSpEquipByPartyIndex?.[index] ?? 0) > 0
+            ? String(snapshot.startSpEquipByPartyIndex[index])
+            : '',
+        belt: '',
+        morale: 'normal',
+      };
+    });
+    this.#render();
+    this.#notifyChange();
+  }
+
   // ---- private ----
 
   // ---- preset ----

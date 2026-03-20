@@ -5735,6 +5735,55 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
   return events;
 }
 
+function normalizeManualBreakEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const normalizedEnemyCount = clampEnemyCount(enemyCount);
+  return [...new Set(
+    (Array.isArray(actionEntry?.manualBreakEnemyIndexes) ? actionEntry.manualBreakEnemyIndexes : [])
+      .map((enemyIndex) => Number(enemyIndex))
+      .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < normalizedEnemyCount)
+  )].sort((left, right) => left - right);
+}
+
+function applyManualBreakEffectsFromActions(state, previewRecord) {
+  const events = [];
+  const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
+    if (manualBreakEnemyIndexes.length === 0) {
+      continue;
+    }
+    for (const targetIndex of manualBreakEnemyIndexes) {
+      upsertEnemyStatus(state.turnState, {
+        statusType: ENEMY_STATUS_BREAK,
+        targetIndex,
+        remainingTurns: 0,
+      });
+      const existingDownTurn =
+        getActiveEnemyStatuses(state.turnState, ENEMY_STATUS_DOWN_TURN).find(
+          (status) => Number(status?.targetIndex) === Number(targetIndex)
+        ) ?? null;
+      if (!existingDownTurn) {
+        upsertEnemyStatus(state.turnState, {
+          statusType: ENEMY_STATUS_DOWN_TURN,
+          targetIndex,
+          remainingTurns: DEFAULT_AUTO_DOWN_TURN_REMAINING,
+        });
+      }
+      events.push({
+        actorCharacterId: String(actionEntry.characterId ?? ''),
+        skillId: Number(actionEntry.skillId ?? 0),
+        skillName: String(actionEntry.skillName ?? ''),
+        mode: 'DownTurn',
+        targetIndex,
+        statusType: ENEMY_STATUS_DOWN_TURN,
+        remainingTurns: Number(existingDownTurn?.remainingTurns ?? DEFAULT_AUTO_DOWN_TURN_REMAINING),
+        source: 'manual',
+      });
+    }
+  }
+  return events;
+}
+
 function findMemberByCharacterId(state, characterId) {
   return state.party.find((member) => member.characterId === characterId) ?? null;
 }
@@ -6382,12 +6431,19 @@ function previewActionEntries(state, sortedActions) {
         ...defenseUpPerToken.matchedPassives,
         ...damageRateUpPerToken.matchedPassives,
       ],
-      breakHitCount: Number(action?.breakHitCount ?? 0),
+      breakHitCount:
+        Number.isFinite(Number(action?.breakHitCount))
+          ? Number(action.breakHitCount)
+          : normalizeManualBreakEnemyIndexes(action, state?.turnState?.enemyState?.enemyCount).length,
       killCount: Number(action?.killCount ?? 0),
       removeDebuffCount: resolveRemoveDebuffCountForAction(state, member, effectiveSkill, action),
       targetCharacterId: String(action?.targetCharacterId ?? ''),
       targetEnemyIndex:
         Number.isFinite(Number(action?.targetEnemyIndex)) ? Number(action.targetEnemyIndex) : null,
+      manualBreakEnemyIndexes: normalizeManualBreakEnemyIndexes(
+        action,
+        state?.turnState?.enemyState?.enemyCount
+      ),
       _baseRevision: preview.baseRevision,
       _effectiveSkillSnapshot: structuredClone(effectiveSkill),
     };
@@ -8348,7 +8404,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const newlyShreddedIds = new Set(shreddingEvents.map((ev) => String(ev.characterId)));
   applyBuffStatusEffectsFromActions(state, previewRecord);
   const enemyStatusEvents = applyEnemyStatusEffectsFromActions(state, previewRecord);
-  const enemyBreakEvents = applyEnemyBreakEffectsFromActions(state, previewRecord);
+  const enemyBreakEvents = [
+    ...applyEnemyBreakEffectsFromActions(state, previewRecord),
+    ...applyManualBreakEffectsFromActions(state, previewRecord),
+  ];
   const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, previewRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
   const transcendenceSummary = applyTranscendenceTurnSummary(

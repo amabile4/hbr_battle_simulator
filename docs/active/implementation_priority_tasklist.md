@@ -1,10 +1,10 @@
 # Implementation Priority Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-14
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-20
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
-> **判断メモ**: 全トラッキングで未対応条件が `0` 件となったため、「未実装機能」のうちシミュレータの計画価値に直結する「スキル使用回数制約と回復機能の厳密適用」を次優先 `PRI-018` として設定した。
+> **判断メモ**: 2026-03-20 に `ui-next` の session-oriented wave（manual break attribution、ReplayScript-native 過去編集/再計算、`SessionSnapshotV1` JSON save/load、`validationPolicy` 基盤）を先行実装した。現在の残 correctness backlog としては `PRI-018`（スキル使用回数制約と回復機能）が次優先。
 
 ## 目的
 
@@ -41,6 +41,7 @@
 | 完了 | `PRI-015` | `done` | enemy-side `SpecialStatusCountByType(3/22/172)` と enemy status report 同期 | [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md), [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`condition_report_sync_tasklist.md`](condition_report_sync_tasklist.md) | 調査で `DefenseDown` / `Fragile` / `SuperDown` 条件と report false positive が残差の本体と判明した。ここを閉じると条件残件は消え、次 priority を未接続 enemy status 残件へ絞れる | `SpecialStatusCountByType(3/22/172)` が runtime で解決し、generator が runtime 実装済み enemy status を未対応として再報告しない |
 | 完了 | `PRI-016` | `done` | residual enemy status クローズ（確率系 / 補助 debuff / enemy buff / passive enemy debuff） | [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) | `PRI-015` 後の残件 10 key を generic enemy status 基盤へ吸収し、`PlayerTurnEnd` passive debuff と variant 配下 status も接続した。これで unsupported report を再び全カテゴリ 0 件へ戻せた | `StunRandom` / `ConfusionRandom` / `ImprisonRandom` / `Misfortune` / `HealDown` / `Hacking` / `Cover` / enemy-target `AttackUp` / `DefenseUp` / passive `DefenseDown` が runtime / report / tests まで同期される |
 | 完了 | `PRI-017` | `done` | player-side enemy inflicted status manual hook（`T14` / scenario bridge） | [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | unsupported report は 0 件化したため、明示的な残 gap は `SpecialStatusCountByType(79)` を扱う player-side 手動拘束 hook に収束していた。manual state / scenario / replay を同じ schema で通すことで、enemy AI 未実装でも planning 価値を維持できた | player-side `ImprisonRandom` / `SpecialStatusCountByType(79)` を `statusEffectsByPartyIndex` で注入でき、CountBC / preview / passive 初期評価 / record / scenario / replay が同じ表現で扱える |
+| 完了 | `UI-NEXT-REPLAY-01` | `done` | `ui-next` manual break attribution / 過去編集 / session save-load | [`ui_next_manual_break_session_tasklist.md`](ui_next_manual_break_session_tasklist.md), [`ui_next_design.md`](ui_next_design.md), [`lightweight_record_replay_design.md`](lightweight_record_replay_design.md) | permissive input 方針のまま、実際の戦闘メモを lightweight record で再現・修正・保存できることを先に整える必要があった。`DownTurn` 直接入力ではなく「どの行動で誰が break したか」を保存することで、break 起点 passive と再計算の整合も保てる | `ActionOutcomeOverrides` による manual break attribution、committed row 再編集、`SessionSnapshotV1` JSON save/load、`validationPolicy` 基盤が `ui-next` / replay / docs / tests まで同期される |
 | 次優先 | `PRI-018` | `todo` | スキル使用回数制約と回復機能の厳密適用 | `../20260306_tasklist/implementation_status.md` | damage calculation 突入前に、シミュレータの「計画」としての要である「有限スキルの残弾」を正確に判定できるようにする | `HealSkillUsedCount` / `SkillLimitCountUp` の効果が反映され、上限を超えたスキル入力が UI / scenario / turn-controller で validate 弾きされること |
 
 ## PRI-013 タスクリスト
