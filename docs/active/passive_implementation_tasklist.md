@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-13
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-21
 
 ## 方針
 
@@ -83,6 +83,11 @@
   - 残課題は UI 表示拡張、Records / Passive Log での見える化、各属性の実データ回帰追加
 - [x] `IsZone`
 - [x] `IsTerritory`
+- [x] `HighBoost`
+  - `HighBoost` を `statusEffects.statusType = 'HighBoost'` の永続 passive 状態として実装
+  - `OnFirstBattleStart` の passive part で味方全体へ付与し、`SpLimitOverwrite` と併用して `sp.max = 30` を維持
+  - `HighBoost` 効果として `SP消費 +2`、`AttackUp` バフ量 `1.2x`、敵デバフ量 `1.2x`、`HealSp` / `HealDpRate` / 再生系 / 受動回復 `1.5x` を反映
+  - preview / committed record には `specialPassiveModifiers.highBoostSkillAtkRate = 1.8` を保持
 
 ### `IsZone` / `IsTerritory` 仕様メモ
 
@@ -165,6 +170,13 @@
 - [x] `OnEnemyTurnStart`
 - [x] `OnAdditionalTurnStart`
 - [x] `OnBattleWin`
+
+### `HighBoost` / 装備型 battle-start passive メモ
+
+- `ui-next` の Party Setup は slot ごとに装備型 skill checklist を持ち、`skillSetsByPartyIndex` を session save/load と party preset へ保存する
+- runtime は `equippedSkillIds` に応じて equipable passive-with-passive skills を `triggeredSkills` へ残すかどうかを切り替える
+- 追撃のような自動発動 skill は装備 checklist から除外し、equipable passive だけを着脱対象にする
+- `[夜の香り、薔薇の調べ] 柳 美音` の `ルビー・パフューム` は、装備時のみ `OnFirstBattleStart` に参加して `HighBoost` と `SpLimitOverwrite` を味方全体へ付与する
 
 ### turnPlan 再設計タスク
 

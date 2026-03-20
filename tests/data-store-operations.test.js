@@ -10,6 +10,8 @@ const UI_NEXT_YUINA_SWITCH_BRANCH_SKILL_IDS = Object.freeze({
   SPIRAL: 46004117,
 });
 const EMBEDDED_NORMAL_ATTACK_STYLE_ID = 1010103;
+const RUBY_PERFUME_STYLE_ID = 1007106;
+const RUBY_PERFUME_SKILL_ID = 46407101;
 
 test('style/skill lookup and assignment operations work', () => {
   const store = getStore();
@@ -218,6 +220,49 @@ test('styles.json embedded fallback restores normal attack for selectable list a
     triggeredNames.includes('追撃'),
     true,
     'embedded pursuit should be restored in triggered skill lists'
+  );
+});
+
+test('equipable skill list includes passive skills such as ルビー・パフューム', () => {
+  const store = getStore();
+
+  const equipableSkills = store.listEquipableSkillsByStyleId(RUBY_PERFUME_STYLE_ID);
+  const rubyPerfume = equipableSkills.find((skill) => Number(skill.id) === RUBY_PERFUME_SKILL_ID);
+
+  assert.ok(rubyPerfume, 'equipable list should include Ruby Perfume');
+  assert.equal(rubyPerfume.sourceType, 'passive');
+  assert.equal(Boolean(rubyPerfume.passive && typeof rubyPerfume.passive === 'object'), true);
+});
+
+test('buildCharacterStyle filters equipable passive triggered skills by equippedSkillIds', () => {
+  const store = getStore();
+  const allEquipableSkillIds = store
+    .listEquipableSkillsByStyleId(RUBY_PERFUME_STYLE_ID)
+    .map((skill) => Number(skill.id));
+  const withoutRubyPerfume = allEquipableSkillIds.filter((skillId) => skillId !== RUBY_PERFUME_SKILL_ID);
+
+  const equippedMember = store.buildCharacterStyle({
+    styleId: RUBY_PERFUME_STYLE_ID,
+    partyIndex: 0,
+    initialSP: 20,
+    equippedSkillIds: allEquipableSkillIds,
+  });
+  const unequippedMember = store.buildCharacterStyle({
+    styleId: RUBY_PERFUME_STYLE_ID,
+    partyIndex: 0,
+    initialSP: 20,
+    equippedSkillIds: withoutRubyPerfume,
+  });
+
+  assert.equal(
+    equippedMember.triggeredSkills.some((skill) => Number(skill.skillId) === RUBY_PERFUME_SKILL_ID),
+    true,
+    'equipped passive should remain in triggeredSkills'
+  );
+  assert.equal(
+    unequippedMember.triggeredSkills.some((skill) => Number(skill.skillId) === RUBY_PERFUME_SKILL_ID),
+    false,
+    'unequipped passive should be removed from triggeredSkills'
   );
 });
 

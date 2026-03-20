@@ -195,6 +195,19 @@ function buildReplaySetupFromSnapshot(snapshot) {
     limitBreakLevelsByPartyIndex: Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.limitBreakLevelsByPartyIndex[srcIdx] ?? 0])
     ),
+    skillSetsByPartyIndex: Object.fromEntries(
+      filledIndices
+        .map((srcIdx, newIdx) => {
+          const equippedSkillIds =
+            snapshot.skillSetsByPartyIndex?.[srcIdx] ??
+            snapshot.skillSetsByPartyIndex?.[String(srcIdx)] ??
+            null;
+          return Array.isArray(equippedSkillIds)
+            ? [newIdx, structuredClone(equippedSkillIds)]
+            : null;
+        })
+        .filter(Boolean)
+    ),
   };
 }
 

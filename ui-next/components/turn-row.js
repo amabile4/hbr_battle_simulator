@@ -75,7 +75,7 @@ function formatOdGauge(value) {
  * 1ターン分の横長コンテナ UI
  *
  * - 未コミット行: record=null、stateBefore のみ（スキル選択 + Commit ボタン表示）
- * - コミット済み行: record あり、stateBefore の SP をそのまま表示
+ * - SP バッジ: 未コミット行は preview 後の残量、コミット済み行は action の endSP を表示
  * - スロットは commit 時点の position 順で表示
  */
 export class TurnRowController {
@@ -111,6 +111,7 @@ export class TurnRowController {
   #openTargetPickerPartyIndex = null;
   #isBreakEditorOpen = false;
   #draftBreakEnemyIndexesByPartyIndex = {};
+  #previewResourceState = null;
   // Simulator Settings パラメータ
   #simulatorSettings = null;
 
@@ -124,6 +125,7 @@ export class TurnRowController {
     operationState = null,
     stateBefore,
     stateAfter,
+    previewResourceState = null,
     onSlotChange,
     onCommit,
     onNoteChange,
@@ -147,6 +149,9 @@ export class TurnRowController {
       : null;
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
+    this.#previewResourceState = previewResourceState && typeof previewResourceState === 'object'
+      ? structuredClone(previewResourceState)
+      : null;
     this.#onSlotChange = onSlotChange;
     this.#onCommit = onCommit;
     this.#onNoteChange = onNoteChange;
@@ -296,6 +301,7 @@ export class TurnRowController {
     operationState = undefined,
     stateBefore,
     stateAfter,
+    previewResourceState = undefined,
     odState = undefined,
     simulatorSettings = undefined,
     openTargetPickerPartyIndex = null,
@@ -332,6 +338,11 @@ export class TurnRowController {
     }
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
+    if (previewResourceState !== undefined) {
+      this.#previewResourceState = previewResourceState && typeof previewResourceState === 'object'
+        ? structuredClone(previewResourceState)
+        : null;
+    }
     if (odState !== undefined) this.#odState = odState;
     if (simulatorSettings !== undefined) this.#simulatorSettings = nextSimulatorSettings;
     if (this.#record !== null) {
@@ -796,6 +807,42 @@ export class TurnRowController {
     `;
   }
 
+  #getRecordSnapEntry(partyIndex) {
+    return this.#record?.snapBefore?.find((entry) => entry.partyIndex === partyIndex) ?? null;
+  }
+
+  #resolveDisplayedSpFromAction(recordAction) {
+    const costChange = Array.isArray(recordAction?.spChanges)
+      ? recordAction.spChanges.find((change) => change?.source === 'cost' && Number.isFinite(Number(change?.postSP)))
+      : null;
+    const costPostSp = Number(costChange?.postSP);
+    if (Number.isFinite(costPostSp)) {
+      return costPostSp;
+    }
+    const endSP = Number(recordAction?.endSP);
+    return Number.isFinite(endSP) ? endSP : null;
+  }
+
+  #resolveDisplayedSpValue({ member, isCommitted, recordAction = null }) {
+    if (!member) {
+      return '—';
+    }
+
+    if (isCommitted) {
+      const displayedSp = this.#resolveDisplayedSpFromAction(recordAction);
+      if (Number.isFinite(displayedSp)) {
+        return displayedSp;
+      }
+      return this.#getRecordSnapEntry(member.partyIndex)?.sp?.current ?? '—';
+    }
+
+    const previewSp = Number(this.#previewResourceState?.spAfterByPartyIndex?.[member.partyIndex]);
+    if (Number.isFinite(previewSp)) {
+      return previewSp;
+    }
+    return member.sp?.current ?? '—';
+  }
+
   #getCurrentBreakEnemyIndexes({ member, isCommitted, enemyCount }) {
     if (!member) {
       return [];
@@ -1258,17 +1305,12 @@ export class TurnRowController {
       return this.#buildInactiveSlotHtml(member, imageUrl, isCommitted);
     }
 
-    // SP: ターン開始前の値（stateBefore 時点）を表示する。
-    // コミット済み行: CharacterStyle は commitSkillPreview() による in-place mutation で
-    //   常に最新ターン後の値を持つため、member.sp?.current は誤り。
-    //   代わりに previewTurn が mutation 前に取得した不変コピー（record.snapBefore）から読む。
-    // 未コミット行: currentState は常に最新なので member.sp?.current が正しい。
-    const snapEntry = isCommitted
-      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex) ?? null)
-      : null;
-    const spDisplay = isCommitted
-      ? (snapEntry?.sp?.current ?? '—')
-      : (member.sp?.current ?? '—');
+    const snapEntry = isCommitted ? this.#getRecordSnapEntry(member.partyIndex) : null;
+    const spDisplay = this.#resolveDisplayedSpValue({
+      member,
+      isCommitted,
+      recordAction: replaySlot,
+    });
     // トークン・士気（ターン開始前の値）
     const tokenCurrent  = isCommitted ? (snapEntry?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
     const tokenMax      = isCommitted ? (snapEntry?.tokenState?.max      ?? 10) : (member.tokenState?.max      ?? 10);
@@ -1399,12 +1441,8 @@ export class TurnRowController {
    *  コミット済み行: gray 色で「EX待機」表示（後衛スロットと同トーン）。
    */
   #buildInactiveSlotHtml(member, imageUrl, isCommitted) {
-    const inactiveSnap = isCommitted
-      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex) ?? null)
-      : null;
-    const sp = isCommitted
-      ? (inactiveSnap?.sp?.current ?? '—')
-      : (member.sp?.current ?? '—');
+    const inactiveSnap = isCommitted ? this.#getRecordSnapEntry(member.partyIndex) : null;
+    const sp = this.#resolveDisplayedSpValue({ member, isCommitted });
     const tokenCurrent  = isCommitted ? (inactiveSnap?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
     const tokenMax      = isCommitted ? (inactiveSnap?.tokenState?.max      ?? 10) : (member.tokenState?.max      ?? 10);
     const moraleCurrent = isCommitted ? (inactiveSnap?.moraleState?.current ?? 0) : (member.moraleState?.current ?? 0);
@@ -1443,13 +1481,8 @@ export class TurnRowController {
 
   #buildBackSlotHtml(member, isCommitted) {
     const imageUrl = this.#resolveImageUrl(member);
-    // コミット済み行: #buildFrontSlotHtml と同様に snapBefore から読む
-    const backSnap = isCommitted
-      ? (this.#record?.snapBefore?.find((s) => s.partyIndex === member.partyIndex) ?? null)
-      : null;
-    const sp = isCommitted
-      ? (backSnap?.sp?.current ?? '—')
-      : (member.sp?.current ?? '—');
+    const backSnap = isCommitted ? this.#getRecordSnapEntry(member.partyIndex) : null;
+    const sp = this.#resolveDisplayedSpValue({ member, isCommitted });
     const tokenCurrent  = isCommitted ? (backSnap?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
     const tokenMax      = isCommitted ? (backSnap?.tokenState?.max      ?? 10) : (member.tokenState?.max      ?? 10);
     const moraleCurrent = isCommitted ? (backSnap?.moraleState?.current ?? 0) : (member.moraleState?.current ?? 0);

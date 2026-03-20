@@ -358,6 +358,7 @@ export class TurnEngineManager {
       stateBefore,
       slotActions: resolvedSlotActions,
       odGaugeAfter: preview?.odGaugeAfter ?? null,
+      previewResourceState: preview?.previewResourceState ?? { spAfterByPartyIndex: {} },
       activatablePreemptive: resolveActivatablePreemptiveOdLevels(stateBefore),
       activatableInterrupt: preview?.activatableInterrupt ?? [],
       operationState: {
@@ -705,10 +706,38 @@ export class TurnEngineManager {
       const activatableInterrupt = canInterrupt
         ? [1, 2, 3].filter((level) => odGaugeAfter >= getOdGaugeRequirement(level))
         : [];
-      return { odGaugeAfter, activatableInterrupt };
+      return {
+        odGaugeAfter,
+        activatableInterrupt,
+        previewResourceState: this.#buildPreviewResourceState(previewRecord),
+      };
     } catch {
       return null;
     }
+  }
+
+  #buildPreviewResourceState(previewRecord) {
+    const spAfterByPartyIndex = {};
+    for (const action of previewRecord?.actions ?? []) {
+      const partyIndex = Number(action?.partyIndex);
+      const displayedSp = this.#resolveActionDisplayedSp(action);
+      if (Number.isInteger(partyIndex) && Number.isFinite(displayedSp)) {
+        spAfterByPartyIndex[partyIndex] = displayedSp;
+      }
+    }
+    return { spAfterByPartyIndex };
+  }
+
+  #resolveActionDisplayedSp(action) {
+    const costChange = Array.isArray(action?.spChanges)
+      ? action.spChanges.find((change) => change?.source === 'cost' && Number.isFinite(Number(change?.postSP)))
+      : null;
+    const costPostSp = Number(costChange?.postSP);
+    if (Number.isFinite(costPostSp)) {
+      return costPostSp;
+    }
+    const endSP = Number(action?.endSP);
+    return Number.isFinite(endSP) ? endSP : null;
   }
 
   #resolveInputRowSlotActions(state, slotActions = {}) {

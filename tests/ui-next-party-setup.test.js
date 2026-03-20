@@ -56,6 +56,18 @@ function createStyle(id, chara, tier = 'SS') {
   };
 }
 
+function createSkill(id, name, { sourceType = 'style', passive = false, label = `Skill${id}` } = {}) {
+  return {
+    id,
+    skillId: id,
+    name,
+    label,
+    sourceType,
+    sp_cost: 0,
+    ...(passive ? { passive: { timing: 'OnFirstBattleStart', effect: name } } : {}),
+  };
+}
+
 function createStoreStub() {
   const styles = [
     createStyle(1001, '茅森 月歌'),
@@ -63,6 +75,21 @@ function createStoreStub() {
     createStyle(1003, '逢川 めぐみ'),
   ];
   const styleById = new Map(styles.map((style) => [style.id, style]));
+  const equipableSkillsByStyleId = new Map([
+    [1001, [
+      createSkill(46000001, '通常攻撃'),
+      createSkill(46400001, 'ルビー・パフューム', { sourceType: 'passive', passive: true }),
+      createSkill(46500001, 'マスタースキル', { sourceType: 'master' }),
+      createSkill(46300001, 'オーブスキル', { sourceType: 'orb' }),
+    ]],
+    [1002, [
+      createSkill(46000011, '通常攻撃'),
+      createSkill(46400011, 'パッシブB', { sourceType: 'passive', passive: true }),
+    ]],
+    [1003, [
+      createSkill(46000021, '通常攻撃'),
+    ]],
+  ]);
   return {
     styles,
     getStyleById(styleId) {
@@ -70,6 +97,9 @@ function createStoreStub() {
     },
     listSkillsByStyleId() {
       return [];
+    },
+    listEquipableSkillsByStyleId(styleId) {
+      return equipableSkillsByStyleId.get(Number(styleId)) ?? [];
     },
   };
 }
@@ -144,4 +174,94 @@ test('PartySetupController confirms before overwriting an existing preset', () =
 
     assert.equal(confirmCalls, 1);
     assert.equal(win.localStorage.getItem('hbr.ui_next.party_presets.v1'), before);
+  }));
+
+test('PartySetupController renders equipable skill checklist with required and tagged entries', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    const checklist = root.querySelector('[data-role="skill-checklist"][data-slot="0"]');
+    assert.ok(checklist, 'slot 0 should render skill checklist');
+
+    const requiredInput = checklist.querySelector('input[value="46000001"]');
+    assert.equal(requiredInput?.checked, true);
+    assert.equal(requiredInput?.disabled, true);
+
+    const passiveRow = checklist.textContent;
+    assert.match(passiveRow, /ルビー・パフューム/);
+    assert.match(passiveRow, /パッシブ/);
+    assert.match(passiveRow, /マスター/);
+    assert.match(passiveRow, /オーブ/);
+
+    assert.deepEqual(
+      controller.getSnapshot().skillSetsByPartyIndex['0'],
+      [46000001, 46400001, 46500001, 46300001]
+    );
+  }));
+
+test('PartySetupController restores skillSetsByPartyIndex from snapshot and preset', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+      skillSetsByPartyIndex: {
+        0: [46000001, 46500001],
+      },
+    });
+
+    const passiveCheckbox = root.querySelector(
+      'input[data-field="equipped-skill"][data-slot-index="0"][value="46400001"]'
+    );
+    const masterCheckbox = root.querySelector(
+      'input[data-field="equipped-skill"][data-slot-index="0"][value="46500001"]'
+    );
+    assert.equal(passiveCheckbox?.checked, false);
+    assert.equal(masterCheckbox?.checked, true);
+    assert.deepEqual(controller.getSnapshot().skillSetsByPartyIndex['0'], [46000001, 46500001]);
+
+    root
+      .querySelector('[data-action="toggle-preset"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-action="save-preset"][data-preset-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+    root
+      .querySelector('[data-action="load-preset"][data-preset-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.deepEqual(controller.getSnapshot().skillSetsByPartyIndex['0'], [46000001, 46500001]);
   }));

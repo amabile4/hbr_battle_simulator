@@ -20,6 +20,25 @@ function normalizeIndexedObject(source = {}, fallbackValue = 0) {
   return normalized;
 }
 
+function normalizeSkillSetsByPartyIndex(source = {}) {
+  const normalized = {};
+  for (let index = 0; index < PARTY_SIZE; index += 1) {
+    const raw =
+      source?.[index] ??
+      source?.[String(index)] ??
+      null;
+    if (!Array.isArray(raw)) {
+      continue;
+    }
+    normalized[String(index)] = [...new Set(
+      raw
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+    )];
+  }
+  return normalized;
+}
+
 export function normalizePartySetupSnapshot(snapshot = {}) {
   const styleIds = Array.from({ length: PARTY_SIZE }, (_, index) =>
     toOptionalNumber(snapshot?.styleIds?.[index])
@@ -38,6 +57,7 @@ export function normalizePartySetupSnapshot(snapshot = {}) {
     ),
     drivePierceByPartyIndex: normalizeIndexedObject(snapshot?.drivePierceByPartyIndex, 0),
     startSpEquipByPartyIndex: normalizeIndexedObject(snapshot?.startSpEquipByPartyIndex, 0),
+    skillSetsByPartyIndex: normalizeSkillSetsByPartyIndex(snapshot?.skillSetsByPartyIndex),
   };
 }
 

@@ -90,6 +90,18 @@ function toDateValue(value) {
   return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
 }
 
+function areStyleIdListsEqual(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (Number(left[index]) !== Number(right[index])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const TIER_ORDER = Object.freeze({
   A: 0,
   S: 1,
@@ -2998,7 +3010,10 @@ export class BattleDomAdapter extends BattleAdapterFacade {
   }
 
   initializeBattle(styleIds = this.readStyleIdsFromDom(), options = {}) {
-    const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? this.readSkillSetMapFromDom();
+    const domStyleIds = this.readStyleIdsFromDom();
+    const shouldReadSkillSetsFromDom =
+      options.skillSetsByPartyIndex === undefined && areStyleIdListsEqual(styleIds, domStyleIds);
+    const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? (shouldReadSkillSetsFromDom ? this.readSkillSetMapFromDom() : {});
     const limitBreakLevelsByPartyIndex =
       options.limitBreakLevelsByPartyIndex ?? this.readLimitBreakMapFromDom();
     const supportStyleIdsByPartyIndex =

@@ -9,12 +9,12 @@ import { DEFAULT_VALIDATION_POLICY } from '../ui-next/utils/validation-policy.js
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
 
-function createSkill({ id, name, targetType, parts }) {
+function createSkill({ id, name, targetType, parts, spCost = 0 }) {
   return {
     id,
     name,
     label: `${name}${id}`,
-    sp_cost: 0,
+    sp_cost: spCost,
     target_type: targetType,
     parts,
   };
@@ -86,17 +86,17 @@ function createManualParty(actorSkill, actorOptions = {}) {
       styleName: index === 0 ? (actorOptions.styleName ?? 'TS1') : `TS${index + 1}`,
       partyIndex: index,
       position: index,
-      initialSP: 10,
+      initialSP: index === 0 ? (actorOptions.initialSP ?? 10) : 10,
       skills: [
         index === 0
-          ? actorSkill
+          ? (actorOptions.skills ?? [actorSkill])
           : createSkill({
               id: 9200 + index,
               name: `Normal${index + 1}`,
               targetType: 'Self',
               parts: [{ skill_type: 'Protection', target_type: 'Self' }],
             }),
-      ],
+      ].flat(),
       passives: index === 0 ? (actorOptions.passives ?? []) : [],
     })
   );
@@ -320,6 +320,42 @@ test('TurnEngineManager buildInputRowSnapshot resolves partyIndex keyed draft ac
   assert.equal(snapshot.stateBefore.party.find((member) => member.partyIndex === 0)?.position, 1);
   assert.equal(snapshot.slotActions[1]?.skillId, 9050);
   assert.deepEqual(snapshot.slotActions[1]?.target, { type: 'enemy', enemyIndex: 1 });
+});
+
+test('TurnEngineManager buildInputRowSnapshot exposes preview endSP by partyIndex', () => {
+  const normalSkill = createSkill({
+    id: 9051,
+    name: '通常攻撃',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const costlySkill = createSkill({
+    id: 9052,
+    name: '夜醒',
+    targetType: 'Self',
+    spCost: 7,
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createInitialState(normalSkill, {
+      initialSP: 11,
+      skills: [normalSkill, costlySkill],
+    }),
+    {}
+  );
+
+  const snapshot = manager.buildInputRowSnapshot({
+    slotActions: {
+      0: {
+        partyIndex: 0,
+        skillId: 9052,
+      },
+    },
+    enemyCount: 1,
+  });
+
+  assert.equal(snapshot.previewResourceState.spAfterByPartyIndex[0], 4);
 });
 
 test('TurnEngineManager normalizes single-target manual break attribution to the current target and replays break-triggered passive effects', () => {

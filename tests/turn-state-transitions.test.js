@@ -224,6 +224,57 @@ function createSixMemberManualParty(factory) {
   return new Party(members);
 }
 
+const HIGH_BOOST_TEST_STATUS_EFFECT = Object.freeze({
+  statusType: 'HighBoost',
+  limitType: 'Only',
+  exitCond: 'Eternal',
+  remaining: 0,
+  power: 1.8,
+  sourceType: 'passive',
+  metadata: {
+    onlyGroupKey: 'HighBoost',
+    spCostIncrease: 2,
+    skillAtkRate: 1.8,
+    attackBuffMultiplier: 1.2,
+    debuffMultiplier: 1.2,
+    healMultiplier: 1.5,
+  },
+});
+
+function createProtectionSkill(skillId) {
+  return {
+    id: skillId,
+    name: 'プロテクション',
+    label: `Protection${skillId}`,
+    sp_cost: 0,
+    parts: [
+      {
+        skill_type: 'DefenseUp',
+        target_type: 'Self',
+        power: [0.3, 0],
+        effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+      },
+    ],
+  };
+}
+
+function createHighBoostManualParty(actorOverrides = {}) {
+  return createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'HB1',
+        characterName: 'HB1',
+        initialSP: 20,
+        statusEffects: [structuredClone(HIGH_BOOST_TEST_STATUS_EFFECT)],
+        ...actorOverrides,
+      };
+    }
+    return {
+      skills: [createProtectionSkill(8800 + idx)],
+    };
+  });
+}
+
 test('consume_type Token spends token instead of SP on preview and commit', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -10659,6 +10710,267 @@ test('SpLimitOverwrite (歴戦): sp.max 30 になると回復上限も 30 にな
   const actor = preview.actions.find((a) => a.characterId === 'SL21');
   assert.ok(actor, 'SL21 の action が存在する');
   assert.ok(actor.endSP <= 30, `endSP (${actor.endSP}) は sp.max (30) 以下`);
+});
+
+test('ルビー・パフューム装備時は battle start で味方全体に HighBoost と sp.max=30 が付く', () => {
+  const store = getStore();
+  const actor = store.buildCharacterStyle({
+    styleId: 1007106,
+    partyIndex: 0,
+    initialSP: 20,
+  });
+  const allies = Array.from({ length: 5 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HBALLY${idx + 1}`,
+      characterName: `HBALLY${idx + 1}`,
+      styleId: 9000 + idx,
+      styleName: `HBALLY${idx + 1}`,
+      partyIndex: idx + 1,
+      position: idx + 1,
+      initialSP: 20,
+      skills: [createProtectionSkill(8900 + idx)],
+    })
+  );
+  const state = createBattleStateFromParty(new Party([actor, ...allies]));
+
+  applyInitialPassiveState(state);
+
+  for (const member of state.party) {
+    assert.equal(member.sp.max, 30, `${member.characterId} should have sp.max 30`);
+    assert.equal(
+      member.resolveEffectiveStatusEffects('HighBoost').length,
+      1,
+      `${member.characterId} should have HighBoost status`
+    );
+  }
+  assert.ok(
+    (state.turnState.passiveEventsLastApplied ?? []).some((event) =>
+      Array.isArray(event.effectTypes) &&
+      event.effectTypes.includes('HighBoost') &&
+      event.effectTypes.includes('SpLimitOverwrite')
+    ),
+    'battle start passive log should include HighBoost and SpLimitOverwrite'
+  );
+});
+
+test('ルビー・パフュームを外すと battle start で HighBoost も sp.max 30 も付かない', () => {
+  const store = getStore();
+  const equippedSkillIds = store
+    .listEquipableSkillsByStyleId(1007106)
+    .map((skill) => Number(skill.id))
+    .filter((skillId) => skillId !== 46407101);
+  const actor = store.buildCharacterStyle({
+    styleId: 1007106,
+    partyIndex: 0,
+    initialSP: 20,
+    equippedSkillIds,
+  });
+  const allies = Array.from({ length: 5 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HBUNEQ${idx + 1}`,
+      characterName: `HBUNEQ${idx + 1}`,
+      styleId: 9100 + idx,
+      styleName: `HBUNEQ${idx + 1}`,
+      partyIndex: idx + 1,
+      position: idx + 1,
+      initialSP: 20,
+      skills: [createProtectionSkill(9000 + idx)],
+    })
+  );
+  const state = createBattleStateFromParty(new Party([actor, ...allies]));
+
+  applyInitialPassiveState(state);
+
+  for (const member of state.party) {
+    assert.equal(member.sp.max, 20, `${member.characterId} should keep default sp.max`);
+    assert.equal(
+      member.resolveEffectiveStatusEffects('HighBoost').length,
+      0,
+      `${member.characterId} should not gain HighBoost when passive is unequipped`
+    );
+  }
+});
+
+test('HighBoost increases SP consumption by 2 without stacking and keeps zero or all-cost skills unchanged', () => {
+  const party = createHighBoostManualParty({
+    skills: [
+      {
+        id: 30010,
+        name: 'Heavy Skill',
+        label: 'HeavySkill',
+        sp_cost: 7,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+      {
+        id: 30011,
+        name: 'Free Skill',
+        label: 'FreeSkill',
+        sp_cost: 0,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+      {
+        id: 30012,
+        name: 'All Cost Skill',
+        label: 'AllCostSkill',
+        sp_cost: -1,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+    ],
+    statusEffects: [
+      structuredClone(HIGH_BOOST_TEST_STATUS_EFFECT),
+      structuredClone(HIGH_BOOST_TEST_STATUS_EFFECT),
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+
+  const heavyPreview = previewTurn(state, {
+    0: { characterId: 'HB1', skillId: 30010, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const freePreview = previewTurn(state, {
+    0: { characterId: 'HB1', skillId: 30011, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const allCostPreview = previewTurn(state, {
+    0: { characterId: 'HB1', skillId: 30012, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+
+  assert.equal(findActionByCharacterId(heavyPreview, 'HB1').spCost, 9, 'HighBoost should increase SP cost by 2 once');
+  assert.equal(findActionByCharacterId(freePreview, 'HB1').spCost, 0, 'zero-cost skills should remain unchanged');
+  assert.equal(findActionByCharacterId(allCostPreview, 'HB1').spCost, -1, 'all-cost skills should remain unchanged');
+});
+
+test('HighBoost scales attack-up buffs, enemy debuffs, healing, and damage context metadata', () => {
+  const createParty = () => createHighBoostManualParty({
+    initialSP: 10,
+    baseMaxDp: 100,
+    currentDp: 10,
+    skills: [
+      {
+        id: 30020,
+        name: 'HighBoost Attack',
+        label: 'HighBoostAttack',
+        sp_cost: 7,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+      {
+        id: 30021,
+        name: 'HighBoost Buff',
+        label: 'HighBoostBuff',
+        sp_cost: 0,
+        parts: [
+          {
+            skill_type: 'AttackUp',
+            target_type: 'Self',
+            power: [0.5, 0],
+            effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+          },
+        ],
+      },
+      {
+        id: 30022,
+        name: 'HighBoost Debuff',
+        label: 'HighBoostDebuff',
+        sp_cost: 0,
+        parts: [
+          {
+            skill_type: 'DefenseDown',
+            target_type: 'Single',
+            power: [0.5, 0],
+            effect: { limitType: 'Only', exitCond: 'EnemyTurnEnd', exitVal: [1, 0] },
+          },
+        ],
+      },
+      {
+        id: 30023,
+        name: 'HighBoost HealSp',
+        label: 'HighBoostHealSp',
+        sp_cost: 0,
+        parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [4, 0] }],
+      },
+      {
+        id: 30024,
+        name: 'HighBoost HealDp',
+        label: 'HighBoostHealDp',
+        sp_cost: 0,
+        parts: [{ skill_type: 'HealDpRate', target_type: 'Self', power: [0.1, 0], value: [1, 0] }],
+      },
+    ],
+  });
+
+  const attackState = createBattleStateFromParty(createParty());
+  const attackPreview = previewTurn(attackState, {
+    0: { characterId: 'HB1', skillId: 30020, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  assert.equal(findActionByCharacterId(attackPreview, 'HB1').specialPassiveModifiers.highBoostSkillAtkRate, 1.8);
+  const { committedRecord: attackRecord } = commitTurn(attackState, attackPreview);
+  assert.equal(findActionByCharacterId(attackRecord, 'HB1').specialPassiveModifiers.highBoostSkillAtkRate, 1.8);
+
+  const buffState = createBattleStateFromParty(createParty());
+  const buffPreview = previewTurn(buffState, {
+    0: { characterId: 'HB1', skillId: 30021 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: buffRecord } = commitTurn(buffState, buffPreview);
+  assert.equal(findActionByCharacterId(buffRecord, 'HB1').statusEffectsApplied[0].power, 0.6);
+
+  const debuffState = createBattleStateFromParty(createParty());
+  const debuffPreview = previewTurn(debuffState, {
+    0: { characterId: 'HB1', skillId: 30022, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: debuffRecord } = commitTurn(debuffState, debuffPreview);
+  assert.equal(findActionByCharacterId(debuffRecord, 'HB1').enemyStatusChanges[0].power, 0.6);
+
+  const healSpState = createBattleStateFromParty(createParty());
+  const healSpPreview = previewTurn(healSpState, {
+    0: { characterId: 'HB1', skillId: 30023 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: healSpRecord } = commitTurn(healSpState, healSpPreview);
+  const healSpChange = findActionByCharacterId(healSpRecord, 'HB1').spChanges.find(
+    (change) => change.source === 'active'
+  );
+  assert.equal(healSpChange?.delta, 6);
+
+  const healDpState = createBattleStateFromParty(createParty());
+  const healDpPreview = previewTurn(healDpState, {
+    0: { characterId: 'HB1', skillId: 30024 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: healDpRecord } = commitTurn(healDpState, healDpPreview);
+  assert.equal(findActionByCharacterId(healDpRecord, 'HB1').dpChanges[0].delta, 15);
+});
+
+test('HighBoost also scales passive healing effects', () => {
+  const party = createHighBoostManualParty({
+    initialSP: 10,
+    passives: [
+      {
+        id: 30100,
+        name: 'Passive Heal',
+        timing: 'OnPlayerTurnStart',
+        condition: '',
+        parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [4, 0] }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(result.spEvents[0]?.delta, 6);
+  assert.equal(state.party[0].sp.current, 16);
 });
 
 test('ReduceSp (OnFirstBattleStart / 蒼天): 全味方スキルコスト -1 が preview に反映される', () => {

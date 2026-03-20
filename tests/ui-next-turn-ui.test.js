@@ -57,12 +57,12 @@ function withDom(run) {
   }
 }
 
-function createSkill({ id, name, targetType, parts, condition = '' }) {
+function createSkill({ id, name, targetType, parts, condition = '', spCost = 0 }) {
   return {
     id,
     name,
     label: `${name}${id}`,
-    sp_cost: 0,
+    sp_cost: spCost,
     target_type: targetType,
     parts: parts.map((part) => ({
       ...part,
@@ -135,7 +135,7 @@ function createPartyWithActorSkill(actorSkill, actorOptions = {}) {
       styleName: index === 0 ? (actorOptions.styleName ?? 'UIS1') : `UIS${index + 1}`,
       partyIndex: index,
       position: index,
-      initialSP: 10,
+      initialSP: index === 0 ? (actorOptions.initialSP ?? 10) : 10,
       skills:
         index === 0
           ? (actorOptions.skills ?? [actorSkill])
@@ -308,6 +308,68 @@ test('TurnRowController preserves draft skill and note across rerender without r
 
     assert.equal(root.querySelector('[data-skill-select][data-party-index="0"]').value, '9509');
     assert.equal(root.querySelector('[data-role="note"]').value, 'draft-note');
+  }));
+
+test('TurnAreaController shows preview and committed endSP on the SP badge', () =>
+  withDom(({ root, win }) => {
+    const normalSkill = createSkill({
+      id: 9510,
+      name: '通常攻撃',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const costlySkill = createSkill({
+      id: 9511,
+      name: '夜醒',
+      targetType: 'Self',
+      spCost: 7,
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createState(normalSkill, 1, {
+      initialSP: 11,
+      skills: [normalSkill, costlySkill],
+    });
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const getRows = () => root.querySelectorAll('[data-turn-row]');
+    const getInputRow = () => getRows().item(getRows().length - 1);
+    const getBadgeText = (row) =>
+      row.querySelector('[data-turn-slot][data-position="0"] [data-sp-badge]').textContent.trim();
+
+    let inputRow = getInputRow();
+    assert.equal(getBadgeText(inputRow), '11');
+
+    let inputSelect = inputRow.querySelector('[data-skill-select][data-party-index="0"]');
+    inputSelect.value = '9511';
+    inputSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    inputRow = getInputRow();
+    assert.equal(getBadgeText(inputRow), '4');
+
+    inputSelect = inputRow.querySelector('[data-skill-select][data-party-index="0"]');
+    inputSelect.value = '9510';
+    inputSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    inputRow = getInputRow();
+    assert.equal(getBadgeText(inputRow), '11');
+
+    inputSelect = inputRow.querySelector('[data-skill-select][data-party-index="0"]');
+    inputSelect.value = '9511';
+    inputSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    inputRow = getInputRow();
+    assert.equal(getBadgeText(inputRow), '4');
+
+    inputRow.querySelector('[data-role="commit-btn"]').dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true })
+    );
+
+    const committedRow = getRows().item(0);
+    assert.equal(getBadgeText(committedRow), '4');
   }));
 
 test('TurnRowController hides manual target UI for all-target skills even when enemy selection is manual', () =>

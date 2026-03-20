@@ -324,6 +324,7 @@ export class TurnAreaController {
       operations: this.#engineManager.pendingSpecialOperations,
       stateBefore: snapshot.stateBefore,
       stateAfter: null,
+      previewResourceState: snapshot.previewResourceState,
       odState: {
         preemptiveOdLevel: this.#engineManager.pendingPreemptiveOdLevel,
         interruptOdLevel: this.#engineManager.pendingInterruptOdLevel,

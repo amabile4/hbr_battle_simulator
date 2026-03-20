@@ -63,6 +63,19 @@ export class BattleStateManager {
     const startSpEquipByPartyIndex = Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.startSpEquipByPartyIndex[srcIdx] ?? 0])
     );
+    const skillSetsByPartyIndex = Object.fromEntries(
+      filledIndices
+        .map((srcIdx, newIdx) => {
+          const equippedSkillIds =
+            snapshot.skillSetsByPartyIndex?.[srcIdx] ??
+            snapshot.skillSetsByPartyIndex?.[String(srcIdx)] ??
+            null;
+          return Array.isArray(equippedSkillIds)
+            ? [newIdx, structuredClone(equippedSkillIds)]
+            : null;
+        })
+        .filter(Boolean)
+    );
 
     const result = createInitializedBattleSnapshot({
       dataStore: this.#store,
@@ -73,7 +86,7 @@ export class BattleStateManager {
       startSpEquipByPartyIndex,
       supportStyleIdsByPartyIndex,
       supportLimitBreakLevelsByPartyIndex,
-      skillSetsByPartyIndex: {},
+      skillSetsByPartyIndex,
       normalAttackElementsByPartyIndex: {},
       initialMotivationByPartyIndex: {},
       initialDpStateByPartyIndex: {},

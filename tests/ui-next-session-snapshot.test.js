@@ -11,6 +11,7 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
       styleIds: [1001, 1002, 1003, null, null, null],
       supportStyleIds: [null, null, null, null, null, null],
       limitBreakLevelsByPartyIndex: { 0: 4, 1: 3, 2: 2 },
+      skillSetsByPartyIndex: { 0: ['46000001', 46400001] },
     },
     simulatorSettings: {
       targetSelection: {
@@ -37,6 +38,7 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
   assert.equal(snapshot.setup.isFrontFilled, true);
   assert.equal(snapshot.simulatorSettings.targetSelection.enemyMode, TARGET_SELECTION_MODES.MANUAL);
   assert.equal(snapshot.validationPolicy.allowUseCountOverflow, true);
+  assert.deepEqual(snapshot.setup.skillSetsByPartyIndex['0'], [46000001, 46400001]);
   assert.deepEqual(
     snapshot.replayScript.turns[0].overrideEntries.find(
       (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
@@ -60,4 +62,5 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   assert.equal(parsed.version, SESSION_SNAPSHOT_VERSION);
   assert.equal(parsed.validationPolicy.allowInsufficientSp, true);
   assert.deepEqual(parsed.setup.styleIds.slice(0, 3), [1001, 1002, 1003]);
+  assert.deepEqual(parsed.setup.skillSetsByPartyIndex, {});
 });

@@ -1,10 +1,10 @@
 # Implementation Priority Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-20
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-21
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
-> **判断メモ**: 2026-03-20 に `ui-next` の session-oriented wave（manual break attribution、ReplayScript-native 過去編集/再計算、`SessionSnapshotV1` JSON save/load、`validationPolicy` 基盤）を先行実装した。続けて runtime/data-store 側へ `SkillSwitch` selectable variant 展開と `styles.json` 埋め込み `通常攻撃` / `指揮行動` / `追撃` fallback を入れ、`ui-next` の listbox が新規 UI なしで実データ欠落を吸収できるようにした。現在の残 correctness backlog としては `PRI-018`（スキル使用回数制約と回復機能）が次優先。
+> **判断メモ**: 2026-03-20 に `ui-next` の session-oriented wave（manual break attribution、ReplayScript-native 過去編集/再計算、`SessionSnapshotV1` JSON save/load、`validationPolicy` 基盤）を先行実装した。続けて runtime/data-store 側へ `SkillSwitch` selectable variant 展開と `styles.json` 埋め込み `通常攻撃` / `指揮行動` / `追撃` fallback を入れ、`ui-next` の listbox が新規 UI なしで実データ欠落を吸収できるようにした。2026-03-21 には Party Setup の equipable skill checklist、`skillSetsByPartyIndex` の snapshot/preset/save-load 配線、装備型 passive `HighBoost` の runtime 実装を完了した。現在の残 correctness backlog としては `PRI-018`（スキル使用回数制約と回復機能）が次優先。
 
 ## 目的
 

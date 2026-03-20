@@ -31,6 +31,13 @@ import {
 
 export const BASE_SP_RECOVERY = 2;
 const TEZUKA_CHARACTER_ID = 'STezuka';
+const HIGH_BOOST_STATUS_TYPE = 'HighBoost';
+const HIGH_BOOST_ONLY_GROUP_KEY = 'HighBoost';
+const HIGH_BOOST_SP_COST_INCREASE = 2;
+const HIGH_BOOST_SKILL_ATK_RATE = 1.8;
+const HIGH_BOOST_ATTACK_BUFF_MULTIPLIER = 1.2;
+const HIGH_BOOST_DEBUFF_MULTIPLIER = 1.2;
+const HIGH_BOOST_HEAL_MULTIPLIER = 1.5;
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
   'AttackSkill',
@@ -82,6 +89,21 @@ const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
 );
 const ENEMY_STATUS_POWER_DURATION_SKILL_TYPES = Object.freeze(
   new Set([ENEMY_STATUS_PROVOKE, ENEMY_STATUS_ATTENTION, 'Misfortune', 'Cover'])
+);
+const HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES = Object.freeze(
+  new Set([
+    'DefenseDown',
+    'Fragile',
+    'AttackDown',
+    'ResistDown',
+    'ResistDownOverwrite',
+    'StunRandom',
+    'ConfusionRandom',
+    'ImprisonRandom',
+    'Misfortune',
+    'HealDown',
+    'Hacking',
+  ])
 );
 const SUPPORTED_ACTION_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(
   new Set([...ENEMY_STATUS_SKILL_TYPES, 'SuperBreak', 'SuperBreakDown'])
@@ -639,6 +661,75 @@ function createPassiveTriggerEvent(turnState, member, passive, details = {}) {
     passiveDesc: String(passive?.desc ?? ''),
     ...details,
   };
+}
+
+function resolveHighBoostModifiersForMember(member) {
+  const effect =
+    typeof member?.resolveEffectiveStatusEffects === 'function'
+      ? member.resolveEffectiveStatusEffects(HIGH_BOOST_STATUS_TYPE)[0] ?? null
+      : null;
+  if (!effect) {
+    return {
+      active: false,
+      spCostIncrease: 0,
+      skillAtkRate: 0,
+      attackBuffMultiplier: 1,
+      debuffMultiplier: 1,
+      healMultiplier: 1,
+    };
+  }
+  return {
+    active: true,
+    spCostIncrease: Number(effect?.metadata?.spCostIncrease ?? HIGH_BOOST_SP_COST_INCREASE),
+    skillAtkRate: Number(effect?.metadata?.skillAtkRate ?? effect?.power ?? HIGH_BOOST_SKILL_ATK_RATE),
+    attackBuffMultiplier: Number(
+      effect?.metadata?.attackBuffMultiplier ?? HIGH_BOOST_ATTACK_BUFF_MULTIPLIER
+    ),
+    debuffMultiplier: Number(effect?.metadata?.debuffMultiplier ?? HIGH_BOOST_DEBUFF_MULTIPLIER),
+    healMultiplier: Number(effect?.metadata?.healMultiplier ?? HIGH_BOOST_HEAL_MULTIPLIER),
+  };
+}
+
+function applyHighBoostMultiplier(value, multiplier) {
+  const numericValue = Number(value ?? 0);
+  const numericMultiplier = Number(multiplier ?? 1);
+  if (!Number.isFinite(numericValue)) {
+    return 0;
+  }
+  if (!Number.isFinite(numericMultiplier) || numericMultiplier === 1) {
+    return numericValue;
+  }
+  return truncateToTwoDecimals(numericValue * numericMultiplier);
+}
+
+function scaleHighBoostHealAmount(actor, amount) {
+  const modifiers = resolveHighBoostModifiersForMember(actor);
+  if (!modifiers.active) {
+    return Number(amount ?? 0);
+  }
+  return applyHighBoostMultiplier(amount, modifiers.healMultiplier);
+}
+
+function scaleHighBoostAttackBuffPower(actor, skillType, power) {
+  if (String(skillType ?? '') !== 'AttackUp' && String(skillType ?? '') !== 'AttackUpIncludeNormal') {
+    return Number(power ?? 0);
+  }
+  const modifiers = resolveHighBoostModifiersForMember(actor);
+  if (!modifiers.active) {
+    return Number(power ?? 0);
+  }
+  return applyHighBoostMultiplier(power, modifiers.attackBuffMultiplier);
+}
+
+function scaleHighBoostEnemyDebuffPower(actor, skillType, power) {
+  if (!HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES.has(String(skillType ?? ''))) {
+    return Number(power ?? 0);
+  }
+  const modifiers = resolveHighBoostModifiersForMember(actor);
+  if (!modifiers.active) {
+    return Number(power ?? 0);
+  }
+  return applyHighBoostMultiplier(power, modifiers.debuffMultiplier);
 }
 
 function isOverDriveActive(turnState) {
@@ -2676,8 +2767,9 @@ function applyDpEffectsFromActions(state, previewRecord) {
         if (skillType === 'HealDpRate') {
           const rate = Number(part?.power?.[0] ?? 0);
           const amount = Number.isFinite(rate) && rate > 0 ? Number(startDpState.baseMaxDp ?? 0) * rate : 0;
+          const healedAmount = scaleHighBoostHealAmount(actor, amount);
           const change = target.setDpState({
-            currentDp: Number(startDpState.currentDp ?? 0) + amount,
+            currentDp: Number(startDpState.currentDp ?? 0) + healedAmount,
             effectiveDpCap: getDpHealCapForPart(target, part),
           });
           endDpState = cloneDpState(change.endDpState);
@@ -2690,8 +2782,9 @@ function applyDpEffectsFromActions(state, previewRecord) {
           endDpState = cloneDpState(change.endDpState);
           isAmountResolved = true;
         } else if (skillType === 'ReviveDp') {
+          const healedAmount = scaleHighBoostHealAmount(actor, DEFAULT_REVIVE_DP_FLOOR);
           const change = target.setDpState({
-            currentDp: Math.max(Number(startDpState.currentDp ?? 0), DEFAULT_REVIVE_DP_FLOOR),
+            currentDp: Math.max(Number(startDpState.currentDp ?? 0), healedAmount),
             effectiveDpCap: getDpHealCapForPart(target, part),
           });
           endDpState = cloneDpState(change.endDpState);
@@ -2704,7 +2797,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
             exitCond: String(part?.effect?.exitCond ?? 'EnemyTurnEnd'),
             remaining:
               Number.isFinite(remaining) && remaining > 0 ? remaining : DEFAULT_STATUS_EFFECT_REMAINING,
-            power: Number(part?.power?.[0] ?? 0),
+            power: scaleHighBoostHealAmount(actor, Number(part?.power?.[0] ?? 0)),
             sourceSkillId: Number(skill.skillId),
             sourceSkillLabel: String(skill.label ?? ''),
             sourceSkillName: String(skill.name ?? ''),
@@ -3192,7 +3285,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       }
 
       if (effectType === 'HealSp') {
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = scaleHighBoostHealAmount(actor, Number(part?.power?.[0] ?? 0));
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
@@ -3285,7 +3378,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
             continue;
           }
           const startDpState = cloneDpState(target.dpState ?? {});
-          const amount = Number(startDpState.baseMaxDp ?? 0) * rate;
+          const amount = scaleHighBoostHealAmount(actor, Number(startDpState.baseMaxDp ?? 0) * rate);
           const change = target.setDpState({
             currentDp: Number(startDpState.currentDp ?? 0) + amount,
             effectiveDpCap: getDpHealCapForPart(target, part),
@@ -4667,6 +4760,11 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
     Number.isFinite(reduceSp) && reduceSp > 0
       ? Math.max(0, baseSpCost - reduceSp)
       : baseSpCost;
+  const highBoostModifiers = resolveHighBoostModifiersForMember(member);
+  const highBoostAdjustedSpCost =
+    highBoostModifiers.active && Number(highBoostModifiers.spCostIncrease ?? 0) > 0
+      ? truncateToTwoDecimals(resolvedSpCost + Number(highBoostModifiers.spCostIncrease))
+      : resolvedSpCost;
 
   // 鬼神化中 STezuka: Ep/Morale/Motivation/-1 以外のSP消費を強制0に
   // （consumeType === 'Sp' かつ baseSpCost > 0 はL4655の早期returnで保証済み）
@@ -4677,10 +4775,10 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
     return { ...effective, spCost: 0 };
   }
 
-  if (resolvedSpCost === baseSpCost) {
+  if (highBoostAdjustedSpCost === baseSpCost) {
     return effective;
   }
-  return { ...effective, spCost: resolvedSpCost };
+  return { ...effective, spCost: highBoostAdjustedSpCost };
 }
 
 function resolveEffectiveSkillParts(skill, state, member) {
@@ -4976,6 +5074,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       attackByOwnDpRateResolvedMultiplier: Number(
         actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
       ),
+      highBoostSkillAtkRate: Number(actionEntry?.specialPassiveModifiers?.highBoostSkillAtkRate ?? 0),
       attackUpRate: Number(actionEntry?.specialPassiveModifiers?.attackUpRate ?? 0),
       defenseUpRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpRate ?? 0),
       criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
@@ -5155,13 +5254,13 @@ function isTimedActiveBuffPart(part) {
   return (exitCond && exitCond !== 'None') || (limitType && limitType !== 'None');
 }
 
-function addActiveBuffStatusEffect(target, skill, part) {
+function addActiveBuffStatusEffect(actor, target, skill, part) {
   const skillType = String(part?.skill_type ?? '').trim();
   const statusType = resolveActiveBuffStatusType(skillType);
   if (!statusType) {
     return null;
   }
-  const power = Number(part?.power?.[0] ?? 0);
+  const power = scaleHighBoostAttackBuffPower(actor, skillType, Number(part?.power?.[0] ?? 0));
   if (!Number.isFinite(power) || power === 0) {
     return null;
   }
@@ -5238,7 +5337,7 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
         if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
           continue;
         }
-        const added = addActiveBuffStatusEffect(target, skill, part);
+        const added = addActiveBuffStatusEffect(actor, target, skill, part);
         if (!added) {
           continue;
         }
@@ -5612,7 +5711,7 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
             statusType: skillType,
             targetIndex,
             remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-            power: getEnemyStatusPowerValue(part),
+            power: scaleHighBoostEnemyDebuffPower(actor, skillType, getEnemyStatusPowerValue(part)),
             elements: normalizeEnemyStatusElements(part?.elements),
             limitType: String(part?.effect?.limitType ?? ''),
             exitCond: String(part?.effect?.exitCond ?? ''),
@@ -6323,6 +6422,7 @@ function previewActionEntries(state, sortedActions) {
       member,
       effectiveSkill
     );
+    const highBoostModifiers = resolveHighBoostModifiersForMember(member);
 
     return {
       characterId: member.characterId,
@@ -6406,6 +6506,7 @@ function previewActionEntries(state, sortedActions) {
       },
       activeStatusEffects: structuredClone(activeBuffStatusModifiers.matchedEffects ?? []),
       specialPassiveModifiers: {
+        highBoostSkillAtkRate: Number(highBoostModifiers.skillAtkRate ?? 0),
         attackUpRate:
           Number(activeBuffStatusModifiers.attackUpRate ?? 0) +
           Number(specialAttackUp.totalRate ?? 0) +
@@ -6419,6 +6520,15 @@ function previewActionEntries(state, sortedActions) {
         damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
         defenseUpPerTokenRate: Number(defenseUpPerToken.totalRate ?? 0),
         zonePowerRate,
+        giveAttackBuffUpRate: highBoostModifiers.active
+          ? truncateToTwoDecimals(Number(highBoostModifiers.attackBuffMultiplier ?? 1) - 1)
+          : 0,
+        giveDefenseDebuffUpRate: highBoostModifiers.active
+          ? truncateToTwoDecimals(Number(highBoostModifiers.debuffMultiplier ?? 1) - 1)
+          : 0,
+        giveHealUpRate: highBoostModifiers.active
+          ? truncateToTwoDecimals(Number(highBoostModifiers.healMultiplier ?? 1) - 1)
+          : 0,
         markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
         markDevastationRateUp: Number(intrinsicMarkModifiers.devastationRateUp ?? 0),
         markCriticalRateUp: Number(intrinsicMarkModifiers.criticalRateUp ?? 0),
@@ -6518,7 +6628,7 @@ function applyPassiveSkillEpTurnStart(member, turnState) {
       if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
-      const amount = Number(part?.power?.[0] ?? 0);
+      const amount = scaleHighBoostHealAmount(member, Number(part?.power?.[0] ?? 0));
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -6566,7 +6676,7 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
       if (skillType !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
-      const amount = Number(part?.power?.[0] ?? 0);
+      const amount = scaleHighBoostHealAmount(member, Number(part?.power?.[0] ?? 0));
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -6859,12 +6969,12 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             }
             const appliedStatus = normalizeEnemyStatus(
               {
-                statusType: skillType,
-                targetIndex,
-                remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-                power: getEnemyStatusPowerValue(part),
-                elements: normalizeEnemyStatusElements(part?.elements),
-                limitType: String(part?.effect?.limitType ?? ''),
+              statusType: skillType,
+              targetIndex,
+              remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
+              power: scaleHighBoostEnemyDebuffPower(member, skillType, getEnemyStatusPowerValue(part)),
+              elements: normalizeEnemyStatusElements(part?.elements),
+              limitType: String(part?.effect?.limitType ?? ''),
                 exitCond: String(part?.effect?.exitCond ?? ''),
                 sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
                 sourceSkillName: String(passive?.name ?? ''),
@@ -7022,7 +7132,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0) {
               continue;
             }
-            const amount = baseMaxDp * rate;
+            const amount = scaleHighBoostHealAmount(member, baseMaxDp * rate);
             if (!Number.isFinite(amount) || amount <= 0) {
               continue;
             }
@@ -7464,7 +7574,6 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'HighBoost') {
-          // Permanent damage multiplier buff. Log passive event; no member state change yet.
           const targetCharacterIds = resolveSupportTargetCharacterIds(
             state,
             member,
@@ -7479,8 +7588,37 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
               continue;
             }
+            const appliedStatus = target.addStatusEffect({
+              statusType: HIGH_BOOST_STATUS_TYPE,
+              limitType: 'Only',
+              exitCond: 'Eternal',
+              remaining: 0,
+              power: HIGH_BOOST_SKILL_ATK_RATE,
+              sourceType: 'passive',
+              sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              sourceSkillLabel: String(passive?.label ?? passive?.name ?? ''),
+              sourceSkillName: String(passive?.name ?? ''),
+              metadata: {
+                onlyGroupKey: HIGH_BOOST_ONLY_GROUP_KEY,
+                effectName: HIGH_BOOST_STATUS_TYPE,
+                spCostIncrease: HIGH_BOOST_SP_COST_INCREASE,
+                skillAtkRate: HIGH_BOOST_SKILL_ATK_RATE,
+                attackBuffMultiplier: HIGH_BOOST_ATTACK_BUFF_MULTIPLIER,
+                debuffMultiplier: HIGH_BOOST_DEBUFF_MULTIPLIER,
+                healMultiplier: HIGH_BOOST_HEAL_MULTIPLIER,
+                targetType: String(part?.target_type ?? ''),
+              },
+            });
+            appliedStatusEffects.push({
+              characterId: target.characterId,
+              effectId: Number(appliedStatus?.effectId ?? 0),
+              statusType: String(appliedStatus?.statusType ?? HIGH_BOOST_STATUS_TYPE),
+              power: Number(appliedStatus?.power ?? HIGH_BOOST_SKILL_ATK_RATE),
+              limitType: String(appliedStatus?.limitType ?? 'Only'),
+              exitCond: String(appliedStatus?.exitCond ?? 'Eternal'),
+              remaining: Number(appliedStatus?.remaining ?? 0),
+            });
             matched = true;
-            break;
           }
           continue;
         }
@@ -7541,7 +7679,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
 
         if (skillType === 'HealSpRandom') {
           // 確率でSP回復: power[0] = probability (always succeeds in simulator), value[0] = SP amount
-          const amount = Number(part?.value?.[0] ?? 0);
+          const amount = scaleHighBoostHealAmount(member, Number(part?.value?.[0] ?? 0));
           if (!Number.isFinite(amount) || amount === 0) {
             continue;
           }
@@ -7598,6 +7736,44 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           );
           matched = true;
           totalOdGaugeDelta += amount;
+          continue;
+        }
+
+        if (skillType === 'HealSp') {
+          const amount = scaleHighBoostHealAmount(member, Number(part?.power?.[0] ?? 0));
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const change = target.applySpDelta(amount, 'passive');
+            spEvents.push({
+              actorCharacterId: member.characterId,
+              characterId: target.characterId,
+              source: 'sp_passive',
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              targetType: String(part?.target_type ?? ''),
+              ...change,
+            });
+            matched = true;
+            totalDelta += Number(change?.delta ?? 0);
+          }
           continue;
         }
 
@@ -7809,7 +7985,7 @@ function applySkillSelfEpGains(state, previewRecord) {
       if (!condSatisfied) {
         continue;
       }
-      const amount = Number(part?.power?.[0] ?? 0);
+      const amount = scaleHighBoostHealAmount(member, Number(part?.power?.[0] ?? 0));
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -7927,7 +8103,7 @@ function applySkillSpGains(state, previewRecord) {
         continue;
       }
 
-      const amount = Number(part?.power?.[0] ?? 0);
+      const amount = scaleHighBoostHealAmount(actor, Number(part?.power?.[0] ?? 0));
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }

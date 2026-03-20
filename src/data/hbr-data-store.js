@@ -502,6 +502,19 @@ export class HbrDataStore {
     };
   }
 
+  isEquippedSkillSelected(skill, equippedSet) {
+    if (!(equippedSet instanceof Set)) {
+      return true;
+    }
+    const skillId = Number(skill?.id ?? skill?.skillId);
+    if (Number.isFinite(skillId) && equippedSet.has(skillId)) {
+      return true;
+    }
+    return Array.isArray(skill?.legacySkillIds)
+      ? skill.legacySkillIds.some((legacySkillId) => equippedSet.has(Number(legacySkillId)))
+      : false;
+  }
+
   resolveStyleSkillReference(rowStyle, skillRef) {
     const skillId = Number(skillRef?.id);
     if (!Number.isFinite(skillId)) {
@@ -868,7 +881,7 @@ export class HbrDataStore {
 
     for (const rowStyle of styles) {
       for (const skillRef of rowStyle.skills ?? []) {
-        const skill = this.getSkillById(skillRef.id);
+        const skill = this.resolveStyleSkillReference(rowStyle, skillRef);
         const id = Number(skill?.id);
         if (!skill || !Number.isFinite(id) || seen.has(id)) {
           continue;
@@ -1246,20 +1259,19 @@ export class HbrDataStore {
       ? new Set(equippedSkillIds.map((id) => Number(id)))
       : null;
     const styleSkills = equippedSet
-      ? allStyleSkills.filter((skill) => {
-          const skillId = Number(skill.id);
-          if (equippedSet.has(skillId)) {
-            return true;
-          }
-          return Array.isArray(skill.legacySkillIds)
-            ? skill.legacySkillIds.some((id) => equippedSet.has(Number(id)))
-            : false;
-        })
+      ? allStyleSkills.filter((skill) => this.isEquippedSkillSelected(skill, equippedSet))
       : allStyleSkills;
-    const triggeredSkills = this.listTriggeredSkillsByStyleId(style.id).map((skill) => ({
-      ...skill,
-      usage: this.resolveSkillUseCount(skill.use_count, 'max'),
-    }));
+    const triggeredSkills = this.listTriggeredSkillsByStyleId(style.id)
+      .filter((skill) => {
+        if (!this.isPassiveSkill(skill)) {
+          return true;
+        }
+        return this.isEquippedSkillSelected(skill, equippedSet);
+      })
+      .map((skill) => ({
+        ...skill,
+        usage: this.resolveSkillUseCount(skill.use_count, 'max'),
+      }));
     const maxLimitBreak = this.getStyleLimitBreakMax(style);
     const normalizedLimitBreak = Number.isFinite(Number(limitBreakLevel))
       ? Math.max(0, Math.min(maxLimitBreak, Number(limitBreakLevel)))

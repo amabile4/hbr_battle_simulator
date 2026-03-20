@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-20
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-21
 
 ## 目的
 
@@ -80,6 +80,7 @@
 - `SP装備`
 - `属性ベルト`
 - `やる気`
+- `装備スキル checklist`
 
 補足:
 
@@ -88,6 +89,9 @@
 - 未選択時は略称を placeholder として表示する
 - `main style icon` / `support style icon` は未選択でもクリック可能な明確な empty state を持つ
 - Party Setup プリセットは既存スロットへ保存するときだけ上書き確認を出す
+- `装備スキル checklist` は `listEquipableSkillsByStyleId(styleId)` を正本にし、通常攻撃 / 指揮行動は checked + disabled、追撃は出さない
+- checklist の選択結果は `skillSetsByPartyIndex` として session save/load、party preset、battle 初期化へ通す
+- passive / master / orb はタグ付きで見分けられるようにする
 
 ### 操作モデル
 
