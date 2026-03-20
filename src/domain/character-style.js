@@ -34,6 +34,9 @@ export function normalizePartyPosition(position) {
 function normalizeSkill(skill, canonicalSkill) {
   const sourceType = String(skill.sourceType ?? 'style');
   const isPassive = Boolean(skill.passive && typeof skill.passive === 'object') || sourceType === 'passive';
+  const legacySkillIds = Array.isArray(skill.legacySkillIds)
+    ? [...new Set(skill.legacySkillIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)))]
+    : [];
   return {
     skillId: Number(skill.id ?? skill.skillId),
     label: String(skill.label ?? canonicalSkill?.label ?? ''),
@@ -59,6 +62,7 @@ function normalizeSkill(skill, canonicalSkill) {
       skill.overwrite === undefined || skill.overwrite === null
         ? canonicalSkill?.overwrite ?? null
         : Number(skill.overwrite),
+    legacySkillIds,
     additionalTurnRule:
       skill.additionalTurnRule && typeof skill.additionalTurnRule === 'object'
         ? structuredClone(skill.additionalTurnRule)
@@ -390,7 +394,13 @@ export class CharacterStyle {
       }
       return null;
     }
-    return this.skills.find((skill) => skill.skillId === id && !skill.isPassive) ?? null;
+    return (
+      this.skills.find(
+        (skill) =>
+          !skill.isPassive &&
+          (skill.skillId === id || skill.legacySkillIds?.includes?.(id))
+      ) ?? null
+    );
   }
 
   getActionSkills() {
@@ -414,6 +424,13 @@ export class CharacterStyle {
         return true;
       }
       if (Number.isFinite(numericId) && Number(skill.skillId ?? skill.id ?? Number.NaN) === numericId) {
+        return true;
+      }
+      if (
+        Number.isFinite(numericId) &&
+        Array.isArray(skill.legacySkillIds) &&
+        skill.legacySkillIds.includes(numericId)
+      ) {
         return true;
       }
       return false;

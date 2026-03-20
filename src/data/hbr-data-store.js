@@ -155,6 +155,8 @@ function createPassiveMeaningKey(passive) {
   });
 }
 
+const SKILL_TYPE_SWITCH = 'SkillSwitch';
+
 function clonePassiveWithSource(passive, sourceType, sourceMeta = {}) {
   return {
     ...structuredClone(passive),
@@ -500,6 +502,86 @@ export class HbrDataStore {
     };
   }
 
+  resolveStyleSkillReference(rowStyle, skillRef) {
+    const skillId = Number(skillRef?.id);
+    if (!Number.isFinite(skillId)) {
+      return null;
+    }
+
+    const fromDatabase = this.getSkillById(skillId);
+    const resolved = fromDatabase ?? this.mergeSkillWithOverride(skillRef);
+    if (!resolved) {
+      return null;
+    }
+
+    const role = String(resolved.role ?? rowStyle?.role ?? '');
+    return {
+      ...resolved,
+      ...(role ? { role } : {}),
+    };
+  }
+
+  extractSkillSwitchVariants(skill) {
+    if (!skill || typeof skill !== 'object') {
+      return [];
+    }
+
+    const switchPart = (skill.parts ?? []).find(
+      (part) =>
+        String(part?.skill_type ?? '').trim() === SKILL_TYPE_SWITCH &&
+        Array.isArray(part?.strval)
+    );
+    if (!switchPart) {
+      return [];
+    }
+
+    return switchPart.strval.filter(
+      (variant) => variant && typeof variant === 'object' && Number.isFinite(Number(variant.id))
+    );
+  }
+
+  buildSelectableSkillsForResolvedSkill(skill) {
+    const variants = this.extractSkillSwitchVariants(skill);
+    if (variants.length === 0) {
+      return [skill];
+    }
+
+    const uniqueNames = new Set(variants.map((variant) => String(variant?.name ?? '').trim()));
+    const selectableVariants = uniqueNames.size === 1 ? [variants[0]] : variants;
+
+    return selectableVariants.map((variant, index) => {
+      const mergedVariant = this.mergeSkillWithOverride(mergeSkillVariant(skill, variant)) ?? null;
+      if (!mergedVariant) {
+        return null;
+      }
+      const legacySkillIds = index === 0 ? [Number(skill.id)] : [];
+      return {
+        ...mergedVariant,
+        legacySkillIds,
+      };
+    }).filter(Boolean);
+  }
+
+  sortSelectableSkillsForStyle(style, skills = []) {
+    const isAdmiral = String(style?.role ?? '') === 'Admiral';
+    return skills
+      .map((skill, index) => ({ skill, index }))
+      .sort((a, b) => {
+        const rank = (entry) => {
+          if (isAdmiral) {
+            return this.isAdmiralCommandSkill(entry.skill) ? 0 : 1;
+          }
+          return isNormalAttackSkillClassifier(entry.skill) ? 0 : 1;
+        };
+        const delta = rank(a) - rank(b);
+        if (delta !== 0) {
+          return delta;
+        }
+        return a.index - b.index;
+      })
+      .map((entry) => entry.skill);
+  }
+
   isAdmiralCommandSkill(skill) {
     return isAdmiralCommandSkillClassifier(skill);
   }
@@ -704,8 +786,8 @@ export class HbrDataStore {
 
     for (const rowStyle of styles) {
       for (const skillRef of rowStyle.skills ?? []) {
-        const skill = this.getSkillById(skillRef.id);
-        if (!skill || seen.has(Number(skill.id))) {
+        const skill = this.resolveStyleSkillReference(rowStyle, skillRef);
+        if (!skill) {
           continue;
         }
 
@@ -713,17 +795,28 @@ export class HbrDataStore {
           continue;
         }
 
-        if (!this.isCommandSelectableSkill(skill)) {
-          continue;
+        const selectableSkills = this.isCommandSelectableSkill(skill)
+          ? this.buildSelectableSkillsForResolvedSkill(skill)
+          : [];
+        for (const selectableSkill of selectableSkills) {
+          const selectableSkillId = Number(selectableSkill.id);
+          if (!Number.isFinite(selectableSkillId) || seen.has(selectableSkillId)) {
+            continue;
+          }
+          seen.add(selectableSkillId);
+          out.push(
+            this.cloneSkillWithSource(
+              selectableSkill,
+              'style',
+              {
+                sourceStyleId: Number(rowStyle.id),
+                sourceStyleName: String(rowStyle.name ?? ''),
+                parentSkillId: Number(skill.id),
+                parentSkillLabel: String(skill.label ?? ''),
+              }
+            )
+          );
         }
-
-        seen.add(Number(skill.id));
-        out.push(
-          this.cloneSkillWithSource(skill, 'style', {
-            sourceStyleId: Number(rowStyle.id),
-            sourceStyleName: String(rowStyle.name ?? ''),
-          })
-        );
       }
     }
 
@@ -756,18 +849,7 @@ export class HbrDataStore {
       }
     }
 
-    if (String(style.role ?? '') === 'Admiral') {
-      out.sort((a, b) => {
-        const aCmd = this.isAdmiralCommandSkill(a) ? 0 : 1;
-        const bCmd = this.isAdmiralCommandSkill(b) ? 0 : 1;
-        if (aCmd !== bCmd) {
-          return aCmd - bCmd;
-        }
-        return Number(a.id) - Number(b.id);
-      });
-    }
-
-    return out;
+    return this.sortSelectableSkillsForStyle(style, out);
   }
 
   listEquipableSkillsByStyleId(styleId) {
@@ -924,8 +1006,9 @@ export class HbrDataStore {
     const seen = new Set();
     for (const rowStyle of styles) {
       for (const skillRef of rowStyle.skills ?? []) {
-        const skill = this.getSkillById(skillRef.id);
-        if (!skill || seen.has(Number(skill.id))) {
+        const skill = this.resolveStyleSkillReference(rowStyle, skillRef);
+        const skillId = Number(skill?.id);
+        if (!skill || !Number.isFinite(skillId) || seen.has(skillId)) {
           continue;
         }
 
@@ -937,7 +1020,7 @@ export class HbrDataStore {
           continue;
         }
 
-        seen.add(Number(skill.id));
+        seen.add(skillId);
         out.push(
           this.cloneSkillWithSource(skill, 'triggered', {
             sourceStyleId: Number(rowStyle.id),
@@ -1163,7 +1246,15 @@ export class HbrDataStore {
       ? new Set(equippedSkillIds.map((id) => Number(id)))
       : null;
     const styleSkills = equippedSet
-      ? allStyleSkills.filter((skill) => equippedSet.has(Number(skill.id)))
+      ? allStyleSkills.filter((skill) => {
+          const skillId = Number(skill.id);
+          if (equippedSet.has(skillId)) {
+            return true;
+          }
+          return Array.isArray(skill.legacySkillIds)
+            ? skill.legacySkillIds.some((id) => equippedSet.has(Number(id)))
+            : false;
+        })
       : allStyleSkills;
     const triggeredSkills = this.listTriggeredSkillsByStyleId(style.id).map((skill) => ({
       ...skill,

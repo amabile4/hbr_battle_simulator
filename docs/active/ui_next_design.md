@@ -183,6 +183,16 @@
 - save/load の正本は `SessionSnapshotV1` とし、`setup / simulatorSettings / validationPolicy / replayScript` を保存する
 - `validationPolicy` は当面 permissive input を維持する箱としてのみ使い、既定値はすべて `true` とする
 
+### Turn 行の selectable skill list
+
+- `ui-next` の skill list 正本は `runtime/data-store` とし、UI 側で `SkillSwitch` 専用 widget は持たない
+- top-level `SkillSwitch` 親 skill は selectable list に出さず、nested variant に `id` があるものを独立 option として展開する
+  - distinct-name variant は個別 option 化する
+  - same-name variant は `variants[0]` の 1 件だけを出し、旧 parent id は first variant alias として読む
+- `skills.json` に無い `通常攻撃` / `指揮行動` / `追撃` は、`styles.json` の埋め込み skill を fallback として復元する
+- `追撃` は internal triggered skill としてだけ復元し、command-selectable listbox には出さない
+- 非 `Admiral` の selectable skill list は `通常攻撃` を先頭、`Admiral` は `指揮行動` を先頭に固定する
+
 ### Turn 行の manual target UI
 
 - 敵 manual picker は `enemyMode === 'manual'` かつ敵単体指定が必要な skill のときだけ出す
