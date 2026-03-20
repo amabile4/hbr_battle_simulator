@@ -4974,15 +4974,17 @@ test('OD SP recovery is granted once per OD activation (no repeated +20 on OD3-2
   let state = createBattleStateFromParty(new Party(members));
   state.turnState.odGauge = 300;
   state = activateOverdrive(state, 3, 'preemptive');
+  let actor = state.party.find((m) => m.characterId === 'OR1');
+  assert.equal(actor.sp.current, 30, 'OD開始時点で +20 が付与される');
 
-  // OD3-1: EX遷移時はbase回復(+2)がスキップされるため、+20 (OD) のみ = 10+20=30
+  // OD3-1: OD開始時に付与済みの +20 を維持したまま EX へ遷移する
   let preview = previewTurn(state, {
     0: { characterId: 'OR1', skillId: 12100 },
     1: { characterId: 'OR2', skillId: 12111 },
     2: { characterId: 'OR3', skillId: 12112 },
   });
   state = commitTurn(state, preview).nextState;
-  let actor = state.party.find((m) => m.characterId === 'OR1');
+  actor = state.party.find((m) => m.characterId === 'OR1');
   assert.equal(actor.sp.current, 30);
   assert.equal(state.turnState.turnType, 'extra');
 
@@ -5005,6 +5007,104 @@ test('OD SP recovery is granted once per OD activation (no repeated +20 on OD3-2
   state = commitTurn(state, preview).nextState;
   actor = state.party.find((m) => m.characterId === 'OR1');
   assert.equal(actor.sp.current, 30);
+});
+
+test('interrupt OD after extra turn grants OD SP recovery before the first OD action', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `IO${idx + 1}`,
+      characterName: `IO${idx + 1}`,
+      styleId: 3500 + idx,
+      styleName: `IOS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 35000,
+                name: 'Grant Front Extra',
+                sp_cost: 0,
+                target_type: 'AllyFront',
+                additionalTurnRule: {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: false,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: true,
+                  },
+                  additionalTurnTargetTypes: ['AllyFront'],
+                },
+                parts: [{ skill_type: 'AdditionalTurn', target_type: 'AllyFront' }],
+              },
+              {
+                id: 35001,
+                name: 'Normal',
+                sp_cost: 0,
+                target_type: 'Self',
+                parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+              },
+            ]
+          : idx === 2
+            ? [
+                {
+                  id: 35002,
+                  name: 'Costly Song',
+                  sp_cost: 12,
+                  cond: 'Sp()>=0',
+                  target_type: 'AllyAll',
+                  parts: [{ skill_type: 'Shredding', target_type: 'AllyAll' }],
+                },
+                {
+                  id: 35003,
+                  name: 'Normal',
+                  sp_cost: 0,
+                  target_type: 'Self',
+                  parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+                },
+              ]
+            : [
+                {
+                  id: 35010 + idx,
+                  name: 'Normal',
+                  sp_cost: 0,
+                  target_type: 'Self',
+                  parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+                },
+              ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 250;
+
+  let preview = previewTurn(state, {
+    0: { characterId: 'IO1', skillId: 35000 },
+    1: { characterId: 'IO2', skillId: 35011 },
+    2: { characterId: 'IO3', skillId: 35002 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(state.turnState.turnType, 'extra');
+  assert.equal(state.party.find((member) => member.characterId === 'IO3')?.sp.current, -2);
+
+  preview = previewTurn(state, {
+    0: { characterId: 'IO1', skillId: 35001 },
+    1: { characterId: 'IO2', skillId: 35011 },
+    2: { characterId: 'IO3', skillId: 35003 },
+  });
+  state = commitTurn(state, preview, [], { interruptOdLevel: 2 }).nextState;
+
+  assert.equal(state.turnState.turnType, 'od');
+  assert.equal(state.turnState.odContext, 'interrupt');
+  assert.equal(state.party.find((member) => member.characterId === 'IO3')?.sp.current, 10);
+
+  const odPreview = previewTurn(state, {
+    2: { characterId: 'IO3', skillId: 35002 },
+  });
+  assert.equal(odPreview.actions[0]?.skillId, 35002);
 });
 
 test('OD1 preemptive + single extra returns to T1 after extra ends', () => {
@@ -10715,9 +10815,9 @@ test('HealSp (OnOverdriveStart / Self / 旭日昇天相当): activateOverdrive �
   assert.equal(state.party[0].sp.current, 10, 'OD前: SP = 10');
   state.turnState.odGauge = 100;
   const odState = activateOverdrive(state, 1, 'preemptive');
-  assert.equal(odState.party[0].sp.current, 15, 'OD開始後: SP 10 → 15 (旭日昇天 +5)');
+  assert.equal(odState.party[0].sp.current, 20, 'OD開始後: SP 10 → 20 (OD +5, 旭日昇天 +5)');
   for (let i = 1; i < 6; i++) {
-    assert.equal(odState.party[i].sp.current, 10, `party[${i}]: SP 変化なし`);
+    assert.equal(odState.party[i].sp.current, 15, `party[${i}]: SP 10 → 15 (OD +5)`);
   }
   assert.ok(
     odState.turnState.passiveEventsLastApplied.some((e) => e.passiveName === '旭日昇天'),
@@ -10755,7 +10855,7 @@ test('HealSp (OnOverdriveStart / AllyAll / エクスタシー相当): activateOv
   state.turnState.odGauge = 100;
   const odState = activateOverdrive(state, 1, 'preemptive');
   for (let i = 0; i < 6; i++) {
-    assert.equal(odState.party[i].sp.current, 15, `party[${i}]: SP 10 → 15 (エクスタシー AllyAll +5)`);
+    assert.equal(odState.party[i].sp.current, 20, `party[${i}]: SP 10 → 20 (OD +5, エクスタシー +5)`);
   }
   assert.ok(
     odState.turnState.passiveEventsLastApplied.some((e) => e.passiveName === 'エクスタシー'),
@@ -10792,7 +10892,7 @@ test('HealSp (OnOverdriveStart): SP上限を超えない（cap確認）', () => 
   const state = createBattleStateFromParty(new Party(members));
   state.turnState.odGauge = 100;
   const odState = activateOverdrive(state, 1, 'preemptive');
-  assert.equal(odState.party[0].sp.current, 20, 'SP 18+5=23 → cap 20 に収まる');
+  assert.equal(odState.party[0].sp.current, 23, 'OD既定回復 +5 は cap を超え、受動 HealSp はそこで増えない');
 });
 
 test('AttackUp (OnOverdriveStart / 専心相当): OD中の preview に attackUpRate が反映される', () => {

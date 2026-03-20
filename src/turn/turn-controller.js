@@ -6677,6 +6677,25 @@ function applyPassiveSpOnOverdriveStart(state) {
   return { spEvents, passiveEvents };
 }
 
+function applyOverdriveStartSpRecovery(state, turnState) {
+  const spEvents = [];
+  const odAmount = OD_RECOVERY_BY_LEVEL[Number(turnState?.odLevel ?? 0)] ?? 0;
+  if (!Number.isFinite(odAmount) || odAmount === 0) {
+    return { spEvents };
+  }
+
+  for (const member of state.party ?? []) {
+    const od = member.applySpDelta(odAmount, 'od');
+    spEvents.push({
+      characterId: member.characterId,
+      source: 'od',
+      ...od,
+    });
+  }
+
+  return { spEvents };
+}
+
 function evaluatePassiveSelfConditions(passive, part, state, member) {
   const conditions = [passive?.condition, part?.cond, part?.hit_condition]
     .map((value) => String(value ?? '').trim())
@@ -8098,22 +8117,6 @@ function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false
     }
   }
 
-  const isFirstOdAction =
-    turnState.turnType === 'od' &&
-    turnState.odLevel > 0 &&
-    Number(turnState.remainingOdActions ?? 0) === Number(turnState.odLevel);
-  if (isFirstOdAction) {
-    const odAmount = OD_RECOVERY_BY_LEVEL[turnState.odLevel] ?? 0;
-    for (const member of party) {
-      const od = member.applySpDelta(odAmount, 'od');
-      recoveryEvents.push({
-        characterId: member.characterId,
-        source: 'od',
-        ...od,
-      });
-    }
-  }
-
   return {
     spEvents: recoveryEvents,
     epEvents,
@@ -8726,6 +8729,8 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
     turnState: nextTurnState,
   };
   const passiveEvents = [];
+
+  applyOverdriveStartSpRecovery(nextState, nextTurnState);
 
   for (const member of nextState.party) {
     const rule = getEpRule(member);

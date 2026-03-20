@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
+import { CharacterStyle, HbrDataStore, Party, createBattleStateFromParty } from '../src/index.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 import { DEFAULT_VALIDATION_POLICY } from '../ui-next/utils/validation-policy.js';
@@ -511,4 +511,59 @@ test('TurnEngineManager loadReplayScript restores validationPolicy and committed
   assert.equal(restored.committedTurnCount, 1);
   assert.equal(restored.computedRecords[0]?.enemyCount, 2);
   assert.equal(restored.validationPolicy.allowUseCountOverflow, true);
+});
+
+test('TurnEngineManager applies OD-start SP recovery before the first interrupt OD action after an extra turn', () => {
+  const store = HbrDataStore.fromJsonDirectory('json');
+  const party = store.buildPartyFromStyleIds([1005504, 1004107, 1020603, 1001710, 1007106, 1001408], {
+    initialSP: 10,
+  });
+  const initialState = createBattleStateFromParty(party);
+  initialState.turnState.odGauge = 245;
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {}, { validationPolicy: DEFAULT_VALIDATION_POLICY });
+
+  manager.commitNextTurn(
+    {
+      0: { skillId: 46005501 },
+      1: { skillId: 46004118 },
+      2: { skillId: 46040604 },
+    },
+    { enemyCount: 3 }
+  );
+
+  assert.equal(manager.currentState.turnState.turnType, 'extra');
+  assert.equal(
+    manager.currentState.party.find((member) => member.styleId === 1020603)?.sp.current,
+    -2
+  );
+
+  manager.commitNextTurn(
+    {
+      0: { skillId: 46005501 },
+      1: { skillId: 46004101 },
+      2: { skillId: 46040601 },
+    },
+    {
+      enemyCount: 3,
+      interruptOdLevel: 2,
+    }
+  );
+
+  assert.equal(manager.currentState.turnState.turnType, 'od');
+  assert.equal(manager.currentState.turnState.odContext, 'interrupt');
+  assert.equal(
+    manager.currentState.party.find((member) => member.styleId === 1020603)?.sp.current,
+    10
+  );
+
+  const preview = manager.previewCurrentTurn(
+    {
+      2: { skillId: 46040604 },
+    },
+    { enemyCount: 3 }
+  );
+
+  assert.notEqual(preview, null);
 });
