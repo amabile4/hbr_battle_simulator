@@ -193,43 +193,21 @@ export const replaySetupEntryRegistry = createTypedEnvelopeRegistry({
 export const replayOperationRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA]: Object.freeze({
     timing: 'beforeCommit',
-    displayLabel: '鬼神化',
     allowMultiple: false,
   }),
   [REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI]: Object.freeze({
     timing: 'beforeCommit',
-    displayLabel: '騎兵起動',
     allowMultiple: true,
   }),
   [REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD]: Object.freeze({
     timing: 'beforeCommit',
-    displayLabel: '先制OD',
     allowMultiple: false,
   }),
   [REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD]: Object.freeze({
     timing: 'afterCommitReservation',
-    displayLabel: '割込OD',
     allowMultiple: false,
   }),
 });
-
-export function getReplayOperationDisplayLabel(operation = {}) {
-  const type = String(operation?.type ?? '').trim();
-  const definition = replayOperationRegistry.get(type);
-  if (!definition) {
-    return type || 'UnknownOperation';
-  }
-  if (
-    type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD ||
-    type === REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD
-  ) {
-    const level = Number(operation?.payload?.level ?? operation?.level ?? NaN);
-    if (Number.isFinite(level) && level >= 1 && level <= 3) {
-      return `${definition.displayLabel}${level}`;
-    }
-  }
-  return String(definition.displayLabel ?? type);
-}
 export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT]: createReplayOverrideEntryDefinition('enemyCount'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ACTION]: createReplayOverrideEntryDefinition('enemyAction'),

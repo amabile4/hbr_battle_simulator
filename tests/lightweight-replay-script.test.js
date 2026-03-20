@@ -20,7 +20,6 @@ test('operation registry keeps known operation definitions and preserves unknown
   assert.equal(replayOperationRegistry.has(REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI), true);
   assert.deepEqual(replayOperationRegistry.get(REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD), {
     timing: 'afterCommitReservation',
-    displayLabel: '割込OD',
     allowMultiple: false,
   });
 

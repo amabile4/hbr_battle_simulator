@@ -4,16 +4,17 @@ import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-de
 import { formatSkillCostLabel } from '../utils/skill-label.js';
 import { getExcludedSkillIds } from '../utils/skill-filter.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
-import {
-  getReplayOperationDisplayLabel,
-  REPLAY_OPERATION_TYPES,
-} from '../../src/ui/lightweight-replay-script.js';
+import { REPLAY_OPERATION_TYPES } from '../../src/ui/lightweight-replay-script.js';
 import {
   coerceTurnReplayTarget,
   formatTurnTargetLabel,
   normalizeTurnReplayTarget,
   resolveTurnManualTargetConfig,
 } from '../utils/turn-targeting.js';
+import {
+  getReplayOperationDisplayLabel,
+  getReplayOperationTone,
+} from '../utils/replay-operation-presentation.js';
 import {
   areSimulatorSettingsEqual,
   normalizeSimulatorSettings,
@@ -81,10 +82,10 @@ export class TurnRowController {
   #dragSrcPosition = null;
   // タップ swap 用（iOS 代替操作・クリック swap 兼用）
   #selectedSlotPosition = null;
-  // update() 時にスキル選択を保持するための一時フィールド
-  #savedSlotActions = null;
-  #savedEnemyCount = null;
-  #savedTargetActions = null;
+  #draftSlotSkills = {};
+  #draftTargets = {};
+  #draftEnemyCount = DEFAULT_ENEMY_COUNT;
+  #draftNote = '';
   #openTargetPickerPartyIndex = null;
   // Simulator Settings パラメータ
   #simulatorSettings = null;
@@ -129,11 +130,74 @@ export class TurnRowController {
     this.#onOperationRemove = onOperationRemove;
     this.#odState = odState;
     this.#simulatorSettings = normalizeSimulatorSettings(simulatorSettings);
+    this.#initializeDraftState();
   }
 
   mount() {
     this.#root.innerHTML = this.#buildHtml();
     this.#bindEvents();
+  }
+
+  #initializeDraftState() {
+    this.#draftNote =
+      this.#record !== null
+        ? String(this.#replayTurn?.note ?? '')
+        : String(this.#draftNote ?? '');
+    if (this.#record !== null) {
+      return;
+    }
+    this.#draftEnemyCount = this.#resolveDraftEnemyCount();
+    this.#syncDraftSelections();
+  }
+
+  #resolveDraftEnemyCount() {
+    const stateEnemyCount = this.#stateBefore?.turnState?.enemyState?.enemyCount;
+    if (Number.isFinite(stateEnemyCount)) {
+      return clampEnemyCount(stateEnemyCount);
+    }
+    return DEFAULT_ENEMY_COUNT;
+  }
+
+  #getVisibleSkills(member) {
+    const skills = member?.getActionSkills ? member.getActionSkills() : [];
+    const excludedSkillIds = getExcludedSkillIds(member?.styleId);
+    if (excludedSkillIds.size === 0) {
+      return skills;
+    }
+    return skills.filter(
+      (skill) => isNormalAttackSkill(skill) || isAdmiralCommandSkill(skill) || !excludedSkillIds.has(skill.skillId)
+    );
+  }
+
+  #resolveDraftSkillId(member, candidateSkillId = null) {
+    const visibleSkills = this.#getVisibleSkills(member);
+    if (visibleSkills.length === 0) {
+      return null;
+    }
+    if (candidateSkillId != null && visibleSkills.some((skill) => skill.skillId === candidateSkillId)) {
+      return candidateSkillId;
+    }
+    return visibleSkills[0]?.skillId ?? null;
+  }
+
+  #syncDraftSelections() {
+    if (this.#record !== null) {
+      return;
+    }
+    const nextDraftSlotSkills = {};
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
+    for (const member of members) {
+      const currentDraftSkillId = this.#draftSlotSkills?.[member.partyIndex]?.skillId ?? null;
+      const resolvedSkillId = this.#resolveDraftSkillId(member, currentDraftSkillId);
+      if (resolvedSkillId != null) {
+        nextDraftSlotSkills[member.partyIndex] = {
+          partyIndex: member.partyIndex,
+          skillId: resolvedSkillId,
+        };
+      }
+    }
+    this.#draftSlotSkills = nextDraftSlotSkills;
+    this.#draftEnemyCount = clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
   }
 
   /**
@@ -152,21 +216,21 @@ export class TurnRowController {
       if (!sel) continue;
 
       const skills = member.getActionSkills ? member.getActionSkills() : [];
-      const excludedIds = getExcludedSkillIds(member.styleId);
-      const visibleSkills =
-        excludedIds.size > 0
-          ? skills.filter((s) => isNormalAttackSkill(s) || isAdmiralCommandSkill(s) || !excludedIds.has(s.skillId))
-          : skills;
+      const visibleSkills = this.#getVisibleSkills(member);
 
       const replaySlot = isCommitted
         ? (this.#record?.actions?.find?.((a) => a.positionIndex === member.position) ?? null)
         : null;
-      const currentValue = sel.value === '' ? null : Number(sel.value);
-      const selectedSkillId = isCommitted ? (replaySlot?.skillId ?? null) : currentValue;
-      const hasSelection =
-        selectedSkillId != null && visibleSkills.some((s) => s.skillId === selectedSkillId);
-
-      const effectiveSelectedId = hasSelection ? selectedSkillId : (visibleSkills[0]?.skillId ?? null);
+      const selectedSkillId = isCommitted
+        ? (replaySlot?.skillId ?? null)
+        : (this.#draftSlotSkills?.[member.partyIndex]?.skillId ?? null);
+      const effectiveSelectedId = this.#resolveDraftSkillId(member, selectedSkillId);
+      if (!isCommitted && effectiveSelectedId != null) {
+        this.#draftSlotSkills[member.partyIndex] = {
+          partyIndex: member.partyIndex,
+          skillId: effectiveSelectedId,
+        };
+      }
       sel.innerHTML = visibleSkills.map((s) => {
         const isSelected = s.skillId === effectiveSelectedId;
         const costLabel = formatSkillCostLabel(s, member, stateForCost);
@@ -193,25 +257,6 @@ export class TurnRowController {
     simulatorSettings = undefined,
     openTargetPickerPartyIndex = null,
   }) {
-    // 未コミット行→未コミット行の再描画（D&D など）ではスキル選択を保持する。
-    // DOM の data-party-index 属性から直接 partyIndex を読むことで、
-    // swapCurrentPositions() による state の事前書き換えの影響を受けない。
-    if (this.#record === null && record === null) {
-      const byPartyIndex = {};
-      this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
-        const partyIndex = Number(sel.dataset.partyIndex);
-        const skillId = sel.value === '' ? null : Number(sel.value);
-        if (skillId != null && Number.isFinite(partyIndex)) {
-          byPartyIndex[partyIndex] = { skillId };
-        }
-      });
-      this.#savedSlotActions = byPartyIndex;
-
-      const countEl = this.#root.querySelector('[data-role="enemy-count"]');
-      if (countEl) {
-        this.#savedEnemyCount = Number(countEl.value);
-      }
-    }
     const nextSimulatorSettings =
       simulatorSettings === undefined
         ? this.#simulatorSettings
@@ -221,7 +266,7 @@ export class TurnRowController {
       nextSimulatorSettings,
     );
     if (this.#record === null && record === null && simulatorSettingsChanged) {
-      this.#savedTargetActions = null;
+      this.#draftTargets = {};
       this.#openTargetPickerPartyIndex = null;
     }
     // コミット済みになったら選択状態をリセット
@@ -243,8 +288,13 @@ export class TurnRowController {
     this.#stateAfter = stateAfter;
     if (odState !== undefined) this.#odState = odState;
     if (simulatorSettings !== undefined) this.#simulatorSettings = nextSimulatorSettings;
+    if (this.#record !== null) {
+      this.#draftNote = String(this.#replayTurn?.note ?? '');
+    } else {
+      this.#draftEnemyCount = clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
+      this.#syncDraftSelections();
+    }
     this.#root.innerHTML = this.#buildHtml();
-    this.#savedSlotActions = null;
     this.#bindEvents();
     // 再描画後に選択ビジュアルを復元
     if (this.#selectedSlotPosition !== null) this.#updateSelectionVisual();
@@ -273,75 +323,48 @@ export class TurnRowController {
   }
 
   getCurrentEnemyCount() {
-    const el = this.#root.querySelector('[data-role="enemy-count"]');
-    if (el) return Number(el.value);
-    if (this.#savedEnemyCount != null) {
-      return clampEnemyCount(this.#savedEnemyCount);
-    }
-
-    // 初期値は前のターンの敵の数を継承する
-    const stateEnemyCount = this.#stateBefore?.turnState?.enemyState?.enemyCount;
-    if (Number.isFinite(stateEnemyCount)) {
-      return clampEnemyCount(stateEnemyCount);
-    }
-
-    return DEFAULT_ENEMY_COUNT;
+    return clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
   }
 
   /** コミットボタン押下時に呼ばれる前に TurnAreaController が現在のスロット選択を収集するため */
   getCurrentSlotActions() {
     const actions = {};
     const enemyCount = this.getCurrentEnemyCount();
-    this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
-      const position = Number(sel.dataset.position);
-      const partyIndex = Number(sel.dataset.partyIndex);
-      const skillId = sel.value === '' ? null : Number(sel.value);
-      if (skillId != null) {
-        const member = this.#stateBefore?.party?.find((item) => item.position === position) ?? null;
-        const skill = member?.getSkill?.(skillId) ?? null;
-        const effectiveSkill = this.#resolveEffectiveSkill(member, skill, this.#stateBefore);
-        const manualTargetConfig = resolveTurnManualTargetConfig({
-          member,
-          skill,
-          effectiveSkill,
-          state: this.#stateBefore,
-          enemyCount,
-          simulatorSettings: this.#simulatorSettings,
-        });
-        const target = this.#getCurrentReplayTarget({
-          partyIndex,
-          manualTargetConfig,
-          recordAction: null,
-        });
-
-        actions[position] = {
-          skillId,
-          target,
-        };
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
+    for (const member of members) {
+      const skillId = this.#resolveDraftSkillId(
+        member,
+        this.#draftSlotSkills?.[member.partyIndex]?.skillId ?? null
+      );
+      if (skillId == null) {
+        continue;
       }
-    });
+      const skill = member?.getSkill?.(skillId) ?? null;
+      const effectiveSkill = this.#resolveEffectiveSkill(member, skill, this.#stateBefore);
+      const manualTargetConfig = resolveTurnManualTargetConfig({
+        member,
+        skill,
+        effectiveSkill,
+        state: this.#stateBefore,
+        enemyCount,
+        simulatorSettings: this.#simulatorSettings,
+      });
+      const target = this.#getCurrentReplayTarget({
+        partyIndex: member.partyIndex,
+        manualTargetConfig,
+        recordAction: null,
+      });
+      actions[member.partyIndex] = {
+        partyIndex: member.partyIndex,
+        skillId,
+        target,
+      };
+    }
     return actions;
   }
 
   getCurrentNote() {
-    return this.#root.querySelector('[data-role="note"]')?.value ?? '';
-  }
-
-  #getOperationChipTone(operation) {
-    const type = String(operation?.type ?? '');
-    if (type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA) {
-      return 'border-purple-200 bg-purple-50 text-purple-700';
-    }
-    if (type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI) {
-      return 'border-rose-200 bg-rose-50 text-rose-700';
-    }
-    if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
-      return 'border-indigo-200 bg-indigo-50 text-indigo-700';
-    }
-    if (type === REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD) {
-      return 'border-orange-200 bg-orange-50 text-orange-700';
-    }
-    return 'border-gray-200 bg-gray-50 text-gray-600';
+    return String(this.#draftNote ?? '');
   }
 
   #buildOperationChipsHtml() {
@@ -353,7 +376,7 @@ export class TurnRowController {
         ${this.#operations.map((operation, index) => `
           <span data-role="operation-chip"
                 data-operation-index="${index}"
-                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${this.#getOperationChipTone(operation)}">
+                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getReplayOperationTone(operation)}">
             <span>${getReplayOperationDisplayLabel(operation)}</span>
             <button type="button"
                     data-role="operation-chip-remove"
@@ -490,7 +513,7 @@ export class TurnRowController {
     const baseTarget =
       recordAction != null
         ? this.#getRecordActionReplayTarget(recordAction)
-        : normalizeTurnReplayTarget(this.#savedTargetActions?.[partyIndex]);
+        : normalizeTurnReplayTarget(this.#draftTargets?.[partyIndex]);
     return coerceTurnReplayTarget(manualTargetConfig, baseTarget);
   }
 
@@ -638,9 +661,7 @@ export class TurnRowController {
     const buttonHtml = this.#buildButtonHtml(isCommitted);
 
     // メモ欄
-    const noteValue = isCommitted
-      ? (this.#replayTurn?.note ?? '')
-      : (this.#root.querySelector('[data-role="note"]')?.value ?? '');
+    const noteValue = this.getCurrentNote();
     const operationChipsHtml = this.#buildOperationChipsHtml();
     const noteHtml = `
       <div data-turn-note class="flex-shrink-0 w-28">
@@ -817,7 +838,7 @@ export class TurnRowController {
     //       CharacterStyle.getDefaultActionSkillId() が追加されたらそちらに移行する。
     const selectedSkillId = isCommitted
       ? (replaySlot?.skillId ?? null)
-      : (this.#savedSlotActions?.[member.partyIndex]?.skillId ?? skills[0]?.skillId ?? null);
+      : (this.#draftSlotSkills?.[member.partyIndex]?.skillId ?? null);
 
     // this.#stateBefore が null の場合は formatSkillCostLabel が raw spCost をフォールバック表示する。
     const stateForCost = this.#stateBefore ?? null;
@@ -847,7 +868,7 @@ export class TurnRowController {
     const effectiveSelectedSkill = this.#resolveEffectiveSkill(member, selectedSkill, stateForCost);
     const explicitTarget = isCommitted
       ? this.#getRecordActionReplayTarget(replaySlot)
-      : normalizeTurnReplayTarget(this.#savedTargetActions?.[member.partyIndex]);
+      : normalizeTurnReplayTarget(this.#draftTargets?.[member.partyIndex]);
     const manualTargetConfig = resolveTurnManualTargetConfig({
       member,
       skill: selectedSkill,
@@ -1132,6 +1153,12 @@ export class TurnRowController {
     if (this.#record === null) {
       this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
         sel.addEventListener('change', () => {
+          const partyIndex = Number(sel.dataset.partyIndex);
+          const skillId = sel.value === '' ? null : Number(sel.value);
+          if (Number.isFinite(partyIndex) && skillId != null) {
+            this.#draftSlotSkills[partyIndex] = { partyIndex, skillId };
+          }
+          this.#openTargetPickerPartyIndex = null;
           this.update({
             record: null,
             stateBefore: this.#stateBefore,
@@ -1182,8 +1209,8 @@ export class TurnRowController {
             });
           }
 
-          this.#savedTargetActions = {
-            ...(this.#savedTargetActions ?? {}),
+          this.#draftTargets = {
+            ...this.#draftTargets,
             [actorPartyIndex]: target,
           };
           this.#openTargetPickerPartyIndex = null;
@@ -1201,6 +1228,8 @@ export class TurnRowController {
       const countEl = this.#root.querySelector('[data-role="enemy-count"]');
       if (countEl) {
         countEl.addEventListener('change', () => {
+          this.#draftEnemyCount = clampEnemyCount(Number(countEl.value));
+          this.#openTargetPickerPartyIndex = null;
           this.update({
             record: null,
             stateBefore: this.#stateBefore,
@@ -1222,6 +1251,7 @@ export class TurnRowController {
     // メモ欄
     const noteEl = this.#root.querySelector('[data-role="note"]');
     noteEl?.addEventListener('input', () => {
+      this.#draftNote = noteEl.value;
       this.#onNoteChange?.(this.#turnIndex, noteEl.value);
     });
 

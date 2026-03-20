@@ -86,13 +86,21 @@ export class TurnAreaController {
       operations: this.#engineManager.pendingSpecialOperations,
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
-      odState: this.#buildOdState([], null),
-      operationState: this.#buildOperationState(),
+      odState: {
+        preemptiveOdLevel: this.#engineManager.pendingPreemptiveOdLevel,
+        interruptOdLevel: this.#engineManager.pendingInterruptOdLevel,
+        activatablePreemptive: [],
+        activatableInterrupt: [],
+      },
+      operationState: {
+        kishinkaStatus: this.#engineManager.getKishinkaStatus(),
+        makaiKiheiStatus: this.#engineManager.getMakaiKiheiStatus(),
+      },
       simulatorSettings: this.#simulatorSettings,
       onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
       onCommit: (ti) => this.#handleCommit(ti),
       onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
-      onPreviewRequest: (ti, slotActions) => this.#handlePreviewRequest(ti, slotActions),
+      onPreviewRequest: () => this.#handlePreviewRequest(),
       onOdChange: (ti, odType, level) => this.#handleOdChange(ti, odType, level),
       onOperationAdd: (ti, operation) => this.#handleOperationAdd(ti, operation),
       onOperationRemove: (ti, operationIndex) => this.#handleOperationRemove(ti, operationIndex),
@@ -106,12 +114,15 @@ export class TurnAreaController {
 
   #handleCommit(turnIndex) {
     const row = this.#rowControllers[turnIndex];
-    const slotActions = row.getCurrentSlotActions();
     const note = row.getCurrentNote();
     const enemyCount = row.getCurrentEnemyCount();
+    const snapshot = this.#engineManager.buildInputRowSnapshot({
+      slotActions: row.getCurrentSlotActions(),
+      enemyCount,
+    });
 
     try {
-      this.#engineManager.commitNextTurn(slotActions, { note, enemyCount });
+      this.#engineManager.commitNextTurn(snapshot.slotActions, { note, enemyCount });
     } catch (err) {
       console.error('TurnAreaController: commitNextTurn failed:', err);
       this.#onError?.(err);
@@ -188,14 +199,9 @@ export class TurnAreaController {
 
   /**
    * 未コミット行のスキル変更によるプレビューリクエスト。
-   * TurnEngineManager に現在ターンをプレビューさせ、OD After 値と割込OD候補を更新する。
    */
-  #handlePreviewRequest(turnIndex, slotActions) {
-    const lastRow = this.#rowControllers.at(-1);
-    const enemyCount = lastRow?.getCurrentEnemyCount() ?? 1;
-    const preview = this.#engineManager.previewCurrentTurn(slotActions, { enemyCount });
-    lastRow?.updateOdPreview(preview?.odGaugeAfter ?? null);
-    lastRow?.updateInterruptOdCandidates(preview?.activatableInterrupt ?? []);
+  #handlePreviewRequest() {
+    this.#refreshInputRow();
   }
 
   /**
@@ -238,55 +244,29 @@ export class TurnAreaController {
     this.#refreshInputRow();
   }
 
-  /**
-   * 未コミット行のプレビューを実行して OD 状態・After ゲージを更新する共通処理。
-   * - 初回行追加・D&D swap・過去ターン再計算後など、
-   *   スキル変更イベントが発生しない全ての場面で呼ぶこと。
-   *
-   * 2フェーズで処理する理由:
-   *   D&D swap 後は swapCurrentPositions() でエンジン側のポジションが更新済みだが、
-   *   DOM はまだ旧ポジションのまま。先に update() で DOM を最新ポジションに揃えてから
-   *   getCurrentSlotActions() を読まないと、#buildActionsDict で
-   *   「キャラA のポジションに キャラB のスキル」という誤マッピングが生じ、
-   *   超越ゲージ計算（属性マッチング）が狂ってOD値がずれる。
-   */
   #refreshInputRow() {
     const lastRow = this.#rowControllers.at(-1);
     if (!lastRow) return;
     const enemyCount = lastRow.getCurrentEnemyCount();
-    // Phase 1: DOM を最新の currentState ポジションで更新（割込OD候補は暫定空）
-    // pending な鬼神化・先制OD を適用した state を渡すことで、鬼神化 pending 中に
-    // スキルリストの SP コスト（0表示）が正しく反映される。
+    const snapshot = this.#engineManager.buildInputRowSnapshot({
+      slotActions: lastRow.getCurrentSlotActions(),
+      enemyCount,
+    });
     lastRow.update({
       record: null,
       replayTurn: null,
       operations: this.#engineManager.pendingSpecialOperations,
-      stateBefore: this.#engineManager.getCurrentStateWithPending(enemyCount),
+      stateBefore: snapshot.stateBefore,
       stateAfter: null,
-      odState: this.#buildOdState([], enemyCount),
-      operationState: this.#buildOperationState(),
+      odState: {
+        preemptiveOdLevel: this.#engineManager.pendingPreemptiveOdLevel,
+        interruptOdLevel: this.#engineManager.pendingInterruptOdLevel,
+        activatablePreemptive: snapshot.activatablePreemptive,
+        activatableInterrupt: snapshot.activatableInterrupt,
+      },
+      operationState: snapshot.operationState,
       simulatorSettings: this.#simulatorSettings,
     });
-    // Phase 2: 更新後の DOM から正確な slotActions を読んでプレビュー実行
-    const slotActions = lastRow.getCurrentSlotActions();
-    const preview = this.#engineManager.previewCurrentTurn(slotActions, { enemyCount });
-    lastRow.updateOdPreview(preview?.odGaugeAfter ?? null);
-    lastRow.updateInterruptOdCandidates(preview?.activatableInterrupt ?? []);
-  }
-
-  #buildOdState(activatableInterrupt, enemyCount = null) {
-    return {
-      preemptiveOdLevel:    this.#engineManager.pendingPreemptiveOdLevel,
-      interruptOdLevel:     this.#engineManager.pendingInterruptOdLevel,
-      activatablePreemptive: this.#engineManager.getActivatablePreemptiveOdLevels(enemyCount),
-      activatableInterrupt,
-    };
-  }
-
-  #buildOperationState() {
-    return {
-      kishinkaStatus: this.#engineManager.getKishinkaStatus(),
-      makaiKiheiStatus: this.#engineManager.getMakaiKiheiStatus(),
-    };
+    lastRow.updateOdPreview(snapshot.odGaugeAfter);
   }
 }

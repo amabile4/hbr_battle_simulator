@@ -202,6 +202,36 @@
 - `騎兵起動` の残回数は battle state に持たず、committed replay turns と current pending operations の prefix から導出する
 - `騎兵起動` Phase 1 は OD 上昇だけを正確に反映し、ダメージと `FearOfDevil` は後続フェーズで扱う
 
+## 2026-03-20 時点の責務境界
+
+### Shared runtime (`src/`)
+
+- `src/turn/turn-operations.js` を special operation の shared runtime 正本とする
+- 鬼神化 / 騎兵起動 / 先制OD の before-commit 適用順、state capability 判定、`enemyCount` を受けた state 変換はここで扱う
+- `LightweightReplayScript` の contract は machine-readable な `type / timing / allowMultiple` のみを持ち、表示文言を持たない
+
+### UI Next engine (`ui-next/engine`)
+
+- `TurnEngineManager` は replay script、pending queue、commit / preview / recalculate orchestration を担当する
+- special operation のゲームルール自体は shared runtime を呼ぶだけにし、manager 側へ閉じ込めない
+- 未コミット input row 用には `buildInputRowSnapshot()` を正本 API とし、`stateBefore` / OD preview / operation status をまとめて返す
+
+### UI components (`ui-next/components`)
+
+- `TurnAreaController` は row lifecycle、commit bridge、error relay だけを担当し、preview の呼び順知識を持たない
+- `TurnRowController` は未コミット row の draft state を保持する
+  - `slotActions`
+  - `enemyCount`
+  - `targets`
+  - `note`
+  - `openTargetPickerPartyIndex`
+- draft は DOM 再読で復元せず controller 内 state を正本とし、render 時だけ DOM へ投影する
+
+### Presentation helper (`ui-next/utils`)
+
+- operation chip の label / tone は `ui-next/utils/replay-operation-presentation.js` に置く
+- `LightweightReplayScript` や shared runtime は日本語ラベルを知らない
+
 ## Screen 2: Style Picker
 
 ### 役割

@@ -280,3 +280,31 @@ test('TurnEngineManager applies Makai Kihei OD gain using the committed enemyCou
   assert.equal(manager.getStateBefore(0)?.turnState?.odGauge, 30);
   assert.equal(manager.computedRecords[0]?.enemyCount, 2);
 });
+
+test('TurnEngineManager buildInputRowSnapshot resolves partyIndex keyed draft actions after swaps', () => {
+  const actorSkill = createSkill({
+    id: 9050,
+    name: 'Single Slash',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState(actorSkill), {});
+
+  manager.swapCurrentPositions(0, 1);
+
+  const snapshot = manager.buildInputRowSnapshot({
+    slotActions: {
+      0: {
+        partyIndex: 0,
+        skillId: 9050,
+        target: { type: 'enemy', enemyIndex: 1 },
+      },
+    },
+    enemyCount: 2,
+  });
+
+  assert.equal(snapshot.stateBefore.party.find((member) => member.partyIndex === 0)?.position, 1);
+  assert.equal(snapshot.slotActions[1]?.skillId, 9050);
+  assert.deepEqual(snapshot.slotActions[1]?.target, { type: 'enemy', enemyIndex: 1 });
+});

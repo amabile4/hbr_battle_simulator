@@ -124,16 +124,17 @@ function createPartyWithActorSkill(actorSkill, actorOptions = {}) {
       partyIndex: index,
       position: index,
       initialSP: 10,
-      skills: [
+      skills:
         index === 0
-          ? actorSkill
-          : createSkill({
-              id: 9400 + index,
-              name: `Protection${index + 1}`,
-              targetType: 'Self',
-              parts: [{ skill_type: 'Protection', target_type: 'Self' }],
-            }),
-      ],
+          ? (actorOptions.skills ?? [actorSkill])
+          : [
+              createSkill({
+                id: 9400 + index,
+                name: `Protection${index + 1}`,
+                targetType: 'Self',
+                parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+              }),
+            ],
       passives: index === 0 ? (actorOptions.passives ?? []) : [],
     })
   );
@@ -213,6 +214,60 @@ function mountTurnRow({ root, stateBefore, simulatorSettings }) {
   row.mount();
   return row;
 }
+
+test('TurnRowController preserves draft skill and note across rerender without reading DOM state', () =>
+  withDom(({ root, win }) => {
+    const actorSkill = createSkill({
+      id: 9500,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const alternateSkill = createSkill({
+      id: 9509,
+      name: 'Protection Alt',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createBattleStateFromParty(
+      createPartyWithActorSkill(actorSkill, {
+        skills: [actorSkill, alternateSkill],
+      })
+    );
+    const row = mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const skillSelect = root.querySelector('[data-skill-select][data-party-index="0"]');
+    skillSelect.value = '9509';
+    skillSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const noteEl = root.querySelector('[data-role="note"]');
+    noteEl.value = 'draft-note';
+    noteEl.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+    row.update({
+      record: null,
+      stateBefore: createBattleStateFromParty(
+        createPartyWithActorSkill(actorSkill, {
+          skills: [actorSkill, alternateSkill],
+        })
+      ),
+      stateAfter: null,
+      odState: {
+        preemptiveOdLevel: null,
+        interruptOdLevel: null,
+        activatablePreemptive: [],
+        activatableInterrupt: [],
+      },
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    assert.equal(root.querySelector('[data-skill-select][data-party-index="0"]').value, '9509');
+    assert.equal(root.querySelector('[data-role="note"]').value, 'draft-note');
+  }));
 
 test('TurnRowController hides manual target UI for all-target skills even when enemy selection is manual', () =>
   withDom(({ root }) => {
