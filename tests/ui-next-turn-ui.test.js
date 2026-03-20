@@ -159,6 +159,32 @@ function createState(actorSkill, enemyCount = 1, actorOptions = {}) {
   return state;
 }
 
+function createFrontlineState(frontlineSkills, enemyCount = 1, frontOptions = []) {
+  const members = Array.from({ length: 6 }, (_, index) =>
+    new CharacterStyle({
+      characterId: frontOptions[index]?.characterId ?? `UI${index + 1}`,
+      characterName: frontOptions[index]?.characterName ?? `UI${index + 1}`,
+      styleId: frontOptions[index]?.styleId ?? 9300 + index,
+      styleName: frontOptions[index]?.styleName ?? `UIS${index + 1}`,
+      partyIndex: index,
+      position: index,
+      initialSP: 10,
+      skills: [
+        frontlineSkills[index] ?? createSkill({
+          id: 9400 + index,
+          name: `Protection${index + 1}`,
+          targetType: 'Self',
+          parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+        }),
+      ],
+      passives: frontOptions[index]?.passives ?? [],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState.enemyCount = enemyCount;
+  return state;
+}
+
 function createStoreStub(charactersByLabel = {}) {
   return {
     getStyleById() {
@@ -329,8 +355,17 @@ test('TurnRowController shows enemy target trigger only when enemy selection is 
 
     const trigger = root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]');
     const popover = root.querySelector('[data-role="target-popover"][data-target-kind="enemy"]');
+    const selectRow = root.querySelector('[data-role="slot-select-row"][data-position="0"]');
+    const infoSpace = root.querySelector('[data-slot-info-space][data-position="0"]');
+    const targetAnchor = root.querySelector('[data-role="slot-target-anchor"][data-position="0"]');
     assert.ok(trigger);
     assert.ok(popover);
+    assert.ok(selectRow);
+    assert.ok(infoSpace);
+    assert.ok(targetAnchor);
+    assert.equal(selectRow.contains(trigger), false);
+    assert.ok(infoSpace.contains(trigger));
+    assert.ok(targetAnchor.contains(trigger));
     assert.equal(popover.hidden, true);
 
     trigger.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
@@ -372,7 +407,77 @@ test('TurnRowController shows ally target popover only when ally selection is ma
     assert.equal(disabledCount, 4);
   }));
 
-test('TurnRowController edits manual break attribution from the button panel and renders chips', () =>
+test('TurnRowController keeps skill badges stable near the responsive threshold even with a detached target anchor', () =>
+  withDom(({ root }) => {
+    const state = createState(
+      createSkill({
+        id: 95030,
+        name: 'Responsive Badge Check',
+        targetType: 'Single',
+        parts: [
+          {
+            skill_type: 'AttackSkill',
+            target_type: 'Single',
+            type: 'Slash',
+            elements: ['Fire'],
+          },
+        ],
+      }),
+      3
+    );
+    const row = mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings({
+        enemyMode: TARGET_SELECTION_MODES.MANUAL,
+      }),
+    });
+
+    const select = root.querySelector('[data-skill-select][data-position="0"]');
+    const badgeEl = root.querySelector('[data-skill-badges][data-position="0"]');
+    const selectRow = root.querySelector('[data-role="slot-select-row"][data-position="0"]');
+    const infoSpace = root.querySelector('[data-slot-info-space][data-position="0"]');
+    const targetAnchor = root.querySelector('[data-role="slot-target-anchor"][data-position="0"]');
+    const trigger = root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]');
+    let width = 91;
+    Object.defineProperty(select, 'offsetWidth', {
+      configurable: true,
+      get() {
+        return width;
+      },
+    });
+
+    assert.ok(selectRow);
+    assert.ok(infoSpace);
+    assert.ok(targetAnchor);
+    assert.ok(trigger);
+    assert.equal(selectRow.contains(trigger), false);
+    assert.ok(infoSpace.contains(trigger));
+    assert.ok(targetAnchor.contains(trigger));
+
+    delete badgeEl.dataset.responsiveVisible;
+    row.refreshSkillSelects();
+    assert.notEqual(badgeEl.style.display, 'none');
+
+    width = 83;
+    row.refreshSkillSelects();
+    assert.notEqual(badgeEl.style.display, 'none');
+
+    width = 81;
+    row.refreshSkillSelects();
+    assert.equal(badgeEl.style.display, 'none');
+
+    width = 95;
+    row.refreshSkillSelects();
+    assert.equal(badgeEl.style.display, 'none');
+
+    width = 99;
+    row.refreshSkillSelects();
+    assert.notEqual(badgeEl.style.display, 'none');
+    assert.ok(infoSpace.contains(root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')));
+  }));
+
+test('TurnRowController lets simple-mode single-target rows override target locally and bind break to that target', () =>
   withDom(({ root, win }) => {
     const state = createState(
       createSkill({
@@ -394,24 +499,35 @@ test('TurnRowController edits manual break attribution from the button panel and
       .querySelector('[data-role="manual-break-toggle"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     assert.equal(
-      root.querySelectorAll('[data-role="manual-break-candidate"][data-party-index="0"]').length,
+      root.querySelectorAll('[data-role="manual-break-target-candidate"][data-party-index="0"]').length,
       3
     );
 
     root
-      .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="0"]')
+      .querySelector('[data-role="manual-break-target-candidate"][data-party-index="0"][data-enemy-index="2"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     root
-      .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="2"]')
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     assert.deepEqual(row.getCurrentActionOutcomeOverrides(), [
-      { position: 0, outcome: 'Break', enemyIndexes: [0, 2] },
+      { position: 0, outcome: 'Break', enemyIndexes: [2] },
     ]);
+    assert.deepEqual(row.getCurrentSlotActions()[0]?.target, { type: 'enemy', enemyIndex: 2 });
+    assert.match(
+      root.querySelector('[data-role="target-trigger-label"]').textContent,
+      /E3/,
+    );
+    const noteColumn = root.querySelector('[data-turn-note]');
+    const noteTextarea = root.querySelector('[data-role="note"]');
+    assert.match(noteColumn.className, /\bflex\b/);
+    assert.match(noteColumn.className, /\bself-stretch\b/);
+    assert.doesNotMatch(noteTextarea.className, /\bh-full\b/);
+    assert.match(noteTextarea.className, /\bflex-1\b/);
     const chipLabels = [...root.querySelectorAll('[data-role="manual-break-chip"]')].map((chip) =>
       chip.textContent.trim()
     );
-    assert.deepEqual(chipLabels, ['UI1→E1 ブレイク', 'UI1→E3 ブレイク']);
+    assert.deepEqual(chipLabels, ['UI1→E3 ブレイク']);
   }));
 
 test('TurnRowController resolves manual break chip labels with nickname and enemy name', () =>
@@ -446,12 +562,113 @@ test('TurnRowController resolves manual break chip labels with nickname and enem
       .querySelector('[data-role="manual-break-toggle"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     root
-      .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="0"]')
+      .querySelector('[data-role="manual-break-target-candidate"][data-party-index="0"][data-enemy-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     assert.deepEqual(
       [...root.querySelectorAll('[data-role="manual-break-chip"]')].map((chip) => chip.textContent.trim()),
       ['ワッキー→ワイバーン ブレイク']
+    );
+  }));
+
+test('TurnRowController keeps all-target manual break multi-select for partial break cases', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 95033,
+        name: 'Wide Break Attribution',
+        targetType: 'All',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+      }),
+      3
+    );
+    const row = mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root
+      .querySelector('[data-role="manual-break-toggle"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="2"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.deepEqual(row.getCurrentActionOutcomeOverrides(), [
+      { position: 0, outcome: 'Break', enemyIndexes: [0, 2] },
+    ]);
+    assert.deepEqual(
+      [...root.querySelectorAll('[data-role="manual-break-chip"]')].map((chip) => chip.textContent.trim()),
+      ['UI1→E1 ブレイク', 'UI1→E3 ブレイク']
+    );
+  }));
+
+test('TurnRowController ties single-target break to the current manual target', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 95034,
+        name: 'Manual Target Break',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      3
+    );
+    const row = mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings({
+        enemyMode: TARGET_SELECTION_MODES.MANUAL,
+      }),
+    });
+
+    root
+      .querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="target-candidate"][data-target-kind="enemy"][data-enemy-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="manual-break-toggle"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(
+      root.querySelector('[data-role="manual-break-candidate"][data-party-index="0"]'),
+      null
+    );
+    assert.match(
+      root.querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]').textContent,
+      /E2/,
+    );
+
+    root
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.deepEqual(row.getCurrentActionOutcomeOverrides(), [
+      { position: 0, outcome: 'Break', enemyIndexes: [1] },
+    ]);
+
+    root
+      .querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="target-candidate"][data-target-kind="enemy"][data-enemy-index="2"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.deepEqual(row.getCurrentSlotActions()[0]?.target, { type: 'enemy', enemyIndex: 2 });
+    assert.deepEqual(row.getCurrentActionOutcomeOverrides(), [
+      { position: 0, outcome: 'Break', enemyIndexes: [2] },
+    ]);
+    assert.deepEqual(
+      [...root.querySelectorAll('[data-role="manual-break-chip"]')].map((chip) => chip.textContent.trim()),
+      ['UI1→E3 ブレイク']
     );
   }));
 
@@ -592,6 +809,52 @@ test('TurnAreaController preserves committed enemy explicit target when simulato
     );
     assert.ok(root.querySelector('[data-role="target-trigger-label"]'));
     assert.equal(root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]'), null);
+  }));
+
+test('TurnAreaController keeps enemy target controls in the info-space anchor across simulator setting rerenders', () =>
+  withDom(({ root }) => {
+    const state = createState(
+      createSkill({
+        id: 9517,
+        name: 'Detached Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      3
+    );
+    const { controller } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
+    });
+
+    const assertDetachedTargetTrigger = () => {
+      const trigger = root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]');
+      const selectRow = root.querySelector('[data-role="slot-select-row"][data-position="0"]');
+      const infoSpace = root.querySelector('[data-slot-info-space][data-position="0"]');
+      const targetAnchor = root.querySelector('[data-role="slot-target-anchor"][data-position="0"]');
+      assert.ok(trigger);
+      assert.ok(selectRow);
+      assert.ok(infoSpace);
+      assert.ok(targetAnchor);
+      assert.equal(selectRow.contains(trigger), false);
+      assert.ok(infoSpace.contains(trigger));
+      assert.ok(targetAnchor.contains(trigger));
+    };
+
+    assertDetachedTargetTrigger();
+
+    controller.reinitialize(
+      state,
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.SIMPLE }),
+    );
+    assert.equal(root.querySelector('[data-role="slot-target-anchor"][data-position="0"]'), null);
+
+    controller.reinitialize(
+      state,
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
+    );
+    assertDetachedTargetTrigger();
   }));
 
 test('TurnAreaController preserves committed ally explicit target when simulator settings change', () =>
@@ -963,7 +1226,7 @@ test('TurnAreaController recalculates Makai Kihei OD gain when the input row ene
     assert.equal(engineManager.computedRecords[0]?.enemyCount, 2);
   }));
 
-test('TurnAreaController commits manual break attribution and allows committed-row recalculation edits', () =>
+test('TurnAreaController commits manual break attribution and hides committed-row break controls', () =>
   withDom(({ root, win }) => {
     const state = createState(
       createSkill({
@@ -987,10 +1250,10 @@ test('TurnAreaController commits manual break attribution and allows committed-r
       .querySelector('[data-role="manual-break-toggle"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     root
-      .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="0"]')
+      .querySelector('[data-role="manual-break-target-candidate"][data-party-index="0"][data-enemy-index="2"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     root
-      .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="2"]')
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     root
       .querySelector('[data-role="commit-btn"]')
@@ -999,35 +1262,100 @@ test('TurnAreaController commits manual break attribution and allows committed-r
     const committedAction = engineManager.computedRecords[0]?.actions.find(
       (action) => action.positionIndex === 0
     );
-    assert.equal(committedAction?.breakHitCount, 2);
+    assert.equal(committedAction?.targetEnemyIndex, 2);
+    assert.equal(committedAction?.breakHitCount, 1);
     assert.equal(
       committedAction?.spChanges.some((change) => change.source === 'sp_passive'),
       true
     );
 
     const committedRow = root.querySelectorAll('[data-turn-row]').item(0);
-    committedRow
-      .querySelector('[data-role="manual-break-toggle"]')
-      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    committedRow
-      .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="2"]')
-      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-
-    const recalculatedAction = engineManager.computedRecords[0]?.actions.find(
-      (action) => action.positionIndex === 0
-    );
-    assert.equal(recalculatedAction?.breakHitCount, 1);
-    const refreshedCommittedRow = root.querySelectorAll('[data-turn-row]').item(0);
+    assert.equal(committedRow.querySelector('[data-role="manual-break-toggle"]'), null);
+    assert.equal(committedRow.querySelector('[data-role="manual-break-editor"]'), null);
     assert.deepEqual(
-      [...refreshedCommittedRow.querySelectorAll('[data-role="manual-break-chip"]')].map((chip) =>
+      [...committedRow.querySelectorAll('[data-role="manual-break-chip"]')].map((chip) =>
         chip.textContent.trim()
       ),
-      ['UI1→E1 ブレイク']
+      ['UI1→E3 ブレイク']
     );
     assert.deepEqual(
       engineManager.getReplayTurn(0)?.overrideEntries.find(
         (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
       )?.payload,
-      [{ position: 0, outcome: 'Break', enemyIndexes: [0] }]
+      [{ position: 0, outcome: 'Break', enemyIndexes: [2] }]
+    );
+  }));
+
+test('TurnAreaController supports simple-mode local target overrides for three single-target attackers in one turn', () =>
+  withDom(({ root, win }) => {
+    const singleTargetSkill = createSkill({
+      id: 9518,
+      name: 'Focused Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createFrontlineState(
+      [singleTargetSkill, singleTargetSkill, singleTargetSkill],
+      3,
+      [{ passives: [createBreakHealPassive()] }]
+    );
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root
+      .querySelector('[data-role="manual-break-toggle"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    root
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="manual-break-target-candidate"][data-party-index="1"][data-enemy-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="manual-break-target-candidate"][data-party-index="2"][data-enemy-index="2"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.match(
+      root.querySelectorAll('[data-role="target-trigger-label"]').item(0).textContent,
+      /E2/,
+    );
+    assert.match(
+      root.querySelectorAll('[data-role="target-trigger-label"]').item(1).textContent,
+      /E3/,
+    );
+
+    root
+      .querySelector('[data-role="commit-btn"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const committedActions = engineManager.computedRecords[0]?.actions ?? [];
+    const firstAction = committedActions.find((action) => action.positionIndex === 0);
+    const secondAction = committedActions.find((action) => action.positionIndex === 1);
+    const thirdAction = committedActions.find((action) => action.positionIndex === 2);
+
+    assert.equal(firstAction?.targetEnemyIndex ?? null, null);
+    assert.equal(firstAction?.breakHitCount, 1);
+    assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
+    assert.equal(secondAction?.targetEnemyIndex, 1);
+    assert.equal(secondAction?.breakHitCount, 1);
+    assert.deepEqual(secondAction?.manualBreakEnemyIndexes, [1]);
+    assert.equal(thirdAction?.targetEnemyIndex, 2);
+    assert.equal(thirdAction?.breakHitCount, 0);
+    assert.deepEqual(thirdAction?.manualBreakEnemyIndexes ?? [], []);
+    assert.deepEqual(
+      engineManager.getReplayTurn(0)?.overrideEntries.find(
+        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+      )?.payload,
+      [
+        { position: 0, outcome: 'Break', enemyIndexes: [0] },
+        { position: 1, outcome: 'Break', enemyIndexes: [1] },
+      ]
     );
   }));

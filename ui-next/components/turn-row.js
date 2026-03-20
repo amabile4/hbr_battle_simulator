@@ -9,7 +9,10 @@ import {
   coerceTurnReplayTarget,
   formatTurnTargetLabel,
   normalizeTurnReplayTarget,
+  resolveTurnBreakAttributionMode,
   resolveTurnManualTargetConfig,
+  resolveTurnTargetConfig,
+  TURN_BREAK_ATTRIBUTION_MODES,
 } from '../utils/turn-targeting.js';
 import {
   getReplayOperationDisplayLabel,
@@ -28,12 +31,18 @@ import {
 } from '../utils/manual-break-presentation.js';
 import {
   areSimulatorSettingsEqual,
+  isEnemyTargetSelectionManual,
   normalizeSimulatorSettings,
 } from '../utils/simulator-settings.js';
 
 // select 幅の閾値（px）：スキルバッジ・SPコスト表示の切り替えに使用
 const BADGE_MIN_SELECT_WIDTH = 90;
 const COST_MIN_SELECT_WIDTH  = 60;
+const WIDTH_VISIBILITY_HYSTERESIS_PX = 8;
+const BADGE_SHOW_MIN_SELECT_WIDTH = BADGE_MIN_SELECT_WIDTH + WIDTH_VISIBILITY_HYSTERESIS_PX;
+const BADGE_HIDE_MIN_SELECT_WIDTH = BADGE_MIN_SELECT_WIDTH - WIDTH_VISIBILITY_HYSTERESIS_PX;
+const COST_SHOW_MIN_SELECT_WIDTH = COST_MIN_SELECT_WIDTH + WIDTH_VISIBILITY_HYSTERESIS_PX;
+const COST_HIDE_MIN_SELECT_WIDTH = COST_MIN_SELECT_WIDTH - WIDTH_VISIBILITY_HYSTERESIS_PX;
 
 const ATTACK_TYPE_MAP = {
   Slash:  { img: resolveUiAssetUrl('Slash.webp'),  alt: '斬' },
@@ -363,6 +372,99 @@ export class TurnRowController {
     return clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
   }
 
+  #getDraftReplayTarget(partyIndex) {
+    return normalizeTurnReplayTarget(this.#draftTargets?.[partyIndex]);
+  }
+
+  #getManualTargetConfigForMember({
+    member,
+    skill,
+    effectiveSkill,
+    enemyCount,
+    explicitTarget = null,
+    isCommitted = false,
+  }) {
+    const normalizedExplicitTarget = normalizeTurnReplayTarget(explicitTarget);
+    return resolveTurnManualTargetConfig({
+      member,
+      skill,
+      effectiveSkill,
+      state: this.#stateBefore,
+      enemyCount,
+      simulatorSettings: this.#simulatorSettings,
+      explicitTarget: normalizedExplicitTarget,
+      preserveExplicitTarget: isCommitted || normalizedExplicitTarget.type !== 'none',
+    });
+  }
+
+  #getBreakSelectionContext({ member, isCommitted, enemyCount }) {
+    if (!member) {
+      return null;
+    }
+    const replaySlot = isCommitted
+      ? (this.#record?.actions?.find?.((action) => action.positionIndex === member.position) ?? null)
+      : null;
+    const skillId = isCommitted
+      ? (replaySlot?.skillId ?? null)
+      : this.#resolveDraftSkillId(
+          member,
+          this.#draftSlotSkills?.[member.partyIndex]?.skillId ?? null
+        );
+    const skill = skillId != null ? member?.getSkill?.(skillId) ?? null : null;
+    const effectiveSkill = this.#resolveEffectiveSkill(member, skill, this.#stateBefore);
+    const breakAttributionMode = resolveTurnBreakAttributionMode({ skill, effectiveSkill });
+    const explicitTarget = isCommitted
+      ? this.#getRecordActionReplayTarget(replaySlot)
+      : this.#getDraftReplayTarget(member.partyIndex);
+    const singleTargetConfig = breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.SINGLE
+      ? resolveTurnTargetConfig({
+          member,
+          skill,
+          effectiveSkill,
+          state: this.#stateBefore,
+          enemyCount,
+        })
+      : null;
+    const currentReplayTarget = this.#getCurrentReplayTarget({
+      partyIndex: member.partyIndex,
+      targetConfig: singleTargetConfig,
+      recordAction: replaySlot,
+    });
+    const currentTargetLabel =
+      singleTargetConfig && currentReplayTarget.type === 'enemy'
+        ? formatTurnTargetLabel(singleTargetConfig, currentReplayTarget, {
+            enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+          })
+        : '';
+    const rawBreakEnemyIndexes = isCommitted
+      ? getBreakEnemyIndexesForPosition(
+          this.#getReplayTurnActionOutcomeOverrides(enemyCount),
+          member.position
+        )
+      : [...(this.#draftBreakEnemyIndexesByPartyIndex?.[member.partyIndex] ?? [])]
+          .map((enemyIndex) => Number(enemyIndex))
+          .filter(
+            (enemyIndex) =>
+              Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < enemyCount
+          )
+          .sort((left, right) => left - right);
+
+    return {
+      member,
+      replaySlot,
+      skill,
+      effectiveSkill,
+      breakAttributionMode,
+      explicitTarget,
+      singleTargetConfig,
+      currentReplayTarget,
+      currentTargetLabel,
+      rawBreakEnemyIndexes,
+      breakEnabled: rawBreakEnemyIndexes.length > 0,
+      isEnemyTargetSelectionManual: isEnemyTargetSelectionManual(this.#simulatorSettings),
+    };
+  }
+
   /** コミットボタン押下時に呼ばれる前に TurnAreaController が現在のスロット選択を収集するため */
   getCurrentSlotActions() {
     const actions = {};
@@ -378,17 +480,17 @@ export class TurnRowController {
       }
       const skill = member?.getSkill?.(skillId) ?? null;
       const effectiveSkill = this.#resolveEffectiveSkill(member, skill, this.#stateBefore);
-      const manualTargetConfig = resolveTurnManualTargetConfig({
+      const explicitTarget = this.#getDraftReplayTarget(member.partyIndex);
+      const manualTargetConfig = this.#getManualTargetConfigForMember({
         member,
         skill,
         effectiveSkill,
-        state: this.#stateBefore,
         enemyCount,
-        simulatorSettings: this.#simulatorSettings,
+        explicitTarget,
       });
       const target = this.#getCurrentReplayTarget({
         partyIndex: member.partyIndex,
-        manualTargetConfig,
+        targetConfig: manualTargetConfig,
         recordAction: null,
       });
       actions[member.partyIndex] = {
@@ -409,12 +511,24 @@ export class TurnRowController {
     const overrides = [];
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     for (const member of members) {
-      const enemyIndexes = (this.#draftBreakEnemyIndexesByPartyIndex?.[member.partyIndex] ?? [])
-        .map((enemyIndex) => Number(enemyIndex))
-        .filter(
-          (enemyIndex) =>
-            Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < enemyCount
-        );
+      const selectionContext = this.#getBreakSelectionContext({
+        member,
+        isCommitted: false,
+        enemyCount,
+      });
+      if (!selectionContext) {
+        continue;
+      }
+      let enemyIndexes = [];
+      if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+        enemyIndexes = selectionContext.rawBreakEnemyIndexes;
+      } else if (
+        selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.SINGLE &&
+        selectionContext.breakEnabled &&
+        selectionContext.currentReplayTarget.type === 'enemy'
+      ) {
+        enemyIndexes = [Number(selectionContext.currentReplayTarget.enemyIndex)];
+      }
       if (enemyIndexes.length === 0) {
         continue;
       }
@@ -569,12 +683,12 @@ export class TurnRowController {
     return normalizeTurnReplayTarget(null);
   }
 
-  #getCurrentReplayTarget({ partyIndex, manualTargetConfig, recordAction = null }) {
+  #getCurrentReplayTarget({ partyIndex, targetConfig, recordAction = null }) {
     const baseTarget =
       recordAction != null
         ? this.#getRecordActionReplayTarget(recordAction)
-        : normalizeTurnReplayTarget(this.#draftTargets?.[partyIndex]);
-    return coerceTurnReplayTarget(manualTargetConfig, baseTarget);
+        : this.#getDraftReplayTarget(partyIndex);
+    return coerceTurnReplayTarget(targetConfig, baseTarget);
   }
 
   #getCurrentReplayTurnEnemyCount() {
@@ -653,37 +767,24 @@ export class TurnRowController {
         <div class="pt-2 space-y-2.5">
           ${members.map((member) => {
             const actorLabel = resolveManualBreakActorLabel(member, this.#store);
-            const selectedEnemyIndexes = this.#getCurrentBreakEnemyIndexes({
+            const selectionContext = this.#getBreakSelectionContext({
               member,
               isCommitted,
               enemyCount,
             });
+            if (!selectionContext) {
+              return '';
+            }
             return `
               <div data-role="manual-break-actor"
                    data-party-index="${member.partyIndex}"
                    class="rounded-lg border border-gray-100 bg-gray-50 px-2 py-2">
                 <div class="pb-1 text-[10px] font-semibold text-gray-700">${actorLabel}</div>
-                <div class="flex flex-wrap gap-1.5">
-                  ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
-                    const isSelected = selectedEnemyIndexes.includes(enemyIndex);
-                    const enemyName = String(
-                      enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
-                    ).trim();
-                    const label = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
-                    return `
-                      <button type="button"
-                              data-role="manual-break-candidate"
-                              data-party-index="${member.partyIndex}"
-                              data-enemy-index="${enemyIndex}"
-                              class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                                     ${isSelected
-                                       ? 'border-amber-500 bg-amber-500 text-white'
-                                       : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
-                        ${label}
-                      </button>
-                    `;
-                  }).join('')}
-                </div>
+                ${this.#buildManualBreakEditorControls({
+                  selectionContext,
+                  enemyCount,
+                  enemyNamesByEnemy,
+                })}
               </div>
             `;
           }).join('')}
@@ -699,19 +800,131 @@ export class TurnRowController {
     if (!member) {
       return [];
     }
-    if (isCommitted) {
-      return getBreakEnemyIndexesForPosition(
-        this.#getReplayTurnActionOutcomeOverrides(enemyCount),
-        member.position
-      );
+    const selectionContext = this.#getBreakSelectionContext({
+      member,
+      isCommitted,
+      enemyCount,
+    });
+    if (!selectionContext) {
+      return [];
     }
-    return [...(this.#draftBreakEnemyIndexesByPartyIndex?.[member.partyIndex] ?? [])]
-      .map((enemyIndex) => Number(enemyIndex))
-      .filter(
-        (enemyIndex) =>
-          Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < enemyCount
-      )
-      .sort((left, right) => left - right);
+    if (
+      selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.SINGLE &&
+      selectionContext.breakEnabled &&
+      selectionContext.currentReplayTarget.type === 'enemy'
+    ) {
+      return [Number(selectionContext.currentReplayTarget.enemyIndex)];
+    }
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+      return selectionContext.rawBreakEnemyIndexes;
+    }
+    return [];
+  }
+
+  #buildManualBreakEditorControls({ selectionContext, enemyCount, enemyNamesByEnemy }) {
+    if (!selectionContext || !selectionContext.skill) {
+      return '<div class="text-[10px] text-gray-400">スキル未選択</div>';
+    }
+
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.NONE) {
+      return '<div class="text-[10px] text-gray-400">敵を攻撃しないため指定なし</div>';
+    }
+
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+      return `
+        <div class="flex flex-wrap gap-1.5">
+          ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
+            const isSelected = selectionContext.rawBreakEnemyIndexes.includes(enemyIndex);
+            const enemyName = String(
+              enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
+            ).trim();
+            const label = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
+            return `
+              <button type="button"
+                      data-role="manual-break-candidate"
+                      data-party-index="${selectionContext.member.partyIndex}"
+                      data-enemy-index="${enemyIndex}"
+                      class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                             ${isSelected
+                               ? 'border-amber-500 bg-amber-500 text-white'
+                               : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
+                ${label}
+              </button>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    const selectedTargetEnemyIndex =
+      selectionContext.currentReplayTarget.type === 'enemy'
+        ? Number(selectionContext.currentReplayTarget.enemyIndex)
+        : 0;
+    const defaultTargetLabel = selectionContext.singleTargetConfig
+      ? formatTurnTargetLabel(
+          selectionContext.singleTargetConfig,
+          normalizeTurnReplayTarget(null),
+          { enemyNamesByEnemy }
+        )
+      : 'E1';
+    const showLocalTargetOverrideControls =
+      !this.#record &&
+      !selectionContext.isEnemyTargetSelectionManual &&
+      selectionContext.singleTargetConfig?.kind === 'enemy' &&
+      Number(selectionContext.singleTargetConfig?.candidates?.length ?? 0) > 1;
+
+    return `
+      <div class="space-y-2">
+        ${showLocalTargetOverrideControls
+          ? `
+            <div class="space-y-1">
+              <div class="text-[10px] text-gray-500">攻撃対象</div>
+              <div class="flex flex-wrap gap-1.5">
+                <button type="button"
+                        data-role="manual-break-target-reset"
+                        data-party-index="${selectionContext.member.partyIndex}"
+                        class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                               ${selectionContext.explicitTarget.type === 'enemy'
+                                 ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                                 : 'border-sky-500 bg-sky-500 text-white'}">
+                  自動(${defaultTargetLabel})
+                </button>
+                ${selectionContext.singleTargetConfig.candidates.map((candidate) => {
+                  const enemyName = String(
+                    enemyNamesByEnemy[String(candidate.enemyIndex)] ?? enemyNamesByEnemy[candidate.enemyIndex] ?? ''
+                  ).trim();
+                  const label = enemyName ? `E${candidate.enemyIndex + 1} ${enemyName}` : `E${candidate.enemyIndex + 1}`;
+                  const isSelected =
+                    selectionContext.explicitTarget.type === 'enemy' &&
+                    Number(selectionContext.explicitTarget.enemyIndex) === Number(candidate.enemyIndex);
+                  return `
+                    <button type="button"
+                            data-role="manual-break-target-candidate"
+                            data-party-index="${selectionContext.member.partyIndex}"
+                            data-enemy-index="${candidate.enemyIndex}"
+                            class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                                   ${isSelected
+                                     ? 'border-sky-500 bg-sky-500 text-white'
+                                     : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
+                      ${label}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `
+          : `<div class="text-[10px] text-gray-500">対象敵: <span class="font-semibold text-gray-700">${selectionContext.currentTargetLabel || defaultTargetLabel}</span></div>`}
+        <button type="button"
+                data-role="manual-break-single-toggle"
+                data-party-index="${selectionContext.member.partyIndex}"
+                class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                       ${selectionContext.breakEnabled
+                         ? 'border-amber-500 bg-amber-500 text-white'
+                         : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
+          ${selectionContext.currentTargetLabel || defaultTargetLabel} をブレイク
+        </button>
+      </div>
+    `;
   }
 
   #buildTargetControlHtml({
@@ -750,7 +963,7 @@ export class TurnRowController {
       enemyNamesByEnemy,
     });
     const kindLabel = manualTargetConfig.kind === 'enemy' ? '敵' : '味方';
-    if (isCommitted && !isEditable) {
+    if (!isEditable) {
       return `
         <div data-role="target-trigger-label"
              class="shrink-0 text-[10px] leading-none px-2 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-500">
@@ -882,11 +1095,11 @@ export class TurnRowController {
     const manualBreakChipsHtml = this.#buildManualBreakChipsHtml(isCommitted);
     const operationChipsHtml = this.#buildOperationChipsHtml();
     const noteHtml = `
-      <div data-turn-note class="flex-shrink-0 w-36 space-y-1">
+      <div data-turn-note class="flex flex-col self-stretch min-h-0 flex-shrink-0 w-36 gap-1">
         ${manualBreakChipsHtml}
         ${operationChipsHtml}
         <textarea data-role="note" rows="2"
-                  class="w-full h-full text-xs border border-gray-200 rounded px-1 py-0.5
+                  class="w-full min-h-[52px] flex-1 text-xs border border-gray-200 rounded px-1 py-0.5
                          resize-none focus:outline-none focus:ring-1 focus:ring-blue-300
                          ${isCommitted ? 'bg-gray-50' : 'bg-white'}"
                   placeholder="メモ">${noteValue}</textarea>
@@ -1098,27 +1311,24 @@ export class TurnRowController {
     const effectiveSelectedSkill = this.#resolveEffectiveSkill(member, selectedSkill, stateForCost);
     const explicitTarget = isCommitted
       ? this.#getRecordActionReplayTarget(replaySlot)
-      : normalizeTurnReplayTarget(this.#draftTargets?.[member.partyIndex]);
-    const manualTargetConfig = resolveTurnManualTargetConfig({
+      : this.#getDraftReplayTarget(member.partyIndex);
+    const manualTargetConfig = this.#getManualTargetConfigForMember({
       member,
       skill: selectedSkill,
       effectiveSkill: effectiveSelectedSkill,
-      state: this.#stateBefore,
       enemyCount: currentEnemyCount,
-      simulatorSettings: this.#simulatorSettings,
       explicitTarget,
-      preserveExplicitTarget: isCommitted,
+      isCommitted,
     });
     const currentReplayTarget = this.#getCurrentReplayTarget({
       partyIndex: member.partyIndex,
-      manualTargetConfig,
+      targetConfig: manualTargetConfig,
       recordAction: replaySlot,
     });
     const isTargetEditable =
-      !isCommitted ||
-      (manualTargetConfig?.kind === 'enemy'
+      manualTargetConfig?.kind === 'enemy'
         ? this.#simulatorSettings?.targetSelection?.enemyMode === 'manual'
-        : this.#simulatorSettings?.targetSelection?.allyMode === 'manual');
+        : this.#simulatorSettings?.targetSelection?.allyMode === 'manual';
     const targetControlHtml = this.#buildTargetControlHtml({
       member,
       manualTargetConfig,
@@ -1130,12 +1340,21 @@ export class TurnRowController {
     // EX ターン: 非行動可能メンバーは #buildInactiveSlotHtml で早期 return 済みのため、
     // ここに到達するメンバーは全員 allowedCharacterIds に含まれる。draggable に EX 制限不要。
     const draggable = !isCommitted;
+    const targetControlAnchorHtml = targetControlHtml
+      ? `
+        <div data-role="slot-target-anchor" data-position="${member.position}"
+             class="flex justify-end items-start">
+          ${targetControlHtml}
+        </div>
+      `
+      : '';
+
     return `
       <div draggable="${draggable}" data-turn-slot data-position="${member.position}"
            class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
                   ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
-        <!-- 属性バッジ（左）＋ スキル select（中）＋ ターゲット trigger（右）横並び -->
-        <div class="flex items-center gap-0.5 px-0.5 pt-0.5">
+        <!-- 属性バッジ（左）＋ スキル select（右）。target trigger は別領域に分離して幅発振を防ぐ -->
+        <div data-role="slot-select-row" data-position="${member.position}" class="flex items-center gap-0.5 px-0.5 pt-0.5">
           <div data-skill-badges data-position="${member.position}"
                class="grid grid-cols-2 gap-px flex-shrink-0 self-stretch">
             ${this.#buildSkillBadgesHtml(selectedSkill, member, stateForCost)}
@@ -1146,7 +1365,6 @@ export class TurnRowController {
                          focus:outline-none focus:ring-1 focus:ring-blue-300">
             ${skillOptions}
           </select>
-          ${targetControlHtml}
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
         <div class="flex flex-col p-0.5 gap-0.5">
@@ -1162,8 +1380,10 @@ export class TurnRowController {
                 ${spDisplay}
               </div>
             </div>
-            <!-- 将来のバフ/デバフ・状態異常アイコンスペース -->
-            <div data-slot-info-space class="flex-1 min-w-0"></div>
+            <!-- 将来のバフ/デバフ・状態異常アイコンスペース兼 target trigger 置き場 -->
+            <div data-slot-info-space data-position="${member.position}" class="flex-1 min-w-0">
+              ${targetControlAnchorHtml}
+            </div>
           </div>
           <!-- アイコン直下: トークン・士気 -->
           <div class="flex items-center gap-1.5 flex-wrap px-0.5">
@@ -1274,7 +1494,7 @@ export class TurnRowController {
 
   #buildButtonHtml(isCommitted) {
     const manualBreakControlHtml = `
-      <div class="${isCommitted ? 'relative' : 'col-span-2 relative'}">
+      <div class="col-span-2 relative">
         <button data-role="manual-break-toggle"
                 class="w-full text-[10px] py-0.5 rounded border border-amber-300 bg-amber-50 font-semibold text-amber-700 hover:bg-amber-100 transition-colors">
           ブレイク
@@ -1285,9 +1505,7 @@ export class TurnRowController {
 
     if (isCommitted) {
       return `
-        <div data-turn-buttons class="flex-shrink-0 w-[110px] flex flex-col gap-0.5 px-1 py-1">
-          ${manualBreakControlHtml}
-        </div>`;
+        <div data-turn-buttons class="flex-shrink-0 w-[110px] px-1 py-1"></div>`;
     }
 
     const od = this.#odState;
@@ -1514,6 +1732,119 @@ export class TurnRowController {
       });
     });
 
+    this.#root.querySelectorAll('[data-role="manual-break-target-reset"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (this.#record !== null) {
+          return;
+        }
+        const partyIndex = Number(btn.dataset.partyIndex);
+        if (!Number.isFinite(partyIndex)) {
+          return;
+        }
+        this.#isBreakEditorOpen = true;
+        delete this.#draftTargets[partyIndex];
+        this.update({
+          record: null,
+          stateBefore: this.#stateBefore,
+          stateAfter: null,
+          odState: this.#odState,
+          simulatorSettings: this.#simulatorSettings,
+          isBreakEditorOpen: this.#isBreakEditorOpen,
+        });
+        this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
+      });
+    });
+
+    this.#root.querySelectorAll('[data-role="manual-break-target-candidate"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (this.#record !== null) {
+          return;
+        }
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const enemyIndex = Number(btn.dataset.enemyIndex);
+        if (!Number.isFinite(partyIndex) || !Number.isInteger(enemyIndex) || enemyIndex < 0) {
+          return;
+        }
+        this.#isBreakEditorOpen = true;
+        this.#draftTargets = {
+          ...this.#draftTargets,
+          [partyIndex]: normalizeTurnReplayTarget({
+            type: 'enemy',
+            enemyIndex,
+          }),
+        };
+        this.update({
+          record: null,
+          stateBefore: this.#stateBefore,
+          stateAfter: null,
+          odState: this.#odState,
+          simulatorSettings: this.#simulatorSettings,
+          isBreakEditorOpen: this.#isBreakEditorOpen,
+        });
+        this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
+      });
+    });
+
+    this.#root.querySelectorAll('[data-role="manual-break-single-toggle"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const member =
+          this.#stateBefore?.party?.find((candidate) => Number(candidate?.partyIndex) === partyIndex) ?? null;
+        if (!member) {
+          return;
+        }
+        const enemyCount =
+          this.#record === null ? this.getCurrentEnemyCount() : this.#getCurrentReplayTurnEnemyCount();
+        const selectionContext = this.#getBreakSelectionContext({
+          member,
+          isCommitted: this.#record !== null,
+          enemyCount,
+        });
+        if (!selectionContext) {
+          return;
+        }
+        const nextEnemyIndexes = selectionContext.breakEnabled
+          ? []
+          : selectionContext.currentReplayTarget.type === 'enemy'
+            ? [Number(selectionContext.currentReplayTarget.enemyIndex)]
+            : [];
+
+        this.#isBreakEditorOpen = true;
+        if (this.#record === null) {
+          if (nextEnemyIndexes.length === 0) {
+            delete this.#draftBreakEnemyIndexesByPartyIndex[partyIndex];
+          } else {
+            this.#draftBreakEnemyIndexesByPartyIndex = {
+              ...this.#draftBreakEnemyIndexesByPartyIndex,
+              [partyIndex]: nextEnemyIndexes,
+            };
+          }
+          this.update({
+            record: null,
+            stateBefore: this.#stateBefore,
+            stateAfter: null,
+            odState: this.#odState,
+            simulatorSettings: this.#simulatorSettings,
+            isBreakEditorOpen: this.#isBreakEditorOpen,
+          });
+          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
+          return;
+        }
+
+        const currentOverrides = this.#getReplayTurnActionOutcomeOverrides(enemyCount);
+        const nextOverrides = setBreakEnemyIndexesForPosition(
+          currentOverrides,
+          member.position,
+          nextEnemyIndexes,
+          enemyCount
+        );
+        this.#onActionOutcomeChange?.(this.#turnIndex, nextOverrides);
+      });
+    });
+
     this.#root.querySelectorAll('[data-role="manual-break-candidate"]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -1709,6 +2040,22 @@ export class TurnRowController {
     badgeEl.innerHTML = this.#buildSkillBadgesHtml(skill, member, this.#stateBefore);
   }
 
+  #resolveResponsiveVisibility({
+    width,
+    previousState = null,
+    baseMinWidth,
+    showMinWidth,
+    hideMinWidth,
+  }) {
+    if (previousState === true) {
+      return width >= hideMinWidth;
+    }
+    if (previousState === false) {
+      return width >= showMinWidth;
+    }
+    return width >= baseMinWidth;
+  }
+
   /**
    * select 幅に応じてバッジ表示・SPコスト表示を切り替える。
    * ResizeObserver コールバックおよび refreshSkillSelects() から呼ばれる。
@@ -1720,11 +2067,38 @@ export class TurnRowController {
     // バッジ表示制御
     const badgeEl = this.#root.querySelector(`[data-skill-badges][data-position="${position}"]`);
     if (badgeEl) {
-      badgeEl.style.display = width >= BADGE_MIN_SELECT_WIDTH ? '' : 'none';
+      const previousBadgeVisible =
+        badgeEl.dataset.responsiveVisible === 'true'
+          ? true
+          : badgeEl.dataset.responsiveVisible === 'false'
+            ? false
+            : null;
+      const nextBadgeVisible = this.#resolveResponsiveVisibility({
+        width,
+        previousState: previousBadgeVisible,
+        baseMinWidth: BADGE_MIN_SELECT_WIDTH,
+        showMinWidth: BADGE_SHOW_MIN_SELECT_WIDTH,
+        hideMinWidth: BADGE_HIDE_MIN_SELECT_WIDTH,
+      });
+      badgeEl.style.display = nextBadgeVisible ? '' : 'none';
+      badgeEl.dataset.responsiveVisible = String(nextBadgeVisible);
     }
 
     // SPコスト表示制御（option.textContent を直接更新、value は維持）
-    const showCost = width >= COST_MIN_SELECT_WIDTH;
+    const previousShowCost =
+      selectEl.dataset.showCost === 'true'
+        ? true
+        : selectEl.dataset.showCost === 'false'
+          ? false
+          : null;
+    const showCost = this.#resolveResponsiveVisibility({
+      width,
+      previousState: previousShowCost,
+      baseMinWidth: COST_MIN_SELECT_WIDTH,
+      showMinWidth: COST_SHOW_MIN_SELECT_WIDTH,
+      hideMinWidth: COST_HIDE_MIN_SELECT_WIDTH,
+    });
+    selectEl.dataset.showCost = String(showCost);
     Array.from(selectEl.options).forEach((opt) => {
       const cost = opt.dataset.costLabel ?? '';
       const name = opt.dataset.skillName ?? '';

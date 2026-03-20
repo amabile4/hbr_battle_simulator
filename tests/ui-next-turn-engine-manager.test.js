@@ -322,7 +322,7 @@ test('TurnEngineManager buildInputRowSnapshot resolves partyIndex keyed draft ac
   assert.deepEqual(snapshot.slotActions[1]?.target, { type: 'enemy', enemyIndex: 1 });
 });
 
-test('TurnEngineManager stores manual break attribution and replays break-triggered passive effects', () => {
+test('TurnEngineManager normalizes single-target manual break attribution to the current target and replays break-triggered passive effects', () => {
   const actorSkill = createSkill({
     id: 9060,
     name: 'Break Follow',
@@ -347,7 +347,10 @@ test('TurnEngineManager stores manual break attribution and replays break-trigge
   ];
   const committedRecord = manager.commitNextTurn(
     {
-      0: { skillId: 9060 },
+      0: {
+        skillId: 9060,
+        target: { type: 'enemy', enemyIndex: 1 },
+      },
     },
     {
       enemyCount: 3,
@@ -359,20 +362,21 @@ test('TurnEngineManager stores manual break attribution and replays break-trigge
   const action = committedRecord.actions.find((entry) => entry.positionIndex === 0);
   const spPassiveChange = action.spChanges.find((change) => change.source === 'sp_passive');
 
-  assert.equal(action.breakHitCount, 2);
-  assert.deepEqual(action.manualBreakEnemyIndexes, [0, 2]);
+  assert.equal(action.targetEnemyIndex, 1);
+  assert.equal(action.breakHitCount, 1);
+  assert.deepEqual(action.manualBreakEnemyIndexes, [1]);
   assert.equal(spPassiveChange?.delta, 8);
   assert.deepEqual(
     manager.replayScript.turns[0].overrideEntries.find(
       (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
     )?.payload,
-    actionOutcomeOverrides
+    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
   );
   assert.equal(
     action.enemyStatusChanges.some(
       (change) =>
         change.statusType === 'DownTurn' &&
-        change.targetIndex === 2 &&
+        change.targetIndex === 1 &&
         change.source === 'manual'
     ),
     true
@@ -381,8 +385,8 @@ test('TurnEngineManager stores manual break attribution and replays break-trigge
   manager.recalculateFrom(0);
 
   const replayedAction = manager.computedRecords[0]?.actions.find((entry) => entry.positionIndex === 0);
-  assert.equal(replayedAction?.breakHitCount, 2);
-  assert.deepEqual(replayedAction?.manualBreakEnemyIndexes, [0, 2]);
+  assert.equal(replayedAction?.breakHitCount, 1);
+  assert.deepEqual(replayedAction?.manualBreakEnemyIndexes, [1]);
   assert.equal(
     replayedAction?.spChanges.some((change) => change.source === 'sp_passive'),
     true
@@ -391,10 +395,95 @@ test('TurnEngineManager stores manual break attribution and replays break-trigge
     replayedAction?.enemyStatusChanges.some(
       (change) =>
         change.statusType === 'DownTurn' &&
-        change.targetIndex === 2 &&
+        change.targetIndex === 1 &&
         change.source === 'manual'
     ),
     true
+  );
+});
+
+test('TurnEngineManager preserves subset manual break attribution for all-target attacks', () => {
+  const actorSkill = createSkill({
+    id: 9061,
+    name: 'Wide Break Follow',
+    targetType: 'All',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState(actorSkill), {});
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9061 },
+    },
+    {
+      enemyCount: 3,
+      actionOutcomeOverrides: [
+        { position: 0, outcome: 'Break', enemyIndexes: [0, 2] },
+      ],
+    }
+  );
+
+  const action = committedRecord.actions.find((entry) => entry.positionIndex === 0);
+  assert.equal(action.breakHitCount, 2);
+  assert.deepEqual(action.manualBreakEnemyIndexes, [0, 2]);
+  assert.deepEqual(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+    )?.payload,
+    [{ position: 0, outcome: 'Break', enemyIndexes: [0, 2] }]
+  );
+});
+
+test('TurnEngineManager loadReplayScript normalizes legacy single-target manual break overrides to the saved target', () => {
+  const actorSkill = createSkill({
+    id: 9062,
+    name: 'Replay Break Follow',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  const replayScript = {
+    turns: [
+      {
+        turn: 1,
+        slots: [
+          {
+            styleId: initialState.party[0].styleId,
+            skillId: 9062,
+            target: { type: 'enemy', enemyIndex: 1 },
+          },
+          { styleId: initialState.party[1].styleId, skillId: 9201 },
+          { styleId: initialState.party[2].styleId, skillId: 9202 },
+          { styleId: initialState.party[3].styleId, skillId: null },
+          { styleId: initialState.party[4].styleId, skillId: null },
+          { styleId: initialState.party[5].styleId, skillId: null },
+        ],
+        note: '',
+        operations: [],
+        overrideEntries: [
+          { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, payload: 3 },
+          {
+            type: REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+            payload: [{ position: 0, outcome: 'Break', enemyIndexes: [2] }],
+          },
+        ],
+      },
+    ],
+  };
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, replayScript);
+
+  const action = manager.computedRecords[0]?.actions.find((entry) => entry.positionIndex === 0);
+  assert.equal(action?.targetEnemyIndex, 1);
+  assert.equal(action?.breakHitCount, 1);
+  assert.deepEqual(action?.manualBreakEnemyIndexes, [1]);
+  assert.deepEqual(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+    )?.payload,
+    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
   );
 });
 

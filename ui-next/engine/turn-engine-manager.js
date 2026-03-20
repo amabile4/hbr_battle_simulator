@@ -1,4 +1,5 @@
 import { previewTurnRecord, commitTurnRecord } from '../../src/ui/adapter-core.js';
+import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 import {
   clampEnemyCount,
   DEFAULT_ENEMY_COUNT,
@@ -21,8 +22,13 @@ import {
   REPLAY_OVERRIDE_ENTRY_TYPES,
   replayOperationRegistry,
 } from '../../src/ui/lightweight-replay-script.js';
-import { normalizeTurnReplayTarget } from '../utils/turn-targeting.js';
 import {
+  normalizeTurnReplayTarget,
+  resolveTurnBreakAttributionMode,
+  TURN_BREAK_ATTRIBUTION_MODES,
+} from '../utils/turn-targeting.js';
+import {
+  ACTION_OUTCOME_TYPES,
   buildActionOutcomeOverrideEntry,
   getActionOutcomeOverridesFromOverrideEntries,
   getBreakEnemyIndexesForPosition,
@@ -140,14 +146,16 @@ export class TurnEngineManager {
     const enemyCount = clampEnemyCount(
       options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
-    const actionOutcomeOverrides = normalizeActionOutcomeOverrides(
-      options.actionOutcomeOverrides,
-      enemyCount
-    );
     let state = applyBeforeCommitOperations(
       this.currentState,
       operations,
       { enemyCount }
+    );
+    const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
+      state,
+      slotActions,
+      options.actionOutcomeOverrides,
+      enemyCount
     );
 
     const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides);
@@ -171,7 +179,7 @@ export class TurnEngineManager {
 
     // slotActions は currentState（先制OD 適用前）の position を基準に記録
     const replayTurn = this.#buildReplayTurn(
-      this.currentState,
+      state,
       slotActions,
       options.note ?? '',
       operations,
@@ -236,7 +244,17 @@ export class TurnEngineManager {
       this.#alignPositionsToSlots(state, turn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
       const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
-      const actionOutcomeOverrides = this.#resolveReplayTurnActionOutcomeOverrides(turn, enemyCount);
+      const actionOutcomeOverrides = this.#resolveReplayTurnActionOutcomeOverrides(
+        turn,
+        enemyCount,
+        state,
+        slotActions
+      );
+      this.#replaceReplayOverrideEntry(
+        turn,
+        REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+        actionOutcomeOverrides.length > 0 ? actionOutcomeOverrides : null
+      );
       try {
         state = applyBeforeCommitOperations(state, turn.operations, { enemyCount });
       } catch (err) {
@@ -283,10 +301,6 @@ export class TurnEngineManager {
     const enemyCount = clampEnemyCount(
       options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
-    const actionOutcomeOverrides = normalizeActionOutcomeOverrides(
-      options.actionOutcomeOverrides,
-      enemyCount
-    );
     let state = this.currentState;
     try {
       state = applyBeforeCommitOperations(
@@ -297,6 +311,12 @@ export class TurnEngineManager {
     } catch {
       return null;
     }
+    const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
+      state,
+      slotActions,
+      options.actionOutcomeOverrides,
+      enemyCount
+    );
 
     return this.#previewResolvedTurn(state, slotActions, enemyCount, actionOutcomeOverrides);
   }
@@ -304,10 +324,6 @@ export class TurnEngineManager {
   buildInputRowSnapshot({ slotActions = {}, enemyCount = null, actionOutcomeOverrides = [] } = {}) {
     const normalizedEnemyCount = clampEnemyCount(
       enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
-    );
-    const normalizedActionOutcomeOverrides = normalizeActionOutcomeOverrides(
-      actionOutcomeOverrides,
-      normalizedEnemyCount
     );
     let stateBefore = this.currentState;
     try {
@@ -323,6 +339,12 @@ export class TurnEngineManager {
     const resolvedSlotActions = this.#resolveInputRowSlotActions(
       stateBefore,
       slotActions,
+      normalizedEnemyCount
+    );
+    const normalizedActionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
+      stateBefore,
+      resolvedSlotActions,
+      actionOutcomeOverrides,
       normalizedEnemyCount
     );
     const preview = this.#previewResolvedTurn(
@@ -543,7 +565,11 @@ export class TurnEngineManager {
     if (!turn) return;
     const normalizedEnemyCount = clampEnemyCount(enemyCount);
     this.#replaceReplayOverrideEntry(turn, REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, normalizedEnemyCount);
-    const actionOutcomeOverrides = normalizeActionOutcomeOverrides(
+    const stateBefore = this.getStateBefore(turnIndex);
+    const slotActions = this.#slotActionsFromReplayTurn(turn);
+    const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
+      stateBefore,
+      slotActions,
       this.#resolveReplayTurnActionOutcomeOverrides(turn, normalizedEnemyCount),
       normalizedEnemyCount
     );
@@ -558,8 +584,15 @@ export class TurnEngineManager {
   updateActionOutcomeOverrides(turnIndex, actionOutcomeOverrides) {
     const turn = this.#replayScript?.turns[turnIndex];
     if (!turn) return;
-    const enemyCount = this.#resolveReplayTurnEnemyCount(turn, this.getStateBefore(turnIndex));
-    const normalized = normalizeActionOutcomeOverrides(actionOutcomeOverrides, enemyCount);
+    const stateBefore = this.getStateBefore(turnIndex);
+    const enemyCount = this.#resolveReplayTurnEnemyCount(turn, stateBefore);
+    const slotActions = this.#slotActionsFromReplayTurn(turn);
+    const normalized = this.#normalizeActionOutcomeOverridesForState(
+      stateBefore,
+      slotActions,
+      actionOutcomeOverrides,
+      enemyCount
+    );
     this.#replaceReplayOverrideEntry(
       turn,
       REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
@@ -715,6 +748,15 @@ export class TurnEngineManager {
    */
   #buildActionsDict(state, slotActions, actionOutcomeOverrides = []) {
     const actions = {};
+    const normalizedEnemyCount = clampEnemyCount(
+      state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+    );
+    const normalizedActionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
+      state,
+      slotActions,
+      actionOutcomeOverrides,
+      normalizedEnemyCount
+    );
     for (const [posStr, action] of Object.entries(slotActions)) {
       const slotPosition = Number(posStr);
       if (!Number.isFinite(slotPosition)) continue;
@@ -737,7 +779,10 @@ export class TurnEngineManager {
       if (!skill) continue;
 
       const materializedTarget = this.#materializeActionTarget(state, action.target);
-      const breakEnemyIndexes = getBreakEnemyIndexesForPosition(actionOutcomeOverrides, member.position);
+      const breakEnemyIndexes = getBreakEnemyIndexesForPosition(
+        normalizedActionOutcomeOverrides,
+        member.position
+      );
 
       actions[member.position] = {
         skillId: action.skillId,
@@ -787,7 +832,9 @@ export class TurnEngineManager {
       };
     });
     const normalizedEnemyCount = clampEnemyCount(enemyCount);
-    const normalizedActionOutcomeOverrides = normalizeActionOutcomeOverrides(
+    const normalizedActionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
+      state,
+      slotActions,
       actionOutcomeOverrides,
       normalizedEnemyCount
     );
@@ -821,9 +868,18 @@ export class TurnEngineManager {
     );
   }
 
-  #resolveReplayTurnActionOutcomeOverrides(replayTurn, enemyCount) {
-    return getActionOutcomeOverridesFromOverrideEntries(
+  #resolveReplayTurnActionOutcomeOverrides(replayTurn, enemyCount, state = null, slotActions = null) {
+    const normalized = getActionOutcomeOverridesFromOverrideEntries(
       replayTurn?.overrideEntries ?? [],
+      enemyCount
+    );
+    if (!state || !slotActions) {
+      return normalized;
+    }
+    return this.#normalizeActionOutcomeOverridesForState(
+      state,
+      slotActions,
+      normalized,
       enemyCount
     );
   }
@@ -873,6 +929,89 @@ export class TurnEngineManager {
       }
     }
     return {};
+  }
+
+  #normalizeSingleTargetEnemyIndex(targetEnemyIndex, enemyCount) {
+    const normalizedEnemyCount = clampEnemyCount(enemyCount);
+    const numericTargetEnemyIndex = Number(targetEnemyIndex);
+    if (
+      Number.isInteger(numericTargetEnemyIndex) &&
+      numericTargetEnemyIndex >= 0 &&
+      numericTargetEnemyIndex < normalizedEnemyCount
+    ) {
+      return numericTargetEnemyIndex;
+    }
+    return 0;
+  }
+
+  #normalizeActionOutcomeOverridesForState(state, slotActions = {}, actionOutcomeOverrides = [], enemyCount) {
+    const normalizedEnemyCount = clampEnemyCount(
+      enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+    );
+    const normalizedOverrides = normalizeActionOutcomeOverrides(
+      actionOutcomeOverrides,
+      normalizedEnemyCount
+    );
+    if (normalizedOverrides.length === 0) {
+      return [];
+    }
+
+    const nextOverrides = [];
+    for (const override of normalizedOverrides) {
+      const position = Number(override?.position);
+      if (!Number.isInteger(position)) {
+        continue;
+      }
+      const action = slotActions?.[position];
+      if (!action || action.skillId == null) {
+        continue;
+      }
+      const member = action.styleId != null
+        ? state?.party?.find((candidate) => candidate.styleId === action.styleId) ?? null
+        : state?.party?.find((candidate) => candidate.position === position) ?? null;
+      if (!member) {
+        continue;
+      }
+      const skill = member.getSkill(action.skillId);
+      if (!skill) {
+        continue;
+      }
+
+      let effectiveSkill = skill;
+      try {
+        effectiveSkill = resolveEffectiveSkillForAction(state, member, skill) ?? skill;
+      } catch {
+        effectiveSkill = skill;
+      }
+      const breakAttributionMode = resolveTurnBreakAttributionMode({ skill, effectiveSkill });
+      if (breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.NONE) {
+        continue;
+      }
+      if (breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+        nextOverrides.push({
+          position,
+          outcome: ACTION_OUTCOME_TYPES.BREAK,
+          enemyIndexes: [...override.enemyIndexes],
+        });
+        continue;
+      }
+      if (override.enemyIndexes.length === 0) {
+        continue;
+      }
+      const materializedTarget = this.#materializeActionTarget(state, action.target);
+      nextOverrides.push({
+        position,
+        outcome: ACTION_OUTCOME_TYPES.BREAK,
+        enemyIndexes: [
+          this.#normalizeSingleTargetEnemyIndex(
+            materializedTarget?.targetEnemyIndex,
+            normalizedEnemyCount
+          ),
+        ],
+      });
+    }
+
+    return normalizeActionOutcomeOverrides(nextOverrides, normalizedEnemyCount);
   }
 
   /**

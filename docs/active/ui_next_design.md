@@ -84,8 +84,10 @@
 補足:
 
 - listbox は icon と同じ幅に揃える
+- `SP装備` の初期既定値は `SP +3` とする
 - 未選択時は略称を placeholder として表示する
 - `main style icon` / `support style icon` は未選択でもクリック可能な明確な empty state を持つ
+- Party Setup プリセットは既存スロットへ保存するときだけ上書き確認を出す
 
 ### 操作モデル
 
@@ -185,11 +187,14 @@
 
 - 敵 manual picker は `enemyMode === 'manual'` かつ敵単体指定が必要な skill のときだけ出す
 - 味方 manual picker は `allyMode === 'manual'` かつ `AllySingle` / `AllySingleWithoutSelf` のときだけ出す
-- 敵単体指定は skill select 横の trigger から開くフローティング popover で選ぶ
+- 敵単体指定は skill select とは別領域に置き、style icon 行の右側 info-space に配置した trigger から開くフローティング popover で選ぶ
 - 敵候補は `E1 / E2 / E3` 形式の chip とし、敵名がある場合は同じ chip 内に併記する
 - 味方単体指定は 6 人分の style icon を並べたフローティング popover で選ぶ
+- target trigger は skill select と同じ flex row に置かず、設定パネルの表示有無や横幅変動でも select 幅と style icon の縦位置が発振しない構造を優先する
 - `AllySingleWithoutSelf` の self と `IsFront()==1` の後衛候補は非表示にせず disabled 表示にする
 - 全体攻撃では manual target UI を出さない
+- `enemyMode === 'simple'` でも、敵複数の単体攻撃に限っては `ブレイク` editor 内から row 単位の局所 target override を入れられるようにする
+- simple 中に局所 target override が入っている input row は、通常の target trigger ではなく info-space に read-only summary label を出して current target を見せる
 - committed 行の explicit target summary は現在設定が `simple` でも表示を保持する
 - target の保存形式は replay target に統一し、engine 実行直前に `targetEnemyIndex` / `targetCharacterId` へ変換する
 
@@ -209,7 +214,13 @@
 
 - `DownTurn` は direct 入力させず、「この行動で break した敵」を action ごとに複数選択できる UI とする
 - 常設 picker は置かず、右側ボタン群に `ブレイク` ボタンを置き、押したときだけフローティング editor panel を開く
-- panel 内では前衛 actor ごとに敵 chip (`E1 / E2 / E3`) を複数選択できる
+- committed 行では `ブレイク` editor を常設表示せず、保存済み chip のみを見せる
+- 敵単体攻撃では `break` を attack target と独立に選ばせない
+  - `enemyMode === 'manual'` の単体攻撃では、通常の target trigger で選ばれている current target に対して `ブレイクする / しない` だけを切り替える
+  - `enemyMode === 'simple'` かつ敵複数の単体攻撃では、`ブレイク` editor 内に `自動(E1)` + `E1/E2/E3` target chips を出し、target override と `ブレイクする / しない` をまとめて編集する
+  - これにより `攻撃は E2 / break は E3` のような不整合状態は作れない
+- 敵全体攻撃では、現在どおり前衛 actor ごとに敵 chip (`E1 / E2 / E3`) を複数選択できる
+  - 例: `E1, E3 は break / E2 は not break`
 - 行上の常設表示は要約 1 件ではなく、`actor→enemy ブレイク` の chip 群とする
   - 例: `ワッキー→E1 ブレイク`
   - 敵名がある場合は `ワッキー→ワイバーン ブレイク` のように enemy label を使う
@@ -218,7 +229,8 @@
   - `姓 名` の場合は名を候補に含める
   - 同一長の場合は `名 → 愛称 → フルネーム` の順で採る
 - 保存値は `ReplayTurn.overrideEntries.ActionOutcomeOverrides` とし、payload は `{ position, outcome: 'Break', enemyIndexes }[]` に固定する
-- committed 行でも同じ `ブレイク` editor で manual break attribution を編集でき、変更後はその turn から再計算する
+- 単体攻撃では payload を boolean 相当として扱い、非空なら current target 1 件へ正規化する
+- committed 行では `ブレイク` editor を再表示せず、保存済み chip のみを見せる
 - `DownTurn` は保存しない
   - replay 時に manual break を action context へ注入する
   - shared runtime が `Break + DownTurn + breakHitCount` を派生させる

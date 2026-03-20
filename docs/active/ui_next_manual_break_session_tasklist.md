@@ -14,9 +14,10 @@
 - [x] `ReplayTurn.overrideEntries` に `ActionOutcomeOverrides` を追加した
 - [x] manual outcome の初回対象を `Break` のみに固定した
 - [x] `ui-next` 各行動行で敵 chip 複数選択による manual break attribution UI を追加した
-- [x] committed row でも manual break attribution を編集でき、変更時はその turn から再計算されるようにした
 - [x] manual break UI を常設 picker から `ブレイク` ボタン起点のフローティング editor に置き換えた
 - [x] 行上には `actor→enemy ブレイク` の chip 群を表示し、actor 名は `名 / 愛称 / フルネーム` の候補から最短のものを使うようにした
+- [x] 敵単体攻撃では break を current attack target に従属させ、`enemyMode=simple` でも `ブレイク` editor 内の局所 target override で `E2 を攻撃して break / E3 を攻撃して非 break` を表現できるようにした
+- [x] committed row では manual break editor を出さず、保存済み chip のみを表示する方針に固定した
 - [x] shared runtime / replay 再生で `manualBreakEnemyIndexes` と `breakHitCount` を action context に注入した
 - [x] `DownTurn` を保存せず、manual break から `Break + DownTurn + breakHitCount` を派生させるようにした
 - [x] `SessionSnapshotV1` を導入し、`setup / simulatorSettings / validationPolicy / replayScript` を JSON round-trip できるようにした
@@ -35,11 +36,13 @@
 ```
 
 - `DownTurn` は保存値ではなく、replay 時に action に注入された manual break から派生させる
+- 敵単体攻撃では `enemyIndexes` を boolean 相当として扱い、commit / recalc / load の各経路で current target 1 件へ正規化する
 
 ### UI / engine 境界
 
 - `TurnRowController` は manual break の draft を partyIndex 単位で保持する
 - manual break UI は右側ボタン群の `ブレイク` ボタンでのみ開き、行上の常設表示は `actor→enemy ブレイク` chip 群に限定する
+- 敵単体攻撃の `ブレイク` editor は target + break をまとめて扱い、敵全体攻撃だけが multi-select のまま残る
 - `TurnAreaController` は row draft を `TurnEngineManager.buildInputRowSnapshot()` と `commitNextTurn()` へ渡すだけに留める
 - `TurnEngineManager` は replay / recalc orchestration を担い、action dict に `manualBreakEnemyIndexes` と `breakHitCount` を materialize する
 - 実際の `Break + DownTurn` 付与と break 起点 passive 発火は shared runtime (`turn-controller`) 側で処理する

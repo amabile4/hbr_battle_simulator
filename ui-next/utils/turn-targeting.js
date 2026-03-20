@@ -7,10 +7,17 @@ import {
 } from './simulator-settings.js';
 
 const ALLY_SINGLE_TARGET_TYPES = new Set(['AllySingle', 'AllySingleWithoutSelf']);
+const ENEMY_ALL_TARGET_TYPES = new Set(['All', 'EnemyAll']);
 const ENEMY_SINGLE_TARGET_TYPES = new Set(['Single', 'EnemySingle']);
 const TARGET_CONDITION_FRONT_ONLY = 'IsFront()==1';
 const TARGET_CONDITION_BACK_ONLY = 'IsFront()==0';
 const FRONTLINE_LAST_POSITION = 2;
+
+export const TURN_BREAK_ATTRIBUTION_MODES = Object.freeze({
+  NONE: 'none',
+  SINGLE: 'single',
+  ALL: 'all',
+});
 
 function normalizeTargetCondition(targetCondition) {
   return String(targetCondition ?? '').replace(/\s+/g, '');
@@ -49,17 +56,74 @@ function buildAllyCandidates(state, actorMember, targetType, targetCondition) {
 }
 
 function resolveEnemySingleTarget(parts, effectiveSkill) {
-  const effectiveParts = Array.isArray(parts) ? parts : [];
-  const skillTargetType = String(effectiveSkill?.targetType ?? '').trim();
-  if (skillTargetType === 'All' || skillTargetType === 'EnemyAll') {
-    return false;
-  }
+  return resolveTurnBreakAttributionMode({ parts, effectiveSkill }) === TURN_BREAK_ATTRIBUTION_MODES.SINGLE;
+}
+
+export function resolveTurnBreakAttributionMode({ skill = null, effectiveSkill = skill, parts = null } = {}) {
+  const effectiveParts = Array.isArray(parts)
+    ? parts
+    : (Array.isArray(effectiveSkill?.parts) ? effectiveSkill.parts : []);
+  const skillTargetType = String(
+    effectiveSkill?.targetType ?? effectiveSkill?.target_type ?? skill?.targetType ?? skill?.target_type ?? ''
+  ).trim();
   if (effectiveParts.length === 0) {
-    return ENEMY_SINGLE_TARGET_TYPES.has(skillTargetType);
+    if (ENEMY_ALL_TARGET_TYPES.has(skillTargetType)) {
+      return TURN_BREAK_ATTRIBUTION_MODES.ALL;
+    }
+    if (ENEMY_SINGLE_TARGET_TYPES.has(skillTargetType)) {
+      return TURN_BREAK_ATTRIBUTION_MODES.SINGLE;
+    }
+    return TURN_BREAK_ATTRIBUTION_MODES.NONE;
   }
-  return effectiveParts.some((part) =>
-    ENEMY_SINGLE_TARGET_TYPES.has(String(part?.target_type ?? effectiveSkill?.targetType ?? '').trim())
+  if (effectiveParts.some((part) =>
+    ENEMY_ALL_TARGET_TYPES.has(String(part?.target_type ?? skillTargetType).trim())
+  )) {
+    return TURN_BREAK_ATTRIBUTION_MODES.ALL;
+  }
+  if (effectiveParts.some((part) =>
+    ENEMY_SINGLE_TARGET_TYPES.has(String(part?.target_type ?? skillTargetType).trim())
+  )) {
+    return TURN_BREAK_ATTRIBUTION_MODES.SINGLE;
+  }
+  return TURN_BREAK_ATTRIBUTION_MODES.NONE;
+}
+
+export function resolveTurnTargetConfig({
+  member,
+  skill,
+  effectiveSkill = skill,
+  state,
+  enemyCount = DEFAULT_ENEMY_COUNT,
+} = {}) {
+  if (!member || !effectiveSkill || !state) {
+    return null;
+  }
+  const effectiveParts = Array.isArray(effectiveSkill?.parts) ? effectiveSkill.parts : [];
+  const allyTargetPart = effectiveParts.find((part) =>
+    ALLY_SINGLE_TARGET_TYPES.has(String(part?.target_type ?? '').trim())
   );
+  if (allyTargetPart) {
+    const targetType = String(allyTargetPart?.target_type ?? '').trim();
+    const targetCondition = normalizeTargetCondition(allyTargetPart?.target_condition);
+    const candidates = buildAllyCandidates(state, member, targetType, targetCondition);
+    if (candidates.every((candidate) => candidate.disabled)) {
+      return null;
+    }
+    return {
+      kind: 'ally',
+      targetType,
+      targetCondition,
+      candidates,
+    };
+  }
+  if (!resolveEnemySingleTarget(effectiveParts, effectiveSkill)) {
+    return null;
+  }
+  return {
+    kind: 'enemy',
+    targetType: 'Single',
+    candidates: buildEnemyCandidates(enemyCount),
+  };
 }
 
 function findTargetCandidate(config, target) {
@@ -128,44 +192,19 @@ export function resolveTurnManualTargetConfig({
   explicitTarget = null,
   preserveExplicitTarget = false,
 } = {}) {
-  if (!member || !effectiveSkill || !state) {
+  const config = resolveTurnTargetConfig({
+    member,
+    skill,
+    effectiveSkill,
+    state,
+    enemyCount,
+  });
+  if (!config) {
     return null;
   }
 
-  let config = null;
-  const parts = Array.isArray(effectiveSkill.parts) ? effectiveSkill.parts : [];
-  const allyTargetPart = parts.find((part) =>
-    ALLY_SINGLE_TARGET_TYPES.has(String(part?.target_type ?? '').trim())
-  );
-  if (allyTargetPart) {
-    const targetType = String(allyTargetPart?.target_type ?? '').trim();
-    const targetCondition = normalizeTargetCondition(allyTargetPart?.target_condition);
-    const candidates = buildAllyCandidates(state, member, targetType, targetCondition);
-    if (candidates.every((candidate) => candidate.disabled)) {
-      return null;
-    }
-    config = {
-      kind: 'ally',
-      targetType,
-      targetCondition,
-      candidates,
-    };
-  } else {
-    if (clampEnemyCount(enemyCount) <= DEFAULT_ENEMY_COUNT) {
-      return null;
-    }
-    if (!resolveEnemySingleTarget(parts, effectiveSkill)) {
-      return null;
-    }
-    config = {
-      kind: 'enemy',
-      targetType: 'Single',
-      candidates: buildEnemyCandidates(enemyCount),
-    };
-  }
-
   const manualEnabled = config.kind === 'enemy'
-    ? isEnemyTargetSelectionManual(simulatorSettings)
+    ? clampEnemyCount(enemyCount) > DEFAULT_ENEMY_COUNT && isEnemyTargetSelectionManual(simulatorSettings)
     : isAllyTargetSelectionManual(simulatorSettings);
   if (manualEnabled) {
     return config;

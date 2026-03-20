@@ -29,6 +29,8 @@ const MORALE_OPTIONS = [
 
 const PRESET_STORAGE_KEY = 'hbr.ui_next.party_presets.v1';
 const PRESET_COUNT = 3;
+const DEFAULT_SP_EQUIP_ID = '3';
+const EMPTY_SP_EQUIP_ID = '';
 
 function extractCharaName(style) {
   const raw = String(style?.chara ?? '');
@@ -57,6 +59,19 @@ function selectHtml(dataField, slotIndex, options, currentValue, cls = '') {
       ).join('')}
     </select>
   `;
+}
+
+function resolveSnapshotSpEquipId(snapshot = {}, index) {
+  const startSpEquipByPartyIndex = snapshot?.startSpEquipByPartyIndex;
+  if (
+    startSpEquipByPartyIndex &&
+    typeof startSpEquipByPartyIndex === 'object' &&
+    Object.prototype.hasOwnProperty.call(startSpEquipByPartyIndex, index)
+  ) {
+    const bonus = Number(startSpEquipByPartyIndex[index] ?? 0);
+    return bonus > 0 ? String(bonus) : EMPTY_SP_EQUIP_ID;
+  }
+  return DEFAULT_SP_EQUIP_ID;
 }
 
 /**
@@ -93,7 +108,7 @@ export class PartySetupController {
       lb: 0,
       supportLb: 0,
       drivePierce: 0,
-      spEquipId: '',
+      spEquipId: DEFAULT_SP_EQUIP_ID,
       belt: '',
       morale: 'normal',
     }));
@@ -147,7 +162,7 @@ export class PartySetupController {
       ),
       // '' = SP装備なし → bonus 0、'1'/'2'/'3' → 数値変換
       startSpEquipByPartyIndex: Object.fromEntries(
-        this.#slots.map((s, i) => [i, s.spEquipId === '' ? 0 : Number(s.spEquipId)])
+        this.#slots.map((s, i) => [i, s.spEquipId === EMPTY_SP_EQUIP_ID ? 0 : Number(s.spEquipId)])
       ),
     };
   }
@@ -166,10 +181,7 @@ export class PartySetupController {
         lb: Number(snapshot?.limitBreakLevelsByPartyIndex?.[index] ?? 0),
         supportLb: Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0),
         drivePierce: Number(snapshot?.drivePierceByPartyIndex?.[index] ?? 0),
-        spEquipId:
-          Number(snapshot?.startSpEquipByPartyIndex?.[index] ?? 0) > 0
-            ? String(snapshot.startSpEquipByPartyIndex[index])
-            : '',
+        spEquipId: resolveSnapshotSpEquipId(snapshot, index),
         belt: '',
         morale: 'normal',
       };
@@ -211,6 +223,12 @@ export class PartySetupController {
 
   #savePreset(index) {
     const presets = this.#readPresets();
+    if (presets[index]) {
+      const ok = window.confirm?.(`プリセット ${index + 1} を上書きしますか？`) ?? true;
+      if (!ok) {
+        return;
+      }
+    }
     presets[index] = {
       label: this.#makePresetLabel(),
       savedAt: new Date().toISOString(),
@@ -243,7 +261,7 @@ export class PartySetupController {
         lb: s.lb ?? 0,
         supportLb: s.supportLb ?? 0,
         drivePierce: s.drivePierce ?? 0,
-        spEquipId: s.spEquipId ?? '',
+        spEquipId: s.spEquipId ?? DEFAULT_SP_EQUIP_ID,
         belt: s.belt ?? '',
         morale: s.morale ?? 'normal',
       };
