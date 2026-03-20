@@ -80,9 +80,9 @@ async function main() {
     store,
     onApply: (snapshot) => {
       try {
-        const state = battleStateManager.buildFromSnapshot(snapshot);
-        const replaySetup = buildReplaySetupFromSnapshot(snapshot);
-        turnArea.initialize(state, replaySetup);
+        const state = battleStateManager.buildFromSnapshot(snapshot.party);
+        const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
+        turnArea.initialize(state, replaySetup, snapshot.enemyParams);
         initialSetup.setHasRecords(false);
         window.collapseSetup?.();
       } catch (err) {
@@ -92,8 +92,8 @@ async function main() {
     },
     onRecalculate: (snapshot) => {
       try {
-        const state = battleStateManager.buildFromSnapshot(snapshot);
-        turnArea.reinitialize(state);
+        const state = battleStateManager.buildFromSnapshot(snapshot.party);
+        turnArea.reinitialize(state, snapshot.enemyParams);
         window.collapseSetup?.();
       } catch (err) {
         showStatus(`再計算エラー: ${err.message}`);

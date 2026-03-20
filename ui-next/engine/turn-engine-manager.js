@@ -1,11 +1,20 @@
 import { previewTurnRecord, commitTurnRecord } from '../../src/ui/adapter-core.js';
 import { activateOverdrive } from '../../src/turn/turn-controller.js';
-import { getOdGaugeRequirement, REINFORCED_MODE_OD_GAUGE_BONUS, OD_GAUGE_MAX_PERCENT } from '../../src/config/battle-defaults.js';
 import {
+  clampEnemyCount,
+  DEFAULT_ENEMY_COUNT,
+  getOdGaugeRequirement,
+  REINFORCED_MODE_OD_GAUGE_BONUS,
+  OD_GAUGE_MAX_PERCENT,
+} from '../../src/config/battle-defaults.js';
+import {
+  applyReplayOverrideEntriesToScenarioTurn,
   createEmptyLightweightReplayScript,
   normalizeLightweightReplayTurn,
   REPLAY_OPERATION_TYPES,
+  REPLAY_OVERRIDE_ENTRY_TYPES,
 } from '../../src/ui/lightweight-replay-script.js';
+import { normalizeTurnReplayTarget } from '../utils/turn-targeting.js';
 
 // turn-controller.js の TEZUKA_CHARACTER_ID と同値
 const TEZUKA_CHARACTER_ID = 'STezuka';
@@ -95,6 +104,7 @@ export class TurnEngineManager {
    */
   commitNextTurn(slotActions = {}, options = {}) {
     let state = this.currentState;
+    const enemyCount = clampEnemyCount(options.enemyCount ?? state?.turnState?.enemyState?.enemyCount);
 
     // 鬼神化が pending の場合は commit 前に発動（先制OD より先に適用）
     if (this.#pendingKishinka) {
@@ -109,7 +119,7 @@ export class TurnEngineManager {
 
     const actions = this.#buildActionsDict(state, slotActions);
     const previewRecord = previewTurnRecord(
-      state, actions, options.enemyAction ?? null, options.enemyCount ?? 1
+      state, actions, options.enemyAction ?? null, enemyCount
     );
 
     const interruptLevel = options.interruptOdLevel ?? this.#pendingInterruptOdLevel ?? 0;
@@ -142,7 +152,7 @@ export class TurnEngineManager {
 
     // slotActions は currentState（先制OD 適用前）の position を基準に記録
     const replayTurn = this.#buildReplayTurn(
-      this.currentState, slotActions, options.note ?? '', operations
+      this.currentState, slotActions, options.note ?? '', operations, enemyCount
     );
     this.#replayScript.turns.push(replayTurn);
     this.#computedStates.push(nextState);
@@ -233,6 +243,7 @@ export class TurnEngineManager {
       }
 
       const actions = this.#buildActionsDict(state, slotActions);
+      const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
 
       // 割込OD operation を再現
       const interruptLevel = this.#extractOperationLevel(
@@ -240,7 +251,7 @@ export class TurnEngineManager {
       );
 
       try {
-        const previewRecord = previewTurnRecord(state, actions, null, 1);
+        const previewRecord = previewTurnRecord(state, actions, null, enemyCount);
         const { nextState, committedRecord } = commitTurnRecord(state, previewRecord, [], {
           interruptOdLevel: interruptLevel ?? 0,
         });
@@ -265,7 +276,7 @@ export class TurnEngineManager {
    * @param {Object<number, {skillId: number|null}>} slotActions position キー
    * @returns {{ odGaugeAfter: number, activatableInterrupt: number[] } | null}
    */
-  previewCurrentTurn(slotActions = {}) {
+  previewCurrentTurn(slotActions = {}, options = {}) {
     let state = this.currentState;
 
     // 鬼神化が pending の場合は発動後の state でプレビュー（SP 0 をリアルタイム反映）
@@ -284,7 +295,12 @@ export class TurnEngineManager {
 
     const actions = this.#buildActionsDict(state, slotActions);
     try {
-      const previewRecord = previewTurnRecord(state, actions, null, 1);
+      const previewRecord = previewTurnRecord(
+        state,
+        actions,
+        null,
+        clampEnemyCount(options.enemyCount ?? state?.turnState?.enemyState?.enemyCount)
+      );
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
 
       const { canInterrupt } = this.#getOdActivationStatus(state.turnState);
@@ -515,9 +531,11 @@ export class TurnEngineManager {
       const skill = member.getSkill(action.skillId);
       if (!skill) continue;
 
+      const materializedTarget = this.#materializeActionTarget(state, action.target);
+
       actions[member.position] = {
         skillId: action.skillId,
-        ...(action.target != null ? { target: action.target } : {}),
+        ...materializedTarget,
       };
     }
     return actions;
@@ -531,7 +549,7 @@ export class TurnEngineManager {
         slotActions[position] = {
           skillId: slot.skillId,
           styleId: slot.styleId ?? null,
-          ...(slot.target != null ? { target: slot.target } : {}),
+          target: normalizeTurnReplayTarget(slot.target),
         };
       }
     });
@@ -539,7 +557,7 @@ export class TurnEngineManager {
   }
 
   /** commit 時点の state + slotActions から LightweightReplayTurn を生成する */
-  #buildReplayTurn(state, slotActions, note = '', operations = []) {
+  #buildReplayTurn(state, slotActions, note = '', operations = [], enemyCount = DEFAULT_ENEMY_COUNT) {
     const slots = Array.from({ length: 6 }, (_, position) => {
       const member = state.party.find((m) => m.position === position);
       const action = slotActions[position];
@@ -549,12 +567,57 @@ export class TurnEngineManager {
         ...(action?.target != null ? { target: action.target } : {}),
       };
     });
+    const normalizedEnemyCount = clampEnemyCount(enemyCount);
     return normalizeLightweightReplayTurn({
       turn: state.turnState?.turnIndex ?? null,
       slots,
       note,
       operations,
+      overrideEntries: [
+        {
+          type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
+          payload: normalizedEnemyCount,
+        },
+      ],
     });
+  }
+
+  #resolveReplayTurnEnemyCount(replayTurn, state) {
+    const scenarioTurn = {};
+    applyReplayOverrideEntriesToScenarioTurn(replayTurn?.overrideEntries ?? [], scenarioTurn, []);
+    return clampEnemyCount(
+      scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+    );
+  }
+
+  #materializeActionTarget(state, target) {
+    const normalizedTarget = normalizeTurnReplayTarget(target);
+    if (normalizedTarget.type === 'enemy') {
+      const enemyIndex = Number(normalizedTarget.enemyIndex);
+      if (Number.isFinite(enemyIndex) && enemyIndex >= 0) {
+        return { targetEnemyIndex: enemyIndex };
+      }
+      return {};
+    }
+    if (normalizedTarget.type === 'ally') {
+      const styleId = Number(normalizedTarget.styleId);
+      if (Number.isFinite(styleId)) {
+        const targetMember =
+          state?.party?.find((member) => Number(member?.styleId) === styleId) ?? null;
+        if (targetMember?.characterId) {
+          return { targetCharacterId: String(targetMember.characterId) };
+        }
+      }
+      const characterId = String(normalizedTarget.characterId ?? '').trim();
+      if (characterId) {
+        const targetMember =
+          state?.party?.find((member) => String(member?.characterId) === characterId) ?? null;
+        if (targetMember?.characterId) {
+          return { targetCharacterId: String(targetMember.characterId) };
+        }
+      }
+    }
+    return {};
   }
 
   /**

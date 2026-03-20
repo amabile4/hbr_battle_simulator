@@ -1,8 +1,15 @@
 import { resolveStyleImageUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import { isNormalAttackSkill, isAdmiralCommandSkill } from '../../src/domain/skill-classifiers.js';
+import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 import { formatSkillCostLabel } from '../utils/skill-label.js';
 import { getExcludedSkillIds } from '../utils/skill-filter.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
+import {
+  coerceTurnReplayTarget,
+  formatTurnTargetLabel,
+  normalizeTurnReplayTarget,
+  resolveTurnManualTargetConfig,
+} from '../utils/turn-targeting.js';
 
 // select 幅の閾値（px）：スキルバッジ・SPコスト表示の切り替えに使用
 const BADGE_MIN_SELECT_WIDTH = 90;
@@ -64,8 +71,13 @@ export class TurnRowController {
   #selectedSlotPosition = null;
   // update() 時にスキル選択を保持するための一時フィールド
   #savedSlotActions = null;
+  #savedEnemyCount = null;
+  #savedTargetActions = null;
+  #openTargetPickerPartyIndex = null;
+  // Enemy Setup パラメータ
+  #enemyParams = null;
 
-  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest, onOdChange, onKishinkaActivate, odState = null }) {
+  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest, onOdChange, onKishinkaActivate, odState = null, enemyParams = null }) {
     this.#root = root;
     this.#store = store;
     this.#turnIndex = turnIndex;
@@ -79,6 +91,7 @@ export class TurnRowController {
     this.#onOdChange = onOdChange;
     this.#onKishinkaActivate = onKishinkaActivate;
     this.#odState = odState;
+    this.#enemyParams = enemyParams;
   }
 
   mount() {
@@ -132,7 +145,14 @@ export class TurnRowController {
     }
   }
 
-  update({ record, stateBefore, stateAfter, odState = undefined }) {
+  update({
+    record,
+    stateBefore,
+    stateAfter,
+    odState = undefined,
+    enemyParams = undefined,
+    openTargetPickerPartyIndex = null,
+  }) {
     // 未コミット行→未コミット行の再描画（D&D など）ではスキル選択を保持する。
     // DOM の data-party-index 属性から直接 partyIndex を読むことで、
     // swapCurrentPositions() による state の事前書き換えの影響を受けない。
@@ -146,13 +166,20 @@ export class TurnRowController {
         }
       });
       this.#savedSlotActions = byPartyIndex;
+
+      const countEl = this.#root.querySelector('[data-role="enemy-count"]');
+      if (countEl) {
+        this.#savedEnemyCount = Number(countEl.value);
+      }
     }
     // コミット済みになったら選択状態をリセット
     if (record !== null) this.#selectedSlotPosition = null;
+    this.#openTargetPickerPartyIndex = openTargetPickerPartyIndex;
     this.#record = record;
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
     if (odState !== undefined) this.#odState = odState;
+    if (enemyParams !== undefined) this.#enemyParams = enemyParams;
     this.#root.innerHTML = this.#buildHtml();
     this.#savedSlotActions = null;
     this.#bindEvents();
@@ -182,13 +209,53 @@ export class TurnRowController {
     }
   }
 
+  getCurrentEnemyCount() {
+    const el = this.#root.querySelector('[data-role="enemy-count"]');
+    if (el) return Number(el.value);
+    if (this.#savedEnemyCount != null) {
+      return clampEnemyCount(this.#savedEnemyCount);
+    }
+
+    // 初期値は前のターンの敵の数を継承する
+    const stateEnemyCount = this.#stateBefore?.turnState?.enemyState?.enemyCount;
+    if (Number.isFinite(stateEnemyCount)) {
+      return clampEnemyCount(stateEnemyCount);
+    }
+
+    return DEFAULT_ENEMY_COUNT;
+  }
+
   /** コミットボタン押下時に呼ばれる前に TurnAreaController が現在のスロット選択を収集するため */
   getCurrentSlotActions() {
     const actions = {};
+    const enemyCount = this.getCurrentEnemyCount();
     this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
       const position = Number(sel.dataset.position);
+      const partyIndex = Number(sel.dataset.partyIndex);
       const skillId = sel.value === '' ? null : Number(sel.value);
-      if (skillId != null) actions[position] = { skillId };
+      if (skillId != null) {
+        const member = this.#stateBefore?.party?.find((item) => item.position === position) ?? null;
+        const skill = member?.getSkill?.(skillId) ?? null;
+        const effectiveSkill = this.#resolveEffectiveSkill(member, skill, this.#stateBefore);
+        const manualTargetConfig = resolveTurnManualTargetConfig({
+          member,
+          skill,
+          effectiveSkill,
+          state: this.#stateBefore,
+          enemyCount,
+          isDetailedMode: Boolean(this.#enemyParams?.isDetailedMode),
+        });
+        const target = this.#getCurrentReplayTarget({
+          partyIndex,
+          manualTargetConfig,
+          recordAction: null,
+        });
+
+        actions[position] = {
+          skillId,
+          target,
+        };
+      }
     });
     return actions;
   }
@@ -273,6 +340,165 @@ export class TurnRowController {
     ].join('');
   }
 
+  #resolveEffectiveSkill(member, skill, state = this.#stateBefore) {
+    if (!skill) {
+      return null;
+    }
+    if (state && member) {
+      try {
+        return resolveEffectiveSkillForAction(state, member, skill) ?? skill;
+      } catch {
+        return skill;
+      }
+    }
+    return skill;
+  }
+
+  #getRecordActionReplayTarget(action = null) {
+    if (!action || typeof action !== 'object') {
+      return normalizeTurnReplayTarget(null);
+    }
+
+    const targetEnemyIndex = Number(action.targetEnemyIndex);
+    if (Number.isFinite(targetEnemyIndex) && targetEnemyIndex >= 0) {
+      return normalizeTurnReplayTarget({ type: 'enemy', enemyIndex: targetEnemyIndex });
+    }
+
+    const targetCharacterId = String(action.targetCharacterId ?? '').trim();
+    if (targetCharacterId) {
+      const targetMember =
+        this.#stateBefore?.party?.find((member) => String(member?.characterId) === targetCharacterId) ?? null;
+      if (Number.isFinite(Number(targetMember?.styleId))) {
+        return normalizeTurnReplayTarget({ type: 'ally', styleId: Number(targetMember.styleId) });
+      }
+      return normalizeTurnReplayTarget({ type: 'ally', characterId: targetCharacterId });
+    }
+
+    return normalizeTurnReplayTarget(null);
+  }
+
+  #getCurrentReplayTarget({ partyIndex, manualTargetConfig, recordAction = null }) {
+    const baseTarget =
+      recordAction != null
+        ? this.#getRecordActionReplayTarget(recordAction)
+        : normalizeTurnReplayTarget(this.#savedTargetActions?.[partyIndex]);
+    return coerceTurnReplayTarget(manualTargetConfig, baseTarget);
+  }
+
+  #buildTargetControlHtml({ member, manualTargetConfig, currentReplayTarget, isCommitted }) {
+    if (!manualTargetConfig) {
+      return '';
+    }
+
+    const enemyNamesByEnemy =
+      this.#stateBefore?.turnState?.enemyState?.enemyNamesByEnemy &&
+      typeof this.#stateBefore.turnState.enemyState.enemyNamesByEnemy === 'object'
+        ? this.#stateBefore.turnState.enemyState.enemyNamesByEnemy
+        : {};
+    const summaryLabel = formatTurnTargetLabel(manualTargetConfig, currentReplayTarget, {
+      enemyNamesByEnemy,
+    });
+    const kindLabel = manualTargetConfig.kind === 'enemy' ? '敵' : '味方';
+
+    if (isCommitted) {
+      return `
+        <div data-role="target-trigger-label"
+             class="shrink-0 text-[10px] leading-none px-2 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-500">
+          ${kindLabel}: ${summaryLabel}
+        </div>
+      `;
+    }
+
+    const isOpen = this.#openTargetPickerPartyIndex === member.partyIndex;
+    const popoverHtml =
+      manualTargetConfig.kind === 'enemy'
+        ? this.#buildEnemyTargetPopoverHtml(manualTargetConfig, currentReplayTarget, enemyNamesByEnemy, member.partyIndex)
+        : this.#buildAllyTargetPopoverHtml(manualTargetConfig, currentReplayTarget, member.partyIndex);
+
+    return `
+      <div class="relative shrink-0">
+        <button type="button"
+                data-role="target-trigger"
+                data-party-index="${member.partyIndex}"
+                data-target-kind="${manualTargetConfig.kind}"
+                class="target-trigger inline-flex items-center gap-1 text-[10px] leading-none px-2 py-1 rounded-full border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors">
+          <span class="font-semibold">${kindLabel}</span>
+          <span>${summaryLabel}</span>
+        </button>
+        <div data-role="target-popover"
+             data-party-index="${member.partyIndex}"
+             data-target-kind="${manualTargetConfig.kind}"
+             class="target-popover absolute right-0 top-[calc(100%+4px)] z-20 min-w-[180px] rounded-xl border border-gray-200 bg-white p-2 shadow-xl"
+             ${isOpen ? '' : 'hidden'}>
+          ${popoverHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  #buildEnemyTargetPopoverHtml(manualTargetConfig, currentReplayTarget, enemyNamesByEnemy, actorPartyIndex) {
+    const selectedTarget = coerceTurnReplayTarget(manualTargetConfig, currentReplayTarget);
+    return `
+      <div class="flex flex-wrap gap-1.5">
+        ${manualTargetConfig.candidates.map((candidate) => {
+          const isSelected = Number(selectedTarget.enemyIndex) === Number(candidate.enemyIndex);
+          const enemyName = String(
+            enemyNamesByEnemy[String(candidate.enemyIndex)] ?? enemyNamesByEnemy[candidate.enemyIndex] ?? ''
+          ).trim();
+          const label = enemyName ? `E${candidate.enemyIndex + 1} ${enemyName}` : `E${candidate.enemyIndex + 1}`;
+          return `
+            <button type="button"
+                    data-role="target-candidate"
+                    data-actor-party-index="${actorPartyIndex}"
+                    data-target-kind="enemy"
+                    data-enemy-index="${candidate.enemyIndex}"
+                    class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                           ${isSelected
+                             ? 'border-sky-500 bg-sky-500 text-white'
+                             : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'}">
+              ${label}
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  #buildAllyTargetPopoverHtml(manualTargetConfig, currentReplayTarget, actorPartyIndex) {
+    const selectedTarget = coerceTurnReplayTarget(manualTargetConfig, currentReplayTarget);
+    return `
+      <div class="grid grid-cols-3 gap-2">
+        ${manualTargetConfig.candidates.map((candidate) => {
+          const rawStyle = this.#store?.getStyleById?.(candidate.styleId) ?? null;
+          const imageUrl = rawStyle ? resolveStyleImageUrl(rawStyle) : '';
+          const isSelected = Number(selectedTarget.styleId) === Number(candidate.styleId);
+          const isDisabled = candidate.disabled === true;
+          return `
+            <button type="button"
+                    data-role="target-candidate"
+                    data-actor-party-index="${actorPartyIndex}"
+                    data-target-kind="ally"
+                    data-style-id="${candidate.styleId}"
+                    ${isDisabled ? 'disabled' : ''}
+                    class="target-ally-option flex flex-col items-center gap-1 rounded-xl border p-1.5 text-[10px] transition-colors
+                           ${isSelected
+                             ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                             : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}
+                           ${isDisabled ? 'opacity-35 grayscale cursor-not-allowed' : ''}"
+                    title="Pos ${candidate.position + 1} ${candidate.characterName}">
+              <span class="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+                ${imageUrl
+                  ? `<img src="${imageUrl}" alt="${candidate.characterName}" class="h-full w-full object-cover" />`
+                  : '<span class="text-gray-300">？</span>'}
+              </span>
+              <span class="block w-full truncate text-center">P${candidate.position + 1}</span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
   /** commit 済みターンの position 順メンバーリスト（snapBefore ベース） */
   #getMembersInPositionOrder() {
     const state = this.#stateBefore;
@@ -350,13 +576,25 @@ export class TurnRowController {
       const odMatch      = odTurnLabel.match(/^(OD\d+)/);
       const odLevelLabel = inOd ? (odMatch ? odMatch[1] : 'OD') : '';
       const odGaugeBefore = formatOdGauge(turnState?.odGauge);
+      const currentEnemyCount = this.getCurrentEnemyCount();
+      const enemyCountSelect = `
+        <select data-role="enemy-count" title="敵の数"
+                class="text-[10px] border border-gray-200 rounded px-0.5 focus:outline-none focus:ring-1 focus:ring-blue-300 ml-auto bg-white">
+          <option value="1" ${currentEnemyCount === 1 ? 'selected' : ''}>1</option>
+          <option value="2" ${currentEnemyCount === 2 ? 'selected' : ''}>2</option>
+          <option value="3" ${currentEnemyCount === 3 ? 'selected' : ''}>3</option>
+        </select>`;
+
       return `
         <div data-turn-info class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
                     gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
-          <div class="flex items-center gap-1 text-xs font-bold text-gray-900 flex-wrap leading-none">
-            <span>T${nextTurnNo}</span>
-            ${odLevelLabel ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
-            ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
+          <div class="flex flex-col sm:flex-row items-baseline gap-1 w-full text-xs font-bold text-gray-900 flex-wrap leading-none">
+            <div class="flex items-center gap-1">
+              <span>T${nextTurnNo}</span>
+              ${odLevelLabel ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
+              ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
+            </div>
+            ${enemyCountSelect}
           </div>
           <div data-turn-od-gauge class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
             ${odGaugeBefore}<span data-od-after class="text-gray-400">→ —</span>
@@ -494,6 +732,27 @@ export class TurnRowController {
     }).join('');
 
     const selectDisabled = isCommitted ? 'disabled' : '';
+    const currentEnemyCount = this.getCurrentEnemyCount();
+    const effectiveSelectedSkill = this.#resolveEffectiveSkill(member, selectedSkill, stateForCost);
+    const manualTargetConfig = resolveTurnManualTargetConfig({
+      member,
+      skill: selectedSkill,
+      effectiveSkill: effectiveSelectedSkill,
+      state: this.#stateBefore,
+      enemyCount: currentEnemyCount,
+      isDetailedMode: Boolean(this.#enemyParams?.isDetailedMode),
+    });
+    const currentReplayTarget = this.#getCurrentReplayTarget({
+      partyIndex: member.partyIndex,
+      manualTargetConfig,
+      recordAction: replaySlot,
+    });
+    const targetControlHtml = this.#buildTargetControlHtml({
+      member,
+      manualTargetConfig,
+      currentReplayTarget,
+      isCommitted,
+    });
 
     // EX ターン: 非行動可能メンバーは #buildInactiveSlotHtml で早期 return 済みのため、
     // ここに到達するメンバーは全員 allowedCharacterIds に含まれる。draggable に EX 制限不要。
@@ -502,7 +761,7 @@ export class TurnRowController {
       <div draggable="${draggable}" data-turn-slot data-position="${member.position}"
            class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
                   ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
-        <!-- 属性バッジ（左）＋ スキル select（右）横並び -->
+        <!-- 属性バッジ（左）＋ スキル select（中）＋ ターゲット trigger（右）横並び -->
         <div class="flex items-center gap-0.5 px-0.5 pt-0.5">
           <div data-skill-badges data-position="${member.position}"
                class="grid grid-cols-2 gap-px flex-shrink-0 self-stretch">
@@ -514,6 +773,7 @@ export class TurnRowController {
                          focus:outline-none focus:ring-1 focus:ring-blue-300">
             ${skillOptions}
           </select>
+          ${targetControlHtml}
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
         <div class="flex flex-col p-0.5 gap-0.5">
@@ -740,13 +1000,85 @@ export class TurnRowController {
     if (this.#record === null) {
       this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
         sel.addEventListener('change', () => {
-          const slotActions = this.getCurrentSlotActions();
-          this.#onPreviewRequest?.(this.#turnIndex, slotActions);
-          // バッジ更新
-          const newSkillId = sel.value === '' ? null : Number(sel.value);
-          this.#updateSkillBadges(Number(sel.dataset.position), newSkillId);
+          this.update({
+            record: null,
+            stateBefore: this.#stateBefore,
+            stateAfter: null,
+            odState: this.#odState,
+            enemyParams: this.#enemyParams,
+          });
+          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
         });
       });
+
+      this.#root.querySelectorAll('[data-role="target-trigger"]').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const partyIndex = Number(btn.dataset.partyIndex);
+          this.#openTargetPickerPartyIndex =
+            this.#openTargetPickerPartyIndex === partyIndex ? null : partyIndex;
+          this.update({
+            record: null,
+            stateBefore: this.#stateBefore,
+            stateAfter: null,
+            odState: this.#odState,
+            enemyParams: this.#enemyParams,
+            openTargetPickerPartyIndex: this.#openTargetPickerPartyIndex,
+          });
+        });
+      });
+
+      this.#root.querySelectorAll('[data-role="target-candidate"]').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (btn.disabled) {
+            return;
+          }
+
+          const actorPartyIndex = Number(btn.dataset.actorPartyIndex);
+          const targetKind = String(btn.dataset.targetKind ?? '');
+          let target = normalizeTurnReplayTarget(null);
+          if (targetKind === 'enemy') {
+            target = normalizeTurnReplayTarget({
+              type: 'enemy',
+              enemyIndex: Number(btn.dataset.enemyIndex),
+            });
+          } else if (targetKind === 'ally') {
+            target = normalizeTurnReplayTarget({
+              type: 'ally',
+              styleId: Number(btn.dataset.styleId),
+            });
+          }
+
+          this.#savedTargetActions = {
+            ...(this.#savedTargetActions ?? {}),
+            [actorPartyIndex]: target,
+          };
+          this.#openTargetPickerPartyIndex = null;
+          this.update({
+            record: null,
+            stateBefore: this.#stateBefore,
+            stateAfter: null,
+            odState: this.#odState,
+            enemyParams: this.#enemyParams,
+          });
+          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
+        });
+      });
+
+      const countEl = this.#root.querySelector('[data-role="enemy-count"]');
+      if (countEl) {
+        countEl.addEventListener('change', () => {
+          this.update({
+            record: null,
+            stateBefore: this.#stateBefore,
+            stateAfter: null,
+            odState: this.#odState,
+            enemyParams: this.#enemyParams,
+          });
+          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
+        });
+      }
     }
 
     // Commit ボタン

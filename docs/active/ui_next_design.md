@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-20
 
 ## 目的
 
@@ -133,6 +133,23 @@
 - `Enemy Setup` は `Initial Setup` 配下の別 block とし、`Party Setup` と混在させない
 - 初回 UI Next マイルストーンでは full 実装を急がない
 - ただし `Initial Setup` の上位構造は、あとから `Enemy Setup` を自然に差し込めるものにする
+
+### 2026-03-20 時点で固定した最小仕様
+
+- `Enemy Setup` の常設入力は「詳細ターゲット選択」トグルのみとする
+- トグル既定値は OFF とし、OFF の間は manual target UI を一切表示しない
+- `enemyCount` は `Enemy Setup` の固定値ではなく、各 turn 行に置く入力として扱う
+- turn 行の `enemyCount` 初期値は直前の committed turn を継承し、replay / recalculate でも維持する
+
+### Turn 行の manual target UI
+
+- manual target UI は「詳細ターゲット選択 ON」かつ「effective skill が明示 target を必要とする」ときだけ出す
+- 敵単体指定は skill select 横の trigger から開くフローティング popover で選ぶ
+- 敵候補は `E1 / E2 / E3` 形式の chip とし、敵名がある場合は同じ chip 内に併記する
+- 全体攻撃では manual target UI を出さない
+- 味方単体指定は 6 人分の style icon を並べたフローティング popover で選ぶ
+- `AllySingleWithoutSelf` の self と `IsFront()==1` の後衛候補は非表示にせず disabled 表示にする
+- target の保存形式は replay target に統一し、engine 実行直前に `targetEnemyIndex` / `targetCharacterId` へ変換する
 
 ## Block 3: Stage Setup
 

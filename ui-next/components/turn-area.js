@@ -16,6 +16,7 @@ export class TurnAreaController {
   #onError;
   #onTurnCommitted;
   #rowControllers = [];
+  #enemyParams = {};
 
   constructor({ root, store, engineManager, onError = null, onTurnCommitted = null }) {
     this.#root = root;
@@ -34,9 +35,11 @@ export class TurnAreaController {
    * Apply 後に呼ぶ。ターンリストをリセットしてターン1の入力行を表示する。
    * @param {object} initialState BattleState
    * @param {object} replaySetup  LightweightReplaySetup
+   * @param {object} enemyParams Enemy Setup params (isDetailedMode)
    */
-  initialize(initialState, replaySetup = {}) {
+  initialize(initialState, replaySetup = {}, enemyParams = {}) {
     this.#engineManager.initialize(initialState, replaySetup);
+    this.#enemyParams = enemyParams;
     this.#root.innerHTML = '';
     this.#rowControllers = [];
     this.#appendInputRow();
@@ -46,8 +49,10 @@ export class TurnAreaController {
    * ターン列を保持したまま初期 BattleState を差し替えて全再計算する。
    * Party Setup 変更後の「↺ 設定を反映」に使用。
    * @param {object} newInitialState 新しい初期 BattleState
+   * @param {object} enemyParams Enemy Setup params
    */
-  reinitialize(newInitialState) {
+  reinitialize(newInitialState, enemyParams = {}) {
+    this.#enemyParams = enemyParams;
     if (this.#engineManager.committedTurnCount === 0) {
       // 記録がなければ通常の initialize と同じ（入力行の stateBefore だけ更新）
       this.#engineManager.recalculateAll(newInitialState);
@@ -80,6 +85,7 @@ export class TurnAreaController {
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
       odState: this.#buildOdState([]),
+      enemyParams: this.#enemyParams,
       onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
       onCommit: (ti) => this.#handleCommit(ti),
       onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
@@ -98,9 +104,10 @@ export class TurnAreaController {
     const row = this.#rowControllers[turnIndex];
     const slotActions = row.getCurrentSlotActions();
     const note = row.getCurrentNote();
+    const enemyCount = row.getCurrentEnemyCount();
 
     try {
-      this.#engineManager.commitNextTurn(slotActions, { note });
+      this.#engineManager.commitNextTurn(slotActions, { note, enemyCount });
     } catch (err) {
       console.error('TurnAreaController: commitNextTurn failed:', err);
       this.#onError?.(err);
@@ -165,8 +172,9 @@ export class TurnAreaController {
    * TurnEngineManager に現在ターンをプレビューさせ、OD After 値と割込OD候補を更新する。
    */
   #handlePreviewRequest(turnIndex, slotActions) {
-    const preview = this.#engineManager.previewCurrentTurn(slotActions);
     const lastRow = this.#rowControllers.at(-1);
+    const enemyCount = lastRow?.getCurrentEnemyCount() ?? 1;
+    const preview = this.#engineManager.previewCurrentTurn(slotActions, { enemyCount });
     lastRow?.updateOdPreview(preview?.odGaugeAfter ?? null);
     lastRow?.updateInterruptOdCandidates(preview?.activatableInterrupt ?? []);
   }
@@ -188,7 +196,7 @@ export class TurnAreaController {
     // これにより SP0 でコミットしたスキルが鬼神化終了後も正しく選択状態を保持する。
     const stateBefore = this.#engineManager.getStateBefore(turnIndex);
     const stateAfter = this.#engineManager.computedStates[turnIndex];
-    row.update({ record, stateBefore, stateAfter });
+    row.update({ record, stateBefore, stateAfter, enemyParams: this.#enemyParams });
   }
 
   /** fromIndex 以降の全行を再描画する */
@@ -225,18 +233,16 @@ export class TurnAreaController {
       stateBefore: this.#engineManager.currentStateWithPending,
       stateAfter: null,
       odState: this.#buildOdState([]),
+      enemyParams: this.#enemyParams,
     });
     // Phase 2: 更新後の DOM から正確な slotActions を読んでプレビュー実行
     const slotActions = lastRow.getCurrentSlotActions();
-    const preview = this.#engineManager.previewCurrentTurn(slotActions);
+    const enemyCount = lastRow.getCurrentEnemyCount();
+    const preview = this.#engineManager.previewCurrentTurn(slotActions, { enemyCount });
     lastRow.updateOdPreview(preview?.odGaugeAfter ?? null);
     lastRow.updateInterruptOdCandidates(preview?.activatableInterrupt ?? []);
   }
 
-  /**
-   * 未コミット行に渡す odState を構築する。
-   * @param {number[]} activatableInterrupt プレビュー結果から得た割込OD候補（なければ []）
-   */
   #buildOdState(activatableInterrupt) {
     return {
       preemptiveOdLevel:    this.#engineManager.pendingPreemptiveOdLevel,

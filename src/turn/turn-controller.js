@@ -8494,6 +8494,14 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   nextTurnState.passiveEventsLastApplied = Array.isArray(recovery.passiveEvents)
     ? structuredClone(recovery.passiveEvents)
     : [];
+  if (Number.isFinite(previewRecord.enemyCount)) {
+    if (!nextTurnState.enemyState) {
+      nextTurnState.enemyState = { enemyCount: previewRecord.enemyCount, statuses: [] };
+    } else {
+      nextTurnState.enemyState.enemyCount = previewRecord.enemyCount;
+    }
+  }
+
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
     const enemyTurnStartResult = applyPassiveTimingInternal(
       {
