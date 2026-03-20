@@ -1,9 +1,14 @@
 import { PartySetupController } from './party-setup.js';
+import {
+  normalizeSimulatorSettings,
+  TARGET_SELECTION_MODES,
+} from '../utils/simulator-settings.js';
 
 const TABS = [
   { id: 'party', label: 'Party Setup' },
   { id: 'enemy', label: 'Enemy Setup' },
   { id: 'stage', label: 'Stage Setup' },
+  { id: 'simulator', label: 'Simulator Settings' },
 ];
 
 /**
@@ -85,30 +90,50 @@ export class InitialSetupController {
         </div>
 
         <!-- Enemy タブコンテンツ -->
-        <div data-tab-content="enemy" hidden class="p-4 text-sm bg-white">
-          <div class="space-y-4">
-            <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700">ターゲット選択モード</h3>
-            <label class="setting-switch flex items-start justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 cursor-pointer">
-              <div class="min-w-0">
-                <div class="font-medium text-gray-800">詳細ターゲット選択</div>
-                <div class="mt-1 text-xs leading-5 text-gray-500">
-                  オンのときだけ、単体敵指定や味方単体指定が必要なスキルでフローティング選択を表示します。
-                </div>
-              </div>
-              <span class="shrink-0 pt-0.5">
-                <input type="checkbox" data-role="enemy-selection-mode" class="sr-only peer" />
-                <span class="setting-switch__track">
-                  <span class="setting-switch__thumb"></span>
-                </span>
-              </span>
-            </label>
-          </div>
+        <div data-tab-content="enemy" hidden
+             class="p-4 text-sm text-gray-400 text-center py-12">
+          Enemy Setup<br /><span class="text-xs">(TODO)</span>
         </div>
 
         <!-- Stage タブコンテンツ -->
         <div data-tab-content="stage" hidden
              class="p-4 text-sm text-gray-400 text-center py-12">
           Stage Setup<br /><span class="text-xs">(TODO)</span>
+        </div>
+
+        <!-- Simulator Settings タブコンテンツ -->
+        <div data-tab-content="simulator" hidden class="p-4 text-sm bg-white">
+          <div class="space-y-4">
+            <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700">ターゲット選択の簡略化</h3>
+            <label class="setting-switch flex items-start justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 cursor-pointer">
+              <div class="min-w-0">
+                <div class="font-medium text-gray-800">敵ターゲット選択を簡略化</div>
+                <div class="mt-1 text-xs leading-5 text-gray-500">
+                  オンのときは敵単体指定スキルでも個別ターゲット picker を出さず、target 未指定時は engine default に委ねます。
+                </div>
+              </div>
+              <span class="shrink-0 pt-0.5">
+                <input type="checkbox" data-role="enemy-target-simplify-toggle" class="sr-only peer" checked />
+                <span class="setting-switch__track">
+                  <span class="setting-switch__thumb"></span>
+                </span>
+              </span>
+            </label>
+            <label class="setting-switch flex items-start justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 cursor-pointer">
+              <div class="min-w-0">
+                <div class="font-medium text-gray-800">味方ターゲット選択を簡略化</div>
+                <div class="mt-1 text-xs leading-5 text-gray-500">
+                  オンのときは味方単体指定スキルでも個別ターゲット picker を出さず、target 未指定時は engine default に委ねます。
+                </div>
+              </div>
+              <span class="shrink-0 pt-0.5">
+                <input type="checkbox" data-role="ally-target-simplify-toggle" class="sr-only peer" checked />
+                <span class="setting-switch__track">
+                  <span class="setting-switch__thumb"></span>
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
       </div>
     `;
@@ -153,12 +178,20 @@ export class InitialSetupController {
    * InitialSetup 全体の設定（Party設定 + Enemy設定）を結合して返す
    */
   getSetupSnapshot(partySnapshot) {
-    const isDetailedMode = this.#root.querySelector('[data-role="enemy-selection-mode"]')?.checked ?? false;
+    const enemyMode = this.#root.querySelector('[data-role="enemy-target-simplify-toggle"]')?.checked
+      ? TARGET_SELECTION_MODES.SIMPLE
+      : TARGET_SELECTION_MODES.MANUAL;
+    const allyMode = this.#root.querySelector('[data-role="ally-target-simplify-toggle"]')?.checked
+      ? TARGET_SELECTION_MODES.SIMPLE
+      : TARGET_SELECTION_MODES.MANUAL;
     return {
       party: partySnapshot,
-      enemyParams: {
-        isDetailedMode
-      }
+      simulatorSettings: normalizeSimulatorSettings({
+        targetSelection: {
+          enemyMode,
+          allyMode,
+        },
+      }),
     };
   }
 

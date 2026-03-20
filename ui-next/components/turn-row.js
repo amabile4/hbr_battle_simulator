@@ -10,6 +10,10 @@ import {
   normalizeTurnReplayTarget,
   resolveTurnManualTargetConfig,
 } from '../utils/turn-targeting.js';
+import {
+  areSimulatorSettingsEqual,
+  normalizeSimulatorSettings,
+} from '../utils/simulator-settings.js';
 
 // select 幅の閾値（px）：スキルバッジ・SPコスト表示の切り替えに使用
 const BADGE_MIN_SELECT_WIDTH = 90;
@@ -74,10 +78,10 @@ export class TurnRowController {
   #savedEnemyCount = null;
   #savedTargetActions = null;
   #openTargetPickerPartyIndex = null;
-  // Enemy Setup パラメータ
-  #enemyParams = null;
+  // Simulator Settings パラメータ
+  #simulatorSettings = null;
 
-  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest, onOdChange, onKishinkaActivate, odState = null, enemyParams = null }) {
+  constructor({ root, store, turnIndex, record, stateBefore, stateAfter, onSlotChange, onCommit, onNoteChange, onPreviewRequest, onOdChange, onKishinkaActivate, odState = null, simulatorSettings = null }) {
     this.#root = root;
     this.#store = store;
     this.#turnIndex = turnIndex;
@@ -91,7 +95,7 @@ export class TurnRowController {
     this.#onOdChange = onOdChange;
     this.#onKishinkaActivate = onKishinkaActivate;
     this.#odState = odState;
-    this.#enemyParams = enemyParams;
+    this.#simulatorSettings = normalizeSimulatorSettings(simulatorSettings);
   }
 
   mount() {
@@ -150,7 +154,7 @@ export class TurnRowController {
     stateBefore,
     stateAfter,
     odState = undefined,
-    enemyParams = undefined,
+    simulatorSettings = undefined,
     openTargetPickerPartyIndex = null,
   }) {
     // 未コミット行→未コミット行の再描画（D&D など）ではスキル選択を保持する。
@@ -172,6 +176,18 @@ export class TurnRowController {
         this.#savedEnemyCount = Number(countEl.value);
       }
     }
+    const nextSimulatorSettings =
+      simulatorSettings === undefined
+        ? this.#simulatorSettings
+        : normalizeSimulatorSettings(simulatorSettings);
+    const simulatorSettingsChanged = !areSimulatorSettingsEqual(
+      this.#simulatorSettings,
+      nextSimulatorSettings,
+    );
+    if (this.#record === null && record === null && simulatorSettingsChanged) {
+      this.#savedTargetActions = null;
+      this.#openTargetPickerPartyIndex = null;
+    }
     // コミット済みになったら選択状態をリセット
     if (record !== null) this.#selectedSlotPosition = null;
     this.#openTargetPickerPartyIndex = openTargetPickerPartyIndex;
@@ -179,7 +195,7 @@ export class TurnRowController {
     this.#stateBefore = stateBefore;
     this.#stateAfter = stateAfter;
     if (odState !== undefined) this.#odState = odState;
-    if (enemyParams !== undefined) this.#enemyParams = enemyParams;
+    if (simulatorSettings !== undefined) this.#simulatorSettings = nextSimulatorSettings;
     this.#root.innerHTML = this.#buildHtml();
     this.#savedSlotActions = null;
     this.#bindEvents();
@@ -243,7 +259,7 @@ export class TurnRowController {
           effectiveSkill,
           state: this.#stateBefore,
           enemyCount,
-          isDetailedMode: Boolean(this.#enemyParams?.isDetailedMode),
+          simulatorSettings: this.#simulatorSettings,
         });
         const target = this.#getCurrentReplayTarget({
           partyIndex,
@@ -359,8 +375,15 @@ export class TurnRowController {
       return normalizeTurnReplayTarget(null);
     }
 
-    const targetEnemyIndex = Number(action.targetEnemyIndex);
-    if (Number.isFinite(targetEnemyIndex) && targetEnemyIndex >= 0) {
+    const rawTargetEnemyIndex = action.targetEnemyIndex;
+    const targetEnemyIndex = Number(rawTargetEnemyIndex);
+    if (
+      rawTargetEnemyIndex !== null &&
+      rawTargetEnemyIndex !== undefined &&
+      rawTargetEnemyIndex !== '' &&
+      Number.isFinite(targetEnemyIndex) &&
+      targetEnemyIndex >= 0
+    ) {
       return normalizeTurnReplayTarget({ type: 'enemy', enemyIndex: targetEnemyIndex });
     }
 
@@ -734,13 +757,18 @@ export class TurnRowController {
     const selectDisabled = isCommitted ? 'disabled' : '';
     const currentEnemyCount = this.getCurrentEnemyCount();
     const effectiveSelectedSkill = this.#resolveEffectiveSkill(member, selectedSkill, stateForCost);
+    const explicitTarget = isCommitted
+      ? this.#getRecordActionReplayTarget(replaySlot)
+      : normalizeTurnReplayTarget(this.#savedTargetActions?.[member.partyIndex]);
     const manualTargetConfig = resolveTurnManualTargetConfig({
       member,
       skill: selectedSkill,
       effectiveSkill: effectiveSelectedSkill,
       state: this.#stateBefore,
       enemyCount: currentEnemyCount,
-      isDetailedMode: Boolean(this.#enemyParams?.isDetailedMode),
+      simulatorSettings: this.#simulatorSettings,
+      explicitTarget,
+      preserveExplicitTarget: isCommitted,
     });
     const currentReplayTarget = this.#getCurrentReplayTarget({
       partyIndex: member.partyIndex,
@@ -1005,7 +1033,7 @@ export class TurnRowController {
             stateBefore: this.#stateBefore,
             stateAfter: null,
             odState: this.#odState,
-            enemyParams: this.#enemyParams,
+            simulatorSettings: this.#simulatorSettings,
           });
           this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
         });
@@ -1022,7 +1050,7 @@ export class TurnRowController {
             stateBefore: this.#stateBefore,
             stateAfter: null,
             odState: this.#odState,
-            enemyParams: this.#enemyParams,
+            simulatorSettings: this.#simulatorSettings,
             openTargetPickerPartyIndex: this.#openTargetPickerPartyIndex,
           });
         });
@@ -1060,7 +1088,7 @@ export class TurnRowController {
             stateBefore: this.#stateBefore,
             stateAfter: null,
             odState: this.#odState,
-            enemyParams: this.#enemyParams,
+            simulatorSettings: this.#simulatorSettings,
           });
           this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
         });
@@ -1074,7 +1102,7 @@ export class TurnRowController {
             stateBefore: this.#stateBefore,
             stateAfter: null,
             odState: this.#odState,
-            enemyParams: this.#enemyParams,
+            simulatorSettings: this.#simulatorSettings,
           });
           this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
         });

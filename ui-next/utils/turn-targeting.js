@@ -1,5 +1,10 @@
 import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 import { REPLAY_TARGET_TYPES, normalizeReplayTarget } from '../../src/ui/lightweight-replay-script.js';
+import {
+  DEFAULT_SIMULATOR_SETTINGS,
+  isAllyTargetSelectionManual,
+  isEnemyTargetSelectionManual,
+} from './simulator-settings.js';
 
 const ALLY_SINGLE_TARGET_TYPES = new Set(['AllySingle', 'AllySingleWithoutSelf']);
 const ENEMY_SINGLE_TARGET_TYPES = new Set(['Single', 'EnemySingle']);
@@ -80,6 +85,17 @@ function findFirstEnabledCandidate(config) {
   return config?.candidates?.find((candidate) => candidate.disabled !== true) ?? null;
 }
 
+function hasExplicitTargetForConfig(config, target) {
+  const normalizedTarget = normalizeTurnReplayTarget(target);
+  if (config?.kind === 'enemy') {
+    return normalizedTarget.type === REPLAY_TARGET_TYPES.ENEMY;
+  }
+  if (config?.kind === 'ally') {
+    return normalizedTarget.type === REPLAY_TARGET_TYPES.ALLY;
+  }
+  return false;
+}
+
 export function normalizeTurnReplayTarget(target) {
   return normalizeReplayTarget(target) ?? { type: REPLAY_TARGET_TYPES.NONE };
 }
@@ -108,12 +124,15 @@ export function resolveTurnManualTargetConfig({
   effectiveSkill = skill,
   state,
   enemyCount = DEFAULT_ENEMY_COUNT,
-  isDetailedMode = false,
+  simulatorSettings = DEFAULT_SIMULATOR_SETTINGS,
+  explicitTarget = null,
+  preserveExplicitTarget = false,
 } = {}) {
-  if (!isDetailedMode || !member || !effectiveSkill || !state) {
+  if (!member || !effectiveSkill || !state) {
     return null;
   }
 
+  let config = null;
   const parts = Array.isArray(effectiveSkill.parts) ? effectiveSkill.parts : [];
   const allyTargetPart = parts.find((part) =>
     ALLY_SINGLE_TARGET_TYPES.has(String(part?.target_type ?? '').trim())
@@ -125,25 +144,36 @@ export function resolveTurnManualTargetConfig({
     if (candidates.every((candidate) => candidate.disabled)) {
       return null;
     }
-    return {
+    config = {
       kind: 'ally',
       targetType,
       targetCondition,
       candidates,
     };
+  } else {
+    if (clampEnemyCount(enemyCount) <= DEFAULT_ENEMY_COUNT) {
+      return null;
+    }
+    if (!resolveEnemySingleTarget(parts, effectiveSkill)) {
+      return null;
+    }
+    config = {
+      kind: 'enemy',
+      targetType: 'Single',
+      candidates: buildEnemyCandidates(enemyCount),
+    };
   }
 
-  if (clampEnemyCount(enemyCount) <= DEFAULT_ENEMY_COUNT) {
-    return null;
+  const manualEnabled = config.kind === 'enemy'
+    ? isEnemyTargetSelectionManual(simulatorSettings)
+    : isAllyTargetSelectionManual(simulatorSettings);
+  if (manualEnabled) {
+    return config;
   }
-  if (!resolveEnemySingleTarget(parts, effectiveSkill)) {
-    return null;
+  if (preserveExplicitTarget && hasExplicitTargetForConfig(config, explicitTarget)) {
+    return config;
   }
-  return {
-    kind: 'enemy',
-    targetType: 'Single',
-    candidates: buildEnemyCandidates(enemyCount),
-  };
+  return null;
 }
 
 export function coerceTurnReplayTarget(config, target) {

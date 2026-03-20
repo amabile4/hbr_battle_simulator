@@ -6,6 +6,7 @@ import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.
 import { TurnRowController } from '../ui-next/components/turn-row.js';
 import { TurnAreaController } from '../ui-next/components/turn-area.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
+import { TARGET_SELECTION_MODES } from '../ui-next/utils/simulator-settings.js';
 
 class TestResizeObserver {
   observe() {}
@@ -103,7 +104,19 @@ function createStoreStub() {
   };
 }
 
-function mountTurnRow({ root, stateBefore, enemyParams }) {
+function createSimulatorSettings({
+  enemyMode = TARGET_SELECTION_MODES.SIMPLE,
+  allyMode = TARGET_SELECTION_MODES.SIMPLE,
+} = {}) {
+  return {
+    targetSelection: {
+      enemyMode,
+      allyMode,
+    },
+  };
+}
+
+function mountTurnRow({ root, stateBefore, simulatorSettings }) {
   const row = new TurnRowController({
     root,
     store: createStoreStub(),
@@ -111,7 +124,7 @@ function mountTurnRow({ root, stateBefore, enemyParams }) {
     record: null,
     stateBefore,
     stateAfter: null,
-    enemyParams,
+    simulatorSettings,
     odState: {
       preemptiveOdLevel: null,
       interruptOdLevel: null,
@@ -130,7 +143,7 @@ function mountTurnRow({ root, stateBefore, enemyParams }) {
   return row;
 }
 
-test('TurnRowController hides manual target UI for all-target skills even in detailed mode', () =>
+test('TurnRowController hides manual target UI for all-target skills even when enemy selection is manual', () =>
   withDom(({ root }) => {
     const state = createState(
       createSkill({
@@ -141,13 +154,19 @@ test('TurnRowController hides manual target UI for all-target skills even in det
       }),
       3
     );
-    mountTurnRow({ root, stateBefore: state, enemyParams: { isDetailedMode: true } });
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings({
+        enemyMode: TARGET_SELECTION_MODES.MANUAL,
+      }),
+    });
 
     assert.equal(root.querySelector('[data-role="target-trigger"]'), null);
     assert.equal(root.querySelector('[data-role="target-popover"]'), null);
   }));
 
-test('TurnRowController shows enemy target trigger only when needed and opens floating popover on demand', () =>
+test('TurnRowController shows enemy target trigger only when enemy selection is manual', () =>
   withDom(({ root, win }) => {
     const state = createState(
       createSkill({
@@ -158,7 +177,14 @@ test('TurnRowController shows enemy target trigger only when needed and opens fl
       }),
       3
     );
-    mountTurnRow({ root, stateBefore: state, enemyParams: { isDetailedMode: true } });
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings({
+        enemyMode: TARGET_SELECTION_MODES.MANUAL,
+        allyMode: TARGET_SELECTION_MODES.SIMPLE,
+      }),
+    });
 
     const trigger = root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]');
     const popover = root.querySelector('[data-role="target-popover"][data-target-kind="enemy"]');
@@ -174,7 +200,7 @@ test('TurnRowController shows enemy target trigger only when needed and opens fl
     assert.equal(candidateButtons.length, 3);
   }));
 
-test('TurnRowController shows ally target popover with disabled backline entries for front-only skills', () =>
+test('TurnRowController shows ally target popover only when ally selection is manual', () =>
   withDom(({ root, win }) => {
     const state = createState(
       createSkill({
@@ -186,7 +212,14 @@ test('TurnRowController shows ally target popover with disabled backline entries
       }),
       1
     );
-    mountTurnRow({ root, stateBefore: state, enemyParams: { isDetailedMode: true } });
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings({
+        enemyMode: TARGET_SELECTION_MODES.SIMPLE,
+        allyMode: TARGET_SELECTION_MODES.MANUAL,
+      }),
+    });
 
     const trigger = root.querySelector('[data-role="target-trigger"][data-target-kind="ally"]');
     assert.ok(trigger);
@@ -220,7 +253,11 @@ test('TurnAreaController carries committed enemyCount into the next input row', 
       onTurnCommitted: () => {},
     });
 
-    controller.initialize(state, {}, { isDetailedMode: true });
+    controller.initialize(
+      state,
+      {},
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
+    );
 
     const enemyCountSelect = root.querySelector('[data-role="enemy-count"]');
     enemyCountSelect.value = '3';
@@ -233,7 +270,7 @@ test('TurnAreaController carries committed enemyCount into the next input row', 
     assert.equal(latestEnemyCountSelect.value, '3');
   }));
 
-test('TurnAreaController reinitialize applies updated detailed-mode setting to the input row', () =>
+test('TurnAreaController reinitialize applies updated split target settings to the input row', () =>
   withDom(({ root }) => {
     const state = createState(
       createSkill({
@@ -255,10 +292,201 @@ test('TurnAreaController reinitialize applies updated detailed-mode setting to t
       onTurnCommitted: () => {},
     });
 
-    controller.initialize(state, {}, { isDetailedMode: true });
+    controller.initialize(
+      state,
+      {},
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
+    );
     assert.ok(root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]'));
 
-    controller.reinitialize(state, { isDetailedMode: false });
+    controller.reinitialize(
+      state,
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.SIMPLE }),
+    );
 
     assert.equal(root.querySelector('[data-role="target-trigger"]'), null);
+  }));
+
+test('TurnAreaController preserves committed enemy explicit target when simulator settings change', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 9506,
+        name: 'Pinned Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      3
+    );
+    const engineManager = new TurnEngineManager();
+    const controller = new TurnAreaController({
+      root,
+      store: createStoreStub(),
+      engineManager,
+      onError: (error) => {
+        throw error;
+      },
+      onTurnCommitted: () => {},
+    });
+
+    controller.initialize(
+      state,
+      {},
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
+    );
+
+    const enemyCountSelect = root.querySelector('[data-role="enemy-count"]');
+    enemyCountSelect.value = '3';
+    enemyCountSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root
+      .querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="target-candidate"][data-target-kind="enemy"][data-enemy-index="2"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="commit-btn"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(
+      engineManager.computedRecords[0]?.actions.find((action) => action.positionIndex === 0)?.targetEnemyIndex,
+      2,
+    );
+
+    controller.reinitialize(
+      state,
+      createSimulatorSettings({
+        enemyMode: TARGET_SELECTION_MODES.SIMPLE,
+        allyMode: TARGET_SELECTION_MODES.SIMPLE,
+      }),
+    );
+
+    assert.equal(
+      engineManager.computedRecords[0]?.actions.find((action) => action.positionIndex === 0)?.targetEnemyIndex,
+      2,
+    );
+    assert.ok(root.querySelector('[data-role="target-trigger-label"]'));
+    assert.equal(root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]'), null);
+  }));
+
+test('TurnAreaController preserves committed ally explicit target when simulator settings change', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 9507,
+        name: 'Frontline Buff',
+        targetType: 'AllySingleWithoutSelf',
+        condition: 'IsFront()==1',
+        parts: [{ skill_type: 'AdditionalTurn', target_type: 'AllySingleWithoutSelf' }],
+      }),
+      1
+    );
+    const engineManager = new TurnEngineManager();
+    const controller = new TurnAreaController({
+      root,
+      store: createStoreStub(),
+      engineManager,
+      onError: (error) => {
+        throw error;
+      },
+      onTurnCommitted: () => {},
+    });
+
+    const targetStyleId = state.party.find((member) => member.position === 2)?.styleId;
+    const targetCharacterId = state.party.find((member) => member.position === 2)?.characterId;
+
+    controller.initialize(
+      state,
+      {},
+      createSimulatorSettings({ allyMode: TARGET_SELECTION_MODES.MANUAL }),
+    );
+
+    root
+      .querySelector('[data-role="target-trigger"][data-target-kind="ally"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector(`[data-role="target-candidate"][data-target-kind="ally"][data-style-id="${targetStyleId}"]`)
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="commit-btn"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(
+      engineManager.computedRecords[0]?.actions.find((action) => action.positionIndex === 0)?.targetCharacterId,
+      targetCharacterId,
+    );
+
+    controller.reinitialize(
+      state,
+      createSimulatorSettings({
+        enemyMode: TARGET_SELECTION_MODES.SIMPLE,
+        allyMode: TARGET_SELECTION_MODES.SIMPLE,
+      }),
+    );
+
+    assert.equal(
+      engineManager.computedRecords[0]?.actions.find((action) => action.positionIndex === 0)?.targetCharacterId,
+      targetCharacterId,
+    );
+    assert.ok(root.querySelector('[data-role="target-trigger-label"]'));
+    assert.equal(root.querySelector('[data-role="target-trigger"][data-target-kind="ally"]'), null);
+  }));
+
+test('TurnAreaController clears uncommitted target picks when simulator settings are reapplied', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 9508,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      3
+    );
+    const engineManager = new TurnEngineManager();
+    const controller = new TurnAreaController({
+      root,
+      store: createStoreStub(),
+      engineManager,
+      onError: (error) => {
+        throw error;
+      },
+      onTurnCommitted: () => {},
+    });
+
+    controller.initialize(
+      state,
+      {},
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
+    );
+
+    const enemyCountSelect = root.querySelector('[data-role="enemy-count"]');
+    enemyCountSelect.value = '3';
+    enemyCountSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root
+      .querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="target-candidate"][data-target-kind="enemy"][data-enemy-index="2"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.match(
+      root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]').textContent,
+      /E3/,
+    );
+
+    controller.reinitialize(
+      state,
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.SIMPLE }),
+    );
+    controller.reinitialize(
+      state,
+      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
+    );
+
+    assert.match(
+      root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]').textContent,
+      /E1/,
+    );
   }));

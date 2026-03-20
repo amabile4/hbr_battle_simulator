@@ -82,7 +82,7 @@ async function main() {
       try {
         const state = battleStateManager.buildFromSnapshot(snapshot.party);
         const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
-        turnArea.initialize(state, replaySetup, snapshot.enemyParams);
+        turnArea.initialize(state, replaySetup, snapshot.simulatorSettings);
         initialSetup.setHasRecords(false);
         window.collapseSetup?.();
       } catch (err) {
@@ -93,7 +93,7 @@ async function main() {
     onRecalculate: (snapshot) => {
       try {
         const state = battleStateManager.buildFromSnapshot(snapshot.party);
-        turnArea.reinitialize(state, snapshot.enemyParams);
+        turnArea.reinitialize(state, snapshot.simulatorSettings);
         window.collapseSetup?.();
       } catch (err) {
         showStatus(`再計算エラー: ${err.message}`);

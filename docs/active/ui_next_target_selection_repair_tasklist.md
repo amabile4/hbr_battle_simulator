@@ -76,9 +76,11 @@
 - `slotActions[position].target` を replay target へ正規化し、engine 直前で enemy / ally target に materialize する形へ整理した
 - 敵詳細 target UI を常時表示 listbox から、必要時のみ開くフローティング chip / icon picker へ置き換えた
 - 詳細モード OFF、全体攻撃、対象不要 skill では manual target UI を出さないようにした
-- `TurnRowController.update()` に `enemyParams` を通し、再初期化後の既存行にも最新モードを再適用するようにした
+- `TurnRowController.update()` に `simulatorSettings` を通し、再初期化後の既存行にも最新モードを再適用するようにした
+- follow-up として target 設定を `Enemy Setup` から `Simulator Settings` へ移し、敵/味方の簡略化を分離した
+- `設定を反映` 後も committed 行の explicit target summary は保持し、未コミット行の一時 target 選択は再構築時に破棄するようにした
 
 ## 検証
 
-- 実行コマンド: `node --test tests/lightweight-replay-script.test.js tests/ui-next-turn-engine-manager.test.js tests/ui-next-turn-ui.test.js`
-- 結果: 12 tests passed / 0 failed
+- 実行コマンド: `node --test tests/lightweight-replay-script.test.js tests/ui-next-turn-engine-manager.test.js tests/ui-next-initial-setup.test.js tests/ui-next-turn-ui.test.js`
+- 結果: 17 tests passed / 0 failed

@@ -16,7 +16,7 @@ export class TurnAreaController {
   #onError;
   #onTurnCommitted;
   #rowControllers = [];
-  #enemyParams = {};
+  #simulatorSettings = {};
 
   constructor({ root, store, engineManager, onError = null, onTurnCommitted = null }) {
     this.#root = root;
@@ -35,11 +35,11 @@ export class TurnAreaController {
    * Apply 後に呼ぶ。ターンリストをリセットしてターン1の入力行を表示する。
    * @param {object} initialState BattleState
    * @param {object} replaySetup  LightweightReplaySetup
-   * @param {object} enemyParams Enemy Setup params (isDetailedMode)
+   * @param {object} simulatorSettings Simulator UI settings
    */
-  initialize(initialState, replaySetup = {}, enemyParams = {}) {
+  initialize(initialState, replaySetup = {}, simulatorSettings = {}) {
     this.#engineManager.initialize(initialState, replaySetup);
-    this.#enemyParams = enemyParams;
+    this.#simulatorSettings = simulatorSettings;
     this.#root.innerHTML = '';
     this.#rowControllers = [];
     this.#appendInputRow();
@@ -49,10 +49,10 @@ export class TurnAreaController {
    * ターン列を保持したまま初期 BattleState を差し替えて全再計算する。
    * Party Setup 変更後の「↺ 設定を反映」に使用。
    * @param {object} newInitialState 新しい初期 BattleState
-   * @param {object} enemyParams Enemy Setup params
+   * @param {object} simulatorSettings Simulator UI settings
    */
-  reinitialize(newInitialState, enemyParams = {}) {
-    this.#enemyParams = enemyParams;
+  reinitialize(newInitialState, simulatorSettings = {}) {
+    this.#simulatorSettings = simulatorSettings;
     if (this.#engineManager.committedTurnCount === 0) {
       // 記録がなければ通常の initialize と同じ（入力行の stateBefore だけ更新）
       this.#engineManager.recalculateAll(newInitialState);
@@ -85,7 +85,7 @@ export class TurnAreaController {
       stateBefore: this.#engineManager.currentState,
       stateAfter: null,
       odState: this.#buildOdState([]),
-      enemyParams: this.#enemyParams,
+      simulatorSettings: this.#simulatorSettings,
       onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
       onCommit: (ti) => this.#handleCommit(ti),
       onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
@@ -196,7 +196,7 @@ export class TurnAreaController {
     // これにより SP0 でコミットしたスキルが鬼神化終了後も正しく選択状態を保持する。
     const stateBefore = this.#engineManager.getStateBefore(turnIndex);
     const stateAfter = this.#engineManager.computedStates[turnIndex];
-    row.update({ record, stateBefore, stateAfter, enemyParams: this.#enemyParams });
+    row.update({ record, stateBefore, stateAfter, simulatorSettings: this.#simulatorSettings });
   }
 
   /** fromIndex 以降の全行を再描画する */
@@ -233,7 +233,7 @@ export class TurnAreaController {
       stateBefore: this.#engineManager.currentStateWithPending,
       stateAfter: null,
       odState: this.#buildOdState([]),
-      enemyParams: this.#enemyParams,
+      simulatorSettings: this.#simulatorSettings,
     });
     // Phase 2: 更新後の DOM から正確な slotActions を読んでプレビュー実行
     const slotActions = lastRow.getCurrentSlotActions();
