@@ -86,7 +86,8 @@
 - [x] `HighBoost`
   - `HighBoost` を `statusEffects.statusType = 'HighBoost'` の永続 passive 状態として実装
   - `OnFirstBattleStart` の passive part で味方全体へ付与し、`SpLimitOverwrite` と併用して `sp.max = 30` を維持
-  - `HighBoost` 効果として `SP消費 +2`、`AttackUp` バフ量 `1.2x`、敵デバフ量 `1.2x`、`HealSp` / `HealDpRate` / 再生系 / 受動回復 `1.5x` を反映
+  - `HighBoost` 効果として `SP消費 +2`、`AttackUp` バフ量 `1.2x`、敵デバフ量 `1.2x`、`HealDpRate` / `RegenerationDp` `1.5x` を反映
+  - `HealSp` / `HealEp` / `ReviveDp` / `ReviveDpRate` は増やさない。active / passive / passive_trigger の DP 経路は同じ分類 helper で揃える
   - preview / committed record には `specialPassiveModifiers.highBoostSkillAtkRate = 1.8` を保持
 
 ### `IsZone` / `IsTerritory` 仕様メモ
@@ -332,7 +333,27 @@
   - その turn の開始時点で既に `state.turnState.passiveEventsLastApplied` に入っていたもの
   - `commitTurn()` 中の boundary で新規発火したもの
 - これにより、次ターン開始用の `OnEveryTurn` / `OnPlayerTurnStart` が前ターン record に逆流しない
+- `applyInitialPassiveState()` は `OnBattleStart` / `OnFirstBattleStart` 専用に確定した
+  - `OnEveryTurn` / `OnPlayerTurnStart` と intrinsic mark Lv6 の `SP+1` は初期化時に流さず、`applyRecoveryPipeline()` または明示的な `applyPassiveTiming()` でだけ評価する
 - 現在の timing 全体像は [`passive_timing_reference.md`](passive_timing_reference.md) を参照
+
+### 2026-03-21 WIP green 比較メモ
+
+- `npm run test:quick` は 387 PASS で green 化した
+- accepted
+  - `applyInitialPassiveState()` は battle-start 専用に戻し、T1 turn-start は recovery pipeline でのみ扱う
+  - intrinsic mark Lv6 の前衛 `SP+1` は battle start ではなく true turn-start でのみ付与する
+  - `HighBoost` の DP倍率は `HealDpRate` / `RegenerationDp` のみ。`HealSp` / `HealEp` / `ReviveDp` / `ReviveDpRate` は等倍に固定する
+  - `ReviveDpRate` の active skill 経路を埋め、active / passive / passive_trigger で同じ分類 helper を使う
+  - real-data timing テストは desc に合わせて `battle start` と `player turn start` を分離し、snapshot 系期待値も pre-turn-start 値へ更新する
+- dropped
+  - init 時点で `OnEveryTurn` / `OnPlayerTurnStart` を流す旧期待値
+  - battle start 直後に intrinsic mark Lv6 の `SP+1` が見える前提
+  - `createInitializedBattleSnapshot()` が T1 turn-start 後の SP を返す前提
+- deferred
+  - `feature/engine-ruby-perfume-highboost-rebuild` への手移植と commit 分割
+  - passive timing 以外の remaining real-style tests を fixture 化する横断整理
+  - `checkpoint/pre-ruby-perfume-highboost-20260321` / `checkpoint/highboost-integrated-20260321` との比較レビュー
 
 ## Phase 6: 将来拡張
 

@@ -195,7 +195,7 @@ test('createInitializedBattleSnapshot keeps support setup in turnPlanBaseSetup',
   assert.deepEqual(snapshot.turnPlanBaseSetup.supportLimitBreakLevelsByPartyIndex, { 0: 3 });
 });
 
-test('createInitializedBattleSnapshot keeps reported frontline initial SP at 9/11/9', () => {
+test('createInitializedBattleSnapshot keeps reported frontline pre-turn-start SP at 8/10/8', () => {
   const snapshot = createInitializedBattleSnapshot({
     dataStore: getStore(),
     initialSP: DEFAULT_INITIAL_SP,
@@ -250,6 +250,6 @@ test('createInitializedBattleSnapshot keeps reported frontline initial SP at 9/1
 
   assert.deepEqual(
     snapshot.state.party.slice(0, 3).map((member) => member.sp.current),
-    [9, 11, 9]
+    [8, 10, 8]
   );
 });

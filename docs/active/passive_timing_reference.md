@@ -1,11 +1,12 @@
 # Passive Timing Reference
 
-> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-08
+> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-21
 
 ## 1. 今回の修正が場当たりではない理由
 
 - `commitTurn()` の `committedRecord.passiveEvents` を、`state.turnState.passiveEventsLastApplied` と boundary で新規発火した passive に限定しました。
 - これにより T1 の `committedRecord` に T2 開始時の `OnEveryTurn` / `OnPlayerTurnStart` が逆流しなくなります。
+- `applyInitialPassiveState()` は `OnBattleStart` / `OnFirstBattleStart` 専用に整理し、T1 の turn-start は `applyRecoveryPipeline()` か明示的な `applyPassiveTiming()` でのみ流します。
 - つまりテスト期待値だけを変えたのではなく、`src/turn/turn-controller.js` の記録責務を修正しています。
 
 ## 2. `passives.json` に存在する timing 一覧
@@ -15,8 +16,8 @@
 | None | 1 | ターン境界ではなく、個別の行動・スキル条件に連動して評価される即時系。 | 個別処理で都度参照。汎用の `applyPassiveTimingInternal()` 境界には乗らない。 | 湯めぐり(100640500) |
 | OnFirstBattleStart | 108 | 初戦開始時に一度だけ評価され、その後は戦闘をまたいで保持される常設寄りの付与が多い。 | `applyInitialPassiveState()` -> `applyPassiveTimingInternal(BATTLE_START_PASSIVE_TIMINGS)` | 雷の波動(100110700), 即応の型(100110804), プレイボール(100111000) |
 | OnBattleStart | 84 | 各バトル開始時に評価される。1戦ごとに入り直す初動バフ・初期SP付与。 | `applyInitialPassiveState()` -> `applyPassiveTimingInternal(BATTLE_START_PASSIVE_TIMINGS)` | 疾風(100110105), 疾風(100120203), 烈風(100120603) |
-| OnEveryTurn | 290 | 通常ターンの開始処理で評価される。SP/DP/ODの自動回復や継続的な付与。 | `applyInitialPassiveState()` と `applyRecoveryPipeline()` -> `applyPassiveTimingInternal(TURN_START_PASSIVE_TIMINGS)` | 閃光(100110401), 閃光(100110501), 吉報(100110603) |
-| OnPlayerTurnStart | 198 | 行動開始時に評価される。攻撃前提の火力条件や行動選択時に効くバフ。 | `applyInitialPassiveState()` と `applyRecoveryPipeline()` -> `applyPassiveTimingInternal(TURN_START_PASSIVE_TIMINGS)` | 勇猛(100110303), 英雄の凱歌(100110403), 星空(100110503) |
+| OnEveryTurn | 290 | 通常ターンの開始処理で評価される。SP/DP/ODの自動回復や継続的な付与。 | `applyRecoveryPipeline()` または `applyPassiveTiming()` -> `applyPassiveTimingInternal(TURN_START_PASSIVE_TIMINGS)` | 閃光(100110401), 閃光(100110501), 吉報(100110603) |
+| OnPlayerTurnStart | 198 | 行動開始時に評価される。攻撃前提の火力条件や行動選択時に効くバフ。 | `applyRecoveryPipeline()` または `applyPassiveTiming()` -> `applyPassiveTimingInternal(TURN_START_PASSIVE_TIMINGS)` | 勇猛(100110303), 英雄の凱歌(100110403), 星空(100110503) |
 | OnEnemyTurnStart | 31 | 敵行動開始境界で評価される。防御系・被弾前提の備え。 | `commitTurn()` で base turn が進んだときに `applyPassiveTimingInternal("OnEnemyTurnStart")` | 堅忍(100110203), 堅忍(100110301), 不屈の魂(100111000) |
 | OnAdditionalTurnStart | 10 | 追加ターンへ入る瞬間に評価される。EX専用のSP軽減や補助。 | `commitTurn()` / `grantExtraTurn()` で `applyPassiveTimingInternal("OnAdditionalTurnStart")` | クイックリキャスト(100330503), アフターサービス(100360700), 優美なる剣舞(100410703) |
 | OnOverdriveStart | 9 | OD発動時に評価される。OD突入直後の強化やSP補充。 | `activateOverdrive()` 内で EP 付与後に passive event を記録 | 専心(100260203), 専心(100450203), 専心(100510303) |
@@ -38,8 +39,6 @@ sequenceDiagram
 
     Note over Init: バトル開始時の初期化
     Init->>Passive: OnBattleStart + OnFirstBattleStart
-    Init->>Init: applyIntrinsicMarkTurnStartRecovery()
-    Init->>Passive: OnEveryTurn + OnPlayerTurnStart
     Passive-->>Init: passiveEventsLastApplied に保存
 
     Note over Preview: 行動選択・preview
@@ -90,6 +89,7 @@ sequenceDiagram
 ## 4. timing ごとの補足
 
 - `OnEveryTurn` と `OnPlayerTurnStart` は、現実装では同じ `TURN_START_PASSIVE_TIMINGS` 配列でまとめて処理されています。json 上の名称差はありますが、コード上は同じ turn-start pipeline に乗ります。
+- `applyInitialPassiveState()` は battle-start 専用です。`OnEveryTurn` / `OnPlayerTurnStart` と intrinsic mark Lv6 の前衛 `SP+1` は、初期化時には流さず true turn-start でだけ反映します。
 - `OnEveryTurnIncludeSpecial` は turn-start pipeline には入っていません。SP 消費軽減や preview modifier のような行動選択時効果を読むための別系統です。
 - `None` は timing 境界イベントではなく、個別のスキル条件・追加効果判定で参照されるデータです。
 - `OnFirstBattleStart` には Desc が `初戦開始時` ではなく `常時` や `スキル使用後` と書かれているものも含まれます。json の timing は「発火そのもの」より「戦闘開始時に登録・常設化するカテゴリ」として扱う方が実態に近いです。

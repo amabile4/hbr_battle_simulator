@@ -150,6 +150,7 @@ const REMOVABLE_PLAYER_DEBUFF_STATUS_TYPES = Object.freeze(
 );
 const ACTIVE_BUFF_STATUS_NORMAL_ATTACK_EFFECTS = Object.freeze(new Set(['NormalBuff_Up']));
 const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp', 'ReviveDpRate']));
+const HIGH_BOOST_SCALED_DP_SKILL_TYPES = Object.freeze(new Set(['HealDpRate', 'RegenerationDp']));
 const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
 const DP_HEAL_SKILL_TYPES = Object.freeze(
   new Set([...DIRECT_DP_HEAL_SKILL_TYPES, 'RegenerationDp', 'HealDpByDamage'])
@@ -710,6 +711,32 @@ function scaleHighBoostDpHealAmount(actor, amount) {
     return Number(amount ?? 0);
   }
   return applyHighBoostMultiplier(amount, modifiers.dpHealMultiplier);
+}
+
+function resolveHighBoostAdjustedDpAmount(actor, skillType, amount) {
+  const numericAmount = Number(amount ?? 0);
+  if (!Number.isFinite(numericAmount)) {
+    return 0;
+  }
+  if (!HIGH_BOOST_SCALED_DP_SKILL_TYPES.has(String(skillType ?? '').trim())) {
+    return numericAmount;
+  }
+  return scaleHighBoostDpHealAmount(actor, numericAmount);
+}
+
+function resolveNextCurrentDpForDirectChange(startDpState, skillType, amount) {
+  const startCurrentDp = Number(startDpState?.currentDp ?? 0);
+  const numericAmount = Number(amount ?? 0);
+  if (!Number.isFinite(startCurrentDp)) {
+    return 0;
+  }
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return startCurrentDp;
+  }
+  if (String(skillType ?? '') === 'ReviveDp' || String(skillType ?? '') === 'ReviveDpRate') {
+    return Math.max(startCurrentDp, numericAmount);
+  }
+  return startCurrentDp + numericAmount;
 }
 
 function scaleHighBoostAttackBuffPower(actor, skillType, power) {
@@ -2766,12 +2793,12 @@ function applyDpEffectsFromActions(state, previewRecord) {
         let statusEffect = null;
         let isAmountResolved = false;
 
-        if (skillType === 'HealDpRate') {
+        if (skillType === 'HealDpRate' || skillType === 'ReviveDpRate') {
           const rate = Number(part?.power?.[0] ?? 0);
           const amount = Number.isFinite(rate) && rate > 0 ? Number(startDpState.baseMaxDp ?? 0) * rate : 0;
-          const healedAmount = scaleHighBoostDpHealAmount(actor, amount);
+          const healedAmount = resolveHighBoostAdjustedDpAmount(actor, skillType, amount);
           const change = target.setDpState({
-            currentDp: Number(startDpState.currentDp ?? 0) + healedAmount,
+            currentDp: resolveNextCurrentDpForDirectChange(startDpState, skillType, healedAmount),
             effectiveDpCap: getDpHealCapForPart(target, part),
           });
           endDpState = cloneDpState(change.endDpState);
@@ -2784,9 +2811,9 @@ function applyDpEffectsFromActions(state, previewRecord) {
           endDpState = cloneDpState(change.endDpState);
           isAmountResolved = true;
         } else if (skillType === 'ReviveDp') {
-          const healedAmount = Number(DEFAULT_REVIVE_DP_FLOOR);
+          const healedAmount = resolveHighBoostAdjustedDpAmount(actor, skillType, DEFAULT_REVIVE_DP_FLOOR);
           const change = target.setDpState({
-            currentDp: Math.max(Number(startDpState.currentDp ?? 0), healedAmount),
+            currentDp: resolveNextCurrentDpForDirectChange(startDpState, skillType, healedAmount),
             effectiveDpCap: getDpHealCapForPart(target, part),
           });
           endDpState = cloneDpState(change.endDpState);
@@ -2799,7 +2826,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
             exitCond: String(part?.effect?.exitCond ?? 'EnemyTurnEnd'),
             remaining:
               Number.isFinite(remaining) && remaining > 0 ? remaining : DEFAULT_STATUS_EFFECT_REMAINING,
-            power: scaleHighBoostDpHealAmount(actor, Number(part?.power?.[0] ?? 0)),
+            power: resolveHighBoostAdjustedDpAmount(actor, skillType, Number(part?.power?.[0] ?? 0)),
             sourceSkillId: Number(skill.skillId),
             sourceSkillLabel: String(skill.label ?? ''),
             sourceSkillName: String(skill.name ?? ''),
@@ -3360,7 +3387,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         continue;
       }
 
-      if (effectType === 'HealDpRate') {
+      if (effectType === 'HealDpRate' || effectType === 'ReviveDpRate') {
         const rate = Number(part?.power?.[0] ?? 0);
         if (!Number.isFinite(rate) || rate <= 0) {
           continue;
@@ -3380,9 +3407,13 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
             continue;
           }
           const startDpState = cloneDpState(target.dpState ?? {});
-          const amount = scaleHighBoostDpHealAmount(actor, Number(startDpState.baseMaxDp ?? 0) * rate);
+          const amount = resolveHighBoostAdjustedDpAmount(
+            actor,
+            effectType,
+            Number(startDpState.baseMaxDp ?? 0) * rate
+          );
           const change = target.setDpState({
-            currentDp: Number(startDpState.currentDp ?? 0) + amount,
+            currentDp: resolveNextCurrentDpForDirectChange(startDpState, effectType, amount),
             effectiveDpCap: getDpHealCapForPart(target, part),
           });
           const endDpState = cloneDpState(change.endDpState);
@@ -7134,17 +7165,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0) {
               continue;
             }
-            const amount =
-              skillType === 'ReviveDpRate'
-                ? baseMaxDp * rate
-                : scaleHighBoostDpHealAmount(member, baseMaxDp * rate);
+            const amount = resolveHighBoostAdjustedDpAmount(member, skillType, baseMaxDp * rate);
             if (!Number.isFinite(amount) || amount <= 0) {
               continue;
             }
-            const nextCurrentDp =
-              skillType === 'ReviveDpRate'
-                ? Math.max(Number(startDpState.currentDp ?? 0), amount)
-                : Number(startDpState.currentDp ?? 0) + amount;
+            const nextCurrentDp = resolveNextCurrentDpForDirectChange(startDpState, skillType, amount);
             const change = target.setDpState({
               currentDp: nextCurrentDp,
               effectiveDpCap: getDpHealCapForPart(target, part),
@@ -8941,15 +8966,6 @@ function applyBattleStartPassiveState(state) {
   return battleStartResult;
 }
 
-function applyInitialTurnStartPassiveState(state) {
-  const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
-  state.turnState.passiveEventsLastApplied = [
-    ...(state.turnState.passiveEventsLastApplied ?? []),
-    ...turnStartResult.passiveEvents,
-  ];
-  return turnStartResult;
-}
-
 export function applyInitialPassiveState(state) {
   if (!state || !Array.isArray(state.party) || !state.turnState) {
     return state;
@@ -8957,7 +8973,6 @@ export function applyInitialPassiveState(state) {
 
   initializeIntrinsicMarkStatesFromParty(state.party);
   applyBattleStartPassiveState(state);
-  applyInitialTurnStartPassiveState(state);
   return state;
 }
 
