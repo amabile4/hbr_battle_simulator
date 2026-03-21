@@ -8972,8 +8972,17 @@ export function applyInitialPassiveState(state) {
     return state;
   }
 
+  function applyInitialTurnStartPassiveState(state) {
+  const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
+  state.turnState.passiveEventsLastApplied = [
+    ...(state.turnState.passiveEventsLastApplied ?? []),
+    ...turnStartResult.passiveEvents,
+  ];
+  return turnStartResult;
+}
   initializeIntrinsicMarkStatesFromParty(state.party);
   applyBattleStartPassiveState(state);
+  applyInitialTurnStartPassiveState(state);
   return state;
 }
 
