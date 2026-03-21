@@ -2,11 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
-import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
+import { CharacterStyle, Party, applyInitialPassiveState, createBattleStateFromParty } from '../src/index.js';
 import { TurnRowController } from '../ui-next/components/turn-row.js';
 import { TurnAreaController } from '../ui-next/components/turn-area.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
-import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
+import {
+  createEmptyLightweightReplayScript,
+  REPLAY_OPERATION_TYPES,
+  REPLAY_OVERRIDE_ENTRY_TYPES,
+} from '../src/ui/lightweight-replay-script.js';
 import { TARGET_SELECTION_MODES } from '../ui-next/utils/simulator-settings.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
@@ -126,6 +130,21 @@ function createBreakHealPassive() {
   };
 }
 
+function createBattleStartPassive({
+  id = 99911,
+  name = '開始補助',
+  desc = 'バトル開始時 自身のSP+2',
+  spAmount = 2,
+} = {}) {
+  return {
+    id,
+    name,
+    desc,
+    timing: 'OnBattleStart',
+    parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [spAmount, 0], value: [0, 0] }],
+  };
+}
+
 function createPartyWithActorSkill(actorSkill, actorOptions = {}) {
   const members = Array.from({ length: 6 }, (_, index) =>
     new CharacterStyle({
@@ -208,7 +227,13 @@ function createSimulatorSettings({
   };
 }
 
-function createTurnAreaController({ root, state, simulatorSettings, store = createStoreStub() }) {
+function createTurnAreaController({
+  root,
+  state,
+  simulatorSettings,
+  store = createStoreStub(),
+  onPassiveLogRowsChange = null,
+}) {
   const engineManager = new TurnEngineManager();
   const controller = new TurnAreaController({
     root,
@@ -218,9 +243,14 @@ function createTurnAreaController({ root, state, simulatorSettings, store = crea
       throw error;
     },
     onTurnCommitted: () => {},
+    onPassiveLogRowsChange,
   });
   controller.initialize(state, {}, simulatorSettings);
   return { controller, engineManager };
+}
+
+function extractPassiveLogTexts(rows = []) {
+  return rows.map((row) => row.text);
 }
 
 function mountTurnRow({ root, stateBefore, simulatorSettings, store = createStoreStub() }) {
@@ -1038,6 +1068,269 @@ test('TurnAreaController clears uncommitted target picks when simulator settings
       root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]').textContent,
       /E1/,
     );
+  }));
+
+test('TurnAreaController emits initial passive log rows for battle-start passives', () =>
+  withDom(({ root }) => {
+    let passiveLogRows = [];
+    const state = createState(
+      createSkill({
+        id: 95080,
+        name: 'Log Guard',
+        targetType: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      }),
+      1,
+      {
+        characterId: 'PLOG1',
+        characterName: '開始ログ役',
+        styleId: 9801,
+        styleName: '開始ログスタイル',
+        passives: [
+          createBattleStartPassive({
+            id: 99921,
+            name: '開始補助',
+            desc: 'バトル開始時 自身のSP+2',
+          }),
+        ],
+      },
+    );
+    applyInitialPassiveState(state);
+
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      onPassiveLogRowsChange: (rows) => {
+        passiveLogRows = rows;
+      },
+    });
+
+    assert.deepEqual(extractPassiveLogTexts(passiveLogRows), [
+      '=== 戦闘開始 ===',
+      '--- OnBattleStart ---',
+      'T1：開始ログスタイル / 開始ログ役 : [開始補助] バトル開始時 自身のSP+2',
+    ]);
+  }));
+
+test('TurnAreaController appends only new passive trigger rows after commit', () =>
+  withDom(({ root, win }) => {
+    let passiveLogRows = [];
+    const exSkill = createSkill({
+      id: 95081,
+      name: 'EX Log Skill',
+      targetType: 'Self',
+      parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+    });
+    exSkill.is_restricted = 1;
+
+    const state = createState(exSkill, 1, {
+      characterId: 'PLOG2',
+      characterName: '実行ログ役',
+      styleId: 9802,
+      styleName: '実行ログスタイル',
+      passives: [
+        createBattleStartPassive({
+          id: 99922,
+          name: '開始補助',
+          desc: 'バトル開始時 自身のSP+2',
+        }),
+        {
+          id: 99923,
+          name: '追加支援テスト',
+          timing: 'OnFirstBattleStart',
+          parts: [
+            { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0] },
+            { skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.6, 0], value: [0, 0] },
+          ],
+        },
+      ],
+    });
+    applyInitialPassiveState(state);
+
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      onPassiveLogRowsChange: (rows) => {
+        passiveLogRows = rows;
+      },
+    });
+
+    root
+      .querySelector('[data-role="commit-btn"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const passiveRows = passiveLogRows.filter((row) => row.kind === 'passive');
+    assert.equal(
+      passiveRows.filter((row) => row.passiveName === '開始補助').length,
+      1,
+    );
+    assert.equal(
+      passiveRows.filter((row) => row.passiveName === '追加支援テスト').length,
+      1,
+    );
+    assert.ok(
+      passiveLogRows.some((row) => row.kind === 'marker' && row.text === '=== T1実行 ==='),
+    );
+    assert.ok(
+      passiveLogRows.some((row) => row.kind === 'marker' && row.text === '--- OnFirstBattleStart ---'),
+    );
+    assert.match(
+      passiveRows.find((row) => row.passiveName === '追加支援テスト')?.text ?? '',
+      /\[追加支援テスト\]/,
+    );
+  }));
+
+test('TurnAreaController emits EX boundary passive markers only when additional turn passives fire', () =>
+  withDom(({ root, win }) => {
+    let passiveLogRows = [];
+    const grantExtraSkill = createSkill({
+      id: 95082,
+      name: 'Grant Front Extra',
+      targetType: 'AllyFront',
+      parts: [{ skill_type: 'AdditionalTurn', target_type: 'AllyFront' }],
+    });
+    grantExtraSkill.additionalTurnRule = {
+      skillUsableInExtraTurn: true,
+      additionalTurnGrantInExtraTurn: true,
+      conditions: {
+        requiresOverDrive: false,
+        requiresReinforcedMode: false,
+        excludesExtraTurnForSkillUse: false,
+        excludesExtraTurnForAdditionalTurnGrant: false,
+      },
+      additionalTurnTargetTypes: ['AllyFront'],
+    };
+
+    const state = createFrontlineState(
+      [grantExtraSkill],
+      1,
+      [
+        null,
+        {
+          characterId: 'PLOG3',
+          characterName: 'EXログ役',
+          styleId: 9803,
+          styleName: 'EXログスタイル',
+          passives: [
+            {
+              id: 99923,
+              name: 'アフターサービス',
+              desc: '追加ターン開始時 自身のSP+1',
+              timing: 'OnAdditionalTurnStart',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0], value: [0, 0] }],
+            },
+          ],
+        },
+      ],
+    );
+
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      onPassiveLogRowsChange: (rows) => {
+        passiveLogRows = rows;
+      },
+    });
+
+    root
+      .querySelector('[data-role="commit-btn"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(
+      passiveLogRows.some((row) => row.kind === 'marker' && row.text === '=== EX開始 ==='),
+    );
+    assert.ok(
+      passiveLogRows.some((row) => row.kind === 'marker' && row.text === '--- OnAdditionalTurnStart ---'),
+    );
+    const exPassiveRow = passiveLogRows.find(
+      (row) => row.kind === 'passive' && row.passiveName === 'アフターサービス',
+    );
+    assert.ok(exPassiveRow);
+    assert.equal(exPassiveRow.turnLabel, 'EX');
+    assert.match(exPassiveRow.text, /EXログスタイル \/ EXログ役/);
+  }));
+
+test('TurnAreaController rebuilds passive log rows on reinitialize and loadSession', () =>
+  withDom(({ root }) => {
+    let passiveLogRows = [];
+    const simulatorSettings = createSimulatorSettings();
+    const buildState = ({ characterId, characterName, styleId, styleName, passiveId, passiveName, passiveDesc }) => {
+      const state = createState(
+        createSkill({
+          id: 95083,
+          name: 'Replay Guard',
+          targetType: 'Self',
+          parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+        }),
+        1,
+        {
+          characterId,
+          characterName,
+          styleId,
+          styleName,
+          passives: [
+            createBattleStartPassive({
+              id: passiveId,
+              name: passiveName,
+              desc: passiveDesc,
+            }),
+          ],
+        },
+      );
+      applyInitialPassiveState(state);
+      return state;
+    };
+
+    const stateA = buildState({
+      characterId: 'PLOG4A',
+      characterName: '初期ログA',
+      styleId: 9804,
+      styleName: '初期ログスタイルA',
+      passiveId: 99924,
+      passiveName: '開始A',
+      passiveDesc: 'Aだけを表示する',
+    });
+    const { controller } = createTurnAreaController({
+      root,
+      state: stateA,
+      simulatorSettings,
+      onPassiveLogRowsChange: (rows) => {
+        passiveLogRows = rows;
+      },
+    });
+
+    assert.ok(passiveLogRows.some((row) => row.kind === 'passive' && row.passiveName === '開始A'));
+
+    const stateB = buildState({
+      characterId: 'PLOG4B',
+      characterName: '初期ログB',
+      styleId: 9805,
+      styleName: '初期ログスタイルB',
+      passiveId: 99925,
+      passiveName: '開始B',
+      passiveDesc: 'Bだけを表示する',
+    });
+    controller.reinitialize(stateB, simulatorSettings);
+
+    assert.equal(passiveLogRows.some((row) => row.kind === 'passive' && row.passiveName === '開始A'), false);
+    assert.ok(passiveLogRows.some((row) => row.kind === 'passive' && row.passiveName === '開始B'));
+
+    const stateC = buildState({
+      characterId: 'PLOG4C',
+      characterName: '初期ログC',
+      styleId: 9806,
+      styleName: '初期ログスタイルC',
+      passiveId: 99926,
+      passiveName: '開始C',
+      passiveDesc: 'Cだけを表示する',
+    });
+    controller.loadSession(stateC, createEmptyLightweightReplayScript(), simulatorSettings);
+
+    assert.equal(passiveLogRows.some((row) => row.kind === 'passive' && row.passiveName === '開始B'), false);
+    assert.ok(passiveLogRows.some((row) => row.kind === 'passive' && row.passiveName === '開始C'));
   }));
 
 test('TurnAreaController adds Kishinka as an operation chip without mutating note text', () =>

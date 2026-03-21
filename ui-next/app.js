@@ -95,6 +95,7 @@ async function main() {
     engineManager: turnEngineManager,
     onError: (err) => showStatus(`ターン実行エラー: ${err.message}`),
     onTurnCommitted: () => initialSetup?.setHasRecords(true),
+    onPassiveLogRowsChange: (rows) => initialSetup?.setPassiveLogRows(rows),
   });
 
   const setupRoot = document.querySelector('#initial-setup-root');
@@ -109,6 +110,7 @@ async function main() {
         const state = battleStateManager.buildFromSnapshot(snapshot.party);
         const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
         turnArea.initialize(state, replaySetup, snapshot.simulatorSettings, DEFAULT_VALIDATION_POLICY);
+        initialSetup.setHasActiveBattle(true);
         initialSetup.setHasRecords(false);
         window.collapseSetup?.();
       } catch (err) {
@@ -116,11 +118,14 @@ async function main() {
         console.error(err);
       }
     },
-    onRecalculate: (snapshot) => {
+    onRecalculate: (snapshot, options = {}) => {
       try {
         const state = battleStateManager.buildFromSnapshot(snapshot.party);
         turnArea.reinitialize(state, snapshot.simulatorSettings);
-        window.collapseSetup?.();
+        initialSetup.setHasActiveBattle(true);
+        if (!options.automatic) {
+          window.collapseSetup?.();
+        }
       } catch (err) {
         showStatus(`再計算エラー: ${err.message}`);
         console.error(err);
@@ -162,6 +167,7 @@ async function main() {
           session.simulatorSettings,
           session.validationPolicy,
         );
+        initialSetup.setHasActiveBattle(true);
         initialSetup.setHasRecords(session.replayScript.turns.length > 0);
         window.collapseSetup?.();
         showStatus(`セッションを読み込みました (${session.replayScript.turns.length} turns).`);

@@ -1,8 +1,6 @@
 import { resolveStyleImageUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
-import { isNormalAttackSkill, isAdmiralCommandSkill } from '../../src/domain/skill-classifiers.js';
 import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 import { formatSkillCostLabel } from '../utils/skill-label.js';
-import { getExcludedSkillIds } from '../utils/skill-filter.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../../src/ui/lightweight-replay-script.js';
 import {
@@ -192,14 +190,7 @@ export class TurnRowController {
   }
 
   #getVisibleSkills(member) {
-    const skills = member?.getActionSkills ? member.getActionSkills() : [];
-    const excludedSkillIds = getExcludedSkillIds(member?.styleId);
-    if (excludedSkillIds.size === 0) {
-      return skills;
-    }
-    return skills.filter(
-      (skill) => isNormalAttackSkill(skill) || isAdmiralCommandSkill(skill) || !excludedSkillIds.has(skill.skillId)
-    );
+    return member?.getActionSkills ? member.getActionSkills() : [];
   }
 
   #resolveDraftSkillId(member, candidateSkillId = null) {
@@ -249,8 +240,7 @@ export class TurnRowController {
   }
 
   /**
-   * フィルタ変更時にフロントスロットの skill select の innerHTML のみを差し替える。
-   * 全再描画を避けるための軽量更新メソッド。
+   * フロントスロットの skill select の innerHTML のみを差し替える軽量更新メソッド。
    */
   refreshSkillSelects() {
     const members = this.#getMembersInPositionOrder();
@@ -1326,17 +1316,11 @@ export class TurnRowController {
     // this.#stateBefore が null の場合は formatSkillCostLabel が raw spCost をフォールバック表示する。
     const stateForCost = this.#stateBefore ?? null;
 
-    // フィルタ適用: 除外スキルを option から除く
-    const excludedSkillIds = getExcludedSkillIds(member.styleId);
-    // フィルタ適用: 通常攻撃・指揮行動は除外対象から除く
-    const visibleSkills = excludedSkillIds.size > 0
-      ? skills.filter((s) => isNormalAttackSkill(s) || isAdmiralCommandSkill(s) || !excludedSkillIds.has(s.skillId))
-      : skills;
+    const visibleSkills = skills;
 
-    // 選択中スキルがフィルタで非表示になった場合は先頭スキルにフォールバック
+    // 選択中スキルが無効になった場合は先頭スキルにフォールバック
     const hasSelection = selectedSkillId != null && visibleSkills.some((s) => s.skillId === selectedSkillId);
     const effectiveSelectedId = hasSelection ? selectedSkillId : (visibleSkills[0]?.skillId ?? null);
-    // バッジ表示用: フィルタで非表示でも全件から引く（コミット済み行で正しく表示するため）
     const selectedSkill = effectiveSelectedId != null
       ? (skills.find((s) => s.skillId === effectiveSelectedId) ?? null)
       : null;

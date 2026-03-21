@@ -237,7 +237,7 @@ const HIGH_BOOST_TEST_STATUS_EFFECT = Object.freeze({
     skillAtkRate: 1.8,
     attackBuffMultiplier: 1.2,
     debuffMultiplier: 1.2,
-    healMultiplier: 1.5,
+    dpHealMultiplier: 1.5,
   },
 });
 
@@ -8791,6 +8791,50 @@ test('applyInitialPassiveState applies OnBattleStart Zone passive into zone stat
   assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '灼熱の陣'), true);
 });
 
+test('applyInitialPassiveState keeps battle-start and turn-start passives distinct in the initial state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 9901,
+              name: 'BattleStart Heal',
+              timing: 'OnBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+            {
+              id: 9902,
+              name: 'TurnStart Heal',
+              timing: 'OnEveryTurn',
+              condition: '',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+            {
+              id: 9903,
+              name: 'TurnStart Buff',
+              timing: 'OnPlayerTurnStart',
+              condition: '',
+              parts: [{ skill_type: 'AttackUp', target_type: 'Self', power: [0.2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  assert.equal(state.party[0].sp.current, 13);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'BattleStart Heal'), true);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'TurnStart Heal'), true);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'TurnStart Buff'), true);
+  assert.equal(
+    state.turnState.passiveEventsLastApplied.filter((event) => event.passiveName === 'TurnStart Heal').length,
+    1
+  );
+});
+
 test('turn recovery applies 閃光 on every turn while frontline', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -8820,6 +8864,7 @@ test('turn recovery applies 閃光 on every turn while frontline', () => {
 
   let state = createBattleStateFromParty(new Party(members));
   applyInitialPassiveState(state);
+  assert.equal(state.party.find((m) => m.characterId === 'FS1').sp.current, 4);
 
   const preview = previewTurn(state, {
     0: { characterId: 'FS1', skillId: 26100 },
@@ -8831,6 +8876,10 @@ test('turn recovery applies 閃光 on every turn while frontline', () => {
   assert.equal(nextState.party.find((m) => m.characterId === 'FS1').sp.current, 7);
   assert.equal(nextState.party.find((m) => m.characterId === 'FS2').sp.current, 5);
   assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '閃光'), true);
+  assert.equal(
+    nextState.turnState.passiveEventsLastApplied.filter((event) => event.passiveName === '閃光').length,
+    1
+  );
 });
 
 test('applyPassiveTiming applies OnPlayerTurnStart through exported timing API', () => {
@@ -10844,7 +10893,7 @@ test('HighBoost increases SP consumption by 2 without stacking and keeps zero or
   assert.equal(findActionByCharacterId(allCostPreview, 'HB1').spCost, -1, 'all-cost skills should remain unchanged');
 });
 
-test('HighBoost scales attack-up buffs, enemy debuffs, healing, and damage context metadata', () => {
+test('HighBoost scales attack-up buffs, enemy debuffs, non-revive DP healing, and damage context metadata', () => {
   const createParty = () => createHighBoostManualParty({
     initialSP: 10,
     baseMaxDp: 100,
@@ -10940,7 +10989,7 @@ test('HighBoost scales attack-up buffs, enemy debuffs, healing, and damage conte
   const healSpChange = findActionByCharacterId(healSpRecord, 'HB1').spChanges.find(
     (change) => change.source === 'active'
   );
-  assert.equal(healSpChange?.delta, 6);
+  assert.equal(healSpChange?.delta, 4);
 
   const healDpState = createBattleStateFromParty(createParty());
   const healDpPreview = previewTurn(healDpState, {
@@ -10952,7 +11001,69 @@ test('HighBoost scales attack-up buffs, enemy debuffs, healing, and damage conte
   assert.equal(findActionByCharacterId(healDpRecord, 'HB1').dpChanges[0].delta, 15);
 });
 
-test('HighBoost also scales passive healing effects', () => {
+test('HighBoost does not scale active HealEp or revive effects', () => {
+  const createParty = (skills, actorOverrides = {}) => createHighBoostManualParty({
+    initialSP: 10,
+    initialEP: 0,
+    baseMaxDp: 100,
+    currentDp: 0,
+    skills,
+    ...actorOverrides,
+  });
+
+  const healEpState = createBattleStateFromParty(createParty([
+    {
+      id: 30030,
+      name: 'HighBoost HealEp',
+      label: 'HighBoostHealEp',
+      sp_cost: 0,
+      parts: [{ skill_type: 'HealEp', target_type: 'Self', power: [4, 0] }],
+    },
+  ]));
+  const healEpPreview = previewTurn(healEpState, {
+    0: { characterId: 'HB1', skillId: 30030 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: healEpRecord } = commitTurn(healEpState, healEpPreview);
+  assert.equal(findActionByCharacterId(healEpRecord, 'HB1').epChanges[0]?.delta, 4);
+
+  const reviveDpState = createBattleStateFromParty(createParty([
+    {
+      id: 30031,
+      name: 'HighBoost ReviveDp',
+      label: 'HighBoostReviveDp',
+      sp_cost: 0,
+      parts: [{ skill_type: 'ReviveDp', target_type: 'Self', power: [0, 0] }],
+    },
+  ]));
+  const reviveDpPreview = previewTurn(reviveDpState, {
+    0: { characterId: 'HB1', skillId: 30031 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: reviveDpRecord } = commitTurn(reviveDpState, reviveDpPreview);
+  assert.equal(findActionByCharacterId(reviveDpRecord, 'HB1').dpChanges[0]?.delta, 1);
+
+  const reviveDpRateState = createBattleStateFromParty(createParty([
+    {
+      id: 30032,
+      name: 'HighBoost ReviveDpRate',
+      label: 'HighBoostReviveDpRate',
+      sp_cost: 0,
+      parts: [{ skill_type: 'ReviveDpRate', target_type: 'Self', power: [0.1, 0], value: [1, 0] }],
+    },
+  ]));
+  const reviveDpRatePreview = previewTurn(reviveDpRateState, {
+    0: { characterId: 'HB1', skillId: 30032 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: reviveDpRateRecord } = commitTurn(reviveDpRateState, reviveDpRatePreview);
+  assert.equal(findActionByCharacterId(reviveDpRateRecord, 'HB1').dpChanges[0]?.delta, 10);
+});
+
+test('HighBoost does not scale passive SP healing effects', () => {
   const party = createHighBoostManualParty({
     initialSP: 10,
     passives: [
@@ -10963,14 +11074,24 @@ test('HighBoost also scales passive healing effects', () => {
         condition: '',
         parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [4, 0] }],
       },
+      {
+        id: 30101,
+        name: 'Passive Random Heal',
+        timing: 'OnPlayerTurnStart',
+        condition: '',
+        parts: [{ skill_type: 'HealSpRandom', target_type: 'Self', power: [1, 0], value: [4, 0] }],
+      },
     ],
   });
   const state = createBattleStateFromParty(party);
 
   const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
 
-  assert.equal(result.spEvents[0]?.delta, 6);
-  assert.equal(state.party[0].sp.current, 16);
+  assert.deepEqual(
+    result.spEvents.map((event) => event.delta),
+    [4, 4]
+  );
+  assert.equal(state.party[0].sp.current, 18);
 });
 
 test('ReduceSp (OnFirstBattleStart / 蒼天): 全味方スキルコスト -1 が preview に反映される', () => {

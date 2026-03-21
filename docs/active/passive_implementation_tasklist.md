@@ -173,7 +173,7 @@
 
 ### `HighBoost` / 装備型 battle-start passive メモ
 
-- `ui-next` の Party Setup は slot ごとに装備型 skill checklist を持ち、`skillSetsByPartyIndex` を session save/load と party preset へ保存する
+- `ui-next` の Party Setup は slot ごとの `スキル設定` パネルで装備集合を管理し、`skillSetsByPartyIndex` を session save/load と party preset へ保存する
 - runtime は `equippedSkillIds` に応じて equipable passive-with-passive skills を `triggeredSkills` へ残すかどうかを切り替える
 - 追撃のような自動発動 skill は装備 checklist から除外し、equipable passive だけを着脱対象にする
 - `[夜の香り、薔薇の調べ] 柳 美音` の `ルビー・パフューム` は、装備時のみ `OnFirstBattleStart` に参加して `HighBoost` と `SpLimitOverwrite` を味方全体へ付与する

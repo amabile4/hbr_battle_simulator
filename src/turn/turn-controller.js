@@ -37,7 +37,7 @@ const HIGH_BOOST_SP_COST_INCREASE = 2;
 const HIGH_BOOST_SKILL_ATK_RATE = 1.8;
 const HIGH_BOOST_ATTACK_BUFF_MULTIPLIER = 1.2;
 const HIGH_BOOST_DEBUFF_MULTIPLIER = 1.2;
-const HIGH_BOOST_HEAL_MULTIPLIER = 1.5;
+const HIGH_BOOST_DP_HEAL_MULTIPLIER = 1.5;
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
   'AttackSkill',
@@ -675,7 +675,7 @@ function resolveHighBoostModifiersForMember(member) {
       skillAtkRate: 0,
       attackBuffMultiplier: 1,
       debuffMultiplier: 1,
-      healMultiplier: 1,
+      dpHealMultiplier: 1,
     };
   }
   return {
@@ -686,7 +686,9 @@ function resolveHighBoostModifiersForMember(member) {
       effect?.metadata?.attackBuffMultiplier ?? HIGH_BOOST_ATTACK_BUFF_MULTIPLIER
     ),
     debuffMultiplier: Number(effect?.metadata?.debuffMultiplier ?? HIGH_BOOST_DEBUFF_MULTIPLIER),
-    healMultiplier: Number(effect?.metadata?.healMultiplier ?? HIGH_BOOST_HEAL_MULTIPLIER),
+    dpHealMultiplier: Number(
+      effect?.metadata?.dpHealMultiplier ?? effect?.metadata?.healMultiplier ?? HIGH_BOOST_DP_HEAL_MULTIPLIER
+    ),
   };
 }
 
@@ -702,12 +704,12 @@ function applyHighBoostMultiplier(value, multiplier) {
   return truncateToTwoDecimals(numericValue * numericMultiplier);
 }
 
-function scaleHighBoostHealAmount(actor, amount) {
+function scaleHighBoostDpHealAmount(actor, amount) {
   const modifiers = resolveHighBoostModifiersForMember(actor);
   if (!modifiers.active) {
     return Number(amount ?? 0);
   }
-  return applyHighBoostMultiplier(amount, modifiers.healMultiplier);
+  return applyHighBoostMultiplier(amount, modifiers.dpHealMultiplier);
 }
 
 function scaleHighBoostAttackBuffPower(actor, skillType, power) {
@@ -2767,7 +2769,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
         if (skillType === 'HealDpRate') {
           const rate = Number(part?.power?.[0] ?? 0);
           const amount = Number.isFinite(rate) && rate > 0 ? Number(startDpState.baseMaxDp ?? 0) * rate : 0;
-          const healedAmount = scaleHighBoostHealAmount(actor, amount);
+          const healedAmount = scaleHighBoostDpHealAmount(actor, amount);
           const change = target.setDpState({
             currentDp: Number(startDpState.currentDp ?? 0) + healedAmount,
             effectiveDpCap: getDpHealCapForPart(target, part),
@@ -2782,7 +2784,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
           endDpState = cloneDpState(change.endDpState);
           isAmountResolved = true;
         } else if (skillType === 'ReviveDp') {
-          const healedAmount = scaleHighBoostHealAmount(actor, DEFAULT_REVIVE_DP_FLOOR);
+          const healedAmount = Number(DEFAULT_REVIVE_DP_FLOOR);
           const change = target.setDpState({
             currentDp: Math.max(Number(startDpState.currentDp ?? 0), healedAmount),
             effectiveDpCap: getDpHealCapForPart(target, part),
@@ -2797,7 +2799,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
             exitCond: String(part?.effect?.exitCond ?? 'EnemyTurnEnd'),
             remaining:
               Number.isFinite(remaining) && remaining > 0 ? remaining : DEFAULT_STATUS_EFFECT_REMAINING,
-            power: scaleHighBoostHealAmount(actor, Number(part?.power?.[0] ?? 0)),
+            power: scaleHighBoostDpHealAmount(actor, Number(part?.power?.[0] ?? 0)),
             sourceSkillId: Number(skill.skillId),
             sourceSkillLabel: String(skill.label ?? ''),
             sourceSkillName: String(skill.name ?? ''),
@@ -3285,7 +3287,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       }
 
       if (effectType === 'HealSp') {
-        const amount = scaleHighBoostHealAmount(actor, Number(part?.power?.[0] ?? 0));
+        const amount = Number(part?.power?.[0] ?? 0);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
@@ -3378,7 +3380,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
             continue;
           }
           const startDpState = cloneDpState(target.dpState ?? {});
-          const amount = scaleHighBoostHealAmount(actor, Number(startDpState.baseMaxDp ?? 0) * rate);
+          const amount = scaleHighBoostDpHealAmount(actor, Number(startDpState.baseMaxDp ?? 0) * rate);
           const change = target.setDpState({
             currentDp: Number(startDpState.currentDp ?? 0) + amount,
             effectiveDpCap: getDpHealCapForPart(target, part),
@@ -6527,7 +6529,7 @@ function previewActionEntries(state, sortedActions) {
           ? truncateToTwoDecimals(Number(highBoostModifiers.debuffMultiplier ?? 1) - 1)
           : 0,
         giveHealUpRate: highBoostModifiers.active
-          ? truncateToTwoDecimals(Number(highBoostModifiers.healMultiplier ?? 1) - 1)
+          ? truncateToTwoDecimals(Number(highBoostModifiers.dpHealMultiplier ?? 1) - 1)
           : 0,
         markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
         markDevastationRateUp: Number(intrinsicMarkModifiers.devastationRateUp ?? 0),
@@ -6628,7 +6630,7 @@ function applyPassiveSkillEpTurnStart(member, turnState) {
       if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
-      const amount = scaleHighBoostHealAmount(member, Number(part?.power?.[0] ?? 0));
+      const amount = Number(part?.power?.[0] ?? 0);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -6676,7 +6678,7 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
       if (skillType !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
-      const amount = scaleHighBoostHealAmount(member, Number(part?.power?.[0] ?? 0));
+      const amount = Number(part?.power?.[0] ?? 0);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -7132,7 +7134,10 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0) {
               continue;
             }
-            const amount = scaleHighBoostHealAmount(member, baseMaxDp * rate);
+            const amount =
+              skillType === 'ReviveDpRate'
+                ? baseMaxDp * rate
+                : scaleHighBoostDpHealAmount(member, baseMaxDp * rate);
             if (!Number.isFinite(amount) || amount <= 0) {
               continue;
             }
@@ -7605,7 +7610,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
                 skillAtkRate: HIGH_BOOST_SKILL_ATK_RATE,
                 attackBuffMultiplier: HIGH_BOOST_ATTACK_BUFF_MULTIPLIER,
                 debuffMultiplier: HIGH_BOOST_DEBUFF_MULTIPLIER,
-                healMultiplier: HIGH_BOOST_HEAL_MULTIPLIER,
+                dpHealMultiplier: HIGH_BOOST_DP_HEAL_MULTIPLIER,
                 targetType: String(part?.target_type ?? ''),
               },
             });
@@ -7679,7 +7684,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
 
         if (skillType === 'HealSpRandom') {
           // 確率でSP回復: power[0] = probability (always succeeds in simulator), value[0] = SP amount
-          const amount = scaleHighBoostHealAmount(member, Number(part?.value?.[0] ?? 0));
+          const amount = Number(part?.value?.[0] ?? 0);
           if (!Number.isFinite(amount) || amount === 0) {
             continue;
           }
@@ -7740,7 +7745,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'HealSp') {
-          const amount = scaleHighBoostHealAmount(member, Number(part?.power?.[0] ?? 0));
+          const amount = Number(part?.power?.[0] ?? 0);
           if (!Number.isFinite(amount) || amount === 0) {
             continue;
           }
@@ -7985,7 +7990,7 @@ function applySkillSelfEpGains(state, previewRecord) {
       if (!condSatisfied) {
         continue;
       }
-      const amount = scaleHighBoostHealAmount(member, Number(part?.power?.[0] ?? 0));
+      const amount = Number(part?.power?.[0] ?? 0);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -8103,7 +8108,7 @@ function applySkillSpGains(state, previewRecord) {
         continue;
       }
 
-      const amount = scaleHighBoostHealAmount(actor, Number(part?.power?.[0] ?? 0));
+      const amount = Number(part?.power?.[0] ?? 0);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -8930,19 +8935,29 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
   return nextState;
 }
 
+function applyBattleStartPassiveState(state) {
+  const battleStartResult = applyPassiveTimingInternal(state, BATTLE_START_PASSIVE_TIMINGS);
+  state.turnState.passiveEventsLastApplied = [...battleStartResult.passiveEvents];
+  return battleStartResult;
+}
+
+function applyInitialTurnStartPassiveState(state) {
+  const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
+  state.turnState.passiveEventsLastApplied = [
+    ...(state.turnState.passiveEventsLastApplied ?? []),
+    ...turnStartResult.passiveEvents,
+  ];
+  return turnStartResult;
+}
+
 export function applyInitialPassiveState(state) {
   if (!state || !Array.isArray(state.party) || !state.turnState) {
     return state;
   }
 
   initializeIntrinsicMarkStatesFromParty(state.party);
-  const battleStartResult = applyPassiveTimingInternal(state, BATTLE_START_PASSIVE_TIMINGS);
-  applyIntrinsicMarkTurnStartRecovery(state.party);
-  const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
-  state.turnState.passiveEventsLastApplied = [
-    ...battleStartResult.passiveEvents,
-    ...turnStartResult.passiveEvents,
-  ];
+  applyBattleStartPassiveState(state);
+  applyInitialTurnStartPassiveState(state);
   return state;
 }
 

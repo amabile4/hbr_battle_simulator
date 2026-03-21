@@ -38,6 +38,7 @@
 2. `Enemy Setup`
 3. `Stage Setup`
 4. `Simulator Settings`
+5. `Passive Log`
 
 このうち、初回実装で最優先なのは `Party Setup` である。`Enemy Setup` と `Stage Setup` は battle start 条件、`Simulator Settings` は UI / セッション動作設定として別責務で置く。
 
@@ -80,7 +81,7 @@
 - `SP装備`
 - `属性ベルト`
 - `やる気`
-- `装備スキル checklist`
+- `スキル設定` button
 
 補足:
 
@@ -89,9 +90,10 @@
 - 未選択時は略称を placeholder として表示する
 - `main style icon` / `support style icon` は未選択でもクリック可能な明確な empty state を持つ
 - Party Setup プリセットは既存スロットへ保存するときだけ上書き確認を出す
-- `装備スキル checklist` は `listEquipableSkillsByStyleId(styleId)` を正本にし、通常攻撃 / 指揮行動は checked + disabled、追撃は出さない
-- checklist の選択結果は `skillSetsByPartyIndex` として session save/load、party preset、battle 初期化へ通す
+- `スキル設定` パネルは `listEquipableSkillsByStyleId(styleId)` を正本にし、通常攻撃 / 指揮行動は checked + disabled、追撃は出さない
+- 各行の checked は `装備＝表示` を意味し、選択結果は `skillSetsByPartyIndex` として session save/load、party preset、battle 初期化へ通す
 - passive / master / orb はタグ付きで見分けられるようにする
+- シミュレーター開始後の skill 追加は 1 ターン目から自動再計算し、committed record がある間の skill 解除は UI 上で禁止する
 
 ### 操作モデル
 
@@ -186,6 +188,22 @@
 - `Simulator Settings` には current session の JSON 保存 / 読込ボタンを置く
 - save/load の正本は `SessionSnapshotV1` とし、`setup / simulatorSettings / validationPolicy / replayScript` を保存する
 - `validationPolicy` は当面 permissive input を維持する箱としてのみ使い、既定値はすべて `true` とする
+
+## Block 5: Passive Log
+
+### 役割
+
+- current session で実際に発火した passive event を、人間が追える監査ログとして表示する
+- battle engine の timing 判定は変更せず、表示層で `initialState.turnState.passiveEventsLastApplied` と `committedRecord.passiveEvents` を再構成する
+- `Initial Setup` の独立 top-level tab に置き、Party / Enemy / Stage / Simulator Settings と責務を混ぜない
+
+### 表示ルール
+
+- row 種別は `marker` と `passive` の 2 種だけにする
+- `戦闘開始`、`Tn開始`、`Tn実行`、`EX開始`、`OD開始` など、直後に passive row がある境界だけ marker 行を出す
+- timing は `--- OnBattleStart ---` のような 1 行 marker で区切り、個々の passive row には旧ログ準拠の 1 行フォーマットを使う
+- 1 passive 効果 1 行を維持するため、accordion は使わず `nowrap + 横スクロール` の単一コンテナに出す
+- 将来の別ウィンドウ化を見据え、log row builder と tab 描画は分離する
 
 ### Turn 行の selectable skill list
 
@@ -282,6 +300,7 @@
 
 - operation chip の label / tone は `ui-next/utils/replay-operation-presentation.js` に置く
 - `LightweightReplayScript` や shared runtime は日本語ラベルを知らない
+- passive debug log の row 再構築は `ui-next/utils/passive-debug-log.js` に置き、UI 表示から分離する
 
 ## Screen 2: Style Picker
 
