@@ -657,6 +657,7 @@ function createPassiveTriggerEvent(turnState, member, passive, details = {}) {
     timing: String(passive?.timing ?? ''),
     characterId: String(member?.characterId ?? ''),
     characterName: String(member?.characterName ?? ''),
+    shortCharacterName: String(member?.shortName ?? member?.characterName ?? ''),
     passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
     passiveName: String(passive?.name ?? ''),
     passiveDesc: String(passive?.desc ?? ''),

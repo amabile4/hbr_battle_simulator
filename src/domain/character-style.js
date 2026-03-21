@@ -280,6 +280,7 @@ export class CharacterStyle {
 
     this.characterId = String(input.characterId);
     this.characterName = String(input.characterName);
+    this.shortName = String(input.shortName ?? input.characterName);
     this.styleId = Number(input.styleId);
     this.styleName = String(input.styleName);
     this.team = String(input.team ?? '');
@@ -1157,6 +1158,7 @@ export class CharacterStyle {
     // immutable フィールド（参照コピー）
     c.characterId = this.characterId;
     c.characterName = this.characterName;
+    c.shortName = this.shortName;
     c.styleId = this.styleId;
     c.styleName = this.styleName;
     c.team = this.team;
@@ -1205,6 +1207,7 @@ export class CharacterStyle {
     return {
       characterId: this.characterId,
       characterName: this.characterName,
+      shortName: this.shortName,
       styleId: this.styleId,
       styleName: this.styleName,
       limitBreakLevel: this.limitBreakLevel,

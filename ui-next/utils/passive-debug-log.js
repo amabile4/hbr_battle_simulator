@@ -13,20 +13,13 @@ function resolveStateTurnLabel(state) {
   return normalizeInlineText(state?.turnState?.turnLabel ?? '');
 }
 
-function resolveStyleNameFromState(state, characterId, fallbackCharacterName) {
-  const normalizedCharacterId = normalizeInlineText(characterId);
-  const party = Array.isArray(state?.party) ? state.party : [];
-  const member = party.find((item) => normalizeInlineText(item?.characterId) === normalizedCharacterId) ?? null;
-  const styleName = normalizeInlineText(member?.styleName ?? '');
-  return styleName || normalizeInlineText(fallbackCharacterName);
-}
 
 function normalizePassiveEvents(events, stateContext = null, fallbackTurnLabel = '') {
   return (Array.isArray(events) ? events : [])
     .filter((event) => event && typeof event === 'object')
     .map((event) => {
       const characterId = normalizeInlineText(event.characterId ?? '');
-      const characterName = normalizeInlineText(event.characterName ?? event.characterId ?? '');
+      const characterName = normalizeInlineText(event.shortCharacterName ?? event.characterName ?? event.characterId ?? '');
       const passiveName = normalizeInlineText(event.passiveName ?? '');
       const passiveDesc =
         normalizeInlineText(event.passiveDesc ?? event.desc ?? '') || passiveName;
@@ -35,19 +28,17 @@ function normalizePassiveEvents(events, stateContext = null, fallbackTurnLabel =
       if (!characterName || !passiveName || !turnLabel) {
         return null;
       }
-      const styleName = resolveStyleNameFromState(stateContext, characterId, characterName);
       const timing = normalizeInlineText(event.timing ?? '') || UNKNOWN_TIMING_LABEL;
       const suffix = passiveDesc ? ` ${passiveDesc}` : '';
       return {
         kind: ROW_KIND_PASSIVE,
         turnLabel,
-        styleName,
         characterName,
         passiveName,
         passiveDesc,
         timing,
         source: normalizeInlineText(event.source ?? ''),
-        text: `${turnLabel}：${styleName} / ${characterName} : [${passiveName}]${suffix}`,
+        text: `${turnLabel}：${characterName} : [${passiveName}]${suffix}`,
       };
     })
     .filter(Boolean);
