@@ -2,6 +2,15 @@ const ROW_KIND_MARKER = 'marker';
 const ROW_KIND_PASSIVE = 'passive';
 const UNKNOWN_TIMING_LABEL = 'UnknownTiming';
 
+const TURN_START_TIMINGS = Object.freeze([
+  'OnEveryTurn',
+  'OnEveryTurnIncludeSpecial',
+  'OnPlayerTurnStart',
+]);
+const BATTLE_START_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
+// OnAdditionalTurnStart はエンジン側で boundaryPassiveEvents として処理されるため境界扱い
+const BOUNDARY_TIMINGS = Object.freeze(['OnEnemyTurnStart', 'OnBattleWin', 'OnAdditionalTurnStart']);
+
 function normalizeInlineText(value, fallback = '') {
   return String(value ?? fallback)
     .replace(/\s*\n+\s*/g, ' ')
@@ -100,36 +109,41 @@ export function buildPassiveDebugLogRows({
   const rows = [];
   const stateFallback = currentState ?? initialState ?? null;
 
-  appendEventSection(
-    rows,
-    normalizePassiveEvents(initialState?.turnState?.passiveEventsLastApplied ?? [], initialState),
-    '戦闘開始'
+  // 「戦闘開始」セクション: OnBattleStart / OnFirstBattleStart のみ
+  const initialEvents = normalizePassiveEvents(
+    initialState?.turnState?.passiveEventsLastApplied ?? [],
+    initialState
   );
+  const battleStartEvents = initialEvents.filter((e) => BATTLE_START_TIMINGS.includes(e.timing));
+  appendEventSection(rows, battleStartEvents, '戦闘開始');
 
   const records = Array.isArray(committedRecords) ? committedRecords : [];
+  let prevBoundaryCount = 0; // 前ターンで表示済みの境界パッシブ数
+
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
     if (!record || typeof record !== 'object' || !Array.isArray(record.passiveEvents)) {
       continue;
     }
     const stateBefore = getStateBefore(index) ?? stateFallback;
-    const duplicateCount = Array.isArray(stateBefore?.turnState?.passiveEventsLastApplied)
-      ? stateBefore.turnState.passiveEventsLastApplied.length
-      : 0;
-    const nextEvents = normalizePassiveEvents(
-      record.passiveEvents.slice(Math.min(duplicateCount, record.passiveEvents.length)),
-      stateBefore,
-      normalizeInlineText(record.turnLabel ?? '')
-    );
-    const actionEvents = nextEvents.filter((event) => event.source === 'passive_trigger');
-    const boundaryEvents = nextEvents.filter((event) => event.source !== 'passive_trigger');
-    const executionTurnLabel =
-      normalizeInlineText(actionEvents[0]?.turnLabel ?? '') ||
-      normalizeInlineText(record.turnLabel ?? '') ||
-      resolveStateTurnLabel(stateBefore);
+    const turnLabel =
+      normalizeInlineText(record.turnLabel ?? '') || resolveStateTurnLabel(stateBefore);
 
-    appendEventSection(rows, actionEvents, executionTurnLabel ? `${executionTurnLabel}実行` : '実行');
+    const allEvents = normalizePassiveEvents(record.passiveEvents, stateBefore, turnLabel);
+
+    // timing フィールドで分類
+    const turnStartEvents = allEvents.filter((e) => TURN_START_TIMINGS.includes(e.timing));
+    const actionEvents = allEvents.filter((e) => e.source === 'passive_trigger');
+    const allBoundaryEvents = allEvents.filter((e) => BOUNDARY_TIMINGS.includes(e.timing));
+
+    // currentTurnPassiveEvents 経由で引き継がれた前ターンの境界パッシブ重複を除外
+    const boundaryEvents = allBoundaryEvents.slice(prevBoundaryCount);
+
+    appendEventSection(rows, turnStartEvents, turnLabel ? `${turnLabel}開始` : '開始');
+    appendEventSection(rows, actionEvents, turnLabel ? `${turnLabel}実行` : '実行');
     appendBoundarySections(rows, boundaryEvents);
+
+    prevBoundaryCount = boundaryEvents.length;
   }
 
   return rows;
