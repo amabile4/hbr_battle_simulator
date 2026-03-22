@@ -661,6 +661,11 @@ function createPassiveTriggerEvent(turnState, member, passive, details = {}) {
     passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
     passiveName: String(passive?.name ?? ''),
     passiveDesc: String(passive?.desc ?? ''),
+    // passive 自体の sourceType/sourceMeta を継承（details で上書き可）
+    sourceType: String(passive?.sourceType ?? 'style'),
+    sourceMeta: passive?.sourceMeta && typeof passive.sourceMeta === 'object'
+      ? structuredClone(passive.sourceMeta)
+      : {},
     ...details,
   };
 }

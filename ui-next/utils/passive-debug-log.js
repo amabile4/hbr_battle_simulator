@@ -38,7 +38,10 @@ function normalizePassiveEvents(events, stateContext = null, fallbackTurnLabel =
         return null;
       }
       const timing = normalizeInlineText(event.timing ?? '') || UNKNOWN_TIMING_LABEL;
+      const sourceType = normalizeInlineText(event.sourceType ?? '');
       const suffix = passiveDesc ? ` ${passiveDesc}` : '';
+      // サポートパッシブの場合はキャラクター名にサポート由来の識別子を付与
+      const displayName = sourceType === 'support' ? `${characterName}[共鳴]` : characterName;
       return {
         kind: ROW_KIND_PASSIVE,
         turnLabel,
@@ -46,8 +49,9 @@ function normalizePassiveEvents(events, stateContext = null, fallbackTurnLabel =
         passiveName,
         passiveDesc,
         timing,
+        sourceType,
         source: normalizeInlineText(event.source ?? ''),
-        text: `${turnLabel}：${characterName} : [${passiveName}]${suffix}`,
+        text: `${turnLabel}：${displayName} : [${passiveName}]${suffix}`,
       };
     })
     .filter(Boolean);
