@@ -150,10 +150,20 @@ b09946a  applyInitialTurnStartPassiveState復活（テスト未修正）
   - 711 PASS 確認
 - **ユーザー確認**: ✅ 期待通りの表示を確認（2026-03-23）
 
-### フェーズ3: ルビーパヒューム対応の取り込み
-- `feature/engine-ruby-perfume-highboost-rebuild` ブランチの変更を精査
-- 正しい実装のみを cherry-pick または手動で取り込む
-- テストは「仕様として正しいか」を確認してから追加
+### フェーズ3: ルビーパヒューム対応の取り込み ✅ 完了（2026-03-23）
+- [x] wipブランチにHighBoost・ルビーパヒューム実装が既に含まれていることを確認
+  - HIGH_BOOST_* 定数6種・resolveHighBoostModifiersForMember 他関数群
+  - HighBoostパッシブスキルタイプ処理・SpLimitOverwrite（sp.max=30）処理
+  - ルビーパヒューム battleStart テスト6件 PASS確認
+- [x] HealSP 1.5倍バグが修正済みであることを確認
+  - `HIGH_BOOST_SCALED_DP_SKILL_TYPES = Set(['HealDpRate', 'RegenerationDp'])` に HealSp なし
+  - "HighBoost does not scale passive SP healing effects" テスト PASS確認
+- [x] UIの装備可能スキルUIが実装済みであることを確認
+  - SkillSettingsPanel（`ui-next/components/skill-filter-panel.js`）+ equippedSkillIds 方式
+  - skillSetsByPartyIndex 伝達・normalizeSkillSetsByPartyIndex 済み
+- [x] `feature/engine-ruby-perfume-highboost-rebuild` への別途取り込みは不要と判断
+  - wipブランチが36c156dの正しい実装を全て含む上位互換であるため
+- [x] フェーズ2残件（T1EX→T2 SP回復欠落・PassiveLog先読み）をコミット（93d171c）
 
 ### フェーズ4: その他バグ修正
 - サポートSSRチェックバグ（`support_tier_check_bug_issue.md`）
