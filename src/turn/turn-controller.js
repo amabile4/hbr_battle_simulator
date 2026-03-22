@@ -8254,13 +8254,9 @@ function applyFieldStateFromActions(state, previewRecord) {
 }
 
 function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false } = {}) {
-  // 追加ターン（extra turn）中は通常ターン開始時の SP 回復パイプラインをスキップする。
-  // extra turn は既存ターンの延長であり、独立したターン開始処理を持たないため、
-  // 全メンバーへの基本 SP 回復（+2）や OnEveryTurn/OnPlayerTurnStart パッシブを
-  // ここで適用すると「関係ないメンバーの SP が増え続ける」バグが発生する。
-  if (String(turnState?.turnType ?? '') === 'extra') {
-    return { spEvents: [], epEvents: [], dpEvents: [], passiveEvents: [] };
-  }
+  // extra turn のコミット時（T1EX→T2遷移）は skipTurnStartRecovery=false で呼ばれるため
+  // T2のターン開始回復・OnEveryTurnを正常に計算する。
+  // T1→T1EX遷移時の回避は skipTurnStartRecovery: true（行8634）で制御済み。
 
   const recoveryEvents = [];
   const epEvents = [];
@@ -8632,7 +8628,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   tickEnemyStatusDurations(state.turnState, 'PlayerTurnEnd');
   // EXターンへ遷移する場合はターン開始回復をスキップ（OD発動ボーナスは除く）
   const recovery = applyRecoveryPipeline(state.party, state.turnState, {
-    skipTurnStartRecovery: grantedExtraCharacterIds.length > 0,
+    // 追加ターン付与時（→T1EX）は T1EX 開始処理をスキップ
+    // T1EX → OD割込 の場合も T2 開始処理をスキップ（OD終了後に T2 開始処理を行う）
+    // T1EX → T2（通常遷移）の場合はスキップしない（T2 のSP回復・OnEveryTurnを発動させる）
+    skipTurnStartRecovery:
+      grantedExtraCharacterIds.length > 0 ||
+      (String(state.turnState?.turnType ?? '') === 'extra' && shouldActivateInterruptOd),
   });
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];

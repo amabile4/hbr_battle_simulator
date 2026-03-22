@@ -150,5 +150,16 @@ export function buildPassiveDebugLogRows({
     prevBoundaryCount = boundaryEvents.length;
   }
 
+  // 未コミットの現在ターンの開始パッシブを表示
+  // currentState.turnState.passiveEventsLastApplied の TURN_START_TIMINGS
+  const pendingEventsRaw = currentState?.turnState?.passiveEventsLastApplied ?? [];
+  const pendingTurnLabel = resolveStateTurnLabel(currentState) || `T${records.length + 1}`;
+  const pendingTurnStartEvents = normalizePassiveEvents(
+    pendingEventsRaw,
+    currentState ?? stateFallback,
+    pendingTurnLabel
+  ).filter((e) => TURN_START_TIMINGS.includes(e.timing));
+  appendEventSection(rows, pendingTurnStartEvents, `${pendingTurnLabel}開始`);
+
   return rows;
 }

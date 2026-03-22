@@ -136,7 +136,19 @@ b09946a  applyInitialTurnStartPassiveState復活（テスト未修正）
   - [x] `createPassiveTriggerEvent` に `sourceType`/`sourceMeta` を追加（エンジン層）
   - [x] `normalizePassiveEvents` で `sourceType === 'support'` 時に `[共鳴]` 識別子を付与（UI層）
   - 711 PASS 確認（コミット dba38f6）
-- **ユーザー確認**: PassiveLogのUIで実際に見えるか確認
+- [x] ターン開始ログの表示タイミング修正（2026-03-23）
+  - コミット後にターン開始ログが出る違和感を修正
+  - `buildPassiveDebugLogRows` に `currentState.turnState.passiveEventsLastApplied` の TURN_START_TIMINGS を「次ターン開始」セクションとして追加
+  - T1入力中から「T1開始」ログが見えるようになった（恩恵を受けるタイミングとログ表示を同期）
+  - 711 PASS 確認
+- [x] 追加ターン後のSP回復・PassiveLog欠落バグ修正（2026-03-23）
+  - T1EX→T2遷移でOnEveryTurnのSP回復が発動しなかった根本原因を修正
+  - `applyRecoveryPipeline` の `turnType='extra'` early return を削除
+  - `skipTurnStartRecovery` 条件に「T1EX→OD割込時はT2開始処理を保留」を追加
+  - T1EX→T2（通常）: T2でSP回復・OnEveryTurnが正常発動するようになった
+  - T1EX→OD割込: OD中はT2開始処理を保留（既存仕様を維持）
+  - 711 PASS 確認
+- **ユーザー確認**: ✅ 期待通りの表示を確認（2026-03-23）
 
 ### フェーズ3: ルビーパヒューム対応の取り込み
 - `feature/engine-ruby-perfume-highboost-rebuild` ブランチの変更を精査
