@@ -3254,7 +3254,7 @@ test('夏のひより alone does not satisfy 猛火の進撃 fire mark threshold
   assert.equal(result.passiveEvents.some((event) => event.passiveName === '猛火の進撃'), false);
 });
 
-test('fire mark intrinsic level 6 grants extra SP only to frontline fire styles at true turn start', () => {
+test('fire mark intrinsic level 6 grants extra SP only to frontline fire styles at battle start and every turn start', () => {
   const party = createSixMemberManualParty((idx) =>
     idx <= 3
       ? {
@@ -3277,18 +3277,18 @@ test('fire mark intrinsic level 6 grants extra SP only to frontline fire styles 
   applyInitialPassiveState(state);
   assert.deepEqual(
     state.party.map((member) => member.sp.current),
-    [0, 0, 0, 0, 0, 0]
+    [1, 1, 1, 0, 0, 0]
   );
   const preview = previewTurn(state, {});
   const { nextState } = commitTurn(state, preview);
 
   assert.deepEqual(
     nextState.party.map((member) => member.sp.current),
-    [3, 3, 3, 2, 2, 2]
+    [4, 4, 4, 2, 2, 2]
   );
 });
 
-test('six-fire real-data opening SP turn-start recovery begins on the first committed turn', () => {
+test('six-fire real-data opening SP includes fire mark level 6 recovery at battle start', () => {
   const store = getStore();
   const styleIds = [1004307, 1001206, 1001106, 1001506, 1002405, 1004206];
   const party = store.buildPartyFromStyleIds(styleIds, {
@@ -3301,14 +3301,14 @@ test('six-fire real-data opening SP turn-start recovery begins on the first comm
   applyInitialPassiveState(state);
   assert.deepEqual(
     state.party.map((member) => member.sp.current),
-    [12, 11, 14, 11, 11, 11]
+    [13, 12, 15, 11, 11, 11]
   );
   const preview = previewTurn(state, {});
   const { nextState } = commitTurn(state, preview);
 
   assert.deepEqual(
     nextState.party.map((member) => member.sp.current),
-    [16, 14, 20, 13, 13, 13]
+    [17, 15, 20, 13, 13, 13]
   );
   // 猛火の進撃は limit=1 のため applyInitialPassiveState（バトル開始時）に発火済み → commitTurn後には含まれない
   assert.equal(nextState.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '猛火の進撃'), false);
@@ -3367,7 +3367,7 @@ test('fire mark intrinsic modifiers are exposed on preview and damage context', 
   assert.equal(committedRecord.actions[0].damageContext?.markCriticalDamageUp, 0.3);
 });
 
-test('thunder mark intrinsic level 6 grants extra SP only to frontline thunder styles at true turn start', () => {
+test('thunder mark intrinsic level 6 grants extra SP only to frontline thunder styles at battle start and every turn start', () => {
   const party = createSixMemberManualParty((idx) =>
     idx <= 3
       ? {
@@ -3390,14 +3390,14 @@ test('thunder mark intrinsic level 6 grants extra SP only to frontline thunder s
   applyInitialPassiveState(state);
   assert.deepEqual(
     state.party.map((member) => member.sp.current),
-    [0, 0, 0, 0, 0, 0]
+    [1, 1, 1, 0, 0, 0]
   );
   const preview = previewTurn(state, {});
   const { nextState } = commitTurn(state, preview);
 
   assert.deepEqual(
     nextState.party.map((member) => member.sp.current),
-    [3, 3, 3, 2, 2, 2]
+    [4, 4, 4, 2, 2, 2]
   );
 });
 

@@ -107,19 +107,23 @@ b09946a  applyInitialTurnStartPassiveState復活（テスト未修正）
 - 完全に過去に戻るのではなく、**最終的な結果（仕様）を得ることが目標**
 
 ### フェーズ0: 現状把握（調査のみ、変更なし）
-- `scaleHighBoostHealAmount` の現在の実装を確認
-- HealSP処理箇所（閃光など OnEveryTurn）で 1.5倍が適用されているか確認
-- `feature/engine-ruby-perfume-highboost-rebuild` ブランチの現状確認
-- **成果物**: 「何が壊れていて何は正しいか」の一覧をユーザーと共有
+- [x] `scaleHighBoostHealAmount` の現在の実装を確認
+- [x] HealSP処理箇所（閃光など OnEveryTurn）で 1.5倍が適用されているか確認
+      → **修正済み**。`HIGH_BOOST_SCALED_DP_SKILL_TYPES = Set(['HealDpRate', 'RegenerationDp'])` のみ
+- [x] `feature/engine-ruby-perfume-highboost-rebuild` ブランチの現状確認
+      → `checkpoint/pre-ruby-perfume-highboost-20260321`（コミット `b6295c2`）と同一コミット
+- [x] **成果物**: [`docs/active/phase0_investigation_report.md`](phase0_investigation_report.md)（HealSP確認・wip差分・欠落経緯）
 
 ### フェーズ1: HealSP誤1.5倍問題の修正（core bug fix）
-- **注意**: `wip` ブランチ最新ではHealSPは1倍になっているが、修正の過程で
-  破壊的変更が混入している可能性が高い。「直っているか」ではなく「正しく直っているか」の確認
-- `scaleHighBoostHealAmount` の適用スコープがHealDPのみになっているか確認
-- 修正に伴い変更されたコードに不正な副作用がないか確認
-- 関連テストの期待値が正しい値かどうか確認（合わせ込み禁止）
-- `node --test` で全件パス確認
-- **ユーザー確認**: PassiveLogで閃光のSP回復が正しく表示されるか
+- [x] `scaleHighBoostHealAmount` の適用スコープがHealDPのみになっているか確認
+      → 確認済み（`HIGH_BOOST_SCALED_DP_SKILL_TYPES` に `HealSP` なし）
+- [x] 修正に伴い変更されたコードに不正な副作用がないか確認
+      → `applyIntrinsicMarkTurnStartRecovery` 欠落を特定・復元
+- [x] 関連テストの期待値が正しい値かどうか確認（合わせ込み禁止）
+      → fire mark / thunder mark / six-fire の 3 テスト修正（仕様ベース）
+- [x] `node --test` で全件パス確認 → **712 PASS**
+- **ユーザー確認**: PassiveLogで閃光のSP回復が正しく表示されるか（フェーズ2で確認）
+- **実装プラン**: [`docs/active/phase1_plan.md`](phase1_plan.md)
 
 ### フェーズ2: PassiveLog表示の修正
 - `docs/active/passive_debug_log_wbs.md` の問題対応

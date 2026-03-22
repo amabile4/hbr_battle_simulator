@@ -66,7 +66,9 @@ docs/
 | [active/top_level_effect_implementation_tasklist.md](active/top_level_effect_implementation_tasklist.md) | ✅ 完了 | PRI-012: top-level effect 監査を完了し、残件を active buff status 基盤へ切り出し | 2026-03-14 |
 | [active/overwrite_cond_implementation_tasklist.md](active/overwrite_cond_implementation_tasklist.md) | ✅ 完了 | PRI-010: skill-level `overwrite_cond` / `overwrite` / `IsCharging` / `IsTeam` / strict mode 整合（328テストPASS） | 2026-03-14 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画（`HighBoost` の倍率範囲整理、battle-start / turn-start 分離、装備型 passive の `スキル設定` パネル連動まで反映） | 2026-03-21 |
-| [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス（`applyInitialPassiveState()` は battle-start 専用） | 2026-03-21 |
+| [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス（`applyInitialPassiveState()` は battle-start + mark recovery + turn-start を実行） | 2026-03-22 |
+| [active/phase0_investigation_report.md](active/phase0_investigation_report.md) | 📦 スナップショット | passive timing 監査フェーズ0調査記録（HealSP確認・wip差分・applyIntrinsicMarkTurnStartRecovery欠落経緯） | 2026-03-22 |
+| [active/phase1_plan.md](active/phase1_plan.md) | ✅ 完了 | passive timing 監査フェーズ1実装プラン（applyIntrinsicMarkTurnStartRecovery 復元・3テスト修正・node --test 712 PASS） | 2026-03-22 |
 | [active/token_implementation_plan.md](active/token_implementation_plan.md) | ✅ 完了 | Token状態システム独立実装計画（共通基盤・被弾・per-token補正まで完了） | 2026-03-13 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
