@@ -125,10 +125,17 @@ b09946a  applyInitialTurnStartPassiveState復活（テスト未修正）
 - **ユーザー確認**: PassiveLogで閃光のSP回復が正しく表示されるか（フェーズ2で確認）
 - **実装プラン**: [`docs/active/phase1_plan.md`](phase1_plan.md)
 
-### フェーズ2: PassiveLog表示の修正
-- `docs/active/passive_debug_log_wbs.md` の問題対応
-  - 2ターン目以降のパッシブログが表示されない問題
-- サポートパッシブログ表示（`docs/active/passive_log_display_bug_issue.md`）
+### フェーズ2: PassiveLog表示の修正 ✅ 完了（2026-03-23）
+- [x] `docs/active/passive_debug_log_wbs.md` の問題対応
+  - [x] 2ターン目以降のパッシブログが表示されない問題
+    - `ui-next/utils/passive-debug-log.js` を timing ベースの分類に変更
+    - `TURN_START_TIMINGS` / `BATTLE_START_TIMINGS` / `BOUNDARY_TIMINGS` 定数追加
+    - `prevBoundaryCount` で境界パッシブの重複除外
+    - 711 PASS 確認（コミット fbd48c8）
+- [x] サポートパッシブログ表示（`docs/active/passive_log_display_bug_issue.md`）
+  - [x] `createPassiveTriggerEvent` に `sourceType`/`sourceMeta` を追加（エンジン層）
+  - [x] `normalizePassiveEvents` で `sourceType === 'support'` 時に `[共鳴]` 識別子を付与（UI層）
+  - 711 PASS 確認（コミット dba38f6）
 - **ユーザー確認**: PassiveLogのUIで実際に見えるか確認
 
 ### フェーズ3: ルビーパヒューム対応の取り込み

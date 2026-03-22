@@ -69,6 +69,9 @@ docs/
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス（`applyInitialPassiveState()` は battle-start + mark recovery + turn-start を実行） | 2026-03-22 |
 | [active/phase0_investigation_report.md](active/phase0_investigation_report.md) | 📦 スナップショット | passive timing 監査フェーズ0調査記録（HealSP確認・wip差分・applyIntrinsicMarkTurnStartRecovery欠落経緯） | 2026-03-22 |
 | [active/phase1_plan.md](active/phase1_plan.md) | ✅ 完了 | passive timing 監査フェーズ1実装プラン（applyIntrinsicMarkTurnStartRecovery 復元・3テスト修正・node --test 712 PASS） | 2026-03-22 |
+| [active/restoration_wbs.md](active/restoration_wbs.md) | 🟢 進行中 | ハイブースト以降の段階的復元WBS（フェーズ0〜2完了・フェーズ3以降継続） | 2026-03-23 |
+| [active/passive_debug_log_wbs.md](active/passive_debug_log_wbs.md) | ✅ 完了 | 2ターン目以降のパッシブログ表示されない問題（timing ベース分類で修正・711 PASS） | 2026-03-23 |
+| [active/passive_log_display_bug_issue.md](active/passive_log_display_bug_issue.md) | ✅ 完了 | サポートパッシブがログに表示されない問題（sourceType/sourceMeta 継承・[共鳴]識別子追加・711 PASS） | 2026-03-23 |
 | [active/token_implementation_plan.md](active/token_implementation_plan.md) | ✅ 完了 | Token状態システム独立実装計画（共通基盤・被弾・per-token補正まで完了） | 2026-03-13 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
