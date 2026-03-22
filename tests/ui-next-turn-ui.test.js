@@ -1109,7 +1109,7 @@ test('TurnAreaController emits initial passive log rows for battle-start passive
     assert.deepEqual(extractPassiveLogTexts(passiveLogRows), [
       '=== 戦闘開始 ===',
       '--- OnBattleStart ---',
-      'T1：開始ログスタイル / 開始ログ役 : [開始補助] バトル開始時 自身のSP+2',
+      'T1：開始ログ役 : [開始補助] バトル開始時 自身のSP+2',
     ]);
   }));
 
@@ -1250,7 +1250,7 @@ test('TurnAreaController emits EX boundary passive markers only when additional 
     );
     assert.ok(exPassiveRow);
     assert.equal(exPassiveRow.turnLabel, 'EX');
-    assert.match(exPassiveRow.text, /EXログスタイル \/ EXログ役/);
+    assert.match(exPassiveRow.text, /EXログ役/);
   }));
 
 test('TurnAreaController rebuilds passive log rows on reinitialize and loadSession', () =>

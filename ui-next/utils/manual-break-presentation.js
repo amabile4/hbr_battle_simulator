@@ -2,16 +2,18 @@ import { normalizeActionOutcomeOverrides } from './action-outcome-overrides.js';
 import { resolveShortCharacterName } from '../../src/domain/character-name.js';
 
 export function resolveManualBreakActorLabel(member = {}, store = null) {
-  if (member?.shortName) {
-    return member.shortName;
-  }
   const characterId = String(member?.characterId ?? '').trim();
   const rawCharacter =
     characterId && typeof store?.getCharacterByLabel === 'function'
       ? store.getCharacterByLabel(characterId)
       : null;
-  const primaryName = String(rawCharacter?.name ?? member?.characterName ?? characterId).trim();
-  return resolveShortCharacterName(primaryName, characterId);
+  if (rawCharacter?.name) {
+    return resolveShortCharacterName(String(rawCharacter.name).trim(), characterId);
+  }
+  if (member?.shortName) {
+    return member.shortName;
+  }
+  return resolveShortCharacterName(String(member?.characterName ?? characterId).trim(), characterId);
 }
 
 export function resolveManualBreakEnemyLabel(enemyIndex, enemyNamesByEnemy = {}) {

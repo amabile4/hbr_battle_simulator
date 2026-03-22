@@ -1,5 +1,6 @@
 import { applySpChange, getEventCeiling } from './sp.js';
 import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
+import { resolveShortCharacterName } from './character-name.js';
 import {
   DEFAULT_INITIAL_SP,
   DEFAULT_MARK_LEVEL_MAX,
@@ -280,7 +281,7 @@ export class CharacterStyle {
 
     this.characterId = String(input.characterId);
     this.characterName = String(input.characterName);
-    this.shortName = String(input.shortName ?? input.characterName);
+    this.shortName = String(input.shortName ?? resolveShortCharacterName(input.characterName, String(input.characterId ?? '')));
     this.styleId = Number(input.styleId);
     this.styleName = String(input.styleName);
     this.team = String(input.team ?? '');

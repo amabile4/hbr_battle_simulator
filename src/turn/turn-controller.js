@@ -199,6 +199,7 @@ const MARK_SKILL_TYPE_TO_ELEMENT = Object.freeze({
 });
 const INTRINSIC_MARK_ELEMENTS = Object.freeze([...new Set(Object.values(MARK_LEVEL_CONDITION_TO_ELEMENT))]);
 const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
+const INITIAL_TURN_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
 const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
 const EXTRA_ACTIVATION_STATUS_TYPE = 20;
 const CONDITION_WHITESPACE_RE = /\s+/g;
@@ -8973,7 +8974,7 @@ export function applyInitialPassiveState(state) {
   }
 
   function applyInitialTurnStartPassiveState(state) {
-  const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
+  const turnStartResult = applyPassiveTimingInternal(state, INITIAL_TURN_PASSIVE_TIMINGS);
   state.turnState.passiveEventsLastApplied = [
     ...(state.turnState.passiveEventsLastApplied ?? []),
     ...turnStartResult.passiveEvents,

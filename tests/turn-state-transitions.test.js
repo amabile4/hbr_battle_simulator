@@ -1493,7 +1493,7 @@ test('OnEveryTurn passive HealDpRate updates DP state when DpRate condition matc
   );
 });
 
-test('OnPlayerTurnStart HealDpRate passive is not applied at init and fires through turn-start timing', () => {
+test('applyInitialPassiveState applies OnPlayerTurnStart HealDpRate passive when DpRate condition matches', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? {
@@ -1514,15 +1514,10 @@ test('OnPlayerTurnStart HealDpRate passive is not applied at init and fires thro
   const state = createBattleStateFromParty(party);
 
   applyInitialPassiveState(state);
-  assert.equal(state.party[0].dpState.currentDp, 35);
-  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '静養'), false);
 
-  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
-
-  assert.equal(result.dpEvents.length, 1);
   assert.equal(state.party[0].dpState.currentDp, 49);
   assert.ok(
-    result.passiveEvents.some(
+    state.turnState.passiveEventsLastApplied.some(
       (event) => event.passiveName === '静養' && Math.abs(Number(event.dpDelta ?? 0) - 14) < 1e-9
     )
   );
@@ -2580,19 +2575,15 @@ test('ー◯◯◯ selects the deterministic SkillRandom failure branch and stor
   assert.equal(nextStatus.remainingTurns, 2);
 });
 
-test('怪物球威 applies passive DefenseDown enemy status on player turn start in real data', () => {
+test('怪物球威 applies passive DefenseDown enemy status at battle start in real data', () => {
   const store = getStore();
   const skillId = 46401101;
   const state = applyInitialPassiveState(createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId)));
-  assert.equal(state.turnState.enemyState.statuses.length, 0);
-
-  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
 
   const defenseDown = state.turnState.enemyState.statuses.find(
     (status) => status.statusType === 'DefenseDown' && status.targetIndex === 0
   );
 
-  assert.equal(result.passiveEvents.some((event) => event.passiveName === '怪物球威'), true);
   assert.ok(defenseDown);
   assert.equal(defenseDown.exitCond, 'PlayerTurnEnd');
   assert.equal(defenseDown.remainingTurns, 1);
@@ -2943,10 +2934,6 @@ test('MotivationLevel condition can trigger passives from current motivation sta
       : {}
   );
   const state = applyInitialPassiveState(createBattleStateFromParty(party));
-  assert.equal(state.party[0].sp.current, 1);
-  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
-
-  assert.equal(result.spEvents.length, 1);
   assert.equal(state.party[0].sp.current, 3);
 });
 
@@ -3314,16 +3301,17 @@ test('six-fire real-data opening SP turn-start recovery begins on the first comm
   applyInitialPassiveState(state);
   assert.deepEqual(
     state.party.map((member) => member.sp.current),
-    [6, 6, 6, 6, 6, 6]
+    [12, 11, 14, 11, 11, 11]
   );
   const preview = previewTurn(state, {});
   const { nextState } = commitTurn(state, preview);
 
   assert.deepEqual(
     nextState.party.map((member) => member.sp.current),
-    [15, 14, 17, 13, 13, 13]
+    [16, 14, 20, 13, 13, 13]
   );
-  assert.equal(nextState.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '猛火の進撃'), true);
+  // 猛火の進撃は limit=1 のため applyInitialPassiveState（バトル開始時）に発火済み → commitTurn後には含まれない
+  assert.equal(nextState.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '猛火の進撃'), false);
   assert.equal(nextState.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '吉報'), true);
 });
 
@@ -4330,7 +4318,7 @@ test('TokenSet OnEveryTurn passive increments token each turn via recovery pipel
   assert.equal(state2.party[0].tokenState.current, 2);
 });
 
-test('TokenSet OnBattleStart passive initializes battle-start token separately from turn-start token gain', () => {
+test('TokenSet OnBattleStart passive increments token at battle start via applyInitialPassiveState', () => {
   const store = getStore();
   // IrOhshima has 洗練 (OnBattleStart, TokenSet +5, condition: front)
   const actorStyleId = findStyleIdBySkillId(store, 46006511);
@@ -4342,12 +4330,13 @@ test('TokenSet OnBattleStart passive initializes battle-start token separately f
 
   assert.equal(actor.characterId, 'IrOhshima');
   // 洗練 fires at OnBattleStart for front members: +5 token
-  assert.equal(actor.tokenState.current, 5);
+  // ボルテージ fires at OnEveryTurn: +1 token
+  assert.equal(actor.tokenState.current, 6); // 5 (OnBattleStart) + 1 (OnEveryTurn)
   // Others have no TokenSet passives
   assert.equal(state.party[1].tokenState.current, 0);
 
   const result = applyPassiveTiming(state, 'OnEveryTurn');
-  assert.equal(state.party[0].tokenState.current, 6);
+  assert.equal(state.party[0].tokenState.current, 7);
   assert.equal(result.passiveEvents.some((event) => event.passiveName === 'ボルテージ'), true);
 });
 
@@ -5904,20 +5893,16 @@ test('PlayerTurnEnd enemy debuff expires before the next recovery pipeline when 
   );
   const state = applyInitialPassiveState(createBattleStateFromParty(party));
 
-  assert.equal(
-    state.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'DefenseDown' && status.targetIndex === 0
-    ),
-    false
-  );
-  const turnStartResult = applyPassiveTiming(state, 'OnPlayerTurnStart');
-  assert.equal(turnStartResult.passiveEvents.some((event) => event.passiveName === 'One Turn Enemy Debuff'), true);
+  // One Turn Enemy Debuff (OnPlayerTurnStart, limit=1) が applyInitialPassiveState で発火して DefenseDown が付与済み
   assert.equal(
     state.turnState.enemyState.statuses.some(
       (status) => status.statusType === 'DefenseDown' && status.targetIndex === 0
     ),
     true
   );
+  // limit=1 のため再発火しない
+  const turnStartResult = applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(turnStartResult.passiveEvents.some((event) => event.passiveName === 'One Turn Enemy Debuff'), false);
 
   const preview = previewTurn(state, {
     0: { characterId: 'M1', skillId: 18262, targetEnemyIndex: 0 },
@@ -8711,7 +8696,7 @@ test('elemental active AttackUp status applies only to matching element skills',
   assert.deepEqual(findActionByCharacterId(firePreview, 'M2').activeStatusEffects, []);
 });
 
-test('applyInitialPassiveState applies only battle-start SP passives', () => {
+test('applyInitialPassiveState applies battle-start and turn-start SP passives', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `IP${idx + 1}`,
@@ -8785,13 +8770,13 @@ test('applyInitialPassiveState applies only battle-start SP passives', () => {
 
   applyInitialPassiveState(state);
 
-  assert.equal(state.party.find((m) => m.characterId === 'IP1').sp.current, 3);
+  assert.equal(state.party.find((m) => m.characterId === 'IP1').sp.current, 4);
   assert.equal(state.party.find((m) => m.characterId === 'IP2').sp.current, 5);
-  assert.equal(state.party.find((m) => m.characterId === 'IP3').sp.current, 3);
+  assert.equal(state.party.find((m) => m.characterId === 'IP3').sp.current, 4);
   assert.equal(state.party.find((m) => m.characterId === 'IP4').sp.current, 3);
   assert.equal(state.party.find((m) => m.characterId === 'IP5').sp.current, 5);
-  assert.equal(state.turnState.passiveEventsLastApplied.length, 2);
-  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.timing === 'OnPlayerTurnStart'), false);
+  assert.equal(state.turnState.passiveEventsLastApplied.length, 4);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.timing === 'OnPlayerTurnStart'), true);
   assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.timing === 'OnFirstBattleStart'), true);
 });
 
@@ -8864,12 +8849,12 @@ test('applyInitialPassiveState keeps battle-start and turn-start passives distin
 
   applyInitialPassiveState(state);
 
-  assert.equal(state.party[0].sp.current, 12);
-  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'BattleStart Heal'), true);
-  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'TurnStart Heal'), false);
-  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'TurnStart Buff'), false);
-  const turnStartResult = applyPassiveTiming(state, ['OnEveryTurn', 'OnPlayerTurnStart']);
   assert.equal(state.party[0].sp.current, 13);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'BattleStart Heal'), true);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'TurnStart Heal'), true);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'TurnStart Buff'), true);
+  const turnStartResult = applyPassiveTiming(state, ['OnEveryTurn', 'OnPlayerTurnStart']);
+  assert.equal(state.party[0].sp.current, 14);
   assert.equal(turnStartResult.passiveEvents.some((event) => event.passiveName === 'TurnStart Heal'), true);
   assert.equal(turnStartResult.passiveEvents.some((event) => event.passiveName === 'TurnStart Buff'), true);
   assert.equal(
@@ -8907,7 +8892,7 @@ test('turn recovery applies 閃光 on every turn while frontline', () => {
 
   let state = createBattleStateFromParty(new Party(members));
   applyInitialPassiveState(state);
-  assert.equal(state.party.find((m) => m.characterId === 'FS1').sp.current, 3);
+  assert.equal(state.party.find((m) => m.characterId === 'FS1').sp.current, 4);
 
   const preview = previewTurn(state, {
     0: { characterId: 'FS1', skillId: 26100 },
@@ -8916,9 +8901,9 @@ test('turn recovery applies 閃光 on every turn while frontline', () => {
   });
   const { nextState, committedRecord } = commitTurn(state, preview);
 
-  assert.equal(nextState.party.find((m) => m.characterId === 'FS1').sp.current, 6);
+  assert.equal(nextState.party.find((m) => m.characterId === 'FS1').sp.current, 7);
   assert.equal(nextState.party.find((m) => m.characterId === 'FS2').sp.current, 5);
-  assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '閃光'), false);
+  assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '閃光'), true);
   assert.equal(
     nextState.turnState.passiveEventsLastApplied.filter((event) => event.passiveName === '閃光').length,
     1
