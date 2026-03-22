@@ -2006,6 +2006,27 @@ export class TurnRowController {
 
     // select 幅監視（バッジ・SPコスト表示切り替え）
     this.#bindResizeObserver();
+
+    // ポップオーバーのビューポート外はみ出し補正
+    this.#adjustPopoverPositions();
+  }
+
+  /**
+   * 表示中の .target-popover がビューポートの右端を超える場合、左アンカーに切り替える。
+   * inline style で right/left を上書きし Tailwind の right-0 より優先させる。
+   */
+  #adjustPopoverPositions() {
+    this.#root.querySelectorAll('.target-popover').forEach((popover) => {
+      if (popover.hasAttribute('hidden')) return;
+      // スタイルをリセットしてから境界を計測する
+      popover.style.right = '';
+      popover.style.left = '';
+      const rect = popover.getBoundingClientRect();
+      if (rect.right > window.innerWidth - 8) {
+        popover.style.right = 'auto';
+        popover.style.left = '0';
+      }
+    });
   }
 
   /**
