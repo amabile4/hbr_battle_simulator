@@ -1,25 +1,18 @@
-import { getExcludedSkillIds, setExcludedSkillIds } from '../utils/skill-filter.js';
 import { isNormalAttackSkill, isAdmiralCommandSkill } from '../../src/domain/skill-classifiers.js';
 
-/**
- * 生スタイルデータからアクションスキル（非パッシブ）を抽出する。
- * CharacterStyle.getActionSkills() と同等の判定を raw オブジェクトで行う。
- * @param {object} style  store.getStyleById() が返す生スタイルオブジェクト
- * @returns {object[]}
- */
-function getActionSkillsFromRaw(style) {
-  return (style?.skills ?? []).filter(
-    (s) => !(s.passive && typeof s.passive === 'object') && s.sourceType !== 'passive',
-  );
-}
+const PANEL_WIDTH_PX = 320;
+const PANEL_MIN_BOTTOM_SPACE_PX = 200;
+const SOURCE_TYPE_LABELS = Object.freeze({
+  master: 'マスター',
+  orb: 'オーブ',
+});
 
 /**
  * 生スキルデータからコストラベルを生成する（エンジン状態なし・フォールバック）。
- * formatSkillCostLabel と同等の表示形式だが state/member 不要版。
  * @param {object} skill
  * @returns {string}
  */
-function rawCostLabel(skill) {
+export function formatSkillSettingCostLabel(skill) {
   const consumeType = String(skill.consume_type ?? skill.consumeType ?? 'Sp').toLowerCase();
   const cost = Number(skill.sp_cost ?? skill.spCost ?? 0);
   const n = cost === -1 ? '*' : String(cost);
@@ -29,21 +22,60 @@ function rawCostLabel(skill) {
   return `(${n})`;
 }
 
+export function isRequiredSkillSetting(skill) {
+  return isNormalAttackSkill(skill) || isAdmiralCommandSkill(skill);
+}
+
+export function buildSkillSettingTagLabels(skill) {
+  const tags = [];
+  const sourceTypeLabel = SOURCE_TYPE_LABELS[String(skill?.sourceType ?? 'style')];
+  if (sourceTypeLabel) {
+    tags.push(sourceTypeLabel);
+  }
+  if (skill?.passive && typeof skill.passive === 'object') {
+    tags.push('パッシブ');
+  }
+  return tags;
+}
+
+function dedupeNumericIds(ids = []) {
+  return [...new Set(
+    ids
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id))
+  )];
+}
+
 /**
- * スキル絞込フローティングパネル（シングルトン）。
+ * スキル設定フローティングパネル（シングルトン）。
  *
- * mount(containerEl) で DOM を生成し、open(style, anchorEl) で表示・close() で非表示。
- * チェックボックス変更時に localStorage を更新し、
- * `hbr:skill-filter-changed` CustomEvent を dispatch する。
+ * slot 単位の装備済み skill 集合を編集し、Party Setup 側の state を更新する。
  */
-export class SkillFilterPanel {
+export class SkillSettingsPanel {
   #panelEl = null;
-  #currentStyle = null;
+  #currentSlotIndex = null;
+  #currentAnchorEl = null;
   #outsideClickHandler = null;
   #store = null;
+  #resolveSlot = null;
+  #onSelectionChange = null;
+  #onSelectAll = null;
+  #onClearAll = null;
+  #hasActiveBattle = false;
+  #hasRecords = false;
 
-  constructor({ store = null } = {}) {
+  constructor({
+    store = null,
+    resolveSlot = null,
+    onSelectionChange = null,
+    onSelectAll = null,
+    onClearAll = null,
+  } = {}) {
     this.#store = store;
+    this.#resolveSlot = resolveSlot;
+    this.#onSelectionChange = onSelectionChange;
+    this.#onSelectAll = onSelectAll;
+    this.#onClearAll = onClearAll;
   }
 
   /**
@@ -52,99 +84,47 @@ export class SkillFilterPanel {
    */
   mount(containerEl) {
     const el = document.createElement('div');
-    el.id = 'skill-filter-panel';
+    el.id = 'skill-settings-panel';
     el.className =
-      'fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-64';
+      'fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-80';
     el.style.display = 'none';
     containerEl.appendChild(el);
     this.#panelEl = el;
   }
 
   /**
-   * パネルをアンカー要素の近くに表示してスタイルのスキルリストを描画する。
-   * @param {object} style     store.getStyleById() が返す生スタイルオブジェクト
-   * @param {HTMLElement} anchorEl  🔧 ボタン要素
+   * パネルをアンカー要素の近くに表示してスキル設定を描画する。
+   * @param {number} slotIndex
+   * @param {HTMLElement} anchorEl
+   * @param {{ hasActiveBattle?: boolean, hasRecords?: boolean }} options
    */
-  open(style, anchorEl) {
+  open(slotIndex, anchorEl, options = {}) {
     const panel = this.#panelEl;
     if (!panel) return;
 
-    this.#currentStyle = style;
-    const styleId = style?.id;
-    const excludedSet = getExcludedSkillIds(styleId);
-    const skills = (this.#store
-      ? this.#store.listSkillsByStyleId(styleId)
-      : getActionSkillsFromRaw(style)
-    ).filter((s) => !isNormalAttackSkill(s) && !isAdmiralCommandSkill(s));
-
-    panel.innerHTML = `
-      <div class="flex justify-between items-center mb-2">
-        <span class="text-xs font-bold text-gray-700">スキル絞込</span>
-        <div class="flex gap-1">
-          <button data-action="select-all"
-                  class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600
-                         hover:bg-gray-200 transition-colors">全選択</button>
-          <button data-action="clear-all"
-                  class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600
-                         hover:bg-gray-200 transition-colors">全解除</button>
-          <button data-action="close"
-                  class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-400
-                         hover:bg-gray-200 transition-colors">✕</button>
-        </div>
-      </div>
-      <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
-        ${skills.map((s) => {
-          const skillId = Number(s.id ?? s.skillId);
-          const checked = !excludedSet.has(skillId) ? 'checked' : '';
-          const cost = rawCostLabel(s);
-          const name = String(s.name ?? '');
-          const sourceLabel = (s.sourceType ?? 'style') === 'master' ? '[M]' : '';
-          return `
-            <label class="flex items-center gap-1 text-xs cursor-pointer
-                          hover:bg-gray-50 rounded px-1 py-0.5">
-              <input type="checkbox" value="${skillId}" ${checked}
-                     class="cursor-pointer flex-shrink-0">
-              <span class="text-gray-400 flex-shrink-0">${cost}</span>
-              ${sourceLabel ? `<span class="text-[10px] text-purple-400 flex-shrink-0">${sourceLabel}</span>` : ''}
-              <span class="text-gray-700 truncate">${name}</span>
-            </label>`;
-        }).join('')}
-      </div>
-    `;
-
-    // パネルを表示してからアンカー位置を計算（offsetHeight が確定してから）
+    this.#currentSlotIndex = Number(slotIndex);
+    this.#currentAnchorEl = anchorEl;
+    this.updateContext(options);
+    this.#render();
     panel.style.display = 'block';
-    const rect = anchorEl.getBoundingClientRect();
-    const panelH = panel.offsetHeight || 320;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    if (spaceBelow >= panelH || spaceBelow >= 200) {
-      panel.style.top = `${rect.bottom + 4}px`;
-    } else {
-      panel.style.top = `${Math.max(4, rect.top - panelH - 4)}px`;
-    }
-    const left = Math.min(rect.left, window.innerWidth - 264 - 4);
-    panel.style.left = `${Math.max(4, left)}px`;
+    this.#positionPanel();
+    this.#bindOutsideClick();
+  }
 
-    // イベント登録
-    panel.querySelector('[data-action="close"]')?.addEventListener('click', () => this.close());
-    panel.querySelector('[data-action="select-all"]')?.addEventListener('click', () => this.#onSelectAll());
-    panel.querySelector('[data-action="clear-all"]')?.addEventListener('click', () => this.#onClearAll());
-    panel.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      cb.addEventListener('change', () => this.#onCheckboxChange(Number(cb.value), cb.checked));
-    });
+  updateContext({
+    hasActiveBattle = this.#hasActiveBattle,
+    hasRecords = this.#hasRecords,
+  } = {}) {
+    this.#hasActiveBattle = Boolean(hasActiveBattle);
+    this.#hasRecords = Boolean(hasRecords);
+    this.refresh();
+  }
 
-    // パネル外クリックで閉じる（現在のクリックイベントが終わってから登録）
-    if (this.#outsideClickHandler) {
-      document.removeEventListener('click', this.#outsideClickHandler, true);
+  refresh() {
+    if (!this.#panelEl || this.#currentSlotIndex == null || this.#panelEl.style.display === 'none') {
+      return;
     }
-    this.#outsideClickHandler = (e) => {
-      if (!panel.contains(e.target) && e.target !== anchorEl) {
-        this.close();
-      }
-    };
-    setTimeout(() => {
-      document.addEventListener('click', this.#outsideClickHandler, true);
-    }, 0);
+    this.#render();
   }
 
   /** パネルを非表示にする。 */
@@ -155,45 +135,143 @@ export class SkillFilterPanel {
       document.removeEventListener('click', this.#outsideClickHandler, true);
       this.#outsideClickHandler = null;
     }
-    this.#currentStyle = null;
+    this.#currentSlotIndex = null;
+    this.#currentAnchorEl = null;
   }
 
-  #onCheckboxChange(skillId, checked) {
-    const styleId = this.#currentStyle?.id;
-    if (!styleId) return;
-    const excludedSet = getExcludedSkillIds(styleId);
-    if (checked) {
-      excludedSet.delete(skillId);
-    } else {
-      excludedSet.add(skillId);
+  #getCurrentSlot() {
+    return this.#resolveSlot?.(this.#currentSlotIndex) ?? null;
+  }
+
+  #getSkillsForCurrentSlot() {
+    const slot = this.#getCurrentSlot();
+    if (!slot?.styleId) {
+      return [];
     }
-    setExcludedSkillIds(styleId, excludedSet);
-    document.dispatchEvent(new CustomEvent('hbr:skill-filter-changed', { detail: { styleId } }));
+    return this.#store?.listEquipableSkillsByStyleId(slot.styleId) ?? [];
   }
 
-  #onSelectAll() {
-    const styleId = this.#currentStyle?.id;
-    if (!styleId) return;
-    // 全選択 = 除外なし
-    setExcludedSkillIds(styleId, new Set());
-    this.#panelEl.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      cb.checked = true;
+  #render() {
+    const panel = this.#panelEl;
+    const slot = this.#getCurrentSlot();
+    if (!panel || !slot?.styleId) {
+      this.close();
+      return;
+    }
+
+    const selectedIds = new Set(dedupeNumericIds(slot.equippedSkillIds ?? []));
+    const skills = this.#getSkillsForCurrentSlot();
+    const hasLockedRemoval = this.#hasActiveBattle && this.#hasRecords;
+    const canSelectAll = skills.some((skill) => {
+      const skillId = Number(skill.id ?? skill.skillId);
+      return Number.isFinite(skillId) && !selectedIds.has(skillId);
     });
-    document.dispatchEvent(new CustomEvent('hbr:skill-filter-changed', { detail: { styleId } }));
+    const canClearAll = !hasLockedRemoval && skills.some((skill) => {
+      const skillId = Number(skill.id ?? skill.skillId);
+      return Number.isFinite(skillId) && !isRequiredSkillSetting(skill) && selectedIds.has(skillId);
+    });
+    const noteHtml = hasLockedRemoval
+      ? '<p class="mt-2 text-[10px] leading-4 text-amber-600">記録中はスキル解除できません。追加すると 1 ターン目から自動再計算されます。</p>'
+      : this.#hasActiveBattle
+        ? '<p class="mt-2 text-[10px] leading-4 text-sky-600">変更は 1 ターン目から自動再計算されます。</p>'
+        : '';
+
+    panel.innerHTML = `
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <span class="text-xs font-bold text-gray-700">スキル設定</span>
+        <div class="flex gap-1">
+          <button data-action="select-all"
+                  ${canSelectAll ? '' : 'disabled'}
+                  class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">全選択</button>
+          <button data-action="clear-all"
+                  ${canClearAll ? '' : 'disabled'}
+                  class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">全解除</button>
+          <button data-action="close"
+                  class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">✕</button>
+        </div>
+      </div>
+      <div data-role="skill-settings-list" data-slot="${this.#currentSlotIndex}"
+           class="flex flex-col gap-1 max-h-72 overflow-y-auto">
+        ${skills.map((skill) => {
+          const skillId = Number(skill.id ?? skill.skillId);
+          const required = isRequiredSkillSetting(skill);
+          const checked = required || selectedIds.has(skillId);
+          const lockedRemoval = !required && hasLockedRemoval && checked;
+          const disabled = required || lockedRemoval;
+          const tagLabels = buildSkillSettingTagLabels(skill);
+          return `
+            <label class="flex gap-1.5 rounded px-1 py-1 text-xs leading-tight ${disabled ? 'text-gray-400' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}">
+              <input type="checkbox"
+                     data-field="skill-setting"
+                     data-slot-index="${this.#currentSlotIndex}"
+                     value="${skillId}"
+                     class="mt-0.5 shrink-0"
+                     ${checked ? 'checked' : ''}
+                     ${disabled ? 'disabled' : ''} />
+              <span class="min-w-0 flex-1">
+                <span class="text-gray-400">${formatSkillSettingCostLabel(skill)}</span>
+                <span class="ml-1">${String(skill.name ?? '')}</span>
+                ${tagLabels.map((tag) => `
+                  <span class="ml-1 inline-flex rounded-full border border-gray-200 bg-white px-1 py-px text-[9px] text-gray-500">${tag}</span>
+                `).join('')}
+                ${lockedRemoval ? '<span class="ml-1 inline-flex rounded-full border border-amber-200 bg-amber-50 px-1 py-px text-[9px] text-amber-600">解除不可</span>' : ''}
+              </span>
+            </label>
+          `;
+        }).join('')}
+      </div>
+      ${noteHtml}
+    `;
+
+    panel.querySelector('[data-action="close"]')?.addEventListener('click', () => this.close());
+    panel.querySelector('[data-action="select-all"]')?.addEventListener('click', () => {
+      this.#onSelectAll?.(this.#currentSlotIndex);
+      this.refresh();
+    });
+    panel.querySelector('[data-action="clear-all"]')?.addEventListener('click', () => {
+      this.#onClearAll?.(this.#currentSlotIndex);
+      this.refresh();
+    });
+    panel.querySelectorAll('input[data-field="skill-setting"]').forEach((checkbox) => {
+      checkbox.addEventListener('change', () => {
+        this.#onSelectionChange?.(this.#currentSlotIndex, Number(checkbox.value), checkbox.checked);
+        this.refresh();
+      });
+    });
   }
 
-  #onClearAll() {
-    const styleId = this.#currentStyle?.id;
-    if (!styleId) return;
-    const skills = (this.#store
-      ? this.#store.listSkillsByStyleId(styleId)
-      : getActionSkillsFromRaw(this.#currentStyle)
-    ).filter((s) => !isNormalAttackSkill(s) && !isAdmiralCommandSkill(s));
-    const allIds = new Set(skills.map((s) => Number(s.id ?? s.skillId)));
-    setExcludedSkillIds(styleId, allIds);
-    this.#panelEl.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      cb.checked = false;
-    });
-    document.dispatchEvent(new CustomEvent('hbr:skill-filter-changed', { detail: { styleId } }));
+  #positionPanel() {
+    const panel = this.#panelEl;
+    const anchorEl = this.#currentAnchorEl;
+    if (!panel || !anchorEl) {
+      return;
+    }
+    const rect = anchorEl.getBoundingClientRect();
+    const panelH = panel.offsetHeight || 320;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow >= panelH || spaceBelow >= PANEL_MIN_BOTTOM_SPACE_PX) {
+      panel.style.top = `${rect.bottom + 4}px`;
+    } else {
+      panel.style.top = `${Math.max(4, rect.top - panelH - 4)}px`;
+    }
+    const left = Math.min(rect.left, window.innerWidth - PANEL_WIDTH_PX - 4);
+    panel.style.left = `${Math.max(4, left)}px`;
+  }
+
+  #bindOutsideClick() {
+    const panel = this.#panelEl;
+    const anchorEl = this.#currentAnchorEl;
+    if (!panel) {
+      return;
+    }
+    if (this.#outsideClickHandler) {
+      document.removeEventListener('click', this.#outsideClickHandler, true);
+    }
+    this.#outsideClickHandler = (e) => {
+      if (!panel.contains(e.target) && e.target !== anchorEl) {
+        this.close();
+      }
+    };
+    document.addEventListener('click', this.#outsideClickHandler, true);
   }
 }

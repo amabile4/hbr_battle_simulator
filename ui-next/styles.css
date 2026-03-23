@@ -322,3 +322,8 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+
+/* ポップオーバーのレスポンシブ配置（ビューポート外はみ出し防止） */
+.target-popover {
+  max-width: min(280px, calc(100vw - 16px));
+}

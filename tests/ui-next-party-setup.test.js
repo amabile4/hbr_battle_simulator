@@ -176,8 +176,8 @@ test('PartySetupController confirms before overwriting an existing preset', () =
     assert.equal(win.localStorage.getItem('hbr.ui_next.party_presets.v1'), before);
   }));
 
-test('PartySetupController renders equipable skill checklist with required and tagged entries', () =>
-  withDom(({ root, pickerOverlay }) => {
+test('PartySetupController renders skill settings panel with required and tagged entries', () =>
+  withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
       root,
       pickerOverlay,
@@ -194,14 +194,20 @@ test('PartySetupController renders equipable skill checklist with required and t
       startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
     });
 
-    const checklist = root.querySelector('[data-role="skill-checklist"][data-slot="0"]');
-    assert.ok(checklist, 'slot 0 should render skill checklist');
+    assert.equal(root.querySelector('[data-role="skill-checklist"][data-slot="0"]'), null);
 
-    const requiredInput = checklist.querySelector('input[value="46000001"]');
+    const button = root.querySelector('[data-action="open-skill-settings"][data-slot-index="0"]');
+    assert.match(button?.textContent ?? '', /スキル設定/);
+    button.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const panel = win.document.querySelector('[data-role="skill-settings-list"][data-slot="0"]');
+    assert.ok(panel, 'slot 0 should render skill settings panel');
+
+    const requiredInput = panel.querySelector('input[value="46000001"]');
     assert.equal(requiredInput?.checked, true);
     assert.equal(requiredInput?.disabled, true);
 
-    const passiveRow = checklist.textContent;
+    const passiveRow = panel.textContent;
     assert.match(passiveRow, /ルビー・パフューム/);
     assert.match(passiveRow, /パッシブ/);
     assert.match(passiveRow, /マスター/);
@@ -234,11 +240,15 @@ test('PartySetupController restores skillSetsByPartyIndex from snapshot and pres
       },
     });
 
-    const passiveCheckbox = root.querySelector(
-      'input[data-field="equipped-skill"][data-slot-index="0"][value="46400001"]'
+    root
+      .querySelector('[data-action="open-skill-settings"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const passiveCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46400001"]'
     );
-    const masterCheckbox = root.querySelector(
-      'input[data-field="equipped-skill"][data-slot-index="0"][value="46500001"]'
+    const masterCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46500001"]'
     );
     assert.equal(passiveCheckbox?.checked, false);
     assert.equal(masterCheckbox?.checked, true);
@@ -264,4 +274,90 @@ test('PartySetupController restores skillSetsByPartyIndex from snapshot and pres
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     assert.deepEqual(controller.getSnapshot().skillSetsByPartyIndex['0'], [46000001, 46500001]);
+  }));
+
+test('PartySetupController reports skill set delta meta from skill settings panel', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const changes = [];
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      onChange: (snapshot, meta) => {
+        changes.push({ snapshot, meta });
+      },
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="open-skill-settings"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const masterCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46500001"]'
+    );
+    masterCheckbox.checked = false;
+    masterCheckbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const lastChange = changes.at(-1);
+    assert.deepEqual(lastChange.meta, {
+      slotIndex: 0,
+      addedSkillIds: [],
+      removedSkillIds: [46500001],
+      hasSkillSetDelta: true,
+    });
+    assert.deepEqual(lastChange.snapshot.skillSetsByPartyIndex['0'], [46000001, 46400001, 46300001]);
+  }));
+
+test('PartySetupController disables removing checked skills while records exist', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+      skillSetsByPartyIndex: {
+        0: [46000001, 46500001],
+      },
+    });
+    controller.setBattleState({ hasActiveBattle: true, hasRecords: true });
+
+    root
+      .querySelector('[data-action="open-skill-settings"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const requiredCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46000001"]'
+    );
+    const checkedOptionalCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46500001"]'
+    );
+    const uncheckedOptionalCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46400001"]'
+    );
+
+    assert.equal(requiredCheckbox?.disabled, true);
+    assert.equal(checkedOptionalCheckbox?.checked, true);
+    assert.equal(checkedOptionalCheckbox?.disabled, true);
+    assert.equal(uncheckedOptionalCheckbox?.checked, false);
+    assert.equal(uncheckedOptionalCheckbox?.disabled, false);
+    assert.match(win.document.body.textContent ?? '', /記録中はスキル解除できません/);
   }));

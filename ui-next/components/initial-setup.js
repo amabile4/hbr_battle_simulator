@@ -9,6 +9,7 @@ const TABS = [
   { id: 'enemy', label: 'Enemy Setup' },
   { id: 'stage', label: 'Stage Setup' },
   { id: 'simulator', label: 'Simulator Settings' },
+  { id: 'passive-log', label: 'Passive Log' },
 ];
 
 /**
@@ -28,9 +29,12 @@ export class InitialSetupController {
   #applyBtn = null;
   #recalcBtn = null;
   #hasRecords = false;
+  #hasActiveBattle = false;
   #activeTab = 'party';
   #onSaveSession;
   #onLoadSession;
+  #isApplyingSetupSnapshot = false;
+  #passiveLogRows = [];
 
   constructor({
     root,
@@ -57,7 +61,13 @@ export class InitialSetupController {
    */
   setHasRecords(hasRecords) {
     this.#hasRecords = hasRecords;
+    this.#syncPartySetupBattleState();
     this.#updateFooterButtons();
+  }
+
+  setHasActiveBattle(hasActiveBattle) {
+    this.#hasActiveBattle = Boolean(hasActiveBattle);
+    this.#syncPartySetupBattleState();
   }
 
   mount() {
@@ -164,6 +174,25 @@ export class InitialSetupController {
             </div>
           </div>
         </div>
+
+        <!-- Passive Log タブコンテンツ -->
+        <div data-tab-content="passive-log" hidden class="bg-white">
+          <div class="space-y-3 p-4">
+            <div>
+              <h3 class="font-bold text-gray-700">Passive Debug Log</h3>
+              <p class="mt-1 text-xs leading-5 text-gray-500">
+                現在の session から再構築したパッシブ発火ログを表示します。
+              </p>
+            </div>
+            <p data-role="passive-log-empty"
+               class="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-xs text-gray-400">
+              まだ表示できるパッシブログはありません。
+            </p>
+            <div data-role="passive-log-rows"
+                 class="hidden overflow-auto rounded-xl border border-gray-200 bg-white"
+                 style="white-space: nowrap; max-height: 28rem;"></div>
+          </div>
+        </div>
       </div>
     `;
 
@@ -182,9 +211,22 @@ export class InitialSetupController {
       root: partyRoot,
       pickerOverlay: this.#pickerOverlay,
       store: this.#store,
-      onChange: () => this.#updateFooterButtons(),
+      onChange: (snapshot, meta) => {
+        this.#updateFooterButtons();
+        if (this.#isApplyingSetupSnapshot) {
+          return;
+        }
+        if (!this.#hasActiveBattle || !meta?.hasSkillSetDelta || !snapshot?.isFrontFilled) {
+          return;
+        }
+        this.#onRecalculate?.(this.getSetupSnapshot(snapshot), {
+          automatic: true,
+          meta,
+        });
+      },
     });
     this.#partySetup.mount();
+    this.#syncPartySetupBattleState();
 
     // 戦闘開始クリック
     this.#applyBtn.addEventListener('click', () => {
@@ -199,7 +241,10 @@ export class InitialSetupController {
       if (this.#recalcBtn.disabled) return;
       const snapshot = this.#partySetup.getSnapshot();
       if (!snapshot.isFrontFilled) return;
-      this.#onRecalculate?.(this.getSetupSnapshot(snapshot));
+      this.#onRecalculate?.(this.getSetupSnapshot(snapshot), {
+        automatic: false,
+        meta: null,
+      });
     });
 
     const saveBtn = this.#root.querySelector('[data-role="session-save-btn"]');
@@ -224,6 +269,8 @@ export class InitialSetupController {
         loadInput.value = '';
       }
     });
+
+    this.#renderPassiveLogRows();
   }
 
   /**
@@ -252,7 +299,12 @@ export class InitialSetupController {
   }
 
   applySetupSnapshot(snapshot = {}) {
-    this.#partySetup?.applySnapshot(snapshot.party ?? {});
+    this.#isApplyingSetupSnapshot = true;
+    try {
+      this.#partySetup?.applySnapshot(snapshot.party ?? {});
+    } finally {
+      this.#isApplyingSetupSnapshot = false;
+    }
     const simulatorSettings = normalizeSimulatorSettings(snapshot.simulatorSettings);
     const enemyMode = simulatorSettings.targetSelection.enemyMode;
     const allyMode = simulatorSettings.targetSelection.allyMode;
@@ -265,6 +317,50 @@ export class InitialSetupController {
       allyToggle.checked = allyMode === TARGET_SELECTION_MODES.SIMPLE;
     }
     this.#updateFooterButtons();
+  }
+
+  setPassiveLogRows(rows = []) {
+    this.#passiveLogRows = Array.isArray(rows) ? rows.map((row) => ({ ...row })) : [];
+    this.#renderPassiveLogRows();
+  }
+
+  #syncPartySetupBattleState() {
+    this.#partySetup?.setBattleState({
+      hasActiveBattle: this.#hasActiveBattle,
+      hasRecords: this.#hasRecords,
+    });
+  }
+
+  #renderPassiveLogRows() {
+    const container = this.#root.querySelector('[data-role="passive-log-rows"]');
+    const empty = this.#root.querySelector('[data-role="passive-log-empty"]');
+    if (!container || !empty) {
+      return;
+    }
+
+    container.innerHTML = '';
+    const rows = Array.isArray(this.#passiveLogRows) ? this.#passiveLogRows : [];
+    const hasRows = rows.length > 0;
+    empty.classList.toggle('hidden', hasRows);
+    container.classList.toggle('hidden', !hasRows);
+    if (!hasRows) {
+      return;
+    }
+
+    for (const row of rows) {
+      if (!row || typeof row !== 'object' || typeof row.text !== 'string') {
+        continue;
+      }
+      const line = document.createElement('div');
+      line.dataset.role = 'passive-log-row';
+      line.dataset.rowKind = String(row.kind ?? '');
+      line.textContent = row.text;
+      line.className =
+        row.kind === 'marker'
+          ? 'border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-mono text-[11px] text-gray-600'
+          : 'px-3 py-1.5 font-mono text-[11px] text-gray-800';
+      container.appendChild(line);
+    }
   }
 
   /** ボタンの有効/無効・表示を partySetup の状態と hasRecords に基づいて更新する */

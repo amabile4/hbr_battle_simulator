@@ -47,11 +47,11 @@ docs/
 | [active/resonance_full_coverage_tasklist.md](active/resonance_full_coverage_tasklist.md) | ✅ 完了 | 共鳴アビリティ全21グループ テストカバレッジ計画（22テスト・全468テストPASS） | 2026-03-11 |
 | [active/ui_support_slot_improvement_tasklist.md](active/ui_support_slot_improvement_tasklist.md) | ✅ 完了 | サポート枠UI改善：共鳴アビリティ表示強化・フィルタリング機能・バグ修正（全476テストPASS） | 2026-03-12 |
 | [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
-| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | `ui-next` の session/save-load 波と runtime/data-store 側の `SkillSwitch` 展開・埋め込み skill fallback に続き、Party Setup の equipable skill checklist、`skillSetsByPartyIndex` 配線、装備型 passive `HighBoost` 実装まで反映し、残 correctness backlog として PRI-018 を次優先に再整理。 | 2026-03-21 |
-| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | `Initial Setup` と `Simulator Settings` の責務分離、manual target UI の info-space 配置、single-target の target/break 一体 editor、special operation chipsに加え、Party Setup の preset overwrite confirm / `SP +3` 既定値 / equipable skill checklist と、runtime 正本の selectable skill list・装備型 passive 配線まで整理した UI Next 設計メモ | 2026-03-21 |
+| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | `ui-next` の session/save-load 波と runtime/data-store 側の `SkillSwitch` 展開・埋め込み skill fallback に続き、Party Setup の `スキル設定` パネル統合、`skillSetsByPartyIndex` 配線、装備型 passive `HighBoost` 実装まで反映し、残 correctness backlog として PRI-018 を次優先に再整理。 | 2026-03-21 |
+| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | `Initial Setup` と `Simulator Settings` の責務分離、manual target UI の info-space 配置、single-target の target/break 一体 editor、special operation chips、`Passive Log` 監査タブに加え、Party Setup の preset overwrite confirm / `SP +3` 既定値 / `スキル設定` パネルと、runtime 正本の selectable skill list・装備型 passive 配線まで整理した UI Next 設計メモ | 2026-03-21 |
 | [active/ui_next_manual_break_session_tasklist.md](active/ui_next_manual_break_session_tasklist.md) | ✅ 完了 | `ActionOutcomeOverrides` による manual break attribution、single-target の current target 従属 break、`ブレイク` ボタン起点 editor、`SessionSnapshotV1` JSON save-load、`validationPolicy` 基盤の実装記録 | 2026-03-20 |
 | [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next 初回マイルストーン向けに、`Initial Setup > Party Setup` と picker を優先し、後続の `Enemy Setup / Stage Setup` 拡張点も示した GUI モック参照資料 | 2026-03-15 |
-| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | `Initial Setup` / `Style Picker` の 2 層、`Party Setup` 実装、`Enemy Setup / Stage Setup` 拡張点、engine bridge を段階化した UI Next 実装タスクリスト | 2026-03-15 |
+| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | `Initial Setup` / `Style Picker` の 2 層、`Party Setup` 実装、`Enemy Setup / Stage Setup` 拡張点、engine bridge、`スキル設定` パネル統合、`Passive Log` 監査タブまで段階化した UI Next 実装タスクリスト | 2026-03-21 |
 | [active/ui_next_target_selection_repair_tasklist.md](active/ui_next_target_selection_repair_tasklist.md) | ✅ 完了 | UI Next の `enemyCount` 永続化、target モデル再接続、フローティング target UI 再設計に加え、`Simulator Settings` への設定分離まで完了（関連 `node --test` 17 PASS） | 2026-03-20 |
 | [active/ui_next_old_impl_reference_tasklist.md](active/ui_next_old_impl_reference_tasklist.md) | ✅ 完了 | 旧実装（ui/）のゲームルール索引化・肥大化原因分析・新 UI 設計指針策定タスクリスト（T01〜T04 全完了） | 2026-03-16 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | `TurnAction` を正本に寄せ、Commit 時 Position を保存し `record` を再生成物へ戻す軽量 replay/edit 設計案 | 2026-03-14 |
@@ -65,8 +65,13 @@ docs/
 | [active/enemy_status_implementation_tasklist.md](active/enemy_status_implementation_tasklist.md) | ✅ 完了 | PRI-011: 一般敵デバフ status 基盤、enemy-side CountBC、挑発/注目条件を実装（335テストPASS） | 2026-03-14 |
 | [active/top_level_effect_implementation_tasklist.md](active/top_level_effect_implementation_tasklist.md) | ✅ 完了 | PRI-012: top-level effect 監査を完了し、残件を active buff status 基盤へ切り出し | 2026-03-14 |
 | [active/overwrite_cond_implementation_tasklist.md](active/overwrite_cond_implementation_tasklist.md) | ✅ 完了 | PRI-010: skill-level `overwrite_cond` / `overwrite` / `IsCharging` / `IsTeam` / strict mode 整合（328テストPASS） | 2026-03-14 |
-| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画（`HighBoost` と装備型 battle-start passive の checklist 連動まで反映） | 2026-03-21 |
-| [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-08 |
+| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画（`HighBoost` の倍率範囲整理、battle-start / turn-start 分離、装備型 passive の `スキル設定` パネル連動まで反映） | 2026-03-21 |
+| [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス（`applyInitialPassiveState()` は battle-start + mark recovery + turn-start を実行） | 2026-03-22 |
+| [active/phase0_investigation_report.md](active/phase0_investigation_report.md) | 📦 スナップショット | passive timing 監査フェーズ0調査記録（HealSP確認・wip差分・applyIntrinsicMarkTurnStartRecovery欠落経緯） | 2026-03-22 |
+| [active/phase1_plan.md](active/phase1_plan.md) | ✅ 完了 | passive timing 監査フェーズ1実装プラン（applyIntrinsicMarkTurnStartRecovery 復元・3テスト修正・node --test 712 PASS） | 2026-03-22 |
+| [active/restoration_wbs.md](active/restoration_wbs.md) | 🟢 進行中 | ハイブースト以降の段階的復元WBS（フェーズ0〜2完了・フェーズ3以降継続） | 2026-03-23 |
+| [active/passive_debug_log_wbs.md](active/passive_debug_log_wbs.md) | ✅ 完了 | 2ターン目以降のパッシブログ表示されない問題（timing ベース分類で修正・711 PASS） | 2026-03-23 |
+| [active/passive_log_display_bug_issue.md](active/passive_log_display_bug_issue.md) | ✅ 完了 | サポートパッシブがログに表示されない問題（sourceType/sourceMeta 継承・[共鳴]識別子追加・711 PASS） | 2026-03-23 |
 | [active/token_implementation_plan.md](active/token_implementation_plan.md) | ✅ 完了 | Token状態システム独立実装計画（共通基盤・被弾・per-token補正まで完了） | 2026-03-13 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
@@ -96,6 +101,18 @@ docs/
 ---
 
 ## 📦 スナップショット（日付別・変更しない）
+
+### 20260321_ui_next_analysis/ — UI Next アーキテクチャ・仕様分析（2026-03-21実施）
+
+| ドキュメント | 概要 |
+|-------------|------|
+| [20260321_ui_next_analysis/README.md](20260321_ui_next_analysis/README.md) | UI Next アーキテクチャ・仕様分析の概要・分析範囲・主要な発見 |
+| [20260321_ui_next_analysis/ui_next_architecture_overview.md](20260321_ui_next_analysis/ui_next_architecture_overview.md) | UI Next 全体アーキテクチャ概要：エンジン層とUI層の責務分離・データフロー・主要コンポーネント |
+| [20260321_ui_next_analysis/ui_next_party_setup_spec.md](20260321_ui_next_analysis/ui_next_party_setup_spec.md) | UI Next Party Setup 仕様：6スロット編成・メイン/サポート選択・設定項目・プリセット機能 |
+| [20260321_ui_next_analysis/ui_next_turn_row_spec.md](20260321_ui_next_analysis/ui_next_turn_row_spec.md) | UI Next Turn Row 仕様：1ターン分のUI・未コミット/コミット済み行・スキル選択・OD管理・ブレイク編集 |
+| [20260321_ui_next_analysis/ui_next_turn_engine_manager_spec.md](20260321_ui_next_analysis/ui_next_turn_engine_manager_spec.md) | UI Next TurnEngineManager 仕様：リプレイスクリプト管理・preview/commit・再計算・特殊操作管理 |
+| [20260321_ui_next_analysis/ui_next_data_flow.md](20260321_ui_next_analysis/ui_next_data_flow.md) | UI Next データフロー：ユーザー操作からエンジン実行までのデータフロー詳細 |
+| [20260321_ui_next_analysis/ui_next_component_interaction.md](20260321_ui_next_analysis/ui_next_component_interaction.md) | UI Next コンポーネント間相互作用：コンポーネント階層・コールバック連携・データの流れ |
 
 ### 20260314_record_replay_edit_investigation/ — 記録・再生・編集機能の現状調査（2026-03-14実施）
 

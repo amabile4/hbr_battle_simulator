@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CharacterStyle } from '../domain/character-style.js';
+import { resolveShortCharacterName } from '../domain/character-name.js';
 import { Party, MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 import {
   isAdmiralCommandSkill as isAdmiralCommandSkillClassifier,
@@ -1278,7 +1279,7 @@ export class HbrDataStore {
       : maxLimitBreak;
     const mainPassives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
     const supportPassive =
-      supportStyleId != null
+      supportStyleId != null && String(style.tier ?? '').toUpperCase() === 'SSR'
         ? this.resolveSupportSkillPassive(Number(supportStyleId), Number(supportStyleLimitBreakLevel))
         : null;
     const passives = supportPassive ? [...mainPassives, supportPassive] : mainPassives;
@@ -1299,6 +1300,7 @@ export class HbrDataStore {
     return new CharacterStyle({
       characterId: String(character.label),
       characterName: normalizeCharacterName(character.name),
+      shortName: resolveShortCharacterName(character.name, character.label),
       styleId: Number(style.id),
       styleName: String(style.name),
       team: String(style.team ?? ''),

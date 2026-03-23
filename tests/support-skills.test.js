@@ -455,9 +455,10 @@ test('buildCharacterStyle with supportStyleId: passives に sourceType:"support"
   );
   if (!supportStyle) return;
 
-  // メインスタイルは6人分別のキャラクターから選ぶ（supportStyleと別キャラ）
+  // メインスタイルは SSR かつ別キャラクターから選ぶ（サポート共鳴はSSR専用）
   const mainStyle = store.styles.find(
     (s) => Array.isArray(s.skills) && s.skills.length > 0 &&
+           String(s.tier ?? '').toUpperCase() === 'SSR' &&
            String(s.chara_label) !== String(supportStyle.chara_label)
   );
   if (!mainStyle) return;
@@ -490,6 +491,32 @@ test('buildCharacterStyle without supportStyleId: passives に sourceType:"suppo
   assert.equal(supportPassives.length, 0, 'should have no support passives');
 });
 
+test('buildCharacterStyle with supportStyleId: SSメインスタイルではサポートパッシブが付かないこと', () => {
+  const store = getStore();
+  const supportStyle = store.styles.find(
+    (s) => s.resonance && String(s.resonance).trim() !== ''
+  );
+  if (!supportStyle) return;
+
+  // SSスタイル（SSR以外）のメインを選ぶ
+  const ssMainStyle = store.styles.find(
+    (s) => Array.isArray(s.skills) && s.skills.length > 0 &&
+           String(s.tier ?? '').toUpperCase() === 'SS' &&
+           String(s.chara_label) !== String(supportStyle.chara_label)
+  );
+  if (!ssMainStyle) return;
+
+  const cs = store.buildCharacterStyle({
+    styleId: ssMainStyle.id,
+    partyIndex: 0,
+    supportStyleId: supportStyle.id,
+    supportStyleLimitBreakLevel: 2,
+  });
+
+  const supportPassives = cs.passives.filter((p) => p.sourceType === 'support');
+  assert.equal(supportPassives.length, 0, 'SS main style should have no support passives');
+});
+
 test('buildCharacterStyle: LB 0 と LB 4 で異なる passive が注入されること', () => {
   const store = getStore();
   // lb_lv=0 と lb_lv=4 で効果が異なるサポートスタイルを探す
@@ -502,8 +529,10 @@ test('buildCharacterStyle: LB 0 と LB 4 で異なる passive が注入される
   });
   if (!supportStyle) return;
 
+  // メインスタイルは SSR かつ別キャラクターから選ぶ（サポート共鳴はSSR専用）
   const mainStyle = store.styles.find(
     (s) => Array.isArray(s.skills) && s.skills.length > 0 &&
+           String(s.tier ?? '').toUpperCase() === 'SSR' &&
            String(s.chara_label) !== String(supportStyle.chara_label)
   );
   if (!mainStyle) return;

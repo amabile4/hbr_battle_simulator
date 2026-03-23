@@ -1,5 +1,6 @@
 import { applySpChange, getEventCeiling } from './sp.js';
 import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
+import { resolveShortCharacterName } from './character-name.js';
 import {
   DEFAULT_INITIAL_SP,
   DEFAULT_MARK_LEVEL_MAX,
@@ -280,6 +281,7 @@ export class CharacterStyle {
 
     this.characterId = String(input.characterId);
     this.characterName = String(input.characterName);
+    this.shortName = String(input.shortName ?? resolveShortCharacterName(input.characterName, String(input.characterId ?? '')));
     this.styleId = Number(input.styleId);
     this.styleName = String(input.styleName);
     this.team = String(input.team ?? '');
@@ -1157,6 +1159,7 @@ export class CharacterStyle {
     // immutable フィールド（参照コピー）
     c.characterId = this.characterId;
     c.characterName = this.characterName;
+    c.shortName = this.shortName;
     c.styleId = this.styleId;
     c.styleName = this.styleName;
     c.team = this.team;
@@ -1205,6 +1208,7 @@ export class CharacterStyle {
     return {
       characterId: this.characterId,
       characterName: this.characterName,
+      shortName: this.shortName,
       styleId: this.styleId,
       styleName: this.styleName,
       limitBreakLevel: this.limitBreakLevel,

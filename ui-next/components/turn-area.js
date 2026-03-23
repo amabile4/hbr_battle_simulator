@@ -1,4 +1,5 @@
 import { TurnRowController } from './turn-row.js';
+import { buildPassiveDebugLogRows } from '../utils/passive-debug-log.js';
 
 /**
  * 左ペイン（#turn-area）のターンリスト全体を管理するコントローラー。
@@ -15,20 +16,24 @@ export class TurnAreaController {
   #engineManager;
   #onError;
   #onTurnCommitted;
+  #onPassiveLogRowsChange;
   #rowControllers = [];
   #simulatorSettings = {};
 
-  constructor({ root, store, engineManager, onError = null, onTurnCommitted = null }) {
+  constructor({
+    root,
+    store,
+    engineManager,
+    onError = null,
+    onTurnCommitted = null,
+    onPassiveLogRowsChange = null,
+  }) {
     this.#root = root;
     this.#store = store;
     this.#engineManager = engineManager;
     this.#onError = onError;
     this.#onTurnCommitted = onTurnCommitted;
-
-    // スキル絞込変更時に全行の skill select を再描画する
-    document.addEventListener('hbr:skill-filter-changed', () => {
-      this.#refreshAllSkillSelects();
-    });
+    this.#onPassiveLogRowsChange = onPassiveLogRowsChange;
   }
 
   /**
@@ -43,6 +48,7 @@ export class TurnAreaController {
     this.#root.innerHTML = '';
     this.#rowControllers = [];
     this.#appendInputRow();
+    this.#emitPassiveLogRows();
   }
 
   loadSession(initialState, replayScript, simulatorSettings = {}, validationPolicy = {}) {
@@ -54,6 +60,7 @@ export class TurnAreaController {
       this.#appendCommittedRow(turnIndex);
     }
     this.#appendInputRow();
+    this.#emitPassiveLogRows();
   }
 
   /**
@@ -68,20 +75,15 @@ export class TurnAreaController {
       // 記録がなければ通常の initialize と同じ（入力行の stateBefore だけ更新）
       this.#engineManager.recalculateAll(newInitialState);
       this.#refreshInputRow();
+      this.#emitPassiveLogRows();
       return;
     }
     this.#engineManager.recalculateAll(newInitialState);
     this.#refreshRowsFrom(0);
+    this.#emitPassiveLogRows();
   }
 
   // ---- private ----
-
-  /** フィルタ変更時に全行（コミット済み + 入力行）の skill select を再描画する */
-  #refreshAllSkillSelects() {
-    for (const row of this.#rowControllers) {
-      row.refreshSkillSelects();
-    }
-  }
 
   #appendInputRow() {
     const turnIndex = this.#rowControllers.length;
@@ -184,6 +186,7 @@ export class TurnAreaController {
     this.#appendInputRow();
     // 記録が生まれたことを通知（↺ 設定を反映ボタンの有効化に使用）
     this.#onTurnCommitted?.();
+    this.#emitPassiveLogRows();
   }
 
   #handleSlotChange(turnIndex, position, action) {
@@ -197,6 +200,7 @@ export class TurnAreaController {
     if (turnIndex < this.#engineManager.committedTurnCount) {
       this.#engineManager.updateSlot(turnIndex, position, action);
       this.#refreshRowsFrom(turnIndex);
+      this.#emitPassiveLogRows();
     }
     // 未コミット行のスキル変更は commitNextTurn 時に収集するため何もしない
   }
@@ -238,6 +242,7 @@ export class TurnAreaController {
       const nextOperations = replayTurn.operations.filter((_, index) => index !== operationIndex);
       this.#engineManager.updateOperations(turnIndex, nextOperations);
       this.#refreshRowsFrom(turnIndex);
+      this.#emitPassiveLogRows();
       return;
     }
     if (!this.#engineManager.removePendingSpecialOperation(operationIndex)) {
@@ -252,6 +257,7 @@ export class TurnAreaController {
     }
     this.#engineManager.updateEnemyCount(turnIndex, enemyCount);
     this.#refreshRowsFrom(turnIndex);
+    this.#emitPassiveLogRows();
   }
 
   #handleActionOutcomeChange(turnIndex, actionOutcomeOverrides) {
@@ -260,6 +266,7 @@ export class TurnAreaController {
     }
     this.#engineManager.updateActionOutcomeOverrides(turnIndex, actionOutcomeOverrides);
     this.#refreshRowsFrom(turnIndex);
+    this.#emitPassiveLogRows();
   }
 
   /**
@@ -335,5 +342,19 @@ export class TurnAreaController {
       simulatorSettings: this.#simulatorSettings,
     });
     lastRow.updateOdPreview(snapshot.odGaugeAfter);
+  }
+
+  #emitPassiveLogRows() {
+    if (typeof this.#onPassiveLogRowsChange !== 'function') {
+      return;
+    }
+    this.#onPassiveLogRowsChange(
+      buildPassiveDebugLogRows({
+        initialState: this.#engineManager.initialState,
+        currentState: this.#engineManager.currentState,
+        committedRecords: this.#engineManager.computedRecords,
+        getStateBefore: (turnIndex) => this.#engineManager.getStateBefore(turnIndex),
+      })
+    );
   }
 }

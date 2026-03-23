@@ -1,12 +1,10 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
 import { DRIVE_PIERCE_OPTIONS } from '../../src/config/battle-defaults.js';
-import {
-  isAdmiralCommandSkill,
-  isNormalAttackSkill,
-} from '../../src/domain/skill-classifiers.js';
 import { StylePickerController } from './style-picker.js';
-import { SkillFilterPanel } from './skill-filter-panel.js';
-import { clearFilterForStyle } from '../utils/skill-filter.js';
+import {
+  isRequiredSkillSetting,
+  SkillSettingsPanel,
+} from './skill-filter-panel.js';
 
 // tier ごとの LB 上限（hbr-data-store.js の LIMIT_BREAK_MAX_BY_TIER と同値）
 const LB_MAX = { A: 20, S: 10, SS: 4, SSR: 4 };
@@ -35,19 +33,11 @@ const PRESET_STORAGE_KEY = 'hbr.ui_next.party_presets.v1';
 const PRESET_COUNT = 3;
 const DEFAULT_SP_EQUIP_ID = '3';
 const EMPTY_SP_EQUIP_ID = '';
-const EQUIPPED_SKILL_SOURCE_TYPE_LABELS = Object.freeze({
-  master: 'マスター',
-  orb: 'オーブ',
-});
 
 function extractCharaName(style) {
   const raw = String(style?.chara ?? '');
   const jpPart = raw.split('—')[0].trim();
   return jpPart || (style?.chara_label ?? '');
-}
-
-function isRequiredEquippedSkill(skill) {
-  return isNormalAttackSkill(skill) || isAdmiralCommandSkill(skill);
 }
 
 function dedupeNumericIds(ids = []) {
@@ -56,29 +46,6 @@ function dedupeNumericIds(ids = []) {
       .map((id) => Number(id))
       .filter((id) => Number.isFinite(id))
   )];
-}
-
-function formatEquippedSkillCostLabel(skill) {
-  const consumeType = String(skill?.consume_type ?? skill?.consumeType ?? 'Sp').toLowerCase();
-  const costRaw = Number(skill?.sp_cost ?? skill?.spCost ?? 0);
-  const cost = costRaw === -1 ? '*' : String(costRaw);
-  if (consumeType === 'token') return `T(${cost})`;
-  if (consumeType === 'morale') return `M(${cost})`;
-  if (consumeType === 'ep') return `E(${cost})`;
-  return `(${cost})`;
-}
-
-function buildEquippedSkillTagLabels(skill) {
-  const tags = [];
-  const sourceType = String(skill?.sourceType ?? 'style');
-  const sourceTypeLabel = EQUIPPED_SKILL_SOURCE_TYPE_LABELS[sourceType];
-  if (sourceTypeLabel) {
-    tags.push(sourceTypeLabel);
-  }
-  if (skill?.passive && typeof skill.passive === 'object') {
-    tags.push('パッシブ');
-  }
-  return tags;
 }
 
 function makeLbOptions(style) {
@@ -131,12 +98,14 @@ export class PartySetupController {
   #root;
   #store;
   #picker;
-  #filterPanel;
+  #skillSettingsPanel;
   #onChange;
   #activeSlotIndex = null;
   #activeMode = 'main'; // 'main' | 'support'
   #dragSrcIndex = null;
   #presetExpanded = false;
+  #hasActiveBattle = false;
+  #hasRecords = false;
 
   constructor({ root, pickerOverlay, store, onChange = null }) {
     this.#onChange = onChange;
@@ -176,8 +145,24 @@ export class PartySetupController {
 
   mount() {
     this.#picker.mount();
-    this.#filterPanel = new SkillFilterPanel({ store: this.#store });
-    this.#filterPanel.mount(document.body);
+    this.#skillSettingsPanel = new SkillSettingsPanel({
+      store: this.#store,
+      resolveSlot: (slotIndex) => this.#slots[slotIndex] ?? null,
+      onSelectionChange: (slotIndex, skillId, checked) => {
+        this.#toggleSkillForSlot(slotIndex, skillId, checked);
+      },
+      onSelectAll: (slotIndex) => {
+        this.#selectAllSkillsForSlot(slotIndex);
+      },
+      onClearAll: (slotIndex) => {
+        this.#clearSkillsForSlot(slotIndex);
+      },
+    });
+    this.#skillSettingsPanel.mount(document.body);
+    this.#skillSettingsPanel.updateContext({
+      hasActiveBattle: this.#hasActiveBattle,
+      hasRecords: this.#hasRecords,
+    });
     this.#render();
   }
 
@@ -218,6 +203,18 @@ export class PartySetupController {
           .filter(Boolean)
       ),
     };
+  }
+
+  setBattleState({
+    hasActiveBattle = this.#hasActiveBattle,
+    hasRecords = this.#hasRecords,
+  } = {}) {
+    this.#hasActiveBattle = Boolean(hasActiveBattle);
+    this.#hasRecords = Boolean(hasRecords);
+    this.#skillSettingsPanel?.updateContext({
+      hasActiveBattle: this.#hasActiveBattle,
+      hasRecords: this.#hasRecords,
+    });
   }
 
   applySnapshot(snapshot = {}) {
@@ -338,8 +335,17 @@ export class PartySetupController {
 
   // ---- /preset ----
 
-  #notifyChange() {
-    this.#onChange?.(this.getSnapshot());
+  #normalizeChangeMeta(meta = {}) {
+    return {
+      slotIndex: Number.isInteger(meta.slotIndex) ? meta.slotIndex : null,
+      addedSkillIds: dedupeNumericIds(meta.addedSkillIds ?? []),
+      removedSkillIds: dedupeNumericIds(meta.removedSkillIds ?? []),
+      hasSkillSetDelta: Boolean(meta.hasSkillSetDelta),
+    };
+  }
+
+  #notifyChange(meta = {}) {
+    this.#onChange?.(this.getSnapshot(), this.#normalizeChangeMeta(meta));
   }
 
   #getEquipableSkillsForStyle(styleId) {
@@ -357,7 +363,7 @@ export class PartySetupController {
 
     const availableIds = new Set(skills.map((skill) => Number(skill.id)));
     const requiredIds = skills
-      .filter((skill) => isRequiredEquippedSkill(skill))
+      .filter((skill) => isRequiredSkillSetting(skill))
       .map((skill) => Number(skill.id));
     const selectedIds = Array.isArray(preferredIds)
       ? dedupeNumericIds(preferredIds).filter((skillId) => availableIds.has(skillId))
@@ -366,51 +372,63 @@ export class PartySetupController {
     return dedupeNumericIds([...requiredIds, ...selectedIds]);
   }
 
-  #equipSkillChecklistHtml(index) {
-    const slot = this.#slots[index];
+  #updateEquippedSkillIds(slotIndex, preferredIds) {
+    const slot = this.#slots[slotIndex];
     if (!slot?.styleId) {
-      return '';
+      return;
     }
-    const skills = this.#getEquipableSkillsForStyle(slot.styleId);
-    if (skills.length === 0) {
-      return '';
+    const previousIds = this.#resolveEquippedSkillIdsForStyle(slot.styleId, slot.equippedSkillIds);
+    const nextIds = this.#resolveEquippedSkillIdsForStyle(slot.styleId, preferredIds);
+    const previousSet = new Set(previousIds);
+    const nextSet = new Set(nextIds);
+    const addedSkillIds = nextIds.filter((skillId) => !previousSet.has(skillId));
+    const removedSkillIds = previousIds.filter((skillId) => !nextSet.has(skillId));
+    if (addedSkillIds.length === 0 && removedSkillIds.length === 0) {
+      return;
+    }
+    slot.equippedSkillIds = nextIds;
+    this.#notifyChange({
+      slotIndex,
+      addedSkillIds,
+      removedSkillIds,
+      hasSkillSetDelta: true,
+    });
+  }
+
+  #toggleSkillForSlot(slotIndex, skillId, checked) {
+    const slot = this.#slots[slotIndex];
+    if (!slot?.styleId) {
+      return;
     }
     const selectedIds = new Set(
       this.#resolveEquippedSkillIdsForStyle(slot.styleId, slot.equippedSkillIds)
     );
+    if (checked) {
+      selectedIds.add(Number(skillId));
+    } else {
+      selectedIds.delete(Number(skillId));
+    }
+    this.#updateEquippedSkillIds(slotIndex, [...selectedIds]);
+  }
 
-    return `
-      <div class="border-t border-gray-100 bg-white px-1 py-1.5">
-        <div class="text-[10px] font-semibold tracking-wide text-gray-400 uppercase px-0.5">装備スキル</div>
-        <div data-role="skill-checklist" data-slot="${index}"
-             class="mt-1 max-h-28 overflow-y-auto rounded border border-gray-100 bg-gray-50 px-1 py-1 space-y-1">
-          ${skills.map((skill) => {
-            const skillId = Number(skill.id);
-            const required = isRequiredEquippedSkill(skill);
-            const checked = required || selectedIds.has(skillId);
-            const tagLabels = buildEquippedSkillTagLabels(skill);
-            return `
-              <label class="flex gap-1.5 rounded px-1 py-0.5 text-[10px] leading-tight text-gray-700 hover:bg-white cursor-pointer">
-                <input type="checkbox"
-                       data-field="equipped-skill"
-                       data-slot-index="${index}"
-                       value="${skillId}"
-                       class="mt-0.5 shrink-0"
-                       ${checked ? 'checked' : ''}
-                       ${required ? 'disabled data-required-skill="true"' : ''} />
-                <span class="min-w-0 flex-1">
-                  <span class="text-gray-400">${formatEquippedSkillCostLabel(skill)}</span>
-                  <span class="ml-1">${String(skill.name ?? '')}</span>
-                  ${tagLabels.map((tag) => `
-                    <span class="ml-1 inline-flex rounded-full border border-gray-200 bg-white px-1 py-px text-[9px] text-gray-500">${tag}</span>
-                  `).join('')}
-                </span>
-              </label>
-            `;
-          }).join('')}
-        </div>
-      </div>
-    `;
+  #selectAllSkillsForSlot(slotIndex) {
+    const slot = this.#slots[slotIndex];
+    if (!slot?.styleId) {
+      return;
+    }
+    const allSkillIds = this.#getEquipableSkillsForStyle(slot.styleId).map((skill) => Number(skill.id));
+    this.#updateEquippedSkillIds(slotIndex, allSkillIds);
+  }
+
+  #clearSkillsForSlot(slotIndex) {
+    const slot = this.#slots[slotIndex];
+    if (!slot?.styleId) {
+      return;
+    }
+    const requiredIds = this.#getEquipableSkillsForStyle(slot.styleId)
+      .filter((skill) => isRequiredSkillSetting(skill))
+      .map((skill) => Number(skill.id));
+    this.#updateEquippedSkillIds(slotIndex, requiredIds);
   }
 
   #getPartyContext() {
@@ -454,6 +472,7 @@ export class PartySetupController {
   }
 
   #render() {
+    this.#skillSettingsPanel?.close();
     // やる気パッシブ持ちが1人でもいれば全スロットにやる気 select を表示
     const moraleVisible = this.#slots.some((s) => hasMoralePassive(s.style));
     const presets = this.#readPresets();
@@ -539,21 +558,6 @@ export class PartySetupController {
       });
     });
 
-    this.#root.querySelectorAll('input[data-field="equipped-skill"]').forEach((el) => {
-      el.addEventListener('change', () => {
-        const slotIndex = Number(el.dataset.slotIndex);
-        const slot = this.#slots[slotIndex];
-        if (!slot?.styleId) {
-          return;
-        }
-        const selectedIds = [...this.#root.querySelectorAll(
-          `input[data-field="equipped-skill"][data-slot-index="${slotIndex}"]:checked`
-        )].map((input) => Number(input.value));
-        slot.equippedSkillIds = this.#resolveEquippedSkillIdsForStyle(slot.styleId, selectedIds);
-        this.#notifyChange();
-      });
-    });
-
     // プリセット折りたたみトグル
     this.#root.querySelector('[data-action="toggle-preset"]')?.addEventListener('click', () => {
       this.#presetExpanded = !this.#presetExpanded;
@@ -568,12 +572,16 @@ export class PartySetupController {
       el.addEventListener('click', () => this.#loadPreset(Number(el.dataset.presetIndex)));
     });
 
-    // スキル絞込ボタン
-    this.#root.querySelectorAll('[data-action="open-filter"]').forEach((btn) => {
+    // スキル設定ボタン
+    this.#root.querySelectorAll('[data-action="open-skill-settings"]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = Number(btn.dataset.slotIndex);
-        const style = this.#slots[idx]?.style;
-        if (style) this.#filterPanel.open(style, btn);
+        if (this.#slots[idx]?.styleId) {
+          this.#skillSettingsPanel.open(idx, btn, {
+            hasActiveBattle: this.#hasActiveBattle,
+            hasRecords: this.#hasRecords,
+          });
+        }
       });
     });
 
@@ -687,14 +695,12 @@ export class PartySetupController {
           ${moraleVisible ? selectHtml('morale', index, MORALE_OPTIONS, slot.morale) : ''}
         </div>
 
-        <!-- スキル絞込ボタン -->
-        <button data-action="open-filter" data-slot-index="${index}"
+        <!-- スキル設定ボタン -->
+        <button data-action="open-skill-settings" data-slot-index="${index}"
                 class="text-xs text-gray-400 hover:text-gray-600 px-1 py-px w-full
                        transition-colors ${slot.style ? '' : 'invisible'}">
-          🔧 スキル絞込
+          🔧 スキル設定
         </button>
-
-        ${this.#equipSkillChecklistHtml(index)}
 
         <!-- support section: flex-row（アイコン左固定 w-14 + LB select 右） -->
         <div class="border-t border-gray-100">
@@ -746,14 +752,6 @@ export class PartySetupController {
     if (this.#activeSlotIndex == null) return;
     const idx = this.#activeSlotIndex;
     const mode = this.#activeMode;
-
-    // スタイル変更時: 旧スタイルのフィルタ設定をリセット（新スタイルは全件表示）
-    if (mode === 'main') {
-      const oldStyleId = this.#slots[idx]?.styleId;
-      if (oldStyleId && oldStyleId !== style.id) {
-        clearFilterForStyle(oldStyleId);
-      }
-    }
 
     if (mode === 'main') {
       // メイン同士: 同一キャラクター不可 → 既存をクリア

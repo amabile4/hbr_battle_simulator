@@ -54,13 +54,73 @@ function withDom(run) {
 }
 
 function createStoreStub() {
+  const styles = [
+    {
+      id: 1001,
+      name: '茅森 月歌 style',
+      chara: '茅森 月歌',
+      chara_label: 'C1001',
+      image: '',
+      tier: 'SS',
+      passives: [],
+      skills: [],
+    },
+    {
+      id: 1002,
+      name: '和泉 ユキ style',
+      chara: '和泉 ユキ',
+      chara_label: 'C1002',
+      image: '',
+      tier: 'SS',
+      passives: [],
+      skills: [],
+    },
+    {
+      id: 1003,
+      name: '逢川 めぐみ style',
+      chara: '逢川 めぐみ',
+      chara_label: 'C1003',
+      image: '',
+      tier: 'SS',
+      passives: [],
+      skills: [],
+    },
+  ];
+  const styleById = new Map(styles.map((style) => [style.id, style]));
+  const equipableSkillsByStyleId = new Map([
+    [1001, [
+      { id: 46000001, skillId: 46000001, name: '通常攻撃', label: 'Skill46000001', sp_cost: 0 },
+      {
+        id: 46400001,
+        skillId: 46400001,
+        name: 'ルビー・パフューム',
+        label: 'Skill46400001',
+        sp_cost: 0,
+        sourceType: 'passive',
+        passive: { timing: 'OnFirstBattleStart', effect: 'HighBoost' },
+      },
+      {
+        id: 46500001,
+        skillId: 46500001,
+        name: 'マスタースキル',
+        label: 'Skill46500001',
+        sp_cost: 0,
+        sourceType: 'master',
+      },
+    ]],
+    [1002, [{ id: 46000011, skillId: 46000011, name: '通常攻撃', label: 'Skill46000011', sp_cost: 0 }]],
+    [1003, [{ id: 46000021, skillId: 46000021, name: '通常攻撃', label: 'Skill46000021', sp_cost: 0 }]],
+  ]);
   return {
-    styles: [],
-    getStyleById() {
-      return null;
+    styles,
+    getStyleById(styleId) {
+      return styleById.get(Number(styleId)) ?? null;
     },
     listSkillsByStyleId() {
       return [];
+    },
+    listEquipableSkillsByStyleId(styleId) {
+      return equipableSkillsByStyleId.get(Number(styleId)) ?? [];
     },
   };
 }
@@ -89,6 +149,26 @@ test('InitialSetupController mounts Simulator Settings tab separately from Enemy
     assert.equal(enemyContent.querySelector('[data-role="ally-target-simplify-toggle"]'), null);
     assert.equal(stageContent.querySelector('[data-role="enemy-target-simplify-toggle"]'), null);
     assert.equal(stageContent.querySelector('[data-role="ally-target-simplify-toggle"]'), null);
+  }));
+
+test('InitialSetupController mounts Passive Log tab with an empty state', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    const passiveLogTab = root.querySelector('[role="tab"][data-tab="passive-log"]');
+    assert.ok(passiveLogTab);
+
+    passiveLogTab.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const passiveLogContent = root.querySelector('[data-tab-content="passive-log"]');
+    assert.equal(passiveLogContent.hidden, false);
+    assert.ok(root.querySelector('[data-role="passive-log-empty"]'));
+    assert.ok(root.querySelector('[data-role="passive-log-rows"]'));
   }));
 
 test('InitialSetupController getSetupSnapshot returns split simulator target selection modes', () =>
@@ -171,4 +251,96 @@ test('InitialSetupController applySetupSnapshot restores simulator toggles', () 
 
     assert.equal(root.querySelector('[data-role="enemy-target-simplify-toggle"]').checked, false);
     assert.equal(root.querySelector('[data-role="ally-target-simplify-toggle"]').checked, true);
+  }));
+
+test('InitialSetupController setPassiveLogRows renders marker and passive rows in a nowrap container', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.setPassiveLogRows([
+      { kind: 'marker', text: '=== 戦闘開始 ===' },
+      {
+        kind: 'passive',
+        turnLabel: 'T1',
+        styleName: '茅森 月歌 style',
+        characterName: '茅森 月歌',
+        passiveName: '機敏',
+        passiveDesc: 'バトル開始時 前衛にいると自身のSP+2',
+        timing: 'OnBattleStart',
+        text: 'T1：茅森 月歌 style / 茅森 月歌 : [機敏] バトル開始時 前衛にいると自身のSP+2',
+      },
+    ]);
+
+    root
+      .querySelector('[role="tab"][data-tab="passive-log"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const rowsContainer = root.querySelector('[data-role="passive-log-rows"]');
+    const renderedRows = [...root.querySelectorAll('[data-role="passive-log-row"]')];
+    assert.equal(rowsContainer.classList.contains('hidden'), false);
+    assert.equal(rowsContainer.style.whiteSpace, 'nowrap');
+    assert.equal(renderedRows.length, 2);
+    assert.equal(renderedRows[0].dataset.rowKind, 'marker');
+    assert.equal(renderedRows[1].dataset.rowKind, 'passive');
+    assert.match(renderedRows[1].textContent, /\[機敏\]/);
+  }));
+
+test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const recalculations = [];
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      onRecalculate: (snapshot, options) => {
+        recalculations.push({ snapshot, options });
+      },
+    });
+    controller.mount();
+    controller.applySetupSnapshot({
+      party: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        supportStyleIds: [null, null, null, null, null, null],
+        limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+        skillSetsByPartyIndex: {
+          0: [46000001, 46400001],
+          1: [46000011],
+          2: [46000021],
+        },
+      },
+      simulatorSettings: {
+        targetSelection: {
+          enemyMode: TARGET_SELECTION_MODES.SIMPLE,
+          allyMode: TARGET_SELECTION_MODES.SIMPLE,
+        },
+      },
+    });
+    controller.setHasActiveBattle(true);
+    controller.setHasRecords(false);
+
+    root
+      .querySelector('[data-action="open-skill-settings"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const masterCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46500001"]'
+    );
+    masterCheckbox.checked = true;
+    masterCheckbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    assert.equal(recalculations.length, 1);
+    assert.equal(recalculations[0].options.automatic, true);
+    assert.deepEqual(recalculations[0].options.meta.addedSkillIds, [46500001]);
+    assert.deepEqual(recalculations[0].snapshot.party.skillSetsByPartyIndex['0'], [
+      46000001,
+      46400001,
+      46500001,
+    ]);
   }));
