@@ -165,13 +165,16 @@ b09946a  applyInitialTurnStartPassiveState復活（テスト未修正）
   - wipブランチが36c156dの正しい実装を全て含む上位互換であるため
 - [x] フェーズ2残件（T1EX→T2 SP回復欠落・PassiveLog先読み）をコミット（93d171c）
 
-### フェーズ4: その他バグ修正
-- サポートSSRチェックバグ（`support_tier_check_bug_issue.md`）
-- iPhoneポップオーバー（`responsive_popover_positioning_fix.md`）
+### フェーズ4: その他バグ修正 ✅ 完了（2026-03-23）
+- [x] サポートSSRチェックバグ（`support_tier_check_bug_issue.md`）
+- [x] iPhoneポップオーバー（`responsive_popover_positioning_fix.md`）
+- [x] パッシブログ turnLabel 1ターンズレ修正（passiveEventsLastApplied に nextTurnLabel を付与）
 
 ### フェーズ5: 機能追加の再開
-- ハイブースト・ルビーパヒュームの残り機能追加
-- 全テスト green + PassiveLog動作確認
+- [x] SPコスト+2（エンジン・UI）: 実装済み確認（2026-03-23）
+- [x] SP上限=30（SpLimitOverwrite）: エンジン実装済み確認（2026-03-23）
+- [ ] SP上限値のUI表示: **将来ハイブーストアイコン実装時に対応**（現時点対応不要）
+- [ ] 全テスト green + PassiveLog動作確認
 
 ---
 
