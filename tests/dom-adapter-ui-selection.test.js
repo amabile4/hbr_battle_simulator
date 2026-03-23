@@ -1201,10 +1201,10 @@ test('OnFirstBattleStart 共鳴アビリティ (31C / SkillLimitCountUp) が ini
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // スロット0: 茅森 月歌 (ナイトクルーズ・エスコート, Thunder SS)
+  // スロット0: 茅森 月歌 (The Feel of the Throne, Dark+Fire SSR)
   // サポート: 比村 伊勢弥 (Daydream Believer, Thunder SS, 31C共鳴 / Failure Is Not an Option / OnFirstBattleStart)
   adapter.initializeBattle(
-    [1001107, 1001204, 1001504, 1001401, 1001301, 1001701],
+    [1001108, 1001204, 1001504, 1001401, 1001301, 1001701],
     {
       supportStyleIdsByPartyIndex: { 0: 1003106 },
       supportLimitBreakLevelsByPartyIndex: { 0: 0 },

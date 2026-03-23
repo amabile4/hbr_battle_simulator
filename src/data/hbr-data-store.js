@@ -1279,7 +1279,7 @@ export class HbrDataStore {
       : maxLimitBreak;
     const mainPassives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
     const supportPassive =
-      supportStyleId != null
+      supportStyleId != null && String(style.tier ?? '').toUpperCase() === 'SSR'
         ? this.resolveSupportSkillPassive(Number(supportStyleId), Number(supportStyleLimitBreakLevel))
         : null;
     const passives = supportPassive ? [...mainPassives, supportPassive] : mainPassives;

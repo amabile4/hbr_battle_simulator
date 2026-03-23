@@ -53,10 +53,10 @@ test('T01: 31B (Love and Peace) OnEveryTurn で commitCurrentTurn 後に passive
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // main=1001103 (RKayamori 無属性SS), support=1002107 (EAoi 無属性)
+  // main=1001108 (RKayamori Dark+Fire SSR), support=1002107 (EAoi 無属性)
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'EAoi']);
   adapter.initializeBattle(
-    [1001103, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1002107 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -76,7 +76,7 @@ test('T02: 31B (Love and Peace) Turn()<=3 の境界: T3 でも発動すること
 
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'EAoi']);
   adapter.initializeBattle(
-    [1001103, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1002107 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -101,7 +101,7 @@ test('T03: 31B (Love and Peace) Turn()<=3 境界: T5 以降は新規発動しな
 
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'EAoi']);
   adapter.initializeBattle(
-    [1001103, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1002107 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -133,10 +133,10 @@ test('T04: 31E (Get it together!) OnPlayerTurnStart で initializeBattle 後 T1 
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // main=1001104 (RKayamori Fire SS), support=1006104 (IcOhshima Fire)
+  // main=1001108 (RKayamori Dark+Fire SSR), support=1006104 (IcOhshima Fire)
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'IcOhshima']);
   adapter.initializeBattle(
-    [1001104, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1006104 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -153,10 +153,10 @@ test('T05: 31F (We Live Better) OnPlayerTurnStart で initializeBattle 後 T1 �
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // main=1001103 (RKayamori 無属性SS), support=1007104 (MYanagi 無属性)
+  // main=1001108 (RKayamori Dark+Fire SSR), support=1007104 (MYanagi 無属性)
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'MYanagi']);
   adapter.initializeBattle(
-    [1001103, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1007104 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -192,7 +192,7 @@ test('T07: 31X (Excelsior!) buildCharacterStyle の passives に OnFirstBattleSt
   // AdditionalHit系パッシブはタイミングパイプラインで silent-skip のため passiveLogEntries には表示されない
   // ドメインレベルで passives に正しく注入されていることを確認する
   const cs = store.buildCharacterStyle({
-    styleId: 1001104,
+    styleId: 1001108,
     partyIndex: 0,
     supportStyleId: 1008105,
     supportStyleLimitBreakLevel: 0,
@@ -213,10 +213,10 @@ test('T08: SupportSkill_MSatsuki01 (暗躍) OnPlayerTurnStart で initializeBatt
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // main=1001103 (RKayamori 無属性SS), support=1003607 (MSatsuki 無属性)
+  // main=1001108 (RKayamori Dark+Fire SSR), support=1003607 (MSatsuki 無属性)
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'MSatsuki']);
   adapter.initializeBattle(
-    [1001103, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1003607 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -251,7 +251,7 @@ test('T10: SupportSkill_CSkopovskaya01 (ザクースカ) buildCharacterStyle の
   const store = getStore();
   // HealSkillUsedCount はタイミングパイプライン外で処理（silent-skip）のため passiveLogEntries には表示されない
   const cs = store.buildCharacterStyle({
-    styleId: 1001104,  // RKayamori Fire SS
+    styleId: 1001108,  // RKayamori Dark+Fire SSR
     partyIndex: 0,
     supportStyleId: 1008607,  // CSkopovskaya Fire
     supportStyleLimitBreakLevel: 0,
@@ -319,7 +319,7 @@ test('T13: SupportSkill_IRedmayne01 (Q.E.D.) buildCharacterStyle の passives �
   const store = getStore();
   // AdditionalHit系パッシブはタイミングパイプラインで silent-skip のため passiveLogEntries には表示されない
   const cs = store.buildCharacterStyle({
-    styleId: 1001103,  // RKayamori 無属性SS
+    styleId: 1001108,  // RKayamori Dark+Fire SSR
     partyIndex: 0,
     supportStyleId: 1008307,  // IRedmayne 無属性
     supportStyleLimitBreakLevel: 0,
@@ -340,11 +340,11 @@ test('T14: SupportSkill_TTojo01 (フィーバー・サマータイム) DP 50% �
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // main=1001104 (RKayamori Fire SS), support=1001404 (TTojo Fire)
+  // main=1001108 (RKayamori Dark+Fire SSR), support=1001404 (TTojo Fire)
   // initialDp: currentDp=100, baseMaxDp=100 → DpRate=1.0 >= 0.5
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'TTojo']);
   adapter.initializeBattle(
-    [1001104, ...others],
+    [1001108, ...others],
     {
       supportStyleIdsByPartyIndex: { 0: 1001404 },
       supportLimitBreakLevelsByPartyIndex: { 0: 0 },
@@ -366,7 +366,7 @@ test('T15: SupportSkill_TTojo01 (フィーバー・サマータイム) DP 50% �
   // initialDp: currentDp=49, baseMaxDp=100 → DpRate=0.49 < 0.5
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'TTojo']);
   adapter.initializeBattle(
-    [1001104, ...others],
+    [1001108, ...others],
     {
       supportStyleIdsByPartyIndex: { 0: 1001404 },
       supportLimitBreakLevelsByPartyIndex: { 0: 0 },
@@ -411,10 +411,10 @@ test('T17: SupportSkill_IMinase01 (ライブ・ブースト) OnPlayerTurnStart �
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // main=1001104 (RKayamori Fire SS), support=1002204 (IMinase Fire)
+  // main=1001108 (RKayamori Dark+Fire SSR), support=1002204 (IMinase Fire)
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'IMinase']);
   adapter.initializeBattle(
-    [1001104, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1002204 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -431,11 +431,11 @@ test('T18: SupportSkill_YIzumi01 (ディスチャージ) DP 50% 以上のとき 
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // main=1001107 (RKayamori Thunder SS), support=1001205 (YIzumi Thunder)
+  // main=1001108 (RKayamori Dark+Fire SSR), support=1001205 (YIzumi Thunder)
   // initialDp: currentDp=100, baseMaxDp=100 → DpRate=1.0 >= 0.5
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'YIzumi']);
   adapter.initializeBattle(
-    [1001107, ...others],
+    [1001108, ...others],
     {
       supportStyleIdsByPartyIndex: { 0: 1001205 },
       supportLimitBreakLevelsByPartyIndex: { 0: 0 },
@@ -457,7 +457,7 @@ test('T19: SupportSkill_YIzumi01 (ディスチャージ) DP 50% 未満のとき 
   // initialDp: currentDp=49, baseMaxDp=100 → DpRate=0.49 < 0.5
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'YIzumi']);
   adapter.initializeBattle(
-    [1001107, ...others],
+    [1001108, ...others],
     {
       supportStyleIdsByPartyIndex: { 0: 1001205 },
       supportLimitBreakLevelsByPartyIndex: { 0: 0 },
@@ -477,10 +477,10 @@ test('T20: SupportSkill_BIYamawaki01 (忠義) OnFirstBattleStart で initializeB
   const adapter = new BattleDomAdapter({ root, dataStore: store, initialSP: 10 });
   adapter.mount();
 
-  // main=1001103 (RKayamori 無属性SS), support=1003109 (BIYamawaki 無属性)
+  // main=1001108 (RKayamori Dark+Fire SSR), support=1003109 (BIYamawaki 無属性)
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'BIYamawaki']);
   adapter.initializeBattle(
-    [1001103, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1003109 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -496,7 +496,7 @@ test('T21: SupportSkill_BIYamawaki01 (忠義) passiveEventsLastApplied に defen
 
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'BIYamawaki']);
   adapter.initializeBattle(
-    [1001103, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1003109 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
@@ -518,7 +518,7 @@ test('T22: SupportSkill_BIYamawaki01 (忠義) passiveLogEntries の 忠義 エ�
 
   const others = pickFiveUniqueOthers(store, ['RKayamori', 'BIYamawaki']);
   adapter.initializeBattle(
-    [1001103, ...others],
+    [1001108, ...others],
     { supportStyleIdsByPartyIndex: { 0: 1003109 }, supportLimitBreakLevelsByPartyIndex: { 0: 0 } }
   );
 
