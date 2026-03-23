@@ -8766,8 +8766,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
+  // recovery.passiveEvents は applyRecoveryPipeline(state.turnState) で生成されるため
+  // イベントの turnLabel が現在ターン（T_n）のラベルになっている。
+  // しかし実際にはこれらは次ターン（T_{n+1}）開始時のイベントなので、
+  // nextTurnState.turnLabel に上書きして正しいターンラベルを付与する。
+  const nextTurnLabel = nextTurnState.turnLabel;
   nextTurnState.passiveEventsLastApplied = Array.isArray(recovery.passiveEvents)
-    ? structuredClone(recovery.passiveEvents)
+    ? structuredClone(recovery.passiveEvents).map((e) => ({ ...e, turnLabel: nextTurnLabel }))
     : [];
   if (Number.isFinite(previewRecord.enemyCount)) {
     if (!nextTurnState.enemyState) {

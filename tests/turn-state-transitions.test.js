@@ -12657,3 +12657,51 @@ test('normal → extra 遷移時にSP回復が発生しないこと', () => {
     );
   }
 });
+
+// ---------- パッシブログ turnLabel 修正（regression test） ----------
+
+test('commitTurn後のpassiveEventsLastAppliedのturnLabelは次ターン（T2）を示す', () => {
+  // OnEveryTurn パッシブを持つ PT を使って T1 をコミットし、
+  // nextState.turnState.passiveEventsLastApplied の各イベントが
+  // T1 ではなく T2 の turnLabel を持つことを検証する。
+  // （修正前は applyRecoveryPipeline が state.turnState（T1）で呼ばれるため
+  //   イベントに turnLabel='T1' が付き、パッシブログ上で1ターンずれて表示されていた）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          baseMaxDp: 70,
+          currentDp: 35,
+          passives: [
+            {
+              id: 19801,
+              name: 'ターンラベルテスト',
+              timing: 'OnEveryTurn',
+              condition: 'IsFront()',
+              parts: [{ skill_type: 'HealDpRate', target_type: 'Self', power: [0.1, 0] }],
+            },
+          ],
+        }
+      : { baseMaxDp: 70 }
+  );
+  const state = createBattleStateFromParty(party);
+  applyInitialPassiveState(state);
+
+  assert.equal(state.turnState.turnLabel, 'T1', 'コミット前は T1');
+
+  const preview = previewTurn(state, {});
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.turnLabel, 'T2', 'コミット後は T2');
+
+  const turnStartEvents = (nextState.turnState.passiveEventsLastApplied ?? []).filter(
+    (e) => e.timing === 'OnEveryTurn'
+  );
+  assert.ok(turnStartEvents.length > 0, 'OnEveryTurnパッシブがpassiveEventsLastAppliedに含まれること');
+  for (const event of turnStartEvents) {
+    assert.equal(
+      event.turnLabel,
+      'T2',
+      `passiveEventsLastAppliedのturnLabelはT2であること（実際: ${event.turnLabel}）`
+    );
+  }
+});
