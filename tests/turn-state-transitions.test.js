@@ -11010,6 +11010,272 @@ test('AdditionalHitOnRemovingBuff does NOT fire when skill has no RemoveBuff par
   assert.ok(!evt, 'AttackUp should NOT fire when skill has no RemoveBuff part');
 });
 
+// ─── AdditionalHitOnBreaking + OverDrivePointUp（破竹の勢い相当） ───
+
+test('AdditionalHitOnBreaking + OverDrivePointUp: OD gauge increases when breaking (破竹の勢い)', () => {
+  // non-attack スキルに breakHitCount:1 を設定し、攻撃由来ODと混同しないよう分離
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK_OD1',
+          characterName: 'BREAK_OD1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100101,
+              name: '破竹の勢いテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.25, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100102,
+              name: 'Break Trigger Non-Attack',
+              sp_cost: 3,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BREAK_OD1', skillId: 100102, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  // power[0]=0.25 → resolveOverDrivePointUpPowerPercent returns 25 (25%)
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - (initialOdGauge + 25)) < 0.1,
+    `OD gauge should increase by 25 when breaking: initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+test('AdditionalHitOnBreaking + OverDrivePointUp does NOT fire when breakHitCount is 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK_OD2',
+          characterName: 'BREAK_OD2',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100103,
+              name: '破竹の勢いテスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.25, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100104,
+              name: 'No-Break Non-Attack',
+              sp_cost: 3,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BREAK_OD2', skillId: 100104, breakHitCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - initialOdGauge) < 0.1,
+    `OD gauge should not change from passive when breakHitCount is 0: initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+// ─── AdditionalHitOnRemovingBuff + OverDrivePointUp（アプローチショット相当） ───
+
+test('AdditionalHitOnRemovingBuff + OverDrivePointUp: OD gauge increases when buff removed (アプローチショット)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'REMOVE_OD1',
+          characterName: 'REMOVE_OD1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 100105,
+              name: 'アプローチショットテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnRemovingBuff', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.5, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100106,
+              name: 'RemoveBuff Skill',
+              sp_cost: 4,
+              parts: [{ skill_type: 'RemoveBuff', target_type: 'All' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'REMOVE_OD1', skillId: 100106 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  // power[0]=0.5 → resolveOverDrivePointUpPowerPercent returns 50 (50%)
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - (initialOdGauge + 50)) < 0.1,
+    `OD gauge should increase by 50 when removing buff: initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+test('AdditionalHitOnRemovingBuff + OverDrivePointUp does NOT fire when skill has no RemoveBuff part', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'REMOVE_OD2',
+          characterName: 'REMOVE_OD2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 100107,
+              name: 'アプローチショットテスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnRemovingBuff', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.5, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100108,
+              name: 'Normal Heal Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'REMOVE_OD2', skillId: 100108 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - initialOdGauge) < 0.1,
+    `OD gauge should not change from passive when no RemoveBuff part: initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+// ─── AdditionalHitOnKillCount + HealSp（クリアリング / 意気軒昂相当） ───
+
+test('AdditionalHitOnKillCount + HealSp: SP healed to AllyAll when kill occurs (意気軒昂/クリアリング)', () => {
+  // 現状の実装: killCount 倍率は HealSp に適用されない（Morale のみ適用）
+  // killCount=2 でも HealSp は power[0]×1=+2 になる（stateful_passive_wbs.md 注1 参照）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KILL_SP1',
+          characterName: 'KILL_SP1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100109,
+              name: '意気軒昂テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnKillCount', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100110,
+              name: 'Kill Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KILL_SP1', skillId: 100110, killCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'KILL_SP1');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'spChanges should include sp_passive source when kill occurs');
+  assert.equal(spChange.delta, 2, 'HealSp passive trigger should add 2 SP per activation (killCount multiplier not applied to HealSp)');
+});
+
+test('AdditionalHitOnKillCount + HealSp does NOT fire when killCount is 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KILL_SP2',
+          characterName: 'KILL_SP2',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100111,
+              name: '意気軒昂テスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnKillCount', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100112,
+              name: 'No-Kill Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KILL_SP2', skillId: 100112, killCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'KILL_SP2');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spChange, 'sp_passive should NOT fire when killCount is 0');
+});
+
 test('SpLimitOverwrite (歴戦): applyInitialPassiveState で sp.max が 30 になる', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
