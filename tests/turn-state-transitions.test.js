@@ -8992,9 +8992,10 @@ test('grantExtraTurn applies OnAdditionalTurnStart SP passives when extra turn b
   assert.equal(state.party.find((m) => m.characterId === 'AT2').sp.current, 3);
   assert.equal(state.party.find((m) => m.characterId === 'AT3').sp.current, 5);
   assert.equal(state.turnState.passiveEventsLastApplied.length, 2);
+  // partyIndex=1 が行動順先頭のため '戦場の華'(partyIndex=1) → 'アフターサービス'(partyIndex=0) の順
   assert.deepEqual(
     state.turnState.passiveEventsLastApplied.map((event) => event.passiveName),
-    ['アフターサービス', '戦場の華']
+    ['戦場の華', 'アフターサービス']
   );
 });
 

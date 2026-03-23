@@ -200,6 +200,8 @@ const MARK_SKILL_TYPE_TO_ELEMENT = Object.freeze({
 const INTRINSIC_MARK_ELEMENTS = Object.freeze([...new Set(Object.values(MARK_LEVEL_CONDITION_TO_ELEMENT))]);
 const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
 const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
+// パーティーメンバーのパッシブ評価順序（ゲーム内行動順: partyIndex 1 が最初に行動）
+const PASSIVE_ACTION_ORDER = Object.freeze([1, 0, 2, 3, 4, 5]);
 const EXTRA_ACTIVATION_STATUS_TYPE = 20;
 const CONDITION_WHITESPACE_RE = /\s+/g;
 const PASSIVE_VARIANT_THRESHOLD_RE = /[:：]\s*(\d+)人/;
@@ -6904,7 +6906,12 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       ? turnState.passiveUsageCounts
       : {};
 
-  for (const member of state?.party ?? []) {
+  const sortedParty = [...(state?.party ?? [])].sort((a, b) => {
+    const ai = PASSIVE_ACTION_ORDER.indexOf(Number(a.partyIndex ?? 99));
+    const bi = PASSIVE_ACTION_ORDER.indexOf(Number(b.partyIndex ?? 99));
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  for (const member of sortedParty) {
     for (const passive of getPassiveEntriesForMember(member)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
@@ -8625,9 +8632,101 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     state,
     computeTranscendenceTurnSummary(state, previewRecord)
   );
+  // ─── ② ターンフェーズ: プレイヤーターン終了後処理 ───
   tickEnemyStatusDurations(state.turnState, 'PlayerTurnEnd');
+  updateReinforcedModeStateAfterTurn(state);
+  applyTurnBasedStatusExpiry(state, previewRecord);
+  tickShreddingTurns(state, previewRecord, newlyShreddedIds);
+
+  if (applySwapOnCommit) {
+    applySwapEvents(state, swapEvents);
+  }
+
+  // ─── 次ターン状態の確定 ───
+  const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
+  const nextTurnLabel = nextTurnState.turnLabel;
+  nextTurnState.passiveEventsLastApplied = [];
+  if (Number.isFinite(previewRecord.enemyCount)) {
+    if (!nextTurnState.enemyState) {
+      nextTurnState.enemyState = { enemyCount: previewRecord.enemyCount, statuses: [] };
+    } else {
+      nextTurnState.enemyState.enemyCount = previewRecord.enemyCount;
+    }
+  }
+
+  // ─── ② ターンフェーズ: ▽敵行動開始 (OnEnemyTurnStart) ───
+  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+    const enemyTurnStartResult = applyPassiveTimingInternal(
+      {
+        ...state,
+        party: state.party,
+        turnState: nextTurnState,
+      },
+      'OnEnemyTurnStart'
+    );
+    const passiveEvents = Array.isArray(enemyTurnStartResult.passiveEvents)
+      ? structuredClone(enemyTurnStartResult.passiveEvents)
+      : [];
+    const dpEvents = Array.isArray(enemyTurnStartResult.dpEvents) ? structuredClone(enemyTurnStartResult.dpEvents) : [];
+    boundaryPassiveEvents.push(...passiveEvents);
+    boundaryDpEvents.push(...dpEvents);
+    nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
+  }
+
+  // ─── ③ 終了フェーズ: バトル勝利 (OnBattleWin) ───
+  if (Number(getEnemyState(nextTurnState).enemyCount ?? 0) > 0 && countAliveEnemies(nextTurnState) === 0) {
+    const battleWinResult = applyPassiveTimingInternal(
+      {
+        ...state,
+        party: state.party,
+        turnState: nextTurnState,
+      },
+      'OnBattleWin'
+    );
+    const passiveEvents = Array.isArray(battleWinResult.passiveEvents)
+      ? structuredClone(battleWinResult.passiveEvents)
+      : [];
+    const dpEvents = Array.isArray(battleWinResult.dpEvents) ? structuredClone(battleWinResult.dpEvents) : [];
+    boundaryPassiveEvents.push(...passiveEvents);
+    boundaryDpEvents.push(...dpEvents);
+    nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
+  }
+
+  // ─── 割込OD turnIndex 補正 ───
+  if (shouldActivateInterruptOd) {
+    // 割込ODは「現在通常ターンの後段」に差し込まれるため、
+    // ODが終わるまで base turn index を進めない。
+    nextTurnState.turnIndex = Number(state.turnState.turnIndex ?? nextTurnState.turnIndex ?? 1);
+    if (String(nextTurnState.turnType ?? '') === 'normal') {
+      nextTurnState.turnLabel = `T${nextTurnState.turnIndex}`;
+    }
+  }
+
+  // ─── ② ターンフェーズ: ▽敵が行動後処理 ───
+  // Enemy statuses tick on enemy-turn consumption only.
+  // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
+  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+    const attackEvents = [
+      ...applyEnemyAttackTokenTriggers(state, enemyAttackTargetCharacterIds),
+      ...applyEnemyAttackMotivationTriggers(state, enemyAttackTargetCharacterIds),
+    ];
+    if (attackEvents.length > 0) {
+      enemyAttackEvents.push(...attackEvents);
+      boundaryPassiveEvents.push(...createEnemyAttackPassiveEvents(nextTurnState, state, attackEvents));
+    }
+    tickEnemyStatuses(nextTurnState);
+    boundaryDpEvents.push(...applyEnemyTurnEndDpEffects(state.party));
+    // 霊符仕様: 敵の行動終了時に霊符レベルを0にリセット
+    const talismanAtEnemyTurnEnd = getTalismanState(nextTurnState);
+    if (talismanAtEnemyTurnEnd.active && talismanAtEnemyTurnEnd.level > 0) {
+      setTalismanState(nextTurnState, { ...talismanAtEnemyTurnEnd, level: 0 });
+    }
+  }
+
+  // ─── ② 次ターン ターン開始 (applyRecoveryPipeline) ───
   // EXターンへ遷移する場合はターン開始回復をスキップ（OD発動ボーナスは除く）
-  const recovery = applyRecoveryPipeline(state.party, state.turnState, {
+  // nextTurnState を渡すことで ReviveTerritory 消費・ゾーン状態更新が次ターンの状態に正しく反映される
+  const recovery = applyRecoveryPipeline(state.party, nextTurnState, {
     // 追加ターン付与時（→T1EX）は T1EX 開始処理をスキップ
     // T1EX → OD割込 の場合も T2 開始処理をスキップ（OD終了後に T2 開始処理を行う）
     // T1EX → T2（通常遷移）の場合はスキップしない（T2 のSP回復・OnEveryTurnを発動させる）
@@ -8638,7 +8737,16 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
   const recoveryDpEvents = Array.isArray(recovery.dpEvents) ? [...recovery.dpEvents] : [];
+  // recovery.passiveEvents のターンラベルを nextTurnLabel で付与し、passiveEventsLastApplied に追記
+  // （OnEnemyTurnStart・OnBattleWin の後に続くことで turn_timing.md の発火順に準拠する）
+  if (Array.isArray(recovery.passiveEvents) && recovery.passiveEvents.length > 0) {
+    nextTurnState.passiveEventsLastApplied = [
+      ...(nextTurnState.passiveEventsLastApplied ?? []),
+      ...structuredClone(recovery.passiveEvents).map((e) => ({ ...e, turnLabel: nextTurnLabel })),
+    ];
+  }
 
+  // ─── record entry 更新（recovery 後のため endSP が次ターン開始後の正確な値）───
   for (const entry of previewRecord.actions) {
     const member = findMemberByCharacterId(state, entry.characterId);
     entry.endSP = member.sp.current;
@@ -8755,94 +8863,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       ...breakDownTurnUpEvents.filter((ev) => ev.actorCharacterId === entry.characterId),
     ];
     member.incrementSkillUseById(entry.skillId);
-  }
-
-  updateReinforcedModeStateAfterTurn(state);
-  applyTurnBasedStatusExpiry(state, previewRecord);
-  tickShreddingTurns(state, previewRecord, newlyShreddedIds);
-
-  if (applySwapOnCommit) {
-    applySwapEvents(state, swapEvents);
-  }
-
-  const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
-  // recovery.passiveEvents は applyRecoveryPipeline(state.turnState) で生成されるため
-  // イベントの turnLabel が現在ターン（T_n）のラベルになっている。
-  // しかし実際にはこれらは次ターン（T_{n+1}）開始時のイベントなので、
-  // nextTurnState.turnLabel に上書きして正しいターンラベルを付与する。
-  const nextTurnLabel = nextTurnState.turnLabel;
-  nextTurnState.passiveEventsLastApplied = Array.isArray(recovery.passiveEvents)
-    ? structuredClone(recovery.passiveEvents).map((e) => ({ ...e, turnLabel: nextTurnLabel }))
-    : [];
-  if (Number.isFinite(previewRecord.enemyCount)) {
-    if (!nextTurnState.enemyState) {
-      nextTurnState.enemyState = { enemyCount: previewRecord.enemyCount, statuses: [] };
-    } else {
-      nextTurnState.enemyState.enemyCount = previewRecord.enemyCount;
-    }
-  }
-
-  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
-    const enemyTurnStartResult = applyPassiveTimingInternal(
-      {
-        ...state,
-        party: state.party,
-        turnState: nextTurnState,
-      },
-      'OnEnemyTurnStart'
-    );
-    const passiveEvents = Array.isArray(enemyTurnStartResult.passiveEvents)
-      ? structuredClone(enemyTurnStartResult.passiveEvents)
-      : [];
-    const dpEvents = Array.isArray(enemyTurnStartResult.dpEvents) ? structuredClone(enemyTurnStartResult.dpEvents) : [];
-    boundaryPassiveEvents.push(...passiveEvents);
-    boundaryDpEvents.push(...dpEvents);
-    nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
-  }
-  if (Number(getEnemyState(nextTurnState).enemyCount ?? 0) > 0 && countAliveEnemies(nextTurnState) === 0) {
-    const battleWinResult = applyPassiveTimingInternal(
-      {
-        ...state,
-        party: state.party,
-        turnState: nextTurnState,
-      },
-      'OnBattleWin'
-    );
-    const passiveEvents = Array.isArray(battleWinResult.passiveEvents)
-      ? structuredClone(battleWinResult.passiveEvents)
-      : [];
-    const dpEvents = Array.isArray(battleWinResult.dpEvents) ? structuredClone(battleWinResult.dpEvents) : [];
-    boundaryPassiveEvents.push(...passiveEvents);
-    boundaryDpEvents.push(...dpEvents);
-    nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
-  }
-
-  if (shouldActivateInterruptOd) {
-    // 割込ODは「現在通常ターンの後段」に差し込まれるため、
-    // ODが終わるまで base turn index を進めない。
-    nextTurnState.turnIndex = Number(state.turnState.turnIndex ?? nextTurnState.turnIndex ?? 1);
-    if (String(nextTurnState.turnType ?? '') === 'normal') {
-      nextTurnState.turnLabel = `T${nextTurnState.turnIndex}`;
-    }
-  }
-  // Enemy statuses tick on enemy-turn consumption only.
-  // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
-  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
-    const attackEvents = [
-      ...applyEnemyAttackTokenTriggers(state, enemyAttackTargetCharacterIds),
-      ...applyEnemyAttackMotivationTriggers(state, enemyAttackTargetCharacterIds),
-    ];
-    if (attackEvents.length > 0) {
-      enemyAttackEvents.push(...attackEvents);
-      boundaryPassiveEvents.push(...createEnemyAttackPassiveEvents(nextTurnState, state, attackEvents));
-    }
-    tickEnemyStatuses(nextTurnState);
-    boundaryDpEvents.push(...applyEnemyTurnEndDpEffects(state.party));
-    // 霊符仕様: 敵の行動終了時に霊符レベルを0にリセット
-    const talismanAtEnemyTurnEnd = getTalismanState(nextTurnState);
-    if (talismanAtEnemyTurnEnd.active && talismanAtEnemyTurnEnd.level > 0) {
-      setTalismanState(nextTurnState, { ...talismanAtEnemyTurnEnd, level: 0 });
-    }
   }
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 
