@@ -8946,8 +8946,6 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
     ...state,
     turnState: nextTurnState,
   };
-  const passiveEvents = [];
-
   applyOverdriveStartSpRecovery(nextState, nextTurnState);
 
   for (const member of nextState.party) {
@@ -8960,14 +8958,9 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
         getEpCeilingForTurn(member, nextTurnState, { passiveOverdriveEpLimit })
       );
     }
-    const passiveResult = applyPassiveEpOnOverdriveStart(member, nextTurnState, {
-      passiveOverdriveEpLimit,
-    });
-    passiveEvents.push(...passiveResult.passiveEvents);
   }
-  const spPassiveResult = applyPassiveSpOnOverdriveStart(nextState);
-  passiveEvents.push(...spPassiveResult.passiveEvents);
-  nextState.turnState.passiveEventsLastApplied = passiveEvents;
+  const odPassiveResult = applyPassiveTimingInternal(nextState, ['OnOverdriveStart']);
+  nextState.turnState.passiveEventsLastApplied = odPassiveResult.passiveEvents;
 
   return nextState;
 }
