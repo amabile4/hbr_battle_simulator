@@ -3204,6 +3204,124 @@ function applyMarkEffectsFromActions() {
   return [];
 }
 
+// RECEIVER基準のSP回復トリガーパッシブを処理する。
+// 「お裾分け」「愛嬌」等: 自身以外の味方スキルで自身のSPが上昇したとき発動するパッシブ。
+// applyMoralePassiveTriggerEffects がACTOR基準なのに対し、こちらはターゲット側から走査する。
+function applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry) {
+  const spEvents = [];
+  const passiveTriggerEvents = [];
+
+  // アクターのスキルに HealSp (non-Self) parts があるか先に確認（なければ早期リターン）
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+  const healSpParts = effectiveParts.filter(
+    (ep) => String(ep?.skill_type ?? '') === 'HealSp' && String(ep?.target_type ?? '') !== 'Self'
+  );
+  if (healSpParts.length === 0) {
+    return { spEvents, passiveTriggerEvents };
+  }
+
+  // 全パーティメンバー（actor 除く）を走査
+  for (const member of state?.party ?? []) {
+    if (member.characterId === actor.characterId) {
+      continue; // 自身スキルによる自身SP上昇は「お裾分け」の対象外
+    }
+
+    // このメンバーがアクターのスキルの SP 回復ターゲットに含まれるか確認
+    const isSpTarget = healSpParts.some((ep) => {
+      const targets = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        ep?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      return targets.includes(member.characterId);
+    });
+    if (!isSpTarget) {
+      continue;
+    }
+
+    // このメンバーが AdditionalHitOnHealedSpWithoutSelfHeal パッシブを持つか確認
+    for (const passive of member.passives ?? []) {
+      const timing = String(passive?.timing ?? '').trim();
+      if (
+        timing !== 'OnFirstBattleStart' &&
+        timing !== 'OnBattleStart' &&
+        timing !== 'OnPlayerTurnStart'
+      ) {
+        continue;
+      }
+      const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+      const hasTrigger = parts.some(
+        (p) => String(p?.skill_type ?? '') === 'AdditionalHitOnHealedSpWithoutSelfHeal'
+      );
+      if (!hasTrigger) {
+        continue;
+      }
+
+      // パッシブ条件評価
+      const conditions = [passive?.condition]
+        .map((v) => String(v ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = conditions.every((expr) => {
+        const evaluated = evaluateConditionExpression(expr, state, member, null, actionEntry);
+        return evaluated.unknownCount === 0 && evaluated.result;
+      });
+      if (!condSatisfied) {
+        continue;
+      }
+
+      // HealSp 効果パートを適用
+      let fired = false;
+      for (const part of parts) {
+        if (String(part?.skill_type ?? '') !== 'HealSp') {
+          continue;
+        }
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        // SP上限突破対応: value[0] をイベント上限として使用（例: SP30まで上限突破可）
+        const spCeiling = Number(part?.value?.[0] ?? 0);
+        const skillCeiling = Number.isFinite(spCeiling) && spCeiling > 0 ? spCeiling : null;
+        const targetIds = resolveSupportTargetCharacterIds(state, member, part?.target_type, null);
+        for (const targetId of targetIds) {
+          const target = findMemberByCharacterId(state, targetId);
+          if (!target) {
+            continue;
+          }
+          // source='active' + skillCeiling でイベント上限を制御し、返り値の source は sp_passive で上書き
+          const change = target.applySpDelta(amount, 'active', skillCeiling);
+          spEvents.push({
+            actorCharacterId: member.characterId,
+            characterId: target.characterId,
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            triggerType: 'SpPassiveTrigger',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            ...change,
+            source: 'sp_passive',
+          });
+        }
+        fired = true;
+      }
+
+      if (fired) {
+        passiveTriggerEvents.push(
+          createPassiveTriggerEvent(state.turnState, member, passive, {
+            source: 'passive_trigger',
+            effectTypes: ['HealSp'],
+            triggerSkillId: Number(skill?.skillId ?? 0),
+            triggerSkillName: String(skill?.name ?? ''),
+          })
+        );
+      }
+    }
+  }
+
+  return { spEvents, passiveTriggerEvents };
+}
+
 function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   const moraleEvents = [];
   const spEvents = [];
@@ -3265,12 +3383,6 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
           return true;
         }
         return false;
-      }
-      if (skillType === 'AdditionalHitOnHealedSpWithoutSelfHeal') {
-        // Fires when the actor uses a skill that heals SP to targets other than self.
-        return (skill.parts ?? []).some(
-          (ep) => String(ep?.skill_type ?? '') === 'HealSp' && String(ep?.target_type ?? '') !== 'Self'
-        );
       }
       if (skillType === 'AdditionalHitOnRemovingBuff') {
         // Fires when the actor uses a skill that removes buffs from enemies (RemoveBuff part).
@@ -3537,6 +3649,11 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     additionalTurnPassiveGrantedIds.push(...triggerResult.additionalTurnGrantedIds);
     dpPassiveEvents.push(...triggerResult.dpEvents);
     passiveTriggerEvents.push(...triggerResult.passiveTriggerEvents);
+
+    // RECEIVER基準のSP回復トリガーパッシブ（お裾分け・愛嬌等）を処理
+    const receiverResult = applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry);
+    spPassiveEvents.push(...receiverResult.spEvents);
+    passiveTriggerEvents.push(...receiverResult.passiveTriggerEvents);
   }
 
   return { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents, passiveTriggerEvents };

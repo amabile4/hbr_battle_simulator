@@ -10257,48 +10257,61 @@ test('AdditionalHitOnExtraSkill + OverDrivePointUp: OD gauge increases when EX s
   );
 });
 
-test('AdditionalHitOnHealedSpWithoutSelfHeal + HealSp: self SP healed when skill heals ally SP', () => {
-  const party = createSixMemberManualParty((idx) =>
-    idx === 0
-      ? {
-          characterId: 'HEALER1',
-          characterName: 'HEALER1',
-          initialSP: 10,
-          passives: [
-            {
-              id: 99940,
-              name: '愛嬌テスト',
-              timing: 'OnFirstBattleStart',
-              parts: [
-                { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
-                { skill_type: 'HealSp', target_type: 'Self', power: [3, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
-              ],
-            },
-          ],
-          skills: [
-            {
-              id: 99941,
-              name: 'AllyHeal Skill',
-              sp_cost: 4,
-              parts: [{ skill_type: 'HealSp', target_type: 'AllyFront', power: [5, 0], value: [0, 0] }],
-            },
-          ],
-        }
-      : {}
-  );
+test('AdditionalHitOnHealedSpWithoutSelfHeal + HealSp: 別の味方スキルでSPが上昇したとき発動（RECEIVER基準）', () => {
+  // 正しいトリガー方向の確認:
+  // HEALER1 はパッシブ保持者。別のメンバー（M2）が HealSp AllyFront を使い
+  // HEALER1 のSPが上昇したとき、HEALER1 の AdditionalHitOnHealedSpWithoutSelfHeal パッシブが発動する。
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'HEALER1',
+        characterName: 'HEALER1',
+        initialSP: 10,
+        passives: [
+          {
+            id: 99940,
+            name: '愛嬌テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+              { skill_type: 'HealSp', target_type: 'Self', power: [3, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        characterId: 'SPHEALER2',
+        characterName: 'SPHEALER2',
+        skills: [
+          {
+            id: 99941,
+            name: 'AllyFront HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyFront', power: [5, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
   const state = createBattleStateFromParty(party);
   const preview = previewTurn(state, {
-    0: { characterId: 'HEALER1', skillId: 99941 },
-    1: { characterId: 'M2', skillId: 8001 },
+    0: { characterId: 'HEALER1', skillId: 8000 },   // HEALER1は通常攻撃
+    1: { characterId: 'SPHEALER2', skillId: 99941 }, // M2 が AllyFront HealSp を使用
     2: { characterId: 'M3', skillId: 8002 },
   });
   const { committedRecord } = commitTurn(state, preview);
-  const entry = committedRecord.actions.find((item) => item.characterId === 'HEALER1');
-  // SP: start 10, pay 4 → 6, skill heals self via AllyFront (+5) = 11, then passive trigger +3 = 14
-  // (AllyFront includes the actor if they are in front)
-  const spChange = (entry.spChanges ?? []).find((c) => c.source === 'sp_passive');
-  assert.ok(spChange, 'spChanges should include sp_passive from AdditionalHitOnHealedSpWithoutSelfHeal trigger');
-  assert.equal(spChange.delta, 3, 'HealSp passive trigger should add 3 SP');
+
+  // HEALER1 の spChanges に sp_passive(+3) が含まれること
+  const healer1Entry = committedRecord.actions.find((item) => item.characterId === 'HEALER1');
+  const spChange = (healer1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'HEALER1: 別メンバーのHealSpでSPが上昇したとき sp_passive が発動すること');
+  assert.equal(spChange.delta, 3, '発動時 SP+3 であること');
+
+  // HEALER1 自身が AllyFront を使っても自分のパッシブは発動しない（自身スキルは対象外）
+  // → 別途 test L10304 相当で確認済み
 });
 
 test('AdditionalHitOnHealedSpWithoutSelfHeal does NOT fire when skill only heals Self SP', () => {
@@ -10340,6 +10353,220 @@ test('AdditionalHitOnHealedSpWithoutSelfHeal does NOT fire when skill only heals
   const entry = committedRecord.actions.find((item) => item.characterId === 'SELFHEAL1');
   const spChange = (entry.spChanges ?? []).find((c) => c.source === 'sp_passive');
   assert.ok(!spChange, 'sp_passive should NOT fire when the skill only heals Self SP');
+});
+
+test('お裾分け: 別の味方HealSp AllyAll → 全体SP+2 + passiveTriggerEvents 記録', () => {
+  // お裾分け（AllyAll SP+2）: 別のメンバーが HealSp AllyAll を使い、
+  // パッシブ保持者のSPが上昇したとき、全員に SP+2 を付与する
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 10,
+        passives: [
+          {
+            id: 99960,
+            name: 'お裾分けテスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [30, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        initialSP: 10,
+        skills: [
+          {
+            id: 99961,
+            name: 'AllyAll HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [3, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return { initialSP: 10 };
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },  // M1: 通常攻撃
+    1: { characterId: 'M2', skillId: 99961 }, // M2: AllyAll HealSp → M1 のSP上昇 → お裾分け発動
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // 全メンバーに sp_passive(+2) が付与されること
+  const allSpPassiveEvents = committedRecord.actions.flatMap((a) =>
+    (a.spChanges ?? []).filter((c) => c.source === 'sp_passive' && c.delta === 2)
+  );
+  assert.ok(
+    allSpPassiveEvents.length >= 3,
+    '前衛3人以上に sp_passive +2 が付与されること'
+  );
+
+  // passiveEvents に「お裾分けテスト」が記録されること
+  const passiveEvent = committedRecord.passiveEvents.find((ev) => ev.passiveName === 'お裾分けテスト');
+  assert.ok(passiveEvent, 'passiveEvents にお裾分けパッシブのトリガーイベントが記録されること');
+});
+
+test('お裾分け: パッシブ保持者自身がHealSp AllyAllを使っても発動しない', () => {
+  // お裾分けは「自身以外の味方のアクティブスキル」が条件 → 自身スキルでは発動しない
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 10,
+        passives: [
+          {
+            id: 99962,
+            name: 'お裾分け自身スキルテスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [30, 0] },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: 99963,
+            name: 'M1 AllyAll HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [3, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return { initialSP: 10 };
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 99963 }, // M1 自身が AllyAll HealSp を使用
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // M1 の spChanges に sp_passive が存在しないこと（自身スキルは対象外）
+  const m1Entry = committedRecord.actions.find((a) => a.characterId === 'M1');
+  const spPassive = (m1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spPassive, 'M1自身のHealSpスキルではお裾分けは発動しないこと');
+});
+
+test('お裾分け: SP30 上限突破 — event ceiling=30 で SP=20 → 22、SP=28 → 30', () => {
+  // お裾分けの HealSp は value[0]=30 を event ceiling として使用
+  // 通常 sp.max=20 のメンバーも SP30 まで受け取れる
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 28, // SP28 → お裾分けSP+2 → SP30（上限突破確認）
+        passives: [
+          {
+            id: 99964,
+            name: 'お裾分けSP30テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [30, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        initialSP: 20, // SP20 → お裾分けSP+2 → SP22（sp.max=20を超えて回復）
+        skills: [
+          {
+            id: 99965,
+            name: 'AllyAll HealSp trigger',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [3, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return { initialSP: 10 };
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },  // M1: 通常
+    1: { characterId: 'M2', skillId: 99965 }, // M2: AllyAll HealSp → M1 お裾分け発動
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // M2 の spChanges にお裾分け SP+2 が含まれること
+  // M2: 初期 SP=20、コスト-4=16、HealSp AllyAll+3(自分にも)=19、そこにお裾分け+2=21 (event ceiling=30 > sp.max=20)
+  const m2Entry = committedRecord.actions.find((a) => a.characterId === 'M2');
+  const osusowareChange = (m2Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive' && c.delta === 2);
+  assert.ok(osusowareChange, 'M2にもお裾分けSP+2が付与されること（sp.max=20を超えて受け取れる）');
+
+  // M1 にもお裾分け SP+2 が付与されること
+  const m1Entry = committedRecord.actions.find((a) => a.characterId === 'M1');
+  const m1OsusowareChange = (m1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive' && c.delta === 2);
+  assert.ok(m1OsusowareChange, 'M1にもお裾分けSP+2が付与されること');
+
+  // event ceiling=30 確認: M2 へのお裾分けの eventCeiling が 30 であること
+  assert.equal(
+    osusowareChange.eventCeiling,
+    30,
+    `お裾分けのeventCeilingが30であること（実際: ${osusowareChange.eventCeiling}）`
+  );
+});
+
+test('愛嬌パッシブ（AdditionalHitOnHealedSpWithoutSelfHeal + HealSp Self）: 別メンバーHealSp → 自身SP+3', () => {
+  // 愛嬌: 同一トリガー・自身のみSP+3版
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 10,
+        passives: [
+          {
+            id: 99970,
+            name: '愛嬌',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'Self', power: [3, 0], value: [30, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        skills: [
+          {
+            id: 99971,
+            name: 'AllyAll HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },
+    1: { characterId: 'M2', skillId: 99971 }, // M2 が AllyAll HealSp → M1 愛嬌発動
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // M1 の spChanges に sp_passive(+3) が含まれること
+  const m1Entry = committedRecord.actions.find((a) => a.characterId === 'M1');
+  const spChange = (m1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive' && c.delta === 3);
+  assert.ok(spChange, '愛嬌: 別メンバーのHealSp AllyAll で M1 に sp_passive +3 が付与されること');
+
+  // M2-M6 には sp_passive が付与されないこと（愛嬌は Self target）
+  const m2Entry = committedRecord.actions.find((a) => a.characterId === 'M2');
+  const m2SpPassive = (m2Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive' && c.passiveName === '愛嬌');
+  assert.ok(!m2SpPassive, '愛嬌は Self target なので M2 には付与されないこと');
 });
 
 test('AdditionalHitOnBreaking + AdditionalTurn: passive trigger grants extra turn when breakHitCount > 0', () => {
