@@ -2012,21 +2012,22 @@ export class TurnRowController {
   }
 
   /**
-   * 表示中の .target-popover がビューポートの右端を超える場合、
-   * オーバーフロー量だけ translateX で左にずらす。
-   * left: 0 アンカー切り替えではなく translate を使う理由:
-   *   left: 0 は relative 親の左端基準なので、親が右端付近にある場合は
-   *   left: 0 でもポップオーバーが画面外に出てしまうため。
+   * 表示中の .target-popover が左右いずれかにビューポートからはみ出す場合、
+   * translateX でずらして画面内に収める。
    */
   #adjustPopoverPositions() {
     this.#root.querySelectorAll('.target-popover').forEach((popover) => {
       if (popover.hasAttribute('hidden')) return;
-      // スタイルをリセットしてから境界を計測する
       popover.style.transform = '';
       const rect = popover.getBoundingClientRect();
-      const overflow = rect.right - (window.innerWidth - 8);
-      if (overflow > 0) {
-        popover.style.transform = `translateX(-${overflow}px)`;
+      const rightOverflow = rect.right - (window.innerWidth - 8);
+      const leftOverflow = 8 - rect.left;
+      if (rightOverflow > 0) {
+        // 右にはみ出し → 左にずらす
+        popover.style.transform = `translateX(-${rightOverflow}px)`;
+      } else if (leftOverflow > 0) {
+        // 左にはみ出し → 右にずらす
+        popover.style.transform = `translateX(${leftOverflow}px)`;
       }
     });
   }
