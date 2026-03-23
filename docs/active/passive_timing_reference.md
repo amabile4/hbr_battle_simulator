@@ -1,6 +1,55 @@
 # Passive Timing Reference
 
-> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-21
+> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-23
+
+## §0. turn_timing.md との対応マッピング
+
+`docs/active/turn_timing.md`（バトルフロー定義）と本シミュレータのパッシブ timing の対応表。
+全10タイミングが確認済み（✅△ = 実装はあるが懸念あり）。
+
+| turn_timing.md フェーズ | 対応 timing | 件数 | 実装状況 | 実装箇所 |
+|------------------------|------------|-----:|---------|---------|
+| バトル開始 | `OnBattleStart` | 84 | ✅ | `applyInitialPassiveState()` → `BATTLE_START_PASSIVE_TIMINGS` |
+| 初戦開始 | `OnFirstBattleStart` | 111 | ✅ | 同上 |
+| ターン開始 | `OnEveryTurn` | 292 | ✅ | `applyRecoveryPipeline()` → `TURN_START_PASSIVE_TIMINGS` |
+| ターン開始（攻撃条件付き）| `OnPlayerTurnStart` | 199 | ✅ | 同上 |
+| 行動開始（コマンド選択後）| `OnEveryTurnIncludeSpecial` | 5 | ✅△ | `resolveEffectiveSkillForAction()` / `previewActionEntries()` |
+| OD発動時（ターン中）| `OnOverdriveStart` | 9 | ✅△ | `activateOverdrive()` 内の専用関数（EP/SP系のみ）⚠️ |
+| 追加ターン開始（EX）| `OnAdditionalTurnStart` | 10 | ✅ | `commitTurn()` / `grantExtraTurn()` |
+| ▽敵行動開始 | `OnEnemyTurnStart` | 31 | ✅ | `commitTurn()` でベースターン進行時 |
+| バトル勝利 | `OnBattleWin` | 8 | ✅ | `commitTurn()` で敵全滅検知時 |
+| （個別処理） | `None` | 1 | ✅ | 個別スキル条件で都度参照 |
+
+> ダイアグラムにあって passive timing が存在しないもの:
+> `▽敵の先制行動`、`▽敵が行動`、`各種リセット`（パッシブタイミングなし、別処理）
+
+### ⚠️ OnOverdriveStart — 実装漏れ（2026-03-23 実データ確認）
+
+`activateOverdrive()` 内の専用関数は EP/SP 系のみ処理する設計だが、
+実データ9件のうち EP/SP 以外の effect を持つパッシブが存在する。
+
+```json
+{ "name": "専心",    "parts": ["AttackUp"] },           // x3 — ❌ 未処理
+{ "name": "思考加速", "parts": ["GiveDefenseDebuffUp"] }, //      — ❌ 未処理
+{ "name": "旭日昇天", "parts": ["HealSp"] },             //      — ✅ applyPassiveSpOnOverdriveStart
+{ "name": "飛躍",    "parts": ["ReduceSp"] },            //      — ✅ applyPassiveSpOnOverdriveStart
+{ "name": "獅子に鰭", "parts": ["ReduceSp"] },           //      — ✅ applyPassiveSpOnOverdriveStart
+{ "name": "エクスタシー", "parts": ["HealSp"] },         //      — ✅ applyPassiveSpOnOverdriveStart
+{ "name": "オーバーギア", "parts": ["EpLimitOverwrite", "HealEp"] } // — ✅ applyPassiveEpOnOverdriveStart
+```
+
+**影響**: `専心`（AttackUp ×3）と `思考加速`（GiveDefenseDebuffUp）は OD 発動時に効果が適用されていない。
+**修正案**: 専用関数を `applyPassiveTimingInternal('OnOverdriveStart')` に統一するか、
+対象外 effect を持つパッシブも処理できるよう拡張する。
+→ **未修正（ユーザー確認待ち）**
+
+### OnEveryTurnIncludeSpecial — パッシブログ非表示（既知）
+
+5件は turn-start pipeline に乗らず行動選択時に参照されるため、
+`passiveEventsLastApplied` に記録されず Passive Log に表示されない。
+影響軽微（SP 軽減・AttackUp の機能自体は正常）。対応はユーザー判断次第。
+
+---
 
 ## 1. 今回の修正が場当たりではない理由
 
