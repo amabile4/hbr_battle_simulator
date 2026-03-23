@@ -2012,19 +2012,21 @@ export class TurnRowController {
   }
 
   /**
-   * 表示中の .target-popover がビューポートの右端を超える場合、左アンカーに切り替える。
-   * inline style で right/left を上書きし Tailwind の right-0 より優先させる。
+   * 表示中の .target-popover がビューポートの右端を超える場合、
+   * オーバーフロー量だけ translateX で左にずらす。
+   * left: 0 アンカー切り替えではなく translate を使う理由:
+   *   left: 0 は relative 親の左端基準なので、親が右端付近にある場合は
+   *   left: 0 でもポップオーバーが画面外に出てしまうため。
    */
   #adjustPopoverPositions() {
     this.#root.querySelectorAll('.target-popover').forEach((popover) => {
       if (popover.hasAttribute('hidden')) return;
       // スタイルをリセットしてから境界を計測する
-      popover.style.right = '';
-      popover.style.left = '';
+      popover.style.transform = '';
       const rect = popover.getBoundingClientRect();
-      if (rect.right > window.innerWidth - 8) {
-        popover.style.right = 'auto';
-        popover.style.left = '0';
+      const overflow = rect.right - (window.innerWidth - 8);
+      if (overflow > 0) {
+        popover.style.transform = `translateX(-${overflow}px)`;
       }
     });
   }
