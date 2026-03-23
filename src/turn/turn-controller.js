@@ -8989,9 +8989,11 @@ export function applyInitialPassiveState(state) {
   if (!state || !Array.isArray(state.party) || !state.turnState) {
     return state;
   }
+  // ─── ① 開始フェーズ: バトル開始 / 初戦開始 ───
   initializeIntrinsicMarkStatesFromParty(state.party);
   const battleStartResult = applyPassiveTimingInternal(state, BATTLE_START_PASSIVE_TIMINGS);
   state.turnState.passiveEventsLastApplied = [...battleStartResult.passiveEvents];
+  // ─── ② T1 ターン開始 ───
   applyIntrinsicMarkTurnStartRecovery(state.party);
   const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
   state.turnState.passiveEventsLastApplied = [

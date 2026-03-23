@@ -7311,6 +7311,75 @@ test('preview and damage context expose zone power for matching element skills',
   assert.equal(committedRecord.actions[0].damageContext?.zonePowerRate, 1.8);
 });
 
+test('OnEveryTurn Zone展開パッシブ: partyIndex=1が先に展開しpartyIndex=0のIsZone(Fire)==1条件が正しく評価される', () => {
+  // パーティー行動順は [1, 0, 2, 3, 4, 5]（partyIndex=1 が最初に行動）
+  // partyIndex=1: OnEveryTurn で Fire Zone を展開
+  // partyIndex=0: IsZone(Fire)==1 条件 + SP+3 の OnEveryTurn パッシブ
+  //
+  // 旧走査順 [0,1,...] では partyIndex=0 が zone 展開前に評価 → 条件 false → SP変動なし
+  // 正しい走査順 [1,0,...] では partyIndex=1 が先にゾーン展開 → partyIndex=0 が条件 true → SP+3
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        passives: [
+          {
+            id: 91001,
+            name: '火陣SP回復',
+            timing: 'OnEveryTurn',
+            condition: 'IsZone(Fire)==1',
+            parts: [
+              {
+                skill_type: 'HealSp',
+                target_type: 'Self',
+                power: [3, 0],
+                effect: { exitCond: 'None', exitVal: [0, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        passives: [
+          {
+            id: 91002,
+            name: '火陣展開',
+            timing: 'OnEveryTurn',
+            condition: '',
+            parts: [
+              {
+                skill_type: 'Zone',
+                target_type: 'Field',
+                elements: ['Fire'],
+                power: [1.8, 0],
+                effect: { exitCond: 'PlayerTurnEnd', exitVal: [8, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+
+  // 毎ターン開始時の applyInitialPassiveState 相当のタイミングをシミュレート
+  // commitTurn でも同じ applyPassiveTimingInternal が呼ばれる（OnEveryTurn は recovery pipeline 内）
+  // ここでは applyPassiveTiming('OnEveryTurn') を直接呼び出して評価順の検証のみを行う
+  const initialSP0 = state.party[0].sp.current;
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  // partyIndex=1 が先に Zone(Fire) 展開 → partyIndex=0 の IsZone(Fire)==1 が true → SP+3
+  assert.equal(
+    result.spEvents.some((ev) => ev.characterId === 'M1' && ev.delta === 3),
+    true,
+    'partyIndex=0 の IsZone(Fire)==1 条件付きパッシブが SP+3 で発動すべき'
+  );
+  // ゾーンが展開されていること
+  assert.equal(state.turnState.zoneState?.type, 'Fire', '火属性ゾーンが展開されているべき');
+});
+
 test('ReviveTerritory skill applies territory state and IsTerritory condition becomes true', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
