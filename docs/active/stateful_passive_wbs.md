@@ -1,6 +1,6 @@
 # 状態付与型パッシブ 実装WBS（38件）
 
-> 最終更新: 2026-03-24
+> 最終更新: 2026-03-25
 > 対象: `json/passives.json` 内の `AdditionalHit*` を持つ全パッシブ（750件中38件）
 
 ---
@@ -21,10 +21,10 @@
 
 | ステータス | 件数 |
 |----------|------|
-| ✅ 完全実装 | 26 |
-| ⚠️ 部分実装 | 1 |
+| ✅ 完全実装 | 28 |
+| ⚠️ 部分実装 | 0 |
 | 📝 発火・ログのみ | 2 |
-| 🔧 発火のみ（効果未実装） | 6 |
+| 🔧 発火のみ（効果未実装） | 5 |
 | ❌ 無発火 | 3 |
 | **合計** | **38** |
 
@@ -37,7 +37,7 @@
 | 1 | 即応の型 | OnSpecifiedSkill | AdditionalTurn | Self | Eternal | ✅ 完全実装 | |
 | 2 | 浄化の喝采 | OnRemovingBuff | AttackUp | AllyAll | Eternal | 📝 発火・ログのみ | バフ持続管理なし。ログ記録のみ |
 | 3 | 破砕の喝采 | OnBreaking | AttackUp | AllyAll | Eternal | 📝 発火・ログのみ | バフ持続管理なし。ログ記録のみ |
-| 4 | リバーブレーション | OnSpecifiedSkill | HealSp +5 | AllyAll | Eternal | ⚠️ 部分実装 | `value[0]=30` (SP30) だが `applySpDelta('passive', null)` → SP30上限未適用 |
+| 4 | リバーブレーション | OnSpecifiedSkill | HealSp +5 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyMoralePassiveTriggerEffects に skillCeiling を適用 2026-03-25修正）|
 | 5 | 愛嬌 | OnHealedSpWithoutSelfHeal | HealSp +3 | Self | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 6 | お裾分け | OnHealedSpWithoutSelfHeal | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 7 | クリアリング | OnKillCount | HealSp +2+1 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率未適用（HealSpへの乗算なし）※注1 |
@@ -69,7 +69,7 @@
 | 33 | 激震 (100760403) | OnBreaking | HealSp +8 | Self | Eternal | ✅ 完全実装 | breakHitCount倍率未適用（HealSpへの乗算なし）※注1 |
 | 34 | 怪盗乱麻 | OnRemovingBuff | HealSp +2 | AllyFront | Eternal | ✅ 完全実装 | |
 | 35 | 愛嬌 (100830700) | OnHealedSpWithoutSelfHeal | HealSp +3 | Self | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
-| 36 | クロノチェイン | OnHealedSpWithoutSelfHeal | **OverDrivePointUp +25%** | Self | Eternal | 🔧 発火のみ | `applyReceiverSpHealPassiveTriggers` はHealSpのみ処理。OD効果未適用かつ未ログ |
+| 36 | クロノチェイン | OnHealedSpWithoutSelfHeal | **OverDrivePointUp +25%** | Self | Eternal | ✅ 完全実装 | `applyReceiverSpHealPassiveTriggers` に OverDrivePointUp ブランチ追加済み（2026-03-25修正）|
 | 37 | 激動 (102020400) | OnBreaking | HealSp +8 | Self | **Count** | ✅ 完全実装 | exitCond=Count（発火回数上限1回）は未管理 |
 | 38 | アンコール | OnBreaking | AdditionalTurn | Self | Eternal | ✅ 完全実装 | |
 
@@ -108,7 +108,6 @@
 |-----------|-----------|---------|
 | `Talisman` | 恐怖の叫び | 敵全体へタリスマン付与（パーティ全体に恩恵） |
 | `DoubleActionExtraSkill` | 二股の尻尾 | 追加スキル行動を2回実行可能にする |
-| `BreakDownTurnUp` | ひれ伏すでゲス！ | ブレイク継続ターン数を延長 |
 | `DebuffGuard` | ライトプロテクション | 味方全体にデバフ防御付与 |
 | `BuffCharge` | 役者魂 | 自身にバフ蓄積（攻撃力強化など） |
 | `OverDrivePointUp`（RECEIVER経由） | クロノチェイン | `applyReceiverSpHealPassiveTriggers` 内でHealSp以外を未処理 |

@@ -3270,47 +3270,67 @@ function applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry) {
         continue;
       }
 
-      // HealSp 効果パートを適用
+      // 効果パートを適用（HealSp / OverDrivePointUp）
       let fired = false;
+      const firedEffectTypes = [];
       for (const part of parts) {
-        if (String(part?.skill_type ?? '') !== 'HealSp') {
-          continue;
-        }
-        const amount = Number(part?.power?.[0] ?? 0);
-        if (!Number.isFinite(amount) || amount === 0) {
-          continue;
-        }
-        // SP上限突破対応: value[0] をイベント上限として使用（例: SP30まで上限突破可）
-        const spCeiling = Number(part?.value?.[0] ?? 0);
-        const skillCeiling = Number.isFinite(spCeiling) && spCeiling > 0 ? spCeiling : null;
-        const targetIds = resolveSupportTargetCharacterIds(state, member, part?.target_type, null);
-        for (const targetId of targetIds) {
-          const target = findMemberByCharacterId(state, targetId);
-          if (!target) {
+        const partType = String(part?.skill_type ?? '');
+
+        if (partType === 'HealSp') {
+          const amount = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(amount) || amount === 0) {
             continue;
           }
-          // source='active' + skillCeiling でイベント上限を制御し、返り値の source は sp_passive で上書き
-          const change = target.applySpDelta(amount, 'active', skillCeiling);
-          spEvents.push({
-            actorCharacterId: member.characterId,
-            characterId: target.characterId,
-            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
-            passiveName: String(passive?.name ?? ''),
-            triggerType: 'SpPassiveTrigger',
-            skillId: skill.skillId,
-            skillName: skill.name,
-            ...change,
-            source: 'sp_passive',
-          });
+          // SP上限突破対応: value[0] をイベント上限として使用（例: SP30まで上限突破可）
+          const spCeiling = Number(part?.value?.[0] ?? 0);
+          const skillCeiling = Number.isFinite(spCeiling) && spCeiling > 0 ? spCeiling : null;
+          const targetIds = resolveSupportTargetCharacterIds(state, member, part?.target_type, null);
+          for (const targetId of targetIds) {
+            const target = findMemberByCharacterId(state, targetId);
+            if (!target) {
+              continue;
+            }
+            // source='active' + skillCeiling でイベント上限を制御し、返り値の source は sp_passive で上書き
+            const change = target.applySpDelta(amount, 'active', skillCeiling);
+            spEvents.push({
+              actorCharacterId: member.characterId,
+              characterId: target.characterId,
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              triggerType: 'SpPassiveTrigger',
+              skillId: skill.skillId,
+              skillName: skill.name,
+              ...change,
+              source: 'sp_passive',
+            });
+          }
+          if (!firedEffectTypes.includes('HealSp')) firedEffectTypes.push('HealSp');
+          fired = true;
+          continue;
         }
-        fired = true;
+
+        if (partType === 'OverDrivePointUp') {
+          const amount = resolveOverDrivePointUpPowerPercent(part);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetIds = resolveSupportTargetCharacterIds(state, member, part?.target_type, null);
+          if (targetIds.includes(member.characterId)) {
+            state.turnState.odGauge = clampOdGauge(
+              truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0) + Number(amount))
+            );
+            if (!firedEffectTypes.includes('OverDrivePointUp')) firedEffectTypes.push('OverDrivePointUp');
+            fired = true;
+          }
+          continue;
+        }
       }
 
       if (fired) {
         passiveTriggerEvents.push(
           createPassiveTriggerEvent(state.turnState, member, passive, {
             source: 'passive_trigger',
-            effectTypes: ['HealSp'],
+            effectTypes: firedEffectTypes,
             triggerSkillId: Number(skill?.skillId ?? 0),
             triggerSkillName: String(skill?.name ?? ''),
           })
@@ -3438,6 +3458,9 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
+        // SP上限突破対応: value[0] をイベント上限として使用（例: リバーブレーション SP30）
+        const spCeiling = Number(part?.value?.[0] ?? 0);
+        const skillCeiling = Number.isFinite(spCeiling) && spCeiling > 0 ? spCeiling : null;
         const targetCharacterIds = resolveSupportTargetCharacterIds(
           state,
           actor,
@@ -3452,7 +3475,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
           if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
             continue;
           }
-          const change = target.applySpDelta(amount, 'passive', null);
+          const change = target.applySpDelta(amount, skillCeiling ? 'active' : 'passive', skillCeiling);
           spEvents.push({
             actorCharacterId: actor.characterId,
             characterId: target.characterId,
