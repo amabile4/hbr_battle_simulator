@@ -3342,6 +3342,104 @@ function applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry) {
   return { spEvents, passiveTriggerEvents };
 }
 
+// Zone展開スキル使用時に AdditionalHitOnZone パッシブを全メンバーに適用する。
+// 「味方がフィールドを展開した時」= RECEIVER-based（applyReceiverSpHealPassiveTriggers と同構造）。
+// actor 自身も対象（自分がZone展開しても自分のパッシブが発動する）。
+function applyReceiverZonePassiveTriggers(state, actor, skill, actionEntry) {
+  const spEvents = [];
+  const passiveTriggerEvents = [];
+
+  // アクターのスキルに Zone 系 parts があるか先に確認（なければ早期リターン）
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+  const ZONE_SKILL_TYPES = new Set(['Zone', 'ZoneUpEternal']);
+  const hasZonePart = effectiveParts.some((ep) => ZONE_SKILL_TYPES.has(String(ep?.skill_type ?? '')));
+  if (!hasZonePart) {
+    return { spEvents, passiveTriggerEvents };
+  }
+
+  // 全パーティメンバー（actor 含む）を走査
+  for (const member of state?.party ?? []) {
+    // このメンバーが AdditionalHitOnZone パッシブを持つか確認
+    for (const passive of member.passives ?? []) {
+      const timing = String(passive?.timing ?? '').trim();
+      if (
+        timing !== 'OnFirstBattleStart' &&
+        timing !== 'OnBattleStart' &&
+        timing !== 'OnPlayerTurnStart'
+      ) {
+        continue;
+      }
+      const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+      const hasTrigger = parts.some(
+        (p) => String(p?.skill_type ?? '') === 'AdditionalHitOnZone'
+      );
+      if (!hasTrigger) {
+        continue;
+      }
+
+      // パッシブ条件評価
+      const conditions = [passive?.condition]
+        .map((v) => String(v ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = conditions.every((expr) => {
+        const evaluated = evaluateConditionExpression(expr, state, member, null, actionEntry);
+        return evaluated.unknownCount === 0 && evaluated.result;
+      });
+      if (!condSatisfied) {
+        continue;
+      }
+
+      // HealSp 効果パートを適用
+      let fired = false;
+      for (const part of parts) {
+        if (String(part?.skill_type ?? '') !== 'HealSp') {
+          continue;
+        }
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        // SP上限突破対応: value[0] をイベント上限として使用
+        const spCeiling = Number(part?.value?.[0] ?? 0);
+        const skillCeiling = Number.isFinite(spCeiling) && spCeiling > 0 ? spCeiling : null;
+        const targetIds = resolveSupportTargetCharacterIds(state, member, part?.target_type, null);
+        for (const targetId of targetIds) {
+          const target = findMemberByCharacterId(state, targetId);
+          if (!target) {
+            continue;
+          }
+          const change = target.applySpDelta(amount, 'active', skillCeiling);
+          spEvents.push({
+            actorCharacterId: member.characterId,
+            characterId: target.characterId,
+            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            passiveName: String(passive?.name ?? ''),
+            triggerType: 'SpPassiveTrigger',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            ...change,
+            source: 'sp_passive',
+          });
+        }
+        fired = true;
+      }
+
+      if (fired) {
+        passiveTriggerEvents.push(
+          createPassiveTriggerEvent(state.turnState, member, passive, {
+            source: 'passive_trigger',
+            effectTypes: ['HealSp'],
+            triggerSkillId: Number(skill?.skillId ?? 0),
+            triggerSkillName: String(skill?.name ?? ''),
+          })
+        );
+      }
+    }
+  }
+
+  return { spEvents, passiveTriggerEvents };
+}
+
 function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   const moraleEvents = [];
   const spEvents = [];
@@ -3410,6 +3508,20 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       if (skillType === 'AdditionalHitOnRemovingBuff') {
         // Fires when the actor uses a skill that removes buffs from enemies (RemoveBuff part).
         return (skill.parts ?? []).some((ep) => String(ep?.skill_type ?? '') === 'RemoveBuff');
+      }
+      if (skillType === 'AdditionalHitOnOverDrivePointDownSkill') {
+        // Fires when the actor uses a skill that contains an OverDrivePointDown part.
+        triggerMultiplier = 1;
+        return (skill.parts ?? []).some((ep) => String(ep?.skill_type ?? '') === 'OverDrivePointDown');
+      }
+      if (skillType === 'AdditionalHitOnPursuit') {
+        // Fires when the actor's pursuit attack was triggered this action.
+        const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
+        if (pursuedHitCount > 0) {
+          triggerMultiplier = 1;
+          return true;
+        }
+        return false;
       }
       return false;
     });
@@ -3681,6 +3793,11 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     const receiverResult = applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry);
     spPassiveEvents.push(...receiverResult.spEvents);
     passiveTriggerEvents.push(...receiverResult.passiveTriggerEvents);
+
+    // Zone展開トリガーパッシブ（オーバーレイ等）を処理（RECEIVER-based）
+    const zoneResult = applyReceiverZonePassiveTriggers(state, actor, skill, actionEntry);
+    spPassiveEvents.push(...zoneResult.spEvents);
+    passiveTriggerEvents.push(...zoneResult.passiveTriggerEvents);
   }
 
   return { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents, passiveTriggerEvents };
@@ -6731,6 +6848,7 @@ function previewActionEntries(state, sortedActions) {
           ? Number(action.breakHitCount)
           : normalizeManualBreakEnemyIndexes(action, state?.turnState?.enemyState?.enemyCount).length,
       killCount: Number(action?.killCount ?? 0),
+      pursuedHitCount: Math.max(0, Number(action?.pursuedHitCount ?? 0)),
       removeDebuffCount: resolveRemoveDebuffCountForAction(state, member, effectiveSkill, action),
       targetCharacterId: String(action?.targetCharacterId ?? ''),
       targetEnemyIndex:

@@ -13484,3 +13484,345 @@ test('P1-C: OnBreaking + HealSp + breakHitCount=2 → SP は倍にならない�
   assert.ok(spChange, 'sp_passive イベントが発生すること');
   assert.equal(spChange.delta, 8, 'breakHitCount=2 でも delta=8 固定（倍にならない）');
 });
+
+// ─── P2-C: AdditionalHitOnOverDrivePointDownSkill + AdditionalTurn（トップアップ相当） ───
+
+test('P2-C: OnOverDrivePointDownSkill + AdditionalTurn: ODDownスキル使用時に追加ターン付与', () => {
+  // トップアップ相当: ODゲージを下げるスキル(OverDrivePointDown部位あり)を使ったとき AdditionalTurn 発動
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'TOPUP1',
+          characterName: 'TOPUP1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 204000,
+              name: 'トップアップテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnOverDrivePointDownSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 204001,
+              name: 'OD Down Skill',
+              sp_cost: 3,
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' },
+                { skill_type: 'OverDrivePointDown', target_type: 'All', power: [0.5, 0], value: [0, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'TOPUP1', skillId: 204001 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(
+    nextState.turnState.turnType,
+    'extra',
+    'OverDrivePointDown部位を持つスキル使用後は追加ターンになること'
+  );
+  assert.ok(
+    (nextState.turnState.extraTurnState?.allowedCharacterIds ?? []).includes('TOPUP1'),
+    'TOPUP1 が追加ターンの allowedCharacterIds に含まれること'
+  );
+});
+
+test('P2-C: OnOverDrivePointDownSkill does NOT fire when skill has no OverDrivePointDown part', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'TOPUP2',
+          characterName: 'TOPUP2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 204002,
+              name: 'トップアップテスト2（発火なし）',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnOverDrivePointDownSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 204003,
+              name: 'Normal Slash',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'TOPUP2', skillId: 204003 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.notEqual(
+    nextState.turnState.turnType,
+    'extra',
+    'OverDrivePointDown部位のないスキルでは追加ターンにならないこと'
+  );
+});
+
+// ─── P2-B: AdditionalHitOnPursuit + HealSp（そよぐ新緑相当） ───
+
+test('P2-B: OnPursuit + HealSp: pursuedHitCount=1 → AllyFront SP+2', () => {
+  // そよぐ新緑相当: 追撃発動時（pursuedHitCount=1）、前衛全員 SP+2
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'SOYO1',
+          characterName: 'SOYO1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 205000,
+              name: 'そよぐ新緑テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnPursuit', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'AllyFront', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 205001,
+              name: 'Pursuit Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  // 基準SP: M1(SOYO1)=10, M2=10, M3=10（前衛）, M4..=10（後衛）
+  // ターン開始時SP回復(base=2)後: 全員+2 ※パッシブSP+2は前衛のみ
+  const preview = previewTurn(state, {
+    0: { characterId: 'SOYO1', skillId: 205001, pursuedHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'SOYO1');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'sp_passive イベントが SOYO1 に発生すること（自分も AllyFront）');
+  assert.equal(spChange.delta, 2, 'delta=2（power[0]=2）');
+});
+
+test('P2-B: OnPursuit does NOT fire when pursuedHitCount=0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'SOYO2',
+          characterName: 'SOYO2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 205002,
+              name: 'そよぐ新緑テスト2（発火なし）',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnPursuit', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'AllyFront', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 205003,
+              name: 'No Pursuit Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'SOYO2', skillId: 205003, pursuedHitCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'SOYO2');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spChange, 'pursuedHitCount=0 のとき sp_passive イベントが発生しないこと');
+});
+
+// ─── P2-A: AdditionalHitOnZone + HealSp（オーバーレイ相当）※RECEIVER-based ───
+
+test('P2-A: OnZone + HealSp: Zone展開スキル使用時に全員SP+2', () => {
+  // オーバーレイ相当: OVER1（パッシブ保持）が後衛に下がり、ZONECASTER が Zone スキルを使用する。
+  // OVER1 の AdditionalHitOnZone パッシブが発火し、AllyAll メンバーに SP+2 が適用される。
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'OVER1',
+        characterName: 'OVER1',
+        initialSP: 10,
+        passives: [
+          {
+            id: 206000,
+            name: 'オーバーレイテスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnZone', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        characterId: 'ZONECASTER',
+        characterName: 'ZONECASTER',
+        initialSP: 10,
+        skills: [
+          {
+            id: 206001,
+            name: 'Zone Skill',
+            sp_cost: 4,
+            parts: [
+              { skill_type: 'Zone', target_type: 'AllyAll', power: [0, 0], value: [0, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'OVER1', skillId: 8000 },
+    1: { characterId: 'ZONECASTER', skillId: 206001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // OVER1 のエントリに sp_passive イベントが存在すること
+  // （sp イベントは characterId ベースで各アクションエントリに振り分けられる）
+  const over1Entry = committedRecord.actions.find((a) => a.characterId === 'OVER1');
+  const spChange = (over1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'Zone展開スキル使用後に OVER1 への sp_passive イベントが発生すること');
+  assert.equal(spChange.delta, 2, 'delta=2（power[0]=2）');
+
+  // passiveEvents にも HealSp トリガーが含まれること
+  const evt = (committedRecord.passiveEvents ?? []).find(
+    (e) => e.effectTypes?.includes('HealSp') && e.source === 'passive_trigger'
+  );
+  assert.ok(evt, 'passiveEvents に HealSp passive_trigger イベントが含まれること');
+});
+
+test('P2-A: OnZone: 自分がZone展開 → 自分のパッシブも発動', () => {
+  // オーバーレイ保持者 OVER2 自身が Zone スキルを使用した場合、自分のパッシブも発動する。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'OVER2',
+          characterName: 'OVER2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 206002,
+              name: 'オーバーレイテスト2（自発）',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnZone', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 206003,
+              name: 'Self Zone Skill',
+              sp_cost: 3,
+              parts: [
+                { skill_type: 'Zone', target_type: 'AllyAll', power: [0, 0], value: [0, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'OVER2', skillId: 206003 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // OVER2 自身のアクションエントリに sp_passive イベントが存在すること（自分が Zone 展開 → 自分のパッシブも発動）
+  const over2Entry = committedRecord.actions.find((a) => a.characterId === 'OVER2');
+  const spChange = (over2Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, '自分が Zone 展開スキルを使用したとき自分への sp_passive イベントが発生すること');
+  assert.equal(spChange.delta, 2, 'delta=2');
+});
+
+test('P2-A: OnZone does NOT fire when skill has no Zone part', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'OVER3',
+          characterName: 'OVER3',
+          initialSP: 10,
+          passives: [
+            {
+              id: 206004,
+              name: 'オーバーレイテスト3（発火なし）',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnZone', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 206005,
+              name: 'Normal Attack',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'OVER3', skillId: 206005 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  const evt = (committedRecord.passiveEvents ?? []).find(
+    (e) =>
+      e.source === 'passive_trigger' &&
+      e.effectTypes?.includes('HealSp') &&
+      e.characterId === 'OVER3'
+  );
+  assert.ok(!evt, 'Zone部位のないスキルでは AdditionalHitOnZone パッシブが発火しないこと');
+});

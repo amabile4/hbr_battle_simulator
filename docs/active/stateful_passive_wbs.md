@@ -1,6 +1,6 @@
 # 状態付与型パッシブ 実装WBS（38件）
 
-> 最終更新: 2026-03-25
+> 最終更新: 2026-03-24
 > 対象: `json/passives.json` 内の `AdditionalHit*` を持つ全パッシブ（750件中38件）
 
 ---
@@ -21,11 +21,11 @@
 
 | ステータス | 件数 |
 |----------|------|
-| ✅ 完全実装 | 28 |
+| ✅ 完全実装 | 31 |
 | ⚠️ 部分実装 | 0 |
 | 📝 発火・ログのみ | 2 |
 | 🔧 発火のみ（効果未実装） | 5 |
-| ❌ 無発火 | 3 |
+| ❌ 無発火 | 0 |
 | **合計** | **38** |
 
 ---
@@ -57,13 +57,13 @@
 | 21 | ホールチアリング | OnExtraSkill | Morale +2 | AllyAll | Eternal | ✅ 完全実装 | |
 | 22 | 先導者 | OnKillCount | Morale +1 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み |
 | 23 | 意気軒昂 (100460603) | OnKillCount | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み（2026-03-25修正）|
-| 24 | オーバーレイ | **OnZone** | HealSp +2 | AllyAll | Eternal | ❌ 無発火 | OnZoneトリガー検出未実装 |
+| 24 | オーバーレイ | **OnZone** | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | `applyReceiverZonePassiveTriggers` 新設（RECEIVER-based、actor自身も対象、2026-03-24実装）|
 | 25 | 追加支援 | OnExtraSkill | OverDrivePointUp +10% | Self | Eternal | ✅ 完全実装 | |
 | 26 | 元気注入 | OnExtraSkill | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | |
 | 27 | アプローチショット | OnRemovingBuff | OverDrivePointUp +50% | Self | Eternal | ✅ 完全実装 | |
-| 28 | トップアップ | **OnOverDrivePointDownSkill** | AdditionalTurn | Self | Eternal | ❌ 無発火 | ODゲージダウンスキルトリガー未実装 |
+| 28 | トップアップ | **OnOverDrivePointDownSkill** | AdditionalTurn | Self | Eternal | ✅ 完全実装 | OverDrivePointDown部位を持つスキル使用時に発火（2026-03-24実装）|
 | 29 | 破竹の勢い | OnBreaking | OverDrivePointUp +25% | Self | Eternal | ✅ 完全実装 | breakHitCount倍率未適用（OverDrivePointUpへの乗算なし）※注1 |
-| 30 | そよぐ新緑 | **OnPursuit** | HealSp +2 | AllyFront | Eternal | ❌ 無発火 | 追撃（Pursuit）トリガー未実装 |
+| 30 | そよぐ新緑 | **OnPursuit** | HealSp +2 | AllyFront | Eternal | ✅ 完全実装 | `actionEntry.pursuedHitCount` で追撃発動回数を受け取り発火（2026-03-24実装）|
 | 31 | ライトプロテクション | OnExtraSkill | DebuffGuard | AllyAll | Eternal | 🔧 発火のみ | DebuffGuard未実装（デバフ防御） |
 | 32 | 役者魂 | OnExtraSkill | BuffCharge | Self | Eternal | 🔧 発火のみ | BuffCharge未実装（バフ蓄積） |
 | 33 | 激震 (100760403) | OnBreaking | HealSp +8 | Self | Eternal | ✅ 完全実装 | breakHitCount倍率未適用（HealSpへの乗算なし）※注1 |
@@ -93,13 +93,9 @@
 
 ---
 
-## 未実装トリガー（❌ 無発火 3件）
+## 未実装トリガー（❌ 無発火）
 
-| トリガータイプ | 対象パッシブ | 発動条件の説明 |
-|-------------|-----------|-------------|
-| `AdditionalHitOnZone` | オーバーレイ | Zoneを展開したとき |
-| `AdditionalHitOnOverDrivePointDownSkill` | トップアップ | ODゲージを下げるスキルを使ったとき |
-| `AdditionalHitOnPursuit` | そよぐ新緑 | 追撃（Pursuit）発動時 |
+> 2026-03-24 時点で未実装トリガーは 0 件。全トリガーが実装済み。
 
 ---
 
@@ -111,7 +107,6 @@
 | `DoubleActionExtraSkill` | 二股の尻尾 | 追加スキル行動を2回実行可能にする |
 | `DebuffGuard` | ライトプロテクション | 味方全体にデバフ防御付与 |
 | `BuffCharge` | 役者魂 | 自身にバフ蓄積（攻撃力強化など） |
-| `OverDrivePointUp`（RECEIVER経由） | クロノチェイン | `applyReceiverSpHealPassiveTriggers` 内でHealSp以外を未処理 |
 
 ---
 
@@ -119,8 +114,9 @@
 
 | 関数 | 担当トリガー | 場所 |
 |-----|-----------|------|
-| `applyMoralePassiveTriggerEffects` | OnSpecifiedSkill / OnExtraSkill / OnKillCount / OnBreaking / OnRemovingBuff | `src/turn/turn-controller.js` |
+| `applyMoralePassiveTriggerEffects` | OnSpecifiedSkill / OnExtraSkill / OnKillCount / OnBreaking / OnRemovingBuff / OnOverDrivePointDownSkill / OnPursuit | `src/turn/turn-controller.js` |
 | `applyReceiverSpHealPassiveTriggers` | OnHealedSpWithoutSelfHeal（RECEIVER基準） | `src/turn/turn-controller.js` |
+| `applyReceiverZonePassiveTriggers` | OnZone（RECEIVER基準、actor自身も対象） | `src/turn/turn-controller.js` |
 | `applyPassiveTimingInternal` | 状態付与型を識別して効果部をスキップ（`hasAdditionalHitTrigger`） | `src/turn/turn-controller.js` L6954 |
 
 ---
@@ -129,10 +125,7 @@
 
 | 優先度 | 対象 | 理由 |
 |--------|------|------|
-| 高 | クロノチェイン（OD+25%） | `applyReceiverSpHealPassiveTriggers` にOverDrivePointUp処理を追加するだけ |
-| 高 | リバーブレーション（SP30） | `applyMoralePassiveTriggerEffects` のHealSp処理に `value[0]` をskillCeilingとして渡すだけ |
-| 中 | ひれ伏すでゲス！（BreakDownTurnUp） | ブレイクターン管理システムが必要 |
-| 中 | 二度咲き / アンコール系のexitCond管理 | 発火回数・ターン終了のカウント管理が必要 |
-| 低 | トップアップ（OnOverDrivePointDownSkill） | ODゲージダウンスキルの識別ロジックが必要 |
-| 低 | そよぐ新緑（OnPursuit） | 追撃発動の検出ロジックが必要 |
-| 低 | Talisman / DebuffGuard / BuffCharge | バフ/デバフ状態管理システムが必要 |
+| 中 | 二度咲き / 貴様に託した（exitCond=PlayerTurnEnd） | 同一ターン内で複数回EXスキル使用時に2回目は発火しないよう管理が必要 |
+| 中 | 激動（exitCond=Count=1） | バトル中1回のみ発火する制限カウント管理が必要 |
+| 低 | Talisman / DebuffGuard / BuffCharge / DoubleActionExtraSkill | バフ/デバフ状態管理システムが必要（大規模） |
+| 低 | 浄化の喝采 / 破砕の喝采（AttackUp バフ持続管理） | バフ持続ターン管理システムが未実装 |
