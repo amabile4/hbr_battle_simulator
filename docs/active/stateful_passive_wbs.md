@@ -40,7 +40,7 @@
 | 4 | リバーブレーション | OnSpecifiedSkill | HealSp +5 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyMoralePassiveTriggerEffects に skillCeiling を適用 2026-03-25修正）|
 | 5 | 愛嬌 | OnHealedSpWithoutSelfHeal | HealSp +3 | Self | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 6 | お裾分け | OnHealedSpWithoutSelfHeal | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
-| 7 | クリアリング | OnKillCount | HealSp +2+1 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率未適用（HealSpへの乗算なし）※注1 |
+| 7 | クリアリング | OnKillCount | HealSp +2+1 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み（2026-03-25修正）|
 | 8 | 貴様に託した【カレン専用】 | OnBreaking | OverDrivePointUp +25% | Self | PlayerTurnEnd | ✅ 完全実装 | exitCond=PlayerTurnEnd（発火数制限は未管理）|
 | 9 | 恐怖の叫び | OnExtraSkill | Talisman | All | Eternal | 🔧 発火のみ | Talisman未実装 |
 | 10 | 心ときめく応援 | OnSpecifiedSkill | Morale +2 | Self | Eternal | ✅ 完全実装 | |
@@ -49,14 +49,14 @@
 | 13 | ダークチアリング | OnExtraSkill | Morale +2 | AllyAll | Eternal | ✅ 完全実装 | |
 | 14 | エネルギー補給 | OnHealedSpWithoutSelfHeal | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 15 | 迸る衝動 (100250600) | OnKillCount | Morale +2 | Self | Eternal | ✅ 完全実装 | killCount倍率適用済み |
-| 16 | 意気軒昂 (100250603) | OnKillCount | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率未適用（HealSpへの乗算なし）※注1 |
+| 16 | 意気軒昂 (100250603) | OnKillCount | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み（2026-03-25修正）|
 | 17 | 占星術 | OnHealedSpWithoutSelfHeal | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 18 | ひれ伏すでゲス！ | OnBreaking | BreakDownTurnUp | None | Eternal | ✅ 完全実装 | テスト行10782 `extends DownTurn remaining when break occurs` で確認済み |
 | 19 | 二度咲き | OnExtraSkill | AdditionalTurn | Self | PlayerTurnEnd | ✅ 完全実装 | exitCond=PlayerTurnEnd（発火数制限は未管理） |
 | 20 | 慶福の一矢 | OnExtraSkill | HealDpRate +30% | AllyFront | Eternal | ✅ 完全実装 | |
 | 21 | ホールチアリング | OnExtraSkill | Morale +2 | AllyAll | Eternal | ✅ 完全実装 | |
 | 22 | 先導者 | OnKillCount | Morale +1 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み |
-| 23 | 意気軒昂 (100460603) | OnKillCount | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率未適用（HealSpへの乗算なし）※注1 |
+| 23 | 意気軒昂 (100460603) | OnKillCount | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み（2026-03-25修正）|
 | 24 | オーバーレイ | **OnZone** | HealSp +2 | AllyAll | Eternal | ❌ 無発火 | OnZoneトリガー検出未実装 |
 | 25 | 追加支援 | OnExtraSkill | OverDrivePointUp +10% | Self | Eternal | ✅ 完全実装 | |
 | 26 | 元気注入 | OnExtraSkill | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | |
@@ -79,11 +79,12 @@
 
 ## 注釈
 
-### 注1: triggerMultiplier のHealSp・OverDrivePointUp 未適用
-`applyMoralePassiveTriggerEffects` 内で `triggerMultiplier`（killCountまたはbreakHitCount）は
-**Moraleのみに乗算されており**、HealSp・OverDrivePointUpには乗算されていない。
-例: 3体キル時に「クリアリング」は SP+3×1=3（正しくは SP+3×3=9）が適用される。
-実ゲーム仕様と乖離がある場合は個別に修正が必要。
+### 注1: ~~triggerMultiplier のHealSp 未適用~~ → 2026-03-25 修正済み
+
+**修正内容**:
+- `killCountMultiplier` 変数を導入し、OnKillCount トリガーのみ HealSp に適用
+- OnBreaking トリガー（激震/破竹の勢い）は単発発動（「ブレイクしたとき」= 倍率なし）のため適用しない
+- 例: 3体キル時に「クリアリング」は SP+2×3=6 が適用される（修正前: SP+2×1=2）
 
 ### 注2: exitCond の未管理
 - `Eternal`: 永続（常に発火可）→ **問題なし**（シミュレータでは毎回発火が自然）

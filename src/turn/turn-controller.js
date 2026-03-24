@@ -3361,6 +3361,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
 
     const parts = Array.isArray(passive?.parts) ? passive.parts : [];
     let triggerMultiplier = 0;
+    let killCountMultiplier = 0; // HealSp に適用する倍率（OnKillCount のみ）。desc「敵1体につき」が根拠。
     const triggerMatched = parts.some((part) => {
       const skillType = String(part?.skill_type ?? '').trim();
       const conditions = [passive?.condition, part?.cond, part?.hit_condition]
@@ -3392,6 +3393,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         const killCount = Math.max(0, Number(actionEntry?.killCount ?? 0));
         if (killCount > 0) {
           triggerMultiplier = killCount;
+          killCountMultiplier = killCount; // HealSp にも倍率を伝搬（破竹/激震は対象外）
           return true;
         }
         return false;
@@ -3400,6 +3402,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         const breakHitCount = Math.max(0, Number(actionEntry?.breakHitCount ?? 0));
         if (breakHitCount > 0) {
           triggerMultiplier = breakHitCount;
+          // killCountMultiplier は設定しない（「ブレイクしたとき」は単発発動）
           return true;
         }
         return false;
@@ -3454,7 +3457,8 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       }
 
       if (effectType === 'HealSp') {
-        const amount = Number(part?.power?.[0] ?? 0);
+        // killCountMultiplier: OnKillCount トリガーのみ適用（「敵1体につき」仕様）
+        const amount = Number(part?.power?.[0] ?? 0) * Math.max(1, killCountMultiplier || 1);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }

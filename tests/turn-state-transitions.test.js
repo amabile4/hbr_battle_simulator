@@ -11191,9 +11191,9 @@ test('AdditionalHitOnRemovingBuff + OverDrivePointUp does NOT fire when skill ha
 
 // ─── AdditionalHitOnKillCount + HealSp（クリアリング / 意気軒昂相当） ───
 
-test('AdditionalHitOnKillCount + HealSp: SP healed to AllyAll when kill occurs (意気軒昂/クリアリング)', () => {
-  // 現状の実装: killCount 倍率は HealSp に適用されない（Morale のみ適用）
-  // killCount=2 でも HealSp は power[0]×1=+2 になる（stateful_passive_wbs.md 注1 参照）
+test('AdditionalHitOnKillCount + HealSp: killCount=1 → SP+2（意気軒昂/クリアリング）', () => {
+  // killCount 倍率が HealSp に適用される（「敵1体につきSP+2」仕様）
+  // killCount=1 → delta = 2×1 = 2
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? {
@@ -11232,7 +11232,7 @@ test('AdditionalHitOnKillCount + HealSp: SP healed to AllyAll when kill occurs (
   const entry = committedRecord.actions.find((a) => a.characterId === 'KILL_SP1');
   const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
   assert.ok(spChange, 'spChanges should include sp_passive source when kill occurs');
-  assert.equal(spChange.delta, 2, 'HealSp passive trigger should add 2 SP per activation (killCount multiplier not applied to HealSp)');
+  assert.equal(spChange.delta, 2, 'killCount=1 → delta=2 (2×1)');
 });
 
 test('AdditionalHitOnKillCount + HealSp does NOT fire when killCount is 0', () => {
@@ -13394,4 +13394,93 @@ test('P1-B: OnHealedSpWithoutSelfHeal + OverDrivePointUp: クロノチェイン 
     (e) => e.effectTypes?.includes('OverDrivePointUp') && e.source === 'passive_trigger'
   );
   assert.ok(odEvent, 'passiveEvents に OverDrivePointUp passive_trigger イベントが含まれること');
+});
+
+// ─── P1-C: killCount × HealSp 倍率（クリアリング/意気軒昂 仕様確定） ───
+
+test('P1-C: OnKillCount + HealSp + killCount=2 → SP が 2 倍（+4）で発動する', () => {
+  // desc「敵1体につき味方全体のSP+2」に基づき、killCount=2 のとき delta=4 になること
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KILL_MULTI1',
+          characterName: 'KILL_MULTI1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 203000,
+              name: '意気軒昂×killCount倍率テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnKillCount', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 203001,
+              name: 'Multi Kill Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KILL_MULTI1', skillId: 203001, killCount: 2 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'KILL_MULTI1');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'sp_passive イベントが発生すること');
+  assert.equal(spChange.delta, 4, 'killCount=2 → delta=4 (2×2)');
+});
+
+test('P1-C: OnBreaking + HealSp + breakHitCount=2 → SP は倍にならない（+8 固定）', () => {
+  // desc「ブレイクしたとき自身のSPが8上昇する」= 単発発動、breakHitCount 倍率は不要
+  // breakHitCount=2 でも delta=8 のまま（16 にならない）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK_SP_FIXED',
+          characterName: 'BREAK_SP_FIXED',
+          initialSP: 5,
+          passives: [
+            {
+              id: 203002,
+              name: '激震×breakHitCount固定テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 203003,
+              name: 'Break Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BREAK_SP_FIXED', skillId: 203003, breakHitCount: 2 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'BREAK_SP_FIXED');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'sp_passive イベントが発生すること');
+  assert.equal(spChange.delta, 8, 'breakHitCount=2 でも delta=8 固定（倍にならない）');
 });
