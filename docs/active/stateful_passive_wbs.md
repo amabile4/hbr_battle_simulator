@@ -1,6 +1,6 @@
 # 状態付与型パッシブ 実装WBS（38件）
 
-> 最終更新: 2026-03-24
+> 最終更新: 2026-03-25
 > 対象: `json/passives.json` 内の `AdditionalHit*` を持つ全パッシブ（750件中38件）
 
 ---
@@ -41,7 +41,7 @@
 | 5 | 愛嬌 | OnHealedSpWithoutSelfHeal | HealSp +3 | Self | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 6 | お裾分け | OnHealedSpWithoutSelfHeal | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 7 | クリアリング | OnKillCount | HealSp +2+1 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み（2026-03-25修正）|
-| 8 | 貴様に託した【カレン専用】 | OnBreaking | OverDrivePointUp +25% | Self | PlayerTurnEnd | ✅ 完全実装 | exitCond=PlayerTurnEnd（発火数制限は未管理）|
+| 8 | 貴様に託した【カレン専用】 | OnBreaking | OverDrivePointUp +25% | Self | PlayerTurnEnd | ✅ 完全実装 | exitCond=PlayerTurnEnd 管理済み（同一プレイヤーターン内1回、2026-03-25実装）|
 | 9 | 恐怖の叫び | OnExtraSkill | Talisman | All | Eternal | 🔧 発火のみ | Talisman未実装 |
 | 10 | 心ときめく応援 | OnSpecifiedSkill | Morale +2 | Self | Eternal | ✅ 完全実装 | |
 | 11 | 迸る衝動 (100230600) | OnKillCount | Morale +2 | Self | Eternal | ✅ 完全実装 | killCount倍率適用済み |
@@ -52,7 +52,7 @@
 | 16 | 意気軒昂 (100250603) | OnKillCount | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み（2026-03-25修正）|
 | 17 | 占星術 | OnHealedSpWithoutSelfHeal | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 18 | ひれ伏すでゲス！ | OnBreaking | BreakDownTurnUp | None | Eternal | ✅ 完全実装 | テスト行10782 `extends DownTurn remaining when break occurs` で確認済み |
-| 19 | 二度咲き | OnExtraSkill | AdditionalTurn | Self | PlayerTurnEnd | ✅ 完全実装 | exitCond=PlayerTurnEnd（発火数制限は未管理） |
+| 19 | 二度咲き | OnExtraSkill | AdditionalTurn | Self | PlayerTurnEnd | ✅ 完全実装 | exitCond=PlayerTurnEnd 管理済み（同一プレイヤーターン内1回、2026-03-25実装）|
 | 20 | 慶福の一矢 | OnExtraSkill | HealDpRate +30% | AllyFront | Eternal | ✅ 完全実装 | |
 | 21 | ホールチアリング | OnExtraSkill | Morale +2 | AllyAll | Eternal | ✅ 完全実装 | |
 | 22 | 先導者 | OnKillCount | Morale +1 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み |
@@ -70,7 +70,7 @@
 | 34 | 怪盗乱麻 | OnRemovingBuff | HealSp +2 | AllyFront | Eternal | ✅ 完全実装 | |
 | 35 | 愛嬌 (100830700) | OnHealedSpWithoutSelfHeal | HealSp +3 | Self | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 36 | クロノチェイン | OnHealedSpWithoutSelfHeal | **OverDrivePointUp +25%** | Self | Eternal | ✅ 完全実装 | `applyReceiverSpHealPassiveTriggers` に OverDrivePointUp ブランチ追加済み（2026-03-25修正）|
-| 37 | 激動 (102020400) | OnBreaking | HealSp +8 | Self | **Count** | ✅ 完全実装 | exitCond=Count（発火回数上限1回）は未管理 |
+| 37 | 激動 (102020400) | OnBreaking | HealSp +8 | Self | **Count** | ✅ 完全実装 | exitCond=Count 管理済み（バトル中1回上限、2026-03-25実装）|
 | 38 | アンコール | OnBreaking | AdditionalTurn | Self | Eternal | ✅ 完全実装 | |
 
 > トリガー名は `AdditionalHit` プレフィックスを省略表記。
@@ -86,16 +86,16 @@
 - OnBreaking トリガー（激震/破竹の勢い）は単発発動（「ブレイクしたとき」= 倍率なし）のため適用しない
 - 例: 3体キル時に「クリアリング」は SP+2×3=6 が適用される（修正前: SP+2×1=2）
 
-### 注2: exitCond の未管理
+### 注2: exitCond 管理（2026-03-25 実装済み）
 - `Eternal`: 永続（常に発火可）→ **問題なし**（シミュレータでは毎回発火が自然）
-- `PlayerTurnEnd`: ターン終了で解除（「貴様に託した」「二度咲き」）→ 現状は Eternal 扱いで毎回発火
-- `Count`: 発火回数上限（「激動」: 1回まで）→ 現状は上限なしで毎回発火
+- `PlayerTurnEnd`: ターン終了で解除（「貴様に託した」「二度咲き」）→ `turnState.passiveTurnFiredKeys` で管理済み。turnIndex 増加時にリセット。
+- `Count`: 発火回数上限（「激動」: 1回まで）→ 既存 `turnState.passiveUsageCounts` を再利用して管理済み。
 
 ---
 
 ## 未実装トリガー（❌ 無発火）
 
-> 2026-03-24 時点で未実装トリガーは 0 件。全トリガーが実装済み。
+> 2026-03-25 時点で未実装トリガーは 0 件。全トリガーが実装済み。
 
 ---
 

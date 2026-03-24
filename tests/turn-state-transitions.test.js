@@ -13826,3 +13826,218 @@ test('P2-A: OnZone does NOT fire when skill has no Zone part', () => {
   );
   assert.ok(!evt, 'Zone部位のないスキルでは AdditionalHitOnZone パッシブが発火しないこと');
 });
+
+// ─── P3-A: exitCond=Count 管理（激動: バトル中1回上限） ───
+
+test('P3-A: exitCond=Count(1): 2ターン目のブレイクでも激動が発動しない', () => {
+  // 激動相当: AdditionalHitOnBreaking + HealSp, exitCond=Count, exitVal=[1,0]
+  // T1: breakHitCount=1 → 発火（SP+8）
+  // T2: breakHitCount=1 → 発火しない（Count上限=1に達済み）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'GEKIDO1',
+          characterName: 'GEKIDO1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 207000,
+              name: '激動テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                {
+                  skill_type: 'AdditionalHitOnBreaking',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+                { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 207001,
+              name: 'Break Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // T1: ブレイク発生 → 激動が発火する
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'GEKIDO1', skillId: 207001, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord: record1, nextState: state2 } = commitTurn(state, preview1);
+
+  const entry1 = record1.actions.find((a) => a.characterId === 'GEKIDO1');
+  const spChange1 = (entry1?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange1, 'T1: sp_passive イベントが発生すること（1回目は発火する）');
+  assert.equal(spChange1.delta, 8, 'T1: delta=8');
+
+  // T2: 同じく breakHitCount=1 → 激動は発火しない（Count上限到達）
+  const preview2 = previewTurn(state2, {
+    0: { characterId: 'GEKIDO1', skillId: 207001, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord: record2 } = commitTurn(state2, preview2);
+
+  const entry2 = record2.actions.find((a) => a.characterId === 'GEKIDO1');
+  const spChange2 = (entry2?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spChange2, 'T2: Count上限=1に達しているため sp_passive イベントが発生しないこと');
+});
+
+// ─── P3-B: exitCond=PlayerTurnEnd 管理（二度咲き: 同一プレイヤーターン内1回） ───
+
+test('P3-B: exitCond=PlayerTurnEnd: T1EXで再度EXスキル使用しても二度咲きが発動しない', () => {
+  // 二度咲き相当: AdditionalHitOnExtraSkill + AdditionalTurn, exitCond=PlayerTurnEnd
+  // T1: EXスキル使用 → 発火 → extra turn
+  // T1EX: 再度EXスキル使用 → 発火しない（PlayerTurnEnd = 同一ターン内1回）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'FUTABA1',
+          characterName: 'FUTABA1',
+          initialSP: 20,
+          passives: [
+            {
+              id: 208000,
+              name: '二度咲きテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                {
+                  skill_type: 'AdditionalHitOnExtraSkill',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  effect: { exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 208001,
+              name: 'EX Skill',
+              sp_cost: 10,
+              is_restricted: 1,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // T1: EXスキル使用 → 二度咲き発火 → extra turn
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'FUTABA1', skillId: 208001 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateT1EX } = commitTurn(state, preview1);
+  assert.equal(stateT1EX.turnState.turnType, 'extra', 'T1後はextra turnになること');
+
+  // T1EX: 同じEXスキルを再使用 → 二度咲きは発動しない
+  const preview1ex = previewTurn(stateT1EX, {
+    0: { characterId: 'FUTABA1', skillId: 208001 },
+  });
+  const { nextState: stateT2 } = commitTurn(stateT1EX, preview1ex);
+  assert.notEqual(
+    stateT2.turnState.turnType,
+    'extra',
+    'T1EXで再度EXスキルを使用しても二度咲きは発動せず追加ターンにならないこと'
+  );
+});
+
+test('P3-B: exitCond=PlayerTurnEnd: T2では再び発動する', () => {
+  // 二度咲き相当のパッシブは、プレイヤーターンが変わったら再び発動する。
+  // T1 → T1EX(スキップ) → T2 で二度咲き再発火
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'FUTABA2',
+          characterName: 'FUTABA2',
+          initialSP: 20,
+          passives: [
+            {
+              id: 208002,
+              name: '二度咲きテスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                {
+                  skill_type: 'AdditionalHitOnExtraSkill',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  effect: { exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 208003,
+              name: 'EX Skill 2',
+              sp_cost: 10,
+              is_restricted: 1,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+            {
+              id: 208004,
+              name: 'Normal Skill',
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // T1: EXスキル → 二度咲き発火 → extra turn
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'FUTABA2', skillId: 208003 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateT1EX } = commitTurn(state, preview1);
+  assert.equal(stateT1EX.turnState.turnType, 'extra', 'T1後はextra turnになること');
+
+  // T1EX: 通常スキルを使用して T2 へ（二度咲き非発動で extra ターン消費）
+  const preview1ex = previewTurn(stateT1EX, {
+    0: { characterId: 'FUTABA2', skillId: 208004 },
+  });
+  const { nextState: stateT2 } = commitTurn(stateT1EX, preview1ex);
+  assert.equal(stateT2.turnState.turnType, 'normal', 'T1EX消化後はnormal(T2)になること');
+  assert.equal(stateT2.turnState.turnIndex, 2, 'turnIndex=2');
+
+  // T2: EXスキルを使用 → 二度咲きが再発火してextra turnになる
+  const preview2 = previewTurn(stateT2, {
+    0: { characterId: 'FUTABA2', skillId: 208003 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateT2EX } = commitTurn(stateT2, preview2);
+  assert.equal(
+    stateT2EX.turnState.turnType,
+    'extra',
+    'T2でEXスキル使用時、PlayerTurnEnd リセット後に二度咲きが再発火してextra turnになること'
+  );
+});

@@ -153,6 +153,7 @@ export function createInitialTurnState() {
     extraTurnState: null,
     passiveEventsLastApplied: [],
     passiveUsageCounts: {},
+    passiveTurnFiredKeys: [],
   });
 }
 
@@ -334,6 +335,9 @@ export function cloneTurnState(turnState) {
             ])
           )
         : {},
+    passiveTurnFiredKeys: Array.isArray(turnState?.passiveTurnFiredKeys)
+      ? [...turnState.passiveTurnFiredKeys]
+      : [],
   };
 }
 

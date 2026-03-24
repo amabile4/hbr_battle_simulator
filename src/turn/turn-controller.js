@@ -3458,6 +3458,21 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
     }
 
     const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+
+    // P3: exitCond チェック（Count=バトル中N回上限 / PlayerTurnEnd=同一プレイヤーターン内1回）
+    const triggerPartForExit = parts.find((p) => String(p?.skill_type ?? '').startsWith('AdditionalHit'));
+    const exitCond = String(triggerPartForExit?.effect?.exitCond ?? '').trim();
+    const exitVal = Number(triggerPartForExit?.effect?.exitVal?.[0] ?? 0);
+    const usageKey = (exitCond === 'Count' || exitCond === 'PlayerTurnEnd')
+      ? getPassiveUsageKey(actor, passive)
+      : null;
+    if (exitCond === 'Count' && exitVal > 0 && usageKey) {
+      if (Number(state.turnState.passiveUsageCounts?.[usageKey] ?? 0) >= exitVal) continue;
+    }
+    if (exitCond === 'PlayerTurnEnd' && usageKey) {
+      if ((state.turnState.passiveTurnFiredKeys ?? []).includes(usageKey)) continue;
+    }
+
     let triggerMultiplier = 0;
     let killCountMultiplier = 0; // HealSp に適用する倍率（OnKillCount のみ）。desc「敵1体につき」が根拠。
     const triggerMatched = parts.some((part) => {
@@ -3528,6 +3543,17 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
 
     if (!triggerMatched) {
       continue;
+    }
+
+    // P3: 発火後カウント・フラグを更新
+    if (exitCond === 'Count' && exitVal > 0 && usageKey) {
+      state.turnState.passiveUsageCounts[usageKey] =
+        Number(state.turnState.passiveUsageCounts[usageKey] ?? 0) + 1;
+    }
+    if (exitCond === 'PlayerTurnEnd' && usageKey) {
+      if (!state.turnState.passiveTurnFiredKeys.includes(usageKey)) {
+        state.turnState.passiveTurnFiredKeys.push(usageKey);
+      }
     }
 
     for (const part of parts) {
@@ -8908,6 +8934,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
   const nextTurnLabel = nextTurnState.turnLabel;
   nextTurnState.passiveEventsLastApplied = [];
+  // P3-B: PlayerTurnEnd パッシブの発火フラグをリセット（新プレイヤーターン開始時）
+  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+    nextTurnState.passiveTurnFiredKeys = [];
+  }
   if (Number.isFinite(previewRecord.enemyCount)) {
     if (!nextTurnState.enemyState) {
       nextTurnState.enemyState = { enemyCount: previewRecord.enemyCount, statuses: [] };
