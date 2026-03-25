@@ -57,22 +57,114 @@ function buildHeaderIconsHtml(member) {
 }
 
 // ============================================================
-// バフ種別ラベル
+// バフ種別ラベル（正式名称）
 // ============================================================
 const STATUS_LABELS = {
-  AttackUp: '攻撃↑',
-  AttackDown: '攻撃↓',
-  DefenseUp: '防御↑',
-  DefenseDown: '防御↓',
-  CriticalRateUp: 'CT率↑',
-  CriticalRateDown: 'CT率↓',
-  CriticalDamageUp: 'CT倍率↑',
-  CriticalDamageDown: 'CT倍率↓',
-  HealDpRate: '回復↑',
-  DebuffGuard: 'デバフガード',
-  BuffCharge: 'バフ蓄積',
-  SpeedUp: '速度↑',
-  SpeedDown: '速度↓',
+  // 攻撃・防御
+  AttackUp:                  '攻撃力アップ',
+  AttackDown:                '攻撃力ダウン',
+  AttackUpIncludeNormal:     '攻撃力アップ（通常攻撃含む）',
+  DefenseUp:                 '防御力アップ',
+  DefenseDown:               '防御力ダウン',
+  DamageRateUp:              '破壊率上昇量アップ',
+  ResistDown:                '耐性ダウン',
+  ResistDownOverwrite:       '属性耐性打ち消し',
+  ToughnessUpValue:          '体力アップ',
+  Fragile:                   '脆弱',
+  Shredding:                 '速弾き',
+  HighBoost:                 'ハイブースト',
+  GiveAttackBuffUp:          'スキル攻撃力上昇の効果アップ',
+  GiveDebuffUp:              'デバフスキル効果量アップ',
+  GiveDefenseDebuffUp:       '防御力ダウン効果アップ',
+
+  // CT
+  CriticalRateUp:            'クリティカル確率アップ',
+  CriticalRateDown:          'クリティカル確率ダウン',
+  CriticalDamageUp:          'クリティカルダメージアップ',
+  CriticalDamageDown:        'クリティカルダメージダウン',
+
+  // 回復・HP
+  HealDp:                    'HP回復',
+  HealDpByDamage:            'ダメージHP回復',
+  HealDown:                  '回復量ダウン',
+  RegenerationDp:            'HP継続回復',
+  ReviveDp:                  'DPゲージ復活',
+
+  // SP・EP
+  HealSp:                    'SP回復',
+  HealSpRandom:              '確率でSPを回復',
+  OverwriteSp:               'SP上書き',
+  SpecifySp:                 'SP指定',
+  SpLimitOverwrite:          'SP上限上書き',
+  HealEp:                    'EP回復',
+  HealSkillUsedCount:        'スキル使用回数回復',
+
+  // OD
+  OverDrivePointUp:          'ODゲージアップ',
+  OverDrivePointDown:        'ODゲージダウン',
+  OverDrivePointUpByToken:   'トークンによるODゲージアップ',
+
+  // 状態異常
+  ConfusionRandom:           '混乱',
+  ImprisonRandom:            '束縛',
+  StunRandom:                '気絶',
+  RecoilRandom:              '反動ダメージ',
+  Misfortune:                '不幸',
+  SelfDamage:                '自傷ダメージ',
+
+  // 防御・補助
+  DebuffGuard:               'デバフ無効',
+  BuffCharge:                'チャージ',
+  Invincible:                '無敵',
+  Cover:                     'かばう',
+  Dodge:                     '回避',
+  Provoke:                   '挑発',
+  BreakGuard:                'ブレイクガード',
+  SuperBreakDown:            '超ダウン',
+  BreakDownTurnUp:           'ブレイクダウンターン延長',
+
+  // 特殊状態・効果
+  MindEye:                   '心眼',
+  FightingSpirit:            '闘志',
+  Morale:                    '士気',
+  Motivation:                'やる気',
+  EternalOath:               '永遠の誓い',
+  ShadowClone:               '影分身',
+  Funnel:                    '連撃数アップ',
+  Diva:                      '歌姫の加護',
+  Hacking:                   'ハッキング',
+  FireMark:                  '火の印',
+
+  // スキル関連
+  AdditionalTurn:            '追加ターン',
+  DoubleActionExtraSkill:    'EXスキル連続発動',
+  SkillCondition:            'スキル条件',
+  SkillRandom:               'スキルランダム',
+  SkillSwitch:               'スキルスイッチ',
+  FixedHpDamageRateAttack:   '固定HP割合攻撃',
+  TokenSet:                  'トークン上昇',
+
+  // バフ/デバフ解除
+  RemoveBuff:                'バフ解除',
+  RemoveDebuff:              'デバフ解除',
+  RemoveSpecialStatus:       '特殊状態解除',
+
+  // フィールド関連
+  Talisman:                  '霊符状態',
+  ZoneUpEternal:             'フィールド状態永続',
+  ReviveTerritory:           '再生の陣',
+
+  // キャラ固有
+  ArrowCherryBlossoms:       '桜花の矢',
+  BIYamawakiServant:         '山脇様のしもべ',
+  Curry:                     'カレー',
+  Gelato:                    'ジェラート',
+  Shchi:                     'シチー',
+  Steak:                     'ステーキ',
+
+  // 速度
+  SpeedUp:                   '速度アップ',
+  SpeedDown:                 '速度ダウン',
 };
 
 function getStatusLabel(statusType) {

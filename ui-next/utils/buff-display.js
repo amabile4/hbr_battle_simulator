@@ -10,19 +10,17 @@ const DISPLAYABLE_BUFF_TYPES = new Set([
   'DefenseUp',
   'CriticalRateUp',
   'CriticalDamageUp',
-  'HealDpRate',
   'DebuffGuard',
   'BuffCharge',
 ]);
 
 const BUFF_LABELS = {
-  AttackUp: '攻↑',
-  DefenseUp: '防↑',
-  CriticalRateUp: 'CT率↑',
-  CriticalDamageUp: 'CT倍↑',
-  HealDpRate: '回復↑',
-  DebuffGuard: 'Dガード',
-  BuffCharge: 'バフ蓄',
+  AttackUp: '攻撃力アップ',
+  DefenseUp: '防御力アップ',
+  CriticalRateUp: 'クリティカル確率アップ',
+  CriticalDamageUp: 'クリティカルダメージアップ',
+  DebuffGuard: 'デバフ無効',
+  BuffCharge: 'チャージ',
 };
 
 function isActiveEffect(effect) {
