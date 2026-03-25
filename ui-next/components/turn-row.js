@@ -16,6 +16,7 @@ import {
   getReplayOperationDisplayLabel,
   getReplayOperationTone,
 } from '../utils/replay-operation-presentation.js';
+import { buildBuffListHtml } from '../utils/buff-display.js';
 import {
   ACTION_OUTCOME_TYPES,
   getActionOutcomeOverridesFromOverrideEntries,
@@ -1301,10 +1302,11 @@ export class TurnRowController {
       isCommitted,
       recordAction: replaySlot,
     });
-    // トークン・士気（ターン開始前の値）
+    // トークン・士気・バフ（ターン開始前の値）
     const tokenCurrent  = isCommitted ? (snapEntry?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
     const tokenMax      = isCommitted ? (snapEntry?.tokenState?.max      ?? 10) : (member.tokenState?.max      ?? 10);
     const moraleCurrent = isCommitted ? (snapEntry?.moraleState?.current ?? 0) : (member.moraleState?.current ?? 0);
+    const buffListHtml  = buildBuffListHtml(isCommitted ? (snapEntry?.statusEffects ?? []) : (member.statusEffects ?? []));
     const spColor = typeof spDisplay === 'number' && spDisplay < 0 ? '#ef4444' : '#ffffff';
     // コミット済み: record から復元 / 未コミット: D&D 後の保存値（partyIndex キー）→ なければ先頭スキル
     // TODO: skills[0] が通常攻撃/指揮行動であることは JSON 挿入順への暗黙依存。
@@ -1406,9 +1408,9 @@ export class TurnRowController {
                 ${spDisplay}
               </div>
             </div>
-            <!-- 将来のバフ/デバフ・状態異常アイコンスペース兼 target trigger 置き場 -->
+            <!-- バフ/デバフ・状態異常アイコンスペース兼 target trigger 置き場 -->
             <div data-slot-info-space data-position="${member.position}" class="flex-1 min-w-0">
-              ${targetControlAnchorHtml}
+              ${buffListHtml}${targetControlAnchorHtml}
             </div>
           </div>
           <!-- アイコン直下: トークン・士気 -->

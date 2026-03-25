@@ -160,6 +160,8 @@ export function normalizeStatusEffect(effect, fallbackId = 1) {
     sourceSkillId: Number.isFinite(sourceSkillId) ? sourceSkillId : null,
     sourceSkillLabel: String(effect?.sourceSkillLabel ?? ''),
     sourceSkillName: String(effect?.sourceSkillName ?? ''),
+    sourceCharacterId: String(effect?.sourceCharacterId ?? ''),
+    sourceCharacterName: String(effect?.sourceCharacterName ?? ''),
     metadata:
       effect?.metadata && typeof effect.metadata === 'object' ? structuredClone(effect.metadata) : null,
   };

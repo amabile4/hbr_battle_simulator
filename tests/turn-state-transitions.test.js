@@ -13897,6 +13897,211 @@ test('P3-A: exitCond=Count(1): 2ターン目のブレイクでも激動が発動
   assert.ok(!spChange2, 'T2: Count上限=1に達しているため sp_passive イベントが発生しないこと');
 });
 
+// ─── Phase A: sourceCharacterId / sourceCharacterName が statusEffect に保存される ───
+
+test('Phase A: active skill AttackUp includes sourceCharacterId matching the actor', () => {
+  // スキル由来 AttackUp バフに sourceCharacterId / sourceCharacterName が記録されること
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'BUFF_ACTOR',
+        characterName: 'BUFF_ACTOR',
+        initialSP: 10,
+        skills: [
+          {
+            id: 209001,
+            name: 'Attack Up Skill',
+            sp_cost: 3,
+            parts: [
+              {
+                skill_type: 'AttackUp',
+                target_type: 'AllyAll',
+                power: [0.5, 0],
+                effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [2, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BUFF_ACTOR', skillId: 209001 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 前衛メンバー全員の AttackUp に sourceCharacterId が記録されていること
+  for (const member of nextState.party.slice(0, 3)) {
+    const stored = member.resolveEffectiveStatusEffects('AttackUp');
+    assert.ok(stored.length > 0, `${member.characterId} に AttackUp が付与されていること`);
+    assert.equal(
+      stored[0].sourceCharacterId,
+      'BUFF_ACTOR',
+      `${member.characterId} の AttackUp.sourceCharacterId が 'BUFF_ACTOR' であること`
+    );
+    assert.equal(
+      stored[0].sourceCharacterName,
+      'BUFF_ACTOR',
+      `${member.characterId} の AttackUp.sourceCharacterName が 'BUFF_ACTOR' であること`
+    );
+  }
+});
+
+// ─── Phase B: passive AttackUp が statusEffect として昇格される ───
+
+test('Phase B: OnRemovingBuff + AttackUp (浄化の喝采パターン): 発火時に statusEffect が作成される', () => {
+  // OnRemovingBuff で発火した AttackUp パッシブが statusEffect として記録されること
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'JOKA_ACTOR',
+        characterName: 'JOKA_ACTOR',
+        initialSP: 10,
+        passives: [
+          {
+            id: 209100,
+            name: '浄化の喝采テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              {
+                skill_type: 'AdditionalHitOnRemovingBuff',
+                target_type: 'Self',
+                power: [0, 0],
+                value: [0, 0],
+                cond: '',
+                hit_condition: '',
+                effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+              },
+              {
+                skill_type: 'AttackUp',
+                target_type: 'AllyAll',
+                power: [0.6, 0],
+                value: [0, 0],
+                cond: '',
+                hit_condition: '',
+                target_condition: '',
+                elements: ['Dark'],
+                effect: {
+                  category: 'AttackUpDark_Turn',
+                  limitType: 'Only',
+                  exitCond: 'PlayerTurnEnd',
+                  exitVal: [8, 0],
+                },
+              },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: 209101,
+            name: 'RemoveBuff Skill',
+            sp_cost: 3,
+            parts: [
+              { skill_type: 'RemoveBuff', target_type: 'Single', power: [1, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'JOKA_ACTOR', skillId: 209101, removeBuffCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 前衛メンバー全員に AttackUp statusEffect が付与されていること
+  for (const member of nextState.party.slice(0, 3)) {
+    const stored = member.resolveEffectiveStatusEffects('AttackUp');
+    assert.ok(stored.length > 0, `${member.characterId} に AttackUp statusEffect が付与されていること`);
+    assert.equal(stored[0].power, 0.6, `power=0.6（60%攻撃力アップ）`);
+    // commitTurn 後に PlayerTurnEnd デクリメントが1回走るため remaining は 8-1=7
+    assert.equal(stored[0].remaining, 7, `remaining=7（8ターン付与 → 1回デクリメント済み）`);
+    assert.equal(stored[0].exitCond, 'PlayerTurnEnd', `exitCond=PlayerTurnEnd`);
+    assert.equal(stored[0].sourceType, 'passive', `sourceType='passive'`);
+    assert.equal(stored[0].sourceCharacterId, 'JOKA_ACTOR', `sourceCharacterId='JOKA_ACTOR'`);
+  }
+});
+
+test('Phase B: OnBreaking + AttackUp (破砕の喝采パターン): breakHitCount=1 で statusEffect が作成される', () => {
+  // OnBreaking で発火した AttackUp パッシブが statusEffect として記録されること
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'HASSAI_ACTOR',
+        characterName: 'HASSAI_ACTOR',
+        initialSP: 10,
+        passives: [
+          {
+            id: 209200,
+            name: '破砕の喝采テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              {
+                skill_type: 'AdditionalHitOnBreaking',
+                target_type: 'Self',
+                power: [0, 0],
+                value: [0, 0],
+                cond: '',
+                hit_condition: '',
+                effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+              },
+              {
+                skill_type: 'AttackUp',
+                target_type: 'AllyAll',
+                power: [0.6, 0],
+                value: [0, 0],
+                cond: '',
+                hit_condition: '',
+                target_condition: '',
+                elements: [],
+                effect: {
+                  category: 'AttackUp_Turn',
+                  limitType: 'Only',
+                  exitCond: 'PlayerTurnEnd',
+                  exitVal: [8, 0],
+                },
+              },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: 209201,
+            name: 'Break Skill',
+            sp_cost: 3,
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'HASSAI_ACTOR', skillId: 209201, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  for (const member of nextState.party.slice(0, 3)) {
+    const stored = member.resolveEffectiveStatusEffects('AttackUp');
+    assert.ok(stored.length > 0, `${member.characterId} に AttackUp statusEffect が付与されていること`);
+    assert.equal(stored[0].power, 0.6, `power=0.6`);
+    // commitTurn 後に PlayerTurnEnd デクリメントが1回走るため remaining は 8-1=7
+    assert.equal(stored[0].remaining, 7, `remaining=7（8ターン付与 → 1回デクリメント済み）`);
+    assert.equal(stored[0].sourceCharacterId, 'HASSAI_ACTOR', `sourceCharacterId='HASSAI_ACTOR'`);
+  }
+});
+
 // ─── P3-B: exitCond=PlayerTurnEnd 管理（二度咲き: 同一プレイヤーターン内1回） ───
 
 test('P3-B: exitCond=PlayerTurnEnd: T1EXで再度EXスキル使用しても二度咲きが発動しない', () => {

@@ -3720,10 +3720,42 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       }
 
       if (effectType === 'AttackUp') {
-        // Log-only: no buff duration system; record the effect for planning visibility.
         const amount = Number(part?.power?.[0] ?? 0);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
+        }
+        const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
+        const exitCond = String(part?.effect?.exitCond ?? 'Count');
+        const limitType = String(part?.effect?.limitType ?? 'Default');
+        const elements = Array.isArray(part?.elements) ? [...part.elements] : [];
+        const category = String(part?.effect?.category ?? '');
+
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          target.addStatusEffect({
+            statusType: 'AttackUp',
+            exitCond,
+            limitType,
+            remaining,
+            power: amount,
+            elements,
+            sourceType: 'passive',
+            sourceSkillId: Number(passive?.id ?? 0),
+            sourceSkillLabel: String(passive?.label ?? ''),
+            sourceSkillName: String(passive?.name ?? ''),
+            sourceCharacterId: String(actor?.characterId ?? ''),
+            sourceCharacterName: String(actor?.characterName ?? ''),
+            metadata: category ? { onlyGroupKey: category } : null,
+          });
         }
         passiveTriggerEvents.push(
           createPassiveTriggerEvent(state.turnState, actor, passive, {
@@ -5605,6 +5637,8 @@ function addActiveBuffStatusEffect(actor, target, skill, part) {
     sourceSkillId: Number(skill?.skillId ?? skill?.id ?? 0),
     sourceSkillLabel: String(skill?.label ?? ''),
     sourceSkillName: String(skill?.name ?? ''),
+    sourceCharacterId: String(actor?.characterId ?? ''),
+    sourceCharacterName: String(actor?.characterName ?? ''),
     metadata: {
       activeBuffStatus: true,
       effectName,
