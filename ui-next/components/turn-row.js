@@ -17,6 +17,7 @@ import {
   getReplayOperationTone,
 } from '../utils/replay-operation-presentation.js';
 import { buildBuffListHtml } from '../utils/buff-display.js';
+import { openCharDetailPopup } from '../utils/char-detail-popup.js';
 import {
   ACTION_OUTCOME_TYPES,
   getActionOutcomeOverridesFromOverrideEntries,
@@ -2011,6 +2012,36 @@ export class TurnRowController {
 
     // ポップオーバーのビューポート外はみ出し補正
     this.#adjustPopoverPositions();
+
+    // キャラクター詳細ポップアップ（右クリック / 長押し）
+    this.#root.querySelectorAll('[data-turn-slot-icon]').forEach((icon) => {
+      icon.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const slotEl = icon.closest('[data-turn-slot]');
+        if (!slotEl) return;
+        const position = Number(slotEl.dataset.position);
+        const member = this.#stateBefore?.party?.find((m) => m.position === position) ?? null;
+        if (!member) return;
+        const snapEntry = this.#record
+          ? (this.#record.snapBefore?.find((s) => s.partyIndex === member.partyIndex) ?? null)
+          : null;
+        openCharDetailPopup(
+          member,
+          {
+            statusEffects: snapEntry?.statusEffects ?? member.statusEffects ?? [],
+            passiveEvents:
+              this.#record?.passiveEvents ??
+              this.#stateBefore?.turnState?.passiveEventsLastApplied ??
+              [],
+            zoneState: this.#stateBefore?.turnState?.zoneState ?? null,
+            territoryState: this.#stateBefore?.turnState?.territoryState ?? null,
+            talismanState: this.#stateBefore?.turnState?.enemyState?.talismanState ?? null,
+          },
+          { x: e.clientX, y: e.clientY, isCommitted: Boolean(this.#record) }
+        );
+      });
+    });
   }
 
   /**

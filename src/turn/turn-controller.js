@@ -3754,6 +3754,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
             sourceSkillName: String(passive?.name ?? ''),
             sourceCharacterId: String(actor?.characterId ?? ''),
             sourceCharacterName: String(actor?.characterName ?? ''),
+            sourceSkillDesc: String(passive?.desc ?? ''),
             metadata: category ? { onlyGroupKey: category } : null,
           });
         }
@@ -5639,6 +5640,7 @@ function addActiveBuffStatusEffect(actor, target, skill, part) {
     sourceSkillName: String(skill?.name ?? ''),
     sourceCharacterId: String(actor?.characterId ?? ''),
     sourceCharacterName: String(actor?.characterName ?? ''),
+    sourceSkillDesc: String(skill?.desc ?? ''),
     metadata: {
       activeBuffStatus: true,
       effectName,

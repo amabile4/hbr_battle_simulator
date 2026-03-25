@@ -162,6 +162,7 @@ export function normalizeStatusEffect(effect, fallbackId = 1) {
     sourceSkillName: String(effect?.sourceSkillName ?? ''),
     sourceCharacterId: String(effect?.sourceCharacterId ?? ''),
     sourceCharacterName: String(effect?.sourceCharacterName ?? ''),
+    sourceSkillDesc: String(effect?.sourceSkillDesc ?? ''),
     metadata:
       effect?.metadata && typeof effect.metadata === 'object' ? structuredClone(effect.metadata) : null,
   };
