@@ -1,8 +1,8 @@
 /**
  * buff-display.js
  *
- * statusEffects 配列からプレイヤーバフを抽出し、HTML 表示用に変換するユーティリティ。
- * 保持情報: バフ種別 / 持続ターン / 効果値 / 付与者名
+ * statusEffects 配列からプレイヤーバフを抽出し、アイコン表示用 HTML に変換するユーティリティ。
+ * 文字は一切使用せず、assets/skill_type/ の画像アイコンのみで状態を表現する。
  */
 
 const DISPLAYABLE_BUFF_TYPES = new Set([
@@ -14,14 +14,13 @@ const DISPLAYABLE_BUFF_TYPES = new Set([
   'BuffCharge',
 ]);
 
-const BUFF_LABELS = {
-  AttackUp: '攻撃力アップ',
-  DefenseUp: '防御力アップ',
-  CriticalRateUp: 'クリティカル確率アップ',
-  CriticalDamageUp: 'クリティカルダメージアップ',
-  DebuffGuard: 'デバフ無効',
-  BuffCharge: 'チャージ',
-};
+const SKILL_TYPE_ICON_BASE = new URL('../../assets/skill_type/', import.meta.url).href;
+
+function resolveSkillTypeIconUrl(statusType) {
+  const name = String(statusType ?? '').trim();
+  if (!name) return '';
+  return `${SKILL_TYPE_ICON_BASE}${encodeURIComponent(name)}.webp`;
+}
 
 function isActiveEffect(effect) {
   if (String(effect?.exitCond ?? '') === 'Eternal') return true;
@@ -40,46 +39,36 @@ export function getDisplayableBuffs(statusEffects) {
   );
 }
 
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 /**
- * 1件のバフを HTML タグ文字列に変換する。
- * @param {object} effect
- * @returns {string}
- */
-export function buildBuffTagHtml(effect) {
-  const label = BUFF_LABELS[effect.statusType] ?? String(effect.statusType ?? '');
-  const power = Number(effect.power ?? 0);
-  const powerStr = power > 0 ? `+${Math.round(power * 100)}%` : '';
-  const remaining =
-    String(effect.exitCond ?? '') === 'Eternal' ? '∞' : `${Number(effect.remaining ?? 0)}`;
-  const fromName = String(effect.sourceCharacterName ?? '').trim();
-  const tooltip = [label, powerStr, `${remaining}T`, fromName ? `(${fromName})` : '']
-    .filter(Boolean)
-    .join(' ');
-  return (
-    `<span class="buff-tag" title="${escapeHtml(tooltip)}">` +
-    escapeHtml(label) +
-    (powerStr ? `<span class="buff-power">${escapeHtml(powerStr)}</span>` : '') +
-    `<span class="buff-remaining">${escapeHtml(remaining)}</span>` +
-    `</span>`
-  );
-}
-
-/**
- * statusEffects からバフ一覧の HTML を生成する。
+ * statusEffects からバフアイコン一覧の HTML を生成する。
+ * - 単独発動（limitType === 'Only'）: 同種 1 個
+ * - それ以外: 同種 最大 2 個
  * バフが 0 件のときは空文字を返す。
  * @param {Array} statusEffects
  * @returns {string}
  */
 export function buildBuffListHtml(statusEffects) {
-  const buffs = getDisplayableBuffs(statusEffects);
-  if (buffs.length === 0) return '';
-  return `<div class="buff-list">${buffs.map(buildBuffTagHtml).join('')}</div>`;
+  const activeBuffs = getDisplayableBuffs(statusEffects);
+  if (activeBuffs.length === 0) return '';
+
+  // statusType ごとにグループ化
+  const byType = new Map();
+  for (const effect of activeBuffs) {
+    if (!byType.has(effect.statusType)) byType.set(effect.statusType, []);
+    byType.get(effect.statusType).push(effect);
+  }
+
+  const parts = [];
+  for (const [statusType, effects] of byType) {
+    const iconUrl = resolveSkillTypeIconUrl(statusType);
+    if (!iconUrl) continue;
+    const isOnlyType = effects.every((e) => String(e.limitType ?? '') === 'Only');
+    const count = isOnlyType ? 1 : Math.min(effects.length, 2);
+    for (let i = 0; i < count; i++) {
+      parts.push(`<img src="${iconUrl}" alt="${statusType}" class="buff-icon" />`);
+    }
+  }
+
+  if (parts.length === 0) return '';
+  return `<div class="buff-icon-list">${parts.join('')}</div>`;
 }
