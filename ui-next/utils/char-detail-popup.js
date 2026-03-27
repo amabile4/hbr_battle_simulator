@@ -208,8 +208,13 @@ function buildStatusTabHtml(statusEffects) {
       const desc = String(effect.sourceSkillDesc ?? '').trim();
       const power = Number(effect.power ?? 0);
       const powerStr = power !== 0 ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%` : '';
+      const exitCondStr = String(effect.exitCond ?? '');
       const remaining =
-        String(effect.exitCond ?? '') === 'Eternal' ? '∞' : `${Number(effect.remaining ?? 0)}T`;
+        exitCondStr === 'Eternal'
+          ? '∞'
+          : exitCondStr === 'Count'
+          ? `${Number(effect.remaining ?? 0)}回`
+          : `${Number(effect.remaining ?? 0)}T`;
       const sourceCharName = String(effect.sourceCharacterName ?? '').trim();
       const titleParts = [label, powerStr, skillName ? `[${skillName}]` : '', sourceCharName ? `(${sourceCharName})` : ''].filter(Boolean);
 

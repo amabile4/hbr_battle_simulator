@@ -7,7 +7,7 @@ import {
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
-import { isNormalAttackSkill } from '../domain/skill-classifiers.js';
+import { isNormalAttackSkill, isPursuitOnlySkill } from '../domain/skill-classifiers.js';
 import { SHREDDING_SP_MIN } from '../domain/character-style.js';
 import {
   OD_RECOVERY_BY_LEVEL,
@@ -5405,7 +5405,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
 
     let consumedFunnels = [];
     let consumedMindEyes = [];
-    if (hasDamage && consumeStatusEffects) {
+    if (hasDamage && consumeStatusEffects && !isNormalAttackSkill(skill) && !isPursuitOnlySkill(skill)) {
       consumedFunnels = member.consumeFunnelEffects(2);
       consumedMindEyes = member.consumeMindEyeEffects(1);
     }
@@ -8918,7 +8918,25 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     });
     // T05: specialStatusTypeId 付きの Count 型特殊状態をスキル使用後にデクリメント
     member.tickSpecialStatusCountEffects();
-    member.tickStatusEffectsWhere(isCountConsumableActiveBuffStatusEffect);
+    // Count 型アクティブバフの消費ルール:
+    //   - includeNormalAttack=true (AttackUpIncludeNormal 由来): ダメージがあれば通常攻撃でも消費
+    //   - その他 (AttackUp/CriticalRateUp 等): 非通常・非追撃の攻撃スキルのみ消費
+    const _skillForCount = member.getSkill(entry.skillId);
+    const _hasDamageForCount = _skillForCount ? hasDamagePartInParts(_skillForCount.parts ?? []) : false;
+    const _isNormalOrPursuitForCount =
+      !_skillForCount ||
+      isNormalAttackSkill(_skillForCount) ||
+      isPursuitOnlySkill(_skillForCount);
+    if (_hasDamageForCount) {
+      member.tickStatusEffectsWhere(
+        (e) => isCountConsumableActiveBuffStatusEffect(e) && e?.metadata?.includeNormalAttack === true
+      );
+    }
+    if (_hasDamageForCount && !_isNormalOrPursuitForCount) {
+      member.tickStatusEffectsWhere(
+        (e) => isCountConsumableActiveBuffStatusEffect(e) && e?.metadata?.includeNormalAttack !== true
+      );
+    }
   }
 
   const removeDebuffEvents = applyRemoveDebuffEffectsFromActions(state, previewRecord);

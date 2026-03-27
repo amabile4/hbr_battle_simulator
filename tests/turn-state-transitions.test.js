@@ -2724,9 +2724,14 @@ test('一途なスマイル stores count-based critical statuses and exposes the
   const nextActor = firstCommit.nextState.party[0];
   const criticalRate = nextActor.resolveEffectiveStatusEffects('CriticalRateUp')[0];
   const criticalDamage = nextActor.resolveEffectiveStatusEffects('CriticalDamageUp')[0];
+  // 通常攻撃（AttackNormal ラベル）・追撃（Skill91 ラベル）は Count バフを消費しないため除外
   const followUpSkill = nextActor.skills.find(
     (skill) =>
       Number(skill.skillId ?? 0) !== skillId &&
+      !String(skill.label ?? '').endsWith('AttackNormal') &&
+      !String(skill.label ?? '').endsWith('Skill91') &&
+      String(skill.name ?? '') !== '通常攻撃' &&
+      String(skill.name ?? '') !== '追撃' &&
       (skill.parts ?? []).some((part) => String(part?.skill_type ?? '').includes('Attack'))
   );
 
