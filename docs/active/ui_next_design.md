@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-21
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-28
 
 ## 目的
 
@@ -38,7 +38,6 @@
 2. `Enemy Setup`
 3. `Stage Setup`
 4. `Simulator Settings`
-5. `Passive Log`
 
 このうち、初回実装で最優先なのは `Party Setup` である。`Enemy Setup` と `Stage Setup` は battle start 条件、`Simulator Settings` は UI / セッション動作設定として別責務で置く。
 
@@ -48,6 +47,8 @@
 - シミュレーター開始前の大きな setup UI として使えること
 - シミュレーター開始後は邪魔にならない形で退避できること
 - 必要時に再表示し、初期条件を変えて turn 1 から再計算できること
+- desktop では Setup を隠した瞬間に TurnPlanner が全幅を使えること
+- Setup header は最小限の tab shell に留め、説明面や常時 visible block を増やしすぎないこと
 
 ## Block 1: Party Setup (`Character Selection`)
 
@@ -188,6 +189,16 @@
 - `Simulator Settings` には current session の JSON 保存 / 読込ボタンを置く
 - save/load の正本は `SessionSnapshotV1` とし、`setup / simulatorSettings / validationPolicy / replayScript` を保存する
 - `validationPolicy` は当面 permissive input を維持する箱としてのみ使い、既定値はすべて `true` とする
+- `captureUntilBattleEnd` は session-level option とし、ON のときは PNG 保存を最初の `battle end` 行までで打ち切る
+- PNG 保存対象は committed turn rows のみとし、未コミット入力行 / edit 行は含めない
+- PNG 保存時は右側の操作列を描画対象から外し、note / chip 列を詰めた capture 専用レイアウトを使う
+- PNG export は offscreen clone を正規ルートとし、live DOM を一時改変する in-place capture は採用しない
+- capture 専用の layout context は clone root に集約する
+  - `container-type` / `container-name`
+  - `data-turn-slot-layout`
+  - note 幅 / hidden button 幅などの capture 用 custom property
+- 今後 TurnRow の横幅配分や layout mode を増やす場合は、まず clone root に転写すべき metadata を追加し、live DOM 側へ一時的な hidden/class 変更を入れない
+- clone 側へ root metadata を少数足す程度では直らない browser-specific 崩れが繰り返す場合に限り、capture 方式自体を再検討する
 
 ## Block 5: Passive Log
 
@@ -195,7 +206,7 @@
 
 - current session で実際に発火した passive event を、人間が追える監査ログとして表示する
 - battle engine の timing 判定は変更せず、表示層で `initialState.turnState.passiveEventsLastApplied` と `committedRecord.passiveEvents` を再構成する
-- `Initial Setup` の独立 top-level tab に置き、Party / Enemy / Stage / Simulator Settings と責務を混ぜない
+- `Initial Setup` 配下には置かず、TurnPlanner 側の独立 pane として扱う
 
 ### 表示ルール
 
@@ -203,7 +214,8 @@
 - `戦闘開始`、`Tn開始`、`Tn実行`、`EX開始`、`OD開始` など、直後に passive row がある境界だけ marker 行を出す
 - timing は `--- OnBattleStart ---` のような 1 行 marker で区切り、個々の passive row には旧ログ準拠の 1 行フォーマットを使う
 - 1 passive 効果 1 行を維持するため、accordion は使わず `nowrap + 横スクロール` の単一コンテナに出す
-- 将来の別ウィンドウ化を見据え、log row builder と tab 描画は分離する
+- 既定配置は TurnPlanner 下段の collapsible pane とし、hidden 時は TurnPlanner が高さを全使用する
+- 将来の別ウィンドウ化を見据え、log row builder と pane 描画は分離する
 
 ### Turn 行の selectable skill list
 

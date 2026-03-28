@@ -151,7 +151,7 @@ test('InitialSetupController mounts Simulator Settings tab separately from Enemy
     assert.equal(stageContent.querySelector('[data-role="ally-target-simplify-toggle"]'), null);
   }));
 
-test('InitialSetupController mounts Passive Log tab with an empty state', () =>
+test('InitialSetupController no longer mounts Passive Log as a setup tab', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new InitialSetupController({
       root,
@@ -161,14 +161,8 @@ test('InitialSetupController mounts Passive Log tab with an empty state', () =>
     controller.mount();
 
     const passiveLogTab = root.querySelector('[role="tab"][data-tab="passive-log"]');
-    assert.ok(passiveLogTab);
-
-    passiveLogTab.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-
-    const passiveLogContent = root.querySelector('[data-tab-content="passive-log"]');
-    assert.equal(passiveLogContent.hidden, false);
-    assert.ok(root.querySelector('[data-role="passive-log-empty"]'));
-    assert.ok(root.querySelector('[data-role="passive-log-rows"]'));
+    assert.equal(passiveLogTab, null);
+    assert.equal(root.querySelector('[data-tab-content="passive-log"]'), null);
   }));
 
 test('InitialSetupController getSetupSnapshot returns split simulator target selection modes', () =>
@@ -194,9 +188,13 @@ test('InitialSetupController getSetupSnapshot returns split simulator target sel
       setupSnapshot.simulatorSettings.targetSelection.allyMode,
       TARGET_SELECTION_MODES.SIMPLE,
     );
+    assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, false);
 
     root.querySelector('[data-role="enemy-target-simplify-toggle"]').checked = false;
     root.querySelector('[data-role="ally-target-simplify-toggle"]').checked = true;
+    const captureToggle = root.querySelector('[data-role="capture-until-battle-end-toggle"]');
+    assert.equal(captureToggle.disabled, false);
+    captureToggle.checked = true;
     setupSnapshot = controller.getSetupSnapshot(partySnapshot);
 
     assert.equal(
@@ -207,6 +205,7 @@ test('InitialSetupController getSetupSnapshot returns split simulator target sel
       setupSnapshot.simulatorSettings.targetSelection.allyMode,
       TARGET_SELECTION_MODES.SIMPLE,
     );
+    assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, true);
   }));
 
 test('InitialSetupController exposes session save/load controls in Simulator Settings', () =>
@@ -246,47 +245,13 @@ test('InitialSetupController applySetupSnapshot restores simulator toggles', () 
           enemyMode: TARGET_SELECTION_MODES.MANUAL,
           allyMode: TARGET_SELECTION_MODES.SIMPLE,
         },
+        captureUntilBattleEnd: true,
       },
     });
 
     assert.equal(root.querySelector('[data-role="enemy-target-simplify-toggle"]').checked, false);
     assert.equal(root.querySelector('[data-role="ally-target-simplify-toggle"]').checked, true);
-  }));
-
-test('InitialSetupController setPassiveLogRows renders marker and passive rows in a nowrap container', () =>
-  withDom(({ root, pickerOverlay, win }) => {
-    const controller = new InitialSetupController({
-      root,
-      pickerOverlay,
-      store: createStoreStub(),
-    });
-    controller.mount();
-    controller.setPassiveLogRows([
-      { kind: 'marker', text: '=== 戦闘開始 ===' },
-      {
-        kind: 'passive',
-        turnLabel: 'T1',
-        styleName: '茅森 月歌 style',
-        characterName: '茅森 月歌',
-        passiveName: '機敏',
-        passiveDesc: 'バトル開始時 前衛にいると自身のSP+2',
-        timing: 'OnBattleStart',
-        text: 'T1：茅森 月歌 style / 茅森 月歌 : [機敏] バトル開始時 前衛にいると自身のSP+2',
-      },
-    ]);
-
-    root
-      .querySelector('[role="tab"][data-tab="passive-log"]')
-      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-
-    const rowsContainer = root.querySelector('[data-role="passive-log-rows"]');
-    const renderedRows = [...root.querySelectorAll('[data-role="passive-log-row"]')];
-    assert.equal(rowsContainer.classList.contains('hidden'), false);
-    assert.equal(rowsContainer.style.whiteSpace, 'nowrap');
-    assert.equal(renderedRows.length, 2);
-    assert.equal(renderedRows[0].dataset.rowKind, 'marker');
-    assert.equal(renderedRows[1].dataset.rowKind, 'passive');
-    assert.match(renderedRows[1].textContent, /\[機敏\]/);
+    assert.equal(root.querySelector('[data-role="capture-until-battle-end-toggle"]').checked, true);
   }));
 
 test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>

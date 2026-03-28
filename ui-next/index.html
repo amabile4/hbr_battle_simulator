@@ -19,48 +19,56 @@
 <body class="bg-gray-50 text-gray-900 h-screen h-dvh flex flex-col overflow-hidden">
 
   <!-- ヘッダー -->
-  <header class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 shrink-0">
-    <h1 class="text-base font-bold tracking-tight">HBR Battle Simulator</h1>
-    <button id="toggle-turn-layout"
-            class="ml-auto text-xs px-2.5 py-1 rounded-md border border-gray-200
-                   text-gray-500 hover:bg-gray-50 transition-colors"
-            title="TurnEdit の前衛/後衛幅レイアウトを切り替え">
-      ↔ 均等
-    </button>
-    <!-- キャプチャボタン -->
-    <button id="capture-btn"
-            class="text-xs px-2.5 py-1 rounded-md border border-gray-200
-                   text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="ターンエリアをPNG保存">
-      📷
-    </button>
-    <!-- 右ペイン開閉ボタン -->
-    <button id="toggle-setup"
-            class="text-xs px-2.5 py-1 rounded-md border border-gray-200
-                   text-gray-500 hover:bg-gray-50 transition-colors"
-            title="Initial Setup を開閉">
-      ⚙ 設定 ▶
-    </button>
+  <header class="shrink-0 border-b border-gray-200 bg-white/95 backdrop-blur">
+    <div class="workspace-toolbar">
+      <button id="toggle-setup"
+              class="workspace-toolbar__button workspace-toolbar__button--primary"
+              title="Initial Setup を開閉">
+        設定を隠す
+      </button>
+      <button id="toggle-passive-log"
+              class="workspace-toolbar__button"
+              title="Passive Log を表示"
+              disabled>
+        ログを表示
+      </button>
+      <button id="toggle-turn-layout"
+              class="workspace-toolbar__button"
+              title="TurnEdit の前衛/後衛幅レイアウトを切り替え">
+        レイアウト: 均等
+      </button>
+      <button id="capture-btn"
+              class="workspace-toolbar__button
+                     disabled:opacity-40 disabled:cursor-not-allowed"
+              title="ターンエリアをPNG保存">
+        PNG保存
+      </button>
+    </div>
   </header>
 
   <!-- メインレイアウト: 左ペイン + 右ペイン（モバイルは縦積み） -->
-  <main id="app" class="flex-1 flex flex-col-reverse sm:flex-row overflow-hidden">
+  <main id="app" data-setup-open="true" data-passive-log-open="false"
+        class="flex-1 flex flex-col-reverse sm:flex-row overflow-hidden min-h-0">
 
-    <!-- 左ペイン: TurnController / Records（モバイルでは下段） -->
-    <section id="turn-area" class="flex-1 overflow-y-auto p-2 sm:p-6 min-h-0">
-      <div class="text-sm text-gray-400 text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-        TurnController &amp; Records<br />
-        <span class="text-xs">(TODO)</span>
-      </div>
+    <!-- 左ペイン: TurnController / Records + Passive Log -->
+    <section id="workspace-main" class="flex min-h-0 flex-1 flex-col">
+      <section id="turn-area" class="flex-1 overflow-y-auto p-2 sm:p-4 min-h-0">
+        <div class="text-sm text-gray-400 text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+          TurnController &amp; Records<br />
+          <span class="text-xs">(TODO)</span>
+        </div>
+      </section>
+      <section id="passive-log-pane"
+               hidden
+               class="min-h-0 border-t border-gray-200 bg-white max-h-[38dvh] sm:max-h-[16rem]"></section>
     </section>
 
     <!-- 右ペイン: InitialSetup（モバイルでは上段 full-width） -->
     <aside id="setup-area"
            class="w-full sm:w-96 shrink-0 overflow-y-auto bg-white
                   border-b sm:border-b-0 sm:border-l border-gray-200
-                  max-h-[50dvh] sm:max-h-none
-                  transition-[transform,max-height,width] duration-300">
-      <div id="initial-setup-root"></div>
+                  max-h-[50dvh] sm:max-h-none">
+      <div id="initial-setup-root" class="h-full"></div>
     </aside>
 
   </main>
@@ -69,131 +77,10 @@
   <div id="style-picker-overlay" class="hidden fixed inset-0 z-50"></div>
 
   <!-- エラー表示 -->
-  <div data-role="status" class="hidden fixed right-4 bg-red-100 text-red-700 text-sm px-4 py-2 rounded-lg shadow-md pb-safe"
+  <div data-role="status" role="status" aria-live="polite" aria-atomic="true"
+       class="hidden fixed right-4 text-sm px-4 py-2 rounded-lg shadow-md pb-safe"
        style="bottom: max(1rem, env(safe-area-inset-bottom))"></div>
 
   <script type="module" src="./app.js"></script>
-  <script type="module">
-    let _htmlToImage = null;
-    async function getHtmlToImage() {
-      if (!_htmlToImage) {
-        _htmlToImage = await import('https://esm.sh/html-to-image@1');
-      }
-      return _htmlToImage;
-    }
-
-    function patchDisabledSelects(container) {
-      const selects = [...container.querySelectorAll('select[disabled]')];
-      const saved = selects.map((sel) => ({
-        el: sel,
-        color: sel.style.color,
-        backgroundColor: sel.style.backgroundColor,
-        opacity: sel.style.opacity,
-        pointerEvents: sel.style.pointerEvents,
-      }));
-      selects.forEach((sel) => {
-        sel.removeAttribute('disabled');
-        sel.style.color = '#374151';
-        sel.style.backgroundColor = '#f9fafb';
-        sel.style.opacity = '1';
-        sel.style.pointerEvents = 'none';
-      });
-      return function restore() {
-        saved.forEach(({ el, color, backgroundColor, opacity, pointerEvents }) => {
-          el.setAttribute('disabled', '');
-          el.style.color = color;
-          el.style.backgroundColor = backgroundColor;
-          el.style.opacity = opacity;
-          el.style.pointerEvents = pointerEvents;
-        });
-      };
-    }
-
-    document.getElementById('capture-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('capture-btn');
-      btn.disabled = true;
-      btn.textContent = '⏳';
-      try {
-        const { toPng } = await getHtmlToImage();
-        const turnArea = document.getElementById('turn-area');
-
-        const prevOverflow = turnArea.style.overflow;
-        const prevMaxHeight = turnArea.style.maxHeight;
-        turnArea.style.overflow = 'visible';
-        turnArea.style.maxHeight = 'none';
-
-        const restoreSelects = patchDisabledSelects(turnArea);
-        try {
-          const dataUrl = await toPng(turnArea, {
-            width: turnArea.offsetWidth,
-            height: turnArea.scrollHeight,
-            pixelRatio: window.devicePixelRatio || 1,
-            backgroundColor: '#ffffff',
-          });
-          const a = document.createElement('a');
-          const stamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
-          a.href = dataUrl;
-          a.download = `hbr_battle_${stamp}.png`;
-          document.body.appendChild(a);
-          try { a.click(); } finally { a.remove(); }
-        } finally {
-          restoreSelects();
-          turnArea.style.overflow = prevOverflow;
-          turnArea.style.maxHeight = prevMaxHeight;
-        }
-      } catch (err) {
-        console.error('キャプチャエラー:', err);
-        const status = document.querySelector('[data-role="status"]');
-        if (status) {
-          status.textContent = `キャプチャエラー: ${err.message}`;
-          status.classList.remove('hidden');
-          setTimeout(() => status.classList.add('hidden'), 5000);
-        }
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '📷';
-      }
-    });
-  </script>
-  <script>
-    const toggleBtn = document.getElementById('toggle-setup');
-    const setupArea = document.getElementById('setup-area');
-    let setupOpen = true;
-
-    function isMobile() {
-      return window.innerWidth < 640;
-    }
-
-    function applySetupOpen(open) {
-      setupOpen = open;
-      if (open) {
-        setupArea.style.transform = '';
-        setupArea.style.width = '';
-        setupArea.style.minWidth = '';
-        setupArea.style.maxHeight = '';
-        setupArea.style.overflow = '';
-        toggleBtn.textContent = isMobile() ? '⚙ 設定 ▼' : '⚙ 設定 ▶';
-      } else {
-        if (isMobile()) {
-          setupArea.style.maxHeight = '0';
-          setupArea.style.overflow = 'hidden';
-          toggleBtn.textContent = '⚙ 設定 ▲';
-        } else {
-          setupArea.style.transform = 'translateX(100%)';
-          setupArea.style.width = '0';
-          setupArea.style.minWidth = '0';
-          toggleBtn.textContent = '⚙ 設定 ◀';
-        }
-      }
-    }
-
-    toggleBtn.addEventListener('click', () => applySetupOpen(!setupOpen));
-
-    // リサイズ時にスライドアウト状態を再適用（横断切替でスタイルが崩れないよう）
-    window.addEventListener('resize', () => applySetupOpen(setupOpen));
-
-    // app.js から Apply 後に呼び出して右ペインを閉じる
-    window.collapseSetup = () => applySetupOpen(false);
-  </script>
 </body>
 </html>

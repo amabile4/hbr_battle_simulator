@@ -478,7 +478,7 @@ export class PartySetupController {
     const presets = this.#readPresets();
 
     this.#root.innerHTML = `
-      <div class="p-2 space-y-2">
+      <div class="p-1.5 space-y-1.5">
         <!-- プリセット（折りたたみ） -->
         <div class="border border-gray-100 rounded">
           <button data-action="toggle-preset"
@@ -512,14 +512,14 @@ export class PartySetupController {
         </div>
         <!-- 前衛 -->
         <div>
-          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">前衛</div>
+          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5 px-1">前衛</div>
           <div class="grid grid-cols-3 gap-1">
             ${[0, 1, 2].map((i) => this.#slotHtml(i, moraleVisible)).join('')}
           </div>
         </div>
         <!-- 後衛 -->
         <div>
-          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 px-1">後衛</div>
+          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5 px-1">後衛</div>
           <div class="grid grid-cols-3 gap-1">
             ${[3, 4, 5].map((i) => this.#slotHtml(i, moraleVisible)).join('')}
           </div>
@@ -699,7 +699,7 @@ export class PartySetupController {
         <button data-action="open-skill-settings" data-slot-index="${index}"
                 class="text-xs text-gray-400 hover:text-gray-600 px-1 py-px w-full
                        transition-colors ${slot.style ? '' : 'invisible'}">
-          🔧 スキル設定
+          スキル設定
         </button>
 
         <!-- support section: flex-row（アイコン左固定 w-14 + LB select 右） -->

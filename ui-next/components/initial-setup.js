@@ -9,7 +9,6 @@ const TABS = [
   { id: 'enemy', label: 'Enemy Setup' },
   { id: 'stage', label: 'Stage Setup' },
   { id: 'simulator', label: 'Simulator Settings' },
-  { id: 'passive-log', label: 'Passive Log' },
 ];
 
 /**
@@ -34,7 +33,6 @@ export class InitialSetupController {
   #onSaveSession;
   #onLoadSession;
   #isApplyingSetupSnapshot = false;
-  #passiveLogRows = [];
 
   constructor({
     root,
@@ -73,9 +71,9 @@ export class InitialSetupController {
   mount() {
     // 一度だけ DOM を構築
     this.#root.innerHTML = `
-      <div class="flex flex-col">
+      <div class="flex h-full min-h-0 flex-col bg-white">
         <!-- タブヘッダー -->
-        <div class="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10" role="tablist">
+        <div class="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10 shrink-0" role="tablist">
           ${TABS.map((tab) => `
             <button role="tab"
                     data-tab="${tab.id}"
@@ -90,8 +88,8 @@ export class InitialSetupController {
         </div>
 
         <!-- Party タブコンテンツ -->
-        <div data-tab-content="party">
-          <div id="party-setup-root"></div>
+        <div data-tab-content="party" class="flex min-h-0 flex-1 flex-col">
+          <div id="party-setup-root" class="flex-1 min-h-0 overflow-y-auto"></div>
           <div class="sticky bottom-0 bg-white border-t border-gray-200 px-3 pt-2 pb-safe space-y-1.5"
                style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom))">
             <button data-role="recalc-btn" hidden disabled
@@ -113,18 +111,18 @@ export class InitialSetupController {
 
         <!-- Enemy タブコンテンツ -->
         <div data-tab-content="enemy" hidden
-             class="p-4 text-sm text-gray-400 text-center py-12">
+             class="min-h-0 flex-1 overflow-y-auto p-4 text-sm text-gray-400 text-center py-12">
           Enemy Setup<br /><span class="text-xs">(TODO)</span>
         </div>
 
         <!-- Stage タブコンテンツ -->
         <div data-tab-content="stage" hidden
-             class="p-4 text-sm text-gray-400 text-center py-12">
+             class="min-h-0 flex-1 overflow-y-auto p-4 text-sm text-gray-400 text-center py-12">
           Stage Setup<br /><span class="text-xs">(TODO)</span>
         </div>
 
         <!-- Simulator Settings タブコンテンツ -->
-        <div data-tab-content="simulator" hidden class="p-4 text-sm bg-white">
+        <div data-tab-content="simulator" hidden class="min-h-0 flex-1 overflow-y-auto p-4 text-sm bg-white">
           <div class="space-y-4">
             <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700">ターゲット選択の簡略化</h3>
             <label class="setting-switch flex items-start justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 cursor-pointer">
@@ -155,17 +153,17 @@ export class InitialSetupController {
                 </span>
               </span>
             </label>
-            <!-- キャプチャ設定（将来機能 / 現在未実装） -->
+            <!-- キャプチャ設定 -->
             <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700 mt-4">キャプチャ</h3>
-            <label class="setting-switch flex items-start justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 cursor-not-allowed opacity-50">
+            <label class="setting-switch flex items-start justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 cursor-pointer">
               <div class="min-w-0">
                 <div class="font-medium text-gray-800">バトル終了までをキャプチャ</div>
                 <div class="mt-1 text-xs leading-5 text-gray-500">
-                  （準備中）バトル終了ターンまでの行のみを1枚の画像として保存します。
+                  オンのときは、最初にバトル終了になった行を含むところまでを PNG 保存します。
                 </div>
               </div>
               <span class="shrink-0 pt-0.5">
-                <input type="checkbox" data-role="capture-until-battle-end-toggle" class="sr-only peer" disabled />
+                <input type="checkbox" data-role="capture-until-battle-end-toggle" class="sr-only peer" />
                 <span class="setting-switch__track">
                   <span class="setting-switch__thumb"></span>
                 </span>
@@ -188,25 +186,6 @@ export class InitialSetupController {
                      accept="application/json,.json"
                      hidden />
             </div>
-          </div>
-        </div>
-
-        <!-- Passive Log タブコンテンツ -->
-        <div data-tab-content="passive-log" hidden class="bg-white">
-          <div class="space-y-3 p-4">
-            <div>
-              <h3 class="font-bold text-gray-700">Passive Debug Log</h3>
-              <p class="mt-1 text-xs leading-5 text-gray-500">
-                現在の session から再構築したパッシブ発火ログを表示します。
-              </p>
-            </div>
-            <p data-role="passive-log-empty"
-               class="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-xs text-gray-400">
-              まだ表示できるパッシブログはありません。
-            </p>
-            <div data-role="passive-log-rows"
-                 class="hidden overflow-auto rounded-xl border border-gray-200 bg-white"
-                 style="white-space: nowrap; max-height: 28rem;"></div>
           </div>
         </div>
       </div>
@@ -286,7 +265,6 @@ export class InitialSetupController {
       }
     });
 
-    this.#renderPassiveLogRows();
   }
 
   /**
@@ -341,48 +319,11 @@ export class InitialSetupController {
     this.#updateFooterButtons();
   }
 
-  setPassiveLogRows(rows = []) {
-    this.#passiveLogRows = Array.isArray(rows) ? rows.map((row) => ({ ...row })) : [];
-    this.#renderPassiveLogRows();
-  }
-
   #syncPartySetupBattleState() {
     this.#partySetup?.setBattleState({
       hasActiveBattle: this.#hasActiveBattle,
       hasRecords: this.#hasRecords,
     });
-  }
-
-  #renderPassiveLogRows() {
-    const container = this.#root.querySelector('[data-role="passive-log-rows"]');
-    const empty = this.#root.querySelector('[data-role="passive-log-empty"]');
-    if (!container || !empty) {
-      return;
-    }
-
-    container.innerHTML = '';
-    const rows = Array.isArray(this.#passiveLogRows) ? this.#passiveLogRows : [];
-    const hasRows = rows.length > 0;
-    empty.classList.toggle('hidden', hasRows);
-    container.classList.toggle('hidden', !hasRows);
-    if (!hasRows) {
-      return;
-    }
-
-    for (const row of rows) {
-      if (!row || typeof row !== 'object' || typeof row.text !== 'string') {
-        continue;
-      }
-      const line = document.createElement('div');
-      line.dataset.role = 'passive-log-row';
-      line.dataset.rowKind = String(row.kind ?? '');
-      line.textContent = row.text;
-      line.className =
-        row.kind === 'marker'
-          ? 'border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-mono text-[11px] text-gray-600'
-          : 'px-3 py-1.5 font-mono text-[11px] text-gray-800';
-      container.appendChild(line);
-    }
   }
 
   /** ボタンの有効/無効・表示を partySetup の状態と hasRecords に基づいて更新する */

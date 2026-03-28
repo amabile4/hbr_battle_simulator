@@ -17,6 +17,7 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
       targetSelection: {
         enemyMode: TARGET_SELECTION_MODES.MANUAL,
       },
+      captureUntilBattleEnd: true,
     },
     replayScript: {
       turns: [
@@ -37,6 +38,7 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
   assert.equal(snapshot.version, SESSION_SNAPSHOT_VERSION);
   assert.equal(snapshot.setup.isFrontFilled, true);
   assert.equal(snapshot.simulatorSettings.targetSelection.enemyMode, TARGET_SELECTION_MODES.MANUAL);
+  assert.equal(snapshot.simulatorSettings.captureUntilBattleEnd, true);
   assert.equal(snapshot.validationPolicy.allowUseCountOverflow, true);
   assert.deepEqual(snapshot.setup.skillSetsByPartyIndex['0'], [46000001, 46400001]);
   assert.deepEqual(
@@ -61,6 +63,7 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   const parsed = JSON.parse(text);
   assert.equal(parsed.version, SESSION_SNAPSHOT_VERSION);
   assert.equal(parsed.validationPolicy.allowInsufficientSp, true);
+  assert.equal(parsed.simulatorSettings.captureUntilBattleEnd, false);
   assert.deepEqual(parsed.setup.styleIds.slice(0, 3), [1001, 1002, 1003]);
   assert.deepEqual(parsed.setup.skillSetsByPartyIndex, {});
 });

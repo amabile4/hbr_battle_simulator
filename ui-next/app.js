@@ -1,5 +1,6 @@
 import { HbrDataStore } from '../src/data/hbr-data-store.js';
 import { InitialSetupController } from './components/initial-setup.js';
+import { PassiveLogPaneController } from './components/passive-log-pane.js';
 import { BattleStateManager } from './engine/battle-state-manager.js';
 import { TurnEngineManager } from './engine/turn-engine-manager.js';
 import { TurnAreaController } from './components/turn-area.js';
@@ -9,6 +10,11 @@ import {
   serializeSessionSnapshot,
 } from './utils/session-snapshot.js';
 import { DEFAULT_VALIDATION_POLICY } from './utils/validation-policy.js';
+import {
+  applyPassiveLogOpenState,
+  applySetupOpenState,
+} from './utils/workspace-shell.js';
+import { mountPngCaptureSandbox } from './utils/png-capture.js';
 
 async function fetchJson(path) {
   if (window.location.protocol === 'file:') {
@@ -40,10 +46,15 @@ async function fetchJsonOrFallback(path, fallback) {
 }
 
 let _statusTimer = null;
-function showStatus(msg) {
+function resolveStatusTone(msg) {
+  return /エラー|Error:|失敗|Failed/i.test(String(msg)) ? 'error' : 'info';
+}
+
+function showStatus(msg, tone = resolveStatusTone(msg)) {
   const el = document.querySelector('[data-role="status"]');
   if (!el) return;
   el.textContent = msg;
+  el.dataset.tone = tone;
   el.classList.remove('hidden');
   clearTimeout(_statusTimer);
   _statusTimer = setTimeout(() => el.classList.add('hidden'), 5000);
@@ -108,7 +119,9 @@ function applyTurnSlotLayoutMode(turnAreaRoot, toggleButton, mode) {
   }
   if (toggleButton) {
     toggleButton.textContent =
-      normalizedMode === TURN_SLOT_LAYOUT_MODES.SPLIT ? '↔ 前衛2:1' : '↔ 均等';
+      normalizedMode === TURN_SLOT_LAYOUT_MODES.SPLIT
+        ? 'レイアウト: 前衛2:1'
+        : 'レイアウト: 均等';
     toggleButton.title =
       normalizedMode === TURN_SLOT_LAYOUT_MODES.SPLIT
         ? 'TurnEdit は前衛66% / 後衛33% です'
@@ -118,7 +131,177 @@ function applyTurnSlotLayoutMode(turnAreaRoot, toggleButton, mode) {
   return normalizedMode;
 }
 
+let _htmlToImage = null;
+async function getHtmlToImage() {
+  if (!_htmlToImage) {
+    _htmlToImage = await import('https://esm.sh/html-to-image@1');
+  }
+  return _htmlToImage;
+}
+
+function patchDisabledSelects(container) {
+  const selects = [...container.querySelectorAll('select[disabled]')];
+  const saved = selects.map((sel) => ({
+    el: sel,
+    color: sel.style.color,
+    backgroundColor: sel.style.backgroundColor,
+    opacity: sel.style.opacity,
+    pointerEvents: sel.style.pointerEvents,
+  }));
+  selects.forEach((sel) => {
+    sel.removeAttribute('disabled');
+    sel.style.color = '#374151';
+    sel.style.backgroundColor = '#f9fafb';
+    sel.style.opacity = '1';
+    sel.style.pointerEvents = 'none';
+  });
+  return function restore() {
+    saved.forEach(({ el, color, backgroundColor, opacity, pointerEvents }) => {
+      el.setAttribute('disabled', '');
+      el.style.color = color;
+      el.style.backgroundColor = backgroundColor;
+      el.style.opacity = opacity;
+      el.style.pointerEvents = pointerEvents;
+    });
+  };
+}
+
+function isCaptureUntilBattleEndEnabled() {
+  return Boolean(
+    document.querySelector('[data-role="capture-until-battle-end-toggle"]')?.checked ?? false
+  );
+}
+
+function setupWorkspaceShell() {
+  const appRoot = document.querySelector('#app');
+  const turnAreaRoot = document.querySelector('#turn-area');
+  const setupArea = document.querySelector('#setup-area');
+  const passiveLogPaneRoot = document.querySelector('#passive-log-pane');
+  const setupToggleButton = document.querySelector('#toggle-setup');
+  const passiveLogToggleButton = document.querySelector('#toggle-passive-log');
+  const turnLayoutToggleButton = document.querySelector('#toggle-turn-layout');
+  const captureButton = document.querySelector('#capture-btn');
+
+  let setupOpen = applySetupOpenState({
+    appRoot,
+    setupArea,
+    toggleButton: setupToggleButton,
+    open: true,
+  });
+  let passiveLogOpen = applyPassiveLogOpenState({
+    appRoot,
+    paneRoot: passiveLogPaneRoot,
+    toggleButton: passiveLogToggleButton,
+    open: false,
+    hasRows: false,
+  });
+  let currentTurnSlotLayoutMode = applyTurnSlotLayoutMode(
+    turnAreaRoot,
+    turnLayoutToggleButton,
+    readStoredTurnSlotLayoutMode()
+  );
+
+  setupToggleButton?.addEventListener('click', () => {
+    setupOpen = applySetupOpenState({
+      appRoot,
+      setupArea,
+      toggleButton: setupToggleButton,
+      open: !setupOpen,
+    });
+  });
+
+  passiveLogToggleButton?.addEventListener('click', () => {
+    if (passiveLogToggleButton.disabled) {
+      return;
+    }
+    passiveLogOpen = applyPassiveLogOpenState({
+      appRoot,
+      paneRoot: passiveLogPaneRoot,
+      toggleButton: passiveLogToggleButton,
+      open: !passiveLogOpen,
+      hasRows: appRoot?.dataset.passiveLogAvailable === 'true',
+    });
+  });
+
+  turnLayoutToggleButton?.addEventListener('click', () => {
+    currentTurnSlotLayoutMode =
+      currentTurnSlotLayoutMode === TURN_SLOT_LAYOUT_MODES.SPLIT
+        ? TURN_SLOT_LAYOUT_MODES.BALANCED
+        : TURN_SLOT_LAYOUT_MODES.SPLIT;
+    applyTurnSlotLayoutMode(turnAreaRoot, turnLayoutToggleButton, currentTurnSlotLayoutMode);
+  });
+
+  captureButton?.addEventListener('click', async () => {
+    captureButton.disabled = true;
+    captureButton.textContent = '保存中...';
+    try {
+      const { toPng } = await getHtmlToImage();
+      const { target, meta, cleanup } = mountPngCaptureSandbox(turnAreaRoot, {
+        captureUntilBattleEnd: isCaptureUntilBattleEndEnabled(),
+      });
+      if (meta.committedRowCount === 0) {
+        cleanup();
+        throw new Error('PNG保存対象のコミット済みターンがありません。');
+      }
+
+      const restoreSelects = patchDisabledSelects(target);
+      try {
+        const dataUrl = await toPng(target, {
+          pixelRatio: window.devicePixelRatio || 1,
+          backgroundColor: '#ffffff',
+        });
+        const link = document.createElement('a');
+        const stamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
+        link.href = dataUrl;
+        link.download = `hbr_battle_${stamp}.png`;
+        document.body.appendChild(link);
+        try {
+          link.click();
+        } finally {
+          link.remove();
+        }
+        showStatus(
+          meta.truncatedAtBattleEnd
+            ? 'PNG保存しました（バトル終了行まで）。'
+            : 'PNG保存しました。'
+        );
+      } finally {
+        restoreSelects();
+        cleanup();
+      }
+    } catch (error) {
+      console.error('キャプチャエラー:', error);
+      showStatus(`キャプチャエラー: ${error.message}`, 'error');
+    } finally {
+      captureButton.disabled = false;
+      captureButton.textContent = 'PNG保存';
+    }
+  });
+
+  window.collapseSetup = () => {
+    setupOpen = applySetupOpenState({
+      appRoot,
+      setupArea,
+      toggleButton: setupToggleButton,
+      open: false,
+    });
+  };
+
+  return {
+    updatePassiveLogAvailability(hasRows) {
+      passiveLogOpen = applyPassiveLogOpenState({
+        appRoot,
+        paneRoot: passiveLogPaneRoot,
+        toggleButton: passiveLogToggleButton,
+        open: passiveLogOpen,
+        hasRows,
+      });
+    },
+  };
+}
+
 async function main() {
+  const workspaceShell = setupWorkspaceShell();
   const payload = {
     characters: await fetchJson('../json/characters.json'),
     styles: await fetchJson('../json/styles.json'),
@@ -138,28 +321,20 @@ async function main() {
   // initialSetup は turnArea の onTurnCommitted から参照するため let で先行宣言する
   let initialSetup;
 
-  const turnAreaRoot = document.querySelector('#turn-area');
-  const turnLayoutToggleButton = document.querySelector('#toggle-turn-layout');
-  let currentTurnSlotLayoutMode = applyTurnSlotLayoutMode(
-    turnAreaRoot,
-    turnLayoutToggleButton,
-    readStoredTurnSlotLayoutMode()
-  );
-  turnLayoutToggleButton?.addEventListener('click', () => {
-    currentTurnSlotLayoutMode =
-      currentTurnSlotLayoutMode === TURN_SLOT_LAYOUT_MODES.SPLIT
-        ? TURN_SLOT_LAYOUT_MODES.BALANCED
-        : TURN_SLOT_LAYOUT_MODES.SPLIT;
-    applyTurnSlotLayoutMode(turnAreaRoot, turnLayoutToggleButton, currentTurnSlotLayoutMode);
+  const passiveLogPane = new PassiveLogPaneController({
+    root: document.querySelector('#passive-log-pane'),
+    onHasRowsChange: (hasRows) => workspaceShell.updatePassiveLogAvailability(hasRows),
   });
+  passiveLogPane.mount();
 
+  const turnAreaRoot = document.querySelector('#turn-area');
   const turnArea = new TurnAreaController({
     root: turnAreaRoot,
     store,
     engineManager: turnEngineManager,
     onError: (err) => showStatus(`ターン実行エラー: ${err.message}`),
     onTurnCommitted: () => initialSetup?.setHasRecords(true),
-    onPassiveLogRowsChange: (rows) => initialSetup?.setPassiveLogRows(rows),
+    onPassiveLogRowsChange: (rows) => passiveLogPane.setRows(rows),
   });
 
   const setupRoot = document.querySelector('#initial-setup-root');

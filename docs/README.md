@@ -44,9 +44,10 @@ docs/
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ | 2026-03-21 |
-| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・Passive Log 監査タブ等） | 2026-03-21 |
+| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・Passive Log 下段 pane・PNG capture contract / fallback criteria 等） | 2026-03-28 |
 | [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点） | 2026-03-15 |
-| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・best-effort replay まで反映） | 2026-03-28 |
+| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・PNG capture contract 固定まで反映） | 2026-03-28 |
+| [active/ui_next_png_capture_review_request.md](active/ui_next_png_capture_review_request.md) | 🟢 進行中 | UI Next PNG capture 不具合のレビュー依頼メモ（再現条件・期待挙動・実際の失敗・レビュー観点） | 2026-03-28 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・warning/diagnostics 実装メモ追記） | 2026-03-28 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装計画（HighBoost 倍率・装備型 passive 配線まで反映） | 2026-03-21 |
@@ -182,6 +183,7 @@ docs/
 | [archive/20260309_completed_active_docs/multi_enemy_implementation_tasklist.md](archive/20260309_completed_active_docs/multi_enemy_implementation_tasklist.md) | 複数敵対応タスクリストの完了記録 | → active/implementation_priority_tasklist.md |
 | [archive/spec_review_round_log.md](archive/spec_review_round_log.md) | 3LLM合議仕様レビュー Round 1〜9 ログ（2026-02-26〜27） | → specs/runs/RUN_20260228_001/ |
 | [archive/spec_review_state.json](archive/spec_review_state.json) | 仕様レビューチェックポイント（R9完了・agreed_v1確定済み） | → specs/runs/RUN_20260228_001/ |
+| [archive/20260328_png_capture_code_review_findings.md](archive/20260328_png_capture_code_review_findings.md) | PNG capture 横幅崩れレビュー結果のアーカイブ（採用点 / 非採用点を追記） | → active/ui_next_design.md, active/ui_next_implementation_tasklist.md |
 | [archive/20260308_doc_management_proposal.md](archive/20260308_doc_management_proposal.md) | ドキュメント管理ルール提案書（策定根拠） | → このREADMEに反映済み |
 | [archive/DEVELOPMENT_NOTES.md](archive/DEVELOPMENT_NOTES.md) | 旧世代実装メモ（2025-06-14〜2026-03-01）・旧js/構造記述含む | → OD計算仕様は specs/od_gauge_calculation_spec.md に移転 |
 | [archive/20260313_priority_history.md](archive/20260313_priority_history.md) | 実装優先順位履歴（PRI-001〜006 完了記録・2026-03-09〜03-13） | → active/implementation_priority_tasklist.md（最新版） |

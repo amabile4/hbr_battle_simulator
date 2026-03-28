@@ -1628,9 +1628,10 @@ export class TurnRowController {
         : isCommitted
           ? ''
           : 'bg-blue-50/30';
+    const battleEnded = isCommitted && Boolean(this.#stateAfter?.turnState?.enemyState?.allEnemiesDefeated);
 
     return `
-      <div data-turn-row data-row-mode="${this.#rowMode}" class="flex items-stretch gap-px border-b border-gray-200 bg-white
+      <div data-turn-row data-row-mode="${this.#rowMode}" data-battle-ended="${battleEnded}" class="flex items-stretch gap-px border-b border-gray-200 bg-white
                   hover:bg-gray-50 transition-colors ${rowToneClass}">
         ${turnInfoHtml}
         <div data-turn-slots class="flex gap-px flex-1 min-w-0">

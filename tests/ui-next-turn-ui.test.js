@@ -219,12 +219,14 @@ function createStoreStub(charactersByLabel = {}) {
 function createSimulatorSettings({
   enemyMode = TARGET_SELECTION_MODES.SIMPLE,
   allyMode = TARGET_SELECTION_MODES.SIMPLE,
+  captureUntilBattleEnd = false,
 } = {}) {
   return {
     targetSelection: {
       enemyMode,
       allyMode,
     },
+    captureUntilBattleEnd,
   };
 }
 
@@ -339,6 +341,59 @@ test('TurnRowController preserves draft skill and note across rerender without r
 
     assert.equal(root.querySelector('[data-skill-select][data-party-index="0"]').value, '9509');
     assert.equal(root.querySelector('[data-role="note"]').value, 'draft-note');
+  }));
+
+test('TurnRowController marks committed battle-end rows with data-battle-ended', () =>
+  withDom(({ root }) => {
+    const skill = createSkill({
+      id: 95109,
+      name: 'Final Blow',
+      targetType: 'All',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 1);
+    const stateAfter = createState(skill, 1);
+    stateAfter.turnState.enemyState.allEnemiesDefeated = true;
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 1,
+        turnId: 1,
+        odGaugeAtStart: 0,
+        projections: { odGaugeAtEnd: 0 },
+        actions: [],
+      },
+      replayTurn: {
+        turn: 1,
+        slots: [{ styleId: stateBefore.party[0].styleId, skillId: 95109 }],
+        operations: [],
+        note: '',
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    assert.equal(root.querySelector('[data-turn-row]').dataset.battleEnded, 'true');
   }));
 
 test('TurnAreaController shows preview and committed endSP on the SP badge', () =>
