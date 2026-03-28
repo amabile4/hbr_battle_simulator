@@ -376,6 +376,56 @@ test('TurnEngineManager getStateBefore reflects position swap recorded in replay
   assert.equal(stateBefore?.party?.find((m) => m.partyIndex === 4)?.position, 4);
 });
 
+test('TurnEngineManager recalculateFrom preserves position swap and produces valid computedRecords', () => {
+  // recalculateFrom は replay の slots (position キー) から #slotActionsFromReplayTurn →
+  // #buildActionsDict を通すため、スワップ済みスロットが正しく再計算されることを確認する。
+  const actorSkill = createSkill({
+    id: 9080,
+    name: 'Skill0',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const manager = new TurnEngineManager();
+  const initialState = createInitialState(actorSkill);
+
+  const styleId0 = initialState.party.find((m) => m.partyIndex === 0)?.styleId;
+  const styleId3 = initialState.party.find((m) => m.partyIndex === 3)?.styleId;
+
+  // position 0 と 3 を入れ替えた replay を読み込む
+  const replayScript = {
+    turns: [
+      {
+        slots: [
+          { styleId: styleId3, skillId: null },  // position 0 ← partyIndex 3
+          { styleId: initialState.party.find((m) => m.partyIndex === 1)?.styleId, skillId: null },
+          { styleId: initialState.party.find((m) => m.partyIndex === 2)?.styleId, skillId: null },
+          { styleId: styleId0, skillId: null },   // position 3 ← partyIndex 0
+          { styleId: initialState.party.find((m) => m.partyIndex === 4)?.styleId, skillId: null },
+          { styleId: initialState.party.find((m) => m.partyIndex === 5)?.styleId, skillId: null },
+        ],
+        operations: [],
+        overrideEntries: [],
+        note: '',
+      },
+    ],
+  };
+
+  manager.loadReplayScript(initialState, replayScript);
+
+  // recalculateFrom を呼んでも例外なく再計算が成功すること
+  manager.recalculateFrom(0);
+
+  // computedRecords が存在すること（#buildActionsDict で例外が出ていないこと）
+  assert.ok(manager.computedRecords[0] != null, 'computedRecords[0] should exist after recalculateFrom');
+
+  // スワップ後の position が保持されていること
+  const stateAfter = manager.computedStates[0];
+  assert.equal(stateAfter?.party?.find((m) => m.partyIndex === 0)?.position, 3,
+    'partyIndex 0 should be at position 3 after recalculate');
+  assert.equal(stateAfter?.party?.find((m) => m.partyIndex === 3)?.position, 0,
+    'partyIndex 3 should be at position 0 after recalculate');
+});
+
 test('TurnEngineManager buildInputRowSnapshot resolves partyIndex keyed draft actions after swaps', () => {
   const actorSkill = createSkill({
     id: 9050,

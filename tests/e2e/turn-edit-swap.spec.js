@@ -126,4 +126,47 @@ test.describe('Turn edit D&D swap', () => {
       editRow.locator('[data-turn-slot][data-position="1"] [data-turn-slot-icon] img'),
     ).toHaveAttribute('alt', beforeAlt0);
   });
+
+  test('edit mode swap + recommit preserves swapped positions in committed row', async ({ page }) => {
+    const editRow = await setupEditMode(page);
+
+    const beforeFrontAlt = await getTurnRowSlotAlt(editRow, 0);
+    const beforeBackAlt = await getTurnRowSlotAlt(editRow, 3);
+    expect(beforeFrontAlt).not.toBe(beforeBackAlt);
+
+    // tap-swap position 0 ↔ 3
+    await editRow
+      .locator('[data-turn-slot][data-position="0"] [data-turn-slot-icon]')
+      .click();
+    await editRow
+      .locator('[data-turn-slot][data-position="3"] [data-turn-slot-icon]')
+      .click();
+
+    // icons swapped in edit row
+    await expect(
+      editRow.locator('[data-turn-slot][data-position="0"] [data-turn-slot-icon] img'),
+    ).toHaveAttribute('alt', beforeBackAlt);
+
+    // click recommit (save) button
+    const recommitBtn = editRow.locator('[data-role="recommit-btn"]');
+    await expect(recommitBtn).toBeVisible({ timeout: 3000 });
+    await recommitBtn.click();
+
+    // edit row should disappear, row reverts to committed
+    await expect(page.locator('[data-turn-row][data-row-mode="edit"]')).toHaveCount(0, { timeout: 5000 });
+
+    // committed row #1 should now reflect the swap
+    const committedRow1 = page
+      .locator('[data-turn-row][data-row-mode="committed"]')
+      .first();
+    await expect(committedRow1).toBeVisible();
+
+    // the swapped positions should persist in the committed row
+    await expect(
+      committedRow1.locator('[data-turn-slot][data-position="0"] [data-turn-slot-icon] img'),
+    ).toHaveAttribute('alt', beforeBackAlt);
+    await expect(
+      committedRow1.locator('[data-turn-slot][data-position="3"] [data-turn-slot-icon] img'),
+    ).toHaveAttribute('alt', beforeFrontAlt);
+  });
 });
