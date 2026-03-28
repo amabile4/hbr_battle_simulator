@@ -243,6 +243,26 @@ export class InitialSetupController {
     return this.getSetupSnapshot(partySnapshot);
   }
 
+  getPartyPresetPreviews() {
+    return this.#partySetup?.getPresetPreviews?.() ?? [];
+  }
+
+  savePartyPreset(index, options = {}) {
+    return this.#partySetup?.savePreset(index, options) ?? false;
+  }
+
+  loadPartyPreset(index) {
+    return this.#partySetup?.loadPreset(index) ?? false;
+  }
+
+  renamePartyPreset(index, options = {}) {
+    return this.#partySetup?.renamePreset(index, options) ?? false;
+  }
+
+  clearPartyPreset(index) {
+    return this.#partySetup?.clearPreset(index) ?? false;
+  }
+
   getSimulatorSettings() {
     const enemyMode = this.#root.querySelector('[data-role="enemy-target-simplify-toggle"]')?.checked
       ? TARGET_SELECTION_MODES.SIMPLE

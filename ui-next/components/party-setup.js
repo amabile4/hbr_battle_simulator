@@ -30,7 +30,7 @@ const MORALE_OPTIONS = [
 ];
 
 const PRESET_STORAGE_KEY = 'hbr.ui_next.party_presets.v1';
-const PRESET_COUNT = 3;
+const PRESET_COUNT = 20;
 const PARTY_SLOT_COUNT = 6;
 const FRONTLINE_SLOT_COUNT = 3;
 const DEFAULT_SP_EQUIP_ID = '3';
@@ -50,6 +50,11 @@ function createEmptySlotState() {
     morale: 'normal',
     equippedSkillIds: [],
   };
+}
+
+function normalizePresetName(name) {
+  const normalized = String(name ?? '').trim();
+  return normalized ? normalized : undefined;
 }
 
 function extractCharaName(style) {
@@ -121,7 +126,7 @@ export class PartySetupController {
   #activeSlotIndex = null;
   #activeMode = 'main'; // 'main' | 'support'
   #dragSrcIndex = null;
-  #presetExpanded = false;
+  #tapReorderSrcIndex = null;
   #hasActiveBattle = false;
   #hasRecords = false;
 
@@ -170,6 +175,7 @@ export class PartySetupController {
       hasActiveBattle: this.#hasActiveBattle,
       hasRecords: this.#hasRecords,
     });
+    this.#bindDragAndDropDelegation();
     this.#render();
   }
 
@@ -225,6 +231,7 @@ export class PartySetupController {
   }
 
   applySnapshot(snapshot = {}) {
+    this.#tapReorderSrcIndex = null;
     this.#slots = Array.from({ length: PARTY_SLOT_COUNT }, (_, index) => {
       const styleId = snapshot?.styleIds?.[index] ?? null;
       const supportStyleId = snapshot?.supportStyleIds?.[index] ?? null;
@@ -253,6 +260,60 @@ export class PartySetupController {
     this.#notifyChange();
   }
 
+  getPresetPreviews() {
+    return this.#readPresets().map((preset) => {
+      if (!preset) {
+        return null;
+      }
+      return {
+        name: preset.name,
+        label: preset.label,
+        savedAt: preset.savedAt,
+        slots: this.#resolvePreviewSlotsFromPreset(preset),
+      };
+    });
+  }
+
+  savePreset(index, { name = '' } = {}) {
+    return this.#savePreset(index, { name });
+  }
+
+  loadPreset(index) {
+    return this.#loadPreset(index);
+  }
+
+  renamePreset(index, { name = '' } = {}) {
+    const presets = this.#readPresets();
+    const preset = presets[index];
+    if (!preset) {
+      return false;
+    }
+    const normalizedName = normalizePresetName(name);
+    presets[index] = {
+      ...preset,
+      ...(normalizedName ? { name: normalizedName } : {}),
+    };
+    if (!normalizedName) {
+      delete presets[index].name;
+    }
+    this.#writePresets(presets);
+    return true;
+  }
+
+  clearPreset(index) {
+    const presets = this.#readPresets();
+    if (!presets[index]) {
+      return false;
+    }
+    const ok = window.confirm?.(`プリセット ${index + 1} を削除しますか？`) ?? true;
+    if (!ok) {
+      return false;
+    }
+    presets[index] = null;
+    this.#writePresets(presets);
+    return true;
+  }
+
   // ---- private ----
 
   // ---- preset ----
@@ -262,9 +323,15 @@ export class PartySetupController {
       const raw = localStorage.getItem(PRESET_STORAGE_KEY);
       if (!raw) return Array(PRESET_COUNT).fill(null);
       const parsed = JSON.parse(raw);
-      return Array.from({ length: PRESET_COUNT }, (_, i) => parsed[i] ?? null);
+      const { presets, shouldRewrite } = this.#normalizeStoredPresets(parsed);
+      if (shouldRewrite) {
+        this.#writePresets(presets);
+      }
+      return presets;
     } catch {
-      return Array(PRESET_COUNT).fill(null);
+      const emptyPresets = Array(PRESET_COUNT).fill(null);
+      this.#writePresets(emptyPresets);
+      return emptyPresets;
     }
   }
 
@@ -284,15 +351,90 @@ export class PartySetupController {
     return names.length > 0 ? names.join('・') : '（空）';
   }
 
-  #savePreset(index) {
+  #normalizeStoredPresets(parsed) {
+    const source = Array.isArray(parsed) ? parsed : [];
+    let shouldRewrite = !Array.isArray(parsed) || source.length !== PRESET_COUNT;
+    const presets = Array.from({ length: PRESET_COUNT }, (_, index) => {
+      const rawPreset = source[index] ?? null;
+      const normalizedPreset = this.#normalizeStoredPreset(rawPreset);
+      if (rawPreset !== null && normalizedPreset === null) {
+        shouldRewrite = true;
+      }
+      return normalizedPreset;
+    });
+    return { presets, shouldRewrite };
+  }
+
+  #normalizeStoredPreset(preset) {
+    if (!preset || typeof preset !== 'object' || !Array.isArray(preset.slots)) {
+      return null;
+    }
+    const isCompatiblePreset = Array.from({ length: PARTY_SLOT_COUNT }, (_, index) => {
+      const slot = preset.slots[index];
+      return slot && typeof slot === 'object' && Object.prototype.hasOwnProperty.call(slot, 'equippedSkillIds');
+    }).every(Boolean);
+    if (!isCompatiblePreset) {
+      return null;
+    }
+    return {
+      ...(normalizePresetName(preset.name) ? { name: normalizePresetName(preset.name) } : {}),
+      label: String(preset.label ?? '').trim() || this.#buildPresetLabelFromSlotEntries(preset.slots),
+      savedAt: String(preset.savedAt ?? ''),
+      slots: Array.from({ length: PARTY_SLOT_COUNT }, (_, index) => {
+        const slot = preset.slots[index] ?? {};
+        const styleId = Number.isFinite(Number(slot.styleId)) ? Number(slot.styleId) : null;
+        const supportStyleId = styleId && Number.isFinite(Number(slot.supportStyleId))
+          ? Number(slot.supportStyleId)
+          : null;
+        return {
+          styleId,
+          supportStyleId,
+          lb: Number(slot.lb ?? 0),
+          supportLb: Number(slot.supportLb ?? 0),
+          drivePierce: Number(slot.drivePierce ?? 0),
+          spEquipId: String(slot.spEquipId ?? DEFAULT_SP_EQUIP_ID),
+          belt: String(slot.belt ?? ''),
+          morale: String(slot.morale ?? 'normal'),
+          equippedSkillIds: dedupeNumericIds(slot.equippedSkillIds ?? []),
+        };
+      }),
+    };
+  }
+
+  #buildPresetLabelFromSlotEntries(slots) {
+    const names = slots
+      .slice(0, FRONTLINE_SLOT_COUNT)
+      .map((slot) => this.#store.getStyleById(slot?.styleId))
+      .filter(Boolean)
+      .map((style) => extractCharaName(style));
+    return names.length > 0 ? names.join('・') : '（空）';
+  }
+
+  #resolvePreviewSlotsFromPreset(preset) {
+    return Array.from({ length: PARTY_SLOT_COUNT }, (_, index) => {
+      const slot = preset.slots[index] ?? {};
+      const style = this.#store.getStyleById(slot.styleId) ?? null;
+      return {
+        style,
+        supportStyle: style ? (this.#store.getStyleById(slot.supportStyleId) ?? null) : null,
+      };
+    });
+  }
+
+  #savePreset(index, { name = '' } = {}) {
     const presets = this.#readPresets();
+    if (index < 0 || index >= PRESET_COUNT) {
+      return false;
+    }
     if (presets[index]) {
       const ok = window.confirm?.(`プリセット ${index + 1} を上書きしますか？`) ?? true;
       if (!ok) {
-        return;
+        return false;
       }
     }
+    const normalizedName = normalizePresetName(name);
     presets[index] = {
+      ...(normalizedName ? { name: normalizedName } : {}),
       label: this.#makePresetLabel(),
       savedAt: new Date().toISOString(),
       slots: this.#slots.map((s) => ({
@@ -308,15 +450,19 @@ export class PartySetupController {
       })),
     };
     this.#writePresets(presets);
-    this.#render();
+    return true;
   }
 
   #loadPreset(index) {
     const preset = this.#readPresets()[index];
-    if (!preset) return;
+    if (!preset) return false;
+    this.#tapReorderSrcIndex = null;
     this.#slots = preset.slots.map((s) => {
       const style = s.styleId ? (this.#store.getStyleById(s.styleId) ?? null) : null;
-      const supportStyle = s.supportStyleId ? (this.#store.getStyleById(s.supportStyleId) ?? null) : null;
+      const supportStyle =
+        style && s.supportStyleId
+          ? (this.#store.getStyleById(s.supportStyleId) ?? null)
+          : null;
       return {
         styleId: style ? s.styleId : null,
         style,
@@ -338,6 +484,7 @@ export class PartySetupController {
     });
     this.#render();
     this.#notifyChange();
+    return true;
   }
 
   // ---- /preset ----
@@ -363,6 +510,7 @@ export class PartySetupController {
     if (!this.#hasPartySelections()) {
       return;
     }
+    this.#tapReorderSrcIndex = null;
     this.#slots = Array.from({ length: PARTY_SLOT_COUNT }, () => createEmptySlotState());
     this.#activeSlotIndex = null;
     this.#activeMode = 'main';
@@ -494,11 +642,98 @@ export class PartySetupController {
     return null;
   }
 
+  #swapSlots(srcIndex, dstIndex) {
+    if (!Number.isInteger(srcIndex) || !Number.isInteger(dstIndex) || srcIndex === dstIndex) {
+      return false;
+    }
+    const tmp = this.#slots[srcIndex];
+    this.#slots[srcIndex] = this.#slots[dstIndex];
+    this.#slots[dstIndex] = tmp;
+    return true;
+  }
+
+  #handleTapReorder(slotIndex) {
+    if (!Number.isInteger(slotIndex)) {
+      return;
+    }
+    if (this.#tapReorderSrcIndex === slotIndex) {
+      this.#tapReorderSrcIndex = null;
+      this.#render();
+      return;
+    }
+    if (this.#tapReorderSrcIndex === null) {
+      this.#tapReorderSrcIndex = slotIndex;
+      this.#render();
+      return;
+    }
+
+    const srcIndex = this.#tapReorderSrcIndex;
+    this.#tapReorderSrcIndex = null;
+    if (this.#swapSlots(srcIndex, slotIndex)) {
+      this.#render();
+      this.#notifyChange();
+      return;
+    }
+    this.#render();
+  }
+
+  #clearDragHighlights() {
+    this.#root
+      ?.querySelectorAll('[data-slot]')
+      .forEach((slot) => slot.classList.remove('ring-2', 'ring-inset', 'ring-blue-400'));
+  }
+
+  #resolveSlotElement(target) {
+    if (!target || typeof target.closest !== 'function') {
+      return null;
+    }
+    const slotElement = target.closest('[data-slot]');
+    return this.#root?.contains(slotElement) ? slotElement : null;
+  }
+
+  #bindDragAndDropDelegation() {
+    this.#root.addEventListener('dragover', (event) => {
+      if (this.#dragSrcIndex === null) {
+        return;
+      }
+      const slotElement = this.#resolveSlotElement(event.target);
+      if (!slotElement) {
+        this.#clearDragHighlights();
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      this.#clearDragHighlights();
+      const dst = Number(slotElement.dataset.slot);
+      if (dst !== this.#dragSrcIndex) {
+        slotElement.classList.add('ring-2', 'ring-inset', 'ring-blue-400');
+      }
+    });
+
+    this.#root.addEventListener('drop', (event) => {
+      if (this.#dragSrcIndex === null) {
+        return;
+      }
+      const slotElement = this.#resolveSlotElement(event.target);
+      event.preventDefault();
+      this.#clearDragHighlights();
+      if (!slotElement) {
+        this.#dragSrcIndex = null;
+        return;
+      }
+      const dst = Number(slotElement.dataset.slot);
+      if (this.#swapSlots(this.#dragSrcIndex, dst)) {
+        this.#render();
+        this.#notifyChange();
+      }
+      this.#dragSrcIndex = null;
+    });
+  }
+
   #render() {
     this.#skillSettingsPanel?.close();
     // やる気パッシブ持ちが1人でもいれば全スロットにやる気 select を表示
     const moraleVisible = this.#slots.some((s) => hasMoralePassive(s.style));
-    const presets = this.#readPresets();
     const canDisband = this.#hasPartySelections();
 
     this.#root.innerHTML = `
@@ -512,37 +747,6 @@ export class PartySetupController {
                          disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50">
             PT解散
           </button>
-        </div>
-        <!-- プリセット（折りたたみ） -->
-        <div class="border border-gray-100 rounded">
-          <button data-action="toggle-preset"
-                  class="w-full flex items-center gap-1 px-2 py-1 text-xs text-gray-400
-                         hover:text-gray-600 hover:bg-gray-50 transition-colors select-none">
-            <span>${this.#presetExpanded ? '▼' : '▶'}</span>
-            <span class="font-semibold uppercase tracking-wide">プリセット</span>
-            ${!this.#presetExpanded ? `<span class="ml-auto flex gap-1">
-              ${presets.map((p, i) => `<span class="w-2 h-2 rounded-full ${p ? 'bg-blue-400' : 'bg-gray-200'}"></span>`).join('')}
-            </span>` : ''}
-          </button>
-          ${this.#presetExpanded ? `
-            <div class="flex gap-1 px-1.5 pb-1.5">
-              ${presets.map((p, i) => `
-                <div class="flex items-center gap-0.5 flex-1">
-                  <span class="text-xs font-bold text-gray-300 w-3 text-center leading-none">${i + 1}</span>
-                  <button data-action="save-preset" data-preset-index="${i}"
-                          class="flex-1 text-xs py-0.5 rounded bg-gray-100 text-gray-500
-                                 border border-gray-200 hover:bg-gray-200 transition-colors
-                                 leading-none">保</button>
-                  <button data-action="load-preset" data-preset-index="${i}"
-                          ${!p ? 'disabled' : ''}
-                          class="flex-1 text-xs py-0.5 rounded bg-blue-50 text-blue-600
-                                 border border-blue-200 hover:bg-blue-100 transition-colors
-                                 disabled:opacity-30 disabled:cursor-not-allowed
-                                 leading-none">読</button>
-                </div>
-              `).join('')}
-            </div>
-          ` : ''}
         </div>
         <!-- 前衛 -->
         <div>
@@ -564,6 +768,7 @@ export class PartySetupController {
     // main / support アイコンのクリック
     this.#root.querySelectorAll('[data-action="open-picker"]').forEach((el) => {
       el.addEventListener('click', () => {
+        this.#tapReorderSrcIndex = null;
         this.#activeSlotIndex = Number(el.dataset.slotIndex);
         this.#activeMode = el.dataset.mode;
         const slot = this.#slots[this.#activeSlotIndex];
@@ -579,6 +784,7 @@ export class PartySetupController {
     // listbox 変更
     this.#root.querySelectorAll('select[data-field]').forEach((el) => {
       el.addEventListener('change', () => {
+        this.#tapReorderSrcIndex = null;
         const idx = Number(el.dataset.slotIndex);
         const field = el.dataset.field;
         const val = el.value;
@@ -592,26 +798,14 @@ export class PartySetupController {
       });
     });
 
-    // プリセット折りたたみトグル
-    this.#root.querySelector('[data-action="toggle-preset"]')?.addEventListener('click', () => {
-      this.#presetExpanded = !this.#presetExpanded;
-      this.#render();
-    });
     this.#root.querySelector('[data-action="disband-party"]')?.addEventListener('click', () => {
       this.#disbandParty();
-    });
-
-    // プリセット保存・読込
-    this.#root.querySelectorAll('[data-action="save-preset"]').forEach((el) => {
-      el.addEventListener('click', () => this.#savePreset(Number(el.dataset.presetIndex)));
-    });
-    this.#root.querySelectorAll('[data-action="load-preset"]').forEach((el) => {
-      el.addEventListener('click', () => this.#loadPreset(Number(el.dataset.presetIndex)));
     });
 
     // スキル設定ボタン
     this.#root.querySelectorAll('[data-action="open-skill-settings"]').forEach((btn) => {
       btn.addEventListener('click', () => {
+        this.#tapReorderSrcIndex = null;
         const idx = Number(btn.dataset.slotIndex);
         if (this.#slots[idx]?.styleId) {
           this.#skillSettingsPanel.open(idx, btn, {
@@ -622,52 +816,38 @@ export class PartySetupController {
       });
     });
 
-    // D&D によるスロット入れ替え
-    this.#root.querySelectorAll('[data-slot]').forEach((el) => {
-      el.addEventListener('dragstart', (e) => {
-        this.#dragSrcIndex = Number(el.dataset.slot);
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', '');
-        requestAnimationFrame(() => el.classList.add('opacity-40'));
+    this.#root.querySelectorAll('[data-action="select-reorder-slot"]').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.#handleTapReorder(Number(button.dataset.slotIndex));
       });
-
-      el.addEventListener('dragend', () => {
-        el.classList.remove('opacity-40');
-        this.#dragSrcIndex = null;
-      });
-
-      el.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-      });
-
-      el.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        if (this.#dragSrcIndex !== null && this.#dragSrcIndex !== Number(el.dataset.slot)) {
-          el.classList.add('ring-2', 'ring-inset', 'ring-blue-400');
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+          return;
         }
+        event.preventDefault();
+        this.#handleTapReorder(Number(button.dataset.slotIndex));
       });
-
-      el.addEventListener('dragleave', (e) => {
-        if (!el.contains(e.relatedTarget)) {
-          el.classList.remove('ring-2', 'ring-inset', 'ring-blue-400');
+      button.addEventListener('dragstart', (event) => {
+        const slotElement = button.closest('[data-slot]');
+        if (!slotElement) {
+          return;
         }
+        this.#tapReorderSrcIndex = null;
+        this.#dragSrcIndex = Number(button.dataset.slotIndex);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', '');
+        const requestNextFrame = window.requestAnimationFrame ?? ((callback) => window.setTimeout(callback, 0));
+        requestNextFrame(() => slotElement.classList.add('opacity-40'));
       });
-
-      el.addEventListener('drop', (e) => {
-        e.preventDefault();
-        el.classList.remove('ring-2', 'ring-inset', 'ring-blue-400');
-        const dst = Number(el.dataset.slot);
-        if (this.#dragSrcIndex !== null && this.#dragSrcIndex !== dst) {
-          const tmp = this.#slots[this.#dragSrcIndex];
-          this.#slots[this.#dragSrcIndex] = this.#slots[dst];
-          this.#slots[dst] = tmp;
-          this.#render();
-          this.#notifyChange();
+      button.addEventListener('dragend', () => {
+        const slotElement = button.closest('[data-slot]');
+        if (slotElement) {
+          slotElement.classList.remove('opacity-40');
         }
         this.#dragSrcIndex = null;
       });
     });
+
   }
 
   #slotHtml(index, moraleVisible) {
@@ -689,16 +869,30 @@ export class PartySetupController {
     // （属性一致チェックは StylePicker 側で済んでいるためここでは不要）
     const supportSsr = mainSsr && !!supportStyle?.resonance;
     const supportRing = supportSsr ? 'ring-2 ring-purple-400' : '';
+    const reorderSelected = this.#tapReorderSrcIndex === index;
+    const reorderButtonClass = reorderSelected
+      ? 'bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-300'
+      : 'bg-gray-50 text-gray-400';
 
     return `
-      <div draggable="true" data-slot="${index}"
+      <div data-slot="${index}"
            class="flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden
                   text-xs shadow-sm transition-opacity">
 
         <!-- スロット番号（ドラッグハンドル） -->
-        <div class="flex items-center justify-center bg-gray-50 border-b border-gray-100
-                    py-0.5 text-gray-400 font-bold text-xs cursor-grab active:cursor-grabbing
-                    select-none">${index + 1}</div>
+        <div data-action="select-reorder-slot"
+             data-slot-index="${index}"
+             data-selected="${reorderSelected ? 'true' : 'false'}"
+             aria-pressed="${reorderSelected ? 'true' : 'false'}"
+             role="button"
+             tabindex="0"
+             draggable="true"
+             title="ドラッグで入れ替え / タップで入れ替え元を選択"
+             class="flex items-center justify-center border-b border-gray-100 py-0.5
+                    font-bold text-xs cursor-grab active:cursor-grabbing select-none
+                    transition-colors ${reorderButtonClass}">
+          ${index + 1}
+        </div>
 
         <!-- main icon -->
         <button data-action="open-picker" data-slot-index="${index}" data-mode="main"
@@ -789,6 +983,7 @@ export class PartySetupController {
     if (this.#activeSlotIndex == null) return;
     const idx = this.#activeSlotIndex;
     const mode = this.#activeMode;
+    this.#tapReorderSrcIndex = null;
 
     if (mode === 'main') {
       // メイン同士: 同一キャラクター不可 → 既存をクリア

@@ -141,6 +141,7 @@ export class TurnRowController {
 
   // D&D 用
   #dragSrcPosition = null;
+  #isDragDelegationBound = false;
   // タップ swap 用（iOS 代替操作・クリック swap 兼用）
   #selectedSlotPosition = null;
   #draftSlotSkills = {};
@@ -2808,47 +2809,77 @@ export class TurnRowController {
   }
 
   #bindDragAndDrop() {
-    const slots = this.#root.querySelectorAll('[data-turn-slot]');
-
-    slots.forEach((el) => {
-      el.addEventListener('dragstart', (e) => {
-        this.#dragSrcPosition = Number(el.dataset.position);
-        e.dataTransfer.effectAllowed = 'move';
-        el.classList.add('opacity-40');
+    this.#root.querySelectorAll('[data-turn-slot]').forEach((slot) => {
+      slot.addEventListener('dragstart', (event) => {
+        this.#dragSrcPosition = Number(slot.dataset.position);
+        event.dataTransfer.effectAllowed = 'move';
+        slot.classList.add('opacity-40');
       });
 
-      el.addEventListener('dragend', () => {
-        el.classList.remove('opacity-40');
+      slot.addEventListener('dragend', () => {
+        slot.classList.remove('opacity-40');
         this.#dragSrcPosition = null;
-        slots.forEach((s) => s.classList.remove('ring-2', 'ring-blue-400'));
-      });
-
-      el.addEventListener('dragover', (e) => {
-        if (this.#dragSrcPosition === null) return;
-        const dst = Number(el.dataset.position);
-        // EX ターン: 両者が allowedCharacterIds に含まれない組み合わせはドロップ不可
-        if (!this.#isSwapAllowed(this.#dragSrcPosition, dst)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        slots.forEach((s) => s.classList.remove('ring-2', 'ring-blue-400'));
-        el.classList.add('ring-2', 'ring-blue-400');
-      });
-
-      el.addEventListener('dragleave', (e) => {
-        if (el.contains(e.relatedTarget)) return;
-        el.classList.remove('ring-2', 'ring-blue-400');
-      });
-
-      el.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const dst = Number(el.dataset.position);
-        const src = this.#dragSrcPosition;
-        if (src !== null && src !== dst && this.#isSwapAllowed(src, dst)) {
-          this.#onSlotChange?.(this.#turnIndex, src, { swapWith: dst });
-        }
-        slots.forEach((s) => s.classList.remove('ring-2', 'ring-blue-400'));
-        this.#dragSrcPosition = null;
+        this.#clearDragHighlights();
       });
     });
+
+    if (this.#isDragDelegationBound) {
+      return;
+    }
+    this.#isDragDelegationBound = true;
+
+    this.#root.addEventListener('dragover', (event) => {
+      if (this.#dragSrcPosition === null) {
+        return;
+      }
+      const slot = this.#resolveDragSlot(event.target);
+      if (!slot) {
+        this.#clearDragHighlights();
+        return;
+      }
+      const dst = Number(slot.dataset.position);
+      if (!this.#isSwapAllowed(this.#dragSrcPosition, dst)) {
+        this.#clearDragHighlights();
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      this.#clearDragHighlights();
+      if (dst !== this.#dragSrcPosition) {
+        slot.classList.add('ring-2', 'ring-blue-400');
+      }
+    });
+
+    this.#root.addEventListener('drop', (event) => {
+      if (this.#dragSrcPosition === null) {
+        return;
+      }
+      const slot = this.#resolveDragSlot(event.target);
+      event.preventDefault();
+      this.#clearDragHighlights();
+      const src = this.#dragSrcPosition;
+      this.#dragSrcPosition = null;
+      if (!slot) {
+        return;
+      }
+      const dst = Number(slot.dataset.position);
+      if (src !== dst && this.#isSwapAllowed(src, dst)) {
+        this.#onSlotChange?.(this.#turnIndex, src, { swapWith: dst });
+      }
+    });
+  }
+
+  #clearDragHighlights() {
+    this.#root
+      .querySelectorAll('[data-turn-slot]')
+      .forEach((slot) => slot.classList.remove('ring-2', 'ring-blue-400'));
+  }
+
+  #resolveDragSlot(target) {
+    if (!target || typeof target.closest !== 'function') {
+      return null;
+    }
+    const slot = target.closest('[data-turn-slot]');
+    return this.#root.contains(slot) ? slot : null;
   }
 }

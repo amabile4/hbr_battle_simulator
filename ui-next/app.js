@@ -1,6 +1,7 @@
 import { HbrDataStore } from '../src/data/hbr-data-store.js';
 import { InitialSetupController } from './components/initial-setup.js';
 import { PassiveLogPaneController } from './components/passive-log-pane.js';
+import { PartyPresetToolbarController } from './components/party-preset-toolbar.js';
 import { BattleStateManager } from './engine/battle-state-manager.js';
 import { TurnEngineManager } from './engine/turn-engine-manager.js';
 import { TurnAreaController } from './components/turn-area.js';
@@ -389,6 +390,7 @@ async function main() {
 
   const setupRoot = document.querySelector('#initial-setup-root');
   const pickerOverlay = document.querySelector('#style-picker-overlay');
+  const presetToolbarRoot = document.querySelector('#party-preset-toolbar');
 
   initialSetup = new InitialSetupController({
     root: setupRoot,
@@ -422,6 +424,45 @@ async function main() {
     },
   });
   initialSetup.mount();
+
+  const presetToolbar = new PartyPresetToolbarController({
+    root: presetToolbarRoot,
+    getPresetPreviews: () => initialSetup.getPartyPresetPreviews(),
+    onLoadPreset: async (index) => {
+      const loaded = initialSetup.loadPartyPreset(index);
+      if (loaded) {
+        showStatus(`プリセット ${index + 1} を読み込みました。`);
+      }
+      return loaded;
+    },
+    onSavePreset: async (index, options = {}) => {
+      const saved = initialSetup.savePartyPreset(index, options);
+      if (saved) {
+        showStatus(`プリセット ${index + 1} を保存しました。`);
+      }
+      return saved;
+    },
+    onRenamePreset: async (index, options = {}) => {
+      const renamed = initialSetup.renamePartyPreset(index, options);
+      if (renamed) {
+        showStatus(`プリセット ${index + 1} の名前を更新しました。`);
+      }
+      return renamed;
+    },
+    onClearPreset: async (index) => {
+      const cleared = initialSetup.clearPartyPreset(index);
+      if (cleared) {
+        showStatus(`プリセット ${index + 1} を削除しました。`);
+      }
+      return cleared;
+    },
+    onError: (error) => {
+      showStatus(`プリセットエラー: ${error.message}`, 'error');
+      console.error(error);
+    },
+  });
+  presetToolbar.mount();
+  presetToolbar.sync();
 
   workspaceShell.buttons.sessionSave?.addEventListener('click', () => {
     try {

@@ -90,7 +90,11 @@
 - `SP装備` の初期既定値は `SP +3` とする
 - 未選択時は略称を placeholder として表示する
 - `main style icon` / `support style icon` は未選択でもクリック可能な明確な empty state を持つ
-- Party Setup プリセットは既存スロットへ保存するときだけ上書き確認を出す
+- Party preset UI は `Party Setup` 本体ではなく header 配下の 2 段目 toolbar strip に置く
+- Party preset は `①` 〜 `⑳` の 20 枠固定とし、横スクロールで全枠へ到達できるようにする
+- Party preset は既存スロットへ保存するときだけ上書き確認を出し、消去時も確認を出す
+- Party preset 名は任意入力とし、空欄保存時は name を保持しない
+- Party preset storage は現行 schema 固定とし、`equippedSkillIds` を持たない旧形式は後方互換で救わず、読込時に `null` へ潰して 20 枠配列へ書き戻す
 - `スキル設定` パネルは `listEquipableSkillsByStyleId(styleId)` を正本にし、通常攻撃 / 指揮行動は checked + disabled、追撃は出さない
 - 各行の checked は `装備＝表示` を意味し、選択結果は `skillSetsByPartyIndex` として session save/load、party preset、battle 初期化へ通す
 - passive / master / orb はタグ付きで見分けられるようにする
@@ -104,7 +108,11 @@
 - `support` 側は共鳴アビリティなど support 専用情報を追加表示できる構造にする
 - `Style Picker` の `続けて選ぶ` は既定 `ON` とし、空き slot を順番に埋める導線を優先する
 - `Style Picker` header と `Party Setup` 本体の両方に `PT解散` を置き、全 slot の選択状態を初期化できるようにする
-- slot panel 全体は D&D で順番を入れ替える
+- Party preset button の通常 click/tap は読込、desktop 右クリックと touch 長押しは `保存 / 名前編集 / 消去` menu を開く
+- desktop hover preview と action menu preview は PartyPickup 左上と同じ 12 マス簡易 PT 表現を使う
+- preset strip は utility row とは別の 2 段目とし、右側に余剰がある間だけ `…` overflow indicator を出す
+- desktop では slot 番号 header を drag handle にして、front/back をまたぐ D&D swap を維持する
+- touch 環境では slot 番号ヘッダのタップで「入れ替え元選択 → 2 回目タップで swap」ができるようにし、iPhone Safari でも並び替え導線を失わない
 - D&D は style だけでなく、その slot に紐づく listbox の設定値もまとめて移動する
 
 ### シミュレーター開始後の扱い

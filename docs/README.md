@@ -44,9 +44,12 @@ docs/
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ | 2026-03-21 |
-| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・Passive Log 下段 pane・toolbar icon/mobile rules・startup defaults・PNG capture contract 等） | 2026-03-28 |
+| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・Passive Log 下段 pane・toolbar icon/mobile rules・startup defaults・PNG capture contract 等） | 2026-03-28 |
 | [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点） | 2026-03-15 |
-| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・startup default 調整・PT解散導線・PNG capture contract 固定まで反映） | 2026-03-28 |
+| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・preset toolbar 20枠化・strict preset schema・startup default 調整・PT解散導線・PNG capture contract 固定まで反映） | 2026-03-28 |
+| [active/ui_next_drag_and_drop_review_request.md](active/ui_next_drag_and_drop_review_request.md) | 🟢 進行中 | UI Next D&D 不具合のレビュー依頼メモ（TurnEdit / PartySetup の現象整理・期待挙動・レビュー観点） | 2026-03-28 |
+| [active/review_ui_next_drag_and_drop.prompt.md](active/review_ui_next_drag_and_drop.prompt.md) | 🟢 進行中 | Claude Opus 向け UI Next D&D レビュー依頼 prompt | 2026-03-28 |
+| [active/review_ui_next_drag_and_drop_findings.md](active/review_ui_next_drag_and_drop_findings.md) | 🟢 進行中 | UI Next D&D コードレビュー結果（PartySetup: handle サイズ/テキスト干渉、TurnEdit: setData 欠落・select 妨害、JSDOM テストギャップ、修正優先度） | 2026-03-28 |
 | [active/ui_next_png_capture_review_request.md](active/ui_next_png_capture_review_request.md) | 🟢 進行中 | UI Next PNG capture 不具合のレビュー依頼メモ（再現条件・期待挙動・実際の失敗・レビュー観点） | 2026-03-28 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・warning/diagnostics 実装メモ追記） | 2026-03-28 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |

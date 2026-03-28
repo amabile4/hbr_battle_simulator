@@ -289,6 +289,14 @@ function mountTurnRow({ root, stateBefore, simulatorSettings, store = createStor
   return row;
 }
 
+function createDragDataTransfer() {
+  return {
+    effectAllowed: '',
+    dropEffect: '',
+    setData() {},
+  };
+}
+
 test('TurnRowController preserves draft skill and note across rerender without reading DOM state', () =>
   withDom(({ root, win }) => {
     const actorSkill = createSkill({
@@ -341,6 +349,67 @@ test('TurnRowController preserves draft skill and note across rerender without r
 
     assert.equal(root.querySelector('[data-skill-select][data-party-index="0"]').value, '9509');
     assert.equal(root.querySelector('[data-role="note"]').value, 'draft-note');
+  }));
+
+test('TurnRowController allows drag-and-drop swapping from front to back slots via child drop targets', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 9500,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+    );
+    const slotChanges = [];
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      record: null,
+      replayTurn: null,
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore: state,
+      stateAfter: null,
+      simulatorSettings: createSimulatorSettings(),
+      odState: {
+        preemptiveOdLevel: null,
+        interruptOdLevel: null,
+        activatablePreemptive: [],
+        activatableInterrupt: [],
+      },
+      onSlotChange: (...args) => {
+        slotChanges.push(args);
+      },
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+    });
+    row.mount();
+
+    const sourceSlot = root.querySelector('[data-turn-slot][data-position="0"]');
+    const targetChild = root.querySelector('[data-turn-slot][data-position="3"] [data-role="slot-body"]');
+    const dataTransfer = createDragDataTransfer();
+    const dragStartEvent = new win.Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
+    sourceSlot.dispatchEvent(dragStartEvent);
+
+    const dragOverEvent = new win.Event('dragover', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragOverEvent, 'dataTransfer', { value: dataTransfer });
+    targetChild.dispatchEvent(dragOverEvent);
+
+    const dropEvent = new win.Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
+    targetChild.dispatchEvent(dropEvent);
+
+    assert.deepEqual(slotChanges, [[0, 0, { swapWith: 3 }]]);
   }));
 
 test('TurnRowController marks committed battle-end rows with data-battle-ended', () =>

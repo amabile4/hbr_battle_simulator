@@ -1,4 +1,5 @@
 import { resolveStyleImageUrl, resolveStyleAssetUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { renderPartySlotStrip } from '../utils/party-slot-strip.js';
 
 function extractCharaName(style) {
   const raw = String(style?.chara ?? '');
@@ -486,58 +487,12 @@ export class StylePickerController {
 
     strip.classList.remove('hidden');
     const { slots, slotIndex, mode } = this.#partyContext;
-
-    const slotBtn = (slot, i, rowMode) => {
-      const style = rowMode === 'main' ? slot.style : slot.supportStyle;
-      const imageUrl = style ? resolveStyleImageUrl(style) : '';
-      const isActive = i === slotIndex && rowMode === mode;
-      const supportUnavailable =
-        rowMode === 'support' && !(slot.style?.tier === 'SS' || slot.style?.tier === 'SSR');
-
-      // 煌めき条件（party-setup.js と統一）:
-      //   M行: メインが SSR
-      //   S行: メインが SSR かつサポートが共鳴アビリティ持ち（tier 問わず）
-      const ssrGlow =
-        rowMode === 'main'
-          ? slot.style?.tier === 'SSR'
-          : slot.style?.tier === 'SSR' && !!slot.supportStyle?.resonance;
-
-      const ringCls = isActive
-        ? 'ring-2 ring-red-500'
-        : ssrGlow
-        ? 'ring-2 ring-purple-400 hover:ring-purple-300 transition-all'
-        : 'ring-1 ring-gray-200 hover:ring-2 hover:ring-blue-300 transition-all';
-      const opacityCls = supportUnavailable ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
-
-      return `
-        <button data-strip-slot="${i}" data-strip-mode="${rowMode}"
-                ${supportUnavailable ? 'disabled' : ''}
-                title="スロット${i + 1} ${rowMode === 'main' ? 'メイン' : 'サポート'}${isActive ? '（編集中）' : ''}"
-                class="w-10 h-10 rounded overflow-hidden shrink-0 bg-gray-100
-                       flex items-center justify-center ${ringCls} ${opacityCls}">
-          ${imageUrl
-            ? `<img src="${imageUrl}" alt="" class="w-full h-full object-cover" />`
-            : `<span class="text-xs font-bold ${isActive ? 'text-red-500' : 'text-gray-300'}">${i + 1}</span>`
-          }
-        </button>
-      `;
-    };
-
-    const row = (rowMode, labelText) => `
-      <div class="flex items-center gap-1">
-        <span class="text-xs text-gray-400 font-bold shrink-0 leading-none" style="width:14px">${labelText}</span>
-        ${slots.slice(0, 3).map((s, i) => slotBtn(s, i, rowMode)).join('')}
-        <div class="w-px h-5 bg-gray-300 mx-0.5 shrink-0"></div>
-        ${slots.slice(3).map((s, i) => slotBtn(s, i + 3, rowMode)).join('')}
-      </div>
-    `;
-
-    strip.innerHTML = `
-      <div class="flex flex-col gap-1 px-2 py-1.5">
-        ${row('main', 'M')}
-        ${row('support', 'S')}
-      </div>
-    `;
+    strip.innerHTML = renderPartySlotStrip({
+      slots,
+      activeSlotIndex: slotIndex,
+      activeMode: mode,
+      variant: 'picker',
+    });
   }
 
   #syncContinuousButton() {
