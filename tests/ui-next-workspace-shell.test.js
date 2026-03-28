@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 import {
   applyPassiveLogOpenState,
   applySetupOpenState,
+  setToolbarButtonLabel,
 } from '../ui-next/utils/workspace-shell.js';
 
 function withDom(run) {
@@ -13,8 +14,8 @@ function withDom(run) {
       <main id="app"></main>
       <aside id="setup-area"></aside>
       <section id="passive-log-pane"></section>
-      <button id="toggle-setup"></button>
-      <button id="toggle-passive-log"></button>
+      <button id="toggle-setup"><span data-role="toolbar-icon"></span><span data-role="toolbar-label"></span></button>
+      <button id="toggle-passive-log"><span data-role="toolbar-icon"></span><span data-role="toolbar-label"></span></button>
     </body></html>`,
     { url: 'https://example.test/' },
   );
@@ -53,8 +54,10 @@ test('applySetupOpenState hides setup area and updates toggle label', () =>
 
     assert.equal(appRoot.dataset.setupOpen, 'false');
     assert.equal(setupArea.hidden, true);
-    assert.equal(toggleSetup.textContent, '設定を表示');
+    assert.equal(toggleSetup.querySelector('[data-role="toolbar-label"]').textContent, '設定を表示');
     assert.equal(toggleSetup.getAttribute('aria-expanded'), 'false');
+    assert.equal(toggleSetup.dataset.active, 'false');
+    assert.ok(toggleSetup.querySelector('[data-role="toolbar-icon"]'));
   }));
 
 test('applyPassiveLogOpenState disables toggle until rows exist', () =>
@@ -84,5 +87,15 @@ test('applyPassiveLogOpenState disables toggle until rows exist', () =>
     assert.equal(appRoot.dataset.passiveLogOpen, 'true');
     assert.equal(passiveLogPane.hidden, false);
     assert.equal(togglePassiveLog.disabled, false);
-    assert.equal(togglePassiveLog.textContent, 'ログを隠す');
+    assert.equal(togglePassiveLog.querySelector('[data-role="toolbar-label"]').textContent, 'ログを隠す');
+    assert.equal(togglePassiveLog.dataset.active, 'true');
+  }));
+
+test('setToolbarButtonLabel preserves icon markup when toolbar buttons have nested spans', () =>
+  withDom(({ toggleSetup }) => {
+    setToolbarButtonLabel(toggleSetup, 'JSON保存');
+
+    assert.equal(toggleSetup.querySelector('[data-role="toolbar-label"]').textContent, 'JSON保存');
+    assert.equal(toggleSetup.getAttribute('aria-label'), 'JSON保存');
+    assert.ok(toggleSetup.querySelector('[data-role="toolbar-icon"]'));
   }));

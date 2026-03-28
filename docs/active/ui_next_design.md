@@ -186,12 +186,15 @@
   - `targetSelection.enemyMode: 'simple' | 'manual'`
   - `targetSelection.allyMode: 'simple' | 'manual'`
 - この設定は replay や stage 状態ではなく、session-level の UI 設定として扱う
-- `Simulator Settings` には current session の JSON 保存 / 読込ボタンを置く
 - save/load の正本は `SessionSnapshotV1` とし、`setup / simulatorSettings / validationPolicy / replayScript` を保存する
 - `validationPolicy` は当面 permissive input を維持する箱としてのみ使い、既定値はすべて `true` とする
 - `captureUntilBattleEnd` は session-level option とし、ON のときは PNG 保存を最初の `battle end` 行までで打ち切る
 - PNG 保存対象は committed turn rows のみとし、未コミット入力行 / edit 行は含めない
 - PNG 保存時は右側の操作列を描画対象から外し、note / chip 列を詰めた capture 専用レイアウトを使う
+- current session の JSON 保存 / 読込は `Simulator Settings` 内ではなく上部 utility bar に置く
+- 上部 utility bar は desktop では icon + label、smartphone では icon-only に切り替える
+- `レイアウト` toggle は desktop 専用とし、smartphone では表示しない
+- utility bar の free icon は Heroicons（MIT）を採用する
 - PNG export は offscreen clone を正規ルートとし、live DOM を一時改変する in-place capture は採用しない
 - capture 専用の layout context は clone root に集約する
   - `container-type` / `container-name`

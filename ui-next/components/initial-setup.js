@@ -30,8 +30,6 @@ export class InitialSetupController {
   #hasRecords = false;
   #hasActiveBattle = false;
   #activeTab = 'party';
-  #onSaveSession;
-  #onLoadSession;
   #isApplyingSetupSnapshot = false;
 
   constructor({
@@ -40,16 +38,12 @@ export class InitialSetupController {
     store,
     onApply = null,
     onRecalculate = null,
-    onSaveSession = null,
-    onLoadSession = null,
   }) {
     this.#root = root;
     this.#pickerOverlay = pickerOverlay;
     this.#store = store;
     this.#onApply = onApply;
     this.#onRecalculate = onRecalculate;
-    this.#onSaveSession = onSaveSession;
-    this.#onLoadSession = onLoadSession;
   }
 
   /**
@@ -169,23 +163,6 @@ export class InitialSetupController {
                 </span>
               </span>
             </label>
-            <div class="space-y-2 border-t border-gray-200 pt-4">
-              <h3 class="font-bold text-gray-700">セッション</h3>
-              <button type="button"
-                      data-role="session-save-btn"
-                      class="w-full rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-sm font-medium text-sky-700 hover:bg-sky-100 transition-colors">
-                現在の行動レコードを JSON 保存
-              </button>
-              <button type="button"
-                      data-role="session-load-btn"
-                      class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                保存済み JSON を読み込む
-              </button>
-              <input type="file"
-                     data-role="session-load-input"
-                     accept="application/json,.json"
-                     hidden />
-            </div>
           </div>
         </div>
       </div>
@@ -242,29 +219,6 @@ export class InitialSetupController {
       });
     });
 
-    const saveBtn = this.#root.querySelector('[data-role="session-save-btn"]');
-    saveBtn?.addEventListener('click', () => {
-      this.#onSaveSession?.(this.getSetupSnapshot(this.#partySetup.getSnapshot()));
-    });
-
-    const loadInput = this.#root.querySelector('[data-role="session-load-input"]');
-    const loadBtn = this.#root.querySelector('[data-role="session-load-btn"]');
-    loadBtn?.addEventListener('click', () => {
-      loadInput?.click();
-    });
-    loadInput?.addEventListener('change', async () => {
-      const file = loadInput.files?.[0] ?? null;
-      if (!file) {
-        return;
-      }
-      try {
-        const text = await file.text();
-        this.#onLoadSession?.(text);
-      } finally {
-        loadInput.value = '';
-      }
-    });
-
   }
 
   /**
@@ -275,6 +229,14 @@ export class InitialSetupController {
       party: partySnapshot,
       simulatorSettings: this.getSimulatorSettings(),
     };
+  }
+
+  getCurrentSetupSnapshot() {
+    const partySnapshot = this.#partySetup?.getSnapshot();
+    if (!partySnapshot) {
+      throw new Error('Party Setup is not mounted.');
+    }
+    return this.getSetupSnapshot(partySnapshot);
   }
 
   getSimulatorSettings() {

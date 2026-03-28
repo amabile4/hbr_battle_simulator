@@ -208,7 +208,7 @@ test('InitialSetupController getSetupSnapshot returns split simulator target sel
     assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, true);
   }));
 
-test('InitialSetupController exposes session save/load controls in Simulator Settings', () =>
+test('InitialSetupController no longer exposes session save/load controls in Simulator Settings', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new InitialSetupController({
       root,
@@ -221,9 +221,9 @@ test('InitialSetupController exposes session save/load controls in Simulator Set
       .querySelector('[role="tab"][data-tab="simulator"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
-    assert.ok(root.querySelector('[data-role="session-save-btn"]'));
-    assert.ok(root.querySelector('[data-role="session-load-btn"]'));
-    assert.ok(root.querySelector('[data-role="session-load-input"]'));
+    assert.equal(root.querySelector('[data-role="session-save-btn"]'), null);
+    assert.equal(root.querySelector('[data-role="session-load-btn"]'), null);
+    assert.equal(root.querySelector('[data-role="session-load-input"]'), null);
   }));
 
 test('InitialSetupController applySetupSnapshot restores simulator toggles', () =>
@@ -252,6 +252,25 @@ test('InitialSetupController applySetupSnapshot restores simulator toggles', () 
     assert.equal(root.querySelector('[data-role="enemy-target-simplify-toggle"]').checked, false);
     assert.equal(root.querySelector('[data-role="ally-target-simplify-toggle"]').checked, true);
     assert.equal(root.querySelector('[data-role="capture-until-battle-end-toggle"]').checked, true);
+  }));
+
+test('InitialSetupController getCurrentSetupSnapshot returns party and simulator settings together', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+
+    assert.ok(snapshot.party);
+    assert.equal(
+      snapshot.simulatorSettings.targetSelection.enemyMode,
+      TARGET_SELECTION_MODES.SIMPLE,
+    );
+    assert.equal(snapshot.simulatorSettings.captureUntilBattleEnd, false);
   }));
 
 test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>

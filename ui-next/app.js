@@ -13,6 +13,7 @@ import { DEFAULT_VALIDATION_POLICY } from './utils/validation-policy.js';
 import {
   applyPassiveLogOpenState,
   applySetupOpenState,
+  setToolbarButtonLabel,
 } from './utils/workspace-shell.js';
 import { mountPngCaptureSandbox } from './utils/png-capture.js';
 
@@ -118,10 +119,12 @@ function applyTurnSlotLayoutMode(turnAreaRoot, toggleButton, mode) {
     turnAreaRoot.dataset.turnSlotLayout = normalizedMode;
   }
   if (toggleButton) {
-    toggleButton.textContent =
+    setToolbarButtonLabel(
+      toggleButton,
       normalizedMode === TURN_SLOT_LAYOUT_MODES.SPLIT
         ? 'レイアウト: 前衛2:1'
-        : 'レイアウト: 均等';
+        : 'レイアウト: 均等'
+    );
     toggleButton.title =
       normalizedMode === TURN_SLOT_LAYOUT_MODES.SPLIT
         ? 'TurnEdit は前衛66% / 後衛33% です'
@@ -170,6 +173,48 @@ function isCaptureUntilBattleEndEnabled() {
   return Boolean(
     document.querySelector('[data-role="capture-until-battle-end-toggle"]')?.checked ?? false
   );
+}
+
+function saveCurrentSession({ initialSetup, turnEngineManager }) {
+  const snapshot = initialSetup.getCurrentSetupSnapshot();
+  if (!snapshot?.party?.isFrontFilled) {
+    throw new Error('前衛3スロットを設定してください。');
+  }
+  const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
+  const replayScript = turnEngineManager.replayScript
+    ? structuredClone(turnEngineManager.replayScript)
+    : createEmptyLightweightReplayScript(replaySetup);
+  const sessionText = serializeSessionSnapshot({
+    setup: snapshot.party,
+    simulatorSettings: snapshot.simulatorSettings,
+    validationPolicy: turnEngineManager.validationPolicy ?? DEFAULT_VALIDATION_POLICY,
+    replayScript,
+  });
+  downloadTextFile(sessionText, makeSessionFilename());
+}
+
+function loadSessionText({
+  text,
+  initialSetup,
+  battleStateManager,
+  turnArea,
+}) {
+  const session = normalizeSessionSnapshot(JSON.parse(text));
+  initialSetup.applySetupSnapshot({
+    party: session.setup,
+    simulatorSettings: session.simulatorSettings,
+  });
+  const state = battleStateManager.buildFromSnapshot(session.setup);
+  turnArea.loadSession(
+    state,
+    session.replayScript,
+    session.simulatorSettings,
+    session.validationPolicy,
+  );
+  initialSetup.setHasActiveBattle(true);
+  initialSetup.setHasRecords(session.replayScript.turns.length > 0);
+  window.collapseSetup?.();
+  showStatus(`セッションを読み込みました (${session.replayScript.turns.length} turns).`);
 }
 
 function setupWorkspaceShell() {
@@ -233,7 +278,7 @@ function setupWorkspaceShell() {
 
   captureButton?.addEventListener('click', async () => {
     captureButton.disabled = true;
-    captureButton.textContent = '保存中...';
+    setToolbarButtonLabel(captureButton, '保存中...');
     try {
       const { toPng } = await getHtmlToImage();
       const { target, meta, cleanup } = mountPngCaptureSandbox(turnAreaRoot, {
@@ -274,7 +319,7 @@ function setupWorkspaceShell() {
       showStatus(`キャプチャエラー: ${error.message}`, 'error');
     } finally {
       captureButton.disabled = false;
-      captureButton.textContent = 'PNG保存';
+      setToolbarButtonLabel(captureButton, 'PNG保存');
     }
   });
 
@@ -296,6 +341,11 @@ function setupWorkspaceShell() {
         open: passiveLogOpen,
         hasRows,
       });
+    },
+    buttons: {
+      sessionSave: document.querySelector('#session-save-btn'),
+      sessionLoad: document.querySelector('#session-load-btn'),
+      sessionLoadInput: document.querySelector('#session-load-input'),
     },
   };
 }
@@ -370,53 +420,46 @@ async function main() {
         console.error(err);
       }
     },
-    onSaveSession: (snapshot) => {
-      try {
-        if (!snapshot?.party?.isFrontFilled) {
-          throw new Error('前衛3スロットを設定してください。');
-        }
-        const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
-        const replayScript = turnEngineManager.replayScript
-          ? structuredClone(turnEngineManager.replayScript)
-          : createEmptyLightweightReplayScript(replaySetup);
-        const sessionText = serializeSessionSnapshot({
-          setup: snapshot.party,
-          simulatorSettings: snapshot.simulatorSettings,
-          validationPolicy: turnEngineManager.validationPolicy ?? DEFAULT_VALIDATION_POLICY,
-          replayScript,
-        });
-        downloadTextFile(sessionText, makeSessionFilename());
-        showStatus('セッション JSON を保存しました。');
-      } catch (err) {
-        showStatus(`保存エラー: ${err.message}`);
-        console.error(err);
-      }
-    },
-    onLoadSession: (text) => {
-      try {
-        const session = normalizeSessionSnapshot(JSON.parse(text));
-        initialSetup.applySetupSnapshot({
-          party: session.setup,
-          simulatorSettings: session.simulatorSettings,
-        });
-        const state = battleStateManager.buildFromSnapshot(session.setup);
-        turnArea.loadSession(
-          state,
-          session.replayScript,
-          session.simulatorSettings,
-          session.validationPolicy,
-        );
-        initialSetup.setHasActiveBattle(true);
-        initialSetup.setHasRecords(session.replayScript.turns.length > 0);
-        window.collapseSetup?.();
-        showStatus(`セッションを読み込みました (${session.replayScript.turns.length} turns).`);
-      } catch (err) {
-        showStatus(`読込エラー: ${err.message}`);
-        console.error(err);
-      }
-    },
   });
   initialSetup.mount();
+
+  workspaceShell.buttons.sessionSave?.addEventListener('click', () => {
+    try {
+      saveCurrentSession({
+        initialSetup,
+        turnEngineManager,
+      });
+      showStatus('セッション JSON を保存しました。');
+    } catch (err) {
+      showStatus(`保存エラー: ${err.message}`);
+      console.error(err);
+    }
+  });
+
+  workspaceShell.buttons.sessionLoad?.addEventListener('click', () => {
+    workspaceShell.buttons.sessionLoadInput?.click();
+  });
+
+  workspaceShell.buttons.sessionLoadInput?.addEventListener('change', async () => {
+    const file = workspaceShell.buttons.sessionLoadInput.files?.[0] ?? null;
+    if (!file) {
+      return;
+    }
+    try {
+      const text = await file.text();
+      loadSessionText({
+        text,
+        initialSetup,
+        battleStateManager,
+        turnArea,
+      });
+    } catch (err) {
+      showStatus(`読込エラー: ${err.message}`);
+      console.error(err);
+    } finally {
+      workspaceShell.buttons.sessionLoadInput.value = '';
+    }
+  });
 }
 
 /**
