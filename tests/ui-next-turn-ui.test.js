@@ -559,7 +559,10 @@ test('TurnAreaController surfaces recommit warnings in the status summary and co
     root.querySelector('[data-role="recommit-btn"]').click();
 
     assert.equal(engineManager.replayDiagnostics.turnWarnings[0].length > 0, true);
-    assert.match(root.querySelector('[data-role="turn-replay-status"]').textContent, /warnings=[1-9]/);
+    const statusEl = document.querySelector('[data-role="turn-replay-status"]');
+    assert.ok(statusEl);
+    assert.equal(root.contains(statusEl), false);
+    assert.match(statusEl.textContent, /warnings=[1-9]/);
     assert.match(root.querySelector('[data-turn-info]').textContent, /Warn\(/);
   }));
 
@@ -865,11 +868,17 @@ test('TurnRowController keeps skill badges stable near the responsive threshold 
     const infoSpace = root.querySelector('[data-slot-info-space][data-position="0"]');
     const targetAnchor = root.querySelector('[data-role="slot-target-anchor"][data-position="0"]');
     const trigger = root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]');
-    let width = 91;
+    let rowWidth = 152;
+    Object.defineProperty(selectRow, 'offsetWidth', {
+      configurable: true,
+      get() {
+        return rowWidth;
+      },
+    });
     Object.defineProperty(select, 'offsetWidth', {
       configurable: true,
       get() {
-        return width;
+        return rowWidth;
       },
     });
 
@@ -885,19 +894,19 @@ test('TurnRowController keeps skill badges stable near the responsive threshold 
     row.refreshSkillSelects();
     assert.notEqual(badgeEl.style.display, 'none');
 
-    width = 83;
+    rowWidth = 144;
     row.refreshSkillSelects();
     assert.notEqual(badgeEl.style.display, 'none');
 
-    width = 81;
+    rowWidth = 140;
     row.refreshSkillSelects();
     assert.equal(badgeEl.style.display, 'none');
 
-    width = 95;
+    rowWidth = 154;
     row.refreshSkillSelects();
     assert.equal(badgeEl.style.display, 'none');
 
-    width = 99;
+    rowWidth = 158;
     row.refreshSkillSelects();
     assert.notEqual(badgeEl.style.display, 'none');
     assert.ok(infoSpace.contains(root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')));

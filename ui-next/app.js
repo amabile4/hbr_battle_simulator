@@ -69,6 +69,55 @@ function makeSessionFilename() {
   return `ui_next_session_${stamp}.json`;
 }
 
+const TURN_SLOT_LAYOUT_MODES = Object.freeze({
+  BALANCED: 'balanced',
+  SPLIT: 'split',
+});
+
+const TURN_SLOT_LAYOUT_STORAGE_KEY = 'ui-next-turn-slot-layout';
+
+function normalizeTurnSlotLayoutMode(mode) {
+  return mode === TURN_SLOT_LAYOUT_MODES.SPLIT
+    ? TURN_SLOT_LAYOUT_MODES.SPLIT
+    : TURN_SLOT_LAYOUT_MODES.BALANCED;
+}
+
+function readStoredTurnSlotLayoutMode() {
+  try {
+    return normalizeTurnSlotLayoutMode(window.localStorage?.getItem(TURN_SLOT_LAYOUT_STORAGE_KEY));
+  } catch {
+    return TURN_SLOT_LAYOUT_MODES.BALANCED;
+  }
+}
+
+function writeStoredTurnSlotLayoutMode(mode) {
+  try {
+    window.localStorage?.setItem(
+      TURN_SLOT_LAYOUT_STORAGE_KEY,
+      normalizeTurnSlotLayoutMode(mode)
+    );
+  } catch {
+    // localStorage が利用できない環境では永続化を諦める
+  }
+}
+
+function applyTurnSlotLayoutMode(turnAreaRoot, toggleButton, mode) {
+  const normalizedMode = normalizeTurnSlotLayoutMode(mode);
+  if (turnAreaRoot) {
+    turnAreaRoot.dataset.turnSlotLayout = normalizedMode;
+  }
+  if (toggleButton) {
+    toggleButton.textContent =
+      normalizedMode === TURN_SLOT_LAYOUT_MODES.SPLIT ? '↔ 前衛2:1' : '↔ 均等';
+    toggleButton.title =
+      normalizedMode === TURN_SLOT_LAYOUT_MODES.SPLIT
+        ? 'TurnEdit は前衛66% / 後衛33% です'
+        : 'TurnEdit は前後衛均等幅です';
+  }
+  writeStoredTurnSlotLayoutMode(normalizedMode);
+  return normalizedMode;
+}
+
 async function main() {
   const payload = {
     characters: await fetchJson('../json/characters.json'),
@@ -89,8 +138,23 @@ async function main() {
   // initialSetup は turnArea の onTurnCommitted から参照するため let で先行宣言する
   let initialSetup;
 
+  const turnAreaRoot = document.querySelector('#turn-area');
+  const turnLayoutToggleButton = document.querySelector('#toggle-turn-layout');
+  let currentTurnSlotLayoutMode = applyTurnSlotLayoutMode(
+    turnAreaRoot,
+    turnLayoutToggleButton,
+    readStoredTurnSlotLayoutMode()
+  );
+  turnLayoutToggleButton?.addEventListener('click', () => {
+    currentTurnSlotLayoutMode =
+      currentTurnSlotLayoutMode === TURN_SLOT_LAYOUT_MODES.SPLIT
+        ? TURN_SLOT_LAYOUT_MODES.BALANCED
+        : TURN_SLOT_LAYOUT_MODES.SPLIT;
+    applyTurnSlotLayoutMode(turnAreaRoot, turnLayoutToggleButton, currentTurnSlotLayoutMode);
+  });
+
   const turnArea = new TurnAreaController({
-    root: document.querySelector('#turn-area'),
+    root: turnAreaRoot,
     store,
     engineManager: turnEngineManager,
     onError: (err) => showStatus(`ターン実行エラー: ${err.message}`),

@@ -124,6 +124,47 @@
 #turn-area {
   container-type: inline-size;
   container-name: turn-area;
+  --turn-info-width: 8rem;
+  --turn-info-header-font-size: 0.875rem;
+  --turn-info-sequence-font-size: 0.75rem;
+  --turn-info-enemy-font-size: 0.8125rem;
+  --turn-info-enemy-select-font-size: 0.8125rem;
+  --turn-info-enemy-select-height: 1.5rem;
+  --turn-slot-icon-size: 3.5rem;
+  --turn-skill-badge-icon-size: 1.25rem;
+  --turn-slot-select-font-size: 0.8125rem;
+  --turn-slot-select-min-height: 1.7rem;
+  --turn-slot-select-gap: 0.25rem;
+  --turn-slot-select-padding-x: 0.25rem;
+  --turn-slot-select-padding-top: 0;
+  --turn-slot-body-padding: 0.375rem;
+  --turn-slot-body-gap: 0.375rem;
+  --turn-slot-footer-gap: 0.5rem;
+  --turn-slot-footer-padding-x: 0.25rem;
+  --turn-slot-info-min-height: 1.125rem;
+  --turn-slot-label-font-size: 0.8125rem;
+  --turn-slot-label-min-height: 1.5rem;
+  --turn-sp-badge-font-size: 1rem;
+  --turn-sp-badge-min-width: 1.75rem;
+  --turn-sp-badge-padding-x: 0.35rem;
+  --turn-sp-badge-padding-y: 0.125rem;
+  --turn-turn-gauge-font-size: 0.75rem;
+  --turn-token-dot-size: 0.4375rem;
+  --turn-token-gap: 0.125rem;
+  --turn-token-padding: 0.1875rem;
+  --turn-token-border-width: 0.0625rem;
+  --turn-token-active-border-width: 0.125rem;
+  --turn-token-shadow-blur: 0.1875rem;
+  --turn-morale-icon-size: 1rem;
+  --turn-morale-dot-size: 0.5625rem;
+  --turn-morale-dot-gap: 0.125rem;
+  --turn-buff-icon-size: 1rem;
+  --turn-od-color-minus: #dc2626;
+  --turn-od-color-1: #f59ed8;
+  --turn-od-color-2: #86e7a0;
+  --turn-od-color-3: #eef779;
+  --turn-od-track-color: #475569;
+  --turn-od-track-inner-color: rgba(255, 255, 255, 0.12);
 }
 
 /* 前衛:後衛 flex 比率 — デフォルト 2:1（後衛が先に詰まる） */
@@ -138,6 +179,337 @@
 
 /* 情報スペース高さ — アイコンに連動（バフ/デバフ用余白として min-height のみ保持） */
 [data-slot-info-space] { min-height: 1rem; }
+
+[data-turn-info] { width: var(--turn-info-width); }
+[data-turn-od-gauge] { font-size: var(--turn-turn-gauge-font-size); }
+.turn-info-panel {
+  background:
+    linear-gradient(180deg, #f1f7ff 0%, #dbeafe 100%);
+  box-shadow:
+    inset 0.1875rem 0 0 #93c5fd,
+    inset -1px 0 0 rgba(255, 255, 255, 0.75);
+}
+.turn-info-stack {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.turn-info-header {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.25rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.85),
+    0 1px 2px rgba(148,163,184,0.16);
+  padding: 0.2rem 0.3rem;
+  font-size: var(--turn-info-header-font-size);
+  font-weight: 800;
+  line-height: 1;
+  color: #0f172a;
+}
+.turn-info-sequence {
+  font-size: var(--turn-info-sequence-font-size);
+  font-weight: 700;
+  color: #64748b;
+}
+.turn-info-marker {
+  font-weight: 800;
+}
+.turn-info-marker-od {
+  color: #6d28d9;
+}
+.turn-info-marker-ex {
+  color: #b45309;
+}
+.turn-info-status-chip {
+  display: inline-flex;
+  min-height: 0.875rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  padding: 0.03125rem 0.1875rem;
+  font-size: 0.5625rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.turn-info-status-chip-edit {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.turn-info-status-chip-warning {
+  border-color: #fcd34d;
+  background: #fef3c7;
+  color: #b45309;
+}
+.turn-info-status-chip-error {
+  border-color: #fca5a5;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.turn-info-enemy-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  padding: 0 0.0625rem;
+  font-size: var(--turn-info-enemy-font-size);
+  line-height: 1;
+  color: #475569;
+}
+.turn-info-enemy-label {
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+.turn-info-enemy-select {
+  min-height: var(--turn-info-enemy-select-height);
+  border: 1px solid #cbd5e1;
+  border-radius: 0.375rem;
+  background: #ffffff;
+  padding: 0 0.35rem;
+  font-size: var(--turn-info-enemy-select-font-size);
+  font-weight: 700;
+  line-height: 1;
+  color: #111827;
+}
+.turn-info-enemy-select:disabled {
+  color: #475569;
+  background: #f8fafc;
+}
+[data-turn-slot-icon] {
+  width: var(--turn-slot-icon-size);
+  height: var(--turn-slot-icon-size);
+}
+[data-sp-badge] {
+  font-size: var(--turn-sp-badge-font-size);
+  min-width: var(--turn-sp-badge-min-width);
+  padding: var(--turn-sp-badge-padding-y) var(--turn-sp-badge-padding-x);
+}
+[data-role="slot-select-row"] {
+  gap: var(--turn-slot-select-gap);
+  padding-left: var(--turn-slot-select-padding-x);
+  padding-right: var(--turn-slot-select-padding-x);
+  padding-top: var(--turn-slot-select-padding-top);
+}
+[data-turn-slot] [data-skill-select] {
+  font-size: var(--turn-slot-select-font-size);
+  min-height: var(--turn-slot-select-min-height);
+}
+[data-role="slot-body"] {
+  padding: var(--turn-slot-body-padding);
+  gap: var(--turn-slot-body-gap);
+}
+[data-role="slot-footer"] {
+  gap: var(--turn-slot-footer-gap);
+  padding-left: var(--turn-slot-footer-padding-x);
+  padding-right: var(--turn-slot-footer-padding-x);
+}
+[data-slot-info-space] { min-height: var(--turn-slot-info-min-height); }
+[data-role="slot-state-label"] {
+  font-size: var(--turn-slot-label-font-size);
+  min-height: var(--turn-slot-label-min-height);
+  display: flex;
+  align-items: center;
+}
+.turn-skill-badge-icon {
+  width: var(--turn-skill-badge-icon-size);
+  height: var(--turn-skill-badge-icon-size);
+}
+
+.turn-od-gauge-track {
+  position: relative;
+  flex: 1;
+  height: 0.7rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.45),
+    inset 0 0 0 3px var(--turn-od-track-inner-color),
+    0 0 0 1px rgba(148,163,184,0.35);
+}
+
+.turn-od-gauge-track-minus {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.08)),
+    #334155;
+}
+
+.turn-od-gauge-track-od0 {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.08)),
+    var(--turn-od-track-color);
+}
+
+.turn-od-gauge-track-od1 {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.08)),
+    var(--turn-od-color-1);
+}
+
+.turn-od-gauge-track-od2 {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.08)),
+    var(--turn-od-color-2);
+}
+
+.turn-od-gauge-track-od3 {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.08)),
+    var(--turn-od-color-3);
+}
+
+.turn-od-gauge-fill {
+  position: absolute;
+  top: 0.125rem;
+  bottom: 0.125rem;
+  right: 0;
+  border-radius: 9999px;
+}
+
+.turn-od-gauge-stack {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.3125rem;
+}
+
+.turn-od-gauge-row {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.1875rem;
+}
+
+.turn-od-gauge-row-value-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.turn-od-gauge-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #334155;
+  letter-spacing: -0.02em;
+}
+
+.turn-od-gauge-visual {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0;
+}
+
+.turn-od-gauge-arrow {
+  align-self: center;
+  width: 1.3rem;
+  height: 0.55rem;
+  background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  filter: drop-shadow(0 1px 1px rgba(148, 163, 184, 0.45));
+}
+
+.turn-od-gauge-fill-minus {
+  background: linear-gradient(90deg, #ef4444, var(--turn-od-color-minus));
+  box-shadow: 0 0 10px rgba(220,38,38,0.45);
+}
+
+.turn-od-gauge-fill-od0 {
+  background: linear-gradient(90deg, #f8b4dd, var(--turn-od-color-1));
+  box-shadow: 0 0 10px rgba(245,158,216,0.45);
+}
+
+.turn-od-gauge-fill-od1 {
+  background: linear-gradient(90deg, #bef4cc, var(--turn-od-color-2));
+  box-shadow: 0 0 10px rgba(134,231,160,0.45);
+}
+
+.turn-od-gauge-fill-od2 {
+  background: linear-gradient(90deg, #f8f6a4, var(--turn-od-color-3));
+  box-shadow: 0 0 10px rgba(238,247,121,0.45);
+}
+
+.turn-od-gauge-fill-od3 {
+  background: linear-gradient(90deg, #f8f6a4, var(--turn-od-color-3));
+  box-shadow: 0 0 10px rgba(238,247,121,0.45);
+}
+
+.turn-od-stage-badge {
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+  margin-left: -0.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(255,255,255,0.65);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(15,23,42,0.55);
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,0.18),
+    0 0 0 1px rgba(148,163,184,0.35);
+  position: relative;
+  z-index: 1;
+}
+
+.turn-od-stage-minus {
+  background: radial-gradient(circle at 35% 30%, #fb7185, #991b1b 70%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,0.2),
+    0 0 0 1px rgba(127,29,29,0.4),
+    0 0 12px rgba(220,38,38,0.45);
+}
+
+.turn-od-stage-od0 {
+  background: radial-gradient(circle at 35% 30%, #f8fafc, #94a3b8 70%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,0.18),
+    0 0 0 1px rgba(100,116,139,0.35),
+    0 0 10px rgba(148,163,184,0.35);
+}
+
+.turn-od-stage-od1 {
+  background: radial-gradient(circle at 35% 30%, #f9c2e6, #ec4899 70%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,0.2),
+    0 0 0 1px rgba(190,24,93,0.35),
+    0 0 12px rgba(245,158,216,0.45);
+}
+
+.turn-od-stage-od2 {
+  background: radial-gradient(circle at 35% 30%, #d6f9df, #22c55e 70%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,0.2),
+    0 0 0 1px rgba(34,197,94,0.35),
+    0 0 12px rgba(134,231,160,0.45);
+}
+
+.turn-od-stage-od3 {
+  color: #5b4500;
+  text-shadow: none;
+  background: radial-gradient(circle at 35% 30%, #fff8bf, #facc15 70%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,0.22),
+    0 0 0 1px rgba(202,138,4,0.35),
+    0 0 12px rgba(250,204,21,0.45);
+}
 
 /* ============================================================
    狭い画面（< 480px）: 2行レイアウト
@@ -160,6 +532,12 @@
     padding: 0.25rem 0.5rem;
     border-right: none !important;
     border-bottom: 1px solid #e5e7eb;
+  }
+  .turn-info-stack {
+    gap: 0.1875rem;
+  }
+  .turn-info-header {
+    padding: 0.1875rem 0.3125rem;
   }
 
   /* OD ゲージ: フォントをさらに縮小 */
@@ -198,18 +576,104 @@
 
 /* 560px 以上: アイコン 48px、比率 2:1 維持 */
 @container turn-area (min-width: 560px) {
-  [data-turn-slot-icon]  { width: 3rem; height: 3rem; }
-  [data-sp-badge]        { font-size: 1rem; }
-  [data-slot-info-space] { min-height: 1rem; }
+  [data-role="turn-row-list"] {
+    --turn-info-width: 8.25rem;
+    --turn-info-header-font-size: 0.9375rem;
+    --turn-info-sequence-font-size: 0.8125rem;
+    --turn-info-enemy-font-size: 0.875rem;
+    --turn-info-enemy-select-font-size: 0.875rem;
+    --turn-info-enemy-select-height: 1.625rem;
+    --turn-slot-icon-size: 4.25rem;
+    --turn-skill-badge-icon-size: 1.375rem;
+    --turn-slot-select-font-size: 0.875rem;
+    --turn-slot-select-min-height: 1.85rem;
+    --turn-slot-body-padding: 0.4375rem;
+    --turn-slot-body-gap: 0.4375rem;
+    --turn-slot-footer-gap: 0.625rem;
+    --turn-slot-info-min-height: 1.25rem;
+    --turn-slot-label-font-size: 0.875rem;
+    --turn-slot-label-min-height: 1.625rem;
+    --turn-sp-badge-font-size: 1.125rem;
+    --turn-sp-badge-min-width: 1.9rem;
+    --turn-turn-gauge-font-size: 0.8125rem;
+    --turn-token-dot-size: 0.5rem;
+    --turn-token-padding: 0.25rem;
+    --turn-token-shadow-blur: 0.25rem;
+    --turn-morale-icon-size: 1.125rem;
+    --turn-morale-dot-size: 0.625rem;
+    --turn-buff-icon-size: 1.1875rem;
+  }
 }
 
 /* 720px 以上: アイコン 64px、均等 6 等分 */
 @container turn-area (min-width: 720px) {
   [data-turn-front-group] { flex: 1; }
   [data-turn-back-group]  { flex: 1; }
-  [data-turn-slot-icon]   { width: 4rem; height: 4rem; }
-  [data-sp-badge]         { font-size: 1.25rem; }
-  [data-slot-info-space]  { min-height: 1rem; }
+  [data-role="turn-row-list"] {
+    --turn-info-width: 8.5rem;
+    --turn-info-header-font-size: 1rem;
+    --turn-info-sequence-font-size: 0.875rem;
+    --turn-info-enemy-font-size: 0.9375rem;
+    --turn-info-enemy-select-font-size: 0.9375rem;
+    --turn-info-enemy-select-height: 1.75rem;
+    --turn-slot-icon-size: 5.25rem;
+    --turn-skill-badge-icon-size: 1.5rem;
+    --turn-slot-select-font-size: 0.9375rem;
+    --turn-slot-select-min-height: 2rem;
+    --turn-slot-select-gap: 0.3125rem;
+    --turn-slot-select-padding-x: 0.3125rem;
+    --turn-slot-select-padding-top: 0;
+    --turn-slot-body-padding: 0.5rem;
+    --turn-slot-body-gap: 0.5rem;
+    --turn-slot-footer-gap: 0.75rem;
+    --turn-slot-footer-padding-x: 0.3125rem;
+    --turn-slot-info-min-height: 1.5rem;
+    --turn-slot-label-font-size: 0.9375rem;
+    --turn-slot-label-min-height: 1.875rem;
+    --turn-sp-badge-font-size: 1.375rem;
+    --turn-sp-badge-min-width: 2.25rem;
+    --turn-sp-badge-padding-x: 0.45rem;
+    --turn-turn-gauge-font-size: 0.875rem;
+    --turn-token-dot-size: 0.625rem;
+    --turn-token-gap: 0.15625rem;
+    --turn-token-padding: 0.25rem;
+    --turn-token-border-width: 0.078125rem;
+    --turn-token-active-border-width: 0.15625rem;
+    --turn-token-shadow-blur: 0.25rem;
+    --turn-morale-icon-size: 1.25rem;
+    --turn-morale-dot-size: 0.75rem;
+    --turn-morale-dot-gap: 0.15625rem;
+    --turn-buff-icon-size: 1.5rem;
+  }
+}
+
+@container turn-area (min-width: 960px) {
+  [data-role="turn-row-list"] {
+    --turn-info-width: 8.75rem;
+    --turn-info-header-font-size: 1.0625rem;
+    --turn-info-sequence-font-size: 0.9375rem;
+    --turn-info-enemy-font-size: 1rem;
+    --turn-info-enemy-select-font-size: 1rem;
+    --turn-info-enemy-select-height: 1.875rem;
+    --turn-slot-icon-size: 5.75rem;
+    --turn-skill-badge-icon-size: 1.625rem;
+    --turn-slot-select-font-size: 1rem;
+    --turn-slot-select-min-height: 2.125rem;
+    --turn-sp-badge-font-size: 1.5rem;
+    --turn-sp-badge-min-width: 2.4rem;
+    --turn-turn-gauge-font-size: 0.9375rem;
+    --turn-token-dot-size: 0.6875rem;
+    --turn-morale-icon-size: 1.375rem;
+    --turn-morale-dot-size: 0.8125rem;
+    --turn-buff-icon-size: 1.625rem;
+  }
+}
+
+@container turn-area (min-width: 720px) {
+  #turn-area[data-turn-slot-layout="split"] [data-turn-front-group] { flex: 2; }
+  #turn-area[data-turn-slot-layout="split"] [data-turn-back-group]  { flex: 1; }
+  #turn-area[data-turn-slot-layout="balanced"] [data-turn-front-group] { flex: 1; }
+  #turn-area[data-turn-slot-layout="balanced"] [data-turn-back-group]  { flex: 1; }
 }
 
 /* ============================================================
@@ -245,28 +709,28 @@
    ============================================================ */
 .token-grid {
   display: grid;
-  grid-template-columns: repeat(5, 6px);
-  grid-template-rows: repeat(2, 6px);
-  gap: 1.5px;
-  padding: 2px;
+  grid-template-columns: repeat(5, var(--turn-token-dot-size));
+  grid-template-rows: repeat(2, var(--turn-token-dot-size));
+  gap: var(--turn-token-gap);
+  padding: var(--turn-token-padding);
 }
 /* inactive: 薄い赤枠・中は透明 */
 .token-dot {
-  width: 6px;
-  height: 6px;
+  width: var(--turn-token-dot-size);
+  height: var(--turn-token-dot-size);
   border-radius: 50%;
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  border: var(--turn-token-border-width) solid rgba(220, 38, 38, 0.3);
   background: transparent;
 }
 /* active: 赤枠・中は白抜き */
 .token-dot.active {
-  border: 2.5px solid #dc2626;
+  border: var(--turn-token-active-border-width) solid #dc2626;
   background: #ffffff;
-  box-shadow: 0 0 3px rgba(220, 38, 38, 0.6);
+  box-shadow: 0 0 var(--turn-token-shadow-blur) rgba(220, 38, 38, 0.6);
 }
 /* afterglow: active の直後、薄い赤枠＋薄い白 */
 .token-dot.afterglow {
-  border: 1px solid rgba(220, 38, 38, 0.5);
+  border: var(--turn-token-border-width) solid rgba(220, 38, 38, 0.5);
   background: rgba(255, 255, 255, 0.3);
 }
 
@@ -280,30 +744,30 @@
   gap: 1px;
 }
 .morale-icon {
-  width: 14px;
-  height: 14px;
+  width: var(--turn-morale-icon-size);
+  height: var(--turn-morale-icon-size);
   object-fit: contain;
   display: block;
 }
 .morale-dots {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: var(--turn-morale-dot-gap);
   align-items: center;
   margin-top: 1px;
 }
 /* 白丸: 5士気を表す（赤枠・白抜き） */
 .morale-dot-white {
-  width: 8px;
-  height: 8px;
+  width: var(--turn-morale-dot-size);
+  height: var(--turn-morale-dot-size);
   border-radius: 50%;
   border: 1.5px solid #dc2626;
   background: #ffffff;
 }
 /* 赤丸: 1士気を表す（赤塗り） */
 .morale-dot-red {
-  width: 8px;
-  height: 8px;
+  width: var(--turn-morale-dot-size);
+  height: var(--turn-morale-dot-size);
   border-radius: 50%;
   background: #dc2626;
 }
@@ -336,19 +800,11 @@
 
 /* デフォルト: 13px（スロットアイコン 40px の 1/3） */
 .buff-icon {
-  width: 13px;
-  height: 13px;
+  width: var(--turn-buff-icon-size);
+  height: var(--turn-buff-icon-size);
   object-fit: contain;
   display: block;
   flex-shrink: 0;
-}
-
-@container turn-area (min-width: 560px) {
-  .buff-icon { width: 16px; height: 16px; } /* 48px の 1/3 */
-}
-
-@container turn-area (min-width: 720px) {
-  .buff-icon { width: 21px; height: 21px; } /* 64px の 1/3 */
 }
 
 /* ポップオーバーのレスポンシブ配置（ビューポート外はみ出し防止） */

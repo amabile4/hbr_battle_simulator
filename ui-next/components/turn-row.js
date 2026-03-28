@@ -42,14 +42,20 @@ import {
   normalizeSimulatorSettings,
 } from '../utils/simulator-settings.js';
 
-// select 幅の閾値（px）：スキルバッジ・SPコスト表示の切り替えに使用
-const BADGE_MIN_SELECT_WIDTH = 90;
-const COST_MIN_SELECT_WIDTH  = 60;
+// select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
+// 属性/武器種バッジと SP コストを段階的に隠す。
+const BADGE_MIN_SELECT_WIDTH = 108;
+const COST_MIN_SELECT_WIDTH  = 88;
 const WIDTH_VISIBILITY_HYSTERESIS_PX = 8;
 const BADGE_SHOW_MIN_SELECT_WIDTH = BADGE_MIN_SELECT_WIDTH + WIDTH_VISIBILITY_HYSTERESIS_PX;
 const BADGE_HIDE_MIN_SELECT_WIDTH = BADGE_MIN_SELECT_WIDTH - WIDTH_VISIBILITY_HYSTERESIS_PX;
 const COST_SHOW_MIN_SELECT_WIDTH = COST_MIN_SELECT_WIDTH + WIDTH_VISIBILITY_HYSTERESIS_PX;
 const COST_HIDE_MIN_SELECT_WIDTH = COST_MIN_SELECT_WIDTH - WIDTH_VISIBILITY_HYSTERESIS_PX;
+const RESPONSIVE_BADGE_ICON_SIZE_FALLBACK_PX = 20;
+const RESPONSIVE_BADGE_COLUMN_GAP_FALLBACK_PX = 1;
+const OD_GAUGE_BAR_MIN = 0;
+const OD_GAUGE_BAR_MAX = 300;
+const OD_GAUGE_BAND_SIZE = 100;
 
 const ATTACK_TYPE_MAP = {
   Slash:  { img: resolveUiAssetUrl('Slash.webp'),  alt: '斬' },
@@ -91,6 +97,11 @@ function formatOdGauge(value) {
     return '-' + Math.abs(num).toFixed(2).padStart(6, '0') + '%';
   }
   return num.toFixed(2).padStart(6, '0') + '%';
+}
+
+function normalizeOdGaugeNumber(value, fallback = 0) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
 }
 
 /**
@@ -848,14 +859,14 @@ export class TurnRowController {
         ${this.#operations.map((operation, index) => `
           <span data-role="operation-chip"
                 data-operation-index="${index}"
-                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getReplayOperationTone(operation)}">
+                class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold leading-tight ${getReplayOperationTone(operation)}">
             <span>${getReplayOperationDisplayLabel(operation)}</span>
             ${canRemove
               ? `
                 <button type="button"
                         data-role="operation-chip-remove"
                         data-operation-index="${index}"
-                        class="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/80 text-[10px] leading-none hover:bg-white"
+                        class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 text-[11px] leading-none hover:bg-white"
                         aria-label="${getReplayOperationDisplayLabel(operation)} を削除">×</button>
               `
               : ''}
@@ -872,11 +883,11 @@ export class TurnRowController {
    */
   updateOdPreview(odGaugeAfter) {
     this.#previewOdGaugeAfter = Number.isFinite(Number(odGaugeAfter)) ? Number(odGaugeAfter) : null;
-    const el = this.#root.querySelector('[data-od-after]');
-    if (!el) return;
-    el.textContent = odGaugeAfter != null
-      ? `→${formatOdGauge(odGaugeAfter)}`
-      : '→ —';
+    const valueEl = this.#root.querySelector('[data-od-gauge-row="end"] [data-role="turn-od-gauge-value"]');
+    if (valueEl) {
+      valueEl.textContent = odGaugeAfter != null ? formatOdGauge(odGaugeAfter) : '—';
+    }
+    this.#syncOdGaugeGraph(odGaugeAfter);
   }
 
   // ---- private ----
@@ -937,9 +948,111 @@ export class TurnRowController {
     )];
     if (types.length === 0 && elems.length === 0) return '';
     return [
-      ...types.map((t) => `<img src="${ATTACK_TYPE_MAP[t].img}" alt="${ATTACK_TYPE_MAP[t].alt}" class="w-6 h-6 object-contain" />`),
-      ...elems.map((e) => `<img src="${ELEMENT_MAP[e].img}" alt="${ELEMENT_MAP[e].alt}" class="w-6 h-6 object-contain" />`),
+      ...types.map((t) => `<img src="${ATTACK_TYPE_MAP[t].img}" alt="${ATTACK_TYPE_MAP[t].alt}" class="turn-skill-badge-icon object-contain" />`),
+      ...elems.map((e) => `<img src="${ELEMENT_MAP[e].img}" alt="${ELEMENT_MAP[e].alt}" class="turn-skill-badge-icon object-contain" />`),
     ].join('');
+  }
+
+  #resolveOdGaugeStage(value) {
+    const numericValue = normalizeOdGaugeNumber(value);
+    if (numericValue < 0) {
+      return { key: 'minus', label: '-' };
+    }
+    if (numericValue < OD_GAUGE_BAND_SIZE) {
+      return { key: 'od0', label: '0' };
+    }
+    if (numericValue < OD_GAUGE_BAND_SIZE * 2) {
+      return { key: 'od1', label: '1' };
+    }
+    if (numericValue < OD_GAUGE_BAR_MAX) {
+      return { key: 'od2', label: '2' };
+    }
+    return { key: 'od3', label: '3' };
+  }
+
+  #computeFoldedOdGaugeFillPercent(value) {
+    const numericValue = normalizeOdGaugeNumber(value);
+    if (numericValue >= 0) {
+      const clampedValue = Math.min(OD_GAUGE_BAR_MAX, numericValue);
+      if (clampedValue === 0) {
+        return 0;
+      }
+      if (clampedValue === OD_GAUGE_BAR_MAX) {
+        return 100;
+      }
+      const bandProgress = clampedValue % OD_GAUGE_BAND_SIZE;
+      return bandProgress === 0 ? 100 : (bandProgress / OD_GAUGE_BAND_SIZE) * 100;
+    }
+    return (Math.min(Math.abs(numericValue), OD_GAUGE_BAND_SIZE) / OD_GAUGE_BAND_SIZE) * 100;
+  }
+
+  #buildSingleOdGaugeGraphRowHtml({ role, value }) {
+    const numericValue = normalizeOdGaugeNumber(value);
+    const fillPercent = this.#computeFoldedOdGaugeFillPercent(numericValue);
+    const stage = this.#resolveOdGaugeStage(numericValue);
+    const displayValue = formatOdGauge(numericValue);
+    return `
+      <div data-role="turn-od-gauge-row"
+           data-od-gauge-row="${role}"
+           data-value="${numericValue}"
+           class="turn-od-gauge-row">
+        <div class="turn-od-gauge-row-value-line">
+          <span data-role="turn-od-gauge-value" class="turn-od-gauge-value">${displayValue}</span>
+        </div>
+        <div class="turn-od-gauge-visual">
+          <div data-role="turn-od-gauge-track"
+               class="turn-od-gauge-track turn-od-gauge-track-${stage.key}">
+            <div data-role="turn-od-gauge-fill"
+                 class="turn-od-gauge-fill turn-od-gauge-fill-${stage.key}"
+                 style="width:${fillPercent}%"></div>
+          </div>
+          <div data-role="turn-od-stage-badge"
+               data-stage="${stage.key}"
+               class="turn-od-stage-badge turn-od-stage-${stage.key}">${stage.label}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  #buildOdGaugeGraphHtml({ beforeValue, afterValue }) {
+    const beforeNumeric = normalizeOdGaugeNumber(beforeValue);
+    const afterNumeric = normalizeOdGaugeNumber(afterValue, beforeNumeric);
+    return `
+      <div data-turn-od-gauge class="turn-od-gauge-stack">
+        ${this.#buildSingleOdGaugeGraphRowHtml({ role: 'start', value: beforeNumeric })}
+        <div class="turn-od-gauge-arrow" aria-hidden="true"></div>
+        ${this.#buildSingleOdGaugeGraphRowHtml({ role: 'end', value: afterNumeric })}
+      </div>
+    `;
+  }
+
+  #syncOdGaugeGraph(odGaugeAfter = null) {
+    const rowEl = this.#root.querySelector('[data-od-gauge-row="end"]');
+    if (!rowEl) {
+      return;
+    }
+    const startRowEl = this.#root.querySelector('[data-od-gauge-row="start"]');
+    const startValue = normalizeOdGaugeNumber(startRowEl?.dataset.value, 0);
+    const effectiveAfterValue = Number.isFinite(Number(odGaugeAfter)) ? Number(odGaugeAfter) : startValue;
+    const fillPercent = this.#computeFoldedOdGaugeFillPercent(effectiveAfterValue);
+    const fillEl = rowEl.querySelector('[data-role="turn-od-gauge-fill"]');
+    const trackEl = rowEl.querySelector('[data-role="turn-od-gauge-track"]');
+    if (fillEl) {
+      fillEl.style.width = `${fillPercent}%`;
+      const stage = this.#resolveOdGaugeStage(effectiveAfterValue);
+      fillEl.className = `turn-od-gauge-fill turn-od-gauge-fill-${stage.key}`;
+      if (trackEl) {
+        trackEl.className = `turn-od-gauge-track turn-od-gauge-track-${stage.key}`;
+      }
+    }
+    rowEl.dataset.value = String(effectiveAfterValue);
+    const stageBadgeEl = rowEl.querySelector('[data-role="turn-od-stage-badge"]');
+    if (stageBadgeEl) {
+      const stage = this.#resolveOdGaugeStage(effectiveAfterValue);
+      stageBadgeEl.dataset.stage = stage.key;
+      stageBadgeEl.className = `turn-od-stage-badge turn-od-stage-${stage.key}`;
+      stageBadgeEl.textContent = stage.label;
+    }
   }
 
   #resolveEffectiveSkill(member, skill, state = this.#stateBefore) {
@@ -1048,7 +1161,7 @@ export class TurnRowController {
         ${chipModels.map((chip) => `
           <span data-role="manual-break-chip"
                 title="${chip.label}"
-                class="inline-flex max-w-full items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold leading-tight text-amber-700">
+                class="inline-flex max-w-full items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold leading-tight text-amber-700">
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
         `).join('')}
@@ -1075,7 +1188,7 @@ export class TurnRowController {
         ${chipModels.map((chip) => `
           <span data-role="kill-chip"
                 title="${chip.label}"
-                class="inline-flex max-w-full items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold leading-tight text-green-700">
+                class="inline-flex max-w-full items-center rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold leading-tight text-green-700">
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
         `).join('')}
@@ -1505,8 +1618,7 @@ export class TurnRowController {
                   class="w-full min-h-[52px] flex-1 text-xs border border-gray-200 rounded px-1 py-0.5
                          resize-none focus:outline-none focus:ring-1 focus:ring-blue-300
                          ${isCommitted ? 'bg-gray-50' : 'bg-white'}"
-                  ${isCommitted ? 'readonly' : ''}
-                  placeholder="メモ">${noteValue}</textarea>
+                  ${isCommitted ? 'readonly' : ''}>${noteValue}</textarea>
       </div>`;
 
     const rowToneClass = this.#rowDiagnostics.error
@@ -1538,13 +1650,13 @@ export class TurnRowController {
   #buildTurnInfoHtml({ isCommitted, isEditMode }) {
     const warningCount = this.#rowDiagnostics.warnings.length;
     const errorBadgeHtml = this.#rowDiagnostics.error
-      ? '<span class="rounded border border-red-300 bg-red-100 px-1 py-px text-[9px] font-bold text-red-700">Error</span>'
+      ? '<span class="turn-info-status-chip turn-info-status-chip-error">Error</span>'
       : '';
     const warningBadgeHtml = warningCount > 0
-      ? `<span class="rounded border border-amber-300 bg-amber-100 px-1 py-px text-[9px] font-bold text-amber-700">Warn(${warningCount})</span>`
+      ? `<span class="turn-info-status-chip turn-info-status-chip-warning">Warn(${warningCount})</span>`
       : '';
     const editBadgeHtml = isEditMode
-      ? '<span class="rounded border border-blue-300 bg-blue-100 px-1 py-px text-[9px] font-bold text-blue-700">編集中</span>'
+      ? '<span class="turn-info-status-chip turn-info-status-chip-edit">編集中</span>'
       : '';
 
     if (!isCommitted) {
@@ -1564,36 +1676,43 @@ export class TurnRowController {
       const odTurnLabel  = String(turnState?.turnLabel ?? '');
       const odMatch      = odTurnLabel.match(/^(OD\d+)/);
       const odLevelLabel = inOd ? (odMatch ? odMatch[1] : 'OD') : '';
+      const sequenceLabel = isEditMode
+        ? `#${this.#record?.turnId ?? this.#turnIndex + 1}`
+        : null;
       const odGaugeBefore = formatOdGauge(turnState?.odGauge);
       const currentEnemyCount = this.getCurrentEnemyCount();
-      const enemyCountSelect = `
-        <select data-role="enemy-count" title="敵の数"
-                class="text-[10px] border border-gray-200 rounded px-0.5 focus:outline-none focus:ring-1 focus:ring-blue-300 ml-auto bg-white">
+      const enemyCountControl = `
+        <div class="turn-info-enemy-row">
+          <span class="turn-info-enemy-label">Enemy</span>
+          <select data-role="enemy-count" title="敵の数"
+                class="turn-info-enemy-select focus:outline-none focus:ring-1 focus:ring-blue-300">
           <option value="1" ${currentEnemyCount === 1 ? 'selected' : ''}>1</option>
           <option value="2" ${currentEnemyCount === 2 ? 'selected' : ''}>2</option>
           <option value="3" ${currentEnemyCount === 3 ? 'selected' : ''}>3</option>
-        </select>`;
+          </select>
+        </div>`;
 
       return `
-        <div data-turn-info class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
-                    gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
-          <div class="flex flex-col sm:flex-row items-baseline gap-1 w-full text-xs font-bold text-gray-900 flex-wrap leading-none">
-            <div class="flex items-center gap-1">
-              ${isEditMode ? `<span class="text-gray-400 font-normal">#${this.#record?.turnId ?? this.#turnIndex + 1}</span>` : ''}
+        <div data-turn-info class="turn-info-panel flex-shrink-0 w-[108px] flex flex-col items-start justify-start
+                    gap-0.5 px-1 py-0.5 border-r border-gray-200">
+          <div data-role="turn-info-stack" class="turn-info-stack">
+            <div class="turn-info-header">
+              ${sequenceLabel ? `<span class="turn-info-sequence">${sequenceLabel}</span>` : ''}
               <span>T${nextTurnNo}</span>
-              ${odLevelLabel ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
-              ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
+              ${odLevelLabel ? `<span class="turn-info-marker turn-info-marker-od">${odLevelLabel}</span>` : ''}
+              ${inEx ? `<span class="turn-info-marker turn-info-marker-ex">EX</span>` : ''}
               ${editBadgeHtml}
               ${warningBadgeHtml}
               ${errorBadgeHtml}
             </div>
-            ${enemyCountSelect}
-          </div>
-          <div data-turn-od-gauge class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
-            ${odGaugeBefore}<span data-od-after class="text-gray-400">→ —</span>
+            ${enemyCountControl}
+            ${this.#buildOdGaugeGraphHtml({
+              beforeValue: turnState?.odGauge,
+              afterValue: turnState?.odGauge,
+            })}
           </div>
           ${this.#rowDiagnostics.error
-            ? `<div class="text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
+            ? `<div class="pt-0.5 text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
             : ''}
         </div>`;
     }
@@ -1613,33 +1732,39 @@ export class TurnRowController {
     const inOd = !!odLevelLabel;
     const inEx = isExtraTurn;
     const currentEnemyCount = this.#getCurrentReplayTurnEnemyCount();
-    const enemyCountSelect = `
-      <select data-role="enemy-count" title="敵の数"
+    const enemyCountControl = `
+      <div class="turn-info-enemy-row">
+        <span class="turn-info-enemy-label">Enemy</span>
+        <select data-role="enemy-count" title="敵の数"
               disabled
-              class="text-[10px] border border-gray-200 rounded px-0.5 focus:outline-none focus:ring-1 focus:ring-blue-300 ml-auto bg-white">
+              class="turn-info-enemy-select focus:outline-none focus:ring-1 focus:ring-blue-300">
         <option value="1" ${currentEnemyCount === 1 ? 'selected' : ''}>1</option>
         <option value="2" ${currentEnemyCount === 2 ? 'selected' : ''}>2</option>
         <option value="3" ${currentEnemyCount === 3 ? 'selected' : ''}>3</option>
-      </select>`;
+        </select>
+      </div>`;
 
     const allEnemiesDefeated = Boolean(this.#stateAfter?.turnState?.enemyState?.allEnemiesDefeated);
     return `
-      <div data-turn-info class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
-                  gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
-        <div class="flex items-center gap-1 text-xs font-bold text-gray-900 flex-wrap leading-none w-full">
-          <span class="text-gray-400 font-normal">#${seqId}</span>
-          <span>T${turnNo}</span>
-          ${inOd ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
-          ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
-          ${warningBadgeHtml}
-          ${errorBadgeHtml}
-          ${enemyCountSelect}
-        </div>
-        <div data-turn-od-gauge class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
-          ${odGaugeBefore}→${odGaugeAfter}
+      <div data-turn-info class="turn-info-panel flex-shrink-0 w-[108px] flex flex-col items-start justify-start
+                  gap-0.5 px-1 py-0.5 border-r border-gray-200">
+        <div data-role="turn-info-stack" class="turn-info-stack">
+          <div class="turn-info-header">
+            <span class="turn-info-sequence">#${seqId}</span>
+            <span>T${turnNo}</span>
+            ${inOd ? `<span class="turn-info-marker turn-info-marker-od">${odLevelLabel}</span>` : ''}
+            ${inEx ? `<span class="turn-info-marker turn-info-marker-ex">EX</span>` : ''}
+            ${warningBadgeHtml}
+            ${errorBadgeHtml}
+          </div>
+          ${enemyCountControl}
+          ${this.#buildOdGaugeGraphHtml({
+            beforeValue: odGaugeAtStart,
+            afterValue: odGaugeAtEnd,
+          })}
         </div>
         ${this.#rowDiagnostics.error
-          ? `<div class="text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
+          ? `<div class="pt-0.5 text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
           : ''}
         ${allEnemiesDefeated
           ? `<div class="text-[9px] font-bold text-red-600 bg-red-50 rounded px-1 py-px border border-red-200 w-full text-center">
@@ -1804,7 +1929,7 @@ export class TurnRowController {
           </select>
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
-        <div class="flex flex-col p-0.5 gap-0.5">
+        <div data-role="slot-body" class="flex flex-col p-0.5 gap-0.5">
           <div class="flex items-start gap-1">
             <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-100">
               ${imageUrl
@@ -1823,7 +1948,7 @@ export class TurnRowController {
             </div>
           </div>
           <!-- アイコン直下: トークン・士気 -->
-          <div class="flex items-center gap-1.5 flex-wrap px-0.5">
+          <div data-role="slot-footer" class="flex items-center gap-1.5 flex-wrap px-0.5">
             ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
             ${this.#buildMoraleHtml(moraleCurrent)}
           </div>
@@ -1849,9 +1974,9 @@ export class TurnRowController {
       <div data-turn-slot data-position="${member.position}"
            class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none">
         <div class="px-0.5 pt-0.5">
-          <div class="w-full text-xs rounded px-0.5 py-px border ${labelClass}">EX待機</div>
+          <div data-role="slot-state-label" class="w-full text-xs rounded px-0.5 py-px border ${labelClass}">EX待機</div>
         </div>
-        <div class="flex flex-col p-0.5 gap-0.5 opacity-50">
+        <div data-role="slot-body" class="flex flex-col p-0.5 gap-0.5 opacity-50">
           <div class="flex items-start gap-1">
             <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
               ${imageUrl
@@ -1866,7 +1991,7 @@ export class TurnRowController {
             </div>
             <div data-slot-info-space class="flex-1 min-w-0"></div>
           </div>
-          <div class="flex items-center gap-1.5 flex-wrap px-0.5">
+          <div data-role="slot-footer" class="flex items-center gap-1.5 flex-wrap px-0.5">
             ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
             ${this.#buildMoraleHtml(moraleCurrent)}
           </div>
@@ -1891,11 +2016,11 @@ export class TurnRowController {
                   ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
         <!-- スキル select プレースホルダー（高さ揃え用） -->
         <div class="px-0.5 pt-0.5">
-          <div class="w-full text-xs text-gray-300 border border-gray-100 rounded px-0.5 py-px
+          <div data-role="slot-state-label" class="w-full text-xs text-gray-300 border border-gray-100 rounded px-0.5 py-px
                       bg-gray-50">後衛</div>
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
-        <div class="flex flex-col p-0.5 gap-0.5 opacity-70">
+        <div data-role="slot-body" class="flex flex-col p-0.5 gap-0.5 opacity-70">
           <div class="flex items-start gap-1">
             <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
               ${imageUrl
@@ -1912,7 +2037,7 @@ export class TurnRowController {
             <div data-slot-info-space class="flex-1 min-w-0"></div>
           </div>
           <!-- アイコン直下: トークン・士気（後衛） -->
-          <div class="flex items-center gap-1.5 flex-wrap px-0.5">
+          <div data-role="slot-footer" class="flex items-center gap-1.5 flex-wrap px-0.5">
             ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
             ${this.#buildMoraleHtml(moraleCurrent)}
           </div>
@@ -2549,16 +2674,75 @@ export class TurnRowController {
     return width >= baseMinWidth;
   }
 
+  #measureBadgeReservedWidth(badgeEl) {
+    if (!badgeEl) {
+      return 0;
+    }
+    const iconCount = badgeEl.querySelectorAll('.turn-skill-badge-icon').length;
+    if (iconCount <= 0) {
+      delete badgeEl.dataset.responsiveReservedWidth;
+      delete badgeEl.dataset.responsiveIconCount;
+      return 0;
+    }
+
+    const measuredWidth = Math.ceil(
+      Number(badgeEl.getBoundingClientRect?.().width ?? 0) || Number(badgeEl.scrollWidth ?? 0)
+    );
+    if (measuredWidth > 0) {
+      badgeEl.dataset.responsiveReservedWidth = String(measuredWidth);
+      badgeEl.dataset.responsiveIconCount = String(iconCount);
+      return measuredWidth;
+    }
+
+    const cachedWidth = Number(badgeEl.dataset.responsiveReservedWidth ?? 0);
+    const cachedIconCount = Number(badgeEl.dataset.responsiveIconCount ?? 0);
+    if (cachedWidth > 0 && cachedIconCount === iconCount) {
+      return cachedWidth;
+    }
+
+    const computedStyle =
+      typeof window !== 'undefined' && typeof window.getComputedStyle === 'function'
+        ? window.getComputedStyle(badgeEl)
+        : null;
+    const iconSize = Number.parseFloat(
+      computedStyle?.getPropertyValue('--turn-skill-badge-icon-size') ?? ''
+    );
+    const columnGap = Number.parseFloat(computedStyle?.columnGap ?? computedStyle?.gap ?? '');
+    const visibleColumns = Math.min(iconCount, 2);
+    const estimatedWidth = Math.ceil(
+      Math.max(
+        0,
+        visibleColumns *
+          (Number.isFinite(iconSize) ? iconSize : RESPONSIVE_BADGE_ICON_SIZE_FALLBACK_PX)
+      ) +
+        Math.max(0, visibleColumns - 1) *
+          (Number.isFinite(columnGap) ? columnGap : RESPONSIVE_BADGE_COLUMN_GAP_FALLBACK_PX)
+    );
+    if (estimatedWidth > 0) {
+      badgeEl.dataset.responsiveReservedWidth = String(estimatedWidth);
+      badgeEl.dataset.responsiveIconCount = String(iconCount);
+    }
+    return estimatedWidth;
+  }
+
   /**
-   * select 幅に応じてバッジ表示・SPコスト表示を切り替える。
+   * 親行の幅に応じてバッジ表示・SPコスト表示を切り替える。
    * ResizeObserver コールバックおよび refreshSkillSelects() から呼ばれる。
    */
   #applyWidthBasedVisibility(selectEl) {
-    const width = selectEl.offsetWidth;
     const position = Number(selectEl.dataset.position);
+    const selectRow = selectEl.closest('[data-role="slot-select-row"]');
 
     // バッジ表示制御
     const badgeEl = this.#root.querySelector(`[data-skill-badges][data-position="${position}"]`);
+    const rowWidth = Math.ceil(
+      Number(selectRow?.getBoundingClientRect?.().width ?? 0) ||
+      Number(selectRow?.offsetWidth ?? 0) ||
+      Number(selectEl.offsetWidth ?? 0)
+    );
+    const badgeReservedWidth = this.#measureBadgeReservedWidth(badgeEl);
+    const predictedSelectWidthWithBadge = Math.max(0, rowWidth - badgeReservedWidth);
+    let nextBadgeVisible = false;
     if (badgeEl) {
       const previousBadgeVisible =
         badgeEl.dataset.responsiveVisible === 'true'
@@ -2566,8 +2750,8 @@ export class TurnRowController {
           : badgeEl.dataset.responsiveVisible === 'false'
             ? false
             : null;
-      const nextBadgeVisible = this.#resolveResponsiveVisibility({
-        width,
+      nextBadgeVisible = this.#resolveResponsiveVisibility({
+        width: predictedSelectWidthWithBadge,
         previousState: previousBadgeVisible,
         baseMinWidth: BADGE_MIN_SELECT_WIDTH,
         showMinWidth: BADGE_SHOW_MIN_SELECT_WIDTH,
@@ -2578,6 +2762,9 @@ export class TurnRowController {
     }
 
     // SPコスト表示制御（option.textContent を直接更新、value は維持）
+    const predictedSelectWidth = nextBadgeVisible
+      ? predictedSelectWidthWithBadge
+      : rowWidth;
     const previousShowCost =
       selectEl.dataset.showCost === 'true'
         ? true
@@ -2585,7 +2772,7 @@ export class TurnRowController {
           ? false
           : null;
     const showCost = this.#resolveResponsiveVisibility({
-      width,
+      width: predictedSelectWidth,
       previousState: previousShowCost,
       baseMinWidth: COST_MIN_SELECT_WIDTH,
       showMinWidth: COST_SHOW_MIN_SELECT_WIDTH,

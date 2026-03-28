@@ -21,9 +21,15 @@
   <!-- ヘッダー -->
   <header class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 shrink-0">
     <h1 class="text-base font-bold tracking-tight">HBR Battle Simulator</h1>
+    <button id="toggle-turn-layout"
+            class="ml-auto text-xs px-2.5 py-1 rounded-md border border-gray-200
+                   text-gray-500 hover:bg-gray-50 transition-colors"
+            title="TurnEdit の前衛/後衛幅レイアウトを切り替え">
+      ↔ 均等
+    </button>
     <!-- キャプチャボタン -->
     <button id="capture-btn"
-            class="ml-auto text-xs px-2.5 py-1 rounded-md border border-gray-200
+            class="text-xs px-2.5 py-1 rounded-md border border-gray-200
                    text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="ターンエリアをPNG保存">
       📷

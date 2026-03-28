@@ -9,6 +9,12 @@ function createEmptyRowDiagnostics() {
   };
 }
 
+const TURN_REPLAY_STATUS_HIDDEN_CLASS =
+  'hidden pointer-events-none fixed left-4 z-40 max-w-sm rounded-lg border px-3 py-2 text-xs font-semibold shadow-md';
+const TURN_REPLAY_STATUS_VISIBLE_BASE_CLASS =
+  'pointer-events-none fixed left-4 z-40 max-w-sm rounded-lg border px-3 py-2 text-xs font-semibold shadow-md';
+const TURN_REPLAY_STATUS_BOTTOM_STYLE = 'max(1rem, env(safe-area-inset-bottom))';
+
 export class TurnAreaController {
   #root;
   #store;
@@ -67,13 +73,27 @@ export class TurnAreaController {
       return;
     }
     this.#root.innerHTML = `
-      <div class="space-y-2">
-        <div data-role="turn-replay-status" class="hidden rounded-lg border px-3 py-2 text-xs font-semibold"></div>
-        <div data-role="turn-row-list" class="overflow-hidden rounded-xl border border-gray-200 bg-white"></div>
-      </div>
+      <div data-role="turn-row-list" class="overflow-hidden rounded-xl border border-gray-200 bg-white"></div>
     `;
-    this.#statusEl = this.#root.querySelector('[data-role="turn-replay-status"]');
     this.#rowsRoot = this.#root.querySelector('[data-role="turn-row-list"]');
+    this.#statusEl = this.#ensureFloatingStatusHost();
+  }
+
+  #ensureFloatingStatusHost() {
+    const existing = document.querySelector('[data-role="turn-replay-status"]');
+    if (typeof window !== 'undefined' && existing instanceof window.HTMLElement) {
+      existing.className = TURN_REPLAY_STATUS_HIDDEN_CLASS;
+      existing.textContent = '';
+      existing.style.bottom = TURN_REPLAY_STATUS_BOTTOM_STYLE;
+      return existing;
+    }
+
+    const statusEl = document.createElement('div');
+    statusEl.dataset.role = 'turn-replay-status';
+    statusEl.className = TURN_REPLAY_STATUS_HIDDEN_CLASS;
+    statusEl.style.bottom = TURN_REPLAY_STATUS_BOTTOM_STYLE;
+    document.body.appendChild(statusEl);
+    return statusEl;
   }
 
   #clearRows() {
@@ -542,12 +562,12 @@ export class TurnAreaController {
     }
 
     if (!text) {
-      this.#statusEl.className = 'hidden rounded-lg border px-3 py-2 text-xs font-semibold';
+      this.#statusEl.className = TURN_REPLAY_STATUS_HIDDEN_CLASS;
       this.#statusEl.textContent = '';
       return;
     }
 
-    this.#statusEl.className = `rounded-lg border px-3 py-2 text-xs font-semibold ${classes.join(' ')}`;
+    this.#statusEl.className = `${TURN_REPLAY_STATUS_VISIBLE_BASE_CLASS} ${classes.join(' ')}`;
     this.#statusEl.textContent = text;
   }
 
