@@ -183,4 +183,40 @@ test.describe('Turn row slot swap', () => {
     // no error toast / overlay should appear
     await expect(page.locator('[data-role="error-toast"]')).toBeHidden({ timeout: 1000 }).catch(() => {});
   });
+
+  test('input row swap with 6 characters keeps 3+3 layout', async ({ page }) => {
+    await gotoUiNext(page);
+    await fillPartySetupSlots(page, [0, 1, 2, 3, 4, 5]);
+    const inputRow = await applyParty(page);
+
+    const frontGroup = inputRow.locator('[data-turn-front-group]');
+    const backGroup = inputRow.locator('[data-turn-back-group]');
+
+    // Before swap: 3 front + 3 back
+    await expect(frontGroup.locator('[data-turn-slot]')).toHaveCount(3);
+    await expect(backGroup.locator('[data-turn-slot]')).toHaveCount(3);
+
+    // tap-swap 0 ↔ 3
+    await inputRow
+      .locator('[data-turn-slot][data-position="0"] [data-turn-slot-icon]')
+      .click();
+    await inputRow
+      .locator('[data-turn-slot][data-position="3"] [data-turn-slot-icon]')
+      .click();
+
+    // After swap: still 3+3
+    await expect(frontGroup.locator('[data-turn-slot]')).toHaveCount(3);
+    await expect(backGroup.locator('[data-turn-slot]')).toHaveCount(3);
+
+    // 2nd swap: 1 ↔ 4
+    await inputRow
+      .locator('[data-turn-slot][data-position="1"] [data-turn-slot-icon]')
+      .click();
+    await inputRow
+      .locator('[data-turn-slot][data-position="4"] [data-turn-slot-icon]')
+      .click();
+
+    await expect(frontGroup.locator('[data-turn-slot]')).toHaveCount(3);
+    await expect(backGroup.locator('[data-turn-slot]')).toHaveCount(3);
+  });
 });

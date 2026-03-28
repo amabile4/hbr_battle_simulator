@@ -1636,11 +1636,11 @@ export class TurnRowController {
                   hover:bg-gray-50 transition-colors ${rowToneClass}">
         ${turnInfoHtml}
         <div data-turn-slots class="flex gap-px flex-1 min-w-0">
-          <div data-turn-front-group class="flex gap-px min-w-0">
+          <div data-turn-front-group class="flex flex-1 gap-px min-w-0">
             ${frontSlots}
           </div>
           <div class="w-px bg-gray-200 self-stretch mx-0.5 flex-shrink-0"></div>
-          <div data-turn-back-group class="flex gap-px min-w-0">
+          <div data-turn-back-group class="flex flex-1 gap-px min-w-0">
             ${backSlots}
           </div>
         </div>
