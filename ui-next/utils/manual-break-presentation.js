@@ -1,4 +1,4 @@
-import { normalizeActionOutcomeOverrides } from './action-outcome-overrides.js';
+import { ACTION_OUTCOME_TYPES, normalizeActionOutcomeOverrides } from './action-outcome-overrides.js';
 import { resolveShortCharacterName } from '../../src/domain/character-name.js';
 
 export function resolveManualBreakActorLabel(member = {}, store = null) {
@@ -35,22 +35,55 @@ export function buildManualBreakChipModels({
   const memberByPosition = new Map(
     (Array.isArray(members) ? members : []).map((member) => [Number(member?.position), member])
   );
-  return normalizeActionOutcomeOverrides(overrides).flatMap((override) => {
-    const position = Number(override?.position);
-    const member = memberByPosition.get(position) ?? null;
-    const actorLabel = member
-      ? resolveManualBreakActorLabel(member, store)
-      : `P${position + 1}`;
-    return (Array.isArray(override?.enemyIndexes) ? override.enemyIndexes : []).map((enemyIndex) => {
-      const enemyLabel = resolveManualBreakEnemyLabel(enemyIndex, enemyNamesByEnemy);
-      return {
-        key: `${position}:${enemyIndex}`,
-        actorLabel,
-        enemyLabel,
-        label: `${actorLabel}→${enemyLabel} ブレイク`,
-        position,
-        enemyIndex: Number(enemyIndex),
-      };
+  return normalizeActionOutcomeOverrides(overrides)
+    .filter((override) => override.outcome === ACTION_OUTCOME_TYPES.BREAK)
+    .flatMap((override) => {
+      const position = Number(override?.position);
+      const member = memberByPosition.get(position) ?? null;
+      const actorLabel = member
+        ? resolveManualBreakActorLabel(member, store)
+        : `P${position + 1}`;
+      return (Array.isArray(override?.enemyIndexes) ? override.enemyIndexes : []).map((enemyIndex) => {
+        const enemyLabel = resolveManualBreakEnemyLabel(enemyIndex, enemyNamesByEnemy);
+        return {
+          key: `${position}:${enemyIndex}`,
+          actorLabel,
+          enemyLabel,
+          label: `${actorLabel}→${enemyLabel} ブレイク`,
+          position,
+          enemyIndex: Number(enemyIndex),
+        };
+      });
     });
-  });
+}
+
+export function buildManualKillChipModels({
+  overrides = [],
+  members = [],
+  store = null,
+  enemyNamesByEnemy = {},
+} = {}) {
+  const memberByPosition = new Map(
+    (Array.isArray(members) ? members : []).map((member) => [Number(member?.position), member])
+  );
+  return normalizeActionOutcomeOverrides(overrides)
+    .filter((override) => override.outcome === ACTION_OUTCOME_TYPES.KILL)
+    .flatMap((override) => {
+      const position = Number(override?.position);
+      const member = memberByPosition.get(position) ?? null;
+      const actorLabel = member
+        ? resolveManualBreakActorLabel(member, store)
+        : `P${position + 1}`;
+      return (Array.isArray(override?.enemyIndexes) ? override.enemyIndexes : []).map((enemyIndex) => {
+        const enemyLabel = resolveManualBreakEnemyLabel(enemyIndex, enemyNamesByEnemy);
+        return {
+          key: `${position}:${enemyIndex}`,
+          actorLabel,
+          enemyLabel,
+          label: `${actorLabel}→${enemyLabel} 討伐`,
+          position,
+          enemyIndex: Number(enemyIndex),
+        };
+      });
+    });
 }

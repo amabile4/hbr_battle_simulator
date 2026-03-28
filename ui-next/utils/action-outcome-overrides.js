@@ -4,6 +4,7 @@ import { REPLAY_OVERRIDE_ENTRY_TYPES } from '../../src/ui/lightweight-replay-scr
 
 export const ACTION_OUTCOME_TYPES = Object.freeze({
   BREAK: 'Break',
+  KILL: 'Kill',
 });
 
 function normalizePosition(position) {
@@ -37,7 +38,7 @@ export function normalizeActionOutcomeOverride(override = {}, enemyCount = null)
     return null;
   }
   const outcome = String(override.outcome ?? '').trim();
-  if (outcome !== ACTION_OUTCOME_TYPES.BREAK) {
+  if (outcome !== ACTION_OUTCOME_TYPES.BREAK && outcome !== ACTION_OUTCOME_TYPES.KILL) {
     return null;
   }
   const enemyIndexes = normalizeEnemyIndexes(override.enemyIndexes, enemyCount);
@@ -139,6 +140,57 @@ export function setBreakEnemyIndexesForPosition(
     ],
     enemyCount
   );
+}
+
+export function getKillEnemyIndexesForPosition(overrides = [], position) {
+  const normalizedPosition = normalizePosition(position);
+  if (normalizedPosition === null) {
+    return [];
+  }
+  const override = normalizeActionOutcomeOverrides(overrides).find(
+    (candidate) =>
+      candidate.position === normalizedPosition &&
+      candidate.outcome === ACTION_OUTCOME_TYPES.KILL
+  );
+  return override ? [...override.enemyIndexes] : [];
+}
+
+export function setKillEnemyIndexesForPosition(
+  overrides = [],
+  position,
+  enemyIndexes = [],
+  enemyCount = null
+) {
+  const normalizedPosition = normalizePosition(position);
+  if (normalizedPosition === null) {
+    return normalizeActionOutcomeOverrides(overrides, enemyCount);
+  }
+  const nextEnemyIndexes = normalizeEnemyIndexes(enemyIndexes, enemyCount);
+  const filtered = normalizeActionOutcomeOverrides(overrides, enemyCount).filter(
+    (override) =>
+      !(override.position === normalizedPosition && override.outcome === ACTION_OUTCOME_TYPES.KILL)
+  );
+  if (nextEnemyIndexes.length === 0) {
+    return filtered;
+  }
+  return normalizeActionOutcomeOverrides(
+    [
+      ...filtered,
+      {
+        position: normalizedPosition,
+        outcome: ACTION_OUTCOME_TYPES.KILL,
+        enemyIndexes: nextEnemyIndexes,
+      },
+    ],
+    enemyCount
+  );
+}
+
+export function getAllKilledEnemyIndexes(overrides = []) {
+  const all = normalizeActionOutcomeOverrides(overrides)
+    .filter((o) => o.outcome === ACTION_OUTCOME_TYPES.KILL)
+    .flatMap((o) => o.enemyIndexes);
+  return [...new Set(all)].sort((a, b) => a - b);
 }
 
 export function formatBreakEnemySummary(enemyIndexes = [], enemyNamesByEnemy = {}) {

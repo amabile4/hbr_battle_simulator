@@ -22,11 +22,14 @@ import {
   ACTION_OUTCOME_TYPES,
   getActionOutcomeOverridesFromOverrideEntries,
   getBreakEnemyIndexesForPosition,
+  getKillEnemyIndexesForPosition,
   normalizeActionOutcomeOverrides,
   setBreakEnemyIndexesForPosition,
+  setKillEnemyIndexesForPosition,
 } from '../utils/action-outcome-overrides.js';
 import {
   buildManualBreakChipModels,
+  buildManualKillChipModels,
   resolveManualBreakActorLabel,
 } from '../utils/manual-break-presentation.js';
 import {
@@ -111,6 +114,7 @@ export class TurnRowController {
   #openTargetPickerPartyIndex = null;
   #isBreakEditorOpen = false;
   #draftBreakEnemyIndexesByPartyIndex = {};
+  #draftKillEnemyIndexesByPartyIndex = {};
   #previewResourceState = null;
   // Simulator Settings パラメータ
   #simulatorSettings = null;
@@ -239,6 +243,12 @@ export class TurnRowController {
       }
     }
     this.#draftBreakEnemyIndexesByPartyIndex = nextDraftBreakEnemyIndexesByPartyIndex;
+    for (const partyIndex of Object.keys(this.#draftKillEnemyIndexesByPartyIndex)) {
+      this.#draftKillEnemyIndexesByPartyIndex[partyIndex] =
+        (this.#draftKillEnemyIndexesByPartyIndex[partyIndex] ?? []).filter(
+          (idx) => idx < this.#draftEnemyCount
+        );
+    }
   }
 
   /**
@@ -541,6 +551,18 @@ export class TurnRowController {
         enemyIndexes,
       });
     }
+    // Kill エントリ（未コミット行のみ）
+    for (const member of members) {
+      const killEnemyIndexes = (this.#draftKillEnemyIndexesByPartyIndex[member.partyIndex] ?? []).filter(
+        (idx) => idx < enemyCount
+      );
+      if (killEnemyIndexes.length === 0) continue;
+      overrides.push({
+        position: member.position,
+        outcome: ACTION_OUTCOME_TYPES.KILL,
+        enemyIndexes: killEnemyIndexes,
+      });
+    }
     return normalizeActionOutcomeOverrides(overrides, enemyCount);
   }
 
@@ -756,18 +778,51 @@ export class TurnRowController {
     `;
   }
 
+  #buildKillChipsHtml(isCommitted) {
+    const currentOverrides = isCommitted
+      ? getActionOutcomeOverridesFromOverrideEntries(
+          this.#replayTurn?.overrideEntries ?? [],
+          this.#getCurrentReplayTurnEnemyCount()
+        )
+      : this.getCurrentActionOutcomeOverrides();
+    const chipModels = buildManualKillChipModels({
+      overrides: currentOverrides,
+      members: this.#getMembersInPositionOrder().filter((member) => member.position <= 2),
+      store: this.#store,
+      enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+    });
+    if (chipModels.length === 0) return '';
+    return `
+      <div data-role="kill-chip-list" class="flex flex-wrap gap-1 pb-1">
+        ${chipModels.map((chip) => `
+          <span data-role="kill-chip"
+                title="${chip.label}"
+                class="inline-flex max-w-full items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold leading-tight text-green-700">
+            <span class="max-w-full break-all">${chip.label}</span>
+          </span>
+        `).join('')}
+      </div>
+    `;
+  }
+
   #buildManualBreakEditorHtml(isCommitted) {
     const enemyCount = isCommitted
       ? this.#getCurrentReplayTurnEnemyCount()
       : this.getCurrentEnemyCount();
     const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
+    const currentActionOutcomeOverrides = isCommitted
+      ? getActionOutcomeOverridesFromOverrideEntries(
+          this.#replayTurn?.overrideEntries ?? [],
+          enemyCount
+        )
+      : this.getCurrentActionOutcomeOverrides();
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     return `
       <div data-role="manual-break-editor"
            class="target-popover absolute right-0 top-[calc(100%+4px)] z-30 w-[280px] rounded-xl border border-gray-200 bg-white p-3 shadow-xl"
            ${this.#isBreakEditorOpen ? '' : 'hidden'}>
-        <div class="text-[11px] font-semibold text-gray-700">ブレイクを編集</div>
-        <div class="pt-2 space-y-2.5">
+        <div class="text-[11px] font-semibold text-gray-700 pb-2">討伐・ブレイクを編集</div>
+        <div class="space-y-2.5">
           ${members.map((member) => {
             const actorLabel = resolveManualBreakActorLabel(member, this.#store);
             const selectionContext = this.#getBreakSelectionContext({
@@ -778,11 +833,39 @@ export class TurnRowController {
             if (!selectionContext) {
               return '';
             }
+            const memberKillEnemyIndexes = getKillEnemyIndexesForPosition(
+              currentActionOutcomeOverrides,
+              member.position
+            );
+            const killButtonsHtml = Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isKilled = memberKillEnemyIndexes.includes(enemyIndex);
+              const enemyName = String(
+                enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
+              ).trim();
+              const label = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
+              return `
+                <button type="button"
+                        data-role="kill-enemy-candidate"
+                        data-enemy-index="${enemyIndex}"
+                        data-position="${member.position}"
+                        data-party-index="${member.partyIndex}"
+                        class="target-chip inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors
+                               ${isKilled
+                                 ? 'border-green-500 bg-green-500 text-white'
+                                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}">
+                  ${label}
+                </button>
+              `;
+            }).join('');
             return `
               <div data-role="manual-break-actor"
                    data-party-index="${member.partyIndex}"
                    class="rounded-lg border border-gray-100 bg-gray-50 px-2 py-2">
                 <div class="pb-1 text-[10px] font-semibold text-gray-700">${actorLabel}</div>
+                <div class="mb-1">
+                  <div class="text-[9px] font-semibold text-green-700 pb-0.5">討伐</div>
+                  <div class="flex flex-wrap gap-1">${killButtonsHtml}</div>
+                </div>
                 ${this.#buildManualBreakEditorControls({
                   selectionContext,
                   enemyCount,
@@ -1132,10 +1215,12 @@ export class TurnRowController {
     // メモ欄
     const noteValue = this.getCurrentNote();
     const manualBreakChipsHtml = this.#buildManualBreakChipsHtml(isCommitted);
+    const killChipsHtml = this.#buildKillChipsHtml(isCommitted);
     const operationChipsHtml = this.#buildOperationChipsHtml();
     const noteHtml = `
       <div data-turn-note class="flex flex-col self-stretch min-h-0 flex-shrink-0 w-36 gap-1">
         ${manualBreakChipsHtml}
+        ${killChipsHtml}
         ${operationChipsHtml}
         <textarea data-role="note" rows="2"
                   class="w-full min-h-[52px] flex-1 text-xs border border-gray-200 rounded px-1 py-0.5
@@ -1225,6 +1310,7 @@ export class TurnRowController {
         <option value="3" ${currentEnemyCount === 3 ? 'selected' : ''}>3</option>
       </select>`;
 
+    const allEnemiesDefeated = Boolean(this.#stateAfter?.turnState?.enemyState?.allEnemiesDefeated);
     return `
       <div data-turn-info class="flex-shrink-0 w-[108px] flex flex-col items-start justify-center
                   gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
@@ -1238,6 +1324,11 @@ export class TurnRowController {
         <div data-turn-od-gauge class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
           ${odGaugeBefore}→${odGaugeAfter}
         </div>
+        ${allEnemiesDefeated
+          ? `<div class="text-[9px] font-bold text-red-600 bg-red-50 rounded px-1 py-px border border-red-200 w-full text-center">
+               バトル終了
+             </div>`
+          : ''}
       </div>`;
   }
 
@@ -1912,6 +2003,54 @@ export class TurnRowController {
           currentOverrides,
           member.position,
           nextEnemyIndexes,
+          enemyCount
+        );
+        this.#onActionOutcomeChange?.(this.#turnIndex, nextOverrides);
+      });
+    });
+
+    this.#root.querySelectorAll('[data-role="kill-enemy-candidate"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const enemyIndex = Number(btn.dataset.enemyIndex);
+        if (!Number.isInteger(enemyIndex) || enemyIndex < 0) return;
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const position = Number(btn.dataset.position);
+
+        const enemyCount = this.#record === null
+          ? this.getCurrentEnemyCount()
+          : this.#getCurrentReplayTurnEnemyCount();
+
+        this.#isBreakEditorOpen = true;
+
+        if (this.#record === null) {
+          const current = this.#draftKillEnemyIndexesByPartyIndex[partyIndex] ?? [];
+          const next = current.includes(enemyIndex)
+            ? current.filter((i) => i !== enemyIndex)
+            : [...current, enemyIndex];
+          this.#draftKillEnemyIndexesByPartyIndex[partyIndex] = next.filter(
+            (i) => i < enemyCount
+          );
+          this.update({
+            record: null,
+            stateBefore: this.#stateBefore,
+            stateAfter: null,
+            odState: this.#odState,
+            simulatorSettings: this.#simulatorSettings,
+            isBreakEditorOpen: true,
+          });
+          return;
+        }
+        // コミット済み行: ACTION_OUTCOME_OVERRIDES 経由で更新（onActionOutcomeChange を再利用）
+        const currentOverrides = this.#getReplayTurnActionOutcomeOverrides(enemyCount);
+        const currentKills = getKillEnemyIndexesForPosition(currentOverrides, position);
+        const nextKills = currentKills.includes(enemyIndex)
+          ? currentKills.filter((i) => i !== enemyIndex)
+          : [...currentKills, enemyIndex];
+        const nextOverrides = setKillEnemyIndexesForPosition(
+          currentOverrides,
+          position,
+          nextKills,
           enemyCount
         );
         this.#onActionOutcomeChange?.(this.#turnIndex, nextOverrides);

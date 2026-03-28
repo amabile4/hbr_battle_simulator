@@ -294,6 +294,61 @@ test('TurnEngineManager applies Makai Kihei OD gain using the committed enemyCou
   assert.equal(manager.computedRecords[0]?.enemyCount, 2);
 });
 
+test('TurnEngineManager getStateBefore reflects position swap recorded in replayScript slots (JSON load flow)', () => {
+  // JSON 読み込みシナリオ: loadReplayScript 後に getStateBefore が
+  // slots に記録されたスワップ後の位置を正しく返すことを確認する。
+  // （swapCurrentPositions による in-place mutation がない状態でのテスト）
+  const skill0 = createSkill({
+    id: 9080,
+    name: 'Skill0',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const manager = new TurnEngineManager();
+  const initialState = createInitialState(skill0);
+
+  // partyIndex 2 (styleId 9102) と partyIndex 5 (styleId 9105) を入れ替えた turn を
+  // replayScript として loadReplayScript に渡す
+  const styleId0 = initialState.party.find((m) => m.partyIndex === 0)?.styleId; // 9100
+  const styleId1 = initialState.party.find((m) => m.partyIndex === 1)?.styleId; // 9101
+  const styleId2 = initialState.party.find((m) => m.partyIndex === 2)?.styleId; // 9102
+  const styleId3 = initialState.party.find((m) => m.partyIndex === 3)?.styleId; // 9103
+  const styleId4 = initialState.party.find((m) => m.partyIndex === 4)?.styleId; // 9104
+  const styleId5 = initialState.party.find((m) => m.partyIndex === 5)?.styleId; // 9105
+
+  const replayScript = {
+    turns: [
+      {
+        // slot[2] に partyIndex 5 (styleId5) が入る（partyIndex 2 と入れ替え）
+        slots: [
+          { styleId: styleId0, skillId: 9080 },
+          { styleId: styleId1, skillId: null },
+          { styleId: styleId5, skillId: null }, // swap: partyIndex5 → position2
+          { styleId: styleId3, skillId: null },
+          { styleId: styleId4, skillId: null },
+          { styleId: styleId2, skillId: null }, // swap: partyIndex2 → position5
+        ],
+        operations: [],
+        overrideEntries: [],
+        note: '',
+      },
+    ],
+  };
+
+  manager.loadReplayScript(initialState, replayScript);
+
+  const stateBefore = manager.getStateBefore(0);
+  assert.equal(stateBefore?.party?.find((m) => m.partyIndex === 5)?.position, 2,
+    'partyIndex 5 のメンバーが position 2 に移動していること');
+  assert.equal(stateBefore?.party?.find((m) => m.partyIndex === 2)?.position, 5,
+    'partyIndex 2 のメンバーが position 5 に移動していること');
+  // スワップしていないメンバーの position は変わらない
+  assert.equal(stateBefore?.party?.find((m) => m.partyIndex === 0)?.position, 0);
+  assert.equal(stateBefore?.party?.find((m) => m.partyIndex === 1)?.position, 1);
+  assert.equal(stateBefore?.party?.find((m) => m.partyIndex === 3)?.position, 3);
+  assert.equal(stateBefore?.party?.find((m) => m.partyIndex === 4)?.position, 4);
+});
+
 test('TurnEngineManager buildInputRowSnapshot resolves partyIndex keyed draft actions after swaps', () => {
   const actorSkill = createSkill({
     id: 9050,
@@ -602,4 +657,164 @@ test('TurnEngineManager applies OD-start SP recovery before the first interrupt 
   );
 
   assert.notEqual(preview, null);
+});
+
+function createKillCountPassive() {
+  return {
+    id: 99912,
+    name: '意気軒昂テスト',
+    timing: 'OnFirstBattleStart',
+    parts: [
+      { skill_type: 'AdditionalHitOnKillCount', target_type: 'Self', power: [0, 0], value: [0, 0] },
+      { skill_type: 'HealSp', target_type: 'Self', power: [5, 0], value: [0, 0] },
+    ],
+  };
+}
+
+test('TurnEngineManager passes killCount to actions when Kill overrides are provided', () => {
+  const actorSkill = createSkill({
+    id: 9070,
+    name: 'Kill Slash',
+    targetType: 'All',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  const initialState = createInitialState(actorSkill, { passives: [createKillCountPassive()] });
+  manager.initialize(initialState, {});
+
+  const committedRecord = manager.commitNextTurn(
+    { 0: { skillId: 9070 } },
+    {
+      enemyCount: 2,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [0, 1] }],
+    }
+  );
+
+  // killCount=2 → HealSp passive fires with multiplier 2 → SP+10
+  const action = committedRecord.actions.find((e) => e.positionIndex === 0);
+  const spPassive = action?.spChanges?.find((c) => c.source === 'sp_passive');
+  assert.ok(spPassive, 'kill-count passive should fire');
+  assert.equal(spPassive.delta, 10); // 5 * 2 kills
+
+  // replay script に ACTION_OUTCOME_OVERRIDES として Kill エントリが保存されていること
+  const overrideEntry = manager.replayScript.turns[0].overrideEntries.find(
+    (e) => e.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+  );
+  assert.ok(overrideEntry, 'ACTION_OUTCOME_OVERRIDES entry should exist');
+  const killEntry = overrideEntry?.payload?.find(
+    (e) => e.position === 0 && e.outcome === 'Kill'
+  );
+  assert.deepEqual(killEntry?.enemyIndexes, [0, 1]);
+});
+
+test('TurnEngineManager patches nextState with allEnemiesDefeated when all enemies are killed', () => {
+  const actorSkill = createSkill({
+    id: 9071,
+    name: 'Wipe',
+    targetType: 'All',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState(actorSkill), {});
+
+  manager.commitNextTurn(
+    { 0: { skillId: 9071 } },
+    {
+      enemyCount: 2,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [0, 1] }],
+    }
+  );
+
+  assert.equal(
+    manager.computedStates[0].turnState.enemyState.allEnemiesDefeated,
+    true,
+    'allEnemiesDefeated should be true when all enemies are killed'
+  );
+  // enemyCount は clampEnemyCount のため 0 にはならない（全滅時は元の値を維持）
+  assert.equal(manager.computedStates[0].turnState.enemyState.enemyCount, 2);
+});
+
+test('TurnEngineManager recalculateFrom restores killCount from overrideEntries', () => {
+  const actorSkill = createSkill({
+    id: 9072,
+    name: 'Kill2',
+    targetType: 'All',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createInitialState(actorSkill, { passives: [createKillCountPassive()] }),
+    {}
+  );
+
+  manager.commitNextTurn(
+    { 0: { skillId: 9072 } },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [0] }],
+    }
+  );
+
+  // recalculate すると Kill overrides が replay turn から復元される
+  manager.recalculateFrom(0);
+
+  const replayed = manager.computedRecords[0]?.actions.find((e) => e.positionIndex === 0);
+  const sp = replayed?.spChanges?.find((c) => c.source === 'sp_passive');
+  assert.ok(sp, 'kill-count passive should fire after recalculate');
+  assert.equal(sp.delta, 5); // 5 * 1 kill
+  assert.equal(manager.computedStates[0].turnState.enemyState.allEnemiesDefeated, true);
+});
+
+test('TurnEngineManager break passive fires on Break but not on Kill for the same enemy', () => {
+  // E1 をブレイクすると AdditionalHitOnBreaking パッシブが発火（SP+8）
+  // E1 を討伐すると同パッシブは発火しない（討伐はブレイク成立ではないため）
+  const actorSkill = createSkill({
+    id: 9073,
+    name: 'Strike',
+    targetType: 'All',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createInitialState(actorSkill, { passives: [createBreakHealPassive()] }),
+    {}
+  );
+
+  // --- ケース1: E1 をブレイク → ブレイクパッシブ発火（SP+8）---
+  const breakRecord = manager.commitNextTurn(
+    { 0: { skillId: 9073 } },
+    {
+      enemyCount: 2,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Break', enemyIndexes: [0] }],
+    }
+  );
+  const breakAction = breakRecord.actions.find((e) => e.positionIndex === 0);
+  assert.equal(breakAction?.breakHitCount, 1, 'break passive: breakHitCount should be 1');
+  assert.ok(
+    breakAction?.spChanges?.some((c) => c.source === 'sp_passive' && c.delta === 8),
+    'break passive should fire on break (SP+8)'
+  );
+
+  // --- ケース2: E1 を討伐 → ブレイクパッシブ発火なし ---
+  manager.initialize(
+    createInitialState(actorSkill, { passives: [createBreakHealPassive()] }),
+    {}
+  );
+  const killRecord = manager.commitNextTurn(
+    { 0: { skillId: 9073 } },
+    {
+      enemyCount: 2,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [0] }],
+    }
+  );
+  const killAction = killRecord.actions.find((e) => e.positionIndex === 0);
+  assert.equal(
+    killAction?.breakHitCount ?? 0,
+    0,
+    'break passive: breakHitCount should be 0 on kill'
+  );
+  assert.ok(
+    !killAction?.spChanges?.some((c) => c.source === 'sp_passive'),
+    'break passive should NOT fire on kill'
+  );
 });

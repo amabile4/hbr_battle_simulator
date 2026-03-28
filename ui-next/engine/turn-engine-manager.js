@@ -31,7 +31,9 @@ import {
   ACTION_OUTCOME_TYPES,
   buildActionOutcomeOverrideEntry,
   getActionOutcomeOverridesFromOverrideEntries,
+  getAllKilledEnemyIndexes,
   getBreakEnemyIndexesForPosition,
+  getKillEnemyIndexesForPosition,
   normalizeActionOutcomeOverrides,
 } from '../utils/action-outcome-overrides.js';
 import { normalizeValidationPolicy } from '../utils/validation-policy.js';
@@ -187,7 +189,7 @@ export class TurnEngineManager {
       actionOutcomeOverrides
     );
     this.#replayScript.turns.push(replayTurn);
-    this.#computedStates.push(nextState);
+    this.#computedStates.push(this.#patchNextStateForKills(nextState, actionOutcomeOverrides, enemyCount));
     this.#computedRecords.push(committedRecord);
 
     // pending をリセット
@@ -276,9 +278,10 @@ export class TurnEngineManager {
         const { nextState, committedRecord } = commitTurnRecord(state, previewRecord, [], {
           interruptOdLevel: interruptLevel ?? 0,
         });
-        this.#computedStates.push(nextState);
+        const patchedNextState = this.#patchNextStateForKills(nextState, actionOutcomeOverrides, enemyCount);
+        this.#computedStates.push(patchedNextState);
         this.#computedRecords.push(committedRecord);
-        state = nextState;
+        state = patchedNextState;
       } catch (err) {
         // force モード相当: エラーを記録して以降をスキップ
         console.warn(`TurnEngineManager.recalculateFrom: turn ${i} failed:`, err.message);
@@ -644,15 +647,37 @@ export class TurnEngineManager {
       ? this.#initialState
       : this.#computedStates[turnIndex - 1];
     const turn = this.#replayScript?.turns?.[turnIndex];
-    if (!Array.isArray(turn?.operations) || turn.operations.length === 0) {
+
+    const hasSlots = Array.isArray(turn?.slots) && turn.slots.some((s) => s?.styleId != null);
+    const hasOperations = Array.isArray(turn?.operations) && turn.operations.length > 0;
+
+    if (!hasSlots && !hasOperations) {
       return rawBefore;
     }
-    try {
-      const enemyCount = this.#resolveReplayTurnEnemyCount(turn, rawBefore);
-      return applyBeforeCommitOperations(rawBefore, turn.operations, { enemyCount });
-    } catch {
-      return rawBefore;
+
+    // party を clone して stored state を汚染しないよう独立させる。
+    // #alignPositionsToSlots が position を書き換えるため、rawBefore をそのまま渡すと
+    // computedStates / initialState が破壊される。
+    let state = { ...rawBefore, party: rawBefore.party.map((m) => m.clone()) };
+
+    // turn.slots の styleId に基づいて各メンバーの position を復元する。
+    // JSON 読み込み時は recalculateFrom がワーキングコピーにのみ alignPositionsToSlots を
+    // 適用するため、computedStates にはスワップ前の positions が残ったままになる。
+    // ここで同様の復元を行うことで、表示用 stateBefore がスワップ後の配置を正しく反映する。
+    if (hasSlots) {
+      this.#alignPositionsToSlots(state, turn);
     }
+
+    if (hasOperations) {
+      try {
+        const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
+        state = applyBeforeCommitOperations(state, turn.operations, { enemyCount });
+      } catch {
+        return state;
+      }
+    }
+
+    return state;
   }
 
   // ---- private ----
@@ -812,6 +837,10 @@ export class TurnEngineManager {
         normalizedActionOutcomeOverrides,
         member.position
       );
+      const killEnemyIndexesForMember = getKillEnemyIndexesForPosition(
+        normalizedActionOutcomeOverrides,
+        member.position
+      );
 
       actions[member.position] = {
         skillId: action.skillId,
@@ -822,6 +851,7 @@ export class TurnEngineManager {
               manualBreakEnemyIndexes: breakEnemyIndexes,
             }
           : {}),
+        ...(killEnemyIndexesForMember.length > 0 ? { killCount: killEnemyIndexesForMember.length } : {}),
       };
     }
     return actions;
@@ -895,6 +925,27 @@ export class TurnEngineManager {
     return clampEnemyCount(
       scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
     );
+  }
+
+  #patchNextStateForKills(nextState, actionOutcomeOverrides, turnEnemyCount) {
+    const killedIndexes = getAllKilledEnemyIndexes(actionOutcomeOverrides);
+    if (killedIndexes.length === 0) return nextState;
+    const current = clampEnemyCount(
+      nextState?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+    );
+    const allDefeated = killedIndexes.length >= current;
+    const nextCount = allDefeated ? current : Math.max(1, current - killedIndexes.length);
+    return {
+      ...nextState,
+      turnState: {
+        ...nextState.turnState,
+        enemyState: {
+          ...nextState.turnState.enemyState,
+          enemyCount: nextCount,
+          allEnemiesDefeated: allDefeated,
+        },
+      },
+    };
   }
 
   #resolveReplayTurnActionOutcomeOverrides(replayTurn, enemyCount, state = null, slotActions = null) {
@@ -991,6 +1042,13 @@ export class TurnEngineManager {
       if (!Number.isInteger(position)) {
         continue;
       }
+
+      // Kill エントリはブレイク帰属モードのチェックなしでそのまま通過させる
+      if (override.outcome === ACTION_OUTCOME_TYPES.KILL) {
+        nextOverrides.push({ ...override });
+        continue;
+      }
+
       const action = slotActions?.[position];
       if (!action || action.skillId == null) {
         continue;
