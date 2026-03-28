@@ -21,9 +21,16 @@
   <!-- ヘッダー -->
   <header class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 shrink-0">
     <h1 class="text-base font-bold tracking-tight">HBR Battle Simulator</h1>
+    <!-- キャプチャボタン -->
+    <button id="capture-btn"
+            class="ml-auto text-xs px-2.5 py-1 rounded-md border border-gray-200
+                   text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="ターンエリアをPNG保存">
+      📷
+    </button>
     <!-- 右ペイン開閉ボタン -->
     <button id="toggle-setup"
-            class="ml-auto text-xs px-2.5 py-1 rounded-md border border-gray-200
+            class="text-xs px-2.5 py-1 rounded-md border border-gray-200
                    text-gray-500 hover:bg-gray-50 transition-colors"
             title="Initial Setup を開閉">
       ⚙ 設定 ▶
@@ -60,6 +67,87 @@
        style="bottom: max(1rem, env(safe-area-inset-bottom))"></div>
 
   <script type="module" src="./app.js"></script>
+  <script type="module">
+    let _htmlToImage = null;
+    async function getHtmlToImage() {
+      if (!_htmlToImage) {
+        _htmlToImage = await import('https://esm.sh/html-to-image@1');
+      }
+      return _htmlToImage;
+    }
+
+    function patchDisabledSelects(container) {
+      const selects = [...container.querySelectorAll('select[disabled]')];
+      const saved = selects.map((sel) => ({
+        el: sel,
+        color: sel.style.color,
+        backgroundColor: sel.style.backgroundColor,
+        opacity: sel.style.opacity,
+        pointerEvents: sel.style.pointerEvents,
+      }));
+      selects.forEach((sel) => {
+        sel.removeAttribute('disabled');
+        sel.style.color = '#374151';
+        sel.style.backgroundColor = '#f9fafb';
+        sel.style.opacity = '1';
+        sel.style.pointerEvents = 'none';
+      });
+      return function restore() {
+        saved.forEach(({ el, color, backgroundColor, opacity, pointerEvents }) => {
+          el.setAttribute('disabled', '');
+          el.style.color = color;
+          el.style.backgroundColor = backgroundColor;
+          el.style.opacity = opacity;
+          el.style.pointerEvents = pointerEvents;
+        });
+      };
+    }
+
+    document.getElementById('capture-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('capture-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳';
+      try {
+        const { toPng } = await getHtmlToImage();
+        const turnArea = document.getElementById('turn-area');
+
+        const prevOverflow = turnArea.style.overflow;
+        const prevMaxHeight = turnArea.style.maxHeight;
+        turnArea.style.overflow = 'visible';
+        turnArea.style.maxHeight = 'none';
+
+        const restoreSelects = patchDisabledSelects(turnArea);
+        try {
+          const dataUrl = await toPng(turnArea, {
+            width: turnArea.offsetWidth,
+            height: turnArea.scrollHeight,
+            pixelRatio: window.devicePixelRatio || 1,
+          });
+          const a = document.createElement('a');
+          const stamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
+          a.href = dataUrl;
+          a.download = `hbr_battle_${stamp}.png`;
+          document.body.appendChild(a);
+          try { a.click(); } finally { a.remove(); }
+        } finally {
+          restoreSelects();
+          turnArea.style.overflow = prevOverflow;
+          turnArea.style.maxHeight = prevMaxHeight;
+        }
+      } catch (err) {
+        console.error('キャプチャエラー:', err);
+        const status = document.querySelector('[data-role="status"]');
+        if (status) {
+          status.textContent = `キャプチャエラー: ${err.message}`;
+          status.classList.remove('hidden');
+          setTimeout(() => status.classList.add('hidden'), 5000);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📷';
+      }
+    });
+  </script>
   <script>
     const toggleBtn = document.getElementById('toggle-setup');
     const setupArea = document.getElementById('setup-area');

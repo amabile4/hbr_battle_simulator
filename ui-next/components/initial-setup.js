@@ -155,6 +155,22 @@ export class InitialSetupController {
                 </span>
               </span>
             </label>
+            <!-- キャプチャ設定（将来機能 / 現在未実装） -->
+            <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700 mt-4">キャプチャ</h3>
+            <label class="setting-switch flex items-start justify-between gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 cursor-not-allowed opacity-50">
+              <div class="min-w-0">
+                <div class="font-medium text-gray-800">バトル終了までをキャプチャ</div>
+                <div class="mt-1 text-xs leading-5 text-gray-500">
+                  （準備中）バトル終了ターンまでの行のみを1枚の画像として保存します。
+                </div>
+              </div>
+              <span class="shrink-0 pt-0.5">
+                <input type="checkbox" data-role="capture-until-battle-end-toggle" class="sr-only peer" disabled />
+                <span class="setting-switch__track">
+                  <span class="setting-switch__thumb"></span>
+                </span>
+              </span>
+            </label>
             <div class="space-y-2 border-t border-gray-200 pt-4">
               <h3 class="font-bold text-gray-700">セッション</h3>
               <button type="button"
@@ -295,6 +311,8 @@ export class InitialSetupController {
         enemyMode,
         allyMode,
       },
+      captureUntilBattleEnd:
+        this.#root.querySelector('[data-role="capture-until-battle-end-toggle"]')?.checked ?? false,
     });
   }
 
@@ -315,6 +333,10 @@ export class InitialSetupController {
     const allyToggle = this.#root.querySelector('[data-role="ally-target-simplify-toggle"]');
     if (allyToggle) {
       allyToggle.checked = allyMode === TARGET_SELECTION_MODES.SIMPLE;
+    }
+    const captureToggle = this.#root.querySelector('[data-role="capture-until-battle-end-toggle"]');
+    if (captureToggle) {
+      captureToggle.checked = Boolean(simulatorSettings.captureUntilBattleEnd);
     }
     this.#updateFooterButtons();
   }

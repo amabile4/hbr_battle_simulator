@@ -8,6 +8,7 @@ export const DEFAULT_SIMULATOR_SETTINGS = Object.freeze({
     enemyMode: TARGET_SELECTION_MODES.SIMPLE,
     allyMode: TARGET_SELECTION_MODES.SIMPLE,
   }),
+  captureUntilBattleEnd: false,
 });
 
 function normalizeTargetSelectionMode(mode) {
@@ -27,6 +28,7 @@ export function normalizeSimulatorSettings(settings = {}) {
       enemyMode: normalizeTargetSelectionMode(targetSelection.enemyMode),
       allyMode: normalizeTargetSelectionMode(targetSelection.allyMode),
     },
+    captureUntilBattleEnd: Boolean(settings?.captureUntilBattleEnd ?? false),
   };
 }
 
@@ -35,7 +37,8 @@ export function areSimulatorSettingsEqual(left, right) {
   const normalizedRight = normalizeSimulatorSettings(right);
   return (
     normalizedLeft.targetSelection.enemyMode === normalizedRight.targetSelection.enemyMode &&
-    normalizedLeft.targetSelection.allyMode === normalizedRight.targetSelection.allyMode
+    normalizedLeft.targetSelection.allyMode === normalizedRight.targetSelection.allyMode &&
+    normalizedLeft.captureUntilBattleEnd === normalizedRight.captureUntilBattleEnd
   );
 }
 
