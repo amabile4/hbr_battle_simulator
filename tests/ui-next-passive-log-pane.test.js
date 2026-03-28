@@ -40,6 +40,10 @@ test('PassiveLogPaneController mounts with empty state and notifies unavailable'
 
     assert.equal(root.querySelector('[data-role="passive-log-empty"]').classList.contains('hidden'), false);
     assert.equal(root.querySelector('[data-role="passive-log-rows"]').classList.contains('hidden'), true);
+    const resizeHandle = root.querySelector('[data-role="passive-log-resize-handle"]');
+    assert.ok(resizeHandle);
+    assert.equal(resizeHandle.getAttribute('role'), 'separator');
+    assert.equal(resizeHandle.getAttribute('aria-orientation'), 'horizontal');
     assert.deepEqual(availability, [false]);
   }));
 

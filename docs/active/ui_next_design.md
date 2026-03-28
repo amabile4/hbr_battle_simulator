@@ -230,6 +230,8 @@
 - timing は `--- OnBattleStart ---` のような 1 行 marker で区切り、個々の passive row には旧ログ準拠の 1 行フォーマットを使う
 - 1 passive 効果 1 行を維持するため、accordion は使わず `nowrap + 横スクロール` の単一コンテナに出す
 - 既定配置は TurnPlanner 下段の collapsible pane とし、hidden 時は TurnPlanner が高さを全使用する
+- desktop では pane 上端の splitter から縦サイズを可変にし、同一 session 内では close/open をまたいで最後の高さを保持する
+- mobile 幅では resize handle を出さず、既定の固定高さ pane として扱う
 - 将来の別ウィンドウ化を見据え、log row builder と pane 描画は分離する
 
 ### Turn 行の selectable skill list

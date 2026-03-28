@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 import {
+  applyPassiveLogResizingState,
   applyPassiveLogOpenState,
   applySetupOpenState,
+  clampPassiveLogPaneHeight,
   setToolbarButtonLabel,
 } from '../ui-next/utils/workspace-shell.js';
 
@@ -89,6 +91,99 @@ test('applyPassiveLogOpenState disables toggle until rows exist', () =>
     assert.equal(togglePassiveLog.disabled, false);
     assert.equal(togglePassiveLog.querySelector('[data-role="toolbar-label"]').textContent, 'ログを隠す');
     assert.equal(togglePassiveLog.dataset.active, 'true');
+  }));
+
+test('applyPassiveLogOpenState keeps desktop pane height across close and reopen in the same session', () =>
+  withDom(({ appRoot, passiveLogPane, togglePassiveLog }) => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1280,
+      writable: true,
+    });
+
+    applyPassiveLogOpenState({
+      appRoot,
+      paneRoot: passiveLogPane,
+      toggleButton: togglePassiveLog,
+      open: true,
+      hasRows: true,
+      heightPx: 320,
+      workspaceHeightPx: 720,
+      viewportWidth: window.innerWidth,
+    });
+
+    assert.equal(passiveLogPane.hidden, false);
+    assert.equal(passiveLogPane.style.height, '320px');
+    assert.equal(passiveLogPane.style.flexBasis, '320px');
+
+    applyPassiveLogOpenState({
+      appRoot,
+      paneRoot: passiveLogPane,
+      toggleButton: togglePassiveLog,
+      open: false,
+      hasRows: true,
+      heightPx: 320,
+      workspaceHeightPx: 720,
+      viewportWidth: window.innerWidth,
+    });
+
+    assert.equal(passiveLogPane.hidden, true);
+    assert.equal(passiveLogPane.style.height, '320px');
+
+    applyPassiveLogOpenState({
+      appRoot,
+      paneRoot: passiveLogPane,
+      toggleButton: togglePassiveLog,
+      open: true,
+      hasRows: true,
+      heightPx: 320,
+      workspaceHeightPx: 720,
+      viewportWidth: window.innerWidth,
+    });
+
+    assert.equal(passiveLogPane.hidden, false);
+    assert.equal(passiveLogPane.style.height, '320px');
+  }));
+
+test('clampPassiveLogPaneHeight keeps pane within min and remaining workspace budget', () => {
+  assert.equal(clampPassiveLogPaneHeight(80, 720), 128);
+  assert.equal(clampPassiveLogPaneHeight(999, 720), 480);
+  assert.equal(clampPassiveLogPaneHeight(320, 720), 320);
+});
+
+test('applyPassiveLogOpenState ignores desktop resize height on mobile widths', () =>
+  withDom(({ appRoot, passiveLogPane, togglePassiveLog }) => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390,
+      writable: true,
+    });
+
+    applyPassiveLogOpenState({
+      appRoot,
+      paneRoot: passiveLogPane,
+      toggleButton: togglePassiveLog,
+      open: true,
+      hasRows: true,
+      heightPx: 320,
+      workspaceHeightPx: 720,
+      viewportWidth: window.innerWidth,
+    });
+
+    assert.equal(passiveLogPane.hidden, false);
+    assert.equal(passiveLogPane.style.height, '');
+    assert.equal(passiveLogPane.dataset.passiveLogResizeEnabled, 'false');
+  }));
+
+test('applyPassiveLogResizingState toggles a body class while dragging', () =>
+  withDom(({ appRoot }) => {
+    applyPassiveLogResizingState({ appRoot, active: true });
+    assert.equal(appRoot.dataset.passiveLogResizing, 'true');
+    assert.equal(document.body.classList.contains('passive-log-resizing'), true);
+
+    applyPassiveLogResizingState({ appRoot, active: false });
+    assert.equal(appRoot.dataset.passiveLogResizing, 'false');
+    assert.equal(document.body.classList.contains('passive-log-resizing'), false);
   }));
 
 test('setToolbarButtonLabel preserves icon markup when toolbar buttons have nested spans', () =>

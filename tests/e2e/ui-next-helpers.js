@@ -35,6 +35,30 @@ export async function fillPartySetupSlots(page, slotIndexes = [0, 1, 2, 3]) {
   }
 }
 
+export async function fillPartySetupSlotsWithStyleIds(page, styleIds = []) {
+  const overlay = page.locator('#style-picker-overlay');
+
+  for (const [slotIndex, styleId] of styleIds.entries()) {
+    await page
+      .locator(`[data-action="open-picker"][data-slot-index="${slotIndex}"][data-mode="main"]`)
+      .click();
+    await expect(overlay).toBeVisible({ timeout: 5000 });
+
+    const target = page.locator(`#picker-body [data-style-id="${styleId}"]`).first();
+    await expect(target).toBeVisible({ timeout: 5000 });
+    await target.click();
+
+    if (await overlay.isVisible()) {
+      await page.locator('#picker-close').click();
+      await expect(overlay).toBeHidden({ timeout: 5000 });
+    }
+
+    await expect(
+      page.locator(`[data-slot="${slotIndex}"] [data-role="party-slot-main-button"] img`)
+    ).toBeVisible({ timeout: 5000 });
+  }
+}
+
 export async function applyParty(page) {
   const applyButton = page.locator('[data-role="apply-btn"]');
   await expect(applyButton).toBeEnabled({ timeout: 5000 });
@@ -66,4 +90,14 @@ export async function getTurnRowSlotAlt(row, position) {
   return row
     .locator(`[data-turn-slot][data-position="${position}"] [data-turn-slot-icon] img`)
     .getAttribute('alt');
+}
+
+export async function openPassiveLog(page) {
+  const toggle = page.locator('#toggle-passive-log');
+  await expect(toggle).toBeEnabled({ timeout: 10000 });
+  await toggle.click();
+
+  const pane = page.locator('#passive-log-pane');
+  await expect(pane).toBeVisible({ timeout: 10000 });
+  return pane;
 }

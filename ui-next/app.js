@@ -12,9 +12,18 @@ import {
 } from './utils/session-snapshot.js';
 import { DEFAULT_VALIDATION_POLICY } from './utils/validation-policy.js';
 import {
+  applyPassiveLogPaneHeight,
   applyPassiveLogOpenState,
+  applyPassiveLogResizingState,
   applySetupOpenState,
+  clampPassiveLogPaneHeight,
+  isPassiveLogResizeEnabled,
+  PASSIVE_LOG_DEFAULT_HEIGHT_PX,
+  PASSIVE_LOG_MIN_HEIGHT_PX,
+  PASSIVE_LOG_RESIZE_STEP_PX,
+  resolvePassiveLogMaxHeightPx,
   setToolbarButtonLabel,
+  updatePassiveLogResizeHandle,
 } from './utils/workspace-shell.js';
 import { mountPngCaptureSandbox } from './utils/png-capture.js';
 
@@ -220,6 +229,7 @@ function loadSessionText({
 
 function setupWorkspaceShell() {
   const appRoot = document.querySelector('#app');
+  const workspaceMain = document.querySelector('#workspace-main');
   const turnAreaRoot = document.querySelector('#turn-area');
   const setupArea = document.querySelector('#setup-area');
   const passiveLogPaneRoot = document.querySelector('#passive-log-pane');
@@ -227,6 +237,8 @@ function setupWorkspaceShell() {
   const passiveLogToggleButton = document.querySelector('#toggle-passive-log');
   const turnLayoutToggleButton = document.querySelector('#toggle-turn-layout');
   const captureButton = document.querySelector('#capture-btn');
+  const passiveLogResizeHandle =
+    passiveLogPaneRoot?.querySelector('[data-role="passive-log-resize-handle"]') ?? null;
 
   let setupOpen = applySetupOpenState({
     appRoot,
@@ -234,18 +246,60 @@ function setupWorkspaceShell() {
     toggleButton: setupToggleButton,
     open: true,
   });
+  let passiveLogHeightPx = PASSIVE_LOG_DEFAULT_HEIGHT_PX;
   let passiveLogOpen = applyPassiveLogOpenState({
     appRoot,
     paneRoot: passiveLogPaneRoot,
     toggleButton: passiveLogToggleButton,
     open: false,
     hasRows: false,
+    heightPx: passiveLogHeightPx,
+    workspaceHeightPx: Number(workspaceMain?.getBoundingClientRect?.().height ?? 0),
+    viewportWidth: Number(window.innerWidth ?? 0),
   });
   let currentTurnSlotLayoutMode = applyTurnSlotLayoutMode(
     turnAreaRoot,
     turnLayoutToggleButton,
     readStoredTurnSlotLayoutMode()
   );
+
+  const resolveWorkspaceHeight = () => {
+    const height = Number(workspaceMain?.getBoundingClientRect?.().height ?? 0);
+    return Number.isFinite(height) ? height : 0;
+  };
+
+  const setPassiveLogResizing = (active) => {
+    const normalized = Boolean(active);
+    applyPassiveLogResizingState({ appRoot, active: normalized });
+    if (passiveLogResizeHandle) {
+      passiveLogResizeHandle.dataset.active = normalized ? 'true' : 'false';
+    }
+  };
+
+  const syncPassiveLogPaneLayout = () => {
+    const workspaceHeightPx = resolveWorkspaceHeight();
+    const appliedHeightPx = applyPassiveLogPaneHeight({
+      appRoot,
+      paneRoot: passiveLogPaneRoot,
+      heightPx: passiveLogHeightPx,
+      workspaceHeightPx,
+      viewportWidth: Number(window.innerWidth ?? 0),
+    });
+    if (appliedHeightPx != null) {
+      passiveLogHeightPx = appliedHeightPx;
+    }
+    updatePassiveLogResizeHandle({
+      paneRoot: passiveLogPaneRoot,
+      heightPx: passiveLogHeightPx,
+      workspaceHeightPx,
+    });
+    if (passiveLogResizeHandle) {
+      passiveLogResizeHandle.setAttribute(
+        'aria-disabled',
+        String(!isPassiveLogResizeEnabled(Number(window.innerWidth ?? 0)))
+      );
+    }
+  };
 
   setupToggleButton?.addEventListener('click', () => {
     setupOpen = applySetupOpenState({
@@ -266,7 +320,11 @@ function setupWorkspaceShell() {
       toggleButton: passiveLogToggleButton,
       open: !passiveLogOpen,
       hasRows: appRoot?.dataset.passiveLogAvailable === 'true',
+      heightPx: passiveLogHeightPx,
+      workspaceHeightPx: resolveWorkspaceHeight(),
+      viewportWidth: Number(window.innerWidth ?? 0),
     });
+    syncPassiveLogPaneLayout();
   });
 
   turnLayoutToggleButton?.addEventListener('click', () => {
@@ -324,6 +382,84 @@ function setupWorkspaceShell() {
     }
   });
 
+  passiveLogResizeHandle?.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+    if (passiveLogPaneRoot?.hidden || !isPassiveLogResizeEnabled(Number(window.innerWidth ?? 0))) {
+      return;
+    }
+
+    const startY = Number(event.clientY ?? 0);
+    const startHeightPx = clampPassiveLogPaneHeight(passiveLogHeightPx, resolveWorkspaceHeight());
+    const pointerId = Number.isFinite(Number(event.pointerId)) ? Number(event.pointerId) : null;
+
+    event.preventDefault();
+    passiveLogHeightPx = startHeightPx;
+    syncPassiveLogPaneLayout();
+    setPassiveLogResizing(true);
+    if (pointerId != null) {
+      passiveLogResizeHandle.setPointerCapture?.(pointerId);
+    }
+
+    const handlePointerMove = (moveEvent) => {
+      if (pointerId != null && moveEvent.pointerId !== pointerId) {
+        return;
+      }
+      const deltaY = startY - Number(moveEvent.clientY ?? startY);
+      passiveLogHeightPx = clampPassiveLogPaneHeight(startHeightPx + deltaY, resolveWorkspaceHeight());
+      syncPassiveLogPaneLayout();
+    };
+
+    const finishResize = (endEvent) => {
+      if (pointerId != null && endEvent.pointerId !== pointerId) {
+        return;
+      }
+      if (pointerId != null) {
+        passiveLogResizeHandle.releasePointerCapture?.(pointerId);
+      }
+      setPassiveLogResizing(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', finishResize);
+      window.removeEventListener('pointercancel', finishResize);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', finishResize);
+    window.addEventListener('pointercancel', finishResize);
+  });
+
+  passiveLogResizeHandle?.addEventListener('keydown', (event) => {
+    if (passiveLogPaneRoot?.hidden || !isPassiveLogResizeEnabled(Number(window.innerWidth ?? 0))) {
+      return;
+    }
+
+    const workspaceHeightPx = resolveWorkspaceHeight();
+    const maxHeightPx = resolvePassiveLogMaxHeightPx(workspaceHeightPx);
+    let nextHeightPx = null;
+    if (event.key === 'ArrowUp') {
+      nextHeightPx = passiveLogHeightPx + PASSIVE_LOG_RESIZE_STEP_PX;
+    } else if (event.key === 'ArrowDown') {
+      nextHeightPx = passiveLogHeightPx - PASSIVE_LOG_RESIZE_STEP_PX;
+    } else if (event.key === 'Home') {
+      nextHeightPx = PASSIVE_LOG_MIN_HEIGHT_PX;
+    } else if (event.key === 'End' && Number.isFinite(maxHeightPx)) {
+      nextHeightPx = maxHeightPx;
+    }
+    if (nextHeightPx == null) {
+      return;
+    }
+
+    event.preventDefault();
+    passiveLogHeightPx = clampPassiveLogPaneHeight(nextHeightPx, workspaceHeightPx);
+    syncPassiveLogPaneLayout();
+  });
+
+  window.addEventListener('resize', () => {
+    syncPassiveLogPaneLayout();
+  });
+  syncPassiveLogPaneLayout();
+
   window.collapseSetup = () => {
     setupOpen = applySetupOpenState({
       appRoot,
@@ -341,7 +477,11 @@ function setupWorkspaceShell() {
         toggleButton: passiveLogToggleButton,
         open: passiveLogOpen,
         hasRows,
+        heightPx: passiveLogHeightPx,
+        workspaceHeightPx: resolveWorkspaceHeight(),
+        viewportWidth: Number(window.innerWidth ?? 0),
       });
+      syncPassiveLogPaneLayout();
     },
     buttons: {
       sessionSave: document.querySelector('#session-save-btn'),
@@ -352,7 +492,7 @@ function setupWorkspaceShell() {
 }
 
 async function main() {
-  const workspaceShell = setupWorkspaceShell();
+  let workspaceShell = null;
   const payload = {
     characters: await fetchJson('../json/characters.json'),
     styles: await fetchJson('../json/styles.json'),
@@ -374,9 +514,10 @@ async function main() {
 
   const passiveLogPane = new PassiveLogPaneController({
     root: document.querySelector('#passive-log-pane'),
-    onHasRowsChange: (hasRows) => workspaceShell.updatePassiveLogAvailability(hasRows),
+    onHasRowsChange: (hasRows) => workspaceShell?.updatePassiveLogAvailability(hasRows),
   });
   passiveLogPane.mount();
+  workspaceShell = setupWorkspaceShell();
 
   const turnAreaRoot = document.querySelector('#turn-area');
   const turnArea = new TurnAreaController({

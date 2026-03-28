@@ -286,6 +286,49 @@
   min-width: 0;
 }
 
+.passive-log-pane__resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0.875rem;
+  padding: 0.125rem 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.passive-log-pane__resize-handle:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.32);
+}
+
+.passive-log-pane__resize-handle[data-active="true"] {
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.passive-log-pane__resize-handle[data-resize-enabled="false"] {
+  cursor: default;
+}
+
+.passive-log-pane__resize-grip {
+  display: block;
+  width: 3rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: #cbd5e1;
+  box-shadow:
+    0 0 0 1px rgba(148, 163, 184, 0.12),
+    0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.passive-log-resizing,
+.passive-log-resizing * {
+  user-select: none !important;
+  cursor: ns-resize !important;
+}
+
 [data-capture-mode="png"] {
   --png-capture-note-base-width: 9rem;
 }
