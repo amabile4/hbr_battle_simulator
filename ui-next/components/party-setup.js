@@ -31,8 +31,26 @@ const MORALE_OPTIONS = [
 
 const PRESET_STORAGE_KEY = 'hbr.ui_next.party_presets.v1';
 const PRESET_COUNT = 3;
+const PARTY_SLOT_COUNT = 6;
+const FRONTLINE_SLOT_COUNT = 3;
 const DEFAULT_SP_EQUIP_ID = '3';
 const EMPTY_SP_EQUIP_ID = '';
+
+function createEmptySlotState() {
+  return {
+    styleId: null,
+    style: null,
+    supportStyleId: null,
+    supportStyle: null,
+    lb: 0,
+    supportLb: 0,
+    drivePierce: 0,
+    spEquipId: DEFAULT_SP_EQUIP_ID,
+    belt: '',
+    morale: 'normal',
+    equippedSkillIds: [],
+  };
+}
 
 function extractCharaName(style) {
   const raw = String(style?.chara ?? '');
@@ -112,25 +130,14 @@ export class PartySetupController {
     this.#root = root;
     this.#store = store;
 
-    this.#slots = Array.from({ length: 6 }, () => ({
-      styleId: null,
-      style: null,
-      supportStyleId: null,
-      supportStyle: null,
-      lb: 0,
-      supportLb: 0,
-      drivePierce: 0,
-      spEquipId: DEFAULT_SP_EQUIP_ID,
-      belt: '',
-      morale: 'normal',
-      equippedSkillIds: [],
-    }));
+    this.#slots = Array.from({ length: PARTY_SLOT_COUNT }, () => createEmptySlotState());
 
     this.#picker = new StylePickerController({
       overlay: pickerOverlay,
       styles: store.styles,
       store: store,
       onSelect: (style) => this.#onStyleSelected(style),
+      onDisband: () => this.#disbandParty(),
       onSlotSwitch: (slotIndex, mode) => {
         this.#activeSlotIndex = slotIndex;
         this.#activeMode = mode;
@@ -175,7 +182,7 @@ export class PartySetupController {
    */
   getSnapshot() {
     const styleIds = this.#slots.map((s) => s.styleId ?? null);
-    const isFrontFilled = styleIds.slice(0, 3).every((id) => id !== null);
+    const isFrontFilled = styleIds.slice(0, FRONTLINE_SLOT_COUNT).every((id) => id !== null);
     return {
       isFrontFilled,
       styleIds,
@@ -218,7 +225,7 @@ export class PartySetupController {
   }
 
   applySnapshot(snapshot = {}) {
-    this.#slots = Array.from({ length: 6 }, (_, index) => {
+    this.#slots = Array.from({ length: PARTY_SLOT_COUNT }, (_, index) => {
       const styleId = snapshot?.styleIds?.[index] ?? null;
       const supportStyleId = snapshot?.supportStyleIds?.[index] ?? null;
       const style = styleId ? (this.#store.getStyleById(styleId) ?? null) : null;
@@ -348,6 +355,22 @@ export class PartySetupController {
     this.#onChange?.(this.getSnapshot(), this.#normalizeChangeMeta(meta));
   }
 
+  #hasPartySelections() {
+    return this.#slots.some((slot) => slot.styleId !== null || slot.supportStyleId !== null);
+  }
+
+  #disbandParty() {
+    if (!this.#hasPartySelections()) {
+      return;
+    }
+    this.#slots = Array.from({ length: PARTY_SLOT_COUNT }, () => createEmptySlotState());
+    this.#activeSlotIndex = null;
+    this.#activeMode = 'main';
+    this.#picker.close();
+    this.#render();
+    this.#notifyChange();
+  }
+
   #getEquipableSkillsForStyle(styleId) {
     if (!styleId) {
       return [];
@@ -450,18 +473,18 @@ export class PartySetupController {
 
     if (this.#activeMode === 'main') {
       // まずメインの残り空きを探す
-      for (let i = start; i < 6; i++) {
+      for (let i = start; i < PARTY_SLOT_COUNT; i++) {
         if (!this.#slots[i].style) return { slotIndex: i, mode: 'main' };
       }
       // メインが埋まったらサポートの空き（スロット0から）を探す
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < PARTY_SLOT_COUNT; i++) {
         const slot = this.#slots[i];
         const enabled = slot.style?.tier === 'SS' || slot.style?.tier === 'SSR';
         if (enabled && !slot.supportStyle) return { slotIndex: i, mode: 'support' };
       }
     } else {
       // support モード: 残りのサポート空きスロットのみ
-      for (let i = start; i < 6; i++) {
+      for (let i = start; i < PARTY_SLOT_COUNT; i++) {
         const slot = this.#slots[i];
         const enabled = slot.style?.tier === 'SS' || slot.style?.tier === 'SSR';
         if (enabled && !slot.supportStyle) return { slotIndex: i, mode: 'support' };
@@ -476,9 +499,20 @@ export class PartySetupController {
     // やる気パッシブ持ちが1人でもいれば全スロットにやる気 select を表示
     const moraleVisible = this.#slots.some((s) => hasMoralePassive(s.style));
     const presets = this.#readPresets();
+    const canDisband = this.#hasPartySelections();
 
     this.#root.innerHTML = `
       <div class="p-1.5 space-y-1.5">
+        <div class="flex justify-end px-0.5">
+          <button data-action="disband-party"
+                  type="button"
+                  ${canDisband ? '' : 'disabled'}
+                  class="text-xs px-2 py-1 rounded-md border border-rose-200 bg-rose-50
+                         text-rose-600 hover:bg-rose-100 transition-colors
+                         disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50">
+            PT解散
+          </button>
+        </div>
         <!-- プリセット（折りたたみ） -->
         <div class="border border-gray-100 rounded">
           <button data-action="toggle-preset"
@@ -562,6 +596,9 @@ export class PartySetupController {
     this.#root.querySelector('[data-action="toggle-preset"]')?.addEventListener('click', () => {
       this.#presetExpanded = !this.#presetExpanded;
       this.#render();
+    });
+    this.#root.querySelector('[data-action="disband-party"]')?.addEventListener('click', () => {
+      this.#disbandParty();
     });
 
     // プリセット保存・読込

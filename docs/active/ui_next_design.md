@@ -102,6 +102,8 @@
 - 1 style を選ぶと元の `Party Setup` に戻り、対象 slot の `main` が更新される
 - `support style icon` も同じ導線で開く
 - `support` 側は共鳴アビリティなど support 専用情報を追加表示できる構造にする
+- `Style Picker` の `続けて選ぶ` は既定 `ON` とし、空き slot を順番に埋める導線を優先する
+- `Style Picker` header と `Party Setup` 本体の両方に `PT解散` を置き、全 slot の選択状態を初期化できるようにする
 - slot panel 全体は D&D で順番を入れ替える
 - D&D は style だけでなく、その slot に紐づく listbox の設定値もまとめて移動する
 
@@ -188,7 +190,7 @@
 - この設定は replay や stage 状態ではなく、session-level の UI 設定として扱う
 - save/load の正本は `SessionSnapshotV1` とし、`setup / simulatorSettings / validationPolicy / replayScript` を保存する
 - `validationPolicy` は当面 permissive input を維持する箱としてのみ使い、既定値はすべて `true` とする
-- `captureUntilBattleEnd` は session-level option とし、ON のときは PNG 保存を最初の `battle end` 行までで打ち切る
+- `captureUntilBattleEnd` は session-level option とし、既定値は `ON`、有効時は PNG 保存を最初の `battle end` 行までで打ち切る
 - PNG 保存対象は committed turn rows のみとし、未コミット入力行 / edit 行は含めない
 - PNG 保存時は右側の操作列を描画対象から外し、note / chip 列を詰めた capture 専用レイアウトを使う
 - current session の JSON 保存 / 読込は `Simulator Settings` 内ではなく上部 utility bar に置く

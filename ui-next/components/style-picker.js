@@ -76,6 +76,7 @@ const ROLE_OPTIONS = [
 const FILTER_KEY = { tier: 'tiers', type: 'types', element: 'elements', role: 'roles' };
 
 const ELEMENT_LABEL = { Fire: '火', Ice: '氷', Thunder: '雷', Light: '光', Dark: '闇' };
+const DEFAULT_CONTINUOUS_MODE = true;
 
 function filterBarHtml() {
   const ELEMENT_CSS = {
@@ -160,6 +161,7 @@ export class StylePickerController {
   #styles;
   #store;
   #onSelect;
+  #onDisband;
   #onSlotSwitch; // (slotIndex: number) => void
   #showNames = false;
   #currentStyle = null;
@@ -169,13 +171,14 @@ export class StylePickerController {
   #supportResonanceFilter = 'all'; // 'all' | 'has' | 'none'
   #pressedStyleId = null;
   #partyContext = null; // { slots: [{style, supportStyle}], slotIndex, mode }
-  #continuousMode = false;
+  #continuousMode = DEFAULT_CONTINUOUS_MODE;
 
-  constructor({ overlay, styles, store = null, onSelect, onSlotSwitch = null }) {
+  constructor({ overlay, styles, store = null, onSelect, onDisband = null, onSlotSwitch = null }) {
     this.#overlay = overlay;
     this.#styles = styles;
     this.#store = store;
     this.#onSelect = onSelect;
+    this.#onDisband = onDisband;
     this.#onSlotSwitch = onSlotSwitch;
   }
 
@@ -187,8 +190,17 @@ export class StylePickerController {
            class="fixed inset-0 bg-black/60 flex items-start justify-center pt-8 px-4 pb-4">
         <div class="picker-dialog bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col">
           <header class="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 shrink-0">
-            <span id="picker-mode-label" class="font-semibold text-gray-800 text-sm">スタイルを選ぶ</span>
-            <span id="picker-count" class="text-xs text-gray-400"></span>
+            <div class="flex items-center gap-2 min-w-0">
+              <span id="picker-mode-label" class="font-semibold text-gray-800 text-sm">スタイルを選ぶ</span>
+              <button id="picker-disband-party"
+                      type="button"
+                      class="shrink-0 text-xs px-2 py-1 rounded-md border border-rose-200
+                             bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors
+                             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50">
+                PT解散
+              </button>
+              <span id="picker-count" class="text-xs text-gray-400 shrink-0"></span>
+            </div>
             <div class="ml-auto flex items-center gap-2">
               <button id="picker-continuous-toggle"
                       class="text-xs px-2.5 py-1 rounded-md border border-gray-200
@@ -252,6 +264,14 @@ export class StylePickerController {
       this.#continuousMode = !this.#continuousMode;
       this.#syncContinuousButton();
     });
+    this.#overlay.querySelector('#picker-disband-party').addEventListener('click', () => {
+      const button = this.#overlay.querySelector('#picker-disband-party');
+      if (button?.disabled) {
+        return;
+      }
+      this.#onDisband?.();
+    });
+    this.#syncContinuousButton();
 
     // フィルタボタン
     this.#overlay.querySelectorAll('[data-filter-type]').forEach((btn) => {
@@ -426,6 +446,7 @@ export class StylePickerController {
 
     // slot strip
     this.#renderSlotStrip();
+    this.#syncDisbandButton();
 
     // support パネル
     const supportPanel = this.#overlay.querySelector('#picker-support-panel');
@@ -527,6 +548,15 @@ export class StylePickerController {
     btn.classList.toggle('text-green-700', this.#continuousMode);
     btn.classList.toggle('text-gray-500', !this.#continuousMode);
     btn.classList.toggle('border-gray-200', !this.#continuousMode);
+  }
+
+  #syncDisbandButton() {
+    const btn = this.#overlay.querySelector('#picker-disband-party');
+    if (!btn) return;
+    const hasSelections = (this.#partyContext?.slots ?? []).some(
+      (slot) => Boolean(slot?.style || slot?.supportStyle)
+    );
+    btn.disabled = !hasSelections;
   }
 
   #filteredStyles() {

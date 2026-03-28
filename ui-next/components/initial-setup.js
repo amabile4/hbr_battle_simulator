@@ -1,5 +1,6 @@
 import { PartySetupController } from './party-setup.js';
 import {
+  DEFAULT_SIMULATOR_SETTINGS,
   normalizeSimulatorSettings,
   TARGET_SELECTION_MODES,
 } from '../utils/simulator-settings.js';
@@ -157,7 +158,10 @@ export class InitialSetupController {
                 </div>
               </div>
               <span class="shrink-0 pt-0.5">
-                <input type="checkbox" data-role="capture-until-battle-end-toggle" class="sr-only peer" />
+                <input type="checkbox"
+                       data-role="capture-until-battle-end-toggle"
+                       class="sr-only peer"
+                       ${DEFAULT_SIMULATOR_SETTINGS.captureUntilBattleEnd ? 'checked' : ''} />
                 <span class="setting-switch__track">
                   <span class="setting-switch__thumb"></span>
                 </span>

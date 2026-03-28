@@ -125,6 +125,98 @@ test('PartySetupController defaults all SP equip selectors to SP +3', () =>
     );
   }));
 
+test('PartySetupController PT解散 button clears current party selection from setup view', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="disband-party"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.equal(snapshot.isFrontFilled, false);
+    assert.deepEqual(snapshot.styleIds, [null, null, null, null, null, null]);
+    assert.deepEqual(snapshot.supportStyleIds, [null, null, null, null, null, null]);
+    assert.deepEqual(
+      Object.values(snapshot.startSpEquipByPartyIndex),
+      [3, 3, 3, 3, 3, 3],
+    );
+    assert.equal(root.querySelector('[data-action="disband-party"]').disabled, true);
+  }));
+
+test('PartySetupController opens Style Picker with continuous selection enabled by default', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    root
+      .querySelector('[data-action="open-picker"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const continuousToggle = pickerOverlay.querySelector('#picker-continuous-toggle');
+    assert.ok(continuousToggle);
+    assert.match(continuousToggle.className, /\bbg-green-50\b/);
+    assert.match(continuousToggle.className, /\bborder-green-400\b/);
+
+    pickerOverlay
+      .querySelector('[data-style-id="1001"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(pickerOverlay.classList.contains('hidden'), false);
+    assert.match(
+      pickerOverlay.querySelector('#picker-mode-label')?.textContent ?? '',
+      /スロット2\s*メインスタイルを選ぶ/,
+    );
+  }));
+
+test('PartySetupController PT解散 button clears current party selection from picker header', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="open-picker"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const disbandButton = pickerOverlay.querySelector('#picker-disband-party');
+    assert.equal(disbandButton?.disabled, false);
+
+    disbandButton.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.styleIds, [null, null, null, null, null, null]);
+    assert.equal(pickerOverlay.classList.contains('hidden'), true);
+  }));
+
 test('PartySetupController confirms before overwriting an existing preset', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({

@@ -188,13 +188,13 @@ test('InitialSetupController getSetupSnapshot returns split simulator target sel
       setupSnapshot.simulatorSettings.targetSelection.allyMode,
       TARGET_SELECTION_MODES.SIMPLE,
     );
-    assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, false);
+    assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, true);
 
     root.querySelector('[data-role="enemy-target-simplify-toggle"]').checked = false;
     root.querySelector('[data-role="ally-target-simplify-toggle"]').checked = true;
     const captureToggle = root.querySelector('[data-role="capture-until-battle-end-toggle"]');
     assert.equal(captureToggle.disabled, false);
-    captureToggle.checked = true;
+    captureToggle.checked = false;
     setupSnapshot = controller.getSetupSnapshot(partySnapshot);
 
     assert.equal(
@@ -205,7 +205,7 @@ test('InitialSetupController getSetupSnapshot returns split simulator target sel
       setupSnapshot.simulatorSettings.targetSelection.allyMode,
       TARGET_SELECTION_MODES.SIMPLE,
     );
-    assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, true);
+    assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, false);
   }));
 
 test('InitialSetupController no longer exposes session save/load controls in Simulator Settings', () =>
@@ -270,7 +270,7 @@ test('InitialSetupController getCurrentSetupSnapshot returns party and simulator
       snapshot.simulatorSettings.targetSelection.enemyMode,
       TARGET_SELECTION_MODES.SIMPLE,
     );
-    assert.equal(snapshot.simulatorSettings.captureUntilBattleEnd, false);
+    assert.equal(snapshot.simulatorSettings.captureUntilBattleEnd, true);
   }));
 
 test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>

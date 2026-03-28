@@ -8,7 +8,7 @@ export const DEFAULT_SIMULATOR_SETTINGS = Object.freeze({
     enemyMode: TARGET_SELECTION_MODES.SIMPLE,
     allyMode: TARGET_SELECTION_MODES.SIMPLE,
   }),
-  captureUntilBattleEnd: false,
+  captureUntilBattleEnd: true,
 });
 
 function normalizeTargetSelectionMode(mode) {
@@ -28,7 +28,9 @@ export function normalizeSimulatorSettings(settings = {}) {
       enemyMode: normalizeTargetSelectionMode(targetSelection.enemyMode),
       allyMode: normalizeTargetSelectionMode(targetSelection.allyMode),
     },
-    captureUntilBattleEnd: Boolean(settings?.captureUntilBattleEnd ?? false),
+    captureUntilBattleEnd: Boolean(
+      settings?.captureUntilBattleEnd ?? DEFAULT_SIMULATOR_SETTINGS.captureUntilBattleEnd
+    ),
   };
 }
 

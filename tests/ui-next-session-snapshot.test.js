@@ -63,7 +63,7 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   const parsed = JSON.parse(text);
   assert.equal(parsed.version, SESSION_SNAPSHOT_VERSION);
   assert.equal(parsed.validationPolicy.allowInsufficientSp, true);
-  assert.equal(parsed.simulatorSettings.captureUntilBattleEnd, false);
+  assert.equal(parsed.simulatorSettings.captureUntilBattleEnd, true);
   assert.deepEqual(parsed.setup.styleIds.slice(0, 3), [1001, 1002, 1003]);
   assert.deepEqual(parsed.setup.skillSetsByPartyIndex, {});
 });
