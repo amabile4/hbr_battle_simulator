@@ -696,13 +696,15 @@ export class PartySetupController {
       if (this.#dragSrcIndex === null) {
         return;
       }
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+      }
       const slotElement = this.#resolveSlotElement(event.target);
       if (!slotElement) {
         this.#clearDragHighlights();
         return;
       }
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
       this.#clearDragHighlights();
       const dst = Number(slotElement.dataset.slot);
       if (dst !== this.#dragSrcIndex) {
@@ -881,6 +883,7 @@ export class PartySetupController {
 
         <!-- スロット番号（ドラッグハンドル） -->
         <div data-action="select-reorder-slot"
+             data-role="party-slot-drag-handle"
              data-slot-index="${index}"
              data-selected="${reorderSelected ? 'true' : 'false'}"
              aria-pressed="${reorderSelected ? 'true' : 'false'}"
@@ -888,7 +891,7 @@ export class PartySetupController {
              tabindex="0"
              draggable="true"
              title="ドラッグで入れ替え / タップで入れ替え元を選択"
-             class="flex items-center justify-center border-b border-gray-100 py-0.5
+             class="party-setup__drag-handle flex items-center justify-center border-b border-gray-100 py-1 min-h-7
                     font-bold text-xs cursor-grab active:cursor-grabbing select-none
                     transition-colors ${reorderButtonClass}">
           ${index + 1}
@@ -896,6 +899,7 @@ export class PartySetupController {
 
         <!-- main icon -->
         <button data-action="open-picker" data-slot-index="${index}" data-mode="main"
+                data-role="party-slot-main-button"
                 class="relative w-full aspect-square hover:opacity-80
                        transition-opacity cursor-pointer overflow-hidden group ${mainRing}
                        ${mainSsr ? 'ssr-resonance-bg-subtle' : 'bg-gray-100'}">

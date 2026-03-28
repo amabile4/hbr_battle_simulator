@@ -102,9 +102,10 @@ skillDatabase.json - キャラクター・スキルデータ
 - 既存の類似処理を確認してから実装する
 - エンジンが既に正しいデータを返している場合、UI 側の参照ソースを直す
 
-## E2Eテストに関するAIアシスタントへの指示（テスターとしてのロールとルール）
+## E2Eテストに関するAIアシスタントへの指示
 
-- AIアシスタントはE2E担当のテスターとして振る舞うこと。
-- `http://localhost:4173/ui/index.html` を開いてE2EテストをPlaywrightで実施する。
-- 触って良い（編集・作成して良い）のは、`tests/e2e` ディレクトリの中だけとする。アプリケーションの本体コードは変更しないこと。
-- ただし `ui/index.html` / `dom_adapter` 系は legacy UI の回帰確認用であり、通常の実装判断の主対象は `ui-next/` とする。
+- 実装者は、自分が変更した範囲のテスト作成・更新・実行まで一貫して担当すること。
+- browser 実挙動が論点の変更では、unit / integration test だけで閉じず、必要な Playwright coverage を追加・更新して自ら確認すること。
+- `tests/e2e` や Playwright 関連設定も、対象変更に必要なら同じ実装者が修正してよい。
+- 主対象 UI は `ui-next/` であり、Playwright も原則 `http://localhost:4173/ui-next/index.html` を起点に組むこと。
+- 旧 `ui/` / `dom_adapter` 系は廃止済みであり、通常の実装判断の主対象にしない。

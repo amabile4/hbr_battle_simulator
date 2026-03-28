@@ -4389,14 +4389,14 @@ test('passive timing coverage report identifies controller gaps against passives
   const report = analyzePassiveTimingCoverage(store.passives);
 
   assert.deepEqual(report.supportedTimings, [
-    { timing: 'OnAdditionalTurnStart', count: 10 },
+    { timing: 'OnAdditionalTurnStart', count: 12 },
     { timing: 'OnBattleStart', count: 84 },
     { timing: 'OnBattleWin', count: 8 },
     { timing: 'OnEnemyTurnStart', count: 31 },
-    { timing: 'OnEveryTurn', count: 292 },
-    { timing: 'OnFirstBattleStart', count: 111 },
+    { timing: 'OnEveryTurn', count: 293 },
+    { timing: 'OnFirstBattleStart', count: 112 },
     { timing: 'OnOverdriveStart', count: 9 },
-    { timing: 'OnPlayerTurnStart', count: 199 },
+    { timing: 'OnPlayerTurnStart', count: 200 },
   ]);
   assert.deepEqual(
     report.unsupportedTimings.map((item) => item.timing),

@@ -128,6 +128,11 @@
   outline: none;
 }
 
+.party-setup__drag-handle {
+  -webkit-user-drag: element;
+  user-select: none;
+}
+
 .party-preset-toolbar__overflow-indicator {
   position: absolute;
   top: 50%;
@@ -364,7 +369,7 @@
   }
 }
 
-/* 属性・武器種バッジ（旧 ui/index.html の attr-badge を移植） */
+/* 属性・武器種バッジ */
 .attr-badge {
   display: inline-flex;
   align-items: center;
@@ -651,6 +656,10 @@
 [data-turn-slot-icon] {
   width: var(--turn-slot-icon-size);
   height: var(--turn-slot-icon-size);
+}
+[data-role="turn-slot-drag-handle"][draggable="true"] {
+  -webkit-user-drag: element;
+  user-select: none;
 }
 [data-sp-badge] {
   font-size: var(--turn-sp-badge-font-size);

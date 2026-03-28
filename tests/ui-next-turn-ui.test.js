@@ -290,10 +290,14 @@ function mountTurnRow({ root, stateBefore, simulatorSettings, store = createStor
 }
 
 function createDragDataTransfer() {
+  const calls = [];
   return {
+    calls,
     effectAllowed: '',
     dropEffect: '',
-    setData() {},
+    setData(...args) {
+      calls.push(args);
+    },
   };
 }
 
@@ -394,12 +398,12 @@ test('TurnRowController allows drag-and-drop swapping from front to back slots v
     });
     row.mount();
 
-    const sourceSlot = root.querySelector('[data-turn-slot][data-position="0"]');
+    const sourceHandle = root.querySelector('[data-turn-slot][data-position="0"] [data-role="turn-slot-drag-handle"]');
     const targetChild = root.querySelector('[data-turn-slot][data-position="3"] [data-role="slot-body"]');
     const dataTransfer = createDragDataTransfer();
     const dragStartEvent = new win.Event('dragstart', { bubbles: true, cancelable: true });
     Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
-    sourceSlot.dispatchEvent(dragStartEvent);
+    sourceHandle.dispatchEvent(dragStartEvent);
 
     const dragOverEvent = new win.Event('dragover', { bubbles: true, cancelable: true });
     Object.defineProperty(dragOverEvent, 'dataTransfer', { value: dataTransfer });
@@ -409,6 +413,8 @@ test('TurnRowController allows drag-and-drop swapping from front to back slots v
     Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
     targetChild.dispatchEvent(dropEvent);
 
+    assert.deepEqual(dataTransfer.calls, [['text/plain', '']]);
+    assert.equal(dragOverEvent.defaultPrevented, true);
     assert.deepEqual(slotChanges, [[0, 0, { swapWith: 3 }]]);
   }));
 

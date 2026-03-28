@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-28
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-29
 
 ## 目的
 
@@ -10,7 +10,7 @@
 
 ## 前提
 
-- 既存 UI は [ui/index.html](../../ui/index.html) を維持し、互換性を壊さない
+- 旧 `ui/` surface は廃止済みとし、UI 実装の正本は `ui-next/` のみとする
 - 新 UI は別ルートで構築し、既存 UI と直接結合しない
 - 共通で使う asset / resolver / contract は `main` に戻せる形で設計する
 - style 画像の正本は [assets/styles](../../assets/styles) に置く
@@ -114,6 +114,8 @@
 - desktop では slot 番号 header を drag handle にして、front/back をまたぐ D&D swap を維持する
 - touch 環境では slot 番号ヘッダのタップで「入れ替え元選択 → 2 回目タップで swap」ができるようにし、iPhone Safari でも並び替え導線を失わない
 - D&D は style だけでなく、その slot に紐づく listbox の設定値もまとめて移動する
+- TurnPlanner の input row では slot 全体ではなく style icon を desktop drag handle とし、skill `select` と native D&D の競合を避ける
+- browser 実挙動の確認は stale な旧 E2E を流用せず、`tests/e2e/party-setup-drag-and-drop.spec.js` と `tests/e2e/turn-row-drag-and-drop.spec.js` を正本の Playwright coverage とする
 
 ### シミュレーター開始後の扱い
 

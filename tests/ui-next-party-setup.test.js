@@ -263,10 +263,13 @@ test('PartySetupController keeps desktop drag-and-drop swapping on the slot head
       startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
     });
 
+    const dataTransferCalls = [];
     const dataTransfer = {
       effectAllowed: '',
       dropEffect: '',
-      setData() {},
+      setData(...args) {
+        dataTransferCalls.push(args);
+      },
     };
     const handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
     const slots = root.querySelectorAll('[data-slot]');
@@ -275,10 +278,16 @@ test('PartySetupController keeps desktop drag-and-drop swapping on the slot head
     Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
     handles[0].dispatchEvent(dragStartEvent);
 
+    const dragOverEvent = new win.Event('dragover', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragOverEvent, 'dataTransfer', { value: dataTransfer });
+    slots[1].dispatchEvent(dragOverEvent);
+
     const dropEvent = new win.Event('drop', { bubbles: true, cancelable: true });
     Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
     slots[1].dispatchEvent(dropEvent);
 
+    assert.deepEqual(dataTransferCalls, [['text/plain', '']]);
+    assert.equal(dragOverEvent.defaultPrevented, true);
     const snapshot = controller.getSnapshot();
     assert.deepEqual(snapshot.styleIds, [1002, 1001, 1003, null, null, null]);
     assert.deepEqual(
@@ -304,10 +313,13 @@ test('PartySetupController keeps desktop drag-and-drop swapping between front an
       startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 1, 4: 3, 5: 3 },
     });
 
+    const dataTransferCalls = [];
     const dataTransfer = {
       effectAllowed: '',
       dropEffect: '',
-      setData() {},
+      setData(...args) {
+        dataTransferCalls.push(args);
+      },
     };
     const handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
     const slots = root.querySelectorAll('[data-slot]');
@@ -316,10 +328,16 @@ test('PartySetupController keeps desktop drag-and-drop swapping between front an
     Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
     handles[0].dispatchEvent(dragStartEvent);
 
+    const dragOverEvent = new win.Event('dragover', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragOverEvent, 'dataTransfer', { value: dataTransfer });
+    slots[3].dispatchEvent(dragOverEvent);
+
     const dropEvent = new win.Event('drop', { bubbles: true, cancelable: true });
     Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
     slots[3].dispatchEvent(dropEvent);
 
+    assert.deepEqual(dataTransferCalls, [['text/plain', '']]);
+    assert.equal(dragOverEvent.defaultPrevented, true);
     const snapshot = controller.getSnapshot();
     assert.deepEqual(snapshot.styleIds, [1002, 1002, 1003, 1001, null, null]);
     assert.deepEqual(

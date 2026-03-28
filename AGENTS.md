@@ -1,11 +1,9 @@
-# Role Split (Codex + Gemini Antigravity)
+# Implementation And Test Ownership
 
-- Codex owns implementation and refactoring in `src/`, `json/`, `ui/`, and unit/integration tests except `tests/e2e/`.
-- Gemini Antigravity owns Playwright E2E work in `tests/e2e/` and related Playwright config files.
-- Codex must not modify `tests/e2e/` or Playwright config unless explicitly requested by the user.
-- Codex must not run Playwright E2E commands (example: `npm run test:e2e -- --grep "First Commit Enables Ops Button Test"`); E2E execution is owned by Gemini Antigravity.
-- Gemini Antigravity must not modify `src/` domain logic unless explicitly requested by the user.
-- Shared changes (fixtures/selectors/contracts) should be coordinated via user instruction before cross-boundary edits.
+- 実装者は、自分が変更した範囲のテスト作成・更新・実行まで一貫して担当する。
+- `tests/e2e/` と Playwright config も、対象変更に必要なら同じ実装者が修正してよい。
+- browser 実挙動に依存する UI 修正では、unit/integration test だけで閉じず、必要な Playwright coverage を追加して自ら確認する。
+- 共有 fixture / selector / contract を変える場合は、実装とテストを同じ変更集合で整合させる。
 
 ## UI Migration Stance
 

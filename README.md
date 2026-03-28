@@ -20,8 +20,8 @@
 
 ## GitHub Pages 公開手順
 
-このリポジトリは `ui/index.html` をデモ画面として公開できます。  
-ルート `index.html` は自動的に `ui/index.html` へ遷移するため、Pages の公開URLをそのまま開けば動作します。
+このリポジトリは `ui-next/index.html` をデモ画面として公開できます。  
+ルート `index.html` は自動的に `ui-next/index.html` へ遷移するため、Pages の公開URLをそのまま開けば動作します。
 
 1. GitHub の対象リポジトリで `Settings` -> `Pages` を開く
 2. `Build and deployment` で `Source: Deploy from a branch` を選択
@@ -29,7 +29,7 @@
 4. 保存後、反映完了を待って公開URLにアクセス
 
 補足:
-- JSON データは `json/*.json` を相対パスで読み込みます（`ui` から見て `../json`）。
+- JSON データは `json/*.json` を相対パスで読み込みます（`ui-next` から見て `../json`）。
 - GitHub Pages では静的ファイルとして配信されるため、追加のサーバ設定は不要です。
 
 ## データ更新時の分析手順（運用）

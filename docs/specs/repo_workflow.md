@@ -67,6 +67,13 @@
 3. engine 本体の修正はその branch で進める
 4. shared 変更は `main` へ戻してから他 branch へ流す
 
+## テスト責務
+
+- 実装者は、自分が変更した範囲のテストを自ら更新し、自ら実行して確認する
+- browser 依存の UI 修正では、必要に応じて `tests/e2e/` と Playwright config まで同じ作業者が扱ってよい
+- 「実装は A、Playwright は B」という固定分業を前提にしない
+- unit / integration / Playwright のどこまで必要かは変更の性質で決めるが、browser 実挙動が論点なら Playwright を外さない
+
 ## Git 実行安全ルール
 
 - 同じ repo で複数の `git` コマンドを並列実行しない

@@ -44,9 +44,9 @@ docs/
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ | 2026-03-21 |
-| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・Passive Log 下段 pane・toolbar icon/mobile rules・startup defaults・PNG capture contract 等） | 2026-03-28 |
+| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・browser D&D handle 方針・Passive Log 下段 pane・toolbar icon/mobile rules・startup defaults・PNG capture contract・legacy UI 廃止前提 等） | 2026-03-29 |
 | [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点） | 2026-03-15 |
-| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・preset toolbar 20枠化・strict preset schema・startup default 調整・PT解散導線・PNG capture contract 固定まで反映） | 2026-03-28 |
+| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・preset toolbar 20枠化・browser D&D hardening・legacy UI hard cutover・root redirect smoke まで反映） | 2026-03-29 |
 | [active/ui_next_drag_and_drop_review_request.md](active/ui_next_drag_and_drop_review_request.md) | 🟢 進行中 | UI Next D&D 不具合のレビュー依頼メモ（TurnEdit / PartySetup の現象整理・期待挙動・レビュー観点） | 2026-03-28 |
 | [active/review_ui_next_drag_and_drop.prompt.md](active/review_ui_next_drag_and_drop.prompt.md) | 🟢 進行中 | Claude Opus 向け UI Next D&D レビュー依頼 prompt | 2026-03-28 |
 | [active/review_ui_next_drag_and_drop_findings.md](active/review_ui_next_drag_and_drop_findings.md) | 🟢 進行中 | UI Next D&D コードレビュー結果（PartySetup: handle サイズ/テキスト干渉、TurnEdit: setData 欠落・select 妨害、JSDOM テストギャップ、修正優先度） | 2026-03-28 |
@@ -58,7 +58,7 @@ docs/
 | [active/passive_test_coverage_audit.md](active/passive_test_coverage_audit.md) | 🟢 進行中 | パッシブ発火トリガー × exitCond テストカバレッジ監査（状態付与型38件＋一瞬発火型timing別） | 2026-03-24 |
 | [active/restoration_wbs.md](active/restoration_wbs.md) | 🟢 進行中 | ハイブースト以降の段階的復元WBS（フェーズ0〜4完了・フェーズ5継続） | 2026-03-23 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-22 |
-| [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
+| [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（legacy DOM controller 廃止後の shared module 境界へ更新） | 2026-03-29 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 
 ---
@@ -72,7 +72,7 @@ docs/
 | [specs/runs/RUN_20260228_001/interfaces.ts](specs/runs/RUN_20260228_001/interfaces.ts) | TypeScript全体インターフェース定義 | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/decision_log.md](specs/runs/RUN_20260228_001/decision_log.md) | 設計意思決定ログ（DEC-001〜012） | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/open_questions.md](specs/runs/RUN_20260228_001/open_questions.md) | ユーザー確認が必要な未決事項（Q-S001等） | 2026-02-28 |
-| [specs/repo_workflow.md](specs/repo_workflow.md) | project 固有の branch 命名、merge 方針、shared 変更の流し方、git 実行安全ルール | 2026-03-15 |
+| [specs/repo_workflow.md](specs/repo_workflow.md) | project 固有の branch 命名、merge 方針、shared 変更の流し方、git 実行安全ルール、実装者自身によるテスト責務 | 2026-03-15 |
 | [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（ドライブピアス補正式・実機照合済み） | 2026-03-01 |
 | [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
 | [specs/dev_principles.md](specs/dev_principles.md) | 開発原則：バグ切り分け・UI/エンジン責務境界・安易な実装禁止事項・新UI設計指針（原則1〜5） | 2026-03-16 |

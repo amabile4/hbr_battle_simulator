@@ -1904,6 +1904,9 @@ export class TurnRowController {
     // EX ターン: 非行動可能メンバーは #buildInactiveSlotHtml で早期 return 済みのため、
     // ここに到達するメンバーは全員 allowedCharacterIds に含まれる。draggable に EX 制限不要。
     const draggable = this.#isInputMode();
+    const dragHandleAttributes = draggable
+      ? 'data-role="turn-slot-drag-handle" draggable="true" title="ドラッグで入れ替え"'
+      : 'data-role="turn-slot-drag-handle"';
     const targetControlAnchorHtml = targetControlHtml
       ? `
         <div data-role="slot-target-anchor" data-position="${member.position}"
@@ -1914,9 +1917,8 @@ export class TurnRowController {
       : '';
 
     return `
-      <div draggable="${draggable}" data-turn-slot data-position="${member.position}"
-           class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
-                  ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
+      <div data-turn-slot data-position="${member.position}"
+           class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none">
         <!-- 属性バッジ（左）＋ スキル select（右）。target trigger は別領域に分離して幅発振を防ぐ -->
         <div data-role="slot-select-row" data-position="${member.position}" class="flex items-center gap-0.5 px-0.5 pt-0.5">
           <div data-skill-badges data-position="${member.position}"
@@ -1933,7 +1935,9 @@ export class TurnRowController {
         <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
         <div data-role="slot-body" class="flex flex-col p-0.5 gap-0.5">
           <div class="flex items-start gap-1">
-            <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-100">
+            <div data-turn-slot-icon ${dragHandleAttributes}
+                 class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-100
+                        ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
               ${imageUrl
                 ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
                         class="w-full h-full object-cover" />`
@@ -2012,10 +2016,12 @@ export class TurnRowController {
 
     // EX ターン: allowedCharacterIds に含まれない後衛メンバーはドラッグ不可
     const draggable = this.#isInputMode() && (!this.#isExtraTurn() || this.#isActionable(member));
+    const dragHandleAttributes = draggable
+      ? 'data-role="turn-slot-drag-handle" draggable="true" title="ドラッグで入れ替え"'
+      : 'data-role="turn-slot-drag-handle"';
     return `
-      <div draggable="${draggable}" data-turn-slot data-position="${member.position}"
-           class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
-                  ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
+      <div data-turn-slot data-position="${member.position}"
+           class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none">
         <!-- スキル select プレースホルダー（高さ揃え用） -->
         <div class="px-0.5 pt-0.5">
           <div data-role="slot-state-label" class="w-full text-xs text-gray-300 border border-gray-100 rounded px-0.5 py-px
@@ -2024,7 +2030,9 @@ export class TurnRowController {
         <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
         <div data-role="slot-body" class="flex flex-col p-0.5 gap-0.5 opacity-70">
           <div class="flex items-start gap-1">
-            <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
+            <div data-turn-slot-icon ${dragHandleAttributes}
+                 class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50
+                        ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
               ${imageUrl
                 ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
                         class="w-full h-full object-cover opacity-60" />`
@@ -2809,14 +2817,22 @@ export class TurnRowController {
   }
 
   #bindDragAndDrop() {
-    this.#root.querySelectorAll('[data-turn-slot]').forEach((slot) => {
-      slot.addEventListener('dragstart', (event) => {
+    this.#root.querySelectorAll('[data-role="turn-slot-drag-handle"]').forEach((handle) => {
+      const slot = handle.closest('[data-turn-slot]');
+      if (!slot) {
+        return;
+      }
+
+      handle.addEventListener('dragstart', (event) => {
         this.#dragSrcPosition = Number(slot.dataset.position);
-        event.dataTransfer.effectAllowed = 'move';
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', '');
+        }
         slot.classList.add('opacity-40');
       });
 
-      slot.addEventListener('dragend', () => {
+      handle.addEventListener('dragend', () => {
         slot.classList.remove('opacity-40');
         this.#dragSrcPosition = null;
         this.#clearDragHighlights();
@@ -2832,6 +2848,10 @@ export class TurnRowController {
       if (this.#dragSrcPosition === null) {
         return;
       }
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+      }
       const slot = this.#resolveDragSlot(event.target);
       if (!slot) {
         this.#clearDragHighlights();
@@ -2842,8 +2862,6 @@ export class TurnRowController {
         this.#clearDragHighlights();
         return;
       }
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
       this.#clearDragHighlights();
       if (dst !== this.#dragSrcPosition) {
         slot.classList.add('ring-2', 'ring-blue-400');

@@ -22,6 +22,7 @@ const MIME = {
   '.json': 'application/json',
   '.css': 'text/css',
   '.png': 'image/png',
+  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
 };
 
@@ -33,7 +34,10 @@ const NO_CACHE_HEADERS = Object.freeze({
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  const filePath = join(ROOT, url.pathname);
+  const pathname = url.pathname.endsWith('/')
+    ? `${url.pathname}index.html`
+    : url.pathname;
+  const filePath = join(ROOT, pathname);
 
   try {
     const data = await readFile(filePath);
