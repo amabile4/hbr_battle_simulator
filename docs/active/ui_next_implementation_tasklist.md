@@ -1,8 +1,8 @@
 # UI Next 実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-21
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-28
 >
-> **進捗サマリー**: T01 ✅ / T02 🔶 / T03〜T12 ✅（T12-E-3まで） / T13-A ✅ / T13-B ✅ / T13-C 🔶（属性バッジ✅・スイッチスキル❌） / T14 ❌ / T15 ✅ / T16〜T19 ❌ 未着手 / **T20 🔶 iOS レスポンシブ対応（A/B/C 完了・D 未着手）** / **T21 ✅ Passive Debug Log**
+> **進捗サマリー**: T01 ✅ / T02 🔶 / T03〜T12 ✅（T12-E-5 まで） / T13-A ✅ / T13-B ✅ / T13-C 🔶（属性バッジ✅・スイッチスキル❌） / T14 ❌ / T15 ✅ / T16〜T19 ❌ 未着手 / **T20 🔶 iOS レスポンシブ対応（A/B/C 完了・D 未着手）** / **T21 ✅ Passive Debug Log**
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -304,6 +304,12 @@
   - 詳細: [ui_next_engine_fix_tasklist.md](ui_next_engine_fix_tasklist.md) Task B
   - `TurnEngineManager.previewCurrentTurn(slotActions)` を追加
   - 未コミット行のスキル変更 → `previewCurrentTurn` → `→000.00%` をリアルタイム表示
+- [x] **既コミットターン再編集 + Best-Effort replay**（T12-E-5 完了）
+  - `TurnEngineManager`: `buildTurnEditDraft()` / `buildTurnEditSnapshot()` / `replaceCommittedTurn()` / `popLastCommittedTurnToDraft()` / `getReplayDiagnostics()` を追加
+  - validation policy に `allowSkillConditionMismatch` を追加し、SP不足・OD不足・使用回数超過・条件不一致を warning として replay diagnostics に集約
+  - replay は 1 ターン目から best-effort 再実行し、hard error は対象ターンで停止、soft warning は `Warn(n)` と上部サマリーで可視化
+  - `TurnArea` / `TurnRow` を `編集` / `再コミット` / `キャンセル` の明示 edit mode に変更し、編集中は input row を隠して 1 edit session に固定
+  - phase 3 は safe subset のみ実装し、OD / EX 継続が確実に消えたケースだけ stale special turn を圧縮
 
 完了条件:
 
@@ -311,10 +317,22 @@
 - [x] スキル select にキャラのスキル一覧が表示される
 - [x] Commit → SP が変化したターン2行が追加される
 - [x] 過去ターンのスキル変更 → 自動再計算
+- [x] コミット済み行を編集モードに戻し、再コミットで replay 全体を再計算できる
 - [x] D&D でターン内のスロット順を入れ替えできる
 - [ ] 「`Initial Setup > Party Setup` を中心に、style 選択と D&D ができ、後続の enemy / stage setup を差し込める新ページ」が成立している（T12-E 完了後）
 
-> 🔶 T12 部分完了（2026-03-15〜03-16）: T12-A〜D + T12-UX + T12-E-1〜E-4 実装済み。kishinka は将来タスク。
+> 🔶 T12 部分完了（2026-03-15〜03-28）: T12-A〜D + T12-UX + T12-E-1〜E-5 実装済み。既コミットターン再編集・best-effort replay・warning 集約まで反映。scenario / CSV / switch skill は後続。
+
+### T12-E-5: 既コミットターン再編集 + Best-Effort replay
+
+- [x] committed row を read-only 表示と edit mode 表示に分離する
+- [x] `編集` / `再コミット` / `キャンセル` を `TurnRow` に追加する
+- [x] 再コミット時は `ReplayScript` を置換して turn 1 から全 replay する
+- [x] replay warning を engine に集約し、row badge と turn area summary に表示する
+- [x] session snapshot では warning を永続化せず、validation policy だけを保存する
+- [x] safe subset の stale special turn compaction を入れる
+
+> ✅ T12-E-5 完了（2026-03-28）: `ui-next/engine/turn-engine-manager.js` に turn edit draft / diagnostics / best-effort replay を追加。`ui-next/components/turn-area.js` と `ui-next/components/turn-row.js` を edit session 前提へ再構成。`tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` に turn edit, diagnostics, warning UI の回帰テストを追加。
 
 ---
 

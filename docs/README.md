@@ -46,8 +46,8 @@ docs/
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ | 2026-03-21 |
 | [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・Passive Log 監査タブ等） | 2026-03-21 |
 | [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点） | 2026-03-15 |
-| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（Initial Setup / Party Setup / Passive Log まで段階化） | 2026-03-21 |
-| [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・record 再生成物化） | 2026-03-14 |
+| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・best-effort replay まで反映） | 2026-03-28 |
+| [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・warning/diagnostics 実装メモ追記） | 2026-03-28 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装計画（HighBoost 倍率・装備型 passive 配線まで反映） | 2026-03-21 |
 | [active/stateful_passive_wbs.md](active/stateful_passive_wbs.md) | 🟢 進行中 | 状態付与型パッシブ（AdditionalHit* 38件）の実装ステータス一覧・未実装トリガー／effectType整理 | 2026-03-24 |

@@ -107,6 +107,33 @@ function createInitialState(actorSkill, actorOptions = {}) {
   return createBattleStateFromParty(createManualParty(actorSkill, actorOptions));
 }
 
+function createLegacyExtraTurnInitialState() {
+  const initialState = createInitialState(
+    createSkill({
+      id: 9080,
+      name: 'Legacy Extra Lead',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    }),
+    {
+      characterId: 'TM1',
+      skills: [
+        createSkill({
+          id: 9080,
+          name: 'Legacy Extra Lead',
+          targetType: 'Self',
+          parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+        }),
+      ],
+    }
+  );
+  initialState.turnState.turnType = 'extra';
+  initialState.turnState.extraTurnState = {
+    allowedCharacterIds: ['TM1'],
+  };
+  return initialState;
+}
+
 test('TurnEngineManager persists enemyCount through commit and replay recalculation', () => {
   const actorSkill = createSkill({
     id: 9001,
@@ -413,6 +440,84 @@ test('TurnEngineManager buildInputRowSnapshot exposes preview endSP by partyInde
   assert.equal(snapshot.previewResourceState.spAfterByPartyIndex[0], 4);
 });
 
+test('TurnEngineManager replaceCommittedTurn recalculates downstream records and collects replay warnings', () => {
+  const safeSkill = createSkill({
+    id: 9053,
+    name: 'Safe Guard',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const costlySkill = createSkill({
+    id: 9054,
+    name: 'Risk Slash',
+    targetType: 'Self',
+    spCost: 7,
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createInitialState(safeSkill, {
+      initialSP: 4,
+      skills: [safeSkill, costlySkill],
+    }),
+    {}
+  );
+
+  manager.commitNextTurn({ 0: { skillId: 9053 } }, { enemyCount: 1 });
+  manager.commitNextTurn({ 0: { skillId: 9053 } }, { enemyCount: 1 });
+
+  const beforeStartSp = manager.computedRecords[1]?.actions.find((action) => action.positionIndex === 0)?.startSP;
+  const draft = manager.buildTurnEditDraft(0);
+  draft.slots[0].skillId = 9054;
+
+  manager.replaceCommittedTurn(0, draft);
+
+  const afterStartSp = manager.computedRecords[1]?.actions.find((action) => action.positionIndex === 0)?.startSP;
+  assert.equal(manager.replayScript.turns[0].slots[0].skillId, 9054);
+  assert.equal(afterStartSp < beforeStartSp, true);
+  assert.equal(
+    manager.replayDiagnostics.turnWarnings[0].some((warning) => warning.includes('negative SP allowed')),
+    true
+  );
+});
+
+test('TurnEngineManager popLastCommittedTurnToDraft restores the last replay turn as an editable draft', () => {
+  const actorSkill = createSkill({
+    id: 9055,
+    name: 'Draft Slash',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState(actorSkill), {});
+  manager.commitNextTurn(
+    {
+      0: {
+        skillId: 9055,
+        target: { type: 'enemy', enemyIndex: 2 },
+      },
+    },
+    {
+      enemyCount: 3,
+      note: 'rollback-me',
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [1] }],
+    }
+  );
+
+  const popped = manager.popLastCommittedTurnToDraft();
+
+  assert.equal(popped?.turnIndex, 0);
+  assert.equal(popped?.draft?.slots?.[0]?.skillId, 9055);
+  assert.deepEqual(popped?.draft?.slots?.[0]?.target, { type: 'enemy', enemyIndex: 2 });
+  assert.equal(popped?.draft?.enemyCount, 3);
+  assert.equal(popped?.draft?.note, 'rollback-me');
+  assert.deepEqual(popped?.draft?.actionOutcomeOverrides, [
+    { position: 0, outcome: 'Kill', enemyIndexes: [1] },
+  ]);
+  assert.equal(manager.committedTurnCount, 0);
+  assert.deepEqual(manager.computedRecords, []);
+});
+
 test('TurnEngineManager normalizes single-target manual break attribution to the current target and replays break-triggered passive effects', () => {
   const actorSkill = createSkill({
     id: 9060,
@@ -602,6 +707,121 @@ test('TurnEngineManager loadReplayScript restores validationPolicy and committed
   assert.equal(restored.committedTurnCount, 1);
   assert.equal(restored.computedRecords[0]?.enemyCount, 2);
   assert.equal(restored.validationPolicy.allowUseCountOverflow, true);
+});
+
+test('TurnEngineManager buildTurnEditSnapshot does not mutate the initial transcendence state', () => {
+  const actorSkill = createSkill({
+    id: 9071,
+    name: 'Trans Preview',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.party[0].elements = ['Thunder'];
+  initialState.turnState.transcendence = {
+    active: true,
+    sourceCharacterId: initialState.party[0].characterId,
+    sourceStyleId: initialState.party[0].styleId,
+    gaugeElement: 'Thunder',
+    gaugePercent: 90,
+    maxGaugePercent: 100,
+    gainPercentPerAction: 10,
+    odBonusOnMax: 100,
+    burstTriggered: false,
+  };
+  const replayScript = {
+    turns: [
+      {
+        turn: 1,
+        slots: [
+          { styleId: initialState.party[0].styleId, skillId: 9071 },
+          { styleId: initialState.party[1].styleId, skillId: 9201 },
+          { styleId: initialState.party[2].styleId, skillId: 9202 },
+          { styleId: initialState.party[3].styleId, skillId: null },
+          { styleId: initialState.party[4].styleId, skillId: null },
+          { styleId: initialState.party[5].styleId, skillId: null },
+        ],
+        note: 'transcendence-edit-preview',
+        operations: [],
+        overrideEntries: [],
+      },
+    ],
+  };
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, replayScript);
+  const before = structuredClone(manager.initialState.turnState.transcendence);
+
+  manager.buildTurnEditSnapshot(0);
+
+  assert.deepEqual(manager.initialState.turnState.transcendence, before);
+});
+
+test('TurnEngineManager loadReplayScript clears stale extra-turn actors without warnings', () => {
+  const initialState = createLegacyExtraTurnInitialState();
+  const replayScript = {
+    turns: [
+      {
+        turn: 1,
+        slots: [
+          { styleId: initialState.party[0].styleId, skillId: 9080 },
+          { styleId: initialState.party[1].styleId, skillId: 9201 },
+          { styleId: initialState.party[2].styleId, skillId: null },
+          { styleId: initialState.party[3].styleId, skillId: null },
+          { styleId: initialState.party[4].styleId, skillId: null },
+          { styleId: initialState.party[5].styleId, skillId: null },
+        ],
+        note: 'legacy-extra-turn',
+        operations: [],
+        overrideEntries: [],
+      },
+    ],
+  };
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, replayScript);
+
+  assert.equal(manager.replayDiagnostics.error, null);
+  assert.equal(manager.replayDiagnostics.appliedTurnCount, 1);
+  assert.deepEqual(manager.replayDiagnostics.turnWarnings[0], []);
+  assert.deepEqual(
+    manager.computedRecords[0]?.actions?.map((action) => action.characterId),
+    ['TM1']
+  );
+  assert.equal(manager.replayScript.turns[0].slots[1].skillId, null);
+});
+
+test('TurnEngineManager replaceCommittedTurn keeps edited extra-turn actor mismatches as hard errors', () => {
+  const initialState = createLegacyExtraTurnInitialState();
+  const replayScript = {
+    turns: [
+      {
+        turn: 1,
+        slots: [
+          { styleId: initialState.party[0].styleId, skillId: 9080 },
+          { styleId: initialState.party[1].styleId, skillId: null },
+          { styleId: initialState.party[2].styleId, skillId: null },
+          { styleId: initialState.party[3].styleId, skillId: null },
+          { styleId: initialState.party[4].styleId, skillId: null },
+          { styleId: initialState.party[5].styleId, skillId: null },
+        ],
+        note: 'strict-extra-turn-edit',
+        operations: [],
+        overrideEntries: [],
+      },
+    ],
+  };
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, replayScript);
+
+  const draft = manager.buildTurnEditDraft(0);
+  draft.slots[1].skillId = 9201;
+  manager.replaceCommittedTurn(0, draft);
+
+  assert.equal(manager.replayDiagnostics.error?.index, 0);
+  assert.match(manager.replayDiagnostics.error?.message ?? '', /not allowed to act in extra turn/);
+  assert.equal(manager.computedRecords[0], null);
 });
 
 test('TurnEngineManager applies OD-start SP recovery before the first interrupt OD action after an extra turn', () => {

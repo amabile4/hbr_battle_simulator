@@ -2,7 +2,11 @@ import { resolveStyleImageUrl, resolveUiAssetUrl } from '../../src/ui/style-asse
 import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 import { formatSkillCostLabel } from '../utils/skill-label.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
-import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../../src/ui/lightweight-replay-script.js';
+import {
+  REPLAY_OPERATION_TYPES,
+  REPLAY_OVERRIDE_ENTRY_TYPES,
+  replayOperationRegistry,
+} from '../../src/ui/lightweight-replay-script.js';
 import {
   coerceTurnReplayTarget,
   formatTurnTargetLabel,
@@ -61,6 +65,21 @@ const ELEMENT_MAP = {
   Light:   { img: resolveUiAssetUrl('Light.webp'),   alt: '光' },
 };
 
+const TURN_ROW_MODES = Object.freeze({
+  INPUT: 'input',
+  COMMITTED: 'committed',
+  EDIT: 'edit',
+});
+
+function normalizeRowDiagnostics(diagnostics = {}) {
+  return {
+    warnings: Array.isArray(diagnostics?.warnings)
+      ? diagnostics.warnings.map((warning) => String(warning))
+      : [],
+    error: diagnostics?.error ? String(diagnostics.error) : null,
+  };
+}
+
 /**
  * OD ゲージ値を "000.00%" 形式にフォーマットする。
  * 負の値は "-000.00%" 形式（符号の後ろをゼロ埋め）。
@@ -85,13 +104,19 @@ export class TurnRowController {
   #root;
   #store;
   #turnIndex;
+  #rowMode = TURN_ROW_MODES.INPUT;
+  #rowDiagnostics = normalizeRowDiagnostics();
   #record;
   #replayTurn;
   #operations;
   #stateBefore;
   #stateAfter;
+  #previewOdGaugeAfter = null;
   #onSlotChange;
   #onCommit;
+  #onEditStart;
+  #onEditCancel;
+  #onRecommit;
   #onNoteChange;
   #onPreviewRequest;
   #onOdChange;
@@ -123,6 +148,8 @@ export class TurnRowController {
     root,
     store,
     turnIndex,
+    rowMode = TURN_ROW_MODES.INPUT,
+    rowDiagnostics = null,
     record,
     replayTurn = null,
     operations = [],
@@ -130,8 +157,12 @@ export class TurnRowController {
     stateBefore,
     stateAfter,
     previewResourceState = null,
+    previewOdGaugeAfter = null,
     onSlotChange,
     onCommit,
+    onEditStart = null,
+    onEditCancel = null,
+    onRecommit = null,
     onNoteChange,
     onPreviewRequest,
     onOdChange,
@@ -141,10 +172,15 @@ export class TurnRowController {
     onActionOutcomeChange,
     odState = null,
     simulatorSettings = null,
+    editDraft = null,
   }) {
     this.#root = root;
     this.#store = store;
     this.#turnIndex = turnIndex;
+    this.#rowMode = Object.values(TURN_ROW_MODES).includes(rowMode)
+      ? rowMode
+      : (record == null ? TURN_ROW_MODES.INPUT : TURN_ROW_MODES.COMMITTED);
+    this.#rowDiagnostics = normalizeRowDiagnostics(rowDiagnostics);
     this.#record = record;
     this.#replayTurn = replayTurn;
     this.#operations = Array.isArray(operations) ? operations.map((operation) => structuredClone(operation)) : [];
@@ -156,8 +192,14 @@ export class TurnRowController {
     this.#previewResourceState = previewResourceState && typeof previewResourceState === 'object'
       ? structuredClone(previewResourceState)
       : null;
+    this.#previewOdGaugeAfter = Number.isFinite(Number(previewOdGaugeAfter))
+      ? Number(previewOdGaugeAfter)
+      : null;
     this.#onSlotChange = onSlotChange;
     this.#onCommit = onCommit;
+    this.#onEditStart = onEditStart;
+    this.#onEditCancel = onEditCancel;
+    this.#onRecommit = onRecommit;
     this.#onNoteChange = onNoteChange;
     this.#onPreviewRequest = onPreviewRequest;
     this.#onOdChange = onOdChange;
@@ -167,7 +209,7 @@ export class TurnRowController {
     this.#onActionOutcomeChange = onActionOutcomeChange;
     this.#odState = odState;
     this.#simulatorSettings = normalizeSimulatorSettings(simulatorSettings);
-    this.#initializeDraftState();
+    this.#initializeDraftState(editDraft);
   }
 
   mount() {
@@ -175,15 +217,88 @@ export class TurnRowController {
     this.#bindEvents();
   }
 
-  #initializeDraftState() {
-    this.#draftNote =
-      this.#record !== null
-        ? String(this.#replayTurn?.note ?? '')
-        : String(this.#draftNote ?? '');
-    if (this.#record !== null) {
+  get turnIndex() {
+    return this.#turnIndex;
+  }
+
+  get rowMode() {
+    return this.#rowMode;
+  }
+
+  #isCommittedDisplayMode() {
+    return this.#rowMode === TURN_ROW_MODES.COMMITTED;
+  }
+
+  #isDraftMode() {
+    return this.#rowMode !== TURN_ROW_MODES.COMMITTED;
+  }
+
+  #isEditMode() {
+    return this.#rowMode === TURN_ROW_MODES.EDIT;
+  }
+
+  #isInputMode() {
+    return this.#rowMode === TURN_ROW_MODES.INPUT;
+  }
+
+  #initializeDraftState(editDraft = null) {
+    if (this.#isCommittedDisplayMode()) {
+      this.#draftNote = String(this.#replayTurn?.note ?? '');
       return;
     }
+    if (editDraft && typeof editDraft === 'object') {
+      this.#applyEditDraft(editDraft);
+      return;
+    }
+    this.#draftNote = String(this.#draftNote ?? '');
     this.#draftEnemyCount = this.#resolveDraftEnemyCount();
+    this.#syncDraftSelections();
+  }
+
+  #applyEditDraft(editDraft = {}) {
+    const slots = Array.isArray(editDraft?.slots) ? editDraft.slots : [];
+    this.#draftNote = String(editDraft?.note ?? this.#replayTurn?.note ?? '');
+    this.#draftEnemyCount = clampEnemyCount(
+      editDraft?.enemyCount ?? this.#resolveDraftEnemyCount()
+    );
+    this.#draftSlotSkills = {};
+    this.#draftTargets = {};
+    for (const [positionKey, slot] of slots.entries()) {
+      const position = Number(positionKey);
+      const member = this.#stateBefore?.party?.find((candidate) => Number(candidate?.position) === position) ?? null;
+      if (!member) {
+        continue;
+      }
+      if (position <= 2 && slot?.skillId != null) {
+        this.#draftSlotSkills[member.partyIndex] = {
+          partyIndex: member.partyIndex,
+          skillId: Number(slot.skillId),
+        };
+      }
+      const target = normalizeTurnReplayTarget(slot?.target);
+      if (target.type !== 'none') {
+        this.#draftTargets[member.partyIndex] = target;
+      }
+    }
+    this.#draftBreakEnemyIndexesByPartyIndex = {};
+    this.#draftKillEnemyIndexesByPartyIndex = {};
+    const normalizedOverrides = normalizeActionOutcomeOverrides(
+      editDraft?.actionOutcomeOverrides ?? [],
+      this.#draftEnemyCount
+    );
+    for (const override of normalizedOverrides) {
+      const member =
+        this.#stateBefore?.party?.find((candidate) => Number(candidate?.position) === Number(override?.position)) ?? null;
+      if (!member) {
+        continue;
+      }
+      if (override.outcome === ACTION_OUTCOME_TYPES.BREAK) {
+        this.#draftBreakEnemyIndexesByPartyIndex[member.partyIndex] = [...override.enemyIndexes];
+      }
+      if (override.outcome === ACTION_OUTCOME_TYPES.KILL) {
+        this.#draftKillEnemyIndexesByPartyIndex[member.partyIndex] = [...override.enemyIndexes];
+      }
+    }
     this.#syncDraftSelections();
   }
 
@@ -211,12 +326,15 @@ export class TurnRowController {
   }
 
   #syncDraftSelections() {
-    if (this.#record !== null) {
+    if (!this.#isDraftMode()) {
       return;
     }
     const nextDraftSlotSkills = {};
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     for (const member of members) {
+      if (this.#isExtraTurn() && !this.#isActionable(member)) {
+        continue;
+      }
       const currentDraftSkillId = this.#draftSlotSkills?.[member.partyIndex]?.skillId ?? null;
       const resolvedSkillId = this.#resolveDraftSkillId(member, currentDraftSkillId);
       if (resolvedSkillId != null) {
@@ -256,7 +374,7 @@ export class TurnRowController {
    */
   refreshSkillSelects() {
     const members = this.#getMembersInPositionOrder();
-    const isCommitted = this.#record !== null;
+    const isCommitted = this.#isCommittedDisplayMode();
     const stateForCost = this.#stateBefore ?? null;
 
     for (const member of members.filter((m) => m.position <= 2)) {
@@ -297,6 +415,8 @@ export class TurnRowController {
   }
 
   update({
+    rowMode = undefined,
+    rowDiagnostics = undefined,
     record,
     replayTurn = undefined,
     operations = undefined,
@@ -304,11 +424,17 @@ export class TurnRowController {
     stateBefore,
     stateAfter,
     previewResourceState = undefined,
+    previewOdGaugeAfter = undefined,
     odState = undefined,
     simulatorSettings = undefined,
     openTargetPickerPartyIndex = null,
     isBreakEditorOpen = false,
+    editDraft = undefined,
   }) {
+    const previousDraftMode = this.#isDraftMode();
+    const nextRowMode = rowMode === undefined
+      ? this.#rowMode
+      : (Object.values(TURN_ROW_MODES).includes(rowMode) ? rowMode : this.#rowMode);
     const nextSimulatorSettings =
       simulatorSettings === undefined
         ? this.#simulatorSettings
@@ -317,13 +443,18 @@ export class TurnRowController {
       this.#simulatorSettings,
       nextSimulatorSettings,
     );
-    if (this.#record === null && record === null && simulatorSettingsChanged) {
+    if (previousDraftMode && nextRowMode !== TURN_ROW_MODES.COMMITTED && simulatorSettingsChanged) {
       this.#draftTargets = {};
       this.#openTargetPickerPartyIndex = null;
       this.#isBreakEditorOpen = false;
     }
-    // コミット済みになったら選択状態をリセット
-    if (record !== null) this.#selectedSlotPosition = null;
+    if (rowDiagnostics !== undefined) {
+      this.#rowDiagnostics = normalizeRowDiagnostics(rowDiagnostics);
+    }
+    this.#rowMode = nextRowMode;
+    if (this.#isCommittedDisplayMode()) {
+      this.#selectedSlotPosition = null;
+    }
     this.#openTargetPickerPartyIndex = openTargetPickerPartyIndex;
     this.#isBreakEditorOpen = Boolean(isBreakEditorOpen);
     this.#record = record;
@@ -345,10 +476,17 @@ export class TurnRowController {
         ? structuredClone(previewResourceState)
         : null;
     }
+    if (previewOdGaugeAfter !== undefined) {
+      this.#previewOdGaugeAfter = Number.isFinite(Number(previewOdGaugeAfter))
+        ? Number(previewOdGaugeAfter)
+        : null;
+    }
     if (odState !== undefined) this.#odState = odState;
     if (simulatorSettings !== undefined) this.#simulatorSettings = nextSimulatorSettings;
-    if (this.#record !== null) {
+    if (this.#isCommittedDisplayMode()) {
       this.#draftNote = String(this.#replayTurn?.note ?? '');
+    } else if (editDraft !== undefined) {
+      this.#applyEditDraft(editDraft);
     } else {
       this.#draftEnemyCount = clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
       this.#syncDraftSelections();
@@ -377,6 +515,10 @@ export class TurnRowController {
     const currentLv = Number(sel.value);
     if (currentLv >= 1 && !candidates.includes(currentLv)) {
       sel.value = '';
+      if (this.#isEditMode()) {
+        this.#setDraftOdSelection('interrupt', null);
+        return;
+      }
       this.#onOdChange?.(this.#turnIndex, 'interrupt', null);
     }
   }
@@ -484,6 +626,9 @@ export class TurnRowController {
     const enemyCount = this.getCurrentEnemyCount();
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     for (const member of members) {
+      if (this.#isExtraTurn() && !this.#isActionable(member)) {
+        continue;
+      }
       const skillId = this.#resolveDraftSkillId(
         member,
         this.#draftSlotSkills?.[member.partyIndex]?.skillId ?? null
@@ -524,6 +669,9 @@ export class TurnRowController {
     const overrides = [];
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     for (const member of members) {
+      if (this.#isExtraTurn() && !this.#isActionable(member)) {
+        continue;
+      }
       const selectionContext = this.#getBreakSelectionContext({
         member,
         isCommitted: false,
@@ -553,6 +701,9 @@ export class TurnRowController {
     }
     // Kill エントリ（未コミット行のみ）
     for (const member of members) {
+      if (this.#isExtraTurn() && !this.#isActionable(member)) {
+        continue;
+      }
       const killEnemyIndexes = (this.#draftKillEnemyIndexesByPartyIndex[member.partyIndex] ?? []).filter(
         (idx) => idx < enemyCount
       );
@@ -566,10 +717,132 @@ export class TurnRowController {
     return normalizeActionOutcomeOverrides(overrides, enemyCount);
   }
 
+  getCurrentTurnEditDraft() {
+    const slotActions = this.getCurrentSlotActions();
+    const slots = Array.from({ length: 6 }, (_, position) => {
+      const member =
+        this.#stateBefore?.party?.find((candidate) => Number(candidate?.position) === position) ?? null;
+      const action = member ? slotActions[member.partyIndex] : null;
+      return {
+        styleId: member?.styleId ?? null,
+        skillId: action?.skillId ?? null,
+        ...(action?.target?.type && action.target.type !== 'none'
+          ? { target: normalizeTurnReplayTarget(action.target) }
+          : {}),
+      };
+    });
+    return {
+      slots,
+      operations: Array.isArray(this.#operations)
+        ? this.#operations.map((operation) => structuredClone(operation))
+        : [],
+      note: this.getCurrentNote(),
+      enemyCount: this.getCurrentEnemyCount(),
+      actionOutcomeOverrides: this.getCurrentActionOutcomeOverrides(),
+    };
+  }
+
+  #rerenderDraftMode() {
+    this.update({
+      rowMode: this.#rowMode,
+      rowDiagnostics: this.#rowDiagnostics,
+      record: null,
+      replayTurn: this.#replayTurn,
+      operations: this.#operations,
+      operationState: this.#operationState,
+      stateBefore: this.#stateBefore,
+      stateAfter: this.#stateAfter,
+      previewResourceState: this.#previewResourceState,
+      previewOdGaugeAfter: this.#previewOdGaugeAfter,
+      odState: this.#odState,
+      simulatorSettings: this.#simulatorSettings,
+      openTargetPickerPartyIndex: this.#openTargetPickerPartyIndex,
+      isBreakEditorOpen: this.#isBreakEditorOpen,
+    });
+  }
+
+  #emitPreviewRequest() {
+    this.#onPreviewRequest?.(
+      this.#turnIndex,
+      this.#isEditMode() ? this.getCurrentTurnEditDraft() : this.getCurrentSlotActions()
+    );
+  }
+
+  #replaceDraftOperationByType(type, nextOperation = null) {
+    this.#operations = (Array.isArray(this.#operations) ? this.#operations : [])
+      .filter((operation) => String(operation?.type ?? '') !== String(type));
+    if (nextOperation) {
+      this.#operations.push(structuredClone(nextOperation));
+    }
+  }
+
+  #setDraftOdSelection(odType, level) {
+    const normalizedLevel =
+      Number.isFinite(Number(level)) && Number(level) >= 1 && Number(level) <= 3
+        ? Number(level)
+        : null;
+    if (odType === 'preemptive') {
+      this.#replaceDraftOperationByType(
+        REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
+        normalizedLevel == null
+          ? null
+          : {
+              type: REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD,
+              payload: { level: normalizedLevel },
+            }
+      );
+      return;
+    }
+    if (odType === 'interrupt') {
+      this.#replaceDraftOperationByType(
+        REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
+        normalizedLevel == null
+          ? null
+          : {
+              type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
+              payload: { level: normalizedLevel },
+            }
+      );
+    }
+  }
+
+  #addDraftOperation(operation) {
+    const type = String(operation?.type ?? '').trim();
+    if (!type) {
+      return false;
+    }
+    const definition = replayOperationRegistry.get(type);
+    if (!definition) {
+      return false;
+    }
+    if (definition.allowMultiple === false) {
+      const alreadyQueued = (this.#operations ?? []).some((entry) => entry?.type === type);
+      if (alreadyQueued) {
+        return false;
+      }
+    }
+    this.#operations = [...(this.#operations ?? []), structuredClone(operation)];
+    return true;
+  }
+
+  #removeDraftOperation(operationIndex) {
+    const numericIndex = Number(operationIndex);
+    if (
+      !Number.isInteger(numericIndex) ||
+      numericIndex < 0 ||
+      numericIndex >= (this.#operations?.length ?? 0)
+    ) {
+      return false;
+    }
+    this.#operations = this.#operations.filter((_, index) => index !== numericIndex);
+    return true;
+  }
+
   #buildOperationChipsHtml() {
     if (!Array.isArray(this.#operations) || this.#operations.length === 0) {
       return '';
     }
+    const canRemove = this.#isDraftMode();
     return `
       <div data-role="operation-chip-list" class="flex flex-wrap gap-1 pb-1">
         ${this.#operations.map((operation, index) => `
@@ -577,11 +850,15 @@ export class TurnRowController {
                 data-operation-index="${index}"
                 class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getReplayOperationTone(operation)}">
             <span>${getReplayOperationDisplayLabel(operation)}</span>
-            <button type="button"
-                    data-role="operation-chip-remove"
-                    data-operation-index="${index}"
-                    class="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/80 text-[10px] leading-none hover:bg-white"
-                    aria-label="${getReplayOperationDisplayLabel(operation)} を削除">×</button>
+            ${canRemove
+              ? `
+                <button type="button"
+                        data-role="operation-chip-remove"
+                        data-operation-index="${index}"
+                        class="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/80 text-[10px] leading-none hover:bg-white"
+                        aria-label="${getReplayOperationDisplayLabel(operation)} を削除">×</button>
+              `
+              : ''}
           </span>
         `).join('')}
       </div>
@@ -594,6 +871,7 @@ export class TurnRowController {
    * @param {number|null} odGaugeAfter null の場合は "→ —" に戻す
    */
   updateOdPreview(odGaugeAfter) {
+    this.#previewOdGaugeAfter = Number.isFinite(Number(odGaugeAfter)) ? Number(odGaugeAfter) : null;
     const el = this.#root.querySelector('[data-od-after]');
     if (!el) return;
     el.textContent = odGaugeAfter != null
@@ -990,7 +1268,7 @@ export class TurnRowController {
         )
       : 'E1';
     const showLocalTargetOverrideControls =
-      !this.#record &&
+      this.#isDraftMode() &&
       !selectionContext.isEnemyTargetSelectionManual &&
       selectionContext.singleTargetConfig?.kind === 'enemy' &&
       Number(selectionContext.singleTargetConfig?.candidates?.length ?? 0) > 1;
@@ -1191,11 +1469,12 @@ export class TurnRowController {
   }
 
   #buildHtml() {
-    const isCommitted = this.#record !== null;
+    const isCommitted = this.#isCommittedDisplayMode();
+    const isEditMode = this.#isEditMode();
     const members = this.#getMembersInPositionOrder();
 
     // ターン情報
-    const turnInfoHtml = this.#buildTurnInfoHtml(isCommitted);
+    const turnInfoHtml = this.#buildTurnInfoHtml({ isCommitted, isEditMode });
 
     // スロット（前衛 position 0-2）
     const frontSlots = members
@@ -1210,7 +1489,7 @@ export class TurnRowController {
       .join('');
 
     // ボタン列
-    const buttonHtml = this.#buildButtonHtml(isCommitted);
+    const buttonHtml = this.#buildButtonHtml({ isCommitted, isEditMode });
 
     // メモ欄
     const noteValue = this.getCurrentNote();
@@ -1226,12 +1505,21 @@ export class TurnRowController {
                   class="w-full min-h-[52px] flex-1 text-xs border border-gray-200 rounded px-1 py-0.5
                          resize-none focus:outline-none focus:ring-1 focus:ring-blue-300
                          ${isCommitted ? 'bg-gray-50' : 'bg-white'}"
+                  ${isCommitted ? 'readonly' : ''}
                   placeholder="メモ">${noteValue}</textarea>
       </div>`;
 
+    const rowToneClass = this.#rowDiagnostics.error
+      ? 'bg-red-50/60'
+      : isEditMode
+        ? 'bg-amber-50/40'
+        : isCommitted
+          ? ''
+          : 'bg-blue-50/30';
+
     return `
-      <div data-turn-row class="flex items-stretch gap-px border-b border-gray-200 bg-white
-                  hover:bg-gray-50 transition-colors ${isCommitted ? '' : 'bg-blue-50/30'}">
+      <div data-turn-row data-row-mode="${this.#rowMode}" class="flex items-stretch gap-px border-b border-gray-200 bg-white
+                  hover:bg-gray-50 transition-colors ${rowToneClass}">
         ${turnInfoHtml}
         <div data-turn-slots class="flex gap-px flex-1 min-w-0">
           <div data-turn-front-group class="flex gap-px min-w-0">
@@ -1247,11 +1535,24 @@ export class TurnRowController {
       </div>`;
   }
 
-  #buildTurnInfoHtml(isCommitted) {
+  #buildTurnInfoHtml({ isCommitted, isEditMode }) {
+    const warningCount = this.#rowDiagnostics.warnings.length;
+    const errorBadgeHtml = this.#rowDiagnostics.error
+      ? '<span class="rounded border border-red-300 bg-red-100 px-1 py-px text-[9px] font-bold text-red-700">Error</span>'
+      : '';
+    const warningBadgeHtml = warningCount > 0
+      ? `<span class="rounded border border-amber-300 bg-amber-100 px-1 py-px text-[9px] font-bold text-amber-700">Warn(${warningCount})</span>`
+      : '';
+    const editBadgeHtml = isEditMode
+      ? '<span class="rounded border border-blue-300 bg-blue-100 px-1 py-px text-[9px] font-bold text-blue-700">編集中</span>'
+      : '';
+
     if (!isCommitted) {
       // 未コミット行: stateBefore の turnState から OD / EX 状態を先読みする
       const turnState = this.#stateBefore?.turnState;
-      const nextTurnNo = turnState?.turnIndex ?? 1;
+      const nextTurnNo = isEditMode
+        ? Number(this.#replayTurn?.turn ?? turnState?.turnIndex ?? this.#turnIndex + 1)
+        : (turnState?.turnIndex ?? 1);
       const turnType   = String(turnState?.turnType ?? '');
       const isOdTurn     = turnType === 'od';
       const isExtraTurn  = turnType === 'extra';
@@ -1278,25 +1579,35 @@ export class TurnRowController {
                     gap-0.5 px-2 py-1 bg-gray-50 border-r border-gray-200">
           <div class="flex flex-col sm:flex-row items-baseline gap-1 w-full text-xs font-bold text-gray-900 flex-wrap leading-none">
             <div class="flex items-center gap-1">
+              ${isEditMode ? `<span class="text-gray-400 font-normal">#${this.#record?.turnId ?? this.#turnIndex + 1}</span>` : ''}
               <span>T${nextTurnNo}</span>
               ${odLevelLabel ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
               ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
+              ${editBadgeHtml}
+              ${warningBadgeHtml}
+              ${errorBadgeHtml}
             </div>
             ${enemyCountSelect}
           </div>
           <div data-turn-od-gauge class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
             ${odGaugeBefore}<span data-od-after class="text-gray-400">→ —</span>
           </div>
+          ${this.#rowDiagnostics.error
+            ? `<div class="text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
+            : ''}
         </div>`;
     }
 
     const rec = this.#record;
-    const turnNo = rec.turnIndex ?? '?';
-    const seqId  = rec.turnId ?? '?';
-    const odGaugeBefore = formatOdGauge(rec.odGaugeAtStart);
-    const odGaugeAfter  = formatOdGauge(rec.projections?.odGaugeAtEnd ?? rec.odGaugeAtStart);
-    const isExtraTurn   = rec.isExtraTurn;
-    const odMatch       = String(rec.odTurnLabelAtStart ?? '').match(/^(OD\d+)/);
+    const fallbackTurnState = this.#stateBefore?.turnState ?? {};
+    const turnNo = rec?.turnIndex ?? this.#replayTurn?.turn ?? this.#turnIndex + 1;
+    const seqId  = rec?.turnId ?? this.#turnIndex + 1;
+    const odGaugeAtStart = rec?.odGaugeAtStart ?? fallbackTurnState?.odGauge ?? 0;
+    const odGaugeAtEnd = rec?.projections?.odGaugeAtEnd ?? odGaugeAtStart;
+    const odGaugeBefore = formatOdGauge(odGaugeAtStart);
+    const odGaugeAfter  = formatOdGauge(odGaugeAtEnd);
+    const isExtraTurn   = Boolean(rec?.isExtraTurn ?? String(fallbackTurnState?.turnType ?? '') === 'extra');
+    const odMatch       = String(rec?.odTurnLabelAtStart ?? fallbackTurnState?.turnLabel ?? '').match(/^(OD\d+)/);
     const odLevelLabel  = odMatch ? odMatch[1] : '';
     // OD文脈 = ODレベルラベルあり（コミット済みではodSuspendedをodTurnLabelAtStartで兼用）
     const inOd = !!odLevelLabel;
@@ -1304,6 +1615,7 @@ export class TurnRowController {
     const currentEnemyCount = this.#getCurrentReplayTurnEnemyCount();
     const enemyCountSelect = `
       <select data-role="enemy-count" title="敵の数"
+              disabled
               class="text-[10px] border border-gray-200 rounded px-0.5 focus:outline-none focus:ring-1 focus:ring-blue-300 ml-auto bg-white">
         <option value="1" ${currentEnemyCount === 1 ? 'selected' : ''}>1</option>
         <option value="2" ${currentEnemyCount === 2 ? 'selected' : ''}>2</option>
@@ -1319,11 +1631,16 @@ export class TurnRowController {
           <span>T${turnNo}</span>
           ${inOd ? `<span class="text-purple-700">${odLevelLabel}</span>` : ''}
           ${inEx ? `<span class="text-amber-700">EX</span>` : ''}
+          ${warningBadgeHtml}
+          ${errorBadgeHtml}
           ${enemyCountSelect}
         </div>
         <div data-turn-od-gauge class="font-mono text-[10px] text-gray-700 leading-none whitespace-nowrap">
           ${odGaugeBefore}→${odGaugeAfter}
         </div>
+        ${this.#rowDiagnostics.error
+          ? `<div class="text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
+          : ''}
         ${allEnemiesDefeated
           ? `<div class="text-[9px] font-bold text-red-600 bg-red-50 rounded px-1 py-px border border-red-200 w-full text-center">
                バトル終了
@@ -1459,7 +1776,7 @@ export class TurnRowController {
 
     // EX ターン: 非行動可能メンバーは #buildInactiveSlotHtml で早期 return 済みのため、
     // ここに到達するメンバーは全員 allowedCharacterIds に含まれる。draggable に EX 制限不要。
-    const draggable = !isCommitted;
+    const draggable = this.#isInputMode();
     const targetControlAnchorHtml = targetControlHtml
       ? `
         <div data-role="slot-target-anchor" data-position="${member.position}"
@@ -1567,7 +1884,7 @@ export class TurnRowController {
     const spColor = typeof sp === 'number' && sp < 0 ? '#ef4444' : '#ffffff';
 
     // EX ターン: allowedCharacterIds に含まれない後衛メンバーはドラッグ不可
-    const draggable = !isCommitted && (!this.#isExtraTurn() || this.#isActionable(member));
+    const draggable = this.#isInputMode() && (!this.#isExtraTurn() || this.#isActionable(member));
     return `
       <div draggable="${draggable}" data-turn-slot data-position="${member.position}"
            class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none
@@ -1603,7 +1920,7 @@ export class TurnRowController {
       </div>`;
   }
 
-  #buildButtonHtml(isCommitted) {
+  #buildButtonHtml({ isCommitted, isEditMode }) {
     const manualBreakControlHtml = `
       <div class="col-span-2 relative">
         <button data-role="manual-break-toggle"
@@ -1616,7 +1933,12 @@ export class TurnRowController {
 
     if (isCommitted) {
       return `
-        <div data-turn-buttons class="flex-shrink-0 w-[110px] px-1 py-1"></div>`;
+        <div data-turn-buttons class="flex-shrink-0 w-[110px] px-1 py-1">
+          <button data-role="edit-btn"
+                  class="w-full text-xs py-1 rounded border border-blue-300 bg-blue-50 text-blue-700 font-semibold hover:bg-blue-100 transition-colors">
+            編集
+          </button>
+        </div>`;
     }
 
     const od = this.#odState;
@@ -1688,11 +2010,26 @@ export class TurnRowController {
 
     return `
       <div data-turn-buttons class="flex-shrink-0 w-[110px] grid grid-cols-2 gap-0.5 px-1 py-1 auto-rows-[minmax(24px,auto)]">
-        <button data-role="commit-btn"
-                class="col-span-2 text-xs py-0.5 rounded bg-blue-500 text-white font-medium
-                       hover:bg-blue-600 active:bg-blue-700 transition-colors">
-          実行
-        </button>
+        ${isEditMode
+          ? `
+            <button data-role="recommit-btn"
+                    class="text-xs py-0.5 rounded bg-blue-500 text-white font-medium
+                           hover:bg-blue-600 active:bg-blue-700 transition-colors">
+              再コミット
+            </button>
+            <button data-role="edit-cancel-btn"
+                    class="text-xs py-0.5 rounded border border-gray-300 bg-white text-gray-700 font-medium
+                           hover:bg-gray-50 transition-colors">
+              キャンセル
+            </button>
+          `
+          : `
+            <button data-role="commit-btn"
+                    class="col-span-2 text-xs py-0.5 rounded bg-blue-500 text-white font-medium
+                           hover:bg-blue-600 active:bg-blue-700 transition-colors">
+              実行
+            </button>
+          `}
         <select data-od-type="preemptive" title="先制OD"
                 class="w-full text-[10px] border rounded px-0.5 py-px focus:outline-none focus:ring-1
                        ${preemptiveActive
@@ -1714,19 +2051,7 @@ export class TurnRowController {
   }
 
   #bindEvents() {
-    // スキル select 変更（コミット済み行）
-    if (this.#record !== null) {
-      this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
-        sel.addEventListener('change', () => {
-          const position = Number(sel.dataset.position);
-          const skillId = sel.value === '' ? null : Number(sel.value);
-          this.#onSlotChange?.(this.#turnIndex, position, { skillId });
-        });
-      });
-    }
-
-    // スキル select 変更（未コミット行: OD After プレビューをリクエスト）
-    if (this.#record === null) {
+    if (this.#isDraftMode()) {
       this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
         sel.addEventListener('change', () => {
           const partyIndex = Number(sel.dataset.partyIndex);
@@ -1736,14 +2061,8 @@ export class TurnRowController {
           }
           this.#openTargetPickerPartyIndex = null;
           this.#isBreakEditorOpen = false;
-          this.update({
-            record: null,
-            stateBefore: this.#stateBefore,
-            stateAfter: null,
-            odState: this.#odState,
-            simulatorSettings: this.#simulatorSettings,
-          });
-          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
         });
       });
     }
@@ -1755,24 +2074,18 @@ export class TurnRowController {
         this.#isBreakEditorOpen = false;
         this.#openTargetPickerPartyIndex =
           this.#openTargetPickerPartyIndex === partyIndex ? null : partyIndex;
-        this.update({
-          record: this.#record,
-          replayTurn: this.#replayTurn,
-          operations: this.#operations,
-          operationState: this.#operationState,
-          stateBefore: this.#stateBefore,
-          stateAfter: this.#stateAfter,
-          odState: this.#odState,
-          simulatorSettings: this.#simulatorSettings,
-          openTargetPickerPartyIndex: this.#openTargetPickerPartyIndex,
-          isBreakEditorOpen: this.#isBreakEditorOpen,
-        });
+        if (this.#isDraftMode()) {
+          this.#rerenderDraftMode();
+        }
       });
     });
 
     this.#root.querySelectorAll('[data-role="target-candidate"]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
+        if (!this.#isDraftMode()) {
+          return;
+        }
         if (btn.disabled) {
           return;
         }
@@ -1799,27 +2112,12 @@ export class TurnRowController {
 
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
-        if (this.#record === null) {
-          this.#draftTargets = {
-            ...this.#draftTargets,
-            [actorPartyIndex]: target,
-          };
-          this.update({
-            record: null,
-            stateBefore: this.#stateBefore,
-            stateAfter: null,
-            odState: this.#odState,
-            simulatorSettings: this.#simulatorSettings,
-          });
-          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
-          return;
-        }
-
-        const skillSelect = this.#root.querySelector(
-          `[data-skill-select][data-party-index="${actorPartyIndex}"]`
-        );
-        const skillId = skillSelect?.value === '' ? null : Number(skillSelect?.value);
-        this.#onSlotChange?.(this.#turnIndex, member.position, { skillId, target });
+        this.#draftTargets = {
+          ...this.#draftTargets,
+          [actorPartyIndex]: target,
+        };
+        this.#rerenderDraftMode();
+        this.#emitPreviewRequest();
       });
     });
 
@@ -1828,25 +2126,16 @@ export class TurnRowController {
         event.stopPropagation();
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = !this.#isBreakEditorOpen;
-        this.update({
-          record: this.#record,
-          replayTurn: this.#replayTurn,
-          operations: this.#operations,
-          operationState: this.#operationState,
-          stateBefore: this.#stateBefore,
-          stateAfter: this.#stateAfter,
-          odState: this.#odState,
-          simulatorSettings: this.#simulatorSettings,
-          openTargetPickerPartyIndex: this.#openTargetPickerPartyIndex,
-          isBreakEditorOpen: this.#isBreakEditorOpen,
-        });
+        if (this.#isDraftMode()) {
+          this.#rerenderDraftMode();
+        }
       });
     });
 
     this.#root.querySelectorAll('[data-role="manual-break-target-reset"]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
-        if (this.#record !== null) {
+        if (!this.#isDraftMode()) {
           return;
         }
         const partyIndex = Number(btn.dataset.partyIndex);
@@ -1855,22 +2144,15 @@ export class TurnRowController {
         }
         this.#isBreakEditorOpen = true;
         delete this.#draftTargets[partyIndex];
-        this.update({
-          record: null,
-          stateBefore: this.#stateBefore,
-          stateAfter: null,
-          odState: this.#odState,
-          simulatorSettings: this.#simulatorSettings,
-          isBreakEditorOpen: this.#isBreakEditorOpen,
-        });
-        this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
+        this.#rerenderDraftMode();
+        this.#emitPreviewRequest();
       });
     });
 
     this.#root.querySelectorAll('[data-role="manual-break-target-candidate"]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
-        if (this.#record !== null) {
+        if (!this.#isDraftMode()) {
           return;
         }
         const partyIndex = Number(btn.dataset.partyIndex);
@@ -1886,15 +2168,8 @@ export class TurnRowController {
             enemyIndex,
           }),
         };
-        this.update({
-          record: null,
-          stateBefore: this.#stateBefore,
-          stateAfter: null,
-          odState: this.#odState,
-          simulatorSettings: this.#simulatorSettings,
-          isBreakEditorOpen: this.#isBreakEditorOpen,
-        });
-        this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
+        this.#rerenderDraftMode();
+        this.#emitPreviewRequest();
       });
     });
 
@@ -1908,10 +2183,10 @@ export class TurnRowController {
           return;
         }
         const enemyCount =
-          this.#record === null ? this.getCurrentEnemyCount() : this.#getCurrentReplayTurnEnemyCount();
+          this.#isDraftMode() ? this.getCurrentEnemyCount() : this.#getCurrentReplayTurnEnemyCount();
         const selectionContext = this.#getBreakSelectionContext({
           member,
-          isCommitted: this.#record !== null,
+          isCommitted: this.#isCommittedDisplayMode(),
           enemyCount,
         });
         if (!selectionContext) {
@@ -1924,7 +2199,7 @@ export class TurnRowController {
             : [];
 
         this.#isBreakEditorOpen = true;
-        if (this.#record === null) {
+        if (this.#isDraftMode()) {
           if (nextEnemyIndexes.length === 0) {
             delete this.#draftBreakEnemyIndexesByPartyIndex[partyIndex];
           } else {
@@ -1933,26 +2208,9 @@ export class TurnRowController {
               [partyIndex]: nextEnemyIndexes,
             };
           }
-          this.update({
-            record: null,
-            stateBefore: this.#stateBefore,
-            stateAfter: null,
-            odState: this.#odState,
-            simulatorSettings: this.#simulatorSettings,
-            isBreakEditorOpen: this.#isBreakEditorOpen,
-          });
-          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
-          return;
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
         }
-
-        const currentOverrides = this.#getReplayTurnActionOutcomeOverrides(enemyCount);
-        const nextOverrides = setBreakEnemyIndexesForPosition(
-          currentOverrides,
-          member.position,
-          nextEnemyIndexes,
-          enemyCount
-        );
-        this.#onActionOutcomeChange?.(this.#turnIndex, nextOverrides);
       });
     });
 
@@ -1967,10 +2225,10 @@ export class TurnRowController {
           return;
         }
         const enemyCount =
-          this.#record === null ? this.getCurrentEnemyCount() : this.#getCurrentReplayTurnEnemyCount();
+          this.#isDraftMode() ? this.getCurrentEnemyCount() : this.#getCurrentReplayTurnEnemyCount();
         const currentEnemyIndexes = this.#getCurrentBreakEnemyIndexes({
           member,
-          isCommitted: this.#record !== null,
+          isCommitted: this.#isCommittedDisplayMode(),
           enemyCount,
         });
         const nextEnemyIndexes = currentEnemyIndexes.includes(enemyIndex)
@@ -1978,7 +2236,7 @@ export class TurnRowController {
           : [...currentEnemyIndexes, enemyIndex];
 
         this.#isBreakEditorOpen = true;
-        if (this.#record === null) {
+        if (this.#isDraftMode()) {
           this.#draftBreakEnemyIndexesByPartyIndex = {
             ...this.#draftBreakEnemyIndexesByPartyIndex,
             [partyIndex]: [...new Set(nextEnemyIndexes)].sort((left, right) => left - right),
@@ -1986,26 +2244,9 @@ export class TurnRowController {
           if (this.#draftBreakEnemyIndexesByPartyIndex[partyIndex]?.length === 0) {
             delete this.#draftBreakEnemyIndexesByPartyIndex[partyIndex];
           }
-          this.update({
-            record: null,
-            stateBefore: this.#stateBefore,
-            stateAfter: null,
-            odState: this.#odState,
-            simulatorSettings: this.#simulatorSettings,
-            isBreakEditorOpen: this.#isBreakEditorOpen,
-          });
-          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
-          return;
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
         }
-
-        const currentOverrides = this.#getReplayTurnActionOutcomeOverrides(enemyCount);
-        const nextOverrides = setBreakEnemyIndexesForPosition(
-          currentOverrides,
-          member.position,
-          nextEnemyIndexes,
-          enemyCount
-        );
-        this.#onActionOutcomeChange?.(this.#turnIndex, nextOverrides);
       });
     });
 
@@ -2017,13 +2258,13 @@ export class TurnRowController {
         const partyIndex = Number(btn.dataset.partyIndex);
         const position = Number(btn.dataset.position);
 
-        const enemyCount = this.#record === null
+        const enemyCount = this.#isDraftMode()
           ? this.getCurrentEnemyCount()
           : this.#getCurrentReplayTurnEnemyCount();
 
         this.#isBreakEditorOpen = true;
 
-        if (this.#record === null) {
+        if (this.#isDraftMode()) {
           const current = this.#draftKillEnemyIndexesByPartyIndex[partyIndex] ?? [];
           const next = current.includes(enemyIndex)
             ? current.filter((i) => i !== enemyIndex)
@@ -2031,29 +2272,9 @@ export class TurnRowController {
           this.#draftKillEnemyIndexesByPartyIndex[partyIndex] = next.filter(
             (i) => i < enemyCount
           );
-          this.update({
-            record: null,
-            stateBefore: this.#stateBefore,
-            stateAfter: null,
-            odState: this.#odState,
-            simulatorSettings: this.#simulatorSettings,
-            isBreakEditorOpen: true,
-          });
-          return;
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
         }
-        // コミット済み行: ACTION_OUTCOME_OVERRIDES 経由で更新（onActionOutcomeChange を再利用）
-        const currentOverrides = this.#getReplayTurnActionOutcomeOverrides(enemyCount);
-        const currentKills = getKillEnemyIndexesForPosition(currentOverrides, position);
-        const nextKills = currentKills.includes(enemyIndex)
-          ? currentKills.filter((i) => i !== enemyIndex)
-          : [...currentKills, enemyIndex];
-        const nextOverrides = setKillEnemyIndexesForPosition(
-          currentOverrides,
-          position,
-          nextKills,
-          enemyCount
-        );
-        this.#onActionOutcomeChange?.(this.#turnIndex, nextOverrides);
       });
     });
 
@@ -2063,20 +2284,12 @@ export class TurnRowController {
         const nextEnemyCount = clampEnemyCount(Number(countEl.value));
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
-        if (this.#record === null) {
+        if (this.#isDraftMode()) {
           this.#draftEnemyCount = nextEnemyCount;
           this.#syncDraftSelections();
-          this.update({
-            record: null,
-            stateBefore: this.#stateBefore,
-            stateAfter: null,
-            odState: this.#odState,
-            simulatorSettings: this.#simulatorSettings,
-          });
-          this.#onPreviewRequest?.(this.#turnIndex, this.getCurrentSlotActions());
-          return;
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
         }
-        this.#onEnemyCountChange?.(this.#turnIndex, nextEnemyCount);
       });
     }
 
@@ -2085,12 +2298,26 @@ export class TurnRowController {
     commitBtn?.addEventListener('click', () => {
       this.#onCommit?.(this.#turnIndex);
     });
+    const recommitBtn = this.#root.querySelector('[data-role="recommit-btn"]');
+    recommitBtn?.addEventListener('click', () => {
+      this.#onRecommit?.(this.#turnIndex);
+    });
+    const editCancelBtn = this.#root.querySelector('[data-role="edit-cancel-btn"]');
+    editCancelBtn?.addEventListener('click', () => {
+      this.#onEditCancel?.(this.#turnIndex);
+    });
+    const editBtn = this.#root.querySelector('[data-role="edit-btn"]');
+    editBtn?.addEventListener('click', () => {
+      this.#onEditStart?.(this.#turnIndex);
+    });
 
     // メモ欄
     const noteEl = this.#root.querySelector('[data-role="note"]');
     noteEl?.addEventListener('input', () => {
       this.#draftNote = noteEl.value;
-      this.#onNoteChange?.(this.#turnIndex, noteEl.value);
+      if (this.#isInputMode()) {
+        this.#onNoteChange?.(this.#turnIndex, noteEl.value);
+      }
     });
 
     this.#root.querySelectorAll('[data-role="operation-chip-remove"]').forEach((button) => {
@@ -2098,36 +2325,62 @@ export class TurnRowController {
         event.preventDefault();
         event.stopPropagation();
         const operationIndex = Number(button.dataset.operationIndex);
+        if (this.#isEditMode()) {
+          if (!this.#removeDraftOperation(operationIndex)) {
+            return;
+          }
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
+          return;
+        }
         this.#onOperationRemove?.(this.#turnIndex, operationIndex);
       });
     });
 
-    // OD select（未コミット行のみ）
-    if (this.#record === null) {
+    if (this.#isDraftMode()) {
       this.#root.querySelectorAll('[data-od-type]').forEach((sel) => {
         sel.addEventListener('change', () => {
           const odType = sel.dataset.odType;  // 'preemptive' | 'interrupt'
           const level = sel.value === '' ? null : Number(sel.value);
+          if (this.#isEditMode()) {
+            this.#setDraftOdSelection(odType, level);
+            this.#rerenderDraftMode();
+            this.#emitPreviewRequest();
+            return;
+          }
           this.#onOdChange?.(this.#turnIndex, odType, level);
         });
       });
     }
 
-    // special operation ボタン（未コミット行のみ）
-    if (this.#record === null) {
+    if (this.#isDraftMode()) {
       const kishinkaBtn = this.#root.querySelector('[data-role="kishinka-btn"]');
       kishinkaBtn?.addEventListener('click', () => {
+        if (this.#isEditMode()) {
+          if (!this.#addDraftOperation({ type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA })) {
+            return;
+          }
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
+          return;
+        }
         this.#onOperationAdd?.(this.#turnIndex, { type: REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA });
       });
       const makaiBtn = this.#root.querySelector('[data-role="makai-kihei-btn"]');
       makaiBtn?.addEventListener('click', () => {
+        if (this.#isEditMode()) {
+          if (!this.#addDraftOperation({ type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI })) {
+            return;
+          }
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
+          return;
+        }
         this.#onOperationAdd?.(this.#turnIndex, { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI });
       });
     }
 
-    // アイコンタップ swap（未コミット行のみ）
-    // D&D が使えない iOS での入れ替え手段：タップで選択→別アイコンタップで交換
-    if (this.#record === null) {
+    if (this.#isInputMode()) {
       this.#root.querySelectorAll('[data-turn-slot-icon]').forEach((icon) => {
         icon.style.cursor = 'pointer';
         icon.addEventListener('click', (e) => {
@@ -2141,8 +2394,7 @@ export class TurnRowController {
       });
     }
 
-    // D&D（未コミット行のみ）
-    if (this.#record === null) {
+    if (this.#isInputMode()) {
       this.#bindDragAndDrop();
     }
 
@@ -2162,7 +2414,7 @@ export class TurnRowController {
         const position = Number(slotEl.dataset.position);
         const member = this.#stateBefore?.party?.find((m) => m.position === position) ?? null;
         if (!member) return;
-        const snapEntry = this.#record
+        const snapEntry = this.#isCommittedDisplayMode() && this.#record
           ? (this.#record.snapBefore?.find((s) => s.partyIndex === member.partyIndex) ?? null)
           : null;
         openCharDetailPopup(
@@ -2177,29 +2429,57 @@ export class TurnRowController {
             territoryState: this.#stateBefore?.turnState?.territoryState ?? null,
             talismanState: this.#stateBefore?.turnState?.enemyState?.talismanState ?? null,
           },
-          { x: e.clientX, y: e.clientY, isCommitted: Boolean(this.#record) }
+          { x: e.clientX, y: e.clientY, isCommitted: this.#isCommittedDisplayMode() }
         );
       });
     });
   }
 
   /**
-   * 表示中の .target-popover が左右いずれかにビューポートからはみ出す場合、
-   * translateX でずらして画面内に収める。
+   * 表示中の .target-popover がビューポート外にはみ出す場合、
+   * translate と maxHeight で画面内に収める。
    */
   #adjustPopoverPositions() {
+    const viewportPadding = 8;
+    const viewportWidth = Number(window?.innerWidth ?? 0);
+    const viewportHeight = Number(window?.innerHeight ?? 0);
+    const maxPopoverHeight =
+      viewportHeight > 0 ? Math.max(120, viewportHeight - viewportPadding * 2) : 0;
     this.#root.querySelectorAll('.target-popover').forEach((popover) => {
       if (popover.hasAttribute('hidden')) return;
       popover.style.transform = '';
+      popover.style.maxHeight = '';
+      popover.style.overflowY = '';
+      if (maxPopoverHeight > 0) {
+        popover.style.maxHeight = `${maxPopoverHeight}px`;
+        popover.style.overflowY = 'auto';
+      }
       const rect = popover.getBoundingClientRect();
-      const rightOverflow = rect.right - (window.innerWidth - 8);
-      const leftOverflow = 8 - rect.left;
-      if (rightOverflow > 0) {
-        // 右にはみ出し → 左にずらす
-        popover.style.transform = `translateX(-${rightOverflow}px)`;
-      } else if (leftOverflow > 0) {
-        // 左にはみ出し → 右にずらす
-        popover.style.transform = `translateX(${leftOverflow}px)`;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (viewportWidth > 0) {
+        const maxRight = viewportWidth - viewportPadding;
+        if (rect.right > maxRight) {
+          offsetX -= rect.right - maxRight;
+        }
+        if (rect.left + offsetX < viewportPadding) {
+          offsetX += viewportPadding - (rect.left + offsetX);
+        }
+      }
+
+      if (viewportHeight > 0) {
+        const maxBottom = viewportHeight - viewportPadding;
+        if (rect.bottom > maxBottom) {
+          offsetY -= rect.bottom - maxBottom;
+        }
+        if (rect.top + offsetY < viewportPadding) {
+          offsetY += viewportPadding - (rect.top + offsetY);
+        }
+      }
+
+      if (offsetX !== 0 || offsetY !== 0) {
+        popover.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
       }
     });
   }

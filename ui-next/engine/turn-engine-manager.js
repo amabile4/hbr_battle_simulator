@@ -38,6 +38,35 @@ import {
 } from '../utils/action-outcome-overrides.js';
 import { normalizeValidationPolicy } from '../utils/validation-policy.js';
 
+function createEmptyReplayDiagnostics() {
+  return {
+    setupWarnings: [],
+    turnWarnings: [],
+    error: null,
+    appliedTurnCount: 0,
+  };
+}
+
+function cloneReplayDiagnostics(diagnostics = {}) {
+  return {
+    setupWarnings: Array.isArray(diagnostics?.setupWarnings)
+      ? diagnostics.setupWarnings.map((warning) => String(warning))
+      : [],
+    turnWarnings: Array.isArray(diagnostics?.turnWarnings)
+      ? diagnostics.turnWarnings.map((warnings) =>
+          Array.isArray(warnings) ? warnings.map((warning) => String(warning)) : []
+        )
+      : [],
+    error: diagnostics?.error
+      ? {
+          index: Number(diagnostics.error.index),
+          message: String(diagnostics.error.message ?? ''),
+        }
+      : null,
+    appliedTurnCount: Number(diagnostics?.appliedTurnCount ?? 0),
+  };
+}
+
 /**
  * LightweightReplayScript を正本として保持し、previewTurn/commitTurn を透過的に管理するクラス。
  *
@@ -61,6 +90,7 @@ export class TurnEngineManager {
   #pendingInterruptOdLevel = null;   // number | null
   #pendingSpecialOperations = [];    // ReplayOperation[]
   #validationPolicy = normalizeValidationPolicy();
+  #replayDiagnostics = createEmptyReplayDiagnostics();
 
   get replayScript() { return this.#replayScript; }
   get computedRecords() { return this.#computedRecords; }
@@ -73,6 +103,9 @@ export class TurnEngineManager {
   }
   get validationPolicy() {
     return structuredClone(this.#validationPolicy);
+  }
+  get replayDiagnostics() {
+    return this.getReplayDiagnostics();
   }
 
   /** Apply 後に呼ぶ。初期 BattleState と空の ReplayScript を設定する。*/
@@ -92,7 +125,7 @@ export class TurnEngineManager {
   getCurrentStateWithPending(enemyCount = null) {
     try {
       return applyBeforeCommitOperations(
-        this.currentState,
+        this.#cloneWorkingState(this.currentState),
         this.#buildPendingBeforeCommitOperations(),
         { enemyCount }
       );
@@ -119,6 +152,7 @@ export class TurnEngineManager {
     this.#pendingInterruptOdLevel = null;
     this.#pendingSpecialOperations = [];
     this.#validationPolicy = normalizeValidationPolicy(options.validationPolicy);
+    this.#replayDiagnostics = createEmptyReplayDiagnostics();
   }
 
   loadReplayScript(initialState, replayScript = {}, options = {}) {
@@ -130,7 +164,9 @@ export class TurnEngineManager {
     this.#pendingInterruptOdLevel = null;
     this.#pendingSpecialOperations = [];
     this.#validationPolicy = normalizeValidationPolicy(options.validationPolicy);
-    this.recalculateFrom(0);
+    this.#recalculateAllBestEffort({
+      strictExtraTurnTurnIndexes: new Set(),
+    });
   }
 
   /**
@@ -145,27 +181,69 @@ export class TurnEngineManager {
    */
   commitNextTurn(slotActions = {}, options = {}) {
     const operations = this.#buildCommittedOperations();
+    const directInterruptLevel = Number(options.interruptOdLevel);
+    if (
+      Number.isFinite(directInterruptLevel) &&
+      directInterruptLevel >= 1 &&
+      directInterruptLevel <= 3 &&
+      this.#pendingInterruptOdLevel == null
+    ) {
+      operations.push({
+        type: REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD,
+        payload: { level: directInterruptLevel },
+      });
+    }
     const enemyCount = clampEnemyCount(
       options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
+    const warnings = [];
     let state = applyBeforeCommitOperations(
-      this.currentState,
+      this.#cloneWorkingState(this.currentState),
       operations,
-      { enemyCount }
+      {
+        enemyCount,
+        allowInsufficientOd: this.#validationPolicy.allowInsufficientOd,
+        onWarning: (message) => warnings.push(String(message)),
+      }
     );
     const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       state,
       slotActions,
       options.actionOutcomeOverrides,
-      enemyCount
+      enemyCount,
+      {
+        onWarning: (message) => warnings.push(String(message)),
+      }
     );
 
     const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides);
     const previewRecord = previewTurnRecord(
-      state, actions, options.enemyAction ?? null, enemyCount
+      state,
+      actions,
+      options.enemyAction ?? null,
+      enemyCount,
+      {
+        allowUseCountOverflow: this.#validationPolicy.allowUseCountOverflow,
+        allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
+        onWarning: (message) => warnings.push(String(message)),
+      }
     );
+    this.#appendPreviewResourceWarnings(previewRecord, warnings);
 
     const interruptLevel = options.interruptOdLevel ?? this.#pendingInterruptOdLevel ?? 0;
+    const requiredInterruptGauge = interruptLevel > 0 ? getOdGaugeRequirement(interruptLevel) : 0;
+    const odGaugeAfter = Number(
+      previewRecord?.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0
+    );
+    const forceInterruptOd =
+      interruptLevel > 0 &&
+      odGaugeAfter < requiredInterruptGauge &&
+      this.#validationPolicy.allowInsufficientOd;
+    if (forceInterruptOd) {
+      warnings.push(
+        `insufficient OD allowed: OD${interruptLevel} requires ${requiredInterruptGauge}% gauge. current=${odGaugeAfter.toFixed(2)}%`
+      );
+    }
 
     // commitTurn は state.party メンバーを in-place 変更する（updateReinforcedModeStateAfterTurn 等）。
     // #applyKishinkaToState や activateOverdrive を経ていない場合、state は computedStates[N-1] の
@@ -173,10 +251,12 @@ export class TurnEngineManager {
     // getStateBefore(N) = computedStates[N-1] を参照する committed 行の stateBefore が
     // 変異した state を返してしまい、getActionSkills() が誤った結果を返すバグの原因となる。
     // → party をクローンした作業用 state を commitTurnRecord に渡すことで汚染を防ぐ。
-    const stateForCommit = { ...state, party: state.party.map((m) => m.clone()) };
+    const stateForCommit = this.#cloneWorkingState(state);
 
-    const { nextState, committedRecord } = commitTurnRecord(stateForCommit, previewRecord, [], {
+    const { nextState } = commitTurnRecord(stateForCommit, previewRecord, [], {
       interruptOdLevel: interruptLevel,
+      forceOdActivation: forceInterruptOd,
+      forceResourceDeficit: forceInterruptOd,
     });
 
     // slotActions は currentState（先制OD 適用前）の position を基準に記録
@@ -189,15 +269,15 @@ export class TurnEngineManager {
       actionOutcomeOverrides
     );
     this.#replayScript.turns.push(replayTurn);
-    this.#computedStates.push(this.#patchNextStateForKills(nextState, actionOutcomeOverrides, enemyCount));
-    this.#computedRecords.push(committedRecord);
-
     // pending をリセット
     this.#pendingPreemptiveOdLevel = null;
     this.#pendingInterruptOdLevel = null;
     this.#pendingSpecialOperations = [];
 
-    return committedRecord;
+    this.#computedStates.push(this.#patchNextStateForKills(nextState, actionOutcomeOverrides, enemyCount));
+    this.#computedRecords.push(null);
+    this.#recalculateAllBestEffort();
+    return this.#computedRecords.at(-1) ?? null;
   }
 
   /**
@@ -209,7 +289,7 @@ export class TurnEngineManager {
   recalculateAll(newInitialState) {
     this.#initialState = newInitialState;
     if (this.#replayScript) {
-      this.recalculateFrom(0);
+      this.#recalculateAllBestEffort();
     }
   }
 
@@ -233,7 +313,7 @@ export class TurnEngineManager {
 
     // baseState の party を clone して作業用コピーを作る。
     // #alignPositionsToSlots が position を書き換えるため、permanent state を汚染しないよう独立させる。
-    let state = { ...baseState, party: baseState.party.map((m) => m.clone()) };
+    let state = this.#cloneWorkingState(baseState);
     const turns = this.#replayScript.turns;
 
     for (let i = fromIndex; i < turns.length; i++) {
@@ -242,7 +322,7 @@ export class TurnEngineManager {
       // commitTurnRecord は state.party メンバーを in-place 変更するため、
       // state が computedStates[i-1] を参照している場合は汚染が発生する。
       // → 各イテレーション先頭で party をクローンして作業用コピーを確保する。
-      state = { ...state, party: state.party.map((m) => m.clone()) };
+      state = this.#cloneWorkingState(state);
       this.#alignPositionsToSlots(state, turn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
       const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
@@ -304,12 +384,15 @@ export class TurnEngineManager {
     const enemyCount = clampEnemyCount(
       options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
-    let state = this.currentState;
+    let state = this.#cloneWorkingState(this.currentState);
     try {
       state = applyBeforeCommitOperations(
         state,
         this.#buildPendingBeforeCommitOperations(),
-        { enemyCount }
+        {
+          enemyCount,
+          allowInsufficientOd: this.#validationPolicy.allowInsufficientOd,
+        }
       );
     } catch {
       return null;
@@ -328,15 +411,15 @@ export class TurnEngineManager {
     const normalizedEnemyCount = clampEnemyCount(
       enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
-    let stateBefore = this.currentState;
+    let stateBefore = this.#cloneWorkingState(this.currentState);
     try {
       stateBefore = applyBeforeCommitOperations(
-        this.currentState,
+        this.#cloneWorkingState(this.currentState),
         this.#buildPendingBeforeCommitOperations(),
         { enemyCount: normalizedEnemyCount }
       );
     } catch {
-      stateBefore = this.currentState;
+      stateBefore = this.#cloneWorkingState(this.currentState);
     }
 
     const resolvedSlotActions = this.#resolveInputRowSlotActions(
@@ -609,6 +692,84 @@ export class TurnEngineManager {
     return this.#replayScript?.turns?.[turnIndex] ?? null;
   }
 
+  getReplayDiagnostics() {
+    return cloneReplayDiagnostics(this.#replayDiagnostics);
+  }
+
+  buildTurnEditDraft(turnIndex) {
+    const turn = this.#replayScript?.turns?.[turnIndex] ?? null;
+    if (!turn) {
+      return null;
+    }
+    return structuredClone(this.#normalizeTurnEditDraft(turnIndex, {
+      slots: turn.slots,
+      operations: turn.operations,
+      note: turn.note,
+      enemyCount: this.#resolveReplayTurnEnemyCount(turn, this.#getBaseStateBefore(turnIndex)),
+      actionOutcomeOverrides: this.#resolveReplayTurnActionOutcomeOverrides(
+        turn,
+        this.#resolveReplayTurnEnemyCount(turn, this.#getBaseStateBefore(turnIndex)),
+        this.getStateBefore(turnIndex),
+        this.#slotActionsFromReplayTurn(turn)
+      ),
+    }));
+  }
+
+  buildTurnEditSnapshot(turnIndex, draft = null) {
+    const normalizedDraft = this.#normalizeTurnEditDraft(turnIndex, draft ?? this.buildTurnEditDraft(turnIndex));
+    if (!normalizedDraft) {
+      return null;
+    }
+    return this.#buildTurnEditSnapshotInternal(turnIndex, normalizedDraft);
+  }
+
+  replaceCommittedTurn(turnIndex, draft = null) {
+    const normalizedDraft = this.#normalizeTurnEditDraft(turnIndex, draft);
+    if (!normalizedDraft || !this.#replayScript?.turns?.[turnIndex]) {
+      return null;
+    }
+    const previousComputedStates = [...this.#computedStates];
+    this.#replayScript.turns[turnIndex] = this.#buildReplayTurnFromDraft(normalizedDraft);
+    this.#recalculateAllBestEffort({
+      strictExtraTurnTurnIndexes: new Set([turnIndex]),
+    });
+
+    const compactionWarning = this.#compactStaleSpecialTurnsIfSafe(turnIndex, previousComputedStates);
+    if (compactionWarning) {
+      this.#recalculateAllBestEffort({
+        strictExtraTurnTurnIndexes: new Set([turnIndex]),
+      });
+      if (!Array.isArray(this.#replayDiagnostics.turnWarnings[turnIndex])) {
+        this.#replayDiagnostics.turnWarnings[turnIndex] = [];
+      }
+      this.#replayDiagnostics.turnWarnings[turnIndex].push(compactionWarning);
+    }
+
+    return this.#computedRecords[turnIndex] ?? null;
+  }
+
+  popLastCommittedTurnToDraft() {
+    const lastIndex = this.committedTurnCount - 1;
+    if (lastIndex < 0) {
+      return null;
+    }
+    const draft = this.buildTurnEditDraft(lastIndex);
+    if (!draft) {
+      return null;
+    }
+    this.#replayScript.turns.pop();
+    this.#computedStates.pop();
+    this.#computedRecords.pop();
+    this.#pendingPreemptiveOdLevel = null;
+    this.#pendingInterruptOdLevel = null;
+    this.#pendingSpecialOperations = [];
+    this.#replayDiagnostics = createEmptyReplayDiagnostics();
+    return {
+      turnIndex: lastIndex,
+      draft,
+    };
+  }
+
   /**
    * 未コミット行の入力対象となる現在 state でポジションを入れ替える。
    * D&D によるコミット前のパーティー順変更に使用。
@@ -643,22 +804,24 @@ export class TurnEngineManager {
    * @returns {object} BattleState
    */
   getStateBefore(turnIndex) {
-    const rawBefore = turnIndex === 0
-      ? this.#initialState
-      : this.#computedStates[turnIndex - 1];
+    const rawBefore = this.#getBaseStateBefore(turnIndex);
     const turn = this.#replayScript?.turns?.[turnIndex];
 
     const hasSlots = Array.isArray(turn?.slots) && turn.slots.some((s) => s?.styleId != null);
     const hasOperations = Array.isArray(turn?.operations) && turn.operations.length > 0;
 
+    if (!rawBefore?.party) {
+      return null;
+    }
+
     if (!hasSlots && !hasOperations) {
-      return rawBefore;
+      return this.#cloneWorkingState(rawBefore);
     }
 
     // party を clone して stored state を汚染しないよう独立させる。
     // #alignPositionsToSlots が position を書き換えるため、rawBefore をそのまま渡すと
     // computedStates / initialState が破壊される。
-    let state = { ...rawBefore, party: rawBefore.party.map((m) => m.clone()) };
+    let state = this.#cloneWorkingState(rawBefore);
 
     // turn.slots の styleId に基づいて各メンバーの position を復元する。
     // JSON 読み込み時は recalculateFrom がワーキングコピーにのみ alignPositionsToSlots を
@@ -681,6 +844,386 @@ export class TurnEngineManager {
   }
 
   // ---- private ----
+
+  #getBaseStateBefore(turnIndex) {
+    if (turnIndex === 0) {
+      return this.#initialState;
+    }
+    const directState = this.#computedStates[turnIndex - 1];
+    if (directState?.party) {
+      return directState;
+    }
+    const latestState = this.#computedStates.at(-1);
+    if (latestState?.party) {
+      return latestState;
+    }
+    return this.#initialState;
+  }
+
+  #cloneWorkingState(sourceState) {
+    if (!sourceState || typeof sourceState !== 'object') {
+      return sourceState;
+    }
+    return {
+      ...sourceState,
+      party: Array.isArray(sourceState.party)
+        ? sourceState.party.map((member) => member.clone())
+        : [],
+      turnState:
+        sourceState.turnState && typeof sourceState.turnState === 'object'
+          ? structuredClone(sourceState.turnState)
+          : sourceState.turnState ?? null,
+    };
+  }
+
+  #buildReplayTurnFromDraft(draft) {
+    const overrideEntries = [
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
+        payload: clampEnemyCount(draft.enemyCount),
+      },
+    ];
+    const actionOutcomeOverrideEntry = buildActionOutcomeOverrideEntry(
+      draft.actionOutcomeOverrides,
+      clampEnemyCount(draft.enemyCount)
+    );
+    if (actionOutcomeOverrideEntry) {
+      overrideEntries.push(actionOutcomeOverrideEntry);
+    }
+    return normalizeLightweightReplayTurn({
+      turn: draft.turn,
+      slots: draft.slots,
+      operations: draft.operations,
+      note: draft.note,
+      overrideEntries,
+    });
+  }
+
+  #normalizeTurnEditDraft(turnIndex, draft = null) {
+    const sourceTurn = this.#replayScript?.turns?.[turnIndex] ?? null;
+    if (!sourceTurn && !draft) {
+      return null;
+    }
+    const normalizedTurn = normalizeLightweightReplayTurn({
+      turn: draft?.turn ?? sourceTurn?.turn ?? turnIndex + 1,
+      slots: draft?.slots ?? sourceTurn?.slots ?? [],
+      operations: draft?.operations ?? sourceTurn?.operations ?? [],
+      note: draft?.note ?? sourceTurn?.note ?? '',
+    });
+    const baseState = this.#getBaseStateBefore(turnIndex);
+    const enemyCount = clampEnemyCount(
+      draft?.enemyCount ?? this.#resolveReplayTurnEnemyCount(sourceTurn ?? normalizedTurn, baseState)
+    );
+    const stateBefore = this.#buildDraftStateBefore(turnIndex, normalizedTurn.slots, normalizedTurn.operations, enemyCount);
+    const slotActions = this.#slotActionsFromReplaySlots(normalizedTurn.slots);
+    const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
+      stateBefore,
+      slotActions,
+      draft?.actionOutcomeOverrides ??
+        this.#resolveReplayTurnActionOutcomeOverrides(
+          sourceTurn ?? normalizedTurn,
+          enemyCount,
+          stateBefore,
+          slotActions
+        ),
+      enemyCount
+    );
+    return {
+      turn: normalizedTurn.turn,
+      slots: normalizedTurn.slots,
+      operations: normalizedTurn.operations,
+      note: normalizedTurn.note,
+      enemyCount,
+      actionOutcomeOverrides,
+    };
+  }
+
+  #buildDraftStateBefore(turnIndex, slots = [], operations = [], enemyCount = DEFAULT_ENEMY_COUNT, warnings = []) {
+    const rawBefore = this.#getBaseStateBefore(turnIndex);
+    if (!rawBefore?.party) {
+      throw new Error(`Turn state before ${turnIndex + 1} is not available.`);
+    }
+    let state = this.#cloneWorkingState(rawBefore);
+    this.#alignPositionsToSlots(state, { slots });
+    return applyBeforeCommitOperations(state, operations, {
+      enemyCount,
+      allowInsufficientOd: this.#validationPolicy.allowInsufficientOd,
+      onWarning: (message) => warnings.push(String(message)),
+    });
+  }
+
+  #buildTurnEditSnapshotInternal(turnIndex, draft) {
+    const warnings = [];
+    const stateBefore = this.#buildDraftStateBefore(
+      turnIndex,
+      draft.slots,
+      draft.operations,
+      draft.enemyCount,
+      warnings
+    );
+    const slotActions = this.#slotActionsFromReplaySlots(draft.slots);
+    const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
+      stateBefore,
+      slotActions,
+      draft.actionOutcomeOverrides,
+      draft.enemyCount,
+      {
+        onWarning: (message) => warnings.push(String(message)),
+      }
+    );
+    const preview = this.#previewResolvedTurn(
+      stateBefore,
+      slotActions,
+      draft.enemyCount,
+      actionOutcomeOverrides,
+      {
+        warnings,
+      }
+    );
+    return {
+      draft: structuredClone({
+        ...draft,
+        actionOutcomeOverrides,
+      }),
+      stateBefore,
+      previewResourceState: preview?.previewResourceState ?? { spAfterByPartyIndex: {} },
+      odState: {
+        preemptiveOdLevel: this.#extractOperationLevel(
+          draft.operations,
+          REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD
+        ),
+        interruptOdLevel: this.#extractOperationLevel(
+          draft.operations,
+          REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD
+        ),
+        activatablePreemptive: resolveActivatablePreemptiveOdLevels(stateBefore),
+        activatableInterrupt: preview?.activatableInterrupt ?? [],
+      },
+      operationState: this.#buildTurnEditOperationState(turnIndex, draft.operations, stateBefore),
+      warnings,
+    };
+  }
+
+  #buildTurnEditOperationState(turnIndex, operations = [], stateBefore) {
+    const tezuka = stateBefore?.party?.find((member) => member.characterId === TEZUKA_CHARACTER_ID) ?? null;
+    const kishinkaPending = (Array.isArray(operations) ? operations : []).some(
+      (operation) => operation?.type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA
+    );
+    const availability = resolveMakaiKiheiAvailability(stateBefore);
+    const committedCount = this.#countReplayOperationsExcludingTurn(
+      turnIndex,
+      REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI
+    );
+    const pendingCount = this.#countReplayOperations(operations, REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI);
+    const remainingUses = Math.max(
+      0,
+      MAKAI_KIHEI_MAX_USES - committedCount - pendingCount
+    );
+    return {
+      kishinkaStatus: tezuka
+        ? {
+            hasTezuka: true,
+            available: canActivateKishinka(stateBefore) && !kishinkaPending,
+            activePending: kishinkaPending,
+            isActive: Boolean(tezuka.isReinforcedMode),
+            turnsRemaining: Number(tezuka.reinforcedTurnsRemaining ?? 0),
+            actionDisabledTurns: Number(tezuka.actionDisabledTurns ?? 0),
+          }
+        : { hasTezuka: false },
+      makaiKiheiStatus: {
+        hasYamawaki: availability.hasYamawaki,
+        available: Boolean(availability.availableInState) && remainingUses > 0,
+        remainingUses,
+        pendingCount,
+        maxUses: MAKAI_KIHEI_MAX_USES,
+      },
+    };
+  }
+
+  #countReplayOperationsExcludingTurn(turnIndex, type) {
+    return (this.#replayScript?.turns ?? [])
+      .filter((_, index) => index !== turnIndex)
+      .reduce((sum, turn) => sum + this.#countReplayOperations(turn?.operations ?? [], type), 0);
+  }
+
+  #recalculateAllBestEffort(options = {}) {
+    this.#computedStates = [];
+    this.#computedRecords = [];
+    this.#pendingPreemptiveOdLevel = null;
+    this.#pendingInterruptOdLevel = null;
+    this.#pendingSpecialOperations = [];
+    this.#replayDiagnostics = createEmptyReplayDiagnostics();
+
+    if (!this.#initialState?.party || !this.#replayScript) {
+      return this.#replayDiagnostics;
+    }
+
+    let state = this.#cloneWorkingState(this.#initialState);
+    const strictExtraTurnTurnIndexes =
+      options.strictExtraTurnTurnIndexes instanceof Set
+        ? options.strictExtraTurnTurnIndexes
+        : new Set();
+    for (let i = 0; i < this.#replayScript.turns.length; i += 1) {
+      const result = this.#replayTurnBestEffort(i, state, {
+        strictExtraTurnActors: strictExtraTurnTurnIndexes.has(i),
+      });
+      this.#replayDiagnostics.turnWarnings[i] = result.warnings;
+      if (result.error) {
+        this.#computedStates.push(state);
+        this.#computedRecords.push(null);
+        this.#replayDiagnostics.error = result.error;
+        break;
+      }
+      this.#computedStates.push(result.nextState);
+      this.#computedRecords.push(result.committedRecord);
+      state = result.nextState;
+      this.#replayDiagnostics.appliedTurnCount = i + 1;
+    }
+
+    return this.#replayDiagnostics;
+  }
+
+  #replayTurnBestEffort(turnIndex, incomingState, options = {}) {
+    const warnings = [];
+    const turn = this.#replayScript?.turns?.[turnIndex] ?? null;
+    if (!turn) {
+      return {
+        warnings,
+        error: { index: turnIndex, message: `ReplayScript turn not found: ${turnIndex + 1}` },
+      };
+    }
+
+    let state = this.#cloneWorkingState(incomingState);
+    const scenarioTurn = {};
+    applyReplayOverrideEntriesToScenarioTurn(turn.overrideEntries ?? [], scenarioTurn, warnings);
+
+    try {
+      this.#alignPositionsToSlots(state, turn);
+      const enemyCount = clampEnemyCount(
+        scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+      );
+      state = applyBeforeCommitOperations(state, turn.operations, {
+        enemyCount,
+        allowInsufficientOd: this.#validationPolicy.allowInsufficientOd,
+        onWarning: (message) => warnings.push(String(message)),
+      });
+
+      const interruptLevel = this.#extractOperationLevel(
+        turn.operations,
+        REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD
+      );
+      if (interruptLevel != null && !this.#getOdActivationStatus(state.turnState).canInterrupt) {
+        throw new Error('Interrupt OD cannot be activated in current OD context.');
+      }
+
+      let slotActions = this.#slotActionsFromReplayTurn(turn);
+      if (!options.strictExtraTurnActors) {
+        slotActions = this.#sanitizeReplayTurnExtraActors(turn, state, slotActions);
+      }
+      const actionOutcomeOverrides = this.#resolveReplayTurnActionOutcomeOverrides(
+        turn,
+        enemyCount,
+        state,
+        slotActions,
+        {
+          onWarning: (message) => warnings.push(String(message)),
+        }
+      );
+      this.#replaceReplayOverrideEntry(
+        turn,
+        REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+        actionOutcomeOverrides.length > 0 ? actionOutcomeOverrides : null
+      );
+
+      const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides);
+      const previewRecord = previewTurnRecord(state, actions, null, enemyCount, {
+        allowUseCountOverflow: this.#validationPolicy.allowUseCountOverflow,
+        allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
+        onWarning: (message) => warnings.push(String(message)),
+      });
+      this.#appendPreviewResourceWarnings(previewRecord, warnings);
+
+      const odGaugeAfter = Number(previewRecord?.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
+      const requiredInterruptGauge = interruptLevel != null ? getOdGaugeRequirement(interruptLevel) : 0;
+      const forceInterruptOd =
+        interruptLevel != null &&
+        odGaugeAfter < requiredInterruptGauge &&
+        this.#validationPolicy.allowInsufficientOd;
+      if (forceInterruptOd) {
+        warnings.push(
+          `insufficient OD allowed: OD${interruptLevel} requires ${requiredInterruptGauge}% gauge. current=${odGaugeAfter.toFixed(2)}%`
+        );
+      }
+
+      const { nextState, committedRecord } = commitTurnRecord(state, previewRecord, [], {
+        interruptOdLevel: interruptLevel ?? 0,
+        forceOdActivation: forceInterruptOd,
+        forceResourceDeficit: forceInterruptOd,
+      });
+      return {
+        warnings,
+        nextState: this.#patchNextStateForKills(nextState, actionOutcomeOverrides, enemyCount),
+        committedRecord,
+      };
+    } catch (error) {
+      return {
+        warnings,
+        error: {
+          index: turnIndex,
+          message: String(error?.message ?? error ?? ''),
+        },
+      };
+    }
+  }
+
+  #appendPreviewResourceWarnings(previewRecord, warnings = []) {
+    for (const action of previewRecord?.actions ?? []) {
+      const endSP = Number(action?.endSP);
+      if (!Number.isFinite(endSP) || endSP >= 0) {
+        continue;
+      }
+      if (!this.#validationPolicy.allowInsufficientSp) {
+        throw new Error(`Skill ${action?.skillId ?? '?'} requires more SP than available.`);
+      }
+      warnings.push(`negative SP allowed: ${action?.characterId ?? 'unknown'} endSP=${endSP}`);
+    }
+  }
+
+  #countSpecialContinuation(states = [], turnIndex) {
+    let count = 0;
+    for (let i = turnIndex; i < states.length; i += 1) {
+      const turnType = String(states[i]?.turnState?.turnType ?? '');
+      if (turnType !== 'od' && turnType !== 'extra') {
+        break;
+      }
+      count += 1;
+    }
+    return count;
+  }
+
+  #compactStaleSpecialTurnsIfSafe(turnIndex, previousComputedStates = []) {
+    const oldContinuationCount = this.#countSpecialContinuation(previousComputedStates, turnIndex);
+    if (oldContinuationCount === 0) {
+      return null;
+    }
+    const newContinuationCount = this.#countSpecialContinuation(this.#computedStates, turnIndex);
+    if (newContinuationCount !== 0) {
+      return null;
+    }
+    const currentTurnType = String(this.#computedStates[turnIndex]?.turnState?.turnType ?? '');
+    if (currentTurnType !== 'normal') {
+      return null;
+    }
+    const dropCount = oldContinuationCount - newContinuationCount;
+    if (dropCount <= 0) {
+      return null;
+    }
+    const removedTurns = this.#replayScript.turns.splice(turnIndex + 1, dropCount);
+    if (removedTurns.length === 0) {
+      return null;
+    }
+    return `stale special turns compacted: removed ${removedTurns.length} turn(s) after T${turnIndex + 1}`;
+  }
 
   #normalizeReplayOperation(operation = {}) {
     if (!operation || typeof operation !== 'object') {
@@ -722,10 +1265,16 @@ export class TurnEngineManager {
     return operations;
   }
 
-  #previewResolvedTurn(state, slotActions = {}, enemyCount, actionOutcomeOverrides = []) {
+  #previewResolvedTurn(state, slotActions = {}, enemyCount, actionOutcomeOverrides = [], options = {}) {
+    const warnings = Array.isArray(options.warnings) ? options.warnings : [];
     const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides);
     try {
-      const previewRecord = previewTurnRecord(state, actions, null, enemyCount);
+      const previewRecord = previewTurnRecord(state, actions, null, enemyCount, {
+        allowUseCountOverflow: this.#validationPolicy.allowUseCountOverflow,
+        allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
+        onWarning: (message) => warnings.push(String(message)),
+      });
+      this.#appendPreviewResourceWarnings(previewRecord, warnings);
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
       const { canInterrupt } = this.#getOdActivationStatus(state.turnState);
       const activatableInterrupt = canInterrupt
@@ -819,18 +1368,26 @@ export class TurnEngineManager {
       const member = action.styleId != null
         ? state.party.find((m) => m.styleId === action.styleId)
         : state.party.find((m) => m.position === slotPosition);
-      if (!member) continue;
+      if (!member) {
+        throw new Error(`No member resolved for action at position ${slotPosition}.`);
+      }
 
       // 後衛にいるメンバーはスキルを使えない
-      if (member.position > 2) continue;
+      if (member.position > 2) {
+        throw new Error(`Action is allowed only for front positions (0..2). got=${member.position}`);
+      }
 
       // EX ターン: allowedCharacterIds に含まれないメンバーのアクションは除外する
       if (state.turnState?.turnType === 'extra') {
         const allowed = state.turnState.extraTurnState?.allowedCharacterIds ?? [];
-        if (!allowed.includes(member.characterId)) continue;
+        if (!allowed.includes(member.characterId)) {
+          throw new Error(`Character ${member.characterId} is not allowed to act in extra turn.`);
+        }
       }
       const skill = member.getSkill(action.skillId);
-      if (!skill) continue;
+      if (!skill) {
+        throw new Error(`Skill ${action.skillId} is not available for ${member.characterId}`);
+      }
 
       const materializedTarget = this.#materializeActionTarget(state, action.target);
       const breakEnemyIndexes = getBreakEnemyIndexesForPosition(
@@ -870,6 +1427,37 @@ export class TurnEngineManager {
       }
     });
     return slotActions;
+  }
+
+  #slotActionsFromReplaySlots(slots = []) {
+    return this.#slotActionsFromReplayTurn({ slots });
+  }
+
+  #sanitizeReplayTurnExtraActors(turn, state, slotActions = {}) {
+    if (state?.turnState?.turnType !== 'extra') {
+      return slotActions;
+    }
+    const allowed = new Set(state?.turnState?.extraTurnState?.allowedCharacterIds ?? []);
+    if (allowed.size === 0) {
+      return slotActions;
+    }
+    const sanitizedActions = {};
+    for (const [positionKey, action] of Object.entries(slotActions)) {
+      const slotPosition = Number(positionKey);
+      const member = action?.styleId != null
+        ? state.party.find((item) => item.styleId === action.styleId)
+        : state.party.find((item) => item.position === slotPosition);
+      if (member && !allowed.has(member.characterId)) {
+        const currentSlot = turn?.slots?.[slotPosition] ?? {};
+        turn.slots[slotPosition] = {
+          styleId: currentSlot.styleId ?? member.styleId ?? null,
+          skillId: null,
+        };
+        continue;
+      }
+      sanitizedActions[positionKey] = action;
+    }
+    return sanitizedActions;
   }
 
   /** commit 時点の state + slotActions から LightweightReplayTurn を生成する */
@@ -948,7 +1536,7 @@ export class TurnEngineManager {
     };
   }
 
-  #resolveReplayTurnActionOutcomeOverrides(replayTurn, enemyCount, state = null, slotActions = null) {
+  #resolveReplayTurnActionOutcomeOverrides(replayTurn, enemyCount, state = null, slotActions = null, options = {}) {
     const normalized = getActionOutcomeOverridesFromOverrideEntries(
       replayTurn?.overrideEntries ?? [],
       enemyCount
@@ -960,7 +1548,8 @@ export class TurnEngineManager {
       state,
       slotActions,
       normalized,
-      enemyCount
+      enemyCount,
+      options
     );
   }
 
@@ -1024,10 +1613,17 @@ export class TurnEngineManager {
     return 0;
   }
 
-  #normalizeActionOutcomeOverridesForState(state, slotActions = {}, actionOutcomeOverrides = [], enemyCount) {
+  #normalizeActionOutcomeOverridesForState(
+    state,
+    slotActions = {},
+    actionOutcomeOverrides = [],
+    enemyCount,
+    options = {}
+  ) {
     const normalizedEnemyCount = clampEnemyCount(
       enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
     );
+    const onWarning = typeof options.onWarning === 'function' ? options.onWarning : null;
     const normalizedOverrides = normalizeActionOutcomeOverrides(
       actionOutcomeOverrides,
       normalizedEnemyCount
@@ -1086,15 +1682,22 @@ export class TurnEngineManager {
         continue;
       }
       const materializedTarget = this.#materializeActionTarget(state, action.target);
+      const normalizedEnemyIndex = this.#normalizeSingleTargetEnemyIndex(
+        materializedTarget?.targetEnemyIndex,
+        normalizedEnemyCount
+      );
+      if (
+        override.enemyIndexes.length > 0 &&
+        !override.enemyIndexes.includes(normalizedEnemyIndex)
+      ) {
+        onWarning?.(
+          `manual break target normalized at position ${position}: ${override.enemyIndexes.join(',')} -> ${normalizedEnemyIndex}`
+        );
+      }
       nextOverrides.push({
         position,
         outcome: ACTION_OUTCOME_TYPES.BREAK,
-        enemyIndexes: [
-          this.#normalizeSingleTargetEnemyIndex(
-            materializedTarget?.targetEnemyIndex,
-            normalizedEnemyCount
-          ),
-        ],
+        enemyIndexes: [normalizedEnemyIndex],
       });
     }
 

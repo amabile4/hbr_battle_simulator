@@ -43,6 +43,7 @@ function withDom(run) {
   globalThis.CustomEvent = dom.window.CustomEvent;
   globalThis.Event = dom.window.Event;
   globalThis.MouseEvent = dom.window.MouseEvent;
+  dom.window.scrollTo = () => {};
 
   try {
     return run({
@@ -402,6 +403,267 @@ test('TurnAreaController shows preview and committed endSP on the SP badge', () 
     assert.equal(getBadgeText(committedRow), '4');
   }));
 
+test('TurnAreaController keeps only one committed-row edit session open and cancels without mutating replay', () =>
+  withDom(({ root, win }) => {
+    const baseSkill = createSkill({
+      id: 95111,
+      name: 'Safe Guard',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const altSkill = createSkill({
+      id: 95112,
+      name: 'Alt Guard',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createState(baseSkill, 1, {
+      skills: [baseSkill, altSkill],
+    });
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root.querySelector('[data-role="commit-btn"]').click();
+
+    assert.equal(root.querySelector('[data-role="edit-btn"]') !== null, true);
+    assert.equal(root.querySelector('[data-role="commit-btn"]') !== null, true);
+
+    root.querySelector('[data-role="edit-btn"]').click();
+
+    assert.equal(root.querySelector('[data-role="recommit-btn"]') !== null, true);
+    assert.equal(root.querySelector('[data-role="edit-cancel-btn"]') !== null, true);
+    assert.equal(root.querySelector('[data-role="commit-btn"]'), null);
+
+    const editSelect = root.querySelector('[data-skill-select][data-party-index="0"]');
+    editSelect.value = '95112';
+    editSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root.querySelector('[data-role="edit-cancel-btn"]').click();
+
+    assert.equal(engineManager.replayScript.turns[0].slots[0].skillId, 95111);
+    assert.equal(root.querySelector('[data-role="edit-btn"]') !== null, true);
+    assert.equal(root.querySelector('[data-role="commit-btn"]') !== null, true);
+  }));
+
+test('TurnAreaController preserves scroll position when opening committed-row edit mode', () =>
+  withDom(({ root, win }) => {
+    const viewport = document.createElement('div');
+    viewport.style.overflowY = 'auto';
+    viewport.style.height = '240px';
+    root.parentElement.appendChild(viewport);
+    viewport.appendChild(root);
+
+    let viewportScrollTop = 480;
+    let viewportScrollLeft = 0;
+    let viewportScrollWrites = 0;
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get() {
+        return viewportScrollTop;
+      },
+      set(value) {
+        viewportScrollWrites += 1;
+        viewportScrollTop = Number(value);
+      },
+    });
+    Object.defineProperty(viewport, 'scrollLeft', {
+      configurable: true,
+      get() {
+        return viewportScrollLeft;
+      },
+      set(value) {
+        viewportScrollLeft = Number(value);
+      },
+    });
+
+    let scrollX = 0;
+    let scrollY = 480;
+    let windowScrollCalls = 0;
+    Object.defineProperty(win, 'scrollX', {
+      configurable: true,
+      get() {
+        return scrollX;
+      },
+    });
+    Object.defineProperty(win, 'scrollY', {
+      configurable: true,
+      get() {
+        return scrollY;
+      },
+    });
+    win.scrollTo = (x, y) => {
+      windowScrollCalls += 1;
+      scrollX = Number(x);
+      scrollY = Number(y);
+    };
+
+    const baseSkill = createSkill({
+      id: 95110,
+      name: 'Scroll Guard',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    createTurnAreaController({
+      root,
+      state: createState(baseSkill, 1),
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root.querySelector('[data-role="commit-btn"]').click();
+    viewportScrollWrites = 0;
+    windowScrollCalls = 0;
+
+    root.querySelector('[data-role="edit-btn"]').click();
+
+    assert.equal(viewportScrollTop, 480);
+    assert.equal(scrollY, 480);
+    assert.equal(viewportScrollWrites > 0, true);
+    assert.equal(windowScrollCalls > 0, true);
+  }));
+
+test('TurnAreaController surfaces recommit warnings in the status summary and committed row badge', () =>
+  withDom(({ root, win }) => {
+    const safeSkill = createSkill({
+      id: 95113,
+      name: 'Safe Guard',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const costlySkill = createSkill({
+      id: 95114,
+      name: 'Risk Slash',
+      targetType: 'Self',
+      spCost: 7,
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createState(safeSkill, 1, {
+      initialSP: 4,
+      skills: [safeSkill, costlySkill],
+    });
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root.querySelector('[data-role="commit-btn"]').click();
+    root.querySelector('[data-role="edit-btn"]').click();
+
+    const editSelect = root.querySelector('[data-skill-select][data-party-index="0"]');
+    editSelect.value = '95114';
+    editSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root.querySelector('[data-role="recommit-btn"]').click();
+
+    assert.equal(engineManager.replayDiagnostics.turnWarnings[0].length > 0, true);
+    assert.match(root.querySelector('[data-role="turn-replay-status"]').textContent, /warnings=[1-9]/);
+    assert.match(root.querySelector('[data-turn-info]').textContent, /Warn\(/);
+  }));
+
+test('TurnAreaController recommits an unchanged edited row without breaking swapped front/back positions', () =>
+  withDom(({ root, win }) => {
+    const leadSkill = createSkill({
+      id: 95115,
+      name: 'Lead Guard',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createState(leadSkill, 1);
+    const { controller, engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+    const replayScript = {
+      turns: [
+        {
+          turn: 1,
+          slots: [
+            { styleId: state.party[3].styleId, skillId: 9403 },
+            { styleId: state.party[1].styleId, skillId: 9401 },
+            { styleId: state.party[2].styleId, skillId: 9402 },
+            { styleId: state.party[0].styleId, skillId: null },
+            { styleId: state.party[4].styleId, skillId: null },
+            { styleId: state.party[5].styleId, skillId: null },
+          ],
+          operations: [],
+          note: '',
+          overrideEntries: [{ type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, payload: 1 }],
+        },
+      ],
+    };
+
+    controller.loadSession(state, replayScript, createSimulatorSettings());
+
+    root.querySelector('[data-role="edit-btn"]').click();
+    root.querySelector('[data-role="recommit-btn"]').dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true })
+    );
+
+    assert.equal(engineManager.replayDiagnostics.error, null);
+    assert.equal(engineManager.replayScript.turns[0].slots[0].styleId, state.party[3].styleId);
+    assert.equal(engineManager.replayScript.turns[0].slots[0].skillId, 9403);
+    assert.equal(engineManager.replayScript.turns[0].slots[3].styleId, state.party[0].styleId);
+    assert.equal(engineManager.replayScript.turns[0].slots[3].skillId, null);
+    assert.equal(root.querySelector('[data-role="commit-btn"]') !== null, true);
+  }));
+
+test('TurnAreaController recommits an unchanged extra-turn row without reviving inactive members', () =>
+  withDom(({ root, win }) => {
+    const actorSkill = createSkill({
+      id: 95116,
+      name: 'Extra Lead',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createState(actorSkill, 1);
+    state.turnState.turnType = 'extra';
+    state.turnState.extraTurnState = {
+      active: true,
+      remainingActions: 1,
+      allowedCharacterIds: ['UI1'],
+      grantTurnIndex: 1,
+    };
+    const { controller, engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+    const replayScript = {
+      turns: [
+        {
+          turn: 1,
+          slots: [
+            { styleId: state.party[0].styleId, skillId: 95116 },
+            { styleId: state.party[1].styleId, skillId: null },
+            { styleId: state.party[2].styleId, skillId: null },
+            { styleId: state.party[3].styleId, skillId: null },
+            { styleId: state.party[4].styleId, skillId: null },
+            { styleId: state.party[5].styleId, skillId: null },
+          ],
+          operations: [],
+          note: '',
+          overrideEntries: [{ type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, payload: 1 }],
+        },
+      ],
+    };
+
+    controller.loadSession(state, replayScript, createSimulatorSettings());
+
+    root.querySelector('[data-role="edit-btn"]').click();
+    root.querySelector('[data-role="recommit-btn"]').dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true })
+    );
+
+    assert.equal(engineManager.replayDiagnostics.error, null);
+    assert.equal(engineManager.replayScript.turns[0].slots[0].skillId, 95116);
+    assert.equal(engineManager.replayScript.turns[0].slots[1].skillId, null);
+    assert.equal(engineManager.replayScript.turns[0].slots[2].skillId, null);
+  }));
+
 test('TurnRowController hides manual target UI for all-target skills even when enemy selection is manual', () =>
   withDom(({ root }) => {
     const state = createState(
@@ -497,6 +759,78 @@ test('TurnRowController shows ally target popover only when ally selection is ma
     assert.equal(candidateButtons.length, 6);
     const disabledCount = candidateButtons.filter((button) => button.disabled).length;
     assert.equal(disabledCount, 4);
+  }));
+
+test('TurnRowController keeps the manual break editor inside the viewport vertically', () =>
+  withDom(({ root, win }) => {
+    const originalGetBoundingClientRect = win.Element.prototype.getBoundingClientRect;
+    Object.defineProperty(win, 'innerWidth', {
+      configurable: true,
+      value: 800,
+    });
+    Object.defineProperty(win, 'innerHeight', {
+      configurable: true,
+      value: 400,
+    });
+    win.Element.prototype.getBoundingClientRect = function getBoundingClientRectMock() {
+      if (this.classList?.contains('target-popover')) {
+        return {
+          left: 200,
+          right: 480,
+          top: 360,
+          bottom: 560,
+          width: 280,
+          height: 200,
+          x: 200,
+          y: 360,
+          toJSON() {
+            return this;
+          },
+        };
+      }
+      return {
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return this;
+        },
+      };
+    };
+
+    try {
+      const state = createState(
+        createSkill({
+          id: 95035,
+          name: 'Break Menu Overflow',
+          targetType: 'Single',
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+        }),
+        3
+      );
+      mountTurnRow({
+        root,
+        stateBefore: state,
+        simulatorSettings: createSimulatorSettings(),
+      });
+
+      root
+        .querySelector('[data-role="manual-break-toggle"]')
+        .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+      const popover = root.querySelector('[data-role="manual-break-editor"]');
+      assert.equal(popover.hidden, false);
+      assert.equal(popover.style.maxHeight, '384px');
+      assert.equal(popover.style.overflowY, 'auto');
+      assert.equal(popover.style.transform, 'translate(0px, -168px)');
+    } finally {
+      win.Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
   }));
 
 test('TurnRowController keeps skill badges stable near the responsive threshold even with a detached target anchor', () =>
@@ -1410,7 +1744,9 @@ test('TurnAreaController removes committed Kishinka chips and recalculates the r
     );
     assert.equal(engineManager.getStateBefore(0)?.party?.[0]?.isReinforcedMode, true);
 
+    root.querySelector('[data-role="edit-btn"]').click();
     root.querySelector('[data-role="operation-chip-remove"]').click();
+    root.querySelector('[data-role="recommit-btn"]').click();
 
     assert.deepEqual(engineManager.replayScript.turns[0].operations, []);
     assert.equal(engineManager.getStateBefore(0)?.party?.[0]?.isReinforcedMode, false);
@@ -1533,7 +1869,9 @@ test('TurnAreaController removing a committed Makai Kihei chip restores remainin
     assert.equal(engineManager.getStateBefore(0)?.turnState?.odGauge, 90);
     assert.match(root.querySelectorAll('[data-role="makai-kihei-btn"]').item(0).textContent, /残1/);
 
+    root.querySelector('[data-role="edit-btn"]').click();
     root.querySelector('[data-role="operation-chip-remove"]').click();
+    root.querySelector('[data-role="recommit-btn"]').click();
 
     assert.equal(engineManager.getStateBefore(0)?.turnState?.odGauge, 45);
     assert.deepEqual(

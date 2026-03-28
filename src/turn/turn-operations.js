@@ -23,6 +23,32 @@ function cloneOperationPayload(value) {
   return value && typeof value === 'object' ? structuredClone(value) : {};
 }
 
+function getOperationWarningReporter(options = {}) {
+  return typeof options.onWarning === 'function' ? options.onWarning : null;
+}
+
+function isOdContextActive(turnState = {}) {
+  const turnType = String(turnState?.turnType ?? '');
+  return (
+    turnType === 'od' ||
+    Boolean(turnState?.odSuspended) ||
+    Boolean(turnState?.odPending)
+  );
+}
+
+function isExtraContextActive(turnState = {}) {
+  return (
+    String(turnState?.turnType ?? '') === 'extra' ||
+    turnState?.extraTurnState != null
+  );
+}
+
+function assertPreemptiveOdContext(state) {
+  if (isOdContextActive(state?.turnState) || isExtraContextActive(state?.turnState)) {
+    throw new Error('Preemptive OD cannot be activated in current OD/EX context.');
+  }
+}
+
 function withEnemyCount(state, enemyCount) {
   const normalizedEnemyCount = clampEnemyCount(
     enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
@@ -161,7 +187,7 @@ function applyMakaiKiheiToState(state) {
   };
 }
 
-function applyOperation(state, operation = {}) {
+function applyOperation(state, operation = {}, options = {}) {
   const type = String(operation?.type ?? '').trim();
   if (!type || !BEFORE_COMMIT_OPERATION_TYPES.has(type)) {
     return state;
@@ -175,7 +201,19 @@ function applyOperation(state, operation = {}) {
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
     const level = extractOperationLevel(operation);
     if (level != null) {
-      return activateOverdrive(state, level, 'preemptive');
+      assertPreemptiveOdContext(state);
+      const currentGauge = Number(state?.turnState?.odGauge ?? 0);
+      const requiredGauge = getOdGaugeRequirement(level);
+      const allowInsufficientOd = Boolean(options.allowInsufficientOd);
+      if (allowInsufficientOd && currentGauge < requiredGauge) {
+        getOperationWarningReporter(options)?.(
+          `insufficient OD allowed: OD${level} requires ${requiredGauge}% gauge. current=${currentGauge.toFixed(2)}%`
+        );
+      }
+      return activateOverdrive(state, level, 'preemptive', {
+        forceActivation: allowInsufficientOd && currentGauge < requiredGauge,
+        forceConsumeGauge: allowInsufficientOd && currentGauge < requiredGauge,
+      });
     }
   }
   return state;
@@ -229,13 +267,22 @@ export function applyBeforeCommitOperations(state, operations = [], options = {}
   const normalizedState = withEnemyCount(state, options.enemyCount);
   const regularBeforeCommitOperations = [];
   const preemptiveOdOperations = [];
+  const onWarning = getOperationWarningReporter(options);
 
   for (const rawOperation of sourceOperations) {
     const operation =
       rawOperation && typeof rawOperation === 'object'
         ? { type: String(rawOperation.type ?? '').trim(), payload: cloneOperationPayload(rawOperation.payload) }
         : null;
-    if (!operation?.type || !BEFORE_COMMIT_OPERATION_TYPES.has(operation.type)) {
+    if (!operation?.type) {
+      continue;
+    }
+    const definition = replayOperationRegistry.get(operation.type);
+    if (!definition) {
+      onWarning?.(`unknown operation ignored: ${operation.type}`);
+      continue;
+    }
+    if (!BEFORE_COMMIT_OPERATION_TYPES.has(operation.type)) {
       continue;
     }
     if (operation.type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
@@ -247,10 +294,10 @@ export function applyBeforeCommitOperations(state, operations = [], options = {}
 
   let nextState = normalizedState;
   for (const operation of regularBeforeCommitOperations) {
-    nextState = applyOperation(nextState, operation);
+    nextState = applyOperation(nextState, operation, options);
   }
   for (const operation of preemptiveOdOperations) {
-    nextState = applyOperation(nextState, operation);
+    nextState = applyOperation(nextState, operation, options);
   }
   return nextState;
 }

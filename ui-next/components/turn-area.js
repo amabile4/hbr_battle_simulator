@@ -1,15 +1,14 @@
 import { TurnRowController } from './turn-row.js';
 import { buildPassiveDebugLogRows } from '../utils/passive-debug-log.js';
+import { REPLAY_OPERATION_TYPES } from '../../src/ui/lightweight-replay-script.js';
 
-/**
- * 左ペイン（#turn-area）のターンリスト全体を管理するコントローラー。
- *
- * - Apply → initialize() でターン1の入力行を追加
- * - Commit → commitNextTurn → 次のターン行を追加
- * - 過去ターンのスロット変更 → updateSlot → recalculateFrom → refreshRows
- * - D&D swap → onSlotChange の swapWith フィールドで検知してポジション入れ替え
- * - OD 操作 → onOdChange で TurnEngineManager の pending フラグを更新
- */
+function createEmptyRowDiagnostics() {
+  return {
+    warnings: [],
+    error: null,
+  };
+}
+
 export class TurnAreaController {
   #root;
   #store;
@@ -19,6 +18,9 @@ export class TurnAreaController {
   #onPassiveLogRowsChange;
   #rowControllers = [];
   #simulatorSettings = {};
+  #statusEl = null;
+  #rowsRoot = null;
+  #editSession = null;
 
   constructor({
     root,
@@ -36,64 +38,220 @@ export class TurnAreaController {
     this.#onPassiveLogRowsChange = onPassiveLogRowsChange;
   }
 
-  /**
-   * Apply 後に呼ぶ。ターンリストをリセットしてターン1の入力行を表示する。
-   * @param {object} initialState BattleState
-   * @param {object} replaySetup  LightweightReplaySetup
-   * @param {object} simulatorSettings Simulator UI settings
-   */
   initialize(initialState, replaySetup = {}, simulatorSettings = {}, validationPolicy = {}) {
     this.#engineManager.initialize(initialState, replaySetup, { validationPolicy });
     this.#simulatorSettings = simulatorSettings;
-    this.#root.innerHTML = '';
-    this.#rowControllers = [];
-    this.#appendInputRow();
+    this.#editSession = null;
+    this.#renderRows();
     this.#emitPassiveLogRows();
   }
 
   loadSession(initialState, replayScript, simulatorSettings = {}, validationPolicy = {}) {
     this.#engineManager.loadReplayScript(initialState, replayScript, { validationPolicy });
     this.#simulatorSettings = simulatorSettings;
-    this.#root.innerHTML = '';
-    this.#rowControllers = [];
-    for (let turnIndex = 0; turnIndex < this.#engineManager.committedTurnCount; turnIndex += 1) {
-      this.#appendCommittedRow(turnIndex);
-    }
-    this.#appendInputRow();
+    this.#editSession = null;
+    this.#renderRows();
     this.#emitPassiveLogRows();
   }
 
-  /**
-   * ターン列を保持したまま初期 BattleState を差し替えて全再計算する。
-   * Party Setup 変更後の「↺ 設定を反映」に使用。
-   * @param {object} newInitialState 新しい初期 BattleState
-   * @param {object} simulatorSettings Simulator UI settings
-   */
   reinitialize(newInitialState, simulatorSettings = {}) {
     this.#simulatorSettings = simulatorSettings;
-    if (this.#engineManager.committedTurnCount === 0) {
-      // 記録がなければ通常の initialize と同じ（入力行の stateBefore だけ更新）
-      this.#engineManager.recalculateAll(newInitialState);
-      this.#refreshInputRow();
-      this.#emitPassiveLogRows();
-      return;
-    }
+    this.#editSession = null;
     this.#engineManager.recalculateAll(newInitialState);
-    this.#refreshRowsFrom(0);
+    this.#renderRows();
     this.#emitPassiveLogRows();
   }
 
-  // ---- private ----
+  #ensureScaffold() {
+    if (this.#statusEl && this.#rowsRoot) {
+      return;
+    }
+    this.#root.innerHTML = `
+      <div class="space-y-2">
+        <div data-role="turn-replay-status" class="hidden rounded-lg border px-3 py-2 text-xs font-semibold"></div>
+        <div data-role="turn-row-list" class="overflow-hidden rounded-xl border border-gray-200 bg-white"></div>
+      </div>
+    `;
+    this.#statusEl = this.#root.querySelector('[data-role="turn-replay-status"]');
+    this.#rowsRoot = this.#root.querySelector('[data-role="turn-row-list"]');
+  }
+
+  #clearRows() {
+    this.#rowsRoot.innerHTML = '';
+    this.#rowControllers = [];
+  }
+
+  #renderRows(options = {}) {
+    const scrollState = options?.preserveScroll ? this.#captureScrollState() : null;
+    this.#ensureScaffold();
+    this.#clearRows();
+
+    const replayTurns = this.#engineManager.replayScript?.turns ?? [];
+    for (let turnIndex = 0; turnIndex < replayTurns.length; turnIndex += 1) {
+      if (this.#editSession?.turnIndex === turnIndex) {
+        this.#appendEditRow(turnIndex);
+        continue;
+      }
+      this.#appendCommittedRow(turnIndex);
+    }
+
+    if (!this.#editSession && !this.#engineManager.replayDiagnostics.error) {
+      this.#appendInputRow();
+    }
+
+    this.#renderStatusSummary();
+    if (scrollState) {
+      this.#restoreScrollState(scrollState);
+    }
+  }
+
+  #captureScrollState() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const elements = [];
+    const seen = new Set();
+    let node = this.#root;
+    while (node && node instanceof window.HTMLElement) {
+      const computedStyle =
+        typeof window.getComputedStyle === 'function' ? window.getComputedStyle(node) : null;
+      const overflowY = String(computedStyle?.overflowY ?? computedStyle?.overflow ?? '');
+      const overflowX = String(computedStyle?.overflowX ?? computedStyle?.overflow ?? '');
+      const isScrollable =
+        /(auto|scroll|overlay)/.test(`${overflowY} ${overflowX}`) ||
+        Number(node.scrollTop ?? 0) !== 0 ||
+        Number(node.scrollLeft ?? 0) !== 0;
+      if (isScrollable && !seen.has(node)) {
+        elements.push({
+          element: node,
+          top: Number(node.scrollTop ?? 0),
+          left: Number(node.scrollLeft ?? 0),
+        });
+        seen.add(node);
+      }
+      node = node.parentElement;
+    }
+
+    const scrollingElement = document.scrollingElement ?? document.documentElement ?? null;
+    if (scrollingElement && !seen.has(scrollingElement)) {
+      elements.push({
+        element: scrollingElement,
+        top: Number(scrollingElement.scrollTop ?? 0),
+        left: Number(scrollingElement.scrollLeft ?? 0),
+      });
+    }
+
+    return {
+      elements,
+      windowX: Number(window.scrollX ?? 0),
+      windowY: Number(window.scrollY ?? 0),
+    };
+  }
+
+  #restoreScrollState(scrollState = null) {
+    if (!scrollState) {
+      return;
+    }
+    for (const entry of scrollState.elements ?? []) {
+      if (!entry?.element) {
+        continue;
+      }
+      entry.element.scrollLeft = Number(entry.left ?? 0);
+      entry.element.scrollTop = Number(entry.top ?? 0);
+    }
+
+    if (typeof window?.scrollTo === 'function') {
+      window.scrollTo(Number(scrollState.windowX ?? 0), Number(scrollState.windowY ?? 0));
+      return;
+    }
+
+    const scrollingElement = document.scrollingElement ?? document.documentElement ?? null;
+    if (scrollingElement) {
+      scrollingElement.scrollLeft = Number(scrollState.windowX ?? 0);
+      scrollingElement.scrollTop = Number(scrollState.windowY ?? 0);
+    }
+  }
+
+  #buildRowDiagnostics(turnIndex) {
+    const diagnostics = this.#engineManager.replayDiagnostics;
+    return {
+      warnings: Array.isArray(diagnostics?.turnWarnings?.[turnIndex])
+        ? [...diagnostics.turnWarnings[turnIndex]]
+        : [],
+      error:
+        diagnostics?.error && Number(diagnostics.error.index) === turnIndex
+          ? String(diagnostics.error.message ?? '')
+          : null,
+    };
+  }
+
+  #buildEditSnapshot(turnIndex, draft) {
+    try {
+      const snapshot = this.#engineManager.buildTurnEditSnapshot(turnIndex, draft);
+      if (snapshot) {
+        this.#editSession = {
+          turnIndex,
+          draft: structuredClone(snapshot.draft),
+        };
+      }
+      return {
+        snapshot,
+        diagnostics: {
+          warnings: snapshot?.warnings ?? [],
+          error: null,
+        },
+      };
+    } catch (error) {
+      const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
+      const fallbackDraft = structuredClone(draft ?? this.#engineManager.buildTurnEditDraft(turnIndex));
+      return {
+        snapshot: {
+          draft: fallbackDraft,
+          stateBefore: this.#engineManager.getStateBefore(turnIndex),
+          previewResourceState: { spAfterByPartyIndex: {} },
+          odGaugeAfter: null,
+          odState: {
+            preemptiveOdLevel: this.#extractOperationLevel(
+              fallbackDraft?.operations,
+              REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD
+            ),
+            interruptOdLevel: this.#extractOperationLevel(
+              fallbackDraft?.operations,
+              REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD
+            ),
+            activatablePreemptive: [],
+            activatableInterrupt: [],
+          },
+          operationState: null,
+          replayTurn,
+        },
+        diagnostics: {
+          warnings: [],
+          error: String(error?.message ?? error ?? ''),
+        },
+      };
+    }
+  }
+
+  #extractOperationLevel(operations = [], type) {
+    const operation = (Array.isArray(operations) ? operations : []).find(
+      (entry) => String(entry?.type ?? '') === String(type)
+    );
+    const level = Number(operation?.payload?.level ?? operation?.level);
+    return Number.isFinite(level) && level >= 1 && level <= 3 ? level : null;
+  }
 
   #appendInputRow() {
-    const turnIndex = this.#rowControllers.length;
+    const turnIndex = this.#engineManager.committedTurnCount;
     const rowEl = document.createElement('div');
-    this.#root.appendChild(rowEl);
+    this.#rowsRoot.appendChild(rowEl);
 
     const row = new TurnRowController({
       root: rowEl,
       store: this.#store,
       turnIndex,
+      rowMode: 'input',
+      rowDiagnostics: createEmptyRowDiagnostics(),
       record: null,
       replayTurn: null,
       operations: this.#engineManager.pendingSpecialOperations,
@@ -112,119 +270,165 @@ export class TurnAreaController {
       simulatorSettings: this.#simulatorSettings,
       onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
       onCommit: (ti) => this.#handleCommit(ti),
-      onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
+      onNoteChange: () => {},
       onPreviewRequest: () => this.#handlePreviewRequest(),
       onOdChange: (ti, odType, level) => this.#handleOdChange(ti, odType, level),
       onOperationAdd: (ti, operation) => this.#handleOperationAdd(ti, operation),
       onOperationRemove: (ti, operationIndex) => this.#handleOperationRemove(ti, operationIndex),
-      onEnemyCountChange: (ti, enemyCount) => this.#handleEnemyCountChange(ti, enemyCount),
-      onActionOutcomeChange: (ti, actionOutcomeOverrides) =>
-        this.#handleActionOutcomeChange(ti, actionOutcomeOverrides),
     });
 
     row.mount();
     this.#rowControllers.push(row);
-    // 初期描画後にプレビューを実行して割込OD候補・OD After ゲージを反映
     this.#refreshInputRow();
   }
 
   #appendCommittedRow(turnIndex) {
     const rowEl = document.createElement('div');
-    this.#root.appendChild(rowEl);
+    this.#rowsRoot.appendChild(rowEl);
     const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
     const row = new TurnRowController({
       root: rowEl,
       store: this.#store,
       turnIndex,
-      record: this.#engineManager.computedRecords[turnIndex],
+      rowMode: 'committed',
+      rowDiagnostics: this.#buildRowDiagnostics(turnIndex),
+      record: this.#engineManager.computedRecords[turnIndex] ?? null,
       replayTurn,
       operations: replayTurn?.operations ?? [],
       operationState: null,
       stateBefore: this.#engineManager.getStateBefore(turnIndex),
-      stateAfter: this.#engineManager.computedStates[turnIndex],
+      stateAfter: this.#engineManager.computedStates[turnIndex] ?? null,
       simulatorSettings: this.#simulatorSettings,
-      onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
-      onCommit: () => {},
-      onNoteChange: (ti, note) => this.#engineManager.updateNote(ti, note),
-      onPreviewRequest: () => {},
-      onOdChange: () => {},
-      onOperationAdd: () => {},
-      onOperationRemove: (ti, operationIndex) => this.#handleOperationRemove(ti, operationIndex),
-      onEnemyCountChange: (ti, enemyCount) => this.#handleEnemyCountChange(ti, enemyCount),
-      onActionOutcomeChange: (ti, actionOutcomeOverrides) =>
-        this.#handleActionOutcomeChange(ti, actionOutcomeOverrides),
+      onEditStart: (ti) => this.#handleEditStart(ti),
     });
     row.mount();
     this.#rowControllers.push(row);
   }
 
-  #handleCommit(turnIndex) {
-    const row = this.#rowControllers[turnIndex];
-    const note = row.getCurrentNote();
-    const enemyCount = row.getCurrentEnemyCount();
-    const snapshot = this.#engineManager.buildInputRowSnapshot({
-      slotActions: row.getCurrentSlotActions(),
-      enemyCount,
-      actionOutcomeOverrides: row.getCurrentActionOutcomeOverrides(),
+  #appendEditRow(turnIndex) {
+    const rowEl = document.createElement('div');
+    this.#rowsRoot.appendChild(rowEl);
+    const { snapshot, diagnostics } = this.#buildEditSnapshot(turnIndex, this.#editSession?.draft);
+    const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
+    const row = new TurnRowController({
+      root: rowEl,
+      store: this.#store,
+      turnIndex,
+      rowMode: 'edit',
+      rowDiagnostics: diagnostics,
+      record: null,
+      replayTurn,
+      operations: snapshot?.draft?.operations ?? [],
+      operationState: snapshot?.operationState ?? null,
+      stateBefore: snapshot?.stateBefore ?? this.#engineManager.getStateBefore(turnIndex),
+      stateAfter: null,
+      previewResourceState: snapshot?.previewResourceState ?? { spAfterByPartyIndex: {} },
+      previewOdGaugeAfter: snapshot?.odGaugeAfter ?? null,
+      odState: snapshot?.odState ?? null,
+      simulatorSettings: this.#simulatorSettings,
+      editDraft: snapshot?.draft ?? this.#editSession?.draft ?? null,
+      onPreviewRequest: () => this.#handlePreviewRequest(),
+      onEditCancel: () => this.#handleEditCancel(),
+      onRecommit: (ti) => this.#handleRecommit(ti),
     });
+    row.mount();
+    row.updateOdPreview(snapshot?.odGaugeAfter ?? null);
+    this.#rowControllers.push(row);
+  }
 
+  #handleCommit(turnIndex) {
+    const row = this.#rowControllers.find((controller) => controller.turnIndex === turnIndex) ?? null;
+    if (!row) {
+      return;
+    }
     try {
-      this.#engineManager.commitNextTurn(snapshot.slotActions, {
-        note,
-        enemyCount,
+      this.#engineManager.commitNextTurn(row.getCurrentSlotActions(), {
+        note: row.getCurrentNote(),
+        enemyCount: row.getCurrentEnemyCount(),
         actionOutcomeOverrides: row.getCurrentActionOutcomeOverrides(),
       });
-    } catch (err) {
-      console.error('TurnAreaController: commitNextTurn failed:', err);
-      this.#onError?.(err);
+    } catch (error) {
+      console.error('TurnAreaController: commitNextTurn failed:', error);
+      this.#onError?.(error);
       return;
     }
 
-    // 最後のコミット済み行を再描画
-    this.#refreshRow(turnIndex);
-    // 次のターン入力行を追加
-    this.#appendInputRow();
-    // 記録が生まれたことを通知（↺ 設定を反映ボタンの有効化に使用）
+    this.#renderRows({ preserveScroll: true });
     this.#onTurnCommitted?.();
     this.#emitPassiveLogRows();
   }
 
-  #handleSlotChange(turnIndex, position, action) {
-    if (action.swapWith != null) {
-      // D&D によるポジション入れ替え（コミット前行のみ発生）
-      this.#handleSwap(turnIndex, position, action.swapWith);
+  #handleEditStart(turnIndex) {
+    const draft = this.#engineManager.buildTurnEditDraft(turnIndex);
+    if (!draft) {
       return;
     }
-
-    // コミット済みターンのスキル変更 → 再計算
-    if (turnIndex < this.#engineManager.committedTurnCount) {
-      this.#engineManager.updateSlot(turnIndex, position, action);
-      this.#refreshRowsFrom(turnIndex);
-      this.#emitPassiveLogRows();
-    }
-    // 未コミット行のスキル変更は commitNextTurn 時に収集するため何もしない
+    this.#editSession = {
+      turnIndex,
+      draft,
+    };
+    this.#renderRows({ preserveScroll: true });
   }
 
-  /**
-   * 未コミット行の OD 操作。
-   * TurnEngineManager の pending フラグを更新し、入力行を再描画する。
-   * @param {number} turnIndex
-   * @param {'preemptive'|'interrupt'} odType
-   * @param {number|null} level
-   */
+  #handleEditCancel() {
+    this.#editSession = null;
+    this.#renderRows({ preserveScroll: true });
+  }
+
+  #handleRecommit(turnIndex) {
+    const row = this.#rowControllers.find((controller) => controller.turnIndex === turnIndex) ?? null;
+    if (!row) {
+      return;
+    }
+    try {
+      this.#engineManager.replaceCommittedTurn(turnIndex, row.getCurrentTurnEditDraft());
+    } catch (error) {
+      console.error('TurnAreaController: replaceCommittedTurn failed:', error);
+      this.#onError?.(error);
+      return;
+    }
+    this.#editSession = null;
+    this.#renderRows({ preserveScroll: true });
+    this.#emitPassiveLogRows();
+  }
+
+  #handleSlotChange(turnIndex, position, action) {
+    if (action.swapWith == null) {
+      return;
+    }
+    this.#handleSwap(turnIndex, position, action.swapWith);
+  }
+
+  #handlePreviewRequest() {
+    if (this.#editSession) {
+      this.#refreshEditRow();
+      return;
+    }
+    this.#refreshInputRow();
+  }
+
+  #handleSwap(turnIndex, srcPosition, dstPosition) {
+    if (this.#editSession || turnIndex !== this.#engineManager.committedTurnCount) {
+      return;
+    }
+    this.#engineManager.swapCurrentPositions(srcPosition, dstPosition);
+    this.#refreshInputRow();
+  }
+
   #handleOdChange(turnIndex, odType, level) {
+    if (this.#editSession || turnIndex !== this.#engineManager.committedTurnCount) {
+      return;
+    }
     if (odType === 'preemptive') {
       this.#engineManager.setPendingPreemptiveOd(level);
     } else {
       this.#engineManager.setPendingInterruptOd(level);
     }
-
-    // OD 変更でプレビュー結果（スキル/OD%）が変わるため未コミット行を全再描画
     this.#refreshInputRow();
   }
 
   #handleOperationAdd(turnIndex, operation) {
-    if (turnIndex < this.#engineManager.committedTurnCount) {
+    if (this.#editSession || turnIndex !== this.#engineManager.committedTurnCount) {
       return;
     }
     if (!this.#engineManager.addPendingSpecialOperation(operation)) {
@@ -234,15 +438,7 @@ export class TurnAreaController {
   }
 
   #handleOperationRemove(turnIndex, operationIndex) {
-    if (turnIndex < this.#engineManager.committedTurnCount) {
-      const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
-      if (!replayTurn) {
-        return;
-      }
-      const nextOperations = replayTurn.operations.filter((_, index) => index !== operationIndex);
-      this.#engineManager.updateOperations(turnIndex, nextOperations);
-      this.#refreshRowsFrom(turnIndex);
-      this.#emitPassiveLogRows();
+    if (this.#editSession || turnIndex !== this.#engineManager.committedTurnCount) {
       return;
     }
     if (!this.#engineManager.removePendingSpecialOperation(operationIndex)) {
@@ -251,74 +447,49 @@ export class TurnAreaController {
     this.#refreshInputRow();
   }
 
-  #handleEnemyCountChange(turnIndex, enemyCount) {
-    if (turnIndex >= this.#engineManager.committedTurnCount) {
+  #refreshEditRow() {
+    if (!this.#editSession) {
       return;
     }
-    this.#engineManager.updateEnemyCount(turnIndex, enemyCount);
-    this.#refreshRowsFrom(turnIndex);
-    this.#emitPassiveLogRows();
-  }
-
-  #handleActionOutcomeChange(turnIndex, actionOutcomeOverrides) {
-    if (turnIndex >= this.#engineManager.committedTurnCount) {
+    const row = this.#rowControllers.find(
+      (controller) => controller.turnIndex === this.#editSession.turnIndex
+    );
+    if (!row) {
       return;
     }
-    this.#engineManager.updateActionOutcomeOverrides(turnIndex, actionOutcomeOverrides);
-    this.#refreshRowsFrom(turnIndex);
-    this.#emitPassiveLogRows();
-  }
-
-  /**
-   * 未コミット行のスキル変更によるプレビューリクエスト。
-   */
-  #handlePreviewRequest() {
-    this.#refreshInputRow();
-  }
-
-  /**
-   * 未コミット行でのスロット D&D 入れ替え。
-   */
-  #handleSwap(turnIndex, srcPosition, dstPosition) {
-    this.#engineManager.swapCurrentPositions(srcPosition, dstPosition);
-    this.#refreshInputRow();
-  }
-
-  /** 指定インデックスのコミット済み行を最新データで再描画 */
-  #refreshRow(turnIndex) {
-    const row = this.#rowControllers[turnIndex];
-    if (!row) return;
-    const record = this.#engineManager.computedRecords[turnIndex];
-    const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
-    // 鬼神化 operation がある場合は鬼神化適用済み state を返す。
-    // これにより SP0 でコミットしたスキルが鬼神化終了後も正しく選択状態を保持する。
-    const stateBefore = this.#engineManager.getStateBefore(turnIndex);
-    const stateAfter = this.#engineManager.computedStates[turnIndex];
+    const draft = row.getCurrentTurnEditDraft();
+    this.#editSession = {
+      turnIndex: this.#editSession.turnIndex,
+      draft,
+    };
+    const { snapshot, diagnostics } = this.#buildEditSnapshot(this.#editSession.turnIndex, draft);
     row.update({
-      record,
-      replayTurn,
-      operations: replayTurn?.operations ?? [],
-      operationState: null,
-      stateBefore,
-      stateAfter,
+      rowMode: 'edit',
+      rowDiagnostics: diagnostics,
+      record: null,
+      replayTurn: this.#engineManager.getReplayTurn(this.#editSession.turnIndex),
+      operations: snapshot?.draft?.operations ?? [],
+      operationState: snapshot?.operationState ?? null,
+      stateBefore: snapshot?.stateBefore ?? this.#engineManager.getStateBefore(this.#editSession.turnIndex),
+      stateAfter: null,
+      previewResourceState: snapshot?.previewResourceState ?? { spAfterByPartyIndex: {} },
+      previewOdGaugeAfter: snapshot?.odGaugeAfter ?? null,
+      odState: snapshot?.odState ?? null,
       simulatorSettings: this.#simulatorSettings,
+      editDraft: snapshot?.draft ?? draft,
     });
-  }
-
-  /** fromIndex 以降の全行を再描画する */
-  #refreshRowsFrom(fromIndex) {
-    const committedCount = this.#engineManager.committedTurnCount;
-    // コミット済み行（last row 手前まで）を再描画
-    for (let i = fromIndex; i < committedCount && i < this.#rowControllers.length - 1; i++) {
-      this.#refreshRow(i);
-    }
-    // 未コミット行（最後の行）を stateBefore + プレビュー結果で更新
-    this.#refreshInputRow();
+    row.updateOdPreview(snapshot?.odGaugeAfter ?? null);
+    this.#renderStatusSummary();
   }
 
   #refreshInputRow() {
+    if (this.#editSession) {
+      return;
+    }
     const lastRow = this.#rowControllers.at(-1);
-    if (!lastRow) return;
+    if (!lastRow) {
+      return;
+    }
     const enemyCount = lastRow.getCurrentEnemyCount();
     const snapshot = this.#engineManager.buildInputRowSnapshot({
       slotActions: lastRow.getCurrentSlotActions(),
@@ -326,12 +497,15 @@ export class TurnAreaController {
       actionOutcomeOverrides: lastRow.getCurrentActionOutcomeOverrides(),
     });
     lastRow.update({
+      rowMode: 'input',
+      rowDiagnostics: createEmptyRowDiagnostics(),
       record: null,
       replayTurn: null,
       operations: this.#engineManager.pendingSpecialOperations,
       stateBefore: snapshot.stateBefore,
       stateAfter: null,
       previewResourceState: snapshot.previewResourceState,
+      previewOdGaugeAfter: snapshot.odGaugeAfter,
       odState: {
         preemptiveOdLevel: this.#engineManager.pendingPreemptiveOdLevel,
         interruptOdLevel: this.#engineManager.pendingInterruptOdLevel,
@@ -342,6 +516,39 @@ export class TurnAreaController {
       simulatorSettings: this.#simulatorSettings,
     });
     lastRow.updateOdPreview(snapshot.odGaugeAfter);
+    this.#renderStatusSummary();
+  }
+
+  #renderStatusSummary() {
+    this.#ensureScaffold();
+    const diagnostics = this.#engineManager.replayDiagnostics;
+    const warningCount =
+      (diagnostics.setupWarnings ?? []).length +
+      (diagnostics.turnWarnings ?? []).reduce(
+        (sum, warnings) => sum + (Array.isArray(warnings) ? warnings.length : 0),
+        0
+      );
+
+    let text = '';
+    let classes = [];
+    if (diagnostics.error) {
+      text = `再計算停止: T${Number(diagnostics.error.index) + 1} ${diagnostics.error.message}`;
+      classes = ['border-red-200', 'bg-red-50', 'text-red-700'];
+    } else if (this.#engineManager.committedTurnCount > 0) {
+      text = `再計算完了: ${diagnostics.appliedTurnCount} turns / warnings=${warningCount}`;
+      classes = warningCount > 0
+        ? ['border-amber-200', 'bg-amber-50', 'text-amber-700']
+        : ['border-sky-200', 'bg-sky-50', 'text-sky-700'];
+    }
+
+    if (!text) {
+      this.#statusEl.className = 'hidden rounded-lg border px-3 py-2 text-xs font-semibold';
+      this.#statusEl.textContent = '';
+      return;
+    }
+
+    this.#statusEl.className = `rounded-lg border px-3 py-2 text-xs font-semibold ${classes.join(' ')}`;
+    this.#statusEl.textContent = text;
   }
 
   #emitPassiveLogRows() {

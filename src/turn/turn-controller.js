@@ -6605,6 +6605,9 @@ function validateActionDict(state, actions, options = {}) {
     throw new Error('actions must be an object keyed by position index.');
   }
   const skipSkillConditions = Boolean(options.skipSkillConditions);
+  const allowUseCountOverflow = Boolean(options.allowUseCountOverflow);
+  const allowSkillConditionMismatch = Boolean(options.allowSkillConditionMismatch);
+  const onWarning = typeof options.onWarning === 'function' ? options.onWarning : null;
 
   const allowedInExtra = getExtraAllowedSet(state.turnState);
   const entries = Object.entries(actions).map(([positionKey, action]) => {
@@ -6650,9 +6653,18 @@ function validateActionDict(state, actions, options = {}) {
         }
         const evaluated = evaluateConditionExpression(expr, state, member, effectiveSkill, action);
         if (evaluated.knownCount > 0 && !evaluated.result) {
-          throw new Error(
-            `Skill ${skill.skillId} cannot be used because ${condition.label} is not satisfied.`
-          );
+          const warningMessage =
+            `Skill ${skill.skillId} cannot be used because ${condition.label} is not satisfied.`;
+          const isUseCountCondition = expr.includes('PlayedSkillCount(');
+          if (isUseCountCondition && allowUseCountOverflow) {
+            onWarning?.(`use count overflow allowed: ${warningMessage}`);
+            continue;
+          }
+          if (allowSkillConditionMismatch) {
+            onWarning?.(`skill condition mismatch allowed: ${warningMessage}`);
+            continue;
+          }
+          throw new Error(warningMessage);
         }
       }
 
