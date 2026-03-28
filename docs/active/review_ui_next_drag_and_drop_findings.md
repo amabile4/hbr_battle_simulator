@@ -1,6 +1,6 @@
 # UI Next D&D コードレビュー — Findings
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-03-28 | 🔄 最終更新: 2026-03-28
+> **ステータス**: ✅ 完了 | 📅 作成: 2026-03-28 | 🔄 最終更新: 2026-03-29
 > **依頼元**: [review_ui_next_drag_and_drop.prompt.md](review_ui_next_drag_and_drop.prompt.md)
 > **レビュー対象 branch**: `feature/ui-next-layout-rework`
 
@@ -198,3 +198,70 @@ JSDOM テストの D&D 検証は以下をやっている:
 | 3 | テスト | F-TEST-1 | dragover dispatch + defaultPrevented assert 追加 | 小 |
 | 4 | turn-row.js | F-TR-2 | `<select>` と drag handle の分離検討 | 中（要設計） |
 | 5 | turn-row.js | F-TR-3 | dragover の preventDefault 戦略見直し | 中（要設計） |
+
+---
+
+## 実施した修正と追加バグの発見・対処
+
+> 以下は本レビュー結果を受けて 2026-03-28〜29 に実施した修正の記録。
+
+### BUG-1: `#resolveInputRowSlotActions` — 後衛メンバーを解決に含めてしまう
+
+**症状**: iPhone tap-swap / PC D&D でスワップ後、`buildInputRowSnapshot()` → `#buildActionsDict()` が  
+`"Action is allowed only for front positions (0..2). got=3"` をスロー。
+
+**原因**: `#resolveInputRowSlotActions()` が `swapCurrentPositions()` 後の stale な `slotActions`（partyIndex キー）を
+position に変換する際、前衛から後衛に移動したメンバーのスキルまでマッピングし、back-row position を `#buildActionsDict` に渡していた。
+
+**修正** (`turn-engine-manager.js`):
+- `#resolveInputRowSlotActions` に `member.position > 2` ガードを追加。後衛メンバーはスキップ。
+
+### BUG-2: `commitNextTurn` が partyIndex キーの slotActions を未解決のまま渡す
+
+**症状**: BUG-1 修正後も、コミット時に同じ `"Action is allowed only for front positions(0..2) got=3"` が発生。
+
+**原因**: `commitNextTurn` は `getCurrentSlotActions()`（partyIndex キー）を直接 `#buildActionsDict` / `#buildReplayTurn` に渡していた。
+`buildInputRowSnapshot` 側で追加した `#resolveInputRowSlotActions` 呼び出しが `commitNextTurn` 経路には適用されていなかった。
+
+**修正** (`turn-engine-manager.js`):
+- `commitNextTurn` 内で `#buildActionsDict` / `#buildReplayTurn` に渡す前に `#resolveInputRowSlotActions` を呼ぶよう追加。
+
+### BUG-3: edit モードで D&D / tap-swap が動作しない
+
+**症状**: コミット済みターンを編集モードにした際、D&D や tap-swap でのメンバー入れ替えが一切反映されない。
+
+**原因（3 つの問題の複合）**:
+
+1. **`draggable` / イベントバインドが edit モードで無効**  
+   `turn-row.js` の 4 箇所で `#isInputMode()` が使われていたため、`rowMode === 'edit'` では
+   `draggable="true"` が設定されず、tap / D&D のイベントバインドもスキップされていた。  
+   → `#isInputMode()` を `#isDraftMode()`（input + edit の両方で true）に変更。
+
+2. **edit 行に `onSlotChange` コールバック未設定**  
+   `#appendEditRow()` で `TurnRowController` を生成する際、`onSlotChange` コールバックが渡されていなかった。
+   そのため swap イベントが `#handleSwap` → `#handleEditSwap` に到達しなかった。  
+   → `onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action)` を追加。
+
+3. **`#refreshEditRow()` がスワップ後の draft を上書き**  
+   `#handleEditSwap` で `editSession.draft.slots` をスワップした後、`#refreshEditRow()` が
+   `row.getCurrentTurnEditDraft()`（行の内部状態 = スワップ前）を読み、`this.#editSession` を上書きしていた。  
+   → `#refreshEditRow(draftOverride = null)` にオプションパラメータを追加。
+   `#handleEditSwap` からスワップ済み draft を直接渡し、stale な内部状態での上書きを回避。
+
+**修正ファイル**:
+- `turn-row.js`: `#isInputMode()` → `#isDraftMode()` を 4 箇所（front slot draggable, back slot draggable, icon tap bind, D&D bind）
+- `turn-area.js`: `#appendEditRow` に `onSlotChange` 追加、`#handleEditSwap` 新設、`#refreshEditRow(draftOverride)` パラメータ追加
+
+### 追加した E2E テスト
+
+| テストファイル | カバー内容 |
+|---|---|
+| `tests/e2e/turn-row-drag-and-drop.spec.js` | tap front↔back, tap front↔front, D&D front↔back, exclusive skill after swap, commit after swap |
+| `tests/e2e/party-setup-drag-and-drop.spec.js` | D&D front↔back, tap front↔back, D&D front↔front |
+| `tests/e2e/session-save.spec.js` | 4 chars → apply → JSON save → download content verify |
+| `tests/e2e/turn-edit-swap.spec.js` | 4 chars → commit #1,#2 → edit #1 → D&D front↔back swap in edit mode |
+
+### テスト結果（2026-03-29）
+
+- E2E (Playwright): **11/11 passed**
+- Unit (node --test): **617/617 passed**

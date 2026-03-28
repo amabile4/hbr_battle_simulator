@@ -347,6 +347,7 @@ export class TurnAreaController {
       odState: snapshot?.odState ?? null,
       simulatorSettings: this.#simulatorSettings,
       editDraft: snapshot?.draft ?? this.#editSession?.draft ?? null,
+      onSlotChange: (ti, position, action) => this.#handleSlotChange(ti, position, action),
       onPreviewRequest: () => this.#handlePreviewRequest(),
       onEditCancel: () => this.#handleEditCancel(),
       onRecommit: (ti) => this.#handleRecommit(ti),
@@ -428,11 +429,32 @@ export class TurnAreaController {
   }
 
   #handleSwap(turnIndex, srcPosition, dstPosition) {
+    if (this.#editSession && turnIndex === this.#editSession.turnIndex) {
+      this.#handleEditSwap(srcPosition, dstPosition);
+      return;
+    }
     if (this.#editSession || turnIndex !== this.#engineManager.committedTurnCount) {
       return;
     }
     this.#engineManager.swapCurrentPositions(srcPosition, dstPosition);
     this.#refreshInputRow();
+  }
+
+  #handleEditSwap(srcPosition, dstPosition) {
+    const draft = this.#editSession?.draft;
+    if (!draft?.slots) {
+      return;
+    }
+    const slots = draft.slots;
+    if (!slots[srcPosition] || !slots[dstPosition]) {
+      return;
+    }
+    [slots[srcPosition], slots[dstPosition]] = [slots[dstPosition], slots[srcPosition]];
+    // 後衛に移動したスロットのスキルをクリア
+    for (let i = 3; i < slots.length; i++) {
+      if (slots[i]) slots[i].skillId = null;
+    }
+    this.#refreshEditRow(draft);
   }
 
   #handleOdChange(turnIndex, odType, level) {
@@ -467,7 +489,7 @@ export class TurnAreaController {
     this.#refreshInputRow();
   }
 
-  #refreshEditRow() {
+  #refreshEditRow(draftOverride = null) {
     if (!this.#editSession) {
       return;
     }
@@ -477,7 +499,7 @@ export class TurnAreaController {
     if (!row) {
       return;
     }
-    const draft = row.getCurrentTurnEditDraft();
+    const draft = draftOverride ?? row.getCurrentTurnEditDraft();
     this.#editSession = {
       turnIndex: this.#editSession.turnIndex,
       draft,

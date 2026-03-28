@@ -49,7 +49,7 @@ docs/
 | [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・preset toolbar 20枠化・browser D&D hardening・legacy UI hard cutover・root redirect smoke まで反映） | 2026-03-29 |
 | [active/ui_next_drag_and_drop_review_request.md](active/ui_next_drag_and_drop_review_request.md) | 🟢 進行中 | UI Next D&D 不具合のレビュー依頼メモ（TurnEdit / PartySetup の現象整理・期待挙動・レビュー観点） | 2026-03-28 |
 | [active/review_ui_next_drag_and_drop.prompt.md](active/review_ui_next_drag_and_drop.prompt.md) | 🟢 進行中 | Claude Opus 向け UI Next D&D レビュー依頼 prompt | 2026-03-28 |
-| [active/review_ui_next_drag_and_drop_findings.md](active/review_ui_next_drag_and_drop_findings.md) | 🟢 進行中 | UI Next D&D コードレビュー結果（PartySetup: handle サイズ/テキスト干渉、TurnEdit: setData 欠落・select 妨害、JSDOM テストギャップ、修正優先度） | 2026-03-28 |
+| [active/review_ui_next_drag_and_drop_findings.md](active/review_ui_next_drag_and_drop_findings.md) | ✅ 完了 | UI Next D&D コードレビュー結果＋修正記録（BUG-1〜3 修正、E2E 11件追加、全テスト通過） | 2026-03-29 |
 | [active/ui_next_png_capture_review_request.md](active/ui_next_png_capture_review_request.md) | 🟢 進行中 | UI Next PNG capture 不具合のレビュー依頼メモ（再現条件・期待挙動・実際の失敗・レビュー観点） | 2026-03-28 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・warning/diagnostics 実装メモ追記） | 2026-03-28 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |

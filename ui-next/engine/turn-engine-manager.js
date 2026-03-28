@@ -206,9 +206,10 @@ export class TurnEngineManager {
         onWarning: (message) => warnings.push(String(message)),
       }
     );
+    const resolvedSlotActions = this.#resolveInputRowSlotActions(state, slotActions);
     const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       state,
-      slotActions,
+      resolvedSlotActions,
       options.actionOutcomeOverrides,
       enemyCount,
       {
@@ -216,7 +217,7 @@ export class TurnEngineManager {
       }
     );
 
-    const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides);
+    const actions = this.#buildActionsDict(state, resolvedSlotActions, actionOutcomeOverrides);
     const previewRecord = previewTurnRecord(
       state,
       actions,
@@ -262,7 +263,7 @@ export class TurnEngineManager {
     // slotActions は currentState（先制OD 適用前）の position を基準に記録
     const replayTurn = this.#buildReplayTurn(
       state,
-      slotActions,
+      resolvedSlotActions,
       options.note ?? '',
       operations,
       enemyCount,
@@ -1327,7 +1328,7 @@ export class TurnEngineManager {
         : Number.isFinite(position)
           ? state?.party?.find((item) => Number(item?.position) === position) ?? null
           : null;
-      if (!member) {
+      if (!member || member.position > 2) {
         continue;
       }
       resolvedSlotActions[member.position] = {

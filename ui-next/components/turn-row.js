@@ -1903,7 +1903,7 @@ export class TurnRowController {
 
     // EX ターン: 非行動可能メンバーは #buildInactiveSlotHtml で早期 return 済みのため、
     // ここに到達するメンバーは全員 allowedCharacterIds に含まれる。draggable に EX 制限不要。
-    const draggable = this.#isInputMode();
+    const draggable = this.#isDraftMode();
     const dragHandleAttributes = draggable
       ? 'data-role="turn-slot-drag-handle" draggable="true" title="ドラッグで入れ替え"'
       : 'data-role="turn-slot-drag-handle"';
@@ -2015,7 +2015,7 @@ export class TurnRowController {
     const spColor = typeof sp === 'number' && sp < 0 ? '#ef4444' : '#ffffff';
 
     // EX ターン: allowedCharacterIds に含まれない後衛メンバーはドラッグ不可
-    const draggable = this.#isInputMode() && (!this.#isExtraTurn() || this.#isActionable(member));
+    const draggable = this.#isDraftMode() && (!this.#isExtraTurn() || this.#isActionable(member));
     const dragHandleAttributes = draggable
       ? 'data-role="turn-slot-drag-handle" draggable="true" title="ドラッグで入れ替え"'
       : 'data-role="turn-slot-drag-handle"';
@@ -2515,7 +2515,7 @@ export class TurnRowController {
       });
     }
 
-    if (this.#isInputMode()) {
+    if (this.#isDraftMode()) {
       this.#root.querySelectorAll('[data-turn-slot-icon]').forEach((icon) => {
         icon.style.cursor = 'pointer';
         icon.addEventListener('click', (e) => {
@@ -2529,7 +2529,7 @@ export class TurnRowController {
       });
     }
 
-    if (this.#isInputMode()) {
+    if (this.#isDraftMode()) {
       this.#bindDragAndDrop();
     }
 
