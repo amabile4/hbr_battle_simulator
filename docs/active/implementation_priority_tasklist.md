@@ -1,10 +1,10 @@
 # Implementation Priority Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-21
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
-> **判断メモ**: 2026-03-20 に `ui-next` の session-oriented wave（manual break attribution、ReplayScript-native 過去編集/再計算、`SessionSnapshotV1` JSON save/load、`validationPolicy` 基盤）を先行実装した。続けて runtime/data-store 側へ `SkillSwitch` selectable variant 展開と `styles.json` 埋め込み `通常攻撃` / `指揮行動` / `追撃` fallback を入れ、`ui-next` の listbox が新規 UI なしで実データ欠落を吸収できるようにした。2026-03-21 には Party Setup の `スキル設定` パネル統合、`skillSetsByPartyIndex` の snapshot/preset/save-load 配線、装備型 passive `HighBoost` の runtime 実装を完了した。現在の残 correctness backlog としては `PRI-018`（スキル使用回数制約と回復機能）が次優先。
+> **判断メモ**: 2026-03-20 に `ui-next` の session-oriented wave（manual break attribution、ReplayScript-native 過去編集/再計算、`SessionSnapshotV1` JSON save/load、`validationPolicy` 基盤）を先行実装した。続けて runtime/data-store 側へ `SkillSwitch` selectable variant 展開と `styles.json` 埋め込み `通常攻撃` / `指揮行動` / `追撃` fallback を入れ、`ui-next` の listbox が新規 UI なしで実データ欠落を吸収できるようにした。2026-03-21 には Party Setup の `スキル設定` パネル統合、`skillSetsByPartyIndex` の snapshot/preset/save-load 配線、装備型 passive `HighBoost` の runtime 実装を完了した。2026-03-29 に `Count/Only` 併存 status family の監査 doc を追加し、`AttackUp` 固有対応ではなく family 単位の確認マトリクスを先に固定する方針へ整理した。現在の残 correctness backlog としては `PRI-018`（スキル使用回数制約と回復機能）が次優先。
 
 ## 目的
 
@@ -21,16 +21,17 @@
 
 ## 再開時の読書順
 
-1. [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md)
-2. [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md)
-3. [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md)
-4. [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md)
-5. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
-6. [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md)
-7. [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md)
-8. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
-9. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
-10. [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md)
+1. [`count_only_status_audit.md`](count_only_status_audit.md)
+2. [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md)
+3. [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md)
+4. [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md)
+5. [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md)
+6. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
+7. [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md)
+8. [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md)
+9. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
+10. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
+11. [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md)
 
 ## 優先順位
 
@@ -104,4 +105,5 @@
 
 - `docs/20260306_tasklist/` はスナップショット起点なので、件数はそのまま真値として使わない
 - `PRI-012` の完了により、「top-level `effect` 実装」は独立テーマではなくなった
+- `Count/Only` の runtime 修正は、[`count_only_status_audit.md`](count_only_status_audit.md) の family 一覧と実機確認マトリクスを先に埋めてから着手する
 - 各 PRI 完了時は、この文書と [`../README.md`](../README.md) を同じコミットで更新する
