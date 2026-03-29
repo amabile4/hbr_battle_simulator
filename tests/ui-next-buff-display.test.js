@@ -27,17 +27,20 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
   assert.deepEqual(actual, ['AttackUp', 'MindEye', 'Funnel', 'CriticalDamageUp']);
 });
 
-test('buildBuffListHtml follows status detail order and keeps per-type limits', () => {
+test('buildBuffListHtml follows status detail order and shows only adopted effects', () => {
   const html = buildBuffListHtml([
-    { statusType: 'Funnel', remaining: 2, limitType: 'Count' },
-    { statusType: 'Funnel', remaining: 2, limitType: 'Count' },
-    { statusType: 'Funnel', remaining: 2, limitType: 'Count' },
-    { statusType: 'MindEye', remaining: 1, limitType: 'Only' },
-    { statusType: 'AttackUp', remaining: 2, limitType: 'Count' },
-    { statusType: 'AttackUp', remaining: 2, limitType: 'Count' },
-    { statusType: 'AttackUp', remaining: 2, limitType: 'Count' },
-    { statusType: 'CriticalRateUp', remaining: 2, limitType: 'Count' },
-    { statusType: 'CriticalDamageUp', remaining: 2, limitType: 'Only' },
+    { statusType: 'Funnel', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.4, effectId: 701 },
+    { statusType: 'Funnel', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.35, effectId: 702 },
+    { statusType: 'Funnel', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.1, effectId: 703 },
+    { statusType: 'Funnel', remaining: 2, limitType: 'Only', power: 0.8, effectId: 704 },
+    { statusType: 'MindEye', remaining: 1, limitType: 'Count', exitCond: 'Count', power: 0.5, effectId: 801 },
+    { statusType: 'MindEye', remaining: 1, limitType: 'Count', exitCond: 'Count', power: 0.45, effectId: 802 },
+    { statusType: 'MindEye', remaining: 1, limitType: 'Only', power: 0.6, effectId: 803 },
+    { statusType: 'AttackUp', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.3, effectId: 101 },
+    { statusType: 'AttackUp', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.3, effectId: 102 },
+    { statusType: 'AttackUp', remaining: 2, limitType: 'Only', power: 0.6, effectId: 103 },
+    { statusType: 'CriticalRateUp', remaining: 2, power: 0.2, effectId: 201 },
+    { statusType: 'CriticalRateUp', remaining: 2, limitType: 'Only', power: 0.25, effectId: 202 },
   ]);
 
   const altList = extractAltList(html);
@@ -46,11 +49,22 @@ test('buildBuffListHtml follows status detail order and keeps per-type limits', 
     'AttackUp',
     'AttackUp',
     'CriticalRateUp',
-    'CriticalDamageUp',
+    'CriticalRateUp',
+    'MindEye',
     'MindEye',
     'Funnel',
-    'Funnel',
   ]);
+});
+
+test('buildBuffListHtml uses Count side on tie between Count sum and Only', () => {
+  const html = buildBuffListHtml([
+    { statusType: 'AttackUp', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.2, effectId: 1 },
+    { statusType: 'AttackUp', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.2, effectId: 2 },
+    { statusType: 'AttackUp', remaining: 2, limitType: 'Only', power: 0.4, effectId: 3 },
+  ]);
+
+  const altList = extractAltList(html);
+  assert.deepEqual(altList, ['AttackUp', 'AttackUp']);
 });
 
 test('buildBuffListHtml caps icons by total limit', () => {

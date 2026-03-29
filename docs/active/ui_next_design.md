@@ -206,6 +206,7 @@
 - PNG 保存対象は committed turn rows のみとし、未コミット入力行 / edit 行は含めない
 - PNG 保存時は右側の操作列を描画対象から外し、note / chip 列を詰めた capture 専用レイアウトを使う
 - turn row の自己状態バフアイコンは固定3種ではなく、状態変化ページの statusType 定義順に準拠したバフ系表示へ拡張する（デバフ系は除外）
+- 同一 statusType 内で `Only` / `Count` が競合する場合、`Only=最強1件` と `Count=上位2件合算` を比較して採用側のみアイコン表示する（同値は `Count` 側優先、非採用側は詳細テキスト側で確認）
 - turn row バフアイコンは視認性確保のため全体表示上限を設ける（現在値: 10）
 - current session の JSON 保存 / 読込は `Simulator Settings` 内ではなく上部 utility bar に置く
 - 上部 utility bar は desktop では icon + label、smartphone では icon-only に切り替える
