@@ -471,6 +471,69 @@ test('TurnRowController marks committed battle-end rows with data-battle-ended',
     assert.equal(root.querySelector('[data-turn-row]').dataset.battleEnded, 'true');
   }));
 
+test('TurnRowController shows a repeat indicator for committed double-action casts', () =>
+  withDom(({ root }) => {
+    const skill = createSkill({
+      id: 95110,
+      name: 'Double EX',
+      targetType: 'All',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 1);
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 1,
+        turnId: 1,
+        odGaugeAtStart: 0,
+        projections: { odGaugeAtEnd: 0 },
+        actions: [
+          {
+            positionIndex: 0,
+            skillId: 95110,
+            castCount: 2,
+            castIndex: 0,
+            spChanges: [{ source: 'cost', postSP: 10 }],
+            endSP: 10,
+          },
+        ],
+      },
+      replayTurn: {
+        turn: 1,
+        slots: [{ styleId: stateBefore.party[0].styleId, skillId: 95110 }],
+        operations: [],
+        note: '',
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter: stateBefore,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    const slot = root.querySelector('[data-turn-slot][data-position="0"]');
+    const indicator = slot?.querySelector('[data-role="repeat-indicator"]');
+    assert.equal(slot?.dataset.repeatCastCount, '2');
+    assert.equal(indicator?.textContent?.trim(), 'x2');
+  }));
+
 test('TurnAreaController shows preview and committed endSP on the SP badge', () =>
   withDom(({ root, win }) => {
     const normalSkill = createSkill({

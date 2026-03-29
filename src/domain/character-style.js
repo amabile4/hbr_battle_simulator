@@ -64,6 +64,8 @@ function normalizeSkill(skill, canonicalSkill) {
         ? canonicalSkill?.overwrite ?? null
         : Number(skill.overwrite),
     legacySkillIds,
+    usage:
+      skill?.usage && typeof skill.usage === 'object' ? structuredClone(skill.usage) : null,
     additionalTurnRule:
       skill.additionalTurnRule && typeof skill.additionalTurnRule === 'object'
         ? structuredClone(skill.additionalTurnRule)
@@ -120,6 +122,7 @@ function createNoActionSkill() {
     overwriteCond: '',
     effect: '',
     overwrite: null,
+    usage: null,
     additionalTurnRule: null,
     parts: [],
     passive: null,
@@ -1123,6 +1126,65 @@ export class CharacterStyle {
 
   consumeMindEyeEffects(consumeCount = 1) {
     return this.consumeStatusEffectsByType('MindEye', consumeCount);
+  }
+
+  getDoubleActionExtraSkillEffects(options = {}) {
+    return this.getStatusEffectsByType('DoubleActionExtraSkill', options);
+  }
+
+  resolveEffectiveDoubleActionExtraSkillEffects() {
+    return this.getDoubleActionExtraSkillEffects({ activeOnly: true }).sort(sortStatusEffectsByPriority).slice(0, 1);
+  }
+
+  consumeDoubleActionExtraSkillEffects(consumeCount = 1) {
+    const count = Math.max(0, Number(consumeCount) || 0);
+    if (count <= 0) {
+      return [];
+    }
+
+    const picked = this.resolveEffectiveDoubleActionExtraSkillEffects()
+      .filter((effect) => String(effect.exitCond) === 'Count')
+      .slice(0, count);
+    if (picked.length === 0) {
+      return [];
+    }
+
+    const idSet = new Set(picked.map((effect) => Number(effect.effectId)));
+    const consumed = [];
+    let changed = false;
+
+    for (const effect of this.statusEffects) {
+      if (!idSet.has(Number(effect.effectId))) {
+        continue;
+      }
+      if (!isActiveStatusEffect(effect)) {
+        continue;
+      }
+      const before = Number(effect.remaining);
+      effect.remaining = Math.max(0, before - 1);
+      consumed.push({
+        effectId: effect.effectId,
+        statusType: effect.statusType,
+        limitType: effect.limitType,
+        exitCond: effect.exitCond,
+        power: effect.power,
+        remainingBefore: before,
+        remainingAfter: effect.remaining,
+      });
+      changed = true;
+    }
+
+    const beforeLen = this.statusEffects.length;
+    this.statusEffects = this.statusEffects.filter((effect) => isActiveStatusEffect(effect));
+    if (this.statusEffects.length !== beforeLen) {
+      changed = true;
+    }
+
+    if (changed) {
+      this._revision += 1;
+    }
+
+    return consumed.sort((a, b) => sortStatusEffectsByPriority(a, b));
   }
 
   getSkillUseCountByLabel(label) {

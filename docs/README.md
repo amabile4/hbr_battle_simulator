@@ -53,9 +53,9 @@ docs/
 | [active/ui_next_png_capture_review_request.md](active/ui_next_png_capture_review_request.md) | 🟢 進行中 | UI Next PNG capture 不具合のレビュー依頼メモ（再現条件・期待挙動・実際の失敗・レビュー観点） | 2026-03-28 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・warning/diagnostics 実装メモ追記） | 2026-03-28 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
-| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装計画（HighBoost 倍率・装備型 passive 配線まで反映） | 2026-03-21 |
-| [active/stateful_passive_wbs.md](active/stateful_passive_wbs.md) | 🟢 進行中 | 状態付与型パッシブ（AdditionalHit* 38件）の実装ステータス一覧・未実装トリガー／effectType整理 | 2026-03-24 |
-| [active/passive_test_coverage_audit.md](active/passive_test_coverage_audit.md) | 🟢 進行中 | パッシブ発火トリガー × exitCond テストカバレッジ監査（状態付与型38件＋一瞬発火型timing別） | 2026-03-24 |
+| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装計画（DoubleActionExtraSkill shared engine 実装、水瀬すもも/朝倉可憐の実データ確認まで反映） | 2026-03-29 |
+| [active/stateful_passive_wbs.md](active/stateful_passive_wbs.md) | 🟢 進行中 | 状態付与型パッシブ（AdditionalHit* 38件）の実装ステータス一覧・未実装トリガー／effectType整理（`二股の尻尾` 完全実装反映） | 2026-03-29 |
+| [active/passive_test_coverage_audit.md](active/passive_test_coverage_audit.md) | 🟢 進行中 | パッシブ発火トリガー × exitCond テストカバレッジ監査（`DoubleActionExtraSkill` の engine/UI/browser coverage、受け手SP回復の二連EX実データ回帰まで反映） | 2026-03-29 |
 | [active/restoration_wbs.md](active/restoration_wbs.md) | 🟢 進行中 | ハイブースト以降の段階的復元WBS（フェーズ0〜4完了・フェーズ5継続） | 2026-03-23 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-22 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（legacy DOM controller 廃止後の shared module 境界へ更新） | 2026-03-29 |

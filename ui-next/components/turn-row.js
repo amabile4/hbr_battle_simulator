@@ -86,6 +86,11 @@ function normalizeRowDiagnostics(diagnostics = {}) {
   };
 }
 
+function resolveRepeatCastCount(action) {
+  const castCount = Number(action?.castCount ?? 1);
+  return Number.isFinite(castCount) && castCount > 1 ? castCount : 1;
+}
+
 /**
  * OD ゲージ値を "000.00%" 形式にフォーマットする。
  * 負の値は "-000.00%" 形式（符号の後ろをゼロ埋め）。
@@ -1821,6 +1826,15 @@ export class TurnRowController {
     const replaySlot = isCommitted
       ? (this.#record?.actions?.find?.(a => a.positionIndex === member.position) ?? null)
       : null;
+    const repeatCastCount = isCommitted ? resolveRepeatCastCount(replaySlot) : 1;
+    const repeatIndicatorHtml = repeatCastCount > 1
+      ? `<span data-role="repeat-indicator"
+               data-cast-count="${repeatCastCount}"
+               class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-px text-[10px] font-semibold leading-none text-amber-700"
+               title="同じスキルを${repeatCastCount}回連続で実行">
+           x${repeatCastCount}
+         </span>`
+      : '';
 
     // EX ターンで行動しなかったメンバーは inactive スロット表示にする。
     //   - 未コミット行: allowedCharacterIds に含まれない → EX待機
@@ -1917,7 +1931,7 @@ export class TurnRowController {
       : '';
 
     return `
-      <div data-turn-slot data-position="${member.position}"
+      <div data-turn-slot data-position="${member.position}" data-repeat-cast-count="${repeatCastCount}"
            class="flex flex-col flex-1 min-w-0 border-r border-gray-100 last:border-r-0 select-none">
         <!-- 属性バッジ（左）＋ スキル select（右）。target trigger は別領域に分離して幅発振を防ぐ -->
         <div data-role="slot-select-row" data-position="${member.position}" class="flex items-center gap-0.5 px-0.5 pt-0.5">
@@ -1931,6 +1945,7 @@ export class TurnRowController {
                          focus:outline-none focus:ring-1 focus:ring-blue-300">
             ${skillOptions}
           </select>
+          ${repeatIndicatorHtml}
         </div>
         <!-- アイコン（固定サイズ）＋ 情報スペース ＋ アイコン直下トークン/士気 -->
         <div data-role="slot-body" class="flex flex-col p-0.5 gap-0.5">

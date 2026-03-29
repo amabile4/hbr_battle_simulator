@@ -1,6 +1,6 @@
 # パッシブ発火トリガー × exitCond テストカバレッジ監査
 
-> 最終更新: 2026-03-24
+> 最終更新: 2026-03-29
 > 調査ファイル: `tests/turn-state-transitions.test.js`（13,000行超）・`tests/real-data-mechanics-coverage.test.js`
 
 ---
@@ -39,7 +39,7 @@
 | 慶福の一矢 | HealDpRate(AllyFront) | ✅ | 行10663 `DP healed to AllyFront targets when EX skill used` |
 | 元気注入 | HealSp(AllyAll) | ❌ | ExtraSkill+HealSp 未テスト |
 | 恐怖の叫び | Talisman(All) | 🔧 | AdditionalHit経由のTalisman未実装・未テスト |
-| 二股の尻尾 | DoubleActionExtraSkill(Self) | 🔧 | 未実装・未テスト |
+| 二股の尻尾 | DoubleActionExtraSkill(Self) | ✅ | 行14338 `EX使用後に次回ぶんの二連権を再付与する`、行14307 `初回EXは二連` |
 | ライトプロテクション | DebuffGuard(AllyAll) | 🔧 | AdditionalHit経由のDebuffGuard未実装・未テスト |
 | 役者魂 | BuffCharge(Self) | 🔧 | AdditionalHit経由のBuffCharge未実装・未テスト |
 
@@ -105,8 +105,8 @@
 
 | パッシブ名 | effectType | テスト状況 | 行番号 |
 |-----------|-----------|---------|--------|
-| お裾分け | HealSp(AllyAll,+2,SP30) | ✅ | 行10358, 10415, 10458（発動/不発/SP30の3パターン） |
-| 愛嬌 (100140800) | HealSp(Self,+3,SP30) | ✅ | 行10520 `別メンバーHealSp → 自身SP+3` |
+| お裾分け | HealSp(AllyAll,+2,SP30) | ✅ | 行10358, 10415, 10458（発動/不発/SP30の3パターン）、行14530（水瀬すもも二連EXで2回発火） |
+| 愛嬌 (100140800) | HealSp(Self,+3,SP30) | ✅ | 行10520 `別メンバーHealSp → 自身SP+3`、行14530（水瀬すもも二連EXで2回発火） |
 | エネルギー補給 | HealSp(AllyAll,+2,SP30) | 🟡 | お裾分けと同系統。専用テストなし |
 | 占星術 | HealSp(AllyAll,+2,SP30) | 🟡 | お裾分けと同系統。専用テストなし |
 | 愛嬌 (100830700) | HealSp(Self,+3,SP30) | 🟡 | 愛嬌100140800と同系統。専用テストなし |
@@ -132,7 +132,7 @@
 | 🟡 同系統カバー（専用テストなし） | 9 | ホールチアリング / 先導者 / 迸る衝動(100250600) / エネルギー補給 / 占星術 / 愛嬌(100830700) / 意気軒昂×2 |
 | ❓ 要確認 | 1 | 即応の型（AdditionalTurn via SpecifiedSkillの発火確認が必要） |
 | ❌ 実装済み・未テスト | 8 | リバーブレーション(SP30未対応) / 元気注入 / 二度咲き / 貴様に託した / 激動(Count) / 怪盗乱麻 |
-| 🔧 未実装・未テスト | 7 | 恐怖の叫び / 二股の尻尾 / ライトプロテクション / 役者魂 / クロノチェイン / オーバーレイ / トップアップ / そよぐ新緑 |
+| 🔧 未実装・未テスト | 6 | 恐怖の叫び / ライトプロテクション / 役者魂 / クロノチェイン / オーバーレイ / トップアップ / そよぐ新緑 |
 | **合計** | **38** | |
 
 ### exitCond 別カバレッジ
@@ -188,7 +188,7 @@
 | クロノチェイン（OnHealedSpWithoutSelfHeal+OD） | `applyReceiverSpHealPassiveTriggers` にOverDrivePointUp処理を追加するだけ |
 | 二度咲き AdditionalTurn via ExtraSkill | 発火テスト自体なし |
 | OnZone / OnOverDrivePointDownSkill / OnPursuit | トリガー検出から実装が必要 |
-| Talisman/DoubleActionExtraSkill/DebuffGuard/BuffCharge via AdditionalHit | effectType実装から必要 |
+| Talisman/DebuffGuard/BuffCharge via AdditionalHit | effectType実装から必要 |
 
 ---
 

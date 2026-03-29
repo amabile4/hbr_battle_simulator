@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CharacterStyle, HbrDataStore, Party, createBattleStateFromParty } from '../src/index.js';
+import { CharacterStyle, HbrDataStore, Party, applyInitialPassiveState, createBattleStateFromParty } from '../src/index.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 import { DEFAULT_VALIDATION_POLICY } from '../ui-next/utils/validation-policy.js';
+import { getSixUsableStyleIds, getStore } from './helpers.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
@@ -134,6 +135,25 @@ function createLegacyExtraTurnInitialState() {
   return initialState;
 }
 
+function createRealDataManagerState(styleId, options = {}) {
+  const store = getStore();
+  const actorStyle = store.getStyleById(Number(styleId));
+  const actorCharacterLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const otherStyleIds = getSixUsableStyleIds(store).filter(
+    (candidateId) =>
+      Number(candidateId) !== Number(styleId) &&
+      String(store.getStyleById(candidateId)?.chara_label ?? store.getStyleById(candidateId)?.chara ?? '') !==
+        actorCharacterLabel
+  );
+  const styleIds = [Number(styleId), ...otherStyleIds.slice(0, 5)];
+  const party = store.buildPartyFromStyleIds(styleIds, {
+    initialSP: Number(options.initialSP ?? 30),
+    limitBreakLevelsByPartyIndex: options.limitBreakLevelsByPartyIndex ?? {},
+  });
+  const state = createBattleStateFromParty(party);
+  return options.applyInitialPassives ? applyInitialPassiveState(state) : state;
+}
+
 test('TurnEngineManager persists enemyCount through commit and replay recalculation', () => {
   const actorSkill = createSkill({
     id: 9001,
@@ -166,6 +186,42 @@ test('TurnEngineManager persists enemyCount through commit and replay recalculat
   assert.equal(manager.computedRecords[0]?.enemyCount, 3);
   assert.equal(manager.computedStates[0]?.turnState?.enemyState?.enemyCount, 3);
   assert.equal(manager.computedRecords[0]?.actions.find((action) => action.positionIndex === 0)?.targetEnemyIndex, 2);
+});
+
+test('TurnEngineManager replays Karen double-action EX after 意気揚々 self-buff', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(createRealDataManagerState(1001507), {});
+
+  manager.commitNextTurn(
+    {
+      0: {
+        skillId: 46001511,
+        target: { type: 'enemy', enemyIndex: 0 },
+      },
+    },
+    { enemyCount: 1, note: 'double-action setup' }
+  );
+
+  const exRecord = manager.commitNextTurn(
+    {
+      0: {
+        skillId: 46001512,
+        target: { type: 'enemy', enemyIndex: 0 },
+      },
+    },
+    { enemyCount: 1, note: 'double-action ex' }
+  );
+
+  const repeatedActions = exRecord.actions.filter((action) => action.positionIndex === 0);
+  assert.equal(repeatedActions.length, 2);
+  assert.deepEqual(repeatedActions.map((action) => action.castIndex), [0, 1]);
+  assert.equal(repeatedActions[0].castCount, 2);
+  assert.equal(repeatedActions[1].spCost, 0);
+
+  manager.recalculateFrom(0);
+  const replayedActions = manager.computedRecords[1]?.actions?.filter((action) => action.positionIndex === 0) ?? [];
+  assert.equal(replayedActions.length, 2);
+  assert.deepEqual(replayedActions.map((action) => action.castIndex), [0, 1]);
 });
 
 test('TurnEngineManager materializes ally replay target into targetCharacterId', () => {

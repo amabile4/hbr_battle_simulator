@@ -10,6 +10,19 @@ export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
 export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
 export const RECORD_STATUSES = Object.freeze(['preview', 'committed']);
 
+/**
+ * Record action / action-scoped event metadata shared by preview and committed turns.
+ * `actionInstanceId` distinguishes repeated casts from the same character within one turn.
+ */
+export function normalizeActionCastMetadata(action = {}) {
+  return {
+    actionInstanceId: String(action?.actionInstanceId ?? ''),
+    castIndex: Math.max(0, Number(action?.castIndex ?? 0)),
+    castCount: Math.max(1, Number(action?.castCount ?? 1)),
+    isDerivedRepeat: Boolean(action?.isDerivedRepeat),
+  };
+}
+
 export function buildPositionMap(partyMembers) {
   if (!Array.isArray(partyMembers) || partyMembers.length < MIN_PARTY_SIZE || partyMembers.length > MAX_PARTY_SIZE) {
     throw new Error(`buildPositionMap requires ${MIN_PARTY_SIZE}~${MAX_PARTY_SIZE} party members.`);

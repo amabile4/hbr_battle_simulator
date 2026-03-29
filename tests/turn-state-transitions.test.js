@@ -275,6 +275,58 @@ function createHighBoostManualParty(actorOverrides = {}) {
   });
 }
 
+const DOUBLE_ACTION_TEST_USAGE = Object.freeze({
+  mode: 'fixed',
+  displayUses: 4,
+  maxUses: 4,
+  minUses: 4,
+  expandable: true,
+});
+
+function createDoubleActionRestrictedSkill(skillId, options = {}) {
+  return {
+    id: skillId,
+    name: String(options.name ?? 'Double Action EX'),
+    label: String(options.label ?? `DoubleActionEx${skillId}`),
+    sp_cost: Number(options.spCost ?? 14),
+    is_restricted: 1,
+    hit_count: Number(options.hitCount ?? 1),
+    target_type: String(options.targetType ?? 'Single'),
+    usage: options.usage ? structuredClone(options.usage) : structuredClone(DOUBLE_ACTION_TEST_USAGE),
+    parts: Array.isArray(options.parts)
+      ? structuredClone(options.parts)
+      : [{ skill_type: 'AttackSkill', target_type: String(options.targetType ?? 'Single'), type: 'Slash' }],
+  };
+}
+
+function createDoubleActionManualState(actorOverrides = {}) {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'DEX1',
+        characterName: 'DEX1',
+        initialSP: 30,
+        skills: [createDoubleActionRestrictedSkill(99001, actorOverrides.skillOptions)],
+        statusEffects: [
+          {
+            statusType: 'DoubleActionExtraSkill',
+            limitType: 'Only',
+            exitCond: 'Count',
+            remaining: 1,
+            power: 1,
+          },
+          ...(Array.isArray(actorOverrides.statusEffects) ? structuredClone(actorOverrides.statusEffects) : []),
+        ],
+        ...(actorOverrides.memberOverrides ?? {}),
+      };
+    }
+    return {
+      skills: [createProtectionSkill(9800 + idx)],
+    };
+  });
+  return createBattleStateFromParty(party);
+}
+
 test('consume_type Token spends token instead of SP on preview and commit', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -14250,4 +14302,546 @@ test('P3-B: exitCond=PlayerTurnEnd: T2では再び発動する', () => {
     'extra',
     'T2でEXスキル使用時、PlayerTurnEnd リセット後に二度咲きが再発火してextra turnになること'
   );
+});
+
+test('DoubleActionExtraSkill: 水瀬すももの初回EXは二連になり、SPは1回分・使用回数は2回分消費する', () => {
+  const store = getStore();
+  const party = buildFullSkillRealDataParty(store, 46002310, {
+    buildOptions: {
+      initialSP: 30,
+      limitBreakLevelsByPartyIndex: { 0: 2 },
+    },
+  });
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  const actor = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46002310, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.deepEqual(preview.actions.map((entry) => entry.castIndex), [0, 1]);
+  assert.equal(preview.actions[0].castCount, 2);
+  assert.equal(preview.actions[0].spCost, 14);
+  assert.equal(preview.actions[1].spCost, 0);
+  assert.equal(preview.actions[1].isDerivedRepeat, true);
+  assert.equal(preview.actions[1].startSP, preview.actions[0].endSP);
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const actorAfter = nextState.party[0];
+
+  assert.equal(committedRecord.actions.length, 2);
+  assert.equal(actorAfter.getSkillUseCountByLabel('SMinaseSkill54'), 2);
+  assert.equal(actorAfter.resolveEffectiveDoubleActionExtraSkillEffects().length, 0);
+});
+
+test('DoubleActionExtraSkill: 水瀬すももLB3はEX使用後に次回ぶんの二連権を再付与する', () => {
+  const store = getStore();
+  const party = buildFullSkillRealDataParty(store, 46002310, {
+    buildOptions: {
+      initialSP: 30,
+      limitBreakLevelsByPartyIndex: { 0: 3 },
+    },
+  });
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  const actor = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46002310, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  const actorAfter = nextState.party[0];
+
+  assert.equal(actorAfter.resolveEffectiveDoubleActionExtraSkillEffects().length, 1);
+
+  const nextPreview = previewTurn(nextState, {
+    0: { characterId: actorAfter.characterId, skillId: 46002310, targetEnemyIndex: 0 },
+  });
+  assert.equal(nextPreview.actions.length, 2);
+});
+
+test('DoubleActionExtraSkill: 朝倉可憐の意気揚々で次のEX二連権が自己付与される', () => {
+  const store = getStore();
+  const party = buildFullSkillRealDataParty(store, 46001512, {
+    buildOptions: {
+      initialSP: 30,
+    },
+  });
+  const initialState = createBattleStateFromParty(party);
+  const actor = initialState.party[0];
+
+  const buffPreview = previewTurn(initialState, {
+    0: { characterId: actor.characterId, skillId: 46001511, targetEnemyIndex: 0 },
+  });
+  const { nextState: buffedState } = commitTurn(initialState, buffPreview);
+  const actorAfterBuff = buffedState.party[0];
+
+  assert.equal(actorAfterBuff.resolveEffectiveDoubleActionExtraSkillEffects().length, 1);
+
+  const exPreview = previewTurn(buffedState, {
+    0: { characterId: actorAfterBuff.characterId, skillId: 46001512, targetEnemyIndex: 0 },
+  });
+  assert.equal(exPreview.actions.length, 2);
+  assert.equal(exPreview.actions[0].spCost, 14);
+  assert.equal(exPreview.actions[1].spCost, 0);
+  assert.equal(exPreview.actions[1].startSP, exPreview.actions[0].endSP);
+
+  const { nextState: exState } = commitTurn(buffedState, exPreview);
+  const actorAfterEx = exState.party[0];
+  assert.equal(actorAfterEx.getSkillUseCountByLabel('KAsakuraSkill54'), 2);
+  assert.equal(actorAfterEx.resolveEffectiveDoubleActionExtraSkillEffects().length, 0);
+});
+
+test('DoubleActionExtraSkill: 李映夏Funnel付きフグリングクラッシュは1発目だけFunnelを消費し各castで全体バフを付与する', () => {
+  const store = getStore();
+  const LI_STYLE_ID = 1008203;
+  const KAREN_STYLE_ID = 1001507;
+  const FILLER_STYLE_ID = 1001101;
+  const FILLER_BACK_STYLE_IDS = [1001201, 1001301, 1001401];
+  const PROTECTION_SKILL_ID = 46300004;
+  const LI_FUNNEL_SKILL_ID = 46008205;
+  const KAREN_DOUBLE_ACTION_SKILL_ID = 46001511;
+  const KAREN_EX_SKILL_ID = 46001512;
+  const LI_CHARACTER_ID = 'LShanhua';
+  const KAREN_CHARACTER_ID = 'KAsakura';
+  const FUNNEL_POWER = 5;
+  const ATTACK_UP_POWER = 0.75;
+  const EX_SP_COST = 14;
+  const PARTY_MEMBER_COUNT = 6;
+  const REAL_DATA_TEST_INITIAL_SP = 30;
+
+  const party = store.buildPartyFromStyleIds(
+    [LI_STYLE_ID, KAREN_STYLE_ID, FILLER_STYLE_ID, ...FILLER_BACK_STYLE_IDS],
+    {
+      initialSP: REAL_DATA_TEST_INITIAL_SP,
+      skillSetsByPartyIndex: {
+        0: [LI_FUNNEL_SKILL_ID, PROTECTION_SKILL_ID],
+        1: [KAREN_DOUBLE_ACTION_SKILL_ID, KAREN_EX_SKILL_ID, PROTECTION_SKILL_ID],
+        2: [PROTECTION_SKILL_ID],
+      },
+    }
+  );
+  const initialState = createBattleStateFromParty(party);
+  const lee = initialState.party.find((member) => member.characterId === LI_CHARACTER_ID);
+  const karen = initialState.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+  const filler = initialState.party[2];
+
+  assert.ok(lee, '李映夏が前衛に存在すること');
+  assert.ok(karen, '朝倉可憐が前衛に存在すること');
+  assert.ok(filler, 'フィラーが前衛に存在すること');
+
+  const turn1Preview = previewTurn(initialState, {
+    0: { characterId: lee.characterId, skillId: LI_FUNNEL_SKILL_ID, targetCharacterId: karen.characterId },
+    1: { characterId: karen.characterId, skillId: PROTECTION_SKILL_ID },
+    2: { characterId: filler.characterId, skillId: PROTECTION_SKILL_ID },
+  });
+  const { nextState: turn1State } = commitTurn(initialState, turn1Preview);
+  const karenAfterTurn1 = turn1State.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+  const turn1FunnelEffects = karenAfterTurn1.resolveEffectiveFunnelEffects();
+  const turn1AttackUpEffects = karenAfterTurn1
+    .resolveEffectiveStatusEffects('AttackUp')
+    .filter((effect) => Number(effect?.sourceSkillId ?? 0) === LI_FUNNEL_SKILL_ID);
+
+  assert.equal(turn1FunnelEffects.length, 1);
+  assert.equal(turn1FunnelEffects[0].power, FUNNEL_POWER);
+  assert.equal(turn1FunnelEffects[0].exitCond, 'Count');
+  assert.equal(turn1FunnelEffects[0].sourceSkillId, LI_FUNNEL_SKILL_ID);
+  assert.equal(turn1AttackUpEffects.length, 1);
+  assert.equal(turn1AttackUpEffects[0].power, ATTACK_UP_POWER);
+  assert.equal(turn1AttackUpEffects[0].sourceSkillId, LI_FUNNEL_SKILL_ID);
+
+  const turn2Lee = turn1State.party.find((member) => member.characterId === LI_CHARACTER_ID);
+  const turn2Karen = turn1State.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+  const turn2Filler = turn1State.party[2];
+  const turn2Preview = previewTurn(turn1State, {
+    0: { characterId: turn2Lee.characterId, skillId: PROTECTION_SKILL_ID },
+    1: { characterId: turn2Karen.characterId, skillId: KAREN_DOUBLE_ACTION_SKILL_ID },
+    2: { characterId: turn2Filler.characterId, skillId: PROTECTION_SKILL_ID },
+  });
+  const { nextState: turn2State } = commitTurn(turn1State, turn2Preview);
+  const karenAfterTurn2 = turn2State.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+
+  assert.equal(karenAfterTurn2.resolveEffectiveDoubleActionExtraSkillEffects().length, 1);
+  assert.equal(karenAfterTurn2.resolveEffectiveFunnelEffects().length, 1);
+  assert.equal(
+    karenAfterTurn2
+      .resolveEffectiveStatusEffects('AttackUp')
+      .filter((effect) => Number(effect?.sourceSkillId ?? 0) === LI_FUNNEL_SKILL_ID).length,
+    1
+  );
+
+  const turn3Lee = turn2State.party.find((member) => member.characterId === LI_CHARACTER_ID);
+  const turn3Karen = turn2State.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+  const turn3Filler = turn2State.party[2];
+  const turn3Preview = previewTurn(turn2State, {
+    0: { characterId: turn3Lee.characterId, skillId: PROTECTION_SKILL_ID },
+    1: { characterId: turn3Karen.characterId, skillId: KAREN_EX_SKILL_ID, targetEnemyIndex: 0 },
+    2: { characterId: turn3Filler.characterId, skillId: PROTECTION_SKILL_ID },
+  });
+  const karenPreviewActions = turn3Preview.actions.filter(
+    (action) => action.characterId === KAREN_CHARACTER_ID
+  );
+
+  assert.equal(karenPreviewActions.length, 2);
+  assert.deepEqual(karenPreviewActions.map((action) => action.castIndex), [0, 1]);
+  assert.equal(karenPreviewActions[0].skillFunnelHitBonus, FUNNEL_POWER);
+  assert.equal(karenPreviewActions[1].skillFunnelHitBonus, 0);
+  assert.ok(
+    karenPreviewActions[0].activeStatusEffects.some(
+      (effect) => effect.statusType === 'AttackUp' && Number(effect.sourceSkillId ?? 0) === LI_FUNNEL_SKILL_ID
+    )
+  );
+  assert.ok(
+    !karenPreviewActions[1].activeStatusEffects.some(
+      (effect) => effect.statusType === 'AttackUp' && Number(effect.sourceSkillId ?? 0) === LI_FUNNEL_SKILL_ID
+    )
+  );
+  assert.equal(karenPreviewActions[0].spCost, EX_SP_COST);
+  assert.equal(karenPreviewActions[1].spCost, 0);
+
+  const { committedRecord: turn3Record } = commitTurn(turn2State, turn3Preview);
+  const karenCommittedActions = turn3Record.actions.filter(
+    (action) => action.characterId === KAREN_CHARACTER_ID
+  );
+
+  assert.equal(karenCommittedActions.length, 2);
+  assert.equal(karenCommittedActions[0].consumedFunnelEffects.length, 1);
+  assert.equal(karenCommittedActions[1].consumedFunnelEffects.length, 0);
+
+  for (const action of karenCommittedActions) {
+    const criticalRateUpEvents = action.statusEffectsApplied.filter(
+      (event) => event.statusType === 'CriticalRateUp'
+    );
+    const criticalDamageUpEvents = action.statusEffectsApplied.filter(
+      (event) => event.statusType === 'CriticalDamageUp'
+    );
+
+    assert.equal(criticalRateUpEvents.length, PARTY_MEMBER_COUNT);
+    assert.equal(criticalDamageUpEvents.length, PARTY_MEMBER_COUNT);
+    assert.ok(
+      criticalRateUpEvents.every((event) => String(event?.actionInstanceId ?? '') === action.actionInstanceId)
+    );
+    assert.ok(
+      criticalDamageUpEvents.every((event) => String(event?.actionInstanceId ?? '') === action.actionInstanceId)
+    );
+  }
+});
+
+test('DoubleActionExtraSkill: 水瀬すももの二連EXで東城つかさLB3のお裾分けが2回発火する', () => {
+  const store = getStore();
+  const TOJO_STYLE_ID = 1001408;
+  const SUMOMO_STYLE_ID = 1002307;
+  const FRONT_FILLER_STYLE_ID = 1001101;
+  const BACK_FILLER_STYLE_IDS = [1001201, 1001301, 1001501];
+  const PROTECTION_SKILL_ID = 46300004;
+  const SUMOMO_EX_SKILL_ID = 46002310;
+  const TOJO_CHARACTER_ID = 'TTojo';
+  const SUMOMO_CHARACTER_ID = 'SMinase';
+  const FRONT_FILLER_CHARACTER_ID = 'RKayamori';
+  const PASSIVE_TRIGGER_CEILING = 30;
+  const PASSIVE_TRIGGER_COUNT = 2;
+  const TOJO_SELF_HEAL_DELTA = 3;
+  const TOJO_PARTY_HEAL_DELTA = 2;
+  const INITIAL_SUMOMO_SP = 30;
+  const INITIAL_OTHER_SP = 10;
+  const EXPECTED_BACKLINE_SP_AFTER_DOUBLE_EX = 20;
+
+  const party = store.buildPartyFromStyleIds(
+    [TOJO_STYLE_ID, SUMOMO_STYLE_ID, FRONT_FILLER_STYLE_ID, ...BACK_FILLER_STYLE_IDS],
+    {
+      initialSP: INITIAL_OTHER_SP,
+      initialSpByPartyIndex: {
+        1: INITIAL_SUMOMO_SP,
+      },
+      limitBreakLevelsByPartyIndex: {
+        0: 3,
+        1: 3,
+      },
+      skillSetsByPartyIndex: {
+        0: [PROTECTION_SKILL_ID],
+        1: [SUMOMO_EX_SKILL_ID, PROTECTION_SKILL_ID],
+        2: [PROTECTION_SKILL_ID],
+      },
+    }
+  );
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  const tojo = state.party.find((member) => member.characterId === TOJO_CHARACTER_ID);
+  const sumomo = state.party.find((member) => member.characterId === SUMOMO_CHARACTER_ID);
+  const frontFiller = state.party.find((member) => member.characterId === FRONT_FILLER_CHARACTER_ID);
+
+  assert.ok(tojo, '東城つかさが前衛に存在すること');
+  assert.ok(sumomo, '水瀬すももが前衛に存在すること');
+  assert.ok(frontFiller, '前衛フィラーが存在すること');
+
+  const preview = previewTurn(state, {
+    0: { characterId: tojo.characterId, skillId: PROTECTION_SKILL_ID },
+    1: { characterId: sumomo.characterId, skillId: SUMOMO_EX_SKILL_ID, targetEnemyIndex: 0 },
+    2: { characterId: frontFiller.characterId, skillId: PROTECTION_SKILL_ID },
+  });
+  const sumomoPreviewActions = preview.actions.filter(
+    (action) => action.characterId === SUMOMO_CHARACTER_ID
+  );
+
+  assert.equal(sumomoPreviewActions.length, 2);
+  assert.deepEqual(sumomoPreviewActions.map((action) => action.castIndex), [0, 1]);
+  assert.notEqual(
+    sumomoPreviewActions[0].actionInstanceId,
+    sumomoPreviewActions[1].actionInstanceId,
+    '二連EXの各castは別actionInstanceIdを持つこと'
+  );
+
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const committedSumomoActions = committedRecord.actions.filter(
+    (action) => action.characterId === SUMOMO_CHARACTER_ID
+  );
+  const tojoAction = committedRecord.actions.find((action) => action.characterId === TOJO_CHARACTER_ID);
+  const frontFillerAction = committedRecord.actions.find(
+    (action) => action.characterId === FRONT_FILLER_CHARACTER_ID
+  );
+
+  assert.equal(committedSumomoActions.length, 2);
+  assert.ok(tojoAction, '東城つかさのaction recordが存在すること');
+  assert.ok(frontFillerAction, '前衛フィラーのaction recordが存在すること');
+
+  const oshusowakeEvents = (committedRecord.passiveEvents ?? []).filter(
+    (event) => event.passiveName === 'お裾分け'
+  );
+  const aikyoEvents = (committedRecord.passiveEvents ?? []).filter(
+    (event) => event.passiveName === '愛嬌'
+  );
+
+  assert.equal(oshusowakeEvents.length, PASSIVE_TRIGGER_COUNT);
+  assert.equal(aikyoEvents.length, PASSIVE_TRIGGER_COUNT);
+  assert.deepEqual(oshusowakeEvents.map((event) => event.castIndex), [0, 1]);
+  assert.deepEqual(aikyoEvents.map((event) => event.castIndex), [0, 1]);
+  assert.deepEqual(
+    oshusowakeEvents.map((event) => event.actionInstanceId),
+    committedSumomoActions.map((action) => action.actionInstanceId)
+  );
+  assert.deepEqual(
+    aikyoEvents.map((event) => event.actionInstanceId),
+    committedSumomoActions.map((action) => action.actionInstanceId)
+  );
+  assert.ok(
+    oshusowakeEvents.every((event) => Number(event.triggerSkillId ?? 0) === SUMOMO_EX_SKILL_ID)
+  );
+  assert.ok(
+    aikyoEvents.every((event) => Number(event.triggerSkillId ?? 0) === SUMOMO_EX_SKILL_ID)
+  );
+
+  const tojoPassiveSpChanges = (tojoAction.spChanges ?? []).filter(
+    (change) => change.source === 'sp_passive'
+  );
+  const tojoSelfHealChanges = tojoPassiveSpChanges.filter(
+    (change) =>
+      change.delta === TOJO_SELF_HEAL_DELTA &&
+      Number(change.eventCeiling ?? 0) === PASSIVE_TRIGGER_CEILING
+  );
+  const tojoPartyHealChanges = tojoPassiveSpChanges.filter(
+    (change) =>
+      change.delta === TOJO_PARTY_HEAL_DELTA &&
+      Number(change.eventCeiling ?? 0) === PASSIVE_TRIGGER_CEILING
+  );
+  assert.equal(tojoSelfHealChanges.length, PASSIVE_TRIGGER_COUNT);
+  assert.equal(tojoPartyHealChanges.length, PASSIVE_TRIGGER_COUNT);
+
+  const frontFillerPassiveSpChanges = (frontFillerAction.spChanges ?? []).filter(
+    (change) =>
+      change.source === 'sp_passive' &&
+      change.delta === TOJO_PARTY_HEAL_DELTA &&
+      Number(change.eventCeiling ?? 0) === PASSIVE_TRIGGER_CEILING
+  );
+  assert.equal(frontFillerPassiveSpChanges.length, PASSIVE_TRIGGER_COUNT);
+
+  for (const action of committedSumomoActions) {
+    const partyHealChanges = (action.spChanges ?? []).filter(
+      (change) =>
+        change.source === 'sp_passive' &&
+        change.delta === TOJO_PARTY_HEAL_DELTA &&
+        Number(change.eventCeiling ?? 0) === PASSIVE_TRIGGER_CEILING
+    );
+    assert.equal(partyHealChanges.length, 1);
+  }
+
+  const nextSpByCharacterId = Object.fromEntries(
+    nextState.party.map((member) => [member.characterId, member.sp.current])
+  );
+  for (const backlineCharacterId of ['YIzumi', 'MAikawa', 'KAsakura']) {
+    assert.equal(
+      nextSpByCharacterId[backlineCharacterId],
+      EXPECTED_BACKLINE_SP_AFTER_DOUBLE_EX,
+      `${backlineCharacterId} は二連EXとお裾分け2回で SP20 になること`
+    );
+  }
+});
+
+test('DoubleActionExtraSkill: EX残回数が1以下なら二連せず単発のままになる', () => {
+  const singleUseState = createDoubleActionManualState({
+    skillOptions: {
+      usage: {
+        mode: 'fixed',
+        displayUses: 1,
+        maxUses: 1,
+        minUses: 1,
+        expandable: true,
+      },
+    },
+  });
+
+  const preview = previewTurn(singleUseState, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 1);
+  assert.equal(preview.actions[0].castCount, 1);
+  assert.equal(preview.actions[0].spCost, 14);
+});
+
+test('DoubleActionExtraSkill: Funnelは1発目だけで消費され、2発目には乗らない', () => {
+  const state = createDoubleActionManualState({
+    statusEffects: [
+      {
+        statusType: 'Funnel',
+        limitType: 'Default',
+        exitCond: 'Count',
+        remaining: 1,
+        power: 3,
+      },
+    ],
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.ok(preview.actions[0].skillFunnelHitBonus > 0);
+  assert.equal(preview.actions[1].skillFunnelHitBonus, 0);
+
+  const { committedRecord } = commitTurn(state, preview);
+  assert.equal(committedRecord.actions[0].consumedFunnelEffects.length, 1);
+  assert.equal(committedRecord.actions[1].consumedFunnelEffects.length, 0);
+});
+
+test('DoubleActionExtraSkill: MindEyeは1発目だけで消費され、2発目では消費されない', () => {
+  const state = createDoubleActionManualState({
+    statusEffects: [
+      {
+        statusType: 'MindEye',
+        limitType: 'Only',
+        exitCond: 'Count',
+        remaining: 1,
+        power: 1,
+        metadata: { singleTrigger: true },
+      },
+    ],
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  assert.equal(committedRecord.actions.length, 2);
+  assert.equal(committedRecord.actions[0].consumedMindEyeEffects.length, 1);
+  assert.equal(committedRecord.actions[1].consumedMindEyeEffects.length, 0);
+});
+
+test('DoubleActionExtraSkill: Count型AttackUpは1発目で切れ、2発目previewには残らない', () => {
+  const state = createDoubleActionManualState({
+    statusEffects: [
+      {
+        statusType: 'AttackUp',
+        limitType: 'Default',
+        exitCond: 'Count',
+        remaining: 1,
+        power: 0.5,
+        metadata: { activeBuffStatus: true },
+      },
+    ],
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.equal(preview.actions[0].activeStatusEffectModifiers.attackUpRate, 0.5);
+  assert.equal(preview.actions[1].activeStatusEffectModifiers.attackUpRate, 0);
+});
+
+test('DoubleActionExtraSkill: passive由来のCount型AttackUpはaction消費されず2発目にも残る', () => {
+  const state = createDoubleActionManualState({
+    statusEffects: [
+      {
+        statusType: 'AttackUp',
+        limitType: 'Default',
+        exitCond: 'Count',
+        remaining: 1,
+        power: 0.5,
+        sourceType: 'passive',
+      },
+    ],
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.equal(preview.actions[0].activeStatusEffectModifiers.attackUpRate, 0.5);
+  assert.equal(preview.actions[1].activeStatusEffectModifiers.attackUpRate, 0.5);
+});
+
+test('DoubleActionExtraSkill: self resource gains are allocated to each cast without duplication', () => {
+  const state = createDoubleActionManualState({
+    skillOptions: {
+      parts: [
+        { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' },
+        { skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0] },
+        { skill_type: 'HealEp', target_type: 'Self', power: [3, 0], value: [0, 0] },
+        { skill_type: 'TokenSet', target_type: 'Self', power: [1, 0], value: [0, 0] },
+      ],
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  assert.equal(committedRecord.actions.length, 2);
+
+  const firstSpSkillChanges = committedRecord.actions[0].spChanges.filter(
+    (change) => change.source === 'active' && change.delta === 2
+  );
+  const secondSpSkillChanges = committedRecord.actions[1].spChanges.filter(
+    (change) => change.source === 'active' && change.delta === 2
+  );
+  assert.equal(firstSpSkillChanges.length, 1);
+  assert.equal(secondSpSkillChanges.length, 1);
+  assert.equal(firstSpSkillChanges[0].delta, 2);
+  assert.equal(secondSpSkillChanges[0].delta, 2);
+
+  const firstEpSkillChanges = committedRecord.actions[0].epChanges.filter(
+    (change) => change.source === 'ep_skill'
+  );
+  const secondEpSkillChanges = committedRecord.actions[1].epChanges.filter(
+    (change) => change.source === 'ep_skill'
+  );
+  assert.equal(firstEpSkillChanges.length, 1);
+  assert.equal(secondEpSkillChanges.length, 1);
+  assert.equal(firstEpSkillChanges[0].delta, 3);
+  assert.equal(secondEpSkillChanges[0].delta, 3);
+
+  const firstTokenSkillChanges = committedRecord.actions[0].tokenChanges.filter(
+    (change) => change.source === 'token_skill'
+  );
+  const secondTokenSkillChanges = committedRecord.actions[1].tokenChanges.filter(
+    (change) => change.source === 'token_skill'
+  );
+  assert.equal(firstTokenSkillChanges.length, 1);
+  assert.equal(secondTokenSkillChanges.length, 1);
+  assert.equal(firstTokenSkillChanges[0].delta, 1);
+  assert.equal(secondTokenSkillChanges[0].delta, 1);
 });

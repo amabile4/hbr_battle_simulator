@@ -1,6 +1,6 @@
 # 状態付与型パッシブ 実装WBS（38件）
 
-> 最終更新: 2026-03-25
+> 最終更新: 2026-03-29
 > 対象: `json/passives.json` 内の `AdditionalHit*` を持つ全パッシブ（750件中38件）
 
 ---
@@ -21,10 +21,10 @@
 
 | ステータス | 件数 |
 |----------|------|
-| ✅ 完全実装 | 31 |
+| ✅ 完全実装 | 32 |
 | ⚠️ 部分実装 | 0 |
 | 📝 発火・ログのみ | 2 |
-| 🔧 発火のみ（効果未実装） | 5 |
+| 🔧 発火のみ（効果未実装） | 4 |
 | ❌ 無発火 | 0 |
 | **合計** | **38** |
 
@@ -45,7 +45,7 @@
 | 9 | 恐怖の叫び | OnExtraSkill | Talisman | All | Eternal | 🔧 発火のみ | Talisman未実装 |
 | 10 | 心ときめく応援 | OnSpecifiedSkill | Morale +2 | Self | Eternal | ✅ 完全実装 | |
 | 11 | 迸る衝動 (100230600) | OnKillCount | Morale +2 | Self | Eternal | ✅ 完全実装 | killCount倍率適用済み |
-| 12 | 二股の尻尾 | OnExtraSkill | DoubleActionExtraSkill | Self | Eternal | 🔧 発火のみ | DoubleActionExtraSkill未実装（追加行動2回化） |
+| 12 | 二股の尻尾 | OnExtraSkill | DoubleActionExtraSkill | Self | Eternal | ✅ 完全実装 | EX二連権を再付与。水瀬すももLB3の次回EX二連を確認済み |
 | 13 | ダークチアリング | OnExtraSkill | Morale +2 | AllyAll | Eternal | ✅ 完全実装 | |
 | 14 | エネルギー補給 | OnHealedSpWithoutSelfHeal | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 15 | 迸る衝動 (100250600) | OnKillCount | Morale +2 | Self | Eternal | ✅ 完全実装 | killCount倍率適用済み |
@@ -104,7 +104,6 @@
 | effectType | 対象パッシブ | 効果の説明 |
 |-----------|-----------|---------|
 | `Talisman` | 恐怖の叫び | 敵全体へタリスマン付与（パーティ全体に恩恵） |
-| `DoubleActionExtraSkill` | 二股の尻尾 | 追加スキル行動を2回実行可能にする |
 | `DebuffGuard` | ライトプロテクション | 味方全体にデバフ防御付与 |
 | `BuffCharge` | 役者魂 | 自身にバフ蓄積（攻撃力強化など） |
 
@@ -127,5 +126,5 @@
 |--------|------|------|
 | 中 | 二度咲き / 貴様に託した（exitCond=PlayerTurnEnd） | 同一ターン内で複数回EXスキル使用時に2回目は発火しないよう管理が必要 |
 | 中 | 激動（exitCond=Count=1） | バトル中1回のみ発火する制限カウント管理が必要 |
-| 低 | Talisman / DebuffGuard / BuffCharge / DoubleActionExtraSkill | バフ/デバフ状態管理システムが必要（大規模） |
+| 低 | Talisman / DebuffGuard / BuffCharge | バフ/デバフ状態管理システムが必要（大規模） |
 | 低 | 浄化の喝采 / 破砕の喝采（AttackUp バフ持続管理） | バフ持続ターン管理システムが未実装 |

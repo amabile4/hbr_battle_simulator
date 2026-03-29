@@ -69,6 +69,27 @@ export async function applyParty(page) {
   return inputRow;
 }
 
+export async function selectSkillForPosition(page, position, skillId) {
+  const inputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
+  const select = inputRow.locator(`[data-skill-select][data-position="${position}"]`);
+  await expect(select).toBeVisible({ timeout: 5000 });
+  await select.selectOption(String(skillId));
+  return inputRow;
+}
+
+export async function commitLatestInputRow(page) {
+  const committedRows = page.locator('[data-turn-row][data-row-mode="committed"]');
+  const committedBefore = await committedRows.count();
+  const inputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
+  const commitButton = inputRow.locator('[data-role="commit-btn"]');
+  await expect(commitButton).toBeVisible({ timeout: 5000 });
+  await commitButton.click();
+
+  await expect(committedRows).toHaveCount(committedBefore + 1, { timeout: 5000 });
+  await expect(page.locator('[data-turn-row][data-row-mode="input"]').last()).toBeVisible({ timeout: 5000 });
+  return committedRows.last();
+}
+
 export async function getPartySetupSlotState(page, slotIndex) {
   const alt = await page
     .locator(`[data-slot="${slotIndex}"] [data-role="party-slot-main-button"] img`)

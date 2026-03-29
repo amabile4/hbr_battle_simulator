@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-21
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
 
 ## 方針
 
@@ -390,7 +390,7 @@
       `AdditionalHitOnExtraSkill`, `AdditionalHitOnBreaking`, `AdditionalHitOnKillCount`, `AdditionalHitOnHealedSpWithoutSelfHeal`,
       `AdditionalHitOnSpecifiedSkill`, `AdditionalHitOnRemovingBuff`, `AdditionalHitOnKill`,
       `AdditionalHitOnZone`, `AdditionalHitOnOverDrivePointDownSkill`, `AdditionalHitOnPursuit`,
-      `ZoneUpEternal`, `DoubleActionExtraSkill`, `ShadowClone`, `BorderRefPDownByAdmiral`,
+      `ZoneUpEternal`, `ShadowClone`, `BorderRefPDownByAdmiral`,
       `ExecuteSkillOnPreTurn`, `RemoveSpecialStatus`, `ArrowCherryBlossoms`, `NegativeMind`, `Makeup`, `Mocktail`, `SpecialCommandCountUp`
     - ログのみ（状態変化なし、パッシブイベント記録）:
       `StunRandom`, `GiveDebuffTurnUp`, `SkillCondition`, `IgnoreEShieldElement`, `Dodge`, `SkillLimitCountUp`, `Misfortune`
@@ -412,6 +412,12 @@
   - ✅ 完了: `ZoneUpEternal` の `OnPlayerTurnStart` / `OnEveryTurn` timing 対応
     - `resolveZoneUpEternalModifier()` が `OnBattleStart` / `OnFirstBattleStart` / `OnPlayerTurnStart` / `OnEveryTurn` を解決
     - `part.power[0]` 加算と有限 `Zone` 限定の永続化を分離適用
+  - ✅ 完了: `DoubleActionExtraSkill` の shared engine 実装（2026-03-29）
+    - `applyPassiveTimingInternal` と `applyMoralePassiveTriggerEffects` で passive 由来の EX 二連権付与を有効化
+    - `applyDoubleActionExtraSkillEffectsFromActions` で通常スキル由来の EX 二連権自己付与を有効化
+    - `previewTurn` / `commitTurn` を逐次 action 実行へ拡張し、同一 EX の 2 発目を `actionInstanceId` / `castIndex` / `castCount` / `isDerivedRepeat` 付きで記録
+    - 仕様固定: SP 消費は 1 回分、スキル使用回数は 2 回分、残回数 1 以下では単発、`Funnel` / `MindEye` / Count 型バフは 1 発目消費後の状態で 2 発目を評価
+    - 実データ確認: 水瀬すもも `[いたずらブラックキャット]` の `ハロウィンフィーバー` / `二股の尻尾`、朝倉可憐 `[盛夏のシャーク・ザ・リッパー]` の `意気揚々`
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 
