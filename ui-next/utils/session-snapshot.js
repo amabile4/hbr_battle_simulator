@@ -100,12 +100,16 @@ function buildSkillNamesByPartyIndex(skillSetsByPartyIndex = {}, resolveSkillNam
   return namesByPartyIndex;
 }
 
-function buildIndexedStyleNameMap(indexedStyleIds = {}, resolveStyleName = null) {
+function buildResolvedNameList(ids = [], resolver = null) {
+  return ids.map((id) => resolveOptionalName(resolver, id));
+}
+
+function buildIndexedResolvedNameMap(indexedValues = {}, resolver = null) {
   const result = {};
   for (let index = 0; index < PARTY_SIZE; index += 1) {
     const key = String(index);
-    const styleId = indexedStyleIds?.[key] ?? indexedStyleIds?.[index] ?? null;
-    result[key] = resolveOptionalName(resolveStyleName, styleId);
+    const value = indexedValues?.[key] ?? indexedValues?.[index] ?? null;
+    result[key] = resolveOptionalName(resolver, value);
   }
   return result;
 }
@@ -134,28 +138,42 @@ function normalizeSpMap(values = {}) {
 export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
   const normalized = normalizeSessionSnapshot(snapshot);
   const resolveStyleName = options.resolveStyleName ?? null;
+  const resolveCharacterName = options.resolveCharacterName ?? null;
   const resolveSkillName = options.resolveSkillName ?? null;
   const getTurnStartSpByStyleId = options.getTurnStartSpByStyleId ?? (() => ({}));
   const getTurnActionSpByStyleId = options.getTurnActionSpByStyleId ?? (() => ({}));
 
   const decorated = structuredClone(normalized);
-  decorated.setup.styleNames = decorated.setup.styleIds.map((styleId) =>
-    resolveOptionalName(resolveStyleName, styleId)
+  decorated.setup.styleNames = buildResolvedNameList(decorated.setup.styleIds, resolveStyleName);
+  decorated.setup.characterNames = buildResolvedNameList(decorated.setup.styleIds, resolveCharacterName);
+  decorated.setup.supportStyleNames = buildResolvedNameList(
+    decorated.setup.supportStyleIds,
+    resolveStyleName
   );
-  decorated.setup.supportStyleNames = decorated.setup.supportStyleIds.map((styleId) =>
-    resolveOptionalName(resolveStyleName, styleId)
+  decorated.setup.supportCharacterNames = buildResolvedNameList(
+    decorated.setup.supportStyleIds,
+    resolveCharacterName
   );
   decorated.setup.skillNamesByPartyIndex = buildSkillNamesByPartyIndex(
     decorated.setup.skillSetsByPartyIndex,
     resolveSkillName
   );
 
-  decorated.replayScript.setup.styleNames = decorated.replayScript.setup.styleIds.map((styleId) =>
-    resolveOptionalName(resolveStyleName, styleId)
+  decorated.replayScript.setup.styleNames = buildResolvedNameList(
+    decorated.replayScript.setup.styleIds,
+    resolveStyleName
   );
-  decorated.replayScript.setup.supportStyleNamesByPartyIndex = buildIndexedStyleNameMap(
+  decorated.replayScript.setup.characterNames = buildResolvedNameList(
+    decorated.replayScript.setup.styleIds,
+    resolveCharacterName
+  );
+  decorated.replayScript.setup.supportStyleNamesByPartyIndex = buildIndexedResolvedNameMap(
     decorated.replayScript.setup.supportStyleIdsByPartyIndex,
     resolveStyleName
+  );
+  decorated.replayScript.setup.supportCharacterNamesByPartyIndex = buildIndexedResolvedNameMap(
+    decorated.replayScript.setup.supportStyleIdsByPartyIndex,
+    resolveCharacterName
   );
   decorated.replayScript.setup.skillNamesByPartyIndex = buildSkillNamesByPartyIndex(
     decorated.replayScript.setup.skillSetsByPartyIndex,
@@ -169,11 +187,13 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
       const styleId = Number(slot?.styleId);
       const skillId = Number(slot?.skillId);
       const styleName = resolveOptionalName(resolveStyleName, styleId);
+      const characterName = resolveOptionalName(resolveCharacterName, styleId);
       const skillName = resolveOptionalName(resolveSkillName, skillId);
       const key = Number.isFinite(styleId) ? String(styleId) : null;
       return {
         ...slot,
         styleName,
+        characterName,
         skillName,
         spAtTurnStart: key ? (spAtTurnStartByStyleId[key] ?? null) : null,
         spAtActionStart: key ? (spAtActionStartByStyleId[key] ?? null) : null,

@@ -43,6 +43,78 @@ function normalizeCharaText(name) {
     .replace(/\s+/g, '');
 }
 
+function extractJapaneseCharacterName(name) {
+  const raw = String(name ?? '').trim();
+  for (const separator of ['—', ' - ']) {
+    if (raw.includes(separator)) {
+      return raw.split(separator)[0].trim();
+    }
+  }
+  return raw;
+}
+
+function collectNamedIdsRecursive(node, namesById) {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      collectNamedIdsRecursive(item, namesById);
+    }
+    return;
+  }
+  if (!node || typeof node !== 'object') {
+    return;
+  }
+
+  const id = Number(node.id);
+  const name = String(node.name ?? '').trim();
+  if (Number.isFinite(id) && name && !namesById.has(id)) {
+    namesById.set(id, name);
+  }
+
+  for (const value of Object.values(node)) {
+    if (value && typeof value === 'object') {
+      collectNamedIdsRecursive(value, namesById);
+    }
+  }
+}
+
+function buildSkillNameIndex(payload = {}) {
+  const namesById = new Map();
+  const register = (id, name) => {
+    const numericId = Number(id);
+    const normalizedName = String(name ?? '').trim();
+    if (!Number.isFinite(numericId) || !normalizedName || namesById.has(numericId)) {
+      return;
+    }
+    namesById.set(numericId, normalizedName);
+  };
+
+  for (const skill of payload.skills ?? []) {
+    register(skill?.id, skill?.name);
+  }
+
+  for (const passive of payload.passives ?? []) {
+    register(passive?.id, passive?.name);
+  }
+
+  for (const style of payload.styles ?? []) {
+    for (const skill of style?.skills ?? []) {
+      register(skill?.id, skill?.name);
+    }
+    for (const passive of style?.passives ?? []) {
+      register(passive?.id, passive?.name);
+    }
+  }
+
+  collectNamedIdsRecursive(payload.skills ?? [], namesById);
+  collectNamedIdsRecursive(payload.styles ?? [], namesById);
+  collectNamedIdsRecursive(payload.passives ?? [], namesById);
+  collectNamedIdsRecursive(payload.accessories ?? [], namesById);
+  collectNamedIdsRecursive(payload.characters ?? [], namesById);
+  collectNamedIdsRecursive(payload.supportSkills ?? [], namesById);
+
+  return namesById;
+}
+
 function toDateValue(value) {
   const t = new Date(String(value ?? '')).getTime();
   return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
@@ -207,6 +279,14 @@ export class HbrDataStore {
     this.characterSortMetaByLabel = this.buildCharacterSortMetaByLabel(this.characters);
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
+    this.skillNamesById = buildSkillNameIndex({
+      skills: this.skills,
+      styles: this.styles,
+      passives: this.passives,
+      accessories: this.accessories,
+      characters: this.characters,
+      supportSkills: this.supportSkills,
+    });
     this.skillRuleOverridesById = new Map(
       this.skillRuleOverrides.map((row) => [Number(row.id), row])
     );
@@ -432,9 +512,31 @@ export class HbrDataStore {
     return this.stylesById.get(Number(styleId)) ?? null;
   }
 
+  resolveStyleName(styleId) {
+    return String(this.getStyleById(styleId)?.name ?? '').trim() || null;
+  }
+
+  resolveCharacterNameByStyleId(styleId) {
+    const style = this.getStyleById(styleId);
+    const rawName = style?.chara ?? style?.chara_name ?? '';
+    return extractJapaneseCharacterName(rawName) || null;
+  }
+
   getSkillById(skillId) {
     const raw = this.skillsById.get(Number(skillId)) ?? null;
     return this.mergeSkillWithOverride(raw);
+  }
+
+  resolveSkillName(skillId) {
+    const numericSkillId = Number(skillId);
+    if (!Number.isFinite(numericSkillId)) {
+      return null;
+    }
+    const directName = String(this.getSkillById(numericSkillId)?.name ?? '').trim();
+    if (directName) {
+      return directName;
+    }
+    return String(this.skillNamesById.get(numericSkillId) ?? '').trim() || null;
   }
 
   getLimitBreakMaxByTier(tier) {

@@ -12273,6 +12273,57 @@ test('ReduceSp (OnFirstBattleStart / 氷天): 氷属性味方のみ -1 適用、
   assert.equal(preview.actions[2].spCost, 5, 'IC3（非氷属性）: spCost 変化なし');
 });
 
+test('ReduceSp (OnFirstBattleStart): applyInitialPassiveState で current SP は変化しない', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `IS${idx + 1}`,
+      characterName: `IS${idx + 1}`,
+      styleId: 2350 + idx,
+      styleName: `ISS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      elements: idx === 1 ? ['Ice'] : [],
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100111101,
+                name: '氷天',
+                desc: '味方全体の氷属性スタイルの消費SPが常時-1',
+                timing: 'OnFirstBattleStart',
+                condition: '',
+                parts: [
+                  {
+                    skill_type: 'ReduceSp',
+                    target_type: 'AllyAll',
+                    target_condition: 'IsNatureElement(Ice)',
+                    power: [1, 0],
+                  },
+                ],
+              },
+            ]
+          : [],
+      skills: [{ id: 29250 + idx, name: 'Act', label: `ISSkill${idx + 1}`, sp_cost: 5, parts: [] }],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const before = state.party.map((member) => member.sp.current);
+
+  applyInitialPassiveState(state);
+
+  const after = state.party.map((member) => member.sp.current);
+  assert.deepEqual(after, before, 'ReduceSp は開幕適用で current SP を変化させない');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'IS1', skillId: 29250 },
+    1: { characterId: 'IS2', skillId: 29251 },
+  });
+  assert.equal(preview.actions[0].spCost, 5, 'IS1（非氷属性）: spCost 変化なし');
+  assert.equal(preview.actions[1].spCost, 4, 'IS2（氷属性）: spCost 5 → 4 (氷天 -1)');
+});
+
 test('ReduceSp (OnAdditionalTurnStart): 追加ターン中のみ自身のスキルコスト -2 が反映される', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

@@ -200,6 +200,7 @@
 - この設定は replay や stage 状態ではなく、session-level の UI 設定として扱う
 - save/load の正本は `SessionSnapshotV1` とし、`setup / simulatorSettings / validationPolicy / replayScript` を保存する
 - 保存JSONには人間向け補助情報（`styleNames` / `skillNames` / `turn.info.spAt*` など）を同居させてよい。読み込み側はこれらを必須にせず、既知フィールド以外は無視する
+- `ReduceSp` は消費SP計算専用として扱い、`applyInitialPassiveState` を含む passive timing 適用で `current SP` を直接増減させない
 - `validationPolicy` は当面 permissive input を維持する箱としてのみ使い、既定値はすべて `true` とする
 - `captureUntilBattleEnd` は session-level option とし、既定値は `ON`、有効時は PNG 保存を最初の `battle end` 行までで打ち切る
 - PNG 保存対象は committed turn rows のみとし、未コミット入力行 / edit 行は含めない

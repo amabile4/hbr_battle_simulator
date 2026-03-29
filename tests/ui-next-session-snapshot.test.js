@@ -102,6 +102,7 @@ test('decorateSessionSnapshotForHumans adds names and turn SP metadata', () => {
     },
     {
       resolveStyleName: (styleId) => ({ 1001: '茅森月歌', 1002: '和泉ユキ', 1003: '逢川めぐみ', 2001: 'サポートA' }[styleId] ?? null),
+      resolveCharacterName: (styleId) => ({ 1001: '茅森 月歌', 1002: '和泉 ユキ', 1003: '逢川 めぐみ', 2001: 'サポート役A' }[styleId] ?? null),
       resolveSkillName: (skillId) => ({ 3001: 'プロテクション', 3002: '通常攻撃' }[skillId] ?? null),
       getTurnStartSpByStyleId: () => ({ 1001: 12, 1002: 9 }),
       getTurnActionSpByStyleId: () => ({ 1001: 12 }),
@@ -109,9 +110,14 @@ test('decorateSessionSnapshotForHumans adds names and turn SP metadata', () => {
   );
 
   assert.deepEqual(decorated.setup.styleNames.slice(0, 3), ['茅森月歌', '和泉ユキ', '逢川めぐみ']);
+  assert.deepEqual(decorated.setup.characterNames.slice(0, 3), ['茅森 月歌', '和泉 ユキ', '逢川 めぐみ']);
   assert.equal(decorated.setup.supportStyleNames[0], 'サポートA');
+  assert.equal(decorated.setup.supportCharacterNames[0], 'サポート役A');
   assert.deepEqual(decorated.setup.skillNamesByPartyIndex['0'], ['プロテクション', '通常攻撃']);
+  assert.deepEqual(decorated.replayScript.setup.characterNames.slice(0, 3), ['茅森 月歌', '和泉 ユキ', '逢川 めぐみ']);
+  assert.equal(decorated.replayScript.setup.supportCharacterNamesByPartyIndex['0'], 'サポート役A');
   assert.equal(decorated.replayScript.turns[0].slots[0].styleName, '茅森月歌');
+  assert.equal(decorated.replayScript.turns[0].slots[0].characterName, '茅森 月歌');
   assert.equal(decorated.replayScript.turns[0].slots[0].skillName, 'プロテクション');
   assert.equal(decorated.replayScript.turns[0].slots[0].spAtTurnStart, 12);
   assert.equal(decorated.replayScript.turns[0].slots[0].spAtActionStart, 12);
@@ -127,9 +133,15 @@ test('normalizeSessionSnapshot ignores additional human-readable fields', () => 
     setup: {
       styleIds: [1001, 1002, 1003, null, null, null],
       styleNames: ['A', 'B', 'C', null, null, null],
+      characterNames: ['CA', 'CB', 'CC', null, null, null],
       skillNamesByPartyIndex: { 0: ['X'] },
     },
     replayScript: {
+      setup: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        characterNames: ['CA', 'CB', 'CC', null, null, null],
+        supportCharacterNamesByPartyIndex: { 0: 'SUP' },
+      },
       turns: [
         {
           turn: 1,
@@ -138,6 +150,7 @@ test('normalizeSessionSnapshot ignores additional human-readable fields', () => 
               styleId: 1001,
               skillId: 3001,
               styleName: 'A',
+              characterName: 'CA',
               skillName: 'X',
               spAtTurnStart: 10,
               spAtActionStart: 9,
@@ -153,8 +166,12 @@ test('normalizeSessionSnapshot ignores additional human-readable fields', () => 
   });
 
   assert.equal(Object.hasOwn(normalized.setup, 'styleNames'), false);
+  assert.equal(Object.hasOwn(normalized.setup, 'characterNames'), false);
   assert.equal(Object.hasOwn(normalized.setup, 'skillNamesByPartyIndex'), false);
+  assert.equal(Object.hasOwn(normalized.replayScript.setup, 'characterNames'), false);
+  assert.equal(Object.hasOwn(normalized.replayScript.setup, 'supportCharacterNamesByPartyIndex'), false);
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0].slots[0], 'styleName'), false);
+  assert.equal(Object.hasOwn(normalized.replayScript.turns[0].slots[0], 'characterName'), false);
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0].slots[0], 'skillName'), false);
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0].slots[0], 'spAtTurnStart'), false);
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0].slots[0], 'spAtActionStart'), false);

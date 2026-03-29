@@ -8569,6 +8569,32 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
+        if (skillType === 'ReduceSp') {
+          // ReduceSp is consumed by skill-cost resolution only.
+          // It must not modify current SP during passive timing application.
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            matched = true;
+            break;
+          }
+          continue;
+        }
+
         if (skillType === 'OverwriteSp') {
           const power = Number(part?.power?.[0] ?? 0);
           if (!Number.isFinite(power) || power === 0) {
@@ -8591,10 +8617,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
               continue;
             }
-            // ReduceSp: power[0] is the reduction amount (positive → negate)
-            // OverwriteSp: power[0] is the target value → delta = target - current
-            const delta =
-              skillType === 'ReduceSp' ? -power : power - Number(target.sp.current ?? 0);
+            const delta = power - Number(target.sp.current ?? 0);
             const change = target.applySpDelta(delta, 'passive');
             spEvents.push({
               actorCharacterId: member.characterId,

@@ -47,6 +47,39 @@ test('listStylesByCharacter returns styles', () => {
   assert.ok(items.some((row) => Number(row.id) === Number(style.id)));
 });
 
+test('store resolves character names and nested skill names for human-readable export', () => {
+  const store = HbrDataStore.fromRawData({
+    characters: [
+      {
+        id: 31,
+        label: 'RKayamori',
+        name: '茅森 月歌',
+        skills: [{ id: 46500123, name: 'Character Skill' }],
+      },
+    ],
+    styles: [
+      {
+        id: 1001101,
+        name: 'Attack or Music',
+        chara: '茅森 月歌 — Ruka Kayamori — ',
+        skills: [{ id: 46000123, name: 'Style Skill' }],
+        passives: [{ id: 46400123, name: 'Style Passive' }],
+      },
+    ],
+    skills: [{ id: 46009999, name: 'Direct Skill' }],
+    passives: [{ id: 46409999, name: 'Passive Catalog Skill' }],
+    accessories: [{ skills: [{ id: 46300123, name: 'Accessory Skill' }] }],
+    supportSkills: [],
+  });
+
+  assert.equal(store.resolveStyleName(1001101), 'Attack or Music');
+  assert.equal(store.resolveCharacterNameByStyleId(1001101), '茅森 月歌');
+  assert.equal(store.resolveSkillName(46009999), 'Direct Skill');
+  assert.equal(store.resolveSkillName(46409999), 'Passive Catalog Skill');
+  assert.equal(store.resolveSkillName(46300123), 'Accessory Skill');
+  assert.equal(store.resolveSkillName(46500123), 'Character Skill');
+});
+
 test('style limit break max depends on tier', () => {
   const store = getStore();
   assert.equal(store.getStyleLimitBreakMax(1001101), 20, 'A max LB should be 20');

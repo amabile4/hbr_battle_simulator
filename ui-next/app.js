@@ -189,14 +189,21 @@ function resolveStyleNameFromStore(store, styleId) {
   if (!Number.isFinite(Number(styleId))) {
     return null;
   }
-  return String(store?.getStyleById(styleId)?.name ?? '').trim() || null;
+  return store?.resolveStyleName?.(styleId) ?? String(store?.getStyleById(styleId)?.name ?? '').trim() || null;
+}
+
+function resolveCharacterNameFromStore(store, styleId) {
+  if (!Number.isFinite(Number(styleId))) {
+    return null;
+  }
+  return store?.resolveCharacterNameByStyleId?.(styleId) ?? null;
 }
 
 function resolveSkillNameFromStore(store, skillId) {
   if (!Number.isFinite(Number(skillId))) {
     return null;
   }
-  return String(store?.getSkillById(skillId)?.name ?? '').trim() || null;
+  return store?.resolveSkillName?.(skillId) ?? String(store?.getSkillById(skillId)?.name ?? '').trim() || null;
 }
 
 function buildTurnStartSpByStyleId(turnEngineManager, turnIndex) {
@@ -252,6 +259,7 @@ function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
     replayScript,
   }, {
     resolveStyleName: (styleId) => resolveStyleNameFromStore(store, styleId),
+    resolveCharacterName: (styleId) => resolveCharacterNameFromStore(store, styleId),
     resolveSkillName: (skillId) => resolveSkillNameFromStore(store, skillId),
     getTurnStartSpByStyleId: (turnIndex) => buildTurnStartSpByStyleId(turnEngineManager, turnIndex),
     getTurnActionSpByStyleId: (turnIndex) => buildTurnActionSpByStyleId(turnEngineManager, turnIndex),
