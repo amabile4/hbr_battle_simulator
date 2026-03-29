@@ -1265,10 +1265,11 @@ export class TurnRowController {
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     return `
       <div data-role="manual-break-editor"
-           class="target-popover absolute right-0 top-[calc(100%+4px)] z-30 w-[280px] rounded-xl border border-gray-200 bg-white p-3 shadow-xl"
+           data-popover-kind="manual-break"
+          class="target-popover absolute right-0 top-[calc(100%+4px)] z-30 w-[min(720px,calc(100vw-16px))] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl overflow-x-hidden"
            ${this.#isBreakEditorOpen ? '' : 'hidden'}>
         <div class="text-[11px] font-semibold text-gray-700 pb-2">討伐・ブレイクを編集</div>
-        <div class="space-y-2.5">
+        <div class="grid gap-2" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
           ${members.map((member) => {
             const actorLabel = resolveManualBreakActorLabel(member, this.#store);
             const selectionContext = this.#getBreakSelectionContext({
@@ -1306,7 +1307,7 @@ export class TurnRowController {
             return `
               <div data-role="manual-break-actor"
                    data-party-index="${member.partyIndex}"
-                   class="rounded-lg border border-gray-100 bg-gray-50 px-2 py-2">
+                   class="rounded-lg border border-gray-100 bg-gray-50 px-2 py-1.5">
                 <div class="pb-1 text-[10px] font-semibold text-gray-700">${actorLabel}</div>
                 <div class="mb-1">
                   <div class="text-[9px] font-semibold text-green-700 pb-0.5">討伐</div>
@@ -2644,18 +2645,88 @@ export class TurnRowController {
     const viewportPadding = 8;
     const viewportWidth = Number(window?.innerWidth ?? 0);
     const viewportHeight = Number(window?.innerHeight ?? 0);
-    const maxPopoverHeight =
-      viewportHeight > 0 ? Math.max(120, viewportHeight - viewportPadding * 2) : 0;
     this.#root.querySelectorAll('.target-popover').forEach((popover) => {
       if (popover.hasAttribute('hidden')) return;
+      popover.style.position = '';
+      popover.style.top = '';
+      popover.style.bottom = '';
+      popover.style.left = '';
+      popover.style.right = '';
+      popover.style.width = '';
       popover.style.transform = '';
       popover.style.maxHeight = '';
       popover.style.overflowY = '';
-      if (maxPopoverHeight > 0) {
-        popover.style.maxHeight = `${maxPopoverHeight}px`;
-        popover.style.overflowY = 'auto';
+
+      if (String(popover.dataset.popoverKind ?? '') === 'manual-break') {
+        const host = popover.closest('.relative');
+        const toggle = host?.querySelector?.('[data-role="manual-break-toggle"]') ?? null;
+        if (toggle) {
+          const toggleRect = toggle.getBoundingClientRect();
+          const resolvedWidth = viewportWidth > 0
+            ? Math.max(280, Math.min(560, viewportWidth - viewportPadding * 2))
+            : 560;
+          const left = viewportWidth > 0
+            ? Math.max(
+                viewportPadding,
+                Math.min(toggleRect.left, viewportWidth - viewportPadding - resolvedWidth)
+              )
+            : Math.max(0, toggleRect.left);
+
+          popover.style.position = 'fixed';
+          popover.style.width = `${resolvedWidth}px`;
+          popover.style.left = `${left}px`;
+          popover.style.top = `${Math.max(viewportPadding, toggleRect.bottom + 4)}px`;
+
+          let fixedRect = popover.getBoundingClientRect();
+          if (viewportHeight > 0) {
+            const spaceBelow = viewportHeight - viewportPadding - (toggleRect.bottom + 4);
+            const spaceAbove = toggleRect.top - viewportPadding - 4;
+            const shouldOpenAbove = fixedRect.bottom > viewportHeight - viewportPadding && spaceAbove > spaceBelow;
+            if (shouldOpenAbove) {
+              popover.style.top = `${Math.max(viewportPadding, toggleRect.top - 4 - fixedRect.height)}px`;
+              fixedRect = popover.getBoundingClientRect();
+            }
+
+            const availableHeight = shouldOpenAbove
+              ? Math.max(120, Math.floor(spaceAbove))
+              : Math.max(120, Math.floor(spaceBelow));
+            if (fixedRect.height > availableHeight) {
+              popover.style.maxHeight = `${availableHeight}px`;
+              popover.style.overflowY = 'auto';
+            }
+          }
+          return;
+        }
       }
-      const rect = popover.getBoundingClientRect();
+
+      let rect = popover.getBoundingClientRect();
+
+      if (viewportHeight > 0) {
+        const availableBelow = viewportHeight - viewportPadding - rect.top;
+        const availableAbove = rect.bottom - viewportPadding;
+        if (rect.bottom > viewportHeight - viewportPadding && availableAbove > availableBelow) {
+          // 下側に収まりきらない場合は、トリガーの上側に展開する。
+          popover.style.top = 'auto';
+          popover.style.bottom = 'calc(100% + 4px)';
+          rect = popover.getBoundingClientRect();
+        }
+
+        const availableHeight = Math.max(
+          120,
+          Math.floor(
+            Math.min(
+              viewportHeight - viewportPadding - rect.top,
+              rect.bottom - viewportPadding
+            )
+          )
+        );
+        if (rect.height > availableHeight) {
+          popover.style.maxHeight = `${availableHeight}px`;
+          popover.style.overflowY = 'auto';
+          rect = popover.getBoundingClientRect();
+        }
+      }
+
       let offsetX = 0;
       let offsetY = 0;
 

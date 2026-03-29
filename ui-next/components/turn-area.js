@@ -79,7 +79,7 @@ export class TurnAreaController {
       return;
     }
     this.#root.innerHTML = `
-      <div data-role="turn-row-list" class="overflow-hidden rounded-xl border border-gray-200 bg-white"></div>
+      <div data-role="turn-row-list" class="overflow-x-hidden overflow-y-visible rounded-xl border border-gray-200 bg-white"></div>
     `;
     this.#rowsRoot = this.#root.querySelector('[data-role="turn-row-list"]');
     this.#statusEl = this.#ensureFloatingStatusHost();
