@@ -27,6 +27,45 @@ import {
 } from './utils/workspace-shell.js';
 import { mountPngCaptureSandbox } from './utils/png-capture.js';
 
+const UI_NEXT_READY_FLAG_KEY = '__UI_NEXT_READY__';
+const UI_NEXT_BOOT_METRICS_KEY = '__UI_NEXT_BOOT_METRICS__';
+
+function setUiNextReadyFlag(ready) {
+  window[UI_NEXT_READY_FLAG_KEY] = Boolean(ready);
+}
+
+function createBootProfiler() {
+  const startedAt = Date.now();
+  const marks = [];
+
+  const publish = (status, errorMessage = null) => {
+    window[UI_NEXT_BOOT_METRICS_KEY] = {
+      status,
+      startedAt,
+      endedAt: Date.now(),
+      totalMs: Math.max(0, Number(performance.now().toFixed(2))),
+      marks: marks.map((mark) => ({ ...mark })),
+      ...(errorMessage ? { errorMessage } : {}),
+    };
+  };
+
+  return {
+    mark(phase, note = '') {
+      marks.push({
+        phase: String(phase),
+        note: String(note ?? ''),
+        atMs: Number(performance.now().toFixed(2)),
+      });
+    },
+    done() {
+      publish('ready');
+    },
+    fail(error) {
+      publish('failed', String(error?.message ?? error ?? 'unknown error'));
+    },
+  };
+}
+
 async function fetchJson(path) {
   if (window.location.protocol === 'file:') {
     const url = new URL(path, import.meta.url).href;
@@ -557,157 +596,204 @@ function setupWorkspaceShell() {
 }
 
 async function main() {
-  let workspaceShell = null;
-  const payload = {
-    characters: await fetchJson('../json/characters.json'),
-    styles: await fetchJson('../json/styles.json'),
-    skills: await fetchJson('../json/skills.json'),
-    passives: await fetchJson('../json/passives.json'),
-    accessories: await fetchJson('../json/accessories.json'),
-    skillRuleOverrides: await fetchJson('../json/skill_rule_overrides.json'),
-    epRuleOverrides: await fetchJson('../json/ep_rule_overrides.json'),
-    transcendenceRuleOverrides: await fetchJson('../json/transcendence_rule_overrides.json'),
-    supportSkills: await fetchJsonOrFallback('../json/support_skills.json', []),
-  };
+  const bootProfiler = createBootProfiler();
+  setUiNextReadyFlag(false);
+  bootProfiler.mark('main:start');
 
-  const store = HbrDataStore.fromRawData(payload);
-  const battleStateManager = new BattleStateManager({ store });
-  const turnEngineManager = new TurnEngineManager();
+  try {
+    let workspaceShell = null;
+    bootProfiler.mark('data:fetch:start');
+    const [
+      characters,
+      styles,
+      skills,
+      passives,
+      accessories,
+      skillRuleOverrides,
+      epRuleOverrides,
+      transcendenceRuleOverrides,
+      supportSkills,
+    ] = await Promise.all([
+      fetchJson('../json/characters.json'),
+      fetchJson('../json/styles.json'),
+      fetchJson('../json/skills.json'),
+      fetchJson('../json/passives.json'),
+      fetchJson('../json/accessories.json'),
+      fetchJson('../json/skill_rule_overrides.json'),
+      fetchJson('../json/ep_rule_overrides.json'),
+      fetchJson('../json/transcendence_rule_overrides.json'),
+      fetchJsonOrFallback('../json/support_skills.json', []),
+    ]);
+    const payload = {
+      characters,
+      styles,
+      skills,
+      passives,
+      accessories,
+      skillRuleOverrides,
+      epRuleOverrides,
+      transcendenceRuleOverrides,
+      supportSkills,
+    };
+    bootProfiler.mark('data:fetch:done');
 
-  // initialSetup は turnArea の onTurnCommitted から参照するため let で先行宣言する
-  let initialSetup;
+    bootProfiler.mark('store:init:start');
+    const store = HbrDataStore.fromRawData(payload);
+    const battleStateManager = new BattleStateManager({ store });
+    const turnEngineManager = new TurnEngineManager();
+    bootProfiler.mark('store:init:done');
 
-  const passiveLogPane = new PassiveLogPaneController({
-    root: document.querySelector('#passive-log-pane'),
-    onHasRowsChange: (hasRows) => workspaceShell?.updatePassiveLogAvailability(hasRows),
-  });
-  passiveLogPane.mount();
-  workspaceShell = setupWorkspaceShell();
+    // initialSetup は turnArea の onTurnCommitted から参照するため let で先行宣言する
+    let initialSetup;
 
-  const turnAreaRoot = document.querySelector('#turn-area');
-  const turnArea = new TurnAreaController({
-    root: turnAreaRoot,
-    store,
-    engineManager: turnEngineManager,
-    onError: (err) => showStatus(`ターン実行エラー: ${err.message}`),
-    onTurnCommitted: () => initialSetup?.setHasRecords(true),
-    onPassiveLogRowsChange: (rows) => passiveLogPane.setRows(rows),
-  });
+    bootProfiler.mark('workspace:init:start');
+    const passiveLogPane = new PassiveLogPaneController({
+      root: document.querySelector('#passive-log-pane'),
+      onHasRowsChange: (hasRows) => workspaceShell?.updatePassiveLogAvailability(hasRows),
+    });
+    passiveLogPane.mount();
+    workspaceShell = setupWorkspaceShell();
+    bootProfiler.mark('workspace:init:done');
 
-  const setupRoot = document.querySelector('#initial-setup-root');
-  const pickerOverlay = document.querySelector('#style-picker-overlay');
-  const presetToolbarRoot = document.querySelector('#party-preset-toolbar');
+    bootProfiler.mark('turn-area:init:start');
+    const turnAreaRoot = document.querySelector('#turn-area');
+    const turnArea = new TurnAreaController({
+      root: turnAreaRoot,
+      store,
+      engineManager: turnEngineManager,
+      onError: (err) => showStatus(`ターン実行エラー: ${err.message}`),
+      onTurnCommitted: () => initialSetup?.setHasRecords(true),
+      onPassiveLogRowsChange: (rows) => passiveLogPane.setRows(rows),
+    });
+    bootProfiler.mark('turn-area:init:done');
 
-  initialSetup = new InitialSetupController({
-    root: setupRoot,
-    pickerOverlay,
-    store,
-    onApply: (snapshot) => {
-      try {
-        const state = battleStateManager.buildFromSnapshot(snapshot.party);
-        const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
-        turnArea.initialize(state, replaySetup, snapshot.simulatorSettings, DEFAULT_VALIDATION_POLICY);
-        initialSetup.setHasActiveBattle(true);
-        initialSetup.setHasRecords(false);
-        window.collapseSetup?.();
-      } catch (err) {
-        showStatus(`BattleState 生成エラー: ${err.message}`);
-        console.error(err);
-      }
-    },
-    onRecalculate: (snapshot, options = {}) => {
-      try {
-        const state = battleStateManager.buildFromSnapshot(snapshot.party);
-        turnArea.reinitialize(state, snapshot.simulatorSettings);
-        initialSetup.setHasActiveBattle(true);
-        if (!options.automatic) {
+    const setupRoot = document.querySelector('#initial-setup-root');
+    const pickerOverlay = document.querySelector('#style-picker-overlay');
+    const presetToolbarRoot = document.querySelector('#party-preset-toolbar');
+
+    bootProfiler.mark('initial-setup:init:start');
+    initialSetup = new InitialSetupController({
+      root: setupRoot,
+      pickerOverlay,
+      store,
+      onApply: (snapshot) => {
+        try {
+          const state = battleStateManager.buildFromSnapshot(snapshot.party);
+          const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
+          turnArea.initialize(state, replaySetup, snapshot.simulatorSettings, DEFAULT_VALIDATION_POLICY);
+          initialSetup.setHasActiveBattle(true);
+          initialSetup.setHasRecords(false);
           window.collapseSetup?.();
+        } catch (err) {
+          showStatus(`BattleState 生成エラー: ${err.message}`);
+          console.error(err);
         }
+      },
+      onRecalculate: (snapshot, options = {}) => {
+        try {
+          const state = battleStateManager.buildFromSnapshot(snapshot.party);
+          turnArea.reinitialize(state, snapshot.simulatorSettings);
+          initialSetup.setHasActiveBattle(true);
+          if (!options.automatic) {
+            window.collapseSetup?.();
+          }
+        } catch (err) {
+          showStatus(`再計算エラー: ${err.message}`);
+          console.error(err);
+        }
+      },
+    });
+    initialSetup.mount();
+    bootProfiler.mark('initial-setup:init:done');
+
+    bootProfiler.mark('preset-toolbar:init:start');
+    const presetToolbar = new PartyPresetToolbarController({
+      root: presetToolbarRoot,
+      getPresetPreviews: () => initialSetup.getPartyPresetPreviews(),
+      onLoadPreset: async (index) => {
+        const loaded = initialSetup.loadPartyPreset(index);
+        if (loaded) {
+          showStatus(`プリセット ${index + 1} を読み込みました。`);
+        }
+        return loaded;
+      },
+      onSavePreset: async (index, options = {}) => {
+        const saved = initialSetup.savePartyPreset(index, options);
+        if (saved) {
+          showStatus(`プリセット ${index + 1} を保存しました。`);
+        }
+        return saved;
+      },
+      onRenamePreset: async (index, options = {}) => {
+        const renamed = initialSetup.renamePartyPreset(index, options);
+        if (renamed) {
+          showStatus(`プリセット ${index + 1} の名前を更新しました。`);
+        }
+        return renamed;
+      },
+      onClearPreset: async (index) => {
+        const cleared = initialSetup.clearPartyPreset(index);
+        if (cleared) {
+          showStatus(`プリセット ${index + 1} を削除しました。`);
+        }
+        return cleared;
+      },
+      onError: (error) => {
+        showStatus(`プリセットエラー: ${error.message}`, 'error');
+        console.error(error);
+      },
+    });
+    presetToolbar.mount();
+    presetToolbar.sync();
+    bootProfiler.mark('preset-toolbar:init:done');
+
+    workspaceShell.buttons.sessionSave?.addEventListener('click', () => {
+      try {
+        saveCurrentSession({
+          initialSetup,
+          turnEngineManager,
+          store,
+        });
+        showStatus('セッション JSON を保存しました。');
       } catch (err) {
-        showStatus(`再計算エラー: ${err.message}`);
+        showStatus(`保存エラー: ${err.message}`);
         console.error(err);
       }
-    },
-  });
-  initialSetup.mount();
+    });
 
-  const presetToolbar = new PartyPresetToolbarController({
-    root: presetToolbarRoot,
-    getPresetPreviews: () => initialSetup.getPartyPresetPreviews(),
-    onLoadPreset: async (index) => {
-      const loaded = initialSetup.loadPartyPreset(index);
-      if (loaded) {
-        showStatus(`プリセット ${index + 1} を読み込みました。`);
-      }
-      return loaded;
-    },
-    onSavePreset: async (index, options = {}) => {
-      const saved = initialSetup.savePartyPreset(index, options);
-      if (saved) {
-        showStatus(`プリセット ${index + 1} を保存しました。`);
-      }
-      return saved;
-    },
-    onRenamePreset: async (index, options = {}) => {
-      const renamed = initialSetup.renamePartyPreset(index, options);
-      if (renamed) {
-        showStatus(`プリセット ${index + 1} の名前を更新しました。`);
-      }
-      return renamed;
-    },
-    onClearPreset: async (index) => {
-      const cleared = initialSetup.clearPartyPreset(index);
-      if (cleared) {
-        showStatus(`プリセット ${index + 1} を削除しました。`);
-      }
-      return cleared;
-    },
-    onError: (error) => {
-      showStatus(`プリセットエラー: ${error.message}`, 'error');
-      console.error(error);
-    },
-  });
-  presetToolbar.mount();
-  presetToolbar.sync();
+    workspaceShell.buttons.sessionLoad?.addEventListener('click', () => {
+      workspaceShell.buttons.sessionLoadInput?.click();
+    });
 
-  workspaceShell.buttons.sessionSave?.addEventListener('click', () => {
-    try {
-      saveCurrentSession({
-        initialSetup,
-        turnEngineManager,
-        store,
-      });
-      showStatus('セッション JSON を保存しました。');
-    } catch (err) {
-      showStatus(`保存エラー: ${err.message}`);
-      console.error(err);
-    }
-  });
+    workspaceShell.buttons.sessionLoadInput?.addEventListener('change', async () => {
+      const file = workspaceShell.buttons.sessionLoadInput.files?.[0] ?? null;
+      if (!file) {
+        return;
+      }
+      try {
+        const text = await file.text();
+        loadSessionText({
+          text,
+          initialSetup,
+          battleStateManager,
+          turnArea,
+        });
+      } catch (err) {
+        showStatus(`読込エラー: ${err.message}`);
+        console.error(err);
+      } finally {
+        workspaceShell.buttons.sessionLoadInput.value = '';
+      }
+    });
 
-  workspaceShell.buttons.sessionLoad?.addEventListener('click', () => {
-    workspaceShell.buttons.sessionLoadInput?.click();
-  });
-
-  workspaceShell.buttons.sessionLoadInput?.addEventListener('change', async () => {
-    const file = workspaceShell.buttons.sessionLoadInput.files?.[0] ?? null;
-    if (!file) {
-      return;
-    }
-    try {
-      const text = await file.text();
-      loadSessionText({
-        text,
-        initialSetup,
-        battleStateManager,
-        turnArea,
-      });
-    } catch (err) {
-      showStatus(`読込エラー: ${err.message}`);
-      console.error(err);
-    } finally {
-      workspaceShell.buttons.sessionLoadInput.value = '';
-    }
-  });
+    bootProfiler.mark('main:ready');
+    setUiNextReadyFlag(true);
+    bootProfiler.done();
+  } catch (error) {
+    bootProfiler.fail(error);
+    setUiNextReadyFlag(false);
+    throw error;
+  }
 }
 
 /**

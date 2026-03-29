@@ -1,6 +1,55 @@
 import { expect } from '@playwright/test';
 
 export const PAGE_URL = '/ui-next/index.html';
+const UI_NEXT_READY_TIMEOUT_MS = 15000;
+const OPEN_PICKER_VISIBLE_TIMEOUT_MS = 5000;
+
+async function collectStartupDiagnostics(page, phase, error) {
+  let snapshot;
+  try {
+    snapshot = await page.evaluate(() => {
+      const metrics = window.__UI_NEXT_BOOT_METRICS__ ?? null;
+      const marks = Array.isArray(metrics?.marks)
+        ? metrics.marks.map((mark, index) => {
+            const prev = index > 0 ? metrics.marks[index - 1] : null;
+            const delta = prev ? Number(mark.atMs) - Number(prev.atMs) : Number(mark.atMs);
+            return {
+              phase: String(mark.phase ?? ''),
+              atMs: Number(mark.atMs ?? 0),
+              deltaMs: Number(delta.toFixed(2)),
+              note: String(mark.note ?? ''),
+            };
+          })
+        : [];
+      return {
+        protocol: window.location.protocol,
+        href: window.location.href,
+        documentReadyState: document.readyState,
+        uiNextReady: Boolean(window.__UI_NEXT_READY__),
+        openPickerCount: document.querySelectorAll('[data-action="open-picker"]').length,
+        bootMetrics: metrics
+          ? {
+              status: String(metrics.status ?? ''),
+              totalMs: Number(metrics.totalMs ?? 0),
+              marks,
+              errorMessage: String(metrics.errorMessage ?? ''),
+            }
+          : null,
+      };
+    });
+  } catch (snapshotError) {
+    snapshot = {
+      unavailable: true,
+      reason: String(snapshotError?.message ?? snapshotError ?? 'failed to collect page snapshot'),
+    };
+  }
+
+  return {
+    phase,
+    errorMessage: String(error?.message ?? error ?? 'unknown error'),
+    snapshot,
+  };
+}
 
 export async function gotoUiNext(page) {
   await page.addInitScript(() => {
@@ -8,7 +57,32 @@ export async function gotoUiNext(page) {
   });
   await page.goto(PAGE_URL);
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForSelector('[data-action="open-picker"]', { timeout: 10000 });
+
+  try {
+    await page.waitForFunction(() => window.__UI_NEXT_READY__ === true, undefined, {
+      timeout: UI_NEXT_READY_TIMEOUT_MS,
+    });
+  } catch (error) {
+    const diagnostic = await collectStartupDiagnostics(page, 'waitForReadyFlag', error);
+    // eslint-disable-next-line no-console
+    console.error('[ui-next startup diagnostics]', JSON.stringify(diagnostic, null, 2));
+    throw new Error(
+      `ui-next startup timed out while waiting for ready flag: ${JSON.stringify(diagnostic, null, 2)}`
+    );
+  }
+
+  try {
+    await page.waitForSelector('[data-action="open-picker"]', {
+      timeout: OPEN_PICKER_VISIBLE_TIMEOUT_MS,
+    });
+  } catch (error) {
+    const diagnostic = await collectStartupDiagnostics(page, 'waitForOpenPicker', error);
+    // eslint-disable-next-line no-console
+    console.error('[ui-next startup diagnostics]', JSON.stringify(diagnostic, null, 2));
+    throw new Error(
+      `ui-next startup timed out while waiting for open-picker: ${JSON.stringify(diagnostic, null, 2)}`
+    );
+  }
 }
 
 export async function fillPartySetupSlots(page, slotIndexes = [0, 1, 2, 3]) {
