@@ -466,6 +466,24 @@ test('listPassivesByStyleId preserves activation metadata needed by runtime', ()
   assert.equal(String(passive.parts?.[0]?.skill_type ?? ''), 'AttackUp');
 });
 
+test('listPassivesByStyleId includes master passive converted from skill.passive metadata', () => {
+  const store = getStore();
+  const styleId = 1001103; // 閃光のサーキットバースト（RKayamori）
+  const masterPassiveId = 46511101;
+
+  const passives = store.listPassivesByStyleId(styleId, { limitBreakLevel: 4 });
+  const masterPassive = passives.find((item) => Number(item.id) === masterPassiveId);
+
+  assert.ok(masterPassive, 'master passive should be included in listPassivesByStyleId');
+  assert.equal(masterPassive.sourceType, 'master');
+  assert.equal(masterPassive.timing, 'OnFirstBattleStart');
+  assert.equal(masterPassive.condition, '');
+  assert.equal(masterPassive.effect, 'NormalBuff_Up');
+  assert.equal(masterPassive.requiredLimitBreakLevel, 0);
+  assert.equal(Array.isArray(masterPassive.parts), true);
+  assert.equal(String(masterPassive.parts?.[0]?.skill_type ?? ''), 'MemorySpirit');
+});
+
 test('listPassivesByStyleId keeps same-name passives when activation metadata differs', () => {
   const store = HbrDataStore.fromRawData({
     characters: [{ id: 1, label: 'TestChar', name: 'Test Char', team: '31A' }],

@@ -1220,6 +1220,48 @@ export class HbrDataStore {
       );
     }
 
+    if (this.skillAvailability.includeMasterSkills) {
+      const masterSkill = this.getMasterSkillByCharacterLabel(style.chara_label);
+      const masterSkillId = Number(masterSkill?.id);
+      if (
+        masterSkill &&
+        Number.isFinite(masterSkillId) &&
+        !seen.has(masterSkillId) &&
+        this.isPassiveSkill(masterSkill)
+      ) {
+        const passive = masterSkill.passive ?? {};
+        seen.add(masterSkillId);
+        out.push(
+          clonePassiveWithSource(
+            {
+              id: masterSkillId,
+              label: String(masterSkill?.label ?? ''),
+              name: String(masterSkill?.name ?? ''),
+              desc: String(masterSkill?.desc ?? ''),
+              info: String(masterSkill?.info ?? ''),
+              timing: String(passive?.timing ?? ''),
+              condition: String(passive?.condition ?? ''),
+              effect: String(passive?.effect ?? masterSkill?.effect ?? ''),
+              activ_rate: Number(passive?.activ_rate ?? passive?.activRate ?? 0),
+              auto_type: String(passive?.auto_type ?? passive?.autoType ?? 'None'),
+              limit: Number(passive?.limit ?? 0),
+              parts: Array.isArray(masterSkill?.parts) ? structuredClone(masterSkill.parts) : [],
+              ct: String(style.tier ?? ''),
+              lb: 0,
+            },
+            'master',
+            {
+              sourceStyleId: Number(style.id),
+              sourceStyleName: String(style.name ?? ''),
+              sourceCharacterId: String(style.chara_label ?? ''),
+              sourceCharacterName: normalizeCharacterName(style.chara),
+              sourceCharacterLabel: String(style.chara_label ?? ''),
+            }
+          )
+        );
+      }
+    }
+
     const deduped = [];
     const uniqueByMeaning = new Set();
     for (const passive of out) {
