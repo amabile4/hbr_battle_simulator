@@ -86,10 +86,15 @@ export class PassiveLogPaneController {
       line.dataset.role = 'passive-log-row';
       line.dataset.rowKind = String(row.kind ?? '');
       line.textContent = row.text;
-      line.className =
-        row.kind === 'marker'
-          ? 'border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-mono text-[11px] text-gray-600'
-          : 'px-3 py-1.5 font-mono text-[11px] text-gray-800';
+      if (row.kind === 'marker') {
+        line.className =
+          'border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-mono text-[11px] text-gray-600';
+      } else if (row.kind === 'warning') {
+        line.className =
+          'border-l-2 border-amber-300 bg-amber-50/60 px-3 py-1.5 font-mono text-[11px] text-amber-800';
+      } else {
+        line.className = 'px-3 py-1.5 font-mono text-[11px] text-gray-800';
+      }
       container.appendChild(line);
     }
   }

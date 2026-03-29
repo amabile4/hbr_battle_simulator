@@ -1,5 +1,6 @@
 const ROW_KIND_MARKER = 'marker';
 const ROW_KIND_PASSIVE = 'passive';
+const ROW_KIND_WARNING = 'warning';
 const UNKNOWN_TIMING_LABEL = 'UnknownTiming';
 
 const TURN_START_TIMINGS = Object.freeze([
@@ -104,11 +105,54 @@ function appendBoundarySections(rows, events) {
   }
 }
 
+function appendReplayWarnings(rows, replayDiagnostics = null) {
+  const setupWarnings = Array.isArray(replayDiagnostics?.setupWarnings)
+    ? replayDiagnostics.setupWarnings.map((warning) => normalizeInlineText(warning)).filter(Boolean)
+    : [];
+  const turnWarnings = Array.isArray(replayDiagnostics?.turnWarnings)
+    ? replayDiagnostics.turnWarnings
+    : [];
+
+  const normalizedTurnWarnings = [];
+  for (let turnIndex = 0; turnIndex < turnWarnings.length; turnIndex += 1) {
+    const warnings = Array.isArray(turnWarnings[turnIndex]) ? turnWarnings[turnIndex] : [];
+    for (const warning of warnings) {
+      const message = normalizeInlineText(warning);
+      if (!message) {
+        continue;
+      }
+      normalizedTurnWarnings.push({
+        turnIndex,
+        message,
+      });
+    }
+  }
+
+  if (setupWarnings.length === 0 && normalizedTurnWarnings.length === 0) {
+    return;
+  }
+
+  rows.push(createSectionMarker('=== Warning ==='));
+  for (const warning of setupWarnings) {
+    rows.push({
+      kind: ROW_KIND_WARNING,
+      text: `[Setup] ${warning}`,
+    });
+  }
+  for (const warning of normalizedTurnWarnings) {
+    rows.push({
+      kind: ROW_KIND_WARNING,
+      text: `[T${warning.turnIndex + 1}] ${warning.message}`,
+    });
+  }
+}
+
 export function buildPassiveDebugLogRows({
   initialState = null,
   currentState = null,
   committedRecords = [],
   getStateBefore = () => null,
+  replayDiagnostics = null,
 } = {}) {
   const rows = [];
   const stateFallback = currentState ?? initialState ?? null;
@@ -160,6 +204,8 @@ export function buildPassiveDebugLogRows({
     pendingTurnLabel
   ).filter((e) => TURN_START_TIMINGS.includes(e.timing));
   appendEventSection(rows, pendingTurnStartEvents, `${pendingTurnLabel}開始`);
+
+  appendReplayWarnings(rows, replayDiagnostics);
 
   return rows;
 }

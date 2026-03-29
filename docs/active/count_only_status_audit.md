@@ -26,6 +26,8 @@
 	- `MindEye`: `Funnel` と同じルールグループとして扱い、`Only` は 1 件評価、`Count` は上位 2 件を合算して評価し、高い側を採用する
 	- `CriticalRateUp` / `CriticalDamageUp`: `AttackUp` と同じ `Only` vs `Count` ルールを適用する
 	- 属性一致判定は「マッチした属性のみ」を対象にし、無属性 `Count` active buff は全属性スキルにマッチする
+	- セッションJSON再計算で `Warn(2)` になるケース（`ui_next_session_2026-03-29T04-34-22.739Z.json`）は、`Skill 46001716` の `iuc_cond` 不一致を `allowSkillConditionMismatch=true` で許容した結果（T3/T4 で各1件）
+	- UI暫定対応として、`replayDiagnostics.turnWarnings` を `PassiveLog` に `[Tn] ...` 形式で追記表示する
 - 2026-03-29 時点のデータでは `DefenseUp` は `Count` と `Only` の併存 family ではない
 - `AttackUpIncludeNormal` も `Count/Only` 併存候補ではない
 
@@ -158,11 +160,20 @@
 | `Funnel` | `consumeFunnelEffects consumes highest two count-based effects` |
 | `Funnel` | `DoubleActionExtraSkill: Funnelは1発目だけで消費され、2発目には乗らない` |
 | `Funnel` | `Funnel: Only vs Count(上位2)で勝者を採用し、採用されたCount側のみを消費する` |
+| `Funnel` | `Funnel: 非ダメージスキルではCount候補は消費されない` |
 | `MindEye` | `count-based MindEye is consumed by damage action only` |
 | `MindEye` | `DoubleActionExtraSkill: MindEyeは1発目だけで消費され、2発目では消費されない` |
 | `MindEye` | `MindEye: Only vs Count(上位2)で勝者を採用し、採用されたCount側のみを消費する` |
+| `MindEye` | `MindEye: 追撃ラベルスキルではCount候補は消費されない` |
 | `CriticalRateUp` / `CriticalDamageUp` | `一途なスマイル stores count-based critical statuses and exposes them on the next preview in real data` |
 | `CriticalRateUp` / `CriticalDamageUp` | `極彩色 stores nested elemental critical buffs with the selected effect label in real data` |
+
+### Browser E2E 追加（2026-03-29）
+
+- `tests/e2e/count-only-buff-consumption.spec.js`
+    - ui-next で `Count` 型 `AttackUp` を付与し、次ターンのダメージ skill 実行後にアイコン表示が消えること（実操作上の消費）を確認
+- `tests/e2e/session-load-warning-passive-log.spec.js`
+	- 指定セッションJSON（`tests/e2e/fixtures/ui_next_session_2026-03-29T04-34-22.739Z.json`）を読み込み、再計算後の `PassiveLog` に `=== Warning ===` セクションと `iuc_cond` 不一致理由（T3/T4の2件）が表示されることを確認
 
 ---
 

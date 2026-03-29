@@ -603,6 +603,7 @@ export class TurnAreaController {
         currentState: this.#engineManager.currentState,
         committedRecords: this.#engineManager.computedRecords,
         getStateBefore: (turnIndex) => this.#engineManager.getStateBefore(turnIndex),
+        replayDiagnostics: this.#engineManager.replayDiagnostics,
       })
     );
   }
