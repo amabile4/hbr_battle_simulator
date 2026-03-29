@@ -15,6 +15,12 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="./styles.css" />
+  <!-- preload: 大容量 JSON を app.js 実行前から fetch 開始 -->
+  <link rel="preload" href="../json/styles.json" as="fetch" crossorigin>
+  <link rel="preload" href="../json/skills.json" as="fetch" crossorigin>
+  <link rel="preload" href="../json/passives.json" as="fetch" crossorigin>
+  <link rel="preload" href="../json/characters.json" as="fetch" crossorigin>
+  <link rel="preload" href="../json/accessories.json" as="fetch" crossorigin>
 </head>
 <body class="bg-gray-50 text-gray-900 h-screen h-dvh flex flex-col overflow-hidden">
 

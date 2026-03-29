@@ -66,13 +66,28 @@ function createBootProfiler() {
   };
 }
 
+// Cache API キャッシュバージョン。JSON データを更新したらここを上げて強制リフレッシュ。
+const HBR_CACHE_VERSION = 'hbr-data-v1';
+
 async function fetchJson(path) {
   if (window.location.protocol === 'file:') {
     const url = new URL(path, import.meta.url).href;
     const module = await import(url, { with: { type: 'json' } });
     return module.default;
   }
-  const response = await fetch(path);
+  const url = new URL(path, location.href).href;
+  if ('caches' in window) {
+    const cache = await caches.open(HBR_CACHE_VERSION);
+    const cached = await cache.match(url);
+    if (cached) return cached.json();
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${path}: ${response.status}`);
+    }
+    await cache.put(url, response.clone());
+    return response.json();
+  }
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${path}: ${response.status}`);
   }
