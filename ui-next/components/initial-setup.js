@@ -1,4 +1,5 @@
 import { PartySetupController } from './party-setup.js';
+import { EnemySetupController } from './enemy-setup.js';
 import {
   DEFAULT_SIMULATOR_SETTINGS,
   normalizeSimulatorSettings,
@@ -26,6 +27,8 @@ export class InitialSetupController {
   #onApply;
   #onRecalculate;
   #partySetup = null;
+  #enemySetup = null;
+  #enemies = [];
   #applyBtn = null;
   #recalcBtn = null;
   #hasRecords = false;
@@ -37,12 +40,14 @@ export class InitialSetupController {
     root,
     pickerOverlay,
     store,
+    enemies = [],
     onApply = null,
     onRecalculate = null,
   }) {
     this.#root = root;
     this.#pickerOverlay = pickerOverlay;
     this.#store = store;
+    this.#enemies = enemies;
     this.#onApply = onApply;
     this.#onRecalculate = onRecalculate;
   }
@@ -88,9 +93,8 @@ export class InitialSetupController {
         </div>
 
         <!-- Enemy タブコンテンツ -->
-        <div data-tab-content="enemy" hidden
-             class="min-h-0 flex-1 overflow-y-auto p-4 text-sm text-gray-400 text-center py-12">
-          Enemy Setup<br /><span class="text-xs">(TODO)</span>
+        <div data-tab-content="enemy" hidden class="min-h-0 flex-1 overflow-y-auto">
+          <div id="enemy-setup-root"></div>
         </div>
 
         <!-- Stage タブコンテンツ -->
@@ -206,6 +210,14 @@ export class InitialSetupController {
     this.#partySetup.mount();
     this.#syncPartySetupBattleState();
 
+    // EnemySetup を初期化（1回のみ）
+    const enemyRoot = this.#root.querySelector('#enemy-setup-root');
+    this.#enemySetup = new EnemySetupController({
+      root: enemyRoot,
+      enemies: this.#enemies,
+    });
+    this.#enemySetup.mount();
+
     // 戦闘開始クリック
     this.#applyBtn.addEventListener('click', () => {
       if (this.#applyBtn.disabled) return;
@@ -234,6 +246,7 @@ export class InitialSetupController {
     return {
       party: partySnapshot,
       simulatorSettings: this.getSimulatorSettings(),
+      enemy: this.#enemySetup?.getSnapshot() ?? { enemyCount: 1 },
     };
   }
 
@@ -288,6 +301,9 @@ export class InitialSetupController {
       this.#partySetup?.applySnapshot(snapshot.party ?? {});
     } finally {
       this.#isApplyingSetupSnapshot = false;
+    }
+    if (snapshot.enemy) {
+      this.#enemySetup?.applySnapshot(snapshot.enemy);
     }
     const simulatorSettings = normalizeSimulatorSettings(snapshot.simulatorSettings);
     const enemyMode = simulatorSettings.targetSelection.enemyMode;

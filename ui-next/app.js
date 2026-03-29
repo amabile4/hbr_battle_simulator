@@ -610,6 +610,35 @@ function setupWorkspaceShell() {
   };
 }
 
+/**
+ * enemies.json からシミュレーターに表示する敵リストを生成する。
+ * 表示対象: Dimension コンテンツのボス（label が "Dimension_" で始まる is_boss=true の敵）
+ * 同名の敵は最高 ID（最新/最高難度）1 件に絞り込む。
+ */
+function buildEnemyList(rawEnemies) {
+  if (!Array.isArray(rawEnemies)) return [];
+  const dimBosses = rawEnemies.filter(
+    e => e.flags?.is_boss === true && typeof e.label === 'string' && e.label.startsWith('Dimension_')
+  );
+  const byName = new Map();
+  dimBosses.forEach(e => {
+    const prev = byName.get(e.name);
+    if (!prev || e.id > prev.id) byName.set(e.name, e);
+  });
+  return [...byName.values()]
+    .map(e => ({
+      id:          e.id,
+      name:        e.name,
+      dimension:   Number(e.label.split('_')[1] ?? 0),
+      od_rate:     e.base_param?.od_rate    ?? 0,
+      max_d_rate:  e.base_param?.max_d_rate ?? 999,
+      resistances: { element: e.resistances?.element ?? {} },
+    }))
+    .sort((a, b) => b.dimension !== a.dimension
+      ? b.dimension - a.dimension
+      : (a.name ?? '').localeCompare(b.name ?? '', 'ja'));
+}
+
 async function main() {
   const bootProfiler = createBootProfiler();
   setUiNextReadyFlag(false);
@@ -628,6 +657,7 @@ async function main() {
       epRuleOverrides,
       transcendenceRuleOverrides,
       supportSkills,
+      rawEnemies,
     ] = await Promise.all([
       fetchJson('../json/characters.json'),
       fetchJson('../json/styles.json'),
@@ -638,6 +668,7 @@ async function main() {
       fetchJson('../json/ep_rule_overrides.json'),
       fetchJson('../json/transcendence_rule_overrides.json'),
       fetchJsonOrFallback('../json/support_skills.json', []),
+      fetchJsonOrFallback('../json/enemies.json', []),
     ]);
     const payload = {
       characters,
@@ -691,9 +722,10 @@ async function main() {
       root: setupRoot,
       pickerOverlay,
       store,
+      enemies: buildEnemyList(rawEnemies),
       onApply: (snapshot) => {
         try {
-          const state = battleStateManager.buildFromSnapshot(snapshot.party);
+          const state = battleStateManager.buildFromSnapshot(snapshot.party, snapshot.enemy);
           const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
           turnArea.initialize(state, replaySetup, snapshot.simulatorSettings, DEFAULT_VALIDATION_POLICY);
           initialSetup.setHasActiveBattle(true);
@@ -706,7 +738,7 @@ async function main() {
       },
       onRecalculate: (snapshot, options = {}) => {
         try {
-          const state = battleStateManager.buildFromSnapshot(snapshot.party);
+          const state = battleStateManager.buildFromSnapshot(snapshot.party, snapshot.enemy);
           turnArea.reinitialize(state, snapshot.simulatorSettings);
           initialSetup.setHasActiveBattle(true);
           if (!options.automatic) {

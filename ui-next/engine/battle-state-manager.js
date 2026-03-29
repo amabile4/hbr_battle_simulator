@@ -32,7 +32,7 @@ export class BattleStateManager {
    * @param {ReturnType<import('../components/party-setup.js').PartySetupController['getSnapshot']>} snapshot
    * @returns {object} BattleState
    */
-  buildFromSnapshot(snapshot) {
+  buildFromSnapshot(snapshot, enemySetup = {}) {
     if (!snapshot.isFrontFilled) {
       throw new Error('前衛3スロットを設定してください。');
     }
@@ -97,7 +97,9 @@ export class BattleStateManager {
       markStateByPartyIndex: {},
       statusEffectsByPartyIndex: {},
       initialOdGauge: 0,
-      enemyCount: DEFAULT_ENEMY_COUNT,
+      enemyCount: enemySetup.enemyCount != null
+        ? Number(enemySetup.enemyCount) || DEFAULT_ENEMY_COUNT
+        : DEFAULT_ENEMY_COUNT,
       enemyNamesByEnemy: {},
       damageRatesByEnemy: {},
       destructionRateByEnemy: {},
