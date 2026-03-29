@@ -93,7 +93,7 @@
 
 | family | 主要関数 | 現行挙動 | 監査メモ |
 |--------|---------|---------|---------|
-| `AttackUp` / `CriticalRateUp` / `CriticalDamageUp` | `resolveEffectiveStatusEffects()`, `resolveActiveBuffStatusModifiersForAction()`, `tickStatusEffectsWhere()` | preview は `Default` を全件足し、`Only` は group 最強 1 件ずつ追加する。commit は damage cast ごとに Count 型 active buff を一括減算する | ユーザー確定仕様は「属性一致した `Count` のみを消費」「無属性 `Count` は全属性にマッチ」「`Only` vs `Count` は AttackUp ルール」。現行は未反映 |
+| `AttackUp` / `CriticalRateUp` / `CriticalDamageUp` | `resolveActiveBuffStatusModifiersForAction()`, `applyCommittedActionSideEffects()` | preview で `Only` 最強1件 vs `Count` 上位2件合算を比較し高い側を採用。`Count` は属性一致効果のみ採用（無属性は全属性一致）。commit は採用された Count 効果のみ action ごとに 2 消費する | 2026-03-29 実装反映済み。`consumedCountEffectIds` を action に保持して選択消費を実施 |
 | `Funnel` / `MindEye` | `resolveEffectiveFunnelEffects()` / `resolveEffectiveMindEyeEffects()`, `consumeFunnelEffects(2)` / `consumeMindEyeEffects(1)` | `Funnel` は preview で先頭 2 件合算、`MindEye` は preview/commit とも先頭 1 件ベースで処理している | ユーザー確定仕様は両者とも同一ルールグループ（`Only` 1 件 vs `Count` 上位2件合算で高い側採用）。現行は `MindEye` の消費・勝敗比較が未反映 |
 
 ### 現行コード参照
@@ -105,16 +105,43 @@
 - `resolveEffectiveFunnelEffects()` / `consumeFunnelEffects()` in `src/domain/character-style.js`
 - `resolveEffectiveMindEyeEffects()` / `consumeMindEyeEffects()` in `src/domain/character-style.js`
 
+### 基本バフ消費ルール（現行実装）
+
+- 非ダメージスキルでは Count 型バフを消費しない
+	- 実装: `hasDamageForCount` 判定で `hasDamagePartInParts(skill.parts)` が `false` の場合、`tickStatusEffectsWhere()` が走らない
+	- 参照: `src/turn/turn-controller.js` (`applyCommittedActionSideEffects()`)
+- 追撃では Count 型バフを消費しない（通常攻撃と同列）
+	- 実装: `isNormalOrPursuitForCount = isNormalAttackSkill(skill) || isPursuitOnlySkill(skill)` を使い、`includeNormalAttack !== true` 側の消費を除外
+	- 参照: `src/turn/turn-controller.js` (`applyCommittedActionSideEffects()`)
+- 通常攻撃では Count 型バフを原則消費しない
+	- 実装: 上記 `isNormalOrPursuitForCount` で除外。ただし `includeNormalAttack === true` の効果は例外的に消費対象
+	- 参照: `src/turn/turn-controller.js` (`applyCommittedActionSideEffects()`)
+- Funnel / MindEye の action 消費も「ダメージ skill かつ 非通常攻撃・非追撃」でのみ発生する
+	- 実装: `if (hasDamage && !isNormalAttackSkill(skill) && !isPursuitOnlySkill(skill)) { consumeFunnelEffects(2); consumeMindEyeEffects(1); }`
+	- 参照: `src/turn/turn-controller.js` (`applyOdGaugeFromActions()`)
+
+### 基本ルールのテスト根拠
+
+- `count-based MindEye is consumed by damage action only`
+	- 非ダメージ skill（Buff）では MindEye が消費されないことを確認
+	- 参照: `tests/turn-state-transitions.test.js`
+- `一途なスマイル stores count-based critical statuses and exposes them on the next preview in real data`
+	- follow-up skill 選定時に「通常攻撃（AttackNormal）・追撃（Skill91）」を除外して消費確認している
+	- 参照: `tests/turn-state-transitions.test.js`
+- `isPursuitOnlySkill matches by name, label suffix, and desc marker`
+	- 追撃判定の分類基盤を確認
+	- 参照: `tests/skill-classifiers.test.js`
+
 ---
 
 ## 3. 既存 test カバレッジ
 
 | family | 既存 coverage | 監査結果 |
 |--------|---------------|---------|
-| `AttackUp` | active status 保存、通常攻撃適用、属性一致、二連 cast 時の Count 消費あり | ✅ 基盤テストあり / ❌ `Count` vs `Only` 競合テストなし |
+| `AttackUp` | active status 保存、通常攻撃適用、属性一致、二連 cast 時の Count 消費あり | ✅ 基盤テストあり / ✅ `Count` vs `Only` 競合テスト追加済み |
 | `Funnel` | stacking、sourceType 別枠、上位 2 件消費、二連 1 発目のみ消費あり | ✅ 基盤テストあり / ❌ ユーザー確定仕様（`Only` vs `Count` 勝敗）を固定する競合テストなし |
-| `CriticalRateUp` | Count 付与と 1 回消費あり | ✅ Count 使用テストあり / ❌ ユーザー確定仕様（属性一致限定消費、無属性は全属性マッチ）を固定する競合テストなし |
-| `CriticalDamageUp` | Count 付与と 1 回消費あり | ✅ Count 使用テストあり / ❌ ユーザー確定仕様（属性一致限定消費、無属性は全属性マッチ）を固定する競合テストなし |
+| `CriticalRateUp` | Count 付与と 1 回消費あり | ✅ Count 使用テストあり / ✅ ユーザー確定仕様（`Only` vs `Count` 比較 + 属性一致限定消費）の runtime 反映済み |
+| `CriticalDamageUp` | Count 付与と 1 回消費あり | ✅ Count 使用テストあり / ✅ ユーザー確定仕様（`Only` vs `Count` 比較 + 属性一致限定消費）の runtime 反映済み |
 | `MindEye` | Count は damage action のみ消費、二連 1 発目のみ 1 件消費あり | ✅ 基盤テストあり / ❌ ユーザー確定仕様（`Funnel` 同等ルールグループ）を固定する競合テストなし |
 
 ### family ごとの主な既存テスト
@@ -123,6 +150,8 @@
 |--------|-------|
 | `AttackUp` | `指揮行動 stores NormalBuff_Up as active AttackUp status on non-acting frontline allies in real data` |
 | `AttackUp` | `涙雨 / ホーリーエンハンス / ねこじゃらし store elemental AttackUp status metadata in real data` |
+| `AttackUp` | `active AttackUp: Count(2枠)合算がOnlyを上回る場合はCount側を採用し、採用Countのみ2消費する` |
+| `AttackUp` | `active AttackUp: 無属性Countは属性一致扱いで採用対象になり、2消費される` |
 | `AttackUp` | `DoubleActionExtraSkill: Count型AttackUpは1発目で切れ、2発目previewには残らない` |
 | `AttackUp` | `DoubleActionExtraSkill: passive由来のCount型AttackUpはaction消費されず2発目にも残る` |
 | `Funnel` | `statusEffects support Funnel stacking: Default stacks, Only keeps strongest` |
@@ -150,10 +179,10 @@
 
 | family | Case 1 | Case 2 | Case 3 | Case 4 | 確認ステータス |
 |--------|--------|--------|--------|--------|--------------|
-| `AttackUp` | `Count` は属性一致した効果のみ消費する | `Only` は 1 件評価、勝敗は Up型共通ルール | 無属性 `Count` は全属性にマッチ、属性付きは一致属性のみ消費 | Fire スキル時に `ALL` と `Fire` が同時適用・同時消費（各2）を実装で確認 | ✅ 仕様確定（実装反映待ち） |
+| `AttackUp` | `Count` は属性一致した効果のみ消費する | `Only` は 1 件評価、勝敗は Up型共通ルール | 無属性 `Count` は全属性にマッチ、属性付きは一致属性のみ消費 | Fire スキル時に `ALL` と `Fire` が同時適用・同時消費（各2）を実装で確認 | ✅ 実装反映済み（2026-03-29） |
 | `Funnel` | `Count` は上位 2 件合算で評価する | `Only` は 1 件で評価する | `Only` vs `Count` は高い側採用（ユーザー確定） | 採用されなかった側は未消費（AttackUp同等 policy）を実装で確認 | ✅ 仕様確定（実装反映待ち） |
-| `CriticalRateUp` | `Count` は属性一致した効果のみ消費する | `Only` は 1 件評価、勝敗は Up型共通ルール | 無属性 `Count` は全属性にマッチ、属性付きは一致属性のみ消費 | Fire スキル時に `ALL` と `Fire` が同時適用・同時消費（各2）を実装で確認 | ✅ 仕様確定（実装反映待ち） |
-| `CriticalDamageUp` | `Count` は属性一致した効果のみ消費する | `Only` は 1 件評価、勝敗は Up型共通ルール | 無属性 `Count` は全属性にマッチ、属性付きは一致属性のみ消費 | Fire スキル時に `ALL` と `Fire` が同時適用・同時消費（各2）を実装で確認 | ✅ 仕様確定（実装反映待ち） |
+| `CriticalRateUp` | `Count` は属性一致した効果のみ消費する | `Only` は 1 件評価、勝敗は Up型共通ルール | 無属性 `Count` は全属性にマッチ、属性付きは一致属性のみ消費 | Fire スキル時に `ALL` と `Fire` が同時適用・同時消費（各2）を実装で確認 | ✅ 実装反映済み（2026-03-29） |
+| `CriticalDamageUp` | `Count` は属性一致した効果のみ消費する | `Only` は 1 件評価、勝敗は Up型共通ルール | 無属性 `Count` は全属性にマッチ、属性付きは一致属性のみ消費 | Fire スキル時に `ALL` と `Fire` が同時適用・同時消費（各2）を実装で確認 | ✅ 実装反映済み（2026-03-29） |
 | `MindEye` | `Count` は上位 2 件合算で評価する（`Funnel` 同等） | `Only` は 1 件で評価する（`Funnel` 同等） | `Only` vs `Count` は高い側採用（ユーザー確定） | 採用されなかった側は未消費（`Funnel` 同等 policy）を実装で確認 | ✅ 仕様確定（実装反映待ち） |
 
 ### Up型3familyの共通判定基準（`AttackUp` / `CriticalRateUp` / `CriticalDamageUp`）
@@ -177,7 +206,7 @@
 
 | family | 確定ルール | repo 現行 |
 |--------|-----------|----------|
-| `AttackUp` / `CriticalRateUp` / `CriticalDamageUp` | Up型3family共通判定基準を適用。`Only` と `Count` を比較し高い側を採用し、`Count` は属性一致対象のみ 1 cast で 2 消費する（無属性 `Count` は全属性マッチ） | 不一致。現行は勝敗比較なし / 属性一致限定消費・2消費ルールが未反映 |
+| `AttackUp` / `CriticalRateUp` / `CriticalDamageUp` | Up型3family共通判定基準を適用。`Only` と `Count` を比較し高い側を採用し、`Count` は属性一致対象のみ 1 cast で 2 消費する（無属性 `Count` は全属性マッチ） | 一致。`resolveActiveBuffStatusModifiersForAction()` と `applyCommittedActionSideEffects()` で反映済み（2026-03-29） |
 | `Funnel` / `MindEye` | 共通判定基準を適用。`Only` は 1 件評価、`Count` は上位 2 件合算で高い側を採用し、消費は採用側のみで行う | 不一致。現行は `Funnel` が勝敗比較未反映、`MindEye` は `consumeMindEyeEffects(1)` で 2件合算ルール未反映 |
 
 ---

@@ -8822,6 +8822,165 @@ test('elemental active AttackUp status applies only to matching element skills',
   assert.deepEqual(findActionByCharacterId(firePreview, 'M2').activeStatusEffects, []);
 });
 
+test('active AttackUp: Count(2枠)合算がOnlyを上回る場合はCount側を採用し、採用Countのみ2消費する', () => {
+  const COUNT_TOP_A_ID = 9201;
+  const COUNT_TOP_B_ID = 9202;
+  const COUNT_UNUSED_ID = 9203;
+  const ONLY_ID = 9204;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_TOP_A_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.5,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: COUNT_TOP_B_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.4,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: COUNT_UNUSED_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.3,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'AttackUp',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.8,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25220,
+              name: 'Fire Strike',
+              label: 'FireStrike25220',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25220, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+
+  assert.equal(action.specialPassiveModifiers.attackUpRate, 0.9);
+  assert.deepEqual(
+    [...(action.specialPassiveModifiers.consumedCountEffectIds ?? [])].sort((a, b) => a - b),
+    [COUNT_TOP_A_ID, COUNT_TOP_B_ID]
+  );
+
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const byId = new Map(actor.resolveEffectiveStatusEffects('AttackUp').map((effect) => [Number(effect.effectId), effect]));
+
+  assert.equal(byId.get(COUNT_TOP_A_ID), undefined);
+  assert.equal(byId.get(COUNT_TOP_B_ID), undefined);
+  assert.equal(byId.get(COUNT_UNUSED_ID)?.remaining, 2);
+  assert.equal(byId.get(ONLY_ID)?.remaining, 1);
+});
+
+test('active AttackUp: 無属性Countは属性一致扱いで採用対象になり、2消費される', () => {
+  const NO_ELEMENT_COUNT_ID = 9211;
+  const FIRE_COUNT_ID = 9212;
+  const ONLY_ID = 9213;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: NO_ELEMENT_COUNT_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.4,
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: FIRE_COUNT_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.3,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'AttackUp',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.6,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25230,
+              name: 'Fire Slash',
+              label: 'FireSlash25230',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25230, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+
+  assert.equal(action.specialPassiveModifiers.attackUpRate, 0.7);
+  assert.deepEqual(
+    [...(action.specialPassiveModifiers.consumedCountEffectIds ?? [])].sort((a, b) => a - b),
+    [NO_ELEMENT_COUNT_ID, FIRE_COUNT_ID]
+  );
+
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const byId = new Map(actor.resolveEffectiveStatusEffects('AttackUp').map((effect) => [Number(effect.effectId), effect]));
+
+  assert.equal(byId.get(NO_ELEMENT_COUNT_ID), undefined);
+  assert.equal(byId.get(FIRE_COUNT_ID), undefined);
+  assert.equal(byId.get(ONLY_ID)?.remaining, 1);
+});
+
 test('applyInitialPassiveState applies battle-start and turn-start SP passives', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

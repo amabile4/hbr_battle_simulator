@@ -5295,6 +5295,71 @@ function summarizeActiveBuffStatusEffect(effect) {
   };
 }
 
+function compareStatusEffectsByPowerDesc(a, b) {
+  const powerA = Number(a?.power ?? 0);
+  const powerB = Number(b?.power ?? 0);
+  if (powerA !== powerB) {
+    return powerB - powerA;
+  }
+  const remainingA = Number(a?.remaining ?? 0);
+  const remainingB = Number(b?.remaining ?? 0);
+  if (remainingA !== remainingB) {
+    return remainingB - remainingA;
+  }
+  const idA = Number(a?.effectId ?? 0);
+  const idB = Number(b?.effectId ?? 0);
+  return idA - idB;
+}
+
+function pickTopStatusEffectsByPower(effects, limit) {
+  const max = Math.max(0, Number(limit) || 0);
+  if (max <= 0) {
+    return [];
+  }
+  return effects
+    .slice()
+    .sort(compareStatusEffectsByPowerDesc)
+    .slice(0, max);
+}
+
+function resolveUpFamilyModifiersForStatusType(state, member, skill, skillElements, statusType) {
+  const activeEffects = member.getStatusEffectsByType(statusType, { activeOnly: true });
+  const matched = activeEffects
+    .filter((effect) => doesActiveBuffStatusEffectMatchSkill(effect, state, member, skill, skillElements))
+    .filter((effect) => Number.isFinite(Number(effect?.power ?? 0)) && Number(effect?.power ?? 0) !== 0);
+
+  const persistentDefaults = matched.filter(
+    (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') !== 'Count'
+  );
+  const onlyCandidates = matched.filter((effect) => String(effect?.limitType ?? '') === 'Only');
+  const countCandidates = matched.filter(
+    (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') === 'Count'
+  );
+
+  const bestOnly = pickTopStatusEffectsByPower(onlyCandidates, 1)[0] ?? null;
+  const topCount = pickTopStatusEffectsByPower(countCandidates, 2);
+  const onlyPower = bestOnly ? Number(bestOnly.power ?? 0) : 0;
+  const countPower = topCount.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0);
+  const adopted = countPower >= onlyPower ? topCount : bestOnly ? [bestOnly] : [];
+
+  const matchedEffects = [
+    ...persistentDefaults.map((effect) => summarizeActiveBuffStatusEffect(effect)),
+    ...adopted.map((effect) => summarizeActiveBuffStatusEffect(effect)),
+  ];
+  const rate =
+    persistentDefaults.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0) +
+    adopted.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0);
+  const consumedCountEffectIds = adopted
+    .filter((effect) => String(effect?.exitCond ?? '') === 'Count')
+    .map((effect) => Number(effect.effectId));
+
+  return {
+    rate,
+    matchedEffects,
+    consumedCountEffectIds,
+  };
+}
+
 function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
   if (!state || !member || !skill) {
     return {
@@ -5318,8 +5383,26 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
   let defenseUpRate = 0;
   let criticalRateUpRate = 0;
   let criticalDamageUpRate = 0;
+  const consumedCountEffectIds = new Set();
 
   for (const statusType of statusTypes) {
+    if (statusType === 'AttackUp' || statusType === 'CriticalRateUp' || statusType === 'CriticalDamageUp') {
+      const resolved = resolveUpFamilyModifiersForStatusType(state, member, skill, skillElements, statusType);
+      const amount = Number(resolved.rate ?? 0);
+      if (amount !== 0) {
+        if (statusType === 'AttackUp') attackUpRate += amount;
+        else if (statusType === 'CriticalRateUp') criticalRateUpRate += amount;
+        else if (statusType === 'CriticalDamageUp') criticalDamageUpRate += amount;
+      }
+      for (const effect of resolved.matchedEffects) {
+        matchedEffects.push(effect);
+      }
+      for (const effectId of resolved.consumedCountEffectIds) {
+        consumedCountEffectIds.add(Number(effectId));
+      }
+      continue;
+    }
+
     for (const effect of member.resolveEffectiveStatusEffects(statusType)) {
       if (!doesActiveBuffStatusEffectMatchSkill(effect, state, member, skill, skillElements)) {
         continue;
@@ -5329,10 +5412,7 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
         continue;
       }
       matchedEffects.push(summarizeActiveBuffStatusEffect(effect));
-      if (statusType === 'AttackUp') attackUpRate += amount;
-      else if (statusType === 'DefenseUp') defenseUpRate += amount;
-      else if (statusType === 'CriticalRateUp') criticalRateUpRate += amount;
-      else if (statusType === 'CriticalDamageUp') criticalDamageUpRate += amount;
+      if (statusType === 'DefenseUp') defenseUpRate += amount;
     }
   }
 
@@ -5342,6 +5422,7 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
     criticalRateUpRate,
     criticalDamageUpRate,
     matchedEffects,
+    consumedCountEffectIds: [...consumedCountEffectIds],
   };
 }
 
@@ -7320,6 +7401,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     activeStatusEffects: structuredClone(activeBuffStatusModifiers.matchedEffects ?? []),
     specialPassiveModifiers: {
       highBoostSkillAtkRate: Number(highBoostModifiers.skillAtkRate ?? 0),
+      consumedCountEffectIds: [...(activeBuffStatusModifiers.consumedCountEffectIds ?? [])],
       attackUpRate:
         Number(activeBuffStatusModifiers.attackUpRate ?? 0) +
         Number(specialAttackUp.totalRate ?? 0) +
@@ -7420,15 +7502,26 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     !skillForCount ||
     isNormalAttackSkill(skillForCount) ||
     isPursuitOnlySkill(skillForCount);
-  if (hasDamageForCount) {
-    member.tickStatusEffectsWhere(
-      (effect) => isCountConsumableActiveBuffStatusEffect(effect) && effect?.metadata?.includeNormalAttack === true
-    );
-  }
-  if (hasDamageForCount && !isNormalOrPursuitForCount) {
-    member.tickStatusEffectsWhere(
-      (effect) => isCountConsumableActiveBuffStatusEffect(effect) && effect?.metadata?.includeNormalAttack !== true
-    );
+  const consumedCountEffectIds = new Set(
+    (actionEntry?.specialPassiveModifiers?.consumedCountEffectIds ?? []).map((value) => Number(value))
+  );
+  if (hasDamageForCount && consumedCountEffectIds.size > 0) {
+    const canConsumeNonNormal = !isNormalOrPursuitForCount;
+    const shouldConsume = (effect) => {
+      if (!isCountConsumableActiveBuffStatusEffect(effect)) {
+        return false;
+      }
+      if (!consumedCountEffectIds.has(Number(effect?.effectId ?? 0))) {
+        return false;
+      }
+      if (effect?.metadata?.includeNormalAttack === true) {
+        return true;
+      }
+      return canConsumeNonNormal;
+    };
+    // Up系の確定仕様に合わせて Count は1 actionあたり2消費。
+    member.tickStatusEffectsWhere(shouldConsume);
+    member.tickStatusEffectsWhere(shouldConsume);
   }
 
   const singleRecord = createSingleActionPreviewRecord(actionEntry, {
