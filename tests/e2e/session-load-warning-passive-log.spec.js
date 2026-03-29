@@ -16,7 +16,7 @@ const EXPECTED_WARNING =
   'skill condition mismatch allowed: Skill 46001716 cannot be used because iuc_cond is not satisfied.';
 
 test.describe('Session JSON load warning visibility', () => {
-  test('JSON読込後の再計算Warning理由をPassiveLogに表示する', async ({ page }) => {
+  test('JSON読込後にiuc_cond不一致WarningはPassiveLogへ表示しない', async ({ page }) => {
     await gotoUiNext(page);
 
     const sessionInput = page.locator('#session-load-input');
@@ -29,13 +29,8 @@ test.describe('Session JSON load warning visibility', () => {
       .toBeGreaterThan(0);
 
     const pane = await openPassiveLog(page);
-
-    await expect(pane.locator('[data-role="passive-log-row"]', { hasText: '=== Warning ===' })).toBeVisible({
-      timeout: 10000,
-    });
-
     const warningRows = pane.locator('[data-role="passive-log-row"][data-row-kind="warning"]');
-    await expect(warningRows).toHaveCount(2);
-    await expect(warningRows).toContainText([`[T3] ${EXPECTED_WARNING}`, `[T4] ${EXPECTED_WARNING}`]);
+    await expect(warningRows).toHaveCount(0);
+    await expect(pane.locator('[data-role="passive-log-row"]', { hasText: EXPECTED_WARNING })).toHaveCount(0);
   });
 });

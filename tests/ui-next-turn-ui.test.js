@@ -756,7 +756,41 @@ test('TurnAreaController surfaces recommit warnings in the status summary and co
     assert.ok(statusEl);
     assert.equal(root.contains(statusEl), false);
     assert.match(statusEl.textContent, /warnings=[1-9]/);
+    assert.ok(statusEl.querySelector('[data-role="turn-replay-status-close"]'));
     assert.match(root.querySelector('[data-turn-info]').textContent, /Warn\(/);
+  }));
+
+test('TurnAreaController status summary can be dismissed by close button', () =>
+  withDom(({ root }) => {
+    const costlySkill = createSkill({
+      id: 95117,
+      name: 'Risk Cut',
+      targetType: 'Self',
+      spCost: 8,
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createState(costlySkill, 1, {
+      initialSP: 1,
+      skills: [costlySkill],
+    });
+
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root.querySelector('[data-role="commit-btn"]').click();
+
+    const statusEl = document.querySelector('[data-role="turn-replay-status"]');
+    assert.ok(statusEl);
+    assert.match(statusEl.textContent, /再計算完了/);
+
+    const closeButton = statusEl.querySelector('[data-role="turn-replay-status-close"]');
+    assert.ok(closeButton);
+    closeButton.click();
+
+    assert.match(statusEl.className, /hidden/);
   }));
 
 test('TurnAreaController recommits an unchanged edited row without breaking swapped front/back positions', () =>

@@ -6746,13 +6746,10 @@ test('CountBC(...BreakDownTurn()>0) is evaluated from enemy down-turn state', ()
   const party = new Party(members);
   const state = createBattleStateFromParty(party);
 
-  assert.throws(
-    () =>
-      previewTurn(state, {
-        0: { characterId: 'ED1', skillId: 18000 },
-      }),
-    /cannot be used/i
-  );
+  const previewWithoutDown = previewTurn(state, {
+    0: { characterId: 'ED1', skillId: 18000 },
+  });
+  assert.equal(previewWithoutDown.actions.length, 1);
 
   state.turnState.enemyState = {
     enemyCount: 1,
@@ -6796,13 +6793,10 @@ test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
   );
   const state = createBattleStateFromParty(new Party(members));
 
-  assert.throws(
-    () =>
-      previewTurn(state, {
-        0: { characterId: 'EB1', skillId: 18100 },
-      }),
-    /cannot be used/i
-  );
+  const previewWithoutBreak = previewTurn(state, {
+    0: { characterId: 'EB1', skillId: 18100 },
+  });
+  assert.equal(previewWithoutBreak.actions.length, 1);
 
   state.turnState.enemyState = {
     enemyCount: 2,
@@ -6812,6 +6806,46 @@ test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
     0: { characterId: 'EB1', skillId: 18100 },
   });
   assert.equal(preview.actions.length, 1);
+});
+
+test('iuc_cond mismatch does not emit skill condition mismatch warning', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18110,
+              name: 'IUC Conditional Skill',
+              label: 'IUCConditionalSkill',
+              sp_cost: 0,
+              iuc_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&BreakDownTurn()>0)>0',
+              parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const warnings = [];
+
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'M1', skillId: 18110 },
+    },
+    null,
+    1,
+    {
+      allowSkillConditionMismatch: true,
+      onWarning: (message) => warnings.push(String(message)),
+    }
+  );
+
+  assert.equal(preview.actions.length, 1);
+  assert.equal(
+    warnings.some((warning) => warning.includes('skill condition mismatch allowed')),
+    false
+  );
 });
 
 test('SuperBreak only upgrades weak broken targets and records StrongBreak state', () => {
@@ -8808,6 +8842,128 @@ test('MindEye: Only vs Count(上位2)で勝者を採用し、採用されたCoun
     (committed.consumedMindEyeEffects ?? []).map((effect) => Number(effect.effectId)).sort((a, b) => a - b),
     [COUNT_A_ID, COUNT_B_ID]
   );
+  assert.equal(remainingIds.has(ONLY_ID), true);
+});
+
+test('Funnel: 非ダメージスキルではCount候補は消費されない', () => {
+  const COUNT_A_ID = 9321;
+  const COUNT_B_ID = 9322;
+  const ONLY_ID = 9323;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_A_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.6,
+            },
+            {
+              effectId: COUNT_B_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.5,
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'Funnel',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.7,
+            },
+          ],
+          skills: [
+            {
+              id: 25242,
+              name: 'Funnel NonDamage Test',
+              label: 'FunnelNonDamage25242',
+              sp_cost: 0,
+              target_type: 'Self',
+              parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25242 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const remainingIds = new Set(actor.getFunnelEffects({ activeOnly: true }).map((effect) => Number(effect.effectId)));
+
+  assert.equal(remainingIds.has(COUNT_A_ID), true);
+  assert.equal(remainingIds.has(COUNT_B_ID), true);
+  assert.equal(remainingIds.has(ONLY_ID), true);
+});
+
+test('MindEye: 追撃ラベルスキルではCount候補は消費されない', () => {
+  const COUNT_A_ID = 9331;
+  const COUNT_B_ID = 9332;
+  const ONLY_ID = 9333;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_A_ID,
+              statusType: 'MindEye',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.6,
+              metadata: { singleTrigger: true },
+            },
+            {
+              effectId: COUNT_B_ID,
+              statusType: 'MindEye',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.5,
+              metadata: { singleTrigger: true },
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'MindEye',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.7,
+              metadata: { singleTrigger: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25243,
+              name: 'PursuitLike',
+              label: 'M1Skill91',
+              sp_cost: 0,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25243, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const remainingIds = new Set(actor.getMindEyeEffects({ activeOnly: true }).map((effect) => Number(effect.effectId)));
+
+  assert.equal(remainingIds.has(COUNT_A_ID), true);
+  assert.equal(remainingIds.has(COUNT_B_ID), true);
   assert.equal(remainingIds.has(ONLY_ID), true);
 });
 

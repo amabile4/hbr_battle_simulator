@@ -7196,9 +7196,9 @@ function validateActionDict(state, actions, options = {}) {
     const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
 
     if (!skipSkillConditions) {
+      // iuc_cond is a discount/consumption condition, not a skill usability guard.
       const skillConditions = [
         { label: 'cond', expression: effectiveSkill?.cond ?? skill.cond },
-        { label: 'iuc_cond', expression: effectiveSkill?.iucCond ?? skill.iucCond },
       ];
       for (const condition of skillConditions) {
         const expr = String(condition.expression ?? '').trim();

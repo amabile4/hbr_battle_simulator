@@ -12,8 +12,9 @@ function createEmptyRowDiagnostics() {
 const TURN_REPLAY_STATUS_HIDDEN_CLASS =
   'hidden pointer-events-none fixed left-4 z-40 max-w-sm rounded-lg border px-3 py-2 text-xs font-semibold shadow-md';
 const TURN_REPLAY_STATUS_VISIBLE_BASE_CLASS =
-  'pointer-events-none fixed left-4 z-40 max-w-sm rounded-lg border px-3 py-2 text-xs font-semibold shadow-md';
+  'pointer-events-auto fixed left-4 z-40 max-w-sm rounded-lg border px-3 py-2 text-xs font-semibold shadow-md';
 const TURN_REPLAY_STATUS_BOTTOM_STYLE = 'max(1rem, env(safe-area-inset-bottom))';
+const TURN_REPLAY_STATUS_AUTO_HIDE_MS = 5000;
 
 export class TurnAreaController {
   #root;
@@ -25,6 +26,8 @@ export class TurnAreaController {
   #rowControllers = [];
   #simulatorSettings = {};
   #statusEl = null;
+  #statusHideTimerId = null;
+  #dismissedStatusKey = '';
   #rowsRoot = null;
   #editSession = null;
 
@@ -82,6 +85,7 @@ export class TurnAreaController {
   #ensureFloatingStatusHost() {
     const existing = document.querySelector('[data-role="turn-replay-status"]');
     if (typeof window !== 'undefined' && existing instanceof window.HTMLElement) {
+      this.#attachStatusCloseHandler(existing);
       existing.className = TURN_REPLAY_STATUS_HIDDEN_CLASS;
       existing.textContent = '';
       existing.style.bottom = TURN_REPLAY_STATUS_BOTTOM_STYLE;
@@ -92,8 +96,54 @@ export class TurnAreaController {
     statusEl.dataset.role = 'turn-replay-status';
     statusEl.className = TURN_REPLAY_STATUS_HIDDEN_CLASS;
     statusEl.style.bottom = TURN_REPLAY_STATUS_BOTTOM_STYLE;
+    this.#attachStatusCloseHandler(statusEl);
     document.body.appendChild(statusEl);
     return statusEl;
+  }
+
+  #attachStatusCloseHandler(statusEl) {
+    if (!statusEl || statusEl.dataset.closeHandlerAttached === 'true') {
+      return;
+    }
+    statusEl.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof window.HTMLElement)) {
+        return;
+      }
+      if (target.closest('[data-role="turn-replay-status-close"]')) {
+        this.#hideStatusSummary({ markDismissed: true });
+      }
+    });
+    statusEl.dataset.closeHandlerAttached = 'true';
+  }
+
+  #clearStatusHideTimer() {
+    if (this.#statusHideTimerId == null) {
+      return;
+    }
+    clearTimeout(this.#statusHideTimerId);
+    this.#statusHideTimerId = null;
+  }
+
+  #hideStatusSummary({ markDismissed = false, statusKey = '' } = {}) {
+    this.#clearStatusHideTimer();
+    if (markDismissed && statusKey) {
+      this.#dismissedStatusKey = statusKey;
+    }
+    if (this.#statusEl) {
+      this.#statusEl.className = TURN_REPLAY_STATUS_HIDDEN_CLASS;
+      this.#statusEl.textContent = '';
+    }
+  }
+
+  #scheduleStatusAutoHide(statusKey, shouldAutoHide) {
+    this.#clearStatusHideTimer();
+    if (!shouldAutoHide) {
+      return;
+    }
+    this.#statusHideTimerId = setTimeout(() => {
+      this.#hideStatusSummary({ statusKey });
+    }, TURN_REPLAY_STATUS_AUTO_HIDE_MS);
   }
 
   #clearRows() {
@@ -573,24 +623,47 @@ export class TurnAreaController {
 
     let text = '';
     let classes = [];
+    let statusKind = '';
     if (diagnostics.error) {
       text = `再計算停止: T${Number(diagnostics.error.index) + 1} ${diagnostics.error.message}`;
       classes = ['border-red-200', 'bg-red-50', 'text-red-700'];
+      statusKind = 'error';
     } else if (this.#engineManager.committedTurnCount > 0) {
       text = `再計算完了: ${diagnostics.appliedTurnCount} turns / warnings=${warningCount}`;
       classes = warningCount > 0
         ? ['border-amber-200', 'bg-amber-50', 'text-amber-700']
         : ['border-sky-200', 'bg-sky-50', 'text-sky-700'];
+      statusKind = warningCount > 0 ? 'warning' : 'info';
     }
 
+    const statusKey = text ? `${statusKind}:${text}` : '';
+
     if (!text) {
-      this.#statusEl.className = TURN_REPLAY_STATUS_HIDDEN_CLASS;
-      this.#statusEl.textContent = '';
+      this.#dismissedStatusKey = '';
+      this.#hideStatusSummary();
       return;
     }
 
+    if (this.#dismissedStatusKey && this.#dismissedStatusKey === statusKey) {
+      this.#hideStatusSummary();
+      return;
+    }
+
+    this.#dismissedStatusKey = '';
+
     this.#statusEl.className = `${TURN_REPLAY_STATUS_VISIBLE_BASE_CLASS} ${classes.join(' ')}`;
-    this.#statusEl.textContent = text;
+    this.#statusEl.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span data-role="turn-replay-status-text" class="min-w-0 flex-1">${text}</span>
+        <button type="button"
+                data-role="turn-replay-status-close"
+                aria-label="再計算ステータスを閉じる"
+                class="inline-flex h-5 w-5 items-center justify-center rounded border border-current/30 text-[11px] leading-none opacity-80 hover:opacity-100">
+          ×
+        </button>
+      </div>
+    `;
+    this.#scheduleStatusAutoHide(statusKey, statusKind !== 'error');
   }
 
   #emitPassiveLogRows() {

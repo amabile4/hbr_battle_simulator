@@ -26,8 +26,8 @@
 	- `MindEye`: `Funnel` と同じルールグループとして扱い、`Only` は 1 件評価、`Count` は上位 2 件を合算して評価し、高い側を採用する
 	- `CriticalRateUp` / `CriticalDamageUp`: `AttackUp` と同じ `Only` vs `Count` ルールを適用する
 	- 属性一致判定は「マッチした属性のみ」を対象にし、無属性 `Count` active buff は全属性スキルにマッチする
-	- セッションJSON再計算で `Warn(2)` になるケース（`ui_next_session_2026-03-29T04-34-22.739Z.json`）は、`Skill 46001716` の `iuc_cond` 不一致を `allowSkillConditionMismatch=true` で許容した結果（T3/T4 で各1件）
-	- UI暫定対応として、`replayDiagnostics.turnWarnings` を `PassiveLog` に `[Tn] ...` 形式で追記表示する
+	- `iuc_cond` はスキル使用可否ではなく消費SP/回数の割引条件として扱う。条件不一致は通常ケースのため Warning には出さない
+	- UI暫定対応として、`replayDiagnostics.turnWarnings` を `PassiveLog` に `[#n] ...` 形式で追記表示する
 - 2026-03-29 時点のデータでは `DefenseUp` は `Count` と `Only` の併存 family ではない
 - `AttackUpIncludeNormal` も `Count/Only` 併存候補ではない
 

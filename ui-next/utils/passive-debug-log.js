@@ -142,7 +142,7 @@ function appendReplayWarnings(rows, replayDiagnostics = null) {
   for (const warning of normalizedTurnWarnings) {
     rows.push({
       kind: ROW_KIND_WARNING,
-      text: `[T${warning.turnIndex + 1}] ${warning.message}`,
+      text: `[#${warning.turnIndex + 1}] ${warning.message}`,
     });
   }
 }
