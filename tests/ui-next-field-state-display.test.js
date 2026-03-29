@@ -19,7 +19,9 @@ test('buildFieldDisplayEntries includes zone metadata with element, multiplier a
   assert.equal(entries[0].label, 'Zone');
   assert.equal(entries[0].name, '火ゾーン');
   assert.equal(entries[0].duration, '7T');
-  assert.deepEqual(entries[0].meta, ['火', '倍率1.80x']);
+  assert.deepEqual(entries[0].meta, ['火', '倍率x1.80']);
+  assert.equal(entries[0].chipText, '火フィールド / x1.80 / (7)');
+  assert.equal(entries[0].chipTone, 'fire');
 });
 
 test('buildFieldDisplayEntries uses eternal label when remainingTurns is null', () => {
@@ -34,6 +36,8 @@ test('buildFieldDisplayEntries uses eternal label when remainingTurns is null', 
   assert.equal(entries.length, 1);
   assert.equal(entries[0].label, 'Territory');
   assert.equal(entries[0].duration, '永続');
+  assert.equal(entries[0].chipText, '水フィールド / x1.50 / (永続)');
+  assert.equal(entries[0].chipTone, 'water');
 });
 
 test('default inactive talisman state is not displayable', () => {

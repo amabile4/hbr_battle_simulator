@@ -1529,16 +1529,41 @@
   gap: 0.25rem;
   max-width: 100%;
   border-radius: 9999px;
-  border: 1px solid #7dd3fc;
-  background: #e0f2fe;
-  color: #0c4a6e;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
   padding: 0.125rem 0.5rem;
   font-size: 0.625rem;
   font-weight: 700;
   line-height: 1.2;
 }
 
-.turn-field-chip-meta {
-  color: #0369a1;
-  font-weight: 600;
+.turn-field-chip-fire {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.turn-field-chip-water {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.turn-field-chip-thunder {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.turn-field-chip-dark {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+
+.turn-field-chip-light {
+  border-color: #d1d5db;
+  background: #f9fafb;
+  color: #374151;
 }

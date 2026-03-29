@@ -1,9 +1,17 @@
 const ELEMENT_LABEL_MAP = Object.freeze({
   Fire: '火',
-  Ice: '氷',
+  Ice: '水',
   Thunder: '雷',
   Light: '光',
   Dark: '闇',
+});
+
+const ELEMENT_TONE_MAP = Object.freeze({
+  Fire: 'fire',
+  Ice: 'water',
+  Thunder: 'thunder',
+  Light: 'light',
+  Dark: 'dark',
 });
 
 const FIELD_LABELS = Object.freeze({
@@ -17,7 +25,7 @@ function formatMultiplier(value) {
   if (!Number.isFinite(numeric) || numeric <= 0) {
     return '';
   }
-  return `倍率${numeric.toFixed(2)}x`;
+  return `x${numeric.toFixed(2)}`;
 }
 
 function resolveRemainingLabel(remainingTurns) {
@@ -37,6 +45,25 @@ function resolveElementLabel(type) {
     return '';
   }
   return ELEMENT_LABEL_MAP[key] ?? key;
+}
+
+function resolveElementTone(type) {
+  const key = String(type ?? '').trim();
+  if (!key) {
+    return 'neutral';
+  }
+  return ELEMENT_TONE_MAP[key] ?? 'neutral';
+}
+
+function resolveChipDurationLabel(remainingTurns) {
+  if (remainingTurns === null || remainingTurns === undefined) {
+    return '永続';
+  }
+  const numeric = Number(remainingTurns);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '';
+  }
+  return String(Math.floor(numeric));
 }
 
 function isActiveFieldState(fieldState) {
@@ -72,8 +99,14 @@ function buildZoneEntry(zoneState) {
   const name = String(zoneState.zoneName ?? zoneState.name ?? (elementLabel ? `${elementLabel}ゾーン` : 'Zone')).trim();
   const desc = String(zoneState.zoneDesc ?? zoneState.desc ?? '').trim();
   const duration = resolveRemainingLabel(zoneState.remainingTurns);
+  const chipDuration = resolveChipDurationLabel(zoneState.remainingTurns);
   const strength = formatMultiplier(zoneState.powerRate);
-  const meta = [elementLabel, strength].filter(Boolean);
+  const meta = [elementLabel, strength ? `倍率${strength}` : ''].filter(Boolean);
+  const chipText = [
+    `${elementLabel || '無属性'}フィールド`,
+    strength,
+    chipDuration ? `(${chipDuration})` : '',
+  ].filter(Boolean).join(' / ');
   return {
     kind: 'zone',
     label: FIELD_LABELS.zone,
@@ -81,6 +114,8 @@ function buildZoneEntry(zoneState) {
     duration,
     desc,
     meta,
+    chipText,
+    chipTone: resolveElementTone(zoneState.type),
   };
 }
 
@@ -94,8 +129,14 @@ function buildTerritoryEntry(territoryState) {
   ).trim();
   const desc = String(territoryState.desc ?? '').trim();
   const duration = resolveRemainingLabel(territoryState.remainingTurns);
+  const chipDuration = resolveChipDurationLabel(territoryState.remainingTurns);
   const strength = formatMultiplier(territoryState.powerRate);
-  const meta = [elementLabel, strength].filter(Boolean);
+  const meta = [elementLabel, strength ? `倍率${strength}` : ''].filter(Boolean);
+  const chipText = [
+    `${elementLabel || '無属性'}フィールド`,
+    strength,
+    chipDuration ? `(${chipDuration})` : '',
+  ].filter(Boolean).join(' / ');
   return {
     kind: 'territory',
     label: FIELD_LABELS.territory,
@@ -103,6 +144,8 @@ function buildTerritoryEntry(territoryState) {
     duration,
     desc,
     meta,
+    chipText,
+    chipTone: resolveElementTone(territoryState.type),
   };
 }
 
@@ -127,6 +170,8 @@ function buildTalismanEntry(talismanState) {
     duration,
     desc,
     meta,
+    chipText: `${name} / Lv${Math.max(0, Math.floor(level))}`,
+    chipTone: 'neutral',
   };
 }
 

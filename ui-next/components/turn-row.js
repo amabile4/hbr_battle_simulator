@@ -917,13 +917,12 @@ export class TurnRowController {
       <div data-role="field-chip-list" class="flex flex-wrap gap-1 pb-1">
         ${entries
           .map((entry) => {
-            const durationPart = entry.duration ? ` ${entry.duration}` : '';
-            const metaPart = Array.isArray(entry.meta) && entry.meta.length > 0 ? ` ${entry.meta.join(' / ')}` : '';
-            const labelText = `${entry.label}: ${entry.name}${durationPart}`;
+            const toneClass = `turn-field-chip-${String(entry.chipTone ?? 'neutral')}`;
+            const labelText = String(entry.chipText ?? `${entry.label}: ${entry.name}`);
             const title = [entry.label, entry.name, entry.duration, ...(entry.meta ?? []), entry.desc]
               .filter(Boolean)
               .join(' / ');
-            return `<span class="turn-field-chip" title="${escapeHtml(title)}">${escapeHtml(labelText)}${metaPart ? `<span class="turn-field-chip-meta">${escapeHtml(metaPart)}</span>` : ''}</span>`;
+            return `<span class="turn-field-chip ${escapeHtml(toneClass)}" title="${escapeHtml(title)}">${escapeHtml(labelText)}</span>`;
           })
           .join('')}
       </div>
