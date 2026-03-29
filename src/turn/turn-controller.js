@@ -5697,7 +5697,13 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
 
     const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, member);
     const hasDamage = hasDamagePartInParts(effectiveParts);
-    const funnelEffects = hasDamage ? member.resolveEffectiveFunnelEffects().slice(0, 2) : [];
+    const funnelResolution = hasDamage
+      ? resolveFunnelCompetitionForAction(member)
+      : { selectedEffects: [], selectedCountEffectIds: [] };
+    const mindEyeResolution = hasDamage
+      ? resolveMindEyeCompetitionForAction(member)
+      : { selectedEffects: [], selectedCountEffectIds: [] };
+    const funnelEffects = funnelResolution.selectedEffects.slice(0, 2);
     const funnelHitBonus = funnelEffects.reduce(
       (sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)),
       0
@@ -5749,8 +5755,8 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
     let consumedFunnels = [];
     let consumedMindEyes = [];
     if (hasDamage && consumeStatusEffects && !isNormalAttackSkill(skill) && !isPursuitOnlySkill(skill)) {
-      consumedFunnels = member.consumeFunnelEffects(2);
-      consumedMindEyes = member.consumeMindEyeEffects(1);
+      consumedFunnels = consumeSelectedCountStatusEffects(member, 'Funnel', funnelResolution.selectedCountEffectIds);
+      consumedMindEyes = consumeSelectedCountStatusEffects(member, 'MindEye', mindEyeResolution.selectedCountEffectIds);
     }
 
     const damageContext = buildDamageCalculationContext({
@@ -5918,11 +5924,83 @@ function resolveSupportTargetCharacterIds(
   return [...out];
 }
 
+function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
+  const countLimit = Math.max(0, Number(options.countLimit ?? 0));
+  const normalized = Array.isArray(effects) ? effects : [];
+  const active = normalized.filter(
+    (effect) => Number(effect?.remaining ?? 0) > 0 || String(effect?.exitCond ?? '') === 'Eternal'
+  );
+
+  const persistentDefaults = active.filter(
+    (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') !== 'Count'
+  );
+  const onlyCandidates = active.filter((effect) => String(effect?.limitType ?? '') === 'Only');
+  const countCandidates = active.filter(
+    (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') === 'Count'
+  );
+
+  const bestOnly = pickTopStatusEffectsByPower(onlyCandidates, 1)[0] ?? null;
+  const topCount = pickTopStatusEffectsByPower(countCandidates, countLimit);
+  const onlyPower = bestOnly ? Number(bestOnly?.power ?? 0) : 0;
+  const countPower = topCount.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0);
+  const adopted = countPower >= onlyPower ? topCount : bestOnly ? [bestOnly] : [];
+  const selectedEffects = [...persistentDefaults, ...adopted].sort(compareStatusEffectsByPowerDesc);
+  const selectedCountEffectIds = adopted
+    .filter((effect) => String(effect?.exitCond ?? '') === 'Count')
+    .map((effect) => Number(effect?.effectId ?? 0));
+
+  return {
+    selectedEffects,
+    selectedCountEffectIds,
+  };
+}
+
+function resolveFunnelCompetitionForAction(member) {
+  if (!member || typeof member.getFunnelEffects !== 'function') {
+    return { selectedEffects: [], selectedCountEffectIds: [] };
+  }
+  return resolveCountOnlyCompetitionForEffects(member.getFunnelEffects({ activeOnly: true }), {
+    countLimit: 2,
+  });
+}
+
+function resolveMindEyeCompetitionForAction(member) {
+  if (!member || typeof member.getMindEyeEffects !== 'function') {
+    return { selectedEffects: [], selectedCountEffectIds: [] };
+  }
+  return resolveCountOnlyCompetitionForEffects(member.getMindEyeEffects({ activeOnly: true }), {
+    countLimit: 2,
+  });
+}
+
+function consumeSelectedCountStatusEffects(member, statusType, selectedCountEffectIds) {
+  if (!member || typeof member.tickStatusEffectsWhere !== 'function') {
+    return [];
+  }
+  const idSet = new Set(
+    (selectedCountEffectIds ?? [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+  );
+  if (idSet.size <= 0) {
+    return [];
+  }
+  return member.tickStatusEffectsWhere(
+    (effect) =>
+      String(effect?.statusType ?? '') === String(statusType ?? '') &&
+      String(effect?.exitCond ?? '') === 'Count' &&
+      idSet.has(Number(effect?.effectId ?? 0))
+  );
+}
+
 function resolveFunnelHitBonusForMember(member, maxStacks = 2) {
-  if (!member || typeof member.resolveEffectiveFunnelEffects !== 'function') {
+  if (!member) {
     return 0;
   }
-  const effects = member.resolveEffectiveFunnelEffects().slice(0, Math.max(0, Number(maxStacks) || 0));
+  const effects = resolveFunnelCompetitionForAction(member).selectedEffects.slice(
+    0,
+    Math.max(0, Number(maxStacks) || 0)
+  );
   return effects.reduce((sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)), 0);
 }
 
