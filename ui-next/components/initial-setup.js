@@ -6,10 +6,10 @@ import {
 } from '../utils/simulator-settings.js';
 
 const TABS = [
-  { id: 'party', label: 'Party Setup' },
-  { id: 'enemy', label: 'Enemy Setup' },
-  { id: 'stage', label: 'Stage Setup' },
-  { id: 'simulator', label: 'Simulator Settings' },
+  { id: 'party', label: 'Party' },
+  { id: 'enemy', label: 'Enemy' },
+  { id: 'stage', label: 'Stage' },
+  { id: 'simulator', label: 'Global' },
 ];
 
 /**
@@ -73,7 +73,7 @@ export class InitialSetupController {
             <button role="tab"
                     data-tab="${tab.id}"
                     aria-selected="${tab.id === this.#activeTab}"
-                    class="flex-1 text-xs py-2.5 font-medium transition-colors
+                    class="flex-1 text-xs py-1.5 font-medium transition-colors
                            ${tab.id === this.#activeTab
                              ? 'border-b-2 border-blue-500 text-blue-600 bg-white'
                              : 'text-gray-500 hover:text-gray-700'}">
@@ -83,25 +83,8 @@ export class InitialSetupController {
         </div>
 
         <!-- Party タブコンテンツ -->
-        <div data-tab-content="party" class="flex min-h-0 flex-1 flex-col">
-          <div id="party-setup-root" class="flex-1 min-h-0 overflow-y-auto"></div>
-          <div class="sticky bottom-0 bg-white border-t border-gray-200 px-3 pt-2 pb-safe space-y-1.5"
-               style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom))">
-            <button data-role="recalc-btn" hidden disabled
-                    class="w-full text-sm py-1.5 rounded-md font-medium bg-amber-500 text-white
-                           disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber-600 transition-colors">
-              ↺ 設定を反映
-            </button>
-            <button data-role="apply-btn" disabled
-                    class="w-full text-sm py-1.5 rounded-md font-medium bg-blue-500 text-white
-                           disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors">
-              ▶ 戦闘開始
-            </button>
-            <p data-role="apply-hint"
-               class="text-xs text-center text-gray-400 hidden">
-              前衛3スロットを設定してください
-            </p>
-          </div>
+        <div data-tab-content="party" class="min-h-0 flex-1 overflow-y-auto">
+          <div id="party-setup-root"></div>
         </div>
 
         <!-- Enemy タブコンテンツ -->
@@ -168,6 +151,25 @@ export class InitialSetupController {
               </span>
             </label>
           </div>
+        </div>
+
+        <!-- 共有フッター: 全タブ共通 -->
+        <div class="shrink-0 bg-white border-t border-gray-200 px-3 pt-2 space-y-1.5"
+             style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom))">
+          <button data-role="recalc-btn" hidden disabled
+                  class="w-full text-sm py-1.5 rounded-md font-medium bg-amber-500 text-white
+                         disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber-600 transition-colors">
+            ↺ 設定を反映
+          </button>
+          <button data-role="apply-btn" disabled
+                  class="w-full text-sm py-1.5 rounded-md font-medium bg-blue-500 text-white
+                         disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors">
+            ▶ 戦闘開始
+          </button>
+          <p data-role="apply-hint"
+             class="text-xs text-center text-gray-400 hidden">
+            前衛3スロットを設定してください
+          </p>
         </div>
       </div>
     `;
@@ -338,7 +340,7 @@ export class InitialSetupController {
       const isActive = btn.dataset.tab === tabId;
       btn.setAttribute('aria-selected', String(isActive));
       btn.className = [
-        'flex-1 text-xs py-2.5 font-medium transition-colors',
+        'flex-1 text-xs py-1.5 font-medium transition-colors',
         isActive
           ? 'border-b-2 border-blue-500 text-blue-600 bg-white'
           : 'text-gray-500 hover:text-gray-700',

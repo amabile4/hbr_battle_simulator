@@ -740,19 +740,19 @@ export class PartySetupController {
 
     this.#root.innerHTML = `
       <div class="p-1.5 space-y-1.5">
-        <div class="flex justify-end px-0.5">
-          <button data-action="disband-party"
-                  type="button"
-                  ${canDisband ? '' : 'disabled'}
-                  class="text-xs px-2 py-1 rounded-md border border-rose-200 bg-rose-50
-                         text-rose-600 hover:bg-rose-100 transition-colors
-                         disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50">
-            PT解散
-          </button>
-        </div>
-        <!-- 前衛 -->
+        <!-- 前衛 (PT解散を同行右側に配置) -->
         <div>
-          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5 px-1">前衛</div>
+          <div class="flex items-center justify-between px-1 mb-0.5">
+            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide">前衛</div>
+            <button data-action="disband-party"
+                    type="button"
+                    ${canDisband ? '' : 'disabled'}
+                    class="text-xs px-2 py-0.5 rounded-md border border-rose-200 bg-rose-50
+                           text-rose-600 hover:bg-rose-100 transition-colors
+                           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50">
+              PT解散
+            </button>
+          </div>
           <div class="grid grid-cols-3 gap-1">
             ${[0, 1, 2].map((i) => this.#slotHtml(i, moraleVisible)).join('')}
           </div>
