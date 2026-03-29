@@ -4,6 +4,7 @@ const ELEMENT_LABEL_MAP = Object.freeze({
   Thunder: '雷',
   Light: '光',
   Dark: '闇',
+  RiceField: '稲穂',
 });
 
 const ELEMENT_TONE_MAP = Object.freeze({
@@ -12,6 +13,7 @@ const ELEMENT_TONE_MAP = Object.freeze({
   Thunder: 'thunder',
   Light: 'light',
   Dark: 'dark',
+  RiceField: 'neutral',
 });
 
 const FIELD_LABELS = Object.freeze({

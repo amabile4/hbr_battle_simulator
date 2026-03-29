@@ -1856,6 +1856,10 @@ function resolveFieldDuration(part) {
 }
 
 function deriveZoneTypeFromPart(part) {
+  // RiceFieldZone は専用 skill_type による稲穂フィールド
+  if (String(part?.skill_type ?? '').trim() === 'RiceFieldZone') {
+    return 'RiceField';
+  }
   const explicit = String(part?.strval?.[0] ?? '').trim();
   if (explicit && explicit !== '-1') {
     return explicit;
@@ -3537,7 +3541,7 @@ function applyReceiverZonePassiveTriggers(state, actor, skill, actionEntry) {
 
   // アクターのスキルに Zone 系 parts があるか先に確認（なければ早期リターン）
   const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
-  const ZONE_SKILL_TYPES = new Set(['Zone', 'ZoneUpEternal']);
+  const ZONE_SKILL_TYPES = new Set(['Zone', 'ZoneUpEternal', 'RiceFieldZone']);
   const hasZonePart = effectiveParts.some((ep) => ZONE_SKILL_TYPES.has(String(ep?.skill_type ?? '')));
   if (!hasZonePart) {
     return { spEvents, passiveTriggerEvents };
@@ -8101,7 +8105,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         if (skillType) {
           effectTypes.add(skillType);
         }
-        if (skillType === 'Zone') {
+        if (skillType === 'Zone' || skillType === 'RiceFieldZone') {
           if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
             continue;
           }
@@ -9416,7 +9420,7 @@ function applyFieldStateFromActions(state, previewRecord) {
       if (!skillType) {
         continue;
       }
-      if (skillType !== 'Zone' && !/Territory$/i.test(skillType)) {
+      if (skillType !== 'Zone' && skillType !== 'RiceFieldZone' && !/Territory$/i.test(skillType)) {
         continue;
       }
       const conditionSkill = createConditionSkillContext(skill, part);
@@ -9431,13 +9435,13 @@ function applyFieldStateFromActions(state, previewRecord) {
       }
 
       const applied =
-        skillType === 'Zone'
+        skillType === 'Zone' || skillType === 'RiceFieldZone'
           ? applyZonePartToTurnState(state.turnState, part, 'player')
           : applyTerritoryPartToTurnState(state.turnState, part, 'player');
       if (!applied) {
         continue;
       }
-      if (skillType === 'Zone') {
+      if (skillType === 'Zone' || skillType === 'RiceFieldZone') {
         const zoneUpEternalModifier = resolveZoneUpEternalModifier(state, actor, skill, actionEntry);
         if (zoneUpEternalModifier.active) {
           const basePowerRate = Number(applied.powerRate ?? state.turnState.zoneState?.powerRate ?? 0);
@@ -9462,7 +9466,7 @@ function applyFieldStateFromActions(state, previewRecord) {
           actorCharacterId: actor.characterId,
           skillId: skill.skillId,
           skillName: skill.name,
-          kind: skillType === 'Zone' ? 'zone' : 'territory',
+          kind: (skillType === 'Zone' || skillType === 'RiceFieldZone') ? 'zone' : 'territory',
           ...applied,
         })
       );
