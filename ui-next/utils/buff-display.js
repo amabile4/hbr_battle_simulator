@@ -5,26 +5,59 @@
  * 文字は一切使用せず、assets/skill_type/ の画像アイコンのみで状態を表現する。
  */
 
-const DISPLAYABLE_BUFF_TYPES = new Set([
-  'AttackUp',
-  'DefenseUp',
-  'CriticalRateUp',
-  'CriticalDamageUp',
-  'DebuffGuard',
-  'BuffCharge',
+import {
+  resolveSkillTypeIconUrl,
+  STATUS_TYPE_DISPLAY_ORDER,
+} from './char-detail-popup.js';
+
+const MAX_TOTAL_BUFF_ICONS = 10;
+
+const NON_BUFF_STATUS_TYPES = new Set([
+  'AttackDown',
+  'AttackDownOverwrite',
+  'DefenseDown',
+  'DefenseDownOverwrite',
+  'CriticalRateDown',
+  'CriticalDamageDown',
+  'ResistDown',
+  'ResistDownOverwrite',
+  'Fragile',
+  'HealDown',
+  'OverDrivePointDown',
+  'ConfusionRandom',
+  'ImprisonRandom',
+  'StunRandom',
+  'RecoilRandom',
+  'Misfortune',
+  'SelfDamage',
+  'RemoveBuff',
 ]);
 
-const SKILL_TYPE_ICON_BASE = new URL('../../assets/skill_type/', import.meta.url).href;
-
-function resolveSkillTypeIconUrl(statusType) {
-  const name = String(statusType ?? '').trim();
-  if (!name) return '';
-  return `${SKILL_TYPE_ICON_BASE}${encodeURIComponent(name)}.webp`;
-}
+const DISPLAY_ORDER_INDEX = new Map(
+  STATUS_TYPE_DISPLAY_ORDER.map((statusType, index) => [statusType, index])
+);
 
 function isActiveEffect(effect) {
   if (String(effect?.exitCond ?? '') === 'Eternal') return true;
   return Number(effect?.remaining ?? 0) > 0;
+}
+
+function isBuffLikeStatusEffect(effect) {
+  const statusType = String(effect?.statusType ?? '').trim();
+  if (!statusType || NON_BUFF_STATUS_TYPES.has(statusType)) {
+    return false;
+  }
+  if (!DISPLAY_ORDER_INDEX.has(statusType)) {
+    return false;
+  }
+  const metadata = effect?.metadata ?? {};
+  if (metadata?.isDebuff === true) {
+    return false;
+  }
+  if (Number(metadata?.specialStatusTypeId) === 146) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -34,9 +67,7 @@ function isActiveEffect(effect) {
  */
 export function getDisplayableBuffs(statusEffects) {
   if (!Array.isArray(statusEffects)) return [];
-  return statusEffects.filter(
-    (e) => DISPLAYABLE_BUFF_TYPES.has(String(e?.statusType ?? '')) && isActiveEffect(e)
-  );
+  return statusEffects.filter((effect) => isActiveEffect(effect) && isBuffLikeStatusEffect(effect));
 }
 
 /**
@@ -59,13 +90,25 @@ export function buildBuffListHtml(statusEffects) {
   }
 
   const parts = [];
-  for (const [statusType, effects] of byType) {
+  let iconCount = 0;
+  const orderedStatusTypes = [...byType.keys()].sort((a, b) => {
+    return (DISPLAY_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
+      (DISPLAY_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER);
+  });
+
+  for (const statusType of orderedStatusTypes) {
+    const effects = byType.get(statusType) ?? [];
     const iconUrl = resolveSkillTypeIconUrl(statusType);
     if (!iconUrl) continue;
     const isOnlyType = effects.every((e) => String(e.limitType ?? '') === 'Only');
-    const count = isOnlyType ? 1 : Math.min(effects.length, 2);
-    for (let i = 0; i < count; i++) {
+    const countByType = isOnlyType ? 1 : Math.min(effects.length, 2);
+    const allowedCount = Math.min(countByType, MAX_TOTAL_BUFF_ICONS - iconCount);
+    for (let i = 0; i < allowedCount; i++) {
       parts.push(`<img src="${iconUrl}" alt="${statusType}" class="buff-icon" />`);
+      iconCount += 1;
+    }
+    if (iconCount >= MAX_TOTAL_BUFF_ICONS) {
+      break;
     }
   }
 

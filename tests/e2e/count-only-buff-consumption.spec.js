@@ -11,6 +11,8 @@ import {
 const TOJO_STYLE_IDS = [1001405, 1001101, 1001202, 1001301];
 const TOJO_ATTACK_UP_SKILL_ID = 46001408;
 const TOJO_ATTACK_SKILL_ID = 46001409;
+const KAYAMORI_STYLE_IDS = [1001108, 1001202, 1001301, 1001401];
+const KAYAMORI_MINDEYE_SKILL_ID = 46001116;
 
 test.describe('Count/Only buff consumption browser regression', () => {
   test('ui-next: Count型AttackUpが実操作で付与され、ダメージスキル実行後に消費される', async ({ page }) => {
@@ -37,5 +39,22 @@ test.describe('Count/Only buff consumption browser regression', () => {
       '[data-turn-slot][data-position="0"] .buff-icon-list img[alt="AttackUp"]'
     );
     await expect(buffIconsAfterAttack).toHaveCount(0);
+  });
+
+  test('ui-next: 状態変化ページにあるバフ種(MindEye)の自己アイコンがターン行に表示される', async ({ page }) => {
+    await gotoUiNext(page);
+    await fillPartySetupSlotsWithStyleIds(page, KAYAMORI_STYLE_IDS);
+    await applyParty(page);
+
+    await selectSkillForPosition(page, 0, KAYAMORI_MINDEYE_SKILL_ID);
+    await commitLatestInputRow(page);
+
+    const rowAfterMindEye = page.locator('[data-turn-row][data-row-mode="input"]').last();
+    const mindEyeIcons = rowAfterMindEye.locator(
+      '[data-turn-slot][data-position="0"] .buff-icon-list img[alt="MindEye"]'
+    );
+    await expect
+      .poll(async () => mindEyeIcons.count(), { timeout: 5000 })
+      .toBeGreaterThan(0);
   });
 });

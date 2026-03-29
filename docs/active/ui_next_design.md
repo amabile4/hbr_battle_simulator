@@ -205,6 +205,8 @@
 - `captureUntilBattleEnd` は session-level option とし、既定値は `ON`、有効時は PNG 保存を最初の `battle end` 行までで打ち切る
 - PNG 保存対象は committed turn rows のみとし、未コミット入力行 / edit 行は含めない
 - PNG 保存時は右側の操作列を描画対象から外し、note / chip 列を詰めた capture 専用レイアウトを使う
+- turn row の自己状態バフアイコンは固定3種ではなく、状態変化ページの statusType 定義順に準拠したバフ系表示へ拡張する（デバフ系は除外）
+- turn row バフアイコンは視認性確保のため全体表示上限を設ける（現在値: 10）
 - current session の JSON 保存 / 読込は `Simulator Settings` 内ではなく上部 utility bar に置く
 - 上部 utility bar は desktop では icon + label、smartphone では icon-only に切り替える
 - `レイアウト` toggle は desktop 専用とし、smartphone では表示しない

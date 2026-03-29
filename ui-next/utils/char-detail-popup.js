@@ -15,7 +15,7 @@ import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 
 const SKILL_TYPE_ICON_BASE = new URL('../../assets/skill_type/', import.meta.url).href;
 
-function resolveSkillTypeIconUrl(statusType) {
+export function resolveSkillTypeIconUrl(statusType) {
   const name = String(statusType ?? '').trim();
   if (!name) return '';
   return `${SKILL_TYPE_ICON_BASE}${encodeURIComponent(name)}.webp`;
@@ -166,6 +166,8 @@ const STATUS_LABELS = {
   SpeedUp:                   '速度アップ',
   SpeedDown:                 '速度ダウン',
 };
+
+export const STATUS_TYPE_DISPLAY_ORDER = Object.freeze(Object.keys(STATUS_LABELS));
 
 function getStatusLabel(statusType) {
   return STATUS_LABELS[String(statusType ?? '')] ?? String(statusType ?? '');
