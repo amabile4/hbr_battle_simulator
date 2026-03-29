@@ -41,6 +41,7 @@ import {
   isEnemyTargetSelectionManual,
   normalizeSimulatorSettings,
 } from '../utils/simulator-settings.js';
+import { buildFieldDisplayEntries } from '../utils/field-state-display.js';
 
 // select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
 // 属性/武器種バッジと SP コストを段階的に隠す。
@@ -77,6 +78,14 @@ const TURN_ROW_MODES = Object.freeze({
   EDIT: 'edit',
 });
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function normalizeRowDiagnostics(diagnostics = {}) {
   return {
     warnings: Array.isArray(diagnostics?.warnings)
@@ -107,6 +116,19 @@ function formatOdGauge(value) {
 function normalizeOdGaugeNumber(value, fallback = 0) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+export function resolveOdMarkerLabel(turnLabel, { fallback = '' } = {}) {
+  const label = String(turnLabel ?? '');
+  const subTurnMatch = label.match(/^OD\d+-(\d+)$/);
+  if (subTurnMatch) {
+    return `OD${subTurnMatch[1]}`;
+  }
+  const levelMatch = label.match(/^(OD\d+)/);
+  if (levelMatch) {
+    return levelMatch[1];
+  }
+  return fallback;
 }
 
 /**
@@ -882,6 +904,32 @@ export class TurnRowController {
     `;
   }
 
+  #buildFieldChipsHtml() {
+    const entries = buildFieldDisplayEntries({
+      zoneState: this.#stateBefore?.turnState?.zoneState ?? null,
+      territoryState: this.#stateBefore?.turnState?.territoryState ?? null,
+      talismanState: this.#stateBefore?.turnState?.enemyState?.talismanState ?? null,
+    });
+    if (entries.length === 0) {
+      return '';
+    }
+    return `
+      <div data-role="field-chip-list" class="flex flex-wrap gap-1 pb-1">
+        ${entries
+          .map((entry) => {
+            const durationPart = entry.duration ? ` ${entry.duration}` : '';
+            const metaPart = Array.isArray(entry.meta) && entry.meta.length > 0 ? ` ${entry.meta.join(' / ')}` : '';
+            const labelText = `${entry.label}: ${entry.name}${durationPart}`;
+            const title = [entry.label, entry.name, entry.duration, ...(entry.meta ?? []), entry.desc]
+              .filter(Boolean)
+              .join(' / ');
+            return `<span class="turn-field-chip" title="${escapeHtml(title)}">${escapeHtml(labelText)}${metaPart ? `<span class="turn-field-chip-meta">${escapeHtml(metaPart)}</span>` : ''}</span>`;
+          })
+          .join('')}
+      </div>
+    `;
+  }
+
   /**
    * 未コミット行の OD After 表示をリアルタイム更新する。
    * TurnAreaController から previewCurrentTurn の結果を受けて呼ばれる。
@@ -1612,11 +1660,13 @@ export class TurnRowController {
 
     // メモ欄
     const noteValue = this.getCurrentNote();
+    const fieldChipsHtml = this.#buildFieldChipsHtml();
     const manualBreakChipsHtml = this.#buildManualBreakChipsHtml(isCommitted);
     const killChipsHtml = this.#buildKillChipsHtml(isCommitted);
     const operationChipsHtml = this.#buildOperationChipsHtml();
     const noteHtml = `
       <div data-turn-note class="flex flex-col self-stretch min-h-0 flex-shrink-0 w-36 gap-1">
+        ${fieldChipsHtml}
         ${manualBreakChipsHtml}
         ${killChipsHtml}
         ${operationChipsHtml}
@@ -1680,9 +1730,8 @@ export class TurnRowController {
       const inOd = isOdTurn || odSuspended;
       const inEx = isExtraTurn;
       // ODレベルラベル: turnLabel から "OD1" 等を抽出
-      const odTurnLabel  = String(turnState?.turnLabel ?? '');
-      const odMatch      = odTurnLabel.match(/^(OD\d+)/);
-      const odLevelLabel = inOd ? (odMatch ? odMatch[1] : 'OD') : '';
+      const odTurnLabel = String(turnState?.turnLabel ?? '');
+      const odLevelLabel = inOd ? resolveOdMarkerLabel(odTurnLabel, { fallback: 'OD' }) : '';
       const sequenceLabel = isEditMode
         ? `#${this.#record?.turnId ?? this.#turnIndex + 1}`
         : null;
@@ -1733,8 +1782,7 @@ export class TurnRowController {
     const odGaugeBefore = formatOdGauge(odGaugeAtStart);
     const odGaugeAfter  = formatOdGauge(odGaugeAtEnd);
     const isExtraTurn   = Boolean(rec?.isExtraTurn ?? String(fallbackTurnState?.turnType ?? '') === 'extra');
-    const odMatch       = String(rec?.odTurnLabelAtStart ?? fallbackTurnState?.turnLabel ?? '').match(/^(OD\d+)/);
-    const odLevelLabel  = odMatch ? odMatch[1] : '';
+    const odLevelLabel = resolveOdMarkerLabel(rec?.odTurnLabelAtStart ?? fallbackTurnState?.turnLabel ?? '');
     // OD文脈 = ODレベルラベルあり（コミット済みではodSuspendedをodTurnLabelAtStartで兼用）
     const inOd = !!odLevelLabel;
     const inEx = isExtraTurn;

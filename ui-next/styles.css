@@ -1511,9 +1511,34 @@
   color: #94a3b8;
   flex-shrink: 0;
 }
+.char-popup-field-meta {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 3px;
+}
 .char-popup-field-desc {
   font-size: 11px;
   color: #64748b;
   line-height: 1.4;
   margin-top: 3px;
+}
+
+.turn-field-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  border-radius: 9999px;
+  border: 1px solid #7dd3fc;
+  background: #e0f2fe;
+  color: #0c4a6e;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.turn-field-chip-meta {
+  color: #0369a1;
+  font-weight: 600;
 }

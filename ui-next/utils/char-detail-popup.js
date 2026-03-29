@@ -12,6 +12,7 @@
  */
 
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { buildFieldDisplayEntries } from './field-state-display.js';
 
 const SKILL_TYPE_ICON_BASE = new URL('../../assets/skill_type/', import.meta.url).href;
 
@@ -184,6 +185,31 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+function buildEffectDisplayInfo(effect) {
+  const statusType = String(effect?.statusType ?? '');
+  const power = Number(effect?.power ?? 0);
+  const desc = String(effect?.sourceSkillDesc ?? '').trim();
+  if (statusType === 'Funnel') {
+    const hitCount = Number.isFinite(power) ? Math.max(0, Math.round(power)) : 0;
+    const perHitBonus = Number(effect?.metadata?.damageBonus ?? 0);
+    const totalBonusPercent = Number.isFinite(perHitBonus)
+      ? Math.round(hitCount * perHitBonus * 100)
+      : 0;
+    const fallbackDesc =
+      hitCount > 0
+        ? `連撃（小）${hitCount}回 ${Math.max(0, totalBonusPercent)}%`
+        : '';
+    return {
+      powerLabel: '',
+      desc: desc || fallbackDesc,
+    };
+  }
+  const powerLabel = Number.isFinite(power) && power !== 0
+    ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%`
+    : '';
+  return { powerLabel, desc };
+}
+
 // パネルサイズ・位置は CSS で制御（上下左右 10% マージン固定配置）
 
 // ============================================================
@@ -207,9 +233,9 @@ function buildStatusTabHtml(statusEffects) {
     .map((effect) => {
       const label = getStatusLabel(effect.statusType);
       const skillName = String(effect.sourceSkillName ?? '').trim();
-      const desc = String(effect.sourceSkillDesc ?? '').trim();
-      const power = Number(effect.power ?? 0);
-      const powerStr = power !== 0 ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%` : '';
+      const displayInfo = buildEffectDisplayInfo(effect);
+      const desc = displayInfo.desc;
+      const powerStr = displayInfo.powerLabel;
       const exitCondStr = String(effect.exitCond ?? '');
       const remaining =
         exitCondStr === 'Eternal'
@@ -284,33 +310,7 @@ function buildPassiveTabHtml(member, passiveEvents) {
 
 /** フィールド効果タブ — Zone / Territory / Talisman */
 function buildFieldTabHtml(stateOrRecord) {
-  const zoneState = stateOrRecord?.zoneState ?? null;
-  const territoryState = stateOrRecord?.territoryState ?? null;
-  const talismanState = stateOrRecord?.talismanState ?? null;
-
-  const entries = [];
-
-  if (zoneState) {
-    const name = String(zoneState.zoneName ?? zoneState.name ?? 'Zone').trim();
-    const desc = String(zoneState.zoneDesc ?? zoneState.desc ?? '').trim();
-    const remaining = zoneState.remaining != null ? Number(zoneState.remaining) : null;
-    const durationStr = remaining != null ? `${remaining}T` : '';
-    entries.push({ label: 'Zone', name, desc, duration: durationStr });
-  }
-  if (territoryState) {
-    const name = String(territoryState.territoryName ?? territoryState.name ?? 'Territory').trim();
-    const desc = String(territoryState.desc ?? '').trim();
-    const remaining = territoryState.remaining != null ? Number(territoryState.remaining) : null;
-    const durationStr = remaining != null ? `${remaining}T` : '';
-    entries.push({ label: 'Territory', name, desc, duration: durationStr });
-  }
-  if (talismanState) {
-    const name = String(talismanState.talismanName ?? talismanState.name ?? 'Talisman').trim();
-    const desc = String(talismanState.desc ?? '').trim();
-    const remaining = talismanState.remaining != null ? Number(talismanState.remaining) : null;
-    const durationStr = remaining != null ? `${remaining}T` : '';
-    entries.push({ label: 'Talisman', name, desc, duration: durationStr });
-  }
+  const entries = buildFieldDisplayEntries(stateOrRecord);
 
   if (entries.length === 0) {
     return '<p class="char-popup-empty">なし</p>';
@@ -324,6 +324,9 @@ function buildFieldTabHtml(stateOrRecord) {
       `<span class="char-popup-field-name">${esc(entry.name)}</span>` +
       (entry.duration ? `<span class="char-popup-field-duration">${esc(entry.duration)}</span>` : '') +
       `</div>` +
+      (Array.isArray(entry.meta) && entry.meta.length > 0
+        ? `<div class="char-popup-field-meta">${esc(entry.meta.join(' / '))}</div>`
+        : '') +
       (entry.desc ? `<div class="char-popup-field-desc">${esc(entry.desc)}</div>` : '') +
       `</div>`
     )

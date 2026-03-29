@@ -208,6 +208,8 @@
 - turn row の自己状態バフアイコンは固定3種ではなく、状態変化ページの statusType 定義順に準拠したバフ系表示へ拡張する（デバフ系は除外）
 - 同一 statusType 内で `Only` / `Count` が競合する場合、`Only=最強1件` と `Count=上位2件合算` を比較して採用側のみアイコン表示する（同値は `Count` 側優先、非採用側は詳細テキスト側で確認）
 - turn row バフアイコンは視認性確保のため全体表示上限を設ける（現在値: 10）
+- キャラクター詳細ポップアップの `フィールド` タブは `Zone / Territory / Talisman` の属性・倍率・継続を併記し、`remainingTurns=null` は `永続` として表示する
+- turn row の note 列上部には active なフィールド状態チップを表示し、`talismanState` は `active=true` または `level>0`（もしくは明示名/説明あり）の場合のみ表示する
 - current session の JSON 保存 / 読込は `Simulator Settings` 内ではなく上部 utility bar に置く
 - 上部 utility bar は desktop では icon + label、smartphone では icon-only に切り替える
 - `レイアウト` toggle は desktop 専用とし、smartphone では表示しない

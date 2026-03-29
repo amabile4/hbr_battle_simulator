@@ -6534,7 +6534,7 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
         if (!target) {
           continue;
         }
-        target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill });
+        target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill, actor });
         events.push(
           buildActionScopedEvent(actionEntry, {
             actorCharacterId: actor.characterId,

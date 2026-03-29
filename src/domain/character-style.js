@@ -24,6 +24,9 @@ export const SPECIAL_STATUS_TYPE_NAMES = Object.freeze({
   164: 'Makeup',
 });
 
+const STACKABLE_COUNT_SPECIAL_STATUS_TYPE_IDS = new Set([78]);
+const MANUAL_CONSUMPTION_SPECIAL_STATUS_TYPE_IDS = new Set([78]);
+
 export function normalizePartyPosition(position) {
   const numericPosition = Number(position);
   if (!Number.isInteger(numericPosition) || numericPosition < 0 || numericPosition > MAX_PARTY_POSITION) {
@@ -824,16 +827,28 @@ export class CharacterStyle {
     const effectiveRemaining = cond === 'Eternal' ? 0 : Math.max(1, Number(remaining) || 1);
     const skill = context?.skill ?? null;
 
-    // 同一 typeId の既存エントリがあれば残りターン数を max 採用で更新
-    const existing = this.statusEffects.find(
-      (e) => Number(e.metadata?.specialStatusTypeId) === id
-    );
-    if (existing) {
-      if (cond !== 'Eternal') {
-        existing.remaining = Math.max(existing.remaining, effectiveRemaining);
+    const sourceCharacterId = String(context?.actor?.characterId ?? '');
+    const sourceCharacterName = String(context?.actor?.characterName ?? '');
+    // Count でスタックする特殊状態（例: MindEye）は重複エントリを保持する。
+    const canMergeExisting = !(cond === 'Count' && STACKABLE_COUNT_SPECIAL_STATUS_TYPE_IDS.has(id));
+    if (canMergeExisting) {
+      // 同一 typeId の既存エントリがあれば残りターン数を max 採用で更新
+      const existing = this.statusEffects.find(
+        (e) => Number(e.metadata?.specialStatusTypeId) === id
+      );
+      if (existing) {
+        if (cond !== 'Eternal') {
+          existing.remaining = Math.max(existing.remaining, effectiveRemaining);
+        }
+        existing.sourceSkillId = skill?.skillId ?? null;
+        existing.sourceSkillLabel = String(skill?.label ?? '');
+        existing.sourceSkillName = String(skill?.name ?? '');
+        existing.sourceSkillDesc = String(skill?.desc ?? '');
+        existing.sourceCharacterId = sourceCharacterId;
+        existing.sourceCharacterName = sourceCharacterName;
+        this._revision += 1;
+        return;
       }
-      this._revision += 1;
-      return;
     }
 
     this.addStatusEffect({
@@ -843,6 +858,9 @@ export class CharacterStyle {
       sourceSkillId: skill?.skillId ?? null,
       sourceSkillLabel: String(skill?.label ?? ''),
       sourceSkillName: String(skill?.name ?? ''),
+      sourceSkillDesc: String(skill?.desc ?? ''),
+      sourceCharacterId,
+      sourceCharacterName,
       metadata: { specialStatusTypeId: id },
     });
   }
@@ -1093,7 +1111,9 @@ export class CharacterStyle {
     for (const effect of this.statusEffects) {
       if (String(effect.exitCond) !== 'Count') continue;
       if (!isActiveStatusEffect(effect)) continue;
-      if (effect.metadata?.specialStatusTypeId == null) continue;
+      const specialStatusTypeId = Number(effect.metadata?.specialStatusTypeId);
+      if (!Number.isFinite(specialStatusTypeId)) continue;
+      if (MANUAL_CONSUMPTION_SPECIAL_STATUS_TYPE_IDS.has(specialStatusTypeId)) continue;
       effect.remaining = Math.max(0, Number(effect.remaining) - 1);
       changed = true;
     }
