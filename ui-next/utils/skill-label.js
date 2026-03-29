@@ -28,3 +28,55 @@ export function formatSkillCostLabel(skill, member = null, state = null) {
   if (consumeTypeLower === 'ep') return `E(${n})`;
   return `(${n})`;
 }
+
+const ELEMENT_LABELS = Object.freeze({
+  Fire: '火',
+  Ice: '氷',
+  Thunder: '雷',
+  Light: '光',
+  Dark: '闇',
+});
+
+/**
+ * スキルが同名で属性が異なるセット（スイッチスキルなど）の一員の場合、
+ * そのスキルの属性名（日本語）を返す。それ以外は null。
+ *
+ * 例: 「最高潮！アオハルオンステージ」の氷版→「氷」、雷版→「雷」
+ * 通常の（同名重複なし）スキルは null を返すため、表示側で余計な加工をしない。
+ *
+ * @param {object} skill       対象スキルデータ（parts[0].elements を参照）
+ * @param {Array}  allSkills   同一スロットに並ぶすべてのスキルリスト
+ * @returns {string|null}
+ */
+export function getElementHintForDuplicateNamedSkill(skill, allSkills = []) {
+  if (!skill || !Array.isArray(allSkills) || allSkills.length < 2) {
+    return null;
+  }
+
+  const skillName = String(skill.name ?? '').trim();
+  if (!skillName) {
+    return null;
+  }
+
+  const sameNameSkills = allSkills.filter(
+    (s) => String(s.name ?? '').trim() === skillName
+  );
+  if (sameNameSkills.length < 2) {
+    return null;
+  }
+
+  // 同名スキル間で属性が 2 種類以上あるか検査
+  const distinctElements = new Set();
+  for (const s of sameNameSkills) {
+    const parts = Array.isArray(s.parts) ? s.parts : [];
+    (parts[0]?.elements ?? []).forEach((elem) => distinctElements.add(String(elem).trim()));
+  }
+  if (distinctElements.size < 2) {
+    return null;
+  }
+
+  // このスキル自身の属性ラベルを返す
+  const parts = Array.isArray(skill.parts) ? skill.parts : [];
+  const firstElement = String((parts[0]?.elements ?? [])[0] ?? '').trim();
+  return ELEMENT_LABELS[firstElement] ?? null;
+}

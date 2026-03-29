@@ -1,6 +1,6 @@
 import { resolveStyleImageUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
-import { formatSkillCostLabel } from '../utils/skill-label.js';
+import { formatSkillCostLabel, getElementHintForDuplicateNamedSkill } from '../utils/skill-label.js';
 import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 import {
   REPLAY_OPERATION_TYPES,
@@ -441,7 +441,9 @@ export class TurnRowController {
       sel.innerHTML = visibleSkills.map((s) => {
         const isSelected = s.skillId === effectiveSelectedId;
         const costLabel = formatSkillCostLabel(s, member, stateForCost);
-        return `<option value="${s.skillId}" data-cost-label="${costLabel}" data-skill-name="${s.name}"${isSelected ? ' selected' : ''}>${costLabel}${s.name}</option>`;
+        const elementHint = getElementHintForDuplicateNamedSkill(s, visibleSkills);
+        const elementPrefix = elementHint ? `(${elementHint})` : '';
+        return `<option value="${s.skillId}" data-cost-label="${costLabel}" data-element-prefix="${elementPrefix}" data-skill-name="${s.name}"${isSelected ? ' selected' : ''}>${costLabel}${elementPrefix}${s.name}</option>`;
       }).join('');
       this.#applyWidthBasedVisibility(sel);
 
@@ -1926,7 +1928,9 @@ export class TurnRowController {
     const skillOptions = visibleSkills.map((s) => {
       const isSelected = s.skillId === effectiveSelectedId;
       const costLabel = formatSkillCostLabel(s, member, stateForCost);
-      return `<option value="${s.skillId}" data-cost-label="${costLabel}" data-skill-name="${s.name}"${isSelected ? ' selected' : ''}>${costLabel}${s.name}</option>`;
+      const elementHint = getElementHintForDuplicateNamedSkill(s, visibleSkills);
+      const elementPrefix = elementHint ? `(${elementHint})` : '';
+      return `<option value="${s.skillId}" data-cost-label="${costLabel}" data-element-prefix="${elementPrefix}" data-skill-name="${s.name}"${isSelected ? ' selected' : ''}>${costLabel}${elementPrefix}${s.name}</option>`;
     }).join('');
 
     const selectDisabled = isCommitted ? 'disabled' : '';
@@ -2853,9 +2857,10 @@ export class TurnRowController {
     selectEl.dataset.showCost = String(showCost);
     Array.from(selectEl.options).forEach((opt) => {
       const cost = opt.dataset.costLabel ?? '';
+      const elementPrefix = opt.dataset.elementPrefix ?? '';
       const name = opt.dataset.skillName ?? '';
       if (cost || name) {
-        opt.textContent = showCost ? `${cost}${name}` : name;
+        opt.textContent = showCost ? `${cost}${elementPrefix}${name}` : `${elementPrefix}${name}`;
       }
     });
   }

@@ -1,4 +1,5 @@
 import { isNormalAttackSkill, isAdmiralCommandSkill } from '../../src/domain/skill-classifiers.js';
+import { getElementHintForDuplicateNamedSkill } from '../utils/skill-label.js';
 
 const PANEL_WIDTH_PX = 320;
 const PANEL_MIN_BOTTOM_SPACE_PX = 200;
@@ -37,6 +38,8 @@ export function buildSkillSettingTagLabels(skill) {
   }
   return tags;
 }
+
+
 
 function dedupeNumericIds(ids = []) {
   return [...new Set(
@@ -199,6 +202,7 @@ export class SkillSettingsPanel {
           const lockedRemoval = !required && hasLockedRemoval && checked;
           const disabled = required || lockedRemoval;
           const tagLabels = buildSkillSettingTagLabels(skill);
+          const elementHint = getElementHintForDuplicateNamedSkill(skill, skills);
           return `
             <label class="flex gap-1.5 rounded px-1 py-1 text-xs leading-tight ${disabled ? 'text-gray-400' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}">
               <input type="checkbox"
@@ -210,6 +214,7 @@ export class SkillSettingsPanel {
                      ${disabled ? 'disabled' : ''} />
               <span class="min-w-0 flex-1">
                 <span class="text-gray-400">${formatSkillSettingCostLabel(skill)}</span>
+                ${elementHint ? `<span class="ml-1 inline-flex rounded-full border border-blue-200 bg-blue-50 px-1 py-px text-[9px] text-blue-600">${elementHint}</span>` : ''}
                 <span class="ml-1">${String(skill.name ?? '')}</span>
                 ${tagLabels.map((tag) => `
                   <span class="ml-1 inline-flex rounded-full border border-gray-200 bg-white px-1 py-px text-[9px] text-gray-500">${tag}</span>

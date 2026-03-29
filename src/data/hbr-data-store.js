@@ -662,8 +662,21 @@ export class HbrDataStore {
       return [skill];
     }
 
-    const uniqueNames = new Set(variants.map((variant) => String(variant?.name ?? '').trim()));
-    const selectableVariants = uniqueNames.size === 1 ? [variants[0]] : variants;
+    // Switch variants with the same name but different elements should be treated as distinct skills.
+    // Create a unique key combining both name and first part's elements to avoid collapsing
+    // variants like "最高潮！アオハルオンステージ" (Ice) and "最高潮！アオハルオンステージ" (Thunder).
+    const createVariantKey = (variant) => {
+      const name = String(variant?.name ?? '').trim();
+      const parts = Array.isArray(variant?.parts) ? variant.parts : [];
+      const firstPartElements = parts[0]?.elements || [];
+      const elementKey = firstPartElements.length > 0
+        ? firstPartElements.join('|')
+        : 'Unknown';
+      return `${name}::${elementKey}`;
+    };
+
+    const uniqueKeys = new Set(variants.map(createVariantKey));
+    const selectableVariants = uniqueKeys.size === 1 ? [variants[0]] : variants;
 
     return selectableVariants.map((variant, index) => {
       const mergedVariant = this.mergeSkillWithOverride(mergeSkillVariant(skill, variant)) ?? null;

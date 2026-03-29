@@ -321,7 +321,7 @@ test('distinct-name SkillSwitch variants are expanded into selectable skills', (
   );
 });
 
-test('same-name SkillSwitch collapses to first variant and legacy parent id aliases to it', () => {
+test('same-name SkillSwitch with different elements keeps all variants', () => {
   const store = getStore();
   const izumiSwitchStyle = store.styles.find((style) =>
     (style.skills ?? []).some((skillRef) => Number(skillRef.id) === 46001215)
@@ -347,8 +347,8 @@ test('same-name SkillSwitch collapses to first variant and legacy parent id alia
 
   assert.deepEqual(
     switchSkills.map((skill) => Number(skill.id)),
-    [46001216],
-    'same-name SkillSwitch should keep only the first selectable variant'
+    [46001216, 46001217],
+    'same-name SkillSwitch with different elements should keep all variants (both Fire and Thunder)'
   );
   assert.equal(
     member.getSkill(46001215)?.skillId,

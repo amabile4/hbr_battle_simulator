@@ -6910,7 +6910,7 @@ test('SuperBreak only upgrades weak broken targets and records StrongBreak state
   assert.equal(action.enemyStatusChanges[0].targetIndex, 0);
 });
 
-test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', () => {
+test('CountBC(...IsWeakElement(Fire)==1) in overwrite_cond changes SP cost from enemy damage rates', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `EW${idx + 1}`,
@@ -6927,8 +6927,10 @@ test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', 
                 id: 18150,
                 name: 'Weak Hunter',
                 label: 'WeakHunter',
-                sp_cost: 0,
+                sp_cost: 5,
                 iuc_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Fire)==1)>0',
+                overwrite: 0,
+                overwrite_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Fire)==1)>0',
                 parts: [],
               },
             ]
@@ -6937,13 +6939,11 @@ test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', 
   );
   const state = createBattleStateFromParty(new Party(members));
 
-  assert.throws(
-    () =>
-      previewTurn(state, {
-        0: { characterId: 'EW1', skillId: 18150 },
-      }),
-    /cannot be used/i
-  );
+  const neutralPreview = previewTurn(state, {
+    0: { characterId: 'EW1', skillId: 18150 },
+  });
+  assert.equal(neutralPreview.actions.length, 1);
+  assert.equal(neutralPreview.actions[0].spCost, 5);
 
   state.turnState.enemyState = {
     enemyCount: 2,
@@ -6957,9 +6957,10 @@ test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', 
     0: { characterId: 'EW1', skillId: 18150 },
   });
   assert.equal(preview.actions.length, 1);
+  assert.equal(preview.actions[0].spCost, 0);
 });
 
-test('IsWeakElement defaults to false when enemy damage rate is not above 100%', () => {
+test('IsWeakElement defaults to false when enemy damage rate is not above 100% in overwrite_cond', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `EWD${idx + 1}`,
@@ -6976,8 +6977,10 @@ test('IsWeakElement defaults to false when enemy damage rate is not above 100%',
                 id: 18180,
                 name: 'Weak Hunter Default',
                 label: 'WeakHunterDefault',
-                sp_cost: 0,
+                sp_cost: 6,
                 iuc_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Ice)==1)>0',
+                overwrite: 0,
+                overwrite_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Ice)==1)>0',
                 parts: [],
               },
             ]
@@ -6994,13 +6997,11 @@ test('IsWeakElement defaults to false when enemy damage rate is not above 100%',
     },
   };
 
-  assert.throws(
-    () =>
-      previewTurn(state, {
-        0: { characterId: 'EWD1', skillId: 18180 },
-      }),
-    /cannot be used/i
-  );
+  const preview = previewTurn(state, {
+    0: { characterId: 'EWD1', skillId: 18180 },
+  });
+  assert.equal(preview.actions.length, 1);
+  assert.equal(preview.actions[0].spCost, 6);
 });
 
 test('Zone skill applies zone state and IsZone condition becomes true on next turn', () => {
@@ -13165,7 +13166,7 @@ test('T07: MindEye(78) — commitTurnで付与・パッシブ発動・次スキ�
                 },
               ],
             },
-            { id: 30012, name: 'Attack', label: 'TestAtk2', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+            { id: 30012, name: 'Attack', label: 'TestAtk2', sp_cost: 0, hitCount: 1, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
           ],
           passives: [
             {
