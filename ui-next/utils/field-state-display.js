@@ -17,7 +17,7 @@ const ELEMENT_TONE_MAP = Object.freeze({
 const FIELD_LABELS = Object.freeze({
   zone: 'Zone',
   territory: 'Territory',
-  talisman: 'Talisman',
+  talisman: '霊符状態',
 });
 
 function formatMultiplier(value) {
