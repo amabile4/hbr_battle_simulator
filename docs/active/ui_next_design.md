@@ -199,6 +199,7 @@
   - `targetSelection.allyMode: 'simple' | 'manual'`
 - この設定は replay や stage 状態ではなく、session-level の UI 設定として扱う
 - save/load の正本は `SessionSnapshotV1` とし、`setup / simulatorSettings / validationPolicy / replayScript` を保存する
+- 保存JSONには人間向け補助情報（`styleNames` / `skillNames` / `turn.info.spAt*` など）を同居させてよい。読み込み側はこれらを必須にせず、既知フィールド以外は無視する
 - `validationPolicy` は当面 permissive input を維持する箱としてのみ使い、既定値はすべて `true` とする
 - `captureUntilBattleEnd` は session-level option とし、既定値は `ON`、有効時は PNG 保存を最初の `battle end` 行までで打ち切る
 - PNG 保存対象は committed turn rows のみとし、未コミット入力行 / edit 行は含めない
@@ -238,6 +239,12 @@
 
 - `ui-next` の skill list 正本は `runtime/data-store` とし、UI 側で `SkillSwitch` 専用 widget は持たない
 - top-level `SkillSwitch` 親 skill は selectable list に出さず、nested variant に `id` があるものを独立 option として展開する
+
+### Warning / Error の人間向け表示
+
+- `replayDiagnostics` 由来の Warning / Error は、表示時に `styleId` / `skillId` / `characterId` へ可能な範囲で日本語名を併記する
+- 併記は UI 表示層の helper 関数で行い、engine の warning 文字列生成や replay contract 自体は変更しない
+- 名前情報を解決できない ID はそのまま表示し、表示不能を理由に Warning 自体を欠落させない
   - distinct-name variant は個別 option 化する
   - same-name variant は `variants[0]` の 1 件だけを出し、旧 parent id は first variant alias として読む
 - `skills.json` に無い `通常攻撃` / `指揮行動` / `追撃` は、`styles.json` の埋め込み skill を fallback として復元する

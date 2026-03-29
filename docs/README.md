@@ -44,7 +44,7 @@ docs/
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ | 2026-03-29 |
-| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・browser D&D handle 方針・Passive Log 下段 pane と desktop resize handle・toolbar icon/mobile rules・startup defaults・PNG capture contract・legacy UI 廃止前提 等） | 2026-03-29 |
+| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・browser D&D handle 方針・Passive Log 下段 pane と desktop resize handle・toolbar icon/mobile rules・startup defaults・PNG capture contract・SessionSnapshot の人間向け補助フィールド方針・Warning/Error の名前併記 helper 方針・legacy UI 廃止前提 等） | 2026-03-29 |
 | [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点） | 2026-03-15 |
 | [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・preset toolbar 20枠化・browser D&D hardening・legacy UI hard cutover・Passive Log pane resize・root redirect smoke まで反映） | 2026-03-29 |
 | [active/ui_next_drag_and_drop_review_request.md](active/ui_next_drag_and_drop_review_request.md) | 🟢 進行中 | UI Next D&D 不具合のレビュー依頼メモ（TurnEdit / PartySetup の現象整理・期待挙動・レビュー観点） | 2026-03-28 |

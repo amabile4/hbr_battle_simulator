@@ -7,8 +7,8 @@ import { TurnEngineManager } from './engine/turn-engine-manager.js';
 import { TurnAreaController } from './components/turn-area.js';
 import { createEmptyLightweightReplayScript } from '../src/ui/lightweight-replay-script.js';
 import {
+  decorateSessionSnapshotForHumans,
   normalizeSessionSnapshot,
-  serializeSessionSnapshot,
 } from './utils/session-snapshot.js';
 import { DEFAULT_VALIDATION_POLICY } from './utils/validation-policy.js';
 import {
@@ -185,7 +185,58 @@ function isCaptureUntilBattleEndEnabled() {
   );
 }
 
-function saveCurrentSession({ initialSetup, turnEngineManager }) {
+function resolveStyleNameFromStore(store, styleId) {
+  if (!Number.isFinite(Number(styleId))) {
+    return null;
+  }
+  return String(store?.getStyleById(styleId)?.name ?? '').trim() || null;
+}
+
+function resolveSkillNameFromStore(store, skillId) {
+  if (!Number.isFinite(Number(skillId))) {
+    return null;
+  }
+  return String(store?.getSkillById(skillId)?.name ?? '').trim() || null;
+}
+
+function buildTurnStartSpByStyleId(turnEngineManager, turnIndex) {
+  const stateBefore = turnEngineManager.getStateBefore(turnIndex);
+  const members = Array.isArray(stateBefore?.party) ? stateBefore.party : [];
+  const result = {};
+  for (const member of members) {
+    const styleId = Number(member?.styleId);
+    const sp = Number(member?.sp?.current);
+    if (!Number.isFinite(styleId) || !Number.isFinite(sp)) {
+      continue;
+    }
+    result[String(styleId)] = sp;
+  }
+  return result;
+}
+
+function buildTurnActionSpByStyleId(turnEngineManager, turnIndex) {
+  const record = turnEngineManager.computedRecords?.[turnIndex] ?? null;
+  const actions = Array.isArray(record?.actions) ? record.actions : [];
+  const result = {};
+  for (const action of actions) {
+    const styleId = Number(action?.styleId);
+    const startSp = Number(action?.startSP);
+    const castIndex = Number(action?.castIndex ?? 0);
+    if (!Number.isFinite(styleId) || !Number.isFinite(startSp)) {
+      continue;
+    }
+    const key = String(styleId);
+    const existing = result[key];
+    if (!existing || castIndex < existing.castIndex) {
+      result[key] = { value: startSp, castIndex };
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(result).map(([styleId, value]) => [styleId, Number(value.value)])
+  );
+}
+
+function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
   const snapshot = initialSetup.getCurrentSetupSnapshot();
   if (!snapshot?.party?.isFrontFilled) {
     throw new Error('前衛3スロットを設定してください。');
@@ -194,12 +245,18 @@ function saveCurrentSession({ initialSetup, turnEngineManager }) {
   const replayScript = turnEngineManager.replayScript
     ? structuredClone(turnEngineManager.replayScript)
     : createEmptyLightweightReplayScript(replaySetup);
-  const sessionText = serializeSessionSnapshot({
+  const decoratedSnapshot = decorateSessionSnapshotForHumans({
     setup: snapshot.party,
     simulatorSettings: snapshot.simulatorSettings,
     validationPolicy: turnEngineManager.validationPolicy ?? DEFAULT_VALIDATION_POLICY,
     replayScript,
+  }, {
+    resolveStyleName: (styleId) => resolveStyleNameFromStore(store, styleId),
+    resolveSkillName: (skillId) => resolveSkillNameFromStore(store, skillId),
+    getTurnStartSpByStyleId: (turnIndex) => buildTurnStartSpByStyleId(turnEngineManager, turnIndex),
+    getTurnActionSpByStyleId: (turnIndex) => buildTurnActionSpByStyleId(turnEngineManager, turnIndex),
   });
+  const sessionText = JSON.stringify(decoratedSnapshot, null, 2);
   downloadTextFile(sessionText, makeSessionFilename());
 }
 
@@ -610,6 +667,7 @@ async function main() {
       saveCurrentSession({
         initialSetup,
         turnEngineManager,
+        store,
       });
       showStatus('セッション JSON を保存しました。');
     } catch (err) {

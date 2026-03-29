@@ -105,9 +105,16 @@ function appendBoundarySections(rows, events) {
   }
 }
 
-function appendReplayWarnings(rows, replayDiagnostics = null) {
+function appendReplayWarnings(rows, replayDiagnostics = null, formatMessage = null) {
+  const normalizeMessage = (message) => {
+    const formatted =
+      typeof formatMessage === 'function'
+        ? formatMessage(message)
+        : message;
+    return normalizeInlineText(formatted);
+  };
   const setupWarnings = Array.isArray(replayDiagnostics?.setupWarnings)
-    ? replayDiagnostics.setupWarnings.map((warning) => normalizeInlineText(warning)).filter(Boolean)
+    ? replayDiagnostics.setupWarnings.map((warning) => normalizeMessage(warning)).filter(Boolean)
     : [];
   const turnWarnings = Array.isArray(replayDiagnostics?.turnWarnings)
     ? replayDiagnostics.turnWarnings
@@ -117,7 +124,7 @@ function appendReplayWarnings(rows, replayDiagnostics = null) {
   for (let turnIndex = 0; turnIndex < turnWarnings.length; turnIndex += 1) {
     const warnings = Array.isArray(turnWarnings[turnIndex]) ? turnWarnings[turnIndex] : [];
     for (const warning of warnings) {
-      const message = normalizeInlineText(warning);
+      const message = normalizeMessage(warning);
       if (!message) {
         continue;
       }
@@ -153,6 +160,7 @@ export function buildPassiveDebugLogRows({
   committedRecords = [],
   getStateBefore = () => null,
   replayDiagnostics = null,
+  formatMessage = null,
 } = {}) {
   const rows = [];
   const stateFallback = currentState ?? initialState ?? null;
@@ -205,7 +213,7 @@ export function buildPassiveDebugLogRows({
   ).filter((e) => TURN_START_TIMINGS.includes(e.timing));
   appendEventSection(rows, pendingTurnStartEvents, `${pendingTurnLabel}開始`);
 
-  appendReplayWarnings(rows, replayDiagnostics);
+  appendReplayWarnings(rows, replayDiagnostics, formatMessage);
 
   return rows;
 }

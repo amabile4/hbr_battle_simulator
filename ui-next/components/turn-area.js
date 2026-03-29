@@ -1,5 +1,6 @@
 import { TurnRowController } from './turn-row.js';
 import { buildPassiveDebugLogRows } from '../utils/passive-debug-log.js';
+import { createHumanReadableMessageFormatter } from '../utils/human-readable-message.js';
 import { REPLAY_OPERATION_TYPES } from '../../src/ui/lightweight-replay-script.js';
 
 function createEmptyRowDiagnostics() {
@@ -30,6 +31,7 @@ export class TurnAreaController {
   #dismissedStatusKey = '';
   #rowsRoot = null;
   #editSession = null;
+  #formatMessage = (message) => String(message ?? '');
 
   constructor({
     root,
@@ -45,6 +47,7 @@ export class TurnAreaController {
     this.#onError = onError;
     this.#onTurnCommitted = onTurnCommitted;
     this.#onPassiveLogRowsChange = onPassiveLogRowsChange;
+    this.#formatMessage = createHumanReadableMessageFormatter({ store });
   }
 
   initialize(initialState, replaySetup = {}, simulatorSettings = {}, validationPolicy = {}) {
@@ -244,13 +247,14 @@ export class TurnAreaController {
 
   #buildRowDiagnostics(turnIndex) {
     const diagnostics = this.#engineManager.replayDiagnostics;
+    const formatMessage = this.#formatMessage;
     return {
       warnings: Array.isArray(diagnostics?.turnWarnings?.[turnIndex])
-        ? [...diagnostics.turnWarnings[turnIndex]]
+        ? diagnostics.turnWarnings[turnIndex].map((warning) => formatMessage(warning))
         : [],
       error:
         diagnostics?.error && Number(diagnostics.error.index) === turnIndex
-          ? String(diagnostics.error.message ?? '')
+          ? formatMessage(diagnostics.error.message)
           : null,
     };
   }
@@ -625,7 +629,8 @@ export class TurnAreaController {
     let classes = [];
     let statusKind = '';
     if (diagnostics.error) {
-      text = `再計算停止: T${Number(diagnostics.error.index) + 1} ${diagnostics.error.message}`;
+      const formattedErrorMessage = this.#formatMessage(diagnostics.error.message);
+      text = `再計算停止: T${Number(diagnostics.error.index) + 1} ${formattedErrorMessage}`;
       classes = ['border-red-200', 'bg-red-50', 'text-red-700'];
       statusKind = 'error';
     } else if (this.#engineManager.committedTurnCount > 0) {
@@ -677,6 +682,7 @@ export class TurnAreaController {
         committedRecords: this.#engineManager.computedRecords,
         getStateBefore: (turnIndex) => this.#engineManager.getStateBefore(turnIndex),
         replayDiagnostics: this.#engineManager.replayDiagnostics,
+        formatMessage: this.#formatMessage,
       })
     );
   }

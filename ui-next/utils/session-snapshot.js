@@ -74,3 +74,120 @@ export function normalizeSessionSnapshot(snapshot = {}) {
 export function serializeSessionSnapshot(snapshot = {}) {
   return JSON.stringify(normalizeSessionSnapshot(snapshot), null, 2);
 }
+
+function resolveOptionalName(resolver, id) {
+  if (!Number.isFinite(Number(id)) || typeof resolver !== 'function') {
+    return null;
+  }
+  const name = resolver(Number(id));
+  const normalized = String(name ?? '').trim();
+  return normalized || null;
+}
+
+function buildSkillNamesByPartyIndex(skillSetsByPartyIndex = {}, resolveSkillName = null) {
+  const namesByPartyIndex = {};
+  for (let index = 0; index < PARTY_SIZE; index += 1) {
+    const key = String(index);
+    const skillIds =
+      skillSetsByPartyIndex?.[key] ??
+      skillSetsByPartyIndex?.[index] ??
+      null;
+    if (!Array.isArray(skillIds)) {
+      continue;
+    }
+    namesByPartyIndex[key] = skillIds.map((skillId) => resolveOptionalName(resolveSkillName, skillId));
+  }
+  return namesByPartyIndex;
+}
+
+function buildIndexedStyleNameMap(indexedStyleIds = {}, resolveStyleName = null) {
+  const result = {};
+  for (let index = 0; index < PARTY_SIZE; index += 1) {
+    const key = String(index);
+    const styleId = indexedStyleIds?.[key] ?? indexedStyleIds?.[index] ?? null;
+    result[key] = resolveOptionalName(resolveStyleName, styleId);
+  }
+  return result;
+}
+
+function normalizeSpMap(values = {}) {
+  const result = {};
+  if (!values || typeof values !== 'object') {
+    return result;
+  }
+  for (const [styleId, value] of Object.entries(values)) {
+    const numericStyleId = Number(styleId);
+    const numericSp = Number(value);
+    if (!Number.isFinite(numericStyleId) || !Number.isFinite(numericSp)) {
+      continue;
+    }
+    result[String(numericStyleId)] = numericSp;
+  }
+  return result;
+}
+
+/**
+ * 保存JSON向けに人間可読の補助情報を付与する。
+ * 読み込み処理は normalizeSessionSnapshot が既知フィールドのみを採用するため、
+ * この関数が追加するフィールドは完全に無視される。
+ */
+export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
+  const normalized = normalizeSessionSnapshot(snapshot);
+  const resolveStyleName = options.resolveStyleName ?? null;
+  const resolveSkillName = options.resolveSkillName ?? null;
+  const getTurnStartSpByStyleId = options.getTurnStartSpByStyleId ?? (() => ({}));
+  const getTurnActionSpByStyleId = options.getTurnActionSpByStyleId ?? (() => ({}));
+
+  const decorated = structuredClone(normalized);
+  decorated.setup.styleNames = decorated.setup.styleIds.map((styleId) =>
+    resolveOptionalName(resolveStyleName, styleId)
+  );
+  decorated.setup.supportStyleNames = decorated.setup.supportStyleIds.map((styleId) =>
+    resolveOptionalName(resolveStyleName, styleId)
+  );
+  decorated.setup.skillNamesByPartyIndex = buildSkillNamesByPartyIndex(
+    decorated.setup.skillSetsByPartyIndex,
+    resolveSkillName
+  );
+
+  decorated.replayScript.setup.styleNames = decorated.replayScript.setup.styleIds.map((styleId) =>
+    resolveOptionalName(resolveStyleName, styleId)
+  );
+  decorated.replayScript.setup.supportStyleNamesByPartyIndex = buildIndexedStyleNameMap(
+    decorated.replayScript.setup.supportStyleIdsByPartyIndex,
+    resolveStyleName
+  );
+  decorated.replayScript.setup.skillNamesByPartyIndex = buildSkillNamesByPartyIndex(
+    decorated.replayScript.setup.skillSetsByPartyIndex,
+    resolveSkillName
+  );
+
+  decorated.replayScript.turns = decorated.replayScript.turns.map((turn, turnIndex) => {
+    const spAtTurnStartByStyleId = normalizeSpMap(getTurnStartSpByStyleId(turnIndex));
+    const spAtActionStartByStyleId = normalizeSpMap(getTurnActionSpByStyleId(turnIndex));
+    const slots = (Array.isArray(turn.slots) ? turn.slots : []).map((slot) => {
+      const styleId = Number(slot?.styleId);
+      const skillId = Number(slot?.skillId);
+      const styleName = resolveOptionalName(resolveStyleName, styleId);
+      const skillName = resolveOptionalName(resolveSkillName, skillId);
+      const key = Number.isFinite(styleId) ? String(styleId) : null;
+      return {
+        ...slot,
+        styleName,
+        skillName,
+        spAtTurnStart: key ? (spAtTurnStartByStyleId[key] ?? null) : null,
+        spAtActionStart: key ? (spAtActionStartByStyleId[key] ?? null) : null,
+      };
+    });
+    return {
+      ...turn,
+      slots,
+      info: {
+        spAtTurnStartByStyleId,
+        spAtActionStartByStyleId,
+      },
+    };
+  });
+
+  return decorated;
+}
