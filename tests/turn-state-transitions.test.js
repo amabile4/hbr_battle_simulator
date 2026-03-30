@@ -4996,6 +4996,38 @@ test('additional turn target_condition IsFront()==1 rejects backline target', ()
   assert.equal(nextState.party.some((m) => m.isExtraActive), false);
 });
 
+test('国士無双は非ODでは追加ターンなし、OD中のみ追加ターンを付与する', () => {
+  const store = getStore();
+  const skillId = 46005117;
+
+  const normalState = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId)
+  );
+  const normalCommit = commitTurn(normalState, previewActorSkill(normalState, skillId));
+  assert.equal(
+    normalCommit.nextState.turnState.turnType,
+    'normal',
+    'non-OD usage should not grant an extra turn'
+  );
+
+  let odState = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  odState.turnState.odGauge = 300;
+  odState = activateOverdrive(odState, 2, 'preemptive');
+
+  const odCommit = commitTurn(odState, previewActorSkill(odState, skillId));
+  assert.equal(
+    odCommit.nextState.turnState.turnType,
+    'extra',
+    'OD usage should grant an extra turn'
+  );
+  assert.ok(
+    (odCommit.nextState.turnState.extraTurnState?.allowedCharacterIds ?? []).includes(
+      odState.party[0].characterId
+    ),
+    'actor should be included in extra turn allowed members'
+  );
+});
+
 test('OD turn resumes after extra turn (OD3-1 -> EX -> OD3-2)', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

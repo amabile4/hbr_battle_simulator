@@ -155,6 +155,51 @@ function mergeConditionFlags(...flagsList) {
   );
 }
 
+function collectAdditionalTurnPartEntries(parts, inheritedFlags = null) {
+  const resolvedInheritedFlags = mergeConditionFlags(inheritedFlags);
+  const entries = [];
+  for (const part of parts ?? []) {
+    const skillType = String(part?.skill_type ?? '');
+    if (skillType === 'AdditionalTurn') {
+      const partFlags = mergeConditionFlags(
+        resolvedInheritedFlags,
+        parseConditionFlags(part?.cond),
+        parseConditionFlags(part?.hit_condition),
+        parseConditionFlags(part?.target_condition)
+      );
+      entries.push({
+        part,
+        conditionFlags: partFlags,
+      });
+      continue;
+    }
+
+    if (skillType !== 'SkillCondition') {
+      continue;
+    }
+
+    const branchFlags = mergeConditionFlags(
+      resolvedInheritedFlags,
+      parseConditionFlags(part?.cond),
+      parseConditionFlags(part?.iuc_cond)
+    );
+    const variants = Array.isArray(part?.strval)
+      ? part.strval.filter((variant) => variant && typeof variant === 'object')
+      : [];
+    for (const variant of variants) {
+      const variantFlags = mergeConditionFlags(
+        branchFlags,
+        parseConditionFlags(variant?.cond),
+        parseConditionFlags(variant?.iuc_cond)
+      );
+      entries.push(
+        ...collectAdditionalTurnPartEntries(variant?.parts, variantFlags)
+      );
+    }
+  }
+  return entries;
+}
+
 function mergeSkillVariant(baseVariant, overrideVariant) {
   if (baseVariant && overrideVariant && typeof baseVariant === 'object' && typeof overrideVariant === 'object') {
     const merged = {
@@ -1066,27 +1111,20 @@ export class HbrDataStore {
       return null;
     }
 
-    const hasAdditionalTurnPart = (skill.parts ?? []).some(
-      (part) => String(part.skill_type ?? '') === 'AdditionalTurn'
-    );
-    if (!hasAdditionalTurnPart) {
-      return null;
-    }
-
     const skillConditionFlags = mergeConditionFlags(
       parseConditionFlags(skill.cond),
       parseConditionFlags(skill.iuc_cond)
     );
-    const additionalTurnParts = (skill.parts ?? []).filter(
-      (part) => String(part.skill_type ?? '') === 'AdditionalTurn'
+    const additionalTurnEntries = collectAdditionalTurnPartEntries(
+      skill.parts,
+      skillConditionFlags
     );
-    const partConditionFlags = additionalTurnParts.map((part) =>
-      mergeConditionFlags(
-        parseConditionFlags(part.cond),
-        parseConditionFlags(part.hit_condition),
-        parseConditionFlags(part.target_condition)
-      )
-    );
+    if (additionalTurnEntries.length === 0) {
+      return null;
+    }
+
+    const additionalTurnParts = additionalTurnEntries.map((entry) => entry.part);
+    const partConditionFlags = additionalTurnEntries.map((entry) => entry.conditionFlags);
     const aggregatePartFlags = mergeConditionFlags(...partConditionFlags);
 
     const defaultSkillUsableInExtraTurn = !skillConditionFlags.excludesExtraTurn;

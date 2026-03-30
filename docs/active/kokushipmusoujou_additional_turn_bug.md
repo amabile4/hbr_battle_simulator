@@ -149,6 +149,18 @@ function collectAdditionalTurnParts(parts) {
 
 ---
 
+## 実施内容
+
+- `src/data/hbr-data-store.js` の `getAdditionalTurnRule()` を修正し、`SkillCondition.strval` 配下を再帰走査して `AdditionalTurn` を収集するように対応。
+- 追加ターン検出時は、親 `SkillCondition` / variant の `cond`・`iuc_cond` を条件フラグへマージすることで、`requiresOverDrive` 等の文脈を保持。
+
+## テスト
+
+- Unit: `node --test tests/data-store-operations.test.js`（PASS）
+  - 実データ回帰として `46005117`（国士無双）の `getAdditionalTurnRule()` が `requiresOverDrive: true` かつ `Self` 付与対象を返すことを検証。
+- E2E: `npm run test:e2e -- tests/e2e/kokushipmusoujou-additional-turn.spec.js`（PASS）
+  - 再現セッション `ui_next_session_2026-03-30T07-28-15.502Z.json` を読み込み、国士無双実行後の入力行が `EX` 表示になることを確認。
+
 ## ステータス
 
-🟢 調査完了 / 修正未着手（2026-03-30）
+✅ 完了（修正・Unit/E2E確認済み, 2026-03-30）

@@ -641,6 +641,7 @@ test('additional turn rules expose turn-context conditions from skill parts', ()
   const yatadoru = store.getAdditionalTurnRule(46041501); // 宿る想い
   const tenku = store.getAdditionalTurnRule(46041403); // 天駆の鉄槌
   const sprint = store.getAdditionalTurnRule(46006661); // 快感・スプリント！+
+  const kokushi = store.getAdditionalTurnRule(46005117); // 国士無双
 
   assert.equal(yatadoru?.skillUsableInExtraTurn, true);
   assert.equal(yatadoru?.additionalTurnGrantInExtraTurn, false);
@@ -655,6 +656,12 @@ test('additional turn rules expose turn-context conditions from skill parts', ()
   assert.equal(tenku?.additionalTurnGrantInExtraTurn, true);
 
   assert.equal(sprint?.conditions?.requiresOverDrive, true);
+  assert.equal(kokushi?.conditions?.requiresOverDrive, true);
+  assert.equal(
+    kokushi?.additionalTurnTargets?.some((item) => item.targetType === 'Self'),
+    true,
+    '国士無双 should expose nested AdditionalTurn target from SkillCondition branch'
+  );
 });
 
 test('EP rules are loaded from external rule table for Nanase styles', () => {

@@ -62,10 +62,11 @@ docs/
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-22 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（legacy DOM controller 廃止後の shared module 境界へ更新） | 2026-03-29 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
-| [active/kokushipmusoujou_additional_turn_bug.md](active/kokushipmusoujou_additional_turn_bug.md) | 🟢 進行中 | 国士無双で追加ターンが発生しない原因調査（`getAdditionalTurnRule()` が `SkillCondition.strval` を再帰しない） | 2026-03-30 |
+| [active/kokushipmusoujou_additional_turn_bug.md](active/kokushipmusoujou_additional_turn_bug.md) | ✅ 完了 | 国士無双で追加ターンが発生しない不具合を修正（`getAdditionalTurnRule()` の `SkillCondition.strval` 再帰対応、Unit/E2E確認済み） | 2026-03-30 |
 | [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | Phase 1: バフ消費ロジック現状分析 - Funnel/MindEye/Count型/ターン型各消費パターンの完全フロー図とコード参照 | 2026-03-30 |
 | [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | Phase 1: 統一バフスキーマ設計 - StatusEffect メタデータ統一仕様（exitCond/limitType/consumeTrigger）と ActionContext 型定義 | 2026-03-30 |
 | [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表 | 2026-03-30 |
+| [active/buff_consumption_phase2_review.md](active/buff_consumption_phase2_review.md) | 🟢 進行中 | Phase 2 実装レビュー結果（`buildActionContext` regex BUG-1・`AdditionalTurn` 未対応 BUG-2・dead code 等、Phase 3 着手前の必須修正リスト） | 2026-03-30 |
 
 ---
 
