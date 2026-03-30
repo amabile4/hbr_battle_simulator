@@ -67,7 +67,8 @@ docs/
 | [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | Phase 1: 統一バフスキーマ設計 - StatusEffect メタデータ統一仕様（exitCond/limitType/consumeTrigger）と ActionContext 型定義 | 2026-03-30 |
 | [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表 | 2026-03-30 |
 | [active/buff_consumption_phase2_review.md](active/buff_consumption_phase2_review.md) | ✅ 完了 | Phase 2 実装レビュー結果（BUG-1/2/3 修正、`shouldConsume` 単体テスト追加、`action_context_matrix` 整合更新を反映済み） | 2026-03-30 |
-| [active/buff_consumption_phase3_wbs.md](active/buff_consumption_phase3_wbs.md) | 🟢 進行中 | Phase 3 残課題とWBS（orchestrator接続・競合判定統合・TurnEnd段階移行・テスト計画） | 2026-03-30 |
+| [active/buff_consumption_phase3_wbs.md](active/buff_consumption_phase3_wbs.md) | 🟢 進行中 | Phase 3 残課題とWBS（M1: Funnel/MindEye の orchestrator接続・競合判定統合・回帰テスト追加まで完了、残りは TurnEnd / metadata validation / docs review） | 2026-03-31 |
+| [active/buff_consumption_phase3_review.md](active/buff_consumption_phase3_review.md) | 🟢 進行中 | Phase 3 実装レビュー結果（M1 完了確認・問題①〜④指摘・残タスク P3-T03/T04/05/06/08 整理） | 2026-03-31 |
 | [active/mindeye_only_count_integration_assessment.md](active/mindeye_only_count_integration_assessment.md) | ✅ 完了 | MindEye/Funnel の Only/Count 分離統合可能性評価（実装経緯補足: 実機は鬼神化後発・シミュレーターは鬼神化先行実装） | 2026-03-30 |
 
 ---

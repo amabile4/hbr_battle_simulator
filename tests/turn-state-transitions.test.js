@@ -9347,6 +9347,88 @@ test('active buff全種監査: 通常攻撃/非ダメージでは Count バフ�
   }
 });
 
+test('Funnel/MindEye: 通常攻撃では消費されず、与ダメージスキルで消費される', () => {
+  const statusTypes = ['Funnel', 'MindEye'];
+
+  for (const [idx, statusType] of statusTypes.entries()) {
+    const baseId = 25240 + idx * 10;
+    const party = createSixMemberManualParty((memberIdx) =>
+      memberIdx === 0
+        ? {
+            statusEffects: [
+              {
+                effectId: baseId,
+                statusType,
+                limitType: 'Default',
+                exitCond: 'Count',
+                remaining: 1,
+                power: 1,
+                metadata: { activeBuffStatus: true },
+              },
+            ],
+            skills: [
+              {
+                id: baseId + 1,
+                name: '通常攻撃',
+                label: `M1${statusType}AttackNormal`,
+                sp_cost: 0,
+                hit_count: 1,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+              },
+              {
+                id: baseId + 2,
+                name: 'Protection',
+                label: `M1${statusType}Protection`,
+                sp_cost: 0,
+                target_type: 'Self',
+                parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+              },
+              {
+                id: baseId + 3,
+                name: 'DamageSkill',
+                label: `M1${statusType}DamageSkill`,
+                sp_cost: 0,
+                hit_count: 1,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+              },
+            ],
+          }
+        : {}
+    );
+
+    let state = createBattleStateFromParty(party);
+    const countBefore =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countBefore, 1, `${statusType}: 初期状態で1件`);
+
+    let preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: baseId + 1, targetEnemyIndex: 0 },
+    });
+    state = commitTurn(state, preview).nextState;
+    const countAfterNormal =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countAfterNormal, 1, `${statusType}: 通常攻撃では消費されない`);
+
+    preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: baseId + 2 },
+    });
+    state = commitTurn(state, preview).nextState;
+    const countAfterNonDamage =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countAfterNonDamage, 1, `${statusType}: 非ダメージスキルでは消費されない`);
+
+    preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: baseId + 3, targetEnemyIndex: 0 },
+    });
+    state = commitTurn(state, preview).nextState;
+    const countAfterDamage =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countAfterDamage, 0, `${statusType}: 与ダメージスキルで消費される`);
+  }
+});
+
 test('elemental active AttackUp status applies only to matching element skills', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

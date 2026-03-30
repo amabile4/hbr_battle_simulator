@@ -5738,11 +5738,18 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
 
     const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, member);
     const hasDamage = hasDamagePartInParts(effectiveParts);
+    const actionType = resolveActionContextTypeForSkill(skill);
+    const actionContext = buildActionContext(actionType, skill, {
+      hasDamage,
+      turnPhase: 'PlayerTurn',
+      isNormalAttack: actionType === 'NormalAttack',
+      isPursuit: actionType === 'Pursuit',
+    });
     const funnelResolution = hasDamage
-      ? resolveFunnelCompetitionForAction(member)
+      ? resolveFunnelCompetitionForAction(member, actionContext)
       : { selectedEffects: [], selectedCountEffectIds: [] };
     const mindEyeResolution = hasDamage
-      ? resolveMindEyeCompetitionForAction(member)
+      ? resolveMindEyeCompetitionForAction(member, actionContext)
       : { selectedEffects: [], selectedCountEffectIds: [] };
     const funnelEffects = funnelResolution.selectedEffects.slice(0, 2);
     const funnelHitBonus = funnelEffects.reduce(
@@ -5800,8 +5807,18 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
     let consumedFunnels = [];
     let consumedMindEyes = [];
     if (hasDamage && consumeStatusEffects && !isNormalAttackSkill(skill) && !isPursuitOnlySkill(skill)) {
-      consumedFunnels = consumeSelectedCountStatusEffects(member, 'Funnel', funnelResolution.selectedCountEffectIds);
-      consumedMindEyes = consumeSelectedCountStatusEffects(member, 'MindEye', mindEyeResolution.selectedCountEffectIds);
+      consumedFunnels = consumeSelectedCountStatusEffectsWithOrchestrator(
+        member,
+        'Funnel',
+        funnelResolution.selectedCountEffectIds,
+        actionContext
+      );
+      consumedMindEyes = consumeSelectedCountStatusEffectsWithOrchestrator(
+        member,
+        'MindEye',
+        mindEyeResolution.selectedCountEffectIds,
+        actionContext
+      );
     }
 
     const damageContext = buildDamageCalculationContext({
@@ -6000,20 +6017,48 @@ function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
   };
 }
 
-function resolveFunnelCompetitionForAction(member) {
+function resolveActionContextTypeForSkill(skill) {
+  if (isNormalAttackSkill(skill)) {
+    return 'NormalAttack';
+  }
+  if (isPursuitOnlySkill(skill)) {
+    return 'Pursuit';
+  }
+  return 'Skill';
+}
+
+export function evaluateCompetitiveConsumption(effects, actionContext, options = {}) {
+  const resolution = resolveCountOnlyCompetitionForEffects(effects, options);
+  if (!actionContext || typeof actionContext !== 'object') {
+    return resolution;
+  }
+
+  const selectedCountEffectIds = resolution.selectedEffects
+    .filter((effect) => String(effect?.exitCond ?? '') === 'Count')
+    .filter((effect) => shouldConsume(effect, actionContext).shouldConsume)
+    .map((effect) => Number(effect?.effectId ?? 0))
+    .filter((effectId) => Number.isFinite(effectId) && effectId > 0);
+
+  return {
+    ...resolution,
+    selectedCountEffectIds,
+  };
+}
+
+function resolveFunnelCompetitionForAction(member, actionContext = null) {
   if (!member || typeof member.getFunnelEffects !== 'function') {
     return { selectedEffects: [], selectedCountEffectIds: [] };
   }
-  return resolveCountOnlyCompetitionForEffects(member.getFunnelEffects({ activeOnly: true }), {
+  return evaluateCompetitiveConsumption(member.getFunnelEffects({ activeOnly: true }), actionContext, {
     countLimit: 2,
   });
 }
 
-function resolveMindEyeCompetitionForAction(member) {
+function resolveMindEyeCompetitionForAction(member, actionContext = null) {
   if (!member || typeof member.getMindEyeEffects !== 'function') {
     return { selectedEffects: [], selectedCountEffectIds: [] };
   }
-  return resolveCountOnlyCompetitionForEffects(member.getMindEyeEffects({ activeOnly: true }), {
+  return evaluateCompetitiveConsumption(member.getMindEyeEffects({ activeOnly: true }), actionContext, {
     countLimit: 2,
   });
 }
@@ -6057,10 +6102,27 @@ function consumeSelectedCountStatusEffectsWithOrchestrator(
   selectedCountEffectIds,
   actionContext
 ) {
-  // Phase 3.1: This is the integration point where shouldConsume() would be called
-  // For now, we delegate to the existing implementation to maintain stability
-  // TODO: When Phase 3 is approved, integrate shouldConsume() evaluation here
-  return consumeSelectedCountStatusEffects(member, statusType, selectedCountEffectIds);
+  if (!member || typeof member.tickStatusEffectsWhere !== 'function') {
+    return [];
+  }
+  const idSet = new Set(
+    (selectedCountEffectIds ?? [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+  );
+  if (idSet.size <= 0) {
+    return [];
+  }
+  if (!actionContext || typeof actionContext !== 'object') {
+    return consumeSelectedCountStatusEffects(member, statusType, selectedCountEffectIds);
+  }
+  return member.tickStatusEffectsWhere(
+    (effect) =>
+      String(effect?.statusType ?? '') === String(statusType ?? '') &&
+      String(effect?.exitCond ?? '') === 'Count' &&
+      idSet.has(Number(effect?.effectId ?? 0)) &&
+      shouldConsume(effect, actionContext).shouldConsume
+  );
 }
 
 function resolveFunnelHitBonusForMember(member, maxStacks = 2) {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { shouldConsume, validateBuffMetadata } from '../src/domain/character-style.js';
-import { buildActionContext } from '../src/turn/turn-controller.js';
+import { buildActionContext, evaluateCompetitiveConsumption } from '../src/turn/turn-controller.js';
 
 function createEffect(overrides = {}) {
   return {
@@ -117,4 +117,32 @@ test('buildActionContextは非ダメージskill_typeをダメージ扱いしな�
   });
 
   assert.equal(context.hasDamage, false);
+});
+
+test('evaluateCompetitiveConsumptionはCount勝ちの selectedEffects を維持しつつ非ダメージでは消費IDを返さない', () => {
+  const countA = createEffect({ effectId: 11, power: 0.4 });
+  const countB = createEffect({ effectId: 12, power: 0.3 });
+  const only = createEffect({ effectId: 13, limitType: 'Only', power: 0.6 });
+  const actionContext = buildActionContext('Skill', {
+    parts: [{ skill_type: 'AttackUp' }],
+  });
+
+  const result = evaluateCompetitiveConsumption([countA, countB, only], actionContext, { countLimit: 2 });
+
+  assert.deepEqual(result.selectedEffects.map((effect) => Number(effect.effectId)), [11, 12]);
+  assert.deepEqual(result.selectedCountEffectIds, []);
+});
+
+test('evaluateCompetitiveConsumptionはCount勝ちの selectedCountEffectIds を与ダメージ行動で返す', () => {
+  const countA = createEffect({ effectId: 21, power: 0.4 });
+  const countB = createEffect({ effectId: 22, power: 0.3 });
+  const only = createEffect({ effectId: 23, limitType: 'Only', power: 0.6 });
+  const actionContext = buildActionContext('Skill', {
+    parts: [{ skill_type: 'AttackSkill' }],
+  });
+
+  const result = evaluateCompetitiveConsumption([countA, countB, only], actionContext, { countLimit: 2 });
+
+  assert.deepEqual(result.selectedEffects.map((effect) => Number(effect.effectId)), [21, 22]);
+  assert.deepEqual(result.selectedCountEffectIds, [21, 22]);
 });
