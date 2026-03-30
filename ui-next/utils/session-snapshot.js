@@ -149,7 +149,7 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
   const resolveCharacterName = options.resolveCharacterName ?? null;
   const resolveSkillName = options.resolveSkillName ?? null;
   const getTurnStartSpByStyleId = options.getTurnStartSpByStyleId ?? (() => ({}));
-  const getTurnActionSpByStyleId = options.getTurnActionSpByStyleId ?? (() => ({}));
+  const getTurnPostSkillSpByStyleId = options.getTurnPostSkillSpByStyleId ?? (() => ({}));
 
   const decorated = structuredClone(normalized);
   decorated.setup.styleNames = buildResolvedNameList(decorated.setup.styleIds, resolveStyleName);
@@ -190,7 +190,7 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
 
   decorated.replayScript.turns = decorated.replayScript.turns.map((turn, turnIndex) => {
     const spAtTurnStartByStyleId = normalizeSpMap(getTurnStartSpByStyleId(turnIndex));
-    const spAtActionStartByStyleId = normalizeSpMap(getTurnActionSpByStyleId(turnIndex));
+    const spAtActionStartByStyleId = normalizeSpMap(getTurnPostSkillSpByStyleId(turnIndex));
     const slots = (Array.isArray(turn.slots) ? turn.slots : []).map((slot) => {
       const styleId = Number(slot?.styleId);
       const skillId = Number(slot?.skillId);
@@ -209,6 +209,7 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
     });
     return {
       ...turn,
+      turn: turnIndex + 1,
       slots,
       info: {
         spAtTurnStartByStyleId,

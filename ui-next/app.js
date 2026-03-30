@@ -288,21 +288,30 @@ function buildTurnStartSpByStyleId(turnEngineManager, turnIndex) {
   return result;
 }
 
-function buildTurnActionSpByStyleId(turnEngineManager, turnIndex) {
+function buildTurnPostSkillSpByStyleId(turnEngineManager, turnIndex) {
   const record = turnEngineManager.computedRecords?.[turnIndex] ?? null;
   const actions = Array.isArray(record?.actions) ? record.actions : [];
   const result = {};
   for (const action of actions) {
     const styleId = Number(action?.styleId);
-    const startSp = Number(action?.startSP);
     const castIndex = Number(action?.castIndex ?? 0);
-    if (!Number.isFinite(styleId) || !Number.isFinite(startSp)) {
+    const costChange = Array.isArray(action?.spChanges)
+      ? action.spChanges.find(
+          (change) => change?.source === 'cost' && Number.isFinite(Number(change?.postSP))
+        )
+      : null;
+    const costPostSp = Number(costChange?.postSP);
+    const endSp = Number(action?.endSP);
+    const displayedSp = Number.isFinite(costPostSp)
+      ? costPostSp
+      : (Number.isFinite(endSp) ? endSp : NaN);
+    if (!Number.isFinite(styleId) || !Number.isFinite(displayedSp)) {
       continue;
     }
     const key = String(styleId);
     const existing = result[key];
     if (!existing || castIndex < existing.castIndex) {
-      result[key] = { value: startSp, castIndex };
+      result[key] = { value: displayedSp, castIndex };
     }
   }
   return Object.fromEntries(
@@ -328,8 +337,10 @@ function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
     resolveStyleName: (styleId) => resolveStyleNameFromStore(store, styleId),
     resolveCharacterName: (styleId) => resolveCharacterNameFromStore(store, styleId),
     resolveSkillName: (skillId) => resolveSkillNameFromStore(store, skillId),
-    getTurnStartSpByStyleId: (turnIndex) => buildTurnStartSpByStyleId(turnEngineManager, turnIndex),
-    getTurnActionSpByStyleId: (turnIndex) => buildTurnActionSpByStyleId(turnEngineManager, turnIndex),
+    getTurnStartSpByStyleId: (turnIndex) =>
+      buildTurnStartSpByStyleId(turnEngineManager, turnIndex),
+    getTurnPostSkillSpByStyleId: (turnIndex) =>
+      buildTurnPostSkillSpByStyleId(turnEngineManager, turnIndex),
   });
   const sessionText = JSON.stringify(decoratedSnapshot, null, 2);
   downloadTextFile(sessionText, makeSessionFilename());

@@ -1544,8 +1544,9 @@ export class TurnEngineManager {
     if (actionOutcomeOverrideEntry) {
       overrideEntries.push(actionOutcomeOverrideEntry);
     }
+    const sequentialTurnNumber = (this.#replayScript?.turns?.length ?? 0) + 1;
     return normalizeLightweightReplayTurn({
-      turn: state.turnState?.turnIndex ?? null,
+      turn: sequentialTurnNumber,
       slots,
       note,
       operations,

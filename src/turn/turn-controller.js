@@ -7810,7 +7810,10 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     });
   }
 
-  return actionEntries;
+  return {
+    actionEntries,
+    projectedState,
+  };
 }
 
 function getEpRule(member) {
@@ -9795,7 +9798,7 @@ export function createBattleStateFromParty(party, turnState) {
 
 export function previewTurn(state, actions, enemyAction = null, enemyCount = 1, options = {}) {
   const sortedActions = validateActionDict(state, actions, options);
-  const actionEntries = previewActionEntries(state, sortedActions, enemyCount);
+  const { actionEntries, projectedState } = previewActionEntries(state, sortedActions, enemyCount);
   const snapBefore = snapshotPartyByPartyIndex(state.party);
 
   const record = fromSnapshot(
@@ -9806,20 +9809,12 @@ export function previewTurn(state, actions, enemyAction = null, enemyCount = 1, 
     state.turnState.sequenceId
   );
 
-  const projectedState = {
-    ...state,
-    party: state.party,
-    turnState: cloneTurnState(state.turnState),
-  };
-  const odProjection = applyOdGaugeFromActions(projectedState, record, {
-    consumeStatusEffects: false,
-  });
   const transcendenceSummary = applyTranscendenceTurnSummary(
     projectedState,
     computeTranscendenceTurnSummary(projectedState, record)
   );
   record.projections = {
-    odGaugeAtEnd: Number(projectedState.turnState.odGauge ?? odProjection.endOdGauge ?? 0),
+    odGaugeAtEnd: Number(projectedState.turnState.odGauge ?? 0),
     transcendence: transcendenceSummary,
   };
 

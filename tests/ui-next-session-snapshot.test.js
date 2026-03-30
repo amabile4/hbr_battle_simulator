@@ -73,7 +73,7 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   assert.deepEqual(parsed.setup.skillSetsByPartyIndex, {});
 });
 
-test('decorateSessionSnapshotForHumans adds names and turn SP metadata', () => {
+test('decorateSessionSnapshotForHumans adds names and turn/action SP metadata', () => {
   const decorated = decorateSessionSnapshotForHumans(
     {
       setup: {
@@ -105,7 +105,7 @@ test('decorateSessionSnapshotForHumans adds names and turn SP metadata', () => {
       resolveCharacterName: (styleId) => ({ 1001: '茅森 月歌', 1002: '和泉 ユキ', 1003: '逢川 めぐみ', 2001: 'サポート役A' }[styleId] ?? null),
       resolveSkillName: (skillId) => ({ 3001: 'プロテクション', 3002: '通常攻撃' }[skillId] ?? null),
       getTurnStartSpByStyleId: () => ({ 1001: 12, 1002: 9 }),
-      getTurnActionSpByStyleId: () => ({ 1001: 12 }),
+      getTurnPostSkillSpByStyleId: () => ({ 1001: 4 }),
     }
   );
 
@@ -119,12 +119,13 @@ test('decorateSessionSnapshotForHumans adds names and turn SP metadata', () => {
   assert.equal(decorated.replayScript.turns[0].slots[0].styleName, '茅森月歌');
   assert.equal(decorated.replayScript.turns[0].slots[0].characterName, '茅森 月歌');
   assert.equal(decorated.replayScript.turns[0].slots[0].skillName, 'プロテクション');
+  assert.equal(decorated.replayScript.turns[0].turn, 1);
   assert.equal(decorated.replayScript.turns[0].slots[0].spAtTurnStart, 12);
-  assert.equal(decorated.replayScript.turns[0].slots[0].spAtActionStart, 12);
+  assert.equal(decorated.replayScript.turns[0].slots[0].spAtActionStart, 4);
   assert.equal(decorated.replayScript.turns[0].slots[1].spAtTurnStart, 9);
   assert.equal(decorated.replayScript.turns[0].slots[1].spAtActionStart, null);
   assert.deepEqual(decorated.replayScript.turns[0].info.spAtTurnStartByStyleId, { '1001': 12, '1002': 9 });
-  assert.deepEqual(decorated.replayScript.turns[0].info.spAtActionStartByStyleId, { '1001': 12 });
+  assert.deepEqual(decorated.replayScript.turns[0].info.spAtActionStartByStyleId, { '1001': 4 });
 });
 
 test('normalizeSessionSnapshot ignores additional human-readable fields', () => {

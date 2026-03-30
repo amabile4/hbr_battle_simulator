@@ -11916,6 +11916,157 @@ test('AdditionalHitOnBreaking + OverDrivePointUp does NOT fire when breakHitCoun
   );
 });
 
+test('Carnival with You resonance is injected as support passive on 桐生 美也 (31X/Excelsior)', () => {
+  const store = getStore();
+  const actor = store.buildCharacterStyle({
+    styleId: 1004307,
+    partyIndex: 0,
+    initialSP: 20,
+    limitBreakLevel: 4,
+    supportStyleId: 1008105,
+    supportStyleLimitBreakLevel: 4,
+  });
+
+  const supportBreakOdPassive = actor.passives.find((passive) => {
+    const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+    const hasBreakTrigger = parts.some((part) => String(part?.skill_type ?? '') === 'AdditionalHitOnBreaking');
+    const odPart = parts.find((part) => String(part?.skill_type ?? '') === 'OverDrivePointUp');
+    return hasBreakTrigger && odPart && Number(odPart?.power?.[0] ?? 0) === 0.2;
+  });
+
+  assert.ok(supportBreakOdPassive, '31X support passive (AdditionalHitOnBreaking + OverDrivePointUp 0.2) should be injected');
+  assert.equal(supportBreakOdPassive.sourceType, 'support');
+  assert.equal(String(supportBreakOdPassive.name ?? ''), 'Excelsior!');
+});
+
+test('Carnival with You resonance fires on break and adds +20 OD gauge for 桐生 美也 (#2 break scenario)', () => {
+  const store = getStore();
+  const actorStyleId = 1004307;
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter(
+      (id) =>
+        Number(id) !== actorStyleId &&
+        String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? '') !== actorCharaLabel
+    )
+    .slice(0, 5);
+  assert.equal(fillerStyleIds.length, 5, 'should prepare five filler styles');
+
+  const styleIds = [actorStyleId, ...fillerStyleIds];
+  const buildState = () =>
+    createBattleStateFromParty(
+      store.buildPartyFromStyleIds(styleIds, {
+        initialSP: 20,
+        limitBreakLevelsByPartyIndex: { 0: 4 },
+        supportStyleIdsByPartyIndex: { 0: 1008105 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 4 },
+      })
+    );
+
+  const seedState = buildState();
+  const attackSkill = seedState.party[0].skills.find((skill) =>
+    (skill?.parts ?? []).some((part) => String(part?.skill_type ?? '') === 'AttackSkill')
+  );
+  assert.ok(attackSkill, 'actor should have an attack skill');
+  const attackSkillId = Number(attackSkill.skillId);
+
+  const buildActions = (state, breakHitCount) => ({
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: attackSkillId,
+      breakHitCount,
+    },
+    1: {
+      characterId: state.party[1].characterId,
+      skillId: state.party[1].skills[0].skillId,
+    },
+    2: {
+      characterId: state.party[2].characterId,
+      skillId: state.party[2].skills[0].skillId,
+    },
+  });
+
+  const noBreakState = buildState();
+  const noBreakPreview = previewTurn(noBreakState, buildActions(noBreakState, 0));
+  const noBreakCommit = commitTurn(noBreakState, noBreakPreview);
+
+  const withBreakState = buildState();
+  const withBreakPreview = previewTurn(withBreakState, buildActions(withBreakState, 1));
+  const withBreakCommit = commitTurn(withBreakState, withBreakPreview);
+
+  const noBreakOd = Number(noBreakCommit.nextState.turnState.odGauge ?? 0);
+  const withBreakOd = Number(withBreakCommit.nextState.turnState.odGauge ?? 0);
+  const odDiffByBreak = withBreakOd - noBreakOd;
+
+  assert.ok(
+    Math.abs(odDiffByBreak - 20) < 0.1,
+    `break-triggered support resonance should add +20 OD: noBreak=${noBreakOd}, withBreak=${withBreakOd}, diff=${odDiffByBreak}`
+  );
+});
+
+test('Carnival with You resonance is reflected in preview odGaugeAtEnd on break (+20)', () => {
+  const store = getStore();
+  const actorStyleId = 1004307;
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter(
+      (id) =>
+        Number(id) !== actorStyleId &&
+        String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? '') !== actorCharaLabel
+    )
+    .slice(0, 5);
+
+  const styleIds = [actorStyleId, ...fillerStyleIds];
+  const buildState = () =>
+    createBattleStateFromParty(
+      store.buildPartyFromStyleIds(styleIds, {
+        initialSP: 20,
+        limitBreakLevelsByPartyIndex: { 0: 4 },
+        supportStyleIdsByPartyIndex: { 0: 1008105 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 4 },
+      })
+    );
+
+  const seedState = buildState();
+  const attackSkill = seedState.party[0].skills.find((skill) =>
+    (skill?.parts ?? []).some((part) => String(part?.skill_type ?? '') === 'AttackSkill')
+  );
+  assert.ok(attackSkill, 'actor should have an attack skill');
+  const attackSkillId = Number(attackSkill.skillId);
+
+  const buildActions = (state, breakHitCount) => ({
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: attackSkillId,
+      breakHitCount,
+    },
+    1: {
+      characterId: state.party[1].characterId,
+      skillId: state.party[1].skills[0].skillId,
+    },
+    2: {
+      characterId: state.party[2].characterId,
+      skillId: state.party[2].skills[0].skillId,
+    },
+  });
+
+  const noBreakState = buildState();
+  const withBreakState = buildState();
+  const noBreakPreview = previewTurn(noBreakState, buildActions(noBreakState, 0));
+  const withBreakPreview = previewTurn(withBreakState, buildActions(withBreakState, 1));
+
+  const noBreakProjectedOd = Number(noBreakPreview.projections?.odGaugeAtEnd ?? 0);
+  const withBreakProjectedOd = Number(withBreakPreview.projections?.odGaugeAtEnd ?? 0);
+  const projectedDiff = withBreakProjectedOd - noBreakProjectedOd;
+
+  assert.ok(
+    Math.abs(projectedDiff - 20) < 0.1,
+    `preview odGaugeAtEnd should include +20 on break: noBreak=${noBreakProjectedOd}, withBreak=${withBreakProjectedOd}, diff=${projectedDiff}`
+  );
+});
+
 // ─── AdditionalHitOnRemovingBuff + OverDrivePointUp（アプローチショット相当） ───
 
 test('AdditionalHitOnRemovingBuff + OverDrivePointUp: OD gauge increases when buff removed (アプローチショット)', () => {
@@ -16090,4 +16241,125 @@ test('enemy od_rate=0 means no correction: OD gain is unchanged', () => {
 
   // 補正なし: 10.00%
   assert.equal(nextState.turnState.odGauge, 10);
+});
+
+// ─── Multiple passive trigger同時発火のテスト ───
+
+test('Multiple AdditionalHitOnBreaking passives fire simultaneously when breaking (敵をブレイク時に複数パッシブ発火)', () => {
+  // 複数のAdditionalHitOnBreakingトリガーを持つパッシブが、
+  // 敵ブレイク時に同時に発火することを検証する。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'MULTI_BREAK1',
+          characterName: 'MULTI_BREAK1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 100201,
+              name: 'ブレイク時OD増加パッシブ1',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.25, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+            {
+              id: 100202,
+              name: 'ブレイク時OD増加パッシブ2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.15, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100203,
+              name: 'Break Trigger Multi-Passive',
+              sp_cost: 3,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  
+  const preview = previewTurn(state, {
+    0: { characterId: 'MULTI_BREAK1', skillId: 100203, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  
+  const finalOdGauge = Number(nextState.turnState.odGauge ?? 0);
+  
+  // OD増加: パッシブ1で +25（0.25*100）、パッシブ2で +15（0.15*100）、合計 +40
+  assert.ok(
+    Math.abs(finalOdGauge - (initialOdGauge + 40)) < 0.1,
+    `OD gauge should increase by 40 (25+15) from both AdditionalHitOnBreaking passives: initial=${initialOdGauge}, final=${finalOdGauge}`
+  );
+});
+
+test('Multiple AdditionalHitOnBreaking passives with different effects on breaking', () => {
+  // 複数のパッシブが敵ブレイク時に発火し、それぞれの効果が正しく適用されることを検証
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'MULTI_BREAK2',
+          characterName: 'MULTI_BREAK2',
+          initialSP: 15,
+          passives: [
+            {
+              id: 100301,
+              name: 'ブレイク時OD+30',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.3, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+            {
+              id: 100302,
+              name: 'ブレイク時OD+20',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.2, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100304,
+              name: 'Break Trigger Summed OD',
+              sp_cost: 5,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  
+  const preview = previewTurn(state, {
+    0: { characterId: 'MULTI_BREAK2', skillId: 100304, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  
+  const finalOdGauge = Number(nextState.turnState.odGauge ?? 0);
+  
+  // OD増加: パッシブ1で +30、パッシブ2で +20、合計 +50
+  assert.ok(
+    Math.abs(finalOdGauge - (initialOdGauge + 50)) < 0.1,
+    `OD gauge should increase by 50 (30+20) from both passives: initial=${initialOdGauge}, final=${finalOdGauge}`
+  );
 });
