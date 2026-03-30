@@ -1,6 +1,27 @@
 import { createInitializedBattleSnapshot } from '../../src/ui/adapter-core.js';
 import { DEFAULT_INITIAL_SP, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 
+const PREEMPTIVE_FIELD_TO_ZONE_TYPE = Object.freeze({
+  fire: 'Fire',
+  ice: 'Ice',
+  thunder: 'Thunder',
+  light: 'Light',
+  dark: 'Dark',
+});
+
+function buildPreemptiveZoneState(enemySetup) {
+  const key = String(enemySetup?.preemptiveField ?? '').trim().toLowerCase();
+  const zoneType = PREEMPTIVE_FIELD_TO_ZONE_TYPE[key] ?? null;
+  if (!zoneType) {
+    return null;
+  }
+  return {
+    type: zoneType,
+    sourceSide: 'enemy',
+    remainingTurns: null,
+  };
+}
+
 /**
  * slot snapshot から BattleState を生成・保持するクラス。
  * - 後衛の空きスロットは左詰めでエンジンに渡す
@@ -77,6 +98,8 @@ export class BattleStateManager {
         .filter(Boolean)
     );
 
+    const preemptiveZoneState = buildPreemptiveZoneState(enemySetup);
+
     const result = createInitializedBattleSnapshot({
       dataStore: this.#store,
       initialSP: DEFAULT_INITIAL_SP,
@@ -107,7 +130,7 @@ export class BattleStateManager {
       enemyStatuses: [],
       breakStateByEnemy: {},
       enemyZoneConfigByEnemy: {},
-      zoneState: null,
+      zoneState: preemptiveZoneState,
       territoryState: null,
     });
 

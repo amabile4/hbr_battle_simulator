@@ -7472,6 +7472,87 @@ test('OnEveryTurn Zone展開パッシブ: partyIndex=1が先に展開しpartyInd
   assert.equal(state.turnState.zoneState?.type, 'Fire', '火属性ゾーンが展開されているべき');
 });
 
+test('Passive.Start_UseZone_SP01 (オーバーレイ) does not fire from enemy preemptive Turn0 zone deployment', () => {
+  const store = getStore();
+  const overlayStyle = store.getStyleById(1005206);
+  assert.ok(overlayStyle, 'overlay style should exist');
+  const overlayPassive = structuredClone(
+    (overlayStyle.passives ?? []).find((passive) => String(passive?.label ?? '') === 'Passive.Start_UseZone_SP01')
+  );
+  assert.ok(overlayPassive, 'overlay passive should exist');
+
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'IIshii',
+          characterName: 'Ishii',
+          passives: [overlayPassive],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party, {
+    zoneState: {
+      type: 'Fire',
+      sourceSide: 'enemy',
+      remainingTurns: null,
+    },
+  });
+  const overlayMember = state.party.find((member) => String(member.characterId) === 'IIshii');
+  assert.ok(overlayMember, 'overlay member should exist in battle state');
+  const initialSp = overlayMember.sp.current;
+
+  applyInitialPassiveState(state);
+
+  assert.equal(
+    overlayMember.sp.current,
+    initialSp,
+    'オーバーレイは「味方がフィールドを展開した時」トリガーのため、敵Turn0展開のみでは発火しない'
+  );
+  assert.equal(
+    state.turnState.passiveEventsLastApplied.some((event) => String(event?.passiveName ?? '') === 'オーバーレイ'),
+    false,
+    'enemy preemptive zone should not produce overlay passive event at battle start'
+  );
+});
+
+test('Passive.Start_FireFieldODUp01 (インパスト) fires on Turn1 start when enemy preemptive fire zone is active', () => {
+  const store = getStore();
+  const impastStyle = store.getStyleById(1005205);
+  assert.ok(impastStyle, 'impast style should exist');
+  const impastPassive = structuredClone(
+    (impastStyle.passives ?? []).find((passive) => String(passive?.label ?? '') === 'Passive.Start_FireFieldODUp01')
+  );
+  assert.ok(impastPassive, 'impast passive should exist');
+
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [impastPassive],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party, {
+    zoneState: {
+      type: 'Fire',
+      sourceSide: 'enemy',
+      remainingTurns: null,
+    },
+  });
+
+  applyInitialPassiveState(state);
+
+  assert.equal(
+    state.turnState.odGauge,
+    5,
+    'Turn1 start OnEveryTurn should gain +5% OD when Fire zone is active'
+  );
+  assert.equal(
+    state.turnState.passiveEventsLastApplied.some((event) => String(event?.passiveName ?? '') === 'インパスト'),
+    true,
+    'インパスト passive event should be logged at Turn1 start'
+  );
+});
+
 test('ReviveTerritory skill applies territory state and IsTerritory condition becomes true', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

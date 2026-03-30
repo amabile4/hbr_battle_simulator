@@ -165,6 +165,37 @@ test('InitialSetupController no longer mounts Passive Log as a setup tab', () =>
     assert.equal(root.querySelector('[data-tab-content="passive-log"]'), null);
   }));
 
+test('InitialSetupController enemy tab shows Turn0 preemptive field as display-only setup', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const enemyContent = root.querySelector('[data-tab-content="enemy"]');
+    assert.equal(enemyContent.hidden, false);
+    assert.equal(enemyContent.textContent.includes('Turn0(先制攻撃)'), true);
+    assert.equal(enemyContent.textContent.includes('開幕フィールド'), true);
+    assert.equal(enemyContent.textContent.includes('敵プリセット'), true);
+    assert.equal(
+      enemyContent.textContent.indexOf('Turn0(先制攻撃)') < enemyContent.textContent.indexOf('敵プリセット'),
+      true,
+    );
+
+    const fieldSelect = enemyContent.querySelector('[data-action="select-preemptive-field"]');
+    assert.ok(fieldSelect);
+    assert.deepEqual(
+      [...fieldSelect.options].map((option) => option.value),
+      ['none', 'fire', 'ice', 'thunder', 'light', 'dark'],
+    );
+  }));
+
 test('InitialSetupController getSetupSnapshot returns split simulator target selection modes', () =>
   withDom(({ root, pickerOverlay }) => {
     const controller = new InitialSetupController({
@@ -206,6 +237,30 @@ test('InitialSetupController getSetupSnapshot returns split simulator target sel
       TARGET_SELECTION_MODES.SIMPLE,
     );
     assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, false);
+  }));
+
+test('InitialSetupController getSetupSnapshot includes enemy preemptive field selection', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const fieldSelect = root.querySelector('[data-action="select-preemptive-field"]');
+    fieldSelect.value = 'thunder';
+    fieldSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const setupSnapshot = controller.getSetupSnapshot({
+      isFrontFilled: false,
+      styleIds: [null, null, null, null, null, null],
+    });
+    assert.equal(setupSnapshot.enemy.preemptiveField, 'thunder');
   }));
 
 test('InitialSetupController no longer exposes session save/load controls in Simulator Settings', () =>
@@ -254,6 +309,29 @@ test('InitialSetupController applySetupSnapshot restores simulator toggles', () 
     assert.equal(root.querySelector('[data-role="capture-until-battle-end-toggle"]').checked, true);
   }));
 
+test('InitialSetupController applySetupSnapshot restores enemy preemptive field selection', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySetupSnapshot({
+      enemy: {
+        preemptiveField: 'fire',
+      },
+    });
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const fieldSelect = root.querySelector('[data-action="select-preemptive-field"]');
+    assert.equal(fieldSelect.value, 'fire');
+  }));
+
 test('InitialSetupController getCurrentSetupSnapshot returns party and simulator settings together', () =>
   withDom(({ root, pickerOverlay }) => {
     const controller = new InitialSetupController({
@@ -271,6 +349,7 @@ test('InitialSetupController getCurrentSetupSnapshot returns party and simulator
       TARGET_SELECTION_MODES.SIMPLE,
     );
     assert.equal(snapshot.simulatorSettings.captureUntilBattleEnd, true);
+    assert.equal(snapshot.enemy.preemptiveField, 'none');
   }));
 
 test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>

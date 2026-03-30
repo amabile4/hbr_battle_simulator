@@ -15,6 +15,23 @@ const ELEMENTS = [
 
 const DEFAULT_OD_RATE    = 0;
 const DEFAULT_MAX_D_RATE = 999;
+const DEFAULT_PREEMPTIVE_FIELD = 'none';
+const PREEMPTIVE_FIELD_OPTIONS = [
+  { value: 'none', label: 'なし' },
+  { value: 'fire', label: '火' },
+  { value: 'ice', label: '氷' },
+  { value: 'thunder', label: '雷' },
+  { value: 'light', label: '光' },
+  { value: 'dark', label: '闇' },
+];
+const PREEMPTIVE_FIELD_VALUE_SET = new Set(PREEMPTIVE_FIELD_OPTIONS.map((option) => option.value));
+
+function normalizePreemptiveField(value) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return PREEMPTIVE_FIELD_VALUE_SET.has(normalized)
+    ? normalized
+    : DEFAULT_PREEMPTIVE_FIELD;
+}
 
 function defaultElement() {
   return Object.fromEntries(ELEMENTS.map(e => [e.key, 0]));
@@ -47,6 +64,7 @@ export class EnemySetupController {
   #state = {
     selectedEnemyId: null,
     enemyCount: 1,
+    preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
     isManual: false,
     manual: defaultManual(),
   };
@@ -98,6 +116,13 @@ export class EnemySetupController {
         return;
       }
 
+      if (t.dataset.action === 'select-preemptive-field') {
+        this.#state.preemptiveField = normalizePreemptiveField(t.value);
+        this.#onChange?.(this.getSnapshot());
+        this.#render();
+        return;
+      }
+
       if (t.dataset.editField) {
         const val = Number(t.value);
         if (Number.isFinite(val)) {
@@ -122,6 +147,7 @@ export class EnemySetupController {
     return {
       selectedEnemyId: this.#state.selectedEnemyId,
       enemyCount:      this.#state.enemyCount,
+      preemptiveField: this.#state.preemptiveField,
       od_rate:         vals.od_rate,
       max_d_rate:      vals.max_d_rate,
       resistances:     { element: { ...vals.element } },
@@ -136,6 +162,9 @@ export class EnemySetupController {
       this.#state.selectedEnemyId = Number(snapshot.selectedEnemyId);
       this.#state.isManual = false;
     }
+    if (snapshot.preemptiveField != null) {
+      this.#state.preemptiveField = normalizePreemptiveField(snapshot.preemptiveField);
+    }
     this.#render();
   }
 
@@ -148,7 +177,7 @@ export class EnemySetupController {
   }
 
   #render() {
-    const { enemyCount, selectedEnemyId, isManual } = this.#state;
+    const { enemyCount, selectedEnemyId, preemptiveField, isManual } = this.#state;
     const vals     = this.#getEffective();
     const selected = this.#enemies.find(e => e.id === selectedEnemyId);
 
@@ -177,6 +206,21 @@ export class EnemySetupController {
               </button>
             `).join('')}
           </div>
+        </div>
+
+        <div class="rounded-md border border-blue-100 bg-blue-50/50 p-2 space-y-1.5">
+          <div class="text-xs font-semibold text-blue-700">Turn0(先制攻撃)</div>
+          <label class="block text-xs text-gray-600" for="enemy-preemptive-field-select">開幕フィールド</label>
+          <select id="enemy-preemptive-field-select"
+                  data-action="select-preemptive-field"
+                  class="w-full text-xs rounded-md border border-blue-200 bg-white px-2 py-1.5
+                         focus:outline-none focus:ring-1 focus:ring-blue-400">
+            ${PREEMPTIVE_FIELD_OPTIONS.map((option) => `
+              <option value="${option.value}" ${option.value === preemptiveField ? 'selected' : ''}>
+                ${option.label}
+              </option>
+            `).join('')}
+          </select>
         </div>
 
         <!-- 敵プリセット選択 -->

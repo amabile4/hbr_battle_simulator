@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-29
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-30
 
 ## 目的
 
@@ -162,6 +162,13 @@
 - `enemyCount` は `Enemy Setup` の固定値ではなく、各 turn 行に置く入力として扱う
 - turn 行の `enemyCount` 初期値は直前の committed turn を継承し、replay / recalculate でも維持する
 - target 選択の簡略化設定は `Enemy Setup` に置かず、`Simulator Settings` へ分離する
+
+### 2026-03-30 追記: Turn0（先制攻撃）開幕フィールド
+
+- `Enemy Setup` タブに `Turn0(先制攻撃)` セクションを追加し、`開幕フィールド` を単一選択で設定できる
+- 選択肢は `なし / 火 / 氷 / 雷 / 光 / 闇` の固定値とする
+- 実行タイミングは `▽敵の先制行動` として扱い、`バトル開始時` パッシブ評価より前に `zoneState` へ反映する
+- 反映値は `sourceSide='enemy'` とし、`none` 以外の選択時のみ初期 `zoneState` を構成する
 
 ## Block 3: Stage Setup
 
