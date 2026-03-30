@@ -1309,15 +1309,15 @@ export class TurnRowController {
                    data-party-index="${member.partyIndex}"
                    class="rounded-lg border border-gray-100 bg-gray-50 px-2 py-1.5">
                 <div class="pb-1 text-[10px] font-semibold text-gray-700">${actorLabel}</div>
-                <div class="mb-1">
-                  <div class="text-[9px] font-semibold text-green-700 pb-0.5">討伐</div>
-                  <div class="flex flex-wrap gap-1">${killButtonsHtml}</div>
-                </div>
                 ${this.#buildManualBreakEditorControls({
                   selectionContext,
                   enemyCount,
                   enemyNamesByEnemy,
                 })}
+                <div class="mb-1">
+                  <div class="text-[9px] font-semibold text-green-700 pb-0.5">討伐</div>
+                  <div class="flex flex-wrap gap-1">${killButtonsHtml}</div>
+                </div>
               </div>
             `;
           }).join('')}
@@ -1401,26 +1401,29 @@ export class TurnRowController {
 
     if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
       return `
-        <div class="flex flex-wrap gap-1.5">
-          ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
-            const isSelected = selectionContext.rawBreakEnemyIndexes.includes(enemyIndex);
-            const enemyName = String(
-              enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
-            ).trim();
-            const label = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
-            return `
-              <button type="button"
-                      data-role="manual-break-candidate"
-                      data-party-index="${selectionContext.member.partyIndex}"
-                      data-enemy-index="${enemyIndex}"
-                      class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                             ${isSelected
-                               ? 'border-amber-500 bg-amber-500 text-white'
-                               : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
-                ${label}
-              </button>
-            `;
-          }).join('')}
+        <div class="mb-1">
+          <div class="text-[9px] font-semibold text-green-700 pb-0.5">ブレイク</div>
+          <div class="flex flex-wrap gap-1.5">
+            ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isSelected = selectionContext.rawBreakEnemyIndexes.includes(enemyIndex);
+              const enemyName = String(
+                enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
+              ).trim();
+              const label = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
+              return `
+                <button type="button"
+                        data-role="manual-break-candidate"
+                        data-party-index="${selectionContext.member.partyIndex}"
+                        data-enemy-index="${enemyIndex}"
+                        class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                               ${isSelected
+                                 ? 'border-amber-500 bg-amber-500 text-white'
+                                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
+                  ${label}
+                </button>
+              `;
+            }).join('')}
+          </div>
         </div>
       `;
     }
@@ -1443,12 +1446,11 @@ export class TurnRowController {
       Number(selectionContext.singleTargetConfig?.candidates?.length ?? 0) > 1;
 
     return `
-      <div class="space-y-2">
+      <div class="mb-1 space-y-1">
+        <div class="text-[9px] font-semibold text-green-700 pb-0.5">ブレイク</div>
         ${showLocalTargetOverrideControls
           ? `
-            <div class="space-y-1">
-              <div class="text-[10px] text-gray-500">攻撃対象</div>
-              <div class="flex flex-wrap gap-1.5">
+            <div class="flex flex-wrap gap-1.5">
                 <button type="button"
                         data-role="manual-break-target-reset"
                         data-party-index="${selectionContext.member.partyIndex}"
@@ -1479,10 +1481,9 @@ export class TurnRowController {
                     </button>
                   `;
                 }).join('')}
-              </div>
             </div>
           `
-          : `<div class="text-[10px] text-gray-500">対象敵: <span class="font-semibold text-gray-700">${selectionContext.currentTargetLabel || defaultTargetLabel}</span></div>`}
+          : ''}
         <button type="button"
                 data-role="manual-break-single-toggle"
                 data-party-index="${selectionContext.member.partyIndex}"
@@ -1490,7 +1491,7 @@ export class TurnRowController {
                        ${selectionContext.breakEnabled
                          ? 'border-amber-500 bg-amber-500 text-white'
                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
-          ${selectionContext.currentTargetLabel || defaultTargetLabel} をブレイク
+          ${selectionContext.currentTargetLabel || defaultTargetLabel}
         </button>
       </div>
     `;

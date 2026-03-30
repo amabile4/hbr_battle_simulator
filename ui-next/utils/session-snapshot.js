@@ -10,6 +10,14 @@ function toOptionalNumber(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function toOptionalStyleId(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  return numeric;
+}
+
 function normalizeIndexedObject(source = {}, fallbackValue = 0) {
   const normalized = {};
   for (let index = 0; index < PARTY_SIZE; index += 1) {
@@ -41,10 +49,10 @@ function normalizeSkillSetsByPartyIndex(source = {}) {
 
 export function normalizePartySetupSnapshot(snapshot = {}) {
   const styleIds = Array.from({ length: PARTY_SIZE }, (_, index) =>
-    toOptionalNumber(snapshot?.styleIds?.[index])
+    toOptionalStyleId(snapshot?.styleIds?.[index])
   );
   const supportStyleIds = Array.from({ length: PARTY_SIZE }, (_, index) =>
-    toOptionalNumber(snapshot?.supportStyleIds?.[index])
+    toOptionalStyleId(snapshot?.supportStyleIds?.[index])
   );
   return {
     isFrontFilled: styleIds.slice(0, 3).every((styleId) => styleId !== null),

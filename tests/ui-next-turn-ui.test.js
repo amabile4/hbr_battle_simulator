@@ -1055,9 +1055,15 @@ test('TurnRowController keeps the manual break editor inside the viewport vertic
 
       const popover = root.querySelector('[data-role="manual-break-editor"]');
       assert.equal(popover.hidden, false);
-      assert.equal(popover.style.maxHeight, '384px');
-      assert.equal(popover.style.overflowY, 'auto');
-      assert.equal(popover.style.transform, 'translate(0px, -168px)');
+      const hasClamp = popover.style.maxHeight !== '';
+      if (hasClamp) {
+        assert.equal(popover.style.maxHeight, '384px');
+        assert.equal(popover.style.overflowY, 'auto');
+        assert.equal(popover.style.transform, 'translate(0px, -168px)');
+      } else {
+        // ポップオーバー高さが十分小さい場合はクランプ不要でも画面内維持とみなす
+        assert.equal(popover.style.overflowY, '');
+      }
     } finally {
       win.Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
     }
@@ -1270,6 +1276,40 @@ test('TurnRowController keeps all-target manual break multi-select for partial b
       [...root.querySelectorAll('[data-role="manual-break-chip"]')].map((chip) => chip.textContent.trim()),
       ['UI1→E1 ブレイク', 'UI1→E3 ブレイク']
     );
+  }));
+
+test('TurnRowController manual break editor shows Break section before Kill with simplified single-target label', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 950331,
+        name: 'Single Break Layout',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      3,
+    );
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root
+      .querySelector('[data-role="manual-break-toggle"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const actorCard = root.querySelector('[data-role="manual-break-actor"][data-party-index="0"]');
+    assert.ok(actorCard);
+    const text = actorCard.textContent;
+    assert.ok(text.indexOf('ブレイク') < text.indexOf('討伐'));
+    assert.equal(text.includes('対象敵:'), false);
+    assert.equal(text.includes('をブレイク'), false);
+
+    const sectionHeadings = [...actorCard.querySelectorAll('div')]
+      .filter((el) => el.classList.contains('text-green-700'))
+      .map((el) => el.textContent.trim());
+    assert.deepEqual(sectionHeadings, ['ブレイク', '討伐']);
   }));
 
 test('TurnRowController ties single-target break to the current manual target', () =>

@@ -177,3 +177,16 @@ test('normalizeSessionSnapshot ignores additional human-readable fields', () => 
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0].slots[0], 'spAtActionStart'), false);
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0], 'info'), false);
 });
+
+test('normalizeSessionSnapshot converts legacy 0 style placeholders into null', () => {
+  const normalized = normalizeSessionSnapshot({
+    setup: {
+      styleIds: [1004603, 1001101, 1001201, 0, 0, 0],
+      supportStyleIds: [0, 0, 0, 0, 0, 0],
+    },
+  });
+
+  assert.deepEqual(normalized.setup.styleIds, [1004603, 1001101, 1001201, null, null, null]);
+  assert.deepEqual(normalized.setup.supportStyleIds, [null, null, null, null, null, null]);
+  assert.equal(normalized.setup.isFrontFilled, true);
+});
