@@ -58,7 +58,7 @@ function normalizeSkill(skill, canonicalSkill) {
     maxLevel: skill.max_level ?? skill.maxLevel ?? canonicalSkill?.maxLevel ?? null,
     spRecoveryCeiling:
       typeof skill.spRecoveryCeiling === 'number' ? skill.spRecoveryCeiling : undefined,
-    cond: String(skill.cond ?? ''),
+    cond: String(skill.cond ?? canonicalSkill?.cond ?? ''),
     iucCond: String(skill.iuc_cond ?? skill.iucCond ?? ''),
     overwriteCond: String(skill.overwrite_cond ?? skill.overwriteCond ?? ''),
     effect: String(skill.effect ?? canonicalSkill?.effect ?? ''),
@@ -483,6 +483,33 @@ export class CharacterStyle {
     }
     const cost = Math.abs(rawCost);
 
+    // HbrDataStore で is_adv=true && sp_cost > 0 に cond: "Sp()>=0" が付与されている
+    // しかし、skill.cond が empty な場合もあるので、getSkill の結果から再度読み込む
+    const skillFromRegistry = this.getSkill(skill.skillId);
+    const effectiveCond = String(skill.cond ?? skillFromRegistry?.cond ?? '');
+    
+    const hasSpGreaterOrEqualZeroCondition = /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(effectiveCond);
+    const isSpConsumeSkill =
+      consumeType !== 'Ep' &&
+      consumeType !== 'Token' &&
+      consumeType !== 'Morale' &&
+      consumeType !== 'Motivation' &&
+      rawCost > 0;
+
+    let insufficientSpWarning = null;
+    if (isSpConsumeSkill) {
+      // 通常スキル：currentSP >= spCost が必要。不足時は warning を記録
+      // Sp()>=0 条件付きスキル：currentSP >= 0 なら使用可能。不足時は warning なし
+      // 速弾き中：currentSP >= 0 なら使用可能。不足時は warning なし
+      if (this.isShredding || hasSpGreaterOrEqualZeroCondition) {
+        if (startSP < 0) {
+          insufficientSpWarning = `Skill ${skill.skillId} requires SP >= 0 (Sp()>=0 condition or Shredding). current=${startSP}`;
+        }
+      } else if (startSP < cost) {
+        insufficientSpWarning = `Skill ${skill.skillId} requires SP >= ${cost} (normal skill). current=${startSP}`;
+      }
+    }
+
     let deltaSP =
       consumeType === 'Ep' ||
       consumeType === 'Token' ||
@@ -559,6 +586,7 @@ export class CharacterStyle {
       tokenDelta: endToken - startToken,
       moraleDelta: endMorale - startMorale,
       motivationDelta: endMotivation - startMotivation,
+      insufficientSpWarning,
     };
   }
 

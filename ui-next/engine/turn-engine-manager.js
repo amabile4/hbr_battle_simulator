@@ -1179,14 +1179,59 @@ export class TurnEngineManager {
 
   #appendPreviewResourceWarnings(previewRecord, warnings = []) {
     for (const action of previewRecord?.actions ?? []) {
+      const insufficientSpWarning = String(action?.insufficientSpWarning ?? '').trim();
       const endSP = Number(action?.endSP);
+      const spCost = Number(action?.spCost ?? 0);
+      const hasSpGreaterOrEqualZeroCondition = Boolean(action?.hasSpGreaterOrEqualZeroCondition);
+      
+      // insufficientSpWarning がある場合、その内容から判断
+      if (insufficientSpWarning) {
+        // 通常スキル（SP不足）: "requires SP >= N (normal skill)" → warning 出力（使用許可）
+        if (insufficientSpWarning.includes('(normal skill)')) {
+          warnings.push(`insufficient SP allowed: ${insufficientSpWarning}`);
+          continue;
+        }
+        // Sp()>=0 条件またはShredding中（SP < 0）: "requires SP >= 0 (Sp()>=0 condition or Shredding)" 
+        // → warning 出力なし（使用許可、仕様通り）
+        if (insufficientSpWarning.includes('(Sp()>=0 condition or Shredding)')) {
+          // warning なし、ただしオプション確認
+          if (!this.#validationPolicy.allowInsufficientSp) {
+            throw new Error(`Skill ${action?.skillId ?? '?'} requires SP >= 0 under special condition.`);
+          }
+          // warning なしで使用許可
+          continue;
+        }
+      }
+
+      // 古い形式のデータ（insufficientSpWarning なし）でも処理
+      // endSP < 0 の場合、新しい形式で warning を出力
       if (!Number.isFinite(endSP) || endSP >= 0) {
         continue;
       }
+      
       if (!this.#validationPolicy.allowInsufficientSp) {
         throw new Error(`Skill ${action?.skillId ?? '?'} requires more SP than available.`);
       }
-      warnings.push(`negative SP allowed: ${action?.characterId ?? 'unknown'} endSP=${endSP}`);
+      
+      // insufficientSpWarning がない場合は、hasSpGreaterOrEqualZeroCondition フィールドを使用して warning を判定
+      if (!insufficientSpWarning) {
+        // sp_cost > 0 のみ warning 対象
+        if (spCost <= 0) {
+          continue;
+        }
+        
+        // Sp()>=0 条件付きスキルは warning なし
+        if (hasSpGreaterOrEqualZeroCondition) {
+          continue;
+        }
+        
+        // 通常スキルとして warning を出力
+        const startSP = Number(action?.startSP ?? 0);
+        warnings.push(`insufficient SP allowed: Skill ${action?.skillId ?? '?'} requires SP >= ${Math.abs(spCost)} (normal skill). current=${startSP}`);
+      } else {
+        // 従来の形式（古い JSON との互換性）
+        warnings.push(`negative SP allowed: ${action?.characterId ?? 'unknown'} endSP=${endSP}`);
+      }
     }
   }
 

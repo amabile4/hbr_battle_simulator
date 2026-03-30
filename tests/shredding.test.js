@@ -359,7 +359,7 @@ test('SP 下限なし: SP3 + sp_cost=15 (is_adv=true) → endSP = -12', () => {
   assert.equal(entry.endSP, -12, 'endSP = -12（SP3 - 15 = -12、SP0 にクランプされない）');
 });
 
-test('SP 下限なし: SP3 + sp_cost=15 (is_adv=false、通常スキル) → endSP = -12', () => {
+test('通常スキル: SP3 + sp_cost=15 (is_adv=false) は使用可能（warning出力）', () => {
   const party = buildShreddingParty({
     0: {
       initialSP: 3,
@@ -376,13 +376,15 @@ test('SP 下限なし: SP3 + sp_cost=15 (is_adv=false、通常スキル) → end
   });
 
   const state = createBattleStateFromParty(party);
-  const preview = previewTurn(state, {
+  // 新しい仕様: 通常スキルで SP 不足の場合、使用は許可される（warning 出力）
+  // endSP = 3 - 15 = -12
+  const record = previewTurn(state, {
     0: { characterId: 'SH1', skillId: ADV_SKILL_ID, targetEnemyIndex: 0 },
     1: { characterId: 'SH2', skillId: NORMAL_SKILL_ID + 1 },
     2: { characterId: 'SH3', skillId: NORMAL_SKILL_ID + 2 },
   });
-
-  const entry = preview.actions.find((a) => a.characterId === 'SH1');
-  assert.equal(entry.startSP, 3, 'startSP = 3');
-  assert.equal(entry.endSP, -12, 'endSP = -12（is_adv=false でも SP0 クランプなし）');
+  assert.ok(record, '使用可能');
+  assert.strictEqual(record?.actions?.[0]?.endSP, -12, 'endSP = 3 - 15 = -12');
+  assert.ok(record?.actions?.[0]?.insufficientSpWarning, 'warning フィールドが存在');
+  assert.match(record?.actions?.[0]?.insufficientSpWarning, /normal skill/, 'warning に "normal skill" を含む');
 });

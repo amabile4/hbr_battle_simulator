@@ -10,12 +10,13 @@ import { getSixUsableStyleIds, getStore } from './helpers.js';
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
 
-function createSkill({ id, name, targetType, parts, spCost = 0 }) {
+function createSkill({ id, name, targetType, parts, spCost = 0, cond = '' }) {
   return {
     id,
     name,
     label: `${name}${id}`,
     sp_cost: spCost,
+    cond,
     target_type: targetType,
     parts,
   };
@@ -582,8 +583,9 @@ test('TurnEngineManager replaceCommittedTurn recalculates downstream records and
   assert.equal(manager.replayScript.turns[0].slots[0].skillId, 9054);
   assert.equal(afterStartSp < beforeStartSp, true);
   assert.equal(
-    manager.replayDiagnostics.turnWarnings[0].some((warning) => warning.includes('negative SP allowed')),
-    true
+    manager.replayDiagnostics.turnWarnings[0].some((warning) => warning.includes('SP allowed')),
+    true,
+    'Warning should contain "SP allowed" (either "negative SP allowed" or "insufficient SP allowed")'
   );
 });
 

@@ -7573,6 +7573,9 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       action,
       state?.turnState?.enemyState?.enemyCount
     ),
+    insufficientSpWarning: String(preview.insufficientSpWarning ?? ''),
+    // skill cond に "Sp()>=0" が含まれるか記録（warning 生成時の判定に使用）
+    hasSpGreaterOrEqualZeroCondition: /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(String(effectiveSkill?.cond ?? '')),
     _baseRevision: preview.baseRevision,
     _effectiveSkillSnapshot: structuredClone(effectiveSkill),
   };
