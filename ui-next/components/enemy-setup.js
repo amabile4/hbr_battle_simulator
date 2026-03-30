@@ -388,6 +388,12 @@ export class EnemySetupController {
     this.#render();
   }
 
+  setEnemies(enemies = []) {
+    this.#enemies = Array.isArray(enemies) ? enemies : [];
+    this.#ensureRequiredSlotSelected();
+    this.#render();
+  }
+
   // ─── private ────────────────────────────────────────────
 
   #resolveDefaultEnemyId() {

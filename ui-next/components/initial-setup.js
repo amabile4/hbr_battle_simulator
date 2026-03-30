@@ -323,6 +323,11 @@ export class InitialSetupController {
     this.#updateFooterButtons();
   }
 
+  setEnemies(enemies = []) {
+    this.#enemies = Array.isArray(enemies) ? enemies : [];
+    this.#enemySetup?.setEnemies(this.#enemies);
+  }
+
   #syncPartySetupBattleState() {
     this.#partySetup?.setBattleState({
       hasActiveBattle: this.#hasActiveBattle,
