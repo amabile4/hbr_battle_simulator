@@ -98,3 +98,85 @@ test('BattleStateManager sets odRateByEnemy to 0 when od_rate is 0 (no correctio
 
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 0);
 });
+
+test('BattleStateManager applies per-slot enemy setup when enemySlots are provided', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 7001,
+        selectedEnemyName: '魔王ヤマワキ',
+        od_rate: 8500,
+        max_d_rate: 650,
+        resistances: {
+          element: {
+            slash: 120,
+            stab: 100,
+            strike: 100,
+            fire: 200,
+            ice: 90,
+            thunder: 100,
+            light: 100,
+            dark: 100,
+            nonelement: 100,
+          },
+        },
+        absorbElementList: ['fire'],
+      },
+      {
+        slotIndex: 1,
+        selectedEnemyId: 7002,
+        selectedEnemyName: '使い魔ブンゴ',
+        od_rate: 0,
+        max_d_rate: 999,
+        resistances: {
+          element: {
+            slash: 80,
+            stab: 100,
+            strike: 100,
+            fire: 100,
+            ice: 160,
+            thunder: 100,
+            light: 100,
+            dark: 60,
+            nonelement: 100,
+          },
+        },
+        absorbElementList: ['ice', 'dark'],
+      },
+      {
+        slotIndex: 2,
+        selectedEnemyId: null,
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyCount, 2);
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], '魔王ヤマワキ');
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '使い魔ブンゴ');
+  assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
+  assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 999);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['1'], 0);
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Fire, 200);
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Ice, 160);
+  assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire']);
+  assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['ice', 'dark']);
+});
+
+test('BattleStateManager falls back to one enemy when all enemy slots are unselected', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      { slotIndex: 0, selectedEnemyId: null },
+      { slotIndex: 1, selectedEnemyId: null },
+      { slotIndex: 2, selectedEnemyId: null },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyCount, 1);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 0);
+});

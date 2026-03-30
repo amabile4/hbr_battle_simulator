@@ -423,6 +423,104 @@ test('InitialSetupController restores enemy manual resistance percent and absorb
     assert.deepEqual(snapshot.enemy.absorbElementList, ['fire', 'nonelement']);
   }));
 
+test('InitialSetupController enemy setup defaults to slot 1 selected and slots 2/3 empty', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 13450045,
+          name: '希望を喰むもの',
+          dimension: null,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+        {
+          id: 7001,
+          name: '魔王ヤマワキ',
+          dimension: 202603,
+          od_rate: 8500,
+          max_d_rate: 700,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+      ],
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const slotButtons = root.querySelectorAll('[data-action="set-active-slot"]');
+    assert.equal(slotButtons.length, 3);
+    assert.equal(slotButtons.item(0).textContent.includes('[1] 希望を喰むもの'), true);
+    assert.equal(slotButtons.item(1).textContent.includes('[2] -'), true);
+    assert.equal(slotButtons.item(2).textContent.includes('[3] -'), true);
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450045, null, null]);
+    assert.equal(snapshot.enemy.enemyCount, 1);
+  }));
+
+test('InitialSetupController enemy setup supports selecting and deleting slot 2 enemy', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 13450045,
+          name: '希望を喰むもの',
+          dimension: null,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+        {
+          id: 7001,
+          name: '魔王ヤマワキ',
+          dimension: 202603,
+          od_rate: 8500,
+          max_d_rate: 700,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+      ],
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    root
+      .querySelector('[data-action="set-active-slot"][data-slot-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const presetSelect = root.querySelector('[data-action="select-enemy"]');
+    presetSelect.value = '7001';
+    presetSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    let snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450045, 7001, null]);
+    assert.equal(snapshot.enemy.enemyCount, 2);
+
+    root
+      .querySelector('[data-action="clear-slot"][data-slot-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450045, null, null]);
+    assert.equal(snapshot.enemy.enemyCount, 1);
+  }));
+
 test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const recalculations = [];

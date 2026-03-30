@@ -17,6 +17,8 @@ const ELEMENT_KEY_SET = new Set(ELEMENTS.map((element) => element.key));
 const DEFAULT_OD_RATE    = 0;
 const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
+const ENEMY_SLOT_COUNT = 3;
+const REQUIRED_SLOT_INDEX = 0;
 const DEFAULT_PREEMPTIVE_FIELD = 'none';
 const PREEMPTIVE_FIELD_OPTIONS = [
   { value: 'none', label: 'なし' },
@@ -103,6 +105,37 @@ function snapshotToManual(snapshot = {}) {
   });
 }
 
+function createDefaultSelectedEnemyIds() {
+  return Array.from({ length: ENEMY_SLOT_COUNT }, () => null);
+}
+
+function createDefaultManualBySlot() {
+  return Array.from({ length: ENEMY_SLOT_COUNT }, () => defaultManual());
+}
+
+function createDefaultManualFlags() {
+  return Array.from({ length: ENEMY_SLOT_COUNT }, () => false);
+}
+
+function normalizeSlotIndex(value, fallback = REQUIRED_SLOT_INDEX) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric)) {
+    return fallback;
+  }
+  if (numeric < 0 || numeric >= ENEMY_SLOT_COUNT) {
+    return fallback;
+  }
+  return numeric;
+}
+
+function normalizeSelectedEnemyId(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 /**
  * Enemy Setup タブコンポーネント
  *
@@ -113,11 +146,11 @@ export class EnemySetupController {
   #enemies;
   #onChange;
   #state = {
-    selectedEnemyId: null,
-    enemyCount: 1,
+    selectedEnemyIds: createDefaultSelectedEnemyIds(),
+    activeSlotIndex: REQUIRED_SLOT_INDEX,
     preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
-    isManual: false,
-    manual: defaultManual(),
+    isManualBySlot: createDefaultManualFlags(),
+    manualBySlot: createDefaultManualBySlot(),
   };
 
   constructor({ root, enemies = [], onChange = null }) {
@@ -127,30 +160,61 @@ export class EnemySetupController {
   }
 
   mount() {
-    // デフォルト: 「希望を喰むもの」を自動選択（等倍耐性 / max_d_rate 999 の標準敵）
-    if (this.#state.selectedEnemyId === null) {
-      const def = this.#enemies.find(e => e.name === '希望を喰むもの');
-      if (def) this.#state.selectedEnemyId = def.id;
-    }
+    this.#ensureRequiredSlotSelected();
     this.#render();
 
     this.#root.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
 
-      if (btn.dataset.action === 'set-count') {
-        this.#state.enemyCount = Number(btn.dataset.count);
+      if (btn.dataset.action === 'set-active-slot') {
+        this.#state.activeSlotIndex = normalizeSlotIndex(btn.dataset.slotIndex, this.#state.activeSlotIndex);
+        this.#render();
+        return;
+      }
+
+      if (btn.dataset.action === 'clear-slot') {
+        const slotIndex = normalizeSlotIndex(btn.dataset.slotIndex, -1);
+        if (slotIndex <= REQUIRED_SLOT_INDEX) {
+          return;
+        }
+        this.#state.selectedEnemyIds[slotIndex] = null;
+        this.#state.isManualBySlot[slotIndex] = false;
+        this.#state.manualBySlot[slotIndex] = defaultManual();
+        if (this.#state.activeSlotIndex === slotIndex) {
+          this.#state.activeSlotIndex = REQUIRED_SLOT_INDEX;
+        }
+        this.#onChange?.(this.getSnapshot());
+        this.#render();
+        return;
+      }
+
+      if (btn.dataset.action === 'activate-slot-with-default') {
+        const slotIndex = normalizeSlotIndex(btn.dataset.slotIndex, -1);
+        if (slotIndex <= REQUIRED_SLOT_INDEX) {
+          return;
+        }
+        if (this.#state.selectedEnemyIds[slotIndex] === null) {
+          this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyId();
+          this.#state.isManualBySlot[slotIndex] = false;
+        }
+        this.#state.activeSlotIndex = slotIndex;
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
       }
 
       if (btn.dataset.action === 'toggle-edit') {
-        if (!this.#state.isManual) {
-          const enemy = this.#enemies.find(e => e.id === this.#state.selectedEnemyId);
-          this.#state.manual = enemyToManual(enemy);
+        const slotIndex = this.#state.activeSlotIndex;
+        const selectedEnemyId = this.#state.selectedEnemyIds[slotIndex];
+        if (selectedEnemyId === null) {
+          return;
         }
-        this.#state.isManual = !this.#state.isManual;
+        if (!this.#state.isManualBySlot[slotIndex]) {
+          const enemy = this.#enemies.find(e => e.id === selectedEnemyId);
+          this.#state.manualBySlot[slotIndex] = enemyToManual(enemy);
+        }
+        this.#state.isManualBySlot[slotIndex] = !this.#state.isManualBySlot[slotIndex];
         this.#onChange?.(this.getSnapshot());
         this.#render();
       }
@@ -160,8 +224,15 @@ export class EnemySetupController {
       const t = e.target;
 
       if (t.dataset.action === 'select-enemy') {
-        this.#state.selectedEnemyId = t.value ? Number(t.value) : null;
-        this.#state.isManual = false;
+        const slotIndex = this.#state.activeSlotIndex;
+        const selectedEnemyId = normalizeSelectedEnemyId(t.value);
+        if (slotIndex === REQUIRED_SLOT_INDEX) {
+          this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId ?? this.#resolveDefaultEnemyId();
+        } else {
+          this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId;
+        }
+        this.#state.isManualBySlot[slotIndex] = false;
+        this.#ensureRequiredSlotSelected();
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -177,7 +248,8 @@ export class EnemySetupController {
       if (t.dataset.editField) {
         const val = Number(t.value);
         if (Number.isFinite(val)) {
-          this.#state.manual[t.dataset.editField] = val;
+          const slotIndex = this.#state.activeSlotIndex;
+          this.#state.manualBySlot[slotIndex][t.dataset.editField] = val;
           this.#onChange?.(this.getSnapshot());
         }
         return;
@@ -186,7 +258,8 @@ export class EnemySetupController {
       if (t.dataset.editElement) {
         const val = Number(t.value);
         if (Number.isFinite(val)) {
-          this.#state.manual.element[t.dataset.editElement] = val;
+          const slotIndex = this.#state.activeSlotIndex;
+          this.#state.manualBySlot[slotIndex].element[t.dataset.editElement] = val;
           this.#onChange?.(this.getSnapshot());
         }
         return;
@@ -197,72 +270,160 @@ export class EnemySetupController {
         if (!key) {
           return;
         }
-        const next = new Set(this.#state.manual.absorbElementList);
+        const slotIndex = this.#state.activeSlotIndex;
+        const next = new Set(this.#state.manualBySlot[slotIndex].absorbElementList);
         if (t.checked) {
           next.add(key);
         } else {
           next.delete(key);
         }
-        this.#state.manual.absorbElementList = [...next];
+        this.#state.manualBySlot[slotIndex].absorbElementList = [...next];
         this.#onChange?.(this.getSnapshot());
       }
     });
   }
 
   getSnapshot() {
-    const vals = cloneManual(this.#getEffective());
-    const selected = this.#enemies.find((enemy) => enemy.id === this.#state.selectedEnemyId) ?? null;
+    const selectedEnemyIds = this.#state.selectedEnemyIds.map((enemyId) => normalizeSelectedEnemyId(enemyId));
+    const enemySlots = Array.from({ length: ENEMY_SLOT_COUNT }, (_, slotIndex) => {
+      const selectedEnemyId = selectedEnemyIds[slotIndex];
+      const selectedEnemy = this.#enemies.find((enemy) => enemy.id === selectedEnemyId) ?? null;
+      const effective = cloneManual(this.#getEffectiveBySlot(slotIndex));
+      return {
+        slotIndex,
+        selectedEnemyId,
+        selectedEnemyName: selectedEnemy?.name ?? '',
+        isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
+        manual: cloneManual(this.#state.manualBySlot[slotIndex]),
+        od_rate: effective.od_rate,
+        max_d_rate: effective.max_d_rate,
+        resistances: { element: { ...effective.element } },
+        absorbElementList: [...effective.absorbElementList],
+      };
+    });
+    const selectedCount = selectedEnemyIds.filter((enemyId) => enemyId !== null).length;
+    const slot0 = enemySlots[REQUIRED_SLOT_INDEX];
     return {
-      selectedEnemyId: this.#state.selectedEnemyId,
-      selectedEnemyName: selected?.name ?? '',
-      enemyCount:      this.#state.enemyCount,
+      selectedEnemyIds,
+      activeSlotIndex: this.#state.activeSlotIndex,
+      enemySlots,
       preemptiveField: this.#state.preemptiveField,
-      isManual:        this.#state.isManual,
-      manual:          cloneManual(this.#state.manual),
-      od_rate:         vals.od_rate,
-      max_d_rate:      vals.max_d_rate,
-      resistances:     { element: { ...vals.element } },
-      absorbElementList: [...vals.absorbElementList],
+
+      // Legacy-compatible flat fields (slot 1)
+      selectedEnemyId: slot0.selectedEnemyId,
+      selectedEnemyName: slot0.selectedEnemyName,
+      enemyCount: selectedCount > 0 ? selectedCount : 1,
+      isManual: slot0.isManual,
+      manual: cloneManual(slot0.manual),
+      od_rate: slot0.od_rate,
+      max_d_rate: slot0.max_d_rate,
+      resistances: { element: { ...slot0.resistances.element } },
+      absorbElementList: [...slot0.absorbElementList],
     };
   }
 
   applySnapshot(snapshot = {}) {
-    if (snapshot.enemyCount != null) {
-      this.#state.enemyCount = Number(snapshot.enemyCount) || 1;
+    const nextSelectedEnemyIds = createDefaultSelectedEnemyIds();
+    const nextIsManualBySlot = createDefaultManualFlags();
+    const nextManualBySlot = createDefaultManualBySlot();
+
+    if (Array.isArray(snapshot.enemySlots)) {
+      for (const slot of snapshot.enemySlots) {
+        const slotIndex = normalizeSlotIndex(slot?.slotIndex, -1);
+        if (slotIndex < 0) {
+          continue;
+        }
+        nextSelectedEnemyIds[slotIndex] = normalizeSelectedEnemyId(slot?.selectedEnemyId);
+        const hasManualState =
+          (slot?.manual && typeof slot.manual === 'object') ||
+          slot?.od_rate != null ||
+          slot?.max_d_rate != null ||
+          (slot?.resistances && typeof slot.resistances === 'object') ||
+          Array.isArray(slot?.absorbElementList);
+        if (hasManualState) {
+          nextManualBySlot[slotIndex] = snapshotToManual(slot);
+        }
+        if (slot?.isManual != null) {
+          nextIsManualBySlot[slotIndex] = Boolean(slot.isManual);
+        }
+      }
     }
-    if (snapshot.selectedEnemyId != null) {
-      this.#state.selectedEnemyId = Number(snapshot.selectedEnemyId);
+
+    if (Array.isArray(snapshot.selectedEnemyIds)) {
+      snapshot.selectedEnemyIds.forEach((enemyId, slotIndex) => {
+        if (slotIndex < ENEMY_SLOT_COUNT) {
+          nextSelectedEnemyIds[slotIndex] = normalizeSelectedEnemyId(enemyId);
+        }
+      });
     }
-    if (snapshot.preemptiveField != null) {
-      this.#state.preemptiveField = normalizePreemptiveField(snapshot.preemptiveField);
-    }
-    const hasManualState =
+
+    // Legacy snapshot compatibility
+    if (
+      snapshot.selectedEnemyId != null ||
+      snapshot.isManual != null ||
       (snapshot.manual && typeof snapshot.manual === 'object') ||
       snapshot.od_rate != null ||
       snapshot.max_d_rate != null ||
       (snapshot.resistances && typeof snapshot.resistances === 'object') ||
-      Array.isArray(snapshot.absorbElementList);
-    if (hasManualState) {
-      this.#state.manual = snapshotToManual(snapshot);
+      Array.isArray(snapshot.absorbElementList)
+    ) {
+      nextSelectedEnemyIds[REQUIRED_SLOT_INDEX] = normalizeSelectedEnemyId(snapshot.selectedEnemyId);
+      nextManualBySlot[REQUIRED_SLOT_INDEX] = snapshotToManual(snapshot);
+      if (snapshot.isManual != null) {
+        nextIsManualBySlot[REQUIRED_SLOT_INDEX] = Boolean(snapshot.isManual);
+      }
     }
-    if (snapshot.isManual != null) {
-      this.#state.isManual = Boolean(snapshot.isManual);
+
+    this.#state.selectedEnemyIds = nextSelectedEnemyIds;
+    this.#state.isManualBySlot = nextIsManualBySlot;
+    this.#state.manualBySlot = nextManualBySlot;
+
+    if (snapshot.preemptiveField != null) {
+      this.#state.preemptiveField = normalizePreemptiveField(snapshot.preemptiveField);
     }
+    if (snapshot.activeSlotIndex != null) {
+      this.#state.activeSlotIndex = normalizeSlotIndex(snapshot.activeSlotIndex, REQUIRED_SLOT_INDEX);
+    }
+    this.#ensureRequiredSlotSelected();
     this.#render();
   }
 
   // ─── private ────────────────────────────────────────────
 
-  #getEffective() {
-    if (this.#state.isManual) return this.#state.manual;
-    const enemy = this.#enemies.find(e => e.id === this.#state.selectedEnemyId);
-    return enemyToManual(enemy);
+  #resolveDefaultEnemyId() {
+    const preferred = this.#enemies.find((enemy) => enemy.name === '希望を喰むもの');
+    if (preferred) {
+      return preferred.id;
+    }
+    return this.#enemies[0]?.id ?? null;
+  }
+
+  #ensureRequiredSlotSelected() {
+    if (this.#state.selectedEnemyIds[REQUIRED_SLOT_INDEX] == null) {
+      this.#state.selectedEnemyIds[REQUIRED_SLOT_INDEX] = this.#resolveDefaultEnemyId();
+    }
+    this.#state.activeSlotIndex = normalizeSlotIndex(this.#state.activeSlotIndex, REQUIRED_SLOT_INDEX);
+  }
+
+  #getSelectedEnemyBySlot(slotIndex) {
+    const selectedEnemyId = this.#state.selectedEnemyIds[slotIndex];
+    return this.#enemies.find((enemy) => enemy.id === selectedEnemyId) ?? null;
+  }
+
+  #getEffectiveBySlot(slotIndex) {
+    if (this.#state.isManualBySlot[slotIndex]) {
+      return this.#state.manualBySlot[slotIndex];
+    }
+    return enemyToManual(this.#getSelectedEnemyBySlot(slotIndex));
   }
 
   #render() {
-    const { enemyCount, selectedEnemyId, preemptiveField, isManual } = this.#state;
-    const vals     = this.#getEffective();
-    const selected = this.#enemies.find(e => e.id === selectedEnemyId);
+    const { selectedEnemyIds, activeSlotIndex, preemptiveField } = this.#state;
+    const selectedEnemyId = selectedEnemyIds[activeSlotIndex];
+    const selected = this.#getSelectedEnemyBySlot(activeSlotIndex);
+    const vals = this.#getEffectiveBySlot(activeSlotIndex);
+    const isManual = this.#state.isManualBySlot[activeSlotIndex];
+    const hasSelectedEnemy = selectedEnemyId !== null;
 
     // YYYYMM キーを表示ラベルに変換  null → "テンプレート"
     const formatGroupLabel = (key) => {
@@ -288,21 +449,48 @@ export class EnemySetupController {
     this.#root.innerHTML = `
       <div class="p-1.5 space-y-2">
 
-        <!-- 敵数 -->
+        <!-- 敵スロット -->
         <div>
-          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-0.5">敵数</div>
-          <div class="flex gap-1">
-            ${[1, 2, 3].map(n => `
-              <button data-action="set-count" data-count="${n}"
-                      class="flex-1 text-sm py-1 rounded-md font-medium border transition-colors
-                             ${enemyCount === n
-                               ? 'bg-blue-500 text-white border-blue-500'
-                               : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}">
-                ${n}
-              </button>
-            `).join('')}
+          <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-0.5">敵スロット</div>
+          <div class="space-y-1">
+            ${Array.from({ length: ENEMY_SLOT_COUNT }, (_, slotIndex) => {
+              const selectedEnemy = this.#getSelectedEnemyBySlot(slotIndex);
+              const isActive = activeSlotIndex === slotIndex;
+              const isEmpty = !selectedEnemy;
+              const canClear = slotIndex > REQUIRED_SLOT_INDEX;
+              return `
+                <div class="flex items-center gap-1">
+                  <button data-action="set-active-slot" data-slot-index="${slotIndex}"
+                          class="flex-1 text-xs py-1 rounded-md font-medium border text-left px-2 transition-colors
+                                 ${isActive
+                                   ? 'bg-blue-500 text-white border-blue-500'
+                                   : isEmpty
+                                     ? 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                                     : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}">
+                    [${slotIndex + 1}] ${selectedEnemy ? selectedEnemy.name : '-'}
+                  </button>
+                  ${canClear
+                    ? `<button data-action="clear-slot" data-slot-index="${slotIndex}"
+                               class="text-[11px] px-2 py-1 rounded-md border transition-colors
+                                      ${isEmpty
+                                        ? 'bg-gray-50 text-gray-300 border-gray-200'
+                                        : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}"
+                               ${isEmpty ? 'disabled' : ''}>
+                         削除
+                       </button>`
+                    : ''}
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
+
+        ${activeSlotIndex > REQUIRED_SLOT_INDEX && !hasSelectedEnemy
+          ? `<button data-action="activate-slot-with-default" data-slot-index="${activeSlotIndex}"
+                    class="w-full text-xs py-1 rounded-md border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors">
+               [${activeSlotIndex + 1}] に敵を追加
+             </button>`
+          : ''}
 
         <div class="rounded-md border border-blue-100 bg-blue-50/50 p-2 space-y-1.5">
           <div class="text-xs font-semibold text-blue-700">Turn0(先制攻撃)</div>
@@ -325,7 +513,7 @@ export class EnemySetupController {
           <select data-action="select-enemy"
                   class="w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5
                          focus:outline-none focus:ring-1 focus:ring-blue-400">
-            <option value="">── 選択なし ──</option>
+            ${activeSlotIndex > REQUIRED_SLOT_INDEX ? '<option value="">── 選択なし ──</option>' : ''}
             ${groupsArr.map(([dim, enemies]) => `
               <optgroup label="${formatGroupLabel(dim)}">
                 ${enemies.map(e => `
@@ -339,21 +527,22 @@ export class EnemySetupController {
         </div>
 
         <!-- パラメータ表示 / 編集 -->
-        <div class="rounded-md border border-gray-200 bg-gray-50 overflow-hidden">
+        <div class="rounded-md border border-gray-200 bg-gray-50 overflow-hidden ${hasSelectedEnemy ? '' : 'opacity-45'}">
           <div class="flex items-center justify-between px-2 py-1 border-b border-gray-200 bg-white">
             <span class="text-xs font-medium text-gray-600 truncate min-w-0">
-              ${isManual ? '手動編集モード' : (selected ? selected.name : '──')}
+              [${activeSlotIndex + 1}] ${isManual ? '手動編集モード' : (selected ? selected.name : '──')}
             </span>
             <button data-action="toggle-edit"
                     class="shrink-0 ml-1 text-xs px-2 py-0.5 rounded border transition-colors
                            ${isManual
                              ? 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200'
-                             : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}">
+                             : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'}"
+                    ${hasSelectedEnemy ? '' : 'disabled'}>
               ${isManual ? '✎ 編集中' : '✎ 編集'}
             </button>
           </div>
 
-          <div class="p-2 space-y-2">
+          <div class="p-2 space-y-2 ${hasSelectedEnemy ? '' : 'pointer-events-none'}">
             <!-- オーバードライブ上昇量 / 最大破壊率 -->
             <div class="grid grid-cols-2 gap-1.5">
               ${this.#numFieldHtml('od_rate',    'オーバードライブ上昇量', vals.od_rate,    isManual,

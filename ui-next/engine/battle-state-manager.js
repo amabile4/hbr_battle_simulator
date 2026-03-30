@@ -22,53 +22,103 @@ const UI_TO_ENGINE_ELEMENT_KEY = Object.freeze({
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
 const ENEMY_OD_RATE_NO_CORRECTION = 0;
+const DEFAULT_ENEMY_NAME = '';
+const MIN_ENEMY_COUNT = 1;
+const MAX_ENEMY_COUNT = 3;
 
-function buildEnemyDamageRates(enemySetup = {}) {
-  const source = enemySetup?.resistances?.element;
+function buildEnemyDamageRates(source = {}) {
+  const elementRates = source?.resistances?.element ?? source?.element;
   return Object.fromEntries(
     Object.entries(UI_TO_ENGINE_ELEMENT_KEY).map(([uiKey, engineKey]) => [
       engineKey,
-      Number.isFinite(Number(source?.[uiKey])) ? Number(source[uiKey]) : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
+      Number.isFinite(Number(elementRates?.[uiKey]))
+        ? Number(elementRates[uiKey])
+        : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
     ])
   );
 }
 
-function buildEnemyAbsorbElements(enemySetup = {}) {
-  const list = Array.isArray(enemySetup?.absorbElementList) ? enemySetup.absorbElementList : [];
+function buildEnemyAbsorbElements(source = {}) {
+  const list = Array.isArray(source?.absorbElementList) ? source.absorbElementList : [];
   return [...new Set(list.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean))];
 }
 
+function normalizeEnemyCount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return MIN_ENEMY_COUNT;
+  }
+  return Math.min(MAX_ENEMY_COUNT, Math.max(MIN_ENEMY_COUNT, Math.trunc(numeric)));
+}
+
+function buildLegacyEnemySlot(enemySetup = {}) {
+  return {
+    selectedEnemyId: enemySetup?.selectedEnemyId ?? null,
+    selectedEnemyName: enemySetup?.selectedEnemyName ?? DEFAULT_ENEMY_NAME,
+    od_rate: enemySetup?.od_rate,
+    max_d_rate: enemySetup?.max_d_rate,
+    resistances: enemySetup?.resistances,
+    absorbElementList: enemySetup?.absorbElementList,
+  };
+}
+
+function resolveEnemySlots(enemySetup = {}) {
+  if (Array.isArray(enemySetup?.enemySlots)) {
+    const selectedSlots = enemySetup.enemySlots.filter((slot) => slot?.selectedEnemyId != null);
+    if (selectedSlots.length > 0) {
+      return selectedSlots;
+    }
+  }
+
+  const fallbackSlot = buildLegacyEnemySlot(enemySetup);
+  if (fallbackSlot.selectedEnemyId != null) {
+    return [fallbackSlot];
+  }
+
+  const legacyCount = normalizeEnemyCount(enemySetup?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  return Array.from({ length: legacyCount }, () => ({ ...fallbackSlot }));
+}
+
 function buildEnemyStateOverrides(enemySetup = {}) {
-  const enemyCount = enemySetup.enemyCount != null
-    ? Number(enemySetup.enemyCount) || DEFAULT_ENEMY_COUNT
-    : DEFAULT_ENEMY_COUNT;
-  const rates = buildEnemyDamageRates(enemySetup);
-  const absorbElements = buildEnemyAbsorbElements(enemySetup);
-  const enemyName = String(enemySetup.selectedEnemyName ?? '').trim();
-  const maxDestructionRate = Number.isFinite(Number(enemySetup.max_d_rate))
-    ? Number(enemySetup.max_d_rate)
-    : DEFAULT_MAX_D_RATE;
-  // od_rate=0 は補正なし。0 以外は ENEMY_OD_RATE_UNIT 分母で乗数に変換（例: 8500 → 85% → 0.85 倍）。
-  const rawOdRate = Number.isFinite(Number(enemySetup.od_rate)) && Number(enemySetup.od_rate) !== ENEMY_OD_RATE_NO_CORRECTION
-    ? Number(enemySetup.od_rate)
-    : ENEMY_OD_RATE_NO_CORRECTION;
+  const resolvedSlots = resolveEnemySlots(enemySetup);
+  const enemyCount = normalizeEnemyCount(resolvedSlots.length);
+  const slots = resolvedSlots.length > 0
+    ? resolvedSlots.slice(0, MAX_ENEMY_COUNT)
+    : [buildLegacyEnemySlot(enemySetup)];
+
+  const slotStates = slots.map((slot) => {
+    const enemyName = String(slot?.selectedEnemyName ?? DEFAULT_ENEMY_NAME).trim();
+    const maxDestructionRate = Number.isFinite(Number(slot?.max_d_rate))
+      ? Number(slot.max_d_rate)
+      : DEFAULT_MAX_D_RATE;
+    const rawOdRate = Number.isFinite(Number(slot?.od_rate)) && Number(slot.od_rate) !== ENEMY_OD_RATE_NO_CORRECTION
+      ? Number(slot.od_rate)
+      : ENEMY_OD_RATE_NO_CORRECTION;
+    return {
+      enemyName,
+      rates: buildEnemyDamageRates(slot),
+      absorbElements: buildEnemyAbsorbElements(slot),
+      maxDestructionRate,
+      rawOdRate,
+    };
+  });
 
   return {
-    enemyCount,
+    enemyCount: normalizeEnemyCount(enemyCount),
     enemyNamesByEnemy: Object.fromEntries(
-      Array.from({ length: enemyCount }, (_, index) => [String(index), enemyName])
+      slotStates.map((slotState, index) => [String(index), slotState.enemyName])
     ),
     damageRatesByEnemy: Object.fromEntries(
-      Array.from({ length: enemyCount }, (_, index) => [String(index), { ...rates }])
+      slotStates.map((slotState, index) => [String(index), { ...slotState.rates }])
     ),
     destructionRateCapByEnemy: Object.fromEntries(
-      Array.from({ length: enemyCount }, (_, index) => [String(index), maxDestructionRate])
+      slotStates.map((slotState, index) => [String(index), slotState.maxDestructionRate])
     ),
     absorbElementsByEnemy: Object.fromEntries(
-      Array.from({ length: enemyCount }, (_, index) => [String(index), [...absorbElements]])
+      slotStates.map((slotState, index) => [String(index), [...slotState.absorbElements]])
     ),
     odRateByEnemy: Object.fromEntries(
-      Array.from({ length: enemyCount }, (_, index) => [String(index), rawOdRate])
+      slotStates.map((slotState, index) => [String(index), slotState.rawOdRate])
     ),
   };
 }
