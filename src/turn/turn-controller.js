@@ -9,7 +9,7 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import { isNormalAttackSkill, isPursuitOnlySkill } from '../domain/skill-classifiers.js';
-import { SHREDDING_SP_MIN } from '../domain/character-style.js';
+import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
 import {
   OD_RECOVERY_BY_LEVEL,
   OD_COST_BY_LEVEL,
@@ -6038,6 +6038,31 @@ function consumeSelectedCountStatusEffects(member, statusType, selectedCountEffe
   );
 }
 
+/**
+ * Phase 3.1 Integration: Wrapper for orchestrator-based consumption evaluation
+ * 
+ * [PHASE 3.1 INTEGRATION POINT - NOT YET ACTIVE]
+ * This function demonstrates how the new shouldConsume() orchestrator would be integrated
+ * into the existing consumption flow. Currently non-functional pending Phase 3 approval.
+ * 
+ * @param {Object} member - Character member
+ * @param {string} statusType - Status effect type (e.g., 'Funnel', 'MindEye')
+ * @param {Array} selectedCountEffectIds - Effect IDs to potentially consume
+ * @param {Object} actionContext - Action context for orchestrator evaluation
+ * @returns {Array} Consumed effects
+ */
+function consumeSelectedCountStatusEffectsWithOrchestrator(
+  member,
+  statusType,
+  selectedCountEffectIds,
+  actionContext
+) {
+  // Phase 3.1: This is the integration point where shouldConsume() would be called
+  // For now, we delegate to the existing implementation to maintain stability
+  // TODO: When Phase 3 is approved, integrate shouldConsume() evaluation here
+  return consumeSelectedCountStatusEffects(member, statusType, selectedCountEffectIds);
+}
+
 function resolveFunnelHitBonusForMember(member, maxStacks = 2) {
   if (!member) {
     return 0;
@@ -7618,7 +7643,6 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     member.consumeDoubleActionExtraSkillEffects(1);
   }
 
-  member.tickSpecialStatusCountEffects();
   const skillForCount =
     actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
       ? actionEntry._effectiveSkillSnapshot
@@ -7628,6 +7652,9 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     !skillForCount ||
     isNormalAttackSkill(skillForCount) ||
     isPursuitOnlySkill(skillForCount);
+  if (hasDamageForCount && !isNormalOrPursuitForCount) {
+    member.tickSpecialStatusCountEffects();
+  }
   const consumedCountEffectIds = new Set(
     (actionEntry?.specialPassiveModifiers?.consumedCountEffectIds ?? []).map((value) => Number(value))
   );
@@ -10401,4 +10428,55 @@ export function grantExtraTurn(state, allowedCharacterIds) {
     ? structuredClone(additionalTurnStartResult.passiveEvents)
     : [];
   return nextState;
+}
+
+/**
+ * Constructs an ActionContext object for use with shouldConsume().
+ * Maps action type, skill info, and turn state into a unified context.
+ * 
+ * @param {string} actionType - One of: 'NormalAttack', 'Skill', 'Pursuit', 'TurnEnd', 'Manual', 'System', 'SpecialStatus', 'AdditionalTurn'
+ * @param {Object} skill - Skill object (optional, null for non-skill actions)
+ * @param {Object} options - Additional context options
+ * @param {boolean} [options.isNormalAttack] - True if action is normal attack
+ * @param {boolean} [options.isPursuit] - True if action is pursuit attack
+ * @param {string} [options.turnPhase] - Turn phase ('PlayerTurn', 'EnemyTurn', 'OverdriveTurn', etc.)
+ * @param {boolean} [options.hasDamage] - True if action/skill contains damage parts (default: inferred from skill)
+ * @returns {Object} ActionContext object with actionType, skill, hasDamage, turnPhase, and judgment flags
+ */
+export function buildActionContext(actionType, skill = null, options = {}) {
+  const normalizedActionType = String(actionType ?? '').trim();
+
+  // Determine if action has damage (from options or skill parts)
+  let hasDamage = Boolean(options.hasDamage);
+  if (!hasDamage && skill && typeof skill === 'object') {
+    const parts = Array.isArray(skill.parts) ? skill.parts : [];
+    // Check if any part is a damage type (simple heuristic)
+    hasDamage = parts.some((part) => {
+      const skillType = String(part?.skill_type ?? '').trim();
+      // Damage part types: see OD_DAMAGE_PART_TYPES in codebase
+      return /^(PhysicalAttack|ElementalAttack|DamageFixedRate|DamageRate|FixedDamage|TokenAttack|FixedHpDamageRateAttack)$/.test(
+        skillType
+      );
+    });
+  }
+
+  // Build context based on actionType
+  const context = {
+    actionType: normalizedActionType,
+    skill: skill && typeof skill === 'object' ? skill : null,
+    hasDamage: Boolean(hasDamage),
+    turnPhase: String(options.turnPhase ?? 'Unknown'),
+
+    // Judgment flags (populated by shouldConsume logic)
+    isNormalAttack: Boolean(options.isNormalAttack || normalizedActionType === 'NormalAttack'),
+    isPursuit: Boolean(options.isPursuit || normalizedActionType === 'Pursuit'),
+    isManualAction: normalizedActionType === 'Manual',
+    isTurnEndAction:
+      normalizedActionType === 'TurnEnd' ||
+      normalizedActionType === 'PlayerTurnEnd' ||
+      normalizedActionType === 'EnemyTurnEnd',
+    isSystemAction: normalizedActionType === 'System' || normalizedActionType === 'SpecialStatus',
+  };
+
+  return context;
 }

@@ -1353,3 +1353,268 @@ export class CharacterStyle {
     };
   }
 }
+
+/**
+ * バフ消費判定の統一オーケストレータ（Phase 2実装）
+ * 
+ * このセクションは、現在分散しているバフ消費ロジックを一元化するための新関数群です。
+ * shouldConsume() が核となり、すべてのバフ消費判定がこれを経由するよう設計されています。
+ * 
+ * マイグレーション方針:
+ * - Phase 2: 新関数の実装（このセクション）
+ * - Phase 3: 既存呼び出し側を段階的に新関数へ寄せる
+ * - Phase 5: 旧関数の削除
+ */
+
+/**
+ * バフ消費判定の中核関数
+ * 
+ * @param {StatusEffect} effect - 判定対象のバフ
+ * @param {ActionContext} actionContext - 現在のアクション情報
+ * @param {Object} options - オプション
+ * @returns {Object} { shouldConsume, reason, consumeAmount }
+ */
+export function shouldConsume(effect, actionContext, options = {}) {
+  if (!effect || typeof effect !== 'object') {
+    return {
+      shouldConsume: false,
+      reason: 'Invalid effect',
+      consumeAmount: 0,
+    };
+  }
+
+  const { excludeEternal = false } = options;
+  const exitCond = String(effect.exitCond ?? '');
+  const statusType = String(effect.statusType ?? '');
+  const limitType = String(effect.limitType ?? '');
+  const remaining = Number(effect.remaining ?? 0);
+  const consumeTrigger = String(effect.metadata?.consumeTrigger ?? '');
+
+  // 1. アクティブ性チェック
+  if (exitCond !== 'Eternal' && remaining <= 0) {
+    return {
+      shouldConsume: false,
+      reason: `Effect is inactive (remaining=${remaining})`,
+      consumeAmount: 0,
+    };
+  }
+
+  // 2. Eternalチェック
+  if (exitCond === 'Eternal' && excludeEternal) {
+    return {
+      shouldConsume: false,
+      reason: 'Eternal effects excluded by option',
+      consumeAmount: 0,
+    };
+  }
+
+  // 3. アクションコンテキストが null の場合
+  if (!actionContext || typeof actionContext !== 'object') {
+    return {
+      shouldConsume: false,
+      reason: 'Invalid action context',
+      consumeAmount: 0,
+    };
+  }
+
+  const actionType = String(actionContext.actionType ?? '');
+  const hasDamage = Boolean(actionContext.hasDamage);
+  const turnPhase = String(actionContext.turnPhase ?? '');
+
+  // 4. exitCond による判定
+  switch (exitCond) {
+    case 'Count':
+      return shouldConsumeCountType(effect, actionContext, { consumeTrigger });
+    case 'PlayerTurnEnd':
+      return shouldConsumePlayerTurnEndType(actionContext);
+    case 'EnemyTurnEnd':
+      return shouldConsumeEnemyTurnEndType(actionContext);
+    case 'Eternal':
+      return shouldConsumeEternalType(actionContext);
+    default:
+      // 未知の exitCond については消費しない（安全側）
+      return {
+        shouldConsume: false,
+        reason: `Unknown exitCond: ${exitCond}`,
+        consumeAmount: 0,
+      };
+  }
+}
+
+/**
+ * Count型バフの消費判定
+ * トリガー: DamageDealt, NormalAttack, Pursuit, Manual, SpecialStatus
+ */
+function shouldConsumeCountType(effect, actionContext, { consumeTrigger = '' } = {}) {
+  const actionType = String(actionContext.actionType ?? '');
+  const hasDamage = Boolean(actionContext.hasDamage);
+  const skill = actionContext.skill ?? null;
+
+  // 消費トリガーの推定（metadata が無い場合の fallback）
+  const effectiveTrigger = consumeTrigger
+    || inferConsumeTriggerFromActionType(actionType, hasDamage);
+
+  // Count型の消費条件: ダメージを与える行動、または Manual
+  if (actionType === 'Manual') {
+    // 手動消費は常に許可
+    return {
+      shouldConsume: true,
+      reason: 'Manual consumption',
+      consumeAmount: effect.metadata?.consumeAmount ?? 1,
+    };
+  }
+
+  if (!hasDamage) {
+    // ダメージがない行動では Count型は消費しない
+    return {
+      shouldConsume: false,
+      reason: `Count-type effect requires damage (actionType=${actionType}, hasDamage=${hasDamage})`,
+      consumeAmount: 0,
+    };
+  }
+
+  // ダメージありの行動 (NormalAttack, Skill, Pursuit, AdditionalTurn)
+  if (['NormalAttack', 'Skill', 'Pursuit'].includes(actionType)) {
+    return {
+      shouldConsume: true,
+      reason: `Count-type matches damage action (${actionType})`,
+      consumeAmount: effect.metadata?.consumeAmount ?? 1,
+    };
+  }
+
+  // その他の actionType
+  return {
+    shouldConsume: false,
+    reason: `Count-type does not match actionType: ${actionType}`,
+    consumeAmount: 0,
+  };
+}
+
+/**
+ * PlayerTurnEnd型バフの消費判定
+ * これらは自動的にターン終了フェーズでのみ消費される
+ */
+function shouldConsumePlayerTurnEndType(actionContext) {
+  const actionType = String(actionContext.actionType ?? '');
+  const turnPhase = String(actionContext.turnPhase ?? '');
+
+  if (actionType === 'TurnEnd' && turnPhase === 'PlayerTurnEnd') {
+    return {
+      shouldConsume: true,
+      reason: 'PlayerTurnEnd phase match',
+      consumeAmount: 1,
+    };
+  }
+
+  return {
+    shouldConsume: false,
+    reason: `PlayerTurnEnd requires TurnEnd action in PlayerTurnEnd phase (got ${actionType}/${turnPhase})`,
+    consumeAmount: 0,
+  };
+}
+
+/**
+ * EnemyTurnEnd型バフの消費判定
+ */
+function shouldConsumeEnemyTurnEndType(actionContext) {
+  const actionType = String(actionContext.actionType ?? '');
+  const turnPhase = String(actionContext.turnPhase ?? '');
+
+  if (actionType === 'TurnEnd' && turnPhase === 'EnemyTurnEnd') {
+    return {
+      shouldConsume: true,
+      reason: 'EnemyTurnEnd phase match',
+      consumeAmount: 1,
+    };
+  }
+
+  return {
+    shouldConsume: false,
+    reason: `EnemyTurnEnd requires TurnEnd action in EnemyTurnEnd phase (got ${actionType}/${turnPhase})`,
+    consumeAmount: 0,
+  };
+}
+
+/**
+ * Eternal型バフの消費判定
+ * 手動消費またはスキル内で明示的に指定された場合のみ
+ */
+function shouldConsumeEternalType(actionContext) {
+  const actionType = String(actionContext.actionType ?? '');
+
+  if (actionType === 'Manual') {
+    return {
+      shouldConsume: true,
+      reason: 'Eternal type: manual consumption',
+      consumeAmount: 1,
+    };
+  }
+
+  // Eternal は ターン進行では消費しない
+  return {
+    shouldConsume: false,
+    reason: 'Eternal type: only consumed by manual action',
+    consumeAmount: 0,
+  };
+}
+
+/**
+ * ActionType から consumeTrigger を推定
+ * metadata に consumeTrigger が無い場合の fallback
+ */
+function inferConsumeTriggerFromActionType(actionType, hasDamage) {
+  if (actionType === 'NormalAttack' && hasDamage) return 'NormalAttack';
+  if (actionType === 'Skill' && hasDamage) return 'DamageDealt';
+  if (actionType === 'Pursuit' && hasDamage) return 'Pursuit';
+  if (actionType === 'TurnEnd') return 'TurnEnd';
+  if (actionType === 'Manual') return 'Manual';
+  return ''; // 不明
+}
+
+/**
+ * バフメタデータの整合性バリデーション
+ * 
+ * @param {StatusEffect} effect - 検証対象のバフ
+ * @returns {string[]} エラーメッセージの配列（空配列 = OK）
+ */
+export function validateBuffMetadata(effect) {
+  if (!effect || typeof effect !== 'object') {
+    return ['Effect is not an object'];
+  }
+
+  const errors = [];
+  const exitCond = String(effect.exitCond ?? '');
+  const limitType = String(effect.limitType ?? '');
+  const remaining = Number(effect.remaining ?? 0);
+  const metadata = effect.metadata ?? {};
+
+  // exitCond のバリデーション
+  const validExitConds = ['Count', 'PlayerTurnEnd', 'EnemyTurnEnd', 'Eternal'];
+  if (!validExitConds.includes(exitCond)) {
+    errors.push(`Invalid exitCond: ${exitCond} (must be one of: ${validExitConds.join(', ')})`);
+  }
+
+  // limitType のバリデーション
+  const validLimitTypes = ['Default', 'Only', 'Special'];
+  if (!validLimitTypes.includes(limitType)) {
+    errors.push(`Invalid limitType: ${limitType} (must be one of: ${validLimitTypes.join(', ')})`);
+  }
+
+  // 矛盾チェック: Eternal + Count
+  if (exitCond === 'Eternal' && remaining > 0 && limitType !== 'Only') {
+    errors.push('Eternal effects should have limitType=Only');
+  }
+
+  // metadata.consumeTrigger のバリデーション
+  if (typeof metadata.consumeTrigger !== 'undefined') {
+    const validTriggers = ['DamageDealt', 'NormalAttack', 'Pursuit', 'TurnEnd', 'Manual', 'SpecialStatus'];
+    if (!validTriggers.includes(metadata.consumeTrigger)) {
+      errors.push(`Invalid consumeTrigger: ${metadata.consumeTrigger}`);
+    }
+  }
+
+  // Count型なのに consumeTrigger が無い場合は warning でなくログ記録程度で許可
+  // （既存バフは metadata が sparse なため）
+
+  return errors;
+}
