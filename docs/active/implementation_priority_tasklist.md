@@ -72,12 +72,56 @@
 - [x] generator を runtime 実装済み enemy status 判定へ同期する
 - [x] `にゃんこ大魔法` / `御稲荷神話` / `シンメトリー・リベレーション` の回帰を追加する
 
+### 2026-03-30 調査メモ: enemy-side `SpecialStatusCountByType` の実データ参照
+
+- `SpecialStatusCountByType(3)` は「防御力ダウン状態の敵がいるとき」を指す
+	- 例: `CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0`
+- `SpecialStatusCountByType(22)` は「脆弱状態の敵がいるとき」を指す
+- `SpecialStatusCountByType(172)` は「超ダウン中の敵がいるとき」を指す
+- `SpecialStatusCountByType(12)` と `SpecialStatusCountByType(57)` は、現行 runtime ではそれぞれ `Provoke` / `Attention` に対応する
+	- 定数定義: `src/turn/turn-controller.js`
+	- `12 = Provoke`, `57 = Attention`
+- `Cover` は別 status であり、`12/57` のどちらかではない
+	- 現行 runtime では `Cover` は generic enemy status として別枠管理
+	- `Provoke` / `Attention` と同じ継続ターン系だが、`SpecialStatusCountByType(12/57)` の参照先ではない
+- したがって、データ上の「挑発または注目状態の敵がいるとき」は `12 || 57` の OR 条件で表現されるが、「cover 状態の敵がいるとき」とは別概念として扱う
+
+### WIP: 敵状態参照条件の整理
+
+- [ ] enemy-side `SpecialStatusCountByType(12/57)` を含む条件群を `Provoke` / `Attention` / `Cover` の3概念に分離して整理する
+- [ ] `SpecialStatusCountByType(3/22/172)` と enemy status report / passive condition report の対応表を active ドキュメントへ集約する
+- [ ] `SpecialStatusCountByType` の敵参照ID一覧（3/12/22/57/172）を runtime 実装集合とテスト集合の両面で監査する
+
 ## PRI-016 タスクリスト
 
 - [x] `StunRandom` / `ConfusionRandom` / `ImprisonRandom` の deterministic simulator rule を決める
 - [x] `Misfortune` / `HealDown` / `Hacking` / `Cover` の保持スキーマと record 表現を決める
 - [x] enemy-target `AttackUp` / `DefenseUp` と passive `DefenseDown` を action / passive timing へ接続する
 - [x] [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) の `T14`（拘束状態手動フック）を PRI-017 へ分離する判断を確定する
+
+### 2026-03-30 追加メモ: `Cover` の意味差分
+
+- 現行 runtime は `Cover` を generic enemy status として扱っている
+	- `src/turn/turn-controller.js` では `Cover` が `ENEMY_STATUS_SKILL_TYPES` / `ENEMY_STATUS_POWER_DURATION_SKILL_TYPES` に入っている
+	- 実データ回帰として `エンジェルズ・ウィング` が `enemyState.statuses[*].statusType === 'Cover'` を保存するテストがある
+- ただしゲーム意味としては、`Attention` は敵へ付与する状態、`Cover` は使用者自身へ付与する「攻撃対象を自分へ変更する」自己状態変化バフとして解釈するのが自然
+- したがって現状実装は「記録・条件参照用の enemy status」としては動いているが、「自身へ Cover 状態を付与する」挙動としては未整備
+- `聖女の守護` の実データも `BreakGuard(Self)` + `Cover(All)` を含んでおり、同じ論点に該当する
+
+### WIP: Cover の再整理
+
+- [ ] `Cover` を enemy status のまま扱うケースと、player-side self status/buff として扱うケースを仕様上切り分ける
+- [ ] `エンジェルズ・ウィング` / `聖女の守護` で「自身へ Cover 状態を付与する」が正なら、engine 保存先を `enemyState` から player-side status 表現へ移す設計を起こす
+- [ ] browser E2E は player-side Cover を観測できる UI 表現（バッジ・詳細ポップアップ・session JSON 等）が固まってから追加する
+
+### WIP: 被弾パッシブ・敵攻撃挙動
+
+> Cover 状態で全体攻撃を受けると被弾パッシブが3回発動するという仕様は、以下の未実装要素に依存している。
+
+- [ ] **被弾時パッシブ発火条件**: 敵の攻撃によってプレイヤー側が被弾した際にパッシブが発動する仕組みが未実装
+- [ ] **敵の攻撃挙動**: 敵がどのメンバーを攻撃対象に選ぶか（単体 vs 全体、Cover による強制変更）がシミュレーター上で未実装
+- [ ] **Cover + 全体攻撃 による被弾パッシブ3回発動**: 上記2点が実装されて初めて検証可能
+- 関連ドキュメント: [`help/HEAVEN_BURNS_RED/バトル/ターゲット集中.md`](../../help/HEAVEN_BURNS_RED/バトル/ターゲット集中.md)
 
 ## PRI-017 タスクリスト
 
