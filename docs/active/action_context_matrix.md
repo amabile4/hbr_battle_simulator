@@ -69,8 +69,8 @@
 
 アクション ↓ | 通常攻撃 | Skillダメ | Skill無ダメ | 追撃 | ターン終了 | 追加ターン | 手動消費
 ────────────┼────────┼─────────┼──────────┼────┼────────┼────────┼────────
-Funnel      |   ✓    |    ✓    |    ✗     | ✓  |   ✗    |   ✓    |   ✓
-MindEye     |   ✓    |    ✓    |    ✗     | ✓  |   ✗    |   ✓    |   ✓
+Funnel      |   ✗    |    ✓    |    ✗     | ✓  |   ✗    |   ✓    |   ✓
+MindEye     |   ✗    |    ✓    |    ✗     | ✓  |   ✗    |   ✓    |   ✓
 特殊状態ID78|   ✓    |    ✓    |    ✗     | ✓  |   ✗    |   ✓    |   ✓
 汎用Count型 |   ✓    |    ✓    |    ✗     | ✓  |   ✗    |   ✓    |   ✓
 ```
@@ -78,6 +78,7 @@ MindEye     |   ✓    |    ✓    |    ✗     | ✓  |   ✗    |   ✓    |  
 **注釈:**
 - ✓: 消費される
 - ✗: 消費されない
+- Funnel / MindEye は現行の呼び出し側ガード（通常攻撃・追撃除外）を反映し、通常攻撃列を ✗ とする
 - Only型の場合でも「消費される」が、呼び出し側で競合判定（同グループ内最強1つ）
 
 **詳細ロジック:**
@@ -322,6 +323,7 @@ shouldConsume(effect, actionContext) 呼び出し
 [ ] Count型 + Skill(hasDamage=true) → shouldConsume = true
 [ ] Count型 + Skill(hasDamage=false) → shouldConsume = false
 [ ] Count型 + Pursuit → shouldConsume = true
+[ ] Count型 + AdditionalTurn(hasDamage=true) → shouldConsume = true
 [ ] Count型 + TurnEnd → shouldConsume = false
 [ ] Count型 + Manual → shouldConsume = true
 

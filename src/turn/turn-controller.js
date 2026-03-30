@@ -10450,13 +10450,9 @@ export function buildActionContext(actionType, skill = null, options = {}) {
   let hasDamage = Boolean(options.hasDamage);
   if (!hasDamage && skill && typeof skill === 'object') {
     const parts = Array.isArray(skill.parts) ? skill.parts : [];
-    // Check if any part is a damage type (simple heuristic)
     hasDamage = parts.some((part) => {
       const skillType = String(part?.skill_type ?? '').trim();
-      // Damage part types: see OD_DAMAGE_PART_TYPES in codebase
-      return /^(PhysicalAttack|ElementalAttack|DamageFixedRate|DamageRate|FixedDamage|TokenAttack|FixedHpDamageRateAttack)$/.test(
-        skillType
-      );
+      return OD_DAMAGE_PART_TYPES.has(skillType);
     });
   }
 

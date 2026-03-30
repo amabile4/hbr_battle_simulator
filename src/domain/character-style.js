@@ -1385,10 +1385,7 @@ export function shouldConsume(effect, actionContext, options = {}) {
 
   const { excludeEternal = false } = options;
   const exitCond = String(effect.exitCond ?? '');
-  const statusType = String(effect.statusType ?? '');
-  const limitType = String(effect.limitType ?? '');
   const remaining = Number(effect.remaining ?? 0);
-  const consumeTrigger = String(effect.metadata?.consumeTrigger ?? '');
 
   // 1. アクティブ性チェック
   if (exitCond !== 'Eternal' && remaining <= 0) {
@@ -1417,14 +1414,10 @@ export function shouldConsume(effect, actionContext, options = {}) {
     };
   }
 
-  const actionType = String(actionContext.actionType ?? '');
-  const hasDamage = Boolean(actionContext.hasDamage);
-  const turnPhase = String(actionContext.turnPhase ?? '');
-
   // 4. exitCond による判定
   switch (exitCond) {
     case 'Count':
-      return shouldConsumeCountType(effect, actionContext, { consumeTrigger });
+      return shouldConsumeCountType(effect, actionContext);
     case 'PlayerTurnEnd':
       return shouldConsumePlayerTurnEndType(actionContext);
     case 'EnemyTurnEnd':
@@ -1445,14 +1438,9 @@ export function shouldConsume(effect, actionContext, options = {}) {
  * Count型バフの消費判定
  * トリガー: DamageDealt, NormalAttack, Pursuit, Manual, SpecialStatus
  */
-function shouldConsumeCountType(effect, actionContext, { consumeTrigger = '' } = {}) {
+function shouldConsumeCountType(effect, actionContext) {
   const actionType = String(actionContext.actionType ?? '');
   const hasDamage = Boolean(actionContext.hasDamage);
-  const skill = actionContext.skill ?? null;
-
-  // 消費トリガーの推定（metadata が無い場合の fallback）
-  const effectiveTrigger = consumeTrigger
-    || inferConsumeTriggerFromActionType(actionType, hasDamage);
 
   // Count型の消費条件: ダメージを与える行動、または Manual
   if (actionType === 'Manual') {
@@ -1474,7 +1462,7 @@ function shouldConsumeCountType(effect, actionContext, { consumeTrigger = '' } =
   }
 
   // ダメージありの行動 (NormalAttack, Skill, Pursuit, AdditionalTurn)
-  if (['NormalAttack', 'Skill', 'Pursuit'].includes(actionType)) {
+  if (['NormalAttack', 'Skill', 'Pursuit', 'AdditionalTurn'].includes(actionType)) {
     return {
       shouldConsume: true,
       reason: `Count-type matches damage action (${actionType})`,
@@ -1559,19 +1547,6 @@ function shouldConsumeEternalType(actionContext) {
 }
 
 /**
- * ActionType から consumeTrigger を推定
- * metadata に consumeTrigger が無い場合の fallback
- */
-function inferConsumeTriggerFromActionType(actionType, hasDamage) {
-  if (actionType === 'NormalAttack' && hasDamage) return 'NormalAttack';
-  if (actionType === 'Skill' && hasDamage) return 'DamageDealt';
-  if (actionType === 'Pursuit' && hasDamage) return 'Pursuit';
-  if (actionType === 'TurnEnd') return 'TurnEnd';
-  if (actionType === 'Manual') return 'Manual';
-  return ''; // 不明
-}
-
-/**
  * バフメタデータの整合性バリデーション
  * 
  * @param {StatusEffect} effect - 検証対象のバフ
@@ -1585,7 +1560,6 @@ export function validateBuffMetadata(effect) {
   const errors = [];
   const exitCond = String(effect.exitCond ?? '');
   const limitType = String(effect.limitType ?? '');
-  const remaining = Number(effect.remaining ?? 0);
   const metadata = effect.metadata ?? {};
 
   // exitCond のバリデーション
@@ -1600,8 +1574,8 @@ export function validateBuffMetadata(effect) {
     errors.push(`Invalid limitType: ${limitType} (must be one of: ${validLimitTypes.join(', ')})`);
   }
 
-  // 矛盾チェック: Eternal + Count
-  if (exitCond === 'Eternal' && remaining > 0 && limitType !== 'Only') {
+  // 矛盾チェック: Eternal は limitType=Only
+  if (exitCond === 'Eternal' && limitType !== 'Only') {
     errors.push('Eternal effects should have limitType=Only');
   }
 

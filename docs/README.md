@@ -66,7 +66,7 @@ docs/
 | [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | Phase 1: バフ消費ロジック現状分析 - Funnel/MindEye/Count型/ターン型各消費パターンの完全フロー図とコード参照 | 2026-03-30 |
 | [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | Phase 1: 統一バフスキーマ設計 - StatusEffect メタデータ統一仕様（exitCond/limitType/consumeTrigger）と ActionContext 型定義 | 2026-03-30 |
 | [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表 | 2026-03-30 |
-| [active/buff_consumption_phase2_review.md](active/buff_consumption_phase2_review.md) | 🟢 進行中 | Phase 2 実装レビュー結果（`buildActionContext` regex BUG-1・`AdditionalTurn` 未対応 BUG-2・dead code 等、Phase 3 着手前の必須修正リスト） | 2026-03-30 |
+| [active/buff_consumption_phase2_review.md](active/buff_consumption_phase2_review.md) | ✅ 完了 | Phase 2 実装レビュー結果（BUG-1/2/3 修正、`shouldConsume` 単体テスト追加、`action_context_matrix` 整合更新を反映済み） | 2026-03-30 |
 
 ---
 
