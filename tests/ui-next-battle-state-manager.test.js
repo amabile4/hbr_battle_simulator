@@ -40,3 +40,61 @@ test('BattleStateManager keeps initial zoneState null when enemy preemptiveField
 
   assert.equal(state.turnState.zoneState, null);
 });
+
+test('BattleStateManager applies enemy resistance percent, absorb elements, name, and max D cap to all enemies', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 2,
+    selectedEnemyName: '敵テスト',
+    max_d_rate: 650,
+    resistances: {
+      element: {
+        slash: 150,
+        stab: 100,
+        strike: 100,
+        fire: 400,
+        ice: 30,
+        thunder: 100,
+        light: 100,
+        dark: 100,
+        nonelement: 100,
+      },
+    },
+    absorbElementList: ['fire', 'nonelement'],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], '敵テスト');
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '敵テスト');
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Fire, 400);
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Ice, 30);
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Slash, 150);
+  assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
+  assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 650);
+  assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire', 'nonelement']);
+  assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['fire', 'nonelement']);
+});
+
+test('BattleStateManager wires enemy od_rate to odRateByEnemy for each enemy slot', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 3,
+    od_rate: 8500,
+  });
+
+  assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['1'], 8500);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['2'], 8500);
+});
+
+test('BattleStateManager sets odRateByEnemy to 0 when od_rate is 0 (no correction)', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 1,
+    od_rate: 0,
+  });
+
+  assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 0);
+});

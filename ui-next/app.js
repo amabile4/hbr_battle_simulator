@@ -26,6 +26,7 @@ import {
   updatePassiveLogResizeHandle,
 } from './utils/workspace-shell.js';
 import { mountPngCaptureSandbox } from './utils/png-capture.js';
+import { buildEnemyList } from './utils/enemy-list.js';
 
 const UI_NEXT_READY_FLAG_KEY = '__UI_NEXT_READY__';
 const UI_NEXT_BOOT_METRICS_KEY = '__UI_NEXT_BOOT_METRICS__';
@@ -35,93 +36,6 @@ function setUiNextReadyFlag(ready) {
 }
 
 function createBootProfiler() {
-  const startedAt = Date.now();
-  const marks = [];
-
-  const publish = (status, errorMessage = null) => {
-    window[UI_NEXT_BOOT_METRICS_KEY] = {
-      status,
-      startedAt,
-      endedAt: Date.now(),
-      totalMs: Math.max(0, Number(performance.now().toFixed(2))),
-      marks: marks.map((mark) => ({ ...mark })),
-      ...(errorMessage ? { errorMessage } : {}),
-    };
-  };
-
-  return {
-    mark(phase, note = '') {
-      marks.push({
-        phase: String(phase),
-        note: String(note ?? ''),
-        atMs: Number(performance.now().toFixed(2)),
-      });
-    },
-    done() {
-      publish('ready');
-    },
-    fail(error) {
-      publish('failed', String(error?.message ?? error ?? 'unknown error'));
-    },
-  };
-}
-
-// Cache API キャッシュバージョン。JSON データを更新したらここを上げて強制リフレッシュ。
-const HBR_CACHE_VERSION = 'hbr-data-v1';
-
-async function fetchJson(path) {
-  if (window.location.protocol === 'file:') {
-    const url = new URL(path, import.meta.url).href;
-    const module = await import(url, { with: { type: 'json' } });
-    return module.default;
-  }
-  const url = new URL(path, location.href).href;
-  if ('caches' in window) {
-    const cache = await caches.open(HBR_CACHE_VERSION);
-    const cached = await cache.match(url);
-    if (cached) return cached.json();
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${path}: ${response.status}`);
-    }
-    await cache.put(url, response.clone());
-    return response.json();
-  }
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${path}: ${response.status}`);
-  }
-  return response.json();
-}
-
-async function fetchJsonOrFallback(path, fallback) {
-  try {
-    return await fetchJson(path);
-  } catch (error) {
-    const msg = String(error?.message ?? error ?? '');
-    const isMissing =
-      msg.includes(`Failed to fetch ${path}: 404`) ||
-      msg.includes('Failed to fetch dynamically imported module') ||
-      msg.includes('Cannot find module') ||
-      msg.includes('Importing a module script failed');
-    if (!isMissing) throw error;
-    console.warn(`Optional JSON missing, using fallback for ${path}`, error);
-    return fallback;
-  }
-}
-
-let _statusTimer = null;
-function resolveStatusTone(msg) {
-  return /エラー|Error:|失敗|Failed/i.test(String(msg)) ? 'error' : 'info';
-}
-
-function showStatus(msg, tone = resolveStatusTone(msg)) {
-  const el = document.querySelector('[data-role="status"]');
-  if (!el) return;
-  el.textContent = msg;
-  el.dataset.tone = tone;
-  el.classList.remove('hidden');
-  clearTimeout(_statusTimer);
   _statusTimer = setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
@@ -615,28 +529,90 @@ function setupWorkspaceShell() {
  * 表示対象: Dimension コンテンツのボス（label が "Dimension_" で始まる is_boss=true の敵）
  * 同名の敵は最高 ID（最新/最高難度）1 件に絞り込む。
  */
-function buildEnemyList(rawEnemies) {
+/**
+ * 表示対象敵の選定ルール:
+ *  1. 常時表示 ID (ALWAYS_SHOW_IDS) に含まれる敵は無条件で表示する。
+ *  2. is_boss=true かつ in_date が「現在月を含む四半期」(1-3月/4-6月/7-9月/10-12月)
+ *     の同一年に入る敵を表示する。
+ *  3. 同名の敵は最大 ID（最新エントリ）1件に絞る。
+ * グループキー: dimension に YYYYMM を設定（常時表示 ID は null）。
+ */
+function buildEnemyList(rawEnemies, today = new Date()) {
+  const ALWAYS_SHOW_IDS = new Set([13450045]);
+  const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
+  const normalizeEnemyResistanceRatePercent = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric)
+      ? DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT - numeric
+      : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+  };
+  const normalizeAbsorbElementList = (list = []) => {
+    if (!Array.isArray(list)) {
+      return [];
+    }
+    return [...new Set(list.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean))];
+  };
   if (!Array.isArray(rawEnemies)) return [];
-  const dimBosses = rawEnemies.filter(
-    e => e.flags?.is_boss === true && typeof e.label === 'string' && e.label.startsWith('Dimension_')
+
+  // 四半期判定ヘルパー
+  const curYear = today.getFullYear();
+  const curMonth = today.getMonth() + 1;
+  const qStart = Math.floor((curMonth - 1) / 3) * 3 + 1;
+  const qMonths = new Set([qStart, qStart + 1, qStart + 2]);
+  const inCurrentQuarter = (e) => {
+    if (!e.in_date) return false;
+    const d = new Date(e.in_date);
+    if (isNaN(d.getTime())) return false;
+    return d.getFullYear() === curYear && qMonths.has(d.getMonth() + 1);
+  };
+  const toYYYYMM = (in_date) => {
+    const d = new Date(in_date);
+    return d.getFullYear() * 100 + (d.getMonth() + 1);
+  };
+
+  // 常時表示エントリ（ALWAYS_SHOW_IDS）を直接取得
+  const alwaysEntries = [];
+  for (const id of ALWAYS_SHOW_IDS) {
+    const found = rawEnemies.find((e) => e.id === id);
+    if (found) alwaysEntries.push(found);
+  }
+
+  // 四半期ボスを抽出（常時表示ID は重複しないよう除外）
+  const quarterlyBosses = rawEnemies.filter(
+    (e) => !ALWAYS_SHOW_IDS.has(e.id) && e.flags && e.flags.is_boss === true && inCurrentQuarter(e)
   );
   const byName = new Map();
-  dimBosses.forEach(e => {
+  quarterlyBosses.forEach(e => {
     const prev = byName.get(e.name);
     if (!prev || e.id > prev.id) byName.set(e.name, e);
   });
-  return [...byName.values()]
-    .map(e => ({
-      id:          e.id,
-      name:        e.name,
-      dimension:   Number(e.label.split('_')[1] ?? 0),
-      od_rate:     e.base_param?.od_rate    ?? 0,
-      max_d_rate:  e.base_param?.max_d_rate ?? 999,
-      resistances: { element: e.resistances?.element ?? {} },
-    }))
-    .sort((a, b) => b.dimension !== a.dimension
-      ? b.dimension - a.dimension
-      : (a.name ?? '').localeCompare(b.name ?? '', 'ja'));
+  const mapEnemy = (e, dimension) => ({
+    id:          e.id,
+    name:        e.name,
+    dimension,
+    od_rate:     e.base_param?.od_rate    ?? 0,
+    max_d_rate:  e.base_param?.max_d_rate ?? 999,
+    resistances: {
+      element: Object.fromEntries(
+        ['slash', 'stab', 'strike', 'fire', 'ice', 'thunder', 'light', 'dark', 'nonelement'].map((key) => [
+          key,
+          normalizeEnemyResistanceRatePercent(e.resistances?.element?.[key]),
+        ])
+      ),
+    },
+    absorbElementList: normalizeAbsorbElementList(e.resistances?.element?.absorb_element_list),
+  });
+
+  const alwaysList = alwaysEntries.map((e) => mapEnemy(e, null));
+  const quarterlyList = [...byName.values()]
+    .map((e) => mapEnemy(e, toYYYYMM(e.in_date)))
+    .sort((a, b) =>
+      b.dimension !== a.dimension
+        ? b.dimension - a.dimension
+        : (a.name ?? '').localeCompare(b.name ?? '', 'ja')
+    );
+
+  return [...alwaysList, ...quarterlyList];
 }
 
 async function main() {

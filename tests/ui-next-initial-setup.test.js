@@ -352,6 +352,77 @@ test('InitialSetupController getCurrentSetupSnapshot returns party and simulator
     assert.equal(snapshot.enemy.preemptiveField, 'none');
   }));
 
+test('InitialSetupController restores enemy manual resistance percent and absorb selection', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 9001,
+          name: '敵テスト',
+          dimension: 1,
+          od_rate: 2,
+          max_d_rate: 650,
+          resistances: {
+            element: {
+              slash: 100,
+              stab: 100,
+              strike: 100,
+              fire: 400,
+              ice: 30,
+              thunder: 100,
+              light: 100,
+              dark: 100,
+              nonelement: 100,
+            },
+          },
+          absorbElementList: ['nonelement'],
+        },
+      ],
+    });
+    controller.mount();
+
+    controller.applySetupSnapshot({
+      enemy: {
+        selectedEnemyId: 9001,
+        isManual: true,
+        manual: {
+          od_rate: 7,
+          max_d_rate: 700,
+          element: {
+            slash: 150,
+            stab: 100,
+            strike: 100,
+            fire: 400,
+            ice: 30,
+            thunder: 100,
+            light: 100,
+            dark: 60,
+            nonelement: 100,
+          },
+          absorbElementList: ['fire', 'nonelement'],
+        },
+      },
+    });
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(root.querySelector('[data-edit-element="fire"]').value, '400');
+    assert.equal(root.querySelector('[data-edit-element="ice"]').value, '30');
+    assert.equal(root.querySelector('[data-edit-absorb="fire"]').checked, true);
+    assert.equal(root.querySelector('[data-edit-absorb="nonelement"]').checked, true);
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.equal(snapshot.enemy.isManual, true);
+    assert.equal(snapshot.enemy.resistances.element.fire, 400);
+    assert.equal(snapshot.enemy.resistances.element.ice, 30);
+    assert.deepEqual(snapshot.enemy.absorbElementList, ['fire', 'nonelement']);
+  }));
+
 test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const recalculations = [];

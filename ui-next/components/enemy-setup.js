@@ -12,9 +12,11 @@ const ELEMENTS = [
   { key: 'dark',       label: '闇', icon: 'Dark.webp'    },
   { key: 'nonelement', label: '無', icon: null           },
 ];
+const ELEMENT_KEY_SET = new Set(ELEMENTS.map((element) => element.key));
 
 const DEFAULT_OD_RATE    = 0;
 const DEFAULT_MAX_D_RATE = 999;
+const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_PREEMPTIVE_FIELD = 'none';
 const PREEMPTIVE_FIELD_OPTIONS = [
   { value: 'none', label: 'なし' },
@@ -33,23 +35,72 @@ function normalizePreemptiveField(value) {
     : DEFAULT_PREEMPTIVE_FIELD;
 }
 
+function normalizeElementRatePercent(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+}
+
+function normalizeAbsorbElementKey(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return ELEMENT_KEY_SET.has(normalized) ? normalized : null;
+}
+
+function normalizeAbsorbElementList(list = []) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return [...new Set(list.map((value) => normalizeAbsorbElementKey(value)).filter(Boolean))];
+}
+
+function cloneManual(manual = {}) {
+  return {
+    od_rate: Number(manual.od_rate ?? DEFAULT_OD_RATE),
+    max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
+    element: Object.fromEntries(
+      ELEMENTS.map((element) => [element.key, normalizeElementRatePercent(manual.element?.[element.key])])
+    ),
+    absorbElementList: normalizeAbsorbElementList(manual.absorbElementList),
+  };
+}
+
 function defaultElement() {
-  return Object.fromEntries(ELEMENTS.map(e => [e.key, 0]));
+  return Object.fromEntries(ELEMENTS.map((element) => [element.key, DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT]));
 }
 
 function defaultManual() {
-  return { od_rate: DEFAULT_OD_RATE, max_d_rate: DEFAULT_MAX_D_RATE, element: defaultElement() };
+  return {
+    od_rate: DEFAULT_OD_RATE,
+    max_d_rate: DEFAULT_MAX_D_RATE,
+    element: defaultElement(),
+    absorbElementList: [],
+  };
 }
 
 function enemyToManual(enemy) {
   if (!enemy) return defaultManual();
-  return {
-    od_rate:    enemy.od_rate    ?? DEFAULT_OD_RATE,
+  return cloneManual({
+    od_rate: enemy.od_rate ?? DEFAULT_OD_RATE,
     max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
-    element:    Object.fromEntries(
-      ELEMENTS.map(e => [e.key, enemy.resistances?.element?.[e.key] ?? 0])
+    element: Object.fromEntries(
+      ELEMENTS.map((element) => [
+        element.key,
+        enemy.resistances?.element?.[element.key] ?? DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
+      ])
     ),
-  };
+    absorbElementList: enemy.absorbElementList ?? enemy.resistances?.element?.absorb_element_list ?? [],
+  });
+}
+
+function snapshotToManual(snapshot = {}) {
+  if (snapshot.manual && typeof snapshot.manual === 'object') {
+    return cloneManual(snapshot.manual);
+  }
+  return cloneManual({
+    od_rate: snapshot.od_rate,
+    max_d_rate: snapshot.max_d_rate,
+    element: snapshot.resistances?.element,
+    absorbElementList: snapshot.absorbElementList,
+  });
 }
 
 /**
@@ -76,7 +127,7 @@ export class EnemySetupController {
   }
 
   mount() {
-    // デフォルト: 「希望を喰むもの」を自動選択（全耐性0 / max_d_rate 999 の標準敵）
+    // デフォルト: 「希望を喰むもの」を自動選択（等倍耐性 / max_d_rate 999 の標準敵）
     if (this.#state.selectedEnemyId === null) {
       const def = this.#enemies.find(e => e.name === '希望を喰むもの');
       if (def) this.#state.selectedEnemyId = def.id;
@@ -138,19 +189,40 @@ export class EnemySetupController {
           this.#state.manual.element[t.dataset.editElement] = val;
           this.#onChange?.(this.getSnapshot());
         }
+        return;
+      }
+
+      if (t.dataset.editAbsorb) {
+        const key = normalizeAbsorbElementKey(t.dataset.editAbsorb);
+        if (!key) {
+          return;
+        }
+        const next = new Set(this.#state.manual.absorbElementList);
+        if (t.checked) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+        this.#state.manual.absorbElementList = [...next];
+        this.#onChange?.(this.getSnapshot());
       }
     });
   }
 
   getSnapshot() {
-    const vals = this.#getEffective();
+    const vals = cloneManual(this.#getEffective());
+    const selected = this.#enemies.find((enemy) => enemy.id === this.#state.selectedEnemyId) ?? null;
     return {
       selectedEnemyId: this.#state.selectedEnemyId,
+      selectedEnemyName: selected?.name ?? '',
       enemyCount:      this.#state.enemyCount,
       preemptiveField: this.#state.preemptiveField,
+      isManual:        this.#state.isManual,
+      manual:          cloneManual(this.#state.manual),
       od_rate:         vals.od_rate,
       max_d_rate:      vals.max_d_rate,
       resistances:     { element: { ...vals.element } },
+      absorbElementList: [...vals.absorbElementList],
     };
   }
 
@@ -160,10 +232,21 @@ export class EnemySetupController {
     }
     if (snapshot.selectedEnemyId != null) {
       this.#state.selectedEnemyId = Number(snapshot.selectedEnemyId);
-      this.#state.isManual = false;
     }
     if (snapshot.preemptiveField != null) {
       this.#state.preemptiveField = normalizePreemptiveField(snapshot.preemptiveField);
+    }
+    const hasManualState =
+      (snapshot.manual && typeof snapshot.manual === 'object') ||
+      snapshot.od_rate != null ||
+      snapshot.max_d_rate != null ||
+      (snapshot.resistances && typeof snapshot.resistances === 'object') ||
+      Array.isArray(snapshot.absorbElementList);
+    if (hasManualState) {
+      this.#state.manual = snapshotToManual(snapshot);
+    }
+    if (snapshot.isManual != null) {
+      this.#state.isManual = Boolean(snapshot.isManual);
     }
     this.#render();
   }
@@ -181,13 +264,26 @@ export class EnemySetupController {
     const vals     = this.#getEffective();
     const selected = this.#enemies.find(e => e.id === selectedEnemyId);
 
-    // Dimension 番号でグループ化（降順）
+    // YYYYMM キーを表示ラベルに変換  null → "テンプレート"
+    const formatGroupLabel = (key) => {
+      if (key === null || key === undefined) return 'テンプレート';
+      const year = Math.floor(key / 100);
+      const month = key % 100;
+      return `${year}年${month}月`;
+    };
+
+    // グループ化（null=テンプレートを先頭、次いで YYYYMM 降順）
     const groups = new Map();
     this.#enemies.forEach(e => {
-      if (!groups.has(e.dimension)) groups.set(e.dimension, []);
-      groups.get(e.dimension).push(e);
+      const key = e.dimension;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(e);
     });
-    const groupsArr = [...groups.entries()].sort((a, b) => b[0] - a[0]);
+    const groupsArr = [...groups.entries()].sort((a, b) => {
+      if (a[0] === null) return -1;
+      if (b[0] === null) return 1;
+      return b[0] - a[0];
+    });
 
     this.#root.innerHTML = `
       <div class="p-1.5 space-y-2">
@@ -231,7 +327,7 @@ export class EnemySetupController {
                          focus:outline-none focus:ring-1 focus:ring-blue-400">
             <option value="">── 選択なし ──</option>
             ${groupsArr.map(([dim, enemies]) => `
-              <optgroup label="ディメンション${dim}">
+              <optgroup label="${formatGroupLabel(dim)}">
                 ${enemies.map(e => `
                   <option value="${e.id}" ${e.id === selectedEnemyId ? 'selected' : ''}>
                     ${e.name}
@@ -258,10 +354,12 @@ export class EnemySetupController {
           </div>
 
           <div class="p-2 space-y-2">
-            <!-- OD速度 / Dゲージ上限 -->
+            <!-- オーバードライブ上昇量 / 最大破壊率 -->
             <div class="grid grid-cols-2 gap-1.5">
-              ${this.#numFieldHtml('od_rate',    'OD速度',       vals.od_rate,    isManual)}
-              ${this.#numFieldHtml('max_d_rate', 'Dゲージ上限', vals.max_d_rate, isManual)}
+              ${this.#numFieldHtml('od_rate',    'オーバードライブ上昇量', vals.od_rate,    isManual,
+                (v) => v === 0 ? '100%' : `${v / 100}%`)}
+              ${this.#numFieldHtml('max_d_rate', '最大破壊率',             vals.max_d_rate, isManual,
+                (v) => `${v}%`)}
             </div>
 
             <!-- 属性耐性 -->
@@ -271,6 +369,13 @@ export class EnemySetupController {
                 ${ELEMENTS.map(el => this.#elemHtml(el, vals.element[el.key] ?? 0, isManual)).join('')}
               </div>
             </div>
+
+            <div>
+              <div class="text-xs text-gray-400 mb-1">吸収属性</div>
+              <div class="grid grid-cols-3 gap-0.5">
+                ${ELEMENTS.map((el) => this.#absorbHtml(el, vals.absorbElementList.includes(el.key), isManual)).join('')}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -278,7 +383,7 @@ export class EnemySetupController {
     `;
   }
 
-  #numFieldHtml(key, label, value, editable) {
+  #numFieldHtml(key, label, value, editable, formatter = null) {
     if (editable) {
       return `
         <label class="flex flex-col gap-0.5">
@@ -291,12 +396,17 @@ export class EnemySetupController {
     return `
       <div class="flex flex-col gap-0.5">
         <span class="text-xs text-gray-500">${label}</span>
-        <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${value}</span>
+        <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${formatter ? formatter(value) : value}</span>
       </div>`;
   }
 
   #elemHtml(el, value, editable) {
-    const colorCls = value < 0 ? 'text-red-600' : value > 0 ? 'text-blue-600' : 'text-gray-400';
+    const numericValue = normalizeElementRatePercent(value);
+    const colorCls = numericValue > DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT
+      ? 'text-red-600'
+      : numericValue < DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT
+        ? 'text-blue-600'
+        : 'text-gray-400';
     const iconHtml = el.icon
       ? `<img src="${resolveUiAssetUrl(el.icon)}" alt="${el.label}"
               class="w-4 h-4 object-contain" />`
@@ -306,16 +416,35 @@ export class EnemySetupController {
       return `
         <div class="flex flex-col items-center gap-0.5">
           ${iconHtml}
-          <input type="number" data-edit-element="${el.key}" value="${value}"
+          <input type="number" data-edit-element="${el.key}" value="${numericValue}"
                  class="text-xs rounded border border-gray-300 text-center px-0 py-0 w-full
                         focus:outline-none focus:ring-1 focus:ring-blue-400" />
         </div>`;
     }
-    const display = value > 0 ? `+${value}` : String(value);
     return `
       <div class="flex flex-col items-center gap-0.5 py-0.5">
         ${iconHtml}
-        <span class="text-xs font-mono ${colorCls}">${display}</span>
+        <span class="text-xs font-mono ${colorCls}">${numericValue}%</span>
+      </div>`;
+  }
+
+  #absorbHtml(el, checked, editable) {
+    const iconHtml = el.icon
+      ? `<img src="${resolveUiAssetUrl(el.icon)}" alt="${el.label}"
+              class="w-4 h-4 object-contain" />`
+      : `<span class="w-4 h-4 flex items-center justify-center text-xs text-gray-400 leading-none">${el.label}</span>`;
+    if (editable) {
+      return `
+        <label class="flex flex-col items-center gap-0.5 py-0.5 cursor-pointer">
+          ${iconHtml}
+          <input type="checkbox" data-edit-absorb="${el.key}" ${checked ? 'checked' : ''}
+                 class="h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+        </label>`;
+    }
+    return `
+      <div class="flex flex-col items-center gap-0.5 py-0.5">
+        ${iconHtml}
+        <span class="text-[10px] font-medium ${checked ? 'text-emerald-600' : 'text-gray-300'}">${checked ? '吸収' : '---'}</span>
       </div>`;
   }
 }

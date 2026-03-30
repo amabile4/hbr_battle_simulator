@@ -18,6 +18,7 @@ import {
   OD_GAUGE_MAX_PERCENT,
   DEFAULT_ENEMY_COUNT,
   DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
+  ENEMY_OD_RATE_UNIT,
   DEFAULT_DESTRUCTION_RATE_PERCENT,
   DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
   SPECIAL_BREAK_CAP_BONUS_PERCENT,
@@ -1723,6 +1724,8 @@ function getEnemyState(turnState) {
       damageRatesByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
+      absorbElementsByEnemy: {},
+      odRateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -1745,6 +1748,12 @@ function getEnemyState(turnState) {
       state.destructionRateCapByEnemy && typeof state.destructionRateCapByEnemy === 'object'
         ? state.destructionRateCapByEnemy
         : {},
+    absorbElementsByEnemy:
+      state.absorbElementsByEnemy && typeof state.absorbElementsByEnemy === 'object'
+        ? state.absorbElementsByEnemy
+        : {},
+    odRateByEnemy:
+      state.odRateByEnemy && typeof state.odRateByEnemy === 'object' ? state.odRateByEnemy : {},
     breakStateByEnemy:
       state.breakStateByEnemy && typeof state.breakStateByEnemy === 'object' ? state.breakStateByEnemy : {},
     enemyNamesByEnemy:
@@ -2116,11 +2125,19 @@ function applyReviveTerritoryTurnStartEffect(party, turnState, trigger) {
 function getEnemyResistanceRatePercent(turnState, targetIndex, element) {
   const enemyState = getEnemyState(turnState);
   const enemyKey = String(Number(targetIndex));
+  const normalizedElement = String(element ?? '').trim().toLowerCase();
+  const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey];
+  if (normalizedElement && Array.isArray(absorbElements) && absorbElements.includes(normalizedElement)) {
+    return 0;
+  }
   const rates = enemyState.damageRatesByEnemy?.[enemyKey];
   if (!rates || typeof rates !== 'object') {
     return DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
   }
-  const value = Number(rates[String(element ?? '').trim()]);
+  const matchedEntry = Object.entries(rates).find(
+    ([key]) => String(key ?? '').trim().toLowerCase() === normalizedElement
+  );
+  const value = Number(matchedEntry?.[1]);
   return Number.isFinite(value) ? value : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
 }
 
@@ -4429,6 +4446,8 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     damageRatesByEnemy: enemyState.damageRatesByEnemy,
     destructionRateByEnemy: enemyState.destructionRateByEnemy,
     destructionRateCapByEnemy: enemyState.destructionRateCapByEnemy,
+    absorbElementsByEnemy: enemyState.absorbElementsByEnemy,
+    odRateByEnemy: enemyState.odRateByEnemy,
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
@@ -5679,11 +5698,29 @@ function computeOdGaugeGainPercentBySkill(
   return truncateToTwoDecimals(attackGain + overDrivePointUpGain);
 }
 
+/**
+ * 敵の od_rate に基づく OD 上昇量補正係数を返す。
+ * - od_rate=0 は補正なし（係数 1.0）。
+ * - 0 以外は od_rate / ENEMY_OD_RATE_UNIT（例: 8500 → 0.85）。
+ * - 複数敵がいる場合は敵 index 0 の値を共有レートとして使用する。
+ * [WIP] 小数点丸め込み位置は調査中。
+ */
+function resolveEnemyOdRateMultiplier(turnState) {
+  const enemyState = getEnemyState(turnState);
+  const rawRate = Number(enemyState.odRateByEnemy?.['0'] ?? 0);
+  if (!Number.isFinite(rawRate) || rawRate === 0) {
+    return 1;
+  }
+  return rawRate / ENEMY_OD_RATE_UNIT;
+}
+
 function applyOdGaugeFromActions(state, previewRecord, options = {}) {
   const consumeStatusEffects = options.consumeStatusEffects !== false;
   const events = [];
   const enemyCount = clampEnemyCount(previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT);
   let currentOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
+  // [WIP] 敵 od_rate による OD 上昇補正。小数点丸め込み位置は調査中。
+  const odRateMultiplier = resolveEnemyOdRateMultiplier(state.turnState);
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const member = findMemberByCharacterId(state, actionEntry.characterId);
@@ -5747,7 +5784,11 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       skill,
       actionEntry
     );
-    const delta = truncateToTwoDecimals(Number(odGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
+    // od_rate による補正を OD 上昇量に適用する（WIP: 丸め込み位置調査中）。
+    const effectiveOdGaugeGain = odRateMultiplier !== 1
+      ? truncateToTwoDecimals(odGaugeGain * odRateMultiplier)
+      : odGaugeGain;
+    const delta = truncateToTwoDecimals(Number(effectiveOdGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
     if (!Number.isFinite(delta) || delta === 0) {
       continue;
     }
@@ -5835,7 +5876,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         consumedMindEyeEffects: consumedMindEyes,
         damageContext,
         odGaugeGain: delta,
-        odGaugeRawGain: truncateToTwoDecimals(Number(odGaugeGain ?? 0)),
+        odGaugeRawGain: truncateToTwoDecimals(Number(effectiveOdGaugeGain ?? 0)),
         odGaugeRawDown: truncateToTwoDecimals(Number(odGaugeDown ?? 0)),
         odGaugeBefore: beforeOdGauge,
         odGaugeAfter: currentOdGauge,

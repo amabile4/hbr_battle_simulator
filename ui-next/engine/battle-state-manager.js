@@ -8,6 +8,70 @@ const PREEMPTIVE_FIELD_TO_ZONE_TYPE = Object.freeze({
   light: 'Light',
   dark: 'Dark',
 });
+const UI_TO_ENGINE_ELEMENT_KEY = Object.freeze({
+  slash: 'Slash',
+  stab: 'Stab',
+  strike: 'Strike',
+  fire: 'Fire',
+  ice: 'Ice',
+  thunder: 'Thunder',
+  light: 'Light',
+  dark: 'Dark',
+  nonelement: 'Nonelement',
+});
+const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
+const DEFAULT_MAX_D_RATE = 999;
+const ENEMY_OD_RATE_NO_CORRECTION = 0;
+
+function buildEnemyDamageRates(enemySetup = {}) {
+  const source = enemySetup?.resistances?.element;
+  return Object.fromEntries(
+    Object.entries(UI_TO_ENGINE_ELEMENT_KEY).map(([uiKey, engineKey]) => [
+      engineKey,
+      Number.isFinite(Number(source?.[uiKey])) ? Number(source[uiKey]) : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
+    ])
+  );
+}
+
+function buildEnemyAbsorbElements(enemySetup = {}) {
+  const list = Array.isArray(enemySetup?.absorbElementList) ? enemySetup.absorbElementList : [];
+  return [...new Set(list.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean))];
+}
+
+function buildEnemyStateOverrides(enemySetup = {}) {
+  const enemyCount = enemySetup.enemyCount != null
+    ? Number(enemySetup.enemyCount) || DEFAULT_ENEMY_COUNT
+    : DEFAULT_ENEMY_COUNT;
+  const rates = buildEnemyDamageRates(enemySetup);
+  const absorbElements = buildEnemyAbsorbElements(enemySetup);
+  const enemyName = String(enemySetup.selectedEnemyName ?? '').trim();
+  const maxDestructionRate = Number.isFinite(Number(enemySetup.max_d_rate))
+    ? Number(enemySetup.max_d_rate)
+    : DEFAULT_MAX_D_RATE;
+  // od_rate=0 は補正なし。0 以外は ENEMY_OD_RATE_UNIT 分母で乗数に変換（例: 8500 → 85% → 0.85 倍）。
+  const rawOdRate = Number.isFinite(Number(enemySetup.od_rate)) && Number(enemySetup.od_rate) !== ENEMY_OD_RATE_NO_CORRECTION
+    ? Number(enemySetup.od_rate)
+    : ENEMY_OD_RATE_NO_CORRECTION;
+
+  return {
+    enemyCount,
+    enemyNamesByEnemy: Object.fromEntries(
+      Array.from({ length: enemyCount }, (_, index) => [String(index), enemyName])
+    ),
+    damageRatesByEnemy: Object.fromEntries(
+      Array.from({ length: enemyCount }, (_, index) => [String(index), { ...rates }])
+    ),
+    destructionRateCapByEnemy: Object.fromEntries(
+      Array.from({ length: enemyCount }, (_, index) => [String(index), maxDestructionRate])
+    ),
+    absorbElementsByEnemy: Object.fromEntries(
+      Array.from({ length: enemyCount }, (_, index) => [String(index), [...absorbElements]])
+    ),
+    odRateByEnemy: Object.fromEntries(
+      Array.from({ length: enemyCount }, (_, index) => [String(index), rawOdRate])
+    ),
+  };
+}
 
 function buildPreemptiveZoneState(enemySetup) {
   const key = String(enemySetup?.preemptiveField ?? '').trim().toLowerCase();
@@ -99,6 +163,7 @@ export class BattleStateManager {
     );
 
     const preemptiveZoneState = buildPreemptiveZoneState(enemySetup);
+    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup);
 
     const result = createInitializedBattleSnapshot({
       dataStore: this.#store,
@@ -120,13 +185,13 @@ export class BattleStateManager {
       markStateByPartyIndex: {},
       statusEffectsByPartyIndex: {},
       initialOdGauge: 0,
-      enemyCount: enemySetup.enemyCount != null
-        ? Number(enemySetup.enemyCount) || DEFAULT_ENEMY_COUNT
-        : DEFAULT_ENEMY_COUNT,
-      enemyNamesByEnemy: {},
-      damageRatesByEnemy: {},
+      enemyCount: enemyStateOverrides.enemyCount,
+      enemyNamesByEnemy: enemyStateOverrides.enemyNamesByEnemy,
+      damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,
       destructionRateByEnemy: {},
-      destructionRateCapByEnemy: {},
+      destructionRateCapByEnemy: enemyStateOverrides.destructionRateCapByEnemy,
+      absorbElementsByEnemy: enemyStateOverrides.absorbElementsByEnemy,
+      odRateByEnemy: enemyStateOverrides.odRateByEnemy,
       enemyStatuses: [],
       breakStateByEnemy: {},
       enemyZoneConfigByEnemy: {},

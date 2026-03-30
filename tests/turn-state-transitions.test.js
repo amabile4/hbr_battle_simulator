@@ -6287,6 +6287,54 @@ test('damage context keeps target enemy and effective rates for multi-enemy OD a
   assert.equal(damageContext.effectiveDamageRatesByEnemy['1'], undefined);
 });
 
+test('absorbed element is treated as resistance for OD gain and damage context', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ABS${idx + 1}`,
+      characterName: `ABS${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ABSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15080 + idx,
+          name: idx === 0 ? 'Absorb Fire Slash' : 'Normal',
+          label: idx === 0 ? 'AbsorbFireSlash' : `ABSSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 2 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }]
+              : [],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Slash: 150, Fire: 400 },
+    },
+    absorbElementsByEnemy: {
+      0: ['fire'],
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ABS1', skillId: 15080 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const damageContext = committedRecord.actions[0].damageContext;
+
+  assert.equal(nextState.turnState.odGauge, 0);
+  assert.equal(damageContext, null);
+});
+
 test('damage context keeps all-target enemy eligibility and effective rates', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -15426,4 +15474,96 @@ test('DoubleActionExtraSkill: self resource gains are allocated to each cast wit
   assert.equal(secondTokenSkillChanges.length, 1);
   assert.equal(firstTokenSkillChanges[0].delta, 1);
   assert.equal(secondTokenSkillChanges[0].delta, 1);
+});
+
+// od_rate OD 上昇量補正テスト
+test('enemy od_rate scales OD gain by od_rate/10000 multiplier (WIP: rounding position TBD)', () => {
+  // 4-hit 単体攻撃: 攻撃 OD = trunc2(2.5 * 4) = 10.00%
+  // od_rate=5000 (50%) → effectiveGain = trunc2(10.00 * 0.5) = 5.00%
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODR${idx + 1}`,
+      characterName: `ODR${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15900 + idx,
+          name: idx === 0 ? '4hit Single' : 'Protection',
+          label: idx === 0 ? 'FourHitSingle' : `ODRSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 4 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 5000 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'ODR1', skillId: 15900 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
+  // 補正後: trunc2(10.00 * 0.5) = 5.00
+  assert.equal(nextState.turnState.odGauge, 5);
+});
+
+test('enemy od_rate=0 means no correction: OD gain is unchanged', () => {
+  // 4-hit 単体攻撃: OD = 10.00%、od_rate=0 → 補正なし → 10.00%
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `OD0${idx + 1}`,
+      characterName: `OD0${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `OD0S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15920 + idx,
+          name: idx === 0 ? '4hit Single' : 'Protection',
+          label: idx === 0 ? 'FourHitSingleNoRate' : `OD0Skill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 4 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 0 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'OD01', skillId: 15920 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
+  // 補正なし: 10.00%
+  assert.equal(nextState.turnState.odGauge, 10);
 });

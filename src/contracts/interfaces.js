@@ -155,6 +155,8 @@ export function createInitialTurnState() {
       damageRatesByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
+      absorbElementsByEnemy: {},
+      odRateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -208,6 +210,28 @@ export function cloneTurnState(turnState) {
                   Object.entries(turnState.enemyState.destructionRateCapByEnemy).map(([targetIndex, value]) => [
                     String(targetIndex),
                     Number.isFinite(Number(value)) ? Number(value) : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                  ])
+                )
+              : {},
+          absorbElementsByEnemy:
+            turnState.enemyState.absorbElementsByEnemy &&
+            typeof turnState.enemyState.absorbElementsByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.absorbElementsByEnemy).map(([targetIndex, values]) => [
+                    String(targetIndex),
+                    Array.isArray(values)
+                      ? [...new Set(values.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean))]
+                      : [],
+                  ])
+                )
+              : {},
+          odRateByEnemy:
+            turnState.enemyState.odRateByEnemy &&
+            typeof turnState.enemyState.odRateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.odRateByEnemy).map(([targetIndex, rate]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(rate)) ? Number(rate) : 0,
                   ])
                 )
               : {},
@@ -287,6 +311,8 @@ export function cloneTurnState(turnState) {
           damageRatesByEnemy: {},
           destructionRateByEnemy: {},
           destructionRateCapByEnemy: {},
+          absorbElementsByEnemy: {},
+          odRateByEnemy: {},
           breakStateByEnemy: {},
           enemyNamesByEnemy: {},
           zoneConfigByEnemy: {},
