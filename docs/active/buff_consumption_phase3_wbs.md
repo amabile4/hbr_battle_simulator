@@ -48,9 +48,7 @@ Phase 2 で追加済みの下記関数を、実際の実行フローに接続す
 
 ## 2.2 未完了（Phase 3 残課題）
 
-- Count 系手動消費（SpecialStatus 含む）は一部で個別 predicate が残っている
-- dead code / 未使用 import の最終整理（P3-08）
-- `docs/active/action_context_matrix.md` との差分確認（P3-D02）
+- Count 系手動消費（SpecialStatus 含む）は一部で個別 predicate が残っている（Phase 4 以降の統合置換対象）
 
 ---
 
@@ -93,7 +91,7 @@ Phase 2 で追加済みの下記関数を、実際の実行フローに接続す
 | P3-05 | TurnEnd デクリメントの一部を `shouldConsume(TurnEnd)` 経由へ移行 | `src/turn/turn-controller.js`, `src/domain/character-style.js` | P3-01 | ✅ |
 | P3-06 | runtime で `validateBuffMetadata()` を dev/strict モードで有効化 | `src/turn/turn-controller.js` | P3-01 | ✅ |
 | P3-07 | 後方互換のため旧関数を adapter 化（削除しない） | `src/turn/turn-controller.js` | P3-04 | ✅ |
-| P3-08 | dead code/未使用 import の最終整理 | `src/turn/turn-controller.js`, `src/domain/character-style.js` | P3-04,P3-05 | 🟡 |
+| P3-08 | dead code/未使用 import の最終整理 | `src/turn/turn-controller.js`, `src/domain/character-style.js` | P3-04,P3-05 | ✅ |
 
 ## 4.3 テストWBS
 
@@ -109,8 +107,8 @@ Phase 2 で追加済みの下記関数を、実際の実行フローに接続す
 
 | ID | タスク | 対象ドキュメント | ステータス |
 |----|--------|------------------|-----------|
-| P3-D01 | Phase 3 実装方針の更新 | `docs/active/buff_consumption_schema.md` | 🟢 |
-| P3-D02 | マトリクス差分がないことを追記 | `docs/active/action_context_matrix.md` | 🟡 |
+| P3-D01 | Phase 3 実装方針の更新 | `docs/active/buff_consumption_schema.md` | ✅ |
+| P3-D02 | マトリクス差分がないことを追記 | `docs/active/action_context_matrix.md` | ✅ |
 | P3-D03 | Phase 3 完了レビュー作成 | `docs/active/buff_consumption_phase3_review.md`（新規） | ✅ |
 
 ---
@@ -145,7 +143,7 @@ Phase 2 で追加済みの下記関数を、実際の実行フローに接続す
 |----------------|------|------|
 | M1 | Funnel/MindEye の orchestrator 接続完了（P3-04まで） | Phase 3 前半 |
 | M2 | TurnEnd 統合 + 回帰テスト完了（P3-05, P3-T04） | ✅ 完了 |
-| M3 | metadata 検証接続 + ドキュメント完了（P3-06, P3-D03） | Phase 3 完了 |
+| M3 | metadata 検証接続 + ドキュメント完了（P3-06, P3-D01〜D03） | ✅ 完了 |
 
 ---
 

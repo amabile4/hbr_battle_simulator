@@ -64,11 +64,11 @@ docs/
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
 | [active/kokushipmusoujou_additional_turn_bug.md](active/kokushipmusoujou_additional_turn_bug.md) | ✅ 完了 | 国士無双で追加ターンが発生しない不具合を修正（`getAdditionalTurnRule()` の `SkillCondition.strval` 再帰対応、Unit/E2E確認済み） | 2026-03-30 |
 | [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | Phase 1: バフ消費ロジック現状分析 - Funnel/MindEye/Count型/ターン型各消費パターンの完全フロー図とコード参照 | 2026-03-30 |
-| [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | Phase 1: 統一バフスキーマ設計 - StatusEffect メタデータ統一仕様（exitCond/limitType/consumeTrigger）と ActionContext 型定義 | 2026-03-30 |
-| [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表 | 2026-03-30 |
+| [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | Phase 1/3: 統一バフスキーマ設計 - StatusEffect メタデータ統一仕様（exitCond/limitType/consumeTrigger）と ActionContext 型定義。Phase 3 runtime 接続注記を反映済み | 2026-03-31 |
+| [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1/3: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表。P3-05 後の差分なし確認を追記済み | 2026-03-31 |
 | [active/buff_consumption_phase2_review.md](active/buff_consumption_phase2_review.md) | ✅ 完了 | Phase 2 実装レビュー結果（BUG-1/2/3 修正、`shouldConsume` 単体テスト追加、`action_context_matrix` 整合更新を反映済み） | 2026-03-30 |
-| [active/buff_consumption_phase3_wbs.md](active/buff_consumption_phase3_wbs.md) | 🟢 進行中 | Phase 3 残課題とWBS（M1/M2完了。AdditionalTurn/EnemyTurnEnd/metadata strict/TurnEnd shouldConsume移行を反映済み。残りは P3-08 最終整理と docs 同期） | 2026-03-31 |
-| [active/buff_consumption_phase3_review.md](active/buff_consumption_phase3_review.md) | 🟢 進行中 | Phase 3 実装レビュー結果（P3-05/P3-06 を反映し、残タスクを P3-08 中心へ更新） | 2026-03-31 |
+| [active/buff_consumption_phase3_wbs.md](active/buff_consumption_phase3_wbs.md) | ✅ 完了 | Phase 3 残課題とWBS（P3-01〜08, P3-T01〜05, P3-D01〜03 完了。M1/M2/M3 完了） | 2026-03-31 |
+| [active/buff_consumption_phase3_review.md](active/buff_consumption_phase3_review.md) | ✅ 完了 | Phase 3 実装レビュー結果（P3-05/P3-06/P3-08 と docs 同期まで反映し完了） | 2026-03-31 |
 | [active/buff_consumption_p3_05_code_review.md](active/buff_consumption_p3_05_code_review.md) | 🟢 進行中 | P3-05 コードレビュー（TurnEnd shouldConsume 移行）: ブロッカーなし、FIND-1〜3 は P3-08 対象 | 2026-03-31 |
 | [active/mindeye_only_count_integration_assessment.md](active/mindeye_only_count_integration_assessment.md) | ✅ 完了 | MindEye/Funnel の Only/Count 分離統合可能性評価（実装経緯補足: 実機は鬼神化後発・シミュレーターは鬼神化先行実装） | 2026-03-30 |
 

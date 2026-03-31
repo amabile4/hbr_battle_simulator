@@ -2,7 +2,7 @@
 
 **対象コミット**: `6078aa5` 以降（Phase 3 M1: Funnel/MindEye orchestrator接続・競合判定統合）
 **レビュー実施**: 2026-03-31
-**ステータス**: 🟢 進行中（M1/M2 完了確認済み / 残課題は P3-08 とドキュメント同期）
+**ステータス**: ✅ 完了（M1/M2/M3 完了確認済み）
 
 ---
 
@@ -17,7 +17,7 @@
 | P3-T03（AdditionalTurn 統合テスト） | ✅ 追加済み（EXターン中の消費/非消費を確認） |
 | P3-T04（EnemyTurnEnd 回帰テスト） | ✅ 追加済み（専用の残数減算テストを追加） |
 | P3-05（TurnEnd 移行） | ✅ 実装・回帰確認済み |
-| P3-08（整理） | 🟡 未着手 |
+| P3-08（整理） | ✅ 対応済み |
 | P3-06（metadata 接続） | ✅ 実装・テスト反映済み |
 
 ---
@@ -162,7 +162,7 @@ import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain
 | **完了** | P3-T04 | EnemyTurnEnd 回帰テスト追加 | `tests/turn-state-transitions.test.js` | ✅ 完了 |
 | **完了** | P3-05 | TurnEnd デクリメントの `shouldConsume(TurnEnd)` 経由移行 | `src/turn/turn-controller.js`, `src/domain/character-style.js` | ✅ 実装・回帰確認済み |
 | **完了** | P3-06 | `validateBuffMetadata()` の dev/strict モード有効化 | `src/turn/turn-controller.js` | ✅ 実装・回帰確認済み |
-| **低** | P3-08 | dead code 整理・コメント修正・import 整理 | `src/turn/turn-controller.js` | 🟡 次タスク |
+| **完了** | P3-08 | dead code 整理・コメント修正・import 整理 | `src/turn/turn-controller.js` | ✅ FIND-1〜3 反映済み |
 | **ドキュメント** | P3-D01 | Phase 3 実装方針更新 | `docs/active/buff_consumption_schema.md` | 🟢 |
 | **ドキュメント** | P3-D02 | `action_context_matrix.md` 差分確認 | `docs/active/action_context_matrix.md` | 🟡 |
 
@@ -194,3 +194,6 @@ import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain
 - FIND-1: TurnEnd 2経路の冗長プレフィルタを削除し `shouldConsume` 判定に一本化
 - FIND-2: `shouldTickEnemyStatusOnTiming` に remaining<=0 時の legacy fallback 意図をコメント明記
 - FIND-3: `buildActionContext('TurnEnd', ...)` を経由する unit test を追加
+
+Phase 3 完了判定:
+- P3-01〜P3-08, P3-T01〜P3-T05, P3-D01〜P3-D03 をすべて完了

@@ -5,6 +5,11 @@
 このドキュメントは、バフ消費判定を統一するための共通スキーマを定義します。  
 すべてのバフ（Funnel、MindEye、特殊状態、ターン型など）が共通のメタデータと判定ロジックに従うための設計です。
 
+> Phase 3 実装反映（2026-03-31）
+> - `shouldConsume()` と `buildActionContext()` は runtime 経路に接続済み
+> - TurnEnd 系（Player/Enemy）は `ActionContext('TurnEnd')` ベースで判定
+> - `validateBuffMetadata()` は warning/strict gate 付きで runtime 接続済み
+
 ---
 
 ## 1. バフメタデータ統一スキーマ
