@@ -1,8 +1,8 @@
 # UI Next 実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-30
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-01
 >
-> **進捗サマリー**: T01 ✅ / T02 ✅ / T03〜T12 ✅（T12-E-5 まで） / T13-A ✅ / T13-B ✅ / T13-C ✅ / T14 ✅ / T15 ✅ / **T16 🔶 Enemy Setup（敵スロット選択・実効倍率％耐性・吸収・max_d_rate・od_rate 初期反映）** / T17〜T19 ❌ 未着手 / **T20 🔶 iOS レスポンシブ対応（A/B/C 完了・D 未着手）** / **T21 ✅ Passive Debug Log** / **T22 ✅ Layout Rework** / **T23 ✅ PNG Capture Rework** / **T24〜T28 ✅ toolbar / D&D / legacy cut / log pane resize / manual-break E2E** / **T29 ✅ Enemy先制フィールド表示（文章のみ）** / **T30 ✅ Session JSON 旧フォーマット互換（styleIds=0）** / **T31 ✅ SP>=0条件＋速弾きの合算使用可否実装**
+> **進捗サマリー**: T01 ✅ / T02 ✅ / T03〜T12 ✅（T12-E-5 まで） / T13-A ✅ / T13-B ✅ / T13-C ✅ / T14 ✅ / T15 ✅ / **T16 🔶 Enemy Setup（A・C 完了、B=敵初期ステータス設定のみ未実装）** / T17〜T19 ❌ 未着手 / **T20 🔶 iOS レスポンシブ対応（A/B/C 完了・D 未着手）** / **T21 ✅ Passive Debug Log** / **T22 ✅ Layout Rework** / **T23 ✅ PNG Capture Rework** / **T24〜T28 ✅ toolbar / D&D / legacy cut / log pane resize / manual-break E2E** / **T29 ✅ Enemy先制フィールド表示（文章のみ）** / **T30 ✅ Session JSON 旧フォーマット互換（styleIds=0）** / **T31 ✅ SP>=0条件＋速弾きの合算使用可否実装**
 >
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
@@ -570,13 +570,14 @@ SP に影響するバフ/デバフ（SP回復UP/DOWN等）と OD ゲージへの
 - [ ] `BattleStateManager` の初期 `enemyStatuses` に反映
 
 #### T16-C: 敵フィールド（Zone）設定
-- [ ] フィールド持ち checkbox
-- [ ] 属性 select（火氷雷闇光）
-- [ ] ターン数 input（null = 永続）
+> **スコープ確定（2026-04-01）**: 初期フィールド（中フィールド・永続のみ）は実装済み。ターン数 input は不要。戦闘途中の敵フィールド貼り直し機能はスコープ外・未実装予定なし。
+- [x] フィールド属性 select（なし/火/氷/雷/光/闇）: `PREEMPTIVE_FIELD_OPTIONS` として実装済み（'none' = フィールドなし）
+- [x] `BattleStateManager` へ接続済み（`PREEMPTIVE_FIELD_TO_ZONE_TYPE` 経由でゾーン種別に変換）
+- ターン数 input: 不要（常に永続・中フィールド固定のため）
 
 完了条件:
-- [ ] Enemy Setup タブで敵の基本情報・状態・フィールドを入力できる
-- [ ] Apply 後に敵設定が BattleState に反映される
+- [x] Enemy Setup タブで敵の基本情報・状態・フィールドを入力できる（T16-B のみ未実装）
+- [x] Apply 後に敵設定が BattleState に反映される（T16-B を除き対応済み）
 
 > 🔶 T16 部分完了（2026-03-30）: `Enemy Setup` の敵スロット UI（`[1][2][3]`）を有効化済み。デフォルトは `[1] 希望を喰むもの / [2] - / [3] -`。`[2][3]` は削除可能、`[1]` は必須。同一敵の複数スロット指定も明示選択で許可する。敵プリセットの属性耐性は `enemies.json` 生値ではなく実効倍率％（`0 -> 100%`, `-300 -> 400%`, `70 -> 30%`）で表示・手動入力する方式へ変更。吸収属性 checkbox を追加し、`BattleStateManager` から初期 `enemyState.damageRatesByEnemy` / `absorbElementsByEnemy` / `destructionRateCapByEnemy` / `odRateByEnemy` をスロット別に接続したため、UI Next の OD 判定では吸収属性が弱点扱いされない。`od_rate` による OD 上昇補正を実装済み（`od_rate=0` は補正なし、`0` 以外は `od_rate/10000` を最終 OD 上昇量に乗算）。敵プリセット候補は `is_boss=true` かつ `in_date` が当月を含む直近3ヶ月の範囲にある敵を採用し、`希望を喰むもの`（id `13450045`）はテンプレート用に常時表示する。**WIP**: 丸め込み位置は調査中。敵 HP/DP 数値 state は UI Next に未実装のため、吸収ダメージ分回復は未対応。
 
