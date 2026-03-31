@@ -113,9 +113,9 @@ From `src/turn/turn-controller.js`:
 Rule:
 - `BattleDomView` should only perform DOM read/write helpers and simple display formatting.
 
-## 6. DOM Selector Contract (Fixed)
+## 6. Legacy DOM Selector Contract (Archived)
 
-When implementing another GUI while reusing `BattleDomAdapter`, keep these selectors compatible.
+旧 DOM controller は廃止済みであり、以下は historical note としてのみ残す。`ui-next/` の通常開発では互換対象にしない。
 
 ### 6.1 Required action selectors
 
@@ -153,55 +153,38 @@ When implementing another GUI while reusing `BattleDomAdapter`, keep these selec
 - `[data-role="scenario-status"]`
 
 Note:
-- Existing `ui/index.html` is the canonical contract sample.
-- Visual style/theme can be changed without changing these contracts.
+- 削除済み legacy page の selector 契約メモであり、現行 UI の canonical sample ではない。
+- Visual style/theme を変えても、`ui-next` で必要な selector はそのコンポーネント内で閉じて管理する。
 
 ## 7. Parallel Development Guide for AI Agents
 
-1. Keep core logic in facade/core files (`adapter-core`, `battle-adapter-facade`)
-2. Keep DOM output in `dom-view`
-3. Keep `dom-adapter` as integration/controller
-4. Do not modify `tests/e2e` or run Playwright E2E from Codex side
+1. Keep shared logic in `adapter-core`, `lightweight-replay-script`, `style-asset-url`
+2. Keep `ui-next` 固有の controller / component / selector contract は `ui-next/` 配下へ閉じる
+3. Do not revive legacy DOM controller as a dependency for new UI work
+4. Update the relevant tests in the same change set, including `tests/e2e` when browser behavior is part of the change
 5. Validate regressions with:
 
 ```bash
 node --test tests/*.test.js
 ```
 
-## 8. Next Actions to Increase Independence
+When browser behavior is the point of the change, also run the relevant Playwright spec(s).
 
-Status: implemented in this iteration.
+## 8. Current Independence Status
 
-1. `src/ui/dom-adapter.js` split into Facade + View
-- Implemented:
-  - `src/ui/battle-adapter-facade.js` added
-  - `src/ui/dom-view.js` added
-  - `src/ui/dom-adapter.js` now delegates state transitions to Facade and display writes to View
+Status: legacy hard cutover 後の current state.
 
-2. Fix `data-role` contract in docs
-- Implemented in this document (Section 6)
+1. Legacy DOM controller chain is removed
+- `src/ui/battle-adapter-facade.js`
+- `src/ui/dom-view.js`
+- `src/ui/dom-adapter.js`
 
-3. Add DOM-independent `adapter-core`
-- Implemented as `src/ui/adapter-core.js`
-- Can be reused by non-DOM controllers
+2. Shared modules that remain reusable
+- `src/ui/adapter-core.js`
+- `src/ui/lightweight-replay-script.js`
+- `src/ui/style-asset-url.js`
 
-4. Full decoupling roadmap
-- Step A: Move turn-status/party-state/table rendering into `dom-view`
-- Step B: Keep `dom-adapter` event routing only
-- Step C: Add alternative controller for non-DOM GUI using `BattleAdapterFacade`
-
-## 9. Minimal Usage Example
-
-```js
-import { HbrDataStore } from '../src/data/hbr-data-store.js';
-import { BattleDomAdapter } from '../src/ui/dom-adapter.js';
-
-const dataStore = HbrDataStore.fromRawData(payload);
-const root = document.querySelector('#app');
-
-const adapter = new BattleDomAdapter({ root, dataStore, initialSP: 4 });
-adapter.mount();
-
-adapter.previewCurrentTurn();
-adapter.commitCurrentTurn();
-```
+3. Current recommendation
+- Implement new UI behavior directly in `ui-next/`
+- Reuse only the shared modules above
+- Treat Section 6 as archive-only reference

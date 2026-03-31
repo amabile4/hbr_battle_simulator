@@ -1,0 +1,755 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+
+import { PartySetupController } from '../ui-next/components/party-setup.js';
+
+function withDom(run) {
+  const dom = new JSDOM(
+    '<!doctype html><html><body><div id="root"></div><div id="picker-overlay"></div></body></html>',
+    { url: 'https://example.test/' },
+  );
+  const previous = {
+    window: globalThis.window,
+    document: globalThis.document,
+    CustomEvent: globalThis.CustomEvent,
+    Event: globalThis.Event,
+    MouseEvent: globalThis.MouseEvent,
+    localStorage: globalThis.localStorage,
+  };
+
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.CustomEvent = dom.window.CustomEvent;
+  globalThis.Event = dom.window.Event;
+  globalThis.MouseEvent = dom.window.MouseEvent;
+  globalThis.localStorage = dom.window.localStorage;
+
+  try {
+    return run({
+      dom,
+      win: dom.window,
+      root: dom.window.document.querySelector('#root'),
+      pickerOverlay: dom.window.document.querySelector('#picker-overlay'),
+    });
+  } finally {
+    globalThis.window = previous.window;
+    globalThis.document = previous.document;
+    globalThis.CustomEvent = previous.CustomEvent;
+    globalThis.Event = previous.Event;
+    globalThis.MouseEvent = previous.MouseEvent;
+    globalThis.localStorage = previous.localStorage;
+    dom.window.close();
+  }
+}
+
+function createStyle(id, chara, tier = 'SS') {
+  return {
+    id,
+    name: `${chara} style`,
+    chara,
+    chara_label: `C${id}`,
+    image: '',
+    tier,
+    passives: [],
+    skills: [],
+  };
+}
+
+function createSkill(id, name, { sourceType = 'style', passive = false, label = `Skill${id}` } = {}) {
+  return {
+    id,
+    skillId: id,
+    name,
+    label,
+    sourceType,
+    sp_cost: 0,
+    ...(passive ? { passive: { timing: 'OnFirstBattleStart', effect: name } } : {}),
+  };
+}
+
+function createStoreStub() {
+  const styles = [
+    createStyle(1001, '茅森 月歌'),
+    createStyle(1002, '和泉 ユキ'),
+    createStyle(1003, '逢川 めぐみ'),
+  ];
+  const styleById = new Map(styles.map((style) => [style.id, style]));
+  const equipableSkillsByStyleId = new Map([
+    [1001, [
+      createSkill(46000001, '通常攻撃'),
+      createSkill(46400001, 'ルビー・パフューム', { sourceType: 'passive', passive: true }),
+      createSkill(46500001, 'マスタースキル', { sourceType: 'master' }),
+      createSkill(46300001, 'オーブスキル', { sourceType: 'orb' }),
+    ]],
+    [1002, [
+      createSkill(46000011, '通常攻撃'),
+      createSkill(46400011, 'パッシブB', { sourceType: 'passive', passive: true }),
+    ]],
+    [1003, [
+      createSkill(46000021, '通常攻撃'),
+    ]],
+  ]);
+  return {
+    styles,
+    getStyleById(styleId) {
+      return styleById.get(Number(styleId)) ?? null;
+    },
+    listSkillsByStyleId() {
+      return [];
+    },
+    listEquipableSkillsByStyleId(styleId) {
+      return equipableSkillsByStyleId.get(Number(styleId)) ?? [];
+    },
+  };
+}
+
+test('PartySetupController defaults all SP equip selectors to SP +3', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    const selects = [...root.querySelectorAll('select[data-field="spEquip"]')];
+    assert.equal(selects.length, 6);
+    assert.deepEqual(
+      selects.map((select) => select.value),
+      ['3', '3', '3', '3', '3', '3']
+    );
+    assert.deepEqual(
+      Object.values(controller.getSnapshot().startSpEquipByPartyIndex),
+      [3, 3, 3, 3, 3, 3]
+    );
+  }));
+
+test('PartySetupController no longer renders preset controls inside setup body', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    assert.equal(root.querySelector('[data-action="toggle-preset"]'), null);
+    assert.equal(root.querySelector('[data-action="save-preset"]'), null);
+    assert.equal(root.querySelector('[data-action="load-preset"]'), null);
+  }));
+
+test('PartySetupController PT解散 button clears current party selection from setup view', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="disband-party"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.equal(snapshot.isFrontFilled, false);
+    assert.deepEqual(snapshot.styleIds, [null, null, null, null, null, null]);
+    assert.deepEqual(snapshot.supportStyleIds, [null, null, null, null, null, null]);
+    assert.deepEqual(
+      Object.values(snapshot.startSpEquipByPartyIndex),
+      [3, 3, 3, 3, 3, 3],
+    );
+    assert.equal(root.querySelector('[data-action="disband-party"]').disabled, true);
+  }));
+
+test('PartySetupController supports tap-based slot swapping from the slot header', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    let handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    handles[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    assert.equal(handles[0].getAttribute('aria-pressed'), 'true');
+
+    handles[1].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.styleIds, [1002, 1001, 1003, null, null, null]);
+    assert.deepEqual(
+      Object.values(snapshot.limitBreakLevelsByPartyIndex),
+      [1, 4, 0, 0, 0, 0],
+    );
+    assert.deepEqual(
+      Object.values(snapshot.drivePierceByPartyIndex),
+      [5, 10, 0, 0, 0, 0],
+    );
+
+    handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    assert.equal(handles[0].getAttribute('aria-pressed'), 'false');
+    assert.equal(handles[1].getAttribute('aria-pressed'), 'false');
+  }));
+
+test('PartySetupController supports tap-based swapping between front and back rows', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, 1002, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 2, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 15, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 1, 4: 3, 5: 3 },
+    });
+
+    let handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    handles[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    handles[3].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.styleIds, [1002, 1002, 1003, 1001, null, null]);
+    assert.deepEqual(
+      Object.values(snapshot.limitBreakLevelsByPartyIndex),
+      [2, 1, 0, 4, 0, 0],
+    );
+    assert.deepEqual(
+      Object.values(snapshot.drivePierceByPartyIndex),
+      [15, 5, 0, 10, 0, 0],
+    );
+  }));
+
+test('PartySetupController keeps desktop drag-and-drop swapping on the slot header handle', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    const dataTransferCalls = [];
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData(...args) {
+        dataTransferCalls.push(args);
+      },
+    };
+    const handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    const slots = root.querySelectorAll('[data-slot]');
+
+    const dragStartEvent = new win.Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
+    handles[0].dispatchEvent(dragStartEvent);
+
+    const dragOverEvent = new win.Event('dragover', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragOverEvent, 'dataTransfer', { value: dataTransfer });
+    slots[1].dispatchEvent(dragOverEvent);
+
+    const dropEvent = new win.Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
+    slots[1].dispatchEvent(dropEvent);
+
+    assert.deepEqual(dataTransferCalls, [['text/plain', '']]);
+    assert.equal(dragOverEvent.defaultPrevented, true);
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.styleIds, [1002, 1001, 1003, null, null, null]);
+    assert.deepEqual(
+      Object.values(snapshot.limitBreakLevelsByPartyIndex),
+      [1, 4, 0, 0, 0, 0],
+    );
+  }));
+
+test('PartySetupController keeps desktop drag-and-drop swapping between front and back rows', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, 1002, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 2, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 15, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 1, 4: 3, 5: 3 },
+    });
+
+    const dataTransferCalls = [];
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData(...args) {
+        dataTransferCalls.push(args);
+      },
+    };
+    const handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    const slots = root.querySelectorAll('[data-slot]');
+
+    const dragStartEvent = new win.Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
+    handles[0].dispatchEvent(dragStartEvent);
+
+    const dragOverEvent = new win.Event('dragover', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragOverEvent, 'dataTransfer', { value: dataTransfer });
+    slots[3].dispatchEvent(dragOverEvent);
+
+    const dropEvent = new win.Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
+    slots[3].dispatchEvent(dropEvent);
+
+    assert.deepEqual(dataTransferCalls, [['text/plain', '']]);
+    assert.equal(dragOverEvent.defaultPrevented, true);
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.styleIds, [1002, 1002, 1003, 1001, null, null]);
+    assert.deepEqual(
+      Object.values(snapshot.limitBreakLevelsByPartyIndex),
+      [2, 1, 0, 4, 0, 0],
+    );
+    assert.deepEqual(
+      Object.values(snapshot.drivePierceByPartyIndex),
+      [15, 5, 0, 10, 0, 0],
+    );
+  }));
+
+test('PartySetupController opens Style Picker with continuous selection enabled by default', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    root
+      .querySelector('[data-action="open-picker"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const continuousToggle = pickerOverlay.querySelector('#picker-continuous-toggle');
+    assert.ok(continuousToggle);
+    assert.match(continuousToggle.className, /\bbg-green-50\b/);
+    assert.match(continuousToggle.className, /\bborder-green-400\b/);
+
+    pickerOverlay
+      .querySelector('[data-style-id="1001"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(pickerOverlay.classList.contains('hidden'), false);
+    assert.match(
+      pickerOverlay.querySelector('#picker-mode-label')?.textContent ?? '',
+      /スロット2\s*メインスタイルを選ぶ/,
+    );
+  }));
+
+test('PartySetupController PT解散 button clears current party selection from picker header', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="open-picker"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const disbandButton = pickerOverlay.querySelector('#picker-disband-party');
+    assert.equal(disbandButton?.disabled, false);
+
+    disbandButton.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.styleIds, [null, null, null, null, null, null]);
+    assert.equal(pickerOverlay.classList.contains('hidden'), true);
+  }));
+
+test('PartySetupController confirms before overwriting an existing preset', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+    controller.savePreset(0, { name: '初期PT' });
+
+    const before = win.localStorage.getItem('hbr.ui_next.party_presets.v1');
+    assert.ok(before);
+
+    controller.applySnapshot({
+      styleIds: [null, null, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    let confirmCalls = 0;
+    win.confirm = () => {
+      confirmCalls += 1;
+      return false;
+    };
+
+    controller.savePreset(0, { name: '別名' });
+
+    assert.equal(confirmCalls, 1);
+    assert.equal(win.localStorage.getItem('hbr.ui_next.party_presets.v1'), before);
+  }));
+
+test('PartySetupController normalizes current preset storage length into 20 toolbar presets', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    win.localStorage.setItem(
+      'hbr.ui_next.party_presets.v1',
+      JSON.stringify([
+        {
+          label: '現行プリセットA',
+          savedAt: '2026-03-28T00:00:00.000Z',
+          slots: [
+            { styleId: 1001, supportStyleId: null, equippedSkillIds: [46000001, 46400001, 46500001, 46300001] },
+            { styleId: 1002, supportStyleId: null, equippedSkillIds: [46000011, 46400011] },
+            { styleId: 1003, supportStyleId: null, equippedSkillIds: [46000021] },
+            { styleId: null, supportStyleId: null, equippedSkillIds: [] },
+            { styleId: null, supportStyleId: null, equippedSkillIds: [] },
+            { styleId: null, supportStyleId: null, equippedSkillIds: [] },
+          ],
+        },
+        {
+          label: '現行プリセットB',
+          savedAt: '2026-03-28T00:00:01.000Z',
+          slots: [
+            { styleId: 1002, supportStyleId: null, equippedSkillIds: [46000011, 46400011] },
+            { styleId: 1003, supportStyleId: null, equippedSkillIds: [46000021] },
+            { styleId: null, supportStyleId: null, equippedSkillIds: [] },
+            { styleId: null, supportStyleId: null, equippedSkillIds: [] },
+            { styleId: null, supportStyleId: null, equippedSkillIds: [] },
+            { styleId: null, supportStyleId: null, equippedSkillIds: [] },
+          ],
+        },
+        null,
+      ]),
+    );
+
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    const previews = controller.getPresetPreviews();
+    const stored = JSON.parse(win.localStorage.getItem('hbr.ui_next.party_presets.v1'));
+    assert.equal(previews.length, 20);
+    assert.equal(previews[0].label, '現行プリセットA');
+    assert.equal(previews[1].label, '現行プリセットB');
+    assert.equal(previews[2], null);
+    assert.equal(previews[19], null);
+    assert.equal(stored.length, 20);
+    assert.equal(stored[19], null);
+  }));
+
+test('PartySetupController discards incompatible legacy preset entries without equippedSkillIds', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    win.localStorage.setItem(
+      'hbr.ui_next.party_presets.v1',
+      JSON.stringify([
+        {
+          label: '旧プリセット',
+          savedAt: '2026-03-28T00:00:00.000Z',
+          slots: [
+            { styleId: 1001, supportStyleId: null },
+            { styleId: 1002, supportStyleId: null },
+            { styleId: 1003, supportStyleId: null },
+          ],
+        },
+      ]),
+    );
+
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    assert.equal(controller.getPresetPreviews()[0], null);
+    assert.equal(controller.loadPreset(0), false);
+    const stored = JSON.parse(win.localStorage.getItem('hbr.ui_next.party_presets.v1'));
+    assert.equal(stored.length, 20);
+    assert.equal(stored[0], null);
+    assert.equal(stored[19], null);
+  }));
+
+test('PartySetupController saves optional preset names and allows later rename/clear', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    assert.equal(controller.savePreset(0, { name: '31A前衛' }), true);
+    let stored = JSON.parse(win.localStorage.getItem('hbr.ui_next.party_presets.v1'));
+    assert.equal(stored[0].name, '31A前衛');
+    assert.equal(stored[0].label, '茅森 月歌・和泉 ユキ・逢川 めぐみ');
+
+    assert.equal(controller.savePreset(1, { name: '   ' }), true);
+    stored = JSON.parse(win.localStorage.getItem('hbr.ui_next.party_presets.v1'));
+    assert.equal('name' in stored[1], false);
+
+    assert.equal(controller.renamePreset(0, { name: '雷弱点PT' }), true);
+    stored = JSON.parse(win.localStorage.getItem('hbr.ui_next.party_presets.v1'));
+    assert.equal(stored[0].name, '雷弱点PT');
+
+    assert.equal(controller.renamePreset(0, { name: '   ' }), true);
+    stored = JSON.parse(win.localStorage.getItem('hbr.ui_next.party_presets.v1'));
+    assert.equal('name' in stored[0], false);
+
+    win.confirm = () => true;
+    assert.equal(controller.clearPreset(0), true);
+    stored = JSON.parse(win.localStorage.getItem('hbr.ui_next.party_presets.v1'));
+    assert.equal(stored[0], null);
+  }));
+
+test('PartySetupController renders skill settings panel with required and tagged entries', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    assert.equal(root.querySelector('[data-role="skill-checklist"][data-slot="0"]'), null);
+
+    const button = root.querySelector('[data-action="open-skill-settings"][data-slot-index="0"]');
+    assert.match(button?.textContent ?? '', /スキル設定/);
+    button.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const panel = win.document.querySelector('[data-role="skill-settings-list"][data-slot="0"]');
+    assert.ok(panel, 'slot 0 should render skill settings panel');
+
+    const requiredInput = panel.querySelector('input[value="46000001"]');
+    assert.equal(requiredInput?.checked, true);
+    assert.equal(requiredInput?.disabled, true);
+
+    const passiveRow = panel.textContent;
+    assert.match(passiveRow, /ルビー・パフューム/);
+    assert.match(passiveRow, /パッシブ/);
+    assert.match(passiveRow, /マスター/);
+    assert.match(passiveRow, /オーブ/);
+
+    assert.deepEqual(
+      controller.getSnapshot().skillSetsByPartyIndex['0'],
+      [46000001, 46400001, 46500001, 46300001]
+    );
+  }));
+
+test('PartySetupController restores skillSetsByPartyIndex from snapshot and preset', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+      skillSetsByPartyIndex: {
+        0: [46000001, 46500001],
+      },
+    });
+
+    root
+      .querySelector('[data-action="open-skill-settings"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const passiveCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46400001"]'
+    );
+    const masterCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46500001"]'
+    );
+    assert.equal(passiveCheckbox?.checked, false);
+    assert.equal(masterCheckbox?.checked, true);
+    assert.deepEqual(controller.getSnapshot().skillSetsByPartyIndex['0'], [46000001, 46500001]);
+    controller.savePreset(0, { name: '保存用PT' });
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+    controller.loadPreset(0);
+
+    assert.deepEqual(controller.getSnapshot().skillSetsByPartyIndex['0'], [46000001, 46500001]);
+  }));
+
+test('PartySetupController reports skill set delta meta from skill settings panel', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const changes = [];
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      onChange: (snapshot, meta) => {
+        changes.push({ snapshot, meta });
+      },
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="open-skill-settings"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const masterCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46500001"]'
+    );
+    masterCheckbox.checked = false;
+    masterCheckbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const lastChange = changes.at(-1);
+    assert.deepEqual(lastChange.meta, {
+      slotIndex: 0,
+      addedSkillIds: [],
+      removedSkillIds: [46500001],
+      hasSkillSetDelta: true,
+    });
+    assert.deepEqual(lastChange.snapshot.skillSetsByPartyIndex['0'], [46000001, 46400001, 46300001]);
+  }));
+
+test('PartySetupController disables removing checked skills while records exist', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+      skillSetsByPartyIndex: {
+        0: [46000001, 46500001],
+      },
+    });
+    controller.setBattleState({ hasActiveBattle: true, hasRecords: true });
+
+    root
+      .querySelector('[data-action="open-skill-settings"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const requiredCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46000001"]'
+    );
+    const checkedOptionalCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46500001"]'
+    );
+    const uncheckedOptionalCheckbox = win.document.querySelector(
+      'input[data-field="skill-setting"][data-slot-index="0"][value="46400001"]'
+    );
+
+    assert.equal(requiredCheckbox?.disabled, true);
+    assert.equal(checkedOptionalCheckbox?.checked, true);
+    assert.equal(checkedOptionalCheckbox?.disabled, true);
+    assert.equal(uncheckedOptionalCheckbox?.checked, false);
+    assert.equal(uncheckedOptionalCheckbox?.disabled, false);
+    assert.match(win.document.body.textContent ?? '', /記録中はスキル解除できません/);
+  }));

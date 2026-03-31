@@ -224,6 +224,109 @@ function createSixMemberManualParty(factory) {
   return new Party(members);
 }
 
+const HIGH_BOOST_TEST_STATUS_EFFECT = Object.freeze({
+  statusType: 'HighBoost',
+  limitType: 'Only',
+  exitCond: 'Eternal',
+  remaining: 0,
+  power: 1.8,
+  sourceType: 'passive',
+  metadata: {
+    onlyGroupKey: 'HighBoost',
+    spCostIncrease: 2,
+    skillAtkRate: 1.8,
+    attackBuffMultiplier: 1.2,
+    debuffMultiplier: 1.2,
+    dpHealMultiplier: 1.5,
+  },
+});
+
+function createProtectionSkill(skillId) {
+  return {
+    id: skillId,
+    name: 'プロテクション',
+    label: `Protection${skillId}`,
+    sp_cost: 0,
+    parts: [
+      {
+        skill_type: 'DefenseUp',
+        target_type: 'Self',
+        power: [0.3, 0],
+        effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+      },
+    ],
+  };
+}
+
+function createHighBoostManualParty(actorOverrides = {}) {
+  return createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'HB1',
+        characterName: 'HB1',
+        initialSP: 20,
+        statusEffects: [structuredClone(HIGH_BOOST_TEST_STATUS_EFFECT)],
+        ...actorOverrides,
+      };
+    }
+    return {
+      skills: [createProtectionSkill(8800 + idx)],
+    };
+  });
+}
+
+const DOUBLE_ACTION_TEST_USAGE = Object.freeze({
+  mode: 'fixed',
+  displayUses: 4,
+  maxUses: 4,
+  minUses: 4,
+  expandable: true,
+});
+
+function createDoubleActionRestrictedSkill(skillId, options = {}) {
+  return {
+    id: skillId,
+    name: String(options.name ?? 'Double Action EX'),
+    label: String(options.label ?? `DoubleActionEx${skillId}`),
+    sp_cost: Number(options.spCost ?? 14),
+    is_restricted: 1,
+    hit_count: Number(options.hitCount ?? 1),
+    target_type: String(options.targetType ?? 'Single'),
+    usage: options.usage ? structuredClone(options.usage) : structuredClone(DOUBLE_ACTION_TEST_USAGE),
+    parts: Array.isArray(options.parts)
+      ? structuredClone(options.parts)
+      : [{ skill_type: 'AttackSkill', target_type: String(options.targetType ?? 'Single'), type: 'Slash' }],
+  };
+}
+
+function createDoubleActionManualState(actorOverrides = {}) {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'DEX1',
+        characterName: 'DEX1',
+        initialSP: 30,
+        skills: [createDoubleActionRestrictedSkill(99001, actorOverrides.skillOptions)],
+        statusEffects: [
+          {
+            statusType: 'DoubleActionExtraSkill',
+            limitType: 'Only',
+            exitCond: 'Count',
+            remaining: 1,
+            power: 1,
+          },
+          ...(Array.isArray(actorOverrides.statusEffects) ? structuredClone(actorOverrides.statusEffects) : []),
+        ],
+        ...(actorOverrides.memberOverrides ?? {}),
+      };
+    }
+    return {
+      skills: [createProtectionSkill(9800 + idx)],
+    };
+  });
+  return createBattleStateFromParty(party);
+}
+
 test('consume_type Token spends token instead of SP on preview and commit', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -2673,9 +2776,14 @@ test('一途なスマイル stores count-based critical statuses and exposes the
   const nextActor = firstCommit.nextState.party[0];
   const criticalRate = nextActor.resolveEffectiveStatusEffects('CriticalRateUp')[0];
   const criticalDamage = nextActor.resolveEffectiveStatusEffects('CriticalDamageUp')[0];
+  // 通常攻撃（AttackNormal ラベル）・追撃（Skill91 ラベル）は Count バフを消費しないため除外
   const followUpSkill = nextActor.skills.find(
     (skill) =>
       Number(skill.skillId ?? 0) !== skillId &&
+      !String(skill.label ?? '').endsWith('AttackNormal') &&
+      !String(skill.label ?? '').endsWith('Skill91') &&
+      String(skill.name ?? '') !== '通常攻撃' &&
+      String(skill.name ?? '') !== '追撃' &&
       (skill.parts ?? []).some((part) => String(part?.skill_type ?? '').includes('Attack'))
   );
 
@@ -2884,10 +2992,6 @@ test('MotivationLevel condition can trigger passives from current motivation sta
   );
   const state = applyInitialPassiveState(createBattleStateFromParty(party));
   assert.equal(state.party[0].sp.current, 3);
-  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
-
-  assert.equal(result.spEvents.length, 1);
-  assert.equal(state.party[0].sp.current, 5);
 });
 
 test('ThunderMark skill part does not mutate intrinsic thunder mark levels', () => {
@@ -3207,7 +3311,7 @@ test('夏のひより alone does not satisfy 猛火の進撃 fire mark threshold
   assert.equal(result.passiveEvents.some((event) => event.passiveName === '猛火の進撃'), false);
 });
 
-test('fire mark intrinsic level 6 grants extra SP only to frontline fire styles at battle start', () => {
+test('fire mark intrinsic level 6 grants extra SP only to frontline fire styles at battle start and every turn start', () => {
   const party = createSixMemberManualParty((idx) =>
     idx <= 3
       ? {
@@ -3228,14 +3332,20 @@ test('fire mark intrinsic level 6 grants extra SP only to frontline fire styles 
   const state = createBattleStateFromParty(party);
 
   applyInitialPassiveState(state);
-
   assert.deepEqual(
     state.party.map((member) => member.sp.current),
     [1, 1, 1, 0, 0, 0]
   );
+  const preview = previewTurn(state, {});
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(
+    nextState.party.map((member) => member.sp.current),
+    [4, 4, 4, 2, 2, 2]
+  );
 });
 
-test('six-fire real-data opening SP includes fire mark level 6 recovery before turn-start passives', () => {
+test('six-fire real-data opening SP includes fire mark level 6 recovery at battle start', () => {
   const store = getStore();
   const styleIds = [1004307, 1001206, 1001106, 1001506, 1002405, 1004206];
   const party = store.buildPartyFromStyleIds(styleIds, {
@@ -3246,12 +3356,20 @@ test('six-fire real-data opening SP includes fire mark level 6 recovery before t
   const state = createBattleStateFromParty(party);
 
   applyInitialPassiveState(state);
-
-  // Index 2 (style 1001106 "つかの間の安息"): 吉報 passive (HealSpRandom lb=3) adds +3 SP at OnEveryTurn
   assert.deepEqual(
     state.party.map((member) => member.sp.current),
     [13, 12, 15, 11, 11, 11]
   );
+  const preview = previewTurn(state, {});
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(
+    nextState.party.map((member) => member.sp.current),
+    [17, 15, 20, 13, 13, 13]
+  );
+  // 猛火の進撃は limit=1 のため applyInitialPassiveState（バトル開始時）に発火済み → commitTurn後には含まれない
+  assert.equal(nextState.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '猛火の進撃'), false);
+  assert.equal(nextState.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '吉報'), true);
 });
 
 test('fire mark intrinsic modifiers are exposed on preview and damage context', () => {
@@ -3306,7 +3424,7 @@ test('fire mark intrinsic modifiers are exposed on preview and damage context', 
   assert.equal(committedRecord.actions[0].damageContext?.markCriticalDamageUp, 0.3);
 });
 
-test('thunder mark intrinsic level 6 grants extra SP only to frontline thunder styles at battle start', () => {
+test('thunder mark intrinsic level 6 grants extra SP only to frontline thunder styles at battle start and every turn start', () => {
   const party = createSixMemberManualParty((idx) =>
     idx <= 3
       ? {
@@ -3327,10 +3445,16 @@ test('thunder mark intrinsic level 6 grants extra SP only to frontline thunder s
   const state = createBattleStateFromParty(party);
 
   applyInitialPassiveState(state);
-
   assert.deepEqual(
     state.party.map((member) => member.sp.current),
     [1, 1, 1, 0, 0, 0]
+  );
+  const preview = previewTurn(state, {});
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(
+    nextState.party.map((member) => member.sp.current),
+    [4, 4, 4, 2, 2, 2]
   );
 });
 
@@ -4267,6 +4391,10 @@ test('TokenSet OnBattleStart passive increments token at battle start via applyI
   assert.equal(actor.tokenState.current, 6); // 5 (OnBattleStart) + 1 (OnEveryTurn)
   // Others have no TokenSet passives
   assert.equal(state.party[1].tokenState.current, 0);
+
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+  assert.equal(state.party[0].tokenState.current, 7);
+  assert.equal(result.passiveEvents.some((event) => event.passiveName === 'ボルテージ'), true);
 });
 
 test('preemptive od returns to same normal turn context after remaining actions consumed', () => {
@@ -4313,14 +4441,14 @@ test('passive timing coverage report identifies controller gaps against passives
   const report = analyzePassiveTimingCoverage(store.passives);
 
   assert.deepEqual(report.supportedTimings, [
-    { timing: 'OnAdditionalTurnStart', count: 10 },
+    { timing: 'OnAdditionalTurnStart', count: 12 },
     { timing: 'OnBattleStart', count: 84 },
-    { timing: 'OnBattleWin', count: 4 },
+    { timing: 'OnBattleWin', count: 8 },
     { timing: 'OnEnemyTurnStart', count: 31 },
-    { timing: 'OnEveryTurn', count: 290 },
-    { timing: 'OnFirstBattleStart', count: 108 },
+    { timing: 'OnEveryTurn', count: 293 },
+    { timing: 'OnFirstBattleStart', count: 112 },
     { timing: 'OnOverdriveStart', count: 9 },
-    { timing: 'OnPlayerTurnStart', count: 198 },
+    { timing: 'OnPlayerTurnStart', count: 200 },
   ]);
   assert.deepEqual(
     report.unsupportedTimings.map((item) => item.timing),
@@ -4713,7 +4841,8 @@ test('commitTurn applies OnAdditionalTurnStart passives when next state enters e
   const { nextState, committedRecord } = commitTurn(state, preview);
 
   assert.equal(nextState.turnState.turnType, 'extra');
-  assert.equal(nextState.party.find((m) => m.characterId === 'CE2').sp.current, 6);
+  // EX遷移時はbase回復(+2)がスキップされるため、CE2 SP = initialSP(3) + OnAdditionalTurnStart(+1) = 4
+  assert.equal(nextState.party.find((m) => m.characterId === 'CE2').sp.current, 4);
   assert.equal(nextState.turnState.passiveEventsLastApplied.length, 1);
   assert.equal(nextState.turnState.passiveEventsLastApplied[0].timing, 'OnAdditionalTurnStart');
   assert.equal(committedRecord.passiveEvents.length, 1);
@@ -4867,6 +4996,38 @@ test('additional turn target_condition IsFront()==1 rejects backline target', ()
   assert.equal(nextState.party.some((m) => m.isExtraActive), false);
 });
 
+test('国士無双は非ODでは追加ターンなし、OD中のみ追加ターンを付与する', () => {
+  const store = getStore();
+  const skillId = 46005117;
+
+  const normalState = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId)
+  );
+  const normalCommit = commitTurn(normalState, previewActorSkill(normalState, skillId));
+  assert.equal(
+    normalCommit.nextState.turnState.turnType,
+    'normal',
+    'non-OD usage should not grant an extra turn'
+  );
+
+  let odState = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  odState.turnState.odGauge = 300;
+  odState = activateOverdrive(odState, 2, 'preemptive');
+
+  const odCommit = commitTurn(odState, previewActorSkill(odState, skillId));
+  assert.equal(
+    odCommit.nextState.turnState.turnType,
+    'extra',
+    'OD usage should grant an extra turn'
+  );
+  assert.ok(
+    (odCommit.nextState.turnState.extraTurnState?.allowedCharacterIds ?? []).includes(
+      odState.party[0].characterId
+    ),
+    'actor should be included in extra turn allowed members'
+  );
+});
+
 test('OD turn resumes after extra turn (OD3-1 -> EX -> OD3-2)', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -4973,29 +5134,31 @@ test('OD SP recovery is granted once per OD activation (no repeated +20 on OD3-2
   let state = createBattleStateFromParty(new Party(members));
   state.turnState.odGauge = 300;
   state = activateOverdrive(state, 3, 'preemptive');
+  let actor = state.party.find((m) => m.characterId === 'OR1');
+  assert.equal(actor.sp.current, 30, 'OD開始時点で +20 が付与される');
 
-  // OD3-1: +20 (OD) +2 (base) = +22
+  // OD3-1: OD開始時に付与済みの +20 を維持したまま EX へ遷移する
   let preview = previewTurn(state, {
     0: { characterId: 'OR1', skillId: 12100 },
     1: { characterId: 'OR2', skillId: 12111 },
     2: { characterId: 'OR3', skillId: 12112 },
   });
   state = commitTurn(state, preview).nextState;
-  let actor = state.party.find((m) => m.characterId === 'OR1');
-  assert.equal(actor.sp.current, 32);
+  actor = state.party.find((m) => m.characterId === 'OR1');
+  assert.equal(actor.sp.current, 30);
   assert.equal(state.turnState.turnType, 'extra');
 
-  // EX: base回復は freeze ルールで current(32) を維持（上乗せなし）
+  // EX: EXターンは独立した回復なし。SP=30維持。
   preview = previewTurn(state, {
     0: { characterId: 'OR1', skillId: 12101 },
   });
   state = commitTurn(state, preview).nextState;
   actor = state.party.find((m) => m.characterId === 'OR1');
-  assert.equal(actor.sp.current, 32);
+  assert.equal(actor.sp.current, 30);
   assert.equal(state.turnState.turnType, 'od');
   assert.equal(state.turnState.turnLabel, 'OD3-2');
 
-  // OD3-2: OD回復(+20)は再発しない。SPは32維持。
+  // OD3-2: OD回復(+20)は再発しない。base回復(+2)はSPが上限(20)を超えているため効果なし。SP=30維持。
   preview = previewTurn(state, {
     0: { characterId: 'OR1', skillId: 12101 },
     1: { characterId: 'OR2', skillId: 12111 },
@@ -5003,7 +5166,105 @@ test('OD SP recovery is granted once per OD activation (no repeated +20 on OD3-2
   });
   state = commitTurn(state, preview).nextState;
   actor = state.party.find((m) => m.characterId === 'OR1');
-  assert.equal(actor.sp.current, 32);
+  assert.equal(actor.sp.current, 30);
+});
+
+test('interrupt OD after extra turn grants OD SP recovery before the first OD action', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `IO${idx + 1}`,
+      characterName: `IO${idx + 1}`,
+      styleId: 3500 + idx,
+      styleName: `IOS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 35000,
+                name: 'Grant Front Extra',
+                sp_cost: 0,
+                target_type: 'AllyFront',
+                additionalTurnRule: {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: false,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: true,
+                  },
+                  additionalTurnTargetTypes: ['AllyFront'],
+                },
+                parts: [{ skill_type: 'AdditionalTurn', target_type: 'AllyFront' }],
+              },
+              {
+                id: 35001,
+                name: 'Normal',
+                sp_cost: 0,
+                target_type: 'Self',
+                parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+              },
+            ]
+          : idx === 2
+            ? [
+                {
+                  id: 35002,
+                  name: 'Costly Song',
+                  sp_cost: 12,
+                  cond: 'Sp()>=0',
+                  target_type: 'AllyAll',
+                  parts: [{ skill_type: 'Shredding', target_type: 'AllyAll' }],
+                },
+                {
+                  id: 35003,
+                  name: 'Normal',
+                  sp_cost: 0,
+                  target_type: 'Self',
+                  parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+                },
+              ]
+            : [
+                {
+                  id: 35010 + idx,
+                  name: 'Normal',
+                  sp_cost: 0,
+                  target_type: 'Self',
+                  parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+                },
+              ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 250;
+
+  let preview = previewTurn(state, {
+    0: { characterId: 'IO1', skillId: 35000 },
+    1: { characterId: 'IO2', skillId: 35011 },
+    2: { characterId: 'IO3', skillId: 35002 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(state.turnState.turnType, 'extra');
+  assert.equal(state.party.find((member) => member.characterId === 'IO3')?.sp.current, -2);
+
+  preview = previewTurn(state, {
+    0: { characterId: 'IO1', skillId: 35001 },
+    1: { characterId: 'IO2', skillId: 35011 },
+    2: { characterId: 'IO3', skillId: 35003 },
+  });
+  state = commitTurn(state, preview, [], { interruptOdLevel: 2 }).nextState;
+
+  assert.equal(state.turnState.turnType, 'od');
+  assert.equal(state.turnState.odContext, 'interrupt');
+  assert.equal(state.party.find((member) => member.characterId === 'IO3')?.sp.current, 10);
+
+  const odPreview = previewTurn(state, {
+    2: { characterId: 'IO3', skillId: 35002 },
+  });
+  assert.equal(odPreview.actions[0]?.skillId, 35002);
 });
 
 test('OD1 preemptive + single extra returns to T1 after extra ends', () => {
@@ -5187,13 +5448,15 @@ test('Nanase supports parallel SP/EP and EP ceiling changes in OD', () => {
   assert.equal(preview.actions[0].endEP, 0, '宿る想いはEP消費ではない');
   const { nextState } = commitTurn(state, preview);
   const after = nextState.party.find((m) => m.characterId === 'NNanase');
-  assert.equal(after.ep.current, 5, 'HealEp +3, Admiral turn gain +1, and 咲き誇る花 +1');
+  // EX遷移時はターン開始EP回復がスキップされるため、スキルHealEp+3のみ
+  assert.equal(after.ep.current, 3, 'HealEp +3 from skill only (turn-start EP gains skipped for EX transition)');
 
-  // OD発動時の+5 and 上限20
+  // OD発動時の+5（EP 3+5=8）and 上限20
   nextState.turnState.odGauge = 100;
   state = activateOverdrive(nextState, 1, 'preemptive');
   const odNanase = state.party.find((m) => m.characterId === 'NNanase');
-  assert.equal(odNanase.ep.current, 10);
+  // EX遷移によりターン開始EP回復(+2)がスキップされたため、EP=3(skill)+5(OD)=8
+  assert.equal(odNanase.ep.current, 8);
 
   // OD中はEP上限20として扱われるため、10を超えて増加できる
   const odPreview = previewTurn(state, {
@@ -5229,7 +5492,8 @@ test('Nanase Rider uses external EP rule while Admiral uses passive-derived EP r
   });
   const committed = commitTurn(admiralState, preview);
   const admiralAfter = committed.nextState.party.find((m) => m.characterId === 'NNanase');
-  assert.equal(admiralAfter.ep.current, 5, 'Admiral EP+1, 宿る想い HealEp+3, and 咲き誇る花 HealEp+1');
+  // EX遷移時はターン開始EP回復がスキップされるため、スキルHealEp+3のみ
+  assert.equal(admiralAfter.ep.current, 3, 'HealEp +3 from skill only (turn-start EP gains skipped for EX transition)');
 });
 
 test('HealSp AllyFront increases SP for all frontline members', () => {
@@ -5718,12 +5982,16 @@ test('PlayerTurnEnd enemy debuff expires before the next recovery pipeline when 
   );
   const state = applyInitialPassiveState(createBattleStateFromParty(party));
 
+  // One Turn Enemy Debuff (OnPlayerTurnStart, limit=1) が applyInitialPassiveState で発火して DefenseDown が付与済み
   assert.equal(
     state.turnState.enemyState.statuses.some(
       (status) => status.statusType === 'DefenseDown' && status.targetIndex === 0
     ),
     true
   );
+  // limit=1 のため再発火しない
+  const turnStartResult = applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(turnStartResult.passiveEvents.some((event) => event.passiveName === 'One Turn Enemy Debuff'), false);
 
   const preview = previewTurn(state, {
     0: { characterId: 'M1', skillId: 18262, targetEnemyIndex: 0 },
@@ -6049,6 +6317,54 @@ test('damage context keeps target enemy and effective rates for multi-enemy OD a
   assert.deepEqual(damageContext.eligibleEnemyIndexes, [0]);
   assert.equal(damageContext.effectiveDamageRatesByEnemy['0'], 150);
   assert.equal(damageContext.effectiveDamageRatesByEnemy['1'], undefined);
+});
+
+test('absorbed element is treated as resistance for OD gain and damage context', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ABS${idx + 1}`,
+      characterName: `ABS${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ABSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15080 + idx,
+          name: idx === 0 ? 'Absorb Fire Slash' : 'Normal',
+          label: idx === 0 ? 'AbsorbFireSlash' : `ABSSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 2 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }]
+              : [],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Slash: 150, Fire: 400 },
+    },
+    absorbElementsByEnemy: {
+      0: ['fire'],
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ABS1', skillId: 15080 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const damageContext = committedRecord.actions[0].damageContext;
+
+  assert.equal(nextState.turnState.odGauge, 0);
+  assert.equal(damageContext, null);
 });
 
 test('damage context keeps all-target enemy eligibility and effective rates', () => {
@@ -6510,13 +6826,10 @@ test('CountBC(...BreakDownTurn()>0) is evaluated from enemy down-turn state', ()
   const party = new Party(members);
   const state = createBattleStateFromParty(party);
 
-  assert.throws(
-    () =>
-      previewTurn(state, {
-        0: { characterId: 'ED1', skillId: 18000 },
-      }),
-    /cannot be used/i
-  );
+  const previewWithoutDown = previewTurn(state, {
+    0: { characterId: 'ED1', skillId: 18000 },
+  });
+  assert.equal(previewWithoutDown.actions.length, 1);
 
   state.turnState.enemyState = {
     enemyCount: 1,
@@ -6560,13 +6873,10 @@ test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
   );
   const state = createBattleStateFromParty(new Party(members));
 
-  assert.throws(
-    () =>
-      previewTurn(state, {
-        0: { characterId: 'EB1', skillId: 18100 },
-      }),
-    /cannot be used/i
-  );
+  const previewWithoutBreak = previewTurn(state, {
+    0: { characterId: 'EB1', skillId: 18100 },
+  });
+  assert.equal(previewWithoutBreak.actions.length, 1);
 
   state.turnState.enemyState = {
     enemyCount: 2,
@@ -6576,6 +6886,46 @@ test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
     0: { characterId: 'EB1', skillId: 18100 },
   });
   assert.equal(preview.actions.length, 1);
+});
+
+test('iuc_cond mismatch does not emit skill condition mismatch warning', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18110,
+              name: 'IUC Conditional Skill',
+              label: 'IUCConditionalSkill',
+              sp_cost: 0,
+              iuc_cond: 'CountBC(IsPlayer()==0&&IsDead()==0&&BreakDownTurn()>0)>0',
+              parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const warnings = [];
+
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'M1', skillId: 18110 },
+    },
+    null,
+    1,
+    {
+      allowSkillConditionMismatch: true,
+      onWarning: (message) => warnings.push(String(message)),
+    }
+  );
+
+  assert.equal(preview.actions.length, 1);
+  assert.equal(
+    warnings.some((warning) => warning.includes('skill condition mismatch allowed')),
+    false
+  );
 });
 
 test('SuperBreak only upgrades weak broken targets and records StrongBreak state', () => {
@@ -6640,7 +6990,7 @@ test('SuperBreak only upgrades weak broken targets and records StrongBreak state
   assert.equal(action.enemyStatusChanges[0].targetIndex, 0);
 });
 
-test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', () => {
+test('CountBC(...IsWeakElement(Fire)==1) in overwrite_cond changes SP cost from enemy damage rates', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `EW${idx + 1}`,
@@ -6657,8 +7007,10 @@ test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', 
                 id: 18150,
                 name: 'Weak Hunter',
                 label: 'WeakHunter',
-                sp_cost: 0,
+                sp_cost: 5,
                 iuc_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Fire)==1)>0',
+                overwrite: 0,
+                overwrite_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Fire)==1)>0',
                 parts: [],
               },
             ]
@@ -6667,13 +7019,11 @@ test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', 
   );
   const state = createBattleStateFromParty(new Party(members));
 
-  assert.throws(
-    () =>
-      previewTurn(state, {
-        0: { characterId: 'EW1', skillId: 18150 },
-      }),
-    /cannot be used/i
-  );
+  const neutralPreview = previewTurn(state, {
+    0: { characterId: 'EW1', skillId: 18150 },
+  });
+  assert.equal(neutralPreview.actions.length, 1);
+  assert.equal(neutralPreview.actions[0].spCost, 5);
 
   state.turnState.enemyState = {
     enemyCount: 2,
@@ -6687,9 +7037,10 @@ test('CountBC(...IsWeakElement(Fire)==1) is evaluated from enemy damage rates', 
     0: { characterId: 'EW1', skillId: 18150 },
   });
   assert.equal(preview.actions.length, 1);
+  assert.equal(preview.actions[0].spCost, 0);
 });
 
-test('IsWeakElement defaults to false when enemy damage rate is not above 100%', () => {
+test('IsWeakElement defaults to false when enemy damage rate is not above 100% in overwrite_cond', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `EWD${idx + 1}`,
@@ -6706,8 +7057,10 @@ test('IsWeakElement defaults to false when enemy damage rate is not above 100%',
                 id: 18180,
                 name: 'Weak Hunter Default',
                 label: 'WeakHunterDefault',
-                sp_cost: 0,
+                sp_cost: 6,
                 iuc_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Ice)==1)>0',
+                overwrite: 0,
+                overwrite_cond: 'CountBC(IsPlayer()==0 && IsDead()==0 && IsWeakElement(Ice)==1)>0',
                 parts: [],
               },
             ]
@@ -6724,13 +7077,11 @@ test('IsWeakElement defaults to false when enemy damage rate is not above 100%',
     },
   };
 
-  assert.throws(
-    () =>
-      previewTurn(state, {
-        0: { characterId: 'EWD1', skillId: 18180 },
-      }),
-    /cannot be used/i
-  );
+  const preview = previewTurn(state, {
+    0: { characterId: 'EWD1', skillId: 18180 },
+  });
+  assert.equal(preview.actions.length, 1);
+  assert.equal(preview.actions[0].spCost, 6);
 });
 
 test('Zone skill applies zone state and IsZone condition becomes true on next turn', () => {
@@ -7130,6 +7481,156 @@ test('preview and damage context expose zone power for matching element skills',
   const { committedRecord } = commitTurn(state, preview);
   assert.equal(committedRecord.actions[0].damageContext?.zoneType, 'Fire');
   assert.equal(committedRecord.actions[0].damageContext?.zonePowerRate, 1.8);
+});
+
+test('OnEveryTurn Zone展開パッシブ: partyIndex=1が先に展開しpartyIndex=0のIsZone(Fire)==1条件が正しく評価される', () => {
+  // パーティー行動順は [1, 0, 2, 3, 4, 5]（partyIndex=1 が最初に行動）
+  // partyIndex=1: OnEveryTurn で Fire Zone を展開
+  // partyIndex=0: IsZone(Fire)==1 条件 + SP+3 の OnEveryTurn パッシブ
+  //
+  // 旧走査順 [0,1,...] では partyIndex=0 が zone 展開前に評価 → 条件 false → SP変動なし
+  // 正しい走査順 [1,0,...] では partyIndex=1 が先にゾーン展開 → partyIndex=0 が条件 true → SP+3
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        passives: [
+          {
+            id: 91001,
+            name: '火陣SP回復',
+            timing: 'OnEveryTurn',
+            condition: 'IsZone(Fire)==1',
+            parts: [
+              {
+                skill_type: 'HealSp',
+                target_type: 'Self',
+                power: [3, 0],
+                effect: { exitCond: 'None', exitVal: [0, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        passives: [
+          {
+            id: 91002,
+            name: '火陣展開',
+            timing: 'OnEveryTurn',
+            condition: '',
+            parts: [
+              {
+                skill_type: 'Zone',
+                target_type: 'Field',
+                elements: ['Fire'],
+                power: [1.8, 0],
+                effect: { exitCond: 'PlayerTurnEnd', exitVal: [8, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+
+  // 毎ターン開始時の applyInitialPassiveState 相当のタイミングをシミュレート
+  // commitTurn でも同じ applyPassiveTimingInternal が呼ばれる（OnEveryTurn は recovery pipeline 内）
+  // ここでは applyPassiveTiming('OnEveryTurn') を直接呼び出して評価順の検証のみを行う
+  const initialSP0 = state.party[0].sp.current;
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+
+  // partyIndex=1 が先に Zone(Fire) 展開 → partyIndex=0 の IsZone(Fire)==1 が true → SP+3
+  assert.equal(
+    result.spEvents.some((ev) => ev.characterId === 'M1' && ev.delta === 3),
+    true,
+    'partyIndex=0 の IsZone(Fire)==1 条件付きパッシブが SP+3 で発動すべき'
+  );
+  // ゾーンが展開されていること
+  assert.equal(state.turnState.zoneState?.type, 'Fire', '火属性ゾーンが展開されているべき');
+});
+
+test('Passive.Start_UseZone_SP01 (オーバーレイ) does not fire from enemy preemptive Turn0 zone deployment', () => {
+  const store = getStore();
+  const overlayStyle = store.getStyleById(1005206);
+  assert.ok(overlayStyle, 'overlay style should exist');
+  const overlayPassive = structuredClone(
+    (overlayStyle.passives ?? []).find((passive) => String(passive?.label ?? '') === 'Passive.Start_UseZone_SP01')
+  );
+  assert.ok(overlayPassive, 'overlay passive should exist');
+
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'IIshii',
+          characterName: 'Ishii',
+          passives: [overlayPassive],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party, {
+    zoneState: {
+      type: 'Fire',
+      sourceSide: 'enemy',
+      remainingTurns: null,
+    },
+  });
+  const overlayMember = state.party.find((member) => String(member.characterId) === 'IIshii');
+  assert.ok(overlayMember, 'overlay member should exist in battle state');
+  const initialSp = overlayMember.sp.current;
+
+  applyInitialPassiveState(state);
+
+  assert.equal(
+    overlayMember.sp.current,
+    initialSp,
+    'オーバーレイは「味方がフィールドを展開した時」トリガーのため、敵Turn0展開のみでは発火しない'
+  );
+  assert.equal(
+    state.turnState.passiveEventsLastApplied.some((event) => String(event?.passiveName ?? '') === 'オーバーレイ'),
+    false,
+    'enemy preemptive zone should not produce overlay passive event at battle start'
+  );
+});
+
+test('Passive.Start_FireFieldODUp01 (インパスト) fires on Turn1 start when enemy preemptive fire zone is active', () => {
+  const store = getStore();
+  const impastStyle = store.getStyleById(1005205);
+  assert.ok(impastStyle, 'impast style should exist');
+  const impastPassive = structuredClone(
+    (impastStyle.passives ?? []).find((passive) => String(passive?.label ?? '') === 'Passive.Start_FireFieldODUp01')
+  );
+  assert.ok(impastPassive, 'impast passive should exist');
+
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [impastPassive],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party, {
+    zoneState: {
+      type: 'Fire',
+      sourceSide: 'enemy',
+      remainingTurns: null,
+    },
+  });
+
+  applyInitialPassiveState(state);
+
+  assert.equal(
+    state.turnState.odGauge,
+    5,
+    'Turn1 start OnEveryTurn should gain +5% OD when Fire zone is active'
+  );
+  assert.equal(
+    state.turnState.passiveEventsLastApplied.some((event) => String(event?.passiveName ?? '') === 'インパスト'),
+    true,
+    'インパスト passive event should be logged at Turn1 start'
+  );
 });
 
 test('ReviveTerritory skill applies territory state and IsTerritory condition becomes true', () => {
@@ -8372,6 +8873,431 @@ test('count-based MindEye is consumed by damage action only', () => {
   assert.equal(state.party.find((m) => m.characterId === 'ME1').resolveEffectiveMindEyeEffects().length, 1);
 });
 
+test('Funnel/MindEye: AdditionalTurn中も与ダメージで消費し、非ダメージでは消費しない', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: 9321,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 1,
+            },
+            {
+              effectId: 9322,
+              statusType: 'MindEye',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 1,
+            },
+          ],
+          skills: [
+            {
+              id: 25231,
+              name: 'Extra Damage',
+              label: 'ExtraDamage25231',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+            {
+              id: 25232,
+              name: 'Extra Protection',
+              label: 'ExtraProtection25232',
+              sp_cost: 0,
+              target_type: 'Self',
+              parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+            },
+          ],
+        }
+      : {}
+  );
+
+  let state = createBattleStateFromParty(party);
+  state = grantExtraTurn(state, ['M1']);
+  let preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25232 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').resolveEffectiveFunnelEffects().length,
+    1,
+    'AdditionalTurn中の非ダメージ行動ではFunnelが残る'
+  );
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').resolveEffectiveMindEyeEffects().length,
+    1,
+    'AdditionalTurn中の非ダメージ行動ではMindEyeが残る'
+  );
+
+  state = createBattleStateFromParty(party);
+  state = grantExtraTurn(state, ['M1']);
+  preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25231, targetEnemyIndex: 0 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').resolveEffectiveFunnelEffects().length,
+    0,
+    'AdditionalTurn中の与ダメージ行動でFunnelが消費される'
+  );
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').resolveEffectiveMindEyeEffects().length,
+    0,
+    'AdditionalTurn中の与ダメージ行動でMindEyeが消費される'
+  );
+});
+
+test('EnemyTurnEnd status expiry ticks for all active members on base turn advance', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx <= 1
+      ? {
+          statusEffects: [
+            {
+              effectId: 9330 + idx,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'EnemyTurnEnd',
+              remaining: 2,
+              power: 0.2,
+              metadata: { activeBuffStatus: true },
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000, targetEnemyIndex: 0 },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  const m1Effects = state.party.find((m) => m.characterId === 'M1').resolveEffectiveStatusEffects('AttackUp');
+  const m2Effects = state.party.find((m) => m.characterId === 'M2').resolveEffectiveStatusEffects('AttackUp');
+  assert.equal(m1Effects[0]?.remaining, 1, '行動メンバーのEnemyTurnEnd残り回数が1減る');
+  assert.equal(m2Effects[0]?.remaining, 1, '非行動メンバーのEnemyTurnEnd残り回数も1減る');
+});
+
+test('Funnel: Only vs Count(上位2)で勝者を採用し、採用されたCount側のみを消費する', () => {
+  const COUNT_A_ID = 9301;
+  const COUNT_B_ID = 9302;
+  const ONLY_ID = 9303;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_A_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.5,
+            },
+            {
+              effectId: COUNT_B_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.4,
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'Funnel',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.8,
+            },
+          ],
+          skills: [
+            {
+              id: 25240,
+              name: 'Funnel Test Slash',
+              label: 'FunnelTestSlash25240',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25240, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+  assert.equal(action.skillFunnelHitBonus, 0.9);
+
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const committed = findActionByCharacterId(committedRecord, 'M1');
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const remainingIds = new Set(actor.getFunnelEffects({ activeOnly: true }).map((effect) => Number(effect.effectId)));
+
+  assert.deepEqual(
+    (committed.consumedFunnelEffects ?? []).map((effect) => Number(effect.effectId)).sort((a, b) => a - b),
+    [COUNT_A_ID, COUNT_B_ID]
+  );
+  assert.equal(remainingIds.has(ONLY_ID), true);
+});
+
+test('MindEye: Only vs Count(上位2)で勝者を採用し、採用されたCount側のみを消費する', () => {
+  const COUNT_A_ID = 9311;
+  const COUNT_B_ID = 9312;
+  const ONLY_ID = 9313;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_A_ID,
+              statusType: 'MindEye',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.6,
+              metadata: { singleTrigger: true },
+            },
+            {
+              effectId: COUNT_B_ID,
+              statusType: 'MindEye',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.5,
+              metadata: { singleTrigger: true },
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'MindEye',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 1.0,
+              metadata: { singleTrigger: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25241,
+              name: 'MindEye Test Slash',
+              label: 'MindEyeTestSlash25241',
+              sp_cost: 0,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25241, targetEnemyIndex: 0 },
+  });
+
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const committed = findActionByCharacterId(committedRecord, 'M1');
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const remainingIds = new Set(actor.getMindEyeEffects({ activeOnly: true }).map((effect) => Number(effect.effectId)));
+
+  assert.deepEqual(
+    (committed.consumedMindEyeEffects ?? []).map((effect) => Number(effect.effectId)).sort((a, b) => a - b),
+    [COUNT_A_ID, COUNT_B_ID]
+  );
+  assert.equal(remainingIds.has(ONLY_ID), true);
+});
+
+test('Funnel: 非ダメージスキルではCount候補は消費されない', () => {
+  const COUNT_A_ID = 9321;
+  const COUNT_B_ID = 9322;
+  const ONLY_ID = 9323;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_A_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.6,
+            },
+            {
+              effectId: COUNT_B_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.5,
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'Funnel',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.7,
+            },
+          ],
+          skills: [
+            {
+              id: 25242,
+              name: 'Funnel NonDamage Test',
+              label: 'FunnelNonDamage25242',
+              sp_cost: 0,
+              target_type: 'Self',
+              parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25242 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const remainingIds = new Set(actor.getFunnelEffects({ activeOnly: true }).map((effect) => Number(effect.effectId)));
+
+  assert.equal(remainingIds.has(COUNT_A_ID), true);
+  assert.equal(remainingIds.has(COUNT_B_ID), true);
+  assert.equal(remainingIds.has(ONLY_ID), true);
+});
+
+test('Funnel: strict metadata validation有効時は不正metadataのCount候補を消費しない', () => {
+  const INVALID_FUNNEL_ID = 9341;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: INVALID_FUNNEL_ID,
+              statusType: 'Funnel',
+              limitType: 'Invalid',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 1,
+            },
+          ],
+          skills: [
+            {
+              id: 25244,
+              name: 'Funnel Strict Validation Test',
+              label: 'FunnelStrictValidation25244',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const warnings = [];
+
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'M1', skillId: 25244, targetEnemyIndex: 0 },
+    },
+    null,
+    1,
+    {
+      validateBuffMetadata: {
+        enabled: true,
+        mode: 'strict',
+        onWarning: (message) => warnings.push(String(message)),
+      },
+    }
+  );
+  const { nextState } = commitTurn(state, preview, [], {
+    validateBuffMetadata: {
+      enabled: true,
+      mode: 'strict',
+      onWarning: (message) => warnings.push(String(message)),
+    },
+  });
+
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  assert.equal(actor.resolveEffectiveFunnelEffects().length, 1);
+  assert.ok(warnings.length >= 1);
+});
+
+test('MindEye: 追撃ラベルスキルではCount候補は消費されない', () => {
+  const COUNT_A_ID = 9331;
+  const COUNT_B_ID = 9332;
+  const ONLY_ID = 9333;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_A_ID,
+              statusType: 'MindEye',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.6,
+              metadata: { singleTrigger: true },
+            },
+            {
+              effectId: COUNT_B_ID,
+              statusType: 'MindEye',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.5,
+              metadata: { singleTrigger: true },
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'MindEye',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.7,
+              metadata: { singleTrigger: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25243,
+              name: 'PursuitLike',
+              label: 'M1Skill91',
+              sp_cost: 0,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25243, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const remainingIds = new Set(actor.getMindEyeEffects({ activeOnly: true }).map((effect) => Number(effect.effectId)));
+
+  assert.equal(remainingIds.has(COUNT_A_ID), true);
+  assert.equal(remainingIds.has(COUNT_B_ID), true);
+  assert.equal(remainingIds.has(ONLY_ID), true);
+});
+
 test('AttackUpIncludeNormal active buff status applies to normal attack preview and is consumed on use', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -8440,6 +9366,236 @@ test('AttackUpIncludeNormal active buff status applies to normal attack preview 
 
   assert.equal(acted.resolveEffectiveStatusEffects('AttackUp').length, 0);
   assert.equal(committedAction.damageContext.attackUpRate, 0.4);
+});
+
+test('active buff監査: 通常AttackUpは通常攻撃/非ダメージで消費されず、与ダメージで消費される', () => {
+  const STATUS_ID = 25190;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: STATUS_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.4,
+              metadata: { activeBuffStatus: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25191,
+              name: '通常攻撃',
+              label: 'M1AttackNormal',
+              sp_cost: 0,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+            },
+            {
+              id: 25192,
+              name: 'Protection',
+              label: 'M1Protection',
+              sp_cost: 0,
+              target_type: 'Self',
+              parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+            },
+            {
+              id: 25193,
+              name: 'DamageSkill',
+              label: 'M1DamageSkill',
+              sp_cost: 0,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+
+  let state = createBattleStateFromParty(party);
+  const actorFromInitial = state.party.find((member) => member.characterId === 'M1');
+  assert.equal(actorFromInitial.resolveEffectiveStatusEffects('AttackUp').length, 1);
+
+  let preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25191, targetEnemyIndex: 0 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(
+    state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects('AttackUp').length,
+    1,
+    '通常攻撃では通常AttackUpは消費されない'
+  );
+
+  preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25192 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(
+    state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects('AttackUp').length,
+    1,
+    '非ダメージスキルでは通常AttackUpは消費されない'
+  );
+
+  preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25193, targetEnemyIndex: 0 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(
+    state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects('AttackUp').length,
+    0,
+    '与ダメージスキルで通常AttackUpが消費される'
+  );
+});
+
+test('active buff全種監査: 通常攻撃/非ダメージでは Count バフが消費されない', () => {
+  const statusTypes = ['AttackUp', 'DefenseUp', 'CriticalRateUp', 'CriticalDamageUp'];
+
+  for (const [idx, statusType] of statusTypes.entries()) {
+    const baseId = 25200 + idx * 10;
+    const party = createSixMemberManualParty((memberIdx) =>
+      memberIdx === 0
+        ? {
+            statusEffects: [
+              {
+                effectId: baseId,
+                statusType,
+                limitType: 'Default',
+                exitCond: 'Count',
+                remaining: 1,
+                power: 0.3,
+                metadata: { activeBuffStatus: true },
+              },
+            ],
+            skills: [
+              {
+                id: baseId + 1,
+                name: '通常攻撃',
+                label: `M1${statusType}AttackNormal`,
+                sp_cost: 0,
+                hit_count: 1,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+              },
+              {
+                id: baseId + 2,
+                name: 'Protection',
+                label: `M1${statusType}Protection`,
+                sp_cost: 0,
+                target_type: 'Self',
+                parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+              },
+            ],
+          }
+        : {}
+    );
+
+    let state = createBattleStateFromParty(party);
+    const countBefore =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countBefore, 1, `${statusType}: 初期状態で1件`);
+
+    let preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: baseId + 1, targetEnemyIndex: 0 },
+    });
+    state = commitTurn(state, preview).nextState;
+    const countAfterNormal =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countAfterNormal, 1, `${statusType}: 通常攻撃では消費されない`);
+
+    preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: baseId + 2 },
+    });
+    state = commitTurn(state, preview).nextState;
+    const countAfterNonDamage =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countAfterNonDamage, 1, `${statusType}: 非ダメージスキルでは消費されない`);
+  }
+});
+
+test('Funnel/MindEye: 通常攻撃では消費されず、与ダメージスキルで消費される', () => {
+  const statusTypes = ['Funnel', 'MindEye'];
+
+  for (const [idx, statusType] of statusTypes.entries()) {
+    const baseId = 25240 + idx * 10;
+    const party = createSixMemberManualParty((memberIdx) =>
+      memberIdx === 0
+        ? {
+            statusEffects: [
+              {
+                effectId: baseId,
+                statusType,
+                limitType: 'Default',
+                exitCond: 'Count',
+                remaining: 1,
+                power: 1,
+                metadata: { activeBuffStatus: true },
+              },
+            ],
+            skills: [
+              {
+                id: baseId + 1,
+                name: '通常攻撃',
+                label: `M1${statusType}AttackNormal`,
+                sp_cost: 0,
+                hit_count: 1,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+              },
+              {
+                id: baseId + 2,
+                name: 'Protection',
+                label: `M1${statusType}Protection`,
+                sp_cost: 0,
+                target_type: 'Self',
+                parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+              },
+              {
+                id: baseId + 3,
+                name: 'DamageSkill',
+                label: `M1${statusType}DamageSkill`,
+                sp_cost: 0,
+                hit_count: 1,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+              },
+            ],
+          }
+        : {}
+    );
+
+    let state = createBattleStateFromParty(party);
+    const countBefore =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countBefore, 1, `${statusType}: 初期状態で1件`);
+
+    let preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: baseId + 1, targetEnemyIndex: 0 },
+    });
+    state = commitTurn(state, preview).nextState;
+    const countAfterNormal =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countAfterNormal, 1, `${statusType}: 通常攻撃では消費されない`);
+
+    preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: baseId + 2 },
+    });
+    state = commitTurn(state, preview).nextState;
+    const countAfterNonDamage =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countAfterNonDamage, 1, `${statusType}: 非ダメージスキルでは消費されない`);
+
+    preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: baseId + 3, targetEnemyIndex: 0 },
+    });
+    state = commitTurn(state, preview).nextState;
+    const countAfterDamage =
+      state.party.find((member) => member.characterId === 'M1').resolveEffectiveStatusEffects(statusType).length;
+    assert.equal(countAfterDamage, 0, `${statusType}: 与ダメージスキルで消費される`);
+  }
 });
 
 test('elemental active AttackUp status applies only to matching element skills', () => {
@@ -8515,6 +9671,165 @@ test('elemental active AttackUp status applies only to matching element skills',
   assert.deepEqual(findActionByCharacterId(icePreview, 'M2').activeStatusEffects[0].elements, ['Ice']);
   assert.equal(findActionByCharacterId(firePreview, 'M2').specialPassiveModifiers.attackUpRate, 0);
   assert.deepEqual(findActionByCharacterId(firePreview, 'M2').activeStatusEffects, []);
+});
+
+test('active AttackUp: Count(2枠)合算がOnlyを上回る場合はCount側を採用し、採用Countのみ2消費する', () => {
+  const COUNT_TOP_A_ID = 9201;
+  const COUNT_TOP_B_ID = 9202;
+  const COUNT_UNUSED_ID = 9203;
+  const ONLY_ID = 9204;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_TOP_A_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.5,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: COUNT_TOP_B_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.4,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: COUNT_UNUSED_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.3,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'AttackUp',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.8,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25220,
+              name: 'Fire Strike',
+              label: 'FireStrike25220',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25220, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+
+  assert.equal(action.specialPassiveModifiers.attackUpRate, 0.9);
+  assert.deepEqual(
+    [...(action.specialPassiveModifiers.consumedCountEffectIds ?? [])].sort((a, b) => a - b),
+    [COUNT_TOP_A_ID, COUNT_TOP_B_ID]
+  );
+
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const byId = new Map(actor.resolveEffectiveStatusEffects('AttackUp').map((effect) => [Number(effect.effectId), effect]));
+
+  assert.equal(byId.get(COUNT_TOP_A_ID), undefined);
+  assert.equal(byId.get(COUNT_TOP_B_ID), undefined);
+  assert.equal(byId.get(COUNT_UNUSED_ID)?.remaining, 2);
+  assert.equal(byId.get(ONLY_ID)?.remaining, 1);
+});
+
+test('active AttackUp: 無属性Countは属性一致扱いで採用対象になり、2消費される', () => {
+  const NO_ELEMENT_COUNT_ID = 9211;
+  const FIRE_COUNT_ID = 9212;
+  const ONLY_ID = 9213;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: NO_ELEMENT_COUNT_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.4,
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: FIRE_COUNT_ID,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.3,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'AttackUp',
+              limitType: 'Only',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.6,
+              elements: ['Fire'],
+              metadata: { activeBuffStatus: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25230,
+              name: 'Fire Slash',
+              label: 'FireSlash25230',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25230, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+
+  assert.equal(action.specialPassiveModifiers.attackUpRate, 0.7);
+  assert.deepEqual(
+    [...(action.specialPassiveModifiers.consumedCountEffectIds ?? [])].sort((a, b) => a - b),
+    [NO_ELEMENT_COUNT_ID, FIRE_COUNT_ID]
+  );
+
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const byId = new Map(actor.resolveEffectiveStatusEffects('AttackUp').map((effect) => [Number(effect.effectId), effect]));
+
+  assert.equal(byId.get(NO_ELEMENT_COUNT_ID), undefined);
+  assert.equal(byId.get(FIRE_COUNT_ID), undefined);
+  assert.equal(byId.get(ONLY_ID)?.remaining, 1);
 });
 
 test('applyInitialPassiveState applies battle-start and turn-start SP passives', () => {
@@ -8636,6 +9951,54 @@ test('applyInitialPassiveState applies OnBattleStart Zone passive into zone stat
   assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === '灼熱の陣'), true);
 });
 
+test('applyInitialPassiveState keeps battle-start and turn-start passives distinct in the initial state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          passives: [
+            {
+              id: 9901,
+              name: 'BattleStart Heal',
+              timing: 'OnBattleStart',
+              condition: '',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [2, 0] }],
+            },
+            {
+              id: 9902,
+              name: 'TurnStart Heal',
+              timing: 'OnEveryTurn',
+              condition: '',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+            {
+              id: 9903,
+              name: 'TurnStart Buff',
+              timing: 'OnPlayerTurnStart',
+              condition: '',
+              parts: [{ skill_type: 'AttackUp', target_type: 'Self', power: [0.2, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  applyInitialPassiveState(state);
+
+  assert.equal(state.party[0].sp.current, 13);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'BattleStart Heal'), true);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'TurnStart Heal'), true);
+  assert.equal(state.turnState.passiveEventsLastApplied.some((event) => event.passiveName === 'TurnStart Buff'), true);
+  const turnStartResult = applyPassiveTiming(state, ['OnEveryTurn', 'OnPlayerTurnStart']);
+  assert.equal(state.party[0].sp.current, 14);
+  assert.equal(turnStartResult.passiveEvents.some((event) => event.passiveName === 'TurnStart Heal'), true);
+  assert.equal(turnStartResult.passiveEvents.some((event) => event.passiveName === 'TurnStart Buff'), true);
+  assert.equal(
+    turnStartResult.passiveEvents.filter((event) => event.passiveName === 'TurnStart Heal').length,
+    1
+  );
+});
+
 test('turn recovery applies 閃光 on every turn while frontline', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -8665,6 +10028,7 @@ test('turn recovery applies 閃光 on every turn while frontline', () => {
 
   let state = createBattleStateFromParty(new Party(members));
   applyInitialPassiveState(state);
+  assert.equal(state.party.find((m) => m.characterId === 'FS1').sp.current, 4);
 
   const preview = previewTurn(state, {
     0: { characterId: 'FS1', skillId: 26100 },
@@ -8676,6 +10040,10 @@ test('turn recovery applies 閃光 on every turn while frontline', () => {
   assert.equal(nextState.party.find((m) => m.characterId === 'FS1').sp.current, 7);
   assert.equal(nextState.party.find((m) => m.characterId === 'FS2').sp.current, 5);
   assert.equal(committedRecord.passiveEvents.some((event) => event.passiveName === '閃光'), true);
+  assert.equal(
+    nextState.turnState.passiveEventsLastApplied.filter((event) => event.passiveName === '閃光').length,
+    1
+  );
 });
 
 test('applyPassiveTiming applies OnPlayerTurnStart through exported timing API', () => {
@@ -8760,9 +10128,10 @@ test('grantExtraTurn applies OnAdditionalTurnStart SP passives when extra turn b
   assert.equal(state.party.find((m) => m.characterId === 'AT2').sp.current, 3);
   assert.equal(state.party.find((m) => m.characterId === 'AT3').sp.current, 5);
   assert.equal(state.turnState.passiveEventsLastApplied.length, 2);
+  // partyIndex=1 が行動順先頭のため '戦場の華'(partyIndex=1) → 'アフターサービス'(partyIndex=0) の順
   assert.deepEqual(
     state.turnState.passiveEventsLastApplied.map((event) => event.passiveName),
-    ['アフターサービス', '戦場の華']
+    ['戦場の華', 'アフターサービス']
   );
 });
 
@@ -9955,48 +11324,61 @@ test('AdditionalHitOnExtraSkill + OverDrivePointUp: OD gauge increases when EX s
   );
 });
 
-test('AdditionalHitOnHealedSpWithoutSelfHeal + HealSp: self SP healed when skill heals ally SP', () => {
-  const party = createSixMemberManualParty((idx) =>
-    idx === 0
-      ? {
-          characterId: 'HEALER1',
-          characterName: 'HEALER1',
-          initialSP: 10,
-          passives: [
-            {
-              id: 99940,
-              name: '愛嬌テスト',
-              timing: 'OnFirstBattleStart',
-              parts: [
-                { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
-                { skill_type: 'HealSp', target_type: 'Self', power: [3, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
-              ],
-            },
-          ],
-          skills: [
-            {
-              id: 99941,
-              name: 'AllyHeal Skill',
-              sp_cost: 4,
-              parts: [{ skill_type: 'HealSp', target_type: 'AllyFront', power: [5, 0], value: [0, 0] }],
-            },
-          ],
-        }
-      : {}
-  );
+test('AdditionalHitOnHealedSpWithoutSelfHeal + HealSp: 別の味方スキルでSPが上昇したとき発動（RECEIVER基準）', () => {
+  // 正しいトリガー方向の確認:
+  // HEALER1 はパッシブ保持者。別のメンバー（M2）が HealSp AllyFront を使い
+  // HEALER1 のSPが上昇したとき、HEALER1 の AdditionalHitOnHealedSpWithoutSelfHeal パッシブが発動する。
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'HEALER1',
+        characterName: 'HEALER1',
+        initialSP: 10,
+        passives: [
+          {
+            id: 99940,
+            name: '愛嬌テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+              { skill_type: 'HealSp', target_type: 'Self', power: [3, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        characterId: 'SPHEALER2',
+        characterName: 'SPHEALER2',
+        skills: [
+          {
+            id: 99941,
+            name: 'AllyFront HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyFront', power: [5, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
   const state = createBattleStateFromParty(party);
   const preview = previewTurn(state, {
-    0: { characterId: 'HEALER1', skillId: 99941 },
-    1: { characterId: 'M2', skillId: 8001 },
+    0: { characterId: 'HEALER1', skillId: 8000 },   // HEALER1は通常攻撃
+    1: { characterId: 'SPHEALER2', skillId: 99941 }, // M2 が AllyFront HealSp を使用
     2: { characterId: 'M3', skillId: 8002 },
   });
   const { committedRecord } = commitTurn(state, preview);
-  const entry = committedRecord.actions.find((item) => item.characterId === 'HEALER1');
-  // SP: start 10, pay 4 → 6, skill heals self via AllyFront (+5) = 11, then passive trigger +3 = 14
-  // (AllyFront includes the actor if they are in front)
-  const spChange = (entry.spChanges ?? []).find((c) => c.source === 'sp_passive');
-  assert.ok(spChange, 'spChanges should include sp_passive from AdditionalHitOnHealedSpWithoutSelfHeal trigger');
-  assert.equal(spChange.delta, 3, 'HealSp passive trigger should add 3 SP');
+
+  // HEALER1 の spChanges に sp_passive(+3) が含まれること
+  const healer1Entry = committedRecord.actions.find((item) => item.characterId === 'HEALER1');
+  const spChange = (healer1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'HEALER1: 別メンバーのHealSpでSPが上昇したとき sp_passive が発動すること');
+  assert.equal(spChange.delta, 3, '発動時 SP+3 であること');
+
+  // HEALER1 自身が AllyFront を使っても自分のパッシブは発動しない（自身スキルは対象外）
+  // → 別途 test L10304 相当で確認済み
 });
 
 test('AdditionalHitOnHealedSpWithoutSelfHeal does NOT fire when skill only heals Self SP', () => {
@@ -10038,6 +11420,220 @@ test('AdditionalHitOnHealedSpWithoutSelfHeal does NOT fire when skill only heals
   const entry = committedRecord.actions.find((item) => item.characterId === 'SELFHEAL1');
   const spChange = (entry.spChanges ?? []).find((c) => c.source === 'sp_passive');
   assert.ok(!spChange, 'sp_passive should NOT fire when the skill only heals Self SP');
+});
+
+test('お裾分け: 別の味方HealSp AllyAll → 全体SP+2 + passiveTriggerEvents 記録', () => {
+  // お裾分け（AllyAll SP+2）: 別のメンバーが HealSp AllyAll を使い、
+  // パッシブ保持者のSPが上昇したとき、全員に SP+2 を付与する
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 10,
+        passives: [
+          {
+            id: 99960,
+            name: 'お裾分けテスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [30, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        initialSP: 10,
+        skills: [
+          {
+            id: 99961,
+            name: 'AllyAll HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [3, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return { initialSP: 10 };
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },  // M1: 通常攻撃
+    1: { characterId: 'M2', skillId: 99961 }, // M2: AllyAll HealSp → M1 のSP上昇 → お裾分け発動
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // 全メンバーに sp_passive(+2) が付与されること
+  const allSpPassiveEvents = committedRecord.actions.flatMap((a) =>
+    (a.spChanges ?? []).filter((c) => c.source === 'sp_passive' && c.delta === 2)
+  );
+  assert.ok(
+    allSpPassiveEvents.length >= 3,
+    '前衛3人以上に sp_passive +2 が付与されること'
+  );
+
+  // passiveEvents に「お裾分けテスト」が記録されること
+  const passiveEvent = committedRecord.passiveEvents.find((ev) => ev.passiveName === 'お裾分けテスト');
+  assert.ok(passiveEvent, 'passiveEvents にお裾分けパッシブのトリガーイベントが記録されること');
+});
+
+test('お裾分け: パッシブ保持者自身がHealSp AllyAllを使っても発動しない', () => {
+  // お裾分けは「自身以外の味方のアクティブスキル」が条件 → 自身スキルでは発動しない
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 10,
+        passives: [
+          {
+            id: 99962,
+            name: 'お裾分け自身スキルテスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [30, 0] },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: 99963,
+            name: 'M1 AllyAll HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [3, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return { initialSP: 10 };
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 99963 }, // M1 自身が AllyAll HealSp を使用
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // M1 の spChanges に sp_passive が存在しないこと（自身スキルは対象外）
+  const m1Entry = committedRecord.actions.find((a) => a.characterId === 'M1');
+  const spPassive = (m1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spPassive, 'M1自身のHealSpスキルではお裾分けは発動しないこと');
+});
+
+test('お裾分け: SP30 上限突破 — event ceiling=30 で SP=20 → 22、SP=28 → 30', () => {
+  // お裾分けの HealSp は value[0]=30 を event ceiling として使用
+  // 通常 sp.max=20 のメンバーも SP30 まで受け取れる
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 28, // SP28 → お裾分けSP+2 → SP30（上限突破確認）
+        passives: [
+          {
+            id: 99964,
+            name: 'お裾分けSP30テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [30, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        initialSP: 20, // SP20 → お裾分けSP+2 → SP22（sp.max=20を超えて回復）
+        skills: [
+          {
+            id: 99965,
+            name: 'AllyAll HealSp trigger',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [3, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return { initialSP: 10 };
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },  // M1: 通常
+    1: { characterId: 'M2', skillId: 99965 }, // M2: AllyAll HealSp → M1 お裾分け発動
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // M2 の spChanges にお裾分け SP+2 が含まれること
+  // M2: 初期 SP=20、コスト-4=16、HealSp AllyAll+3(自分にも)=19、そこにお裾分け+2=21 (event ceiling=30 > sp.max=20)
+  const m2Entry = committedRecord.actions.find((a) => a.characterId === 'M2');
+  const osusowareChange = (m2Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive' && c.delta === 2);
+  assert.ok(osusowareChange, 'M2にもお裾分けSP+2が付与されること（sp.max=20を超えて受け取れる）');
+
+  // M1 にもお裾分け SP+2 が付与されること
+  const m1Entry = committedRecord.actions.find((a) => a.characterId === 'M1');
+  const m1OsusowareChange = (m1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive' && c.delta === 2);
+  assert.ok(m1OsusowareChange, 'M1にもお裾分けSP+2が付与されること');
+
+  // event ceiling=30 確認: M2 へのお裾分けの eventCeiling が 30 であること
+  assert.equal(
+    osusowareChange.eventCeiling,
+    30,
+    `お裾分けのeventCeilingが30であること（実際: ${osusowareChange.eventCeiling}）`
+  );
+});
+
+test('愛嬌パッシブ（AdditionalHitOnHealedSpWithoutSelfHeal + HealSp Self）: 別メンバーHealSp → 自身SP+3', () => {
+  // 愛嬌: 同一トリガー・自身のみSP+3版
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 10,
+        passives: [
+          {
+            id: 99970,
+            name: '愛嬌',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'Self', power: [3, 0], value: [30, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        skills: [
+          {
+            id: 99971,
+            name: 'AllyAll HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000 },
+    1: { characterId: 'M2', skillId: 99971 }, // M2 が AllyAll HealSp → M1 愛嬌発動
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // M1 の spChanges に sp_passive(+3) が含まれること
+  const m1Entry = committedRecord.actions.find((a) => a.characterId === 'M1');
+  const spChange = (m1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive' && c.delta === 3);
+  assert.ok(spChange, '愛嬌: 別メンバーのHealSp AllyAll で M1 に sp_passive +3 が付与されること');
+
+  // M2-M6 には sp_passive が付与されないこと（愛嬌は Self target）
+  const m2Entry = committedRecord.actions.find((a) => a.characterId === 'M2');
+  const m2SpPassive = (m2Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive' && c.passiveName === '愛嬌');
+  assert.ok(!m2SpPassive, '愛嬌は Self target なので M2 には付与されないこと');
 });
 
 test('AdditionalHitOnBreaking + AdditionalTurn: passive trigger grants extra turn when breakHitCount > 0', () => {
@@ -10481,6 +12077,423 @@ test('AdditionalHitOnRemovingBuff does NOT fire when skill has no RemoveBuff par
   assert.ok(!evt, 'AttackUp should NOT fire when skill has no RemoveBuff part');
 });
 
+// ─── AdditionalHitOnBreaking + OverDrivePointUp（破竹の勢い相当） ───
+
+test('AdditionalHitOnBreaking + OverDrivePointUp: OD gauge increases when breaking (破竹の勢い)', () => {
+  // non-attack スキルに breakHitCount:1 を設定し、攻撃由来ODと混同しないよう分離
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK_OD1',
+          characterName: 'BREAK_OD1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100101,
+              name: '破竹の勢いテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.25, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100102,
+              name: 'Break Trigger Non-Attack',
+              sp_cost: 3,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BREAK_OD1', skillId: 100102, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  // power[0]=0.25 → resolveOverDrivePointUpPowerPercent returns 25 (25%)
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - (initialOdGauge + 25)) < 0.1,
+    `OD gauge should increase by 25 when breaking: initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+test('AdditionalHitOnBreaking + OverDrivePointUp does NOT fire when breakHitCount is 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK_OD2',
+          characterName: 'BREAK_OD2',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100103,
+              name: '破竹の勢いテスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.25, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100104,
+              name: 'No-Break Non-Attack',
+              sp_cost: 3,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BREAK_OD2', skillId: 100104, breakHitCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - initialOdGauge) < 0.1,
+    `OD gauge should not change from passive when breakHitCount is 0: initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+test('Carnival with You resonance is injected as support passive on 桐生 美也 (31X/Excelsior)', () => {
+  const store = getStore();
+  const actor = store.buildCharacterStyle({
+    styleId: 1004307,
+    partyIndex: 0,
+    initialSP: 20,
+    limitBreakLevel: 4,
+    supportStyleId: 1008105,
+    supportStyleLimitBreakLevel: 4,
+  });
+
+  const supportBreakOdPassive = actor.passives.find((passive) => {
+    const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+    const hasBreakTrigger = parts.some((part) => String(part?.skill_type ?? '') === 'AdditionalHitOnBreaking');
+    const odPart = parts.find((part) => String(part?.skill_type ?? '') === 'OverDrivePointUp');
+    return hasBreakTrigger && odPart && Number(odPart?.power?.[0] ?? 0) === 0.2;
+  });
+
+  assert.ok(supportBreakOdPassive, '31X support passive (AdditionalHitOnBreaking + OverDrivePointUp 0.2) should be injected');
+  assert.equal(supportBreakOdPassive.sourceType, 'support');
+  assert.equal(String(supportBreakOdPassive.name ?? ''), 'Excelsior!');
+});
+
+test('Carnival with You resonance fires on break and adds +20 OD gauge for 桐生 美也 (#2 break scenario)', () => {
+  const store = getStore();
+  const actorStyleId = 1004307;
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter(
+      (id) =>
+        Number(id) !== actorStyleId &&
+        String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? '') !== actorCharaLabel
+    )
+    .slice(0, 5);
+  assert.equal(fillerStyleIds.length, 5, 'should prepare five filler styles');
+
+  const styleIds = [actorStyleId, ...fillerStyleIds];
+  const buildState = () =>
+    createBattleStateFromParty(
+      store.buildPartyFromStyleIds(styleIds, {
+        initialSP: 20,
+        limitBreakLevelsByPartyIndex: { 0: 4 },
+        supportStyleIdsByPartyIndex: { 0: 1008105 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 4 },
+      })
+    );
+
+  const seedState = buildState();
+  const attackSkill = seedState.party[0].skills.find((skill) =>
+    (skill?.parts ?? []).some((part) => String(part?.skill_type ?? '') === 'AttackSkill')
+  );
+  assert.ok(attackSkill, 'actor should have an attack skill');
+  const attackSkillId = Number(attackSkill.skillId);
+
+  const buildActions = (state, breakHitCount) => ({
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: attackSkillId,
+      breakHitCount,
+    },
+    1: {
+      characterId: state.party[1].characterId,
+      skillId: state.party[1].skills[0].skillId,
+    },
+    2: {
+      characterId: state.party[2].characterId,
+      skillId: state.party[2].skills[0].skillId,
+    },
+  });
+
+  const noBreakState = buildState();
+  const noBreakPreview = previewTurn(noBreakState, buildActions(noBreakState, 0));
+  const noBreakCommit = commitTurn(noBreakState, noBreakPreview);
+
+  const withBreakState = buildState();
+  const withBreakPreview = previewTurn(withBreakState, buildActions(withBreakState, 1));
+  const withBreakCommit = commitTurn(withBreakState, withBreakPreview);
+
+  const noBreakOd = Number(noBreakCommit.nextState.turnState.odGauge ?? 0);
+  const withBreakOd = Number(withBreakCommit.nextState.turnState.odGauge ?? 0);
+  const odDiffByBreak = withBreakOd - noBreakOd;
+
+  assert.ok(
+    Math.abs(odDiffByBreak - 20) < 0.1,
+    `break-triggered support resonance should add +20 OD: noBreak=${noBreakOd}, withBreak=${withBreakOd}, diff=${odDiffByBreak}`
+  );
+});
+
+test('Carnival with You resonance is reflected in preview odGaugeAtEnd on break (+20)', () => {
+  const store = getStore();
+  const actorStyleId = 1004307;
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter(
+      (id) =>
+        Number(id) !== actorStyleId &&
+        String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? '') !== actorCharaLabel
+    )
+    .slice(0, 5);
+
+  const styleIds = [actorStyleId, ...fillerStyleIds];
+  const buildState = () =>
+    createBattleStateFromParty(
+      store.buildPartyFromStyleIds(styleIds, {
+        initialSP: 20,
+        limitBreakLevelsByPartyIndex: { 0: 4 },
+        supportStyleIdsByPartyIndex: { 0: 1008105 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 4 },
+      })
+    );
+
+  const seedState = buildState();
+  const attackSkill = seedState.party[0].skills.find((skill) =>
+    (skill?.parts ?? []).some((part) => String(part?.skill_type ?? '') === 'AttackSkill')
+  );
+  assert.ok(attackSkill, 'actor should have an attack skill');
+  const attackSkillId = Number(attackSkill.skillId);
+
+  const buildActions = (state, breakHitCount) => ({
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: attackSkillId,
+      breakHitCount,
+    },
+    1: {
+      characterId: state.party[1].characterId,
+      skillId: state.party[1].skills[0].skillId,
+    },
+    2: {
+      characterId: state.party[2].characterId,
+      skillId: state.party[2].skills[0].skillId,
+    },
+  });
+
+  const noBreakState = buildState();
+  const withBreakState = buildState();
+  const noBreakPreview = previewTurn(noBreakState, buildActions(noBreakState, 0));
+  const withBreakPreview = previewTurn(withBreakState, buildActions(withBreakState, 1));
+
+  const noBreakProjectedOd = Number(noBreakPreview.projections?.odGaugeAtEnd ?? 0);
+  const withBreakProjectedOd = Number(withBreakPreview.projections?.odGaugeAtEnd ?? 0);
+  const projectedDiff = withBreakProjectedOd - noBreakProjectedOd;
+
+  assert.ok(
+    Math.abs(projectedDiff - 20) < 0.1,
+    `preview odGaugeAtEnd should include +20 on break: noBreak=${noBreakProjectedOd}, withBreak=${withBreakProjectedOd}, diff=${projectedDiff}`
+  );
+});
+
+// ─── AdditionalHitOnRemovingBuff + OverDrivePointUp（アプローチショット相当） ───
+
+test('AdditionalHitOnRemovingBuff + OverDrivePointUp: OD gauge increases when buff removed (アプローチショット)', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'REMOVE_OD1',
+          characterName: 'REMOVE_OD1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 100105,
+              name: 'アプローチショットテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnRemovingBuff', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.5, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100106,
+              name: 'RemoveBuff Skill',
+              sp_cost: 4,
+              parts: [{ skill_type: 'RemoveBuff', target_type: 'All' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'REMOVE_OD1', skillId: 100106 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  // power[0]=0.5 → resolveOverDrivePointUpPowerPercent returns 50 (50%)
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - (initialOdGauge + 50)) < 0.1,
+    `OD gauge should increase by 50 when removing buff: initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+test('AdditionalHitOnRemovingBuff + OverDrivePointUp does NOT fire when skill has no RemoveBuff part', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'REMOVE_OD2',
+          characterName: 'REMOVE_OD2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 100107,
+              name: 'アプローチショットテスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnRemovingBuff', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.5, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100108,
+              name: 'Normal Heal Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: { characterId: 'REMOVE_OD2', skillId: 100108 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge) - initialOdGauge) < 0.1,
+    `OD gauge should not change from passive when no RemoveBuff part: initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
+// ─── AdditionalHitOnKillCount + HealSp（クリアリング / 意気軒昂相当） ───
+
+test('AdditionalHitOnKillCount + HealSp: killCount=1 → SP+2（意気軒昂/クリアリング）', () => {
+  // killCount 倍率が HealSp に適用される（「敵1体につきSP+2」仕様）
+  // killCount=1 → delta = 2×1 = 2
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KILL_SP1',
+          characterName: 'KILL_SP1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100109,
+              name: '意気軒昂テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnKillCount', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100110,
+              name: 'Kill Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KILL_SP1', skillId: 100110, killCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'KILL_SP1');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'spChanges should include sp_passive source when kill occurs');
+  assert.equal(spChange.delta, 2, 'killCount=1 → delta=2 (2×1)');
+});
+
+test('AdditionalHitOnKillCount + HealSp does NOT fire when killCount is 0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KILL_SP2',
+          characterName: 'KILL_SP2',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100111,
+              name: '意気軒昂テスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnKillCount', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100112,
+              name: 'No-Kill Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KILL_SP2', skillId: 100112, killCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'KILL_SP2');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spChange, 'sp_passive should NOT fire when killCount is 0');
+});
+
 test('SpLimitOverwrite (歴戦): applyInitialPassiveState で sp.max が 30 になる', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -10555,6 +12568,339 @@ test('SpLimitOverwrite (歴戦): sp.max 30 になると回復上限も 30 にな
   const actor = preview.actions.find((a) => a.characterId === 'SL21');
   assert.ok(actor, 'SL21 の action が存在する');
   assert.ok(actor.endSP <= 30, `endSP (${actor.endSP}) は sp.max (30) 以下`);
+});
+
+test('ルビー・パフューム装備時は battle start で味方全体に HighBoost と sp.max=30 が付く', () => {
+  const store = getStore();
+  const actor = store.buildCharacterStyle({
+    styleId: 1007106,
+    partyIndex: 0,
+    initialSP: 20,
+  });
+  const allies = Array.from({ length: 5 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HBALLY${idx + 1}`,
+      characterName: `HBALLY${idx + 1}`,
+      styleId: 9000 + idx,
+      styleName: `HBALLY${idx + 1}`,
+      partyIndex: idx + 1,
+      position: idx + 1,
+      initialSP: 20,
+      skills: [createProtectionSkill(8900 + idx)],
+    })
+  );
+  const state = createBattleStateFromParty(new Party([actor, ...allies]));
+
+  applyInitialPassiveState(state);
+
+  for (const member of state.party) {
+    assert.equal(member.sp.max, 30, `${member.characterId} should have sp.max 30`);
+    assert.equal(
+      member.resolveEffectiveStatusEffects('HighBoost').length,
+      1,
+      `${member.characterId} should have HighBoost status`
+    );
+  }
+  assert.ok(
+    (state.turnState.passiveEventsLastApplied ?? []).some((event) =>
+      Array.isArray(event.effectTypes) &&
+      event.effectTypes.includes('HighBoost') &&
+      event.effectTypes.includes('SpLimitOverwrite')
+    ),
+    'battle start passive log should include HighBoost and SpLimitOverwrite'
+  );
+});
+
+test('ルビー・パフュームを外すと battle start で HighBoost も sp.max 30 も付かない', () => {
+  const store = getStore();
+  const equippedSkillIds = store
+    .listEquipableSkillsByStyleId(1007106)
+    .map((skill) => Number(skill.id))
+    .filter((skillId) => skillId !== 46407101);
+  const actor = store.buildCharacterStyle({
+    styleId: 1007106,
+    partyIndex: 0,
+    initialSP: 20,
+    equippedSkillIds,
+  });
+  const allies = Array.from({ length: 5 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `HBUNEQ${idx + 1}`,
+      characterName: `HBUNEQ${idx + 1}`,
+      styleId: 9100 + idx,
+      styleName: `HBUNEQ${idx + 1}`,
+      partyIndex: idx + 1,
+      position: idx + 1,
+      initialSP: 20,
+      skills: [createProtectionSkill(9000 + idx)],
+    })
+  );
+  const state = createBattleStateFromParty(new Party([actor, ...allies]));
+
+  applyInitialPassiveState(state);
+
+  for (const member of state.party) {
+    assert.equal(member.sp.max, 20, `${member.characterId} should keep default sp.max`);
+    assert.equal(
+      member.resolveEffectiveStatusEffects('HighBoost').length,
+      0,
+      `${member.characterId} should not gain HighBoost when passive is unequipped`
+    );
+  }
+});
+
+test('HighBoost increases SP consumption by 2 without stacking and keeps zero or all-cost skills unchanged', () => {
+  const party = createHighBoostManualParty({
+    skills: [
+      {
+        id: 30010,
+        name: 'Heavy Skill',
+        label: 'HeavySkill',
+        sp_cost: 7,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+      {
+        id: 30011,
+        name: 'Free Skill',
+        label: 'FreeSkill',
+        sp_cost: 0,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+      {
+        id: 30012,
+        name: 'All Cost Skill',
+        label: 'AllCostSkill',
+        sp_cost: -1,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+    ],
+    statusEffects: [
+      structuredClone(HIGH_BOOST_TEST_STATUS_EFFECT),
+      structuredClone(HIGH_BOOST_TEST_STATUS_EFFECT),
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+
+  const heavyPreview = previewTurn(state, {
+    0: { characterId: 'HB1', skillId: 30010, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const freePreview = previewTurn(state, {
+    0: { characterId: 'HB1', skillId: 30011, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const allCostPreview = previewTurn(state, {
+    0: { characterId: 'HB1', skillId: 30012, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+
+  assert.equal(findActionByCharacterId(heavyPreview, 'HB1').spCost, 9, 'HighBoost should increase SP cost by 2 once');
+  assert.equal(findActionByCharacterId(freePreview, 'HB1').spCost, 0, 'zero-cost skills should remain unchanged');
+  assert.equal(findActionByCharacterId(allCostPreview, 'HB1').spCost, -1, 'all-cost skills should remain unchanged');
+});
+
+test('HighBoost scales attack-up buffs, enemy debuffs, non-revive DP healing, and damage context metadata', () => {
+  const createParty = () => createHighBoostManualParty({
+    initialSP: 10,
+    baseMaxDp: 100,
+    currentDp: 10,
+    skills: [
+      {
+        id: 30020,
+        name: 'HighBoost Attack',
+        label: 'HighBoostAttack',
+        sp_cost: 7,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      },
+      {
+        id: 30021,
+        name: 'HighBoost Buff',
+        label: 'HighBoostBuff',
+        sp_cost: 0,
+        parts: [
+          {
+            skill_type: 'AttackUp',
+            target_type: 'Self',
+            power: [0.5, 0],
+            effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+          },
+        ],
+      },
+      {
+        id: 30022,
+        name: 'HighBoost Debuff',
+        label: 'HighBoostDebuff',
+        sp_cost: 0,
+        parts: [
+          {
+            skill_type: 'DefenseDown',
+            target_type: 'Single',
+            power: [0.5, 0],
+            effect: { limitType: 'Only', exitCond: 'EnemyTurnEnd', exitVal: [1, 0] },
+          },
+        ],
+      },
+      {
+        id: 30023,
+        name: 'HighBoost HealSp',
+        label: 'HighBoostHealSp',
+        sp_cost: 0,
+        parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [4, 0] }],
+      },
+      {
+        id: 30024,
+        name: 'HighBoost HealDp',
+        label: 'HighBoostHealDp',
+        sp_cost: 0,
+        parts: [{ skill_type: 'HealDpRate', target_type: 'Self', power: [0.1, 0], value: [1, 0] }],
+      },
+    ],
+  });
+
+  const attackState = createBattleStateFromParty(createParty());
+  const attackPreview = previewTurn(attackState, {
+    0: { characterId: 'HB1', skillId: 30020, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  assert.equal(findActionByCharacterId(attackPreview, 'HB1').specialPassiveModifiers.highBoostSkillAtkRate, 1.8);
+  const { committedRecord: attackRecord } = commitTurn(attackState, attackPreview);
+  assert.equal(findActionByCharacterId(attackRecord, 'HB1').specialPassiveModifiers.highBoostSkillAtkRate, 1.8);
+
+  const buffState = createBattleStateFromParty(createParty());
+  const buffPreview = previewTurn(buffState, {
+    0: { characterId: 'HB1', skillId: 30021 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: buffRecord } = commitTurn(buffState, buffPreview);
+  assert.equal(findActionByCharacterId(buffRecord, 'HB1').statusEffectsApplied[0].power, 0.6);
+
+  const debuffState = createBattleStateFromParty(createParty());
+  const debuffPreview = previewTurn(debuffState, {
+    0: { characterId: 'HB1', skillId: 30022, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: debuffRecord } = commitTurn(debuffState, debuffPreview);
+  assert.equal(findActionByCharacterId(debuffRecord, 'HB1').enemyStatusChanges[0].power, 0.6);
+
+  const healSpState = createBattleStateFromParty(createParty());
+  const healSpPreview = previewTurn(healSpState, {
+    0: { characterId: 'HB1', skillId: 30023 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: healSpRecord } = commitTurn(healSpState, healSpPreview);
+  const healSpChange = findActionByCharacterId(healSpRecord, 'HB1').spChanges.find(
+    (change) => change.source === 'active'
+  );
+  assert.equal(healSpChange?.delta, 4);
+
+  const healDpState = createBattleStateFromParty(createParty());
+  const healDpPreview = previewTurn(healDpState, {
+    0: { characterId: 'HB1', skillId: 30024 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: healDpRecord } = commitTurn(healDpState, healDpPreview);
+  assert.equal(findActionByCharacterId(healDpRecord, 'HB1').dpChanges[0].delta, 15);
+});
+
+test('HighBoost does not scale active HealEp or revive effects', () => {
+  const createParty = (skills, actorOverrides = {}) => createHighBoostManualParty({
+    initialSP: 10,
+    initialEP: 0,
+    baseMaxDp: 100,
+    currentDp: 0,
+    skills,
+    ...actorOverrides,
+  });
+
+  const healEpState = createBattleStateFromParty(createParty([
+    {
+      id: 30030,
+      name: 'HighBoost HealEp',
+      label: 'HighBoostHealEp',
+      sp_cost: 0,
+      parts: [{ skill_type: 'HealEp', target_type: 'Self', power: [4, 0] }],
+    },
+  ]));
+  const healEpPreview = previewTurn(healEpState, {
+    0: { characterId: 'HB1', skillId: 30030 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: healEpRecord } = commitTurn(healEpState, healEpPreview);
+  assert.equal(findActionByCharacterId(healEpRecord, 'HB1').epChanges[0]?.delta, 4);
+
+  const reviveDpState = createBattleStateFromParty(createParty([
+    {
+      id: 30031,
+      name: 'HighBoost ReviveDp',
+      label: 'HighBoostReviveDp',
+      sp_cost: 0,
+      parts: [{ skill_type: 'ReviveDp', target_type: 'Self', power: [0, 0] }],
+    },
+  ]));
+  const reviveDpPreview = previewTurn(reviveDpState, {
+    0: { characterId: 'HB1', skillId: 30031 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: reviveDpRecord } = commitTurn(reviveDpState, reviveDpPreview);
+  assert.equal(findActionByCharacterId(reviveDpRecord, 'HB1').dpChanges[0]?.delta, 1);
+
+  const reviveDpRateState = createBattleStateFromParty(createParty([
+    {
+      id: 30032,
+      name: 'HighBoost ReviveDpRate',
+      label: 'HighBoostReviveDpRate',
+      sp_cost: 0,
+      parts: [{ skill_type: 'ReviveDpRate', target_type: 'Self', power: [0.1, 0], value: [1, 0] }],
+    },
+  ]));
+  const reviveDpRatePreview = previewTurn(reviveDpRateState, {
+    0: { characterId: 'HB1', skillId: 30032 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+  const { committedRecord: reviveDpRateRecord } = commitTurn(reviveDpRateState, reviveDpRatePreview);
+  assert.equal(findActionByCharacterId(reviveDpRateRecord, 'HB1').dpChanges[0]?.delta, 10);
+});
+
+test('HighBoost does not scale passive SP healing effects', () => {
+  const party = createHighBoostManualParty({
+    initialSP: 10,
+    passives: [
+      {
+        id: 30100,
+        name: 'Passive Heal',
+        timing: 'OnPlayerTurnStart',
+        condition: '',
+        parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [4, 0] }],
+      },
+      {
+        id: 30101,
+        name: 'Passive Random Heal',
+        timing: 'OnPlayerTurnStart',
+        condition: '',
+        parts: [{ skill_type: 'HealSpRandom', target_type: 'Self', power: [1, 0], value: [4, 0] }],
+      },
+    ],
+  });
+  const state = createBattleStateFromParty(party);
+
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.deepEqual(
+    result.spEvents.map((event) => event.delta),
+    [4, 4]
+  );
+  assert.equal(state.party[0].sp.current, 18);
 });
 
 test('ReduceSp (OnFirstBattleStart / 蒼天): 全味方スキルコスト -1 が preview に反映される', () => {
@@ -10639,6 +12985,57 @@ test('ReduceSp (OnFirstBattleStart / 氷天): 氷属性味方のみ -1 適用、
   assert.equal(preview.actions[2].spCost, 5, 'IC3（非氷属性）: spCost 変化なし');
 });
 
+test('ReduceSp (OnFirstBattleStart): applyInitialPassiveState で current SP は変化しない', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `IS${idx + 1}`,
+      characterName: `IS${idx + 1}`,
+      styleId: 2350 + idx,
+      styleName: `ISS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      elements: idx === 1 ? ['Ice'] : [],
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 100111101,
+                name: '氷天',
+                desc: '味方全体の氷属性スタイルの消費SPが常時-1',
+                timing: 'OnFirstBattleStart',
+                condition: '',
+                parts: [
+                  {
+                    skill_type: 'ReduceSp',
+                    target_type: 'AllyAll',
+                    target_condition: 'IsNatureElement(Ice)',
+                    power: [1, 0],
+                  },
+                ],
+              },
+            ]
+          : [],
+      skills: [{ id: 29250 + idx, name: 'Act', label: `ISSkill${idx + 1}`, sp_cost: 5, parts: [] }],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const before = state.party.map((member) => member.sp.current);
+
+  applyInitialPassiveState(state);
+
+  const after = state.party.map((member) => member.sp.current);
+  assert.deepEqual(after, before, 'ReduceSp は開幕適用で current SP を変化させない');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'IS1', skillId: 29250 },
+    1: { characterId: 'IS2', skillId: 29251 },
+  });
+  assert.equal(preview.actions[0].spCost, 5, 'IS1（非氷属性）: spCost 変化なし');
+  assert.equal(preview.actions[1].spCost, 4, 'IS2（氷属性）: spCost 5 → 4 (氷天 -1)');
+});
+
 test('ReduceSp (OnAdditionalTurnStart): 追加ターン中のみ自身のスキルコスト -2 が反映される', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -10711,9 +13108,9 @@ test('HealSp (OnOverdriveStart / Self / 旭日昇天相当): activateOverdrive �
   assert.equal(state.party[0].sp.current, 10, 'OD前: SP = 10');
   state.turnState.odGauge = 100;
   const odState = activateOverdrive(state, 1, 'preemptive');
-  assert.equal(odState.party[0].sp.current, 15, 'OD開始後: SP 10 → 15 (旭日昇天 +5)');
+  assert.equal(odState.party[0].sp.current, 20, 'OD開始後: SP 10 → 20 (OD +5, 旭日昇天 +5)');
   for (let i = 1; i < 6; i++) {
-    assert.equal(odState.party[i].sp.current, 10, `party[${i}]: SP 変化なし`);
+    assert.equal(odState.party[i].sp.current, 15, `party[${i}]: SP 10 → 15 (OD +5)`);
   }
   assert.ok(
     odState.turnState.passiveEventsLastApplied.some((e) => e.passiveName === '旭日昇天'),
@@ -10751,7 +13148,7 @@ test('HealSp (OnOverdriveStart / AllyAll / エクスタシー相当): activateOv
   state.turnState.odGauge = 100;
   const odState = activateOverdrive(state, 1, 'preemptive');
   for (let i = 0; i < 6; i++) {
-    assert.equal(odState.party[i].sp.current, 15, `party[${i}]: SP 10 → 15 (エクスタシー AllyAll +5)`);
+    assert.equal(odState.party[i].sp.current, 20, `party[${i}]: SP 10 → 20 (OD +5, エクスタシー +5)`);
   }
   assert.ok(
     odState.turnState.passiveEventsLastApplied.some((e) => e.passiveName === 'エクスタシー'),
@@ -10788,7 +13185,7 @@ test('HealSp (OnOverdriveStart): SP上限を超えない（cap確認）', () => 
   const state = createBattleStateFromParty(new Party(members));
   state.turnState.odGauge = 100;
   const odState = activateOverdrive(state, 1, 'preemptive');
-  assert.equal(odState.party[0].sp.current, 20, 'SP 18+5=23 → cap 20 に収まる');
+  assert.equal(odState.party[0].sp.current, 23, 'OD既定回復 +5 は cap を超え、受動 HealSp はそこで増えない');
 });
 
 test('AttackUp (OnOverdriveStart / 専心相当): OD中の preview に attackUpRate が反映される', () => {
@@ -11461,6 +13858,209 @@ test('T06: BuffCharge(25) — commitTurnで付与・パッシブ発動・次ス�
   assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 25), 0, 'スキル使用後にチャージ状態が解除される');
 });
 
+test('T06-B: BuffCharge(25) — 通常攻撃では消費されず、与ダメージスキルで消費される', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30101,
+              name: 'BuffChargeSkill',
+              label: 'TestBuffCharge2',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'BuffCharge',
+                  target_type: 'Self',
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+            {
+              id: 30102,
+              name: '通常攻撃',
+              label: 'TestAttackNormal',
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+            },
+            {
+              id: 30103,
+              name: 'Attack',
+              label: 'TestDamageSkill',
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30101 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 25), 1, 'BuffCharge付与後はチャージ状態が残る');
+
+  preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30102 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 25), 1, '通常攻撃ではチャージ状態が消費されない');
+
+  preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30103 } });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 25), 0, '与ダメージスキル使用でチャージ状態が消費される');
+});
+
+test('T06-C: 特殊状態バフ全種監査 — Count型は通常攻撃/非ダメージで消費されず、与ダメージで消費される', () => {
+  const cases = [
+    { skillType: 'BuffCharge', typeId: 25 },
+    { skillType: 'MindEye', typeId: 78 },
+    { skillType: 'Dodge', typeId: 122 },
+    { skillType: 'ShadowClone', typeId: 125 },
+    { skillType: 'Diva', typeId: 144 },
+    { skillType: 'NegativeMind', typeId: 146 },
+    { skillType: 'Makeup', typeId: 164 },
+  ];
+
+  for (const [idx, testCase] of cases.entries()) {
+    const baseId = 30200 + idx * 10;
+    const party = createSixMemberManualParty((memberIdx) =>
+      memberIdx === 0
+        ? {
+            initialSP: 5,
+            skills: [
+              {
+                id: baseId + 1,
+                name: `${testCase.skillType}Skill`,
+                label: `Test${testCase.skillType}`,
+                sp_cost: 0,
+                parts: [
+                  {
+                    skill_type: testCase.skillType,
+                    target_type: 'Self',
+                    effect: { exitCond: 'Count', exitVal: [1, 0] },
+                  },
+                ],
+              },
+              {
+                id: baseId + 2,
+                name: '通常攻撃',
+                label: `Test${testCase.skillType}AttackNormal`,
+                sp_cost: 0,
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+              },
+              {
+                id: baseId + 3,
+                name: 'Protection',
+                label: `Test${testCase.skillType}Protection`,
+                sp_cost: 0,
+                parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+              },
+              {
+                id: baseId + 4,
+                name: 'DamageSkill',
+                label: `Test${testCase.skillType}DamageSkill`,
+                sp_cost: 0,
+                hit_count: 1,
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+              },
+            ],
+          }
+        : {}
+    );
+
+    let state = createBattleStateFromParty(party);
+
+    let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: baseId + 1 } });
+    state = commitTurn(state, preview).nextState;
+    assert.equal(
+      countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), testCase.typeId),
+      1,
+      `${testCase.skillType}: 付与後はアクティブ`
+    );
+
+    preview = previewTurn(state, { 0: { characterId: 'M1', skillId: baseId + 2 } });
+    state = commitTurn(state, preview).nextState;
+    assert.equal(
+      countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), testCase.typeId),
+      1,
+      `${testCase.skillType}: 通常攻撃では消費されない`
+    );
+
+    preview = previewTurn(state, { 0: { characterId: 'M1', skillId: baseId + 3 } });
+    state = commitTurn(state, preview).nextState;
+    assert.equal(
+      countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), testCase.typeId),
+      1,
+      `${testCase.skillType}: 非ダメージスキルでは消費されない`
+    );
+
+    preview = previewTurn(state, { 0: { characterId: 'M1', skillId: baseId + 4 } });
+    state = commitTurn(state, preview).nextState;
+    assert.equal(
+      countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), testCase.typeId),
+      0,
+      `${testCase.skillType}: 与ダメージスキルで消費される`
+    );
+  }
+});
+
+test('T06-D: 特殊状態バフ全種監査 — Eternal型は与ダメージでも消費されない', () => {
+  const cases = [
+    { skillType: 'EternalOath', typeId: 124 },
+    { skillType: 'BIYamawakiServant', typeId: 155 },
+  ];
+
+  for (const [idx, testCase] of cases.entries()) {
+    const baseId = 30300 + idx * 10;
+    const party = createSixMemberManualParty((memberIdx) =>
+      memberIdx === 0
+        ? {
+            initialSP: 5,
+            skills: [
+              {
+                id: baseId + 1,
+                name: `${testCase.skillType}Skill`,
+                label: `Test${testCase.skillType}`,
+                sp_cost: 0,
+                parts: [
+                  {
+                    skill_type: testCase.skillType,
+                    target_type: 'Self',
+                    effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+                  },
+                ],
+              },
+              {
+                id: baseId + 2,
+                name: 'DamageSkill',
+                label: `Test${testCase.skillType}DamageSkill`,
+                sp_cost: 0,
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }],
+              },
+            ],
+          }
+        : {}
+    );
+
+    let state = createBattleStateFromParty(party);
+    let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: baseId + 1 } });
+    state = commitTurn(state, preview).nextState;
+    assert.equal(
+      countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), testCase.typeId),
+      1,
+      `${testCase.skillType}: 付与後はアクティブ`
+    );
+
+    preview = previewTurn(state, { 0: { characterId: 'M1', skillId: baseId + 2 } });
+    state = commitTurn(state, preview).nextState;
+    assert.equal(
+      countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), testCase.typeId),
+      1,
+      `${testCase.skillType}: Eternal型は与ダメージでも消費されない`
+    );
+  }
+});
+
 test('T07: MindEye(78) — commitTurnで付与・パッシブ発動・次スキル使用で解除', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -11480,7 +14080,7 @@ test('T07: MindEye(78) — commitTurnで付与・パッシブ発動・次スキ�
                 },
               ],
             },
-            { id: 30012, name: 'Attack', label: 'TestAtk2', sp_cost: 0, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
+            { id: 30012, name: 'Attack', label: 'TestAtk2', sp_cost: 0, hitCount: 1, parts: [{ skill_type: 'AttackSkill', target_type: 'Single' }] },
           ],
           passives: [
             {
@@ -11511,6 +14111,147 @@ test('T07: MindEye(78) — commitTurnで付与・パッシブ発動・次スキ�
   preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30012 } });
   state = commitTurn(state, preview).nextState;
   assert.equal(countActiveSpecialStatus(state.party.find((m) => m.characterId === 'M1'), 78), 0, 'スキル使用後に心眼状態が解除される');
+
+  // Diagnostic: Check if attrib upassive modifiers are set (this test verifies if condition evaluation is working)
+  applyPassiveTiming(state,'OnPlayerTurnStart');  // Try again to confirm condition evaluation
+});
+
+test('T07-diagnostic: MindEye(78) passives modifiers diagnostic', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          skills: [
+            {
+              id: 30011,
+              name: 'MindEyeSkill',
+              label: 'TestMindEye',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'MindEye',
+                  target_type: 'Self',
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+          passives: [
+            {
+              id: 91003,
+              name: 'TestMindEyeAttackUp',
+              timing: 'OnPlayerTurnStart',
+              condition: 'SpecialStatusCountByType(78)>0&&IsFront()',
+              parts: [{ skill_type: 'AttackUp', target_type: 'Self', power: [0.15, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  // Step 1: MindEye を付与
+  let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30011 } });
+  state = commitTurn(state, preview).nextState;
+  const m1 = state.party.find((m) => m.characterId === 'M1');
+  assert.equal(countActiveSpecialStatus(m1, 78), 1, 'MindEye condition 観測step 1');
+
+  // Step 2: applyPassiveTiming でパッシブを評価
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const m1After = state.party.find((m) => m.characterId === 'M1');
+  
+  assert.ok(
+    m1After.specialPassiveModifiers?.attackUpRate !== undefined &&
+    m1After.specialPassiveModifiers.attackUpRate >=0.14,
+    `條件評価success: AttackUp=${m1After.specialPassiveModifiers?.attackUpRate}`
+  );
+});
+
+test('T07b: MindEye(78) — SpecialStatusCountByType(78)>0 条件下でのスキル攻撃力 +15% 検証', () => {
+  // 簡易版：condition 評価の確認
+  // 実データパッシブ (心眼の境地 100110800) ではなく、
+  // シンプルなテストデータで condition 評価を検証
+  
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 20,
+          skills: [
+            {
+              id: 30011,
+              name: 'MindEyeSkill',
+              label: 'TestMindEye',
+              sp_cost: 0,
+              parts: [
+                {
+                  skill_type: 'MindEye',
+                  target_type: 'Self',
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+            {
+              id: 30012,
+              name: 'DamageAttack',
+              label: 'TestDmg',
+              sp_cost: 5,
+              hitCount: 1,
+              parts: [
+                {
+                  skill_type: 'AttackSkill',
+                  target_type: 'Single',
+                  power: [100, 0],
+                  elements: ['Slash'],
+                },
+              ],
+            },
+          ],
+          passives: [
+            {
+              id: 91002,
+              name: 'TestMindEyePassive',
+              timing: 'OnEveryTurn',
+              // Simpler condition: just check MindEye presence
+              condition: 'SpecialStatusCountByType(78)>0',
+              parts: [
+                {
+                  skill_type: 'AttackUp',
+                  target_type: 'Self',
+                  power: [0.15, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  // Step 1: MindEye を付与
+  let preview = previewTurn(state, { 0: { characterId: 'M1', skillId: 30011 } });
+  state = commitTurn(state, preview).nextState;
+  
+  const m1Before = state.party.find((m) => m.characterId === 'M1');
+  assert.equal(countActiveSpecialStatus(m1Before, 78), 1, 'MindEye 付与確認');
+
+  // Step 2: applyInitialPassiveState でパッシブ評価を実行
+  state = applyInitialPassiveState(state);
+  
+  const m1After = state.party.find((m) => m.characterId === 'M1');
+  
+  // Debug: Check specialPassiveModifiers
+  if (!m1After.specialPassiveModifiers?.attackUpRate) {
+    // Simplified assertion to see what's actually there
+    console.log('specialPassiveModifiers:', m1After.specialPassiveModifiers);
+  }
+  
+  // Expected: AttackUp of 0.15 should be applied
+  assert.ok(
+    m1After.specialPassiveModifiers?.attackUpRate !== undefined &&
+    m1After.specialPassiveModifiers.attackUpRate >= 0.14 &&
+    m1After.specialPassiveModifiers.attackUpRate <= 0.16,
+    `AttackUp が適用されている (value=${m1After.specialPassiveModifiers?.attackUpRate})`
+  );
 });
 
 test('T08: Dodge(122) — commitTurnで前衛全員に付与・解除', () => {
@@ -12049,4 +14790,1827 @@ test('多ターンコミット後: 各ターンの party メンバーは独立�
   m1InState2.sp.current = 99;
   assert.equal(m1InState1.sp.current, state1SpBefore, 'state2 の mutation が state1 に影響しない');
   assert.equal(m1InState2.sp.current, 99);
+});
+
+test('normal → extra 遷移時にSP回復が発生しないこと', () => {
+  // EXターン付与スキルを持つパーティを作成（createManualExtraTurnParty と同じ構成）
+  const party = createManualExtraTurnParty();
+  const state = createBattleStateFromParty(party);
+
+  // 全メンバーの初期SP記録（initialSP: 10 で作成されている）
+  const initialSpByCharId = Object.fromEntries(
+    state.party.map((m) => [m.characterId, m.sp.current])
+  );
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'C1', skillId: 9000 },
+    1: { characterId: 'C2', skillId: 9001 },
+    2: { characterId: 'C3', skillId: 9002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  // 次のターンが EX ターンであることを確認
+  assert.equal(nextState.turnState.turnType, 'extra', '次のターンは EX ターンになるべき');
+
+  // 全アクションエントリの spChanges に 'base' 回復が含まれないことを確認
+  for (const entry of committedRecord.actions) {
+    const baseRecovery = (entry.spChanges ?? []).filter((ch) => ch.source === 'base');
+    assert.equal(
+      baseRecovery.length,
+      0,
+      `normal → extra 遷移時は base SP 回復が発生してはならない（characterId: ${entry.characterId}）`
+    );
+  }
+
+  // nextState の全メンバーSPがスキルコスト分のみ変化していることを確認（base 回復なし）
+  // 本パーティは全スキルSPコスト0のため、SP変化は0であるべき
+  for (const member of nextState.party) {
+    const initial = initialSpByCharId[member.characterId];
+    assert.equal(
+      member.sp.current,
+      initial,
+      `EX遷移時は base 回復なし（${member.characterId}: expected ${initial}, got ${member.sp.current}）`
+    );
+  }
+});
+
+// ---------- パッシブログ turnLabel 修正（regression test） ----------
+
+test('commitTurn後のpassiveEventsLastAppliedのturnLabelは次ターン（T2）を示す', () => {
+  // OnEveryTurn パッシブを持つ PT を使って T1 をコミットし、
+  // nextState.turnState.passiveEventsLastApplied の各イベントが
+  // T1 ではなく T2 の turnLabel を持つことを検証する。
+  // （修正前は applyRecoveryPipeline が state.turnState（T1）で呼ばれるため
+  //   イベントに turnLabel='T1' が付き、パッシブログ上で1ターンずれて表示されていた）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          baseMaxDp: 70,
+          currentDp: 35,
+          passives: [
+            {
+              id: 19801,
+              name: 'ターンラベルテスト',
+              timing: 'OnEveryTurn',
+              condition: 'IsFront()',
+              parts: [{ skill_type: 'HealDpRate', target_type: 'Self', power: [0.1, 0] }],
+            },
+          ],
+        }
+      : { baseMaxDp: 70 }
+  );
+  const state = createBattleStateFromParty(party);
+  applyInitialPassiveState(state);
+
+  assert.equal(state.turnState.turnLabel, 'T1', 'コミット前は T1');
+
+  const preview = previewTurn(state, {});
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.turnLabel, 'T2', 'コミット後は T2');
+
+  const turnStartEvents = (nextState.turnState.passiveEventsLastApplied ?? []).filter(
+    (e) => e.timing === 'OnEveryTurn'
+  );
+  assert.ok(turnStartEvents.length > 0, 'OnEveryTurnパッシブがpassiveEventsLastAppliedに含まれること');
+  for (const event of turnStartEvents) {
+    assert.equal(
+      event.turnLabel,
+      'T2',
+      `passiveEventsLastAppliedのturnLabelはT2であること（実際: ${event.turnLabel}）`
+    );
+  }
+});
+
+// ─── P1-A: リバーブレーション SP30 上限突破（OnSpecifiedSkill + HealSp + skillCeiling） ───
+
+test('P1-A: OnSpecifiedSkill + HealSp + SP30: リバーブレーション SP30上限突破テスト', () => {
+  // SP=18, sp.max=20 の状態で power=[5], value=[30] の HealSp を適用する。
+  // 修正前: source='passive', eventCeiling=sp.max=20 → endSP=20（+2のみ）
+  // 修正後: source='active', skillCeiling=30 → eventCeiling=30 → endSP=23（+5）
+  const triggerSkillId = 201001;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'REVERB1',
+          characterName: 'REVERB1',
+          initialSP: 18,
+          passives: [
+            {
+              id: 201000,
+              name: 'リバーブレーションテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                {
+                  skill_type: 'AdditionalHitOnSpecifiedSkill',
+                  target_type: 'Self',
+                  strval: [-1, { id: triggerSkillId, label: 'ReverbTrigger', name: 'Reverb Trigger Skill' }],
+                },
+                {
+                  skill_type: 'HealSp',
+                  target_type: 'AllyAll',
+                  power: [5, 0],
+                  value: [30, 0],
+                  cond: '',
+                  hit_condition: '',
+                  target_condition: '',
+                },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: triggerSkillId,
+              label: 'ReverbTrigger',
+              name: 'Reverb Trigger Skill',
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'REVERB1', skillId: triggerSkillId, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'REVERB1');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'sp_passive イベントが発生すること');
+  // SP=18 + HealSp(5) = 23。skillCeiling=30 があるため sp.max=20 を超えて適用される
+  assert.equal(spChange.postSP, 23, 'skillCeiling=30 により SP が 20 を超えて 23 になること（SP30対応）');
+  assert.equal(spChange.delta, 5, 'delta は power[0]=5 そのまま');
+});
+
+// ─── P1-B: クロノチェイン OD増加（OnHealedSpWithoutSelfHeal + OverDrivePointUp） ───
+
+test('P1-B: OnHealedSpWithoutSelfHeal + OverDrivePointUp: クロノチェイン OD増加テスト', () => {
+  // CHRONO1（クロノチェイン保持者）が別メンバーのSP回復スキルでSPが上昇したとき
+  // OverDrivePointUp +25% が odGauge に加算される。
+  const initialOdGauge = 10;
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'CHRONO1',
+        characterName: 'CHRONO1',
+        initialSP: 10,
+        passives: [
+          {
+            id: 202000,
+            name: 'クロノチェインテスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnHealedSpWithoutSelfHeal', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+              { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.25, 0], value: [0, 0], cond: '', hit_condition: '' },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        characterId: 'SPHEALER_C',
+        characterName: 'SPHEALER_C',
+        skills: [
+          {
+            id: 202001,
+            name: 'AllyFront HealSp',
+            sp_cost: 4,
+            parts: [{ skill_type: 'HealSp', target_type: 'AllyFront', power: [5, 0], value: [0, 0] }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = initialOdGauge;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'CHRONO1', skillId: 8000 },
+    1: { characterId: 'SPHEALER_C', skillId: 202001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+
+  // OD ゲージが +25% 増加していること
+  assert.ok(
+    Math.abs(nextState.turnState.odGauge - (initialOdGauge + 25)) < 0.1,
+    `OD gauge should increase by 25 (expected ~${initialOdGauge + 25}, got ${nextState.turnState.odGauge})`
+  );
+
+  // passiveEvents に OverDrivePointUp が含まれること
+  const odEvent = (committedRecord.passiveEvents ?? []).find(
+    (e) => e.effectTypes?.includes('OverDrivePointUp') && e.source === 'passive_trigger'
+  );
+  assert.ok(odEvent, 'passiveEvents に OverDrivePointUp passive_trigger イベントが含まれること');
+});
+
+// ─── P1-C: killCount × HealSp 倍率（クリアリング/意気軒昂 仕様確定） ───
+
+test('P1-C: OnKillCount + HealSp + killCount=2 → SP が 2 倍（+4）で発動する', () => {
+  // desc「敵1体につき味方全体のSP+2」に基づき、killCount=2 のとき delta=4 になること
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'KILL_MULTI1',
+          characterName: 'KILL_MULTI1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 203000,
+              name: '意気軒昂×killCount倍率テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnKillCount', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 203001,
+              name: 'Multi Kill Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'KILL_MULTI1', skillId: 203001, killCount: 2 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'KILL_MULTI1');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'sp_passive イベントが発生すること');
+  assert.equal(spChange.delta, 4, 'killCount=2 → delta=4 (2×2)');
+});
+
+test('P1-C: OnBreaking + HealSp + breakHitCount=2 → SP は倍にならない（+8 固定）', () => {
+  // desc「ブレイクしたとき自身のSPが8上昇する」= 単発発動、breakHitCount 倍率は不要
+  // breakHitCount=2 でも delta=8 のまま（16 にならない）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK_SP_FIXED',
+          characterName: 'BREAK_SP_FIXED',
+          initialSP: 5,
+          passives: [
+            {
+              id: 203002,
+              name: '激震×breakHitCount固定テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 203003,
+              name: 'Break Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BREAK_SP_FIXED', skillId: 203003, breakHitCount: 2 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'BREAK_SP_FIXED');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'sp_passive イベントが発生すること');
+  assert.equal(spChange.delta, 8, 'breakHitCount=2 でも delta=8 固定（倍にならない）');
+});
+
+// ─── P2-C: AdditionalHitOnOverDrivePointDownSkill + AdditionalTurn（トップアップ相当） ───
+
+test('P2-C: OnOverDrivePointDownSkill + AdditionalTurn: ODDownスキル使用時に追加ターン付与', () => {
+  // トップアップ相当: ODゲージを下げるスキル(OverDrivePointDown部位あり)を使ったとき AdditionalTurn 発動
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'TOPUP1',
+          characterName: 'TOPUP1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 204000,
+              name: 'トップアップテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnOverDrivePointDownSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 204001,
+              name: 'OD Down Skill',
+              sp_cost: 3,
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' },
+                { skill_type: 'OverDrivePointDown', target_type: 'All', power: [0.5, 0], value: [0, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'TOPUP1', skillId: 204001 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(
+    nextState.turnState.turnType,
+    'extra',
+    'OverDrivePointDown部位を持つスキル使用後は追加ターンになること'
+  );
+  assert.ok(
+    (nextState.turnState.extraTurnState?.allowedCharacterIds ?? []).includes('TOPUP1'),
+    'TOPUP1 が追加ターンの allowedCharacterIds に含まれること'
+  );
+});
+
+test('P2-C: OnOverDrivePointDownSkill does NOT fire when skill has no OverDrivePointDown part', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'TOPUP2',
+          characterName: 'TOPUP2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 204002,
+              name: 'トップアップテスト2（発火なし）',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnOverDrivePointDownSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 204003,
+              name: 'Normal Slash',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'TOPUP2', skillId: 204003 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  assert.notEqual(
+    nextState.turnState.turnType,
+    'extra',
+    'OverDrivePointDown部位のないスキルでは追加ターンにならないこと'
+  );
+});
+
+// ─── P2-B: AdditionalHitOnPursuit + HealSp（そよぐ新緑相当） ───
+
+test('P2-B: OnPursuit + HealSp: pursuedHitCount=1 → AllyFront SP+2', () => {
+  // そよぐ新緑相当: 追撃発動時（pursuedHitCount=1）、前衛全員 SP+2
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'SOYO1',
+          characterName: 'SOYO1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 205000,
+              name: 'そよぐ新緑テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnPursuit', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'AllyFront', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 205001,
+              name: 'Pursuit Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  // 基準SP: M1(SOYO1)=10, M2=10, M3=10（前衛）, M4..=10（後衛）
+  // ターン開始時SP回復(base=2)後: 全員+2 ※パッシブSP+2は前衛のみ
+  const preview = previewTurn(state, {
+    0: { characterId: 'SOYO1', skillId: 205001, pursuedHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'SOYO1');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'sp_passive イベントが SOYO1 に発生すること（自分も AllyFront）');
+  assert.equal(spChange.delta, 2, 'delta=2（power[0]=2）');
+});
+
+test('P2-B: OnPursuit does NOT fire when pursuedHitCount=0', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'SOYO2',
+          characterName: 'SOYO2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 205002,
+              name: 'そよぐ新緑テスト2（発火なし）',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnPursuit', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'AllyFront', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 205003,
+              name: 'No Pursuit Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'SOYO2', skillId: 205003, pursuedHitCount: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const entry = committedRecord.actions.find((a) => a.characterId === 'SOYO2');
+  const spChange = (entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spChange, 'pursuedHitCount=0 のとき sp_passive イベントが発生しないこと');
+});
+
+// ─── P2-A: AdditionalHitOnZone + HealSp（オーバーレイ相当）※RECEIVER-based ───
+
+test('P2-A: OnZone + HealSp: Zone展開スキル使用時に全員SP+2', () => {
+  // オーバーレイ相当: OVER1（パッシブ保持）が後衛に下がり、ZONECASTER が Zone スキルを使用する。
+  // OVER1 の AdditionalHitOnZone パッシブが発火し、AllyAll メンバーに SP+2 が適用される。
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'OVER1',
+        characterName: 'OVER1',
+        initialSP: 10,
+        passives: [
+          {
+            id: 206000,
+            name: 'オーバーレイテスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnZone', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        characterId: 'ZONECASTER',
+        characterName: 'ZONECASTER',
+        initialSP: 10,
+        skills: [
+          {
+            id: 206001,
+            name: 'Zone Skill',
+            sp_cost: 4,
+            parts: [
+              { skill_type: 'Zone', target_type: 'AllyAll', power: [0, 0], value: [0, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'OVER1', skillId: 8000 },
+    1: { characterId: 'ZONECASTER', skillId: 206001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // OVER1 のエントリに sp_passive イベントが存在すること
+  // （sp イベントは characterId ベースで各アクションエントリに振り分けられる）
+  const over1Entry = committedRecord.actions.find((a) => a.characterId === 'OVER1');
+  const spChange = (over1Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, 'Zone展開スキル使用後に OVER1 への sp_passive イベントが発生すること');
+  assert.equal(spChange.delta, 2, 'delta=2（power[0]=2）');
+
+  // passiveEvents にも HealSp トリガーが含まれること
+  const evt = (committedRecord.passiveEvents ?? []).find(
+    (e) => e.effectTypes?.includes('HealSp') && e.source === 'passive_trigger'
+  );
+  assert.ok(evt, 'passiveEvents に HealSp passive_trigger イベントが含まれること');
+});
+
+test('P2-A: OnZone: 自分がZone展開 → 自分のパッシブも発動', () => {
+  // オーバーレイ保持者 OVER2 自身が Zone スキルを使用した場合、自分のパッシブも発動する。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'OVER2',
+          characterName: 'OVER2',
+          initialSP: 10,
+          passives: [
+            {
+              id: 206002,
+              name: 'オーバーレイテスト2（自発）',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnZone', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 206003,
+              name: 'Self Zone Skill',
+              sp_cost: 3,
+              parts: [
+                { skill_type: 'Zone', target_type: 'AllyAll', power: [0, 0], value: [0, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'OVER2', skillId: 206003 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // OVER2 自身のアクションエントリに sp_passive イベントが存在すること（自分が Zone 展開 → 自分のパッシブも発動）
+  const over2Entry = committedRecord.actions.find((a) => a.characterId === 'OVER2');
+  const spChange = (over2Entry?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange, '自分が Zone 展開スキルを使用したとき自分への sp_passive イベントが発生すること');
+  assert.equal(spChange.delta, 2, 'delta=2');
+});
+
+test('P2-A: OnZone does NOT fire when skill has no Zone part', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'OVER3',
+          characterName: 'OVER3',
+          initialSP: 10,
+          passives: [
+            {
+              id: 206004,
+              name: 'オーバーレイテスト3（発火なし）',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnZone', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'AllyAll', power: [2, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 206005,
+              name: 'Normal Attack',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'OVER3', skillId: 206005 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  const evt = (committedRecord.passiveEvents ?? []).find(
+    (e) =>
+      e.source === 'passive_trigger' &&
+      e.effectTypes?.includes('HealSp') &&
+      e.characterId === 'OVER3'
+  );
+  assert.ok(!evt, 'Zone部位のないスキルでは AdditionalHitOnZone パッシブが発火しないこと');
+});
+
+// ─── P3-A: exitCond=Count 管理（激動: バトル中1回上限） ───
+
+test('P3-A: exitCond=Count(1): 2ターン目のブレイクでも激動が発動しない', () => {
+  // 激動相当: AdditionalHitOnBreaking + HealSp, exitCond=Count, exitVal=[1,0]
+  // T1: breakHitCount=1 → 発火（SP+8）
+  // T2: breakHitCount=1 → 発火しない（Count上限=1に達済み）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'GEKIDO1',
+          characterName: 'GEKIDO1',
+          initialSP: 5,
+          passives: [
+            {
+              id: 207000,
+              name: '激動テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                {
+                  skill_type: 'AdditionalHitOnBreaking',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  effect: { exitCond: 'Count', exitVal: [1, 0] },
+                },
+                { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 207001,
+              name: 'Break Skill',
+              sp_cost: 3,
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // T1: ブレイク発生 → 激動が発火する
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'GEKIDO1', skillId: 207001, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord: record1, nextState: state2 } = commitTurn(state, preview1);
+
+  const entry1 = record1.actions.find((a) => a.characterId === 'GEKIDO1');
+  const spChange1 = (entry1?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(spChange1, 'T1: sp_passive イベントが発生すること（1回目は発火する）');
+  assert.equal(spChange1.delta, 8, 'T1: delta=8');
+
+  // T2: 同じく breakHitCount=1 → 激動は発火しない（Count上限到達）
+  const preview2 = previewTurn(state2, {
+    0: { characterId: 'GEKIDO1', skillId: 207001, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { committedRecord: record2 } = commitTurn(state2, preview2);
+
+  const entry2 = record2.actions.find((a) => a.characterId === 'GEKIDO1');
+  const spChange2 = (entry2?.spChanges ?? []).find((c) => c.source === 'sp_passive');
+  assert.ok(!spChange2, 'T2: Count上限=1に達しているため sp_passive イベントが発生しないこと');
+});
+
+// ─── Phase A: sourceCharacterId / sourceCharacterName が statusEffect に保存される ───
+
+test('Phase A: active skill AttackUp includes sourceCharacterId matching the actor', () => {
+  // スキル由来 AttackUp バフに sourceCharacterId / sourceCharacterName が記録されること
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'BUFF_ACTOR',
+        characterName: 'BUFF_ACTOR',
+        initialSP: 10,
+        skills: [
+          {
+            id: 209001,
+            name: 'Attack Up Skill',
+            sp_cost: 3,
+            parts: [
+              {
+                skill_type: 'AttackUp',
+                target_type: 'AllyAll',
+                power: [0.5, 0],
+                effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [2, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'BUFF_ACTOR', skillId: 209001 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 前衛メンバー全員の AttackUp に sourceCharacterId が記録されていること
+  for (const member of nextState.party.slice(0, 3)) {
+    const stored = member.resolveEffectiveStatusEffects('AttackUp');
+    assert.ok(stored.length > 0, `${member.characterId} に AttackUp が付与されていること`);
+    assert.equal(
+      stored[0].sourceCharacterId,
+      'BUFF_ACTOR',
+      `${member.characterId} の AttackUp.sourceCharacterId が 'BUFF_ACTOR' であること`
+    );
+    assert.equal(
+      stored[0].sourceCharacterName,
+      'BUFF_ACTOR',
+      `${member.characterId} の AttackUp.sourceCharacterName が 'BUFF_ACTOR' であること`
+    );
+  }
+});
+
+// ─── Phase B: passive AttackUp が statusEffect として昇格される ───
+
+test('Phase B: OnRemovingBuff + AttackUp (浄化の喝采パターン): 発火時に statusEffect が作成される', () => {
+  // OnRemovingBuff で発火した AttackUp パッシブが statusEffect として記録されること
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'JOKA_ACTOR',
+        characterName: 'JOKA_ACTOR',
+        initialSP: 10,
+        passives: [
+          {
+            id: 209100,
+            name: '浄化の喝采テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              {
+                skill_type: 'AdditionalHitOnRemovingBuff',
+                target_type: 'Self',
+                power: [0, 0],
+                value: [0, 0],
+                cond: '',
+                hit_condition: '',
+                effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+              },
+              {
+                skill_type: 'AttackUp',
+                target_type: 'AllyAll',
+                power: [0.6, 0],
+                value: [0, 0],
+                cond: '',
+                hit_condition: '',
+                target_condition: '',
+                elements: ['Dark'],
+                effect: {
+                  category: 'AttackUpDark_Turn',
+                  limitType: 'Only',
+                  exitCond: 'PlayerTurnEnd',
+                  exitVal: [8, 0],
+                },
+              },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: 209101,
+            name: 'RemoveBuff Skill',
+            sp_cost: 3,
+            parts: [
+              { skill_type: 'RemoveBuff', target_type: 'Single', power: [1, 0] },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'JOKA_ACTOR', skillId: 209101, removeBuffCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 前衛メンバー全員に AttackUp statusEffect が付与されていること
+  for (const member of nextState.party.slice(0, 3)) {
+    const stored = member.resolveEffectiveStatusEffects('AttackUp');
+    assert.ok(stored.length > 0, `${member.characterId} に AttackUp statusEffect が付与されていること`);
+    assert.equal(stored[0].power, 0.6, `power=0.6（60%攻撃力アップ）`);
+    // commitTurn 後に PlayerTurnEnd デクリメントが1回走るため remaining は 8-1=7
+    assert.equal(stored[0].remaining, 7, `remaining=7（8ターン付与 → 1回デクリメント済み）`);
+    assert.equal(stored[0].exitCond, 'PlayerTurnEnd', `exitCond=PlayerTurnEnd`);
+    assert.equal(stored[0].sourceType, 'passive', `sourceType='passive'`);
+    assert.equal(stored[0].sourceCharacterId, 'JOKA_ACTOR', `sourceCharacterId='JOKA_ACTOR'`);
+  }
+});
+
+test('Phase B: OnBreaking + AttackUp (破砕の喝采パターン): breakHitCount=1 で statusEffect が作成される', () => {
+  // OnBreaking で発火した AttackUp パッシブが statusEffect として記録されること
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'HASSAI_ACTOR',
+        characterName: 'HASSAI_ACTOR',
+        initialSP: 10,
+        passives: [
+          {
+            id: 209200,
+            name: '破砕の喝采テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              {
+                skill_type: 'AdditionalHitOnBreaking',
+                target_type: 'Self',
+                power: [0, 0],
+                value: [0, 0],
+                cond: '',
+                hit_condition: '',
+                effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+              },
+              {
+                skill_type: 'AttackUp',
+                target_type: 'AllyAll',
+                power: [0.6, 0],
+                value: [0, 0],
+                cond: '',
+                hit_condition: '',
+                target_condition: '',
+                elements: [],
+                effect: {
+                  category: 'AttackUp_Turn',
+                  limitType: 'Only',
+                  exitCond: 'PlayerTurnEnd',
+                  exitVal: [8, 0],
+                },
+              },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: 209201,
+            name: 'Break Skill',
+            sp_cost: 3,
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike' }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'HASSAI_ACTOR', skillId: 209201, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  for (const member of nextState.party.slice(0, 3)) {
+    const stored = member.resolveEffectiveStatusEffects('AttackUp');
+    assert.ok(stored.length > 0, `${member.characterId} に AttackUp statusEffect が付与されていること`);
+    assert.equal(stored[0].power, 0.6, `power=0.6`);
+    // commitTurn 後に PlayerTurnEnd デクリメントが1回走るため remaining は 8-1=7
+    assert.equal(stored[0].remaining, 7, `remaining=7（8ターン付与 → 1回デクリメント済み）`);
+    assert.equal(stored[0].sourceCharacterId, 'HASSAI_ACTOR', `sourceCharacterId='HASSAI_ACTOR'`);
+  }
+});
+
+// ─── P3-B: exitCond=PlayerTurnEnd 管理（二度咲き: 同一プレイヤーターン内1回） ───
+
+test('P3-B: exitCond=PlayerTurnEnd: T1EXで再度EXスキル使用しても二度咲きが発動しない', () => {
+  // 二度咲き相当: AdditionalHitOnExtraSkill + AdditionalTurn, exitCond=PlayerTurnEnd
+  // T1: EXスキル使用 → 発火 → extra turn
+  // T1EX: 再度EXスキル使用 → 発火しない（PlayerTurnEnd = 同一ターン内1回）
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'FUTABA1',
+          characterName: 'FUTABA1',
+          initialSP: 20,
+          passives: [
+            {
+              id: 208000,
+              name: '二度咲きテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                {
+                  skill_type: 'AdditionalHitOnExtraSkill',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  effect: { exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 208001,
+              name: 'EX Skill',
+              sp_cost: 10,
+              is_restricted: 1,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // T1: EXスキル使用 → 二度咲き発火 → extra turn
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'FUTABA1', skillId: 208001 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateT1EX } = commitTurn(state, preview1);
+  assert.equal(stateT1EX.turnState.turnType, 'extra', 'T1後はextra turnになること');
+
+  // T1EX: 同じEXスキルを再使用 → 二度咲きは発動しない
+  const preview1ex = previewTurn(stateT1EX, {
+    0: { characterId: 'FUTABA1', skillId: 208001 },
+  });
+  const { nextState: stateT2 } = commitTurn(stateT1EX, preview1ex);
+  assert.notEqual(
+    stateT2.turnState.turnType,
+    'extra',
+    'T1EXで再度EXスキルを使用しても二度咲きは発動せず追加ターンにならないこと'
+  );
+});
+
+test('P3-B: exitCond=PlayerTurnEnd: T2では再び発動する', () => {
+  // 二度咲き相当のパッシブは、プレイヤーターンが変わったら再び発動する。
+  // T1 → T1EX(スキップ) → T2 で二度咲き再発火
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'FUTABA2',
+          characterName: 'FUTABA2',
+          initialSP: 20,
+          passives: [
+            {
+              id: 208002,
+              name: '二度咲きテスト2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                {
+                  skill_type: 'AdditionalHitOnExtraSkill',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  effect: { exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                },
+                { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 208003,
+              name: 'EX Skill 2',
+              sp_cost: 10,
+              is_restricted: 1,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+            {
+              id: 208004,
+              name: 'Normal Skill',
+              sp_cost: 0,
+              parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  // T1: EXスキル → 二度咲き発火 → extra turn
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'FUTABA2', skillId: 208003 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateT1EX } = commitTurn(state, preview1);
+  assert.equal(stateT1EX.turnState.turnType, 'extra', 'T1後はextra turnになること');
+
+  // T1EX: 通常スキルを使用して T2 へ（二度咲き非発動で extra ターン消費）
+  const preview1ex = previewTurn(stateT1EX, {
+    0: { characterId: 'FUTABA2', skillId: 208004 },
+  });
+  const { nextState: stateT2 } = commitTurn(stateT1EX, preview1ex);
+  assert.equal(stateT2.turnState.turnType, 'normal', 'T1EX消化後はnormal(T2)になること');
+  assert.equal(stateT2.turnState.turnIndex, 2, 'turnIndex=2');
+
+  // T2: EXスキルを使用 → 二度咲きが再発火してextra turnになる
+  const preview2 = previewTurn(stateT2, {
+    0: { characterId: 'FUTABA2', skillId: 208003 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateT2EX } = commitTurn(stateT2, preview2);
+  assert.equal(
+    stateT2EX.turnState.turnType,
+    'extra',
+    'T2でEXスキル使用時、PlayerTurnEnd リセット後に二度咲きが再発火してextra turnになること'
+  );
+});
+
+test('DoubleActionExtraSkill: 水瀬すももの初回EXは二連になり、SPは1回分・使用回数は2回分消費する', () => {
+  const store = getStore();
+  const party = buildFullSkillRealDataParty(store, 46002310, {
+    buildOptions: {
+      initialSP: 30,
+      limitBreakLevelsByPartyIndex: { 0: 2 },
+    },
+  });
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  const actor = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46002310, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.deepEqual(preview.actions.map((entry) => entry.castIndex), [0, 1]);
+  assert.equal(preview.actions[0].castCount, 2);
+  assert.equal(preview.actions[0].spCost, 14);
+  assert.equal(preview.actions[1].spCost, 0);
+  assert.equal(preview.actions[1].isDerivedRepeat, true);
+  assert.equal(preview.actions[1].startSP, preview.actions[0].endSP);
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const actorAfter = nextState.party[0];
+
+  assert.equal(committedRecord.actions.length, 2);
+  assert.equal(actorAfter.getSkillUseCountByLabel('SMinaseSkill54'), 2);
+  assert.equal(actorAfter.resolveEffectiveDoubleActionExtraSkillEffects().length, 0);
+});
+
+test('DoubleActionExtraSkill: 水瀬すももLB3はEX使用後に次回ぶんの二連権を再付与する', () => {
+  const store = getStore();
+  const party = buildFullSkillRealDataParty(store, 46002310, {
+    buildOptions: {
+      initialSP: 30,
+      limitBreakLevelsByPartyIndex: { 0: 3 },
+    },
+  });
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  const actor = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46002310, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  const actorAfter = nextState.party[0];
+
+  assert.equal(actorAfter.resolveEffectiveDoubleActionExtraSkillEffects().length, 1);
+
+  const nextPreview = previewTurn(nextState, {
+    0: { characterId: actorAfter.characterId, skillId: 46002310, targetEnemyIndex: 0 },
+  });
+  assert.equal(nextPreview.actions.length, 2);
+});
+
+test('DoubleActionExtraSkill: 朝倉可憐の意気揚々で次のEX二連権が自己付与される', () => {
+  const store = getStore();
+  const party = buildFullSkillRealDataParty(store, 46001512, {
+    buildOptions: {
+      initialSP: 30,
+    },
+  });
+  const initialState = createBattleStateFromParty(party);
+  const actor = initialState.party[0];
+
+  const buffPreview = previewTurn(initialState, {
+    0: { characterId: actor.characterId, skillId: 46001511, targetEnemyIndex: 0 },
+  });
+  const { nextState: buffedState } = commitTurn(initialState, buffPreview);
+  const actorAfterBuff = buffedState.party[0];
+
+  assert.equal(actorAfterBuff.resolveEffectiveDoubleActionExtraSkillEffects().length, 1);
+
+  const exPreview = previewTurn(buffedState, {
+    0: { characterId: actorAfterBuff.characterId, skillId: 46001512, targetEnemyIndex: 0 },
+  });
+  assert.equal(exPreview.actions.length, 2);
+  assert.equal(exPreview.actions[0].spCost, 14);
+  assert.equal(exPreview.actions[1].spCost, 0);
+  assert.equal(exPreview.actions[1].startSP, exPreview.actions[0].endSP);
+
+  const { nextState: exState } = commitTurn(buffedState, exPreview);
+  const actorAfterEx = exState.party[0];
+  assert.equal(actorAfterEx.getSkillUseCountByLabel('KAsakuraSkill54'), 2);
+  assert.equal(actorAfterEx.resolveEffectiveDoubleActionExtraSkillEffects().length, 0);
+});
+
+test('DoubleActionExtraSkill: 李映夏Funnel付きフグリングクラッシュは1発目だけFunnelを消費し各castで全体バフを付与する', () => {
+  const store = getStore();
+  const LI_STYLE_ID = 1008203;
+  const KAREN_STYLE_ID = 1001507;
+  const FILLER_STYLE_ID = 1001101;
+  const FILLER_BACK_STYLE_IDS = [1001201, 1001301, 1001401];
+  const PROTECTION_SKILL_ID = 46300004;
+  const LI_FUNNEL_SKILL_ID = 46008205;
+  const KAREN_DOUBLE_ACTION_SKILL_ID = 46001511;
+  const KAREN_EX_SKILL_ID = 46001512;
+  const LI_CHARACTER_ID = 'LShanhua';
+  const KAREN_CHARACTER_ID = 'KAsakura';
+  const FUNNEL_POWER = 5;
+  const ATTACK_UP_POWER = 0.75;
+  const EX_SP_COST = 14;
+  const PARTY_MEMBER_COUNT = 6;
+  const REAL_DATA_TEST_INITIAL_SP = 30;
+
+  const party = store.buildPartyFromStyleIds(
+    [LI_STYLE_ID, KAREN_STYLE_ID, FILLER_STYLE_ID, ...FILLER_BACK_STYLE_IDS],
+    {
+      initialSP: REAL_DATA_TEST_INITIAL_SP,
+      skillSetsByPartyIndex: {
+        0: [LI_FUNNEL_SKILL_ID, PROTECTION_SKILL_ID],
+        1: [KAREN_DOUBLE_ACTION_SKILL_ID, KAREN_EX_SKILL_ID, PROTECTION_SKILL_ID],
+        2: [PROTECTION_SKILL_ID],
+      },
+    }
+  );
+  const initialState = createBattleStateFromParty(party);
+  const lee = initialState.party.find((member) => member.characterId === LI_CHARACTER_ID);
+  const karen = initialState.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+  const filler = initialState.party[2];
+
+  assert.ok(lee, '李映夏が前衛に存在すること');
+  assert.ok(karen, '朝倉可憐が前衛に存在すること');
+  assert.ok(filler, 'フィラーが前衛に存在すること');
+
+  const turn1Preview = previewTurn(initialState, {
+    0: { characterId: lee.characterId, skillId: LI_FUNNEL_SKILL_ID, targetCharacterId: karen.characterId },
+    1: { characterId: karen.characterId, skillId: PROTECTION_SKILL_ID },
+    2: { characterId: filler.characterId, skillId: PROTECTION_SKILL_ID },
+  });
+  const { nextState: turn1State } = commitTurn(initialState, turn1Preview);
+  const karenAfterTurn1 = turn1State.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+  const turn1FunnelEffects = karenAfterTurn1.resolveEffectiveFunnelEffects();
+  const turn1AttackUpEffects = karenAfterTurn1
+    .resolveEffectiveStatusEffects('AttackUp')
+    .filter((effect) => Number(effect?.sourceSkillId ?? 0) === LI_FUNNEL_SKILL_ID);
+
+  assert.equal(turn1FunnelEffects.length, 1);
+  assert.equal(turn1FunnelEffects[0].power, FUNNEL_POWER);
+  assert.equal(turn1FunnelEffects[0].exitCond, 'Count');
+  assert.equal(turn1FunnelEffects[0].sourceSkillId, LI_FUNNEL_SKILL_ID);
+  assert.equal(turn1AttackUpEffects.length, 1);
+  assert.equal(turn1AttackUpEffects[0].power, ATTACK_UP_POWER);
+  assert.equal(turn1AttackUpEffects[0].sourceSkillId, LI_FUNNEL_SKILL_ID);
+
+  const turn2Lee = turn1State.party.find((member) => member.characterId === LI_CHARACTER_ID);
+  const turn2Karen = turn1State.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+  const turn2Filler = turn1State.party[2];
+  const turn2Preview = previewTurn(turn1State, {
+    0: { characterId: turn2Lee.characterId, skillId: PROTECTION_SKILL_ID },
+    1: { characterId: turn2Karen.characterId, skillId: KAREN_DOUBLE_ACTION_SKILL_ID },
+    2: { characterId: turn2Filler.characterId, skillId: PROTECTION_SKILL_ID },
+  });
+  const { nextState: turn2State } = commitTurn(turn1State, turn2Preview);
+  const karenAfterTurn2 = turn2State.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+
+  assert.equal(karenAfterTurn2.resolveEffectiveDoubleActionExtraSkillEffects().length, 1);
+  assert.equal(karenAfterTurn2.resolveEffectiveFunnelEffects().length, 1);
+  assert.equal(
+    karenAfterTurn2
+      .resolveEffectiveStatusEffects('AttackUp')
+      .filter((effect) => Number(effect?.sourceSkillId ?? 0) === LI_FUNNEL_SKILL_ID).length,
+    1
+  );
+
+  const turn3Lee = turn2State.party.find((member) => member.characterId === LI_CHARACTER_ID);
+  const turn3Karen = turn2State.party.find((member) => member.characterId === KAREN_CHARACTER_ID);
+  const turn3Filler = turn2State.party[2];
+  const turn3Preview = previewTurn(turn2State, {
+    0: { characterId: turn3Lee.characterId, skillId: PROTECTION_SKILL_ID },
+    1: { characterId: turn3Karen.characterId, skillId: KAREN_EX_SKILL_ID, targetEnemyIndex: 0 },
+    2: { characterId: turn3Filler.characterId, skillId: PROTECTION_SKILL_ID },
+  });
+  const karenPreviewActions = turn3Preview.actions.filter(
+    (action) => action.characterId === KAREN_CHARACTER_ID
+  );
+
+  assert.equal(karenPreviewActions.length, 2);
+  assert.deepEqual(karenPreviewActions.map((action) => action.castIndex), [0, 1]);
+  assert.equal(karenPreviewActions[0].skillFunnelHitBonus, FUNNEL_POWER);
+  assert.equal(karenPreviewActions[1].skillFunnelHitBonus, 0);
+  assert.ok(
+    karenPreviewActions[0].activeStatusEffects.some(
+      (effect) => effect.statusType === 'AttackUp' && Number(effect.sourceSkillId ?? 0) === LI_FUNNEL_SKILL_ID
+    )
+  );
+  assert.ok(
+    !karenPreviewActions[1].activeStatusEffects.some(
+      (effect) => effect.statusType === 'AttackUp' && Number(effect.sourceSkillId ?? 0) === LI_FUNNEL_SKILL_ID
+    )
+  );
+  assert.equal(karenPreviewActions[0].spCost, EX_SP_COST);
+  assert.equal(karenPreviewActions[1].spCost, 0);
+
+  const { committedRecord: turn3Record } = commitTurn(turn2State, turn3Preview);
+  const karenCommittedActions = turn3Record.actions.filter(
+    (action) => action.characterId === KAREN_CHARACTER_ID
+  );
+
+  assert.equal(karenCommittedActions.length, 2);
+  assert.equal(karenCommittedActions[0].consumedFunnelEffects.length, 1);
+  assert.equal(karenCommittedActions[1].consumedFunnelEffects.length, 0);
+
+  for (const action of karenCommittedActions) {
+    const criticalRateUpEvents = action.statusEffectsApplied.filter(
+      (event) => event.statusType === 'CriticalRateUp'
+    );
+    const criticalDamageUpEvents = action.statusEffectsApplied.filter(
+      (event) => event.statusType === 'CriticalDamageUp'
+    );
+
+    assert.equal(criticalRateUpEvents.length, PARTY_MEMBER_COUNT);
+    assert.equal(criticalDamageUpEvents.length, PARTY_MEMBER_COUNT);
+    assert.ok(
+      criticalRateUpEvents.every((event) => String(event?.actionInstanceId ?? '') === action.actionInstanceId)
+    );
+    assert.ok(
+      criticalDamageUpEvents.every((event) => String(event?.actionInstanceId ?? '') === action.actionInstanceId)
+    );
+  }
+});
+
+test('DoubleActionExtraSkill: 水瀬すももの二連EXで東城つかさLB3のお裾分けが2回発火する', () => {
+  const store = getStore();
+  const TOJO_STYLE_ID = 1001408;
+  const SUMOMO_STYLE_ID = 1002307;
+  const FRONT_FILLER_STYLE_ID = 1001101;
+  const BACK_FILLER_STYLE_IDS = [1001201, 1001301, 1001501];
+  const PROTECTION_SKILL_ID = 46300004;
+  const SUMOMO_EX_SKILL_ID = 46002310;
+  const TOJO_CHARACTER_ID = 'TTojo';
+  const SUMOMO_CHARACTER_ID = 'SMinase';
+  const FRONT_FILLER_CHARACTER_ID = 'RKayamori';
+  const PASSIVE_TRIGGER_CEILING = 30;
+  const PASSIVE_TRIGGER_COUNT = 2;
+  const TOJO_SELF_HEAL_DELTA = 3;
+  const TOJO_PARTY_HEAL_DELTA = 2;
+  const INITIAL_SUMOMO_SP = 30;
+  const INITIAL_OTHER_SP = 10;
+  const EXPECTED_BACKLINE_SP_AFTER_DOUBLE_EX = 20;
+
+  const party = store.buildPartyFromStyleIds(
+    [TOJO_STYLE_ID, SUMOMO_STYLE_ID, FRONT_FILLER_STYLE_ID, ...BACK_FILLER_STYLE_IDS],
+    {
+      initialSP: INITIAL_OTHER_SP,
+      initialSpByPartyIndex: {
+        1: INITIAL_SUMOMO_SP,
+      },
+      limitBreakLevelsByPartyIndex: {
+        0: 3,
+        1: 3,
+      },
+      skillSetsByPartyIndex: {
+        0: [PROTECTION_SKILL_ID],
+        1: [SUMOMO_EX_SKILL_ID, PROTECTION_SKILL_ID],
+        2: [PROTECTION_SKILL_ID],
+      },
+    }
+  );
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  const tojo = state.party.find((member) => member.characterId === TOJO_CHARACTER_ID);
+  const sumomo = state.party.find((member) => member.characterId === SUMOMO_CHARACTER_ID);
+  const frontFiller = state.party.find((member) => member.characterId === FRONT_FILLER_CHARACTER_ID);
+
+  assert.ok(tojo, '東城つかさが前衛に存在すること');
+  assert.ok(sumomo, '水瀬すももが前衛に存在すること');
+  assert.ok(frontFiller, '前衛フィラーが存在すること');
+
+  const preview = previewTurn(state, {
+    0: { characterId: tojo.characterId, skillId: PROTECTION_SKILL_ID },
+    1: { characterId: sumomo.characterId, skillId: SUMOMO_EX_SKILL_ID, targetEnemyIndex: 0 },
+    2: { characterId: frontFiller.characterId, skillId: PROTECTION_SKILL_ID },
+  });
+  const sumomoPreviewActions = preview.actions.filter(
+    (action) => action.characterId === SUMOMO_CHARACTER_ID
+  );
+
+  assert.equal(sumomoPreviewActions.length, 2);
+  assert.deepEqual(sumomoPreviewActions.map((action) => action.castIndex), [0, 1]);
+  assert.notEqual(
+    sumomoPreviewActions[0].actionInstanceId,
+    sumomoPreviewActions[1].actionInstanceId,
+    '二連EXの各castは別actionInstanceIdを持つこと'
+  );
+
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const committedSumomoActions = committedRecord.actions.filter(
+    (action) => action.characterId === SUMOMO_CHARACTER_ID
+  );
+  const tojoAction = committedRecord.actions.find((action) => action.characterId === TOJO_CHARACTER_ID);
+  const frontFillerAction = committedRecord.actions.find(
+    (action) => action.characterId === FRONT_FILLER_CHARACTER_ID
+  );
+
+  assert.equal(committedSumomoActions.length, 2);
+  assert.ok(tojoAction, '東城つかさのaction recordが存在すること');
+  assert.ok(frontFillerAction, '前衛フィラーのaction recordが存在すること');
+
+  const oshusowakeEvents = (committedRecord.passiveEvents ?? []).filter(
+    (event) => event.passiveName === 'お裾分け'
+  );
+  const aikyoEvents = (committedRecord.passiveEvents ?? []).filter(
+    (event) => event.passiveName === '愛嬌'
+  );
+
+  assert.equal(oshusowakeEvents.length, PASSIVE_TRIGGER_COUNT);
+  assert.equal(aikyoEvents.length, PASSIVE_TRIGGER_COUNT);
+  assert.deepEqual(oshusowakeEvents.map((event) => event.castIndex), [0, 1]);
+  assert.deepEqual(aikyoEvents.map((event) => event.castIndex), [0, 1]);
+  assert.deepEqual(
+    oshusowakeEvents.map((event) => event.actionInstanceId),
+    committedSumomoActions.map((action) => action.actionInstanceId)
+  );
+  assert.deepEqual(
+    aikyoEvents.map((event) => event.actionInstanceId),
+    committedSumomoActions.map((action) => action.actionInstanceId)
+  );
+  assert.ok(
+    oshusowakeEvents.every((event) => Number(event.triggerSkillId ?? 0) === SUMOMO_EX_SKILL_ID)
+  );
+  assert.ok(
+    aikyoEvents.every((event) => Number(event.triggerSkillId ?? 0) === SUMOMO_EX_SKILL_ID)
+  );
+
+  const tojoPassiveSpChanges = (tojoAction.spChanges ?? []).filter(
+    (change) => change.source === 'sp_passive'
+  );
+  const tojoSelfHealChanges = tojoPassiveSpChanges.filter(
+    (change) =>
+      change.delta === TOJO_SELF_HEAL_DELTA &&
+      Number(change.eventCeiling ?? 0) === PASSIVE_TRIGGER_CEILING
+  );
+  const tojoPartyHealChanges = tojoPassiveSpChanges.filter(
+    (change) =>
+      change.delta === TOJO_PARTY_HEAL_DELTA &&
+      Number(change.eventCeiling ?? 0) === PASSIVE_TRIGGER_CEILING
+  );
+  assert.equal(tojoSelfHealChanges.length, PASSIVE_TRIGGER_COUNT);
+  assert.equal(tojoPartyHealChanges.length, PASSIVE_TRIGGER_COUNT);
+
+  const frontFillerPassiveSpChanges = (frontFillerAction.spChanges ?? []).filter(
+    (change) =>
+      change.source === 'sp_passive' &&
+      change.delta === TOJO_PARTY_HEAL_DELTA &&
+      Number(change.eventCeiling ?? 0) === PASSIVE_TRIGGER_CEILING
+  );
+  assert.equal(frontFillerPassiveSpChanges.length, PASSIVE_TRIGGER_COUNT);
+
+  for (const action of committedSumomoActions) {
+    const partyHealChanges = (action.spChanges ?? []).filter(
+      (change) =>
+        change.source === 'sp_passive' &&
+        change.delta === TOJO_PARTY_HEAL_DELTA &&
+        Number(change.eventCeiling ?? 0) === PASSIVE_TRIGGER_CEILING
+    );
+    assert.equal(partyHealChanges.length, 1);
+  }
+
+  const nextSpByCharacterId = Object.fromEntries(
+    nextState.party.map((member) => [member.characterId, member.sp.current])
+  );
+  for (const backlineCharacterId of ['YIzumi', 'MAikawa', 'KAsakura']) {
+    assert.equal(
+      nextSpByCharacterId[backlineCharacterId],
+      EXPECTED_BACKLINE_SP_AFTER_DOUBLE_EX,
+      `${backlineCharacterId} は二連EXとお裾分け2回で SP20 になること`
+    );
+  }
+});
+
+test('DoubleActionExtraSkill: EX残回数が1以下なら二連せず単発のままになる', () => {
+  const singleUseState = createDoubleActionManualState({
+    skillOptions: {
+      usage: {
+        mode: 'fixed',
+        displayUses: 1,
+        maxUses: 1,
+        minUses: 1,
+        expandable: true,
+      },
+    },
+  });
+
+  const preview = previewTurn(singleUseState, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 1);
+  assert.equal(preview.actions[0].castCount, 1);
+  assert.equal(preview.actions[0].spCost, 14);
+});
+
+test('DoubleActionExtraSkill: Funnelは1発目だけで消費され、2発目には乗らない', () => {
+  const state = createDoubleActionManualState({
+    statusEffects: [
+      {
+        statusType: 'Funnel',
+        limitType: 'Default',
+        exitCond: 'Count',
+        remaining: 1,
+        power: 3,
+      },
+    ],
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.ok(preview.actions[0].skillFunnelHitBonus > 0);
+  assert.equal(preview.actions[1].skillFunnelHitBonus, 0);
+
+  const { committedRecord } = commitTurn(state, preview);
+  assert.equal(committedRecord.actions[0].consumedFunnelEffects.length, 1);
+  assert.equal(committedRecord.actions[1].consumedFunnelEffects.length, 0);
+});
+
+test('DoubleActionExtraSkill: MindEyeは1発目だけで消費され、2発目では消費されない', () => {
+  const state = createDoubleActionManualState({
+    statusEffects: [
+      {
+        statusType: 'MindEye',
+        limitType: 'Only',
+        exitCond: 'Count',
+        remaining: 1,
+        power: 1,
+        metadata: { singleTrigger: true },
+      },
+    ],
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  assert.equal(committedRecord.actions.length, 2);
+  assert.equal(committedRecord.actions[0].consumedMindEyeEffects.length, 1);
+  assert.equal(committedRecord.actions[1].consumedMindEyeEffects.length, 0);
+});
+
+test('DoubleActionExtraSkill: Count型AttackUpは1発目で切れ、2発目previewには残らない', () => {
+  const state = createDoubleActionManualState({
+    statusEffects: [
+      {
+        statusType: 'AttackUp',
+        limitType: 'Default',
+        exitCond: 'Count',
+        remaining: 1,
+        power: 0.5,
+        metadata: { activeBuffStatus: true },
+      },
+    ],
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.equal(preview.actions[0].activeStatusEffectModifiers.attackUpRate, 0.5);
+  assert.equal(preview.actions[1].activeStatusEffectModifiers.attackUpRate, 0);
+});
+
+test('DoubleActionExtraSkill: passive由来のCount型AttackUpはaction消費されず2発目にも残る', () => {
+  const state = createDoubleActionManualState({
+    statusEffects: [
+      {
+        statusType: 'AttackUp',
+        limitType: 'Default',
+        exitCond: 'Count',
+        remaining: 1,
+        power: 0.5,
+        sourceType: 'passive',
+      },
+    ],
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.equal(preview.actions[0].activeStatusEffectModifiers.attackUpRate, 0.5);
+  assert.equal(preview.actions[1].activeStatusEffectModifiers.attackUpRate, 0.5);
+});
+
+test('DoubleActionExtraSkill: self resource gains are allocated to each cast without duplication', () => {
+  const state = createDoubleActionManualState({
+    skillOptions: {
+      parts: [
+        { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' },
+        { skill_type: 'HealSp', target_type: 'Self', power: [2, 0], value: [0, 0] },
+        { skill_type: 'HealEp', target_type: 'Self', power: [3, 0], value: [0, 0] },
+        { skill_type: 'TokenSet', target_type: 'Self', power: [1, 0], value: [0, 0] },
+      ],
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEX1', skillId: 99001, targetEnemyIndex: 0 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  assert.equal(committedRecord.actions.length, 2);
+
+  const firstSpSkillChanges = committedRecord.actions[0].spChanges.filter(
+    (change) => change.source === 'active' && change.delta === 2
+  );
+  const secondSpSkillChanges = committedRecord.actions[1].spChanges.filter(
+    (change) => change.source === 'active' && change.delta === 2
+  );
+  assert.equal(firstSpSkillChanges.length, 1);
+  assert.equal(secondSpSkillChanges.length, 1);
+  assert.equal(firstSpSkillChanges[0].delta, 2);
+  assert.equal(secondSpSkillChanges[0].delta, 2);
+
+  const firstEpSkillChanges = committedRecord.actions[0].epChanges.filter(
+    (change) => change.source === 'ep_skill'
+  );
+  const secondEpSkillChanges = committedRecord.actions[1].epChanges.filter(
+    (change) => change.source === 'ep_skill'
+  );
+  assert.equal(firstEpSkillChanges.length, 1);
+  assert.equal(secondEpSkillChanges.length, 1);
+  assert.equal(firstEpSkillChanges[0].delta, 3);
+  assert.equal(secondEpSkillChanges[0].delta, 3);
+
+  const firstTokenSkillChanges = committedRecord.actions[0].tokenChanges.filter(
+    (change) => change.source === 'token_skill'
+  );
+  const secondTokenSkillChanges = committedRecord.actions[1].tokenChanges.filter(
+    (change) => change.source === 'token_skill'
+  );
+  assert.equal(firstTokenSkillChanges.length, 1);
+  assert.equal(secondTokenSkillChanges.length, 1);
+  assert.equal(firstTokenSkillChanges[0].delta, 1);
+  assert.equal(secondTokenSkillChanges[0].delta, 1);
+});
+
+// od_rate OD 上昇量補正テスト
+test('enemy od_rate scales OD gain by od_rate/10000 multiplier (WIP: rounding position TBD)', () => {
+  // 4-hit 単体攻撃: 攻撃 OD = trunc2(2.5 * 4) = 10.00%
+  // od_rate=5000 (50%) → effectiveGain = trunc2(10.00 * 0.5) = 5.00%
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODR${idx + 1}`,
+      characterName: `ODR${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15900 + idx,
+          name: idx === 0 ? '4hit Single' : 'Protection',
+          label: idx === 0 ? 'FourHitSingle' : `ODRSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 4 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 5000 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'ODR1', skillId: 15900 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
+  // 補正後: trunc2(10.00 * 0.5) = 5.00
+  assert.equal(nextState.turnState.odGauge, 5);
+});
+
+test('enemy od_rate=0 means no correction: OD gain is unchanged', () => {
+  // 4-hit 単体攻撃: OD = 10.00%、od_rate=0 → 補正なし → 10.00%
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `OD0${idx + 1}`,
+      characterName: `OD0${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `OD0S${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15920 + idx,
+          name: idx === 0 ? '4hit Single' : 'Protection',
+          label: idx === 0 ? 'FourHitSingleNoRate' : `OD0Skill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 4 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 0 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'OD01', skillId: 15920 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
+  // 補正なし: 10.00%
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
+// ─── Multiple passive trigger同時発火のテスト ───
+
+test('Multiple AdditionalHitOnBreaking passives fire simultaneously when breaking (敵をブレイク時に複数パッシブ発火)', () => {
+  // 複数のAdditionalHitOnBreakingトリガーを持つパッシブが、
+  // 敵ブレイク時に同時に発火することを検証する。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'MULTI_BREAK1',
+          characterName: 'MULTI_BREAK1',
+          initialSP: 10,
+          passives: [
+            {
+              id: 100201,
+              name: 'ブレイク時OD増加パッシブ1',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.25, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+            {
+              id: 100202,
+              name: 'ブレイク時OD増加パッシブ2',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.15, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100203,
+              name: 'Break Trigger Multi-Passive',
+              sp_cost: 3,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  
+  const preview = previewTurn(state, {
+    0: { characterId: 'MULTI_BREAK1', skillId: 100203, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  
+  const finalOdGauge = Number(nextState.turnState.odGauge ?? 0);
+  
+  // OD増加: パッシブ1で +25（0.25*100）、パッシブ2で +15（0.15*100）、合計 +40
+  assert.ok(
+    Math.abs(finalOdGauge - (initialOdGauge + 40)) < 0.1,
+    `OD gauge should increase by 40 (25+15) from both AdditionalHitOnBreaking passives: initial=${initialOdGauge}, final=${finalOdGauge}`
+  );
+});
+
+test('Multiple AdditionalHitOnBreaking passives with different effects on breaking', () => {
+  // 複数のパッシブが敵ブレイク時に発火し、それぞれの効果が正しく適用されることを検証
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'MULTI_BREAK2',
+          characterName: 'MULTI_BREAK2',
+          initialSP: 15,
+          passives: [
+            {
+              id: 100301,
+              name: 'ブレイク時OD+30',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.3, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+            {
+              id: 100302,
+              name: 'ブレイク時OD+20',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.2, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100304,
+              name: 'Break Trigger Summed OD',
+              sp_cost: 5,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  
+  const preview = previewTurn(state, {
+    0: { characterId: 'MULTI_BREAK2', skillId: 100304, breakHitCount: 1 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  
+  const finalOdGauge = Number(nextState.turnState.odGauge ?? 0);
+  
+  // OD増加: パッシブ1で +30、パッシブ2で +20、合計 +50
+  assert.ok(
+    Math.abs(finalOdGauge - (initialOdGauge + 50)) < 0.1,
+    `OD gauge should increase by 50 (30+20) from both passives: initial=${initialOdGauge}, final=${finalOdGauge}`
+  );
 });

@@ -1,6 +1,6 @@
 # 軽量 Record / Replay / Edit 設計案
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-03-28
 >
 > **前提調査**: [`../20260314_record_replay_edit_investigation/README.md`](../20260314_record_replay_edit_investigation/README.md)
 
@@ -10,6 +10,17 @@
 - `record` は観測ログとして残しつつ、編集対象から外す
 - 「ターンを少し編集したら、そのターン以降を素直に再計算する」というユーザー認識と実装を一致させる
 - swap 操作そのものではなく、「Commit 時点の Position」と「その Position で使った Skill」を一体で保存する
+
+## 実装反映メモ（2026-03-28）
+
+- `ui-next` は `LightweightReplayScript` を正本とし、`TurnEngineManager` が `buildTurnEditDraft()` / `replaceCommittedTurn()` / `getReplayDiagnostics()` を持つ構成へ更新済み
+- committed row の編集は inline mutate ではなく、draft をまとめて置換して turn 1 から best-effort replay する方式へ移行済み
+- warning は replay diagnostics にのみ保持し、session snapshot には保存しない
+- soft warning として実装済み: SP不足継続、OD不足継続、使用回数超過、skill condition 不一致、未知 operation 無視、単体ブレイク target 正規化
+- hard error は replay を停止し、対象 row に error 表示を出す
+- stale special turn の圧縮は safe subset のみ実装済み
+  - 直前 turn の再計算結果で OD / EX 継続が確実に消えた場合だけ後続 special turn を削除
+  - break 継続や複合 override を跨ぐケースは warning に寄せて温存する
 
 ## まず結論
 

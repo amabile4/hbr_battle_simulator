@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-13
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
 
 ## 方針
 
@@ -83,6 +83,12 @@
   - 残課題は UI 表示拡張、Records / Passive Log での見える化、各属性の実データ回帰追加
 - [x] `IsZone`
 - [x] `IsTerritory`
+- [x] `HighBoost`
+  - `HighBoost` を `statusEffects.statusType = 'HighBoost'` の永続 passive 状態として実装
+  - `OnFirstBattleStart` の passive part で味方全体へ付与し、`SpLimitOverwrite` と併用して `sp.max = 30` を維持
+  - `HighBoost` 効果として `SP消費 +2`、`AttackUp` バフ量 `1.2x`、敵デバフ量 `1.2x`、`HealDpRate` / `RegenerationDp` `1.5x` を反映
+  - `HealSp` / `HealEp` / `ReviveDp` / `ReviveDpRate` は増やさない。active / passive / passive_trigger の DP 経路は同じ分類 helper で揃える
+  - preview / committed record には `specialPassiveModifiers.highBoostSkillAtkRate = 1.8` を保持
 
 ### `IsZone` / `IsTerritory` 仕様メモ
 
@@ -165,6 +171,13 @@
 - [x] `OnEnemyTurnStart`
 - [x] `OnAdditionalTurnStart`
 - [x] `OnBattleWin`
+
+### `HighBoost` / 装備型 battle-start passive メモ
+
+- `ui-next` の Party Setup は slot ごとの `スキル設定` パネルで装備集合を管理し、`skillSetsByPartyIndex` を session save/load と party preset へ保存する
+- runtime は `equippedSkillIds` に応じて equipable passive-with-passive skills を `triggeredSkills` へ残すかどうかを切り替える
+- 追撃のような自動発動 skill は装備 checklist から除外し、equipable passive だけを着脱対象にする
+- `[夜の香り、薔薇の調べ] 柳 美音` の `ルビー・パフューム` は、装備時のみ `OnFirstBattleStart` に参加して `HighBoost` と `SpLimitOverwrite` を味方全体へ付与する
 
 ### turnPlan 再設計タスク
 
@@ -320,7 +333,27 @@
   - その turn の開始時点で既に `state.turnState.passiveEventsLastApplied` に入っていたもの
   - `commitTurn()` 中の boundary で新規発火したもの
 - これにより、次ターン開始用の `OnEveryTurn` / `OnPlayerTurnStart` が前ターン record に逆流しない
+- `applyInitialPassiveState()` は `OnBattleStart` / `OnFirstBattleStart` 専用に確定した
+  - `OnEveryTurn` / `OnPlayerTurnStart` と intrinsic mark Lv6 の `SP+1` は初期化時に流さず、`applyRecoveryPipeline()` または明示的な `applyPassiveTiming()` でだけ評価する
 - 現在の timing 全体像は [`passive_timing_reference.md`](passive_timing_reference.md) を参照
+
+### 2026-03-21 WIP green 比較メモ
+
+- `npm run test:quick` は 387 PASS で green 化した
+- accepted
+  - `applyInitialPassiveState()` は battle-start 専用に戻し、T1 turn-start は recovery pipeline でのみ扱う
+  - intrinsic mark Lv6 の前衛 `SP+1` は battle start ではなく true turn-start でのみ付与する
+  - `HighBoost` の DP倍率は `HealDpRate` / `RegenerationDp` のみ。`HealSp` / `HealEp` / `ReviveDp` / `ReviveDpRate` は等倍に固定する
+  - `ReviveDpRate` の active skill 経路を埋め、active / passive / passive_trigger で同じ分類 helper を使う
+  - real-data timing テストは desc に合わせて `battle start` と `player turn start` を分離し、snapshot 系期待値も pre-turn-start 値へ更新する
+- dropped
+  - init 時点で `OnEveryTurn` / `OnPlayerTurnStart` を流す旧期待値
+  - battle start 直後に intrinsic mark Lv6 の `SP+1` が見える前提
+  - `createInitializedBattleSnapshot()` が T1 turn-start 後の SP を返す前提
+- deferred
+  - `feature/engine-ruby-perfume-highboost-rebuild` への手移植と commit 分割
+  - passive timing 以外の remaining real-style tests を fixture 化する横断整理
+  - `checkpoint/pre-ruby-perfume-highboost-20260321` / `checkpoint/highboost-integrated-20260321` との比較レビュー
 
 ## Phase 6: 将来拡張
 
@@ -357,7 +390,7 @@
       `AdditionalHitOnExtraSkill`, `AdditionalHitOnBreaking`, `AdditionalHitOnKillCount`, `AdditionalHitOnHealedSpWithoutSelfHeal`,
       `AdditionalHitOnSpecifiedSkill`, `AdditionalHitOnRemovingBuff`, `AdditionalHitOnKill`,
       `AdditionalHitOnZone`, `AdditionalHitOnOverDrivePointDownSkill`, `AdditionalHitOnPursuit`,
-      `ZoneUpEternal`, `DoubleActionExtraSkill`, `ShadowClone`, `BorderRefPDownByAdmiral`,
+      `ZoneUpEternal`, `ShadowClone`, `BorderRefPDownByAdmiral`,
       `ExecuteSkillOnPreTurn`, `RemoveSpecialStatus`, `ArrowCherryBlossoms`, `NegativeMind`, `Makeup`, `Mocktail`, `SpecialCommandCountUp`
     - ログのみ（状態変化なし、パッシブイベント記録）:
       `StunRandom`, `GiveDebuffTurnUp`, `SkillCondition`, `IgnoreEShieldElement`, `Dodge`, `SkillLimitCountUp`, `Misfortune`
@@ -379,6 +412,12 @@
   - ✅ 完了: `ZoneUpEternal` の `OnPlayerTurnStart` / `OnEveryTurn` timing 対応
     - `resolveZoneUpEternalModifier()` が `OnBattleStart` / `OnFirstBattleStart` / `OnPlayerTurnStart` / `OnEveryTurn` を解決
     - `part.power[0]` 加算と有限 `Zone` 限定の永続化を分離適用
+  - ✅ 完了: `DoubleActionExtraSkill` の shared engine 実装（2026-03-29）
+    - `applyPassiveTimingInternal` と `applyMoralePassiveTriggerEffects` で passive 由来の EX 二連権付与を有効化
+    - `applyDoubleActionExtraSkillEffectsFromActions` で通常スキル由来の EX 二連権自己付与を有効化
+    - `previewTurn` / `commitTurn` を逐次 action 実行へ拡張し、同一 EX の 2 発目を `actionInstanceId` / `castIndex` / `castCount` / `isDerivedRepeat` 付きで記録
+    - 仕様固定: SP 消費は 1 回分、スキル使用回数は 2 回分、残回数 1 以下では単発、`Funnel` / `MindEye` / Count 型バフは 1 発目消費後の状態で 2 発目を評価
+    - 実データ確認: 水瀬すもも `[いたずらブラックキャット]` の `ハロウィンフィーバー` / `二股の尻尾`、朝倉可憐 `[盛夏のシャーク・ザ・リッパー]` の `意気揚々`
 
 ### マスタースキル由来パッシブ（ability_tree の PassiveSkill ノード）
 

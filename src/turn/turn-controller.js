@@ -3,12 +3,13 @@ import {
   cloneTurnState,
   snapshotPartyByPartyIndex,
   buildPositionMap,
+  normalizeActionCastMetadata,
 } from '../contracts/interfaces.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
-import { isNormalAttackSkill } from '../domain/skill-classifiers.js';
-import { SHREDDING_SP_MIN } from '../domain/character-style.js';
+import { isNormalAttackSkill, isPursuitOnlySkill } from '../domain/skill-classifiers.js';
+import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
 import {
   OD_RECOVERY_BY_LEVEL,
   OD_COST_BY_LEVEL,
@@ -17,6 +18,7 @@ import {
   OD_GAUGE_MAX_PERCENT,
   DEFAULT_ENEMY_COUNT,
   DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
+  ENEMY_OD_RATE_UNIT,
   DEFAULT_DESTRUCTION_RATE_PERCENT,
   DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
   SPECIAL_BREAK_CAP_BONUS_PERCENT,
@@ -31,6 +33,13 @@ import {
 
 export const BASE_SP_RECOVERY = 2;
 const TEZUKA_CHARACTER_ID = 'STezuka';
+const HIGH_BOOST_STATUS_TYPE = 'HighBoost';
+const HIGH_BOOST_ONLY_GROUP_KEY = 'HighBoost';
+const HIGH_BOOST_SP_COST_INCREASE = 2;
+const HIGH_BOOST_SKILL_ATK_RATE = 1.8;
+const HIGH_BOOST_ATTACK_BUFF_MULTIPLIER = 1.2;
+const HIGH_BOOST_DEBUFF_MULTIPLIER = 1.2;
+const HIGH_BOOST_DP_HEAL_MULTIPLIER = 1.5;
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
   'AttackSkill',
@@ -83,6 +92,21 @@ const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
 const ENEMY_STATUS_POWER_DURATION_SKILL_TYPES = Object.freeze(
   new Set([ENEMY_STATUS_PROVOKE, ENEMY_STATUS_ATTENTION, 'Misfortune', 'Cover'])
 );
+const HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES = Object.freeze(
+  new Set([
+    'DefenseDown',
+    'Fragile',
+    'AttackDown',
+    'ResistDown',
+    'ResistDownOverwrite',
+    'StunRandom',
+    'ConfusionRandom',
+    'ImprisonRandom',
+    'Misfortune',
+    'HealDown',
+    'Hacking',
+  ])
+);
 const SUPPORTED_ACTION_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(
   new Set([...ENEMY_STATUS_SKILL_TYPES, 'SuperBreak', 'SuperBreakDown'])
 );
@@ -128,6 +152,7 @@ const REMOVABLE_PLAYER_DEBUFF_STATUS_TYPES = Object.freeze(
 );
 const ACTIVE_BUFF_STATUS_NORMAL_ATTACK_EFFECTS = Object.freeze(new Set(['NormalBuff_Up']));
 const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp', 'ReviveDpRate']));
+const HIGH_BOOST_SCALED_DP_SKILL_TYPES = Object.freeze(new Set(['HealDpRate', 'RegenerationDp']));
 const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
 const DP_HEAL_SKILL_TYPES = Object.freeze(
   new Set([...DIRECT_DP_HEAL_SKILL_TYPES, 'RegenerationDp', 'HealDpByDamage'])
@@ -147,6 +172,10 @@ const DP_EVENT_SOURCE_REGENERATION = 'dp_regeneration';
 const DEFAULT_STATUS_EFFECT_REMAINING = 1;
 const DEFAULT_REVIVE_DP_FLOOR = 1;
 const DEFAULT_REVIVE_TERRITORY_HEAL_RATE = 0.5;
+const DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE = 'DoubleActionExtraSkill';
+const DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING = 1;
+const DOUBLE_ACTION_EXTRA_SKILL_CAST_COUNT = 2;
+const DOUBLE_ACTION_EXTRA_SKILL_REQUIRED_USES = 2;
 const MOTIVATION_DAMAGE_TAKEN_DELTA = -1;
 const MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE = 'MotivationDamage';
 const MOTIVATION_DAMAGE_TAKEN_PASSIVE_NAME = 'Motivation';
@@ -177,6 +206,8 @@ const MARK_SKILL_TYPE_TO_ELEMENT = Object.freeze({
 const INTRINSIC_MARK_ELEMENTS = Object.freeze([...new Set(Object.values(MARK_LEVEL_CONDITION_TO_ELEMENT))]);
 const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
 const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
+// パーティーメンバーのパッシブ評価順序（ゲーム内行動順: partyIndex 1 が最初に行動）
+const PASSIVE_ACTION_ORDER = Object.freeze([1, 0, 2, 3, 4, 5]);
 const EXTRA_ACTIVATION_STATUS_TYPE = 20;
 const CONDITION_WHITESPACE_RE = /\s+/g;
 const PASSIVE_VARIANT_THRESHOLD_RE = /[:：]\s*(\d+)人/;
@@ -634,11 +665,280 @@ function createPassiveTriggerEvent(turnState, member, passive, details = {}) {
     timing: String(passive?.timing ?? ''),
     characterId: String(member?.characterId ?? ''),
     characterName: String(member?.characterName ?? ''),
+    shortCharacterName: String(member?.shortName ?? member?.characterName ?? ''),
     passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
     passiveName: String(passive?.name ?? ''),
     passiveDesc: String(passive?.desc ?? ''),
+    // passive 自体の sourceType/sourceMeta を継承（details で上書き可）
+    sourceType: String(passive?.sourceType ?? 'style'),
+    sourceMeta: passive?.sourceMeta && typeof passive.sourceMeta === 'object'
+      ? structuredClone(passive.sourceMeta)
+      : {},
     ...details,
   };
+}
+
+function buildActionEventMetadata(actionEntry) {
+  if (!actionEntry || typeof actionEntry !== 'object') {
+    return normalizeActionCastMetadata({});
+  }
+  return normalizeActionCastMetadata(actionEntry);
+}
+
+function isLastMatchingActionEntry(actionEntry, actionEntries, options = {}) {
+  if (!actionEntry || !Array.isArray(actionEntries) || actionEntries.length === 0) {
+    return true;
+  }
+
+  const actionCharacterId = String(actionEntry?.characterId ?? '');
+  const actionSkillId = Number(actionEntry?.skillId ?? Number.NaN);
+  const matchSkill = options.matchSkill === true;
+  let lastMatchingEntry = null;
+
+  for (const candidate of actionEntries) {
+    if (!candidate || typeof candidate !== 'object') {
+      continue;
+    }
+    if (String(candidate?.characterId ?? '') !== actionCharacterId) {
+      continue;
+    }
+    if (matchSkill && Number(candidate?.skillId ?? Number.NaN) !== actionSkillId) {
+      continue;
+    }
+    lastMatchingEntry = candidate;
+  }
+
+  if (!lastMatchingEntry) {
+    return true;
+  }
+
+  const lastActionInstanceId = String(lastMatchingEntry?.actionInstanceId ?? '');
+  const actionInstanceId = String(actionEntry?.actionInstanceId ?? '');
+  if (lastActionInstanceId && actionInstanceId) {
+    return lastActionInstanceId === actionInstanceId;
+  }
+  return lastMatchingEntry === actionEntry;
+}
+
+function listMatchingActionEntries(actionEntries, options = {}) {
+  if (!Array.isArray(actionEntries) || actionEntries.length === 0) {
+    return [];
+  }
+
+  const characterId = String(options.characterId ?? '');
+  const matchSkill = options.matchSkill === true;
+  const skillId = Number(options.skillId ?? Number.NaN);
+
+  return actionEntries.filter((candidate) => {
+    if (!candidate || typeof candidate !== 'object') {
+      return false;
+    }
+    if (String(candidate?.characterId ?? '') !== characterId) {
+      return false;
+    }
+    if (matchSkill && Number(candidate?.skillId ?? Number.NaN) !== skillId) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function resolveRecipientAllocatedActionEntry(event, actionEntries, options = {}) {
+  const candidates = listMatchingActionEntries(actionEntries, options);
+  if (candidates.length <= 1) {
+    return candidates[0] ?? null;
+  }
+
+  const triggerActionInstanceId = String(event?.actionInstanceId ?? '');
+  if (triggerActionInstanceId) {
+    const triggerIndex = actionEntries.findIndex(
+      (candidate) => String(candidate?.actionInstanceId ?? '') === triggerActionInstanceId
+    );
+    if (triggerIndex >= 0) {
+      for (const candidate of candidates) {
+        const candidateIndex = actionEntries.indexOf(candidate);
+        if (candidateIndex >= triggerIndex) {
+          return candidate;
+        }
+      }
+    }
+  }
+
+  return candidates[candidates.length - 1] ?? null;
+}
+
+function buildActionScopedEvent(actionEntry, event) {
+  return {
+    ...buildActionEventMetadata(actionEntry),
+    ...event,
+  };
+}
+
+function buildActionInstanceId(characterId, sequence) {
+  return `${String(characterId ?? '')}:${Math.max(0, Number(sequence) || 0)}`;
+}
+
+function eventBelongsToActionEntry(actionEntry, event, options = {}) {
+  if (!actionEntry || !event || typeof event !== 'object') {
+    return false;
+  }
+  const actorKey = options.actorKey;
+  const characterKey = options.characterKey;
+  const skillKey = options.skillKey;
+  const actionInstanceId = String(actionEntry?.actionInstanceId ?? '');
+  const eventActionInstanceId = String(event?.actionInstanceId ?? '');
+  if (actorKey) {
+    if (String(event?.[actorKey] ?? '') !== String(actionEntry.characterId ?? '')) {
+      return false;
+    }
+  }
+  if (characterKey) {
+    if (String(event?.[characterKey] ?? '') !== String(actionEntry.characterId ?? '')) {
+      return false;
+    }
+  }
+  if (skillKey) {
+    if (Number(event?.[skillKey] ?? Number.NaN) !== Number(actionEntry.skillId ?? Number.NaN)) {
+      return false;
+    }
+  }
+  if (characterKey && String(event?.recordAllocation ?? '') === 'recipient') {
+    const allocatedEntry = resolveRecipientAllocatedActionEntry(event, options.actionEntries, {
+      characterId: String(actionEntry?.characterId ?? ''),
+      skillId: Number(actionEntry?.skillId ?? Number.NaN),
+      matchSkill: Boolean(skillKey),
+    });
+    if (!allocatedEntry) {
+      return true;
+    }
+    const allocatedActionInstanceId = String(allocatedEntry?.actionInstanceId ?? '');
+    if (allocatedActionInstanceId && actionInstanceId) {
+      return allocatedActionInstanceId === actionInstanceId;
+    }
+    return allocatedEntry === actionEntry;
+  }
+  const matchedCharacterId = actorKey
+    ? String(event?.[actorKey] ?? '')
+    : characterKey
+      ? String(event?.[characterKey] ?? '')
+      : '';
+  const eventActorCharacterId = String(event?.actorCharacterId ?? '');
+  const isRecipientScopedCharacterEvent = Boolean(
+    characterKey &&
+      matchedCharacterId &&
+      eventActorCharacterId &&
+      eventActorCharacterId !== matchedCharacterId
+  );
+  const shouldGateByActionInstance = Boolean(actorKey || (characterKey && !isRecipientScopedCharacterEvent));
+
+  if (shouldGateByActionInstance && actionInstanceId && eventActionInstanceId) {
+    return actionInstanceId === eventActionInstanceId;
+  }
+
+  if (shouldGateByActionInstance && actionInstanceId && !eventActionInstanceId) {
+    return isLastMatchingActionEntry(actionEntry, options.actionEntries, {
+      matchSkill: Boolean(skillKey),
+    });
+  }
+
+  return true;
+}
+
+function resolveHighBoostModifiersForMember(member) {
+  const effect =
+    typeof member?.resolveEffectiveStatusEffects === 'function'
+      ? member.resolveEffectiveStatusEffects(HIGH_BOOST_STATUS_TYPE)[0] ?? null
+      : null;
+  if (!effect) {
+    return {
+      active: false,
+      spCostIncrease: 0,
+      skillAtkRate: 0,
+      attackBuffMultiplier: 1,
+      debuffMultiplier: 1,
+      dpHealMultiplier: 1,
+    };
+  }
+  return {
+    active: true,
+    spCostIncrease: Number(effect?.metadata?.spCostIncrease ?? HIGH_BOOST_SP_COST_INCREASE),
+    skillAtkRate: Number(effect?.metadata?.skillAtkRate ?? effect?.power ?? HIGH_BOOST_SKILL_ATK_RATE),
+    attackBuffMultiplier: Number(
+      effect?.metadata?.attackBuffMultiplier ?? HIGH_BOOST_ATTACK_BUFF_MULTIPLIER
+    ),
+    debuffMultiplier: Number(effect?.metadata?.debuffMultiplier ?? HIGH_BOOST_DEBUFF_MULTIPLIER),
+    dpHealMultiplier: Number(
+      effect?.metadata?.dpHealMultiplier ?? effect?.metadata?.healMultiplier ?? HIGH_BOOST_DP_HEAL_MULTIPLIER
+    ),
+  };
+}
+
+function applyHighBoostMultiplier(value, multiplier) {
+  const numericValue = Number(value ?? 0);
+  const numericMultiplier = Number(multiplier ?? 1);
+  if (!Number.isFinite(numericValue)) {
+    return 0;
+  }
+  if (!Number.isFinite(numericMultiplier) || numericMultiplier === 1) {
+    return numericValue;
+  }
+  return truncateToTwoDecimals(numericValue * numericMultiplier);
+}
+
+function scaleHighBoostDpHealAmount(actor, amount) {
+  const modifiers = resolveHighBoostModifiersForMember(actor);
+  if (!modifiers.active) {
+    return Number(amount ?? 0);
+  }
+  return applyHighBoostMultiplier(amount, modifiers.dpHealMultiplier);
+}
+
+function resolveHighBoostAdjustedDpAmount(actor, skillType, amount) {
+  const numericAmount = Number(amount ?? 0);
+  if (!Number.isFinite(numericAmount)) {
+    return 0;
+  }
+  if (!HIGH_BOOST_SCALED_DP_SKILL_TYPES.has(String(skillType ?? '').trim())) {
+    return numericAmount;
+  }
+  return scaleHighBoostDpHealAmount(actor, numericAmount);
+}
+
+function resolveNextCurrentDpForDirectChange(startDpState, skillType, amount) {
+  const startCurrentDp = Number(startDpState?.currentDp ?? 0);
+  const numericAmount = Number(amount ?? 0);
+  if (!Number.isFinite(startCurrentDp)) {
+    return 0;
+  }
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return startCurrentDp;
+  }
+  if (String(skillType ?? '') === 'ReviveDp' || String(skillType ?? '') === 'ReviveDpRate') {
+    return Math.max(startCurrentDp, numericAmount);
+  }
+  return startCurrentDp + numericAmount;
+}
+
+function scaleHighBoostAttackBuffPower(actor, skillType, power) {
+  if (String(skillType ?? '') !== 'AttackUp' && String(skillType ?? '') !== 'AttackUpIncludeNormal') {
+    return Number(power ?? 0);
+  }
+  const modifiers = resolveHighBoostModifiersForMember(actor);
+  if (!modifiers.active) {
+    return Number(power ?? 0);
+  }
+  return applyHighBoostMultiplier(power, modifiers.attackBuffMultiplier);
+}
+
+function scaleHighBoostEnemyDebuffPower(actor, skillType, power) {
+  if (!HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES.has(String(skillType ?? ''))) {
+    return Number(power ?? 0);
+  }
+  const modifiers = resolveHighBoostModifiersForMember(actor);
+  if (!modifiers.active) {
+    return Number(power ?? 0);
+  }
+  return applyHighBoostMultiplier(power, modifiers.debuffMultiplier);
 }
 
 function isOverDriveActive(turnState) {
@@ -1424,6 +1724,8 @@ function getEnemyState(turnState) {
       damageRatesByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
+      absorbElementsByEnemy: {},
+      odRateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -1446,6 +1748,12 @@ function getEnemyState(turnState) {
       state.destructionRateCapByEnemy && typeof state.destructionRateCapByEnemy === 'object'
         ? state.destructionRateCapByEnemy
         : {},
+    absorbElementsByEnemy:
+      state.absorbElementsByEnemy && typeof state.absorbElementsByEnemy === 'object'
+        ? state.absorbElementsByEnemy
+        : {},
+    odRateByEnemy:
+      state.odRateByEnemy && typeof state.odRateByEnemy === 'object' ? state.odRateByEnemy : {},
     breakStateByEnemy:
       state.breakStateByEnemy && typeof state.breakStateByEnemy === 'object' ? state.breakStateByEnemy : {},
     enemyNamesByEnemy:
@@ -1557,6 +1865,10 @@ function resolveFieldDuration(part) {
 }
 
 function deriveZoneTypeFromPart(part) {
+  // RiceFieldZone は専用 skill_type による稲穂フィールド
+  if (String(part?.skill_type ?? '').trim() === 'RiceFieldZone') {
+    return 'RiceField';
+  }
   const explicit = String(part?.strval?.[0] ?? '').trim();
   if (explicit && explicit !== '-1') {
     return explicit;
@@ -1813,11 +2125,19 @@ function applyReviveTerritoryTurnStartEffect(party, turnState, trigger) {
 function getEnemyResistanceRatePercent(turnState, targetIndex, element) {
   const enemyState = getEnemyState(turnState);
   const enemyKey = String(Number(targetIndex));
+  const normalizedElement = String(element ?? '').trim().toLowerCase();
+  const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey];
+  if (normalizedElement && Array.isArray(absorbElements) && absorbElements.includes(normalizedElement)) {
+    return 0;
+  }
   const rates = enemyState.damageRatesByEnemy?.[enemyKey];
   if (!rates || typeof rates !== 'object') {
     return DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
   }
-  const value = Number(rates[String(element ?? '').trim()]);
+  const matchedEntry = Object.entries(rates).find(
+    ([key]) => String(key ?? '').trim().toLowerCase() === normalizedElement
+  );
+  const value = Number(matchedEntry?.[1]);
   return Number.isFinite(value) ? value : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
 }
 
@@ -2673,11 +2993,12 @@ function applyDpEffectsFromActions(state, previewRecord) {
         let statusEffect = null;
         let isAmountResolved = false;
 
-        if (skillType === 'HealDpRate') {
+        if (skillType === 'HealDpRate' || skillType === 'ReviveDpRate') {
           const rate = Number(part?.power?.[0] ?? 0);
           const amount = Number.isFinite(rate) && rate > 0 ? Number(startDpState.baseMaxDp ?? 0) * rate : 0;
+          const healedAmount = resolveHighBoostAdjustedDpAmount(actor, skillType, amount);
           const change = target.setDpState({
-            currentDp: Number(startDpState.currentDp ?? 0) + amount,
+            currentDp: resolveNextCurrentDpForDirectChange(startDpState, skillType, healedAmount),
             effectiveDpCap: getDpHealCapForPart(target, part),
           });
           endDpState = cloneDpState(change.endDpState);
@@ -2690,8 +3011,9 @@ function applyDpEffectsFromActions(state, previewRecord) {
           endDpState = cloneDpState(change.endDpState);
           isAmountResolved = true;
         } else if (skillType === 'ReviveDp') {
+          const healedAmount = resolveHighBoostAdjustedDpAmount(actor, skillType, DEFAULT_REVIVE_DP_FLOOR);
           const change = target.setDpState({
-            currentDp: Math.max(Number(startDpState.currentDp ?? 0), DEFAULT_REVIVE_DP_FLOOR),
+            currentDp: resolveNextCurrentDpForDirectChange(startDpState, skillType, healedAmount),
             effectiveDpCap: getDpHealCapForPart(target, part),
           });
           endDpState = cloneDpState(change.endDpState);
@@ -2704,7 +3026,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
             exitCond: String(part?.effect?.exitCond ?? 'EnemyTurnEnd'),
             remaining:
               Number.isFinite(remaining) && remaining > 0 ? remaining : DEFAULT_STATUS_EFFECT_REMAINING,
-            power: Number(part?.power?.[0] ?? 0),
+            power: resolveHighBoostAdjustedDpAmount(actor, skillType, Number(part?.power?.[0] ?? 0)),
             sourceSkillId: Number(skill.skillId),
             sourceSkillLabel: String(skill.label ?? ''),
             sourceSkillName: String(skill.name ?? ''),
@@ -2716,18 +3038,21 @@ function applyDpEffectsFromActions(state, previewRecord) {
         }
 
         events.push(
-          createDpEvent({
-            actor,
-            target,
-            skill,
-            part,
-            triggerType: getDpEventKind(skillType),
-            source: DP_EVENT_SOURCE_SKILL,
-            startDpState,
-            endDpState,
-            statusEffect,
-            isAmountResolved,
-          })
+          buildActionScopedEvent(
+            actionEntry,
+            createDpEvent({
+              actor,
+              target,
+              skill,
+              part,
+              triggerType: getDpEventKind(skillType),
+              source: DP_EVENT_SOURCE_SKILL,
+              startDpState,
+              endDpState,
+              statusEffect,
+              isAmountResolved,
+            })
+          )
         );
       }
     }
@@ -2738,6 +3063,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
 
 function applyEnemyTurnEndDpEffects(party = []) {
   const events = [];
+  const actionContext = buildActionContext('TurnEnd', null, { turnPhase: 'EnemyTurnEnd' });
 
   for (const member of party) {
     const regenEffects = member
@@ -2746,7 +3072,9 @@ function applyEnemyTurnEndDpEffects(party = []) {
     const regenEffectById = new Map(
       regenEffects.map((effect) => [Number(effect.effectId ?? 0), structuredClone(effect)])
     );
-    const tickedEffects = member.tickStatusEffectsByExitCond('EnemyTurnEnd');
+    const tickedEffects = member.tickStatusEffectsWhere(
+      (effect) => shouldConsume(effect, actionContext).shouldConsume
+    );
     if (regenEffectById.size === 0) {
       continue;
     }
@@ -2831,15 +3159,17 @@ function applyTokenEffectsFromActions(state, previewRecord, dpEvents = []) {
           continue;
         }
         const change = target.applyTokenDelta(amount);
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          source: 'token_skill',
-          skillId: skill.skillId,
-          skillName: skill.name,
-          triggerType: 'TokenSet',
-          ...change,
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            source: 'token_skill',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            triggerType: 'TokenSet',
+            ...change,
+          })
+        );
       }
     }
 
@@ -2864,16 +3194,18 @@ function applyTokenEffectsFromActions(state, previewRecord, dpEvents = []) {
             }
             const amountPerEnemy = getTokenSetAmount(part) || 1;
             const change = actor.applyTokenDelta(amountPerEnemy * hitEnemyCount);
-            events.push({
-              actorCharacterId: actor.characterId,
-              characterId: actor.characterId,
-              source: 'token_passive',
-              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
-              passiveName: String(passive?.name ?? ''),
-              triggerType: 'TokenSetByAttacking',
-              hitEnemyCount,
-              ...change,
-            });
+            events.push(
+              buildActionScopedEvent(actionEntry, {
+                actorCharacterId: actor.characterId,
+                characterId: actor.characterId,
+                source: 'token_passive',
+                passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                passiveName: String(passive?.name ?? ''),
+                triggerType: 'TokenSetByAttacking',
+                hitEnemyCount,
+                ...change,
+              })
+            );
           }
         }
       }
@@ -2907,17 +3239,19 @@ function applyTokenEffectsFromActions(state, previewRecord, dpEvents = []) {
           }
           const amount = getTokenSetAmount(passivePart) || 1;
           const change = target.applyTokenDelta(amount);
-          events.push({
-            actorCharacterId: actor.characterId,
-            characterId: target.characterId,
-            source: 'token_passive',
-            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
-            passiveName: String(passive?.name ?? ''),
-            triggerType: 'TokenSetByHealedDp',
-            skillId: skill.skillId,
-            skillName: skill.name,
-            ...change,
-          });
+          events.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: actor.characterId,
+              characterId: target.characterId,
+              source: 'token_passive',
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              triggerType: 'TokenSetByHealedDp',
+              skillId: skill.skillId,
+              skillName: skill.name,
+              ...change,
+            })
+          );
         }
       }
     }
@@ -3074,6 +3408,254 @@ function applyMarkEffectsFromActions() {
   return [];
 }
 
+// RECEIVER基準のSP回復トリガーパッシブを処理する。
+// 「お裾分け」「愛嬌」等: 自身以外の味方スキルで自身のSPが上昇したとき発動するパッシブ。
+// applyMoralePassiveTriggerEffects がACTOR基準なのに対し、こちらはターゲット側から走査する。
+function applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry) {
+  const spEvents = [];
+  const passiveTriggerEvents = [];
+
+  // アクターのスキルに HealSp (non-Self) parts があるか先に確認（なければ早期リターン）
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+  const healSpParts = effectiveParts.filter(
+    (ep) => String(ep?.skill_type ?? '') === 'HealSp' && String(ep?.target_type ?? '') !== 'Self'
+  );
+  if (healSpParts.length === 0) {
+    return { spEvents, passiveTriggerEvents };
+  }
+
+  // 全パーティメンバー（actor 除く）を走査
+  for (const member of state?.party ?? []) {
+    if (member.characterId === actor.characterId) {
+      continue; // 自身スキルによる自身SP上昇は「お裾分け」の対象外
+    }
+
+    // このメンバーがアクターのスキルの SP 回復ターゲットに含まれるか確認
+    const isSpTarget = healSpParts.some((ep) => {
+      const targets = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        ep?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      return targets.includes(member.characterId);
+    });
+    if (!isSpTarget) {
+      continue;
+    }
+
+    // このメンバーが AdditionalHitOnHealedSpWithoutSelfHeal パッシブを持つか確認
+    for (const passive of member.passives ?? []) {
+      const timing = String(passive?.timing ?? '').trim();
+      if (
+        timing !== 'OnFirstBattleStart' &&
+        timing !== 'OnBattleStart' &&
+        timing !== 'OnPlayerTurnStart'
+      ) {
+        continue;
+      }
+      const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+      const hasTrigger = parts.some(
+        (p) => String(p?.skill_type ?? '') === 'AdditionalHitOnHealedSpWithoutSelfHeal'
+      );
+      if (!hasTrigger) {
+        continue;
+      }
+
+      // パッシブ条件評価
+      const conditions = [passive?.condition]
+        .map((v) => String(v ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = conditions.every((expr) => {
+        const evaluated = evaluateConditionExpression(expr, state, member, null, actionEntry);
+        return evaluated.unknownCount === 0 && evaluated.result;
+      });
+      if (!condSatisfied) {
+        continue;
+      }
+
+      // 効果パートを適用（HealSp / OverDrivePointUp）
+      let fired = false;
+      const firedEffectTypes = [];
+      for (const part of parts) {
+        const partType = String(part?.skill_type ?? '');
+
+        if (partType === 'HealSp') {
+          const amount = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          // SP上限突破対応: value[0] をイベント上限として使用（例: SP30まで上限突破可）
+          const spCeiling = Number(part?.value?.[0] ?? 0);
+          const skillCeiling = Number.isFinite(spCeiling) && spCeiling > 0 ? spCeiling : null;
+          const targetIds = resolveSupportTargetCharacterIds(state, member, part?.target_type, null);
+          for (const targetId of targetIds) {
+            const target = findMemberByCharacterId(state, targetId);
+            if (!target) {
+              continue;
+            }
+            // source='active' + skillCeiling でイベント上限を制御し、返り値の source は sp_passive で上書き
+            const change = target.applySpDelta(amount, 'active', skillCeiling);
+            spEvents.push(
+              buildActionScopedEvent(actionEntry, {
+                actorCharacterId: member.characterId,
+                characterId: target.characterId,
+                passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                passiveName: String(passive?.name ?? ''),
+                recordAllocation: 'recipient',
+                triggerType: 'SpPassiveTrigger',
+                skillId: skill.skillId,
+                skillName: skill.name,
+                ...change,
+                source: 'sp_passive',
+              })
+            );
+          }
+          if (!firedEffectTypes.includes('HealSp')) firedEffectTypes.push('HealSp');
+          fired = true;
+          continue;
+        }
+
+        if (partType === 'OverDrivePointUp') {
+          const amount = resolveOverDrivePointUpPowerPercent(part);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetIds = resolveSupportTargetCharacterIds(state, member, part?.target_type, null);
+          if (targetIds.includes(member.characterId)) {
+            state.turnState.odGauge = clampOdGauge(
+              truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0) + Number(amount))
+            );
+            if (!firedEffectTypes.includes('OverDrivePointUp')) firedEffectTypes.push('OverDrivePointUp');
+            fired = true;
+          }
+          continue;
+        }
+      }
+
+      if (fired) {
+        passiveTriggerEvents.push(
+          buildActionScopedEvent(
+            actionEntry,
+            createPassiveTriggerEvent(state.turnState, member, passive, {
+              source: 'passive_trigger',
+              effectTypes: firedEffectTypes,
+              triggerSkillId: Number(skill?.skillId ?? 0),
+              triggerSkillName: String(skill?.name ?? ''),
+            })
+          )
+        );
+      }
+    }
+  }
+
+  return { spEvents, passiveTriggerEvents };
+}
+
+// Zone展開スキル使用時に AdditionalHitOnZone パッシブを全メンバーに適用する。
+// 「味方がフィールドを展開した時」= RECEIVER-based（applyReceiverSpHealPassiveTriggers と同構造）。
+// actor 自身も対象（自分がZone展開しても自分のパッシブが発動する）。
+function applyReceiverZonePassiveTriggers(state, actor, skill, actionEntry) {
+  const spEvents = [];
+  const passiveTriggerEvents = [];
+
+  // アクターのスキルに Zone 系 parts があるか先に確認（なければ早期リターン）
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+  const ZONE_SKILL_TYPES = new Set(['Zone', 'ZoneUpEternal', 'RiceFieldZone']);
+  const hasZonePart = effectiveParts.some((ep) => ZONE_SKILL_TYPES.has(String(ep?.skill_type ?? '')));
+  if (!hasZonePart) {
+    return { spEvents, passiveTriggerEvents };
+  }
+
+  // 全パーティメンバー（actor 含む）を走査
+  for (const member of state?.party ?? []) {
+    // このメンバーが AdditionalHitOnZone パッシブを持つか確認
+    for (const passive of member.passives ?? []) {
+      const timing = String(passive?.timing ?? '').trim();
+      if (
+        timing !== 'OnFirstBattleStart' &&
+        timing !== 'OnBattleStart' &&
+        timing !== 'OnPlayerTurnStart'
+      ) {
+        continue;
+      }
+      const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+      const hasTrigger = parts.some(
+        (p) => String(p?.skill_type ?? '') === 'AdditionalHitOnZone'
+      );
+      if (!hasTrigger) {
+        continue;
+      }
+
+      // パッシブ条件評価
+      const conditions = [passive?.condition]
+        .map((v) => String(v ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = conditions.every((expr) => {
+        const evaluated = evaluateConditionExpression(expr, state, member, null, actionEntry);
+        return evaluated.unknownCount === 0 && evaluated.result;
+      });
+      if (!condSatisfied) {
+        continue;
+      }
+
+      // HealSp 効果パートを適用
+      let fired = false;
+      for (const part of parts) {
+        if (String(part?.skill_type ?? '') !== 'HealSp') {
+          continue;
+        }
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        // SP上限突破対応: value[0] をイベント上限として使用
+        const spCeiling = Number(part?.value?.[0] ?? 0);
+        const skillCeiling = Number.isFinite(spCeiling) && spCeiling > 0 ? spCeiling : null;
+        const targetIds = resolveSupportTargetCharacterIds(state, member, part?.target_type, null);
+        for (const targetId of targetIds) {
+          const target = findMemberByCharacterId(state, targetId);
+          if (!target) {
+            continue;
+          }
+          const change = target.applySpDelta(amount, 'active', skillCeiling);
+          spEvents.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: member.characterId,
+              characterId: target.characterId,
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              recordAllocation: 'recipient',
+              triggerType: 'SpPassiveTrigger',
+              skillId: skill.skillId,
+              skillName: skill.name,
+              ...change,
+              source: 'sp_passive',
+            })
+          );
+        }
+        fired = true;
+      }
+
+      if (fired) {
+        passiveTriggerEvents.push(
+          buildActionScopedEvent(
+            actionEntry,
+            createPassiveTriggerEvent(state.turnState, member, passive, {
+              source: 'passive_trigger',
+              effectTypes: ['HealSp'],
+              triggerSkillId: Number(skill?.skillId ?? 0),
+              triggerSkillName: String(skill?.name ?? ''),
+            })
+          )
+        );
+      }
+    }
+  }
+
+  return { spEvents, passiveTriggerEvents };
+}
+
 function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   const moraleEvents = [];
   const spEvents = [];
@@ -3092,7 +3674,23 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
     }
 
     const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+
+    // P3: exitCond チェック（Count=バトル中N回上限 / PlayerTurnEnd=同一プレイヤーターン内1回）
+    const triggerPartForExit = parts.find((p) => String(p?.skill_type ?? '').startsWith('AdditionalHit'));
+    const exitCond = String(triggerPartForExit?.effect?.exitCond ?? '').trim();
+    const exitVal = Number(triggerPartForExit?.effect?.exitVal?.[0] ?? 0);
+    const usageKey = (exitCond === 'Count' || exitCond === 'PlayerTurnEnd')
+      ? getPassiveUsageKey(actor, passive)
+      : null;
+    if (exitCond === 'Count' && exitVal > 0 && usageKey) {
+      if (Number(state.turnState.passiveUsageCounts?.[usageKey] ?? 0) >= exitVal) continue;
+    }
+    if (exitCond === 'PlayerTurnEnd' && usageKey) {
+      if ((state.turnState.passiveTurnFiredKeys ?? []).includes(usageKey)) continue;
+    }
+
     let triggerMultiplier = 0;
+    let killCountMultiplier = 0; // HealSp に適用する倍率（OnKillCount のみ）。desc「敵1体につき」が根拠。
     const triggerMatched = parts.some((part) => {
       const skillType = String(part?.skill_type ?? '').trim();
       const conditions = [passive?.condition, part?.cond, part?.hit_condition]
@@ -3124,6 +3722,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         const killCount = Math.max(0, Number(actionEntry?.killCount ?? 0));
         if (killCount > 0) {
           triggerMultiplier = killCount;
+          killCountMultiplier = killCount; // HealSp にも倍率を伝搬（破竹/激震は対象外）
           return true;
         }
         return false;
@@ -3132,25 +3731,45 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         const breakHitCount = Math.max(0, Number(actionEntry?.breakHitCount ?? 0));
         if (breakHitCount > 0) {
           triggerMultiplier = breakHitCount;
+          // killCountMultiplier は設定しない（「ブレイクしたとき」は単発発動）
           return true;
         }
         return false;
       }
-      if (skillType === 'AdditionalHitOnHealedSpWithoutSelfHeal') {
-        // Fires when the actor uses a skill that heals SP to targets other than self.
-        return (skill.parts ?? []).some(
-          (ep) => String(ep?.skill_type ?? '') === 'HealSp' && String(ep?.target_type ?? '') !== 'Self'
-        );
-      }
       if (skillType === 'AdditionalHitOnRemovingBuff') {
         // Fires when the actor uses a skill that removes buffs from enemies (RemoveBuff part).
         return (skill.parts ?? []).some((ep) => String(ep?.skill_type ?? '') === 'RemoveBuff');
+      }
+      if (skillType === 'AdditionalHitOnOverDrivePointDownSkill') {
+        // Fires when the actor uses a skill that contains an OverDrivePointDown part.
+        triggerMultiplier = 1;
+        return (skill.parts ?? []).some((ep) => String(ep?.skill_type ?? '') === 'OverDrivePointDown');
+      }
+      if (skillType === 'AdditionalHitOnPursuit') {
+        // Fires when the actor's pursuit attack was triggered this action.
+        const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
+        if (pursuedHitCount > 0) {
+          triggerMultiplier = 1;
+          return true;
+        }
+        return false;
       }
       return false;
     });
 
     if (!triggerMatched) {
       continue;
+    }
+
+    // P3: 発火後カウント・フラグを更新
+    if (exitCond === 'Count' && exitVal > 0 && usageKey) {
+      state.turnState.passiveUsageCounts[usageKey] =
+        Number(state.turnState.passiveUsageCounts[usageKey] ?? 0) + 1;
+    }
+    if (exitCond === 'PlayerTurnEnd' && usageKey) {
+      if (!state.turnState.passiveTurnFiredKeys.includes(usageKey)) {
+        state.turnState.passiveTurnFiredKeys.push(usageKey);
+      }
     }
 
     for (const part of parts) {
@@ -3176,26 +3795,32 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
             continue;
           }
           const change = target.applyMoraleDelta(amount);
-          moraleEvents.push({
-            actorCharacterId: actor.characterId,
-            characterId: target.characterId,
-            source: 'morale_passive',
-            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
-            passiveName: String(passive?.name ?? ''),
-            triggerType: 'MoralePassiveTrigger',
-            skillId: skill.skillId,
-            skillName: skill.name,
-            ...change,
-          });
+          moraleEvents.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: actor.characterId,
+              characterId: target.characterId,
+              source: 'morale_passive',
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              triggerType: 'MoralePassiveTrigger',
+              skillId: skill.skillId,
+              skillName: skill.name,
+              ...change,
+            })
+          );
         }
         continue;
       }
 
       if (effectType === 'HealSp') {
-        const amount = Number(part?.power?.[0] ?? 0);
+        // killCountMultiplier: OnKillCount トリガーのみ適用（「敵1体につき」仕様）
+        const amount = Number(part?.power?.[0] ?? 0) * Math.max(1, killCountMultiplier || 1);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
+        // SP上限突破対応: value[0] をイベント上限として使用（例: リバーブレーション SP30）
+        const spCeiling = Number(part?.value?.[0] ?? 0);
+        const skillCeiling = Number.isFinite(spCeiling) && spCeiling > 0 ? spCeiling : null;
         const targetCharacterIds = resolveSupportTargetCharacterIds(
           state,
           actor,
@@ -3210,18 +3835,20 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
           if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
             continue;
           }
-          const change = target.applySpDelta(amount, 'passive', null);
-          spEvents.push({
-            actorCharacterId: actor.characterId,
-            characterId: target.characterId,
-            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
-            passiveName: String(passive?.name ?? ''),
-            triggerType: 'SpPassiveTrigger',
-            skillId: skill.skillId,
-            skillName: skill.name,
-            ...change,
-            source: 'sp_passive',
-          });
+          const change = target.applySpDelta(amount, skillCeiling ? 'active' : 'passive', skillCeiling);
+          spEvents.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: actor.characterId,
+              characterId: target.characterId,
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              triggerType: 'SpPassiveTrigger',
+              skillId: skill.skillId,
+              skillName: skill.name,
+              ...change,
+              source: 'sp_passive',
+            })
+          );
         }
         continue;
       }
@@ -3265,7 +3892,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         continue;
       }
 
-      if (effectType === 'HealDpRate') {
+      if (effectType === 'HealDpRate' || effectType === 'ReviveDpRate') {
         const rate = Number(part?.power?.[0] ?? 0);
         if (!Number.isFinite(rate) || rate <= 0) {
           continue;
@@ -3285,43 +3912,142 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
             continue;
           }
           const startDpState = cloneDpState(target.dpState ?? {});
-          const amount = Number(startDpState.baseMaxDp ?? 0) * rate;
+          const amount = resolveHighBoostAdjustedDpAmount(
+            actor,
+            effectType,
+            Number(startDpState.baseMaxDp ?? 0) * rate
+          );
           const change = target.setDpState({
-            currentDp: Number(startDpState.currentDp ?? 0) + amount,
+            currentDp: resolveNextCurrentDpForDirectChange(startDpState, effectType, amount),
             effectiveDpCap: getDpHealCapForPart(target, part),
           });
           const endDpState = cloneDpState(change.endDpState);
           dpEvents.push(
-            createPassiveDpEvent({
-              actor,
-              target,
-              passive,
-              part,
-              triggerType: DP_EVENT_KINDS.DIRECT_HEAL,
-              source: 'dp_passive',
-              startDpState,
-              endDpState,
-              isAmountResolved: true,
-            })
+            buildActionScopedEvent(
+              actionEntry,
+              createPassiveDpEvent({
+                actor,
+                target,
+                passive,
+                part,
+                triggerType: DP_EVENT_KINDS.DIRECT_HEAL,
+                source: 'dp_passive',
+                startDpState,
+                endDpState,
+                isAmountResolved: true,
+              })
+            )
           );
         }
         continue;
       }
 
+      if (effectType === DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE) {
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        let applied = false;
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+            continue;
+          }
+          const added = addDoubleActionExtraSkillStatusEffect(
+            target,
+            {
+              sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              sourceSkillLabel: String(passive?.label ?? ''),
+              sourceSkillName: String(passive?.name ?? ''),
+              sourceCharacterId: String(actor?.characterId ?? ''),
+              sourceCharacterName: String(actor?.characterName ?? ''),
+              sourceSkillDesc: String(passive?.desc ?? ''),
+              metadata: {
+                targetType: String(part?.target_type ?? ''),
+                passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              },
+            },
+            {
+              sourceType: 'passive',
+              limitType: String(part?.effect?.limitType ?? 'Only'),
+              exitCond: String(part?.effect?.exitCond ?? 'Count'),
+              remaining: Number(part?.effect?.exitVal?.[0] ?? DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING),
+            }
+          );
+          passiveTriggerEvents.push(
+            buildActionScopedEvent(
+              actionEntry,
+              createPassiveTriggerEvent(state.turnState, actor, passive, {
+                source: 'passive_trigger',
+                effectTypes: [DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE],
+                appliedStatusEffects: [added],
+                triggerSkillId: Number(skill?.skillId ?? 0),
+                triggerSkillName: String(skill?.name ?? ''),
+              })
+            )
+          );
+          applied = true;
+        }
+        if (applied) {
+          continue;
+        }
+      }
+
       if (effectType === 'AttackUp') {
-        // Log-only: no buff duration system; record the effect for planning visibility.
         const amount = Number(part?.power?.[0] ?? 0);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
+        const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
+        const exitCond = String(part?.effect?.exitCond ?? 'Count');
+        const limitType = String(part?.effect?.limitType ?? 'Default');
+        const elements = Array.isArray(part?.elements) ? [...part.elements] : [];
+        const category = String(part?.effect?.category ?? '');
+
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          target.addStatusEffect({
+            statusType: 'AttackUp',
+            exitCond,
+            limitType,
+            remaining,
+            power: amount,
+            elements,
+            sourceType: 'passive',
+            sourceSkillId: Number(passive?.id ?? 0),
+            sourceSkillLabel: String(passive?.label ?? ''),
+            sourceSkillName: String(passive?.name ?? ''),
+            sourceCharacterId: String(actor?.characterId ?? ''),
+            sourceCharacterName: String(actor?.characterName ?? ''),
+            sourceSkillDesc: String(passive?.desc ?? ''),
+            metadata: category ? { onlyGroupKey: category } : null,
+          });
+        }
         passiveTriggerEvents.push(
-          createPassiveTriggerEvent(state.turnState, actor, passive, {
-            source: 'passive_trigger',
-            effectTypes: ['AttackUp'],
-            attackUpRate: amount,
-            triggerSkillId: Number(skill?.skillId ?? 0),
-            triggerSkillName: String(skill?.name ?? ''),
-          })
+          buildActionScopedEvent(
+            actionEntry,
+            createPassiveTriggerEvent(state.turnState, actor, passive, {
+              source: 'passive_trigger',
+              effectTypes: ['AttackUp'],
+              attackUpRate: amount,
+              triggerSkillId: Number(skill?.skillId ?? 0),
+              triggerSkillName: String(skill?.name ?? ''),
+            })
+          )
         );
         continue;
       }
@@ -3385,15 +4111,17 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
           continue;
         }
         const change = target.applyMoraleDelta(amount);
-        moraleEvents.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          source: 'morale_skill',
-          skillId: skill.skillId,
-          skillName: skill.name,
-          triggerType: 'Morale',
-          ...change,
-        });
+        moraleEvents.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            source: 'morale_skill',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            triggerType: 'Morale',
+            ...change,
+          })
+        );
       }
     }
 
@@ -3403,6 +4131,16 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     additionalTurnPassiveGrantedIds.push(...triggerResult.additionalTurnGrantedIds);
     dpPassiveEvents.push(...triggerResult.dpEvents);
     passiveTriggerEvents.push(...triggerResult.passiveTriggerEvents);
+
+    // RECEIVER基準のSP回復トリガーパッシブ（お裾分け・愛嬌等）を処理
+    const receiverResult = applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry);
+    spPassiveEvents.push(...receiverResult.spEvents);
+    passiveTriggerEvents.push(...receiverResult.passiveTriggerEvents);
+
+    // Zone展開トリガーパッシブ（オーバーレイ等）を処理（RECEIVER-based）
+    const zoneResult = applyReceiverZonePassiveTriggers(state, actor, skill, actionEntry);
+    spPassiveEvents.push(...zoneResult.spEvents);
+    passiveTriggerEvents.push(...zoneResult.passiveTriggerEvents);
   }
 
   return { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents, passiveTriggerEvents };
@@ -3493,15 +4231,17 @@ function applyMotivationEffectsFromActions(state, previewRecord) {
           continue;
         }
         const change = target.setMotivationLevel(targetLevel);
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          source: 'motivation_skill',
-          skillId: skill.skillId,
-          skillName: skill.name,
-          triggerType: 'Motivation',
-          ...change,
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            source: 'motivation_skill',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            triggerType: 'Motivation',
+            ...change,
+          })
+        );
       }
     }
   }
@@ -3674,7 +4414,28 @@ function shouldTickEnemyStatusOnTiming(status, timing) {
   if (isEnemyStatusPersistent(status)) {
     return false;
   }
+
   const normalizedTiming = String(timing ?? '').trim();
+  const actionContext = buildActionContext('TurnEnd', null, {
+    turnPhase: normalizedTiming === 'PlayerTurnEnd' ? 'PlayerTurnEnd' : 'EnemyTurnEnd',
+  });
+  const consumeResult = shouldConsume(
+    {
+      statusType: String(status?.statusType ?? 'EnemyStatus'),
+      limitType: 'Default',
+      exitCond: String(status?.exitCond ?? ''),
+      remaining: Number(status?.remainingTurns ?? 0),
+      metadata: {},
+    },
+    actionContext
+  );
+  if (consumeResult.shouldConsume) {
+    return true;
+  }
+
+  // Unknown/legacy exitCond は既存挙動を維持する（PlayerTurnEnd 以外は enemy timing で減算）。
+  // ここでは remaining<=0 の known exitCond でも fallback が true になる可能性があるが、
+  // 実際の削除可否は tickEnemyStatusDurations 側の remainingTurns 判定で従来どおり決定される。
   const exitCond = String(status?.exitCond ?? '').trim();
   if (normalizedTiming === 'PlayerTurnEnd') {
     return exitCond === 'PlayerTurnEnd';
@@ -3709,6 +4470,8 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     damageRatesByEnemy: enemyState.damageRatesByEnemy,
     destructionRateByEnemy: enemyState.destructionRateByEnemy,
     destructionRateCapByEnemy: enemyState.destructionRateCapByEnemy,
+    absorbElementsByEnemy: enemyState.absorbElementsByEnemy,
+    odRateByEnemy: enemyState.odRateByEnemy,
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
@@ -4579,6 +5342,71 @@ function summarizeActiveBuffStatusEffect(effect) {
   };
 }
 
+function compareStatusEffectsByPowerDesc(a, b) {
+  const powerA = Number(a?.power ?? 0);
+  const powerB = Number(b?.power ?? 0);
+  if (powerA !== powerB) {
+    return powerB - powerA;
+  }
+  const remainingA = Number(a?.remaining ?? 0);
+  const remainingB = Number(b?.remaining ?? 0);
+  if (remainingA !== remainingB) {
+    return remainingB - remainingA;
+  }
+  const idA = Number(a?.effectId ?? 0);
+  const idB = Number(b?.effectId ?? 0);
+  return idA - idB;
+}
+
+function pickTopStatusEffectsByPower(effects, limit) {
+  const max = Math.max(0, Number(limit) || 0);
+  if (max <= 0) {
+    return [];
+  }
+  return effects
+    .slice()
+    .sort(compareStatusEffectsByPowerDesc)
+    .slice(0, max);
+}
+
+function resolveUpFamilyModifiersForStatusType(state, member, skill, skillElements, statusType) {
+  const activeEffects = member.getStatusEffectsByType(statusType, { activeOnly: true });
+  const matched = activeEffects
+    .filter((effect) => doesActiveBuffStatusEffectMatchSkill(effect, state, member, skill, skillElements))
+    .filter((effect) => Number.isFinite(Number(effect?.power ?? 0)) && Number(effect?.power ?? 0) !== 0);
+
+  const persistentDefaults = matched.filter(
+    (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') !== 'Count'
+  );
+  const onlyCandidates = matched.filter((effect) => String(effect?.limitType ?? '') === 'Only');
+  const countCandidates = matched.filter(
+    (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') === 'Count'
+  );
+
+  const bestOnly = pickTopStatusEffectsByPower(onlyCandidates, 1)[0] ?? null;
+  const topCount = pickTopStatusEffectsByPower(countCandidates, 2);
+  const onlyPower = bestOnly ? Number(bestOnly.power ?? 0) : 0;
+  const countPower = topCount.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0);
+  const adopted = countPower >= onlyPower ? topCount : bestOnly ? [bestOnly] : [];
+
+  const matchedEffects = [
+    ...persistentDefaults.map((effect) => summarizeActiveBuffStatusEffect(effect)),
+    ...adopted.map((effect) => summarizeActiveBuffStatusEffect(effect)),
+  ];
+  const rate =
+    persistentDefaults.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0) +
+    adopted.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0);
+  const consumedCountEffectIds = adopted
+    .filter((effect) => String(effect?.exitCond ?? '') === 'Count')
+    .map((effect) => Number(effect.effectId));
+
+  return {
+    rate,
+    matchedEffects,
+    consumedCountEffectIds,
+  };
+}
+
 function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
   if (!state || !member || !skill) {
     return {
@@ -4602,8 +5430,26 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
   let defenseUpRate = 0;
   let criticalRateUpRate = 0;
   let criticalDamageUpRate = 0;
+  const consumedCountEffectIds = new Set();
 
   for (const statusType of statusTypes) {
+    if (statusType === 'AttackUp' || statusType === 'CriticalRateUp' || statusType === 'CriticalDamageUp') {
+      const resolved = resolveUpFamilyModifiersForStatusType(state, member, skill, skillElements, statusType);
+      const amount = Number(resolved.rate ?? 0);
+      if (amount !== 0) {
+        if (statusType === 'AttackUp') attackUpRate += amount;
+        else if (statusType === 'CriticalRateUp') criticalRateUpRate += amount;
+        else if (statusType === 'CriticalDamageUp') criticalDamageUpRate += amount;
+      }
+      for (const effect of resolved.matchedEffects) {
+        matchedEffects.push(effect);
+      }
+      for (const effectId of resolved.consumedCountEffectIds) {
+        consumedCountEffectIds.add(Number(effectId));
+      }
+      continue;
+    }
+
     for (const effect of member.resolveEffectiveStatusEffects(statusType)) {
       if (!doesActiveBuffStatusEffectMatchSkill(effect, state, member, skill, skillElements)) {
         continue;
@@ -4613,10 +5459,7 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
         continue;
       }
       matchedEffects.push(summarizeActiveBuffStatusEffect(effect));
-      if (statusType === 'AttackUp') attackUpRate += amount;
-      else if (statusType === 'DefenseUp') defenseUpRate += amount;
-      else if (statusType === 'CriticalRateUp') criticalRateUpRate += amount;
-      else if (statusType === 'CriticalDamageUp') criticalDamageUpRate += amount;
+      if (statusType === 'DefenseUp') defenseUpRate += amount;
     }
   }
 
@@ -4626,6 +5469,7 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
     criticalRateUpRate,
     criticalDamageUpRate,
     matchedEffects,
+    consumedCountEffectIds: [...consumedCountEffectIds],
   };
 }
 
@@ -4663,13 +5507,29 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
     reduceSpTimings.push('OnOverdriveStart');
   }
   const reduceSp = resolvePassiveReduceSpForMember(state, member, reduceSpTimings);
-  if (!Number.isFinite(reduceSp) || reduceSp <= 0) {
+  const resolvedSpCost =
+    Number.isFinite(reduceSp) && reduceSp > 0
+      ? Math.max(0, baseSpCost - reduceSp)
+      : baseSpCost;
+  const highBoostModifiers = resolveHighBoostModifiersForMember(member);
+  const highBoostAdjustedSpCost =
+    highBoostModifiers.active && Number(highBoostModifiers.spCostIncrease ?? 0) > 0
+      ? truncateToTwoDecimals(resolvedSpCost + Number(highBoostModifiers.spCostIncrease))
+      : resolvedSpCost;
+
+  // 鬼神化中 STezuka: Ep/Morale/Motivation/-1 以外のSP消費を強制0に
+  // （consumeType === 'Sp' かつ baseSpCost > 0 はL4655の早期returnで保証済み）
+  if (
+    String(member?.characterId) === TEZUKA_CHARACTER_ID &&
+    Boolean(member?.isReinforcedMode)
+  ) {
+    return { ...effective, spCost: 0 };
+  }
+
+  if (highBoostAdjustedSpCost === baseSpCost) {
     return effective;
   }
-  return {
-    ...effective,
-    spCost: Math.max(0, baseSpCost - reduceSp),
-  };
+  return { ...effective, spCost: highBoostAdjustedSpCost };
 }
 
 function resolveEffectiveSkillParts(skill, state, member) {
@@ -4862,11 +5722,30 @@ function computeOdGaugeGainPercentBySkill(
   return truncateToTwoDecimals(attackGain + overDrivePointUpGain);
 }
 
+/**
+ * 敵の od_rate に基づく OD 上昇量補正係数を返す。
+ * - od_rate=0 は補正なし（係数 1.0）。
+ * - 0 以外は od_rate / ENEMY_OD_RATE_UNIT（例: 8500 → 0.85）。
+ * - 複数敵がいる場合は敵 index 0 の値を共有レートとして使用する。
+ * [WIP] 小数点丸め込み位置は調査中。
+ */
+function resolveEnemyOdRateMultiplier(turnState) {
+  const enemyState = getEnemyState(turnState);
+  const rawRate = Number(enemyState.odRateByEnemy?.['0'] ?? 0);
+  if (!Number.isFinite(rawRate) || rawRate === 0) {
+    return 1;
+  }
+  return rawRate / ENEMY_OD_RATE_UNIT;
+}
+
 function applyOdGaugeFromActions(state, previewRecord, options = {}) {
   const consumeStatusEffects = options.consumeStatusEffects !== false;
+  const buffMetadataValidation = resolveBuffMetadataValidationOptions(options);
   const events = [];
   const enemyCount = clampEnemyCount(previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT);
   let currentOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
+  // [WIP] 敵 od_rate による OD 上昇補正。小数点丸め込み位置は調査中。
+  const odRateMultiplier = resolveEnemyOdRateMultiplier(state.turnState);
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const member = findMemberByCharacterId(state, actionEntry.characterId);
@@ -4884,7 +5763,21 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
 
     const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, member);
     const hasDamage = hasDamagePartInParts(effectiveParts);
-    const funnelEffects = hasDamage ? member.resolveEffectiveFunnelEffects().slice(0, 2) : [];
+    const actionType = resolveActionContextTypeForSkill(skill);
+    const actionContext = buildActionContext(actionType, skill, {
+      hasDamage,
+      turnPhase: 'PlayerTurn',
+      isNormalAttack: actionType === 'NormalAttack',
+      isPursuit: actionType === 'Pursuit',
+      actorCharacterId: member.characterId,
+    });
+    const funnelResolution = hasDamage
+      ? resolveFunnelCompetitionForAction(member, actionContext, { buffMetadataValidation })
+      : { selectedEffects: [], selectedCountEffectIds: [] };
+    const mindEyeResolution = hasDamage
+      ? resolveMindEyeCompetitionForAction(member, actionContext, { buffMetadataValidation })
+      : { selectedEffects: [], selectedCountEffectIds: [] };
+    const funnelEffects = funnelResolution.selectedEffects.slice(0, 2);
     const funnelHitBonus = funnelEffects.reduce(
       (sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)),
       0
@@ -4924,7 +5817,11 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       skill,
       actionEntry
     );
-    const delta = truncateToTwoDecimals(Number(odGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
+    // od_rate による補正を OD 上昇量に適用する（WIP: 丸め込み位置調査中）。
+    const effectiveOdGaugeGain = odRateMultiplier !== 1
+      ? truncateToTwoDecimals(odGaugeGain * odRateMultiplier)
+      : odGaugeGain;
+    const delta = truncateToTwoDecimals(Number(effectiveOdGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
     if (!Number.isFinite(delta) || delta === 0) {
       continue;
     }
@@ -4935,9 +5832,19 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
 
     let consumedFunnels = [];
     let consumedMindEyes = [];
-    if (hasDamage && consumeStatusEffects) {
-      consumedFunnels = member.consumeFunnelEffects(2);
-      consumedMindEyes = member.consumeMindEyeEffects(1);
+    if (hasDamage && consumeStatusEffects && !isNormalAttackSkill(skill) && !isPursuitOnlySkill(skill)) {
+      consumedFunnels = consumeSelectedCountStatusEffectsWithOrchestrator(
+        member,
+        'Funnel',
+        funnelResolution.selectedCountEffectIds,
+        actionContext
+      );
+      consumedMindEyes = consumeSelectedCountStatusEffectsWithOrchestrator(
+        member,
+        'MindEye',
+        mindEyeResolution.selectedCountEffectIds,
+        actionContext
+      );
     }
 
     const damageContext = buildDamageCalculationContext({
@@ -4965,6 +5872,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       attackByOwnDpRateResolvedMultiplier: Number(
         actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
       ),
+      highBoostSkillAtkRate: Number(actionEntry?.specialPassiveModifiers?.highBoostSkillAtkRate ?? 0),
       attackUpRate: Number(actionEntry?.specialPassiveModifiers?.attackUpRate ?? 0),
       defenseUpRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpRate ?? 0),
       criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
@@ -4999,22 +5907,24 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       funnelEffects,
     });
 
-    events.push({
-      characterId: member.characterId,
-      skillId: skill.skillId,
-      skillName: skill.name,
-      hitCount: effectiveHitCount,
-      baseHitCount,
-      funnelHitBonus,
-      consumedFunnelEffects: consumedFunnels,
-      consumedMindEyeEffects: consumedMindEyes,
-      damageContext,
-      odGaugeGain: delta,
-      odGaugeRawGain: truncateToTwoDecimals(Number(odGaugeGain ?? 0)),
-      odGaugeRawDown: truncateToTwoDecimals(Number(odGaugeDown ?? 0)),
-      odGaugeBefore: beforeOdGauge,
-      odGaugeAfter: currentOdGauge,
-    });
+    events.push(
+      buildActionScopedEvent(actionEntry, {
+        characterId: member.characterId,
+        skillId: skill.skillId,
+        skillName: skill.name,
+        hitCount: effectiveHitCount,
+        baseHitCount,
+        funnelHitBonus,
+        consumedFunnelEffects: consumedFunnels,
+        consumedMindEyeEffects: consumedMindEyes,
+        damageContext,
+        odGaugeGain: delta,
+        odGaugeRawGain: truncateToTwoDecimals(Number(effectiveOdGaugeGain ?? 0)),
+        odGaugeRawDown: truncateToTwoDecimals(Number(odGaugeDown ?? 0)),
+        odGaugeBefore: beforeOdGauge,
+        odGaugeAfter: currentOdGauge,
+      })
+    );
   }
 
   const startOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
@@ -5102,11 +6012,212 @@ function resolveSupportTargetCharacterIds(
   return [...out];
 }
 
+function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
+  const countLimit = Math.max(0, Number(options.countLimit ?? 0));
+  const normalized = Array.isArray(effects) ? effects : [];
+  const active = normalized.filter(
+    (effect) => Number(effect?.remaining ?? 0) > 0 || String(effect?.exitCond ?? '') === 'Eternal'
+  );
+
+  const persistentDefaults = active.filter(
+    (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') !== 'Count'
+  );
+  const onlyCandidates = active.filter((effect) => String(effect?.limitType ?? '') === 'Only');
+  const countCandidates = active.filter(
+    (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') === 'Count'
+  );
+
+  const bestOnly = pickTopStatusEffectsByPower(onlyCandidates, 1)[0] ?? null;
+  const topCount = pickTopStatusEffectsByPower(countCandidates, countLimit);
+  const onlyPower = bestOnly ? Number(bestOnly?.power ?? 0) : 0;
+  const countPower = topCount.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0);
+  const adopted = countPower >= onlyPower ? topCount : bestOnly ? [bestOnly] : [];
+  const selectedEffects = [...persistentDefaults, ...adopted].sort(compareStatusEffectsByPowerDesc);
+  const selectedCountEffectIds = adopted
+    .filter((effect) => String(effect?.exitCond ?? '') === 'Count')
+    .map((effect) => Number(effect?.effectId ?? 0));
+
+  return {
+    selectedEffects,
+    selectedCountEffectIds,
+  };
+}
+
+function resolveActionContextTypeForSkill(skill) {
+  if (isNormalAttackSkill(skill)) {
+    return 'NormalAttack';
+  }
+  if (isPursuitOnlySkill(skill)) {
+    return 'Pursuit';
+  }
+  return 'Skill';
+}
+
+function resolveBuffMetadataValidationOptions(options = {}) {
+  const raw = options?.buffMetadataValidation ?? options?.validateBuffMetadata;
+  if (raw === true) {
+    return {
+      enabled: true,
+      mode: 'warning',
+      onWarning: null,
+    };
+  }
+  if (!raw || raw === false) {
+    return {
+      enabled: false,
+      mode: 'warning',
+      onWarning: null,
+    };
+  }
+
+  const mode = String(raw?.mode ?? 'warning').toLowerCase() === 'strict' ? 'strict' : 'warning';
+  const onWarning = typeof raw?.onWarning === 'function' ? raw.onWarning : null;
+  return {
+    enabled: true,
+    mode,
+    onWarning,
+  };
+}
+
+function shouldAllowEffectByMetadataValidation(effect, validationOptions, context = {}) {
+  if (!validationOptions?.enabled) {
+    return true;
+  }
+  const errors = validateBuffMetadata(effect);
+  if (!Array.isArray(errors) || errors.length <= 0) {
+    return true;
+  }
+
+  const statusType = String(effect?.statusType ?? context?.statusType ?? 'Unknown');
+  const effectId = Number(effect?.effectId ?? 0);
+  const characterId = String(context?.characterId ?? 'Unknown');
+  const phase = String(context?.phase ?? 'BuffMetadataValidation');
+  const skillId = Number(context?.skillId ?? 0);
+  const warningMessage = `[${phase}] invalid buff metadata: characterId=${characterId}, skillId=${skillId}, statusType=${statusType}, effectId=${effectId}, errors=${errors.join(' | ')}`;
+
+  if (validationOptions.onWarning) {
+    validationOptions.onWarning(warningMessage);
+  }
+
+  return validationOptions.mode !== 'strict';
+}
+
+export function evaluateCompetitiveConsumption(effects, actionContext, options = {}) {
+  const resolution = resolveCountOnlyCompetitionForEffects(effects, options);
+  if (!actionContext || typeof actionContext !== 'object') {
+    return resolution;
+  }
+
+  const validationOptions = resolveBuffMetadataValidationOptions(options);
+
+  const selectedCountEffectIds = resolution.selectedEffects
+    .filter((effect) => String(effect?.exitCond ?? '') === 'Count')
+    .filter((effect) =>
+      shouldAllowEffectByMetadataValidation(effect, validationOptions, {
+        phase: 'CompetitiveConsumption',
+        characterId: String(actionContext?.actorCharacterId ?? ''),
+        skillId: Number(actionContext?.skill?.skillId ?? actionContext?.skill?.id ?? 0),
+      })
+    )
+    .filter((effect) => shouldConsume(effect, actionContext).shouldConsume)
+    .map((effect) => Number(effect?.effectId ?? 0))
+    .filter((effectId) => Number.isFinite(effectId) && effectId > 0);
+
+  return {
+    ...resolution,
+    selectedCountEffectIds,
+  };
+}
+
+function resolveFunnelCompetitionForAction(member, actionContext = null, options = {}) {
+  if (!member || typeof member.getFunnelEffects !== 'function') {
+    return { selectedEffects: [], selectedCountEffectIds: [] };
+  }
+  return evaluateCompetitiveConsumption(member.getFunnelEffects({ activeOnly: true }), actionContext, {
+    countLimit: 2,
+    ...options,
+  });
+}
+
+function resolveMindEyeCompetitionForAction(member, actionContext = null, options = {}) {
+  if (!member || typeof member.getMindEyeEffects !== 'function') {
+    return { selectedEffects: [], selectedCountEffectIds: [] };
+  }
+  return evaluateCompetitiveConsumption(member.getMindEyeEffects({ activeOnly: true }), actionContext, {
+    countLimit: 2,
+    ...options,
+  });
+}
+
+function consumeSelectedCountStatusEffects(member, statusType, selectedCountEffectIds) {
+  if (!member || typeof member.tickStatusEffectsWhere !== 'function') {
+    return [];
+  }
+  const idSet = new Set(
+    (selectedCountEffectIds ?? [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+  );
+  if (idSet.size <= 0) {
+    return [];
+  }
+  return member.tickStatusEffectsWhere(
+    (effect) =>
+      String(effect?.statusType ?? '') === String(statusType ?? '') &&
+      String(effect?.exitCond ?? '') === 'Count' &&
+      idSet.has(Number(effect?.effectId ?? 0))
+  );
+}
+
+/**
+ * Phase 3.1 Integration: orchestrator-based consumption evaluation
+ *
+ * This function is active in the Funnel/MindEye consumption path and
+ * falls back to legacy consumption when actionContext is not provided.
+ * 
+ * @param {Object} member - Character member
+ * @param {string} statusType - Status effect type (e.g., 'Funnel', 'MindEye')
+ * @param {Array} selectedCountEffectIds - Effect IDs to potentially consume
+ * @param {Object} actionContext - Action context for orchestrator evaluation
+ * @returns {Array} Consumed effects
+ */
+function consumeSelectedCountStatusEffectsWithOrchestrator(
+  member,
+  statusType,
+  selectedCountEffectIds,
+  actionContext
+) {
+  if (!member || typeof member.tickStatusEffectsWhere !== 'function') {
+    return [];
+  }
+  const idSet = new Set(
+    (selectedCountEffectIds ?? [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+  );
+  if (idSet.size <= 0) {
+    return [];
+  }
+  if (!actionContext || typeof actionContext !== 'object') {
+    return consumeSelectedCountStatusEffects(member, statusType, selectedCountEffectIds);
+  }
+  return member.tickStatusEffectsWhere(
+    (effect) =>
+      String(effect?.statusType ?? '') === String(statusType ?? '') &&
+      String(effect?.exitCond ?? '') === 'Count' &&
+      idSet.has(Number(effect?.effectId ?? 0)) &&
+      shouldConsume(effect, actionContext).shouldConsume
+  );
+}
+
 function resolveFunnelHitBonusForMember(member, maxStacks = 2) {
-  if (!member || typeof member.resolveEffectiveFunnelEffects !== 'function') {
+  if (!member) {
     return 0;
   }
-  const effects = member.resolveEffectiveFunnelEffects().slice(0, Math.max(0, Number(maxStacks) || 0));
+  const effects = resolveFunnelCompetitionForAction(member).selectedEffects.slice(
+    0,
+    Math.max(0, Number(maxStacks) || 0)
+  );
   return effects.reduce((sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)), 0);
 }
 
@@ -5144,13 +6255,13 @@ function isTimedActiveBuffPart(part) {
   return (exitCond && exitCond !== 'None') || (limitType && limitType !== 'None');
 }
 
-function addActiveBuffStatusEffect(target, skill, part) {
+function addActiveBuffStatusEffect(actor, target, skill, part) {
   const skillType = String(part?.skill_type ?? '').trim();
   const statusType = resolveActiveBuffStatusType(skillType);
   if (!statusType) {
     return null;
   }
-  const power = Number(part?.power?.[0] ?? 0);
+  const power = scaleHighBoostAttackBuffPower(actor, skillType, Number(part?.power?.[0] ?? 0));
   if (!Number.isFinite(power) || power === 0) {
     return null;
   }
@@ -5167,6 +6278,9 @@ function addActiveBuffStatusEffect(target, skill, part) {
     sourceSkillId: Number(skill?.skillId ?? skill?.id ?? 0),
     sourceSkillLabel: String(skill?.label ?? ''),
     sourceSkillName: String(skill?.name ?? ''),
+    sourceCharacterId: String(actor?.characterId ?? ''),
+    sourceCharacterName: String(actor?.characterName ?? ''),
+    sourceSkillDesc: String(skill?.desc ?? ''),
     metadata: {
       activeBuffStatus: true,
       effectName,
@@ -5227,18 +6341,129 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
         if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
           continue;
         }
-        const added = addActiveBuffStatusEffect(target, skill, part);
+        const added = addActiveBuffStatusEffect(actor, target, skill, part);
         if (!added) {
           continue;
         }
-        events.push({
-          actorCharacterId: actor.characterId,
-          targetCharacterId,
-          skillId: Number(skill?.skillId ?? 0),
-          skillName: String(skill?.name ?? ''),
-          sourceSkillLabel: String(skill?.label ?? ''),
-          ...added,
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            targetCharacterId,
+            skillId: Number(skill?.skillId ?? 0),
+            skillName: String(skill?.name ?? ''),
+            sourceSkillLabel: String(skill?.label ?? ''),
+            ...added,
+          })
+        );
+      }
+    }
+  }
+  return events;
+}
+
+function addDoubleActionExtraSkillStatusEffect(target, source, options = {}) {
+  const remaining = Number(options.remaining ?? DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING);
+  if (typeof target?.removeStatusEffectsWhere === 'function') {
+    target.removeStatusEffectsWhere(
+      (effect) => String(effect?.statusType ?? '') === DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE
+    );
+  }
+  const effect = target.addStatusEffect({
+    statusType: DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE,
+    limitType: String(options.limitType ?? 'Only'),
+    exitCond: String(options.exitCond ?? 'Count'),
+    remaining: Number.isFinite(remaining) && remaining > 0 ? remaining : DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING,
+    power: 1,
+    sourceType: String(options.sourceType ?? 'skill'),
+    sourceSkillId: Number(source?.sourceSkillId ?? 0),
+    sourceSkillLabel: String(source?.sourceSkillLabel ?? ''),
+    sourceSkillName: String(source?.sourceSkillName ?? ''),
+    sourceCharacterId: String(source?.sourceCharacterId ?? ''),
+    sourceCharacterName: String(source?.sourceCharacterName ?? ''),
+    sourceSkillDesc: String(source?.sourceSkillDesc ?? ''),
+    metadata: source?.metadata && typeof source.metadata === 'object' ? structuredClone(source.metadata) : null,
+  });
+  return {
+    characterId: target.characterId,
+    effectId: Number(effect?.effectId ?? 0),
+    statusType: String(effect?.statusType ?? DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE),
+    limitType: String(effect?.limitType ?? 'Only'),
+    exitCond: String(effect?.exitCond ?? 'Count'),
+    remaining: Number(effect?.remaining ?? DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING),
+  };
+}
+
+function applyDoubleActionExtraSkillEffectsFromActions(state, previewRecord) {
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+    const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
+    for (const part of effectiveParts ?? []) {
+      if (String(part?.skill_type ?? '').trim() !== DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE) {
+        continue;
+      }
+      const conditionSkill = createConditionSkillContext(skill, part);
+      const condTexts = [part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const condSatisfied = condTexts.every((expr) =>
+        evaluateConditionExpression(expr, state, actor, conditionSkill, actionEntry).result
+      );
+      if (!condSatisfied) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        const added = addDoubleActionExtraSkillStatusEffect(
+          target,
+          {
+            sourceSkillId: Number(skill.skillId ?? 0),
+            sourceSkillLabel: String(skill.label ?? ''),
+            sourceSkillName: String(skill.name ?? ''),
+            sourceCharacterId: String(actor.characterId ?? ''),
+            sourceCharacterName: String(actor.characterName ?? ''),
+            metadata: {
+              targetType: String(part?.target_type ?? ''),
+            },
+          },
+          {
+            sourceType: 'skill',
+            limitType: String(part?.effect?.limitType ?? 'Only'),
+            exitCond: String(part?.effect?.exitCond ?? 'Count'),
+            remaining: Number(part?.effect?.exitVal?.[0] ?? DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING),
+          }
+        );
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            skillId: Number(skill.skillId ?? 0),
+            skillName: String(skill.name ?? ''),
+            ...added,
+          })
+        );
       }
     }
   }
@@ -5307,18 +6532,20 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
           },
         });
 
-        events.push({
-          actorCharacterId: actor.characterId,
-          targetCharacterId,
-          skillId: skill.skillId,
-          skillName: skill.name,
-          effectId: effect.effectId,
-          hitBonus: effect.power,
-          damageBonus: effect.metadata?.damageBonus ?? 0,
-          limitType: effect.limitType,
-          exitCond: effect.exitCond,
-          remaining: effect.remaining,
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            targetCharacterId,
+            skillId: skill.skillId,
+            skillName: skill.name,
+            effectId: effect.effectId,
+            hitBonus: effect.power,
+            damageBonus: effect.metadata?.damageBonus ?? 0,
+            limitType: effect.limitType,
+            exitCond: effect.exitCond,
+            remaining: effect.remaining,
+          })
+        );
       }
     }
   }
@@ -5403,13 +6630,15 @@ function applyGuardEffectsFromActions(state, previewRecord) {
         if (!added) {
           continue;
         }
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          skillId: Number(skill.skillId ?? 0),
-          skillName: String(skill.name ?? ''),
-          ...added,
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            skillId: Number(skill.skillId ?? 0),
+            skillName: String(skill.name ?? ''),
+            ...added,
+          })
+        );
       }
     }
   }
@@ -5460,13 +6689,15 @@ function applyShreddingEffectsFromActions(state, previewRecord) {
           continue;
         }
         target.applyShredding(turns);
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          skillId: Number(skill.skillId ?? 0),
-          skillName: String(skill.name ?? ''),
-          turns,
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            skillId: Number(skill.skillId ?? 0),
+            skillName: String(skill.name ?? ''),
+            turns,
+          })
+        );
       }
     }
   }
@@ -5520,14 +6751,16 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
         if (!target) {
           continue;
         }
-        target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill });
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          statusTypeId,
-          skillId: Number(skill.skillId ?? 0),
-          skillName: String(skill.name ?? ''),
-        });
+        target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill, actor });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            statusTypeId,
+            skillId: Number(skill.skillId ?? 0),
+            skillName: String(skill.name ?? ''),
+          })
+        );
       }
     }
   }
@@ -5601,7 +6834,7 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
             statusType: skillType,
             targetIndex,
             remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-            power: getEnemyStatusPowerValue(part),
+            power: scaleHighBoostEnemyDebuffPower(actor, skillType, getEnemyStatusPowerValue(part)),
             elements: normalizeEnemyStatusElements(part?.elements),
             limitType: String(part?.effect?.limitType ?? ''),
             exitCond: String(part?.effect?.exitCond ?? ''),
@@ -5618,13 +6851,15 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
           continue;
         }
         upsertEnemyStatus(state.turnState, appliedStatus);
-        events.push({
-          actorCharacterId: actor.characterId,
-          skillId: Number(skill.skillId ?? 0),
-          skillName: String(skill.name ?? ''),
-          mode: 'EnemyStatus',
-          ...appliedStatus,
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            skillId: Number(skill.skillId ?? 0),
+            skillName: String(skill.name ?? ''),
+            mode: 'EnemyStatus',
+            ...appliedStatus,
+          })
+        );
       }
     }
   }
@@ -5674,13 +6909,15 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
         if (skillType === 'SuperBreak') {
           const applied = applyEnemyStrongBreakState(state.turnState, targetIndex);
           if (applied) {
-            events.push({
-              actorCharacterId: actor.characterId,
-              skillId: Number(skill.skillId ?? 0),
-              skillName: String(skill.name ?? ''),
-              mode: 'StrongBreak',
-              ...applied,
-            });
+            events.push(
+              buildActionScopedEvent(actionEntry, {
+                actorCharacterId: actor.characterId,
+                skillId: Number(skill.skillId ?? 0),
+                skillName: String(skill.name ?? ''),
+                mode: 'StrongBreak',
+                ...applied,
+              })
+            );
           }
           continue;
         }
@@ -5688,13 +6925,15 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
         if (hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN)) {
           const applied = applyEnemySuperDownState(state.turnState, targetIndex);
           if (applied) {
-            events.push({
-              actorCharacterId: actor.characterId,
-              skillId: Number(skill.skillId ?? 0),
-              skillName: String(skill.name ?? ''),
-              mode: 'SuperDown',
-              ...applied,
-            });
+            events.push(
+              buildActionScopedEvent(actionEntry, {
+                actorCharacterId: actor.characterId,
+                skillId: Number(skill.skillId ?? 0),
+                skillName: String(skill.name ?? ''),
+                mode: 'SuperDown',
+                ...applied,
+              })
+            );
           }
           continue;
         }
@@ -5709,16 +6948,69 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
           targetIndex,
           remainingTurns: DEFAULT_AUTO_DOWN_TURN_REMAINING,
         });
-        events.push({
-          actorCharacterId: actor.characterId,
-          skillId: Number(skill.skillId ?? 0),
-          skillName: String(skill.name ?? ''),
-          mode: 'DownTurn',
-          targetIndex,
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            skillId: Number(skill.skillId ?? 0),
+            skillName: String(skill.name ?? ''),
+            mode: 'DownTurn',
+            targetIndex,
+            statusType: ENEMY_STATUS_DOWN_TURN,
+            remainingTurns: DEFAULT_AUTO_DOWN_TURN_REMAINING,
+          })
+        );
+      }
+    }
+  }
+  return events;
+}
+
+function normalizeManualBreakEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const normalizedEnemyCount = clampEnemyCount(enemyCount);
+  return [...new Set(
+    (Array.isArray(actionEntry?.manualBreakEnemyIndexes) ? actionEntry.manualBreakEnemyIndexes : [])
+      .map((enemyIndex) => Number(enemyIndex))
+      .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < normalizedEnemyCount)
+  )].sort((left, right) => left - right);
+}
+
+function applyManualBreakEffectsFromActions(state, previewRecord) {
+  const events = [];
+  const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
+    if (manualBreakEnemyIndexes.length === 0) {
+      continue;
+    }
+    for (const targetIndex of manualBreakEnemyIndexes) {
+      upsertEnemyStatus(state.turnState, {
+        statusType: ENEMY_STATUS_BREAK,
+        targetIndex,
+        remainingTurns: 0,
+      });
+      const existingDownTurn =
+        getActiveEnemyStatuses(state.turnState, ENEMY_STATUS_DOWN_TURN).find(
+          (status) => Number(status?.targetIndex) === Number(targetIndex)
+        ) ?? null;
+      if (!existingDownTurn) {
+        upsertEnemyStatus(state.turnState, {
           statusType: ENEMY_STATUS_DOWN_TURN,
+          targetIndex,
           remainingTurns: DEFAULT_AUTO_DOWN_TURN_REMAINING,
         });
       }
+      events.push(
+        buildActionScopedEvent(actionEntry, {
+          actorCharacterId: String(actionEntry.characterId ?? ''),
+          skillId: Number(actionEntry.skillId ?? 0),
+          skillName: String(actionEntry.skillName ?? ''),
+          mode: 'DownTurn',
+          targetIndex,
+          statusType: ENEMY_STATUS_DOWN_TURN,
+          remainingTurns: Number(existingDownTurn?.remainingTurns ?? DEFAULT_AUTO_DOWN_TURN_REMAINING),
+          source: 'manual',
+        })
+      );
     }
   }
   return events;
@@ -5796,16 +7088,18 @@ function applyBreakDownTurnUpFromActions(state, previewRecord) {
             targetIndex,
             remainingTurns: newRemaining,
           });
-          events.push({
-            actorCharacterId: actor.characterId,
-            passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
-            passiveName: String(passive?.name ?? ''),
-            mode: 'BreakDownTurnUp',
-            targetIndex,
-            statusType: ENEMY_STATUS_DOWN_TURN,
-            extension,
-            remainingTurns: newRemaining,
-          });
+          events.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: actor.characterId,
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              mode: 'BreakDownTurnUp',
+              targetIndex,
+              statusType: ENEMY_STATUS_DOWN_TURN,
+              extension,
+              remainingTurns: newRemaining,
+            })
+          );
         }
       }
     }
@@ -5877,6 +7171,7 @@ function updateReinforcedModeStateAfterTurn(state) {
 function applyTurnBasedStatusExpiry(state, previewRecord) {
   const processed = new Set();
   const events = [];
+  const actionContext = buildActionContext('TurnEnd', null, { turnPhase: 'PlayerTurnEnd' });
   for (const actionEntry of previewRecord.actions ?? []) {
     const characterId = String(actionEntry?.characterId ?? '');
     if (!characterId || processed.has(characterId)) {
@@ -5888,7 +7183,9 @@ function applyTurnBasedStatusExpiry(state, previewRecord) {
     if (!member) {
       continue;
     }
-    const ticked = member.tickStatusEffectsByExitCond('PlayerTurnEnd');
+    const ticked = member.tickStatusEffectsWhere(
+      (effect) => shouldConsume(effect, actionContext).shouldConsume
+    );
     for (const item of ticked) {
       events.push({ characterId, ...item });
     }
@@ -6082,6 +7379,9 @@ function validateActionDict(state, actions, options = {}) {
     throw new Error('actions must be an object keyed by position index.');
   }
   const skipSkillConditions = Boolean(options.skipSkillConditions);
+  const allowUseCountOverflow = Boolean(options.allowUseCountOverflow);
+  const allowSkillConditionMismatch = Boolean(options.allowSkillConditionMismatch);
+  const onWarning = typeof options.onWarning === 'function' ? options.onWarning : null;
 
   const allowedInExtra = getExtraAllowedSet(state.turnState);
   const entries = Object.entries(actions).map(([positionKey, action]) => {
@@ -6116,9 +7416,9 @@ function validateActionDict(state, actions, options = {}) {
     const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
 
     if (!skipSkillConditions) {
+      // iuc_cond is a discount/consumption condition, not a skill usability guard.
       const skillConditions = [
         { label: 'cond', expression: effectiveSkill?.cond ?? skill.cond },
-        { label: 'iuc_cond', expression: effectiveSkill?.iucCond ?? skill.iucCond },
       ];
       for (const condition of skillConditions) {
         const expr = String(condition.expression ?? '').trim();
@@ -6127,9 +7427,18 @@ function validateActionDict(state, actions, options = {}) {
         }
         const evaluated = evaluateConditionExpression(expr, state, member, effectiveSkill, action);
         if (evaluated.knownCount > 0 && !evaluated.result) {
-          throw new Error(
-            `Skill ${skill.skillId} cannot be used because ${condition.label} is not satisfied.`
-          );
+          const warningMessage =
+            `Skill ${skill.skillId} cannot be used because ${condition.label} is not satisfied.`;
+          const isUseCountCondition = expr.includes('PlayedSkillCount(');
+          if (isUseCountCondition && allowUseCountOverflow) {
+            onWarning?.(`use count overflow allowed: ${warningMessage}`);
+            continue;
+          }
+          if (allowSkillConditionMismatch) {
+            onWarning?.(`skill condition mismatch allowed: ${warningMessage}`);
+            continue;
+          }
+          throw new Error(warningMessage);
         }
       }
 
@@ -6218,169 +7527,472 @@ function resolveRemoveDebuffCountForAction(state, actor, skill, actionEntry) {
   return total;
 }
 
-function previewActionEntries(state, sortedActions) {
-  return sortedActions.map(({ member, position, skill, action }) => {
-    const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
-    const preview = member.previewSkillUseResolved(effectiveSkill);
-    const hitInfo = resolveEffectivePreviewHitCount(effectiveSkill, state, member);
-    const attackUpTimings = ['OnEveryTurnIncludeSpecial'];
-    if (isOverDriveActive(state?.turnState)) {
-      attackUpTimings.push('OnOverdriveStart');
-    }
-    const specialAttackUp = resolvePassiveAttackUpForMember(state, member, attackUpTimings);
-    const damageRateUpPerToken = resolvePassiveDamageRateUpPerTokenForMember(
-      state,
-      member,
-      'OnPlayerTurnStart'
-    );
-    const attackUpPerToken = resolvePassiveAttackUpPerTokenForMember(
-      state,
-      member,
-      'OnPlayerTurnStart'
-    );
-    const defenseUpPerToken = resolvePassiveDefenseUpPerTokenForMember(
-      state,
-      member,
-      'OnEnemyTurnStart'
-    );
-    const zoneMatch = skillMatchesActiveZone(state, effectiveSkill, member);
-    const zonePowerRate = zoneMatch.matched ? Number(zoneMatch.zoneState?.powerRate ?? 0) : 0;
-    const tokenAttackContext = resolveTokenAttackContext(
-      effectiveSkill,
-      state,
-      member,
-      preview.startToken
-    );
-    const attackByOwnDpRateContext = resolveAttackByOwnDpRateContext(
-      effectiveSkill,
-      state,
-      member,
-      member.dpState
-    );
-    const intrinsicMarkModifiers = resolveIntrinsicMarkModifiersForMember(member);
-    const activeBuffStatusModifiers = resolveActiveBuffStatusModifiersForAction(
-      state,
-      member,
-      effectiveSkill
-    );
+function resolveRemainingSkillUsesForMember(member, skill) {
+  const usage = skill?.usage && typeof skill.usage === 'object' ? skill.usage : null;
+  if (!usage || usage.mode === 'unlimited' || usage.maxUses == null) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const maxUses = Number(usage.maxUses);
+  if (!Number.isFinite(maxUses) || maxUses < 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const used = Number(member?.getSkillUseCountByLabel?.(skill?.label) ?? 0);
+  return Math.max(0, maxUses - used);
+}
 
-    return {
-      characterId: member.characterId,
-      characterName: member.characterName,
-      styleId: Number(member.styleId ?? 0),
-      styleName: String(member.styleName ?? ''),
-      partyIndex: member.partyIndex,
-      positionIndex: position,
-      isExtraAction: state.turnState.turnType === 'extra',
-      skillId: effectiveSkill.skillId,
-      skillName: effectiveSkill.name,
-      skillLabel: effectiveSkill.label,
-      skillTargetType: String(effectiveSkill.targetType ?? ''),
-      skillHitCount: hitInfo.effectiveHitCount,
-      skillBaseHitCount: hitInfo.baseHitCount,
-      skillFunnelHitBonus: hitInfo.funnelHitBonus,
-      spCost: effectiveSkill.spCost,
-      consumeType: String(effectiveSkill.consumeType ?? 'Sp'),
-      spChanges: [
-        {
-          source: 'cost',
-          delta: preview.spDelta,
-          preSP: preview.startSP,
-          postSP: preview.endSP,
-          eventCeiling: Number.POSITIVE_INFINITY,
-        },
-      ],
-      startSP: preview.startSP,
-      endSP: preview.endSP,
-      startEP: preview.startEP,
-      endEP: preview.endEP,
-      startToken: preview.startToken,
-      endToken: preview.endToken,
-      startMorale: preview.startMorale,
-      endMorale: preview.endMorale,
-      startMotivation: preview.startMotivation,
-      endMotivation: preview.endMotivation,
-      attackByOwnDpRateContext,
-      tokenChanges:
-        Number(preview.tokenDelta ?? 0) !== 0
-          ? [
-              {
-                source: 'cost',
-                delta: preview.tokenDelta,
-                preToken: preview.startToken,
-                postToken: preview.endToken,
-                eventCeiling: Number.POSITIVE_INFINITY,
-              },
-            ]
-          : [],
-      moraleChanges:
-        Number(preview.moraleDelta ?? 0) !== 0
-          ? [
-              {
-                source: 'cost',
-                delta: preview.moraleDelta,
-                preMorale: preview.startMorale,
-                postMorale: preview.endMorale,
-                eventCeiling: Number.POSITIVE_INFINITY,
-              },
-            ]
-          : [],
-      motivationChanges:
-        Number(preview.motivationDelta ?? 0) !== 0
-          ? [
-              {
-                source: 'cost',
-                delta: preview.motivationDelta,
-                preMotivation: preview.startMotivation,
-                postMotivation: preview.endMotivation,
-                eventCeiling: Number.POSITIVE_INFINITY,
-              },
-            ]
-          : [],
-      dpChanges: [],
-      activeStatusEffectModifiers: {
-        attackUpRate: Number(activeBuffStatusModifiers.attackUpRate ?? 0),
-        defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
-        criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
-        criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
+function shouldRepeatWithDoubleActionExtraSkill(member, skill, actionMetadata = {}) {
+  if (!member || !skill || actionMetadata?.isDerivedRepeat) {
+    return false;
+  }
+  if (!Boolean(skill?.isRestricted)) {
+    return false;
+  }
+  const effectiveEffects =
+    typeof member.resolveEffectiveDoubleActionExtraSkillEffects === 'function'
+      ? member.resolveEffectiveDoubleActionExtraSkillEffects()
+      : [];
+  if (!Array.isArray(effectiveEffects) || effectiveEffects.length === 0) {
+    return false;
+  }
+  return resolveRemainingSkillUsesForMember(member, skill) >= DOUBLE_ACTION_EXTRA_SKILL_REQUIRED_USES;
+}
+
+function buildDerivedRepeatAction(action) {
+  return {
+    ...(action && typeof action === 'object' ? structuredClone(action) : {}),
+    breakHitCount: 0,
+    killCount: 0,
+    pursuedHitCount: 0,
+    manualBreakEnemyIndexes: [],
+  };
+}
+
+function buildPreviewActionEntry(state, member, position, effectiveSkill, action, actionMetadata = {}) {
+  const preview = member.previewSkillUseResolved(effectiveSkill);
+  const hitInfo = resolveEffectivePreviewHitCount(effectiveSkill, state, member);
+  const attackUpTimings = ['OnEveryTurnIncludeSpecial'];
+  if (isOverDriveActive(state?.turnState)) {
+    attackUpTimings.push('OnOverdriveStart');
+  }
+  const specialAttackUp = resolvePassiveAttackUpForMember(state, member, attackUpTimings);
+  const damageRateUpPerToken = resolvePassiveDamageRateUpPerTokenForMember(
+    state,
+    member,
+    'OnPlayerTurnStart'
+  );
+  const attackUpPerToken = resolvePassiveAttackUpPerTokenForMember(
+    state,
+    member,
+    'OnPlayerTurnStart'
+  );
+  const defenseUpPerToken = resolvePassiveDefenseUpPerTokenForMember(
+    state,
+    member,
+    'OnEnemyTurnStart'
+  );
+  const zoneMatch = skillMatchesActiveZone(state, effectiveSkill, member);
+  const zonePowerRate = zoneMatch.matched ? Number(zoneMatch.zoneState?.powerRate ?? 0) : 0;
+  const tokenAttackContext = resolveTokenAttackContext(
+    effectiveSkill,
+    state,
+    member,
+    preview.startToken
+  );
+  const attackByOwnDpRateContext = resolveAttackByOwnDpRateContext(
+    effectiveSkill,
+    state,
+    member,
+    member.dpState
+  );
+  const intrinsicMarkModifiers = resolveIntrinsicMarkModifiersForMember(member);
+  const activeBuffStatusModifiers = resolveActiveBuffStatusModifiersForAction(
+    state,
+    member,
+    effectiveSkill
+  );
+  const highBoostModifiers = resolveHighBoostModifiersForMember(member);
+
+  return {
+    characterId: member.characterId,
+    characterName: member.characterName,
+    styleId: Number(member.styleId ?? 0),
+    styleName: String(member.styleName ?? ''),
+    partyIndex: member.partyIndex,
+    positionIndex: position,
+    actionInstanceId: String(actionMetadata.actionInstanceId ?? ''),
+    castIndex: Math.max(0, Number(actionMetadata.castIndex ?? 0)),
+    castCount: Math.max(1, Number(actionMetadata.castCount ?? 1)),
+    isDerivedRepeat: Boolean(actionMetadata.isDerivedRepeat),
+    isExtraAction: state.turnState.turnType === 'extra',
+    skillId: effectiveSkill.skillId,
+    skillName: effectiveSkill.name,
+    skillLabel: effectiveSkill.label,
+    skillTargetType: String(effectiveSkill.targetType ?? ''),
+    skillHitCount: hitInfo.effectiveHitCount,
+    skillBaseHitCount: hitInfo.baseHitCount,
+    skillFunnelHitBonus: hitInfo.funnelHitBonus,
+    spCost: effectiveSkill.spCost,
+    consumeType: String(effectiveSkill.consumeType ?? 'Sp'),
+    spChanges: [
+      {
+        source: 'cost',
+        delta: preview.spDelta,
+        preSP: preview.startSP,
+        postSP: preview.endSP,
+        eventCeiling: Number.POSITIVE_INFINITY,
       },
-      activeStatusEffects: structuredClone(activeBuffStatusModifiers.matchedEffects ?? []),
-      specialPassiveModifiers: {
-        attackUpRate:
-          Number(activeBuffStatusModifiers.attackUpRate ?? 0) +
-          Number(specialAttackUp.totalRate ?? 0) +
-          Number(intrinsicMarkModifiers.attackUpRate ?? 0) +
-          Number(attackUpPerToken.totalRate ?? 0),
-        defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
-        criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
-        criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
-        markAttackUpRate: Number(intrinsicMarkModifiers.attackUpRate ?? 0),
-        attackUpPerTokenRate: Number(attackUpPerToken.totalRate ?? 0),
-        damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
-        defenseUpPerTokenRate: Number(defenseUpPerToken.totalRate ?? 0),
-        zonePowerRate,
-        markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
-        markDevastationRateUp: Number(intrinsicMarkModifiers.devastationRateUp ?? 0),
-        markCriticalRateUp: Number(intrinsicMarkModifiers.criticalRateUp ?? 0),
-        markCriticalDamageUp: Number(intrinsicMarkModifiers.criticalDamageUp ?? 0),
-      },
-      tokenAttackContext,
-      specialPassiveEvents: [
-        ...specialAttackUp.matchedPassives,
-        ...attackUpPerToken.matchedPassives,
-        ...defenseUpPerToken.matchedPassives,
-        ...damageRateUpPerToken.matchedPassives,
-      ],
-      breakHitCount: Number(action?.breakHitCount ?? 0),
-      killCount: Number(action?.killCount ?? 0),
-      removeDebuffCount: resolveRemoveDebuffCountForAction(state, member, effectiveSkill, action),
-      targetCharacterId: String(action?.targetCharacterId ?? ''),
-      targetEnemyIndex:
-        Number.isFinite(Number(action?.targetEnemyIndex)) ? Number(action.targetEnemyIndex) : null,
-      _baseRevision: preview.baseRevision,
-      _effectiveSkillSnapshot: structuredClone(effectiveSkill),
-    };
+    ],
+    startSP: preview.startSP,
+    endSP: preview.endSP,
+    startEP: preview.startEP,
+    endEP: preview.endEP,
+    startToken: preview.startToken,
+    endToken: preview.endToken,
+    startMorale: preview.startMorale,
+    endMorale: preview.endMorale,
+    startMotivation: preview.startMotivation,
+    endMotivation: preview.endMotivation,
+    attackByOwnDpRateContext,
+    tokenChanges:
+      Number(preview.tokenDelta ?? 0) !== 0
+        ? [
+            {
+              source: 'cost',
+              delta: preview.tokenDelta,
+              preToken: preview.startToken,
+              postToken: preview.endToken,
+              eventCeiling: Number.POSITIVE_INFINITY,
+            },
+          ]
+        : [],
+    moraleChanges:
+      Number(preview.moraleDelta ?? 0) !== 0
+        ? [
+            {
+              source: 'cost',
+              delta: preview.moraleDelta,
+              preMorale: preview.startMorale,
+              postMorale: preview.endMorale,
+              eventCeiling: Number.POSITIVE_INFINITY,
+            },
+          ]
+        : [],
+    motivationChanges:
+      Number(preview.motivationDelta ?? 0) !== 0
+        ? [
+            {
+              source: 'cost',
+              delta: preview.motivationDelta,
+              preMotivation: preview.startMotivation,
+              postMotivation: preview.endMotivation,
+              eventCeiling: Number.POSITIVE_INFINITY,
+            },
+          ]
+        : [],
+    dpChanges: [],
+    activeStatusEffectModifiers: {
+      attackUpRate: Number(activeBuffStatusModifiers.attackUpRate ?? 0),
+      defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
+      criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
+      criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
+    },
+    activeStatusEffects: structuredClone(activeBuffStatusModifiers.matchedEffects ?? []),
+    specialPassiveModifiers: {
+      highBoostSkillAtkRate: Number(highBoostModifiers.skillAtkRate ?? 0),
+      consumedCountEffectIds: [...(activeBuffStatusModifiers.consumedCountEffectIds ?? [])],
+      attackUpRate:
+        Number(activeBuffStatusModifiers.attackUpRate ?? 0) +
+        Number(specialAttackUp.totalRate ?? 0) +
+        Number(intrinsicMarkModifiers.attackUpRate ?? 0) +
+        Number(attackUpPerToken.totalRate ?? 0),
+      defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
+      criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
+      criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
+      markAttackUpRate: Number(intrinsicMarkModifiers.attackUpRate ?? 0),
+      attackUpPerTokenRate: Number(attackUpPerToken.totalRate ?? 0),
+      damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
+      defenseUpPerTokenRate: Number(defenseUpPerToken.totalRate ?? 0),
+      zonePowerRate,
+      giveAttackBuffUpRate: highBoostModifiers.active
+        ? truncateToTwoDecimals(Number(highBoostModifiers.attackBuffMultiplier ?? 1) - 1)
+        : 0,
+      giveDefenseDebuffUpRate: highBoostModifiers.active
+        ? truncateToTwoDecimals(Number(highBoostModifiers.debuffMultiplier ?? 1) - 1)
+        : 0,
+      giveHealUpRate: highBoostModifiers.active
+        ? truncateToTwoDecimals(Number(highBoostModifiers.dpHealMultiplier ?? 1) - 1)
+        : 0,
+      markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
+      markDevastationRateUp: Number(intrinsicMarkModifiers.devastationRateUp ?? 0),
+      markCriticalRateUp: Number(intrinsicMarkModifiers.criticalRateUp ?? 0),
+      markCriticalDamageUp: Number(intrinsicMarkModifiers.criticalDamageUp ?? 0),
+    },
+    tokenAttackContext,
+    specialPassiveEvents: [
+      ...specialAttackUp.matchedPassives,
+      ...attackUpPerToken.matchedPassives,
+      ...defenseUpPerToken.matchedPassives,
+      ...damageRateUpPerToken.matchedPassives,
+    ],
+    breakHitCount:
+      Number.isFinite(Number(action?.breakHitCount))
+        ? Number(action.breakHitCount)
+        : normalizeManualBreakEnemyIndexes(action, state?.turnState?.enemyState?.enemyCount).length,
+    killCount: Number(action?.killCount ?? 0),
+    pursuedHitCount: Math.max(0, Number(action?.pursuedHitCount ?? 0)),
+    removeDebuffCount: resolveRemoveDebuffCountForAction(state, member, effectiveSkill, action),
+    targetCharacterId: String(action?.targetCharacterId ?? ''),
+    targetEnemyIndex:
+      Number.isFinite(Number(action?.targetEnemyIndex)) ? Number(action.targetEnemyIndex) : null,
+    manualBreakEnemyIndexes: normalizeManualBreakEnemyIndexes(
+      action,
+      state?.turnState?.enemyState?.enemyCount
+    ),
+    insufficientSpWarning: String(preview.insufficientSpWarning ?? ''),
+    // skill cond に "Sp()>=0" が含まれるか記録（warning 生成時の判定に使用）
+    hasSpGreaterOrEqualZeroCondition: /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(String(effectiveSkill?.cond ?? '')),
+    _baseRevision: preview.baseRevision,
+    _effectiveSkillSnapshot: structuredClone(effectiveSkill),
+  };
+}
+
+function createSingleActionPreviewRecord(actionEntry, options = {}) {
+  return {
+    enemyCount: Number(options.enemyCount ?? DEFAULT_ENEMY_COUNT),
+    actions: [actionEntry],
+  };
+}
+
+function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
+  const validatePreview = options.validatePreview !== false;
+  const buffMetadataValidation = resolveBuffMetadataValidationOptions(options);
+  const member = findMemberByCharacterId(state, actionEntry?.characterId);
+  if (!member) {
+    throw new Error(`Member not found: ${actionEntry?.characterId}`);
+  }
+  if (validatePreview && member.revision !== actionEntry._baseRevision) {
+    throw new Error(`State changed after preview for character ${actionEntry.characterId}`);
+  }
+
+  member.commitSkillPreview({
+    characterId: actionEntry.characterId,
+    skillId: actionEntry.skillId,
+    startSP: actionEntry.startSP,
+    endSP: actionEntry.endSP,
+    startEP: actionEntry.startEP,
+    endEP: actionEntry.endEP,
+    startToken: actionEntry.startToken,
+    endToken: actionEntry.endToken,
+    startMorale: actionEntry.startMorale,
+    endMorale: actionEntry.endMorale,
+    startMotivation: actionEntry.startMotivation,
+    endMotivation: actionEntry.endMotivation,
+    baseRevision: actionEntry._baseRevision,
   });
+
+  if (!actionEntry.isDerivedRepeat && Number(actionEntry.castCount ?? 1) > 1 && Number(actionEntry.castIndex ?? 0) === 0) {
+    member.consumeDoubleActionExtraSkillEffects(1);
+  }
+
+  const skillForCount =
+    actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+      ? actionEntry._effectiveSkillSnapshot
+      : member.getSkill(actionEntry.skillId);
+  const hasDamageForCount = skillForCount ? hasDamagePartInParts(skillForCount.parts ?? []) : false;
+  const isNormalOrPursuitForCount =
+    !skillForCount ||
+    isNormalAttackSkill(skillForCount) ||
+    isPursuitOnlySkill(skillForCount);
+  if (hasDamageForCount && !isNormalOrPursuitForCount) {
+    member.tickSpecialStatusCountEffects();
+  }
+  const consumedCountEffectIds = new Set(
+    (actionEntry?.specialPassiveModifiers?.consumedCountEffectIds ?? []).map((value) => Number(value))
+  );
+  if (hasDamageForCount && consumedCountEffectIds.size > 0) {
+    const canConsumeNonNormal = !isNormalOrPursuitForCount;
+    const strictBlockedEffectIds = new Set();
+    if (buffMetadataValidation.enabled && buffMetadataValidation.mode === 'strict') {
+      for (const effect of member.statusEffects ?? []) {
+        const effectId = Number(effect?.effectId ?? 0);
+        if (!consumedCountEffectIds.has(effectId)) {
+          continue;
+        }
+        if (!isCountConsumableActiveBuffStatusEffect(effect)) {
+          continue;
+        }
+        const allowed = shouldAllowEffectByMetadataValidation(effect, buffMetadataValidation, {
+          phase: 'CommittedActionCountConsumption',
+          characterId: member.characterId,
+          skillId: Number(actionEntry?.skillId ?? 0),
+        });
+        if (!allowed) {
+          strictBlockedEffectIds.add(effectId);
+        }
+      }
+    }
+    const shouldConsume = (effect) => {
+      if (!isCountConsumableActiveBuffStatusEffect(effect)) {
+        return false;
+      }
+      const effectId = Number(effect?.effectId ?? 0);
+      if (!consumedCountEffectIds.has(effectId)) {
+        return false;
+      }
+      if (strictBlockedEffectIds.has(effectId)) {
+        return false;
+      }
+      if (effect?.metadata?.includeNormalAttack === true) {
+        return true;
+      }
+      return canConsumeNonNormal;
+    };
+    // Up系の確定仕様に合わせて Count は1 actionあたり2消費。
+    member.tickStatusEffectsWhere(shouldConsume);
+    member.tickStatusEffectsWhere(shouldConsume);
+  }
+
+  const singleRecord = createSingleActionPreviewRecord(actionEntry, {
+    enemyCount: Number(
+      options.enemyCount ??
+        state?.turnState?.enemyState?.enemyCount ??
+        DEFAULT_ENEMY_COUNT
+    ),
+  });
+  const removeDebuffEvents = applyRemoveDebuffEffectsFromActions(state, singleRecord);
+  const epSkillEvents = applySkillSelfEpGains(state, singleRecord);
+  const skillSpEvents = applySkillSpGains(state, singleRecord);
+  const actionDpEvents = applyDpEffectsFromActions(state, singleRecord);
+  const dpHealMotivationEvents = applyMotivationFromDpHealEvents(state, actionDpEvents);
+  const tokenEvents = applyTokenEffectsFromActions(state, singleRecord, actionDpEvents);
+  const moraleResult = applyMoraleEffectsFromActions(state, singleRecord);
+  applyTalismanLevelIncrementsFromActions(state, singleRecord);
+  const motivationEvents = applyMotivationEffectsFromActions(state, singleRecord);
+  const markEvents = applyMarkEffectsFromActions(state, singleRecord);
+  const fieldStateEvents = applyFieldStateFromActions(state, singleRecord);
+  const doubleActionStatusEvents = applyDoubleActionExtraSkillEffectsFromActions(state, singleRecord);
+  const funnelEvents = applyFunnelEffectsFromActions(state, singleRecord);
+  const activeBuffStatusEvents = applyActiveBuffStatusEffectsFromActions(state, singleRecord);
+  const guardEvents = applyGuardEffectsFromActions(state, singleRecord);
+  const shreddingEvents = applyShreddingEffectsFromActions(state, singleRecord);
+  applyBuffStatusEffectsFromActions(state, singleRecord);
+  const enemyStatusEvents = applyEnemyStatusEffectsFromActions(state, singleRecord);
+  const enemyBreakEvents = [
+    ...applyEnemyBreakEffectsFromActions(state, singleRecord),
+    ...applyManualBreakEffectsFromActions(state, singleRecord),
+  ];
+  const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, singleRecord);
+  const odGaugeGain = applyOdGaugeFromActions(state, singleRecord, {
+    buffMetadataValidation,
+  });
+  member.incrementSkillUseById(actionEntry.skillId);
+
+  return {
+    removeDebuffEvents,
+    epSkillEvents,
+    skillSpEvents,
+    actionDpEvents,
+    dpHealMotivationEvents,
+    tokenEvents,
+    moraleEvents: moraleResult.moraleEvents,
+    spPassiveEvents: moraleResult.spPassiveEvents,
+    additionalTurnPassiveGrantedIds: moraleResult.additionalTurnPassiveGrantedIds,
+    dpPassiveEvents: moraleResult.dpPassiveEvents,
+    dpPassiveMotivationEvents: applyMotivationFromDpHealEvents(state, moraleResult.dpPassiveEvents),
+    passiveTriggerEvents: moraleResult.passiveTriggerEvents,
+    motivationEvents,
+    markEvents,
+    fieldStateEvents,
+    doubleActionStatusEvents,
+    funnelEvents,
+    activeBuffStatusEvents,
+    guardEvents,
+    shreddingEvents,
+    enemyStatusEvents,
+    enemyBreakEvents,
+    breakDownTurnUpEvents,
+    odGaugeGain,
+  };
+}
+
+function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_COUNT, options = {}) {
+  const projectedState = {
+    ...state,
+    party: state.party.map((member) => member.clone()),
+    turnState: cloneTurnState(state.turnState),
+  };
+  const actionEntries = [];
+  let actionSequence = 0;
+
+  for (const { member, position, skill, action } of sortedActions) {
+    const projectedMember = findMemberByCharacterId(projectedState, member.characterId);
+    if (!projectedMember) {
+      throw new Error(`Member not found: ${member.characterId}`);
+    }
+    const projectedSkill = projectedMember.getSkill(skill.skillId) ?? skill;
+    const effectiveSkill = resolveEffectiveSkillForAction(projectedState, projectedMember, projectedSkill);
+    const shouldRepeat = shouldRepeatWithDoubleActionExtraSkill(projectedMember, effectiveSkill);
+    const castCount = shouldRepeat ? DOUBLE_ACTION_EXTRA_SKILL_CAST_COUNT : 1;
+    const primaryEntry = buildPreviewActionEntry(
+      projectedState,
+      projectedMember,
+      position,
+      effectiveSkill,
+      action,
+      {
+        actionInstanceId: buildActionInstanceId(projectedMember.characterId, actionSequence),
+        castIndex: 0,
+        castCount,
+        isDerivedRepeat: false,
+      }
+    );
+    actionSequence += 1;
+    actionEntries.push(primaryEntry);
+    applyCommittedActionSideEffects(projectedState, primaryEntry, {
+      ...options,
+      validatePreview: false,
+      enemyCount,
+    });
+
+    if (!shouldRepeat) {
+      continue;
+    }
+
+    const repeatMember = findMemberByCharacterId(projectedState, member.characterId);
+    if (!repeatMember) {
+      throw new Error(`Member not found: ${member.characterId}`);
+    }
+    const repeatBaseSkill = repeatMember.getSkill(skill.skillId) ?? skill;
+    const repeatSkill = {
+      ...resolveEffectiveSkillForAction(projectedState, repeatMember, repeatBaseSkill),
+      spCost: 0,
+    };
+    const repeatEntry = buildPreviewActionEntry(
+      projectedState,
+      repeatMember,
+      position,
+      repeatSkill,
+      buildDerivedRepeatAction(action),
+      {
+        actionInstanceId: buildActionInstanceId(repeatMember.characterId, actionSequence),
+        castIndex: 1,
+        castCount,
+        isDerivedRepeat: true,
+      }
+    );
+    actionSequence += 1;
+    actionEntries.push(repeatEntry);
+    applyCommittedActionSideEffects(projectedState, repeatEntry, {
+      ...options,
+      validatePreview: false,
+      enemyCount,
+    });
+  }
+
+  return {
+    actionEntries,
+    projectedState,
+  };
 }
 
 function getEpRule(member) {
@@ -6610,6 +8222,25 @@ function applyPassiveSpOnOverdriveStart(state) {
   return { spEvents, passiveEvents };
 }
 
+function applyOverdriveStartSpRecovery(state, turnState) {
+  const spEvents = [];
+  const odAmount = OD_RECOVERY_BY_LEVEL[Number(turnState?.odLevel ?? 0)] ?? 0;
+  if (!Number.isFinite(odAmount) || odAmount === 0) {
+    return { spEvents };
+  }
+
+  for (const member of state.party ?? []) {
+    const od = member.applySpDelta(odAmount, 'od');
+    spEvents.push({
+      characterId: member.characterId,
+      source: 'od',
+      ...od,
+    });
+  }
+
+  return { spEvents };
+}
+
 function evaluatePassiveSelfConditions(passive, part, state, member) {
   const conditions = [passive?.condition, part?.cond, part?.hit_condition]
     .map((value) => String(value ?? '').trim())
@@ -6669,7 +8300,12 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       ? turnState.passiveUsageCounts
       : {};
 
-  for (const member of state?.party ?? []) {
+  const sortedParty = [...(state?.party ?? [])].sort((a, b) => {
+    const ai = PASSIVE_ACTION_ORDER.indexOf(Number(a.partyIndex ?? 99));
+    const bi = PASSIVE_ACTION_ORDER.indexOf(Number(b.partyIndex ?? 99));
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  for (const member of sortedParty) {
     for (const passive of getPassiveEntriesForMember(member)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
@@ -6722,7 +8358,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         if (skillType) {
           effectTypes.add(skillType);
         }
-        if (skillType === 'Zone') {
+        if (skillType === 'Zone' || skillType === 'RiceFieldZone') {
           if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
             continue;
           }
@@ -6773,12 +8409,12 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             }
             const appliedStatus = normalizeEnemyStatus(
               {
-                statusType: skillType,
-                targetIndex,
-                remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-                power: getEnemyStatusPowerValue(part),
-                elements: normalizeEnemyStatusElements(part?.elements),
-                limitType: String(part?.effect?.limitType ?? ''),
+              statusType: skillType,
+              targetIndex,
+              remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
+              power: scaleHighBoostEnemyDebuffPower(member, skillType, getEnemyStatusPowerValue(part)),
+              elements: normalizeEnemyStatusElements(part?.elements),
+              limitType: String(part?.effect?.limitType ?? ''),
                 exitCond: String(part?.effect?.exitCond ?? ''),
                 sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
                 sourceSkillName: String(passive?.name ?? ''),
@@ -6936,14 +8572,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0) {
               continue;
             }
-            const amount = baseMaxDp * rate;
+            const amount = resolveHighBoostAdjustedDpAmount(member, skillType, baseMaxDp * rate);
             if (!Number.isFinite(amount) || amount <= 0) {
               continue;
             }
-            const nextCurrentDp =
-              skillType === 'ReviveDpRate'
-                ? Math.max(Number(startDpState.currentDp ?? 0), amount)
-                : Number(startDpState.currentDp ?? 0) + amount;
+            const nextCurrentDp = resolveNextCurrentDpForDirectChange(startDpState, skillType, amount);
             const change = target.setDpState({
               currentDp: nextCurrentDp,
               effectiveDpCap: getDpHealCapForPart(target, part),
@@ -7193,6 +8826,32 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
+        if (skillType === 'ReduceSp') {
+          // ReduceSp is consumed by skill-cost resolution only.
+          // It must not modify current SP during passive timing application.
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            matched = true;
+            break;
+          }
+          continue;
+        }
+
         if (skillType === 'OverwriteSp') {
           const power = Number(part?.power?.[0] ?? 0);
           if (!Number.isFinite(power) || power === 0) {
@@ -7215,10 +8874,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
               continue;
             }
-            // ReduceSp: power[0] is the reduction amount (positive → negate)
-            // OverwriteSp: power[0] is the target value → delta = target - current
-            const delta =
-              skillType === 'ReduceSp' ? -power : power - Number(target.sp.current ?? 0);
+            const delta = power - Number(target.sp.current ?? 0);
             const change = target.applySpDelta(delta, 'passive');
             spEvents.push({
               actorCharacterId: member.characterId,
@@ -7377,8 +9033,51 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
+        if (skillType === DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE) {
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const appliedStatus = addDoubleActionExtraSkillStatusEffect(
+              target,
+              {
+                sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                sourceSkillLabel: String(passive?.label ?? ''),
+                sourceSkillName: String(passive?.name ?? ''),
+                sourceCharacterId: String(member?.characterId ?? ''),
+                sourceCharacterName: String(member?.characterName ?? ''),
+                sourceSkillDesc: String(passive?.desc ?? ''),
+                metadata: {
+                  targetType: String(part?.target_type ?? ''),
+                },
+              },
+              {
+                sourceType: 'passive',
+                limitType: String(part?.effect?.limitType ?? 'Only'),
+                exitCond: String(part?.effect?.exitCond ?? 'Count'),
+                remaining: Number(part?.effect?.exitVal?.[0] ?? DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING),
+              }
+            );
+            appliedStatusEffects.push(appliedStatus);
+            matched = true;
+          }
+          continue;
+        }
+
         if (skillType === 'HighBoost') {
-          // Permanent damage multiplier buff. Log passive event; no member state change yet.
           const targetCharacterIds = resolveSupportTargetCharacterIds(
             state,
             member,
@@ -7393,8 +9092,37 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
               continue;
             }
+            const appliedStatus = target.addStatusEffect({
+              statusType: HIGH_BOOST_STATUS_TYPE,
+              limitType: 'Only',
+              exitCond: 'Eternal',
+              remaining: 0,
+              power: HIGH_BOOST_SKILL_ATK_RATE,
+              sourceType: 'passive',
+              sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              sourceSkillLabel: String(passive?.label ?? passive?.name ?? ''),
+              sourceSkillName: String(passive?.name ?? ''),
+              metadata: {
+                onlyGroupKey: HIGH_BOOST_ONLY_GROUP_KEY,
+                effectName: HIGH_BOOST_STATUS_TYPE,
+                spCostIncrease: HIGH_BOOST_SP_COST_INCREASE,
+                skillAtkRate: HIGH_BOOST_SKILL_ATK_RATE,
+                attackBuffMultiplier: HIGH_BOOST_ATTACK_BUFF_MULTIPLIER,
+                debuffMultiplier: HIGH_BOOST_DEBUFF_MULTIPLIER,
+                dpHealMultiplier: HIGH_BOOST_DP_HEAL_MULTIPLIER,
+                targetType: String(part?.target_type ?? ''),
+              },
+            });
+            appliedStatusEffects.push({
+              characterId: target.characterId,
+              effectId: Number(appliedStatus?.effectId ?? 0),
+              statusType: String(appliedStatus?.statusType ?? HIGH_BOOST_STATUS_TYPE),
+              power: Number(appliedStatus?.power ?? HIGH_BOOST_SKILL_ATK_RATE),
+              limitType: String(appliedStatus?.limitType ?? 'Only'),
+              exitCond: String(appliedStatus?.exitCond ?? 'Eternal'),
+              remaining: Number(appliedStatus?.remaining ?? 0),
+            });
             matched = true;
-            break;
           }
           continue;
         }
@@ -7512,6 +9240,44 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           );
           matched = true;
           totalOdGaugeDelta += amount;
+          continue;
+        }
+
+        if (skillType === 'HealSp') {
+          const amount = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(amount) || amount === 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const change = target.applySpDelta(amount, 'passive');
+            spEvents.push({
+              actorCharacterId: member.characterId,
+              characterId: target.characterId,
+              source: 'sp_passive',
+              passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              passiveName: String(passive?.name ?? ''),
+              targetType: String(part?.target_type ?? ''),
+              ...change,
+            });
+            matched = true;
+            totalDelta += Number(change?.delta ?? 0);
+          }
           continue;
         }
 
@@ -7729,12 +9495,14 @@ function applySkillSelfEpGains(state, previewRecord) {
       }
 
       const change = member.applyEpDelta(amount, getEpCeilingForTurn(member, state.turnState));
-      events.push({
-        characterId: member.characterId,
-        source: 'ep_skill',
-        skillId: skill.skillId,
-        ...change,
-      });
+      events.push(
+        buildActionScopedEvent(actionEntry, {
+          characterId: member.characterId,
+          source: 'ep_skill',
+          skillId: skill.skillId,
+          ...change,
+        })
+      );
     }
   }
   return events;
@@ -7795,14 +9563,16 @@ function applyRemoveDebuffEffectsFromActions(state, previewRecord) {
           continue;
         }
 
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          skillId: Number(skill.skillId ?? 0),
-          skillName: String(skill.name ?? ''),
-          removedCount: removed.length,
-          removedStatusTypes: removed.map((effect) => String(effect?.statusType ?? '')).filter(Boolean),
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            skillId: Number(skill.skillId ?? 0),
+            skillName: String(skill.name ?? ''),
+            removedCount: removed.length,
+            removedStatusTypes: removed.map((effect) => String(effect?.statusType ?? '')).filter(Boolean),
+          })
+        );
       }
     }
   }
@@ -7865,15 +9635,17 @@ function applySkillSpGains(state, previewRecord) {
           continue;
         }
         const change = target.applySpDelta(amount, 'active', skill.spRecoveryCeiling);
-        events.push({
-          actorCharacterId: actor.characterId,
-          characterId: target.characterId,
-          source: 'sp_skill',
-          skillId: skill.skillId,
-          skillName: skill.name,
-          targetType: String(part?.target_type ?? ''),
-          ...change,
-        });
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            characterId: target.characterId,
+            source: 'sp_skill',
+            skillId: skill.skillId,
+            skillName: skill.name,
+            targetType: String(part?.target_type ?? ''),
+            ...change,
+          })
+        );
       }
     }
   }
@@ -7901,7 +9673,7 @@ function applyFieldStateFromActions(state, previewRecord) {
       if (!skillType) {
         continue;
       }
-      if (skillType !== 'Zone' && !/Territory$/i.test(skillType)) {
+      if (skillType !== 'Zone' && skillType !== 'RiceFieldZone' && !/Territory$/i.test(skillType)) {
         continue;
       }
       const conditionSkill = createConditionSkillContext(skill, part);
@@ -7916,13 +9688,13 @@ function applyFieldStateFromActions(state, previewRecord) {
       }
 
       const applied =
-        skillType === 'Zone'
+        skillType === 'Zone' || skillType === 'RiceFieldZone'
           ? applyZonePartToTurnState(state.turnState, part, 'player')
           : applyTerritoryPartToTurnState(state.turnState, part, 'player');
       if (!applied) {
         continue;
       }
-      if (skillType === 'Zone') {
+      if (skillType === 'Zone' || skillType === 'RiceFieldZone') {
         const zoneUpEternalModifier = resolveZoneUpEternalModifier(state, actor, skill, actionEntry);
         if (zoneUpEternalModifier.active) {
           const basePowerRate = Number(applied.powerRate ?? state.turnState.zoneState?.powerRate ?? 0);
@@ -7942,93 +9714,90 @@ function applyFieldStateFromActions(state, previewRecord) {
           };
         }
       }
-      events.push({
-        actorCharacterId: actor.characterId,
-        skillId: skill.skillId,
-        skillName: skill.name,
-        kind: skillType === 'Zone' ? 'zone' : 'territory',
-        ...applied,
-      });
+      events.push(
+        buildActionScopedEvent(actionEntry, {
+          actorCharacterId: actor.characterId,
+          skillId: skill.skillId,
+          skillName: skill.name,
+          kind: (skillType === 'Zone' || skillType === 'RiceFieldZone') ? 'zone' : 'territory',
+          ...applied,
+        })
+      );
     }
   }
 
   return events;
 }
 
-function applyRecoveryPipeline(party, turnState) {
+function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false } = {}) {
+  // extra turn のコミット時（T1EX→T2遷移）は skipTurnStartRecovery=false で呼ばれるため
+  // T2のターン開始回復・OnEveryTurnを正常に計算する。
+  // T1→T1EX遷移時の回避は skipTurnStartRecovery: true（行8634）で制御済み。
+
   const recoveryEvents = [];
   const epEvents = [];
   const dpEvents = [];
   const passiveEvents = [];
-  const reviveTerritoryTrigger = captureReviveTerritoryTurnStartTrigger(party, turnState);
 
-  for (const member of party) {
-    const base = member.recoverBaseSP(BASE_SP_RECOVERY);
-    recoveryEvents.push({
-      characterId: member.characterId,
-      source: 'base',
-      ...base,
-    });
+  // skipTurnStartRecovery=true の場合はターン開始時の基本回復・EP回復・パッシブをスキップする。
+  // （次のターンが EX ターンになる場合：EX ターンは独立したターン開始処理を持たないため）
+  // OD 発動ボーナス（isFirstOdAction）は「ターン開始」ではなく「OD 起動時の一回限りのボーナス」
+  // であるため、EX 遷移時でも適用される。
+  if (!skipTurnStartRecovery) {
+    const reviveTerritoryTrigger = captureReviveTerritoryTurnStartTrigger(party, turnState);
 
-    const epRole = applyRoleEpGain(member, turnState);
-    if (epRole) {
-      epEvents.push(epRole);
-    }
-
-    const passiveSkillEvents = applyPassiveSkillEpTurnStart(member, turnState);
-    if (passiveSkillEvents.length > 0) {
-      epEvents.push(...passiveSkillEvents);
-    }
-  }
-
-  const intrinsicMarkRecoveryEvents = applyIntrinsicMarkTurnStartRecovery(party);
-  if (intrinsicMarkRecoveryEvents.length > 0) {
-    recoveryEvents.push(...intrinsicMarkRecoveryEvents);
-  }
-
-  const passiveResult = applyPassiveTimingInternal(
-    {
-      party,
-      turnState,
-    },
-    TURN_START_PASSIVE_TIMINGS
-  );
-  if (passiveResult.spEvents.length > 0) {
-    recoveryEvents.push(...passiveResult.spEvents);
-  }
-  if (passiveResult.epEvents.length > 0) {
-    epEvents.push(...passiveResult.epEvents);
-  }
-  if (passiveResult.dpEvents.length > 0) {
-    dpEvents.push(...passiveResult.dpEvents);
-  }
-  if (passiveResult.passiveEvents.length > 0) {
-    passiveEvents.push(...passiveResult.passiveEvents);
-  }
-
-  if (reviveTerritoryTrigger) {
-    const territoryResult = applyReviveTerritoryTurnStartEffect(party, turnState, reviveTerritoryTrigger);
-    if (territoryResult.dpEvents.length > 0) {
-      dpEvents.push(...territoryResult.dpEvents);
-    }
-    if (territoryResult.passiveEvents.length > 0) {
-      passiveEvents.push(...territoryResult.passiveEvents);
-    }
-  }
-
-  const isFirstOdAction =
-    turnState.turnType === 'od' &&
-    turnState.odLevel > 0 &&
-    Number(turnState.remainingOdActions ?? 0) === Number(turnState.odLevel);
-  if (isFirstOdAction) {
-    const odAmount = OD_RECOVERY_BY_LEVEL[turnState.odLevel] ?? 0;
     for (const member of party) {
-      const od = member.applySpDelta(odAmount, 'od');
+      const base = member.recoverBaseSP(BASE_SP_RECOVERY);
       recoveryEvents.push({
         characterId: member.characterId,
-        source: 'od',
-        ...od,
+        source: 'base',
+        ...base,
       });
+
+      const epRole = applyRoleEpGain(member, turnState);
+      if (epRole) {
+        epEvents.push(epRole);
+      }
+
+      const passiveSkillEvents = applyPassiveSkillEpTurnStart(member, turnState);
+      if (passiveSkillEvents.length > 0) {
+        epEvents.push(...passiveSkillEvents);
+      }
+    }
+
+    const intrinsicMarkRecoveryEvents = applyIntrinsicMarkTurnStartRecovery(party);
+    if (intrinsicMarkRecoveryEvents.length > 0) {
+      recoveryEvents.push(...intrinsicMarkRecoveryEvents);
+    }
+
+    const passiveResult = applyPassiveTimingInternal(
+      {
+        party,
+        turnState,
+      },
+      TURN_START_PASSIVE_TIMINGS
+    );
+    if (passiveResult.spEvents.length > 0) {
+      recoveryEvents.push(...passiveResult.spEvents);
+    }
+    if (passiveResult.epEvents.length > 0) {
+      epEvents.push(...passiveResult.epEvents);
+    }
+    if (passiveResult.dpEvents.length > 0) {
+      dpEvents.push(...passiveResult.dpEvents);
+    }
+    if (passiveResult.passiveEvents.length > 0) {
+      passiveEvents.push(...passiveResult.passiveEvents);
+    }
+
+    if (reviveTerritoryTrigger) {
+      const territoryResult = applyReviveTerritoryTurnStartEffect(party, turnState, reviveTerritoryTrigger);
+      if (territoryResult.dpEvents.length > 0) {
+        dpEvents.push(...territoryResult.dpEvents);
+      }
+      if (territoryResult.passiveEvents.length > 0) {
+        passiveEvents.push(...territoryResult.passiveEvents);
+      }
     }
   }
 
@@ -8208,7 +9977,9 @@ export function createBattleStateFromParty(party, turnState) {
 
 export function previewTurn(state, actions, enemyAction = null, enemyCount = 1, options = {}) {
   const sortedActions = validateActionDict(state, actions, options);
-  const actionEntries = previewActionEntries(state, sortedActions);
+  const { actionEntries, projectedState } = previewActionEntries(state, sortedActions, enemyCount, {
+    buffMetadataValidation: options?.buffMetadataValidation ?? options?.validateBuffMetadata,
+  });
   const snapBefore = snapshotPartyByPartyIndex(state.party);
 
   const record = fromSnapshot(
@@ -8219,20 +9990,12 @@ export function previewTurn(state, actions, enemyAction = null, enemyCount = 1, 
     state.turnState.sequenceId
   );
 
-  const projectedState = {
-    ...state,
-    party: state.party,
-    turnState: cloneTurnState(state.turnState),
-  };
-  const odProjection = applyOdGaugeFromActions(projectedState, record, {
-    consumeStatusEffects: false,
-  });
   const transcendenceSummary = applyTranscendenceTurnSummary(
     projectedState,
     computeTranscendenceTurnSummary(projectedState, record)
   );
   record.projections = {
-    odGaugeAtEnd: Number(projectedState.turnState.odGauge ?? odProjection.endOdGauge ?? 0),
+    odGaugeAtEnd: Number(projectedState.turnState.odGauge ?? 0),
     transcendence: transcendenceSummary,
   };
 
@@ -8263,194 +10026,83 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const boundaryPassiveEvents = [];
   const boundaryDpEvents = [];
   const enemyAttackEvents = [];
+  const removeDebuffEvents = [];
+  const epSkillEvents = [];
+  const skillSpEvents = [];
+  const actionDpEvents = [];
+  const dpHealMotivationEvents = [];
+  const tokenEvents = [];
+  const moraleEvents = [];
+  const spPassiveEvents = [];
+  const additionalTurnPassiveGrantedIds = [];
+  const dpPassiveEvents = [];
+  const dpPassiveMotivationEvents = [];
+  const passiveTriggerEvents = [];
+  const motivationEvents = [];
+  const markEvents = [];
+  const fieldStateEvents = [];
+  const doubleActionStatusEvents = [];
+  const funnelEvents = [];
+  const activeBuffStatusEvents = [];
+  const guardEvents = [];
+  const shreddingEvents = [];
+  const enemyStatusEvents = [];
+  const enemyBreakEvents = [];
+  const breakDownTurnUpEvents = [];
+  let odGaugeGain = {
+    startOdGauge: truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0)),
+    endOdGauge: truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0)),
+    events: [],
+  };
 
   for (const entry of previewRecord.actions) {
-    const member = findMemberByCharacterId(state, entry.characterId);
-    if (!member) {
-      throw new Error(`Member not found: ${entry.characterId}`);
-    }
-
-    if (member.revision !== entry._baseRevision) {
-      throw new Error(`State changed after preview for character ${entry.characterId}`);
-    }
-  }
-
-  for (const entry of previewRecord.actions) {
-    const member = findMemberByCharacterId(state, entry.characterId);
-    member.commitSkillPreview({
-      characterId: entry.characterId,
-      skillId: entry.skillId,
-      startSP: entry.startSP,
-      endSP: entry.endSP,
-      startEP: entry.startEP,
-      endEP: entry.endEP,
-      startToken: entry.startToken,
-      endToken: entry.endToken,
-      startMorale: entry.startMorale,
-      endMorale: entry.endMorale,
-      startMotivation: entry.startMotivation,
-      endMotivation: entry.endMotivation,
-      baseRevision: entry._baseRevision,
+    const actionResult = applyCommittedActionSideEffects(state, entry, {
+      buffMetadataValidation: options?.buffMetadataValidation ?? options?.validateBuffMetadata,
+      validatePreview: true,
+      enemyCount: Number(previewRecord.enemyCount ?? DEFAULT_ENEMY_COUNT),
     });
-    // T05: specialStatusTypeId 付きの Count 型特殊状態をスキル使用後にデクリメント
-    member.tickSpecialStatusCountEffects();
-    member.tickStatusEffectsWhere(isCountConsumableActiveBuffStatusEffect);
+    removeDebuffEvents.push(...actionResult.removeDebuffEvents);
+    epSkillEvents.push(...actionResult.epSkillEvents);
+    skillSpEvents.push(...actionResult.skillSpEvents);
+    actionDpEvents.push(...actionResult.actionDpEvents);
+    dpHealMotivationEvents.push(...actionResult.dpHealMotivationEvents);
+    tokenEvents.push(...actionResult.tokenEvents);
+    moraleEvents.push(...actionResult.moraleEvents);
+    spPassiveEvents.push(...actionResult.spPassiveEvents);
+    additionalTurnPassiveGrantedIds.push(...actionResult.additionalTurnPassiveGrantedIds);
+    dpPassiveEvents.push(...actionResult.dpPassiveEvents);
+    dpPassiveMotivationEvents.push(...actionResult.dpPassiveMotivationEvents);
+    passiveTriggerEvents.push(...actionResult.passiveTriggerEvents);
+    motivationEvents.push(...actionResult.motivationEvents);
+    markEvents.push(...actionResult.markEvents);
+    fieldStateEvents.push(...actionResult.fieldStateEvents);
+    doubleActionStatusEvents.push(...actionResult.doubleActionStatusEvents);
+    funnelEvents.push(...actionResult.funnelEvents);
+    activeBuffStatusEvents.push(...actionResult.activeBuffStatusEvents);
+    guardEvents.push(...actionResult.guardEvents);
+    shreddingEvents.push(...actionResult.shreddingEvents);
+    enemyStatusEvents.push(...actionResult.enemyStatusEvents);
+    enemyBreakEvents.push(...actionResult.enemyBreakEvents);
+    breakDownTurnUpEvents.push(...actionResult.breakDownTurnUpEvents);
+    odGaugeGain = {
+      startOdGauge: Number(odGaugeGain.startOdGauge ?? 0),
+      endOdGauge: Number(actionResult.odGaugeGain?.endOdGauge ?? odGaugeGain.endOdGauge ?? 0),
+      events: [...(odGaugeGain.events ?? []), ...(actionResult.odGaugeGain?.events ?? [])],
+    };
   }
-
-  const removeDebuffEvents = applyRemoveDebuffEffectsFromActions(state, previewRecord);
-  const epSkillEvents = applySkillSelfEpGains(state, previewRecord);
-  const skillSpEvents = applySkillSpGains(state, previewRecord);
-  const actionDpEvents = applyDpEffectsFromActions(state, previewRecord);
-  const dpHealMotivationEvents = applyMotivationFromDpHealEvents(state, actionDpEvents);
-  const tokenEvents = applyTokenEffectsFromActions(state, previewRecord, actionDpEvents);
-  const { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents, passiveTriggerEvents } = applyMoraleEffectsFromActions(state, previewRecord);
-  const dpPassiveMotivationEvents = applyMotivationFromDpHealEvents(state, dpPassiveEvents);
-  applyTalismanLevelIncrementsFromActions(state, previewRecord);
-  const motivationEvents = applyMotivationEffectsFromActions(state, previewRecord);
-  const markEvents = applyMarkEffectsFromActions(state, previewRecord);
-  const fieldStateEvents = applyFieldStateFromActions(state, previewRecord);
-  const funnelEvents = applyFunnelEffectsFromActions(state, previewRecord);
-  const activeBuffStatusEvents = applyActiveBuffStatusEffectsFromActions(state, previewRecord);
-  const guardEvents = applyGuardEffectsFromActions(state, previewRecord);
-  const shreddingEvents = applyShreddingEffectsFromActions(state, previewRecord);
-  const newlyShreddedIds = new Set(shreddingEvents.map((ev) => String(ev.characterId)));
-  applyBuffStatusEffectsFromActions(state, previewRecord);
-  const enemyStatusEvents = applyEnemyStatusEffectsFromActions(state, previewRecord);
-  const enemyBreakEvents = applyEnemyBreakEffectsFromActions(state, previewRecord);
-  const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, previewRecord);
-  const odGaugeGain = applyOdGaugeFromActions(state, previewRecord);
-  const transcendenceSummary = applyTranscendenceTurnSummary(
-    state,
-    computeTranscendenceTurnSummary(state, previewRecord)
-  );
-  tickEnemyStatusDurations(state.turnState, 'PlayerTurnEnd');
-  const recovery = applyRecoveryPipeline(state.party, state.turnState);
-  const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
-  const epEvents = [...epSkillEvents, ...recovery.epEvents];
-  const recoveryDpEvents = Array.isArray(recovery.dpEvents) ? [...recovery.dpEvents] : [];
-
-  for (const entry of previewRecord.actions) {
-    const member = findMemberByCharacterId(state, entry.characterId);
-    entry.endSP = member.sp.current;
-    entry.endEP = member.ep.current;
-    entry.endToken = Number(member.tokenState?.current ?? entry.endToken ?? 0);
-    entry.endMorale = Number(member.moraleState?.current ?? entry.endMorale ?? 0);
-    entry.endMotivation = Number(member.motivationState?.current ?? entry.endMotivation ?? 0);
-    entry.endMarkStates = structuredClone(member.markStates ?? {});
-
-    const extraChanges = recoveryEvents
-      .filter((ev) => ev.characterId === entry.characterId)
-      .map((ev) => ({
-        source: ev.source,
-        delta: ev.delta,
-        preSP: ev.startSP,
-        postSP: ev.endSP,
-        eventCeiling: ev.eventCeiling,
-      }));
-
-    entry.spChanges = [...entry.spChanges, ...extraChanges];
-    entry.epChanges = epEvents
-      .filter((ev) => ev.characterId === entry.characterId)
-      .map((ev) => ({
-        source: ev.source,
-        delta: ev.delta,
-        preEP: ev.startEP,
-        postEP: ev.endEP,
-        eventCeiling: ev.eventCeiling,
-      }));
-    const extraTokenChanges = tokenEvents
-      .filter((ev) => ev.characterId === entry.characterId)
-      .map((ev) => ({
-        source: ev.source,
-        triggerType: ev.triggerType,
-        delta: ev.delta,
-        preToken: ev.startToken,
-        postToken: ev.endToken,
-        eventCeiling: ev.eventCeiling,
-      }));
-    entry.tokenChanges = [...(entry.tokenChanges ?? []), ...extraTokenChanges];
-    const extraMoraleChanges = moraleEvents
-      .filter((ev) => ev.characterId === entry.characterId)
-      .map((ev) => ({
-        source: ev.source,
-        triggerType: ev.triggerType,
-        delta: ev.delta,
-        preMorale: ev.startMorale,
-        postMorale: ev.endMorale,
-        eventCeiling: ev.eventCeiling,
-      }));
-    entry.moraleChanges = [...(entry.moraleChanges ?? []), ...extraMoraleChanges];
-    const extraMotivationChanges = [...motivationEvents, ...dpHealMotivationEvents, ...dpPassiveMotivationEvents]
-      .filter((ev) => ev.characterId === entry.characterId)
-      .map((ev) => ({
-        source: ev.source,
-        triggerType: ev.triggerType,
-        delta: ev.delta,
-        preMotivation: ev.startMotivation,
-        postMotivation: ev.endMotivation,
-        eventCeiling: ev.eventCeiling,
-      }));
-    entry.motivationChanges = [...(entry.motivationChanges ?? []), ...extraMotivationChanges];
-    const extraMarkChanges = markEvents
-      .filter((ev) => ev.characterId === entry.characterId)
-      .map((ev) => ({
-        source: ev.source,
-        triggerType: ev.triggerType,
-        element: ev.element,
-        delta: ev.delta,
-        preMark: ev.startMark,
-        postMark: ev.endMark,
-        eventCeiling: ev.eventCeiling,
-      }));
-    entry.markChanges = [...(entry.markChanges ?? []), ...extraMarkChanges];
-    const actionDpChanges = actionDpEvents
-      .filter((ev) => ev.actorCharacterId === entry.characterId && Number(ev.skillId ?? 0) === Number(entry.skillId))
-      .map((ev) => mapDpEventToRecordChange(ev));
-    const recoveryDpChanges = recoveryDpEvents
-      .filter((ev) => ev.characterId === entry.characterId)
-      .map((ev) => mapDpEventToRecordChange(ev));
-    const passiveDpChanges = dpPassiveEvents
-      .filter((ev) => ev.actorCharacterId === entry.characterId)
-      .map((ev) => mapDpEventToRecordChange(ev));
-    entry.dpChanges = [...actionDpChanges, ...recoveryDpChanges, ...passiveDpChanges];
-    const odEvent = odGaugeGain.events.find(
-      (ev) => ev.characterId === entry.characterId && ev.skillId === entry.skillId
-    );
-    entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
-    entry.damageContext = odEvent?.damageContext ? structuredClone(odEvent.damageContext) : null;
-    entry.funnelApplied = funnelEvents.filter(
-      (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-    );
-    entry.statusEffectsApplied = [
-      ...activeBuffStatusEvents.filter(
-        (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-      ),
-      ...guardEvents.filter(
-        (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-      ),
-    ];
-    entry.statusEffectsRemoved = removeDebuffEvents.filter(
-      (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-    );
-    entry.fieldStateApplied = fieldStateEvents.filter(
-      (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-    );
-    entry.enemyStatusChanges = [
-      ...enemyStatusEvents.filter(
-        (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-      ),
-      ...enemyBreakEvents.filter(
-        (ev) => ev.actorCharacterId === entry.characterId && ev.skillId === entry.skillId
-      ),
-      ...breakDownTurnUpEvents.filter((ev) => ev.actorCharacterId === entry.characterId),
-    ];
-    member.incrementSkillUseById(entry.skillId);
-  }
-
+  // EXターン遷移判定を applyRecoveryPipeline より前に確定させる
+  // （normal/od → extra 遷移時にSP回復が実行されるバグを防ぐため）
   const grantedExtraCharacterIds = [
     ...deriveGrantedExtraTurnCharacterIds(state, previewRecord),
     ...additionalTurnPassiveGrantedIds,
   ];
+  const newlyShreddedIds = new Set(shreddingEvents.map((ev) => String(ev.characterId)));
+  const transcendenceSummary = applyTranscendenceTurnSummary(
+    state,
+    computeTranscendenceTurnSummary(state, previewRecord)
+  );
+  // ─── ② ターンフェーズ: プレイヤーターン終了後処理 ───
+  tickEnemyStatusDurations(state.turnState, 'PlayerTurnEnd');
   updateReinforcedModeStateAfterTurn(state);
   applyTurnBasedStatusExpiry(state, previewRecord);
   tickShreddingTurns(state, previewRecord, newlyShreddedIds);
@@ -8459,10 +10111,23 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     applySwapEvents(state, swapEvents);
   }
 
+  // ─── 次ターン状態の確定 ───
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
-  nextTurnState.passiveEventsLastApplied = Array.isArray(recovery.passiveEvents)
-    ? structuredClone(recovery.passiveEvents)
-    : [];
+  const nextTurnLabel = nextTurnState.turnLabel;
+  nextTurnState.passiveEventsLastApplied = [];
+  // P3-B: PlayerTurnEnd パッシブの発火フラグをリセット（新プレイヤーターン開始時）
+  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+    nextTurnState.passiveTurnFiredKeys = [];
+  }
+  if (Number.isFinite(previewRecord.enemyCount)) {
+    if (!nextTurnState.enemyState) {
+      nextTurnState.enemyState = { enemyCount: previewRecord.enemyCount, statuses: [] };
+    } else {
+      nextTurnState.enemyState.enemyCount = previewRecord.enemyCount;
+    }
+  }
+
+  // ─── ② ターンフェーズ: ▽敵行動開始 (OnEnemyTurnStart) ───
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
     const enemyTurnStartResult = applyPassiveTimingInternal(
       {
@@ -8480,6 +10145,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     boundaryDpEvents.push(...dpEvents);
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
   }
+
+  // ─── ③ 終了フェーズ: バトル勝利 (OnBattleWin) ───
   if (Number(getEnemyState(nextTurnState).enemyCount ?? 0) > 0 && countAliveEnemies(nextTurnState) === 0) {
     const battleWinResult = applyPassiveTimingInternal(
       {
@@ -8498,6 +10165,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
   }
 
+  // ─── 割込OD turnIndex 補正 ───
   if (shouldActivateInterruptOd) {
     // 割込ODは「現在通常ターンの後段」に差し込まれるため、
     // ODが終わるまで base turn index を進めない。
@@ -8506,6 +10174,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       nextTurnState.turnLabel = `T${nextTurnState.turnIndex}`;
     }
   }
+
+  // ─── ② ターンフェーズ: ▽敵が行動後処理 ───
   // Enemy statuses tick on enemy-turn consumption only.
   // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
@@ -8524,6 +10194,239 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     if (talismanAtEnemyTurnEnd.active && talismanAtEnemyTurnEnd.level > 0) {
       setTalismanState(nextTurnState, { ...talismanAtEnemyTurnEnd, level: 0 });
     }
+  }
+
+  // ─── ② 次ターン ターン開始 (applyRecoveryPipeline) ───
+  // EXターンへ遷移する場合はターン開始回復をスキップ（OD発動ボーナスは除く）
+  // nextTurnState を渡すことで ReviveTerritory 消費・ゾーン状態更新が次ターンの状態に正しく反映される
+  const recovery = applyRecoveryPipeline(state.party, nextTurnState, {
+    // 追加ターン付与時（→T1EX）は T1EX 開始処理をスキップ
+    // T1EX → OD割込 の場合も T2 開始処理をスキップ（OD終了後に T2 開始処理を行う）
+    // T1EX → T2（通常遷移）の場合はスキップしない（T2 のSP回復・OnEveryTurnを発動させる）
+    skipTurnStartRecovery:
+      grantedExtraCharacterIds.length > 0 ||
+      (String(state.turnState?.turnType ?? '') === 'extra' && shouldActivateInterruptOd),
+  });
+  const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
+  const epEvents = [...epSkillEvents, ...recovery.epEvents];
+  const recoveryDpEvents = Array.isArray(recovery.dpEvents) ? [...recovery.dpEvents] : [];
+  // recovery.passiveEvents のターンラベルを nextTurnLabel で付与し、passiveEventsLastApplied に追記
+  // （OnEnemyTurnStart・OnBattleWin の後に続くことで turn_timing.md の発火順に準拠する）
+  if (Array.isArray(recovery.passiveEvents) && recovery.passiveEvents.length > 0) {
+    nextTurnState.passiveEventsLastApplied = [
+      ...(nextTurnState.passiveEventsLastApplied ?? []),
+      ...structuredClone(recovery.passiveEvents).map((e) => ({ ...e, turnLabel: nextTurnLabel })),
+    ];
+  }
+
+  // ─── record entry 更新（recovery 後のため endSP が次ターン開始後の正確な値）───
+  for (const entry of previewRecord.actions) {
+    const member = findMemberByCharacterId(state, entry.characterId);
+    entry.endSP = member.sp.current;
+    entry.endEP = member.ep.current;
+    entry.endToken = Number(member.tokenState?.current ?? entry.endToken ?? 0);
+    entry.endMorale = Number(member.moraleState?.current ?? entry.endMorale ?? 0);
+    entry.endMotivation = Number(member.motivationState?.current ?? entry.endMotivation ?? 0);
+    entry.endMarkStates = structuredClone(member.markStates ?? {});
+
+    const extraChanges = recoveryEvents
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          characterKey: 'characterId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => ({
+        source: ev.source,
+        delta: ev.delta,
+        preSP: ev.startSP,
+        postSP: ev.endSP,
+        eventCeiling: ev.eventCeiling,
+      }));
+
+    entry.spChanges = [...entry.spChanges, ...extraChanges];
+    entry.epChanges = epEvents
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          characterKey: 'characterId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => ({
+        source: ev.source,
+        delta: ev.delta,
+        preEP: ev.startEP,
+        postEP: ev.endEP,
+        eventCeiling: ev.eventCeiling,
+      }));
+    const extraTokenChanges = tokenEvents
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          characterKey: 'characterId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        delta: ev.delta,
+        preToken: ev.startToken,
+        postToken: ev.endToken,
+        eventCeiling: ev.eventCeiling,
+      }));
+    entry.tokenChanges = [...(entry.tokenChanges ?? []), ...extraTokenChanges];
+    const extraMoraleChanges = moraleEvents
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          characterKey: 'characterId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        delta: ev.delta,
+        preMorale: ev.startMorale,
+        postMorale: ev.endMorale,
+        eventCeiling: ev.eventCeiling,
+      }));
+    entry.moraleChanges = [...(entry.moraleChanges ?? []), ...extraMoraleChanges];
+    const extraMotivationChanges = [...motivationEvents, ...dpHealMotivationEvents, ...dpPassiveMotivationEvents]
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          characterKey: 'characterId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        delta: ev.delta,
+        preMotivation: ev.startMotivation,
+        postMotivation: ev.endMotivation,
+        eventCeiling: ev.eventCeiling,
+      }));
+    entry.motivationChanges = [...(entry.motivationChanges ?? []), ...extraMotivationChanges];
+    const extraMarkChanges = markEvents
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          characterKey: 'characterId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => ({
+        source: ev.source,
+        triggerType: ev.triggerType,
+        element: ev.element,
+        delta: ev.delta,
+        preMark: ev.startMark,
+        postMark: ev.endMark,
+        eventCeiling: ev.eventCeiling,
+      }));
+    entry.markChanges = [...(entry.markChanges ?? []), ...extraMarkChanges];
+    const actionDpChanges = actionDpEvents
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => mapDpEventToRecordChange(ev));
+    const recoveryDpChanges = recoveryDpEvents
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          characterKey: 'characterId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => mapDpEventToRecordChange(ev));
+    const passiveDpChanges = dpPassiveEvents
+      .filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          actionEntries: previewRecord.actions,
+        })
+      )
+      .map((ev) => mapDpEventToRecordChange(ev));
+    entry.dpChanges = [...actionDpChanges, ...recoveryDpChanges, ...passiveDpChanges];
+    const odEvent = odGaugeGain.events.find((ev) =>
+      eventBelongsToActionEntry(entry, ev, {
+        characterKey: 'characterId',
+        skillKey: 'skillId',
+        actionEntries: previewRecord.actions,
+      })
+    );
+    entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
+    entry.damageContext = odEvent?.damageContext ? structuredClone(odEvent.damageContext) : null;
+    entry.consumedFunnelEffects = structuredClone(odEvent?.consumedFunnelEffects ?? []);
+    entry.consumedMindEyeEffects = structuredClone(odEvent?.consumedMindEyeEffects ?? []);
+    entry.funnelApplied = funnelEvents.filter((ev) =>
+      eventBelongsToActionEntry(entry, ev, {
+        actorKey: 'actorCharacterId',
+        skillKey: 'skillId',
+        actionEntries: previewRecord.actions,
+      })
+    );
+    entry.statusEffectsApplied = [
+      ...doubleActionStatusEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...activeBuffStatusEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...guardEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+    ];
+    entry.statusEffectsRemoved = removeDebuffEvents.filter((ev) =>
+      eventBelongsToActionEntry(entry, ev, {
+        actorKey: 'actorCharacterId',
+        skillKey: 'skillId',
+        actionEntries: previewRecord.actions,
+      })
+    );
+    entry.fieldStateApplied = fieldStateEvents.filter((ev) =>
+      eventBelongsToActionEntry(entry, ev, {
+        actorKey: 'actorCharacterId',
+        skillKey: 'skillId',
+        actionEntries: previewRecord.actions,
+      })
+    );
+    entry.enemyStatusChanges = [
+      ...enemyStatusEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...enemyBreakEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...breakDownTurnUpEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+    ];
   }
   syncExtraActiveFlags(state.party, nextTurnState.extraTurnState?.allowedCharacterIds ?? []);
 
@@ -8627,7 +10530,7 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
     ...state,
     turnState: nextTurnState,
   };
-  const passiveEvents = [];
+  applyOverdriveStartSpRecovery(nextState, nextTurnState);
 
   for (const member of nextState.party) {
     const rule = getEpRule(member);
@@ -8639,14 +10542,9 @@ export function activateOverdrive(state, level, context = 'preemptive', options 
         getEpCeilingForTurn(member, nextTurnState, { passiveOverdriveEpLimit })
       );
     }
-    const passiveResult = applyPassiveEpOnOverdriveStart(member, nextTurnState, {
-      passiveOverdriveEpLimit,
-    });
-    passiveEvents.push(...passiveResult.passiveEvents);
   }
-  const spPassiveResult = applyPassiveSpOnOverdriveStart(nextState);
-  passiveEvents.push(...spPassiveResult.passiveEvents);
-  nextState.turnState.passiveEventsLastApplied = passiveEvents;
+  const odPassiveResult = applyPassiveTimingInternal(nextState, ['OnOverdriveStart']);
+  nextState.turnState.passiveEventsLastApplied = odPassiveResult.passiveEvents;
 
   return nextState;
 }
@@ -8655,13 +10553,15 @@ export function applyInitialPassiveState(state) {
   if (!state || !Array.isArray(state.party) || !state.turnState) {
     return state;
   }
-
+  // ─── ① 開始フェーズ: バトル開始 / 初戦開始 ───
   initializeIntrinsicMarkStatesFromParty(state.party);
   const battleStartResult = applyPassiveTimingInternal(state, BATTLE_START_PASSIVE_TIMINGS);
+  state.turnState.passiveEventsLastApplied = [...battleStartResult.passiveEvents];
+  // ─── ② T1 ターン開始 ───
   applyIntrinsicMarkTurnStartRecovery(state.party);
   const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
   state.turnState.passiveEventsLastApplied = [
-    ...battleStartResult.passiveEvents,
+    ...state.turnState.passiveEventsLastApplied,
     ...turnStartResult.passiveEvents,
   ];
   return state;
@@ -8705,4 +10605,52 @@ export function grantExtraTurn(state, allowedCharacterIds) {
     ? structuredClone(additionalTurnStartResult.passiveEvents)
     : [];
   return nextState;
+}
+
+/**
+ * Constructs an ActionContext object for use with shouldConsume().
+ * Maps action type, skill info, and turn state into a unified context.
+ * 
+ * @param {string} actionType - One of: 'NormalAttack', 'Skill', 'Pursuit', 'TurnEnd', 'Manual', 'System', 'SpecialStatus', 'AdditionalTurn'
+ * @param {Object} skill - Skill object (optional, null for non-skill actions)
+ * @param {Object} options - Additional context options
+ * @param {boolean} [options.isNormalAttack] - True if action is normal attack
+ * @param {boolean} [options.isPursuit] - True if action is pursuit attack
+ * @param {string} [options.turnPhase] - Turn phase ('PlayerTurn', 'EnemyTurn', 'OverdriveTurn', etc.)
+ * @param {boolean} [options.hasDamage] - True if action/skill contains damage parts (default: inferred from skill)
+ * @returns {Object} ActionContext object with actionType, skill, hasDamage, turnPhase, and judgment flags
+ */
+export function buildActionContext(actionType, skill = null, options = {}) {
+  const normalizedActionType = String(actionType ?? '').trim();
+
+  // Determine if action has damage (from options or skill parts)
+  let hasDamage = Boolean(options.hasDamage);
+  if (!hasDamage && skill && typeof skill === 'object') {
+    const parts = Array.isArray(skill.parts) ? skill.parts : [];
+    hasDamage = parts.some((part) => {
+      const skillType = String(part?.skill_type ?? '').trim();
+      return OD_DAMAGE_PART_TYPES.has(skillType);
+    });
+  }
+
+  // Build context based on actionType
+  const context = {
+    actionType: normalizedActionType,
+    skill: skill && typeof skill === 'object' ? skill : null,
+    hasDamage: Boolean(hasDamage),
+    turnPhase: String(options.turnPhase ?? 'Unknown'),
+    actorCharacterId: String(options.actorCharacterId ?? ''),
+
+    // Judgment flags (populated by shouldConsume logic)
+    isNormalAttack: Boolean(options.isNormalAttack || normalizedActionType === 'NormalAttack'),
+    isPursuit: Boolean(options.isPursuit || normalizedActionType === 'Pursuit'),
+    isManualAction: normalizedActionType === 'Manual',
+    isTurnEndAction:
+      normalizedActionType === 'TurnEnd' ||
+      normalizedActionType === 'PlayerTurnEnd' ||
+      normalizedActionType === 'EnemyTurnEnd',
+    isSystemAction: normalizedActionType === 'System' || normalizedActionType === 'SpecialStatus',
+  };
+
+  return context;
 }

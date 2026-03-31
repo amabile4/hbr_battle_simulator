@@ -10,6 +10,19 @@ export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
 export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
 export const RECORD_STATUSES = Object.freeze(['preview', 'committed']);
 
+/**
+ * Record action / action-scoped event metadata shared by preview and committed turns.
+ * `actionInstanceId` distinguishes repeated casts from the same character within one turn.
+ */
+export function normalizeActionCastMetadata(action = {}) {
+  return {
+    actionInstanceId: String(action?.actionInstanceId ?? ''),
+    castIndex: Math.max(0, Number(action?.castIndex ?? 0)),
+    castCount: Math.max(1, Number(action?.castCount ?? 1)),
+    isDerivedRepeat: Boolean(action?.isDerivedRepeat),
+  };
+}
+
 export function buildPositionMap(partyMembers) {
   if (!Array.isArray(partyMembers) || partyMembers.length < MIN_PARTY_SIZE || partyMembers.length > MAX_PARTY_SIZE) {
     throw new Error(`buildPositionMap requires ${MIN_PARTY_SIZE}~${MAX_PARTY_SIZE} party members.`);
@@ -142,6 +155,8 @@ export function createInitialTurnState() {
       damageRatesByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
+      absorbElementsByEnemy: {},
+      odRateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -153,6 +168,7 @@ export function createInitialTurnState() {
     extraTurnState: null,
     passiveEventsLastApplied: [],
     passiveUsageCounts: {},
+    passiveTurnFiredKeys: [],
   });
 }
 
@@ -194,6 +210,28 @@ export function cloneTurnState(turnState) {
                   Object.entries(turnState.enemyState.destructionRateCapByEnemy).map(([targetIndex, value]) => [
                     String(targetIndex),
                     Number.isFinite(Number(value)) ? Number(value) : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                  ])
+                )
+              : {},
+          absorbElementsByEnemy:
+            turnState.enemyState.absorbElementsByEnemy &&
+            typeof turnState.enemyState.absorbElementsByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.absorbElementsByEnemy).map(([targetIndex, values]) => [
+                    String(targetIndex),
+                    Array.isArray(values)
+                      ? [...new Set(values.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean))]
+                      : [],
+                  ])
+                )
+              : {},
+          odRateByEnemy:
+            turnState.enemyState.odRateByEnemy &&
+            typeof turnState.enemyState.odRateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.odRateByEnemy).map(([targetIndex, rate]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(rate)) ? Number(rate) : 0,
                   ])
                 )
               : {},
@@ -273,6 +311,8 @@ export function cloneTurnState(turnState) {
           damageRatesByEnemy: {},
           destructionRateByEnemy: {},
           destructionRateCapByEnemy: {},
+          absorbElementsByEnemy: {},
+          odRateByEnemy: {},
           breakStateByEnemy: {},
           enemyNamesByEnemy: {},
           zoneConfigByEnemy: {},
@@ -334,6 +374,9 @@ export function cloneTurnState(turnState) {
             ])
           )
         : {},
+    passiveTurnFiredKeys: Array.isArray(turnState?.passiveTurnFiredKeys)
+      ? [...turnState.passiveTurnFiredKeys]
+      : [],
   };
 }
 

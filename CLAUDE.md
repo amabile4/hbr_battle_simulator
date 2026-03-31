@@ -15,6 +15,13 @@
 - **JavaScript**: `/js/`フォルダで責任別にモジュール分割
 - **データ**: `skillDatabase.json` - キャラクターとスキルデータ
 
+## 現在のUI実装方針
+
+- 現在の主実装対象は `ui-next/` です。
+- `ui/` および `src/ui/` の `dom_adapter` 系は、過去に検討した旧 UI / 参照用ソースとして扱います。
+- 新しい UI 体験や通常の機能追加では、旧 `dom_adapter` との parity を前提にせず、`ui-next/` と shared engine / replay / contract を優先して進めてください。
+- 旧 `dom_adapter` 側の修正は、明示依頼がある場合、または shared contract の整合維持に必要な場合に限定します。
+
 ### 主要JavaScriptモジュール
 
 - `globals.js` - グローバル変数と設定
@@ -66,23 +73,39 @@ skillDatabase.json - キャラクター・スキルデータ
 - Google Spreadsheet互換の特定CSV形式でデータ出力
 - モジュラー設計により保守性と機能追加が容易
 
-## Branch And Merge Conventions
+## json/ フォルダの取り扱い
 
-- `main` は安定した共通土台であり、共有アセット、共有 resolver、共有 contract、既存 engine の確定 bugfix を入れる正本ブランチとして扱う。
-- 既存 engine 改修は `feature/engine-<topic>`、新 UI は `feature/ui-next-<topic>` の命名を基本とする。
-- `feature/ui-next-*` は新 UI 専用ブランチとして扱い、既存ページの直接改造ではなく、新規ページや新規 UI ルートでの実装を優先する。
-- engine bugfix や shared 変更を `feature/ui-next-*` 側だけで正本化しない。再利用する変更は、原則 `main` に先に入れるか、`feature/engine-*` から `main` へ入れてから `ui-next` 側へ取り込む。
-- `feature/ui-next-*` と `feature/engine-*` の間で直接 merge する運用は原則避け、共有変更は `main` を経由して伝播させる。
-- `feature/ui-next-*` は `main` を定期的に取り込み、engine 側の bugfix や shared 変更を追従してよい。履歴の分かりやすさを優先し、必要なら `merge main` を選んでよい。
-- 片方のブランチだけで使う試験実装を shared 層へ先に混ぜない。shared 化するのは、複数ブランチで使うことが明確になってからにする。
+- `json/` フォルダ配下のファイルは全て **1行のminified JSON** であるため、`grep` / `rg` によるテキスト検索は機能しない。
+- これらのファイルを検索・調査する際は必ず `jq` または `node` の JSON パーサーを使うこと。
+  - 例（jq）: `cat json/foo.json | jq '.key'`
+  - 例（node）: `node -e "const d=require('./json/foo.json'); console.log(JSON.stringify(d.key, null, 2))"`
+- Grep ツールや grep コマンドで `json/` 以下を検索しない。
+
+## Repo Workflow
+
+- project 固有の branch 命名、merge 方針、shared 変更の流し方は [docs/specs/repo_workflow.md](docs/specs/repo_workflow.md) を参照する。
+- 同じ repo で複数の `git` コマンドを並列実行しない。git は必ず直列に実行する。
 
 ## Documentation Conventions
 
 - `docs/` 内のファイルを参照・更新する際は、必ず `docs/README.md` を確認し、記載のドキュメント管理ルールに従うこと。
 - 実装タスクの完了時は、対応ドキュメントのステータス更新を実装とセットで行うこと（必須）。
 
-## E2Eテストに関するAIアシスタントへの指示（テスターとしてのロールとルール）
+## 開発原則（バグ修正・実装時の必須事項）
 
-- AIアシスタントはE2E担当のテスターとして振る舞うこと。
-- `http://localhost:4173/ui/index.html` を開いてE2EテストをPlaywrightで実施する。
-- 触って良い（編集・作成して良い）のは、`tests/e2e` ディレクトリの中だけとする。アプリケーションの本体コードは変更しないこと。
+不具合修正・新規実装を行う前に必ず読むこと:
+→ [docs/specs/dev_principles.md](docs/specs/dev_principles.md)
+
+要点:
+- 不具合発生時はまずエンジン層 / UI 層の切り分けを行う
+- UI 層で誤魔化す修正（offset 加算・逆算・推測値）を行わない
+- 既存の類似処理を確認してから実装する
+- エンジンが既に正しいデータを返している場合、UI 側の参照ソースを直す
+
+## E2Eテストに関するAIアシスタントへの指示
+
+- 実装者は、自分が変更した範囲のテスト作成・更新・実行まで一貫して担当すること。
+- browser 実挙動が論点の変更では、unit / integration test だけで閉じず、必要な Playwright coverage を追加・更新して自ら確認すること。
+- `tests/e2e` や Playwright 関連設定も、対象変更に必要なら同じ実装者が修正してよい。
+- 主対象 UI は `ui-next/` であり、Playwright も原則 `http://localhost:4173/ui-next/index.html` を起点に組むこと。
+- 旧 `ui/` / `dom_adapter` 系は廃止済みであり、通常の実装判断の主対象にしない。

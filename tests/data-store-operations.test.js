@@ -1,7 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getStore } from './helpers.js';
-import { HbrDataStore } from '../src/index.js';
+import { HbrDataStore, createBattleStateFromParty, previewTurn, commitTurn } from '../src/index.js';
+
+const UI_NEXT_YUINA_SWITCH_STYLE_ID = 1004107;
+const UI_NEXT_YUINA_SWITCH_PARENT_SKILL_ID = 46004113;
+const UI_NEXT_YUINA_SWITCH_BRANCH_SKILL_IDS = Object.freeze({
+  LABYRINTH: 46004114,
+  SPIRAL: 46004117,
+});
+const EMBEDDED_NORMAL_ATTACK_STYLE_ID = 1010103;
+const RUBY_PERFUME_STYLE_ID = 1007106;
+const RUBY_PERFUME_SKILL_ID = 46407101;
 
 test('style/skill lookup and assignment operations work', () => {
   const store = getStore();
@@ -35,6 +45,39 @@ test('listStylesByCharacter returns styles', () => {
 
   assert.ok(items.length >= 1);
   assert.ok(items.some((row) => Number(row.id) === Number(style.id)));
+});
+
+test('store resolves character names and nested skill names for human-readable export', () => {
+  const store = HbrDataStore.fromRawData({
+    characters: [
+      {
+        id: 31,
+        label: 'RKayamori',
+        name: '茅森 月歌',
+        skills: [{ id: 46500123, name: 'Character Skill' }],
+      },
+    ],
+    styles: [
+      {
+        id: 1001101,
+        name: 'Attack or Music',
+        chara: '茅森 月歌 — Ruka Kayamori — ',
+        skills: [{ id: 46000123, name: 'Style Skill' }],
+        passives: [{ id: 46400123, name: 'Style Passive' }],
+      },
+    ],
+    skills: [{ id: 46009999, name: 'Direct Skill' }],
+    passives: [{ id: 46409999, name: 'Passive Catalog Skill' }],
+    accessories: [{ skills: [{ id: 46300123, name: 'Accessory Skill' }] }],
+    supportSkills: [],
+  });
+
+  assert.equal(store.resolveStyleName(1001101), 'Attack or Music');
+  assert.equal(store.resolveCharacterNameByStyleId(1001101), '茅森 月歌');
+  assert.equal(store.resolveSkillName(46009999), 'Direct Skill');
+  assert.equal(store.resolveSkillName(46409999), 'Passive Catalog Skill');
+  assert.equal(store.resolveSkillName(46300123), 'Accessory Skill');
+  assert.equal(store.resolveSkillName(46500123), 'Character Skill');
 });
 
 test('style limit break max depends on tier', () => {
@@ -185,6 +228,179 @@ test('triggered skill list keeps pursuit skills for future simulation', () => {
   assert.equal(triggeredSkillIds.includes(46001391), true, 'pursuit should be retained as triggered');
 });
 
+test('styles.json embedded fallback restores normal attack for selectable list and pursuit for triggered list', () => {
+  const store = getStore();
+
+  const selectableSkills = store.listSkillsByStyleId(EMBEDDED_NORMAL_ATTACK_STYLE_ID);
+  const selectableNames = selectableSkills.map((skill) => String(skill.name ?? ''));
+  const member = store.buildCharacterStyle({
+    styleId: EMBEDDED_NORMAL_ATTACK_STYLE_ID,
+    partyIndex: 0,
+    initialSP: 10,
+  });
+  const triggeredNames = store
+    .listTriggeredSkillsByStyleId(EMBEDDED_NORMAL_ATTACK_STYLE_ID)
+    .map((skill) => String(skill.name ?? ''));
+
+  assert.equal(selectableNames[0], '通常攻撃', 'embedded normal attack should be restored and sorted first');
+  assert.equal(
+    selectableNames.includes('追撃'),
+    false,
+    'pursuit should remain hidden from command-selectable skill lists'
+  );
+  assert.equal(member.getActionSkills()[0]?.name, '通常攻撃', 'CharacterStyle should also expose normal attack first');
+  assert.equal(
+    triggeredNames.includes('追撃'),
+    true,
+    'embedded pursuit should be restored in triggered skill lists'
+  );
+});
+
+test('equipable skill list includes passive skills such as ルビー・パフューム', () => {
+  const store = getStore();
+
+  const equipableSkills = store.listEquipableSkillsByStyleId(RUBY_PERFUME_STYLE_ID);
+  const rubyPerfume = equipableSkills.find((skill) => Number(skill.id) === RUBY_PERFUME_SKILL_ID);
+
+  assert.ok(rubyPerfume, 'equipable list should include Ruby Perfume');
+  assert.equal(rubyPerfume.sourceType, 'passive');
+  assert.equal(Boolean(rubyPerfume.passive && typeof rubyPerfume.passive === 'object'), true);
+});
+
+test('buildCharacterStyle filters equipable passive triggered skills by equippedSkillIds', () => {
+  const store = getStore();
+  const allEquipableSkillIds = store
+    .listEquipableSkillsByStyleId(RUBY_PERFUME_STYLE_ID)
+    .map((skill) => Number(skill.id));
+  const withoutRubyPerfume = allEquipableSkillIds.filter((skillId) => skillId !== RUBY_PERFUME_SKILL_ID);
+
+  const equippedMember = store.buildCharacterStyle({
+    styleId: RUBY_PERFUME_STYLE_ID,
+    partyIndex: 0,
+    initialSP: 20,
+    equippedSkillIds: allEquipableSkillIds,
+  });
+  const unequippedMember = store.buildCharacterStyle({
+    styleId: RUBY_PERFUME_STYLE_ID,
+    partyIndex: 0,
+    initialSP: 20,
+    equippedSkillIds: withoutRubyPerfume,
+  });
+
+  assert.equal(
+    equippedMember.triggeredSkills.some((skill) => Number(skill.skillId) === RUBY_PERFUME_SKILL_ID),
+    true,
+    'equipped passive should remain in triggeredSkills'
+  );
+  assert.equal(
+    unequippedMember.triggeredSkills.some((skill) => Number(skill.skillId) === RUBY_PERFUME_SKILL_ID),
+    false,
+    'unequipped passive should be removed from triggeredSkills'
+  );
+});
+
+test('distinct-name SkillSwitch variants are expanded into selectable skills', () => {
+  const store = getStore();
+
+  const switchSkills = store
+    .listSkillsByStyleId(UI_NEXT_YUINA_SWITCH_STYLE_ID)
+    .filter((skill) => String(skill.label ?? '').startsWith('YShirakawaSkill54'));
+
+  assert.deepEqual(
+    switchSkills.map((skill) => Number(skill.id)),
+    [
+      UI_NEXT_YUINA_SWITCH_BRANCH_SKILL_IDS.LABYRINTH,
+      UI_NEXT_YUINA_SWITCH_BRANCH_SKILL_IDS.SPIRAL,
+    ],
+    'Yuina switch skill should expose both selectable variants instead of the parent SkillSwitch'
+  );
+  assert.equal(
+    switchSkills.some((skill) => Number(skill.id) === UI_NEXT_YUINA_SWITCH_PARENT_SKILL_ID),
+    false,
+    'top-level SkillSwitch parent should not remain in selectable list'
+  );
+});
+
+test('same-name SkillSwitch with different elements keeps all variants', () => {
+  const store = getStore();
+  const izumiSwitchStyle = store.styles.find((style) =>
+    (style.skills ?? []).some((skillRef) => Number(skillRef.id) === 46001215)
+  );
+
+  assert.ok(izumiSwitchStyle, 'YIzumi style with SkillSwitch parent should exist in test data');
+
+  const switchSkills = store
+    .listSkillsByStyleId(Number(izumiSwitchStyle.id))
+    .filter((skill) => String(skill.label ?? '').startsWith('YIzumiSkill56'));
+  const member = store.buildCharacterStyle({
+    styleId: Number(izumiSwitchStyle.id),
+    partyIndex: 0,
+    initialSP: 20,
+  });
+  const state = createBattleStateFromParty(
+    store.buildPartyFromStyleIds(
+      [Number(izumiSwitchStyle.id), 1001101, 1001301, 1001401, 1001501, 1001701],
+      { initialSP: 20 }
+    )
+  );
+  const actor = state.party[0];
+
+  assert.deepEqual(
+    switchSkills.map((skill) => Number(skill.id)),
+    [46001216, 46001217],
+    'same-name SkillSwitch with different elements should keep all variants (both Fire and Thunder)'
+  );
+  assert.equal(
+    member.getSkill(46001215)?.skillId,
+    46001216,
+    'legacy parent id should resolve to the first selectable variant inside CharacterStyle'
+  );
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: 46001215 },
+  });
+  const action = preview.actions.find((entry) => entry.characterId === actor.characterId);
+  const committed = commitTurn(state, preview);
+  const committedAction = committed.committedRecord.actions.find(
+    (entry) => entry.characterId === actor.characterId
+  );
+
+  assert.equal(action?.skillId, 46001216, 'legacy parent id should preview using the first variant id');
+  assert.equal(
+    committedAction?.enemyStatusChanges?.some((change) => change.statusType === 'Hacking'),
+    true,
+    'commit should execute the selected SkillSwitch variant rather than a no-op parent shell'
+  );
+});
+
+test('legacy parent id for distinct-name SkillSwitch resolves to first selectable variant in preview', () => {
+  const store = getStore();
+  const state = createBattleStateFromParty(
+    store.buildPartyFromStyleIds(
+      [UI_NEXT_YUINA_SWITCH_STYLE_ID, 1001101, 1001201, 1001301, 1001401, 1001501],
+      { initialSP: 20 }
+    )
+  );
+  const actor = state.party[0];
+
+  const legacyPreview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: UI_NEXT_YUINA_SWITCH_PARENT_SKILL_ID },
+  });
+  const branchPreview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: UI_NEXT_YUINA_SWITCH_BRANCH_SKILL_IDS.SPIRAL },
+  });
+  const legacyAction = legacyPreview.actions.find((entry) => entry.characterId === actor.characterId);
+  const branchAction = branchPreview.actions.find((entry) => entry.characterId === actor.characterId);
+
+  assert.equal(
+    legacyAction?.skillId,
+    UI_NEXT_YUINA_SWITCH_BRANCH_SKILL_IDS.LABYRINTH,
+    'legacy parent id should fall back to the first selectable variant'
+  );
+  assert.equal(branchAction?.skillId, UI_NEXT_YUINA_SWITCH_BRANCH_SKILL_IDS.SPIRAL);
+  assert.equal(branchAction?.skillName, '蒼焔ノ螺旋', 'selecting the second variant should preserve its distinct name');
+});
+
 test('listPassivesByStyleId merges style and passive database entries', () => {
   const store = getStore();
   const tojoLamentStyleId = 1001408; // 哀情のラメント
@@ -248,6 +464,24 @@ test('listPassivesByStyleId preserves activation metadata needed by runtime', ()
   assert.equal(passive.sourceMeta?.sourceStyleId, styleId);
   assert.equal(Array.isArray(passive.parts), true);
   assert.equal(String(passive.parts?.[0]?.skill_type ?? ''), 'AttackUp');
+});
+
+test('listPassivesByStyleId includes master passive converted from skill.passive metadata', () => {
+  const store = getStore();
+  const styleId = 1001103; // 閃光のサーキットバースト（RKayamori）
+  const masterPassiveId = 46511101;
+
+  const passives = store.listPassivesByStyleId(styleId, { limitBreakLevel: 4 });
+  const masterPassive = passives.find((item) => Number(item.id) === masterPassiveId);
+
+  assert.ok(masterPassive, 'master passive should be included in listPassivesByStyleId');
+  assert.equal(masterPassive.sourceType, 'master');
+  assert.equal(masterPassive.timing, 'OnFirstBattleStart');
+  assert.equal(masterPassive.condition, '');
+  assert.equal(masterPassive.effect, 'NormalBuff_Up');
+  assert.equal(masterPassive.requiredLimitBreakLevel, 0);
+  assert.equal(Array.isArray(masterPassive.parts), true);
+  assert.equal(String(masterPassive.parts?.[0]?.skill_type ?? ''), 'MemorySpirit');
 });
 
 test('listPassivesByStyleId keeps same-name passives when activation metadata differs', () => {
@@ -407,6 +641,7 @@ test('additional turn rules expose turn-context conditions from skill parts', ()
   const yatadoru = store.getAdditionalTurnRule(46041501); // 宿る想い
   const tenku = store.getAdditionalTurnRule(46041403); // 天駆の鉄槌
   const sprint = store.getAdditionalTurnRule(46006661); // 快感・スプリント！+
+  const kokushi = store.getAdditionalTurnRule(46005117); // 国士無双
 
   assert.equal(yatadoru?.skillUsableInExtraTurn, true);
   assert.equal(yatadoru?.additionalTurnGrantInExtraTurn, false);
@@ -421,6 +656,12 @@ test('additional turn rules expose turn-context conditions from skill parts', ()
   assert.equal(tenku?.additionalTurnGrantInExtraTurn, true);
 
   assert.equal(sprint?.conditions?.requiresOverDrive, true);
+  assert.equal(kokushi?.conditions?.requiresOverDrive, true);
+  assert.equal(
+    kokushi?.additionalTurnTargets?.some((item) => item.targetType === 'Self'),
+    true,
+    '国士無双 should expose nested AdditionalTurn target from SkillCondition branch'
+  );
 });
 
 test('EP rules are loaded from external rule table for Nanase styles', () => {

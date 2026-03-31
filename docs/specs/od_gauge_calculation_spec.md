@@ -87,3 +87,42 @@ gain_all = trunc2(2.65 * 6) = 15.90
 - **条件分岐**: `SkillCondition` + `PlayedSkillCount(...)` を評価して分岐先 `strval` スキルを選択
   - 例: `コンペンセーション` は初回75%・2回目以降25%（いずれもドライブ補正適用）
 - **状態管理**: `CharacterStyle.skillUseCounts` にスキル使用回数を保持し、commitごとに加算
+
+---
+
+## 敵 od_rate によるOD上昇量補正 [WIP]
+
+> ⚠️ 実機照合未完了。小数点丸め込み位置は調査中。
+
+### 仕様
+
+- 敵パラメーター `od_rate` は `enemies.json > base_param.od_rate` に格納される。
+- `od_rate = 0` の場合は **補正なし**（乗数 1.0 として扱う）。
+- `od_rate ≠ 0` の場合、最終OD上昇量に乗算する係数は `od_rate / 10000`:
+
+```
+effective_gain = trunc2(raw_gain × (od_rate / 10000))
+```
+
+- 例: `od_rate = 8500` → 乗数 `0.85` → 通常攻撃1回(2.5%) が `trunc2(2.5 × 0.85) = 2.12%`。
+
+### 定数
+
+| 定数名 | 値 | 説明 |
+|--------|----|------|
+| `ENEMY_OD_RATE_UNIT` | `10000` | od_rate 1単位あたりの基底値（0.01%/unit） |
+
+### 実装場所
+
+| 処理 | ファイル | 関数 |
+|------|----------|------|
+| 定数定義 | `src/config/battle-defaults.js` | `ENEMY_OD_RATE_UNIT` |
+| ターン状態保持 | `src/contracts/interfaces.js` | `enemyState.odRateByEnemy` |
+| 係数解決 | `src/turn/turn-controller.js` | `resolveEnemyOdRateMultiplier()` |
+| 補正適用 | `src/turn/turn-controller.js` | `applyOdGaugeFromActions()` |
+| UI→エンジン変換 | `ui-next/engine/battle-state-manager.js` | `buildEnemyStateOverrides()` |
+
+### WIP メモ
+
+- 丸め込みタイミングの調査が完了したら `trunc2` の適用位置を見直す。
+- 複数敵がいる場合は全て同じ `od_rate` を持つとして enemy[0] の値を代表値として使用中。

@@ -10,6 +10,7 @@ export const REPLAY_TARGET_TYPES = Object.freeze({
 
 export const REPLAY_OPERATION_TYPES = Object.freeze({
   ACTIVATE_KISHINKA: 'ActivateKishinka',
+  ACTIVATE_MAKAI_KIHEI: 'ActivateMakaiKihei',
   ACTIVATE_PREEMPTIVE_OD: 'ActivatePreemptiveOd',
   RESERVE_INTERRUPT_OD: 'ReserveInterruptOd',
 });
@@ -27,6 +28,7 @@ export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
 
 export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
   ENEMY_COUNT: 'EnemyCount',
+  ACTION_OUTCOME_OVERRIDES: 'ActionOutcomeOverrides',
   ENEMY_ACTION: 'EnemyAction',
   ENEMY_NAMES: 'EnemyNames',
   ENEMY_DAMAGE_RATES: 'EnemyDamageRates',
@@ -190,12 +192,27 @@ export const replaySetupEntryRegistry = createTypedEnvelopeRegistry({
   ),
 });
 export const replayOperationRegistry = createTypedEnvelopeRegistry({
-  [REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA]: Object.freeze({ timing: 'beforeCommit' }),
-  [REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD]: Object.freeze({ timing: 'beforeCommit' }),
-  [REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD]: Object.freeze({ timing: 'afterCommitReservation' }),
+  [REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA]: Object.freeze({
+    timing: 'beforeCommit',
+    allowMultiple: false,
+  }),
+  [REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI]: Object.freeze({
+    timing: 'beforeCommit',
+    allowMultiple: true,
+  }),
+  [REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD]: Object.freeze({
+    timing: 'beforeCommit',
+    allowMultiple: false,
+  }),
+  [REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD]: Object.freeze({
+    timing: 'afterCommitReservation',
+    allowMultiple: false,
+  }),
 });
 export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT]: createReplayOverrideEntryDefinition('enemyCount'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES]:
+    createReplayOverrideEntryDefinition('actionOutcomeOverrides'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ACTION]: createReplayOverrideEntryDefinition('enemyAction'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_NAMES]: createReplayOverrideEntryDefinition('enemyNames'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DAMAGE_RATES]: createReplayOverrideEntryDefinition('enemyDamageRates'),

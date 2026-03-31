@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CharacterStyle } from '../domain/character-style.js';
+import { resolveShortCharacterName } from '../domain/character-name.js';
 import { Party, MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 import {
   isAdmiralCommandSkill as isAdmiralCommandSkillClassifier,
@@ -42,6 +43,78 @@ function normalizeCharaText(name) {
     .replace(/\s+/g, '');
 }
 
+function extractJapaneseCharacterName(name) {
+  const raw = String(name ?? '').trim();
+  for (const separator of ['—', ' - ']) {
+    if (raw.includes(separator)) {
+      return raw.split(separator)[0].trim();
+    }
+  }
+  return raw;
+}
+
+function collectNamedIdsRecursive(node, namesById) {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      collectNamedIdsRecursive(item, namesById);
+    }
+    return;
+  }
+  if (!node || typeof node !== 'object') {
+    return;
+  }
+
+  const id = Number(node.id);
+  const name = String(node.name ?? '').trim();
+  if (Number.isFinite(id) && name && !namesById.has(id)) {
+    namesById.set(id, name);
+  }
+
+  for (const value of Object.values(node)) {
+    if (value && typeof value === 'object') {
+      collectNamedIdsRecursive(value, namesById);
+    }
+  }
+}
+
+function buildSkillNameIndex(payload = {}) {
+  const namesById = new Map();
+  const register = (id, name) => {
+    const numericId = Number(id);
+    const normalizedName = String(name ?? '').trim();
+    if (!Number.isFinite(numericId) || !normalizedName || namesById.has(numericId)) {
+      return;
+    }
+    namesById.set(numericId, normalizedName);
+  };
+
+  for (const skill of payload.skills ?? []) {
+    register(skill?.id, skill?.name);
+  }
+
+  for (const passive of payload.passives ?? []) {
+    register(passive?.id, passive?.name);
+  }
+
+  for (const style of payload.styles ?? []) {
+    for (const skill of style?.skills ?? []) {
+      register(skill?.id, skill?.name);
+    }
+    for (const passive of style?.passives ?? []) {
+      register(passive?.id, passive?.name);
+    }
+  }
+
+  collectNamedIdsRecursive(payload.skills ?? [], namesById);
+  collectNamedIdsRecursive(payload.styles ?? [], namesById);
+  collectNamedIdsRecursive(payload.passives ?? [], namesById);
+  collectNamedIdsRecursive(payload.accessories ?? [], namesById);
+  collectNamedIdsRecursive(payload.characters ?? [], namesById);
+  collectNamedIdsRecursive(payload.supportSkills ?? [], namesById);
+
+  return namesById;
+}
+
 function toDateValue(value) {
   const t = new Date(String(value ?? '')).getTime();
   return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
@@ -80,6 +153,51 @@ function mergeConditionFlags(...flagsList) {
       requiresReinforcedMode: false,
     }
   );
+}
+
+function collectAdditionalTurnPartEntries(parts, inheritedFlags = null) {
+  const resolvedInheritedFlags = mergeConditionFlags(inheritedFlags);
+  const entries = [];
+  for (const part of parts ?? []) {
+    const skillType = String(part?.skill_type ?? '');
+    if (skillType === 'AdditionalTurn') {
+      const partFlags = mergeConditionFlags(
+        resolvedInheritedFlags,
+        parseConditionFlags(part?.cond),
+        parseConditionFlags(part?.hit_condition),
+        parseConditionFlags(part?.target_condition)
+      );
+      entries.push({
+        part,
+        conditionFlags: partFlags,
+      });
+      continue;
+    }
+
+    if (skillType !== 'SkillCondition') {
+      continue;
+    }
+
+    const branchFlags = mergeConditionFlags(
+      resolvedInheritedFlags,
+      parseConditionFlags(part?.cond),
+      parseConditionFlags(part?.iuc_cond)
+    );
+    const variants = Array.isArray(part?.strval)
+      ? part.strval.filter((variant) => variant && typeof variant === 'object')
+      : [];
+    for (const variant of variants) {
+      const variantFlags = mergeConditionFlags(
+        branchFlags,
+        parseConditionFlags(variant?.cond),
+        parseConditionFlags(variant?.iuc_cond)
+      );
+      entries.push(
+        ...collectAdditionalTurnPartEntries(variant?.parts, variantFlags)
+      );
+    }
+  }
+  return entries;
 }
 
 function mergeSkillVariant(baseVariant, overrideVariant) {
@@ -155,6 +273,8 @@ function createPassiveMeaningKey(passive) {
   });
 }
 
+const SKILL_TYPE_SWITCH = 'SkillSwitch';
+
 function clonePassiveWithSource(passive, sourceType, sourceMeta = {}) {
   return {
     ...structuredClone(passive),
@@ -204,6 +324,14 @@ export class HbrDataStore {
     this.characterSortMetaByLabel = this.buildCharacterSortMetaByLabel(this.characters);
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
+    this.skillNamesById = buildSkillNameIndex({
+      skills: this.skills,
+      styles: this.styles,
+      passives: this.passives,
+      accessories: this.accessories,
+      characters: this.characters,
+      supportSkills: this.supportSkills,
+    });
     this.skillRuleOverridesById = new Map(
       this.skillRuleOverrides.map((row) => [Number(row.id), row])
     );
@@ -429,9 +557,31 @@ export class HbrDataStore {
     return this.stylesById.get(Number(styleId)) ?? null;
   }
 
+  resolveStyleName(styleId) {
+    return String(this.getStyleById(styleId)?.name ?? '').trim() || null;
+  }
+
+  resolveCharacterNameByStyleId(styleId) {
+    const style = this.getStyleById(styleId);
+    const rawName = style?.chara ?? style?.chara_name ?? '';
+    return extractJapaneseCharacterName(rawName) || null;
+  }
+
   getSkillById(skillId) {
     const raw = this.skillsById.get(Number(skillId)) ?? null;
     return this.mergeSkillWithOverride(raw);
+  }
+
+  resolveSkillName(skillId) {
+    const numericSkillId = Number(skillId);
+    if (!Number.isFinite(numericSkillId)) {
+      return null;
+    }
+    const directName = String(this.getSkillById(numericSkillId)?.name ?? '').trim();
+    if (directName) {
+      return directName;
+    }
+    return String(this.skillNamesById.get(numericSkillId) ?? '').trim() || null;
   }
 
   getLimitBreakMaxByTier(tier) {
@@ -498,6 +648,112 @@ export class HbrDataStore {
       sourceType,
       sourceMeta,
     };
+  }
+
+  isEquippedSkillSelected(skill, equippedSet) {
+    if (!(equippedSet instanceof Set)) {
+      return true;
+    }
+    const skillId = Number(skill?.id ?? skill?.skillId);
+    if (Number.isFinite(skillId) && equippedSet.has(skillId)) {
+      return true;
+    }
+    return Array.isArray(skill?.legacySkillIds)
+      ? skill.legacySkillIds.some((legacySkillId) => equippedSet.has(Number(legacySkillId)))
+      : false;
+  }
+
+  resolveStyleSkillReference(rowStyle, skillRef) {
+    const skillId = Number(skillRef?.id);
+    if (!Number.isFinite(skillId)) {
+      return null;
+    }
+
+    const fromDatabase = this.getSkillById(skillId);
+    const resolved = fromDatabase ?? this.mergeSkillWithOverride(skillRef);
+    if (!resolved) {
+      return null;
+    }
+
+    const role = String(resolved.role ?? rowStyle?.role ?? '');
+    return {
+      ...resolved,
+      ...(role ? { role } : {}),
+    };
+  }
+
+  extractSkillSwitchVariants(skill) {
+    if (!skill || typeof skill !== 'object') {
+      return [];
+    }
+
+    const switchPart = (skill.parts ?? []).find(
+      (part) =>
+        String(part?.skill_type ?? '').trim() === SKILL_TYPE_SWITCH &&
+        Array.isArray(part?.strval)
+    );
+    if (!switchPart) {
+      return [];
+    }
+
+    return switchPart.strval.filter(
+      (variant) => variant && typeof variant === 'object' && Number.isFinite(Number(variant.id))
+    );
+  }
+
+  buildSelectableSkillsForResolvedSkill(skill) {
+    const variants = this.extractSkillSwitchVariants(skill);
+    if (variants.length === 0) {
+      return [skill];
+    }
+
+    // Switch variants with the same name but different elements should be treated as distinct skills.
+    // Create a unique key combining both name and first part's elements to avoid collapsing
+    // variants like "最高潮！アオハルオンステージ" (Ice) and "最高潮！アオハルオンステージ" (Thunder).
+    const createVariantKey = (variant) => {
+      const name = String(variant?.name ?? '').trim();
+      const parts = Array.isArray(variant?.parts) ? variant.parts : [];
+      const firstPartElements = parts[0]?.elements || [];
+      const elementKey = firstPartElements.length > 0
+        ? firstPartElements.join('|')
+        : 'Unknown';
+      return `${name}::${elementKey}`;
+    };
+
+    const uniqueKeys = new Set(variants.map(createVariantKey));
+    const selectableVariants = uniqueKeys.size === 1 ? [variants[0]] : variants;
+
+    return selectableVariants.map((variant, index) => {
+      const mergedVariant = this.mergeSkillWithOverride(mergeSkillVariant(skill, variant)) ?? null;
+      if (!mergedVariant) {
+        return null;
+      }
+      const legacySkillIds = index === 0 ? [Number(skill.id)] : [];
+      return {
+        ...mergedVariant,
+        legacySkillIds,
+      };
+    }).filter(Boolean);
+  }
+
+  sortSelectableSkillsForStyle(style, skills = []) {
+    const isAdmiral = String(style?.role ?? '') === 'Admiral';
+    return skills
+      .map((skill, index) => ({ skill, index }))
+      .sort((a, b) => {
+        const rank = (entry) => {
+          if (isAdmiral) {
+            return this.isAdmiralCommandSkill(entry.skill) ? 0 : 1;
+          }
+          return isNormalAttackSkillClassifier(entry.skill) ? 0 : 1;
+        };
+        const delta = rank(a) - rank(b);
+        if (delta !== 0) {
+          return delta;
+        }
+        return a.index - b.index;
+      })
+      .map((entry) => entry.skill);
   }
 
   isAdmiralCommandSkill(skill) {
@@ -704,8 +960,8 @@ export class HbrDataStore {
 
     for (const rowStyle of styles) {
       for (const skillRef of rowStyle.skills ?? []) {
-        const skill = this.getSkillById(skillRef.id);
-        if (!skill || seen.has(Number(skill.id))) {
+        const skill = this.resolveStyleSkillReference(rowStyle, skillRef);
+        if (!skill) {
           continue;
         }
 
@@ -713,17 +969,28 @@ export class HbrDataStore {
           continue;
         }
 
-        if (!this.isCommandSelectableSkill(skill)) {
-          continue;
+        const selectableSkills = this.isCommandSelectableSkill(skill)
+          ? this.buildSelectableSkillsForResolvedSkill(skill)
+          : [];
+        for (const selectableSkill of selectableSkills) {
+          const selectableSkillId = Number(selectableSkill.id);
+          if (!Number.isFinite(selectableSkillId) || seen.has(selectableSkillId)) {
+            continue;
+          }
+          seen.add(selectableSkillId);
+          out.push(
+            this.cloneSkillWithSource(
+              selectableSkill,
+              'style',
+              {
+                sourceStyleId: Number(rowStyle.id),
+                sourceStyleName: String(rowStyle.name ?? ''),
+                parentSkillId: Number(skill.id),
+                parentSkillLabel: String(skill.label ?? ''),
+              }
+            )
+          );
         }
-
-        seen.add(Number(skill.id));
-        out.push(
-          this.cloneSkillWithSource(skill, 'style', {
-            sourceStyleId: Number(rowStyle.id),
-            sourceStyleName: String(rowStyle.name ?? ''),
-          })
-        );
       }
     }
 
@@ -756,18 +1023,7 @@ export class HbrDataStore {
       }
     }
 
-    if (String(style.role ?? '') === 'Admiral') {
-      out.sort((a, b) => {
-        const aCmd = this.isAdmiralCommandSkill(a) ? 0 : 1;
-        const bCmd = this.isAdmiralCommandSkill(b) ? 0 : 1;
-        if (aCmd !== bCmd) {
-          return aCmd - bCmd;
-        }
-        return Number(a.id) - Number(b.id);
-      });
-    }
-
-    return out;
+    return this.sortSelectableSkillsForStyle(style, out);
   }
 
   listEquipableSkillsByStyleId(styleId) {
@@ -786,7 +1042,7 @@ export class HbrDataStore {
 
     for (const rowStyle of styles) {
       for (const skillRef of rowStyle.skills ?? []) {
-        const skill = this.getSkillById(skillRef.id);
+        const skill = this.resolveStyleSkillReference(rowStyle, skillRef);
         const id = Number(skill?.id);
         if (!skill || !Number.isFinite(id) || seen.has(id)) {
           continue;
@@ -855,27 +1111,20 @@ export class HbrDataStore {
       return null;
     }
 
-    const hasAdditionalTurnPart = (skill.parts ?? []).some(
-      (part) => String(part.skill_type ?? '') === 'AdditionalTurn'
-    );
-    if (!hasAdditionalTurnPart) {
-      return null;
-    }
-
     const skillConditionFlags = mergeConditionFlags(
       parseConditionFlags(skill.cond),
       parseConditionFlags(skill.iuc_cond)
     );
-    const additionalTurnParts = (skill.parts ?? []).filter(
-      (part) => String(part.skill_type ?? '') === 'AdditionalTurn'
+    const additionalTurnEntries = collectAdditionalTurnPartEntries(
+      skill.parts,
+      skillConditionFlags
     );
-    const partConditionFlags = additionalTurnParts.map((part) =>
-      mergeConditionFlags(
-        parseConditionFlags(part.cond),
-        parseConditionFlags(part.hit_condition),
-        parseConditionFlags(part.target_condition)
-      )
-    );
+    if (additionalTurnEntries.length === 0) {
+      return null;
+    }
+
+    const additionalTurnParts = additionalTurnEntries.map((entry) => entry.part);
+    const partConditionFlags = additionalTurnEntries.map((entry) => entry.conditionFlags);
     const aggregatePartFlags = mergeConditionFlags(...partConditionFlags);
 
     const defaultSkillUsableInExtraTurn = !skillConditionFlags.excludesExtraTurn;
@@ -924,8 +1173,9 @@ export class HbrDataStore {
     const seen = new Set();
     for (const rowStyle of styles) {
       for (const skillRef of rowStyle.skills ?? []) {
-        const skill = this.getSkillById(skillRef.id);
-        if (!skill || seen.has(Number(skill.id))) {
+        const skill = this.resolveStyleSkillReference(rowStyle, skillRef);
+        const skillId = Number(skill?.id);
+        if (!skill || !Number.isFinite(skillId) || seen.has(skillId)) {
           continue;
         }
 
@@ -937,7 +1187,7 @@ export class HbrDataStore {
           continue;
         }
 
-        seen.add(Number(skill.id));
+        seen.add(skillId);
         out.push(
           this.cloneSkillWithSource(skill, 'triggered', {
             sourceStyleId: Number(rowStyle.id),
@@ -1006,6 +1256,48 @@ export class HbrDataStore {
           sourceCharacterName: normalizeCharacterName(style.chara),
         })
       );
+    }
+
+    if (this.skillAvailability.includeMasterSkills) {
+      const masterSkill = this.getMasterSkillByCharacterLabel(style.chara_label);
+      const masterSkillId = Number(masterSkill?.id);
+      if (
+        masterSkill &&
+        Number.isFinite(masterSkillId) &&
+        !seen.has(masterSkillId) &&
+        this.isPassiveSkill(masterSkill)
+      ) {
+        const passive = masterSkill.passive ?? {};
+        seen.add(masterSkillId);
+        out.push(
+          clonePassiveWithSource(
+            {
+              id: masterSkillId,
+              label: String(masterSkill?.label ?? ''),
+              name: String(masterSkill?.name ?? ''),
+              desc: String(masterSkill?.desc ?? ''),
+              info: String(masterSkill?.info ?? ''),
+              timing: String(passive?.timing ?? ''),
+              condition: String(passive?.condition ?? ''),
+              effect: String(passive?.effect ?? masterSkill?.effect ?? ''),
+              activ_rate: Number(passive?.activ_rate ?? passive?.activRate ?? 0),
+              auto_type: String(passive?.auto_type ?? passive?.autoType ?? 'None'),
+              limit: Number(passive?.limit ?? 0),
+              parts: Array.isArray(masterSkill?.parts) ? structuredClone(masterSkill.parts) : [],
+              ct: String(style.tier ?? ''),
+              lb: 0,
+            },
+            'master',
+            {
+              sourceStyleId: Number(style.id),
+              sourceStyleName: String(style.name ?? ''),
+              sourceCharacterId: String(style.chara_label ?? ''),
+              sourceCharacterName: normalizeCharacterName(style.chara),
+              sourceCharacterLabel: String(style.chara_label ?? ''),
+            }
+          )
+        );
+      }
     }
 
     const deduped = [];
@@ -1163,19 +1455,26 @@ export class HbrDataStore {
       ? new Set(equippedSkillIds.map((id) => Number(id)))
       : null;
     const styleSkills = equippedSet
-      ? allStyleSkills.filter((skill) => equippedSet.has(Number(skill.id)))
+      ? allStyleSkills.filter((skill) => this.isEquippedSkillSelected(skill, equippedSet))
       : allStyleSkills;
-    const triggeredSkills = this.listTriggeredSkillsByStyleId(style.id).map((skill) => ({
-      ...skill,
-      usage: this.resolveSkillUseCount(skill.use_count, 'max'),
-    }));
+    const triggeredSkills = this.listTriggeredSkillsByStyleId(style.id)
+      .filter((skill) => {
+        if (!this.isPassiveSkill(skill)) {
+          return true;
+        }
+        return this.isEquippedSkillSelected(skill, equippedSet);
+      })
+      .map((skill) => ({
+        ...skill,
+        usage: this.resolveSkillUseCount(skill.use_count, 'max'),
+      }));
     const maxLimitBreak = this.getStyleLimitBreakMax(style);
     const normalizedLimitBreak = Number.isFinite(Number(limitBreakLevel))
       ? Math.max(0, Math.min(maxLimitBreak, Number(limitBreakLevel)))
       : maxLimitBreak;
     const mainPassives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
     const supportPassive =
-      supportStyleId != null
+      supportStyleId != null && String(style.tier ?? '').toUpperCase() === 'SSR'
         ? this.resolveSupportSkillPassive(Number(supportStyleId), Number(supportStyleLimitBreakLevel))
         : null;
     const passives = supportPassive ? [...mainPassives, supportPassive] : mainPassives;
@@ -1196,6 +1495,7 @@ export class HbrDataStore {
     return new CharacterStyle({
       characterId: String(character.label),
       characterName: normalizeCharacterName(character.name),
+      shortName: resolveShortCharacterName(character.name, character.label),
       styleId: Number(style.id),
       styleName: String(style.name),
       team: String(style.team ?? ''),

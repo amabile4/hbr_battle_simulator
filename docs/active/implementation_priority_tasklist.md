@@ -1,10 +1,10 @@
 # Implementation Priority Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-14
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
-> **判断メモ**: 全トラッキングで未対応条件が `0` 件となったため、「未実装機能」のうちシミュレータの計画価値に直結する「スキル使用回数制約と回復機能の厳密適用」を次優先 `PRI-018` として設定した。
+> **判断メモ**: 2026-03-20 に `ui-next` の session-oriented wave（manual break attribution、ReplayScript-native 過去編集/再計算、`SessionSnapshotV1` JSON save/load、`validationPolicy` 基盤）を先行実装した。続けて runtime/data-store 側へ `SkillSwitch` selectable variant 展開と `styles.json` 埋め込み `通常攻撃` / `指揮行動` / `追撃` fallback を入れ、`ui-next` の listbox が新規 UI なしで実データ欠落を吸収できるようにした。2026-03-21 には Party Setup の `スキル設定` パネル統合、`skillSetsByPartyIndex` の snapshot/preset/save-load 配線、装備型 passive `HighBoost` の runtime 実装を完了した。2026-03-29 に `Count/Only` 併存 status family の監査 doc を追加し、`AttackUp` 固有対応ではなく family 単位の確認マトリクスを先に固定する方針へ整理した。現在の残 correctness backlog としては `PRI-018`（スキル使用回数制約と回復機能）が次優先。
 
 ## 目的
 
@@ -21,16 +21,17 @@
 
 ## 再開時の読書順
 
-1. [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md)
-2. [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md)
-3. [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md)
-4. [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md)
-5. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
-6. [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md)
-7. [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md)
-8. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
-9. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
-10. [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md)
+1. [`count_only_status_audit.md`](count_only_status_audit.md)
+2. [`active_buff_status_implementation_tasklist.md`](active_buff_status_implementation_tasklist.md)
+3. [`top_level_effect_implementation_tasklist.md`](top_level_effect_implementation_tasklist.md)
+4. [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md)
+5. [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md)
+6. [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md)
+7. [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md)
+8. [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md)
+9. [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md)
+10. [`../20260306_tasklist/implementation_status.md`](../20260306_tasklist/implementation_status.md)
+11. [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md)
 
 ## 優先順位
 
@@ -41,6 +42,7 @@
 | 完了 | `PRI-015` | `done` | enemy-side `SpecialStatusCountByType(3/22/172)` と enemy status report 同期 | [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md), [`enemy_status_implementation_tasklist.md`](enemy_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`condition_report_sync_tasklist.md`](condition_report_sync_tasklist.md) | 調査で `DefenseDown` / `Fragile` / `SuperDown` 条件と report false positive が残差の本体と判明した。ここを閉じると条件残件は消え、次 priority を未接続 enemy status 残件へ絞れる | `SpecialStatusCountByType(3/22/172)` が runtime で解決し、generator が runtime 実装済み enemy status を未対応として再報告しない |
 | 完了 | `PRI-016` | `done` | residual enemy status クローズ（確率系 / 補助 debuff / enemy buff / passive enemy debuff） | [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`enemy_residual_status_implementation_tasklist.md`](enemy_residual_status_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) | `PRI-015` 後の残件 10 key を generic enemy status 基盤へ吸収し、`PlayerTurnEnd` passive debuff と variant 配下 status も接続した。これで unsupported report を再び全カテゴリ 0 件へ戻せた | `StunRandom` / `ConfusionRandom` / `ImprisonRandom` / `Misfortune` / `HealDown` / `Hacking` / `Cover` / enemy-target `AttackUp` / `DefenseUp` / passive `DefenseDown` が runtime / report / tests まで同期される |
 | 完了 | `PRI-017` | `done` | player-side enemy inflicted status manual hook（`T14` / scenario bridge） | [`player_status_manual_hook_implementation_tasklist.md`](player_status_manual_hook_implementation_tasklist.md), [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md), [`enemy_status_closure_implementation_tasklist.md`](enemy_status_closure_implementation_tasklist.md), [`passive_implementation_tasklist.md`](passive_implementation_tasklist.md) | unsupported report は 0 件化したため、明示的な残 gap は `SpecialStatusCountByType(79)` を扱う player-side 手動拘束 hook に収束していた。manual state / scenario / replay を同じ schema で通すことで、enemy AI 未実装でも planning 価値を維持できた | player-side `ImprisonRandom` / `SpecialStatusCountByType(79)` を `statusEffectsByPartyIndex` で注入でき、CountBC / preview / passive 初期評価 / record / scenario / replay が同じ表現で扱える |
+| 完了 | `UI-NEXT-REPLAY-01` | `done` | `ui-next` manual break attribution / 過去編集 / session save-load | [`ui_next_manual_break_session_tasklist.md`](ui_next_manual_break_session_tasklist.md), [`ui_next_design.md`](ui_next_design.md), [`lightweight_record_replay_design.md`](lightweight_record_replay_design.md) | permissive input 方針のまま、実際の戦闘メモを lightweight record で再現・修正・保存できることを先に整える必要があった。`DownTurn` 直接入力ではなく「どの行動で誰が break したか」を保存することで、break 起点 passive と再計算の整合も保てる | `ActionOutcomeOverrides` による manual break attribution、committed row 再編集、`SessionSnapshotV1` JSON save/load、`validationPolicy` 基盤が `ui-next` / replay / docs / tests まで同期される |
 | 次優先 | `PRI-018` | `todo` | スキル使用回数制約と回復機能の厳密適用 | `../20260306_tasklist/implementation_status.md` | damage calculation 突入前に、シミュレータの「計画」としての要である「有限スキルの残弾」を正確に判定できるようにする | `HealSkillUsedCount` / `SkillLimitCountUp` の効果が反映され、上限を超えたスキル入力が UI / scenario / turn-controller で validate 弾きされること |
 
 ## PRI-013 タスクリスト
@@ -70,12 +72,56 @@
 - [x] generator を runtime 実装済み enemy status 判定へ同期する
 - [x] `にゃんこ大魔法` / `御稲荷神話` / `シンメトリー・リベレーション` の回帰を追加する
 
+### 2026-03-30 調査メモ: enemy-side `SpecialStatusCountByType` の実データ参照
+
+- `SpecialStatusCountByType(3)` は「防御力ダウン状態の敵がいるとき」を指す
+	- 例: `CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0`
+- `SpecialStatusCountByType(22)` は「脆弱状態の敵がいるとき」を指す
+- `SpecialStatusCountByType(172)` は「超ダウン中の敵がいるとき」を指す
+- `SpecialStatusCountByType(12)` と `SpecialStatusCountByType(57)` は、現行 runtime ではそれぞれ `Provoke` / `Attention` に対応する
+	- 定数定義: `src/turn/turn-controller.js`
+	- `12 = Provoke`, `57 = Attention`
+- `Cover` は別 status であり、`12/57` のどちらかではない
+	- 現行 runtime では `Cover` は generic enemy status として別枠管理
+	- `Provoke` / `Attention` と同じ継続ターン系だが、`SpecialStatusCountByType(12/57)` の参照先ではない
+- したがって、データ上の「挑発または注目状態の敵がいるとき」は `12 || 57` の OR 条件で表現されるが、「cover 状態の敵がいるとき」とは別概念として扱う
+
+### WIP: 敵状態参照条件の整理
+
+- [ ] enemy-side `SpecialStatusCountByType(12/57)` を含む条件群を `Provoke` / `Attention` / `Cover` の3概念に分離して整理する
+- [ ] `SpecialStatusCountByType(3/22/172)` と enemy status report / passive condition report の対応表を active ドキュメントへ集約する
+- [ ] `SpecialStatusCountByType` の敵参照ID一覧（3/12/22/57/172）を runtime 実装集合とテスト集合の両面で監査する
+
 ## PRI-016 タスクリスト
 
 - [x] `StunRandom` / `ConfusionRandom` / `ImprisonRandom` の deterministic simulator rule を決める
 - [x] `Misfortune` / `HealDown` / `Hacking` / `Cover` の保持スキーマと record 表現を決める
 - [x] enemy-target `AttackUp` / `DefenseUp` と passive `DefenseDown` を action / passive timing へ接続する
 - [x] [`special_status_implementation_tasklist.md`](special_status_implementation_tasklist.md) の `T14`（拘束状態手動フック）を PRI-017 へ分離する判断を確定する
+
+### 2026-03-30 追加メモ: `Cover` の意味差分
+
+- 現行 runtime は `Cover` を generic enemy status として扱っている
+	- `src/turn/turn-controller.js` では `Cover` が `ENEMY_STATUS_SKILL_TYPES` / `ENEMY_STATUS_POWER_DURATION_SKILL_TYPES` に入っている
+	- 実データ回帰として `エンジェルズ・ウィング` が `enemyState.statuses[*].statusType === 'Cover'` を保存するテストがある
+- ただしゲーム意味としては、`Attention` は敵へ付与する状態、`Cover` は使用者自身へ付与する「攻撃対象を自分へ変更する」自己状態変化バフとして解釈するのが自然
+- したがって現状実装は「記録・条件参照用の enemy status」としては動いているが、「自身へ Cover 状態を付与する」挙動としては未整備
+- `聖女の守護` の実データも `BreakGuard(Self)` + `Cover(All)` を含んでおり、同じ論点に該当する
+
+### WIP: Cover の再整理
+
+- [ ] `Cover` を enemy status のまま扱うケースと、player-side self status/buff として扱うケースを仕様上切り分ける
+- [ ] `エンジェルズ・ウィング` / `聖女の守護` で「自身へ Cover 状態を付与する」が正なら、engine 保存先を `enemyState` から player-side status 表現へ移す設計を起こす
+- [ ] browser E2E は player-side Cover を観測できる UI 表現（バッジ・詳細ポップアップ・session JSON 等）が固まってから追加する
+
+### WIP: 被弾パッシブ・敵攻撃挙動
+
+> Cover 状態で全体攻撃を受けると被弾パッシブが3回発動するという仕様は、以下の未実装要素に依存している。
+
+- [ ] **被弾時パッシブ発火条件**: 敵の攻撃によってプレイヤー側が被弾した際にパッシブが発動する仕組みが未実装
+- [ ] **敵の攻撃挙動**: 敵がどのメンバーを攻撃対象に選ぶか（単体 vs 全体、Cover による強制変更）がシミュレーター上で未実装
+- [ ] **Cover + 全体攻撃 による被弾パッシブ3回発動**: 上記2点が実装されて初めて検証可能
+- 関連ドキュメント: [`help/HEAVEN_BURNS_RED/バトル/ターゲット集中.md`](../../help/HEAVEN_BURNS_RED/バトル/ターゲット集中.md)
 
 ## PRI-017 タスクリスト
 
@@ -103,4 +149,5 @@
 
 - `docs/20260306_tasklist/` はスナップショット起点なので、件数はそのまま真値として使わない
 - `PRI-012` の完了により、「top-level `effect` 実装」は独立テーマではなくなった
+- `Count/Only` の runtime 修正は、[`count_only_status_audit.md`](count_only_status_audit.md) の family 一覧と実機確認マトリクスを先に埋めてから着手する
 - 各 PRI 完了時は、この文書と [`../README.md`](../README.md) を同じコミットで更新する

@@ -43,32 +43,34 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-| [active/support_skills_implementation_tasklist.md](active/support_skills_implementation_tasklist.md) | ✅ 完了 | サポート枠・共鳴アビリティ実装タスクリスト（Phase 1〜2 全完了・全446テストPASS） | 2026-03-11 |
-| [active/resonance_full_coverage_tasklist.md](active/resonance_full_coverage_tasklist.md) | ✅ 完了 | 共鳴アビリティ全21グループ テストカバレッジ計画（22テスト・全468テストPASS） | 2026-03-11 |
-| [active/ui_support_slot_improvement_tasklist.md](active/ui_support_slot_improvement_tasklist.md) | ✅ 完了 | サポート枠UI改善：共鳴アビリティ表示強化・フィルタリング機能・バグ修正（全476テストPASS） | 2026-03-12 |
-| [active/token_per_passive_tasklist.md](active/token_per_passive_tasklist.md) | ✅ 完了 | AttackUpPerToken / DefenseUpPerToken（高揚・激励・鉄壁）実装（全492テストPASS） | 2026-03-12 |
-| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | 次優先 PRI-018（スキル使用回数制約と回復機能）を設定。 | 2026-03-14 |
-| [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | `TurnAction` を正本に寄せ、Commit 時 Position を保存し `record` を再生成物へ戻す軽量 replay/edit 設計案 | 2026-03-14 |
-| [active/lightweight_record_replay_implementation_tasklist.md](active/lightweight_record_replay_implementation_tasklist.md) | ✅ 完了 | T01-T10 完了。`ReplayScript` 正本化、best-effort replay、extensible setup/override、legacy turnPlan bridge、warning/diagnostics UI まで実装完了 | 2026-03-15 |
+| [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ。enemy-side `SpecialStatusCountByType(3/12/22/57/172)` と `Cover` 意味差分の調査メモ/WIP追記済み | 2026-03-30 |
+| [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・browser D&D handle 方針・Passive Log 下段 pane と desktop resize handle・toolbar icon/mobile rules・startup defaults・PNG capture contract・SessionSnapshot の人間向け補助フィールド方針・turn row バフアイコンを状態変化定義順で拡張（全体上限10・デバフ除外・Count/Only競合は採用側のみ表示）・Fieldタブの属性/倍率/継続表示とturn rowのactive field chip表示・Talisman表示条件の明確化・Warning/Error の名前併記 helper 方針・ReduceSpは消費SP計算専用でcurrent SP非変更・legacy UI 廃止前提・Enemy先制Turn0フィールド先行適用 等） | 2026-03-30 |
+| [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点） | 2026-03-15 |
+| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・preset toolbar 20枠化・browser D&D hardening・legacy UI hard cutover・Passive Log pane resize・root redirect smoke・Enemy先制フィールドTurn0適用・Enemy Setup の敵スロット選択/実効倍率％耐性/吸収/max_d_rate/od_rate 初期反映・Session JSON 旧フォーマット互換（styleIds=0）・SP>=0条件＋速弾きの合算使用可否まで反映） | 2026-03-30 |
+| [active/ui_next_drag_and_drop_review_request.md](active/ui_next_drag_and_drop_review_request.md) | 🟢 進行中 | UI Next D&D 不具合のレビュー依頼メモ（TurnEdit / PartySetup の現象整理・期待挙動・レビュー観点） | 2026-03-28 |
+| [active/review_ui_next_drag_and_drop.prompt.md](active/review_ui_next_drag_and_drop.prompt.md) | 🟢 進行中 | Claude Opus 向け UI Next D&D レビュー依頼 prompt | 2026-03-28 |
+| [active/review_ui_next_drag_and_drop_findings.md](active/review_ui_next_drag_and_drop_findings.md) | ✅ 完了 | UI Next D&D コードレビュー結果＋修正記録（BUG-1〜3 修正、E2E 11件追加、全テスト通過） | 2026-03-29 |
+| [active/ui_next_png_capture_review_request.md](active/ui_next_png_capture_review_request.md) | 🟢 進行中 | UI Next PNG capture 不具合のレビュー依頼メモ（再現条件・期待挙動・実際の失敗・レビュー観点） | 2026-03-28 |
+| [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・warning/diagnostics 実装メモ追記） | 2026-03-28 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
-| [active/player_status_manual_hook_implementation_tasklist.md](active/player_status_manual_hook_implementation_tasklist.md) | ✅ 完了 | PRI-017: player-side `ImprisonRandom` manual hook を `statusEffectsByPartyIndex` schema で setup / scenario / replay / record に接続 | 2026-03-14 |
-| [active/enemy_status_closure_implementation_tasklist.md](active/enemy_status_closure_implementation_tasklist.md) | ✅ 完了 | PRI-016: residual enemy status 10 key を action / passive runtime へ接続し、unsupported report を全カテゴリ 0 件化 | 2026-03-14 |
-| [active/enemy_residual_status_implementation_tasklist.md](active/enemy_residual_status_implementation_tasklist.md) | ✅ 完了 | PRI-015: enemy-side `SpecialStatusCountByType(3/22/172)` と enemy status report false positive を解消（condition 0件化、enemy status 10 keys / 40 occurrences） | 2026-03-14 |
-| [active/condition_report_sync_tasklist.md](active/condition_report_sync_tasklist.md) | ✅ 完了 | PRI-014: 条件 evaluator と未対応レポート生成器を同期し、`HasSkill` / `RemoveDebuffCount` / `TargetBreakDownTurn` / `SpecialStatusCountByType(146)` を解消 | 2026-03-14 |
-| [active/active_buff_status_implementation_tasklist.md](active/active_buff_status_implementation_tasklist.md) | ✅ 完了 | PRI-013: active skill 由来 `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp` の持続 status 基盤（349テストPASS） | 2026-03-14 |
-| [active/enemy_status_implementation_tasklist.md](active/enemy_status_implementation_tasklist.md) | ✅ 完了 | PRI-011: 一般敵デバフ status 基盤、enemy-side CountBC、挑発/注目条件を実装（335テストPASS） | 2026-03-14 |
-| [active/top_level_effect_implementation_tasklist.md](active/top_level_effect_implementation_tasklist.md) | ✅ 完了 | PRI-012: top-level effect 監査を完了し、残件を active buff status 基盤へ切り出し | 2026-03-14 |
-| [active/overwrite_cond_implementation_tasklist.md](active/overwrite_cond_implementation_tasklist.md) | ✅ 完了 | PRI-010: skill-level `overwrite_cond` / `overwrite` / `IsCharging` / `IsTeam` / strict mode 整合（328テストPASS） | 2026-03-14 |
-| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装の6フェーズ計画（Zone/Territory 見える化・ZoneUpEternal整理完了） | 2026-03-13 |
-| [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-08 |
-| [active/token_implementation_plan.md](active/token_implementation_plan.md) | ✅ 完了 | Token状態システム独立実装計画（共通基盤・被弾・per-token補正まで完了） | 2026-03-13 |
-| [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様 | 2026-03-08 |
+| [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装計画（DoubleActionExtraSkill shared engine 実装、水瀬すもも/朝倉可憐の実データ確認まで反映） | 2026-03-29 |
+| [active/stateful_passive_wbs.md](active/stateful_passive_wbs.md) | 🟢 進行中 | 状態付与型パッシブ（AdditionalHit* 38件）の実装ステータス一覧・未実装トリガー／effectType整理（`二股の尻尾` 完全実装反映） | 2026-03-29 |
+| [active/passive_test_coverage_audit.md](active/passive_test_coverage_audit.md) | 🟢 進行中 | パッシブ発火トリガー × exitCond テストカバレッジ監査（`DoubleActionExtraSkill` の engine/UI/browser coverage、受け手SP回復の二連EX実データ回帰まで反映） | 2026-03-29 |
+| [active/count_only_status_audit.md](active/count_only_status_audit.md) | 🟢 進行中 | `Count` / `Only` 併存 status family 監査（`AttackUp` 系は `elements subgroup`、`Funnel` / `MindEye` は `target_condition` 制約として整理し、runtime/test 経路・実機確認マトリクスを併記。session再計算Warning理由のPassiveLog暫定表示を追記） | 2026-03-29 |
+| [active/restoration_wbs.md](active/restoration_wbs.md) | 🟢 進行中 | ハイブースト以降の段階的復元WBS（フェーズ0〜4完了・フェーズ5継続） | 2026-03-23 |
+| [active/setup_panel_layout_and_perf_tasklist.md](active/setup_panel_layout_and_perf_tasklist.md) | 🟢 進行中 | Setup パネルのタブレイアウト改善（L01〜L04 ✅）とロード高速化（P01〜P03 ❌）タスクリスト | 2026-03-29 |
+| [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-22 |
+| [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（legacy DOM controller 廃止後の shared module 境界へ更新） | 2026-03-29 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
-| [active/shredding_implementation_tasklist.md](active/shredding_implementation_tasklist.md) | ✅ 完了 | 速弾き（Shredding）状態実装タスクリスト（仕組みA/B実装・508テストPASS） | 2026-03-13 |
-| [active/special_status_implementation_tasklist.md](active/special_status_implementation_tasklist.md) | ✅ 完了 | SpecialStatusCountByType バフ状態の完全実装。T15（挑発/注目）は PRI-011 で吸収、残り低優先度は T14 のみ | 2026-03-14 |
-| [active/sp_strict_mode_tasklist.md](active/sp_strict_mode_tasklist.md) | ✅ 完了 | SP厳密モード / 通常モード トグル実装（PRI-010 で実効コスト判定へ同期済み） | 2026-03-14 |
-
-注記: Phase 6-A/6-B 完了。Support Skills Phase 2（Task A/B/C）完了。共鳴アビリティ全件テスト完了（22テスト）。サポート枠UI改善完了。SpLimitOverwrite / ReduceSp 全timing対応完了。OnOverdriveStart 非EPパッシブ補強完了。AttackUpPerToken / DefenseUpPerToken 実装完了（高揚・激励・鉄壁）。SP条件スキル（Sp()<0 / Sp()>0 / Sp()>19）spec文書作成・8テスト追加。SpecialStatusCountByType バフ状態完全実装（T01-T16）。SP厳密モードトグル実装（dom-adapterのみ変更）。全519テストPASS。implementation_priority_tasklist.md を PRI-007〜009 で再作成（旧履歴は archive/20260313_priority_history.md）。SP関連特殊状態パッシブのテスト補強（T12b/T13b/勇姿 の3テスト追加・AllyAll+target_condition / ReduceSp SP消費減を確認）。Zone / Territory 効果見える化完了（turn status / record table）。全522テストPASS。ZoneUpEternal 二効果分離実装完了（`part.power[0]` 反映・有限 Zone のみ永続化・`tests/turn-state-transitions.test.js` 247テストPASS）。PRI-009 ドキュメント整合性修正完了（token / shredding / README / SP条件spec を同期）。PRI-007〜009 は [`archive/20260313_priority_history_pri007_009.md`](archive/20260313_priority_history_pri007_009.md) へ退避済み。`overwrite_cond_implementation_tasklist.md` を追加し、PRI-010 のスコープを「skill-level `overwrite_cond` と実効 SP コスト上書き」に固定した。2026-03-14 に PRI-010 を完了し、`overwrite_cond` / `overwrite` / `IsCharging` / `IsTeam` / strict mode 実効コスト整合を接続した。`npm run test:quick` は 328 PASS。続けて PRI-011 を完了し、一般敵デバフ status 基盤、enemy-side `CountBC(IsPlayer()==0...)`、`SpecialStatusCountByType(12/57)` を接続した。`record` / contract / UI / scenario の enemy status 追加フィールド保持も同期し、`npm run test:quick` は 335 PASS。さらに PRI-012 の初回波として top-level `effect` を監査し、metadata-only 7 label を generator から除外、`effect_unresolved` を `9 keys / 129 occurrences` まで圧縮した。代表実データ回帰は `DefaultDebuff` / `MindEyeBuff` / `ChargeBuff` / `FunnelUp` / `HealSp` を追加し、`npm run test:quick` は 340 PASS。2026-03-14 の追加調査で `HealDp_Buff` も metadata-only と判断し、残課題は active buff status 基盤へ集約した。現行コード基準の ad-hoc survey では、真の条件式 gap は `6 clause`、`overwrite_cond` 残件は `4 clause`、enemy status 残件は `9 type`。同日中に PRI-013 を完了し、active skill 由来 `AttackUp` / `DefenseUp` / `CriticalRateUp` / `CriticalDamageUp` の持続 status、preview / record / UI 見える化、代表実データ回帰を接続した。`node --test tests/character-party.test.js tests/turn-state-transitions.test.js tests/dom-adapter-records-style.test.js` は 341 PASS、`node --test tests/dom-adapter-ui-selection.test.js` は 54 PASS、`npm run test:quick` は 349 PASS。
+| [active/kokushipmusoujou_additional_turn_bug.md](active/kokushipmusoujou_additional_turn_bug.md) | ✅ 完了 | 国士無双で追加ターンが発生しない不具合を修正（`getAdditionalTurnRule()` の `SkillCondition.strval` 再帰対応、Unit/E2E確認済み） | 2026-03-30 |
+| [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | Phase 1: バフ消費ロジック現状分析 - Funnel/MindEye/Count型/ターン型各消費パターンの完全フロー図とコード参照 | 2026-03-30 |
+| [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | Phase 1/3: 統一バフスキーマ設計 - StatusEffect メタデータ統一仕様（exitCond/limitType/consumeTrigger）と ActionContext 型定義。Phase 3 runtime 接続注記を反映済み | 2026-03-31 |
+| [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1/3: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表。P3-05 後の差分なし確認を追記済み | 2026-03-31 |
+| [active/buff_consumption_phase2_review.md](active/buff_consumption_phase2_review.md) | ✅ 完了 | Phase 2 実装レビュー結果（BUG-1/2/3 修正、`shouldConsume` 単体テスト追加、`action_context_matrix` 整合更新を反映済み） | 2026-03-30 |
+| [active/buff_consumption_phase3_wbs.md](active/buff_consumption_phase3_wbs.md) | ✅ 完了 | Phase 3 残課題とWBS（P3-01〜08, P3-T01〜05, P3-D01〜03 完了。M1/M2/M3 完了） | 2026-03-31 |
+| [active/buff_consumption_phase3_review.md](active/buff_consumption_phase3_review.md) | ✅ 完了 | Phase 3 実装レビュー結果（P3-05/P3-06/P3-08 と docs 同期まで反映し完了） | 2026-03-31 |
+| [active/buff_consumption_p3_05_code_review.md](active/buff_consumption_p3_05_code_review.md) | 🟢 進行中 | P3-05 コードレビュー（TurnEnd shouldConsume 移行）: ブロッカーなし、FIND-1〜3 は P3-08 対象 | 2026-03-31 |
+| [active/mindeye_only_count_integration_assessment.md](active/mindeye_only_count_integration_assessment.md) | ✅ 完了 | MindEye/Funnel の Only/Count 分離統合可能性評価（実装経緯補足: 実機は鬼神化後発・シミュレーターは鬼神化先行実装） | 2026-03-30 |
 
 ---
 
@@ -81,13 +83,27 @@ docs/
 | [specs/runs/RUN_20260228_001/interfaces.ts](specs/runs/RUN_20260228_001/interfaces.ts) | TypeScript全体インターフェース定義 | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/decision_log.md](specs/runs/RUN_20260228_001/decision_log.md) | 設計意思決定ログ（DEC-001〜012） | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/open_questions.md](specs/runs/RUN_20260228_001/open_questions.md) | ユーザー確認が必要な未決事項（Q-S001等） | 2026-02-28 |
-| [specs/gui_design_spec.md](specs/gui_design_spec.md) | GUI設計仕様 | 2026-03-07 |
+| [specs/repo_workflow.md](specs/repo_workflow.md) | project 固有の branch 命名、merge 方針、shared 変更の流し方、git 実行安全ルール、実装者自身によるテスト責務 | 2026-03-15 |
 | [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（ドライブピアス補正式・実機照合済み） | 2026-03-01 |
 | [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
+| [specs/dev_principles.md](specs/dev_principles.md) | 開発原則：バグ切り分け・UI/エンジン責務境界・安易な実装禁止事項・新UI設計指針（原則1〜5） | 2026-03-16 |
+| [specs/ui_next_game_rules_index.md](specs/ui_next_game_rules_index.md) | UI Next 旧実装参照インデックス：旧UIファイル構造・spec要素対応表・エンジン層ゲームルール辞書（A〜E カテゴリ） | 2026-03-16 |
 
 ---
 
 ## 📦 スナップショット（日付別・変更しない）
+
+### 20260321_ui_next_analysis/ — UI Next アーキテクチャ・仕様分析（2026-03-21実施）
+
+| ドキュメント | 概要 |
+|-------------|------|
+| [20260321_ui_next_analysis/README.md](20260321_ui_next_analysis/README.md) | UI Next アーキテクチャ・仕様分析の概要・分析範囲・主要な発見 |
+| [20260321_ui_next_analysis/ui_next_architecture_overview.md](20260321_ui_next_analysis/ui_next_architecture_overview.md) | UI Next 全体アーキテクチャ概要：エンジン層とUI層の責務分離・データフロー・主要コンポーネント |
+| [20260321_ui_next_analysis/ui_next_party_setup_spec.md](20260321_ui_next_analysis/ui_next_party_setup_spec.md) | UI Next Party Setup 仕様：6スロット編成・メイン/サポート選択・設定項目・プリセット機能 |
+| [20260321_ui_next_analysis/ui_next_turn_row_spec.md](20260321_ui_next_analysis/ui_next_turn_row_spec.md) | UI Next Turn Row 仕様：1ターン分のUI・未コミット/コミット済み行・スキル選択・OD管理・ブレイク編集 |
+| [20260321_ui_next_analysis/ui_next_turn_engine_manager_spec.md](20260321_ui_next_analysis/ui_next_turn_engine_manager_spec.md) | UI Next TurnEngineManager 仕様：リプレイスクリプト管理・preview/commit・再計算・特殊操作管理 |
+| [20260321_ui_next_analysis/ui_next_data_flow.md](20260321_ui_next_analysis/ui_next_data_flow.md) | UI Next データフロー：ユーザー操作からエンジン実行までのデータフロー詳細 |
+| [20260321_ui_next_analysis/ui_next_component_interaction.md](20260321_ui_next_analysis/ui_next_component_interaction.md) | UI Next コンポーネント間相互作用：コンポーネント階層・コールバック連携・データの流れ |
 
 ### 20260314_record_replay_edit_investigation/ — 記録・再生・編集機能の現状調査（2026-03-14実施）
 
@@ -150,6 +166,28 @@ docs/
 
 ## 🗄️ アーカイブ（廃止済み）
 
+### 20260323_completed_active_docs/（2026-03-23 アーカイブ）
+
+完了済みタスクリスト・バグ修正記録 30件をアーカイブ。
+
+| 主なドキュメント | 概要 |
+|----------------|------|
+| `support_skills_implementation_tasklist.md` | サポート枠・共鳴アビリティ実装（446 PASS） |
+| `resonance_full_coverage_tasklist.md` | 共鳴アビリティ全21グループ カバレッジ（468 PASS） |
+| `ui_support_slot_improvement_tasklist.md` | サポート枠UI改善（476 PASS） |
+| `token_per_passive_tasklist.md` | AttackUpPerToken / DefenseUpPerToken（492 PASS） |
+| `ui_next_manual_break_session_tasklist.md` | manual break・save-load・validationPolicy（720 PASS） |
+| `ui_next_target_selection_repair_tasklist.md` | enemyCount永続化・target再接続（720 PASS） |
+| `lightweight_record_replay_implementation_tasklist.md` | ReplayScript 正本化・best-effort replay（720 PASS） |
+| `passive_debug_log_wbs.md` | パッシブログ2ターン目以降表示問題（711 PASS） |
+| `passive_log_display_bug_issue.md` | サポートパッシブログ表示（711 PASS） |
+| `responsive_popover_positioning_fix.md` | iPhoneポップオーバーはみ出し修正 |
+| `support_tier_check_bug_issue.md` | SSR以外へのサポート共鳴誤適用修正 |
+| `phase0_investigation_report.md` / `phase1_plan.md` | passive timing 監査フェーズ0-1記録 |
+| PRI-010〜017 タスクリスト群 | overwrite_cond / active buff / enemy status 等 |
+
+---
+
 | ドキュメント | 概要 | 後継 |
 |-------------|------|------|
 | [archive/rebuild-spec/](archive/rebuild-spec/) | 初期設計レビュー（R1-R10の前段階） | → rebuild-spec-v2/ |
@@ -159,6 +197,7 @@ docs/
 | [archive/20260309_completed_active_docs/multi_enemy_implementation_tasklist.md](archive/20260309_completed_active_docs/multi_enemy_implementation_tasklist.md) | 複数敵対応タスクリストの完了記録 | → active/implementation_priority_tasklist.md |
 | [archive/spec_review_round_log.md](archive/spec_review_round_log.md) | 3LLM合議仕様レビュー Round 1〜9 ログ（2026-02-26〜27） | → specs/runs/RUN_20260228_001/ |
 | [archive/spec_review_state.json](archive/spec_review_state.json) | 仕様レビューチェックポイント（R9完了・agreed_v1確定済み） | → specs/runs/RUN_20260228_001/ |
+| [archive/20260328_png_capture_code_review_findings.md](archive/20260328_png_capture_code_review_findings.md) | PNG capture 横幅崩れレビュー結果のアーカイブ（採用点 / 非採用点を追記） | → active/ui_next_design.md, active/ui_next_implementation_tasklist.md |
 | [archive/20260308_doc_management_proposal.md](archive/20260308_doc_management_proposal.md) | ドキュメント管理ルール提案書（策定根拠） | → このREADMEに反映済み |
 | [archive/DEVELOPMENT_NOTES.md](archive/DEVELOPMENT_NOTES.md) | 旧世代実装メモ（2025-06-14〜2026-03-01）・旧js/構造記述含む | → OD計算仕様は specs/od_gauge_calculation_spec.md に移転 |
 | [archive/20260313_priority_history.md](archive/20260313_priority_history.md) | 実装優先順位履歴（PRI-001〜006 完了記録・2026-03-09〜03-13） | → active/implementation_priority_tasklist.md（最新版） |

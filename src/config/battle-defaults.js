@@ -6,6 +6,9 @@ export const DEFAULT_ENEMY_COUNT = 1;
 export const MIN_ENEMY_COUNT = 1;
 export const MAX_ENEMY_COUNT = 3;
 export const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
+// od_rate の単位: od_rate * 0.01% が実際の乗数 (例: 8500 → 85% → 0.85 倍)
+// od_rate=0 の場合は補正なし（係数 1.0 扱い）
+export const ENEMY_OD_RATE_UNIT = 10000;
 export const DEFAULT_DESTRUCTION_RATE_PERCENT = 100;
 export const DEFAULT_DESTRUCTION_RATE_CAP_PERCENT = 300;
 export const SPECIAL_BREAK_CAP_BONUS_PERCENT = 300;

@@ -1,5 +1,6 @@
 import { applySpChange, getEventCeiling } from './sp.js';
 import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
+import { resolveShortCharacterName } from './character-name.js';
 import {
   DEFAULT_INITIAL_SP,
   DEFAULT_MARK_LEVEL_MAX,
@@ -23,6 +24,9 @@ export const SPECIAL_STATUS_TYPE_NAMES = Object.freeze({
   164: 'Makeup',
 });
 
+const STACKABLE_COUNT_SPECIAL_STATUS_TYPE_IDS = new Set([78]);
+const MANUAL_CONSUMPTION_SPECIAL_STATUS_TYPE_IDS = new Set([78]);
+
 export function normalizePartyPosition(position) {
   const numericPosition = Number(position);
   if (!Number.isInteger(numericPosition) || numericPosition < 0 || numericPosition > MAX_PARTY_POSITION) {
@@ -34,6 +38,9 @@ export function normalizePartyPosition(position) {
 function normalizeSkill(skill, canonicalSkill) {
   const sourceType = String(skill.sourceType ?? 'style');
   const isPassive = Boolean(skill.passive && typeof skill.passive === 'object') || sourceType === 'passive';
+  const legacySkillIds = Array.isArray(skill.legacySkillIds)
+    ? [...new Set(skill.legacySkillIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)))]
+    : [];
   return {
     skillId: Number(skill.id ?? skill.skillId),
     label: String(skill.label ?? canonicalSkill?.label ?? ''),
@@ -51,7 +58,7 @@ function normalizeSkill(skill, canonicalSkill) {
     maxLevel: skill.max_level ?? skill.maxLevel ?? canonicalSkill?.maxLevel ?? null,
     spRecoveryCeiling:
       typeof skill.spRecoveryCeiling === 'number' ? skill.spRecoveryCeiling : undefined,
-    cond: String(skill.cond ?? ''),
+    cond: String(skill.cond ?? canonicalSkill?.cond ?? ''),
     iucCond: String(skill.iuc_cond ?? skill.iucCond ?? ''),
     overwriteCond: String(skill.overwrite_cond ?? skill.overwriteCond ?? ''),
     effect: String(skill.effect ?? canonicalSkill?.effect ?? ''),
@@ -59,6 +66,9 @@ function normalizeSkill(skill, canonicalSkill) {
       skill.overwrite === undefined || skill.overwrite === null
         ? canonicalSkill?.overwrite ?? null
         : Number(skill.overwrite),
+    legacySkillIds,
+    usage:
+      skill?.usage && typeof skill.usage === 'object' ? structuredClone(skill.usage) : null,
     additionalTurnRule:
       skill.additionalTurnRule && typeof skill.additionalTurnRule === 'object'
         ? structuredClone(skill.additionalTurnRule)
@@ -115,6 +125,7 @@ function createNoActionSkill() {
     overwriteCond: '',
     effect: '',
     overwrite: null,
+    usage: null,
     additionalTurnRule: null,
     parts: [],
     passive: null,
@@ -155,6 +166,9 @@ export function normalizeStatusEffect(effect, fallbackId = 1) {
     sourceSkillId: Number.isFinite(sourceSkillId) ? sourceSkillId : null,
     sourceSkillLabel: String(effect?.sourceSkillLabel ?? ''),
     sourceSkillName: String(effect?.sourceSkillName ?? ''),
+    sourceCharacterId: String(effect?.sourceCharacterId ?? ''),
+    sourceCharacterName: String(effect?.sourceCharacterName ?? ''),
+    sourceSkillDesc: String(effect?.sourceSkillDesc ?? ''),
     metadata:
       effect?.metadata && typeof effect.metadata === 'object' ? structuredClone(effect.metadata) : null,
   };
@@ -276,6 +290,7 @@ export class CharacterStyle {
 
     this.characterId = String(input.characterId);
     this.characterName = String(input.characterName);
+    this.shortName = String(input.shortName ?? resolveShortCharacterName(input.characterName, String(input.characterId ?? '')));
     this.styleId = Number(input.styleId);
     this.styleName = String(input.styleName);
     this.team = String(input.team ?? '');
@@ -390,7 +405,13 @@ export class CharacterStyle {
       }
       return null;
     }
-    return this.skills.find((skill) => skill.skillId === id && !skill.isPassive) ?? null;
+    return (
+      this.skills.find(
+        (skill) =>
+          !skill.isPassive &&
+          (skill.skillId === id || skill.legacySkillIds?.includes?.(id))
+      ) ?? null
+    );
   }
 
   getActionSkills() {
@@ -414,6 +435,13 @@ export class CharacterStyle {
         return true;
       }
       if (Number.isFinite(numericId) && Number(skill.skillId ?? skill.id ?? Number.NaN) === numericId) {
+        return true;
+      }
+      if (
+        Number.isFinite(numericId) &&
+        Array.isArray(skill.legacySkillIds) &&
+        skill.legacySkillIds.includes(numericId)
+      ) {
         return true;
       }
       return false;
@@ -455,6 +483,33 @@ export class CharacterStyle {
     }
     const cost = Math.abs(rawCost);
 
+    // HbrDataStore で is_adv=true && sp_cost > 0 に cond: "Sp()>=0" が付与されている
+    // しかし、skill.cond が empty な場合もあるので、getSkill の結果から再度読み込む
+    const skillFromRegistry = this.getSkill(skill.skillId);
+    const effectiveCond = String(skill.cond ?? skillFromRegistry?.cond ?? '');
+    
+    const hasSpGreaterOrEqualZeroCondition = /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(effectiveCond);
+    const isSpConsumeSkill =
+      consumeType !== 'Ep' &&
+      consumeType !== 'Token' &&
+      consumeType !== 'Morale' &&
+      consumeType !== 'Motivation' &&
+      rawCost > 0;
+
+    let insufficientSpWarning = null;
+    if (isSpConsumeSkill) {
+      // 通常スキル：currentSP >= spCost が必要。不足時は warning を記録
+      // Sp()>=0 条件付きスキル：currentSP >= 0 なら使用可能。不足時は warning なし
+      // 速弾き中：currentSP >= 0 なら使用可能。不足時は warning なし
+      if (this.isShredding || hasSpGreaterOrEqualZeroCondition) {
+        if (startSP < 0) {
+          insufficientSpWarning = `Skill ${skill.skillId} requires SP >= 0 (Sp()>=0 condition or Shredding). current=${startSP}`;
+        }
+      } else if (startSP < cost) {
+        insufficientSpWarning = `Skill ${skill.skillId} requires SP >= ${cost} (normal skill). current=${startSP}`;
+      }
+    }
+
     let deltaSP =
       consumeType === 'Ep' ||
       consumeType === 'Token' ||
@@ -485,12 +540,9 @@ export class CharacterStyle {
     if (consumeType === 'Motivation' && rawCost === -1) {
       deltaMotivation = -startMotivation;
     }
-    // Sp()>=0 条件を持つスキル（is_adv: true && sp_cost > 0）は SP がマイナスになることを許容する。
-    // 例: SP7 で SP10 消費スキル → SP-3（0 にクランプしない）。
-    const spMin = String(skill.cond ?? '').includes('Sp()>=0')
-      ? Number.NEGATIVE_INFINITY
-      : this.sp.min;
-    const endSP = applySpChange(startSP, deltaSP, spMin, Number.POSITIVE_INFINITY);
+    // シミュレーター方針: SP は常にマイナスを許容する（下限なし）。
+    // ユーザーが編集でSPが不足しても、マイナス値をそのまま表示してユーザーが判断する。
+    const endSP = applySpChange(startSP, deltaSP, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY);
     const endEP = applySpChange(startEP, deltaEP, this.ep.min, Number.POSITIVE_INFINITY);
     const endToken = applySpChange(
       startToken,
@@ -534,6 +586,7 @@ export class CharacterStyle {
       tokenDelta: endToken - startToken,
       moraleDelta: endMorale - startMorale,
       motivationDelta: endMotivation - startMotivation,
+      insufficientSpWarning,
     };
   }
 
@@ -588,7 +641,9 @@ export class CharacterStyle {
     const numericDelta = Number(delta);
     const startSP = this.sp.current;
     const eventCeiling = getEventCeiling(source, this.sp.max, skillCeiling);
-    const endSP = applySpChange(startSP, numericDelta, this.sp.min, eventCeiling);
+    // シミュレーター方針: SP は常にマイナスを許容する（下限なし）。
+    // SP=-10 で回復+5 → -5（0 にクランプしない）。
+    const endSP = applySpChange(startSP, numericDelta, Number.NEGATIVE_INFINITY, eventCeiling);
     this.sp.current = endSP;
     this._revision += 1;
 
@@ -800,16 +855,28 @@ export class CharacterStyle {
     const effectiveRemaining = cond === 'Eternal' ? 0 : Math.max(1, Number(remaining) || 1);
     const skill = context?.skill ?? null;
 
-    // 同一 typeId の既存エントリがあれば残りターン数を max 採用で更新
-    const existing = this.statusEffects.find(
-      (e) => Number(e.metadata?.specialStatusTypeId) === id
-    );
-    if (existing) {
-      if (cond !== 'Eternal') {
-        existing.remaining = Math.max(existing.remaining, effectiveRemaining);
+    const sourceCharacterId = String(context?.actor?.characterId ?? '');
+    const sourceCharacterName = String(context?.actor?.characterName ?? '');
+    // Count でスタックする特殊状態（例: MindEye）は重複エントリを保持する。
+    const canMergeExisting = !(cond === 'Count' && STACKABLE_COUNT_SPECIAL_STATUS_TYPE_IDS.has(id));
+    if (canMergeExisting) {
+      // 同一 typeId の既存エントリがあれば残りターン数を max 採用で更新
+      const existing = this.statusEffects.find(
+        (e) => Number(e.metadata?.specialStatusTypeId) === id
+      );
+      if (existing) {
+        if (cond !== 'Eternal') {
+          existing.remaining = Math.max(existing.remaining, effectiveRemaining);
+        }
+        existing.sourceSkillId = skill?.skillId ?? null;
+        existing.sourceSkillLabel = String(skill?.label ?? '');
+        existing.sourceSkillName = String(skill?.name ?? '');
+        existing.sourceSkillDesc = String(skill?.desc ?? '');
+        existing.sourceCharacterId = sourceCharacterId;
+        existing.sourceCharacterName = sourceCharacterName;
+        this._revision += 1;
+        return;
       }
-      this._revision += 1;
-      return;
     }
 
     this.addStatusEffect({
@@ -819,6 +886,9 @@ export class CharacterStyle {
       sourceSkillId: skill?.skillId ?? null,
       sourceSkillLabel: String(skill?.label ?? ''),
       sourceSkillName: String(skill?.name ?? ''),
+      sourceSkillDesc: String(skill?.desc ?? ''),
+      sourceCharacterId,
+      sourceCharacterName,
       metadata: { specialStatusTypeId: id },
     });
   }
@@ -1069,7 +1139,9 @@ export class CharacterStyle {
     for (const effect of this.statusEffects) {
       if (String(effect.exitCond) !== 'Count') continue;
       if (!isActiveStatusEffect(effect)) continue;
-      if (effect.metadata?.specialStatusTypeId == null) continue;
+      const specialStatusTypeId = Number(effect.metadata?.specialStatusTypeId);
+      if (!Number.isFinite(specialStatusTypeId)) continue;
+      if (MANUAL_CONSUMPTION_SPECIAL_STATUS_TYPE_IDS.has(specialStatusTypeId)) continue;
       effect.remaining = Math.max(0, Number(effect.remaining) - 1);
       changed = true;
     }
@@ -1102,6 +1174,65 @@ export class CharacterStyle {
 
   consumeMindEyeEffects(consumeCount = 1) {
     return this.consumeStatusEffectsByType('MindEye', consumeCount);
+  }
+
+  getDoubleActionExtraSkillEffects(options = {}) {
+    return this.getStatusEffectsByType('DoubleActionExtraSkill', options);
+  }
+
+  resolveEffectiveDoubleActionExtraSkillEffects() {
+    return this.getDoubleActionExtraSkillEffects({ activeOnly: true }).sort(sortStatusEffectsByPriority).slice(0, 1);
+  }
+
+  consumeDoubleActionExtraSkillEffects(consumeCount = 1) {
+    const count = Math.max(0, Number(consumeCount) || 0);
+    if (count <= 0) {
+      return [];
+    }
+
+    const picked = this.resolveEffectiveDoubleActionExtraSkillEffects()
+      .filter((effect) => String(effect.exitCond) === 'Count')
+      .slice(0, count);
+    if (picked.length === 0) {
+      return [];
+    }
+
+    const idSet = new Set(picked.map((effect) => Number(effect.effectId)));
+    const consumed = [];
+    let changed = false;
+
+    for (const effect of this.statusEffects) {
+      if (!idSet.has(Number(effect.effectId))) {
+        continue;
+      }
+      if (!isActiveStatusEffect(effect)) {
+        continue;
+      }
+      const before = Number(effect.remaining);
+      effect.remaining = Math.max(0, before - 1);
+      consumed.push({
+        effectId: effect.effectId,
+        statusType: effect.statusType,
+        limitType: effect.limitType,
+        exitCond: effect.exitCond,
+        power: effect.power,
+        remainingBefore: before,
+        remainingAfter: effect.remaining,
+      });
+      changed = true;
+    }
+
+    const beforeLen = this.statusEffects.length;
+    this.statusEffects = this.statusEffects.filter((effect) => isActiveStatusEffect(effect));
+    if (this.statusEffects.length !== beforeLen) {
+      changed = true;
+    }
+
+    if (changed) {
+      this._revision += 1;
+    }
+
+    return consumed.sort((a, b) => sortStatusEffectsByPriority(a, b));
   }
 
   getSkillUseCountByLabel(label) {
@@ -1141,6 +1272,7 @@ export class CharacterStyle {
     // immutable フィールド（参照コピー）
     c.characterId = this.characterId;
     c.characterName = this.characterName;
+    c.shortName = this.shortName;
     c.styleId = this.styleId;
     c.styleName = this.styleName;
     c.team = this.team;
@@ -1189,6 +1321,7 @@ export class CharacterStyle {
     return {
       characterId: this.characterId,
       characterName: this.characterName,
+      shortName: this.shortName,
       styleId: this.styleId,
       styleName: this.styleName,
       limitBreakLevel: this.limitBreakLevel,
@@ -1219,4 +1352,243 @@ export class CharacterStyle {
       revision: this._revision,
     };
   }
+}
+
+/**
+ * バフ消費判定の統一オーケストレータ（Phase 2実装）
+ * 
+ * このセクションは、現在分散しているバフ消費ロジックを一元化するための新関数群です。
+ * shouldConsume() が核となり、すべてのバフ消費判定がこれを経由するよう設計されています。
+ * 
+ * マイグレーション方針:
+ * - Phase 2: 新関数の実装（このセクション）
+ * - Phase 3: 既存呼び出し側を段階的に新関数へ寄せる
+ * - Phase 5: 旧関数の削除
+ */
+
+/**
+ * バフ消費判定の中核関数
+ * 
+ * @param {StatusEffect} effect - 判定対象のバフ
+ * @param {ActionContext} actionContext - 現在のアクション情報
+ * @param {Object} options - オプション
+ * @returns {Object} { shouldConsume, reason, consumeAmount }
+ */
+export function shouldConsume(effect, actionContext, options = {}) {
+  if (!effect || typeof effect !== 'object') {
+    return {
+      shouldConsume: false,
+      reason: 'Invalid effect',
+      consumeAmount: 0,
+    };
+  }
+
+  const { excludeEternal = false } = options;
+  const exitCond = String(effect.exitCond ?? '');
+  const remaining = Number(effect.remaining ?? 0);
+
+  // 1. アクティブ性チェック
+  if (exitCond !== 'Eternal' && remaining <= 0) {
+    return {
+      shouldConsume: false,
+      reason: `Effect is inactive (remaining=${remaining})`,
+      consumeAmount: 0,
+    };
+  }
+
+  // 2. Eternalチェック
+  if (exitCond === 'Eternal' && excludeEternal) {
+    return {
+      shouldConsume: false,
+      reason: 'Eternal effects excluded by option',
+      consumeAmount: 0,
+    };
+  }
+
+  // 3. アクションコンテキストが null の場合
+  if (!actionContext || typeof actionContext !== 'object') {
+    return {
+      shouldConsume: false,
+      reason: 'Invalid action context',
+      consumeAmount: 0,
+    };
+  }
+
+  // 4. exitCond による判定
+  switch (exitCond) {
+    case 'Count':
+      return shouldConsumeCountType(effect, actionContext);
+    case 'PlayerTurnEnd':
+      return shouldConsumePlayerTurnEndType(actionContext);
+    case 'EnemyTurnEnd':
+      return shouldConsumeEnemyTurnEndType(actionContext);
+    case 'Eternal':
+      return shouldConsumeEternalType(actionContext);
+    default:
+      // 未知の exitCond については消費しない（安全側）
+      return {
+        shouldConsume: false,
+        reason: `Unknown exitCond: ${exitCond}`,
+        consumeAmount: 0,
+      };
+  }
+}
+
+/**
+ * Count型バフの消費判定
+ * トリガー: DamageDealt, NormalAttack, Pursuit, Manual, SpecialStatus
+ */
+function shouldConsumeCountType(effect, actionContext) {
+  const actionType = String(actionContext.actionType ?? '');
+  const hasDamage = Boolean(actionContext.hasDamage);
+
+  // Count型の消費条件: ダメージを与える行動、または Manual
+  if (actionType === 'Manual') {
+    // 手動消費は常に許可
+    return {
+      shouldConsume: true,
+      reason: 'Manual consumption',
+      consumeAmount: effect.metadata?.consumeAmount ?? 1,
+    };
+  }
+
+  if (!hasDamage) {
+    // ダメージがない行動では Count型は消費しない
+    return {
+      shouldConsume: false,
+      reason: `Count-type effect requires damage (actionType=${actionType}, hasDamage=${hasDamage})`,
+      consumeAmount: 0,
+    };
+  }
+
+  // ダメージありの行動 (NormalAttack, Skill, Pursuit, AdditionalTurn)
+  if (['NormalAttack', 'Skill', 'Pursuit', 'AdditionalTurn'].includes(actionType)) {
+    return {
+      shouldConsume: true,
+      reason: `Count-type matches damage action (${actionType})`,
+      consumeAmount: effect.metadata?.consumeAmount ?? 1,
+    };
+  }
+
+  // その他の actionType
+  return {
+    shouldConsume: false,
+    reason: `Count-type does not match actionType: ${actionType}`,
+    consumeAmount: 0,
+  };
+}
+
+/**
+ * PlayerTurnEnd型バフの消費判定
+ * これらは自動的にターン終了フェーズでのみ消費される
+ */
+function shouldConsumePlayerTurnEndType(actionContext) {
+  const actionType = String(actionContext.actionType ?? '');
+  const turnPhase = String(actionContext.turnPhase ?? '');
+
+  if (actionType === 'TurnEnd' && turnPhase === 'PlayerTurnEnd') {
+    return {
+      shouldConsume: true,
+      reason: 'PlayerTurnEnd phase match',
+      consumeAmount: 1,
+    };
+  }
+
+  return {
+    shouldConsume: false,
+    reason: `PlayerTurnEnd requires TurnEnd action in PlayerTurnEnd phase (got ${actionType}/${turnPhase})`,
+    consumeAmount: 0,
+  };
+}
+
+/**
+ * EnemyTurnEnd型バフの消費判定
+ */
+function shouldConsumeEnemyTurnEndType(actionContext) {
+  const actionType = String(actionContext.actionType ?? '');
+  const turnPhase = String(actionContext.turnPhase ?? '');
+
+  if (actionType === 'TurnEnd' && turnPhase === 'EnemyTurnEnd') {
+    return {
+      shouldConsume: true,
+      reason: 'EnemyTurnEnd phase match',
+      consumeAmount: 1,
+    };
+  }
+
+  return {
+    shouldConsume: false,
+    reason: `EnemyTurnEnd requires TurnEnd action in EnemyTurnEnd phase (got ${actionType}/${turnPhase})`,
+    consumeAmount: 0,
+  };
+}
+
+/**
+ * Eternal型バフの消費判定
+ * 手動消費またはスキル内で明示的に指定された場合のみ
+ */
+function shouldConsumeEternalType(actionContext) {
+  const actionType = String(actionContext.actionType ?? '');
+
+  if (actionType === 'Manual') {
+    return {
+      shouldConsume: true,
+      reason: 'Eternal type: manual consumption',
+      consumeAmount: 1,
+    };
+  }
+
+  // Eternal は ターン進行では消費しない
+  return {
+    shouldConsume: false,
+    reason: 'Eternal type: only consumed by manual action',
+    consumeAmount: 0,
+  };
+}
+
+/**
+ * バフメタデータの整合性バリデーション
+ * 
+ * @param {StatusEffect} effect - 検証対象のバフ
+ * @returns {string[]} エラーメッセージの配列（空配列 = OK）
+ */
+export function validateBuffMetadata(effect) {
+  if (!effect || typeof effect !== 'object') {
+    return ['Effect is not an object'];
+  }
+
+  const errors = [];
+  const exitCond = String(effect.exitCond ?? '');
+  const limitType = String(effect.limitType ?? '');
+  const metadata = effect.metadata ?? {};
+
+  // exitCond のバリデーション
+  const validExitConds = ['Count', 'PlayerTurnEnd', 'EnemyTurnEnd', 'Eternal'];
+  if (!validExitConds.includes(exitCond)) {
+    errors.push(`Invalid exitCond: ${exitCond} (must be one of: ${validExitConds.join(', ')})`);
+  }
+
+  // limitType のバリデーション
+  const validLimitTypes = ['Default', 'Only', 'Special'];
+  if (!validLimitTypes.includes(limitType)) {
+    errors.push(`Invalid limitType: ${limitType} (must be one of: ${validLimitTypes.join(', ')})`);
+  }
+
+  // 矛盾チェック: Eternal は limitType=Only
+  if (exitCond === 'Eternal' && limitType !== 'Only') {
+    errors.push('Eternal effects should have limitType=Only');
+  }
+
+  // metadata.consumeTrigger のバリデーション
+  if (typeof metadata.consumeTrigger !== 'undefined') {
+    const validTriggers = ['DamageDealt', 'NormalAttack', 'Pursuit', 'TurnEnd', 'Manual', 'SpecialStatus'];
+    if (!validTriggers.includes(metadata.consumeTrigger)) {
+      errors.push(`Invalid consumeTrigger: ${metadata.consumeTrigger}`);
+    }
+  }
+
+  // Count型なのに consumeTrigger が無い場合は warning でなくログ記録程度で許可
+  // （既存バフは metadata が sparse なため）
+
+  return errors;
 }

@@ -1,11 +1,16 @@
-# Role Split (Codex + Gemini Antigravity)
+# Implementation And Test Ownership
 
-- Codex owns implementation and refactoring in `src/`, `json/`, `ui/`, and unit/integration tests except `tests/e2e/`.
-- Gemini Antigravity owns Playwright E2E work in `tests/e2e/` and related Playwright config files.
-- Codex must not modify `tests/e2e/` or Playwright config unless explicitly requested by the user.
-- Codex must not run Playwright E2E commands (example: `npm run test:e2e -- --grep "First Commit Enables Ops Button Test"`); E2E execution is owned by Gemini Antigravity.
-- Gemini Antigravity must not modify `src/` domain logic unless explicitly requested by the user.
-- Shared changes (fixtures/selectors/contracts) should be coordinated via user instruction before cross-boundary edits.
+- 実装者は、自分が変更した範囲のテスト作成・更新・実行まで一貫して担当する。
+- `tests/e2e/` と Playwright config も、対象変更に必要なら同じ実装者が修正してよい。
+- browser 実挙動に依存する UI 修正では、unit/integration test だけで閉じず、必要な Playwright coverage を追加して自ら確認する。
+- 共有 fixture / selector / contract を変える場合は、実装とテストを同じ変更集合で整合させる。
+
+## UI Migration Stance
+
+- `ui-next/` を現在の主実装対象とする。
+- `ui/` および `src/ui/` の `dom_adapter` 系は、過去に検討した旧 UI / 参照用ソースとして扱う。
+- 新しい UI 体験や通常の機能追加・改修では、旧 `dom_adapter` との parity を前提にしない。まず `ui-next/` と shared engine / replay / contract を優先して進めること。
+- 旧 `dom_adapter` 側の修正は、ユーザーが明示的に求めた場合、または shared contract の整合維持に必要な場合に限って行う。
 
 ## Test Writing Conventions
 
@@ -18,15 +23,18 @@
 - マジックナンバーは原則として新規導入しない。ゲーム仕様値、UI制約値、既定値は意味のある定数名を与えて管理する。
 - 既存コードにマジックナンバーを見つけた場合は、周辺の設計を崩さない範囲で定数化を優先する。
 
-## Branch And Merge Conventions
+## json/ フォルダの取り扱い
 
-- `main` は安定した共通土台とし、共有アセット、共有 resolver、共有 contract、既存 engine の確定 bugfix を取り込む正本ブランチとして扱う。
-- 既存 engine 改修は `feature/engine-<topic>`、新 UI は `feature/ui-next-<topic>` の命名を基本とする。
-- `ui-next` 系ブランチは既存 `ui/` の改造ブランチではなく、新規 UI 実装の作業場所として扱い、既存 UI を壊さない構成を優先する。
-- engine bugfix や shared 変更を `ui-next` 側だけで正本化しない。再利用する変更は、原則として `main` に先に入れるか、`feature/engine-*` から `main` へ入れてから `ui-next` 側へ取り込む。
-- `feature/ui-next-*` と `feature/engine-*` の間で直接 merge する運用は原則避ける。共有したい変更は `main` を経由して伝播させる。
-- `feature/ui-next-*` は `main` を定期的に取り込み、engine 側の bugfix や shared 変更を追従してよい。履歴の明快さを優先し、必要なら `merge main` を選んでよい。
-- 片方のブランチでしか使わない試験実装を、安易に shared 層へ混ぜない。shared 化するのは、複数ブランチから使うことが明確になってからにする。
+- `json/` フォルダ配下のファイルは全て **1行のminified JSON** であるため、`grep` / `rg` によるテキスト検索は機能しない。
+- これらのファイルを検索・調査する際は必ず `jq` または `node` の JSON パーサーを使うこと。
+  - 例（jq）: `cat json/foo.json | jq '.key'`
+  - 例（node）: `node -e "const d=require('./json/foo.json'); console.log(JSON.stringify(d.key, null, 2))"`
+- Grep ツールや grep コマンドで `json/` 以下を検索しない。
+
+## Repo Workflow
+
+- project 固有の branch 命名、merge 方針、shared 変更の流し方は [docs/specs/repo_workflow.md](docs/specs/repo_workflow.md) を参照する。
+- 同じ repo で複数の `git` コマンドを並列実行しない。git は必ず直列に実行する。
 
 ## Documentation Conventions
 

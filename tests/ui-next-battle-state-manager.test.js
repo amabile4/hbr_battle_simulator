@@ -1,0 +1,182 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
+import { getStore } from './helpers.js';
+
+function createPartySnapshot() {
+  return {
+    isFrontFilled: true,
+    styleIds: [1005504, 1004107, 1001408, null, null, null],
+    supportStyleIds: [null, null, null, null, null, null],
+    limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    skillSetsByPartyIndex: {},
+  };
+}
+
+test('BattleStateManager maps enemy preemptiveField to initial zoneState before battle-start passives', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 1,
+    preemptiveField: 'thunder',
+  });
+
+  assert.equal(state.turnState.zoneState?.type, 'Thunder');
+  assert.equal(state.turnState.zoneState?.sourceSide, 'enemy');
+  assert.equal(state.turnState.zoneState?.remainingTurns, null);
+});
+
+test('BattleStateManager keeps initial zoneState null when enemy preemptiveField is none', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 1,
+    preemptiveField: 'none',
+  });
+
+  assert.equal(state.turnState.zoneState, null);
+});
+
+test('BattleStateManager applies enemy resistance percent, absorb elements, name, and max D cap to all enemies', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 2,
+    selectedEnemyName: '敵テスト',
+    max_d_rate: 650,
+    resistances: {
+      element: {
+        slash: 150,
+        stab: 100,
+        strike: 100,
+        fire: 400,
+        ice: 30,
+        thunder: 100,
+        light: 100,
+        dark: 100,
+        nonelement: 100,
+      },
+    },
+    absorbElementList: ['fire', 'nonelement'],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], '敵テスト');
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '敵テスト');
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Fire, 400);
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Ice, 30);
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Slash, 150);
+  assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
+  assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 650);
+  assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire', 'nonelement']);
+  assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['fire', 'nonelement']);
+});
+
+test('BattleStateManager wires enemy od_rate to odRateByEnemy for each enemy slot', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 3,
+    od_rate: 8500,
+  });
+
+  assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['1'], 8500);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['2'], 8500);
+});
+
+test('BattleStateManager sets odRateByEnemy to 0 when od_rate is 0 (no correction)', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 1,
+    od_rate: 0,
+  });
+
+  assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 0);
+});
+
+test('BattleStateManager applies per-slot enemy setup when enemySlots are provided', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 7001,
+        selectedEnemyName: '魔王ヤマワキ',
+        od_rate: 8500,
+        max_d_rate: 650,
+        resistances: {
+          element: {
+            slash: 120,
+            stab: 100,
+            strike: 100,
+            fire: 200,
+            ice: 90,
+            thunder: 100,
+            light: 100,
+            dark: 100,
+            nonelement: 100,
+          },
+        },
+        absorbElementList: ['fire'],
+      },
+      {
+        slotIndex: 1,
+        selectedEnemyId: 7002,
+        selectedEnemyName: '使い魔ブンゴ',
+        od_rate: 0,
+        max_d_rate: 999,
+        resistances: {
+          element: {
+            slash: 80,
+            stab: 100,
+            strike: 100,
+            fire: 100,
+            ice: 160,
+            thunder: 100,
+            light: 100,
+            dark: 60,
+            nonelement: 100,
+          },
+        },
+        absorbElementList: ['ice', 'dark'],
+      },
+      {
+        slotIndex: 2,
+        selectedEnemyId: null,
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyCount, 2);
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], '魔王ヤマワキ');
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '使い魔ブンゴ');
+  assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
+  assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 999);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['1'], 0);
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Fire, 200);
+  assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Ice, 160);
+  assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire']);
+  assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['ice', 'dark']);
+});
+
+test('BattleStateManager falls back to one enemy when all enemy slots are unselected', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      { slotIndex: 0, selectedEnemyId: null },
+      { slotIndex: 1, selectedEnemyId: null },
+      { slotIndex: 2, selectedEnemyId: null },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyCount, 1);
+  assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 0);
+});

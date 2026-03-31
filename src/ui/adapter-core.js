@@ -299,6 +299,8 @@ export function createInitializedBattleSnapshot({
   damageRatesByEnemy = {},
   destructionRateByEnemy = {},
   destructionRateCapByEnemy = {},
+  absorbElementsByEnemy = {},
+  odRateByEnemy = {},
   enemyStatuses = [],
   breakStateByEnemy = {},
   enemyZoneConfigByEnemy = {},
@@ -354,6 +356,12 @@ export function createInitializedBattleSnapshot({
         destructionRateCapByEnemy && typeof destructionRateCapByEnemy === 'object'
           ? structuredClone(destructionRateCapByEnemy)
           : {},
+      absorbElementsByEnemy:
+        absorbElementsByEnemy && typeof absorbElementsByEnemy === 'object'
+          ? structuredClone(absorbElementsByEnemy)
+          : {},
+      odRateByEnemy:
+        odRateByEnemy && typeof odRateByEnemy === 'object' ? structuredClone(odRateByEnemy) : {},
       breakStateByEnemy:
         breakStateByEnemy && typeof breakStateByEnemy === 'object' ? structuredClone(breakStateByEnemy) : {},
       enemyNamesByEnemy:
