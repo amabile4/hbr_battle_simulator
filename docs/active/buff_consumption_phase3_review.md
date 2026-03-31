@@ -1,7 +1,7 @@
 # バフ消費オーケストレータ Phase 3 実装レビュー
 
 **対象コミット**: `6078aa5` 以降（Phase 3 M1: Funnel/MindEye orchestrator接続・競合判定統合）
-**レビュー実施**: 2026-03-31
+**レビュー実施**: 2026-04-01
 **ステータス**: 🟢 進行中（M1 完了確認済み / M2・M3 は残課題）
 
 ---
@@ -14,9 +14,10 @@
 | P3-07（旧関数 adapter 化） | ✅ フォールバック構造として機能 |
 | P3-T01（Only vs Count 勝者選定テスト） | ✅ 2テスト確認 |
 | P3-T02（Funnel/MindEye 回帰テスト） | ✅ 4テスト確認 |
-| P3-T03（AdditionalTurn 統合テスト） | ⚠️ 単体のみ・統合テスト未実装 |
-| P3-T04（EnemyTurnEnd 回帰テスト） | ⚠️ PlayerTurnEnd のみ・EnemyTurnEnd 専用未実装 |
-| P3-05 / P3-06 / P3-08（TurnEnd 移行・metadata 接続・整理） | 🟡 未着手（WBS どおり） |
+| P3-T03（AdditionalTurn 統合テスト） | ✅ 追加済み（EXターン中の消費/非消費を確認） |
+| P3-T04（EnemyTurnEnd 回帰テスト） | ✅ 追加済み（専用の残数減算テストを追加） |
+| P3-05 / P3-08（TurnEnd 移行・整理） | 🟡 未着手（WBS どおり） |
+| P3-06（metadata 接続） | ✅ 実装・テスト反映済み |
 
 ---
 
@@ -63,35 +64,34 @@ consumedFunnels = consumeSelectedCountStatusEffectsWithOrchestrator(
 
 ## 2. 問題点・残課題
 
-### 問題①: P3-T03 — AdditionalTurn の統合テストが未実装【高】
+### 対応済み①: P3-T03 — AdditionalTurn の統合テスト追加【完了】
 
 **WBS**: 🟢（着手可能）
 
-`buff-consumption-orchestrator.test.js` に `shouldConsume()` の単体テスト（`actionType='AdditionalTurn', hasDamage=true`）は存在する。
-しかし、`turn-state-transitions.test.js` に **EX ターン中の実際のバトル遷移を通じた統合テストが存在しない**。
+`turn-state-transitions.test.js` に以下を追加し、EXターン実遷移での消費判定を固定した。
 
-**リスク**:
-`shouldConsume()` 単体が正しくても、EX ターンの行動フローで `buildActionContext('AdditionalTurn', skill, {...})` が正しく組み立てられ → `evaluateCompetitiveConsumption()` → `consumeSelectedCountStatusEffectsWithOrchestrator()` まで通るパスが未担保。このチェーンのどこかに問題があっても現行テストでは検知できない。
+- 追加テスト: `Funnel/MindEye: AdditionalTurn中も与ダメージで消費し、非ダメージでは消費しない`
 
-**対処**: `turn-state-transitions.test.js` に以下を追加する。
-- EX ターン中にダメージスキルを使用した場合、Funnel/MindEye が消費されること
-- EX ターン中に非ダメージスキルを使用した場合、消費されないこと
+**確認結果**:
+- EXターン中の非ダメージ行動では Funnel/MindEye が残る
+- EXターン中の与ダメージ行動で Funnel/MindEye が消費される
 
 ---
 
-### 問題②: P3-T04 — EnemyTurnEnd 専用回帰テストが未実装【中】
+### 対応済み②: P3-T04 — EnemyTurnEnd 専用回帰テスト追加【完了】
 
 **WBS**: 🟡（依存待ち）
 
-PlayerTurnEnd の回帰テストは `turn-state-transitions.test.js` L8769 に存在する。
-EnemyTurnEnd は使用例多数あるが **count 変化前後を確認する専用テストが存在しない**。
+`turn-state-transitions.test.js` に以下を追加し、EnemyTurnEnd 減算を専用に検証した。
 
-**リスク**:
-PlayerTurnEnd/EnemyTurnEnd が対称的な挙動をする前提が未検証。P3-05（TurnEnd 移行）の実装後にも必要。
+- 追加テスト: `EnemyTurnEnd status expiry ticks for all active members on base turn advance`
+
+**確認結果**:
+- base turn 進行時に EnemyTurnEnd バフの `remaining` が行動/非行動メンバーともに減算される
 
 ---
 
-### 問題③: validateBuffMetadata が未使用 import【低〜中】
+### 対応済み③: validateBuffMetadata runtime 接続【完了】
 
 **ファイル**: `src/turn/turn-controller.js` L12
 
@@ -99,33 +99,38 @@ PlayerTurnEnd/EnemyTurnEnd が対称的な挙動をする前提が未検証。P3
 import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
 ```
 
-`validateBuffMetadata` は import されているが **呼び出し箇所ゼロ**。
+`validateBuffMetadata` の runtime 接続を実装し、warning/strict の切替を導入済み。
 
-**副次的問題**:
-P3-08（dead code 整理）の依存先に P3-06 が含まれる。P3-06 の方針（dev フラグ経由 or always-on）を先に確定しないと、P3-08 で import を削除してしまった後に P3-06 を着手できなくなる。
+**反映内容**:
+- `resolveBuffMetadataValidationOptions()` を追加し、`validateBuffMetadata` オプションを正規化
+- `evaluateCompetitiveConsumption()` で候補評価時に metadata 検証を適用
+- strict 時は不正 metadata の Count 候補を除外、warning 時は警告のみ
+- commit 経路の Count 消費でも strict ブロックを適用
 
-**推奨**: P3-06 の接続方針を確定してから P3-08 に着手すること。
+**テスト**:
+- `tests/buff-consumption-orchestrator.test.js`
+  - `evaluateCompetitiveConsumptionはwarningモードで不正metadataを警告しつつ消費候補を維持する`
+  - `evaluateCompetitiveConsumptionはstrictモードで不正metadataの消費候補を除外する`
+- `tests/turn-state-transitions.test.js`
+  - `Funnel: strict metadata validation有効時は不正metadataのCount候補を消費しない`
 
 ---
 
-### 問題④: 誤解を招くコメント "NOT YET ACTIVE"【低】
+### 対応済み④: 誤解を招くコメント "NOT YET ACTIVE"【完了】
 
-**ファイル**: `src/turn/turn-controller.js` L6099 付近
+`src/turn/turn-controller.js` の `consumeSelectedCountStatusEffectsWithOrchestrator()` ヘッダコメントを更新済み。
 
-```javascript
-/**
- * [PHASE 3.1 INTEGRATION POINT - NOT YET ACTIVE]
- * This function demonstrates how the new shouldConsume() orchestrator would be integrated
- * into the existing consumption flow. Currently non-functional pending Phase 3 approval.
- */
-function consumeSelectedCountStatusEffectsWithOrchestrator(...)
-```
+**更新内容**:
+- `NOT YET ACTIVE` 表記を削除
+- Funnel/MindEye の本番経路で利用中であること
+- `actionContext` 未指定時に legacy fallback すること
 
-**実態**: この関数は L5810-5821 で本番フローから呼ばれており **実際にアクティブ**。
+---
 
-**リスク**: コードを読む人が「まだ無効化されている」と誤認して触れない、または誤操作するリスクがある。
+### 残課題: TurnEnd shouldConsume 経路移行（P3-05）
 
-**推奨**: P3-08 時にコメントを削除または内容を更新すること。
+TurnEnd 系デクリメントの一部は `tickStatusEffectsByExitCond()` 直接呼び出しが残る。
+`ActionContext(TurnEnd)` 経由への段階移行を継続する。
 
 ---
 
@@ -133,10 +138,10 @@ function consumeSelectedCountStatusEffectsWithOrchestrator(...)
 
 | 優先度 | WBS ID | タスク | 担当ファイル | 状態 |
 |--------|--------|--------|-------------|------|
-| **高** | P3-T03 | EX ターン中の Funnel/MindEye 消費統合テスト追加 | `tests/turn-state-transitions.test.js` | 🟢 着手可能 |
-| **中** | P3-T04 | EnemyTurnEnd 回帰テスト追加 | `tests/turn-state-transitions.test.js` | 🟡 P3-05 前に追加可能 |
+| **完了** | P3-T03 | EX ターン中の Funnel/MindEye 消費統合テスト追加 | `tests/turn-state-transitions.test.js` | ✅ 完了 |
+| **完了** | P3-T04 | EnemyTurnEnd 回帰テスト追加 | `tests/turn-state-transitions.test.js` | ✅ 完了 |
 | **中** | P3-05 | TurnEnd デクリメントの `shouldConsume(TurnEnd)` 経由移行 | `src/turn/turn-controller.js`, `src/domain/character-style.js` | 🟡 |
-| **中** | P3-06 | `validateBuffMetadata()` の dev/strict モード有効化 | `src/turn/turn-controller.js` | 🟡 方針確定が先 |
+| **完了** | P3-06 | `validateBuffMetadata()` の dev/strict モード有効化 | `src/turn/turn-controller.js` | ✅ 実装・回帰確認済み |
 | **低** | P3-08 | dead code 整理・コメント修正・import 整理 | `src/turn/turn-controller.js` | 🟡 P3-06 完了後 |
 | **ドキュメント** | P3-D01 | Phase 3 実装方針更新 | `docs/active/buff_consumption_schema.md` | 🟢 |
 | **ドキュメント** | P3-D02 | `action_context_matrix.md` 差分確認 | `docs/active/action_context_matrix.md` | 🟡 |
@@ -151,6 +156,7 @@ function consumeSelectedCountStatusEffectsWithOrchestrator(...)
 | Funnel/MindEye ダメージ時消費 | 競合判定 + 消費回帰 4件 | `turn-state-transitions.test.js` | ✅ |
 | PlayerTurnEnd 型バフ減算 | 行動/非行動メンバー差分 | `turn-state-transitions.test.js` L8769 | ✅ |
 | AdditionalTurn shouldConsume 単体 | shouldConsume(actionType='AdditionalTurn') | `buff-consumption-orchestrator.test.js` | ✅ 単体のみ |
-| **AdditionalTurn バトル遷移統合** | **EX ターン中の Funnel/MindEye 消費** | `turn-state-transitions.test.js` | **❌ 未実装** |
-| **EnemyTurnEnd 回帰** | **count 変化前後の検証** | `turn-state-transitions.test.js` | **❌ 未実装** |
-| validateBuffMetadata strict | Eternal + remaining=0 | `buff-consumption-orchestrator.test.js` | ✅ |
+| AdditionalTurn バトル遷移統合 | EX ターン中の Funnel/MindEye 消費 | `turn-state-transitions.test.js` | ✅ |
+| EnemyTurnEnd 回帰 | count 変化前後の検証 | `turn-state-transitions.test.js` | ✅ |
+| validateBuffMetadata strict | warning/strict の分岐と候補除外を検証 | `buff-consumption-orchestrator.test.js` | ✅ |
+| validateBuffMetadata strict（統合） | Funnel Count 候補が strict で非消費になることを検証 | `turn-state-transitions.test.js` | ✅ |

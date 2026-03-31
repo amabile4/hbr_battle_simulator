@@ -5716,6 +5716,7 @@ function resolveEnemyOdRateMultiplier(turnState) {
 
 function applyOdGaugeFromActions(state, previewRecord, options = {}) {
   const consumeStatusEffects = options.consumeStatusEffects !== false;
+  const buffMetadataValidation = resolveBuffMetadataValidationOptions(options);
   const events = [];
   const enemyCount = clampEnemyCount(previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT);
   let currentOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
@@ -5744,12 +5745,13 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       turnPhase: 'PlayerTurn',
       isNormalAttack: actionType === 'NormalAttack',
       isPursuit: actionType === 'Pursuit',
+      actorCharacterId: member.characterId,
     });
     const funnelResolution = hasDamage
-      ? resolveFunnelCompetitionForAction(member, actionContext)
+      ? resolveFunnelCompetitionForAction(member, actionContext, { buffMetadataValidation })
       : { selectedEffects: [], selectedCountEffectIds: [] };
     const mindEyeResolution = hasDamage
-      ? resolveMindEyeCompetitionForAction(member, actionContext)
+      ? resolveMindEyeCompetitionForAction(member, actionContext, { buffMetadataValidation })
       : { selectedEffects: [], selectedCountEffectIds: [] };
     const funnelEffects = funnelResolution.selectedEffects.slice(0, 2);
     const funnelHitBonus = funnelEffects.reduce(
@@ -6027,14 +6029,72 @@ function resolveActionContextTypeForSkill(skill) {
   return 'Skill';
 }
 
+function resolveBuffMetadataValidationOptions(options = {}) {
+  const raw = options?.buffMetadataValidation ?? options?.validateBuffMetadata;
+  if (raw === true) {
+    return {
+      enabled: true,
+      mode: 'warning',
+      onWarning: null,
+    };
+  }
+  if (!raw || raw === false) {
+    return {
+      enabled: false,
+      mode: 'warning',
+      onWarning: null,
+    };
+  }
+
+  const mode = String(raw?.mode ?? 'warning').toLowerCase() === 'strict' ? 'strict' : 'warning';
+  const onWarning = typeof raw?.onWarning === 'function' ? raw.onWarning : null;
+  return {
+    enabled: true,
+    mode,
+    onWarning,
+  };
+}
+
+function shouldAllowEffectByMetadataValidation(effect, validationOptions, context = {}) {
+  if (!validationOptions?.enabled) {
+    return true;
+  }
+  const errors = validateBuffMetadata(effect);
+  if (!Array.isArray(errors) || errors.length <= 0) {
+    return true;
+  }
+
+  const statusType = String(effect?.statusType ?? context?.statusType ?? 'Unknown');
+  const effectId = Number(effect?.effectId ?? 0);
+  const characterId = String(context?.characterId ?? 'Unknown');
+  const phase = String(context?.phase ?? 'BuffMetadataValidation');
+  const skillId = Number(context?.skillId ?? 0);
+  const warningMessage = `[${phase}] invalid buff metadata: characterId=${characterId}, skillId=${skillId}, statusType=${statusType}, effectId=${effectId}, errors=${errors.join(' | ')}`;
+
+  if (validationOptions.onWarning) {
+    validationOptions.onWarning(warningMessage);
+  }
+
+  return validationOptions.mode !== 'strict';
+}
+
 export function evaluateCompetitiveConsumption(effects, actionContext, options = {}) {
   const resolution = resolveCountOnlyCompetitionForEffects(effects, options);
   if (!actionContext || typeof actionContext !== 'object') {
     return resolution;
   }
 
+  const validationOptions = resolveBuffMetadataValidationOptions(options);
+
   const selectedCountEffectIds = resolution.selectedEffects
     .filter((effect) => String(effect?.exitCond ?? '') === 'Count')
+    .filter((effect) =>
+      shouldAllowEffectByMetadataValidation(effect, validationOptions, {
+        phase: 'CompetitiveConsumption',
+        characterId: String(actionContext?.actorCharacterId ?? ''),
+        skillId: Number(actionContext?.skill?.skillId ?? actionContext?.skill?.id ?? 0),
+      })
+    )
     .filter((effect) => shouldConsume(effect, actionContext).shouldConsume)
     .map((effect) => Number(effect?.effectId ?? 0))
     .filter((effectId) => Number.isFinite(effectId) && effectId > 0);
@@ -6045,21 +6105,23 @@ export function evaluateCompetitiveConsumption(effects, actionContext, options =
   };
 }
 
-function resolveFunnelCompetitionForAction(member, actionContext = null) {
+function resolveFunnelCompetitionForAction(member, actionContext = null, options = {}) {
   if (!member || typeof member.getFunnelEffects !== 'function') {
     return { selectedEffects: [], selectedCountEffectIds: [] };
   }
   return evaluateCompetitiveConsumption(member.getFunnelEffects({ activeOnly: true }), actionContext, {
     countLimit: 2,
+    ...options,
   });
 }
 
-function resolveMindEyeCompetitionForAction(member, actionContext = null) {
+function resolveMindEyeCompetitionForAction(member, actionContext = null, options = {}) {
   if (!member || typeof member.getMindEyeEffects !== 'function') {
     return { selectedEffects: [], selectedCountEffectIds: [] };
   }
   return evaluateCompetitiveConsumption(member.getMindEyeEffects({ activeOnly: true }), actionContext, {
     countLimit: 2,
+    ...options,
   });
 }
 
@@ -6084,11 +6146,10 @@ function consumeSelectedCountStatusEffects(member, statusType, selectedCountEffe
 }
 
 /**
- * Phase 3.1 Integration: Wrapper for orchestrator-based consumption evaluation
- * 
- * [PHASE 3.1 INTEGRATION POINT - NOT YET ACTIVE]
- * This function demonstrates how the new shouldConsume() orchestrator would be integrated
- * into the existing consumption flow. Currently non-functional pending Phase 3 approval.
+ * Phase 3.1 Integration: orchestrator-based consumption evaluation
+ *
+ * This function is active in the Funnel/MindEye consumption path and
+ * falls back to legacy consumption when actionContext is not provided.
  * 
  * @param {Object} member - Character member
  * @param {string} statusType - Status effect type (e.g., 'Funnel', 'MindEye')
@@ -7677,6 +7738,7 @@ function createSingleActionPreviewRecord(actionEntry, options = {}) {
 
 function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const validatePreview = options.validatePreview !== false;
+  const buffMetadataValidation = resolveBuffMetadataValidationOptions(options);
   const member = findMemberByCharacterId(state, actionEntry?.characterId);
   if (!member) {
     throw new Error(`Member not found: ${actionEntry?.characterId}`);
@@ -7722,11 +7784,35 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   );
   if (hasDamageForCount && consumedCountEffectIds.size > 0) {
     const canConsumeNonNormal = !isNormalOrPursuitForCount;
+    const strictBlockedEffectIds = new Set();
+    if (buffMetadataValidation.enabled && buffMetadataValidation.mode === 'strict') {
+      for (const effect of member.statusEffects ?? []) {
+        const effectId = Number(effect?.effectId ?? 0);
+        if (!consumedCountEffectIds.has(effectId)) {
+          continue;
+        }
+        if (!isCountConsumableActiveBuffStatusEffect(effect)) {
+          continue;
+        }
+        const allowed = shouldAllowEffectByMetadataValidation(effect, buffMetadataValidation, {
+          phase: 'CommittedActionCountConsumption',
+          characterId: member.characterId,
+          skillId: Number(actionEntry?.skillId ?? 0),
+        });
+        if (!allowed) {
+          strictBlockedEffectIds.add(effectId);
+        }
+      }
+    }
     const shouldConsume = (effect) => {
       if (!isCountConsumableActiveBuffStatusEffect(effect)) {
         return false;
       }
-      if (!consumedCountEffectIds.has(Number(effect?.effectId ?? 0))) {
+      const effectId = Number(effect?.effectId ?? 0);
+      if (!consumedCountEffectIds.has(effectId)) {
+        return false;
+      }
+      if (strictBlockedEffectIds.has(effectId)) {
         return false;
       }
       if (effect?.metadata?.includeNormalAttack === true) {
@@ -7769,7 +7855,9 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     ...applyManualBreakEffectsFromActions(state, singleRecord),
   ];
   const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, singleRecord);
-  const odGaugeGain = applyOdGaugeFromActions(state, singleRecord);
+  const odGaugeGain = applyOdGaugeFromActions(state, singleRecord, {
+    buffMetadataValidation,
+  });
   member.incrementSkillUseById(actionEntry.skillId);
 
   return {
@@ -7800,7 +7888,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   };
 }
 
-function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_COUNT) {
+function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_COUNT, options = {}) {
   const projectedState = {
     ...state,
     party: state.party.map((member) => member.clone()),
@@ -7834,6 +7922,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     actionSequence += 1;
     actionEntries.push(primaryEntry);
     applyCommittedActionSideEffects(projectedState, primaryEntry, {
+      ...options,
       validatePreview: false,
       enemyCount,
     });
@@ -7867,6 +7956,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     actionSequence += 1;
     actionEntries.push(repeatEntry);
     applyCommittedActionSideEffects(projectedState, repeatEntry, {
+      ...options,
       validatePreview: false,
       enemyCount,
     });
@@ -9860,7 +9950,9 @@ export function createBattleStateFromParty(party, turnState) {
 
 export function previewTurn(state, actions, enemyAction = null, enemyCount = 1, options = {}) {
   const sortedActions = validateActionDict(state, actions, options);
-  const { actionEntries, projectedState } = previewActionEntries(state, sortedActions, enemyCount);
+  const { actionEntries, projectedState } = previewActionEntries(state, sortedActions, enemyCount, {
+    buffMetadataValidation: options?.buffMetadataValidation ?? options?.validateBuffMetadata,
+  });
   const snapBefore = snapshotPartyByPartyIndex(state.party);
 
   const record = fromSnapshot(
@@ -9938,6 +10030,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
 
   for (const entry of previewRecord.actions) {
     const actionResult = applyCommittedActionSideEffects(state, entry, {
+      buffMetadataValidation: options?.buffMetadataValidation ?? options?.validateBuffMetadata,
       validatePreview: true,
       enemyCount: Number(previewRecord.enemyCount ?? DEFAULT_ENEMY_COUNT),
     });
@@ -10519,6 +10612,7 @@ export function buildActionContext(actionType, skill = null, options = {}) {
     skill: skill && typeof skill === 'object' ? skill : null,
     hasDamage: Boolean(hasDamage),
     turnPhase: String(options.turnPhase ?? 'Unknown'),
+    actorCharacterId: String(options.actorCharacterId ?? ''),
 
     // Judgment flags (populated by shouldConsume logic)
     isNormalAttack: Boolean(options.isNormalAttack || normalizedActionType === 'NormalAttack'),

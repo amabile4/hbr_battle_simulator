@@ -146,3 +146,49 @@ test('evaluateCompetitiveConsumptionはCount勝ちの selectedCountEffectIds を
   assert.deepEqual(result.selectedEffects.map((effect) => Number(effect.effectId)), [21, 22]);
   assert.deepEqual(result.selectedCountEffectIds, [21, 22]);
 });
+
+test('evaluateCompetitiveConsumptionはwarningモードで不正metadataを警告しつつ消費候補を維持する', () => {
+  const invalid = createEffect({
+    effectId: 31,
+    limitType: 'Invalid',
+    power: 0.5,
+  });
+  const actionContext = buildActionContext('Skill', {
+    parts: [{ skill_type: 'AttackSkill' }],
+  });
+  const warnings = [];
+
+  const result = evaluateCompetitiveConsumption([invalid], actionContext, {
+    countLimit: 2,
+    buffMetadataValidation: {
+      enabled: true,
+      mode: 'warning',
+      onWarning: (message) => warnings.push(String(message)),
+    },
+  });
+
+  assert.deepEqual(result.selectedCountEffectIds, [31]);
+  assert.equal(warnings.length, 1);
+});
+
+test('evaluateCompetitiveConsumptionはstrictモードで不正metadataの消費候補を除外する', () => {
+  const invalid = createEffect({
+    effectId: 41,
+    limitType: 'Invalid',
+    power: 0.5,
+  });
+  const actionContext = buildActionContext('Skill', {
+    parts: [{ skill_type: 'AttackSkill' }],
+  });
+
+  const result = evaluateCompetitiveConsumption([invalid], actionContext, {
+    countLimit: 2,
+    buffMetadataValidation: {
+      enabled: true,
+      mode: 'strict',
+      onWarning: () => {},
+    },
+  });
+
+  assert.deepEqual(result.selectedCountEffectIds, []);
+});

@@ -8873,6 +8873,116 @@ test('count-based MindEye is consumed by damage action only', () => {
   assert.equal(state.party.find((m) => m.characterId === 'ME1').resolveEffectiveMindEyeEffects().length, 1);
 });
 
+test('Funnel/MindEye: AdditionalTurn中も与ダメージで消費し、非ダメージでは消費しない', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: 9321,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 1,
+            },
+            {
+              effectId: 9322,
+              statusType: 'MindEye',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 1,
+            },
+          ],
+          skills: [
+            {
+              id: 25231,
+              name: 'Extra Damage',
+              label: 'ExtraDamage25231',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+            {
+              id: 25232,
+              name: 'Extra Protection',
+              label: 'ExtraProtection25232',
+              sp_cost: 0,
+              target_type: 'Self',
+              parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+            },
+          ],
+        }
+      : {}
+  );
+
+  let state = createBattleStateFromParty(party);
+  state = grantExtraTurn(state, ['M1']);
+  let preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25232 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').resolveEffectiveFunnelEffects().length,
+    1,
+    'AdditionalTurn中の非ダメージ行動ではFunnelが残る'
+  );
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').resolveEffectiveMindEyeEffects().length,
+    1,
+    'AdditionalTurn中の非ダメージ行動ではMindEyeが残る'
+  );
+
+  state = createBattleStateFromParty(party);
+  state = grantExtraTurn(state, ['M1']);
+  preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25231, targetEnemyIndex: 0 },
+  });
+  state = commitTurn(state, preview).nextState;
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').resolveEffectiveFunnelEffects().length,
+    0,
+    'AdditionalTurn中の与ダメージ行動でFunnelが消費される'
+  );
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').resolveEffectiveMindEyeEffects().length,
+    0,
+    'AdditionalTurn中の与ダメージ行動でMindEyeが消費される'
+  );
+});
+
+test('EnemyTurnEnd status expiry ticks for all active members on base turn advance', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx <= 1
+      ? {
+          statusEffects: [
+            {
+              effectId: 9330 + idx,
+              statusType: 'AttackUp',
+              limitType: 'Default',
+              exitCond: 'EnemyTurnEnd',
+              remaining: 2,
+              power: 0.2,
+              metadata: { activeBuffStatus: true },
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8000, targetEnemyIndex: 0 },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  const m1Effects = state.party.find((m) => m.characterId === 'M1').resolveEffectiveStatusEffects('AttackUp');
+  const m2Effects = state.party.find((m) => m.characterId === 'M2').resolveEffectiveStatusEffects('AttackUp');
+  assert.equal(m1Effects[0]?.remaining, 1, '行動メンバーのEnemyTurnEnd残り回数が1減る');
+  assert.equal(m2Effects[0]?.remaining, 1, '非行動メンバーのEnemyTurnEnd残り回数も1減る');
+});
+
 test('Funnel: Only vs Count(上位2)で勝者を採用し、採用されたCount側のみを消費する', () => {
   const COUNT_A_ID = 9301;
   const COUNT_B_ID = 9302;
@@ -9064,6 +9174,65 @@ test('Funnel: 非ダメージスキルではCount候補は消費されない', (
   assert.equal(remainingIds.has(COUNT_A_ID), true);
   assert.equal(remainingIds.has(COUNT_B_ID), true);
   assert.equal(remainingIds.has(ONLY_ID), true);
+});
+
+test('Funnel: strict metadata validation有効時は不正metadataのCount候補を消費しない', () => {
+  const INVALID_FUNNEL_ID = 9341;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: INVALID_FUNNEL_ID,
+              statusType: 'Funnel',
+              limitType: 'Invalid',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 1,
+            },
+          ],
+          skills: [
+            {
+              id: 25244,
+              name: 'Funnel Strict Validation Test',
+              label: 'FunnelStrictValidation25244',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const warnings = [];
+
+  const preview = previewTurn(
+    state,
+    {
+      0: { characterId: 'M1', skillId: 25244, targetEnemyIndex: 0 },
+    },
+    null,
+    1,
+    {
+      validateBuffMetadata: {
+        enabled: true,
+        mode: 'strict',
+        onWarning: (message) => warnings.push(String(message)),
+      },
+    }
+  );
+  const { nextState } = commitTurn(state, preview, [], {
+    validateBuffMetadata: {
+      enabled: true,
+      mode: 'strict',
+      onWarning: (message) => warnings.push(String(message)),
+    },
+  });
+
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  assert.equal(actor.resolveEffectiveFunnelEffects().length, 1);
+  assert.ok(warnings.length >= 1);
 });
 
 test('MindEye: 追撃ラベルスキルではCount候補は消費されない', () => {
