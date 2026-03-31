@@ -1,6 +1,6 @@
 # バフ消費オーケストレータ Phase 3 残課題整理・WBS
 
-> 最終更新: 2026-03-31  
+> **ステータス**: ✅ 完了 | 📅 最終更新: 2026-03-31  
 > 対象: Funnel / MindEye / SpecialStatus / TurnEnd 系の消費判定統合（Phase 3）
 > 前提: Phase 2 は完了（`shouldConsume()` 実装済み、呼び出し側未接続）
 > 進捗メモ: M1 完了。Funnel / MindEye の orchestrator 接続、競合判定統合、単体/統合回帰を実装済み。

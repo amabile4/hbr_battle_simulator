@@ -1,5 +1,7 @@
 # MindEye (SpecialStatusCountByType 78) 調査最終報告
 
+> **ステータス**: 📦 スナップショット | 📅 調査日: 2026-03-30
+
 **調査日**: 2026年3月30日  
 **対象**: SpecialStatusCountByType(78) の Condition 評価と Passive Modifier 適用
 

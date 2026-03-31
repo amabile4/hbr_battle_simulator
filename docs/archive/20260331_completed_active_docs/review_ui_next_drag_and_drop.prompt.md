@@ -1,5 +1,7 @@
 # Claude Opus Prompt: UI Next Drag And Drop Review
 
+> **ステータス**: ✅ 完了 | 📅 作成: 2026-03-28 | 🔄 最終更新: 2026-03-29
+
 以下のレビュー依頼メモを読んで、`ui-next` の D&D 不具合をコードレビューしてください。
 
 参照:

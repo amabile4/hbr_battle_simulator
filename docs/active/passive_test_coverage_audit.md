@@ -1,6 +1,6 @@
 # パッシブ発火トリガー × exitCond テストカバレッジ監査
 
-> 最終更新: 2026-03-29
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
 > 調査ファイル: `tests/turn-state-transitions.test.js`（13,000行超）・`tests/real-data-mechanics-coverage.test.js`
 
 ---

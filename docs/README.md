@@ -45,32 +45,22 @@ docs/
 |-------------|-----------|------|----------|
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ。enemy-side `SpecialStatusCountByType(3/12/22/57/172)` と `Cover` 意味差分の調査メモ/WIP追記済み | 2026-03-30 |
 | [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・browser D&D handle 方針・Passive Log 下段 pane と desktop resize handle・toolbar icon/mobile rules・startup defaults・PNG capture contract・SessionSnapshot の人間向け補助フィールド方針・turn row バフアイコンを状態変化定義順で拡張（全体上限10・デバフ除外・Count/Only競合は採用側のみ表示）・Fieldタブの属性/倍率/継続表示とturn rowのactive field chip表示・Talisman表示条件の明確化・Warning/Error の名前併記 helper 方針・ReduceSpは消費SP計算専用でcurrent SP非変更・legacy UI 廃止前提・Enemy先制Turn0フィールド先行適用 等） | 2026-03-30 |
-| [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 🟢 進行中 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点） | 2026-03-15 |
+| [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | � 参照 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点）。配色・余白の参考のみ、正本は ui_next_design.md | 2026-03-31 |
 | [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・preset toolbar 20枠化・browser D&D hardening・legacy UI hard cutover・Passive Log pane resize・root redirect smoke・Enemy先制フィールドTurn0適用・Enemy Setup の敵スロット選択/実効倍率％耐性/吸収/max_d_rate/od_rate 初期反映・Session JSON 旧フォーマット互換（styleIds=0）・SP>=0条件＋速弾きの合算使用可否まで反映） | 2026-03-30 |
-| [active/ui_next_drag_and_drop_review_request.md](active/ui_next_drag_and_drop_review_request.md) | 🟢 進行中 | UI Next D&D 不具合のレビュー依頼メモ（TurnEdit / PartySetup の現象整理・期待挙動・レビュー観点） | 2026-03-28 |
-| [active/review_ui_next_drag_and_drop.prompt.md](active/review_ui_next_drag_and_drop.prompt.md) | 🟢 進行中 | Claude Opus 向け UI Next D&D レビュー依頼 prompt | 2026-03-28 |
-| [active/review_ui_next_drag_and_drop_findings.md](active/review_ui_next_drag_and_drop_findings.md) | ✅ 完了 | UI Next D&D コードレビュー結果＋修正記録（BUG-1〜3 修正、E2E 11件追加、全テスト通過） | 2026-03-29 |
-| [active/ui_next_png_capture_review_request.md](active/ui_next_png_capture_review_request.md) | 🟢 進行中 | UI Next PNG capture 不具合のレビュー依頼メモ（再現条件・期待挙動・実際の失敗・レビュー観点） | 2026-03-28 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・warning/diagnostics 実装メモ追記） | 2026-03-28 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装計画（DoubleActionExtraSkill shared engine 実装、水瀬すもも/朝倉可憐の実データ確認まで反映） | 2026-03-29 |
 | [active/stateful_passive_wbs.md](active/stateful_passive_wbs.md) | 🟢 進行中 | 状態付与型パッシブ（AdditionalHit* 38件）の実装ステータス一覧・未実装トリガー／effectType整理（`二股の尻尾` 完全実装反映） | 2026-03-29 |
 | [active/passive_test_coverage_audit.md](active/passive_test_coverage_audit.md) | 🟢 進行中 | パッシブ発火トリガー × exitCond テストカバレッジ監査（`DoubleActionExtraSkill` の engine/UI/browser coverage、受け手SP回復の二連EX実データ回帰まで反映） | 2026-03-29 |
 | [active/count_only_status_audit.md](active/count_only_status_audit.md) | 🟢 進行中 | `Count` / `Only` 併存 status family 監査（`AttackUp` 系は `elements subgroup`、`Funnel` / `MindEye` は `target_condition` 制約として整理し、runtime/test 経路・実機確認マトリクスを併記。session再計算Warning理由のPassiveLog暫定表示を追記） | 2026-03-29 |
-| [active/restoration_wbs.md](active/restoration_wbs.md) | 🟢 進行中 | ハイブースト以降の段階的復元WBS（フェーズ0〜4完了・フェーズ5継続） | 2026-03-23 |
 | [active/setup_panel_layout_and_perf_tasklist.md](active/setup_panel_layout_and_perf_tasklist.md) | 🟢 進行中 | Setup パネルのタブレイアウト改善（L01〜L04 ✅）とロード高速化（P01〜P03 ❌）タスクリスト | 2026-03-29 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-22 |
+| [active/turn_timing.md](active/turn_timing.md) | 📚 参照 | バトルフロー図と各タイミングの説明（Enemy先制行動〜バトル終了） | 2026-03-31 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（legacy DOM controller 廃止後の shared module 境界へ更新） | 2026-03-29 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
-| [active/kokushipmusoujou_additional_turn_bug.md](active/kokushipmusoujou_additional_turn_bug.md) | ✅ 完了 | 国士無双で追加ターンが発生しない不具合を修正（`getAdditionalTurnRule()` の `SkillCondition.strval` 再帰対応、Unit/E2E確認済み） | 2026-03-30 |
 | [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | Phase 1: バフ消費ロジック現状分析 - Funnel/MindEye/Count型/ターン型各消費パターンの完全フロー図とコード参照 | 2026-03-30 |
 | [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | Phase 1/3: 統一バフスキーマ設計 - StatusEffect メタデータ統一仕様（exitCond/limitType/consumeTrigger）と ActionContext 型定義。Phase 3 runtime 接続注記を反映済み | 2026-03-31 |
 | [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1/3: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表。P3-05 後の差分なし確認を追記済み | 2026-03-31 |
-| [active/buff_consumption_phase2_review.md](active/buff_consumption_phase2_review.md) | ✅ 完了 | Phase 2 実装レビュー結果（BUG-1/2/3 修正、`shouldConsume` 単体テスト追加、`action_context_matrix` 整合更新を反映済み） | 2026-03-30 |
-| [active/buff_consumption_phase3_wbs.md](active/buff_consumption_phase3_wbs.md) | ✅ 完了 | Phase 3 残課題とWBS（P3-01〜08, P3-T01〜05, P3-D01〜03 完了。M1/M2/M3 完了） | 2026-03-31 |
-| [active/buff_consumption_phase3_review.md](active/buff_consumption_phase3_review.md) | ✅ 完了 | Phase 3 実装レビュー結果（P3-05/P3-06/P3-08 と docs 同期まで反映し完了） | 2026-03-31 |
-| [active/buff_consumption_p3_05_code_review.md](active/buff_consumption_p3_05_code_review.md) | 🟢 進行中 | P3-05 コードレビュー（TurnEnd shouldConsume 移行）: ブロッカーなし、FIND-1〜3 は P3-08 対象 | 2026-03-31 |
-| [active/mindeye_only_count_integration_assessment.md](active/mindeye_only_count_integration_assessment.md) | ✅ 完了 | MindEye/Funnel の Only/Count 分離統合可能性評価（実装経緯補足: 実機は鬼神化後発・シミュレーターは鬼神化先行実装） | 2026-03-30 |
 
 ---
 
@@ -185,6 +175,27 @@ docs/
 | `support_tier_check_bug_issue.md` | SSR以外へのサポート共鳴誤適用修正 |
 | `phase0_investigation_report.md` / `phase1_plan.md` | passive timing 監査フェーズ0-1記録 |
 | PRI-010〜017 タスクリスト群 | overwrite_cond / active buff / enemy status 等 |
+
+---
+
+### 20260331_completed_active_docs/（2026-03-31 アーカイブ）
+
+バフ消費 Phase 2-3 の完了文書、UI Next D&D レビュー一式、完了済み不具合調査・評価メモをアーカイブ。restoration WBS（フェーズ0〜4完了）・PNG capture レビュー依頼（T23 完了）を追加。
+
+| ドキュメント | 概要 |
+|----------------|------|
+| [archive/20260331_completed_active_docs/buff_consumption_p3_05_code_review.md](archive/20260331_completed_active_docs/buff_consumption_p3_05_code_review.md) | P3-05 TurnEnd `shouldConsume()` 移行の再レビュー完了記録 |
+| [archive/20260331_completed_active_docs/buff_consumption_phase2_review.md](archive/20260331_completed_active_docs/buff_consumption_phase2_review.md) | バフ消費オーケストレータ Phase 1-2 実装レビュー完了記録 |
+| [archive/20260331_completed_active_docs/buff_consumption_phase3_review.md](archive/20260331_completed_active_docs/buff_consumption_phase3_review.md) | バフ消費オーケストレータ Phase 3 実装レビュー完了記録 |
+| [archive/20260331_completed_active_docs/buff_consumption_phase3_wbs.md](archive/20260331_completed_active_docs/buff_consumption_phase3_wbs.md) | バフ消費オーケストレータ Phase 3 WBS 完了版 |
+| [archive/20260331_completed_active_docs/kokushipmusoujou_additional_turn_bug.md](archive/20260331_completed_active_docs/kokushipmusoujou_additional_turn_bug.md) | 国士無双の追加ターン不具合修正と調査記録 |
+| [archive/20260331_completed_active_docs/mindeye_investigation_results.md](archive/20260331_completed_active_docs/mindeye_investigation_results.md) | MindEye 消費・Condition・Modifier の調査最終報告 |
+| [archive/20260331_completed_active_docs/mindeye_only_count_integration_assessment.md](archive/20260331_completed_active_docs/mindeye_only_count_integration_assessment.md) | MindEye/Funnel の Only/Count 分離統合可能性評価 |
+| [archive/20260331_completed_active_docs/review_ui_next_drag_and_drop.prompt.md](archive/20260331_completed_active_docs/review_ui_next_drag_and_drop.prompt.md) | UI Next D&D レビュー依頼 prompt |
+| [archive/20260331_completed_active_docs/review_ui_next_drag_and_drop_findings.md](archive/20260331_completed_active_docs/review_ui_next_drag_and_drop_findings.md) | UI Next D&D コードレビュー findings と修正記録 |
+| [archive/20260331_completed_active_docs/ui_next_drag_and_drop_review_request.md](archive/20260331_completed_active_docs/ui_next_drag_and_drop_review_request.md) | UI Next D&D 不具合のレビュー依頼メモ |
+| [archive/20260331_completed_active_docs/restoration_wbs.md](archive/20260331_completed_active_docs/restoration_wbs.md) | ハイブースト以降の段階的復元WBS（フェーズ0〜4完了）。緊急修復の役割終了 |
+| [archive/20260331_completed_active_docs/ui_next_png_capture_review_request.md](archive/20260331_completed_active_docs/ui_next_png_capture_review_request.md) | PNG capture 幅崩れのレビュー依頼。T23 PNG Capture Rework ✅ 完了済み |
 
 ---
 

@@ -1,7 +1,7 @@
 # UI Next PNG Capture Review Request
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-03-28 | 🔄 最終更新: 2026-03-28
-> **対象 branch**: `feature/ui-next-layout-rework`
+> **ステータス**: �️ アーカイブ | 📅 作成: 2026-03-28 | 🔄 最終更新: 2026-03-31
+> T23 PNG Capture Rework ✅ 完了済み。レビュー結果は archive に移動済み。
 >
 > **レビュー結果**: [`../archive/20260328_png_capture_code_review_findings.md`](../archive/20260328_png_capture_code_review_findings.md)
 > （採用した論点 / 採用しなかった論点を追記したアーカイブ版）

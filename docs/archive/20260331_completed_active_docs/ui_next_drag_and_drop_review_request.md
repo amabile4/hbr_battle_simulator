@@ -1,6 +1,6 @@
 # UI Next Drag And Drop Review Request
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-03-28 | 🔄 最終更新: 2026-03-28
+> **ステータス**: ✅ 完了 | 📅 作成: 2026-03-28 | 🔄 最終更新: 2026-03-29
 > **対象 branch**: `feature/ui-next-layout-rework`
 
 ## 目的
