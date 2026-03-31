@@ -549,18 +549,25 @@ SP に影響するバフ/デバフ（SP回復UP/DOWN等）と OD ゲージへの
 
 #### T16-A: 基本フォーム（敵スロット・名前・ダメージレート・破壊率）
 - [x] Enemy Setup タブに敵スロット（[1][2][3]）を追加
-- [ ] 各敵ごとに入力セクションを動的生成
-  - 敵名 input
-  - 5属性ダメージレート（火氷雷闇光）× 各 input[type=number]
-  - 破壊率 input[type=number]
+- [x] 各敵ごとに入力セクションを動的生成（アクティブスロット切り替え方式）
+  - 敵名: プリセット select で選択（自由テキスト input の代わり）
+  - 9属性ダメージレート（斬/突/打/火/氷/雷/光/闇/無）× 各 input[type=number]
+  - 破壊率 input[type=number]（`max_d_rate` として実装）
 - [x] 実効倍率％ベースの属性耐性表示/入力と吸収 checkbox を追加する
 - [x] `max_d_rate` / 属性耐性 / 吸収を `BattleStateManager` の初期設定に反映する
 
-#### T16-B: 敵バフ/デバフ設定
+#### T16-B: 敵初期ステータス設定（Enemy Setup タブ）
+> **注意**: Break / Down / Dead は別経路で部分実装済みだが、Enemy Setup タブの「戦闘開始前初期状態設定」とは別物。
+> - Break: turn-row.js「討伐・ブレイクを編集」で手動ブレイク帰属あり（ターン内結果の記録）
+> - Down: エンジン（turn-controller.js `BreakDownTurn`）で計算・追跡済みだが、ui-next に表示なし
+> - Dead: turn-row.js 討伐ボタン（kill attribution）あり。`enemyStatuses` への Dead 設定は未実装
+> T16-B のスコープは「T1 開始前から E1 がすでに Break 状態」等の初期状態を Enemy Setup タブで入力する機能。
+
 - [ ] statusType select（Down/Break/StrongBreak/SuperDown/Dead）
 - [ ] ターン数 input（isPersistentEnemyStatus で永続判定）
 - [ ] 対象敵 select
 - [ ] 追加/削除操作と一覧表示（タグ形式）
+- [ ] `BattleStateManager` の初期 `enemyStatuses` に反映
 
 #### T16-C: 敵フィールド（Zone）設定
 - [ ] フィールド持ち checkbox
