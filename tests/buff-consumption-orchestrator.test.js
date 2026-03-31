@@ -67,6 +67,54 @@ test('PlayerTurnEnd型はTurnEnd/PlayerTurnEndでのみ消費する', () => {
   assert.equal(noConsumeAtSkill.shouldConsume, false);
 });
 
+test('EnemyTurnEnd型はTurnEnd/EnemyTurnEndでのみ消費する', () => {
+  const effect = createEffect({
+    statusType: 'AttackUp',
+    exitCond: 'EnemyTurnEnd',
+  });
+
+  const consumeAtTurnEnd = shouldConsume(effect, {
+    actionType: 'TurnEnd',
+    hasDamage: false,
+    turnPhase: 'EnemyTurnEnd',
+  });
+  const noConsumeAtPlayerTurnEnd = shouldConsume(effect, {
+    actionType: 'TurnEnd',
+    hasDamage: false,
+    turnPhase: 'PlayerTurnEnd',
+  });
+
+  assert.equal(consumeAtTurnEnd.shouldConsume, true);
+  assert.equal(noConsumeAtPlayerTurnEnd.shouldConsume, false);
+});
+
+test('PlayerTurnEnd型はTurnEndでもphase不一致なら消費しない', () => {
+  const effect = createEffect({
+    statusType: 'AttackUp',
+    exitCond: 'PlayerTurnEnd',
+  });
+
+  const result = shouldConsume(effect, {
+    actionType: 'TurnEnd',
+    hasDamage: false,
+    turnPhase: 'EnemyTurnEnd',
+  });
+
+  assert.equal(result.shouldConsume, false);
+});
+
+test('buildActionContext(TurnEnd)で生成したcontextでもEnemyTurnEnd型を消費判定できる', () => {
+  const effect = createEffect({
+    statusType: 'AttackUp',
+    exitCond: 'EnemyTurnEnd',
+  });
+  const context = buildActionContext('TurnEnd', null, { turnPhase: 'EnemyTurnEnd' });
+
+  const result = shouldConsume(effect, context);
+
+  assert.equal(result.shouldConsume, true);
+});
+
 test('Eternal型はManualでのみ消費する', () => {
   const effect = createEffect({
     statusType: 'BuffCharge',

@@ -1,8 +1,8 @@
 # バフ消費オーケストレータ Phase 3 実装レビュー
 
 **対象コミット**: `6078aa5` 以降（Phase 3 M1: Funnel/MindEye orchestrator接続・競合判定統合）
-**レビュー実施**: 2026-04-01
-**ステータス**: 🟢 進行中（M1 完了確認済み / M2・M3 は残課題）
+**レビュー実施**: 2026-03-31
+**ステータス**: 🟢 進行中（M1/M2 完了確認済み / 残課題は P3-08 とドキュメント同期）
 
 ---
 
@@ -16,7 +16,8 @@
 | P3-T02（Funnel/MindEye 回帰テスト） | ✅ 4テスト確認 |
 | P3-T03（AdditionalTurn 統合テスト） | ✅ 追加済み（EXターン中の消費/非消費を確認） |
 | P3-T04（EnemyTurnEnd 回帰テスト） | ✅ 追加済み（専用の残数減算テストを追加） |
-| P3-05 / P3-08（TurnEnd 移行・整理） | 🟡 未着手（WBS どおり） |
+| P3-05（TurnEnd 移行） | ✅ 実装・回帰確認済み |
+| P3-08（整理） | 🟡 未着手 |
 | P3-06（metadata 接続） | ✅ 実装・テスト反映済み |
 
 ---
@@ -127,10 +128,29 @@ import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain
 
 ---
 
-### 残課題: TurnEnd shouldConsume 経路移行（P3-05）
+### 対応済み⑤: TurnEnd shouldConsume 経路移行（P3-05）【完了】
 
-TurnEnd 系デクリメントの一部は `tickStatusEffectsByExitCond()` 直接呼び出しが残る。
-`ActionContext(TurnEnd)` 経由への段階移行を継続する。
+`src/turn/turn-controller.js` の TurnEnd 系デクリメントを `buildActionContext('TurnEnd', ...)` + `shouldConsume()` 経由へ移行。
+
+**反映内容**:
+- `applyTurnBasedStatusExpiry()`
+  - `tickStatusEffectsByExitCond('PlayerTurnEnd')` から predicate 版へ置換
+  - `actionType='TurnEnd'`, `turnPhase='PlayerTurnEnd'` で判定
+- `applyEnemyTurnEndDpEffects()`
+  - `tickStatusEffectsByExitCond('EnemyTurnEnd')` から predicate 版へ置換
+  - `actionType='TurnEnd'`, `turnPhase='EnemyTurnEnd'` で判定
+- `tickEnemyStatusDurations()`
+  - `shouldTickEnemyStatusOnTiming()` 内で `shouldConsume()` 判定を導入
+  - unknown/legacy `exitCond` は従来フォールバックを維持
+
+**テスト**:
+- `tests/buff-consumption-orchestrator.test.js`
+  - `EnemyTurnEnd型はTurnEnd/EnemyTurnEndでのみ消費する`
+  - `PlayerTurnEnd型はTurnEndでもphase不一致なら消費しない`
+- `tests/turn-state-transitions.test.js`
+  - `PlayerTurnEnd status expiry is applied only to members who acted this turn`
+  - `EnemyTurnEnd status expiry ticks for all active members on base turn advance`
+  - 既存回帰一式を `node --test tests/buff-consumption-orchestrator.test.js tests/turn-state-transitions.test.js` で通過確認
 
 ---
 
@@ -140,9 +160,9 @@ TurnEnd 系デクリメントの一部は `tickStatusEffectsByExitCond()` 直接
 |--------|--------|--------|-------------|------|
 | **完了** | P3-T03 | EX ターン中の Funnel/MindEye 消費統合テスト追加 | `tests/turn-state-transitions.test.js` | ✅ 完了 |
 | **完了** | P3-T04 | EnemyTurnEnd 回帰テスト追加 | `tests/turn-state-transitions.test.js` | ✅ 完了 |
-| **中** | P3-05 | TurnEnd デクリメントの `shouldConsume(TurnEnd)` 経由移行 | `src/turn/turn-controller.js`, `src/domain/character-style.js` | 🟡 |
+| **完了** | P3-05 | TurnEnd デクリメントの `shouldConsume(TurnEnd)` 経由移行 | `src/turn/turn-controller.js`, `src/domain/character-style.js` | ✅ 実装・回帰確認済み |
 | **完了** | P3-06 | `validateBuffMetadata()` の dev/strict モード有効化 | `src/turn/turn-controller.js` | ✅ 実装・回帰確認済み |
-| **低** | P3-08 | dead code 整理・コメント修正・import 整理 | `src/turn/turn-controller.js` | 🟡 P3-06 完了後 |
+| **低** | P3-08 | dead code 整理・コメント修正・import 整理 | `src/turn/turn-controller.js` | 🟡 次タスク |
 | **ドキュメント** | P3-D01 | Phase 3 実装方針更新 | `docs/active/buff_consumption_schema.md` | 🟢 |
 | **ドキュメント** | P3-D02 | `action_context_matrix.md` 差分確認 | `docs/active/action_context_matrix.md` | 🟡 |
 
@@ -158,5 +178,19 @@ TurnEnd 系デクリメントの一部は `tickStatusEffectsByExitCond()` 直接
 | AdditionalTurn shouldConsume 単体 | shouldConsume(actionType='AdditionalTurn') | `buff-consumption-orchestrator.test.js` | ✅ 単体のみ |
 | AdditionalTurn バトル遷移統合 | EX ターン中の Funnel/MindEye 消費 | `turn-state-transitions.test.js` | ✅ |
 | EnemyTurnEnd 回帰 | count 変化前後の検証 | `turn-state-transitions.test.js` | ✅ |
+| TurnEnd 判定（unit） | Player/Enemy phase の一致/不一致を検証 | `buff-consumption-orchestrator.test.js` | ✅ |
 | validateBuffMetadata strict | warning/strict の分岐と候補除外を検証 | `buff-consumption-orchestrator.test.js` | ✅ |
 | validateBuffMetadata strict（統合） | Funnel Count 候補が strict で非消費になることを検証 | `turn-state-transitions.test.js` | ✅ |
+
+---
+
+## 5. P3-05 コードレビュー
+
+→ [buff_consumption_p3_05_code_review.md](buff_consumption_p3_05_code_review.md)
+
+ブロッカーなし。P3-08 向け指摘 3 件（FIND-1〜3）を記載。
+
+2026-03-31 追記: FIND-1〜3 は以下で対応済み。
+- FIND-1: TurnEnd 2経路の冗長プレフィルタを削除し `shouldConsume` 判定に一本化
+- FIND-2: `shouldTickEnemyStatusOnTiming` に remaining<=0 時の legacy fallback 意図をコメント明記
+- FIND-3: `buildActionContext('TurnEnd', ...)` を経由する unit test を追加

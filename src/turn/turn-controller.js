@@ -3063,6 +3063,7 @@ function applyDpEffectsFromActions(state, previewRecord) {
 
 function applyEnemyTurnEndDpEffects(party = []) {
   const events = [];
+  const actionContext = buildActionContext('TurnEnd', null, { turnPhase: 'EnemyTurnEnd' });
 
   for (const member of party) {
     const regenEffects = member
@@ -3071,7 +3072,9 @@ function applyEnemyTurnEndDpEffects(party = []) {
     const regenEffectById = new Map(
       regenEffects.map((effect) => [Number(effect.effectId ?? 0), structuredClone(effect)])
     );
-    const tickedEffects = member.tickStatusEffectsByExitCond('EnemyTurnEnd');
+    const tickedEffects = member.tickStatusEffectsWhere(
+      (effect) => shouldConsume(effect, actionContext).shouldConsume
+    );
     if (regenEffectById.size === 0) {
       continue;
     }
@@ -4411,7 +4414,28 @@ function shouldTickEnemyStatusOnTiming(status, timing) {
   if (isEnemyStatusPersistent(status)) {
     return false;
   }
+
   const normalizedTiming = String(timing ?? '').trim();
+  const actionContext = buildActionContext('TurnEnd', null, {
+    turnPhase: normalizedTiming === 'PlayerTurnEnd' ? 'PlayerTurnEnd' : 'EnemyTurnEnd',
+  });
+  const consumeResult = shouldConsume(
+    {
+      statusType: String(status?.statusType ?? 'EnemyStatus'),
+      limitType: 'Default',
+      exitCond: String(status?.exitCond ?? ''),
+      remaining: Number(status?.remainingTurns ?? 0),
+      metadata: {},
+    },
+    actionContext
+  );
+  if (consumeResult.shouldConsume) {
+    return true;
+  }
+
+  // Unknown/legacy exitCond は既存挙動を維持する（PlayerTurnEnd 以外は enemy timing で減算）。
+  // ここでは remaining<=0 の known exitCond でも fallback が true になる可能性があるが、
+  // 実際の削除可否は tickEnemyStatusDurations 側の remainingTurns 判定で従来どおり決定される。
   const exitCond = String(status?.exitCond ?? '').trim();
   if (normalizedTiming === 'PlayerTurnEnd') {
     return exitCond === 'PlayerTurnEnd';
@@ -7147,6 +7171,7 @@ function updateReinforcedModeStateAfterTurn(state) {
 function applyTurnBasedStatusExpiry(state, previewRecord) {
   const processed = new Set();
   const events = [];
+  const actionContext = buildActionContext('TurnEnd', null, { turnPhase: 'PlayerTurnEnd' });
   for (const actionEntry of previewRecord.actions ?? []) {
     const characterId = String(actionEntry?.characterId ?? '');
     if (!characterId || processed.has(characterId)) {
@@ -7158,7 +7183,9 @@ function applyTurnBasedStatusExpiry(state, previewRecord) {
     if (!member) {
       continue;
     }
-    const ticked = member.tickStatusEffectsByExitCond('PlayerTurnEnd');
+    const ticked = member.tickStatusEffectsWhere(
+      (effect) => shouldConsume(effect, actionContext).shouldConsume
+    );
     for (const item of ticked) {
       events.push({ characterId, ...item });
     }
