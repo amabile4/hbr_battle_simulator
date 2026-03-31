@@ -1,35 +1,35 @@
-# UI Parallel Development Interface Spec (DOM Adapter + Engine)
+# UI Parallel Development Interface Spec (Shared UI Modules + Engine)
 
-> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-08
-- Scope: `src/ui` + `src/turn` integration contract for parallel GUI development
-- Target reader: AI agents and developers implementing UI in parallel
+> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-31
+- Scope: `src/ui` shared modules + `src/turn` / `ui-next` integration contract
+- Target reader: AI agents and developers implementing `ui-next/` or shared engine-adjacent UI helpers
 
 ## 1. Current Architecture (Implemented)
 
-The UI layer is now split into 3 layers.
+The legacy top-level `ui/` surface and DOM controller chain are removed from live code. The current UI architecture is split into 2 responsibilities.
+
+1. `ui-next/`
+- Canonical UI surface and browser entry
+- Owns components, controller flow, selectors, and browser-only interaction behavior
+
+2. `src/ui/`
+- Shared, DOM-independent modules reused by `ui-next/` and tests
+- Public surface is limited to the files that still exist in the working tree
+
+Current shared modules:
 
 1. `src/ui/adapter-core.js`
-- DOM-independent pure core helpers
 - Battle initialization snapshot build
-- preview/commit wrappers
-- swap state mutation wrappers
-- CSV/JSON export wrappers
+- preview/commit wrappers around `src/turn/turn-controller.js`
+- record export helpers and status normalization used by `ui-next`
 
-2. `src/ui/battle-adapter-facade.js`
-- State transition facade (no DOM rendering)
-- Holds battle/session state
-- Uses `adapter-core` to mutate/advance state
+2. `src/ui/lightweight-replay-script.js`
+- Replay script schema and constants
+- setup / override normalization helpers shared across turn editing flows
 
-3. `src/ui/dom-view.js`
-- DOM update/view utility only
-- Status/output writing and scenario status rendering
-- DOM value setter
-
-4. `src/ui/dom-adapter.js`
-- Orchestrator/controller
-- Event binding and UI flow
-- Delegates engine/state transitions to `BattleAdapterFacade`
-- Delegates DOM output to `BattleDomView`
+3. `src/ui/style-asset-url.js`
+- Shared asset URL resolver for style and UI icons
+- Used by `ui-next` components and exported from `src/index.js`
 
 ## 2. Independence Evaluation
 
@@ -37,19 +37,19 @@ The UI layer is now split into 3 layers.
 
 Yes. Parallel work is practical if teams follow the fixed contracts below.
 
-- Engine/state logic is isolated into facade/core (`adapter-core`, `battle-adapter-facade`)
-- DOM rendering is isolated into `dom-view`
-- `dom-adapter` remains integration/controller
+- Engine/state logic is isolated in `src/turn/` and exposed through `src/ui/adapter-core.js`
+- Replay schema and setup/override contracts are isolated in `src/ui/lightweight-replay-script.js`
+- Visual layout, selectors, and interaction code are isolated in `ui-next/`
 
 ### 2.2 Remaining coupling
 
-- `dom-adapter` still expects fixed `data-role` / `data-action` selectors
-- Existing tests validate current selector contract and behavior
+- `style-asset-url.js` currently resolves relative to the repository asset layout, so moving `src/ui/` would require coordinated path updates
+- Existing tests validate the shared module behavior and `ui-next` integration points
 
 Conclusion:
 
-- For short-term parallel GUI development, keep selector contract and replace visual layout/CSS freely
-- For long-term complete decoupling, use `adapter-core` + engine directly with a custom view/controller
+- For current GUI development, implement behavior directly in `ui-next/` and reuse only the shared modules in `src/ui/`
+- Treat removed DOM-adapter era files as archive-only reference, not as live extension points
 
 ## 3. Engine Interface (Main Entry Points)
 
@@ -75,49 +75,11 @@ From `src/turn/turn-controller.js`:
 - Input: allowed actor IDs
 - Output: extra-turn state
 
-## 4. Facade Interface (`BattleAdapterFacade`)
-
-`src/ui/battle-adapter-facade.js`
-
-1. `initializeBattleState(options)`
-- Builds party/state and resets runtime records
-
-2. `queueSwapInState(fromPositionIndex, toPositionIndex)`
-- Applies swap directly to state party positions
-- Returns swap event payload
-
-3. `previewCurrentTurnState({ actions, enemyAction, enemyCount, options })`
-- Stores and returns `previewRecord`
-
-4. `commitCurrentTurnState(options)`
-- Commits from current `previewRecord`
-- Updates state, records, turn plan arrays
-
-5. `clearRecordsState()`
-- Clears records and turn-plan replay artifacts
-
-6. `exportCsvState()` / `exportRecordsJsonState()`
-- Export text payloads
-
-## 5. View Interface (`BattleDomView`)
-
-`src/ui/dom-view.js`
-
-1. `setStatus(message)`
-2. `writePreviewOutput(text)`
-3. `writeCsvOutput(text)`
-4. `writeRecordsJsonOutput(text)`
-5. `renderScenarioStatus({ scenario, cursor, stagedTurnIndex })`
-6. `setDomValue(selector, value)`
-
-Rule:
-- `BattleDomView` should only perform DOM read/write helpers and simple display formatting.
-
-## 6. Legacy DOM Selector Contract (Archived)
+## 4. Legacy DOM Selector Contract (Archived)
 
 旧 DOM controller は廃止済みであり、以下は historical note としてのみ残す。`ui-next/` の通常開発では互換対象にしない。
 
-### 6.1 Required action selectors
+### 4.1 Required action selectors
 
 - `[data-action="initialize"]`
 - `[data-action="preview"]`
@@ -134,7 +96,7 @@ Rule:
 - `[data-action="scenario-run-next"]`
 - `[data-action="scenario-run-all"]`
 
-### 6.2 Required role selectors
+### 4.2 Required role selectors
 
 - `[data-role="style-slots"]`
 - `[data-role="action-slots"]`
@@ -156,7 +118,7 @@ Note:
 - 削除済み legacy page の selector 契約メモであり、現行 UI の canonical sample ではない。
 - Visual style/theme を変えても、`ui-next` で必要な selector はそのコンポーネント内で閉じて管理する。
 
-## 7. Parallel Development Guide for AI Agents
+## 5. Parallel Development Guide for AI Agents
 
 1. Keep shared logic in `adapter-core`, `lightweight-replay-script`, `style-asset-url`
 2. Keep `ui-next` 固有の controller / component / selector contract は `ui-next/` 配下へ閉じる
@@ -170,7 +132,7 @@ node --test tests/*.test.js
 
 When browser behavior is the point of the change, also run the relevant Playwright spec(s).
 
-## 8. Current Independence Status
+## 6. Current Independence Status
 
 Status: legacy hard cutover 後の current state.
 
@@ -187,4 +149,4 @@ Status: legacy hard cutover 後の current state.
 3. Current recommendation
 - Implement new UI behavior directly in `ui-next/`
 - Reuse only the shared modules above
-- Treat Section 6 as archive-only reference
+- Treat Section 4 as archive-only reference

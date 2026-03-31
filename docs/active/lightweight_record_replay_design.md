@@ -1,6 +1,6 @@
 # 軽量 Record / Replay / Edit 設計案
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-03-28
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-03-31
 >
 > **前提調査**: [`../20260314_record_replay_edit_investigation/README.md`](../20260314_record_replay_edit_investigation/README.md)
 
@@ -21,6 +21,20 @@
 - stale special turn の圧縮は safe subset のみ実装済み
   - 直前 turn の再計算結果で OD / EX 継続が確実に消えた場合だけ後続 special turn を削除
   - break 継続や複合 override を跨ぐケースは warning に寄せて温存する
+
+## Session JSON の実装上の扱い（2026-03-31 時点）
+
+- 読み込みは `normalizeSessionSnapshot()` の既知フィールドのみを採用する
+  - `setup`
+  - `simulatorSettings`
+  - `validationPolicy`
+  - `replayScript`
+- `record` / `computedRecords` 相当の実行結果は保存物に含まれていても読み込みには使わない
+- セッション保存時は `decorateSessionSnapshotForHumans()` により目視確認向けの補助情報を付与する
+  - `styleName` / `characterName` / `skillName`
+  - `spAtTurnStart` / `spAtActionStart`
+  - `info.spAtTurnStartByStyleId` / `info.spAtActionStartByStyleId`
+- これら補助情報は UI で JSON を目視するときの参照用であり、読み込み処理では無視される
 
 ## まず結論
 
@@ -351,6 +365,10 @@ actionsByPosition[6]
 `record` を編集正本にしない。
 `record` から replay しない。
 常に `ReplayScript` から再生成する。
+
+補足:
+
+- Session JSON に `record` 相当の情報や人間向け補助フィールドが含まれていても、load 経路は `ReplayScript` を唯一の入力として扱う
 
 ## manual state の扱い
 

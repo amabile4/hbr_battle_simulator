@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-30
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-31
 
 ## 目的
 
@@ -11,8 +11,10 @@
 ## 前提
 
 - 旧 `ui/` surface は廃止済みとし、UI 実装の正本は `ui-next/` のみとする
+- top-level `ui/` ディレクトリは hard cutover 時点で作業ツリーから削除済みであり、archive への追加移動対象は残っていない
 - 新 UI は別ルートで構築し、既存 UI と直接結合しない
 - 共通で使う asset / resolver / contract は `main` に戻せる形で設計する
+- `src/ui/` に残る `adapter-core.js` / `lightweight-replay-script.js` / `style-asset-url.js` は `ui-next/` が利用する shared module であり、legacy archive 扱いにはしない
 - style 画像の正本は [assets/styles](../../assets/styles) に置く
 - style 画像の参照は [src/ui/style-asset-url.js](../../src/ui/style-asset-url.js) を通す
 - 過去に作成した GUI モックとレイアウト資料は [ui_next_gui_design_spec.md](ui_next_gui_design_spec.md) と [ui_next_mockup_light.png](ui_next_mockup_light.png) を参照資料として引き継ぐ
