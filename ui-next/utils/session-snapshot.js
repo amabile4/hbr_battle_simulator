@@ -138,6 +138,33 @@ function normalizeSpMap(values = {}) {
   return result;
 }
 
+function buildSpMapByCharacterName(spByStyleId = {}, styleIds = [], characterNames = []) {
+  const result = {};
+  const styleIdToCharacterName = new Map();
+  const safeStyleIds = Array.isArray(styleIds) ? styleIds : [];
+  const safeCharacterNames = Array.isArray(characterNames) ? characterNames : [];
+
+  for (let index = 0; index < PARTY_SIZE; index += 1) {
+    const styleId = Number(safeStyleIds[index]);
+    const characterName = String(safeCharacterNames[index] ?? '').trim();
+    if (!Number.isFinite(styleId) || !characterName) {
+      continue;
+    }
+    styleIdToCharacterName.set(String(styleId), characterName);
+  }
+
+  for (const [styleId, sp] of Object.entries(spByStyleId)) {
+    const characterName = styleIdToCharacterName.get(String(styleId));
+    const numericSp = Number(sp);
+    if (!characterName || !Number.isFinite(numericSp)) {
+      continue;
+    }
+    result[characterName] = numericSp;
+  }
+
+  return result;
+}
+
 /**
  * 保存JSON向けに人間可読の補助情報を付与する。
  * 読み込み処理は normalizeSessionSnapshot が既知フィールドのみを採用するため、
@@ -191,6 +218,16 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
   decorated.replayScript.turns = decorated.replayScript.turns.map((turn, turnIndex) => {
     const spAtTurnStartByStyleId = normalizeSpMap(getTurnStartSpByStyleId(turnIndex));
     const spAtActionStartByStyleId = normalizeSpMap(getTurnPostSkillSpByStyleId(turnIndex));
+    const spAtTurnStartByName = buildSpMapByCharacterName(
+      spAtTurnStartByStyleId,
+      decorated.replayScript.setup.styleIds,
+      decorated.replayScript.setup.characterNames
+    );
+    const spAtActionStartByName = buildSpMapByCharacterName(
+      spAtActionStartByStyleId,
+      decorated.replayScript.setup.styleIds,
+      decorated.replayScript.setup.characterNames
+    );
     const slots = (Array.isArray(turn.slots) ? turn.slots : []).map((slot) => {
       const styleId = Number(slot?.styleId);
       const skillId = Number(slot?.skillId);
@@ -214,6 +251,8 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
       info: {
         spAtTurnStartByStyleId,
         spAtActionStartByStyleId,
+        spAtTurnStartByName,
+        spAtActionStartByName,
       },
     };
   });

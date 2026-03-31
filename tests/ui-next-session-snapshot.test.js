@@ -126,6 +126,13 @@ test('decorateSessionSnapshotForHumans adds names and turn/action SP metadata', 
   assert.equal(decorated.replayScript.turns[0].slots[1].spAtActionStart, null);
   assert.deepEqual(decorated.replayScript.turns[0].info.spAtTurnStartByStyleId, { '1001': 12, '1002': 9 });
   assert.deepEqual(decorated.replayScript.turns[0].info.spAtActionStartByStyleId, { '1001': 4 });
+  assert.deepEqual(decorated.replayScript.turns[0].info.spAtTurnStartByName, {
+    '茅森 月歌': 12,
+    '和泉 ユキ': 9,
+  });
+  assert.deepEqual(decorated.replayScript.turns[0].info.spAtActionStartByName, {
+    '茅森 月歌': 4,
+  });
 });
 
 test('normalizeSessionSnapshot ignores additional human-readable fields', () => {
