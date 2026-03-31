@@ -95,6 +95,32 @@ function pickTopStatusEffectsByPower(effects, limit) {
     .slice(0, max);
 }
 
+function escapeHtmlAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildBuffIconImgHtml({ iconUrl = '', alt = '', title = '' } = {}) {
+  const src = String(iconUrl ?? '').trim();
+  if (!src) {
+    return '';
+  }
+  const altText = escapeHtmlAttr(alt);
+  const titleText = String(title ?? '').trim();
+  const titleAttr = titleText ? ` title="${escapeHtmlAttr(titleText)}"` : '';
+  return `<img src="${escapeHtmlAttr(src)}" alt="${altText}" class="buff-icon"${titleAttr} />`;
+}
+
+function normalizeExtraIcons(icons) {
+  if (!Array.isArray(icons)) {
+    return [];
+  }
+  return icons.filter((icon) => icon && typeof icon === 'object');
+}
+
 function isCountLikeEffect(effect) {
   if (String(effect?.limitType ?? '') === 'Only') {
     return false;
@@ -137,8 +163,20 @@ export function getDisplayableBuffs(statusEffects) {
  * @returns {string}
  */
 export function buildBuffListHtml(statusEffects) {
+  return buildBuffListHtmlWithExtras(statusEffects, {});
+}
+
+/**
+ * statusEffects 由来のアイコンに加え、外部状態（例: 鬼神化/行動不能）を
+ * 同じ .buff-icon-list に合流させる。
+ * @param {Array} statusEffects
+ * @param {{ prependIcons?: Array<{iconUrl: string, alt?: string, title?: string}>, appendIcons?: Array<{iconUrl: string, alt?: string, title?: string}> }} options
+ * @returns {string}
+ */
+export function buildBuffListHtmlWithExtras(statusEffects, options = {}) {
+  const prependIcons = normalizeExtraIcons(options?.prependIcons);
+  const appendIcons = normalizeExtraIcons(options?.appendIcons);
   const activeBuffs = getDisplayableBuffs(statusEffects);
-  if (activeBuffs.length === 0) return '';
 
   // statusType ごとにグループ化
   const byType = new Map();
@@ -149,6 +187,19 @@ export function buildBuffListHtml(statusEffects) {
 
   const parts = [];
   let iconCount = 0;
+
+  for (const icon of prependIcons) {
+    if (iconCount >= MAX_TOTAL_BUFF_ICONS) {
+      break;
+    }
+    const iconHtml = buildBuffIconImgHtml(icon);
+    if (!iconHtml) {
+      continue;
+    }
+    parts.push(iconHtml);
+    iconCount += 1;
+  }
+
   const orderedStatusTypes = [...byType.keys()].sort((a, b) => {
     return (DISPLAY_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
       (DISPLAY_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER);
@@ -173,6 +224,42 @@ export function buildBuffListHtml(statusEffects) {
     }
   }
 
+  for (const icon of appendIcons) {
+    if (iconCount >= MAX_TOTAL_BUFF_ICONS) {
+      break;
+    }
+    const iconHtml = buildBuffIconImgHtml(icon);
+    if (!iconHtml) {
+      continue;
+    }
+    parts.push(iconHtml);
+    iconCount += 1;
+  }
+
   if (parts.length === 0) return '';
   return `<div class="buff-icon-list">${parts.join('')}</div>`;
+}
+
+export function buildActionDisabledIconEntry(actionDisabledTurns) {
+  if (!(Number(actionDisabledTurns) > 0)) return null;
+  const iconUrl = resolveSkillTypeIconUrl('RecoilRandom');
+  if (!iconUrl) return null;
+  return {
+    iconUrl,
+    alt: '行動不能',
+    title: `行動不能: 残${Number(actionDisabledTurns)}T`,
+  };
+}
+
+/**
+ * actionDisabledTurns > 0 のとき RecoilRandom アイコンを buff-icon-list と同じ形式で返す。
+ * engine は鬼神化終了の行動不能を statusEffects ではなく専用カウンターで管理するため、
+ * buff-display の通常経路では表示されない。このヘルパーで補完する。
+ * @param {number} actionDisabledTurns
+ * @returns {string}
+ */
+export function buildActionDisabledIconHtml(actionDisabledTurns) {
+  const entry = buildActionDisabledIconEntry(actionDisabledTurns);
+  if (!entry) return '';
+  return buildBuffListHtmlWithExtras([], { prependIcons: [entry] });
 }

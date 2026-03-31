@@ -20,7 +20,7 @@ import {
   getReplayOperationDisplayLabel,
   getReplayOperationTone,
 } from '../utils/replay-operation-presentation.js';
-import { buildBuffListHtml } from '../utils/buff-display.js';
+import { buildBuffListHtmlWithExtras, buildActionDisabledIconEntry } from '../utils/buff-display.js';
 import { openCharDetailPopup } from '../utils/char-detail-popup.js';
 import {
   ACTION_OUTCOME_TYPES,
@@ -1907,7 +1907,28 @@ export class TurnRowController {
     const tokenCurrent  = isCommitted ? (snapEntry?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
     const tokenMax      = isCommitted ? (snapEntry?.tokenState?.max      ?? 10) : (member.tokenState?.max      ?? 10);
     const moraleCurrent = isCommitted ? (snapEntry?.moraleState?.current ?? 0) : (member.moraleState?.current ?? 0);
-    const buffListHtml  = buildBuffListHtml(isCommitted ? (snapEntry?.statusEffects ?? []) : (member.statusEffects ?? []));
+    const statusEffectsDisplay = isCommitted ? (snapEntry?.statusEffects ?? []) : (member.statusEffects ?? []);
+    const isReinforcedModeDisplay = isCommitted ? Boolean(snapEntry?.isReinforcedMode) : Boolean(member.isReinforcedMode);
+    const reinforcedTurnsRemainingDisplay = isCommitted
+      ? Number(snapEntry?.reinforcedTurnsRemaining ?? 0)
+      : Number(member.reinforcedTurnsRemaining ?? 0);
+    const actionDisabledTurnsDisplay = isCommitted ? (snapEntry?.actionDisabledTurns ?? 0) : (member.actionDisabledTurns ?? 0);
+    const actionDisabledIconEntry = buildActionDisabledIconEntry(actionDisabledTurnsDisplay);
+    const extraStatusIcons = [
+      ...(isReinforcedModeDisplay
+        ? [{
+            iconUrl: resolveUiAssetUrl('Reinforce.webp'),
+            alt: '鬼神化中',
+            title: `鬼神化中: 残${reinforcedTurnsRemainingDisplay}T`,
+          }]
+        : []),
+      ...(actionDisabledIconEntry
+        ? [actionDisabledIconEntry]
+        : []),
+    ];
+    const buffListHtml = buildBuffListHtmlWithExtras(statusEffectsDisplay, {
+      prependIcons: extraStatusIcons,
+    });
     const spColor = typeof spDisplay === 'number' && spDisplay < 0 ? '#ef4444' : '#ffffff';
     // コミット済み: record から復元 / 未コミット: D&D 後の保存値（partyIndex キー）→ なければ先頭スキル
     // TODO: skills[0] が通常攻撃/指揮行動であることは JSON 挿入順への暗黙依存。
@@ -2177,13 +2198,11 @@ export class TurnRowController {
     let kishinkaHtml = '';
     if (ks.hasTezuka) {
       if (ks.isActive) {
-        kishinkaHtml = `<div class="flex items-center justify-center text-center text-[9px] leading-tight text-purple-700 font-semibold bg-purple-100 border border-purple-300 rounded px-0.5 py-0.5">
-          鬼神化中<br>残${ks.turnsRemaining}T
-        </div>`;
+        // 鬼神化中表示は slot-info-space の通常状態変化エリアへ統一する。
+        kishinkaHtml = '';
       } else if (ks.actionDisabledTurns > 0) {
-        kishinkaHtml = `<div class="flex items-center justify-center text-center text-[9px] leading-tight text-gray-500 bg-gray-100 border border-gray-300 rounded px-0.5 py-0.5">
-          行動不能<br>残${ks.actionDisabledTurns}T
-        </div>`;
+        // 行動不能表示は slot-info-space の通常状態変化エリアへ統一する。
+        kishinkaHtml = '';
       } else {
         const kActive = Boolean(ks.activePending);
         kishinkaHtml = `<button data-role="kishinka-btn"
@@ -2624,6 +2643,9 @@ export class TurnRowController {
           member,
           {
             statusEffects: snapEntry?.statusEffects ?? member.statusEffects ?? [],
+            isReinforcedMode: snapEntry?.isReinforcedMode ?? member.isReinforcedMode ?? false,
+            reinforcedTurnsRemaining: snapEntry?.reinforcedTurnsRemaining ?? member.reinforcedTurnsRemaining ?? 0,
+            actionDisabledTurns: snapEntry?.actionDisabledTurns ?? member.actionDisabledTurns ?? 0,
             passiveEvents:
               this.#record?.passiveEvents ??
               this.#stateBefore?.turnState?.passiveEventsLastApplied ??

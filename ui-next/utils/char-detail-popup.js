@@ -61,6 +61,8 @@ function buildHeaderIconsHtml(member) {
 // バフ種別ラベル（正式名称）
 // ============================================================
 const STATUS_LABELS = {
+  Reinforce:                 '鬼神化中',
+  ActionDisabled:            '行動不能',
   // 攻撃・防御
   AttackUp:                  '攻撃力アップ',
   AttackDown:                '攻撃力ダウン',
@@ -217,11 +219,38 @@ function buildEffectDisplayInfo(effect) {
 // ============================================================
 
 /** 状態変化詳細タブ — バフ/デバフ 1件1ブロック */
-function buildStatusTabHtml(statusEffects) {
-  if (!Array.isArray(statusEffects) || statusEffects.length === 0) {
+function buildSpecialStatusEffects({ isReinforcedMode = false, reinforcedTurnsRemaining = 0, actionDisabledTurns = 0 } = {}) {
+  const special = [];
+  if (Boolean(isReinforcedMode)) {
+    special.push({
+      statusType: 'Reinforce',
+      remaining: Math.max(1, Number(reinforcedTurnsRemaining ?? 0)),
+      exitCond: 'Turn',
+      sourceSkillDesc: '鬼神化中',
+      iconUrl: resolveUiAssetUrl('Reinforce.webp'),
+    });
+  }
+  if (Number(actionDisabledTurns ?? 0) > 0) {
+    special.push({
+      statusType: 'ActionDisabled',
+      remaining: Number(actionDisabledTurns ?? 0),
+      exitCond: 'Turn',
+      sourceSkillDesc: '行動不能',
+      iconUrl: resolveSkillTypeIconUrl('RecoilRandom'),
+    });
+  }
+  return special;
+}
+
+function buildStatusTabHtml(statusEffects, options = {}) {
+  const mergedEffects = [
+    ...buildSpecialStatusEffects(options),
+    ...(Array.isArray(statusEffects) ? statusEffects : []),
+  ];
+  if (mergedEffects.length === 0) {
     return '<p class="char-popup-empty">なし</p>';
   }
-  const activeEffects = statusEffects.filter((e) => {
+  const activeEffects = mergedEffects.filter((e) => {
     if (String(e?.exitCond ?? '') === 'Eternal') return true;
     return Number(e?.remaining ?? 0) > 0;
   });
@@ -246,7 +275,7 @@ function buildStatusTabHtml(statusEffects) {
       const sourceCharName = String(effect.sourceCharacterName ?? '').trim();
       const titleParts = [label, powerStr, skillName ? `[${skillName}]` : '', sourceCharName ? `(${sourceCharName})` : ''].filter(Boolean);
 
-      const iconUrl = resolveSkillTypeIconUrl(effect.statusType);
+      const iconUrl = String(effect?.iconUrl ?? '').trim() || resolveSkillTypeIconUrl(effect.statusType);
       return (
         `<div class="char-popup-buff-block">` +
         `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">${iconUrl ? `<img src="${iconUrl}" alt="${esc(String(effect.statusType ?? ''))}" />` : ''}</div>` +
@@ -419,7 +448,19 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
   const statusEffects = stateOrRecord?.statusEffects ?? member?.statusEffects ?? [];
   const passiveEvents = stateOrRecord?.passiveEvents ?? [];
 
-  popup.querySelector('[data-tab-panel="status"]').innerHTML = buildStatusTabHtml(statusEffects);
+  const isReinforcedMode = Boolean(stateOrRecord?.isReinforcedMode ?? member?.isReinforcedMode);
+  const reinforcedTurnsRemaining = Number(
+    stateOrRecord?.reinforcedTurnsRemaining ?? member?.reinforcedTurnsRemaining ?? 0
+  );
+  const actionDisabledTurns = Number(
+    stateOrRecord?.actionDisabledTurns ?? member?.actionDisabledTurns ?? 0
+  );
+
+  popup.querySelector('[data-tab-panel="status"]').innerHTML = buildStatusTabHtml(statusEffects, {
+    isReinforcedMode,
+    reinforcedTurnsRemaining,
+    actionDisabledTurns,
+  });
   popup.querySelector('[data-tab-panel="ability"]').innerHTML = buildAbilityTabHtml(member);
   popup.querySelector('[data-tab-panel="passive"]').innerHTML = buildPassiveTabHtml(member, passiveEvents);
   popup.querySelector('[data-tab-panel="field"]').innerHTML = buildFieldTabHtml(stateOrRecord);
