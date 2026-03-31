@@ -9994,9 +9994,18 @@ export function previewTurn(state, actions, enemyAction = null, enemyCount = 1, 
     projectedState,
     computeTranscendenceTurnSummary(projectedState, record)
   );
+  const spAfterActionByPartyIndex = {};
+  for (const member of projectedState.party) {
+    const pi = Number(member.partyIndex);
+    if (Number.isInteger(pi)) {
+      spAfterActionByPartyIndex[pi] = member.sp.current;
+    }
+  }
+
   record.projections = {
     odGaugeAtEnd: Number(projectedState.turnState.odGauge ?? 0),
     transcendence: transcendenceSummary,
+    spAfterActionByPartyIndex,
   };
 
   return record;

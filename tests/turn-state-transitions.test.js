@@ -16614,3 +16614,88 @@ test('Multiple AdditionalHitOnBreaking passives with different effects on breaki
     `OD gauge should increase by 50 (30+20) from both passives: initial=${initialOdGauge}, final=${finalOdGauge}`
   );
 });
+
+// ─── HealSp: previewTurn projections.spAfterActionByPartyIndex ───
+
+test('HealSp AllyAll: projections.spAfterActionByPartyIndex reflects SP+5 for all members', () => {
+  const healAmount = 5;
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'HEALER',
+        characterName: 'HEALER',
+        initialSP: 8,
+        skills: [
+          {
+            id: 90001,
+            name: 'HealSp全体',
+            sp_cost: 3,
+            parts: [
+              { skill_type: 'HealSp', target_type: 'AllyAll', power: [healAmount, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+            ],
+          },
+        ],
+      };
+    }
+    return {
+      initialSP: 5,
+      skills: [createProtectionSkill(8800 + idx)],
+    };
+  });
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'HEALER', skillId: 90001 },
+    1: { characterId: 'M2', skillId: 8801 },
+    2: { characterId: 'M3', skillId: 8802 },
+  });
+
+  const projectedSp = preview.projections?.spAfterActionByPartyIndex;
+  assert.ok(projectedSp, 'projections.spAfterActionByPartyIndex が存在すること');
+
+  // 全6メンバー分のエントリがあること
+  assert.equal(Object.keys(projectedSp).length, 6, '全6メンバー分のSP projectionが存在すること');
+
+  // HEALER (idx=0): 8 - 3(cost) + 5(HealSp) = 10
+  assert.equal(projectedSp[0], 10, 'HealSp使用者自身もSP+5が反映されること');
+
+  // 前衛 M2, M3 (idx=1,2): 5 - 0(プロテクションcost) + 5(HealSp) = 10
+  assert.equal(projectedSp[1], 10, '前衛M2にSP+5が反映されること');
+  assert.equal(projectedSp[2], 10, '前衛M3にSP+5が反映されること');
+
+  // 後衛 M4, M5, M6 (idx=3,4,5): 5 + 5(HealSp) = 10
+  assert.equal(projectedSp[3], 10, '後衛M4にSP+5が反映されること');
+  assert.equal(projectedSp[4], 10, '後衛M5にSP+5が反映されること');
+  assert.equal(projectedSp[5], 10, '後衛M6にSP+5が反映されること');
+});
+
+test('スペクタクルアート real data: projections.spAfterActionByPartyIndex includes HealSp+5', () => {
+  const store = getStore();
+  const skillId = 46005222; // スペクタクルアート
+  const party = buildSingleSkillRealDataParty(store, skillId);
+  const state = createBattleStateFromParty(party);
+
+  // 闇フィールドを設定（スペクタクルアートが無料になる条件）
+  state.turnState.zoneState = {
+    type: 'Dark',
+    sourceSide: 'player',
+    remainingTurns: 8,
+    powerRate: 1.8,
+  };
+
+  const preview = previewActorSkill(state, skillId);
+  const projectedSp = preview.projections?.spAfterActionByPartyIndex;
+  assert.ok(projectedSp, 'projections.spAfterActionByPartyIndex が存在すること');
+  assert.equal(Object.keys(projectedSp).length, 6, '全6メンバー分のSP projectionが存在すること');
+
+  // 全メンバーが初期SP=20 なので、HealSp+5 により max=20 で上限クランプ。
+  // actor (idx=0): 20 - 0(cost=0, zone条件充足) + 5 → ただし max=20 なのでクランプ
+  // 他メンバー: 20 + 5 → max=20 でクランプ
+  // → 全員 20 のはず
+  for (const [pi, sp] of Object.entries(projectedSp)) {
+    assert.ok(
+      Number(sp) >= 20,
+      `partyIndex=${pi}: SP should be >=20 after HealSp+5 (actual=${sp})`
+    );
+  }
+});

@@ -1334,9 +1334,21 @@ export class TurnRowController {
   }
 
   #resolveDisplayedSpFromAction(recordAction) {
-    const costChange = Array.isArray(recordAction?.spChanges)
-      ? recordAction.spChanges.find((change) => change?.source === 'cost' && Number.isFinite(Number(change?.postSP)))
-      : null;
+    // HealSp等のスキル効果を反映した最終SP値を返す。
+    // spChanges に sp_skill（HealSp回復）が含まれる場合は最終 postSP を使用し、
+    // 含まれない場合は従来通り costChange.postSP にフォールバックする。
+    const changes = Array.isArray(recordAction?.spChanges) ? recordAction.spChanges : [];
+    const hasSkillSpChange = changes.some((c) => c?.source === 'sp_skill');
+    if (hasSkillSpChange) {
+      // sp_skill（HealSp等）を含む場合: 全spChanges中の最終postSPを使用
+      const lastChange = changes.filter((c) => Number.isFinite(Number(c?.postSP))).at(-1);
+      if (lastChange) {
+        return Number(lastChange.postSP);
+      }
+    }
+    const costChange = changes.find(
+      (change) => change?.source === 'cost' && Number.isFinite(Number(change?.postSP))
+    );
     const costPostSp = Number(costChange?.postSP);
     if (Number.isFinite(costPostSp)) {
       return costPostSp;
@@ -1351,9 +1363,15 @@ export class TurnRowController {
     }
 
     if (isCommitted) {
+      // 行動キャラ: recordAction から取得
       const displayedSp = this.#resolveDisplayedSpFromAction(recordAction);
       if (Number.isFinite(displayedSp)) {
         return displayedSp;
+      }
+      // 非行動キャラ: projections があれば HealSp 等の効果反映済みSPを使用
+      const projectedSp = Number(this.#record?.projections?.spAfterActionByPartyIndex?.[member.partyIndex]);
+      if (Number.isFinite(projectedSp)) {
+        return projectedSp;
       }
       return this.#getRecordSnapEntry(member.partyIndex)?.sp?.current ?? '—';
     }

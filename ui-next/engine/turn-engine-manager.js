@@ -1337,6 +1337,20 @@ export class TurnEngineManager {
   }
 
   #buildPreviewResourceState(previewRecord) {
+    // projections にアクション後の全メンバーSP（HealSp等の効果反映済み）があれば優先使用
+    const projectedSp = previewRecord?.projections?.spAfterActionByPartyIndex;
+    if (projectedSp && typeof projectedSp === 'object') {
+      const spAfterByPartyIndex = {};
+      for (const [key, value] of Object.entries(projectedSp)) {
+        const pi = Number(key);
+        const sp = Number(value);
+        if (Number.isInteger(pi) && Number.isFinite(sp)) {
+          spAfterByPartyIndex[pi] = sp;
+        }
+      }
+      return { spAfterByPartyIndex };
+    }
+    // fallback: action エントリからコスト消費後SPを取得（projections 未対応パス）
     const spAfterByPartyIndex = {};
     for (const action of previewRecord?.actions ?? []) {
       const partyIndex = Number(action?.partyIndex);
