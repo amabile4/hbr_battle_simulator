@@ -1,6 +1,6 @@
 # UI Next 実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-01
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-02
 >
 > **進捗サマリー**: T01 ✅ / T02 ✅ / T03〜T12 ✅（T12-E-5 まで） / T13-A ✅ / T13-B ✅ / T13-C ✅ / T14 ✅ / T15 ✅ / **T16 🔶 Enemy Setup（A・C 完了、B=敵初期ステータス設定のみ未実装）** / **T17 ✅ JSON Export（CSV 破棄）** / **T18 ✅ Scenario Runner（JSON 読み込みで代替）** / **T19 ❌ use_count 表示・管理** / **T20 🔶 モバイル UI 再見直し（A/B/C/D-swap 完了、残=全般見直し＋タッチUX）** / **T21 ✅ Passive Debug Log** / **T22 ✅ Layout Rework** / **T23 ✅ PNG Capture Rework** / **T24〜T28 ✅ toolbar / D&D / legacy cut / log pane resize / manual-break E2E** / **T29 ✅ Enemy先制フィールド表示（文章のみ）** / **T30 ✅ Session JSON 旧フォーマット互換（styleIds=0）** / **T31 ✅ SP>=0条件＋速弾きの合算使用可否実装** / **T32〜T34 ❌ 未着手（Stage Setup / 効果監査 / 敵状態変化管理）**
 >
@@ -604,6 +604,7 @@ SP に影響するバフ/デバフ（SP回復UP/DOWN等）と OD ゲージへの
 - [x] 読み込み後にターン数をステータスバーに表示
 
 > ✅ T18 完了（JSON 読み込み機能で代替、CSV シナリオ入力はスコープ外）
+> 追補（2026-04-02）: OD割り込み由来の `EX` で `remainingOdActions=0` のとき `IsOverDrive()` が false 扱いになり、`国士無双` の追加ターンが欠落する不具合を修正（`odSuspended=true` なら OD文脈を維持）。
 
 ### T19: スキル使用回数（use_count）表示・管理 【優先度: 低 / 複雑なため独立】
 

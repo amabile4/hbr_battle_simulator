@@ -949,7 +949,8 @@ function isOverDriveActive(turnState) {
   if (type !== 'extra') {
     return false;
   }
-  return Boolean(turnState?.odSuspended) && Number(turnState?.remainingOdActions ?? 0) > 0;
+  // 割り込みOD中のEXは、残OD行動数が0でもOD文脈を維持する。
+  return Boolean(turnState?.odSuspended);
 }
 
 function getTranscendenceState(turnState) {

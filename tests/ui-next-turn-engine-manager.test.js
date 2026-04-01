@@ -841,6 +841,22 @@ test('session fixture replay: Turn4 start SP reflects OnOverdriveStart HealSp ov
   assert.equal(Number(nikaido?.sp?.current), 25);
 });
 
+test('session fixture replay: #5相当ターン開始はODサスペンドEXとして復元される', () => {
+  const session = loadSessionFixture('ui_next_session_2026-04-01T14-09-27.704Z.json');
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup);
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn5StateBefore = manager.getStateBefore(5);
+  assert.equal(turn5StateBefore?.turnState?.turnType, 'extra');
+  assert.equal(turn5StateBefore?.turnState?.turnLabel, 'EX');
+  assert.equal(Boolean(turn5StateBefore?.turnState?.odSuspended), true);
+});
+
 test('TurnEngineManager buildTurnEditSnapshot does not mutate the initial transcendence state', () => {
   const actorSkill = createSkill({
     id: 9071,
