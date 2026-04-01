@@ -1337,41 +1337,39 @@ export class TurnEngineManager {
   }
 
   #buildPreviewResourceState(previewRecord) {
-    // projections にアクション後の全メンバーSP（HealSp等の効果反映済み）があれば優先使用
-    const projectedSp = previewRecord?.projections?.spAfterActionByPartyIndex;
-    if (projectedSp && typeof projectedSp === 'object') {
-      const spAfterByPartyIndex = {};
-      for (const [key, value] of Object.entries(projectedSp)) {
-        const pi = Number(key);
-        const sp = Number(value);
-        if (Number.isInteger(pi) && Number.isFinite(sp)) {
-          spAfterByPartyIndex[pi] = sp;
-        }
+    // snapBefore からターン開始SPを取得し、cost delta のみ加算して表示用SPを算出する。
+    // projections.spAfterActionByPartyIndex は HealSp 等の効果反映済み値を含むため
+    // プレビュー表示には使用しない（実機では「ターン開始SP − スキルコスト」で表示される）。
+    const snapBefore = Array.isArray(previewRecord?.snapBefore) ? previewRecord.snapBefore : [];
+    const turnStartSpByPartyIndex = {};
+    for (const snap of snapBefore) {
+      const pi = Number(snap?.partyIndex);
+      const sp = Number(snap?.sp?.current);
+      if (Number.isInteger(pi) && Number.isFinite(sp)) {
+        turnStartSpByPartyIndex[pi] = sp;
       }
-      return { spAfterByPartyIndex };
     }
-    // fallback: action エントリからコスト消費後SPを取得（projections 未対応パス）
-    const spAfterByPartyIndex = {};
+
+    // 行動キャラのコストデルタを集計
+    const costDeltaByPartyIndex = {};
     for (const action of previewRecord?.actions ?? []) {
-      const partyIndex = Number(action?.partyIndex);
-      const displayedSp = this.#resolveActionDisplayedSp(action);
-      if (Number.isInteger(partyIndex) && Number.isFinite(displayedSp)) {
-        spAfterByPartyIndex[partyIndex] = displayedSp;
-      }
+      const pi = Number(action?.partyIndex);
+      if (!Number.isInteger(pi)) continue;
+      const costDelta = Array.isArray(action?.spChanges)
+        ? action.spChanges
+            .filter((c) => c?.source === 'cost' && Number.isFinite(Number(c?.delta)))
+            .reduce((sum, c) => sum + Number(c.delta), 0)
+        : 0;
+      costDeltaByPartyIndex[pi] = (costDeltaByPartyIndex[pi] ?? 0) + costDelta;
+    }
+
+    const spAfterByPartyIndex = {};
+    for (const [piStr, turnStartSp] of Object.entries(turnStartSpByPartyIndex)) {
+      const pi = Number(piStr);
+      const delta = costDeltaByPartyIndex[pi] ?? 0;
+      spAfterByPartyIndex[pi] = turnStartSp + delta;
     }
     return { spAfterByPartyIndex };
-  }
-
-  #resolveActionDisplayedSp(action) {
-    const costChange = Array.isArray(action?.spChanges)
-      ? action.spChanges.find((change) => change?.source === 'cost' && Number.isFinite(Number(change?.postSP)))
-      : null;
-    const costPostSp = Number(costChange?.postSP);
-    if (Number.isFinite(costPostSp)) {
-      return costPostSp;
-    }
-    const endSP = Number(action?.endSP);
-    return Number.isFinite(endSP) ? endSP : null;
   }
 
   #resolveInputRowSlotActions(state, slotActions = {}) {

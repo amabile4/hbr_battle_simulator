@@ -1,14 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import { CharacterStyle, HbrDataStore, Party, applyInitialPassiveState, createBattleStateFromParty } from '../src/index.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
+import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
+import { normalizeSessionSnapshot } from '../ui-next/utils/session-snapshot.js';
 import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 import { DEFAULT_VALIDATION_POLICY } from '../ui-next/utils/validation-policy.js';
 import { getSixUsableStyleIds, getStore } from './helpers.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
+
+function loadSessionFixture(fileName) {
+  const fixtureUrl = new URL(`./fixtures/${fileName}`, import.meta.url);
+  const text = fs.readFileSync(fixtureUrl, 'utf8');
+  return normalizeSessionSnapshot(JSON.parse(text));
+}
 
 function createSkill({ id, name, targetType, parts, spCost = 0, cond = '' }) {
   return {
@@ -815,6 +824,21 @@ test('TurnEngineManager loadReplayScript restores validationPolicy and committed
   assert.equal(restored.committedTurnCount, 1);
   assert.equal(restored.computedRecords[0]?.enemyCount, 2);
   assert.equal(restored.validationPolicy.allowUseCountOverflow, true);
+});
+
+test('session fixture replay: Turn4 start SP reflects OnOverdriveStart HealSp over-cap for Nikaido', () => {
+  const session = loadSessionFixture('ui_next_session_2026-04-01T14-09-27.704Z.json');
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup);
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn4StateBefore = manager.getStateBefore(3);
+  const nikaido = turn4StateBefore.party.find((member) => member.characterName === '二階堂 三郷');
+  assert.equal(Number(nikaido?.sp?.current), 25);
 });
 
 test('TurnEngineManager buildTurnEditSnapshot does not mutate the initial transcendence state', () => {

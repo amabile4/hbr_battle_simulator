@@ -9257,6 +9257,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           if (targetCharacterIds.length === 0) {
             continue;
           }
+          const spSource = String(passive?.timing ?? '') === 'OnOverdriveStart' ? 'od' : 'passive';
           for (const targetCharacterId of targetCharacterIds) {
             const target = findMemberByCharacterId(state, targetCharacterId);
             if (!target) {
@@ -9265,7 +9266,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
               continue;
             }
-            const change = target.applySpDelta(amount, 'passive');
+            const change = target.applySpDelta(amount, spSource);
             spEvents.push({
               actorCharacterId: member.characterId,
               characterId: target.characterId,

@@ -13229,7 +13229,7 @@ test('HealSp (OnOverdriveStart / AllyAll / エクスタシー相当): activateOv
   );
 });
 
-test('HealSp (OnOverdriveStart): SP上限を超えない（cap確認）', () => {
+test('HealSp (OnOverdriveStart): OD開始時HealSpはOD回復と同じ上限（99）で加算される', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `HC${idx + 1}`,
@@ -13258,7 +13258,7 @@ test('HealSp (OnOverdriveStart): SP上限を超えない（cap確認）', () => 
   const state = createBattleStateFromParty(new Party(members));
   state.turnState.odGauge = 100;
   const odState = activateOverdrive(state, 1, 'preemptive');
-  assert.equal(odState.party[0].sp.current, 23, 'OD既定回復 +5 は cap を超え、受動 HealSp はそこで増えない');
+  assert.equal(odState.party[0].sp.current, 28, 'OD既定回復 +5 の後に OnOverdriveStart HealSp +5 が加算される');
 });
 
 test('AttackUp (OnOverdriveStart / 専心相当): OD中の preview に attackUpRate が反映される', () => {
