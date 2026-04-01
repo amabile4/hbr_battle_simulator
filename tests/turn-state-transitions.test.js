@@ -5541,6 +5541,79 @@ test('HealSp AllyFront increases SP for all frontline members', () => {
   assert.equal(m4.sp.current, 12);
 });
 
+test('HealSp AllyFront committed record separates cost and active spChanges for display', () => {
+  // Scenario: pos0 uses HealSp AllyFront (+5), pos1 uses a costly attack (cost 4).
+  // The committed record's spChanges for pos1 should have separate 'cost' and 'active' entries.
+  // The display formula (turnStartSP + costDelta) should give the correct
+  // "post-cost, pre-HealSp" value matching the real game display.
+  const HEALER_SKILL_ID = 59001;
+  const ATTACK_SKILL_ID = 59002;
+  const GUARD_SKILL_ID = 59003;
+  const HEAL_POWER = 5;
+  const ATTACK_COST = 4;
+  const INITIAL_SP = 10;
+
+  const members = Array.from({ length: 6 }, (_, idx) => {
+    let skills;
+    if (idx === 0) {
+      skills = [{ id: HEALER_SKILL_ID, name: 'HealFrontSP', sp_cost: 0,
+        parts: [{ skill_type: 'HealSp', target_type: 'AllyFront', power: [HEAL_POWER, 0] }] }];
+    } else if (idx === 1) {
+      skills = [{ id: ATTACK_SKILL_ID, name: 'CostlyAttack', sp_cost: ATTACK_COST,
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }] }];
+    } else {
+      skills = [{ id: GUARD_SKILL_ID, name: 'プロテクション', sp_cost: 0,
+        parts: [{ skill_type: 'Support', target_type: 'Self' }] }];
+    }
+    return new CharacterStyle({
+      characterId: `HDISP${idx + 1}`,
+      characterName: `HDISP${idx + 1}`,
+      styleId: 59100 + idx,
+      styleName: `HDISPS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: INITIAL_SP,
+      skills,
+    });
+  });
+
+  const state = createBattleStateFromParty(new Party(members));
+  const preview = previewTurn(state, {
+    0: { characterId: 'HDISP1', skillId: HEALER_SKILL_ID },
+    1: { characterId: 'HDISP2', skillId: ATTACK_SKILL_ID },
+    2: { characterId: 'HDISP3', skillId: GUARD_SKILL_ID },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+
+  // Check the attacking character's (pos1) spChanges
+  const attackerAction = committedRecord.actions.find((a) => a.characterId === 'HDISP2');
+  assert.ok(attackerAction, 'Attacker action should exist');
+  const costChanges = attackerAction.spChanges.filter((c) => c.source === 'cost');
+  assert.ok(costChanges.length > 0, 'Should have at least one cost spChange');
+
+  // Verify the display formula: turnStartSP + sum(cost deltas)
+  // This should give the "post-cost, pre-HealSp" value
+  const costDeltaSum = costChanges.reduce((sum, c) => sum + c.delta, 0);
+  const displaySp = INITIAL_SP + costDeltaSum;
+  assert.equal(displaySp, INITIAL_SP - ATTACK_COST,
+    `Display SP should be turnStartSP(${INITIAL_SP}) - cost(${ATTACK_COST}) = ${INITIAL_SP - ATTACK_COST}, ` +
+    `ignoring HealSp(+${HEAL_POWER}). costPostSP(${costChanges[0].postSP}) includes HealSp contamination.`);
+
+  // The costPostSP is contaminated by HealSp (applied before cost in action resolution)
+  // so it should NOT equal the expected display value
+  const contaminatedCostPostSp = costChanges[0].postSP;
+  assert.notEqual(contaminatedCostPostSp, displaySp,
+    'costPostSP should differ from the correct display value because it includes inter-action HealSp');
+
+  // Verify the healer's own display is just turnStartSP (0 cost skill)
+  const healerAction = committedRecord.actions.find((a) => a.characterId === 'HDISP1');
+  const healerCostDeltas = (healerAction?.spChanges ?? [])
+    .filter((c) => c.source === 'cost')
+    .reduce((sum, c) => sum + c.delta, 0);
+  assert.equal(INITIAL_SP + healerCostDeltas, INITIAL_SP,
+    'Healer display SP should be turnStartSP (0 cost skill)');
+});
+
 test('HealSp AllyAll increases SP for all party members', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({

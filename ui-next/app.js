@@ -291,20 +291,33 @@ function buildTurnStartSpByStyleId(turnEngineManager, turnIndex) {
 function buildTurnPostSkillSpByStyleId(turnEngineManager, turnIndex) {
   const record = turnEngineManager.computedRecords?.[turnIndex] ?? null;
   const actions = Array.isArray(record?.actions) ? record.actions : [];
+
+  // turnStartSP を取得し、costDelta のみを加算して表示用SPを計算する。
+  // cost.postSP はアクション間 HealSp（例: スペクタクルアート）適用後の値を含むため
+  // 実機表記と一致しない。実機では各キャラクターの表示SPは
+  // 「ターン開始SP − 自スキルコスト」で計算される。
+  const stateBefore = turnEngineManager.getStateBefore(turnIndex);
+  const turnStartSpByStyleId = {};
+  if (Array.isArray(stateBefore?.party)) {
+    for (const member of stateBefore.party) {
+      const sid = Number(member?.styleId);
+      if (Number.isFinite(sid)) {
+        turnStartSpByStyleId[String(sid)] = Number(member?.sp?.current ?? 0);
+      }
+    }
+  }
+
   const result = {};
   for (const action of actions) {
     const styleId = Number(action?.styleId);
     const castIndex = Number(action?.castIndex ?? 0);
-    const costChange = Array.isArray(action?.spChanges)
-      ? action.spChanges.find(
-          (change) => change?.source === 'cost' && Number.isFinite(Number(change?.postSP))
-        )
-      : null;
-    const costPostSp = Number(costChange?.postSP);
-    const endSp = Number(action?.endSP);
-    const displayedSp = Number.isFinite(costPostSp)
-      ? costPostSp
-      : (Number.isFinite(endSp) ? endSp : NaN);
+    const costDeltaSum = Array.isArray(action?.spChanges)
+      ? action.spChanges
+          .filter((c) => c?.source === 'cost' && Number.isFinite(Number(c?.delta)))
+          .reduce((sum, c) => sum + Number(c.delta), 0)
+      : 0;
+    const turnStartSp = turnStartSpByStyleId[String(styleId)];
+    const displayedSp = Number.isFinite(turnStartSp) ? turnStartSp + costDeltaSum : NaN;
     if (!Number.isFinite(styleId) || !Number.isFinite(displayedSp)) {
       continue;
     }
