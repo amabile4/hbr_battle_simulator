@@ -596,6 +596,55 @@ test('TurnAreaController shows preview and committed endSP on the SP badge', () 
     assert.equal(getBadgeText(committedRow), '4');
   }));
 
+test('TurnAreaController committed SP badge keeps post-cost value even when the skill heals self SP', () =>
+  withDom(({ root, win }) => {
+    const normalSkill = createSkill({
+      id: 9520,
+      name: '通常攻撃',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const selfHealSkill = createSkill({
+      id: 9521,
+      name: '神命を宿す瞳',
+      targetType: 'Self',
+      spCost: 8,
+      parts: [
+        { skill_type: 'Protection', target_type: 'Self' },
+        { skill_type: 'HealSp', target_type: 'Self', power: [3, 0] },
+      ],
+    });
+    const state = createState(normalSkill, 1, {
+      initialSP: 17,
+      skills: [normalSkill, selfHealSkill],
+    });
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const getRows = () => root.querySelectorAll('[data-turn-row]');
+    const getInputRow = () => getRows().item(getRows().length - 1);
+    const getBadgeText = (row) =>
+      row.querySelector('[data-turn-slot][data-position="0"] [data-sp-badge]').textContent.trim();
+
+    let inputRow = getInputRow();
+    let inputSelect = inputRow.querySelector('[data-skill-select][data-party-index="0"]');
+    inputSelect.value = '9521';
+    inputSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    inputRow = getInputRow();
+    assert.equal(getBadgeText(inputRow), '9', 'preview は turn start 17 - cost 8 を表示する');
+
+    inputRow.querySelector('[data-role="commit-btn"]').dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true })
+    );
+
+    const committedRow = getRows().item(0);
+    assert.equal(getBadgeText(committedRow), '9', 'committed 行でも self HealSp 後の 12 ではなく post-cost の 9 を表示する');
+  }));
+
 test('TurnAreaController keeps only one committed-row edit session open and cancels without mutating replay', () =>
   withDom(({ root, win }) => {
     const baseSkill = createSkill({

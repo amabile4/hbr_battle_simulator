@@ -5012,7 +5012,7 @@ function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
     return 0;
   }
   const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
-  let totalReduction = 0;
+  let maxReduction = 0;
 
   for (const actor of state.party ?? []) {
     for (const passive of actor.passives ?? []) {
@@ -5042,12 +5042,12 @@ function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
         if (!Number.isFinite(amount) || amount <= 0) {
           continue;
         }
-        totalReduction += amount;
+        maxReduction = Math.max(maxReduction, amount);
       }
     }
   }
 
-  return totalReduction;
+  return maxReduction;
 }
 
 function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {

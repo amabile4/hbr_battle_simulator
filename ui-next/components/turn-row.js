@@ -1333,25 +1333,31 @@ export class TurnRowController {
     return this.#record?.snapBefore?.find((entry) => entry.partyIndex === partyIndex) ?? null;
   }
 
-  #resolveDisplayedSpFromAction(recordAction) {
-    // HealSp等のスキル効果を反映した最終SP値を返す。
-    // spChanges に sp_skill（HealSp回復）が含まれる場合は最終 postSP を使用し、
-    // 含まれない場合は従来通り costChange.postSP にフォールバックする。
+  #resolveDisplayedSpFromAction(recordAction, member) {
+    // committed 行の行動キャラ表示は、preview と同じく
+    // 「ターン開始SP + コスト差分合計」を使う。
+    // HealSp 等のスキル効果後最終SPは committed 行バッジには混ぜない。
     const changes = Array.isArray(recordAction?.spChanges) ? recordAction.spChanges : [];
-    const hasSkillSpChange = changes.some((c) => c?.source === 'sp_skill');
-    if (hasSkillSpChange) {
-      // sp_skill（HealSp等）を含む場合: 全spChanges中の最終postSPを使用
-      const lastChange = changes.filter((c) => Number.isFinite(Number(c?.postSP))).at(-1);
-      if (lastChange) {
-        return Number(lastChange.postSP);
-      }
+    const partyIndex = Number(member?.partyIndex);
+    const snapEntry = Number.isInteger(partyIndex) ? this.#getRecordSnapEntry(partyIndex) : null;
+    const turnStartSp = Number(snapEntry?.sp?.current);
+    const costDeltaSum = changes
+      .filter((change) => change?.source === 'cost' && Number.isFinite(Number(change?.delta)))
+      .reduce((sum, change) => sum + Number(change.delta), 0);
+    if (Number.isFinite(turnStartSp)) {
+      return turnStartSp + costDeltaSum;
     }
+
     const costChange = changes.find(
       (change) => change?.source === 'cost' && Number.isFinite(Number(change?.postSP))
     );
     const costPostSp = Number(costChange?.postSP);
     if (Number.isFinite(costPostSp)) {
       return costPostSp;
+    }
+    const lastChange = changes.filter((change) => Number.isFinite(Number(change?.postSP))).at(-1);
+    if (lastChange) {
+      return Number(lastChange.postSP);
     }
     const endSP = Number(recordAction?.endSP);
     return Number.isFinite(endSP) ? endSP : null;
@@ -1363,8 +1369,8 @@ export class TurnRowController {
     }
 
     if (isCommitted) {
-      // 行動キャラ: recordAction から取得
-      const displayedSp = this.#resolveDisplayedSpFromAction(recordAction);
+      // 行動キャラ: turnStartSP + cost delta を優先して取得
+      const displayedSp = this.#resolveDisplayedSpFromAction(recordAction, member);
       if (Number.isFinite(displayedSp)) {
         return displayedSp;
       }

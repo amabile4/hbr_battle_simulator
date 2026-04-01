@@ -13058,6 +13058,110 @@ test('ReduceSp (OnFirstBattleStart / 氷天): 氷属性味方のみ -1 適用、
   assert.equal(preview.actions[2].spCost, 5, 'IC3（非氷属性）: spCost 変化なし');
 });
 
+test('ReduceSp: 同時成立時は加算せず最大効果のみ採用する（火天-1 と 飛躍-2 なら -2）', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `RD${idx + 1}`,
+      characterName: `RD${idx + 1}`,
+      styleId: 2360 + idx,
+      styleName: `RDS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      elements: idx === 0 ? ['Fire'] : [],
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 91001,
+                name: '火天',
+                desc: '味方全体の火属性スタイルの消費SPが常時-1',
+                timing: 'OnFirstBattleStart',
+                condition: '',
+                parts: [
+                  {
+                    skill_type: 'ReduceSp',
+                    target_type: 'AllyAll',
+                    target_condition: 'IsNatureElement(Fire)',
+                    power: [1, 0],
+                  },
+                ],
+              },
+              {
+                id: 91002,
+                name: '飛躍',
+                desc: 'オーバードライブ中 自身の消費SPが-2',
+                timing: 'OnOverdriveStart',
+                condition: '',
+                parts: [{ skill_type: 'ReduceSp', target_type: 'Self', power: [2, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 29300 + idx, name: 'Act', label: `RDSkill${idx + 1}`, sp_cost: idx === 0 ? 11 : 0, parts: [] }],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'RD1', skillId: 29300 },
+  });
+
+  assert.equal(preview.actions[0].spCost, 9, '11 から -2 のみ適用（-1 と -2 の加算はしない）');
+});
+
+test('OD中のSP計算順: 半減を先に適用し、その後 ReduceSp(-2) を適用する（12 -> 6 -> 4）', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `OS${idx + 1}`,
+      characterName: `OS${idx + 1}`,
+      styleId: 2400 + idx,
+      styleName: `OSS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 92001,
+                name: '飛躍',
+                desc: 'オーバードライブ中 自身の消費SPが-2',
+                timing: 'OnOverdriveStart',
+                condition: '',
+                parts: [{ skill_type: 'ReduceSp', target_type: 'Self', power: [2, 0] }],
+              },
+            ]
+          : [],
+      skills: [
+        {
+          id: 29400 + idx,
+          name: 'OdHalfCostSkill',
+          label: `OdHalfCostSkill${idx + 1}`,
+          sp_cost: idx === 0 ? 12 : 0,
+          overwrite: idx === 0 ? 6 : undefined,
+          overwrite_cond: idx === 0 ? 'CountBC(IsOverDrive()==1)>0' : '',
+          parts: [],
+        },
+      ],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'OS1', skillId: 29400 },
+  });
+
+  assert.equal(preview.actions[0].spCost, 4, 'OD中は 12 を半減して 6、その後 ReduceSp-2 で 4');
+  assert.equal(preview.actions[0].startSP, 25, 'OD開始時の基本SP回復(+5)を含む');
+  assert.equal(preview.actions[0].endSP, 21);
+});
+
 test('ReduceSp (OnFirstBattleStart): applyInitialPassiveState で current SP は変化しない', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
