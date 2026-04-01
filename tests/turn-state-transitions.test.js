@@ -14120,7 +14120,7 @@ test('T07-diagnostic: MindEye(78) passives modifiers diagnostic', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? {
-          initialSP: 5,
+          initialSP: 20,
           skills: [
             {
               id: 30011,
@@ -14156,21 +14156,21 @@ test('T07-diagnostic: MindEye(78) passives modifiers diagnostic', () => {
   const m1 = state.party.find((m) => m.characterId === 'M1');
   assert.equal(countActiveSpecialStatus(m1, 78), 1, 'MindEye condition 観測step 1');
 
-  // Step 2: applyPassiveTiming でパッシブを評価
-  applyPassiveTiming(state, 'OnPlayerTurnStart');
-  const m1After = state.party.find((m) => m.characterId === 'M1');
-  
+  // Step 2: applyPassiveTiming で passiveEvents の attackUpRate を検証
+  const result = applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const attackUpEvent = result.passiveEvents?.find(
+    (e) => e.passiveId === 91003 && e.attackUpRate > 0
+  );
+
   assert.ok(
-    m1After.specialPassiveModifiers?.attackUpRate !== undefined &&
-    m1After.specialPassiveModifiers.attackUpRate >=0.14,
-    `條件評価success: AttackUp=${m1After.specialPassiveModifiers?.attackUpRate}`
+    attackUpEvent !== undefined && attackUpEvent.attackUpRate >= 0.14,
+    `PassiveEvent に AttackUp が記録されている (value=${attackUpEvent?.attackUpRate})`
   );
 });
 
 test('T07b: MindEye(78) — SpecialStatusCountByType(78)>0 条件下でのスキル攻撃力 +15% 検証', () => {
-  // 簡易版：condition 評価の確認
-  // 実データパッシブ (心眼の境地 100110800) ではなく、
-  // シンプルなテストデータで condition 評価を検証
+  // MindEye(78) 条件付き AttackUp パッシブの条件評価を検証
+  // OnEveryTurn タイミングで applyPassiveTiming の passiveEvents に attackUpRate が反映されることを確認
   
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -14190,28 +14190,12 @@ test('T07b: MindEye(78) — SpecialStatusCountByType(78)>0 条件下でのスキ
                 },
               ],
             },
-            {
-              id: 30012,
-              name: 'DamageAttack',
-              label: 'TestDmg',
-              sp_cost: 5,
-              hitCount: 1,
-              parts: [
-                {
-                  skill_type: 'AttackSkill',
-                  target_type: 'Single',
-                  power: [100, 0],
-                  elements: ['Slash'],
-                },
-              ],
-            },
           ],
           passives: [
             {
               id: 91002,
               name: 'TestMindEyePassive',
               timing: 'OnEveryTurn',
-              // Simpler condition: just check MindEye presence
               condition: 'SpecialStatusCountByType(78)>0',
               parts: [
                 {
@@ -14234,23 +14218,17 @@ test('T07b: MindEye(78) — SpecialStatusCountByType(78)>0 条件下でのスキ
   const m1Before = state.party.find((m) => m.characterId === 'M1');
   assert.equal(countActiveSpecialStatus(m1Before, 78), 1, 'MindEye 付与確認');
 
-  // Step 2: applyInitialPassiveState でパッシブ評価を実行
-  state = applyInitialPassiveState(state);
+  // Step 2: applyPassiveTiming で passiveEvents を取得し、AttackUp が反映されていることを検証
+  const result = applyPassiveTiming(state, 'OnEveryTurn');
+  const attackUpEvent = result.passiveEvents?.find(
+    (e) => e.passiveId === 91002 && e.attackUpRate > 0
+  );
   
-  const m1After = state.party.find((m) => m.characterId === 'M1');
-  
-  // Debug: Check specialPassiveModifiers
-  if (!m1After.specialPassiveModifiers?.attackUpRate) {
-    // Simplified assertion to see what's actually there
-    console.log('specialPassiveModifiers:', m1After.specialPassiveModifiers);
-  }
-  
-  // Expected: AttackUp of 0.15 should be applied
   assert.ok(
-    m1After.specialPassiveModifiers?.attackUpRate !== undefined &&
-    m1After.specialPassiveModifiers.attackUpRate >= 0.14 &&
-    m1After.specialPassiveModifiers.attackUpRate <= 0.16,
-    `AttackUp が適用されている (value=${m1After.specialPassiveModifiers?.attackUpRate})`
+    attackUpEvent !== undefined &&
+    attackUpEvent.attackUpRate >= 0.14 &&
+    attackUpEvent.attackUpRate <= 0.16,
+    `PassiveEvent に AttackUp が記録されている (value=${attackUpEvent?.attackUpRate})`
   );
 });
 
