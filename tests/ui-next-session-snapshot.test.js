@@ -18,6 +18,23 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
       limitBreakLevelsByPartyIndex: { 0: 4, 1: 3, 2: 2 },
       skillSetsByPartyIndex: { 0: ['46000001', 46400001] },
     },
+    enemy: {
+      selectedEnemyIds: [7001, null, null],
+      enemySlots: [
+        {
+          slotIndex: 0,
+          selectedEnemyId: 7001,
+          selectedEnemyName: '敵A',
+          od_rate: 8500,
+          max_d_rate: 700,
+          resistances: {
+            element: { fire: 130 },
+          },
+          absorbElementList: ['fire'],
+        },
+      ],
+      preemptiveField: 'fire',
+    },
     simulatorSettings: {
       targetSelection: {
         enemyMode: TARGET_SELECTION_MODES.MANUAL,
@@ -46,6 +63,13 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
   assert.equal(snapshot.simulatorSettings.captureUntilBattleEnd, true);
   assert.equal(snapshot.validationPolicy.allowUseCountOverflow, true);
   assert.deepEqual(snapshot.setup.skillSetsByPartyIndex['0'], [46000001, 46400001]);
+  assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyId, 7001);
+  assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyName, '敵A');
+  assert.equal(snapshot.enemy.enemySlots[0].od_rate, 0.85);
+  assert.equal(snapshot.enemy.enemySlots[0].max_d_rate, 700);
+  assert.equal(snapshot.enemy.enemySlots[0].resistances.element.fire, 130);
+  assert.deepEqual(snapshot.enemy.enemySlots[0].absorbElementList, ['fire']);
+  assert.equal(snapshot.enemy.preemptiveField, 'fire');
   assert.deepEqual(
     snapshot.replayScript.turns[0].overrideEntries.find(
       (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
@@ -60,6 +84,16 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
       styleIds: [1001, 1002, 1003, null, null, null],
       supportStyleIds: [null, null, null, null, null, null],
     },
+    enemy: {
+      selectedEnemyId: 7001,
+      selectedEnemyName: '敵A',
+      od_rate: 1,
+      max_d_rate: 700,
+      resistances: {
+        element: { fire: 150 },
+      },
+      absorbElementList: ['fire'],
+    },
     replayScript: {
       turns: [],
     },
@@ -71,6 +105,9 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   assert.equal(parsed.simulatorSettings.captureUntilBattleEnd, true);
   assert.deepEqual(parsed.setup.styleIds.slice(0, 3), [1001, 1002, 1003]);
   assert.deepEqual(parsed.setup.skillSetsByPartyIndex, {});
+  assert.equal(parsed.enemy.selectedEnemyId, 7001);
+  assert.equal(parsed.enemy.od_rate, 1);
+  assert.equal(parsed.enemy.resistances.element.fire, 150);
 });
 
 test('decorateSessionSnapshotForHumans adds names and turn/action SP metadata', () => {
@@ -106,6 +143,7 @@ test('decorateSessionSnapshotForHumans adds names and turn/action SP metadata', 
       resolveSkillName: (skillId) => ({ 3001: 'プロテクション', 3002: '通常攻撃' }[skillId] ?? null),
       getTurnStartSpByStyleId: () => ({ 1001: 12, 1002: 9 }),
       getTurnPostSkillSpByStyleId: () => ({ 1001: 4 }),
+      getTurnActionOrderByStyleId: () => [1002, 1001],
     }
   );
 
@@ -133,6 +171,7 @@ test('decorateSessionSnapshotForHumans adds names and turn/action SP metadata', 
   assert.deepEqual(decorated.replayScript.turns[0].info.spAtActionStartByName, {
     '茅森 月歌': 4,
   });
+  assert.deepEqual(decorated.replayScript.turns[0].info.actionOrder, ['和泉 ユキ', '茅森 月歌']);
 });
 
 test('normalizeSessionSnapshot ignores additional human-readable fields', () => {
@@ -184,6 +223,20 @@ test('normalizeSessionSnapshot ignores additional human-readable fields', () => 
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0].slots[0], 'spAtTurnStart'), false);
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0].slots[0], 'spAtActionStart'), false);
   assert.equal(Object.hasOwn(normalized.replayScript.turns[0], 'info'), false);
+});
+
+test('normalizeSessionSnapshot converts legacy enemy od_rate basis points into direct multiplier', () => {
+  const normalized = normalizeSessionSnapshot({
+    enemy: {
+      selectedEnemyId: 9001,
+      selectedEnemyName: '敵テスト',
+      od_rate: 8500,
+      max_d_rate: 650,
+    },
+  });
+
+  assert.equal(normalized.enemy.od_rate, 0.85);
+  assert.equal(normalized.enemy.enemySlots[0].od_rate, 0.85);
 });
 
 test('normalizeSessionSnapshot converts legacy 0 style placeholders into null', () => {

@@ -5736,6 +5736,9 @@ function resolveEnemyOdRateMultiplier(turnState) {
   if (!Number.isFinite(rawRate) || rawRate === 0) {
     return 1;
   }
+  if (Math.abs(rawRate) <= 10) {
+    return rawRate;
+  }
   return rawRate / ENEMY_OD_RATE_UNIT;
 }
 
@@ -7453,11 +7456,13 @@ function validateActionDict(state, actions, options = {}) {
     };
   });
 
-  const phaseOf = (skillType) => (skillType === 'non_damage' ? 0 : 1);
+  // 非ダメージ先 / ダメージ後 の phase 優先を保った上で前衛 position 順に並べる。
   entries.sort((a, b) => {
-    const p = phaseOf(a.skill.type) - phaseOf(b.skill.type);
-    if (p !== 0) {
-      return p;
+    const phaseA = a.skill.type === 'damage' ? 1 : 0;
+    const phaseB = b.skill.type === 'damage' ? 1 : 0;
+
+    if (phaseA !== phaseB) {
+      return phaseA - phaseB;
     }
 
     return a.position - b.position;

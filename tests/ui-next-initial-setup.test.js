@@ -465,6 +465,7 @@ test('InitialSetupController enemy setup defaults to slot 1 selected and slots 2
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450045, null, null]);
     assert.equal(snapshot.enemy.enemyCount, 1);
+    assert.equal(snapshot.enemy.od_rate, 1);
   }));
 
 test('InitialSetupController enemy setup supports selecting and deleting slot 2 enemy', () =>
@@ -511,6 +512,7 @@ test('InitialSetupController enemy setup supports selecting and deleting slot 2 
     let snapshot = controller.getCurrentSetupSnapshot();
     assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450045, 7001, null]);
     assert.equal(snapshot.enemy.enemyCount, 2);
+    assert.equal(snapshot.enemy.enemySlots[1].od_rate, 0.85);
 
     root
       .querySelector('[data-action="clear-slot"][data-slot-index="1"]')

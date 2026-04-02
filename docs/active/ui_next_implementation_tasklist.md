@@ -4,6 +4,8 @@
 >
 > **進捗サマリー**: T01 ✅ / T02 ✅ / T03〜T12 ✅（T12-E-5 まで） / T13-A ✅ / T13-B ✅ / T13-C ✅ / T14 ✅ / T15 ✅ / **T16 🔶 Enemy Setup（A・C 完了、B=敵初期ステータス設定のみ未実装）** / **T17 ✅ JSON Export（CSV 破棄）** / **T18 ✅ Scenario Runner（JSON 読み込みで代替）** / **T19 ❌ use_count 表示・管理** / **T20 🔶 モバイル UI 再見直し（A/B/C/D-swap 完了、残=全般見直し＋タッチUX）** / **T21 ✅ Passive Debug Log** / **T22 ✅ Layout Rework** / **T23 ✅ PNG Capture Rework** / **T24〜T28 ✅ toolbar / D&D / legacy cut / log pane resize / manual-break E2E** / **T29 ✅ Enemy先制フィールド表示（文章のみ）** / **T30 ✅ Session JSON 旧フォーマット互換（styleIds=0）** / **T31 ✅ SP>=0条件＋速弾きの合算使用可否実装** / **T32〜T34 ❌ 未着手（Stage Setup / 効果監査 / 敵状態変化管理）**
 >
+> **2026-04-02 追加実装**: `#4` の SP 期待値差分調査として、行動順は「非ダメージ先・ダメージ後（同 phase 内は前衛 position 順）」を維持。差分原因だった `石塔の手筋+` の誤分類（non_damage 扱い）を修正し、damage 扱いで `コードダクネス` の遷移を unit/e2e 回帰テストで固定。
+>
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
 >
@@ -579,7 +581,7 @@ SP に影響するバフ/デバフ（SP回復UP/DOWN等）と OD ゲージへの
 - [x] Enemy Setup タブで敵の基本情報・状態・フィールドを入力できる（T16-B のみ未実装）
 - [x] Apply 後に敵設定が BattleState に反映される（T16-B を除き対応済み）
 
-> 🔶 T16 部分完了（2026-03-30）: `Enemy Setup` の敵スロット UI（`[1][2][3]`）を有効化済み。デフォルトは `[1] 希望を喰むもの / [2] - / [3] -`。`[2][3]` は削除可能、`[1]` は必須。同一敵の複数スロット指定も明示選択で許可する。敵プリセットの属性耐性は `enemies.json` 生値ではなく実効倍率％（`0 -> 100%`, `-300 -> 400%`, `70 -> 30%`）で表示・手動入力する方式へ変更。吸収属性 checkbox を追加し、`BattleStateManager` から初期 `enemyState.damageRatesByEnemy` / `absorbElementsByEnemy` / `destructionRateCapByEnemy` / `odRateByEnemy` をスロット別に接続したため、UI Next の OD 判定では吸収属性が弱点扱いされない。`od_rate` による OD 上昇補正を実装済み（`od_rate=0` は補正なし、`0` 以外は `od_rate/10000` を最終 OD 上昇量に乗算）。敵プリセット候補は `is_boss=true` かつ `in_date` が当月を含む直近3ヶ月の範囲にある敵を採用し、`希望を喰むもの`（id `13450045`）はテンプレート用に常時表示する。**WIP**: 丸め込み位置は調査中。敵 HP/DP 数値 state は UI Next に未実装のため、吸収ダメージ分回復は未対応。
+> 🔶 T16 部分完了（2026-04-02）: `Enemy Setup` の敵スロット UI（`[1][2][3]`）を有効化済み。デフォルトは `[1] 希望を喰むもの / [2] - / [3] -`。`[2][3]` は削除可能、`[1]` は必須。同一敵の複数スロット指定も明示選択で許可する。敵プリセットの属性耐性は `enemies.json` 生値ではなく実効倍率％（`0 -> 100%`, `-300 -> 400%`, `70 -> 30%`）で表示・手動入力する方式へ変更。吸収属性 checkbox を追加し、`BattleStateManager` から初期 `enemyState.damageRatesByEnemy` / `absorbElementsByEnemy` / `destructionRateCapByEnemy` / `odRateByEnemy` をスロット別に接続したため、UI Next の OD 判定では吸収属性が弱点扱いされない。Session JSON は enemy 選択内容と編集済みパラメータを保持し、読み込み後の再計算でも同じ敵設定を使用する。`od_rate` は UI / Session では `1 = 100%` の multiplier として扱い、legacy 値（例: `8500`）は互換で `0.85` に正規化する。OD 上昇量は最終計算結果へ multiplier を乗算し、小数第2位まで残して第3位以降を切り捨てる。保存JSONの `turn.info` には前衛行動順を目視確認する `actionOrder` を追加した。敵 HP/DP 数値 state は UI Next に未実装のため、吸収ダメージ分回復は未対応。
 
 ---
 

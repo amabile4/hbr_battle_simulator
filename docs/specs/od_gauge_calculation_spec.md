@@ -90,27 +90,27 @@ gain_all = trunc2(2.65 * 6) = 15.90
 
 ---
 
-## 敵 od_rate によるOD上昇量補正 [WIP]
-
-> ⚠️ 実機照合未完了。小数点丸め込み位置は調査中。
+## 敵 od_rate によるOD上昇量補正
 
 ### 仕様
 
-- 敵パラメーター `od_rate` は `enemies.json > base_param.od_rate` に格納される。
-- `od_rate = 0` の場合は **補正なし**（乗数 1.0 として扱う）。
-- `od_rate ≠ 0` の場合、最終OD上昇量に乗算する係数は `od_rate / 10000`:
+- UI / Session JSON 上の `od_rate` は **乗数そのもの** を保持する。基準値 `1` が 100%。
+- 旧データ互換として、`enemies.json > base_param.od_rate` などの legacy 値（例: `8500`）は `0.85` として解釈する。
+- `od_rate = 0` の legacy 値は **補正なし** とみなし、乗数 `1.0` に正規化する。
+- 最終OD上昇量へ乗算し、小数第2位まで残して第3位以降を切り捨てる:
 
 ```
-effective_gain = trunc2(raw_gain × (od_rate / 10000))
+effective_gain = trunc2(raw_gain × od_rate)
 ```
 
-- 例: `od_rate = 8500` → 乗数 `0.85` → 通常攻撃1回(2.5%) が `trunc2(2.5 × 0.85) = 2.12%`。
+- 例: `od_rate = 0.85` → 通常攻撃1回(2.5%) が `trunc2(2.5 × 0.85) = 2.12%`。
+- 旧値例: `od_rate = 8500` → 正規化後 `0.85`。
 
 ### 定数
 
 | 定数名 | 値 | 説明 |
 |--------|----|------|
-| `ENEMY_OD_RATE_UNIT` | `10000` | od_rate 1単位あたりの基底値（0.01%/unit） |
+| `ENEMY_OD_RATE_UNIT` | `10000` | legacy od_rate を multiplier へ変換する互換係数 |
 
 ### 実装場所
 

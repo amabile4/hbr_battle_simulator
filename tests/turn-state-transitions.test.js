@@ -5055,6 +5055,68 @@ test('国士無双はODサスペンドEX(remainingOdActions=0)でも追加ター
   );
 });
 
+test('石塔の手筋+ はOD中のみ自身以外へHealSp+5が適用される (real data)', () => {
+  const store = getStore();
+  const skillId = 46005161;
+  const makeActions = (state) => {
+    const actor = state.party[0];
+    const ally1 = state.party[1];
+    const ally2 = state.party[2];
+    return {
+      0: { characterId: actor.characterId, skillId },
+      1: { characterId: ally1.characterId, skillId: Number(ally1.skills?.[0]?.skillId ?? ally1.skills?.[0]?.id ?? 0) },
+      2: { characterId: ally2.characterId, skillId: Number(ally2.skills?.[0]?.skillId ?? ally2.skills?.[0]?.id ?? 0) },
+    };
+  };
+
+  let nonOdState = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      buildOptions: { initialSP: 10 },
+    })
+  );
+  const nonOdCommit = commitTurn(nonOdState, previewTurn(nonOdState, makeActions(nonOdState)));
+  const nonOdAlly1 = findActionByCharacterId(nonOdCommit.committedRecord, nonOdState.party[1].characterId);
+  const nonOdAlly2 = findActionByCharacterId(nonOdCommit.committedRecord, nonOdState.party[2].characterId);
+  assert.equal(
+    (nonOdAlly1?.spChanges ?? []).some((change) => change?.source === 'active' && Number(change?.delta) === 5),
+    false,
+    '非ODでは自身以外SP+5が発生しない'
+  );
+  assert.equal(
+    (nonOdAlly2?.spChanges ?? []).some((change) => change?.source === 'active' && Number(change?.delta) === 5),
+    false,
+    '非ODでは自身以外SP+5が発生しない (2人目)'
+  );
+
+  let odState = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      buildOptions: { initialSP: 10 },
+    })
+  );
+  odState.turnState.odGauge = 300;
+  odState = activateOverdrive(odState, 1, 'preemptive');
+  const odCommit = commitTurn(odState, previewTurn(odState, makeActions(odState)));
+
+  const odActor = findActionByCharacterId(odCommit.committedRecord, odState.party[0].characterId);
+  const odAlly1 = findActionByCharacterId(odCommit.committedRecord, odState.party[1].characterId);
+  const odAlly2 = findActionByCharacterId(odCommit.committedRecord, odState.party[2].characterId);
+  assert.equal(
+    (odActor?.spChanges ?? []).some((change) => change?.source === 'active' && Number(change?.delta) === 5),
+    false,
+    'OD中でも自身にはSP+5が適用されない'
+  );
+  assert.equal(
+    (odAlly1?.spChanges ?? []).some((change) => change?.source === 'active' && Number(change?.delta) === 5),
+    true,
+    'OD中は自身以外にSP+5が適用される'
+  );
+  assert.equal(
+    (odAlly2?.spChanges ?? []).some((change) => change?.source === 'active' && Number(change?.delta) === 5),
+    true,
+    'OD中は自身以外にSP+5が適用される (2人目)'
+  );
+});
+
 test('OD turn resumes after extra turn (OD3-1 -> EX -> OD3-2)', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
@@ -16628,6 +16690,49 @@ test('enemy od_rate scales OD gain by od_rate/10000 multiplier (WIP: rounding po
   const { nextState } = commitTurn(baseState, preview);
 
   // 補正後: trunc2(10.00 * 0.5) = 5.00
+  assert.equal(nextState.turnState.odGauge, 5);
+});
+
+test('enemy od_rate accepts direct multiplier values where 1 means 100 percent', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODM${idx + 1}`,
+      characterName: `ODM${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODMS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15940 + idx,
+          name: idx === 0 ? '4hit Single' : 'Protection',
+          label: idx === 0 ? 'FourHitSingleMultiplier' : `ODMSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 4 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 0.5 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'ODM1', skillId: 15940 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
   assert.equal(nextState.turnState.odGauge, 5);
 });
 

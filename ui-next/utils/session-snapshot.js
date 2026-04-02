@@ -1,4 +1,5 @@
 import { normalizeLightweightReplayScript } from '../../src/ui/lightweight-replay-script.js';
+import { normalizeEnemySetupSnapshot } from './enemy-setup-snapshot.js';
 import { normalizeSimulatorSettings } from './simulator-settings.js';
 import { normalizeValidationPolicy } from './validation-policy.js';
 
@@ -73,6 +74,7 @@ export function normalizeSessionSnapshot(snapshot = {}) {
   return {
     version: SESSION_SNAPSHOT_VERSION,
     setup: normalizePartySetupSnapshot(snapshot?.setup),
+    enemy: normalizeEnemySetupSnapshot(snapshot?.enemy),
     simulatorSettings: normalizeSimulatorSettings(snapshot?.simulatorSettings),
     validationPolicy: normalizeValidationPolicy(snapshot?.validationPolicy),
     replayScript: normalizeLightweightReplayScript(snapshot?.replayScript),
@@ -140,6 +142,21 @@ function normalizeSpMap(values = {}) {
 
 function buildSpMapByCharacterName(spByStyleId = {}, styleIds = [], characterNames = []) {
   const result = {};
+  const styleIdToCharacterName = buildStyleIdToCharacterNameMap(styleIds, characterNames);
+
+  for (const [styleId, sp] of Object.entries(spByStyleId)) {
+    const characterName = styleIdToCharacterName.get(String(styleId));
+    const numericSp = Number(sp);
+    if (!characterName || !Number.isFinite(numericSp)) {
+      continue;
+    }
+    result[characterName] = numericSp;
+  }
+
+  return result;
+}
+
+function buildStyleIdToCharacterNameMap(styleIds = [], characterNames = []) {
   const styleIdToCharacterName = new Map();
   const safeStyleIds = Array.isArray(styleIds) ? styleIds : [];
   const safeCharacterNames = Array.isArray(characterNames) ? characterNames : [];
@@ -153,16 +170,23 @@ function buildSpMapByCharacterName(spByStyleId = {}, styleIds = [], characterNam
     styleIdToCharacterName.set(String(styleId), characterName);
   }
 
-  for (const [styleId, sp] of Object.entries(spByStyleId)) {
-    const characterName = styleIdToCharacterName.get(String(styleId));
-    const numericSp = Number(sp);
-    if (!characterName || !Number.isFinite(numericSp)) {
-      continue;
-    }
-    result[characterName] = numericSp;
-  }
+  return styleIdToCharacterName;
+}
 
-  return result;
+function normalizeActionOrderStyleIds(values = []) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+}
+
+function buildActionOrderByCharacterName(actionOrderStyleIds = [], styleIds = [], characterNames = []) {
+  const styleIdToCharacterName = buildStyleIdToCharacterNameMap(styleIds, characterNames);
+  return normalizeActionOrderStyleIds(actionOrderStyleIds)
+    .map((styleId) => styleIdToCharacterName.get(String(styleId)) ?? null)
+    .filter((characterName) => Boolean(characterName));
 }
 
 /**
@@ -177,6 +201,7 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
   const resolveSkillName = options.resolveSkillName ?? null;
   const getTurnStartSpByStyleId = options.getTurnStartSpByStyleId ?? (() => ({}));
   const getTurnPostSkillSpByStyleId = options.getTurnPostSkillSpByStyleId ?? (() => ({}));
+  const getTurnActionOrderByStyleId = options.getTurnActionOrderByStyleId ?? (() => []);
 
   const decorated = structuredClone(normalized);
   decorated.setup.styleNames = buildResolvedNameList(decorated.setup.styleIds, resolveStyleName);
@@ -228,6 +253,11 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
       decorated.replayScript.setup.styleIds,
       decorated.replayScript.setup.characterNames
     );
+    const actionOrder = buildActionOrderByCharacterName(
+      getTurnActionOrderByStyleId(turnIndex),
+      decorated.replayScript.setup.styleIds,
+      decorated.replayScript.setup.characterNames
+    );
     const slots = (Array.isArray(turn.slots) ? turn.slots : []).map((slot) => {
       const styleId = Number(slot?.styleId);
       const skillId = Number(slot?.skillId);
@@ -253,6 +283,7 @@ export function decorateSessionSnapshotForHumans(snapshot = {}, options = {}) {
         spAtActionStartByStyleId,
         spAtTurnStartByName,
         spAtActionStartByName,
+        actionOrder,
       },
     };
   });

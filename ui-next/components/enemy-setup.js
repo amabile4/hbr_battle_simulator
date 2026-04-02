@@ -1,4 +1,8 @@
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import {
+  formatEnemyOdRatePercent,
+  normalizeEnemyOdRateMultiplier,
+} from '../utils/enemy-setup-snapshot.js';
 
 // 属性一覧（物理3種 → 魔法5種 → 無）
 const ELEMENTS = [
@@ -14,7 +18,7 @@ const ELEMENTS = [
 ];
 const ELEMENT_KEY_SET = new Set(ELEMENTS.map((element) => element.key));
 
-const DEFAULT_OD_RATE    = 0;
+const DEFAULT_OD_RATE    = 1;
 const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const ENEMY_SLOT_COUNT = 3;
@@ -56,7 +60,7 @@ function normalizeAbsorbElementList(list = []) {
 
 function cloneManual(manual = {}) {
   return {
-    od_rate: Number(manual.od_rate ?? DEFAULT_OD_RATE),
+    od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
     element: Object.fromEntries(
       ELEMENTS.map((element) => [element.key, normalizeElementRatePercent(manual.element?.[element.key])])
@@ -81,7 +85,7 @@ function defaultManual() {
 function enemyToManual(enemy) {
   if (!enemy) return defaultManual();
   return cloneManual({
-    od_rate: enemy.od_rate ?? DEFAULT_OD_RATE,
+    od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
     element: Object.fromEntries(
       ELEMENTS.map((element) => [
@@ -98,7 +102,7 @@ function snapshotToManual(snapshot = {}) {
     return cloneManual(snapshot.manual);
   }
   return cloneManual({
-    od_rate: snapshot.od_rate,
+    od_rate: normalizeEnemyOdRateMultiplier(snapshot.od_rate),
     max_d_rate: snapshot.max_d_rate,
     element: snapshot.resistances?.element,
     absorbElementList: snapshot.absorbElementList,
@@ -552,7 +556,7 @@ export class EnemySetupController {
             <!-- オーバードライブ上昇量 / 最大破壊率 -->
             <div class="grid grid-cols-2 gap-1.5">
               ${this.#numFieldHtml('od_rate',    'オーバードライブ上昇量', vals.od_rate,    isManual,
-                (v) => v === 0 ? '100%' : `${v / 100}%`)}
+                (v) => formatEnemyOdRatePercent(v))}
               ${this.#numFieldHtml('max_d_rate', '最大破壊率',             vals.max_d_rate, isManual,
                 (v) => `${v}%`)}
             </div>

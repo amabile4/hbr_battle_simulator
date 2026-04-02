@@ -332,6 +332,22 @@ function buildTurnPostSkillSpByStyleId(turnEngineManager, turnIndex) {
   );
 }
 
+function buildTurnActionOrderByStyleId(turnEngineManager, turnIndex) {
+  const record = turnEngineManager.computedRecords?.[turnIndex] ?? null;
+  const actions = Array.isArray(record?.actions) ? record.actions : [];
+  const seenStyleIds = new Set();
+  const result = [];
+  for (const action of actions) {
+    const styleId = Number(action?.styleId);
+    if (!Number.isFinite(styleId) || seenStyleIds.has(styleId)) {
+      continue;
+    }
+    seenStyleIds.add(styleId);
+    result.push(styleId);
+  }
+  return result;
+}
+
 function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
   const snapshot = initialSetup.getCurrentSetupSnapshot();
   if (!snapshot?.party?.isFrontFilled) {
@@ -343,6 +359,7 @@ function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
     : createEmptyLightweightReplayScript(replaySetup);
   const decoratedSnapshot = decorateSessionSnapshotForHumans({
     setup: snapshot.party,
+    enemy: snapshot.enemy,
     simulatorSettings: snapshot.simulatorSettings,
     validationPolicy: turnEngineManager.validationPolicy ?? DEFAULT_VALIDATION_POLICY,
     replayScript,
@@ -354,6 +371,8 @@ function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
       buildTurnStartSpByStyleId(turnEngineManager, turnIndex),
     getTurnPostSkillSpByStyleId: (turnIndex) =>
       buildTurnPostSkillSpByStyleId(turnEngineManager, turnIndex),
+    getTurnActionOrderByStyleId: (turnIndex) =>
+      buildTurnActionOrderByStyleId(turnEngineManager, turnIndex),
   });
   const sessionText = JSON.stringify(decoratedSnapshot, null, 2);
   downloadTextFile(sessionText, makeSessionFilename());
@@ -368,9 +387,10 @@ function loadSessionText({
   const session = normalizeSessionSnapshot(JSON.parse(text));
   initialSetup.applySetupSnapshot({
     party: session.setup,
+    enemy: session.enemy,
     simulatorSettings: session.simulatorSettings,
   });
-  const state = battleStateManager.buildFromSnapshot(session.setup);
+  const state = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
   turnArea.loadSession(
     state,
     session.replayScript,

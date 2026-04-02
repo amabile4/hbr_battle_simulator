@@ -91,7 +91,7 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     const maxDestructionRate = Number.isFinite(Number(slot?.max_d_rate))
       ? Number(slot.max_d_rate)
       : DEFAULT_MAX_D_RATE;
-    const rawOdRate = Number.isFinite(Number(slot?.od_rate)) && Number(slot.od_rate) !== ENEMY_OD_RATE_NO_CORRECTION
+    const rawOdRate = Number.isFinite(Number(slot?.od_rate))
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
     return {
