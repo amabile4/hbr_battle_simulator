@@ -664,6 +664,25 @@ test('additional turn rules expose turn-context conditions from skill parts', ()
   );
 });
 
+test('石塔の手筋+ keeps OD branch HealSp AllyAllWithoutSelf +5 in real data', () => {
+  const store = getStore();
+  const skill = store.getSkillById(46005161);
+  const skillConditionPart = (skill?.parts ?? []).find((part) => String(part?.skill_type ?? '') === 'SkillCondition');
+
+  assert.equal(skill?.name, '石塔の手筋+');
+  assert.equal(String(skillConditionPart?.cond ?? ''), 'IsOverDrive()');
+
+  const odVariant = (skillConditionPart?.strval ?? []).find((variant) => String(variant?.desc ?? '').includes('オーバードライブ中'));
+  const odHealSpPart = (odVariant?.parts ?? []).find((part) => String(part?.skill_type ?? '') === 'HealSp');
+
+  assert.equal(String(odHealSpPart?.target_type ?? ''), 'AllyAllWithoutSelf');
+  assert.equal(Number(odHealSpPart?.power?.[0] ?? 0), 5);
+
+  const member = store.buildCharacterStyle({ styleId: 1005103, partyIndex: 0, initialSP: 10 });
+  const selectableSkill = (member.skills ?? []).find((row) => Number(row.skillId) === 46005161);
+  assert.equal(selectableSkill?.type, 'damage', '石塔の手筋+ は damage として分類される');
+});
+
 test('EP rules are loaded from external rule table for Nanase styles', () => {
   const store = getStore();
   const rider = store.buildCharacterStyle({ styleId: 1010203, partyIndex: 0, initialSP: 10 });

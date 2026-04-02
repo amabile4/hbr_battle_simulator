@@ -50,7 +50,7 @@ function normalizeSkill(skill, canonicalSkill) {
     spCost: Number(skill.sp_cost ?? skill.spCost ?? canonicalSkill?.spCost ?? 0),
     sourceType,
     isPassive,
-    type: canonicalSkill?.type ?? inferSkillType(skill),
+    type: resolveSkillType(skill, canonicalSkill),
     consumeType: skill.consume_type ?? skill.consumeType ?? canonicalSkill?.consumeType ?? null,
     hitCount: Number(skill.hit_count ?? skill.hitCount ?? canonicalSkill?.hitCount ?? 0),
     isRestricted: Number(skill.is_restricted ?? skill.isRestricted ?? canonicalSkill?.isRestricted ?? 0) === 1,
@@ -78,18 +78,50 @@ function normalizeSkill(skill, canonicalSkill) {
   };
 }
 
+function partHasDamage(part) {
+  const skillType = String(part?.skill_type ?? '').toLowerCase();
+  if (
+    skillType.includes('attack') ||
+    skillType.includes('damage') ||
+    skillType.includes('break')
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(part?.strval)) {
+    for (const nested of part.strval) {
+      if (nested && typeof nested === 'object' && hasDamageInParts(nested.parts)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function hasDamageInParts(parts) {
+  return (parts ?? []).some((part) => partHasDamage(part));
+}
+
 function inferSkillType(skill) {
   const parts = Array.isArray(skill.parts) ? skill.parts : [];
-  const hasDamage = parts.some((part) => {
-    const skillType = String(part.skill_type ?? '').toLowerCase();
-    return (
-      skillType.includes('attack') ||
-      skillType.includes('damage') ||
-      skillType.includes('break')
-    );
-  });
+  const hasDamage = hasDamageInParts(parts);
 
   return hasDamage ? 'damage' : 'non_damage';
+}
+
+function resolveSkillType(skill, canonicalSkill) {
+  const inferredType = inferSkillType(skill);
+  if (inferredType === 'damage') {
+    return 'damage';
+  }
+
+  const canonicalType = String(canonicalSkill?.type ?? '').trim();
+  if (canonicalType === 'damage' || canonicalType === 'non_damage') {
+    return canonicalType;
+  }
+
+  return inferredType;
 }
 
 export function canSwapWith(a, b, isExtraActive, allowedCharacterIds = []) {
