@@ -58,6 +58,7 @@ docs/
 | [active/count_only_status_audit.md](active/count_only_status_audit.md) | 🟢 進行中 | `Count` / `Only` 併存 status family 監査（`AttackUp` 系は `elements subgroup`、`Funnel` / `MindEye` は `target_condition` 制約として整理し、runtime/test 経路・実機確認マトリクスを併記。session再計算Warning理由のPassiveLog暫定表示を追記） | 2026-03-29 |
 | [active/setup_panel_layout_and_perf_tasklist.md](active/setup_panel_layout_and_perf_tasklist.md) | 🟢 進行中 | Setup パネルのタブレイアウト改善（L01〜L04 ✅）とロード高速化（P01〜P03 ❌）タスクリスト | 2026-03-29 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-22 |
+| [active/interrupt_od_enemy_turn_start_double_fire.md](active/interrupt_od_enemy_turn_start_double_fire.md) | 🟢 未着手 | 割込OD時 OnEnemyTurnStart 二重発火の潜在問題（優先度低） | 2026-04-03 |
 | [active/turn_timing.md](active/turn_timing.md) | 📚 参照 | バトルフロー図と各タイミングの説明（Enemy先制行動〜バトル終了） | 2026-03-31 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（top-level `ui/` 削除済みの current state と `src/ui` shared module 境界へ更新） | 2026-03-31 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |

@@ -17070,7 +17070,7 @@ test('preemptive OD1: base SP recovery is not applied at OD→same-turn transiti
 
 test('OD multi-action (OD2): base SP recovery only at final OD→normal transition', () => {
   const party = createSixMemberManualParty(() => ({
-    initialSP: 8,
+    initialSP: 2,
     skills: [createProtectionSkill(9900)],
   }));
   const state = createBattleStateFromParty(party);
@@ -17084,11 +17084,11 @@ test('OD multi-action (OD2): base SP recovery only at final OD→normal transiti
   });
   const { nextState: od1 } = commitTurn(state, preview1, [], { interruptOdLevel: 2 });
 
-  // OD2 発動: 8 + 12(OD2) = 20, 基本回復なし
+  // OD2 発動: 2 + 12(OD2) = 14, 基本回復なし
   assert.equal(od1.turnState.turnType, 'od');
   assert.equal(od1.turnState.remainingOdActions, 2);
   for (const m of od1.party) {
-    assert.equal(m.sp.current, 20, `${m.characterId}: 8 + 12(OD2) = 20`);
+    assert.equal(m.sp.current, 14, `${m.characterId}: 2 + 12(OD2) = 14, no base recovery`);
   }
 
   // OD2-1 コミット → まだOD中
@@ -17100,9 +17100,9 @@ test('OD multi-action (OD2): base SP recovery only at final OD→normal transiti
   const { nextState: od2 } = commitTurn(od1, preview2);
 
   assert.equal(od2.turnState.turnType, 'od');
-  // OD→OD遷移: 基本回復なし
+  // OD→OD遷移: 基本回復なし、SP=14 維持
   for (const m of od2.party) {
-    assert.equal(m.sp.current, 20, `${m.characterId}: still 20, no mid-OD recovery`);
+    assert.equal(m.sp.current, 14, `${m.characterId}: still 14, no mid-OD recovery`);
   }
 
   // OD2-2 コミット → 通常へ
@@ -17114,9 +17114,97 @@ test('OD multi-action (OD2): base SP recovery only at final OD→normal transiti
   const { nextState: normal } = commitTurn(od2, preview3);
 
   assert.equal(normal.turnState.turnType, 'normal');
-  // OD→通常: 基本回復 +2 が適用される（ただし max=20 の上限により SP は 20 のまま）
+  // OD→通常: 基本回復 +2 が1回だけ適用される
   for (const m of normal.party) {
-    // SP=20(max) + 2 → ceiling is max(20,20)=20, so clamped to 20
-    assert.equal(m.sp.current, 20, `${m.characterId}: 20 capped at max`);
+    assert.equal(m.sp.current, 16, `${m.characterId}: 14 + 2(base) = 16`);
+  }
+});
+
+test('interrupt OD1 during EX (odSuspended, all OD consumed) → normal with single base recovery', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `S${idx + 1}`,
+      characterName: `S${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `SS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 16000,
+                name: 'Grant Self Extra',
+                sp_cost: 0,
+                additionalTurnRule: {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: false,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: true,
+                  },
+                  additionalTurnTargetTypes: ['Self'],
+                },
+                parts: [{ skill_type: 'AdditionalTurn', target_type: 'Self' }],
+              },
+              {
+                id: 16001,
+                name: 'Normal',
+                sp_cost: 0,
+                parts: [],
+              },
+            ]
+          : [{ id: 16010 + idx, name: 'Normal', sp_cost: 0, parts: [] }],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 100;
+
+  // T1: 割込OD1 発動 → OD1-1 へ
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'S1', skillId: 16000 },
+    1: { characterId: 'S2', skillId: 16011 },
+    2: { characterId: 'S3', skillId: 16012 },
+  });
+  const { nextState: odState } = commitTurn(state, preview1, [], { interruptOdLevel: 1 });
+
+  assert.equal(odState.turnState.turnType, 'od');
+  assert.equal(odState.turnState.odContext, 'interrupt');
+  assert.equal(odState.turnState.remainingOdActions, 1);
+  // OD1回復: 10 + 5 = 15, 基本回復なし
+  const actor = odState.party.find((m) => m.characterId === 'S1');
+  assert.equal(actor.sp.current, 15);
+
+  // OD1-1: 追加ターン付与スキル → EX へ (odSuspended, remainingOdActions=0)
+  const previewOd = previewTurn(odState, {
+    0: { characterId: 'S1', skillId: 16000 },
+    1: { characterId: 'S2', skillId: 16011 },
+    2: { characterId: 'S3', skillId: 16012 },
+  });
+  const { nextState: exState } = commitTurn(odState, previewOd);
+
+  assert.equal(exState.turnState.turnType, 'extra');
+  assert.equal(exState.turnState.odSuspended, true);
+  assert.equal(exState.turnState.odContext, 'interrupt');
+  assert.equal(exState.turnState.remainingOdActions, 0);
+  // EX遷移: 基本回復なし → SP=15 維持
+  const actorEx = exState.party.find((m) => m.characterId === 'S1');
+  assert.equal(actorEx.sp.current, 15);
+
+  // EX コミット → odSuspended + interrupt + OD全消費 → normal (turnIndex+1)
+  const previewEx = previewTurn(exState, {
+    0: { characterId: 'S1', skillId: 16001 },
+  });
+  const { nextState: normalState } = commitTurn(exState, previewEx);
+
+  assert.equal(normalState.turnState.turnType, 'normal');
+  assert.equal(normalState.turnState.odSuspended, false);
+  // interrupt 文脈での復帰: turnIndex が進むため基本回復 +2 が1回適用される
+  for (const m of normalState.party) {
+    assert.equal(m.sp.current, 17, `${m.characterId}: 15 + 2(base) = 17`);
   }
 });
