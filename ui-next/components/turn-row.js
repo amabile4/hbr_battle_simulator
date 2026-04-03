@@ -499,7 +499,7 @@ export class TurnRowController {
     odState = undefined,
     simulatorSettings = undefined,
     openTargetPickerPartyIndex = null,
-    isBreakEditorOpen = false,
+    isBreakEditorOpen = undefined,
     editDraft = undefined,
   }) {
     const previousDraftMode = this.#isDraftMode();
@@ -528,7 +528,9 @@ export class TurnRowController {
       this.#selectedSlotPosition = null;
     }
     this.#openTargetPickerPartyIndex = openTargetPickerPartyIndex;
-    this.#isBreakEditorOpen = Boolean(isBreakEditorOpen);
+    if (isBreakEditorOpen !== undefined) {
+      this.#isBreakEditorOpen = Boolean(isBreakEditorOpen);
+    }
     this.#isFollowUpEditorOpen = this.#isFollowUpEditorOpen && this.#isDraftMode();
     this.#record = record;
     if (replayTurn !== undefined) this.#replayTurn = replayTurn;
