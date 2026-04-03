@@ -10226,15 +10226,23 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   // ─── ② 次ターン ターン開始 (applyRecoveryPipeline) ───
-  // EXターンへ遷移する場合はターン開始回復をスキップ（OD発動ボーナスは除く）
+  // turnIndex が実際に進む場合のみターン開始回復を適用する。
+  // 以下のケースでは turnIndex が進まないためスキップされる:
+  //   - 追加ターン付与（→EX）: turnIndex 据え置き
+  //   - 割込OD 発動: turnIndex 補正で据え置き
+  //   - OD 連続アクション: turnIndex 不変
+  //   - 先制OD 終了→同一ターン復帰: turnIndex 不変
   // nextTurnState を渡すことで ReviveTerritory 消費・ゾーン状態更新が次ターンの状態に正しく反映される
+  // turnIndex が有限数でない場合（テスト等でのデフォルト turnState）は
+  // フォールバックとして回復ありとする
+  const currentTurnIndex = Number(state.turnState?.turnIndex);
+  const nextTurnIndex = Number(nextTurnState?.turnIndex);
+  const nextTurnIndexAdvances =
+    Number.isFinite(currentTurnIndex) && Number.isFinite(nextTurnIndex)
+      ? nextTurnIndex > currentTurnIndex
+      : true;
   const recovery = applyRecoveryPipeline(state.party, nextTurnState, {
-    // 追加ターン付与時（→T1EX）は T1EX 開始処理をスキップ
-    // T1EX → OD割込 の場合も T2 開始処理をスキップ（OD終了後に T2 開始処理を行う）
-    // T1EX → T2（通常遷移）の場合はスキップしない（T2 のSP回復・OnEveryTurnを発動させる）
-    skipTurnStartRecovery:
-      grantedExtraCharacterIds.length > 0 ||
-      (String(state.turnState?.turnType ?? '') === 'extra' && shouldActivateInterruptOd),
+    skipTurnStartRecovery: !nextTurnIndexAdvances,
   });
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];

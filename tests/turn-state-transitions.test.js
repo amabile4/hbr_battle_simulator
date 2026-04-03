@@ -16986,3 +16986,137 @@ test('スペクタクルアート real data: projections.spAfterActionByPartyInd
     );
   }
 });
+
+// ─── 割込OD でSP回復が二重適用されないことの回帰テスト ───
+
+test('interrupt OD1: base SP recovery is applied once (at OD→normal transition only)', () => {
+  const party = createSixMemberManualParty(() => ({
+    initialSP: 10,
+    skills: [createProtectionSkill(9900)],
+  }));
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+
+  // Turn 1: 通常ターンを割込OD1付きでコミット
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: odState } = commitTurn(state, preview1, [], {
+    interruptOdLevel: 1,
+  });
+
+  // OD ターンに遷移、OD1 SP回復(+5)のみ。基本回復(+2)は適用されない
+  assert.equal(odState.turnState.turnType, 'od');
+  for (const m of odState.party) {
+    assert.equal(m.sp.current, 15, `${m.characterId}: 10 + 5(OD1) = 15, no base recovery`);
+  }
+
+  // Turn 2: OD ターンをコミット → 通常ターンへ戻る
+  const preview2 = previewTurn(odState, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: normalState } = commitTurn(odState, preview2);
+
+  // OD→通常遷移で基本回復(+2)が1回だけ適用される
+  assert.equal(normalState.turnState.turnType, 'normal');
+  for (const m of normalState.party) {
+    assert.equal(m.sp.current, 17, `${m.characterId}: 15 + 2(base) = 17, single recovery`);
+  }
+});
+
+test('preemptive OD1: base SP recovery is not applied at OD→same-turn transition', () => {
+  const party = createSixMemberManualParty(() => ({
+    initialSP: 10,
+    skills: [createProtectionSkill(9900)],
+  }));
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+
+  // 先制OD1 を発動
+  const odState = activateOverdrive(state, 1, 'preemptive');
+  assert.equal(odState.turnState.turnType, 'od');
+
+  // OD ターンをコミット → 同一ターンの通常文脈へ復帰
+  const preview = previewTurn(odState, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: backToNormal } = commitTurn(odState, preview);
+
+  // 同一ターン復帰: 基本回復なし
+  assert.equal(backToNormal.turnState.turnType, 'normal');
+  for (const m of backToNormal.party) {
+    assert.equal(m.sp.current, 15, `${m.characterId}: 10 + 5(OD1) = 15, no recovery on same-turn return`);
+  }
+
+  // 通常ターンをコミット → 次ターンで初めて基本回復が適用される
+  const preview2 = previewTurn(backToNormal, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: nextNormal } = commitTurn(backToNormal, preview2);
+
+  assert.equal(nextNormal.turnState.turnType, 'normal');
+  for (const m of nextNormal.party) {
+    assert.equal(m.sp.current, 17, `${m.characterId}: 15 + 2(base) = 17`);
+  }
+});
+
+test('OD multi-action (OD2): base SP recovery only at final OD→normal transition', () => {
+  const party = createSixMemberManualParty(() => ({
+    initialSP: 8,
+    skills: [createProtectionSkill(9900)],
+  }));
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 200;
+
+  // 割込OD2 発動
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: od1 } = commitTurn(state, preview1, [], { interruptOdLevel: 2 });
+
+  // OD2 発動: 8 + 12(OD2) = 20, 基本回復なし
+  assert.equal(od1.turnState.turnType, 'od');
+  assert.equal(od1.turnState.remainingOdActions, 2);
+  for (const m of od1.party) {
+    assert.equal(m.sp.current, 20, `${m.characterId}: 8 + 12(OD2) = 20`);
+  }
+
+  // OD2-1 コミット → まだOD中
+  const preview2 = previewTurn(od1, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: od2 } = commitTurn(od1, preview2);
+
+  assert.equal(od2.turnState.turnType, 'od');
+  // OD→OD遷移: 基本回復なし
+  for (const m of od2.party) {
+    assert.equal(m.sp.current, 20, `${m.characterId}: still 20, no mid-OD recovery`);
+  }
+
+  // OD2-2 コミット → 通常へ
+  const preview3 = previewTurn(od2, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: normal } = commitTurn(od2, preview3);
+
+  assert.equal(normal.turnState.turnType, 'normal');
+  // OD→通常: 基本回復 +2 が適用される（ただし max=20 の上限により SP は 20 のまま）
+  for (const m of normal.party) {
+    // SP=20(max) + 2 → ceiling is max(20,20)=20, so clamped to 20
+    assert.equal(m.sp.current, 20, `${m.characterId}: 20 capped at max`);
+  }
+});
