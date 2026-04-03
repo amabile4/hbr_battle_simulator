@@ -8324,7 +8324,13 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
     const bi = PASSIVE_ACTION_ORDER.indexOf(Number(b.partyIndex ?? 99));
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
+  const requiresExtraActive = timingSet.has('OnAdditionalTurnStart');
   for (const member of sortedParty) {
+    // OnAdditionalTurnStart は「自身が追加ターン開始時」に発火するため、
+    // isExtraActive でないメンバーのパッシブはスキップする。
+    if (requiresExtraActive && !member.isExtraActive) {
+      continue;
+    }
     for (const passive of getPassiveEntriesForMember(member)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;

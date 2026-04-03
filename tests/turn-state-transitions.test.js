@@ -10283,7 +10283,7 @@ test('grantExtraTurn applies OnAdditionalTurnStart SP passives when extra turn b
   );
   let state = createBattleStateFromParty(new Party(members));
 
-  state = grantExtraTurn(state, ['AT1']);
+  state = grantExtraTurn(state, ['AT1', 'AT2']);
 
   assert.equal(state.turnState.turnType, 'extra');
   assert.equal(state.party.find((m) => m.characterId === 'AT1').sp.current, 6);
@@ -10294,6 +10294,65 @@ test('grantExtraTurn applies OnAdditionalTurnStart SP passives when extra turn b
   assert.deepEqual(
     state.turnState.passiveEventsLastApplied.map((event) => event.passiveName),
     ['戦場の華', 'アフターサービス']
+  );
+});
+
+test('grantExtraTurn skips OnAdditionalTurnStart passives for non-isExtraActive members', () => {
+  // Regression: サプライズギフト等の OnAdditionalTurnStart パッシブが、
+  // extraTurn の対象外メンバーに対しても発火していた不具合の検証
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EX${idx + 1}`,
+      characterName: `EX${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EXS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 31,
+                name: 'アフターサービス',
+                desc: '追加ターン開始時 自身のSP+1',
+                timing: 'OnAdditionalTurnStart',
+                condition: '',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+              },
+            ]
+          : idx === 1
+            ? [
+                {
+                  id: 32,
+                  name: 'サプライズギフト',
+                  desc: '自身が追加ターン開始時 自身以外の味方のSP+2',
+                  timing: 'OnAdditionalTurnStart',
+                  condition: '',
+                  parts: [{ skill_type: 'HealSp', target_type: 'AllyAllWithoutSelf', power: [2, 0] }],
+                },
+              ]
+            : [],
+      skills: [{ id: 31000 + idx, name: 'Wait', label: `EXSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  let state = createBattleStateFromParty(new Party(members));
+
+  // EX1 のみ extraActive、EX2 は対象外
+  state = grantExtraTurn(state, ['EX1']);
+
+  assert.equal(state.turnState.turnType, 'extra');
+  // EX1: 3 + 1 (self passive) = 4  ※ EX2 の +2 は発火しない
+  assert.equal(state.party.find((m) => m.characterId === 'EX1').sp.current, 4);
+  // EX2: 変化なし (自身の passive は AllyAllWithoutSelf で自分には効かない & そもそも発火しない)
+  assert.equal(state.party.find((m) => m.characterId === 'EX2').sp.current, 3);
+  // EX3: 変化なし (EX2 の passive が発火しないため +2 されない)
+  assert.equal(state.party.find((m) => m.characterId === 'EX3').sp.current, 3);
+  // パッシブイベントは 1 件のみ (アフターサービス)
+  assert.equal(state.turnState.passiveEventsLastApplied.length, 1);
+  assert.deepEqual(
+    state.turnState.passiveEventsLastApplied.map((event) => event.passiveName),
+    ['アフターサービス']
   );
 });
 
