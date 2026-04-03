@@ -29,6 +29,7 @@ export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
 export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
   ENEMY_COUNT: 'EnemyCount',
   ACTION_OUTCOME_OVERRIDES: 'ActionOutcomeOverrides',
+  FOLLOW_UP_OVERRIDES: 'FollowUpOverrides',
   ENEMY_ACTION: 'EnemyAction',
   ENEMY_NAMES: 'EnemyNames',
   ENEMY_DAMAGE_RATES: 'EnemyDamageRates',
@@ -213,6 +214,8 @@ export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT]: createReplayOverrideEntryDefinition('enemyCount'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES]:
     createReplayOverrideEntryDefinition('actionOutcomeOverrides'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES]:
+    createReplayOverrideEntryDefinition('followUpOverrides'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ACTION]: createReplayOverrideEntryDefinition('enemyAction'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_NAMES]: createReplayOverrideEntryDefinition('enemyNames'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DAMAGE_RATES]: createReplayOverrideEntryDefinition('enemyDamageRates'),

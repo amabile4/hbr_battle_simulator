@@ -5814,6 +5814,13 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       actionEntry,
       { funnelHitBonus }
     );
+    // 追撃ヒットの OD 寄与を前衛のスキル属性・バフ状態から完全に独立して計算する。
+    // 追撃はバフ/デバフの効果を受けない無属性攻撃であり、ドライブピアス・Funnel・
+    // 全体攻撃の敵数倍・通常攻撃の最低3hit保証は適用しない。
+    const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
+    const pursuitOdGain = pursuedHitCount > 0
+      ? truncateToTwoDecimals(pursuedHitCount * OD_GAUGE_PER_HIT_PERCENT)
+      : 0;
     const odGaugeDown = computeOverDrivePointDownPercent(
       effectiveParts,
       state,
@@ -5822,9 +5829,15 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       actionEntry
     );
     // od_rate による補正を OD 上昇量に適用する（WIP: 丸め込み位置調査中）。
-    const effectiveOdGaugeGain = odRateMultiplier !== 1
+    // od_rate は敵固有属性であり味方バフ/デバフとは別概念。
+    // 追撃ヒットも od_rate の影響を受ける（実機検証済み: 問題H 解決）。
+    const effectiveSkillOdGain = odRateMultiplier !== 1
       ? truncateToTwoDecimals(odGaugeGain * odRateMultiplier)
       : odGaugeGain;
+    const effectivePursuitOdGain = odRateMultiplier !== 1
+      ? truncateToTwoDecimals(pursuitOdGain * odRateMultiplier)
+      : pursuitOdGain;
+    const effectiveOdGaugeGain = truncateToTwoDecimals(effectiveSkillOdGain + effectivePursuitOdGain);
     const delta = truncateToTwoDecimals(Number(effectiveOdGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
     if (!Number.isFinite(delta) || delta === 0) {
       continue;

@@ -421,6 +421,7 @@ export class TurnAreaController {
         note: row.getCurrentNote(),
         enemyCount: row.getCurrentEnemyCount(),
         actionOutcomeOverrides: row.getCurrentActionOutcomeOverrides(),
+        followUpOverrides: row.getCurrentFollowUpOverrides(),
       });
     } catch (error) {
       console.error('TurnAreaController: commitNextTurn failed:', error);
@@ -591,6 +592,7 @@ export class TurnAreaController {
       slotActions: lastRow.getCurrentSlotActions(),
       enemyCount,
       actionOutcomeOverrides: lastRow.getCurrentActionOutcomeOverrides(),
+      followUpOverrides: lastRow.getCurrentFollowUpOverrides(),
     });
     lastRow.update({
       rowMode: 'input',
