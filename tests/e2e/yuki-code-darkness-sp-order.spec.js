@@ -42,6 +42,7 @@ test.describe('Yuki Code Darkness SP order regression', () => {
 
     expect(turn4?.info?.spAtTurnStartByName?.['和泉 ユキ']).toBe(21);
     expect(turn4?.info?.spAtActionStartByName?.['和泉 ユキ']).toBe(7);
-    expect(turn5?.info?.spAtTurnStartByName?.['和泉 ユキ']).toBe(16);
+    // サプライズギフト修正 (OnAdditionalTurnStart isExtraActive制限) により 16→14
+    expect(turn5?.info?.spAtTurnStartByName?.['和泉 ユキ']).toBe(14);
   });
 });
