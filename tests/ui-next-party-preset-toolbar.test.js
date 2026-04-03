@@ -221,6 +221,33 @@ test('PartyPresetToolbarController uses name over label in hover preview and loa
     assert.deepEqual(service.calls.load, [0]);
   }));
 
+test('PartyPresetToolbarController hides hover preview after async load completes', async () =>
+  withDom(async ({ root, win }) => {
+    const service = createService();
+    const controller = new PartyPresetToolbarController({
+      root,
+      getPresetPreviews: () => service.getPresetPreviews(),
+      onLoadPreset: (index) => service.loadPreset(index),
+      onSavePreset: (index, options) => service.savePreset(index, options),
+      onRenamePreset: (index, options) => service.renamePreset(index, options),
+      onClearPreset: (index) => service.clearPreset(index),
+    });
+    controller.mount();
+
+    const buttons = root.querySelectorAll('[data-role="party-preset-button"]');
+    buttons[0].dispatchEvent(new win.MouseEvent('mouseenter', { bubbles: true }));
+    const hoverPreview = root.querySelector('[data-role="preset-hover-preview"]');
+    assert.equal(hoverPreview.hidden, false, 'Preview should be visible after mouseenter');
+
+    // Click to load — async load resolves and re-renders buttons.
+    // The mouseleave may not fire because DOM is rebuilt, so #handleLoad must
+    // explicitly dismiss the preview.
+    buttons[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    await new Promise((resolve) => win.setTimeout(resolve, 0));
+
+    assert.equal(hoverPreview.hidden, true, 'Preview should be hidden after load completes');
+  }));
+
 test('PartyPresetToolbarController opens context menu and supports save rename clear actions', async () =>
   withDom(async ({ root, win }) => {
     const service = createService();

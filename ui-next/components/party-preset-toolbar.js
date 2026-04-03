@@ -225,6 +225,7 @@ export class PartyPresetToolbarController {
         return;
       }
       this.#hideActionMenu();
+      this.#hideHoverPreview();
       this.sync();
     } catch (error) {
       this.#onError?.(error);
