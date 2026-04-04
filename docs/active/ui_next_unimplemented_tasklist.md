@@ -78,6 +78,11 @@
 - [ ] 5. enemy-side status の unit / integration / 必要に応じて E2E を追加する
 - [ ] 6. 敵の状態変化が戦闘中に正しく付与・更新・消滅する
 
+T34 follow-up（Day 1 設計ゲートで分離）:
+
+- [ ] T34-FU1: C-2 選択肢B（`effectId` 単位の per-source instance 管理）を別タスクで設計・実装する
+	- DoD: identity model 変更の影響範囲（engine/UI/tests）を文書化し、既存 merged 前提テストとの差分移行計画を提示する
+
 ## 7) Setup パネル レイアウト改善 & ロード高速化（11項目）
 
 Source: `setup_panel_layout_and_perf_tasklist.md`
