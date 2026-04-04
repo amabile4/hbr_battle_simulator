@@ -3729,7 +3729,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         return false;
       }
       if (skillType === 'AdditionalHitOnBreaking') {
-        const breakHitCount = Math.max(0, Number(actionEntry?.breakHitCount ?? 0));
+        const breakHitCount = resolveActionBreakTriggerCount(actionEntry);
         if (breakHitCount > 0) {
           triggerMultiplier = breakHitCount;
           // killCountMultiplier は設定しない（「ブレイクしたとき」は単発発動）
@@ -5678,6 +5678,9 @@ function computeOdGaugeGainPercentBySkill(
 
   const baseHitCount = resolveSkillHitCount(skill);
   const funnelHitBonus = Number(options?.funnelHitBonus ?? 0);
+  const rawOdRateMultiplier = Number(options?.odRateMultiplier ?? 1);
+  const odRateMultiplier =
+    Number.isFinite(rawOdRateMultiplier) && rawOdRateMultiplier > 0 ? rawOdRateMultiplier : 1;
   const hitCountPerEnemyBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
   const hitCountPerEnemy = hitCountPerEnemyBase + Math.max(0, funnelHitBonus);
   const odEnemyAnalysis = hasDamage
@@ -5694,20 +5697,21 @@ function computeOdGaugeGainPercentBySkill(
     return 0;
   }
 
-  const baseGain = hitCount * OD_GAUGE_PER_HIT_PERCENT;
   let attackGain = 0;
   if (!hasDamage) {
     attackGain = 0;
   } else if (isNormalAttackSkill(skill)) {
-    attackGain = truncateToTwoDecimals(baseGain);
+    const perHitGain = truncateToTwoDecimals(OD_GAUGE_PER_HIT_PERCENT * odRateMultiplier);
+    attackGain = truncateToTwoDecimals(perHitGain * hitCount);
   } else {
     // ピアス補正テーブルの hit 数は、敵数を掛けた後ではなく「スキル本来の hit 数」を使う。
     const bonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
     const multiplier = 1 + bonusPercent / 100;
     // 仕様更新:
     // 攻撃ぶんODは「1hitごと」に算出し、小数第2位で切り捨ててから総hitへ乗算する。
+    // 敵 od_rate 補正も同様に 1hit 単位で適用する。
     // (全体攻撃は totalHits = baseHitCount * enemyCount, 単体攻撃は totalHits = baseHitCount)
-    const perHitGain = truncateToTwoDecimals(OD_GAUGE_PER_HIT_PERCENT * multiplier);
+    const perHitGain = truncateToTwoDecimals(OD_GAUGE_PER_HIT_PERCENT * multiplier * odRateMultiplier);
     attackGain = truncateToTwoDecimals(perHitGain * hitCount);
   }
 
@@ -5812,8 +5816,19 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       enemyCount,
       member,
       actionEntry,
-      { funnelHitBonus }
+      {
+        funnelHitBonus,
+        odRateMultiplier,
+      }
     );
+    // 追撃ヒットの OD 寄与を前衛のスキル属性・バフ状態から完全に独立して計算する。
+    // 追撃はバフ/デバフの効果を受けない無属性攻撃であり、ドライブピアス・Funnel・
+    // 全体攻撃の敵数倍・通常攻撃の最低3hit保証は適用しない。
+    const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
+    const pursuitPerHitGain = truncateToTwoDecimals(OD_GAUGE_PER_HIT_PERCENT * odRateMultiplier);
+    const pursuitOdGain = pursuedHitCount > 0
+      ? truncateToTwoDecimals(pursuedHitCount * pursuitPerHitGain)
+      : 0;
     const odGaugeDown = computeOverDrivePointDownPercent(
       effectiveParts,
       state,
@@ -5821,10 +5836,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       skill,
       actionEntry
     );
-    // od_rate による補正を OD 上昇量に適用する（WIP: 丸め込み位置調査中）。
-    const effectiveOdGaugeGain = odRateMultiplier !== 1
-      ? truncateToTwoDecimals(odGaugeGain * odRateMultiplier)
-      : odGaugeGain;
+    const effectiveOdGaugeGain = truncateToTwoDecimals(odGaugeGain + pursuitOdGain);
     const delta = truncateToTwoDecimals(Number(effectiveOdGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
     if (!Number.isFinite(delta) || delta === 0) {
       continue;
@@ -7024,13 +7036,19 @@ function findMemberByCharacterId(state, characterId) {
   return state.party.find((member) => member.characterId === characterId) ?? null;
 }
 
+function resolveActionBreakTriggerCount(actionEntry) {
+  const breakHitCount = Math.max(0, Number(actionEntry?.breakHitCount ?? 0));
+  const manualBreakCount = normalizeManualBreakEnemyIndexes(actionEntry).length;
+  return Math.max(breakHitCount, manualBreakCount);
+}
+
 // ブレイク時にダウンターンを延長するパッシブ（ひれ伏すでゲス！など）を処理する。
 // applyEnemyBreakEffectsFromActions の後に呼ぶことで、同ターン付与のDownTurnも対象にできる。
 function applyBreakDownTurnUpFromActions(state, previewRecord) {
   const events = [];
 
   for (const actionEntry of previewRecord.actions ?? []) {
-    const breakHitCount = Math.max(0, Number(actionEntry?.breakHitCount ?? 0));
+    const breakHitCount = resolveActionBreakTriggerCount(actionEntry);
     if (breakHitCount === 0) {
       continue;
     }
@@ -7769,6 +7787,83 @@ function createSingleActionPreviewRecord(actionEntry, options = {}) {
   };
 }
 
+function computeExpectedSupportBreakOdBonus(state, actor, skill, actionEntry) {
+  if (!actor) {
+    return 0;
+  }
+  const breakCount = resolveActionBreakTriggerCount(actionEntry);
+  if (breakCount <= 0) {
+    return 0;
+  }
+
+  let total = 0;
+  const baseHitCount = resolveSkillHitCount(skill);
+  const driveBonusPercent = resolveDrivePierceBonusPercent(baseHitCount, actor?.drivePiercePercent ?? 0);
+  const driveMultiplier = 1 + driveBonusPercent / 100;
+  for (const passive of actor.passives ?? []) {
+    if (String(passive?.sourceType ?? '') !== 'support') {
+      continue;
+    }
+    const timing = String(passive?.timing ?? '').trim();
+    if (
+      timing !== 'OnFirstBattleStart' &&
+      timing !== 'OnBattleStart' &&
+      timing !== 'OnPlayerTurnStart'
+    ) {
+      continue;
+    }
+
+    const parts = Array.isArray(passive?.parts) ? passive.parts : [];
+    const hasBreakTrigger = parts.some((part) => {
+      if (String(part?.skill_type ?? '').trim() !== 'AdditionalHitOnBreaking') {
+        return false;
+      }
+      const conditions = [passive?.condition, part?.cond, part?.hit_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const conditionSkill = createConditionSkillContext(skill, part);
+      return conditions.every((expr) => {
+        const evaluated = evaluateConditionExpression(expr, state, actor, conditionSkill, actionEntry);
+        return evaluated.unknownCount === 0 && evaluated.result;
+      });
+    });
+    if (!hasBreakTrigger) {
+      continue;
+    }
+
+    for (const part of parts) {
+      if (String(part?.skill_type ?? '').trim() !== 'OverDrivePointUp') {
+        continue;
+      }
+      if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      if (!targetCharacterIds.includes(actor.characterId)) {
+        continue;
+      }
+      if (!isTargetConditionSatisfiedByMember(actor, part?.target_condition, state)) {
+        continue;
+      }
+
+      const amount = resolveOverDrivePointUpPowerPercent(part);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        continue;
+      }
+      // 実機照合: ブレイク時トリガーOD(共鳴含む)は od_rate 非適用だが、
+      // 行動スキルの hit 数に基づくドライブピアス補正は適用する。
+      total = truncateToTwoDecimals(total + truncateToTwoDecimals(amount * driveMultiplier));
+    }
+  }
+
+  return total;
+}
+
 function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const validatePreview = options.validatePreview !== false;
   const buffMetadataValidation = resolveBuffMetadataValidationOptions(options);
@@ -7871,7 +7966,24 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const actionDpEvents = applyDpEffectsFromActions(state, singleRecord);
   const dpHealMotivationEvents = applyMotivationFromDpHealEvents(state, actionDpEvents);
   const tokenEvents = applyTokenEffectsFromActions(state, singleRecord, actionDpEvents);
+  const odGaugeBeforeMorale = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
   const moraleResult = applyMoraleEffectsFromActions(state, singleRecord);
+  const odGaugeAfterMorale = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
+  const supportBreakOdBonus = computeExpectedSupportBreakOdBonus(
+    state,
+    member,
+    skillForCount,
+    actionEntry
+  );
+  if (supportBreakOdBonus > 0) {
+    const appliedMoraleOdDelta = truncateToTwoDecimals(odGaugeAfterMorale - odGaugeBeforeMorale);
+    if (appliedMoraleOdDelta + 1e-9 < supportBreakOdBonus) {
+      const shortfall = truncateToTwoDecimals(supportBreakOdBonus - appliedMoraleOdDelta);
+      state.turnState.odGauge = clampOdGauge(
+        truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0) + shortfall)
+      );
+    }
+  }
   applyTalismanLevelIncrementsFromActions(state, singleRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, singleRecord);
   const markEvents = applyMarkEffectsFromActions(state, singleRecord);
@@ -7887,6 +7999,22 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     ...applyEnemyBreakEffectsFromActions(state, singleRecord),
     ...applyManualBreakEffectsFromActions(state, singleRecord),
   ];
+  const derivedBreakEnemyIndexes = enemyBreakEvents
+    .filter(
+      (event) =>
+        String(event?.mode ?? '') === 'DownTurn' &&
+        String(event?.source ?? '') === 'manual'
+    )
+    .map((event) => Number(event?.targetIndex))
+    .filter((targetIndex) => Number.isInteger(targetIndex) && targetIndex >= 0);
+  if (derivedBreakEnemyIndexes.length > 0) {
+    if (!Number.isFinite(Number(actionEntry?.breakHitCount)) || Number(actionEntry.breakHitCount) <= 0) {
+      actionEntry.breakHitCount = derivedBreakEnemyIndexes.length;
+    }
+    if (normalizeManualBreakEnemyIndexes(actionEntry).length === 0) {
+      actionEntry.manualBreakEnemyIndexes = [...new Set(derivedBreakEnemyIndexes)];
+    }
+  }
   const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, singleRecord);
   const odGaugeGain = applyOdGaugeFromActions(state, singleRecord, {
     buffMetadataValidation,
@@ -8311,7 +8439,13 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
     const bi = PASSIVE_ACTION_ORDER.indexOf(Number(b.partyIndex ?? 99));
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
+  const requiresExtraActive = timingSet.has('OnAdditionalTurnStart');
   for (const member of sortedParty) {
+    // OnAdditionalTurnStart は「自身が追加ターン開始時」に発火するため、
+    // isExtraActive でないメンバーのパッシブはスキップする。
+    if (requiresExtraActive && !member.isExtraActive) {
+      continue;
+    }
     for (const passive of getPassiveEntriesForMember(member)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
@@ -10213,15 +10347,23 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   // ─── ② 次ターン ターン開始 (applyRecoveryPipeline) ───
-  // EXターンへ遷移する場合はターン開始回復をスキップ（OD発動ボーナスは除く）
+  // turnIndex が実際に進む場合のみターン開始回復を適用する。
+  // 以下のケースでは turnIndex が進まないためスキップされる:
+  //   - 追加ターン付与（→EX）: turnIndex 据え置き
+  //   - 割込OD 発動: turnIndex 補正で据え置き
+  //   - OD 連続アクション: turnIndex 不変
+  //   - 先制OD 終了→同一ターン復帰: turnIndex 不変
   // nextTurnState を渡すことで ReviveTerritory 消費・ゾーン状態更新が次ターンの状態に正しく反映される
+  // turnIndex が有限数でない場合（テスト等でのデフォルト turnState）は
+  // フォールバックとして回復ありとする
+  const currentTurnIndex = Number(state.turnState?.turnIndex);
+  const nextTurnIndex = Number(nextTurnState?.turnIndex);
+  const nextTurnIndexAdvances =
+    Number.isFinite(currentTurnIndex) && Number.isFinite(nextTurnIndex)
+      ? nextTurnIndex > currentTurnIndex
+      : true;
   const recovery = applyRecoveryPipeline(state.party, nextTurnState, {
-    // 追加ターン付与時（→T1EX）は T1EX 開始処理をスキップ
-    // T1EX → OD割込 の場合も T2 開始処理をスキップ（OD終了後に T2 開始処理を行う）
-    // T1EX → T2（通常遷移）の場合はスキップしない（T2 のSP回復・OnEveryTurnを発動させる）
-    skipTurnStartRecovery:
-      grantedExtraCharacterIds.length > 0 ||
-      (String(state.turnState?.turnType ?? '') === 'extra' && shouldActivateInterruptOd),
+    skipTurnStartRecovery: !nextTurnIndexAdvances,
   });
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];

@@ -97,14 +97,24 @@ gain_all = trunc2(2.65 * 6) = 15.90
 - UI / Session JSON 上の `od_rate` は **乗数そのもの** を保持する。基準値 `1` が 100%。
 - 旧データ互換として、`enemies.json > base_param.od_rate` などの legacy 値（例: `8500`）は `0.85` として解釈する。
 - `od_rate = 0` の legacy 値は **補正なし** とみなし、乗数 `1.0` に正規化する。
-- 最終OD上昇量へ乗算し、小数第2位まで残して第3位以降を切り捨てる:
+- 攻撃由来OD（通常攻撃・攻撃スキル・追撃）は **1hitごと** に `od_rate` を掛け、`trunc2` してから合算する。
 
 ```
-effective_gain = trunc2(raw_gain × od_rate)
+per_hit = trunc2(2.5 × od_rate)
+effective_hit_gain = trunc2(per_hit × total_hits)
 ```
 
-- 例: `od_rate = 0.85` → 通常攻撃1回(2.5%) が `trunc2(2.5 × 0.85) = 2.12%`。
+- `OverDrivePointUp` 系は `od_rate` 非適用（そのまま加算）。
+- 例: `od_rate = 0.85` → 通常攻撃3hit は `trunc2(2.5 × 0.85)=2.12`、合計 `trunc2(2.12 × 3)=6.36`。
 - 旧値例: `od_rate = 8500` → 正規化後 `0.85`。
+
+### ブレイク時トリガーOD（AdditionalHitOnBreaking + OverDrivePointUp, 共鳴含む）
+
+- モラル/トリガー経路で一度だけ反映し、通常の攻撃OD経路と二重加算しない。
+- `od_rate` は**適用しない**。
+- ただし、行動スキルの hit 数に応じた **ドライブピアスOD補正は適用する**。
+  - 補正率は `resolveDrivePierceBonusPercent(resolveSkillHitCount(skill), drivePiercePercent)` を使用。
+  - 適用式: `trigger_od_gain = trunc2(base_od_up × (1 + drive_bonus/100))`
 
 ### 定数
 
@@ -122,7 +132,7 @@ effective_gain = trunc2(raw_gain × od_rate)
 | 補正適用 | `src/turn/turn-controller.js` | `applyOdGaugeFromActions()` |
 | UI→エンジン変換 | `ui-next/engine/battle-state-manager.js` | `buildEnemyStateOverrides()` |
 
-### WIP メモ
+### 補足
 
-- 丸め込みタイミングの調査が完了したら `trunc2` の適用位置を見直す。
 - 複数敵がいる場合は全て同じ `od_rate` を持つとして enemy[0] の値を代表値として使用中。
+- `AdditionalHitOnBreaking + OverDrivePointUp`（共鳴含む）は、モラル/トリガー経路で一度だけ反映する。OD計算経路との二重加算は行わない。

@@ -36,12 +36,18 @@ import {
   buildManualKillChipModels,
   resolveManualBreakActorLabel,
 } from '../utils/manual-break-presentation.js';
+import { buildFollowUpChipModels } from '../utils/follow-up-presentation.js';
+import {
+  getFollowUpOverridesFromOverrideEntries,
+  normalizeFollowUpOverrides,
+} from '../utils/follow-up-overrides.js';
 import {
   areSimulatorSettingsEqual,
   isEnemyTargetSelectionManual,
   normalizeSimulatorSettings,
 } from '../utils/simulator-settings.js';
 import { buildFieldDisplayEntries } from '../utils/field-state-display.js';
+import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
 
 // select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
 // 属性/武器種バッジと SP コストを段階的に隠す。
@@ -177,8 +183,10 @@ export class TurnRowController {
   #draftNote = '';
   #openTargetPickerPartyIndex = null;
   #isBreakEditorOpen = false;
+  #isFollowUpEditorOpen = false;
   #draftBreakEnemyIndexesByPartyIndex = {};
   #draftKillEnemyIndexesByPartyIndex = {};
+  #draftFollowUpEnemyIndexByPartyIndex = {};
   #previewResourceState = null;
   // Simulator Settings パラメータ
   #simulatorSettings = null;
@@ -321,6 +329,7 @@ export class TurnRowController {
     }
     this.#draftBreakEnemyIndexesByPartyIndex = {};
     this.#draftKillEnemyIndexesByPartyIndex = {};
+    this.#draftFollowUpEnemyIndexByPartyIndex = {};
     const normalizedOverrides = normalizeActionOutcomeOverrides(
       editDraft?.actionOutcomeOverrides ?? [],
       this.#draftEnemyCount
@@ -337,6 +346,18 @@ export class TurnRowController {
       if (override.outcome === ACTION_OUTCOME_TYPES.KILL) {
         this.#draftKillEnemyIndexesByPartyIndex[member.partyIndex] = [...override.enemyIndexes];
       }
+    }
+    const normalizedFollowUps = normalizeFollowUpOverrides(
+      editDraft?.followUpOverrides ?? [],
+      this.#draftEnemyCount
+    );
+    for (const override of normalizedFollowUps) {
+      const member =
+        this.#stateBefore?.party?.find((candidate) => Number(candidate?.position) === Number(override?.position)) ?? null;
+      if (!member) {
+        continue;
+      }
+      this.#draftFollowUpEnemyIndexByPartyIndex[member.partyIndex] = Number(override.enemyIndex);
     }
     this.#syncDraftSelections();
   }
@@ -400,6 +421,15 @@ export class TurnRowController {
       }
     }
     this.#draftBreakEnemyIndexesByPartyIndex = nextDraftBreakEnemyIndexesByPartyIndex;
+    const nextDraftFollowUpEnemyIndexByPartyIndex = {};
+    const backMembers = this.#getMembersInPositionOrder().filter((member) => member.position >= 3);
+    for (const member of backMembers) {
+      const enemyIndex = Number(this.#draftFollowUpEnemyIndexByPartyIndex?.[member.partyIndex]);
+      if (Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < this.#draftEnemyCount) {
+        nextDraftFollowUpEnemyIndexByPartyIndex[member.partyIndex] = enemyIndex;
+      }
+    }
+    this.#draftFollowUpEnemyIndexByPartyIndex = nextDraftFollowUpEnemyIndexByPartyIndex;
     for (const partyIndex of Object.keys(this.#draftKillEnemyIndexesByPartyIndex)) {
       this.#draftKillEnemyIndexesByPartyIndex[partyIndex] =
         (this.#draftKillEnemyIndexesByPartyIndex[partyIndex] ?? []).filter(
@@ -469,7 +499,7 @@ export class TurnRowController {
     odState = undefined,
     simulatorSettings = undefined,
     openTargetPickerPartyIndex = null,
-    isBreakEditorOpen = false,
+    isBreakEditorOpen = undefined,
     editDraft = undefined,
   }) {
     const previousDraftMode = this.#isDraftMode();
@@ -488,6 +518,7 @@ export class TurnRowController {
       this.#draftTargets = {};
       this.#openTargetPickerPartyIndex = null;
       this.#isBreakEditorOpen = false;
+      this.#isFollowUpEditorOpen = false;
     }
     if (rowDiagnostics !== undefined) {
       this.#rowDiagnostics = normalizeRowDiagnostics(rowDiagnostics);
@@ -497,7 +528,10 @@ export class TurnRowController {
       this.#selectedSlotPosition = null;
     }
     this.#openTargetPickerPartyIndex = openTargetPickerPartyIndex;
-    this.#isBreakEditorOpen = Boolean(isBreakEditorOpen);
+    if (isBreakEditorOpen !== undefined) {
+      this.#isBreakEditorOpen = Boolean(isBreakEditorOpen);
+    }
+    this.#isFollowUpEditorOpen = this.#isFollowUpEditorOpen && this.#isDraftMode();
     this.#record = record;
     if (replayTurn !== undefined) this.#replayTurn = replayTurn;
     if (operations !== undefined) {
@@ -780,6 +814,7 @@ export class TurnRowController {
       note: this.getCurrentNote(),
       enemyCount: this.getCurrentEnemyCount(),
       actionOutcomeOverrides: this.getCurrentActionOutcomeOverrides(),
+      followUpOverrides: this.getCurrentFollowUpOverrides(),
     };
   }
 
@@ -1184,6 +1219,13 @@ export class TurnRowController {
     );
   }
 
+  #getReplayTurnFollowUpOverrides(enemyCount = this.#getCurrentReplayTurnEnemyCount()) {
+    return getFollowUpOverridesFromOverrideEntries(
+      this.#replayTurn?.overrideEntries ?? [],
+      enemyCount
+    );
+  }
+
   #getEnemyNamesByEnemy() {
     return this.#stateBefore?.turnState?.enemyState?.enemyNamesByEnemy &&
       typeof this.#stateBefore.turnState.enemyState.enemyNamesByEnemy === 'object'
@@ -1247,6 +1289,123 @@ export class TurnRowController {
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
         `).join('')}
+      </div>
+    `;
+  }
+
+  getCurrentFollowUpOverrides() {
+    const enemyCount = this.getCurrentEnemyCount();
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position >= 3);
+    const overrides = [];
+    for (const member of members) {
+      const enemyIndex = Number(this.#draftFollowUpEnemyIndexByPartyIndex?.[member.partyIndex]);
+      if (!Number.isInteger(enemyIndex) || enemyIndex < 0 || enemyIndex >= enemyCount) {
+        continue;
+      }
+      overrides.push({
+        position: member.position,
+        enemyIndex,
+      });
+    }
+    return normalizeFollowUpOverrides(overrides, enemyCount);
+  }
+
+  #getCurrentFollowUpOverridesForDisplay(isCommitted) {
+    const enemyCount = isCommitted
+      ? this.#getCurrentReplayTurnEnemyCount()
+      : this.getCurrentEnemyCount();
+    if (isCommitted) {
+      return this.#getReplayTurnFollowUpOverrides(enemyCount);
+    }
+    return this.getCurrentFollowUpOverrides();
+  }
+
+  #resolveFollowUpSkillNameByPosition() {
+    const result = {};
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position >= 3);
+    for (const member of members) {
+      const pursuitSkill = (member.getActionSkills?.() ?? []).find((skill) => isPursuitOnlySkill(skill));
+      if (pursuitSkill) {
+        result[member.position] = String(pursuitSkill.name ?? '追撃');
+      }
+    }
+    return result;
+  }
+
+  #buildFollowUpChipsHtml(isCommitted) {
+    const chipModels = buildFollowUpChipModels({
+      overrides: this.#getCurrentFollowUpOverridesForDisplay(isCommitted),
+      members: this.#getMembersInPositionOrder().filter((member) => member.position >= 3),
+      store: this.#store,
+      enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+      resolvedSkillNameByPosition: this.#resolveFollowUpSkillNameByPosition(),
+    });
+    if (chipModels.length === 0) {
+      return '';
+    }
+    return `
+      <div data-role="follow-up-chip-list" class="flex flex-wrap gap-1 pb-1">
+        ${chipModels.map((chip) => `
+          <span data-role="follow-up-chip"
+                title="${chip.label}"
+                class="inline-flex max-w-full items-center rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold leading-tight text-cyan-700">
+            <span class="max-w-full break-all">${chip.label}</span>
+          </span>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  #buildFollowUpEditorHtml(isCommitted) {
+    const enemyCount = isCommitted
+      ? this.#getCurrentReplayTurnEnemyCount()
+      : this.getCurrentEnemyCount();
+    const overrides = this.#getCurrentFollowUpOverridesForDisplay(isCommitted);
+    const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position >= 3);
+    return `
+      <div data-role="follow-up-editor"
+           data-popover-kind="follow-up"
+           class="target-popover absolute right-0 top-[calc(100%+4px)] z-30 w-[min(720px,calc(100vw-16px))] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl overflow-x-hidden"
+           ${this.#isFollowUpEditorOpen ? '' : 'hidden'}>
+        <div class="text-[11px] font-semibold text-gray-700 pb-2">追撃を編集</div>
+        <div class="grid gap-2" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+          ${members.map((member) => {
+            const actorLabel = resolveManualBreakActorLabel(member, this.#store);
+            const selectedEnemyIndex = Number(
+              overrides.find((entry) => Number(entry.position) === Number(member.position))?.enemyIndex
+            );
+            const buttonsHtml = Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const enemyName = String(
+                enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
+              ).trim();
+              const label = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
+              const selected = selectedEnemyIndex === enemyIndex;
+              return `
+                <button type="button"
+                        data-role="follow-up-enemy-candidate"
+                        data-party-index="${member.partyIndex}"
+                        data-position="${member.position}"
+                        data-enemy-index="${enemyIndex}"
+                        class="target-chip inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors
+                               ${selected
+                                 ? 'border-cyan-500 bg-cyan-500 text-white'
+                                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}">
+                  ${label}
+                </button>
+              `;
+            }).join('');
+            return `
+              <div class="rounded-lg border border-gray-100 bg-gray-50 px-2 py-1.5">
+                <div class="pb-1 text-[10px] font-semibold text-gray-700">${actorLabel}</div>
+                <div class="flex flex-wrap gap-1">${buttonsHtml}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ${isCommitted
+          ? '<div class="pt-2 text-[10px] text-gray-400">変更するとこのターンから再計算されます。</div>'
+          : ''}
       </div>
     `;
   }
@@ -1690,12 +1849,14 @@ export class TurnRowController {
     const fieldChipsHtml = this.#buildFieldChipsHtml();
     const manualBreakChipsHtml = this.#buildManualBreakChipsHtml(isCommitted);
     const killChipsHtml = this.#buildKillChipsHtml(isCommitted);
+    const followUpChipsHtml = this.#buildFollowUpChipsHtml(isCommitted);
     const operationChipsHtml = this.#buildOperationChipsHtml();
     const noteHtml = `
       <div data-turn-note class="flex flex-col self-stretch min-h-0 flex-shrink-0 w-36 gap-1">
         ${fieldChipsHtml}
         ${manualBreakChipsHtml}
         ${killChipsHtml}
+        ${followUpChipsHtml}
         ${operationChipsHtml}
         <textarea data-role="note" rows="2"
                   class="w-full min-h-[52px] flex-1 text-xs border border-gray-200 rounded px-1 py-0.5
@@ -2179,6 +2340,16 @@ export class TurnRowController {
       </div>
     `;
 
+    const followUpControlHtml = `
+      <div class="col-span-2 relative">
+        <button data-role="follow-up-toggle"
+                class="w-full text-[10px] py-0.5 rounded border border-cyan-300 bg-cyan-50 font-semibold text-cyan-700 hover:bg-cyan-100 transition-colors">
+          追撃
+        </button>
+        ${this.#buildFollowUpEditorHtml(isCommitted)}
+      </div>
+    `;
+
     if (isCommitted) {
       return `
         <div data-turn-buttons class="flex-shrink-0 w-[110px] px-1 py-1">
@@ -2293,6 +2464,7 @@ export class TurnRowController {
         ${kishinkaHtml}
         ${makaiHtml}
         ${manualBreakControlHtml}
+        ${followUpControlHtml}
       </div>`;
   }
 
@@ -2307,6 +2479,7 @@ export class TurnRowController {
           }
           this.#openTargetPickerPartyIndex = null;
           this.#isBreakEditorOpen = false;
+          this.#isFollowUpEditorOpen = false;
           this.#rerenderDraftMode();
           this.#emitPreviewRequest();
         });
@@ -2318,6 +2491,7 @@ export class TurnRowController {
         event.stopPropagation();
         const partyIndex = Number(btn.dataset.partyIndex);
         this.#isBreakEditorOpen = false;
+        this.#isFollowUpEditorOpen = false;
         this.#openTargetPickerPartyIndex =
           this.#openTargetPickerPartyIndex === partyIndex ? null : partyIndex;
         if (this.#isDraftMode()) {
@@ -2358,6 +2532,7 @@ export class TurnRowController {
 
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
+        this.#isFollowUpEditorOpen = false;
         this.#draftTargets = {
           ...this.#draftTargets,
           [actorPartyIndex]: target,
@@ -2372,8 +2547,23 @@ export class TurnRowController {
         event.stopPropagation();
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = !this.#isBreakEditorOpen;
+        this.#isFollowUpEditorOpen = false;
         if (this.#isDraftMode()) {
           this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
+        }
+      });
+    });
+
+    this.#root.querySelectorAll('[data-role="follow-up-toggle"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.#openTargetPickerPartyIndex = null;
+        this.#isBreakEditorOpen = false;
+        this.#isFollowUpEditorOpen = !this.#isFollowUpEditorOpen;
+        if (this.#isDraftMode()) {
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
         }
       });
     });
@@ -2524,12 +2714,38 @@ export class TurnRowController {
       });
     });
 
+    this.#root.querySelectorAll('[data-role="follow-up-enemy-candidate"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const enemyIndex = Number(btn.dataset.enemyIndex);
+        if (!Number.isInteger(enemyIndex) || enemyIndex < 0) return;
+        const partyIndex = Number(btn.dataset.partyIndex);
+
+        const enemyCount = this.#isDraftMode()
+          ? this.getCurrentEnemyCount()
+          : this.#getCurrentReplayTurnEnemyCount();
+
+        if (this.#isDraftMode()) {
+          const current = this.#draftFollowUpEnemyIndexByPartyIndex[partyIndex] ?? null;
+          const next = current === enemyIndex ? null : enemyIndex;
+          if (next === null) {
+            delete this.#draftFollowUpEnemyIndexByPartyIndex[partyIndex];
+          } else if (next < enemyCount) {
+            this.#draftFollowUpEnemyIndexByPartyIndex[partyIndex] = next;
+          }
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
+        }
+      });
+    });
+
     const countEl = this.#root.querySelector('[data-role="enemy-count"]');
     if (countEl) {
       countEl.addEventListener('change', () => {
         const nextEnemyCount = clampEnemyCount(Number(countEl.value));
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
+        this.#isFollowUpEditorOpen = false;
         if (this.#isDraftMode()) {
           this.#draftEnemyCount = nextEnemyCount;
           this.#syncDraftSelections();
@@ -2712,6 +2928,48 @@ export class TurnRowController {
           const resolvedWidth = viewportWidth > 0
             ? Math.max(280, Math.min(560, viewportWidth - viewportPadding * 2))
             : 560;
+          const left = viewportWidth > 0
+            ? Math.max(
+                viewportPadding,
+                Math.min(toggleRect.left, viewportWidth - viewportPadding - resolvedWidth)
+              )
+            : Math.max(0, toggleRect.left);
+
+          popover.style.position = 'fixed';
+          popover.style.width = `${resolvedWidth}px`;
+          popover.style.left = `${left}px`;
+          popover.style.top = `${Math.max(viewportPadding, toggleRect.bottom + 4)}px`;
+
+          let fixedRect = popover.getBoundingClientRect();
+          if (viewportHeight > 0) {
+            const spaceBelow = viewportHeight - viewportPadding - (toggleRect.bottom + 4);
+            const spaceAbove = toggleRect.top - viewportPadding - 4;
+            const shouldOpenAbove = fixedRect.bottom > viewportHeight - viewportPadding && spaceAbove > spaceBelow;
+            if (shouldOpenAbove) {
+              popover.style.top = `${Math.max(viewportPadding, toggleRect.top - 4 - fixedRect.height)}px`;
+              fixedRect = popover.getBoundingClientRect();
+            }
+
+            const availableHeight = shouldOpenAbove
+              ? Math.max(120, Math.floor(spaceAbove))
+              : Math.max(120, Math.floor(spaceBelow));
+            if (fixedRect.height > availableHeight) {
+              popover.style.maxHeight = `${availableHeight}px`;
+              popover.style.overflowY = 'auto';
+            }
+          }
+          return;
+        }
+      }
+
+      if (String(popover.dataset.popoverKind ?? '') === 'follow-up') {
+        const host = popover.closest('.relative');
+        const toggle = host?.querySelector?.('[data-role="follow-up-toggle"]') ?? null;
+        if (toggle) {
+          const toggleRect = toggle.getBoundingClientRect();
+          const resolvedWidth = viewportWidth > 0
+            ? Math.max(280, Math.min(720, viewportWidth - viewportPadding * 2))
+            : 720;
           const left = viewportWidth > 0
             ? Math.max(
                 viewportPadding,

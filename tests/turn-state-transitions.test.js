@@ -10283,7 +10283,7 @@ test('grantExtraTurn applies OnAdditionalTurnStart SP passives when extra turn b
   );
   let state = createBattleStateFromParty(new Party(members));
 
-  state = grantExtraTurn(state, ['AT1']);
+  state = grantExtraTurn(state, ['AT1', 'AT2']);
 
   assert.equal(state.turnState.turnType, 'extra');
   assert.equal(state.party.find((m) => m.characterId === 'AT1').sp.current, 6);
@@ -10294,6 +10294,65 @@ test('grantExtraTurn applies OnAdditionalTurnStart SP passives when extra turn b
   assert.deepEqual(
     state.turnState.passiveEventsLastApplied.map((event) => event.passiveName),
     ['戦場の華', 'アフターサービス']
+  );
+});
+
+test('grantExtraTurn skips OnAdditionalTurnStart passives for non-isExtraActive members', () => {
+  // Regression: サプライズギフト等の OnAdditionalTurnStart パッシブが、
+  // extraTurn の対象外メンバーに対しても発火していた不具合の検証
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `EX${idx + 1}`,
+      characterName: `EX${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `EXS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 3,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 31,
+                name: 'アフターサービス',
+                desc: '追加ターン開始時 自身のSP+1',
+                timing: 'OnAdditionalTurnStart',
+                condition: '',
+                parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [1, 0] }],
+              },
+            ]
+          : idx === 1
+            ? [
+                {
+                  id: 32,
+                  name: 'サプライズギフト',
+                  desc: '自身が追加ターン開始時 自身以外の味方のSP+2',
+                  timing: 'OnAdditionalTurnStart',
+                  condition: '',
+                  parts: [{ skill_type: 'HealSp', target_type: 'AllyAllWithoutSelf', power: [2, 0] }],
+                },
+              ]
+            : [],
+      skills: [{ id: 31000 + idx, name: 'Wait', label: `EXSkill${idx + 1}`, sp_cost: 0, parts: [] }],
+    })
+  );
+  let state = createBattleStateFromParty(new Party(members));
+
+  // EX1 のみ extraActive、EX2 は対象外
+  state = grantExtraTurn(state, ['EX1']);
+
+  assert.equal(state.turnState.turnType, 'extra');
+  // EX1: 3 + 1 (self passive) = 4  ※ EX2 の +2 は発火しない
+  assert.equal(state.party.find((m) => m.characterId === 'EX1').sp.current, 4);
+  // EX2: 変化なし (自身の passive は AllyAllWithoutSelf で自分には効かない & そもそも発火しない)
+  assert.equal(state.party.find((m) => m.characterId === 'EX2').sp.current, 3);
+  // EX3: 変化なし (EX2 の passive が発火しないため +2 されない)
+  assert.equal(state.party.find((m) => m.characterId === 'EX3').sp.current, 3);
+  // パッシブイベントは 1 件のみ (アフターサービス)
+  assert.equal(state.turnState.passiveEventsLastApplied.length, 1);
+  assert.deepEqual(
+    state.turnState.passiveEventsLastApplied.map((event) => event.passiveName),
+    ['アフターサービス']
   );
 });
 
@@ -12329,6 +12388,58 @@ test('AdditionalHitOnBreaking + OverDrivePointUp does NOT fire when breakHitCoun
   );
 });
 
+test('AdditionalHitOnBreaking + OverDrivePointUp fires when manualBreakEnemyIndexes is set', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK_OD_MANUAL',
+          characterName: 'BREAK_OD_MANUAL',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100105,
+              name: '破竹の勢いテスト3(manual)',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.2, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100106,
+              name: 'Manual-Break Attack',
+              sp_cost: 0,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: {
+      characterId: 'BREAK_OD_MANUAL',
+      skillId: 100106,
+      manualBreakEnemyIndexes: [0],
+    },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 攻撃1hit 2.5% + ブレイクトリガーOD+20% = 22.5%
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge ?? 0) - (initialOdGauge + 22.5)) < 0.1,
+    `OD gauge should include manual-break trigger bonus (+20): initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
 test('Carnival with You resonance is injected as support passive on 桐生 美也 (31X/Excelsior)', () => {
   const store = getStore();
   const actor = store.buildCharacterStyle({
@@ -12478,6 +12589,210 @@ test('Carnival with You resonance is reflected in preview odGaugeAtEnd on break 
     Math.abs(projectedDiff - 20) < 0.1,
     `preview odGaugeAtEnd should include +20 on break: noBreak=${noBreakProjectedOd}, withBreak=${withBreakProjectedOd}, diff=${projectedDiff}`
   );
+});
+
+test('real-data reconciliation: 咲き昇る宵の幻 break keeps Excelsior OD+20 flat across od_rate variants', () => {
+  const store = getStore();
+  const actorStyleId = 1004307;
+  const actorSkillId = 46004311; // 咲き昇る宵の幻 (AttackSkill)
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter(
+      (id) =>
+        Number(id) !== actorStyleId &&
+        String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? '') !== actorCharaLabel
+    )
+    .slice(0, 5);
+
+  const styleIds = [actorStyleId, ...fillerStyleIds];
+  const buildState = (odRate) => {
+    const state = createBattleStateFromParty(
+      store.buildPartyFromStyleIds(styleIds, {
+        initialSP: 20,
+        limitBreakLevelsByPartyIndex: { 0: 4 },
+        supportStyleIdsByPartyIndex: { 0: 1008105 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 4 },
+      })
+    );
+    state.turnState.enemyState.odRateByEnemy = { '0': odRate };
+    return state;
+  };
+
+  const buildActions = (state, shouldBreak) => ({
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: actorSkillId,
+      targetEnemyIndex: 0,
+      manualBreakEnemyIndexes: shouldBreak ? [0] : [],
+    },
+    1: {
+      characterId: state.party[1].characterId,
+      skillId: state.party[1].skills[0].skillId,
+    },
+    2: {
+      characterId: state.party[2].characterId,
+      skillId: state.party[2].skills[0].skillId,
+    },
+  });
+
+  const checkBreakDiff = (odRate, label) => {
+    const noBreakState = buildState(odRate);
+    const noBreakPreview = previewTurn(noBreakState, buildActions(noBreakState, false));
+    const noBreakCommit = commitTurn(noBreakState, noBreakPreview);
+
+    const withBreakState = buildState(odRate);
+    const withBreakPreview = previewTurn(withBreakState, buildActions(withBreakState, true));
+    const withBreakCommit = commitTurn(withBreakState, withBreakPreview);
+
+    const noBreakOd = Number(noBreakCommit.nextState.turnState.odGauge ?? 0);
+    const withBreakOd = Number(withBreakCommit.nextState.turnState.odGauge ?? 0);
+    const odDiffByBreak = withBreakOd - noBreakOd;
+
+    assert.ok(
+      Math.abs(odDiffByBreak - 20) < 0.1,
+      `${label}: break-triggered Excelsior bonus should stay +20 OD (noBreak=${noBreakOd}, withBreak=${withBreakOd}, diff=${odDiffByBreak})`
+    );
+  };
+
+  checkBreakDiff(1, 'od_rate=1.0');
+  checkBreakDiff(0.5, 'od_rate=0.5');
+});
+
+function runExcelsiorBreakDecompositionDebugCase({
+  odRate,
+  drivePiercePercent,
+  caseLabel,
+  expectedResonanceFloor,
+  expectedIntegerResidual,
+  expectedAttackFloor,
+  expectedTotalFloor,
+}) {
+  const store = getStore();
+  const actorStyleId = 1004307;
+  const actorSkillId = 46004311; // 咲き昇る宵の幻 (AttackSkill)
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter(
+      (id) =>
+        Number(id) !== actorStyleId &&
+        String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? '') !== actorCharaLabel
+    )
+    .slice(0, 5);
+
+  const styleIds = [actorStyleId, ...fillerStyleIds];
+  const buildState = ({ withSupport }) => {
+    const state = createBattleStateFromParty(
+      store.buildPartyFromStyleIds(styleIds, {
+        initialSP: 20,
+        limitBreakLevelsByPartyIndex: { 0: 4 },
+        supportStyleIdsByPartyIndex: withSupport ? { 0: 1008105 } : {},
+        supportLimitBreakLevelsByPartyIndex: withSupport ? { 0: 4 } : {},
+      })
+    );
+    state.turnState.enemyState.odRateByEnemy = { '0': odRate };
+    state.party[0].drivePiercePercent = drivePiercePercent;
+    return state;
+  };
+
+  const buildActions = (state) => ({
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: actorSkillId,
+      targetEnemyIndex: 0,
+      manualBreakEnemyIndexes: [0],
+    },
+  });
+
+  const noSupportState = buildState({ withSupport: false });
+  const noSupportPreview = previewTurn(noSupportState, buildActions(noSupportState));
+  const noSupportCommit = commitTurn(noSupportState, noSupportPreview);
+  const attackDerived = Number(noSupportCommit.nextState.turnState.odGauge ?? 0);
+
+  const withSupportState = buildState({ withSupport: true });
+  const withSupportPreview = previewTurn(withSupportState, buildActions(withSupportState));
+  const withSupportCommit = commitTurn(withSupportState, withSupportPreview);
+  const total = Number(withSupportCommit.nextState.turnState.odGauge ?? 0);
+
+  const resonanceDerived = total - attackDerived;
+  const integerResidual = Math.floor(total) - Math.floor(attackDerived);
+
+  console.log(
+    `[OD_DEBUG] ${caseLabel} | 攻撃由来=${attackDerived.toFixed(2)} | 共鳴由来=${resonanceDerived.toFixed(2)} | 合計=${total.toFixed(2)} | integerResidual=${integerResidual}`
+  );
+
+  assert.ok(
+    Math.floor(resonanceDerived) === expectedResonanceFloor,
+    `${caseLabel}: floor(共鳴由来) should match real-device observation (attack=${attackDerived.toFixed(2)}, resonance=${resonanceDerived.toFixed(2)}, total=${total.toFixed(2)}, integerResidual=${integerResidual})`
+  );
+  assert.equal(
+    Math.floor(attackDerived),
+    expectedAttackFloor,
+    `${caseLabel}: floor(攻撃由来) should match real-device observation`
+  );
+  assert.equal(
+    Math.floor(total),
+    expectedTotalFloor,
+    `${caseLabel}: floor(合計) should match real-device observation`
+  );
+  assert.equal(
+    integerResidual,
+    expectedIntegerResidual,
+    `${caseLabel}: integerResidual should match real-device display split`
+  );
+  assert.ok(
+    Math.abs(total - (attackDerived + resonanceDerived)) < 1e-9,
+    `${caseLabel}: decomposition identity must hold (attack + resonance = total)`
+  );
+}
+
+test('od_rate=0.85 ドライブピアスなし 16%+20%=36%', () => {
+  runExcelsiorBreakDecompositionDebugCase({
+    odRate: 0.85,
+    drivePiercePercent: 0,
+    caseLabel: 'od_rate=0.85 ドライブピアスなし 16%+20%=36%',
+    expectedResonanceFloor: 20,
+    expectedIntegerResidual: 20,
+    expectedAttackFloor: 16,
+    expectedTotalFloor: 36,
+  });
+});
+
+test('od_rate=0.85 ドライブピアス15% 19%+22%=41%', () => {
+  runExcelsiorBreakDecompositionDebugCase({
+    odRate: 0.85,
+    drivePiercePercent: 15,
+    caseLabel: 'od_rate=0.85 ドライブピアス15% 19%+22%=41%',
+    expectedResonanceFloor: 22,
+    expectedIntegerResidual: 22,
+    expectedAttackFloor: 19,
+    expectedTotalFloor: 41,
+  });
+});
+
+test('od_rate=1.00 ドライブピアスなし 20%+20%=40%', () => {
+  runExcelsiorBreakDecompositionDebugCase({
+    odRate: 1,
+    drivePiercePercent: 0,
+    caseLabel: 'od_rate=1.00 ドライブピアスなし 20%+20%=40%',
+    expectedResonanceFloor: 20,
+    expectedIntegerResidual: 20,
+    expectedAttackFloor: 20,
+    expectedTotalFloor: 40,
+  });
+});
+
+test('od_rate=1.00 ドライブピアス15% 22%+23%=45%', () => {
+  runExcelsiorBreakDecompositionDebugCase({
+    odRate: 1,
+    drivePiercePercent: 15,
+    caseLabel: 'od_rate=1.00 ドライブピアス15% 22%+23%=45%',
+    expectedResonanceFloor: 22,
+    expectedIntegerResidual: 23,
+    expectedAttackFloor: 22,
+    expectedTotalFloor: 45,
+  });
 });
 
 // ─── AdditionalHitOnRemovingBuff + OverDrivePointUp（アプローチショット相当） ───
@@ -16781,6 +17096,102 @@ test('enemy od_rate=0 means no correction: OD gain is unchanged', () => {
   assert.equal(nextState.turnState.odGauge, 10);
 });
 
+test('enemy od_rate applies truncation per hit for normal attacks', () => {
+  // 3-hit 通常攻撃:
+  // 1hit OD = trunc2(2.5 * 0.85) = 2.12
+  // 合計 = 2.12 * 3 = 6.36
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODH${idx + 1}`,
+      characterName: `ODH${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODHS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15960 + idx,
+          name: idx === 0 ? '3hit Normal' : 'Protection',
+          label: idx === 0 ? 'ThreeHitNormal' : `ODHSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 3 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 0.85 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'ODH1', skillId: 15960 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
+  assert.equal(nextState.turnState.odGauge, 6.36);
+});
+
+test('enemy od_rate scales hit-based OD only and leaves OverDrivePointUp unscaled', () => {
+  // 5-hit 攻撃 + OverDrivePointUp(30%)、od_rate=0.85:
+  // hit OD: trunc2(2.5 * 0.85) * 5 = 10.60
+  // OverDrivePointUp: 30.00 (非補正)
+  // 合計: 40.60
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODP${idx + 1}`,
+      characterName: `ODP${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODPS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 16000 + idx,
+          name: idx === 0 ? '5hit + ODUp30' : 'Protection',
+          label: idx === 0 ? 'FiveHitWithOdUp' : `ODPSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 5 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [
+                  { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' },
+                  { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.3, 0], value: [0, 0] },
+                ]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 0.85 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'ODP1', skillId: 16000 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
+  assert.equal(nextState.turnState.odGauge, 40.6);
+});
+
 // ─── Multiple passive trigger同時発火のテスト ───
 
 test('Multiple AdditionalHitOnBreaking passives fire simultaneously when breaking (敵をブレイク時に複数パッシブ発火)', () => {
@@ -16984,5 +17395,227 @@ test('スペクタクルアート real data: projections.spAfterActionByPartyInd
       Number(sp) >= 20,
       `partyIndex=${pi}: SP should be >=20 after HealSp+5 (actual=${sp})`
     );
+  }
+});
+
+// ─── 割込OD でSP回復が二重適用されないことの回帰テスト ───
+
+test('interrupt OD1: base SP recovery is applied once (at OD→normal transition only)', () => {
+  const party = createSixMemberManualParty(() => ({
+    initialSP: 10,
+    skills: [createProtectionSkill(9900)],
+  }));
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+
+  // Turn 1: 通常ターンを割込OD1付きでコミット
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: odState } = commitTurn(state, preview1, [], {
+    interruptOdLevel: 1,
+  });
+
+  // OD ターンに遷移、OD1 SP回復(+5)のみ。基本回復(+2)は適用されない
+  assert.equal(odState.turnState.turnType, 'od');
+  for (const m of odState.party) {
+    assert.equal(m.sp.current, 15, `${m.characterId}: 10 + 5(OD1) = 15, no base recovery`);
+  }
+
+  // Turn 2: OD ターンをコミット → 通常ターンへ戻る
+  const preview2 = previewTurn(odState, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: normalState } = commitTurn(odState, preview2);
+
+  // OD→通常遷移で基本回復(+2)が1回だけ適用される
+  assert.equal(normalState.turnState.turnType, 'normal');
+  for (const m of normalState.party) {
+    assert.equal(m.sp.current, 17, `${m.characterId}: 15 + 2(base) = 17, single recovery`);
+  }
+});
+
+test('preemptive OD1: base SP recovery is not applied at OD→same-turn transition', () => {
+  const party = createSixMemberManualParty(() => ({
+    initialSP: 10,
+    skills: [createProtectionSkill(9900)],
+  }));
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+
+  // 先制OD1 を発動
+  const odState = activateOverdrive(state, 1, 'preemptive');
+  assert.equal(odState.turnState.turnType, 'od');
+
+  // OD ターンをコミット → 同一ターンの通常文脈へ復帰
+  const preview = previewTurn(odState, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: backToNormal } = commitTurn(odState, preview);
+
+  // 同一ターン復帰: 基本回復なし
+  assert.equal(backToNormal.turnState.turnType, 'normal');
+  for (const m of backToNormal.party) {
+    assert.equal(m.sp.current, 15, `${m.characterId}: 10 + 5(OD1) = 15, no recovery on same-turn return`);
+  }
+
+  // 通常ターンをコミット → 次ターンで初めて基本回復が適用される
+  const preview2 = previewTurn(backToNormal, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: nextNormal } = commitTurn(backToNormal, preview2);
+
+  assert.equal(nextNormal.turnState.turnType, 'normal');
+  for (const m of nextNormal.party) {
+    assert.equal(m.sp.current, 17, `${m.characterId}: 15 + 2(base) = 17`);
+  }
+});
+
+test('OD multi-action (OD2): base SP recovery only at final OD→normal transition', () => {
+  const party = createSixMemberManualParty(() => ({
+    initialSP: 2,
+    skills: [createProtectionSkill(9900)],
+  }));
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 200;
+
+  // 割込OD2 発動
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: od1 } = commitTurn(state, preview1, [], { interruptOdLevel: 2 });
+
+  // OD2 発動: 2 + 12(OD2) = 14, 基本回復なし
+  assert.equal(od1.turnState.turnType, 'od');
+  assert.equal(od1.turnState.remainingOdActions, 2);
+  for (const m of od1.party) {
+    assert.equal(m.sp.current, 14, `${m.characterId}: 2 + 12(OD2) = 14, no base recovery`);
+  }
+
+  // OD2-1 コミット → まだOD中
+  const preview2 = previewTurn(od1, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: od2 } = commitTurn(od1, preview2);
+
+  assert.equal(od2.turnState.turnType, 'od');
+  // OD→OD遷移: 基本回復なし、SP=14 維持
+  for (const m of od2.party) {
+    assert.equal(m.sp.current, 14, `${m.characterId}: still 14, no mid-OD recovery`);
+  }
+
+  // OD2-2 コミット → 通常へ
+  const preview3 = previewTurn(od2, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9900 },
+    2: { characterId: 'M3', skillId: 9900 },
+  });
+  const { nextState: normal } = commitTurn(od2, preview3);
+
+  assert.equal(normal.turnState.turnType, 'normal');
+  // OD→通常: 基本回復 +2 が1回だけ適用される
+  for (const m of normal.party) {
+    assert.equal(m.sp.current, 16, `${m.characterId}: 14 + 2(base) = 16`);
+  }
+});
+
+test('interrupt OD1 during EX (odSuspended, all OD consumed) → normal with single base recovery', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `S${idx + 1}`,
+      characterName: `S${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `SS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills:
+        idx === 0
+          ? [
+              {
+                id: 16000,
+                name: 'Grant Self Extra',
+                sp_cost: 0,
+                additionalTurnRule: {
+                  skillUsableInExtraTurn: true,
+                  additionalTurnGrantInExtraTurn: false,
+                  conditions: {
+                    requiresOverDrive: false,
+                    requiresReinforcedMode: false,
+                    excludesExtraTurnForSkillUse: false,
+                    excludesExtraTurnForAdditionalTurnGrant: true,
+                  },
+                  additionalTurnTargetTypes: ['Self'],
+                },
+                parts: [{ skill_type: 'AdditionalTurn', target_type: 'Self' }],
+              },
+              {
+                id: 16001,
+                name: 'Normal',
+                sp_cost: 0,
+                parts: [],
+              },
+            ]
+          : [{ id: 16010 + idx, name: 'Normal', sp_cost: 0, parts: [] }],
+    })
+  );
+
+  let state = createBattleStateFromParty(new Party(members));
+  state.turnState.odGauge = 100;
+
+  // T1: 割込OD1 発動 → OD1-1 へ
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'S1', skillId: 16000 },
+    1: { characterId: 'S2', skillId: 16011 },
+    2: { characterId: 'S3', skillId: 16012 },
+  });
+  const { nextState: odState } = commitTurn(state, preview1, [], { interruptOdLevel: 1 });
+
+  assert.equal(odState.turnState.turnType, 'od');
+  assert.equal(odState.turnState.odContext, 'interrupt');
+  assert.equal(odState.turnState.remainingOdActions, 1);
+  // OD1回復: 10 + 5 = 15, 基本回復なし
+  const actor = odState.party.find((m) => m.characterId === 'S1');
+  assert.equal(actor.sp.current, 15);
+
+  // OD1-1: 追加ターン付与スキル → EX へ (odSuspended, remainingOdActions=0)
+  const previewOd = previewTurn(odState, {
+    0: { characterId: 'S1', skillId: 16000 },
+    1: { characterId: 'S2', skillId: 16011 },
+    2: { characterId: 'S3', skillId: 16012 },
+  });
+  const { nextState: exState } = commitTurn(odState, previewOd);
+
+  assert.equal(exState.turnState.turnType, 'extra');
+  assert.equal(exState.turnState.odSuspended, true);
+  assert.equal(exState.turnState.odContext, 'interrupt');
+  assert.equal(exState.turnState.remainingOdActions, 0);
+  // EX遷移: 基本回復なし → SP=15 維持
+  const actorEx = exState.party.find((m) => m.characterId === 'S1');
+  assert.equal(actorEx.sp.current, 15);
+
+  // EX コミット → odSuspended + interrupt + OD全消費 → normal (turnIndex+1)
+  const previewEx = previewTurn(exState, {
+    0: { characterId: 'S1', skillId: 16001 },
+  });
+  const { nextState: normalState } = commitTurn(exState, previewEx);
+
+  assert.equal(normalState.turnState.turnType, 'normal');
+  assert.equal(normalState.turnState.odSuspended, false);
+  // interrupt 文脈での復帰: turnIndex が進むため基本回復 +2 が1回適用される
+  for (const m of normalState.party) {
+    assert.equal(m.sp.current, 17, `${m.characterId}: 15 + 2(base) = 17`);
   }
 });
