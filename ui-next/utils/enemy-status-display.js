@@ -1,0 +1,321 @@
+/**
+ * enemy-status-display.js
+ *
+ * 敵の statusEffects 配列から敵状態を抽出し、UI表示用HTML/データに変換するユーティリティ。
+ * turn-row / enemy-detail-popup / enemy-panel での敵バフ/デバフ表示に使用。
+ *
+ * NOTE: player 側の buff-display.js と異なり、敵statusはenemyState.statusesで
+ * 直接管理されており、フィールド構造が異なる。
+ */
+
+import {
+  resolveSkillTypeIconUrl,
+  STATUS_TYPE_DISPLAY_ORDER,
+} from './char-detail-popup.js';
+
+// 敵状態表示の最大アイコン数（overflow対応）
+const MAX_ENEMY_STATUS_ICONS = 5;
+const SHOW_OVERFLOW_COUNT_IF_EXCEED = true;
+
+// 敵向けの表示優先順（debuff優先）
+const ENEMY_STATUS_TYPE_DISPLAY_ORDER = [
+  // Debuffs first (what we want to highlight for enemy)
+  'AttackDown',
+  'DefenseDown',
+  'CriticalRateDown',
+  'CriticalDamageDown',
+  'ResistDown',
+  'Fragile',
+  'HealDown',
+  'OverDrivePointDown',
+  'Stun',
+  'Confusion',
+  'Imprison',
+  'Recoil',
+  'Misfortune',
+  'SelfDamage',
+  'RemoveBuff',
+  // Then buffs (lower priority for enemy display)
+  'AttackUp',
+  'DefenseUp',
+  'CriticalRateUp',
+  'CriticalDamageUp',
+  'ResistUp',
+  'RecoveryUp',
+  'SkillDamageUp',
+  'SpecialDamageUp',
+  'HealUp',
+  'OverDrivePointUp',
+  'Counter',
+  'Reflect',
+  'BarrierContinue',
+  'Barrier',
+  'Revive',
+];
+
+const ENEMY_DISPLAY_ORDER_INDEX = new Map(
+  ENEMY_STATUS_TYPE_DISPLAY_ORDER.map((statusType, index) => [statusType, index])
+);
+
+/**
+ * 敵状態がアクティブ（表示対象）かを判定
+ * @param {Object} status - 敵status object
+ * @returns {boolean}
+ */
+export function isActiveEnemyStatus(status) {
+  if (!status) return false;
+  // Eternal ケース
+  if (String(status?.exitCond ?? '') === 'Eternal') return true;
+  // 残ターン > 0
+  return Number(status?.remaining ?? 0) > 0;
+}
+
+/**
+ * 敵状態の表示優先度インデックスを取得
+ * @param {Object} status - 敵status object
+ * @returns {number}
+ */
+function getEnemyStatusPriorityIndex(status) {
+  const statusType = String(status?.statusType ?? '').trim();
+  const index = ENEMY_DISPLAY_ORDER_INDEX.get(statusType);
+  // 優先テーブルにない場合は末尾扱い
+  return index !== undefined ? index : ENEMY_STATUS_TYPE_DISPLAY_ORDER.length;
+}
+
+/**
+ * 敵状態のpower値を読み出す
+ * @param {Object} status - 敵status object
+ * @returns {number}
+ */
+function readEnemyStatusPower(status) {
+  const numeric = Number(status?.power ?? 0);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return numeric;
+}
+
+/**
+ * 敵statusを優先度順にソート（優先度 -> power降順 -> remaining降順）
+ * @param {Object} a
+ * @param {Object} b
+ * @returns {number}
+ */
+function compareEnemyStatusForDisplay(a, b) {
+  const priorityA = getEnemyStatusPriorityIndex(a);
+  const priorityB = getEnemyStatusPriorityIndex(b);
+  if (priorityA !== priorityB) {
+    return priorityA - priorityB;
+  }
+  // same priority: sort by power descending
+  const powerA = readEnemyStatusPower(a);
+  const powerB = readEnemyStatusPower(b);
+  if (powerA !== powerB) {
+    return powerB - powerA;
+  }
+  // same power: sort by remaining descending
+  const remainingA = Number(a?.remaining ?? 0);
+  const remainingB = Number(b?.remaining ?? 0);
+  return remainingB - remainingA;
+}
+
+/**
+ * アクティブな敵statusを取得し、優先度順でソート
+ * @param {Array} statuses - enemy.statuses 配列 (元の順に次のデータを保持)
+ *   - statusType, remaining, power, elements, exitCond, source, metadata等
+ * @returns {Array} ソート済みのアクティブ敵status
+ */
+export function getActiveEnemyStatusesSorted(statuses) {
+  if (!Array.isArray(statuses)) {
+    return [];
+  }
+  return statuses
+    .filter(isActiveEnemyStatus)
+    .sort(compareEnemyStatusForDisplay);
+}
+
+/**
+ * 表示対象の敵statusを制限数まで取得（超過分はカウント）
+ * @param {Array} statuses - enemy.statuses 配列
+ * @param {Object} options - { limit?: number }
+ * @returns { visible: Array, overflowCount: number }
+ */
+export function pickEnemyStatusesForDisplay(statuses, options = {}) {
+  const limit = Math.max(0, Number(options.limit) || MAX_ENEMY_STATUS_ICONS);
+  const sorted = getActiveEnemyStatusesSorted(statuses);
+  
+  if (limit <= 0) {
+    return { visible: [], overflowCount: sorted.length };
+  }
+  
+  return {
+    visible: sorted.slice(0, limit),
+    overflowCount: Math.max(0, sorted.length - limit),
+  };
+}
+
+/**
+ * 敵statusの表示ラベルを取得（残ターン付き）
+ * @param {Object} status - 敵status object
+ * @returns {string} e.g. "AttackDown ×3ターン" or "Barrier (永続)"
+ */
+export function getEnemyStatusLabel(status) {
+  if (!status) return '';
+  
+  const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
+  const remaining = Number(status?.remaining ?? 0);
+  const exitCond = String(status?.exitCond ?? '').trim();
+  
+  // Eternal の場合
+  if (exitCond === 'Eternal') {
+    return `${statusType} (永続)`;
+  }
+  
+  // 残ターン表示
+  if (remaining > 0) {
+    const label = remaining === 1 ? '1ターン' : `${remaining}ターン`;
+    return `${statusType} ×${label}`;
+  }
+  
+  // デフォルト
+  return statusType;
+}
+
+/**
+ * 敵status一覧をHTMLテーブル行で表示（詳細popup用）
+ * @param {Array} statuses - enemy.statuses 配列
+ * @returns {string} HTML <tr> 要素のテキスト
+ */
+export function buildEnemyStatusTableHtml(statuses) {
+  const sorted = getActiveEnemyStatusesSorted(statuses);
+  
+  if (sorted.length === 0) {
+    return '<tr><td colspan="3" style="text-align: center; color: #999;">状態異常なし</td></tr>';
+  }
+  
+  return sorted
+    .map((status, index) => {
+      const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
+      const power = readEnemyStatusPower(status);
+      const remaining = Number(status?.remaining ?? 0);
+      const exitCond = String(status?.exitCond ?? '').trim();
+      
+      const remainingCell =
+        exitCond === 'Eternal'
+          ? '∞'
+          : remaining > 0 ? remaining : '-';
+      
+      const powerCell = power > 0 ? power : '-';
+      
+      return `
+        <tr data-status-index="${index}" data-status-type="${statusType}">
+          <td>${statusType}</td>
+          <td style="text-align: center;">${powerCell}</td>
+          <td style="text-align: center;">${remainingCell}</td>
+        </tr>
+      `.trim();
+    })
+    .join('\n');
+}
+
+/**
+ * 敵status要約をテキスト表示（turn-row compact用）
+ * optionで表示制限可能
+ * @param {Array} statuses - enemy.statuses 配列
+ * @param {Object} options - { limit?: number }
+ * @returns {string}
+ */
+export function buildEnemyStatusCompactText(statuses, options = {}) {
+  const { visible, overflowCount } = pickEnemyStatusesForDisplay(statuses, options);
+  
+  if (visible.length === 0 && overflowCount === 0) {
+    return '';
+  }
+  
+  const labels = visible.map(status => {
+    const remaining = Number(status?.remaining ?? 0);
+    if (remaining > 0) {
+      return `${remaining}`;
+    }
+    return String(status?.statusType ?? '').substring(0, 3);
+  });
+  
+  let text = labels.join(', ');
+  if (overflowCount > 0 && SHOW_OVERFLOW_COUNT_IF_EXCEED) {
+    text += ` (+${overflowCount})`;
+  }
+  
+  return text;
+}
+
+/**
+ * 敵statusアイコンをHTML要素で生成（turn-row / popup用）
+ * @param {Array} statuses - enemy.statuses 配列
+ * @param {Object} options
+ *   - limit?: number (デフォルト MAX_ENEMY_STATUS_ICONS)
+ *   - showOverflow?: boolean (デフォルト true)
+ *   - size?: string (e.g., '16px', '20px', デフォルト '20px')
+ * @returns {string} HTML fragment
+ */
+export function buildEnemyStatusIconsHtml(statuses, options = {}) {
+  const limit = Math.max(0, Number(options.limit) || MAX_ENEMY_STATUS_ICONS);
+  const showOverflow = options.showOverflow !== false;
+  const size = String(options.size ?? '20px').trim();
+  
+  const { visible, overflowCount } = pickEnemyStatusesForDisplay(statuses, { limit });
+  
+  if (visible.length === 0 && overflowCount === 0) {
+    return '';
+  }
+  
+  const iconHtmls = visible.map((status, index) => {
+    const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
+    const remaining = Number(status?.remaining ?? 0);
+    const iconUrl = resolveSkillTypeIconUrl(statusType);
+    
+    const title =
+      remaining > 0
+        ? `${statusType} (残り${remaining}ターン)`
+        : statusType;
+    
+    return `
+      <img
+        src="${iconUrl}"
+        alt="${statusType}"
+        title="${title}"
+        style="width: ${size}; height: ${size}; margin-right: 2px; display: inline-block;"
+      />
+    `.trim();
+  });
+  
+  // overflowカウント表示
+  if (showOverflow && overflowCount > 0) {
+    const overflowText = `+${overflowCount}`;
+    iconHtmls.push(
+      `<span style="font-size: 12px; font-weight: bold; margin-left: 2px;">${overflowText}</span>`
+    );
+  }
+  
+  return iconHtmls.join('');
+}
+
+/**
+ * 敵statusオブジェクトのメタデータ抽出（source/effectId検証用）
+ * @param {Object} status - 敵status
+ * @returns {Object}
+ */
+export function getEnemyStatusMetadata(status) {
+  if (!status) return {};
+  
+  return {
+    statusType: String(status.statusType ?? '').trim(),
+    remaining: Number(status.remaining ?? 0),
+    power: readEnemyStatusPower(status),
+    elements: Array.isArray(status.elements) ? status.elements : [],
+    exitCond: String(status.exitCond ?? '').trim(),
+    source: String(status.source ?? '').trim(),
+    effectId: Number(status.effectId ?? 0),
+    metadata: status.metadata ?? {},
+    isActive: isActiveEnemyStatus(status),
+  };
+}
