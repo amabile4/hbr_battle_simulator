@@ -16,6 +16,9 @@ const STAGE_EFFECT_IDS = Object.freeze({
 const STAGE_PRESET_RESULT_DEFAULT = Object.freeze({
   initialOdGauge: 0,
   initialSpBonusAll: 0,
+  turnlySpAll: 0,
+  turnlySpFront: 0,
+  turnlySpBack: 0,
   enableDefenseUp: false,
   enableDebuffGuard: false,
   unsupportedDescriptions: Object.freeze([]),
@@ -60,6 +63,9 @@ function parsePresetDescriptions(descriptions = []) {
   const result = {
     initialOdGauge: 0,
     initialSpBonusAll: 0,
+    turnlySpAll: 0,
+    turnlySpFront: 0,
+    turnlySpBack: 0,
     enableDefenseUp: false,
     enableDebuffGuard: false,
     unsupportedDescriptions: [],
@@ -91,6 +97,24 @@ function parsePresetDescriptions(descriptions = []) {
 
     if (description.includes('デバフ無効1回付与')) {
       result.enableDebuffGuard = true;
+      consumed = true;
+    }
+
+    const turnlySpFrontMatch = description.match(/毎ターン前衛のSP([+-]\d+)/);
+    if (turnlySpFrontMatch) {
+      result.turnlySpFront += Number(turnlySpFrontMatch[1]);
+      consumed = true;
+    }
+
+    const turnlySpBackMatch = description.match(/毎ターン後衛のSP([+-]\d+)/);
+    if (turnlySpBackMatch) {
+      result.turnlySpBack += Number(turnlySpBackMatch[1]);
+      consumed = true;
+    }
+
+    const turnlySpAllMatch = description.match(/毎ターンSP([+-]\d+)/);
+    if (turnlySpAllMatch && !turnlySpFrontMatch && !turnlySpBackMatch) {
+      result.turnlySpAll += Number(turnlySpAllMatch[1]);
       consumed = true;
     }
 
@@ -514,6 +538,15 @@ export class StageSetupController {
     }
     if (this.#debuffGuardToggle) {
       this.#debuffGuardToggle.checked = parsed.enableDebuffGuard;
+    }
+    if (this.#turnlySpAllInput) {
+      this.#turnlySpAllInput.value = String(parsed.turnlySpAll);
+    }
+    if (this.#turnlySpFrontInput) {
+      this.#turnlySpFrontInput.value = String(parsed.turnlySpFront);
+    }
+    if (this.#turnlySpBackInput) {
+      this.#turnlySpBackInput.value = String(parsed.turnlySpBack);
     }
 
     if (this.#hint) {

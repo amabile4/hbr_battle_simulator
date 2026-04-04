@@ -41,6 +41,9 @@ function createDimensionBattlesFixture() {
         { enchant: { desc: '毎ターンSP+1' } },
         { enchant: { desc: '防御力50%アップ' } },
         { enchant: { desc: 'デバフ無効1回付与' } },
+        { enchant: { desc: '毎ターン前衛のSP+1' } },
+        { enchant: { desc: '毎ターン後衛のSP+1' } },
+        { enchant: { desc: 'ODゲージ上昇量+20%' } },
       ],
     },
     {
@@ -115,8 +118,8 @@ test('StageSetupController shows hint for unsupported preset effects', () =>
     battleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
 
     const checkboxes = root.querySelectorAll('[data-role="stage-satellite-checkbox"]');
-    checkboxes.item(1).checked = true;
-    checkboxes.item(1).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(6).checked = true;
+    checkboxes.item(6).dispatchEvent(new win.Event('change', { bubbles: true }));
 
     root
       .querySelector('[data-action="apply-stage-preset"]')
@@ -124,7 +127,37 @@ test('StageSetupController shows hint for unsupported preset effects', () =>
 
     const hint = root.querySelector('[data-role="stage-preset-hint"]');
     assert.equal(hint.classList.contains('hidden'), false);
-    assert.equal(hint.textContent.includes('毎ターンSP+1'), true);
+    assert.equal(hint.textContent.includes('ODゲージ上昇量+20%'), true);
+  }));
+
+test('StageSetupController preset applies turnly SP fields to upper inputs', () =>
+  withDom(({ root, win }) => {
+    const controller = new StageSetupController({
+      root,
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    const battleSelect = root.querySelector('[data-role="stage-dimension-battle"]');
+    battleSelect.value = '191000001';
+    battleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const checkboxes = root.querySelectorAll('[data-role="stage-satellite-checkbox"]');
+    checkboxes.item(1).checked = true;
+    checkboxes.item(1).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(4).checked = true;
+    checkboxes.item(4).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(5).checked = true;
+    checkboxes.item(5).dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root
+      .querySelector('[data-action="apply-stage-preset"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.equal(snapshot.turnlySpAll, 1);
+    assert.equal(snapshot.turnlySpFront, 1);
+    assert.equal(snapshot.turnlySpBack, 1);
   }));
 
 test('StageSetupController applySnapshot restores selected dimension battle and upper inputs', () =>
