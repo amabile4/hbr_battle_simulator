@@ -197,6 +197,7 @@ export class InitialSetupController {
       root: partyRoot,
       pickerOverlay: this.#pickerOverlay,
       store: this.#store,
+      onResetAll: () => this.#resetAllSetup(),
       onChange: (snapshot, meta) => {
         this.#updateFooterButtons();
         if (this.#isApplyingSetupSnapshot) {
@@ -357,6 +358,18 @@ export class InitialSetupController {
   setDimensionBattles(dimensionBattles = []) {
     this.#dimensionBattles = Array.isArray(dimensionBattles) ? dimensionBattles : [];
     this.#stageSetup?.setDimensionBattles(this.#dimensionBattles);
+  }
+
+  #resetAllSetup() {
+    this.#isApplyingSetupSnapshot = true;
+    try {
+      this.#partySetup?.disbandParty?.();
+      this.#enemySetup?.resetToDefaults?.();
+      this.#stageSetup?.resetToDefaults?.();
+    } finally {
+      this.#isApplyingSetupSnapshot = false;
+    }
+    this.#updateFooterButtons();
   }
 
   #syncPartySetupBattleState() {

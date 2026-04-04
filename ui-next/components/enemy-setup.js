@@ -398,6 +398,19 @@ export class EnemySetupController {
     this.#render();
   }
 
+  resetToDefaults() {
+    this.#state = {
+      selectedEnemyIds: createDefaultSelectedEnemyIds(),
+      activeSlotIndex: REQUIRED_SLOT_INDEX,
+      preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
+      isManualBySlot: createDefaultManualFlags(),
+      manualBySlot: createDefaultManualBySlot(),
+    };
+    this.#ensureRequiredSlotSelected();
+    this.#onChange?.(this.getSnapshot());
+    this.#render();
+  }
+
   // ─── private ────────────────────────────────────────────
 
   #resolveDefaultEnemyId() {

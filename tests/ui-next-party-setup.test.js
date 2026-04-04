@@ -171,6 +171,26 @@ test('PartySetupController PT解散 button clears current party selection from s
     assert.equal(root.querySelector('[data-action="disband-party"]').disabled, true);
   }));
 
+test('PartySetupController 全て初期化 button triggers reset-all callback', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    let resetAllCount = 0;
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      onResetAll: () => {
+        resetAllCount += 1;
+      },
+    });
+    controller.mount();
+
+    root
+      .querySelector('[data-action="reset-all-setup"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(resetAllCount, 1);
+  }));
+
 test('PartySetupController supports tap-based slot swapping from the slot header', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({

@@ -149,3 +149,34 @@ test('StageSetupController applySnapshot restores selected dimension battle and 
     assert.equal(root.querySelector('[data-role="stage-effect-debuff-guard"]').checked, true);
     assert.equal(root.querySelector('[data-role="stage-dimension-battle"]').value, '191000001');
   }));
+
+test('StageSetupController reset button restores only upper free inputs to initial defaults', () =>
+  withDom(({ root, win }) => {
+    const controller = new StageSetupController({
+      root,
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    const battleSelect = root.querySelector('[data-role="stage-dimension-battle"]');
+    battleSelect.value = '191000001';
+    battleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root.querySelector('[data-role="stage-initial-od"]').value = '-300';
+    root.querySelector('[data-role="stage-initial-od"]').dispatchEvent(new win.Event('change', { bubbles: true }));
+    root.querySelector('[data-role="stage-initial-sp"]').value = '5';
+    root.querySelector('[data-role="stage-initial-sp"]').dispatchEvent(new win.Event('change', { bubbles: true }));
+    root.querySelector('[data-role="stage-effect-defense-up"]').checked = true;
+    root.querySelector('[data-role="stage-effect-defense-up"]').dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root
+      .querySelector('[data-action="reset-stage-upper-inputs"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.equal(snapshot.initialOdGauge, 0);
+    assert.equal(snapshot.initialSpBonusAll, 0);
+    assert.equal(snapshot.initialStatusEffects.length, 0);
+    assert.equal(snapshot.selectedDimensionBattleId, 191000001);
+    assert.equal(root.querySelector('[data-role="stage-dimension-battle"]').value, '191000001');
+  }));

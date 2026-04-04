@@ -712,3 +712,46 @@ test('InitialSetupController auto-recalculates when active battle gains skills f
       46500001,
     ]);
   }));
+
+test('InitialSetupController 全て初期化 resets party, enemy, and stage setup values', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        { id: 13450045, name: '希望を喰むもの', od_rate: 0, max_d_rate: 999, resistances: { element: {} } },
+        { id: 7001, name: '魔王ヤマワキ', od_rate: 8500, max_d_rate: 700, resistances: { element: {} } },
+      ],
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    controller.applySetupSnapshot({
+      party: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        supportStyleIds: [null, null, null, null, null, null],
+        stageSetup: {
+          initialOdGauge: -300,
+          initialSpBonusAll: 5,
+          selectedDimensionBattleId: 191000001,
+          initialStatusEffects: [{ scope: 'all', statusType: 'DefenseUp' }],
+        },
+      },
+      enemy: {
+        preemptiveField: 'thunder',
+        selectedEnemyIds: [7001, null, null],
+      },
+    });
+
+    root
+      .querySelector('[data-action="reset-all-setup"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.party.styleIds, [null, null, null, null, null, null]);
+    assert.equal(snapshot.enemy.preemptiveField, 'none');
+    assert.equal(snapshot.party.stageSetup.initialOdGauge, 0);
+    assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 0);
+    assert.equal(snapshot.party.stageSetup.initialStatusEffects.length, 0);
+  }));

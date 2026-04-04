@@ -18,7 +18,9 @@ test.describe('Session JSON save', () => {
     const download = await downloadPromise;
 
     // verify filename pattern
-    expect(download.suggestedFilename()).toMatch(/^ui_next_session_.*\.json$/);
+    expect(download.suggestedFilename()).toMatch(
+      /^ui_next_session_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}\+09-00\.json$/
+    );
 
     // read and parse the downloaded JSON
     const stream = await download.createReadStream();

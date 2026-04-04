@@ -123,6 +123,7 @@ export class PartySetupController {
   #picker;
   #skillSettingsPanel;
   #onChange;
+  #onResetAll;
   #activeSlotIndex = null;
   #activeMode = 'main'; // 'main' | 'support'
   #dragSrcIndex = null;
@@ -130,8 +131,9 @@ export class PartySetupController {
   #hasActiveBattle = false;
   #hasRecords = false;
 
-  constructor({ root, pickerOverlay, store, onChange = null }) {
+  constructor({ root, pickerOverlay, store, onChange = null, onResetAll = null }) {
     this.#onChange = onChange;
+    this.#onResetAll = typeof onResetAll === 'function' ? onResetAll : null;
     this.#root = root;
     this.#store = store;
 
@@ -216,6 +218,10 @@ export class PartySetupController {
           .filter(Boolean)
       ),
     };
+  }
+
+  disbandParty() {
+    this.#disbandParty();
   }
 
   setBattleState({
@@ -744,14 +750,22 @@ export class PartySetupController {
         <div>
           <div class="flex items-center justify-between px-1 mb-0.5">
             <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide">前衛</div>
-            <button data-action="disband-party"
-                    type="button"
-                    ${canDisband ? '' : 'disabled'}
-                    class="text-xs px-2 py-0.5 rounded-md border border-rose-200 bg-rose-50
-                           text-rose-600 hover:bg-rose-100 transition-colors
-                           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50">
-              PT解散
-            </button>
+            <div class="flex items-center gap-1">
+              <button data-action="reset-all-setup"
+                      type="button"
+                      class="text-xs px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50
+                             text-slate-600 hover:bg-slate-100 transition-colors">
+                全て初期化
+              </button>
+              <button data-action="disband-party"
+                      type="button"
+                      ${canDisband ? '' : 'disabled'}
+                      class="text-xs px-2 py-0.5 rounded-md border border-rose-200 bg-rose-50
+                             text-rose-600 hover:bg-rose-100 transition-colors
+                             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50">
+                PT解散
+              </button>
+            </div>
           </div>
           <div class="grid grid-cols-3 gap-1">
             ${[0, 1, 2].map((i) => this.#slotHtml(i, moraleVisible)).join('')}
@@ -802,6 +816,10 @@ export class PartySetupController {
 
     this.#root.querySelector('[data-action="disband-party"]')?.addEventListener('click', () => {
       this.#disbandParty();
+    });
+
+    this.#root.querySelector('[data-action="reset-all-setup"]')?.addEventListener('click', () => {
+      this.#onResetAll?.();
     });
 
     // スキル設定ボタン

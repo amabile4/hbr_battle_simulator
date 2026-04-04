@@ -154,7 +154,11 @@ function downloadTextFile(text, filename) {
 }
 
 function makeSessionFilename() {
-  const stamp = new Date().toISOString().replace(/[:]/g, '-');
+  const jstOffsetMs = 9 * 60 * 60 * 1000;
+  const stamp = new Date(Date.now() + jstOffsetMs)
+    .toISOString()
+    .replace(/[:]/g, '-')
+    .replace('Z', '+09-00');
   return `ui_next_session_${stamp}.json`;
 }
 

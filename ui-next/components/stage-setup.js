@@ -180,7 +180,15 @@ export class StageSetupController {
     this.#root.innerHTML = `
       <div class="space-y-4 p-4 text-sm text-gray-700">
         <section class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
-          <h3 class="font-semibold text-gray-900">自由入力（実行参照入口）</h3>
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="font-semibold text-gray-900">自由入力（実行参照入口）</h3>
+            <button data-action="reset-stage-upper-inputs"
+                    type="button"
+                    class="shrink-0 rounded border border-gray-300 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                    title="上段の自由入力を初期値へ戻します">
+              初期値に戻す
+            </button>
+          </div>
           <p class="text-xs text-gray-500">戦闘開始時に参照されるのはこの上段値のみです。</p>
           <label class="block">
             <span class="mb-1 block text-xs font-medium text-gray-600">初期ODゲージ（%）</span>
@@ -300,6 +308,23 @@ export class StageSetupController {
     this.#renderSatellites();
   }
 
+  resetToDefaults() {
+    if (this.#dimensionBattles.length > 0) {
+      this.#selectedDimensionBattleId = this.#dimensionBattles.at(-1).id;
+    } else {
+      this.#selectedDimensionBattleId = null;
+    }
+    this.#selectedSatelliteKeys.clear();
+    this.#resetUpperInputsToDefaults();
+    this.#renderDimensionBattleOptions();
+    this.#renderSatellites();
+    if (this.#hint) {
+      this.#hint.textContent = '';
+      this.#hint.classList.add('hidden');
+    }
+    this.#emitChange();
+  }
+
   #bindEvents() {
     const controls = [
       this.#odInput,
@@ -321,6 +346,10 @@ export class StageSetupController {
 
     this.#root.querySelector('[data-action="apply-stage-preset"]')?.addEventListener('click', () => {
       this.#applyPresetToUpperInputs();
+    });
+
+    this.#root.querySelector('[data-action="reset-stage-upper-inputs"]')?.addEventListener('click', () => {
+      this.#resetUpperInputsToDefaults();
     });
   }
 
@@ -429,6 +458,22 @@ export class StageSetupController {
       }
     }
 
+    this.#emitChange();
+  }
+
+  #resetUpperInputsToDefaults() {
+    if (this.#odInput) {
+      this.#odInput.value = String(DEFAULT_STAGE_SETUP.initialOdGauge);
+    }
+    if (this.#spInput) {
+      this.#spInput.value = String(DEFAULT_STAGE_SETUP.initialSpBonusAll);
+    }
+    if (this.#defenseUpToggle) {
+      this.#defenseUpToggle.checked = false;
+    }
+    if (this.#debuffGuardToggle) {
+      this.#debuffGuardToggle.checked = false;
+    }
     this.#emitChange();
   }
 
