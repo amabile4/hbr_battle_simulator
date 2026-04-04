@@ -133,7 +133,7 @@ export class InitialSetupController {
                 </div>
               </div>
               <span class="shrink-0 pt-0.5">
-                <input type="checkbox" data-role="ally-target-simplify-toggle" class="sr-only peer" checked />
+                <input type="checkbox" data-role="ally-target-simplify-toggle" class="sr-only peer" />
                 <span class="setting-switch__track">
                   <span class="setting-switch__thumb"></span>
                 </span>

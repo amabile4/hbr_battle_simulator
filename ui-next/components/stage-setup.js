@@ -217,77 +217,58 @@ export class StageSetupController {
       <div class="space-y-4 p-4 text-sm text-gray-700">
         <section class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
           <div class="flex items-center justify-between gap-2">
-            <h3 class="font-semibold text-gray-900">自由入力（実行参照入口）</h3>
+            <h3 class="font-semibold text-gray-900">バトル開始時設定</h3>
             <button data-action="reset-stage-upper-inputs"
                     type="button"
                     class="shrink-0 rounded border border-gray-300 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                    title="上段の自由入力を初期値へ戻します">
+                    title="上段の設定を初期値へ戻します">
               初期値に戻す
             </button>
           </div>
-          <p class="text-xs text-gray-500">戦闘開始時に参照されるのはこの上段値のみです。</p>
-          <label class="block">
-            <span class="mb-1 block text-xs font-medium text-gray-600">初期ODゲージ（%）</span>
-            <input data-role="stage-initial-od"
-                   type="number"
-                   step="1"
-                   value="0"
-                   class="w-full rounded border border-gray-300 px-2 py-1" />
-          </label>
-          <label class="block">
-            <span class="mb-1 block text-xs font-medium text-gray-600">初期SP加算（全員）</span>
-            <input data-role="stage-initial-sp"
-                   type="number"
-                   step="1"
-                   value="0"
-                   class="w-full rounded border border-gray-300 px-2 py-1" />
-          </label>
-          <div class="space-y-2">
-            <p class="text-xs font-medium text-gray-600">初期ステータス効果（A区分のみ）</p>
-            <label class="flex items-center gap-2 text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
+            <label class="block">
+              <span class="mb-0.5 block text-xs font-medium text-gray-600">初期OD（%）</span>
+              <input data-role="stage-initial-od"
+                     type="number" step="1" value="0"
+                     class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
+            </label>
+            <label class="block">
+              <span class="mb-0.5 block text-xs font-medium text-gray-600">初期SP（全員）</span>
+              <input data-role="stage-initial-sp"
+                     type="number" step="1" value="0"
+                     class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
+            </label>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-2">
+            <label class="block">
+              <span class="mb-0.5 block text-xs font-medium text-gray-600">毎ターンSP（全員）</span>
+              <input data-role="stage-turnly-sp-all"
+                     type="number" step="1" min="-99" max="99" value="0"
+                     class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
+            </label>
+            <label class="block">
+              <span class="mb-0.5 block text-xs font-medium text-gray-600">毎ターンSP（前衛）</span>
+              <input data-role="stage-turnly-sp-front"
+                     type="number" step="1" min="-99" max="99" value="0"
+                     class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
+            </label>
+            <label class="block">
+              <span class="mb-0.5 block text-xs font-medium text-gray-600">毎ターンSP（後衛）</span>
+              <input data-role="stage-turnly-sp-back"
+                     type="number" step="1" min="-99" max="99" value="0"
+                     class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
+            </label>
+          </div>
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <label class="flex items-center gap-1.5 text-xs">
               <input data-role="stage-effect-defense-up" type="checkbox" />
               <span>防御力50%アップ</span>
             </label>
-            <label class="flex items-center gap-2 text-sm">
+            <label class="flex items-center gap-1.5 text-xs">
               <input data-role="stage-effect-debuff-guard" type="checkbox" />
               <span>デバフ無効1回付与</span>
             </label>
           </div>
-        </section>
-
-        <section class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
-          <h3 class="font-semibold text-gray-900">毎ターンSP増減</h3>
-          <p class="text-xs text-gray-500">毎ターン終了時に適用されるSP増減値です。</p>
-          <label class="block">
-            <span class="mb-1 block text-xs font-medium text-gray-600">毎ターンSP（全員）</span>
-            <input data-role="stage-turnly-sp-all"
-                   type="number"
-                   step="1"
-                   min="-99"
-                   max="99"
-                   value="0"
-                   class="w-full rounded border border-gray-300 px-2 py-1" />
-          </label>
-          <label class="block">
-            <span class="mb-1 block text-xs font-medium text-gray-600">毎ターンSP（前衛のみ）</span>
-            <input data-role="stage-turnly-sp-front"
-                   type="number"
-                   step="1"
-                   min="-99"
-                   max="99"
-                   value="0"
-                   class="w-full rounded border border-gray-300 px-2 py-1" />
-          </label>
-          <label class="block">
-            <span class="mb-1 block text-xs font-medium text-gray-600">毎ターンSP（後衛のみ）</span>
-            <input data-role="stage-turnly-sp-back"
-                   type="number"
-                   step="1"
-                   min="-99"
-                   max="99"
-                   value="0"
-                   class="w-full rounded border border-gray-300 px-2 py-1" />
-          </label>
         </section>
 
         <section class="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
@@ -298,11 +279,6 @@ export class StageSetupController {
                     class="w-full rounded border border-gray-300 px-2 py-1 bg-white"></select>
           </label>
           <div data-role="stage-satellites" class="space-y-2"></div>
-          <button data-action="apply-stage-preset"
-                  type="button"
-                  class="w-full rounded bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-600 transition-colors">
-            チェック内容を上段へ反映
-          </button>
           <p data-role="stage-preset-hint" class="text-xs text-amber-700 hidden"></p>
         </section>
       </div>
@@ -436,10 +412,6 @@ export class StageSetupController {
       this.#emitChange();
     });
 
-    this.#root.querySelector('[data-action="apply-stage-preset"]')?.addEventListener('click', () => {
-      this.#applyPresetToUpperInputs();
-    });
-
     this.#root.querySelector('[data-action="reset-stage-upper-inputs"]')?.addEventListener('click', () => {
       this.#resetUpperInputsToDefaults();
     });
@@ -509,6 +481,7 @@ export class StageSetupController {
         } else {
           this.#selectedSatelliteKeys.delete(key);
         }
+        this.#applyPresetToUpperInputs();
       });
     });
   }

@@ -6,7 +6,7 @@ export const TARGET_SELECTION_MODES = Object.freeze({
 export const DEFAULT_SIMULATOR_SETTINGS = Object.freeze({
   targetSelection: Object.freeze({
     enemyMode: TARGET_SELECTION_MODES.SIMPLE,
-    allyMode: TARGET_SELECTION_MODES.SIMPLE,
+    allyMode: TARGET_SELECTION_MODES.MANUAL,
   }),
   captureUntilBattleEnd: true,
 });

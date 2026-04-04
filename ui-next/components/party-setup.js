@@ -968,10 +968,10 @@ export class PartySetupController {
                           class="w-full h-full object-cover" />
                      ${supportSsr ? '<div class="absolute inset-0 pointer-events-none ssr-resonance-overlay"></div>' : ''}`
                   : `<div class="w-full h-full flex items-center justify-center
-                                ${!supportSsr ? 'bg-gray-50' : ''}
+                                ${!supportSsr ? 'bg-blue-50 border-2 border-dashed border-blue-200' : ''}
                                 flex-col gap-0.5">
-                       <span class="text-sm leading-none text-gray-300 group-hover:text-blue-300 transition-colors">＋</span>
-                       <span style="font-size:7px" class="text-gray-400">SUP</span>
+                       <span class="text-base leading-none text-blue-300 group-hover:text-blue-400 transition-colors">＋</span>
+                       <span style="font-size:8px" class="text-blue-400 font-medium">SUP</span>
                      </div>`
                 }
                 ${supportCharaName
@@ -986,7 +986,7 @@ export class PartySetupController {
               <div class="flex items-center flex-1 px-1 bg-gray-50">
                 ${supportStyle
                   ? selectHtml('supportLb', index, makeLbOptions(supportStyle).map(o => ({ value: o.value, label: String(o.value) })), slot.supportLb)
-                  : `<span class="text-[9px] text-gray-300 w-full text-center">LB設定</span>`
+                  : `<span class="text-[10px] text-blue-300 w-full text-center leading-tight">サポート<br>未選択</span>`
                 }
               </div>
             </div>

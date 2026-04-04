@@ -163,7 +163,7 @@ test('InitialSetupController mounts Simulator Settings tab separately from Enemy
     const simulatorContent = root.querySelector('[data-tab-content="simulator"]');
     assert.equal(simulatorContent.hidden, false);
     assert.equal(root.querySelector('[data-role="enemy-target-simplify-toggle"]').checked, true);
-    assert.equal(root.querySelector('[data-role="ally-target-simplify-toggle"]').checked, true);
+    assert.equal(root.querySelector('[data-role="ally-target-simplify-toggle"]').checked, false);
 
     const enemyContent = root.querySelector('[data-tab-content="enemy"]');
     const stageContent = root.querySelector('[data-tab-content="stage"]');
@@ -233,16 +233,13 @@ test('InitialSetupController stage preset reflection updates only upper stage se
     const satelliteCheckboxes = root.querySelectorAll('[data-role="stage-satellite-checkbox"]');
     satelliteCheckboxes.item(0).checked = true;
     satelliteCheckboxes.item(0).dispatchEvent(new win.Event('change', { bubbles: true }));
-    satelliteCheckboxes.item(2).checked = true;
-    satelliteCheckboxes.item(2).dispatchEvent(new win.Event('change', { bubbles: true }));
 
-    assert.equal(odInput.value, '0');
-    assert.equal(spInput.value, '0');
+    assert.equal(Number(odInput.value), 200);
+    assert.equal(Number(spInput.value), 0);
     assert.equal(defenseUpToggle.checked, false);
 
-    root
-      .querySelector('[data-action="apply-stage-preset"]')
-      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    satelliteCheckboxes.item(2).checked = true;
+    satelliteCheckboxes.item(2).dispatchEvent(new win.Event('change', { bubbles: true }));
 
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(Number(odInput.value), 200);
@@ -351,7 +348,7 @@ test('InitialSetupController getSetupSnapshot returns split simulator target sel
     );
     assert.equal(
       setupSnapshot.simulatorSettings.targetSelection.allyMode,
-      TARGET_SELECTION_MODES.SIMPLE,
+      TARGET_SELECTION_MODES.MANUAL,
     );
     assert.equal(setupSnapshot.simulatorSettings.captureUntilBattleEnd, true);
 

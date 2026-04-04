@@ -73,7 +73,7 @@ test('StageSetupController defaults to latest dimension battle and exposes upper
     assert.equal(snapshot.selectedDimensionBattleId, 191000002);
   }));
 
-test('StageSetupController applies selected preset to upper inputs only on explicit button click', () =>
+test('StageSetupController applies preset to upper inputs immediately on satellite check', () =>
   withDom(({ root, win }) => {
     const controller = new StageSetupController({
       root,
@@ -88,14 +88,11 @@ test('StageSetupController applies selected preset to upper inputs only on expli
     const checkboxes = root.querySelectorAll('[data-role="stage-satellite-checkbox"]');
     checkboxes.item(0).checked = true;
     checkboxes.item(0).dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    assert.equal(root.querySelector('[data-role="stage-initial-od"]').value, '200');
+
     checkboxes.item(2).checked = true;
     checkboxes.item(2).dispatchEvent(new win.Event('change', { bubbles: true }));
-
-    assert.equal(root.querySelector('[data-role="stage-initial-od"]').value, '0');
-
-    root
-      .querySelector('[data-action="apply-stage-preset"]')
-      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     const snapshot = controller.getSnapshot();
     assert.equal(snapshot.initialOdGauge, 200);
@@ -105,7 +102,7 @@ test('StageSetupController applies selected preset to upper inputs only on expli
     );
   }));
 
-test('StageSetupController shows hint for unsupported preset effects', () =>
+test('StageSetupController shows hint for unsupported preset effects on check', () =>
   withDom(({ root, win }) => {
     const controller = new StageSetupController({
       root,
@@ -121,16 +118,12 @@ test('StageSetupController shows hint for unsupported preset effects', () =>
     checkboxes.item(6).checked = true;
     checkboxes.item(6).dispatchEvent(new win.Event('change', { bubbles: true }));
 
-    root
-      .querySelector('[data-action="apply-stage-preset"]')
-      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-
     const hint = root.querySelector('[data-role="stage-preset-hint"]');
     assert.equal(hint.classList.contains('hidden'), false);
     assert.equal(hint.textContent.includes('ODゲージ上昇量+20%'), true);
   }));
 
-test('StageSetupController preset applies turnly SP fields to upper inputs', () =>
+test('StageSetupController preset applies turnly SP fields immediately on check', () =>
   withDom(({ root, win }) => {
     const controller = new StageSetupController({
       root,
@@ -149,10 +142,6 @@ test('StageSetupController preset applies turnly SP fields to upper inputs', () 
     checkboxes.item(4).dispatchEvent(new win.Event('change', { bubbles: true }));
     checkboxes.item(5).checked = true;
     checkboxes.item(5).dispatchEvent(new win.Event('change', { bubbles: true }));
-
-    root
-      .querySelector('[data-action="apply-stage-preset"]')
-      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     const snapshot = controller.getSnapshot();
     assert.equal(snapshot.turnlySpAll, 1);
