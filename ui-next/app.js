@@ -2,10 +2,12 @@ import { HbrDataStore } from '../src/data/hbr-data-store.js';
 import { InitialSetupController } from './components/initial-setup.js';
 import { PassiveLogPaneController } from './components/passive-log-pane.js';
 import { PartyPresetToolbarController } from './components/party-preset-toolbar.js';
+import { UsedSkillsOverlayController } from './components/used-skills-overlay.js';
 import { BattleStateManager } from './engine/battle-state-manager.js';
 import { TurnEngineManager } from './engine/turn-engine-manager.js';
 import { TurnAreaController } from './components/turn-area.js';
 import { createEmptyLightweightReplayScript } from '../src/ui/lightweight-replay-script.js';
+import { buildUsedSkillsByPartyMember } from './utils/used-skills-view.js';
 import {
   decorateSessionSnapshotForHumans,
   normalizeSessionSnapshot,
@@ -415,6 +417,7 @@ function setupWorkspaceShell() {
   const passiveLogPaneRoot = document.querySelector('#passive-log-pane');
   const setupToggleButton = document.querySelector('#toggle-setup');
   const passiveLogToggleButton = document.querySelector('#toggle-passive-log');
+  const usedSkillsToggleButton = document.querySelector('#toggle-used-skills');
   const turnLayoutToggleButton = document.querySelector('#toggle-turn-layout');
   const captureButton = document.querySelector('#capture-btn');
   const passiveLogResizeHandle =
@@ -664,6 +667,7 @@ function setupWorkspaceShell() {
       syncPassiveLogPaneLayout();
     },
     buttons: {
+      usedSkillsToggle: usedSkillsToggleButton,
       sessionSave: document.querySelector('#session-save-btn'),
       sessionLoad: document.querySelector('#session-load-btn'),
       sessionLoadInput: document.querySelector('#session-load-input'),
@@ -727,7 +731,11 @@ async function main() {
       root: document.querySelector('#passive-log-pane'),
       onHasRowsChange: (hasRows) => workspaceShell?.updatePassiveLogAvailability(hasRows),
     });
+    const usedSkillsOverlay = new UsedSkillsOverlayController({
+      root: document.querySelector('#used-skills-overlay'),
+    });
     passiveLogPane.mount();
+    usedSkillsOverlay.mount();
     workspaceShell = setupWorkspaceShell();
     bootProfiler.mark('workspace:init:done');
 
@@ -882,6 +890,15 @@ async function main() {
       } finally {
         workspaceShell.buttons.sessionLoadInput.value = '';
       }
+    });
+
+    workspaceShell.buttons.usedSkillsToggle?.addEventListener('click', () => {
+      const rows = buildUsedSkillsByPartyMember({
+        store,
+        turnEngineManager,
+      });
+      usedSkillsOverlay.setRows(rows);
+      usedSkillsOverlay.toggle();
     });
 
     bootProfiler.mark('main:ready');

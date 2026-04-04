@@ -1038,8 +1038,8 @@ export class TurnRowController {
     )];
     if (types.length === 0 && elems.length === 0) return '';
     return [
-      ...types.map((t) => `<img src="${ATTACK_TYPE_MAP[t].img}" alt="${ATTACK_TYPE_MAP[t].alt}" class="turn-skill-badge-icon object-contain" />`),
       ...elems.map((e) => `<img src="${ELEMENT_MAP[e].img}" alt="${ELEMENT_MAP[e].alt}" class="turn-skill-badge-icon object-contain" />`),
+      ...types.map((t) => `<img src="${ATTACK_TYPE_MAP[t].img}" alt="${ATTACK_TYPE_MAP[t].alt}" class="turn-skill-badge-icon object-contain" />`),
     ].join('');
   }
 

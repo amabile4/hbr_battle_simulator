@@ -4,6 +4,9 @@ import {
   isAdmiralCommandSkill,
   isNormalAttackSkill,
   isPursuitOnlySkill,
+  extractSkillLabelTrailingNumber,
+  classifySkillType,
+  isExSkillByLabel,
 } from '../src/domain/skill-classifiers.js';
 
 test('isNormalAttackSkill matches by name and label suffix', () => {
@@ -23,4 +26,32 @@ test('isPursuitOnlySkill matches by name, label suffix, and desc marker', () => 
   assert.equal(isPursuitOnlySkill({ label: 'AnySkill91' }), true);
   assert.equal(isPursuitOnlySkill({ desc: 'このスキルは追撃でのみ発動可能' }), true);
   assert.equal(isPursuitOnlySkill({ name: '通常攻撃', label: 'AttackNormal' }), false);
+});
+
+test('extractSkillLabelTrailingNumber returns trailing number or null', () => {
+  assert.equal(extractSkillLabelTrailingNumber('YShirakawaSkill09'), 9);
+  assert.equal(extractSkillLabelTrailingNumber('YShirakawaSkill51'), 51);
+  assert.equal(extractSkillLabelTrailingNumber('YShirakawaSkillEX01'), 1);
+  assert.equal(extractSkillLabelTrailingNumber('NoNumber'), null);
+  assert.equal(extractSkillLabelTrailingNumber(''), null);
+  assert.equal(extractSkillLabelTrailingNumber(null), null);
+});
+
+test('isExSkillByLabel returns true for label trailing number >= 51', () => {
+  assert.equal(isExSkillByLabel({ label: 'YShirakawaSkill51' }), true);
+  assert.equal(isExSkillByLabel({ label: 'CharacterSkill99' }), true);
+  assert.equal(isExSkillByLabel({ label: 'CharacterSkill50' }), false);
+  assert.equal(isExSkillByLabel({ label: 'CharacterSkill09' }), false);
+  assert.equal(isExSkillByLabel({ label: 'NoNumber' }), false);
+  assert.equal(isExSkillByLabel({}), false);
+  assert.equal(isExSkillByLabel(null), false);
+});
+
+test('classifySkillType returns correct category', () => {
+  assert.equal(classifySkillType({ label: 'CharacterSkill09', is_restricted: 0 }), 'スキル');
+  assert.equal(classifySkillType({ label: 'CharacterSkill09', is_restricted: 1 }), 'スキル（専用）');
+  assert.equal(classifySkillType({ label: 'CharacterSkill51', is_restricted: 0 }), 'EXスキル');
+  assert.equal(classifySkillType({ label: 'CharacterSkill51', is_restricted: 1 }), 'EXスキル（専用）');
+  assert.equal(classifySkillType({}), null);
+  assert.equal(classifySkillType(null), null);
 });

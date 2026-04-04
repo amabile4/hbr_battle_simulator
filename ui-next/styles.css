@@ -1397,6 +1397,67 @@
   height: 28px;
   object-fit: contain;
 }
+
+/* ============================================================
+   Used Skills Overlay
+   ============================================================ */
+.used-skills-card {
+  container-type: inline-size;
+}
+
+.used-skill-entry {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  align-items: center;
+  column-gap: 0;
+  min-width: 0;
+}
+
+.used-skill-entry__icons-container {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  width: 2rem;
+  overflow: hidden;
+}
+
+.used-skill-entry__icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-height: 1rem;
+  flex-shrink: 0;
+}
+
+.used-skill-entry__icons--element {
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.used-skill-entry__icons--attack {
+  justify-content: flex-start;
+}
+
+.used-skill-entry__name {
+  min-width: 0;
+  line-height: 1.2;
+  font-size: clamp(0.65rem, calc(1vw + 0.5rem), 0.875rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@container (max-width: 240px) {
+  .used-skill-entry {
+    grid-template-columns: 1fr;
+    row-gap: 0.25rem;
+  }
+
+  .used-skill-entry__name {
+    grid-column: 1 / -1;
+  }
+}
 .char-popup-buff-center {
   flex: 1;
   min-width: 0;
