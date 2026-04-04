@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-04
 
 ## 方針
 
@@ -503,3 +503,107 @@ Phase 6-D（対象外）: 装備起点パッシブ
 - 印の残課題は「表示」「ログ」「実データ回帰の厚み」であり、条件評価や常在効果の基盤自体はほぼ完了
 - `DamageRate()` は手動破壊率状態としてのみ使い、ダメージ計算には接続しない
 - `ConquestBikeLevel()` は現状固定 `160`。UI 上書きだけ将来課題
+
+## 2026-04-04 main HEAD 進捗確認
+
+- 確認対象 HEAD: `main@48d98c4`
+- `OnEveryTurnIncludeSpecial` は `SUPPORTED_PASSIVE_TIMINGS` 集計対象外だが、preview/行動選択文脈での `ReduceSp` / `AttackUp` 適用として実装済み
+- 以前の監査ドキュメントで未実装扱いだった trigger は、HEAD 時点で実装とテストを確認済み
+  - `AdditionalHitOnZone`（オーバーレイ相当）
+  - `AdditionalHitOnPursuit`（そよぐ新緑相当）
+  - `AdditionalHitOnOverDrivePointDownSkill`（トップアップ相当）
+- `Talisman` / `DebuffGuard` / `BuffCharge` は timing パッシブ側の処理は実装済み
+  - ただし `AdditionalHitOnExtraSkill` の trigger 経路での適用は別残課題
+- `exitCond` の残件扱いだった `Count` / `PlayerTurnEnd` も、専用テスト（`P3-A` / `P3-B`）で挙動確認済み
+- `node --test tests/turn-state-transitions.test.js` を実行し、`pass 402 / fail 0` を確認
+
+### 残課題確認（main HEAD基準）
+
+- 条件/timing 基盤と主要パッシブ群は実装済み
+- 追加で詰める残課題は次のとおり
+  - `AdditionalHitOnExtraSkill + Talisman`（恐怖の叫び）
+- それ以外の継続課題は周辺改善に集約される
+  - `ConquestBikeLevel` の UI 上書き
+  - 印の UI/Record/Passive Log 見える化強化
+  - 新規 `Territory` 種類追加時の個別効果適用
+
+### 追加WBS（現状実装比較・低難易度順）
+
+#### WBS-1: AdditionalHitOnExtraSkill 経路で DebuffGuard / BuffCharge を先行接続（低） ✅ 完了
+
+- 目的
+  - 既存の trigger 検知を流用し、まず DebuffGuard / BuffCharge を action-time trigger 経路へ接続する
+- 現状
+  - `applyMoralePassiveTriggerEffects` は `AdditionalHitOnExtraSkill` を検知できる
+  - ただし effect 側は `Morale` / `HealSp` / `OverDrivePointUp` / `AdditionalTurn` / `HealDpRate` / `AttackUp` 等のみ処理
+- 実装
+  - `DebuffGuard` ブランチを追加して対象味方へ `statusEffects` を付与
+  - `BuffCharge` ブランチを追加して対象味方へ特殊状態を付与
+- 完了メモ（2026-04-04）
+  - `applyMoralePassiveTriggerEffects` に `DebuffGuard` / `BuffCharge` 分岐を追加済み
+  - EX 使用時に state / record へ反映されることを確認済み
+
+#### WBS-2: DebuffGuard / BuffCharge の専用回帰テスト追加（低） ✅ 完了
+
+- 目的
+  - WBS-1 の接続漏れを防ぎ、先行2件の回帰を固定する
+- 実装
+  - `tests/turn-state-transitions.test.js` に以下を追加
+    - EX 使用時に `DebuffGuard` が対象条件つきで付与される
+    - EX 使用時に `BuffCharge` が付与され、既存消費ルールで減衰する
+- 完了メモ（2026-04-04）
+  - `tests/turn-state-transitions.test.js` に次を追加
+    - `AdditionalHitOnExtraSkill + DebuffGuard: EX skill used grants DebuffGuard to allies`
+    - `AdditionalHitOnExtraSkill + BuffCharge: EX skill used grants BuffCharge to self`
+  - `node --test tests/turn-state-transitions.test.js --test-name-pattern "AdditionalHitOnExtraSkill + DebuffGuard|AdditionalHitOnExtraSkill + BuffCharge"` を含む実行で green を確認
+
+#### WBS-3: Talisman は敵ステート表示機能の後で実装（中）
+
+- 目的
+  - 敵ステート可視化とセットで `AdditionalHitOnExtraSkill + Talisman` を実装し、検証可能な形で導入する
+- 現状
+  - timing パッシブ側の `Talisman` は実装済み
+  - ただし trigger 経路（恐怖の叫び）では未接続
+  - 敵ステート表示機能が未整備で、網羅テストの観測性が不足
+- 実装
+  - 先に敵ステート表示機能を追加し、`talismanState` の可視化経路を整備
+  - その後、trigger 経路へ `Talisman` 適用を接続
+- 完了条件
+  - 恐怖の叫びが EX 使用で発火し、UI/record/test の3経路で同一結果を観測できる
+
+#### WBS-4: trigger AttackUp の運用仕様確定（中） ✅ 完了
+
+- 目的
+  - 浄化の喝采 / 破砕の喝采を「ログのみ」から「運用仕様が明確なバフ」へ昇格させる
+- 現状
+  - trigger 経路で `AttackUp` は `statusEffects` へ付与される
+  - ただし `exitCond: PlayerTurnEnd` + `exitVal` の扱いが期待どおりのターン管理かは監査観点で未固定
+- 実装
+  - 「回数消費しない・ターンで減る」仕様をテストで先に固定
+  - 必要なら `PlayerTurnEnd` 減衰条件を調整（行動有無依存を除外する等）
+- 完了条件
+  - 8T 持続（または実データ正）の減衰挙動がテストで固定され、docs と一致する
+- 完了メモ（2026-04-04）
+  - `AdditionalHitOnBreaking + AttackUp`（破砕の喝采）を既存 `AttackUp` 状態付与経路で固定し、新規状態は追加しない方針で実装
+  - `tests/turn-state-transitions.test.js` の 破砕の喝采回帰を更新し、`+0.6` / `PlayerTurnEnd` / `exitVal=8` / 単独発動（`breakHitCount>1` でも重複付与なし）を検証
+  - 既存ルールとして「PlayerTurnEnd は行動した味方のみ同ターンで 1 減衰」を確認
+
+#### WBS-5: OnOverdriveStart の終了側追跡を追加（中）
+
+- 目的
+  - 発火側のみでなく、OD終了時の解除/失効側を明確化する
+- 実装
+  - OD開始から終了までの連続シナリオテストを追加し、解除タイミングを固定
+- 完了条件
+  - OnOverdriveStart/OverDriveEnd の lifecycle を単体テストで再現可能
+
+#### WBS-6: イベントフックの汎用入口整理（中〜高、任意）
+
+- 目的
+  - 既存の action-time trigger 呼び出しを将来拡張しやすい形へ整理する
+- 現状
+  - 実態としては `applyMoraleEffectsFromActions` から trigger 群を順次呼び出しており、機能面では `onPostSkillUse` 相当が存在
+- 実装
+  - `onPostSkillUse` 相当の共通入口を明示化し、`onEnemyBuffRemoved` / `onEnemyBreak` 判定を同一コンテキストへ統一
+- 完了条件
+  - trigger 追加時の変更点が局所化され、既存 3 系列（Morale/ReceiverSP/ReceiverZone）と同じ拡張パターンで実装可能

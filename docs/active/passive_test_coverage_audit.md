@@ -1,7 +1,38 @@
 # パッシブ発火トリガー × exitCond テストカバレッジ監査
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-04
 > 調査ファイル: `tests/turn-state-transitions.test.js`（13,000行超）・`tests/real-data-mechanics-coverage.test.js`
+
+---
+
+## 0. 2026-04-04 HEAD再照合サマリ（main@48d98c4）
+
+- 2026-03-29 時点で未実装/未テスト扱いだった以下は、`tests/turn-state-transitions.test.js` に専用テスト追加済み
+	- `P1-A`: リバーブレーション（SP30）
+	- `P1-B`: クロノチェイン（OnHealedSpWithoutSelfHeal + OD上昇）
+	- `P1-C`: OnKillCount + HealSp 倍率
+	- `P2-A`: OnZone
+	- `P2-B`: OnPursuit
+	- `P2-C`: OnOverDrivePointDownSkill
+	- `P3-A`: `exitCond=Count`（激動）
+	- `P3-B`: `exitCond=PlayerTurnEnd`（二度咲き）
+- 一般 timing 側も追加確認済み
+	- `OnBattleWin`（`commitTurn applies OnBattleWin passives when all enemies are dead`）
+	- `OnOverdriveStart` の基本発火/非発火境界（front/backline/non-OD）
+- 実行確認: `node --test tests/turn-state-transitions.test.js` → `pass 402 / fail 0`
+
+### 現時点の残課題（テスト監査観点）
+
+- AdditionalHit 経路での未実装 effect（実装+テストが必要）
+	- `Talisman`（恐怖の叫び）
+	- `DebuffGuard`（ライトプロテクション）
+	- `BuffCharge`（役者魂）
+- `AttackUp` trigger（浄化の喝采 / 破砕の喝采）
+	- 現在はログ中心。active buff としての持続/消費仕様テストは未整備
+- `OnOverdriveStart × OverDriveEnd` の解除側追跡
+	- 現在は発火側テスト中心で、OD終了時解除の厳密トレースは薄い
+
+> 注: 以下の 2026-03-29 本文は履歴として保持。最新判定は本セクション「0」とセクション「4」を優先する。
 
 ---
 
@@ -40,8 +71,8 @@
 | 元気注入 | HealSp(AllyAll) | ❌ | ExtraSkill+HealSp 未テスト |
 | 恐怖の叫び | Talisman(All) | 🔧 | AdditionalHit経由のTalisman未実装・未テスト |
 | 二股の尻尾 | DoubleActionExtraSkill(Self) | ✅ | 行14338 `EX使用後に次回ぶんの二連権を再付与する`、行14307 `初回EXは二連` |
-| ライトプロテクション | DebuffGuard(AllyAll) | 🔧 | AdditionalHit経由のDebuffGuard未実装・未テスト |
-| 役者魂 | BuffCharge(Self) | 🔧 | AdditionalHit経由のBuffCharge未実装・未テスト |
+| ライトプロテクション | DebuffGuard(AllyAll) | ✅ | 行11548 `AdditionalHitOnExtraSkill + DebuffGuard: EX skill used grants DebuffGuard to allies` |
+| 役者魂 | BuffCharge(Self) | ✅ | 行11601 `AdditionalHitOnExtraSkill + BuffCharge: EX skill used grants BuffCharge to self` |
 
 ### グループ B': AdditionalHitOnExtraSkill × PlayerTurnEnd（1件）
 
@@ -163,32 +194,26 @@
 
 ---
 
-## 4. 未テスト残存項目（優先度付き）
+## 4. 残課題（優先度付き / 2026-04-04 更新）
 
-### 優先度 🔴 高（実装済み・組み合わせが未テスト）
-
-| 項目 | 内容 | 難易度 |
-|-----|------|--------|
-| リバーブレーション SP30未適用 | OnSpecifiedSkill+HealSp で `value[0]=30` だが `applySpDelta('passive', null)` → SP30制約が効かない。既知バグ | 中 |
-| 怪盗乱麻（OnRemovingBuff+HealSp AllyFront） | RemovingBuff+HealSp の組み合わせテストなし | 低 |
-| 元気注入（OnExtraSkill+HealSp AllyAll） | ExtraSkill+HealSp の組み合わせテストなし | 低 |
-
-### 優先度 🟠 中（exitCond 挙動の未実装・未テスト）
+### 優先度 🔴 高（実装未接続）
 
 | 項目 | 内容 | 難易度 |
 |-----|------|--------|
-| 激動（exitCond=Count, 1回上限） | 現状は上限なしで毎回発火。Count実装には追跡カウンタが必要 | 高 |
-| 二度咲き/貴様に託した（exitCond=PlayerTurnEnd） | 現状はEternal扱い。ターン終了での発火停止が未実装 | 高 |
-| OnBattleStart × Count（14件） | バトル開始時の1回制限パッシブが毎回発火する可能性 | 中 |
+| AdditionalHitOnExtraSkill + Talisman | trigger 経路で `Talisman` 適用を未接続。専用テストも未整備 | 中 |
 
-### 優先度 🟡 低（未実装トリガー・effectType）
+### 優先度 🟠 中（仕様・観測ギャップ）
+
+| 項目 | 内容 | 難易度 |
+|-----|------|--------|
+| AttackUp trigger の持続/消費挙動 | 浄化の喝采/破砕の喝采は現状ログ中心。active buff としての仕様固定とテストが必要 | 中 |
+| OnOverdriveStart × OverDriveEnd | 発火テストはあるが、OD終了時解除の追跡テストは薄い | 中 |
+
+### 優先度 🟡 低（カバレッジ厚み）
 
 | 項目 | 内容 |
 |-----|------|
-| クロノチェイン（OnHealedSpWithoutSelfHeal+OD） | `applyReceiverSpHealPassiveTriggers` にOverDrivePointUp処理を追加するだけ |
-| 二度咲き AdditionalTurn via ExtraSkill | 発火テスト自体なし |
-| OnZone / OnOverDrivePointDownSkill / OnPursuit | トリガー検出から実装が必要 |
-| Talisman/DebuffGuard/BuffCharge via AdditionalHit | effectType実装から必要 |
+| 同系統扱いの専用実データ回帰追加 | `元気注入` / `怪盗乱麻` など、同系統カバー済み項目を個別ケースとして厚くする |
 
 ---
 

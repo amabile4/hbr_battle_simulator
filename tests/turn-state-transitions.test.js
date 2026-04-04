@@ -11545,6 +11545,113 @@ test('AdditionalHitOnExtraSkill + OverDrivePointUp: OD gauge increases when EX s
   );
 });
 
+test('AdditionalHitOnExtraSkill + DebuffGuard: EX skill used grants DebuffGuard to allies', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'EXDG1',
+          characterName: 'EXDG1',
+          initialSP: 15,
+          passives: [
+            {
+              id: 99932,
+              name: 'ライトプロテクションテスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                {
+                  skill_type: 'DebuffGuard',
+                  target_type: 'AllyAll',
+                  power: [1, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  effect: { limitType: 'Count', exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99933,
+              name: 'EX Guard Skill',
+              sp_cost: 12,
+              is_restricted: 1,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'EXDG1', skillId: 99933 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(nextState.party.filter((m) => m.getStatusEffectsByType('DebuffGuard').length > 0).length, 6);
+  const triggerEvent = (committedRecord.passiveEvents ?? []).find(
+    (e) => e.source === 'passive_trigger' && e.effectTypes?.includes('DebuffGuard')
+  );
+  assert.ok(triggerEvent, 'DebuffGuard passive_trigger event should be recorded');
+});
+
+test('AdditionalHitOnExtraSkill + BuffCharge: EX skill used grants BuffCharge to self', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'EXBC1',
+          characterName: 'EXBC1',
+          initialSP: 15,
+          passives: [
+            {
+              id: 99934,
+              name: '役者魂テスト',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                {
+                  skill_type: 'BuffCharge',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  effect: { limitType: 'Count', exitCond: 'Count', exitVal: [1, 0] },
+                },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99935,
+              name: 'EX Charge Skill',
+              sp_cost: 12,
+              is_restricted: 1,
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [0, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  const preview = previewTurn(state, {
+    0: { characterId: 'EXBC1', skillId: 99935 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  const actor = nextState.party.find((m) => m.characterId === 'EXBC1');
+  assert.equal(countActiveSpecialStatus(actor, 25), 1, 'BuffCharge special status should be active on self');
+  const triggerEvent = (committedRecord.passiveEvents ?? []).find(
+    (e) => e.source === 'passive_trigger' && e.effectTypes?.includes('BuffCharge')
+  );
+  assert.ok(triggerEvent, 'BuffCharge passive_trigger event should be recorded');
+});
+
 test('AdditionalHitOnHealedSpWithoutSelfHeal + HealSp: 別の味方スキルでSPが上昇したとき発動（RECEIVER基準）', () => {
   // 正しいトリガー方向の確認:
   // HEALER1 はパッシブ保持者。別のメンバー（M2）が HealSp AllyFront を使い
@@ -12161,7 +12268,7 @@ test('AdditionalHitOnBreaking + BreakDownTurnUp does NOT fire when breakHitCount
   assert.ok(!bdt, 'BreakDownTurnUp should NOT fire when breakHitCount is 0');
 });
 
-test('AdditionalHitOnBreaking + AttackUp: records passive event with attackUpRate (破砕の喝采)', () => {
+test('AdditionalHitOnBreaking + AttackUp: grants AllyAll AttackUp +0.6 for 8 turns as single trigger (破砕の喝采)', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? {
@@ -12175,7 +12282,16 @@ test('AdditionalHitOnBreaking + AttackUp: records passive event with attackUpRat
               timing: 'OnFirstBattleStart',
               parts: [
                 { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
-                { skill_type: 'AttackUp', target_type: 'AllyAll', power: [0.6, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+                {
+                  skill_type: 'AttackUp',
+                  target_type: 'AllyAll',
+                  power: [0.6, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  target_condition: '',
+                  effect: { limitType: 'Default', exitCond: 'PlayerTurnEnd', exitVal: [8, 0] },
+                },
               ],
             },
           ],
@@ -12192,13 +12308,12 @@ test('AdditionalHitOnBreaking + AttackUp: records passive event with attackUpRat
   );
   const state = createBattleStateFromParty(party);
   const preview = previewTurn(state, {
-    0: { characterId: 'HASAN1', skillId: 99996, breakHitCount: 1 },
+    0: { characterId: 'HASAN1', skillId: 99996, breakHitCount: 2 },
     1: { characterId: 'M2', skillId: 8001 },
     2: { characterId: 'M3', skillId: 8002 },
   });
-  const { committedRecord } = commitTurn(state, preview);
+  const { nextState, committedRecord } = commitTurn(state, preview);
 
-  // PassiveTriggerEvent for AttackUp should be in committedRecord.passiveEvents
   const evt = (committedRecord.passiveEvents ?? []).find(
     (e) => e.effectTypes?.includes('AttackUp') && e.source === 'passive_trigger'
   );
@@ -12207,6 +12322,16 @@ test('AdditionalHitOnBreaking + AttackUp: records passive event with attackUpRat
     Math.abs(Number(evt.attackUpRate) - 0.6) < 0.01,
     `attackUpRate should be 0.6, got ${evt.attackUpRate}`
   );
+
+  for (const member of nextState.party) {
+    const attackUps = member
+      .resolveEffectiveStatusEffects('AttackUp')
+      .filter((status) => Math.abs(Number(status?.power ?? 0) - 0.6) < 0.01);
+    assert.equal(attackUps.length, 1, `${member.characterId} should have exactly one +0.6 AttackUp`);
+    assert.equal(String(attackUps[0].exitCond), 'PlayerTurnEnd');
+    const expectedRemaining = ['HASAN1', 'M2', 'M3'].includes(member.characterId) ? 7 : 8;
+    assert.equal(Number(attackUps[0].remaining), expectedRemaining);
+  }
 });
 
 test('AdditionalHitOnRemovingBuff + AttackUp: fires when skill has RemoveBuff part (浄化の喝采)', () => {

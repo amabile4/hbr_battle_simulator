@@ -4021,6 +4021,9 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
           if (!target) {
             continue;
           }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+            continue;
+          }
           target.addStatusEffect({
             statusType: 'AttackUp',
             exitCond,
@@ -4029,7 +4032,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
             power: amount,
             elements,
             sourceType: 'passive',
-            sourceSkillId: Number(passive?.id ?? 0),
+            sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
             sourceSkillLabel: String(passive?.label ?? ''),
             sourceSkillName: String(passive?.name ?? ''),
             sourceCharacterId: String(actor?.characterId ?? ''),
@@ -4050,6 +4053,109 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
             })
           )
         );
+        continue;
+      }
+
+      if (effectType === 'DebuffGuard' || effectType === 'BreakGuard') {
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        const appliedStatusEffects = [];
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+            continue;
+          }
+          const added = addGuardStatusEffect(target, part, {
+            sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            sourceSkillLabel: String(passive?.label ?? ''),
+            sourceSkillName: String(passive?.name ?? ''),
+            metadata: {
+              sourceType: 'passive_trigger',
+              actorCharacterId: actor.characterId,
+              triggerSkillId: Number(skill?.skillId ?? 0),
+              triggerSkillName: String(skill?.name ?? ''),
+              targetType: String(part?.target_type ?? ''),
+            },
+          });
+          if (!added) {
+            continue;
+          }
+          appliedStatusEffects.push(added);
+        }
+        if (appliedStatusEffects.length > 0) {
+          passiveTriggerEvents.push(
+            buildActionScopedEvent(
+              actionEntry,
+              createPassiveTriggerEvent(state.turnState, actor, passive, {
+                source: 'passive_trigger',
+                effectTypes: [effectType],
+                appliedStatusEffects,
+                triggerSkillId: Number(skill?.skillId ?? 0),
+                triggerSkillName: String(skill?.name ?? ''),
+              })
+            )
+          );
+        }
+        continue;
+      }
+
+      if (effectType === 'BuffCharge') {
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          actionEntry?.targetCharacterId
+        );
+        const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID.BuffCharge;
+        const exitCond = String(part?.effect?.exitCond ?? 'Count');
+        const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
+        const sourceSkill = {
+          skillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          label: String(passive?.label ?? ''),
+          name: String(passive?.name ?? ''),
+          desc: String(passive?.desc ?? ''),
+        };
+        const appliedStatusEffects = [];
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+            continue;
+          }
+          target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill: sourceSkill, actor });
+          const activeEffects = target.getStatusEffectsByType('BuffCharge', { activeOnly: true });
+          const latest = activeEffects.at(-1);
+          appliedStatusEffects.push({
+            characterId: target.characterId,
+            statusType: 'BuffCharge',
+            effectId: Number(latest?.effectId ?? 0),
+            exitCond: String(latest?.exitCond ?? exitCond),
+            remaining: Number(latest?.remaining ?? remaining),
+          });
+        }
+        if (appliedStatusEffects.length > 0) {
+          passiveTriggerEvents.push(
+            buildActionScopedEvent(
+              actionEntry,
+              createPassiveTriggerEvent(state.turnState, actor, passive, {
+                source: 'passive_trigger',
+                effectTypes: ['BuffCharge'],
+                appliedStatusEffects,
+                triggerSkillId: Number(skill?.skillId ?? 0),
+                triggerSkillName: String(skill?.name ?? ''),
+              })
+            )
+          );
+        }
         continue;
       }
     }

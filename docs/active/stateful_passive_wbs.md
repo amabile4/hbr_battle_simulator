@@ -1,7 +1,27 @@
 # 状態付与型パッシブ 実装WBS（38件）
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-04
 > 対象: `json/passives.json` 内の `AdditionalHit*` を持つ全パッシブ（750件中38件）
+
+---
+
+## 2026-04-04 HEAD再照合（main@48d98c4）
+
+- 2026-03-29 時点で「未実装/未テスト」扱いだった項目のうち、以下は実装・テスト済みに更新済み
+	- `OnZone` / `OnPursuit` / `OnOverDrivePointDownSkill` trigger
+	- `クロノチェイン`（`OnHealedSpWithoutSelfHeal` + `OverDrivePointUp`）
+	- `リバーブレーション` の SP30 ceiling
+	- `exitCond=Count`（激動）
+	- `exitCond=PlayerTurnEnd`（二度咲き）
+- `node --test tests/turn-state-transitions.test.js` 実行結果: `pass 402 / fail 0`
+- 本 WBS の 2026-03-29 本文は履歴として保持し、最新の残課題は下記を正とする
+
+### 現在の残課題（AdditionalHit 38件スコープ）
+
+- `AdditionalHitOnExtraSkill + Talisman`（恐怖の叫び）
+	- トリガー経路での `Talisman` 適用は未接続
+- `AttackUp` 系 trigger（浄化の喝采 / 破砕の喝采）
+	- 現在は passive event ログ中心で、active buff ステータスとしての持続/消費管理は未接続
 
 ---
 
@@ -21,10 +41,10 @@
 
 | ステータス | 件数 |
 |----------|------|
-| ✅ 完全実装 | 32 |
+| ✅ 完全実装 | 34 |
 | ⚠️ 部分実装 | 0 |
 | 📝 発火・ログのみ | 2 |
-| 🔧 発火のみ（効果未実装） | 4 |
+| 🔧 発火のみ（効果未実装） | 2 |
 | ❌ 無発火 | 0 |
 | **合計** | **38** |
 
@@ -64,8 +84,8 @@
 | 28 | トップアップ | **OnOverDrivePointDownSkill** | AdditionalTurn | Self | Eternal | ✅ 完全実装 | OverDrivePointDown部位を持つスキル使用時に発火（2026-03-24実装）|
 | 29 | 破竹の勢い | OnBreaking | OverDrivePointUp +25% | Self | Eternal | ✅ 完全実装 | breakHitCount倍率未適用（OverDrivePointUpへの乗算なし）※注1 |
 | 30 | そよぐ新緑 | **OnPursuit** | HealSp +2 | AllyFront | Eternal | ✅ 完全実装 | `actionEntry.pursuedHitCount` で追撃発動回数を受け取り発火（2026-03-24実装）|
-| 31 | ライトプロテクション | OnExtraSkill | DebuffGuard | AllyAll | Eternal | 🔧 発火のみ | DebuffGuard未実装（デバフ防御） |
-| 32 | 役者魂 | OnExtraSkill | BuffCharge | Self | Eternal | 🔧 発火のみ | BuffCharge未実装（バフ蓄積） |
+| 31 | ライトプロテクション | OnExtraSkill | DebuffGuard | AllyAll | Eternal | ✅ 完全実装 | EX使用時付与を実装・テスト確認済み（2026-04-04） |
+| 32 | 役者魂 | OnExtraSkill | BuffCharge | Self | Eternal | ✅ 完全実装 | EX使用時付与を実装・テスト確認済み（2026-04-04） |
 | 33 | 激震 (100760403) | OnBreaking | HealSp +8 | Self | Eternal | ✅ 完全実装 | breakHitCount倍率未適用（HealSpへの乗算なし）※注1 |
 | 34 | 怪盗乱麻 | OnRemovingBuff | HealSp +2 | AllyFront | Eternal | ✅ 完全実装 | |
 | 35 | 愛嬌 (100830700) | OnHealedSpWithoutSelfHeal | HealSp +3 | Self | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
@@ -104,8 +124,6 @@
 | effectType | 対象パッシブ | 効果の説明 |
 |-----------|-----------|---------|
 | `Talisman` | 恐怖の叫び | 敵全体へタリスマン付与（パーティ全体に恩恵） |
-| `DebuffGuard` | ライトプロテクション | 味方全体にデバフ防御付与 |
-| `BuffCharge` | 役者魂 | 自身にバフ蓄積（攻撃力強化など） |
 
 ---
 
@@ -126,5 +144,5 @@
 |--------|------|------|
 | 中 | 二度咲き / 貴様に託した（exitCond=PlayerTurnEnd） | 同一ターン内で複数回EXスキル使用時に2回目は発火しないよう管理が必要 |
 | 中 | 激動（exitCond=Count=1） | バトル中1回のみ発火する制限カウント管理が必要 |
-| 低 | Talisman / DebuffGuard / BuffCharge | バフ/デバフ状態管理システムが必要（大規模） |
+| 低 | Talisman | 敵状態の可視化とセットで trigger 経路へ接続する |
 | 低 | 浄化の喝采 / 破砕の喝采（AttackUp バフ持続管理） | バフ持続ターン管理システムが未実装 |
