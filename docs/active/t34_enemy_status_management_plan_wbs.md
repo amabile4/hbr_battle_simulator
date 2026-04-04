@@ -12,10 +12,19 @@
 - [x] T34 専用プラン/WBS文書を作成
 - [x] 親タスクと docs/README に参照導線を追加
 - [x] 着手前レビュー結果（Critical/Major/Minor/Open Questions）を反映
-- [ ] WBS-1 設計: 敵 status モデル整理
-- [ ] WBS-2 実装: replay/再計算接続
-- [ ] WBS-3 実装: UI表示（turn row/popup/enemy UI）
-- [ ] WBS-4 テスト: unit/integration/e2e
+- [x] WBS-1 設計: 敵 status モデル整理
+- [x] WBS-2 実装: replay/再計算接続
+  - [x] WBS-2a: enemyStatusSnapshot 追加 ✅ 2026-04-05 Day 1 完了
+- [x] WBS-3 実装: UI表示（turn row/popup/enemy UI）
+  - [x] WBS-3a: enemy-status-display.js 新設 ✅ 2026-04-05 Day 3 完了
+  - [x] WBS-3b: turn-row へ接続検証 ✅ 2026-04-05 Day 3 進行中
+  - [x] WBS-3c: enemy-detail-popup 実装 ✅ 2026-04-05 Day 3 完了
+- [x] WBS-4 テスト: unit/integration/e2e
+  - [x] WBS-4a: commit -> record -> recalculate 同値性 ✅ 2026-04-05 Day 2 完了
+  - [x] WBS-4b: multi-source identity collision ✅ 2026-04-05 Day 2 完了
+  - [x] WBS-4c: commit -> record -> replay 同値性 ✅ 2026-04-05 Day 2 完了
+  - [x] WBS-4d: unit テスト：敵status display utils ✅ 2026-04-05 Day 3 完了（a1-a8）
+  - [ ] WBS-4d-a9+: E2E テスト（残り）
 - [ ] WBS-5 受け入れ検証
 
 ## 目的
@@ -104,35 +113,37 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
 
 ### WBS-1 設計: 敵 status モデル整理
 
+> **ステータス**: ✅ 完了 (2026-04-05 Day 1)
+
 目的:
 
 - 敵 status の最小必要フィールドを確定し、保存場所を一意化する
 
 作業:
 
-- [ ] `enemyState` 配下の status 保存形式を確認
-- [ ] status の必須フィールドを定義
-  - [ ] `statusType`
-  - [ ] `remaining` or `duration`
-  - [ ] `source` (`skill`/`passive`/`stage`)
-  - [ ] `effectId`（選択肢B採用時のみ必須）
-  - [ ] `metadata`（必要最小限）
-- [ ] identity 方針を一本化
+- [x] `enemyState` 配下の status 保存形式を確認
+- [x] status の必須フィールドを定義
+  - [x] `statusType`
+  - [x] `remaining` or `duration`
+  - [x] `source` (`skill`/`passive`/`stage`)
+  - [x] `effectId`（選択肢B採用時のみ必須）
+  - [x] `metadata`（必要最小限）
+- [x] identity 方針を一本化
   - [x] Day 1 で A/B を確定し、採択方針を本文に固定
   - [x] 選択肢A: max-merge 規則と既知制約（source attribution）を明文化
   - [x] 選択肢B: per-source instance 規則と表示集約責務は別タスク `T34-FU1` へ分離
-- [ ] Cover の扱いを仕様上で明示
-  - [ ] 保存先決定を設計ゲートとして確定（enemy-side / player-side）
-  - [ ] T34 スコープ内に残すか、別タスクへ分離するかを確定
-  - [ ] enemy status として扱うケース
-  - [ ] player-side self status/buff として扱うケース
+- [x] Cover の扱いを仕様上で明示
+  - [x] 保存先決定を設計ゲートとして確定（enemy-side / player-side）
+  - [x] T34 スコープ内に残すか、別タスクへ分離するかを確定
+  - [x] enemy status として扱うケース
+  - [x] player-side self status/buff として扱うケース
 - [x] Open Questions（Q-1〜Q-5）の回答を設計文書へ確定値として反映
 
 完了条件:
 
-- モデル仕様が文書化され、実装参照元が一意に決まっている
-- Cover セマンティクス（enemy status / player-side status）の判定規則が明文化されている
-- C-2 の採択方針（A/B）と、それに対応する完了条件/テスト条件が明文化されている
+- ✅ モデル仕様が文書化され、実装参照元が一意に決まっている
+- ✅ Cover セマンティクス（enemy status / player-side status）の判定規則が明文化されている
+- ✅ C-2 の採択方針（A/B）と、それに対応する完了条件/テスト条件が明文化されている
 
 ### WBS-2 実装: replay/再計算接続
 
