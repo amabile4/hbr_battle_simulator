@@ -3,6 +3,9 @@ const DEFAULT_STAGE_SETUP = Object.freeze({
   initialSpBonusAll: 0,
   initialStatusEffects: Object.freeze([]),
   selectedDimensionBattleId: null,
+  turnlySpAll: 0,
+  turnlySpFront: 0,
+  turnlySpBack: 0,
 });
 
 const STAGE_EFFECT_IDS = Object.freeze({
@@ -137,6 +140,9 @@ function parseUiFromStatusEffects(effects = []) {
 function normalizeStageSetupSnapshot(stageSetup = {}) {
   const initialOdGauge = toFiniteNumber(stageSetup?.initialOdGauge, DEFAULT_STAGE_SETUP.initialOdGauge);
   const initialSpBonusAll = toFiniteNumber(stageSetup?.initialSpBonusAll, DEFAULT_STAGE_SETUP.initialSpBonusAll);
+  const turnlySpAll = toFiniteNumber(stageSetup?.turnlySpAll, DEFAULT_STAGE_SETUP.turnlySpAll);
+  const turnlySpFront = toFiniteNumber(stageSetup?.turnlySpFront, DEFAULT_STAGE_SETUP.turnlySpFront);
+  const turnlySpBack = toFiniteNumber(stageSetup?.turnlySpBack, DEFAULT_STAGE_SETUP.turnlySpBack);
   const selectedDimensionBattleIdRaw = Number(stageSetup?.selectedDimensionBattleId);
   const selectedDimensionBattleId = Number.isFinite(selectedDimensionBattleIdRaw)
     ? selectedDimensionBattleIdRaw
@@ -148,6 +154,9 @@ function normalizeStageSetupSnapshot(stageSetup = {}) {
   return {
     initialOdGauge,
     initialSpBonusAll,
+    turnlySpAll,
+    turnlySpFront,
+    turnlySpBack,
     initialStatusEffects: statusEffects,
     selectedDimensionBattleId,
   };
@@ -162,6 +171,9 @@ export class StageSetupController {
   #spInput = null;
   #defenseUpToggle = null;
   #debuffGuardToggle = null;
+  #turnlySpAllInput = null;
+  #turnlySpFrontInput = null;
+  #turnlySpBackInput = null;
   #dimensionBattleSelect = null;
   #satellitesContainer = null;
   #hint = null;
@@ -219,6 +231,41 @@ export class StageSetupController {
           </div>
         </section>
 
+        <section class="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
+          <h3 class="font-semibold text-gray-900">毎ターンSP増減</h3>
+          <p class="text-xs text-gray-500">毎ターン終了時に適用されるSP増減値です。</p>
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-gray-600">毎ターンSP（全員）</span>
+            <input data-role="stage-turnly-sp-all"
+                   type="number"
+                   step="1"
+                   min="-99"
+                   max="99"
+                   value="0"
+                   class="w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-gray-600">毎ターンSP（前衛のみ）</span>
+            <input data-role="stage-turnly-sp-front"
+                   type="number"
+                   step="1"
+                   min="-99"
+                   max="99"
+                   value="0"
+                   class="w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-gray-600">毎ターンSP（後衛のみ）</span>
+            <input data-role="stage-turnly-sp-back"
+                   type="number"
+                   step="1"
+                   min="-99"
+                   max="99"
+                   value="0"
+                   class="w-full rounded border border-gray-300 px-2 py-1" />
+          </label>
+        </section>
+
         <section class="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
           <h3 class="font-semibold text-gray-900">恒星戦プリセット（入力補助）</h3>
           <label class="block">
@@ -241,6 +288,9 @@ export class StageSetupController {
     this.#spInput = this.#root.querySelector('[data-role="stage-initial-sp"]');
     this.#defenseUpToggle = this.#root.querySelector('[data-role="stage-effect-defense-up"]');
     this.#debuffGuardToggle = this.#root.querySelector('[data-role="stage-effect-debuff-guard"]');
+    this.#turnlySpAllInput = this.#root.querySelector('[data-role="stage-turnly-sp-all"]');
+    this.#turnlySpFrontInput = this.#root.querySelector('[data-role="stage-turnly-sp-front"]');
+    this.#turnlySpBackInput = this.#root.querySelector('[data-role="stage-turnly-sp-back"]');
     this.#dimensionBattleSelect = this.#root.querySelector('[data-role="stage-dimension-battle"]');
     this.#satellitesContainer = this.#root.querySelector('[data-role="stage-satellites"]');
     this.#hint = this.#root.querySelector('[data-role="stage-preset-hint"]');
@@ -266,6 +316,9 @@ export class StageSetupController {
   getSnapshot() {
     const initialOdGauge = toFiniteNumber(this.#odInput?.value, 0);
     const initialSpBonusAll = toFiniteNumber(this.#spInput?.value, 0);
+    const turnlySpAll = toFiniteNumber(this.#turnlySpAllInput?.value, 0);
+    const turnlySpFront = toFiniteNumber(this.#turnlySpFrontInput?.value, 0);
+    const turnlySpBack = toFiniteNumber(this.#turnlySpBackInput?.value, 0);
     const statusEffects = buildStatusEffectsFromUi({
       enableDefenseUp: Boolean(this.#defenseUpToggle?.checked),
       enableDebuffGuard: Boolean(this.#debuffGuardToggle?.checked),
@@ -274,6 +327,9 @@ export class StageSetupController {
     return {
       initialOdGauge,
       initialSpBonusAll,
+      turnlySpAll,
+      turnlySpFront,
+      turnlySpBack,
       initialStatusEffects: statusEffects,
       selectedDimensionBattleId: this.#selectedDimensionBattleId,
     };
@@ -294,6 +350,15 @@ export class StageSetupController {
     }
     if (this.#debuffGuardToggle) {
       this.#debuffGuardToggle.checked = uiState.enableDebuffGuard;
+    }
+    if (this.#turnlySpAllInput) {
+      this.#turnlySpAllInput.value = String(normalized.turnlySpAll);
+    }
+    if (this.#turnlySpFrontInput) {
+      this.#turnlySpFrontInput.value = String(normalized.turnlySpFront);
+    }
+    if (this.#turnlySpBackInput) {
+      this.#turnlySpBackInput.value = String(normalized.turnlySpBack);
     }
 
     if (
@@ -331,6 +396,9 @@ export class StageSetupController {
       this.#spInput,
       this.#defenseUpToggle,
       this.#debuffGuardToggle,
+      this.#turnlySpAllInput,
+      this.#turnlySpFrontInput,
+      this.#turnlySpBackInput,
     ];
     for (const control of controls) {
       control?.addEventListener('change', () => this.#emitChange());
@@ -473,6 +541,15 @@ export class StageSetupController {
     }
     if (this.#debuffGuardToggle) {
       this.#debuffGuardToggle.checked = false;
+    }
+    if (this.#turnlySpAllInput) {
+      this.#turnlySpAllInput.value = String(DEFAULT_STAGE_SETUP.turnlySpAll);
+    }
+    if (this.#turnlySpFrontInput) {
+      this.#turnlySpFrontInput.value = String(DEFAULT_STAGE_SETUP.turnlySpFront);
+    }
+    if (this.#turnlySpBackInput) {
+      this.#turnlySpBackInput.value = String(DEFAULT_STAGE_SETUP.turnlySpBack);
     }
     this.#emitChange();
   }

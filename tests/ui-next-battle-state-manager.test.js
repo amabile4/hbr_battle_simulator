@@ -241,3 +241,35 @@ test('BattleStateManager applies stageSetup initial OD/SP bonus and initial stat
     );
   }
 });
+
+  test('BattleStateManager stores stageSetupTurnly from snapshot stageSetup in battle state', () => {
+    const manager = new BattleStateManager({ store: getStore() });
+
+    const partySnapshot = createPartySnapshot();
+    partySnapshot.stageSetup = {
+      turnlySpAll: 2,
+      turnlySpFront: 5,
+      turnlySpBack: -3,
+    };
+
+    const state = manager.buildFromSnapshot(partySnapshot, {
+      enemyCount: 1,
+    });
+
+    assert.equal(state.stageSetupTurnly?.spAll, 2);
+    assert.equal(state.stageSetupTurnly?.spFront, 5);
+    assert.equal(state.stageSetupTurnly?.spBack, -3);
+  });
+
+  test('BattleStateManager handles missing stageSetup turnly SP fields with zero defaults', () => {
+    const manager = new BattleStateManager({ store: getStore() });
+
+    const state = manager.buildFromSnapshot(createPartySnapshot(), { 
+      enemyCount: 1,
+      // No turnly SP fields provided
+    });
+
+    assert.equal(state.stageSetupTurnly?.spAll, 0);
+    assert.equal(state.stageSetupTurnly?.spFront, 0);
+    assert.equal(state.stageSetupTurnly?.spBack, 0);
+  });

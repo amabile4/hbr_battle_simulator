@@ -29,6 +29,9 @@ const DEFAULT_STAGE_SETUP = Object.freeze({
   initialOdGauge: 0,
   initialSpBonusAll: 0,
   initialStatusEffects: Object.freeze([]),
+  turnlySpAll: 0,
+  turnlySpFront: 0,
+  turnlySpBack: 0,
 });
 const STAGE_SETUP_EFFECT_SCOPE_ALL = 'all';
 const STAGE_SETUP_EFFECT_SCOPE_FRONT = 'front';
@@ -100,6 +103,9 @@ function normalizeStageSetup(stageSetup = {}) {
 
   const initialOdGauge = Number(stageSetup?.initialOdGauge);
   const initialSpBonusAll = Number(stageSetup?.initialSpBonusAll);
+  const turnlySpAll = Number(stageSetup?.turnlySpAll);
+  const turnlySpFront = Number(stageSetup?.turnlySpFront);
+  const turnlySpBack = Number(stageSetup?.turnlySpBack);
   const initialStatusEffects = Array.isArray(stageSetup?.initialStatusEffects)
     ? stageSetup.initialStatusEffects.map((effect) => normalizeStageStatusEffect(effect)).filter(Boolean)
     : [];
@@ -109,6 +115,9 @@ function normalizeStageSetup(stageSetup = {}) {
     initialSpBonusAll: Number.isFinite(initialSpBonusAll)
       ? initialSpBonusAll
       : DEFAULT_STAGE_SETUP.initialSpBonusAll,
+    turnlySpAll: Number.isFinite(turnlySpAll) ? turnlySpAll : DEFAULT_STAGE_SETUP.turnlySpAll,
+    turnlySpFront: Number.isFinite(turnlySpFront) ? turnlySpFront : DEFAULT_STAGE_SETUP.turnlySpFront,
+    turnlySpBack: Number.isFinite(turnlySpBack) ? turnlySpBack : DEFAULT_STAGE_SETUP.turnlySpBack,
     initialStatusEffects,
   };
 }
@@ -397,6 +406,16 @@ export class BattleStateManager {
     this.#party = result.party;
     this.#state = result.state;
     this.#isDirty = false;
+
+    // Stage Setup 毎ターン SP ギミック情報を state に保存
+    if (this.#state) {
+      this.#state.stageSetupTurnly = {
+        spAll: stageSetup.turnlySpAll ?? 0,
+        spFront: stageSetup.turnlySpFront ?? 0,
+        spBack: stageSetup.turnlySpBack ?? 0,
+      };
+    }
+
     return result.state;
   }
 }

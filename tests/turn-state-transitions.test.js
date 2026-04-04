@@ -17689,3 +17689,71 @@ test('interrupt OD1 during EX (odSuspended, all OD consumed) → normal with sin
     assert.equal(m.sp.current, 17, `${m.characterId}: 15 + 2(base) = 17`);
   }
 });
+
+  test('applyRecoveryPipeline applies every-turn SP bonus to all party members', () => {
+    const party = createSixMemberManualParty();
+    let state = createBattleStateFromParty(party);
+    state.stageSetupTurnly = { spAll: 3, spFront: 2, spBack: -1 };
+    state.turnState.turnIndex = 1;
+
+    // ターン開始: 基本回復 +2 + 毎ターんSP適用
+    const preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: 8000 },
+    });
+    const { nextState } = commitTurn(state, preview, []);
+
+    // 前衛 (0-2): 10 + 2(base) + 3(all) + 2(front) = 17
+    for (let i = 0; i < 3; i += 1) {
+      const member = nextState.party[i];
+      assert.equal(member.sp.current, 17, `Front M${i + 1}: should be 10 + 2 + 3 + 2 = 17`);
+    }
+
+    // 後衛 (3-5): 10 + 2(base) + 3(all) - 1(back) = 14
+    for (let i = 3; i < 6; i += 1) {
+      const member = nextState.party[i];
+      assert.equal(member.sp.current, 14, `Back M${i + 1}: should be 10 + 2 + 3 - 1 = 14`);
+    }
+  });
+
+  test('applyRecoveryPipeline handles negative every-turn SP (penalty)', () => {
+    const party = createSixMemberManualParty();
+    let state = createBattleStateFromParty(party);
+    state.stageSetupTurnly = { spAll: -2, spFront: 0, spBack: 0 };
+    state.turnState.turnIndex = 2;
+
+    const preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: 8000 },
+    });
+    const { nextState } = commitTurn(state, preview, []);
+
+    // All members: 10 + 2(base) - 2(all) = 10
+    for (let i = 0; i < 6; i += 1) {
+      const member = nextState.party[i];
+      assert.equal(member.sp.current, 10, `M${i + 1}: should be 10 + 2 - 2 = 10`);
+    }
+  });
+
+  test('applyRecoveryPipeline applies every-turn SP on normal turn transition', () => {
+    const party = createSixMemberManualParty();
+    let state = createBattleStateFromParty(party);
+    state.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0 }; // Zero to simplify validation
+    state.turnState.turnIndex = 1;
+
+    // Normal turn progression: turnIndex will advance
+    const preview = previewTurn(state, {
+      0: { characterId: 'M1', skillId: 8000 },
+    });
+    const { nextState } = commitTurn(state, preview, []);
+
+    // Every-turn SP should NOT be applied (zeroed out) but base recovery +2 should be
+    // Before: 10, after base recovery: 12, after turnly (zero): 12
+    for (const member of nextState.party) {
+      if (member.position <= 2) {
+        // Front-line attacker with skill
+        assert.equal(member.sp.current, 12, `${member.characterId}: should be 10 + 2(base) + 0(turnly) = 12`);
+      } else {
+        // Back-line members also got base recovery
+        assert.equal(member.sp.current, 12, `${member.characterId}: should be 10 + 2(base) + 0(turnly) = 12`);
+      }
+    }
+  });

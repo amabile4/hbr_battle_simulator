@@ -9910,7 +9910,7 @@ function applyFieldStateFromActions(state, previewRecord) {
   return events;
 }
 
-function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false } = {}) {
+function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false, stageSetupTurnly = null } = {}) {
   // extra turn のコミット時（T1EX→T2遷移）は skipTurnStartRecovery=false で呼ばれるため
   // T2のターン開始回復・OnEveryTurnを正常に計算する。
   // T1→T1EX遷移時の回避は skipTurnStartRecovery: true（行8634）で制御済み。
@@ -9981,6 +9981,28 @@ function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false
       }
     }
   }
+
+    // ─── 毎ターん SP ギミック適用 ───
+    // stageSetupTurnly が存在する場合、該当メンバーに SP 回復/ペナルティを適用
+    if (stageSetupTurnly && !skipTurnStartRecovery) {
+      const { spAll = 0, spFront = 0, spBack = 0 } = stageSetupTurnly;
+      for (const member of party) {
+        let turnlyDelta = spAll;
+        // パーティポジション (0-2: 前衛, 3-5: 後衛) で追加ボーナス適用
+        if (member.position >= 0 && member.position <= 2) {
+          turnlyDelta += spFront;
+        } else if (member.position >= 3 && member.position <= 5) {
+          turnlyDelta += spBack;
+        }
+        // SP 変更を適用（負の値は消費/ペナルティとして機能）
+        if (turnlyDelta !== 0) {
+          const spChangeEvent = member.applySpDelta(turnlyDelta, 'passive');
+          if (spChangeEvent) {
+            recoveryEvents.push(spChangeEvent);
+          }
+        }
+      }
+    }
 
   return {
     spEvents: recoveryEvents,
@@ -10404,7 +10426,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       : true;
   const recovery = applyRecoveryPipeline(state.party, nextTurnState, {
     skipTurnStartRecovery: !nextTurnIndexAdvances,
-  });
+      stageSetupTurnly: state.stageSetupTurnly,
+    });
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
   const recoveryDpEvents = Array.isArray(recovery.dpEvents) ? [...recovery.dpEvents] : [];

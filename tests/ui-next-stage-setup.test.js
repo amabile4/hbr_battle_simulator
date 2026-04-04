@@ -180,3 +180,86 @@ test('StageSetupController reset button restores only upper free inputs to initi
     assert.equal(snapshot.selectedDimensionBattleId, 191000001);
     assert.equal(root.querySelector('[data-role="stage-dimension-battle"]').value, '191000001');
   }));
+
+  test('StageSetupController - every-turn SP fields persist in snapshot', () =>
+    withDom(({ root, win }) => {
+      const controller = new StageSetupController({
+        root,
+        dimensionBattles: createDimensionBattlesFixture(),
+      });
+      controller.mount();
+
+      // Set turnly SP values
+      const turnlySpAllInput = root.querySelector('[data-role="stage-turnly-sp-all"]');
+      const turnlySpFrontInput = root.querySelector('[data-role="stage-turnly-sp-front"]');
+      const turnlySpBackInput = root.querySelector('[data-role="stage-turnly-sp-back"]');
+
+      turnlySpAllInput.value = '2';
+      turnlySpAllInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+      turnlySpFrontInput.value = '5';
+      turnlySpFrontInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+      turnlySpBackInput.value = '-3';
+      turnlySpBackInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+      const snapshot = controller.getSnapshot();
+      assert.equal(snapshot.turnlySpAll, 2);
+      assert.equal(snapshot.turnlySpFront, 5);
+      assert.equal(snapshot.turnlySpBack, -3);
+    }));
+
+  test('StageSetupController - every-turn SP fields restore from snapshot', () =>
+    withDom(({ root, win }) => {
+      const controller = new StageSetupController({
+        root,
+        dimensionBattles: createDimensionBattlesFixture(),
+      });
+      controller.mount();
+
+      const snapshot = {
+        selectedDimensionBattleId: 191000001,
+        initialOdGauge: 0,
+        initialSpBonusAll: 0,
+        initialStatusEffects: [],
+        turnlySpAll: 3,
+        turnlySpFront: 4,
+        turnlySpBack: -2,
+      };
+
+      controller.applySnapshot(snapshot);
+
+      const turnlySpAllInput = root.querySelector('[data-role="stage-turnly-sp-all"]');
+      const turnlySpFrontInput = root.querySelector('[data-role="stage-turnly-sp-front"]');
+      const turnlySpBackInput = root.querySelector('[data-role="stage-turnly-sp-back"]');
+
+      assert.equal(turnlySpAllInput.value, '3');
+      assert.equal(turnlySpFrontInput.value, '4');
+      assert.equal(turnlySpBackInput.value, '-2');
+    }));
+
+  test('StageSetupController reset button resets every-turn SP fields to defaults', () =>
+    withDom(({ root, win }) => {
+      const controller = new StageSetupController({
+        root,
+        dimensionBattles: createDimensionBattlesFixture(),
+      });
+      controller.mount();
+
+      const turnlySpAllInput = root.querySelector('[data-role="stage-turnly-sp-all"]');
+      const turnlySpFrontInput = root.querySelector('[data-role="stage-turnly-sp-front"]');
+      const turnlySpBackInput = root.querySelector('[data-role="stage-turnly-sp-back"]');
+
+      turnlySpAllInput.value = '5';
+      turnlySpAllInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+      turnlySpFrontInput.value = '10';
+      turnlySpFrontInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+      turnlySpBackInput.value = '-5';
+      turnlySpBackInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+      root
+        .querySelector('[data-action="reset-stage-upper-inputs"]')
+        .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+      assert.equal(turnlySpAllInput.value, '0');
+      assert.equal(turnlySpFrontInput.value, '0');
+      assert.equal(turnlySpBackInput.value, '0');
+    }));
