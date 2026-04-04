@@ -788,6 +788,16 @@ async function main() {
       }
     }, 0);
 
+    // dimension_battle.json は Stage Setup のプリセット用データとして遅延ロードする。
+    scheduleDeferredTask(async () => {
+      try {
+        const dimensionBattles = await fetchJsonOrFallback('../json/dimension_battle.json', []);
+        initialSetup.setDimensionBattles(dimensionBattles);
+      } catch (error) {
+        console.error('Failed to hydrate stage presets:', error);
+      }
+    }, 0);
+
     bootProfiler.mark('initial-setup:init:done');
 
     bootProfiler.mark('preset-toolbar:init:start');

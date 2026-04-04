@@ -125,6 +125,28 @@ function createStoreStub() {
   };
 }
 
+function createDimensionBattlesFixture() {
+  return [
+    {
+      id: 191000001,
+      label: 'dimension_001',
+      satellites: [
+        { enchant: { desc: '戦闘開始時ODゲージ+200%' } },
+        { enchant: { desc: '毎ターンSP+1' } },
+        { enchant: { desc: '防御力50%アップ' } },
+        { enchant: { desc: 'デバフ無効1回付与' } },
+      ],
+    },
+    {
+      id: 191000002,
+      label: 'dimension_002',
+      satellites: [
+        { enchant: { desc: '戦闘開始時SP+5' } },
+      ],
+    },
+  ];
+}
+
 test('InitialSetupController mounts Simulator Settings tab separately from Enemy and Stage', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new InitialSetupController({
@@ -163,6 +185,118 @@ test('InitialSetupController no longer mounts Passive Log as a setup tab', () =>
     const passiveLogTab = root.querySelector('[role="tab"][data-tab="passive-log"]');
     assert.equal(passiveLogTab, null);
     assert.equal(root.querySelector('[data-tab-content="passive-log"]'), null);
+  }));
+
+test('InitialSetupController stage tab mounts Stage Setup UI instead of TODO placeholder', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="stage"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const stageContent = root.querySelector('[data-tab-content="stage"]');
+    assert.equal(stageContent.hidden, false);
+    assert.equal(stageContent.textContent.includes('(TODO)'), false);
+    assert.ok(stageContent.querySelector('[data-role="stage-initial-od"]'));
+    assert.ok(stageContent.querySelector('[data-role="stage-dimension-battle"]'));
+  }));
+
+test('InitialSetupController stage preset reflection updates only upper stage setup snapshot', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="stage"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const dimensionSelect = root.querySelector('[data-role="stage-dimension-battle"]');
+    const odInput = root.querySelector('[data-role="stage-initial-od"]');
+    const spInput = root.querySelector('[data-role="stage-initial-sp"]');
+    const defenseUpToggle = root.querySelector('[data-role="stage-effect-defense-up"]');
+
+    dimensionSelect.value = '191000001';
+    dimensionSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const satelliteCheckboxes = root.querySelectorAll('[data-role="stage-satellite-checkbox"]');
+    satelliteCheckboxes.item(0).checked = true;
+    satelliteCheckboxes.item(0).dispatchEvent(new win.Event('change', { bubbles: true }));
+    satelliteCheckboxes.item(2).checked = true;
+    satelliteCheckboxes.item(2).dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    assert.equal(odInput.value, '0');
+    assert.equal(spInput.value, '0');
+    assert.equal(defenseUpToggle.checked, false);
+
+    root
+      .querySelector('[data-action="apply-stage-preset"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.equal(Number(odInput.value), 200);
+    assert.equal(Number(spInput.value), 0);
+    assert.equal(defenseUpToggle.checked, true);
+    assert.equal(snapshot.party.stageSetup.initialOdGauge, 200);
+    assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 0);
+    assert.equal(snapshot.party.stageSetup.selectedDimensionBattleId, 191000001);
+    assert.equal(
+      snapshot.party.stageSetup.initialStatusEffects.some((effect) => effect.statusType === 'DefenseUp'),
+      true,
+    );
+  }));
+
+test('InitialSetupController applySetupSnapshot restores stage setup upper inputs', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    controller.applySetupSnapshot({
+      party: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        supportStyleIds: [null, null, null, null, null, null],
+        stageSetup: {
+          initialOdGauge: -300,
+          initialSpBonusAll: 5,
+          selectedDimensionBattleId: 191000002,
+          initialStatusEffects: [
+            {
+              scope: 'all',
+              statusType: 'DebuffGuard',
+              remaining: 1,
+              limitType: 'Count',
+              exitCond: 'Count',
+            },
+          ],
+        },
+      },
+    });
+
+    root
+      .querySelector('[role="tab"][data-tab="stage"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(root.querySelector('[data-role="stage-initial-od"]').value, '-300');
+    assert.equal(root.querySelector('[data-role="stage-initial-sp"]').value, '5');
+    assert.equal(root.querySelector('[data-role="stage-effect-defense-up"]').checked, false);
+    assert.equal(root.querySelector('[data-role="stage-effect-debuff-guard"]').checked, true);
+    assert.equal(root.querySelector('[data-role="stage-dimension-battle"]').value, '191000002');
   }));
 
 test('InitialSetupController enemy tab shows Turn0 preemptive field as display-only setup', () =>

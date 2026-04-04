@@ -48,6 +48,75 @@ function normalizeSkillSetsByPartyIndex(source = {}) {
   return normalized;
 }
 
+function normalizeStageStatusEffect(effect = {}) {
+  if (!effect || typeof effect !== 'object') {
+    return null;
+  }
+
+  const statusType = String(effect?.statusType ?? '').trim();
+  if (!statusType) {
+    return null;
+  }
+
+  const scopeRaw = String(effect?.scope ?? 'all').trim();
+  const scope =
+    scopeRaw === 'front' || scopeRaw === 'back' || scopeRaw === 'partyIndex'
+      ? scopeRaw
+      : 'all';
+
+  const normalized = {
+    scope,
+    statusType,
+  };
+
+  if (scope === 'partyIndex') {
+    const partyIndex = Number(effect?.partyIndex);
+    if (!Number.isInteger(partyIndex) || partyIndex < 0 || partyIndex >= PARTY_SIZE) {
+      return null;
+    }
+    normalized.partyIndex = partyIndex;
+  }
+
+  if (Number.isFinite(Number(effect?.power))) {
+    normalized.power = Number(effect.power);
+  }
+  if (Number.isFinite(Number(effect?.remaining))) {
+    normalized.remaining = Number(effect.remaining);
+  }
+  if (Array.isArray(effect?.elements)) {
+    normalized.elements = [...new Set(effect.elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
+  }
+  if (String(effect?.limitType ?? '').trim()) {
+    normalized.limitType = String(effect.limitType).trim();
+  }
+  if (String(effect?.exitCond ?? '').trim()) {
+    normalized.exitCond = String(effect.exitCond).trim();
+  }
+  if (effect?.metadata && typeof effect.metadata === 'object') {
+    normalized.metadata = structuredClone(effect.metadata);
+  }
+
+  return normalized;
+}
+
+function normalizeStageSetupSnapshot(stageSetup = {}) {
+  const initialOdGauge = Number(stageSetup?.initialOdGauge ?? 0);
+  const initialSpBonusAll = Number(stageSetup?.initialSpBonusAll ?? 0);
+  const selectedDimensionBattleId = Number(stageSetup?.selectedDimensionBattleId);
+  const initialStatusEffects = Array.isArray(stageSetup?.initialStatusEffects)
+    ? stageSetup.initialStatusEffects
+        .map((effect) => normalizeStageStatusEffect(effect))
+        .filter(Boolean)
+    : [];
+
+  return {
+    initialOdGauge: Number.isFinite(initialOdGauge) ? initialOdGauge : 0,
+    initialSpBonusAll: Number.isFinite(initialSpBonusAll) ? initialSpBonusAll : 0,
+    initialStatusEffects,
+    selectedDimensionBattleId: Number.isFinite(selectedDimensionBattleId) ? selectedDimensionBattleId : null,
+  };
+}
+
 export function normalizePartySetupSnapshot(snapshot = {}) {
   const styleIds = Array.from({ length: PARTY_SIZE }, (_, index) =>
     toOptionalStyleId(snapshot?.styleIds?.[index])
@@ -67,6 +136,7 @@ export function normalizePartySetupSnapshot(snapshot = {}) {
     drivePierceByPartyIndex: normalizeIndexedObject(snapshot?.drivePierceByPartyIndex, 0),
     startSpEquipByPartyIndex: normalizeIndexedObject(snapshot?.startSpEquipByPartyIndex, 0),
     skillSetsByPartyIndex: normalizeSkillSetsByPartyIndex(snapshot?.skillSetsByPartyIndex),
+    stageSetup: normalizeStageSetupSnapshot(snapshot?.stageSetup),
   };
 }
 

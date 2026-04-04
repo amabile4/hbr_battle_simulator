@@ -1,5 +1,6 @@
 import { PartySetupController } from './party-setup.js';
 import { EnemySetupController } from './enemy-setup.js';
+import { StageSetupController } from './stage-setup.js';
 import {
   DEFAULT_SIMULATOR_SETTINGS,
   normalizeSimulatorSettings,
@@ -28,7 +29,9 @@ export class InitialSetupController {
   #onRecalculate;
   #partySetup = null;
   #enemySetup = null;
+  #stageSetup = null;
   #enemies = [];
+  #dimensionBattles = [];
   #applyBtn = null;
   #recalcBtn = null;
   #hasRecords = false;
@@ -41,6 +44,7 @@ export class InitialSetupController {
     pickerOverlay,
     store,
     enemies = [],
+    dimensionBattles = [],
     onApply = null,
     onRecalculate = null,
   }) {
@@ -48,6 +52,7 @@ export class InitialSetupController {
     this.#pickerOverlay = pickerOverlay;
     this.#store = store;
     this.#enemies = enemies;
+    this.#dimensionBattles = Array.isArray(dimensionBattles) ? dimensionBattles : [];
     this.#onApply = onApply;
     this.#onRecalculate = onRecalculate;
   }
@@ -98,9 +103,8 @@ export class InitialSetupController {
         </div>
 
         <!-- Stage タブコンテンツ -->
-        <div data-tab-content="stage" hidden
-             class="min-h-0 flex-1 overflow-y-auto p-4 text-sm text-gray-400 text-center py-12">
-          Stage Setup<br /><span class="text-xs">(TODO)</span>
+        <div data-tab-content="stage" hidden class="min-h-0 flex-1 overflow-y-auto bg-white">
+          <div id="stage-setup-root"></div>
         </div>
 
         <!-- Simulator Settings タブコンテンツ -->
@@ -218,6 +222,14 @@ export class InitialSetupController {
     });
     this.#enemySetup.mount();
 
+    // StageSetup を初期化（1回のみ）
+    const stageRoot = this.#root.querySelector('#stage-setup-root');
+    this.#stageSetup = new StageSetupController({
+      root: stageRoot,
+      dimensionBattles: this.#dimensionBattles,
+    });
+    this.#stageSetup.mount();
+
     // 戦闘開始クリック
     this.#applyBtn.addEventListener('click', () => {
       if (this.#applyBtn.disabled) return;
@@ -243,10 +255,23 @@ export class InitialSetupController {
    * InitialSetup 全体の設定（Party設定 + Enemy設定）を結合して返す
    */
   getSetupSnapshot(partySnapshot) {
+    const stageSetup = this.getStageSetupSnapshot();
     return {
-      party: partySnapshot,
+      party: {
+        ...partySnapshot,
+        stageSetup,
+      },
       simulatorSettings: this.getSimulatorSettings(),
       enemy: this.#enemySetup?.getSnapshot() ?? { enemyCount: 1 },
+    };
+  }
+
+  getStageSetupSnapshot() {
+    return this.#stageSetup?.getSnapshot?.() ?? {
+      initialOdGauge: 0,
+      initialSpBonusAll: 0,
+      initialStatusEffects: [],
+      selectedDimensionBattleId: null,
     };
   }
 
@@ -305,6 +330,7 @@ export class InitialSetupController {
     if (snapshot.enemy) {
       this.#enemySetup?.applySnapshot(snapshot.enemy);
     }
+    this.#stageSetup?.applySnapshot(snapshot?.party?.stageSetup ?? {});
     const simulatorSettings = normalizeSimulatorSettings(snapshot.simulatorSettings);
     const enemyMode = simulatorSettings.targetSelection.enemyMode;
     const allyMode = simulatorSettings.targetSelection.allyMode;
@@ -326,6 +352,11 @@ export class InitialSetupController {
   setEnemies(enemies = []) {
     this.#enemies = Array.isArray(enemies) ? enemies : [];
     this.#enemySetup?.setEnemies(this.#enemies);
+  }
+
+  setDimensionBattles(dimensionBattles = []) {
+    this.#dimensionBattles = Array.isArray(dimensionBattles) ? dimensionBattles : [];
+    this.#stageSetup?.setDimensionBattles(this.#dimensionBattles);
   }
 
   #syncPartySetupBattleState() {

@@ -251,3 +251,41 @@ test('normalizeSessionSnapshot converts legacy 0 style placeholders into null', 
   assert.deepEqual(normalized.setup.supportStyleIds, [null, null, null, null, null, null]);
   assert.equal(normalized.setup.isFrontFilled, true);
 });
+
+test('normalizeSessionSnapshot preserves stageSetup fields with defaults', () => {
+  const normalized = normalizeSessionSnapshot({
+    setup: {
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      stageSetup: {
+        initialOdGauge: -300,
+        initialSpBonusAll: 5,
+        selectedDimensionBattleId: 191000004,
+        initialStatusEffects: [
+          {
+            scope: 'all',
+            statusType: 'DefenseUp',
+            power: 0.3,
+            remaining: 3,
+            exitCond: 'PlayerTurnEnd',
+          },
+          {
+            scope: 'partyIndex',
+            partyIndex: 1,
+            statusType: 'DebuffGuard',
+            remaining: 1,
+            limitType: 'Count',
+            exitCond: 'Count',
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(normalized.setup.stageSetup.initialOdGauge, -300);
+  assert.equal(normalized.setup.stageSetup.initialSpBonusAll, 5);
+  assert.equal(normalized.setup.stageSetup.selectedDimensionBattleId, 191000004);
+  assert.equal(normalized.setup.stageSetup.initialStatusEffects.length, 2);
+  assert.equal(normalized.setup.stageSetup.initialStatusEffects[0].statusType, 'DefenseUp');
+  assert.equal(normalized.setup.stageSetup.initialStatusEffects[1].scope, 'partyIndex');
+});

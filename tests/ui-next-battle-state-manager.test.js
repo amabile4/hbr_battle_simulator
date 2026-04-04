@@ -180,3 +180,64 @@ test('BattleStateManager falls back to one enemy when all enemy slots are unsele
   assert.equal(state.turnState.enemyState.enemyCount, 1);
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 0);
 });
+
+test('BattleStateManager applies stageSetup initial OD/SP bonus and initial status effects', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const baseState = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemyCount: 1,
+  });
+  const stagedState = manager.buildFromSnapshot(
+    {
+      ...createPartySnapshot(),
+      stageSetup: {
+        initialOdGauge: -300,
+        initialSpBonusAll: 5,
+        initialStatusEffects: [
+          {
+            scope: 'all',
+            statusType: 'DefenseUp',
+            power: 0.3,
+            remaining: 3,
+            exitCond: 'PlayerTurnEnd',
+          },
+          {
+            scope: 'all',
+            statusType: 'DebuffGuard',
+            remaining: 1,
+            limitType: 'Count',
+            exitCond: 'Count',
+          },
+        ],
+      },
+    },
+    {
+      enemyCount: 1,
+    }
+  );
+
+  assert.equal(
+    Number(stagedState.turnState.odGauge) - Number(baseState.turnState.odGauge),
+    -300,
+  );
+
+  for (let index = 0; index < 3; index += 1) {
+    const baseMember = baseState.party[index];
+    const stagedMember = stagedState.party[index];
+    assert.equal(
+      Number(stagedMember.sp.current) - Number(baseMember.sp.current),
+      5,
+      `partyIndex=${index} should gain +5 initial SP from stageSetup`
+    );
+    assert.equal(
+      stagedMember.statusEffects.some((effect) => String(effect?.statusType ?? '') === 'DefenseUp'),
+      true,
+      `partyIndex=${index} should include DefenseUp from stageSetup`
+    );
+    assert.equal(
+      stagedMember.statusEffects.some((effect) => String(effect?.statusType ?? '') === 'DebuffGuard'),
+      true,
+      `partyIndex=${index} should include DebuffGuard from stageSetup`
+    );
+  }
+});

@@ -25,6 +25,140 @@ const ENEMY_OD_RATE_NO_CORRECTION = 0;
 const DEFAULT_ENEMY_NAME = '';
 const MIN_ENEMY_COUNT = 1;
 const MAX_ENEMY_COUNT = 3;
+const DEFAULT_STAGE_SETUP = Object.freeze({
+  initialOdGauge: 0,
+  initialSpBonusAll: 0,
+  initialStatusEffects: Object.freeze([]),
+});
+const STAGE_SETUP_EFFECT_SCOPE_ALL = 'all';
+const STAGE_SETUP_EFFECT_SCOPE_FRONT = 'front';
+const STAGE_SETUP_EFFECT_SCOPE_BACK = 'back';
+const STAGE_SETUP_EFFECT_SCOPE_PARTY_INDEX = 'partyIndex';
+
+function normalizeStageStatusEffect(effect = {}) {
+  if (!effect || typeof effect !== 'object') {
+    return null;
+  }
+
+  const statusType = String(effect?.statusType ?? '').trim();
+  if (!statusType) {
+    return null;
+  }
+
+  const scopeRaw = String(effect?.scope ?? STAGE_SETUP_EFFECT_SCOPE_ALL).trim();
+  const scope =
+    scopeRaw === STAGE_SETUP_EFFECT_SCOPE_FRONT ||
+    scopeRaw === STAGE_SETUP_EFFECT_SCOPE_BACK ||
+    scopeRaw === STAGE_SETUP_EFFECT_SCOPE_PARTY_INDEX
+      ? scopeRaw
+      : STAGE_SETUP_EFFECT_SCOPE_ALL;
+
+  const normalized = {
+    scope,
+    statusType,
+  };
+
+  if (scope === STAGE_SETUP_EFFECT_SCOPE_PARTY_INDEX) {
+    const partyIndex = Number(effect?.partyIndex);
+    if (!Number.isInteger(partyIndex) || partyIndex < 0 || partyIndex > 5) {
+      return null;
+    }
+    normalized.partyIndex = partyIndex;
+  }
+
+  if (Number.isFinite(Number(effect?.power))) {
+    normalized.power = Number(effect.power);
+  }
+  if (Number.isFinite(Number(effect?.remaining))) {
+    normalized.remaining = Number(effect.remaining);
+  }
+  if (effect?.elements != null) {
+    normalized.elements = Array.isArray(effect.elements)
+      ? [...new Set(effect.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+      : [];
+  }
+  if (String(effect?.limitType ?? '').trim()) {
+    normalized.limitType = String(effect.limitType).trim();
+  }
+  if (String(effect?.exitCond ?? '').trim()) {
+    normalized.exitCond = String(effect.exitCond).trim();
+  }
+  if (effect?.metadata && typeof effect.metadata === 'object') {
+    normalized.metadata = structuredClone(effect.metadata);
+  }
+
+  return normalized;
+}
+
+function normalizeStageSetup(stageSetup = {}) {
+  if (!stageSetup || typeof stageSetup !== 'object') {
+    return {
+      ...DEFAULT_STAGE_SETUP,
+      initialStatusEffects: [],
+    };
+  }
+
+  const initialOdGauge = Number(stageSetup?.initialOdGauge);
+  const initialSpBonusAll = Number(stageSetup?.initialSpBonusAll);
+  const initialStatusEffects = Array.isArray(stageSetup?.initialStatusEffects)
+    ? stageSetup.initialStatusEffects.map((effect) => normalizeStageStatusEffect(effect)).filter(Boolean)
+    : [];
+
+  return {
+    initialOdGauge: Number.isFinite(initialOdGauge) ? initialOdGauge : DEFAULT_STAGE_SETUP.initialOdGauge,
+    initialSpBonusAll: Number.isFinite(initialSpBonusAll)
+      ? initialSpBonusAll
+      : DEFAULT_STAGE_SETUP.initialSpBonusAll,
+    initialStatusEffects,
+  };
+}
+
+function resolveTargetSourceIndexesForStageEffect(effect) {
+  const scope = String(effect?.scope ?? STAGE_SETUP_EFFECT_SCOPE_ALL).trim();
+  if (scope === STAGE_SETUP_EFFECT_SCOPE_FRONT) {
+    return [0, 1, 2];
+  }
+  if (scope === STAGE_SETUP_EFFECT_SCOPE_BACK) {
+    return [3, 4, 5];
+  }
+  if (scope === STAGE_SETUP_EFFECT_SCOPE_PARTY_INDEX) {
+    return [Number(effect?.partyIndex ?? -1)].filter((index) => Number.isInteger(index) && index >= 0 && index <= 5);
+  }
+  return [0, 1, 2, 3, 4, 5];
+}
+
+function buildStageStatusEffectsByPartyIndex(stageSetup, compactIndexBySourceIndex) {
+  const effectsByPartyIndex = {};
+
+  for (const effect of stageSetup.initialStatusEffects ?? []) {
+    const targetSourceIndexes = resolveTargetSourceIndexesForStageEffect(effect);
+    for (const sourceIndex of targetSourceIndexes) {
+      const compactIndex = compactIndexBySourceIndex.get(sourceIndex);
+      if (!Number.isInteger(compactIndex)) {
+        continue;
+      }
+      const key = String(compactIndex);
+      if (!Array.isArray(effectsByPartyIndex[key])) {
+        effectsByPartyIndex[key] = [];
+      }
+
+      const statusEffect = {
+        statusType: String(effect.statusType),
+        ...(Number.isFinite(Number(effect.power)) ? { power: Number(effect.power) } : {}),
+        ...(Number.isFinite(Number(effect.remaining)) ? { remaining: Number(effect.remaining) } : {}),
+        ...(Array.isArray(effect.elements) ? { elements: [...effect.elements] } : {}),
+        ...(String(effect.limitType ?? '').trim() ? { limitType: String(effect.limitType).trim() } : {}),
+        ...(String(effect.exitCond ?? '').trim() ? { exitCond: String(effect.exitCond).trim() } : {}),
+        ...(effect.metadata && typeof effect.metadata === 'object'
+          ? { metadata: structuredClone(effect.metadata) }
+          : {}),
+      };
+      effectsByPartyIndex[key].push(statusEffect);
+    }
+  }
+
+  return effectsByPartyIndex;
+}
 
 function buildEnemyDamageRates(source = {}) {
   const elementRates = source?.resistances?.element ?? source?.element;
@@ -176,6 +310,10 @@ export class BattleStateManager {
     const filledIndices = snapshot.styleIds
       .map((id, i) => (id !== null ? i : null))
       .filter((i) => i !== null);
+    const compactIndexBySourceIndex = new Map(
+      filledIndices.map((sourceIndex, compactIndex) => [sourceIndex, compactIndex])
+    );
+    const stageSetup = normalizeStageSetup(snapshot?.stageSetup);
 
     const styleIds = filledIndices.map((i) => snapshot.styleIds[i]);
 
@@ -196,7 +334,14 @@ export class BattleStateManager {
       filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.drivePierceByPartyIndex[srcIdx] ?? 0])
     );
     const startSpEquipByPartyIndex = Object.fromEntries(
-      filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.startSpEquipByPartyIndex[srcIdx] ?? 0])
+      filledIndices.map((srcIdx, newIdx) => [
+        newIdx,
+        Number(snapshot.startSpEquipByPartyIndex[srcIdx] ?? 0) + Number(stageSetup.initialSpBonusAll ?? 0),
+      ])
+    );
+    const stageStatusEffectsByPartyIndex = buildStageStatusEffectsByPartyIndex(
+      stageSetup,
+      compactIndexBySourceIndex
     );
     const skillSetsByPartyIndex = Object.fromEntries(
       filledIndices
@@ -233,8 +378,8 @@ export class BattleStateManager {
       moraleStateByPartyIndex: {},
       motivationStateByPartyIndex: {},
       markStateByPartyIndex: {},
-      statusEffectsByPartyIndex: {},
-      initialOdGauge: 0,
+      statusEffectsByPartyIndex: stageStatusEffectsByPartyIndex,
+      initialOdGauge: Number(stageSetup.initialOdGauge ?? 0),
       enemyCount: enemyStateOverrides.enemyCount,
       enemyNamesByEnemy: enemyStateOverrides.enemyNamesByEnemy,
       damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,
