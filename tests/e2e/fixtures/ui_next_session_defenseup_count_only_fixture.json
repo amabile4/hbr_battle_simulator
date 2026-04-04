@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "setup": {
+    "styleIds": [1001405, 1001101, 1001202, null, null, null],
+    "supportStyleIds": [null, null, null, null, null, null],
+    "limitBreakLevelsByPartyIndex": {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+    "supportLimitBreakLevelsByPartyIndex": {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+    "drivePierceByPartyIndex": {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+    "startSpEquipByPartyIndex": {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+    "skillSetsByPartyIndex": {},
+    "stageSetup": {
+      "initialOdGauge": 0,
+      "initialSpBonusAll": 0,
+      "turnlySpAll": 0,
+      "turnlySpFront": 0,
+      "turnlySpBack": 0,
+      "initialStatusEffects": [
+        {
+          "scope": "partyIndex",
+          "partyIndex": 0,
+          "statusType": "DefenseUp",
+          "limitType": "Count",
+          "exitCond": "Count",
+          "remaining": 2,
+          "power": 0.3,
+          "metadata": {"activeBuffStatus": true}
+        },
+        {
+          "scope": "partyIndex",
+          "partyIndex": 0,
+          "statusType": "DefenseUp",
+          "limitType": "Count",
+          "exitCond": "Count",
+          "remaining": 2,
+          "power": 0.25,
+          "metadata": {"activeBuffStatus": true}
+        },
+        {
+          "scope": "partyIndex",
+          "partyIndex": 0,
+          "statusType": "DefenseUp",
+          "limitType": "Only",
+          "exitCond": "PlayerTurnEnd",
+          "remaining": 2,
+          "power": 0.5,
+          "metadata": {"activeBuffStatus": true}
+        }
+      ],
+      "selectedDimensionBattleId": null
+    }
+  },
+  "enemy": {},
+  "simulatorSettings": {},
+  "validationPolicy": {},
+  "replayScript": {
+    "version": 1,
+    "setup": {
+      "styleIds": [1001405, 1001101, 1001202, null, null, null],
+      "supportStyleIdsByPartyIndex": {},
+      "supportLimitBreakLevelsByPartyIndex": {},
+      "skillSetsByPartyIndex": {},
+      "limitBreakLevelsByPartyIndex": {},
+      "initialOdGauge": 0,
+      "setupEntries": []
+    },
+    "turns": []
+  }
+}

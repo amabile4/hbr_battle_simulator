@@ -5540,11 +5540,17 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
   const consumedCountEffectIds = new Set();
 
   for (const statusType of statusTypes) {
-    if (statusType === 'AttackUp' || statusType === 'CriticalRateUp' || statusType === 'CriticalDamageUp') {
+    if (
+      statusType === 'AttackUp' ||
+      statusType === 'DefenseUp' ||
+      statusType === 'CriticalRateUp' ||
+      statusType === 'CriticalDamageUp'
+    ) {
       const resolved = resolveUpFamilyModifiersForStatusType(state, member, skill, skillElements, statusType);
       const amount = Number(resolved.rate ?? 0);
       if (amount !== 0) {
         if (statusType === 'AttackUp') attackUpRate += amount;
+        else if (statusType === 'DefenseUp') defenseUpRate += amount;
         else if (statusType === 'CriticalRateUp') criticalRateUpRate += amount;
         else if (statusType === 'CriticalDamageUp') criticalDamageUpRate += amount;
       }
@@ -10432,9 +10438,11 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   // ─── 次ターン状態の確定 ───
   const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
   const nextTurnLabel = nextTurnState.turnLabel;
+  const nextBaseTurnAdvances =
+    !shouldActivateInterruptOd && Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0);
   nextTurnState.passiveEventsLastApplied = [];
   // P3-B: PlayerTurnEnd パッシブの発火フラグをリセット（新プレイヤーターン開始時）
-  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+  if (nextBaseTurnAdvances) {
     nextTurnState.passiveTurnFiredKeys = [];
   }
   if (Number.isFinite(previewRecord.enemyCount)) {
@@ -10446,7 +10454,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   // ─── ② ターンフェーズ: ▽敵行動開始 (OnEnemyTurnStart) ───
-  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+  if (nextBaseTurnAdvances) {
     const enemyTurnStartResult = applyPassiveTimingInternal(
       {
         ...state,

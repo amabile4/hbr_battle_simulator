@@ -4556,6 +4556,67 @@ test('interrupt OD advances to next base turn after OD sequence ends', () => {
   assert.equal(state.turnState.turnLabel, 'T2');
 });
 
+test('interrupt OD does not fire OnEnemyTurnStart until OD completes', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 10,
+          baseMaxDp: 70,
+          currentDp: 35,
+          skills: [createProtectionSkill(9900)],
+          passives: [
+            {
+              id: 18218,
+              name: '充填',
+              timing: 'OnEnemyTurnStart',
+              condition: 'DpRate()<=0.5 && IsFront()',
+              parts: [{ skill_type: 'HealDpRate', target_type: 'Self', power: [0.1, 0] }],
+            },
+          ],
+        }
+      : {
+          initialSP: 10,
+          baseMaxDp: 70,
+          skills: [createProtectionSkill(9900 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+
+  const preview1 = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9901 },
+    2: { characterId: 'M3', skillId: 9902 },
+  });
+  const { nextState: odState, committedRecord: firstCommit } = commitTurn(state, preview1, [], {
+    interruptOdLevel: 1,
+  });
+
+  const firstEnemyTurnStartEvents = (firstCommit.passiveEvents ?? []).filter(
+    (event) => event.timing === 'OnEnemyTurnStart' && event.passiveName === '充填'
+  );
+  assert.equal(firstEnemyTurnStartEvents.length, 0);
+  assert.equal(odState.turnState.turnType, 'od');
+  assert.equal(odState.turnState.turnIndex, 1);
+  assert.equal(odState.party[0].dpState.currentDp, 35);
+
+  const preview2 = previewTurn(odState, {
+    0: { characterId: 'M1', skillId: 9900 },
+    1: { characterId: 'M2', skillId: 9901 },
+    2: { characterId: 'M3', skillId: 9902 },
+  });
+  const { nextState: normalState, committedRecord: secondCommit } = commitTurn(odState, preview2);
+
+  const secondEnemyTurnStartEvents = (secondCommit.passiveEvents ?? []).filter(
+    (event) => event.timing === 'OnEnemyTurnStart' && event.passiveName === '充填'
+  );
+  assert.equal(secondEnemyTurnStartEvents.length, 1);
+  assert.equal(secondEnemyTurnStartEvents[0].dpDelta, 7);
+  assert.equal(normalState.turnState.turnType, 'normal');
+  assert.equal(normalState.turnState.turnIndex, 2);
+  assert.equal(normalState.party[0].dpState.currentDp, 42);
+});
+
 test('normal/od/extra boundary transitions keep expected turn labels and indices', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);
@@ -9991,6 +10052,77 @@ test('active AttackUp: 無属性Countは属性一致扱いで採用対象にな�
 
   assert.equal(byId.get(NO_ELEMENT_COUNT_ID), undefined);
   assert.equal(byId.get(FIRE_COUNT_ID), undefined);
+  assert.equal(byId.get(ONLY_ID)?.remaining, 1);
+});
+
+test('active DefenseUp: Count(2枠)合算がOnlyを上回る場合はCount側を採用し、採用Countのみ2消費する', () => {
+  const COUNT_A_ID = 9311;
+  const COUNT_B_ID = 9312;
+  const ONLY_ID = 9313;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_A_ID,
+              statusType: 'DefenseUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.3,
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: COUNT_B_ID,
+              statusType: 'DefenseUp',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 2,
+              power: 0.25,
+              metadata: { activeBuffStatus: true },
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'DefenseUp',
+              limitType: 'Only',
+              exitCond: 'PlayerTurnEnd',
+              remaining: 2,
+              power: 0.5,
+              metadata: { activeBuffStatus: true },
+            },
+          ],
+          skills: [
+            {
+              id: 25310,
+              name: 'DefenseUp Damage Action',
+              label: 'DefenseUpDamage25310',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', hit_count: 1 }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25310, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+
+  assert.equal(action.specialPassiveModifiers.defenseUpRate, 0.55);
+  assert.deepEqual(
+    [...(action.specialPassiveModifiers.consumedCountEffectIds ?? [])].sort((a, b) => a - b),
+    [COUNT_A_ID, COUNT_B_ID]
+  );
+
+  const { nextState } = commitTurn(state, preview);
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const byId = new Map(actor.resolveEffectiveStatusEffects('DefenseUp').map((effect) => [Number(effect.effectId), effect]));
+
+  assert.equal(byId.get(COUNT_A_ID), undefined);
+  assert.equal(byId.get(COUNT_B_ID), undefined);
   assert.equal(byId.get(ONLY_ID)?.remaining, 1);
 });
 

@@ -141,17 +141,17 @@
 | エネルギー補給 | HealSp(AllyAll,+2,SP30) | 🟡 | お裾分けと同系統。専用テストなし |
 | 占星術 | HealSp(AllyAll,+2,SP30) | 🟡 | お裾分けと同系統。専用テストなし |
 | 愛嬌 (100830700) | HealSp(Self,+3,SP30) | 🟡 | 愛嬌100140800と同系統。専用テストなし |
-| クロノチェイン | OverDrivePointUp(Self) | 🔧 | `applyReceiverSpHealPassiveTriggers` がHealSpのみ処理のため未実装・未テスト |
+| クロノチェイン | OverDrivePointUp(Self) | ✅ | 行14530 付近（受け手SP回復起点で OD 上昇を検証） |
 
 ---
 
-### グループ G: 未実装トリガー（3件）
+### グループ G: 実装済みトリガー（3件）
 
 | パッシブ名 | トリガー | effectType | テスト状況 |
 |-----------|---------|-----------|---------|
-| オーバーレイ | **OnZone** × Eternal | HealSp(AllyAll) | 🔧 未実装・未テスト |
-| トップアップ | **OnOverDrivePointDownSkill** × Eternal | AdditionalTurn(Self) | 🔧 未実装・未テスト |
-| そよぐ新緑 | **OnPursuit** × Eternal | HealSp(AllyFront) | 🔧 未実装・未テスト |
+| オーバーレイ | **OnZone** × Eternal | HealSp(AllyAll) | ✅ 実装・テスト済み |
+| トップアップ | **OnOverDrivePointDownSkill** × Eternal | AdditionalTurn(Self) | ✅ 実装・テスト済み |
+| そよぐ新緑 | **OnPursuit** × Eternal | HealSp(AllyFront) | ✅ 実装・テスト済み |
 
 ---
 
@@ -162,8 +162,8 @@
 | ✅ テスト済み | 13 | 心ときめく応援 / ダークチアリング / 追加支援 / 慶福の一矢 / 迸る衝動(100230600) / 激震 / アンコール / ひれ伏すでゲス！ / 破砕の喝采 / 浄化の喝采 / お裾分け / 愛嬌(100140800) / 破竹の勢い / アプローチショット / クリアリング |
 | 🟡 同系統カバー（専用テストなし） | 9 | ホールチアリング / 先導者 / 迸る衝動(100250600) / エネルギー補給 / 占星術 / 愛嬌(100830700) / 意気軒昂×2 |
 | ❓ 要確認 | 1 | 即応の型（AdditionalTurn via SpecifiedSkillの発火確認が必要） |
-| ❌ 実装済み・未テスト | 8 | リバーブレーション(SP30未対応) / 元気注入 / 二度咲き / 貴様に託した / 激動(Count) / 怪盗乱麻 |
-| 🔧 未実装・未テスト | 6 | 恐怖の叫び / ライトプロテクション / 役者魂 / クロノチェイン / オーバーレイ / トップアップ / そよぐ新緑 |
+| ❌ 実装済み・未テスト | 4 | 元気注入 / 怪盗乱麻 / 二度咲き / 貴様に託した |
+| 🔧 未実装・未テスト | 1 | 恐怖の叫び（AdditionalHitOnExtraSkill + Talisman） |
 | **合計** | **38** | |
 
 ### exitCond 別カバレッジ
@@ -190,7 +190,7 @@
 | OnOverdriveStart | OverDriveEnd | 7 | ❌ | OD終了時の効果解除は未テスト（現状: OD終了追跡なし） |
 | OnAdditionalTurnStart | PlayerTurnEnd/None | 10 | ✅ | 行4729, 9018, 11504 |
 | OnEveryTurnIncludeSpecial | PlayerTurnEnd | 5 | ✅ | 行9121, 9163, 9208 |
-| OnBattleWin | None | 8 | ❌ | バトル勝利時発火のテスト未確認 |
+| OnBattleWin | None | 8 | ✅ | 行9268, 9284 付近でバトル勝利時発火と HealDpRate を確認 |
 
 ---
 
@@ -206,7 +206,6 @@
 
 | 項目 | 内容 | 難易度 |
 |-----|------|--------|
-| AttackUp trigger の持続/消費挙動 | 浄化の喝采/破砕の喝采は現状ログ中心。active buff としての仕様固定とテストが必要 | 中 |
 | OnOverdriveStart × OverDriveEnd | 発火テストはあるが、OD終了時解除の追跡テストは薄い | 中 |
 
 ### 優先度 🟡 低（カバレッジ厚み）
@@ -233,4 +232,5 @@
 |-----|------|---------|
 | `applyMoralePassiveTriggerEffects` | OnSpecifiedSkill / OnExtraSkill / OnKillCount / OnBreaking / OnRemovingBuff | `src/turn/turn-controller.js` |
 | `applyReceiverSpHealPassiveTriggers` | OnHealedSpWithoutSelfHeal（RECEIVER基準） | `src/turn/turn-controller.js` |
+| `applyReceiverZonePassiveTriggers` | OnZone（RECEIVER基準） | `src/turn/turn-controller.js` |
 | `applyPassiveTimingInternal` | AdditionalHit*を識別して効果部スキップ（`hasAdditionalHitTrigger`） | `src/turn/turn-controller.js` L6954 |

@@ -1,6 +1,6 @@
 # Count/Only 併存 status 監査と実機確認マトリクス
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-05
 > 調査対象: `json/skills.json`, `json/passives.json`, `src/domain/character-style.js`, `src/turn/turn-controller.js`, `tests/character-party.test.js`, `tests/turn-state-transitions.test.js`
 
 ---
@@ -30,6 +30,17 @@
 	- UI暫定対応として、`replayDiagnostics.turnWarnings` を `PassiveLog` に `[#n] ...` 形式で追記表示する
 - 2026-03-29 時点のデータでは `DefenseUp` は `Count` と `Only` の併存 family ではない
 - `AttackUpIncludeNormal` も `Count/Only` 併存候補ではない
+- 2026-04-04 再確認でも `DefenseUp` の `limitType=Count/Only` は `skills/passives` ともに 0 件
+- ただし runtime/UI の基盤は利用可能
+	- runtime: `resolveActiveBuffStatusModifiersForAction()` は `DefenseUp` を評価対象に含む
+	- UI: `STATUS_TYPE_DISPLAY_ORDER` と `buff-display` 側で `DefenseUp` アイコン表示が可能
+	- したがって将来データに `DefenseUp Count/Only` が入ってきても、新規 status 追加なしで表示まで通せる見込み
+- 2026-04-05 追補: `DefenseUp` も `AttackUp` 系と同じ `Count/Only` 競合解決へ統合し、手動fixtureで UI アイコン表示まで回帰を追加
+	- unit: `tests/ui-next-buff-display.test.js` に `buildBuffListHtml adopts Count side for DefenseUp...`
+	- engine: `tests/turn-state-transitions.test.js` に `active DefenseUp: Count(2枠)...`
+	- e2e: `tests/e2e/defenseup-count-only-icon.spec.js` + fixture 2種
+		- `ui_next_session_defenseup_count_only_fixture.json`（Count勝ち: 2アイコン）
+		- `ui_next_session_defenseup_only_wins_fixture.json`（Only勝ち: 1アイコン）
 
 ---
 
@@ -44,7 +55,7 @@
 | `CriticalRateUp` | 14 | 10 | 0 | 0 | 14 | 10 | 0 | 0 | ✅ |
 | `CriticalDamageUp` | 14 | 9 | 0 | 0 | 14 | 9 | 0 | 0 | ✅ |
 | `MindEye` | 9 | 8 | 0 | 0 | 9 | 8 | 0 | 0 | ✅ |
-| `DefenseUp` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | ❌ 今回対象外 |
+| `DefenseUp` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | ⏸ データ0件（基盤あり） |
 
 ### elements subgroup 別一覧（ユーザー向け表示）
 

@@ -43,24 +43,21 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-| [active/follow_up_code_review.md](active/follow_up_code_review.md) | ✅ 完了 | 追撃（Follow-Up）第1回コードレビュー。P0: followUp→pursuedHitCount変換欠落、P1: テストAPI不一致・catch-all、P3: 名前マッチ → 全て修正済み | 2026-04-03 |
-| [active/follow_up_code_review_round2.md](active/follow_up_code_review_round2.md) | ✅ 完了 | 追撃（Follow-Up）第2回コードレビュー。P0: OD独立計算・ヒット数解決、P1: ブレイクトグル・ビューポート、P2: テスト分離、P3: 死データ → 全て修正済み | 2026-04-03 |
-| [active/follow_up_code_review_round3.md](active/follow_up_code_review_round3.md) | ✅ 完了 | 追撃（Follow-Up）第3回コードレビュー。追撃ヒット数解決を追撃.md準拠で単一化し、追撃管理を前衛行動から独立化。追加回帰を含め 27 tests pass | 2026-04-04 |
-| [active/follow_up_merge_review.md](active/follow_up_merge_review.md) | ✅ 完了 | feature/ui-next-follow-up → main マージレビュー。追撃独立性・デグレなし・エンジン/UI責務分離を確認、全425テストPASS | 2026-04-04 |
 | [active/stage_setup_gimmick_pattern_analysis.md](active/stage_setup_gimmick_pattern_analysis.md) | 🟢 進行中 | Stage Setup 初期ギミック23項目の分類（A:初期状態注入, B:注入基盤追加, C:新規ロジック）と実装優先順位（Priority 1-3）。WBS追加: 9/23完了(39%) | 2026-04-04 |
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ。enemy-side `SpecialStatusCountByType(3/12/22/57/172)` と `Cover` 意味差分の調査メモ/WIP追記済み | 2026-03-30 |
 | [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・browser D&D handle 方針・Passive Log 下段 pane と desktop resize handle・toolbar icon/mobile rules・startup defaults・PNG capture contract・SessionSnapshot の人間向け補助フィールド方針・turn row バフアイコンを状態変化定義順で拡張（全体上限10・デバフ除外・Count/Only競合は採用側のみ表示）・Fieldタブの属性/倍率/継続表示とturn rowのactive field chip表示・Talisman表示条件の明確化・Warning/Error の名前併記 helper 方針・ReduceSpは消費SP計算専用でcurrent SP非変更・legacy UI 廃止前提・top-level `ui/` 削除済み・`src/ui` shared module 維持・Enemy先制Turn0フィールド先行適用 等） | 2026-03-31 |
-| [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | � 参照 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点）。配色・余白の参考のみ、正本は ui_next_design.md | 2026-03-31 |
-| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 🟢 進行中 | UI Next 実装タスクリスト（既コミットターン再編集・layout rework・toolbar/mobile follow-up・preset toolbar 20枠化・browser D&D hardening・legacy UI hard cutover・Passive Log pane resize・Enemy先制フィールドTurn0適用・Enemy Setup の敵スロット選択/実効倍率％耐性/吸収/max_d_rate/od_rate 初期反映・Session JSON の enemy 設定永続化・OD multiplier を `1=100%` へ正規化・`turn.info.actionOrder` 追加・Session JSON 旧フォーマット互換（styleIds=0）・SP>=0条件＋速弾きの合算使用可否・#4 SP差分調査で行動順は非ダメージ先/ダメージ後を維持し石塔の手筋+誤分類を修正・T32 Stage Setup Phase1（A区分: 初期OD/SP/DefenseUp/DebuffGuard）完了・Party Setup の「全て初期化」（PT解散左隣）で Party/Enemy/Stage 一括初期化を追加・`BIYamawakiServant` の OnFirstBattleStart/OnBattleStart passive 適用欠落を修正・残タスクとして T32 Phase2/3 / 固有スキル・パッシブ未反映監査 / 敵状態変化管理を追記） | 2026-04-04 |
+| [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | 📚 参照 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点）。配色・余白の参考のみ、正本は ui_next_design.md | 2026-03-31 |
+| [active/ui_next_implementation_tasklist.md](active/ui_next_implementation_tasklist.md) | 📚 参照 | UI Next 実装の完了履歴リファレンス。未実装タスク管理は `ui_next_unimplemented_tasklist.md` へ分離 | 2026-04-05 |
+| [active/ui_next_unimplemented_tasklist.md](active/ui_next_unimplemented_tasklist.md) | 🟢 進行中 | UI Next 単一 backlog。`ui_next_implementation_tasklist` 由来の未実装に加え、`setup_panel_layout_and_perf` / `implementation_priority` / `skill_limit` / `stage_setup_gimmick` の未実装項目も統合して管理 | 2026-04-05 |
+| [active/t34_enemy_status_management_plan_wbs.md](active/t34_enemy_status_management_plan_wbs.md) | 🟢 進行中 | T34（敵状態変化管理・表示）専用の実装プラン/WBS。設計→実装→表示→テストの実行順、リスク、AIレビュー観点、レビュー依頼テンプレートを定義 | 2026-04-05 |
 | [active/lightweight_record_replay_design.md](active/lightweight_record_replay_design.md) | 🟢 進行中 | 軽量 replay/edit 設計案（TurnAction 正本化・warning/diagnostics 実装メモ追記） | 2026-03-28 |
 | [active/skill_limit_implementation_tasklist.md](active/skill_limit_implementation_tasklist.md) | 🟢 進行中 | PRI-018: スキル使用回数制約と回復機能（HealSkillUsedCount 等）の実装計画 | 2026-03-14 |
 | [active/passive_implementation_tasklist.md](active/passive_implementation_tasklist.md) | 🟢 進行中 | パッシブ条件・タイミング実装計画（main HEAD `48d98c4` 監査と、`AdditionalHitOnExtraSkill` の DebuffGuard/BuffCharge 先行実装を反映。`AdditionalHitOnBreaking + AttackUp`（破砕の喝采）の 8T運用を既存 `AttackUp` 状態で固定化済み。残課題は Talisman 後段化と OD終了側追跡） | 2026-04-04 |
-| [active/stateful_passive_wbs.md](active/stateful_passive_wbs.md) | 🟢 進行中 | 状態付与型パッシブ（AdditionalHit* 38件）の実装WBS。main HEAD `48d98c4` 再照合を追記し、DebuffGuard/BuffCharge を完了へ更新。残課題を `Talisman` と `AttackUp` 持続管理に再整理 | 2026-04-04 |
-| [active/passive_test_coverage_audit.md](active/passive_test_coverage_audit.md) | 🟢 進行中 | パッシブ発火トリガー × exitCond テストカバレッジ監査。`P1-A/B/C`・`P2-A/B/C`・`P3-A/B` に加え EX-trigger DebuffGuard/BuffCharge テストを反映し、残課題を Talisman と OD終了側追跡へ集約 | 2026-04-04 |
-| [active/count_only_status_audit.md](active/count_only_status_audit.md) | 🟢 進行中 | `Count` / `Only` 併存 status family 監査（`AttackUp` 系は `elements subgroup`、`Funnel` / `MindEye` は `target_condition` 制約として整理し、runtime/test 経路・実機確認マトリクスを併記。session再計算Warning理由のPassiveLog暫定表示を追記） | 2026-03-29 |
+| [active/stateful_passive_wbs.md](active/stateful_passive_wbs.md) | 🟢 進行中 | 状態付与型パッシブ（AdditionalHit* 38件）の実装WBS。main HEAD `48d98c4` 再照合を反映し、残課題は `AdditionalHitOnExtraSkill + Talisman` と既存 `exitCond` 系の運用整理に集約 | 2026-04-04 |
+| [active/passive_test_coverage_audit.md](active/passive_test_coverage_audit.md) | 🟢 進行中 | パッシブ発火トリガー × exitCond テストカバレッジ監査。旧未実装扱い（OnZone/OnPursuit/OnOverDrivePointDownSkill/クロノチェイン/OnBattleWin）を修正し、残課題を Talisman と OD終了側追跡へ整理 | 2026-04-04 |
+| [active/count_only_status_audit.md](active/count_only_status_audit.md) | 🟢 進行中 | `Count` / `Only` 併存 status family 監査（`AttackUp` 系は `elements subgroup`、`Funnel` / `MindEye` は `target_condition` 制約として整理し、runtime/test 経路・実機確認マトリクスを併記。`DefenseUp` は実データ0件のまま、手動fixtureで Count/Only 競合処理と UI アイコン表示の unit/e2e 回帰を追加） | 2026-04-05 |
 | [active/setup_panel_layout_and_perf_tasklist.md](active/setup_panel_layout_and_perf_tasklist.md) | 🟢 進行中 | Setup パネルのタブレイアウト改善（L01〜L04 ✅）とロード高速化（P01〜P03 ❌）タスクリスト | 2026-03-29 |
 | [active/passive_timing_reference.md](active/passive_timing_reference.md) | 📚 参照 | パッシブタイミング11種の評価入口リファレンス | 2026-03-22 |
-| [active/interrupt_od_enemy_turn_start_double_fire.md](active/interrupt_od_enemy_turn_start_double_fire.md) | 🟢 未着手 | 割込OD時 OnEnemyTurnStart 二重発火の潜在問題（優先度低） | 2026-04-03 |
 | [active/turn_timing.md](active/turn_timing.md) | 📚 参照 | バトルフロー図と各タイミングの説明（Enemy先制行動〜バトル終了） | 2026-03-31 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（top-level `ui/` 削除済みの current state と `src/ui` shared module 境界へ更新） | 2026-03-31 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
@@ -161,6 +158,18 @@ docs/
 ---
 
 ## 🗄️ アーカイブ（廃止済み）
+
+### 20260405_completed_active_docs/（2026-04-05 アーカイブ）
+
+完了済みの Follow-Up レビュー文書と割込OD不具合記録を active から移動。
+
+| ドキュメント | 概要 |
+|----------------|------|
+| [archive/20260405_completed_active_docs/follow_up_code_review.md](archive/20260405_completed_active_docs/follow_up_code_review.md) | 追撃（Follow-Up）第1回コードレビュー（全修正完了記録） |
+| [archive/20260405_completed_active_docs/follow_up_code_review_round2.md](archive/20260405_completed_active_docs/follow_up_code_review_round2.md) | 追撃（Follow-Up）第2回コードレビュー（全修正完了記録） |
+| [archive/20260405_completed_active_docs/follow_up_code_review_round3.md](archive/20260405_completed_active_docs/follow_up_code_review_round3.md) | 追撃（Follow-Up）第3回コードレビュー（追撃経路整理の完了記録） |
+| [archive/20260405_completed_active_docs/follow_up_merge_review.md](archive/20260405_completed_active_docs/follow_up_merge_review.md) | feature/ui-next-follow-up → main のマージレビュー完了記録 |
+| [archive/20260405_completed_active_docs/interrupt_od_enemy_turn_start_double_fire.md](archive/20260405_completed_active_docs/interrupt_od_enemy_turn_start_double_fire.md) | 割込OD時 OnEnemyTurnStart 先行発火の修正完了記録 |
 
 ### 20260323_completed_active_docs/（2026-03-23 アーカイブ）
 

@@ -67,6 +67,34 @@ test('buildBuffListHtml uses Count side on tie between Count sum and Only', () =
   assert.deepEqual(altList, ['AttackUp', 'AttackUp']);
 });
 
+test('buildBuffListHtml adopts Count side for DefenseUp when Count sum is stronger than Only', () => {
+  const html = buildBuffListHtml([
+    { statusType: 'DefenseUp', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.3, effectId: 11 },
+    { statusType: 'DefenseUp', remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.25, effectId: 12 },
+    { statusType: 'DefenseUp', remaining: 2, limitType: 'Only', power: 0.5, effectId: 13 },
+  ]);
+
+  const altList = extractAltList(html);
+  assert.deepEqual(altList, ['DefenseUp', 'DefenseUp']);
+});
+
+test('buildBuffListHtml adopts Only side when Only is stronger than Count sum for Up-family statuses', () => {
+  const cases = [
+    { statusType: 'AttackUp', expected: ['AttackUp'] },
+    { statusType: 'CriticalRateUp', expected: ['CriticalRateUp'] },
+    { statusType: 'CriticalDamageUp', expected: ['CriticalDamageUp'] },
+  ];
+
+  for (const { statusType, expected } of cases) {
+    const html = buildBuffListHtml([
+      { statusType, remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.2, effectId: 1001 },
+      { statusType, remaining: 2, limitType: 'Count', exitCond: 'Count', power: 0.2, effectId: 1002 },
+      { statusType, remaining: 2, limitType: 'Only', power: 0.5, effectId: 1003 },
+    ]);
+    assert.deepEqual(extractAltList(html), expected, `${statusType} should adopt Only side`);
+  }
+});
+
 test('buildBuffListHtml caps icons by total limit', () => {
   const html = buildBuffListHtml([
     { statusType: 'AttackUp', remaining: 1 },
