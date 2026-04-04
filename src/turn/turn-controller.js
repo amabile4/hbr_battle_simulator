@@ -9422,11 +9422,51 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
+        if (skillType === 'BIYamawakiServant') {
+          const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID.BIYamawakiServant;
+          const exitCond = String(part?.effect?.exitCond ?? 'Count');
+          const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            target.applySpecialStatus(statusTypeId, remaining, exitCond, {
+              skill: {
+                skillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                label: String(passive?.label ?? ''),
+                name: String(passive?.name ?? ''),
+                desc: String(passive?.desc ?? ''),
+              },
+              actor: member,
+            });
+            appliedStatusEffects.push({
+              characterId: String(target.characterId),
+              statusType: 'BIYamawakiServant',
+              exitCond,
+              remaining,
+            });
+            matched = true;
+          }
+          continue;
+        }
+
         if (
           skillType === 'TokenSetByAttacking' ||
           skillType === 'TokenSetByAttacked' ||
-          skillType === 'TokenSetByHealedDp' ||
-          skillType === 'BIYamawakiServant'
+          skillType === 'TokenSetByHealedDp'
         ) {
           // Action-time or character-specific triggers; handled outside the timing pipeline.
           continue;

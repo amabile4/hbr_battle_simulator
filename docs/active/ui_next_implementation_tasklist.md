@@ -6,6 +6,8 @@
 >
 > **2026-04-02 追加実装**: `#4` の SP 期待値差分調査として、行動順は「非ダメージ先・ダメージ後（同 phase 内は前衛 position 順）」を維持。差分原因だった `石塔の手筋+` の誤分類（non_damage 扱い）を修正し、damage 扱いで `コードダクネス` の遷移を unit/e2e 回帰テストで固定。
 >
+> **2026-04-04 追加修正**: `BIYamawakiServant` が `OnFirstBattleStart/OnBattleStart` の passive timing 経路でスキップされていた不具合を修正。`src/turn/turn-controller.js` で passive 適用時にも `BIYamawakiServant` を status 付与するよう更新し、`tests/turn-state-transitions.test.js` に回帰ケース（OnFirstBattleStart自己付与 + CountBC条件OD加算）を追加。
+>
 > **前提設計**:
 > [ui_next_design.md](ui_next_design.md)
 >

@@ -15203,6 +15203,76 @@ test('T13b: BIYamawakiServant(155) + 世界を滅ぼすお手伝い — target_c
   assert.equal(m3.sp.current - sp3Before2, 0, 'しもべ状態なし: M3はtarget_conditionで除外されSP変化なし');
 });
 
+test('T13c: BIYamawakiServant(155) — OnFirstBattleStart自己付与でCountBC条件のOD加算が成立する', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        initialSP: 5,
+        passives: [
+          {
+            id: 92021,
+            name: '魔王様降臨！相当',
+            timing: 'OnFirstBattleStart',
+            condition: '',
+            parts: [
+              {
+                skill_type: 'BIYamawakiServant',
+                target_type: 'Self',
+                effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+              },
+            ],
+          },
+          {
+            id: 92022,
+            name: '魔王軍の大攻勢！相当',
+            timing: 'OnEveryTurn',
+            condition: 'CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=2',
+            parts: [{ skill_type: 'OverDrivePointUp', target_type: 'Self', power: [1, 0] }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        passives: [
+          {
+            id: 92023,
+            name: '直属の使い魔でゲス！相当',
+            timing: 'OnFirstBattleStart',
+            condition: '',
+            parts: [
+              {
+                skill_type: 'BIYamawakiServant',
+                target_type: 'Self',
+                effect: { exitCond: 'Eternal', exitVal: [0, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+
+  const state = createBattleStateFromParty(party);
+  const odBeforeInitialPassive = Number(state.turnState.odGauge ?? 0);
+  applyInitialPassiveState(state);
+
+  const m1 = state.party.find((m) => m.characterId === 'M1');
+  const m2 = state.party.find((m) => m.characterId === 'M2');
+  assert.equal(countActiveSpecialStatus(m1, 155), 1, 'M1がOnFirstBattleStartでしもべ状態になる');
+  assert.equal(countActiveSpecialStatus(m2, 155), 1, 'M2がOnFirstBattleStartでしもべ状態になる');
+  const odPassiveEvent = (state.turnState.passiveEventsLastApplied ?? []).find(
+    (event) => event?.passiveName === '魔王軍の大攻勢！相当'
+  );
+  assert.equal(odPassiveEvent?.odGaugeDelta, 100, 'しもべ2人条件を満たし初期化時OnEveryTurnでOD+100される');
+  assert.equal(
+    Number(state.turnState.odGauge ?? 0) > odBeforeInitialPassive,
+    true,
+    'ODゲージが初期化前より増加している'
+  );
+});
+
 test('勇姿(ReduceSp/OnEveryTurnIncludeSpecial) — チャージ状態のメンバーのみSP消費-1', () => {
   // 実際の「勇姿」(決起のレガリア) のデータを模倣:
   //   condition: CountBC(IsPlayer() && SpecialStatusCountByType(25) > 0)>0
