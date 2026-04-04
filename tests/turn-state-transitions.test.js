@@ -12388,6 +12388,58 @@ test('AdditionalHitOnBreaking + OverDrivePointUp does NOT fire when breakHitCoun
   );
 });
 
+test('AdditionalHitOnBreaking + OverDrivePointUp fires when manualBreakEnemyIndexes is set', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'BREAK_OD_MANUAL',
+          characterName: 'BREAK_OD_MANUAL',
+          initialSP: 5,
+          passives: [
+            {
+              id: 100105,
+              name: '破竹の勢いテスト3(manual)',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.2, 0], value: [0, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 100106,
+              name: 'Manual-Break Attack',
+              sp_cost: 0,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+
+  const state = createBattleStateFromParty(party);
+  const initialOdGauge = Number(state.turnState.odGauge ?? 0);
+  const preview = previewTurn(state, {
+    0: {
+      characterId: 'BREAK_OD_MANUAL',
+      skillId: 100106,
+      manualBreakEnemyIndexes: [0],
+    },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 攻撃1hit 2.5% + ブレイクトリガーOD+20% = 22.5%
+  assert.ok(
+    Math.abs(Number(nextState.turnState.odGauge ?? 0) - (initialOdGauge + 22.5)) < 0.1,
+    `OD gauge should include manual-break trigger bonus (+20): initial=${initialOdGauge}, final=${nextState.turnState.odGauge}`
+  );
+});
+
 test('Carnival with You resonance is injected as support passive on 桐生 美也 (31X/Excelsior)', () => {
   const store = getStore();
   const actor = store.buildCharacterStyle({
@@ -12537,6 +12589,210 @@ test('Carnival with You resonance is reflected in preview odGaugeAtEnd on break 
     Math.abs(projectedDiff - 20) < 0.1,
     `preview odGaugeAtEnd should include +20 on break: noBreak=${noBreakProjectedOd}, withBreak=${withBreakProjectedOd}, diff=${projectedDiff}`
   );
+});
+
+test('real-data reconciliation: 咲き昇る宵の幻 break keeps Excelsior OD+20 flat across od_rate variants', () => {
+  const store = getStore();
+  const actorStyleId = 1004307;
+  const actorSkillId = 46004311; // 咲き昇る宵の幻 (AttackSkill)
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter(
+      (id) =>
+        Number(id) !== actorStyleId &&
+        String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? '') !== actorCharaLabel
+    )
+    .slice(0, 5);
+
+  const styleIds = [actorStyleId, ...fillerStyleIds];
+  const buildState = (odRate) => {
+    const state = createBattleStateFromParty(
+      store.buildPartyFromStyleIds(styleIds, {
+        initialSP: 20,
+        limitBreakLevelsByPartyIndex: { 0: 4 },
+        supportStyleIdsByPartyIndex: { 0: 1008105 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 4 },
+      })
+    );
+    state.turnState.enemyState.odRateByEnemy = { '0': odRate };
+    return state;
+  };
+
+  const buildActions = (state, shouldBreak) => ({
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: actorSkillId,
+      targetEnemyIndex: 0,
+      manualBreakEnemyIndexes: shouldBreak ? [0] : [],
+    },
+    1: {
+      characterId: state.party[1].characterId,
+      skillId: state.party[1].skills[0].skillId,
+    },
+    2: {
+      characterId: state.party[2].characterId,
+      skillId: state.party[2].skills[0].skillId,
+    },
+  });
+
+  const checkBreakDiff = (odRate, label) => {
+    const noBreakState = buildState(odRate);
+    const noBreakPreview = previewTurn(noBreakState, buildActions(noBreakState, false));
+    const noBreakCommit = commitTurn(noBreakState, noBreakPreview);
+
+    const withBreakState = buildState(odRate);
+    const withBreakPreview = previewTurn(withBreakState, buildActions(withBreakState, true));
+    const withBreakCommit = commitTurn(withBreakState, withBreakPreview);
+
+    const noBreakOd = Number(noBreakCommit.nextState.turnState.odGauge ?? 0);
+    const withBreakOd = Number(withBreakCommit.nextState.turnState.odGauge ?? 0);
+    const odDiffByBreak = withBreakOd - noBreakOd;
+
+    assert.ok(
+      Math.abs(odDiffByBreak - 20) < 0.1,
+      `${label}: break-triggered Excelsior bonus should stay +20 OD (noBreak=${noBreakOd}, withBreak=${withBreakOd}, diff=${odDiffByBreak})`
+    );
+  };
+
+  checkBreakDiff(1, 'od_rate=1.0');
+  checkBreakDiff(0.5, 'od_rate=0.5');
+});
+
+function runExcelsiorBreakDecompositionDebugCase({
+  odRate,
+  drivePiercePercent,
+  caseLabel,
+  expectedResonanceFloor,
+  expectedIntegerResidual,
+  expectedAttackFloor,
+  expectedTotalFloor,
+}) {
+  const store = getStore();
+  const actorStyleId = 1004307;
+  const actorSkillId = 46004311; // 咲き昇る宵の幻 (AttackSkill)
+  const actorStyle = store.getStyleById(actorStyleId);
+  const actorCharaLabel = String(actorStyle?.chara_label ?? actorStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter(
+      (id) =>
+        Number(id) !== actorStyleId &&
+        String(store.getStyleById(Number(id))?.chara_label ?? store.getStyleById(Number(id))?.chara ?? '') !== actorCharaLabel
+    )
+    .slice(0, 5);
+
+  const styleIds = [actorStyleId, ...fillerStyleIds];
+  const buildState = ({ withSupport }) => {
+    const state = createBattleStateFromParty(
+      store.buildPartyFromStyleIds(styleIds, {
+        initialSP: 20,
+        limitBreakLevelsByPartyIndex: { 0: 4 },
+        supportStyleIdsByPartyIndex: withSupport ? { 0: 1008105 } : {},
+        supportLimitBreakLevelsByPartyIndex: withSupport ? { 0: 4 } : {},
+      })
+    );
+    state.turnState.enemyState.odRateByEnemy = { '0': odRate };
+    state.party[0].drivePiercePercent = drivePiercePercent;
+    return state;
+  };
+
+  const buildActions = (state) => ({
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: actorSkillId,
+      targetEnemyIndex: 0,
+      manualBreakEnemyIndexes: [0],
+    },
+  });
+
+  const noSupportState = buildState({ withSupport: false });
+  const noSupportPreview = previewTurn(noSupportState, buildActions(noSupportState));
+  const noSupportCommit = commitTurn(noSupportState, noSupportPreview);
+  const attackDerived = Number(noSupportCommit.nextState.turnState.odGauge ?? 0);
+
+  const withSupportState = buildState({ withSupport: true });
+  const withSupportPreview = previewTurn(withSupportState, buildActions(withSupportState));
+  const withSupportCommit = commitTurn(withSupportState, withSupportPreview);
+  const total = Number(withSupportCommit.nextState.turnState.odGauge ?? 0);
+
+  const resonanceDerived = total - attackDerived;
+  const integerResidual = Math.floor(total) - Math.floor(attackDerived);
+
+  console.log(
+    `[OD_DEBUG] ${caseLabel} | 攻撃由来=${attackDerived.toFixed(2)} | 共鳴由来=${resonanceDerived.toFixed(2)} | 合計=${total.toFixed(2)} | integerResidual=${integerResidual}`
+  );
+
+  assert.ok(
+    Math.floor(resonanceDerived) === expectedResonanceFloor,
+    `${caseLabel}: floor(共鳴由来) should match real-device observation (attack=${attackDerived.toFixed(2)}, resonance=${resonanceDerived.toFixed(2)}, total=${total.toFixed(2)}, integerResidual=${integerResidual})`
+  );
+  assert.equal(
+    Math.floor(attackDerived),
+    expectedAttackFloor,
+    `${caseLabel}: floor(攻撃由来) should match real-device observation`
+  );
+  assert.equal(
+    Math.floor(total),
+    expectedTotalFloor,
+    `${caseLabel}: floor(合計) should match real-device observation`
+  );
+  assert.equal(
+    integerResidual,
+    expectedIntegerResidual,
+    `${caseLabel}: integerResidual should match real-device display split`
+  );
+  assert.ok(
+    Math.abs(total - (attackDerived + resonanceDerived)) < 1e-9,
+    `${caseLabel}: decomposition identity must hold (attack + resonance = total)`
+  );
+}
+
+test('od_rate=0.85 ドライブピアスなし 16%+20%=36%', () => {
+  runExcelsiorBreakDecompositionDebugCase({
+    odRate: 0.85,
+    drivePiercePercent: 0,
+    caseLabel: 'od_rate=0.85 ドライブピアスなし 16%+20%=36%',
+    expectedResonanceFloor: 20,
+    expectedIntegerResidual: 20,
+    expectedAttackFloor: 16,
+    expectedTotalFloor: 36,
+  });
+});
+
+test('od_rate=0.85 ドライブピアス15% 19%+22%=41%', () => {
+  runExcelsiorBreakDecompositionDebugCase({
+    odRate: 0.85,
+    drivePiercePercent: 15,
+    caseLabel: 'od_rate=0.85 ドライブピアス15% 19%+22%=41%',
+    expectedResonanceFloor: 22,
+    expectedIntegerResidual: 22,
+    expectedAttackFloor: 19,
+    expectedTotalFloor: 41,
+  });
+});
+
+test('od_rate=1.00 ドライブピアスなし 20%+20%=40%', () => {
+  runExcelsiorBreakDecompositionDebugCase({
+    odRate: 1,
+    drivePiercePercent: 0,
+    caseLabel: 'od_rate=1.00 ドライブピアスなし 20%+20%=40%',
+    expectedResonanceFloor: 20,
+    expectedIntegerResidual: 20,
+    expectedAttackFloor: 20,
+    expectedTotalFloor: 40,
+  });
+});
+
+test('od_rate=1.00 ドライブピアス15% 22%+23%=45%', () => {
+  runExcelsiorBreakDecompositionDebugCase({
+    odRate: 1,
+    drivePiercePercent: 15,
+    caseLabel: 'od_rate=1.00 ドライブピアス15% 22%+23%=45%',
+    expectedResonanceFloor: 22,
+    expectedIntegerResidual: 23,
+    expectedAttackFloor: 22,
+    expectedTotalFloor: 45,
+  });
 });
 
 // ─── AdditionalHitOnRemovingBuff + OverDrivePointUp（アプローチショット相当） ───
@@ -16838,6 +17094,102 @@ test('enemy od_rate=0 means no correction: OD gain is unchanged', () => {
 
   // 補正なし: 10.00%
   assert.equal(nextState.turnState.odGauge, 10);
+});
+
+test('enemy od_rate applies truncation per hit for normal attacks', () => {
+  // 3-hit 通常攻撃:
+  // 1hit OD = trunc2(2.5 * 0.85) = 2.12
+  // 合計 = 2.12 * 3 = 6.36
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODH${idx + 1}`,
+      characterName: `ODH${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODHS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 15960 + idx,
+          name: idx === 0 ? '3hit Normal' : 'Protection',
+          label: idx === 0 ? 'ThreeHitNormal' : `ODHSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 3 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 0.85 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'ODH1', skillId: 15960 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
+  assert.equal(nextState.turnState.odGauge, 6.36);
+});
+
+test('enemy od_rate scales hit-based OD only and leaves OverDrivePointUp unscaled', () => {
+  // 5-hit 攻撃 + OverDrivePointUp(30%)、od_rate=0.85:
+  // hit OD: trunc2(2.5 * 0.85) * 5 = 10.60
+  // OverDrivePointUp: 30.00 (非補正)
+  // 合計: 40.60
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `ODP${idx + 1}`,
+      characterName: `ODP${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `ODPS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 10,
+      skills: [
+        {
+          id: 16000 + idx,
+          name: idx === 0 ? '5hit + ODUp30' : 'Protection',
+          label: idx === 0 ? 'FiveHitWithOdUp' : `ODPSkill${idx + 1}`,
+          sp_cost: 0,
+          hit_count: idx === 0 ? 5 : 0,
+          target_type: 'Single',
+          parts:
+            idx === 0
+              ? [
+                  { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' },
+                  { skill_type: 'OverDrivePointUp', target_type: 'Self', power: [0.3, 0], value: [0, 0] },
+                ]
+              : [],
+        },
+      ],
+    })
+  );
+
+  const baseState = createBattleStateFromParty(new Party(members));
+  baseState.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: { '0': { Slash: 100 } },
+    odRateByEnemy: { '0': 0.85 },
+  };
+
+  const preview = previewTurn(baseState, {
+    0: { characterId: 'ODP1', skillId: 16000 },
+  });
+  const { nextState } = commitTurn(baseState, preview);
+
+  assert.equal(nextState.turnState.odGauge, 40.6);
 });
 
 // ─── Multiple passive trigger同時発火のテスト ───

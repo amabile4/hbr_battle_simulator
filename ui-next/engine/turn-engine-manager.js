@@ -74,6 +74,58 @@ function cloneReplayDiagnostics(diagnostics = {}) {
   };
 }
 
+const PURSUIT_TRANSFORMED_SKILL_NAME = 'ネコジェット・シャテキ';
+const PURSUIT_HIT_COUNT_BY_WEAPON_TYPE = Object.freeze({
+  DoubleSword: 2,
+  LargeSword: 2,
+  Cannon: 3,
+  Shield: 3,
+  Claw: 3,
+  Sword: 4,
+  Gun: 1,
+  Scythe: 4,
+});
+const PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID = Object.freeze({
+  IMinase: 2,
+  BIYamawaki: 3,
+});
+
+function resolvePursuitHitCountForMember(member) {
+  const pursuitCandidates = [
+    ...(member?.getActionSkills?.() ?? []),
+    ...(Array.isArray(member?.triggeredSkills) ? member.triggeredSkills : []),
+    ...(member?.getSupportSkills?.() ?? []),
+  ];
+
+  const transformed = pursuitCandidates.find(
+    (skill) => String(skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME
+  );
+  if (transformed) {
+    const transformedHitCount = Number(transformed?.hitCount ?? transformed?.hit_count ?? 0);
+    return Number.isFinite(transformedHitCount) && transformedHitCount > 0
+      ? transformedHitCount
+      : 5;
+  }
+
+  const pursuitSkill = pursuitCandidates.find((skill) => isPursuitOnlySkill(skill));
+  const explicitHitCount = Number(pursuitSkill?.hitCount ?? pursuitSkill?.hit_count ?? 0);
+  if (Number.isFinite(explicitHitCount) && explicitHitCount > 0) {
+    return explicitHitCount;
+  }
+
+  const characterId = String(member?.characterId ?? '');
+  if (Object.hasOwn(PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID, characterId)) {
+    return Number(PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID[characterId]);
+  }
+
+  const weaponType = String(member?.weaponType ?? '');
+  if (Object.hasOwn(PURSUIT_HIT_COUNT_BY_WEAPON_TYPE, weaponType)) {
+    return Number(PURSUIT_HIT_COUNT_BY_WEAPON_TYPE[weaponType]);
+  }
+
+  return 1;
+}
+
 /**
  * LightweightReplayScript を正本として保持し、previewTurn/commitTurn を透過的に管理するクラス。
  *
@@ -1538,6 +1590,19 @@ export class TurnEngineManager {
       followUpOverrides,
       normalizedEnemyCount
     );
+    const pursuedHitCountByFrontPosition = new Map();
+    for (const override of normalizedFollowUpOverrides) {
+      const backPosition = Number(override?.position);
+      if (!Number.isInteger(backPosition) || backPosition < 3 || backPosition > 5) {
+        continue;
+      }
+      const backMember = state.party.find((candidate) => Number(candidate?.position) === backPosition);
+      if (!backMember) {
+        continue;
+      }
+      const frontPosition = backPosition - 3;
+      pursuedHitCountByFrontPosition.set(frontPosition, resolvePursuitHitCountForMember(backMember));
+    }
     for (const [posStr, action] of Object.entries(slotActions)) {
       const slotPosition = Number(posStr);
       if (!Number.isFinite(slotPosition)) continue;
@@ -1581,17 +1646,10 @@ export class TurnEngineManager {
         member.position + 3
       );
 
-      // 追撃ヒット数を後衛メンバーの追撃スキルから解決する（武器種別により 1〜5）。
+      // 追撃は前衛行動とは独立して管理し、後衛側の追撃定義のみから hit 数を解決する。
       let resolvedPursuedHitCount = 0;
       if (followUpEnemyIndex !== null && followUpEnemyIndex !== undefined) {
-        const backMember = state.party.find((m) => m.position === member.position + 3);
-        const pursuitSkill = (backMember?.getActionSkills?.() ?? []).find(
-          (s) => isPursuitOnlySkill(s)
-        );
-        const skillHitCount = Number(pursuitSkill?.hitCount ?? pursuitSkill?.hit_count ?? 0);
-        resolvedPursuedHitCount = Number.isFinite(skillHitCount) && skillHitCount > 0
-          ? skillHitCount
-          : 1;
+        resolvedPursuedHitCount = Number(pursuedHitCountByFrontPosition.get(member.position) ?? 1);
       }
 
       actions[member.position] = {

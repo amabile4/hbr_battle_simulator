@@ -45,7 +45,7 @@ docs/
 |-------------|-----------|------|----------|
 | [active/follow_up_code_review.md](active/follow_up_code_review.md) | ✅ 完了 | 追撃（Follow-Up）第1回コードレビュー。P0: followUp→pursuedHitCount変換欠落、P1: テストAPI不一致・catch-all、P3: 名前マッチ → 全て修正済み | 2026-04-03 |
 | [active/follow_up_code_review_round2.md](active/follow_up_code_review_round2.md) | ✅ 完了 | 追撃（Follow-Up）第2回コードレビュー。P0: OD独立計算・ヒット数解決、P1: ブレイクトグル・ビューポート、P2: テスト分離、P3: 死データ → 全て修正済み | 2026-04-03 |
-| [active/follow_up_code_review_round3.md](active/follow_up_code_review_round3.md) | ✅ 完了 | 追撃（Follow-Up）第3回コードレビュー。R2全修正確認済み。残存: 問題H od_rate適用要検証・問題J テストカバレッジ拡充推奨 | 2026-04-03 |
+| [active/follow_up_code_review_round3.md](active/follow_up_code_review_round3.md) | ✅ 完了 | 追撃（Follow-Up）第3回コードレビュー。追撃ヒット数解決を追撃.md準拠で単一化し、追撃管理を前衛行動から独立化。追加回帰を含め 27 tests pass | 2026-04-04 |
 | [active/implementation_priority_tasklist.md](active/implementation_priority_tasklist.md) | 🟢 進行中 | PRI-018（スキル使用回数制約）を次優先とした実装バックログ。enemy-side `SpecialStatusCountByType(3/12/22/57/172)` と `Cover` 意味差分の調査メモ/WIP追記済み | 2026-03-30 |
 | [active/ui_next_design.md](active/ui_next_design.md) | 🟢 進行中 | UI Next 設計メモ（Party Setup・スキル設定パネル・PT解散導線・toolbar preset strip 20枠・strict preset schema・browser D&D handle 方針・Passive Log 下段 pane と desktop resize handle・toolbar icon/mobile rules・startup defaults・PNG capture contract・SessionSnapshot の人間向け補助フィールド方針・turn row バフアイコンを状態変化定義順で拡張（全体上限10・デバフ除外・Count/Only競合は採用側のみ表示）・Fieldタブの属性/倍率/継続表示とturn rowのactive field chip表示・Talisman表示条件の明確化・Warning/Error の名前併記 helper 方針・ReduceSpは消費SP計算専用でcurrent SP非変更・legacy UI 廃止前提・top-level `ui/` 削除済み・`src/ui` shared module 維持・Enemy先制Turn0フィールド先行適用 等） | 2026-03-31 |
 | [active/ui_next_gui_design_spec.md](active/ui_next_gui_design_spec.md) | � 参照 | UI Next GUI モック参照資料（Initial Setup / Party Setup / Enemy Setup 拡張点）。配色・余白の参考のみ、正本は ui_next_design.md | 2026-03-31 |
@@ -78,7 +78,7 @@ docs/
 | [specs/runs/RUN_20260228_001/decision_log.md](specs/runs/RUN_20260228_001/decision_log.md) | 設計意思決定ログ（DEC-001〜012） | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/open_questions.md](specs/runs/RUN_20260228_001/open_questions.md) | ユーザー確認が必要な未決事項（Q-S001等） | 2026-02-28 |
 | [specs/repo_workflow.md](specs/repo_workflow.md) | project 固有の branch 命名、merge 方針、shared 変更の流し方、git 実行安全ルール、実装者自身によるテスト責務 | 2026-03-15 |
-| [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（ドライブピアス補正式・実機照合済み） | 2026-03-01 |
+| [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（od_rateの1hit単位切り捨て・共鳴OD重複防止を反映） | 2026-04-03 |
 | [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
 | [specs/dev_principles.md](specs/dev_principles.md) | 開発原則：バグ切り分け・UI/エンジン責務境界・安易な実装禁止事項・新UI設計指針（原則1〜5） | 2026-03-16 |
 | [specs/ui_next_game_rules_index.md](specs/ui_next_game_rules_index.md) | UI Next 旧実装参照インデックス：旧UIファイル構造・spec要素対応表・エンジン層ゲームルール辞書（A〜E カテゴリ） | 2026-03-16 |

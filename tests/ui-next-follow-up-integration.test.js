@@ -413,6 +413,156 @@ test('pursuedHitCount resolves from back member pursuit skill hit_count', () => 
   assert.equal(actorEntry.pursuedHitCount, 4, 'pursuedHitCount should be 4 from pursuit skill hit_count');
 });
 
+test('pursuedHitCount resolves from back member triggered pursuit skill hit_count', () => {
+  const actorSkill = createSkill({
+    id: 9316,
+    name: 'Triggered Pursuit Source Test',
+    targetType: 'Single',
+    spCost: 3,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+
+  const members = Array.from({ length: 6 }, (_, index) =>
+    new CharacterStyle({
+      characterId: index === 0 ? 'TRIGGERED_HIT_COUNT_ACTOR' : `TRG${index + 1}`,
+      characterName: index === 0 ? 'TRIGGERED_HIT_COUNT_ACTOR' : `TRG${index + 1}`,
+      styleId: 9500 + index,
+      styleName: `TRG_STYLE_${index + 1}`,
+      partyIndex: index,
+      position: index,
+      initialSP: 10,
+      skills:
+        index === 0
+          ? [actorSkill]
+          : [PROTECTION_SKILL],
+      triggeredSkills:
+        index === 3
+          ? [PURSUIT_SKILL_4HIT]
+          : [],
+      passives: [],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 9316, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    {
+      followUpOverrides: [{ position: 3, enemyIndex: 0 }],
+    }
+  );
+
+  const actorEntry = record.actions.find((a) => a.characterId === 'TRIGGERED_HIT_COUNT_ACTOR');
+  assert.equal(
+    actorEntry.pursuedHitCount,
+    4,
+    'pursuedHitCount should be 4 from triggered pursuit skill hit_count'
+  );
+});
+
+test('pursuedHitCount falls back by weapon exception when pursuit skill cannot be resolved', () => {
+  const actorSkill = createSkill({
+    id: 9317,
+    name: 'Fallback Pursuit Source Test',
+    targetType: 'Single',
+    spCost: 3,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+
+  const members = Array.from({ length: 6 }, (_, index) =>
+    new CharacterStyle({
+      characterId: index === 0 ? 'FALLBACK_HIT_COUNT_ACTOR' : index === 3 ? 'IMinase' : `FAL${index + 1}`,
+      characterName: index === 0 ? 'FALLBACK_HIT_COUNT_ACTOR' : `FAL${index + 1}`,
+      styleId: 9600 + index,
+      styleName: `FAL_STYLE_${index + 1}`,
+      partyIndex: index,
+      position: index,
+      initialSP: 10,
+      weaponType: index === 3 ? 'Gun' : 'Sword',
+      skills: index === 0 ? [actorSkill] : [PROTECTION_SKILL],
+      triggeredSkills: [],
+      passives: [],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 9317, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    {
+      followUpOverrides: [{ position: 3, enemyIndex: 0 }],
+    }
+  );
+
+  const actorEntry = record.actions.find((a) => a.characterId === 'FALLBACK_HIT_COUNT_ACTOR');
+  assert.equal(actorEntry.pursuedHitCount, 2, 'IMinase(gun) fallback should resolve to 2 hits');
+});
+
+test('pursuedHitCount resolves transformed pursuit skill hit_count (ネコジェット・シャテキ)', () => {
+  const actorSkill = createSkill({
+    id: 9318,
+    name: 'Transformed Pursuit Source Test',
+    targetType: 'Single',
+    spCost: 3,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const transformedPursuit = createSkill({
+    id: 9391,
+    name: 'ネコジェット・シャテキ',
+    targetType: 'Single',
+    hitCount: 5,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+
+  const members = Array.from({ length: 6 }, (_, index) =>
+    new CharacterStyle({
+      characterId: index === 0 ? 'TRANSFORMED_HIT_COUNT_ACTOR' : `TRF${index + 1}`,
+      characterName: index === 0 ? 'TRANSFORMED_HIT_COUNT_ACTOR' : `TRF${index + 1}`,
+      styleId: 9700 + index,
+      styleName: `TRF_STYLE_${index + 1}`,
+      partyIndex: index,
+      position: index,
+      initialSP: 10,
+      skills: index === 0 ? [actorSkill] : [PROTECTION_SKILL],
+      triggeredSkills: index === 3 ? [transformedPursuit] : [],
+      passives: [],
+    })
+  );
+
+  const state = createBattleStateFromParty(new Party(members));
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 9318, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    {
+      followUpOverrides: [{ position: 3, enemyIndex: 0 }],
+    }
+  );
+
+  const actorEntry = record.actions.find((a) => a.characterId === 'TRANSFORMED_HIT_COUNT_ACTOR');
+  assert.equal(actorEntry.pursuedHitCount, 5, 'Transformed pursuit skill should resolve to 5 hits');
+});
+
 test('pursuit OD is not multiplied by enemy count on All-target skill', () => {
   const allTargetSkill = createSkill({
     id: 9307,
