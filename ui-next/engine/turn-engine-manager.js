@@ -1550,6 +1550,7 @@ export class TurnEngineManager {
         costDelta: Number.isFinite(costDelta) ? costDelta : 0,
         costPreSp: Number.isFinite(startSp) ? startSp : null,
         costPostSp: Number.isFinite(endSp) ? endSp : null,
+        funnelApplied: structuredClone(action?.funnelApplied ?? []),
         statusEffectsApplied: structuredClone(action?.statusEffectsApplied ?? []),
         statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
         enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),

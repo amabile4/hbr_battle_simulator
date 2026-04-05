@@ -1097,6 +1097,45 @@ test('TurnRowController opens enemy detail popup from Enemy label context menu',
     assert.match(popup.textContent ?? '', /攻撃力ダウン/);
   }));
 
+test('TurnRowController opens enemy detail popup from Enemy label click', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 9504,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1
+    );
+    state.turnState.enemyState.enemyNamesByEnemy = {
+      0: 'Alpha',
+    };
+    state.turnState.enemyState.statuses = [
+      {
+        statusType: 'DefenseDown',
+        targetIndex: 0,
+        remainingTurns: 2,
+        exitCond: 'EnemyTurnEnd',
+      },
+    ];
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /E1 Alpha/);
+    assert.match(popup.textContent ?? '', /防御力ダウン/);
+  }));
+
 test('TurnRowController committed enemy detail popup uses stateBefore (same turn) instead of next turn state', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
@@ -1397,6 +1436,148 @@ test('char detail popup shows preview section at top of status tab', () =>
     assert.doesNotMatch(popup.textContent ?? '', /0回/);
     const previewBlocks = popup.querySelectorAll('.char-popup-preview-section .char-popup-buff-block');
     assert.equal(previewBlocks.length > 0, true);
+  }));
+
+test('char detail popup prefixes elemental critical labels and icons with 雷 for Thunder effects', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [
+          {
+            statusType: 'CriticalDamageUp',
+            power: 0.9,
+            remaining: 7,
+            exitCond: 'PlayerTurnEnd',
+            elements: ['Thunder'],
+            sourceSkillName: 'ノヴァエリミネーション',
+            sourceCharacterName: '七瀬 七海',
+          },
+          {
+            statusType: 'CriticalRateUp',
+            power: 1,
+            remaining: 7,
+            exitCond: 'PlayerTurnEnd',
+            elements: ['Thunder'],
+            sourceSkillName: 'ノヴァエリミネーション',
+            sourceCharacterName: '七瀬 七海',
+          },
+        ],
+        previewActionFlow: [],
+      },
+      { x: 200, y: 120, isCommitted: false }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /雷クリティカルダメージアップ/);
+    assert.match(popup.textContent ?? '', /雷クリティカル確率アップ/);
+
+    const statusIcons = [...popup.querySelectorAll('.char-popup-buff-icon img')].map((img) => img.getAttribute('src') ?? '');
+    assert.equal(statusIcons.some((src) => src.includes('ThunderCriticalDamageUp.webp')), true);
+    assert.equal(statusIcons.some((src) => src.includes('ThunderCriticalRateUp.webp')), true);
+  }));
+
+test('char detail popup shows Funnel size label by power mapping (25=大, 50=特大)', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [
+          {
+            statusType: 'Funnel',
+            power: 3,
+            remaining: 1,
+            exitCond: 'Count',
+            sourceSkillName: '連撃大テスト',
+            sourceCharacterName: '七瀬 七海',
+            metadata: { damageBonus: 0.25 },
+          },
+          {
+            statusType: 'Funnel',
+            power: 3,
+            remaining: 1,
+            exitCond: 'Count',
+            sourceSkillName: '連撃特大テスト',
+            sourceCharacterName: '七瀬 七海',
+            metadata: { damageBonus: 0.5 },
+          },
+        ],
+        previewActionFlow: [],
+      },
+      { x: 200, y: 120, isCommitted: false }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /連撃（大）3回\s*75%/);
+    assert.match(popup.textContent ?? '', /連撃（特大）3回\s*150%/);
+  }));
+
+test('char detail popup preview section renders Funnel from previewActionFlow.funnelApplied', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [],
+        previewActionFlow: [
+          {
+            order: 1,
+            actorCharacterId: 'NNanase',
+            actorCharacterName: '七瀬 七海',
+            skillId: 46004517,
+            skillName: 'ハッピー！エッグ・ラッシュ！',
+            statusEffectsApplied: [],
+            funnelApplied: [
+              {
+                targetCharacterId: 'NNanase',
+                skillName: 'ハッピー！エッグ・ラッシュ！',
+                hitBonus: 3,
+                damageBonus: 0.5,
+                remaining: 1,
+                exitCond: 'Count',
+              },
+            ],
+          },
+        ],
+      },
+      { x: 200, y: 120, isCommitted: false }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /ハッピー！エッグ・ラッシュ！/);
+    assert.match(popup.textContent ?? '', /連撃（特大）3回\s*150%/);
   }));
 
 test('TurnRowController committed char detail popup includes committed action flow section', () =>

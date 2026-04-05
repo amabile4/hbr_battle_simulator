@@ -1498,6 +1498,7 @@ export class TurnRowController {
         costDelta: Number.isFinite(costDelta) ? costDelta : 0,
         costPreSp: Number.isFinite(startSp) ? startSp : null,
         costPostSp: Number.isFinite(endSp) ? endSp : null,
+        funnelApplied: structuredClone(action?.funnelApplied ?? []),
         statusEffectsApplied: structuredClone(action?.statusEffectsApplied ?? []),
         statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
         enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),
@@ -1545,8 +1546,14 @@ export class TurnRowController {
               (event) => matchesMember(event, action)
             )
           : [];
+        const funnelApplied = Array.isArray(action?.funnelApplied)
+          ? action.funnelApplied.filter(
+              (event) => matchesMember(event, action)
+            )
+          : [];
         return {
           ...action,
+          funnelApplied,
           statusEffectsApplied,
           statusEffectsRemoved,
           enemyStatusChanges: [],
@@ -2072,7 +2079,7 @@ export class TurnRowController {
         <div class="turn-info-enemy-row relative">
           <button type="button"
                   data-role="enemy-detail-trigger"
-                  title="左クリック/右クリック/長押しで敵詳細を表示"
+              title="左クリック/右クリック/長押しで敵状態詳細を表示"
                   class="turn-info-enemy-button">
             <span class="turn-info-enemy-button__label">敵状態確認</span>
           </button>
@@ -2120,7 +2127,7 @@ export class TurnRowController {
       <div class="turn-info-enemy-row relative">
         <button type="button"
                 data-role="enemy-detail-trigger"
-                title="左クリック/右クリック/長押しで敵詳細を表示"
+          title="左クリック/右クリック/長押しで敵状態詳細を表示"
                 class="turn-info-enemy-button">
           <span class="turn-info-enemy-button__label">敵状態確認</span>
         </button>
@@ -2736,6 +2743,12 @@ export class TurnRowController {
       label.addEventListener('contextmenu', (event) => {
         event.stopPropagation();
         event.preventDefault();
+        clearLongPressTimer();
+        openEnemyDetail(event);
+      });
+
+      label.addEventListener('click', (event) => {
+        event.stopPropagation();
         clearLongPressTimer();
         openEnemyDetail(event);
       });

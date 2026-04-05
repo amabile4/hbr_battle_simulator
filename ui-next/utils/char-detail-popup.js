@@ -172,6 +172,24 @@ const STATUS_LABELS = {
   SpeedDown:                 '速度ダウン',
 };
 
+const ELEMENT_KANJI = Object.freeze({
+  Fire: '火',
+  Ice: '氷',
+  Thunder: '雷',
+  Light: '光',
+  Dark: '闇',
+});
+
+// elements_skill.md に対応する element-prefixed statusType セット
+// {Element}{BaseType}.webp アイコンが存在し、ラベルに属性漢字を付加する対象
+const ELEMENT_PREFIXED_STATUS_TYPES = new Set([
+  'DarkAttackUp', 'DarkCriticalDamageUp', 'DarkCriticalRateUp', 'DarkDefenseDown',
+  'FireAttackUp', 'FireCriticalDamageUp', 'FireCriticalRateUp', 'FireDefenseDown',
+  'IceAttackUp', 'IceCriticalDamageUp', 'IceCriticalRateUp', 'IceDefenseDown',
+  'LightAttackUp', 'LightCriticalDamageUp', 'LightCriticalRateUp', 'LightDefenseDown',
+  'ThunderAttackUp', 'ThunderCriticalDamageUp', 'ThunderCriticalRateUp', 'ThunderDefenseDown',
+]);
+
 export const STATUS_TYPE_DISPLAY_ORDER = Object.freeze(Object.keys(STATUS_LABELS));
 
 // true: json/skill_types.json の ID 昇順を優先
@@ -279,6 +297,26 @@ export function getStatusLabel(statusType) {
   return STATUS_LABELS[String(statusType ?? '')] ?? String(statusType ?? '');
 }
 
+function resolveElementalStatusType(statusType, elements) {
+  const normalizedType = String(statusType ?? '').trim();
+  const firstElement = String(Array.isArray(elements) ? elements[0] ?? '' : '').trim();
+  if (!normalizedType || !firstElement) {
+    return '';
+  }
+  const compositeType = `${firstElement}${normalizedType}`;
+  return ELEMENT_PREFIXED_STATUS_TYPES.has(compositeType) ? compositeType : '';
+}
+
+function resolveElementalStatusLabel(statusType, elements) {
+  const baseLabel = getStatusLabel(statusType);
+  const firstElement = String(Array.isArray(elements) ? elements[0] ?? '' : '').trim();
+  const compositeType = resolveElementalStatusType(statusType, elements);
+  if (!compositeType || !ELEMENT_KANJI[firstElement]) {
+    return baseLabel;
+  }
+  return `${ELEMENT_KANJI[firstElement]}${baseLabel}`;
+}
+
 // ============================================================
 // HTML エスケープ
 // ============================================================
@@ -290,6 +328,40 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+const FUNNEL_SIZE_BY_PERCENT = Object.freeze({
+  6: '小',
+  12: '中',
+  25: '大',
+  50: '特大',
+});
+
+function normalizeFunnelPercentValue(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  if (numeric <= 0) {
+    return 0;
+  }
+  // 0.06 のような倍率形式と 6 のような百分率形式を両対応にする。
+  const percent = numeric <= 1 ? numeric * 100 : numeric;
+  return Math.round(percent);
+}
+
+function resolveFunnelSizeLabel(effect) {
+  const metadataPercent = normalizeFunnelPercentValue(effect?.metadata?.damageBonus);
+  if (FUNNEL_SIZE_BY_PERCENT[metadataPercent]) {
+    return FUNNEL_SIZE_BY_PERCENT[metadataPercent];
+  }
+
+  const powerPercent = normalizeFunnelPercentValue(effect?.power);
+  if (FUNNEL_SIZE_BY_PERCENT[powerPercent]) {
+    return FUNNEL_SIZE_BY_PERCENT[powerPercent];
+  }
+
+  return '';
+}
+
 function buildEffectDisplayInfo(effect) {
   const statusType = String(effect?.statusType ?? '');
   const power = Number(effect?.power ?? 0);
@@ -297,12 +369,14 @@ function buildEffectDisplayInfo(effect) {
   if (statusType === 'Funnel') {
     const hitCount = Number.isFinite(power) ? Math.max(0, Math.round(power)) : 0;
     const perHitBonus = Number(effect?.metadata?.damageBonus ?? 0);
-    const totalBonusPercent = Number.isFinite(perHitBonus)
-      ? Math.round(hitCount * perHitBonus * 100)
+    const perHitBonusPercent = normalizeFunnelPercentValue(perHitBonus);
+    const totalBonusPercent = Number.isFinite(perHitBonusPercent)
+      ? Math.round(hitCount * perHitBonusPercent)
       : 0;
+    const funnelSizeLabel = resolveFunnelSizeLabel(effect);
     const fallbackDesc =
       hitCount > 0
-        ? `連撃（小）${hitCount}回 ${Math.max(0, totalBonusPercent)}%`
+        ? `連撃${funnelSizeLabel ? `（${funnelSizeLabel}）` : ''}${hitCount}回 ${Math.max(0, totalBonusPercent)}%`
         : '';
     return {
       powerLabel: '',
@@ -346,7 +420,7 @@ function buildSpecialStatusEffects({ isReinforcedMode = false, reinforcedTurnsRe
 }
 
 function buildStatusBlockHtml(effect) {
-  const label = getStatusLabel(effect.statusType);
+  const label = resolveElementalStatusLabel(effect.statusType, effect.elements);
   const skillName = String(effect.sourceSkillName ?? '').trim();
   const displayInfo = buildEffectDisplayInfo(effect);
   const desc = displayInfo.desc;
@@ -359,7 +433,8 @@ function buildStatusBlockHtml(effect) {
       ? `${Number(effect.remaining ?? 0)}回`
       : `${Number(effect.remaining ?? 0)}T`;
   const sourceCharName = String(effect.sourceCharacterName ?? '').trim();
-  const iconUrl = String(effect?.iconUrl ?? '').trim() || resolveSkillTypeIconUrl(effect.statusType);
+  const elementalStatusType = resolveElementalStatusType(effect.statusType, effect.elements);
+  const iconUrl = String(effect?.iconUrl ?? '').trim() || resolveSkillTypeIconUrl(elementalStatusType || effect.statusType);
   return (
     `<div class="char-popup-buff-block">` +
     `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">${iconUrl ? `<img src="${iconUrl}" alt="${esc(String(effect.statusType ?? ''))}" />` : ''}</div>` +
@@ -379,7 +454,7 @@ function buildPreviewStatusSectionHtml(previewActionFlow) {
   const previewEffects = source
     .flatMap((action) => {
       const applied = Array.isArray(action?.statusEffectsApplied) ? action.statusEffectsApplied : [];
-      return applied.map((event) => ({
+      const mappedApplied = applied.map((event) => ({
         statusType: (() => {
           const explicitStatusType = String(event?.statusType ?? '').trim();
           if (explicitStatusType) {
@@ -398,6 +473,20 @@ function buildPreviewStatusSectionHtml(previewActionFlow) {
         sourceSkillName: String(event?.sourceSkillName ?? event?.skillName ?? action?.skillName ?? '').trim(),
         sourceCharacterName: String(event?.sourceCharacterName ?? action?.actorCharacterName ?? '').trim(),
       }));
+      const funnelApplied = Array.isArray(action?.funnelApplied) ? action.funnelApplied : [];
+      const mappedFunnel = funnelApplied.map((event) => ({
+        statusType: 'Funnel',
+        power: Number(event?.hitBonus ?? event?.power ?? 0),
+        remaining: Number(event?.remaining ?? 0),
+        exitCond: String(event?.exitCond ?? 'Count'),
+        elements: [],
+        sourceSkillName: String(event?.sourceSkillName ?? event?.skillName ?? action?.skillName ?? '').trim(),
+        sourceCharacterName: String(event?.sourceCharacterName ?? action?.actorCharacterName ?? '').trim(),
+        metadata: {
+          damageBonus: Number(event?.damageBonus ?? event?.metadata?.damageBonus ?? 0),
+        },
+      }));
+      return [...mappedApplied, ...mappedFunnel];
     })
     .filter((effect) => Boolean(String(effect.statusType ?? '').trim()));
   const previewBlocks = sortStatusEffectsForStatusTab(previewEffects)

@@ -11,6 +11,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   isActiveEnemyStatus,
@@ -22,6 +24,44 @@ import {
   buildEnemyStatusIconsHtml,
   getEnemyStatusMetadata,
 } from '../ui-next/utils/enemy-status-display.js';
+import { getStatusLabel } from '../ui-next/utils/char-detail-popup.js';
+
+const ELEMENT_KANJI = Object.freeze({
+  Fire: '火',
+  Ice: '氷',
+  Thunder: '雷',
+  Light: '光',
+  Dark: '闇',
+});
+
+const ELEMENT_PREFIXES = Object.freeze(Object.keys(ELEMENT_KANJI));
+
+function loadElementCompositeSkillTypes() {
+  const filePath = path.resolve(process.cwd(), 'docs/active/elements_skill.md');
+  const content = fs.readFileSync(filePath, 'utf8');
+  return content
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line && line !== 'skill_type');
+}
+
+function splitElementCompositeSkillType(compositeType) {
+  const normalized = String(compositeType ?? '').trim();
+  for (const element of ELEMENT_PREFIXES) {
+    if (normalized.startsWith(element)) {
+      return {
+        compositeType: normalized,
+        element,
+        baseType: normalized.slice(element.length),
+      };
+    }
+  }
+  return {
+    compositeType: normalized,
+    element: '',
+    baseType: normalized,
+  };
+}
 
 /**
  * WBS-4d-a1: isActiveEnemyStatus の判定テスト
@@ -388,4 +428,48 @@ test('buildEnemyStatusIconsHtml uses element-prefixed icon for status with eleme
 
   assert(html.includes('ThunderDefenseDown.webp'), 'should use ThunderDefenseDown.webp icon');
   assert(html.includes('雷防御力ダウン'), 'should show 雷防御力ダウン in alt/title');
+});
+
+test('all skill_type entries in docs/active/elements_skill.md use element-prefixed label and icon when elements[0] exists', () => {
+  const compositeTypes = loadElementCompositeSkillTypes();
+  assert.ok(compositeTypes.length > 0, 'elements_skill.md should contain at least one skill_type entry');
+
+  for (const compositeType of compositeTypes) {
+    const { element, baseType } = splitElementCompositeSkillType(compositeType);
+    assert.ok(element, `${compositeType}: should start with a known element prefix`);
+    assert.ok(baseType, `${compositeType}: should have a non-empty base skill_type`);
+
+    const status = {
+      statusType: baseType,
+      elements: [element],
+      remaining: 1,
+      power: 0.5,
+      exitCond: 'EnemyTurnEnd',
+      sourceSkillName: `${compositeType} source`,
+      sourceCharacterName: 'test caster',
+    };
+
+    const baseLabel = getStatusLabel(baseType);
+    const expectedLabel = `${ELEMENT_KANJI[element]}${baseLabel}`;
+
+    const tableHtml = buildEnemyStatusTableHtml([status]);
+    assert(
+      tableHtml.includes(`${compositeType}.webp`),
+      `${compositeType}: table html should use element-prefixed icon`
+    );
+    assert(
+      tableHtml.includes(expectedLabel),
+      `${compositeType}: table html should include prefixed label ${expectedLabel}`
+    );
+
+    const iconsHtml = buildEnemyStatusIconsHtml([status], { limit: 5 });
+    assert(
+      iconsHtml.includes(`${compositeType}.webp`),
+      `${compositeType}: icons html should use element-prefixed icon`
+    );
+    assert(
+      iconsHtml.includes(`alt="${expectedLabel}"`),
+      `${compositeType}: icons html should include prefixed alt label ${expectedLabel}`
+    );
+  }
 });
