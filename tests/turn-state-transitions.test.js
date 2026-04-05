@@ -2558,6 +2558,135 @@ test('コードダクネス stores Hacking from the selected SkillSwitch variant
   assert.equal(fragile.remainingTurns, 2);
 });
 
+test('コードダクネス reads per-effect limitType from JSON (Hacking=None, Fragile=Default)', () => {
+  const store = getStore();
+  const skillId = 46001215;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === state.party[0].characterId);
+  const hacking = action.enemyStatusChanges.find((item) => item.statusType === 'Hacking');
+  const fragile = action.enemyStatusChanges.find((item) => item.statusType === 'Fragile');
+
+  assert.ok(hacking);
+  assert.equal(hacking.limitType, 'None');
+  assert.ok(fragile);
+  assert.equal(fragile.limitType, 'Default');
+});
+
+test('Default limitType enemy status stacks when previous instance remains active (Eternal Fragile)', () => {
+  const store = getStore();
+  const skillId = 46001314; // まだまだ行くで！: Fragile (limitType=Default, exitCond=Eternal)
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  const turn1 = commitTurn(state, previewActorSkill(state, skillId));
+  const turn2 = commitTurn(turn1.nextState, previewActorSkill(turn1.nextState, skillId));
+  const fragileStatuses = turn2.nextState.turnState.enemyState.statuses.filter(
+    (status) => status.statusType === 'Fragile' && Number(status?.targetIndex ?? -1) === 0
+  );
+
+  assert.equal(fragileStatuses.length, 2);
+});
+
+test('コードダクネス stacks in extra-turn sequence (Hacking non-stack, Fragile stack)', () => {
+  const store = getStore();
+  const skillId = 46001215;
+  const sourceState = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  const codeDarknessSkill = structuredClone(sourceState.party[0].getSkill(skillId));
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'CD1',
+        characterName: 'CD1',
+        initialSP: 30,
+        skills: [codeDarknessSkill],
+      };
+    }
+    if (idx === 1) {
+      return {
+        skills: [
+          {
+            id: 990091,
+            name: '追加ターン付与(テスト)',
+            sp_cost: 0,
+            additionalTurnRule: {
+              skillUsableInExtraTurn: true,
+              additionalTurnGrantInExtraTurn: true,
+              conditions: {
+                requiresOverDrive: false,
+                requiresReinforcedMode: false,
+                excludesExtraTurnForSkillUse: false,
+                excludesExtraTurnForAdditionalTurnGrant: false,
+              },
+              additionalTurnTargetTypes: ['AllyFront'],
+            },
+            parts: [{ skill_type: 'AdditionalTurn', target_type: 'AllyFront' }],
+          },
+        ],
+      };
+    }
+    return {
+      skills: [createProtectionSkill(9800 + idx)],
+    };
+  });
+  const initial = createBattleStateFromParty(party);
+  const actorId = 'CD1';
+  const extraTurnGranterId = 'M2';
+
+  // T1: 追加ターンスキル + コードダクネス + 補助行動
+  const turn1Preview = previewTurn(initial, {
+    0: { characterId: actorId, skillId, targetEnemyIndex: 0 },
+    1: { characterId: extraTurnGranterId, skillId: 990091 },
+    2: { characterId: initial.party[2].characterId, skillId: initial.party[2].skills[0].skillId },
+  }, null, 1);
+  const turn1 = commitTurn(initial, turn1Preview);
+  assert.equal(turn1.nextState.turnState.turnType, 'extra');
+
+  // EX: コードダクネス
+  const extraCommitted = commitTurn(
+    turn1.nextState,
+    previewTurn(turn1.nextState, {
+      0: { characterId: actorId, skillId, targetEnemyIndex: 0 },
+      1: { characterId: extraTurnGranterId, skillId: turn1.nextState.party[1].skills[0].skillId },
+      2: { characterId: initial.party[2].characterId, skillId: initial.party[2].skills[0].skillId },
+    }, null, 1)
+  );
+  const statuses = (extraCommitted.nextState.turnState.enemyState?.statuses ?? []).filter(
+    (status) => Number(status?.targetIndex ?? -1) === 0
+  );
+  const hackingStatuses = statuses.filter((status) => status.statusType === 'Hacking');
+  const fragileStatuses = statuses.filter((status) => status.statusType === 'Fragile');
+
+  assert.equal(hackingStatuses.length, 1, 'Hacking(limitType=None) は重ならないこと');
+  assert.equal(fragileStatuses.length, 2, 'Fragile(limitType=Default) は重なること');
+});
+
+test('コードダクネス stacks across OD2 actions in same turn (Hacking non-stack, Fragile stack)', () => {
+  const store = getStore();
+  const skillId = 46001215;
+  const initial = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  initial.turnState.odGauge = 200;
+  const odState = activateOverdrive(initial, 2, 'preemptive');
+
+  // T1 OD2-1: コードダクネス
+  const odAction1 = commitTurn(odState, previewActorSkill(odState, skillId));
+  assert.equal(odAction1.nextState.turnState.turnType, 'od');
+
+  // T1 OD2-2: コードダクネス
+  const odAction2 = commitTurn(
+    odAction1.nextState,
+    previewActorSkill(odAction1.nextState, skillId)
+  );
+  const statuses = (odAction2.nextState.turnState.enemyState?.statuses ?? []).filter(
+    (status) => Number(status?.targetIndex ?? -1) === 0
+  );
+  const hackingStatuses = statuses.filter((status) => status.statusType === 'Hacking');
+  const fragileStatuses = statuses.filter((status) => status.statusType === 'Fragile');
+
+  assert.equal(hackingStatuses.length, 1, 'Hacking(limitType=None) は重ならないこと');
+  assert.equal(fragileStatuses.length, 2, 'Fragile(limitType=Default) は重なること');
+});
+
 test('エンジェルズ・ウィング stores Cover with duration derived from power in real data', () => {
   const store = getStore();
   const skillId = 46002106;

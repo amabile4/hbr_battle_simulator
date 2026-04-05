@@ -159,19 +159,19 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
 
 作業:
 
-- [ ] `turn-controller` の付与/更新/消滅経路を一本化
-- [ ] `record`/`snapshot` に必要な enemy status 断面を保存
-  - [ ] `committed.stateSnapshot` に `enemyStatusSnapshot` を追加（後方互換）
-- [ ] `enemyStatusSnapshot` の reader contract を固定
-  - [ ] runtime/UI の正本は `turnState.enemyState.statuses`
-  - [ ] `enemyStatusSnapshot` は committed row 診断用 optional cache
-  - [ ] 読み出し時は `enemyStatusSnapshot ?? turnState.enemyState.statuses ?? []`
-  - [ ] 旧 record（`enemyStatusSnapshot` なし）での fallback 経路を明記
-- [ ] `recalculateFrom` 実行で敵 status が再構築されるように接続
-- [ ] 既存の `PlayerTurnEnd`/敵行動境界での tick を再確認
-- [ ] identity collision の扱いを設計どおりに固定
-  - [ ] 選択肢A: `statusType|elements` の max-merge を固定し、既知制約を文書化
-  - [ ] 選択肢B: `effectId` 単位 instance 管理と表示集約規則は `T34-FU1` で実施
+- [x] `turn-controller` の付与/更新/消滅経路を一本化
+- [x] `record`/`snapshot` に必要な enemy status 断面を保存
+  - [x] `committed.stateSnapshot` に `enemyStatusSnapshot` を追加（後方互換）
+- [x] `enemyStatusSnapshot` の reader contract を固定
+  - [x] runtime/UI の正本は `turnState.enemyState.statuses`
+  - [x] `enemyStatusSnapshot` は committed row 診断用 optional cache
+  - [x] 読み出し時は `enemyStatusSnapshot ?? turnState.enemyState.statuses ?? []`
+  - [x] 旧 record（`enemyStatusSnapshot` なし）での fallback 経路を明記
+- [x] `recalculateFrom` 実行で敵 status が再構築されるように接続
+- [x] 既存の `PlayerTurnEnd`/敵行動境界での tick を再確認
+- [x] identity collision の扱いを設計どおりに固定
+  - [x] 選択肢A: `statusType|elements` の max-merge を固定し、既知制約を文書化
+  - [x] 選択肢B: `effectId` 単位 instance 管理と表示集約規則は `T34-FU1` へ別タスク化済み
 
 完了条件:
 

@@ -2366,6 +2366,15 @@ function upsertEnemyStatus(turnState, status, enemyCountOverride = null) {
   if (!normalized) {
     return;
   }
+  const normalizedLimitType = String(normalized?.limitType ?? '').trim();
+  if (normalizedLimitType === 'Default') {
+    turnState.enemyState = {
+      ...enemyState,
+      enemyCount: normalizedEnemyCount,
+      statuses: [...enemyState.statuses, normalized],
+    };
+    return;
+  }
   const targetIndex = Number(normalized.targetIndex ?? 0);
   const identityKey = getEnemyStatusIdentityKey(normalized);
   const matched = enemyState.statuses.find(
