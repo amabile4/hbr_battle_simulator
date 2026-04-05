@@ -7899,16 +7899,16 @@ function createSingleActionPreviewRecord(actionEntry, options = {}) {
   };
 }
 
-function computeExpectedSupportBreakOdBonus(state, actor, skill, actionEntry) {
+function computeSupportBreakOdBonusEvents(state, actor, skill, actionEntry) {
   if (!actor) {
-    return 0;
+    return [];
   }
   const breakCount = resolveActionBreakTriggerCount(actionEntry);
   if (breakCount <= 0) {
-    return 0;
+    return [];
   }
 
-  let total = 0;
+  const events = [];
   const baseHitCount = resolveSkillHitCount(skill);
   const driveBonusPercent = resolveDrivePierceBonusPercent(baseHitCount, actor?.drivePiercePercent ?? 0);
   const driveMultiplier = 1 + driveBonusPercent / 100;
@@ -7969,11 +7969,30 @@ function computeExpectedSupportBreakOdBonus(state, actor, skill, actionEntry) {
       }
       // 実機照合: ブレイク時トリガーOD(共鳴含む)は od_rate 非適用だが、
       // 行動スキルの hit 数に基づくドライブピアス補正は適用する。
-      total = truncateToTwoDecimals(total + truncateToTwoDecimals(amount * driveMultiplier));
+      const adjustedAmount = truncateToTwoDecimals(amount * driveMultiplier);
+      events.push(
+        buildActionScopedEvent(
+          actionEntry,
+          createPassiveTriggerEvent(state.turnState, actor, passive, {
+            source: 'od_passive_breaking',
+            effectTypes: ['AdditionalHitOnBreaking', 'OverDrivePointUp'],
+            triggerType: 'OdPassiveTriggerOnBreaking',
+            skillId: Number(skill?.skillId ?? 0),
+            skillName: String(skill?.name ?? ''),
+            odGaugeDelta: adjustedAmount,
+            metadata: {
+              baseOverDrivePointUpPercent: amount,
+              drivePierceBonusPercent: driveBonusPercent,
+              driveMultiplier,
+              breakCount,
+            },
+          })
+        )
+      );
     }
   }
 
-  return total;
+  return events;
 }
 
 function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
@@ -8081,11 +8100,14 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const odGaugeBeforeMorale = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
   const moraleResult = applyMoraleEffectsFromActions(state, singleRecord);
   const odGaugeAfterMorale = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
-  const supportBreakOdBonus = computeExpectedSupportBreakOdBonus(
+  const supportBreakOdEvents = computeSupportBreakOdBonusEvents(
     state,
     member,
     skillForCount,
     actionEntry
+  );
+  const supportBreakOdBonus = truncateToTwoDecimals(
+    supportBreakOdEvents.reduce((sum, event) => sum + Number(event?.odGaugeDelta ?? 0), 0)
   );
   if (supportBreakOdBonus > 0) {
     const appliedMoraleOdDelta = truncateToTwoDecimals(odGaugeAfterMorale - odGaugeBeforeMorale);
@@ -8145,7 +8167,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     additionalTurnPassiveGrantedIds: moraleResult.additionalTurnPassiveGrantedIds,
     dpPassiveEvents: moraleResult.dpPassiveEvents,
     dpPassiveMotivationEvents: applyMotivationFromDpHealEvents(state, moraleResult.dpPassiveEvents),
-    passiveTriggerEvents: moraleResult.passiveTriggerEvents,
+    passiveTriggerEvents: [...moraleResult.passiveTriggerEvents, ...supportBreakOdEvents],
     motivationEvents,
     markEvents,
     fieldStateEvents,
@@ -10349,6 +10371,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     : [];
   const boundaryPassiveEvents = [];
   const boundaryDpEvents = [];
+  const boundarySpEvents = [];
   const enemyAttackEvents = [];
   const removeDebuffEvents = [];
   const epSkillEvents = [];
@@ -10469,6 +10492,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     const dpEvents = Array.isArray(enemyTurnStartResult.dpEvents) ? structuredClone(enemyTurnStartResult.dpEvents) : [];
     boundaryPassiveEvents.push(...passiveEvents);
     boundaryDpEvents.push(...dpEvents);
+    boundarySpEvents.push(...(enemyTurnStartResult.spEvents ?? []));
     nextTurnState.passiveEventsLastApplied = [...(nextTurnState.passiveEventsLastApplied ?? []), ...passiveEvents];
   }
 
@@ -10782,6 +10806,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       : [];
     boundaryPassiveEvents.push(...passiveEvents);
     boundaryDpEvents.push(...dpEvents);
+    boundarySpEvents.push(...(additionalTurnStartResult.spEvents ?? []));
     nextState.turnState.passiveEventsLastApplied = [
       ...(nextState.turnState.passiveEventsLastApplied ?? []),
       ...passiveEvents,
@@ -10801,6 +10826,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const snapAfter = snapshotPartyByPartyIndex(nextState.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);
   committed.transcendence = transcendenceSummary;
+  committed.skillSpEvents = structuredClone(skillSpEvents);
+  committed.passiveSpEvents = structuredClone([...recovery.spEvents, ...boundarySpEvents]);
   committed.passiveEvents = structuredClone([...currentTurnPassiveEvents, ...passiveTriggerEvents, ...boundaryPassiveEvents]);
   committed.dpEvents = structuredClone([...actionDpEvents, ...dpPassiveEvents, ...recoveryDpEvents, ...boundaryDpEvents]);
   committed.enemyAttackEvents = structuredClone(enemyAttackEvents);
