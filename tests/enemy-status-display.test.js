@@ -75,11 +75,11 @@ test('getActiveEnemyStatusesSorted filters and sorts by type priority', (t) => {
 
   const result = getActiveEnemyStatusesSorted(statuses);
 
-  // AttackDown, DefenseDown, AttackUp の順（debuff優先）
+  // skill_types.json ID 昇順: AttackUp(30), AttackDown(32), DefenseDown(34)
   assert.equal(result.length, 3, 'should filter out inactive status');
-  assert.equal(result[0].statusType, 'AttackDown', 'debuff should come first');
-  assert.equal(result[1].statusType, 'DefenseDown', 'second debuff');
-  assert.equal(result[2].statusType, 'AttackUp', 'buff comes last');
+  assert.equal(result[0].statusType, 'AttackUp', 'lower skill_type id should come first');
+  assert.equal(result[1].statusType, 'AttackDown', 'second lower skill_type id');
+  assert.equal(result[2].statusType, 'DefenseDown', 'third lower skill_type id');
 });
 
 test('getActiveEnemyStatusesSorted sorts by power descending when priority is same', (t) => {
@@ -251,4 +251,87 @@ test('getEnemyStatusMetadata handles null and defaults', (t) => {
   assert.equal(emptyMeta.power, 0);
   assert.deepEqual(emptyMeta.elements, []);
   assert.equal(emptyMeta.isActive, false);
+});
+
+/**
+ * 属性付き敵status の element-prefixed アイコン・ラベル表示テスト
+ */
+test('buildEnemyStatusTableHtml shows element-prefixed icon and label for DefenseDown with Ice elements', (t) => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      elements: ['Ice'],
+      remaining: 1,
+      power: 0.3,
+      exitCond: 'EnemyTurnEnd',
+      sourceSkillName: '目覚まし見て氷結',
+      sourceCharacterName: '小笠原 緋雨',
+    },
+  ];
+
+  const html = buildEnemyStatusTableHtml(statuses);
+
+  // element-prefixed icon URL が使われていること
+  assert(html.includes('IceDefenseDown.webp'), 'should use IceDefenseDown.webp icon');
+  // ラベルに '氷' が付加されていること
+  assert(html.includes('氷防御力ダウン'), 'should show 氷防御力ダウン label');
+  // スキル名・キャラ名が含まれること
+  assert(html.includes('目覚まし見て氷結'), 'should show skill name');
+  assert(html.includes('小笠原 緋雨'), 'should show character name');
+});
+
+test('buildEnemyStatusTableHtml shows element-prefixed icon and label for DefenseDown with Fire elements', (t) => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      elements: ['Fire'],
+      remaining: 1,
+      power: 0.3,
+      exitCond: 'EnemyTurnEnd',
+      sourceSkillName: 'ファイアグラビトン',
+      sourceCharacterName: '二階堂 三郷',
+    },
+  ];
+
+  const html = buildEnemyStatusTableHtml(statuses);
+
+  assert(html.includes('FireDefenseDown.webp'), 'should use FireDefenseDown.webp icon');
+  assert(html.includes('火防御力ダウン'), 'should show 火防御力ダウン label');
+});
+
+test('buildEnemyStatusTableHtml keeps base icon/label when elements is empty', (t) => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      elements: [],
+      remaining: 1,
+      power: 0.3,
+      exitCond: 'EnemyTurnEnd',
+    },
+  ];
+
+  const html = buildEnemyStatusTableHtml(statuses);
+
+  assert(html.includes('DefenseDown.webp'), 'should use base DefenseDown.webp icon');
+  assert(html.includes('防御力ダウン'), 'should show base label');
+  // 属性漢字が付かないこと
+  assert(!html.includes('氷防御力ダウン'), 'should not prefix element kanji');
+  assert(!html.includes('火防御力ダウン'), 'should not prefix element kanji');
+});
+
+test('buildEnemyStatusIconsHtml uses element-prefixed icon for status with elements', (t) => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      elements: ['Thunder'],
+      remaining: 1,
+      power: 0.3,
+      exitCond: 'EnemyTurnEnd',
+    },
+  ];
+
+  const html = buildEnemyStatusIconsHtml(statuses, { limit: 5 });
+
+  assert(html.includes('ThunderDefenseDown.webp'), 'should use ThunderDefenseDown.webp icon');
+  assert(html.includes('雷防御力ダウン'), 'should show 雷防御力ダウン in alt/title');
 });

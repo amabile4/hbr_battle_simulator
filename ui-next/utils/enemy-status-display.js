@@ -18,6 +18,11 @@ import {
 const MAX_ENEMY_STATUS_ICONS = 5;
 const SHOW_OVERFLOW_COUNT_IF_EXCEED = true;
 
+// true: json/skill_types.json の ID 昇順を優先
+// false: 旧来の debuff優先順を使用
+// すぐ元に戻したい場合はこの1行だけ false に変更する。
+const USE_SKILL_TYPE_ID_ASC_ORDER = true;
+
 // 敵向けの表示優先順（debuff優先）
 const ENEMY_STATUS_TYPE_DISPLAY_ORDER = [
   // Debuffs first (what we want to highlight for enemy)
@@ -58,6 +63,94 @@ const ENEMY_DISPLAY_ORDER_INDEX = new Map(
   ENEMY_STATUS_TYPE_DISPLAY_ORDER.map((statusType, index) => [statusType, index])
 );
 
+// json/skill_types.json の ID（必要な statusType のみ）
+// 未登録 statusType は旧来の優先順へフォールバックする。
+const ENEMY_STATUS_TYPE_ID_MAP = Object.freeze({
+  AttackUp: 30,
+  AttackDown: 32,
+  DefenseDown: 34,
+  DefenseUp: 36,
+  CriticalRateUp: 70,
+  CriticalRateDown: 72,
+  CriticalDamageUp: 74,
+  CriticalDamageDown: 76,
+  OverDrivePointUp: 80,
+  ResistUp: 100,
+  ResistDown: 102,
+  Fragile: 104,
+  Confusion: 106,
+  Imprison: 109,
+  OverDrivePointDown: 123,
+  Recoil: 128,
+  HealDown: 146,
+  Misfortune: 164,
+  SelfDamage: 192,
+  RemoveBuff: 235,
+  HealUp: 291,
+  Barrier: 321,
+});
+
+// 属性スキルタイプ用漢字マップ
+const ELEMENT_KANJI = Object.freeze({
+  Fire:    '火',
+  Ice:     '氷',
+  Thunder: '雷',
+  Light:   '光',
+  Dark:    '闇',
+});
+
+// elements_skill.md に対応する element-prefixed statusType セット
+// {Element}{BaseType}.webp アイコンが存在し、ラベルに属性漢字を付加する対象
+const ELEMENT_PREFIXED_STATUS_TYPES = new Set([
+  'DarkAttackUp', 'DarkCriticalDamageUp', 'DarkCriticalRateUp', 'DarkDefenseDown',
+  'DarkResistDown', 'DarkResistDownOverwrite', 'DarkZone',
+  'FireAttackUp', 'FireCriticalDamageUp', 'FireCriticalRateUp', 'FireDefenseDown',
+  'FireResistDown', 'FireResistDownOverwrite', 'FireZone',
+  'IceAttackUp', 'IceCriticalDamageUp', 'IceCriticalRateUp', 'IceDefenseDown',
+  'IceResistDown', 'IceResistDownOverwrite', 'IceSuperBreak', 'IceZone',
+  'LightAttackUp', 'LightCriticalDamageUp', 'LightCriticalRateUp', 'LightDefenseDown',
+  'LightResistDown', 'LightResistDownOverwrite', 'LightSuperBreak', 'LightZone',
+  'ThunderAttackUp', 'ThunderCriticalDamageUp', 'ThunderCriticalRateUp', 'ThunderDefenseDown',
+  'ThunderResistDown', 'ThunderResistDownOverwrite', 'ThunderZone',
+]);
+
+/**
+ * elements[0] が有効で element-prefixed icon が存在する場合は、そちらの URL を返す。
+ * （例: statusType='DefenseDown', elements=['Ice'] → IceDefenseDown.webp）
+ * @param {string} statusType
+ * @param {Array} elements
+ * @returns {string} iconUrl
+ */
+function resolveElementalIconUrl(statusType, elements) {
+  const firstElement = String(Array.isArray(elements) ? (elements[0] ?? '') : '').trim();
+  if (firstElement) {
+    const compositeType = `${firstElement}${statusType}`;
+    if (ELEMENT_PREFIXED_STATUS_TYPES.has(compositeType)) {
+      return resolveSkillTypeIconUrl(compositeType);
+    }
+  }
+  return resolveSkillTypeIconUrl(statusType);
+}
+
+/**
+ * elements[0] が有効で element-prefixed icon が存在する場合は、ラベルに属性漢字を付加する。
+ * （例: baseLabel='防御力ダウン', statusType='DefenseDown', elements=['Ice'] → '氷防御力ダウン'）
+ * @param {string} baseLabel
+ * @param {string} statusType
+ * @param {Array} elements
+ * @returns {string} label
+ */
+function resolveElementalLabel(baseLabel, statusType, elements) {
+  const firstElement = String(Array.isArray(elements) ? (elements[0] ?? '') : '').trim();
+  if (firstElement) {
+    const compositeType = `${firstElement}${statusType}`;
+    if (ELEMENT_PREFIXED_STATUS_TYPES.has(compositeType)) {
+      return `${ELEMENT_KANJI[firstElement] ?? ''}${baseLabel}`;
+    }
+  }
+  return baseLabel;
+}
+
 /**
  * 敵状態がアクティブ（表示対象）かを判定
  * @param {Object} status - 敵status object
@@ -79,8 +172,21 @@ export function isActiveEnemyStatus(status) {
 function getEnemyStatusPriorityIndex(status) {
   const statusType = String(status?.statusType ?? '').trim();
   const index = ENEMY_DISPLAY_ORDER_INDEX.get(statusType);
+
+  if (USE_SKILL_TYPE_ID_ASC_ORDER) {
+    const id = ENEMY_STATUS_TYPE_ID_MAP[statusType];
+    if (Number.isFinite(id)) {
+      return id;
+    }
+    // ID未定義タイプは旧来優先順を維持しつつ、ID定義タイプの後ろに並べる。
+    if (index !== undefined) {
+      return 10000 + index;
+    }
+    return 20000;
+  }
+
   // 優先テーブルにない場合は末尾扱い
-  return index !== undefined ? index : ENEMY_STATUS_TYPE_DISPLAY_ORDER.length;
+  return index !== undefined ? index : ENEMY_STATUS_TYPE_DISPLAY_ORDER.length + 10000;
 }
 
 /**
@@ -197,7 +303,8 @@ export function buildEnemyStatusTableHtml(statuses) {
   return sorted
     .map((status, index) => {
       const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
-      const label = getStatusLabel(statusType);
+      const elements = Array.isArray(status?.elements) ? status.elements : [];
+      const label = resolveElementalLabel(getStatusLabel(statusType), statusType, elements);
       const power = readEnemyStatusPower(status);
       const remaining = Number(status?.remaining ?? status?.remainingTurns ?? 0);
       const exitCond = String(status?.exitCond ?? '').trim();
@@ -216,7 +323,7 @@ export function buildEnemyStatusTableHtml(statuses) {
           ? `${remaining}\u56de`
           : `${remaining}T`;
 
-      const iconUrl = resolveSkillTypeIconUrl(statusType);
+      const iconUrl = resolveElementalIconUrl(statusType, elements);
       const esc = (str) =>
         String(str ?? '')
           .replace(/&/g, '&amp;')
@@ -295,18 +402,20 @@ export function buildEnemyStatusIconsHtml(statuses, options = {}) {
   
   const iconHtmls = visible.map((status, index) => {
     const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
+    const elements = Array.isArray(status?.elements) ? status.elements : [];
     const remaining = Number(status?.remaining ?? 0);
-    const iconUrl = resolveSkillTypeIconUrl(statusType);
+    const iconUrl = resolveElementalIconUrl(statusType, elements);
+    const displayLabel = resolveElementalLabel(getStatusLabel(statusType), statusType, elements);
     
     const title =
       remaining > 0
-        ? `${statusType} (残り${remaining}ターン)`
-        : statusType;
+        ? `${displayLabel} (残り${remaining}ターン)`
+        : displayLabel;
     
     return `
       <img
         src="${iconUrl}"
-        alt="${statusType}"
+        alt="${displayLabel}"
         title="${title}"
         style="width: ${size}; height: ${size}; margin-right: 2px; display: inline-block;"
       />

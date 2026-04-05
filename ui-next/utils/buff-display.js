@@ -12,6 +12,11 @@ import {
 
 const MAX_TOTAL_BUFF_ICONS = 10;
 
+// true: json/skill_types.json の ID 昇順を優先
+// false: 既存の STATUS_TYPE_DISPLAY_ORDER を使用
+// すぐ元に戻したい場合はこの1行だけ false に変更する。
+const USE_SKILL_TYPE_ID_ASC_ORDER = true;
+
 const NON_BUFF_STATUS_TYPES = new Set([
   'AttackDown',
   'AttackDownOverwrite',
@@ -36,6 +41,46 @@ const NON_BUFF_STATUS_TYPES = new Set([
 const DISPLAY_ORDER_INDEX = new Map(
   STATUS_TYPE_DISPLAY_ORDER.map((statusType, index) => [statusType, index])
 );
+
+// json/skill_types.json の ID（buff icon 表示で利用頻度の高いもの）
+// 未登録 statusType は既存順序へフォールバックする。
+const STATUS_TYPE_ID_MAP = Object.freeze({
+  HealDp: 20,
+  HealSp: 22,
+  AttackUp: 30,
+  DefenseUp: 36,
+  Funnel: 50,
+  CriticalRateUp: 70,
+  CriticalDamageUp: 74,
+  ResistUp: 100,
+  BuffCharge: 111,
+  GiveAttackBuffUp: 158,
+  DamageRateUp: 163,
+  MindEye: 187,
+  ToughnessUpValue: 199,
+  Shredding: 271,
+  HighBoost: 289,
+  HealUp: 291,
+});
+
+function getStatusTypeOrderValue(statusType) {
+  const normalized = String(statusType ?? '').trim();
+  const displayIndex = DISPLAY_ORDER_INDEX.get(normalized);
+
+  if (USE_SKILL_TYPE_ID_ASC_ORDER) {
+    const id = STATUS_TYPE_ID_MAP[normalized];
+    if (Number.isFinite(id)) {
+      return id;
+    }
+    // ID未定義タイプは既存順序を維持しつつ、ID定義タイプの後ろへ。
+    if (displayIndex !== undefined) {
+      return 10000 + displayIndex;
+    }
+    return 20000;
+  }
+
+  return displayIndex ?? Number.MAX_SAFE_INTEGER;
+}
 
 function isActiveEffect(effect) {
   if (String(effect?.exitCond ?? '') === 'Eternal') return true;
@@ -201,8 +246,7 @@ export function buildBuffListHtmlWithExtras(statusEffects, options = {}) {
   }
 
   const orderedStatusTypes = [...byType.keys()].sort((a, b) => {
-    return (DISPLAY_ORDER_INDEX.get(a) ?? Number.MAX_SAFE_INTEGER) -
-      (DISPLAY_ORDER_INDEX.get(b) ?? Number.MAX_SAFE_INTEGER);
+    return getStatusTypeOrderValue(a) - getStatusTypeOrderValue(b);
   });
 
   for (const statusType of orderedStatusTypes) {

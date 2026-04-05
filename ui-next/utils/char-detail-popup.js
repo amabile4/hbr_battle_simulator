@@ -172,6 +172,107 @@ const STATUS_LABELS = {
 
 export const STATUS_TYPE_DISPLAY_ORDER = Object.freeze(Object.keys(STATUS_LABELS));
 
+// true: json/skill_types.json の ID 昇順を優先
+// false: 従来の STATUS_TYPE_DISPLAY_ORDER 順を使用
+// すぐ元に戻したい場合はこの1行だけ false に変更する。
+const USE_SKILL_TYPE_ID_ASC_ORDER_IN_STATUS_TAB = true;
+
+const STATUS_TYPE_DISPLAY_ORDER_INDEX = new Map(
+  STATUS_TYPE_DISPLAY_ORDER.map((statusType, index) => [statusType, index])
+);
+
+// 状態変化タブ向け skill_type ID マップ（よく表示される種別を優先）
+// ID未定義は既存順へフォールバックする。
+const STATUS_TAB_SKILL_TYPE_ID_MAP = Object.freeze({
+  Reinforce: -2,
+  ActionDisabled: -1,
+  HealDp: 20,
+  HealSp: 22,
+  AttackUp: 30,
+  AttackDown: 32,
+  DefenseDown: 34,
+  DefenseUp: 36,
+  StunRandom: 41,
+  Funnel: 50,
+  Provoke: 54,
+  Invincible: 56,
+  CriticalRateUp: 70,
+  CriticalRateDown: 72,
+  CriticalDamageUp: 74,
+  CriticalDamageDown: 76,
+  OverDrivePointUp: 80,
+  ResistUp: 100,
+  ResistDown: 102,
+  Fragile: 104,
+  ConfusionRandom: 107,
+  ImprisonRandom: 110,
+  BuffCharge: 111,
+  OverDrivePointDown: 123,
+  RecoilRandom: 129,
+  HealDown: 146,
+  Cover: 162,
+  Misfortune: 164,
+  MindEye: 187,
+  SelfDamage: 192,
+  DebuffGuard: 226,
+  BreakGuard: 231,
+  RemoveBuff: 235,
+  Dodge: 243,
+  BreakDownTurnUp: 264,
+  RemoveDebuff: 301,
+  SuperBreakDown: 302,
+});
+
+function getStatusTabOrderValue(statusType) {
+  const normalized = String(statusType ?? '').trim();
+  const displayIndex = STATUS_TYPE_DISPLAY_ORDER_INDEX.get(normalized);
+
+  if (USE_SKILL_TYPE_ID_ASC_ORDER_IN_STATUS_TAB) {
+    const id = STATUS_TAB_SKILL_TYPE_ID_MAP[normalized];
+    if (Number.isFinite(id)) {
+      return id;
+    }
+    // ID未定義タイプは既存順を維持しつつ、ID定義タイプの後ろへ。
+    if (displayIndex !== undefined) {
+      return 10000 + displayIndex;
+    }
+    return 20000;
+  }
+
+  return displayIndex ?? Number.MAX_SAFE_INTEGER;
+}
+
+export function sortStatusEffectsForStatusTab(effects) {
+  if (!Array.isArray(effects)) {
+    return [];
+  }
+  return effects
+    .slice()
+    .sort((a, b) => {
+      const orderA = getStatusTabOrderValue(a?.statusType);
+      const orderB = getStatusTabOrderValue(b?.statusType);
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      const powerA = Number(a?.power ?? 0);
+      const powerB = Number(b?.power ?? 0);
+      if (powerA !== powerB) {
+        return powerB - powerA;
+      }
+
+      const remainingA = Number(a?.remaining ?? 0);
+      const remainingB = Number(b?.remaining ?? 0);
+      if (remainingA !== remainingB) {
+        return remainingB - remainingA;
+      }
+
+      const idA = Number(a?.effectId ?? 0);
+      const idB = Number(b?.effectId ?? 0);
+      return idA - idB;
+    });
+}
+
 export function getStatusLabel(statusType) {
   return STATUS_LABELS[String(statusType ?? '')] ?? String(statusType ?? '');
 }
@@ -258,7 +359,7 @@ function buildStatusTabHtml(statusEffects, options = {}) {
     return '<p class="char-popup-empty">なし</p>';
   }
 
-  return activeEffects
+  return sortStatusEffectsForStatusTab(activeEffects)
     .map((effect) => {
       const label = getStatusLabel(effect.statusType);
       const skillName = String(effect.sourceSkillName ?? '').trim();

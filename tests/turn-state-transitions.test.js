@@ -5245,6 +5245,48 @@ test('国士無双はODサスペンドEX(remainingOdActions=0)でも追加ター
   );
 });
 
+test('国士無双はOD1+EX連鎖中(EnemyTurnEnd前)にResistDown/DefenseDownが積み上がる', () => {
+  const store = getStore();
+  const skillId = 46005117;
+  const actorTargetIndex = 0;
+
+  const collectTargetStatuses = (state, statusType) =>
+    (state.turnState.enemyState?.statuses ?? []).filter(
+      (status) =>
+        String(status?.statusType ?? '') === statusType &&
+        Number(status?.targetIndex ?? -1) === actorTargetIndex
+    );
+
+  // StageSetup equivalent: OD 300% / SP 20
+  let state = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      buildOptions: { initialSP: 20 },
+    })
+  );
+  state.turnState.odGauge = 300;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const step1 = commitTurn(state, previewActorSkill(state, skillId));
+  assert.equal(step1.nextState.turnState.turnType, 'extra', '1回目後はEXに遷移すること');
+
+  const step2 = commitTurn(step1.nextState, previewActorSkill(step1.nextState, skillId));
+  assert.equal(step2.nextState.turnState.turnType, 'extra', '2回目後もEX継続であること');
+
+  const step3 = commitTurn(step2.nextState, previewActorSkill(step2.nextState, skillId));
+  assert.equal(step3.nextState.turnState.turnType, 'extra', '3回目後もEX継続であること');
+
+  const step4 = commitTurn(step3.nextState, previewActorSkill(step3.nextState, skillId));
+  const nextState = step4.nextState;
+
+  const overwriteStatuses = collectTargetStatuses(nextState, 'ResistDownOverwrite');
+  const resistStatuses = collectTargetStatuses(nextState, 'ResistDown');
+  const defenseDownStatuses = collectTargetStatuses(nextState, 'DefenseDown');
+
+  assert.equal(overwriteStatuses.length, 1, 'ResistDownOverwrite(limitType=Once) は1件のみ残ること');
+  assert.equal(resistStatuses.length, 4, 'ResistDown(limitType=Default) は4回分スタックすること');
+  assert.equal(defenseDownStatuses.length, 4, 'DefenseDown(limitType=Default) はEnemyTurnEnd前に4回分残ること');
+});
+
 test('石塔の手筋+ はOD中のみ自身以外へHealSp+5が適用される (real data)', () => {
   const store = getStore();
   const skillId = 46005161;

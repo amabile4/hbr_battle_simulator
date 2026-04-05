@@ -45,14 +45,16 @@ test('buildBuffListHtml follows status detail order and shows only adopted effec
 
   const altList = extractAltList(html);
 
+  // skill_types.json ID 昇順:
+  // AttackUp(30), Funnel(50), CriticalRateUp(70), MindEye(187)
   assert.deepEqual(altList, [
     'AttackUp',
     'AttackUp',
-    'CriticalRateUp',
-    'CriticalRateUp',
-    'MindEye',
-    'MindEye',
     'Funnel',
+    'CriticalRateUp',
+    'CriticalRateUp',
+    'MindEye',
+    'MindEye',
   ]);
 });
 
@@ -113,16 +115,17 @@ test('buildBuffListHtml caps icons by total limit', () => {
 
   const altList = extractAltList(html);
   assert.equal(altList.length, 10);
+  // skill_types.json ID 昇順（先頭10件）
   assert.deepEqual(altList, [
+    'HealDp',
+    'HealSp',
     'AttackUp',
     'DefenseUp',
-    'DamageRateUp',
-    'ToughnessUpValue',
-    'Shredding',
-    'HighBoost',
-    'GiveAttackBuffUp',
     'CriticalRateUp',
     'CriticalDamageUp',
-    'HealDp',
+    'GiveAttackBuffUp',
+    'DamageRateUp',
+    'MindEye',
+    'ToughnessUpValue',
   ]);
 });
