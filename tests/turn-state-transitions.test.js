@@ -8249,6 +8249,65 @@ test('SuperBreakDown adds DownTurn event on fresh target and leaves Break state 
   );
 });
 
+test('BreakDownTurnUp from triggered passive skill extends DownTurn by 1 turn on break', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18132,
+              name: 'トリガーブレイク(テスト)',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single' }],
+            },
+          ],
+          triggeredSkills: [
+            {
+              id: 46409901,
+              name: '遥拝の君(テスト)',
+              label: 'TriggeredBreakDownTurnUp',
+              sp_cost: 0,
+              target_type: 'None',
+              passive: {
+                timing: 'OnFirstBattleStart',
+                condition: '',
+                effect: 'NormalBuff_Up',
+              },
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'AllyAll' },
+                { skill_type: 'BreakDownTurnUp', target_type: 'None', power: [1, 0] },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18132, targetEnemyIndex: 0, breakHitCount: 1 },
+  });
+  const committed = commitTurn(state, preview);
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+
+  assert.equal(
+    action.enemyStatusChanges.some(
+      (change) =>
+        change.mode === 'BreakDownTurnUp' &&
+        change.statusType === 'DownTurn' &&
+        change.targetIndex === 0 &&
+        change.remainingTurns === 2
+    ),
+    true
+  );
+
+  const downTurn = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+  );
+  assert.equal(Number(downTurn?.remainingTurns ?? 0), 1);
+});
+
 test('SuperBreakDown upgrades down-turn target to SuperDown and restores cap when down-turn ends', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

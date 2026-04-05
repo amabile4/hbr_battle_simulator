@@ -59,7 +59,10 @@ export class UsedSkillsOverlayController {
         this.close();
         return;
       }
-      if (target.matches('[data-role="used-skills-backdrop"]')) {
+      if (
+        target.matches('[data-role="used-skills-backdrop"]') ||
+        target.matches('[data-role="used-skills-dialog"]')
+      ) {
         this.close();
       }
     });

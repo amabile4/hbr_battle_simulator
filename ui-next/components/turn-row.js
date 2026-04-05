@@ -64,6 +64,7 @@ const RESPONSIVE_BADGE_COLUMN_GAP_FALLBACK_PX = 1;
 const OD_GAUGE_BAR_MIN = 0;
 const OD_GAUGE_BAR_MAX = 300;
 const OD_GAUGE_BAND_SIZE = 100;
+const ENEMY_DETAIL_LONG_PRESS_MS = 520;
 
 const ATTACK_TYPE_MAP = {
   Slash:  { img: resolveUiAssetUrl('Slash.webp'),  alt: '斬' },
@@ -190,6 +191,7 @@ export class TurnRowController {
   #draftKillEnemyIndexesByPartyIndex = {};
   #draftFollowUpEnemyIndexByPartyIndex = {};
   #previewResourceState = null;
+  #previewActionFlow = [];
   // Simulator Settings パラメータ
   #simulatorSettings = null;
 
@@ -206,6 +208,7 @@ export class TurnRowController {
     stateBefore,
     stateAfter,
     previewResourceState = null,
+    previewActionFlow = [],
     previewOdGaugeAfter = null,
     onSlotChange,
     onCommit,
@@ -241,6 +244,9 @@ export class TurnRowController {
     this.#previewResourceState = previewResourceState && typeof previewResourceState === 'object'
       ? structuredClone(previewResourceState)
       : null;
+    this.#previewActionFlow = Array.isArray(previewActionFlow)
+      ? structuredClone(previewActionFlow)
+      : [];
     this.#previewOdGaugeAfter = Number.isFinite(Number(previewOdGaugeAfter))
       ? Number(previewOdGaugeAfter)
       : null;
@@ -497,6 +503,7 @@ export class TurnRowController {
     stateBefore,
     stateAfter,
     previewResourceState = undefined,
+    previewActionFlow = undefined,
     previewOdGaugeAfter = undefined,
     odState = undefined,
     simulatorSettings = undefined,
@@ -553,6 +560,11 @@ export class TurnRowController {
       this.#previewResourceState = previewResourceState && typeof previewResourceState === 'object'
         ? structuredClone(previewResourceState)
         : null;
+    }
+    if (previewActionFlow !== undefined) {
+      this.#previewActionFlow = Array.isArray(previewActionFlow)
+        ? structuredClone(previewActionFlow)
+        : [];
     }
     if (previewOdGaugeAfter !== undefined) {
       this.#previewOdGaugeAfter = Number.isFinite(Number(previewOdGaugeAfter))
@@ -832,6 +844,7 @@ export class TurnRowController {
       stateBefore: this.#stateBefore,
       stateAfter: this.#stateAfter,
       previewResourceState: this.#previewResourceState,
+      previewActionFlow: this.#previewActionFlow,
       previewOdGaugeAfter: this.#previewOdGaugeAfter,
       odState: this.#odState,
       simulatorSettings: this.#simulatorSettings,
@@ -1445,7 +1458,100 @@ export class TurnRowController {
     const normalizedActiveIndex = Number.isInteger(Number(activeEnemyIndex))
       ? Math.min(Math.max(Number(activeEnemyIndex), 0), Math.max(0, enemies.length - 1))
       : 0;
-    return { enemies, activeEnemyIndex: normalizedActiveIndex };
+    const actionFlow = isCommitted
+      ? this.#buildCommittedActionFlow()
+      : (Array.isArray(this.#previewActionFlow) ? structuredClone(this.#previewActionFlow) : []);
+    return {
+      enemies,
+      activeEnemyIndex: normalizedActiveIndex,
+      previewActionFlow: actionFlow,
+    };
+  }
+
+  #buildCommittedActionFlow() {
+    const actions = Array.isArray(this.#record?.actions) ? this.#record.actions : [];
+    return actions.map((action, index) => {
+      const costChanges = Array.isArray(action?.spChanges)
+        ? action.spChanges.filter((change) =>
+            change?.source === 'cost' &&
+            Number.isFinite(Number(change?.delta)) &&
+            Number.isFinite(Number(change?.preSP)) &&
+            Number.isFinite(Number(change?.postSP))
+          )
+        : [];
+      const costDeltaFromChanges = costChanges.reduce((sum, change) => sum + Number(change.delta), 0);
+      const fallbackSpCost = Number(action?.spCost);
+      const costDelta = costChanges.length > 0
+        ? costDeltaFromChanges
+        : (Number.isFinite(fallbackSpCost) ? -Math.max(0, fallbackSpCost) : 0);
+      const firstCostChange = costChanges[0] ?? null;
+      const lastCostChange = costChanges.at(-1) ?? null;
+      const startSp = Number(firstCostChange?.preSP ?? action?.startSP);
+      const endSp = Number(lastCostChange?.postSP ?? action?.endSP);
+      return {
+        order: index + 1,
+        actorCharacterId: String(action?.characterId ?? ''),
+        actorCharacterName: String(action?.characterName ?? ''),
+        actorPartyIndex: Number(action?.partyIndex),
+        skillId: Number(action?.skillId ?? 0),
+        skillName: String(action?.skillName ?? ''),
+        costDelta: Number.isFinite(costDelta) ? costDelta : 0,
+        costPreSp: Number.isFinite(startSp) ? startSp : null,
+        costPostSp: Number.isFinite(endSp) ? endSp : null,
+        statusEffectsApplied: structuredClone(action?.statusEffectsApplied ?? []),
+        statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
+        enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),
+      };
+    });
+  }
+
+  #buildCharacterPreviewActionFlow(member, isCommitted) {
+    if (!member) {
+      return [];
+    }
+    const characterId = String(member.characterId ?? '').trim();
+    if (!characterId) {
+      return [];
+    }
+    const source = isCommitted
+      ? this.#buildCommittedActionFlow()
+      : (Array.isArray(this.#previewActionFlow) ? this.#previewActionFlow : []);
+    const memberPartyIndex = Number(member.partyIndex);
+    const matchesMember = (event, action) => {
+      const eventCharacterId = String(event?.characterId ?? '').trim();
+      const targetCharacterId = String(event?.targetCharacterId ?? '').trim();
+      const eventPartyIndex = Number(event?.partyIndex ?? event?.targetPartyIndex);
+      if (eventCharacterId && eventCharacterId === characterId) {
+        return true;
+      }
+      if (targetCharacterId && targetCharacterId === characterId) {
+        return true;
+      }
+      if (Number.isInteger(memberPartyIndex) && Number.isFinite(eventPartyIndex) && eventPartyIndex === memberPartyIndex) {
+        return true;
+      }
+      const hasTargetKey = Boolean(eventCharacterId || targetCharacterId || Number.isFinite(eventPartyIndex));
+      return !hasTargetKey && String(action?.actorCharacterId ?? '').trim() === characterId;
+    };
+    return source
+      .map((action) => {
+        const statusEffectsApplied = Array.isArray(action?.statusEffectsApplied)
+          ? action.statusEffectsApplied.filter(
+              (event) => matchesMember(event, action)
+            )
+          : [];
+        const statusEffectsRemoved = Array.isArray(action?.statusEffectsRemoved)
+          ? action.statusEffectsRemoved.filter(
+              (event) => matchesMember(event, action)
+            )
+          : [];
+        return {
+          ...action,
+          statusEffectsApplied,
+          statusEffectsRemoved,
+          enemyStatusChanges: [],
+        };
+      });
   }
 
   #buildManualBreakEditorHtml(isCommitted) {
@@ -1962,18 +2068,14 @@ export class TurnRowController {
         ? `#${this.#record?.turnId ?? this.#turnIndex + 1}`
         : null;
       const odGaugeBefore = formatOdGauge(turnState?.odGauge);
-      const currentEnemyCount = this.getCurrentEnemyCount();
       const enemyCountControl = `
         <div class="turn-info-enemy-row relative">
-          <span data-role="enemy-detail-trigger"
-                title="右クリック/長押しで敵詳細を表示"
-                class="turn-info-enemy-label cursor-pointer select-none">Enemy</span>
-          <select data-role="enemy-count" title="敵の数"
-                class="turn-info-enemy-select focus:outline-none focus:ring-1 focus:ring-blue-300">
-          <option value="1" ${currentEnemyCount === 1 ? 'selected' : ''}>1</option>
-          <option value="2" ${currentEnemyCount === 2 ? 'selected' : ''}>2</option>
-          <option value="3" ${currentEnemyCount === 3 ? 'selected' : ''}>3</option>
-          </select>
+          <button type="button"
+                  data-role="enemy-detail-trigger"
+                  title="左クリック/右クリック/長押しで敵詳細を表示"
+                  class="turn-info-enemy-button">
+            <span class="turn-info-enemy-button__label">敵状態確認</span>
+          </button>
         </div>`;
 
       return `
@@ -2014,19 +2116,14 @@ export class TurnRowController {
     // OD文脈 = ODレベルラベルあり（コミット済みではodSuspendedをodTurnLabelAtStartで兼用）
     const inOd = !!odLevelLabel;
     const inEx = isExtraTurn;
-    const currentEnemyCount = this.#getCurrentReplayTurnEnemyCount();
     const enemyCountControl = `
       <div class="turn-info-enemy-row relative">
-        <span data-role="enemy-detail-trigger"
-              title="右クリック/長押しで敵詳細を表示"
-              class="turn-info-enemy-label cursor-pointer select-none">Enemy</span>
-        <select data-role="enemy-count" title="敵の数"
-              disabled
-              class="turn-info-enemy-select focus:outline-none focus:ring-1 focus:ring-blue-300">
-        <option value="1" ${currentEnemyCount === 1 ? 'selected' : ''}>1</option>
-        <option value="2" ${currentEnemyCount === 2 ? 'selected' : ''}>2</option>
-        <option value="3" ${currentEnemyCount === 3 ? 'selected' : ''}>3</option>
-        </select>
+        <button type="button"
+                data-role="enemy-detail-trigger"
+                title="左クリック/右クリック/長押しで敵詳細を表示"
+                class="turn-info-enemy-button">
+          <span class="turn-info-enemy-button__label">敵状態確認</span>
+        </button>
       </div>`;
 
     const allEnemiesDefeated = Boolean(this.#stateAfter?.turnState?.enemyState?.allEnemiesDefeated);
@@ -2616,9 +2713,15 @@ export class TurnRowController {
     });
 
     this.#root.querySelectorAll('[data-role="enemy-detail-trigger"]').forEach((label) => {
-      label.addEventListener('contextmenu', (event) => {
-        event.stopPropagation();
-        event.preventDefault();
+      let longPressTimerId = null;
+      const clearLongPressTimer = () => {
+        if (longPressTimerId === null) {
+          return;
+        }
+        window.clearTimeout(longPressTimerId);
+        longPressTimerId = null;
+      };
+      const openEnemyDetail = (eventLike) => {
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
@@ -2627,8 +2730,30 @@ export class TurnRowController {
         if (!payload || !Array.isArray(payload.enemies) || payload.enemies.length === 0) {
           return;
         }
-        openEnemyDetailPopup(event, payload);
+        openEnemyDetailPopup(eventLike, payload);
+      };
+
+      label.addEventListener('contextmenu', (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        clearLongPressTimer();
+        openEnemyDetail(event);
       });
+
+      label.addEventListener('touchstart', () => {
+        clearLongPressTimer();
+        longPressTimerId = window.setTimeout(() => {
+          clearLongPressTimer();
+          openEnemyDetail({
+            stopPropagation: () => {},
+            preventDefault: () => {},
+          });
+        }, ENEMY_DETAIL_LONG_PRESS_MS);
+      }, { passive: true });
+
+      label.addEventListener('touchmove', clearLongPressTimer, { passive: true });
+      label.addEventListener('touchend', clearLongPressTimer, { passive: true });
+      label.addEventListener('touchcancel', clearLongPressTimer, { passive: true });
     });
 
     this.#root.querySelectorAll('[data-role="manual-break-target-reset"]').forEach((btn) => {
@@ -2802,23 +2927,6 @@ export class TurnRowController {
       });
     });
 
-    const countEl = this.#root.querySelector('[data-role="enemy-count"]');
-    if (countEl) {
-      countEl.addEventListener('change', () => {
-        const nextEnemyCount = clampEnemyCount(Number(countEl.value));
-        this.#openTargetPickerPartyIndex = null;
-        this.#isBreakEditorOpen = false;
-        this.#isFollowUpEditorOpen = false;
-        this.#isEnemyDetailEditorOpen = false;
-        if (this.#isDraftMode()) {
-          this.#draftEnemyCount = nextEnemyCount;
-          this.#syncDraftSelections();
-          this.#rerenderDraftMode();
-          this.#emitPreviewRequest();
-        }
-      });
-    }
-
     // Commit ボタン
     const commitBtn = this.#root.querySelector('[data-role="commit-btn"]');
     commitBtn?.addEventListener('click', () => {
@@ -2950,6 +3058,7 @@ export class TurnRowController {
             isReinforcedMode: snapEntry?.isReinforcedMode ?? member.isReinforcedMode ?? false,
             reinforcedTurnsRemaining: snapEntry?.reinforcedTurnsRemaining ?? member.reinforcedTurnsRemaining ?? 0,
             actionDisabledTurns: snapEntry?.actionDisabledTurns ?? member.actionDisabledTurns ?? 0,
+            previewActionFlow: this.#buildCharacterPreviewActionFlow(member, this.#isCommittedDisplayMode()),
             passiveEvents:
               this.#record?.passiveEvents ??
               this.#stateBefore?.turnState?.passiveEventsLastApplied ??

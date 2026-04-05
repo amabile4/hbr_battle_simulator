@@ -118,6 +118,177 @@ function resolveStatusTone(msg) {
   return /エラー|Error:|失敗|Failed/i.test(String(msg)) ? 'error' : 'info';
 }
 
+const TOOLBAR_HELP_LONG_PRESS_MS = 550;
+const RIGHT_CLICK_HELP_SVG = `
+  <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <rect x="10" y="4" width="44" height="56" rx="22" fill="#f8fafc" stroke="#334155" stroke-width="3"/>
+    <path d="M32 8V34" stroke="#334155" stroke-width="3"/>
+    <path d="M32 34H52" stroke="#334155" stroke-width="3"/>
+    <path d="M32 34V8" stroke="#334155" stroke-width="3"/>
+    <path d="M32 8H52" stroke="#334155" stroke-width="3"/>
+    <rect x="32" y="8" width="20" height="24" rx="9" fill="#0ea5e9" stroke="#0369a1" stroke-width="2"/>
+  </svg>
+`;
+
+const TOOLBAR_HELP_CONTENT = Object.freeze({
+  operations: {
+    title: '操作説明',
+    items: [
+      {
+        label: '敵状態確認',
+        body: '右クリック（PC）またはタップ長押し（スマートフォン）で、現在のターンで敵にかかっているバフ・デバフ・状態異常などをポップアップで一覧確認できます。行動前に敵の状態を把握することで、最適なスキル選択や戦略立案に役立ちます。',
+      },
+      {
+        label: 'キャラクターアイコン',
+        body: 'パーティーのキャラクターアイコンを右クリック（PC）またはタップ長押し（スマートフォン）すると、そのキャラクターの現在スタイル・スキル構成・SP残量などの詳細情報をポップアップで確認できます。',
+      },
+    ],
+  },
+});
+
+function escapeHelpHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function setupToolbarQuickHelp() {
+  const buttons = [...document.querySelectorAll('[data-role="toolbar-quick-help"]')];
+  if (buttons.length === 0) {
+    return;
+  }
+
+  let popover = null;
+  let longPressTimer = null;
+
+  const clearLongPressTimer = () => {
+    if (longPressTimer === null) {
+      return;
+    }
+    window.clearTimeout(longPressTimer);
+    longPressTimer = null;
+  };
+
+  const closePopover = () => {
+    if (!popover) {
+      return;
+    }
+    popover.remove();
+    popover = null;
+  };
+
+  const placePopover = (button) => {
+    if (!popover) {
+      return;
+    }
+    const rect = button.getBoundingClientRect();
+    const padding = 8;
+    const maxLeft = Math.max(
+      padding,
+      window.innerWidth - padding - Number(popover.offsetWidth || 0)
+    );
+    const left = Math.min(Math.max(padding, rect.left), maxLeft);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const showBelow = spaceBelow >= Number(popover.offsetHeight || 0) + 16;
+    const top = showBelow
+      ? rect.bottom + 8
+      : Math.max(padding, rect.top - Number(popover.offsetHeight || 0) - 8);
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+  };
+
+  const openPopover = (button) => {
+    const kind = button.dataset.helpKind;
+    const content = TOOLBAR_HELP_CONTENT[kind];
+    if (!content) {
+      return;
+    }
+    closePopover();
+    popover = document.createElement('div');
+    popover.className = 'toolbar-quick-help-popover';
+    const itemsHtml = (content.items ?? []).map(item => `
+      <div class="toolbar-quick-help-popover__item">
+        <div class="toolbar-quick-help-popover__item-label">${escapeHelpHtml(item.label)}</div>
+        <p class="toolbar-quick-help-popover__item-body">${escapeHelpHtml(item.body)}</p>
+      </div>
+    `).join('');
+    popover.innerHTML = `
+      <div class="toolbar-quick-help-popover__card" role="dialog" aria-label="${escapeHelpHtml(content.title)} ヘルプ">
+        <div class="toolbar-quick-help-popover__header">
+          <strong class="toolbar-quick-help-popover__title">${escapeHelpHtml(content.title)}</strong>
+          <button class="toolbar-quick-help-popover__close" aria-label="閉じる" type="button">✕</button>
+        </div>
+        <div class="toolbar-quick-help-popover__items">
+          ${itemsHtml}
+        </div>
+      </div>
+    `;
+    const closeBtn = popover.querySelector('.toolbar-quick-help-popover__close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closePopover();
+      });
+    }
+    document.body.appendChild(popover);
+    placePopover(button);
+  };
+
+  const handleDocumentPointerDown = (event) => {
+    if (!popover) {
+      return;
+    }
+    const target = event.target;
+    if (
+      target instanceof window.HTMLElement &&
+      (popover.contains(target) || target.closest('[data-role="toolbar-quick-help"]'))
+    ) {
+      return;
+    }
+    closePopover();
+  };
+
+  document.addEventListener('pointerdown', handleDocumentPointerDown);
+  window.addEventListener('resize', closePopover);
+  window.addEventListener('scroll', closePopover, true);
+
+  for (const button of buttons) {
+    button.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      clearLongPressTimer();
+      openPopover(button);
+    });
+
+    button.addEventListener('click', () => {
+      if (button.dataset.longPressHandled === 'true') {
+        button.dataset.longPressHandled = 'false';
+        return;
+      }
+      if (popover) {
+        closePopover();
+      } else {
+        openPopover(button);
+      }
+    });
+
+    button.addEventListener('touchstart', () => {
+      clearLongPressTimer();
+      button.dataset.longPressHandled = 'false';
+      longPressTimer = window.setTimeout(() => {
+        button.dataset.longPressHandled = 'true';
+        openPopover(button);
+      }, TOOLBAR_HELP_LONG_PRESS_MS);
+    }, { passive: true });
+
+    button.addEventListener('touchmove', clearLongPressTimer, { passive: true });
+    button.addEventListener('touchend', clearLongPressTimer, { passive: true });
+    button.addEventListener('touchcancel', clearLongPressTimer, { passive: true });
+  }
+}
+
 function showStatus(msg, tone = resolveStatusTone(msg)) {
   const el = document.querySelector('[data-role="status"]');
   if (!el) return;
@@ -651,6 +822,8 @@ function setupWorkspaceShell() {
       open: false,
     });
   };
+
+  setupToolbarQuickHelp();
 
   return {
     updatePassiveLogAvailability(hasRows) {

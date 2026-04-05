@@ -5134,7 +5134,7 @@ function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
   let maxReduction = 0;
 
   for (const actor of state.party ?? []) {
-    for (const passive of actor.passives ?? []) {
+    for (const passive of getPassiveEntriesForMember(actor)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
       }
@@ -5178,7 +5178,7 @@ function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
   const matchedPassives = [];
 
   for (const actor of state.party ?? []) {
-    for (const passive of actor.passives ?? []) {
+    for (const passive of getPassiveEntriesForMember(actor)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
       }
@@ -6489,7 +6489,7 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
           buildActionScopedEvent(actionEntry, {
             actorCharacterId: actor.characterId,
             targetCharacterId,
-            skillId: Number(skill?.skillId ?? 0),
+            skillId: Number(skill?.skillId ?? skill?.id ?? 0),
             skillName: String(skill?.name ?? ''),
             sourceSkillLabel: String(skill?.label ?? ''),
             ...added,
@@ -6896,8 +6896,12 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
           buildActionScopedEvent(actionEntry, {
             actorCharacterId: actor.characterId,
             characterId: target.characterId,
+            targetCharacterId: target.characterId,
+            statusType: skillType,
             statusTypeId,
-            skillId: Number(skill.skillId ?? 0),
+            remaining,
+            exitCond,
+            skillId: Number(skill.skillId ?? skill.id ?? 0),
             skillName: String(skill.name ?? ''),
           })
         );
@@ -6998,7 +7002,7 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
         events.push(
           buildActionScopedEvent(actionEntry, {
             actorCharacterId: actor.characterId,
-            skillId: Number(skill.skillId ?? 0),
+            skillId: Number(skill.skillId ?? skill.id ?? 0),
             skillName: String(skill.name ?? ''),
             mode: 'EnemyStatus',
             ...appliedStatus,
@@ -7186,7 +7190,7 @@ function applyBreakDownTurnUpFromActions(state, previewRecord) {
     }
     const skill = actor.getSkill(actionEntry.skillId) ?? null;
 
-    for (const passive of actor.passives ?? []) {
+    for (const passive of getPassiveEntriesForMember(actor)) {
       const timing = String(passive?.timing ?? '').trim();
       if (
         timing !== 'OnFirstBattleStart' &&
@@ -8143,7 +8147,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const activeBuffStatusEvents = applyActiveBuffStatusEffectsFromActions(state, singleRecord);
   const guardEvents = applyGuardEffectsFromActions(state, singleRecord);
   const shreddingEvents = applyShreddingEffectsFromActions(state, singleRecord);
-  applyBuffStatusEffectsFromActions(state, singleRecord);
+  const buffStatusEvents = applyBuffStatusEffectsFromActions(state, singleRecord);
   const enemyStatusEvents = applyEnemyStatusEffectsFromActions(state, singleRecord);
   const enemyBreakEvents = [
     ...applyEnemyBreakEffectsFromActions(state, singleRecord),
@@ -8190,6 +8194,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     doubleActionStatusEvents,
     funnelEvents,
     activeBuffStatusEvents,
+    buffStatusEvents,
     guardEvents,
     shreddingEvents,
     enemyStatusEvents,
@@ -10408,6 +10413,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const doubleActionStatusEvents = [];
   const funnelEvents = [];
   const activeBuffStatusEvents = [];
+  const buffStatusEvents = [];
   const guardEvents = [];
   const shreddingEvents = [];
   const enemyStatusEvents = [];
@@ -10443,6 +10449,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     doubleActionStatusEvents.push(...actionResult.doubleActionStatusEvents);
     funnelEvents.push(...actionResult.funnelEvents);
     activeBuffStatusEvents.push(...actionResult.activeBuffStatusEvents);
+    buffStatusEvents.push(...actionResult.buffStatusEvents);
     guardEvents.push(...actionResult.guardEvents);
     shreddingEvents.push(...actionResult.shreddingEvents);
     enemyStatusEvents.push(...actionResult.enemyStatusEvents);
@@ -10753,6 +10760,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         })
       ),
       ...activeBuffStatusEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...buffStatusEvents.filter((ev) =>
         eventBelongsToActionEntry(entry, ev, {
           actorKey: 'actorCharacterId',
           skillKey: 'skillId',

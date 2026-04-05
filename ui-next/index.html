@@ -28,6 +28,23 @@
   <header class="shrink-0 border-b border-gray-200 bg-white/95 backdrop-blur">
     <!-- Toolbar icons sourced from Heroicons (MIT): https://github.com/tailwindlabs/heroicons -->
     <div class="workspace-toolbar">
+      <button id="quick-help-operations"
+              class="workspace-toolbar__button workspace-toolbar__button--help"
+              data-role="toolbar-quick-help"
+              data-help-kind="operations"
+              title="右クリック/長押しで操作説明を表示"
+              aria-label="操作説明ヘルプ">
+        <span class="help-btn__text" aria-hidden="true">
+          <span>敵状態確認</span>
+          <span>キャラアイコン</span>
+        </span>
+        <span class="help-btn__mouse" aria-hidden="true">
+          <span class="help-btn__mouse-r-glow"></span>
+        </span>
+        <span class="help-btn__touch" aria-hidden="true">
+          <span class="help-btn__touch-tip-glow"></span>
+        </span>
+      </button>
       <button id="toggle-setup"
               class="workspace-toolbar__button"
               title="Initial Setup を隠す"

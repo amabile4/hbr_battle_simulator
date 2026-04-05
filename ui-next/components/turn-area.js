@@ -570,6 +570,7 @@ export class TurnAreaController {
       stateBefore: snapshot?.stateBefore ?? this.#engineManager.getStateBefore(this.#editSession.turnIndex),
       stateAfter: null,
       previewResourceState: snapshot?.previewResourceState ?? { spAfterByPartyIndex: {} },
+      previewActionFlow: snapshot?.previewActionFlow ?? [],
       previewOdGaugeAfter: snapshot?.odGaugeAfter ?? null,
       odState: snapshot?.odState ?? null,
       simulatorSettings: this.#simulatorSettings,
@@ -603,6 +604,7 @@ export class TurnAreaController {
       stateBefore: snapshot.stateBefore,
       stateAfter: null,
       previewResourceState: snapshot.previewResourceState,
+      previewActionFlow: snapshot.previewActionFlow,
       previewOdGaugeAfter: snapshot.odGaugeAfter,
       odState: {
         preemptiveOdLevel: this.#engineManager.pendingPreemptiveOdLevel,

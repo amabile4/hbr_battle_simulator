@@ -319,6 +319,60 @@ test('buildEnemyStatusTableHtml keeps base icon/label when elements is empty', (
   assert(!html.includes('火防御力ダウン'), 'should not prefix element kanji');
 });
 
+test('buildEnemyStatusTableHtml uses fallback icon and label for DownTurn', () => {
+  const statuses = [
+    {
+      statusType: 'DownTurn',
+      remaining: 2,
+      exitCond: 'TurnEnd',
+      power: 0,
+    },
+  ];
+
+  const html = buildEnemyStatusTableHtml(statuses);
+  assert(html.includes('BreakDownTurnUp.webp'), 'DownTurn should fallback to BreakDownTurnUp icon');
+  assert(html.includes('ダウンターン'), 'DownTurn should show Japanese label');
+  assert(html.includes('2T'), 'DownTurn should show remaining turns');
+});
+
+test('buildEnemyStatusTableHtml keeps only stronger DownTurn when duplicate entries exist', () => {
+  const statuses = [
+    {
+      statusType: 'DownTurn',
+      remaining: 1,
+      exitCond: 'TurnEnd',
+      power: 0,
+    },
+    {
+      statusType: 'DownTurn',
+      remaining: 2,
+      exitCond: 'TurnEnd',
+      power: 0,
+    },
+  ];
+
+  const html = buildEnemyStatusTableHtml(statuses);
+  const blockCount = (html.match(/data-status-type="DownTurn"/g) || []).length;
+  assert.equal(blockCount, 1, 'duplicate DownTurn rows should be collapsed into one');
+  assert(html.includes('2T'), 'collapsed DownTurn should keep the larger remaining value');
+  assert(!html.includes('1T'), 'weaker DownTurn should not be displayed');
+});
+
+test('buildEnemyStatusTableHtml shows DownTurn 1T when no extension exists', () => {
+  const statuses = [
+    {
+      statusType: 'DownTurn',
+      remaining: 1,
+      exitCond: 'TurnEnd',
+      power: 0,
+    },
+  ];
+
+  const html = buildEnemyStatusTableHtml(statuses);
+  assert(html.includes('ダウンターン'), 'DownTurn should be shown with label');
+  assert(html.includes('1T'), 'non-extended DownTurn should be shown as 1T');
+});
+
 test('buildEnemyStatusIconsHtml uses element-prefixed icon for status with elements', (t) => {
   const statuses = [
     {

@@ -32,6 +32,7 @@ const ENEMY_STATUS_TYPE_DISPLAY_ORDER = [
   'CriticalDamageDown',
   'ResistDown',
   'Fragile',
+  'DownTurn',
   'HealDown',
   'OverDrivePointDown',
   'Stun',
@@ -78,6 +79,7 @@ const ENEMY_STATUS_TYPE_ID_MAP = Object.freeze({
   ResistUp: 100,
   ResistDown: 102,
   Fragile: 104,
+  DownTurn: 264,
   Confusion: 106,
   Imprison: 109,
   OverDrivePointDown: 123,
@@ -114,6 +116,10 @@ const ELEMENT_PREFIXED_STATUS_TYPES = new Set([
   'ThunderResistDown', 'ThunderResistDownOverwrite', 'ThunderZone',
 ]);
 
+const ENEMY_STATUS_ICON_FALLBACK = Object.freeze({
+  DownTurn: 'BreakDownTurnUp',
+});
+
 /**
  * elements[0] が有効で element-prefixed icon が存在する場合は、そちらの URL を返す。
  * （例: statusType='DefenseDown', elements=['Ice'] → IceDefenseDown.webp）
@@ -129,7 +135,8 @@ function resolveElementalIconUrl(statusType, elements) {
       return resolveSkillTypeIconUrl(compositeType);
     }
   }
-  return resolveSkillTypeIconUrl(statusType);
+  const fallbackIconType = ENEMY_STATUS_ICON_FALLBACK[String(statusType ?? '').trim()] ?? statusType;
+  return resolveSkillTypeIconUrl(fallbackIconType);
 }
 
 /**
@@ -226,6 +233,48 @@ function compareEnemyStatusForDisplay(a, b) {
   return remainingB - remainingA;
 }
 
+function collapseDisplayDuplicates(statuses) {
+  if (!Array.isArray(statuses) || statuses.length === 0) {
+    return [];
+  }
+
+  const merged = [];
+  let bestDownTurn = null;
+  const selectPreferredDownTurn = (current, candidate) => {
+    if (!current) {
+      return candidate;
+    }
+    const currentRemaining = Number(current?.remaining ?? current?.remainingTurns ?? 0);
+    const candidateRemaining = Number(candidate?.remaining ?? candidate?.remainingTurns ?? 0);
+    if (candidateRemaining > currentRemaining) {
+      return candidate;
+    }
+    if (candidateRemaining < currentRemaining) {
+      return current;
+    }
+    const currentPower = readEnemyStatusPower(current);
+    const candidatePower = readEnemyStatusPower(candidate);
+    if (candidatePower > currentPower) {
+      return candidate;
+    }
+    return current;
+  };
+
+  for (const status of statuses) {
+    const statusType = String(status?.statusType ?? '').trim();
+    if (statusType === 'DownTurn') {
+      bestDownTurn = selectPreferredDownTurn(bestDownTurn, status);
+      continue;
+    }
+    merged.push(status);
+  }
+
+  if (bestDownTurn) {
+    merged.push(bestDownTurn);
+  }
+  return merged;
+}
+
 /**
  * アクティブな敵statusを取得し、優先度順でソート
  * @param {Array} statuses - enemy.statuses 配列 (元の順に次のデータを保持)
@@ -236,8 +285,9 @@ export function getActiveEnemyStatusesSorted(statuses) {
   if (!Array.isArray(statuses)) {
     return [];
   }
-  return statuses
-    .filter(isActiveEnemyStatus)
+  return collapseDisplayDuplicates(
+    statuses.filter(isActiveEnemyStatus)
+  )
     .sort(compareEnemyStatusForDisplay);
 }
 

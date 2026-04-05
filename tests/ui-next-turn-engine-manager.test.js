@@ -554,6 +554,61 @@ test('TurnEngineManager buildInputRowSnapshot exposes preview endSP by partyInde
   });
 
   assert.equal(snapshot.previewResourceState.spAfterByPartyIndex[0], 4);
+  assert.equal(Array.isArray(snapshot.previewActionFlow), true);
+  assert.equal(snapshot.previewActionFlow.length, 1);
+  assert.equal(snapshot.previewActionFlow[0].order, 1);
+  assert.equal(snapshot.previewActionFlow[0].skillId, 9052);
+  assert.equal(snapshot.previewActionFlow[0].costDelta, -7);
+  assert.equal(snapshot.previewActionFlow[0].costPreSp, 11);
+  assert.equal(snapshot.previewActionFlow[0].costPostSp, 4);
+});
+
+test('TurnEngineManager buildInputRowSnapshot includes buff status change events in previewActionFlow', () => {
+  const normalSkill = createSkill({
+    id: 9060,
+    name: '通常攻撃',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const fillEnhanceLikeSkill = createSkill({
+    id: 9061,
+    name: 'フィルエンハンス',
+    targetType: 'AllyAll',
+    spCost: 7,
+    parts: [
+      {
+        skill_type: 'AttackUp',
+        target_type: 'AllyAll',
+        power: [0.5, 0.65],
+        effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+      },
+    ],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createInitialState(normalSkill, {
+      initialSP: 20,
+      skills: [normalSkill, fillEnhanceLikeSkill],
+    }),
+    {}
+  );
+
+  const snapshot = manager.buildInputRowSnapshot({
+    slotActions: {
+      0: {
+        partyIndex: 0,
+        skillId: 9061,
+      },
+    },
+    enemyCount: 1,
+  });
+
+  assert.equal(Array.isArray(snapshot.previewActionFlow), true);
+  assert.equal(snapshot.previewActionFlow.length, 1);
+  const first = snapshot.previewActionFlow[0];
+  assert.equal(first.skillName, 'フィルエンハンス');
+  assert.equal(Array.isArray(first.statusEffectsApplied), true);
+  assert.equal(first.statusEffectsApplied.length > 0, true);
 });
 
 test('TurnEngineManager replaceCommittedTurn recalculates downstream records and collects replay warnings', () => {

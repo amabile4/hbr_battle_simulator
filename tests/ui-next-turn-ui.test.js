@@ -6,6 +6,7 @@ import { CharacterStyle, Party, applyInitialPassiveState, createBattleStateFromP
 import { TurnRowController } from '../ui-next/components/turn-row.js';
 import { TurnAreaController } from '../ui-next/components/turn-area.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
+import { openCharDetailPopup } from '../ui-next/utils/char-detail-popup.js';
 import {
   createEmptyLightweightReplayScript,
   REPLAY_OPERATION_TYPES,
@@ -256,7 +257,13 @@ function extractPassiveLogTexts(rows = []) {
   return rows.map((row) => row.text);
 }
 
-function mountTurnRow({ root, stateBefore, simulatorSettings, store = createStoreStub() }) {
+function mountTurnRow({
+  root,
+  stateBefore,
+  simulatorSettings,
+  store = createStoreStub(),
+  previewActionFlow = [],
+}) {
   const row = new TurnRowController({
     root,
     store,
@@ -270,6 +277,7 @@ function mountTurnRow({ root, stateBefore, simulatorSettings, store = createStor
     },
     stateBefore,
     stateAfter: null,
+    previewActionFlow,
     simulatorSettings,
     odState: {
       preemptiveOdLevel: null,
@@ -1073,6 +1081,7 @@ test('TurnRowController opens enemy detail popup from Enemy label context menu',
 
     const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
     assert.ok(trigger);
+    assert.equal(trigger.textContent?.trim(), '敵状態確認');
     trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 
     const popup = win.document.body.querySelector('.enemy-detail-popup');
@@ -1163,6 +1172,316 @@ test('TurnRowController committed enemy detail popup uses stateBefore (same turn
     assert.ok(popup);
     assert.match(popup.textContent ?? '', /攻撃力ダウン/);
     assert.doesNotMatch(popup.textContent ?? '', /防御力ダウン/);
+  }));
+
+test('TurnRowController committed enemy detail popup includes committed action flow section', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9611,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 1);
+    stateBefore.turnState.enemyState.statuses = [];
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 18,
+        turnId: 18,
+        odGaugeAtStart: 0,
+        projections: { odGaugeAtEnd: 0 },
+        actions: [
+          {
+            characterId: String(stateBefore.party[0].characterId),
+            characterName: String(stateBefore.party[0].characterName),
+            partyIndex: 0,
+            skillId: 9611,
+            skillName: 'コードダクネス',
+            spCost: 6,
+            startSP: 10,
+            endSP: 4,
+            enemyStatusChanges: [
+              {
+                statusType: 'AttackDown',
+                targetIndex: 0,
+                remaining: 2,
+                exitCond: 'EnemyTurnEnd',
+              },
+            ],
+          },
+        ],
+      },
+      replayTurn: {
+        turn: 18,
+        slots: [{ styleId: stateBefore.party[0].styleId, skillId: 9611 }],
+        operations: [],
+        note: '',
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter: null,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /攻撃力ダウン/);
+  }));
+
+test('TurnRowController enemy detail popup shows preview section at top for input row', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9602,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '小笠原 緋雨',
+          skillId: 46004517,
+          skillName: 'ハッピー！エッグ・ラッシュ！',
+          costDelta: 0,
+          costPreSp: 3,
+          costPostSp: 3,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [
+            {
+              statusType: 'AttackDown',
+              targetIndex: 0,
+              remaining: 2,
+              exitCond: 'EnemyTurnEnd',
+            },
+          ],
+        },
+      ],
+    });
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /攻撃力ダウン/);
+    assert.doesNotMatch(popup.textContent ?? '', /小笠原 緋雨/);
+    assert.doesNotMatch(popup.textContent ?? '', /cost/);
+  }));
+
+test('TurnRowController enemy detail popup shows no-change row when action has no enemy status changes', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9605,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '和泉 ユキ',
+          skillId: 123,
+          skillName: 'コードダクネス',
+          costDelta: -6,
+          costPreSp: 10,
+          costPostSp: 4,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [],
+        },
+      ],
+    });
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /このターンで付与される状態変化なし/);
+  }));
+
+test('char detail popup shows preview section at top of status tab', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9603,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    const targetMember = state.party[0];
+    const actorMember = state.party[1];
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [],
+        previewActionFlow: [
+          {
+            order: 2,
+            actorCharacterId: String(actorMember.characterId),
+            actorCharacterName: String(actorMember.characterName),
+            skillId: 46001115,
+            skillName: '黒曜のオーバーロード',
+            costDelta: -13,
+            costPreSp: 14,
+            costPostSp: 1,
+            statusEffectsApplied: [
+              {
+                targetCharacterId: String(targetMember.characterId),
+                statusTypeId: 78,
+                remaining: 1,
+                exitCond: 'Count',
+                sourceSkillName: '炯眼の構え',
+                sourceCharacterName: '茅森 月歌',
+              },
+            ],
+            statusEffectsRemoved: [],
+            enemyStatusChanges: [],
+          },
+        ],
+      },
+      { x: 200, y: 120, isCommitted: false }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /心眼/);
+    assert.match(popup.textContent ?? '', /炯眼の構え/);
+    assert.match(popup.textContent ?? '', /茅森 月歌/);
+    assert.match(popup.textContent ?? '', /1回/);
+    assert.doesNotMatch(popup.textContent ?? '', /0回/);
+    const previewBlocks = popup.querySelectorAll('.char-popup-preview-section .char-popup-buff-block');
+    assert.equal(previewBlocks.length > 0, true);
+  }));
+
+test('TurnRowController committed char detail popup includes committed action flow section', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9612,
+      name: 'Ally Buff',
+      targetType: 'AllyAll',
+      parts: [{ skill_type: 'AttackUp', target_type: 'AllyAll' }],
+    });
+    const stateBefore = createState(skill, 1);
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 18,
+        turnId: 18,
+        odGaugeAtStart: 0,
+        projections: { odGaugeAtEnd: 0 },
+        snapBefore: stateBefore.party.map((member) => ({
+          partyIndex: member.partyIndex,
+          statusEffects: [],
+          isReinforcedMode: false,
+          reinforcedTurnsRemaining: 0,
+          actionDisabledTurns: 0,
+        })),
+        actions: [
+          {
+            characterId: String(stateBefore.party[1].characterId),
+            characterName: String(stateBefore.party[1].characterName),
+            partyIndex: 1,
+            skillId: 9612,
+            skillName: 'フィルエンハンス',
+            statusEffectsApplied: [
+              {
+                targetCharacterId: String(stateBefore.party[0].characterId),
+                statusType: 'AttackUp',
+                remaining: 1,
+                exitCond: 'Count',
+                sourceSkillName: 'フィルエンハンス',
+                sourceCharacterName: String(stateBefore.party[1].characterName),
+              },
+            ],
+            statusEffectsRemoved: [],
+            enemyStatusChanges: [],
+          },
+        ],
+      },
+      replayTurn: {
+        turn: 18,
+        slots: [{ styleId: stateBefore.party[1].styleId, skillId: 9612 }],
+        operations: [],
+        note: '',
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter: null,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    const firstSlotIcon = root.querySelectorAll('[data-turn-slot-icon]')[0];
+    assert.ok(firstSlotIcon);
+    firstSlotIcon.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /攻撃力アップ/);
   }));
 
 test('TurnRowController keeps the manual break editor inside the viewport vertically', () =>
@@ -1548,45 +1867,6 @@ test('TurnRowController ties single-target break to the current manual target', 
     );
   }));
 
-test('TurnAreaController carries committed enemyCount into the next input row', () =>
-  withDom(({ root, win }) => {
-    const state = createState(
-      createSkill({
-        id: 9504,
-        name: 'Single Slash',
-        targetType: 'Single',
-        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
-      }),
-      1
-    );
-    const engineManager = new TurnEngineManager();
-    const controller = new TurnAreaController({
-      root,
-      store: createStoreStub(),
-      engineManager,
-      onError: (error) => {
-        throw error;
-      },
-      onTurnCommitted: () => {},
-    });
-
-    controller.initialize(
-      state,
-      {},
-      createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
-    );
-
-    const enemyCountSelect = root.querySelector('[data-role="enemy-count"]');
-    enemyCountSelect.value = '3';
-    enemyCountSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
-
-    const commitButton = root.querySelector('[data-role="commit-btn"]');
-    commitButton.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-
-    const latestEnemyCountSelect = root.querySelectorAll('[data-role="enemy-count"]').item(0);
-    assert.equal(latestEnemyCountSelect.value, '3');
-  }));
-
 test('TurnAreaController reinitialize applies updated split target settings to the input row', () =>
   withDom(({ root }) => {
     const state = createState(
@@ -1651,10 +1931,6 @@ test('TurnAreaController preserves committed enemy explicit target when simulato
       {},
       createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
     );
-
-    const enemyCountSelect = root.querySelector('[data-role="enemy-count"]');
-    enemyCountSelect.value = '3';
-    enemyCountSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
 
     root
       .querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')
@@ -1823,10 +2099,6 @@ test('TurnAreaController clears uncommitted target picks when simulator settings
       {},
       createSimulatorSettings({ enemyMode: TARGET_SELECTION_MODES.MANUAL }),
     );
-
-    const enemyCountSelect = root.querySelector('[data-role="enemy-count"]');
-    enemyCountSelect.value = '3';
-    enemyCountSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
 
     root
       .querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')
@@ -2340,7 +2612,7 @@ test('TurnAreaController recalculates Makai Kihei OD gain when the input row ene
         targetType: 'Self',
         parts: [{ skill_type: 'Protection', target_type: 'Self' }],
       }),
-      1,
+      2,
       {
         characterId: 'BIYamawaki',
         characterName: '山脇・ボン・イヴァール',
@@ -2355,9 +2627,6 @@ test('TurnAreaController recalculates Makai Kihei OD gain when the input row ene
       simulatorSettings: createSimulatorSettings(),
     });
 
-    const enemyCountSelect = root.querySelector('[data-role="enemy-count"]');
-    enemyCountSelect.value = '2';
-    enemyCountSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
     root.querySelector('[data-role="makai-kihei-btn"]').click();
 
     assert.equal(engineManager.getCurrentStateWithPending(2).turnState.odGauge, 30);

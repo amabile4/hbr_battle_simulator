@@ -34,6 +34,7 @@ export class EnemyDetailPopup {
   #root = null;
   #enemies = [];
   #activeEnemyIndex = 0;
+  #previewActionFlow = [];
   #onClose = null;
 
   constructor(options = {}) {
@@ -52,6 +53,9 @@ export class EnemyDetailPopup {
       ? payload.enemies
       : [payload];
     this.#enemies = enemies.map((enemy) => structuredClone(enemy));
+    this.#previewActionFlow = Array.isArray(payload?.previewActionFlow)
+      ? structuredClone(payload.previewActionFlow)
+      : [];
     const requestedTabIndex = Number(payload?.activeEnemyIndex ?? activeEnemyIndex ?? 0);
     const maxTabIndex = Math.max(0, this.#enemies.length - 1);
     this.#activeEnemyIndex = Number.isInteger(requestedTabIndex)
@@ -234,10 +238,12 @@ export class EnemyDetailPopup {
     const showPanelTitle = Boolean(options?.showPanelTitle);
     const statuses = Array.isArray(enemy?.statuses) ? enemy.statuses : [];
     const enemyTitle = String(enemy?.name ?? `E${Number(enemyIndex) + 1}`).trim() || `E${Number(enemyIndex) + 1}`;
+    const previewHtml = this.#buildPreviewActionFlowHtml(enemyIndex);
     const statusTableHtml = buildEnemyStatusTableHtml(statuses);
     const statsHtml = this.#buildStatsHtml(enemy);
     return `
       <div data-role="enemy-popup-panel-card">
+      ${previewHtml}
       ${showPanelTitle ? `
         <h3 style="margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #e2e8f0;">
           ${escapeHtml(enemyTitle)}
@@ -260,6 +266,40 @@ export class EnemyDetailPopup {
           ${statusTableHtml}
         </div>
       </div>
+      </div>
+    `;
+  }
+
+  #buildPreviewActionFlowHtml(enemyIndex = 0) {
+    const source = Array.isArray(this.#previewActionFlow) ? this.#previewActionFlow : [];
+    const previewStatuses = source
+      .flatMap((action) => (Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : []))
+      .filter((change) => Number(change?.targetIndex ?? -1) === Number(enemyIndex))
+      .map((change) => ({
+        statusType: String(change?.statusType ?? '').trim(),
+        remaining: Number(change?.remaining ?? change?.remainingTurns ?? 0),
+        exitCond: String(change?.exitCond ?? 'Turn'),
+        power: Number(change?.power ?? 0),
+        elements: Array.isArray(change?.elements) ? [...change.elements] : [],
+        sourceSkillName: String(change?.sourceSkillName ?? '').trim(),
+        sourceCharacterName: String(change?.sourceCharacterName ?? '').trim(),
+      }))
+      .filter((status) => Boolean(status.statusType));
+    const statusTableHtml = buildEnemyStatusTableHtml(previewStatuses);
+
+    if (previewStatuses.length === 0) {
+      return `
+        <div style="margin: 0 0 12px; padding: 8px; border: 1px dashed #334155; border-radius: 8px; background: #0b1220;">
+          <div style="font-size: 12px; font-weight: 700; color: #f8fafc;">プレビュー（コミット見込み）</div>
+          <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">このターンで付与される状態変化なし</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div style="margin: 0 0 12px; padding: 8px; border: 1px solid #1d4ed8; border-radius: 8px; background: #0b1220;">
+        <div style="font-size: 12px; font-weight: 700; color: #bfdbfe; margin-bottom: 6px;">プレビュー（コミット見込み）</div>
+        <div>${statusTableHtml}</div>
       </div>
     `;
   }

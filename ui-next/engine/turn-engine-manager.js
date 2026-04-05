@@ -542,6 +542,7 @@ export class TurnEngineManager {
       slotActions: resolvedSlotActions,
       odGaugeAfter: preview?.odGaugeAfter ?? null,
       previewResourceState: preview?.previewResourceState ?? { spAfterByPartyIndex: {} },
+      previewActionFlow: preview?.previewActionFlow ?? [],
       activatablePreemptive: resolveActivatablePreemptiveOdLevels(stateBefore),
       activatableInterrupt: preview?.activatableInterrupt ?? [],
       operationState: {
@@ -1487,6 +1488,25 @@ export class TurnEngineManager {
         allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
         onWarning: (message) => warnings.push(String(message)),
       });
+      let previewActionFlowRecord = previewRecord;
+      try {
+        // previewTurnRecord だけでは action の状態変化イベントが不足するため、
+        // クローン状態で commit 相当の計算を行い、表示用イベントを取得する。
+        const committedPreview = commitTurnRecord(
+          this.#cloneWorkingState(state),
+          previewRecord,
+          [],
+          {
+            interruptOdLevel: 0,
+          }
+        );
+        if (committedPreview?.record) {
+          previewActionFlowRecord = committedPreview.record;
+        }
+      } catch {
+        // preview 表示に必要な action flow 生成が失敗した場合は、
+        // 既存 previewRecord をフォールバックとして使用する。
+      }
       this.#appendPreviewResourceWarnings(previewRecord, warnings);
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
       const { canInterrupt } = this.#getOdActivationStatus(state.turnState);
@@ -1497,10 +1517,44 @@ export class TurnEngineManager {
         odGaugeAfter,
         activatableInterrupt,
         previewResourceState: this.#buildPreviewResourceState(previewRecord),
+        previewActionFlow: this.#buildPreviewActionFlow(previewActionFlowRecord),
       };
     } catch {
       return null;
     }
+  }
+
+  #buildPreviewActionFlow(previewRecord) {
+    const actions = Array.isArray(previewRecord?.actions) ? previewRecord.actions : [];
+    return actions.map((action, index) => {
+      const costChanges = Array.isArray(action?.spChanges)
+        ? action.spChanges.filter((change) =>
+            change?.source === 'cost' &&
+            Number.isFinite(Number(change?.delta)) &&
+            Number.isFinite(Number(change?.preSP)) &&
+            Number.isFinite(Number(change?.postSP))
+          )
+        : [];
+      const costDelta = costChanges.reduce((sum, change) => sum + Number(change.delta), 0);
+      const firstCostChange = costChanges[0] ?? null;
+      const lastCostChange = costChanges.at(-1) ?? null;
+      const startSp = Number(firstCostChange?.preSP ?? action?.startSP);
+      const endSp = Number(lastCostChange?.postSP ?? action?.endSP);
+      return {
+        order: index + 1,
+        actorCharacterId: String(action?.characterId ?? ''),
+        actorCharacterName: String(action?.characterName ?? ''),
+        actorPartyIndex: Number(action?.partyIndex),
+        skillId: Number(action?.skillId ?? 0),
+        skillName: String(action?.skillName ?? ''),
+        costDelta: Number.isFinite(costDelta) ? costDelta : 0,
+        costPreSp: Number.isFinite(startSp) ? startSp : null,
+        costPostSp: Number.isFinite(endSp) ? endSp : null,
+        statusEffectsApplied: structuredClone(action?.statusEffectsApplied ?? []),
+        statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
+        enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),
+      };
+    });
   }
 
   #buildPreviewResourceState(previewRecord) {

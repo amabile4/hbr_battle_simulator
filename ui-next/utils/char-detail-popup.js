@@ -13,6 +13,7 @@
 
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import { buildFieldDisplayEntries } from './field-state-display.js';
+import { SPECIAL_STATUS_TYPE_NAMES } from '../../src/domain/character-style.js';
 
 const SKILL_TYPE_ICON_BASE = new URL('../../assets/skill_type/', import.meta.url).href;
 
@@ -124,6 +125,7 @@ const STATUS_LABELS = {
   Provoke:                   '挑発',
   BreakGuard:                'ブレイクガード',
   SuperBreakDown:            '超ダウン',
+  DownTurn:                  'ダウンターン',
   BreakDownTurnUp:           'ブレイクダウンターン延長',
 
   // 特殊状態・効果
@@ -343,54 +345,97 @@ function buildSpecialStatusEffects({ isReinforcedMode = false, reinforcedTurnsRe
   return special;
 }
 
+function buildStatusBlockHtml(effect) {
+  const label = getStatusLabel(effect.statusType);
+  const skillName = String(effect.sourceSkillName ?? '').trim();
+  const displayInfo = buildEffectDisplayInfo(effect);
+  const desc = displayInfo.desc;
+  const powerStr = displayInfo.powerLabel;
+  const exitCondStr = String(effect.exitCond ?? '');
+  const remaining =
+    exitCondStr === 'Eternal'
+      ? '∞'
+      : exitCondStr === 'Count'
+      ? `${Number(effect.remaining ?? 0)}回`
+      : `${Number(effect.remaining ?? 0)}T`;
+  const sourceCharName = String(effect.sourceCharacterName ?? '').trim();
+  const iconUrl = String(effect?.iconUrl ?? '').trim() || resolveSkillTypeIconUrl(effect.statusType);
+  return (
+    `<div class="char-popup-buff-block">` +
+    `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">${iconUrl ? `<img src="${iconUrl}" alt="${esc(String(effect.statusType ?? ''))}" />` : ''}</div>` +
+    `<div class="char-popup-buff-center">` +
+    `<div class="char-popup-buff-title">${esc(label)}${powerStr ? `<span class="char-popup-buff-power">${esc(powerStr)}</span>` : ''}${skillName ? `<span class="char-popup-buff-skill">[${esc(skillName)}]</span>` : ''}` +
+    (sourceCharName ? `<span class="char-popup-buff-from">${esc(sourceCharName)}</span>` : '') +
+    `</div>` +
+    (desc ? `<div class="char-popup-buff-desc line-clamp-2">${esc(desc)}</div>` : '') +
+    `</div>` +
+    `<div class="char-popup-buff-duration">${esc(remaining)}</div>` +
+    `</div>`
+  );
+}
+
+function buildPreviewStatusSectionHtml(previewActionFlow) {
+  const source = Array.isArray(previewActionFlow) ? previewActionFlow : [];
+  const previewEffects = source
+    .flatMap((action) => {
+      const applied = Array.isArray(action?.statusEffectsApplied) ? action.statusEffectsApplied : [];
+      return applied.map((event) => ({
+        statusType: (() => {
+          const explicitStatusType = String(event?.statusType ?? '').trim();
+          if (explicitStatusType) {
+            return explicitStatusType;
+          }
+          const specialStatusTypeId = Number(event?.statusTypeId ?? 0);
+          if (Number.isFinite(specialStatusTypeId) && specialStatusTypeId > 0) {
+            return SPECIAL_STATUS_TYPE_NAMES[specialStatusTypeId] ?? `SpecialStatus_${specialStatusTypeId}`;
+          }
+          return '';
+        })(),
+        power: Number(event?.power ?? 0),
+        remaining: Number(event?.remaining ?? 0),
+        exitCond: String(event?.exitCond ?? 'Count'),
+        elements: Array.isArray(event?.elements) ? [...event.elements] : [],
+        sourceSkillName: String(event?.sourceSkillName ?? event?.skillName ?? action?.skillName ?? '').trim(),
+        sourceCharacterName: String(event?.sourceCharacterName ?? action?.actorCharacterName ?? '').trim(),
+      }));
+    })
+    .filter((effect) => Boolean(String(effect.statusType ?? '').trim()));
+  const previewBlocks = sortStatusEffectsForStatusTab(previewEffects)
+    .map((effect) => buildStatusBlockHtml(effect))
+    .join('');
+
+  return (
+    `<div class="char-popup-preview-section">` +
+    `<div class="char-popup-preview-title">プレビュー（コミット見込み）</div>` +
+    (previewBlocks
+      ? `<div class="char-popup-preview-grid">${previewBlocks}</div>`
+      : `<div class="char-popup-preview-empty">このターンで付与される状態変化なし</div>`) +
+    `</div>`
+  );
+}
+
 function buildStatusTabHtml(statusEffects, options = {}) {
   const mergedEffects = [
     ...buildSpecialStatusEffects(options),
     ...(Array.isArray(statusEffects) ? statusEffects : []),
   ];
+  const previewSectionHtml = buildPreviewStatusSectionHtml(options?.previewActionFlow ?? []);
   if (mergedEffects.length === 0) {
-    return '<p class="char-popup-empty">なし</p>';
+    return `${previewSectionHtml}<p class="char-popup-empty">なし</p>`;
   }
   const activeEffects = mergedEffects.filter((e) => {
     if (String(e?.exitCond ?? '') === 'Eternal') return true;
     return Number(e?.remaining ?? 0) > 0;
   });
   if (activeEffects.length === 0) {
-    return '<p class="char-popup-empty">なし</p>';
+    return `${previewSectionHtml}<p class="char-popup-empty">なし</p>`;
   }
 
-  return sortStatusEffectsForStatusTab(activeEffects)
-    .map((effect) => {
-      const label = getStatusLabel(effect.statusType);
-      const skillName = String(effect.sourceSkillName ?? '').trim();
-      const displayInfo = buildEffectDisplayInfo(effect);
-      const desc = displayInfo.desc;
-      const powerStr = displayInfo.powerLabel;
-      const exitCondStr = String(effect.exitCond ?? '');
-      const remaining =
-        exitCondStr === 'Eternal'
-          ? '∞'
-          : exitCondStr === 'Count'
-          ? `${Number(effect.remaining ?? 0)}回`
-          : `${Number(effect.remaining ?? 0)}T`;
-      const sourceCharName = String(effect.sourceCharacterName ?? '').trim();
-      const titleParts = [label, powerStr, skillName ? `[${skillName}]` : '', sourceCharName ? `(${sourceCharName})` : ''].filter(Boolean);
-
-      const iconUrl = String(effect?.iconUrl ?? '').trim() || resolveSkillTypeIconUrl(effect.statusType);
-      return (
-        `<div class="char-popup-buff-block">` +
-        `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">${iconUrl ? `<img src="${iconUrl}" alt="${esc(String(effect.statusType ?? ''))}" />` : ''}</div>` +
-        `<div class="char-popup-buff-center">` +
-        `<div class="char-popup-buff-title">${esc(label)}${powerStr ? `<span class="char-popup-buff-power">${esc(powerStr)}</span>` : ''}${skillName ? `<span class="char-popup-buff-skill">[${esc(skillName)}]</span>` : ''}` +
-        (sourceCharName ? `<span class="char-popup-buff-from">${esc(sourceCharName)}</span>` : '') +
-        `</div>` +
-        (desc ? `<div class="char-popup-buff-desc line-clamp-2">${esc(desc)}</div>` : '') +
-        `</div>` +
-        `<div class="char-popup-buff-duration">${esc(remaining)}</div>` +
-        `</div>`
-      );
-    })
+  const statusBlocksHtml = sortStatusEffectsForStatusTab(activeEffects)
+    .map((effect) => buildStatusBlockHtml(effect))
     .join('');
+
+  return `${previewSectionHtml}${statusBlocksHtml}`;
 }
 
 /** アビリティタブ — 限界突破パッシブ (requiredLimitBreakLevel > 0) */
@@ -469,7 +514,14 @@ function buildFieldTabHtml(stateOrRecord) {
 let _popup = null;
 
 function getOrCreatePopup() {
-  if (_popup) return _popup;
+  if (_popup) {
+    const sameDocument = _popup.ownerDocument === document;
+    const connected = Boolean(_popup.isConnected);
+    if (sameDocument && connected) {
+      return _popup;
+    }
+    _popup = null;
+  }
 
   const el = document.createElement('div');
   el.id = 'char-detail-popup';
@@ -561,6 +613,7 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
     isReinforcedMode,
     reinforcedTurnsRemaining,
     actionDisabledTurns,
+    previewActionFlow: stateOrRecord?.previewActionFlow ?? [],
   });
   popup.querySelector('[data-tab-panel="ability"]').innerHTML = buildAbilityTabHtml(member);
   popup.querySelector('[data-tab-panel="passive"]').innerHTML = buildPassiveTabHtml(member, passiveEvents);
