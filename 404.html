@@ -5,9 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Not Found</title>
   <meta name="robots" content="noindex,nofollow,noarchive,nosnippet" />
-  <meta http-equiv="refresh" content="0; url=./ui-next/index.html" />
+  <script type="module">
+    const host = String(window.location.host ?? '').trim().toLowerCase();
+    const pathname = String(window.location.pathname ?? '/').trim() || '/';
+    const segments = pathname.split('/').filter(Boolean);
+    const repoBase =
+      host.endsWith('.github.io') && segments.length > 0
+        ? `/${segments[0]}`
+        : '';
+    const helperUrl = `${window.location.origin}${repoBase}/404-redirect.js`;
+
+    const {
+      resolveNotFoundRedirectUrl,
+      shouldRedirectFromNotFound,
+    } = await import(helperUrl);
+
+    const redirectUrl = resolveNotFoundRedirectUrl(window.location);
+    window.__hbrNotFoundRedirectUrl = redirectUrl;
+    if (shouldRedirectFromNotFound(window.location)) {
+      window.location.replace(redirectUrl);
+    }
+  </script>
 </head>
 <body>
-  <p>Page not found. Redirecting to <a href="./ui-next/index.html">./ui-next/index.html</a> ...</p>
+  <p id="redirect-message">Page not found.</p>
+  <script>
+    const redirectUrl = window.__hbrNotFoundRedirectUrl || '/ui-next/index.html';
+    const message = document.getElementById('redirect-message');
+    if (message) {
+      message.textContent = `Page not found. Redirecting to ${redirectUrl} ...`;
+      const link = document.createElement('a');
+      link.href = redirectUrl;
+      link.textContent = redirectUrl;
+      message.append(' ');
+      message.append(link);
+    }
+  </script>
 </body>
 </html>

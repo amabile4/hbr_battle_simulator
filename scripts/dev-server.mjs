@@ -46,6 +46,17 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': contentType, ...NO_CACHE_HEADERS });
     res.end(data);
   } catch {
+    const requestedExt = extname(pathname).toLowerCase();
+    if (requestedExt === '.html') {
+      try {
+        const notFoundPage = await readFile(join(ROOT, '404.html'));
+        res.writeHead(404, { 'Content-Type': 'text/html', ...NO_CACHE_HEADERS });
+        res.end(notFoundPage);
+        return;
+      } catch {
+        // Fall through to plain-text 404 if the custom page is unavailable.
+      }
+    }
     res.writeHead(404, { 'Content-Type': 'text/plain', ...NO_CACHE_HEADERS });
     res.end('Not found: ' + url.pathname);
   }
