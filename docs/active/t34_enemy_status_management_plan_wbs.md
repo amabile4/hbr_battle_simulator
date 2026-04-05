@@ -228,14 +228,14 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
 
 作業:
 
-- [ ] integration（先行）
-  - [ ] WBS-4a: commit -> record -> recalculate の enemy status 同値性
-  - [ ] WBS-4b: multi-source identity collision（C-2 採択方針の検証）
-    - [ ] `wbs4b_a1_merge_same_key_uses_max_remaining`
-    - [ ] `wbs4b_a2_merge_prefers_max_power_for_same_key`
-    - [ ] `wbs4b_a3_replay_and_recalculate_keep_merged_outcome`
-    - [ ] `wbs4b_a4_source_attribution_is_known_constraint_last_wins`
-  - [ ] WBS-4c: commit -> record -> replay の enemy status 同値性（pre-UI gate）
+- [x] integration（先行）
+  - [x] WBS-4a: commit -> record -> recalculate の enemy status 同値性（`tests/t34-enemy-status-integration.test.js` に追加済み）
+  - [x] WBS-4b: multi-source identity collision（C-2 採択方針の検証）
+    - [x] `wbs4b_a1_merge_same_key_uses_max_remaining`
+    - [x] `wbs4b_a2_merge_prefers_max_power_for_same_key`
+    - [x] `wbs4b_a3_replay_and_recalculate_keep_merged_outcome`
+    - [x] `wbs4b_a4_source_attribution_is_known_constraint_last_wins`
+  - [x] WBS-4c: commit -> record -> replay の enemy status 同値性（pre-UI gate）
 - [ ] unit
   - [ ] status 付与/更新/消滅の純ロジック
   - [ ] 表示フォーマット
@@ -245,6 +245,22 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
   - [ ] commit 後の残ターン更新が一致
   - [ ] 付与 -> 残ターン更新 -> 消滅を1シナリオで追跡可能
   - [ ] 旧 record（`enemyStatusSnapshot` なし）との互換表示を検証
+
+#### 現状整理（`tests/t34-enemy-status-integration.test.js` 基準 / 2026-04-05）
+
+完了（追加済み）:
+
+- `WBS-4a` のテストケース追加（snapshot 保存と runtime の基本整合）
+- `WBS-4b-a1`〜`a4` のテストケース追加（max-merge 前提の構造/制約確認）
+- `WBS-4c` のテストケース追加（commit 後 snapshot/runtime の基本整合）
+- 上記6テストの green を確認（`node --test tests/t34-enemy-status-integration.test.js`）
+
+残件（深掘り不足）:
+
+- `WBS-4a` / `WBS-4b-a3`: テスト名にある `recalculate` 経路の実呼び出し・断面比較が未実装
+- 同値性判定が主に `length`/構造確認で、`statusType`/`elements`/`power`/`remaining` の厳密一致比較が不足
+- `WBS-4b` は「競合を実際に発生させる fixture」での max-merge 検証（max remaining / max power / last-wins source）が未充足
+- replay 経路は `commit -> snapshot vs runtime` の確認に留まり、`load/replayScript` 往復の検証が未充足
 
 完了条件:
 
