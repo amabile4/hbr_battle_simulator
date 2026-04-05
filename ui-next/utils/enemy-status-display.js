@@ -11,6 +11,7 @@
 import {
   resolveSkillTypeIconUrl,
   STATUS_TYPE_DISPLAY_ORDER,
+  getStatusLabel,
 } from './char-detail-popup.js';
 
 // 敵状態表示の最大アイコン数（overflow対応）
@@ -182,40 +183,64 @@ export function getEnemyStatusLabel(status) {
 }
 
 /**
- * 敵status一覧をHTMLテーブル行で表示（詳細popup用）
+ * 敵status一覧をブロック形式で表示（詳細popup用、char-popup-buff-block スタイルに準拠）
  * @param {Array} statuses - enemy.statuses 配列
- * @returns {string} HTML <tr> 要素のテキスト
+ * @returns {string} HTML ブロック要素のテキスト
  */
 export function buildEnemyStatusTableHtml(statuses) {
   const sorted = getActiveEnemyStatusesSorted(statuses);
-  
+
   if (sorted.length === 0) {
-    return '<tr><td colspan="3" style="text-align: center; color: #999;">状態異常なし</td></tr>';
+    return '<p class="char-popup-empty">状態異常なし</p>';
   }
-  
+
   return sorted
     .map((status, index) => {
       const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
+      const label = getStatusLabel(statusType);
       const power = readEnemyStatusPower(status);
-      const remaining = Number(status?.remaining ?? 0);
+      const remaining = Number(status?.remaining ?? status?.remainingTurns ?? 0);
       const exitCond = String(status?.exitCond ?? '').trim();
-      
-      const remainingCell =
+      const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
+      const sourceCharacterName = String(status?.sourceCharacterName ?? '').trim();
+
+      const powerStr =
+        Number.isFinite(power) && power !== 0
+          ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%`
+          : '';
+
+      const remainingStr =
         exitCond === 'Eternal'
-          ? '∞'
-          : remaining > 0 ? remaining : '-';
-      
-      const powerCell = power > 0 ? power : '-';
-      
-      return `
-        <tr data-status-index="${index}" data-status-type="${statusType}">
-          <td>${statusType}</td>
-          <td style="text-align: center;">${powerCell}</td>
-          <td style="text-align: center;">${remainingCell}</td>
-        </tr>
-      `.trim();
+          ? '\u221e'
+          : exitCond === 'Count'
+          ? `${remaining}\u56de`
+          : `${remaining}T`;
+
+      const iconUrl = resolveSkillTypeIconUrl(statusType);
+      const esc = (str) =>
+        String(str ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+
+      return (
+        `<div class="char-popup-buff-block" data-status-index="${index}" data-status-type="${esc(statusType)}">` +
+        `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">` +
+        (iconUrl ? `<img src="${esc(iconUrl)}" alt="${esc(statusType)}" />` : '') +
+        `</div>` +
+        `<div class="char-popup-buff-center">` +
+        `<div class="char-popup-buff-title">${esc(label)}` +
+        (powerStr ? `<span class="char-popup-buff-power">${esc(powerStr)}</span>` : '') +
+        (sourceSkillName ? `<span class="char-popup-buff-skill">[${esc(sourceSkillName)}]</span>` : '') +
+        (sourceCharacterName ? `<span class="char-popup-buff-from">${esc(sourceCharacterName)}</span>` : '') +
+        `</div>` +
+        `</div>` +
+        `<div class="char-popup-buff-duration">${esc(remainingStr)}</div>` +
+        `</div>`
+      );
     })
-    .join('\n');
+    .join('');
 }
 
 /**

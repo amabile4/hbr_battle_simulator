@@ -1583,15 +1583,10 @@ function normalizeEnemyStatus(status, enemyCount = DEFAULT_ENEMY_COUNT) {
   if (!statusType) {
     return null;
   }
-  const normalizedEnemyCount = clampEnemyCount(enemyCount);
   const targetRaw = status?.targetIndex ?? status?.target ?? 0;
-  const targetIndex = Math.max(
-    0,
-    Math.min(
-      normalizedEnemyCount - 1,
-      Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : 0
-    )
-  );
+  const targetIndex = Number.isFinite(Number(targetRaw))
+    ? Math.max(0, Number(targetRaw))
+    : 0;
   const exitCond = String(status?.exitCond ?? status?.effect?.exitCond ?? '').trim();
   const limitType = String(status?.limitType ?? status?.effect?.limitType ?? '').trim();
   const rawRemaining =
@@ -1644,6 +1639,10 @@ function normalizeEnemyStatus(status, enemyCount = DEFAULT_ENEMY_COUNT) {
   const sourceSkillLabel = String(status?.sourceSkillLabel ?? '').trim();
   if (sourceSkillLabel) {
     normalized.sourceSkillLabel = sourceSkillLabel;
+  }
+  const sourceCharacterName = String(status?.sourceCharacterName ?? '').trim();
+  if (sourceCharacterName) {
+    normalized.sourceCharacterName = sourceCharacterName;
   }
   if (status?.metadata && typeof status.metadata === 'object') {
     normalized.metadata = structuredClone(status.metadata);
@@ -2358,9 +2357,12 @@ function removeEnemyStatuses(turnState, targetIndex, statusTypes = []) {
   };
 }
 
-function upsertEnemyStatus(turnState, status) {
+function upsertEnemyStatus(turnState, status, enemyCountOverride = null) {
   const enemyState = getEnemyState(turnState);
-  const normalized = normalizeEnemyStatus(status, enemyState.enemyCount);
+  const normalizedEnemyCount = clampEnemyCount(
+    enemyCountOverride ?? enemyState.enemyCount
+  );
+  const normalized = normalizeEnemyStatus(status, normalizedEnemyCount);
   if (!normalized) {
     return;
   }
@@ -2377,6 +2379,7 @@ function upsertEnemyStatus(turnState, status) {
   nextStatuses.push(mergeEnemyStatuses(matched, normalized));
   turnState.enemyState = {
     ...enemyState,
+    enemyCount: normalizedEnemyCount,
     statuses: nextStatuses,
   };
 }
@@ -6915,6 +6918,9 @@ function getEnemyStatusRemainingTurnsFromPart(skillType, part) {
 
 function applyEnemyStatusEffectsFromActions(state, previewRecord) {
   const events = [];
+  const enemyCountForApplication = clampEnemyCount(
+    previewRecord?.enemyCount ?? getEnemyState(state?.turnState).enemyCount
+  );
   for (const actionEntry of previewRecord.actions ?? []) {
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
     if (!actor) {
@@ -6969,16 +6975,17 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
             sourceSkillId: Number(skill.skillId ?? 0),
             sourceSkillName: String(skill.name ?? ''),
             sourceSkillLabel: String(skill.label ?? ''),
+            sourceCharacterName: String(actor?.characterName ?? ''),
             metadata: {
               targetType: String(part?.target_type ?? ''),
             },
           },
-          getEnemyState(state?.turnState).enemyCount
+          enemyCountForApplication
         );
         if (!appliedStatus) {
           continue;
         }
-        upsertEnemyStatus(state.turnState, appliedStatus);
+        upsertEnemyStatus(state.turnState, appliedStatus, enemyCountForApplication);
         events.push(
           buildActionScopedEvent(actionEntry, {
             actorCharacterId: actor.characterId,
@@ -8693,6 +8700,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
                 sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
                 sourceSkillName: String(passive?.name ?? ''),
                 sourceSkillLabel: String(passive?.label ?? ''),
+                sourceCharacterName: String(member?.characterName ?? ''),
                 metadata: {
                   targetType: String(part?.target_type ?? ''),
                   timing: String(passive?.timing ?? ''),

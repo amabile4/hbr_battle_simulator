@@ -1040,6 +1040,131 @@ test('TurnRowController shows ally target popover only when ally selection is ma
     assert.equal(disabledCount, 4);
   }));
 
+test('TurnRowController opens enemy detail popup from Enemy label context menu', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 9504,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      3
+    );
+    state.turnState.enemyState.enemyNamesByEnemy = {
+      0: 'Alpha',
+      1: 'Beta',
+      2: 'Gamma',
+    };
+    state.turnState.enemyState.statuses = [
+      {
+        statusType: 'AttackDown',
+        targetIndex: 1,
+        remainingTurns: 2,
+        exitCond: 'EnemyTurnEnd',
+      },
+    ];
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    const tabs = popup.querySelectorAll('[data-role="enemy-popup-tab"]');
+    assert.equal(tabs.length, 3);
+    assert.match(popup.textContent ?? '', /E1 Alpha/);
+
+    const betaTab = popup.querySelector('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]');
+    assert.ok(betaTab);
+    betaTab.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.match(popup.textContent ?? '', /E2 Beta/);
+    assert.match(popup.textContent ?? '', /攻撃力ダウン/);
+  }));
+
+test('TurnRowController committed enemy detail popup uses stateBefore (same turn) instead of next turn state', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9601,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 1);
+    const stateAfter = createState(skill, 1);
+    stateBefore.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    stateAfter.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    stateBefore.turnState.enemyState.statuses = [
+      {
+        statusType: 'AttackDown',
+        targetIndex: 0,
+        remainingTurns: 2,
+        exitCond: 'EnemyTurnEnd',
+      },
+    ];
+    stateAfter.turnState.enemyState.statuses = [
+      {
+        statusType: 'DefenseDown',
+        targetIndex: 0,
+        remainingTurns: 1,
+        exitCond: 'EnemyTurnEnd',
+      },
+    ];
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 18,
+        turnId: 18,
+        odGaugeAtStart: 0,
+        projections: { odGaugeAtEnd: 0 },
+        actions: [],
+      },
+      replayTurn: {
+        turn: 18,
+        slots: [{ styleId: stateBefore.party[0].styleId, skillId: 9601 }],
+        operations: [],
+        note: '',
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /攻撃力ダウン/);
+    assert.doesNotMatch(popup.textContent ?? '', /防御力ダウン/);
+  }));
+
 test('TurnRowController keeps the manual break editor inside the viewport vertically', () =>
   withDom(({ root, win }) => {
     const originalGetBoundingClientRect = win.Element.prototype.getBoundingClientRect;

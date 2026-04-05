@@ -63,7 +63,7 @@
 - [ ] 未反映効果の一覧と再現テストが揃っている
 - [ ] 以後の effect 実装をテスト駆動で進められる状態になっている
 
-## 6) T34: 敵状態変化（バフ/デバフ）管理・表示（最優先 / 6項目）
+## 6) T34: 敵状態変化（バフ/デバフ）管理・表示（最優先 / 8項目）
 
 詳細計画/WBS:
 
@@ -78,10 +78,26 @@
 - [ ] 5. enemy-side status の unit / integration / 必要に応じて E2E を追加する
 - [ ] 6. 敵の状態変化が戦闘中に正しく付与・更新・消滅する
 
+T34 UI 段階導入（WBS 同期）:
+
+- [x] T34-UI-Stage1: 既存 break/follow-up メニュー類似の敵選択 UI で enemy popup を表示する
+	- DoD: 複数敵（1-3体）から対象 enemyIndex を選び、選択敵の detail popup を開ける
+	- DoD: 既存 break/follow-up と同種の操作感（対象選択 -> 実行）で導線を提供する
+- [ ] T34-UI-Stage2: enemy 関連メニュー（break / follow-up / enemy status）の対象選択 UI を統合する
+	- DoD: 共通 enemy selector component へ集約し、重複導線を削減する
+	- DoD: 既存 break/follow-up 操作に回帰がないことを test で固定する
+
 T34 follow-up（Day 1 設計ゲートで分離）:
 
 - [ ] T34-FU1: C-2 選択肢B（`effectId` 単位の per-source instance 管理）を別タスクで設計・実装する
 	- DoD: identity model 変更の影響範囲（engine/UI/tests）を文書化し、既存 merged 前提テストとの差分移行計画を提示する
+
+T34 issue（main 管理票への追記）:
+
+- [x] T34-ISSUE-OD-POPUP-DEFAULT-FALLBACK: JSON読込時の敵詳細 popup で OD率/最大D率が既定値（×1.00/999）表示になる不具合を修正（2026-04-05）
+	- 原因: [ui-next/components/turn-row.js](ui-next/components/turn-row.js#L1448) の popup payload が statuses のみで、od_rate/max_d_rate を渡していなかった
+	- 修正: [ui-next/components/turn-row.js](ui-next/components/turn-row.js#L1469) で enemyState.odRateByEnemy / destructionRateCapByEnemy を payload へ追加
+	- 検証: turn UI テスト実行（836 PASS）
 
 ## 7) Setup パネル レイアウト改善 & ロード高速化（11項目）
 

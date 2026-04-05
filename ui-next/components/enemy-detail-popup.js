@@ -8,15 +8,22 @@
  */
 
 import {
-  getActiveEnemyStatusesSorted,
   buildEnemyStatusTableHtml,
-  getEnemyStatusLabel,
 } from '../utils/enemy-status-display.js';
-import { escapeHtml } from '../../src/utils/escape-html.js';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 const POPUP_CLASS = 'enemy-detail-popup';
 const POPUP_OVERLAY_CLASS = 'enemy-detail-popup-overlay';
 const POPUP_CONTAINER_CLASS = 'enemy-detail-popup-container';
+const POPUP_MULTI_LAYOUT_CLASS = 'enemy-detail-popup-multi-layout';
+const POPUP_RESPONSIVE_BREAKPOINT_PX = 980;
 
 /**
  * EnemyDetailPopup
@@ -25,8 +32,8 @@ const POPUP_CONTAINER_CLASS = 'enemy-detail-popup-container';
  */
 export class EnemyDetailPopup {
   #root = null;
-  #enemy = null;
-  #enemyIndex = null;
+  #enemies = [];
+  #activeEnemyIndex = 0;
   #onClose = null;
 
   constructor(options = {}) {
@@ -35,14 +42,21 @@ export class EnemyDetailPopup {
 
   /**
    * popup を DOM に追加
-   * @param {Object} enemy - 敵オブジェクト (敵state に statuses 配列を含む)
-   * @param {number} enemyIndex - 敵インデックス（表示用）
+   * @param {Object} payload - { enemies: Enemy[], activeEnemyIndex?: number } または単体 Enemy
+   * @param {number} activeEnemyIndex - 表示開始タブ index（後方互換）
    */
-  show(enemy, enemyIndex = 0) {
-    if (!enemy) return;
+  show(payload, activeEnemyIndex = 0) {
+    if (!payload) return;
 
-    this.#enemy = structuredClone(enemy);
-    this.#enemyIndex = Number(enemyIndex) || 0;
+    const enemies = Array.isArray(payload?.enemies)
+      ? payload.enemies
+      : [payload];
+    this.#enemies = enemies.map((enemy) => structuredClone(enemy));
+    const requestedTabIndex = Number(payload?.activeEnemyIndex ?? activeEnemyIndex ?? 0);
+    const maxTabIndex = Math.max(0, this.#enemies.length - 1);
+    this.#activeEnemyIndex = Number.isInteger(requestedTabIndex)
+      ? Math.min(maxTabIndex, Math.max(0, requestedTabIndex))
+      : 0;
     this.#render();
   }
 
@@ -77,6 +91,17 @@ export class EnemyDetailPopup {
       closeBtn.addEventListener('click', () => this.close());
     }
 
+    this.#root.querySelectorAll('[data-role="enemy-popup-tab"]').forEach((tabButton) => {
+      tabButton.addEventListener('click', () => {
+        const nextTabIndex = Number(tabButton.dataset.enemyTabIndex);
+        if (!Number.isInteger(nextTabIndex) || nextTabIndex < 0 || nextTabIndex >= this.#enemies.length) {
+          return;
+        }
+        this.#activeEnemyIndex = nextTabIndex;
+        this.#render();
+      });
+    });
+
     // ESC キーで閉じる
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
@@ -94,13 +119,43 @@ export class EnemyDetailPopup {
   }
 
   #buildHtml() {
-    const enemy = this.#enemy || {};
-    const enemyName = String(enemy.name ?? `Enemy #${this.#enemyIndex}`);
-    const statuses = Array.isArray(enemy.statuses) ? enemy.statuses : [];
+    const enemies = Array.isArray(this.#enemies) ? this.#enemies : [];
+    const isResponsiveMultiLayout = enemies.length >= 2;
+    const panelColumns = Math.min(3, Math.max(2, enemies.length));
+    const activeEnemy = enemies[this.#activeEnemyIndex] ?? enemies[0] ?? {};
+    const titleText = isResponsiveMultiLayout
+      ? '敵詳細'
+      : String(activeEnemy.name ?? '').trim() || '敵詳細';
+    const tabButtonsHtml = enemies.map((enemy, index) => {
+      const label = String(enemy?.name ?? `E${index + 1}`).trim() || `E${index + 1}`;
+      const isActive = index === this.#activeEnemyIndex;
+      return `
+        <button type="button"
+                data-role="enemy-popup-tab"
+                data-enemy-tab-index="${index}"
+                style="
+                  border: 1px solid ${isActive ? '#38bdf8' : '#475569'};
+                  background: ${isActive ? '#334155' : '#0f172a'};
+                  color: ${isActive ? '#38bdf8' : '#94a3b8'};
+                  border-radius: 999px;
+                  padding: 4px 10px;
+                  font-size: 12px;
+                  font-weight: 600;
+                  cursor: pointer;
+                ">
+          ${escapeHtml(label)}
+        </button>
+      `;
+    }).join('');
 
-    const statusTableHtml = buildEnemyStatusTableHtml(statuses);
-
-    const statsHtml = this.#buildStatsHtml(enemy);
+    const tabPanelsHtml = enemies.map((enemy, index) => {
+      const hiddenAttr = index === this.#activeEnemyIndex ? '' : 'hidden';
+      return `
+        <div data-role="enemy-popup-tab-panel" data-enemy-tab-index="${index}" ${hiddenAttr}>
+          ${this.#buildEnemyPanelHtml(enemy, index, { showPanelTitle: isResponsiveMultiLayout })}
+        </div>
+      `;
+    }).join('');
 
     return `
       <div class="${POPUP_OVERLAY_CLASS}" style="
@@ -108,52 +163,103 @@ export class EnemyDetailPopup {
         background: rgba(0, 0, 0, 0.5); z-index: 999;
       "></div>
 
-      <div class="${POPUP_CONTAINER_CLASS}" style="
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-        z-index: 1000; max-width: 600px; max-height: 80vh; overflow-y: auto;
+      <div class="${POPUP_CONTAINER_CLASS} ${isResponsiveMultiLayout ? POPUP_MULTI_LAYOUT_CLASS : ''}" style="
+        position: fixed; inset: 10%;
+        background: #1e293b; border-radius: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        z-index: 1000; overflow-y: auto;
         padding: 16px; font-family: system-ui, sans-serif;
+        border: 1px solid #475569; color: #e2e8f0;
+        --enemy-panel-columns: ${panelColumns};
       ">
+        <style>
+          .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-panels"] {
+            display: grid;
+            grid-template-columns: repeat(var(--enemy-panel-columns), minmax(260px, 1fr));
+            gap: 12px;
+          }
+          .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-tab-panel"][hidden] {
+            display: block !important;
+          }
+          .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-tabs"] {
+            display: none;
+          }
+          .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-panel-card"] {
+            border: 1px solid #334155;
+            border-radius: 10px;
+            background: #0b1220;
+            padding: 10px;
+            min-width: 0;
+          }
+          @media (max-width: ${POPUP_RESPONSIVE_BREAKPOINT_PX}px) {
+            .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-tabs"] {
+              display: flex;
+            }
+            .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-panels"] {
+              display: block;
+            }
+            .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-tab-panel"][hidden] {
+              display: none !important;
+            }
+            .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-panel-card"] {
+              border: none;
+              border-radius: 0;
+              background: transparent;
+              padding: 0;
+            }
+          }
+        </style>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h2 style="margin: 0; font-size: 18px; font-weight: bold;">
-            ${escapeHtml(enemyName)} ${this.#enemyIndex > 0 ? `#${this.#enemyIndex}` : ''}
+          <h2 style="margin: 0; font-size: 18px; font-weight: bold; color: #f1f5f9;">
+            ${escapeHtml(titleText)}
           </h2>
           <button data-role="popup-close" type="button" style="
             background: none; border: none; font-size: 20px; cursor: pointer;
             padding: 0; width: 24px; height: 24px; display: flex; align-items: center;
-            justify-content: center;
+            justify-content: center; color: #94a3b8;
           " aria-label="Close">×</button>
         </div>
 
-        ${statsHtml ? `
-          <div style="margin-bottom: 16px;">
-            <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: bold; color: #666;">
-              基本情報
-            </h3>
-            ${statsHtml}
-          </div>
-        ` : ''}
-
-        <div>
-          <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: bold; color: #666;">
-            状態異常 / バフ
-          </h3>
-          <table style="
-            width: 100%; border-collapse: collapse; font-size: 13px;
-            border: 1px solid #e5e7eb;
-          ">
-            <thead>
-              <tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-                <th style="padding: 8px 12px; text-align: left; font-weight: 600;">ステータス</th>
-                <th style="padding: 8px 12px; text-align: center; font-weight: 600;">効力</th>
-                <th style="padding: 8px 12px; text-align: center; font-weight: 600;">残り</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${statusTableHtml}
-            </tbody>
-          </table>
+        <div data-role="enemy-popup-tabs" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+          ${tabButtonsHtml}
         </div>
+
+        <div data-role="enemy-popup-panels">
+          ${tabPanelsHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  #buildEnemyPanelHtml(enemy, enemyIndex = 0, options = {}) {
+    const showPanelTitle = Boolean(options?.showPanelTitle);
+    const statuses = Array.isArray(enemy?.statuses) ? enemy.statuses : [];
+    const enemyTitle = String(enemy?.name ?? `E${Number(enemyIndex) + 1}`).trim() || `E${Number(enemyIndex) + 1}`;
+    const statusTableHtml = buildEnemyStatusTableHtml(statuses);
+    const statsHtml = this.#buildStatsHtml(enemy);
+    return `
+      <div data-role="enemy-popup-panel-card">
+      ${showPanelTitle ? `
+        <h3 style="margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #e2e8f0;">
+          ${escapeHtml(enemyTitle)}
+        </h3>
+      ` : ''}
+      ${statsHtml ? `
+        <div style="margin-bottom: 16px;">
+          <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: bold; color: #94a3b8;">
+            基本情報
+          </h3>
+          ${statsHtml}
+        </div>
+      ` : ''}
+
+      <div>
+        <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: bold; color: #94a3b8;">
+          状態異常 / バフ
+        </h3>
+        <div>
+          ${statusTableHtml}
+        </div>
+      </div>
       </div>
     `;
   }
@@ -172,7 +278,7 @@ export class EnemyDetailPopup {
     const odText = odRate > 0 ? `×${odRate.toFixed(2)}` : '-';
 
     return `
-      <div style="display: flex; gap: 16px; font-size: 13px; padding: 8px; background: #f9fafb; border-radius: 4px;">
+      <div style="display: flex; gap: 16px; font-size: 13px; padding: 8px; background: #0f172a; border-radius: 4px; border: 1px solid #334155;">
         ${hp > 0 || maxHp > 0 ? `
           <div>
             <span style="color: #999;">HP:</span>
@@ -199,11 +305,11 @@ export class EnemyDetailPopup {
 /**
  * Turn row / enemy panel から敵detail popup を起動する helper
  * @param {Event} event - click event
- * @param {Object} enemy - 敵オブジェクト
- * @param {number} enemyIndex - 敵インデックス
+ * @param {Object} payload - { enemies: Enemy[], activeEnemyIndex?: number } または単体 Enemy
+ * @param {number} activeEnemyIndex - 表示開始タブ index
  */
-export function openEnemyDetailPopup(event, enemy, enemyIndex = 0) {
+export function openEnemyDetailPopup(event, payload, activeEnemyIndex = 0) {
   event?.stopPropagation?.();
   const popup = new EnemyDetailPopup();
-  popup.show(enemy, enemyIndex);
+  popup.show(payload, activeEnemyIndex);
 }

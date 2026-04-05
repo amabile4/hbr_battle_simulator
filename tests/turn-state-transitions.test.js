@@ -18014,3 +18014,110 @@ test('interrupt OD1 during EX (odSuspended, all OD consumed) → normal with sin
       }
     }
   });
+
+// ─── Phase C: enemy status sourceCharacterName が nextState に保持される ───
+// normalizeEnemyStatusForClone (cloneTurnState 内) が sourceCharacterName を
+// 適切に保持することを確認する。
+
+test('Phase C: enemy status sourceCharacterName persists in nextState after commitTurn', () => {
+  // 敵 AttackDown を付与するスキルを持つキャラクターでパーティを構築
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'ENEMY_DEBUFF_ACTOR',
+        characterName: '敵デバッファー',
+        initialSP: 10,
+        skills: [
+          {
+            id: 311001,
+            name: '敵攻撃力ダウン',
+            sp_cost: 0,
+            parts: [
+              {
+                skill_type: 'AttackDown',
+                target_type: 'EnemySingle',
+                power: [0.5, 0],
+                effect: { limitType: 'Only', exitCond: 'TurnEnd', exitVal: [2, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+
+  let state = createBattleStateFromParty(party, { enemyCount: 1 });
+  const preview = previewTurn(state, {
+    0: { characterId: 'ENEMY_DEBUFF_ACTOR', skillId: 311001, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // nextState の enemyState.statuses に AttackDown が付与されていること
+  const statuses = nextState.turnState.enemyState?.statuses ?? [];
+  const attackDown = statuses.find((s) => String(s?.statusType ?? '') === 'AttackDown');
+  assert.ok(attackDown, 'AttackDown が nextState.enemyState.statuses に存在すること');
+
+  // sourceCharacterName が cloneTurnState を経由しても保持されていること
+  assert.equal(
+    attackDown.sourceCharacterName,
+    '敵デバッファー',
+    'sourceCharacterName が cloneTurnState (normalizeEnemyStatusForClone) を経由しても保持されること'
+  );
+});
+
+test('EnemyAll status applies once per alive enemy (no triple stack on E1)', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'EA1',
+        characterName: 'EA1',
+        initialSP: 10,
+        skills: [
+          {
+            id: 311101,
+            name: '全体攻撃力ダウン',
+            sp_cost: 0,
+            parts: [
+              {
+                skill_type: 'AttackDown',
+                target_type: 'EnemyAll',
+                power: [0.4, 0],
+                effect: { limitType: 'Only', exitCond: 'EnemyTurnEnd', exitVal: [2, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {
+      skills: [createProtectionSkill(9800 + idx)],
+    };
+  });
+
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 3,
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'EA1', skillId: 311101, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 9801 },
+    2: { characterId: 'M3', skillId: 9802 },
+  }, null, 3);
+  const { nextState } = commitTurn(state, preview);
+
+  const attackDownTargets = (nextState.turnState.enemyState?.statuses ?? [])
+    .filter((status) => String(status?.statusType ?? '') === 'AttackDown')
+    .map((status) => Number(status?.targetIndex))
+    .sort((left, right) => left - right);
+
+  assert.deepEqual(
+    attackDownTargets,
+    [0, 1, 2],
+    'EnemyAll の状態異常は生存している各敵に1回ずつ付与されること'
+  );
+});

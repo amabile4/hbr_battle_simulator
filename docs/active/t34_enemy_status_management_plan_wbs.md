@@ -19,11 +19,15 @@
   - [x] WBS-3a: enemy-status-display.js 新設 ✅ 2026-04-05 Day 3 完了
   - [x] WBS-3b: turn-row へ接続検証 ✅ 2026-04-05 Day 3 進行中
   - [x] WBS-3c: enemy-detail-popup 実装 ✅ 2026-04-05 Day 3 完了
+  - [x] WBS-3c-FU1: enemy-detail-popup 2体/3体レスポンシブ同時表示（広幅）+ タブ復帰（狭幅） ✅ 2026-04-05
+  - [x] WBS-3d: 既存 break/follow-up 類似の敵選択 popup 導線 ✅ 2026-04-05 Day 3 完了
+  - [ ] WBS-3e: enemy 関連メニュー統合
 - [x] WBS-4 テスト: unit/integration/e2e
   - [x] WBS-4a: commit -> record -> recalculate 同値性 ✅ 2026-04-05 Day 2 完了
   - [x] WBS-4b: multi-source identity collision ✅ 2026-04-05 Day 2 完了
   - [x] WBS-4c: commit -> record -> replay 同値性 ✅ 2026-04-05 Day 2 完了
   - [x] WBS-4d: unit テスト：敵status display utils ✅ 2026-04-05 Day 3 完了（a1-a8）
+  - [x] WBS-4d-a9: EnemyAll 状態異常の per-enemy 配布回帰テスト（E1集中付与バグ修正） ✅ 2026-04-05
   - [ ] WBS-4d-a9+: E2E テスト（残り）
 - [ ] WBS-5 受け入れ検証
 
@@ -74,8 +78,10 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
 6. WBS-3a: `enemy-status-display.js` 新設（M-3対応）
 7. WBS-3b: `turn-row.js` へ enemy status 表示接続
 8. WBS-3c: enemy detail popup 実装（必須）
-9. WBS-4d: E2E テスト追加
-10. WBS-5: 受け入れ検証（付与/更新/消滅）
+9. WBS-3d: 段階1 UI（ブレイク/追撃メニュー類似の敵選択ポップアップ）
+10. WBS-3e: 段階2 UI（エネミー関連メニュー統合）
+11. WBS-4d: E2E テスト追加
+12. WBS-5: 受け入れ検証（付与/更新/消滅）
 
 ## C-2 方針決定ゲート（Day 1 必須）
 
@@ -181,7 +187,7 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
 
 作業:
 
-- [ ] `ui-next/utils/enemy-status-display.js` を新設
+- [x] `ui-next/utils/enemy-status-display.js` を新設
 - [x] 表示面の優先順位を固定
   - [x] turn row: 要約表示
   - [x] 詳細 popup: 全件表示
@@ -189,12 +195,23 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
 - [ ] アイコン/ラベル/残ターン表示のフォーマット統一
 - [x] 表示上限と省略ルールを定義（過密防止）
   - [x] per-enemy cap 5 icons + overflow
-- [ ] enemy detail popup を必須 deliverable として実装
+- [x] enemy detail popup を必須 deliverable として実装
+- [x] enemy detail popup のレスポンシブ表示を強化（2体/3体で広幅は同時表示、狭幅はタブ）
+- [x] 段階1: 既存メニュー類似の敵選択ポップアップを追加
+  - [x] ブレイク/追撃メニューと同等の「対象の敵を選んで表示」導線を用意
+  - [x] 複数敵（1-3体）から選択した enemyIndex を popup に渡す
+  - [x] 第1段階では既存の break/follow-up UI パターンを優先して最小導入
+- [ ] 段階2: エネミー関連メニューを統合
+  - [ ] break / follow-up / enemy status の対象選択UIを共通化
+  - [ ] 共通の enemy selector component へ集約（重複ロジック削減）
+  - [ ] 既存操作（break/follow-up）の回帰なしを test で固定
 
 完了条件:
 
 - turn row / enemy detail popup / enemy panel の3画面で同一状態を確認できる
 - WBS-4d の対応 fixture で UI 表示一致が検証されている
+- 段階1で「敵を選んで popup を開く」導線が break/follow-up と同種の操作感で提供される
+- 段階2で enemy 関連メニューが統合され、重複導線が解消される
 
 ### WBS-4 テスト: unit/integration/e2e
 
@@ -215,6 +232,7 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
 - [ ] unit
   - [ ] status 付与/更新/消滅の純ロジック
   - [ ] 表示フォーマット
+  - [x] EnemyAll 状態異常の対象分配回帰（3体時に E1 へ3重付与されない）
 - [ ] e2e
   - [ ] fixture 読込後に turn row / popup / enemy panel の表示が一致
   - [ ] commit 後の残ターン更新が一致
@@ -359,8 +377,10 @@ tests:
 6. WBS-3a: `enemy-status-display.js` 新設 (M-3 fix)
 7. WBS-3b: `turn-row.js` に enemy status 表示を接続
 8. WBS-3c: enemy detail popup（必須）
-9. WBS-4d: E2E テスト追加
-10. WBS-5: 受け入れ検証
+9. WBS-3d: 段階1 UI（既存 break/follow-up 類似の敵選択 popup 導線）
+10. WBS-3e: 段階2 UI（enemy 関連メニュー統合）
+11. WBS-4d: E2E テスト追加
+12. WBS-5: 受け入れ検証
 
 ## 進め方（短期）
 

@@ -48,15 +48,10 @@ function normalizeEnemyStatusForClone(status, enemyCount = DEFAULT_ENEMY_COUNT) 
   if (!statusType) {
     return null;
   }
-  const normalizedEnemyCount = Math.max(1, Number(enemyCount ?? DEFAULT_ENEMY_COUNT));
   const targetRaw = status?.targetIndex ?? status?.target ?? 0;
-  const targetIndex = Math.max(
-    0,
-    Math.min(
-      normalizedEnemyCount - 1,
-      Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : 0
-    )
-  );
+  const targetIndex = Number.isFinite(Number(targetRaw))
+    ? Math.max(0, Number(targetRaw))
+    : 0;
   const normalized = {
     statusType,
     targetIndex,
@@ -87,6 +82,10 @@ function normalizeEnemyStatusForClone(status, enemyCount = DEFAULT_ENEMY_COUNT) 
   const sourceSkillLabel = String(status?.sourceSkillLabel ?? '').trim();
   if (sourceSkillLabel) {
     normalized.sourceSkillLabel = sourceSkillLabel;
+  }
+  const sourceCharacterName = String(status?.sourceCharacterName ?? '').trim();
+  if (sourceCharacterName) {
+    normalized.sourceCharacterName = sourceCharacterName;
   }
   if (status?.metadata && typeof status.metadata === 'object') {
     normalized.metadata = structuredClone(status.metadata);

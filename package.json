@@ -9,11 +9,15 @@
     "test:quick": "node --test tests/adapter-core.test.js tests/character-party.test.js tests/data-store-operations.test.js tests/damage-calculation-context.test.js tests/real-data-mechanics-coverage.test.js tests/schema-validation.test.js tests/turn-preview.test.js tests/record-system.test.js tests/turn-state-transitions.test.js",
     "test:dom": "node --test tests/ui-next-initial-setup.test.js tests/ui-next-party-setup.test.js tests/ui-next-turn-engine-manager.test.js tests/ui-next-turn-ui.test.js",
     "test:dom:full": "node --test tests/adapter-core.test.js tests/lightweight-replay-script.test.js tests/style-asset-url.test.js tests/ui-next-*.test.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "eslint src ui-next tests scripts"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "jsdom": "^28.1.0",
     "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "eslint": "^10.2.0"
   }
 }

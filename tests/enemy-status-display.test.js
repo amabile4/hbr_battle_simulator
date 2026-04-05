@@ -146,9 +146,9 @@ test('getEnemyStatusLabel formats remaining turns', (t) => {
 });
 
 /**
- * WBS-4d-a5: buildEnemyStatusTableHtml の HTML 生成テスト
+ * WBS-4d-a5: buildEnemyStatusTableHtml の HTML 生成テスト（ブロック形式）
  */
-test('buildEnemyStatusTableHtml generates table rows', (t) => {
+test('buildEnemyStatusTableHtml generates block rows', (t) => {
   const statuses = [
     { statusType: 'AttackDown', remaining: 2, power: 5, exitCond: 'TurnEnd' },
     { statusType: 'DefenseUp', remaining: 0, power: 10, exitCond: 'TurnEnd' }, // inactive
@@ -157,13 +157,20 @@ test('buildEnemyStatusTableHtml generates table rows', (t) => {
 
   const html = buildEnemyStatusTableHtml(statuses);
 
-  assert(html.includes('AttackDown'), 'should include active status');
-  assert(html.includes('<tr'), 'should contain table rows');
+  assert(html.includes('char-popup-buff-block'), 'should use block format');
   assert(html.includes('data-status-type='), 'should contain status-type attr');
+  // active status: 日本語ラベルが含まれる（AttackDown → 攻撃力ダウン）
+  assert(html.includes('攻撃力ダウン'), 'should include Japanese label for active status');
+  // アイコン img タグが含まれる
+  assert(html.includes('<img'), 'should include icon img tag');
+  // 残りターン表示 (2T)
+  assert(html.includes('2T'), 'should show remaining turns');
   // "Barrier" (Eternal) should be included
-  assert(html.includes('Barrier'), 'should include eternal status');
+  assert(html.includes('data-status-type="Barrier"'), 'should include eternal status');
+  // Eternal→ ∞ 表示
+  assert(html.includes('∞'), 'should show infinity for Eternal');
   // "DefenseUp" (remaining=0) should NOT be included
-  assert(!html.includes('DefenseUp'), 'should not include inactive status');
+  assert(!html.includes('data-status-type="DefenseUp"'), 'should not include inactive status');
 });
 
 /**

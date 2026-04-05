@@ -22,6 +22,7 @@ import {
 } from '../utils/replay-operation-presentation.js';
 import { buildBuffListHtmlWithExtras, buildActionDisabledIconEntry } from '../utils/buff-display.js';
 import { openCharDetailPopup } from '../utils/char-detail-popup.js';
+import { openEnemyDetailPopup } from './enemy-detail-popup.js';
 import {
   ACTION_OUTCOME_TYPES,
   getActionOutcomeOverridesFromOverrideEntries,
@@ -184,6 +185,7 @@ export class TurnRowController {
   #openTargetPickerPartyIndex = null;
   #isBreakEditorOpen = false;
   #isFollowUpEditorOpen = false;
+  #isEnemyDetailEditorOpen = false;
   #draftBreakEnemyIndexesByPartyIndex = {};
   #draftKillEnemyIndexesByPartyIndex = {};
   #draftFollowUpEnemyIndexByPartyIndex = {};
@@ -519,6 +521,7 @@ export class TurnRowController {
       this.#openTargetPickerPartyIndex = null;
       this.#isBreakEditorOpen = false;
       this.#isFollowUpEditorOpen = false;
+      this.#isEnemyDetailEditorOpen = false;
     }
     if (rowDiagnostics !== undefined) {
       this.#rowDiagnostics = normalizeRowDiagnostics(rowDiagnostics);
@@ -1410,6 +1413,41 @@ export class TurnRowController {
     `;
   }
 
+  #buildEnemyDetailPopupPayload(isCommitted = false, activeEnemyIndex = 0) {
+    const sourceState = this.#stateBefore ?? this.#stateAfter;
+    const enemyState = sourceState?.turnState?.enemyState ?? {};
+    const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
+    const enemyCount = isCommitted
+      ? this.#getCurrentReplayTurnEnemyCount()
+      : this.getCurrentEnemyCount();
+    const enemies = Array.from({ length: enemyCount }, (_, enemyIndex) => {
+      const enemyName = String(
+        enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
+      ).trim();
+      const displayName = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
+      const statuses = (Array.isArray(enemyState.statuses) ? enemyState.statuses : [])
+        .filter((status) => Number(status?.targetIndex ?? -1) === enemyIndex)
+        .map((status) => ({
+          ...status,
+          remaining: Number(status?.remaining ?? status?.remainingTurns ?? 0),
+        }));
+      const enemyKey = String(enemyIndex);
+      const od_rate = enemyState.odRateByEnemy?.[enemyKey] ?? null;
+      const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
+      return {
+        name: displayName,
+        statuses,
+        ...(od_rate !== null ? { od_rate } : {}),
+        ...(max_d_rate !== null ? { max_d_rate } : {}),
+      };
+    });
+
+    const normalizedActiveIndex = Number.isInteger(Number(activeEnemyIndex))
+      ? Math.min(Math.max(Number(activeEnemyIndex), 0), Math.max(0, enemies.length - 1))
+      : 0;
+    return { enemies, activeEnemyIndex: normalizedActiveIndex };
+  }
+
   #buildManualBreakEditorHtml(isCommitted) {
     const enemyCount = isCommitted
       ? this.#getCurrentReplayTurnEnemyCount()
@@ -1926,8 +1964,10 @@ export class TurnRowController {
       const odGaugeBefore = formatOdGauge(turnState?.odGauge);
       const currentEnemyCount = this.getCurrentEnemyCount();
       const enemyCountControl = `
-        <div class="turn-info-enemy-row">
-          <span class="turn-info-enemy-label">Enemy</span>
+        <div class="turn-info-enemy-row relative">
+          <span data-role="enemy-detail-trigger"
+                title="右クリック/長押しで敵詳細を表示"
+                class="turn-info-enemy-label cursor-pointer select-none">Enemy</span>
           <select data-role="enemy-count" title="敵の数"
                 class="turn-info-enemy-select focus:outline-none focus:ring-1 focus:ring-blue-300">
           <option value="1" ${currentEnemyCount === 1 ? 'selected' : ''}>1</option>
@@ -1976,8 +2016,10 @@ export class TurnRowController {
     const inEx = isExtraTurn;
     const currentEnemyCount = this.#getCurrentReplayTurnEnemyCount();
     const enemyCountControl = `
-      <div class="turn-info-enemy-row">
-        <span class="turn-info-enemy-label">Enemy</span>
+      <div class="turn-info-enemy-row relative">
+        <span data-role="enemy-detail-trigger"
+              title="右クリック/長押しで敵詳細を表示"
+              class="turn-info-enemy-label cursor-pointer select-none">Enemy</span>
         <select data-role="enemy-count" title="敵の数"
               disabled
               class="turn-info-enemy-select focus:outline-none focus:ring-1 focus:ring-blue-300">
@@ -2480,6 +2522,7 @@ export class TurnRowController {
           this.#openTargetPickerPartyIndex = null;
           this.#isBreakEditorOpen = false;
           this.#isFollowUpEditorOpen = false;
+          this.#isEnemyDetailEditorOpen = false;
           this.#rerenderDraftMode();
           this.#emitPreviewRequest();
         });
@@ -2492,6 +2535,7 @@ export class TurnRowController {
         const partyIndex = Number(btn.dataset.partyIndex);
         this.#isBreakEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
+        this.#isEnemyDetailEditorOpen = false;
         this.#openTargetPickerPartyIndex =
           this.#openTargetPickerPartyIndex === partyIndex ? null : partyIndex;
         if (this.#isDraftMode()) {
@@ -2533,6 +2577,7 @@ export class TurnRowController {
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
+        this.#isEnemyDetailEditorOpen = false;
         this.#draftTargets = {
           ...this.#draftTargets,
           [actorPartyIndex]: target,
@@ -2548,6 +2593,7 @@ export class TurnRowController {
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = !this.#isBreakEditorOpen;
         this.#isFollowUpEditorOpen = false;
+        this.#isEnemyDetailEditorOpen = false;
         if (this.#isDraftMode()) {
           this.#rerenderDraftMode();
           this.#emitPreviewRequest();
@@ -2561,10 +2607,27 @@ export class TurnRowController {
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
         this.#isFollowUpEditorOpen = !this.#isFollowUpEditorOpen;
+        this.#isEnemyDetailEditorOpen = false;
         if (this.#isDraftMode()) {
           this.#rerenderDraftMode();
           this.#emitPreviewRequest();
         }
+      });
+    });
+
+    this.#root.querySelectorAll('[data-role="enemy-detail-trigger"]').forEach((label) => {
+      label.addEventListener('contextmenu', (event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        this.#openTargetPickerPartyIndex = null;
+        this.#isBreakEditorOpen = false;
+        this.#isFollowUpEditorOpen = false;
+        this.#isEnemyDetailEditorOpen = false;
+        const payload = this.#buildEnemyDetailPopupPayload(this.#isCommittedDisplayMode(), 0);
+        if (!payload || !Array.isArray(payload.enemies) || payload.enemies.length === 0) {
+          return;
+        }
+        openEnemyDetailPopup(event, payload);
       });
     });
 
@@ -2746,6 +2809,7 @@ export class TurnRowController {
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
+        this.#isEnemyDetailEditorOpen = false;
         if (this.#isDraftMode()) {
           this.#draftEnemyCount = nextEnemyCount;
           this.#syncDraftSelections();

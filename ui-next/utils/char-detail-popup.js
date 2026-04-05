@@ -172,7 +172,7 @@ const STATUS_LABELS = {
 
 export const STATUS_TYPE_DISPLAY_ORDER = Object.freeze(Object.keys(STATUS_LABELS));
 
-function getStatusLabel(statusType) {
+export function getStatusLabel(statusType) {
   return STATUS_LABELS[String(statusType ?? '')] ?? String(statusType ?? '');
 }
 
@@ -280,7 +280,7 @@ function buildStatusTabHtml(statusEffects, options = {}) {
         `<div class="char-popup-buff-block">` +
         `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">${iconUrl ? `<img src="${iconUrl}" alt="${esc(String(effect.statusType ?? ''))}" />` : ''}</div>` +
         `<div class="char-popup-buff-center">` +
-        `<div class="char-popup-buff-title">${esc(label)}${skillName ? `<span class="char-popup-buff-skill">[${esc(skillName)}]</span>` : ''}${powerStr ? `<span class="char-popup-buff-power">${esc(powerStr)}</span>` : ''}` +
+        `<div class="char-popup-buff-title">${esc(label)}${powerStr ? `<span class="char-popup-buff-power">${esc(powerStr)}</span>` : ''}${skillName ? `<span class="char-popup-buff-skill">[${esc(skillName)}]</span>` : ''}` +
         (sourceCharName ? `<span class="char-popup-buff-from">${esc(sourceCharName)}</span>` : '') +
         `</div>` +
         (desc ? `<div class="char-popup-buff-desc line-clamp-2">${esc(desc)}</div>` : '') +
