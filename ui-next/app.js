@@ -979,7 +979,9 @@ async function main() {
     scheduleDeferredTask(async () => {
       try {
         const rawEnemies = await fetchJsonOrFallback('../json/enemies.json', []);
-        initialSetup.setEnemies(buildEnemyList(rawEnemies));
+        const enemyPresets = buildEnemyList(rawEnemies);
+        initialSetup.setEnemies(enemyPresets);
+        turnArea.setEnemyPresets(enemyPresets);
       } catch (error) {
         console.error('Failed to hydrate enemy presets:', error);
       }

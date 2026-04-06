@@ -24,6 +24,17 @@ const POPUP_OVERLAY_CLASS = 'enemy-detail-popup-overlay';
 const POPUP_CONTAINER_CLASS = 'enemy-detail-popup-container';
 const POPUP_MULTI_LAYOUT_CLASS = 'enemy-detail-popup-multi-layout';
 const POPUP_RESPONSIVE_BREAKPOINT_PX = 980;
+const DAMAGE_RATE_DISPLAY_ORDER = Object.freeze([
+  ['Slash', '斬'],
+  ['Stab', '突'],
+  ['Strike', '打'],
+  ['Fire', '火'],
+  ['Ice', '氷'],
+  ['Thunder', '雷'],
+  ['Light', '光'],
+  ['Dark', '闇'],
+  ['Nonelement', '無'],
+]);
 
 /**
  * EnemyDetailPopup
@@ -315,8 +326,18 @@ export class EnemyDetailPopup {
     const maxHp = Number(enemy.maxHp ?? 0);
     const odRate = Number(enemy.od_rate ?? 1);
     const maxDRate = Number(enemy.max_d_rate ?? 999);
+    const damageRates = enemy?.damageRates && typeof enemy.damageRates === 'object'
+      ? enemy.damageRates
+      : {};
+    const absorbElements = Array.isArray(enemy?.absorbElements) ? enemy.absorbElements : [];
+    const damageRateEntries = DAMAGE_RATE_DISPLAY_ORDER
+      .map(([key, label]) => {
+        const numeric = Number(damageRates?.[key]);
+        return Number.isFinite(numeric) ? `${label}${numeric}` : null;
+      })
+      .filter(Boolean);
 
-    if (hp <= 0 && maxHp <= 0 && odRate <= 0) {
+    if (hp <= 0 && maxHp <= 0 && odRate <= 0 && damageRateEntries.length === 0 && absorbElements.length === 0) {
       return ''; // 統計情報がない場合は非表示
     }
 
@@ -324,7 +345,7 @@ export class EnemyDetailPopup {
     const odText = odRate > 0 ? `×${odRate.toFixed(2)}` : '-';
 
     return `
-      <div style="display: flex; gap: 16px; font-size: 13px; padding: 8px; background: #0f172a; border-radius: 4px; border: 1px solid #334155;">
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; padding: 8px; background: #0f172a; border-radius: 4px; border: 1px solid #334155;">
         ${hp > 0 || maxHp > 0 ? `
           <div>
             <span style="color: #999;">HP:</span>
@@ -343,6 +364,16 @@ export class EnemyDetailPopup {
             <span style="font-weight: 500;">${maxDRate}</span>
           </div>
         ` : ''}
+        ${damageRateEntries.length > 0 ? `
+          <div style="flex-basis: 100%;">
+            <span style="color: #999;">耐性:</span>
+            <span style="font-weight: 500;">${escapeHtml(damageRateEntries.join(' / '))}</span>
+          </div>
+        ` : ''}
+        <div style="flex-basis: 100%;">
+          <span style="color: #999;">吸収:</span>
+          <span style="font-weight: 500;">${escapeHtml(absorbElements.length > 0 ? absorbElements.join(', ') : 'なし')}</span>
+        </div>
       </div>
     `;
   }

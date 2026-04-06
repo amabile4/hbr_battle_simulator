@@ -189,6 +189,28 @@ export async function commitLatestInputRow(page) {
   return committedRows.last();
 }
 
+export async function queueSummonEnemyForLatestInputRow(page, enemyId) {
+  const inputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
+  const toggle = inputRow.locator('[data-role="enemy-summon-toggle"]');
+  await expect(toggle).toBeVisible({ timeout: 5000 });
+  await expect(toggle).toBeEnabled({ timeout: 10000 });
+  await toggle.click();
+
+  const editor = page.locator('[data-role="enemy-summon-editor"]');
+  await expect(editor).toBeVisible({ timeout: 5000 });
+
+  const select = editor.locator('[data-role="enemy-summon-select"]');
+  await expect(select).toBeVisible({ timeout: 5000 });
+  await select.selectOption(String(enemyId));
+
+  const submit = editor.locator('[data-role="enemy-summon-submit"]');
+  await expect(submit).toBeEnabled({ timeout: 5000 });
+  await submit.click();
+
+  await expect(inputRow.locator('[data-role="operation-chip"]')).toContainText('召喚', { timeout: 5000 });
+  return inputRow;
+}
+
 export async function getPartySetupSlotState(page, slotIndex) {
   const alt = await page
     .locator(`[data-slot="${slotIndex}"] [data-role="party-slot-main-button"] img`)

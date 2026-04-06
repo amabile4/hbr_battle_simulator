@@ -13,6 +13,7 @@ export const REPLAY_OPERATION_TYPES = Object.freeze({
   ACTIVATE_MAKAI_KIHEI: 'ActivateMakaiKihei',
   ACTIVATE_PREEMPTIVE_OD: 'ActivatePreemptiveOd',
   RESERVE_INTERRUPT_OD: 'ReserveInterruptOd',
+  SUMMON_ENEMY: 'SummonEnemy',
 });
 
 export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
@@ -210,6 +211,10 @@ export const replayOperationRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD]: Object.freeze({
     timing: 'afterCommitReservation',
     allowMultiple: false,
+  }),
+  [REPLAY_OPERATION_TYPES.SUMMON_ENEMY]: Object.freeze({
+    timing: 'beforeCommit',
+    allowMultiple: true,
   }),
 });
 export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({

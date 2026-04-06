@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-06
-> 最終更新: 2026-04-06
+> 最終更新: 2026-04-07
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 進捗チェック
@@ -17,6 +17,29 @@
 - [ ] WBS-5: UI / replay / session の Summon 反映
 - [x] WBS-6: テスト拡充と受け入れ確認
 
+## 2026-04-07 実装反映メモ
+
+今回の実装で、手動 Summon を `ui-next/` の turn row へ追加した。
+
+- `敵状態確認` ヘッダ右側に `Summon.webp` を使った手動 Summon ボタンを追加
+- ボタン押下で listbox popover を開き、敵 preset から召喚対象を選択できるようにした
+- `SummonEnemy` before-commit operation を追加し、commit / replay / recalculate / edit で同じ enemy slot snapshot を再現する
+- Summon した敵の `名前 / OD率 / 最大破壊率 / 属性耐性 / 吸収属性` を slot metadata と popup 表示へ反映した
+- `ui-next/utils/enemy-list.js` に手動 summon 用の pinned preset を追加し、サンプル敵 3 体を常に選択候補へ出せるようにした
+- `tests/e2e/turn-row-summon-enemy.spec.js` を追加し、手動 summon -> commit -> enemy detail popup の流れを Playwright で固定した
+
+手動 summon 用のサンプル敵:
+
+- `13450251` `Dimension_03_C_DeathSlugWhite` `終焉を告げる邂逅`
+- `13450256` `Dimension_03_C1_DeathSlugWhiteBit` `エネルギーピットε`
+- `13450259` `Dimension_03_C1_EnergyPit_Pink_e` `エネルギーピットδ`
+
+残タスク:
+
+- 敵行動データの `Summon` を自動で turn operation へ落とす経路
+- summon 後の `break / follow-up / target` 選択をまとめた回帰 coverage
+- `BattleStateManager` へ戦闘中 summon slot を常設反映するかどうかの整理
+
 ## 2026-04-06 実装反映メモ
 
 今回の実装で、Summon 本体の入力/生成ロジックより先に必要だった「敵 slot 正本化」の基盤を反映した。
@@ -29,11 +52,7 @@
 - UI Next の enemy selector は dead slot を disabled にし、enemy detail popup は occupied dead slot を `Dead` badge 付きで表示
 - replay override に `EnemyOdRates` / `EnemyAbsorbElements` を追加し、turn start enemy slot snapshot を turn override に保持
 
-残タスク:
-
-- 敵行動 `Summon` 自体の入力/UI/commit 経路
-- Summon 実行時に新規 slot metadata を生成する runtime ロジック
-- Summon 後 slot 増加シナリオの E2E 固定
+この時点では未着手だった手動 summon 入力/UI/commit 経路、slot metadata 生成、E2E 固定は 2026-04-07 に反映済み。
 
 ## 目的
 
@@ -245,7 +264,7 @@
 - [x] unit: all-target OD が dead enemy を数えないテストを追加する
 - [x] integration: kill -> recalculate -> replay 同値性テストを追加する
 - [ ] integration: summon 後に target/break/follow-up が新規 slot を扱えるテストを追加する
-- [ ] 必要に応じて e2e: UI Next で summon 後 slot が増えるシナリオを固定する
+- [x] 必要に応じて e2e: UI Next で summon 後 slot が増えるシナリオを固定する
 - [x] docs 完了更新（本書 / 親タスク / `docs/README.md`）を行う
 
 完了条件:

@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-06
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-07
 
 ## 目的
 
@@ -293,6 +293,19 @@
 - `騎兵起動` は同一 turn 内に複数回積めるが、残回数 3 を超えて追加できない
 - `騎兵起動` の残回数は battle state に持たず、committed replay turns と current pending operations の prefix から導出する
 - `騎兵起動` Phase 1 は OD 上昇だけを正確に反映し、ダメージと `FearOfDevil` は後続フェーズで扱う
+
+### Turn 行の manual summon UI
+
+- 戦闘中 summon は `Enemy Setup` ではなく turn row の `敵状態確認` ヘッダから投入する
+- input / edit row では `敵状態確認` の右側に `Summon.webp` アイコンボタンを置き、committed row には出さない
+- ボタン押下で listbox popover を開き、敵 preset を 1 体選んで `SummonEnemy` before-commit operation として積む
+- preset 選択時に `名前 / OD率 / 最大破壊率 / 属性耐性 / 吸収属性` を payload 化し、commit 時に summon slot へ初期 metadata として反映する
+- summon 候補は `buildEnemyList(...)` を正本にしつつ、手動 summon 検証用の sample enemy 3 体を常時 pin する
+- sample enemy は次の 3 体で固定する
+  - `13450251` `Dimension_03_C_DeathSlugWhite` `終焉を告げる邂逅`
+  - `13450256` `Dimension_03_C1_DeathSlugWhiteBit` `エネルギーピットε`
+  - `13450259` `Dimension_03_C1_EnergyPit_Pink_e` `エネルギーピットδ`
+- summon 後の enemy detail popup は occupied slot を維持したまま、`Dead` badge、属性耐性、吸収属性を表示できることを前提にする
 
 ### Turn 行の manual break attribution UI
 

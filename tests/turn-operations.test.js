@@ -8,6 +8,10 @@ import {
   resolveMakaiKiheiAvailability,
 } from '../src/turn/turn-operations.js';
 import { REPLAY_OPERATION_TYPES } from '../src/ui/lightweight-replay-script.js';
+import {
+  DEFAULT_SUMMON_SAMPLE_ENEMY,
+  ENERGY_PIT_PINK_E_SAMPLE_ENEMY,
+} from '../src/data/enemy-sample-presets.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
@@ -127,6 +131,37 @@ function createState(overrides = {}, { odGauge = 0, enemyCount = 1 } = {}) {
   return state;
 }
 
+function createSummonEnemyOperation({
+  enemyId = DEFAULT_SUMMON_SAMPLE_ENEMY.id,
+  enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
+  maxDRate = 350,
+  fireRate = 250,
+} = {}) {
+  return {
+    type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
+    payload: {
+      enemyId,
+      enemyName,
+      od_rate: 0,
+      max_d_rate: maxDRate,
+      resistances: {
+        element: {
+          slash: 100,
+          stab: 100,
+          strike: 100,
+          fire: fireRate,
+          ice: 250,
+          thunder: 250,
+          light: 250,
+          dark: 250,
+          nonelement: 100,
+        },
+      },
+      absorbElementList: ['fire'],
+    },
+  };
+}
+
 test('applyBeforeCommitOperations uses the supplied enemyCount for Makai Kihei OD gain', () => {
   const state = createState(
     {
@@ -209,4 +244,66 @@ test('capability helpers resolve Kishinka and Makai Kihei availability from stat
 
   state.party[0].activateReinforcedMode(3);
   assert.equal(canActivateKishinka(state), false);
+});
+
+test('applyBeforeCommitOperations summons into the next unused enemy slot and copies enemy metadata', () => {
+  const state = createState({}, { enemyCount: 1 });
+  state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  state.turnState.enemyState.damageRatesByEnemy = {
+    0: { Slash: 100, Stab: 100, Strike: 100, Fire: 100, Ice: 100, Thunder: 100, Light: 100, Dark: 100, Nonelement: 100 },
+  };
+  state.turnState.enemyState.absorbElementsByEnemy = { 0: [] };
+  state.turnState.enemyState.odRateByEnemy = { 0: 0 };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.breakStateByEnemy = {};
+  state.turnState.enemyState.statuses = [];
+
+  const nextState = applyBeforeCommitOperations(state, [createSummonEnemyOperation()], {});
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, 2);
+  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['1'], DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['1'], 350);
+  assert.equal(nextState.turnState.enemyState.damageRatesByEnemy['1'].Fire, 250);
+  assert.deepEqual(nextState.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['1'], 100);
+});
+
+test('applyBeforeCommitOperations reuses the lowest dead enemy slot without increasing enemyCount', () => {
+  const state = createState({}, { enemyCount: 3 });
+  state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' };
+  state.turnState.enemyState.damageRatesByEnemy = {
+    0: { Fire: 100 },
+    1: { Fire: 90 },
+    2: { Fire: 80 },
+  };
+  state.turnState.enemyState.absorbElementsByEnemy = { 0: [], 1: [], 2: [] };
+  state.turnState.enemyState.odRateByEnemy = { 0: 0, 1: 0, 2: 0 };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 100, 1: 180, 2: 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300, 1: 300, 2: 300 };
+  state.turnState.enemyState.breakStateByEnemy = { 1: { broken: true } };
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Dead', targetIndex: 1, remainingTurns: 0, exitCond: 'Eternal' },
+    { statusType: 'DefenseDown', targetIndex: 1, remainingTurns: 2, exitCond: 'EnemyTurnEnd' },
+  ];
+
+  const nextState = applyBeforeCommitOperations(state, [
+    createSummonEnemyOperation({
+      enemyId: ENERGY_PIT_PINK_E_SAMPLE_ENEMY.id,
+      enemyName: ENERGY_PIT_PINK_E_SAMPLE_ENEMY.name,
+      fireRate: 220,
+    }),
+  ]);
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, 3);
+  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['1'], ENERGY_PIT_PINK_E_SAMPLE_ENEMY.name);
+  assert.equal(nextState.turnState.enemyState.damageRatesByEnemy['1'].Fire, 220);
+  assert.deepEqual(nextState.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['1'], 100);
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['1'], 350);
+  assert.equal(Object.hasOwn(nextState.turnState.enemyState.breakStateByEnemy, '1'), false);
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some((status) => Number(status.targetIndex) === 1),
+    false
+  );
 });

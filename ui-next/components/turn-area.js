@@ -21,6 +21,7 @@ export class TurnAreaController {
   #root;
   #store;
   #engineManager;
+  #enemyPresets = [];
   #onError;
   #onTurnCommitted;
   #onPassiveLogRowsChange;
@@ -72,6 +73,15 @@ export class TurnAreaController {
     this.#engineManager.recalculateAll(newInitialState);
     this.#renderRows();
     this.#emitPassiveLogRows();
+  }
+
+  setEnemyPresets(enemyPresets = []) {
+    this.#enemyPresets = Array.isArray(enemyPresets)
+      ? enemyPresets.map((preset) => structuredClone(preset))
+      : [];
+    if (this.#rowsRoot) {
+      this.#renderRows({ preserveScroll: true });
+    }
   }
 
   #ensureScaffold() {
@@ -323,6 +333,7 @@ export class TurnAreaController {
     const row = new TurnRowController({
       root: rowEl,
       store: this.#store,
+      enemyPresets: this.#enemyPresets,
       turnIndex,
       rowMode: 'input',
       rowDiagnostics: createEmptyRowDiagnostics(),
@@ -363,6 +374,7 @@ export class TurnAreaController {
     const row = new TurnRowController({
       root: rowEl,
       store: this.#store,
+      enemyPresets: this.#enemyPresets,
       turnIndex,
       rowMode: 'committed',
       rowDiagnostics: this.#buildRowDiagnostics(turnIndex),
@@ -387,6 +399,7 @@ export class TurnAreaController {
     const row = new TurnRowController({
       root: rowEl,
       store: this.#store,
+      enemyPresets: this.#enemyPresets,
       turnIndex,
       rowMode: 'edit',
       rowDiagnostics: diagnostics,
@@ -567,6 +580,7 @@ export class TurnAreaController {
       replayTurn: this.#engineManager.getReplayTurn(this.#editSession.turnIndex),
       operations: snapshot?.draft?.operations ?? [],
       operationState: snapshot?.operationState ?? null,
+      enemyPresets: this.#enemyPresets,
       stateBefore: snapshot?.stateBefore ?? this.#engineManager.getStateBefore(this.#editSession.turnIndex),
       stateAfter: null,
       previewResourceState: snapshot?.previewResourceState ?? { spAfterByPartyIndex: {} },
@@ -613,6 +627,7 @@ export class TurnAreaController {
         activatableInterrupt: snapshot.activatableInterrupt,
       },
       operationState: snapshot.operationState,
+      enemyPresets: this.#enemyPresets,
       simulatorSettings: this.#simulatorSettings,
     });
     lastRow.updateOdPreview(snapshot.odGaugeAfter);

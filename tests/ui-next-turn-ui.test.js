@@ -13,6 +13,10 @@ import {
   REPLAY_OVERRIDE_ENTRY_TYPES,
 } from '../src/ui/lightweight-replay-script.js';
 import { TARGET_SELECTION_MODES } from '../ui-next/utils/simulator-settings.js';
+import {
+  DEFAULT_SUMMON_SAMPLE_ENEMY,
+  DEATH_SLUG_WHITE_SAMPLE_ENEMY,
+} from '../src/data/enemy-sample-presets.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
@@ -231,11 +235,41 @@ function createSimulatorSettings({
   };
 }
 
+function createEnemyPreset({
+  id = DEFAULT_SUMMON_SAMPLE_ENEMY.id,
+  name = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
+  od_rate = 0,
+  max_d_rate = 350,
+  fireRate = 250,
+} = {}) {
+  return {
+    id,
+    name,
+    od_rate,
+    max_d_rate,
+    resistances: {
+      element: {
+        slash: 100,
+        stab: 100,
+        strike: 100,
+        fire: fireRate,
+        ice: 250,
+        thunder: 250,
+        light: 250,
+        dark: 250,
+        nonelement: 100,
+      },
+    },
+    absorbElementList: [],
+  };
+}
+
 function createTurnAreaController({
   root,
   state,
   simulatorSettings,
   store = createStoreStub(),
+  enemyPresets = [],
   onPassiveLogRowsChange = null,
 }) {
   const engineManager = new TurnEngineManager();
@@ -250,6 +284,7 @@ function createTurnAreaController({
     onPassiveLogRowsChange,
   });
   controller.initialize(state, {}, simulatorSettings);
+  controller.setEnemyPresets(enemyPresets);
   return { controller, engineManager };
 }
 
@@ -262,11 +297,13 @@ function mountTurnRow({
   stateBefore,
   simulatorSettings,
   store = createStoreStub(),
+  enemyPresets = [],
   previewActionFlow = [],
 }) {
   const row = new TurnRowController({
     root,
     store,
+    enemyPresets,
     turnIndex: 0,
     record: null,
     replayTurn: null,
@@ -1180,6 +1217,131 @@ test('TurnRowController opens enemy detail popup from Enemy label click', () =>
     assert.ok(popup);
     assert.match(popup.textContent ?? '', /E1 Alpha/);
     assert.match(popup.textContent ?? '', /防御力ダウン/);
+  }));
+
+test('TurnRowController opens summon editor and queues selected summon enemy operation', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 95041,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1
+    );
+    const addedOperations = [];
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      enemyPresets: [
+        createEnemyPreset({
+          id: DEATH_SLUG_WHITE_SAMPLE_ENEMY.id,
+          name: DEATH_SLUG_WHITE_SAMPLE_ENEMY.name,
+          max_d_rate: 999,
+        }),
+        createEnemyPreset({ id: DEFAULT_SUMMON_SAMPLE_ENEMY.id, name: DEFAULT_SUMMON_SAMPLE_ENEMY.name }),
+      ],
+      turnIndex: 0,
+      record: null,
+      replayTurn: null,
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore: state,
+      stateAfter: null,
+      simulatorSettings: createSimulatorSettings(),
+      odState: {
+        preemptiveOdLevel: null,
+        interruptOdLevel: null,
+        activatablePreemptive: [],
+        activatableInterrupt: [],
+      },
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: (_turnIndex, operation) => {
+        addedOperations.push(operation);
+      },
+      onOperationRemove: () => {},
+    });
+    row.mount();
+
+    const toggle = root.querySelector('[data-role="enemy-summon-toggle"]');
+    assert.ok(toggle);
+    assert.equal(toggle.disabled, false);
+    assert.match(toggle.innerHTML, /Summon\.webp/);
+    toggle.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const editor = root.querySelector('[data-role="enemy-summon-editor"]');
+    assert.ok(editor);
+    assert.equal(editor.hasAttribute('hidden'), false);
+
+    const select = root.querySelector('[data-role="enemy-summon-select"]');
+    select.value = String(DEFAULT_SUMMON_SAMPLE_ENEMY.id);
+    select.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root
+      .querySelector('[data-role="enemy-summon-submit"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(addedOperations.length, 1);
+    assert.equal(addedOperations[0]?.type, REPLAY_OPERATION_TYPES.SUMMON_ENEMY);
+    assert.equal(addedOperations[0]?.payload?.enemyId, DEFAULT_SUMMON_SAMPLE_ENEMY.id);
+    assert.equal(addedOperations[0]?.payload?.enemyName, DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+    assert.equal(addedOperations[0]?.payload?.max_d_rate, 350);
+    assert.equal(addedOperations[0]?.payload?.resistances?.element?.fire, 250);
+  }));
+
+test('TurnRowController enemy detail popup shows enemy resistance and absorb stats', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 95042,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1
+    );
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: DEFAULT_SUMMON_SAMPLE_ENEMY.name };
+    state.turnState.enemyState.damageRatesByEnemy = {
+      0: {
+        Slash: 100,
+        Stab: 100,
+        Strike: 100,
+        Fire: 250,
+        Ice: 250,
+        Thunder: 250,
+        Light: 250,
+        Dark: 250,
+        Nonelement: 100,
+      },
+    };
+    state.turnState.enemyState.absorbElementsByEnemy = { 0: ['fire'] };
+    state.turnState.enemyState.destructionRateCapByEnemy = { 0: 350 };
+    state.turnState.enemyState.odRateByEnemy = { 0: 0 };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root
+      .querySelector('[data-role="enemy-detail-trigger"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /耐性/);
+    assert.match(popup.textContent ?? '', /火250/);
+    assert.match(popup.textContent ?? '', /吸収/);
+    assert.match(popup.textContent ?? '', /fire/);
   }));
 
 test('TurnRowController enemy detail popup marks dead occupied slots with a Dead badge', () =>

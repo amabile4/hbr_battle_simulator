@@ -1,5 +1,3 @@
-import { isDeepStrictEqual } from 'node:util';
-
 import { previewTurnRecord, commitTurnRecord } from '../../src/ui/adapter-core.js';
 import {
   applyEnemyStateOverrideSnapshot,
@@ -72,6 +70,41 @@ const ENEMY_SNAPSHOT_OVERRIDE_FIELD_TO_TYPE = Object.freeze({
   enemyBreakStates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES,
   enemyStatuses: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES,
 });
+const ENEMY_SNAPSHOT_OVERRIDE_TYPES = new Set(Object.values(ENEMY_SNAPSHOT_OVERRIDE_FIELD_TO_TYPE));
+const TURN_EDIT_PRESERVED_OVERRIDE_EXCLUDED_TYPES = new Set([
+  REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
+  REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+  REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
+  ...ENEMY_SNAPSHOT_OVERRIDE_TYPES,
+]);
+const SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES = new Set([
+  REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
+]);
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function areDeepEqual(left, right) {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) {
+      return false;
+    }
+    return left.every((entry, index) => areDeepEqual(entry, right[index]));
+  }
+  if (isPlainObject(left) && isPlainObject(right)) {
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    if (leftKeys.length !== rightKeys.length) {
+      return false;
+    }
+    return leftKeys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && areDeepEqual(left[key], right[key]));
+  }
+  return false;
+}
 
 function cloneReplayDiagnostics(diagnostics = {}) {
   return {
@@ -284,12 +317,13 @@ export class TurnEngineManager {
         onWarning: (message) => warnings.push(String(message)),
       }
     );
+    const effectiveEnemyCount = this.#resolveEffectiveEnemyCount(state, enemyCount);
     const resolvedSlotActions = this.#resolveInputRowSlotActions(state, slotActions);
     const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       state,
       resolvedSlotActions,
       options.actionOutcomeOverrides,
-      enemyCount,
+      effectiveEnemyCount,
       {
         onWarning: (message) => warnings.push(String(message)),
       }
@@ -297,7 +331,7 @@ export class TurnEngineManager {
     const followUpOverrides = this.#normalizeFollowUpOverridesForState(
       state,
       options.followUpOverrides,
-      enemyCount
+      effectiveEnemyCount
     );
 
     const actions = this.#buildActionsDict(
@@ -310,7 +344,7 @@ export class TurnEngineManager {
       state,
       actions,
       options.enemyAction ?? null,
-      enemyCount,
+      effectiveEnemyCount,
       {
         allowUseCountOverflow: this.#validationPolicy.allowUseCountOverflow,
         allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
@@ -354,7 +388,7 @@ export class TurnEngineManager {
       resolvedSlotActions,
       options.note ?? '',
       operations,
-      enemyCount,
+      effectiveEnemyCount,
       actionOutcomeOverrides,
       followUpOverrides
     );
@@ -364,7 +398,7 @@ export class TurnEngineManager {
     this.#pendingInterruptOdLevel = null;
     this.#pendingSpecialOperations = [];
 
-    this.#computedStates.push(this.#patchNextStateForKills(nextState, actionOutcomeOverrides, enemyCount));
+    this.#computedStates.push(this.#patchNextStateForKills(nextState, actionOutcomeOverrides, effectiveEnemyCount));
     this.#computedRecords.push(null);
     this.#recalculateAllBestEffort();
     return this.#computedRecords.at(-1) ?? null;
@@ -440,13 +474,18 @@ export class TurnEngineManager {
         followUpOverrides.length > 0 ? followUpOverrides : null
       );
       try {
-        state = applyBeforeCommitOperations(state, turn.operations, { enemyCount });
+        state = applyBeforeCommitOperations(
+          state,
+          this.#filterScenarioManagedOperations(turn.operations),
+          { enemyCount }
+        );
       } catch (err) {
         console.warn(`TurnEngineManager.recalculateFrom: before-commit operations failed at turn ${i}:`, err.message);
         this.#computedStates.push(state);
         this.#computedRecords.push(null);
         break;
       }
+      const effectiveEnemyCount = this.#resolveEffectiveEnemyCount(state, enemyCount);
 
       const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides, followUpOverrides);
 
@@ -456,11 +495,15 @@ export class TurnEngineManager {
       );
 
       try {
-        const previewRecord = previewTurnRecord(state, actions, null, enemyCount);
+        const previewRecord = previewTurnRecord(state, actions, null, effectiveEnemyCount);
         const { nextState, committedRecord } = commitTurnRecord(state, previewRecord, [], {
           interruptOdLevel: interruptLevel ?? 0,
         });
-        const patchedNextState = this.#patchNextStateForKills(nextState, actionOutcomeOverrides, enemyCount);
+        const patchedNextState = this.#patchNextStateForKills(
+          nextState,
+          actionOutcomeOverrides,
+          effectiveEnemyCount
+        );
         this.#computedStates.push(patchedNextState);
         this.#computedRecords.push(committedRecord);
         state = patchedNextState;
@@ -499,19 +542,26 @@ export class TurnEngineManager {
     } catch {
       return null;
     }
+    const effectiveEnemyCount = this.#resolveEffectiveEnemyCount(state, enemyCount);
     const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       state,
       slotActions,
       options.actionOutcomeOverrides,
-      enemyCount
+      effectiveEnemyCount
     );
     const followUpOverrides = this.#normalizeFollowUpOverridesForState(
       state,
       options.followUpOverrides,
-      enemyCount
+      effectiveEnemyCount
     );
 
-    return this.#previewResolvedTurn(state, slotActions, enemyCount, actionOutcomeOverrides, followUpOverrides);
+    return this.#previewResolvedTurn(
+      state,
+      slotActions,
+      effectiveEnemyCount,
+      actionOutcomeOverrides,
+      followUpOverrides
+    );
   }
 
   buildInputRowSnapshot({
@@ -533,27 +583,28 @@ export class TurnEngineManager {
     } catch {
       stateBefore = this.#cloneWorkingState(this.currentState);
     }
+    const effectiveEnemyCount = this.#resolveEffectiveEnemyCount(stateBefore, normalizedEnemyCount);
 
     const resolvedSlotActions = this.#resolveInputRowSlotActions(
       stateBefore,
       slotActions,
-      normalizedEnemyCount
+      effectiveEnemyCount
     );
     const normalizedActionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       stateBefore,
       resolvedSlotActions,
       actionOutcomeOverrides,
-      normalizedEnemyCount
+      effectiveEnemyCount
     );
     const normalizedFollowUpOverrides = this.#normalizeFollowUpOverridesForState(
       stateBefore,
       followUpOverrides,
-      normalizedEnemyCount
+      effectiveEnemyCount
     );
     const preview = this.#previewResolvedTurn(
       stateBefore,
       resolvedSlotActions,
-      normalizedEnemyCount,
+      effectiveEnemyCount,
       normalizedActionOutcomeOverrides,
       normalizedFollowUpOverrides
     );
@@ -880,8 +931,16 @@ export class TurnEngineManager {
     if (!normalizedDraft || !this.#replayScript?.turns?.[turnIndex]) {
       return null;
     }
+    const draftStateBefore = this.#buildDraftStateBefore(
+      turnIndex,
+      normalizedDraft.slots,
+      normalizedDraft.operations,
+      normalizedDraft.enemyCount,
+      [],
+      normalizedDraft.overrideEntries
+    );
     const previousComputedStates = [...this.#computedStates];
-    this.#replayScript.turns[turnIndex] = this.#buildReplayTurnFromDraft(normalizedDraft);
+    this.#replayScript.turns[turnIndex] = this.#buildReplayTurnFromDraft(normalizedDraft, draftStateBefore);
     this.#recalculateAllBestEffort({
       strictExtraTurnTurnIndexes: new Set([turnIndex]),
     });
@@ -992,7 +1051,11 @@ export class TurnEngineManager {
         const enemyCount = clampEnemyCount(
           scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
         );
-        state = applyBeforeCommitOperations(state, turn.operations, { enemyCount });
+        state = applyBeforeCommitOperations(
+          state,
+          this.#filterScenarioManagedOperations(turn.operations),
+          { enemyCount }
+        );
       } catch {
         return state;
       }
@@ -1077,7 +1140,7 @@ export class TurnEngineManager {
       const baselinePayload = Object.prototype.hasOwnProperty.call(baselineSnapshot, fieldName)
         ? baselineSnapshot[fieldName]
         : undefined;
-      if (isDeepStrictEqual(nextPayload, baselinePayload)) {
+      if (areDeepEqual(nextPayload, baselinePayload)) {
         continue;
       }
       entries.push({
@@ -1110,21 +1173,46 @@ export class TurnEngineManager {
     return applyReplayOverrideEntriesToScenarioTurn(overrideEntries, {}, warnings);
   }
 
-  #mergeReplayTurnOverrideEntries(baseOverrideEntries = [], enemyCount, actionOutcomeOverrides = [], followUpOverrides = []) {
-    const preservedEntries = (Array.isArray(baseOverrideEntries) ? baseOverrideEntries : [])
-      .filter((entry) =>
-        ![
-          REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
-          REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
-          REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
-        ].includes(String(entry?.type ?? ''))
-      )
+  #resolveEffectiveEnemyCount(state, fallback = DEFAULT_ENEMY_COUNT) {
+    return clampEnemyCount(
+      state?.turnState?.enemyState?.enemyCount ?? fallback
+    );
+  }
+
+  #filterReplayOverrideEntries(baseOverrideEntries = [], excludedTypes = new Set()) {
+    return (Array.isArray(baseOverrideEntries) ? baseOverrideEntries : [])
+      .filter((entry) => !excludedTypes.has(String(entry?.type ?? '')))
       .map((entry) => structuredClone(entry));
+  }
+
+  #filterScenarioManagedOperations(operations = []) {
+    return (Array.isArray(operations) ? operations : [])
+      .filter((operation) => !SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES.has(String(operation?.type ?? '')))
+      .map((operation) => structuredClone(operation));
+  }
+
+  #mergeReplayTurnOverrideEntries(
+    baseOverrideEntries = [],
+    enemyCount,
+    actionOutcomeOverrides = [],
+    followUpOverrides = [],
+    enemyOverrideEntries = []
+  ) {
+    const preservedEntries = this.#filterReplayOverrideEntries(
+      baseOverrideEntries,
+      new Set([
+        REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
+        REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+        REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
+        ...ENEMY_SNAPSHOT_OVERRIDE_TYPES,
+      ])
+    );
     const nextOverrideEntries = [
       {
         type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
         payload: clampEnemyCount(enemyCount),
       },
+      ...(Array.isArray(enemyOverrideEntries) ? enemyOverrideEntries.map((entry) => structuredClone(entry)) : []),
       ...preservedEntries,
     ];
     const actionOutcomeOverrideEntry = buildActionOutcomeOverrideEntry(
@@ -1144,7 +1232,9 @@ export class TurnEngineManager {
     return nextOverrideEntries;
   }
 
-  #buildReplayTurnFromDraft(draft) {
+  #buildReplayTurnFromDraft(draft, stateBefore) {
+    const effectiveEnemyCount = this.#resolveEffectiveEnemyCount(stateBefore, draft.enemyCount);
+    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(stateBefore);
     return normalizeLightweightReplayTurn({
       turn: draft.turn,
       slots: draft.slots,
@@ -1152,9 +1242,10 @@ export class TurnEngineManager {
       note: draft.note,
       overrideEntries: this.#mergeReplayTurnOverrideEntries(
         draft.overrideEntries,
-        draft.enemyCount,
+        effectiveEnemyCount,
         draft.actionOutcomeOverrides,
-        draft.followUpOverrides
+        draft.followUpOverrides,
+        enemyOverrideEntries
       ),
     });
   }
@@ -1171,10 +1262,22 @@ export class TurnEngineManager {
       note: draft?.note ?? sourceTurn?.note ?? '',
     });
     const baseState = this.#getBaseStateBefore(turnIndex);
-    const enemyCount = clampEnemyCount(
+    const preservedOverrideEntries = this.#filterReplayOverrideEntries(
+      draft?.overrideEntries ?? sourceTurn?.overrideEntries ?? [],
+      TURN_EDIT_PRESERVED_OVERRIDE_EXCLUDED_TYPES
+    );
+    const seededEnemyCount = clampEnemyCount(
       draft?.enemyCount ?? this.#resolveReplayTurnEnemyCount(sourceTurn ?? normalizedTurn, baseState)
     );
-    const stateBefore = this.#buildDraftStateBefore(turnIndex, normalizedTurn.slots, normalizedTurn.operations, enemyCount);
+    const stateBefore = this.#buildDraftStateBefore(
+      turnIndex,
+      normalizedTurn.slots,
+      normalizedTurn.operations,
+      seededEnemyCount,
+      [],
+      preservedOverrideEntries
+    );
+    const enemyCount = seededEnemyCount;
     const slotActions = this.#slotActionsFromReplaySlots(normalizedTurn.slots);
     const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       stateBefore,
@@ -1199,7 +1302,7 @@ export class TurnEngineManager {
       slots: normalizedTurn.slots,
       operations: normalizedTurn.operations,
       note: normalizedTurn.note,
-      overrideEntries: structuredClone(draft?.overrideEntries ?? sourceTurn?.overrideEntries ?? []),
+      overrideEntries: preservedOverrideEntries,
       enemyCount,
       actionOutcomeOverrides,
       followUpOverrides,
@@ -1210,7 +1313,7 @@ export class TurnEngineManager {
     turnIndex,
     slots = [],
     operations = [],
-    enemyCount = DEFAULT_ENEMY_COUNT,
+    enemyCount = null,
     warnings = [],
     overrideEntries = []
   ) {
@@ -1272,6 +1375,7 @@ export class TurnEngineManager {
       }),
       stateBefore,
       previewResourceState: preview?.previewResourceState ?? { spAfterByPartyIndex: {} },
+      previewActionFlow: preview?.previewActionFlow ?? [],
       odState: {
         preemptiveOdLevel: this.#extractOperationLevel(
           draft.operations,
@@ -1387,11 +1491,12 @@ export class TurnEngineManager {
       const enemyCount = clampEnemyCount(
         scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
       );
-      state = applyBeforeCommitOperations(state, turn.operations, {
+      state = applyBeforeCommitOperations(state, this.#filterScenarioManagedOperations(turn.operations), {
         enemyCount,
         allowInsufficientOd: this.#validationPolicy.allowInsufficientOd,
         onWarning: (message) => warnings.push(String(message)),
       });
+      const effectiveEnemyCount = this.#resolveEffectiveEnemyCount(state, enemyCount);
 
       const interruptLevel = this.#extractOperationLevel(
         turn.operations,
@@ -1407,7 +1512,7 @@ export class TurnEngineManager {
       }
       const actionOutcomeOverrides = this.#resolveReplayTurnActionOutcomeOverrides(
         turn,
-        enemyCount,
+        effectiveEnemyCount,
         state,
         slotActions,
         {
@@ -1416,7 +1521,7 @@ export class TurnEngineManager {
       );
       const followUpOverrides = this.#resolveReplayTurnFollowUpOverrides(
         turn,
-        enemyCount,
+        effectiveEnemyCount,
         state
       );
       this.#replaceReplayOverrideEntry(
@@ -1431,7 +1536,7 @@ export class TurnEngineManager {
       );
 
       const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides, followUpOverrides);
-      const previewRecord = previewTurnRecord(state, actions, null, enemyCount, {
+      const previewRecord = previewTurnRecord(state, actions, null, effectiveEnemyCount, {
         allowUseCountOverflow: this.#validationPolicy.allowUseCountOverflow,
         allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
         onWarning: (message) => warnings.push(String(message)),
@@ -1457,7 +1562,7 @@ export class TurnEngineManager {
       });
       return {
         warnings,
-        nextState: this.#patchNextStateForKills(nextState, actionOutcomeOverrides, enemyCount),
+        nextState: this.#patchNextStateForKills(nextState, actionOutcomeOverrides, effectiveEnemyCount),
         committedRecord,
       };
     } catch (error) {
@@ -1916,10 +2021,11 @@ export class TurnEngineManager {
       note,
       operations,
       overrideEntries: this.#mergeReplayTurnOverrideEntries(
-        enemyOverrideEntries,
+        [],
         normalizedEnemyCount,
         normalizedActionOutcomeOverrides,
-        followUpOverrides
+        followUpOverrides,
+        enemyOverrideEntries
       ),
     });
   }

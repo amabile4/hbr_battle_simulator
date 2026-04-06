@@ -1,5 +1,8 @@
+import { ALWAYS_VISIBLE_ENEMY_PRESET_IDS } from '../../src/data/enemy-sample-presets.js';
+
+const ALWAYS_SHOW_ENEMY_IDS = new Set(ALWAYS_VISIBLE_ENEMY_PRESET_IDS);
+
 export function buildEnemyList(rawEnemies, today = new Date()) {
-  const ALWAYS_SHOW_IDS = new Set([13450045]);
   const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
   const normalizeEnemyResistanceRatePercent = (value) => {
     const numeric = Number(value);
@@ -30,14 +33,14 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
   };
 
   const alwaysEntries = [];
-  for (const id of ALWAYS_SHOW_IDS) {
+  for (const id of ALWAYS_SHOW_ENEMY_IDS) {
     const found = rawEnemies.find((enemy) => enemy.id === id);
     if (found) alwaysEntries.push(found);
   }
 
   const recentBosses = rawEnemies.filter(
     (enemy) =>
-      !ALWAYS_SHOW_IDS.has(enemy.id) &&
+      !ALWAYS_SHOW_ENEMY_IDS.has(enemy.id) &&
       enemy.flags &&
       enemy.flags.is_boss === true &&
       isWithinRecentThreeMonths(enemy)

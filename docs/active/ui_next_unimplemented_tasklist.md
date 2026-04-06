@@ -1,6 +1,6 @@
 # UI Next 未実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-06
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-07
 >
 > **目的**: `ui_next_implementation_tasklist.md` から未完了項目を分離し、active ドキュメントに散在していた未実装作業をこの 1 ファイルで追跡する。
 >
@@ -36,10 +36,11 @@
 進捗メモ:
 
 - 2026-04-06: Summon 本体着手前の基盤として、enemy slot 正本化、kill=`Dead`、per-enemy `od_rate`、dead slot 条件除外、UI dead badge/disable、replay enemy snapshot を反映。残りは Summon 入力/UI/commit と新規 slot metadata 生成。
+- 2026-04-07: turn row `敵状態確認` ヘッダに `Summon.webp` の手動 summon ボタンを追加し、listbox から敵 preset を選んで `SummonEnemy` operation を積めるようにした。commit / replay / recalculate / popup まで反映し、sample enemy は `Dimension_03_C_DeathSlugWhite` / `Dimension_03_C1_DeathSlugWhiteBit` / `Dimension_03_C1_EnergyPit_Pink_e` の 3 体で固定。残りは敵行動データからの自動 summon 化と、summon 後 selector 回帰 coverage。
 
-- [ ] 敵行動 `Summon` を turn 単位の敵数増加イベントとして入力できる
-- [ ] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する
-- [ ] Summon 後に増えた敵スロットの情報表示（名前 / OD率 / 最大破壊率 / 状態表示）を追加する
+- [x] 手動 `Summon` を turn 単位の敵数増加イベントとして入力できる
+- [x] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する
+- [x] Summon 後に増えた敵スロットの情報表示（名前 / OD率 / 最大破壊率 / 耐性 / 吸収属性）を追加する
 - [ ] break / follow-up / enemy detail popup など既存の敵選択 UI が増加後スロットにも追従する
 - [ ] `BattleStateManager` / turn state に Summon 後の敵数と新規敵スロット情報を反映する
 

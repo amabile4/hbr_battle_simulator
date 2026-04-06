@@ -8,6 +8,7 @@ import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { normalizeSessionSnapshot } from '../ui-next/utils/session-snapshot.js';
 import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 import { DEFAULT_VALIDATION_POLICY } from '../ui-next/utils/validation-policy.js';
+import { DEFAULT_SUMMON_SAMPLE_ENEMY } from '../src/data/enemy-sample-presets.js';
 import { getSixUsableStyleIds, getStore } from './helpers.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
@@ -118,6 +119,37 @@ function createInitialState(actorSkill, actorOptions = {}) {
   return createBattleStateFromParty(createManualParty(actorSkill, actorOptions));
 }
 
+function createSummonEnemyOperation({
+  enemyId = DEFAULT_SUMMON_SAMPLE_ENEMY.id,
+  enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
+  maxDRate = 350,
+  fireRate = 250,
+} = {}) {
+  return {
+    type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
+    payload: {
+      enemyId,
+      enemyName,
+      od_rate: 0,
+      max_d_rate: maxDRate,
+      resistances: {
+        element: {
+          slash: 100,
+          stab: 100,
+          strike: 100,
+          fire: fireRate,
+          ice: 250,
+          thunder: 250,
+          light: 250,
+          dark: 250,
+          nonelement: 100,
+        },
+      },
+      absorbElementList: ['fire'],
+    },
+  };
+}
+
 function createLegacyExtraTurnInitialState() {
   const initialState = createInitialState(
     createSkill({
@@ -196,6 +228,75 @@ test('TurnEngineManager persists enemyCount through commit and replay recalculat
   assert.equal(manager.computedRecords[0]?.enemyCount, 3);
   assert.equal(manager.computedStates[0]?.turnState?.enemyState?.enemyCount, 3);
   assert.equal(manager.computedRecords[0]?.actions.find((action) => action.positionIndex === 0)?.targetEnemyIndex, 2);
+});
+
+test('TurnEngineManager commits summon operations into enemy slot snapshots and restores them on reload', () => {
+  const actorSkill = createSkill({
+    id: 90726,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 1;
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  initialState.turnState.enemyState.damageRatesByEnemy = {
+    0: { Slash: 100, Stab: 100, Strike: 100, Fire: 100, Ice: 100, Thunder: 100, Light: 100, Dark: 100, Nonelement: 100 },
+  };
+  initialState.turnState.enemyState.absorbElementsByEnemy = { 0: [] };
+  initialState.turnState.enemyState.odRateByEnemy = { 0: 0 };
+  initialState.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  initialState.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  initialState.turnState.enemyState.breakStateByEnemy = {};
+  initialState.turnState.enemyState.statuses = [];
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  assert.equal(manager.addPendingSpecialOperation(createSummonEnemyOperation()), true);
+
+  const committedRecord = manager.commitNextTurn(
+    { 0: { skillId: 90726 } },
+    { enemyCount: 1, note: 'summon turn' }
+  );
+
+  assert.equal(committedRecord.enemyCount, 2);
+  assert.equal(manager.currentState.turnState.enemyState.enemyCount, 2);
+  assert.equal(manager.replayScript.turns[0].operations[0]?.type, REPLAY_OPERATION_TYPES.SUMMON_ENEMY);
+  assert.equal(
+    manager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['1'],
+    DEFAULT_SUMMON_SAMPLE_ENEMY.name
+  );
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.damageRatesByEnemy?.['1']?.Fire, 250);
+
+  const overrideTypes = manager.replayScript.turns[0].overrideEntries.map((entry) => entry.type);
+  assert.ok(overrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT));
+  assert.ok(overrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_NAMES));
+  assert.ok(overrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DAMAGE_RATES));
+  assert.ok(overrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES));
+  assert.ok(overrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS));
+
+  const reloadState = createInitialState(actorSkill);
+  reloadState.turnState.enemyState.enemyCount = 1;
+  reloadState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  reloadState.turnState.enemyState.damageRatesByEnemy = {
+    0: { Slash: 100, Stab: 100, Strike: 100, Fire: 100, Ice: 100, Thunder: 100, Light: 100, Dark: 100, Nonelement: 100 },
+  };
+  reloadState.turnState.enemyState.absorbElementsByEnemy = { 0: [] };
+  reloadState.turnState.enemyState.odRateByEnemy = { 0: 0 };
+  reloadState.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  reloadState.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  reloadState.turnState.enemyState.breakStateByEnemy = {};
+  reloadState.turnState.enemyState.statuses = [];
+
+  const reloadedManager = new TurnEngineManager();
+  reloadedManager.loadReplayScript(reloadState, manager.replayScript, {});
+
+  const stateBeforeFirstTurn = reloadedManager.getStateBefore(0);
+  assert.equal(stateBeforeFirstTurn.turnState.enemyState.enemyCount, 2);
+  assert.equal(stateBeforeFirstTurn.turnState.enemyState.enemyNamesByEnemy['1'], DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+  assert.equal(stateBeforeFirstTurn.turnState.enemyState.damageRatesByEnemy['1'].Fire, 250);
+  assert.deepEqual(stateBeforeFirstTurn.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);
+  assert.equal(reloadedManager.computedStates[0]?.turnState?.enemyState?.enemyCount, 2);
 });
 
 test('TurnEngineManager replays Karen double-action EX after 意気揚々 self-buff', () => {

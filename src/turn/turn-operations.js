@@ -1,7 +1,17 @@
-import { previewTurn, activateOverdrive } from './turn-controller.js';
+import {
+  activateOverdrive,
+  applyEnemyStateOverrideSnapshot,
+  buildEnemyStateOverrideSnapshot,
+  isEnemyAlive,
+  previewTurn,
+} from './turn-controller.js';
 import {
   clampEnemyCount,
   DEFAULT_ENEMY_COUNT,
+  DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+  DEFAULT_DESTRUCTION_RATE_PERCENT,
+  DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
+  MAX_ENEMY_COUNT,
   getOdGaugeRequirement,
   OD_GAUGE_MAX_PERCENT,
   REINFORCED_MODE_OD_GAUGE_BONUS,
@@ -14,6 +24,18 @@ export const MAKAI_KIHEI_PASSIVE_LABEL = 'Passive.Machina_Demon';
 export const MAKAI_KIHEI_SKILL_LABEL = 'BIYamawakiSkill55b';
 export const MAKAI_KIHEI_MAX_USES = 3;
 export const MAKAI_KIHEI_DEFAULT_POSITION = 0;
+const SUMMONABLE_ENEMY_RESISTANCE_KEYS = Object.freeze({
+  slash: 'Slash',
+  stab: 'Stab',
+  strike: 'Strike',
+  fire: 'Fire',
+  ice: 'Ice',
+  thunder: 'Thunder',
+  light: 'Light',
+  dark: 'Dark',
+  nonelement: 'Nonelement',
+});
+const ENEMY_STATUS_DEAD = 'Dead';
 
 const BEFORE_COMMIT_OPERATION_TYPES = new Set(
   Object.values(REPLAY_OPERATION_TYPES).filter((type) => replayOperationRegistry.get(type)?.timing === 'beforeCommit')
@@ -187,6 +209,137 @@ function applyMakaiKiheiToState(state) {
   };
 }
 
+function normalizeSummonEnemyCount(value, fallback = DEFAULT_ENEMY_COUNT) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return clampEnemyCount(fallback);
+  }
+  return clampEnemyCount(numeric);
+}
+
+function normalizeSummonEnemyRates(payload = {}) {
+  const elementRates = payload?.resistances?.element ?? payload?.element ?? {};
+  return Object.fromEntries(
+    Object.entries(SUMMONABLE_ENEMY_RESISTANCE_KEYS).map(([uiKey, engineKey]) => {
+      const numericRate = Number(elementRates?.[uiKey]);
+      return [
+        engineKey,
+        Number.isFinite(numericRate) ? numericRate : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
+      ];
+    })
+  );
+}
+
+function normalizeSummonEnemyAbsorbElements(payload = {}) {
+  const list = Array.isArray(payload?.absorbElementList)
+    ? payload.absorbElementList
+    : Array.isArray(payload?.resistances?.element?.absorb_element_list)
+      ? payload.resistances.element.absorb_element_list
+      : [];
+  return [...new Set(list.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean))];
+}
+
+function normalizeSummonEnemyPayload(payload = {}) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const enemyName = String(
+    payload.enemyName ??
+    payload.name ??
+    payload.selectedEnemyName ??
+    ''
+  ).trim();
+  const enemyId = Number(payload.enemyId ?? payload.id ?? payload.selectedEnemyId ?? NaN);
+  const odRate = Number(payload.od_rate ?? payload.odRate ?? 0);
+  const maxDestructionRate = Number(payload.max_d_rate ?? payload.maxDRate ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT);
+  return {
+    enemyId: Number.isFinite(enemyId) ? enemyId : null,
+    enemyName,
+    odRate: Number.isFinite(odRate) ? odRate : 0,
+    maxDestructionRate: Number.isFinite(maxDestructionRate)
+      ? maxDestructionRate
+      : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+    damageRates: normalizeSummonEnemyRates(payload),
+    absorbElements: normalizeSummonEnemyAbsorbElements(payload),
+  };
+}
+
+function resolveSummonEnemySlotIndex(turnState) {
+  const currentEnemyCount = normalizeSummonEnemyCount(
+    turnState?.enemyState?.enemyCount,
+    DEFAULT_ENEMY_COUNT
+  );
+  if (currentEnemyCount < MAX_ENEMY_COUNT) {
+    return currentEnemyCount;
+  }
+  for (let enemyIndex = 0; enemyIndex < currentEnemyCount; enemyIndex += 1) {
+    if (!isEnemyAlive(turnState, enemyIndex, currentEnemyCount)) {
+      return enemyIndex;
+    }
+  }
+  return null;
+}
+
+function applySummonEnemyToState(state, operation = {}) {
+  if (!state?.turnState) {
+    return state;
+  }
+  const summonEnemy = normalizeSummonEnemyPayload(operation?.payload);
+  if (!summonEnemy) {
+    return state;
+  }
+  const targetEnemyIndex = resolveSummonEnemySlotIndex(state.turnState);
+  if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0) {
+    return state;
+  }
+
+  const currentSnapshot = buildEnemyStateOverrideSnapshot(state.turnState);
+  const slotKey = String(targetEnemyIndex);
+  const nextEnemyCount = Math.max(
+    normalizeSummonEnemyCount(currentSnapshot.enemyCount, DEFAULT_ENEMY_COUNT),
+    normalizeSummonEnemyCount(targetEnemyIndex + 1, DEFAULT_ENEMY_COUNT)
+  );
+
+  const nextSnapshot = {
+    ...currentSnapshot,
+    enemyCount: nextEnemyCount,
+    enemyNames: {
+      ...(currentSnapshot.enemyNames ?? {}),
+      [slotKey]: summonEnemy.enemyName,
+    },
+    enemyDamageRates: {
+      ...(currentSnapshot.enemyDamageRates ?? {}),
+      [slotKey]: summonEnemy.damageRates,
+    },
+    enemyDestructionRates: {
+      ...(currentSnapshot.enemyDestructionRates ?? {}),
+      [slotKey]: DEFAULT_DESTRUCTION_RATE_PERCENT,
+    },
+    enemyDestructionRateCaps: {
+      ...(currentSnapshot.enemyDestructionRateCaps ?? {}),
+      [slotKey]: summonEnemy.maxDestructionRate,
+    },
+    enemyOdRates: {
+      ...(currentSnapshot.enemyOdRates ?? {}),
+      [slotKey]: summonEnemy.odRate,
+    },
+    enemyAbsorbElements: {
+      ...(currentSnapshot.enemyAbsorbElements ?? {}),
+      [slotKey]: summonEnemy.absorbElements,
+    },
+    enemyBreakStates: Object.fromEntries(
+      Object.entries(currentSnapshot.enemyBreakStates ?? {}).filter(([enemyIndex]) => String(enemyIndex) !== slotKey)
+    ),
+    enemyStatuses: (Array.isArray(currentSnapshot.enemyStatuses) ? currentSnapshot.enemyStatuses : []).filter(
+      (status) =>
+        String(status?.statusType ?? '').trim() !== ENEMY_STATUS_DEAD ||
+        Number(status?.targetIndex ?? -1) !== targetEnemyIndex
+    ).filter((status) => Number(status?.targetIndex ?? -1) !== targetEnemyIndex),
+  };
+  applyEnemyStateOverrideSnapshot(state.turnState, nextSnapshot);
+  return state;
+}
+
 function applyOperation(state, operation = {}, options = {}) {
   const type = String(operation?.type ?? '').trim();
   if (!type || !BEFORE_COMMIT_OPERATION_TYPES.has(type)) {
@@ -197,6 +350,9 @@ function applyOperation(state, operation = {}, options = {}) {
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI) {
     return applyMakaiKiheiToState(state);
+  }
+  if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
+    return applySummonEnemyToState(state, operation);
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
     const level = extractOperationLevel(operation);
