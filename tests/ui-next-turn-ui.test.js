@@ -477,6 +477,7 @@ test('TurnRowController marks committed battle-end rows with data-battle-ended',
     row.mount();
 
     assert.equal(root.querySelector('[data-turn-row]').dataset.battleEnded, 'true');
+    assert.equal(root.querySelector('[data-role="turn-info-battle-end"]').textContent.trim(), 'バトル終了');
   }));
 
 test('TurnRowController shows a repeat indicator for committed double-action casts', () =>
@@ -1046,6 +1047,51 @@ test('TurnRowController shows ally target popover only when ally selection is ma
     assert.equal(candidateButtons.length, 6);
     const disabledCount = candidateButtons.filter((button) => button.disabled).length;
     assert.equal(disabledCount, 4);
+  }));
+
+test('TurnRowController shortens ally target labels using the shortest character name', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 95031,
+      name: 'Frontline Buff',
+      targetType: 'AllySingleWithoutSelf',
+      parts: [{ skill_type: 'AdditionalTurn', target_type: 'AllySingleWithoutSelf' }],
+    });
+    const state = createFrontlineState([skill], 1, [
+      { characterId: 'ACTOR', characterName: '前衛 1' },
+      {},
+      {},
+      {},
+      { characterId: 'RKayamori', characterName: '茅森 月歌' },
+      {},
+    ]);
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings({
+        enemyMode: TARGET_SELECTION_MODES.SIMPLE,
+        allyMode: TARGET_SELECTION_MODES.MANUAL,
+      }),
+      store: createStoreStub({
+        RKayamori: {
+          label: 'RKayamori',
+          name: '茅森 月歌 — Ruka Kayamori',
+        },
+      }),
+    });
+
+    root
+      .querySelector('[data-role="target-trigger"][data-target-kind="ally"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="target-candidate"][data-target-kind="ally"][data-style-id="9304"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const trigger = root.querySelector('[data-role="target-trigger"][data-target-kind="ally"]');
+    assert.match(trigger.textContent ?? '', /味方/);
+    assert.match(trigger.textContent ?? '', /月歌/);
+    assert.doesNotMatch(trigger.textContent ?? '', /P5/);
+    assert.doesNotMatch(trigger.textContent ?? '', /茅森 月歌/);
   }));
 
 test('TurnRowController opens enemy detail popup from Enemy label context menu', () =>

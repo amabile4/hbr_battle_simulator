@@ -1,4 +1,5 @@
 import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
+import { resolveShortCharacterName } from '../../src/domain/character-name.js';
 import { REPLAY_TARGET_TYPES, normalizeReplayTarget } from '../../src/ui/lightweight-replay-script.js';
 import {
   DEFAULT_SIMULATOR_SETTINGS,
@@ -149,6 +150,24 @@ function findFirstEnabledCandidate(config) {
   return config?.candidates?.find((candidate) => candidate.disabled !== true) ?? null;
 }
 
+function resolveAllyTargetLabel(candidate, options = {}) {
+  if (!candidate || typeof candidate !== 'object') {
+    return '';
+  }
+  const characterId = String(candidate.characterId ?? '').trim();
+  const rawCharacter =
+    characterId && typeof options.store?.getCharacterByLabel === 'function'
+      ? options.store.getCharacterByLabel(characterId)
+      : null;
+  if (rawCharacter?.name) {
+    return resolveShortCharacterName(String(rawCharacter.name).trim(), characterId);
+  }
+  if (candidate.shortName) {
+    return String(candidate.shortName).trim();
+  }
+  return resolveShortCharacterName(String(candidate.characterName ?? characterId).trim(), characterId);
+}
+
 function hasExplicitTargetForConfig(config, target) {
   const normalizedTarget = normalizeTurnReplayTarget(target);
   if (config?.kind === 'enemy') {
@@ -274,7 +293,22 @@ export function formatTurnTargetLabel(config, target, options = {}) {
 
   const candidate = findTargetCandidate(config, normalizedTarget);
   if (!candidate) {
+    if (
+      normalizedTarget.type === REPLAY_TARGET_TYPES.ALLY &&
+      typeof options.store?.getCharacterByLabel === 'function'
+    ) {
+      const fallbackLabel = resolveAllyTargetLabel(
+        {
+          characterId: normalizedTarget.characterId,
+          characterName: '',
+        },
+        options
+      );
+      if (fallbackLabel) {
+        return fallbackLabel;
+      }
+    }
     return '味方を選択';
   }
-  return `P${candidate.position + 1} ${candidate.characterName}`;
+  return resolveAllyTargetLabel(candidate, options);
 }

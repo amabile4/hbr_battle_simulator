@@ -679,7 +679,8 @@ export class TurnRowController {
     const currentTargetLabel =
       singleTargetConfig && currentReplayTarget.type === 'enemy'
         ? formatTurnTargetLabel(singleTargetConfig, currentReplayTarget, {
-            enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+          enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+          store: this.#store,
           })
         : '';
     const rawBreakEnemyIndexes = isCommitted
@@ -1821,7 +1822,7 @@ export class TurnRowController {
           candidates: [],
         },
         currentReplayTarget,
-        { enemyNamesByEnemy }
+        { enemyNamesByEnemy, store: this.#store }
       );
       return `
         <div data-role="target-trigger-label"
@@ -1832,6 +1833,7 @@ export class TurnRowController {
     }
     const summaryLabel = formatTurnTargetLabel(manualTargetConfig, currentReplayTarget, {
       enemyNamesByEnemy,
+      store: this.#store,
     });
     const kindLabel = manualTargetConfig.kind === 'enemy' ? '敵' : '味方';
     if (!isEditable) {
@@ -2048,7 +2050,10 @@ export class TurnRowController {
                   data-role="enemy-detail-trigger"
               title="左クリック/右クリック/長押しで敵状態詳細を表示"
                   class="turn-info-enemy-button">
-            <span class="turn-info-enemy-button__label">敵状態確認</span>
+            <span class="turn-info-enemy-button__label"
+                  data-label-full="敵状態確認"
+                  data-label-medium="敵状態"
+                  data-label-short="敵">敵状態確認</span>
           </button>
         </div>`;
 
@@ -2096,7 +2101,10 @@ export class TurnRowController {
                 data-role="enemy-detail-trigger"
           title="左クリック/右クリック/長押しで敵状態詳細を表示"
                 class="turn-info-enemy-button">
-          <span class="turn-info-enemy-button__label">敵状態確認</span>
+          <span class="turn-info-enemy-button__label"
+                data-label-full="敵状態確認"
+                data-label-medium="敵状態"
+                data-label-short="敵">敵状態確認</span>
         </button>
       </div>`;
 
@@ -2123,8 +2131,11 @@ export class TurnRowController {
           ? `<div class="pt-0.5 text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
           : ''}
         ${allEnemiesDefeated
-          ? `<div class="text-[9px] font-bold text-red-600 bg-red-50 rounded px-1 py-px border border-red-200 w-full text-center">
-               バトル終了
+          ? `<div data-role="turn-info-battle-end-row" class="w-full">
+               <div data-role="turn-info-battle-end"
+                    class="text-[9px] font-bold text-red-600 bg-red-50 rounded px-1 py-px border border-red-200 w-full text-center">
+                 バトル終了
+               </div>
              </div>`
           : ''}
       </div>`;

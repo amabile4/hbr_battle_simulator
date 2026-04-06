@@ -977,6 +977,7 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  container-type: inline-size;
   min-height: 2rem;
   padding: 0.28rem 0.45rem;
   border: 1px solid #93c5fd;
@@ -1000,10 +1001,30 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
 }
 .turn-info-enemy-button__label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 800;
-  font-size: 0.75rem;
-  letter-spacing: 0.01em;
+  font-size: 0;
+  letter-spacing: 0;
   white-space: nowrap;
+}
+.turn-info-enemy-button__label::before {
+  content: attr(data-label-full);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+@container (max-width: 5rem) {
+  .turn-info-enemy-button__label::before {
+    content: attr(data-label-medium);
+  }
+}
+@container (max-width: 2.7rem) {
+  .turn-info-enemy-button__label::before {
+    content: attr(data-label-short);
+  }
 }
 [data-turn-slot-icon] {
   width: var(--turn-slot-icon-size);
@@ -1241,6 +1262,11 @@
    Row2: [スロット full-width]
    ============================================================ */
 @container turn-area (max-width: 479px) {
+  [data-role="turn-row-list"] {
+    --turn-mobile-target-anchor-right: 0.125rem;
+    --turn-mobile-target-anchor-bottom: 0.125rem;
+  }
+
   /* 外側コンテナ: flex-wrap を有効にして2行に */
   [data-turn-row] { flex-wrap: wrap; }
 
@@ -1296,6 +1322,246 @@
   }
 
   /* スロット内: デフォルト 2:1（前衛66%・後衛33%）を維持 */
+
+  /* コミット済み行: turn-info を横長 compact bar に寄せる */
+  [data-turn-row][data-row-mode="committed"] {
+    --turn-mobile-committed-front-flex: 4;
+    --turn-mobile-committed-back-flex: 3;
+    --turn-slot-icon-size: 2.2rem;
+    --turn-mobile-committed-front-icon-size: 2.88rem;
+    --turn-mobile-committed-back-icon-size: 2rem;
+    --turn-skill-badge-icon-size: 0.95rem;
+    --turn-slot-select-font-size: 0.6875rem;
+    --turn-slot-select-min-height: 1.25rem;
+    --turn-slot-select-gap: 0.125rem;
+    --turn-slot-select-padding-x: 0.125rem;
+    --turn-slot-body-padding: 0.25rem;
+    --turn-slot-body-gap: 0.25rem;
+    --turn-slot-footer-gap: 0.375rem;
+    --turn-slot-footer-padding-x: 0.125rem;
+    --turn-slot-info-min-height: 0.75rem;
+    --turn-slot-label-font-size: 0.6875rem;
+    --turn-slot-label-min-height: 1.125rem;
+    --turn-sp-badge-font-size: 0.8125rem;
+    --turn-sp-badge-min-width: 1.5rem;
+    --turn-sp-badge-padding-x: 0.2rem;
+    --turn-turn-gauge-font-size: 0.6875rem;
+    --turn-token-dot-size: 0.375rem;
+    --turn-morale-icon-size: 0.8125rem;
+    --turn-morale-dot-size: 0.4375rem;
+    --turn-buff-icon-size: 0.875rem;
+    align-items: flex-start;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-info] {
+    order: 0;
+    flex: 0 0 100%;
+    width: 100% !important;
+    align-items: stretch !important;
+    padding: 0.375rem 0.5rem;
+  }
+
+  [data-turn-row][data-row-mode="committed"][data-battle-ended="true"] [data-turn-info] {
+    flex-wrap: wrap;
+    row-gap: 0.1875rem;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-role="turn-info-stack"] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.375rem;
+    align-items: center;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-info-header {
+    grid-column: 1;
+    grid-row: 1;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-info-enemy-row {
+    grid-column: 3;
+    grid-row: 1;
+    width: auto;
+    justify-content: flex-end;
+    padding: 0;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button {
+    min-height: 1.75rem;
+    width: auto;
+    padding: 0.2rem 0.45rem;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label {
+    font-size: 0;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label::before {
+    font-size: 0.6875rem;
+  }
+
+  @container (max-width: 2.7rem) {
+    [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label::before {
+      content: attr(data-label-medium);
+    }
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-od-gauge] {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    font-size: 0.625rem;
+    white-space: nowrap;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-od-gauge-stack {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-od-gauge-row {
+    min-width: 0;
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-od-gauge-row-value-line {
+    min-width: 0;
+    flex: 0 1 auto;
+    justify-content: center;
+    gap: 0;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-od-gauge-value {
+    min-width: 0;
+    font-size: 0.8125rem;
+    letter-spacing: -0.05em;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-od-gauge-visual {
+    display: none;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-od-stage-badge {
+    display: none;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-od-gauge-arrow {
+    display: inline-flex;
+    width: auto;
+    height: auto;
+    align-self: center;
+    background: none;
+    clip-path: none;
+    filter: none;
+  }
+
+  [data-turn-row][data-row-mode="committed"] .turn-od-gauge-arrow::before {
+    content: "\2192";
+    font-size: 0.8125rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #64748b;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-slots] {
+    order: 1;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-front-group] {
+    flex: var(--turn-mobile-committed-front-flex);
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-back-group] {
+    flex: var(--turn-mobile-committed-back-flex);
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-front-group] [data-turn-slot-icon] {
+    width: var(--turn-mobile-committed-front-icon-size);
+    height: var(--turn-mobile-committed-front-icon-size);
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-back-group] [data-turn-slot-icon] {
+    width: var(--turn-mobile-committed-back-icon-size);
+    height: var(--turn-mobile-committed-back-icon-size);
+  }
+
+  [data-role="slot-body"] {
+    position: relative;
+  }
+
+  [data-role="slot-target-anchor"] {
+    position: absolute;
+    right: var(--turn-mobile-target-anchor-right);
+    bottom: var(--turn-mobile-target-anchor-bottom);
+    z-index: 1;
+    max-width: calc(100% - var(--turn-slot-icon-size) - 0.5rem);
+  }
+
+  [data-turn-row][data-row-mode="committed"][data-battle-ended="true"] [data-role="turn-info-battle-end-row"] {
+    flex: 0 0 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  [data-turn-row][data-row-mode="committed"][data-battle-ended="true"] [data-role="turn-info-battle-end"] {
+    width: auto !important;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-role="slot-select-row"] {
+    padding-top: 0.125rem;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-slot] [data-skill-select] {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: none;
+    padding-right: 0.125rem;
+    text-align: center;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-buttons] {
+    order: 2;
+    width: auto !important;
+    padding: 0.375rem 0.5rem 0;
+    border-bottom: none;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-buttons] [data-role="edit-btn"] {
+    min-width: 4.5rem;
+    min-height: 2rem;
+    padding-inline: 0.625rem;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-note] {
+    order: 2;
+    flex: 1 1 12rem !important;
+    width: auto !important;
+    min-width: 10rem;
+    padding: 0.375rem 0.5rem 0.5rem 0;
+    border-bottom: none;
+  }
+
+  [data-turn-row][data-row-mode="committed"] [data-turn-note] textarea {
+    min-height: 2rem;
+  }
+
+  [data-turn-slot] [data-slot-info-space] .buff-icon-list {
+    display: none;
+  }
+
+  [data-turn-slot] [data-slot-info-space] {
+    min-height: 0;
+  }
 }
 
 /* 560px 以上: アイコン 48px、比率 2:1 維持 */
