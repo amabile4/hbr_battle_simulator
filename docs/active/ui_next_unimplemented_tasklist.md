@@ -21,19 +21,23 @@
 ## 優先順（現時点）
 
 1. T34: 敵状態変化（バフ/デバフ）管理・表示
-2. T16-B: Enemy Setup 初期ステータス
+2. T16-B: Summon による敵数増加
 3. T19: use_count 表示・管理
 4. T20-D/T20-E: モバイル UI/タッチ UX
 5. T32: Stage Setup Phase2/3
 6. T33: 固有スキル/パッシブ未反映監査
 
-## 1) T16-B: Enemy Setup 初期ステータス（5項目）
+## 1) T16-B: Summon による敵数増加（5項目）
 
-- [ ] statusType select（Down/Break/StrongBreak/SuperDown/Dead）
-- [ ] ターン数 input（isPersistentEnemyStatus で永続判定）
-- [ ] 対象敵 select
-- [ ] 追加/削除操作と一覧表示（タグ形式）
-- [ ] `BattleStateManager` の初期 `enemyStatuses` に反映
+詳細計画/WBS:
+
+- [t16b_summon_enemy_slot_wbs.md](t16b_summon_enemy_slot_wbs.md)
+
+- [ ] 敵行動 `Summon` を turn 単位の敵数増加イベントとして入力できる
+- [ ] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する
+- [ ] Summon 後に増えた敵スロットの情報表示（名前 / OD率 / 最大破壊率 / 状態表示）を追加する
+- [ ] break / follow-up / enemy detail popup など既存の敵選択 UI が増加後スロットにも追従する
+- [ ] `BattleStateManager` / turn state に Summon 後の敵数と新規敵スロット情報を反映する
 
 ## 2) T19: use_count 表示・管理（集約）
 

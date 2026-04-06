@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-03-31
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-06
 
 ## 目的
 
@@ -149,8 +149,7 @@
 - 敵名
 - 敵の属性耐性 / 耐久力
 - 初期 HP / DP
-- 初期 break 状態
-- battle start 時点で付与されている enemy status
+- Turn0（先制攻撃）由来の初期条件
 
 補足:
 
@@ -164,6 +163,8 @@
 - `enemyCount` は `Enemy Setup` の固定値ではなく、各 turn 行に置く入力として扱う
 - turn 行の `enemyCount` 初期値は直前の committed turn を継承し、replay / recalculate でも維持する
 - target 選択の簡略化設定は `Enemy Setup` に置かず、`Simulator Settings` へ分離する
+- battle start 時点で敵が `Down` / `Break` / `StrongBreak` / `SuperDown` / `Dead` になっているケースは扱わない
+- 戦闘中に敵数が増えるケースは `Enemy Setup` ではなく、敵行動 `Summon` による turn 中イベントとして扱う
 
 ### 2026-03-30 追記: Turn0（先制攻撃）開幕フィールド
 
