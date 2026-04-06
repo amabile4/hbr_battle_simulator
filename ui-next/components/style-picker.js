@@ -171,6 +171,7 @@ export class StylePickerController {
   #supportElementFilter = null; // null | string[]
   #supportResonanceFilter = 'all'; // 'all' | 'has' | 'none'
   #pressedStyleId = null;
+  #pressedMainStyleId = null;
   #partyContext = null; // { slots: [{style, supportStyle}], slotIndex, mode }
   #continuousMode = DEFAULT_CONTINUOUS_MODE;
   #lastMainTouchCommitAtMs = 0;
@@ -357,6 +358,31 @@ export class StylePickerController {
         this.#lastMainTouchCommitAtMs = Date.now();
       }
     }, { passive: true });
+
+    body.addEventListener('pointerdown', (e) => {
+      if (this.#mode !== 'main' || e.pointerType !== 'touch') return;
+      const button = e.target.closest('[data-style-id]');
+      const style = resolveStyleFromButton(button);
+      this.#pressedMainStyleId = style?.id ?? null;
+    });
+
+    body.addEventListener('pointerup', (e) => {
+      if (this.#mode !== 'main' || e.pointerType !== 'touch') return;
+      const button = e.target.closest('[data-style-id]');
+      const style = resolveStyleFromButton(button);
+      const pressedId = this.#pressedMainStyleId;
+      this.#pressedMainStyleId = null;
+      if (!style || style.id !== pressedId) {
+        return;
+      }
+      if (commitMainStyleSelection(button)) {
+        this.#lastMainTouchCommitAtMs = Date.now();
+      }
+    });
+
+    body.addEventListener('pointercancel', () => {
+      this.#pressedMainStyleId = null;
+    });
 
     // サポートモード: hover でプレビュー
     body.addEventListener('mouseover', (e) => {

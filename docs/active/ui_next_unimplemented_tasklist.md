@@ -50,8 +50,8 @@
 - [x] setup-area の max-h 制限（`max-h-[50dvh]`）と turn-area のスクロールが正常に機能しているか再確認
   - 2026-04-06: Playwright mobile (`iPhone SE` / `iPhone 15 Pro`) で `Party / Enemy / Stage / Global` の横 overflow なしを確認。あわせて `setup-area` の `max-h-[50dvh]` 制約と、setup 側 active panel / `turn-area` の独立スクロールを E2E (`tests/e2e/mobile-setup-tabs.spec.js`) で固定
 - [x] iPhone SE / iPhone 15 Pro 相当の実機またはエミュレータで主要操作が一通りできる
-- [ ] タッチ操作だけで主要導線を完結できる
-  - 2026-04-06: Playwright mobile profile (`iPhone SE` / `iPhone 15 Pro`) で toolbar / setup / input-row の 44px tap target を E2E 固定（`tests/e2e/mobile-touch-targets.spec.js`）。turn-row は committed / input 両方の mobile layout を回帰化し、tap-driven turn editing と popup / used-skills 導線を E2E で確認（`tests/e2e/mobile-touch-flow.spec.js`）。`data-skill-select` は tap focus 後に値変更しても char detail / icon swap が誤発火しないことを確認。style picker main mode には `touchend` 確定処理を追加済みだが、空状態からの完全な touch-only 編成開始〜戦闘開始フローは未確認のため残タスクとする
+- [x] タッチ操作だけで主要導線を完結できる
+  - 2026-04-06: Playwright mobile profile (`iPhone SE` / `iPhone 15 Pro`) で toolbar / setup / input-row の 44px tap target を E2E 固定（`tests/e2e/mobile-touch-targets.spec.js`）。turn-row は committed / input 両方の mobile layout を回帰化し、tap-driven turn editing と popup / used-skills 導線を E2E で確認（`tests/e2e/mobile-touch-flow.spec.js`）。`data-skill-select` は tap focus 後に値変更しても char detail / icon swap が誤発火しないことを確認。さらに空状態からの touch-only 編成開始〜戦闘開始フローも同 spec に追加し、style picker main mode の touch pointer commit (`pointerup(pointerType=touch)` / `touchend`) を通して前衛3枠選択→picker close→`戦闘開始` まで完結することを固定
 
 ## 4) T32: Stage Setup Phase2/3（集約）
 
