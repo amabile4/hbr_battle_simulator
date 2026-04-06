@@ -173,6 +173,7 @@ export class StylePickerController {
   #pressedStyleId = null;
   #partyContext = null; // { slots: [{style, supportStyle}], slotIndex, mode }
   #continuousMode = DEFAULT_CONTINUOUS_MODE;
+  #lastMainTouchCommitAtMs = 0;
 
   constructor({ overlay, styles, store = null, onSelect, onDisband = null, onSlotSwitch = null }) {
     this.#overlay = overlay;
@@ -317,17 +318,45 @@ export class StylePickerController {
 
     // body: イベント委譲
     const body = this.#overlay.querySelector('#picker-body');
+    const resolveStyleFromButton = (button) => {
+      if (!button || button.dataset.disabled) {
+        return null;
+      }
+      return this.#styles.find((style) => style.id === Number(button.dataset.styleId)) ?? null;
+    };
+    const commitMainStyleSelection = (button) => {
+      if (this.#mode !== 'main') {
+        return false;
+      }
+      const style = resolveStyleFromButton(button);
+      if (!style) {
+        return false;
+      }
+      this.#onSelect(style);
+      if (!this.#continuousMode) {
+        this.close();
+      }
+      return true;
+    };
 
     // メインモード: クリックで即確定
     body.addEventListener('click', (e) => {
-      if (this.#mode !== 'main') return;
-      const btn = e.target.closest('[data-style-id]');
-      if (!btn || btn.dataset.disabled) return;
-      const style = this.#styles.find((s) => s.id === Number(btn.dataset.styleId));
-      if (!style) return;
-      this.#onSelect(style);
-      if (!this.#continuousMode) this.close();
+      if (Date.now() - this.#lastMainTouchCommitAtMs < 400) {
+        return;
+      }
+      commitMainStyleSelection(e.target.closest('[data-style-id]'));
     });
+
+    // メインモード: touchend でも即確定
+    body.addEventListener('touchend', (e) => {
+      if (this.#mode !== 'main') return;
+      const touch = e.changedTouches[0];
+      const target = touch ? document.elementFromPoint(touch.clientX, touch.clientY) : e.target;
+      const button = target?.closest?.('[data-style-id]') ?? e.target.closest?.('[data-style-id]');
+      if (commitMainStyleSelection(button)) {
+        this.#lastMainTouchCommitAtMs = Date.now();
+      }
+    }, { passive: true });
 
     // サポートモード: hover でプレビュー
     body.addEventListener('mouseover', (e) => {

@@ -41,15 +41,17 @@
 
 ## 3) T20-D/T20-E: モバイル UI/タッチ UX（8項目）
 
-- [ ] ボタンのタップターゲットを `min-h-[44px]` に統一（iOS HIG 基準）
-- [ ] モバイルでの `select` (スキル選択 / LB等) タップ時のネイティブ picker との干渉確認
-- [ ] モバイル（375px〜430px）で各タブ（Party / Enemy Setup / Settings）の表示崩れを確認・修正
-- [ ] ターン行（turn-row）の横幅・文字サイズ・ボタン配置がモバイルで使えるレベルか確認・修正
+- [x] ボタンのタップターゲットを `min-h-[44px]` に統一（iOS HIG 基準）
+- [x] モバイルでの `select` (スキル選択 / LB等) タップ時のネイティブ picker との干渉確認
+- [x] モバイル（375px〜430px）で各タブ（Party / Enemy Setup / Settings）の表示崩れを確認・修正
+- [x] ターン行（turn-row）の横幅・文字サイズ・ボタン配置がモバイルで使えるレベルか確認・修正
 - [x] utility bar（ヘッダー）がモバイルで潰れていないか確認・修正
   - 2026-04-06: Safari Responsive Design Mode（iPhone SE 相当）で確認し、toolbar overflow 時はヘルプ文言を非表示にして横幅を圧縮する対応を反映。iOS シミュレータ確認でタッチヘルプの黄色パルスを指先リングへ調整。`turn-replay-status` は mobile で上部へ移動し、popup / overlay / Passive Log 表示中は非表示化。turn-row の mobile compact 試行として、コミット済み行の `OD前%→OD後%` 1行化、味方 target ラベルの shortest-name 化と footer 側への退避、前衛バフアイコンの mobile 非表示化、コミット済み行の前衛/後衛を前衛寄り比率へ調整し、前衛アイコンも後衛よりさらに約2割大きくし、`バトル終了` 表示は header 帯から切り離して2行目へ送る案を branch 上で検証中
-- [ ] setup-area の max-h 制限（`max-h-[50dvh]`）と turn-area のスクロールが正常に機能しているか再確認
-- [ ] iPhone SE / iPhone 15 Pro 相当の実機またはエミュレータで主要操作が一通りできる
+- [x] setup-area の max-h 制限（`max-h-[50dvh]`）と turn-area のスクロールが正常に機能しているか再確認
+  - 2026-04-06: Playwright mobile (`iPhone SE` / `iPhone 15 Pro`) で `Party / Enemy / Stage / Global` の横 overflow なしを確認。あわせて `setup-area` の `max-h-[50dvh]` 制約と、setup 側 active panel / `turn-area` の独立スクロールを E2E (`tests/e2e/mobile-setup-tabs.spec.js`) で固定
+- [x] iPhone SE / iPhone 15 Pro 相当の実機またはエミュレータで主要操作が一通りできる
 - [ ] タッチ操作だけで主要導線を完結できる
+  - 2026-04-06: Playwright mobile profile (`iPhone SE` / `iPhone 15 Pro`) で toolbar / setup / input-row の 44px tap target を E2E 固定（`tests/e2e/mobile-touch-targets.spec.js`）。turn-row は committed / input 両方の mobile layout を回帰化し、tap-driven turn editing と popup / used-skills 導線を E2E で確認（`tests/e2e/mobile-touch-flow.spec.js`）。`data-skill-select` は tap focus 後に値変更しても char detail / icon swap が誤発火しないことを確認。style picker main mode には `touchend` 確定処理を追加済みだが、空状態からの完全な touch-only 編成開始〜戦闘開始フローは未確認のため残タスクとする
 
 ## 4) T32: Stage Setup Phase2/3（集約）
 

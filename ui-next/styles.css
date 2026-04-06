@@ -1,5 +1,9 @@
 /* ui-next 追加スタイル（Tailwind CDN で補えないもの） */
 
+:root {
+  --mobile-touch-target-min-size: 44px;
+}
+
 .workspace-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -663,11 +667,32 @@
   }
 
   .workspace-toolbar__button {
-    width: 2.5rem;
-    min-width: 2.5rem;
-    min-height: 2.5rem;
+    width: var(--mobile-touch-target-min-size);
+    min-width: var(--mobile-touch-target-min-size);
+    min-height: var(--mobile-touch-target-min-size);
     padding: 0;
     border-radius: 0.75rem;
+  }
+
+  #initial-setup-root [role="tab"],
+  #initial-setup-root button,
+  #initial-setup-root select,
+  #initial-setup-root input:not([type="checkbox"]),
+  #initial-setup-root [data-role="party-slot-drag-handle"] {
+    min-height: var(--mobile-touch-target-min-size);
+  }
+
+  #turn-area [data-turn-row][data-row-mode="input"] [data-skill-select],
+  #turn-area [data-turn-row][data-row-mode="edit"] [data-skill-select],
+  #turn-area [data-turn-row][data-row-mode="input"] [data-turn-buttons] button,
+  #turn-area [data-turn-row][data-row-mode="edit"] [data-turn-buttons] button,
+  #turn-area [data-turn-row][data-row-mode="input"] [data-role="enemy-detail-trigger"],
+  #turn-area [data-turn-row][data-row-mode="edit"] [data-role="enemy-detail-trigger"] {
+    min-height: var(--mobile-touch-target-min-size);
+  }
+
+  #turn-area [data-turn-row][data-row-mode="edit"] [data-turn-buttons] {
+    grid-auto-rows: minmax(var(--mobile-touch-target-min-size), auto);
   }
 
   .workspace-toolbar__icon {
@@ -1306,8 +1331,19 @@
   [data-turn-note] {
     flex: 1 1 auto !important;
     width: auto !important;
-    min-width: 40px;
+    min-width: 0;
+    overflow-x: hidden;
     border-bottom: 1px solid #e5e7eb;
+  }
+
+  [data-turn-note] [data-role="field-chip-list"] {
+    min-width: 0;
+  }
+
+  [data-turn-note] .turn-field-chip {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   [data-turn-note] textarea {
     min-height: 2.5rem;
@@ -1540,6 +1576,15 @@
     min-width: 4.5rem;
     min-height: 2rem;
     padding-inline: 0.625rem;
+  }
+
+  [data-turn-row][data-row-mode="input"] [data-turn-note],
+  [data-turn-row][data-row-mode="edit"] [data-turn-note] {
+    order: 11;
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    padding-top: 0.25rem;
+    border-bottom: none;
   }
 
   [data-turn-row][data-row-mode="committed"] [data-turn-note] {
