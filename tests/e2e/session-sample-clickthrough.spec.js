@@ -1,14 +1,6 @@
-import path from 'node:path';
-
 import { test, expect } from '@playwright/test';
 
-import { gotoUiNext } from './ui-next-helpers.js';
-
-const SESSION_PATH = path.join(
-  process.env.HOME ?? '',
-  'Downloads',
-  'ui_next_session_2026-04-05T11-40-52.319+09-00.json'
-);
+import { getLatestDownloadedSessionPath, gotoUiNext } from './ui-next-helpers.js';
 
 test.describe('Session sample clickthrough', () => {
   test('loads the sample session and opens enemy/character detail popups', async ({ page }) => {
@@ -16,7 +8,7 @@ test.describe('Session sample clickthrough', () => {
 
     const input = page.locator('#session-load-input');
     await expect(input).toHaveCount(1);
-    await input.setInputFiles(SESSION_PATH);
+    await input.setInputFiles(getLatestDownloadedSessionPath());
 
     await expect
       .poll(async () => page.locator('[data-turn-row][data-row-mode="committed"]').count(), {

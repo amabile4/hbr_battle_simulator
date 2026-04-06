@@ -8,6 +8,7 @@ import {
   applySetupOpenState,
   clampPassiveLogPaneHeight,
   setToolbarButtonLabel,
+  syncToolbarQuickHelpCompactState,
 } from '../ui-next/utils/workspace-shell.js';
 
 function withDom(run) {
@@ -18,6 +19,12 @@ function withDom(run) {
       <section id="passive-log-pane"></section>
       <button id="toggle-setup"><span data-role="toolbar-icon"></span><span data-role="toolbar-label"></span></button>
       <button id="toggle-passive-log"><span data-role="toolbar-icon"></span><span data-role="toolbar-label"></span></button>
+      <div id="workspace-toolbar" class="workspace-toolbar">
+        <button id="quick-help-operations" class="workspace-toolbar__button workspace-toolbar__button--help">
+          <span class="help-btn__text"><span>敵状態確認</span><span>キャラアイコン</span></span>
+          <span class="help-btn__mouse"></span>
+        </button>
+      </div>
     </body></html>`,
     { url: 'https://example.test/' },
   );
@@ -37,6 +44,8 @@ function withDom(run) {
       passiveLogPane: dom.window.document.querySelector('#passive-log-pane'),
       toggleSetup: dom.window.document.querySelector('#toggle-setup'),
       togglePassiveLog: dom.window.document.querySelector('#toggle-passive-log'),
+      workspaceToolbar: dom.window.document.querySelector('#workspace-toolbar'),
+      quickHelpButton: dom.window.document.querySelector('#quick-help-operations'),
     });
   } finally {
     globalThis.window = previous.window;
@@ -193,4 +202,45 @@ test('setToolbarButtonLabel preserves icon markup when toolbar buttons have nest
     assert.equal(toggleSetup.querySelector('[data-role="toolbar-label"]').textContent, 'JSON保存');
     assert.equal(toggleSetup.getAttribute('aria-label'), 'JSON保存');
     assert.ok(toggleSetup.querySelector('[data-role="toolbar-icon"]'));
+  }));
+
+test('syncToolbarQuickHelpCompactState hides help text when toolbar overflows', () =>
+  withDom(({ workspaceToolbar, quickHelpButton }) => {
+    Object.defineProperty(workspaceToolbar, 'clientWidth', {
+      configurable: true,
+      get: () => 320,
+    });
+    Object.defineProperty(workspaceToolbar, 'scrollWidth', {
+      configurable: true,
+      get: () => 332,
+    });
+
+    const compact = syncToolbarQuickHelpCompactState({
+      toolbar: workspaceToolbar,
+      helpButton: quickHelpButton,
+    });
+
+    assert.equal(compact, true);
+    assert.equal(quickHelpButton.dataset.compact, 'true');
+  }));
+
+test('syncToolbarQuickHelpCompactState restores help text when toolbar fits', () =>
+  withDom(({ workspaceToolbar, quickHelpButton }) => {
+    quickHelpButton.dataset.compact = 'true';
+    Object.defineProperty(workspaceToolbar, 'clientWidth', {
+      configurable: true,
+      get: () => 320,
+    });
+    Object.defineProperty(workspaceToolbar, 'scrollWidth', {
+      configurable: true,
+      get: () => 300,
+    });
+
+    const compact = syncToolbarQuickHelpCompactState({
+      toolbar: workspaceToolbar,
+      helpButton: quickHelpButton,
+    });
+
+    assert.equal(compact, false);
+    assert.equal(quickHelpButton.dataset.compact, 'false');
   }));

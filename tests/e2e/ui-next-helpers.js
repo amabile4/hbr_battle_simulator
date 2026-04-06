@@ -1,8 +1,33 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { expect } from '@playwright/test';
 
 export const PAGE_URL = '/ui-next/index.html';
 const UI_NEXT_READY_TIMEOUT_MS = 15000;
 const OPEN_PICKER_VISIBLE_TIMEOUT_MS = 5000;
+const DOWNLOADS_DIR = path.join(process.env.HOME ?? '', 'Downloads');
+const UI_NEXT_SESSION_FILE_PATTERN = /^ui_next_session_.*\.json$/;
+
+export function getLatestDownloadedSessionPath() {
+  const latestEntry = fs
+    .readdirSync(DOWNLOADS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && UI_NEXT_SESSION_FILE_PATTERN.test(entry.name))
+    .map((entry) => {
+      const filePath = path.join(DOWNLOADS_DIR, entry.name);
+      return {
+        filePath,
+        mtimeMs: fs.statSync(filePath).mtimeMs,
+      };
+    })
+    .sort((left, right) => right.mtimeMs - left.mtimeMs)[0];
+
+  if (!latestEntry) {
+    throw new Error(`No ui-next session JSON found in ${DOWNLOADS_DIR}`);
+  }
+
+  return latestEntry.filePath;
+}
 
 async function collectStartupDiagnostics(page, phase, error) {
   let snapshot;

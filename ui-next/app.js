@@ -23,6 +23,7 @@ import {
   PASSIVE_LOG_DEFAULT_HEIGHT_PX,
   PASSIVE_LOG_MIN_HEIGHT_PX,
   PASSIVE_LOG_RESIZE_STEP_PX,
+  bindToolbarQuickHelpCompactState,
   resolvePassiveLogMaxHeightPx,
   setToolbarButtonLabel,
   updatePassiveLogResizeHandle,
@@ -159,6 +160,7 @@ function setupToolbarQuickHelp() {
   if (buttons.length === 0) {
     return;
   }
+  const boundToolbars = new WeakSet();
 
   let popover = null;
   let longPressTimer = null;
@@ -255,6 +257,16 @@ function setupToolbarQuickHelp() {
   window.addEventListener('scroll', closePopover, true);
 
   for (const button of buttons) {
+    const toolbar = button.closest('.workspace-toolbar');
+    if (toolbar && !boundToolbars.has(toolbar)) {
+      bindToolbarQuickHelpCompactState({
+        toolbar,
+        helpButton: button,
+        runtimeWindow: window,
+      });
+      boundToolbars.add(toolbar);
+    }
+
     button.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       event.stopPropagation();

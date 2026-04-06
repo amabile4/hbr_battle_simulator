@@ -3,6 +3,7 @@ export const PASSIVE_LOG_MIN_HEIGHT_PX = 8 * 16;
 export const PASSIVE_LOG_RESIZE_STEP_PX = 16;
 export const PASSIVE_LOG_RESIZE_BREAKPOINT_PX = 640;
 export const TURN_AREA_MIN_HEIGHT_PX = 240;
+export const TOOLBAR_OVERFLOW_EPSILON_PX = 1;
 
 function resolveViewportWidth(viewportWidth) {
   const numeric = Number(viewportWidth);
@@ -38,6 +39,83 @@ export function setToolbarButtonLabel(button, label) {
     button.textContent = normalizedLabel;
   }
   button.setAttribute('aria-label', normalizedLabel);
+}
+
+export function syncToolbarQuickHelpCompactState({
+  toolbar,
+  helpButton,
+  overflowThresholdPx = TOOLBAR_OVERFLOW_EPSILON_PX,
+}) {
+  if (!toolbar || !helpButton) {
+    return false;
+  }
+
+  helpButton.removeAttribute('data-compact');
+  const thresholdPx = Number.isFinite(Number(overflowThresholdPx))
+    ? Number(overflowThresholdPx)
+    : TOOLBAR_OVERFLOW_EPSILON_PX;
+  const compact = Number(toolbar.scrollWidth ?? 0) > Number(toolbar.clientWidth ?? 0) + thresholdPx;
+  helpButton.dataset.compact = compact ? 'true' : 'false';
+  return compact;
+}
+
+export function bindToolbarQuickHelpCompactState({
+  toolbar,
+  helpButton,
+  runtimeWindow = globalThis.window,
+}) {
+  if (!toolbar || !helpButton) {
+    return () => {};
+  }
+
+  const win = runtimeWindow ?? globalThis.window;
+  const requestFrame = typeof win?.requestAnimationFrame === 'function'
+    ? win.requestAnimationFrame.bind(win)
+    : (callback) => win?.setTimeout?.(callback, 0) ?? globalThis.setTimeout(callback, 0);
+  const cancelFrame = typeof win?.cancelAnimationFrame === 'function'
+    ? win.cancelAnimationFrame.bind(win)
+    : (handle) => win?.clearTimeout?.(handle) ?? globalThis.clearTimeout(handle);
+
+  let scheduledHandle = null;
+  const scheduleSync = () => {
+    if (scheduledHandle != null) {
+      return;
+    }
+    scheduledHandle = requestFrame(() => {
+      scheduledHandle = null;
+      syncToolbarQuickHelpCompactState({ toolbar, helpButton });
+    });
+  };
+
+  const ResizeObserverCtor = win?.ResizeObserver ?? globalThis.ResizeObserver;
+  const MutationObserverCtor = win?.MutationObserver ?? globalThis.MutationObserver;
+
+  const resizeObserver = typeof ResizeObserverCtor === 'function'
+    ? new ResizeObserverCtor(scheduleSync)
+    : null;
+  resizeObserver?.observe(toolbar);
+
+  const mutationObserver = typeof MutationObserverCtor === 'function'
+    ? new MutationObserverCtor(scheduleSync)
+    : null;
+  mutationObserver?.observe(toolbar, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+
+  win?.addEventListener?.('resize', scheduleSync);
+  scheduleSync();
+
+  return () => {
+    if (scheduledHandle != null) {
+      cancelFrame(scheduledHandle);
+      scheduledHandle = null;
+    }
+    resizeObserver?.disconnect();
+    mutationObserver?.disconnect();
+    win?.removeEventListener?.('resize', scheduleSync);
+  };
 }
 
 export function applySetupOpenState({

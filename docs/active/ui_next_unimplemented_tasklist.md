@@ -1,6 +1,6 @@
 # UI Next 未実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-05
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-06
 >
 > **目的**: `ui_next_implementation_tasklist.md` から未完了項目を分離し、active ドキュメントに散在していた未実装作業をこの 1 ファイルで追跡する。
 >
@@ -45,7 +45,8 @@
 - [ ] モバイルでの `select` (スキル選択 / LB等) タップ時のネイティブ picker との干渉確認
 - [ ] モバイル（375px〜430px）で各タブ（Party / Enemy Setup / Settings）の表示崩れを確認・修正
 - [ ] ターン行（turn-row）の横幅・文字サイズ・ボタン配置がモバイルで使えるレベルか確認・修正
-- [ ] utility bar（ヘッダー）がモバイルで潰れていないか確認・修正
+- [x] utility bar（ヘッダー）がモバイルで潰れていないか確認・修正
+  - 2026-04-06: Safari Responsive Design Mode（iPhone SE 相当）で確認し、toolbar overflow 時はヘルプ文言を非表示にして横幅を圧縮する対応を反映。iOS シミュレータ確認でタッチヘルプの黄色パルスを指先リングへ調整。`turn-replay-status` は mobile で上部へ移動し、popup / overlay / Passive Log 表示中は非表示化
 - [ ] setup-area の max-h 制限（`max-h-[50dvh]`）と turn-area のスクロールが正常に機能しているか再確認
 - [ ] iPhone SE / iPhone 15 Pro 相当の実機またはエミュレータで主要操作が一通りできる
 - [ ] タッチ操作だけで主要導線を完結できる
