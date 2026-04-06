@@ -36,8 +36,8 @@ test('buildFieldDisplayEntries uses eternal label when remainingTurns is null', 
   assert.equal(entries.length, 1);
   assert.equal(entries[0].label, 'Territory');
   assert.equal(entries[0].duration, '永続');
-  assert.equal(entries[0].chipText, '水フィールド / x1.50 / (永続)');
-  assert.equal(entries[0].chipTone, 'water');
+  assert.equal(entries[0].chipText, '氷フィールド / x1.50 / (永続)');
+  assert.equal(entries[0].chipTone, 'ice');
 });
 
 test('default inactive talisman state is not displayable', () => {

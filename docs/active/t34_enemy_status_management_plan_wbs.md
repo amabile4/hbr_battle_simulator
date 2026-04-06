@@ -1,9 +1,11 @@
 # T34 敵状態変化管理・表示 実装プラン/WBS
 
-> ステータス: 🟢 進行中
+> ステータス: ✅ 完了
 > 作成日: 2026-04-05
-> 最終更新: 2026-04-05
+> 最終更新: 2026-04-06
+> 完了日: 2026-04-06
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
+> フォローアップ: [t34_followup_tasklist.md](t34_followup_tasklist.md)（残タスクはこちらで管理）
 
 ## 進捗チェック
 
@@ -34,7 +36,8 @@
   - [x] WBS-4d-a10: previewActionFlow（TurnEngineManager / popup表示）の unit 回帰 ✅ 2026-04-05
   - [x] WBS-4d-a11: enemy detail popup preview セクションの e2e 回帰 ✅ 2026-04-05
   - [ ] WBS-4d-a9+: E2E テスト（残り）
-- [ ] WBS-5 受け入れ検証
+- [x] WBS-5 受け入れ検証 ✅ 2026-04-06
+- [x] T34-FU2: レビュー Minor 指摘の整理と後続対応 ✅ 2026-04-06
 
 ## 目的
 
@@ -246,21 +249,58 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
   - [ ] 付与 -> 残ターン更新 -> 消滅を1シナリオで追跡可能
   - [ ] 旧 record（`enemyStatusSnapshot` なし）との互換表示を検証
 
-#### 現状整理（`tests/t34-enemy-status-integration.test.js` 基準 / 2026-04-05）
+#### 現状整理（`tests/t34-enemy-status-integration.test.js` 基準 / 2026-04-06）
 
 完了（追加済み）:
 
 - `WBS-4a` のテストケース追加（snapshot 保存と runtime の基本整合）
-- `WBS-4b-a1`〜`a4` のテストケース追加（max-merge 前提の構造/制約確認）
+- `WBS-4b-a1`〜`a4` のテストケース追加と強化（synthetic conflict fixture により max remaining / max power / last-wins source / recalculate 維持を実検証）
 - `WBS-4c` のテストケース追加（commit 後 snapshot/runtime の基本整合）
 - 上記6テストの green を確認（`node --test tests/t34-enemy-status-integration.test.js`）
 
 残件（深掘り不足）:
 
-- `WBS-4a` / `WBS-4b-a3`: テスト名にある `recalculate` 経路の実呼び出し・断面比較が未実装
-- 同値性判定が主に `length`/構造確認で、`statusType`/`elements`/`power`/`remaining` の厳密一致比較が不足
-- `WBS-4b` は「競合を実際に発生させる fixture」での max-merge 検証（max remaining / max power / last-wins source）が未充足
 - replay 経路は `commit -> snapshot vs runtime` の確認に留まり、`load/replayScript` 往復の検証が未充足
+- 旧 record（`enemyStatusSnapshot` なし）fixture の fallback 互換は未充足
+- assertion 失敗時の差分表示改善と、strict 比較 helper の診断性向上は未着手
+
+### 残件4項目のテスト実装タスク（優先順チェックリスト）
+
+P0（最優先・同値性の土台）:
+
+- [x] `WBS-4a` を実質化する: `recalculateFrom` を実際に呼び出す統合テストを追加
+  - [x] 手順を `create -> preview -> commit -> recalculateFrom(0)` で固定
+  - [x] 比較対象を `enemyStatusSnapshot` / `recalculate後 turnState.enemyState.statuses` の2断面に固定
+  - [x] 比較項目を `statusType` / `elements` / `power` / `remaining` / `exitCond` に拡張
+- [x] 比較ヘルパを `tests/t34-enemy-status-integration.test.js` 内に導入
+  - [x] `normalizeEnemyStatusForAssertion(status)`
+  - [x] `assertEnemyStatusesStrictEqual(actual, expected)`
+
+P1（merge 仕様の中核検証）:
+
+- [x] 競合を意図的に発生させる fixture ベーステストを追加（`WBS-4b` 強化） ✅ 2026-04-06
+  - [x] 同一 `statusType|elements` で `remaining` が異なる2件を付与し、max remaining 採用を検証
+  - [x] 同一 `statusType|elements` で `power` が異なる2件を付与し、max power 採用を検証
+  - [x] source 競合時の last-wins（既知制約）を明示的に検証
+  - [x] 上記を commit / recalculate 後でも維持することを確認
+
+P2（replay 往復の保証）:
+
+- [x] replayScript の load/再生往復テストを追加（`WBS-4c` 強化）✅ 2026-04-06
+  - [x] `commit -> replayScript生成 -> 新規 manager/load -> recalculate` の往復を構築
+  - [x] 往復前後で enemy status の厳密一致を確認（各ターン単位も検証）
+  - [x] merge 競合結果の往復保持を検証
+  - [x] 旧 record（`enemyStatusSnapshot` なし）fixture の fallback 互換を1ケース追加
+
+P3（運用安定化・回帰耐性）:
+
+- [x] 失敗時に差分が読みやすい assertion メッセージを整備 ✅ 2026-04-06
+  - [x] mismatch 時に `statusType[elements]@EtargetIndex.field` 形式で expected/actual を出力
+  - [x] 件数不一致時はキー一覧を表示
+  - [x] WBS-4c を strict 比較版へ置換（length 比較 → `assertEnemyStatusesStrictEqual`）
+- [x] 実行コマンドを WBS 内に固定（開発者向け） ✅ 2026-04-06
+  - [x] `node --test tests/t34-enemy-status-integration.test.js`
+  - [x] 関連回帰: `node --test tests/ui-next-turn-engine-manager.test.js`
 
 完了条件:
 
@@ -270,23 +310,36 @@ T34 の最優先タスクとして、敵側の状態変化（バフ/デバフ）
 
 ### WBS-5 受け入れ検証
 
+> **ステータス**: ✅ 完了 (2026-04-06)
+
 目的:
 
 - 「付与/更新/消滅」が実運用で成立することを確定
 
 作業:
 
-- [ ] 代表ケースを 3 区分で実施
-  - [ ] 付与されること
-  - [ ] ターン進行で更新されること
-  - [ ] 条件で消滅すること
-- [ ] Cover を含むケースで仕様逸脱がないことを確認
-- [ ] Cover の設計ゲート結果どおりに表示/挙動が分岐することを確認
+- [x] 代表ケースを 3 区分で実施
+  - [x] 付与されること（WBS-5-①）
+  - [x] ターン進行で更新されること（WBS-5-②）
+  - [x] 条件で消滅すること（WBS-5-③）
+- [x] Cover を含むケースで仕様逸脱がないことを確認（WBS-5-④）
+- [x] Cover の設計ゲート結果どおりに表示/挙動が分岐することを確認（WBS-5-④）
+- [x] UI 表示整合（computedStates / snapshot / replayScript 往復）の検証（WBS-5-⑤）
+
+検証テスト:
+
+- `tests/t34-enemy-status-integration.test.js` 内の WBS-5-①〜⑤（5テスト）
+- 実行コマンド: `node --test tests/t34-enemy-status-integration.test.js`
+
+副次的改善:
+
+- `createEnemyStatusConflictManager` ヘルパーに `createInitialTurnState()` ベースの完全な turnState を適用
+- これにより既存テスト（WBS-4b-a1, WBS-4b-a3）の expected 値が EnemyTurnEnd tick 発動後の正しい値に修正された
 
 完了条件:
 
-- T34 の 6 項目を [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md) で完了化可能
-- 完了判定に使うテスト/fixture が文書上で特定できる
+- ✅ T34 の 6 項目を [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md) で完了化可能
+- ✅ 完了判定に使うテスト/fixture が文書上で特定できる（上記参照）
 
 ## 対象ファイル候補
 
@@ -317,6 +370,56 @@ tests:
   - 対策: engine 断面の integration テストを先に追加
 - リスク: e2e fixture と runtime の乖離
   - 対策: fixture 生成元を 1 つに統一し、テストで断面比較
+
+## レビュー結果反映メモ（2026-04-06）
+
+外部レビュー結論:
+
+- 判定: **マージ推奨（条件付き）**
+- サマリ: `feature/engine-enemy-status -> main` はテスト `869 PASS`、ESLint エラーなし
+- 主要残件: `WBS-3e`、`WBS-4d-a9+`、`WBS-5`
+
+レビューで明示された Minor 指摘（非ブロッカー）:
+
+- `ELEMENT_PREFIXED_STATUS_TYPES` が `enemy-status-display.js` と `char-detail-popup.js` で重複
+- `ELEMENT_KANJI` が同様に重複
+- `#buildPreviewActionFlow` 相当ロジックが `turn-row.js` と `turn-engine-manager.js` で重複
+- `normalizeEnemyStatus` の `targetIndex` 上限 clamp 除去後の不正 index 許容が暗黙化
+- `enemy-detail-popup.js` の `onClose` コールバック命名と実挙動が一致していない
+
+判断:
+
+- 上記5件はいずれも **T34 のマージブロッカーではない**
+- ただし `WBS-3e` / `WBS-5` に着手する前に、保守性向上のためまとめて処理してよい
+- 既存 T34 スコープの完了条件からは分離し、 follow-up として管理する
+- **定数の扱い方針**: 他箇所と同様に集約済みの置き場が存在する定数は、重複定義せずその集約先へ寄せる。既存の適切な集約先がない場合も、個別ファイル内での重複維持は避け、shared 定数モジュールを新設して集約する
+
+### T34-FU2: レビュー Minor 指摘フォローアップ
+
+目的:
+
+- レビューで指摘された重複・命名・境界条件の保守性課題を、T34 本体の完了判定と切り分けて処理する
+
+作業候補:
+
+- [x] `ELEMENT_PREFIXED_STATUS_TYPES` / `ELEMENT_KANJI` を shared 定数モジュール `element-status-constants.js` へ集約 ✅ 2026-04-06
+  - `enemy-status-display.js` のスーパーセット（ResistDown/Zone 等含む）を正とし、`char-detail-popup.js` 側も同一ソースから import
+- [x] preview action flow 変換ロジックを `action-flow-builder.js` へ共通化 ✅ 2026-04-06
+  - `turn-engine-manager.js#buildPreviewActionFlow` と `turn-row.js#buildCommittedActionFlow` の重複を `buildActionFlowFromRecord()` に集約
+  - spCost fallback（committed record 用）を共通 helper に含めた
+- [x] `normalizeEnemyStatus` の `targetIndex` 異常値方針を「条件付き clamp」に固定 ✅ 2026-04-06
+  - 方針: enemyCount が明示的に渡された場合のみ `Math.min(enemyCount-1, targetIndex)` で上限クランプ
+  - 内部ヘルパー（getEnemyStatusIdentityKey / mergeEnemyStatuses）からは enemyCount なしで呼ばれるため、既に正規化済みの targetIndex を破壊しない
+  - デフォルト引数を `null` に変更し、null 時は下限クランプ（0以上）のみ適用
+- [x] `enemy-detail-popup` の `onClose` コールバック発火を `close()` メソッドに移動 ✅ 2026-04-06
+  - 旧: `#render()` 内（= show 時）で発火 → 名前と挙動が不一致
+  - 新: `close()` 内で DOM 削除後に発火 → 名前どおり close 時に発火
+
+完了条件:
+
+- ✅ Minor 指摘5件のうち4件を実装修正で解消（`#buildPreviewActionFlow` 相当の重複 + 定数重複 + targetIndex + onClose）
+- ✅ 残り1件（`onClose` の命名 vs 挙動不一致）は挙動側を修正して解消
+- ✅ 全 872 テスト PASS、回帰なし
 
 ## AIレビュー用チェックリスト
 

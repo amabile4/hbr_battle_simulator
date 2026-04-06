@@ -49,6 +49,7 @@ import {
 } from '../utils/simulator-settings.js';
 import { buildFieldDisplayEntries } from '../utils/field-state-display.js';
 import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
+import { buildActionFlowFromRecord } from '../utils/action-flow-builder.js';
 
 // select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
 // 属性/武器種バッジと SP コストを段階的に隠す。
@@ -1469,41 +1470,7 @@ export class TurnRowController {
   }
 
   #buildCommittedActionFlow() {
-    const actions = Array.isArray(this.#record?.actions) ? this.#record.actions : [];
-    return actions.map((action, index) => {
-      const costChanges = Array.isArray(action?.spChanges)
-        ? action.spChanges.filter((change) =>
-            change?.source === 'cost' &&
-            Number.isFinite(Number(change?.delta)) &&
-            Number.isFinite(Number(change?.preSP)) &&
-            Number.isFinite(Number(change?.postSP))
-          )
-        : [];
-      const costDeltaFromChanges = costChanges.reduce((sum, change) => sum + Number(change.delta), 0);
-      const fallbackSpCost = Number(action?.spCost);
-      const costDelta = costChanges.length > 0
-        ? costDeltaFromChanges
-        : (Number.isFinite(fallbackSpCost) ? -Math.max(0, fallbackSpCost) : 0);
-      const firstCostChange = costChanges[0] ?? null;
-      const lastCostChange = costChanges.at(-1) ?? null;
-      const startSp = Number(firstCostChange?.preSP ?? action?.startSP);
-      const endSp = Number(lastCostChange?.postSP ?? action?.endSP);
-      return {
-        order: index + 1,
-        actorCharacterId: String(action?.characterId ?? ''),
-        actorCharacterName: String(action?.characterName ?? ''),
-        actorPartyIndex: Number(action?.partyIndex),
-        skillId: Number(action?.skillId ?? 0),
-        skillName: String(action?.skillName ?? ''),
-        costDelta: Number.isFinite(costDelta) ? costDelta : 0,
-        costPreSp: Number.isFinite(startSp) ? startSp : null,
-        costPostSp: Number.isFinite(endSp) ? endSp : null,
-        funnelApplied: structuredClone(action?.funnelApplied ?? []),
-        statusEffectsApplied: structuredClone(action?.statusEffectsApplied ?? []),
-        statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
-        enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),
-      };
-    });
+    return buildActionFlowFromRecord(this.#record);
   }
 
   #buildCharacterPreviewActionFlow(member, isCommitted) {

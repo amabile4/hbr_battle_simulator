@@ -71,6 +71,7 @@ export class EnemyDetailPopup {
     if (this.#root) {
       this.#root.remove();
       this.#root = null;
+      this.#onClose?.();
     }
   }
 
@@ -117,9 +118,6 @@ export class EnemyDetailPopup {
 
     // DOM に追加
     document.body.appendChild(this.#root);
-
-    // onClose コールバック
-    this.#onClose?.();
   }
 
   #buildHtml() {

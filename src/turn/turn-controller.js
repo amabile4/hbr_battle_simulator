@@ -1575,7 +1575,7 @@ function getEnemyStatusDefaultRemainingTurns(statusType, status) {
   return 1;
 }
 
-function normalizeEnemyStatus(status, enemyCount = DEFAULT_ENEMY_COUNT) {
+function normalizeEnemyStatus(status, enemyCount = null) {
   if (!status || typeof status !== 'object') {
     return null;
   }
@@ -1584,9 +1584,15 @@ function normalizeEnemyStatus(status, enemyCount = DEFAULT_ENEMY_COUNT) {
     return null;
   }
   const targetRaw = status?.targetIndex ?? status?.target ?? 0;
-  const targetIndex = Number.isFinite(Number(targetRaw))
+  const targetLowerClamped = Number.isFinite(Number(targetRaw))
     ? Math.max(0, Number(targetRaw))
     : 0;
+  // enemyCount が明示的に渡された場合のみ上限クランプを適用。
+  // getEnemyStatusIdentityKey / mergeEnemyStatuses 等の内部ヘルパーからは
+  // enemyCount なしで呼ばれるため、既に正規化済みの targetIndex を破壊しない。
+  const targetIndex = enemyCount !== null && Number.isFinite(enemyCount) && enemyCount > 0
+    ? Math.min(Math.max(0, enemyCount - 1), targetLowerClamped)
+    : targetLowerClamped;
   const exitCond = String(status?.exitCond ?? status?.effect?.exitCond ?? '').trim();
   const limitType = String(status?.limitType ?? status?.effect?.limitType ?? '').trim();
   const rawRemaining =

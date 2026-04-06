@@ -14,6 +14,7 @@
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import { buildFieldDisplayEntries } from './field-state-display.js';
 import { SPECIAL_STATUS_TYPE_NAMES } from '../../src/domain/character-style.js';
+import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
 
 const SKILL_TYPE_ICON_BASE = new URL('../../assets/skill_type/', import.meta.url).href;
 
@@ -172,23 +173,6 @@ const STATUS_LABELS = {
   SpeedDown:                 '速度ダウン',
 };
 
-const ELEMENT_KANJI = Object.freeze({
-  Fire: '火',
-  Ice: '氷',
-  Thunder: '雷',
-  Light: '光',
-  Dark: '闇',
-});
-
-// elements_skill.md に対応する element-prefixed statusType セット
-// {Element}{BaseType}.webp アイコンが存在し、ラベルに属性漢字を付加する対象
-const ELEMENT_PREFIXED_STATUS_TYPES = new Set([
-  'DarkAttackUp', 'DarkCriticalDamageUp', 'DarkCriticalRateUp', 'DarkDefenseDown',
-  'FireAttackUp', 'FireCriticalDamageUp', 'FireCriticalRateUp', 'FireDefenseDown',
-  'IceAttackUp', 'IceCriticalDamageUp', 'IceCriticalRateUp', 'IceDefenseDown',
-  'LightAttackUp', 'LightCriticalDamageUp', 'LightCriticalRateUp', 'LightDefenseDown',
-  'ThunderAttackUp', 'ThunderCriticalDamageUp', 'ThunderCriticalRateUp', 'ThunderDefenseDown',
-]);
 
 export const STATUS_TYPE_DISPLAY_ORDER = Object.freeze(Object.keys(STATUS_LABELS));
 

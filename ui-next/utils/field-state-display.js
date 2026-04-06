@@ -1,6 +1,6 @@
 const ELEMENT_LABEL_MAP = Object.freeze({
   Fire: '火',
-  Ice: '水',
+  Ice: '氷',
   Thunder: '雷',
   Light: '光',
   Dark: '闇',
@@ -9,7 +9,7 @@ const ELEMENT_LABEL_MAP = Object.freeze({
 
 const ELEMENT_TONE_MAP = Object.freeze({
   Fire: 'fire',
-  Ice: 'water',
+  Ice: 'ice',
   Thunder: 'thunder',
   Light: 'light',
   Dark: 'dark',

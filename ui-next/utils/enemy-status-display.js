@@ -13,6 +13,7 @@ import {
   STATUS_TYPE_DISPLAY_ORDER,
   getStatusLabel,
 } from './char-detail-popup.js';
+import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
 
 // 敵状態表示の最大アイコン数（overflow対応）
 const MAX_ENEMY_STATUS_ICONS = 5;
@@ -92,29 +93,6 @@ const ENEMY_STATUS_TYPE_ID_MAP = Object.freeze({
   Barrier: 321,
 });
 
-// 属性スキルタイプ用漢字マップ
-const ELEMENT_KANJI = Object.freeze({
-  Fire:    '火',
-  Ice:     '氷',
-  Thunder: '雷',
-  Light:   '光',
-  Dark:    '闇',
-});
-
-// elements_skill.md に対応する element-prefixed statusType セット
-// {Element}{BaseType}.webp アイコンが存在し、ラベルに属性漢字を付加する対象
-const ELEMENT_PREFIXED_STATUS_TYPES = new Set([
-  'DarkAttackUp', 'DarkCriticalDamageUp', 'DarkCriticalRateUp', 'DarkDefenseDown',
-  'DarkResistDown', 'DarkResistDownOverwrite', 'DarkZone',
-  'FireAttackUp', 'FireCriticalDamageUp', 'FireCriticalRateUp', 'FireDefenseDown',
-  'FireResistDown', 'FireResistDownOverwrite', 'FireZone',
-  'IceAttackUp', 'IceCriticalDamageUp', 'IceCriticalRateUp', 'IceDefenseDown',
-  'IceResistDown', 'IceResistDownOverwrite', 'IceSuperBreak', 'IceZone',
-  'LightAttackUp', 'LightCriticalDamageUp', 'LightCriticalRateUp', 'LightDefenseDown',
-  'LightResistDown', 'LightResistDownOverwrite', 'LightSuperBreak', 'LightZone',
-  'ThunderAttackUp', 'ThunderCriticalDamageUp', 'ThunderCriticalRateUp', 'ThunderDefenseDown',
-  'ThunderResistDown', 'ThunderResistDownOverwrite', 'ThunderZone',
-]);
 
 const ENEMY_STATUS_ICON_FALLBACK = Object.freeze({
   DownTurn: 'BreakDownTurnUp',

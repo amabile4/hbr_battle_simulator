@@ -44,6 +44,7 @@ import {
 } from '../utils/follow-up-overrides.js';
 import { normalizeValidationPolicy } from '../utils/validation-policy.js';
 import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
+import { buildActionFlowFromRecord } from '../utils/action-flow-builder.js';
 
 function createEmptyReplayDiagnostics() {
   return {
@@ -1525,37 +1526,7 @@ export class TurnEngineManager {
   }
 
   #buildPreviewActionFlow(previewRecord) {
-    const actions = Array.isArray(previewRecord?.actions) ? previewRecord.actions : [];
-    return actions.map((action, index) => {
-      const costChanges = Array.isArray(action?.spChanges)
-        ? action.spChanges.filter((change) =>
-            change?.source === 'cost' &&
-            Number.isFinite(Number(change?.delta)) &&
-            Number.isFinite(Number(change?.preSP)) &&
-            Number.isFinite(Number(change?.postSP))
-          )
-        : [];
-      const costDelta = costChanges.reduce((sum, change) => sum + Number(change.delta), 0);
-      const firstCostChange = costChanges[0] ?? null;
-      const lastCostChange = costChanges.at(-1) ?? null;
-      const startSp = Number(firstCostChange?.preSP ?? action?.startSP);
-      const endSp = Number(lastCostChange?.postSP ?? action?.endSP);
-      return {
-        order: index + 1,
-        actorCharacterId: String(action?.characterId ?? ''),
-        actorCharacterName: String(action?.characterName ?? ''),
-        actorPartyIndex: Number(action?.partyIndex),
-        skillId: Number(action?.skillId ?? 0),
-        skillName: String(action?.skillName ?? ''),
-        costDelta: Number.isFinite(costDelta) ? costDelta : 0,
-        costPreSp: Number.isFinite(startSp) ? startSp : null,
-        costPostSp: Number.isFinite(endSp) ? endSp : null,
-        funnelApplied: structuredClone(action?.funnelApplied ?? []),
-        statusEffectsApplied: structuredClone(action?.statusEffectsApplied ?? []),
-        statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
-        enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),
-      };
-    });
+    return buildActionFlowFromRecord(previewRecord);
   }
 
   #buildPreviewResourceState(previewRecord) {
