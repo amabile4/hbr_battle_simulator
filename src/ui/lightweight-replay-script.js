@@ -35,6 +35,8 @@ export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
   ENEMY_DAMAGE_RATES: 'EnemyDamageRates',
   ENEMY_DESTRUCTION_RATES: 'EnemyDestructionRates',
   ENEMY_DESTRUCTION_RATE_CAPS: 'EnemyDestructionRateCaps',
+  ENEMY_OD_RATES: 'EnemyOdRates',
+  ENEMY_ABSORB_ELEMENTS: 'EnemyAbsorbElements',
   ENEMY_BREAK_STATES: 'EnemyBreakStates',
   ENEMY_STATUSES: 'EnemyStatuses',
   DP_STATE_BY_PARTY_INDEX: 'DpStateByPartyIndex',
@@ -223,6 +225,9 @@ export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
     createReplayOverrideEntryDefinition('enemyDestructionRates'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATE_CAPS]:
     createReplayOverrideEntryDefinition('enemyDestructionRateCaps'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES]: createReplayOverrideEntryDefinition('enemyOdRates'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS]:
+    createReplayOverrideEntryDefinition('enemyAbsorbElements'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES]: createReplayOverrideEntryDefinition('enemyBreakStates'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES]: createReplayOverrideEntryDefinition('enemyStatuses'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX]:

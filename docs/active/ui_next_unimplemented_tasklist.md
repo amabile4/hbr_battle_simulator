@@ -33,6 +33,10 @@
 
 - [t16b_summon_enemy_slot_wbs.md](t16b_summon_enemy_slot_wbs.md)
 
+進捗メモ:
+
+- 2026-04-06: Summon 本体着手前の基盤として、enemy slot 正本化、kill=`Dead`、per-enemy `od_rate`、dead slot 条件除外、UI dead badge/disable、replay enemy snapshot を反映。残りは Summon 入力/UI/commit と新規 slot metadata 生成。
+
 - [ ] 敵行動 `Summon` を turn 単位の敵数増加イベントとして入力できる
 - [ ] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する
 - [ ] Summon 後に増えた敵スロットの情報表示（名前 / OD率 / 最大破壊率 / 状態表示）を追加する

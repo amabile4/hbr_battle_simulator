@@ -10,9 +10,9 @@
 - **ドライブピアスはロール非依存**: アタック/ブレイク/ブラスト/ドライブは装備効果として扱い、スタイルの `role` では分岐しない。
 - **OD小数処理**: ODゲージは **小数第2位まで保持**し、**第3位以下を切り捨て**る。
 - **全体攻撃（敵複数）時の加算順序**:
-  - **1hitごと** にOD増加量を計算
+  - **alive enemy ごと・1hitごと** にOD増加量を計算
   - 各hitぶんを小数第2位で切り捨て
-  - 総hit数（`hitCount * enemyCount`）へ乗算して合算
+  - 総hit数（`hitCount * aliveEnemyCount`）へ乗算して合算
 - **ターン間累積**: 累積ODも各ターンで小数第2位に正規化する（浮動小数誤差の抑制）。
 - **AttackSkill + OverDrivePointUp**: `OverDrivePointUp` の加算は実装済み（`hit_condition` を評価）。
 
@@ -98,6 +98,8 @@ gain_all = trunc2(2.65 * 6) = 15.90
 - 旧データ互換として、`enemies.json > base_param.od_rate` などの legacy 値（例: `8500`）は `0.85` として解釈する。
 - `od_rate = 0` の legacy 値は **補正なし** とみなし、乗数 `1.0` に正規化する。
 - 攻撃由来OD（通常攻撃・攻撃スキル・追撃）は **1hitごと** に `od_rate` を掛け、`trunc2` してから合算する。
+- 単体攻撃は **target enemy slot** の `od_rate` を使用する。
+- 全体攻撃は **alive enemy slot ごと** に `od_rate` を解決し、enemy ごとの hit 合計を加算する。
 
 ```
 per_hit = trunc2(2.5 × od_rate)
@@ -134,5 +136,5 @@ effective_hit_gain = trunc2(per_hit × total_hits)
 
 ### 補足
 
-- 複数敵がいる場合は全て同じ `od_rate` を持つとして enemy[0] の値を代表値として使用中。
+- 複数敵がいる場合も `enemy[0]` 固定ではなく、target/alive enemy slot ごとに `od_rate` を解決する。
 - `AdditionalHitOnBreaking + OverDrivePointUp`（共鳴含む）は、モラル/トリガー経路で一度だけ反映する。OD計算経路との二重加算は行わない。

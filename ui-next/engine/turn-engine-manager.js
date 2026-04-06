@@ -1,5 +1,13 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import { previewTurnRecord, commitTurnRecord } from '../../src/ui/adapter-core.js';
-import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
+import {
+  applyEnemyStateOverrideSnapshot,
+  buildEnemyStateOverrideSnapshot,
+  countAliveEnemies,
+  isEnemyAlive,
+  resolveEffectiveSkillForAction,
+} from '../../src/turn/turn-controller.js';
 import {
   clampEnemyCount,
   DEFAULT_ENEMY_COUNT,
@@ -31,7 +39,6 @@ import {
   ACTION_OUTCOME_TYPES,
   buildActionOutcomeOverrideEntry,
   getActionOutcomeOverridesFromOverrideEntries,
-  getAllKilledEnemyIndexes,
   getBreakEnemyIndexesForPosition,
   getKillEnemyIndexesForPosition,
   normalizeActionOutcomeOverrides,
@@ -54,6 +61,17 @@ function createEmptyReplayDiagnostics() {
     appliedTurnCount: 0,
   };
 }
+
+const ENEMY_SNAPSHOT_OVERRIDE_FIELD_TO_TYPE = Object.freeze({
+  enemyNames: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_NAMES,
+  enemyDamageRates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DAMAGE_RATES,
+  enemyDestructionRates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATES,
+  enemyDestructionRateCaps: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATE_CAPS,
+  enemyOdRates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES,
+  enemyAbsorbElements: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS,
+  enemyBreakStates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES,
+  enemyStatuses: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES,
+});
 
 function cloneReplayDiagnostics(diagnostics = {}) {
   return {
@@ -396,6 +414,8 @@ export class TurnEngineManager {
       // → 各イテレーション先頭で party をクローンして作業用コピーを確保する。
       state = this.#cloneWorkingState(state);
       this.#alignPositionsToSlots(state, turn);
+      const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(turn?.overrideEntries ?? [], []);
+      this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
       const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
       const actionOutcomeOverrides = this.#resolveReplayTurnActionOutcomeOverrides(
@@ -963,9 +983,15 @@ export class TurnEngineManager {
       this.#alignPositionsToSlots(state, turn);
     }
 
+    const warnings = [];
+    const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(turn?.overrideEntries ?? [], warnings);
+    this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
+
     if (hasOperations) {
       try {
-        const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
+        const enemyCount = clampEnemyCount(
+          scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+        );
         state = applyBeforeCommitOperations(state, turn.operations, { enemyCount });
       } catch {
         return state;
@@ -1008,33 +1034,128 @@ export class TurnEngineManager {
     };
   }
 
-  #buildReplayTurnFromDraft(draft) {
-    const overrideEntries = [
+  #buildScenarioEnemyOverrideSnapshot(scenarioTurn = {}) {
+    return {
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyCount')
+        ? { enemyCount: scenarioTurn.enemyCount }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyNames')
+        ? { enemyNames: scenarioTurn.enemyNames }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyDamageRates')
+        ? { enemyDamageRates: scenarioTurn.enemyDamageRates }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyDestructionRates')
+        ? { enemyDestructionRates: scenarioTurn.enemyDestructionRates }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyDestructionRateCaps')
+        ? { enemyDestructionRateCaps: scenarioTurn.enemyDestructionRateCaps }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyOdRates')
+        ? { enemyOdRates: scenarioTurn.enemyOdRates }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyAbsorbElements')
+        ? { enemyAbsorbElements: scenarioTurn.enemyAbsorbElements }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyBreakStates')
+        ? { enemyBreakStates: scenarioTurn.enemyBreakStates }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyStatuses')
+        ? { enemyStatuses: scenarioTurn.enemyStatuses }
+        : {}),
+    };
+  }
+
+  #buildEnemyReplayOverrideEntriesFromSnapshots(snapshot = {}, baselineSnapshot = {}) {
+    const entries = [];
+    for (const [fieldName, type] of Object.entries(ENEMY_SNAPSHOT_OVERRIDE_FIELD_TO_TYPE)) {
+      const hasSnapshotField = Object.prototype.hasOwnProperty.call(snapshot, fieldName);
+      if (!hasSnapshotField) {
+        continue;
+      }
+      const nextPayload = structuredClone(snapshot[fieldName]);
+      const baselinePayload = Object.prototype.hasOwnProperty.call(baselineSnapshot, fieldName)
+        ? baselineSnapshot[fieldName]
+        : undefined;
+      if (isDeepStrictEqual(nextPayload, baselinePayload)) {
+        continue;
+      }
+      entries.push({
+        type,
+        payload: nextPayload,
+      });
+    }
+    return entries;
+  }
+
+  #buildTurnStartEnemyOverrideEntries(state) {
+    const snapshot = buildEnemyStateOverrideSnapshot(state?.turnState);
+    const baselineSnapshot = buildEnemyStateOverrideSnapshot(this.#initialState?.turnState);
+    return this.#buildEnemyReplayOverrideEntriesFromSnapshots(snapshot, baselineSnapshot);
+  }
+
+  #applyScenarioTurnEnemyOverrides(state, scenarioTurn = {}) {
+    if (!state?.turnState) {
+      return state;
+    }
+    const snapshot = this.#buildScenarioEnemyOverrideSnapshot(scenarioTurn);
+    if (Object.keys(snapshot).length === 0) {
+      return state;
+    }
+    applyEnemyStateOverrideSnapshot(state.turnState, snapshot);
+    return state;
+  }
+
+  #buildScenarioTurnFromOverrideEntries(overrideEntries = [], warnings = []) {
+    return applyReplayOverrideEntriesToScenarioTurn(overrideEntries, {}, warnings);
+  }
+
+  #mergeReplayTurnOverrideEntries(baseOverrideEntries = [], enemyCount, actionOutcomeOverrides = [], followUpOverrides = []) {
+    const preservedEntries = (Array.isArray(baseOverrideEntries) ? baseOverrideEntries : [])
+      .filter((entry) =>
+        ![
+          REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
+          REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+          REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
+        ].includes(String(entry?.type ?? ''))
+      )
+      .map((entry) => structuredClone(entry));
+    const nextOverrideEntries = [
       {
         type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
-        payload: clampEnemyCount(draft.enemyCount),
+        payload: clampEnemyCount(enemyCount),
       },
+      ...preservedEntries,
     ];
     const actionOutcomeOverrideEntry = buildActionOutcomeOverrideEntry(
-      draft.actionOutcomeOverrides,
-      clampEnemyCount(draft.enemyCount)
+      actionOutcomeOverrides,
+      clampEnemyCount(enemyCount)
     );
     if (actionOutcomeOverrideEntry) {
-      overrideEntries.push(actionOutcomeOverrideEntry);
+      nextOverrideEntries.push(actionOutcomeOverrideEntry);
     }
     const followUpOverrideEntry = buildFollowUpOverrideEntry(
-      draft.followUpOverrides,
-      clampEnemyCount(draft.enemyCount)
+      followUpOverrides,
+      clampEnemyCount(enemyCount)
     );
     if (followUpOverrideEntry) {
-      overrideEntries.push(followUpOverrideEntry);
+      nextOverrideEntries.push(followUpOverrideEntry);
     }
+    return nextOverrideEntries;
+  }
+
+  #buildReplayTurnFromDraft(draft) {
     return normalizeLightweightReplayTurn({
       turn: draft.turn,
       slots: draft.slots,
       operations: draft.operations,
       note: draft.note,
-      overrideEntries,
+      overrideEntries: this.#mergeReplayTurnOverrideEntries(
+        draft.overrideEntries,
+        draft.enemyCount,
+        draft.actionOutcomeOverrides,
+        draft.followUpOverrides
+      ),
     });
   }
 
@@ -1078,19 +1199,29 @@ export class TurnEngineManager {
       slots: normalizedTurn.slots,
       operations: normalizedTurn.operations,
       note: normalizedTurn.note,
+      overrideEntries: structuredClone(draft?.overrideEntries ?? sourceTurn?.overrideEntries ?? []),
       enemyCount,
       actionOutcomeOverrides,
       followUpOverrides,
     };
   }
 
-  #buildDraftStateBefore(turnIndex, slots = [], operations = [], enemyCount = DEFAULT_ENEMY_COUNT, warnings = []) {
+  #buildDraftStateBefore(
+    turnIndex,
+    slots = [],
+    operations = [],
+    enemyCount = DEFAULT_ENEMY_COUNT,
+    warnings = [],
+    overrideEntries = []
+  ) {
     const rawBefore = this.#getBaseStateBefore(turnIndex);
     if (!rawBefore?.party) {
       throw new Error(`Turn state before ${turnIndex + 1} is not available.`);
     }
     let state = this.#cloneWorkingState(rawBefore);
     this.#alignPositionsToSlots(state, { slots });
+    const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(overrideEntries, warnings);
+    this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
     return applyBeforeCommitOperations(state, operations, {
       enemyCount,
       allowInsufficientOd: this.#validationPolicy.allowInsufficientOd,
@@ -1105,7 +1236,8 @@ export class TurnEngineManager {
       draft.slots,
       draft.operations,
       draft.enemyCount,
-      warnings
+      warnings,
+      draft.overrideEntries
     );
     const slotActions = this.#slotActionsFromReplaySlots(draft.slots);
     const actionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
@@ -1247,11 +1379,11 @@ export class TurnEngineManager {
     }
 
     let state = this.#cloneWorkingState(incomingState);
-    const scenarioTurn = {};
-    applyReplayOverrideEntriesToScenarioTurn(turn.overrideEntries ?? [], scenarioTurn, warnings);
+    const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(turn.overrideEntries ?? [], warnings);
 
     try {
       this.#alignPositionsToSlots(state, turn);
+      this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
       const enemyCount = clampEnemyCount(
         scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
       );
@@ -1688,9 +1820,15 @@ export class TurnEngineManager {
             }
           : {}),
         ...(killEnemyIndexesForMember.length > 0 ? { killCount: killEnemyIndexesForMember.length } : {}),
+        ...(killEnemyIndexesForMember.length > 0
+          ? {
+              manualKillEnemyIndexes: [...killEnemyIndexesForMember],
+            }
+          : {}),
         ...(resolvedPursuedHitCount > 0
           ? {
               pursuedHitCount: resolvedPursuedHitCount,
+              pursuedTargetEnemyIndex: Number(followUpEnemyIndex),
             }
           : {}),
       };
@@ -1764,62 +1902,49 @@ export class TurnEngineManager {
       };
     });
     const normalizedEnemyCount = clampEnemyCount(enemyCount);
+    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(state);
     const normalizedActionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       state,
       slotActions,
       actionOutcomeOverrides,
       normalizedEnemyCount
     );
-    const overrideEntries = [
-      {
-        type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
-        payload: normalizedEnemyCount,
-      },
-    ];
-    const actionOutcomeOverrideEntry = buildActionOutcomeOverrideEntry(
-      normalizedActionOutcomeOverrides,
-      normalizedEnemyCount
-    );
-    if (actionOutcomeOverrideEntry) {
-      overrideEntries.push(actionOutcomeOverrideEntry);
-    }
-    const followUpOverrideEntry = buildFollowUpOverrideEntry(followUpOverrides, normalizedEnemyCount);
-    if (followUpOverrideEntry) {
-      overrideEntries.push(followUpOverrideEntry);
-    }
     const sequentialTurnNumber = (this.#replayScript?.turns?.length ?? 0) + 1;
     return normalizeLightweightReplayTurn({
       turn: sequentialTurnNumber,
       slots,
       note,
       operations,
-      overrideEntries,
+      overrideEntries: this.#mergeReplayTurnOverrideEntries(
+        enemyOverrideEntries,
+        normalizedEnemyCount,
+        normalizedActionOutcomeOverrides,
+        followUpOverrides
+      ),
     });
   }
 
   #resolveReplayTurnEnemyCount(replayTurn, state) {
-    const scenarioTurn = {};
-    applyReplayOverrideEntriesToScenarioTurn(replayTurn?.overrideEntries ?? [], scenarioTurn, []);
+    const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(replayTurn?.overrideEntries ?? [], []);
     return clampEnemyCount(
       scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
     );
   }
 
   #patchNextStateForKills(nextState, actionOutcomeOverrides, turnEnemyCount) {
-    const killedIndexes = getAllKilledEnemyIndexes(actionOutcomeOverrides);
-    if (killedIndexes.length === 0) return nextState;
+    if (!nextState?.turnState?.enemyState) {
+      return nextState;
+    }
     const current = clampEnemyCount(
-      nextState?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+      nextState.turnState.enemyState.enemyCount ?? DEFAULT_ENEMY_COUNT
     );
-    const allDefeated = killedIndexes.length >= current;
-    const nextCount = allDefeated ? current : Math.max(1, current - killedIndexes.length);
+    const allDefeated = current > 0 && countAliveEnemies(nextState.turnState) === 0;
     return {
       ...nextState,
       turnState: {
         ...nextState.turnState,
         enemyState: {
           ...nextState.turnState.enemyState,
-          enemyCount: nextCount,
           allEnemiesDefeated: allDefeated,
         },
       },
@@ -1901,15 +2026,23 @@ export class TurnEngineManager {
     return {};
   }
 
-  #normalizeSingleTargetEnemyIndex(targetEnemyIndex, enemyCount) {
+  #normalizeSingleTargetEnemyIndex(targetEnemyIndex, enemyCount, state = null) {
     const normalizedEnemyCount = clampEnemyCount(enemyCount);
     const numericTargetEnemyIndex = Number(targetEnemyIndex);
     if (
       Number.isInteger(numericTargetEnemyIndex) &&
       numericTargetEnemyIndex >= 0 &&
-      numericTargetEnemyIndex < normalizedEnemyCount
+      numericTargetEnemyIndex < normalizedEnemyCount &&
+      (!state || isEnemyAlive(state?.turnState, numericTargetEnemyIndex))
     ) {
       return numericTargetEnemyIndex;
+    }
+    if (state?.turnState) {
+      for (let enemyIndex = 0; enemyIndex < normalizedEnemyCount; enemyIndex += 1) {
+        if (isEnemyAlive(state.turnState, enemyIndex)) {
+          return enemyIndex;
+        }
+      }
     }
     return 0;
   }
@@ -1939,10 +2072,19 @@ export class TurnEngineManager {
       if (!Number.isInteger(position)) {
         continue;
       }
+      const aliveEnemyIndexes = override.enemyIndexes.filter((enemyIndex) =>
+        isEnemyAlive(state?.turnState, enemyIndex)
+      );
+      if (aliveEnemyIndexes.length === 0) {
+        continue;
+      }
 
       // Kill エントリはブレイク帰属モードのチェックなしでそのまま通過させる
       if (override.outcome === ACTION_OUTCOME_TYPES.KILL) {
-        nextOverrides.push({ ...override });
+        nextOverrides.push({
+          ...override,
+          enemyIndexes: aliveEnemyIndexes,
+        });
         continue;
       }
 
@@ -1975,24 +2117,25 @@ export class TurnEngineManager {
         nextOverrides.push({
           position,
           outcome: ACTION_OUTCOME_TYPES.BREAK,
-          enemyIndexes: [...override.enemyIndexes],
+          enemyIndexes: [...aliveEnemyIndexes],
         });
         continue;
       }
-      if (override.enemyIndexes.length === 0) {
+      if (aliveEnemyIndexes.length === 0) {
         continue;
       }
       const materializedTarget = this.#materializeActionTarget(state, action.target);
       const normalizedEnemyIndex = this.#normalizeSingleTargetEnemyIndex(
         materializedTarget?.targetEnemyIndex,
-        normalizedEnemyCount
+        normalizedEnemyCount,
+        state
       );
       if (
-        override.enemyIndexes.length > 0 &&
-        !override.enemyIndexes.includes(normalizedEnemyIndex)
+        aliveEnemyIndexes.length > 0 &&
+        !aliveEnemyIndexes.includes(normalizedEnemyIndex)
       ) {
         onWarning?.(
-          `manual break target normalized at position ${position}: ${override.enemyIndexes.join(',')} -> ${normalizedEnemyIndex}`
+          `manual break target normalized at position ${position}: ${aliveEnemyIndexes.join(',')} -> ${normalizedEnemyIndex}`
         );
       }
       nextOverrides.push({
@@ -2021,6 +2164,9 @@ export class TurnEngineManager {
       }
       const member = state?.party?.find((candidate) => Number(candidate?.position) === position) ?? null;
       if (!member) {
+        continue;
+      }
+      if (!isEnemyAlive(state?.turnState, override.enemyIndex)) {
         continue;
       }
       next.push({

@@ -1182,6 +1182,46 @@ test('TurnRowController opens enemy detail popup from Enemy label click', () =>
     assert.match(popup.textContent ?? '', /防御力ダウン/);
   }));
 
+test('TurnRowController enemy detail popup marks dead occupied slots with a Dead badge', () =>
+  withDom(({ root, win }) => {
+    const state = createState(
+      createSkill({
+        id: 95045,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      2
+    );
+    state.turnState.enemyState.enemyNamesByEnemy = {
+      0: 'Alpha',
+      1: 'Beta',
+    };
+    state.turnState.enemyState.statuses = [
+      {
+        statusType: 'Dead',
+        targetIndex: 1,
+        remainingTurns: 0,
+        exitCond: 'Eternal',
+      },
+    ];
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /E2 Beta/);
+    assert.match(popup.textContent ?? '', /Dead/);
+  }));
+
 test('TurnRowController committed enemy detail popup uses stateBefore (same turn) instead of next turn state', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({

@@ -1,5 +1,6 @@
 import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 import { resolveShortCharacterName } from '../../src/domain/character-name.js';
+import { isEnemyAlive } from '../../src/turn/turn-controller.js';
 import { REPLAY_TARGET_TYPES, normalizeReplayTarget } from '../../src/ui/lightweight-replay-script.js';
 import {
   DEFAULT_SIMULATOR_SETTINGS,
@@ -24,11 +25,11 @@ function normalizeTargetCondition(targetCondition) {
   return String(targetCondition ?? '').replace(/\s+/g, '');
 }
 
-function buildEnemyCandidates(enemyCount) {
+function buildEnemyCandidates(state, enemyCount) {
   const normalizedEnemyCount = clampEnemyCount(enemyCount);
   return Array.from({ length: normalizedEnemyCount }, (_, enemyIndex) => ({
     enemyIndex,
-    disabled: false,
+    disabled: !isEnemyAlive(state?.turnState, enemyIndex),
   }));
 }
 
@@ -123,7 +124,7 @@ export function resolveTurnTargetConfig({
   return {
     kind: 'enemy',
     targetType: 'Single',
-    candidates: buildEnemyCandidates(enemyCount),
+    candidates: buildEnemyCandidates(state, enemyCount),
   };
 }
 

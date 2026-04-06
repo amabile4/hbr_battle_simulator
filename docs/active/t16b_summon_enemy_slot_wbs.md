@@ -10,12 +10,30 @@
 - [x] T16-B 専用プラン/WBS 文書を作成
 - [x] 親タスクと `docs/README.md` に参照導線を追加
 - [x] 着手前監査結果（OD / kill / enemyCount / 条件判定）を WBS へ反映
-- [ ] WBS-1: 正本データモデルの固定
-- [ ] WBS-2: kill / dead / alive の敵スロット管理修正
-- [ ] WBS-3: OD 計算の per-enemy 化
-- [ ] WBS-4: 条件判定と全体対象処理の alive enemy 統一
+- [x] WBS-1: 正本データモデルの固定
+- [x] WBS-2: kill / dead / alive の敵スロット管理修正
+- [x] WBS-3: OD 計算の per-enemy 化
+- [x] WBS-4: 条件判定と全体対象処理の alive enemy 統一
 - [ ] WBS-5: UI / replay / session の Summon 反映
-- [ ] WBS-6: テスト拡充と受け入れ確認
+- [x] WBS-6: テスト拡充と受け入れ確認
+
+## 2026-04-06 実装反映メモ
+
+今回の実装で、Summon 本体の入力/生成ロジックより先に必要だった「敵 slot 正本化」の基盤を反映した。
+
+- `enemyCount` を alive 数ではなく occupied slot 数として固定
+- kill は `enemyCount--` ではなく `Dead` 付与へ変更
+- `countAliveEnemies(...) === 0` を勝利判定の基準へ統一
+- 単体/全体攻撃の OD を target slot / alive enemy ごとの `od_rate` で計算
+- `CountBC(IsPlayer()==0...)` / `EnemyAll` / `TargetBreakDownTurn()` / `SpecialStatusCountByType(...)` の dead enemy 除外を統一
+- UI Next の enemy selector は dead slot を disabled にし、enemy detail popup は occupied dead slot を `Dead` badge 付きで表示
+- replay override に `EnemyOdRates` / `EnemyAbsorbElements` を追加し、turn start enemy slot snapshot を turn override に保持
+
+残タスク:
+
+- 敵行動 `Summon` 自体の入力/UI/commit 経路
+- Summon 実行時に新規 slot metadata を生成する runtime ロジック
+- Summon 後 slot 増加シナリオの E2E 固定
 
 ## 目的
 
@@ -93,20 +111,20 @@
 
 作業:
 
-- [ ] `enemyState` の正本フィールドを定義する
-- [ ] kill 時に保持すべき項目を定義する
-  - [ ] `enemyNamesByEnemy`
-  - [ ] `damageRatesByEnemy`
-  - [ ] `destructionRateCapByEnemy`
-  - [ ] `odRateByEnemy`
-  - [ ] `statuses`
-  - [ ] `breakStateByEnemy`
-- [ ] `enemyCount` の意味を「存在スロット数」か「alive 数」かで曖昧にしないよう固定する
-- [ ] Summon 追加時の slot 採番規則を定義する
-  - [ ] 空きスロット再利用の有無
-  - [ ] 最大 3 スロット固定の扱い
-  - [ ] replay / session 上の保存形式
-- [ ] 討伐済み slot の UI 表示方針を定義する
+- [x] `enemyState` の正本フィールドを定義する
+- [x] kill 時に保持すべき項目を定義する
+  - [x] `enemyNamesByEnemy`
+  - [x] `damageRatesByEnemy`
+  - [x] `destructionRateCapByEnemy`
+  - [x] `odRateByEnemy`
+  - [x] `statuses`
+  - [x] `breakStateByEnemy`
+- [x] `enemyCount` の意味を「存在スロット数」か「alive 数」かで曖昧にしないよう固定する
+- [x] Summon 追加時の slot 採番規則を定義する
+  - [x] 空きスロット再利用の有無
+  - [x] 最大 3 スロット固定の扱い
+  - [x] replay / session 上の保存形式
+- [x] 討伐済み slot の UI 表示方針を定義する
 
 完了条件:
 
@@ -121,11 +139,11 @@
 
 作業:
 
-- [ ] `TurnEngineManager` の kill override 適用を `enemyCount--` から `Dead` 付与へ変更する
-- [ ] kill 後 state で `enemyNamesByEnemy` / `odRateByEnemy` / `statuses` の index が崩れないようにする
-- [ ] `allEnemiesDefeated` を `alive enemy count` から導出する
-- [ ] 討伐済み enemy が break/down/special status 条件に含まれないことを保証する
-- [ ] committed turn の再計算でも同じ kill 結果を再現できるようにする
+- [x] `TurnEngineManager` の kill override 適用を `enemyCount--` から `Dead` 付与へ変更する
+- [x] kill 後 state で `enemyNamesByEnemy` / `odRateByEnemy` / `statuses` の index が崩れないようにする
+- [x] `allEnemiesDefeated` を `alive enemy count` から導出する
+- [x] 討伐済み enemy が break/down/special status 条件に含まれないことを保証する
+- [x] committed turn の再計算でも同じ kill 結果を再現できるようにする
 
 対象ファイル:
 
@@ -146,11 +164,11 @@
 
 作業:
 
-- [ ] `resolveEnemyOdRateMultiplier()` の enemy[0] 前提を廃止する
-- [ ] 単体攻撃は `targetEnemyIndex` の `od_rate` を使う
-- [ ] 全体攻撃は alive enemy ごとに `od_rate` を解決して合算する
-- [ ] 追撃 OD と `OverDrivePointUp` の扱いを per-enemy 化後も仕様どおり維持する
-- [ ] 仕様書 `docs/specs/od_gauge_calculation_spec.md` の補足を更新する
+- [x] `resolveEnemyOdRateMultiplier()` の enemy[0] 前提を廃止する
+- [x] 単体攻撃は `targetEnemyIndex` の `od_rate` を使う
+- [x] 全体攻撃は alive enemy ごとに `od_rate` を解決して合算する
+- [x] 追撃 OD と `OverDrivePointUp` の扱いを per-enemy 化後も仕様どおり維持する
+- [x] 仕様書 `docs/specs/od_gauge_calculation_spec.md` の補足を更新する
 
 対象ファイル:
 
@@ -170,11 +188,11 @@
 
 作業:
 
-- [ ] `CountBC(IsPlayer()==0...)` の評価が dead enemy を除外することを確認し、必要なら修正する
-- [ ] `TargetBreakDownTurn()` が kill 後でも target slot を正しく見ることを確認する
-- [ ] `EnemyAll` / `All` 系が alive enemy のみに適用されることを確認する
-- [ ] break/down/superDown/dead の相互作用を整理する
-- [ ] victory 判定が `enemyCount` 減算依存でなくても成立するようにする
+- [x] `CountBC(IsPlayer()==0...)` の評価が dead enemy を除外することを確認し、必要なら修正する
+- [x] `TargetBreakDownTurn()` が kill 後でも target slot を正しく見ることを確認する
+- [x] `EnemyAll` / `All` 系が alive enemy のみに適用されることを確認する
+- [x] break/down/superDown/dead の相互作用を整理する
+- [x] victory 判定が `enemyCount` 減算依存でなくても成立するようにする
 
 対象ファイル:
 
@@ -194,10 +212,10 @@
 
 作業:
 
-- [ ] turn row の enemy selector が kill/summon 後 slot に追従する
-- [ ] enemy detail popup が dead/summoned enemy を正しく表示する
-- [ ] manual break / kill UI が slot identity を壊さない
-- [ ] replay / session JSON に kill/summon 後の enemy slot 情報を保持する
+- [x] turn row の enemy selector が kill/summon 後 slot に追従する
+- [x] enemy detail popup が dead/summoned enemy を正しく表示する
+- [x] manual break / kill UI が slot identity を壊さない
+- [x] replay / session JSON に kill/summon 後の enemy slot 情報を保持する
 - [ ] `BattleStateManager` に Summon で追加された slot 情報を反映する経路を追加する
 
 対象ファイル:
@@ -221,14 +239,14 @@
 
 作業:
 
-- [ ] unit: per-enemy `od_rate` 参照テストを追加する
-- [ ] unit: kill 後も slot index が崩れないテストを追加する
-- [ ] unit: dead enemy が `BreakDownTurn` / `SpecialStatusCountByType` 条件に入らないテストを追加する
-- [ ] unit: all-target OD が dead enemy を数えないテストを追加する
-- [ ] integration: kill -> recalculate -> replay 同値性テストを追加する
+- [x] unit: per-enemy `od_rate` 参照テストを追加する
+- [x] unit: kill 後も slot index が崩れないテストを追加する
+- [x] unit: dead enemy が `BreakDownTurn` / `SpecialStatusCountByType` 条件に入らないテストを追加する
+- [x] unit: all-target OD が dead enemy を数えないテストを追加する
+- [x] integration: kill -> recalculate -> replay 同値性テストを追加する
 - [ ] integration: summon 後に target/break/follow-up が新規 slot を扱えるテストを追加する
 - [ ] 必要に応じて e2e: UI Next で summon 後 slot が増えるシナリオを固定する
-- [ ] docs 完了更新（本書 / 親タスク / `docs/README.md`）を行う
+- [x] docs 完了更新（本書 / 親タスク / `docs/README.md`）を行う
 
 完了条件:
 

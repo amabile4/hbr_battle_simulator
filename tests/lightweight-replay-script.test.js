@@ -80,6 +80,23 @@ test('override registry applies known scenario fields and warns only for unknown
   assert.deepEqual(warnings, ['override entry ignored: FutureOverride']);
 });
 
+test('override registry round-trips enemy slot metadata entries including od rates and absorb elements', () => {
+  const scenarioTurn = applyReplayOverrideEntriesToScenarioTurn([
+    { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES, payload: { 0: 10000, 1: 8500 } },
+    { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS, payload: { 1: ['fire'] } },
+    {
+      type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES,
+      payload: [{ statusType: 'Dead', targetIndex: 1, remainingTurns: 0, exitCond: 'Eternal' }],
+    },
+  ]);
+
+  assert.deepEqual(scenarioTurn.enemyOdRates, { 0: 10000, 1: 8500 });
+  assert.deepEqual(scenarioTurn.enemyAbsorbElements, { 1: ['fire'] });
+  assert.deepEqual(scenarioTurn.enemyStatuses, [
+    { statusType: 'Dead', targetIndex: 1, remainingTurns: 0, exitCond: 'Eternal' },
+  ]);
+});
+
 test('setup registry migrates legacy pre-state fields into setupEntries and preserves explicit overrides', () => {
   assert.equal(replaySetupEntryRegistry.has(REPLAY_SETUP_ENTRY_TYPES.INITIAL_DP_STATE_BY_PARTY_INDEX), true);
   assert.equal(replaySetupEntryRegistry.has(REPLAY_SETUP_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX), true);

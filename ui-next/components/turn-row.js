@@ -1,7 +1,7 @@
 import { resolveStyleImageUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import { clampEnemyCount, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 import { formatSkillCostLabel, getElementHintForDuplicateNamedSkill } from '../utils/skill-label.js';
-import { resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
+import { isEnemyAlive, resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 import {
   REPLAY_OPERATION_TYPES,
   REPLAY_OVERRIDE_ENTRY_TYPES,
@@ -797,7 +797,7 @@ export class TurnRowController {
         continue;
       }
       const killEnemyIndexes = (this.#draftKillEnemyIndexesByPartyIndex[member.partyIndex] ?? []).filter(
-        (idx) => idx < enemyCount
+        (idx) => idx < enemyCount && this.#isEnemySlotAlive(idx)
       );
       if (killEnemyIndexes.length === 0) continue;
       overrides.push({
@@ -1251,6 +1251,10 @@ export class TurnRowController {
       : {};
   }
 
+  #isEnemySlotAlive(enemyIndex, state = this.#stateBefore ?? this.#stateAfter) {
+    return isEnemyAlive(state?.turnState, enemyIndex);
+  }
+
   #getCurrentActionOutcomeOverridesForDisplay(isCommitted) {
     const enemyCount = isCommitted
       ? this.#getCurrentReplayTurnEnemyCount()
@@ -1317,7 +1321,12 @@ export class TurnRowController {
     const overrides = [];
     for (const member of members) {
       const enemyIndex = Number(this.#draftFollowUpEnemyIndexByPartyIndex?.[member.partyIndex]);
-      if (!Number.isInteger(enemyIndex) || enemyIndex < 0 || enemyIndex >= enemyCount) {
+      if (
+        !Number.isInteger(enemyIndex) ||
+        enemyIndex < 0 ||
+        enemyIndex >= enemyCount ||
+        !this.#isEnemySlotAlive(enemyIndex)
+      ) {
         continue;
       }
       overrides.push({
@@ -1394,6 +1403,7 @@ export class TurnRowController {
               overrides.find((entry) => Number(entry.position) === Number(member.position))?.enemyIndex
             );
             const buttonsHtml = Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isAlive = this.#isEnemySlotAlive(enemyIndex);
               const enemyName = String(
                 enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
               ).trim();
@@ -1405,8 +1415,11 @@ export class TurnRowController {
                         data-party-index="${member.partyIndex}"
                         data-position="${member.position}"
                         data-enemy-index="${enemyIndex}"
+                        ${isAlive ? '' : 'disabled'}
                         class="target-chip inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors
-                               ${selected
+                               ${!isAlive
+                                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                 : selected
                                  ? 'border-cyan-500 bg-cyan-500 text-white'
                                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}">
                   ${label}
@@ -1451,6 +1464,7 @@ export class TurnRowController {
       const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
       return {
         name: displayName,
+        dead: !this.#isEnemySlotAlive(enemyIndex, sourceState),
         statuses,
         ...(od_rate !== null ? { od_rate } : {}),
         ...(max_d_rate !== null ? { max_d_rate } : {}),
@@ -1563,6 +1577,7 @@ export class TurnRowController {
               member.position
             );
             const killButtonsHtml = Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isAlive = this.#isEnemySlotAlive(enemyIndex);
               const isKilled = memberKillEnemyIndexes.includes(enemyIndex);
               const enemyName = String(
                 enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
@@ -1574,8 +1589,11 @@ export class TurnRowController {
                         data-enemy-index="${enemyIndex}"
                         data-position="${member.position}"
                         data-party-index="${member.partyIndex}"
+                        ${isAlive ? '' : 'disabled'}
                         class="target-chip inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors
-                               ${isKilled
+                               ${!isAlive
+                                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                 : isKilled
                                  ? 'border-green-500 bg-green-500 text-white'
                                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}">
                   ${label}
@@ -1707,6 +1725,7 @@ export class TurnRowController {
           <div class="text-[9px] font-semibold text-green-700 pb-0.5">ブレイク</div>
           <div class="flex flex-wrap gap-1.5">
             ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isAlive = this.#isEnemySlotAlive(enemyIndex);
               const isSelected = selectionContext.rawBreakEnemyIndexes.includes(enemyIndex);
               const enemyName = String(
                 enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
@@ -1717,8 +1736,11 @@ export class TurnRowController {
                         data-role="manual-break-candidate"
                         data-party-index="${selectionContext.member.partyIndex}"
                         data-enemy-index="${enemyIndex}"
+                        ${isAlive ? '' : 'disabled'}
                         class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                               ${isSelected
+                               ${!isAlive
+                                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                 : isSelected
                                  ? 'border-amber-500 bg-amber-500 text-white'
                                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
                   ${label}
@@ -1775,8 +1797,11 @@ export class TurnRowController {
                             data-role="manual-break-target-candidate"
                             data-party-index="${selectionContext.member.partyIndex}"
                             data-enemy-index="${candidate.enemyIndex}"
+                            ${candidate.disabled ? 'disabled' : ''}
                             class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                                   ${isSelected
+                                   ${candidate.disabled
+                                     ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                     : isSelected
                                      ? 'border-sky-500 bg-sky-500 text-white'
                                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
                       ${label}
@@ -1887,8 +1912,11 @@ export class TurnRowController {
                     data-actor-party-index="${actorPartyIndex}"
                     data-target-kind="enemy"
                     data-enemy-index="${candidate.enemyIndex}"
+                    ${candidate.disabled ? 'disabled' : ''}
                     class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                           ${isSelected
+                           ${candidate.disabled
+                             ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                             : isSelected
                              ? 'border-sky-500 bg-sky-500 text-white'
                              : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'}">
               ${label}

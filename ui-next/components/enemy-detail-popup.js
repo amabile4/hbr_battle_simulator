@@ -131,6 +131,9 @@ export class EnemyDetailPopup {
     const tabButtonsHtml = enemies.map((enemy, index) => {
       const label = String(enemy?.name ?? `E${index + 1}`).trim() || `E${index + 1}`;
       const isActive = index === this.#activeEnemyIndex;
+      const deadBadge = enemy?.dead
+        ? '<span style="margin-left: 6px; border-radius: 999px; background: #7f1d1d; color: #fecaca; padding: 1px 6px; font-size: 10px; font-weight: 700;">Dead</span>'
+        : '';
       return `
         <button type="button"
                 data-role="enemy-popup-tab"
@@ -146,6 +149,7 @@ export class EnemyDetailPopup {
                   cursor: pointer;
                 ">
           ${escapeHtml(label)}
+          ${deadBadge}
         </button>
       `;
     }).join('');
@@ -236,6 +240,9 @@ export class EnemyDetailPopup {
     const showPanelTitle = Boolean(options?.showPanelTitle);
     const statuses = Array.isArray(enemy?.statuses) ? enemy.statuses : [];
     const enemyTitle = String(enemy?.name ?? `E${Number(enemyIndex) + 1}`).trim() || `E${Number(enemyIndex) + 1}`;
+    const deadBadgeHtml = enemy?.dead
+      ? '<span style="margin-left: 8px; border-radius: 999px; background: #7f1d1d; color: #fecaca; padding: 2px 8px; font-size: 10px; font-weight: 700;">Dead</span>'
+      : '';
     const previewHtml = this.#buildPreviewActionFlowHtml(enemyIndex);
     const statusTableHtml = buildEnemyStatusTableHtml(statuses);
     const statsHtml = this.#buildStatsHtml(enemy);
@@ -243,8 +250,9 @@ export class EnemyDetailPopup {
       <div data-role="enemy-popup-panel-card">
       ${previewHtml}
       ${showPanelTitle ? `
-        <h3 style="margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #e2e8f0;">
+        <h3 style="display: flex; align-items: center; margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #e2e8f0;">
           ${escapeHtml(enemyTitle)}
+          ${deadBadgeHtml}
         </h3>
       ` : ''}
       ${statsHtml ? `

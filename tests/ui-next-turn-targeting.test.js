@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { formatTurnTargetLabel } from '../ui-next/utils/turn-targeting.js';
+import { formatTurnTargetLabel, resolveTurnTargetConfig } from '../ui-next/utils/turn-targeting.js';
 
 function createStore(charactersByLabel = {}) {
   return {
@@ -63,4 +63,44 @@ test('formatTurnTargetLabel falls back to the shortest available ally name when 
   );
 
   assert.equal(label, 'ユキ');
+});
+
+test('resolveTurnTargetConfig disables dead enemy slots while keeping occupied slots visible', () => {
+  const config = resolveTurnTargetConfig({
+    member: { characterId: 'UI1' },
+    effectiveSkill: {
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    },
+    state: {
+      party: [],
+      turnState: {
+        enemyState: {
+          enemyCount: 3,
+          statuses: [
+            {
+              statusType: 'Dead',
+              targetIndex: 1,
+              remainingTurns: 0,
+              exitCond: 'Eternal',
+            },
+          ],
+        },
+      },
+    },
+    enemyCount: 3,
+  });
+
+  assert.equal(config?.kind, 'enemy');
+  assert.deepEqual(
+    config?.candidates?.map((candidate) => ({
+      enemyIndex: candidate.enemyIndex,
+      disabled: candidate.disabled,
+    })),
+    [
+      { enemyIndex: 0, disabled: false },
+      { enemyIndex: 1, disabled: true },
+      { enemyIndex: 2, disabled: false },
+    ]
+  );
 });

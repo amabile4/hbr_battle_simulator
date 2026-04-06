@@ -1185,8 +1185,8 @@ function computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, ta
 
 function analyzeEnemiesEligibleForOdGain(state, member, skill, enemyCount) {
   const numericEnemyCount = clampEnemyCount(enemyCount);
-  const targetType = String(skill?.targetType ?? '');
-  const isAllTarget = targetType === 'All';
+  const targetType = String(skill?.targetType ?? skill?.target_type ?? '');
+  const isAllTarget = targetType === 'All' || targetType === 'EnemyAll';
   const effectiveDamageRatesByEnemy = {};
   const eligibleEnemyIndexes = [];
   let targetEnemyIndex = null;
@@ -1194,6 +1194,14 @@ function analyzeEnemiesEligibleForOdGain(state, member, skill, enemyCount) {
     targetEnemyIndex = Number.isFinite(Number(skill?.targetEnemyIndex))
       ? Number(skill.targetEnemyIndex)
       : 0;
+    if (!isEnemyAlive(state?.turnState, targetEnemyIndex, numericEnemyCount)) {
+      return {
+        targetEnemyIndex,
+        eligibleEnemyIndexes,
+        effectiveDamageRatesByEnemy,
+        eligibleEnemyCount: 0,
+      };
+    }
     const rate = computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, targetEnemyIndex);
     effectiveDamageRatesByEnemy[String(targetEnemyIndex)] = rate;
     if (rate >= DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT) {
@@ -1208,6 +1216,9 @@ function analyzeEnemiesEligibleForOdGain(state, member, skill, enemyCount) {
   }
 
   for (let i = 0; i < numericEnemyCount; i += 1) {
+    if (!isEnemyAlive(state?.turnState, i, numericEnemyCount)) {
+      continue;
+    }
     const rate = computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, i);
     effectiveDamageRatesByEnemy[String(i)] = rate;
     if (rate >= DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT) {
@@ -1395,7 +1406,9 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
       }
       return {
         known: true,
-        value: getEnemyStatusRemainingTurns(state?.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN),
+        value: isEnemyAlive(state?.turnState, targetIndex)
+          ? getEnemyStatusRemainingTurns(state?.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN)
+          : 0,
       };
     }
     case 'Turn':
@@ -1721,7 +1734,18 @@ function mergeEnemyStatuses(current, next) {
   return merged;
 }
 
-function getEnemyState(turnState) {
+function hasOwnEnemyOverrideField(snapshot, key) {
+  return Boolean(snapshot) && Object.prototype.hasOwnProperty.call(snapshot, key);
+}
+
+function cloneEnemySlotObjectMap(value, fallback = {}) {
+  if (!value || typeof value !== 'object') {
+    return structuredClone(fallback);
+  }
+  return structuredClone(value);
+}
+
+export function getEnemyState(turnState) {
   const state = turnState?.enemyState;
   if (!state || typeof state !== 'object') {
     return {
@@ -1775,6 +1799,87 @@ function getEnemyState(turnState) {
           }
         : { active: false, level: 0, maxLevel: 10 },
   };
+}
+
+export function buildEnemyStateOverrideSnapshot(turnState) {
+  const enemyState = getEnemyState(turnState);
+  return {
+    enemyCount: enemyState.enemyCount,
+    enemyNames: structuredClone(enemyState.enemyNamesByEnemy),
+    enemyDamageRates: structuredClone(enemyState.damageRatesByEnemy),
+    enemyDestructionRates: structuredClone(enemyState.destructionRateByEnemy),
+    enemyDestructionRateCaps: structuredClone(enemyState.destructionRateCapByEnemy),
+    enemyOdRates: structuredClone(enemyState.odRateByEnemy),
+    enemyAbsorbElements: structuredClone(enemyState.absorbElementsByEnemy),
+    enemyBreakStates: structuredClone(enemyState.breakStateByEnemy),
+    enemyStatuses: structuredClone(enemyState.statuses),
+  };
+}
+
+export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
+  if (!turnState || typeof turnState !== 'object') {
+    return turnState;
+  }
+  const current = getEnemyState(turnState);
+  const nextEnemyCount = hasOwnEnemyOverrideField(snapshot, 'enemyCount')
+    ? clampEnemyCount(snapshot.enemyCount)
+    : current.enemyCount;
+  const nextEnemyState = {
+    ...current,
+    enemyCount: nextEnemyCount,
+    enemyNamesByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyNames')
+      ? cloneEnemySlotObjectMap(snapshot.enemyNames)
+      : structuredClone(current.enemyNamesByEnemy),
+    damageRatesByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDamageRates')
+      ? cloneEnemySlotObjectMap(snapshot.enemyDamageRates)
+      : structuredClone(current.damageRatesByEnemy),
+    destructionRateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRates')
+      ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRates)
+      : structuredClone(current.destructionRateByEnemy),
+    destructionRateCapByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRateCaps')
+      ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRateCaps)
+      : structuredClone(current.destructionRateCapByEnemy),
+    odRateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyOdRates')
+      ? cloneEnemySlotObjectMap(snapshot.enemyOdRates)
+      : structuredClone(current.odRateByEnemy),
+    absorbElementsByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyAbsorbElements')
+      ? cloneEnemySlotObjectMap(snapshot.enemyAbsorbElements)
+      : structuredClone(current.absorbElementsByEnemy),
+    breakStateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyBreakStates')
+      ? cloneEnemySlotObjectMap(snapshot.enemyBreakStates)
+      : structuredClone(current.breakStateByEnemy),
+    statuses: hasOwnEnemyOverrideField(snapshot, 'enemyStatuses')
+      ? (Array.isArray(snapshot.enemyStatuses)
+          ? snapshot.enemyStatuses.map((status) => normalizeEnemyStatus(status, nextEnemyCount)).filter(Boolean)
+          : [])
+      : current.statuses.map((status) => normalizeEnemyStatus(status, nextEnemyCount)).filter(Boolean),
+  };
+  turnState.enemyState = {
+    ...(turnState.enemyState && typeof turnState.enemyState === 'object' ? turnState.enemyState : {}),
+    ...nextEnemyState,
+  };
+  turnState.enemyState.allEnemiesDefeated =
+    nextEnemyCount > 0 && countAliveEnemies({ enemyState: turnState.enemyState }) === 0;
+  return turnState;
+}
+
+function syncTurnStateEnemyCount(turnState, enemyCount) {
+  if (!turnState || typeof turnState !== 'object') {
+    return turnState;
+  }
+  const normalizedEnemyCount = clampEnemyCount(enemyCount);
+  const currentEnemyState =
+    turnState.enemyState && typeof turnState.enemyState === 'object' ? turnState.enemyState : {};
+  if (Number(currentEnemyState.enemyCount ?? DEFAULT_ENEMY_COUNT) === normalizedEnemyCount) {
+    return turnState;
+  }
+  turnState.enemyState = {
+    ...currentEnemyState,
+    enemyCount: normalizedEnemyCount,
+  };
+  turnState.enemyState.allEnemiesDefeated =
+    normalizedEnemyCount > 0 && countAliveEnemies({ enemyState: turnState.enemyState }, normalizedEnemyCount) === 0;
+  return turnState;
 }
 
 function getTalismanState(turnState) {
@@ -2597,23 +2702,47 @@ function getDeadEnemyTargetIndexes(turnState) {
   return targets;
 }
 
-function isEnemyDead(turnState, targetIndex) {
-  return getDeadEnemyTargetIndexes(turnState).has(Number(targetIndex));
+function resolveEffectiveEnemyCount(turnState, enemyCountOverride = null) {
+  return clampEnemyCount(enemyCountOverride ?? getEnemyState(turnState).enemyCount);
 }
 
-function isEnemyAlive(turnState, targetIndex) {
+function getDeadEnemyTargetIndexesWithOverride(turnState, enemyCountOverride = null) {
+  const enemyState = getEnemyState(turnState);
+  const effectiveEnemyCount = resolveEffectiveEnemyCount(turnState, enemyCountOverride);
+  const targets = new Set();
+  for (const status of getActiveEnemyStatuses(turnState, ENEMY_STATUS_DEAD)) {
+    const idx = Number(status?.targetIndex ?? -1);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= enemyState.enemyCount || idx >= effectiveEnemyCount) {
+      continue;
+    }
+    targets.add(idx);
+  }
+  return targets;
+}
+
+export function isEnemyDead(turnState, targetIndex, enemyCountOverride = null) {
   const idx = Number(targetIndex);
-  if (!Number.isFinite(idx) || idx < 0 || idx >= getEnemyState(turnState).enemyCount) {
+  const effectiveEnemyCount = resolveEffectiveEnemyCount(turnState, enemyCountOverride);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= effectiveEnemyCount) {
     return false;
   }
-  return !isEnemyDead(turnState, idx);
+  return getDeadEnemyTargetIndexesWithOverride(turnState, effectiveEnemyCount).has(idx);
 }
 
-function countAliveEnemies(turnState) {
-  const enemyState = getEnemyState(turnState);
-  const deadTargets = getDeadEnemyTargetIndexes(turnState);
+export function isEnemyAlive(turnState, targetIndex, enemyCountOverride = null) {
+  const idx = Number(targetIndex);
+  const effectiveEnemyCount = resolveEffectiveEnemyCount(turnState, enemyCountOverride);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= effectiveEnemyCount) {
+    return false;
+  }
+  return !isEnemyDead(turnState, idx, effectiveEnemyCount);
+}
+
+export function countAliveEnemies(turnState, enemyCountOverride = null) {
+  const enemyCount = resolveEffectiveEnemyCount(turnState, enemyCountOverride);
+  const deadTargets = getDeadEnemyTargetIndexesWithOverride(turnState, enemyCount);
   let count = 0;
-  for (let i = 0; i < enemyState.enemyCount; i += 1) {
+  for (let i = 0; i < enemyCount; i += 1) {
     if (!deadTargets.has(i)) {
       count += 1;
     }
@@ -2661,7 +2790,7 @@ function getAliveEnemyTargetIndexes(state, enemyCountOverride = null) {
   );
   const targets = [];
   for (let i = 0; i < enemyCount; i += 1) {
-    if (isEnemyAlive(state?.turnState, i)) {
+    if (isEnemyAlive(state?.turnState, i, enemyCount)) {
       targets.push(i);
     }
   }
@@ -2670,14 +2799,17 @@ function getAliveEnemyTargetIndexes(state, enemyCountOverride = null) {
 
 function getFirstAliveEnemyTargetIndex(state, preferredTargetIndex = 0) {
   const preferred = Number(preferredTargetIndex);
-  if (Number.isFinite(preferred) && isEnemyAlive(state?.turnState, preferred)) {
+  if (
+    Number.isFinite(preferred) &&
+    isEnemyAlive(state?.turnState, preferred, state?.turnState?.enemyState?.enemyCount)
+  ) {
     return preferred;
   }
   return getAliveEnemyTargetIndexes(state)[0] ?? null;
 }
 
 function getActionTargetEnemyIndexes(state, actionEntry, skill) {
-  const targetType = String(skill?.targetType ?? actionEntry?.skillTargetType ?? '');
+  const targetType = String(skill?.targetType ?? skill?.target_type ?? actionEntry?.skillTargetType ?? '');
   const enemyCount = clampEnemyCount(
     state?.turnState?.enemyState?.enemyCount ?? actionEntry?.enemyCount ?? DEFAULT_ENEMY_COUNT
   );
@@ -4621,23 +4753,24 @@ function tickEnemyStatuses(turnState) {
 
 function resolveEnemyConditionFunctionValue(name, argRaw, state, targetIndex) {
   const arg = String(argRaw ?? '').trim();
+  const dead = isEnemyDead(state?.turnState, targetIndex);
   switch (name) {
     case 'IsPlayer':
       return { known: true, value: 0 };
     case 'IsDead':
       return {
         known: true,
-        value: isEnemyDead(state?.turnState, targetIndex) ? 1 : 0,
+        value: dead ? 1 : 0,
       };
     case 'IsBroken':
       return {
         known: true,
-        value: hasEnemyStatus(state?.turnState, targetIndex, ENEMY_STATUS_BREAK) ? 1 : 0,
+        value: dead ? 0 : (hasEnemyStatus(state?.turnState, targetIndex, ENEMY_STATUS_BREAK) ? 1 : 0),
       };
     case 'BreakDownTurn':
       return {
         known: true,
-        value: getEnemyStatusRemainingTurns(state?.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN),
+        value: dead ? 0 : getEnemyStatusRemainingTurns(state?.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN),
       };
     case 'DamageRate':
       return {
@@ -4650,7 +4783,7 @@ function resolveEnemyConditionFunctionValue(name, argRaw, state, targetIndex) {
       }
       return {
         known: true,
-        value: isEnemyWeakToElement(state?.turnState, targetIndex, arg) ? 1 : 0,
+        value: dead ? 0 : (isEnemyWeakToElement(state?.turnState, targetIndex, arg) ? 1 : 0),
       };
     case 'SpecialStatusCountByType': {
       const statusType = getEnemySpecialStatusNameByType(arg);
@@ -4659,7 +4792,7 @@ function resolveEnemyConditionFunctionValue(name, argRaw, state, targetIndex) {
       }
       return {
         known: true,
-        value: hasEnemyStatus(state?.turnState, targetIndex, statusType) ? 1 : 0,
+        value: dead ? 0 : (hasEnemyStatus(state?.turnState, targetIndex, statusType) ? 1 : 0),
       };
     }
     default:
@@ -4788,7 +4921,11 @@ function evaluateCountBCPredicate(innerExpression, state, member) {
   if (clauses.includes('IsPlayer()==0')) {
     let count = 0;
     const enemyCount = getEnemyState(state?.turnState).enemyCount;
+    const countsDeadTargets = clauses.some((clause) => /\bIsDead\s*\(/.test(String(clause)));
     for (let targetIndex = 0; targetIndex < enemyCount; targetIndex += 1) {
+      if (!countsDeadTargets && isEnemyDead(state?.turnState, targetIndex)) {
+        continue;
+      }
       let matched = true;
       for (const clause of clauses) {
         const evaluated = evaluateEnemyCountBcClause(clause, state, targetIndex);
@@ -5803,46 +5940,45 @@ function computeOdGaugeGainPercentBySkill(
   }
 
   const numericEnemyCount = clampEnemyCount(enemyCount);
-  const targetType = String(skill?.targetType ?? '');
-  const isAllTarget = targetType === 'All';
+  const targetType = String(skill?.targetType ?? skill?.target_type ?? '');
+  const isAllTarget = targetType === 'All' || targetType === 'EnemyAll';
 
   const baseHitCount = resolveSkillHitCount(skill);
   const funnelHitBonus = Number(options?.funnelHitBonus ?? 0);
-  const rawOdRateMultiplier = Number(options?.odRateMultiplier ?? 1);
-  const odRateMultiplier =
-    Number.isFinite(rawOdRateMultiplier) && rawOdRateMultiplier > 0 ? rawOdRateMultiplier : 1;
   const hitCountPerEnemyBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
   const hitCountPerEnemy = hitCountPerEnemyBase + Math.max(0, funnelHitBonus);
   const odEnemyAnalysis = hasDamage
     ? analyzeEnemiesEligibleForOdGain(state, member, skillWithTarget, numericEnemyCount)
     : null;
-  const odEligibleEnemyCount = Number(odEnemyAnalysis?.eligibleEnemyCount ?? 0);
-  let hitCount = hitCountPerEnemy * (isAllTarget ? odEligibleEnemyCount : Math.min(1, odEligibleEnemyCount));
-  if (isNormalAttackSkill(skill)) {
-    // 通常攻撃はヒット数に関わらず最低3hit(=7.5%)保証。
-    hitCount = odEligibleEnemyCount > 0 ? Math.max(3, hitCount) : 0;
-  }
-
-  if (hasDamage && (!Number.isFinite(hitCount) || hitCount <= 0)) {
-    return 0;
-  }
+  const targetEnemyIndexes = isAllTarget
+    ? [...(odEnemyAnalysis?.eligibleEnemyIndexes ?? [])]
+    : (odEnemyAnalysis?.eligibleEnemyIndexes?.slice?.(0, 1) ?? []);
 
   let attackGain = 0;
-  if (!hasDamage) {
-    attackGain = 0;
-  } else if (isNormalAttackSkill(skill)) {
-    const perHitGain = truncateToTwoDecimals(OD_GAUGE_PER_HIT_PERCENT * odRateMultiplier);
-    attackGain = truncateToTwoDecimals(perHitGain * hitCount);
-  } else {
-    // ピアス補正テーブルの hit 数は、敵数を掛けた後ではなく「スキル本来の hit 数」を使う。
-    const bonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
-    const multiplier = 1 + bonusPercent / 100;
-    // 仕様更新:
-    // 攻撃ぶんODは「1hitごと」に算出し、小数第2位で切り捨ててから総hitへ乗算する。
-    // 敵 od_rate 補正も同様に 1hit 単位で適用する。
-    // (全体攻撃は totalHits = baseHitCount * enemyCount, 単体攻撃は totalHits = baseHitCount)
-    const perHitGain = truncateToTwoDecimals(OD_GAUGE_PER_HIT_PERCENT * multiplier * odRateMultiplier);
-    attackGain = truncateToTwoDecimals(perHitGain * hitCount);
+  if (hasDamage && targetEnemyIndexes.length > 0) {
+    if (isNormalAttackSkill(skill)) {
+      attackGain = truncateToTwoDecimals(
+        targetEnemyIndexes.reduce((sum, targetEnemyIndex) => {
+          const perHitGain = truncateToTwoDecimals(
+            OD_GAUGE_PER_HIT_PERCENT * resolveEnemyOdRateMultiplier(state?.turnState, targetEnemyIndex)
+          );
+          return sum + truncateToTwoDecimals(perHitGain * hitCountPerEnemy);
+        }, 0)
+      );
+    } else {
+      const bonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
+      const multiplier = 1 + bonusPercent / 100;
+      attackGain = truncateToTwoDecimals(
+        targetEnemyIndexes.reduce((sum, targetEnemyIndex) => {
+          const perHitGain = truncateToTwoDecimals(
+            OD_GAUGE_PER_HIT_PERCENT *
+              multiplier *
+              resolveEnemyOdRateMultiplier(state?.turnState, targetEnemyIndex)
+          );
+          return sum + truncateToTwoDecimals(perHitGain * hitCountPerEnemy);
+        }, 0)
+      );
+    }
   }
 
   const overDrivePointUpGain = computeOverDrivePointUpGainPercent(
@@ -5861,12 +5997,11 @@ function computeOdGaugeGainPercentBySkill(
  * 敵の od_rate に基づく OD 上昇量補正係数を返す。
  * - od_rate=0 は補正なし（係数 1.0）。
  * - 0 以外は od_rate / ENEMY_OD_RATE_UNIT（例: 8500 → 0.85）。
- * - 複数敵がいる場合は敵 index 0 の値を共有レートとして使用する。
- * [WIP] 小数点丸め込み位置は調査中。
+ * - 直接倍率表現（例: 0.5, 1, 2）も受け入れる。
  */
-function resolveEnemyOdRateMultiplier(turnState) {
+function resolveEnemyOdRateMultiplier(turnState, targetEnemyIndex) {
   const enemyState = getEnemyState(turnState);
-  const rawRate = Number(enemyState.odRateByEnemy?.['0'] ?? 0);
+  const rawRate = Number(enemyState.odRateByEnemy?.[String(Number(targetEnemyIndex))] ?? 0);
   if (!Number.isFinite(rawRate) || rawRate === 0) {
     return 1;
   }
@@ -5882,8 +6017,6 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
   const events = [];
   const enemyCount = clampEnemyCount(previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT);
   let currentOdGauge = truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0));
-  // [WIP] 敵 od_rate による OD 上昇補正。小数点丸め込み位置は調査中。
-  const odRateMultiplier = resolveEnemyOdRateMultiplier(state.turnState);
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const member = findMemberByCharacterId(state, actionEntry.characterId);
@@ -5925,10 +6058,6 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       0,
       (isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount) + funnelHitBonus
     );
-    const effectiveHitCount =
-      String(skill?.targetType ?? '') === 'All'
-        ? effectiveHitCountPerEnemy * enemyCount
-        : effectiveHitCountPerEnemy;
     const skillWithTarget =
       actionEntry && typeof actionEntry === 'object'
         ? {
@@ -5940,6 +6069,12 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
     const odEnemyAnalysis = hasDamage
       ? analyzeEnemiesEligibleForOdGain(state, member, skillWithTarget, enemyCount)
       : null;
+    const eligibleEnemyCount = Number(odEnemyAnalysis?.eligibleEnemyCount ?? 0);
+    const effectiveHitCount =
+      String(skill?.targetType ?? skill?.target_type ?? '') === 'All' ||
+      String(skill?.targetType ?? skill?.target_type ?? '') === 'EnemyAll'
+        ? effectiveHitCountPerEnemy * eligibleEnemyCount
+        : effectiveHitCountPerEnemy * Math.min(1, eligibleEnemyCount);
     const odGaugeGain = computeOdGaugeGainPercentBySkill(
       skill,
       state,
@@ -5948,17 +6083,25 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       actionEntry,
       {
         funnelHitBonus,
-        odRateMultiplier,
       }
     );
     // 追撃ヒットの OD 寄与を前衛のスキル属性・バフ状態から完全に独立して計算する。
     // 追撃はバフ/デバフの効果を受けない無属性攻撃であり、ドライブピアス・Funnel・
     // 全体攻撃の敵数倍・通常攻撃の最低3hit保証は適用しない。
     const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
-    const pursuitPerHitGain = truncateToTwoDecimals(OD_GAUGE_PER_HIT_PERCENT * odRateMultiplier);
-    const pursuitOdGain = pursuedHitCount > 0
-      ? truncateToTwoDecimals(pursuedHitCount * pursuitPerHitGain)
-      : 0;
+    const pursuedTargetEnemyIndex = Number.isFinite(Number(actionEntry?.pursuedTargetEnemyIndex))
+      ? Number(actionEntry.pursuedTargetEnemyIndex)
+      : (Number.isFinite(Number(actionEntry?.targetEnemyIndex)) ? Number(actionEntry.targetEnemyIndex) : null);
+    const pursuitPerHitGain =
+      Number.isInteger(pursuedTargetEnemyIndex) && isEnemyAlive(state?.turnState, pursuedTargetEnemyIndex)
+        ? truncateToTwoDecimals(
+            OD_GAUGE_PER_HIT_PERCENT * resolveEnemyOdRateMultiplier(state.turnState, pursuedTargetEnemyIndex)
+          )
+        : 0;
+    const pursuitOdGain =
+      pursuedHitCount > 0 && pursuitPerHitGain > 0
+        ? truncateToTwoDecimals(pursuedHitCount * pursuitPerHitGain)
+        : 0;
     const odGaugeDown = computeOverDrivePointDownPercent(
       effectiveParts,
       state,
@@ -7128,6 +7271,15 @@ function normalizeManualBreakEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEM
   )].sort((left, right) => left - right);
 }
 
+function normalizeManualKillEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const normalizedEnemyCount = clampEnemyCount(enemyCount);
+  return [...new Set(
+    (Array.isArray(actionEntry?.manualKillEnemyIndexes) ? actionEntry.manualKillEnemyIndexes : [])
+      .map((enemyIndex) => Number(enemyIndex))
+      .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < normalizedEnemyCount)
+  )].sort((left, right) => left - right);
+}
+
 function applyManualBreakEffectsFromActions(state, previewRecord) {
   const events = [];
   const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
@@ -7162,6 +7314,39 @@ function applyManualBreakEffectsFromActions(state, previewRecord) {
           targetIndex,
           statusType: ENEMY_STATUS_DOWN_TURN,
           remainingTurns: Number(existingDownTurn?.remainingTurns ?? DEFAULT_AUTO_DOWN_TURN_REMAINING),
+          source: 'manual',
+        })
+      );
+    }
+  }
+  return events;
+}
+
+function applyManualKillEffectsFromActions(state, previewRecord) {
+  const events = [];
+  const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const manualKillEnemyIndexes = normalizeManualKillEnemyIndexes(actionEntry, enemyCount);
+    if (manualKillEnemyIndexes.length === 0) {
+      continue;
+    }
+    for (const targetIndex of manualKillEnemyIndexes) {
+      if (!isEnemyAlive(state?.turnState, targetIndex)) {
+        continue;
+      }
+      upsertEnemyStatus(state.turnState, {
+        statusType: ENEMY_STATUS_DEAD,
+        targetIndex,
+        remainingTurns: 0,
+      });
+      events.push(
+        buildActionScopedEvent(actionEntry, {
+          actorCharacterId: String(actionEntry.characterId ?? ''),
+          skillId: Number(actionEntry.skillId ?? 0),
+          skillName: String(actionEntry.skillName ?? ''),
+          mode: 'Dead',
+          targetIndex,
+          statusType: ENEMY_STATUS_DEAD,
           source: 'manual',
         })
       );
@@ -7725,7 +7910,9 @@ function buildDerivedRepeatAction(action) {
     breakHitCount: 0,
     killCount: 0,
     pursuedHitCount: 0,
+    pursuedTargetEnemyIndex: null,
     manualBreakEnemyIndexes: [],
+    manualKillEnemyIndexes: [],
   };
 }
 
@@ -7789,7 +7976,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     skillId: effectiveSkill.skillId,
     skillName: effectiveSkill.name,
     skillLabel: effectiveSkill.label,
-    skillTargetType: String(effectiveSkill.targetType ?? ''),
+    skillTargetType: String(effectiveSkill.targetType ?? effectiveSkill.target_type ?? ''),
     skillHitCount: hitInfo.effectiveHitCount,
     skillBaseHitCount: hitInfo.baseHitCount,
     skillFunnelHitBonus: hitInfo.funnelHitBonus,
@@ -7902,11 +8089,17 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
         : normalizeManualBreakEnemyIndexes(action, state?.turnState?.enemyState?.enemyCount).length,
     killCount: Number(action?.killCount ?? 0),
     pursuedHitCount: Math.max(0, Number(action?.pursuedHitCount ?? 0)),
+    pursuedTargetEnemyIndex:
+      Number.isFinite(Number(action?.pursuedTargetEnemyIndex)) ? Number(action.pursuedTargetEnemyIndex) : null,
     removeDebuffCount: resolveRemoveDebuffCountForAction(state, member, effectiveSkill, action),
     targetCharacterId: String(action?.targetCharacterId ?? ''),
     targetEnemyIndex:
       Number.isFinite(Number(action?.targetEnemyIndex)) ? Number(action.targetEnemyIndex) : null,
     manualBreakEnemyIndexes: normalizeManualBreakEnemyIndexes(
+      action,
+      state?.turnState?.enemyState?.enemyCount
+    ),
+    manualKillEnemyIndexes: normalizeManualKillEnemyIndexes(
       action,
       state?.turnState?.enemyState?.enemyCount
     ),
@@ -8159,6 +8352,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     ...applyEnemyBreakEffectsFromActions(state, singleRecord),
     ...applyManualBreakEffectsFromActions(state, singleRecord),
   ];
+  const enemyKillEvents = applyManualKillEffectsFromActions(state, singleRecord);
   const derivedBreakEnemyIndexes = enemyBreakEvents
     .filter(
       (event) =>
@@ -8205,6 +8399,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     shreddingEvents,
     enemyStatusEvents,
     enemyBreakEvents,
+    enemyKillEvents,
     breakDownTurnUpEvents,
     odGaugeGain,
   };
@@ -8216,6 +8411,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     party: state.party.map((member) => member.clone()),
     turnState: cloneTurnState(state.turnState),
   };
+  syncTurnStateEnemyCount(projectedState.turnState, enemyCount);
   const actionEntries = [];
   let actionSequence = 0;
 
@@ -10340,16 +10536,19 @@ export function createBattleStateFromParty(party, turnState) {
   return next;
 }
 
-export function previewTurn(state, actions, enemyAction = null, enemyCount = 1, options = {}) {
+export function previewTurn(state, actions, enemyAction = null, enemyCount = null, options = {}) {
+  const resolvedEnemyCount = clampEnemyCount(
+    enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+  );
   const sortedActions = validateActionDict(state, actions, options);
-  const { actionEntries, projectedState } = previewActionEntries(state, sortedActions, enemyCount, {
+  const { actionEntries, projectedState } = previewActionEntries(state, sortedActions, resolvedEnemyCount, {
     buffMetadataValidation: options?.buffMetadataValidation ?? options?.validateBuffMetadata,
   });
   const snapBefore = snapshotPartyByPartyIndex(state.party);
 
   const record = fromSnapshot(
     snapBefore,
-    buildTurnContext(state.turnState, enemyAction, enemyCount),
+    buildTurnContext(state.turnState, enemyAction, resolvedEnemyCount),
     actionEntries,
     [],
     state.turnState.sequenceId
@@ -10380,6 +10579,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   if (!previewRecord || previewRecord.recordStatus !== 'preview') {
     throw new Error('commitTurn requires preview TurnRecord.');
   }
+  syncTurnStateEnemyCount(state?.turnState, Number(previewRecord.enemyCount ?? DEFAULT_ENEMY_COUNT));
   const applySwapOnCommit = options.applySwapOnCommit !== false;
   const interruptOdLevel = Number(options.interruptOdLevel ?? 0);
   const shouldActivateInterruptOd =
@@ -10424,6 +10624,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const shreddingEvents = [];
   const enemyStatusEvents = [];
   const enemyBreakEvents = [];
+  const enemyKillEvents = [];
   const breakDownTurnUpEvents = [];
   let odGaugeGain = {
     startOdGauge: truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0)),
@@ -10460,6 +10661,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     shreddingEvents.push(...actionResult.shreddingEvents);
     enemyStatusEvents.push(...actionResult.enemyStatusEvents);
     enemyBreakEvents.push(...actionResult.enemyBreakEvents);
+    enemyKillEvents.push(...actionResult.enemyKillEvents);
     breakDownTurnUpEvents.push(...actionResult.breakDownTurnUpEvents);
     odGaugeGain = {
       startOdGauge: Number(odGaugeGain.startOdGauge ?? 0),
@@ -10803,6 +11005,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     );
     entry.enemyStatusChanges = [
       ...enemyStatusEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...enemyKillEvents.filter((ev) =>
         eventBelongsToActionEntry(entry, ev, {
           actorKey: 'actorCharacterId',
           skillKey: 'skillId',

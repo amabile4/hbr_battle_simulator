@@ -1269,6 +1269,70 @@ test('TurnEngineManager recalculateFrom restores killCount from overrideEntries'
   assert.equal(manager.computedStates[0].turnState.enemyState.allEnemiesDefeated, true);
 });
 
+test('TurnEngineManager persists turn-start enemy slot snapshots into overrideEntries and restores them on reload', () => {
+  const actorSkill = createSkill({
+    id: 90725,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 2;
+  initialState.turnState.enemyState.odRateByEnemy = { 0: 10000, 1: 10000 };
+  initialState.turnState.enemyState.absorbElementsByEnemy = { 0: [], 1: [] };
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta' };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+
+  manager.commitNextTurn(
+    { 0: { skillId: 90725 } },
+    {
+      enemyCount: 2,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [1] }],
+      note: 'kill E2',
+    }
+  );
+
+  manager.currentState.turnState.enemyState.odRateByEnemy = { 0: 10000, 1: 8500 };
+  manager.currentState.turnState.enemyState.absorbElementsByEnemy = { 0: [], 1: ['fire'] };
+  manager.currentState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Summoned Beta' };
+
+  manager.commitNextTurn(
+    { 0: { skillId: 90725 } },
+    {
+      enemyCount: 2,
+      note: 'snapshot turn',
+    }
+  );
+
+  const secondTurnOverrideTypes = manager.replayScript.turns[1].overrideEntries.map((entry) => entry.type);
+  assert.ok(secondTurnOverrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_NAMES));
+  assert.ok(secondTurnOverrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES));
+  assert.ok(secondTurnOverrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS));
+  assert.ok(secondTurnOverrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES));
+
+  const reloadInitialState = createInitialState(actorSkill);
+  reloadInitialState.turnState.enemyState.enemyCount = 2;
+  reloadInitialState.turnState.enemyState.odRateByEnemy = { 0: 10000, 1: 10000 };
+  reloadInitialState.turnState.enemyState.absorbElementsByEnemy = { 0: [], 1: [] };
+  reloadInitialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta' };
+
+  const reloadedManager = new TurnEngineManager();
+  reloadedManager.loadReplayScript(reloadInitialState, manager.replayScript, {});
+
+  const stateBeforeSecondTurn = reloadedManager.getStateBefore(1);
+  assert.equal(stateBeforeSecondTurn.turnState.enemyState.enemyNamesByEnemy['1'], 'Summoned Beta');
+  assert.equal(stateBeforeSecondTurn.turnState.enemyState.odRateByEnemy['1'], 8500);
+  assert.deepEqual(stateBeforeSecondTurn.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);
+  assert.equal(
+    stateBeforeSecondTurn.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Dead' && status.targetIndex === 1
+    ),
+    true
+  );
+});
+
 test('TurnEngineManager break passive fires on Break but not on Kill for the same enemy', () => {
   // E1 をブレイクすると AdditionalHitOnBreaking パッシブが発火（SP+8）
   // E1 を討伐すると同パッシブは発火しない（討伐はブレイク成立ではないため）
