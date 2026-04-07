@@ -2738,6 +2738,18 @@ export function isEnemyAlive(turnState, targetIndex, enemyCountOverride = null) 
   return !isEnemyDead(turnState, idx, effectiveEnemyCount);
 }
 
+export function isEnemyBroken(turnState, targetIndex, enemyCountOverride = null) {
+  const idx = Number(targetIndex);
+  const effectiveEnemyCount = resolveEffectiveEnemyCount(turnState, enemyCountOverride);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= effectiveEnemyCount) {
+    return false;
+  }
+  if (!isEnemyAlive(turnState, idx, effectiveEnemyCount)) {
+    return false;
+  }
+  return hasEnemyStatus(turnState, idx, ENEMY_STATUS_BREAK);
+}
+
 export function countAliveEnemies(turnState, enemyCountOverride = null) {
   const enemyCount = resolveEffectiveEnemyCount(turnState, enemyCountOverride);
   const deadTargets = getDeadEnemyTargetIndexesWithOverride(turnState, enemyCount);
@@ -7203,6 +7215,8 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
         if (!condSatisfied) {
           continue;
         }
+        const isAlreadyBroken = hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK);
+        const hasDownTurn = hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN);
         if (skillType === 'SuperBreak') {
           const applied = applyEnemyStrongBreakState(state.turnState, targetIndex);
           if (applied) {
@@ -7219,7 +7233,11 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
           continue;
         }
 
-        if (hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN)) {
+        if (isAlreadyBroken && !hasDownTurn) {
+          continue;
+        }
+
+        if (hasDownTurn) {
           const applied = applyEnemySuperDownState(state.turnState, targetIndex);
           if (applied) {
             events.push(
@@ -7282,6 +7300,9 @@ function normalizeManualKillEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEMY
 
 export function applyManualEnemyBreak(turnState, targetIndex) {
   if (!turnState || !isEnemyAlive(turnState, targetIndex)) {
+    return null;
+  }
+  if (hasEnemyStatus(turnState, targetIndex, ENEMY_STATUS_BREAK)) {
     return null;
   }
   upsertEnemyStatus(turnState, {

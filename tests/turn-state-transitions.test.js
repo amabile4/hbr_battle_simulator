@@ -8249,6 +8249,52 @@ test('SuperBreakDown adds DownTurn event on fresh target and leaves Break state 
   );
 });
 
+test('SuperBreakDown does not re-break a target that is already in Break state on the next turn', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18130,
+              name: 'ナイトキルエッジ',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const turn1Preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18130, targetEnemyIndex: 0 },
+  });
+  const turn1Committed = commitTurn(state, turn1Preview);
+  const turn2Preview = previewTurn(turn1Committed.nextState, {
+    0: { characterId: 'M1', skillId: 18130, targetEnemyIndex: 0 },
+  });
+  const turn2Committed = commitTurn(turn1Committed.nextState, turn2Preview);
+  const turn2Action = turn2Committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+
+  assert.equal(
+    (turn2Action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn'),
+    false
+  );
+  assert.equal(
+    turn2Committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    turn2Committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+    ),
+    false
+  );
+});
+
 test('BreakDownTurnUp from triggered passive skill extends DownTurn by 1 turn on break', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

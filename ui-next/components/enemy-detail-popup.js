@@ -517,6 +517,10 @@ export class EnemyDetailPopup {
             background: rgba(16, 185, 129, 0.18);
             color: #bbf7d0;
           }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-state-badge"][data-state="broken"] {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fde68a;
+          }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-state-badge"][data-state="dead"] {
             background: rgba(127, 29, 29, 0.9);
             color: #fecaca;
@@ -636,9 +640,11 @@ export class EnemyDetailPopup {
       })
       .filter(Boolean);
     const stateLabel = enemy?.occupied
-      ? (enemy?.dead ? 'Dead' : 'Alive')
+      ? (enemy?.dead ? 'Dead' : enemy?.broken ? 'Break' : 'Alive')
       : '未使用';
-    const stateKey = enemy?.occupied ? (enemy?.dead ? 'dead' : 'alive') : 'empty';
+    const stateKey = enemy?.occupied
+      ? (enemy?.dead ? 'dead' : enemy?.broken ? 'broken' : 'alive')
+      : 'empty';
     const infoRows = [
       ['状態', `<span data-role="enemy-popup-state-badge" data-state="${stateKey}">${escapeHtml(stateLabel)}</span>`],
       ['OD率', escapeHtml(Number.isFinite(Number(enemy?.od_rate)) ? `×${Number(enemy.od_rate).toFixed(2)}` : '-'), true],

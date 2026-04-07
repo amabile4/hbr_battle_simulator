@@ -5,7 +5,7 @@ import {
   MAX_ENEMY_COUNT,
 } from '../../src/config/battle-defaults.js';
 import { formatSkillCostLabel, getElementHintForDuplicateNamedSkill } from '../utils/skill-label.js';
-import { isEnemyAlive, resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
+import { isEnemyAlive, isEnemyBroken, resolveEffectiveSkillForAction } from '../../src/turn/turn-controller.js';
 import {
   REPLAY_OPERATION_TYPES,
   REPLAY_OVERRIDE_ENTRY_TYPES,
@@ -1818,6 +1818,10 @@ export class TurnRowController {
     return isEnemyAlive(state?.turnState, enemyIndex);
   }
 
+  #isEnemySlotBroken(enemyIndex, state = this.#stateBefore ?? this.#stateAfter) {
+    return isEnemyBroken(state?.turnState, enemyIndex);
+  }
+
   #getCurrentActionOutcomeOverridesForDisplay(isCommitted) {
     const enemyCount = isCommitted
       ? this.#getCurrentReplayTurnEnemyCount()
@@ -2575,6 +2579,7 @@ export class TurnRowController {
         }));
       const broken =
         breakEnemyIndexes.has(enemyIndex) ||
+        this.#isEnemySlotBroken(enemyIndex, sourceState) ||
         statuses.some((status) => String(status?.statusType ?? '') === ENEMY_STATUS_BREAK);
       const enemyKey = String(enemyIndex);
       const od_rate = enemyState.odRateByEnemy?.[enemyKey] ?? null;
@@ -2589,7 +2594,11 @@ export class TurnRowController {
         broken,
         dead: occupied && !alive,
         canSummon,
-        canBreak: this.#isDraftMode() && occupied && !killedByAttribution && (alive || breakEnemyIndexes.has(enemyIndex)),
+        canBreak:
+          this.#isDraftMode() &&
+          occupied &&
+          !killedByAttribution &&
+          (breakEnemyIndexes.has(enemyIndex) || (alive && !broken)),
         canKill: this.#isDraftMode() && occupied && (alive || killEnemyIndexes.has(enemyIndex)),
         hasPendingBreakOperation: breakEnemyIndexes.has(enemyIndex),
         hasPendingKillOperation: killEnemyIndexes.has(enemyIndex),

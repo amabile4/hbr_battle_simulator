@@ -1593,6 +1593,36 @@ test('TurnAreaController enables summon after popup-attributed kill and disables
     );
   }));
 
+test('TurnAreaController shows Break badge and disables popup break action for already-broken enemies', () =>
+  withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1280, height: 900 });
+    const state = createState(
+      createSkill({
+        id: 95048,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1
+    );
+    state.turnState.enemyState.statuses = [{ statusType: 'Break', targetIndex: 0, remainingTurns: 0 }];
+
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      enemyPresets: [createEnemyPreset()],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    const stateBadge = popup.querySelector('[data-role="enemy-popup-state-badge"]');
+    const breakAction = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="break"]');
+    assert.ok(stateBadge);
+    assert.ok(breakAction);
+    assert.equal(stateBadge.textContent?.trim(), 'Break');
+    assert.equal(breakAction.disabled, true);
+  }));
+
 test('TurnRowController enemy detail popup shows enemy resistance and absorb stats', () =>
   withDom(({ root, win }) => {
     const state = createState(
