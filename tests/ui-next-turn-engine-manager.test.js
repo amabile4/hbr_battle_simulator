@@ -150,6 +150,20 @@ function createSummonEnemyOperation({
   };
 }
 
+function createBreakEnemyOperation(enemyIndex = 0) {
+  return {
+    type: REPLAY_OPERATION_TYPES.BREAK_ENEMY,
+    payload: { enemyIndex },
+  };
+}
+
+function createKillEnemyOperation(enemyIndex = 0) {
+  return {
+    type: REPLAY_OPERATION_TYPES.KILL_ENEMY,
+    payload: { enemyIndex },
+  };
+}
+
 function createLegacyExtraTurnInitialState() {
   const initialState = createInitialState(
     createSkill({
@@ -297,6 +311,62 @@ test('TurnEngineManager commits summon operations into enemy slot snapshots and 
   assert.equal(stateBeforeFirstTurn.turnState.enemyState.damageRatesByEnemy['1'].Fire, 250);
   assert.deepEqual(stateBeforeFirstTurn.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);
   assert.equal(reloadedManager.computedStates[0]?.turnState?.enemyState?.enemyCount, 2);
+});
+
+test('TurnEngineManager commits direct enemy break/kill operations into turn-start state and replay', () => {
+  const actorSkill = createSkill({
+    id: 90727,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 3;
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' };
+  initialState.turnState.enemyState.statuses = [];
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  assert.equal(manager.addPendingSpecialOperation(createBreakEnemyOperation(1)), true);
+  assert.equal(manager.addPendingSpecialOperation(createKillEnemyOperation(2)), true);
+
+  manager.commitNextTurn(
+    { 0: { skillId: 90727 } },
+    { enemyCount: 3, note: 'direct enemy ops' }
+  );
+
+  const firstTurn = manager.replayScript.turns[0];
+  assert.deepEqual(
+    firstTurn.operations.map((operation) => operation.type),
+    [REPLAY_OPERATION_TYPES.BREAK_ENEMY, REPLAY_OPERATION_TYPES.KILL_ENEMY]
+  );
+  assert.equal(
+    manager.getStateBefore(0)?.turnState?.enemyState?.statuses?.some(
+      (status) => status.statusType === 'Break' && Number(status.targetIndex) === 1
+    ),
+    true
+  );
+  assert.equal(
+    manager.getStateBefore(0)?.turnState?.enemyState?.statuses?.some(
+      (status) => status.statusType === 'Dead' && Number(status.targetIndex) === 2
+    ),
+    true
+  );
+
+  const reloadedManager = new TurnEngineManager();
+  reloadedManager.loadReplayScript(createInitialState(actorSkill), manager.replayScript, {});
+  assert.equal(
+    reloadedManager.getStateBefore(0)?.turnState?.enemyState?.statuses?.some(
+      (status) => status.statusType === 'Break' && Number(status.targetIndex) === 1
+    ),
+    true
+  );
+  assert.equal(
+    reloadedManager.getStateBefore(0)?.turnState?.enemyState?.statuses?.some(
+      (status) => status.statusType === 'Dead' && Number(status.targetIndex) === 2
+    ),
+    true
+  );
 });
 
 test('TurnEngineManager replays Karen double-action EX after 意気揚々 self-buff', () => {

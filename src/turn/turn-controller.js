@@ -7280,6 +7280,48 @@ function normalizeManualKillEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEMY
   )].sort((left, right) => left - right);
 }
 
+export function applyManualEnemyBreak(turnState, targetIndex) {
+  if (!turnState || !isEnemyAlive(turnState, targetIndex)) {
+    return null;
+  }
+  upsertEnemyStatus(turnState, {
+    statusType: ENEMY_STATUS_BREAK,
+    targetIndex,
+    remainingTurns: 0,
+  });
+  const existingDownTurn =
+    getActiveEnemyStatuses(turnState, ENEMY_STATUS_DOWN_TURN).find(
+      (status) => Number(status?.targetIndex) === Number(targetIndex)
+    ) ?? null;
+  if (!existingDownTurn) {
+    upsertEnemyStatus(turnState, {
+      statusType: ENEMY_STATUS_DOWN_TURN,
+      targetIndex,
+      remainingTurns: DEFAULT_AUTO_DOWN_TURN_REMAINING,
+    });
+  }
+  return {
+    targetIndex: Number(targetIndex),
+    statusType: ENEMY_STATUS_BREAK,
+    downTurnRemainingTurns: Number(existingDownTurn?.remainingTurns ?? DEFAULT_AUTO_DOWN_TURN_REMAINING),
+  };
+}
+
+export function applyManualEnemyKill(turnState, targetIndex) {
+  if (!turnState || !isEnemyAlive(turnState, targetIndex)) {
+    return null;
+  }
+  upsertEnemyStatus(turnState, {
+    statusType: ENEMY_STATUS_DEAD,
+    targetIndex,
+    remainingTurns: 0,
+  });
+  return {
+    targetIndex: Number(targetIndex),
+    statusType: ENEMY_STATUS_DEAD,
+  };
+}
+
 function applyManualBreakEffectsFromActions(state, previewRecord) {
   const events = [];
   const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
@@ -7289,21 +7331,9 @@ function applyManualBreakEffectsFromActions(state, previewRecord) {
       continue;
     }
     for (const targetIndex of manualBreakEnemyIndexes) {
-      upsertEnemyStatus(state.turnState, {
-        statusType: ENEMY_STATUS_BREAK,
-        targetIndex,
-        remainingTurns: 0,
-      });
-      const existingDownTurn =
-        getActiveEnemyStatuses(state.turnState, ENEMY_STATUS_DOWN_TURN).find(
-          (status) => Number(status?.targetIndex) === Number(targetIndex)
-        ) ?? null;
-      if (!existingDownTurn) {
-        upsertEnemyStatus(state.turnState, {
-          statusType: ENEMY_STATUS_DOWN_TURN,
-          targetIndex,
-          remainingTurns: DEFAULT_AUTO_DOWN_TURN_REMAINING,
-        });
+      const applied = applyManualEnemyBreak(state.turnState, targetIndex);
+      if (!applied) {
+        continue;
       }
       events.push(
         buildActionScopedEvent(actionEntry, {
@@ -7313,7 +7343,7 @@ function applyManualBreakEffectsFromActions(state, previewRecord) {
           mode: 'DownTurn',
           targetIndex,
           statusType: ENEMY_STATUS_DOWN_TURN,
-          remainingTurns: Number(existingDownTurn?.remainingTurns ?? DEFAULT_AUTO_DOWN_TURN_REMAINING),
+          remainingTurns: Number(applied.downTurnRemainingTurns ?? DEFAULT_AUTO_DOWN_TURN_REMAINING),
           source: 'manual',
         })
       );
@@ -7331,22 +7361,18 @@ function applyManualKillEffectsFromActions(state, previewRecord) {
       continue;
     }
     for (const targetIndex of manualKillEnemyIndexes) {
-      if (!isEnemyAlive(state?.turnState, targetIndex)) {
+      const applied = applyManualEnemyKill(state.turnState, targetIndex);
+      if (!applied) {
         continue;
       }
-      upsertEnemyStatus(state.turnState, {
-        statusType: ENEMY_STATUS_DEAD,
-        targetIndex,
-        remainingTurns: 0,
-      });
       events.push(
         buildActionScopedEvent(actionEntry, {
           actorCharacterId: String(actionEntry.characterId ?? ''),
           skillId: Number(actionEntry.skillId ?? 0),
           skillName: String(actionEntry.skillName ?? ''),
           mode: 'Dead',
-          targetIndex,
-          statusType: ENEMY_STATUS_DEAD,
+          targetIndex: Number(applied.targetIndex),
+          statusType: String(applied.statusType ?? ENEMY_STATUS_DEAD),
           source: 'manual',
         })
       );

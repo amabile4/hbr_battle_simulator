@@ -6,6 +6,8 @@ const OPERATION_LABELS = Object.freeze({
   [REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD]: '先制OD',
   [REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD]: '割込OD',
   [REPLAY_OPERATION_TYPES.SUMMON_ENEMY]: '召喚',
+  [REPLAY_OPERATION_TYPES.BREAK_ENEMY]: 'ブレイク',
+  [REPLAY_OPERATION_TYPES.KILL_ENEMY]: '討伐',
 });
 
 const OD_LEVEL_LABEL_OPERATION_TYPES = new Set([
@@ -16,11 +18,19 @@ const OD_LEVEL_LABEL_OPERATION_TYPES = new Set([
 export function getReplayOperationDisplayLabel(operation = {}) {
   const type = String(operation?.type ?? '').trim();
   const baseLabel = OPERATION_LABELS[type] ?? (type || 'UnknownOperation');
+  const enemyIndex = Number(operation?.payload?.enemyIndex ?? NaN);
+  const enemySlotLabel = Number.isInteger(enemyIndex) && enemyIndex >= 0 ? `E${enemyIndex + 1}` : '';
   if (OD_LEVEL_LABEL_OPERATION_TYPES.has(type)) {
     const level = Number(operation?.payload?.level ?? operation?.level ?? NaN);
     if (Number.isFinite(level) && level >= 1 && level <= 3) {
       return `${baseLabel}${level}`;
     }
+  }
+  if (type === REPLAY_OPERATION_TYPES.BREAK_ENEMY && enemySlotLabel) {
+    return `${enemySlotLabel} ${baseLabel}`;
+  }
+  if (type === REPLAY_OPERATION_TYPES.KILL_ENEMY && enemySlotLabel) {
+    return `${enemySlotLabel} ${baseLabel}`;
   }
   if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
     const enemyName = String(
@@ -51,6 +61,12 @@ export function getReplayOperationTone(operation = {}) {
   }
   if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
     return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+  if (type === REPLAY_OPERATION_TYPES.BREAK_ENEMY) {
+    return 'border-amber-200 bg-amber-50 text-amber-700';
+  }
+  if (type === REPLAY_OPERATION_TYPES.KILL_ENEMY) {
+    return 'border-rose-200 bg-rose-50 text-rose-700';
   }
   return 'border-gray-200 bg-gray-50 text-gray-600';
 }

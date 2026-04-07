@@ -5,6 +5,7 @@ import {
   commitLatestInputRow,
   fillPartySetupSlots,
   gotoUiNext,
+  openEnemyPopupActionForRow,
 } from './ui-next-helpers.js';
 
 test.describe('Turn edit manual break', () => {
@@ -38,30 +39,14 @@ test.describe('Turn edit manual break', () => {
     return editRow;
   }
 
-  test('can open break menu and keep selected break enemy after recommit', async ({ page }) => {
+  test('can toggle direct enemy break from the popup and keep the selected slot after recommit', async ({ page }) => {
     const editRow = await setupEditMode(page);
 
-    const breakToggle = editRow.locator('[data-role="manual-break-toggle"]');
-    await expect(breakToggle).toBeVisible({ timeout: 5000 });
-    await breakToggle.click();
-
-    const breakEditor = editRow.locator('[data-role="manual-break-editor"]');
-    await expect(breakEditor).toBeVisible({ timeout: 5000 });
-    await expectInViewport(breakEditor, page);
-
-    const singleBreakToggle = breakEditor.locator('[data-role="manual-break-single-toggle"]').first();
-    const multiBreakCandidate = breakEditor.locator('[data-role="manual-break-candidate"]').first();
-
-    const hasSingleBreak = (await breakEditor.locator('[data-role="manual-break-single-toggle"]').count()) > 0;
-
-    if (hasSingleBreak) {
-      await singleBreakToggle.click();
-      await expect(singleBreakToggle).toHaveClass(/amber-500/);
-    } else {
-      await expect(multiBreakCandidate).toBeVisible({ timeout: 5000 });
-      await multiBreakCandidate.click();
-      await expect(multiBreakCandidate).toHaveClass(/amber-500/);
-    }
+    const toolsBox = editRow.locator('[data-role="enemy-tools-box"]');
+    await expect(toolsBox).toBeVisible({ timeout: 5000 });
+    await expect(toolsBox.locator('[data-role="enemy-detail-trigger"]')).toBeVisible({ timeout: 5000 });
+    await openEnemyPopupActionForRow(page, editRow, 'break', { enemyIndex: 0 });
+    await expect(editRow.locator('[data-role="operation-chip"]')).toContainText('E1 ブレイク', { timeout: 5000 });
 
     const recommitBtn = editRow.locator('[data-role="recommit-btn"]');
     await expect(recommitBtn).toBeVisible({ timeout: 5000 });
@@ -79,50 +64,27 @@ test.describe('Turn edit manual break', () => {
     const reopenedEditRow = page.locator('[data-turn-row][data-row-mode="edit"]');
     await expect(reopenedEditRow).toBeVisible({ timeout: 5000 });
 
-    const reopenedBreakToggle = reopenedEditRow.locator('[data-role="manual-break-toggle"]');
-    await expect(reopenedBreakToggle).toBeVisible({ timeout: 5000 });
-    await reopenedBreakToggle.click();
-
-    const reopenedBreakEditor = reopenedEditRow.locator('[data-role="manual-break-editor"]');
-    await expect(reopenedBreakEditor).toBeVisible({ timeout: 5000 });
-
-    const selectedSingleBreak = reopenedBreakEditor
-      .locator('[data-role="manual-break-single-toggle"].border-amber-500, [data-role="manual-break-single-toggle"].bg-amber-500');
-    const selectedMultiBreak = reopenedBreakEditor
-      .locator('[data-role="manual-break-candidate"].border-amber-500, [data-role="manual-break-candidate"].bg-amber-500');
-
-    const selectedCount =
-      (await selectedSingleBreak.count()) + (await selectedMultiBreak.count());
-    expect(selectedCount).toBeGreaterThan(0);
+    const reopenedToolsBox = reopenedEditRow.locator('[data-role="enemy-tools-box"]');
+    await expect(reopenedToolsBox).toBeVisible({ timeout: 5000 });
+    await expect(reopenedToolsBox.locator('[data-role="enemy-detail-trigger"]')).toBeVisible({ timeout: 5000 });
+    await expect(reopenedEditRow.locator('[data-role="operation-chip"]')).toContainText('E1 ブレイク', { timeout: 5000 });
+    await reopenedToolsBox.locator('[data-role="enemy-detail-trigger"]').click();
+    const reopenedPopup = page.locator('.enemy-detail-popup-container');
+    await expect(reopenedPopup).toBeVisible({ timeout: 5000 });
+    const breakButton = reopenedPopup.locator('[data-role="enemy-popup-action"][data-action-type="break"]');
+    await expect(breakButton).toBeEnabled({ timeout: 5000 });
   });
 
-  test('manual break menu remains clickable on later turns (#4/#5 progression)', async ({ page }) => {
+  test('popup direct break remains clickable on later turns (#4/#5 progression)', async ({ page }) => {
     const editRow = await setupEditMode(page, {
       commitCount: 5,
       editCommittedIndex: 4,
     });
 
-    const breakToggle = editRow.locator('[data-role="manual-break-toggle"]');
-    await expect(breakToggle).toBeVisible({ timeout: 5000 });
-    await breakToggle.click();
-
-    const breakEditor = editRow.locator('[data-role="manual-break-editor"]');
-    await expect(breakEditor).toBeVisible({ timeout: 5000 });
-    await expectInViewport(breakEditor, page);
-
-    const singleBreakToggle = breakEditor.locator('[data-role="manual-break-single-toggle"]').first();
-    const multiBreakCandidate = breakEditor.locator('[data-role="manual-break-candidate"]').first();
-    const hasSingleBreak = (await breakEditor.locator('[data-role="manual-break-single-toggle"]').count()) > 0;
-
-    if (hasSingleBreak) {
-      await expect(singleBreakToggle).toBeVisible({ timeout: 5000 });
-      await singleBreakToggle.click();
-      await expect(singleBreakToggle).toHaveClass(/amber-500/);
-      return;
-    }
-
-    await expect(multiBreakCandidate).toBeVisible({ timeout: 5000 });
-    await multiBreakCandidate.click();
-    await expect(multiBreakCandidate).toHaveClass(/amber-500/);
+    const toolsBox = editRow.locator('[data-role="enemy-tools-box"]');
+    await expect(toolsBox).toBeVisible({ timeout: 5000 });
+    await expect(toolsBox.locator('[data-role="enemy-detail-trigger"]')).toBeVisible({ timeout: 5000 });
+    await openEnemyPopupActionForRow(page, editRow, 'break', { enemyIndex: 0 });
+    await expect(editRow.locator('[data-role="operation-chip"]')).toContainText('E1 ブレイク', { timeout: 5000 });
   });
 });

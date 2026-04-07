@@ -10,6 +10,7 @@
 import {
   buildEnemyStatusTableHtml,
 } from '../utils/enemy-status-display.js';
+import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -22,8 +23,13 @@ function escapeHtml(value) {
 const POPUP_CLASS = 'enemy-detail-popup';
 const POPUP_OVERLAY_CLASS = 'enemy-detail-popup-overlay';
 const POPUP_CONTAINER_CLASS = 'enemy-detail-popup-container';
-const POPUP_MULTI_LAYOUT_CLASS = 'enemy-detail-popup-multi-layout';
-const POPUP_RESPONSIVE_BREAKPOINT_PX = 980;
+const SUMMON_BUTTON_ICON_URL = resolveUiAssetUrl('Summon.webp');
+const BREAK_BUTTON_ICON_URL = resolveUiAssetUrl('Break.webp');
+const KILL_BUTTON_ICON_URL = resolveUiAssetUrl('defeat.webp');
+const ENEMY_POPUP_STATUS_ICON_SIZE_PX = 28;
+const ENEMY_POPUP_WIDE_BREAKPOINT_PX = 960;
+const BASIC_INFO_EXPANDED_ICON = '▲';
+const BASIC_INFO_COLLAPSED_ICON = '▼';
 const DAMAGE_RATE_DISPLAY_ORDER = Object.freeze([
   ['Slash', '斬'],
   ['Stab', '突'],
@@ -45,8 +51,12 @@ export class EnemyDetailPopup {
   #root = null;
   #enemies = [];
   #activeEnemyIndex = 0;
+  #collapsedBasicInfoEnemyIndexes = new Set();
   #previewActionFlow = [];
+  #toolActions = {};
   #onClose = null;
+  #handleEscKeyDown = null;
+  #handleResize = null;
 
   constructor(options = {}) {
     this.#onClose = typeof options.onClose === 'function' ? options.onClose : null;
@@ -67,11 +77,20 @@ export class EnemyDetailPopup {
     this.#previewActionFlow = Array.isArray(payload?.previewActionFlow)
       ? structuredClone(payload.previewActionFlow)
       : [];
+    this.#toolActions =
+      payload?.toolActions && typeof payload.toolActions === 'object'
+        ? payload.toolActions
+        : {};
     const requestedTabIndex = Number(payload?.activeEnemyIndex ?? activeEnemyIndex ?? 0);
     const maxTabIndex = Math.max(0, this.#enemies.length - 1);
     this.#activeEnemyIndex = Number.isInteger(requestedTabIndex)
       ? Math.min(maxTabIndex, Math.max(0, requestedTabIndex))
       : 0;
+    this.#collapsedBasicInfoEnemyIndexes = new Set(
+      this.#enemies
+        .map((enemy, index) => (enemy?.occupied ? null : index))
+        .filter((index) => Number.isInteger(index))
+    );
     this.#render();
   }
 
@@ -79,6 +98,14 @@ export class EnemyDetailPopup {
    * popup を閉じる
    */
   close() {
+    if (this.#handleEscKeyDown) {
+      document.removeEventListener('keydown', this.#handleEscKeyDown);
+      this.#handleEscKeyDown = null;
+    }
+    if (this.#handleResize) {
+      window.removeEventListener('resize', this.#handleResize);
+      this.#handleResize = null;
+    }
     if (this.#root) {
       this.#root.remove();
       this.#root = null;
@@ -110,7 +137,7 @@ export class EnemyDetailPopup {
     this.#root.querySelectorAll('[data-role="enemy-popup-tab"]').forEach((tabButton) => {
       tabButton.addEventListener('click', () => {
         const nextTabIndex = Number(tabButton.dataset.enemyTabIndex);
-        if (!Number.isInteger(nextTabIndex) || nextTabIndex < 0 || nextTabIndex >= this.#enemies.length) {
+        if (!Number.isInteger(nextTabIndex) || nextTabIndex < 0 || nextTabIndex >= 3) {
           return;
         }
         this.#activeEnemyIndex = nextTabIndex;
@@ -118,61 +145,115 @@ export class EnemyDetailPopup {
       });
     });
 
+    this.#root.querySelectorAll('[data-role="enemy-popup-basic-toggle"]').forEach((toggleButton) => {
+      toggleButton.addEventListener('click', () => {
+        const enemyIndex = Number(toggleButton.dataset.enemyIndex);
+        if (!Number.isInteger(enemyIndex) || enemyIndex < 0 || enemyIndex >= 3) {
+          return;
+        }
+        if (this.#collapsedBasicInfoEnemyIndexes.has(enemyIndex)) {
+          this.#collapsedBasicInfoEnemyIndexes.delete(enemyIndex);
+        } else {
+          this.#collapsedBasicInfoEnemyIndexes.add(enemyIndex);
+        }
+        this.#render();
+      });
+    });
+
+    this.#root.querySelectorAll('[data-role="enemy-popup-action"]').forEach((actionButton) => {
+      actionButton.addEventListener('click', () => {
+        if (actionButton.disabled) {
+          return;
+        }
+        const actionType = String(actionButton.dataset.actionType ?? '').trim();
+        const callback = this.#toolActions?.[actionType];
+        if (typeof callback !== 'function') {
+          return;
+        }
+        const enemyIndex = Number(actionButton.dataset.enemyIndex);
+        this.close();
+        callback({
+          enemyIndex: Number.isInteger(enemyIndex) ? enemyIndex : this.#activeEnemyIndex,
+          activeEnemyIndex: this.#activeEnemyIndex,
+        });
+      });
+    });
+
     // ESC キーで閉じる
-    const handleEsc = (e) => {
+    this.#handleEscKeyDown = (e) => {
       if (e.key === 'Escape') {
         this.close();
-        document.removeEventListener('keydown', handleEsc);
       }
     };
-    document.addEventListener('keydown', handleEsc);
+    document.addEventListener('keydown', this.#handleEscKeyDown);
+    this.#handleResize = () => {
+      if (!this.#root) {
+        return;
+      }
+      const nextLayout = this.#resolveLayoutMode();
+      const currentLayout = String(
+        this.#root.querySelector(`.${POPUP_CONTAINER_CLASS}`)?.dataset.layoutMode ?? ''
+      );
+      if (nextLayout !== currentLayout) {
+        this.#render();
+      }
+    };
+    window.addEventListener('resize', this.#handleResize);
 
     // DOM に追加
     document.body.appendChild(this.#root);
   }
 
+  #resolveLayoutMode() {
+    const viewportWidth = Number(window?.innerWidth ?? 0);
+    return viewportWidth >= ENEMY_POPUP_WIDE_BREAKPOINT_PX ? 'wide' : 'narrow';
+  }
+
+  #buildEnemyEntries() {
+    return Array.from({ length: 3 }, (_, index) => {
+      const enemy = this.#enemies[index] ?? {};
+      const occupied = Boolean(enemy?.occupied);
+      return {
+        enemyIndex: index,
+        name: String(enemy?.name ?? (occupied ? `E${index + 1}` : `E${index + 1} 未使用`)).trim() || `E${index + 1}`,
+        statuses: Array.isArray(enemy?.statuses) ? enemy.statuses : [],
+        occupied,
+        alive: Boolean(enemy?.alive),
+        broken: Boolean(enemy?.broken),
+        dead: Boolean(enemy?.dead),
+        canSummon: Boolean(enemy?.canSummon),
+        canBreak: Boolean(enemy?.canBreak),
+        canKill: Boolean(enemy?.canKill),
+        hasPendingBreakOperation: Boolean(enemy?.hasPendingBreakOperation),
+        hasPendingKillOperation: Boolean(enemy?.hasPendingKillOperation),
+        ...(enemy?.od_rate !== undefined ? { od_rate: enemy.od_rate } : {}),
+        ...(enemy?.max_d_rate !== undefined ? { max_d_rate: enemy.max_d_rate } : {}),
+        ...(enemy?.damageRates ? { damageRates: structuredClone(enemy.damageRates) } : {}),
+        ...(enemy?.absorbElements ? { absorbElements: structuredClone(enemy.absorbElements) } : {}),
+        ...(enemy?.hp !== undefined ? { hp: enemy.hp } : {}),
+        ...(enemy?.maxHp !== undefined ? { maxHp: enemy.maxHp } : {}),
+      };
+    });
+  }
+
   #buildHtml() {
-    const enemies = Array.isArray(this.#enemies) ? this.#enemies : [];
-    const isResponsiveMultiLayout = enemies.length >= 2;
-    const panelColumns = Math.min(3, Math.max(2, enemies.length));
-    const activeEnemy = enemies[this.#activeEnemyIndex] ?? enemies[0] ?? {};
-    const titleText = isResponsiveMultiLayout
-      ? '敵詳細'
-      : String(activeEnemy.name ?? '').trim() || '敵詳細';
+    const enemies = this.#buildEnemyEntries();
+    const layoutMode = this.#resolveLayoutMode();
     const tabButtonsHtml = enemies.map((enemy, index) => {
-      const label = String(enemy?.name ?? `E${index + 1}`).trim() || `E${index + 1}`;
       const isActive = index === this.#activeEnemyIndex;
-      const deadBadge = enemy?.dead
-        ? '<span style="margin-left: 6px; border-radius: 999px; background: #7f1d1d; color: #fecaca; padding: 1px 6px; font-size: 10px; font-weight: 700;">Dead</span>'
-        : '';
+      const stateClass = enemy.dead ? 'is-dead' : enemy.occupied ? 'is-occupied' : 'is-empty';
       return `
         <button type="button"
                 data-role="enemy-popup-tab"
                 data-enemy-tab-index="${index}"
-                style="
-                  border: 1px solid ${isActive ? '#38bdf8' : '#475569'};
-                  background: ${isActive ? '#334155' : '#0f172a'};
-                  color: ${isActive ? '#38bdf8' : '#94a3b8'};
-                  border-radius: 999px;
-                  padding: 4px 10px;
-                  font-size: 12px;
-                  font-weight: 600;
-                  cursor: pointer;
-                ">
-          ${escapeHtml(label)}
-          ${deadBadge}
+                class="char-popup-tab ${stateClass} ${isActive ? 'active' : ''}">
+          E${index + 1}
         </button>
       `;
     }).join('');
-
-    const tabPanelsHtml = enemies.map((enemy, index) => {
-      const hiddenAttr = index === this.#activeEnemyIndex ? '' : 'hidden';
-      return `
-        <div data-role="enemy-popup-tab-panel" data-enemy-tab-index="${index}" ${hiddenAttr}>
-          ${this.#buildEnemyPanelHtml(enemy, index, { showPanelTitle: isResponsiveMultiLayout })}
-        </div>
-      `;
-    }).join('');
+    const contentHtml = layoutMode === 'wide'
+      ? this.#buildWideContentHtml(enemies)
+      : this.#buildNarrowContentHtml(enemies);
 
     return `
       <div class="${POPUP_OVERLAY_CLASS}" style="
@@ -180,109 +261,391 @@ export class EnemyDetailPopup {
         background: rgba(0, 0, 0, 0.5); z-index: 999;
       "></div>
 
-      <div class="${POPUP_CONTAINER_CLASS} ${isResponsiveMultiLayout ? POPUP_MULTI_LAYOUT_CLASS : ''}" style="
+      <div class="${POPUP_CONTAINER_CLASS}" style="
         position: fixed; inset: 10%;
         background: #1e293b; border-radius: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
         z-index: 1000; overflow-y: auto;
         padding: 16px; font-family: system-ui, sans-serif;
         border: 1px solid #475569; color: #e2e8f0;
-        --enemy-panel-columns: ${panelColumns};
-      ">
+      " data-layout-mode="${layoutMode}">
         <style>
-          .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-panels"] {
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-tabs"] {
             display: grid;
-            grid-template-columns: repeat(var(--enemy-panel-columns), minmax(260px, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            flex-shrink: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-header"] {
+            position: relative;
+            min-height: 24px;
+            margin-bottom: 12px;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-content"] {
+            overflow-y: auto;
+            flex: 1;
+            padding: 2px 0 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout"][data-layout-mode="wide"] {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            align-items: start;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout"][data-layout-mode="narrow"] {
+            display: flex;
+            flex-direction: column;
             gap: 12px;
           }
-          .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-tab-panel"][hidden] {
-            display: block !important;
-          }
-          .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-tabs"] {
-            display: none;
-          }
-          .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-panel-card"] {
-            border: 1px solid #334155;
-            border-radius: 10px;
-            background: #0b1220;
-            padding: 10px;
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-column"] {
+            display: flex;
+            flex-direction: column;
             min-width: 0;
           }
-          @media (max-width: ${POPUP_RESPONSIVE_BREAKPOINT_PX}px) {
-            .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-tabs"] {
-              display: flex;
-            }
-            .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-panels"] {
-              display: block;
-            }
-            .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-tab-panel"][hidden] {
-              display: none !important;
-            }
-            .${POPUP_MULTI_LAYOUT_CLASS} [data-role="enemy-popup-panel-card"] {
-              border: none;
-              border-radius: 0;
-              background: transparent;
-              padding: 0;
-            }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-column"][data-selected="true"] {
+            transform: translateY(-1px);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action-row"] {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            min-height: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX + 12}px;
+            margin-bottom: 12px;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"] {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX + 10}px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.08);
+            color: #f8fafc;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 5px 10px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-pending="true"] {
+            border-color: rgba(251, 191, 36, 0.52);
+            background: rgba(251, 191, 36, 0.14);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-action-type="kill"][data-pending="true"] {
+            border-color: rgba(251, 113, 133, 0.54);
+            background: rgba(251, 113, 133, 0.16);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"]:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(191, 219, 254, 0.4);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"]:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+            border-color: rgba(148, 163, 184, 0.18);
+            background: rgba(100, 116, 139, 0.12);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-action-type="break"] {
+            min-height: auto;
+            padding: 0;
+            border: none;
+            background: transparent;
+            border-radius: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-action-type="break"]:hover:not(:disabled) {
+            background: transparent;
+            opacity: 0.88;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action-icon"] {
+            width: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX}px;
+            height: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX}px;
+            object-fit: contain;
+            flex-shrink: 0;
+            display: block;
+            opacity: 1;
+            filter: saturate(1.18) brightness(1.1);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"]:disabled [data-role="enemy-popup-action-icon"] {
+            filter: grayscale(1) brightness(0.72);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"] span {
+            text-shadow: 0 0 8px rgba(15, 23, 42, 0.25);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-action-type="break"] [data-role="enemy-popup-action-icon"] {
+            width: auto;
+            filter: saturate(1.12) brightness(1.12);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-tab"] {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-width: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-tab"].is-empty {
+            opacity: 0.72;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-tab"].is-dead {
+            box-shadow: inset 0 -2px 0 rgba(248, 113, 113, 0.55);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-section-title"] {
+            margin: 0 0 8px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #94a3b8;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-toggle"] {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            width: 100%;
+            margin: 0 0 8px;
+            padding: 0;
+            border: none;
+            background: none;
+            text-align: left;
+            cursor: pointer;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-toggle-copy"] {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            min-width: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-toggle-label"] {
+            font-size: 14px;
+            font-weight: 700;
+            color: #94a3b8;
+            flex-shrink: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-toggle-name"] {
+            font-size: 13px;
+            font-weight: 700;
+            color: #f8fafc;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-toggle-icon"] {
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 700;
+            flex-shrink: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-panel-card"] {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 100%;
+            padding: 12px;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.92));
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-info"] {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+            background: rgba(15, 23, 42, 0.88);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-info-row"] {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 10px;
+            font-size: 12px;
+            line-height: 1.45;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-info-label"] {
+            min-width: 56px;
+            color: #94a3b8;
+            font-weight: 700;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-basic-info-value"] {
+            color: #f8fafc;
+            font-weight: 600;
+            word-break: break-word;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-state-badge"] {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-state-badge"][data-state="alive"] {
+            background: rgba(16, 185, 129, 0.18);
+            color: #bbf7d0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-state-badge"][data-state="dead"] {
+            background: rgba(127, 29, 29, 0.9);
+            color: #fecaca;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-state-badge"][data-state="empty"] {
+            background: rgba(71, 85, 105, 0.6);
+            color: #cbd5e1;
           }
         </style>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h2 style="margin: 0; font-size: 18px; font-weight: bold; color: #f1f5f9;">
-            ${escapeHtml(titleText)}
-          </h2>
+        <div data-role="enemy-popup-header">
+          <div data-role="enemy-popup-tabs">
+            ${tabButtonsHtml}
+          </div>
           <button data-role="popup-close" type="button" style="
+            position: absolute; top: 50%; right: 0; transform: translateY(-50%);
             background: none; border: none; font-size: 20px; cursor: pointer;
             padding: 0; width: 24px; height: 24px; display: flex; align-items: center;
-            justify-content: center; color: #94a3b8;
+            justify-content: center; color: #94a3b8; z-index: 1;
           " aria-label="Close">×</button>
         </div>
 
-        <div data-role="enemy-popup-tabs" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-          ${tabButtonsHtml}
+        <div data-role="enemy-popup-content">
+          ${contentHtml}
         </div>
+      </div>
+    `;
+  }
 
-        <div data-role="enemy-popup-panels">
-          ${tabPanelsHtml}
+  #buildWideContentHtml(enemies = []) {
+    return `
+      <div data-role="enemy-popup-layout" data-layout-mode="wide">
+        ${enemies.map((enemy, index) => `
+          <div data-role="enemy-popup-column"
+               data-enemy-tab-index="${index}"
+               data-selected="${index === this.#activeEnemyIndex ? 'true' : 'false'}">
+            ${this.#buildEnemyPanelHtml(enemy, index, { showActions: index === this.#activeEnemyIndex })}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  #buildNarrowContentHtml(enemies = []) {
+    const activeEnemy = enemies[this.#activeEnemyIndex] ?? enemies[0] ?? null;
+    if (!activeEnemy) {
+      return '';
+    }
+    return `
+      <div data-role="enemy-popup-layout" data-layout-mode="narrow">
+        <div data-role="enemy-popup-column"
+             data-enemy-tab-index="${this.#activeEnemyIndex}"
+             data-selected="true">
+          ${this.#buildEnemyPanelHtml(activeEnemy, this.#activeEnemyIndex, { showActions: true })}
         </div>
       </div>
     `;
   }
 
   #buildEnemyPanelHtml(enemy, enemyIndex = 0, options = {}) {
-    const showPanelTitle = Boolean(options?.showPanelTitle);
-    const statuses = Array.isArray(enemy?.statuses) ? enemy.statuses : [];
-    const enemyTitle = String(enemy?.name ?? `E${Number(enemyIndex) + 1}`).trim() || `E${Number(enemyIndex) + 1}`;
-    const deadBadgeHtml = enemy?.dead
-      ? '<span style="margin-left: 8px; border-radius: 999px; background: #7f1d1d; color: #fecaca; padding: 2px 8px; font-size: 10px; font-weight: 700;">Dead</span>'
-      : '';
+    const showActions = Boolean(options?.showActions);
     const previewHtml = this.#buildPreviewActionFlowHtml(enemyIndex);
-    const statusTableHtml = buildEnemyStatusTableHtml(statuses);
-    const statsHtml = this.#buildStatsHtml(enemy);
+    const statusTableHtml = buildEnemyStatusTableHtml(enemy?.statuses ?? []);
     return `
       <div data-role="enemy-popup-panel-card">
-      ${previewHtml}
-      ${showPanelTitle ? `
-        <h3 style="display: flex; align-items: center; margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #e2e8f0;">
-          ${escapeHtml(enemyTitle)}
-          ${deadBadgeHtml}
-        </h3>
-      ` : ''}
-      ${statsHtml ? `
-        <div style="margin-bottom: 16px;">
-          <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: bold; color: #94a3b8;">
-            基本情報
-          </h3>
-          ${statsHtml}
-        </div>
-      ` : ''}
-
-      <div>
-        <h3 style="margin: 0 0 8px; font-size: 14px; font-weight: bold; color: #94a3b8;">
-          状態異常 / バフ
-        </h3>
+        ${showActions ? this.#buildActionButtonsHtml(enemy, enemyIndex) : ''}
+        ${this.#buildBasicInfoSectionHtml(enemy, enemyIndex)}
+        ${previewHtml}
         <div>
-          ${statusTableHtml}
+          <h3 data-role="enemy-popup-section-title">状態異常 / バフ</h3>
+          <div>${statusTableHtml}</div>
         </div>
       </div>
+    `;
+  }
+
+  #buildActionButtonsHtml(enemy, enemyIndex) {
+    const actionButtons = [
+      ['summon', '召喚', SUMMON_BUTTON_ICON_URL, Boolean(enemy?.canSummon), false],
+      ['break', 'ブレイク', BREAK_BUTTON_ICON_URL, Boolean(enemy?.canBreak), Boolean(enemy?.hasPendingBreakOperation)],
+      ['kill', '討伐', KILL_BUTTON_ICON_URL, Boolean(enemy?.canKill), Boolean(enemy?.hasPendingKillOperation)],
+    ];
+    return `
+      <div data-role="enemy-popup-action-row">
+        ${actionButtons.map(([actionType, label, iconUrl, enabledByState, isPending]) => {
+          const enabled = enabledByState && typeof this.#toolActions?.[actionType] === 'function';
+          const isBreakAction = actionType === 'break';
+          const titleText = actionType === 'summon'
+            ? label
+            : `E${enemyIndex + 1} ${label}`;
+          return `
+            <button type="button"
+                    data-role="enemy-popup-action"
+                    data-action-type="${actionType}"
+                    data-enemy-index="${enemyIndex}"
+                    data-pending="${isPending ? 'true' : 'false'}"
+                    title="${escapeHtml(titleText)}"
+                    ${enabled ? '' : 'disabled'}>
+              <img src="${iconUrl}" alt="${escapeHtml(label)}" data-role="enemy-popup-action-icon" />
+              ${isBreakAction ? '' : `<span>${escapeHtml(label)}</span>`}
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  #buildBasicInfoHtml(enemy, enemyIndex = 0) {
+    const damageRates = enemy?.damageRates && typeof enemy.damageRates === 'object'
+      ? enemy.damageRates
+      : {};
+    const absorbElements = Array.isArray(enemy?.absorbElements) ? enemy.absorbElements : [];
+    const damageRateEntries = DAMAGE_RATE_DISPLAY_ORDER
+      .map(([key, label]) => {
+        const numeric = Number(damageRates?.[key]);
+        return Number.isFinite(numeric) ? `${label}${numeric}` : null;
+      })
+      .filter(Boolean);
+    const stateLabel = enemy?.occupied
+      ? (enemy?.dead ? 'Dead' : 'Alive')
+      : '未使用';
+    const stateKey = enemy?.occupied ? (enemy?.dead ? 'dead' : 'alive') : 'empty';
+    const infoRows = [
+      ['状態', `<span data-role="enemy-popup-state-badge" data-state="${stateKey}">${escapeHtml(stateLabel)}</span>`],
+      ['OD率', escapeHtml(Number.isFinite(Number(enemy?.od_rate)) ? `×${Number(enemy.od_rate).toFixed(2)}` : '-'), true],
+      ['最大D率', escapeHtml(Number.isFinite(Number(enemy?.max_d_rate)) ? Number(enemy.max_d_rate) : '-'), true],
+      ['耐性', escapeHtml(damageRateEntries.length > 0 ? damageRateEntries.join(' / ') : '未設定'), true],
+      ['吸収', escapeHtml(absorbElements.length > 0 ? absorbElements.join(', ') : 'なし'), true],
+    ];
+    return `
+      <div data-role="enemy-popup-basic-info">
+        ${infoRows.map(([label, value]) => `
+          <div data-role="enemy-popup-basic-info-row">
+            <span data-role="enemy-popup-basic-info-label">${escapeHtml(label)}</span>
+            <span data-role="enemy-popup-basic-info-value">${value}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  #buildBasicInfoSectionHtml(enemy, enemyIndex = 0) {
+    const isCollapsed = this.#collapsedBasicInfoEnemyIndexes.has(enemyIndex);
+    const toggleIcon = isCollapsed ? BASIC_INFO_COLLAPSED_ICON : BASIC_INFO_EXPANDED_ICON;
+    const summaryName = String(enemy?.name ?? `E${enemyIndex + 1}`).trim() || `E${enemyIndex + 1}`;
+    const slotLabel = `E${enemyIndex + 1}`;
+    const summaryText = summaryName.startsWith(`${slotLabel} `)
+      ? summaryName
+      : `${slotLabel} ${summaryName}`;
+    return `
+      <div>
+        <button type="button"
+                data-role="enemy-popup-basic-toggle"
+                data-enemy-index="${enemyIndex}"
+                aria-expanded="${isCollapsed ? 'false' : 'true'}">
+          <span data-role="enemy-popup-basic-toggle-copy">
+            <span data-role="enemy-popup-basic-toggle-label">名称</span>
+            <span data-role="enemy-popup-basic-toggle-name">${escapeHtml(summaryText)}</span>
+          </span>
+          <span data-role="enemy-popup-basic-toggle-icon">${toggleIcon}</span>
+        </button>
+        ${isCollapsed ? '' : this.#buildBasicInfoHtml(enemy, enemyIndex)}
       </div>
     `;
   }
@@ -317,63 +680,6 @@ export class EnemyDetailPopup {
       <div style="margin: 0 0 12px; padding: 8px; border: 1px solid #1d4ed8; border-radius: 8px; background: #0b1220;">
         <div style="font-size: 12px; font-weight: 700; color: #bfdbfe; margin-bottom: 6px;">プレビュー（コミット見込み）</div>
         <div>${statusTableHtml}</div>
-      </div>
-    `;
-  }
-
-  #buildStatsHtml(enemy) {
-    const hp = Number(enemy.hp ?? 0);
-    const maxHp = Number(enemy.maxHp ?? 0);
-    const odRate = Number(enemy.od_rate ?? 1);
-    const maxDRate = Number(enemy.max_d_rate ?? 999);
-    const damageRates = enemy?.damageRates && typeof enemy.damageRates === 'object'
-      ? enemy.damageRates
-      : {};
-    const absorbElements = Array.isArray(enemy?.absorbElements) ? enemy.absorbElements : [];
-    const damageRateEntries = DAMAGE_RATE_DISPLAY_ORDER
-      .map(([key, label]) => {
-        const numeric = Number(damageRates?.[key]);
-        return Number.isFinite(numeric) ? `${label}${numeric}` : null;
-      })
-      .filter(Boolean);
-
-    if (hp <= 0 && maxHp <= 0 && odRate <= 0 && damageRateEntries.length === 0 && absorbElements.length === 0) {
-      return ''; // 統計情報がない場合は非表示
-    }
-
-    const hpText = hp > 0 && maxHp > 0 ? `${hp} / ${maxHp}` : '-';
-    const odText = odRate > 0 ? `×${odRate.toFixed(2)}` : '-';
-
-    return `
-      <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; padding: 8px; background: #0f172a; border-radius: 4px; border: 1px solid #334155;">
-        ${hp > 0 || maxHp > 0 ? `
-          <div>
-            <span style="color: #999;">HP:</span>
-            <span style="font-weight: 500;">${hpText}</span>
-          </div>
-        ` : ''}
-        ${odRate > 0 ? `
-          <div>
-            <span style="color: #999;">OD率:</span>
-            <span style="font-weight: 500;">${odText}</span>
-          </div>
-        ` : ''}
-        ${maxDRate > 0 ? `
-          <div>
-            <span style="color: #999;">最大D率:</span>
-            <span style="font-weight: 500;">${maxDRate}</span>
-          </div>
-        ` : ''}
-        ${damageRateEntries.length > 0 ? `
-          <div style="flex-basis: 100%;">
-            <span style="color: #999;">耐性:</span>
-            <span style="font-weight: 500;">${escapeHtml(damageRateEntries.join(' / '))}</span>
-          </div>
-        ` : ''}
-        <div style="flex-basis: 100%;">
-          <span style="color: #999;">吸収:</span>
-          <span style="font-weight: 500;">${escapeHtml(absorbElements.length > 0 ? absorbElements.join(', ') : 'なし')}</span>
-        </div>
       </div>
     `;
   }

@@ -189,12 +189,37 @@ export async function commitLatestInputRow(page) {
   return committedRows.last();
 }
 
+export async function openEnemyPopupActionForRow(page, row, actionType, options = {}) {
+  const enemyIndex = Number.isInteger(Number(options?.enemyIndex)) ? Number(options.enemyIndex) : null;
+  const trigger = row.locator('[data-role="enemy-detail-trigger"]');
+  await expect(trigger).toBeVisible({ timeout: 5000 });
+  await trigger.click();
+
+  const popup = page.locator('.enemy-detail-popup-container');
+  await expect(popup).toBeVisible({ timeout: 5000 });
+
+  if (enemyIndex !== null) {
+    const targetTab = popup.locator(
+      `[data-role="enemy-popup-tab"][data-enemy-tab-index="${enemyIndex}"]`
+    );
+    await expect(targetTab).toBeVisible({ timeout: 5000 });
+    await targetTab.click();
+  }
+
+  const actionButton = popup.locator(
+    `[data-role="enemy-popup-action"][data-action-type="${actionType}"]`
+  );
+  await expect(actionButton).toBeVisible({ timeout: 5000 });
+  await expect(actionButton).toBeEnabled({ timeout: 5000 });
+  await actionButton.click();
+
+  await expect(page.locator('.enemy-detail-popup-container')).toHaveCount(0, { timeout: 5000 });
+  return row;
+}
+
 export async function queueSummonEnemyForLatestInputRow(page, enemyId) {
   const inputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
-  const toggle = inputRow.locator('[data-role="enemy-summon-toggle"]');
-  await expect(toggle).toBeVisible({ timeout: 5000 });
-  await expect(toggle).toBeEnabled({ timeout: 10000 });
-  await toggle.click();
+  await openEnemyPopupActionForRow(page, inputRow, 'summon');
 
   const editor = page.locator('[data-role="enemy-summon-editor"]');
   await expect(editor).toBeVisible({ timeout: 5000 });

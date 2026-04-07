@@ -296,9 +296,18 @@
 
 ### Turn 行の manual summon UI
 
-- 戦闘中 summon は `Enemy Setup` ではなく turn row の `敵状態確認` ヘッダから投入する
-- input / edit row では `敵状態確認` の右側に `Summon.webp` アイコンボタンを置き、committed row には出さない
-- ボタン押下で listbox popover を開き、敵 preset を 1 体選んで `SummonEnemy` before-commit operation として積む
+- 戦闘中 summon は `Enemy Setup` ではなく turn row の `敵情報確認` trigger から投入する
+- row 上の `enemy tools box` は `敵情報確認` trigger だけを持ち、`召喚 / ブレイク / 討伐` の入口は `enemy-detail-popup-container` 内へ移す
+- enemy detail popup は `E1 / E2 / E3` の 3 tab を常設し、wide では tab 直下を 3 等分カラム、narrow では選択中 enemy の 1 カラム表示へ切り替える
+- wide 時は 3 カラムすべてに `名称` fold / `プレビュー（コミット見込み）` / `状態異常 / バフ` を表示し、`召喚 / ブレイク / 討伐` action row は選択中 tab のカラム先頭にだけ出す
+- action row は上から `召喚 / ブレイク / 討伐`、その下に `名称` fold、`プレビュー（コミット見込み）`、`状態異常 / バフ` の順で表示する
+- popup 左上の `敵詳細` タイトルは置かず、`E1 / E2 / E3` tab と close `×` を同じ高さの header row に並べる
+- `名称` header は click で開閉でき、右端の `▼ / ▲` で展開状態を示す
+- `Summon.webp` は popup action row の `召喚` ボタンに使い、button 押下で listbox popover を開いて敵 preset を 1 体選んで `SummonEnemy` before-commit operation として積む
+- `Break.webp` と `defeat.webp` を popup action row の `ブレイク` / `討伐` icon に使う
+- `Break.webp` はラベルなしの画像ボタンとして扱い、縦寸は下部の状態異常 icon と同じ 28px、横はアスペクト比維持とする。`Summon.webp` / `defeat.webp` も icon 高さを同じ 28px に揃える
+- popup の `ブレイク` / `討伐` は actor 別 editor を開かず、選択中 enemy slot に対する `BreakEnemy` / `KillEnemy` before-commit operation を直接トグルする
+- `Summon` は空き slot または dead slot 再利用可能時だけ enabled とし、不可能時は icon ごとグレーアウトする
 - preset 選択時に `名前 / OD率 / 最大破壊率 / 属性耐性 / 吸収属性` を payload 化し、commit 時に summon slot へ初期 metadata として反映する
 - summon 候補は `buildEnemyList(...)` を正本にしつつ、手動 summon 検証用の sample enemy 3 体を常時 pin する
 - sample enemy は次の 3 体で固定する
@@ -310,8 +319,9 @@
 ### Turn 行の manual break attribution UI
 
 - `DownTurn` は direct 入力させず、「この行動で break した敵」を action ごとに複数選択できる UI とする
-- 常設 picker は置かず、右側ボタン群に `ブレイク` ボタンを置き、押したときだけフローティング editor panel を開く
+- 常設 picker は置かず、actor 別の manual break attribution は別 editor に残すが、enemy detail popup からは起動しない
 - committed 行では `ブレイク` editor を常設表示せず、保存済み chip のみを見せる
+- `討伐` は `ブレイク` editor 内のサブ操作にせず、enemy detail popup 内の独立 `討伐` action から `KillEnemy` operation を直接積む
 - 敵単体攻撃では `break` を attack target と独立に選ばせない
   - `enemyMode === 'manual'` の単体攻撃では、通常の target trigger で選ばれている current target に対して `ブレイクする / しない` だけを切り替える
   - `enemyMode === 'simple'` かつ敵複数の単体攻撃では、`ブレイク` editor 内に `自動(E1)` + `E1/E2/E3` target chips を出し、target override と `ブレイクする / しない` をまとめて編集する

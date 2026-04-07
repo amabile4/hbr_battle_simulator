@@ -36,7 +36,7 @@
 進捗メモ:
 
 - 2026-04-06: Summon 本体着手前の基盤として、enemy slot 正本化、kill=`Dead`、per-enemy `od_rate`、dead slot 条件除外、UI dead badge/disable、replay enemy snapshot を反映。残りは Summon 入力/UI/commit と新規 slot metadata 生成。
-- 2026-04-07: turn row `敵状態確認` ヘッダに `Summon.webp` の手動 summon ボタンを追加し、listbox から敵 preset を選んで `SummonEnemy` operation を積めるようにした。commit / replay / recalculate / popup まで反映し、sample enemy は `Dimension_03_C_DeathSlugWhite` / `Dimension_03_C1_DeathSlugWhiteBit` / `Dimension_03_C1_EnergyPit_Pink_e` の 3 体で固定。残りは敵行動データからの自動 summon 化と、summon 後 selector 回帰 coverage。
+- 2026-04-07: turn row は `敵情報確認` trigger のみとし、`enemy-detail-popup-container` を `E1/E2/E3` 3 tab + wide 3列 / narrow 1列 layout に更新した。`召喚 / ブレイク / 討伐` は選択中 enemy slot 直下の action row へ集約し、`BreakEnemy` / `KillEnemy` before-commit operation として chip 保存できる。`Summon.webp` / `Break.webp` / `defeat.webp` を使い、sample enemy は `Dimension_03_C_DeathSlugWhite` / `Dimension_03_C1_DeathSlugWhiteBit` / `Dimension_03_C1_EnergyPit_Pink_e` の 3 体で固定。`敵詳細` 見出しは廃止し、`名称` fold と `敵情報確認 / 敵情報 / 敵` の responsive label に更新した。残りは敵行動データからの自動 summon 化と、summon 後 selector 回帰 coverage。
 
 - [x] 手動 `Summon` を turn 単位の敵数増加イベントとして入力できる
 - [x] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する

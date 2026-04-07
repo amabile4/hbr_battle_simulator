@@ -21,7 +21,7 @@ function withDom(run) {
       <button id="toggle-passive-log"><span data-role="toolbar-icon"></span><span data-role="toolbar-label"></span></button>
       <div id="workspace-toolbar" class="workspace-toolbar">
         <button id="quick-help-operations" class="workspace-toolbar__button workspace-toolbar__button--help">
-          <span class="help-btn__text"><span>敵状態確認</span><span>キャラアイコン</span></span>
+          <span class="help-btn__text"><span>敵情報確認</span><span>キャラアイコン</span></span>
           <span class="help-btn__mouse"></span>
         </button>
       </div>

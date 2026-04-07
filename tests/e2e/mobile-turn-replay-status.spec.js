@@ -136,7 +136,7 @@ test.describe('Mobile turn replay status', () => {
           ),
         { timeout: 5000 }
       )
-      .toBe('敵状態');
+      .toBe('敵情報');
   });
 
   test('moves the battle-end chip below the compact turn header on mobile', async ({ page }) => {

@@ -54,6 +54,7 @@ import {
 import { buildFieldDisplayEntries } from '../utils/field-state-display.js';
 import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
 import { buildActionFlowFromRecord } from '../utils/action-flow-builder.js';
+import { applyBeforeCommitOperations } from '../../src/turn/turn-operations.js';
 
 // select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
 // 属性/武器種バッジと SP コストを段階的に隠す。
@@ -71,7 +72,8 @@ const OD_GAUGE_BAR_MAX = 300;
 const OD_GAUGE_BAND_SIZE = 100;
 const ENEMY_DETAIL_LONG_PRESS_MS = 520;
 const ENEMY_SUMMON_MAX_VISIBLE_OPTIONS = 8;
-const SUMMON_BUTTON_ICON_URL = resolveUiAssetUrl('Summon.webp');
+const TURN_INFO_PANEL_WIDTH_CLASS = 'w-[176px]';
+const ENEMY_STATUS_BREAK = 'Break';
 const SUMMON_ENEMY_RESISTANCE_LABELS = Object.freeze([
   ['slash', '斬'],
   ['stab', '突'],
@@ -204,6 +206,7 @@ export class TurnRowController {
   #draftNote = '';
   #openTargetPickerPartyIndex = null;
   #isBreakEditorOpen = false;
+  #isKillEditorOpen = false;
   #isFollowUpEditorOpen = false;
   #isEnemySummonEditorOpen = false;
   #draftSummonEnemyId = null;
@@ -553,6 +556,7 @@ export class TurnRowController {
       this.#draftTargets = {};
       this.#openTargetPickerPartyIndex = null;
       this.#isBreakEditorOpen = false;
+      this.#isKillEditorOpen = false;
       this.#isFollowUpEditorOpen = false;
       this.#isEnemySummonEditorOpen = false;
     }
@@ -567,6 +571,7 @@ export class TurnRowController {
     if (isBreakEditorOpen !== undefined) {
       this.#isBreakEditorOpen = Boolean(isBreakEditorOpen);
     }
+    this.#isKillEditorOpen = this.#isKillEditorOpen && this.#isDraftMode();
     this.#isFollowUpEditorOpen = this.#isFollowUpEditorOpen && this.#isDraftMode();
     this.#isEnemySummonEditorOpen = this.#isEnemySummonEditorOpen && this.#isDraftMode();
     this.#record = record;
@@ -706,6 +711,129 @@ export class TurnRowController {
           : [],
       },
     };
+  }
+
+  #cloneStateForOperationPreview(state) {
+    if (!state || typeof state !== 'object') {
+      return null;
+    }
+    return {
+      ...state,
+      party: Array.isArray(state.party)
+        ? state.party.map((member) => (typeof member?.clone === 'function' ? member.clone() : structuredClone(member)))
+        : [],
+      turnState: structuredClone(state.turnState ?? {}),
+    };
+  }
+
+  #buildProjectedEnemyPopupState() {
+    const sourceState = this.#stateBefore ?? this.#stateAfter;
+    if (!sourceState?.turnState) {
+      return sourceState;
+    }
+    if (!this.#isInputMode()) {
+      return sourceState;
+    }
+    const workingState = this.#cloneStateForOperationPreview(sourceState);
+    if (!workingState?.turnState) {
+      return sourceState;
+    }
+    try {
+      return applyBeforeCommitOperations(
+        workingState,
+        this.#operations,
+        { enemyCount: this.getCurrentEnemyCount() }
+      );
+    } catch {
+      return sourceState;
+    }
+  }
+
+  #findPendingEnemyOperationIndex(type, enemyIndex) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    return (Array.isArray(this.#operations) ? this.#operations : []).findIndex((operation) => (
+      String(operation?.type ?? '') === String(type) &&
+      Number(operation?.payload?.enemyIndex) === normalizedEnemyIndex
+    ));
+  }
+
+  #hasPendingEnemyOperation(type, enemyIndex) {
+    return this.#findPendingEnemyOperationIndex(type, enemyIndex) >= 0;
+  }
+
+  #buildEnemyPopupOperation(type, enemyIndex) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (
+      !Number.isInteger(normalizedEnemyIndex) ||
+      normalizedEnemyIndex < 0 ||
+      normalizedEnemyIndex >= MAX_ENEMY_COUNT
+    ) {
+      return null;
+    }
+    return {
+      type,
+      payload: { enemyIndex: normalizedEnemyIndex },
+    };
+  }
+
+  #removeEnemyPopupOperation(type, enemyIndex) {
+    const operationIndex = this.#findPendingEnemyOperationIndex(type, enemyIndex);
+    if (operationIndex < 0) {
+      return false;
+    }
+    if (this.#isEditMode()) {
+      const removed = this.#removeDraftOperation(operationIndex);
+      if (!removed) {
+        return false;
+      }
+      return true;
+    }
+    this.#onOperationRemove?.(this.#turnIndex, operationIndex);
+    return true;
+  }
+
+  #toggleEnemyPopupOperation(type, enemyIndex) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const normalizedEnemyIndex = Number(enemyIndex);
+    const operation = this.#buildEnemyPopupOperation(type, normalizedEnemyIndex);
+    if (!operation) {
+      return false;
+    }
+    const currentIndex = this.#findPendingEnemyOperationIndex(type, normalizedEnemyIndex);
+    if (currentIndex >= 0) {
+      const removed = this.#removeEnemyPopupOperation(type, normalizedEnemyIndex);
+      if (!removed) {
+        return false;
+      }
+      if (this.#isEditMode()) {
+        this.#rerenderDraftMode();
+        this.#emitPreviewRequest();
+      }
+      return true;
+    }
+
+    if (type === REPLAY_OPERATION_TYPES.BREAK_ENEMY &&
+        this.#hasPendingEnemyOperation(REPLAY_OPERATION_TYPES.KILL_ENEMY, normalizedEnemyIndex)) {
+      return false;
+    }
+
+    if (type === REPLAY_OPERATION_TYPES.KILL_ENEMY) {
+      this.#removeEnemyPopupOperation(REPLAY_OPERATION_TYPES.BREAK_ENEMY, normalizedEnemyIndex);
+    }
+
+    if (this.#isEditMode()) {
+      if (!this.#addDraftOperation(operation)) {
+        return false;
+      }
+      this.#rerenderDraftMode();
+      this.#emitPreviewRequest();
+      return true;
+    }
+
+    this.#onOperationAdd?.(this.#turnIndex, operation);
+    return true;
   }
 
   #getDraftReplayTarget(partyIndex) {
@@ -1600,49 +1728,196 @@ export class TurnRowController {
     `;
   }
 
-  #buildEnemySummonControlHtml() {
-    const presets = this.#getEnemySummonPresets();
-    const canOpen = presets.length > 0 && Number.isInteger(this.#resolveEnemySummonTargetSlotIndex());
+  #buildEnemyStatusTriggerHtml() {
     return `
-      <div class="relative shrink-0">
-        <button type="button"
-                data-role="enemy-summon-toggle"
-                title="敵を召喚"
-                ${canOpen ? '' : 'disabled'}
-                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 p-1 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:opacity-60">
-          <img src="${SUMMON_BUTTON_ICON_URL}" alt="召喚" class="h-full w-full object-contain" />
-        </button>
-        ${this.#buildEnemySummonEditorHtml()}
+      <button type="button"
+              data-role="enemy-detail-trigger"
+              title="左クリック/右クリック/長押しで敵情報詳細を表示"
+              class="turn-info-enemy-button w-full">
+        <span class="turn-info-enemy-button__label"
+              data-label-full="敵情報確認"
+              data-label-medium="敵情報"
+              data-label-short="敵">敵情報確認</span>
+      </button>
+    `;
+  }
+
+  #buildKillEditorHtml(isCommitted) {
+    const enemyCount = isCommitted
+      ? this.#getCurrentReplayTurnEnemyCount()
+      : this.getCurrentEnemyCount();
+    const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
+    const currentActionOutcomeOverrides = isCommitted
+      ? getActionOutcomeOverridesFromOverrideEntries(
+          this.#replayTurn?.overrideEntries ?? [],
+          enemyCount
+        )
+      : this.getCurrentActionOutcomeOverrides();
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
+    return `
+      <div data-role="kill-editor"
+           data-popover-kind="kill"
+           class="target-popover absolute right-0 top-[calc(100%+4px)] z-30 w-[min(720px,calc(100vw-16px))] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl overflow-x-hidden"
+           ${this.#isKillEditorOpen ? '' : 'hidden'}>
+        <div class="text-[11px] font-semibold text-gray-700 pb-2">討伐を編集</div>
+        <div class="grid gap-2" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+          ${members.map((member) => {
+            const actorLabel = resolveManualBreakActorLabel(member, this.#store);
+            const selectionContext = this.#getBreakSelectionContext({
+              member,
+              isCommitted,
+              enemyCount,
+            });
+            if (!selectionContext) {
+              return '';
+            }
+            const memberKillEnemyIndexes = getKillEnemyIndexesForPosition(
+              currentActionOutcomeOverrides,
+              member.position
+            );
+            const killButtonsHtml = Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isAlive = this.#isEnemySlotAlive(enemyIndex);
+              const isKilled = memberKillEnemyIndexes.includes(enemyIndex);
+              const enemyName = String(
+                enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
+              ).trim();
+              const label = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
+              return `
+                <button type="button"
+                        data-role="kill-enemy-candidate"
+                        data-enemy-index="${enemyIndex}"
+                        data-position="${member.position}"
+                        data-party-index="${member.partyIndex}"
+                        ${isAlive ? '' : 'disabled'}
+                        class="target-chip inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors
+                               ${!isAlive
+                                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                 : isKilled
+                                 ? 'border-green-500 bg-green-500 text-white'
+                                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}">
+                  ${label}
+                </button>
+              `;
+            }).join('');
+            return `
+              <div data-role="kill-actor"
+                   data-party-index="${member.partyIndex}"
+                   class="rounded-lg border border-gray-100 bg-gray-50 px-2 py-1.5">
+                <div class="pb-1 text-[10px] font-semibold text-gray-700">${actorLabel}</div>
+                <div class="mb-1">
+                  <div class="text-[9px] font-semibold text-green-700 pb-0.5">討伐</div>
+                  <div class="flex flex-wrap gap-1">${killButtonsHtml}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ${isCommitted
+          ? '<div class="pt-2 text-[10px] text-gray-400">変更するとこのターンから再計算されます。</div>'
+          : ''}
       </div>
     `;
   }
 
+  #buildEnemyToolsBoxHtml(isCommitted) {
+    return `
+      <div data-role="enemy-tools-box" class="turn-info-enemy-row w-full rounded-lg border border-gray-200 bg-gray-50 p-1">
+        <div class="relative w-full">
+          ${this.#buildEnemyStatusTriggerHtml()}
+          ${isCommitted ? '' : this.#buildEnemySummonEditorHtml()}
+          ${isCommitted ? '' : this.#buildManualBreakEditorHtml(false)}
+          ${isCommitted ? '' : this.#buildKillEditorHtml(false)}
+        </div>
+      </div>
+    `;
+  }
+
+  #canOpenEnemyPopupSummonAction() {
+    return this.#isDraftMode() && this.#getEnemySummonPresets().length > 0;
+  }
+
+  #canOpenEnemyPopupEditorAction() {
+    return this.#isDraftMode();
+  }
+
+  #openEnemyPopupEditor(actionType) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    this.#openTargetPickerPartyIndex = null;
+    this.#isFollowUpEditorOpen = false;
+    this.#isEnemySummonEditorOpen = actionType === 'summon';
+    this.#isBreakEditorOpen = actionType === 'break';
+    this.#isKillEditorOpen = actionType === 'kill';
+    this.#rerenderDraftMode();
+    if (actionType === 'break' || actionType === 'kill') {
+      this.#emitPreviewRequest();
+    }
+    return true;
+  }
+
+  #buildEnemyDetailPopupToolActions() {
+    return {
+      summon: this.#canOpenEnemyPopupSummonAction()
+        ? () => this.#openEnemyPopupEditor('summon')
+        : null,
+      break: this.#canOpenEnemyPopupEditorAction()
+        ? ({ enemyIndex }) => this.#toggleEnemyPopupOperation(REPLAY_OPERATION_TYPES.BREAK_ENEMY, enemyIndex)
+        : null,
+      kill: this.#canOpenEnemyPopupEditorAction()
+        ? ({ enemyIndex }) => this.#toggleEnemyPopupOperation(REPLAY_OPERATION_TYPES.KILL_ENEMY, enemyIndex)
+        : null,
+    };
+  }
+
   #buildEnemyDetailPopupPayload(isCommitted = false, activeEnemyIndex = 0) {
-    const sourceState = this.#stateBefore ?? this.#stateAfter;
+    const sourceState = this.#buildProjectedEnemyPopupState();
     const enemyState = sourceState?.turnState?.enemyState ?? {};
-    const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
-    const enemyCount = isCommitted
-      ? this.#getCurrentReplayTurnEnemyCount()
-      : this.getCurrentEnemyCount();
-    const enemies = Array.from({ length: enemyCount }, (_, enemyIndex) => {
+    const enemyNamesByEnemy = enemyState?.enemyNamesByEnemy && typeof enemyState.enemyNamesByEnemy === 'object'
+      ? enemyState.enemyNamesByEnemy
+      : {};
+    const enemyCount = clampEnemyCount(
+      sourceState?.turnState?.enemyState?.enemyCount ??
+      (isCommitted ? this.#getCurrentReplayTurnEnemyCount() : this.getCurrentEnemyCount())
+    );
+    const canSummon = this.#isDraftMode() &&
+      this.#getEnemySummonPresets().length > 0 &&
+      Number.isInteger(this.#resolveEnemySummonTargetSlotIndex(sourceState));
+    const enemies = Array.from({ length: MAX_ENEMY_COUNT }, (_, enemyIndex) => {
+      const occupied = enemyIndex < enemyCount;
+      const alive = occupied && this.#isEnemySlotAlive(enemyIndex, sourceState);
       const enemyName = String(
         enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
       ).trim();
-      const displayName = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
+      const displayName = occupied
+        ? (enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`)
+        : `E${enemyIndex + 1} 未使用`;
       const statuses = (Array.isArray(enemyState.statuses) ? enemyState.statuses : [])
         .filter((status) => Number(status?.targetIndex ?? -1) === enemyIndex)
         .map((status) => ({
           ...status,
           remaining: Number(status?.remaining ?? status?.remainingTurns ?? 0),
         }));
+      const broken = statuses.some((status) => String(status?.statusType ?? '') === ENEMY_STATUS_BREAK);
+      const hasPendingBreakOperation = this.#hasPendingEnemyOperation(REPLAY_OPERATION_TYPES.BREAK_ENEMY, enemyIndex);
+      const hasPendingKillOperation = this.#hasPendingEnemyOperation(REPLAY_OPERATION_TYPES.KILL_ENEMY, enemyIndex);
       const enemyKey = String(enemyIndex);
       const od_rate = enemyState.odRateByEnemy?.[enemyKey] ?? null;
       const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
       const damageRates = enemyState.damageRatesByEnemy?.[enemyKey] ?? null;
       const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey] ?? null;
       return {
+        enemyIndex,
         name: displayName,
-        dead: !this.#isEnemySlotAlive(enemyIndex, sourceState),
+        occupied,
+        alive,
+        broken,
+        dead: occupied && !alive,
+        canSummon,
+        canBreak: this.#isDraftMode() && occupied && !hasPendingKillOperation && (alive ? (!broken || hasPendingBreakOperation) : hasPendingBreakOperation),
+        canKill: this.#isDraftMode() && occupied && (alive || hasPendingKillOperation),
+        hasPendingBreakOperation,
+        hasPendingKillOperation,
         statuses,
         ...(od_rate !== null ? { od_rate } : {}),
         ...(max_d_rate !== null ? { max_d_rate } : {}),
@@ -1652,7 +1927,7 @@ export class TurnRowController {
     });
 
     const normalizedActiveIndex = Number.isInteger(Number(activeEnemyIndex))
-      ? Math.min(Math.max(Number(activeEnemyIndex), 0), Math.max(0, enemies.length - 1))
+      ? Math.min(Math.max(Number(activeEnemyIndex), 0), MAX_ENEMY_COUNT - 1)
       : 0;
     const actionFlow = isCommitted
       ? this.#buildCommittedActionFlow()
@@ -1661,6 +1936,7 @@ export class TurnRowController {
       enemies,
       activeEnemyIndex: normalizedActiveIndex,
       previewActionFlow: actionFlow,
+      toolActions: this.#buildEnemyDetailPopupToolActions(),
     };
   }
 
@@ -1728,19 +2004,13 @@ export class TurnRowController {
       ? this.#getCurrentReplayTurnEnemyCount()
       : this.getCurrentEnemyCount();
     const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
-    const currentActionOutcomeOverrides = isCommitted
-      ? getActionOutcomeOverridesFromOverrideEntries(
-          this.#replayTurn?.overrideEntries ?? [],
-          enemyCount
-        )
-      : this.getCurrentActionOutcomeOverrides();
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     return `
       <div data-role="manual-break-editor"
            data-popover-kind="manual-break"
           class="target-popover absolute right-0 top-[calc(100%+4px)] z-30 w-[min(720px,calc(100vw-16px))] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl overflow-x-hidden"
            ${this.#isBreakEditorOpen ? '' : 'hidden'}>
-        <div class="text-[11px] font-semibold text-gray-700 pb-2">討伐・ブレイクを編集</div>
+        <div class="text-[11px] font-semibold text-gray-700 pb-2">ブレイクを編集</div>
         <div class="grid gap-2" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
           ${members.map((member) => {
             const actorLabel = resolveManualBreakActorLabel(member, this.#store);
@@ -1752,34 +2022,6 @@ export class TurnRowController {
             if (!selectionContext) {
               return '';
             }
-            const memberKillEnemyIndexes = getKillEnemyIndexesForPosition(
-              currentActionOutcomeOverrides,
-              member.position
-            );
-            const killButtonsHtml = Array.from({ length: enemyCount }, (_, enemyIndex) => {
-              const isAlive = this.#isEnemySlotAlive(enemyIndex);
-              const isKilled = memberKillEnemyIndexes.includes(enemyIndex);
-              const enemyName = String(
-                enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
-              ).trim();
-              const label = enemyName ? `E${enemyIndex + 1} ${enemyName}` : `E${enemyIndex + 1}`;
-              return `
-                <button type="button"
-                        data-role="kill-enemy-candidate"
-                        data-enemy-index="${enemyIndex}"
-                        data-position="${member.position}"
-                        data-party-index="${member.partyIndex}"
-                        ${isAlive ? '' : 'disabled'}
-                        class="target-chip inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors
-                               ${!isAlive
-                                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                                 : isKilled
-                                 ? 'border-green-500 bg-green-500 text-white'
-                                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}">
-                  ${label}
-                </button>
-              `;
-            }).join('');
             return `
               <div data-role="manual-break-actor"
                    data-party-index="${member.partyIndex}"
@@ -1790,10 +2032,6 @@ export class TurnRowController {
                   enemyCount,
                   enemyNamesByEnemy,
                 })}
-                <div class="mb-1">
-                  <div class="text-[9px] font-semibold text-green-700 pb-0.5">討伐</div>
-                  <div class="flex flex-wrap gap-1">${killButtonsHtml}</div>
-                </div>
               </div>
             `;
           }).join('')}
@@ -2251,23 +2489,8 @@ export class TurnRowController {
       const sequenceLabel = isEditMode
         ? `#${this.#record?.turnId ?? this.#turnIndex + 1}`
         : null;
-      const odGaugeBefore = formatOdGauge(turnState?.odGauge);
-      const enemyCountControl = `
-        <div class="turn-info-enemy-row relative flex items-center gap-1">
-          <button type="button"
-                  data-role="enemy-detail-trigger"
-              title="左クリック/右クリック/長押しで敵状態詳細を表示"
-                  class="turn-info-enemy-button">
-            <span class="turn-info-enemy-button__label"
-                  data-label-full="敵状態確認"
-                  data-label-medium="敵状態"
-                  data-label-short="敵">敵状態確認</span>
-          </button>
-          ${this.#buildEnemySummonControlHtml()}
-        </div>`;
-
       return `
-        <div data-turn-info class="turn-info-panel flex-shrink-0 w-[108px] flex flex-col items-start justify-start
+        <div data-turn-info class="turn-info-panel flex-shrink-0 ${TURN_INFO_PANEL_WIDTH_CLASS} flex flex-col items-start justify-start
                     gap-0.5 px-1 py-0.5 border-r border-gray-200">
           <div data-role="turn-info-stack" class="turn-info-stack">
             <div class="turn-info-header">
@@ -2279,7 +2502,7 @@ export class TurnRowController {
               ${warningBadgeHtml}
               ${errorBadgeHtml}
             </div>
-            ${enemyCountControl}
+            ${this.#buildEnemyToolsBoxHtml(false)}
             ${this.#buildOdGaugeGraphHtml({
               beforeValue: turnState?.odGauge,
               afterValue: turnState?.odGauge,
@@ -2297,30 +2520,15 @@ export class TurnRowController {
     const seqId  = rec?.turnId ?? this.#turnIndex + 1;
     const odGaugeAtStart = rec?.odGaugeAtStart ?? fallbackTurnState?.odGauge ?? 0;
     const odGaugeAtEnd = rec?.projections?.odGaugeAtEnd ?? odGaugeAtStart;
-    const odGaugeBefore = formatOdGauge(odGaugeAtStart);
-    const odGaugeAfter  = formatOdGauge(odGaugeAtEnd);
     const isExtraTurn   = Boolean(rec?.isExtraTurn ?? String(fallbackTurnState?.turnType ?? '') === 'extra');
     const odLevelLabel = resolveOdMarkerLabel(rec?.odTurnLabelAtStart ?? fallbackTurnState?.turnLabel ?? '');
     // OD文脈 = ODレベルラベルあり（コミット済みではodSuspendedをodTurnLabelAtStartで兼用）
     const inOd = !!odLevelLabel;
     const inEx = isExtraTurn;
-    const enemyCountControl = `
-      <div class="turn-info-enemy-row relative flex items-center gap-1">
-        <button type="button"
-                data-role="enemy-detail-trigger"
-          title="左クリック/右クリック/長押しで敵状態詳細を表示"
-                class="turn-info-enemy-button">
-          <span class="turn-info-enemy-button__label"
-                data-label-full="敵状態確認"
-                data-label-medium="敵状態"
-                data-label-short="敵">敵状態確認</span>
-        </button>
-        ${isEditMode ? this.#buildEnemySummonControlHtml() : ''}
-      </div>`;
 
     const allEnemiesDefeated = Boolean(this.#stateAfter?.turnState?.enemyState?.allEnemiesDefeated);
     return `
-      <div data-turn-info class="turn-info-panel flex-shrink-0 w-[108px] flex flex-col items-start justify-start
+      <div data-turn-info class="turn-info-panel flex-shrink-0 ${TURN_INFO_PANEL_WIDTH_CLASS} flex flex-col items-start justify-start
                   gap-0.5 px-1 py-0.5 border-r border-gray-200">
         <div data-role="turn-info-stack" class="turn-info-stack">
           <div class="turn-info-header">
@@ -2331,7 +2539,7 @@ export class TurnRowController {
             ${warningBadgeHtml}
             ${errorBadgeHtml}
           </div>
-          ${enemyCountControl}
+          ${this.#buildEnemyToolsBoxHtml(!isEditMode)}
           ${this.#buildOdGaugeGraphHtml({
             beforeValue: odGaugeAtStart,
             afterValue: odGaugeAtEnd,
@@ -2664,16 +2872,6 @@ export class TurnRowController {
   }
 
   #buildButtonHtml({ isCommitted, isEditMode }) {
-    const manualBreakControlHtml = `
-      <div class="col-span-2 relative">
-        <button data-role="manual-break-toggle"
-                class="w-full text-[10px] py-0.5 rounded border border-amber-300 bg-amber-50 font-semibold text-amber-700 hover:bg-amber-100 transition-colors">
-          ブレイク
-        </button>
-        ${this.#buildManualBreakEditorHtml(isCommitted)}
-      </div>
-    `;
-
     const followUpControlHtml = `
       <div class="col-span-2 relative">
         <button data-role="follow-up-toggle"
@@ -2797,7 +2995,6 @@ export class TurnRowController {
         </select>
         ${kishinkaHtml}
         ${makaiHtml}
-        ${manualBreakControlHtml}
         ${followUpControlHtml}
       </div>`;
   }
@@ -2813,6 +3010,7 @@ export class TurnRowController {
           }
           this.#openTargetPickerPartyIndex = null;
           this.#isBreakEditorOpen = false;
+          this.#isKillEditorOpen = false;
           this.#isFollowUpEditorOpen = false;
           this.#isEnemySummonEditorOpen = false;
           this.#rerenderDraftMode();
@@ -2826,6 +3024,7 @@ export class TurnRowController {
         event.stopPropagation();
         const partyIndex = Number(btn.dataset.partyIndex);
         this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
         this.#isEnemySummonEditorOpen = false;
         this.#openTargetPickerPartyIndex =
@@ -2868,6 +3067,7 @@ export class TurnRowController {
 
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
         this.#isEnemySummonEditorOpen = false;
         this.#draftTargets = {
@@ -2879,45 +3079,18 @@ export class TurnRowController {
       });
     });
 
-    this.#root.querySelectorAll('[data-role="manual-break-toggle"]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        this.#openTargetPickerPartyIndex = null;
-        this.#isBreakEditorOpen = !this.#isBreakEditorOpen;
-        this.#isFollowUpEditorOpen = false;
-        this.#isEnemySummonEditorOpen = false;
-        if (this.#isDraftMode()) {
-          this.#rerenderDraftMode();
-          this.#emitPreviewRequest();
-        }
-      });
-    });
-
     this.#root.querySelectorAll('[data-role="follow-up-toggle"]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = false;
         this.#isFollowUpEditorOpen = !this.#isFollowUpEditorOpen;
         this.#isEnemySummonEditorOpen = false;
         if (this.#isDraftMode()) {
           this.#rerenderDraftMode();
           this.#emitPreviewRequest();
         }
-      });
-    });
-
-    this.#root.querySelectorAll('[data-role="enemy-summon-toggle"]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        if (!this.#isDraftMode() || btn.disabled) {
-          return;
-        }
-        this.#openTargetPickerPartyIndex = null;
-        this.#isBreakEditorOpen = false;
-        this.#isFollowUpEditorOpen = false;
-        this.#isEnemySummonEditorOpen = !this.#isEnemySummonEditorOpen;
-        this.#rerenderDraftMode();
       });
     });
 
@@ -2963,6 +3136,7 @@ export class TurnRowController {
       const openEnemyDetail = (eventLike) => {
         this.#openTargetPickerPartyIndex = null;
         this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
         this.#isEnemySummonEditorOpen = false;
         const payload = this.#buildEnemyDetailPopupPayload(this.#isCommittedDisplayMode(), 0);
@@ -3125,13 +3299,13 @@ export class TurnRowController {
         const enemyIndex = Number(btn.dataset.enemyIndex);
         if (!Number.isInteger(enemyIndex) || enemyIndex < 0) return;
         const partyIndex = Number(btn.dataset.partyIndex);
-        const position = Number(btn.dataset.position);
 
         const enemyCount = this.#isDraftMode()
           ? this.getCurrentEnemyCount()
           : this.#getCurrentReplayTurnEnemyCount();
 
-        this.#isBreakEditorOpen = true;
+        this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = true;
 
         if (this.#isDraftMode()) {
           const current = this.#draftKillEnemyIndexesByPartyIndex[partyIndex] ?? [];
@@ -3340,7 +3514,7 @@ export class TurnRowController {
 
       if (String(popover.dataset.popoverKind ?? '') === 'enemy-summon') {
         const host = popover.closest('.relative');
-        const toggle = host?.querySelector?.('[data-role="enemy-summon-toggle"]') ?? null;
+        const toggle = host?.querySelector?.('[data-role="enemy-detail-trigger"]') ?? null;
         if (toggle) {
           const toggleRect = toggle.getBoundingClientRect();
           const resolvedWidth = viewportWidth > 0
@@ -3382,7 +3556,49 @@ export class TurnRowController {
 
       if (String(popover.dataset.popoverKind ?? '') === 'manual-break') {
         const host = popover.closest('.relative');
-        const toggle = host?.querySelector?.('[data-role="manual-break-toggle"]') ?? null;
+        const toggle = host?.querySelector?.('[data-role="enemy-detail-trigger"]') ?? null;
+        if (toggle) {
+          const toggleRect = toggle.getBoundingClientRect();
+          const resolvedWidth = viewportWidth > 0
+            ? Math.max(280, Math.min(560, viewportWidth - viewportPadding * 2))
+            : 560;
+          const left = viewportWidth > 0
+            ? Math.max(
+                viewportPadding,
+                Math.min(toggleRect.left, viewportWidth - viewportPadding - resolvedWidth)
+              )
+            : Math.max(0, toggleRect.left);
+
+          popover.style.position = 'fixed';
+          popover.style.width = `${resolvedWidth}px`;
+          popover.style.left = `${left}px`;
+          popover.style.top = `${Math.max(viewportPadding, toggleRect.bottom + 4)}px`;
+
+          let fixedRect = popover.getBoundingClientRect();
+          if (viewportHeight > 0) {
+            const spaceBelow = viewportHeight - viewportPadding - (toggleRect.bottom + 4);
+            const spaceAbove = toggleRect.top - viewportPadding - 4;
+            const shouldOpenAbove = fixedRect.bottom > viewportHeight - viewportPadding && spaceAbove > spaceBelow;
+            if (shouldOpenAbove) {
+              popover.style.top = `${Math.max(viewportPadding, toggleRect.top - 4 - fixedRect.height)}px`;
+              fixedRect = popover.getBoundingClientRect();
+            }
+
+            const availableHeight = shouldOpenAbove
+              ? Math.max(120, Math.floor(spaceAbove))
+              : Math.max(120, Math.floor(spaceBelow));
+            if (fixedRect.height > availableHeight) {
+              popover.style.maxHeight = `${availableHeight}px`;
+              popover.style.overflowY = 'auto';
+            }
+          }
+          return;
+        }
+      }
+
+      if (String(popover.dataset.popoverKind ?? '') === 'kill') {
+        const host = popover.closest('.relative');
+        const toggle = host?.querySelector?.('[data-role="enemy-detail-trigger"]') ?? null;
         if (toggle) {
           const toggleRect = toggle.getBoundingClientRect();
           const resolvedWidth = viewportWidth > 0
