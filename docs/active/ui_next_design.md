@@ -306,7 +306,7 @@
 - `Summon.webp` は popup action row の `召喚` ボタンに使い、button 押下で listbox popover を開いて敵 preset を 1 体選んで `SummonEnemy` before-commit operation として積む
 - `Break.webp` と `defeat.webp` を popup action row の `ブレイク` / `討伐` icon に使う
 - `Break.webp` はラベルなしの画像ボタンとして扱い、縦寸は下部の状態異常 icon と同じ 28px、横はアスペクト比維持とする。`Summon.webp` / `defeat.webp` も icon 高さを同じ 28px に揃える
-- popup の `ブレイク` / `討伐` は actor 別 editor を開かず、選択中 enemy slot に対する `BreakEnemy` / `KillEnemy` before-commit operation を直接トグルする
+- popup の `ブレイク` / `討伐` は `ActionOutcomeOverrides` ベースの actor attribution を正本とし、単体攻撃で一意なら即時 attribution、曖昧または全体攻撃なら popup 内 sub-panel editor を開く
 - `Summon` は空き slot または dead slot 再利用可能時だけ enabled とし、不可能時は icon ごとグレーアウトする
 - preset 選択時に `名前 / OD率 / 最大破壊率 / 属性耐性 / 吸収属性` を payload 化し、commit 時に summon slot へ初期 metadata として反映する
 - summon 候補は `buildEnemyList(...)` を正本にしつつ、手動 summon 検証用の sample enemy 3 体を常時 pin する
@@ -321,13 +321,15 @@
 - `DownTurn` は direct 入力させず、「この行動で break した敵」を action ごとに複数選択できる UI とする
 - 常設 picker は置かず、actor 別の manual break attribution は別 editor に残すが、enemy detail popup からは起動しない
 - committed 行では `ブレイク` editor を常設表示せず、保存済み chip のみを見せる
-- `討伐` は `ブレイク` editor 内のサブ操作にせず、enemy detail popup 内の独立 `討伐` action から `KillEnemy` operation を直接積む
+- `討伐` は `ブレイク` editor 内のサブ操作にせず、enemy detail popup 内の独立 `討伐` action から actor attribution を付与する
 - 敵単体攻撃では `break` を attack target と独立に選ばせない
   - `enemyMode === 'manual'` の単体攻撃では、通常の target trigger で選ばれている current target に対して `ブレイクする / しない` だけを切り替える
   - `enemyMode === 'simple'` かつ敵複数の単体攻撃では、`ブレイク` editor 内に `自動(E1)` + `E1/E2/E3` target chips を出し、target override と `ブレイクする / しない` をまとめて編集する
   - これにより `攻撃は E2 / break は E3` のような不整合状態は作れない
 - 敵全体攻撃では、現在どおり前衛 actor ごとに敵 chip (`E1 / E2 / E3`) を複数選択できる
   - 例: `E1, E3 は break / E2 は not break`
+- enemy detail popup から break / kill editor を開いたときは popup を閉じず、選択中 enemy slot を requested context として sub-panel 内に editor を共存表示する
+- popup から開いた sub-panel editor では requested enemy を初期選択状態として見せ、single-target の local target override と all-target の複数選択を従来どおり使える
 - 行上の常設表示は要約 1 件ではなく、`actor→enemy ブレイク` の chip 群とする
   - 例: `ワッキー→E1 ブレイク`
   - 敵名がある場合は `ワッキー→ワイバーン ブレイク` のように enemy label を使う

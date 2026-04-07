@@ -14,8 +14,6 @@ export const REPLAY_OPERATION_TYPES = Object.freeze({
   ACTIVATE_PREEMPTIVE_OD: 'ActivatePreemptiveOd',
   RESERVE_INTERRUPT_OD: 'ReserveInterruptOd',
   SUMMON_ENEMY: 'SummonEnemy',
-  BREAK_ENEMY: 'BreakEnemy',
-  KILL_ENEMY: 'KillEnemy',
 });
 
 export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
@@ -215,14 +213,6 @@ export const replayOperationRegistry = createTypedEnvelopeRegistry({
     allowMultiple: false,
   }),
   [REPLAY_OPERATION_TYPES.SUMMON_ENEMY]: Object.freeze({
-    timing: 'beforeCommit',
-    allowMultiple: true,
-  }),
-  [REPLAY_OPERATION_TYPES.BREAK_ENEMY]: Object.freeze({
-    timing: 'beforeCommit',
-    allowMultiple: true,
-  }),
-  [REPLAY_OPERATION_TYPES.KILL_ENEMY]: Object.freeze({
     timing: 'beforeCommit',
     allowMultiple: true,
   }),

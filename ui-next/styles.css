@@ -859,7 +859,7 @@
 #turn-area {
   container-type: inline-size;
   container-name: turn-area;
-  --turn-info-width: 11rem;
+  --turn-info-width: 6.75rem;
   --turn-info-header-font-size: 0.9375rem;
   --turn-info-sequence-font-size: 0.8125rem;
   --turn-info-enemy-font-size: 0.875rem;
@@ -989,6 +989,7 @@
 .turn-info-enemy-row {
   display: flex;
   width: 100%;
+  align-self: stretch;
   align-items: center;
   justify-content: flex-start;
   gap: 0.25rem;
@@ -1612,7 +1613,7 @@
 /* 560px 以上: アイコン 48px、比率 2:1 維持 */
 @container turn-area (min-width: 560px) {
   [data-role="turn-row-list"] {
-    --turn-info-width: 10rem;
+    --turn-info-width: 6.75rem;
     --turn-info-header-font-size: 0.9375rem;
     --turn-info-sequence-font-size: 0.8125rem;
     --turn-info-enemy-font-size: 0.875rem;
@@ -1646,7 +1647,7 @@
     content: attr(data-label-full);
   }
   [data-role="turn-row-list"] {
-    --turn-info-width: 10.5rem;
+    --turn-info-width: 7rem;
     --turn-info-header-font-size: 1rem;
     --turn-info-sequence-font-size: 0.875rem;
     --turn-info-enemy-font-size: 0.9375rem;
@@ -1683,7 +1684,7 @@
 
 @container turn-area (min-width: 960px) {
   [data-role="turn-row-list"] {
-    --turn-info-width: 11rem;
+    --turn-info-width: 7.25rem;
     --turn-info-header-font-size: 1.0625rem;
     --turn-info-sequence-font-size: 0.9375rem;
     --turn-info-enemy-font-size: 1rem;

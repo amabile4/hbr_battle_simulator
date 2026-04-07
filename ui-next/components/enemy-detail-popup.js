@@ -55,11 +55,16 @@ export class EnemyDetailPopup {
   #previewActionFlow = [];
   #toolActions = {};
   #onClose = null;
+  #onActiveEnemyIndexChange = null;
   #handleEscKeyDown = null;
   #handleResize = null;
 
   constructor(options = {}) {
     this.#onClose = typeof options.onClose === 'function' ? options.onClose : null;
+    this.#onActiveEnemyIndexChange =
+      typeof options.onActiveEnemyIndexChange === 'function'
+        ? options.onActiveEnemyIndexChange
+        : null;
   }
 
   /**
@@ -81,6 +86,10 @@ export class EnemyDetailPopup {
       payload?.toolActions && typeof payload.toolActions === 'object'
         ? payload.toolActions
         : {};
+    this.#onActiveEnemyIndexChange =
+      typeof payload?.onActiveEnemyIndexChange === 'function'
+        ? payload.onActiveEnemyIndexChange
+        : this.#onActiveEnemyIndexChange;
     const requestedTabIndex = Number(payload?.activeEnemyIndex ?? activeEnemyIndex ?? 0);
     const maxTabIndex = Math.max(0, this.#enemies.length - 1);
     this.#activeEnemyIndex = Number.isInteger(requestedTabIndex)
@@ -92,12 +101,14 @@ export class EnemyDetailPopup {
         .filter((index) => Number.isInteger(index))
     );
     this.#render();
+    return this;
   }
 
   /**
    * popup を閉じる
    */
-  close() {
+  close(options = {}) {
+    const shouldNotifyClose = options?.notify !== false;
     if (this.#handleEscKeyDown) {
       document.removeEventListener('keydown', this.#handleEscKeyDown);
       this.#handleEscKeyDown = null;
@@ -109,13 +120,23 @@ export class EnemyDetailPopup {
     if (this.#root) {
       this.#root.remove();
       this.#root = null;
-      this.#onClose?.();
+      if (shouldNotifyClose) {
+        this.#onClose?.();
+      }
     }
+  }
+
+  getActiveEnemyIndex() {
+    return this.#activeEnemyIndex;
+  }
+
+  getRootElement() {
+    return this.#root;
   }
 
   #render() {
     // 既存の popup があれば削除
-    this.close();
+    this.close({ notify: false });
 
     const html = this.#buildHtml();
     this.#root = document.createElement('div');
@@ -138,6 +159,14 @@ export class EnemyDetailPopup {
       tabButton.addEventListener('click', () => {
         const nextTabIndex = Number(tabButton.dataset.enemyTabIndex);
         if (!Number.isInteger(nextTabIndex) || nextTabIndex < 0 || nextTabIndex >= 3) {
+          return;
+        }
+        const handledExternally =
+          this.#onActiveEnemyIndexChange?.({
+            activeEnemyIndex: nextTabIndex,
+            previousEnemyIndex: this.#activeEnemyIndex,
+          }) === false;
+        if (handledExternally) {
           return;
         }
         this.#activeEnemyIndex = nextTabIndex;
@@ -171,11 +200,13 @@ export class EnemyDetailPopup {
           return;
         }
         const enemyIndex = Number(actionButton.dataset.enemyIndex);
-        this.close();
-        callback({
+        const result = callback({
           enemyIndex: Number.isInteger(enemyIndex) ? enemyIndex : this.#activeEnemyIndex,
           activeEnemyIndex: this.#activeEnemyIndex,
         });
+        if (result?.closePopup === true) {
+          this.close();
+        }
       });
     });
 
@@ -226,6 +257,7 @@ export class EnemyDetailPopup {
         canKill: Boolean(enemy?.canKill),
         hasPendingBreakOperation: Boolean(enemy?.hasPendingBreakOperation),
         hasPendingKillOperation: Boolean(enemy?.hasPendingKillOperation),
+        popupEditorHtml: String(enemy?.popupEditorHtml ?? ''),
         ...(enemy?.od_rate !== undefined ? { od_rate: enemy.od_rate } : {}),
         ...(enemy?.max_d_rate !== undefined ? { max_d_rate: enemy.max_d_rate } : {}),
         ...(enemy?.damageRates ? { damageRates: structuredClone(enemy.damageRates) } : {}),
@@ -550,6 +582,7 @@ export class EnemyDetailPopup {
     return `
       <div data-role="enemy-popup-panel-card">
         ${showActions ? this.#buildActionButtonsHtml(enemy, enemyIndex) : ''}
+        ${showActions && enemy?.popupEditorHtml ? enemy.popupEditorHtml : ''}
         ${this.#buildBasicInfoSectionHtml(enemy, enemyIndex)}
         ${previewHtml}
         <div>
@@ -691,8 +724,8 @@ export class EnemyDetailPopup {
  * @param {Object} payload - { enemies: Enemy[], activeEnemyIndex?: number } または単体 Enemy
  * @param {number} activeEnemyIndex - 表示開始タブ index
  */
-export function openEnemyDetailPopup(event, payload, activeEnemyIndex = 0) {
+export function openEnemyDetailPopup(event, payload, activeEnemyIndex = 0, options = {}) {
   event?.stopPropagation?.();
-  const popup = new EnemyDetailPopup();
-  popup.show(payload, activeEnemyIndex);
+  const popup = new EnemyDetailPopup(options);
+  return popup.show(payload, activeEnemyIndex);
 }

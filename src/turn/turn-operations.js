@@ -1,7 +1,5 @@
 import {
   activateOverdrive,
-  applyManualEnemyBreak,
-  applyManualEnemyKill,
   applyEnemyStateOverrideSnapshot,
   buildEnemyStateOverrideSnapshot,
   isEnemyAlive,
@@ -266,13 +264,6 @@ function normalizeSummonEnemyPayload(payload = {}) {
   };
 }
 
-function normalizeEnemyOperationTargetIndex(operation = {}) {
-  const enemyIndex = Number(operation?.payload?.enemyIndex);
-  return Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < MAX_ENEMY_COUNT
-    ? enemyIndex
-    : null;
-}
-
 function resolveSummonEnemySlotIndex(turnState) {
   const currentEnemyCount = normalizeSummonEnemyCount(
     turnState?.enemyState?.enemyCount,
@@ -349,24 +340,6 @@ function applySummonEnemyToState(state, operation = {}) {
   return state;
 }
 
-function applyBreakEnemyToState(state, operation = {}) {
-  const targetEnemyIndex = normalizeEnemyOperationTargetIndex(operation);
-  if (!state?.turnState || targetEnemyIndex == null) {
-    return state;
-  }
-  applyManualEnemyBreak(state.turnState, targetEnemyIndex);
-  return state;
-}
-
-function applyKillEnemyToState(state, operation = {}) {
-  const targetEnemyIndex = normalizeEnemyOperationTargetIndex(operation);
-  if (!state?.turnState || targetEnemyIndex == null) {
-    return state;
-  }
-  applyManualEnemyKill(state.turnState, targetEnemyIndex);
-  return state;
-}
-
 function applyOperation(state, operation = {}, options = {}) {
   const type = String(operation?.type ?? '').trim();
   if (!type || !BEFORE_COMMIT_OPERATION_TYPES.has(type)) {
@@ -380,12 +353,6 @@ function applyOperation(state, operation = {}, options = {}) {
   }
   if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
     return applySummonEnemyToState(state, operation);
-  }
-  if (type === REPLAY_OPERATION_TYPES.BREAK_ENEMY) {
-    return applyBreakEnemyToState(state, operation);
-  }
-  if (type === REPLAY_OPERATION_TYPES.KILL_ENEMY) {
-    return applyKillEnemyToState(state, operation);
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
     const level = extractOperationLevel(operation);

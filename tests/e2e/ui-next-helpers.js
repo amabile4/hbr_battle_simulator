@@ -191,6 +191,7 @@ export async function commitLatestInputRow(page) {
 
 export async function openEnemyPopupActionForRow(page, row, actionType, options = {}) {
   const enemyIndex = Number.isInteger(Number(options?.enemyIndex)) ? Number(options.enemyIndex) : null;
+  const closeBehavior = String(options?.closeBehavior ?? (actionType === 'summon' ? 'close' : 'stay'));
   const trigger = row.locator('[data-role="enemy-detail-trigger"]');
   await expect(trigger).toBeVisible({ timeout: 5000 });
   await trigger.click();
@@ -213,7 +214,11 @@ export async function openEnemyPopupActionForRow(page, row, actionType, options 
   await expect(actionButton).toBeEnabled({ timeout: 5000 });
   await actionButton.click();
 
-  await expect(page.locator('.enemy-detail-popup-container')).toHaveCount(0, { timeout: 5000 });
+  if (closeBehavior === 'close') {
+    await expect(page.locator('.enemy-detail-popup-container')).toHaveCount(0, { timeout: 5000 });
+  } else {
+    await expect(page.locator('.enemy-detail-popup-container')).toHaveCount(1, { timeout: 5000 });
+  }
   return row;
 }
 

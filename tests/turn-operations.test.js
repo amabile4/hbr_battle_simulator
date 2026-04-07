@@ -162,20 +162,6 @@ function createSummonEnemyOperation({
   };
 }
 
-function createBreakEnemyOperation(enemyIndex = 0) {
-  return {
-    type: REPLAY_OPERATION_TYPES.BREAK_ENEMY,
-    payload: { enemyIndex },
-  };
-}
-
-function createKillEnemyOperation(enemyIndex = 0) {
-  return {
-    type: REPLAY_OPERATION_TYPES.KILL_ENEMY,
-    payload: { enemyIndex },
-  };
-}
-
 test('applyBeforeCommitOperations uses the supplied enemyCount for Makai Kihei OD gain', () => {
   const state = createState(
     {
@@ -320,42 +306,4 @@ test('applyBeforeCommitOperations reuses the lowest dead enemy slot without incr
     nextState.turnState.enemyState.statuses.some((status) => Number(status.targetIndex) === 1),
     false
   );
-});
-
-test('applyBeforeCommitOperations breaks the selected enemy slot without changing enemyCount', () => {
-  const state = createState({}, { enemyCount: 2 });
-  state.turnState.enemyState.statuses = [];
-
-  const nextState = applyBeforeCommitOperations(state, [createBreakEnemyOperation(1)], {});
-
-  assert.equal(nextState.turnState.enemyState.enemyCount, 2);
-  assert.equal(
-    nextState.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'Break' && Number(status.targetIndex) === 1
-    ),
-    true
-  );
-  assert.equal(
-    nextState.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'DownTurn' && Number(status.targetIndex) === 1
-    ),
-    true
-  );
-});
-
-test('applyBeforeCommitOperations kills the selected enemy slot without shrinking occupied slots', () => {
-  const state = createState({}, { enemyCount: 3 });
-  state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' };
-  state.turnState.enemyState.statuses = [];
-
-  const nextState = applyBeforeCommitOperations(state, [createKillEnemyOperation(2)], {});
-
-  assert.equal(nextState.turnState.enemyState.enemyCount, 3);
-  assert.equal(
-    nextState.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'Dead' && Number(status.targetIndex) === 2
-    ),
-    true
-  );
-  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy[2], 'Gamma');
 });

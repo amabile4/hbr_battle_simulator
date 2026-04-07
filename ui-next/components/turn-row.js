@@ -33,8 +33,6 @@ import {
   getBreakEnemyIndexesForPosition,
   getKillEnemyIndexesForPosition,
   normalizeActionOutcomeOverrides,
-  setBreakEnemyIndexesForPosition,
-  setKillEnemyIndexesForPosition,
 } from '../utils/action-outcome-overrides.js';
 import {
   buildManualBreakChipModels,
@@ -72,7 +70,7 @@ const OD_GAUGE_BAR_MAX = 300;
 const OD_GAUGE_BAND_SIZE = 100;
 const ENEMY_DETAIL_LONG_PRESS_MS = 520;
 const ENEMY_SUMMON_MAX_VISIBLE_OPTIONS = 8;
-const TURN_INFO_PANEL_WIDTH_CLASS = 'w-[176px]';
+const TURN_INFO_PANEL_WIDTH_CLASS = 'w-[108px]';
 const ENEMY_STATUS_BREAK = 'Break';
 const SUMMON_ENEMY_RESISTANCE_LABELS = Object.freeze([
   ['slash', '斬'],
@@ -213,6 +211,8 @@ export class TurnRowController {
   #draftBreakEnemyIndexesByPartyIndex = {};
   #draftKillEnemyIndexesByPartyIndex = {};
   #draftFollowUpEnemyIndexByPartyIndex = {};
+  #enemyDetailPopup = null;
+  #popupOutcomeRequest = null;
   #previewResourceState = null;
   #previewActionFlow = [];
   // Simulator Settings パラメータ
@@ -623,6 +623,9 @@ export class TurnRowController {
     this.#bindEvents();
     // 再描画後に選択ビジュアルを復元
     if (this.#selectedSlotPosition !== null) this.#updateSelectionVisual();
+    if (this.#enemyDetailPopup) {
+      this.#refreshEnemyDetailPopup();
+    }
   }
 
   /**
@@ -749,91 +752,199 @@ export class TurnRowController {
     }
   }
 
-  #findPendingEnemyOperationIndex(type, enemyIndex) {
-    const normalizedEnemyIndex = Number(enemyIndex);
-    return (Array.isArray(this.#operations) ? this.#operations : []).findIndex((operation) => (
-      String(operation?.type ?? '') === String(type) &&
-      Number(operation?.payload?.enemyIndex) === normalizedEnemyIndex
-    ));
+  #getEnemyDetailPopupActiveEnemyIndex(fallback = 0) {
+    const popupActiveEnemyIndex = Number(this.#enemyDetailPopup?.getActiveEnemyIndex?.());
+    if (Number.isInteger(popupActiveEnemyIndex) && popupActiveEnemyIndex >= 0 && popupActiveEnemyIndex < MAX_ENEMY_COUNT) {
+      return popupActiveEnemyIndex;
+    }
+    const normalizedFallback = Number(fallback);
+    return Number.isInteger(normalizedFallback) && normalizedFallback >= 0 && normalizedFallback < MAX_ENEMY_COUNT
+      ? normalizedFallback
+      : 0;
   }
 
-  #hasPendingEnemyOperation(type, enemyIndex) {
-    return this.#findPendingEnemyOperationIndex(type, enemyIndex) >= 0;
+  #clearPopupOutcomeRequest() {
+    this.#popupOutcomeRequest = null;
   }
 
-  #buildEnemyPopupOperation(type, enemyIndex) {
+  #setPopupOutcomeRequest(outcome, enemyIndex) {
     const normalizedEnemyIndex = Number(enemyIndex);
     if (
       !Number.isInteger(normalizedEnemyIndex) ||
       normalizedEnemyIndex < 0 ||
       normalizedEnemyIndex >= MAX_ENEMY_COUNT
     ) {
-      return null;
+      this.#popupOutcomeRequest = null;
+      return;
     }
-    return {
-      type,
-      payload: { enemyIndex: normalizedEnemyIndex },
+    const normalizedOutcome = String(outcome ?? '').trim();
+    if (
+      normalizedOutcome !== ACTION_OUTCOME_TYPES.BREAK &&
+      normalizedOutcome !== ACTION_OUTCOME_TYPES.KILL
+    ) {
+      this.#popupOutcomeRequest = null;
+      return;
+    }
+    this.#popupOutcomeRequest = {
+      outcome: normalizedOutcome,
+      enemyIndex: normalizedEnemyIndex,
     };
   }
 
-  #removeEnemyPopupOperation(type, enemyIndex) {
-    const operationIndex = this.#findPendingEnemyOperationIndex(type, enemyIndex);
-    if (operationIndex < 0) {
-      return false;
+  #getPartyMemberByPartyIndex(partyIndex) {
+    const normalizedPartyIndex = Number(partyIndex);
+    if (!Number.isFinite(normalizedPartyIndex)) {
+      return null;
     }
-    if (this.#isEditMode()) {
-      const removed = this.#removeDraftOperation(operationIndex);
-      if (!removed) {
-        return false;
-      }
-      return true;
-    }
-    this.#onOperationRemove?.(this.#turnIndex, operationIndex);
-    return true;
+    return this.#stateBefore?.party?.find((candidate) => Number(candidate?.partyIndex) === normalizedPartyIndex) ?? null;
   }
 
-  #toggleEnemyPopupOperation(type, enemyIndex) {
+  #setDraftEnemyTarget(partyIndex, enemyIndex = null) {
     if (!this.#isDraftMode()) {
       return false;
     }
-    const normalizedEnemyIndex = Number(enemyIndex);
-    const operation = this.#buildEnemyPopupOperation(type, normalizedEnemyIndex);
-    if (!operation) {
+    const normalizedPartyIndex = Number(partyIndex);
+    if (!Number.isFinite(normalizedPartyIndex)) {
       return false;
     }
-    const currentIndex = this.#findPendingEnemyOperationIndex(type, normalizedEnemyIndex);
-    if (currentIndex >= 0) {
-      const removed = this.#removeEnemyPopupOperation(type, normalizedEnemyIndex);
-      if (!removed) {
+    if (!Number.isInteger(Number(enemyIndex)) || Number(enemyIndex) < 0) {
+      if (!Object.hasOwn(this.#draftTargets ?? {}, normalizedPartyIndex)) {
         return false;
       }
-      if (this.#isEditMode()) {
-        this.#rerenderDraftMode();
-        this.#emitPreviewRequest();
-      }
+      delete this.#draftTargets[normalizedPartyIndex];
       return true;
     }
-
-    if (type === REPLAY_OPERATION_TYPES.BREAK_ENEMY &&
-        this.#hasPendingEnemyOperation(REPLAY_OPERATION_TYPES.KILL_ENEMY, normalizedEnemyIndex)) {
-      return false;
-    }
-
-    if (type === REPLAY_OPERATION_TYPES.KILL_ENEMY) {
-      this.#removeEnemyPopupOperation(REPLAY_OPERATION_TYPES.BREAK_ENEMY, normalizedEnemyIndex);
-    }
-
-    if (this.#isEditMode()) {
-      if (!this.#addDraftOperation(operation)) {
-        return false;
-      }
-      this.#rerenderDraftMode();
-      this.#emitPreviewRequest();
-      return true;
-    }
-
-    this.#onOperationAdd?.(this.#turnIndex, operation);
+    this.#draftTargets = {
+      ...this.#draftTargets,
+      [normalizedPartyIndex]: normalizeTurnReplayTarget({
+        type: 'enemy',
+        enemyIndex: Number(enemyIndex),
+      }),
+    };
     return true;
+  }
+
+  #setDraftBreakEnemyIndexes(partyIndex, enemyIndexes = []) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const normalizedPartyIndex = Number(partyIndex);
+    if (!Number.isFinite(normalizedPartyIndex)) {
+      return false;
+    }
+    const enemyCount = this.getCurrentEnemyCount();
+    const normalizedEnemyIndexes = [...new Set((Array.isArray(enemyIndexes) ? enemyIndexes : [])
+      .map((enemyIndex) => Number(enemyIndex))
+      .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < enemyCount))]
+      .sort((left, right) => left - right);
+    if (normalizedEnemyIndexes.length === 0) {
+      delete this.#draftBreakEnemyIndexesByPartyIndex[normalizedPartyIndex];
+      return true;
+    }
+    this.#draftBreakEnemyIndexesByPartyIndex = {
+      ...this.#draftBreakEnemyIndexesByPartyIndex,
+      [normalizedPartyIndex]: normalizedEnemyIndexes,
+    };
+    return true;
+  }
+
+  #setDraftKillEnemyIndexes(partyIndex, enemyIndexes = []) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const normalizedPartyIndex = Number(partyIndex);
+    if (!Number.isFinite(normalizedPartyIndex)) {
+      return false;
+    }
+    const enemyCount = this.getCurrentEnemyCount();
+    const normalizedEnemyIndexes = [...new Set((Array.isArray(enemyIndexes) ? enemyIndexes : [])
+      .map((enemyIndex) => Number(enemyIndex))
+      .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < enemyCount))]
+      .sort((left, right) => left - right);
+    if (normalizedEnemyIndexes.length === 0) {
+      delete this.#draftKillEnemyIndexesByPartyIndex[normalizedPartyIndex];
+      return true;
+    }
+    this.#draftKillEnemyIndexesByPartyIndex = {
+      ...this.#draftKillEnemyIndexesByPartyIndex,
+      [normalizedPartyIndex]: normalizedEnemyIndexes,
+    };
+    return true;
+  }
+
+  #refreshEnemyDetailPopup(activeEnemyIndex = this.#getEnemyDetailPopupActiveEnemyIndex()) {
+    if (!this.#enemyDetailPopup) {
+      return;
+    }
+    const payload = this.#buildEnemyDetailPopupPayload(this.#isCommittedDisplayMode(), activeEnemyIndex);
+    this.#enemyDetailPopup.show(payload, activeEnemyIndex);
+    this.#bindEnemyDetailPopupEditorEvents();
+  }
+
+  #handleEnemyDetailPopupClosed() {
+    this.#enemyDetailPopup = null;
+    this.#clearPopupOutcomeRequest();
+  }
+
+  #closeEnemyDetailPopup() {
+    const popup = this.#enemyDetailPopup;
+    if (!popup) {
+      return;
+    }
+    this.#enemyDetailPopup = null;
+    popup.close();
+  }
+
+  #handleEnemyDetailPopupTabChange(activeEnemyIndex) {
+    const normalizedEnemyIndex = Number(activeEnemyIndex);
+    if (!this.#popupOutcomeRequest) {
+      return true;
+    }
+    if (
+      !Number.isInteger(normalizedEnemyIndex) ||
+      normalizedEnemyIndex < 0 ||
+      normalizedEnemyIndex >= MAX_ENEMY_COUNT ||
+      normalizedEnemyIndex === Number(this.#popupOutcomeRequest?.enemyIndex)
+    ) {
+      return true;
+    }
+    this.#clearPopupOutcomeRequest();
+    this.#refreshEnemyDetailPopup(normalizedEnemyIndex);
+    return false;
+  }
+
+  #openEnemyDetailPopupPanel(eventLike, activeEnemyIndex = 0) {
+    this.#openTargetPickerPartyIndex = null;
+    this.#isBreakEditorOpen = false;
+    this.#isKillEditorOpen = false;
+    this.#isFollowUpEditorOpen = false;
+    this.#isEnemySummonEditorOpen = false;
+    this.#clearPopupOutcomeRequest();
+    const payload = this.#buildEnemyDetailPopupPayload(this.#isCommittedDisplayMode(), activeEnemyIndex);
+    if (!payload || !Array.isArray(payload.enemies) || payload.enemies.length === 0) {
+      return null;
+    }
+    this.#closeEnemyDetailPopup();
+    this.#enemyDetailPopup = openEnemyDetailPopup(
+      eventLike,
+      payload,
+      activeEnemyIndex,
+      {
+        onClose: () => this.#handleEnemyDetailPopupClosed(),
+        onActiveEnemyIndexChange: ({ activeEnemyIndex: nextEnemyIndex }) =>
+          this.#handleEnemyDetailPopupTabChange(nextEnemyIndex),
+      }
+    );
+    this.#bindEnemyDetailPopupEditorEvents();
+    return this.#enemyDetailPopup;
+  }
+
+  #applyDraftAttributionMutation({ clearPopupOutcomeRequest = true } = {}) {
+    if (clearPopupOutcomeRequest) {
+      this.#clearPopupOutcomeRequest();
+    }
+    this.#rerenderDraftMode();
+    this.#emitPreviewRequest();
   }
 
   #getDraftReplayTarget(partyIndex) {
@@ -928,6 +1039,239 @@ export class TurnRowController {
       breakEnabled: rawBreakEnemyIndexes.length > 0,
       isEnemyTargetSelectionManual: isEnemyTargetSelectionManual(this.#simulatorSettings),
     };
+  }
+
+  #getPopupOutcomeCandidateContexts(enemyIndex, isCommitted = this.#isCommittedDisplayMode()) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (!Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0) {
+      return [];
+    }
+    const enemyCount = isCommitted
+      ? this.#getCurrentReplayTurnEnemyCount()
+      : this.getCurrentEnemyCount();
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
+    return members
+      .filter((member) => !(this.#isExtraTurn() && !this.#isActionable(member)))
+      .map((member) => {
+        const selectionContext = this.#getBreakSelectionContext({
+          member,
+          isCommitted,
+          enemyCount,
+        });
+        if (!selectionContext?.skill) {
+          return {
+            member,
+            selectionContext,
+            isCandidate: false,
+            currentTargetMatches: false,
+            canRetargetToRequestedEnemy: false,
+          };
+        }
+        if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+          return {
+            member,
+            selectionContext,
+            isCandidate: true,
+            currentTargetMatches: false,
+            canRetargetToRequestedEnemy: true,
+          };
+        }
+        if (selectionContext.breakAttributionMode !== TURN_BREAK_ATTRIBUTION_MODES.SINGLE) {
+          return {
+            member,
+            selectionContext,
+            isCandidate: false,
+            currentTargetMatches: false,
+            canRetargetToRequestedEnemy: false,
+          };
+        }
+        const currentTargetMatches =
+          selectionContext.currentReplayTarget.type === 'enemy' &&
+          Number(selectionContext.currentReplayTarget.enemyIndex) === normalizedEnemyIndex;
+        const canRetargetToRequestedEnemy =
+          !selectionContext.isEnemyTargetSelectionManual &&
+          selectionContext.singleTargetConfig?.kind === 'enemy' &&
+          (selectionContext.singleTargetConfig?.candidates ?? []).some(
+            (candidate) =>
+              Number(candidate?.enemyIndex) === normalizedEnemyIndex &&
+              candidate?.disabled !== true
+          );
+        return {
+          member,
+          selectionContext,
+          isCandidate: currentTargetMatches || canRetargetToRequestedEnemy,
+          currentTargetMatches,
+          canRetargetToRequestedEnemy,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  #resolvePopupImmediateOutcomeCandidate(enemyIndex) {
+    const candidates = this.#getPopupOutcomeCandidateContexts(enemyIndex, false)
+      .filter((candidate) => candidate.isCandidate);
+    if (candidates.length !== 1) {
+      return null;
+    }
+    const [candidate] = candidates;
+    if (
+      candidate.selectionContext?.breakAttributionMode !== TURN_BREAK_ATTRIBUTION_MODES.SINGLE ||
+      candidate.currentTargetMatches !== true
+    ) {
+      return null;
+    }
+    return candidate;
+  }
+
+  #toggleBreakSingleSelectionForPartyIndex(partyIndex, requestedEnemyIndex = null, options = {}) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const member = this.#getPartyMemberByPartyIndex(partyIndex);
+    if (!member) {
+      return false;
+    }
+    const enemyCount = this.getCurrentEnemyCount();
+    const normalizedRequestedEnemyIndex = Number(requestedEnemyIndex);
+    if (Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0) {
+      this.#setDraftEnemyTarget(partyIndex, normalizedRequestedEnemyIndex);
+    }
+    const selectionContext = this.#getBreakSelectionContext({
+      member,
+      isCommitted: false,
+      enemyCount,
+    });
+    if (!selectionContext) {
+      return false;
+    }
+    const targetEnemyIndex =
+      Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0
+        ? normalizedRequestedEnemyIndex
+        : selectionContext.currentReplayTarget.type === 'enemy'
+          ? Number(selectionContext.currentReplayTarget.enemyIndex)
+          : null;
+    if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0 || targetEnemyIndex >= enemyCount) {
+      return false;
+    }
+    const nextEnemyIndexes = selectionContext.breakEnabled ? [] : [targetEnemyIndex];
+    this.#setDraftBreakEnemyIndexes(partyIndex, nextEnemyIndexes);
+    this.#applyDraftAttributionMutation({
+      clearPopupOutcomeRequest: options?.clearPopupOutcomeRequest !== false,
+    });
+    return true;
+  }
+
+  #toggleBreakMultiSelectionForPartyIndex(partyIndex, enemyIndex) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const member = this.#getPartyMemberByPartyIndex(partyIndex);
+    if (!member) {
+      return false;
+    }
+    const enemyCount = this.getCurrentEnemyCount();
+    const currentEnemyIndexes = this.#getCurrentBreakEnemyIndexes({
+      member,
+      isCommitted: false,
+      enemyCount,
+    });
+    const normalizedEnemyIndex = Number(enemyIndex);
+    const nextEnemyIndexes = currentEnemyIndexes.includes(normalizedEnemyIndex)
+      ? currentEnemyIndexes.filter((candidate) => candidate !== normalizedEnemyIndex)
+      : [...currentEnemyIndexes, normalizedEnemyIndex];
+    this.#setDraftBreakEnemyIndexes(partyIndex, nextEnemyIndexes);
+    this.#applyDraftAttributionMutation({ clearPopupOutcomeRequest: false });
+    return true;
+  }
+
+  #toggleKillSelectionForPartyIndex(partyIndex, enemyIndex) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (!Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0) {
+      return false;
+    }
+    const currentEnemyIndexes = [
+      ...(this.#draftKillEnemyIndexesByPartyIndex?.[partyIndex] ?? []),
+    ].filter((candidate) => Number.isInteger(candidate) && candidate >= 0);
+    const nextEnemyIndexes = currentEnemyIndexes.includes(normalizedEnemyIndex)
+      ? currentEnemyIndexes.filter((candidate) => candidate !== normalizedEnemyIndex)
+      : [...currentEnemyIndexes, normalizedEnemyIndex];
+    this.#setDraftKillEnemyIndexes(partyIndex, nextEnemyIndexes);
+    this.#applyDraftAttributionMutation({ clearPopupOutcomeRequest: false });
+    return true;
+  }
+
+  #toggleKillSingleSelectionForPartyIndex(partyIndex, requestedEnemyIndex = null, options = {}) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const member = this.#getPartyMemberByPartyIndex(partyIndex);
+    if (!member) {
+      return false;
+    }
+    const enemyCount = this.getCurrentEnemyCount();
+    const normalizedRequestedEnemyIndex = Number(requestedEnemyIndex);
+    if (Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0) {
+      this.#setDraftEnemyTarget(partyIndex, normalizedRequestedEnemyIndex);
+    }
+    const selectionContext = this.#getBreakSelectionContext({
+      member,
+      isCommitted: false,
+      enemyCount,
+    });
+    if (!selectionContext) {
+      return false;
+    }
+    const targetEnemyIndex =
+      Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0
+        ? normalizedRequestedEnemyIndex
+        : selectionContext.currentReplayTarget.type === 'enemy'
+          ? Number(selectionContext.currentReplayTarget.enemyIndex)
+          : null;
+    if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0 || targetEnemyIndex >= enemyCount) {
+      return false;
+    }
+    const currentEnemyIndexes = [
+      ...(this.#draftKillEnemyIndexesByPartyIndex?.[partyIndex] ?? []),
+    ].filter((candidate) => Number.isInteger(candidate) && candidate >= 0 && candidate < enemyCount);
+    const nextEnemyIndexes = currentEnemyIndexes.includes(targetEnemyIndex)
+      ? currentEnemyIndexes.filter((candidate) => candidate !== targetEnemyIndex)
+      : [...currentEnemyIndexes, targetEnemyIndex];
+    this.#setDraftKillEnemyIndexes(partyIndex, nextEnemyIndexes);
+    this.#applyDraftAttributionMutation({
+      clearPopupOutcomeRequest: options?.clearPopupOutcomeRequest !== false,
+    });
+    return true;
+  }
+
+  #handleEnemyPopupOutcomeAction(outcome, enemyIndex, activeEnemyIndex = enemyIndex) {
+    if (!this.#isDraftMode()) {
+      return { closePopup: false };
+    }
+    this.#isEnemySummonEditorOpen = false;
+    this.#isBreakEditorOpen = false;
+    this.#isKillEditorOpen = false;
+    const normalizedEnemyIndex = Number(enemyIndex);
+    const immediateCandidate = this.#resolvePopupImmediateOutcomeCandidate(normalizedEnemyIndex);
+    if (immediateCandidate) {
+      if (outcome === ACTION_OUTCOME_TYPES.BREAK) {
+        this.#toggleBreakSingleSelectionForPartyIndex(
+          immediateCandidate.member.partyIndex,
+          normalizedEnemyIndex
+        );
+      } else {
+        this.#toggleKillSingleSelectionForPartyIndex(
+          immediateCandidate.member.partyIndex,
+          normalizedEnemyIndex
+        );
+      }
+      return { closePopup: false };
+    }
+    this.#setPopupOutcomeRequest(outcome, normalizedEnemyIndex);
+    this.#refreshEnemyDetailPopup(activeEnemyIndex);
+    return { closePopup: false };
   }
 
   /** コミットボタン押下時に呼ばれる前に TurnAreaController が現在のスロット選択を収集するため */
@@ -1733,12 +2077,315 @@ export class TurnRowController {
       <button type="button"
               data-role="enemy-detail-trigger"
               title="左クリック/右クリック/長押しで敵情報詳細を表示"
-              class="turn-info-enemy-button w-full">
+              class="turn-info-enemy-button">
         <span class="turn-info-enemy-button__label"
               data-label-full="敵情報確認"
               data-label-medium="敵情報"
               data-label-short="敵">敵情報確認</span>
       </button>
+    `;
+  }
+
+  #resolveEnemyPopupEnemyLabel(enemyIndex, enemyNamesByEnemy = {}) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    const enemyName = String(
+      enemyNamesByEnemy[String(normalizedEnemyIndex)] ?? enemyNamesByEnemy[normalizedEnemyIndex] ?? ''
+    ).trim();
+    return enemyName ? `E${normalizedEnemyIndex + 1} ${enemyName}` : `E${normalizedEnemyIndex + 1}`;
+  }
+
+  #resolvePopupRequestedEnemyTargetIndex(selectionContext, requestedEnemyIndex) {
+    const normalizedRequestedEnemyIndex = Number(requestedEnemyIndex);
+    if (!Number.isInteger(normalizedRequestedEnemyIndex) || normalizedRequestedEnemyIndex < 0) {
+      return null;
+    }
+    if (selectionContext?.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+      return normalizedRequestedEnemyIndex;
+    }
+    if (selectionContext?.breakAttributionMode !== TURN_BREAK_ATTRIBUTION_MODES.SINGLE) {
+      return null;
+    }
+    if (
+      selectionContext.currentReplayTarget.type === 'enemy' &&
+      Number(selectionContext.currentReplayTarget.enemyIndex) === normalizedRequestedEnemyIndex
+    ) {
+      return normalizedRequestedEnemyIndex;
+    }
+    const matchingCandidate = (selectionContext.singleTargetConfig?.candidates ?? []).find(
+      (candidate) =>
+        Number(candidate?.enemyIndex) === normalizedRequestedEnemyIndex &&
+        candidate?.disabled !== true
+    );
+    return matchingCandidate ? normalizedRequestedEnemyIndex : null;
+  }
+
+  #buildEnemyPopupSingleTargetControls({
+    selectionContext,
+    enemyNamesByEnemy,
+    requestedEnemyIndex,
+    outcome,
+    toggleRole,
+    enabled,
+  }) {
+    if (!selectionContext) {
+      return '<div class="text-[10px] text-gray-400">スキル未選択</div>';
+    }
+    const defaultTargetLabel = selectionContext.singleTargetConfig
+      ? formatTurnTargetLabel(
+          selectionContext.singleTargetConfig,
+          normalizeTurnReplayTarget(null),
+          { enemyNamesByEnemy }
+        )
+      : 'E1';
+    const explicitTargetEnemyIndex =
+      selectionContext.explicitTarget.type === 'enemy'
+        ? Number(selectionContext.explicitTarget.enemyIndex)
+        : null;
+    const requestedTargetEnemyIndex =
+      Number.isInteger(explicitTargetEnemyIndex)
+        ? null
+        : this.#resolvePopupRequestedEnemyTargetIndex(
+          selectionContext,
+          requestedEnemyIndex
+        );
+    const displayTargetEnemyIndex =
+      Number.isInteger(explicitTargetEnemyIndex)
+        ? explicitTargetEnemyIndex
+        : Number.isInteger(requestedTargetEnemyIndex)
+        ? requestedTargetEnemyIndex
+        : selectionContext.currentReplayTarget.type === 'enemy'
+          ? Number(selectionContext.currentReplayTarget.enemyIndex)
+          : null;
+    const displayTargetLabel =
+      Number.isInteger(displayTargetEnemyIndex)
+        ? this.#resolveEnemyPopupEnemyLabel(displayTargetEnemyIndex, enemyNamesByEnemy)
+        : (selectionContext.currentTargetLabel || defaultTargetLabel);
+    const showLocalTargetOverrideControls =
+      this.#isDraftMode() &&
+      !selectionContext.isEnemyTargetSelectionManual &&
+      selectionContext.singleTargetConfig?.kind === 'enemy' &&
+      Number(selectionContext.singleTargetConfig?.candidates?.length ?? 0) > 1;
+    const isBreakOutcome = outcome === ACTION_OUTCOME_TYPES.BREAK;
+    const actualSelectionActive = isBreakOutcome
+      ? selectionContext.breakEnabled &&
+        selectionContext.currentReplayTarget.type === 'enemy' &&
+        Number(selectionContext.currentReplayTarget.enemyIndex) === displayTargetEnemyIndex
+      : (this.#draftKillEnemyIndexesByPartyIndex?.[selectionContext.member.partyIndex] ?? [])
+          .includes(displayTargetEnemyIndex);
+    const accentButtonClasses = isBreakOutcome
+      ? 'border-amber-500 bg-amber-500 text-white'
+      : 'border-rose-500 bg-rose-500 text-white';
+    const accentHeadingClass = isBreakOutcome ? 'text-green-700' : 'text-rose-700';
+    const isToggleEnabled = enabled && Number.isInteger(displayTargetEnemyIndex);
+
+    return `
+      <div class="mb-1 space-y-1">
+        <div class="text-[9px] font-semibold ${accentHeadingClass} pb-0.5">${escapeHtml(
+          isBreakOutcome ? 'ブレイク' : '討伐'
+        )}</div>
+        ${showLocalTargetOverrideControls
+          ? `
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button"
+                      data-role="manual-break-target-reset"
+                      data-party-index="${selectionContext.member.partyIndex}"
+                      class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                             ${Number.isInteger(displayTargetEnemyIndex)
+                               ? 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                               : 'border-sky-500 bg-sky-500 text-white'}">
+                自動(${escapeHtml(defaultTargetLabel)})
+              </button>
+              ${selectionContext.singleTargetConfig.candidates.map((candidate) => {
+                const label = this.#resolveEnemyPopupEnemyLabel(candidate.enemyIndex, enemyNamesByEnemy);
+                const isSelected = Number(displayTargetEnemyIndex) === Number(candidate.enemyIndex);
+                return `
+                  <button type="button"
+                          data-role="manual-break-target-candidate"
+                          data-party-index="${selectionContext.member.partyIndex}"
+                          data-enemy-index="${candidate.enemyIndex}"
+                          ${candidate.disabled ? 'disabled' : ''}
+                          class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                                 ${candidate.disabled
+                                   ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                   : isSelected
+                                   ? 'border-sky-500 bg-sky-500 text-white'
+                                   : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
+                    ${escapeHtml(label)}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          `
+          : ''}
+        <button type="button"
+                data-role="${toggleRole}"
+                data-party-index="${selectionContext.member.partyIndex}"
+                ${Number.isInteger(displayTargetEnemyIndex) && displayTargetEnemyIndex >= 0
+                  ? `data-requested-enemy-index="${displayTargetEnemyIndex}"`
+                  : ''}
+                ${isToggleEnabled ? '' : 'disabled'}
+                class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                       ${actualSelectionActive
+                         ? accentButtonClasses
+                         : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
+          ${escapeHtml(displayTargetLabel)}
+        </button>
+      </div>
+    `;
+  }
+
+  #buildEnemyPopupBreakEditorControls({ selectionContext, enemyCount, enemyNamesByEnemy, requestedEnemyIndex }) {
+    if (!selectionContext || !selectionContext.skill) {
+      return '<div class="text-[10px] text-gray-400">スキル未選択</div>';
+    }
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.NONE) {
+      return '<div class="text-[10px] text-gray-400">敵を攻撃しないため指定なし</div>';
+    }
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+      return `
+        <div class="mb-1">
+          <div class="text-[9px] font-semibold text-green-700 pb-0.5">ブレイク</div>
+          <div class="flex flex-wrap gap-1.5">
+            ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isAlive = this.#isEnemySlotAlive(enemyIndex);
+              const isSelected = selectionContext.rawBreakEnemyIndexes.includes(enemyIndex);
+              const isRequested =
+                !isSelected &&
+                Number(requestedEnemyIndex) === enemyIndex;
+              const label = this.#resolveEnemyPopupEnemyLabel(enemyIndex, enemyNamesByEnemy);
+              return `
+                <button type="button"
+                        data-role="manual-break-candidate"
+                        data-party-index="${selectionContext.member.partyIndex}"
+                        data-enemy-index="${enemyIndex}"
+                        ${isAlive ? '' : 'disabled'}
+                        class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
+                               ${!isAlive
+                                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                 : isSelected
+                                 ? 'border-amber-500 bg-amber-500 text-white'
+                                 : isRequested
+                                 ? 'border-amber-300 bg-amber-50 text-amber-700'
+                                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
+                  ${escapeHtml(label)}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+    return this.#buildEnemyPopupSingleTargetControls({
+      selectionContext,
+      enemyNamesByEnemy,
+      requestedEnemyIndex,
+      outcome: ACTION_OUTCOME_TYPES.BREAK,
+      toggleRole: 'manual-break-single-toggle',
+      enabled: true,
+    });
+  }
+
+  #buildEnemyPopupKillEditorControls({ selectionContext, enemyCount, enemyNamesByEnemy, requestedEnemyIndex }) {
+    if (!selectionContext || !selectionContext.skill) {
+      return '<div class="text-[10px] text-gray-400">スキル未選択</div>';
+    }
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.NONE) {
+      return '<div class="text-[10px] text-gray-400">敵を攻撃しないため指定なし</div>';
+    }
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+      const currentKillEnemyIndexes = [
+        ...(this.#draftKillEnemyIndexesByPartyIndex?.[selectionContext.member.partyIndex] ?? []),
+      ];
+      return `
+        <div class="mb-1">
+          <div class="text-[9px] font-semibold text-rose-700 pb-0.5">討伐</div>
+          <div class="flex flex-wrap gap-1">
+            ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isAlive = this.#isEnemySlotAlive(enemyIndex);
+              const isSelected = currentKillEnemyIndexes.includes(enemyIndex);
+              const isRequested = !isSelected && Number(requestedEnemyIndex) === enemyIndex;
+              const label = this.#resolveEnemyPopupEnemyLabel(enemyIndex, enemyNamesByEnemy);
+              return `
+                <button type="button"
+                        data-role="kill-enemy-candidate"
+                        data-position="${selectionContext.member.position}"
+                        data-party-index="${selectionContext.member.partyIndex}"
+                        data-enemy-index="${enemyIndex}"
+                        ${isAlive ? '' : 'disabled'}
+                        class="target-chip inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors
+                               ${!isAlive
+                                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                 : isSelected
+                                 ? 'border-rose-500 bg-rose-500 text-white'
+                                 : isRequested
+                                 ? 'border-rose-300 bg-rose-50 text-rose-700'
+                                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}">
+                  ${escapeHtml(label)}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+    return this.#buildEnemyPopupSingleTargetControls({
+      selectionContext,
+      enemyNamesByEnemy,
+      requestedEnemyIndex,
+      outcome: ACTION_OUTCOME_TYPES.KILL,
+      toggleRole: 'popup-kill-single-toggle',
+      enabled: true,
+    });
+  }
+
+  #buildEnemyPopupOutcomeEditorHtml({ enemyIndex, enemyCount, enemyNamesByEnemy, isCommitted }) {
+    const request = this.#popupOutcomeRequest;
+    if (!this.#isDraftMode() || !request || Number(request.enemyIndex) !== Number(enemyIndex)) {
+      return '';
+    }
+    const requestedEnemyIndex = Number(request.enemyIndex);
+    const requestedOutcome = String(request.outcome ?? '').trim();
+    const heading = requestedOutcome === ACTION_OUTCOME_TYPES.KILL
+      ? '討伐した前衛を選択'
+      : 'ブレイクした前衛を選択';
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
+    return `
+      <div data-role="enemy-popup-editor"
+           data-outcome="${escapeHtml(requestedOutcome)}"
+           class="rounded-lg border border-slate-600/80 bg-slate-950/60 p-2">
+        <div class="pb-2 text-[11px] font-semibold text-slate-200">${escapeHtml(heading)}</div>
+        <div class="grid gap-2">
+          ${members.map((member) => {
+            const actorLabel = resolveManualBreakActorLabel(member, this.#store);
+            const selectionContext = this.#getBreakSelectionContext({
+              member,
+              isCommitted,
+              enemyCount,
+            });
+            const controlsHtml = requestedOutcome === ACTION_OUTCOME_TYPES.KILL
+              ? this.#buildEnemyPopupKillEditorControls({
+                selectionContext,
+                enemyCount,
+                enemyNamesByEnemy,
+                requestedEnemyIndex,
+              })
+              : this.#buildEnemyPopupBreakEditorControls({
+                selectionContext,
+                enemyCount,
+                enemyNamesByEnemy,
+                requestedEnemyIndex,
+              });
+            return `
+              <div data-role="enemy-popup-editor-actor"
+                   data-party-index="${member.partyIndex}"
+                   class="rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1.5">
+                <div class="pb-1 text-[10px] font-semibold text-slate-200">${escapeHtml(actorLabel)}</div>
+                ${controlsHtml}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
     `;
   }
 
@@ -1846,6 +2493,7 @@ export class TurnRowController {
     }
     this.#openTargetPickerPartyIndex = null;
     this.#isFollowUpEditorOpen = false;
+    this.#clearPopupOutcomeRequest();
     this.#isEnemySummonEditorOpen = actionType === 'summon';
     this.#isBreakEditorOpen = actionType === 'break';
     this.#isKillEditorOpen = actionType === 'kill';
@@ -1859,13 +2507,21 @@ export class TurnRowController {
   #buildEnemyDetailPopupToolActions() {
     return {
       summon: this.#canOpenEnemyPopupSummonAction()
-        ? () => this.#openEnemyPopupEditor('summon')
+        ? ({ activeEnemyIndex }) => {
+          this.#openEnemyPopupEditor('summon');
+          return {
+            closePopup: true,
+            activeEnemyIndex,
+          };
+        }
         : null,
       break: this.#canOpenEnemyPopupEditorAction()
-        ? ({ enemyIndex }) => this.#toggleEnemyPopupOperation(REPLAY_OPERATION_TYPES.BREAK_ENEMY, enemyIndex)
+        ? ({ enemyIndex, activeEnemyIndex }) =>
+          this.#handleEnemyPopupOutcomeAction(ACTION_OUTCOME_TYPES.BREAK, enemyIndex, activeEnemyIndex)
         : null,
       kill: this.#canOpenEnemyPopupEditorAction()
-        ? ({ enemyIndex }) => this.#toggleEnemyPopupOperation(REPLAY_OPERATION_TYPES.KILL_ENEMY, enemyIndex)
+        ? ({ enemyIndex, activeEnemyIndex }) =>
+          this.#handleEnemyPopupOutcomeAction(ACTION_OUTCOME_TYPES.KILL, enemyIndex, activeEnemyIndex)
         : null,
     };
   }
@@ -1880,12 +2536,31 @@ export class TurnRowController {
       sourceState?.turnState?.enemyState?.enemyCount ??
       (isCommitted ? this.#getCurrentReplayTurnEnemyCount() : this.getCurrentEnemyCount())
     );
+    const actionOutcomeOverrides = this.#getCurrentActionOutcomeOverridesForDisplay(isCommitted);
+    const breakEnemyIndexes = new Set(
+      normalizeActionOutcomeOverrides(actionOutcomeOverrides, enemyCount)
+        .filter((override) => override.outcome === ACTION_OUTCOME_TYPES.BREAK)
+        .flatMap((override) => override.enemyIndexes)
+        .map((enemyIndex) => Number(enemyIndex))
+        .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0)
+    );
+    const killEnemyIndexes = new Set(
+      normalizeActionOutcomeOverrides(actionOutcomeOverrides, enemyCount)
+        .filter((override) => override.outcome === ACTION_OUTCOME_TYPES.KILL)
+        .flatMap((override) => override.enemyIndexes)
+        .map((enemyIndex) => Number(enemyIndex))
+        .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0)
+    );
     const canSummon = this.#isDraftMode() &&
       this.#getEnemySummonPresets().length > 0 &&
-      Number.isInteger(this.#resolveEnemySummonTargetSlotIndex(sourceState));
+      (
+        Number.isInteger(this.#resolveEnemySummonTargetSlotIndex(sourceState)) ||
+        [...killEnemyIndexes].some((enemyIndex) => enemyIndex >= 0 && enemyIndex < enemyCount)
+      );
     const enemies = Array.from({ length: MAX_ENEMY_COUNT }, (_, enemyIndex) => {
       const occupied = enemyIndex < enemyCount;
-      const alive = occupied && this.#isEnemySlotAlive(enemyIndex, sourceState);
+      const killedByAttribution = killEnemyIndexes.has(enemyIndex);
+      const alive = occupied && !killedByAttribution && this.#isEnemySlotAlive(enemyIndex, sourceState);
       const enemyName = String(
         enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
       ).trim();
@@ -1898,9 +2573,9 @@ export class TurnRowController {
           ...status,
           remaining: Number(status?.remaining ?? status?.remainingTurns ?? 0),
         }));
-      const broken = statuses.some((status) => String(status?.statusType ?? '') === ENEMY_STATUS_BREAK);
-      const hasPendingBreakOperation = this.#hasPendingEnemyOperation(REPLAY_OPERATION_TYPES.BREAK_ENEMY, enemyIndex);
-      const hasPendingKillOperation = this.#hasPendingEnemyOperation(REPLAY_OPERATION_TYPES.KILL_ENEMY, enemyIndex);
+      const broken =
+        breakEnemyIndexes.has(enemyIndex) ||
+        statuses.some((status) => String(status?.statusType ?? '') === ENEMY_STATUS_BREAK);
       const enemyKey = String(enemyIndex);
       const od_rate = enemyState.odRateByEnemy?.[enemyKey] ?? null;
       const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
@@ -1914,10 +2589,16 @@ export class TurnRowController {
         broken,
         dead: occupied && !alive,
         canSummon,
-        canBreak: this.#isDraftMode() && occupied && !hasPendingKillOperation && (alive ? (!broken || hasPendingBreakOperation) : hasPendingBreakOperation),
-        canKill: this.#isDraftMode() && occupied && (alive || hasPendingKillOperation),
-        hasPendingBreakOperation,
-        hasPendingKillOperation,
+        canBreak: this.#isDraftMode() && occupied && !killedByAttribution && (alive || breakEnemyIndexes.has(enemyIndex)),
+        canKill: this.#isDraftMode() && occupied && (alive || killEnemyIndexes.has(enemyIndex)),
+        hasPendingBreakOperation: breakEnemyIndexes.has(enemyIndex),
+        hasPendingKillOperation: killEnemyIndexes.has(enemyIndex),
+        popupEditorHtml: this.#buildEnemyPopupOutcomeEditorHtml({
+          enemyIndex,
+          enemyCount,
+          enemyNamesByEnemy,
+          isCommitted,
+        }),
         statuses,
         ...(od_rate !== null ? { od_rate } : {}),
         ...(max_d_rate !== null ? { max_d_rate } : {}),
@@ -1937,6 +2618,8 @@ export class TurnRowController {
       activeEnemyIndex: normalizedActiveIndex,
       previewActionFlow: actionFlow,
       toolActions: this.#buildEnemyDetailPopupToolActions(),
+      onActiveEnemyIndexChange: ({ activeEnemyIndex: nextEnemyIndex }) =>
+        this.#handleEnemyDetailPopupTabChange(nextEnemyIndex),
     };
   }
 
@@ -2456,6 +3139,99 @@ export class TurnRowController {
         ${buttonHtml}
         ${noteHtml}
       </div>`;
+  }
+
+  #bindOutcomeEditorInteractionEvents(container, { popupScoped = false } = {}) {
+    if (!container) {
+      return;
+    }
+
+    container.querySelectorAll('[data-role="manual-break-target-reset"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (!this.#isDraftMode()) {
+          return;
+        }
+        const partyIndex = Number(btn.dataset.partyIndex);
+        if (!Number.isFinite(partyIndex)) {
+          return;
+        }
+        this.#isBreakEditorOpen = !popupScoped;
+        this.#setDraftEnemyTarget(partyIndex, null);
+        this.#applyDraftAttributionMutation({ clearPopupOutcomeRequest: !popupScoped });
+      });
+    });
+
+    container.querySelectorAll('[data-role="manual-break-target-candidate"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (!this.#isDraftMode()) {
+          return;
+        }
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const enemyIndex = Number(btn.dataset.enemyIndex);
+        if (!Number.isFinite(partyIndex) || !Number.isInteger(enemyIndex) || enemyIndex < 0) {
+          return;
+        }
+        this.#isBreakEditorOpen = !popupScoped;
+        this.#setDraftEnemyTarget(partyIndex, enemyIndex);
+        this.#applyDraftAttributionMutation({ clearPopupOutcomeRequest: !popupScoped });
+      });
+    });
+
+    container.querySelectorAll('[data-role="manual-break-single-toggle"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const requestedEnemyIndex = btn.dataset.requestedEnemyIndex ?? null;
+        this.#isBreakEditorOpen = !popupScoped;
+        this.#toggleBreakSingleSelectionForPartyIndex(partyIndex, requestedEnemyIndex, {
+          clearPopupOutcomeRequest: !popupScoped,
+        });
+      });
+    });
+
+    container.querySelectorAll('[data-role="manual-break-candidate"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const enemyIndex = Number(btn.dataset.enemyIndex);
+        this.#isBreakEditorOpen = !popupScoped;
+        this.#toggleBreakMultiSelectionForPartyIndex(partyIndex, enemyIndex);
+      });
+    });
+
+    container.querySelectorAll('[data-role="kill-enemy-candidate"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const enemyIndex = Number(btn.dataset.enemyIndex);
+        this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = !popupScoped;
+        this.#toggleKillSelectionForPartyIndex(partyIndex, enemyIndex);
+      });
+    });
+
+    container.querySelectorAll('[data-role="popup-kill-single-toggle"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const requestedEnemyIndex = btn.dataset.requestedEnemyIndex ?? null;
+        this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = !popupScoped;
+        this.#toggleKillSingleSelectionForPartyIndex(partyIndex, requestedEnemyIndex, {
+          clearPopupOutcomeRequest: !popupScoped,
+        });
+      });
+    });
+  }
+
+  #bindEnemyDetailPopupEditorEvents() {
+    const popupRoot = this.#enemyDetailPopup?.getRootElement?.();
+    if (!popupRoot) {
+      return;
+    }
+    this.#bindOutcomeEditorInteractionEvents(popupRoot, { popupScoped: true });
   }
 
   #buildTurnInfoHtml({ isCommitted, isEditMode }) {
@@ -3134,16 +3910,7 @@ export class TurnRowController {
         longPressTimerId = null;
       };
       const openEnemyDetail = (eventLike) => {
-        this.#openTargetPickerPartyIndex = null;
-        this.#isBreakEditorOpen = false;
-        this.#isKillEditorOpen = false;
-        this.#isFollowUpEditorOpen = false;
-        this.#isEnemySummonEditorOpen = false;
-        const payload = this.#buildEnemyDetailPopupPayload(this.#isCommittedDisplayMode(), 0);
-        if (!payload || !Array.isArray(payload.enemies) || payload.enemies.length === 0) {
-          return;
-        }
-        openEnemyDetailPopup(eventLike, payload);
+        this.#openEnemyDetailPopupPanel(eventLike, 0);
       };
 
       label.addEventListener('contextmenu', (event) => {
@@ -3175,151 +3942,7 @@ export class TurnRowController {
       label.addEventListener('touchcancel', clearLongPressTimer, { passive: true });
     });
 
-    this.#root.querySelectorAll('[data-role="manual-break-target-reset"]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        if (!this.#isDraftMode()) {
-          return;
-        }
-        const partyIndex = Number(btn.dataset.partyIndex);
-        if (!Number.isFinite(partyIndex)) {
-          return;
-        }
-        this.#isBreakEditorOpen = true;
-        delete this.#draftTargets[partyIndex];
-        this.#rerenderDraftMode();
-        this.#emitPreviewRequest();
-      });
-    });
-
-    this.#root.querySelectorAll('[data-role="manual-break-target-candidate"]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        if (!this.#isDraftMode()) {
-          return;
-        }
-        const partyIndex = Number(btn.dataset.partyIndex);
-        const enemyIndex = Number(btn.dataset.enemyIndex);
-        if (!Number.isFinite(partyIndex) || !Number.isInteger(enemyIndex) || enemyIndex < 0) {
-          return;
-        }
-        this.#isBreakEditorOpen = true;
-        this.#draftTargets = {
-          ...this.#draftTargets,
-          [partyIndex]: normalizeTurnReplayTarget({
-            type: 'enemy',
-            enemyIndex,
-          }),
-        };
-        this.#rerenderDraftMode();
-        this.#emitPreviewRequest();
-      });
-    });
-
-    this.#root.querySelectorAll('[data-role="manual-break-single-toggle"]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const partyIndex = Number(btn.dataset.partyIndex);
-        const member =
-          this.#stateBefore?.party?.find((candidate) => Number(candidate?.partyIndex) === partyIndex) ?? null;
-        if (!member) {
-          return;
-        }
-        const enemyCount =
-          this.#isDraftMode() ? this.getCurrentEnemyCount() : this.#getCurrentReplayTurnEnemyCount();
-        const selectionContext = this.#getBreakSelectionContext({
-          member,
-          isCommitted: this.#isCommittedDisplayMode(),
-          enemyCount,
-        });
-        if (!selectionContext) {
-          return;
-        }
-        const nextEnemyIndexes = selectionContext.breakEnabled
-          ? []
-          : selectionContext.currentReplayTarget.type === 'enemy'
-            ? [Number(selectionContext.currentReplayTarget.enemyIndex)]
-            : [];
-
-        this.#isBreakEditorOpen = true;
-        if (this.#isDraftMode()) {
-          if (nextEnemyIndexes.length === 0) {
-            delete this.#draftBreakEnemyIndexesByPartyIndex[partyIndex];
-          } else {
-            this.#draftBreakEnemyIndexesByPartyIndex = {
-              ...this.#draftBreakEnemyIndexesByPartyIndex,
-              [partyIndex]: nextEnemyIndexes,
-            };
-          }
-          this.#rerenderDraftMode();
-          this.#emitPreviewRequest();
-        }
-      });
-    });
-
-    this.#root.querySelectorAll('[data-role="manual-break-candidate"]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const partyIndex = Number(btn.dataset.partyIndex);
-        const enemyIndex = Number(btn.dataset.enemyIndex);
-        const member =
-          this.#stateBefore?.party?.find((candidate) => Number(candidate?.partyIndex) === partyIndex) ?? null;
-        if (!member) {
-          return;
-        }
-        const enemyCount =
-          this.#isDraftMode() ? this.getCurrentEnemyCount() : this.#getCurrentReplayTurnEnemyCount();
-        const currentEnemyIndexes = this.#getCurrentBreakEnemyIndexes({
-          member,
-          isCommitted: this.#isCommittedDisplayMode(),
-          enemyCount,
-        });
-        const nextEnemyIndexes = currentEnemyIndexes.includes(enemyIndex)
-          ? currentEnemyIndexes.filter((candidate) => candidate !== enemyIndex)
-          : [...currentEnemyIndexes, enemyIndex];
-
-        this.#isBreakEditorOpen = true;
-        if (this.#isDraftMode()) {
-          this.#draftBreakEnemyIndexesByPartyIndex = {
-            ...this.#draftBreakEnemyIndexesByPartyIndex,
-            [partyIndex]: [...new Set(nextEnemyIndexes)].sort((left, right) => left - right),
-          };
-          if (this.#draftBreakEnemyIndexesByPartyIndex[partyIndex]?.length === 0) {
-            delete this.#draftBreakEnemyIndexesByPartyIndex[partyIndex];
-          }
-          this.#rerenderDraftMode();
-          this.#emitPreviewRequest();
-        }
-      });
-    });
-
-    this.#root.querySelectorAll('[data-role="kill-enemy-candidate"]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const enemyIndex = Number(btn.dataset.enemyIndex);
-        if (!Number.isInteger(enemyIndex) || enemyIndex < 0) return;
-        const partyIndex = Number(btn.dataset.partyIndex);
-
-        const enemyCount = this.#isDraftMode()
-          ? this.getCurrentEnemyCount()
-          : this.#getCurrentReplayTurnEnemyCount();
-
-        this.#isBreakEditorOpen = false;
-        this.#isKillEditorOpen = true;
-
-        if (this.#isDraftMode()) {
-          const current = this.#draftKillEnemyIndexesByPartyIndex[partyIndex] ?? [];
-          const next = current.includes(enemyIndex)
-            ? current.filter((i) => i !== enemyIndex)
-            : [...current, enemyIndex];
-          this.#draftKillEnemyIndexesByPartyIndex[partyIndex] = next.filter(
-            (i) => i < enemyCount
-          );
-          this.#rerenderDraftMode();
-          this.#emitPreviewRequest();
-        }
-      });
-    });
+    this.#bindOutcomeEditorInteractionEvents(this.#root);
 
     this.#root.querySelectorAll('[data-role="follow-up-enemy-candidate"]').forEach((btn) => {
       btn.addEventListener('click', (event) => {

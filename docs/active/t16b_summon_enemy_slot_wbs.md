@@ -25,12 +25,13 @@
 - popup 内の敵 tab は `E1 / E2 / E3` の 3 tab を常設し、wide では 3 列、narrow では選択中 1 列へ切り替える
 - wide 時は 3 列すべてに `名称` fold / `プレビュー（コミット見込み） / 状態異常 / バフ` を並べ、`召喚 / ブレイク / 討伐` action row は選択中 slot の列先頭にだけ表示する
 - popup header は `敵詳細` ラベルを持たず、`E1 / E2 / E3` tab と close `×` を同じ高さに並べる
-- `Summon.webp` / `Break.webp` / `defeat.webp` を popup action icon として追加し、`BreakEnemy` / `KillEnemy` before-commit operation を slot 直指定で toggle できるようにした
+- `Summon.webp` / `Break.webp` / `defeat.webp` を popup action icon として追加し、`ブレイク / 討伐` は `ActionOutcomeOverrides` ベースの actor attribution として扱うよう戻した
 - `召喚` action から listbox popover を開き、敵 preset から召喚対象を選択できるようにした
 - `SummonEnemy` before-commit operation を追加し、commit / replay / recalculate / edit で同じ enemy slot snapshot を再現する
 - Summon した敵の `名前 / OD率 / 最大破壊率 / 属性耐性 / 吸収属性` を slot metadata と popup 表示へ反映した
 - `ui-next/utils/enemy-list.js` に手動 summon 用の pinned preset を追加し、サンプル敵 3 体を常に選択候補へ出せるようにした
-- `BreakEnemy` / `KillEnemy` を replay operation registry / turn engine / chip 表示へ追加し、`E1 ブレイク` / `E1 討伐` のような chip として保存できるようにした
+- popup から `ブレイク / 討伐` を押したときは、単体攻撃で attribution 先が一意なら即時反映し、曖昧または全体攻撃なら popup 内 sub-panel editor を開いて actor と enemy の対応を選べるようにした
+- break / kill の正本は `ReplayTurn.overrideEntries.ActionOutcomeOverrides` に戻し、chip 表示も `ワッキー→E1 ブレイク` / `ワッキー→E1 討伐` のような actor attribution 表示へ戻した
 - `tests/e2e/turn-row-summon-enemy.spec.js` / `turn-edit-manual-break.spec.js` / `turn-row-kill-enemy.spec.js` で popup action 導線と wide/narrow layout を Playwright で固定した
 
 手動 summon 用のサンプル敵:

@@ -18,14 +18,6 @@ import {
 test('operation registry keeps known operation definitions and preserves unknown envelopes', () => {
   assert.equal(replayOperationRegistry.has(REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA), true);
   assert.equal(replayOperationRegistry.has(REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI), true);
-  assert.deepEqual(replayOperationRegistry.get(REPLAY_OPERATION_TYPES.BREAK_ENEMY), {
-    timing: 'beforeCommit',
-    allowMultiple: true,
-  });
-  assert.deepEqual(replayOperationRegistry.get(REPLAY_OPERATION_TYPES.KILL_ENEMY), {
-    timing: 'beforeCommit',
-    allowMultiple: true,
-  });
   assert.deepEqual(replayOperationRegistry.get(REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD), {
     timing: 'afterCommitReservation',
     allowMultiple: false,

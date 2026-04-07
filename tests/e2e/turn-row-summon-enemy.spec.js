@@ -29,7 +29,8 @@ test.describe('Turn row summon enemy', () => {
     const triggerWidth = await inputRow
       .locator('[data-role="enemy-detail-trigger"]')
       .evaluate((node) => node.getBoundingClientRect().width);
-    expect(triggerWidth).toBeGreaterThan(120);
+    expect(triggerWidth).toBeGreaterThan(80);
+    expect(triggerWidth).toBeLessThan(110);
 
     await inputRow.locator('[data-role="enemy-detail-trigger"]').click();
     const popup = page.locator('.enemy-detail-popup-container');

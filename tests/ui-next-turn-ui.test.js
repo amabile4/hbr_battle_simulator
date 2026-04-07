@@ -1485,7 +1485,7 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
     assert.equal(addedOperations[0]?.payload?.resistances?.element?.fire, 250);
   }));
 
-test('TurnAreaController toggles direct enemy break/kill operations from the popup and renders operation chips', () =>
+test('TurnAreaController applies popup break/kill to actor-based chips for unique single-target attribution', () =>
   withDom(({ root, win }) => {
     setViewportSize(win, { width: 1280, height: 900 });
     createTurnAreaController({
@@ -1507,30 +1507,28 @@ test('TurnAreaController toggles direct enemy break/kill operations from the pop
     assert.ok(inputRow);
 
     openEnemyDetailPopup(inputRow.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    triggerEnemyPopupAction(win, 'break', { enemyIndex: 1 });
+    triggerEnemyPopupAction(win, 'break', { enemyIndex: 0 });
 
     inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
     assert.ok(inputRow);
-    const breakChipLabels = [...inputRow.querySelectorAll('[data-role="operation-chip"]')].map((chip) =>
-      chip.textContent?.replace('×', '').trim()
+    const breakChipLabels = [...inputRow.querySelectorAll('[data-role="manual-break-chip"]')].map((chip) =>
+      chip.textContent?.trim()
     );
-    assert.deepEqual(breakChipLabels, ['E2 ブレイク']);
+    assert.deepEqual(breakChipLabels, ['UI1→E1 ブレイク']);
+    assert.ok(getEnemyDetailPopup(win));
 
     openEnemyDetailPopup(inputRow.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    const breakDisabledOnKilledSlot = getEnemyDetailPopup(win)
-      .querySelector('[data-role="enemy-popup-action"][data-action-type="break"]')?.disabled;
-    assert.equal(breakDisabledOnKilledSlot, false);
-    triggerEnemyPopupAction(win, 'kill', { enemyIndex: 2 });
+    triggerEnemyPopupAction(win, 'kill', { enemyIndex: 0 });
 
     inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
     assert.ok(inputRow);
-    const chipLabelsAfterKill = [...inputRow.querySelectorAll('[data-role="operation-chip"]')].map((chip) =>
-      chip.textContent?.replace('×', '').trim()
+    const chipLabelsAfterKill = [...inputRow.querySelectorAll('[data-role="kill-chip"]')].map((chip) =>
+      chip.textContent?.trim()
     );
-    assert.deepEqual(chipLabelsAfterKill, ['E2 ブレイク', 'E3 討伐']);
+    assert.deepEqual(chipLabelsAfterKill, ['UI1→E1 討伐']);
   }));
 
-test('TurnAreaController reopens popup with summon enabled after a pending direct kill and disables break/kill on unused slots', () =>
+test('TurnAreaController enables summon after popup-attributed kill and disables break/kill on unused slots', () =>
   withDom(({ root, win }) => {
     setViewportSize(win, { width: 1280, height: 900 });
     const { controller: _controller } = createTurnAreaController({
@@ -1551,7 +1549,7 @@ test('TurnAreaController reopens popup with summon enabled after a pending direc
     assert.ok(inputRow);
 
     openEnemyDetailPopup(inputRow.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    triggerEnemyPopupAction(win, 'kill', { enemyIndex: 2 });
+    triggerEnemyPopupAction(win, 'kill', { enemyIndex: 0 });
 
     inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
     assert.ok(inputRow);
@@ -2325,16 +2323,18 @@ test('TurnRowController lets simple-mode single-target rows override target loca
 
     assert.equal(root.querySelector('[data-role="break-trigger"]'), null);
     openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    triggerEnemyPopupAction(win, 'break');
+    triggerEnemyPopupAction(win, 'break', { enemyIndex: 2 });
+    const popup = getEnemyDetailPopup(win);
+    assert.ok(popup);
     assert.equal(
-      root.querySelectorAll('[data-role="manual-break-target-candidate"][data-party-index="0"]').length,
+      popup.querySelectorAll('[data-role="manual-break-target-candidate"][data-party-index="0"]').length,
       3
     );
 
-    root
+    popup
       .querySelector('[data-role="manual-break-target-candidate"][data-party-index="0"][data-enemy-index="2"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    root
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
@@ -2387,11 +2387,13 @@ test('TurnRowController resolves manual break chip labels with nickname and enem
     });
 
     openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    triggerEnemyPopupAction(win, 'break');
-    root
+    triggerEnemyPopupAction(win, 'break', { enemyIndex: 1 });
+    const popup = getEnemyDetailPopup(win);
+    assert.ok(popup);
+    popup
       .querySelector('[data-role="manual-break-target-candidate"][data-party-index="0"][data-enemy-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    root
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
@@ -2419,11 +2421,13 @@ test('TurnRowController keeps all-target manual break multi-select for partial b
     });
 
     openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    triggerEnemyPopupAction(win, 'break');
-    root
+    triggerEnemyPopupAction(win, 'break', { enemyIndex: 2 });
+    const popup = getEnemyDetailPopup(win);
+    assert.ok(popup);
+    popup
       .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    root
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-candidate"][data-party-index="0"][data-enemy-index="2"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
@@ -2451,12 +2455,12 @@ test('TurnRowController manual break editor keeps only the Break section with si
       root,
       stateBefore: state,
       simulatorSettings: createSimulatorSettings(),
-    });
+	    });
 
-    openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    triggerEnemyPopupAction(win, 'break');
+	    openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+	    triggerEnemyPopupAction(win, 'break', { enemyIndex: 2 });
 
-    const actorCard = root.querySelector('[data-role="manual-break-actor"][data-party-index="0"]');
+    const actorCard = getEnemyDetailPopup(win)?.querySelector('[data-role="enemy-popup-editor-actor"][data-party-index="0"]');
     assert.ok(actorCard);
     const text = actorCard.textContent;
     assert.equal(text.includes('討伐'), false);
@@ -2495,20 +2499,7 @@ test('TurnRowController ties single-target break to the current manual target', 
       .querySelector('[data-role="target-candidate"][data-target-kind="enemy"][data-enemy-index="1"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    triggerEnemyPopupAction(win, 'break');
-
-    assert.equal(
-      root.querySelector('[data-role="manual-break-candidate"][data-party-index="0"]'),
-      null
-    );
-    assert.match(
-      root.querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]').textContent,
-      /E2/,
-    );
-
-    root
-      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
-      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    triggerEnemyPopupAction(win, 'break', { enemyIndex: 1 });
     assert.deepEqual(row.getCurrentActionOutcomeOverrides(), [
       { position: 0, outcome: 'Break', enemyIndexes: [1] },
     ]);
@@ -3322,11 +3313,11 @@ test('TurnAreaController commits manual break attribution and hides committed-ro
     });
 
     openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    triggerEnemyPopupAction(win, 'break');
-    root
+    triggerEnemyPopupAction(win, 'break', { enemyIndex: 2 });
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-target-candidate"][data-party-index="0"][data-enemy-index="2"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    root
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     root
@@ -3382,25 +3373,25 @@ test('TurnAreaController supports simple-mode local target overrides for three s
     openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
     triggerEnemyPopupAction(win, 'break');
 
-    root
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    root
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-target-candidate"][data-party-index="1"][data-enemy-index="1"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    root
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-single-toggle"][data-party-index="1"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    root
+    getEnemyDetailPopup(win)
       .querySelector('[data-role="manual-break-target-candidate"][data-party-index="2"][data-enemy-index="2"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     assert.match(
-      root.querySelectorAll('[data-role="target-trigger-label"]').item(0).textContent,
+      root.querySelector('[data-turn-slot][data-position="1"] [data-role="target-trigger-label"]').textContent,
       /E2/,
     );
     assert.match(
-      root.querySelectorAll('[data-role="target-trigger-label"]').item(1).textContent,
+      root.querySelector('[data-turn-slot][data-position="2"] [data-role="target-trigger-label"]').textContent,
       /E3/,
     );
 
@@ -3413,7 +3404,7 @@ test('TurnAreaController supports simple-mode local target overrides for three s
     const secondAction = committedActions.find((action) => action.positionIndex === 1);
     const thirdAction = committedActions.find((action) => action.positionIndex === 2);
 
-    assert.equal(firstAction?.targetEnemyIndex ?? null, null);
+    assert.equal(firstAction?.targetEnemyIndex, 0);
     assert.equal(firstAction?.breakHitCount, 1);
     assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
     assert.equal(secondAction?.targetEnemyIndex, 1);
