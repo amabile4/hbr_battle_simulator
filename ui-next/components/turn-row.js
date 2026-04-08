@@ -655,7 +655,17 @@ export class TurnRowController {
   }
 
   getCurrentEnemyCount() {
-    return clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
+    const baseCount = clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
+    // stateBefore includes the effect of pending summon operations, so
+    // draftEnemyCount is already inflated.  When this count is fed back into
+    // commitNextTurn → withEnemyCount, the engine sees the post-summon count
+    // *before* running the summon, causing resolveSummonEnemySlotIndex to
+    // pick a wrong slot.  Subtract pending summons so the engine receives the
+    // pre-summon count and resolves the correct target slot.
+    const pendingSummonCount = (Array.isArray(this.#operations) ? this.#operations : [])
+      .filter((op) => String(op?.type ?? '') === REPLAY_OPERATION_TYPES.SUMMON_ENEMY)
+      .length;
+    return clampEnemyCount(baseCount - pendingSummonCount);
   }
 
   #getEnemySummonPresets() {
@@ -2555,12 +2565,7 @@ export class TurnRowController {
         .map((enemyIndex) => Number(enemyIndex))
         .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0)
     );
-    const canSummon = this.#isDraftMode() &&
-      this.#getEnemySummonPresets().length > 0 &&
-      (
-        Number.isInteger(this.#resolveEnemySummonTargetSlotIndex(sourceState)) ||
-        [...killEnemyIndexes].some((enemyIndex) => enemyIndex >= 0 && enemyIndex < enemyCount)
-      );
+    const canSummonGlobal = this.#isDraftMode() && this.#getEnemySummonPresets().length > 0;
     const enemies = Array.from({ length: MAX_ENEMY_COUNT }, (_, enemyIndex) => {
       const occupied = enemyIndex < enemyCount;
       const killedByAttribution = killEnemyIndexes.has(enemyIndex);
@@ -2593,7 +2598,7 @@ export class TurnRowController {
         alive,
         broken,
         dead: occupied && !alive,
-        canSummon,
+        canSummon: canSummonGlobal && !alive,
         canBreak:
           this.#isDraftMode() &&
           occupied &&

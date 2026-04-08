@@ -60,8 +60,15 @@ test.describe('Turn row summon enemy', () => {
     await expect(popup).toBeVisible({ timeout: 5000 });
     await expect(popup.locator('[data-role="enemy-popup-layout"][data-layout-mode="wide"]')).toBeVisible({ timeout: 5000 });
     await expect(popup.locator('[data-role="enemy-popup-column"]')).toHaveCount(3);
+    // E1 is occupied — summon button must be disabled there
+    const e1Summon = popup.locator('[data-role="enemy-popup-action"][data-action-type="summon"]');
+    await expect(e1Summon).toBeVisible({ timeout: 5000 });
+    await expect(e1Summon).toBeDisabled();
+    // Switch to E2 tab (empty slot) where summon is allowed
+    await popup.locator('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]').click();
     const summonAction = popup.locator('[data-role="enemy-popup-action"][data-action-type="summon"]');
     await expect(summonAction).toBeVisible({ timeout: 5000 });
+    await expect(summonAction).toBeEnabled();
     await summonAction.click();
 
     const editor = inputRow.locator('[data-role="enemy-summon-editor"]');
