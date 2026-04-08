@@ -4,9 +4,15 @@ import {
   applyParty,
   commitLatestInputRow,
   fillPartySetupSlots,
+  fillPartySetupSlotsWithStyleIds,
   gotoUiNext,
   openEnemyPopupActionForRow,
+  selectSkillForPosition,
 } from './ui-next-helpers.js';
+
+const DUPLICATE_BREAK_STYLE_IDS = [1001101, 1001201, 1001301, 1001401];
+const FIRST_SINGLE_BREAK_SKILL_ID = 46001101;
+const SECOND_SINGLE_BREAK_SKILL_ID = 46001201;
 
 test.describe('Turn edit manual break', () => {
   async function expectInViewport(locator, page) {
@@ -106,5 +112,33 @@ test.describe('Turn edit manual break', () => {
       await multiToggle.click();
     }
     await expect(editRow.locator('[data-role="manual-break-chip"]')).toHaveCount(1, { timeout: 5000 });
+  });
+
+  test('input row disables later duplicate manual break toggles for the same enemy', async ({ page }) => {
+    await gotoUiNext(page);
+    await fillPartySetupSlotsWithStyleIds(page, DUPLICATE_BREAK_STYLE_IDS);
+    const inputRow = await applyParty(page);
+
+    await selectSkillForPosition(page, 0, FIRST_SINGLE_BREAK_SKILL_ID);
+    await selectSkillForPosition(page, 1, SECOND_SINGLE_BREAK_SKILL_ID);
+
+    await openEnemyPopupActionForRow(page, inputRow, 'break', { enemyIndex: 0 });
+    const popup = page.locator('.enemy-detail-popup-container');
+    const firstToggle = popup.locator('[data-role="manual-break-single-toggle"][data-party-index="0"]');
+    const secondToggle = popup.locator('[data-role="manual-break-single-toggle"][data-party-index="1"]');
+
+    await expect(firstToggle).toBeVisible({ timeout: 5000 });
+    await expect(secondToggle).toBeVisible({ timeout: 5000 });
+    await firstToggle.click();
+    await expect(secondToggle).toBeDisabled({ timeout: 5000 });
+    await popup.locator('[data-role="popup-close"]').click();
+
+    const committedRow = await commitLatestInputRow(page);
+    await expect(committedRow.locator('[data-role="manual-break-chip"]')).toHaveCount(1, {
+      timeout: 5000,
+    });
+    await expect(committedRow.locator('[data-role="manual-break-chip"]').first()).toContainText('ブレイク', {
+      timeout: 5000,
+    });
   });
 });

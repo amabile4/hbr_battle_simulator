@@ -90,6 +90,16 @@ function withEnemyCount(state, enemyCount) {
   };
 }
 
+function withExpandedEnemyCount(state, enemyCount) {
+  const currentEnemyCount = clampEnemyCount(
+    state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+  );
+  if (enemyCount == null) {
+    return withEnemyCount(state, currentEnemyCount);
+  }
+  return withEnemyCount(state, Math.max(currentEnemyCount, clampEnemyCount(enemyCount)));
+}
+
 function extractOperationLevel(operation = {}) {
   const level = Number(operation?.payload?.level ?? operation?.level);
   return Number.isFinite(level) && level >= 1 && level <= 3 ? level : null;
@@ -420,10 +430,11 @@ export function getActivatablePreemptiveOdLevels(state) {
 
 export function applyBeforeCommitOperations(state, operations = [], options = {}) {
   const sourceOperations = Array.isArray(operations) ? operations : [];
-  const normalizedState = withEnemyCount(state, options.enemyCount);
+  const onWarning = getOperationWarningReporter(options);
+
+  const summonOperations = [];
   const regularBeforeCommitOperations = [];
   const preemptiveOdOperations = [];
-  const onWarning = getOperationWarningReporter(options);
 
   for (const rawOperation of sourceOperations) {
     const operation =
@@ -441,6 +452,10 @@ export function applyBeforeCommitOperations(state, operations = [], options = {}
     if (!BEFORE_COMMIT_OPERATION_TYPES.has(operation.type)) {
       continue;
     }
+    if (operation.type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
+      summonOperations.push(operation);
+      continue;
+    }
     if (operation.type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
       preemptiveOdOperations.push(operation);
       continue;
@@ -448,7 +463,15 @@ export function applyBeforeCommitOperations(state, operations = [], options = {}
     regularBeforeCommitOperations.push(operation);
   }
 
-  let nextState = normalizedState;
+  // Summon mutates occupied slot count itself. Preserve that expanded count
+  // when the caller still passes a stale pre-summon enemyCount.
+  let nextState = state;
+  for (const operation of summonOperations) {
+    nextState = applyOperation(nextState, operation, options);
+  }
+  nextState = summonOperations.length > 0
+    ? withExpandedEnemyCount(nextState, options.enemyCount)
+    : withEnemyCount(nextState, options.enemyCount);
   for (const operation of regularBeforeCommitOperations) {
     nextState = applyOperation(nextState, operation, options);
   }

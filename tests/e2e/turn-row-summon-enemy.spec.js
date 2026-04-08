@@ -85,8 +85,10 @@ test.describe('Turn row summon enemy', () => {
 
     const committedPopup = page.locator('.enemy-detail-popup-container');
     await expect(committedPopup).toBeVisible({ timeout: 5000 });
-    await expect(committedPopup).toContainText(DEFAULT_SUMMON_SAMPLE_ENEMY.name);
-    await expect(committedPopup).toContainText('耐性');
+    const e2Column = committedPopup.locator('[data-role="enemy-popup-column"][data-enemy-tab-index="1"]');
+    await expect(e2Column).toContainText(DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+    await expect(e2Column).not.toContainText('E2 未使用');
+    await expect(e2Column).toContainText('耐性');
   });
 
   test('enemy detail popup collapses to one selected column on narrow viewport', async ({ page }) => {

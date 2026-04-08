@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-06
-> 最終更新: 2026-04-07
+> 最終更新: 2026-04-08
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 進捗チェック
@@ -16,6 +16,15 @@
 - [x] WBS-4: 条件判定と全体対象処理の alive enemy 統一
 - [x] WBS-5: UI / replay / session の Summon 反映
 - [x] WBS-6: テスト拡充と受け入れ確認
+
+## 2026-04-08 実装反映メモ
+
+Summon 後の `enemyCount` が stale な caller 値で `1` に戻され、turn start snapshot には E2 metadata があるのに committed popup では `E2 未使用` になる回帰を修正した。
+
+- `applyBeforeCommitOperations(...)` は `SummonEnemy` 実行後に caller の `enemyCount` で occupied slot 数を縮退させないよう修正した
+- `TurnRowController` の draft enemy popup は pending operations を再適用せず、すでに materialize 済みの `stateBefore` をそのまま表示するようにした
+- `TurnEngineManager` の summon commit/reload 契約を `enemyCount: 1` の stale caller 値でも `EnemyCount = 2` を保存する形へ戻した
+- `tests/turn-operations.test.js` / `tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` / `tests/e2e/turn-row-summon-enemy.spec.js` に stale `enemyCount` と phantom E3 を防ぐ回帰 coverage を追加した
 
 ## 2026-04-07 実装反映メモ
 

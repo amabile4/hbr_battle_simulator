@@ -6,6 +6,7 @@ import {
   isEnemyAlive,
   resolveEffectiveSkillForAction,
 } from '../../src/turn/turn-controller.js';
+import { sortTurnActionExecutionEntries } from '../../src/turn/action-execution-order.js';
 import {
   clampEnemyCount,
   DEFAULT_ENEMY_COUNT,
@@ -58,6 +59,12 @@ function createEmptyReplayDiagnostics() {
     error: null,
     appliedTurnCount: 0,
   };
+}
+
+function formatEnemySlotLabels(enemyIndexes = []) {
+  return (Array.isArray(enemyIndexes) ? enemyIndexes : [])
+    .map((enemyIndex) => `E${Number(enemyIndex) + 1}`)
+    .join(', ');
 }
 
 const ENEMY_SNAPSHOT_OVERRIDE_FIELD_TO_TYPE = Object.freeze({
@@ -1045,7 +1052,6 @@ export class TurnEngineManager {
     const warnings = [];
     const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(turn?.overrideEntries ?? [], warnings);
     this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
-
     if (hasOperations) {
       try {
         const enemyCount = clampEnemyCount(
@@ -2173,6 +2179,7 @@ export class TurnEngineManager {
     }
 
     const nextOverrides = [];
+    const pendingBreakOverrides = [];
     for (const override of normalizedOverrides) {
       const position = Number(override?.position);
       if (!Number.isInteger(position)) {
@@ -2220,10 +2227,10 @@ export class TurnEngineManager {
         continue;
       }
       if (breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
-        nextOverrides.push({
+        pendingBreakOverrides.push({
           position,
-          outcome: ACTION_OUTCOME_TYPES.BREAK,
           enemyIndexes: [...aliveEnemyIndexes],
+          skill,
         });
         continue;
       }
@@ -2244,10 +2251,34 @@ export class TurnEngineManager {
           `manual break target normalized at position ${position}: ${aliveEnemyIndexes.join(',')} -> ${normalizedEnemyIndex}`
         );
       }
-      nextOverrides.push({
+      pendingBreakOverrides.push({
         position,
-        outcome: ACTION_OUTCOME_TYPES.BREAK,
         enemyIndexes: [normalizedEnemyIndex],
+        skill,
+      });
+    }
+
+    const claimedBreakEnemyIndexes = new Set();
+    for (const override of sortTurnActionExecutionEntries(pendingBreakOverrides)) {
+      const duplicateEnemyIndexes = override.enemyIndexes.filter((enemyIndex) =>
+        claimedBreakEnemyIndexes.has(enemyIndex)
+      );
+      if (duplicateEnemyIndexes.length > 0) {
+        onWarning?.(
+          `duplicate manual break removed at position ${override.position}: ${formatEnemySlotLabels(duplicateEnemyIndexes)}`
+        );
+      }
+      const availableEnemyIndexes = override.enemyIndexes.filter((enemyIndex) =>
+        !claimedBreakEnemyIndexes.has(enemyIndex)
+      );
+      if (availableEnemyIndexes.length === 0) {
+        continue;
+      }
+      availableEnemyIndexes.forEach((enemyIndex) => claimedBreakEnemyIndexes.add(enemyIndex));
+      nextOverrides.push({
+        position: override.position,
+        outcome: ACTION_OUTCOME_TYPES.BREAK,
+        enemyIndexes: availableEnemyIndexes,
       });
     }
 

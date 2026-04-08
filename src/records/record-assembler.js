@@ -1,3 +1,5 @@
+import { isPersistentEnemyStatusType, normalizeEnemyStatusType } from '../domain/enemy-status.js';
+
 export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceId) {
   return {
     turnId: sequenceId,
@@ -25,15 +27,9 @@ export function fromSnapshot(snapBefore, context, actions, swapEvents, sequenceI
 }
 
 function isEnemyStatusActiveForRecord(status) {
-  const statusType = String(status?.statusType ?? '');
+  const statusType = normalizeEnemyStatusType(status?.statusType);
   const exitCond = String(status?.exitCond ?? '');
-  if (
-    exitCond === 'Eternal' ||
-    statusType === 'Break' ||
-    statusType === 'StrongBreak' ||
-    statusType === 'SuperDown' ||
-    statusType === 'Dead'
-  ) {
+  if (exitCond === 'Eternal' || isPersistentEnemyStatusType(statusType)) {
     return true;
   }
   return Number(status?.remainingTurns ?? 0) > 0;
@@ -50,7 +46,7 @@ function formatEnemyStatusSummary(turnState) {
   const active = statuses
     .filter((s) => isEnemyStatusActiveForRecord(s))
     .map((s) => ({
-      statusType: String(s?.statusType ?? ''),
+      statusType: normalizeEnemyStatusType(s?.statusType),
       targetIndex: Number(s?.targetIndex ?? -1),
       remainingTurns: Number(s?.remainingTurns ?? 0),
       exitCond: String(s?.exitCond ?? ''),

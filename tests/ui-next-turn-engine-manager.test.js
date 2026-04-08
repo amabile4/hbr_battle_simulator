@@ -119,6 +119,32 @@ function createInitialState(actorSkill, actorOptions = {}) {
   return createBattleStateFromParty(createManualParty(actorSkill, actorOptions));
 }
 
+function createFrontlineInitialState(frontlineSkills = [], enemyCount = 1, frontOptions = []) {
+  const members = Array.from({ length: 6 }, (_, index) =>
+    new CharacterStyle({
+      characterId: frontOptions[index]?.characterId ?? `TM${index + 1}`,
+      characterName: frontOptions[index]?.characterName ?? `TM${index + 1}`,
+      styleId: frontOptions[index]?.styleId ?? 9100 + index,
+      styleName: frontOptions[index]?.styleName ?? `TS${index + 1}`,
+      partyIndex: index,
+      position: index,
+      initialSP: frontOptions[index]?.initialSP ?? 10,
+      skills: frontOptions[index]?.skills ?? [
+        frontlineSkills[index] ?? createSkill({
+          id: 9200 + index,
+          name: `Protection${index + 1}`,
+          targetType: 'Self',
+          parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+        }),
+      ],
+      passives: frontOptions[index]?.passives ?? [],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState.enemyCount = enemyCount;
+  return state;
+}
+
 function createSummonEnemyOperation({
   enemyId = DEFAULT_SUMMON_SAMPLE_ENEMY.id,
   enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
@@ -230,6 +256,31 @@ test('TurnEngineManager persists enemyCount through commit and replay recalculat
   assert.equal(manager.computedRecords[0]?.actions.find((action) => action.positionIndex === 0)?.targetEnemyIndex, 2);
 });
 
+test('TurnEngineManager buildInputRowSnapshot keeps summon-expanded enemyCount when the caller passes a stale value', () => {
+  const actorSkill = createSkill({
+    id: 90725,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 1;
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  assert.equal(manager.addPendingSpecialOperation(createSummonEnemyOperation()), true);
+
+  const snapshot = manager.buildInputRowSnapshot({
+    slotActions: { 0: { skillId: 90725 } },
+    enemyCount: 1,
+  });
+
+  assert.equal(snapshot.stateBefore.turnState.enemyState.enemyCount, 2);
+  assert.equal(snapshot.stateBefore.turnState.enemyState.enemyNamesByEnemy['1'], DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+  assert.equal(snapshot.stateBefore.turnState.enemyState.enemyNamesByEnemy['2'], undefined);
+});
+
 test('TurnEngineManager commits summon operations into enemy slot snapshots and restores them on reload', () => {
   const actorSkill = createSkill({
     id: 90726,
@@ -263,10 +314,17 @@ test('TurnEngineManager commits summon operations into enemy slot snapshots and 
   assert.equal(manager.currentState.turnState.enemyState.enemyCount, 2);
   assert.equal(manager.replayScript.turns[0].operations[0]?.type, REPLAY_OPERATION_TYPES.SUMMON_ENEMY);
   assert.equal(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT
+    )?.payload,
+    2
+  );
+  assert.equal(
     manager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['1'],
     DEFAULT_SUMMON_SAMPLE_ENEMY.name
   );
   assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.damageRatesByEnemy?.['1']?.Fire, 250);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['2'], undefined);
 
   const overrideTypes = manager.replayScript.turns[0].overrideEntries.map((entry) => entry.type);
   assert.ok(overrideTypes.includes(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT));
@@ -294,6 +352,7 @@ test('TurnEngineManager commits summon operations into enemy slot snapshots and 
   const stateBeforeFirstTurn = reloadedManager.getStateBefore(0);
   assert.equal(stateBeforeFirstTurn.turnState.enemyState.enemyCount, 2);
   assert.equal(stateBeforeFirstTurn.turnState.enemyState.enemyNamesByEnemy['1'], DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+  assert.equal(stateBeforeFirstTurn.turnState.enemyState.enemyNamesByEnemy['2'], undefined);
   assert.equal(stateBeforeFirstTurn.turnState.enemyState.damageRatesByEnemy['1'].Fire, 250);
   assert.deepEqual(stateBeforeFirstTurn.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);
   assert.equal(reloadedManager.computedStates[0]?.turnState?.enemyState?.enemyCount, 2);
@@ -904,6 +963,173 @@ test('TurnEngineManager preserves subset manual break attribution for all-target
   );
 });
 
+test('TurnEngineManager keeps only the first manual break actor for the same enemy in one turn', () => {
+  const singleTargetSkill = createSkill({
+    id: 9063,
+    name: 'Focused Break',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createFrontlineInitialState(
+      [singleTargetSkill, singleTargetSkill],
+      2,
+      [
+        { passives: [createBreakHealPassive()] },
+        { passives: [createBreakHealPassive()] },
+      ]
+    ),
+    {}
+  );
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9063, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 9063, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    {
+      enemyCount: 2,
+      actionOutcomeOverrides: [
+        { position: 0, outcome: 'Break', enemyIndexes: [0] },
+        { position: 1, outcome: 'Break', enemyIndexes: [0] },
+      ],
+    }
+  );
+
+  const firstAction = committedRecord.actions.find((entry) => entry.positionIndex === 0);
+  const secondAction = committedRecord.actions.find((entry) => entry.positionIndex === 1);
+
+  assert.equal(firstAction?.breakHitCount, 1);
+  assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
+  assert.equal(
+    firstAction?.spChanges?.some((change) => change.source === 'sp_passive' && change.delta === 8),
+    true
+  );
+  assert.equal(secondAction?.breakHitCount ?? 0, 0);
+  assert.deepEqual(secondAction?.manualBreakEnemyIndexes ?? [], []);
+  assert.equal(
+    secondAction?.spChanges?.some((change) => change.source === 'sp_passive'),
+    false
+  );
+  assert.deepEqual(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+    )?.payload,
+    [{ position: 0, outcome: 'Break', enemyIndexes: [0] }]
+  );
+});
+
+test('TurnEngineManager trims later all-target manual break overrides to unclaimed enemies only', () => {
+  const singleTargetSkill = createSkill({
+    id: 9064,
+    name: 'Lead Break',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const allTargetSkill = createSkill({
+    id: 9065,
+    name: 'Sweep Break',
+    targetType: 'All',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createFrontlineInitialState([singleTargetSkill, allTargetSkill], 3),
+    {}
+  );
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9064, target: { type: 'enemy', enemyIndex: 1 } },
+      1: { skillId: 9065 },
+    },
+    {
+      enemyCount: 3,
+      actionOutcomeOverrides: [
+        { position: 0, outcome: 'Break', enemyIndexes: [1] },
+        { position: 1, outcome: 'Break', enemyIndexes: [0, 1, 2] },
+      ],
+    }
+  );
+
+  const firstAction = committedRecord.actions.find((entry) => entry.positionIndex === 0);
+  const secondAction = committedRecord.actions.find((entry) => entry.positionIndex === 1);
+
+  assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [1]);
+  assert.deepEqual(secondAction?.manualBreakEnemyIndexes, [0, 2]);
+  assert.equal(secondAction?.breakHitCount, 2);
+  assert.deepEqual(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+    )?.payload,
+    [
+      { position: 0, outcome: 'Break', enemyIndexes: [1] },
+      { position: 1, outcome: 'Break', enemyIndexes: [0, 2] },
+    ]
+  );
+});
+
+test('TurnEngineManager loadReplayScript removes duplicate manual break overrides from later actors', () => {
+  const singleTargetSkill = createSkill({
+    id: 9066,
+    name: 'Replay Focus Break',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const initialState = createFrontlineInitialState([singleTargetSkill, singleTargetSkill], 2);
+  const replayScript = {
+    turns: [
+      {
+        turn: 1,
+        slots: [
+          {
+            styleId: initialState.party[0].styleId,
+            skillId: 9066,
+            target: { type: 'enemy', enemyIndex: 0 },
+          },
+          {
+            styleId: initialState.party[1].styleId,
+            skillId: 9066,
+            target: { type: 'enemy', enemyIndex: 0 },
+          },
+          { styleId: initialState.party[2].styleId, skillId: 9202 },
+          { styleId: initialState.party[3].styleId, skillId: null },
+          { styleId: initialState.party[4].styleId, skillId: null },
+          { styleId: initialState.party[5].styleId, skillId: null },
+        ],
+        note: '',
+        operations: [],
+        overrideEntries: [
+          { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, payload: 2 },
+          {
+            type: REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+            payload: [
+              { position: 0, outcome: 'Break', enemyIndexes: [0] },
+              { position: 1, outcome: 'Break', enemyIndexes: [0] },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, replayScript);
+
+  const firstAction = manager.computedRecords[0]?.actions.find((entry) => entry.positionIndex === 0);
+  const secondAction = manager.computedRecords[0]?.actions.find((entry) => entry.positionIndex === 1);
+
+  assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
+  assert.deepEqual(secondAction?.manualBreakEnemyIndexes ?? [], []);
+  assert.deepEqual(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+    )?.payload,
+    [{ position: 0, outcome: 'Break', enemyIndexes: [0] }]
+  );
+});
+
 test('TurnEngineManager loadReplayScript normalizes legacy single-target manual break overrides to the saved target', () => {
   const actorSkill = createSkill({
     id: 9062,
@@ -953,6 +1179,104 @@ test('TurnEngineManager loadReplayScript normalizes legacy single-target manual 
       (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
     )?.payload,
     [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
+  );
+});
+
+test('TurnEngineManager still allows a later SuperBreak after an earlier manual Break', () => {
+  const manualBreakSkill = createSkill({
+    id: 9067,
+    name: 'Manual Break Lead',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const superBreakSkill = createSkill({
+    id: 9068,
+    name: 'Strong Break Follow',
+    targetType: 'Single',
+    parts: [{ skill_type: 'SuperBreak', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createFrontlineInitialState([manualBreakSkill, superBreakSkill], 1),
+    {}
+  );
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9067, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 9068, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Break', enemyIndexes: [0] }],
+    }
+  );
+
+  const firstAction = committedRecord.actions.find((entry) => entry.positionIndex === 0);
+  const secondAction = committedRecord.actions.find((entry) => entry.positionIndex === 1);
+
+  assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
+  assert.equal(
+    secondAction?.enemyStatusChanges?.some(
+      (change) => change.mode === 'SuperBreak' && change.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    manager.currentState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 0
+    ),
+    true
+  );
+});
+
+test('TurnEngineManager keeps later SuperBreakDown behavior unchanged after an earlier manual Break', () => {
+  const manualBreakSkill = createSkill({
+    id: 9069,
+    name: 'Manual Break Lead',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const superBreakDownSkill = createSkill({
+    id: 9071,
+    name: 'Down Break Follow',
+    targetType: 'Single',
+    parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createFrontlineInitialState([manualBreakSkill, superBreakDownSkill], 1),
+    {}
+  );
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9069, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 9071, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Break', enemyIndexes: [0] }],
+    }
+  );
+
+  const secondAction = committedRecord.actions.find((entry) => entry.positionIndex === 1);
+
+  assert.equal(
+    (secondAction?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn'),
+    false
+  );
+  assert.equal(
+    manager.currentState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    manager.currentState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+    ),
+    false
   );
 });
 

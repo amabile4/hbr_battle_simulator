@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-07
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-09
 
 ## 目的
 
@@ -163,7 +163,7 @@
 - `enemyCount` は `Enemy Setup` の固定値ではなく、各 turn 行に置く入力として扱う
 - turn 行の `enemyCount` 初期値は直前の committed turn を継承し、replay / recalculate でも維持する
 - target 選択の簡略化設定は `Enemy Setup` に置かず、`Simulator Settings` へ分離する
-- battle start 時点で敵が `Down` / `Break` / `StrongBreak` / `SuperDown` / `Dead` になっているケースは扱わない
+- battle start 時点で敵が `Down` / `Break` / `SuperBreak` / `SuperBreakDown` / `Dead` になっているケースは扱わない
 - 戦闘中に敵数が増えるケースは `Enemy Setup` ではなく、敵行動 `Summon` による turn 中イベントとして扱う
 
 ### 2026-03-30 追記: Turn0（先制攻撃）開幕フィールド
@@ -328,6 +328,22 @@
   - これにより `攻撃は E2 / break は E3` のような不整合状態は作れない
 - 敵全体攻撃では、現在どおり前衛 actor ごとに敵 chip (`E1 / E2 / E3`) を複数選択できる
   - 例: `E1, E3 は break / E2 は not break`
+- 同一ターンの manual `Break` は同一敵へ複数 actor が重複成立しないようにする
+  - 勝者は action 実行順（`非ダメージ先 / ダメージ後`、同 phase 内は front position 昇順）で決める
+  - 先行 actor が取った敵は後続 actor の break editor / popup editor では disabled 表示にし、saved replay や stale draft から重複が来ても engine 側で first-wins に正規化する
+- 後続 actor の本物の `SuperBreak` / `SuperBreakDown` は manual `Break` 重複禁止の対象に含めない
+  - 先行 actor の manual `Break` 後に後続 skill が `SuperBreak` を行う upgrade は許可する
+  - `SuperBreakDown` は既存 engine 挙動どおり、既に `Break` 済みなら no-op / `DownTurn` 済みなら `SuperBreakDown` へ進む
+- Playwright E2E では `[演習機]ヘフティーガーディアン` に対する `月歌: クロス斬り（manual Break）` → `ユキ: 光輝の夜明け` の next-turn / same-turn 両ケースを固定し、committed row popup と次 input row popup の `強ブレイク` 表示、`LightSuperBreak` アイコン、`最大D率 600` を確認する
+- `SuperBreak` / `SuperBreakDown` は engine の専用処理で破壊率上限と breakState を更新するが、外部へ見せる status 名は canonical な `SuperBreak` / `SuperBreakDown` に統一する
+- `SuperBreak` は skill part の `hits` を見る
+  - `Before`: 行動開始時に既に `Break` の敵だけを強ブレイク化する
+  - `After`: この行動の攻撃で同一行動内に `Break` した敵も強ブレイク化できる
+  - `光輝の夜明け` は個別例外ではなく、この `Before/After` 規則で扱う
+- enemy detail popup の `Break` 表示は役割を分離する
+  - 基本情報の状態バッジ: `Alive / BREAK / Dead`
+  - `状態異常 / バフ` 一覧: `DownTurn` / `SuperBreak` / `SuperBreakDown` などを表示し、bare `Break` は出さない
+  - action row の `Break.webp`: manual break 編集用の `ブレイク付与` ボタンとして扱う
 - enemy detail popup から break / kill editor を開いたときは popup を閉じず、選択中 enemy slot を requested context として sub-panel 内に editor を共存表示する
 - popup から開いた sub-panel editor では requested enemy を初期選択状態として見せ、single-target の local target override と all-target の複数選択を従来どおり使える
 - 行上の常設表示は要約 1 件ではなく、`actor→enemy ブレイク` の chip 群とする

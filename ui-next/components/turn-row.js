@@ -52,7 +52,7 @@ import {
 import { buildFieldDisplayEntries } from '../utils/field-state-display.js';
 import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
 import { buildActionFlowFromRecord } from '../utils/action-flow-builder.js';
-import { applyBeforeCommitOperations } from '../../src/turn/turn-operations.js';
+import { sortTurnActionExecutionEntries } from '../../src/turn/action-execution-order.js';
 
 // select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
 // 属性/武器種バッジと SP コストを段階的に隠す。
@@ -655,17 +655,7 @@ export class TurnRowController {
   }
 
   getCurrentEnemyCount() {
-    const baseCount = clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
-    // stateBefore includes the effect of pending summon operations, so
-    // draftEnemyCount is already inflated.  When this count is fed back into
-    // commitNextTurn → withEnemyCount, the engine sees the post-summon count
-    // *before* running the summon, causing resolveSummonEnemySlotIndex to
-    // pick a wrong slot.  Subtract pending summons so the engine receives the
-    // pre-summon count and resolves the correct target slot.
-    const pendingSummonCount = (Array.isArray(this.#operations) ? this.#operations : [])
-      .filter((op) => String(op?.type ?? '') === REPLAY_OPERATION_TYPES.SUMMON_ENEMY)
-      .length;
-    return clampEnemyCount(baseCount - pendingSummonCount);
+    return clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
   }
 
   #getEnemySummonPresets() {
@@ -726,40 +716,8 @@ export class TurnRowController {
     };
   }
 
-  #cloneStateForOperationPreview(state) {
-    if (!state || typeof state !== 'object') {
-      return null;
-    }
-    return {
-      ...state,
-      party: Array.isArray(state.party)
-        ? state.party.map((member) => (typeof member?.clone === 'function' ? member.clone() : structuredClone(member)))
-        : [],
-      turnState: structuredClone(state.turnState ?? {}),
-    };
-  }
-
   #buildProjectedEnemyPopupState() {
-    const sourceState = this.#stateBefore ?? this.#stateAfter;
-    if (!sourceState?.turnState) {
-      return sourceState;
-    }
-    if (!this.#isInputMode()) {
-      return sourceState;
-    }
-    const workingState = this.#cloneStateForOperationPreview(sourceState);
-    if (!workingState?.turnState) {
-      return sourceState;
-    }
-    try {
-      return applyBeforeCommitOperations(
-        workingState,
-        this.#operations,
-        { enemyCount: this.getCurrentEnemyCount() }
-      );
-    } catch {
-      return sourceState;
-    }
+    return this.#stateBefore ?? this.#stateAfter;
   }
 
   #getEnemyDetailPopupActiveEnemyIndex(fallback = 0) {
@@ -982,7 +940,7 @@ export class TurnRowController {
     });
   }
 
-  #getBreakSelectionContext({ member, isCommitted, enemyCount }) {
+  #buildBreakSelectionContextBase({ member, isCommitted, enemyCount }) {
     if (!member) {
       return null;
     }
@@ -1046,9 +1004,90 @@ export class TurnRowController {
       currentReplayTarget,
       currentTargetLabel,
       rawBreakEnemyIndexes,
-      breakEnabled: rawBreakEnemyIndexes.length > 0,
+      rawBreakEnabled: rawBreakEnemyIndexes.length > 0,
+      claimedBreakEnemyIndexesBeforeSelf: [],
+      blockedBreakEnemyIndexes: [],
+      effectiveBreakEnemyIndexes: [],
+      breakEnabled: false,
       isEnemyTargetSelectionManual: isEnemyTargetSelectionManual(this.#simulatorSettings),
     };
+  }
+
+  #resolveBreakSelectionContextMap({ isCommitted, enemyCount }) {
+    const members = this.#getMembersInPositionOrder()
+      .filter((member) => member.position <= 2)
+      .filter((member) => !(this.#isExtraTurn() && !this.#isActionable(member)));
+    const baseContexts = members
+      .map((member) => this.#buildBreakSelectionContextBase({ member, isCommitted, enemyCount }))
+      .filter(Boolean);
+    const contextsByPartyIndex = new Map(
+      baseContexts.map((context) => [Number(context.member.partyIndex), context])
+    );
+    const claimedBreakEnemyIndexes = new Set();
+    const orderedContexts = sortTurnActionExecutionEntries(
+      baseContexts.map((context) => ({
+        position: context.member.position,
+        skill: context.skill,
+        context,
+      }))
+    );
+    for (const entry of orderedContexts) {
+      const context = entry.context;
+      const claimedBefore = [...claimedBreakEnemyIndexes];
+      const aliveRequestedEnemyIndexes = context.rawBreakEnemyIndexes.filter((enemyIndex) =>
+        this.#isEnemySlotAlive(enemyIndex)
+      );
+      const blockedBreakEnemyIndexes = aliveRequestedEnemyIndexes.filter((enemyIndex) =>
+        claimedBreakEnemyIndexes.has(enemyIndex)
+      );
+      let effectiveBreakEnemyIndexes = [];
+      if (context.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+        effectiveBreakEnemyIndexes = aliveRequestedEnemyIndexes.filter(
+          (enemyIndex) => !claimedBreakEnemyIndexes.has(enemyIndex)
+        );
+      } else if (
+        context.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.SINGLE &&
+        context.rawBreakEnabled &&
+        context.currentReplayTarget.type === 'enemy'
+      ) {
+        const targetEnemyIndex = Number(context.currentReplayTarget.enemyIndex);
+        if (
+          Number.isInteger(targetEnemyIndex) &&
+          this.#isEnemySlotAlive(targetEnemyIndex) &&
+          !claimedBreakEnemyIndexes.has(targetEnemyIndex)
+        ) {
+          effectiveBreakEnemyIndexes = [targetEnemyIndex];
+        }
+      }
+      effectiveBreakEnemyIndexes.forEach((enemyIndex) => claimedBreakEnemyIndexes.add(enemyIndex));
+      contextsByPartyIndex.set(Number(context.member.partyIndex), {
+        ...context,
+        claimedBreakEnemyIndexesBeforeSelf: claimedBefore,
+        blockedBreakEnemyIndexes,
+        effectiveBreakEnemyIndexes,
+        breakEnabled: effectiveBreakEnemyIndexes.length > 0,
+      });
+    }
+    return contextsByPartyIndex;
+  }
+
+  #getBreakSelectionContext({ member, isCommitted, enemyCount }) {
+    if (!member) {
+      return null;
+    }
+    const contextsByPartyIndex = this.#resolveBreakSelectionContextMap({ isCommitted, enemyCount });
+    return (
+      contextsByPartyIndex.get(Number(member.partyIndex)) ??
+      this.#buildBreakSelectionContextBase({ member, isCommitted, enemyCount })
+    );
+  }
+
+  #isBreakEnemyClaimedForSelection(selectionContext, enemyIndex) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (!selectionContext || !Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0) {
+      return false;
+    }
+    return selectionContext.claimedBreakEnemyIndexesBeforeSelf.includes(normalizedEnemyIndex);
   }
 
   #getPopupOutcomeCandidateContexts(enemyIndex, isCommitted = this.#isCommittedDisplayMode()) {
@@ -1077,13 +1116,17 @@ export class TurnRowController {
             canRetargetToRequestedEnemy: false,
           };
         }
+        const requestedEnemyClaimed = this.#isBreakEnemyClaimedForSelection(
+          selectionContext,
+          normalizedEnemyIndex
+        );
         if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
           return {
             member,
             selectionContext,
-            isCandidate: true,
+            isCandidate: !requestedEnemyClaimed,
             currentTargetMatches: false,
-            canRetargetToRequestedEnemy: true,
+            canRetargetToRequestedEnemy: !requestedEnemyClaimed,
           };
         }
         if (selectionContext.breakAttributionMode !== TURN_BREAK_ATTRIBUTION_MODES.SINGLE) {
@@ -1097,7 +1140,8 @@ export class TurnRowController {
         }
         const currentTargetMatches =
           selectionContext.currentReplayTarget.type === 'enemy' &&
-          Number(selectionContext.currentReplayTarget.enemyIndex) === normalizedEnemyIndex;
+          Number(selectionContext.currentReplayTarget.enemyIndex) === normalizedEnemyIndex &&
+          !requestedEnemyClaimed;
         const canRetargetToRequestedEnemy =
           !selectionContext.isEnemyTargetSelectionManual &&
           selectionContext.singleTargetConfig?.kind === 'enemy' &&
@@ -1105,7 +1149,8 @@ export class TurnRowController {
             (candidate) =>
               Number(candidate?.enemyIndex) === normalizedEnemyIndex &&
               candidate?.disabled !== true
-          );
+          ) &&
+          !requestedEnemyClaimed;
         return {
           member,
           selectionContext,
@@ -1143,6 +1188,11 @@ export class TurnRowController {
     }
     const enemyCount = this.getCurrentEnemyCount();
     const normalizedRequestedEnemyIndex = Number(requestedEnemyIndex);
+    const previousTarget = this.#getDraftReplayTarget(partyIndex);
+    const previousTargetEnemyIndex =
+      previousTarget.type === 'enemy'
+        ? Number(previousTarget.enemyIndex)
+        : null;
     if (Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0) {
       this.#setDraftEnemyTarget(partyIndex, normalizedRequestedEnemyIndex);
     }
@@ -1161,6 +1211,15 @@ export class TurnRowController {
           ? Number(selectionContext.currentReplayTarget.enemyIndex)
           : null;
     if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0 || targetEnemyIndex >= enemyCount) {
+      if (Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0) {
+        this.#setDraftEnemyTarget(partyIndex, previousTargetEnemyIndex);
+      }
+      return false;
+    }
+    if (this.#isBreakEnemyClaimedForSelection(selectionContext, targetEnemyIndex)) {
+      if (Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0) {
+        this.#setDraftEnemyTarget(partyIndex, previousTargetEnemyIndex);
+      }
       return false;
     }
     const nextEnemyIndexes = selectionContext.breakEnabled ? [] : [targetEnemyIndex];
@@ -1186,6 +1245,25 @@ export class TurnRowController {
       enemyCount,
     });
     const normalizedEnemyIndex = Number(enemyIndex);
+    if (
+      !Number.isInteger(normalizedEnemyIndex) ||
+      normalizedEnemyIndex < 0 ||
+      normalizedEnemyIndex >= enemyCount ||
+      !this.#isEnemySlotAlive(normalizedEnemyIndex)
+    ) {
+      return false;
+    }
+    const selectionContext = this.#getBreakSelectionContext({
+      member,
+      isCommitted: false,
+      enemyCount,
+    });
+    if (
+      !currentEnemyIndexes.includes(normalizedEnemyIndex) &&
+      this.#isBreakEnemyClaimedForSelection(selectionContext, normalizedEnemyIndex)
+    ) {
+      return false;
+    }
     const nextEnemyIndexes = currentEnemyIndexes.includes(normalizedEnemyIndex)
       ? currentEnemyIndexes.filter((candidate) => candidate !== normalizedEnemyIndex)
       : [...currentEnemyIndexes, normalizedEnemyIndex];
@@ -1346,13 +1424,12 @@ export class TurnRowController {
       }
       let enemyIndexes = [];
       if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
-        enemyIndexes = selectionContext.rawBreakEnemyIndexes;
+        enemyIndexes = selectionContext.effectiveBreakEnemyIndexes;
       } else if (
         selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.SINGLE &&
-        selectionContext.breakEnabled &&
-        selectionContext.currentReplayTarget.type === 'enemy'
+        selectionContext.breakEnabled
       ) {
-        enemyIndexes = [Number(selectionContext.currentReplayTarget.enemyIndex)];
+        enemyIndexes = selectionContext.effectiveBreakEnemyIndexes;
       }
       if (enemyIndexes.length === 0) {
         continue;
@@ -2180,17 +2257,26 @@ export class TurnRowController {
       selectionContext.singleTargetConfig?.kind === 'enemy' &&
       Number(selectionContext.singleTargetConfig?.candidates?.length ?? 0) > 1;
     const isBreakOutcome = outcome === ACTION_OUTCOME_TYPES.BREAK;
+    const targetClaimedByEarlierActor =
+      isBreakOutcome &&
+      Number.isInteger(displayTargetEnemyIndex) &&
+      this.#isBreakEnemyClaimedForSelection(selectionContext, displayTargetEnemyIndex);
     const actualSelectionActive = isBreakOutcome
       ? selectionContext.breakEnabled &&
         selectionContext.currentReplayTarget.type === 'enemy' &&
-        Number(selectionContext.currentReplayTarget.enemyIndex) === displayTargetEnemyIndex
+        Number(selectionContext.currentReplayTarget.enemyIndex) === displayTargetEnemyIndex &&
+        selectionContext.effectiveBreakEnemyIndexes.includes(displayTargetEnemyIndex)
       : (this.#draftKillEnemyIndexesByPartyIndex?.[selectionContext.member.partyIndex] ?? [])
           .includes(displayTargetEnemyIndex);
     const accentButtonClasses = isBreakOutcome
       ? 'border-amber-500 bg-amber-500 text-white'
       : 'border-rose-500 bg-rose-500 text-white';
     const accentHeadingClass = isBreakOutcome ? 'text-green-700' : 'text-rose-700';
-    const isToggleEnabled = enabled && Number.isInteger(displayTargetEnemyIndex);
+    const isToggleEnabled =
+      enabled &&
+      Number.isInteger(displayTargetEnemyIndex) &&
+      (!isBreakOutcome || !targetClaimedByEarlierActor) &&
+      (!isBreakOutcome || this.#isEnemySlotAlive(displayTargetEnemyIndex));
 
     return `
       <div class="mb-1 space-y-1">
@@ -2212,14 +2298,18 @@ export class TurnRowController {
               ${selectionContext.singleTargetConfig.candidates.map((candidate) => {
                 const label = this.#resolveEnemyPopupEnemyLabel(candidate.enemyIndex, enemyNamesByEnemy);
                 const isSelected = Number(displayTargetEnemyIndex) === Number(candidate.enemyIndex);
+                const candidateClaimedByEarlierActor =
+                  isBreakOutcome &&
+                  this.#isBreakEnemyClaimedForSelection(selectionContext, candidate.enemyIndex);
+                const candidateDisabled = candidate.disabled || candidateClaimedByEarlierActor;
                 return `
                   <button type="button"
                           data-role="manual-break-target-candidate"
                           data-party-index="${selectionContext.member.partyIndex}"
                           data-enemy-index="${candidate.enemyIndex}"
-                          ${candidate.disabled ? 'disabled' : ''}
+                          ${candidateDisabled ? 'disabled' : ''}
                           class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                                 ${candidate.disabled
+                                 ${candidateDisabled
                                    ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
                                    : isSelected
                                    ? 'border-sky-500 bg-sky-500 text-white'
@@ -2239,7 +2329,9 @@ export class TurnRowController {
                   : ''}
                 ${isToggleEnabled ? '' : 'disabled'}
                 class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                       ${actualSelectionActive
+                       ${!isToggleEnabled
+                         ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                         : actualSelectionActive
                          ? accentButtonClasses
                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
           ${escapeHtml(displayTargetLabel)}
@@ -2262,9 +2354,14 @@ export class TurnRowController {
           <div class="flex flex-wrap gap-1.5">
             ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
               const isAlive = this.#isEnemySlotAlive(enemyIndex);
-              const isSelected = selectionContext.rawBreakEnemyIndexes.includes(enemyIndex);
+              const isSelected = selectionContext.effectiveBreakEnemyIndexes.includes(enemyIndex);
+              const isClaimedByEarlierActor = this.#isBreakEnemyClaimedForSelection(
+                selectionContext,
+                enemyIndex
+              );
               const isRequested =
                 !isSelected &&
+                !isClaimedByEarlierActor &&
                 Number(requestedEnemyIndex) === enemyIndex;
               const label = this.#resolveEnemyPopupEnemyLabel(enemyIndex, enemyNamesByEnemy);
               return `
@@ -2272,9 +2369,9 @@ export class TurnRowController {
                         data-role="manual-break-candidate"
                         data-party-index="${selectionContext.member.partyIndex}"
                         data-enemy-index="${enemyIndex}"
-                        ${isAlive ? '' : 'disabled'}
+                        ${isAlive && !isClaimedByEarlierActor ? '' : 'disabled'}
                         class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                               ${!isAlive
+                               ${!isAlive || isClaimedByEarlierActor
                                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
                                  : isSelected
                                  ? 'border-amber-500 bg-amber-500 text-white'
@@ -2814,13 +2911,12 @@ export class TurnRowController {
     }
     if (
       selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.SINGLE &&
-      selectionContext.breakEnabled &&
-      selectionContext.currentReplayTarget.type === 'enemy'
+      selectionContext.breakEnabled
     ) {
-      return [Number(selectionContext.currentReplayTarget.enemyIndex)];
+      return selectionContext.effectiveBreakEnemyIndexes;
     }
     if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
-      return selectionContext.rawBreakEnemyIndexes;
+      return selectionContext.effectiveBreakEnemyIndexes;
     }
     return [];
   }
@@ -2841,7 +2937,11 @@ export class TurnRowController {
           <div class="flex flex-wrap gap-1.5">
             ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
               const isAlive = this.#isEnemySlotAlive(enemyIndex);
-              const isSelected = selectionContext.rawBreakEnemyIndexes.includes(enemyIndex);
+              const isSelected = selectionContext.effectiveBreakEnemyIndexes.includes(enemyIndex);
+              const isClaimedByEarlierActor = this.#isBreakEnemyClaimedForSelection(
+                selectionContext,
+                enemyIndex
+              );
               const enemyName = String(
                 enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
               ).trim();
@@ -2851,9 +2951,9 @@ export class TurnRowController {
                         data-role="manual-break-candidate"
                         data-party-index="${selectionContext.member.partyIndex}"
                         data-enemy-index="${enemyIndex}"
-                        ${isAlive ? '' : 'disabled'}
+                        ${isAlive && !isClaimedByEarlierActor ? '' : 'disabled'}
                         class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                               ${!isAlive
+                               ${!isAlive || isClaimedByEarlierActor
                                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
                                  : isSelected
                                  ? 'border-amber-500 bg-amber-500 text-white'
@@ -2883,6 +2983,12 @@ export class TurnRowController {
       !selectionContext.isEnemyTargetSelectionManual &&
       selectionContext.singleTargetConfig?.kind === 'enemy' &&
       Number(selectionContext.singleTargetConfig?.candidates?.length ?? 0) > 1;
+    const singleTargetClaimedByEarlierActor =
+      selectionContext.currentReplayTarget.type === 'enemy' &&
+      this.#isBreakEnemyClaimedForSelection(
+        selectionContext,
+        selectionContext.currentReplayTarget.enemyIndex
+      );
 
     return `
       <div class="mb-1 space-y-1">
@@ -2907,14 +3013,19 @@ export class TurnRowController {
                   const isSelected =
                     selectionContext.explicitTarget.type === 'enemy' &&
                     Number(selectionContext.explicitTarget.enemyIndex) === Number(candidate.enemyIndex);
+                  const candidateClaimedByEarlierActor = this.#isBreakEnemyClaimedForSelection(
+                    selectionContext,
+                    candidate.enemyIndex
+                  );
+                  const candidateDisabled = candidate.disabled || candidateClaimedByEarlierActor;
                   return `
                     <button type="button"
                             data-role="manual-break-target-candidate"
                             data-party-index="${selectionContext.member.partyIndex}"
                             data-enemy-index="${candidate.enemyIndex}"
-                            ${candidate.disabled ? 'disabled' : ''}
+                            ${candidateDisabled ? 'disabled' : ''}
                             class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                                   ${candidate.disabled
+                                   ${candidateDisabled
                                      ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
                                      : isSelected
                                      ? 'border-sky-500 bg-sky-500 text-white'
@@ -2929,8 +3040,11 @@ export class TurnRowController {
         <button type="button"
                 data-role="manual-break-single-toggle"
                 data-party-index="${selectionContext.member.partyIndex}"
+                ${singleTargetClaimedByEarlierActor ? 'disabled' : ''}
                 class="target-chip inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors
-                       ${selectionContext.breakEnabled
+                       ${singleTargetClaimedByEarlierActor
+                         ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                         : selectionContext.breakEnabled
                          ? 'border-amber-500 bg-amber-500 text-white'
                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
           ${selectionContext.currentTargetLabel || defaultTargetLabel}
@@ -3185,6 +3299,15 @@ export class TurnRowController {
         const partyIndex = Number(btn.dataset.partyIndex);
         const enemyIndex = Number(btn.dataset.enemyIndex);
         if (!Number.isFinite(partyIndex) || !Number.isInteger(enemyIndex) || enemyIndex < 0) {
+          return;
+        }
+        const member = this.#getPartyMemberByPartyIndex(partyIndex);
+        const selectionContext = this.#getBreakSelectionContext({
+          member,
+          isCommitted: false,
+          enemyCount: this.getCurrentEnemyCount(),
+        });
+        if (this.#isBreakEnemyClaimedForSelection(selectionContext, enemyIndex)) {
           return;
         }
         this.#isBreakEditorOpen = !popupScoped;

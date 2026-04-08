@@ -12,6 +12,7 @@ import {
   REPLAY_OPERATION_TYPES,
   REPLAY_OVERRIDE_ENTRY_TYPES,
 } from '../src/ui/lightweight-replay-script.js';
+import { applyBeforeCommitOperations } from '../src/turn/turn-operations.js';
 import { TARGET_SELECTION_MODES } from '../ui-next/utils/simulator-settings.js';
 import {
   DEFAULT_SUMMON_SAMPLE_ENEMY,
@@ -312,6 +313,37 @@ function createEnemyPreset({
   };
 }
 
+function createSummonEnemyOperation({
+  enemyId = DEFAULT_SUMMON_SAMPLE_ENEMY.id,
+  enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
+  maxDRate = 350,
+  fireRate = 250,
+} = {}) {
+  return {
+    type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
+    payload: {
+      enemyId,
+      enemyName,
+      od_rate: 0,
+      max_d_rate: maxDRate,
+      resistances: {
+        element: {
+          slash: 100,
+          stab: 100,
+          strike: 100,
+          fire: fireRate,
+          ice: 250,
+          thunder: 250,
+          light: 250,
+          dark: 250,
+          nonelement: 100,
+        },
+      },
+      absorbElementList: ['fire'],
+    },
+  };
+}
+
 function createTurnAreaController({
   root,
   state,
@@ -346,6 +378,7 @@ function mountTurnRow({
   simulatorSettings,
   store = createStoreStub(),
   enemyPresets = [],
+  operations = [],
   previewActionFlow = [],
 }) {
   const row = new TurnRowController({
@@ -355,7 +388,7 @@ function mountTurnRow({
     turnIndex: 0,
     record: null,
     replayTurn: null,
-    operations: [],
+    operations,
     operationState: {
       kishinkaStatus: { hasTezuka: false },
       makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
@@ -1365,6 +1398,10 @@ test('TurnAreaController keeps only the enemy detail trigger in the row and expo
       [...inputPopup.querySelectorAll('[data-role="enemy-popup-action"]')].map((button) => button.dataset.actionType),
       ['summon', 'break', 'kill']
     );
+    assert.deepEqual(
+      [...inputPopup.querySelectorAll('[data-role="enemy-popup-action"] span')].map((label) => label.textContent?.trim()),
+      ['召喚', 'ブレイク付与', '討伐']
+    );
     const actionIconSources = [...inputPopup.querySelectorAll('[data-role="enemy-popup-action-icon"]')]
       .map((image) => image.getAttribute('src') ?? '');
     assert.equal(actionIconSources.some((src) => src.includes('Summon.webp')), true);
@@ -1458,7 +1495,16 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
 
     const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
     const popup = openEnemyDetailPopup(trigger, win);
-    const summonButton = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]');
+    // E1 is occupied — summon must be disabled
+    const e1Summon = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]');
+    assert.ok(e1Summon);
+    assert.equal(e1Summon.disabled, true);
+    // Switch to E2 (empty slot) where summon is allowed
+    const e2Tab = popup.querySelector('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]');
+    assert.ok(e2Tab);
+    e2Tab.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    const refreshedPopup = getEnemyDetailPopup(win);
+    const summonButton = refreshedPopup.querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]');
     assert.ok(summonButton);
     assert.equal(summonButton.disabled, false);
     assert.match(summonButton.innerHTML, /Summon\.webp/);
@@ -1483,6 +1529,41 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
     assert.equal(addedOperations[0]?.payload?.enemyName, DEFAULT_SUMMON_SAMPLE_ENEMY.name);
     assert.equal(addedOperations[0]?.payload?.max_d_rate, 350);
     assert.equal(addedOperations[0]?.payload?.resistances?.element?.fire, 250);
+  }));
+
+test('TurnRowController draft enemy detail popup uses materialized summon state without adding a phantom slot', () =>
+  withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1280, height: 900 });
+    const summonOperation = createSummonEnemyOperation();
+    const stateBefore = applyBeforeCommitOperations(
+      createState(
+        createSkill({
+          id: 95042,
+          name: 'Single Slash',
+          targetType: 'Single',
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+        }),
+        1
+      ),
+      [summonOperation],
+      { enemyCount: 1 }
+    );
+    mountTurnRow({
+      root,
+      stateBefore,
+      simulatorSettings: createSimulatorSettings(),
+      enemyPresets: [createEnemyPreset()],
+      operations: [summonOperation],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    const e2Column = popup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="1"]');
+    const e3Column = popup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="2"]');
+    assert.ok(e2Column);
+    assert.ok(e3Column);
+    assert.match(e2Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
+    assert.match(e3Column.textContent ?? '', /E3 未使用/);
+    assert.doesNotMatch(e3Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
   }));
 
 test('TurnAreaController applies popup break/kill to actor-based chips for unique single-target attribution', () =>
@@ -1619,8 +1700,10 @@ test('TurnAreaController shows Break badge and disables popup break action for a
     const breakAction = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="break"]');
     assert.ok(stateBadge);
     assert.ok(breakAction);
-    assert.equal(stateBadge.textContent?.trim(), 'Break');
+    assert.equal(stateBadge.textContent?.trim(), 'BREAK');
+    assert.equal(breakAction.textContent?.trim(), 'ブレイク付与');
     assert.equal(breakAction.disabled, true);
+    assert.equal(popup.querySelector('[data-status-type="Break"]'), null);
   }));
 
 test('TurnRowController enemy detail popup shows enemy resistance and absorb stats', () =>
@@ -1904,6 +1987,103 @@ test('TurnRowController enemy detail popup shows preview section at top for inpu
     assert.match(popup.textContent ?? '', /攻撃力ダウン/);
     assert.doesNotMatch(popup.textContent ?? '', /小笠原 緋雨/);
     assert.doesNotMatch(popup.textContent ?? '', /cost/);
+  }));
+
+test('TurnRowController enemy detail popup keeps SuperBreak visible with canonical label when remainingTurns is 0', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96021,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    state.turnState.enemyState.statuses = [
+      {
+        statusType: 'SuperBreak',
+        elements: ['Light'],
+        targetIndex: 0,
+        remainingTurns: 0,
+      },
+    ];
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /強ブレイク/);
+    assert.doesNotMatch(popup.textContent ?? '', /StrongBreak/);
+    assert.doesNotMatch(popup.textContent ?? '', /∞/);
+    assert.ok(popup.querySelector('[data-status-type="SuperBreak"]'));
+    assert.match(
+      popup.querySelector('[data-status-type="SuperBreak"] img')?.getAttribute('src') ?? '',
+      /LightSuperBreak\.webp/
+    );
+  }));
+
+test('TurnRowController enemy detail popup preview keeps SuperBreak visible with canonical label when preview remaining is 0', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96022,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '和泉 ユキ',
+          skillId: 46001212,
+          skillName: '光輝の夜明け',
+          costDelta: -14,
+          costPreSp: 6,
+          costPostSp: -8,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [
+            {
+              statusType: 'SuperBreak',
+              elements: ['Light'],
+              targetIndex: 0,
+              remaining: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /強ブレイク/);
+    assert.doesNotMatch(popup.textContent ?? '', /StrongBreak/);
+    assert.doesNotMatch(popup.textContent ?? '', /∞/);
+    assert.ok(popup.querySelector('[data-status-type="SuperBreak"]'));
+    assert.match(
+      popup.querySelector('[data-status-type="SuperBreak"] img')?.getAttribute('src') ?? '',
+      /LightSuperBreak\.webp/
+    );
   }));
 
 test('TurnRowController enemy detail popup shows no-change row when action has no enemy status changes', () =>
@@ -3442,6 +3622,66 @@ test('TurnAreaController supports simple-mode local target overrides for three s
     assert.deepEqual(secondAction?.manualBreakEnemyIndexes, [1]);
     assert.equal(thirdAction?.targetEnemyIndex, 2);
     assert.equal(thirdAction?.breakHitCount, 0);
+    assert.deepEqual(thirdAction?.manualBreakEnemyIndexes ?? [], []);
+    assert.deepEqual(
+      engineManager.getReplayTurn(0)?.overrideEntries.find(
+        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+      )?.payload,
+      [
+        { position: 0, outcome: 'Break', enemyIndexes: [0] },
+        { position: 1, outcome: 'Break', enemyIndexes: [1] },
+      ]
+    );
+  }));
+
+test('TurnAreaController disables later duplicate manual break targets after an earlier actor claims them', () =>
+  withDom(({ root, win }) => {
+    const singleTargetSkill = createSkill({
+      id: 9519,
+      name: 'Focused Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createFrontlineState(
+      [singleTargetSkill, singleTargetSkill, singleTargetSkill],
+      2
+    );
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    triggerEnemyPopupAction(win, 'break');
+
+    getEnemyDetailPopup(win)
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const secondActorDuplicateToggle = getEnemyDetailPopup(win)
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="1"]');
+    assert.equal(secondActorDuplicateToggle.hasAttribute('disabled'), true);
+
+    const secondActorTargetE2 = getEnemyDetailPopup(win)
+      .querySelector('[data-role="manual-break-target-candidate"][data-party-index="1"][data-enemy-index="1"]');
+    assert.equal(secondActorTargetE2.hasAttribute('disabled'), false);
+    secondActorTargetE2.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    getEnemyDetailPopup(win)
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    root
+      .querySelector('[data-role="commit-btn"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const committedActions = engineManager.computedRecords[0]?.actions ?? [];
+    const firstAction = committedActions.find((action) => action.positionIndex === 0);
+    const secondAction = committedActions.find((action) => action.positionIndex === 1);
+    const thirdAction = committedActions.find((action) => action.positionIndex === 2);
+
+    assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
+    assert.deepEqual(secondAction?.manualBreakEnemyIndexes, [1]);
     assert.deepEqual(thirdAction?.manualBreakEnemyIndexes ?? [], []);
     assert.deepEqual(
       engineManager.getReplayTurn(0)?.overrideEntries.find(

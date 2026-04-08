@@ -10,9 +10,14 @@
 
 import {
   resolveSkillTypeIconUrl,
-  STATUS_TYPE_DISPLAY_ORDER,
   getStatusLabel,
 } from './char-detail-popup.js';
+import {
+  ENEMY_STATUS_BREAK,
+  ENEMY_STATUS_SUPER_BREAK,
+  isPersistentEnemyStatusType,
+  normalizeEnemyStatusType,
+} from '../../src/domain/enemy-status.js';
 import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
 
 // 敵状態表示の最大アイコン数（overflow対応）
@@ -88,15 +93,25 @@ const ENEMY_STATUS_TYPE_ID_MAP = Object.freeze({
   HealDown: 146,
   Misfortune: 164,
   SelfDamage: 192,
+  SuperBreak: 221,
   RemoveBuff: 235,
   HealUp: 291,
+  SuperBreakDown: 302,
   Barrier: 321,
 });
 
 
 const ENEMY_STATUS_ICON_FALLBACK = Object.freeze({
   DownTurn: 'BreakDownTurnUp',
+  Break: '',
 });
+
+const ENEMY_STATUS_TYPES_WITHOUT_GENERIC_ICON = Object.freeze(
+  new Set([ENEMY_STATUS_BREAK, ENEMY_STATUS_SUPER_BREAK])
+);
+const ENEMY_STATUS_TYPES_HIDDEN_FROM_TABLE = Object.freeze(
+  new Set([ENEMY_STATUS_BREAK])
+);
 
 /**
  * elements[0] が有効で element-prefixed icon が存在する場合は、そちらの URL を返す。
@@ -106,14 +121,18 @@ const ENEMY_STATUS_ICON_FALLBACK = Object.freeze({
  * @returns {string} iconUrl
  */
 function resolveElementalIconUrl(statusType, elements) {
+  const normalizedStatusType = normalizeEnemyStatusType(statusType);
   const firstElement = String(Array.isArray(elements) ? (elements[0] ?? '') : '').trim();
   if (firstElement) {
-    const compositeType = `${firstElement}${statusType}`;
+    const compositeType = `${firstElement}${normalizedStatusType}`;
     if (ELEMENT_PREFIXED_STATUS_TYPES.has(compositeType)) {
       return resolveSkillTypeIconUrl(compositeType);
     }
   }
-  const fallbackIconType = ENEMY_STATUS_ICON_FALLBACK[String(statusType ?? '').trim()] ?? statusType;
+  const fallbackIconType = ENEMY_STATUS_ICON_FALLBACK[normalizedStatusType] ?? normalizedStatusType;
+  if (!fallbackIconType || ENEMY_STATUS_TYPES_WITHOUT_GENERIC_ICON.has(normalizedStatusType)) {
+    return '';
+  }
   return resolveSkillTypeIconUrl(fallbackIconType);
 }
 
@@ -126,9 +145,10 @@ function resolveElementalIconUrl(statusType, elements) {
  * @returns {string} label
  */
 function resolveElementalLabel(baseLabel, statusType, elements) {
+  const normalizedStatusType = normalizeEnemyStatusType(statusType);
   const firstElement = String(Array.isArray(elements) ? (elements[0] ?? '') : '').trim();
   if (firstElement) {
-    const compositeType = `${firstElement}${statusType}`;
+    const compositeType = `${firstElement}${normalizedStatusType}`;
     if (ELEMENT_PREFIXED_STATUS_TYPES.has(compositeType)) {
       return `${ELEMENT_KANJI[firstElement] ?? ''}${baseLabel}`;
     }
@@ -145,8 +165,9 @@ export function isActiveEnemyStatus(status) {
   if (!status) return false;
   // Eternal ケース
   if (String(status?.exitCond ?? '') === 'Eternal') return true;
+  if (isPersistentEnemyStatusType(status?.statusType)) return true;
   // 残ターン > 0
-  return Number(status?.remaining ?? 0) > 0;
+  return Number(status?.remaining ?? status?.remainingTurns ?? 0) > 0;
 }
 
 /**
@@ -155,7 +176,7 @@ export function isActiveEnemyStatus(status) {
  * @returns {number}
  */
 function getEnemyStatusPriorityIndex(status) {
-  const statusType = String(status?.statusType ?? '').trim();
+  const statusType = normalizeEnemyStatusType(status?.statusType);
   const index = ENEMY_DISPLAY_ORDER_INDEX.get(statusType);
 
   if (USE_SKILL_TYPE_ID_ASC_ORDER) {
@@ -297,23 +318,28 @@ export function pickEnemyStatusesForDisplay(statuses, options = {}) {
 export function getEnemyStatusLabel(status) {
   if (!status) return '';
   
-  const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
-  const remaining = Number(status?.remaining ?? 0);
+  const statusType = normalizeEnemyStatusType(status?.statusType) || 'Unknown';
+  const remaining = Number(status?.remaining ?? status?.remainingTurns ?? 0);
   const exitCond = String(status?.exitCond ?? '').trim();
+  const displayLabel = getStatusLabel(statusType);
   
   // Eternal の場合
   if (exitCond === 'Eternal') {
-    return `${statusType} (永続)`;
+    return `${displayLabel} (永続)`;
   }
   
+  if (isPersistentEnemyStatusType(statusType)) {
+    return displayLabel;
+  }
+
   // 残ターン表示
   if (remaining > 0) {
     const label = remaining === 1 ? '1ターン' : `${remaining}ターン`;
-    return `${statusType} ×${label}`;
+    return `${displayLabel} ×${label}`;
   }
   
   // デフォルト
-  return statusType;
+  return displayLabel;
 }
 
 /**
@@ -322,7 +348,9 @@ export function getEnemyStatusLabel(status) {
  * @returns {string} HTML ブロック要素のテキスト
  */
 export function buildEnemyStatusTableHtml(statuses) {
-  const sorted = getActiveEnemyStatusesSorted(statuses);
+  const sorted = getActiveEnemyStatusesSorted(statuses).filter(
+    (status) => !ENEMY_STATUS_TYPES_HIDDEN_FROM_TABLE.has(normalizeEnemyStatusType(status?.statusType))
+  );
 
   if (sorted.length === 0) {
     return '<p class="char-popup-empty">状態異常なし</p>';
@@ -330,7 +358,7 @@ export function buildEnemyStatusTableHtml(statuses) {
 
   return sorted
     .map((status, index) => {
-      const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
+      const statusType = normalizeEnemyStatusType(status?.statusType) || 'Unknown';
       const elements = Array.isArray(status?.elements) ? status.elements : [];
       const label = resolveElementalLabel(getStatusLabel(statusType), statusType, elements);
       const power = readEnemyStatusPower(status);
@@ -347,6 +375,8 @@ export function buildEnemyStatusTableHtml(statuses) {
       const remainingStr =
         exitCond === 'Eternal'
           ? '\u221e'
+          : isPersistentEnemyStatusType(statusType)
+          ? ''
           : exitCond === 'Count'
           ? `${remaining}\u56de`
           : `${remaining}T`;
@@ -393,11 +423,12 @@ export function buildEnemyStatusCompactText(statuses, options = {}) {
   }
   
   const labels = visible.map(status => {
-    const remaining = Number(status?.remaining ?? 0);
+    const normalizedStatusType = normalizeEnemyStatusType(status?.statusType);
+    const remaining = Number(status?.remaining ?? status?.remainingTurns ?? 0);
     if (remaining > 0) {
       return `${remaining}`;
     }
-    return String(status?.statusType ?? '').substring(0, 3);
+    return getStatusLabel(normalizedStatusType).substring(0, 3);
   });
   
   let text = labels.join(', ');
@@ -429,16 +460,20 @@ export function buildEnemyStatusIconsHtml(statuses, options = {}) {
   }
   
   const iconHtmls = visible.map((status, index) => {
-    const statusType = String(status?.statusType ?? '').trim() || 'Unknown';
+    const statusType = normalizeEnemyStatusType(status?.statusType) || 'Unknown';
     const elements = Array.isArray(status?.elements) ? status.elements : [];
-    const remaining = Number(status?.remaining ?? 0);
+    const remaining = Number(status?.remaining ?? status?.remainingTurns ?? 0);
     const iconUrl = resolveElementalIconUrl(statusType, elements);
     const displayLabel = resolveElementalLabel(getStatusLabel(statusType), statusType, elements);
     
     const title =
-      remaining > 0
+      remaining > 0 && !isPersistentEnemyStatusType(statusType)
         ? `${displayLabel} (残り${remaining}ターン)`
         : displayLabel;
+
+    if (!iconUrl) {
+      return '';
+    }
     
     return `
       <img
@@ -470,8 +505,8 @@ export function getEnemyStatusMetadata(status) {
   if (!status) return {};
   
   return {
-    statusType: String(status.statusType ?? '').trim(),
-    remaining: Number(status.remaining ?? 0),
+    statusType: normalizeEnemyStatusType(status.statusType),
+    remaining: Number(status.remaining ?? status.remainingTurns ?? 0),
     power: readEnemyStatusPower(status),
     elements: Array.isArray(status.elements) ? status.elements : [],
     exitCond: String(status.exitCond ?? '').trim(),

@@ -247,7 +247,9 @@ export class EnemyDetailPopup {
       return {
         enemyIndex: index,
         name: String(enemy?.name ?? (occupied ? `E${index + 1}` : `E${index + 1} 未使用`)).trim() || `E${index + 1}`,
-        statuses: Array.isArray(enemy?.statuses) ? enemy.statuses : [],
+        statuses: Array.isArray(enemy?.statuses)
+          ? structuredClone(enemy.statuses)
+          : [],
         occupied,
         alive: Boolean(enemy?.alive),
         broken: Boolean(enemy?.broken),
@@ -378,17 +380,6 @@ export class EnemyDetailPopup {
             border-color: rgba(148, 163, 184, 0.18);
             background: rgba(100, 116, 139, 0.12);
           }
-          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-action-type="break"] {
-            min-height: auto;
-            padding: 0;
-            border: none;
-            background: transparent;
-            border-radius: 0;
-          }
-          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-action-type="break"]:hover:not(:disabled) {
-            background: transparent;
-            opacity: 0.88;
-          }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action-icon"] {
             width: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX}px;
             height: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX}px;
@@ -403,10 +394,6 @@ export class EnemyDetailPopup {
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"] span {
             text-shadow: 0 0 8px rgba(15, 23, 42, 0.25);
-          }
-          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-action-type="break"] [data-role="enemy-popup-action-icon"] {
-            width: auto;
-            filter: saturate(1.12) brightness(1.12);
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-tab"] {
             display: inline-flex;
@@ -600,14 +587,13 @@ export class EnemyDetailPopup {
   #buildActionButtonsHtml(enemy, enemyIndex) {
     const actionButtons = [
       ['summon', '召喚', SUMMON_BUTTON_ICON_URL, Boolean(enemy?.canSummon), false],
-      ['break', 'ブレイク', BREAK_BUTTON_ICON_URL, Boolean(enemy?.canBreak), Boolean(enemy?.hasPendingBreakOperation)],
+      ['break', 'ブレイク付与', BREAK_BUTTON_ICON_URL, Boolean(enemy?.canBreak), Boolean(enemy?.hasPendingBreakOperation)],
       ['kill', '討伐', KILL_BUTTON_ICON_URL, Boolean(enemy?.canKill), Boolean(enemy?.hasPendingKillOperation)],
     ];
     return `
       <div data-role="enemy-popup-action-row">
         ${actionButtons.map(([actionType, label, iconUrl, enabledByState, isPending]) => {
           const enabled = enabledByState && typeof this.#toolActions?.[actionType] === 'function';
-          const isBreakAction = actionType === 'break';
           const titleText = actionType === 'summon'
             ? label
             : `E${enemyIndex + 1} ${label}`;
@@ -620,7 +606,7 @@ export class EnemyDetailPopup {
                     title="${escapeHtml(titleText)}"
                     ${enabled ? '' : 'disabled'}>
               <img src="${iconUrl}" alt="${escapeHtml(label)}" data-role="enemy-popup-action-icon" />
-              ${isBreakAction ? '' : `<span>${escapeHtml(label)}</span>`}
+              <span>${escapeHtml(label)}</span>
             </button>
           `;
         }).join('')}
@@ -640,7 +626,7 @@ export class EnemyDetailPopup {
       })
       .filter(Boolean);
     const stateLabel = enemy?.occupied
-      ? (enemy?.dead ? 'Dead' : enemy?.broken ? 'Break' : 'Alive')
+      ? (enemy?.dead ? 'Dead' : enemy?.broken ? 'BREAK' : 'Alive')
       : '未使用';
     const stateKey = enemy?.occupied
       ? (enemy?.dead ? 'dead' : enemy?.broken ? 'broken' : 'alive')

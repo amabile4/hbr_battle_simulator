@@ -96,6 +96,24 @@ test('isActiveEnemyStatus identifies expired status as inactive', (t) => {
   assert.equal(isActiveEnemyStatus(status), false, 'remaining = 0 should be inactive');
 });
 
+test('isActiveEnemyStatus treats canonical SuperBreak as active even when remaining is 0', (t) => {
+  const status = {
+    statusType: 'SuperBreak',
+    remaining: 0,
+    exitCond: 'TurnEnd',
+  };
+  assert.equal(isActiveEnemyStatus(status), true, 'persistent SuperBreak should stay active');
+});
+
+test('isActiveEnemyStatus treats legacy StrongBreak alias as active even when remaining is 0', (t) => {
+  const status = {
+    statusType: 'StrongBreak',
+    remaining: 0,
+    exitCond: 'TurnEnd',
+  };
+  assert.equal(isActiveEnemyStatus(status), true, 'legacy StrongBreak should normalize to active SuperBreak');
+});
+
 test('isActiveEnemyStatus handles null/undefined', (t) => {
   assert.equal(isActiveEnemyStatus(null), false, 'null should be inactive');
   assert.equal(isActiveEnemyStatus(undefined), false, 'undefined should be inactive');
@@ -181,8 +199,13 @@ test('getEnemyStatusLabel formats remaining turns', (t) => {
     remaining: 3,
     exitCond: 'TurnEnd',
   };
-  assert.equal(getEnemyStatusLabel(status1), 'AttackDown ×1ターン', 'should format single turn');
-  assert.equal(getEnemyStatusLabel(status3), 'DefenseDown ×3ターン', 'should format multiple turns');
+  assert.equal(getEnemyStatusLabel(status1), '攻撃力ダウン ×1ターン', 'should format single turn');
+  assert.equal(getEnemyStatusLabel(status3), '防御力ダウン ×3ターン', 'should format multiple turns');
+});
+
+test('getEnemyStatusLabel normalizes SuperBreak aliases to the canonical Japanese label', (t) => {
+  assert.equal(getEnemyStatusLabel({ statusType: 'SuperBreak', remaining: 0 }), '強ブレイク');
+  assert.equal(getEnemyStatusLabel({ statusType: 'StrongBreak', remaining: 0 }), '強ブレイク');
 });
 
 /**
@@ -373,6 +396,37 @@ test('buildEnemyStatusTableHtml uses fallback icon and label for DownTurn', () =
   assert(html.includes('BreakDownTurnUp.webp'), 'DownTurn should fallback to BreakDownTurnUp icon');
   assert(html.includes('ダウンターン'), 'DownTurn should show Japanese label');
   assert(html.includes('2T'), 'DownTurn should show remaining turns');
+});
+
+test('buildEnemyStatusTableHtml uses LightSuperBreak icon and omits infinity for persistent SuperBreak', () => {
+  const html = buildEnemyStatusTableHtml([
+    {
+      statusType: 'SuperBreak',
+      elements: ['Light'],
+      remaining: 0,
+      exitCond: 'TurnEnd',
+    },
+  ]);
+
+  assert(html.includes('data-status-type="SuperBreak"'), 'SuperBreak should use canonical data-status-type');
+  assert(html.includes('LightSuperBreak.webp'), 'SuperBreak should use LightSuperBreak icon');
+  assert(html.includes('強ブレイク'), 'SuperBreak should show Japanese label');
+  assert(!html.includes('∞'), 'persistent SuperBreak should not render infinity');
+  assert(!html.includes('0T'), 'persistent SuperBreak should not render 0T');
+});
+
+test('buildEnemyStatusTableHtml hides Break because the popup state badge already represents BREAK state', () => {
+  const html = buildEnemyStatusTableHtml([
+    {
+      statusType: 'Break',
+      remaining: 0,
+      exitCond: 'TurnEnd',
+    },
+  ]);
+
+  assert(!html.includes('data-status-type="Break"'), 'Break should be hidden from the popup status table');
+  assert(html.includes('状態異常なし'), 'Break-only tables should fall back to the empty message');
+  assert(!html.includes('Break.webp'), 'Break should not pretend a skill_type icon exists');
 });
 
 test('buildEnemyStatusTableHtml keeps only stronger DownTurn when duplicate entries exist', () => {

@@ -12,6 +12,7 @@
  */
 
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { normalizeEnemyStatusType } from '../../src/domain/enemy-status.js';
 import { buildFieldDisplayEntries } from './field-state-display.js';
 import { SPECIAL_STATUS_TYPE_NAMES } from '../../src/domain/character-style.js';
 import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
@@ -124,6 +125,8 @@ const STATUS_LABELS = {
   Cover:                     'かばう',
   Dodge:                     '回避',
   Provoke:                   '挑発',
+  Break:                     'BREAK',
+  SuperBreak:                '強ブレイク',
   BreakGuard:                'ブレイクガード',
   SuperBreakDown:            '超ダウン',
   DownTurn:                  'ダウンターン',
@@ -220,6 +223,7 @@ const STATUS_TAB_SKILL_TYPE_ID_MAP = Object.freeze({
   SelfDamage: 192,
   DebuffGuard: 226,
   BreakGuard: 231,
+  SuperBreak: 221,
   RemoveBuff: 235,
   Dodge: 243,
   BreakDownTurnUp: 264,
@@ -278,11 +282,12 @@ export function sortStatusEffectsForStatusTab(effects) {
 }
 
 export function getStatusLabel(statusType) {
-  return STATUS_LABELS[String(statusType ?? '')] ?? String(statusType ?? '');
+  const normalizedType = normalizeEnemyStatusType(statusType);
+  return STATUS_LABELS[normalizedType] ?? normalizedType;
 }
 
 function resolveElementalStatusType(statusType, elements) {
-  const normalizedType = String(statusType ?? '').trim();
+  const normalizedType = normalizeEnemyStatusType(statusType);
   const firstElement = String(Array.isArray(elements) ? elements[0] ?? '' : '').trim();
   if (!normalizedType || !firstElement) {
     return '';

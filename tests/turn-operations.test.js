@@ -269,6 +269,21 @@ test('applyBeforeCommitOperations summons into the next unused enemy slot and co
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['1'], 100);
 });
 
+test('applyBeforeCommitOperations preserves summon-expanded enemyCount when the caller passes a stale value', () => {
+  const state = createState({}, { enemyCount: 1 });
+  state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [createSummonEnemyOperation()],
+    { enemyCount: 1 }
+  );
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, 2);
+  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['1'], DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['2'], undefined);
+});
+
 test('applyBeforeCommitOperations reuses the lowest dead enemy slot without increasing enemyCount', () => {
   const state = createState({}, { enemyCount: 3 });
   state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' };

@@ -8,8 +8,17 @@ import {
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
+import {
+  ENEMY_STATUS_BREAK,
+  ENEMY_STATUS_SUPER_BREAK,
+  ENEMY_STATUS_SUPER_BREAK_DOWN,
+  ENEMY_STATUS_DEAD,
+  isPersistentEnemyStatusType,
+  normalizeEnemyStatusType,
+} from '../domain/enemy-status.js';
 import { isNormalAttackSkill, isPursuitOnlySkill } from '../domain/skill-classifiers.js';
 import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
+import { compareTurnActionExecutionOrder } from './action-execution-order.js';
 import {
   OD_RECOVERY_BY_LEVEL,
   OD_COST_BY_LEVEL,
@@ -51,12 +60,12 @@ const OD_DAMAGE_PART_TYPES = new Set([
   'FixedHpDamageRateAttack',
 ]);
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
-const ENEMY_STATUS_BREAK = 'Break';
-const ENEMY_STATUS_STRONG_BREAK = 'StrongBreak';
-const ENEMY_STATUS_SUPER_DOWN = 'SuperDown';
-const ENEMY_STATUS_DEAD = 'Dead';
+const ENEMY_STATUS_STRONG_BREAK = ENEMY_STATUS_SUPER_BREAK;
+const ENEMY_STATUS_SUPER_DOWN = ENEMY_STATUS_SUPER_BREAK_DOWN;
 const ENEMY_STATUS_PROVOKE = 'Provoke';
 const ENEMY_STATUS_ATTENTION = 'Attention';
+const SPECIAL_BREAK_HIT_TIMING_BEFORE = 'Before';
+const SPECIAL_BREAK_HIT_TIMING_AFTER = 'After';
 const ENEMY_SPECIAL_STATUS_TYPE_DEFENSE_DOWN = 3;
 const ENEMY_SPECIAL_STATUS_TYPE_PROVOKE = 12;
 const ENEMY_SPECIAL_STATUS_TYPE_FRAGILE = 22;
@@ -1592,7 +1601,7 @@ function normalizeEnemyStatus(status, enemyCount = null) {
   if (!status || typeof status !== 'object') {
     return null;
   }
-  const statusType = String(status?.statusType ?? status?.skill_type ?? '').trim();
+  const statusType = normalizeEnemyStatusType(status?.statusType ?? status?.skill_type ?? '');
   if (!statusType) {
     return null;
   }
@@ -1612,12 +1621,7 @@ function normalizeEnemyStatus(status, enemyCount = null) {
     status?.remainingTurns ??
     status?.remaining ??
     (Array.isArray(status?.effect?.exitVal) ? status.effect.exitVal[0] : undefined);
-  const isAlwaysActive =
-    exitCond === 'Eternal' ||
-    statusType === ENEMY_STATUS_BREAK ||
-    statusType === ENEMY_STATUS_STRONG_BREAK ||
-    statusType === ENEMY_STATUS_SUPER_DOWN ||
-    statusType === ENEMY_STATUS_DEAD;
+  const isAlwaysActive = exitCond === 'Eternal' || isPersistentEnemyStatusType(statusType);
   const remainingTurns = isAlwaysActive
     ? Number.isFinite(Number(rawRemaining))
       ? Number(rawRemaining)
@@ -2529,10 +2533,11 @@ function clearEnemySpecialBreakState(turnState, targetIndex) {
   removeEnemyStatuses(turnState, targetIndex, [ENEMY_STATUS_STRONG_BREAK, ENEMY_STATUS_SUPER_DOWN]);
 }
 
-function applyEnemyStrongBreakState(turnState, targetIndex) {
+function applyEnemyStrongBreakState(turnState, targetIndex, options = {}) {
   if (!hasEnemyStatus(turnState, targetIndex, ENEMY_STATUS_BREAK) || hasEnemyStatus(turnState, targetIndex, ENEMY_STATUS_STRONG_BREAK)) {
     return null;
   }
+  const elements = normalizeEnemyStatusElements(options?.elements);
   const current = getEnemyBreakStateByTarget(turnState, targetIndex);
   const nextState = {
     baseCap: current?.baseCap ?? deriveBaseCapForEnemy(turnState, targetIndex),
@@ -2550,18 +2555,21 @@ function applyEnemyStrongBreakState(turnState, targetIndex) {
     statusType: ENEMY_STATUS_STRONG_BREAK,
     targetIndex,
     remainingTurns: 0,
+    ...(elements.length > 0 ? { elements } : {}),
   });
   return {
     targetIndex,
     statusType: ENEMY_STATUS_STRONG_BREAK,
     destructionRateCap: getEnemyDestructionRateCapPercent(turnState, targetIndex),
+    ...(elements.length > 0 ? { elements } : {}),
   };
 }
 
-function applyEnemySuperDownState(turnState, targetIndex) {
+function applyEnemySuperDownState(turnState, targetIndex, options = {}) {
   if (hasEnemyStatus(turnState, targetIndex, ENEMY_STATUS_SUPER_DOWN)) {
     return null;
   }
+  const elements = normalizeEnemyStatusElements(options?.elements);
   const currentRate = getEnemyDestructionRatePercent(turnState, targetIndex);
   const currentCap = getEnemyDestructionRateCapPercent(turnState, targetIndex);
   const current = getEnemyBreakStateByTarget(turnState, targetIndex);
@@ -2585,6 +2593,7 @@ function applyEnemySuperDownState(turnState, targetIndex) {
     statusType: ENEMY_STATUS_SUPER_DOWN,
     targetIndex,
     remainingTurns: 0,
+    ...(elements.length > 0 ? { elements } : {}),
   });
   return {
     targetIndex,
@@ -2592,6 +2601,7 @@ function applyEnemySuperDownState(turnState, targetIndex) {
     destructionRateBefore: currentRate,
     destructionRateAfter: getEnemyDestructionRatePercent(turnState, targetIndex),
     destructionRateCap: getEnemyDestructionRateCapPercent(turnState, targetIndex),
+    ...(elements.length > 0 ? { elements } : {}),
   };
 }
 
@@ -2651,15 +2661,9 @@ function countAliveBrokenEnemiesWithMinDestructionRate(turnState, minRatePercent
 }
 
 function isEnemyStatusPersistent(status) {
-  const statusType = String(status?.statusType ?? '');
+  const statusType = normalizeEnemyStatusType(status?.statusType);
   const exitCond = String(status?.exitCond ?? '');
-  return (
-    exitCond === 'Eternal' ||
-    statusType === ENEMY_STATUS_BREAK ||
-    statusType === ENEMY_STATUS_STRONG_BREAK ||
-    statusType === ENEMY_STATUS_SUPER_DOWN ||
-    statusType === ENEMY_STATUS_DEAD
-  );
+  return exitCond === 'Eternal' || isPersistentEnemyStatusType(statusType);
 }
 
 function isEnemyStatusActive(status) {
@@ -2670,9 +2674,12 @@ function isEnemyStatusActive(status) {
 }
 
 function getActiveEnemyStatuses(turnState, statusType) {
-  const key = String(statusType ?? '');
+  const key = normalizeEnemyStatusType(statusType);
+  if (!key) {
+    return [];
+  }
   return getEnemyState(turnState).statuses.filter(
-    (status) => String(status?.statusType ?? '') === key && isEnemyStatusActive(status)
+    (status) => normalizeEnemyStatusType(status?.statusType) === key && isEnemyStatusActive(status)
   );
 }
 
@@ -7175,9 +7182,37 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
   return events;
 }
 
-function applyEnemyBreakEffectsFromActions(state, previewRecord) {
+function resolveSpecialBreakHitTiming(part) {
+  const hitTypes = new Set(
+    (Array.isArray(part?.hits) ? part.hits : [])
+      .map((hit) => String(hit?.type ?? '').trim())
+      .filter(Boolean)
+  );
+  const hasBefore = hitTypes.has(SPECIAL_BREAK_HIT_TIMING_BEFORE);
+  const hasAfter = hitTypes.has(SPECIAL_BREAK_HIT_TIMING_AFTER);
+  if (hasBefore && !hasAfter) {
+    return SPECIAL_BREAK_HIT_TIMING_BEFORE;
+  }
+  if (hasAfter && !hasBefore) {
+    return SPECIAL_BREAK_HIT_TIMING_AFTER;
+  }
+  return '';
+}
+
+function resolveSuperBreakReferenceTurnState(currentTurnState, preActionTurnState, part) {
+  const hitTiming = resolveSpecialBreakHitTiming(part);
+  if (hitTiming === SPECIAL_BREAK_HIT_TIMING_BEFORE && preActionTurnState) {
+    return preActionTurnState;
+  }
+  return currentTurnState;
+}
+
+function applyEnemyBreakEffectsFromActions(state, previewRecord, options = {}) {
   const events = [];
+  const preActionTurnState = options?.preActionTurnState ?? null;
+  const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
   for (const actionEntry of previewRecord.actions ?? []) {
+    const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
     if (!actor) {
       continue;
@@ -7215,17 +7250,32 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
         if (!condSatisfied) {
           continue;
         }
-        const isAlreadyBroken = hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK);
-        const hasDownTurn = hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN);
         if (skillType === 'SuperBreak') {
-          const applied = applyEnemyStrongBreakState(state.turnState, targetIndex);
+          const hitTiming = resolveSpecialBreakHitTiming(part);
+          const referenceTurnState = resolveSuperBreakReferenceTurnState(
+            state.turnState,
+            preActionTurnState,
+            part
+          );
+          const allowsSameActionManualBreak =
+            hitTiming !== SPECIAL_BREAK_HIT_TIMING_BEFORE &&
+            manualBreakEnemyIndexes.includes(Number(targetIndex));
+          if (!hasEnemyStatus(referenceTurnState, targetIndex, ENEMY_STATUS_BREAK) && !allowsSameActionManualBreak) {
+            continue;
+          }
+          if (allowsSameActionManualBreak && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
+            applyManualEnemyBreak(state.turnState, targetIndex);
+          }
+          const applied = applyEnemyStrongBreakState(state.turnState, targetIndex, {
+            elements: part?.elements,
+          });
           if (applied) {
             events.push(
               buildActionScopedEvent(actionEntry, {
                 actorCharacterId: actor.characterId,
                 skillId: Number(skill.skillId ?? 0),
                 skillName: String(skill.name ?? ''),
-                mode: 'StrongBreak',
+                mode: ENEMY_STATUS_SUPER_BREAK,
                 ...applied,
               })
             );
@@ -7233,19 +7283,23 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord) {
           continue;
         }
 
+        const isAlreadyBroken = hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK);
+        const hasDownTurn = hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN);
         if (isAlreadyBroken && !hasDownTurn) {
           continue;
         }
 
         if (hasDownTurn) {
-          const applied = applyEnemySuperDownState(state.turnState, targetIndex);
+          const applied = applyEnemySuperDownState(state.turnState, targetIndex, {
+            elements: part?.elements,
+          });
           if (applied) {
             events.push(
               buildActionScopedEvent(actionEntry, {
                 actorCharacterId: actor.characterId,
                 skillId: Number(skill.skillId ?? 0),
                 skillName: String(skill.name ?? ''),
-                mode: 'SuperDown',
+                mode: ENEMY_STATUS_SUPER_BREAK_DOWN,
                 ...applied,
               })
             );
@@ -7845,16 +7899,7 @@ function validateActionDict(state, actions, options = {}) {
   });
 
   // 非ダメージ先 / ダメージ後 の phase 優先を保った上で前衛 position 順に並べる。
-  entries.sort((a, b) => {
-    const phaseA = a.skill.type === 'damage' ? 1 : 0;
-    const phaseB = b.skill.type === 'damage' ? 1 : 0;
-
-    if (phaseA !== phaseB) {
-      return phaseA - phaseB;
-    }
-
-    return a.position - b.position;
-  });
+  entries.sort(compareTurnActionExecutionOrder);
 
   return entries;
 }
@@ -8357,6 +8402,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
         DEFAULT_ENEMY_COUNT
     ),
   });
+  const preActionTurnState = cloneTurnState(state.turnState);
   const removeDebuffEvents = applyRemoveDebuffEffectsFromActions(state, singleRecord);
   const epSkillEvents = applySkillSelfEpGains(state, singleRecord);
   const skillSpEvents = applySkillSpGains(state, singleRecord);
@@ -8396,7 +8442,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const buffStatusEvents = applyBuffStatusEffectsFromActions(state, singleRecord);
   const enemyStatusEvents = applyEnemyStatusEffectsFromActions(state, singleRecord);
   const enemyBreakEvents = [
-    ...applyEnemyBreakEffectsFromActions(state, singleRecord),
+    ...applyEnemyBreakEffectsFromActions(state, singleRecord, { preActionTurnState }),
     ...applyManualBreakEffectsFromActions(state, singleRecord),
   ];
   const enemyKillEvents = applyManualKillEffectsFromActions(state, singleRecord);

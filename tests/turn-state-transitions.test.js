@@ -2161,7 +2161,7 @@ test('御稲荷神話 halves SP cost when enemy Fragile is active in real data',
   assert.equal(preview.actions[0].spCost, 7);
 });
 
-test('シンメトリー・リベレーション resolves SuperDown enemy condition in overwrite_cond and SkillCondition', () => {
+test('シンメトリー・リベレーション resolves SuperBreakDown enemy condition in overwrite_cond and SkillCondition', () => {
   const store = getStore();
   const skillId = 46001523;
   const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
@@ -2172,7 +2172,7 @@ test('シンメトリー・リベレーション resolves SuperDown enemy condit
 
   state.turnState.enemyState = {
     enemyCount: 1,
-    statuses: [{ statusType: 'SuperDown', targetIndex: 0, remainingTurns: 0 }],
+    statuses: [{ statusType: 'SuperBreakDown', targetIndex: 0, remainingTurns: 0 }],
   };
   preview = previewActorSkill(state, skillId);
   assert.equal(preview.actions[0].spCost, 0);
@@ -7322,7 +7322,7 @@ test('iuc_cond mismatch does not emit skill condition mismatch warning', () => {
   );
 });
 
-test('SuperBreak only upgrades weak broken targets and records StrongBreak state', () => {
+test('SuperBreak only upgrades weak broken targets and records SuperBreak state', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? {
@@ -7338,6 +7338,7 @@ test('SuperBreak only upgrades weak broken targets and records StrongBreak state
                   target_type: 'All',
                   elements: ['Light'],
                   cond: 'IsHitWeak()',
+                  hits: [{ id: 1, type: 'Before', power_ratio: 0 }],
                 },
               ],
             },
@@ -7370,18 +7371,164 @@ test('SuperBreak only upgrades weak broken targets and records StrongBreak state
   const nextEnemyState = committed.nextState.turnState.enemyState;
 
   assert.equal(
-    nextEnemyState.statuses.some((status) => status.statusType === 'StrongBreak' && status.targetIndex === 0),
+    nextEnemyState.statuses.some((status) => status.statusType === 'SuperBreak' && status.targetIndex === 0),
     true
   );
+  assert.deepEqual(
+    nextEnemyState.statuses.find((status) => status.statusType === 'SuperBreak' && status.targetIndex === 0)?.elements,
+    ['Light']
+  );
   assert.equal(
-    nextEnemyState.statuses.some((status) => status.statusType === 'StrongBreak' && status.targetIndex === 1),
+    nextEnemyState.statuses.some((status) => status.statusType === 'SuperBreak' && status.targetIndex === 1),
     false
   );
   assert.equal(nextEnemyState.destructionRateCapByEnemy['0'], 600);
   assert.equal(nextEnemyState.destructionRateCapByEnemy['1'], undefined);
   assert.equal(action.enemyStatusChanges.length, 1);
-  assert.equal(action.enemyStatusChanges[0].mode, 'StrongBreak');
+  assert.equal(action.enemyStatusChanges[0].mode, 'SuperBreak');
   assert.equal(action.enemyStatusChanges[0].targetIndex, 0);
+  assert.deepEqual(action.enemyStatusChanges[0].elements, ['Light']);
+});
+
+test('SuperBreak After upgrades a target that the same action marked as Break', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18121,
+              name: 'Self Break Super',
+              hit_count: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                {
+                  skill_type: 'AttackSkill',
+                  target_type: 'Single',
+                  type: 'Stab',
+                  elements: ['Light'],
+                  power: [999999, 999999],
+                  value: [0, 0],
+                  strval: [-1, -1],
+                  cond: '',
+                  multipliers: { dp: 1, hp: 1, dr: 1 },
+                  parameters: { str: 1, wis: 0, dex: 1, spr: 0, luk: 0, con: 0 },
+                  growth: [0, 0],
+                  hits: [],
+                  hit_condition: '',
+                  target_condition: '',
+                  effect: { ir: false, category: 'None', limitType: 'None', exitCond: 'None', exitVal: [0, 0] },
+                },
+                {
+                  skill_type: 'SuperBreak',
+                  target_type: 'Single',
+                  elements: ['Light'],
+                  cond: 'IsHitWeak()',
+                  hits: [{ id: 1, type: 'After', power_ratio: 0 }],
+                },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(8800 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.statuses = [];
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Light: 150 } };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18121, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
+  });
+  const committed = commitTurn(state, preview);
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(committed.nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'SuperBreak' && change.targetIndex === 0),
+    true
+  );
+});
+
+test('SuperBreak Before does not upgrade a target that was only marked as Break by the same action', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18122,
+              name: 'Before Only Super',
+              hit_count: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                {
+                  skill_type: 'AttackSkill',
+                  target_type: 'Single',
+                  type: 'Stab',
+                  elements: ['Light'],
+                  power: [999999, 999999],
+                  value: [0, 0],
+                  strval: [-1, -1],
+                  cond: '',
+                  multipliers: { dp: 1, hp: 1, dr: 1 },
+                  parameters: { str: 1, wis: 0, dex: 1, spr: 0, luk: 0, con: 0 },
+                  growth: [0, 0],
+                  hits: [],
+                  hit_condition: '',
+                  target_condition: '',
+                  effect: { ir: false, category: 'None', limitType: 'None', exitCond: 'None', exitVal: [0, 0] },
+                },
+                {
+                  skill_type: 'SuperBreak',
+                  target_type: 'Single',
+                  elements: ['Light'],
+                  cond: 'IsHitWeak()',
+                  hits: [{ id: 1, type: 'Before', power_ratio: 0 }],
+                },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(8900 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.statuses = [];
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Light: 150 } };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18122, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
+  });
+  const committed = commitTurn(state, preview);
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 0
+    ),
+    false
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'SuperBreak'),
+    false
+  );
 });
 
 test('CountBC(...IsWeakElement(Fire)==1) in overwrite_cond changes SP cost from enemy damage rates', () => {
@@ -8354,7 +8501,7 @@ test('BreakDownTurnUp from triggered passive skill extends DownTurn by 1 turn on
   assert.equal(Number(downTurn?.remainingTurns ?? 0), 1);
 });
 
-test('SuperBreakDown upgrades down-turn target to SuperDown and restores cap when down-turn ends', () => {
+test('SuperBreakDown upgrades down-turn target to canonical SuperBreakDown state and restores cap when down-turn ends', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? {
@@ -8384,10 +8531,10 @@ test('SuperBreakDown upgrades down-turn target to SuperDown and restores cap whe
   let action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
 
   assert.equal(action.enemyStatusChanges.length, 1);
-  assert.equal(action.enemyStatusChanges[0].mode, 'SuperDown');
+  assert.equal(action.enemyStatusChanges[0].mode, 'SuperBreakDown');
   assert.equal(
     committed.nextState.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'SuperDown' && status.targetIndex === 0
+      (status) => status.statusType === 'SuperBreakDown' && status.targetIndex === 0
     ),
     true
   );
@@ -8407,7 +8554,7 @@ test('SuperBreakDown upgrades down-turn target to SuperDown and restores cap whe
   committed = commitTurn(committed.nextState, preview);
 
   assert.equal(
-    committed.nextState.turnState.enemyState.statuses.some((status) => status.statusType === 'SuperDown'),
+    committed.nextState.turnState.enemyState.statuses.some((status) => status.statusType === 'SuperBreakDown'),
     false
   );
   assert.equal(committed.nextState.turnState.enemyState.destructionRateByEnemy['0'], 300);
