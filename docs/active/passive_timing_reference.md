@@ -1,6 +1,6 @@
 # Passive Timing Reference
 
-> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-23
+> **ステータス**: 📚 参照 | 📅 最終更新: 2026-04-10
 
 ## §0. turn_timing.md との対応マッピング
 
@@ -14,7 +14,7 @@
 | ターン開始 | `OnEveryTurn` | 292 | ✅ | `applyRecoveryPipeline()` → `TURN_START_PASSIVE_TIMINGS` |
 | ターン開始（攻撃条件付き）| `OnPlayerTurnStart` | 199 | ✅ | 同上 |
 | 行動開始（コマンド選択後）| `OnEveryTurnIncludeSpecial` | 5 | ✅△ | `resolveEffectiveSkillForAction()` / `previewActionEntries()` |
-| OD発動時（ターン中）| `OnOverdriveStart` | 9 | ✅△ | `activateOverdrive()` 内の専用関数（EP/SP系のみ）⚠️ |
+| OD発動時（ターン中）| `OnOverdriveStart` | 9 | ✅ | `activateOverdrive()` → `applyPassiveTimingInternal("OnOverdriveStart")` |
 | 追加ターン開始（EX）| `OnAdditionalTurnStart` | 10 | ✅ | `commitTurn()` / `grantExtraTurn()` |
 | ▽敵行動開始 | `OnEnemyTurnStart` | 31 | ✅ | `commitTurn()` でベースターン進行時 |
 | バトル勝利 | `OnBattleWin` | 8 | ✅ | `commitTurn()` で敵全滅検知時 |
@@ -23,25 +23,11 @@
 > ダイアグラムにあって passive timing が存在しないもの:
 > `▽敵の先制行動`、`▽敵が行動`、`各種リセット`（パッシブタイミングなし、別処理）
 
-### ⚠️ OnOverdriveStart — 実装漏れ（2026-03-23 実データ確認）
+### OnOverdriveStart — 2026-04-10 HEAD再確認
 
-`activateOverdrive()` 内の専用関数は EP/SP 系のみ処理する設計だが、
-実データ9件のうち EP/SP 以外の effect を持つパッシブが存在する。
-
-```json
-{ "name": "専心",    "parts": ["AttackUp"] },           // x3 — ❌ 未処理
-{ "name": "思考加速", "parts": ["GiveDefenseDebuffUp"] }, //      — ❌ 未処理
-{ "name": "旭日昇天", "parts": ["HealSp"] },             //      — ✅ applyPassiveSpOnOverdriveStart
-{ "name": "飛躍",    "parts": ["ReduceSp"] },            //      — ✅ applyPassiveSpOnOverdriveStart
-{ "name": "獅子に鰭", "parts": ["ReduceSp"] },           //      — ✅ applyPassiveSpOnOverdriveStart
-{ "name": "エクスタシー", "parts": ["HealSp"] },         //      — ✅ applyPassiveSpOnOverdriveStart
-{ "name": "オーバーギア", "parts": ["EpLimitOverwrite", "HealEp"] } // — ✅ applyPassiveEpOnOverdriveStart
-```
-
-**影響**: `専心`（AttackUp ×3）と `思考加速`（GiveDefenseDebuffUp）は OD 発動時に効果が適用されていない。
-**修正案**: 専用関数を `applyPassiveTimingInternal('OnOverdriveStart')` に統一するか、
-対象外 effect を持つパッシブも処理できるよう拡張する。
-→ **未修正（ユーザー確認待ち）**
+- 旧ドキュメントでは `activateOverdrive()` の EP/SP 専用処理だけを見て runtime gap 扱いしていたが、現在は `applyPassiveTimingInternal("OnOverdriveStart")` に到達する
+- そのため `専心`（AttackUp）や `思考加速`（GiveDefenseDebuffUp）を含む `OnOverdriveStart` は runtime 未接続ではない
+- 追加で厚くできるのは OD 終了側の観測テストだが、T33 第1波では runtime gap ではなく stale claim 修正の対象とした
 
 ### OnEveryTurnIncludeSpecial — パッシブログ非表示（既知）
 
@@ -68,7 +54,7 @@
 | OnPlayerTurnStart | 198 | 行動開始時に評価される。攻撃前提の火力条件や行動選択時に効くバフ。 | `applyInitialPassiveState()` / `applyRecoveryPipeline()` または `applyPassiveTiming()` -> `applyPassiveTimingInternal(TURN_START_PASSIVE_TIMINGS)` | 勇猛(100110303), 英雄の凱歌(100110403), 星空(100110503) |
 | OnEnemyTurnStart | 31 | 敵行動開始境界で評価される。防御系・被弾前提の備え。 | `commitTurn()` で base turn が進んだときに `applyPassiveTimingInternal("OnEnemyTurnStart")` | 堅忍(100110203), 堅忍(100110301), 不屈の魂(100111000) |
 | OnAdditionalTurnStart | 10 | 追加ターンへ入る瞬間に評価される。EX専用のSP軽減や補助。 | `commitTurn()` / `grantExtraTurn()` で `applyPassiveTimingInternal("OnAdditionalTurnStart")` | クイックリキャスト(100330503), アフターサービス(100360700), 優美なる剣舞(100410703) |
-| OnOverdriveStart | 9 | OD発動時に評価される。OD突入直後の強化やSP補充。 | `activateOverdrive()` 内で EP 付与後に passive event を記録 | 専心(100260203), 専心(100450203), 専心(100510303) |
+| OnOverdriveStart | 9 | OD発動時に評価される。OD突入直後の強化やSP補充。 | `activateOverdrive()` → `applyPassiveTimingInternal("OnOverdriveStart")` | 専心(100260203), 専心(100450203), 専心(100510303) |
 | OnBattleWin | 4 | 勝利確定時に評価される。戦闘後リソース回復。 | `commitTurn()` で敵全滅を検知したときに `applyPassiveTimingInternal("OnBattleWin")` | 勝利のカリーを食べましょう(100840600), おかわりもどうぞ(100840603), 愛情の料理(100860700) |
 | OnEveryTurnIncludeSpecial | 5 | 通常 turn-start ではなく、行動選択時の消費SP補正や preview modifier で参照される特殊系。 | `resolveEffectiveSkillForAction()` と `previewActionEntries()` から `resolvePassiveReduceSpForMember()` / `resolvePassiveAttackUpForMember()` を参照 | 絶唱(100110903), ポジショニング(100150800), 勇姿(100720700) |
 
@@ -143,6 +129,7 @@ sequenceDiagram
 - `OnEveryTurn` と `OnPlayerTurnStart` は、現実装では同じ `TURN_START_PASSIVE_TIMINGS` 配列でまとめて処理されています。json 上の名称差はありますが、コード上は同じ turn-start pipeline に乗ります。
 - `applyInitialPassiveState()` は battle-start に加え、intrinsic mark Lv6 SP+1 と `OnEveryTurn` / `OnPlayerTurnStart` も初期化時に実行します。T1 が描画される時点でこれらすべてが反映済みです。
 - `OnEveryTurnIncludeSpecial` は turn-start pipeline には入っていません。SP 消費軽減や preview modifier のような行動選択時効果を読むための別系統です。
+- `OnOverdriveStart` は現行 HEAD では `activateOverdrive()` から `applyPassiveTimingInternal("OnOverdriveStart")` に流れるため、旧「EP/SP 系のみ」の注記は stale です。
 - `None` は timing 境界イベントではなく、個別のスキル条件・追加効果判定で参照されるデータです。
 - `OnFirstBattleStart` には Desc が `初戦開始時` ではなく `常時` や `スキル使用後` と書かれているものも含まれます。json の timing は「発火そのもの」より「戦闘開始時に登録・常設化するカテゴリ」として扱う方が実態に近いです。
 
