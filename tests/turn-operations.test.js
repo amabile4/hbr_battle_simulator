@@ -12,6 +12,7 @@ import {
   DEFAULT_SUMMON_SAMPLE_ENEMY,
   ENERGY_PIT_PINK_E_SAMPLE_ENEMY,
 } from '../src/data/enemy-sample-presets.js';
+import { MAX_ENEMY_COUNT } from '../src/config/battle-defaults.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
@@ -321,4 +322,24 @@ test('applyBeforeCommitOperations reuses the lowest dead enemy slot without incr
     nextState.turnState.enemyState.statuses.some((status) => Number(status.targetIndex) === 1),
     false
   );
+});
+
+test('applyBeforeCommitOperations warns when summon has no reusable enemy slot', () => {
+  const state = createState({}, { enemyCount: MAX_ENEMY_COUNT });
+  state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' };
+  state.turnState.enemyState.statuses = [];
+  const warnings = [];
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [createSummonEnemyOperation()],
+    {
+      enemyCount: MAX_ENEMY_COUNT,
+      onWarning: (message) => warnings.push(String(message)),
+    }
+  );
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, MAX_ENEMY_COUNT);
+  assert.deepEqual(nextState.turnState.enemyState.enemyNamesByEnemy, { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' });
+  assert.deepEqual(warnings, ['summon enemy ignored: no available enemy slot.']);
 });

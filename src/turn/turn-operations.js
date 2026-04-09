@@ -35,7 +35,7 @@ const SUMMONABLE_ENEMY_RESISTANCE_KEYS = Object.freeze({
   dark: 'Dark',
   nonelement: 'Nonelement',
 });
-const ENEMY_STATUS_DEAD = 'Dead';
+const SUMMON_ENEMY_NO_SLOT_WARNING = 'summon enemy ignored: no available enemy slot.';
 
 const BEFORE_COMMIT_OPERATION_TYPES = new Set(
   Object.values(REPLAY_OPERATION_TYPES).filter((type) => replayOperationRegistry.get(type)?.timing === 'beforeCommit')
@@ -290,16 +290,18 @@ function resolveSummonEnemySlotIndex(turnState) {
   return null;
 }
 
-function applySummonEnemyToState(state, operation = {}) {
+function applySummonEnemyToState(state, operation = {}, options = {}) {
   if (!state?.turnState) {
     return state;
   }
+  const onWarning = getOperationWarningReporter(options);
   const summonEnemy = normalizeSummonEnemyPayload(operation?.payload);
   if (!summonEnemy) {
     return state;
   }
   const targetEnemyIndex = resolveSummonEnemySlotIndex(state.turnState);
   if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0) {
+    onWarning?.(SUMMON_ENEMY_NO_SLOT_WARNING);
     return state;
   }
 
@@ -341,10 +343,9 @@ function applySummonEnemyToState(state, operation = {}) {
       Object.entries(currentSnapshot.enemyBreakStates ?? {}).filter(([enemyIndex]) => String(enemyIndex) !== slotKey)
     ),
     enemyStatuses: (Array.isArray(currentSnapshot.enemyStatuses) ? currentSnapshot.enemyStatuses : []).filter(
-      (status) =>
-        String(status?.statusType ?? '').trim() !== ENEMY_STATUS_DEAD ||
-        Number(status?.targetIndex ?? -1) !== targetEnemyIndex
-    ).filter((status) => Number(status?.targetIndex ?? -1) !== targetEnemyIndex),
+      // Reusing a dead slot must clear every status that belonged to the previous enemy.
+      (status) => Number(status?.targetIndex ?? -1) !== targetEnemyIndex
+    ),
   };
   applyEnemyStateOverrideSnapshot(state.turnState, nextSnapshot);
   return state;
@@ -362,7 +363,7 @@ function applyOperation(state, operation = {}, options = {}) {
     return applyMakaiKiheiToState(state);
   }
   if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
-    return applySummonEnemyToState(state, operation);
+    return applySummonEnemyToState(state, operation, options);
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
     const level = extractOperationLevel(operation);

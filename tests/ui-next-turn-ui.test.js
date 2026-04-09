@@ -936,6 +936,31 @@ test('TurnAreaController surfaces recommit warnings in the status summary and co
     assert.match(root.querySelector('[data-turn-info]').textContent, /Warn\(/);
   }));
 
+test('TurnAreaController surfaces pending summon warnings on the input row', () =>
+  withDom(({ root }) => {
+    const actorSkill = createSkill({
+      id: 95115,
+      name: 'Safe Guard',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createState(actorSkill, 3);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' };
+    state.turnState.enemyState.statuses = [];
+
+    const { controller, engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      enemyPresets: [createEnemyPreset()],
+    });
+
+    assert.equal(engineManager.addPendingSpecialOperation(createSummonEnemyOperation()), true);
+    controller.setEnemyPresets([createEnemyPreset()]);
+
+    assert.match(root.querySelector('[data-turn-info]').textContent, /Warn\(/);
+  }));
+
 test('TurnAreaController status summary can be dismissed by close button', () =>
   withDom(({ root }) => {
     const costlySkill = createSkill({

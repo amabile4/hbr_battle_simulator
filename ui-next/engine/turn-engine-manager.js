@@ -273,6 +273,27 @@ export class TurnEngineManager {
     this.#replayDiagnostics = createEmptyReplayDiagnostics();
   }
 
+  #appendReplayWarnings(turnIndex, warnings = []) {
+    const normalized = (Array.isArray(warnings) ? warnings : [])
+      .map((warning) => String(warning))
+      .filter(Boolean);
+    if (normalized.length === 0 || !Number.isInteger(turnIndex) || turnIndex < 0) {
+      return;
+    }
+    const nextWarnings = Array.isArray(this.#replayDiagnostics.turnWarnings[turnIndex])
+      ? [...this.#replayDiagnostics.turnWarnings[turnIndex]]
+      : [];
+    const seen = new Set(nextWarnings);
+    for (const warning of normalized) {
+      if (seen.has(warning)) {
+        continue;
+      }
+      nextWarnings.push(warning);
+      seen.add(warning);
+    }
+    this.#replayDiagnostics.turnWarnings[turnIndex] = nextWarnings;
+  }
+
   loadReplayScript(initialState, replayScript = {}, options = {}) {
     this.#initialState = initialState;
     this.#replayScript = normalizeLightweightReplayScript(replayScript);
@@ -408,6 +429,7 @@ export class TurnEngineManager {
     this.#computedStates.push(this.#patchNextStateForKills(nextState, actionOutcomeOverrides, effectiveEnemyCount));
     this.#computedRecords.push(null);
     this.#recalculateAllBestEffort();
+    this.#appendReplayWarnings(this.#replayScript.turns.length - 1, warnings);
     return this.#computedRecords.at(-1) ?? null;
   }
 
@@ -577,6 +599,7 @@ export class TurnEngineManager {
     actionOutcomeOverrides = [],
     followUpOverrides = [],
   } = {}) {
+    const warnings = [];
     const normalizedEnemyCount = clampEnemyCount(
       enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
@@ -585,7 +608,10 @@ export class TurnEngineManager {
       stateBefore = applyBeforeCommitOperations(
         this.#cloneWorkingState(this.currentState),
         this.#buildPendingBeforeCommitOperations(),
-        { enemyCount: normalizedEnemyCount }
+        {
+          enemyCount: normalizedEnemyCount,
+          onWarning: (message) => warnings.push(String(message)),
+        }
       );
     } catch {
       stateBefore = this.#cloneWorkingState(this.currentState);
@@ -601,7 +627,10 @@ export class TurnEngineManager {
       stateBefore,
       resolvedSlotActions,
       actionOutcomeOverrides,
-      effectiveEnemyCount
+      effectiveEnemyCount,
+      {
+        onWarning: (message) => warnings.push(String(message)),
+      }
     );
     const normalizedFollowUpOverrides = this.#normalizeFollowUpOverridesForState(
       stateBefore,
@@ -613,7 +642,10 @@ export class TurnEngineManager {
       resolvedSlotActions,
       effectiveEnemyCount,
       normalizedActionOutcomeOverrides,
-      normalizedFollowUpOverrides
+      normalizedFollowUpOverrides,
+      {
+        warnings,
+      }
     );
 
     return {
@@ -628,6 +660,7 @@ export class TurnEngineManager {
         kishinkaStatus: this.getKishinkaStatus(),
         makaiKiheiStatus: this.getMakaiKiheiStatus(),
       },
+      warnings,
     };
   }
 
@@ -938,12 +971,13 @@ export class TurnEngineManager {
     if (!normalizedDraft || !this.#replayScript?.turns?.[turnIndex]) {
       return null;
     }
+    const draftWarnings = [];
     const draftStateBefore = this.#buildDraftStateBefore(
       turnIndex,
       normalizedDraft.slots,
       normalizedDraft.operations,
       normalizedDraft.enemyCount,
-      [],
+      draftWarnings,
       normalizedDraft.overrideEntries
     );
     const previousComputedStates = [...this.#computedStates];
@@ -957,11 +991,9 @@ export class TurnEngineManager {
       this.#recalculateAllBestEffort({
         strictExtraTurnTurnIndexes: new Set([turnIndex]),
       });
-      if (!Array.isArray(this.#replayDiagnostics.turnWarnings[turnIndex])) {
-        this.#replayDiagnostics.turnWarnings[turnIndex] = [];
-      }
-      this.#replayDiagnostics.turnWarnings[turnIndex].push(compactionWarning);
+      this.#appendReplayWarnings(turnIndex, [compactionWarning]);
     }
+    this.#appendReplayWarnings(turnIndex, draftWarnings);
 
     return this.#computedRecords[turnIndex] ?? null;
   }

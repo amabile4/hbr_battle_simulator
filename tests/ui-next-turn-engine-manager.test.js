@@ -358,6 +358,35 @@ test('TurnEngineManager commits summon operations into enemy slot snapshots and 
   assert.equal(reloadedManager.computedStates[0]?.turnState?.enemyState?.enemyCount, 2);
 });
 
+test('TurnEngineManager collects a warning when summon cannot claim any enemy slot', () => {
+  const actorSkill = createSkill({
+    id: 90727,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 3;
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' };
+  initialState.turnState.enemyState.statuses = [];
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  assert.equal(manager.addPendingSpecialOperation(createSummonEnemyOperation()), true);
+
+  manager.commitNextTurn(
+    { 0: { skillId: 90727 } },
+    { enemyCount: 3, note: 'summon-capacity warning' }
+  );
+
+  assert.equal(
+    manager.replayDiagnostics.turnWarnings[0].includes('summon enemy ignored: no available enemy slot.'),
+    true
+  );
+  assert.equal(manager.currentState.turnState.enemyState.enemyCount, 3);
+  assert.deepEqual(manager.currentState.turnState.enemyState.enemyNamesByEnemy, { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' });
+});
+
 test('TurnEngineManager replays Karen double-action EX after 意気揚々 self-buff', () => {
   const manager = new TurnEngineManager();
   manager.initialize(createRealDataManagerState(1001507), {});

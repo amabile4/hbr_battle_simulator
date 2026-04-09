@@ -611,7 +611,10 @@ export class TurnAreaController {
     });
     lastRow.update({
       rowMode: 'input',
-      rowDiagnostics: createEmptyRowDiagnostics(),
+      rowDiagnostics: {
+        warnings: Array.isArray(snapshot.warnings) ? snapshot.warnings : [],
+        error: null,
+      },
       record: null,
       replayTurn: null,
       operations: this.#engineManager.pendingSpecialOperations,
