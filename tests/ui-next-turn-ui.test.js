@@ -1699,6 +1699,147 @@ test('TurnAreaController enables summon after popup-attributed kill and disables
     );
   }));
 
+test('TurnAreaController preserves summoned slot identity for break and follow-up through recommit', () =>
+  withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1280, height: 900 });
+    const state = createState(
+      createSkill({
+        id: 95047,
+        name: 'Summon Break Follow',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1,
+      {
+        passives: [createBreakHealPassive()],
+      }
+    );
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      enemyPresets: [createEnemyPreset()],
+    });
+
+    let inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
+    assert.ok(inputRow);
+
+    const summonPopup = openEnemyDetailPopup(inputRow.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    summonPopup
+      .querySelector('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    getEnemyDetailPopup(win)
+      .querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    const editor = root.querySelector('[data-role="enemy-summon-editor"]');
+    assert.ok(editor);
+    const select = editor.querySelector('[data-role="enemy-summon-select"]');
+    select.value = String(DEFAULT_SUMMON_SAMPLE_ENEMY.id);
+    select.dispatchEvent(new win.Event('change', { bubbles: true }));
+    editor
+      .querySelector('[data-role="enemy-summon-submit"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
+    assert.ok(inputRow);
+    assert.match(inputRow.querySelector('[data-role="operation-chip"]').textContent ?? '', /召喚/);
+
+    openEnemyDetailPopup(inputRow.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    triggerEnemyPopupAction(win, 'break', { enemyIndex: 1 });
+    getEnemyDetailPopup(win)
+      .querySelector('[data-role="manual-break-target-candidate"][data-party-index="0"][data-enemy-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    getEnemyDetailPopup(win)
+      .querySelector('[data-role="manual-break-single-toggle"][data-party-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
+    assert.ok(inputRow);
+    assert.equal(
+      [...inputRow.querySelectorAll('[data-role="manual-break-chip"]')]
+        .map((chip) => chip.textContent?.trim() ?? '')
+        .some((label) => label.includes(DEFAULT_SUMMON_SAMPLE_ENEMY.name) && label.includes('ブレイク')),
+      true
+    );
+
+    getEnemyDetailPopup(win)
+      ?.querySelector('[data-role="popup-close"]')
+      ?.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    inputRow.querySelector('[data-role="follow-up-toggle"]').dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+    root
+      .querySelector('[data-role="follow-up-enemy-candidate"][data-position="3"][data-enemy-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
+    assert.ok(inputRow);
+    assert.equal(
+      [...inputRow.querySelectorAll('[data-role="follow-up-chip"]')]
+        .map((chip) => chip.textContent?.trim() ?? '')
+        .some((label) => label.includes('E2') && label.includes(DEFAULT_SUMMON_SAMPLE_ENEMY.name)),
+      true
+    );
+
+    root
+      .querySelector('[data-role="commit-btn"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    let committedRow = root.querySelectorAll('[data-turn-row]').item(0);
+    assert.ok(committedRow);
+    assert.equal(
+      [...committedRow.querySelectorAll('[data-role="manual-break-chip"]')]
+        .map((chip) => chip.textContent?.trim() ?? '')
+        .some((label) => label.includes(DEFAULT_SUMMON_SAMPLE_ENEMY.name) && label.includes('ブレイク')),
+      true
+    );
+    assert.equal(
+      [...committedRow.querySelectorAll('[data-role="follow-up-chip"]')]
+        .map((chip) => chip.textContent?.trim() ?? '')
+        .some((label) => label.includes('E2') && label.includes(DEFAULT_SUMMON_SAMPLE_ENEMY.name)),
+      true
+    );
+
+    const committedAction = engineManager.computedRecords[0]?.actions.find(
+      (action) => action.positionIndex === 0
+    );
+    assert.equal(committedAction?.targetEnemyIndex, 1);
+    assert.equal(committedAction?.breakHitCount, 1);
+    assert.equal(committedAction?.pursuedHitCount, 1);
+
+    root.querySelector('[data-role="edit-btn"]').click();
+    root.querySelector('[data-role="recommit-btn"]').click();
+
+    committedRow = root.querySelectorAll('[data-turn-row]').item(0);
+    assert.ok(committedRow);
+    assert.equal(
+      [...committedRow.querySelectorAll('[data-role="manual-break-chip"]')]
+        .map((chip) => chip.textContent?.trim() ?? '')
+        .some((label) => label.includes(DEFAULT_SUMMON_SAMPLE_ENEMY.name) && label.includes('ブレイク')),
+      true
+    );
+    assert.equal(
+      [...committedRow.querySelectorAll('[data-role="follow-up-chip"]')]
+        .map((chip) => chip.textContent?.trim() ?? '')
+        .some((label) => label.includes('E2') && label.includes(DEFAULT_SUMMON_SAMPLE_ENEMY.name)),
+      true
+    );
+    assert.deepEqual(
+      engineManager.getReplayTurn(0)?.overrideEntries.find(
+        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+      )?.payload,
+      [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
+    );
+    assert.deepEqual(
+      engineManager.getReplayTurn(0)?.overrideEntries.find(
+        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+      )?.payload,
+      [{ position: 3, enemyIndex: 1 }]
+    );
+  }));
+
 test('TurnAreaController shows Break badge and disables popup break action for already-broken enemies', () =>
   withDom(({ root, win }) => {
     setViewportSize(win, { width: 1280, height: 900 });

@@ -387,6 +387,106 @@ test('TurnEngineManager collects a warning when summon cannot claim any enemy sl
   assert.deepEqual(manager.currentState.turnState.enemyState.enemyNamesByEnemy, { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' });
 });
 
+test('TurnEngineManager preserves summoned slot identity when break and follow-up overrides coexist through recommit and reload', () => {
+  const actorSkill = createSkill({
+    id: 90728,
+    name: 'Summon Break Follow',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createFrontlineInitialState([actorSkill], 1, [
+      { passives: [createBreakHealPassive()] },
+    ]),
+    {}
+  );
+  assert.equal(manager.addPendingSpecialOperation(createSummonEnemyOperation()), true);
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: {
+        skillId: 90728,
+        target: { type: 'enemy', enemyIndex: 1 },
+      },
+    },
+    {
+      enemyCount: 1,
+      note: 'summon-break-follow-up',
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Break', enemyIndexes: [0, 1] }],
+      followUpOverrides: [{ position: 3, enemyIndex: 1 }],
+    }
+  );
+
+  const committedAction = committedRecord.actions.find((entry) => entry.positionIndex === 0);
+  assert.equal(committedAction?.targetEnemyIndex, 1);
+  assert.equal(committedAction?.breakHitCount, 1);
+  assert.deepEqual(committedAction?.manualBreakEnemyIndexes, [1]);
+  assert.equal(committedAction?.pursuedHitCount, 1);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.enemyCount, 2);
+  assert.equal(
+    manager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['1'],
+    DEFAULT_SUMMON_SAMPLE_ENEMY.name
+  );
+  assert.deepEqual(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
+    )?.payload,
+    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
+  );
+  assert.deepEqual(
+    manager.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+    )?.payload,
+    [{ position: 3, enemyIndex: 1 }]
+  );
+
+  const draft = manager.buildTurnEditDraft(0);
+  assert.equal(draft?.enemyCount, 2);
+  assert.deepEqual(draft?.slots?.[0]?.target, { type: 'enemy', enemyIndex: 1 });
+  assert.deepEqual(draft?.actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+  ]);
+  assert.deepEqual(draft?.followUpOverrides, [{ position: 3, enemyIndex: 1 }]);
+
+  manager.replaceCommittedTurn(0, draft);
+
+  const recommittedAction = manager.computedRecords[0]?.actions.find((entry) => entry.positionIndex === 0);
+  assert.equal(recommittedAction?.targetEnemyIndex, 1);
+  assert.equal(recommittedAction?.breakHitCount, 1);
+  assert.deepEqual(recommittedAction?.manualBreakEnemyIndexes, [1]);
+  assert.equal(recommittedAction?.pursuedHitCount, 1);
+  assert.deepEqual(manager.replayDiagnostics.turnWarnings[0] ?? [], []);
+
+  const reloadState = createInitialState(actorSkill);
+  reloadState.turnState.enemyState.enemyCount = 1;
+  reloadState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  reloadState.turnState.enemyState.damageRatesByEnemy = {
+    0: { Slash: 100, Stab: 100, Strike: 100, Fire: 100, Ice: 100, Thunder: 100, Light: 100, Dark: 100, Nonelement: 100 },
+  };
+  reloadState.turnState.enemyState.absorbElementsByEnemy = { 0: [] };
+  reloadState.turnState.enemyState.odRateByEnemy = { 0: 0 };
+  reloadState.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  reloadState.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  reloadState.turnState.enemyState.breakStateByEnemy = {};
+  reloadState.turnState.enemyState.statuses = [];
+
+  const reloadedManager = new TurnEngineManager();
+  reloadedManager.loadReplayScript(reloadState, manager.replayScript, {});
+
+  const reloadedAction = reloadedManager.computedRecords[0]?.actions.find((entry) => entry.positionIndex === 0);
+  assert.equal(reloadedManager.getStateBefore(0)?.turnState?.enemyState?.enemyCount, 2);
+  assert.equal(
+    reloadedManager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['1'],
+    DEFAULT_SUMMON_SAMPLE_ENEMY.name
+  );
+  assert.equal(reloadedAction?.targetEnemyIndex, 1);
+  assert.equal(reloadedAction?.breakHitCount, 1);
+  assert.deepEqual(reloadedAction?.manualBreakEnemyIndexes, [1]);
+  assert.equal(reloadedAction?.pursuedHitCount, 1);
+  assert.deepEqual(reloadedManager.replayDiagnostics.turnWarnings[0] ?? [], []);
+});
+
 test('TurnEngineManager replays Karen double-action EX after 意気揚々 self-buff', () => {
   const manager = new TurnEngineManager();
   manager.initialize(createRealDataManagerState(1001507), {});

@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-06
-> 最終更新: 2026-04-06
+> 最終更新: 2026-04-10
 > 元タスク: [t34_enemy_status_management_plan_wbs.md](t34_enemy_status_management_plan_wbs.md)（✅ 完了）
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
@@ -11,7 +11,17 @@
 T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクローズ済み。
 ここでは T34 から分離した残タスク・フォローアップを管理する。
 
-## 残タスク一覧
+## 2026-04-10 監査メモ
+
+2026-04-10 時点で follow-up 文書の open item をコードとテストで再確認した。
+
+- `tests/enemy-status-display.test.js`: 28 PASS
+- `tests/t34-enemy-status-integration.test.js`: 14 PASS
+- 表示フォーマット unit と integration の lifecycle / replay / legacy fallback は、2026-04-06 時点の文書より前進しており、残タスクから外せる
+- browser E2E は `turn-row-preview-status-popup.spec.js` / `superbreak-hefty-guardian.spec.js` などの点的 coverage はあるが、fixture 読込・残ターン更新・legacy session fallback を一連で固定する coverage は未整備
+- `ui-next/components/turn-row.js` では `enemy-detail-trigger` / `manual-break-editor` / `follow-up-editor` が依然として別導線で存在し、WBS-3e の「共通 enemy selector component へ集約」は未着手
+
+## 残タスク一覧（2026-04-10 時点）
 
 ### 1. WBS-3e: enemy 関連メニュー統合（T34-UI-Stage2）
 
@@ -19,7 +29,7 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 
 作業:
 
-- [ ] 共通の enemy selector component を設計する
+- [ ] `enemy-detail-trigger` / `manual-break-editor` / `follow-up-editor` の共通 enemy selector component を設計する
 - [ ] break / follow-up / enemy status の対象選択 UI を共通 component へ集約する
 - [ ] 既存操作（break/follow-up）の回帰なしを test で固定する
 
@@ -30,21 +40,26 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 
 ### 2. WBS-4 テスト残件
 
-#### 2a. unit テスト（未充足分）
+#### 2a. unit / integration（監査結果）
 
-- [ ] status 付与/更新/消滅の純ロジック unit テスト
-- [ ] 表示フォーマット unit テスト
+- [x] 表示フォーマット unit テスト
+  - `tests/enemy-status-display.test.js` で `isActiveEnemyStatus` / sort / cap / label / HTML 生成 / 属性付き icon-label を固定済み
+- [x] lifecycle / replay / legacy fallback の integration テスト
+  - `tests/t34-enemy-status-integration.test.js` で付与 / 残ターン減少 / 消滅 / Cover / replay round-trip / `enemyStatusSnapshot` なし fallback を固定済み
+- [ ] 純ロジックを integration ではなく pure unit に切り出すかは未判断
+  - 現状の correctness は integration で担保されているため blocker ではない
 
-#### 2b. E2E テスト（WBS-4d-a9+）
+#### 2b. browser E2E（残件）
 
-- [ ] fixture 読込後に turn row / popup / enemy panel の表示が一致
-- [ ] commit 後の残ターン更新が一致
-- [ ] 付与 → 残ターン更新 → 消滅を1シナリオで追跡可能
-- [ ] 旧 record（`enemyStatusSnapshot` なし）との互換表示を検証
+- [ ] fixture 読込後に turn row / popup / enemy panel の表示が一致する browser シナリオを追加する
+- [ ] commit 後の残ターン更新が browser 上で一致することを固定する
+- [ ] 付与 → 残ターン更新 → 消滅を 1 シナリオで追跡できる E2E を追加する
+- [ ] 旧 record（`enemyStatusSnapshot` なし）との互換表示を browser で検証する
 
-#### 2c. UI フォーマット統一
+#### 2c. UI フォーマット統一（監査結果）
 
-- [ ] アイコン/ラベル/残ターン表示のフォーマット統一（WBS-3 未完了分）
+- [x] `enemy-status-display.js` を表示正本とし、属性付きラベル/アイコン定数は `element-status-constants.js` へ共有化済み
+- [x] 追加の follow-up 項目としては残さない
 
 ### 3. T34-FU1: per-source instance 管理（設計ゲートで分離済み）
 
@@ -58,8 +73,10 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - `ui-next/components/turn-row.js` — enemy selector 統合
 - `ui-next/components/enemy-detail-popup.js` — popup 連携
 - `ui-next/utils/enemy-status-display.js` — 表示フォーマット
-- `tests/e2e/*.spec.js` — E2E テスト
-- `tests/enemy-status-display.test.js` — unit テスト拡充
+- `ui-next/utils/element-status-constants.js` — 属性付き status 表示定数
+- `tests/e2e/*.spec.js` — browser E2E テスト
+- `tests/enemy-status-display.test.js` — 表示 unit テスト
+- `tests/t34-enemy-status-integration.test.js` — lifecycle / replay / legacy fallback integration
 
 ## テスト実行コマンド
 

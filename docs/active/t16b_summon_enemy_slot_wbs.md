@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-06
-> 最終更新: 2026-04-08
+> 最終更新: 2026-04-10
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 進捗チェック
@@ -16,6 +16,22 @@
 - [x] WBS-4: 条件判定と全体対象処理の alive enemy 統一
 - [x] WBS-5: UI / replay / session の Summon 反映
 - [x] WBS-6: テスト拡充と受け入れ確認
+
+## 2026-04-10 監査メモ
+
+2026-04-10 時点で、本書の open item をコードとテストで再確認した。
+
+- `tests/ui-next-battle-state-manager.test.js`: 10 PASS
+- `tests/ui-next-turn-engine-manager.test.js`: 42 PASS
+- `tests/ui-next-turn-ui.test.js`: 65 PASS
+- summon 後の `target / break / follow-up / recommit` 回帰は `TurnEngineManager` / `TurnAreaController` のテストで固定済み
+- `BattleStateManager` は初期 snapshot builder としての複数 enemy slot 対応までは完了しているが、戦闘中 summon slot を常設 state として持つかは未整理
+
+確認結果:
+
+- 「summon 後 selector 回帰 coverage」は完了済みとして扱う
+- 「残タスクなし」ではない。実装タスクとしては、敵行動データの `Summon` を `ReplayTurn.operations[].type === 'SummonEnemy'` へ自動変換する経路が未接続
+- `BattleStateManager` については runtime correctness の blocker ではなく、責務境界の follow-up として管理する
 
 ## 2026-04-08 実装反映メモ
 
@@ -52,8 +68,7 @@ Summon 後の `enemyCount` が stale な caller 値で `1` に戻され、turn s
 残タスク:
 
 - 敵行動データの `Summon` を自動で turn operation へ落とす経路
-- summon 後の `break / follow-up / target` 選択をまとめた回帰 coverage
-- `BattleStateManager` へ戦闘中 summon slot を常設反映するかどうかの整理
+- `BattleStateManager` に戦闘中 summon slot を常設反映するか、初期 state builder の責務に限定するかの整理
 
 ## 2026-04-06 実装反映メモ
 
@@ -250,7 +265,7 @@ Summon 後の `enemyCount` が stale な caller 値で `1` に戻され、turn s
 - [x] enemy detail popup が dead/summoned enemy を正しく表示する
 - [x] manual break / kill UI が slot identity を壊さない
 - [x] replay / session JSON に kill/summon 後の enemy slot 情報を保持する
-- [ ] `BattleStateManager` に Summon で追加された slot 情報を反映する経路を追加する
+- [ ] follow-up: `BattleStateManager` に戦闘中 summon slot を常設反映するか、初期 state builder の責務に限定するかを整理する
 
 対象ファイル:
 
@@ -278,7 +293,7 @@ Summon 後の `enemyCount` が stale な caller 値で `1` に戻され、turn s
 - [x] unit: dead enemy が `BreakDownTurn` / `SpecialStatusCountByType` 条件に入らないテストを追加する
 - [x] unit: all-target OD が dead enemy を数えないテストを追加する
 - [x] integration: kill -> recalculate -> replay 同値性テストを追加する
-- [ ] integration: summon 後に target/break/follow-up が新規 slot を扱えるテストを追加する
+- [x] integration: summon 後に target/break/follow-up が新規 slot を扱えるテストを追加する
 - [x] 必要に応じて e2e: UI Next で summon 後 slot が増えるシナリオを固定する
 - [x] docs 完了更新（本書 / 親タスク / `docs/README.md`）を行う
 

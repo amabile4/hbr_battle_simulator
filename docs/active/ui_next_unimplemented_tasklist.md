@@ -1,6 +1,6 @@
 # UI Next 未実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-07
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-10
 >
 > **目的**: `ui_next_implementation_tasklist.md` から未完了項目を分離し、active ドキュメントに散在していた未実装作業をこの 1 ファイルで追跡する。
 >
@@ -20,12 +20,12 @@
 
 ## 優先順（現時点）
 
-1. T34: 敵状態変化（バフ/デバフ）管理・表示
-2. T16-B: Summon による敵数増加
-3. T19: use_count 表示・管理
-4. T20-D/T20-E: モバイル UI/タッチ UX
+1. T33: 固有スキル/パッシブ未反映監査
+2. PRI-018 / Skill Usage Limits（`T19` 集約先）
+3. T16-B: 敵行動データからの auto summon
+4. T34 follow-up: enemy 関連メニュー統合 / browser E2E / per-source instance 管理
 5. T32: Stage Setup Phase2/3
-6. T33: 固有スキル/パッシブ未反映監査
+6. Setup パネル レイアウト改善 & ロード高速化
 
 ## 1) T16-B: Summon による敵数増加（5項目）
 
@@ -37,16 +37,23 @@
 
 - 2026-04-06: Summon 本体着手前の基盤として、enemy slot 正本化、kill=`Dead`、per-enemy `od_rate`、dead slot 条件除外、UI dead badge/disable、replay enemy snapshot を反映。残りは Summon 入力/UI/commit と新規 slot metadata 生成。
 - 2026-04-07: turn row は `敵情報確認` trigger のみとし、`enemy-detail-popup-container` を `E1/E2/E3` 3 tab + wide 3列 / narrow 1列 layout に更新した。`召喚 / ブレイク / 討伐` は選択中 enemy slot 直下の action row へ集約し、`Summon.webp` / `Break.webp` / `defeat.webp` を使う。break / kill は direct chip ではなく `ActionOutcomeOverrides` ベースの actor attribution へ戻し、単体攻撃で一意なら即時反映、曖昧または全体攻撃なら popup を閉じずに popup 内 sub-panel editor を開く。sample enemy は `Dimension_03_C_DeathSlugWhite` / `Dimension_03_C1_DeathSlugWhiteBit` / `Dimension_03_C1_EnergyPit_Pink_e` の 3 体で固定。`敵詳細` 見出しは廃止し、`名称` fold と `敵情報確認 / 敵情報 / 敵` の responsive label に更新した。残りは敵行動データからの自動 summon 化と、summon 後 selector 回帰 coverage。
+- 2026-04-10: `tests/ui-next-battle-state-manager.test.js` / `tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` を再実行し、summon 後の `target / break / follow-up / recommit` 回帰は固定済みと確認した。残る実装タスクは敵行動データからの自動 summon 化で、`BattleStateManager` の runtime summon 反映要否は `lightweight_record_replay_design.md` 側の責務整理 follow-up として分離する。
 
 - [x] 手動 `Summon` を turn 単位の敵数増加イベントとして入力できる
 - [x] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する
 - [x] Summon 後に増えた敵スロットの情報表示（名前 / OD率 / 最大破壊率 / 耐性 / 吸収属性）を追加する
-- [ ] break / follow-up / enemy detail popup など既存の敵選択 UI が増加後スロットにも追従する
-- [ ] `BattleStateManager` / turn state に Summon 後の敵数と新規敵スロット情報を反映する
+- [x] break / follow-up / enemy detail popup など既存の敵選択 UI が増加後スロットにも追従する
+- [ ] 敵行動データの `Summon` を `ReplayTurn.operations[].type === 'SummonEnemy'` へ自動変換する
 
 ## 2) T19: use_count 表示・管理（集約）
 
 `T19` は `9) Skill Usage Limits` へ正規化済み。ここでは重複チェックを持たず、実装管理は `9)` のみで行う。
+
+現時点の採用優先:
+
+- [x] `Implementation Priority Task List` の engine 寄り「次優先」は `PRI-018`
+- [x] UI Next backlog の着手順は、ユーザー判断により `T33` を `PRI-018` / `T16-B` より先に置く
+- [ ] `PRI-018` は `T33` 監査の次優先として扱う
 
 ## 3) T20-D/T20-E: モバイル UI/タッチ UX（8項目）
 
@@ -62,11 +69,21 @@
 - [x] タッチ操作だけで主要導線を完結できる
   - 2026-04-06: Playwright mobile profile (`iPhone SE` / `iPhone 15 Pro`) で toolbar / setup / input-row の 44px tap target を E2E 固定（`tests/e2e/mobile-touch-targets.spec.js`）。turn-row は committed / input 両方の mobile layout を回帰化し、tap-driven turn editing と popup / used-skills 導線を E2E で確認（`tests/e2e/mobile-touch-flow.spec.js`）。`data-skill-select` は tap focus 後に値変更しても char detail / icon swap が誤発火しないことを確認。さらに空状態からの touch-only 編成開始〜戦闘開始フローも同 spec に追加し、style picker main mode の touch pointer commit (`pointerup(pointerType=touch)` / `touchend`) を通して前衛3枠選択→picker close→`戦闘開始` まで完結することを固定
 
+2026-04-10 整理:
+
+- [x] T20-D/T20-E は完了済みとして扱う
+- [x] 優先順リストから除外した
+
 ## 4) T32: Stage Setup Phase2/3（集約）
 
 `T32` の抽象タスクは `10) Stage Setup ギミック実装残` へ正規化済み。ここでは重複チェックを持たず、実装管理は `10)` のみで行う。
 
 ## 5) T33: 固有スキル/パッシブ未反映監査（6項目）
+
+2026-04-10 優先度更新:
+
+- [x] `PRI-018 / Skill Usage Limits` および `T16-B auto summon` より先に着手する
+- [ ] まずは「実データ基準の未反映棚卸し」と「再現ケース化」までを 1 波で閉じる
 
 - [ ] 実データ基準で未反映・未対応の固有スキル / パッシブを列挙する
 - [ ] `effectType` / `condition` / `timing` ごとに未対応理由を分類する
@@ -75,20 +92,26 @@
 - [ ] 未反映効果の一覧と再現テストが揃っている
 - [ ] 以後の effect 実装をテスト駆動で進められる状態になっている
 
-## 6) T34: 敵状態変化（バフ/デバフ）管理・表示（最優先 / 8項目）
+## 6) T34: 敵状態変化（バフ/デバフ）管理・表示（本体完了 / follow-up 管理）
 
 詳細計画/WBS:
 
 - [t34_enemy_status_management_plan_wbs.md](t34_enemy_status_management_plan_wbs.md)
+- [t34_followup_tasklist.md](t34_followup_tasklist.md)
 
-実行順（設計 → 実装 → 表示 → テスト）:
+2026-04-10 整理:
 
-- [ ] 1. 敵側 status effect のデータモデルを整理し、付与 / 残ターン減少 / 永続 / 消滅を一貫管理する
-- [ ] 2. 敵への状態変化付与を replay / 再計算で再現できるようにする
-- [ ] 3. 敵状態変化（バフ/デバフ）を turn row / popup / enemy UI 上へ表示する
-- [ ] 4. 画面上で敵バフ/デバフと残ターンが確認できる
-- [ ] 5. enemy-side status の unit / integration / 必要に応じて E2E を追加する
-- [ ] 6. 敵の状態変化が戦闘中に正しく付与・更新・消滅する
+- `t34_enemy_status_management_plan_wbs.md` の WBS-1〜5 は ✅ 完了
+- 残タスクは `t34_followup_tasklist.md` の follow-up のみ
+
+本体完了分（設計 → 実装 → 表示 → テスト）:
+
+- [x] 1. 敵側 status effect のデータモデルを整理し、付与 / 残ターン減少 / 永続 / 消滅を一貫管理する
+- [x] 2. 敵への状態変化付与を replay / 再計算で再現できるようにする
+- [x] 3. 敵状態変化（バフ/デバフ）を turn row / popup / enemy UI 上へ表示する
+- [x] 4. 画面上で敵バフ/デバフと残ターンが確認できる
+- [x] 5. enemy-side status の unit / integration / 必要に応じて E2E を追加する
+- [x] 6. 敵の状態変化が戦闘中に正しく付与・更新・消滅する
 
 T34 UI 段階導入（WBS 同期）:
 
@@ -101,6 +124,7 @@ T34 UI 段階導入（WBS 同期）:
 
 T34 follow-up（Day 1 設計ゲートで分離）:
 
+- [ ] T34-E2E: fixture 読込 / 残ターン更新 / legacy fallback を browser で固定する
 - [ ] T34-FU1: C-2 選択肢B（`effectId` 単位の per-source instance 管理）を別タスクで設計・実装する
 	- DoD: identity model 変更の影響範囲（engine/UI/tests）を文書化し、既存 merged 前提テストとの差分移行計画を提示する
 

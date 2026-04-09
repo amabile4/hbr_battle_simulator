@@ -1,6 +1,6 @@
 # Count/Only 併存 status 監査と実機確認マトリクス
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-05
+> **ステータス**: ✅ 完了 | 📅 最終更新: 2026-04-10
 > 調査対象: `json/skills.json`, `json/passives.json`, `src/domain/character-style.js`, `src/turn/turn-controller.js`, `tests/character-party.test.js`, `tests/turn-state-transitions.test.js`
 
 ---
@@ -11,6 +11,28 @@
 - family ごとに現行 runtime の処理経路と既存テストを監査する
 - 実機確認が必要な論点を status family 単位で表に整理する
 - `AttackUp` 固有ではなく、同じ family rule を持つ候補群を先に切り分ける
+
+## 結論と残タスク整理
+
+### 結論
+
+- この監査ドキュメントの本来目的は完了している
+- `AttackUp` / `CriticalRateUp` / `CriticalDamageUp` / `Funnel` / `MindEye` の family 監査、runtime 経路整理、unit/e2e 根拠、実機確認マトリクス整備まで揃っている
+- `DefenseUp` は実データ上の Count/Only 併存対象ではないが、将来データ流入に備えた runtime/UI/test 基盤まで補強済み
+
+### 現在の残タスク
+
+1. この監査テーマに対する必須の engine / UI / test 残タスクはなし
+2. 将来データ更新時の再監査
+   - `json/skills.json` / `json/passives.json` 更新時に、`DefenseUp` を含む Count/Only family の再列挙だけは再実施する
+3. 必要になった場合のみ実施する実機確認
+   - 実ゲーム挙動との最終照合を行うなら、4章マトリクスをそのまま spot-check 手順として使う
+
+### 優先順位
+
+- `P0`: なし。この監査自体を理由に着手すべき未修正バグは見当たらない
+- `P1`: Count/Only 監査を新規実装テーマとして継続しない。repo 全体の優先順位は `PRI-018` に戻す
+- `P2`: データ更新や実機差分報告が入った時だけ、この文書を reopen して差分監査する
 
 ## 調査メモ
 

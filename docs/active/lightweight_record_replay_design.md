@@ -1,6 +1,6 @@
 # 軽量 Record / Replay / Edit 設計案
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-03-31
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-04-10
 >
 > **前提調査**: [`../20260314_record_replay_edit_investigation/README.md`](../20260314_record_replay_edit_investigation/README.md)
 
@@ -11,13 +11,18 @@
 - 「ターンを少し編集したら、そのターン以降を素直に再計算する」というユーザー認識と実装を一致させる
 - swap 操作そのものではなく、「Commit 時点の Position」と「その Position で使った Skill」を一体で保存する
 
-## 実装反映メモ（2026-03-28）
+## 実装反映メモ（2026-04-10 時点）
 
 - `ui-next` は `LightweightReplayScript` を正本とし、`TurnEngineManager` が `buildTurnEditDraft()` / `replaceCommittedTurn()` / `getReplayDiagnostics()` を持つ構成へ更新済み
 - committed row の編集は inline mutate ではなく、draft をまとめて置換して turn 1 から best-effort replay する方式へ移行済み
 - warning は replay diagnostics にのみ保持し、session snapshot には保存しない
-- soft warning として実装済み: SP不足継続、OD不足継続、使用回数超過、skill condition 不一致、未知 operation 無視、単体ブレイク target 正規化
+- soft warning として実装済み: SP不足継続、OD不足継続、使用回数超過、skill condition 不一致、未知 operation 無視、単体ブレイク target 正規化、召喚空きスロットなし warning
 - hard error は replay を停止し、対象 row に error 表示を出す
+- `overrideEntries` は manual state だけでなく turn-bound の replay snapshot 正本としても使う
+  - `ActionOutcomeOverrides` で manual break / kill attribution を保持する
+  - `FollowUpOverrides` で follow-up 対象補正を保持する
+  - `EnemyCount` / `EnemyNames` / `EnemyDamageRates` / `EnemyDestructionRates` / `EnemyDestructionRateCaps` / `EnemyOdRates` / `EnemyAbsorbElements` / `EnemyBreakStates` / `EnemyStatuses` で summon 後の enemy slot snapshot を保持する
+- `operations` には `ActivateKishinka` / `ActivateMakaiKihei` / `ActivatePreemptiveOd` / `ReserveInterruptOd` に加えて `SummonEnemy` を実装済み
 - stale special turn の圧縮は safe subset のみ実装済み
   - 直前 turn の再計算結果で OD / EX 継続が確実に消えた場合だけ後続 special turn を削除
   - break 継続や複合 override を跨ぐケースは warning に寄せて温存する
@@ -314,8 +319,10 @@ actionsByPosition[6]
 
 ```text
 { type: 'ActivateKishinka' }
+{ type: 'ActivateMakaiKihei' }
 { type: 'ActivatePreemptiveOd', level: 1 | 2 | 3 }
 { type: 'ReserveInterruptOd', level: 1 | 2 | 3 }
+{ type: 'SummonEnemy', payload? }
 ```
 
 ### 現行 runtime との整合
@@ -372,7 +379,7 @@ actionsByPosition[6]
 
 ## manual state の扱い
 
-通常 action 以外の control は `operations` に、manual state は `overrideEntries` に分ける。
+通常 action 以外の control は `operations` に、manual state と turn-bound replay snapshot は `overrideEntries` に分ける。
 
 ```text
 OverrideEntry = {
@@ -383,6 +390,16 @@ OverrideEntry = {
 
 例:
 
+- `EnemyCount`
+- `ActionOutcomeOverrides`
+- `FollowUpOverrides`
+- `EnemyNames`
+- `EnemyDamageRates`
+- `EnemyDestructionRates`
+- `EnemyDestructionRateCaps`
+- `EnemyOdRates`
+- `EnemyAbsorbElements`
+- `EnemyBreakStates`
 - `EnemyStatuses`
 - `ZoneState`
 - `TerritoryState`
@@ -393,7 +410,7 @@ OverrideEntry = {
 重要:
 
 - これは常時保存しない
-- ユーザーが明示的に manual state を入れた場合のみ保存する
+- ユーザーが明示的に manual state を入れた場合、または replay 正本として turn 固有 snapshot が必要な場合のみ保存する
 - 現在の `setupDelta` のように、毎ターン自動 capture しない
 - 未知の `type` は round-trip で保持し、best-effort replay では no-op + warning 扱いでよい
 
@@ -430,36 +447,37 @@ OverrideEntry = {
 通常利用では隠すか折りたたむ。
 これにより、日常的な編集体験を `TurnAction` モデルに寄せる。
 
-## 実装段階案
+## 完了済み範囲
 
-### Phase 1: 正本モデル導入
+### 1. 正本モデル導入
 
-- `ReplayScript` / `ReplayTurn` / `TurnSlot` schema を追加
-- commit 時に `turnPlans` ではなく lightweight script を保存する層を追加
-- 現行 `recordStore` はそのまま残す
+- `ReplayScript` / `ReplayTurn` / `TurnSlot` schema は導入済み
+- commit 時は lightweight script を保存し、`recordStore` は derived output のまま残している
 
-### Phase 2: 編集 UI 切替
+### 2. 編集 UI 切替
 
-- turn table の編集対象を `turnPlans` から `ReplayScript.turns` に切り替える
-- 6 slot 表示を基本 UI にする
-- swap 行編集を廃止する
+- turn table の編集対象は `ReplayScript.turns` に移行済み
+- committed row の再編集は `buildTurnEditDraft()` -> `replaceCommittedTurn()` で行う
+- swap 手順そのものではなく、commit 時点の slot 配置を正本として扱う
 
-### Phase 3: 再計算切替
+### 3. 再計算切替
 
-- `turnPlanBaseSetup + turnPlans` replay を `ReplayScript` replay に差し替える
-- best-effort で最後まで再計算し、必要なら warning や補助表示だけを返す
+- replay は `ReplayScript` 正本から best-effort で先頭再演する方式へ移行済み
+- warning/error は `getReplayDiagnostics()` で row 単位に返す
+- `record` / CSV / JSON export は replay 結果から再生成する
 
-### Phase 4: 旧 rich turnPlan の縮退
+### 4. Session save/load 切替
 
-- 旧 `turnPlans` は legacy import/debug 用に限定する
-- 常用編集経路から外す
+- `normalizeSessionSnapshot()` は既知フィールドと `replayScript` のみを採用する
+- `record` / `computedRecords` 相当の実行結果は保存物に含まれていても load 正本には使わない
+- 常用 load 契約は `replayScript` ベースであり、`turnPlans` bridge を前提にしない
 
-## 互換境界
+## 現在の互換境界
 
-- 既存 `turnPlans` は当面 mirror/bridge として残し、ReplayScript が空で turnPlans だけ存在する場合は migration helper で `ReplayScript.turns` を再構築する
-- `turnPlans` の `enemyAction` / state map / field state / enemy config は `ReplayTurn.overrideEntries[]` に移して bridge する
 - `scenario` JSON/CSV import は従来どおり scenario layer の責務とし、ReplayScript へ自動変換しない
 - `record` / CSV / records JSON export は従来どおり derived output の責務とし、ReplayScript から再生成した結果を出力する
+- legacy `turnPlans` を常用 load 経路へ戻す予定は現時点で持たない
+  - もし旧 session を再救済する必要が出た場合は、runtime 常設 bridge ではなく別 migration tool として切り出す方が優先
 
 ## この設計で得たい挙動
 
@@ -492,9 +510,43 @@ OverrideEntry = {
 8. manual state は `overrideEntries` として分離する
 9. setup / operation / override は typed envelope で増減可能にする
 
-## 次の具体化候補
+## 残タスクと優先順位（2026-04-10）
 
-- `ReplayScript` の JSON schema を確定する
-- commit 時の 6 slot capture 仕様を決める
-- 現行 `turnPlans` から `ReplayScript` へ変換する migration helper を作る
-- minimal replay 用の best-effort executor を `dom-adapter` ではなく core 層へ切り出す
+結論:
+
+- core replay/edit 移行そのものは完了済み
+- 残タスクは `ReplayScript` 導入の未完ではなく、Break / Follow-Up / Summon を含む周辺統合の追従である
+- とくに `SummonEnemy` は手動入力・session/replay 正本・enemy slot snapshot・主要 selector 回帰固定までは実装済みで、残りは「敵行動データからどう流し込むか」と「override 群が同居する turn の正規化をどこまで追加で固定するか」に寄る
+
+### P0
+
+- なし
+
+### P1
+
+- 敵行動データの `Summon` を `ReplayTurn.operations[].type === 'SummonEnemy'` へ自動変換する経路を追加する
+- `lightweight_record_replay_design.md` / `t16b_summon_enemy_slot_wbs.md` / `ui_next_unimplemented_tasklist.md` の 3 文書で、この auto summon 経路を同じ粒度で管理する
+
+理由:
+
+- 現在の replay contract 自体は `SummonEnemy` を受けられるが、入力源の 1 つである enemy action data が未接続
+- manual summon だけ実装済みの状態だと、record/replay 契約の完成度より運用導線の完成度が遅れて見える
+
+### P2
+
+- summon 後の `break / follow-up / target` 選択と committed-row 再編集の主要回帰 coverage を維持し、追加ケースが必要になったときだけ補う
+- `ActionOutcomeOverrides` / `FollowUpOverrides` / enemy slot snapshot override 群が同時に存在する turn の replay warning / normalization 挙動を固定する
+
+理由:
+
+- `tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` で summon 後の `break / follow-up / recommit` 主経路は固定済み
+- ただし Break/Kill/Summon は同一 turn で重なると slot identity の回帰を起こしやすく、override 正規化まわりの追加固定余地は残る
+
+### P3
+
+- `BattleStateManager` に戦闘中 summon slot を常設反映するか、初期 state builder に責務を限定するかを整理する
+
+理由:
+
+- 現状の replay/commit correctness は `TurnEngineManager` 側で成立しているため blocker ではない
+- ただし setup snapshot と runtime snapshot の責務境界が曖昧なままだと、今後の enemy setup/save-load 拡張で再び混乱源になる
