@@ -333,13 +333,14 @@
   - 先行 actor が取った敵は後続 actor の break editor / popup editor では disabled 表示にし、saved replay や stale draft から重複が来ても engine 側で first-wins に正規化する
 - 後続 actor の本物の `SuperBreak` / `SuperBreakDown` は manual `Break` 重複禁止の対象に含めない
   - 先行 actor の manual `Break` 後に後続 skill が `SuperBreak` を行う upgrade は許可する
-  - `SuperBreakDown` は既存 engine 挙動どおり、既に `Break` 済みなら no-op / `DownTurn` 済みなら `SuperBreakDown` へ進む
+  - `SuperBreakDown` は既に `DownTurn` 済みなら `SuperBreakDown` へ進み、same-action manual `Break` target でも runtime 側で `Break + DownTurn` を先行反映して `SuperBreakDown` まで上げる
 - Playwright E2E では `[演習機]ヘフティーガーディアン` に対する `月歌: クロス斬り（manual Break）` → `ユキ: 光輝の夜明け` の next-turn / same-turn 両ケースを固定し、committed row popup と次 input row popup の `強ブレイク` 表示、`LightSuperBreak` アイコン、`最大D率 600` を確認する
 - `SuperBreak` / `SuperBreakDown` は engine の専用処理で破壊率上限と breakState を更新するが、外部へ見せる status 名は canonical な `SuperBreak` / `SuperBreakDown` に統一する
 - `SuperBreak` は skill part の `hits` を見る
   - `Before`: 行動開始時に既に `Break` の敵だけを強ブレイク化する
   - `After`: この行動の攻撃で同一行動内に `Break` した敵も強ブレイク化できる
   - `光輝の夜明け` は個別例外ではなく、この `Before/After` 規則で扱う
+- `SuperBreakDown` は実データ上 `hits: Before` のままでも、same-action manual `Break` target を runtime で吸収して実機どおり `SuperBreakDown` を成立させる
 - enemy detail popup の `Break` 表示は役割を分離する
   - 基本情報の状態バッジ: `Alive / BREAK / Dead`
   - `状態異常 / バフ` 一覧: `DownTurn` / `SuperBreak` / `SuperBreakDown` などを表示し、bare `Break` は出さない

@@ -8396,6 +8396,53 @@ test('SuperBreakDown adds DownTurn event on fresh target and leaves Break state 
   );
 });
 
+test('SuperBreakDown upgrades same-action manual break target to canonical SuperBreakDown state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 18133,
+              name: 'ナイトキルエッジ',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18133, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
+  });
+  const committed = commitTurn(state, preview);
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === 'M1');
+
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'SuperBreakDown'),
+    true
+  );
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn'),
+    false
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreakDown' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(committed.nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+});
+
 test('SuperBreakDown does not re-break a target that is already in Break state on the next turn', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -8560,6 +8607,101 @@ test('SuperBreakDown upgrades down-turn target to canonical SuperBreakDown state
   assert.equal(committed.nextState.turnState.enemyState.destructionRateByEnemy['0'], 300);
   assert.deepEqual(committed.nextState.turnState.enemyState.destructionRateCapByEnemy, {});
   assert.deepEqual(committed.nextState.turnState.enemyState.breakStateByEnemy, {});
+});
+
+test('same-turn manual Break can yield SuperBreak on E1/E2 and SuperBreakDown on E3 across three enemies', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        skills: [
+          {
+            id: 18140,
+            name: 'クロス斬り',
+            sp_cost: 0,
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        skills: [
+          {
+            id: 18141,
+            name: '光輝の夜明け',
+            sp_cost: 0,
+            target_type: 'All',
+            parts: [
+              { skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' },
+              { skill_type: 'SuperBreak', target_type: 'All', hits: [{ type: 'Before' }], elements: ['Light'] },
+              { skill_type: 'SuperBreak', target_type: 'All', hits: [{ type: 'After' }], elements: ['Light'] },
+            ],
+          },
+        ],
+      };
+    }
+    if (idx === 2) {
+      return {
+        skills: [
+          {
+            id: 18142,
+            name: 'ナイトキルエッジ',
+            sp_cost: 0,
+            target_type: 'Single',
+            parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single', type: 'Slash' }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 3;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 18140, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
+    1: { characterId: 'M2', skillId: 18141, manualBreakEnemyIndexes: [1] },
+    2: { characterId: 'M3', skillId: 18142, targetEnemyIndex: 2, manualBreakEnemyIndexes: [2] },
+  });
+  const committed = commitTurn(state, preview);
+  const yukiAction = committed.committedRecord.actions.find((entry) => entry.characterId === 'M2');
+  const karenAction = committed.committedRecord.actions.find((entry) => entry.characterId === 'M3');
+
+  assert.deepEqual(
+    (yukiAction?.enemyStatusChanges ?? [])
+      .filter((change) => change.mode === 'SuperBreak')
+      .map((change) => change.targetIndex)
+      .sort((left, right) => left - right),
+    [0, 1]
+  );
+  assert.equal(
+    (karenAction?.enemyStatusChanges ?? []).some(
+      (change) => change.mode === 'SuperBreakDown' && change.targetIndex === 2
+    ),
+    true
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 1
+    ),
+    true
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreakDown' && status.targetIndex === 2
+    ),
+    true
+  );
+  assert.equal(committed.nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(committed.nextState.turnState.enemyState.destructionRateCapByEnemy['1'], 600);
+  assert.equal(committed.nextState.turnState.enemyState.destructionRateCapByEnemy['2'], 600);
 });
 
 test('SkillCondition branch sp_cost is applied when BreakDownTurn condition matches', () => {

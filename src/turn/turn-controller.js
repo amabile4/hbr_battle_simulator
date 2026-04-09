@@ -195,6 +195,7 @@ const MOTIVATION_DP_HEAL_PASSIVE_NAME = 'Motivation';
 const MOTIVATION_DP_HEAL_PASSIVE_DESC = 'Motivation increases when receiving DP heal from active skill';
 const AUTO_DP_CONSUMPTION_FLOOR = 1;
 const DEFAULT_AUTO_DOWN_TURN_REMAINING = 1;
+const SAME_ACTION_SUPER_BREAK_DOWN_INITIAL_REMAINING = DEFAULT_AUTO_DOWN_TURN_REMAINING + 1;
 const DP_RATE_REFERENCE_MIN = 0;
 const DP_RATE_REFERENCE_MAX = 1;
 const REVIVE_TERRITORY_TYPE = 'ReviveTerritory';
@@ -7207,6 +7208,10 @@ function resolveSuperBreakReferenceTurnState(currentTurnState, preActionTurnStat
   return currentTurnState;
 }
 
+function isSameActionManualBreakTarget(manualBreakEnemyIndexes, targetIndex) {
+  return manualBreakEnemyIndexes.includes(Number(targetIndex));
+}
+
 function applyEnemyBreakEffectsFromActions(state, previewRecord, options = {}) {
   const events = [];
   const preActionTurnState = options?.preActionTurnState ?? null;
@@ -7259,7 +7264,7 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord, options = {}) {
           );
           const allowsSameActionManualBreak =
             hitTiming !== SPECIAL_BREAK_HIT_TIMING_BEFORE &&
-            manualBreakEnemyIndexes.includes(Number(targetIndex));
+            isSameActionManualBreakTarget(manualBreakEnemyIndexes, targetIndex);
           if (!hasEnemyStatus(referenceTurnState, targetIndex, ENEMY_STATUS_BREAK) && !allowsSameActionManualBreak) {
             continue;
           }
@@ -7281,6 +7286,24 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord, options = {}) {
             );
           }
           continue;
+        }
+
+        const allowsSameActionManualBreak = isSameActionManualBreakTarget(
+          manualBreakEnemyIndexes,
+          targetIndex
+        );
+        if (allowsSameActionManualBreak && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
+          applyManualEnemyBreak(state.turnState, targetIndex);
+          if (
+            getEnemyStatusRemainingTurns(state.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN) <
+            SAME_ACTION_SUPER_BREAK_DOWN_INITIAL_REMAINING
+          ) {
+            upsertEnemyStatus(state.turnState, {
+              statusType: ENEMY_STATUS_DOWN_TURN,
+              targetIndex,
+              remainingTurns: SAME_ACTION_SUPER_BREAK_DOWN_INITIAL_REMAINING,
+            });
+          }
         }
 
         const isAlreadyBroken = hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK);

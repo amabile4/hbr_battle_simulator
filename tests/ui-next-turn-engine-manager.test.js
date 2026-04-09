@@ -1280,6 +1280,125 @@ test('TurnEngineManager keeps later SuperBreakDown behavior unchanged after an e
   );
 });
 
+test('TurnEngineManager upgrades same-action manual break target to SuperBreakDown', () => {
+  const superBreakDownSkill = createSkill({
+    id: 9072,
+    name: 'Down Break Follow',
+    targetType: 'Single',
+    parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(createFrontlineInitialState([superBreakDownSkill], 1), {});
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9072, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Break', enemyIndexes: [0] }],
+    }
+  );
+
+  const action = committedRecord.actions.find((entry) => entry.positionIndex === 0);
+
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'SuperBreakDown'),
+    true
+  );
+  assert.equal(
+    manager.currentState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreakDown' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(manager.currentState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+});
+
+test('TurnEngineManager keeps E1/E2 as SuperBreak and upgrades E3 to SuperBreakDown across three enemies', () => {
+  const rukaBreakSkill = createSkill({
+    id: 9073,
+    name: 'Cross Slash',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const yukiSuperBreakSkill = createSkill({
+    id: 9074,
+    name: 'Light Dawn',
+    targetType: 'All',
+    parts: [
+      { skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' },
+      { skill_type: 'SuperBreak', target_type: 'All', hits: [{ type: 'Before' }], elements: ['Light'] },
+      { skill_type: 'SuperBreak', target_type: 'All', hits: [{ type: 'After' }], elements: ['Light'] },
+    ],
+  });
+  const karenSuperBreakDownSkill = createSkill({
+    id: 9075,
+    name: 'Night Kill Edge',
+    targetType: 'Single',
+    parts: [{ skill_type: 'SuperBreakDown', target_type: 'Single', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createFrontlineInitialState([rukaBreakSkill, yukiSuperBreakSkill, karenSuperBreakDownSkill], 3),
+    {}
+  );
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9073, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 9074 },
+      2: { skillId: 9075, target: { type: 'enemy', enemyIndex: 2 } },
+    },
+    {
+      enemyCount: 3,
+      actionOutcomeOverrides: [
+        { position: 0, outcome: 'Break', enemyIndexes: [0] },
+        { position: 1, outcome: 'Break', enemyIndexes: [1] },
+        { position: 2, outcome: 'Break', enemyIndexes: [2] },
+      ],
+    }
+  );
+
+  const yukiAction = committedRecord.actions.find((entry) => entry.positionIndex === 1);
+  const karenAction = committedRecord.actions.find((entry) => entry.positionIndex === 2);
+
+  assert.deepEqual(
+    (yukiAction?.enemyStatusChanges ?? [])
+      .filter((change) => change.mode === 'SuperBreak')
+      .map((change) => change.targetIndex)
+      .sort((left, right) => left - right),
+    [0, 1]
+  );
+  assert.equal(
+    (karenAction?.enemyStatusChanges ?? []).some(
+      (change) => change.mode === 'SuperBreakDown' && change.targetIndex === 2
+    ),
+    true
+  );
+  assert.equal(
+    manager.currentState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    manager.currentState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 1
+    ),
+    true
+  );
+  assert.equal(
+    manager.currentState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreakDown' && status.targetIndex === 2
+    ),
+    true
+  );
+  assert.equal(manager.currentState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(manager.currentState.turnState.enemyState.destructionRateCapByEnemy['1'], 600);
+  assert.equal(manager.currentState.turnState.enemyState.destructionRateCapByEnemy['2'], 600);
+});
+
 test('TurnEngineManager loadReplayScript restores validationPolicy and committed rows', () => {
   const actorSkill = createSkill({
     id: 9070,

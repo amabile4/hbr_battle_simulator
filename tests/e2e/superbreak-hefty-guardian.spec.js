@@ -11,18 +11,29 @@ import {
 
 const DESKTOP_VIEWPORT = Object.freeze({ width: 1360, height: 960 });
 const HEFTY_GUARDIAN_PRESET_ID = 13490231;
-const SUPERBREAK_STYLE_IDS = [1001101, 1001207, 1001501, 1001301];
+const DEFAULT_SUPERBREAK_STYLE_IDS = [1001101, 1001207, 1001501, 1001301];
+const THREE_ENEMY_SUPERBREAK_STYLE_IDS = [1001101, 1001207, 1001509, 1001301];
 const RUKA_NORMAL_ATTACK_SKILL_ID = 46001101;
 const RUKA_BREAK_SKILL_ID = 46001102;
 const YUKI_NORMAL_ATTACK_SKILL_ID = 46001201;
 const YUKI_SUPERBREAK_SKILL_ID = 46001212;
 const KAREN_NORMAL_ATTACK_SKILL_ID = 46001501;
+const KAREN_SUPERBREAKDOWN_SKILL_ID = 46001522;
 
-async function configureEnemyPreset(page, enemyId) {
+async function configureEnemyPresetSlots(page, enemyIds) {
   await page.locator('[role="tab"][data-tab="enemy"]').click();
   const presetSelect = page.locator('#enemy-setup-root [data-action="select-enemy"]');
   await expect(presetSelect).toBeVisible({ timeout: 5000 });
-  await presetSelect.selectOption(String(enemyId));
+  await presetSelect.selectOption(String(enemyIds[0]));
+
+  for (const [slotIndex, enemyId] of enemyIds.entries()) {
+    if (slotIndex === 0 || enemyId === null || enemyId === undefined) {
+      continue;
+    }
+    await page.locator(`[data-action="set-active-slot"][data-slot-index="${slotIndex}"]`).click();
+    await presetSelect.selectOption(String(enemyId));
+  }
+
   await page.locator('[role="tab"][data-tab="party"]').click();
 }
 
@@ -56,6 +67,44 @@ async function queueManualBreakForLatestInputRow(page, { enemyIndex = 0, partyIn
   }
 
   await expect(inputRow.locator('[data-role="manual-break-chip"]')).toContainText('ブレイク', {
+    timeout: 5000,
+  });
+  await popup.locator('[data-role="popup-close"]').click();
+  await expect(page.locator('.enemy-detail-popup-container')).toHaveCount(0, { timeout: 5000 });
+  return inputRow;
+}
+
+async function queueManualBreakAssignmentsForLatestInputRow(page, assignments = []) {
+  const inputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
+  await openEnemyPopupActionForRow(page, inputRow, 'break');
+
+  const popup = page.locator('.enemy-detail-popup-container');
+  await expect(popup).toBeVisible({ timeout: 5000 });
+
+  for (const { enemyIndex, partyIndex } of assignments) {
+    const targetCandidate = popup.locator(
+      `[data-role="manual-break-target-candidate"][data-party-index="${partyIndex}"][data-enemy-index="${enemyIndex}"]`
+    );
+    if (await targetCandidate.count()) {
+      await targetCandidate.click();
+    }
+
+    const multiToggle = popup.locator(
+      `[data-role="manual-break-candidate"][data-party-index="${partyIndex}"][data-enemy-index="${enemyIndex}"]`
+    );
+    if (await multiToggle.count()) {
+      await multiToggle.click();
+      continue;
+    }
+
+    const singleToggle = popup.locator(
+      `[data-role="manual-break-single-toggle"][data-party-index="${partyIndex}"]`
+    );
+    await expect(singleToggle).toBeVisible({ timeout: 5000 });
+    await singleToggle.click();
+  }
+
+  await expect(inputRow.locator('[data-role="manual-break-chip"]')).toHaveCount(assignments.length, {
     timeout: 5000,
   });
   await popup.locator('[data-role="popup-close"]').click();
@@ -110,6 +159,21 @@ async function expectSuperBreakStatus(popup, enemyIndex, expectedVisible) {
   }
 }
 
+async function expectSuperBreakDownStatus(popup, enemyIndex, expectedVisible) {
+  const superBreakDown = getEnemyPopupColumn(popup, enemyIndex).locator(
+    '[data-status-type="SuperBreakDown"]'
+  );
+  if (expectedVisible) {
+    await expect(superBreakDown).toBeVisible({ timeout: 5000 });
+    await expect(superBreakDown).toContainText('超ダウン', { timeout: 5000 });
+    await expect(superBreakDown.locator('img')).toHaveAttribute('src', /SuperBreakDown\.webp/, {
+      timeout: 5000,
+    });
+  } else {
+    await expect(superBreakDown).toHaveCount(0);
+  }
+}
+
 async function expectBreakPopupSemantics(popup, enemyIndex, { broken }) {
   const column = getEnemyPopupColumn(popup, enemyIndex);
   const stateRow = column
@@ -128,10 +192,17 @@ async function closeEnemyPopup(page) {
 }
 
 async function setupHeftyGuardianBattle(page) {
+  return setupHeftyGuardianBattleWithConfig(page, {
+    enemyIds: [HEFTY_GUARDIAN_PRESET_ID],
+    styleIds: DEFAULT_SUPERBREAK_STYLE_IDS,
+  });
+}
+
+async function setupHeftyGuardianBattleWithConfig(page, { enemyIds, styleIds }) {
   await page.setViewportSize(DESKTOP_VIEWPORT);
   await gotoUiNext(page);
-  await configureEnemyPreset(page, HEFTY_GUARDIAN_PRESET_ID);
-  await fillPartySetupSlotsWithStyleIds(page, SUPERBREAK_STYLE_IDS);
+  await configureEnemyPresetSlots(page, enemyIds);
+  await fillPartySetupSlotsWithStyleIds(page, styleIds);
   return applyParty(page);
 }
 
@@ -217,5 +288,48 @@ test.describe('SuperBreak on Hefty Guardian', () => {
     await expectEnemyMaxDRate(turn2InputPopup, 0, 600);
     await expectSuperBreakStatus(turn2InputPopup, 0, true);
     await expectBreakPopupSemantics(turn2InputPopup, 0, { broken: true });
+  });
+
+  test('three Hefty Guardians yield SuperBreak on E1/E2 and SuperBreakDown on E3 in the same turn', async ({ page }) => {
+    await setupHeftyGuardianBattleWithConfig(page, {
+      enemyIds: [HEFTY_GUARDIAN_PRESET_ID, HEFTY_GUARDIAN_PRESET_ID, HEFTY_GUARDIAN_PRESET_ID],
+      styleIds: THREE_ENEMY_SUPERBREAK_STYLE_IDS,
+    });
+
+    await selectSkillForPosition(page, 0, RUKA_BREAK_SKILL_ID);
+    await selectSkillForPosition(page, 1, YUKI_SUPERBREAK_SKILL_ID);
+    await selectSkillForPosition(page, 2, KAREN_SUPERBREAKDOWN_SKILL_ID);
+    await queueManualBreakAssignmentsForLatestInputRow(page, [
+      { partyIndex: 0, enemyIndex: 0 },
+      { partyIndex: 1, enemyIndex: 1 },
+      { partyIndex: 2, enemyIndex: 2 },
+    ]);
+
+    const turn1Row = await commitLatestInputRow(page);
+
+    const turn1Popup = await openEnemyPopupForRow(page, turn1Row, 0);
+    await expectSuperBreakStatus(turn1Popup, 0, true);
+    await expectBreakPopupSemantics(turn1Popup, 0, { broken: true });
+    await turn1Popup.locator('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]').click();
+    await expectSuperBreakStatus(turn1Popup, 1, true);
+    await expectBreakPopupSemantics(turn1Popup, 1, { broken: true });
+    await turn1Popup.locator('[data-role="enemy-popup-tab"][data-enemy-tab-index="2"]').click();
+    await expectSuperBreakDownStatus(turn1Popup, 2, true);
+    await expectBreakPopupSemantics(turn1Popup, 2, { broken: true });
+    await closeEnemyPopup(page);
+
+    const turn2InputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
+    const turn2InputPopup = await openEnemyPopupForRow(page, turn2InputRow, 0);
+    await expectEnemyMaxDRate(turn2InputPopup, 0, 600);
+    await expectSuperBreakStatus(turn2InputPopup, 0, true);
+    await expectBreakPopupSemantics(turn2InputPopup, 0, { broken: true });
+    await turn2InputPopup.locator('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]').click();
+    await expectEnemyMaxDRate(turn2InputPopup, 1, 600);
+    await expectSuperBreakStatus(turn2InputPopup, 1, true);
+    await expectBreakPopupSemantics(turn2InputPopup, 1, { broken: true });
+    await turn2InputPopup.locator('[data-role="enemy-popup-tab"][data-enemy-tab-index="2"]').click();
+    await expectEnemyMaxDRate(turn2InputPopup, 2, 600);
+    await expectSuperBreakDownStatus(turn2InputPopup, 2, true);
+    await expectBreakPopupSemantics(turn2InputPopup, 2, { broken: true });
   });
 });
