@@ -158,12 +158,14 @@ function buildTalismanEntry(talismanState) {
   const active = Boolean(talismanState?.active);
   const level = Number(talismanState?.level ?? 0);
   const maxLevel = Math.max(1, Number(talismanState?.maxLevel ?? 10));
+  const penalty = Math.max(0, Math.floor(level) * 10);
   const duration = resolveRemainingLabel(talismanState?.remainingTurns);
   const name = String(talismanState?.talismanName ?? talismanState?.name ?? FIELD_LABELS.talisman).trim();
   const desc = String(talismanState?.desc ?? '').trim();
   const meta = [
     active ? '有効' : '待機',
     `Lv${Math.max(0, Math.floor(level))}/${Math.floor(maxLevel)}`,
+    penalty > 0 ? `全能力-${penalty}` : '全能力-0',
   ].filter(Boolean);
   return {
     kind: 'talisman',

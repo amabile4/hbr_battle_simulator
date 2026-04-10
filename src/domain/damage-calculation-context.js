@@ -31,6 +31,24 @@ export function buildDamageCalculationContext(input = {}) {
             ])
           )
         : {},
+    enemyTalismanLevelByEnemy:
+      input.enemyTalismanLevelByEnemy && typeof input.enemyTalismanLevelByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.enemyTalismanLevelByEnemy).map(([targetIndex, level]) => [
+              String(targetIndex),
+              Number(level ?? 0),
+            ])
+          )
+        : {},
+    enemyAllAbilityDownByEnemy:
+      input.enemyAllAbilityDownByEnemy && typeof input.enemyAllAbilityDownByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.enemyAllAbilityDownByEnemy).map(([targetIndex, penalty]) => [
+              String(targetIndex),
+              Number(penalty ?? 0),
+            ])
+          )
+        : {},
     tokenAttackTokenCount: Number(input.tokenAttackTokenCount ?? 0),
     tokenAttackRatePerToken: Number(input.tokenAttackRatePerToken ?? 0),
     tokenAttackTotalRate: Number(input.tokenAttackTotalRate ?? 0),

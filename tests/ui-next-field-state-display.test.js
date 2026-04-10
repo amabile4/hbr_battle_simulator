@@ -55,7 +55,7 @@ test('active talisman state is included with level metadata', () => {
 
   assert.equal(entries.length, 1);
   assert.equal(entries[0].label, '霊符状態');
-  assert.deepEqual(entries[0].meta, ['有効', 'Lv3/10']);
+  assert.deepEqual(entries[0].meta, ['有効', 'Lv3/10', '全能力-30']);
 });
 
 test('RiceField zone (稲穂フィールド) is displayed correctly', () => {

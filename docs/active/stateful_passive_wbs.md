@@ -1,6 +1,6 @@
 # 状態付与型パッシブ 実装WBS（38件）
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-10
+> **ステータス**: ✅ 完了 | 📅 最終更新: 2026-04-10
 > 対象: `json/passives.json` 内の `AdditionalHit*` を持つ全パッシブ（750件中38件）
 
 ---
@@ -11,15 +11,14 @@
   - `HbrDataStore.fromJsonDirectory('json')` 基準で `styles=345`, `scannedEntries=1789`, `embeddedOnlyPassiveIds=116`
   - structural residual は `condition=0`, `overwrite=0`, `enemy-status=0`
   - `BorderRefPDownByAdmiral` は `silentSkipEnemyStatusCandidates=3` として別カウント化した
-- `node --test tests/turn-state-transitions.test.js` 実行結果: `pass 419 / fail 0`
-- `AdditionalHitOnRemovingBuff + AttackUp`（浄化の喝采）、`AdditionalHitOnBreaking + AttackUp`、`AdditionalHitOnExtraSkill + DebuffGuard/BuffCharge` はいずれも実装・テスト済み
-- `OnAdditionalHit` 系で runtime 未接続として残るのは `AdditionalHitOnExtraSkill + Talisman`（恐怖の叫び）のみ
+- `node --test tests/turn-state-transitions.test.js` 実行結果: `pass 422 / fail 0`
+- `AdditionalHitOnRemovingBuff + AttackUp`（浄化の喝采）、`AdditionalHitOnBreaking + AttackUp`、`AdditionalHitOnExtraSkill + DebuffGuard/BuffCharge/Talisman` はいずれも実装・テスト済み
+- `OnAdditionalHit` 系 38件は runtime 接続と回帰テスト固定まで完了した
 
 ### 現在の残課題（AdditionalHit 38件スコープ）
 
-- `AdditionalHitOnExtraSkill + Talisman`（恐怖の叫び）
-	- battle-start 対照ケース `貼ったりましょう！`（`skillPassive:46401601`）では `Talisman` 初期付与が動作する
-	- `AdditionalHitOnExtraSkill` トリガー経路での `Talisman` level-up / 付与は未接続
+- runtime 残課題はなし
+- 監査上の残件は `OnEveryTurnIncludeSpecial` の observability gap のみで、AdditionalHit 38件スコープからは外す
 
 ---
 
@@ -39,10 +38,10 @@
 
 | ステータス | 件数 |
 |----------|------|
-| ✅ 完全実装 | 37 |
+| ✅ 完全実装 | 38 |
 | ⚠️ 部分実装 | 0 |
 | 📝 発火・ログのみ | 0 |
-| 🔧 発火のみ（効果未実装） | 1 |
+| 🔧 発火のみ（効果未実装） | 0 |
 | ❌ 無発火 | 0 |
 | **合計** | **38** |
 
@@ -60,7 +59,7 @@
 | 6 | お裾分け | OnHealedSpWithoutSelfHeal | HealSp +2 | AllyAll | Eternal | ✅ 完全実装 | SP30対応済み（applyReceiverSpHealPassiveTriggers） |
 | 7 | クリアリング | OnKillCount | HealSp +2+1 | AllyAll | Eternal | ✅ 完全実装 | killCount倍率適用済み（2026-03-25修正）|
 | 8 | 貴様に託した【カレン専用】 | OnBreaking | OverDrivePointUp +25% | Self | PlayerTurnEnd | ✅ 完全実装 | exitCond=PlayerTurnEnd 管理済み（同一プレイヤーターン内1回、2026-03-25実装）|
-| 9 | 恐怖の叫び | OnExtraSkill | Talisman | All | Eternal | 🔧 発火のみ | battle-start `Talisman` は実装済みだが、AdditionalHit trigger での level-up は未接続 |
+| 9 | 恐怖の叫び | OnExtraSkill | Talisman | All | Eternal | ✅ 完全実装 | EX 使用後 `+2`、攻撃由来 `+1`、inactive 不発、Lv10 clamp、`damageContext`/UI 露出まで dedicated test で固定 |
 | 10 | 心ときめく応援 | OnSpecifiedSkill | Morale +2 | Self | Eternal | ✅ 完全実装 | |
 | 11 | 迸る衝動 (100230600) | OnKillCount | Morale +2 | Self | Eternal | ✅ 完全実装 | killCount倍率適用済み |
 | 12 | 二股の尻尾 | OnExtraSkill | DoubleActionExtraSkill | Self | Eternal | ✅ 完全実装 | EX二連権を再付与。水瀬すももLB3の次回EX二連を確認済み |
@@ -119,9 +118,7 @@
 
 ## 未実装 effectType（🔧 発火のみ 対象）
 
-| effectType | 対象パッシブ | 効果の説明 |
-|-----------|-----------|---------|
-| `Talisman` | 恐怖の叫び | 敵全体へタリスマン付与/level-up。battle-start 経路は実装済み、AdditionalHit trigger 経路のみ未接続 |
+> 2026-04-10 時点で 0 件。
 
 ---
 
@@ -136,9 +133,8 @@
 
 ---
 
-## 今後の実装候補（優先度目安）
+## 今後のフォローアップ（実装完了後）
 
 | 優先度 | 対象 | 理由 |
 |--------|------|------|
-| 高 | T33-FU1: `AdditionalHitOnExtraSkill + Talisman` | 実データ監査で残った唯一の runtime gap。`恐怖の叫び` の EX 使用後効果を実装し、`test.todo` を実テストへ昇格させる |
 | 低 | `OnEveryTurnIncludeSpecial` の passive log 可視化 | runtime 自体は正常だが、preview-path 発火のため `passiveEventsLastApplied` に載らず観測が薄い |

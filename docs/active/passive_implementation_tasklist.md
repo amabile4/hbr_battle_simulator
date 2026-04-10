@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-04
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-10
 
 ## 方針
 
@@ -512,16 +512,13 @@ Phase 6-D（対象外）: 装備起点パッシブ
   - `AdditionalHitOnZone`（オーバーレイ相当）
   - `AdditionalHitOnPursuit`（そよぐ新緑相当）
   - `AdditionalHitOnOverDrivePointDownSkill`（トップアップ相当）
-- `Talisman` / `DebuffGuard` / `BuffCharge` は timing パッシブ側の処理は実装済み
-  - ただし `AdditionalHitOnExtraSkill` の trigger 経路での適用は別残課題
+- `Talisman` / `DebuffGuard` / `BuffCharge` は timing / `AdditionalHitOnExtraSkill` trigger の両経路で実装済み
 - `exitCond` の残件扱いだった `Count` / `PlayerTurnEnd` も、専用テスト（`P3-A` / `P3-B`）で挙動確認済み
 - `node --test tests/turn-state-transitions.test.js` を実行し、`pass 402 / fail 0` を確認
 
 ### 残課題確認（main HEAD基準）
 
 - 条件/timing 基盤と主要パッシブ群は実装済み
-- 追加で詰める残課題は次のとおり
-  - `AdditionalHitOnExtraSkill + Talisman`（恐怖の叫び）
 - それ以外の継続課題は周辺改善に集約される
   - `ConquestBikeLevel` の UI 上書き
   - 印の UI/Record/Passive Log 見える化強化
@@ -557,19 +554,23 @@ Phase 6-D（対象外）: 装備起点パッシブ
     - `AdditionalHitOnExtraSkill + BuffCharge: EX skill used grants BuffCharge to self`
   - `node --test tests/turn-state-transitions.test.js --test-name-pattern "AdditionalHitOnExtraSkill + DebuffGuard|AdditionalHitOnExtraSkill + BuffCharge"` を含む実行で green を確認
 
-#### WBS-3: Talisman は敵ステート表示機能の後で実装（中）
+#### WBS-3: Talisman は敵ステート表示機能の後で実装（中） ✅ 完了
 
 - 目的
   - 敵ステート可視化とセットで `AdditionalHitOnExtraSkill + Talisman` を実装し、検証可能な形で導入する
 - 現状
   - timing パッシブ側の `Talisman` は実装済み
-  - ただし trigger 経路（恐怖の叫び）では未接続
-  - 敵ステート表示機能が未整備で、網羅テストの観測性が不足
+  - enemy popup / field chip / char detail の観測面が整ったため、trigger 経路の導入条件を満たした
 - 実装
-  - 先に敵ステート表示機能を追加し、`talismanState` の可視化経路を整備
-  - その後、trigger 経路へ `Talisman` 適用を接続
+  - enemy popup の summary / preview action-flow に talisman 表示を追加
+  - trigger 経路へ `Talisman` 適用を接続し、`fieldStateApplied` と `damageContext` に露出
 - 完了条件
   - 恐怖の叫びが EX 使用で発火し、UI/record/test の3経路で同一結果を観測できる
+- 完了メモ（2026-04-10）
+  - `applyMoralePassiveTriggerEffects` に `Talisman` 分岐を追加し、`恐怖の叫び` の EX 使用後 `+2` を接続
+  - `applyTalismanLevelIncrementsFromActions` を action-scoped `fieldStateApplied` 返却へ拡張
+  - `damageContext.enemyTalismanLevelByEnemy` / `enemyAllAbilityDownByEnemy` を追加
+  - `tests/turn-state-transitions.test.js` の dedicated runtime test、`tests/t33-skill-passive-audit.test.js` baseline、`tests/ui-next-turn-ui.test.js` popup 表示で固定
 
 #### WBS-4: trigger AttackUp の運用仕様確定（中） ✅ 完了
 

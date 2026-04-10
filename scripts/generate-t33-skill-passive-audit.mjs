@@ -10,88 +10,9 @@ import {
 
 const SILENT_SKIP_ENEMY_STATUS_SKILL_TYPES = new Set(['BorderRefPDownByAdmiral']);
 
-const MANUAL_LOGIC_GAP_RULES = Object.freeze([
-  Object.freeze({
-    key: 'stylePassive:57001275',
-    entryKind: 'stylePassive',
-    styleId: 1001710,
-    sourceName: '恐怖の叫び',
-    reason:
-      'AdditionalHitOnExtraSkill trigger path still does not apply Talisman level-up, even though battle-start Talisman is already implemented.',
-    expectedNextTask: 'T33-FU1',
-    triggerType: 'AdditionalHitOnExtraSkill',
-    effectType: 'Talisman',
-    controlCaseKey: 'skillPassive:46401601',
-    testReferences: Object.freeze([
-      'tests/t33-skill-passive-audit.test.js',
-      'tests/turn-state-transitions.test.js',
-    ]),
-  }),
-]);
+const MANUAL_LOGIC_GAP_RULES = Object.freeze([]);
 
-const STALE_DOC_FALSE_POSITIVE_RULES = Object.freeze([
-  Object.freeze({
-    key: 'stylePassive:57001121',
-    entryKind: 'stylePassive',
-    styleId: 1001208,
-    sourceName: '浄化の喝采',
-    reason:
-      'AdditionalHitOnRemovingBuff + AttackUp already creates AttackUp status effects and is covered by turn-state-transitions tests.',
-    docReferences: Object.freeze([
-      'docs/active/stateful_passive_wbs.md',
-      'docs/active/passive_test_coverage_audit.md',
-    ]),
-  }),
-  Object.freeze({
-    key: 'topic:additional-hit-on-breaking-attackup',
-    reason:
-      'AdditionalHitOnBreaking + AttackUp already creates AttackUp status effects and is covered by turn-state-transitions tests; the old "破砕の喝采" runtime-gap note is stale and the current live store no longer exposes that passive by name.',
-    examples: Object.freeze([
-      'tests/turn-state-transitions.test.js: AdditionalHitOnBreaking + AttackUp synthetic fixtures',
-      'docs/active/stateful_passive_wbs.md stale mention: 破砕の喝采',
-    ]),
-    docReferences: Object.freeze([
-      'docs/active/stateful_passive_wbs.md',
-      'docs/active/passive_test_coverage_audit.md',
-    ]),
-  }),
-  Object.freeze({
-    key: 'stylePassive:57001147',
-    entryKind: 'stylePassive',
-    styleId: 1007404,
-    sourceName: 'ライトプロテクション',
-    reason:
-      'AdditionalHitOnExtraSkill + DebuffGuard is implemented and covered by dedicated turn-state-transitions tests.',
-    docReferences: Object.freeze([
-      'docs/active/passive_test_coverage_audit.md',
-      'docs/active/passive_implementation_tasklist.md',
-    ]),
-  }),
-  Object.freeze({
-    key: 'stylePassive:57001219',
-    entryKind: 'stylePassive',
-    styleId: 1007405,
-    sourceName: '役者魂',
-    reason:
-      'AdditionalHitOnExtraSkill + BuffCharge is implemented and covered by dedicated turn-state-transitions tests.',
-    docReferences: Object.freeze([
-      'docs/active/passive_test_coverage_audit.md',
-      'docs/active/passive_implementation_tasklist.md',
-    ]),
-  }),
-  Object.freeze({
-    key: 'topic:on-overdrive-start',
-    reason:
-      'OnOverdriveStart now runs through applyPassiveTimingInternal during activateOverdrive(), so the old runtime-gap note is stale.',
-    examples: Object.freeze([
-      '100260203:専心',
-      '100510600:思考加速',
-    ]),
-    docReferences: Object.freeze([
-      'docs/active/passive_timing_reference.md',
-    ]),
-  }),
-]);
+const STALE_DOC_FALSE_POSITIVE_RULES = Object.freeze([]);
 
 const OBSERVABILITY_GAP_RULES = Object.freeze([
   Object.freeze({

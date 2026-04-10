@@ -11766,6 +11766,184 @@ test('Talisman level increments by 1 per attack action during OD sub-turn (no re
   );
 });
 
+test('恐怖の叫び: EX skill use applies Talisman trigger, attack increment, and damageContext metadata', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'TAL1',
+          characterName: 'TAL1',
+          initialSP: 20,
+          triggeredSkills: [
+            {
+              id: 46401601,
+              name: '貼ったりましょう！',
+              passive: { timing: 'OnBattleStart', condition: '', activ_rate: 0, effect: '', auto_type: 'None', limit: 0 },
+              parts: [{ skill_type: 'Talisman', target_type: 'All', power: [0, 0], value: [0, 0] }],
+              sourceType: 'triggered',
+              isTriggeredSkillPassive: true,
+            },
+          ],
+          passives: [
+            {
+              id: 57001275,
+              name: '恐怖の叫び',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'Talisman', target_type: 'All', power: [2, 0], value: [1, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99984,
+              name: 'Talisman EX Slash',
+              sp_cost: 12,
+              is_restricted: 1,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+              hits: [{ id: 1, type: 'Main', power_ratio: 1 }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = applyInitialPassiveState(createBattleStateFromParty(party));
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TAL1', skillId: 99984 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.enemyState?.talismanState?.active, true);
+  assert.equal(nextState.turnState.enemyState?.talismanState?.level, 3);
+
+  const triggerEvent = (committedRecord.passiveEvents ?? []).find(
+    (event) => event.source === 'passive_trigger' && event.passiveName === '恐怖の叫び'
+  );
+  assert.ok(triggerEvent, '恐怖の叫び passive_trigger event should be recorded');
+  assert.equal(triggerEvent.talismanChange?.levelBefore, 0);
+  assert.equal(triggerEvent.talismanChange?.levelAfter, 2);
+  assert.equal(triggerEvent.talismanChange?.levelDelta, 2);
+
+  const action = committedRecord.actions.find((entry) => entry.characterId === 'TAL1');
+  assert.ok(action, 'committed action should exist');
+  const talismanFieldEvents = (action.fieldStateApplied ?? []).filter((event) => event.kind === 'talisman');
+  assert.equal(talismanFieldEvents.length, 2, 'trigger and attacked-by-player talisman events should both be recorded');
+  assert.deepEqual(
+    talismanFieldEvents.map((event) => [event.source, event.levelBefore, event.levelAfter, event.levelDelta]),
+    [
+      ['passive_trigger', 0, 2, 2],
+      ['attacked_by_player_action', 2, 3, 1],
+    ]
+  );
+  assert.equal(action.damageContext?.enemyTalismanLevelByEnemy?.['0'], 3);
+  assert.equal(action.damageContext?.enemyAllAbilityDownByEnemy?.['0'], 30);
+});
+
+test('AdditionalHitOnExtraSkill + Talisman does not fire while talisman is inactive', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'TAL2',
+          characterName: 'TAL2',
+          initialSP: 20,
+          passives: [
+            {
+              id: 57001275,
+              name: '恐怖の叫び',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'Talisman', target_type: 'All', power: [2, 0], value: [1, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99985,
+              name: 'Inactive Talisman EX',
+              sp_cost: 12,
+              is_restricted: 1,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+              hits: [{ id: 1, type: 'Main', power_ratio: 1 }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TAL2', skillId: 99985 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.enemyState?.talismanState?.active, false);
+  assert.equal(nextState.turnState.enemyState?.talismanState?.level, 0);
+  assert.equal(
+    (committedRecord.passiveEvents ?? []).some((event) => event.passiveName === '恐怖の叫び'),
+    false,
+    'passive_trigger event should not be recorded when talisman is inactive'
+  );
+});
+
+test('AdditionalHitOnExtraSkill + Talisman clamps at max level 10', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'TAL3',
+          characterName: 'TAL3',
+          initialSP: 20,
+          passives: [
+            {
+              id: 57001275,
+              name: '恐怖の叫び',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnExtraSkill', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'Talisman', target_type: 'All', power: [2, 0], value: [1, 0], cond: '', hit_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99986,
+              name: 'Clamp Talisman EX',
+              sp_cost: 12,
+              is_restricted: 1,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+              hits: [{ id: 1, type: 'Main', power_ratio: 1 }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+  state.turnState.enemyState.talismanState = { active: true, level: 9, maxLevel: 10 };
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TAL3', skillId: 99986 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.enemyState?.talismanState?.level, 10);
+  const action = committedRecord.actions.find((entry) => entry.characterId === 'TAL3');
+  assert.equal(action.damageContext?.enemyTalismanLevelByEnemy?.['0'], 10);
+  assert.equal(action.damageContext?.enemyAllAbilityDownByEnemy?.['0'], 100);
+});
+
 test('Talisman level does not increment for non-attack skills', () => {
   // M1 が Heal スキルのみを持つ構成で OD1 sub-turn を使用。
   // ターンインデックスは進まない（preemptive OD で OD 終了後も同一ターン文脈）ため

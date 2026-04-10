@@ -20,12 +20,11 @@
 
 ## 優先順（現時点）
 
-1. T33-FU1: `AdditionalHitOnExtraSkill + Talisman`
-2. PRI-018 / Skill Usage Limits（`T19` 集約先）
-3. T16-B: 敵行動データからの auto summon
-4. T34 follow-up: enemy 関連メニュー統合 / browser E2E / per-source instance 管理
-5. T32: Stage Setup Phase2/3
-6. Setup パネル レイアウト改善 & ロード高速化
+1. PRI-018 / Skill Usage Limits（`T19` 集約先）
+2. T16-B: 敵行動データからの auto summon
+3. T34 follow-up: enemy 関連メニュー統合 / browser E2E / per-source instance 管理
+4. T32: Stage Setup Phase2/3
+5. Setup パネル レイアウト改善 & ロード高速化
 
 ## 1) T16-B: Summon による敵数増加（5項目）
 
@@ -78,11 +77,12 @@
 
 `T32` の抽象タスクは `10) Stage Setup ギミック実装残` へ正規化済み。ここでは重複チェックを持たず、実装管理は `10)` のみで行う。
 
-## 5) T33: 固有スキル/パッシブ未反映監査（第1波完了 / follow-up 1項目）
+## 5) T33: 固有スキル/パッシブ未反映監査（完了）
 
 詳細計画/WBS:
 
 - [t33_skill_passive_audit_wbs.md](t33_skill_passive_audit_wbs.md)
+- [talisman_completion_wbs.md](talisman_completion_wbs.md)
 
 2026-04-10 優先度更新:
 
@@ -94,11 +94,21 @@
 - [x] `scripts/generate-t33-skill-passive-audit.mjs` を追加し、`HbrDataStore.fromJsonDirectory('json')` 基準で `skill` / `skills[].passive` / `style.passives[]` を棚卸しした
 - [x] `effectType` / `condition` / `timing` の residual を `logicGaps` / `observabilityGaps` / `staleDocFalsePositives` / `outOfScope` に分類した
 - [x] structural residual は `condition=0`, `overwrite=0`, `enemy-status=0` を確認した
-- [x] `tests/t33-skill-passive-audit.test.js` を追加し、`恐怖の叫び` は `test.todo` で固定した
-- [x] 真の runtime gap を `AdditionalHitOnExtraSkill + Talisman`（`恐怖の叫び`）1件に絞り込んだ
+- [x] `tests/t33-skill-passive-audit.test.js` を追加し、post-completion baseline へ更新した
+- [x] 真の runtime gap を `AdditionalHitOnExtraSkill + Talisman`（`恐怖の叫び`）1件に絞り込んだ後、`T33-FU1` で解消した
 - [x] `浄化の喝采`、`AdditionalHitOnBreaking + AttackUp` の旧 `破砕の喝采` 記載、`ライトプロテクション`、`役者魂`、`OnOverdriveStart` を stale claim として整理した
 - [x] `PRI-018`、`ConquestBikeLevel` UI override、印 / `Territory` 見える化を T33 対象外へ切り分けた
-- [ ] `T33-FU1`: `AdditionalHitOnExtraSkill + Talisman` を実装し、`test.todo` を通常テストへ昇格する
+- [x] `T33-FU1`: `AdditionalHitOnExtraSkill + Talisman` を実装し、`test.todo` を通常テストへ昇格した
+
+2026-04-10 `T33-FU1` 完了:
+
+- [x] `AdditionalHitOnExtraSkill + Talisman` を実装し、`恐怖の叫び` が EX 使用後に `Talisman +2` を付与するようにした
+- [x] action record に `fieldStateApplied.kind === 'talisman'` と `passive_trigger.talismanChange` を追加した
+- [x] `damageContext.enemyTalismanLevelByEnemy` / `enemyAllAbilityDownByEnemy` を追加した
+- [x] enemy popup / field chip / char detail に霊符表示を揃えた
+- [x] audit summary を `logicGapCount=0` / `staleDocFalsePositiveCount=0` に更新した
+
+T33 は完了済み。未実装優先順からは外し、詳細は [talisman_completion_wbs.md](talisman_completion_wbs.md) に引き継いだ。
 
 ## 6) T34: 敵状態変化（バフ/デバフ）管理・表示（本体完了 / follow-up 管理）
 

@@ -45,6 +45,7 @@ export function buildActionFlowFromRecord(record) {
       funnelApplied: structuredClone(action?.funnelApplied ?? []),
       statusEffectsApplied: structuredClone(action?.statusEffectsApplied ?? []),
       statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
+      fieldStateApplied: structuredClone(action?.fieldStateApplied ?? []),
       enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),
     };
   });

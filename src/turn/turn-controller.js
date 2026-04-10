@@ -1910,6 +1910,73 @@ function setTalismanState(turnState, next) {
   };
 }
 
+function createTalismanFieldEvent(change, options = {}) {
+  if (!change) {
+    return null;
+  }
+  return {
+    kind: 'talisman',
+    source: String(options.source ?? ''),
+    activeBefore: Boolean(change.before?.active),
+    activeAfter: Boolean(change.after?.active),
+    levelBefore: Number(change.before?.level ?? 0),
+    levelAfter: Number(change.after?.level ?? 0),
+    levelDelta: Number(change.levelDelta ?? 0),
+    maxLevel: Number(change.after?.maxLevel ?? change.before?.maxLevel ?? 10),
+  };
+}
+
+function applyTalismanChange(turnState, options = {}) {
+  const currentTalisman = getTalismanState(turnState);
+  const requiresActive = Boolean(options.requiresActive);
+  if (requiresActive && !currentTalisman.active) {
+    return null;
+  }
+
+  const initialActivation = Boolean(options.initialActivation);
+  const levelDelta = Math.max(0, Number(options.levelDelta ?? 0));
+  const nextActive = initialActivation ? true : currentTalisman.active;
+  const baseLevel = nextActive ? currentTalisman.level : 0;
+  const nextLevel = initialActivation
+    ? 0
+    : Math.min(currentTalisman.maxLevel, baseLevel + levelDelta);
+
+  if (nextActive === currentTalisman.active && nextLevel === currentTalisman.level) {
+    return null;
+  }
+
+  const nextTalisman = {
+    ...currentTalisman,
+    active: nextActive,
+    level: nextLevel,
+  };
+  setTalismanState(turnState, nextTalisman);
+  return {
+    before: currentTalisman,
+    after: getTalismanState(turnState),
+    levelDelta: nextLevel - currentTalisman.level,
+  };
+}
+
+function buildEnemyTalismanMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const talisman = getTalismanState(turnState);
+  const numericEnemyCount = clampEnemyCount(enemyCount);
+  const enemyTalismanLevelByEnemy = {};
+  const enemyAllAbilityDownByEnemy = {};
+  if (!talisman.active || talisman.level <= 0) {
+    return { enemyTalismanLevelByEnemy, enemyAllAbilityDownByEnemy };
+  }
+  const penalty = talisman.level * 10;
+  for (let index = 0; index < numericEnemyCount; index += 1) {
+    if (!isEnemyAlive(turnState, index, numericEnemyCount)) {
+      continue;
+    }
+    enemyTalismanLevelByEnemy[String(index)] = talisman.level;
+    enemyAllAbilityDownByEnemy[String(index)] = penalty;
+  }
+  return { enemyTalismanLevelByEnemy, enemyAllAbilityDownByEnemy };
+}
+
 function normalizeFieldState(fieldState) {
   if (!fieldState || typeof fieldState !== 'object') {
     return null;
@@ -3833,6 +3900,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   const additionalTurnGrantedIds = [];
   const dpEvents = [];
   const passiveTriggerEvents = [];
+  const fieldStateEvents = [];
 
   for (const passive of actor.passives ?? []) {
     const timing = String(passive?.timing ?? '').trim();
@@ -4328,10 +4396,50 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         }
         continue;
       }
+
+      if (effectType === 'Talisman') {
+        const levelDelta = Number(part?.power?.[0] ?? 0);
+        const requiresActive = Number(part?.value?.[0] ?? 0) === 1;
+        const change = applyTalismanChange(state.turnState, {
+          requiresActive,
+          initialActivation: levelDelta === 0,
+          levelDelta,
+        });
+        if (!change) {
+          continue;
+        }
+        const talismanFieldEvent = createTalismanFieldEvent(change, {
+          source: 'passive_trigger',
+        });
+        if (talismanFieldEvent) {
+          fieldStateEvents.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: actor.characterId,
+              skillId: Number(skill?.skillId ?? 0),
+              skillName: String(skill?.name ?? ''),
+              ...talismanFieldEvent,
+            })
+          );
+        }
+        passiveTriggerEvents.push(
+          buildActionScopedEvent(
+            actionEntry,
+            createPassiveTriggerEvent(state.turnState, actor, passive, {
+              source: 'passive_trigger',
+              effectTypes: ['Talisman'],
+              triggerSkillId: Number(skill?.skillId ?? 0),
+              triggerSkillName: String(skill?.name ?? ''),
+              fieldEvents: talismanFieldEvent ? [talismanFieldEvent] : [],
+              talismanChange: talismanFieldEvent,
+            })
+          )
+        );
+        continue;
+      }
     }
   }
 
-  return { moraleEvents, spEvents, additionalTurnGrantedIds, dpEvents, passiveTriggerEvents };
+  return { moraleEvents, spEvents, additionalTurnGrantedIds, dpEvents, passiveTriggerEvents, fieldStateEvents };
 }
 
 function applyMoraleEffectsFromActions(state, previewRecord) {
@@ -4340,6 +4448,7 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
   const additionalTurnPassiveGrantedIds = [];
   const dpPassiveEvents = [];
   const passiveTriggerEvents = [];
+  const fieldStateEvents = [];
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
@@ -4408,6 +4517,7 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     additionalTurnPassiveGrantedIds.push(...triggerResult.additionalTurnGrantedIds);
     dpPassiveEvents.push(...triggerResult.dpEvents);
     passiveTriggerEvents.push(...triggerResult.passiveTriggerEvents);
+    fieldStateEvents.push(...triggerResult.fieldStateEvents);
 
     // RECEIVER基準のSP回復トリガーパッシブ（お裾分け・愛嬌等）を処理
     const receiverResult = applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry);
@@ -4420,14 +4530,21 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     passiveTriggerEvents.push(...zoneResult.passiveTriggerEvents);
   }
 
-  return { moraleEvents, spPassiveEvents, additionalTurnPassiveGrantedIds, dpPassiveEvents, passiveTriggerEvents };
+  return {
+    moraleEvents,
+    spPassiveEvents,
+    additionalTurnPassiveGrantedIds,
+    dpPassiveEvents,
+    passiveTriggerEvents,
+    fieldStateEvents,
+  };
 }
 
 function applyTalismanLevelIncrementsFromActions(state, previewRecord) {
   // 霊符仕様: 霊符状態の敵がプレイヤーの攻撃を受けるごとに霊符レベル+1（Hit数不問、1攻撃=+1）
   const currentTalisman = getTalismanState(state.turnState);
   if (!currentTalisman.active) {
-    return 0;
+    return [];
   }
 
   let attackCount = 0;
@@ -4447,15 +4564,43 @@ function applyTalismanLevelIncrementsFromActions(state, previewRecord) {
   }
 
   if (attackCount === 0) {
-    return 0;
+    return [];
   }
 
-  const newLevel = Math.min(currentTalisman.maxLevel, currentTalisman.level + attackCount);
-  const delta = newLevel - currentTalisman.level;
-  if (delta > 0) {
-    setTalismanState(state.turnState, { ...currentTalisman, level: newLevel });
+  const change = applyTalismanChange(state.turnState, {
+    requiresActive: true,
+    levelDelta: attackCount,
+  });
+  if (!change) {
+    return [];
   }
-  return delta;
+  const talismanFieldEvent = createTalismanFieldEvent(change, {
+    source: 'attacked_by_player_action',
+  });
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill = actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    if (!hasDamagePartInParts(effectiveParts) || !talismanFieldEvent) {
+      continue;
+    }
+    events.push(
+      buildActionScopedEvent(actionEntry, {
+        actorCharacterId: actor.characterId,
+        skillId: Number(skill?.skillId ?? 0),
+        skillName: String(skill?.name ?? ''),
+        ...talismanFieldEvent,
+      })
+    );
+  }
+  return events;
 }
 
 function applyMotivationEffectsFromActions(state, previewRecord) {
@@ -6156,6 +6301,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       );
     }
 
+    const talismanDamageMaps = buildEnemyTalismanMaps(state.turnState, enemyCount);
     const damageContext = buildDamageCalculationContext({
       actorCharacterId: member.characterId,
       actorStyleId: member.styleId,
@@ -6213,6 +6359,8 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       zonePowerRate: skillMatchesActiveZone(state, skill, member).matched
         ? Number(skillMatchesActiveZone(state, skill, member).zoneState?.powerRate ?? 0)
         : 0,
+      enemyTalismanLevelByEnemy: talismanDamageMaps.enemyTalismanLevelByEnemy,
+      enemyAllAbilityDownByEnemy: talismanDamageMaps.enemyAllAbilityDownByEnemy,
       funnelEffects,
     });
 
@@ -8453,7 +8601,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       );
     }
   }
-  applyTalismanLevelIncrementsFromActions(state, singleRecord);
+  const talismanFieldEvents = applyTalismanLevelIncrementsFromActions(state, singleRecord);
   const motivationEvents = applyMotivationEffectsFromActions(state, singleRecord);
   const markEvents = applyMarkEffectsFromActions(state, singleRecord);
   const fieldStateEvents = applyFieldStateFromActions(state, singleRecord);
@@ -8506,7 +8654,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     passiveTriggerEvents: [...moraleResult.passiveTriggerEvents, ...supportBreakOdEvents],
     motivationEvents,
     markEvents,
-    fieldStateEvents,
+    fieldStateEvents: [...fieldStateEvents, ...moraleResult.fieldStateEvents, ...talismanFieldEvents],
     doubleActionStatusEvents,
     funnelEvents,
     activeBuffStatusEvents,
@@ -9743,32 +9891,20 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
 
         if (skillType === 'Talisman') {
           const levelDelta = Number(part?.power?.[0] ?? 0);
-          // value[0] === 1 means "only apply if talisman is already active"
           const requiresActive = Number(part?.value?.[0] ?? 0) === 1;
-          const currentTalisman = getTalismanState(turnState);
-          if (requiresActive && !currentTalisman.active) {
-            continue;
-          }
-          if (levelDelta === 0) {
-            // Initial activation: apply talisman to enemy at level 0
-            if (!currentTalisman.active) {
-              setTalismanState(turnState, { ...currentTalisman, active: true, level: 0 });
-              matched = true;
+          const change = applyTalismanChange(turnState, {
+            requiresActive,
+            initialActivation: levelDelta === 0,
+            levelDelta,
+          });
+          if (change) {
+            const talismanFieldEvent = createTalismanFieldEvent(change, {
+              source: 'passive_timing',
+            });
+            if (talismanFieldEvent) {
+              fieldEvents.push(talismanFieldEvent);
             }
-          } else {
-            // Level increase
-            const newLevel = Math.min(
-              currentTalisman.maxLevel,
-              (currentTalisman.active ? currentTalisman.level : 0) + levelDelta
-            );
-            if (newLevel > currentTalisman.level || !currentTalisman.active) {
-              setTalismanState(turnState, {
-                ...currentTalisman,
-                active: currentTalisman.active,
-                level: newLevel,
-              });
-              matched = true;
-            }
+            matched = true;
           }
           continue;
         }

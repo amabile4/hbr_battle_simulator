@@ -29,6 +29,8 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     effectiveHitCountTotal: 0,
     eligibleEnemyIndexes: [],
     effectiveDamageRatesByEnemy: {},
+    enemyTalismanLevelByEnemy: {},
+    enemyAllAbilityDownByEnemy: {},
     tokenAttackTokenCount: 0,
     tokenAttackRatePerToken: 0,
     tokenAttackTotalRate: 0,
@@ -67,6 +69,14 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
       1: null,
       2: 'bad',
     },
+    enemyTalismanLevelByEnemy: {
+      0: '3',
+      1: null,
+    },
+    enemyAllAbilityDownByEnemy: {
+      0: '30',
+      1: undefined,
+    },
   });
 
   assert.equal(context.enemyCount, 3);
@@ -75,6 +85,10 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
   assert.equal(context.effectiveDamageRatesByEnemy[0], 125);
   assert.equal(context.effectiveDamageRatesByEnemy[1], 0);
   assert.equal(Number.isNaN(context.effectiveDamageRatesByEnemy[2]), true);
+  assert.equal(context.enemyTalismanLevelByEnemy[0], 3);
+  assert.equal(context.enemyTalismanLevelByEnemy[1], 0);
+  assert.equal(context.enemyAllAbilityDownByEnemy[0], 30);
+  assert.equal(context.enemyAllAbilityDownByEnemy[1], 0);
 });
 
 test('buildDamageCalculationContext clones funnel effects and preserves numeric combat modifiers', () => {
@@ -94,6 +108,8 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     criticalRateUpRate: '0.35',
     criticalDamageUpRate: '0.45',
     damageRateUpPerTokenRate: '0.1',
+    enemyTalismanLevelByEnemy: { 0: '4' },
+    enemyAllAbilityDownByEnemy: { 0: '40' },
     markAttackUpRate: '30',
     markDamageTakenDownRate: '10',
     markDevastationRateUp: '20',
@@ -117,6 +133,8 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.criticalRateUpRate, 0.35);
   assert.equal(context.criticalDamageUpRate, 0.45);
   assert.equal(context.damageRateUpPerTokenRate, 0.1);
+  assert.equal(context.enemyTalismanLevelByEnemy[0], 4);
+  assert.equal(context.enemyAllAbilityDownByEnemy[0], 40);
   assert.equal(context.markCriticalDamageUp, 40);
   assert.equal(context.overDrivePointUpByTokenTotalPercent, 12.5);
   assert.equal(context.zoneType, 'Fire');

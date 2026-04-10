@@ -2104,6 +2104,88 @@ test('TurnRowController committed enemy detail popup includes committed action f
     assert.match(popup.textContent ?? '', /攻撃力ダウン/);
   }));
 
+test('TurnRowController committed enemy detail popup shows talisman action flow changes from record.fieldStateApplied', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9612,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 1);
+    stateBefore.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    stateBefore.turnState.enemyState.talismanState = { active: true, level: 3, maxLevel: 10 };
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 19,
+        turnId: 19,
+        odGaugeAtStart: 0,
+        projections: { odGaugeAtEnd: 0 },
+        actions: [
+          {
+            characterId: String(stateBefore.party[0].characterId),
+            characterName: String(stateBefore.party[0].characterName),
+            partyIndex: 0,
+            skillId: 9612,
+            skillName: '恐怖の叫びEX',
+            spCost: 6,
+            startSP: 10,
+            endSP: 4,
+            fieldStateApplied: [
+              {
+                kind: 'talisman',
+                source: 'passive_trigger',
+                activeBefore: true,
+                activeAfter: true,
+                levelBefore: 3,
+                levelAfter: 5,
+                levelDelta: 2,
+                maxLevel: 10,
+              },
+            ],
+            enemyStatusChanges: [],
+          },
+        ],
+      },
+      replayTurn: {
+        turn: 19,
+        slots: [{ styleId: stateBefore.party[0].styleId, skillId: 9612 }],
+        operations: [],
+        note: '',
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter: null,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.match(popup.textContent ?? '', /霊符/);
+    assert.match(popup.textContent ?? '', /Lv3\/10/);
+    assert.match(popup.textContent ?? '', /Lv3 → 5 \(\+2\)/);
+  }));
+
 test('TurnRowController enemy detail popup shows preview section at top for input row', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
@@ -2153,6 +2235,63 @@ test('TurnRowController enemy detail popup shows preview section at top for inpu
     assert.match(popup.textContent ?? '', /攻撃力ダウン/);
     assert.doesNotMatch(popup.textContent ?? '', /小笠原 緋雨/);
     assert.doesNotMatch(popup.textContent ?? '', /cost/);
+  }));
+
+test('TurnRowController enemy detail popup shows talisman summary, icon, and preview changes', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96022,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    state.turnState.enemyState.talismanState = { active: true, level: 3, maxLevel: 10 };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '國見 タマ',
+          skillId: 46004517,
+          skillName: '恐怖の叫びEX',
+          costDelta: 0,
+          costPreSp: 3,
+          costPostSp: 3,
+          fieldStateApplied: [
+            {
+              kind: 'talisman',
+              source: 'passive_trigger',
+              activeBefore: true,
+              activeAfter: true,
+              levelBefore: 3,
+              levelAfter: 5,
+              levelDelta: 2,
+              maxLevel: 10,
+            },
+          ],
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [],
+        },
+      ],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.ok(popup.querySelector('[data-role="enemy-popup-talisman-icon"]'));
+    assert.match(popup.textContent ?? '', /霊符/);
+    assert.match(popup.textContent ?? '', /有効/);
+    assert.match(popup.textContent ?? '', /Lv3\/10/);
+    assert.match(popup.textContent ?? '', /全能力-30/);
+    assert.match(popup.textContent ?? '', /Lv3 → 5 \(\+2\)/);
+    assert.match(popup.textContent ?? '', /國見 タマ \/ 恐怖の叫びEX/);
   }));
 
 test('TurnRowController enemy detail popup keeps SuperBreak visible with canonical label when remainingTurns is 0', () =>

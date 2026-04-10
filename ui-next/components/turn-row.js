@@ -2688,6 +2688,7 @@ export class TurnRowController {
       const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
       const damageRates = enemyState.damageRatesByEnemy?.[enemyKey] ?? null;
       const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey] ?? null;
+      const talismanState = enemyState.talismanState ?? null;
       return {
         enemyIndex,
         name: displayName,
@@ -2711,6 +2712,7 @@ export class TurnRowController {
           isCommitted,
         }),
         statuses,
+        ...(talismanState ? { talismanState: structuredClone(talismanState) } : {}),
         ...(od_rate !== null ? { od_rate } : {}),
         ...(max_d_rate !== null ? { max_d_rate } : {}),
         ...(damageRates ? { damageRates: structuredClone(damageRates) } : {}),

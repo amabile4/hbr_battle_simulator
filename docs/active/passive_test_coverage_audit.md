@@ -12,15 +12,13 @@
   - `styles=345`, `scannedEntries=1789`, `embeddedOnlyPassiveIds=116`
   - structural residual は `condition=0`, `overwrite=0`, `enemy-status=0`
   - `BorderRefPDownByAdmiral` は `silentSkipEnemyStatusCandidates=3` として別カウント化
-- `node --test tests/t33-skill-passive-audit.test.js` で phase-1 baseline を固定済み
-- `node --test tests/turn-state-transitions.test.js` → `pass 419 / fail 0`
-- 旧「未実装/未テスト」扱いだった `DebuffGuard` / `BuffCharge` / `OnOverdriveStart` / `AttackUp` trigger は stale claim と確定した
+- `node --test tests/t33-skill-passive-audit.test.js` で post-talisman-completion baseline を固定済み
+- `node --test tests/turn-state-transitions.test.js` → `pass 422 / fail 0`
+- 旧「未実装/未テスト」扱いだった `Talisman` / `DebuffGuard` / `BuffCharge` / `OnOverdriveStart` / `AttackUp` trigger は stale claim 解消済み
 - current live store では `AdditionalHitOnBreaking + AttackUp` の旧記載名 `破砕の喝采` を確認できず、runtime coverage は synthetic fixture 側で維持している
 
 ### 現時点の残課題（テスト監査観点）
 
-- runtime gap
-  - `Talisman`（恐怖の叫び）: `AdditionalHitOnExtraSkill` 経路の後段適用が未接続
 - observability gap
   - `OnEveryTurnIncludeSpecial`: preview-path 発火のため `passiveEventsLastApplied` / Passive Log からは見えにくい
 - out-of-scope
@@ -64,7 +62,7 @@
 | 追加支援 | OverDrivePointUp(Self) | ✅ | 行10213 `OD gauge increases when EX skill used` |
 | 慶福の一矢 | HealDpRate(AllyFront) | ✅ | 行10663 `DP healed to AllyFront targets when EX skill used` |
 | 元気注入 | HealSp(AllyAll) | ❌ | ExtraSkill+HealSp 未テスト |
-| 恐怖の叫び | Talisman(All) | 🔧 | AdditionalHit経由のTalisman未実装・未テスト |
+| 恐怖の叫び | Talisman(All) | ✅ | 行11769, 11847, 11898 `EX skill use applies Talisman trigger...`, inactive 不発, clamp |
 | 二股の尻尾 | DoubleActionExtraSkill(Self) | ✅ | 行14338 `EX使用後に次回ぶんの二連権を再付与する`、行14307 `初回EXは二連` |
 | ライトプロテクション | DebuffGuard(AllyAll) | ✅ | 行11548 `AdditionalHitOnExtraSkill + DebuffGuard: EX skill used grants DebuffGuard to allies` |
 | 役者魂 | BuffCharge(Self) | ✅ | 行11601 `AdditionalHitOnExtraSkill + BuffCharge: EX skill used grants BuffCharge to self` |
@@ -154,9 +152,9 @@
 
 | 分類 | 件数 | 内容 |
 |------|------|------|
-| runtime gap | 1 | `stylePassive:57001275` / 恐怖の叫び / `AdditionalHitOnExtraSkill + Talisman` |
+| runtime gap | 0 | なし |
 | observability gap | 2 | `OnEveryTurnIncludeSpecial` passive log 非掲載、style-embedded passive は `passives.json` 単体では棚卸し不可 |
-| stale doc false positive | 5 | 浄化の喝采、AdditionalHitOnBreaking + AttackUp（旧「破砕の喝采」記載）、ライトプロテクション、役者魂、`OnOverdriveStart` |
+| stale doc false positive | 0 | なし |
 | out-of-scope | 3 | `PRI-018`、`ConquestBikeLevel` UI override、印 / `Territory` 見える化 |
 
 ### exitCond 補足
@@ -188,9 +186,7 @@
 
 ### 優先度 🔴 高（実装未接続）
 
-| 項目 | 内容 | 難易度 |
-|-----|------|--------|
-| AdditionalHitOnExtraSkill + Talisman | trigger 経路で `Talisman` 適用を未接続。専用テストも未整備 | 中 |
+- なし
 
 ### 優先度 🟠 中（観測ギャップ）
 
