@@ -2184,6 +2184,8 @@ test('TurnRowController committed enemy detail popup shows talisman action flow 
     assert.match(popup.textContent ?? '', /霊符/);
     assert.match(popup.textContent ?? '', /Lv3\/10/);
     assert.match(popup.textContent ?? '', /Lv3 → 5 \(\+2\)/);
+    assert.equal(popup.querySelector('[data-role="enemy-popup-talisman-section"]'), null);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-talisman-block"]'));
   }));
 
 test('TurnRowController enemy detail popup shows preview section at top for input row', () =>
@@ -2285,9 +2287,12 @@ test('TurnRowController enemy detail popup shows talisman summary, icon, and pre
     const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
       eventType: 'contextmenu',
     });
-    assert.ok(popup.querySelector('[data-role="enemy-popup-talisman-icon"]'));
+    const talismanIcon = popup.querySelector('[data-role="enemy-popup-talisman-icon"]');
+    assert.ok(talismanIcon);
+    assert.match(talismanIcon.getAttribute('src') ?? '', /assets\/skill_type\/Talisman\.webp$/);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-talisman-block"]'));
+    assert.equal(popup.querySelector('[data-role="enemy-popup-talisman-section"]'), null);
     assert.match(popup.textContent ?? '', /霊符/);
-    assert.match(popup.textContent ?? '', /有効/);
     assert.match(popup.textContent ?? '', /Lv3\/10/);
     assert.match(popup.textContent ?? '', /全能力-30/);
     assert.match(popup.textContent ?? '', /Lv3 → 5 \(\+2\)/);
@@ -2374,6 +2379,8 @@ test('TurnRowController committed enemy detail popup shows disaster action flow 
     assert.match(popup.textContent ?? '', /禍/);
     assert.match(popup.textContent ?? '', /Lv2\/10/);
     assert.match(popup.textContent ?? '', /Lv2 → 4 \(\+2\)/);
+    assert.equal(popup.querySelector('[data-role="enemy-popup-disaster-section"]'), null);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-disaster-block"]'));
   }));
 
 test('TurnRowController enemy detail popup shows disaster summary, icon, and preview changes', () =>
@@ -2424,9 +2431,12 @@ test('TurnRowController enemy detail popup shows disaster summary, icon, and pre
     const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
       eventType: 'contextmenu',
     });
-    assert.ok(popup.querySelector('[data-role="enemy-popup-disaster-icon"]'));
+    const disasterIcon = popup.querySelector('[data-role="enemy-popup-disaster-icon"]');
+    assert.ok(disasterIcon);
+    assert.match(disasterIcon.getAttribute('src') ?? '', /assets\/skill_type\/Disaster\.webp$/);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-disaster-block"]'));
+    assert.equal(popup.querySelector('[data-role="enemy-popup-disaster-section"]'), null);
     assert.match(popup.textContent ?? '', /禍/);
-    assert.match(popup.textContent ?? '', /有効/);
     assert.match(popup.textContent ?? '', /Lv2\/10/);
     assert.match(popup.textContent ?? '', /全能力-14/);
     assert.match(popup.textContent ?? '', /Lv2 → 4 \(\+2\)/);

@@ -38,7 +38,7 @@
   - skill: `46005514` `もつれトラップ`
   - skill part: `skill_type="Disaster"`, `target_type="All"`, `power[0]=2`, `exitCond="Eternal"`
   - style passive: `100550603` `巻き添え` が `AdditionalHitOnSpecifiedSkill + Disaster` で追加 `+2`
-- `assets/skill_type/Disaster.webp` は既存 asset を使用
+- `assets/skill_type/Disaster.webp` を enemy popup / field chip / char detail の正本 icon asset として使用する
 
 ### 画像から確定できる仕様
 
@@ -113,8 +113,9 @@
 
 ### WBS-4: UI 表示
 
-- [x] enemy popup に `Disaster.webp` icon 付き `禍` セクションを追加した
-- [x] summary に `有効/無効`, `LvX/10`, `全能力-X` を表示した
+- [x] enemy popup に `Disaster.webp` icon 付き `禍` compact block（`LvX/10 / 全能力-X`）を追加した
+- [x] enemy popup が `assets/skill_type/Disaster.webp` を直接参照するように揃えた
+- [x] compact block の desc に `LvX/10`, `全能力-X` を表示した
 - [x] preview / committed action-flow に `付与`, `Lv before→after`, `+N` を表示した
 - [x] field chip / char detail に `禍状態` の snapshot 表示を追加した
 - [x] `char-detail-popup.js` / field summary の label を更新した

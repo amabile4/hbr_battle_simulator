@@ -60,7 +60,8 @@
 
 ### WBS-4: enemy popup 中心の UI 完成
 
-- [x] enemy popup に `Talisman.webp` icon 付きの霊符 summary を追加した
+- [x] enemy popup に `Talisman.webp` icon 付きの霊符 compact block（`LvX/10 / 全能力-X0`）を追加した
+- [x] enemy popup が `assets/skill_type/Talisman.webp` を直接参照するように揃えた
 - [x] preview / committed action-flow で `付与` / `Lv before→after` / `+N` を表示できるようにした
 - [x] turn row field chip / char detail field tab の霊符 meta を `LvX/10` + `全能力-X0` へ揃えた
 

@@ -11,18 +11,16 @@
  *   4. フィールド効果 — Zone/Territory/Talisman などのパーティ共通フィールド状態
  */
 
-import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { resolveUiAssetUrl, resolveSkillTypeAssetUrl } from '../../src/ui/style-asset-url.js';
 import { normalizeEnemyStatusType } from '../../src/domain/enemy-status.js';
 import { buildFieldDisplayEntries } from './field-state-display.js';
 import { SPECIAL_STATUS_TYPE_NAMES } from '../../src/domain/character-style.js';
 import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
 
-const SKILL_TYPE_ICON_BASE = new URL('../../assets/skill_type/', import.meta.url).href;
-
 export function resolveSkillTypeIconUrl(statusType) {
   const name = String(statusType ?? '').trim();
   if (!name) return '';
-  return `${SKILL_TYPE_ICON_BASE}${encodeURIComponent(name)}.webp`;
+  return resolveSkillTypeAssetUrl(`${name}.webp`);
 }
 
 // ============================================================

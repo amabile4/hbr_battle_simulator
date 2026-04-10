@@ -10,7 +10,7 @@
 import {
   buildEnemyStatusTableHtml,
 } from '../utils/enemy-status-display.js';
-import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { resolveUiAssetUrl, resolveSkillTypeAssetUrl } from '../../src/ui/style-asset-url.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -26,8 +26,8 @@ const POPUP_CONTAINER_CLASS = 'enemy-detail-popup-container';
 const SUMMON_BUTTON_ICON_URL = resolveUiAssetUrl('Summon.webp');
 const BREAK_BUTTON_ICON_URL = resolveUiAssetUrl('Break.webp');
 const KILL_BUTTON_ICON_URL = resolveUiAssetUrl('defeat.webp');
-const TALISMAN_ICON_URL = resolveUiAssetUrl('Talisman.webp');
-const DISASTER_ICON_URL = resolveUiAssetUrl('Disaster.webp');
+const TALISMAN_ICON_URL = resolveSkillTypeAssetUrl('Talisman.webp');
+const DISASTER_ICON_URL = resolveSkillTypeAssetUrl('Disaster.webp');
 const ENEMY_POPUP_STATUS_ICON_SIZE_PX = 28;
 const ENEMY_POPUP_WIDE_BREAKPOINT_PX = 960;
 const BASIC_INFO_EXPANDED_ICON = '▲';
@@ -72,6 +72,15 @@ function normalizeDisasterState(disasterState) {
 
 function formatDisasterPenalty(level) {
   return `全能力-${Math.max(0, Math.floor(Number(level) || 0)) * DISASTER_PENALTY_PER_LEVEL}`;
+}
+
+function isDisplayableEnemyFieldState(state) {
+  if (!state || typeof state !== 'object') {
+    return false;
+  }
+  const active = Boolean(state.active);
+  const level = Number(state.level ?? 0);
+  return active || level > 0;
 }
 
 /**
@@ -550,6 +559,11 @@ export class EnemyDetailPopup {
             background: rgba(71, 85, 105, 0.6);
             color: #cbd5e1;
           }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-status-list"] {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
         </style>
         <div data-role="enemy-popup-header">
           <div data-role="enemy-popup-tabs">
@@ -603,19 +617,13 @@ export class EnemyDetailPopup {
   #buildEnemyPanelHtml(enemy, enemyIndex = 0, options = {}) {
     const showActions = Boolean(options?.showActions);
     const previewHtml = this.#buildPreviewActionFlowHtml(enemyIndex);
-    const statusTableHtml = buildEnemyStatusTableHtml(enemy?.statuses ?? []);
     return `
       <div data-role="enemy-popup-panel-card">
         ${showActions ? this.#buildActionButtonsHtml(enemy, enemyIndex) : ''}
         ${showActions && enemy?.popupEditorHtml ? enemy.popupEditorHtml : ''}
         ${this.#buildBasicInfoSectionHtml(enemy, enemyIndex)}
-        ${enemy?.occupied ? this.#buildTalismanSectionHtml(enemy) : ''}
-        ${enemy?.occupied ? this.#buildDisasterSectionHtml(enemy) : ''}
         ${previewHtml}
-        <div>
-          <h3 data-role="enemy-popup-section-title">状態異常 / バフ</h3>
-          <div>${statusTableHtml}</div>
-        </div>
+        ${this.#buildStatusSectionHtml(enemy)}
       </div>
     `;
   }
@@ -686,74 +694,75 @@ export class EnemyDetailPopup {
     `;
   }
 
-  #buildTalismanSectionHtml(enemy) {
-    const talisman = normalizeTalismanState(enemy?.talismanState);
-    const stateLabel = talisman.active ? '有効' : '無効';
+  #buildCompactEnemyFieldStateBlockHtml(options = {}) {
+    const label = String(options?.label ?? '').trim();
+    const iconUrl = String(options?.iconUrl ?? '').trim();
+    const description = String(options?.description ?? '').trim();
+    const rolePrefix = String(options?.rolePrefix ?? '').trim();
+
+    if (!label || !iconUrl || !description || !rolePrefix) {
+      return '';
+    }
+
     return `
-      <div data-role="enemy-popup-talisman-section" style="
-        margin: 0 0 12px;
-        padding: 10px;
-        border: 1px solid #334155;
-        border-radius: 10px;
-        background: #0f172a;
-      ">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-          <img src="${escapeHtml(TALISMAN_ICON_URL)}" alt="霊符" data-role="enemy-popup-talisman-icon" style="width: 24px; height: 24px;" />
-          <div>
-            <div data-role="enemy-popup-section-title" style="margin: 0;">霊符</div>
-            <div style="font-size: 11px; color: #94a3b8;">敵共通の霊符状態</div>
-          </div>
+      <div class="char-popup-buff-block" data-role="${rolePrefix}-block">
+        <div class="char-popup-buff-icon has-icon">
+          <img src="${escapeHtml(iconUrl)}" alt="${escapeHtml(label)}" data-role="${rolePrefix}-icon" />
         </div>
-        <div data-role="enemy-popup-talisman-summary" style="display: grid; gap: 4px;">
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">状態</span>
-            <span data-role="enemy-popup-basic-info-value">${escapeHtml(stateLabel)}</span>
-          </div>
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">レベル</span>
-            <span data-role="enemy-popup-basic-info-value">Lv${talisman.level}/${talisman.maxLevel}</span>
-          </div>
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">能力低下</span>
-            <span data-role="enemy-popup-basic-info-value">${escapeHtml(formatTalismanPenalty(talisman.level))}</span>
-          </div>
+        <div class="char-popup-buff-center">
+          <div class="char-popup-buff-title">${escapeHtml(label)}</div>
+          <div class="char-popup-buff-desc">${escapeHtml(description)}</div>
         </div>
+        <div class="char-popup-buff-duration" aria-hidden="true"></div>
       </div>
     `;
   }
 
-  #buildDisasterSectionHtml(enemy) {
+  #buildTalismanStatusBlockHtml(enemy) {
+    const talisman = normalizeTalismanState(enemy?.talismanState);
+    if (!isDisplayableEnemyFieldState(talisman)) {
+      return '';
+    }
+    return this.#buildCompactEnemyFieldStateBlockHtml({
+      label: '霊符',
+      iconUrl: TALISMAN_ICON_URL,
+      description: `Lv${talisman.level}/${talisman.maxLevel} / ${formatTalismanPenalty(talisman.level)}`,
+      rolePrefix: 'enemy-popup-talisman',
+    });
+  }
+
+  #buildDisasterStatusBlockHtml(enemy) {
     const disaster = normalizeDisasterState(enemy?.disasterState);
-    const stateLabel = disaster.active ? '有効' : '無効';
+    if (!isDisplayableEnemyFieldState(disaster)) {
+      return '';
+    }
+    return this.#buildCompactEnemyFieldStateBlockHtml({
+      label: '禍',
+      iconUrl: DISASTER_ICON_URL,
+      description: `Lv${disaster.level}/${disaster.maxLevel} / ${formatDisasterPenalty(disaster.level)}`,
+      rolePrefix: 'enemy-popup-disaster',
+    });
+  }
+
+  #buildStatusSectionHtml(enemy) {
+    const statusTableHtml = buildEnemyStatusTableHtml(enemy?.statuses ?? []);
+    const fieldStateBlocksHtml = enemy?.occupied
+      ? [
+          this.#buildTalismanStatusBlockHtml(enemy),
+          this.#buildDisasterStatusBlockHtml(enemy),
+        ].filter(Boolean).join('')
+      : '';
+    const shouldSuppressEmptyStatusMessage =
+      Boolean(fieldStateBlocksHtml) && statusTableHtml.includes('char-popup-empty');
+    const contentHtml = [
+      fieldStateBlocksHtml,
+      shouldSuppressEmptyStatusMessage ? '' : statusTableHtml,
+    ].filter(Boolean).join('');
+
     return `
-      <div data-role="enemy-popup-disaster-section" style="
-        margin: 0 0 12px;
-        padding: 10px;
-        border: 1px solid #334155;
-        border-radius: 10px;
-        background: #0f172a;
-      ">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-          <img src="${escapeHtml(DISASTER_ICON_URL)}" alt="禍" data-role="enemy-popup-disaster-icon" style="width: 24px; height: 24px;" />
-          <div>
-            <div data-role="enemy-popup-section-title" style="margin: 0;">禍</div>
-            <div style="font-size: 11px; color: #94a3b8;">敵共通の禍状態</div>
-          </div>
-        </div>
-        <div data-role="enemy-popup-disaster-summary" style="display: grid; gap: 4px;">
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">状態</span>
-            <span data-role="enemy-popup-basic-info-value">${escapeHtml(stateLabel)}</span>
-          </div>
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">レベル</span>
-            <span data-role="enemy-popup-basic-info-value">Lv${disaster.level}/${disaster.maxLevel}</span>
-          </div>
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">能力低下</span>
-            <span data-role="enemy-popup-basic-info-value">${escapeHtml(formatDisasterPenalty(disaster.level))}</span>
-          </div>
-        </div>
+      <div>
+        <h3 data-role="enemy-popup-section-title">状態異常 / バフ</h3>
+        <div data-role="enemy-popup-status-list">${contentHtml || '<p class="char-popup-empty">状態異常なし</p>'}</div>
       </div>
     `;
   }
