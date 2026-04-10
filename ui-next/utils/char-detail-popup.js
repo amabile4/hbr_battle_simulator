@@ -160,6 +160,7 @@ const STATUS_LABELS = {
 
   // フィールド関連
   Talisman:                  '霊符状態',
+  Disaster:                  '禍状態',
   ZoneUpEternal:             'フィールド状態永続',
   ReviveTerritory:           '再生の陣',
 

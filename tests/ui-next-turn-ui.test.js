@@ -2294,6 +2294,145 @@ test('TurnRowController enemy detail popup shows talisman summary, icon, and pre
     assert.match(popup.textContent ?? '', /國見 タマ \/ 恐怖の叫びEX/);
   }));
 
+test('TurnRowController committed enemy detail popup shows disaster action flow changes from record.fieldStateApplied', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9613,
+      name: 'Trap',
+      targetType: 'All',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Light' }],
+    });
+    const stateBefore = createState(skill, 1);
+    stateBefore.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    stateBefore.turnState.enemyState.disasterState = { active: true, level: 2, maxLevel: 10, penaltyPerLevel: 7 };
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 20,
+        turnId: 20,
+        odGaugeAtStart: 0,
+        projections: { odGaugeAtEnd: 0 },
+        actions: [
+          {
+            characterId: String(stateBefore.party[0].characterId),
+            characterName: String(stateBefore.party[0].characterName),
+            partyIndex: 0,
+            skillId: 9613,
+            skillName: 'もつれトラップ',
+            spCost: 6,
+            startSP: 10,
+            endSP: 4,
+            fieldStateApplied: [
+              {
+                kind: 'disaster',
+                source: 'active_skill',
+                activeBefore: true,
+                activeAfter: true,
+                levelBefore: 2,
+                levelAfter: 4,
+                levelDelta: 2,
+                maxLevel: 10,
+              },
+            ],
+            enemyStatusChanges: [],
+          },
+        ],
+      },
+      replayTurn: {
+        turn: 20,
+        slots: [{ styleId: stateBefore.party[0].styleId, skillId: 9613 }],
+        operations: [],
+        note: '',
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter: null,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.match(popup.textContent ?? '', /禍/);
+    assert.match(popup.textContent ?? '', /Lv2\/10/);
+    assert.match(popup.textContent ?? '', /Lv2 → 4 \(\+2\)/);
+  }));
+
+test('TurnRowController enemy detail popup shows disaster summary, icon, and preview changes', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96023,
+      name: 'Trap',
+      targetType: 'All',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Light' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    state.turnState.enemyState.disasterState = { active: true, level: 2, maxLevel: 10, penaltyPerLevel: 7 };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '伊達 朱里',
+          skillId: 46005514,
+          skillName: 'もつれトラップ',
+          costDelta: 0,
+          costPreSp: 6,
+          costPostSp: 0,
+          fieldStateApplied: [
+            {
+              kind: 'disaster',
+              source: 'active_skill',
+              activeBefore: true,
+              activeAfter: true,
+              levelBefore: 2,
+              levelAfter: 4,
+              levelDelta: 2,
+              maxLevel: 10,
+            },
+          ],
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [],
+        },
+      ],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.ok(popup.querySelector('[data-role="enemy-popup-disaster-icon"]'));
+    assert.match(popup.textContent ?? '', /禍/);
+    assert.match(popup.textContent ?? '', /有効/);
+    assert.match(popup.textContent ?? '', /Lv2\/10/);
+    assert.match(popup.textContent ?? '', /全能力-14/);
+    assert.match(popup.textContent ?? '', /Lv2 → 4 \(\+2\)/);
+    assert.match(popup.textContent ?? '', /伊達 朱里 \/ もつれトラップ/);
+  }));
+
 test('TurnRowController enemy detail popup keeps SuperBreak visible with canonical label when remainingTurns is 0', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({

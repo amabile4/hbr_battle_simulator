@@ -42,6 +42,22 @@ import {
 
 export const BASE_SP_RECOVERY = 2;
 const TEZUKA_CHARACTER_ID = 'STezuka';
+const TALISMAN_MAX_LEVEL = 10;
+const TALISMAN_PENALTY_PER_LEVEL = 10;
+const DISASTER_MAX_LEVEL = 10;
+const DISASTER_PENALTY_PER_LEVEL = 7;
+const TALISMAN_STATE_DEFAULT = Object.freeze({
+  active: false,
+  level: 0,
+  maxLevel: TALISMAN_MAX_LEVEL,
+  penaltyPerLevel: TALISMAN_PENALTY_PER_LEVEL,
+});
+const DISASTER_STATE_DEFAULT = Object.freeze({
+  active: false,
+  level: 0,
+  maxLevel: DISASTER_MAX_LEVEL,
+  penaltyPerLevel: DISASTER_PENALTY_PER_LEVEL,
+});
 const HIGH_BOOST_STATUS_TYPE = 'HighBoost';
 const HIGH_BOOST_ONLY_GROUP_KEY = 'HighBoost';
 const HIGH_BOOST_SP_COST_INCREASE = 2;
@@ -117,14 +133,14 @@ const HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES = Object.freeze(
   ])
 );
 const SUPPORTED_ACTION_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(
-  new Set([...ENEMY_STATUS_SKILL_TYPES, 'SuperBreak', 'SuperBreakDown'])
+  new Set([...ENEMY_STATUS_SKILL_TYPES, 'SuperBreak', 'SuperBreakDown', 'Disaster'])
 );
 const SUPPORTED_PASSIVE_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(
   new Set([...ENEMY_STATUS_SKILL_TYPES, 'Talisman'])
 );
 const ENEMY_STATUS_TARGET_TYPES = Object.freeze(new Set(['Single', 'All', 'EnemySingle', 'EnemyAll']));
 const ENEMY_STATUS_REPORT_KEYWORD_RE =
-  /(Down|Fragile|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
+  /(Down|Fragile|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Disaster|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
 const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
   AttackUp: 'AttackUp',
   AttackUpIncludeNormal: 'AttackUp',
@@ -1764,7 +1780,8 @@ export function getEnemyState(turnState) {
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
-      talismanState: { active: false, level: 0, maxLevel: 10 },
+      talismanState: structuredClone(TALISMAN_STATE_DEFAULT),
+      disasterState: structuredClone(DISASTER_STATE_DEFAULT),
     };
   }
   const enemyCount = clampEnemyCount(state.enemyCount ?? DEFAULT_ENEMY_COUNT);
@@ -1800,9 +1817,19 @@ export function getEnemyState(turnState) {
         ? {
             active: Boolean(state.talismanState.active),
             level: Number(state.talismanState.level ?? 0),
-            maxLevel: Number(state.talismanState.maxLevel ?? 10),
+            maxLevel: Number(state.talismanState.maxLevel ?? TALISMAN_MAX_LEVEL),
+            penaltyPerLevel: Number(state.talismanState.penaltyPerLevel ?? TALISMAN_PENALTY_PER_LEVEL),
           }
-        : { active: false, level: 0, maxLevel: 10 },
+        : structuredClone(TALISMAN_STATE_DEFAULT),
+    disasterState:
+      state.disasterState && typeof state.disasterState === 'object'
+        ? {
+            active: Boolean(state.disasterState.active),
+            level: Number(state.disasterState.level ?? 0),
+            maxLevel: Number(state.disasterState.maxLevel ?? DISASTER_MAX_LEVEL),
+            penaltyPerLevel: Number(state.disasterState.penaltyPerLevel ?? DISASTER_PENALTY_PER_LEVEL),
+          }
+        : structuredClone(DISASTER_STATE_DEFAULT),
   };
 }
 
@@ -1887,94 +1914,168 @@ function syncTurnStateEnemyCount(turnState, enemyCount) {
   return turnState;
 }
 
-function getTalismanState(turnState) {
-  const raw = turnState?.enemyState?.talismanState;
+function getEnemyLeveledFieldState(turnState, stateKey, fallbackState) {
+  const raw = turnState?.enemyState?.[stateKey];
   if (!raw || typeof raw !== 'object') {
-    return { active: false, level: 0, maxLevel: 10 };
+    return { ...fallbackState };
   }
   return {
     active: Boolean(raw.active),
     level: Math.max(0, Number(raw.level ?? 0)),
-    maxLevel: Math.max(1, Number(raw.maxLevel ?? 10)),
+    maxLevel: Math.max(1, Number(raw.maxLevel ?? fallbackState.maxLevel)),
+    penaltyPerLevel: Math.max(0, Number(raw.penaltyPerLevel ?? fallbackState.penaltyPerLevel)),
   };
 }
 
-function setTalismanState(turnState, next) {
+function setEnemyLeveledFieldState(turnState, stateKey, next, fallbackState) {
   if (!turnState.enemyState || typeof turnState.enemyState !== 'object') {
     turnState.enemyState = {};
   }
-  turnState.enemyState.talismanState = {
+  const maxLevel = Math.max(1, Number(next.maxLevel ?? fallbackState.maxLevel));
+  turnState.enemyState[stateKey] = {
     active: Boolean(next.active),
-    level: Math.max(0, Math.min(Number(next.maxLevel ?? 10), Number(next.level ?? 0))),
-    maxLevel: Math.max(1, Number(next.maxLevel ?? 10)),
+    level: Math.max(0, Math.min(maxLevel, Number(next.level ?? 0))),
+    maxLevel,
+    penaltyPerLevel: Math.max(0, Number(next.penaltyPerLevel ?? fallbackState.penaltyPerLevel)),
   };
 }
 
-function createTalismanFieldEvent(change, options = {}) {
+function createEnemyLeveledFieldEvent(kind, change, options = {}) {
   if (!change) {
     return null;
   }
   return {
-    kind: 'talisman',
+    kind: String(kind ?? ''),
     source: String(options.source ?? ''),
     activeBefore: Boolean(change.before?.active),
     activeAfter: Boolean(change.after?.active),
     levelBefore: Number(change.before?.level ?? 0),
     levelAfter: Number(change.after?.level ?? 0),
     levelDelta: Number(change.levelDelta ?? 0),
-    maxLevel: Number(change.after?.maxLevel ?? change.before?.maxLevel ?? 10),
+    maxLevel: Number(change.after?.maxLevel ?? change.before?.maxLevel ?? 0),
   };
 }
 
-function applyTalismanChange(turnState, options = {}) {
-  const currentTalisman = getTalismanState(turnState);
+function applyEnemyLeveledFieldChange(turnState, stateKey, fallbackState, options = {}) {
+  const currentState = getEnemyLeveledFieldState(turnState, stateKey, fallbackState);
   const requiresActive = Boolean(options.requiresActive);
-  if (requiresActive && !currentTalisman.active) {
+  if (requiresActive && !currentState.active) {
     return null;
   }
 
-  const initialActivation = Boolean(options.initialActivation);
+  const activateOnApply = Boolean(options.activateOnApply);
   const levelDelta = Math.max(0, Number(options.levelDelta ?? 0));
-  const nextActive = initialActivation ? true : currentTalisman.active;
-  const baseLevel = nextActive ? currentTalisman.level : 0;
-  const nextLevel = initialActivation
-    ? 0
-    : Math.min(currentTalisman.maxLevel, baseLevel + levelDelta);
+  const nextActive = activateOnApply ? true : currentState.active;
+  const baseLevel = currentState.active ? currentState.level : 0;
+  const nextLevel = nextActive ? Math.min(currentState.maxLevel, baseLevel + levelDelta) : 0;
 
-  if (nextActive === currentTalisman.active && nextLevel === currentTalisman.level) {
+  if (nextActive === currentState.active && nextLevel === currentState.level) {
     return null;
   }
 
-  const nextTalisman = {
-    ...currentTalisman,
+  const nextState = {
+    ...currentState,
     active: nextActive,
     level: nextLevel,
   };
-  setTalismanState(turnState, nextTalisman);
+  setEnemyLeveledFieldState(turnState, stateKey, nextState, fallbackState);
   return {
-    before: currentTalisman,
-    after: getTalismanState(turnState),
-    levelDelta: nextLevel - currentTalisman.level,
+    before: currentState,
+    after: getEnemyLeveledFieldState(turnState, stateKey, fallbackState),
+    levelDelta: nextLevel - currentState.level,
   };
 }
 
-function buildEnemyTalismanMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
-  const talisman = getTalismanState(turnState);
+function buildEnemyLeveledPenaltyMaps(turnState, enemyCount, stateKey, fallbackState, levelMapKey) {
+  const fieldState = getEnemyLeveledFieldState(turnState, stateKey, fallbackState);
   const numericEnemyCount = clampEnemyCount(enemyCount);
-  const enemyTalismanLevelByEnemy = {};
-  const enemyAllAbilityDownByEnemy = {};
-  if (!talisman.active || talisman.level <= 0) {
-    return { enemyTalismanLevelByEnemy, enemyAllAbilityDownByEnemy };
+  const levelMap = {};
+  const penaltyMap = {};
+  if (!fieldState.active || fieldState.level <= 0) {
+    return { [levelMapKey]: levelMap, enemyAllAbilityDownByEnemy: penaltyMap };
   }
-  const penalty = talisman.level * 10;
+  const penalty = fieldState.level * fieldState.penaltyPerLevel;
   for (let index = 0; index < numericEnemyCount; index += 1) {
     if (!isEnemyAlive(turnState, index, numericEnemyCount)) {
       continue;
     }
-    enemyTalismanLevelByEnemy[String(index)] = talisman.level;
-    enemyAllAbilityDownByEnemy[String(index)] = penalty;
+    levelMap[String(index)] = fieldState.level;
+    penaltyMap[String(index)] = penalty;
   }
-  return { enemyTalismanLevelByEnemy, enemyAllAbilityDownByEnemy };
+  return { [levelMapKey]: levelMap, enemyAllAbilityDownByEnemy: penaltyMap };
+}
+
+function getTalismanState(turnState) {
+  return getEnemyLeveledFieldState(turnState, 'talismanState', TALISMAN_STATE_DEFAULT);
+}
+
+function setTalismanState(turnState, next) {
+  setEnemyLeveledFieldState(turnState, 'talismanState', next, TALISMAN_STATE_DEFAULT);
+}
+
+function createTalismanFieldEvent(change, options = {}) {
+  return createEnemyLeveledFieldEvent('talisman', change, options);
+}
+
+function applyTalismanChange(turnState, options = {}) {
+  return applyEnemyLeveledFieldChange(turnState, 'talismanState', TALISMAN_STATE_DEFAULT, {
+    ...options,
+    activateOnApply: Boolean(options.activateOnApply),
+  });
+}
+
+function buildEnemyTalismanMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  return buildEnemyLeveledPenaltyMaps(
+    turnState,
+    enemyCount,
+    'talismanState',
+    TALISMAN_STATE_DEFAULT,
+    'enemyTalismanLevelByEnemy'
+  );
+}
+
+function getDisasterState(turnState) {
+  return getEnemyLeveledFieldState(turnState, 'disasterState', DISASTER_STATE_DEFAULT);
+}
+
+function setDisasterState(turnState, next) {
+  setEnemyLeveledFieldState(turnState, 'disasterState', next, DISASTER_STATE_DEFAULT);
+}
+
+function createDisasterFieldEvent(change, options = {}) {
+  return createEnemyLeveledFieldEvent('disaster', change, options);
+}
+
+function applyDisasterChange(turnState, options = {}) {
+  return applyEnemyLeveledFieldChange(turnState, 'disasterState', DISASTER_STATE_DEFAULT, {
+    ...options,
+    activateOnApply: options.activateOnApply !== false,
+  });
+}
+
+function buildEnemyDisasterMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  return buildEnemyLeveledPenaltyMaps(
+    turnState,
+    enemyCount,
+    'disasterState',
+    DISASTER_STATE_DEFAULT,
+    'enemyDisasterLevelByEnemy'
+  );
+}
+
+function buildEnemyAllAbilityPenaltyMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const talismanMaps = buildEnemyTalismanMaps(turnState, enemyCount);
+  const disasterMaps = buildEnemyDisasterMaps(turnState, enemyCount);
+  const enemyAllAbilityDownByEnemy = { ...disasterMaps.enemyAllAbilityDownByEnemy };
+  for (const [targetIndex, penalty] of Object.entries(talismanMaps.enemyAllAbilityDownByEnemy)) {
+    const currentPenalty = Number(enemyAllAbilityDownByEnemy[targetIndex] ?? 0);
+    enemyAllAbilityDownByEnemy[targetIndex] = Math.max(currentPenalty, Number(penalty ?? 0));
+  }
+  return {
+    enemyTalismanLevelByEnemy: talismanMaps.enemyTalismanLevelByEnemy,
+    enemyDisasterLevelByEnemy: disasterMaps.enemyDisasterLevelByEnemy,
+    enemyAllAbilityDownByEnemy,
+  };
 }
 
 function normalizeFieldState(fieldState) {
@@ -4402,7 +4503,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         const requiresActive = Number(part?.value?.[0] ?? 0) === 1;
         const change = applyTalismanChange(state.turnState, {
           requiresActive,
-          initialActivation: levelDelta === 0,
+          activateOnApply: levelDelta === 0,
           levelDelta,
         });
         if (!change) {
@@ -4431,6 +4532,43 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
               triggerSkillName: String(skill?.name ?? ''),
               fieldEvents: talismanFieldEvent ? [talismanFieldEvent] : [],
               talismanChange: talismanFieldEvent,
+            })
+          )
+        );
+        continue;
+      }
+
+      if (effectType === 'Disaster') {
+        const levelDelta = Number(part?.power?.[0] ?? 0);
+        const change = applyDisasterChange(state.turnState, {
+          levelDelta,
+        });
+        if (!change) {
+          continue;
+        }
+        const disasterFieldEvent = createDisasterFieldEvent(change, {
+          source: 'passive_trigger',
+        });
+        if (disasterFieldEvent) {
+          fieldStateEvents.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: actor.characterId,
+              skillId: Number(skill?.skillId ?? 0),
+              skillName: String(skill?.name ?? ''),
+              ...disasterFieldEvent,
+            })
+          );
+        }
+        passiveTriggerEvents.push(
+          buildActionScopedEvent(
+            actionEntry,
+            createPassiveTriggerEvent(state.turnState, actor, passive, {
+              source: 'passive_trigger',
+              effectTypes: ['Disaster'],
+              triggerSkillId: Number(skill?.skillId ?? 0),
+              triggerSkillName: String(skill?.name ?? ''),
+              fieldEvents: disasterFieldEvent ? [disasterFieldEvent] : [],
+              disasterChange: disasterFieldEvent,
             })
           )
         );
@@ -4897,7 +5035,8 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
-    talismanState: enemyState.talismanState ?? { active: false, level: 0, maxLevel: 10 },
+    talismanState: enemyState.talismanState ?? structuredClone(TALISMAN_STATE_DEFAULT),
+    disasterState: enemyState.disasterState ?? structuredClone(DISASTER_STATE_DEFAULT),
   };
   const downTurnTargetsAfter = new Set(
     getActiveEnemyStatuses(turnState, ENEMY_STATUS_DOWN_TURN).map((status) => Number(status?.targetIndex ?? -1))
@@ -6301,7 +6440,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       );
     }
 
-    const talismanDamageMaps = buildEnemyTalismanMaps(state.turnState, enemyCount);
+    const allAbilityDownMaps = buildEnemyAllAbilityPenaltyMaps(state.turnState, enemyCount);
     const damageContext = buildDamageCalculationContext({
       actorCharacterId: member.characterId,
       actorStyleId: member.styleId,
@@ -6359,8 +6498,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       zonePowerRate: skillMatchesActiveZone(state, skill, member).matched
         ? Number(skillMatchesActiveZone(state, skill, member).zoneState?.powerRate ?? 0)
         : 0,
-      enemyTalismanLevelByEnemy: talismanDamageMaps.enemyTalismanLevelByEnemy,
-      enemyAllAbilityDownByEnemy: talismanDamageMaps.enemyAllAbilityDownByEnemy,
+      enemyTalismanLevelByEnemy: allAbilityDownMaps.enemyTalismanLevelByEnemy,
+      enemyDisasterLevelByEnemy: allAbilityDownMaps.enemyDisasterLevelByEnemy,
+      enemyAllAbilityDownByEnemy: allAbilityDownMaps.enemyAllAbilityDownByEnemy,
       funnelEffects,
     });
 
@@ -9894,7 +10034,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           const requiresActive = Number(part?.value?.[0] ?? 0) === 1;
           const change = applyTalismanChange(turnState, {
             requiresActive,
-            initialActivation: levelDelta === 0,
+            activateOnApply: levelDelta === 0,
             levelDelta,
           });
           if (change) {
@@ -9903,6 +10043,23 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             });
             if (talismanFieldEvent) {
               fieldEvents.push(talismanFieldEvent);
+            }
+            matched = true;
+          }
+          continue;
+        }
+
+        if (skillType === 'Disaster') {
+          const levelDelta = Number(part?.power?.[0] ?? 0);
+          const change = applyDisasterChange(turnState, {
+            levelDelta,
+          });
+          if (change) {
+            const disasterFieldEvent = createDisasterFieldEvent(change, {
+              source: 'passive_timing',
+            });
+            if (disasterFieldEvent) {
+              fieldEvents.push(disasterFieldEvent);
             }
             matched = true;
           }
@@ -10464,7 +10621,12 @@ function applyFieldStateFromActions(state, previewRecord) {
       if (!skillType) {
         continue;
       }
-      if (skillType !== 'Zone' && skillType !== 'RiceFieldZone' && !/Territory$/i.test(skillType)) {
+      if (
+        skillType !== 'Zone' &&
+        skillType !== 'RiceFieldZone' &&
+        skillType !== 'Disaster' &&
+        !/Territory$/i.test(skillType)
+      ) {
         continue;
       }
       const conditionSkill = createConditionSkillContext(skill, part);
@@ -10475,6 +10637,30 @@ function applyFieldStateFromActions(state, previewRecord) {
         evaluateConditionExpression(expr, state, actor, conditionSkill, actionEntry).result
       );
       if (!condSatisfied) {
+        continue;
+      }
+
+      if (skillType === 'Disaster') {
+        const change = applyDisasterChange(state.turnState, {
+          levelDelta: Number(part?.power?.[0] ?? 0),
+        });
+        if (!change) {
+          continue;
+        }
+        const disasterFieldEvent = createDisasterFieldEvent(change, {
+          source: 'active_skill',
+        });
+        if (!disasterFieldEvent) {
+          continue;
+        }
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            skillId: skill.skillId,
+            skillName: skill.name,
+            ...disasterFieldEvent,
+          })
+        );
         continue;
       }
 

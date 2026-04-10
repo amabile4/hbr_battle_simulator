@@ -9,7 +9,7 @@ test('T33 audit summary matches the post-talisman-completion baseline', () => {
   assert.equal(report.counts.structuralConditionGaps, 0);
   assert.equal(report.counts.structuralOverwriteGaps, 0);
   assert.equal(report.counts.structuralEnemyStatusGaps, 0);
-  assert.equal(report.counts.silentSkipEnemyStatusCandidates, 3);
+  assert.equal(report.counts.silentSkipEnemyStatusCandidates, 4);
   assert.equal(report.counts.logicGapCount, 0);
   assert.deepEqual(report.logicGaps, []);
   assert.equal(report.counts.staleDocFalsePositiveCount, 0);
@@ -38,4 +38,9 @@ test('恐怖の叫び is no longer reported as a T33 logic gap', () => {
     report.logicGaps.some((item) => item.sourceName === '恐怖の叫び'),
     false
   );
+});
+
+test('もつれトラップ is no longer reported as a structural enemy status gap', () => {
+  const report = generateT33SkillPassiveAudit();
+  assert.equal(report.counts.structuralEnemyStatusGaps, 0);
 });

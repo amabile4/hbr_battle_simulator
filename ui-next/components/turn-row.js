@@ -1614,6 +1614,7 @@ export class TurnRowController {
       zoneState: this.#stateBefore?.turnState?.zoneState ?? null,
       territoryState: this.#stateBefore?.turnState?.territoryState ?? null,
       talismanState: this.#stateBefore?.turnState?.enemyState?.talismanState ?? null,
+      disasterState: this.#stateBefore?.turnState?.enemyState?.disasterState ?? null,
     });
     if (entries.length === 0) {
       return '';
@@ -2689,6 +2690,7 @@ export class TurnRowController {
       const damageRates = enemyState.damageRatesByEnemy?.[enemyKey] ?? null;
       const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey] ?? null;
       const talismanState = enemyState.talismanState ?? null;
+      const disasterState = enemyState.disasterState ?? null;
       return {
         enemyIndex,
         name: displayName,
@@ -2713,6 +2715,7 @@ export class TurnRowController {
         }),
         statuses,
         ...(talismanState ? { talismanState: structuredClone(talismanState) } : {}),
+        ...(disasterState ? { disasterState: structuredClone(disasterState) } : {}),
         ...(od_rate !== null ? { od_rate } : {}),
         ...(max_d_rate !== null ? { max_d_rate } : {}),
         ...(damageRates ? { damageRates: structuredClone(damageRates) } : {}),
@@ -4247,6 +4250,7 @@ export class TurnRowController {
             zoneState: this.#stateBefore?.turnState?.zoneState ?? null,
             territoryState: this.#stateBefore?.turnState?.territoryState ?? null,
             talismanState: this.#stateBefore?.turnState?.enemyState?.talismanState ?? null,
+            disasterState: this.#stateBefore?.turnState?.enemyState?.disasterState ?? null,
           },
           { x: e.clientX, y: e.clientY, isCommitted: this.#isCommittedDisplayMode() }
         );

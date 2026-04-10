@@ -145,9 +145,9 @@ T34 follow-up（Day 1 設計ゲートで分離）:
 - [ ] T34-E2E: fixture 読込 / 残ターン更新 / legacy fallback を browser で固定する
 - [ ] T34-FU1: C-2 選択肢B（`effectId` 単位の per-source instance 管理）を別タスクで設計・実装する
 	- DoD: identity model 変更の影響範囲（engine/UI/tests）を文書化し、既存 merged 前提テストとの差分移行計画を提示する
-- [ ] T34-FU3: `Disaster / 禍` を engine / UI / test まで接続する
+- [x] T34-FU3: `Disaster / 禍` を engine / UI / test まで接続した（2026-04-10）
 	- 詳細: [disaster_status_wbs.md](disaster_status_wbs.md)
-	- DoD: `もつれトラップ` が `禍 Lv2` を付与し、enemy popup / field chip / char detail / `damageContext` で観測できる
+	- DoD: `もつれトラップ` の skill part `禍 Lv2` と style passive `巻き添え` の追加 `+2` が engine / enemy popup / field chip / char detail / `damageContext` で観測できる
 
 T34 issue（main 管理票への追記）:
 

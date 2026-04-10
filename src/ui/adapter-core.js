@@ -369,7 +369,12 @@ export function createInitializedBattleSnapshot({
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)
           : {},
-      talismanState: structuredClone(baseTurnState.enemyState?.talismanState ?? { active: false, level: 0, maxLevel: 10 }),
+      talismanState: structuredClone(
+        baseTurnState.enemyState?.talismanState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 }
+      ),
+      disasterState: structuredClone(
+        baseTurnState.enemyState?.disasterState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 }
+      ),
     },
     zoneState: zoneState && typeof zoneState === 'object' ? structuredClone(zoneState) : null,
     territoryState: territoryState && typeof territoryState === 'object' ? structuredClone(territoryState) : null,

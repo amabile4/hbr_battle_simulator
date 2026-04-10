@@ -159,7 +159,8 @@ export function createInitialTurnState() {
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
-      talismanState: { active: false, level: 0, maxLevel: 10 },
+      talismanState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 },
+      disasterState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },
     },
     zoneState: null,
     territoryState: null,
@@ -301,8 +302,19 @@ export function cloneTurnState(turnState) {
                   active: Boolean(turnState.enemyState.talismanState.active),
                   level: Number(turnState.enemyState.talismanState.level ?? 0),
                   maxLevel: Number(turnState.enemyState.talismanState.maxLevel ?? 10),
+                  penaltyPerLevel: Number(turnState.enemyState.talismanState.penaltyPerLevel ?? 10),
                 }
-              : { active: false, level: 0, maxLevel: 10 },
+              : { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 },
+          disasterState:
+            turnState.enemyState.disasterState &&
+            typeof turnState.enemyState.disasterState === 'object'
+              ? {
+                  active: Boolean(turnState.enemyState.disasterState.active),
+                  level: Number(turnState.enemyState.disasterState.level ?? 0),
+                  maxLevel: Number(turnState.enemyState.disasterState.maxLevel ?? 10),
+                  penaltyPerLevel: Number(turnState.enemyState.disasterState.penaltyPerLevel ?? 7),
+                }
+              : { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },
         }
         : {
           enemyCount: DEFAULT_ENEMY_COUNT,
@@ -315,7 +327,8 @@ export function cloneTurnState(turnState) {
           breakStateByEnemy: {},
           enemyNamesByEnemy: {},
           zoneConfigByEnemy: {},
-          talismanState: { active: false, level: 0, maxLevel: 10 },
+          talismanState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 },
+          disasterState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },
         };
   const zoneState =
     turnState?.zoneState && typeof turnState.zoneState === 'object'

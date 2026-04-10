@@ -4573,9 +4573,9 @@ test('passive timing coverage report identifies controller gaps against passives
     { timing: 'OnAdditionalTurnStart', count: 12 },
     { timing: 'OnBattleStart', count: 84 },
     { timing: 'OnBattleWin', count: 8 },
-    { timing: 'OnEnemyTurnStart', count: 31 },
-    { timing: 'OnEveryTurn', count: 293 },
-    { timing: 'OnFirstBattleStart', count: 112 },
+    { timing: 'OnEnemyTurnStart', count: 32 },
+    { timing: 'OnEveryTurn', count: 294 },
+    { timing: 'OnFirstBattleStart', count: 116 },
     { timing: 'OnOverdriveStart', count: 9 },
     { timing: 'OnPlayerTurnStart', count: 200 },
   ]);
@@ -12041,6 +12041,62 @@ test('IsTalisman condition evaluates correctly based on talisman active state', 
     resultInactive.passiveEvents.find((e) => e.passiveName === '霊符条件パッシブ'),
     undefined,
     'IsTalisman passive should NOT fire when talisman is inactive'
+  );
+});
+
+test('real-data もつれトラップ applies disaster from both active skill and 巻き添え passive trigger', () => {
+  const store = getStore();
+  const skillId = 46005514;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  const preview = previewActorSkill(state, skillId);
+  const { committedRecord, nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.enemyState?.disasterState?.active, true);
+  assert.equal(nextState.turnState.enemyState?.disasterState?.level, 4);
+  assert.equal(nextState.turnState.enemyState?.disasterState?.maxLevel, 10);
+  assert.equal(nextState.turnState.enemyState?.disasterState?.penaltyPerLevel, 7);
+
+  const action = findActionByCharacterId(committedRecord, state.party[0].characterId);
+  assert.ok(action, 'committed action should exist');
+  const disasterFieldEvents = (action.fieldStateApplied ?? []).filter((event) => event.kind === 'disaster');
+  assert.deepEqual(
+    disasterFieldEvents.map((event) => [
+      event.source,
+      event.activeBefore,
+      event.activeAfter,
+      event.levelBefore,
+      event.levelAfter,
+      event.levelDelta,
+    ]),
+    [
+      ['active_skill', true, true, 2, 4, 2],
+      ['passive_trigger', false, true, 0, 2, 2],
+    ]
+  );
+  const passiveTriggerEvent = (committedRecord.passiveEvents ?? []).find((event) => event.passiveName === '巻き添え');
+  assert.ok(passiveTriggerEvent, '巻き添え passive trigger should be recorded');
+  assert.equal(passiveTriggerEvent.disasterChange?.levelAfter, 2);
+  assert.equal(action.damageContext?.enemyDisasterLevelByEnemy?.['0'], 4);
+  assert.equal(action.damageContext?.enemyAllAbilityDownByEnemy?.['0'], 28);
+});
+
+test('real-data もつれトラップ keeps the higher all-ability-down penalty when talisman is also active', () => {
+  const store = getStore();
+  const skillId = 46005514;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  state.turnState.enemyState.talismanState = { active: true, level: 2, maxLevel: 10, penaltyPerLevel: 10 };
+
+  const preview = previewActorSkill(state, skillId);
+  const { committedRecord } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, state.party[0].characterId);
+
+  assert.ok(action, 'committed action should exist');
+  assert.equal(action.damageContext?.enemyTalismanLevelByEnemy?.['0'], 3);
+  assert.equal(action.damageContext?.enemyDisasterLevelByEnemy?.['0'], 4);
+  assert.equal(
+    action.damageContext?.enemyAllAbilityDownByEnemy?.['0'],
+    30,
+    'talisman 30 should win over disaster 28'
   );
 });
 

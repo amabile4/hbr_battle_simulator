@@ -20,9 +20,8 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - 表示フォーマット unit と integration の lifecycle / replay / legacy fallback は、2026-04-06 時点の文書より前進しており、残タスクから外せる
 - browser E2E は `turn-row-preview-status-popup.spec.js` / `superbreak-hefty-guardian.spec.js` などの点的 coverage はあるが、fixture 読込・残ターン更新・legacy session fallback を一連で固定する coverage は未整備
 - `ui-next/components/turn-row.js` では `enemy-detail-trigger` / `manual-break-editor` / `follow-up-editor` が依然として別導線で存在し、WBS-3e の「共通 enemy selector component へ集約」は未着手
-- 追加 JSON 再照合で `Disaster / 禍` が新規未実装 enemy debuff として流入した
-  - 現時点の live data では `伊達 朱里 [前進ネバーギブアップ！]` の `もつれトラップ` 1 件
-  - 詳細は [disaster_status_wbs.md](disaster_status_wbs.md) を正本とする
+- `Disaster / 禍` は `docs/active/disaster_status_wbs.md` で完了済み
+  - active skill `もつれトラップ` + style passive `巻き添え` により current live style では初回 `Lv4 / 全能力-28`
 
 ## 残タスク一覧（2026-04-10 時点）
 
@@ -75,11 +74,11 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 
 目的: 新規 enemy debuff `Disaster` を engine / record / UI / test まで一貫接続する
 
-- [ ] `enemyState` 上の `Disaster` 管理モデルを確定する
-- [ ] `もつれトラップ` の active skill から `Disaster` を付与・レベル加算できるようにする
-- [ ] `damageContext` の全能力低下集計へ `Disaster` を統合する
-- [ ] enemy popup / field chip / char detail で `禍` の level と低下量を表示する
-- [ ] audit / runtime / UI テストを追加し、`structuralEnemyStatusGaps` から除外する
+- [x] `enemyState` 上の `Disaster` 管理モデルを確定した
+- [x] `もつれトラップ` の active skill と `巻き添え` passive から `Disaster` を付与・レベル加算できるようにした
+- [x] `damageContext` の全能力低下集計へ `Disaster` を統合した
+- [x] enemy popup / field chip / char detail で `禍` の level と低下量を表示する
+- [x] audit / runtime / UI / browser E2E を追加し、`structuralEnemyStatusGaps` から除外した
 
 関連:
 
