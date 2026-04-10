@@ -97,7 +97,6 @@ STEP4 → RecordEditor + CSV移行
 
 ## 参照根拠
 
-- `json/new_skill_database.schema.json` - スキルデータスキーマ
 - `js/globals.js` - 現行グローバル変数・CONFIG定義
 - `js/control-manager.js` - 現行ターン制御実装
 - `js/party-manager.js` - 現行パーティー管理実装

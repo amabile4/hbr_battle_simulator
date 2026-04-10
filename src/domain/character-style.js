@@ -35,7 +35,7 @@ export function normalizePartyPosition(position) {
   return numericPosition;
 }
 
-function normalizeSkill(skill, canonicalSkill) {
+function normalizeSkill(skill) {
   const sourceType = String(skill.sourceType ?? 'style');
   const isPassive = Boolean(skill.passive && typeof skill.passive === 'object') || sourceType === 'passive';
   const legacySkillIds = Array.isArray(skill.legacySkillIds)
@@ -43,29 +43,27 @@ function normalizeSkill(skill, canonicalSkill) {
     : [];
   return {
     skillId: Number(skill.id ?? skill.skillId),
-    label: String(skill.label ?? canonicalSkill?.label ?? ''),
+    label: String(skill.label ?? ''),
     name: String(skill.name ?? ''),
-    desc: String(skill.desc ?? canonicalSkill?.desc ?? ''),
-    targetType: String(skill.target_type ?? skill.targetType ?? canonicalSkill?.targetType ?? ''),
-    spCost: Number(skill.sp_cost ?? skill.spCost ?? canonicalSkill?.spCost ?? 0),
+    desc: String(skill.desc ?? ''),
+    targetType: String(skill.target_type ?? skill.targetType ?? ''),
+    spCost: Number(skill.sp_cost ?? skill.spCost ?? 0),
     sourceType,
     isPassive,
-    type: resolveSkillType(skill, canonicalSkill),
-    consumeType: skill.consume_type ?? skill.consumeType ?? canonicalSkill?.consumeType ?? null,
-    hitCount: Number(skill.hit_count ?? skill.hitCount ?? canonicalSkill?.hitCount ?? 0),
-    isRestricted: Number(skill.is_restricted ?? skill.isRestricted ?? canonicalSkill?.isRestricted ?? 0) === 1,
+    type: resolveSkillType(skill),
+    consumeType: skill.consume_type ?? skill.consumeType ?? null,
+    hitCount: Number(skill.hit_count ?? skill.hitCount ?? 0),
+    isRestricted: Number(skill.is_restricted ?? skill.isRestricted ?? 0) === 1,
     hits: Array.isArray(skill.hits) ? structuredClone(skill.hits) : [],
-    maxLevel: skill.max_level ?? skill.maxLevel ?? canonicalSkill?.maxLevel ?? null,
+    maxLevel: skill.max_level ?? skill.maxLevel ?? null,
     spRecoveryCeiling:
       typeof skill.spRecoveryCeiling === 'number' ? skill.spRecoveryCeiling : undefined,
-    cond: String(skill.cond ?? canonicalSkill?.cond ?? ''),
+    cond: String(skill.cond ?? ''),
     iucCond: String(skill.iuc_cond ?? skill.iucCond ?? ''),
     overwriteCond: String(skill.overwrite_cond ?? skill.overwriteCond ?? ''),
-    effect: String(skill.effect ?? canonicalSkill?.effect ?? ''),
+    effect: String(skill.effect ?? ''),
     overwrite:
-      skill.overwrite === undefined || skill.overwrite === null
-        ? canonicalSkill?.overwrite ?? null
-        : Number(skill.overwrite),
+      skill.overwrite === undefined || skill.overwrite === null ? null : Number(skill.overwrite),
     legacySkillIds,
     usage:
       skill?.usage && typeof skill.usage === 'object' ? structuredClone(skill.usage) : null,
@@ -110,17 +108,11 @@ function inferSkillType(skill) {
   return hasDamage ? 'damage' : 'non_damage';
 }
 
-function resolveSkillType(skill, canonicalSkill) {
+function resolveSkillType(skill) {
   const inferredType = inferSkillType(skill);
   if (inferredType === 'damage') {
     return 'damage';
   }
-
-  const canonicalType = String(canonicalSkill?.type ?? '').trim();
-  if (canonicalType === 'damage' || canonicalType === 'non_damage') {
-    return canonicalType;
-  }
-
   return inferredType;
 }
 
@@ -406,10 +398,10 @@ export class CharacterStyle {
     this.shreddingTurnsRemaining = Number(input.shreddingTurnsRemaining ?? 0);
 
     this.skills = Object.freeze(
-      (input.skills ?? []).map((skill) => normalizeSkill(skill, skill.canonicalSkill))
+      (input.skills ?? []).map((skill) => normalizeSkill(skill))
     );
     this.triggeredSkills = Object.freeze(
-      (input.triggeredSkills ?? []).map((skill) => normalizeSkill(skill, skill.canonicalSkill))
+      (input.triggeredSkills ?? []).map((skill) => normalizeSkill(skill))
     );
     this.passives = Object.freeze((input.passives ?? []).map((passive) => normalizePassive(passive)));
     const skillUseCountsInput =

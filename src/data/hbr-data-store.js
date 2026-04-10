@@ -9,7 +9,6 @@ import {
   isPursuitOnlySkill as isPursuitOnlySkillClassifier,
 } from '../domain/skill-classifiers.js';
 import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
-import { validateDocument } from './schema-validator.js';
 import {
   resolveSupportPassiveEntry,
   buildSupportPassive,
@@ -309,9 +308,6 @@ export class HbrDataStore {
     this.epRuleOverrides = payload.epRuleOverrides ?? [];
     this.transcendenceRuleOverrides = payload.transcendenceRuleOverrides ?? [];
     this.supportSkills = payload.supportSkills ?? [];
-
-    this.skillDbSchema = payload.skillDbSchema;
-    this.skillDbDraft = payload.skillDbDraft;
     this.skillAvailability = {
       includeMasterSkills: payload.skillAvailability?.includeMasterSkills ?? true,
       includeOrbSkills: payload.skillAvailability?.includeOrbSkills ?? true,
@@ -334,9 +330,6 @@ export class HbrDataStore {
     });
     this.skillRuleOverridesById = new Map(
       this.skillRuleOverrides.map((row) => [Number(row.id), row])
-    );
-    this.canonicalSkillById = new Map(
-      (this.skillDbDraft.canonicalSkills ?? []).map((row) => [Number(row.skillId), row])
     );
     this.supportSkillsByLabel = new Map(
       this.supportSkills.map((g) => [String(g.label ?? ''), g])
@@ -407,8 +400,6 @@ export class HbrDataStore {
       skillRuleOverrides: readJson(resolve(dir, 'skill_rule_overrides.json')),
       epRuleOverrides: readJson(resolve(dir, 'ep_rule_overrides.json')),
       transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
-      skillDbSchema: readJson(resolve(dir, 'new_skill_database.schema.json')),
-      skillDbDraft: readJsonOrFallback(resolve(dir, 'reports/migration/new_skill_database.draft.json'), {}),
       supportSkills: readJsonOrFallback(resolve(dir, 'support_skills.json'), []),
     });
   }
@@ -427,8 +418,6 @@ export class HbrDataStore {
       skillRuleOverrides: payload.skillRuleOverrides ?? [],
       epRuleOverrides: payload.epRuleOverrides ?? [],
       transcendenceRuleOverrides: payload.transcendenceRuleOverrides ?? [],
-      skillDbSchema: payload.skillDbSchema ?? {},
-      skillDbDraft: payload.skillDbDraft ?? {},
       skillAvailability: payload.skillAvailability ?? {},
       supportSkills: payload.supportSkills ?? [],
     });
@@ -495,18 +484,6 @@ export class HbrDataStore {
       ...this.skillAvailability,
       ...next,
     };
-  }
-
-  validateSkillDatabaseDraft() {
-    return validateDocument(this.skillDbSchema, this.skillDbDraft);
-  }
-
-  assertSkillDatabaseDraftValid() {
-    const result = this.validateSkillDatabaseDraft();
-    if (!result.valid) {
-      const preview = result.errors.slice(0, 10).join('\n');
-      throw new Error(`new_skill_database.draft.json failed validation:\n${preview}`);
-    }
   }
 
   mergeSkillWithOverride(skill) {
@@ -1442,11 +1419,9 @@ export class HbrDataStore {
 
     const allStyleSkills = this.listEquipableSkillsByStyleId(style.id)
       .map((skill) => {
-        const canonical = this.canonicalSkillById.get(Number(skill.id));
         const additionalTurnRule = this.getAdditionalTurnRule(skill);
         return {
           ...skill,
-          canonicalSkill: canonical ?? null,
           usage: this.resolveSkillUseCount(skill.use_count, 'max'),
           additionalTurnRule,
         };

@@ -4,7 +4,6 @@
 
 ## 0. 参照根拠
 - `js/globals.js`: `MAX_CHARACTERS=6`, `FRONT_POSITIONS=3`, `MAX_SP=20`, `BASE_SP_RECOVERY=2`
-- `json/new_skill_database.schema.json`: `canonicalSkills` の `styleId/styleName/chara/spCost/type/consumeType/maxLevel`
 - `spec_review_state.json (agreed_v1)`: R1-R10（SP凍結、SP下限、SkillSlot拡張、SwapEvent等）
 
 ## 1. 入力仕様（パーティー組み込み）

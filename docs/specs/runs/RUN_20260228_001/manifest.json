@@ -134,7 +134,6 @@
     }
   ],
   "references": [
-    "json/new_skill_database.schema.json",
     "js/globals.js",
     "js/control-manager.js",
     "js/party-manager.js",

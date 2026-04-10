@@ -527,8 +527,6 @@ test('listPassivesByStyleId keeps same-name passives when activation metadata di
         parts: [{ skill_type: 'AttackUp', target_type: 'Self', power: [0.2, 0] }],
       },
     ],
-    skillDbSchema: {},
-    skillDbDraft: {},
   });
 
   const passives = store.listPassivesByStyleId(1001, { limitBreakLevel: 0 });
