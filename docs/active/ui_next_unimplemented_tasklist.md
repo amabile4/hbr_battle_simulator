@@ -22,7 +22,7 @@
 
 1. PRI-018 / Skill Usage Limits（`T19` 集約先）
 2. T16-B: 敵行動データからの auto summon
-3. T34 follow-up: enemy 関連メニュー統合 / browser E2E / per-source instance 管理
+3. T34 follow-up: enemy 関連メニュー統合 / browser E2E / per-source instance 管理 / `Disaster` 対応
 4. T32: Stage Setup Phase2/3
 5. Setup パネル レイアウト改善 & ロード高速化
 
@@ -145,6 +145,9 @@ T34 follow-up（Day 1 設計ゲートで分離）:
 - [ ] T34-E2E: fixture 読込 / 残ターン更新 / legacy fallback を browser で固定する
 - [ ] T34-FU1: C-2 選択肢B（`effectId` 単位の per-source instance 管理）を別タスクで設計・実装する
 	- DoD: identity model 変更の影響範囲（engine/UI/tests）を文書化し、既存 merged 前提テストとの差分移行計画を提示する
+- [ ] T34-FU3: `Disaster / 禍` を engine / UI / test まで接続する
+	- 詳細: [disaster_status_wbs.md](disaster_status_wbs.md)
+	- DoD: `もつれトラップ` が `禍 Lv2` を付与し、enemy popup / field chip / char detail / `damageContext` で観測できる
 
 T34 issue（main 管理票への追記）:
 

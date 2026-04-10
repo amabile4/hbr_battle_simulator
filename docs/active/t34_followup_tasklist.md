@@ -20,6 +20,9 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - 表示フォーマット unit と integration の lifecycle / replay / legacy fallback は、2026-04-06 時点の文書より前進しており、残タスクから外せる
 - browser E2E は `turn-row-preview-status-popup.spec.js` / `superbreak-hefty-guardian.spec.js` などの点的 coverage はあるが、fixture 読込・残ターン更新・legacy session fallback を一連で固定する coverage は未整備
 - `ui-next/components/turn-row.js` では `enemy-detail-trigger` / `manual-break-editor` / `follow-up-editor` が依然として別導線で存在し、WBS-3e の「共通 enemy selector component へ集約」は未着手
+- 追加 JSON 再照合で `Disaster / 禍` が新規未実装 enemy debuff として流入した
+  - 現時点の live data では `伊達 朱里 [前進ネバーギブアップ！]` の `もつれトラップ` 1 件
+  - 詳細は [disaster_status_wbs.md](disaster_status_wbs.md) を正本とする
 
 ## 残タスク一覧（2026-04-10 時点）
 
@@ -68,15 +71,36 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - [ ] identity model 変更の影響範囲（engine/UI/tests）を文書化する
 - [ ] 既存 merged 前提テストとの差分移行計画を提示する
 
+### 4. T34-FU3: `Disaster / 禍` 対応
+
+目的: 新規 enemy debuff `Disaster` を engine / record / UI / test まで一貫接続する
+
+- [ ] `enemyState` 上の `Disaster` 管理モデルを確定する
+- [ ] `もつれトラップ` の active skill から `Disaster` を付与・レベル加算できるようにする
+- [ ] `damageContext` の全能力低下集計へ `Disaster` を統合する
+- [ ] enemy popup / field chip / char detail で `禍` の level と低下量を表示する
+- [ ] audit / runtime / UI テストを追加し、`structuralEnemyStatusGaps` から除外する
+
+関連:
+
+- [disaster_status_wbs.md](disaster_status_wbs.md)
+- [../../help/HEAVEN_BURNS_RED/バトル/禍.md](../../help/HEAVEN_BURNS_RED/バトル/禍.md)
+
 ## 対象ファイル
 
 - `ui-next/components/turn-row.js` — enemy selector 統合
 - `ui-next/components/enemy-detail-popup.js` — popup 連携
 - `ui-next/utils/enemy-status-display.js` — 表示フォーマット
 - `ui-next/utils/element-status-constants.js` — 属性付き status 表示定数
+- `src/turn/turn-controller.js` — `Disaster` runtime/state
+- `src/domain/damage-calculation-context.js` — 全能力低下集計
+- `ui-next/utils/field-state-display.js` — field chip / detail summary
+- `ui-next/utils/char-detail-popup.js` — status label / icon
 - `tests/e2e/*.spec.js` — browser E2E テスト
 - `tests/enemy-status-display.test.js` — 表示 unit テスト
 - `tests/t34-enemy-status-integration.test.js` — lifecycle / replay / legacy fallback integration
+- `tests/turn-state-transitions.test.js` — `Disaster` real-data runtime
+- `tests/damage-calculation-context.test.js` — 能力低下集計
 
 ## テスト実行コマンド
 
