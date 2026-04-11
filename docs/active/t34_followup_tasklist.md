@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-06
-> 最終更新: 2026-04-10
+> 最終更新: 2026-04-11
 > 元タスク: [t34_enemy_status_management_plan_wbs.md](t34_enemy_status_management_plan_wbs.md)（✅ 完了）
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
@@ -22,6 +22,8 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - `ui-next/components/turn-row.js` では `enemy-detail-trigger` / `manual-break-editor` / `follow-up-editor` が依然として別導線で存在し、WBS-3e の「共通 enemy selector component へ集約」は未着手
 - `Disaster / 禍` は `docs/active/disaster_status_wbs.md` で完了済み
   - active skill `もつれトラップ` + style passive `巻き添え` により current live style では初回 `Lv4 / 全能力-28`
+- 2026-04-11: 単独 EX ターンで、`FollowUpOverrides` が front/back 列固定マッピングに吸われて非EX後衛の追撃を取りこぼすケースを確認
+  - `ui-next/engine/turn-engine-manager.js` で「単独 EX action には保存済み follow-up override をその action に attach する」補正を追加し、`tests/ui-next-follow-up-integration.test.js` で回帰を固定
 
 ## 残タスク一覧（2026-04-10 時点）
 

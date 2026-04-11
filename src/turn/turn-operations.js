@@ -3,9 +3,9 @@ import {
   applyEnemyStateOverrideSnapshot,
   buildEnemyStateOverrideSnapshot,
   isEnemyAlive,
-  previewTurn,
 } from './turn-controller.js';
 import {
+  ENEMY_OD_RATE_UNIT,
   clampEnemyCount,
   DEFAULT_ENEMY_COUNT,
   DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
@@ -13,6 +13,8 @@ import {
   DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT,
   MAX_ENEMY_COUNT,
   getOdGaugeRequirement,
+  OD_GAUGE_MIN_PERCENT,
+  OD_GAUGE_PER_HIT_PERCENT,
   OD_GAUGE_MAX_PERCENT,
   REINFORCED_MODE_OD_GAUGE_BONUS,
 } from '../config/battle-defaults.js';
@@ -105,44 +107,59 @@ function extractOperationLevel(operation = {}) {
   return Number.isFinite(level) && level >= 1 && level <= 3 ? level : null;
 }
 
-function createEmbeddedPreviewSkill(embeddedSkill = {}) {
-  return {
-    skillId: Number(embeddedSkill.id ?? embeddedSkill.skillId),
-    label: String(embeddedSkill.label ?? MAKAI_KIHEI_SKILL_LABEL),
-    name: String(embeddedSkill.name ?? '騎兵起動'),
-    desc: String(embeddedSkill.desc ?? ''),
-    targetType: String(embeddedSkill.target_type ?? embeddedSkill.targetType ?? 'All'),
-    spCost: Number(embeddedSkill.sp_cost ?? embeddedSkill.spCost ?? 0),
-    sourceType: 'system',
-    isPassive: false,
-    type: 'damage',
-    consumeType: String(embeddedSkill.consume_type ?? embeddedSkill.consumeType ?? 'Sp'),
-    hitCount: Number(embeddedSkill.hit_count ?? embeddedSkill.hitCount ?? 0),
-    isRestricted: Number(embeddedSkill.is_restricted ?? embeddedSkill.isRestricted ?? 0) === 1,
-    hits: Array.isArray(embeddedSkill.hits) ? structuredClone(embeddedSkill.hits) : [],
-    maxLevel: embeddedSkill.max_level ?? embeddedSkill.maxLevel ?? null,
-    cond: String(embeddedSkill.cond ?? ''),
-    iucCond: String(embeddedSkill.iuc_cond ?? embeddedSkill.iucCond ?? ''),
-    overwriteCond: String(embeddedSkill.overwrite_cond ?? embeddedSkill.overwriteCond ?? ''),
-    effect: String(embeddedSkill.effect ?? ''),
-    overwrite: embeddedSkill.overwrite ?? null,
-    additionalTurnRule: null,
-    parts: Array.isArray(embeddedSkill.parts) ? structuredClone(embeddedSkill.parts) : [],
-    passive: null,
-  };
+function truncateToTwoDecimals(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  if (numeric >= 0) {
+    return Math.floor((numeric + 1e-9) * 100) / 100;
+  }
+  return Math.ceil((numeric - 1e-9) * 100) / 100;
 }
 
-function moveActorToFrontForOperationPreview(state, actor) {
-  if (!state?.party || !actor || Number(actor.position) <= 2) {
-    return;
+function clampOdGauge(value) {
+  return Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, value));
+}
+
+function resolveEnemyOdRateMultiplier(turnState, targetEnemyIndex) {
+  const rawRate = Number(turnState?.enemyState?.odRateByEnemy?.[String(Number(targetEnemyIndex))] ?? 0);
+  if (!Number.isFinite(rawRate) || rawRate === 0) {
+    return 1;
   }
-  const currentFront =
-    state.party.find((member) => Number(member?.position) === MAKAI_KIHEI_DEFAULT_POSITION) ?? null;
-  const originalPosition = Number(actor.position);
-  actor.position = MAKAI_KIHEI_DEFAULT_POSITION;
-  if (currentFront && currentFront !== actor) {
-    currentFront.position = originalPosition;
+  if (Math.abs(rawRate) <= 10) {
+    return rawRate;
   }
+  return rawRate / ENEMY_OD_RATE_UNIT;
+}
+
+function resolveMakaiKiheiHitCount(embeddedSkill = {}) {
+  const explicitHitCount = Number(embeddedSkill.hit_count ?? embeddedSkill.hitCount);
+  if (Number.isFinite(explicitHitCount) && explicitHitCount > 0) {
+    return explicitHitCount;
+  }
+  const hitsLength = Array.isArray(embeddedSkill.hits) ? embeddedSkill.hits.length : 0;
+  return Math.max(1, hitsLength);
+}
+
+function computeMakaiKiheiOdGain(state, embeddedSkill, enemyCountOverride = null) {
+  const enemyCount = clampEnemyCount(
+    enemyCountOverride ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+  );
+  const hitCount = resolveMakaiKiheiHitCount(embeddedSkill);
+  let total = 0;
+
+  for (let targetEnemyIndex = 0; targetEnemyIndex < enemyCount; targetEnemyIndex += 1) {
+    if (!isEnemyAlive(state?.turnState, targetEnemyIndex, enemyCount)) {
+      continue;
+    }
+    const perHitGain = truncateToTwoDecimals(
+      OD_GAUGE_PER_HIT_PERCENT * resolveEnemyOdRateMultiplier(state?.turnState, targetEnemyIndex)
+    );
+    total = truncateToTwoDecimals(total + truncateToTwoDecimals(perHitGain * hitCount));
+  }
+
+  return total;
 }
 
 function applyKishinkaToState(state) {
@@ -178,43 +195,14 @@ function applyMakaiKiheiToState(state) {
   if (!availability.availableInState || !availability.embeddedSkill) {
     return state;
   }
-
-  const workingState = {
-    ...state,
-    party: state.party.map((member) => member.clone()),
-    turnState: { ...state.turnState },
-  };
-  const workingActor =
-    workingState.party.find((member) => Number(member?.styleId) === MAKAI_KIHEI_STYLE_ID) ?? null;
-  if (!workingActor) {
-    return state;
-  }
-
-  moveActorToFrontForOperationPreview(workingState, workingActor);
-  const previewSkill = createEmbeddedPreviewSkill(availability.embeddedSkill);
-  workingActor.skills = Object.freeze([...(workingActor.skills ?? []), previewSkill]);
-
-  let previewRecord = null;
-  try {
-    previewRecord = previewTurn(
-      workingState,
-      { [workingActor.position]: { skillId: previewSkill.skillId } },
-      null,
-      clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT)
-    );
-  } catch {
-    return state;
-  }
-
-  const odGaugeAfter = Number(previewRecord?.projections?.odGaugeAtEnd ?? state?.turnState?.odGauge ?? 0);
-  if (!Number.isFinite(odGaugeAfter)) {
-    return state;
-  }
+  const currentOdGauge = truncateToTwoDecimals(Number(state?.turnState?.odGauge ?? 0));
+  const odGain = computeMakaiKiheiOdGain(state, availability.embeddedSkill);
+  const odGaugeAfter = truncateToTwoDecimals(clampOdGauge(currentOdGauge + odGain));
   return {
     ...state,
     turnState: {
       ...state.turnState,
-      odGauge: Number(odGaugeAfter.toFixed(2)),
+      odGauge: odGaugeAfter,
     },
   };
 }

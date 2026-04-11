@@ -81,6 +81,7 @@ function createMember({
   partyIndex,
   position,
   initialSP = 10,
+  drivePiercePercent = 0,
   skills = [],
   passives = [],
 }) {
@@ -92,6 +93,7 @@ function createMember({
     partyIndex,
     position,
     initialSP,
+    drivePiercePercent,
     skills,
     passives,
   });
@@ -109,6 +111,7 @@ function createBaselineParty(overrides = {}) {
         partyIndex: index,
         position: override.position ?? index,
         initialSP: override.initialSP ?? 10,
+        drivePiercePercent: override.drivePiercePercent ?? 0,
         skills:
           override.skills ??
           [
@@ -187,6 +190,66 @@ test('applyBeforeCommitOperations uses the supplied enemyCount for Makai Kihei O
 
   assert.equal(nextState.turnState.enemyState.enemyCount, 2);
   assert.equal(nextState.turnState.odGauge, 30);
+});
+
+test('applyBeforeCommitOperations ignores drive pierce for duplicate Makai Kihei OD gain', () => {
+  const state = createState(
+    {
+      0: {
+        characterId: 'BIYamawaki',
+        characterName: '山脇・ボン・イヴァール',
+        styleId: MAKAI_KIHEI_STYLE_ID,
+        styleName: '誇り高き魔王の凱旋',
+        passives: [createMakaiKiheiPassive()],
+        drivePiercePercent: 15,
+      },
+    },
+    { odGauge: 10, enemyCount: 1 }
+  );
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [
+      { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI },
+      { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI },
+    ],
+    { enemyCount: 2 }
+  );
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, 2);
+  assert.equal(nextState.turnState.odGauge, 70);
+});
+
+test('applyBeforeCommitOperations applies Makai Kihei during extra turn even when Yamawaki is not actionable', () => {
+  const state = createState(
+    {
+      0: {
+        characterId: 'BIYamawaki',
+        characterName: '山脇・ボン・イヴァール',
+        styleId: MAKAI_KIHEI_STYLE_ID,
+        styleName: '誇り高き魔王の凱旋',
+        passives: [createMakaiKiheiPassive()],
+      },
+    },
+    { odGauge: 133.29, enemyCount: 2 }
+  );
+  state.turnState.turnType = 'extra';
+  state.turnState.turnLabel = 'EX';
+  state.turnState.extraTurnState = {
+    active: true,
+    remainingActions: 1,
+    allowedCharacterIds: ['UT2'],
+    grantTurnIndex: 1,
+  };
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [{ type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI }],
+    { enemyCount: 2 }
+  );
+
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.equal(nextState.turnState.odGauge, 163.29);
 });
 
 test('applyBeforeCommitOperations applies Kishinka and Makai Kihei before preemptive OD', () => {

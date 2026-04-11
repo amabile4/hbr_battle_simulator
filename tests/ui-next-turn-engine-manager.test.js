@@ -732,6 +732,7 @@ test('TurnEngineManager applies Makai Kihei OD gain using the committed enemyCou
     passives: [createMakaiKiheiPassive()],
   });
   initialState.turnState.enemyState.enemyCount = 1;
+  initialState.party[0].drivePiercePercent = 15;
   manager.initialize(initialState, {});
 
   assert.equal(
@@ -748,6 +749,49 @@ test('TurnEngineManager applies Makai Kihei OD gain using the committed enemyCou
   manager.recalculateFrom(0);
 
   assert.equal(manager.getStateBefore(0)?.turnState?.odGauge, 30);
+  assert.equal(manager.computedRecords[0]?.enemyCount, 2);
+});
+
+test('TurnEngineManager applies Makai Kihei during extra turn even when Yamawaki is not actionable', () => {
+  const actorSkill = createSkill({
+    id: 9041,
+    name: 'Makai Follow',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const manager = new TurnEngineManager();
+  const initialState = createInitialState(actorSkill, {
+    characterId: 'BIYamawaki',
+    characterName: '山脇・ボン・イヴァール',
+    styleId: MAKAI_KIHEI_STYLE_ID,
+    styleName: '誇り高き魔王の凱旋',
+    passives: [createMakaiKiheiPassive()],
+  });
+  initialState.turnState.enemyState.enemyCount = 2;
+  initialState.turnState.odGauge = 133.29;
+  initialState.turnState.turnType = 'extra';
+  initialState.turnState.turnLabel = 'EX';
+  initialState.turnState.extraTurnState = {
+    active: true,
+    remainingActions: 1,
+    allowedCharacterIds: ['TM2'],
+    grantTurnIndex: 1,
+  };
+  manager.initialize(initialState, {});
+
+  assert.equal(
+    manager.addPendingSpecialOperation({ type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI }),
+    true
+  );
+  assert.equal(manager.getCurrentStateWithPending(2).turnState.odGauge, 163.29);
+
+  manager.commitNextTurn({ 1: { skillId: 9201 } }, { enemyCount: 2, note: '' });
+
+  assert.equal(manager.getStateBefore(0)?.turnState?.odGauge, 163.29);
+
+  manager.recalculateFrom(0);
+
+  assert.equal(manager.getStateBefore(0)?.turnState?.odGauge, 163.29);
   assert.equal(manager.computedRecords[0]?.enemyCount, 2);
 });
 

@@ -4074,11 +4074,49 @@ test('TurnAreaController recalculates Makai Kihei OD gain when the input row ene
     assert.equal(engineManager.computedRecords[0]?.enemyCount, 2);
   }));
 
+test('TurnAreaController ignores drive pierce for Makai Kihei OD preview and commit', () =>
+  withDom(({ root }) => {
+    const state = createState(
+      createSkill({
+        id: 9517,
+        name: 'Makai Follow',
+        targetType: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      }),
+      2,
+      {
+        characterId: 'BIYamawaki',
+        characterName: '山脇・ボン・イヴァール',
+        styleId: MAKAI_KIHEI_STYLE_ID,
+        styleName: '誇り高き魔王の凱旋',
+        passives: [createMakaiKiheiPassive()],
+      }
+    );
+    state.turnState.odGauge = 10;
+    state.party[0].drivePiercePercent = 15;
+
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root.querySelector('[data-role="makai-kihei-btn"]').click();
+    root.querySelector('[data-role="makai-kihei-btn"]').click();
+
+    assert.equal(engineManager.getCurrentStateWithPending(2).turnState.odGauge, 70);
+    assert.match(root.querySelector('[data-turn-od-gauge]').textContent, /070\.00%/);
+
+    root.querySelector('[data-role="commit-btn"]').click();
+
+    assert.equal(engineManager.getStateBefore(0)?.turnState?.odGauge, 70);
+  }));
+
 test('TurnAreaController commits manual break attribution and hides committed-row break controls', () =>
   withDom(({ root, win }) => {
     const state = createState(
       createSkill({
-        id: 9517,
+        id: 9518,
         name: 'Break Attribution',
         targetType: 'Single',
         parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
