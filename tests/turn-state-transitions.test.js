@@ -19060,3 +19060,199 @@ test('EnemyAll status applies once per alive enemy (no triple stack on E1)', () 
     'EnemyAll の状態異常は生存している各敵に1回ずつ付与されること'
   );
 });
+
+test('PlayedSkillCount SkillCondition selects correct variant for 3+ variants by use count', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 30,
+          skills: [
+            {
+              id: 99001,
+              name: 'MultiVariant',
+              label: 'TestMultiVariant',
+              sp_cost: 1,
+              target_type: 'Self',
+              parts: [
+                {
+                  skill_type: 'SkillCondition',
+                  target_type: 'Self',
+                  cond: 'PlayedSkillCount(TestMultiVariant)==0',
+                  strval: [
+                    {
+                      id: 99002,
+                      name: 'V0',
+                      label: 'TestMultiVariantV0',
+                      sp_cost: 1,
+                      target_type: 'Self',
+                      parts: [
+                        {
+                          skill_type: 'AttackUp',
+                          target_type: 'Self',
+                          power: [0.1, 0],
+                          value: [0, 0],
+                          strval: [-1, -1],
+                          cond: '',
+                          effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                        },
+                      ],
+                    },
+                    {
+                      id: 99003,
+                      name: 'V1',
+                      label: 'TestMultiVariantV1',
+                      sp_cost: 2,
+                      target_type: 'Self',
+                      parts: [
+                        {
+                          skill_type: 'AttackUp',
+                          target_type: 'Self',
+                          power: [0.2, 0],
+                          value: [0, 0],
+                          strval: [-1, -1],
+                          cond: '',
+                          effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                        },
+                      ],
+                    },
+                    {
+                      id: 99004,
+                      name: 'V2',
+                      label: 'TestMultiVariantV2',
+                      sp_cost: 3,
+                      target_type: 'Self',
+                      parts: [
+                        {
+                          skill_type: 'AttackUp',
+                          target_type: 'Self',
+                          power: [0.3, 0],
+                          value: [0, 0],
+                          strval: [-1, -1],
+                          cond: '',
+                          effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                        },
+                      ],
+                    },
+                  ],
+                  power: [0, 0],
+                  value: [0, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+
+  const actions = {
+    0: { characterId: 'M1', skillId: 99001 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  let state = createBattleStateFromParty(party);
+
+  // 1st use (count=0): should select variant[0] with sp_cost=1
+  let preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 1, '1回目使用でvariant[0](sp_cost=1)が選択されること');
+  let result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 2nd use (count=1): should select variant[1] with sp_cost=2
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 2, '2回目使用でvariant[1](sp_cost=2)が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 3rd use (count=2): should select variant[2] with sp_cost=3
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 3, '3回目使用でvariant[2](sp_cost=3)が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 4th use (count=3): should clamp to variant[2] with sp_cost=3
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 3, '4回目以降もvariant[2](sp_cost=3)にクランプされること');
+});
+
+test('PlayedSkillCount SkillCondition with < 2 condition selects correct variant for 4 variants', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 30,
+          skills: [
+            {
+              id: 99010,
+              name: 'FourVariant',
+              label: 'TestFourVariant',
+              sp_cost: 1,
+              target_type: 'Self',
+              parts: [
+                {
+                  skill_type: 'SkillCondition',
+                  target_type: 'Self',
+                  cond: 'PlayedSkillCount(TestFourVariant) < 2',
+                  strval: [
+                    {
+                      id: 99011, name: 'V0', label: 'V0', sp_cost: 1, target_type: 'Self',
+                      parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.1, 0], value: [0, 0], strval: [-1, -1], cond: '', effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] } }],
+                    },
+                    {
+                      id: 99012, name: 'V1', label: 'V1', sp_cost: 2, target_type: 'Self',
+                      parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.2, 0], value: [0, 0], strval: [-1, -1], cond: '', effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] } }],
+                    },
+                    {
+                      id: 99013, name: 'V2', label: 'V2', sp_cost: 3, target_type: 'Self',
+                      parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.3, 0], value: [0, 0], strval: [-1, -1], cond: '', effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] } }],
+                    },
+                    {
+                      id: 99014, name: 'V3', label: 'V3', sp_cost: 4, target_type: 'Self',
+                      parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.4, 0], value: [0, 0], strval: [-1, -1], cond: '', effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] } }],
+                    },
+                  ],
+                  power: [0, 0],
+                  value: [0, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+
+  const actions = {
+    0: { characterId: 'M1', skillId: 99010 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  let state = createBattleStateFromParty(party);
+
+  // 1st use (count=0): variant[0] sp_cost=1
+  let preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 1, '1回目使用でvariant[0]が選択されること');
+  let result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 2nd use (count=1): variant[1] sp_cost=2
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 2, '2回目使用でvariant[1]が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 3rd use (count=2): variant[2] sp_cost=3
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 3, '3回目使用でvariant[2]が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 4th use (count=3): variant[3] sp_cost=4
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 4, '4回目使用でvariant[3]が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 5th use (count=4): clamp to variant[3] sp_cost=4
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 4, '5回目以降もvariant[3]にクランプされること');
+});

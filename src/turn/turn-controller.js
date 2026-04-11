@@ -5557,6 +5557,20 @@ function mergeConditionExpressions(baseExpression, nestedExpression) {
   return `(${base}) && (${nested})`;
 }
 
+function extractPlayedSkillCountValue(condExpression, member, skill) {
+  const text = String(condExpression ?? '').trim();
+  if (!text) {
+    return null;
+  }
+  const m = text.match(PLAYED_SKILL_COUNT_CONDITION_RE);
+  if (!m) {
+    return null;
+  }
+  const refRaw = String(m[1] ?? '').trim();
+  const ref = refRaw || String(skill?.label ?? '');
+  return Number(member?.getSkillUseCountByLabel(ref) ?? 0);
+}
+
 function resolveEffectiveSkillVariant(skill, state, member) {
   const recurse = (skillLike) => {
     const fallbackParts = Array.isArray(skillLike?.parts) ? skillLike.parts : [];
@@ -5588,8 +5602,14 @@ function resolveEffectiveSkillVariant(skill, state, member) {
         continue;
       }
 
-      const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
-      const selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
+      let selected;
+      const playedCount = extractPlayedSkillCountValue(part?.cond, member, skill);
+      if (playedCount !== null && variants.length > 2) {
+        selected = variants[Math.min(playedCount, variants.length - 1)];
+      } else {
+        const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
+        selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
+      }
       const nested = recurse(selected);
       const inheritedConsumeType =
         String(nested.consumeType) === 'Sp' && String(resolved.consumeType) !== 'Sp'
