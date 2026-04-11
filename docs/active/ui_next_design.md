@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-09
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-10
 
 ## 目的
 
@@ -304,6 +304,9 @@
 - popup 左上の `敵詳細` タイトルは置かず、`E1 / E2 / E3` tab と close `×` を同じ高さの header row に並べる
 - `名称` header は click で開閉でき、右端の `▼ / ▲` で展開状態を示す
 - `Summon.webp` は popup action row の `召喚` ボタンに使い、button 押下で listbox popover を開いて敵 preset を 1 体選んで `SummonEnemy` before-commit operation として積む
+- summon popover を開いても `enemy-detail-popup-container` は閉じず、そのまま背面に維持する
+- summon popover は popup 本体より前面に重ね、位置決めは popup 内の `召喚` action を優先 anchor にする
+- summon popover の配色は popup 本体に寄せ、`bg-slate-800` / `border-slate-600` / `text-slate-100` 系で統一する
 - `Break.webp` と `defeat.webp` を popup action row の `ブレイク` / `討伐` icon に使う
 - `Break.webp` はラベルなしの画像ボタンとして扱い、縦寸は下部の状態異常 icon と同じ 28px、横はアスペクト比維持とする。`Summon.webp` / `defeat.webp` も icon 高さを同じ 28px に揃える
 - popup の `ブレイク` / `討伐` は `ActionOutcomeOverrides` ベースの actor attribution を正本とし、単体攻撃で一意なら即時 attribution、曖昧または全体攻撃なら popup 内 sub-panel editor を開く

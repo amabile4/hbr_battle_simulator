@@ -191,7 +191,7 @@ export async function commitLatestInputRow(page) {
 
 export async function openEnemyPopupActionForRow(page, row, actionType, options = {}) {
   const enemyIndex = Number.isInteger(Number(options?.enemyIndex)) ? Number(options.enemyIndex) : null;
-  const closeBehavior = String(options?.closeBehavior ?? (actionType === 'summon' ? 'close' : 'stay'));
+  const closeBehavior = String(options?.closeBehavior ?? 'stay');
   const trigger = row.locator('[data-role="enemy-detail-trigger"]');
   await expect(trigger).toBeVisible({ timeout: 5000 });
   await trigger.click();

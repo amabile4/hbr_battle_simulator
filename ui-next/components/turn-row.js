@@ -70,6 +70,7 @@ const OD_GAUGE_BAR_MAX = 300;
 const OD_GAUGE_BAND_SIZE = 100;
 const ENEMY_DETAIL_LONG_PRESS_MS = 520;
 const ENEMY_SUMMON_MAX_VISIBLE_OPTIONS = 8;
+const ENEMY_SUMMON_EDITOR_Z_INDEX = 1010;
 const TURN_INFO_PANEL_WIDTH_CLASS = 'w-[108px]';
 const ENEMY_STATUS_BREAK = 'Break';
 const SUMMON_ENEMY_RESISTANCE_LABELS = Object.freeze([
@@ -208,6 +209,7 @@ export class TurnRowController {
   #isFollowUpEditorOpen = false;
   #isEnemySummonEditorOpen = false;
   #draftSummonEnemyId = null;
+  #requestedEnemySummonIndex = null;
   #draftBreakEnemyIndexesByPartyIndex = {};
   #draftKillEnemyIndexesByPartyIndex = {};
   #draftFollowUpEnemyIndexByPartyIndex = {};
@@ -558,7 +560,7 @@ export class TurnRowController {
       this.#isBreakEditorOpen = false;
       this.#isKillEditorOpen = false;
       this.#isFollowUpEditorOpen = false;
-      this.#isEnemySummonEditorOpen = false;
+      this.#closeEnemySummonEditor();
     }
     if (rowDiagnostics !== undefined) {
       this.#rowDiagnostics = normalizeRowDiagnostics(rowDiagnostics);
@@ -573,7 +575,9 @@ export class TurnRowController {
     }
     this.#isKillEditorOpen = this.#isKillEditorOpen && this.#isDraftMode();
     this.#isFollowUpEditorOpen = this.#isFollowUpEditorOpen && this.#isDraftMode();
-    this.#isEnemySummonEditorOpen = this.#isEnemySummonEditorOpen && this.#isDraftMode();
+    if (!(this.#isEnemySummonEditorOpen && this.#isDraftMode())) {
+      this.#closeEnemySummonEditor();
+    }
     this.#record = record;
     if (replayTurn !== undefined) this.#replayTurn = replayTurn;
     if (operations !== undefined) {
@@ -658,6 +662,22 @@ export class TurnRowController {
     return clampEnemyCount(this.#draftEnemyCount ?? this.#resolveDraftEnemyCount());
   }
 
+  #closeEnemySummonEditor() {
+    this.#isEnemySummonEditorOpen = false;
+    this.#requestedEnemySummonIndex = null;
+  }
+
+  #openEnemySummonEditor(requestedEnemyIndex = null) {
+    this.#isEnemySummonEditorOpen = true;
+    const normalizedEnemyIndex = Number(requestedEnemyIndex);
+    this.#requestedEnemySummonIndex =
+      Number.isInteger(normalizedEnemyIndex) &&
+      normalizedEnemyIndex >= 0 &&
+      normalizedEnemyIndex < MAX_ENEMY_COUNT
+        ? normalizedEnemyIndex
+        : null;
+  }
+
   #getEnemySummonPresets() {
     return Array.isArray(this.#enemyPresets) ? this.#enemyPresets : [];
   }
@@ -666,7 +686,7 @@ export class TurnRowController {
     const presets = this.#getEnemySummonPresets();
     if (presets.length === 0) {
       this.#draftSummonEnemyId = null;
-      this.#isEnemySummonEditorOpen = false;
+      this.#closeEnemySummonEditor();
       return;
     }
     const currentId = Number(this.#draftSummonEnemyId);
@@ -684,8 +704,22 @@ export class TurnRowController {
     return this.#getEnemySummonPresets().find((preset) => Number(preset?.id) === numericEnemyId) ?? null;
   }
 
-  #resolveEnemySummonTargetSlotIndex(state = this.#stateBefore) {
+  #resolveEnemySummonTargetSlotIndex(state = this.#stateBefore, requestedEnemyIndex = this.#requestedEnemySummonIndex) {
     const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+    const normalizedRequestedEnemyIndex = Number(requestedEnemyIndex);
+    if (
+      Number.isInteger(normalizedRequestedEnemyIndex) &&
+      normalizedRequestedEnemyIndex >= 0 &&
+      normalizedRequestedEnemyIndex < MAX_ENEMY_COUNT
+    ) {
+      if (normalizedRequestedEnemyIndex < enemyCount) {
+        if (!this.#isEnemySlotAlive(normalizedRequestedEnemyIndex, state)) {
+          return normalizedRequestedEnemyIndex;
+        }
+      } else if (normalizedRequestedEnemyIndex === enemyCount) {
+        return normalizedRequestedEnemyIndex;
+      }
+    }
     if (enemyCount < MAX_ENEMY_COUNT) {
       return enemyCount;
     }
@@ -701,6 +735,7 @@ export class TurnRowController {
     if (!preset || typeof preset !== 'object') {
       return null;
     }
+    const targetEnemyIndex = this.#resolveEnemySummonTargetSlotIndex();
     return {
       type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
       payload: {
@@ -712,6 +747,7 @@ export class TurnRowController {
         absorbElementList: Array.isArray(preset.absorbElementList)
           ? [...preset.absorbElementList]
           : [],
+        ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
       },
     };
   }
@@ -847,11 +883,18 @@ export class TurnRowController {
     const payload = this.#buildEnemyDetailPopupPayload(this.#isCommittedDisplayMode(), activeEnemyIndex);
     this.#enemyDetailPopup.show(payload, activeEnemyIndex);
     this.#bindEnemyDetailPopupEditorEvents();
+    if (this.#isEnemySummonEditorOpen) {
+      this.#adjustPopoverPositions();
+    }
   }
 
   #handleEnemyDetailPopupClosed() {
     this.#enemyDetailPopup = null;
     this.#clearPopupOutcomeRequest();
+    if (this.#isEnemySummonEditorOpen && this.#isDraftMode()) {
+      this.#closeEnemySummonEditor();
+      this.#rerenderDraftMode();
+    }
   }
 
   #closeEnemyDetailPopup() {
@@ -886,7 +929,7 @@ export class TurnRowController {
     this.#isBreakEditorOpen = false;
     this.#isKillEditorOpen = false;
     this.#isFollowUpEditorOpen = false;
-    this.#isEnemySummonEditorOpen = false;
+    this.#closeEnemySummonEditor();
     this.#clearPopupOutcomeRequest();
     const payload = this.#buildEnemyDetailPopupPayload(this.#isCommittedDisplayMode(), activeEnemyIndex);
     if (!payload || !Array.isArray(payload.enemies) || payload.enemies.length === 0) {
@@ -1338,7 +1381,7 @@ export class TurnRowController {
     if (!this.#isDraftMode()) {
       return { closePopup: false };
     }
-    this.#isEnemySummonEditorOpen = false;
+    this.#closeEnemySummonEditor();
     this.#isBreakEditorOpen = false;
     this.#isKillEditorOpen = false;
     const normalizedEnemyIndex = Number(enemyIndex);
@@ -2104,7 +2147,7 @@ export class TurnRowController {
 
   #buildEnemySummonPresetSummaryHtml(preset = null) {
     if (!preset) {
-      return '<div class="text-[10px] text-gray-400">召喚対象を選択してください。</div>';
+      return '<div class="text-[10px] text-slate-400">召喚対象を選択してください。</div>';
     }
     const odRate = Number(preset?.od_rate ?? 0);
     const maxDRate = Number(preset?.max_d_rate ?? 999);
@@ -2118,11 +2161,11 @@ export class TurnRowController {
       ? preset.absorbElementList.join(', ')
       : 'なし';
     return `
-      <div class="rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-[10px] leading-tight text-emerald-900">
+      <div class="rounded-lg border border-slate-600 bg-slate-950 px-2 py-1.5 text-[10px] leading-tight text-slate-100">
         <div class="font-semibold">${escapeHtml(this.#formatEnemySummonOptionLabel(preset))}</div>
-        <div class="pt-1 text-emerald-800">OD率 ${Number.isFinite(odRate) ? odRate : 0} / 最大D率 ${Number.isFinite(maxDRate) ? maxDRate : 999}</div>
-        <div class="pt-1 text-emerald-800">耐性 ${escapeHtml(resistancePairs.join(' / ') || '未設定')}</div>
-        <div class="pt-1 text-emerald-800">吸収 ${escapeHtml(absorbElements)}</div>
+        <div class="pt-1 text-slate-300">OD率 ${Number.isFinite(odRate) ? odRate : 0} / 最大D率 ${Number.isFinite(maxDRate) ? maxDRate : 999}</div>
+        <div class="pt-1 text-slate-300">耐性 ${escapeHtml(resistancePairs.join(' / ') || '未設定')}</div>
+        <div class="pt-1 text-slate-300">吸収 ${escapeHtml(absorbElements)}</div>
       </div>
     `;
   }
@@ -2138,13 +2181,14 @@ export class TurnRowController {
     return `
       <div data-role="enemy-summon-editor"
            data-popover-kind="enemy-summon"
-           class="target-popover absolute right-0 top-[calc(100%+4px)] z-30 w-[min(360px,calc(100vw-16px))] rounded-xl border border-gray-200 bg-white p-2.5 shadow-xl"
+           class="target-popover absolute right-0 top-[calc(100%+4px)] w-[min(360px,calc(100vw-16px))] rounded-xl border border-slate-600 bg-slate-800 p-2.5 text-slate-100 shadow-xl"
+           style="z-index: ${ENEMY_SUMMON_EDITOR_Z_INDEX};"
            ${this.#isEnemySummonEditorOpen ? '' : 'hidden'}>
-        <div class="pb-2 text-[11px] font-semibold text-gray-700">敵を召喚</div>
-        <div class="pb-2 text-[10px] text-gray-500">${escapeHtml(targetLabel)}</div>
+        <div class="pb-2 text-[11px] font-semibold text-slate-100">敵を召喚</div>
+        <div class="pb-2 text-[10px] text-slate-400">${escapeHtml(targetLabel)}</div>
         <select data-role="enemy-summon-select"
                 size="${size}"
-                class="h-auto w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-emerald-300"
+                class="h-auto w-full rounded-lg border border-slate-600 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-400"
                 ${presets.length > 0 ? '' : 'disabled'}>
           ${presets.map((preset) => {
             const selected = Number(preset?.id) === Number(selectedPreset?.id) ? 'selected' : '';
@@ -2156,7 +2200,7 @@ export class TurnRowController {
         </div>
         <button type="button"
                 data-role="enemy-summon-submit"
-                class="mt-2 w-full rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                class="mt-2 w-full rounded-lg border border-sky-400/40 bg-sky-500/15 px-2 py-1 text-xs font-semibold text-sky-100 transition-colors hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:border-slate-600 disabled:bg-slate-700/60 disabled:text-slate-400"
                 ${(selectedPreset && Number.isInteger(targetEnemyIndex)) ? '' : 'disabled'}>
           召喚
         </button>
@@ -2599,14 +2643,18 @@ export class TurnRowController {
     return this.#isDraftMode();
   }
 
-  #openEnemyPopupEditor(actionType) {
+  #openEnemyPopupEditor(actionType, requestedEnemyIndex = null) {
     if (!this.#isDraftMode()) {
       return false;
     }
     this.#openTargetPickerPartyIndex = null;
     this.#isFollowUpEditorOpen = false;
     this.#clearPopupOutcomeRequest();
-    this.#isEnemySummonEditorOpen = actionType === 'summon';
+    if (actionType === 'summon') {
+      this.#openEnemySummonEditor(requestedEnemyIndex);
+    } else {
+      this.#closeEnemySummonEditor();
+    }
     this.#isBreakEditorOpen = actionType === 'break';
     this.#isKillEditorOpen = actionType === 'kill';
     this.#rerenderDraftMode();
@@ -2619,10 +2667,10 @@ export class TurnRowController {
   #buildEnemyDetailPopupToolActions() {
     return {
       summon: this.#canOpenEnemyPopupSummonAction()
-        ? ({ activeEnemyIndex }) => {
-          this.#openEnemyPopupEditor('summon');
+        ? ({ enemyIndex, activeEnemyIndex }) => {
+          this.#openEnemyPopupEditor('summon', enemyIndex);
           return {
-            closePopup: true,
+            closePopup: false,
             activeEnemyIndex,
           };
         }
@@ -2698,7 +2746,9 @@ export class TurnRowController {
         alive,
         broken,
         dead: occupied && !alive,
-        canSummon: canSummonGlobal && !alive,
+        canSummon:
+          canSummonGlobal &&
+          ((enemyIndex < enemyCount && !alive) || (enemyIndex === enemyCount && enemyCount < MAX_ENEMY_COUNT)),
         canBreak:
           this.#isDraftMode() &&
           occupied &&
@@ -3930,7 +3980,7 @@ export class TurnRowController {
           this.#isBreakEditorOpen = false;
           this.#isKillEditorOpen = false;
           this.#isFollowUpEditorOpen = false;
-          this.#isEnemySummonEditorOpen = false;
+          this.#closeEnemySummonEditor();
           this.#rerenderDraftMode();
           this.#emitPreviewRequest();
         });
@@ -3944,7 +3994,7 @@ export class TurnRowController {
         this.#isBreakEditorOpen = false;
         this.#isKillEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
-        this.#isEnemySummonEditorOpen = false;
+        this.#closeEnemySummonEditor();
         this.#openTargetPickerPartyIndex =
           this.#openTargetPickerPartyIndex === partyIndex ? null : partyIndex;
         if (this.#isDraftMode()) {
@@ -3987,7 +4037,7 @@ export class TurnRowController {
         this.#isBreakEditorOpen = false;
         this.#isKillEditorOpen = false;
         this.#isFollowUpEditorOpen = false;
-        this.#isEnemySummonEditorOpen = false;
+        this.#closeEnemySummonEditor();
         this.#draftTargets = {
           ...this.#draftTargets,
           [actorPartyIndex]: target,
@@ -4004,7 +4054,7 @@ export class TurnRowController {
         this.#isBreakEditorOpen = false;
         this.#isKillEditorOpen = false;
         this.#isFollowUpEditorOpen = !this.#isFollowUpEditorOpen;
-        this.#isEnemySummonEditorOpen = false;
+        this.#closeEnemySummonEditor();
         if (this.#isDraftMode()) {
           this.#rerenderDraftMode();
           this.#emitPreviewRequest();
@@ -4016,7 +4066,7 @@ export class TurnRowController {
       select.addEventListener('change', (event) => {
         event.stopPropagation();
         this.#draftSummonEnemyId = Number(select.value);
-        this.#isEnemySummonEditorOpen = true;
+        this.#openEnemySummonEditor(this.#requestedEnemySummonIndex);
         this.#rerenderDraftMode();
       });
     });
@@ -4029,16 +4079,18 @@ export class TurnRowController {
         if (!operation) {
           return;
         }
-        this.#isEnemySummonEditorOpen = false;
+        this.#closeEnemySummonEditor();
         if (this.#isEditMode()) {
           if (!this.#addDraftOperation(operation)) {
             return;
           }
           this.#rerenderDraftMode();
           this.#emitPreviewRequest();
+          this.#closeEnemyDetailPopup();
           return;
         }
         this.#onOperationAdd?.(this.#turnIndex, operation);
+        this.#closeEnemyDetailPopup();
       });
     });
 
@@ -4280,7 +4332,11 @@ export class TurnRowController {
 
       if (String(popover.dataset.popoverKind ?? '') === 'enemy-summon') {
         const host = popover.closest('.relative');
-        const toggle = host?.querySelector?.('[data-role="enemy-detail-trigger"]') ?? null;
+        const popupSummonAction = this.#enemyDetailPopup?.getRootElement?.()
+          ?.querySelector?.(
+            '[data-role="enemy-popup-column"][data-selected="true"] [data-role="enemy-popup-action"][data-action-type="summon"]'
+          ) ?? null;
+        const toggle = popupSummonAction ?? host?.querySelector?.('[data-role="enemy-detail-trigger"]') ?? null;
         if (toggle) {
           const toggleRect = toggle.getBoundingClientRect();
           const resolvedWidth = viewportWidth > 0

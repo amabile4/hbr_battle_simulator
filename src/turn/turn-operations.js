@@ -262,6 +262,7 @@ function normalizeSummonEnemyPayload(payload = {}) {
   const enemyId = Number(payload.enemyId ?? payload.id ?? payload.selectedEnemyId ?? NaN);
   const odRate = Number(payload.od_rate ?? payload.odRate ?? 0);
   const maxDestructionRate = Number(payload.max_d_rate ?? payload.maxDRate ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT);
+  const targetEnemyIndex = Number(payload.targetEnemyIndex ?? payload.target_enemy_index ?? NaN);
   return {
     enemyId: Number.isFinite(enemyId) ? enemyId : null,
     enemyName,
@@ -271,10 +272,36 @@ function normalizeSummonEnemyPayload(payload = {}) {
       : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
     damageRates: normalizeSummonEnemyRates(payload),
     absorbElements: normalizeSummonEnemyAbsorbElements(payload),
+    targetEnemyIndex: Number.isInteger(targetEnemyIndex) ? targetEnemyIndex : null,
   };
 }
 
-function resolveSummonEnemySlotIndex(turnState) {
+function resolveRequestedSummonEnemySlotIndex(turnState, requestedEnemyIndex) {
+  const currentEnemyCount = normalizeSummonEnemyCount(
+    turnState?.enemyState?.enemyCount,
+    DEFAULT_ENEMY_COUNT
+  );
+  const normalizedRequestedEnemyIndex = Number(requestedEnemyIndex);
+  if (
+    !Number.isInteger(normalizedRequestedEnemyIndex) ||
+    normalizedRequestedEnemyIndex < 0 ||
+    normalizedRequestedEnemyIndex >= MAX_ENEMY_COUNT
+  ) {
+    return null;
+  }
+  if (normalizedRequestedEnemyIndex < currentEnemyCount) {
+    return isEnemyAlive(turnState, normalizedRequestedEnemyIndex, currentEnemyCount)
+      ? null
+      : normalizedRequestedEnemyIndex;
+  }
+  return normalizedRequestedEnemyIndex === currentEnemyCount ? normalizedRequestedEnemyIndex : null;
+}
+
+function resolveSummonEnemySlotIndex(turnState, requestedEnemyIndex = null) {
+  const requestedSlotIndex = resolveRequestedSummonEnemySlotIndex(turnState, requestedEnemyIndex);
+  if (requestedSlotIndex !== null) {
+    return requestedSlotIndex;
+  }
   const currentEnemyCount = normalizeSummonEnemyCount(
     turnState?.enemyState?.enemyCount,
     DEFAULT_ENEMY_COUNT
@@ -299,7 +326,10 @@ function applySummonEnemyToState(state, operation = {}, options = {}) {
   if (!summonEnemy) {
     return state;
   }
-  const targetEnemyIndex = resolveSummonEnemySlotIndex(state.turnState);
+  const targetEnemyIndex = resolveSummonEnemySlotIndex(
+    state.turnState,
+    summonEnemy.targetEnemyIndex
+  );
   if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0) {
     onWarning?.(SUMMON_ENEMY_NO_SLOT_WARNING);
     return state;

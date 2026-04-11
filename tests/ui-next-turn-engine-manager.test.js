@@ -150,6 +150,7 @@ function createSummonEnemyOperation({
   enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
   maxDRate = 350,
   fireRate = 250,
+  targetEnemyIndex = null,
 } = {}) {
   return {
     type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
@@ -172,6 +173,7 @@ function createSummonEnemyOperation({
         },
       },
       absorbElementList: ['fire'],
+      ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
     },
   };
 }
@@ -356,6 +358,79 @@ test('TurnEngineManager commits summon operations into enemy slot snapshots and 
   assert.equal(stateBeforeFirstTurn.turnState.enemyState.damageRatesByEnemy['1'].Fire, 250);
   assert.deepEqual(stateBeforeFirstTurn.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);
   assert.equal(reloadedManager.computedStates[0]?.turnState?.enemyState?.enemyCount, 2);
+});
+
+test('TurnEngineManager commits requested dead-slot summon targets without shifting to the next slot', () => {
+  const actorSkill = createSkill({
+    id: 90727,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 1;
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  initialState.turnState.enemyState.damageRatesByEnemy = {
+    0: { Slash: 100, Stab: 100, Strike: 100, Fire: 100, Ice: 100, Thunder: 100, Light: 100, Dark: 100, Nonelement: 100 },
+  };
+  initialState.turnState.enemyState.absorbElementsByEnemy = { 0: [] };
+  initialState.turnState.enemyState.odRateByEnemy = { 0: 0 };
+  initialState.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  initialState.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  initialState.turnState.enemyState.breakStateByEnemy = { 0: { broken: true } };
+  initialState.turnState.enemyState.statuses = [
+    { statusType: 'Dead', targetIndex: 0, remainingTurns: 0, exitCond: 'Eternal' },
+    { statusType: 'DefenseDown', targetIndex: 0, remainingTurns: 2, exitCond: 'EnemyTurnEnd' },
+  ];
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  assert.equal(manager.addPendingSpecialOperation(createSummonEnemyOperation({ targetEnemyIndex: 0 })), true);
+
+  const committedRecord = manager.commitNextTurn(
+    { 0: { skillId: 90727 } },
+    { enemyCount: 1, note: 'summon-dead-slot' }
+  );
+
+  assert.equal(committedRecord.enemyCount, 1);
+  assert.equal(manager.replayScript.turns[0].operations[0]?.payload?.targetEnemyIndex, 0);
+  assert.equal(
+    manager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['0'],
+    DEFAULT_SUMMON_SAMPLE_ENEMY.name
+  );
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['1'], undefined);
+  assert.equal(
+    manager.getStateBefore(0)?.turnState?.enemyState?.statuses?.some((status) => Number(status?.targetIndex) === 0),
+    false
+  );
+
+  const reloadState = createInitialState(actorSkill);
+  reloadState.turnState.enemyState.enemyCount = 1;
+  reloadState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  reloadState.turnState.enemyState.damageRatesByEnemy = {
+    0: { Slash: 100, Stab: 100, Strike: 100, Fire: 100, Ice: 100, Thunder: 100, Light: 100, Dark: 100, Nonelement: 100 },
+  };
+  reloadState.turnState.enemyState.absorbElementsByEnemy = { 0: [] };
+  reloadState.turnState.enemyState.odRateByEnemy = { 0: 0 };
+  reloadState.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  reloadState.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  reloadState.turnState.enemyState.breakStateByEnemy = { 0: { broken: true } };
+  reloadState.turnState.enemyState.statuses = [
+    { statusType: 'Dead', targetIndex: 0, remainingTurns: 0, exitCond: 'Eternal' },
+    { statusType: 'DefenseDown', targetIndex: 0, remainingTurns: 2, exitCond: 'EnemyTurnEnd' },
+  ];
+
+  const reloadedManager = new TurnEngineManager();
+  reloadedManager.loadReplayScript(reloadState, manager.replayScript, {});
+
+  const stateBeforeFirstTurn = reloadedManager.getStateBefore(0);
+  assert.equal(stateBeforeFirstTurn.turnState.enemyState.enemyCount, 1);
+  assert.equal(stateBeforeFirstTurn.turnState.enemyState.enemyNamesByEnemy['0'], DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+  assert.equal(stateBeforeFirstTurn.turnState.enemyState.enemyNamesByEnemy['1'], undefined);
+  assert.equal(
+    stateBeforeFirstTurn.turnState.enemyState.statuses.some((status) => Number(status?.targetIndex) === 0),
+    false
+  );
 });
 
 test('TurnEngineManager collects a warning when summon cannot claim any enemy slot', () => {
@@ -898,6 +973,74 @@ test('TurnEngineManager buildInputRowSnapshot includes buff status change events
   assert.equal(first.skillName, 'フィルエンハンス');
   assert.equal(Array.isArray(first.statusEffectsApplied), true);
   assert.equal(first.statusEffectsApplied.length > 0, true);
+});
+
+test('TurnEngineManager normalizes implicit single-target enemy debuffs to the first alive enemy', () => {
+  const debuffSkill = createSkill({
+    id: 9062,
+    name: 'Single Debuff',
+    targetType: 'Single',
+    parts: [
+      {
+        skill_type: 'DefenseDown',
+        target_type: 'Single',
+        power: [30, 0],
+        effect: { limitType: 'Default', exitCond: 'EnemyTurnEnd', exitVal: [2, 0] },
+      },
+    ],
+  });
+  const manager = new TurnEngineManager();
+  const initialState = createInitialState(debuffSkill, {
+    initialSP: 20,
+    skills: [debuffSkill],
+  });
+  initialState.turnState.enemyState.enemyCount = 2;
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha', 1: 'Beta' };
+  initialState.turnState.enemyState.statuses = [
+    { statusType: 'Dead', targetIndex: 0, remainingTurns: 0, exitCond: 'Eternal' },
+  ];
+  manager.initialize(initialState, {});
+
+  const snapshot = manager.buildInputRowSnapshot({
+    slotActions: {
+      0: {
+        partyIndex: 0,
+        skillId: 9062,
+      },
+    },
+    enemyCount: 2,
+  });
+
+  assert.equal(snapshot.previewActionFlow.length, 1);
+  assert.equal(
+    snapshot.previewActionFlow[0].enemyStatusChanges.some(
+      (change) => change.statusType === 'DefenseDown' && change.targetIndex === 1
+    ),
+    true
+  );
+
+  const committedRecord = manager.commitNextTurn(
+    { 0: { skillId: 9062 } },
+    { enemyCount: 2, note: 'auto-target-dead-slot' }
+  );
+  const action = committedRecord.actions.find((entry) => entry.positionIndex === 0);
+  assert.equal(action?.targetEnemyIndex, 1);
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some(
+      (change) => change.statusType === 'DefenseDown' && change.targetIndex === 1
+    ),
+    true
+  );
+
+  manager.recalculateFrom(0);
+  const replayedAction = manager.computedRecords[0]?.actions.find((entry) => entry.positionIndex === 0);
+  assert.equal(replayedAction?.targetEnemyIndex, 1);
+  assert.equal(
+    (replayedAction?.enemyStatusChanges ?? []).some(
+      (change) => change.statusType === 'DefenseDown' && change.targetIndex === 1
+    ),
+    true
+  );
 });
 
 test('TurnEngineManager replaceCommittedTurn recalculates downstream records and collects replay warnings', () => {

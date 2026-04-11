@@ -137,6 +137,7 @@ function createSummonEnemyOperation({
   enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
   maxDRate = 350,
   fireRate = 250,
+  targetEnemyIndex = null,
 } = {}) {
   return {
     type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
@@ -159,6 +160,7 @@ function createSummonEnemyOperation({
         },
       },
       absorbElementList: ['fire'],
+      ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
     },
   };
 }
@@ -320,6 +322,43 @@ test('applyBeforeCommitOperations reuses the lowest dead enemy slot without incr
   assert.equal(Object.hasOwn(nextState.turnState.enemyState.breakStateByEnemy, '1'), false);
   assert.equal(
     nextState.turnState.enemyState.statuses.some((status) => Number(status.targetIndex) === 1),
+    false
+  );
+});
+
+test('applyBeforeCommitOperations honors targetEnemyIndex for a dead slot even before max enemy count', () => {
+  const state = createState({}, { enemyCount: 1 });
+  state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Fire: 90 } };
+  state.turnState.enemyState.absorbElementsByEnemy = { 0: [] };
+  state.turnState.enemyState.odRateByEnemy = { 0: 0 };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 180 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.breakStateByEnemy = { 0: { broken: true } };
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Dead', targetIndex: 0, remainingTurns: 0, exitCond: 'Eternal' },
+    { statusType: 'DefenseDown', targetIndex: 0, remainingTurns: 2, exitCond: 'EnemyTurnEnd' },
+  ];
+
+  const nextState = applyBeforeCommitOperations(state, [
+    createSummonEnemyOperation({
+      enemyId: ENERGY_PIT_PINK_E_SAMPLE_ENEMY.id,
+      enemyName: ENERGY_PIT_PINK_E_SAMPLE_ENEMY.name,
+      fireRate: 220,
+      targetEnemyIndex: 0,
+    }),
+  ]);
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, 1);
+  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['0'], ENERGY_PIT_PINK_E_SAMPLE_ENEMY.name);
+  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['1'], undefined);
+  assert.equal(nextState.turnState.enemyState.damageRatesByEnemy['0'].Fire, 220);
+  assert.deepEqual(nextState.turnState.enemyState.absorbElementsByEnemy['0'], ['fire']);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 100);
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 350);
+  assert.equal(Object.hasOwn(nextState.turnState.enemyState.breakStateByEnemy, '0'), false);
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some((status) => Number(status.targetIndex) === 0),
     false
   );
 });

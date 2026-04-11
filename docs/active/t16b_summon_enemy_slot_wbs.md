@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-06
-> 最終更新: 2026-04-10
+> 最終更新: 2026-04-11
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 進捗チェック
@@ -32,6 +32,21 @@
 - 「summon 後 selector 回帰 coverage」は完了済みとして扱う
 - 「残タスクなし」ではない。実装タスクとしては、敵行動データの `Summon` を `ReplayTurn.operations[].type === 'SummonEnemy'` へ自動変換する経路が未接続
 - `BattleStateManager` については runtime correctness の blocker ではなく、責務境界の follow-up として管理する
+
+同日追加の UI 調整:
+
+- popup から `召喚` を押しても `enemy-detail-popup-container` は閉じず、summon popover だけを popup より前面に重ねるようにした
+- summon popover の anchor は row trigger ではなく popup 内の `召喚` action を優先し、視線移動を減らした
+- summon popover の配色を white/emerald から popup 本体に寄せた slate 系テーマへ変更した
+
+## 2026-04-11 実装反映メモ
+
+Dead slot summon の配置先と、`E1 Dead / E2 Alive` 時の単体敵 target 正規化の不整合を修正した。
+
+- `SummonEnemy.payload` に `targetEnemyIndex` を追加し、popup で `召喚` を押した enemy slot を requested target として保持するようにした
+- requested summon slot は「dead slot 再利用」または「次の連番空き slot」のときだけ優先し、既存の occupied slot 連番前提は維持した
+- `TurnEngineManager.#buildActionsDict()` で単体敵対象 action の implicit target を alive enemy へ正規化し、explicit target が無い/死んでいる/stale なときでも preview / commit / recalc / reload で同じ target を使うようにした
+- `tests/turn-operations.test.js` / `tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` / `tests/e2e/turn-row-summon-enemy.spec.js` に dead-slot summon 固定と単体弱体 auto-target 回帰を追加した
 
 ## 2026-04-08 実装反映メモ
 

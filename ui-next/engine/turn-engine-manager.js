@@ -87,6 +87,8 @@ const TURN_EDIT_PRESERVED_OVERRIDE_EXCLUDED_TYPES = new Set([
 const SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES = new Set([
   REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
 ]);
+const ENEMY_SINGLE_TARGET_TYPES = new Set(['Single', 'EnemySingle']);
+const ENEMY_ALL_TARGET_TYPES = new Set(['All', 'EnemyAll']);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -1933,7 +1935,17 @@ export class TurnEngineManager {
         throw new Error(`Skill ${action.skillId} is not available for ${member.characterId}`);
       }
 
-      const materializedTarget = this.#materializeActionTarget(state, action.target);
+      let materializedTarget = this.#materializeActionTarget(state, action.target);
+      if (this.#isEnemySingleTargetSkill(state, member, skill)) {
+        materializedTarget = {
+          ...materializedTarget,
+          targetEnemyIndex: this.#normalizeSingleTargetEnemyIndex(
+            materializedTarget?.targetEnemyIndex,
+            normalizedEnemyCount,
+            state
+          ),
+        };
+      }
       const breakEnemyIndexes = getBreakEnemyIndexesForPosition(
         normalizedActionOutcomeOverrides,
         member.position
@@ -2168,6 +2180,30 @@ export class TurnEngineManager {
       }
     }
     return {};
+  }
+
+  #isEnemySingleTargetSkill(state, member, skill) {
+    let effectiveSkill = skill;
+    try {
+      effectiveSkill = resolveEffectiveSkillForAction(state, member, skill) ?? skill;
+    } catch {
+      effectiveSkill = skill;
+    }
+    const skillTargetType = String(
+      effectiveSkill?.targetType ?? effectiveSkill?.target_type ?? skill?.targetType ?? skill?.target_type ?? ''
+    ).trim();
+    const effectiveParts = Array.isArray(effectiveSkill?.parts) ? effectiveSkill.parts : [];
+    if (effectiveParts.some((part) =>
+      ENEMY_ALL_TARGET_TYPES.has(String(part?.target_type ?? skillTargetType).trim())
+    )) {
+      return false;
+    }
+    if (effectiveParts.some((part) =>
+      ENEMY_SINGLE_TARGET_TYPES.has(String(part?.target_type ?? skillTargetType).trim())
+    )) {
+      return true;
+    }
+    return ENEMY_SINGLE_TARGET_TYPES.has(skillTargetType);
   }
 
   #normalizeSingleTargetEnemyIndex(targetEnemyIndex, enemyCount, state = null) {

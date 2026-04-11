@@ -318,6 +318,7 @@ function createSummonEnemyOperation({
   enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
   maxDRate = 350,
   fireRate = 250,
+  targetEnemyIndex = null,
 } = {}) {
   return {
     type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
@@ -340,6 +341,7 @@ function createSummonEnemyOperation({
         },
       },
       absorbElementList: ['fire'],
+      ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
     },
   };
 }
@@ -1538,7 +1540,9 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
     const editor = root.querySelector('[data-role="enemy-summon-editor"]');
     assert.ok(editor);
     assert.equal(editor.hasAttribute('hidden'), false);
-    assert.equal(getEnemyDetailPopup(win), null);
+    assert.ok(getEnemyDetailPopup(win));
+    assert.match(editor.className, /bg-slate-800/);
+    assert.match(editor.className, /border-slate-600/);
 
     const select = root.querySelector('[data-role="enemy-summon-select"]');
     select.value = String(DEFAULT_SUMMON_SAMPLE_ENEMY.id);
@@ -1552,8 +1556,77 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
     assert.equal(addedOperations[0]?.type, REPLAY_OPERATION_TYPES.SUMMON_ENEMY);
     assert.equal(addedOperations[0]?.payload?.enemyId, DEFAULT_SUMMON_SAMPLE_ENEMY.id);
     assert.equal(addedOperations[0]?.payload?.enemyName, DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+    assert.equal(addedOperations[0]?.payload?.targetEnemyIndex, 1);
     assert.equal(addedOperations[0]?.payload?.max_d_rate, 350);
     assert.equal(addedOperations[0]?.payload?.resistances?.element?.fire, 250);
+  }));
+
+test('TurnRowController keeps dead-slot summon requests on the selected enemy slot', () =>
+  withDom(({ root, win }) => {
+    const addedOperations = [];
+    const state = createState(
+      createSkill({
+        id: 95049,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1
+    );
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    state.turnState.enemyState.statuses = [
+      {
+        statusType: 'Dead',
+        targetIndex: 0,
+        remainingTurns: 0,
+        exitCond: 'Eternal',
+      },
+    ];
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'input',
+      rowDiagnostics: null,
+      record: null,
+      replayTurn: null,
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore: state,
+      stateAfter: null,
+      enemyPresets: [createEnemyPreset()],
+      simulatorSettings: createSimulatorSettings(),
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: (_turnIndex, operation) => {
+        addedOperations.push(operation);
+      },
+      onOperationRemove: () => {},
+    });
+    row.mount();
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    const summonButton = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]');
+    assert.ok(summonButton);
+    assert.equal(summonButton.disabled, false);
+    summonButton.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const editor = root.querySelector('[data-role="enemy-summon-editor"]');
+    assert.ok(editor);
+    assert.match(editor.textContent ?? '', /配置先: E1/);
+    editor
+      .querySelector('[data-role="enemy-summon-submit"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(addedOperations.length, 1);
+    assert.equal(addedOperations[0]?.payload?.targetEnemyIndex, 0);
   }));
 
 test('TurnRowController draft enemy detail popup uses materialized summon state without adding a phantom slot', () =>
@@ -1589,6 +1662,47 @@ test('TurnRowController draft enemy detail popup uses materialized summon state 
     assert.match(e2Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
     assert.match(e3Column.textContent ?? '', /E3 未使用/);
     assert.doesNotMatch(e3Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
+  }));
+
+test('TurnRowController draft enemy detail popup keeps a requested dead-slot summon on E1', () =>
+  withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1280, height: 900 });
+    const summonOperation = createSummonEnemyOperation({ targetEnemyIndex: 0 });
+    const baseState = createState(
+      createSkill({
+        id: 95043,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1
+    );
+    baseState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    baseState.turnState.enemyState.statuses = [
+      {
+        statusType: 'Dead',
+        targetIndex: 0,
+        remainingTurns: 0,
+        exitCond: 'Eternal',
+      },
+    ];
+    const stateBefore = applyBeforeCommitOperations(baseState, [summonOperation], { enemyCount: 1 });
+    mountTurnRow({
+      root,
+      stateBefore,
+      simulatorSettings: createSimulatorSettings(),
+      enemyPresets: [createEnemyPreset()],
+      operations: [summonOperation],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    const e1Column = popup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="0"]');
+    const e2Column = popup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="1"]');
+    assert.ok(e1Column);
+    assert.ok(e2Column);
+    assert.match(e1Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
+    assert.match(e2Column.textContent ?? '', /E2 未使用/);
+    assert.doesNotMatch(e2Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
   }));
 
 test('TurnAreaController applies popup break/kill to actor-based chips for unique single-target attribution', () =>
@@ -1695,6 +1809,10 @@ test('TurnAreaController enables summon after popup-attributed kill and disables
     );
     assert.equal(
       refreshedPopup.querySelector('[data-role="enemy-popup-action"][data-action-type="kill"]').disabled,
+      true
+    );
+    assert.equal(
+      refreshedPopup.querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]').disabled,
       true
     );
   }));

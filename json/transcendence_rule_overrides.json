@@ -52,6 +52,32 @@
     "notes": "Derived from official in-game presentation. Keep in override table until raw data exposes explicit transcendence mechanics."
   },
   {
+    "styleId": 1005107,
+    "styleLabel": "MNikaido07",
+    "characterId": "MNikaido",
+    "gaugeElement": "Dark",
+    "activationRoleAbilityLabel": "RoleAbility.MNikaido07.1",
+    "activationRoleAbilityName": "闇の律動",
+    "initialGaugePercentPerMatchingElementMember": 15,
+    "gaugeGainPercentOnMatchingElementAction": 4,
+    "maxGaugePercent": 100,
+    "triggerOnReachMax": {
+      "odGaugeDeltaPercent": 100,
+      "burst": {
+        "enabled": true,
+        "element": "Dark",
+        "attackUpPercent": 300,
+        "destructionRateBonusPercent": 10,
+        "attackBuffSkillEffectUpPercent": 20,
+        "debuffSkillEffectUpPercent": 20,
+        "criticalGuaranteed": true,
+        "criticalDamageUpPercent": 100,
+        "destructionRateCapPercent": 300
+      }
+    },
+    "notes": "Derived from official in-game presentation. Keep in override table until raw data exposes explicit transcendence mechanics."
+  },
+  {
     "styleId": 1010204,
     "styleLabel": "NNanase04",
     "characterId": "NNanase",

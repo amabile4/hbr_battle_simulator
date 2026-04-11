@@ -4837,6 +4837,32 @@ function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
   return state;
 }
 
+const REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID = 1005107;
+const REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT = 3;
+const TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER = 15;
+const TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION = 4;
+
+function createRealDataDarkTranscendenceState() {
+  const store = getStore();
+  const supportingDarkStyleIds = getUniqueStyleIdsByPredicate(
+    store,
+    (style) => Array.isArray(style?.elements) && style.elements.includes('Dark'),
+    2,
+    [REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID]
+  );
+  const fillerStyleIds = getUniqueStyleIdsByPredicate(
+    store,
+    (style) => !Array.isArray(style?.elements) || !style.elements.includes('Dark'),
+    3,
+    [REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID, ...supportingDarkStyleIds]
+  );
+  const party = store.buildPartyFromStyleIds(
+    [REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID, ...supportingDarkStyleIds, ...fillerStyleIds],
+    { initialSP: 99 }
+  );
+  return createBattleStateFromParty(party);
+}
+
 test('transcendence gauge initializes by matching-element member count x 15%', () => {
   const state = createTranscendenceTestParty();
   assert.equal(state.turnState.transcendence?.active, true);
@@ -4870,6 +4896,49 @@ test('transcendence gauge gains +4 per matching-element action and is capped at 
   const committed2 = commitTurn(state, preview2);
   assert.equal(committed2.nextState.turnState.odGauge, 110);
   assert.equal(committed2.nextState.turnState.transcendence?.gaugePercent, 100);
+});
+
+test('real data dark transcendence initializes for アオゾラ全力応援歌', () => {
+  const state = createRealDataDarkTranscendenceState();
+  assert.equal(state.turnState.transcendence?.active, true);
+  assert.equal(state.turnState.transcendence?.sourceStyleId, REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID);
+  assert.equal(state.turnState.transcendence?.gaugeElement, 'Dark');
+  assert.equal(
+    state.turnState.transcendence?.gaugePercent,
+    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT * TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER
+  );
+});
+
+test('real data dark transcendence gains gauge from dark-member actions', () => {
+  let state = createRealDataDarkTranscendenceState();
+
+  const frontlineActions = Object.fromEntries(
+    state.party.slice(0, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT).map((member) => {
+      const skill = member.skills.find((item) => item.spCost > 0) ?? member.skills[0];
+      return [
+        String(member.position),
+        {
+          characterId: member.characterId,
+          skillId: Number(skill?.skillId ?? skill?.id),
+        },
+      ];
+    })
+  );
+  const preview = previewTurn(state, frontlineActions);
+  assert.equal(preview.projections?.transcendence?.matchingActionCount, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT);
+  assert.equal(
+    preview.projections?.transcendence?.endGaugePercent,
+    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT *
+      (TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER + TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION)
+  );
+
+  const committed = commitTurn(state, preview);
+  state = committed.nextState;
+  assert.equal(
+    state.turnState.transcendence?.gaugePercent,
+    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT *
+      (TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER + TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION)
+  );
 });
 
 test('extra turn can be granted and consumed', () => {
