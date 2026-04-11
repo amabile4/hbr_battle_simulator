@@ -1598,9 +1598,87 @@ function normalizeEnemyStatusElements(elements) {
   return [...new Set(elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
 }
 
+function resolvePreferredNonDamageRangeValue(rawValue) {
+  if (!Array.isArray(rawValue)) {
+    const scalar = Number(rawValue);
+    return Number.isFinite(scalar) ? scalar : null;
+  }
+  const values = rawValue
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  if (values.length === 0) {
+    return null;
+  }
+  const nonZeroValues = values.filter((value) => value !== 0);
+  if (nonZeroValues.length === 0) {
+    return values[0];
+  }
+  return nonZeroValues.reduce((best, candidate) => {
+    if (!Number.isFinite(best)) {
+      return candidate;
+    }
+    const bestAbs = Math.abs(best);
+    const candidateAbs = Math.abs(candidate);
+    if (candidateAbs !== bestAbs) {
+      return candidateAbs > bestAbs ? candidate : best;
+    }
+    return candidate;
+  }, Number.NaN);
+}
+
+function isDamageLikeSkillType(skillType) {
+  const normalized = String(skillType ?? '').trim().toLowerCase();
+  return (
+    normalized.includes('attack') ||
+    normalized.includes('damage') ||
+    normalized.includes('break')
+  );
+}
+
+function normalizeRuntimeNonDamagePart(part) {
+  if (!part || typeof part !== 'object') {
+    return part;
+  }
+
+  const skillType = String(part?.skill_type ?? '').trim();
+  const nestedVariants = Array.isArray(part?.strval)
+    ? part.strval.map((value) =>
+        value && typeof value === 'object' && Array.isArray(value.parts)
+          ? {
+              ...structuredClone(value),
+              parts: value.parts.map((nestedPart) => normalizeRuntimeNonDamagePart(nestedPart)),
+            }
+          : structuredClone(value)
+      )
+    : part?.strval;
+
+  if (skillType === 'SkillCondition' || skillType === 'SkillSwitch' || skillType === 'SkillRandom') {
+    return {
+      ...structuredClone(part),
+      ...(Array.isArray(part?.strval) ? { strval: nestedVariants } : {}),
+    };
+  }
+
+  if (isDamageLikeSkillType(skillType)) {
+    return {
+      ...structuredClone(part),
+      ...(Array.isArray(part?.strval) ? { strval: nestedVariants } : {}),
+    };
+  }
+
+  const normalized = {
+    ...structuredClone(part),
+    ...(Array.isArray(part?.strval) ? { strval: nestedVariants } : {}),
+  };
+  const resolvedPower = resolvePreferredNonDamageRangeValue(part?.power);
+  if (Array.isArray(part?.power) && Number.isFinite(resolvedPower)) {
+    normalized.power = [resolvedPower, resolvedPower];
+  }
+  return normalized;
+}
+
 function getEnemyStatusPowerValue(status) {
-  const raw = Array.isArray(status?.power) ? status.power[0] : status?.power;
-  const numeric = Number(raw);
+  const numeric = resolvePreferredNonDamageRangeValue(status?.power);
   return Number.isFinite(numeric) ? numeric : null;
 }
 
@@ -2165,12 +2243,12 @@ function deriveZoneTypeFromPart(part) {
 }
 
 function resolveZonePowerRate(part) {
-  const power = Number(part?.power?.[0] ?? NaN);
+  const power = resolvePreferredNonDamageRangeValue(part?.power);
   return Number.isFinite(power) ? power : null;
 }
 
 function resolveTerritoryPowerRate(part) {
-  const power = Number(part?.power?.[0] ?? NaN);
+  const power = resolvePreferredNonDamageRangeValue(part?.power);
   return Number.isFinite(power) ? power : null;
 }
 
@@ -3077,7 +3155,9 @@ function collectEnemyStatusActionParts(skill, state, actor) {
 }
 
 function getTokenSetAmount(part) {
-  const amount = Number(part?.power?.[0] ?? part?.value?.[0] ?? 0);
+  const amount =
+    resolvePreferredNonDamageRangeValue(part?.power) ??
+    Number(part?.value?.[0] ?? 0);
   return Number.isFinite(amount) ? amount : 0;
 }
 
@@ -3171,7 +3251,7 @@ function getDpHealCapForPart(target, part) {
 
 function getDpSelfDamageAmount(target, part) {
   const baseMaxDp = Number(target?.dpState?.baseMaxDp ?? 0);
-  const rate = Number(part?.power?.[0] ?? 0);
+  const rate = resolvePreferredNonDamageRangeValue(part?.power);
   if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0 || !Number.isFinite(rate) || rate <= 0) {
     return 0;
   }
@@ -3600,12 +3680,14 @@ function applyTokenEffectsFromActions(state, previewRecord, dpEvents = []) {
 }
 
 function getMoraleAmount(part) {
-  const value = Number(part?.power?.[0] ?? part?.value?.[0] ?? 0);
+  const value =
+    resolvePreferredNonDamageRangeValue(part?.power) ??
+    Number(part?.value?.[0] ?? 0);
   return Number.isFinite(value) ? value : 0;
 }
 
 function getMotivationTargetLevel(part) {
-  const candidates = [part?.value?.[0], part?.power?.[0]];
+  const candidates = [part?.value?.[0], resolvePreferredNonDamageRangeValue(part?.power)];
   for (const raw of candidates) {
     const value = Number(raw);
     if (Number.isFinite(value) && value > 0) {
@@ -5441,7 +5523,7 @@ function resolvePassiveEffectiveParts(passive, state, member) {
   for (const part of sourceParts) {
     const skillType = String(part?.skill_type ?? '');
     if (skillType !== 'SkillCondition') {
-      resolved.push(part);
+      resolved.push(normalizeRuntimeNonDamagePart(part));
       continue;
     }
 
@@ -5495,7 +5577,7 @@ function resolveEffectiveSkillVariant(skill, state, member) {
     for (const part of fallbackParts) {
       const skillType = String(part?.skill_type ?? '');
       if (skillType !== 'SkillCondition') {
-        resolved.parts.push(part);
+        resolved.parts.push(normalizeRuntimeNonDamagePart(part));
         continue;
       }
 
@@ -5585,7 +5667,7 @@ function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
       }
-      for (const part of passive.parts ?? []) {
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
         if (String(part?.skill_type ?? '') !== 'ReduceSp') {
           continue;
         }
@@ -5604,7 +5686,7 @@ function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
         if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
           continue;
         }
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolvePreferredNonDamageRangeValue(part?.power);
         if (!Number.isFinite(amount) || amount <= 0) {
           continue;
         }
@@ -5685,7 +5767,7 @@ function resolvePassiveDamageRateUpPerTokenForMember(state, targetMember, timing
         continue;
       }
       let passiveRate = 0;
-      for (const part of passive.parts ?? []) {
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
         if (String(part?.skill_type ?? '') !== 'DamageRateUpPerToken') {
           continue;
         }
@@ -5705,7 +5787,7 @@ function resolvePassiveDamageRateUpPerTokenForMember(state, targetMember, timing
           continue;
         }
         const tokenCount = Number(actor?.tokenState?.current ?? 0);
-        const perTokenRate = Number(part?.power?.[0] ?? 0);
+        const perTokenRate = resolvePreferredNonDamageRangeValue(part?.power);
         if (!Number.isFinite(tokenCount) || !Number.isFinite(perTokenRate) || perTokenRate === 0) {
           continue;
         }
@@ -8904,7 +8986,7 @@ function getPassiveOverdriveEpLimit(member) {
       if (String(part.skill_type ?? '') !== 'EpLimitOverwrite') {
         continue;
       }
-      const value = Number(part?.power?.[0] ?? 0);
+      const value = resolvePreferredNonDamageRangeValue(part?.power);
       if (Number.isFinite(value) && value > 0) {
         limit = limit === null ? value : Math.max(limit, value);
       }
@@ -8958,7 +9040,7 @@ function applyPassiveSkillEpTurnStart(member, turnState) {
       if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
-      const amount = Number(part?.power?.[0] ?? 0);
+      const amount = resolvePreferredNonDamageRangeValue(part?.power);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -8985,7 +9067,8 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
       continue;
     }
     const effectTypes = new Set();
-    for (const part of passive.parts ?? []) {
+    const effectiveParts = resolvePassiveEffectiveParts(passive, { party: [member] }, member);
+    for (const part of effectiveParts) {
       const skillType = String(part?.skill_type ?? '').trim();
       if (skillType) {
         effectTypes.add(skillType);
@@ -8993,10 +9076,10 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
     }
     let totalDelta = 0;
     let matched = false;
-    for (const part of passive.parts ?? []) {
+    for (const part of effectiveParts) {
       const skillType = String(part.skill_type ?? '');
       if (skillType === 'EpLimitOverwrite') {
-        const limit = Number(part?.power?.[0] ?? 0);
+        const limit = resolvePreferredNonDamageRangeValue(part?.power);
         if (Number.isFinite(limit) && limit > 0) {
           matched = true;
           effectTypes.add(skillType);
@@ -9006,7 +9089,7 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
       if (skillType !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
-      const amount = Number(part?.power?.[0] ?? 0);
+      const amount = resolvePreferredNonDamageRangeValue(part?.power);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -9060,12 +9143,12 @@ function applyPassiveSpOnOverdriveStart(state) {
       let totalSpDelta = 0;
       let matched = false;
 
-      for (const part of passive.parts ?? []) {
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
         const skillType = String(part.skill_type ?? '');
         if (skillType !== 'HealSp') {
           continue;
         }
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolvePreferredNonDamageRangeValue(part?.power);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }

@@ -585,9 +585,9 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry1 = commit1.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 1);
+  assert.equal(actor.tokenState.current, 2);
   assert.equal(
-    (entry1.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 1),
+    (entry1.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 2),
     true
   );
   assert.equal(
@@ -622,7 +622,7 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry2 = commit2.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 1);
+  assert.equal(actor.tokenState.current, 2);
   assert.equal(entry2, undefined);
   assert.equal(
     (commit2.committedRecord.dpEvents ?? []).some(
@@ -637,7 +637,7 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry3 = commit3.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 1);
+  assert.equal(actor.tokenState.current, 2);
   assert.equal(entry3, undefined);
   assert.equal(
     (commit3.committedRecord.dpEvents ?? []).some(
@@ -2448,7 +2448,7 @@ test('迅雷風烈 records DefenseDown enemy status in real data', () => {
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.3);
+  assert.equal(event.power, 0.45);
 });
 
 test('まだまだ行くで！ applies Fragile enemy status in real data', () => {
@@ -2462,7 +2462,7 @@ test('まだまだ行くで！ applies Fragile enemy status in real data', () =>
   );
 
   assert.ok(fragile);
-  assert.equal(fragile.power, 0.3);
+  assert.equal(fragile.power, 0.4);
   assert.equal(fragile.exitCond, 'Eternal');
 });
 
@@ -2479,7 +2479,7 @@ test('フレイムテンペスト records AttackDown enemy status in real data',
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.2);
+  assert.equal(event.power, 0.3);
 });
 
 test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in real data', () => {
@@ -2502,7 +2502,33 @@ test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in 
   assert.ok(resistStatus);
   assert.equal(resistStatus.exitCond, 'Eternal');
   assert.deepEqual(resistStatus.elements, ['Dark']);
-  assert.equal(resistStatus.power, 0.45);
+  assert.equal(resistStatus.power, 0.6);
+});
+
+test('今宵、快楽ナイトメア grants 5-hit Funnel only to frontline Dark styles in real data', () => {
+  const store = getStore();
+  const skillId = 46001411;
+  const nonDarkStyleId = getSixUsableStyleIds(store).find((id) => {
+    const style = store.getStyleById(Number(id));
+    return Array.isArray(style?.elements) && !style.elements.includes('Dark');
+  });
+  assert.ok(nonDarkStyleId, 'should prepare one non-Dark frontline style');
+  const state = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      extraStyleIds: [1005107, Number(nonDarkStyleId)],
+    })
+  );
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const tojoFunnels = committed.nextState.party[0].resolveEffectiveFunnelEffects();
+  const misatoFunnels = committed.nextState.party[1].resolveEffectiveFunnelEffects();
+  const nonDarkFunnels = committed.nextState.party[2].resolveEffectiveFunnelEffects();
+
+  assert.equal(tojoFunnels.length, 1);
+  assert.equal(tojoFunnels[0].power, 5);
+  assert.equal(misatoFunnels.length, 1);
+  assert.equal(misatoFunnels[0].power, 5);
+  assert.equal(nonDarkFunnels.length, 0);
 });
 
 test('スタンブレード deterministically records StunRandom enemy status in real data', () => {
@@ -2518,7 +2544,7 @@ test('スタンブレード deterministically records StunRandom enemy status in
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.3);
+  assert.equal(event.power, 0.85);
   assert.equal(event.exitCond, 'EnemyTurnEnd');
 });
 
@@ -2700,10 +2726,10 @@ test('エンジェルズ・ウィング stores Cover with duration derived from 
   );
 
   assert.ok(event);
-  assert.equal(event.remainingTurns, 2);
-  assert.equal(event.power, 2);
+  assert.equal(event.remainingTurns, 3);
+  assert.equal(event.power, 3);
   assert.ok(nextStatus);
-  assert.equal(nextStatus.remainingTurns, 1);
+  assert.equal(nextStatus.remainingTurns, 2);
 });
 
 test('ヒットチャートからの一閃 stores eternal HealDown enemy status in real data', () => {
@@ -2781,7 +2807,7 @@ test('ハードブレード applies DefenseDown in real data despite top-level D
   const enemyStatus = action.enemyStatusChanges.find((status) => status.statusType === 'DefenseDown');
 
   assert.ok(enemyStatus);
-  assert.equal(enemyStatus.power, 0.3);
+  assert.equal(enemyStatus.power, 0.45);
   assert.equal(enemyStatus.exitCond, 'EnemyTurnEnd');
 });
 
@@ -2814,7 +2840,52 @@ test('水影 applies Funnel in real data despite top-level FunnelUp label', () =
   const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
   const committed = commitTurn(state, previewActorSkill(state, skillId));
 
-  assert.equal(committed.nextState.party[0].getStatusEffectsByType('Funnel').length, 1);
+  const funnelEffects = committed.nextState.party[0].resolveEffectiveFunnelEffects();
+  assert.equal(funnelEffects.length, 1);
+  assert.equal(funnelEffects[0].power, 3);
+});
+
+test('今宵、快楽ナイトメア stacked across extra turn raises ハネ殺し OD gain in real data', () => {
+  const store = getStore();
+  const fixedStyleIds = [1001406, 1005107, 1003108];
+  const extraStyleIds = getSixUsableStyleIds(store)
+    .filter((id) => !fixedStyleIds.includes(Number(id)))
+    .slice(0, 3);
+  const party = store.buildPartyFromStyleIds([...fixedStyleIds, ...extraStyleIds], {
+    initialSP: 40,
+    drivePierceByPartyIndex: {
+      0: 15,
+      1: 15,
+      2: 15,
+    },
+  });
+  let state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 2;
+
+  const tojoId = state.party[0].characterId;
+  const misatoId = state.party[1].characterId;
+  const yamawakiId = state.party[2].characterId;
+
+  const turn1 = previewTurn(state, {
+    0: { characterId: tojoId, skillId: 46001411, targetEnemyIndex: 0 },
+    1: { characterId: misatoId, skillId: 46005120, targetEnemyIndex: 0 },
+    2: { characterId: yamawakiId, skillId: 46003113, targetEnemyIndex: 0 },
+  });
+  state = commitTurn(state, turn1).nextState;
+  assert.equal(state.turnState.turnType, 'extra');
+
+  const turn2 = previewTurn(state, {
+    0: { characterId: tojoId, skillId: 46001411, targetEnemyIndex: 0 },
+    1: { characterId: misatoId, skillId: 46005102, targetEnemyIndex: 0 },
+    2: { characterId: yamawakiId, skillId: 46003113, targetEnemyIndex: 0 },
+  });
+  const committed = commitTurn(state, turn2);
+  const misatoAction = findActionByCharacterId(committed.committedRecord, misatoId);
+
+  assert.ok(misatoAction);
+  assert.equal(misatoAction.skillFunnelHitBonus, 10);
+  assert.equal(misatoAction.skillHitCount, 13);
+  assert.ok(Math.abs(Number(misatoAction.odGaugeGain ?? 0) - 69.68) < 0.01);
 });
 
 test('クレール・ド・リュンヌ heals ally SP in real data despite top-level HealSp label', () => {
@@ -4268,9 +4339,9 @@ test('サマーグレイス is usable outside OD and blocked during OD', () => {
   assert.equal(preview.actions[0].spCost, 4);
   assert.equal(preview.actions[0].startToken, 0);
   // MuOhshima has ボルテージ passive (OnEveryTurn, TokenSet +1) that fires in recovery pipeline
-  assert.equal(nextState.party[0].tokenState.current, 2); // 1 from skill + 1 from passive
+  assert.equal(nextState.party[0].tokenState.current, 3); // 2 from skill + 1 from passive
   assert.equal(
-    (entry.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 1),
+    (entry.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 2),
     true
   );
 
