@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { sortStatusEffectsForStatusTab } from '../ui-next/utils/char-detail-popup.js';
+import {
+  resolveSkillTypeIconUrl,
+  sortStatusEffectsForStatusTab,
+} from '../ui-next/utils/char-detail-popup.js';
 
 test('sortStatusEffectsForStatusTab keeps special statuses first', () => {
   const sorted = sortStatusEffectsForStatusTab([
@@ -41,4 +44,10 @@ test('sortStatusEffectsForStatusTab places unknown status after mapped statuses'
     sorted.map((item) => item.statusType),
     ['AttackUp', 'DefenseDown', 'SpeedUp']
   );
+});
+
+test('resolveSkillTypeIconUrl uses ui dead icon for Dead status', () => {
+  const url = resolveSkillTypeIconUrl('Dead');
+
+  assert.match(url, /assets\/ui\/dead\.webp$/);
 });

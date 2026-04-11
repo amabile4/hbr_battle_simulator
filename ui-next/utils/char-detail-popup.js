@@ -17,9 +17,14 @@ import { buildFieldDisplayEntries } from './field-state-display.js';
 import { SPECIAL_STATUS_TYPE_NAMES } from '../../src/domain/character-style.js';
 import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
 
+const DEAD_STATUS_ICON_FILE_NAME = 'dead.webp';
+
 export function resolveSkillTypeIconUrl(statusType) {
   const name = String(statusType ?? '').trim();
   if (!name) return '';
+  if (name.toLowerCase() === 'dead') {
+    return resolveUiAssetUrl(DEAD_STATUS_ICON_FILE_NAME);
+  }
   return resolveSkillTypeAssetUrl(`${name}.webp`);
 }
 
