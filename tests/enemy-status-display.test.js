@@ -133,11 +133,28 @@ test('getActiveEnemyStatusesSorted filters and sorts by type priority', (t) => {
 
   const result = getActiveEnemyStatusesSorted(statuses);
 
-  // skill_types.json ID 昇順: AttackUp(30), AttackDown(32), DefenseDown(34)
+  // §2.2 category then ID: AttackUp(1b,30), DefenseDown(1b,34), AttackDown(2,32)
   assert.equal(result.length, 3, 'should filter out inactive status');
-  assert.equal(result[0].statusType, 'AttackUp', 'lower skill_type id should come first');
-  assert.equal(result[1].statusType, 'AttackDown', 'second lower skill_type id');
-  assert.equal(result[2].statusType, 'DefenseDown', 'third lower skill_type id');
+  assert.equal(result[0].statusType, 'AttackUp', 'category (1)b, lowest ID');
+  assert.equal(result[1].statusType, 'DefenseDown', 'category (1)b, next ID');
+  assert.equal(result[2].statusType, 'AttackDown', 'category (2), no element variants');
+});
+
+test('getActiveEnemyStatusesSorted groups same statusType by element before power', (t) => {
+  const statuses = [
+    { statusType: 'DefenseDown', remaining: 2, power: 10, exitCond: 'TurnEnd', elements: ['Ice'] },
+    { statusType: 'DefenseDown', remaining: 2, power: 20, exitCond: 'TurnEnd', elements: [] },
+    { statusType: 'DefenseDown', remaining: 2, power: 15, exitCond: 'TurnEnd', elements: ['Fire'] },
+  ];
+
+  const result = getActiveEnemyStatusesSorted(statuses);
+
+  // §2.2: (1)a (Fire→Ice) → (1)b (属性なし)
+  assert.deepEqual(
+    result.map((s) => [(s.elements?.[0] ?? ''), s.power]),
+    [['Fire', 15], ['Ice', 10], ['', 20]],
+    'should group by category (1)a first, then (1)b'
+  );
 });
 
 test('getActiveEnemyStatusesSorted sorts by power descending when priority is same', (t) => {

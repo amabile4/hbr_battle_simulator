@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-06
-> 最終更新: 2026-04-11
+> 最終更新: 2026-04-12
 > 元タスク: [t34_enemy_status_management_plan_wbs.md](t34_enemy_status_management_plan_wbs.md)（✅ 完了）
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
@@ -87,6 +87,27 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - [disaster_status_wbs.md](disaster_status_wbs.md)
 - [../../help/HEAVEN_BURNS_RED/バトル/禍.md](../../help/HEAVEN_BURNS_RED/バトル/禍.md)
 
+### 5. T34-FU4: statusType ソート順の統一（暫定 v1 → 確定）
+
+目的: char-popup-panel / enemy-detail-popup で分散していた statusType ソート ID を `status-sort-order.js` へ統合した（暫定ソート順 v1）。以下の未解決事項を確定ソート順 v2 として解決する。
+
+暫定 v1 実装（2026-04-12 完了）:
+
+- [x] `ui-next/utils/status-sort-order.js` に統合 ID マップ (`UNIFIED_STATUS_TYPE_ID_MAP`) を作成
+- [x] `char-detail-popup.js` / `enemy-status-display.js` から共有モジュールを参照するよう移行
+- [x] 既存テスト全件 PASS を確認
+
+未解決事項（v2 scope）:
+
+- [ ] **SORT-TODO-1**: ID=264 に `BreakDownTurnUp` (char) と `DownTurn` (enemy) が重複割当されている。同一 `skill_type` ID を共有している可能性が高い。パネル間で出現コンテキストが異なるため実害はないが、統一設計上は明示的に分離するか、alias として文書化すべき
+- [ ] **SORT-TODO-2**: 味方/敵で statusType 名が異なる組が存在する — `ConfusionRandom`(107) / `Confusion`(106)、`ImprisonRandom`(110) / `Imprison`(109)、`RecoilRandom`(129) / `Recoil`(128)。ID は連番で隣接しており `normalizeEnemyStatusType` で一部正規化しているが、ソート ID の統合後も名前の二重性が残っている
+- [ ] **SORT-TODO-3**: ID 未定義 statusType のフォールバック順の思想差 — char 側は `STATUS_LABELS` のキー宣言順（概ねカテゴリ別）、enemy 側は `ENEMY_STATUS_TYPE_DISPLAY_ORDER`（debuff 優先）。統一するか、パネル別に維持するかを判断する
+
+関連:
+
+- [../../help/popup_json_keys.csv](../../help/popup_json_keys.csv)
+- [../../help/popup_sort_order.csv](../../help/popup_sort_order.csv)
+
 ## 対象ファイル
 
 - `ui-next/components/turn-row.js` — enemy selector 統合
@@ -96,7 +117,8 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - `src/turn/turn-controller.js` — `Disaster` runtime/state
 - `src/domain/damage-calculation-context.js` — 全能力低下集計
 - `ui-next/utils/field-state-display.js` — field chip / detail summary
-- `ui-next/utils/char-detail-popup.js` — status label / icon
+- `ui-next/utils/char-detail-popup.js` — status label / icon / sort
+- `ui-next/utils/status-sort-order.js` — 統合ソート ID 定義（暫定 v1）
 - `tests/e2e/*.spec.js` — browser E2E テスト
 - `tests/enemy-status-display.test.js` — 表示 unit テスト
 - `tests/t34-enemy-status-integration.test.js` — lifecycle / replay / legacy fallback integration

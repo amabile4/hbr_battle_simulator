@@ -19,17 +19,20 @@ import {
   normalizeEnemyStatusType,
 } from '../../src/domain/enemy-status.js';
 import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
+import {
+  getUnifiedStatusTypeId,
+  getElementSortValue,
+  getElementVariantCategory,
+  USE_UNIFIED_ID_ORDER,
+  FALLBACK_ORDER_OFFSET,
+  UNKNOWN_ORDER_VALUE,
+} from './status-sort-order.js';
 
 // 敵状態表示の最大アイコン数（overflow対応）
 const MAX_ENEMY_STATUS_ICONS = 5;
 const SHOW_OVERFLOW_COUNT_IF_EXCEED = true;
 
-// true: json/skill_types.json の ID 昇順を優先
-// false: 旧来の debuff優先順を使用
-// すぐ元に戻したい場合はこの1行だけ false に変更する。
-const USE_SKILL_TYPE_ID_ASC_ORDER = true;
-
-// 敵向けの表示優先順（debuff優先）
+// 敵向けの表示優先順（debuff優先）— ID 未定義 statusType のフォールバック順序
 const ENEMY_STATUS_TYPE_DISPLAY_ORDER = [
   // Debuffs first (what we want to highlight for enemy)
   'AttackDown',
@@ -70,35 +73,7 @@ const ENEMY_DISPLAY_ORDER_INDEX = new Map(
   ENEMY_STATUS_TYPE_DISPLAY_ORDER.map((statusType, index) => [statusType, index])
 );
 
-// json/skill_types.json の ID（必要な statusType のみ）
-// 未登録 statusType は旧来の優先順へフォールバックする。
-const ENEMY_STATUS_TYPE_ID_MAP = Object.freeze({
-  AttackUp: 30,
-  AttackDown: 32,
-  DefenseDown: 34,
-  DefenseUp: 36,
-  CriticalRateUp: 70,
-  CriticalRateDown: 72,
-  CriticalDamageUp: 74,
-  CriticalDamageDown: 76,
-  OverDrivePointUp: 80,
-  ResistUp: 100,
-  ResistDown: 102,
-  Fragile: 104,
-  DownTurn: 264,
-  Confusion: 106,
-  Imprison: 109,
-  OverDrivePointDown: 123,
-  Recoil: 128,
-  HealDown: 146,
-  Misfortune: 164,
-  SelfDamage: 192,
-  SuperBreak: 221,
-  RemoveBuff: 235,
-  HealUp: 291,
-  SuperBreakDown: 302,
-  Barrier: 321,
-});
+// ソート ID は status-sort-order.js の UNIFIED_STATUS_TYPE_ID_MAP に統合済み。
 
 
 const ENEMY_STATUS_ICON_FALLBACK = Object.freeze({
@@ -179,20 +154,20 @@ function getEnemyStatusPriorityIndex(status) {
   const statusType = normalizeEnemyStatusType(status?.statusType);
   const index = ENEMY_DISPLAY_ORDER_INDEX.get(statusType);
 
-  if (USE_SKILL_TYPE_ID_ASC_ORDER) {
-    const id = ENEMY_STATUS_TYPE_ID_MAP[statusType];
-    if (Number.isFinite(id)) {
+  if (USE_UNIFIED_ID_ORDER) {
+    const id = getUnifiedStatusTypeId(statusType);
+    if (id !== undefined) {
       return id;
     }
     // ID未定義タイプは旧来優先順を維持しつつ、ID定義タイプの後ろに並べる。
     if (index !== undefined) {
-      return 10000 + index;
+      return FALLBACK_ORDER_OFFSET + index;
     }
-    return 20000;
+    return UNKNOWN_ORDER_VALUE;
   }
 
   // 優先テーブルにない場合は末尾扱い
-  return index !== undefined ? index : ENEMY_STATUS_TYPE_DISPLAY_ORDER.length + 10000;
+  return index !== undefined ? index : ENEMY_STATUS_TYPE_DISPLAY_ORDER.length + FALLBACK_ORDER_OFFSET;
 }
 
 /**
@@ -215,12 +190,28 @@ function readEnemyStatusPower(status) {
  * @returns {number}
  */
 function compareEnemyStatusForDisplay(a, b) {
+  // §2.2 属性バリアント分類: (1)a → (1)b → (2)
+  const catA = getElementVariantCategory(
+    normalizeEnemyStatusType(a?.statusType), a?.elements);
+  const catB = getElementVariantCategory(
+    normalizeEnemyStatusType(b?.statusType), b?.elements);
+  if (catA !== catB) {
+    return catA - catB;
+  }
+
+  // §2.3 種別ID順
   const priorityA = getEnemyStatusPriorityIndex(a);
   const priorityB = getEnemyStatusPriorityIndex(b);
   if (priorityA !== priorityB) {
     return priorityA - priorityB;
   }
-  // same priority: sort by power descending
+  // same priority: sort by element
+  const elemA = getElementSortValue(a?.elements);
+  const elemB = getElementSortValue(b?.elements);
+  if (elemA !== elemB) {
+    return elemA - elemB;
+  }
+  // same element: sort by power descending
   const powerA = readEnemyStatusPower(a);
   const powerB = readEnemyStatusPower(b);
   if (powerA !== powerB) {
