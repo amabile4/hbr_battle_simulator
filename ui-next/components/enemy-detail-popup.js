@@ -97,6 +97,7 @@ export class EnemyDetailPopup {
   #toolActions = {};
   #onClose = null;
   #onActiveEnemyIndexChange = null;
+  #resolveSkillDescription = null;
   #handleEscKeyDown = null;
   #handleResize = null;
 
@@ -105,6 +106,10 @@ export class EnemyDetailPopup {
     this.#onActiveEnemyIndexChange =
       typeof options.onActiveEnemyIndexChange === 'function'
         ? options.onActiveEnemyIndexChange
+        : null;
+    this.#resolveSkillDescription =
+      typeof options.resolveSkillDescription === 'function'
+        ? options.resolveSkillDescription
         : null;
   }
 
@@ -745,7 +750,9 @@ export class EnemyDetailPopup {
   }
 
   #buildStatusSectionHtml(enemy) {
-    const statusTableHtml = buildEnemyStatusTableHtml(enemy?.statuses ?? []);
+    const statusTableHtml = buildEnemyStatusTableHtml(enemy?.statuses ?? [], {
+      resolveSkillDescription: this.#resolveSkillDescription,
+    });
     const fieldStateBlocksHtml = enemy?.occupied
       ? [
           this.#buildTalismanStatusBlockHtml(enemy),
@@ -835,7 +842,9 @@ export class EnemyDetailPopup {
             levelDelta: Number(change?.levelDelta ?? 0),
           }))
       );
-    const statusTableHtml = buildEnemyStatusTableHtml(previewStatuses);
+    const statusTableHtml = buildEnemyStatusTableHtml(previewStatuses, {
+      resolveSkillDescription: this.#resolveSkillDescription,
+    });
     const talismanHtml = talismanChanges.length > 0
       ? `
         <div data-role="enemy-popup-preview-talisman" style="display: grid; gap: 6px; margin-bottom: ${previewStatuses.length > 0 ? '10px' : '0'};">

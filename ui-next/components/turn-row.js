@@ -944,6 +944,10 @@ export class TurnRowController {
         onClose: () => this.#handleEnemyDetailPopupClosed(),
         onActiveEnemyIndexChange: ({ activeEnemyIndex: nextEnemyIndex }) =>
           this.#handleEnemyDetailPopupTabChange(nextEnemyIndex),
+        resolveSkillDescription:
+          typeof this.#store?.resolveSkillDescription === 'function'
+            ? (skillId) => this.#store.resolveSkillDescription(skillId)
+            : null,
       }
     );
     this.#bindEnemyDetailPopupEditorEvents();
@@ -4304,7 +4308,15 @@ export class TurnRowController {
             talismanState: this.#stateBefore?.turnState?.enemyState?.talismanState ?? null,
             disasterState: this.#stateBefore?.turnState?.enemyState?.disasterState ?? null,
           },
-          { x: e.clientX, y: e.clientY, isCommitted: this.#isCommittedDisplayMode() }
+          {
+            x: e.clientX,
+            y: e.clientY,
+            isCommitted: this.#isCommittedDisplayMode(),
+            resolveSkillDescription:
+              typeof this.#store?.resolveSkillDescription === 'function'
+                ? (skillId) => this.#store.resolveSkillDescription(skillId)
+                : null,
+          }
         );
       });
     });

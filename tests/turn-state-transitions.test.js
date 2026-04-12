@@ -19007,6 +19007,53 @@ test('Phase C: enemy status sourceCharacterName persists in nextState after comm
   );
 });
 
+test('Phase C: enemy status sourceSkillDesc persists in nextState after commitTurn', () => {
+  const skillDesc = '敵の攻撃力を50%下げる';
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'ENEMY_DEBUFF_ACTOR_DESC',
+        characterName: '敵デバッファー',
+        initialSP: 10,
+        skills: [
+          {
+            id: 311002,
+            name: '敵攻撃力ダウン説明付き',
+            desc: skillDesc,
+            sp_cost: 0,
+            parts: [
+              {
+                skill_type: 'AttackDown',
+                target_type: 'EnemySingle',
+                power: [0.5, 0],
+                effect: { limitType: 'Only', exitCond: 'TurnEnd', exitVal: [2, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  const preview = previewTurn(state, {
+    0: { characterId: 'ENEMY_DEBUFF_ACTOR_DESC', skillId: 311002, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  const statuses = nextState.turnState.enemyState?.statuses ?? [];
+  const attackDown = statuses.find((status) => String(status?.statusType ?? '') === 'AttackDown');
+  assert.ok(attackDown, 'AttackDown が nextState.enemyState.statuses に存在すること');
+  assert.equal(
+    attackDown.sourceSkillDesc,
+    skillDesc,
+    'sourceSkillDesc が cloneTurnState (normalizeEnemyStatusForClone) を経由しても保持されること'
+  );
+});
+
 test('EnemyAll status applies once per alive enemy (no triple stack on E1)', () => {
   const party = createSixMemberManualParty((idx) => {
     if (idx === 0) {

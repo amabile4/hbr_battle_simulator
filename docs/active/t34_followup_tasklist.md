@@ -24,6 +24,11 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
   - active skill `もつれトラップ` + style passive `巻き添え` により current live style では初回 `Lv4 / 全能力-28`
 - 2026-04-11: 単独 EX ターンで、`FollowUpOverrides` が front/back 列固定マッピングに吸われて非EX後衛の追撃を取りこぼすケースを確認
   - `ui-next/engine/turn-engine-manager.js` で「単独 EX action には保存済み follow-up override をその action に attach する」補正を追加し、`tests/ui-next-follow-up-integration.test.js` で回帰を固定
+- 2026-04-12: enemy status の `sourceSkillDesc` を `turn-controller` で付与しても、`normalizeEnemyStatusForClone` / `normalizeEnemyStatusForSnapshot` が途中で破棄していた
+  - `src/contracts/interfaces.js` / `src/ui/adapter-core.js` で clone/snapshot 契約を揃え、`tests/t34-enemy-status-integration.test.js` / `tests/turn-state-transitions.test.js` で replay と runtime 側の欠落回帰を固定
+- 2026-04-12: 第1弾として、`overrideEntries` 非依存で `sourceSkillDesc` を表示できる UI fallback を追加した
+  - `src/data/hbr-data-store.js` に `resolveSkillDescription()` を追加し、`ui-next/utils/enemy-status-display.js` / `ui-next/utils/char-detail-popup.js` / `ui-next/components/enemy-detail-popup.js` / `ui-next/components/turn-row.js` で `sourceSkillId -> desc` の表示時解決を接続
+  - `tests/data-store-operations.test.js` / `tests/enemy-status-display.test.js` / `tests/ui-next-turn-ui.test.js` / `tests/e2e/session-load-enemy-status-desc.spec.js` で committed row `#19` session load を含む回帰を固定
 
 ## 残タスク一覧（2026-04-10 時点）
 

@@ -24,6 +24,7 @@ import {
   FALLBACK_ORDER_OFFSET,
   UNKNOWN_ORDER_VALUE,
 } from './status-sort-order.js';
+import { resolveSourceSkillDescription } from './source-skill-description.js';
 
 const DEAD_STATUS_ICON_FILE_NAME = 'dead.webp';
 
@@ -333,10 +334,10 @@ function resolveFunnelSizeLabel(effect) {
   return '';
 }
 
-function buildEffectDisplayInfo(effect) {
+function buildEffectDisplayInfo(effect, resolveSkillDescription = null) {
   const statusType = String(effect?.statusType ?? '');
   const power = Number(effect?.power ?? 0);
-  const desc = String(effect?.sourceSkillDesc ?? '').trim();
+  const desc = resolveSourceSkillDescription(effect, resolveSkillDescription);
   if (statusType === 'Funnel') {
     const hitCount = Number.isFinite(power) ? Math.max(0, Math.round(power)) : 0;
     const perHitBonus = Number(effect?.metadata?.damageBonus ?? 0);
@@ -390,10 +391,14 @@ function buildSpecialStatusEffects({ isReinforcedMode = false, reinforcedTurnsRe
   return special;
 }
 
-function buildStatusBlockHtml(effect) {
+function buildStatusBlockHtml(effect, options = {}) {
   const label = resolveElementalStatusLabel(effect.statusType, effect.elements);
   const skillName = String(effect.sourceSkillName ?? '').trim();
-  const displayInfo = buildEffectDisplayInfo(effect);
+  const resolveSkillDescription =
+    typeof options?.resolveSkillDescription === 'function'
+      ? options.resolveSkillDescription
+      : null;
+  const displayInfo = buildEffectDisplayInfo(effect, resolveSkillDescription);
   const desc = displayInfo.desc;
   const powerStr = displayInfo.powerLabel;
   const exitCondStr = String(effect.exitCond ?? '');
@@ -420,7 +425,7 @@ function buildStatusBlockHtml(effect) {
   );
 }
 
-function buildPreviewStatusSectionHtml(previewActionFlow) {
+function buildPreviewStatusSectionHtml(previewActionFlow, options = {}) {
   const source = Array.isArray(previewActionFlow) ? previewActionFlow : [];
   const previewEffects = source
     .flatMap((action) => {
@@ -442,6 +447,7 @@ function buildPreviewStatusSectionHtml(previewActionFlow) {
         exitCond: String(event?.exitCond ?? 'Count'),
         elements: Array.isArray(event?.elements) ? [...event.elements] : [],
         sourceSkillName: String(event?.sourceSkillName ?? event?.skillName ?? action?.skillName ?? '').trim(),
+        sourceSkillId: Number(event?.sourceSkillId ?? event?.skillId ?? action?.skillId ?? 0),
         sourceCharacterName: String(event?.sourceCharacterName ?? action?.actorCharacterName ?? '').trim(),
       }));
       const funnelApplied = Array.isArray(action?.funnelApplied) ? action.funnelApplied : [];
@@ -452,6 +458,7 @@ function buildPreviewStatusSectionHtml(previewActionFlow) {
         exitCond: String(event?.exitCond ?? 'Count'),
         elements: [],
         sourceSkillName: String(event?.sourceSkillName ?? event?.skillName ?? action?.skillName ?? '').trim(),
+        sourceSkillId: Number(event?.sourceSkillId ?? event?.skillId ?? action?.skillId ?? 0),
         sourceCharacterName: String(event?.sourceCharacterName ?? action?.actorCharacterName ?? '').trim(),
         metadata: {
           damageBonus: Number(event?.damageBonus ?? event?.metadata?.damageBonus ?? 0),
@@ -461,7 +468,7 @@ function buildPreviewStatusSectionHtml(previewActionFlow) {
     })
     .filter((effect) => Boolean(String(effect.statusType ?? '').trim()));
   const previewBlocks = sortStatusEffectsForStatusTab(previewEffects)
-    .map((effect) => buildStatusBlockHtml(effect))
+    .map((effect) => buildStatusBlockHtml(effect, options))
     .join('');
 
   return (
@@ -479,7 +486,7 @@ function buildStatusTabHtml(statusEffects, options = {}) {
     ...buildSpecialStatusEffects(options),
     ...(Array.isArray(statusEffects) ? statusEffects : []),
   ];
-  const previewSectionHtml = buildPreviewStatusSectionHtml(options?.previewActionFlow ?? []);
+  const previewSectionHtml = buildPreviewStatusSectionHtml(options?.previewActionFlow ?? [], options);
   if (mergedEffects.length === 0) {
     return `${previewSectionHtml}<p class="char-popup-empty">なし</p>`;
   }
@@ -492,7 +499,7 @@ function buildStatusTabHtml(statusEffects, options = {}) {
   }
 
   const statusBlocksHtml = sortStatusEffectsForStatusTab(activeEffects)
-    .map((effect) => buildStatusBlockHtml(effect))
+    .map((effect) => buildStatusBlockHtml(effect, options))
     .join('');
 
   return `${previewSectionHtml}${statusBlocksHtml}`;
@@ -674,6 +681,8 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
     reinforcedTurnsRemaining,
     actionDisabledTurns,
     previewActionFlow: stateOrRecord?.previewActionFlow ?? [],
+    resolveSkillDescription:
+      typeof opts.resolveSkillDescription === 'function' ? opts.resolveSkillDescription : null,
   });
   popup.querySelector('[data-tab-panel="ability"]').innerHTML = buildAbilityTabHtml(member);
   popup.querySelector('[data-tab-panel="passive"]').innerHTML = buildPassiveTabHtml(member, passiveEvents);

@@ -517,6 +517,44 @@ test('buildEnemyStatusTableHtml displays sourceSkillDesc when present', () => {
   assert(html.includes('敵の防御力を30%ダウン'), 'should display sourceSkillDesc text');
 });
 
+test('buildEnemyStatusTableHtml resolves desc from sourceSkillId when sourceSkillDesc is absent', () => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      remaining: 2,
+      power: 0.3,
+      exitCond: 'TurnEnd',
+      sourceSkillId: 46001311,
+      sourceSkillName: 'ヒットチャートからの一閃',
+    },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses, {
+    resolveSkillDescription: (skillId) =>
+      Number(skillId) === 46001311 ? 'resolver 経由の防御力ダウン説明' : null,
+  });
+  assert(html.includes('char-popup-buff-desc'), 'should include desc container when resolver returns text');
+  assert(html.includes('resolver 経由の防御力ダウン説明'), 'should display resolved description text');
+});
+
+test('buildEnemyStatusTableHtml prefers sourceSkillDesc over resolver text', () => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      remaining: 2,
+      power: 0.3,
+      exitCond: 'TurnEnd',
+      sourceSkillId: 46001311,
+      sourceSkillName: 'ヒットチャートからの一閃',
+      sourceSkillDesc: '保存済み説明文',
+    },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses, {
+    resolveSkillDescription: () => 'resolver 側の説明文',
+  });
+  assert(html.includes('保存済み説明文'), 'should prefer the persisted description');
+  assert(!html.includes('resolver 側の説明文'), 'should not override an existing description');
+});
+
 test('buildEnemyStatusTableHtml omits desc div when sourceSkillDesc is empty', () => {
   const statuses = [
     { statusType: 'AttackDown', remaining: 1, power: 0.2, exitCond: 'TurnEnd' },

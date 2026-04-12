@@ -27,6 +27,7 @@ import {
   FALLBACK_ORDER_OFFSET,
   UNKNOWN_ORDER_VALUE,
 } from './status-sort-order.js';
+import { resolveSourceSkillDescription } from './source-skill-description.js';
 
 // 敵状態表示の最大アイコン数（overflow対応）
 const MAX_ENEMY_STATUS_ICONS = 5;
@@ -336,9 +337,15 @@ export function getEnemyStatusLabel(status) {
 /**
  * 敵status一覧をブロック形式で表示（詳細popup用、char-popup-buff-block スタイルに準拠）
  * @param {Array} statuses - enemy.statuses 配列
+ * @param {Object} options
+ * @param {(skillId: number) => string | null} [options.resolveSkillDescription]
  * @returns {string} HTML ブロック要素のテキスト
  */
-export function buildEnemyStatusTableHtml(statuses) {
+export function buildEnemyStatusTableHtml(statuses, options = {}) {
+  const resolveSkillDescription =
+    typeof options?.resolveSkillDescription === 'function'
+      ? options.resolveSkillDescription
+      : null;
   const sorted = getActiveEnemyStatusesSorted(statuses).filter(
     (status) => !ENEMY_STATUS_TYPES_HIDDEN_FROM_TABLE.has(normalizeEnemyStatusType(status?.statusType))
   );
@@ -357,7 +364,7 @@ export function buildEnemyStatusTableHtml(statuses) {
       const exitCond = String(status?.exitCond ?? '').trim();
       const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
       const sourceCharacterName = String(status?.sourceCharacterName ?? '').trim();
-      const sourceSkillDesc = String(status?.sourceSkillDesc ?? '').trim();
+      const sourceSkillDesc = resolveSourceSkillDescription(status, resolveSkillDescription);
 
       const powerStr =
         Number.isFinite(power) && power !== 0

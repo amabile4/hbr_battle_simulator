@@ -2144,6 +2144,47 @@ test('TurnRowController committed enemy detail popup uses stateBefore (same turn
     assert.doesNotMatch(popup.textContent ?? '', /防御力ダウン/);
   }));
 
+test('TurnRowController enemy detail popup resolves missing sourceSkillDesc from store', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96015,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 1);
+    stateBefore.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    stateBefore.turnState.enemyState.statuses = [
+      {
+        statusType: 'DefenseDown',
+        targetIndex: 0,
+        remainingTurns: 2,
+        power: 0.3,
+        exitCond: 'EnemyTurnEnd',
+        sourceSkillId: 46001311,
+        sourceSkillName: 'ヒットチャートからの一閃',
+      },
+    ];
+
+    mountTurnRow({
+      root,
+      stateBefore,
+      store: {
+        ...createStoreStub(),
+        resolveSkillDescription(skillId) {
+          return Number(skillId) === 46001311 ? '敵の防御力と闇属性防御力を下げる' : null;
+        },
+      },
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.match(popup.textContent ?? '', /ヒットチャートからの一閃/);
+    assert.match(popup.textContent ?? '', /敵の防御力と闇属性防御力を下げる/);
+  }));
+
 test('TurnRowController committed enemy detail popup includes committed action flow section', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
@@ -2752,6 +2793,48 @@ test('char detail popup shows preview section at top of status tab', () =>
     assert.doesNotMatch(popup.textContent ?? '', /0回/);
     const previewBlocks = popup.querySelectorAll('.char-popup-preview-section .char-popup-buff-block');
     assert.equal(previewBlocks.length > 0, true);
+  }));
+
+test('char detail popup resolves missing sourceSkillDesc from resolver', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [
+          {
+            statusType: 'AttackUp',
+            power: 0.4,
+            remaining: 2,
+            exitCond: 'PlayerTurnEnd',
+            sourceSkillId: 46300009,
+            sourceSkillName: 'ソフニング',
+          },
+        ],
+      },
+      {
+        x: 200,
+        y: 120,
+        isCommitted: false,
+        resolveSkillDescription(skillId) {
+          return Number(skillId) === 46300009 ? '敵の防御力を下げる' : null;
+        },
+      }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /ソフニング/);
+    assert.match(popup.textContent ?? '', /敵の防御力を下げる/);
   }));
 
 test('char detail popup prefixes elemental critical labels and icons with 雷 for Thunder effects', () =>

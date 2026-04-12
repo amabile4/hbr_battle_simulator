@@ -117,6 +117,10 @@ function normalizeEnemyStatusForSnapshot(status, enemyCount = 1) {
   if (sourceCharacterName) {
     normalized.sourceCharacterName = sourceCharacterName;
   }
+  const sourceSkillDesc = String(status?.sourceSkillDesc ?? '').trim();
+  if (sourceSkillDesc) {
+    normalized.sourceSkillDesc = sourceSkillDesc;
+  }
   if (status?.metadata && typeof status.metadata === 'object') {
     normalized.metadata = structuredClone(status.metadata);
   }
