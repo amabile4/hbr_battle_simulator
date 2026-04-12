@@ -357,6 +357,7 @@ export function buildEnemyStatusTableHtml(statuses) {
       const exitCond = String(status?.exitCond ?? '').trim();
       const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
       const sourceCharacterName = String(status?.sourceCharacterName ?? '').trim();
+      const sourceSkillDesc = String(status?.sourceSkillDesc ?? '').trim();
 
       const powerStr =
         Number.isFinite(power) && power !== 0
@@ -391,6 +392,7 @@ export function buildEnemyStatusTableHtml(statuses) {
         (sourceSkillName ? `<span class="char-popup-buff-skill">[${esc(sourceSkillName)}]</span>` : '') +
         (sourceCharacterName ? `<span class="char-popup-buff-from">${esc(sourceCharacterName)}</span>` : '') +
         `</div>` +
+        (sourceSkillDesc ? `<div class="char-popup-buff-desc line-clamp-2">${esc(sourceSkillDesc)}</div>` : '') +
         `</div>` +
         `<div class="char-popup-buff-duration">${esc(remainingStr)}</div>` +
         `</div>`

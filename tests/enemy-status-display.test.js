@@ -501,6 +501,30 @@ test('buildEnemyStatusIconsHtml uses element-prefixed icon for status with eleme
   assert(html.includes('雷防御力ダウン'), 'should show 雷防御力ダウン in alt/title');
 });
 
+test('buildEnemyStatusTableHtml displays sourceSkillDesc when present', () => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      remaining: 2,
+      power: 0.3,
+      exitCond: 'TurnEnd',
+      sourceSkillName: 'スキル名',
+      sourceSkillDesc: '敵の防御力を30%ダウン',
+    },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses);
+  assert(html.includes('char-popup-buff-desc'), 'should include desc container');
+  assert(html.includes('敵の防御力を30%ダウン'), 'should display sourceSkillDesc text');
+});
+
+test('buildEnemyStatusTableHtml omits desc div when sourceSkillDesc is empty', () => {
+  const statuses = [
+    { statusType: 'AttackDown', remaining: 1, power: 0.2, exitCond: 'TurnEnd' },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses);
+  assert(!html.includes('char-popup-buff-desc'), 'should not include desc container when sourceSkillDesc is absent');
+});
+
 test('all skill_type entries in docs/active/elements_skill.md use element-prefixed label and icon when elements[0] exists', () => {
   const compositeTypes = loadElementCompositeSkillTypes();
   assert.ok(compositeTypes.length > 0, 'elements_skill.md should contain at least one skill_type entry');

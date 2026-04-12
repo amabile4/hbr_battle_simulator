@@ -1762,6 +1762,10 @@ function normalizeEnemyStatus(status, enemyCount = null) {
   if (sourceCharacterName) {
     normalized.sourceCharacterName = sourceCharacterName;
   }
+  const sourceSkillDesc = String(status?.sourceSkillDesc ?? '').trim();
+  if (sourceSkillDesc) {
+    normalized.sourceSkillDesc = sourceSkillDesc;
+  }
   if (status?.metadata && typeof status.metadata === 'object') {
     normalized.metadata = structuredClone(status.metadata);
   }
@@ -1826,6 +1830,9 @@ function mergeEnemyStatuses(current, next) {
   }
   if (!String(merged.sourceSkillLabel ?? '').trim()) {
     delete merged.sourceSkillLabel;
+  }
+  if (!String(merged.sourceSkillDesc ?? '').trim()) {
+    delete merged.sourceSkillDesc;
   }
   if (!merged.metadata) {
     delete merged.metadata;
@@ -7547,6 +7554,7 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
             sourceSkillId: Number(skill.skillId ?? 0),
             sourceSkillName: String(skill.name ?? ''),
             sourceSkillLabel: String(skill.label ?? ''),
+            sourceSkillDesc: String(skill?.desc ?? ''),
             sourceCharacterName: String(actor?.characterName ?? ''),
             metadata: {
               targetType: String(part?.target_type ?? ''),
@@ -9423,6 +9431,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
                 sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
                 sourceSkillName: String(passive?.name ?? ''),
                 sourceSkillLabel: String(passive?.label ?? ''),
+                sourceSkillDesc: String(passive?.desc ?? ''),
                 sourceCharacterName: String(member?.characterName ?? ''),
                 metadata: {
                   targetType: String(part?.target_type ?? ''),
