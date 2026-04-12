@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildFieldDisplayEntries,
+  isDisplayableDisasterState,
   isDisplayableTalismanState,
 } from '../ui-next/utils/field-state-display.js';
 
@@ -50,12 +51,30 @@ test('default inactive talisman state is not displayable', () => {
 
 test('active talisman state is included with level metadata', () => {
   const entries = buildFieldDisplayEntries({
-    talismanState: { active: true, level: 3, maxLevel: 10 },
+    talismanState: { active: true, level: 3, maxLevel: 10, penaltyPerLevel: 10 },
   });
 
   assert.equal(entries.length, 1);
   assert.equal(entries[0].label, '霊符状態');
   assert.deepEqual(entries[0].meta, ['有効', 'Lv3/10', '全能力-30']);
+});
+
+test('default inactive disaster state is not displayable', () => {
+  assert.equal(isDisplayableDisasterState({ active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 }), false);
+  const entries = buildFieldDisplayEntries({
+    disasterState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },
+  });
+  assert.equal(entries.length, 0);
+});
+
+test('active disaster state is included with level metadata', () => {
+  const entries = buildFieldDisplayEntries({
+    disasterState: { active: true, level: 2, maxLevel: 10, penaltyPerLevel: 7 },
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].label, '禍状態');
+  assert.deepEqual(entries[0].meta, ['有効', 'Lv2/10', '全能力-14']);
 });
 
 test('RiceField zone (稲穂フィールド) is displayed correctly', () => {

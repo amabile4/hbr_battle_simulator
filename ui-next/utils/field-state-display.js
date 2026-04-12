@@ -20,7 +20,10 @@ const FIELD_LABELS = Object.freeze({
   zone: 'Zone',
   territory: 'Territory',
   talisman: '霊符状態',
+  disaster: '禍状態',
 });
+const TALISMAN_PENALTY_PER_LEVEL = 10;
+const DISASTER_PENALTY_PER_LEVEL = 7;
 
 function formatMultiplier(value) {
   const numeric = Number(value);
@@ -93,6 +96,19 @@ function isDisplayableTalismanState(talismanState) {
   return active || level > 0 || hasCustomText;
 }
 
+function isDisplayableDisasterState(disasterState) {
+  if (!disasterState || typeof disasterState !== 'object') {
+    return false;
+  }
+  const active = Boolean(disasterState.active);
+  const level = Number(disasterState.level ?? 0);
+  const hasCustomText = Boolean(
+    String(disasterState.disasterName ?? disasterState.name ?? '').trim() ||
+      String(disasterState.desc ?? '').trim()
+  );
+  return active || level > 0 || hasCustomText;
+}
+
 function buildZoneEntry(zoneState) {
   if (!isActiveFieldState(zoneState)) {
     return null;
@@ -158,7 +174,8 @@ function buildTalismanEntry(talismanState) {
   const active = Boolean(talismanState?.active);
   const level = Number(talismanState?.level ?? 0);
   const maxLevel = Math.max(1, Number(talismanState?.maxLevel ?? 10));
-  const penalty = Math.max(0, Math.floor(level) * 10);
+  const penaltyPerLevel = Math.max(0, Number(talismanState?.penaltyPerLevel ?? TALISMAN_PENALTY_PER_LEVEL));
+  const penalty = Math.max(0, Math.floor(level) * penaltyPerLevel);
   const duration = resolveRemainingLabel(talismanState?.remainingTurns);
   const name = String(talismanState?.talismanName ?? talismanState?.name ?? FIELD_LABELS.talisman).trim();
   const desc = String(talismanState?.desc ?? '').trim();
@@ -179,11 +196,41 @@ function buildTalismanEntry(talismanState) {
   };
 }
 
+function buildDisasterEntry(disasterState) {
+  if (!isDisplayableDisasterState(disasterState)) {
+    return null;
+  }
+  const active = Boolean(disasterState?.active);
+  const level = Number(disasterState?.level ?? 0);
+  const maxLevel = Math.max(1, Number(disasterState?.maxLevel ?? 10));
+  const penaltyPerLevel = Math.max(0, Number(disasterState?.penaltyPerLevel ?? DISASTER_PENALTY_PER_LEVEL));
+  const penalty = Math.max(0, Math.floor(level) * penaltyPerLevel);
+  const duration = resolveRemainingLabel(disasterState?.remainingTurns);
+  const name = String(disasterState?.disasterName ?? disasterState?.name ?? FIELD_LABELS.disaster).trim();
+  const desc = String(disasterState?.desc ?? '').trim();
+  const meta = [
+    active ? '有効' : '待機',
+    `Lv${Math.max(0, Math.floor(level))}/${Math.floor(maxLevel)}`,
+    penalty > 0 ? `全能力-${penalty}` : '全能力-0',
+  ].filter(Boolean);
+  return {
+    kind: 'disaster',
+    label: FIELD_LABELS.disaster,
+    name,
+    duration,
+    desc,
+    meta,
+    chipText: `${name} / Lv${Math.max(0, Math.floor(level))}`,
+    chipTone: 'neutral',
+  };
+}
+
 export function buildFieldDisplayEntries(stateOrRecord) {
   const entries = [];
   const zoneEntry = buildZoneEntry(stateOrRecord?.zoneState ?? null);
   const territoryEntry = buildTerritoryEntry(stateOrRecord?.territoryState ?? null);
   const talismanEntry = buildTalismanEntry(stateOrRecord?.talismanState ?? null);
+  const disasterEntry = buildDisasterEntry(stateOrRecord?.disasterState ?? null);
 
   if (zoneEntry) {
     entries.push(zoneEntry);
@@ -194,8 +241,11 @@ export function buildFieldDisplayEntries(stateOrRecord) {
   if (talismanEntry) {
     entries.push(talismanEntry);
   }
+  if (disasterEntry) {
+    entries.push(disasterEntry);
+  }
 
   return entries;
 }
 
-export { isDisplayableTalismanState };
+export { isDisplayableTalismanState, isDisplayableDisasterState };

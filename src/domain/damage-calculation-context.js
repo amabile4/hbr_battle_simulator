@@ -40,6 +40,15 @@ export function buildDamageCalculationContext(input = {}) {
             ])
           )
         : {},
+    enemyDisasterLevelByEnemy:
+      input.enemyDisasterLevelByEnemy && typeof input.enemyDisasterLevelByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.enemyDisasterLevelByEnemy).map(([targetIndex, level]) => [
+              String(targetIndex),
+              Number(level ?? 0),
+            ])
+          )
+        : {},
     enemyAllAbilityDownByEnemy:
       input.enemyAllAbilityDownByEnemy && typeof input.enemyAllAbilityDownByEnemy === 'object'
         ? Object.fromEntries(

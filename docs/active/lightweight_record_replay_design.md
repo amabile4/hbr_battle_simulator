@@ -1,6 +1,6 @@
 # 軽量 Record / Replay / Edit 設計案
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-04-10
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-04-11
 >
 > **前提調査**: [`../20260314_record_replay_edit_investigation/README.md`](../20260314_record_replay_edit_investigation/README.md)
 
@@ -23,6 +23,10 @@
   - `FollowUpOverrides` で follow-up 対象補正を保持する
   - `EnemyCount` / `EnemyNames` / `EnemyDamageRates` / `EnemyDestructionRates` / `EnemyDestructionRateCaps` / `EnemyOdRates` / `EnemyAbsorbElements` / `EnemyBreakStates` / `EnemyStatuses` で summon 後の enemy slot snapshot を保持する
 - `operations` には `ActivateKishinka` / `ActivateMakaiKihei` / `ActivatePreemptiveOd` / `ReserveInterruptOd` に加えて `SummonEnemy` を実装済み
+- `ActivateMakaiKihei` は generic `previewTurn` ではなく専用 OD gain helper で解決する
+  - live enemy 数と enemy `od_rate` は反映する
+  - ドライブピアス補正は適用しない
+  - `extra` turn 中でも `allowedCharacterIds` に依存せず before-commit operation として適用する
 - stale special turn の圧縮は safe subset のみ実装済み
   - 直前 turn の再計算結果で OD / EX 継続が確実に消えた場合だけ後続 special turn を削除
   - break 継続や複合 override を跨ぐケースは warning に寄せて温存する

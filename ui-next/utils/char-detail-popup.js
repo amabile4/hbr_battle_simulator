@@ -11,18 +11,31 @@
  *   4. フィールド効果 — Zone/Territory/Talisman などのパーティ共通フィールド状態
  */
 
-import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { resolveUiAssetUrl, resolveSkillTypeAssetUrl } from '../../src/ui/style-asset-url.js';
 import { normalizeEnemyStatusType } from '../../src/domain/enemy-status.js';
 import { buildFieldDisplayEntries } from './field-state-display.js';
 import { SPECIAL_STATUS_TYPE_NAMES } from '../../src/domain/character-style.js';
 import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
+import {
+  getUnifiedStatusTypeId,
+  getElementSortValue,
+  getElementVariantCategory,
+  getStatusDurationSortValue,
+  USE_UNIFIED_ID_ORDER,
+  FALLBACK_ORDER_OFFSET,
+  UNKNOWN_ORDER_VALUE,
+} from './status-sort-order.js';
+import { resolveSourceSkillDescription } from './source-skill-description.js';
 
-const SKILL_TYPE_ICON_BASE = new URL('../../assets/skill_type/', import.meta.url).href;
+const DEAD_STATUS_ICON_FILE_NAME = 'dead.webp';
 
 export function resolveSkillTypeIconUrl(statusType) {
   const name = String(statusType ?? '').trim();
   if (!name) return '';
-  return `${SKILL_TYPE_ICON_BASE}${encodeURIComponent(name)}.webp`;
+  if (name.toLowerCase() === 'dead') {
+    return resolveUiAssetUrl(DEAD_STATUS_ICON_FILE_NAME);
+  }
+  return resolveSkillTypeAssetUrl(`${name}.webp`);
 }
 
 // ============================================================
@@ -160,6 +173,7 @@ const STATUS_LABELS = {
 
   // フィールド関連
   Talisman:                  '霊符状態',
+  Disaster:                  '禍状態',
   ZoneUpEternal:             'フィールド状態永続',
   ReviveTerritory:           '再生の陣',
 
@@ -179,72 +193,24 @@ const STATUS_LABELS = {
 
 export const STATUS_TYPE_DISPLAY_ORDER = Object.freeze(Object.keys(STATUS_LABELS));
 
-// true: json/skill_types.json の ID 昇順を優先
-// false: 従来の STATUS_TYPE_DISPLAY_ORDER 順を使用
-// すぐ元に戻したい場合はこの1行だけ false に変更する。
-const USE_SKILL_TYPE_ID_ASC_ORDER_IN_STATUS_TAB = true;
-
 const STATUS_TYPE_DISPLAY_ORDER_INDEX = new Map(
   STATUS_TYPE_DISPLAY_ORDER.map((statusType, index) => [statusType, index])
 );
-
-// 状態変化タブ向け skill_type ID マップ（よく表示される種別を優先）
-// ID未定義は既存順へフォールバックする。
-const STATUS_TAB_SKILL_TYPE_ID_MAP = Object.freeze({
-  Reinforce: -2,
-  ActionDisabled: -1,
-  HealDp: 20,
-  HealSp: 22,
-  AttackUp: 30,
-  AttackDown: 32,
-  DefenseDown: 34,
-  DefenseUp: 36,
-  StunRandom: 41,
-  Funnel: 50,
-  Provoke: 54,
-  Invincible: 56,
-  CriticalRateUp: 70,
-  CriticalRateDown: 72,
-  CriticalDamageUp: 74,
-  CriticalDamageDown: 76,
-  OverDrivePointUp: 80,
-  ResistUp: 100,
-  ResistDown: 102,
-  Fragile: 104,
-  ConfusionRandom: 107,
-  ImprisonRandom: 110,
-  BuffCharge: 111,
-  OverDrivePointDown: 123,
-  RecoilRandom: 129,
-  HealDown: 146,
-  Cover: 162,
-  Misfortune: 164,
-  MindEye: 187,
-  SelfDamage: 192,
-  DebuffGuard: 226,
-  BreakGuard: 231,
-  SuperBreak: 221,
-  RemoveBuff: 235,
-  Dodge: 243,
-  BreakDownTurnUp: 264,
-  RemoveDebuff: 301,
-  SuperBreakDown: 302,
-});
 
 function getStatusTabOrderValue(statusType) {
   const normalized = String(statusType ?? '').trim();
   const displayIndex = STATUS_TYPE_DISPLAY_ORDER_INDEX.get(normalized);
 
-  if (USE_SKILL_TYPE_ID_ASC_ORDER_IN_STATUS_TAB) {
-    const id = STATUS_TAB_SKILL_TYPE_ID_MAP[normalized];
-    if (Number.isFinite(id)) {
+  if (USE_UNIFIED_ID_ORDER) {
+    const id = getUnifiedStatusTypeId(normalized);
+    if (id !== undefined) {
       return id;
     }
     // ID未定義タイプは既存順を維持しつつ、ID定義タイプの後ろへ。
     if (displayIndex !== undefined) {
-      return 10000 + displayIndex;
+      return FALLBACK_ORDER_OFFSET + displayIndex;
     }
-    return 20000;
+    return UNKNOWN_ORDER_VALUE;
   }
 
   return displayIndex ?? Number.MAX_SAFE_INTEGER;
@@ -257,24 +223,49 @@ export function sortStatusEffectsForStatusTab(effects) {
   return effects
     .slice()
     .sort((a, b) => {
+      // §2.2 属性バリアント分類: (1)a → (1)b → (2)
+      const catA = getElementVariantCategory(a?.statusType, a?.elements);
+      const catB = getElementVariantCategory(b?.statusType, b?.elements);
+      if (catA !== catB) {
+        return catA - catB;
+      }
+
+      // §2.3 種別ID順
       const orderA = getStatusTabOrderValue(a?.statusType);
       const orderB = getStatusTabOrderValue(b?.statusType);
       if (orderA !== orderB) {
         return orderA - orderB;
       }
 
+      // 同一種別内の属性順
+      const elemA = getElementSortValue(a?.elements);
+      const elemB = getElementSortValue(b?.elements);
+      if (elemA !== elemB) {
+        return elemA - elemB;
+      }
+
+      // 同一種別内では Eternal → Turn系 → Count
+      const durationA = getStatusDurationSortValue(a);
+      const durationB = getStatusDurationSortValue(b);
+      if (durationA !== durationB) {
+        return durationA - durationB;
+      }
+
+      // §2.4 power 降順
       const powerA = Number(a?.power ?? 0);
       const powerB = Number(b?.power ?? 0);
       if (powerA !== powerB) {
         return powerB - powerA;
       }
 
+      // remaining 降順
       const remainingA = Number(a?.remaining ?? 0);
       const remainingB = Number(b?.remaining ?? 0);
       if (remainingA !== remainingB) {
         return remainingB - remainingA;
       }
 
+      // effectId 昇順
       const idA = Number(a?.effectId ?? 0);
       const idB = Number(b?.effectId ?? 0);
       return idA - idB;
@@ -351,10 +342,10 @@ function resolveFunnelSizeLabel(effect) {
   return '';
 }
 
-function buildEffectDisplayInfo(effect) {
+function buildEffectDisplayInfo(effect, resolveSkillDescription = null) {
   const statusType = String(effect?.statusType ?? '');
   const power = Number(effect?.power ?? 0);
-  const desc = String(effect?.sourceSkillDesc ?? '').trim();
+  const desc = resolveSourceSkillDescription(effect, resolveSkillDescription);
   if (statusType === 'Funnel') {
     const hitCount = Number.isFinite(power) ? Math.max(0, Math.round(power)) : 0;
     const perHitBonus = Number(effect?.metadata?.damageBonus ?? 0);
@@ -408,10 +399,14 @@ function buildSpecialStatusEffects({ isReinforcedMode = false, reinforcedTurnsRe
   return special;
 }
 
-function buildStatusBlockHtml(effect) {
+function buildStatusBlockHtml(effect, options = {}) {
   const label = resolveElementalStatusLabel(effect.statusType, effect.elements);
   const skillName = String(effect.sourceSkillName ?? '').trim();
-  const displayInfo = buildEffectDisplayInfo(effect);
+  const resolveSkillDescription =
+    typeof options?.resolveSkillDescription === 'function'
+      ? options.resolveSkillDescription
+      : null;
+  const displayInfo = buildEffectDisplayInfo(effect, resolveSkillDescription);
   const desc = displayInfo.desc;
   const powerStr = displayInfo.powerLabel;
   const exitCondStr = String(effect.exitCond ?? '');
@@ -438,7 +433,7 @@ function buildStatusBlockHtml(effect) {
   );
 }
 
-function buildPreviewStatusSectionHtml(previewActionFlow) {
+function buildPreviewStatusSectionHtml(previewActionFlow, options = {}) {
   const source = Array.isArray(previewActionFlow) ? previewActionFlow : [];
   const previewEffects = source
     .flatMap((action) => {
@@ -460,6 +455,7 @@ function buildPreviewStatusSectionHtml(previewActionFlow) {
         exitCond: String(event?.exitCond ?? 'Count'),
         elements: Array.isArray(event?.elements) ? [...event.elements] : [],
         sourceSkillName: String(event?.sourceSkillName ?? event?.skillName ?? action?.skillName ?? '').trim(),
+        sourceSkillId: Number(event?.sourceSkillId ?? event?.skillId ?? action?.skillId ?? 0),
         sourceCharacterName: String(event?.sourceCharacterName ?? action?.actorCharacterName ?? '').trim(),
       }));
       const funnelApplied = Array.isArray(action?.funnelApplied) ? action.funnelApplied : [];
@@ -470,6 +466,7 @@ function buildPreviewStatusSectionHtml(previewActionFlow) {
         exitCond: String(event?.exitCond ?? 'Count'),
         elements: [],
         sourceSkillName: String(event?.sourceSkillName ?? event?.skillName ?? action?.skillName ?? '').trim(),
+        sourceSkillId: Number(event?.sourceSkillId ?? event?.skillId ?? action?.skillId ?? 0),
         sourceCharacterName: String(event?.sourceCharacterName ?? action?.actorCharacterName ?? '').trim(),
         metadata: {
           damageBonus: Number(event?.damageBonus ?? event?.metadata?.damageBonus ?? 0),
@@ -479,7 +476,7 @@ function buildPreviewStatusSectionHtml(previewActionFlow) {
     })
     .filter((effect) => Boolean(String(effect.statusType ?? '').trim()));
   const previewBlocks = sortStatusEffectsForStatusTab(previewEffects)
-    .map((effect) => buildStatusBlockHtml(effect))
+    .map((effect) => buildStatusBlockHtml(effect, options))
     .join('');
 
   return (
@@ -497,7 +494,7 @@ function buildStatusTabHtml(statusEffects, options = {}) {
     ...buildSpecialStatusEffects(options),
     ...(Array.isArray(statusEffects) ? statusEffects : []),
   ];
-  const previewSectionHtml = buildPreviewStatusSectionHtml(options?.previewActionFlow ?? []);
+  const previewSectionHtml = buildPreviewStatusSectionHtml(options?.previewActionFlow ?? [], options);
   if (mergedEffects.length === 0) {
     return `${previewSectionHtml}<p class="char-popup-empty">なし</p>`;
   }
@@ -510,7 +507,7 @@ function buildStatusTabHtml(statusEffects, options = {}) {
   }
 
   const statusBlocksHtml = sortStatusEffectsForStatusTab(activeEffects)
-    .map((effect) => buildStatusBlockHtml(effect))
+    .map((effect) => buildStatusBlockHtml(effect, options))
     .join('');
 
   return `${previewSectionHtml}${statusBlocksHtml}`;
@@ -692,6 +689,8 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
     reinforcedTurnsRemaining,
     actionDisabledTurns,
     previewActionFlow: stateOrRecord?.previewActionFlow ?? [],
+    resolveSkillDescription:
+      typeof opts.resolveSkillDescription === 'function' ? opts.resolveSkillDescription : null,
   });
   popup.querySelector('[data-tab-panel="ability"]').innerHTML = buildAbilityTabHtml(member);
   popup.querySelector('[data-tab-panel="passive"]').innerHTML = buildPassiveTabHtml(member, passiveEvents);

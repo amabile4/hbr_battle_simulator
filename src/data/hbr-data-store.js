@@ -114,6 +114,43 @@ function buildSkillNameIndex(payload = {}) {
   return namesById;
 }
 
+function collectDescribedIdsRecursive(node, descriptionsById) {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      collectDescribedIdsRecursive(item, descriptionsById);
+    }
+    return;
+  }
+  if (!node || typeof node !== 'object') {
+    return;
+  }
+
+  const id = Number(node.id);
+  const desc = String(node.desc ?? '').trim();
+  if (Number.isFinite(id) && desc && !descriptionsById.has(id)) {
+    descriptionsById.set(id, desc);
+  }
+
+  for (const value of Object.values(node)) {
+    if (value && typeof value === 'object') {
+      collectDescribedIdsRecursive(value, descriptionsById);
+    }
+  }
+}
+
+function buildSkillDescriptionIndex(payload = {}) {
+  const descriptionsById = new Map();
+
+  collectDescribedIdsRecursive(payload.skills ?? [], descriptionsById);
+  collectDescribedIdsRecursive(payload.styles ?? [], descriptionsById);
+  collectDescribedIdsRecursive(payload.passives ?? [], descriptionsById);
+  collectDescribedIdsRecursive(payload.accessories ?? [], descriptionsById);
+  collectDescribedIdsRecursive(payload.characters ?? [], descriptionsById);
+  collectDescribedIdsRecursive(payload.supportSkills ?? [], descriptionsById);
+
+  return descriptionsById;
+}
+
 function toDateValue(value) {
   const t = new Date(String(value ?? '')).getTime();
   return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
@@ -321,6 +358,14 @@ export class HbrDataStore {
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
     this.skillNamesById = buildSkillNameIndex({
+      skills: this.skills,
+      styles: this.styles,
+      passives: this.passives,
+      accessories: this.accessories,
+      characters: this.characters,
+      supportSkills: this.supportSkills,
+    });
+    this.skillDescriptionsById = buildSkillDescriptionIndex({
       skills: this.skills,
       styles: this.styles,
       passives: this.passives,
@@ -559,6 +604,20 @@ export class HbrDataStore {
       return directName;
     }
     return String(this.skillNamesById.get(numericSkillId) ?? '').trim() || null;
+  }
+
+  resolveSkillDescription(skillId) {
+    const numericSkillId = Number(skillId);
+    if (!Number.isFinite(numericSkillId)) {
+      return null;
+    }
+
+    const directDescription = String(this.getSkillById(numericSkillId)?.desc ?? '').trim();
+    if (directDescription) {
+      return directDescription;
+    }
+
+    return String(this.skillDescriptionsById.get(numericSkillId) ?? '').trim() || null;
   }
 
   getLimitBreakMaxByTier(tier) {

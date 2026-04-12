@@ -44,7 +44,6 @@ import {
 } from '../utils/action-outcome-overrides.js';
 import {
   buildFollowUpOverrideEntry,
-  getFollowUpEnemyIndexForPosition,
   getFollowUpOverridesFromOverrideEntries,
   normalizeFollowUpOverrides,
 } from '../utils/follow-up-overrides.js';
@@ -87,6 +86,8 @@ const TURN_EDIT_PRESERVED_OVERRIDE_EXCLUDED_TYPES = new Set([
 const SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES = new Set([
   REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
 ]);
+const ENEMY_SINGLE_TARGET_TYPES = new Set(['Single', 'EnemySingle']);
+const ENEMY_ALL_TARGET_TYPES = new Set(['All', 'EnemyAll']);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -148,6 +149,7 @@ const PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID = Object.freeze({
   IMinase: 2,
   BIYamawaki: 3,
 });
+const FOLLOW_UP_MAX_TRIGGERS_PER_ACTION = 1;
 
 function resolvePursuitHitCountForMember(member) {
   const pursuitCandidates = [
@@ -1891,7 +1893,8 @@ export class TurnEngineManager {
       followUpOverrides,
       normalizedEnemyCount
     );
-    const pursuedHitCountByFrontPosition = new Map();
+    const pursuedHitCountByBackPosition = new Map();
+    const frontActionPositions = [];
     for (const override of normalizedFollowUpOverrides) {
       const backPosition = Number(override?.position);
       if (!Number.isInteger(backPosition) || backPosition < 3 || backPosition > 5) {
@@ -1901,9 +1904,34 @@ export class TurnEngineManager {
       if (!backMember) {
         continue;
       }
-      const frontPosition = backPosition - 3;
-      pursuedHitCountByFrontPosition.set(frontPosition, resolvePursuitHitCountForMember(backMember));
+      pursuedHitCountByBackPosition.set(backPosition, resolvePursuitHitCountForMember(backMember));
     }
+    for (const [posStr, action] of Object.entries(slotActions)) {
+      const slotPosition = Number(posStr);
+      if (!Number.isFinite(slotPosition) || action?.skillId == null) {
+        continue;
+      }
+      const member = action.styleId != null
+        ? state.party.find((candidate) => candidate.styleId === action.styleId)
+        : state.party.find((candidate) => candidate.position === slotPosition);
+      if (!member || member.position > 2) {
+        continue;
+      }
+      frontActionPositions.push(Number(member.position));
+    }
+    const singleExtraActionFollowUpOverride =
+      String(state?.turnState?.turnType ?? '') === 'extra' &&
+      frontActionPositions.length === FOLLOW_UP_MAX_TRIGGERS_PER_ACTION
+        ? (
+            // HBR の追撃は EX 非対象の後衛でも発動しうるため、
+            // 単独 EX 行動では列固定ではなく、その唯一の行動へ追撃を載せる。
+            normalizedFollowUpOverrides.find(
+              (override) => Number(override?.position) === frontActionPositions[0] + 3
+            ) ??
+            normalizedFollowUpOverrides[0] ??
+            null
+          )
+        : null;
     for (const [posStr, action] of Object.entries(slotActions)) {
       const slotPosition = Number(posStr);
       if (!Number.isFinite(slotPosition)) continue;
@@ -1933,7 +1961,17 @@ export class TurnEngineManager {
         throw new Error(`Skill ${action.skillId} is not available for ${member.characterId}`);
       }
 
-      const materializedTarget = this.#materializeActionTarget(state, action.target);
+      let materializedTarget = this.#materializeActionTarget(state, action.target);
+      if (this.#isEnemySingleTargetSkill(state, member, skill)) {
+        materializedTarget = {
+          ...materializedTarget,
+          targetEnemyIndex: this.#normalizeSingleTargetEnemyIndex(
+            materializedTarget?.targetEnemyIndex,
+            normalizedEnemyCount,
+            state
+          ),
+        };
+      }
       const breakEnemyIndexes = getBreakEnemyIndexesForPosition(
         normalizedActionOutcomeOverrides,
         member.position
@@ -1942,15 +1980,21 @@ export class TurnEngineManager {
         normalizedActionOutcomeOverrides,
         member.position
       );
-      const followUpEnemyIndex = getFollowUpEnemyIndexForPosition(
-        normalizedFollowUpOverrides,
-        member.position + 3
-      );
+      const resolvedFollowUpOverride =
+        singleExtraActionFollowUpOverride && frontActionPositions[0] === Number(member.position)
+          ? singleExtraActionFollowUpOverride
+          : normalizedFollowUpOverrides.find(
+              (override) => Number(override?.position) === Number(member.position) + 3
+            ) ?? null;
 
       // 追撃は前衛行動とは独立して管理し、後衛側の追撃定義のみから hit 数を解決する。
       let resolvedPursuedHitCount = 0;
+      const followUpEnemyIndex =
+        resolvedFollowUpOverride != null ? Number(resolvedFollowUpOverride.enemyIndex) : null;
       if (followUpEnemyIndex !== null && followUpEnemyIndex !== undefined) {
-        resolvedPursuedHitCount = Number(pursuedHitCountByFrontPosition.get(member.position) ?? 1);
+        resolvedPursuedHitCount = Number(
+          pursuedHitCountByBackPosition.get(Number(resolvedFollowUpOverride.position)) ?? 1
+        );
       }
 
       actions[member.position] = {
@@ -2168,6 +2212,30 @@ export class TurnEngineManager {
       }
     }
     return {};
+  }
+
+  #isEnemySingleTargetSkill(state, member, skill) {
+    let effectiveSkill = skill;
+    try {
+      effectiveSkill = resolveEffectiveSkillForAction(state, member, skill) ?? skill;
+    } catch {
+      effectiveSkill = skill;
+    }
+    const skillTargetType = String(
+      effectiveSkill?.targetType ?? effectiveSkill?.target_type ?? skill?.targetType ?? skill?.target_type ?? ''
+    ).trim();
+    const effectiveParts = Array.isArray(effectiveSkill?.parts) ? effectiveSkill.parts : [];
+    if (effectiveParts.some((part) =>
+      ENEMY_ALL_TARGET_TYPES.has(String(part?.target_type ?? skillTargetType).trim())
+    )) {
+      return false;
+    }
+    if (effectiveParts.some((part) =>
+      ENEMY_SINGLE_TARGET_TYPES.has(String(part?.target_type ?? skillTargetType).trim())
+    )) {
+      return true;
+    }
+    return ENEMY_SINGLE_TARGET_TYPES.has(skillTargetType);
   }
 
   #normalizeSingleTargetEnemyIndex(targetEnemyIndex, enemyCount, state = null) {

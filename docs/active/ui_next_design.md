@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-09
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-12
 
 ## 目的
 
@@ -299,11 +299,17 @@
 - 戦闘中 summon は `Enemy Setup` ではなく turn row の `敵情報確認` trigger から投入する
 - row 上の `enemy tools box` は `敵情報確認` trigger だけを持ち、`召喚 / ブレイク / 討伐` の入口は `enemy-detail-popup-container` 内へ移す
 - enemy detail popup は `E1 / E2 / E3` の 3 tab を常設し、wide では tab 直下を 3 等分カラム、narrow では選択中 enemy の 1 カラム表示へ切り替える
+- popup header 直下に `3表示 / 1表示` toggle を置き、manual layout は popup を閉じるまで保持する
+- 初期 layout は occupied enemy slot 数で決め、`occupied <= 1` は `1表示`、`occupied >= 2` は `3表示` を既定にする
+- `3表示` は raw viewport breakpoint ではなく popup content 幅の最小列幅ルールで許可し、耐性3行化や action row 縦積みが出る前に `1表示` を強制する
 - wide 時は 3 カラムすべてに `名称` fold / `プレビュー（コミット見込み）` / `状態異常 / バフ` を表示し、`召喚 / ブレイク / 討伐` action row は選択中 tab のカラム先頭にだけ出す
 - action row は上から `召喚 / ブレイク / 討伐`、その下に `名称` fold、`プレビュー（コミット見込み）`、`状態異常 / バフ` の順で表示する
 - popup 左上の `敵詳細` タイトルは置かず、`E1 / E2 / E3` tab と close `×` を同じ高さの header row に並べる
 - `名称` header は click で開閉でき、右端の `▼ / ▲` で展開状態を示す
 - `Summon.webp` は popup action row の `召喚` ボタンに使い、button 押下で listbox popover を開いて敵 preset を 1 体選んで `SummonEnemy` before-commit operation として積む
+- summon popover を開いても `enemy-detail-popup-container` は閉じず、そのまま背面に維持する
+- summon popover は popup 本体より前面に重ね、位置決めは popup 内の `召喚` action を優先 anchor にする
+- summon popover の配色は popup 本体に寄せ、`bg-slate-800` / `border-slate-600` / `text-slate-100` 系で統一する
 - `Break.webp` と `defeat.webp` を popup action row の `ブレイク` / `討伐` icon に使う
 - `Break.webp` はラベルなしの画像ボタンとして扱い、縦寸は下部の状態異常 icon と同じ 28px、横はアスペクト比維持とする。`Summon.webp` / `defeat.webp` も icon 高さを同じ 28px に揃える
 - popup の `ブレイク` / `討伐` は `ActionOutcomeOverrides` ベースの actor attribution を正本とし、単体攻撃で一意なら即時 attribution、曖昧または全体攻撃なら popup 内 sub-panel editor を開く

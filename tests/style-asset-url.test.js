@@ -1,6 +1,12 @@
+import fs from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveStyleAssetUrl, resolveStyleImageUrl } from '../src/ui/style-asset-url.js';
+import { fileURLToPath } from 'node:url';
+import {
+  resolveStyleAssetUrl,
+  resolveStyleImageUrl,
+  resolveSkillTypeAssetUrl,
+} from '../src/ui/style-asset-url.js';
 
 test('resolveStyleAssetUrl points to assets/styles for style image filenames', () => {
   const url = resolveStyleAssetUrl('RKayamoriDefault_R1_Thumbnail.webp');
@@ -20,4 +26,17 @@ test('resolveStyleImageUrl reads styles.json-style image fields directly', () =>
 test('resolveStyleAssetUrl returns empty string for blank filenames', () => {
   assert.equal(resolveStyleAssetUrl(''), '');
   assert.equal(resolveStyleImageUrl({ image: null }), '');
+});
+
+test('resolveSkillTypeAssetUrl points to assets/skill_type for skill-type icon filenames', () => {
+  const url = resolveSkillTypeAssetUrl('Talisman.webp');
+
+  assert.match(url, /assets\/skill_type\/Talisman\.webp$/);
+});
+
+test('enemy detail popup skill-type icons exist in assets/skill_type', () => {
+  for (const fileName of ['Talisman.webp', 'Disaster.webp']) {
+    const filePath = fileURLToPath(resolveSkillTypeAssetUrl(fileName));
+    assert.equal(fs.existsSync(filePath), true, `${fileName} should exist in assets/skill_type`);
+  }
 });

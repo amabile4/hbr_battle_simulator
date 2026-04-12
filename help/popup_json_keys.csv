@@ -1,0 +1,228 @@
+Panel,Section,JSON Key,日本語 Name,日本語 Desc,属性バリアント,表示分類(exitCond)
+char-popup-panel,ヘッダー,characterName / name,キャラクター名,キャラクターの名前（表示用）,-,-
+char-popup-panel,ヘッダー,styleName / style_name,スタイル名,スタイルの名前（[スタイル名] として表示）,-,-
+char-popup-panel,ヘッダー,elements,属性,キャラクターの属性配列（Fire/Ice/Thunder/Light/Dark）。属性アイコンを表示,-,-
+char-popup-panel,ヘッダー,weaponType,武器種,キャラクターの武器種（Slash/Stab/Strike）。武器種アイコンを表示,-,-
+char-popup-panel,状態変化タブ,statusEffects,状態変化リスト,キャラクターに付与されているバフ/デバフの配列,-,-
+char-popup-panel,状態変化タブ,statusEffects[].statusType,バフ/デバフ種別,状態変化の種別キー（AttackUp/DefenseDown等）。STATUS_LABELSで日本語変換,-,-
+char-popup-panel,状態変化タブ,statusEffects[].power,効果量,状態変化の効果量（倍率）。百分率表示（例: 0.3 → +30%）,-,-
+char-popup-panel,状態変化タブ,statusEffects[].remaining,残りターン/回数,状態変化の残り持続（ターン数または回数）,-,-
+char-popup-panel,状態変化タブ,statusEffects[].exitCond,終了条件,状態変化の終了条件（Turn/Count/Eternal）,-,-
+char-popup-panel,状態変化タブ,statusEffects[].sourceSkillName,ソーススキル名,状態変化を付与したスキルの名前。[スキル名]として表示,-,-
+char-popup-panel,状態変化タブ,statusEffects[].sourceSkillDesc,ソーススキル説明,状態変化を付与したスキルの説明文。Funnel以外で補助説明として表示,-,-
+char-popup-panel,状態変化タブ,statusEffects[].sourceCharacterName,ソースキャラクター名,状態変化を付与したキャラクターの名前,-,-
+char-popup-panel,状態変化タブ,statusEffects[].elements,属性,状態変化の属性配列。属性付きアイコン/ラベル解決に使用,-,-
+char-popup-panel,状態変化タブ,statusEffects[].iconUrl,アイコンURL,状態変化のカスタムアイコンURL（指定がなければstatusTypeから自動解決）,-,-
+char-popup-panel,状態変化タブ,statusEffects[].effectId,効果ID,状態変化の一意識別子（ソート安定化用）,-,-
+char-popup-panel,状態変化タブ,statusEffects[].metadata.damageBonus,ダメージボーナス,Funnel用の1ヒット当たりダメージボーナス倍率,-,-
+char-popup-panel,状態変化タブ,isReinforcedMode,鬼神化中フラグ,鬼神化状態かどうか。trueなら状態変化リスト先頭に「鬼神化中」を表示,-,-
+char-popup-panel,状態変化タブ,reinforcedTurnsRemaining,鬼神化残りターン,鬼神化の残りターン数,-,-
+char-popup-panel,状態変化タブ,actionDisabledTurns,行動不能ターン数,行動不能の残りターン数。>0なら「行動不能」を表示,-,-
+char-popup-panel,プレビュー,previewActionFlow,プレビュー行動フロー,コミット見込みの行動配列（プレビューセクション用）,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied,適用状態変化,行動で適用される状態変化の配列,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied[].statusType,バフ/デバフ種別,適用される状態変化の種別キー,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied[].statusTypeId,特殊状態種別ID,SPECIAL_STATUS_TYPE_NAMESで名前解決される数値ID,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied[].power,効果量,適用される状態変化の効果量,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied[].remaining,残りターン/回数,適用される状態変化の持続,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied[].exitCond,終了条件,適用される状態変化の終了条件,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied[].elements,属性,適用される状態変化の属性配列,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied[].sourceSkillName / skillName,スキル名,状態変化を付与するスキルの名前,-,-
+char-popup-panel,プレビュー,previewActionFlow[].statusEffectsApplied[].sourceCharacterName / actorCharacterName,キャラクター名,状態変化を付与するキャラクターの名前,-,-
+char-popup-panel,プレビュー,previewActionFlow[].skillName,行動スキル名,行動のスキル名（フォールバック用）,-,-
+char-popup-panel,プレビュー,previewActionFlow[].actorCharacterName,行動キャラクター名,行動のキャラクター名（フォールバック用）,-,-
+char-popup-panel,プレビュー,previewActionFlow[].funnelApplied,ファンネル適用,行動で適用されるファンネルの配列,-,-
+char-popup-panel,プレビュー,previewActionFlow[].funnelApplied[].hitBonus / power,ヒットボーナス/効果量,ファンネルのヒットボーナスまたは効果量,-,-
+char-popup-panel,プレビュー,previewActionFlow[].funnelApplied[].remaining,残り回数,ファンネルの残り回数,-,-
+char-popup-panel,プレビュー,previewActionFlow[].funnelApplied[].exitCond,終了条件,ファンネルの終了条件,-,-
+char-popup-panel,プレビュー,previewActionFlow[].funnelApplied[].sourceSkillName / skillName,スキル名,ファンネルを付与するスキルの名前,-,-
+char-popup-panel,プレビュー,previewActionFlow[].funnelApplied[].sourceCharacterName / actorCharacterName,キャラクター名,ファンネルを付与するキャラクターの名前,-,-
+char-popup-panel,プレビュー,previewActionFlow[].funnelApplied[].damageBonus / metadata.damageBonus,ダメージボーナス,ファンネルの1ヒット当たりダメージボーナス,-,-
+char-popup-panel,アビリティタブ,passives,パッシブアビリティリスト,キャラクターのパッシブアビリティ配列,-,-
+char-popup-panel,アビリティタブ,passives[].name,パッシブ名,パッシブアビリティの名前,-,-
+char-popup-panel,アビリティタブ,passives[].desc,パッシブ説明,パッシブアビリティの説明文,-,-
+char-popup-panel,アビリティタブ,passives[].requiredLimitBreakLevel,限界突破レベル,表示対象の限界突破レベル（>0のもののみ表示）,-,-
+char-popup-panel,パッシブスキルタブ,characterId,キャラクターID,パッシブイベントのフィルタ用キャラクターID,-,-
+char-popup-panel,パッシブスキルタブ,passiveEvents[].characterId,キャラクターID,パッシブイベントのキャラクターID（member.characterIdと一致するもののみ表示）,-,-
+char-popup-panel,パッシブスキルタブ,passiveEvents[].passiveName,パッシブ名,当ターン発動済みパッシブの名前,-,-
+char-popup-panel,パッシブスキルタブ,passiveEvents[].passiveDesc,パッシブ説明,当ターン発動済みパッシブの説明文,-,-
+char-popup-panel,フィールドタブ,zoneState,ゾーン状態,Zoneフィールド状態オブジェクト,-,-
+char-popup-panel,フィールドタブ,zoneState.type,属性タイプ,ゾーンの属性（Fire/Ice/Thunder/Light/Dark/RiceField）,-,-
+char-popup-panel,フィールドタブ,zoneState.zoneName / name,ゾーン名,ゾーンの表示名（未指定時は「{属性}ゾーン」）,-,-
+char-popup-panel,フィールドタブ,zoneState.zoneDesc / desc,ゾーン説明,ゾーンの説明文,-,-
+char-popup-panel,フィールドタブ,zoneState.remainingTurns,残りターン,ゾーンの残りターン数（null/undefinedは永続）,-,-
+char-popup-panel,フィールドタブ,zoneState.powerRate,倍率,ゾーンの効果倍率（x1.20等で表示）,-,-
+char-popup-panel,フィールドタブ,territoryState,テリトリー状態,Territoryフィールド状態オブジェクト,-,-
+char-popup-panel,フィールドタブ,territoryState.type,属性タイプ,テリトリーの属性,-,-
+char-popup-panel,フィールドタブ,territoryState.territoryName / name,テリトリー名,テリトリーの表示名,-,-
+char-popup-panel,フィールドタブ,territoryState.desc,テリトリー説明,テリトリーの説明文,-,-
+char-popup-panel,フィールドタブ,territoryState.remainingTurns,残りターン,テリトリーの残りターン数,-,-
+char-popup-panel,フィールドタブ,territoryState.powerRate,倍率,テリトリーの効果倍率,-,-
+char-popup-panel,フィールドタブ,talismanState,霊符状態,霊符フィールド状態オブジェクト,-,-
+char-popup-panel,フィールドタブ,talismanState.active,有効フラグ,霊符が有効かどうか,-,-
+char-popup-panel,フィールドタブ,talismanState.level,レベル,霊符の現在レベル,-,-
+char-popup-panel,フィールドタブ,talismanState.maxLevel,最大レベル,霊符の最大レベル（デフォルト10）,-,-
+char-popup-panel,フィールドタブ,talismanState.penaltyPerLevel,レベル毎ペナルティ,霊符のレベル毎ペナルティ（デフォルト10）,-,-
+char-popup-panel,フィールドタブ,talismanState.talismanName / name,霊符名,霊符の表示名,-,-
+char-popup-panel,フィールドタブ,talismanState.desc,霊符説明,霊符の説明文,-,-
+char-popup-panel,フィールドタブ,talismanState.remainingTurns,残りターン,霊符の残りターン数,-,-
+char-popup-panel,フィールドタブ,disasterState,禍状態,禍フィールド状態オブジェクト,-,-
+char-popup-panel,フィールドタブ,disasterState.active,有効フラグ,禍が有効かどうか,-,-
+char-popup-panel,フィールドタブ,disasterState.level,レベル,禍の現在レベル,-,-
+char-popup-panel,フィールドタブ,disasterState.maxLevel,最大レベル,禍の最大レベル（デフォルト10）,-,-
+char-popup-panel,フィールドタブ,disasterState.penaltyPerLevel,レベル毎ペナルティ,禍のレベル毎ペナルティ（デフォルト7）,-,-
+char-popup-panel,フィールドタブ,disasterState.disasterName / name,禍名,禍の表示名,-,-
+char-popup-panel,フィールドタブ,disasterState.desc,禍説明,禍の説明文,-,-
+char-popup-panel,フィールドタブ,disasterState.remainingTurns,残りターン,禍の残りターン数,-,-
+enemy-detail-popup,タブ/基本情報,name,敵名,敵の表示名（未指定時は「E{index+1}」）,-,-
+enemy-detail-popup,タブ/基本情報,occupied,使用中フラグ,敵スロットが使用中かどうか,-,-
+enemy-detail-popup,タブ/基本情報,alive,生存フラグ,敵が生存しているかどうか,-,-
+enemy-detail-popup,タブ/基本情報,broken,ブレイクフラグ,敵がブレイク状態かどうか,-,-
+enemy-detail-popup,タブ/基本情報,dead,死亡フラグ,敵が死亡しているかどうか,-,-
+enemy-detail-popup,基本情報,od_rate,OD率,オーバードライブ倍率（x1.00形式で表示）,-,-
+enemy-detail-popup,基本情報,max_d_rate,最大D率,最大ダメージ倍率,-,-
+enemy-detail-popup,基本情報,hp,HP,敵の現在HP,-,-
+enemy-detail-popup,基本情報,maxHp,最大HP,敵の最大HP,-,-
+enemy-detail-popup,基本情報,damageRates,ダメージ倍率,属性/武器種別のダメージ倍率オブジェクト,-,-
+enemy-detail-popup,基本情報,damageRates.Slash,斬耐性,斬属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,damageRates.Stab,突耐性,突属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,damageRates.Strike,打耐性,打属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,damageRates.Fire,火耐性,火属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,damageRates.Ice,氷耐性,氷属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,damageRates.Thunder,雷耐性,雷属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,damageRates.Light,光耐性,光属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,damageRates.Dark,闇耐性,闇属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,damageRates.Nonelement,無耐性,無属性のダメージ倍率,-,-
+enemy-detail-popup,基本情報,absorbElements,吸収属性,敵が吸収する属性の配列,-,-
+enemy-detail-popup,アクションボタン,canSummon,召喚可能フラグ,敵スロットに敵を召喚可能かどうか,-,-
+enemy-detail-popup,アクションボタン,canBreak,ブレイク可能フラグ,敵にブレイクを付与可能かどうか,-,-
+enemy-detail-popup,アクションボタン,canKill,討伐可能フラグ,敵を討伐可能かどうか,-,-
+enemy-detail-popup,アクションボタン,hasPendingBreakOperation,ブレイク操作保留中,ブレイク操作が保留中かどうか（ボタンハイライト用）,-,-
+enemy-detail-popup,アクションボタン,hasPendingKillOperation,討伐操作保留中,討伐操作が保留中かどうか（ボタンハイライト用）,-,-
+enemy-detail-popup,アクションボタン,popupEditorHtml,ポップアップエディタHTML,カスタムエディタHTMLの直接挿入,-,-
+enemy-detail-popup,状態異常/バフ,statuses,状態異常リスト,敵に付与されている状態異常/バフの配列,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].statusType,バフ/デバフ種別,状態異常の種別キー。normalizeEnemyStatusTypeで正規化,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].power,効果量,状態異常の効果量（倍率）。百分率表示,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].remaining / remainingTurns,残りターン/回数,状態異常の残り持続,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].exitCond,終了条件,状態異常の終了条件（Turn/Count/Eternal）,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].elements,属性,状態異常の属性配列（属性付きアイコン/ラベル解決用）,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].sourceSkillName,ソーススキル名,状態異常を付与したスキルの名前,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].sourceCharacterName,ソースキャラクター名,状態異常を付与したキャラクターの名前,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].source,ソース,状態異常のソース識別子（メタデータ用）,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].effectId,効果ID,状態異常の一意識別子,-,-
+enemy-detail-popup,状態異常/バフ,statuses[].metadata,メタデータ,状態異常の追加メタデータオブジェクト,-,-
+enemy-detail-popup,霊符/禍,talismanState,霊符状態,敵の霊符状態オブジェクト,-,-
+enemy-detail-popup,霊符/禍,talismanState.active,有効フラグ,霊符が有効かどうか,-,-
+enemy-detail-popup,霊符/禍,talismanState.level,レベル,霊符の現在レベル,-,-
+enemy-detail-popup,霊符/禍,talismanState.maxLevel,最大レベル,霊符の最大レベル（デフォルト10）,-,-
+enemy-detail-popup,霊符/禍,talismanState.penaltyPerLevel,レベル毎ペナルティ,レベル毎の全能力ペナルティ（デフォルト10）,-,-
+enemy-detail-popup,霊符/禍,disasterState,禍状態,敵の禍状態オブジェクト,-,-
+enemy-detail-popup,霊符/禍,disasterState.active,有効フラグ,禍が有効かどうか,-,-
+enemy-detail-popup,霊符/禍,disasterState.level,レベル,禍の現在レベル,-,-
+enemy-detail-popup,霊符/禍,disasterState.maxLevel,最大レベル,禍の最大レベル（デフォルト10）,-,-
+enemy-detail-popup,霊符/禍,disasterState.penaltyPerLevel,レベル毎ペナルティ,レベル毎の全能力ペナルティ（デフォルト7）,-,-
+enemy-detail-popup,プレビュー,previewActionFlow,プレビュー行動フロー,コミット見込みの行動配列,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges,敵状態変化リスト,行動による敵への状態変化の配列,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges[].targetIndex,ターゲットインデックス,対象敵スロットのインデックス（0-2）,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges[].statusType,バフ/デバフ種別,適用される状態変化の種別キー,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges[].remaining / remainingTurns,残りターン/回数,適用される状態変化の持続,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges[].exitCond,終了条件,適用される状態変化の終了条件,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges[].power,効果量,適用される状態変化の効果量,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges[].elements,属性,適用される状態変化の属性配列,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges[].sourceSkillName,スキル名,状態変化を付与するスキルの名前,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].enemyStatusChanges[].sourceCharacterName,キャラクター名,状態変化を付与するキャラクターの名前,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].fieldStateApplied,フィールド状態変化リスト,行動によるフィールド状態変化の配列,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].fieldStateApplied[].kind,種別,フィールド状態の種別（talisman/disaster）,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].fieldStateApplied[].activeBefore,変更前有効フラグ,変更前のアクティブ状態,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].fieldStateApplied[].activeAfter,変更後有効フラグ,変更後のアクティブ状態,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].fieldStateApplied[].levelBefore,変更前レベル,変更前のレベル値,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].fieldStateApplied[].levelAfter,変更後レベル,変更後のレベル値,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].fieldStateApplied[].levelDelta,レベル変化量,レベルの変化量（+N表示用）,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].actorCharacterName,行動キャラクター名,行動を行うキャラクターの名前（霊符/禍プレビュー表示用）,-,-
+enemy-detail-popup,プレビュー,previewActionFlow[].skillName,行動スキル名,行動のスキル名（霊符/禍プレビュー表示用）,-,-
+共通,statusType値,Reinforce,鬼神化中,鬼神化状態（char-popup-panel専用の擬似ステータス）,なし,Turn → NT
+共通,statusType値,ActionDisabled,行動不能,行動不能状態（char-popup-panel専用の擬似ステータス）,なし,Turn → NT
+共通,statusType値,AttackUp,攻撃力アップ,攻撃力を上昇させるバフ,火/氷/雷/光/闇,Turn → NT
+共通,statusType値,AttackDown,攻撃力ダウン,攻撃力を低下させるデバフ,なし,Turn → NT
+共通,statusType値,AttackUpIncludeNormal,攻撃力アップ（通常攻撃含む）,通常攻撃を含む攻撃力上昇バフ,なし,Turn → NT
+共通,statusType値,DefenseUp,防御力アップ,防御力を上昇させるバフ,なし,Turn → NT
+共通,statusType値,DefenseDown,防御力ダウン,防御力を低下させるデバフ,火/氷/雷/光/闇,Turn → NT
+共通,statusType値,DamageRateUp,破壊率上昇量アップ,破壊率の上昇量を増加させるバフ,なし,Turn → NT
+共通,statusType値,ResistDown,耐性ダウン,属性耐性を低下させるデバフ,火/氷/雷/光/闇,Turn → NT
+共通,statusType値,ResistDownOverwrite,属性耐性打ち消し,属性耐性を打ち消すデバフ,火/氷/雷/光/闇,Turn → NT
+共通,statusType値,ToughnessUpValue,体力アップ,体力を上昇させるバフ,なし,Turn → NT
+共通,statusType値,Fragile,脆弱,脆弱状態（被ダメージ増加）,なし,Turn → NT
+共通,statusType値,Shredding,速弾き,速弾き状態,なし,Turn → NT
+共通,statusType値,HighBoost,ハイブースト,ハイブースト状態,なし,Turn → NT
+共通,statusType値,GiveAttackBuffUp,スキル攻撃力上昇の効果アップ,味方への攻撃バフ効果を増加,なし,Turn → NT
+共通,statusType値,GiveDebuffUp,デバフスキル効果量アップ,デバフスキルの効果量を増加,なし,Turn → NT
+共通,statusType値,GiveDefenseDebuffUp,防御力ダウン効果アップ,防御力ダウンの効果量を増加,なし,Turn → NT
+共通,statusType値,CriticalRateUp,クリティカル確率アップ,クリティカル確率を上昇させるバフ,火/氷/雷/光/闇,Turn → NT
+共通,statusType値,CriticalRateDown,クリティカル確率ダウン,クリティカル確率を低下させるデバフ,なし,Turn → NT
+共通,statusType値,CriticalDamageUp,クリティカルダメージアップ,クリティカルダメージを上昇させるバフ,火/氷/雷/光/闇,Turn → NT
+共通,statusType値,CriticalDamageDown,クリティカルダメージダウン,クリティカルダメージを低下させるデバフ,なし,Turn → NT
+共通,statusType値,HealDp,HP回復,HPを回復する効果,なし,Turn → NT
+共通,statusType値,HealDpByDamage,ダメージHP回復,ダメージに応じてHPを回復する効果,なし,Turn → NT
+共通,statusType値,HealDown,回復量ダウン,回復量を低下させるデバフ,なし,Turn → NT
+共通,statusType値,RegenerationDp,HP継続回復,HPを継続的に回復する効果,なし,Turn → NT
+共通,statusType値,ReviveDp,DPゲージ復活,DPゲージを復活させる効果,なし,Count → N回
+共通,statusType値,HealSp,SP回復,SPを回復する効果,なし,Turn → NT
+共通,statusType値,HealSpRandom,確率でSPを回復,確率でSPを回復する効果,なし,Turn → NT
+共通,statusType値,OverwriteSp,SP上書き,SPを特定値に上書きする効果,なし,Turn → NT
+共通,statusType値,SpecifySp,SP指定,SPを指定値に設定する効果,なし,Turn → NT
+共通,statusType値,SpLimitOverwrite,SP上限上書き,SP上限を上書きする効果,なし,Turn → NT
+共通,statusType値,HealEp,EP回復,EPを回復する効果,なし,Turn → NT
+共通,statusType値,HealSkillUsedCount,スキル使用回数回復,スキル使用回数を回復する効果,なし,Turn → NT
+共通,statusType値,OverDrivePointUp,ODゲージアップ,ODゲージを上昇させる効果,なし,Turn → NT
+共通,statusType値,OverDrivePointDown,ODゲージダウン,ODゲージを低下させる効果,なし,Turn → NT
+共通,statusType値,OverDrivePointUpByToken,トークンによるODゲージアップ,トークンを消費してODゲージを上昇,なし,Turn → NT
+共通,statusType値,ConfusionRandom,混乱,混乱状態異常,なし,Turn → NT
+共通,statusType値,ImprisonRandom,束縛,束縛状態異常,なし,Turn → NT
+共通,statusType値,StunRandom,気絶,気絶状態異常,なし,Turn → NT
+共通,statusType値,RecoilRandom,反動ダメージ,反動ダメージ状態異常,なし,Turn → NT
+共通,statusType値,Misfortune,不幸,不幸状態異常,なし,Turn → NT
+共通,statusType値,SelfDamage,自傷ダメージ,自傷ダメージ状態異常,なし,Turn → NT
+共通,statusType値,DebuffGuard,デバフ無効,デバフを無効化するバフ,なし,Turn/Count → NT or N回
+共通,statusType値,BuffCharge,チャージ,チャージ状態,なし,Count → N回
+共通,statusType値,Invincible,無敵,無敵状態,なし,Count → N回
+共通,statusType値,Cover,かばう,かばう状態,なし,Count → N回
+共通,statusType値,Dodge,回避,回避状態,なし,Count → N回
+共通,statusType値,Provoke,挑発,挑発状態,なし,Turn → NT
+共通,statusType値,Break,BREAK,ブレイク状態（敵専用・テーブル非表示）,なし,Persistent → 表示なし
+共通,statusType値,SuperBreak,強ブレイク,強ブレイク状態,氷/光,Persistent → 表示なし
+共通,statusType値,BreakGuard,ブレイクガード,ブレイクガード状態,なし,Turn/Count → NT or N回
+共通,statusType値,SuperBreakDown,超ダウン,超ダウン状態,なし,Persistent → 表示なし
+共通,statusType値,DownTurn,ダウンターン,ダウンターン状態（重複時はベスト1件に集約）,なし,Turn → NT
+共通,statusType値,BreakDownTurnUp,ブレイクダウンターン延長,ブレイクダウンターンを延長する効果,なし,Turn → NT
+共通,statusType値,MindEye,心眼,心眼状態（Count時スタック可能）,なし,Count → N回
+共通,statusType値,FightingSpirit,闘志,闘志状態,なし,Turn → NT
+共通,statusType値,Morale,士気,士気状態,なし,Turn → NT
+共通,statusType値,Motivation,やる気,やる気状態,なし,Turn → NT
+共通,statusType値,EternalOath,永遠の誓い,永遠の誓い状態,なし,Eternal → ∞
+共通,statusType値,ShadowClone,影分身,影分身状態,なし,Count → N回
+共通,statusType値,Funnel,連撃数アップ,連撃数を増加させる効果（小6%/中12%/大25%/特大50%）,なし,Count → N回
+共通,statusType値,Diva,歌姫の加護,歌姫の加護状態,なし,Turn → NT
+共通,statusType値,Hacking,ハッキング,ハッキング状態,なし,Turn → NT
+共通,statusType値,FireMark,火の印,火の印状態,なし,Turn → NT
+共通,statusType値,AdditionalTurn,追加ターン,追加ターンを付与する効果,なし,Count → N回
+共通,statusType値,DoubleActionExtraSkill,EXスキル連続発動,EXスキルを連続発動させる効果,なし,Count → N回
+共通,statusType値,SkillCondition,スキル条件,スキル条件状態,なし,Turn → NT
+共通,statusType値,SkillRandom,スキルランダム,スキルランダム状態,なし,Turn → NT
+共通,statusType値,SkillSwitch,スキルスイッチ,スキルスイッチ状態,なし,Turn → NT
+共通,statusType値,FixedHpDamageRateAttack,固定HP割合攻撃,固定HP割合攻撃効果,なし,Turn → NT
+共通,statusType値,TokenSet,トークン上昇,トークン上昇効果,なし,Turn → NT
+共通,statusType値,RemoveBuff,バフ解除,バフを解除する効果,なし,Turn → NT
+共通,statusType値,RemoveDebuff,デバフ解除,デバフを解除する効果,なし,Turn → NT
+共通,statusType値,RemoveSpecialStatus,特殊状態解除,特殊状態を解除する効果,なし,Turn → NT
+共通,statusType値,Talisman,霊符状態,霊符状態,なし,Eternal → ∞
+共通,statusType値,Disaster,禍状態,禍状態,なし,Eternal → ∞
+共通,statusType値,ZoneUpEternal,フィールド状態永続,フィールド状態を永続化する効果,なし,Eternal → ∞
+共通,statusType値,ReviveTerritory,再生の陣,再生の陣状態,なし,Turn → NT
+共通,statusType値,ArrowCherryBlossoms,桜花の矢,桜花の矢状態（キャラ固有）,なし,Count → N回
+共通,statusType値,BIYamawakiServant,山脇様のしもべ,山脇様のしもべ状態（キャラ固有）,なし,Turn → NT
+共通,statusType値,Curry,カレー,カレー状態（キャラ固有）,なし,Turn → NT
+共通,statusType値,Gelato,ジェラート,ジェラート状態（キャラ固有）,なし,Turn → NT
+共通,statusType値,Shchi,シチー,シチー状態（キャラ固有）,なし,Turn → NT
+共通,statusType値,Steak,ステーキ,ステーキ状態（キャラ固有）,なし,Turn → NT
+共通,statusType値,SpeedUp,速度アップ,速度を上昇させるバフ,なし,Turn → NT
+共通,statusType値,SpeedDown,速度ダウン,速度を低下させるデバフ,なし,Turn → NT
+共通,statusType値,Dead,死亡,死亡状態（敵専用の永続ステータス）,なし,Persistent → 表示なし

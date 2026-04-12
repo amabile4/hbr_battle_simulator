@@ -133,11 +133,28 @@ test('getActiveEnemyStatusesSorted filters and sorts by type priority', (t) => {
 
   const result = getActiveEnemyStatusesSorted(statuses);
 
-  // skill_types.json ID 昇順: AttackUp(30), AttackDown(32), DefenseDown(34)
+  // §2.2 category then ID: AttackUp(1b,30), DefenseDown(1b,34), AttackDown(2,32)
   assert.equal(result.length, 3, 'should filter out inactive status');
-  assert.equal(result[0].statusType, 'AttackUp', 'lower skill_type id should come first');
-  assert.equal(result[1].statusType, 'AttackDown', 'second lower skill_type id');
-  assert.equal(result[2].statusType, 'DefenseDown', 'third lower skill_type id');
+  assert.equal(result[0].statusType, 'AttackUp', 'category (1)b, lowest ID');
+  assert.equal(result[1].statusType, 'DefenseDown', 'category (1)b, next ID');
+  assert.equal(result[2].statusType, 'AttackDown', 'category (2), no element variants');
+});
+
+test('getActiveEnemyStatusesSorted groups same statusType by element before power', (t) => {
+  const statuses = [
+    { statusType: 'DefenseDown', remaining: 2, power: 10, exitCond: 'TurnEnd', elements: ['Ice'] },
+    { statusType: 'DefenseDown', remaining: 2, power: 20, exitCond: 'TurnEnd', elements: [] },
+    { statusType: 'DefenseDown', remaining: 2, power: 15, exitCond: 'TurnEnd', elements: ['Fire'] },
+  ];
+
+  const result = getActiveEnemyStatusesSorted(statuses);
+
+  // §2.2: (1)a (Fire→Ice) → (1)b (属性なし)
+  assert.deepEqual(
+    result.map((s) => [(s.elements?.[0] ?? ''), s.power]),
+    [['Fire', 15], ['Ice', 10], ['', 20]],
+    'should group by category (1)a first, then (1)b'
+  );
 });
 
 test('getActiveEnemyStatusesSorted sorts by power descending when priority is same', (t) => {
@@ -153,6 +170,22 @@ test('getActiveEnemyStatusesSorted sorts by power descending when priority is sa
     result.map((s) => s.power),
     [15, 10, 5],
     'should be sorted by power descending'
+  );
+});
+
+test('getActiveEnemyStatusesSorted orders same statusType as Eternal then Turn then Count before power', (t) => {
+  const statuses = [
+    { statusType: 'DefenseDown', remaining: 2, power: 90, exitCond: 'Count' },
+    { statusType: 'DefenseDown', remaining: 3, power: 50, exitCond: 'TurnEnd' },
+    { statusType: 'DefenseDown', remaining: 0, power: 10, exitCond: 'Eternal' },
+  ];
+
+  const result = getActiveEnemyStatusesSorted(statuses);
+
+  assert.deepEqual(
+    result.map((s) => [s.exitCond, s.power]),
+    [['Eternal', 10], ['TurnEnd', 50], ['Count', 90]],
+    'should prioritize duration group over power inside the same statusType'
   );
 });
 
@@ -482,6 +515,68 @@ test('buildEnemyStatusIconsHtml uses element-prefixed icon for status with eleme
 
   assert(html.includes('ThunderDefenseDown.webp'), 'should use ThunderDefenseDown.webp icon');
   assert(html.includes('雷防御力ダウン'), 'should show 雷防御力ダウン in alt/title');
+});
+
+test('buildEnemyStatusTableHtml displays sourceSkillDesc when present', () => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      remaining: 2,
+      power: 0.3,
+      exitCond: 'TurnEnd',
+      sourceSkillName: 'スキル名',
+      sourceSkillDesc: '敵の防御力を30%ダウン',
+    },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses);
+  assert(html.includes('char-popup-buff-desc'), 'should include desc container');
+  assert(html.includes('敵の防御力を30%ダウン'), 'should display sourceSkillDesc text');
+});
+
+test('buildEnemyStatusTableHtml resolves desc from sourceSkillId when sourceSkillDesc is absent', () => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      remaining: 2,
+      power: 0.3,
+      exitCond: 'TurnEnd',
+      sourceSkillId: 46001311,
+      sourceSkillName: 'ヒットチャートからの一閃',
+    },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses, {
+    resolveSkillDescription: (skillId) =>
+      Number(skillId) === 46001311 ? 'resolver 経由の防御力ダウン説明' : null,
+  });
+  assert(html.includes('char-popup-buff-desc'), 'should include desc container when resolver returns text');
+  assert(html.includes('resolver 経由の防御力ダウン説明'), 'should display resolved description text');
+});
+
+test('buildEnemyStatusTableHtml prefers sourceSkillDesc over resolver text', () => {
+  const statuses = [
+    {
+      statusType: 'DefenseDown',
+      remaining: 2,
+      power: 0.3,
+      exitCond: 'TurnEnd',
+      sourceSkillId: 46001311,
+      sourceSkillName: 'ヒットチャートからの一閃',
+      sourceSkillDesc: '保存済み説明文',
+    },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses, {
+    resolveSkillDescription: () => 'resolver 側の説明文',
+  });
+  assert(html.includes('保存済み説明文'), 'should prefer the persisted description');
+  assert(!html.includes('resolver 側の説明文'), 'should not override an existing description');
+});
+
+test('buildEnemyStatusTableHtml omits desc div when sourceSkillDesc is empty', () => {
+  const statuses = [
+    { statusType: 'AttackDown', remaining: 1, power: 0.2, exitCond: 'TurnEnd' },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses);
+  assert(!html.includes('char-popup-buff-desc'), 'should not include desc container when sourceSkillDesc is absent');
 });
 
 test('all skill_type entries in docs/active/elements_skill.md use element-prefixed label and icon when elements[0] exists', () => {

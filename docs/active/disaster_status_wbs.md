@@ -1,6 +1,6 @@
 # 禍（Disaster）実装 WBS
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-10 | 🔄 最終更新: 2026-04-10
+> **ステータス**: ✅ 完了 | 📅 作成: 2026-04-10 | 🔄 最終更新: 2026-04-10
 >
 > **親管理**: `docs/active/ui_next_unimplemented_tasklist.md`
 >
@@ -16,11 +16,11 @@
 - [x] 追加 JSON 再照合で `Disaster` を新規未実装 enemy debuff として切り出した
 - [x] `help/HEAVEN_BURNS_RED/バトル/禍.md` に画像仕様と実データを反映した
 - [x] `ui_next_unimplemented_tasklist.md` / `t34_followup_tasklist.md` / `docs/README.md` に導線を追加した
-- [ ] engine の `Disaster` state モデルを確定する
-- [ ] `もつれトラップ` の runtime / replay / recalculation を実装する
-- [ ] `damageContext` の全能力低下集計へ `Disaster` を統合する
-- [ ] enemy popup / field chip / char detail の UI を実装する
-- [ ] audit / runtime / UI テストを追加し baseline を更新する
+- [x] engine の `Disaster` state モデルを確定した
+- [x] `もつれトラップ` の runtime / replay / recalculation を実装した
+- [x] `damageContext` の全能力低下集計へ `Disaster` を統合した
+- [x] enemy popup / field chip / char detail の UI を実装した
+- [x] audit / runtime / UI テストを追加し baseline を更新した
 
 ## 現状認識
 
@@ -31,14 +31,14 @@
   - `scannedEntries=1801`
   - `logicGapCount=0`
   - `observabilityGapCount=2`
-  - `structuralEnemyStatusGaps=1`
+  - `structuralEnemyStatusGaps=0`
   - `silentSkipEnemyStatusCandidates=4`
-- 新規の structural gap は 1 件のみ
+- live data 上の `Disaster` 出現は引き続き 1 style / 1 active skill
   - style: `1005506` `[前進ネバーギブアップ！]`
   - skill: `46005514` `もつれトラップ`
-  - part: `skill_type="Disaster"`, `target_type="All"`, `power[0]=2`, `exitCond="Eternal"`
-- 現時点で live data 上の `Disaster` 出現はこの 1 件だけ
-- `assets/skill_type/Disaster.webp` は既に存在する
+  - skill part: `skill_type="Disaster"`, `target_type="All"`, `power[0]=2`, `exitCond="Eternal"`
+  - style passive: `100550603` `巻き添え` が `AdditionalHitOnSpecifiedSkill + Disaster` で追加 `+2`
+- `assets/skill_type/Disaster.webp` を enemy popup / field chip / char detail の正本 icon asset として使用する
 
 ### 画像から確定できる仕様
 
@@ -47,14 +47,14 @@
 - 最大レベル 10
 - 最大で全能力 70 減少
 - 全能力低下系を重ねた場合は、効果値の高いほうで算出する
-- `もつれトラップ` は「禍状態(解除不可)にする」かつ「禍レベルを 2 上昇させる」
+- `もつれトラップ` はスキル part として「禍状態(解除不可)にする」かつ「禍レベルを 2 上昇させる」
+- current live style では `巻き添え` も同時発火するため、初回使用結果は `Lv4 / 全能力-28`
 
 ### 現行シミュレーターの不足
 
-- `Disaster` は `ENEMY_STATUS_SKILL_TYPES` / UI label / popup summary / record contract のいずれにも未接続
-- `enemyState.talismanState` に相当する `Disaster` 専用 state がない
-- `damageContext.enemyAllAbilityDownByEnemy` は霊符起因しか入れていない
-- audit baseline test は旧前提のままで、追加 JSON 流入後の structural gap 1 件をまだ織り込んでいない
+- `enemyState.disasterState` と `fieldStateApplied.kind === 'disaster'` を追加し、record / replay / recalculation まで接続済み
+- `damageContext.enemyDisasterLevelByEnemy` と `enemyAllAbilityDownByEnemy` の max 集約を実装済み
+- audit baseline test / UI unit / runtime real-data test / browser E2E を更新済み
 
 ## 設計方針
 
@@ -91,46 +91,49 @@
 
 - [x] 画像仕様を help 文書へ反映する
 - [x] 追加 JSON 流入で `Disaster` が structural gap 1 件になったことを WBS に固定する
-- [ ] `tests/t33-skill-passive-audit.test.js` の baseline 更新方針を確定する
-  - 実装前は fail 原因として記録のみ
-  - 実装後は `structuralEnemyStatusGaps=0` を再固定する
+- [x] `tests/t33-skill-passive-audit.test.js` の baseline を更新した
+  - `structuralEnemyStatusGaps=0`
+  - `silentSkipEnemyStatusCandidates=4`
 
 ### WBS-2: engine state / runtime
 
-- [ ] `src/turn/turn-controller.js` に `Disaster` 専用 helper を追加する
-- [ ] `enemyState.disasterState` を battle state に追加する
-- [ ] active skill から `Disaster` 付与と `+2` level-up を処理する
-- [ ] level clamp を `10` に固定する
-- [ ] `Eternal` 状態として保持し、ターン経過で自動消滅させない
-- [ ] commit / replay / recalculate で同一結果になるように接続する
+- [x] `src/turn/turn-controller.js` に `Disaster` helper を追加した
+- [x] `enemyState.disasterState` を battle state に追加した
+- [x] active skill から `Disaster` 付与と `+2` level-up を処理した
+- [x] level clamp を `10` に固定した
+- [x] `Eternal` 状態として保持し、ターン経過で自動消滅させない
+- [x] commit / replay / recalculate で同一結果になるように接続した
 
 ### WBS-3: `damageContext` / record 集約
 
-- [ ] `damageContext.enemyAllAbilityDownByEnemy` が `Talisman` と `Disaster` の高いほうを採るようにする
-- [ ] 必要なら `enemyDisasterLevelByEnemy` を追加し、UI/record の観測点を明確にする
-- [ ] action record に `fieldStateApplied.kind === 'disaster'` を追加する
-- [ ] passive / active のどちらから来ても action-flow で level 変化が追えるようにする
+- [x] `damageContext.enemyAllAbilityDownByEnemy` が `Talisman` と `Disaster` の高いほうを採るようにした
+- [x] `enemyDisasterLevelByEnemy` を追加した
+- [x] action record に `fieldStateApplied.kind === 'disaster'` を追加した
+- [x] passive / active の両経路を action-flow で追えるようにした
 
 ### WBS-4: UI 表示
 
-- [ ] enemy popup に `Disaster.webp` icon 付き `禍` セクションを追加する
-- [ ] summary に `有効/無効`, `LvX/10`, `全能力-X` を表示する
-- [ ] preview / committed action-flow に `付与`, `Lv before→after`, `+N` を表示する
-- [ ] field chip / char detail に `禍状態` の snapshot 表示を追加する
-- [ ] `char-detail-popup.js` / `enemy-status-display.js` の label / icon / 表示順を更新する
+- [x] enemy popup に `Disaster.webp` icon 付き `禍` compact block（`LvX/10 / 全能力-X`）を追加した
+- [x] enemy popup が `assets/skill_type/Disaster.webp` を直接参照するように揃えた
+- [x] compact block の desc に `LvX/10`, `全能力-X` を表示した
+- [x] preview / committed action-flow に `付与`, `Lv before→after`, `+N` を表示した
+- [x] field chip / char detail に `禍状態` の snapshot 表示を追加した
+- [x] `char-detail-popup.js` / field summary の label を更新した
 
 ### WBS-5: テスト
 
-- [ ] `tests/turn-state-transitions.test.js` に `もつれトラップ` の real-data runtime test を追加する
-- [ ] `tests/damage-calculation-context.test.js` に `Talisman` と `Disaster` の高いほう採用を追加する
-- [ ] `tests/ui-next-field-state-display.test.js` と `tests/ui-next-turn-ui.test.js` に `禍` 表示を追加する
-- [ ] `tests/t33-skill-passive-audit.test.js` を新 baseline へ更新する
-- [ ] 実装後に `node scripts/generate-t33-skill-passive-audit.mjs` で `structuralEnemyStatusGaps=0` を確認する
+- [x] `tests/turn-state-transitions.test.js` に `もつれトラップ` の real-data runtime test を追加した
+- [x] `tests/damage-calculation-context.test.js` に `enemyDisasterLevelByEnemy` を追加した
+- [x] `tests/ui-next-field-state-display.test.js` と `tests/ui-next-turn-ui.test.js` に `禍` 表示を追加した
+- [x] `tests/t33-skill-passive-audit.test.js` を新 baseline へ更新した
+- [x] `node scripts/generate-t33-skill-passive-audit.mjs` で `structuralEnemyStatusGaps=0` を確認した
+- [x] browser E2E を追加し preview / committed popup を固定した
 
 ## 受け入れ条件
 
-- `もつれトラップ` 使用時に敵へ `禍` が付与され、同一 action で `Lv2/10` になる
-- `Disaster` による能力低下量が `全能力-14` として UI / record / `damageContext` に露出される
+- `もつれトラップ` の skill part で `禍 Lv2` が付与される
+- current live style では `巻き添え` まで含めて同一 action 後に `Lv4/10` になる
+- `Disaster` による能力低下量が `全能力-14`（skill part 単体）/ `全能力-28`（live style 合算）として UI / record / `damageContext` に露出される
 - `Talisman` と `Disaster` が併存しても `enemyAllAbilityDownByEnemy` は高いほうだけを採用する
 - enemy popup / field chip / char detail で `Disaster.webp` と level 表示を確認できる
 - audit summary から `Disaster` が structural gap として消える

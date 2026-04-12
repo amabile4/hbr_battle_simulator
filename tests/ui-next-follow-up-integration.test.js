@@ -26,6 +26,10 @@ const PROTECTION_SKILL = createSkill({
 
 function createPursuitTestParty(actorOptions = {}) {
   const backMemberSkills = actorOptions.backMemberSkills ?? [PROTECTION_SKILL];
+  const memberSkillsByIndex =
+    actorOptions.memberSkillsByIndex && typeof actorOptions.memberSkillsByIndex === 'object'
+      ? actorOptions.memberSkillsByIndex
+      : {};
   const members = Array.from({ length: 6 }, (_, index) =>
     new CharacterStyle({
       characterId: index === 0 ? (actorOptions.characterId ?? 'TM1') : `TM${index + 1}`,
@@ -37,7 +41,9 @@ function createPursuitTestParty(actorOptions = {}) {
       initialSP: 10,
       drivePiercePercent: index === 0 ? (actorOptions.drivePiercePercent ?? 0) : 0,
       skills: [
-        index === 0
+        Object.hasOwn(memberSkillsByIndex, index)
+          ? memberSkillsByIndex[index]
+          : index === 0
           ? (actorOptions.skills ?? [actorOptions.skill ?? PROTECTION_SKILL])
           : index === 3
             ? backMemberSkills
@@ -349,6 +355,64 @@ const PURSUIT_SKILL_1HIT = createSkill({
   targetType: 'Single',
   hitCount: 1,
   parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+});
+
+test('extra turn follow-up from non-EX backliner attaches to the sole EX action and survives recalculation', () => {
+  const actorSkill = createSkill({
+    id: 9306,
+    name: 'EX Pursuit Test',
+    targetType: 'Single',
+    spCost: 3,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const party = createPursuitTestParty({
+    characterId: 'EX_ACTOR',
+    skill: actorSkill,
+    memberSkillsByIndex: {
+      4: [PROTECTION_SKILL, PURSUIT_SKILL_4HIT],
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.turnType = 'extra';
+  state.turnState.turnLabel = 'EX';
+  state.turnState.odSuspended = true;
+  state.turnState.extraTurnState = {
+    active: true,
+    remainingActions: 1,
+    allowedCharacterIds: ['EX_ACTOR'],
+    grantTurnIndex: 0,
+  };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 9306, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    {
+      followUpOverrides: [{ position: 4, enemyIndex: 0 }],
+    }
+  );
+
+  const actorEntry = record.actions.find((a) => a.characterId === 'EX_ACTOR');
+  assert.ok(actorEntry, 'EX actor action should exist');
+  assert.equal(actorEntry.pursuedHitCount, 4, 'non-paired backliner pursuit should attach on sole EX action');
+  assert.equal(actorEntry.pursuedTargetEnemyIndex, 0);
+  assert.equal(record.projections?.odGaugeAtEnd, 12.5, '1hit skill + 4hit pursuit should total 12.5% OD');
+
+  const followUpEntry = manager.replayScript.turns[0]?.overrideEntries?.find(
+    (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+  );
+  assert.deepEqual(followUpEntry?.payload, [{ position: 4, enemyIndex: 0 }]);
+
+  manager.recalculateFrom(0);
+
+  const recalculatedEntry = manager.computedRecords[0]?.actions.find((a) => a.characterId === 'EX_ACTOR');
+  assert.ok(recalculatedEntry, 'recalculated EX actor action should exist');
+  assert.equal(recalculatedEntry.pursuedHitCount, 4);
+  assert.equal(manager.computedRecords[0]?.projections?.odGaugeAtEnd, 12.5);
 });
 
 test('pursuit OD gain is independent: non-damage front skill + pursuit still increases OD', () => {

@@ -42,6 +42,22 @@ import {
 
 export const BASE_SP_RECOVERY = 2;
 const TEZUKA_CHARACTER_ID = 'STezuka';
+const TALISMAN_MAX_LEVEL = 10;
+const TALISMAN_PENALTY_PER_LEVEL = 10;
+const DISASTER_MAX_LEVEL = 10;
+const DISASTER_PENALTY_PER_LEVEL = 7;
+const TALISMAN_STATE_DEFAULT = Object.freeze({
+  active: false,
+  level: 0,
+  maxLevel: TALISMAN_MAX_LEVEL,
+  penaltyPerLevel: TALISMAN_PENALTY_PER_LEVEL,
+});
+const DISASTER_STATE_DEFAULT = Object.freeze({
+  active: false,
+  level: 0,
+  maxLevel: DISASTER_MAX_LEVEL,
+  penaltyPerLevel: DISASTER_PENALTY_PER_LEVEL,
+});
 const HIGH_BOOST_STATUS_TYPE = 'HighBoost';
 const HIGH_BOOST_ONLY_GROUP_KEY = 'HighBoost';
 const HIGH_BOOST_SP_COST_INCREASE = 2;
@@ -117,14 +133,14 @@ const HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES = Object.freeze(
   ])
 );
 const SUPPORTED_ACTION_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(
-  new Set([...ENEMY_STATUS_SKILL_TYPES, 'SuperBreak', 'SuperBreakDown'])
+  new Set([...ENEMY_STATUS_SKILL_TYPES, 'SuperBreak', 'SuperBreakDown', 'Disaster'])
 );
 const SUPPORTED_PASSIVE_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(
   new Set([...ENEMY_STATUS_SKILL_TYPES, 'Talisman'])
 );
 const ENEMY_STATUS_TARGET_TYPES = Object.freeze(new Set(['Single', 'All', 'EnemySingle', 'EnemyAll']));
 const ENEMY_STATUS_REPORT_KEYWORD_RE =
-  /(Down|Fragile|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
+  /(Down|Fragile|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Disaster|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
 const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
   AttackUp: 'AttackUp',
   AttackUpIncludeNormal: 'AttackUp',
@@ -1582,9 +1598,87 @@ function normalizeEnemyStatusElements(elements) {
   return [...new Set(elements.map((value) => String(value ?? '').trim()).filter(Boolean))];
 }
 
+function resolvePreferredNonDamageRangeValue(rawValue) {
+  if (!Array.isArray(rawValue)) {
+    const scalar = Number(rawValue);
+    return Number.isFinite(scalar) ? scalar : null;
+  }
+  const values = rawValue
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  if (values.length === 0) {
+    return null;
+  }
+  const nonZeroValues = values.filter((value) => value !== 0);
+  if (nonZeroValues.length === 0) {
+    return values[0];
+  }
+  return nonZeroValues.reduce((best, candidate) => {
+    if (!Number.isFinite(best)) {
+      return candidate;
+    }
+    const bestAbs = Math.abs(best);
+    const candidateAbs = Math.abs(candidate);
+    if (candidateAbs !== bestAbs) {
+      return candidateAbs > bestAbs ? candidate : best;
+    }
+    return candidate;
+  }, Number.NaN);
+}
+
+function isDamageLikeSkillType(skillType) {
+  const normalized = String(skillType ?? '').trim().toLowerCase();
+  return (
+    normalized.includes('attack') ||
+    normalized.includes('damage') ||
+    normalized.includes('break')
+  );
+}
+
+function normalizeRuntimeNonDamagePart(part) {
+  if (!part || typeof part !== 'object') {
+    return part;
+  }
+
+  const skillType = String(part?.skill_type ?? '').trim();
+  const nestedVariants = Array.isArray(part?.strval)
+    ? part.strval.map((value) =>
+        value && typeof value === 'object' && Array.isArray(value.parts)
+          ? {
+              ...structuredClone(value),
+              parts: value.parts.map((nestedPart) => normalizeRuntimeNonDamagePart(nestedPart)),
+            }
+          : structuredClone(value)
+      )
+    : part?.strval;
+
+  if (skillType === 'SkillCondition' || skillType === 'SkillSwitch' || skillType === 'SkillRandom') {
+    return {
+      ...structuredClone(part),
+      ...(Array.isArray(part?.strval) ? { strval: nestedVariants } : {}),
+    };
+  }
+
+  if (isDamageLikeSkillType(skillType)) {
+    return {
+      ...structuredClone(part),
+      ...(Array.isArray(part?.strval) ? { strval: nestedVariants } : {}),
+    };
+  }
+
+  const normalized = {
+    ...structuredClone(part),
+    ...(Array.isArray(part?.strval) ? { strval: nestedVariants } : {}),
+  };
+  const resolvedPower = resolvePreferredNonDamageRangeValue(part?.power);
+  if (Array.isArray(part?.power) && Number.isFinite(resolvedPower)) {
+    normalized.power = [resolvedPower, resolvedPower];
+  }
+  return normalized;
+}
+
 function getEnemyStatusPowerValue(status) {
-  const raw = Array.isArray(status?.power) ? status.power[0] : status?.power;
-  const numeric = Number(raw);
+  const numeric = resolvePreferredNonDamageRangeValue(status?.power);
   return Number.isFinite(numeric) ? numeric : null;
 }
 
@@ -1668,6 +1762,10 @@ function normalizeEnemyStatus(status, enemyCount = null) {
   if (sourceCharacterName) {
     normalized.sourceCharacterName = sourceCharacterName;
   }
+  const sourceSkillDesc = String(status?.sourceSkillDesc ?? '').trim();
+  if (sourceSkillDesc) {
+    normalized.sourceSkillDesc = sourceSkillDesc;
+  }
   if (status?.metadata && typeof status.metadata === 'object') {
     normalized.metadata = structuredClone(status.metadata);
   }
@@ -1733,6 +1831,9 @@ function mergeEnemyStatuses(current, next) {
   if (!String(merged.sourceSkillLabel ?? '').trim()) {
     delete merged.sourceSkillLabel;
   }
+  if (!String(merged.sourceSkillDesc ?? '').trim()) {
+    delete merged.sourceSkillDesc;
+  }
   if (!merged.metadata) {
     delete merged.metadata;
   }
@@ -1764,7 +1865,8 @@ export function getEnemyState(turnState) {
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
-      talismanState: { active: false, level: 0, maxLevel: 10 },
+      talismanState: structuredClone(TALISMAN_STATE_DEFAULT),
+      disasterState: structuredClone(DISASTER_STATE_DEFAULT),
     };
   }
   const enemyCount = clampEnemyCount(state.enemyCount ?? DEFAULT_ENEMY_COUNT);
@@ -1800,9 +1902,19 @@ export function getEnemyState(turnState) {
         ? {
             active: Boolean(state.talismanState.active),
             level: Number(state.talismanState.level ?? 0),
-            maxLevel: Number(state.talismanState.maxLevel ?? 10),
+            maxLevel: Number(state.talismanState.maxLevel ?? TALISMAN_MAX_LEVEL),
+            penaltyPerLevel: Number(state.talismanState.penaltyPerLevel ?? TALISMAN_PENALTY_PER_LEVEL),
           }
-        : { active: false, level: 0, maxLevel: 10 },
+        : structuredClone(TALISMAN_STATE_DEFAULT),
+    disasterState:
+      state.disasterState && typeof state.disasterState === 'object'
+        ? {
+            active: Boolean(state.disasterState.active),
+            level: Number(state.disasterState.level ?? 0),
+            maxLevel: Number(state.disasterState.maxLevel ?? DISASTER_MAX_LEVEL),
+            penaltyPerLevel: Number(state.disasterState.penaltyPerLevel ?? DISASTER_PENALTY_PER_LEVEL),
+          }
+        : structuredClone(DISASTER_STATE_DEFAULT),
   };
 }
 
@@ -1887,94 +1999,168 @@ function syncTurnStateEnemyCount(turnState, enemyCount) {
   return turnState;
 }
 
-function getTalismanState(turnState) {
-  const raw = turnState?.enemyState?.talismanState;
+function getEnemyLeveledFieldState(turnState, stateKey, fallbackState) {
+  const raw = turnState?.enemyState?.[stateKey];
   if (!raw || typeof raw !== 'object') {
-    return { active: false, level: 0, maxLevel: 10 };
+    return { ...fallbackState };
   }
   return {
     active: Boolean(raw.active),
     level: Math.max(0, Number(raw.level ?? 0)),
-    maxLevel: Math.max(1, Number(raw.maxLevel ?? 10)),
+    maxLevel: Math.max(1, Number(raw.maxLevel ?? fallbackState.maxLevel)),
+    penaltyPerLevel: Math.max(0, Number(raw.penaltyPerLevel ?? fallbackState.penaltyPerLevel)),
   };
 }
 
-function setTalismanState(turnState, next) {
+function setEnemyLeveledFieldState(turnState, stateKey, next, fallbackState) {
   if (!turnState.enemyState || typeof turnState.enemyState !== 'object') {
     turnState.enemyState = {};
   }
-  turnState.enemyState.talismanState = {
+  const maxLevel = Math.max(1, Number(next.maxLevel ?? fallbackState.maxLevel));
+  turnState.enemyState[stateKey] = {
     active: Boolean(next.active),
-    level: Math.max(0, Math.min(Number(next.maxLevel ?? 10), Number(next.level ?? 0))),
-    maxLevel: Math.max(1, Number(next.maxLevel ?? 10)),
+    level: Math.max(0, Math.min(maxLevel, Number(next.level ?? 0))),
+    maxLevel,
+    penaltyPerLevel: Math.max(0, Number(next.penaltyPerLevel ?? fallbackState.penaltyPerLevel)),
   };
 }
 
-function createTalismanFieldEvent(change, options = {}) {
+function createEnemyLeveledFieldEvent(kind, change, options = {}) {
   if (!change) {
     return null;
   }
   return {
-    kind: 'talisman',
+    kind: String(kind ?? ''),
     source: String(options.source ?? ''),
     activeBefore: Boolean(change.before?.active),
     activeAfter: Boolean(change.after?.active),
     levelBefore: Number(change.before?.level ?? 0),
     levelAfter: Number(change.after?.level ?? 0),
     levelDelta: Number(change.levelDelta ?? 0),
-    maxLevel: Number(change.after?.maxLevel ?? change.before?.maxLevel ?? 10),
+    maxLevel: Number(change.after?.maxLevel ?? change.before?.maxLevel ?? 0),
   };
 }
 
-function applyTalismanChange(turnState, options = {}) {
-  const currentTalisman = getTalismanState(turnState);
+function applyEnemyLeveledFieldChange(turnState, stateKey, fallbackState, options = {}) {
+  const currentState = getEnemyLeveledFieldState(turnState, stateKey, fallbackState);
   const requiresActive = Boolean(options.requiresActive);
-  if (requiresActive && !currentTalisman.active) {
+  if (requiresActive && !currentState.active) {
     return null;
   }
 
-  const initialActivation = Boolean(options.initialActivation);
+  const activateOnApply = Boolean(options.activateOnApply);
   const levelDelta = Math.max(0, Number(options.levelDelta ?? 0));
-  const nextActive = initialActivation ? true : currentTalisman.active;
-  const baseLevel = nextActive ? currentTalisman.level : 0;
-  const nextLevel = initialActivation
-    ? 0
-    : Math.min(currentTalisman.maxLevel, baseLevel + levelDelta);
+  const nextActive = activateOnApply ? true : currentState.active;
+  const baseLevel = currentState.active ? currentState.level : 0;
+  const nextLevel = nextActive ? Math.min(currentState.maxLevel, baseLevel + levelDelta) : 0;
 
-  if (nextActive === currentTalisman.active && nextLevel === currentTalisman.level) {
+  if (nextActive === currentState.active && nextLevel === currentState.level) {
     return null;
   }
 
-  const nextTalisman = {
-    ...currentTalisman,
+  const nextState = {
+    ...currentState,
     active: nextActive,
     level: nextLevel,
   };
-  setTalismanState(turnState, nextTalisman);
+  setEnemyLeveledFieldState(turnState, stateKey, nextState, fallbackState);
   return {
-    before: currentTalisman,
-    after: getTalismanState(turnState),
-    levelDelta: nextLevel - currentTalisman.level,
+    before: currentState,
+    after: getEnemyLeveledFieldState(turnState, stateKey, fallbackState),
+    levelDelta: nextLevel - currentState.level,
   };
 }
 
-function buildEnemyTalismanMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
-  const talisman = getTalismanState(turnState);
+function buildEnemyLeveledPenaltyMaps(turnState, enemyCount, stateKey, fallbackState, levelMapKey) {
+  const fieldState = getEnemyLeveledFieldState(turnState, stateKey, fallbackState);
   const numericEnemyCount = clampEnemyCount(enemyCount);
-  const enemyTalismanLevelByEnemy = {};
-  const enemyAllAbilityDownByEnemy = {};
-  if (!talisman.active || talisman.level <= 0) {
-    return { enemyTalismanLevelByEnemy, enemyAllAbilityDownByEnemy };
+  const levelMap = {};
+  const penaltyMap = {};
+  if (!fieldState.active || fieldState.level <= 0) {
+    return { [levelMapKey]: levelMap, enemyAllAbilityDownByEnemy: penaltyMap };
   }
-  const penalty = talisman.level * 10;
+  const penalty = fieldState.level * fieldState.penaltyPerLevel;
   for (let index = 0; index < numericEnemyCount; index += 1) {
     if (!isEnemyAlive(turnState, index, numericEnemyCount)) {
       continue;
     }
-    enemyTalismanLevelByEnemy[String(index)] = talisman.level;
-    enemyAllAbilityDownByEnemy[String(index)] = penalty;
+    levelMap[String(index)] = fieldState.level;
+    penaltyMap[String(index)] = penalty;
   }
-  return { enemyTalismanLevelByEnemy, enemyAllAbilityDownByEnemy };
+  return { [levelMapKey]: levelMap, enemyAllAbilityDownByEnemy: penaltyMap };
+}
+
+function getTalismanState(turnState) {
+  return getEnemyLeveledFieldState(turnState, 'talismanState', TALISMAN_STATE_DEFAULT);
+}
+
+function setTalismanState(turnState, next) {
+  setEnemyLeveledFieldState(turnState, 'talismanState', next, TALISMAN_STATE_DEFAULT);
+}
+
+function createTalismanFieldEvent(change, options = {}) {
+  return createEnemyLeveledFieldEvent('talisman', change, options);
+}
+
+function applyTalismanChange(turnState, options = {}) {
+  return applyEnemyLeveledFieldChange(turnState, 'talismanState', TALISMAN_STATE_DEFAULT, {
+    ...options,
+    activateOnApply: Boolean(options.activateOnApply),
+  });
+}
+
+function buildEnemyTalismanMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  return buildEnemyLeveledPenaltyMaps(
+    turnState,
+    enemyCount,
+    'talismanState',
+    TALISMAN_STATE_DEFAULT,
+    'enemyTalismanLevelByEnemy'
+  );
+}
+
+function getDisasterState(turnState) {
+  return getEnemyLeveledFieldState(turnState, 'disasterState', DISASTER_STATE_DEFAULT);
+}
+
+function setDisasterState(turnState, next) {
+  setEnemyLeveledFieldState(turnState, 'disasterState', next, DISASTER_STATE_DEFAULT);
+}
+
+function createDisasterFieldEvent(change, options = {}) {
+  return createEnemyLeveledFieldEvent('disaster', change, options);
+}
+
+function applyDisasterChange(turnState, options = {}) {
+  return applyEnemyLeveledFieldChange(turnState, 'disasterState', DISASTER_STATE_DEFAULT, {
+    ...options,
+    activateOnApply: options.activateOnApply !== false,
+  });
+}
+
+function buildEnemyDisasterMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  return buildEnemyLeveledPenaltyMaps(
+    turnState,
+    enemyCount,
+    'disasterState',
+    DISASTER_STATE_DEFAULT,
+    'enemyDisasterLevelByEnemy'
+  );
+}
+
+function buildEnemyAllAbilityPenaltyMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const talismanMaps = buildEnemyTalismanMaps(turnState, enemyCount);
+  const disasterMaps = buildEnemyDisasterMaps(turnState, enemyCount);
+  const enemyAllAbilityDownByEnemy = { ...disasterMaps.enemyAllAbilityDownByEnemy };
+  for (const [targetIndex, penalty] of Object.entries(talismanMaps.enemyAllAbilityDownByEnemy)) {
+    const currentPenalty = Number(enemyAllAbilityDownByEnemy[targetIndex] ?? 0);
+    enemyAllAbilityDownByEnemy[targetIndex] = Math.max(currentPenalty, Number(penalty ?? 0));
+  }
+  return {
+    enemyTalismanLevelByEnemy: talismanMaps.enemyTalismanLevelByEnemy,
+    enemyDisasterLevelByEnemy: disasterMaps.enemyDisasterLevelByEnemy,
+    enemyAllAbilityDownByEnemy,
+  };
 }
 
 function normalizeFieldState(fieldState) {
@@ -2064,12 +2250,12 @@ function deriveZoneTypeFromPart(part) {
 }
 
 function resolveZonePowerRate(part) {
-  const power = Number(part?.power?.[0] ?? NaN);
+  const power = resolvePreferredNonDamageRangeValue(part?.power);
   return Number.isFinite(power) ? power : null;
 }
 
 function resolveTerritoryPowerRate(part) {
-  const power = Number(part?.power?.[0] ?? NaN);
+  const power = resolvePreferredNonDamageRangeValue(part?.power);
   return Number.isFinite(power) ? power : null;
 }
 
@@ -2976,7 +3162,9 @@ function collectEnemyStatusActionParts(skill, state, actor) {
 }
 
 function getTokenSetAmount(part) {
-  const amount = Number(part?.power?.[0] ?? part?.value?.[0] ?? 0);
+  const amount =
+    resolvePreferredNonDamageRangeValue(part?.power) ??
+    Number(part?.value?.[0] ?? 0);
   return Number.isFinite(amount) ? amount : 0;
 }
 
@@ -3070,7 +3258,7 @@ function getDpHealCapForPart(target, part) {
 
 function getDpSelfDamageAmount(target, part) {
   const baseMaxDp = Number(target?.dpState?.baseMaxDp ?? 0);
-  const rate = Number(part?.power?.[0] ?? 0);
+  const rate = resolvePreferredNonDamageRangeValue(part?.power);
   if (!Number.isFinite(baseMaxDp) || baseMaxDp <= 0 || !Number.isFinite(rate) || rate <= 0) {
     return 0;
   }
@@ -3499,12 +3687,14 @@ function applyTokenEffectsFromActions(state, previewRecord, dpEvents = []) {
 }
 
 function getMoraleAmount(part) {
-  const value = Number(part?.power?.[0] ?? part?.value?.[0] ?? 0);
+  const value =
+    resolvePreferredNonDamageRangeValue(part?.power) ??
+    Number(part?.value?.[0] ?? 0);
   return Number.isFinite(value) ? value : 0;
 }
 
 function getMotivationTargetLevel(part) {
-  const candidates = [part?.value?.[0], part?.power?.[0]];
+  const candidates = [part?.value?.[0], resolvePreferredNonDamageRangeValue(part?.power)];
   for (const raw of candidates) {
     const value = Number(raw);
     if (Number.isFinite(value) && value > 0) {
@@ -4402,7 +4592,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         const requiresActive = Number(part?.value?.[0] ?? 0) === 1;
         const change = applyTalismanChange(state.turnState, {
           requiresActive,
-          initialActivation: levelDelta === 0,
+          activateOnApply: levelDelta === 0,
           levelDelta,
         });
         if (!change) {
@@ -4431,6 +4621,43 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
               triggerSkillName: String(skill?.name ?? ''),
               fieldEvents: talismanFieldEvent ? [talismanFieldEvent] : [],
               talismanChange: talismanFieldEvent,
+            })
+          )
+        );
+        continue;
+      }
+
+      if (effectType === 'Disaster') {
+        const levelDelta = Number(part?.power?.[0] ?? 0);
+        const change = applyDisasterChange(state.turnState, {
+          levelDelta,
+        });
+        if (!change) {
+          continue;
+        }
+        const disasterFieldEvent = createDisasterFieldEvent(change, {
+          source: 'passive_trigger',
+        });
+        if (disasterFieldEvent) {
+          fieldStateEvents.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: actor.characterId,
+              skillId: Number(skill?.skillId ?? 0),
+              skillName: String(skill?.name ?? ''),
+              ...disasterFieldEvent,
+            })
+          );
+        }
+        passiveTriggerEvents.push(
+          buildActionScopedEvent(
+            actionEntry,
+            createPassiveTriggerEvent(state.turnState, actor, passive, {
+              source: 'passive_trigger',
+              effectTypes: ['Disaster'],
+              triggerSkillId: Number(skill?.skillId ?? 0),
+              triggerSkillName: String(skill?.name ?? ''),
+              fieldEvents: disasterFieldEvent ? [disasterFieldEvent] : [],
+              disasterChange: disasterFieldEvent,
             })
           )
         );
@@ -4897,7 +5124,8 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
-    talismanState: enemyState.talismanState ?? { active: false, level: 0, maxLevel: 10 },
+    talismanState: enemyState.talismanState ?? structuredClone(TALISMAN_STATE_DEFAULT),
+    disasterState: enemyState.disasterState ?? structuredClone(DISASTER_STATE_DEFAULT),
   };
   const downTurnTargetsAfter = new Set(
     getActiveEnemyStatuses(turnState, ENEMY_STATUS_DOWN_TURN).map((status) => Number(status?.targetIndex ?? -1))
@@ -5302,7 +5530,7 @@ function resolvePassiveEffectiveParts(passive, state, member) {
   for (const part of sourceParts) {
     const skillType = String(part?.skill_type ?? '');
     if (skillType !== 'SkillCondition') {
-      resolved.push(part);
+      resolved.push(normalizeRuntimeNonDamagePart(part));
       continue;
     }
 
@@ -5336,6 +5564,20 @@ function mergeConditionExpressions(baseExpression, nestedExpression) {
   return `(${base}) && (${nested})`;
 }
 
+function extractPlayedSkillCountValue(condExpression, member, skill) {
+  const text = String(condExpression ?? '').trim();
+  if (!text) {
+    return null;
+  }
+  const m = text.match(PLAYED_SKILL_COUNT_CONDITION_RE);
+  if (!m) {
+    return null;
+  }
+  const refRaw = String(m[1] ?? '').trim();
+  const ref = refRaw || String(skill?.label ?? '');
+  return Number(member?.getSkillUseCountByLabel(ref) ?? 0);
+}
+
 function resolveEffectiveSkillVariant(skill, state, member) {
   const recurse = (skillLike) => {
     const fallbackParts = Array.isArray(skillLike?.parts) ? skillLike.parts : [];
@@ -5356,7 +5598,7 @@ function resolveEffectiveSkillVariant(skill, state, member) {
     for (const part of fallbackParts) {
       const skillType = String(part?.skill_type ?? '');
       if (skillType !== 'SkillCondition') {
-        resolved.parts.push(part);
+        resolved.parts.push(normalizeRuntimeNonDamagePart(part));
         continue;
       }
 
@@ -5367,8 +5609,14 @@ function resolveEffectiveSkillVariant(skill, state, member) {
         continue;
       }
 
-      const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
-      const selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
+      let selected;
+      const playedCount = extractPlayedSkillCountValue(part?.cond, member, skill);
+      if (playedCount !== null && variants.length > 2) {
+        selected = variants[Math.min(playedCount, variants.length - 1)];
+      } else {
+        const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
+        selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
+      }
       const nested = recurse(selected);
       const inheritedConsumeType =
         String(nested.consumeType) === 'Sp' && String(resolved.consumeType) !== 'Sp'
@@ -5446,7 +5694,7 @@ function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
       }
-      for (const part of passive.parts ?? []) {
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
         if (String(part?.skill_type ?? '') !== 'ReduceSp') {
           continue;
         }
@@ -5465,7 +5713,7 @@ function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
         if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
           continue;
         }
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolvePreferredNonDamageRangeValue(part?.power);
         if (!Number.isFinite(amount) || amount <= 0) {
           continue;
         }
@@ -5546,7 +5794,7 @@ function resolvePassiveDamageRateUpPerTokenForMember(state, targetMember, timing
         continue;
       }
       let passiveRate = 0;
-      for (const part of passive.parts ?? []) {
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
         if (String(part?.skill_type ?? '') !== 'DamageRateUpPerToken') {
           continue;
         }
@@ -5566,7 +5814,7 @@ function resolvePassiveDamageRateUpPerTokenForMember(state, targetMember, timing
           continue;
         }
         const tokenCount = Number(actor?.tokenState?.current ?? 0);
-        const perTokenRate = Number(part?.power?.[0] ?? 0);
+        const perTokenRate = resolvePreferredNonDamageRangeValue(part?.power);
         if (!Number.isFinite(tokenCount) || !Number.isFinite(perTokenRate) || perTokenRate === 0) {
           continue;
         }
@@ -6301,7 +6549,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       );
     }
 
-    const talismanDamageMaps = buildEnemyTalismanMaps(state.turnState, enemyCount);
+    const allAbilityDownMaps = buildEnemyAllAbilityPenaltyMaps(state.turnState, enemyCount);
     const damageContext = buildDamageCalculationContext({
       actorCharacterId: member.characterId,
       actorStyleId: member.styleId,
@@ -6359,8 +6607,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       zonePowerRate: skillMatchesActiveZone(state, skill, member).matched
         ? Number(skillMatchesActiveZone(state, skill, member).zoneState?.powerRate ?? 0)
         : 0,
-      enemyTalismanLevelByEnemy: talismanDamageMaps.enemyTalismanLevelByEnemy,
-      enemyAllAbilityDownByEnemy: talismanDamageMaps.enemyAllAbilityDownByEnemy,
+      enemyTalismanLevelByEnemy: allAbilityDownMaps.enemyTalismanLevelByEnemy,
+      enemyDisasterLevelByEnemy: allAbilityDownMaps.enemyDisasterLevelByEnemy,
+      enemyAllAbilityDownByEnemy: allAbilityDownMaps.enemyAllAbilityDownByEnemy,
       funnelEffects,
     });
 
@@ -7305,6 +7554,7 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
             sourceSkillId: Number(skill.skillId ?? 0),
             sourceSkillName: String(skill.name ?? ''),
             sourceSkillLabel: String(skill.label ?? ''),
+            sourceSkillDesc: String(skill?.desc ?? ''),
             sourceCharacterName: String(actor?.characterName ?? ''),
             metadata: {
               targetType: String(part?.target_type ?? ''),
@@ -8764,7 +9014,7 @@ function getPassiveOverdriveEpLimit(member) {
       if (String(part.skill_type ?? '') !== 'EpLimitOverwrite') {
         continue;
       }
-      const value = Number(part?.power?.[0] ?? 0);
+      const value = resolvePreferredNonDamageRangeValue(part?.power);
       if (Number.isFinite(value) && value > 0) {
         limit = limit === null ? value : Math.max(limit, value);
       }
@@ -8818,7 +9068,7 @@ function applyPassiveSkillEpTurnStart(member, turnState) {
       if (String(part.skill_type ?? '') !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
-      const amount = Number(part?.power?.[0] ?? 0);
+      const amount = resolvePreferredNonDamageRangeValue(part?.power);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -8845,7 +9095,8 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
       continue;
     }
     const effectTypes = new Set();
-    for (const part of passive.parts ?? []) {
+    const effectiveParts = resolvePassiveEffectiveParts(passive, { party: [member] }, member);
+    for (const part of effectiveParts) {
       const skillType = String(part?.skill_type ?? '').trim();
       if (skillType) {
         effectTypes.add(skillType);
@@ -8853,10 +9104,10 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
     }
     let totalDelta = 0;
     let matched = false;
-    for (const part of passive.parts ?? []) {
+    for (const part of effectiveParts) {
       const skillType = String(part.skill_type ?? '');
       if (skillType === 'EpLimitOverwrite') {
-        const limit = Number(part?.power?.[0] ?? 0);
+        const limit = resolvePreferredNonDamageRangeValue(part?.power);
         if (Number.isFinite(limit) && limit > 0) {
           matched = true;
           effectTypes.add(skillType);
@@ -8866,7 +9117,7 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
       if (skillType !== 'HealEp' || String(part.target_type ?? '') !== 'Self') {
         continue;
       }
-      const amount = Number(part?.power?.[0] ?? 0);
+      const amount = resolvePreferredNonDamageRangeValue(part?.power);
       if (!Number.isFinite(amount) || amount === 0) {
         continue;
       }
@@ -8920,12 +9171,12 @@ function applyPassiveSpOnOverdriveStart(state) {
       let totalSpDelta = 0;
       let matched = false;
 
-      for (const part of passive.parts ?? []) {
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
         const skillType = String(part.skill_type ?? '');
         if (skillType !== 'HealSp') {
           continue;
         }
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolvePreferredNonDamageRangeValue(part?.power);
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
@@ -9180,6 +9431,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
                 sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
                 sourceSkillName: String(passive?.name ?? ''),
                 sourceSkillLabel: String(passive?.label ?? ''),
+                sourceSkillDesc: String(passive?.desc ?? ''),
                 sourceCharacterName: String(member?.characterName ?? ''),
                 metadata: {
                   targetType: String(part?.target_type ?? ''),
@@ -9894,7 +10146,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           const requiresActive = Number(part?.value?.[0] ?? 0) === 1;
           const change = applyTalismanChange(turnState, {
             requiresActive,
-            initialActivation: levelDelta === 0,
+            activateOnApply: levelDelta === 0,
             levelDelta,
           });
           if (change) {
@@ -9903,6 +10155,23 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             });
             if (talismanFieldEvent) {
               fieldEvents.push(talismanFieldEvent);
+            }
+            matched = true;
+          }
+          continue;
+        }
+
+        if (skillType === 'Disaster') {
+          const levelDelta = Number(part?.power?.[0] ?? 0);
+          const change = applyDisasterChange(turnState, {
+            levelDelta,
+          });
+          if (change) {
+            const disasterFieldEvent = createDisasterFieldEvent(change, {
+              source: 'passive_timing',
+            });
+            if (disasterFieldEvent) {
+              fieldEvents.push(disasterFieldEvent);
             }
             matched = true;
           }
@@ -10464,7 +10733,12 @@ function applyFieldStateFromActions(state, previewRecord) {
       if (!skillType) {
         continue;
       }
-      if (skillType !== 'Zone' && skillType !== 'RiceFieldZone' && !/Territory$/i.test(skillType)) {
+      if (
+        skillType !== 'Zone' &&
+        skillType !== 'RiceFieldZone' &&
+        skillType !== 'Disaster' &&
+        !/Territory$/i.test(skillType)
+      ) {
         continue;
       }
       const conditionSkill = createConditionSkillContext(skill, part);
@@ -10475,6 +10749,30 @@ function applyFieldStateFromActions(state, previewRecord) {
         evaluateConditionExpression(expr, state, actor, conditionSkill, actionEntry).result
       );
       if (!condSatisfied) {
+        continue;
+      }
+
+      if (skillType === 'Disaster') {
+        const change = applyDisasterChange(state.turnState, {
+          levelDelta: Number(part?.power?.[0] ?? 0),
+        });
+        if (!change) {
+          continue;
+        }
+        const disasterFieldEvent = createDisasterFieldEvent(change, {
+          source: 'active_skill',
+        });
+        if (!disasterFieldEvent) {
+          continue;
+        }
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            skillId: skill.skillId,
+            skillName: skill.name,
+            ...disasterFieldEvent,
+          })
+        );
         continue;
       }
 

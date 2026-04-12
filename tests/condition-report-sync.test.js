@@ -81,6 +81,17 @@ test('enemy status report helper matches PRI-016 runtime support boundary', () =
   assert.equal(supportedActionEnemyAttackUp.isEnemyStatusCandidate, true);
   assert.equal(supportedActionEnemyAttackUp.supported, true);
 
+  const supportedActionDisaster = classifyEnemyStatusPartRuntimeSupport(
+    {
+      skill_type: 'Disaster',
+      target_type: 'All',
+      effect: { exitCond: 'Eternal', limitType: 'None' },
+    },
+    { isPassiveSource: false }
+  );
+  assert.equal(supportedActionDisaster.isEnemyStatusCandidate, true);
+  assert.equal(supportedActionDisaster.supported, true);
+
   const supportedPassiveTalisman = classifyEnemyStatusPartRuntimeSupport(
     {
       skill_type: 'Talisman',

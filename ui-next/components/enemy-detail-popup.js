@@ -10,7 +10,7 @@
 import {
   buildEnemyStatusTableHtml,
 } from '../utils/enemy-status-display.js';
-import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { resolveUiAssetUrl, resolveSkillTypeAssetUrl } from '../../src/ui/style-asset-url.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -26,11 +26,19 @@ const POPUP_CONTAINER_CLASS = 'enemy-detail-popup-container';
 const SUMMON_BUTTON_ICON_URL = resolveUiAssetUrl('Summon.webp');
 const BREAK_BUTTON_ICON_URL = resolveUiAssetUrl('Break.webp');
 const KILL_BUTTON_ICON_URL = resolveUiAssetUrl('defeat.webp');
-const TALISMAN_ICON_URL = resolveUiAssetUrl('Talisman.webp');
+const TALISMAN_ICON_URL = resolveSkillTypeAssetUrl('Talisman.webp');
+const DISASTER_ICON_URL = resolveSkillTypeAssetUrl('Disaster.webp');
 const ENEMY_POPUP_STATUS_ICON_SIZE_PX = 28;
-const ENEMY_POPUP_WIDE_BREAKPOINT_PX = 960;
+const ENEMY_POPUP_VIEWPORT_INSET_PERCENT = 10;
+const ENEMY_POPUP_CONTAINER_PADDING_PX = 16;
+const ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX = 12;
+const MIN_MULTI_COLUMN_PANEL_WIDTH_PX = 320;
+const ENEMY_POPUP_MULTI_COLUMN_MIN_CONTENT_WIDTH_PX =
+  (MIN_MULTI_COLUMN_PANEL_WIDTH_PX * 3) + (ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX * 2);
 const BASIC_INFO_EXPANDED_ICON = '▲';
 const BASIC_INFO_COLLAPSED_ICON = '▼';
+const TALISMAN_PENALTY_PER_LEVEL = 10;
+const DISASTER_PENALTY_PER_LEVEL = 7;
 const DAMAGE_RATE_DISPLAY_ORDER = Object.freeze([
   ['Slash', '斬'],
   ['Stab', '突'],
@@ -49,11 +57,35 @@ function normalizeTalismanState(talismanState) {
     active: Boolean(state.active),
     level: Math.max(0, Math.floor(Number(state.level ?? 0))),
     maxLevel: Math.max(1, Math.floor(Number(state.maxLevel ?? 10))),
+    penaltyPerLevel: Math.max(0, Math.floor(Number(state.penaltyPerLevel ?? TALISMAN_PENALTY_PER_LEVEL))),
   };
 }
 
 function formatTalismanPenalty(level) {
-  return `全能力-${Math.max(0, Math.floor(Number(level) || 0)) * 10}`;
+  return `全能力-${Math.max(0, Math.floor(Number(level) || 0)) * TALISMAN_PENALTY_PER_LEVEL}`;
+}
+
+function normalizeDisasterState(disasterState) {
+  const state = disasterState && typeof disasterState === 'object' ? disasterState : {};
+  return {
+    active: Boolean(state.active),
+    level: Math.max(0, Math.floor(Number(state.level ?? 0))),
+    maxLevel: Math.max(1, Math.floor(Number(state.maxLevel ?? 10))),
+    penaltyPerLevel: Math.max(0, Math.floor(Number(state.penaltyPerLevel ?? DISASTER_PENALTY_PER_LEVEL))),
+  };
+}
+
+function formatDisasterPenalty(level) {
+  return `全能力-${Math.max(0, Math.floor(Number(level) || 0)) * DISASTER_PENALTY_PER_LEVEL}`;
+}
+
+function isDisplayableEnemyFieldState(state) {
+  if (!state || typeof state !== 'object') {
+    return false;
+  }
+  const active = Boolean(state.active);
+  const level = Number(state.level ?? 0);
+  return active || level > 0;
 }
 
 /**
@@ -70,14 +102,20 @@ export class EnemyDetailPopup {
   #toolActions = {};
   #onClose = null;
   #onActiveEnemyIndexChange = null;
+  #resolveSkillDescription = null;
   #handleEscKeyDown = null;
   #handleResize = null;
+  #layoutPreference = null;
 
   constructor(options = {}) {
     this.#onClose = typeof options.onClose === 'function' ? options.onClose : null;
     this.#onActiveEnemyIndexChange =
       typeof options.onActiveEnemyIndexChange === 'function'
         ? options.onActiveEnemyIndexChange
+        : null;
+    this.#resolveSkillDescription =
+      typeof options.resolveSkillDescription === 'function'
+        ? options.resolveSkillDescription
         : null;
   }
 
@@ -188,6 +226,20 @@ export class EnemyDetailPopup {
       });
     });
 
+    this.#root.querySelectorAll('[data-role="enemy-popup-layout-option"]').forEach((toggleButton) => {
+      toggleButton.addEventListener('click', () => {
+        if (toggleButton.disabled) {
+          return;
+        }
+        const requestedLayout = String(toggleButton.dataset.layoutPreference ?? '').trim();
+        if (requestedLayout !== 'wide' && requestedLayout !== 'narrow') {
+          return;
+        }
+        this.#layoutPreference = requestedLayout;
+        this.#render();
+      });
+    });
+
     this.#root.querySelectorAll('[data-role="enemy-popup-basic-toggle"]').forEach((toggleButton) => {
       toggleButton.addEventListener('click', () => {
         const enemyIndex = Number(toggleButton.dataset.enemyIndex);
@@ -235,11 +287,14 @@ export class EnemyDetailPopup {
       if (!this.#root) {
         return;
       }
-      const nextLayout = this.#resolveLayoutMode();
-      const currentLayout = String(
-        this.#root.querySelector(`.${POPUP_CONTAINER_CLASS}`)?.dataset.layoutMode ?? ''
-      );
-      if (nextLayout !== currentLayout) {
+      const nextLayoutState = this.#resolveLayoutState(this.#buildEnemyEntries());
+      const container = this.#root.querySelector(`.${POPUP_CONTAINER_CLASS}`);
+      const currentLayout = String(container?.dataset.layoutMode ?? '');
+      const currentForcedNarrow = String(container?.dataset.forcedNarrow ?? '');
+      if (
+        nextLayoutState.mode !== currentLayout ||
+        String(nextLayoutState.forcedNarrow) !== currentForcedNarrow
+      ) {
         this.#render();
       }
     };
@@ -249,9 +304,55 @@ export class EnemyDetailPopup {
     document.body.appendChild(this.#root);
   }
 
-  #resolveLayoutMode() {
+  #getPopupContentWidthPx() {
+    const existingContainer = this.#root?.querySelector(`.${POPUP_CONTAINER_CLASS}`);
+    if (existingContainer) {
+      const measuredWidth = Number(existingContainer.getBoundingClientRect().width ?? 0);
+      if (Number.isFinite(measuredWidth) && measuredWidth > 0) {
+        return Math.max(
+          0,
+          measuredWidth - (ENEMY_POPUP_CONTAINER_PADDING_PX * 2)
+        );
+      }
+    }
     const viewportWidth = Number(window?.innerWidth ?? 0);
-    return viewportWidth >= ENEMY_POPUP_WIDE_BREAKPOINT_PX ? 'wide' : 'narrow';
+    if (!Number.isFinite(viewportWidth) || viewportWidth <= 0) {
+      return 0;
+    }
+    const insetPx = viewportWidth * (ENEMY_POPUP_VIEWPORT_INSET_PERCENT / 100);
+    return Math.max(
+      0,
+      viewportWidth - (insetPx * 2) - (ENEMY_POPUP_CONTAINER_PADDING_PX * 2)
+    );
+  }
+
+  #shouldForceNarrowLayout() {
+    return this.#getPopupContentWidthPx() < ENEMY_POPUP_MULTI_COLUMN_MIN_CONTENT_WIDTH_PX;
+  }
+
+  #resolveAutoLayoutMode(enemies = []) {
+    const occupiedCount = enemies.filter((enemy) => enemy?.occupied).length;
+    return occupiedCount >= 2 ? 'wide' : 'narrow';
+  }
+
+  #resolveLayoutState(enemies = []) {
+    const forcedNarrow = this.#shouldForceNarrowLayout();
+    if (forcedNarrow) {
+      return {
+        mode: 'narrow',
+        forcedNarrow: true,
+      };
+    }
+    if (this.#layoutPreference === 'wide' || this.#layoutPreference === 'narrow') {
+      return {
+        mode: this.#layoutPreference,
+        forcedNarrow: false,
+      };
+    }
+    return {
+      mode: this.#resolveAutoLayoutMode(enemies),
+      forcedNarrow: false,
+    };
   }
 
   #buildEnemyEntries() {
@@ -265,6 +366,7 @@ export class EnemyDetailPopup {
           ? structuredClone(enemy.statuses)
           : [],
         ...(enemy?.talismanState ? { talismanState: structuredClone(enemy.talismanState) } : {}),
+        ...(enemy?.disasterState ? { disasterState: structuredClone(enemy.disasterState) } : {}),
         occupied,
         alive: Boolean(enemy?.alive),
         broken: Boolean(enemy?.broken),
@@ -287,7 +389,9 @@ export class EnemyDetailPopup {
 
   #buildHtml() {
     const enemies = this.#buildEnemyEntries();
-    const layoutMode = this.#resolveLayoutMode();
+    const layoutState = this.#resolveLayoutState(enemies);
+    const layoutMode = layoutState.mode;
+    const forcedNarrow = layoutState.forcedNarrow;
     const tabButtonsHtml = enemies.map((enemy, index) => {
       const isActive = index === this.#activeEnemyIndex;
       const stateClass = enemy.dead ? 'is-dead' : enemy.occupied ? 'is-occupied' : 'is-empty';
@@ -300,6 +404,7 @@ export class EnemyDetailPopup {
         </button>
       `;
     }).join('');
+    const layoutToggleHtml = this.#buildLayoutToggleHtml(layoutMode, forcedNarrow);
     const contentHtml = layoutMode === 'wide'
       ? this.#buildWideContentHtml(enemies)
       : this.#buildNarrowContentHtml(enemies);
@@ -311,12 +416,12 @@ export class EnemyDetailPopup {
       "></div>
 
       <div class="${POPUP_CONTAINER_CLASS}" style="
-        position: fixed; inset: 10%;
+        position: fixed; inset: ${ENEMY_POPUP_VIEWPORT_INSET_PERCENT}%;
         background: #1e293b; border-radius: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
         z-index: 1000; overflow-y: auto;
-        padding: 16px; font-family: system-ui, sans-serif;
+        padding: ${ENEMY_POPUP_CONTAINER_PADDING_PX}px; font-family: system-ui, sans-serif;
         border: 1px solid #475569; color: #e2e8f0;
-      " data-layout-mode="${layoutMode}">
+      " data-layout-mode="${layoutMode}" data-forced-narrow="${forcedNarrow ? 'true' : 'false'}">
         <style>
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-tabs"] {
             display: grid;
@@ -336,19 +441,52 @@ export class EnemyDetailPopup {
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout"][data-layout-mode="wide"] {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(3, minmax(${MIN_MULTI_COLUMN_PANEL_WIDTH_PX}px, 1fr));
+            gap: ${ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX}px;
             align-items: start;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout"][data-layout-mode="narrow"] {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: ${ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX}px;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-column"] {
             display: flex;
             flex-direction: column;
             min-width: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-toggle"] {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 12px;
+            padding: 4px;
+            border: 1px solid #334155;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.72);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-option"] {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 68px;
+            min-height: 30px;
+            padding: 0 12px;
+            border: none;
+            border-radius: 999px;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-option"][aria-pressed="true"] {
+            background: #dbeafe;
+            color: #0f172a;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-option"]:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-column"][data-selected="true"] {
             transform: translateY(-1px);
@@ -531,6 +669,11 @@ export class EnemyDetailPopup {
             background: rgba(71, 85, 105, 0.6);
             color: #cbd5e1;
           }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-status-list"] {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
         </style>
         <div data-role="enemy-popup-header">
           <div data-role="enemy-popup-tabs">
@@ -544,9 +687,30 @@ export class EnemyDetailPopup {
           " aria-label="Close">×</button>
         </div>
 
+        ${layoutToggleHtml}
         <div data-role="enemy-popup-content">
           ${contentHtml}
         </div>
+      </div>
+    `;
+  }
+
+  #buildLayoutToggleHtml(layoutMode, forcedNarrow = false) {
+    const options = [
+      ['wide', '3表示'],
+      ['narrow', '1表示'],
+    ];
+    return `
+      <div data-role="enemy-popup-layout-toggle" aria-label="敵詳細表示モード">
+        ${options.map(([mode, label]) => `
+          <button type="button"
+                  data-role="enemy-popup-layout-option"
+                  data-layout-preference="${mode}"
+                  aria-pressed="${layoutMode === mode ? 'true' : 'false'}"
+                  ${forcedNarrow && mode === 'wide' ? 'disabled title="狭幅のため3表示は利用できません"' : ''}>
+            ${label}
+          </button>
+        `).join('')}
       </div>
     `;
   }
@@ -584,18 +748,13 @@ export class EnemyDetailPopup {
   #buildEnemyPanelHtml(enemy, enemyIndex = 0, options = {}) {
     const showActions = Boolean(options?.showActions);
     const previewHtml = this.#buildPreviewActionFlowHtml(enemyIndex);
-    const statusTableHtml = buildEnemyStatusTableHtml(enemy?.statuses ?? []);
     return `
       <div data-role="enemy-popup-panel-card">
         ${showActions ? this.#buildActionButtonsHtml(enemy, enemyIndex) : ''}
         ${showActions && enemy?.popupEditorHtml ? enemy.popupEditorHtml : ''}
         ${this.#buildBasicInfoSectionHtml(enemy, enemyIndex)}
-        ${enemy?.occupied ? this.#buildTalismanSectionHtml(enemy) : ''}
         ${previewHtml}
-        <div>
-          <h3 data-role="enemy-popup-section-title">状態異常 / バフ</h3>
-          <div>${statusTableHtml}</div>
-        </div>
+        ${this.#buildStatusSectionHtml(enemy)}
       </div>
     `;
   }
@@ -666,38 +825,77 @@ export class EnemyDetailPopup {
     `;
   }
 
-  #buildTalismanSectionHtml(enemy) {
-    const talisman = normalizeTalismanState(enemy?.talismanState);
-    const stateLabel = talisman.active ? '有効' : '無効';
+  #buildCompactEnemyFieldStateBlockHtml(options = {}) {
+    const label = String(options?.label ?? '').trim();
+    const iconUrl = String(options?.iconUrl ?? '').trim();
+    const description = String(options?.description ?? '').trim();
+    const rolePrefix = String(options?.rolePrefix ?? '').trim();
+
+    if (!label || !iconUrl || !description || !rolePrefix) {
+      return '';
+    }
+
     return `
-      <div data-role="enemy-popup-talisman-section" style="
-        margin: 0 0 12px;
-        padding: 10px;
-        border: 1px solid #334155;
-        border-radius: 10px;
-        background: #0f172a;
-      ">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-          <img src="${escapeHtml(TALISMAN_ICON_URL)}" alt="霊符" data-role="enemy-popup-talisman-icon" style="width: 24px; height: 24px;" />
-          <div>
-            <div data-role="enemy-popup-section-title" style="margin: 0;">霊符</div>
-            <div style="font-size: 11px; color: #94a3b8;">敵共通の霊符状態</div>
-          </div>
+      <div class="char-popup-buff-block" data-role="${rolePrefix}-block">
+        <div class="char-popup-buff-icon has-icon">
+          <img src="${escapeHtml(iconUrl)}" alt="${escapeHtml(label)}" data-role="${rolePrefix}-icon" />
         </div>
-        <div data-role="enemy-popup-talisman-summary" style="display: grid; gap: 4px;">
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">状態</span>
-            <span data-role="enemy-popup-basic-info-value">${escapeHtml(stateLabel)}</span>
-          </div>
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">レベル</span>
-            <span data-role="enemy-popup-basic-info-value">Lv${talisman.level}/${talisman.maxLevel}</span>
-          </div>
-          <div data-role="enemy-popup-basic-info-row">
-            <span data-role="enemy-popup-basic-info-label">能力低下</span>
-            <span data-role="enemy-popup-basic-info-value">${escapeHtml(formatTalismanPenalty(talisman.level))}</span>
-          </div>
+        <div class="char-popup-buff-center">
+          <div class="char-popup-buff-title">${escapeHtml(label)}</div>
+          <div class="char-popup-buff-desc">${escapeHtml(description)}</div>
         </div>
+        <div class="char-popup-buff-duration" aria-hidden="true"></div>
+      </div>
+    `;
+  }
+
+  #buildTalismanStatusBlockHtml(enemy) {
+    const talisman = normalizeTalismanState(enemy?.talismanState);
+    if (!isDisplayableEnemyFieldState(talisman)) {
+      return '';
+    }
+    return this.#buildCompactEnemyFieldStateBlockHtml({
+      label: '霊符',
+      iconUrl: TALISMAN_ICON_URL,
+      description: `Lv${talisman.level}/${talisman.maxLevel} / ${formatTalismanPenalty(talisman.level)}`,
+      rolePrefix: 'enemy-popup-talisman',
+    });
+  }
+
+  #buildDisasterStatusBlockHtml(enemy) {
+    const disaster = normalizeDisasterState(enemy?.disasterState);
+    if (!isDisplayableEnemyFieldState(disaster)) {
+      return '';
+    }
+    return this.#buildCompactEnemyFieldStateBlockHtml({
+      label: '禍',
+      iconUrl: DISASTER_ICON_URL,
+      description: `Lv${disaster.level}/${disaster.maxLevel} / ${formatDisasterPenalty(disaster.level)}`,
+      rolePrefix: 'enemy-popup-disaster',
+    });
+  }
+
+  #buildStatusSectionHtml(enemy) {
+    const statusTableHtml = buildEnemyStatusTableHtml(enemy?.statuses ?? [], {
+      resolveSkillDescription: this.#resolveSkillDescription,
+    });
+    const fieldStateBlocksHtml = enemy?.occupied
+      ? [
+          this.#buildTalismanStatusBlockHtml(enemy),
+          this.#buildDisasterStatusBlockHtml(enemy),
+        ].filter(Boolean).join('')
+      : '';
+    const shouldSuppressEmptyStatusMessage =
+      Boolean(fieldStateBlocksHtml) && statusTableHtml.includes('char-popup-empty');
+    const contentHtml = [
+      fieldStateBlocksHtml,
+      shouldSuppressEmptyStatusMessage ? '' : statusTableHtml,
+    ].filter(Boolean).join('');
+
+    return `
+      <div>
+        <h3 data-role="enemy-popup-section-title">状態異常 / バフ</h3>
+        <div data-role="enemy-popup-status-list">${contentHtml || '<p class="char-popup-empty">状態異常なし</p>'}</div>
       </div>
     `;
   }
@@ -730,17 +928,21 @@ export class EnemyDetailPopup {
   #buildPreviewActionFlowHtml(enemyIndex = 0) {
     const source = Array.isArray(this.#previewActionFlow) ? this.#previewActionFlow : [];
     const previewStatuses = source
-      .flatMap((action) => (Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : []))
-      .filter((change) => Number(change?.targetIndex ?? -1) === Number(enemyIndex))
-      .map((change) => ({
-        statusType: String(change?.statusType ?? '').trim(),
-        remaining: Number(change?.remaining ?? change?.remainingTurns ?? 0),
-        exitCond: String(change?.exitCond ?? 'Turn'),
-        power: Number(change?.power ?? 0),
-        elements: Array.isArray(change?.elements) ? [...change.elements] : [],
-        sourceSkillName: String(change?.sourceSkillName ?? '').trim(),
-        sourceCharacterName: String(change?.sourceCharacterName ?? '').trim(),
-      }))
+      .flatMap((action) =>
+        (Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : [])
+          .filter((change) => Number(change?.targetIndex ?? -1) === Number(enemyIndex))
+          .map((change) => ({
+            statusType: String(change?.statusType ?? '').trim(),
+            remaining: Number(change?.remaining ?? change?.remainingTurns ?? 0),
+            exitCond: String(change?.exitCond ?? 'Turn'),
+            power: Number(change?.power ?? 0),
+            elements: Array.isArray(change?.elements) ? [...change.elements] : [],
+            sourceSkillName: String(change?.sourceSkillName ?? '').trim(),
+            sourceSkillId: Number(change?.sourceSkillId ?? change?.skillId ?? action?.skillId ?? 0),
+            sourceSkillDesc: String(change?.sourceSkillDesc ?? '').trim(),
+            sourceCharacterName: String(change?.sourceCharacterName ?? '').trim(),
+          }))
+      )
       .filter((status) => Boolean(status.statusType));
     const talismanChanges = source
       .flatMap((action) =>
@@ -756,7 +958,23 @@ export class EnemyDetailPopup {
             levelDelta: Number(change?.levelDelta ?? 0),
           }))
       );
-    const statusTableHtml = buildEnemyStatusTableHtml(previewStatuses);
+    const disasterChanges = source
+      .flatMap((action) =>
+        (Array.isArray(action?.fieldStateApplied) ? action.fieldStateApplied : [])
+          .filter((change) => String(change?.kind ?? '') === 'disaster')
+          .map((change) => ({
+            actorCharacterName: String(action?.actorCharacterName ?? '').trim(),
+            skillName: String(action?.skillName ?? '').trim(),
+            activeBefore: Boolean(change?.activeBefore),
+            activeAfter: Boolean(change?.activeAfter),
+            levelBefore: Number(change?.levelBefore ?? 0),
+            levelAfter: Number(change?.levelAfter ?? 0),
+            levelDelta: Number(change?.levelDelta ?? 0),
+          }))
+      );
+    const statusTableHtml = buildEnemyStatusTableHtml(previewStatuses, {
+      resolveSkillDescription: this.#resolveSkillDescription,
+    });
     const talismanHtml = talismanChanges.length > 0
       ? `
         <div data-role="enemy-popup-preview-talisman" style="display: grid; gap: 6px; margin-bottom: ${previewStatuses.length > 0 ? '10px' : '0'};">
@@ -781,8 +999,32 @@ export class EnemyDetailPopup {
         </div>
       `
       : '';
+    const disasterHtml = disasterChanges.length > 0
+      ? `
+        <div data-role="enemy-popup-preview-disaster" style="display: grid; gap: 6px; margin-bottom: ${previewStatuses.length > 0 ? '10px' : '0'};">
+          <div style="font-size: 11px; font-weight: 700; color: #f8fafc;">禍変化</div>
+          ${disasterChanges.map((change) => {
+            const sourceText = [change.actorCharacterName, change.skillName].filter(Boolean).join(' / ');
+            const summary = !change.activeBefore && change.activeAfter
+              ? `付与: Lv${change.levelAfter}`
+              : `Lv${change.levelBefore} → ${change.levelAfter}${change.levelDelta > 0 ? ` (+${change.levelDelta})` : ''}`;
+            return `
+              <div data-role="enemy-popup-preview-disaster-change" style="
+                border: 1px solid #334155;
+                border-radius: 8px;
+                padding: 6px 8px;
+                background: #111827;
+              ">
+                <div style="font-size: 11px; color: #e5e7eb;">${escapeHtml(summary)}</div>
+                <div style="font-size: 10px; color: #94a3b8;">${escapeHtml(sourceText || '禍')}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `
+      : '';
 
-    if (previewStatuses.length === 0 && talismanChanges.length === 0) {
+    if (previewStatuses.length === 0 && talismanChanges.length === 0 && disasterChanges.length === 0) {
       return `
         <div style="margin: 0 0 12px; padding: 8px; border: 1px dashed #334155; border-radius: 8px; background: #0b1220;">
           <div style="font-size: 12px; font-weight: 700; color: #f8fafc;">プレビュー（コミット見込み）</div>
@@ -795,6 +1037,7 @@ export class EnemyDetailPopup {
       <div style="margin: 0 0 12px; padding: 8px; border: 1px solid #1d4ed8; border-radius: 8px; background: #0b1220;">
         <div style="font-size: 12px; font-weight: 700; color: #bfdbfe; margin-bottom: 6px;">プレビュー（コミット見込み）</div>
         ${talismanHtml}
+        ${disasterHtml}
         ${previewStatuses.length > 0 ? `<div>${statusTableHtml}</div>` : ''}
       </div>
     `;

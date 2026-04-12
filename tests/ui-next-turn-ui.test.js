@@ -7,6 +7,7 @@ import { TurnRowController } from '../ui-next/components/turn-row.js';
 import { TurnAreaController } from '../ui-next/components/turn-area.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { openCharDetailPopup } from '../ui-next/utils/char-detail-popup.js';
+import { EnemyDetailPopup } from '../ui-next/components/enemy-detail-popup.js';
 import {
   createEmptyLightweightReplayScript,
   REPLAY_OPERATION_TYPES,
@@ -86,6 +87,10 @@ function setViewportSize(win, { width, height } = {}) {
       value: height,
     });
   }
+}
+
+function clickElement(win, element) {
+  element?.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
 }
 
 function openEnemyDetailPopup(trigger, win, { eventType = 'click' } = {}) {
@@ -313,11 +318,32 @@ function createEnemyPreset({
   };
 }
 
+function createEnemyPopupPayload(occupiedCount = 1) {
+  return {
+    enemies: Array.from({ length: 3 }, (_, index) => {
+      const occupied = index < occupiedCount;
+      return {
+        occupied,
+        alive: occupied,
+        broken: false,
+        dead: false,
+        canSummon: !occupied,
+        canBreak: occupied,
+        canKill: occupied,
+        name: occupied ? `PopupEnemy${index + 1}` : `E${index + 1} 未使用`,
+        statuses: [],
+      };
+    }),
+    activeEnemyIndex: 0,
+  };
+}
+
 function createSummonEnemyOperation({
   enemyId = DEFAULT_SUMMON_SAMPLE_ENEMY.id,
   enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
   maxDRate = 350,
   fireRate = 250,
+  targetEnemyIndex = null,
 } = {}) {
   return {
     type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
@@ -340,6 +366,7 @@ function createSummonEnemyOperation({
         },
       },
       absorbElementList: ['fire'],
+      ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
     },
   };
 }
@@ -1308,33 +1335,44 @@ test('TurnRowController enemy detail popup uses a foldable 名称 section and om
     const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
     assert.ok(popup.querySelector('[data-role="enemy-popup-header"]'));
     assert.equal((popup.textContent ?? '').includes('敵詳細'), false);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
 
-    const toggle = popup.querySelector('[data-role="enemy-popup-basic-toggle"][data-enemy-index="0"]');
+    const wideLayoutToggle = popup.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]'
+    );
+    assert.ok(wideLayoutToggle);
+    clickElement(win, wideLayoutToggle);
+
+    const widePopup = getEnemyDetailPopup(win);
+    assert.ok(widePopup);
+    assert.ok(widePopup.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+
+    const toggle = widePopup.querySelector('[data-role="enemy-popup-basic-toggle"][data-enemy-index="0"]');
     assert.ok(toggle);
     assert.match(toggle.textContent ?? '', /名称/);
     assert.match(toggle.textContent ?? '', /E1 Alpha/);
     assert.equal(toggle.getAttribute('aria-expanded'), 'true');
     assert.match(toggle.textContent ?? '', /▲/);
     assert.ok(
-      popup.querySelector(
+      widePopup.querySelector(
         '[data-role="enemy-popup-column"][data-enemy-tab-index="0"] [data-role="enemy-popup-basic-info"]'
       )
     );
 
-    const unusedToggle = popup.querySelector(
+    const unusedToggle = widePopup.querySelector(
       '[data-role="enemy-popup-basic-toggle"][data-enemy-index="2"]'
     );
     assert.ok(unusedToggle);
     assert.equal(unusedToggle.getAttribute('aria-expanded'), 'false');
     assert.match(unusedToggle.textContent ?? '', /▼/);
     assert.equal(
-      popup.querySelector(
+      widePopup.querySelector(
         '[data-role="enemy-popup-column"][data-enemy-tab-index="2"] [data-role="enemy-popup-basic-info"]'
       ),
       null
     );
 
-    toggle.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    clickElement(win, toggle);
     const collapsedPopup = getEnemyDetailPopup(win);
     assert.ok(collapsedPopup);
     const collapsedToggle = collapsedPopup.querySelector(
@@ -1349,6 +1387,106 @@ test('TurnRowController enemy detail popup uses a foldable 名称 section and om
       ),
       null
     );
+  }));
+
+test('EnemyDetailPopup defaults to narrow for one occupied enemy and keeps manual wide layout across rerenders', () =>
+  withDom(({ win }) => {
+    setViewportSize(win, { width: 1360, height: 900 });
+    const payload = createEnemyPopupPayload(1);
+    const popup = new EnemyDetailPopup();
+    popup.show(payload, 0);
+
+    let root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
+
+    const wideToggle = root?.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]'
+    );
+    assert.ok(wideToggle);
+    clickElement(win, wideToggle);
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+    assert.equal(root?.querySelectorAll('[data-role="enemy-popup-column"]').length, 3);
+
+    const secondTab = root?.querySelector('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]');
+    assert.ok(secondTab);
+    clickElement(win, secondTab);
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+
+    popup.show(payload, 1);
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+
+    popup.close();
+
+    const reopenedPopup = new EnemyDetailPopup();
+    reopenedPopup.show(payload, 0);
+    const reopenedRoot = reopenedPopup.getRootElement();
+    assert.ok(reopenedRoot?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
+    reopenedPopup.close();
+  }));
+
+test('EnemyDetailPopup defaults to wide for multiple occupied enemies and allows manual narrow selection', () =>
+  withDom(({ win }) => {
+    setViewportSize(win, { width: 1360, height: 900 });
+    const popup = new EnemyDetailPopup();
+    popup.show(createEnemyPopupPayload(2), 0);
+
+    let root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+    assert.equal(root?.querySelectorAll('[data-role="enemy-popup-column"]').length, 3);
+
+    const narrowToggle = root?.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="narrow"]'
+    );
+    assert.ok(narrowToggle);
+    clickElement(win, narrowToggle);
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
+    assert.equal(root?.querySelectorAll('[data-role="enemy-popup-column"]').length, 1);
+    popup.close();
+  }));
+
+test('EnemyDetailPopup forces narrow below the minimum multi-column width and restores the manual layout after resize', () =>
+  withDom(({ win }) => {
+    setViewportSize(win, { width: 1360, height: 900 });
+    const popup = new EnemyDetailPopup();
+    popup.show(createEnemyPopupPayload(1), 0);
+
+    let root = popup.getRootElement();
+    const wideToggle = root?.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]'
+    );
+    assert.ok(wideToggle);
+    clickElement(win, wideToggle);
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+
+    setViewportSize(win, { width: 1240, height: 900 });
+    win.dispatchEvent(new win.Event('resize'));
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
+    assert.equal(
+      root?.querySelector('[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]')?.disabled,
+      true
+    );
+
+    setViewportSize(win, { width: 1360, height: 900 });
+    win.dispatchEvent(new win.Event('resize'));
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+    assert.equal(
+      root?.querySelector('[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]')?.disabled,
+      false
+    );
+    popup.close();
   }));
 
 test('TurnRowController opens enemy detail popup from Enemy label click', () =>
@@ -1538,7 +1676,9 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
     const editor = root.querySelector('[data-role="enemy-summon-editor"]');
     assert.ok(editor);
     assert.equal(editor.hasAttribute('hidden'), false);
-    assert.equal(getEnemyDetailPopup(win), null);
+    assert.ok(getEnemyDetailPopup(win));
+    assert.match(editor.className, /bg-slate-800/);
+    assert.match(editor.className, /border-slate-600/);
 
     const select = root.querySelector('[data-role="enemy-summon-select"]');
     select.value = String(DEFAULT_SUMMON_SAMPLE_ENEMY.id);
@@ -1552,8 +1692,77 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
     assert.equal(addedOperations[0]?.type, REPLAY_OPERATION_TYPES.SUMMON_ENEMY);
     assert.equal(addedOperations[0]?.payload?.enemyId, DEFAULT_SUMMON_SAMPLE_ENEMY.id);
     assert.equal(addedOperations[0]?.payload?.enemyName, DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+    assert.equal(addedOperations[0]?.payload?.targetEnemyIndex, 1);
     assert.equal(addedOperations[0]?.payload?.max_d_rate, 350);
     assert.equal(addedOperations[0]?.payload?.resistances?.element?.fire, 250);
+  }));
+
+test('TurnRowController keeps dead-slot summon requests on the selected enemy slot', () =>
+  withDom(({ root, win }) => {
+    const addedOperations = [];
+    const state = createState(
+      createSkill({
+        id: 95049,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1
+    );
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    state.turnState.enemyState.statuses = [
+      {
+        statusType: 'Dead',
+        targetIndex: 0,
+        remainingTurns: 0,
+        exitCond: 'Eternal',
+      },
+    ];
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'input',
+      rowDiagnostics: null,
+      record: null,
+      replayTurn: null,
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore: state,
+      stateAfter: null,
+      enemyPresets: [createEnemyPreset()],
+      simulatorSettings: createSimulatorSettings(),
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: (_turnIndex, operation) => {
+        addedOperations.push(operation);
+      },
+      onOperationRemove: () => {},
+    });
+    row.mount();
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    const summonButton = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]');
+    assert.ok(summonButton);
+    assert.equal(summonButton.disabled, false);
+    summonButton.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const editor = root.querySelector('[data-role="enemy-summon-editor"]');
+    assert.ok(editor);
+    assert.match(editor.textContent ?? '', /配置先: E1/);
+    editor
+      .querySelector('[data-role="enemy-summon-submit"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(addedOperations.length, 1);
+    assert.equal(addedOperations[0]?.payload?.targetEnemyIndex, 0);
   }));
 
 test('TurnRowController draft enemy detail popup uses materialized summon state without adding a phantom slot', () =>
@@ -1589,6 +1798,55 @@ test('TurnRowController draft enemy detail popup uses materialized summon state 
     assert.match(e2Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
     assert.match(e3Column.textContent ?? '', /E3 未使用/);
     assert.doesNotMatch(e3Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
+  }));
+
+test('TurnRowController draft enemy detail popup keeps a requested dead-slot summon on E1', () =>
+  withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1280, height: 900 });
+    const summonOperation = createSummonEnemyOperation({ targetEnemyIndex: 0 });
+    const baseState = createState(
+      createSkill({
+        id: 95043,
+        name: 'Single Slash',
+        targetType: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+      }),
+      1
+    );
+    baseState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    baseState.turnState.enemyState.statuses = [
+      {
+        statusType: 'Dead',
+        targetIndex: 0,
+        remainingTurns: 0,
+        exitCond: 'Eternal',
+      },
+    ];
+    const stateBefore = applyBeforeCommitOperations(baseState, [summonOperation], { enemyCount: 1 });
+    mountTurnRow({
+      root,
+      stateBefore,
+      simulatorSettings: createSimulatorSettings(),
+      enemyPresets: [createEnemyPreset()],
+      operations: [summonOperation],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    const wideLayoutToggle = popup.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]'
+    );
+    assert.ok(wideLayoutToggle);
+    clickElement(win, wideLayoutToggle);
+
+    const widenedPopup = getEnemyDetailPopup(win);
+    assert.ok(widenedPopup);
+    const e1Column = widenedPopup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="0"]');
+    const e2Column = widenedPopup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="1"]');
+    assert.ok(e1Column);
+    assert.ok(e2Column);
+    assert.match(e1Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
+    assert.match(e2Column.textContent ?? '', /E2 未使用/);
+    assert.doesNotMatch(e2Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
   }));
 
 test('TurnAreaController applies popup break/kill to actor-based chips for unique single-target attribution', () =>
@@ -1695,6 +1953,10 @@ test('TurnAreaController enables summon after popup-attributed kill and disables
     );
     assert.equal(
       refreshedPopup.querySelector('[data-role="enemy-popup-action"][data-action-type="kill"]').disabled,
+      true
+    );
+    assert.equal(
+      refreshedPopup.querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]').disabled,
       true
     );
   }));
@@ -1916,6 +2178,7 @@ test('TurnRowController enemy detail popup shows enemy resistance and absorb sta
 
 test('TurnRowController enemy detail popup marks dead occupied slots with a Dead badge', () =>
   withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1360, height: 900 });
     const state = createState(
       createSkill({
         id: 95045,
@@ -2024,6 +2287,47 @@ test('TurnRowController committed enemy detail popup uses stateBefore (same turn
     assert.ok(popup);
     assert.match(popup.textContent ?? '', /攻撃力ダウン/);
     assert.doesNotMatch(popup.textContent ?? '', /防御力ダウン/);
+  }));
+
+test('TurnRowController enemy detail popup resolves missing sourceSkillDesc from store', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96015,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 1);
+    stateBefore.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    stateBefore.turnState.enemyState.statuses = [
+      {
+        statusType: 'DefenseDown',
+        targetIndex: 0,
+        remainingTurns: 2,
+        power: 0.3,
+        exitCond: 'EnemyTurnEnd',
+        sourceSkillId: 46001311,
+        sourceSkillName: 'ヒットチャートからの一閃',
+      },
+    ];
+
+    mountTurnRow({
+      root,
+      stateBefore,
+      store: {
+        ...createStoreStub(),
+        resolveSkillDescription(skillId) {
+          return Number(skillId) === 46001311 ? '敵の防御力と闇属性防御力を下げる' : null;
+        },
+      },
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.match(popup.textContent ?? '', /ヒットチャートからの一閃/);
+    assert.match(popup.textContent ?? '', /敵の防御力と闇属性防御力を下げる/);
   }));
 
 test('TurnRowController committed enemy detail popup includes committed action flow section', () =>
@@ -2184,6 +2488,8 @@ test('TurnRowController committed enemy detail popup shows talisman action flow 
     assert.match(popup.textContent ?? '', /霊符/);
     assert.match(popup.textContent ?? '', /Lv3\/10/);
     assert.match(popup.textContent ?? '', /Lv3 → 5 \(\+2\)/);
+    assert.equal(popup.querySelector('[data-role="enemy-popup-talisman-section"]'), null);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-talisman-block"]'));
   }));
 
 test('TurnRowController enemy detail popup shows preview section at top for input row', () =>
@@ -2237,6 +2543,62 @@ test('TurnRowController enemy detail popup shows preview section at top for inpu
     assert.doesNotMatch(popup.textContent ?? '', /cost/);
   }));
 
+test('TurnRowController enemy detail popup preview resolves sourceSkillDesc from store', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96024,
+      name: 'Preview Desc Check',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      store: {
+        ...createStoreStub(),
+        resolveSkillDescription(skillId) {
+          return Number(skillId) === 46001311 ? '敵の防御力と闇属性防御力を下げる' : null;
+        },
+      },
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '小笠原 緋雨',
+          skillId: 46001311,
+          skillName: 'ヒットチャートからの一閃',
+          costDelta: 0,
+          costPreSp: 3,
+          costPostSp: 3,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [
+            {
+              statusType: 'DefenseDown',
+              targetIndex: 0,
+              remaining: 2,
+              exitCond: 'EnemyTurnEnd',
+              sourceSkillId: 46001311,
+              sourceSkillName: 'ヒットチャートからの一閃',
+            },
+          ],
+        },
+      ],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /ヒットチャートからの一閃/);
+    assert.match(popup.textContent ?? '', /敵の防御力と闇属性防御力を下げる/);
+    assert.doesNotMatch(popup.textContent ?? '', /小笠原 緋雨/);
+  }));
+
 test('TurnRowController enemy detail popup shows talisman summary, icon, and preview changes', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
@@ -2285,13 +2647,160 @@ test('TurnRowController enemy detail popup shows talisman summary, icon, and pre
     const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
       eventType: 'contextmenu',
     });
-    assert.ok(popup.querySelector('[data-role="enemy-popup-talisman-icon"]'));
+    const talismanIcon = popup.querySelector('[data-role="enemy-popup-talisman-icon"]');
+    assert.ok(talismanIcon);
+    assert.match(talismanIcon.getAttribute('src') ?? '', /assets\/skill_type\/Talisman\.webp$/);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-talisman-block"]'));
+    assert.equal(popup.querySelector('[data-role="enemy-popup-talisman-section"]'), null);
     assert.match(popup.textContent ?? '', /霊符/);
-    assert.match(popup.textContent ?? '', /有効/);
     assert.match(popup.textContent ?? '', /Lv3\/10/);
     assert.match(popup.textContent ?? '', /全能力-30/);
     assert.match(popup.textContent ?? '', /Lv3 → 5 \(\+2\)/);
     assert.match(popup.textContent ?? '', /國見 タマ \/ 恐怖の叫びEX/);
+  }));
+
+test('TurnRowController committed enemy detail popup shows disaster action flow changes from record.fieldStateApplied', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9613,
+      name: 'Trap',
+      targetType: 'All',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Light' }],
+    });
+    const stateBefore = createState(skill, 1);
+    stateBefore.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    stateBefore.turnState.enemyState.disasterState = { active: true, level: 2, maxLevel: 10, penaltyPerLevel: 7 };
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 0,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 20,
+        turnId: 20,
+        odGaugeAtStart: 0,
+        projections: { odGaugeAtEnd: 0 },
+        actions: [
+          {
+            characterId: String(stateBefore.party[0].characterId),
+            characterName: String(stateBefore.party[0].characterName),
+            partyIndex: 0,
+            skillId: 9613,
+            skillName: 'もつれトラップ',
+            spCost: 6,
+            startSP: 10,
+            endSP: 4,
+            fieldStateApplied: [
+              {
+                kind: 'disaster',
+                source: 'active_skill',
+                activeBefore: true,
+                activeAfter: true,
+                levelBefore: 2,
+                levelAfter: 4,
+                levelDelta: 2,
+                maxLevel: 10,
+              },
+            ],
+            enemyStatusChanges: [],
+          },
+        ],
+      },
+      replayTurn: {
+        turn: 20,
+        slots: [{ styleId: stateBefore.party[0].styleId, skillId: 9613 }],
+        operations: [],
+        note: '',
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter: null,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.match(popup.textContent ?? '', /禍/);
+    assert.match(popup.textContent ?? '', /Lv2\/10/);
+    assert.match(popup.textContent ?? '', /Lv2 → 4 \(\+2\)/);
+    assert.equal(popup.querySelector('[data-role="enemy-popup-disaster-section"]'), null);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-disaster-block"]'));
+  }));
+
+test('TurnRowController enemy detail popup shows disaster summary, icon, and preview changes', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96023,
+      name: 'Trap',
+      targetType: 'All',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Light' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    state.turnState.enemyState.disasterState = { active: true, level: 2, maxLevel: 10, penaltyPerLevel: 7 };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '伊達 朱里',
+          skillId: 46005514,
+          skillName: 'もつれトラップ',
+          costDelta: 0,
+          costPreSp: 6,
+          costPostSp: 0,
+          fieldStateApplied: [
+            {
+              kind: 'disaster',
+              source: 'active_skill',
+              activeBefore: true,
+              activeAfter: true,
+              levelBefore: 2,
+              levelAfter: 4,
+              levelDelta: 2,
+              maxLevel: 10,
+            },
+          ],
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [],
+        },
+      ],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    const disasterIcon = popup.querySelector('[data-role="enemy-popup-disaster-icon"]');
+    assert.ok(disasterIcon);
+    assert.match(disasterIcon.getAttribute('src') ?? '', /assets\/skill_type\/Disaster\.webp$/);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-disaster-block"]'));
+    assert.equal(popup.querySelector('[data-role="enemy-popup-disaster-section"]'), null);
+    assert.match(popup.textContent ?? '', /禍/);
+    assert.match(popup.textContent ?? '', /Lv2\/10/);
+    assert.match(popup.textContent ?? '', /全能力-14/);
+    assert.match(popup.textContent ?? '', /Lv2 → 4 \(\+2\)/);
+    assert.match(popup.textContent ?? '', /伊達 朱里 \/ もつれトラップ/);
   }));
 
 test('TurnRowController enemy detail popup keeps SuperBreak visible with canonical label when remainingTurns is 0', () =>
@@ -2431,6 +2940,79 @@ test('TurnRowController enemy detail popup shows no-change row when action has n
     assert.match(popup.textContent ?? '', /このターンで付与される状態変化なし/);
   }));
 
+test('TurnRowController enemy detail popup omits sourceSkillDesc for Dead status in preview', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9606,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 2);
+    state.turnState.enemyState.enemyNamesByEnemy = {
+      0: 'Alpha',
+      1: 'Beta',
+    };
+    state.turnState.enemyState.statuses = [
+      {
+        statusType: 'Dead',
+        targetIndex: 1,
+        remainingTurns: 0,
+        exitCond: 'Eternal',
+      },
+    ];
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '和泉 ユキ',
+          skillId: 46009999,
+          skillName: 'トドメの一撃',
+          costDelta: -6,
+          costPreSp: 10,
+          costPostSp: 4,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [
+            {
+              statusType: 'Dead',
+              targetIndex: 1,
+              remaining: 0,
+              exitCond: 'Eternal',
+              sourceSkillId: 46009999,
+              sourceSkillName: 'トドメの一撃',
+            },
+          ],
+        },
+      ],
+      store: {
+        ...createStoreStub(),
+        resolveSkillDescription(skillId) {
+          return Number(skillId) === 46009999 ? '敵全体に大ダメージを与え戦闘不能にする' : null;
+        },
+      },
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    assert.ok(popup);
+    const e2Tab = popup.querySelector('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]');
+    assert.ok(e2Tab);
+    e2Tab.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    const refreshedPopup = getEnemyDetailPopup(win);
+    assert.ok(refreshedPopup);
+    assert.match(refreshedPopup.textContent ?? '', /E2 Beta/);
+    assert.match(refreshedPopup.textContent ?? '', /Dead/);
+    assert.match(refreshedPopup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(refreshedPopup.textContent ?? '', /トドメの一撃/);
+    assert.doesNotMatch(refreshedPopup.textContent ?? '', /敵全体に大ダメージを与え戦闘不能にする/);
+  }));
+
 test('char detail popup shows preview section at top of status tab', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
@@ -2485,6 +3067,48 @@ test('char detail popup shows preview section at top of status tab', () =>
     assert.doesNotMatch(popup.textContent ?? '', /0回/);
     const previewBlocks = popup.querySelectorAll('.char-popup-preview-section .char-popup-buff-block');
     assert.equal(previewBlocks.length > 0, true);
+  }));
+
+test('char detail popup resolves missing sourceSkillDesc from resolver', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [
+          {
+            statusType: 'AttackUp',
+            power: 0.4,
+            remaining: 2,
+            exitCond: 'PlayerTurnEnd',
+            sourceSkillId: 46300009,
+            sourceSkillName: 'ソフニング',
+          },
+        ],
+      },
+      {
+        x: 200,
+        y: 120,
+        isCommitted: false,
+        resolveSkillDescription(skillId) {
+          return Number(skillId) === 46300009 ? '敵の防御力を下げる' : null;
+        },
+      }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /ソフニング/);
+    assert.match(popup.textContent ?? '', /敵の防御力を下げる/);
   }));
 
 test('char detail popup prefixes elemental critical labels and icons with 雷 for Thunder effects', () =>
@@ -3807,11 +4431,49 @@ test('TurnAreaController recalculates Makai Kihei OD gain when the input row ene
     assert.equal(engineManager.computedRecords[0]?.enemyCount, 2);
   }));
 
+test('TurnAreaController ignores drive pierce for Makai Kihei OD preview and commit', () =>
+  withDom(({ root }) => {
+    const state = createState(
+      createSkill({
+        id: 9517,
+        name: 'Makai Follow',
+        targetType: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      }),
+      2,
+      {
+        characterId: 'BIYamawaki',
+        characterName: '山脇・ボン・イヴァール',
+        styleId: MAKAI_KIHEI_STYLE_ID,
+        styleName: '誇り高き魔王の凱旋',
+        passives: [createMakaiKiheiPassive()],
+      }
+    );
+    state.turnState.odGauge = 10;
+    state.party[0].drivePiercePercent = 15;
+
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    root.querySelector('[data-role="makai-kihei-btn"]').click();
+    root.querySelector('[data-role="makai-kihei-btn"]').click();
+
+    assert.equal(engineManager.getCurrentStateWithPending(2).turnState.odGauge, 70);
+    assert.match(root.querySelector('[data-turn-od-gauge]').textContent, /070\.00%/);
+
+    root.querySelector('[data-role="commit-btn"]').click();
+
+    assert.equal(engineManager.getStateBefore(0)?.turnState?.odGauge, 70);
+  }));
+
 test('TurnAreaController commits manual break attribution and hides committed-row break controls', () =>
   withDom(({ root, win }) => {
     const state = createState(
       createSkill({
-        id: 9517,
+        id: 9518,
         name: 'Break Attribution',
         targetType: 'Single',
         parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],

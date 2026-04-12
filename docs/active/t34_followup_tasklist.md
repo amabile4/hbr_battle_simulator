@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-06
-> 最終更新: 2026-04-10
+> 最終更新: 2026-04-12
 > 元タスク: [t34_enemy_status_management_plan_wbs.md](t34_enemy_status_management_plan_wbs.md)（✅ 完了）
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
@@ -20,9 +20,24 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - 表示フォーマット unit と integration の lifecycle / replay / legacy fallback は、2026-04-06 時点の文書より前進しており、残タスクから外せる
 - browser E2E は `turn-row-preview-status-popup.spec.js` / `superbreak-hefty-guardian.spec.js` などの点的 coverage はあるが、fixture 読込・残ターン更新・legacy session fallback を一連で固定する coverage は未整備
 - `ui-next/components/turn-row.js` では `enemy-detail-trigger` / `manual-break-editor` / `follow-up-editor` が依然として別導線で存在し、WBS-3e の「共通 enemy selector component へ集約」は未着手
-- 追加 JSON 再照合で `Disaster / 禍` が新規未実装 enemy debuff として流入した
-  - 現時点の live data では `伊達 朱里 [前進ネバーギブアップ！]` の `もつれトラップ` 1 件
-  - 詳細は [disaster_status_wbs.md](disaster_status_wbs.md) を正本とする
+- `Disaster / 禍` は `docs/active/disaster_status_wbs.md` で完了済み
+  - active skill `もつれトラップ` + style passive `巻き添え` により current live style では初回 `Lv4 / 全能力-28`
+- 2026-04-11: 単独 EX ターンで、`FollowUpOverrides` が front/back 列固定マッピングに吸われて非EX後衛の追撃を取りこぼすケースを確認
+  - `ui-next/engine/turn-engine-manager.js` で「単独 EX action には保存済み follow-up override をその action に attach する」補正を追加し、`tests/ui-next-follow-up-integration.test.js` で回帰を固定
+- 2026-04-12: enemy status の `sourceSkillDesc` を `turn-controller` で付与しても、`normalizeEnemyStatusForClone` / `normalizeEnemyStatusForSnapshot` が途中で破棄していた
+  - `src/contracts/interfaces.js` / `src/ui/adapter-core.js` で clone/snapshot 契約を揃え、`tests/t34-enemy-status-integration.test.js` / `tests/turn-state-transitions.test.js` で replay と runtime 側の欠落回帰を固定
+- 2026-04-12: 第1弾として、`overrideEntries` 非依存で `sourceSkillDesc` を表示できる UI fallback を追加した
+  - `src/data/hbr-data-store.js` に `resolveSkillDescription()` を追加し、`ui-next/utils/enemy-status-display.js` / `ui-next/utils/char-detail-popup.js` / `ui-next/components/enemy-detail-popup.js` / `ui-next/components/turn-row.js` で `sourceSkillId -> desc` の表示時解決を接続
+  - `tests/data-store-operations.test.js` / `tests/enemy-status-display.test.js` / `tests/ui-next-turn-ui.test.js` / `tests/e2e/session-load-enemy-status-desc.spec.js` で committed row `#19` session load を含む回帰を固定
+- 2026-04-12: enemy detail popup の `プレビュー（コミット見込み）` でも `sourceSkillDesc` を表示するようにした
+  - preview 用 `enemyStatusChanges` の整形で `sourceSkillId` / `sourceSkillDesc` を落とさないようにし、通常の enemy status block と同じ desc 表示経路へ揃えた
+  - `tests/ui-next-turn-ui.test.js` / `tests/e2e/turn-row-preview-status-popup.spec.js` で preview 内 desc の unit / browser 回帰を追加した
+- 2026-04-12: enemy detail popup では `Dead` status に source skill `Desc` を出さないようにした
+  - `Dead` 自体の status block / skill name は維持しつつ、`sourceSkillDesc` だけを suppress して preview / committed の両方で同じ表示に揃えた
+  - `tests/ui-next-turn-ui.test.js` / `tests/e2e/turn-row-preview-status-popup.spec.js` で `Dead` 向け desc suppression の回帰を追加した
+- 2026-04-12: unified `statusType` sort v1 の不足分として、同一 statusType 内の期間順を `Eternal → Turn系 → Count` に修正した
+  - `status-sort-order.js` に期間グループ副ソートを追加し、`char-detail-popup` / `enemy-status-display` の両方で共通適用した
+  - `tests/ui-next-char-detail-popup-order.test.js` / `tests/enemy-status-display.test.js` に回帰を追加した
 
 ## 残タスク一覧（2026-04-10 時点）
 
@@ -75,16 +90,37 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 
 目的: 新規 enemy debuff `Disaster` を engine / record / UI / test まで一貫接続する
 
-- [ ] `enemyState` 上の `Disaster` 管理モデルを確定する
-- [ ] `もつれトラップ` の active skill から `Disaster` を付与・レベル加算できるようにする
-- [ ] `damageContext` の全能力低下集計へ `Disaster` を統合する
-- [ ] enemy popup / field chip / char detail で `禍` の level と低下量を表示する
-- [ ] audit / runtime / UI テストを追加し、`structuralEnemyStatusGaps` から除外する
+- [x] `enemyState` 上の `Disaster` 管理モデルを確定した
+- [x] `もつれトラップ` の active skill と `巻き添え` passive から `Disaster` を付与・レベル加算できるようにした
+- [x] `damageContext` の全能力低下集計へ `Disaster` を統合した
+- [x] enemy popup / field chip / char detail で `禍` の level と低下量を表示する
+- [x] audit / runtime / UI / browser E2E を追加し、`structuralEnemyStatusGaps` から除外した
 
 関連:
 
 - [disaster_status_wbs.md](disaster_status_wbs.md)
 - [../../help/HEAVEN_BURNS_RED/バトル/禍.md](../../help/HEAVEN_BURNS_RED/バトル/禍.md)
+
+### 5. T34-FU4: statusType ソート順の統一（暫定 v1 → 確定）
+
+目的: char-popup-panel / enemy-detail-popup で分散していた statusType ソート ID を `status-sort-order.js` へ統合した（暫定ソート順 v1）。以下の未解決事項を確定ソート順 v2 として解決する。
+
+暫定 v1 実装（2026-04-12 完了）:
+
+- [x] `ui-next/utils/status-sort-order.js` に統合 ID マップ (`UNIFIED_STATUS_TYPE_ID_MAP`) を作成
+- [x] `char-detail-popup.js` / `enemy-status-display.js` から共有モジュールを参照するよう移行
+- [x] 既存テスト全件 PASS を確認
+
+未解決事項（v2 scope）:
+
+- [ ] **SORT-TODO-1**: ID=264 に `BreakDownTurnUp` (char) と `DownTurn` (enemy) が重複割当されている。同一 `skill_type` ID を共有している可能性が高い。パネル間で出現コンテキストが異なるため実害はないが、統一設計上は明示的に分離するか、alias として文書化すべき
+- [ ] **SORT-TODO-2**: 味方/敵で statusType 名が異なる組が存在する — `ConfusionRandom`(107) / `Confusion`(106)、`ImprisonRandom`(110) / `Imprison`(109)、`RecoilRandom`(129) / `Recoil`(128)。ID は連番で隣接しており `normalizeEnemyStatusType` で一部正規化しているが、ソート ID の統合後も名前の二重性が残っている
+- [ ] **SORT-TODO-3**: ID 未定義 statusType のフォールバック順の思想差 — char 側は `STATUS_LABELS` のキー宣言順（概ねカテゴリ別）、enemy 側は `ENEMY_STATUS_TYPE_DISPLAY_ORDER`（debuff 優先）。統一するか、パネル別に維持するかを判断する
+
+関連:
+
+- [../../help/popup_json_keys.csv](../../help/popup_json_keys.csv)
+- [../../help/popup_sort_order.csv](../../help/popup_sort_order.csv)
 
 ## 対象ファイル
 
@@ -95,7 +131,8 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - `src/turn/turn-controller.js` — `Disaster` runtime/state
 - `src/domain/damage-calculation-context.js` — 全能力低下集計
 - `ui-next/utils/field-state-display.js` — field chip / detail summary
-- `ui-next/utils/char-detail-popup.js` — status label / icon
+- `ui-next/utils/char-detail-popup.js` — status label / icon / sort
+- `ui-next/utils/status-sort-order.js` — 統合ソート ID 定義（暫定 v1）
 - `tests/e2e/*.spec.js` — browser E2E テスト
 - `tests/enemy-status-display.test.js` — 表示 unit テスト
 - `tests/t34-enemy-status-integration.test.js` — lifecycle / replay / legacy fallback integration

@@ -50,18 +50,27 @@ function parseNoteSteps(note, prevEnd) {
 
   for (const token of tokens) {
     // トークン内の全数値を抽出（+N は増加量なのでスキップ）
-    const re = /[=→]\s*(\+?)(\d+(?:\.\d+)?)/g;
+    // 1) 区切り付き形式: "ユキ=78→100", "あおい→85"
+    const reSep = /[=→]\s*(\+?)(\d+(?:\.\d+)?)/g;
     const matches = [];
     let m;
-    while ((m = re.exec(token)) !== null) {
+    while ((m = reSep.exec(token)) !== null) {
       if (m[1] === '+') continue;
       matches.push(Number(m[2]));
     }
+    // 2) 区切りなし形式: "山脇19", "あおい85", "超越201", "騎兵起動40"
+    if (matches.length === 0) {
+      const bareM = /^(.+?)(\d+(?:\.\d+)?)\s*$/.exec(token);
+      if (bareM) {
+        matches.push(Number(bareM[2]));
+      }
+    }
     if (matches.length === 0) continue;
 
-    // ラベル: 最初の = か → より前の部分
+    // ラベル: 最初の = か → より前の部分、なければ数値より前の部分
     const labelM = /^(.+?)\s*[=→]/.exec(token);
-    const label = labelM ? labelM[1].trim() : token.trim();
+    const bareLabel = /^(.+?)\s*\d+(?:\.\d+)?\s*$/.exec(token);
+    const label = labelM ? labelM[1].trim() : bareLabel ? bareLabel[1].trim() : token.trim();
 
     // 最終値が「このステップ完了後のOD値」
     const value = matches[matches.length - 1];
@@ -146,7 +155,7 @@ function main() {
 
   const targetTurns = process.argv[3]
     ? process.argv[3].split(',').map(Number).filter((n) => Number.isFinite(n) && n > 0)
-    : [5, 7, 10, 16];
+    : null;
 
   const sessionPath = path.resolve(inputPath);
   const raw = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
@@ -171,7 +180,7 @@ function main() {
     const note = String(scriptTurn?.note ?? '');
     const { steps: noteSteps, finalValue: noteEnd } = parseNoteSteps(note, prevNoteEnd);
 
-    if (!targetTurns.includes(turnNo)) {
+    if (targetTurns && !targetTurns.includes(turnNo)) {
       // prevNoteEnd の更新のみ行い詳細表示はスキップ
       if (noteEnd != null) prevNoteEnd = noteEnd;
       continue;

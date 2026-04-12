@@ -585,9 +585,9 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry1 = commit1.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 1);
+  assert.equal(actor.tokenState.current, 2);
   assert.equal(
-    (entry1.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 1),
+    (entry1.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 2),
     true
   );
   assert.equal(
@@ -622,7 +622,7 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry2 = commit2.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 1);
+  assert.equal(actor.tokenState.current, 2);
   assert.equal(entry2, undefined);
   assert.equal(
     (commit2.committedRecord.dpEvents ?? []).some(
@@ -637,7 +637,7 @@ test('フェリチータ grants token only on initial skill use, not on later re
   actor = state.party[0];
   const entry3 = commit3.committedRecord.actions.find((item) => item.characterId === actor.characterId);
 
-  assert.equal(actor.tokenState.current, 1);
+  assert.equal(actor.tokenState.current, 2);
   assert.equal(entry3, undefined);
   assert.equal(
     (commit3.committedRecord.dpEvents ?? []).some(
@@ -2448,7 +2448,7 @@ test('迅雷風烈 records DefenseDown enemy status in real data', () => {
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.3);
+  assert.equal(event.power, 0.45);
 });
 
 test('まだまだ行くで！ applies Fragile enemy status in real data', () => {
@@ -2462,7 +2462,7 @@ test('まだまだ行くで！ applies Fragile enemy status in real data', () =>
   );
 
   assert.ok(fragile);
-  assert.equal(fragile.power, 0.3);
+  assert.equal(fragile.power, 0.4);
   assert.equal(fragile.exitCond, 'Eternal');
 });
 
@@ -2479,7 +2479,7 @@ test('フレイムテンペスト records AttackDown enemy status in real data',
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.2);
+  assert.equal(event.power, 0.3);
 });
 
 test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in real data', () => {
@@ -2502,7 +2502,33 @@ test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in 
   assert.ok(resistStatus);
   assert.equal(resistStatus.exitCond, 'Eternal');
   assert.deepEqual(resistStatus.elements, ['Dark']);
-  assert.equal(resistStatus.power, 0.45);
+  assert.equal(resistStatus.power, 0.6);
+});
+
+test('今宵、快楽ナイトメア grants 5-hit Funnel only to frontline Dark styles in real data', () => {
+  const store = getStore();
+  const skillId = 46001411;
+  const nonDarkStyleId = getSixUsableStyleIds(store).find((id) => {
+    const style = store.getStyleById(Number(id));
+    return Array.isArray(style?.elements) && !style.elements.includes('Dark');
+  });
+  assert.ok(nonDarkStyleId, 'should prepare one non-Dark frontline style');
+  const state = createBattleStateFromParty(
+    buildSingleSkillRealDataParty(store, skillId, {
+      extraStyleIds: [1005107, Number(nonDarkStyleId)],
+    })
+  );
+
+  const committed = commitTurn(state, previewActorSkill(state, skillId));
+  const tojoFunnels = committed.nextState.party[0].resolveEffectiveFunnelEffects();
+  const misatoFunnels = committed.nextState.party[1].resolveEffectiveFunnelEffects();
+  const nonDarkFunnels = committed.nextState.party[2].resolveEffectiveFunnelEffects();
+
+  assert.equal(tojoFunnels.length, 1);
+  assert.equal(tojoFunnels[0].power, 5);
+  assert.equal(misatoFunnels.length, 1);
+  assert.equal(misatoFunnels[0].power, 5);
+  assert.equal(nonDarkFunnels.length, 0);
 });
 
 test('スタンブレード deterministically records StunRandom enemy status in real data', () => {
@@ -2518,7 +2544,7 @@ test('スタンブレード deterministically records StunRandom enemy status in
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.3);
+  assert.equal(event.power, 0.85);
   assert.equal(event.exitCond, 'EnemyTurnEnd');
 });
 
@@ -2700,10 +2726,10 @@ test('エンジェルズ・ウィング stores Cover with duration derived from 
   );
 
   assert.ok(event);
-  assert.equal(event.remainingTurns, 2);
-  assert.equal(event.power, 2);
+  assert.equal(event.remainingTurns, 3);
+  assert.equal(event.power, 3);
   assert.ok(nextStatus);
-  assert.equal(nextStatus.remainingTurns, 1);
+  assert.equal(nextStatus.remainingTurns, 2);
 });
 
 test('ヒットチャートからの一閃 stores eternal HealDown enemy status in real data', () => {
@@ -2781,7 +2807,7 @@ test('ハードブレード applies DefenseDown in real data despite top-level D
   const enemyStatus = action.enemyStatusChanges.find((status) => status.statusType === 'DefenseDown');
 
   assert.ok(enemyStatus);
-  assert.equal(enemyStatus.power, 0.3);
+  assert.equal(enemyStatus.power, 0.45);
   assert.equal(enemyStatus.exitCond, 'EnemyTurnEnd');
 });
 
@@ -2814,7 +2840,52 @@ test('水影 applies Funnel in real data despite top-level FunnelUp label', () =
   const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
   const committed = commitTurn(state, previewActorSkill(state, skillId));
 
-  assert.equal(committed.nextState.party[0].getStatusEffectsByType('Funnel').length, 1);
+  const funnelEffects = committed.nextState.party[0].resolveEffectiveFunnelEffects();
+  assert.equal(funnelEffects.length, 1);
+  assert.equal(funnelEffects[0].power, 3);
+});
+
+test('今宵、快楽ナイトメア stacked across extra turn raises ハネ殺し OD gain in real data', () => {
+  const store = getStore();
+  const fixedStyleIds = [1001406, 1005107, 1003108];
+  const extraStyleIds = getSixUsableStyleIds(store)
+    .filter((id) => !fixedStyleIds.includes(Number(id)))
+    .slice(0, 3);
+  const party = store.buildPartyFromStyleIds([...fixedStyleIds, ...extraStyleIds], {
+    initialSP: 40,
+    drivePierceByPartyIndex: {
+      0: 15,
+      1: 15,
+      2: 15,
+    },
+  });
+  let state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 2;
+
+  const tojoId = state.party[0].characterId;
+  const misatoId = state.party[1].characterId;
+  const yamawakiId = state.party[2].characterId;
+
+  const turn1 = previewTurn(state, {
+    0: { characterId: tojoId, skillId: 46001411, targetEnemyIndex: 0 },
+    1: { characterId: misatoId, skillId: 46005120, targetEnemyIndex: 0 },
+    2: { characterId: yamawakiId, skillId: 46003113, targetEnemyIndex: 0 },
+  });
+  state = commitTurn(state, turn1).nextState;
+  assert.equal(state.turnState.turnType, 'extra');
+
+  const turn2 = previewTurn(state, {
+    0: { characterId: tojoId, skillId: 46001411, targetEnemyIndex: 0 },
+    1: { characterId: misatoId, skillId: 46005102, targetEnemyIndex: 0 },
+    2: { characterId: yamawakiId, skillId: 46003113, targetEnemyIndex: 0 },
+  });
+  const committed = commitTurn(state, turn2);
+  const misatoAction = findActionByCharacterId(committed.committedRecord, misatoId);
+
+  assert.ok(misatoAction);
+  assert.equal(misatoAction.skillFunnelHitBonus, 10);
+  assert.equal(misatoAction.skillHitCount, 13);
+  assert.ok(Math.abs(Number(misatoAction.odGaugeGain ?? 0) - 69.68) < 0.01);
 });
 
 test('クレール・ド・リュンヌ heals ally SP in real data despite top-level HealSp label', () => {
@@ -4268,9 +4339,9 @@ test('サマーグレイス is usable outside OD and blocked during OD', () => {
   assert.equal(preview.actions[0].spCost, 4);
   assert.equal(preview.actions[0].startToken, 0);
   // MuOhshima has ボルテージ passive (OnEveryTurn, TokenSet +1) that fires in recovery pipeline
-  assert.equal(nextState.party[0].tokenState.current, 2); // 1 from skill + 1 from passive
+  assert.equal(nextState.party[0].tokenState.current, 3); // 2 from skill + 1 from passive
   assert.equal(
-    (entry.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 1),
+    (entry.tokenChanges ?? []).some((item) => item.triggerType === 'TokenSet' && item.delta === 2),
     true
   );
 
@@ -4573,9 +4644,9 @@ test('passive timing coverage report identifies controller gaps against passives
     { timing: 'OnAdditionalTurnStart', count: 12 },
     { timing: 'OnBattleStart', count: 84 },
     { timing: 'OnBattleWin', count: 8 },
-    { timing: 'OnEnemyTurnStart', count: 31 },
-    { timing: 'OnEveryTurn', count: 293 },
-    { timing: 'OnFirstBattleStart', count: 112 },
+    { timing: 'OnEnemyTurnStart', count: 32 },
+    { timing: 'OnEveryTurn', count: 294 },
+    { timing: 'OnFirstBattleStart', count: 116 },
     { timing: 'OnOverdriveStart', count: 9 },
     { timing: 'OnPlayerTurnStart', count: 200 },
   ]);
@@ -4837,6 +4908,32 @@ function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
   return state;
 }
 
+const REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID = 1005107;
+const REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT = 3;
+const TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER = 15;
+const TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION = 4;
+
+function createRealDataDarkTranscendenceState() {
+  const store = getStore();
+  const supportingDarkStyleIds = getUniqueStyleIdsByPredicate(
+    store,
+    (style) => Array.isArray(style?.elements) && style.elements.includes('Dark'),
+    2,
+    [REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID]
+  );
+  const fillerStyleIds = getUniqueStyleIdsByPredicate(
+    store,
+    (style) => !Array.isArray(style?.elements) || !style.elements.includes('Dark'),
+    3,
+    [REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID, ...supportingDarkStyleIds]
+  );
+  const party = store.buildPartyFromStyleIds(
+    [REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID, ...supportingDarkStyleIds, ...fillerStyleIds],
+    { initialSP: 99 }
+  );
+  return createBattleStateFromParty(party);
+}
+
 test('transcendence gauge initializes by matching-element member count x 15%', () => {
   const state = createTranscendenceTestParty();
   assert.equal(state.turnState.transcendence?.active, true);
@@ -4870,6 +4967,49 @@ test('transcendence gauge gains +4 per matching-element action and is capped at 
   const committed2 = commitTurn(state, preview2);
   assert.equal(committed2.nextState.turnState.odGauge, 110);
   assert.equal(committed2.nextState.turnState.transcendence?.gaugePercent, 100);
+});
+
+test('real data dark transcendence initializes for アオゾラ全力応援歌', () => {
+  const state = createRealDataDarkTranscendenceState();
+  assert.equal(state.turnState.transcendence?.active, true);
+  assert.equal(state.turnState.transcendence?.sourceStyleId, REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID);
+  assert.equal(state.turnState.transcendence?.gaugeElement, 'Dark');
+  assert.equal(
+    state.turnState.transcendence?.gaugePercent,
+    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT * TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER
+  );
+});
+
+test('real data dark transcendence gains gauge from dark-member actions', () => {
+  let state = createRealDataDarkTranscendenceState();
+
+  const frontlineActions = Object.fromEntries(
+    state.party.slice(0, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT).map((member) => {
+      const skill = member.skills.find((item) => item.spCost > 0) ?? member.skills[0];
+      return [
+        String(member.position),
+        {
+          characterId: member.characterId,
+          skillId: Number(skill?.skillId ?? skill?.id),
+        },
+      ];
+    })
+  );
+  const preview = previewTurn(state, frontlineActions);
+  assert.equal(preview.projections?.transcendence?.matchingActionCount, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT);
+  assert.equal(
+    preview.projections?.transcendence?.endGaugePercent,
+    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT *
+      (TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER + TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION)
+  );
+
+  const committed = commitTurn(state, preview);
+  state = committed.nextState;
+  assert.equal(
+    state.turnState.transcendence?.gaugePercent,
+    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT *
+      (TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER + TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION)
+  );
 });
 
 test('extra turn can be granted and consumed', () => {
@@ -12044,6 +12184,62 @@ test('IsTalisman condition evaluates correctly based on talisman active state', 
   );
 });
 
+test('real-data もつれトラップ applies disaster from both active skill and 巻き添え passive trigger', () => {
+  const store = getStore();
+  const skillId = 46005514;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  const preview = previewActorSkill(state, skillId);
+  const { committedRecord, nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.enemyState?.disasterState?.active, true);
+  assert.equal(nextState.turnState.enemyState?.disasterState?.level, 4);
+  assert.equal(nextState.turnState.enemyState?.disasterState?.maxLevel, 10);
+  assert.equal(nextState.turnState.enemyState?.disasterState?.penaltyPerLevel, 7);
+
+  const action = findActionByCharacterId(committedRecord, state.party[0].characterId);
+  assert.ok(action, 'committed action should exist');
+  const disasterFieldEvents = (action.fieldStateApplied ?? []).filter((event) => event.kind === 'disaster');
+  assert.deepEqual(
+    disasterFieldEvents.map((event) => [
+      event.source,
+      event.activeBefore,
+      event.activeAfter,
+      event.levelBefore,
+      event.levelAfter,
+      event.levelDelta,
+    ]),
+    [
+      ['active_skill', true, true, 2, 4, 2],
+      ['passive_trigger', false, true, 0, 2, 2],
+    ]
+  );
+  const passiveTriggerEvent = (committedRecord.passiveEvents ?? []).find((event) => event.passiveName === '巻き添え');
+  assert.ok(passiveTriggerEvent, '巻き添え passive trigger should be recorded');
+  assert.equal(passiveTriggerEvent.disasterChange?.levelAfter, 2);
+  assert.equal(action.damageContext?.enemyDisasterLevelByEnemy?.['0'], 4);
+  assert.equal(action.damageContext?.enemyAllAbilityDownByEnemy?.['0'], 28);
+});
+
+test('real-data もつれトラップ keeps the higher all-ability-down penalty when talisman is also active', () => {
+  const store = getStore();
+  const skillId = 46005514;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+  state.turnState.enemyState.talismanState = { active: true, level: 2, maxLevel: 10, penaltyPerLevel: 10 };
+
+  const preview = previewActorSkill(state, skillId);
+  const { committedRecord } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, state.party[0].characterId);
+
+  assert.ok(action, 'committed action should exist');
+  assert.equal(action.damageContext?.enemyTalismanLevelByEnemy?.['0'], 3);
+  assert.equal(action.damageContext?.enemyDisasterLevelByEnemy?.['0'], 4);
+  assert.equal(
+    action.damageContext?.enemyAllAbilityDownByEnemy?.['0'],
+    30,
+    'talisman 30 should win over disaster 28'
+  );
+});
+
 // ===== やる気 DP回復フック テスト =====
 
 test('Motivation increases by 1 when receiving direct DP heal from active skill', () => {
@@ -18811,6 +19007,53 @@ test('Phase C: enemy status sourceCharacterName persists in nextState after comm
   );
 });
 
+test('Phase C: enemy status sourceSkillDesc persists in nextState after commitTurn', () => {
+  const skillDesc = '敵の攻撃力を50%下げる';
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'ENEMY_DEBUFF_ACTOR_DESC',
+        characterName: '敵デバッファー',
+        initialSP: 10,
+        skills: [
+          {
+            id: 311002,
+            name: '敵攻撃力ダウン説明付き',
+            desc: skillDesc,
+            sp_cost: 0,
+            parts: [
+              {
+                skill_type: 'AttackDown',
+                target_type: 'EnemySingle',
+                power: [0.5, 0],
+                effect: { limitType: 'Only', exitCond: 'TurnEnd', exitVal: [2, 0] },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  const preview = previewTurn(state, {
+    0: { characterId: 'ENEMY_DEBUFF_ACTOR_DESC', skillId: 311002, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  const statuses = nextState.turnState.enemyState?.statuses ?? [];
+  const attackDown = statuses.find((status) => String(status?.statusType ?? '') === 'AttackDown');
+  assert.ok(attackDown, 'AttackDown が nextState.enemyState.statuses に存在すること');
+  assert.equal(
+    attackDown.sourceSkillDesc,
+    skillDesc,
+    'sourceSkillDesc が cloneTurnState (normalizeEnemyStatusForClone) を経由しても保持されること'
+  );
+});
+
 test('EnemyAll status applies once per alive enemy (no triple stack on E1)', () => {
   const party = createSixMemberManualParty((idx) => {
     if (idx === 0) {
@@ -18863,4 +19106,200 @@ test('EnemyAll status applies once per alive enemy (no triple stack on E1)', () 
     [0, 1, 2],
     'EnemyAll の状態異常は生存している各敵に1回ずつ付与されること'
   );
+});
+
+test('PlayedSkillCount SkillCondition selects correct variant for 3+ variants by use count', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 30,
+          skills: [
+            {
+              id: 99001,
+              name: 'MultiVariant',
+              label: 'TestMultiVariant',
+              sp_cost: 1,
+              target_type: 'Self',
+              parts: [
+                {
+                  skill_type: 'SkillCondition',
+                  target_type: 'Self',
+                  cond: 'PlayedSkillCount(TestMultiVariant)==0',
+                  strval: [
+                    {
+                      id: 99002,
+                      name: 'V0',
+                      label: 'TestMultiVariantV0',
+                      sp_cost: 1,
+                      target_type: 'Self',
+                      parts: [
+                        {
+                          skill_type: 'AttackUp',
+                          target_type: 'Self',
+                          power: [0.1, 0],
+                          value: [0, 0],
+                          strval: [-1, -1],
+                          cond: '',
+                          effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                        },
+                      ],
+                    },
+                    {
+                      id: 99003,
+                      name: 'V1',
+                      label: 'TestMultiVariantV1',
+                      sp_cost: 2,
+                      target_type: 'Self',
+                      parts: [
+                        {
+                          skill_type: 'AttackUp',
+                          target_type: 'Self',
+                          power: [0.2, 0],
+                          value: [0, 0],
+                          strval: [-1, -1],
+                          cond: '',
+                          effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                        },
+                      ],
+                    },
+                    {
+                      id: 99004,
+                      name: 'V2',
+                      label: 'TestMultiVariantV2',
+                      sp_cost: 3,
+                      target_type: 'Self',
+                      parts: [
+                        {
+                          skill_type: 'AttackUp',
+                          target_type: 'Self',
+                          power: [0.3, 0],
+                          value: [0, 0],
+                          strval: [-1, -1],
+                          cond: '',
+                          effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+                        },
+                      ],
+                    },
+                  ],
+                  power: [0, 0],
+                  value: [0, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+
+  const actions = {
+    0: { characterId: 'M1', skillId: 99001 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  let state = createBattleStateFromParty(party);
+
+  // 1st use (count=0): should select variant[0] with sp_cost=1
+  let preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 1, '1回目使用でvariant[0](sp_cost=1)が選択されること');
+  let result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 2nd use (count=1): should select variant[1] with sp_cost=2
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 2, '2回目使用でvariant[1](sp_cost=2)が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 3rd use (count=2): should select variant[2] with sp_cost=3
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 3, '3回目使用でvariant[2](sp_cost=3)が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 4th use (count=3): should clamp to variant[2] with sp_cost=3
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 3, '4回目以降もvariant[2](sp_cost=3)にクランプされること');
+});
+
+test('PlayedSkillCount SkillCondition with < 2 condition selects correct variant for 4 variants', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 30,
+          skills: [
+            {
+              id: 99010,
+              name: 'FourVariant',
+              label: 'TestFourVariant',
+              sp_cost: 1,
+              target_type: 'Self',
+              parts: [
+                {
+                  skill_type: 'SkillCondition',
+                  target_type: 'Self',
+                  cond: 'PlayedSkillCount(TestFourVariant) < 2',
+                  strval: [
+                    {
+                      id: 99011, name: 'V0', label: 'V0', sp_cost: 1, target_type: 'Self',
+                      parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.1, 0], value: [0, 0], strval: [-1, -1], cond: '', effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] } }],
+                    },
+                    {
+                      id: 99012, name: 'V1', label: 'V1', sp_cost: 2, target_type: 'Self',
+                      parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.2, 0], value: [0, 0], strval: [-1, -1], cond: '', effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] } }],
+                    },
+                    {
+                      id: 99013, name: 'V2', label: 'V2', sp_cost: 3, target_type: 'Self',
+                      parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.3, 0], value: [0, 0], strval: [-1, -1], cond: '', effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] } }],
+                    },
+                    {
+                      id: 99014, name: 'V3', label: 'V3', sp_cost: 4, target_type: 'Self',
+                      parts: [{ skill_type: 'DefenseUp', target_type: 'Self', power: [0.4, 0], value: [0, 0], strval: [-1, -1], cond: '', effect: { limitType: 'Only', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] } }],
+                    },
+                  ],
+                  power: [0, 0],
+                  value: [0, 0],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+
+  const actions = {
+    0: { characterId: 'M1', skillId: 99010 },
+    1: { characterId: 'M2', skillId: 8001 },
+    2: { characterId: 'M3', skillId: 8002 },
+  };
+
+  let state = createBattleStateFromParty(party);
+
+  // 1st use (count=0): variant[0] sp_cost=1
+  let preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 1, '1回目使用でvariant[0]が選択されること');
+  let result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 2nd use (count=1): variant[1] sp_cost=2
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 2, '2回目使用でvariant[1]が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 3rd use (count=2): variant[2] sp_cost=3
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 3, '3回目使用でvariant[2]が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 4th use (count=3): variant[3] sp_cost=4
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 4, '4回目使用でvariant[3]が選択されること');
+  result = commitTurn(state, preview);
+  state = result.nextState;
+
+  // 5th use (count=4): clamp to variant[3] sp_cost=4
+  preview = previewTurn(state, actions);
+  assert.equal(preview.actions[0].spCost, 4, '5回目以降もvariant[3]にクランプされること');
 });

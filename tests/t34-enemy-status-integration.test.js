@@ -63,11 +63,12 @@ function normalizeEnemyStatusForAssertion(status) {
     remaining: Number.isFinite(remainingValue) ? remainingValue : null,
     exitCond: String(status?.exitCond ?? '').trim(),
     targetIndex: Number.isFinite(targetIndexValue) ? targetIndexValue : null,
+    sourceSkillDesc: String(status?.sourceSkillDesc ?? '').trim(),
   };
 }
 
 function statusSortKey(s) {
-  return `${s.targetIndex}|${s.statusType}|${s.elements.join(',')}|${s.power}|${s.remaining}|${s.exitCond}`;
+  return `${s.targetIndex}|${s.statusType}|${s.elements.join(',')}|${s.power}|${s.remaining}|${s.exitCond}|${s.sourceSkillDesc}`;
 }
 
 function normalizeStatusList(list) {
@@ -101,7 +102,7 @@ function assertEnemyStatusesStrictEqual(actual, expected, message) {
     const a = normalizedActual[i];
     const e = normalizedExpected[i];
     const key = `${e.statusType}[${e.elements.join(',')}]@E${e.targetIndex}`;
-    for (const field of ['statusType', 'power', 'remaining', 'exitCond', 'targetIndex']) {
+    for (const field of ['statusType', 'power', 'remaining', 'exitCond', 'targetIndex', 'sourceSkillDesc']) {
       if (a[field] !== e[field]) {
         diffs.push(`  ${key}.${field}: actual=${JSON.stringify(a[field])}, expected=${JSON.stringify(e[field])}`);
       }
@@ -127,11 +128,13 @@ function createEnemyStatusSkill({
   limitType = 'None',
   exitCond = 'Count',
   elements = [],
+  desc = '',
 }) {
   return {
     id,
     name,
     label: `${name}${id}`,
+    desc,
     sp_cost: 0,
     target_type: 'Single',
     parts: [
@@ -418,6 +421,7 @@ test('wbs4b_a4_source_attribution_is_known_constraint_last_wins', async () => {
     statusType: 'Hacking',
     power: 0.2,
     remaining: 2,
+    desc: '最初のハッキング説明',
   });
   const secondSkill = createEnemyStatusSkill({
     id: 98132,
@@ -425,6 +429,7 @@ test('wbs4b_a4_source_attribution_is_known_constraint_last_wins', async () => {
     statusType: 'Hacking',
     power: 0.25,
     remaining: 4,
+    desc: '後勝ちのハッキング説明',
   });
   const manager = createEnemyStatusConflictManager([firstSkill, secondSkill]);
 
@@ -438,10 +443,16 @@ test('wbs4b_a4_source_attribution_is_known_constraint_last_wins', async () => {
   assert.equal(Number(mergedStatus?.sourceSkillId ?? 0), secondSkill.id, 'sourceSkillId follows last-wins constraint');
   assert.equal(String(mergedStatus?.sourceSkillName ?? ''), secondSkill.name, 'sourceSkillName follows last-wins constraint');
   assert.equal(String(mergedStatus?.sourceSkillLabel ?? ''), secondSkill.label, 'sourceSkillLabel follows last-wins constraint');
+  assert.equal(String(mergedStatus?.sourceSkillDesc ?? ''), secondSkill.desc, 'sourceSkillDesc follows last-wins constraint');
 
   manager.recalculateFrom(0);
   const recalculatedStatus = findTargetEnemyStatus(getLastComputedEnemyStatuses(manager), 'Hacking');
   assert.equal(Number(recalculatedStatus?.sourceSkillId ?? 0), secondSkill.id, 'last-wins sourceSkillId survives recalculate');
+  assert.equal(
+    String(recalculatedStatus?.sourceSkillDesc ?? ''),
+    secondSkill.desc,
+    'last-wins sourceSkillDesc survives recalculate'
+  );
 });
 
 /**
@@ -499,6 +510,7 @@ test('P2: replayScript round-trip preserves enemy statuses across load and recal
     power: 0.3,
     remaining: 4,
     elements: ['Thunder'],
+    desc: '雷属性ハッキングを付与',
   });
   const defDownSkill = createEnemyStatusSkill({
     id: 98202,
@@ -507,6 +519,7 @@ test('P2: replayScript round-trip preserves enemy statuses across load and recal
     power: 0.5,
     remaining: 3,
     elements: ['Fire'],
+    desc: '火属性防御ダウンを付与',
   });
   const sourceManager = createEnemyStatusConflictManager([hackSkill, defDownSkill]);
 
@@ -534,6 +547,11 @@ test('P2: replayScript round-trip preserves enemy statuses across load and recal
     replayedStatuses,
     statusesAfterCommit,
     'enemy statuses must strictly match after replayScript round-trip (load + recalculate)'
+  );
+  assert.equal(
+    replayedStatuses.every((status) => String(status?.sourceSkillDesc ?? '').trim().length > 0),
+    true,
+    'sourceSkillDesc remains populated after replayScript round-trip'
   );
 
   // 各ターンのcomputed snapshotも確認

@@ -80,6 +80,22 @@ test('store resolves character names and nested skill names for human-readable e
   assert.equal(store.resolveSkillName(46500123), 'Character Skill');
 });
 
+test('store resolves skill descriptions across direct and accessory catalogs', () => {
+  const store = getStore();
+
+  assert.match(
+    String(store.resolveSkillDescription(46001311) ?? ''),
+    /敵の防御力と闇属性防御力を下げ/,
+    'direct skill description should resolve from the main catalog'
+  );
+  assert.match(
+    String(store.resolveSkillDescription(46300009) ?? ''),
+    /敵の防御力を下げる/,
+    'accessory skill description should resolve from the accessory catalog'
+  );
+  assert.equal(store.resolveSkillDescription(99999999), null);
+});
+
 test('style limit break max depends on tier', () => {
   const store = getStore();
   assert.equal(store.getStyleLimitBreakMax(1001101), 20, 'A max LB should be 20');

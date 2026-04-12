@@ -24,16 +24,16 @@
 ### 2026-04-10 実行結果
 
 - `node scripts/generate-t33-skill-passive-audit.mjs`
-  - `styles=345`
-  - `styleSkillEntries=1261`
+  - `styles=347`
+  - `styleSkillEntries=1269`
   - `skillPassiveEntries=28`
-  - `stylePassiveEntries=500`
-  - `scannedEntries=1789`
-  - `embeddedOnlyPassiveIds=116`
+  - `stylePassiveEntries=504`
+  - `scannedEntries=1801`
+  - `embeddedOnlyPassiveIds=118`
   - `structuralConditionGaps=0`
   - `structuralOverwriteGaps=0`
   - `structuralEnemyStatusGaps=0`
-  - `silentSkipEnemyStatusCandidates=3`
+  - `silentSkipEnemyStatusCandidates=4`
   - `logicGapCount=0`
   - `observabilityGapCount=2`
   - `staleDocFalsePositiveCount=0`
@@ -42,8 +42,10 @@
   - `恐怖の叫び` は `AdditionalHitOnExtraSkill + Talisman` 実装後、audit から除外された
   - dedicated runtime test: `tests/turn-state-transitions.test.js:11769`
   - baseline test: `tests/t33-skill-passive-audit.test.js:6`
-- `silentSkipEnemyStatusCandidates=3` は `BorderRefPDownByAdmiral`（銀氷の加護 / 灼熱の加護 / 雷光の加護）
+- `silentSkipEnemyStatusCandidates=4` は `BorderRefPDownByAdmiral` 系の current live data 残差
   - T33 の未実装ではなく、action-time Admiral mechanic の silent-skip として別扱い
+- `Disaster / 禍` は `docs/active/disaster_status_wbs.md` で完了済み
+  - audit summary 上も structural gap 0 を維持している
 - `node --test tests/condition-report-sync.test.js`、`node --test tests/real-data-mechanics-coverage.test.js`、`node --test tests/turn-state-transitions.test.js` は green を維持
 
 ### 判定ルール

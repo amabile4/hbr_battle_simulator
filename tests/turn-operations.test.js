@@ -81,6 +81,7 @@ function createMember({
   partyIndex,
   position,
   initialSP = 10,
+  drivePiercePercent = 0,
   skills = [],
   passives = [],
 }) {
@@ -92,6 +93,7 @@ function createMember({
     partyIndex,
     position,
     initialSP,
+    drivePiercePercent,
     skills,
     passives,
   });
@@ -109,6 +111,7 @@ function createBaselineParty(overrides = {}) {
         partyIndex: index,
         position: override.position ?? index,
         initialSP: override.initialSP ?? 10,
+        drivePiercePercent: override.drivePiercePercent ?? 0,
         skills:
           override.skills ??
           [
@@ -137,6 +140,7 @@ function createSummonEnemyOperation({
   enemyName = DEFAULT_SUMMON_SAMPLE_ENEMY.name,
   maxDRate = 350,
   fireRate = 250,
+  targetEnemyIndex = null,
 } = {}) {
   return {
     type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
@@ -159,6 +163,7 @@ function createSummonEnemyOperation({
         },
       },
       absorbElementList: ['fire'],
+      ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
     },
   };
 }
@@ -185,6 +190,66 @@ test('applyBeforeCommitOperations uses the supplied enemyCount for Makai Kihei O
 
   assert.equal(nextState.turnState.enemyState.enemyCount, 2);
   assert.equal(nextState.turnState.odGauge, 30);
+});
+
+test('applyBeforeCommitOperations ignores drive pierce for duplicate Makai Kihei OD gain', () => {
+  const state = createState(
+    {
+      0: {
+        characterId: 'BIYamawaki',
+        characterName: '山脇・ボン・イヴァール',
+        styleId: MAKAI_KIHEI_STYLE_ID,
+        styleName: '誇り高き魔王の凱旋',
+        passives: [createMakaiKiheiPassive()],
+        drivePiercePercent: 15,
+      },
+    },
+    { odGauge: 10, enemyCount: 1 }
+  );
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [
+      { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI },
+      { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI },
+    ],
+    { enemyCount: 2 }
+  );
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, 2);
+  assert.equal(nextState.turnState.odGauge, 70);
+});
+
+test('applyBeforeCommitOperations applies Makai Kihei during extra turn even when Yamawaki is not actionable', () => {
+  const state = createState(
+    {
+      0: {
+        characterId: 'BIYamawaki',
+        characterName: '山脇・ボン・イヴァール',
+        styleId: MAKAI_KIHEI_STYLE_ID,
+        styleName: '誇り高き魔王の凱旋',
+        passives: [createMakaiKiheiPassive()],
+      },
+    },
+    { odGauge: 133.29, enemyCount: 2 }
+  );
+  state.turnState.turnType = 'extra';
+  state.turnState.turnLabel = 'EX';
+  state.turnState.extraTurnState = {
+    active: true,
+    remainingActions: 1,
+    allowedCharacterIds: ['UT2'],
+    grantTurnIndex: 1,
+  };
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [{ type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI }],
+    { enemyCount: 2 }
+  );
+
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.equal(nextState.turnState.odGauge, 163.29);
 });
 
 test('applyBeforeCommitOperations applies Kishinka and Makai Kihei before preemptive OD', () => {
@@ -320,6 +385,43 @@ test('applyBeforeCommitOperations reuses the lowest dead enemy slot without incr
   assert.equal(Object.hasOwn(nextState.turnState.enemyState.breakStateByEnemy, '1'), false);
   assert.equal(
     nextState.turnState.enemyState.statuses.some((status) => Number(status.targetIndex) === 1),
+    false
+  );
+});
+
+test('applyBeforeCommitOperations honors targetEnemyIndex for a dead slot even before max enemy count', () => {
+  const state = createState({}, { enemyCount: 1 });
+  state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Fire: 90 } };
+  state.turnState.enemyState.absorbElementsByEnemy = { 0: [] };
+  state.turnState.enemyState.odRateByEnemy = { 0: 0 };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 180 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.breakStateByEnemy = { 0: { broken: true } };
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Dead', targetIndex: 0, remainingTurns: 0, exitCond: 'Eternal' },
+    { statusType: 'DefenseDown', targetIndex: 0, remainingTurns: 2, exitCond: 'EnemyTurnEnd' },
+  ];
+
+  const nextState = applyBeforeCommitOperations(state, [
+    createSummonEnemyOperation({
+      enemyId: ENERGY_PIT_PINK_E_SAMPLE_ENEMY.id,
+      enemyName: ENERGY_PIT_PINK_E_SAMPLE_ENEMY.name,
+      fireRate: 220,
+      targetEnemyIndex: 0,
+    }),
+  ]);
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, 1);
+  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['0'], ENERGY_PIT_PINK_E_SAMPLE_ENEMY.name);
+  assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['1'], undefined);
+  assert.equal(nextState.turnState.enemyState.damageRatesByEnemy['0'].Fire, 220);
+  assert.deepEqual(nextState.turnState.enemyState.absorbElementsByEnemy['0'], ['fire']);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 100);
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 350);
+  assert.equal(Object.hasOwn(nextState.turnState.enemyState.breakStateByEnemy, '0'), false);
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some((status) => Number(status.targetIndex) === 0),
     false
   );
 });
