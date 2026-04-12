@@ -137,4 +137,52 @@ test.describe('Turn row preview status popup', () => {
     await expect(popup).toContainText('ヒットチャートからの一閃');
     await expect(popup).toContainText('敵の防御力と闇属性防御力を下げる');
   });
+
+  test('enemy detail popup omits source skill desc for Dead preview status', async ({ page }) => {
+    await gotoUiNext(page);
+
+    await page.evaluate(async () => {
+      const { EnemyDetailPopup } = await import('/ui-next/components/enemy-detail-popup.js');
+      new EnemyDetailPopup().show({
+        enemies: [
+          {
+            occupied: true,
+            name: 'Alpha',
+            statuses: [],
+          },
+          {
+            occupied: true,
+            dead: true,
+            name: 'Beta',
+            statuses: [],
+          },
+        ],
+        activeEnemyIndex: 1,
+        previewActionFlow: [
+          {
+            order: 1,
+            skillId: 46009999,
+            skillName: 'トドメの一撃',
+            enemyStatusChanges: [
+              {
+                statusType: 'Dead',
+                targetIndex: 1,
+                remaining: 0,
+                exitCond: 'Eternal',
+                sourceSkillName: 'トドメの一撃',
+                sourceSkillDesc: '敵全体に大ダメージを与え戦闘不能にする',
+              },
+            ],
+          },
+        ],
+      });
+    });
+
+    const popup = page.locator('.enemy-detail-popup-container');
+    await expect(popup).toContainText('E2 Beta');
+    await expect(popup).toContainText('Dead');
+    await expect(popup).toContainText('プレビュー（コミット見込み）');
+    await expect(popup).toContainText('トドメの一撃');
+    await expect(popup).not.toContainText('敵全体に大ダメージを与え戦闘不能にする');
+  });
 });

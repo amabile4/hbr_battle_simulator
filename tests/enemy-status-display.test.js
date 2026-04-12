@@ -173,6 +173,22 @@ test('getActiveEnemyStatusesSorted sorts by power descending when priority is sa
   );
 });
 
+test('getActiveEnemyStatusesSorted orders same statusType as Eternal then Turn then Count before power', (t) => {
+  const statuses = [
+    { statusType: 'DefenseDown', remaining: 2, power: 90, exitCond: 'Count' },
+    { statusType: 'DefenseDown', remaining: 3, power: 50, exitCond: 'TurnEnd' },
+    { statusType: 'DefenseDown', remaining: 0, power: 10, exitCond: 'Eternal' },
+  ];
+
+  const result = getActiveEnemyStatusesSorted(statuses);
+
+  assert.deepEqual(
+    result.map((s) => [s.exitCond, s.power]),
+    [['Eternal', 10], ['TurnEnd', 50], ['Count', 90]],
+    'should prioritize duration group over power inside the same statusType'
+  );
+});
+
 /**
  * WBS-4d-a3: pickEnemyStatusesForDisplay の cap 制限テスト
  */

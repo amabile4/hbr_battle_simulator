@@ -23,6 +23,7 @@ import {
   getUnifiedStatusTypeId,
   getElementSortValue,
   getElementVariantCategory,
+  getStatusDurationSortValue,
   USE_UNIFIED_ID_ORDER,
   FALLBACK_ORDER_OFFSET,
   UNKNOWN_ORDER_VALUE,
@@ -87,6 +88,9 @@ const ENEMY_STATUS_TYPES_WITHOUT_GENERIC_ICON = Object.freeze(
 );
 const ENEMY_STATUS_TYPES_HIDDEN_FROM_TABLE = Object.freeze(
   new Set([ENEMY_STATUS_BREAK])
+);
+const ENEMY_STATUS_TYPES_WITHOUT_SOURCE_SKILL_DESC = Object.freeze(
+  new Set(['Dead'])
 );
 
 /**
@@ -211,6 +215,12 @@ function compareEnemyStatusForDisplay(a, b) {
   const elemB = getElementSortValue(b?.elements);
   if (elemA !== elemB) {
     return elemA - elemB;
+  }
+  // same type/element: Eternal → Turn系 → Count
+  const durationA = getStatusDurationSortValue(a);
+  const durationB = getStatusDurationSortValue(b);
+  if (durationA !== durationB) {
+    return durationA - durationB;
   }
   // same element: sort by power descending
   const powerA = readEnemyStatusPower(a);
@@ -365,6 +375,8 @@ export function buildEnemyStatusTableHtml(statuses, options = {}) {
       const sourceSkillName = String(status?.sourceSkillName ?? '').trim();
       const sourceCharacterName = String(status?.sourceCharacterName ?? '').trim();
       const sourceSkillDesc = resolveSourceSkillDescription(status, resolveSkillDescription);
+      const shouldShowSourceSkillDesc =
+        Boolean(sourceSkillDesc) && !ENEMY_STATUS_TYPES_WITHOUT_SOURCE_SKILL_DESC.has(statusType);
 
       const powerStr =
         Number.isFinite(power) && power !== 0
@@ -399,7 +411,7 @@ export function buildEnemyStatusTableHtml(statuses, options = {}) {
         (sourceSkillName ? `<span class="char-popup-buff-skill">[${esc(sourceSkillName)}]</span>` : '') +
         (sourceCharacterName ? `<span class="char-popup-buff-from">${esc(sourceCharacterName)}</span>` : '') +
         `</div>` +
-        (sourceSkillDesc ? `<div class="char-popup-buff-desc line-clamp-2">${esc(sourceSkillDesc)}</div>` : '') +
+        (shouldShowSourceSkillDesc ? `<div class="char-popup-buff-desc line-clamp-2">${esc(sourceSkillDesc)}</div>` : '') +
         `</div>` +
         `<div class="char-popup-buff-duration">${esc(remainingStr)}</div>` +
         `</div>`

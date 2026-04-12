@@ -20,6 +20,7 @@ import {
   getUnifiedStatusTypeId,
   getElementSortValue,
   getElementVariantCategory,
+  getStatusDurationSortValue,
   USE_UNIFIED_ID_ORDER,
   FALLBACK_ORDER_OFFSET,
   UNKNOWN_ORDER_VALUE,
@@ -241,6 +242,13 @@ export function sortStatusEffectsForStatusTab(effects) {
       const elemB = getElementSortValue(b?.elements);
       if (elemA !== elemB) {
         return elemA - elemB;
+      }
+
+      // 同一種別内では Eternal → Turn系 → Count
+      const durationA = getStatusDurationSortValue(a);
+      const durationB = getStatusDurationSortValue(b);
+      if (durationA !== durationB) {
+        return durationA - durationB;
       }
 
       // §2.4 power 降順

@@ -32,6 +32,12 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - 2026-04-12: enemy detail popup の `プレビュー（コミット見込み）` でも `sourceSkillDesc` を表示するようにした
   - preview 用 `enemyStatusChanges` の整形で `sourceSkillId` / `sourceSkillDesc` を落とさないようにし、通常の enemy status block と同じ desc 表示経路へ揃えた
   - `tests/ui-next-turn-ui.test.js` / `tests/e2e/turn-row-preview-status-popup.spec.js` で preview 内 desc の unit / browser 回帰を追加した
+- 2026-04-12: enemy detail popup では `Dead` status に source skill `Desc` を出さないようにした
+  - `Dead` 自体の status block / skill name は維持しつつ、`sourceSkillDesc` だけを suppress して preview / committed の両方で同じ表示に揃えた
+  - `tests/ui-next-turn-ui.test.js` / `tests/e2e/turn-row-preview-status-popup.spec.js` で `Dead` 向け desc suppression の回帰を追加した
+- 2026-04-12: unified `statusType` sort v1 の不足分として、同一 statusType 内の期間順を `Eternal → Turn系 → Count` に修正した
+  - `status-sort-order.js` に期間グループ副ソートを追加し、`char-detail-popup` / `enemy-status-display` の両方で共通適用した
+  - `tests/ui-next-char-detail-popup-order.test.js` / `tests/enemy-status-display.test.js` に回帰を追加した
 
 ## 残タスク一覧（2026-04-10 時点）
 

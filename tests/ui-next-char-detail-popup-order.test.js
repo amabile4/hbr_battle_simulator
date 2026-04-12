@@ -77,6 +77,19 @@ test('sortStatusEffectsForStatusTab sorts by category then element then power', 
   );
 });
 
+test('sortStatusEffectsForStatusTab orders same statusType as Eternal then Turn then Count before power', () => {
+  const sorted = sortStatusEffectsForStatusTab([
+    { statusType: 'AttackUp', exitCond: 'Count', remaining: 2, power: 0.9, effectId: 3 },
+    { statusType: 'AttackUp', exitCond: 'TurnEnd', remaining: 3, power: 0.5, effectId: 2 },
+    { statusType: 'AttackUp', exitCond: 'Eternal', remaining: 0, power: 0.1, effectId: 1 },
+  ]);
+
+  assert.deepEqual(
+    sorted.map((item) => [item.exitCond, item.power]),
+    [['Eternal', 0.1], ['TurnEnd', 0.5], ['Count', 0.9]]
+  );
+});
+
 test('resolveSkillTypeIconUrl uses ui dead icon for Dead status', () => {
   const url = resolveSkillTypeIconUrl('Dead');
 

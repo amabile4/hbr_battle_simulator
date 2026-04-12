@@ -8,9 +8,10 @@
  *   1st: 属性バリアント分類  (1)a → (1)b → (2)
  *   2nd: UNIFIED_STATUS_TYPE_ID_MAP の ID 昇順
  *   3rd: 属性順              Fire → Ice → Thunder → Light → Dark
- *   4th: power 降順
- *   5th: remaining 降順
- *   6th (char のみ): effectId 昇順
+ *   4th: 期間グループ        Eternal → Turn系 → Count
+ *   5th: power 降順
+ *   6th: remaining 降順
+ *   7th (char のみ): effectId 昇順
  *
  * ID が未定義の statusType は、各パネル固有のフォールバック順序（10000+ オフセット）に従う。
  * フォールバック順序にも未登録の statusType は末尾（20000）に配置される。
@@ -173,6 +174,28 @@ export function getElementSortValue(elements) {
   if (!first) return 0;
   const value = ELEMENT_SORT_ORDER[first];
   return Number.isFinite(value) ? value : 99;
+}
+
+/**
+ * 同一 statusType / 同一属性内の期間グループ副ソート値。
+ *
+ * 表示仕様:
+ *   0: Eternal
+ *   1: Turn 系（TurnEnd / PlayerTurnEnd / EnemyTurnEnd など Count 以外の有限）
+ *   2: Count
+ *
+ * @param {object} status
+ * @returns {number}
+ */
+export function getStatusDurationSortValue(status) {
+  const exitCond = String(status?.exitCond ?? '').trim();
+  if (exitCond === 'Eternal') {
+    return 0;
+  }
+  if (exitCond === 'Count') {
+    return 2;
+  }
+  return 1;
 }
 
 // ============================================================

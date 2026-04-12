@@ -2940,6 +2940,79 @@ test('TurnRowController enemy detail popup shows no-change row when action has n
     assert.match(popup.textContent ?? '', /このターンで付与される状態変化なし/);
   }));
 
+test('TurnRowController enemy detail popup omits sourceSkillDesc for Dead status in preview', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 9606,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 2);
+    state.turnState.enemyState.enemyNamesByEnemy = {
+      0: 'Alpha',
+      1: 'Beta',
+    };
+    state.turnState.enemyState.statuses = [
+      {
+        statusType: 'Dead',
+        targetIndex: 1,
+        remainingTurns: 0,
+        exitCond: 'Eternal',
+      },
+    ];
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '和泉 ユキ',
+          skillId: 46009999,
+          skillName: 'トドメの一撃',
+          costDelta: -6,
+          costPreSp: 10,
+          costPostSp: 4,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [
+            {
+              statusType: 'Dead',
+              targetIndex: 1,
+              remaining: 0,
+              exitCond: 'Eternal',
+              sourceSkillId: 46009999,
+              sourceSkillName: 'トドメの一撃',
+            },
+          ],
+        },
+      ],
+      store: {
+        ...createStoreStub(),
+        resolveSkillDescription(skillId) {
+          return Number(skillId) === 46009999 ? '敵全体に大ダメージを与え戦闘不能にする' : null;
+        },
+      },
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    assert.ok(popup);
+    const e2Tab = popup.querySelector('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]');
+    assert.ok(e2Tab);
+    e2Tab.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    const refreshedPopup = getEnemyDetailPopup(win);
+    assert.ok(refreshedPopup);
+    assert.match(refreshedPopup.textContent ?? '', /E2 Beta/);
+    assert.match(refreshedPopup.textContent ?? '', /Dead/);
+    assert.match(refreshedPopup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(refreshedPopup.textContent ?? '', /トドメの一撃/);
+    assert.doesNotMatch(refreshedPopup.textContent ?? '', /敵全体に大ダメージを与え戦闘不能にする/);
+  }));
+
 test('char detail popup shows preview section at top of status tab', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
