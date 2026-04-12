@@ -928,17 +928,21 @@ export class EnemyDetailPopup {
   #buildPreviewActionFlowHtml(enemyIndex = 0) {
     const source = Array.isArray(this.#previewActionFlow) ? this.#previewActionFlow : [];
     const previewStatuses = source
-      .flatMap((action) => (Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : []))
-      .filter((change) => Number(change?.targetIndex ?? -1) === Number(enemyIndex))
-      .map((change) => ({
-        statusType: String(change?.statusType ?? '').trim(),
-        remaining: Number(change?.remaining ?? change?.remainingTurns ?? 0),
-        exitCond: String(change?.exitCond ?? 'Turn'),
-        power: Number(change?.power ?? 0),
-        elements: Array.isArray(change?.elements) ? [...change.elements] : [],
-        sourceSkillName: String(change?.sourceSkillName ?? '').trim(),
-        sourceCharacterName: String(change?.sourceCharacterName ?? '').trim(),
-      }))
+      .flatMap((action) =>
+        (Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : [])
+          .filter((change) => Number(change?.targetIndex ?? -1) === Number(enemyIndex))
+          .map((change) => ({
+            statusType: String(change?.statusType ?? '').trim(),
+            remaining: Number(change?.remaining ?? change?.remainingTurns ?? 0),
+            exitCond: String(change?.exitCond ?? 'Turn'),
+            power: Number(change?.power ?? 0),
+            elements: Array.isArray(change?.elements) ? [...change.elements] : [],
+            sourceSkillName: String(change?.sourceSkillName ?? '').trim(),
+            sourceSkillId: Number(change?.sourceSkillId ?? change?.skillId ?? action?.skillId ?? 0),
+            sourceSkillDesc: String(change?.sourceSkillDesc ?? '').trim(),
+            sourceCharacterName: String(change?.sourceCharacterName ?? '').trim(),
+          }))
+      )
       .filter((status) => Boolean(status.statusType));
     const talismanChanges = source
       .flatMap((action) =>

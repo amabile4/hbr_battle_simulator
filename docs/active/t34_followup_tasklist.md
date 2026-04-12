@@ -29,6 +29,9 @@ T34（敵状態変化管理・表示）本体の WBS-1〜5 は完了しクロー
 - 2026-04-12: 第1弾として、`overrideEntries` 非依存で `sourceSkillDesc` を表示できる UI fallback を追加した
   - `src/data/hbr-data-store.js` に `resolveSkillDescription()` を追加し、`ui-next/utils/enemy-status-display.js` / `ui-next/utils/char-detail-popup.js` / `ui-next/components/enemy-detail-popup.js` / `ui-next/components/turn-row.js` で `sourceSkillId -> desc` の表示時解決を接続
   - `tests/data-store-operations.test.js` / `tests/enemy-status-display.test.js` / `tests/ui-next-turn-ui.test.js` / `tests/e2e/session-load-enemy-status-desc.spec.js` で committed row `#19` session load を含む回帰を固定
+- 2026-04-12: enemy detail popup の `プレビュー（コミット見込み）` でも `sourceSkillDesc` を表示するようにした
+  - preview 用 `enemyStatusChanges` の整形で `sourceSkillId` / `sourceSkillDesc` を落とさないようにし、通常の enemy status block と同じ desc 表示経路へ揃えた
+  - `tests/ui-next-turn-ui.test.js` / `tests/e2e/turn-row-preview-status-popup.spec.js` で preview 内 desc の unit / browser 回帰を追加した
 
 ## 残タスク一覧（2026-04-10 時点）
 

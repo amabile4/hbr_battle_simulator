@@ -97,4 +97,44 @@ test.describe('Turn row preview status popup', () => {
     await expect(statusList).toContainText('Lv2/10');
     await expect(statusList).toContainText('全能力-14');
   });
+
+  test('enemy detail popup preview renders source skill desc when preview enemy status includes it', async ({ page }) => {
+    await gotoUiNext(page);
+
+    await page.evaluate(async () => {
+      const { EnemyDetailPopup } = await import('/ui-next/components/enemy-detail-popup.js');
+      new EnemyDetailPopup().show({
+        enemies: [
+          {
+            occupied: true,
+            name: 'Alpha',
+            statuses: [],
+          },
+        ],
+        activeEnemyIndex: 0,
+        previewActionFlow: [
+          {
+            order: 1,
+            skillId: 46001311,
+            skillName: 'ヒットチャートからの一閃',
+            enemyStatusChanges: [
+              {
+                statusType: 'DefenseDown',
+                targetIndex: 0,
+                remaining: 2,
+                exitCond: 'EnemyTurnEnd',
+                sourceSkillName: 'ヒットチャートからの一閃',
+                sourceSkillDesc: '敵の防御力と闇属性防御力を下げる',
+              },
+            ],
+          },
+        ],
+      });
+    });
+
+    const popup = page.locator('.enemy-detail-popup-container');
+    await expect(popup).toContainText('プレビュー（コミット見込み）');
+    await expect(popup).toContainText('ヒットチャートからの一閃');
+    await expect(popup).toContainText('敵の防御力と闇属性防御力を下げる');
+  });
 });

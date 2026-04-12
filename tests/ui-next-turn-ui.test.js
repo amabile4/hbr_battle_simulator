@@ -2543,6 +2543,62 @@ test('TurnRowController enemy detail popup shows preview section at top for inpu
     assert.doesNotMatch(popup.textContent ?? '', /cost/);
   }));
 
+test('TurnRowController enemy detail popup preview resolves sourceSkillDesc from store', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96024,
+      name: 'Preview Desc Check',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      store: {
+        ...createStoreStub(),
+        resolveSkillDescription(skillId) {
+          return Number(skillId) === 46001311 ? '敵の防御力と闇属性防御力を下げる' : null;
+        },
+      },
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '小笠原 緋雨',
+          skillId: 46001311,
+          skillName: 'ヒットチャートからの一閃',
+          costDelta: 0,
+          costPreSp: 3,
+          costPostSp: 3,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [
+            {
+              statusType: 'DefenseDown',
+              targetIndex: 0,
+              remaining: 2,
+              exitCond: 'EnemyTurnEnd',
+              sourceSkillId: 46001311,
+              sourceSkillName: 'ヒットチャートからの一閃',
+            },
+          ],
+        },
+      ],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /ヒットチャートからの一閃/);
+    assert.match(popup.textContent ?? '', /敵の防御力と闇属性防御力を下げる/);
+    assert.doesNotMatch(popup.textContent ?? '', /小笠原 緋雨/);
+  }));
+
 test('TurnRowController enemy detail popup shows talisman summary, icon, and preview changes', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
