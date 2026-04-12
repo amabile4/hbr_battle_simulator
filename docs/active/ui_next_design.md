@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-10
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-12
 
 ## 目的
 
@@ -299,6 +299,9 @@
 - 戦闘中 summon は `Enemy Setup` ではなく turn row の `敵情報確認` trigger から投入する
 - row 上の `enemy tools box` は `敵情報確認` trigger だけを持ち、`召喚 / ブレイク / 討伐` の入口は `enemy-detail-popup-container` 内へ移す
 - enemy detail popup は `E1 / E2 / E3` の 3 tab を常設し、wide では tab 直下を 3 等分カラム、narrow では選択中 enemy の 1 カラム表示へ切り替える
+- popup header 直下に `3表示 / 1表示` toggle を置き、manual layout は popup を閉じるまで保持する
+- 初期 layout は occupied enemy slot 数で決め、`occupied <= 1` は `1表示`、`occupied >= 2` は `3表示` を既定にする
+- `3表示` は raw viewport breakpoint ではなく popup content 幅の最小列幅ルールで許可し、耐性3行化や action row 縦積みが出る前に `1表示` を強制する
 - wide 時は 3 カラムすべてに `名称` fold / `プレビュー（コミット見込み）` / `状態異常 / バフ` を表示し、`召喚 / ブレイク / 討伐` action row は選択中 tab のカラム先頭にだけ出す
 - action row は上から `召喚 / ブレイク / 討伐`、その下に `名称` fold、`プレビュー（コミット見込み）`、`状態異常 / バフ` の順で表示する
 - popup 左上の `敵詳細` タイトルは置かず、`E1 / E2 / E3` tab と close `×` を同じ高さの header row に並べる

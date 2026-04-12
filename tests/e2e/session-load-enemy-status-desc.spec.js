@@ -16,7 +16,7 @@ const SOFTENING_DESC_FRAGMENT = '敵の防御力を下げる';
 
 test.describe('Session JSON enemy status description', () => {
   test('JSON読込後の committed row #19 enemy detail popup で resolver fallback の desc を表示する', async ({ page }) => {
-    await page.setViewportSize({ width: 1360, height: 960 });
+    await page.setViewportSize({ width: 1240, height: 960 });
     await gotoUiNext(page);
 
     await page.locator('#session-load-input').setInputFiles(SESSION_FIXTURE_PATH);
@@ -31,6 +31,9 @@ test.describe('Session JSON enemy status description', () => {
 
     const popup = page.locator('.enemy-detail-popup-container');
     await expect(popup).toBeVisible({ timeout: 5000 });
+    await expect(popup.locator('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]')).toBeVisible({
+      timeout: 5000,
+    });
 
     const selectedColumn = popup.locator('[data-role="enemy-popup-column"][data-selected="true"]');
     await expect(selectedColumn.locator('.char-popup-buff-desc').first()).toBeVisible({ timeout: 5000 });

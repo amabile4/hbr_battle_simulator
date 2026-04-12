@@ -7,6 +7,7 @@ import { TurnRowController } from '../ui-next/components/turn-row.js';
 import { TurnAreaController } from '../ui-next/components/turn-area.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { openCharDetailPopup } from '../ui-next/utils/char-detail-popup.js';
+import { EnemyDetailPopup } from '../ui-next/components/enemy-detail-popup.js';
 import {
   createEmptyLightweightReplayScript,
   REPLAY_OPERATION_TYPES,
@@ -86,6 +87,10 @@ function setViewportSize(win, { width, height } = {}) {
       value: height,
     });
   }
+}
+
+function clickElement(win, element) {
+  element?.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
 }
 
 function openEnemyDetailPopup(trigger, win, { eventType = 'click' } = {}) {
@@ -310,6 +315,26 @@ function createEnemyPreset({
       },
     },
     absorbElementList: [],
+  };
+}
+
+function createEnemyPopupPayload(occupiedCount = 1) {
+  return {
+    enemies: Array.from({ length: 3 }, (_, index) => {
+      const occupied = index < occupiedCount;
+      return {
+        occupied,
+        alive: occupied,
+        broken: false,
+        dead: false,
+        canSummon: !occupied,
+        canBreak: occupied,
+        canKill: occupied,
+        name: occupied ? `PopupEnemy${index + 1}` : `E${index + 1} 未使用`,
+        statuses: [],
+      };
+    }),
+    activeEnemyIndex: 0,
   };
 }
 
@@ -1310,33 +1335,44 @@ test('TurnRowController enemy detail popup uses a foldable 名称 section and om
     const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
     assert.ok(popup.querySelector('[data-role="enemy-popup-header"]'));
     assert.equal((popup.textContent ?? '').includes('敵詳細'), false);
+    assert.ok(popup.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
 
-    const toggle = popup.querySelector('[data-role="enemy-popup-basic-toggle"][data-enemy-index="0"]');
+    const wideLayoutToggle = popup.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]'
+    );
+    assert.ok(wideLayoutToggle);
+    clickElement(win, wideLayoutToggle);
+
+    const widePopup = getEnemyDetailPopup(win);
+    assert.ok(widePopup);
+    assert.ok(widePopup.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+
+    const toggle = widePopup.querySelector('[data-role="enemy-popup-basic-toggle"][data-enemy-index="0"]');
     assert.ok(toggle);
     assert.match(toggle.textContent ?? '', /名称/);
     assert.match(toggle.textContent ?? '', /E1 Alpha/);
     assert.equal(toggle.getAttribute('aria-expanded'), 'true');
     assert.match(toggle.textContent ?? '', /▲/);
     assert.ok(
-      popup.querySelector(
+      widePopup.querySelector(
         '[data-role="enemy-popup-column"][data-enemy-tab-index="0"] [data-role="enemy-popup-basic-info"]'
       )
     );
 
-    const unusedToggle = popup.querySelector(
+    const unusedToggle = widePopup.querySelector(
       '[data-role="enemy-popup-basic-toggle"][data-enemy-index="2"]'
     );
     assert.ok(unusedToggle);
     assert.equal(unusedToggle.getAttribute('aria-expanded'), 'false');
     assert.match(unusedToggle.textContent ?? '', /▼/);
     assert.equal(
-      popup.querySelector(
+      widePopup.querySelector(
         '[data-role="enemy-popup-column"][data-enemy-tab-index="2"] [data-role="enemy-popup-basic-info"]'
       ),
       null
     );
 
-    toggle.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    clickElement(win, toggle);
     const collapsedPopup = getEnemyDetailPopup(win);
     assert.ok(collapsedPopup);
     const collapsedToggle = collapsedPopup.querySelector(
@@ -1351,6 +1387,106 @@ test('TurnRowController enemy detail popup uses a foldable 名称 section and om
       ),
       null
     );
+  }));
+
+test('EnemyDetailPopup defaults to narrow for one occupied enemy and keeps manual wide layout across rerenders', () =>
+  withDom(({ win }) => {
+    setViewportSize(win, { width: 1360, height: 900 });
+    const payload = createEnemyPopupPayload(1);
+    const popup = new EnemyDetailPopup();
+    popup.show(payload, 0);
+
+    let root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
+
+    const wideToggle = root?.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]'
+    );
+    assert.ok(wideToggle);
+    clickElement(win, wideToggle);
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+    assert.equal(root?.querySelectorAll('[data-role="enemy-popup-column"]').length, 3);
+
+    const secondTab = root?.querySelector('[data-role="enemy-popup-tab"][data-enemy-tab-index="1"]');
+    assert.ok(secondTab);
+    clickElement(win, secondTab);
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+
+    popup.show(payload, 1);
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+
+    popup.close();
+
+    const reopenedPopup = new EnemyDetailPopup();
+    reopenedPopup.show(payload, 0);
+    const reopenedRoot = reopenedPopup.getRootElement();
+    assert.ok(reopenedRoot?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
+    reopenedPopup.close();
+  }));
+
+test('EnemyDetailPopup defaults to wide for multiple occupied enemies and allows manual narrow selection', () =>
+  withDom(({ win }) => {
+    setViewportSize(win, { width: 1360, height: 900 });
+    const popup = new EnemyDetailPopup();
+    popup.show(createEnemyPopupPayload(2), 0);
+
+    let root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+    assert.equal(root?.querySelectorAll('[data-role="enemy-popup-column"]').length, 3);
+
+    const narrowToggle = root?.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="narrow"]'
+    );
+    assert.ok(narrowToggle);
+    clickElement(win, narrowToggle);
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
+    assert.equal(root?.querySelectorAll('[data-role="enemy-popup-column"]').length, 1);
+    popup.close();
+  }));
+
+test('EnemyDetailPopup forces narrow below the minimum multi-column width and restores the manual layout after resize', () =>
+  withDom(({ win }) => {
+    setViewportSize(win, { width: 1360, height: 900 });
+    const popup = new EnemyDetailPopup();
+    popup.show(createEnemyPopupPayload(1), 0);
+
+    let root = popup.getRootElement();
+    const wideToggle = root?.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]'
+    );
+    assert.ok(wideToggle);
+    clickElement(win, wideToggle);
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+
+    setViewportSize(win, { width: 1240, height: 900 });
+    win.dispatchEvent(new win.Event('resize'));
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="narrow"]'));
+    assert.equal(
+      root?.querySelector('[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]')?.disabled,
+      true
+    );
+
+    setViewportSize(win, { width: 1360, height: 900 });
+    win.dispatchEvent(new win.Event('resize'));
+
+    root = popup.getRootElement();
+    assert.ok(root?.querySelector('[data-role="enemy-popup-layout"][data-layout-mode="wide"]'));
+    assert.equal(
+      root?.querySelector('[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]')?.disabled,
+      false
+    );
+    popup.close();
   }));
 
 test('TurnRowController opens enemy detail popup from Enemy label click', () =>
@@ -1696,8 +1832,16 @@ test('TurnRowController draft enemy detail popup keeps a requested dead-slot sum
     });
 
     const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
-    const e1Column = popup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="0"]');
-    const e2Column = popup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="1"]');
+    const wideLayoutToggle = popup.querySelector(
+      '[data-role="enemy-popup-layout-option"][data-layout-preference="wide"]'
+    );
+    assert.ok(wideLayoutToggle);
+    clickElement(win, wideLayoutToggle);
+
+    const widenedPopup = getEnemyDetailPopup(win);
+    assert.ok(widenedPopup);
+    const e1Column = widenedPopup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="0"]');
+    const e2Column = widenedPopup.querySelector('[data-role="enemy-popup-column"][data-enemy-tab-index="1"]');
     assert.ok(e1Column);
     assert.ok(e2Column);
     assert.match(e1Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
@@ -2034,6 +2178,7 @@ test('TurnRowController enemy detail popup shows enemy resistance and absorb sta
 
 test('TurnRowController enemy detail popup marks dead occupied slots with a Dead badge', () =>
   withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1360, height: 900 });
     const state = createState(
       createSkill({
         id: 95045,

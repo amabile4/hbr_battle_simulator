@@ -1,6 +1,6 @@
 # UI Next 未実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-10
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-12
 >
 > **目的**: `ui_next_implementation_tasklist.md` から未完了項目を分離し、active ドキュメントに散在していた未実装作業をこの 1 ファイルで追跡する。
 >
@@ -37,6 +37,7 @@
 - 2026-04-06: Summon 本体着手前の基盤として、enemy slot 正本化、kill=`Dead`、per-enemy `od_rate`、dead slot 条件除外、UI dead badge/disable、replay enemy snapshot を反映。残りは Summon 入力/UI/commit と新規 slot metadata 生成。
 - 2026-04-07: turn row は `敵情報確認` trigger のみとし、`enemy-detail-popup-container` を `E1/E2/E3` 3 tab + wide 3列 / narrow 1列 layout に更新した。`召喚 / ブレイク / 討伐` は選択中 enemy slot 直下の action row へ集約し、`Summon.webp` / `Break.webp` / `defeat.webp` を使う。break / kill は direct chip ではなく `ActionOutcomeOverrides` ベースの actor attribution へ戻し、単体攻撃で一意なら即時反映、曖昧または全体攻撃なら popup を閉じずに popup 内 sub-panel editor を開く。sample enemy は `Dimension_03_C_DeathSlugWhite` / `Dimension_03_C1_DeathSlugWhiteBit` / `Dimension_03_C1_EnergyPit_Pink_e` の 3 体で固定。`敵詳細` 見出しは廃止し、`名称` fold と `敵情報確認 / 敵情報 / 敵` の responsive label に更新した。残りは敵行動データからの自動 summon 化と、summon 後 selector 回帰 coverage。
 - 2026-04-10: `tests/ui-next-battle-state-manager.test.js` / `tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` を再実行し、summon 後の `target / break / follow-up / recommit` 回帰は固定済みと確認した。残る実装タスクは敵行動データからの自動 summon 化で、`BattleStateManager` の runtime summon 反映要否は `lightweight_record_replay_design.md` 側の責務整理 follow-up として分離する。
+- 2026-04-12: enemy popup に `3表示 / 1表示` toggle を追加し、default layout を occupied slot 数ベースへ変更した。`3表示` の許可は popup content 幅と最小 panel 幅で判定し、従来の `960px` 固定より早い段階で `1表示` を強制するように更新した。JSDOM / Playwright も `single enemy default narrow`、`multi enemy default wide`、`medium width forced narrow` へ合わせて回帰を追加した。
 
 - [x] 手動 `Summon` を turn 単位の敵数増加イベントとして入力できる
 - [x] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する

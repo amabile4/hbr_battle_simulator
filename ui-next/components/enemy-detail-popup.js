@@ -29,7 +29,12 @@ const KILL_BUTTON_ICON_URL = resolveUiAssetUrl('defeat.webp');
 const TALISMAN_ICON_URL = resolveSkillTypeAssetUrl('Talisman.webp');
 const DISASTER_ICON_URL = resolveSkillTypeAssetUrl('Disaster.webp');
 const ENEMY_POPUP_STATUS_ICON_SIZE_PX = 28;
-const ENEMY_POPUP_WIDE_BREAKPOINT_PX = 960;
+const ENEMY_POPUP_VIEWPORT_INSET_PERCENT = 10;
+const ENEMY_POPUP_CONTAINER_PADDING_PX = 16;
+const ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX = 12;
+const MIN_MULTI_COLUMN_PANEL_WIDTH_PX = 320;
+const ENEMY_POPUP_MULTI_COLUMN_MIN_CONTENT_WIDTH_PX =
+  (MIN_MULTI_COLUMN_PANEL_WIDTH_PX * 3) + (ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX * 2);
 const BASIC_INFO_EXPANDED_ICON = '▲';
 const BASIC_INFO_COLLAPSED_ICON = '▼';
 const TALISMAN_PENALTY_PER_LEVEL = 10;
@@ -100,6 +105,7 @@ export class EnemyDetailPopup {
   #resolveSkillDescription = null;
   #handleEscKeyDown = null;
   #handleResize = null;
+  #layoutPreference = null;
 
   constructor(options = {}) {
     this.#onClose = typeof options.onClose === 'function' ? options.onClose : null;
@@ -220,6 +226,20 @@ export class EnemyDetailPopup {
       });
     });
 
+    this.#root.querySelectorAll('[data-role="enemy-popup-layout-option"]').forEach((toggleButton) => {
+      toggleButton.addEventListener('click', () => {
+        if (toggleButton.disabled) {
+          return;
+        }
+        const requestedLayout = String(toggleButton.dataset.layoutPreference ?? '').trim();
+        if (requestedLayout !== 'wide' && requestedLayout !== 'narrow') {
+          return;
+        }
+        this.#layoutPreference = requestedLayout;
+        this.#render();
+      });
+    });
+
     this.#root.querySelectorAll('[data-role="enemy-popup-basic-toggle"]').forEach((toggleButton) => {
       toggleButton.addEventListener('click', () => {
         const enemyIndex = Number(toggleButton.dataset.enemyIndex);
@@ -267,11 +287,14 @@ export class EnemyDetailPopup {
       if (!this.#root) {
         return;
       }
-      const nextLayout = this.#resolveLayoutMode();
-      const currentLayout = String(
-        this.#root.querySelector(`.${POPUP_CONTAINER_CLASS}`)?.dataset.layoutMode ?? ''
-      );
-      if (nextLayout !== currentLayout) {
+      const nextLayoutState = this.#resolveLayoutState(this.#buildEnemyEntries());
+      const container = this.#root.querySelector(`.${POPUP_CONTAINER_CLASS}`);
+      const currentLayout = String(container?.dataset.layoutMode ?? '');
+      const currentForcedNarrow = String(container?.dataset.forcedNarrow ?? '');
+      if (
+        nextLayoutState.mode !== currentLayout ||
+        String(nextLayoutState.forcedNarrow) !== currentForcedNarrow
+      ) {
         this.#render();
       }
     };
@@ -281,9 +304,55 @@ export class EnemyDetailPopup {
     document.body.appendChild(this.#root);
   }
 
-  #resolveLayoutMode() {
+  #getPopupContentWidthPx() {
+    const existingContainer = this.#root?.querySelector(`.${POPUP_CONTAINER_CLASS}`);
+    if (existingContainer) {
+      const measuredWidth = Number(existingContainer.getBoundingClientRect().width ?? 0);
+      if (Number.isFinite(measuredWidth) && measuredWidth > 0) {
+        return Math.max(
+          0,
+          measuredWidth - (ENEMY_POPUP_CONTAINER_PADDING_PX * 2)
+        );
+      }
+    }
     const viewportWidth = Number(window?.innerWidth ?? 0);
-    return viewportWidth >= ENEMY_POPUP_WIDE_BREAKPOINT_PX ? 'wide' : 'narrow';
+    if (!Number.isFinite(viewportWidth) || viewportWidth <= 0) {
+      return 0;
+    }
+    const insetPx = viewportWidth * (ENEMY_POPUP_VIEWPORT_INSET_PERCENT / 100);
+    return Math.max(
+      0,
+      viewportWidth - (insetPx * 2) - (ENEMY_POPUP_CONTAINER_PADDING_PX * 2)
+    );
+  }
+
+  #shouldForceNarrowLayout() {
+    return this.#getPopupContentWidthPx() < ENEMY_POPUP_MULTI_COLUMN_MIN_CONTENT_WIDTH_PX;
+  }
+
+  #resolveAutoLayoutMode(enemies = []) {
+    const occupiedCount = enemies.filter((enemy) => enemy?.occupied).length;
+    return occupiedCount >= 2 ? 'wide' : 'narrow';
+  }
+
+  #resolveLayoutState(enemies = []) {
+    const forcedNarrow = this.#shouldForceNarrowLayout();
+    if (forcedNarrow) {
+      return {
+        mode: 'narrow',
+        forcedNarrow: true,
+      };
+    }
+    if (this.#layoutPreference === 'wide' || this.#layoutPreference === 'narrow') {
+      return {
+        mode: this.#layoutPreference,
+        forcedNarrow: false,
+      };
+    }
+    return {
+      mode: this.#resolveAutoLayoutMode(enemies),
+      forcedNarrow: false,
+    };
   }
 
   #buildEnemyEntries() {
@@ -320,7 +389,9 @@ export class EnemyDetailPopup {
 
   #buildHtml() {
     const enemies = this.#buildEnemyEntries();
-    const layoutMode = this.#resolveLayoutMode();
+    const layoutState = this.#resolveLayoutState(enemies);
+    const layoutMode = layoutState.mode;
+    const forcedNarrow = layoutState.forcedNarrow;
     const tabButtonsHtml = enemies.map((enemy, index) => {
       const isActive = index === this.#activeEnemyIndex;
       const stateClass = enemy.dead ? 'is-dead' : enemy.occupied ? 'is-occupied' : 'is-empty';
@@ -333,6 +404,7 @@ export class EnemyDetailPopup {
         </button>
       `;
     }).join('');
+    const layoutToggleHtml = this.#buildLayoutToggleHtml(layoutMode, forcedNarrow);
     const contentHtml = layoutMode === 'wide'
       ? this.#buildWideContentHtml(enemies)
       : this.#buildNarrowContentHtml(enemies);
@@ -344,12 +416,12 @@ export class EnemyDetailPopup {
       "></div>
 
       <div class="${POPUP_CONTAINER_CLASS}" style="
-        position: fixed; inset: 10%;
+        position: fixed; inset: ${ENEMY_POPUP_VIEWPORT_INSET_PERCENT}%;
         background: #1e293b; border-radius: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
         z-index: 1000; overflow-y: auto;
-        padding: 16px; font-family: system-ui, sans-serif;
+        padding: ${ENEMY_POPUP_CONTAINER_PADDING_PX}px; font-family: system-ui, sans-serif;
         border: 1px solid #475569; color: #e2e8f0;
-      " data-layout-mode="${layoutMode}">
+      " data-layout-mode="${layoutMode}" data-forced-narrow="${forcedNarrow ? 'true' : 'false'}">
         <style>
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-tabs"] {
             display: grid;
@@ -369,19 +441,52 @@ export class EnemyDetailPopup {
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout"][data-layout-mode="wide"] {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(3, minmax(${MIN_MULTI_COLUMN_PANEL_WIDTH_PX}px, 1fr));
+            gap: ${ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX}px;
             align-items: start;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout"][data-layout-mode="narrow"] {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: ${ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX}px;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-column"] {
             display: flex;
             flex-direction: column;
             min-width: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-toggle"] {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 12px;
+            padding: 4px;
+            border: 1px solid #334155;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.72);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-option"] {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 68px;
+            min-height: 30px;
+            padding: 0 12px;
+            border: none;
+            border-radius: 999px;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-option"][aria-pressed="true"] {
+            background: #dbeafe;
+            color: #0f172a;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-option"]:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-column"][data-selected="true"] {
             transform: translateY(-1px);
@@ -582,9 +687,30 @@ export class EnemyDetailPopup {
           " aria-label="Close">×</button>
         </div>
 
+        ${layoutToggleHtml}
         <div data-role="enemy-popup-content">
           ${contentHtml}
         </div>
+      </div>
+    `;
+  }
+
+  #buildLayoutToggleHtml(layoutMode, forcedNarrow = false) {
+    const options = [
+      ['wide', '3表示'],
+      ['narrow', '1表示'],
+    ];
+    return `
+      <div data-role="enemy-popup-layout-toggle" aria-label="敵詳細表示モード">
+        ${options.map(([mode, label]) => `
+          <button type="button"
+                  data-role="enemy-popup-layout-option"
+                  data-layout-preference="${mode}"
+                  aria-pressed="${layoutMode === mode ? 'true' : 'false'}"
+                  ${forcedNarrow && mode === 'wide' ? 'disabled title="狭幅のため3表示は利用できません"' : ''}>
+            ${label}
+          </button>
+        `).join('')}
       </div>
     `;
   }
