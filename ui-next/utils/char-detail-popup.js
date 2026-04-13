@@ -26,6 +26,7 @@ import {
   UNKNOWN_ORDER_VALUE,
 } from './status-sort-order.js';
 import { resolveSourceSkillDescription } from './source-skill-description.js';
+import { resolveAdoptionStatus } from './buff-adoption.js';
 
 const DEAD_STATUS_ICON_FILE_NAME = 'dead.webp';
 
@@ -419,8 +420,11 @@ function buildStatusBlockHtml(effect, options = {}) {
   const sourceCharName = String(effect.sourceCharacterName ?? '').trim();
   const elementalStatusType = resolveElementalStatusType(effect.statusType, effect.elements);
   const iconUrl = String(effect?.iconUrl ?? '').trim() || resolveSkillTypeIconUrl(elementalStatusType || effect.statusType);
+  const isAdopted = effect._adopted !== false;
+  const adoptedAttr = ` data-adopted="${isAdopted}"`;
+  const dimmedClass = isAdopted ? '' : ' dimmed';
   return (
-    `<div class="char-popup-buff-block">` +
+    `<div class="char-popup-buff-block${dimmedClass}"${adoptedAttr}>` +
     `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">${iconUrl ? `<img src="${iconUrl}" alt="${esc(String(effect.statusType ?? ''))}" />` : ''}</div>` +
     `<div class="char-popup-buff-center">` +
     `<div class="char-popup-buff-title">${esc(label)}${powerStr ? `<span class="char-popup-buff-power">${esc(powerStr)}</span>` : ''}${skillName ? `<span class="char-popup-buff-skill">[${esc(skillName)}]</span>` : ''}` +
@@ -506,7 +510,9 @@ function buildStatusTabHtml(statusEffects, options = {}) {
     return `${previewSectionHtml}<p class="char-popup-empty">なし</p>`;
   }
 
-  const statusBlocksHtml = sortStatusEffectsForStatusTab(activeEffects)
+  const sorted = sortStatusEffectsForStatusTab(activeEffects);
+  const withAdoption = resolveAdoptionStatus(sorted);
+  const statusBlocksHtml = withAdoption
     .map((effect) => buildStatusBlockHtml(effect, options))
     .join('');
 

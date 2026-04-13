@@ -29,6 +29,7 @@ import {
   UNKNOWN_ORDER_VALUE,
 } from './status-sort-order.js';
 import { resolveSourceSkillDescription } from './source-skill-description.js';
+import { resolveAdoptionStatus } from './buff-adoption.js';
 
 // 敵状態表示の最大アイコン数（overflow対応）
 const MAX_ENEMY_STATUS_ICONS = 5;
@@ -364,7 +365,9 @@ export function buildEnemyStatusTableHtml(statuses, options = {}) {
     return '<p class="char-popup-empty">状態異常なし</p>';
   }
 
-  return sorted
+  const withAdoption = resolveAdoptionStatus(sorted);
+
+  return withAdoption
     .map((status, index) => {
       const statusType = normalizeEnemyStatusType(status?.statusType) || 'Unknown';
       const elements = Array.isArray(status?.elements) ? status.elements : [];
@@ -393,6 +396,8 @@ export function buildEnemyStatusTableHtml(statuses, options = {}) {
           : `${remaining}T`;
 
       const iconUrl = resolveElementalIconUrl(statusType, elements);
+      const isAdopted = status._adopted !== false;
+      const dimmedClass = isAdopted ? '' : ' dimmed';
       const esc = (str) =>
         String(str ?? '')
           .replace(/&/g, '&amp;')
@@ -401,7 +406,7 @@ export function buildEnemyStatusTableHtml(statuses, options = {}) {
           .replace(/"/g, '&quot;');
 
       return (
-        `<div class="char-popup-buff-block" data-status-index="${index}" data-status-type="${esc(statusType)}">` +
+        `<div class="char-popup-buff-block${dimmedClass}" data-status-index="${index}" data-status-type="${esc(statusType)}" data-adopted="${isAdopted}">` +
         `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">` +
         (iconUrl ? `<img src="${esc(iconUrl)}" alt="${esc(statusType)}" />` : '') +
         `</div>` +
