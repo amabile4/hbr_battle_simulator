@@ -427,11 +427,16 @@ export class EnemyDetailPopup {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 8px;
-            flex-shrink: 0;
+            flex: 1 1 auto;
+            min-width: 0;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-header"] {
             position: relative;
-            min-height: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-right: 32px;
+            min-height: 32px;
             margin-bottom: 12px;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-content"] {
@@ -458,25 +463,26 @@ export class EnemyDetailPopup {
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-toggle"] {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            margin: 0 0 12px;
-            padding: 4px;
+            gap: 4px;
+            margin: 0;
+            padding: 3px;
             border: 1px solid #334155;
             border-radius: 999px;
             background: rgba(15, 23, 42, 0.72);
+            flex-shrink: 0;
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-layout-option"] {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 68px;
-            min-height: 30px;
-            padding: 0 12px;
+            min-width: 48px;
+            min-height: 24px;
+            padding: 0 10px;
             border: none;
             border-radius: 999px;
             background: transparent;
             color: #94a3b8;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             cursor: pointer;
           }
@@ -516,12 +522,16 @@ export class EnemyDetailPopup {
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-pending="true"] {
-            border-color: rgba(251, 191, 36, 0.52);
-            background: rgba(251, 191, 36, 0.14);
+            border-color: rgba(251, 191, 36, 0.95);
+            background: rgba(251, 191, 36, 0.32);
+            color: #fef3c7;
+            box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55), 0 0 8px rgba(251, 191, 36, 0.25);
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"][data-action-type="kill"][data-pending="true"] {
-            border-color: rgba(251, 113, 133, 0.54);
-            background: rgba(251, 113, 133, 0.16);
+            border-color: rgba(251, 113, 133, 0.95);
+            background: rgba(251, 113, 133, 0.32);
+            color: #ffe4e6;
+            box-shadow: inset 0 0 0 1px rgba(251, 113, 133, 0.6), 0 0 8px rgba(251, 113, 133, 0.25);
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"]:hover:not(:disabled) {
             background: rgba(255, 255, 255, 0.08);
@@ -679,6 +689,7 @@ export class EnemyDetailPopup {
           <div data-role="enemy-popup-tabs">
             ${tabButtonsHtml}
           </div>
+          ${layoutToggleHtml}
           <button data-role="popup-close" type="button" style="
             position: absolute; top: 50%; right: 0; transform: translateY(-50%);
             background: none; border: none; font-size: 20px; cursor: pointer;
@@ -687,7 +698,6 @@ export class EnemyDetailPopup {
           " aria-label="Close">×</button>
         </div>
 
-        ${layoutToggleHtml}
         <div data-role="enemy-popup-content">
           ${contentHtml}
         </div>
@@ -761,17 +771,18 @@ export class EnemyDetailPopup {
 
   #buildActionButtonsHtml(enemy, enemyIndex) {
     const actionButtons = [
-      ['summon', '召喚', SUMMON_BUTTON_ICON_URL, Boolean(enemy?.canSummon), false],
-      ['break', 'ブレイク付与', BREAK_BUTTON_ICON_URL, Boolean(enemy?.canBreak), Boolean(enemy?.hasPendingBreakOperation)],
-      ['kill', '討伐', KILL_BUTTON_ICON_URL, Boolean(enemy?.canKill), Boolean(enemy?.hasPendingKillOperation)],
+      ['summon', '召喚', '召喚', SUMMON_BUTTON_ICON_URL, Boolean(enemy?.canSummon), false],
+      ['break', 'ブレイク付与', 'ブレイク予定', BREAK_BUTTON_ICON_URL, Boolean(enemy?.canBreak), Boolean(enemy?.hasPendingBreakOperation)],
+      ['kill', '討伐', '討伐予定', KILL_BUTTON_ICON_URL, Boolean(enemy?.canKill), Boolean(enemy?.hasPendingKillOperation)],
     ];
     return `
       <div data-role="enemy-popup-action-row">
-        ${actionButtons.map(([actionType, label, iconUrl, enabledByState, isPending]) => {
+        ${actionButtons.map(([actionType, label, pendingLabel, iconUrl, enabledByState, isPending]) => {
           const enabled = enabledByState && typeof this.#toolActions?.[actionType] === 'function';
+          const displayLabel = isPending ? pendingLabel : label;
           const titleText = actionType === 'summon'
             ? label
-            : `E${enemyIndex + 1} ${label}`;
+            : `E${enemyIndex + 1} ${displayLabel}`;
           return `
             <button type="button"
                     data-role="enemy-popup-action"
@@ -781,7 +792,7 @@ export class EnemyDetailPopup {
                     title="${escapeHtml(titleText)}"
                     ${enabled ? '' : 'disabled'}>
               <img src="${iconUrl}" alt="${escapeHtml(label)}" data-role="enemy-popup-action-icon" />
-              <span>${escapeHtml(label)}</span>
+              <span>${escapeHtml(displayLabel)}</span>
             </button>
           `;
         }).join('')}

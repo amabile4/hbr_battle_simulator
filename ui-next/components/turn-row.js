@@ -2509,6 +2509,9 @@ export class TurnRowController {
       ? '討伐した前衛を選択'
       : 'ブレイクした前衛を選択';
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
+    const confirmLabel = requestedOutcome === ACTION_OUTCOME_TYPES.KILL
+      ? '討伐を確定して閉じる'
+      : 'ブレイクを確定して閉じる';
     return `
       <div data-role="enemy-popup-editor"
            data-outcome="${escapeHtml(requestedOutcome)}"
@@ -2544,6 +2547,14 @@ export class TurnRowController {
               </div>
             `;
           }).join('')}
+        </div>
+        <div class="pt-2 flex justify-end">
+          <button type="button"
+                  data-role="enemy-popup-outcome-confirm"
+                  data-enemy-index="${requestedEnemyIndex}"
+                  class="rounded-md border border-blue-400/70 bg-blue-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-blue-500">
+            ${escapeHtml(confirmLabel)}
+          </button>
         </div>
       </div>
     `;
@@ -3428,6 +3439,21 @@ export class TurnRowController {
       return;
     }
     this.#bindOutcomeEditorInteractionEvents(popupRoot, { popupScoped: true });
+
+    popupRoot.querySelectorAll('[data-role="enemy-popup-outcome-confirm"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (!this.#isDraftMode()) {
+          return;
+        }
+        const enemyIndex = Number(btn.dataset.enemyIndex);
+        const fallbackIndex = Number.isInteger(enemyIndex) && enemyIndex >= 0
+          ? enemyIndex
+          : this.#getEnemyDetailPopupActiveEnemyIndex();
+        this.#clearPopupOutcomeRequest();
+        this.#refreshEnemyDetailPopup(fallbackIndex);
+      });
+    });
   }
 
   #buildTurnInfoHtml({ isCommitted, isEditMode }) {
