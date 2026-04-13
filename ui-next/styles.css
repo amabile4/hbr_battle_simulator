@@ -2043,6 +2043,23 @@
   border-radius: 8px;
   padding: 7px 9px;
 }
+/* 非採用効果の dimmed 表示 (§1.2, Q-BD3) */
+.char-popup-buff-block.dimmed {
+  opacity: 0.45;
+}
+.char-popup-buff-block.dimmed .char-popup-buff-title {
+  color: #64748b;
+}
+.char-popup-buff-block.dimmed .char-popup-buff-power {
+  color: #78716c;
+}
+.char-popup-buff-block.dimmed .char-popup-buff-skill {
+  color: #64748b;
+}
+.char-popup-buff-block.dimmed .char-popup-buff-duration {
+  color: #64748b;
+}
+
 .char-popup-buff-icon {
   width: 28px;
   height: 28px;

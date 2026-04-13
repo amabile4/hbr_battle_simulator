@@ -93,17 +93,44 @@ test('compareByPowerDesc sorts by power desc then remaining desc then effectId a
 });
 
 // ============================================================
-// resolveAdoptionStatus — Default limitType
+// resolveAdoptionStatus — Default limitType (上限2)
 // ============================================================
 
-test('resolveAdoptionStatus marks all Default effects as adopted', () => {
+test('resolveAdoptionStatus adopts up to 2 Default effects per group', () => {
   const effects = [
     { statusType: 'Fragile', power: 0.4, remaining: 2, exitCond: 'Eternal', effectId: 1 },
     { statusType: 'Fragile', power: 0.4, remaining: 2, exitCond: 'Eternal', effectId: 2 },
   ];
   const result = resolveAdoptionStatus(effects);
   assert.equal(result.length, 2);
+  // グループ上限2件、2件以下なら全て採用
   assert.ok(result.every((e) => e._adopted === true));
+});
+
+test('resolveAdoptionStatus caps Default effects at 2 per group (drops lowest power)', () => {
+  const effects = [
+    { statusType: 'ResistDown', elements: ['Dark'], power: 0.6, exitCond: 'Eternal', effectId: 1 },
+    { statusType: 'ResistDown', elements: ['Dark'], power: 0.6, exitCond: 'Eternal', effectId: 2 },
+    { statusType: 'ResistDown', elements: ['Dark'], power: 0.6, exitCond: 'Eternal', effectId: 3 },
+  ];
+  const result = resolveAdoptionStatus(effects);
+  const adopted = result.filter((e) => e._adopted);
+  // 3件中 上限2件のみ採用（同power → effectId昇順）
+  assert.equal(adopted.length, 2);
+  assert.deepEqual(adopted.map((e) => e.effectId).sort(), [1, 2]);
+});
+
+test('resolveAdoptionStatus matches Fragile 2+2 scenario (Eternal + finite = 4 adopted)', () => {
+  const effects = [
+    { statusType: 'Fragile', power: 0.4, exitCond: 'Eternal', effectId: 1 },
+    { statusType: 'Fragile', power: 0.4, exitCond: 'Eternal', effectId: 2 },
+    { statusType: 'Fragile', power: 0.35, remaining: 2, exitCond: 'Turn', effectId: 3 },
+    { statusType: 'Fragile', power: 0.35, remaining: 2, exitCond: 'Turn', effectId: 4 },
+  ];
+  const result = resolveAdoptionStatus(effects);
+  const adopted = result.filter((e) => e._adopted);
+  // Eternal 2 + finite 2 = 4 件全て有効
+  assert.equal(adopted.length, 4);
 });
 
 // ============================================================
@@ -122,7 +149,7 @@ test('resolveAdoptionStatus adopts only top-1 for Only limitType', () => {
 });
 
 // ============================================================
-// resolveAdoptionStatus — Count competition
+// resolveAdoptionStatus — Count limitType (Default と同じ上限2)
 // ============================================================
 
 test('resolveAdoptionStatus adopts top-2 for Count limitType', () => {
@@ -138,10 +165,10 @@ test('resolveAdoptionStatus adopts top-2 for Count limitType', () => {
 });
 
 // ============================================================
-// resolveAdoptionStatus — Only vs Count
+// resolveAdoptionStatus — Only vs 非Only バケット比較
 // ============================================================
 
-test('resolveAdoptionStatus prefers Count side when sum >= Only', () => {
+test('resolveAdoptionStatus prefers Only side on tie (Turn is not consumed)', () => {
   const effects = [
     { statusType: 'AttackUp', limitType: 'Count', exitCond: 'Count', power: 0.2, remaining: 2, effectId: 1 },
     { statusType: 'AttackUp', limitType: 'Count', exitCond: 'Count', power: 0.2, remaining: 2, effectId: 2 },
@@ -149,12 +176,25 @@ test('resolveAdoptionStatus prefers Count side when sum >= Only', () => {
   ];
   const result = resolveAdoptionStatus(effects);
   const adopted = result.filter((e) => e._adopted);
-  // Count sum (0.2+0.2=0.4) >= Only (0.4) → Count side
+  // Count 合計 (0.2+0.2=0.4) == Only (0.4) → tie → Only 側を採用
+  assert.equal(adopted.length, 1);
+  assert.equal(adopted[0].effectId, 3);
+});
+
+test('resolveAdoptionStatus adopts Count side when sum exceeds Only', () => {
+  const effects = [
+    { statusType: 'AttackUp', limitType: 'Count', exitCond: 'Count', power: 0.5, remaining: 2, effectId: 1 },
+    { statusType: 'AttackUp', limitType: 'Count', exitCond: 'Count', power: 0.4, remaining: 2, effectId: 2 },
+    { statusType: 'AttackUp', limitType: 'Only', power: 0.5, remaining: 2, exitCond: 'Turn', effectId: 3 },
+  ];
+  const result = resolveAdoptionStatus(effects);
+  const adopted = result.filter((e) => e._adopted);
+  // Count 合計 (0.5+0.4=0.9) > Only (0.5) → Count 側 2 件を採用
   assert.equal(adopted.length, 2);
   assert.deepEqual(adopted.map((e) => e.effectId).sort(), [1, 2]);
 });
 
-test('resolveAdoptionStatus prefers Only side when Only > Count sum', () => {
+test('resolveAdoptionStatus adopts Only side when Only power exceeds Count sum', () => {
   const effects = [
     { statusType: 'AttackUp', limitType: 'Count', exitCond: 'Count', power: 0.2, remaining: 2, effectId: 1 },
     { statusType: 'AttackUp', limitType: 'Count', exitCond: 'Count', power: 0.1, remaining: 2, effectId: 2 },
@@ -162,9 +202,21 @@ test('resolveAdoptionStatus prefers Only side when Only > Count sum', () => {
   ];
   const result = resolveAdoptionStatus(effects);
   const adopted = result.filter((e) => e._adopted);
-  // Only (0.5) > Count sum (0.2+0.1=0.3) → Only side
+  // Only (0.5) > Count 合計 (0.2+0.1=0.3) → Only 側 1 件を採用
   assert.equal(adopted.length, 1);
   assert.equal(adopted[0].effectId, 3);
+});
+
+test('resolveAdoptionStatus adopts single non-Only when Only is weaker', () => {
+  const effects = [
+    { statusType: 'AttackUp', limitType: 'Count', exitCond: 'Count', power: 0.5, remaining: 2, effectId: 1 },
+    { statusType: 'AttackUp', limitType: 'Only', power: 0.3, remaining: 2, exitCond: 'Turn', effectId: 2 },
+  ];
+  const result = resolveAdoptionStatus(effects);
+  const adopted = result.filter((e) => e._adopted);
+  // 非Only (0.5) > Only (0.3) → 非Only 側（Count 1 件のみ）
+  assert.equal(adopted.length, 1);
+  assert.equal(adopted[0].effectId, 1);
 });
 
 // ============================================================
@@ -210,17 +262,17 @@ test('resolveAdoptionStatus separates competition by duration group', () => {
 // resolveAdoptionStatus — ドキュメント §4 想定例の再現
 // ============================================================
 
-test('resolveAdoptionStatus matches §4 example (闇ResistDown Only × 3 Eternal)', () => {
+test('resolveAdoptionStatus matches §4 example (闇ResistDown Default × 3 Eternal → 上位2件)', () => {
   const effects = [
-    { statusType: 'ResistDown', elements: ['Dark'], limitType: 'Only', power: 0.6, exitCond: 'Eternal', effectId: 10 },
-    { statusType: 'ResistDown', elements: ['Dark'], limitType: 'Only', power: 0.6, exitCond: 'Eternal', effectId: 11 },
-    { statusType: 'ResistDown', elements: ['Dark'], limitType: 'Only', power: 0.6, exitCond: 'Eternal', effectId: 12 },
+    { statusType: 'ResistDown', elements: ['Dark'], power: 0.6, exitCond: 'Eternal', effectId: 10 },
+    { statusType: 'ResistDown', elements: ['Dark'], power: 0.6, exitCond: 'Eternal', effectId: 11 },
+    { statusType: 'ResistDown', elements: ['Dark'], power: 0.6, exitCond: 'Eternal', effectId: 12 },
   ];
   const result = resolveAdoptionStatus(effects);
   const adopted = result.filter((e) => e._adopted);
-  // Only → 1件のみ、同power同remaining → effectId昇順
-  assert.equal(adopted.length, 1);
-  assert.equal(adopted[0].effectId, 10);
+  // Default → 上限2件、同power同remaining → effectId昇順
+  assert.equal(adopted.length, 2);
+  assert.deepEqual(adopted.map((e) => e.effectId).sort(), [10, 11]);
 });
 
 test('resolveAdoptionStatus matches §4 example (無属性DefenseDown Count×3 finite)', () => {
@@ -240,7 +292,7 @@ test('resolveAdoptionStatus matches §4 example (無属性DefenseDown Count×3 f
 // resolveAdoptionStatus — Default + Only 混在
 // ============================================================
 
-test('resolveAdoptionStatus always adopts Default effects alongside competitive', () => {
+test('resolveAdoptionStatus adopts Only side when Only power exceeds single Default', () => {
   const effects = [
     { statusType: 'AttackUp', power: 0.3, remaining: 2, exitCond: 'Turn', effectId: 1 },
     { statusType: 'AttackUp', limitType: 'Only', power: 0.5, remaining: 2, exitCond: 'Turn', effectId: 2 },
@@ -248,9 +300,10 @@ test('resolveAdoptionStatus always adopts Default effects alongside competitive'
   ];
   const result = resolveAdoptionStatus(effects);
   const adopted = result.filter((e) => e._adopted);
-  // Default (id=1) は必ず採用 + Only 最強 (id=2) → 2件
-  assert.equal(adopted.length, 2);
-  assert.deepEqual(adopted.map((e) => e.effectId).sort(), [1, 2]);
+  // Only 側: best=0.5 / 非Only 側: Default 0.3 (上限2だが1件のみ) = 0.3
+  // Only(0.5) > 非Only(0.3) → Only 側 1 件を採用
+  assert.equal(adopted.length, 1);
+  assert.equal(adopted[0].effectId, 2);
 });
 
 // ============================================================

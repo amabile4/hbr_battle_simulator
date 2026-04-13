@@ -622,3 +622,46 @@ test('all skill_type entries in docs/active/elements_skill.md use element-prefix
     );
   }
 });
+
+// ============================================================
+// 採用/非採用 (dimmed) 表示テスト
+// ============================================================
+
+test('buildEnemyStatusTableHtml marks adopted effects without dimmed class', () => {
+  const statuses = [
+    { statusType: 'DefenseDown', power: 0.3, remaining: 2, exitCond: 'Turn', effectId: 1 },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses);
+  assert(!html.includes('dimmed'), 'single effect should not be dimmed');
+  assert(html.includes('data-adopted="true"'), 'single effect should be data-adopted=true');
+});
+
+test('buildEnemyStatusTableHtml marks non-adopted Only effects with dimmed class', () => {
+  const statuses = [
+    { statusType: 'ResistDown', elements: ['Dark'], limitType: 'Only', power: 0.6, exitCond: 'Eternal', effectId: 10 },
+    { statusType: 'ResistDown', elements: ['Dark'], limitType: 'Only', power: 0.6, exitCond: 'Eternal', effectId: 11 },
+    { statusType: 'ResistDown', elements: ['Dark'], limitType: 'Only', power: 0.6, exitCond: 'Eternal', effectId: 12 },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses);
+  const blocks = html.match(/class="char-popup-buff-block[^"]*"/g) ?? [];
+  const adoptedBlocks = blocks.filter((b) => !b.includes('dimmed'));
+  const dimmedBlocks = blocks.filter((b) => b.includes('dimmed'));
+  assert.equal(adoptedBlocks.length, 1, 'Only 1 adopted block (Only limitType)');
+  assert.equal(dimmedBlocks.length, 2, '2 non-adopted blocks should be dimmed');
+});
+
+test('buildEnemyStatusTableHtml separates element groups for adoption', () => {
+  const statuses = [
+    // 闇グループ Only → 1件採用
+    { statusType: 'DefenseDown', elements: ['Dark'], limitType: 'Only', power: 0.4, exitCond: 'Eternal', effectId: 1 },
+    { statusType: 'DefenseDown', elements: ['Dark'], limitType: 'Only', power: 0.3, exitCond: 'Eternal', effectId: 2 },
+    // 無属性グループ Only → 1件採用
+    { statusType: 'DefenseDown', limitType: 'Only', power: 0.5, exitCond: 'Eternal', effectId: 3 },
+    { statusType: 'DefenseDown', limitType: 'Only', power: 0.2, exitCond: 'Eternal', effectId: 4 },
+  ];
+  const html = buildEnemyStatusTableHtml(statuses);
+  const adoptedMatches = html.match(/data-adopted="true"/g) ?? [];
+  const nonAdoptedMatches = html.match(/data-adopted="false"/g) ?? [];
+  assert.equal(adoptedMatches.length, 2, '2 adopted (1 per element group)');
+  assert.equal(nonAdoptedMatches.length, 2, '2 non-adopted');
+});

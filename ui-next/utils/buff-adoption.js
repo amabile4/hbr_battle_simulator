@@ -4,13 +4,24 @@
  * バフ/デバフの採用判定（重ねがけ競合解決）の共有ロジック。
  * buff-display.js / char-detail-popup.js / enemy-status-display.js が共通で使用。
  *
- * §1.2 準拠:
- *   グループキー = statusType × elements × 期間グループ（無限/有限）
- *   グループ内の採用上限は limitType で決定:
- *     Default: 全て採用
- *     Only:    1個（power 最大）
- *     Count:   2個（power 上位2個）
- *     Only vs Count: 効果値合計が大きい方を採用（同値なら Count 側）
+ * §1.2 / §4 準拠:
+ *   競合グループキー = statusType × elements × 期間グループ（無限/有限）
+ *
+ *   グループ内の採用ルール:
+ *     グループ内を 2 つのバケットに分ける:
+ *       - Only バケット   : limitType='Only' の効果（最大 1 件、power 最大）
+ *       - 非Only バケット : それ以外の効果（Default/Count/Once/Inf/None）
+ *                          （最大 2 件、power 上位2件）
+ *
+ *     両バケットの power 合計を比較し、合計が大きい側を採用する。
+ *     合計が同値の場合は Only(Turn) 側を採用する
+ *     （有効ターン中は消費されないため Count 系より有利）。
+ *
+ *   重要:
+ *     「Default だから全件採用」という数え方は存在しない。
+ *     Eternal でも Only でなければ 2 件まで重なり、
+ *     Eternal かつ Only なら 1 件しか採用されない。
+ *     Fragile は Eternal 2 件 + 有限 2 件 = 最大 4 件有効になりうる。
  */
 
 // ============================================================
@@ -47,23 +58,11 @@ function pickTopByPower(effects, limit) {
 }
 
 // ============================================================
-// limitType 判定
-// ============================================================
-
-function isCountLikeEffect(effect) {
-  if (String(effect?.limitType ?? '') === 'Only') return false;
-  return (
-    String(effect?.exitCond ?? '') === 'Count' ||
-    String(effect?.limitType ?? '') === 'Count'
-  );
-}
-
-// ============================================================
 // 競合グループキー
 // ============================================================
 
 /**
- * 期間グループ: 'eternal' (Eternal) / 'finite' (Turn, Count, etc.)
+ * 期間グループ: 'eternal' (Eternal) / 'finite' (Turn, Count, その他)
  */
 function getDurationGroup(effect) {
   return String(effect?.exitCond ?? '').trim() === 'Eternal'
@@ -93,37 +92,49 @@ export function buildCompetitionGroupKey(effect) {
 // グループ内採用判定
 // ============================================================
 
+function sumPower(effects) {
+  return effects.reduce((sum, e) => sum + readEffectPower(e), 0);
+}
+
 /**
  * 単一競合グループ内の effects から採用される effects を選択する。
+ *
+ * ルール:
+ *   1. Only バケット (limitType='Only') から power 最大の 1 件を取得
+ *   2. 非Only バケット（それ以外）から power 上位 2 件を取得
+ *   3. それぞれの power 合計を比較:
+ *        - 非Only 合計 > Only 合計 → 非Only 側（最大2件）を採用
+ *        - Only 合計 > 非Only 合計 → Only 側（1件）を採用
+ *        - 同値 → Only 側を採用（Turn は消費されないため有利）
  *
  * @param {Array} effects - 同一競合グループ内の効果リスト
  * @returns {Set<object>} 採用された effect オブジェクトの参照セット
  */
 function resolveAdoptionWithinGroup(effects) {
-  const defaults = effects.filter(
-    (e) =>
-      String(e?.limitType ?? '') !== 'Only' && !isCountLikeEffect(e),
-  );
-  const onlyCandidates = effects.filter(
+  const onlyBucket = effects.filter(
     (e) => String(e?.limitType ?? '') === 'Only',
   );
-  const countCandidates = effects.filter((e) => isCountLikeEffect(e));
-
-  const bestOnly = pickTopByPower(onlyCandidates, 1)[0] ?? null;
-  const topCount = pickTopByPower(countCandidates, 2);
-  const onlyPower = bestOnly ? readEffectPower(bestOnly) : 0;
-  const countPower = topCount.reduce(
-    (sum, e) => sum + readEffectPower(e),
-    0,
+  const nonOnlyBucket = effects.filter(
+    (e) => String(e?.limitType ?? '') !== 'Only',
   );
-  const competitive =
-    countPower >= onlyPower
-      ? topCount
-      : bestOnly
-        ? [bestOnly]
-        : [];
 
-  return new Set([...defaults, ...competitive]);
+  const bestOnly = pickTopByPower(onlyBucket, 1); // 最大 1 件
+  const topNonOnly = pickTopByPower(nonOnlyBucket, 2); // 最大 2 件
+
+  if (bestOnly.length === 0 && topNonOnly.length === 0) {
+    return new Set();
+  }
+  if (bestOnly.length === 0) return new Set(topNonOnly);
+  if (topNonOnly.length === 0) return new Set(bestOnly);
+
+  const onlyPower = sumPower(bestOnly);
+  const nonOnlyPower = sumPower(topNonOnly);
+
+  // 同値は Only(Turn) 側を優先
+  if (onlyPower >= nonOnlyPower) {
+    return new Set(bestOnly);
+  }
+  return new Set(topNonOnly);
 }
 
 // ============================================================
