@@ -171,7 +171,7 @@ test('PartySetupController PT解散 button clears current party selection from s
     assert.equal(root.querySelector('[data-action="disband-party"]').disabled, true);
   }));
 
-test('PartySetupController 全て初期化 button triggers reset-all callback', () =>
+test('PartySetupController 全体初期化 button triggers reset-all callback', () =>
   withDom(({ root, pickerOverlay, win }) => {
     let resetAllCount = 0;
     const controller = new PartySetupController({
@@ -191,7 +191,34 @@ test('PartySetupController 全て初期化 button triggers reset-all callback', 
     assert.equal(resetAllCount, 1);
   }));
 
-test('PartySetupController supports tap-based slot swapping from the slot header', () =>
+test('PartySetupController shows reorder help only while reorder mode is active', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    const toggle = root.querySelector('[data-action="toggle-reorder-mode"]');
+    assert.match(toggle?.textContent ?? '', /並替 OFF/);
+    assert.equal(root.querySelector('.party-setup__header-help'), null);
+
+    toggle.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.match(root.querySelector('[data-action="toggle-reorder-mode"]')?.textContent ?? '', /並替 ON/);
+    assert.match(root.querySelector('.party-setup__header-help')?.textContent ?? '', /ドラッグ \/ 2回タップで入替/);
+  }));
+
+test('PartySetupController keeps filled main icon opening Style Picker in normal mode', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
       root,
@@ -208,13 +235,45 @@ test('PartySetupController supports tap-based slot swapping from the slot header
       startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
     });
 
-    let handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
-    handles[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
-    handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
-    assert.equal(handles[0].getAttribute('aria-pressed'), 'true');
+    assert.equal(pickerOverlay.classList.contains('hidden'), false);
+    assert.match(
+      pickerOverlay.querySelector('#picker-mode-label')?.textContent ?? '',
+      /スロット1\s*メインスタイルを選ぶ/,
+    );
+  }));
 
-    handles[1].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+test('PartySetupController supports tap-based slot swapping from the main icon in reorder mode', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    let icons = root.querySelectorAll('[data-role="party-slot-main-button"]');
+    icons[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    icons = root.querySelectorAll('[data-role="party-slot-main-button"]');
+    assert.equal(icons[0].dataset.reorderSource, 'true');
+
+    icons[1].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     const snapshot = controller.getSnapshot();
     assert.deepEqual(snapshot.styleIds, [1002, 1001, 1003, null, null, null]);
@@ -227,12 +286,13 @@ test('PartySetupController supports tap-based slot swapping from the slot header
       [5, 10, 0, 0, 0, 0],
     );
 
-    handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
-    assert.equal(handles[0].getAttribute('aria-pressed'), 'false');
-    assert.equal(handles[1].getAttribute('aria-pressed'), 'false');
+    icons = root.querySelectorAll('[data-role="party-slot-main-button"]');
+    assert.equal(icons[0].dataset.reorderSource, 'false');
+    assert.equal(icons[1].dataset.reorderSource, 'false');
+    assert.match(root.querySelector('[data-action="toggle-reorder-mode"]')?.textContent ?? '', /並替 ON/);
   }));
 
-test('PartySetupController supports tap-based swapping between front and back rows', () =>
+test('PartySetupController keeps empty main icon as swap destination only in reorder mode', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
       root,
@@ -249,10 +309,59 @@ test('PartySetupController supports tap-based swapping between front and back ro
       startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 1, 4: 3, 5: 3 },
     });
 
-    let handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
-    handles[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
-    handles[3].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const emptyIcon = root.querySelector('[data-role="party-slot-main-button"][data-slot-index="4"]');
+    emptyIcon.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(root.querySelector('[data-role="party-slot-main-button"][data-slot-index="4"]')?.dataset.reorderSource, 'false');
+
+    root
+      .querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="party-slot-main-button"][data-slot-index="4"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.styleIds, [null, 1002, 1003, 1002, 1001, null]);
+    assert.deepEqual(
+      Object.values(snapshot.limitBreakLevelsByPartyIndex),
+      [0, 1, 0, 2, 4, 0],
+    );
+    assert.deepEqual(
+      Object.values(snapshot.drivePierceByPartyIndex),
+      [0, 5, 0, 15, 10, 0],
+    );
+  }));
+
+test('PartySetupController supports tap-based swapping between front and back rows in reorder mode', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, 1002, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 2, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 15, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 1, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="party-slot-main-button"][data-slot-index="3"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     const snapshot = controller.getSnapshot();
     assert.deepEqual(snapshot.styleIds, [1002, 1002, 1003, 1001, null, null]);
@@ -266,7 +375,7 @@ test('PartySetupController supports tap-based swapping between front and back ro
     );
   }));
 
-test('PartySetupController keeps desktop drag-and-drop swapping on the slot header handle', () =>
+test('PartySetupController keeps desktop drag-and-drop swapping on the filled main icon in reorder mode', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
       root,
@@ -282,6 +391,9 @@ test('PartySetupController keeps desktop drag-and-drop swapping on the slot head
       drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 0, 4: 0, 5: 0 },
       startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
     });
+    root
+      .querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     const dataTransferCalls = [];
     const dataTransfer = {
@@ -291,7 +403,7 @@ test('PartySetupController keeps desktop drag-and-drop swapping on the slot head
         dataTransferCalls.push(args);
       },
     };
-    const handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    const handles = root.querySelectorAll('[data-role="party-slot-main-button"]');
     const slots = root.querySelectorAll('[data-slot]');
 
     const dragStartEvent = new win.Event('dragstart', { bubbles: true, cancelable: true });
@@ -316,7 +428,7 @@ test('PartySetupController keeps desktop drag-and-drop swapping on the slot head
     );
   }));
 
-test('PartySetupController keeps desktop drag-and-drop swapping between front and back rows', () =>
+test('PartySetupController keeps desktop drag-and-drop swapping between front and back rows in reorder mode', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
       root,
@@ -332,6 +444,9 @@ test('PartySetupController keeps desktop drag-and-drop swapping between front an
       drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 15, 4: 0, 5: 0 },
       startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 1, 4: 3, 5: 3 },
     });
+    root
+      .querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     const dataTransferCalls = [];
     const dataTransfer = {
@@ -341,7 +456,7 @@ test('PartySetupController keeps desktop drag-and-drop swapping between front an
         dataTransferCalls.push(args);
       },
     };
-    const handles = root.querySelectorAll('[data-action="select-reorder-slot"]');
+    const handles = root.querySelectorAll('[data-role="party-slot-main-button"]');
     const slots = root.querySelectorAll('[data-slot]');
 
     const dragStartEvent = new win.Event('dragstart', { bubbles: true, cancelable: true });
@@ -368,6 +483,124 @@ test('PartySetupController keeps desktop drag-and-drop swapping between front an
       Object.values(snapshot.drivePierceByPartyIndex),
       [15, 5, 0, 10, 0, 0],
     );
+  }));
+
+test('PartySetupController marks dragover destination on the slot root overlay in reorder mode', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+    root
+      .querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData() {},
+    };
+    const icons = root.querySelectorAll('[data-role="party-slot-main-button"]');
+    const slots = root.querySelectorAll('[data-slot]');
+
+    const dragStartEvent = new win.Event('dragstart', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
+    icons[0].dispatchEvent(dragStartEvent);
+
+    const dragOverEvent = new win.Event('dragover', { bubbles: true, cancelable: true });
+    Object.defineProperty(dragOverEvent, 'dataTransfer', { value: dataTransfer });
+    slots[1].dispatchEvent(dragOverEvent);
+
+    assert.equal(slots[1].dataset.dragOver, 'true');
+    assert.equal(dragOverEvent.defaultPrevented, true);
+  }));
+
+test('PartySetupController keeps support picker available while reorder mode is on', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(root.querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')?.dataset.reorderSource, 'true');
+
+    root
+      .querySelector('[data-action="open-picker"][data-slot-index="0"][data-mode="support"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(root.querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')?.dataset.reorderSource, 'false');
+    assert.match(root.querySelector('[data-action="toggle-reorder-mode"]')?.textContent ?? '', /並替 ON/);
+    assert.equal(pickerOverlay.classList.contains('hidden'), false);
+  }));
+
+test('PartySetupController clears selected reorder source on select and skill settings actions while keeping reorder mode on', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 4, 1: 1, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 10, 1: 5, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    root
+      .querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const lbSelect = root.querySelector('select[data-field="lb"][data-slot-index="0"]');
+    lbSelect.value = '3';
+    lbSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    assert.equal(root.querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')?.dataset.reorderSource, 'false');
+    assert.match(root.querySelector('[data-action="toggle-reorder-mode"]')?.textContent ?? '', /並替 ON/);
+    assert.equal(controller.getSnapshot().limitBreakLevelsByPartyIndex['0'], 3);
+
+    root
+      .querySelector('[data-role="party-slot-main-button"][data-slot-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root
+      .querySelector('[data-action="open-skill-settings"][data-slot-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.equal(root.querySelector('[data-role="party-slot-main-button"][data-slot-index="1"]')?.dataset.reorderSource, 'false');
+    assert.match(root.querySelector('[data-action="toggle-reorder-mode"]')?.textContent ?? '', /並替 ON/);
+    assert.ok(win.document.querySelector('[data-role="skill-settings-list"][data-slot="1"]'));
   }));
 
 test('PartySetupController opens Style Picker with continuous selection enabled by default', () =>

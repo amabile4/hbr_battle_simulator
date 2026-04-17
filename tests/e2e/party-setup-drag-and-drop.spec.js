@@ -10,6 +10,7 @@ test.describe('Party Setup drag and drop', () => {
   test('D&D swaps front and back slots and keeps slot settings attached', async ({ page }) => {
     await gotoUiNext(page);
     await fillPartySetupSlots(page, [0, 1, 2, 3]);
+    await page.getByRole('button', { name: /並替 OFF/ }).click();
 
     await page.locator('select[data-field="lb"][data-slot-index="0"]').selectOption('4');
     await page.locator('select[data-field="drivePierce"][data-slot-index="0"]').selectOption('10');
@@ -20,7 +21,7 @@ test.describe('Party Setup drag and drop', () => {
     const beforeBack = await getPartySetupSlotState(page, 3);
 
     await page
-      .locator('[data-slot="0"] [data-role="party-slot-drag-handle"]')
+      .locator('[data-slot="0"] [data-role="party-slot-main-button"]')
       .dragTo(page.locator('[data-slot="3"] [data-role="party-slot-main-button"]'));
 
     await expect(
@@ -43,9 +44,10 @@ test.describe('Party Setup drag and drop', () => {
     ).toHaveValue(beforeFront.drivePierce);
   });
 
-  test('tap-to-swap: front ↔ back via slot header click', async ({ page }) => {
+  test('tap-to-swap: front ↔ back via main icon click in reorder mode', async ({ page }) => {
     await gotoUiNext(page);
     await fillPartySetupSlots(page, [0, 1, 2, 3]);
+    await page.getByRole('button', { name: /並替 OFF/ }).click();
 
     await page.locator('select[data-field="lb"][data-slot-index="0"]').selectOption('4');
     await page.locator('select[data-field="lb"][data-slot-index="3"]').selectOption('2');
@@ -54,12 +56,12 @@ test.describe('Party Setup drag and drop', () => {
     const beforeBack = await getPartySetupSlotState(page, 3);
 
     // 1st click: select source
-    const srcHandle = page.locator('[data-slot="0"] [data-action="select-reorder-slot"]');
+    const srcHandle = page.locator('[data-slot="0"] [data-role="party-slot-main-button"]');
     await srcHandle.click();
-    await expect(srcHandle).toHaveAttribute('aria-pressed', 'true');
+    await expect(srcHandle).toHaveAttribute('data-reorder-source', 'true');
 
     // 2nd click: select destination → triggers swap
-    const dstHandle = page.locator('[data-slot="3"] [data-action="select-reorder-slot"]');
+    const dstHandle = page.locator('[data-slot="3"] [data-role="party-slot-main-button"]');
     await dstHandle.click();
 
     // images should have exchanged
@@ -79,19 +81,20 @@ test.describe('Party Setup drag and drop', () => {
     ).toHaveValue(beforeFront.lb);
 
     // selection state should be cleared
-    await expect(srcHandle).toHaveAttribute('aria-pressed', 'false');
-    await expect(dstHandle).toHaveAttribute('aria-pressed', 'false');
+    await expect(srcHandle).toHaveAttribute('data-reorder-source', 'false');
+    await expect(dstHandle).toHaveAttribute('data-reorder-source', 'false');
   });
 
   test('D&D swaps front ↔ front slots', async ({ page }) => {
     await gotoUiNext(page);
     await fillPartySetupSlots(page, [0, 1, 2]);
+    await page.getByRole('button', { name: /並替 OFF/ }).click();
 
     const before0 = await getPartySetupSlotState(page, 0);
     const before1 = await getPartySetupSlotState(page, 1);
 
     await page
-      .locator('[data-slot="0"] [data-role="party-slot-drag-handle"]')
+      .locator('[data-slot="0"] [data-role="party-slot-main-button"]')
       .dragTo(page.locator('[data-slot="1"] [data-role="party-slot-main-button"]'));
 
     await expect(

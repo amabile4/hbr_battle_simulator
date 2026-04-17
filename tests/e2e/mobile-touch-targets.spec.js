@@ -51,9 +51,9 @@ for (const deviceName of MOBILE_DEVICE_NAMES) {
         toolbar: await collectVisibleMinHeight(page, '.workspace-toolbar__button'),
         tabs: await collectVisibleMinHeight(page, '#initial-setup-root [role="tab"]'),
         apply: await collectVisibleMinHeight(page, '#initial-setup-root [data-role="apply-btn"]'),
-        partyHandles: await collectVisibleMinHeight(
+        partyButtons: await collectVisibleMinHeight(
           page,
-          '#party-setup-root [data-role="party-slot-drag-handle"]'
+          '#party-setup-root [data-action="toggle-reorder-mode"], #party-setup-root [data-action="disband-party"], #party-setup-root [data-action="reset-all-setup"]'
         ),
         partySelects: await collectVisibleMinHeight(page, '#party-setup-root select'),
       };

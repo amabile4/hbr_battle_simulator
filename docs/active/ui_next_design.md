@@ -110,11 +110,13 @@
 - `support` 側は共鳴アビリティなど support 専用情報を追加表示できる構造にする
 - `Style Picker` の `続けて選ぶ` は既定 `ON` とし、空き slot を順番に埋める導線を優先する
 - `Style Picker` header と `Party Setup` 本体の両方に `PT解散` を置き、全 slot の選択状態を初期化できるようにする
+- `Party Setup` header row は左に `並替 OFF/ON` toggle、中央に reorder help text、右に破壊系 action (`PT解散`, `全体初期化`) を置く
 - Party preset button の通常 click/tap は読込、desktop 右クリックと touch 長押しは `保存 / 名前編集 / 消去` menu を開く
 - desktop hover preview と action menu preview は PartyPickup 左上と同じ 12 マス簡易 PT 表現を使う
 - preset strip は utility row とは別の 2 段目とし、右側に余剰がある間だけ `…` overflow indicator を出す
-- desktop では slot 番号 header を drag handle にして、front/back をまたぐ D&D swap を維持する
-- touch 環境では slot 番号ヘッダのタップで「入れ替え元選択 → 2 回目タップで swap」ができるようにし、iPhone Safari でも並び替え導線を失わない
+- `Party Setup` の main style icon は通常モードでは picker を開き、`並替 ON` 時だけ D&D / tap-swap の操作面に切り替える
+- `並替 ON` 時の help text は `ドラッグ / 2回タップで入替` とし、狭幅では header row の 2 行目へ折り返す
+- touch 環境では `並替 ON` 中の main icon 2 回タップで「入れ替え元選択 → destination 確定」にできるようにし、iPhone Safari でも並び替え導線を失わない
 - D&D は style だけでなく、その slot に紐づく listbox の設定値もまとめて移動する
 - TurnPlanner の input row では slot 全体ではなく style icon を desktop drag handle とし、skill `select` と native D&D の競合を避ける
 - browser 実挙動の確認は stale な旧 E2E を流用せず、`tests/e2e/party-setup-drag-and-drop.spec.js` と `tests/e2e/turn-row-drag-and-drop.spec.js` を正本の Playwright coverage とする

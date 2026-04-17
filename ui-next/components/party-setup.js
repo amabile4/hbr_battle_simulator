@@ -35,6 +35,7 @@ const PARTY_SLOT_COUNT = 6;
 const FRONTLINE_SLOT_COUNT = 3;
 const DEFAULT_SP_EQUIP_ID = '3';
 const EMPTY_SP_EQUIP_ID = '';
+const REORDER_HELP_TEXT = 'ドラッグ / 2回タップで入替';
 
 function createEmptySlotState() {
   return {
@@ -128,6 +129,7 @@ export class PartySetupController {
   #activeMode = 'main'; // 'main' | 'support'
   #dragSrcIndex = null;
   #tapReorderSrcIndex = null;
+  #isReorderMode = false;
   #hasActiveBattle = false;
   #hasRecords = false;
 
@@ -237,7 +239,7 @@ export class PartySetupController {
   }
 
   applySnapshot(snapshot = {}) {
-    this.#tapReorderSrcIndex = null;
+    this.#resetPendingReorderState();
     this.#slots = Array.from({ length: PARTY_SLOT_COUNT }, (_, index) => {
       const styleId = snapshot?.styleIds?.[index] ?? null;
       const supportStyleId = snapshot?.supportStyleIds?.[index] ?? null;
@@ -262,6 +264,7 @@ export class PartySetupController {
           : [],
       };
     });
+    this.#syncReorderMode();
     this.#render();
     this.#notifyChange();
   }
@@ -462,7 +465,7 @@ export class PartySetupController {
   #loadPreset(index) {
     const preset = this.#readPresets()[index];
     if (!preset) return false;
-    this.#tapReorderSrcIndex = null;
+    this.#resetPendingReorderState();
     this.#slots = preset.slots.map((s) => {
       const style = s.styleId ? (this.#store.getStyleById(s.styleId) ?? null) : null;
       const supportStyle =
@@ -488,6 +491,7 @@ export class PartySetupController {
           : [],
       };
     });
+    this.#syncReorderMode();
     this.#render();
     this.#notifyChange();
     return true;
@@ -516,13 +520,60 @@ export class PartySetupController {
     if (!this.#hasPartySelections()) {
       return;
     }
-    this.#tapReorderSrcIndex = null;
+    this.#resetPendingReorderState();
     this.#slots = Array.from({ length: PARTY_SLOT_COUNT }, () => createEmptySlotState());
     this.#activeSlotIndex = null;
     this.#activeMode = 'main';
+    this.#syncReorderMode();
     this.#picker.close();
     this.#render();
     this.#notifyChange();
+  }
+
+  #hasFilledMainSlots() {
+    return this.#slots.some((slot) => slot.styleId !== null);
+  }
+
+  #resetPendingReorderState() {
+    this.#tapReorderSrcIndex = null;
+    this.#dragSrcIndex = null;
+    this.#clearDragHighlights();
+  }
+
+  #clearPendingReorderSelection({ syncVisual = false } = {}) {
+    if (this.#tapReorderSrcIndex === null) {
+      this.#clearDragHighlights();
+      return;
+    }
+    this.#tapReorderSrcIndex = null;
+    this.#clearDragHighlights();
+    if (syncVisual) {
+      this.#updateReorderSelectionVisual();
+    }
+  }
+
+  #syncReorderMode() {
+    if (!this.#hasFilledMainSlots()) {
+      this.#isReorderMode = false;
+    }
+    if (this.#tapReorderSrcIndex !== null && !this.#slots[this.#tapReorderSrcIndex]?.styleId) {
+      this.#tapReorderSrcIndex = null;
+    }
+  }
+
+  #toggleReorderMode() {
+    this.#isReorderMode = !this.#isReorderMode && this.#hasFilledMainSlots();
+    this.#resetPendingReorderState();
+    this.#render();
+  }
+
+  #openPickerForSlot(slotIndex, mode) {
+    this.#activeSlotIndex = slotIndex;
+    this.#activeMode = mode;
+    const slot = this.#slots[slotIndex];
+    const current = mode === 'main' ? (slot?.style ?? null) : (slot?.supportStyle ?? null);
+    const mainStyle = mode === 'support' ? (slot?.style ?? null) : null;
+    this.#picker.open(current, mode, mainStyle, this.#getPartyContext());
   }
 
   #getEquipableSkillsForStyle(styleId) {
@@ -664,12 +715,15 @@ export class PartySetupController {
     }
     if (this.#tapReorderSrcIndex === slotIndex) {
       this.#tapReorderSrcIndex = null;
-      this.#render();
+      this.#updateReorderSelectionVisual();
       return;
     }
     if (this.#tapReorderSrcIndex === null) {
+      if (!this.#slots[slotIndex]?.styleId) {
+        return;
+      }
       this.#tapReorderSrcIndex = slotIndex;
-      this.#render();
+      this.#updateReorderSelectionVisual();
       return;
     }
 
@@ -680,13 +734,25 @@ export class PartySetupController {
       this.#notifyChange();
       return;
     }
-    this.#render();
+    this.#updateReorderSelectionVisual();
   }
 
   #clearDragHighlights() {
     this.#root
       ?.querySelectorAll('[data-slot]')
-      .forEach((slot) => slot.classList.remove('ring-2', 'ring-inset', 'ring-blue-400'));
+      .forEach((slot) => {
+        delete slot.dataset.dragOver;
+      });
+  }
+
+  #updateReorderSelectionVisual() {
+    this.#root
+      ?.querySelectorAll('[data-role="party-slot-main-button"]')
+      .forEach((button) => {
+        const slotIndex = Number(button.dataset.slotIndex);
+        const isSource = this.#isReorderMode && slotIndex === this.#tapReorderSrcIndex;
+        button.dataset.reorderSource = isSource ? 'true' : 'false';
+      });
   }
 
   #resolveSlotElement(target) {
@@ -699,7 +765,7 @@ export class PartySetupController {
 
   #bindDragAndDropDelegation() {
     this.#root.addEventListener('dragover', (event) => {
-      if (this.#dragSrcIndex === null) {
+      if (!this.#isReorderMode || this.#dragSrcIndex === null) {
         return;
       }
       event.preventDefault();
@@ -714,12 +780,12 @@ export class PartySetupController {
       this.#clearDragHighlights();
       const dst = Number(slotElement.dataset.slot);
       if (dst !== this.#dragSrcIndex) {
-        slotElement.classList.add('ring-2', 'ring-inset', 'ring-blue-400');
+        slotElement.dataset.dragOver = 'true';
       }
     });
 
     this.#root.addEventListener('drop', (event) => {
-      if (this.#dragSrcIndex === null) {
+      if (!this.#isReorderMode || this.#dragSrcIndex === null) {
         return;
       }
       const slotElement = this.#resolveSlotElement(event.target);
@@ -740,30 +806,53 @@ export class PartySetupController {
 
   #render() {
     this.#skillSettingsPanel?.close();
+    this.#syncReorderMode();
     // やる気パッシブ持ちが1人でもいれば全スロットにやる気 select を表示
     const moraleVisible = this.#slots.some((s) => hasMoralePassive(s.style));
     const canDisband = this.#hasPartySelections();
+    const canToggleReorder = this.#hasFilledMainSlots();
+    const reorderToggleLabel = this.#isReorderMode ? '↕ 並替 ON' : '↕ 並替 OFF';
 
     this.#root.innerHTML = `
       <div class="p-1.5 space-y-1.5">
-        <!-- 前衛 (PT解散を同行右側に配置) -->
+        <!-- 前衛 -->
         <div>
-          <div class="flex items-center justify-between px-1 mb-0.5">
-            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide">前衛</div>
-            <div class="flex items-center gap-1">
-              <button data-action="reset-all-setup"
+          <div class="party-setup__header-row px-1 mb-0.5">
+            <div class="party-setup__header-main">
+              <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide">前衛</div>
+              <button data-action="toggle-reorder-mode"
                       type="button"
-                      class="text-xs px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50
-                             text-slate-600 hover:bg-slate-100 transition-colors">
-                全て初期化
+                      data-active="${this.#isReorderMode ? 'true' : 'false'}"
+                      ${canToggleReorder ? '' : 'disabled'}
+                      class="party-setup__reorder-toggle text-xs px-2 py-0.5 rounded-md border transition-colors
+                             ${this.#isReorderMode
+                               ? 'border-blue-300 bg-blue-50 text-blue-700'
+                               : 'border-slate-200 bg-slate-50 text-slate-600'}
+                             disabled:opacity-40 disabled:cursor-not-allowed">
+                ${reorderToggleLabel}
               </button>
+            </div>
+            ${this.#isReorderMode
+              ? `<div class="party-setup__header-help text-[11px] text-slate-500">
+                   ${REORDER_HELP_TEXT}
+                 </div>`
+              : ''
+            }
+            <div class="party-setup__header-actions flex items-center gap-1">
               <button data-action="disband-party"
                       type="button"
                       ${canDisband ? '' : 'disabled'}
+                      class="text-xs px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50
+                             text-slate-600 hover:bg-slate-100 transition-colors
+                             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-50">
+                PT解散
+              </button>
+              <button data-action="reset-all-setup"
+                      type="button"
                       class="text-xs px-2 py-0.5 rounded-md border border-rose-200 bg-rose-50
                              text-rose-600 hover:bg-rose-100 transition-colors
-                             disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50">
-                PT解散
+                             disabled:opacity-40 disabled:cursor-not-allowed">
+                全体初期化
               </button>
             </div>
           </div>
@@ -784,23 +873,21 @@ export class PartySetupController {
     // main / support アイコンのクリック
     this.#root.querySelectorAll('[data-action="open-picker"]').forEach((el) => {
       el.addEventListener('click', () => {
-        this.#tapReorderSrcIndex = null;
-        this.#activeSlotIndex = Number(el.dataset.slotIndex);
-        this.#activeMode = el.dataset.mode;
-        const slot = this.#slots[this.#activeSlotIndex];
-        const current =
-          this.#activeMode === 'main'
-            ? (slot?.style ?? null)
-            : (slot?.supportStyle ?? null);
-        const mainStyle = this.#activeMode === 'support' ? (slot?.style ?? null) : null;
-        this.#picker.open(current, this.#activeMode, mainStyle, this.#getPartyContext());
+        const slotIndex = Number(el.dataset.slotIndex);
+        const mode = el.dataset.mode;
+        if (this.#isReorderMode && mode === 'main') {
+          this.#handleTapReorder(slotIndex);
+          return;
+        }
+        this.#clearPendingReorderSelection({ syncVisual: true });
+        this.#openPickerForSlot(slotIndex, mode);
       });
     });
 
     // listbox 変更
     this.#root.querySelectorAll('select[data-field]').forEach((el) => {
       el.addEventListener('change', () => {
-        this.#tapReorderSrcIndex = null;
+        this.#clearPendingReorderSelection({ syncVisual: true });
         const idx = Number(el.dataset.slotIndex);
         const field = el.dataset.field;
         const val = el.value;
@@ -822,10 +909,14 @@ export class PartySetupController {
       this.#onResetAll?.();
     });
 
+    this.#root.querySelector('[data-action="toggle-reorder-mode"]')?.addEventListener('click', () => {
+      this.#toggleReorderMode();
+    });
+
     // スキル設定ボタン
     this.#root.querySelectorAll('[data-action="open-skill-settings"]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        this.#tapReorderSrcIndex = null;
+        this.#clearPendingReorderSelection({ syncVisual: true });
         const idx = Number(btn.dataset.slotIndex);
         if (this.#slots[idx]?.styleId) {
           this.#skillSettingsPanel.open(idx, btn, {
@@ -836,26 +927,28 @@ export class PartySetupController {
       });
     });
 
-    this.#root.querySelectorAll('[data-action="select-reorder-slot"]').forEach((button) => {
-      button.addEventListener('click', () => {
-        this.#handleTapReorder(Number(button.dataset.slotIndex));
-      });
+    this.#root.querySelectorAll('[data-role="party-slot-main-button"]').forEach((button) => {
       button.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') {
+        if (!this.#isReorderMode || (event.key !== 'Enter' && event.key !== ' ')) {
           return;
         }
         event.preventDefault();
         this.#handleTapReorder(Number(button.dataset.slotIndex));
       });
       button.addEventListener('dragstart', (event) => {
+        if (!this.#isReorderMode || !this.#slots[Number(button.dataset.slotIndex)]?.styleId) {
+          return;
+        }
         const slotElement = button.closest('[data-slot]');
         if (!slotElement) {
           return;
         }
-        this.#tapReorderSrcIndex = null;
+        this.#clearPendingReorderSelection({ syncVisual: true });
         this.#dragSrcIndex = Number(button.dataset.slotIndex);
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', '');
+        event.dataTransfer?.setData('text/plain', '');
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+        }
         const requestNextFrame = window.requestAnimationFrame ?? ((callback) => window.setTimeout(callback, 0));
         requestNextFrame(() => slotElement.classList.add('opacity-40'));
       });
@@ -865,9 +958,11 @@ export class PartySetupController {
           slotElement.classList.remove('opacity-40');
         }
         this.#dragSrcIndex = null;
+        this.#clearDragHighlights();
       });
     });
 
+    this.#updateReorderSelectionVisual();
   }
 
   #slotHtml(index, moraleVisible) {
@@ -889,37 +984,36 @@ export class PartySetupController {
     // （属性一致チェックは StylePicker 側で済んでいるためここでは不要）
     const supportSsr = mainSsr && !!supportStyle?.resonance;
     const supportRing = supportSsr ? 'ring-2 ring-purple-400' : '';
-    const reorderSelected = this.#tapReorderSrcIndex === index;
-    const reorderButtonClass = reorderSelected
-      ? 'bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-300'
-      : 'bg-gray-50 text-gray-400';
+    const reorderSelected = this.#isReorderMode && this.#tapReorderSrcIndex === index;
+    const mainButtonDraggable = this.#isReorderMode && !!style;
+    const mainButtonCursorClass = this.#isReorderMode && style
+      ? 'cursor-grab active:cursor-grabbing'
+      : 'cursor-pointer';
+    const mainButtonHoverClass = this.#isReorderMode ? '' : 'hover:opacity-80';
+    const mainButtonTitle = this.#isReorderMode ? REORDER_HELP_TEXT : 'スタイルを選択';
 
     return `
       <div data-slot="${index}"
-           class="flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden
+           class="party-setup__slot relative flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden
                   text-xs shadow-sm transition-opacity">
+        <div data-role="party-slot-overlay"
+             class="party-setup__slot-overlay absolute inset-0 rounded-lg pointer-events-none opacity-0"></div>
 
-        <!-- スロット番号（ドラッグハンドル） -->
-        <div data-action="select-reorder-slot"
-             data-role="party-slot-drag-handle"
-             data-slot-index="${index}"
-             data-selected="${reorderSelected ? 'true' : 'false'}"
-             aria-pressed="${reorderSelected ? 'true' : 'false'}"
-             role="button"
-             tabindex="0"
-             draggable="true"
-             title="ドラッグで入れ替え / タップで入れ替え元を選択"
-             class="party-setup__drag-handle flex items-center justify-center border-b border-gray-100 py-1 min-h-7
-                    font-bold text-xs cursor-grab active:cursor-grabbing select-none
-                    transition-colors ${reorderButtonClass}">
+        <!-- スロット番号 -->
+        <div data-role="party-slot-index"
+             class="party-setup__slot-index flex items-center justify-center border-b border-gray-100 py-1 min-h-7
+                    font-bold text-xs text-gray-400 select-none">
           ${index + 1}
         </div>
 
         <!-- main icon -->
         <button data-action="open-picker" data-slot-index="${index}" data-mode="main"
                 data-role="party-slot-main-button"
-                class="relative w-full aspect-square hover:opacity-80
-                       transition-opacity cursor-pointer overflow-hidden group ${mainRing}
+                data-reorder-source="${reorderSelected ? 'true' : 'false'}"
+                title="${mainButtonTitle}"
+                ${mainButtonDraggable ? 'draggable="true"' : ''}
+                class="party-setup__main-button relative w-full aspect-square
+                       transition-opacity ${mainButtonCursorClass} ${mainButtonHoverClass} overflow-hidden group ${mainRing}
                        ${mainSsr ? 'ssr-resonance-bg-subtle' : 'bg-gray-100'}">
           ${imageUrl
             ? `<img src="${imageUrl}" alt="${style?.name ?? ''}" draggable="false"
@@ -1005,7 +1099,7 @@ export class PartySetupController {
     if (this.#activeSlotIndex == null) return;
     const idx = this.#activeSlotIndex;
     const mode = this.#activeMode;
-    this.#tapReorderSrcIndex = null;
+    this.#resetPendingReorderState();
 
     if (mode === 'main') {
       // メイン同士: 同一キャラクター不可 → 既存をクリア
@@ -1039,6 +1133,7 @@ export class PartySetupController {
       this.#slots[idx].supportStyleId = style.id;
     }
 
+    this.#syncReorderMode();
     this.#render();
     this.#notifyChange();
 

@@ -710,7 +710,7 @@ test('InitialSetupController auto-recalculates when active battle gains skills f
     ]);
   }));
 
-test('InitialSetupController 全て初期化 resets party, enemy, and stage setup values', () =>
+test('InitialSetupController 全体初期化 resets party, enemy, and stage setup values after confirmation', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new InitialSetupController({
       root,
@@ -741,6 +741,8 @@ test('InitialSetupController 全て初期化 resets party, enemy, and stage setu
       },
     });
 
+    win.confirm = () => true;
+
     root
       .querySelector('[data-action="reset-all-setup"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
@@ -751,4 +753,48 @@ test('InitialSetupController 全て初期化 resets party, enemy, and stage setu
     assert.equal(snapshot.party.stageSetup.initialOdGauge, 0);
     assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 0);
     assert.equal(snapshot.party.stageSetup.initialStatusEffects.length, 0);
+  }));
+
+test('InitialSetupController 全体初期化 keeps current setup when confirmation is cancelled', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        { id: 13450045, name: '希望を喰むもの', od_rate: 0, max_d_rate: 999, resistances: { element: {} } },
+      ],
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    controller.applySetupSnapshot({
+      party: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        supportStyleIds: [null, null, null, null, null, null],
+        stageSetup: {
+          initialOdGauge: -300,
+          initialSpBonusAll: 5,
+          selectedDimensionBattleId: 191000001,
+          initialStatusEffects: [{ scope: 'all', statusType: 'DefenseUp' }],
+        },
+      },
+      enemy: {
+        preemptiveField: 'thunder',
+        selectedEnemyIds: [13450045, null, null],
+      },
+    });
+
+    win.confirm = () => false;
+
+    root
+      .querySelector('[data-action="reset-all-setup"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.party.styleIds, [1001, 1002, 1003, null, null, null]);
+    assert.equal(snapshot.enemy.preemptiveField, 'thunder');
+    assert.equal(snapshot.party.stageSetup.initialOdGauge, -300);
+    assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 5);
+    assert.equal(snapshot.party.stageSetup.initialStatusEffects.length, 1);
   }));

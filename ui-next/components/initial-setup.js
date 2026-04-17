@@ -361,6 +361,10 @@ export class InitialSetupController {
   }
 
   #resetAllSetup() {
+    const ok = window.confirm?.('Party / Enemy / Stage の設定をすべて初期化しますか？') ?? true;
+    if (!ok) {
+      return;
+    }
     this.#isApplyingSetupSnapshot = true;
     try {
       this.#partySetup?.disbandParty?.();
