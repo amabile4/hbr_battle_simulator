@@ -3057,6 +3057,21 @@ function getEnemySpecialStatusNameByType(typeId) {
   return ENEMY_SPECIAL_STATUS_TYPE_TO_NAME[Number(typeId)] ?? null;
 }
 
+function hasEnemySpecialStatusByType(turnState, targetIndex, typeId) {
+  const numericTypeId = Number(typeId);
+  const statusType = getEnemySpecialStatusNameByType(numericTypeId);
+  if (!statusType) {
+    return false;
+  }
+  if (hasEnemyStatus(turnState, targetIndex, statusType)) {
+    return true;
+  }
+  if (numericTypeId === ENEMY_SPECIAL_STATUS_TYPE_SUPER_DOWN) {
+    return Boolean(getEnemyBreakStateByTarget(turnState, targetIndex)?.superDown);
+  }
+  return false;
+}
+
 function getAliveEnemyTargetIndexes(state, enemyCountOverride = null) {
   const enemyCount = clampEnemyCount(
     enemyCountOverride ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
@@ -5179,13 +5194,12 @@ function resolveEnemyConditionFunctionValue(name, argRaw, state, targetIndex) {
         value: dead ? 0 : (isEnemyWeakToElement(state?.turnState, targetIndex, arg) ? 1 : 0),
       };
     case 'SpecialStatusCountByType': {
-      const statusType = getEnemySpecialStatusNameByType(arg);
-      if (!statusType) {
+      if (!getEnemySpecialStatusNameByType(arg)) {
         return { known: false, value: true };
       }
       return {
         known: true,
-        value: dead ? 0 : (hasEnemyStatus(state?.turnState, targetIndex, statusType) ? 1 : 0),
+        value: dead ? 0 : (hasEnemySpecialStatusByType(state?.turnState, targetIndex, arg) ? 1 : 0),
       };
     }
     default:

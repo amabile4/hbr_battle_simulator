@@ -1,6 +1,6 @@
 # Implementation Priority Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-03-29
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-18
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
@@ -71,6 +71,13 @@
 - [x] enemy-side `SpecialStatusCountByType(3/22/172)` を `DefenseDown` / `Fragile` / `SuperDown` に接続する
 - [x] generator を runtime 実装済み enemy status 判定へ同期する
 - [x] `にゃんこ大魔法` / `御稲荷神話` / `シンメトリー・リベレーション` の回帰を追加する
+
+### 2026-04-18 追記: replay snapshot 上の `SuperDown` 表現差分
+
+- `ui-next` の replay/session 再生では、敵が超ダウン中でも `enemyStatuses` に `SuperBreakDown` が残らず、`enemyBreakStates[*].superDown` のみが保存されるケースがある
+- この状態では `SpecialStatusCountByType(172)` が explicit status のみを見ていたため、`シンメトリー・リベレーション` の `overwrite_cond` / `SkillCondition` が不発になり、消費SP0 へ切り替わらなかった
+- 2026-04-18 修正で、enemy-side `SpecialStatusCountByType(172)` は `SuperBreakDown` status に加えて `enemyBreakStates[*].superDown` も超ダウンとして解釈する
+- 回帰として、replay snapshot 由来の `Break + DownTurn + breakState.superDown` だけを持つ状態でも `シンメトリー・リベレーション` が `spCost=0` / 強化分岐へ入ることを test で固定した
 
 ### 2026-03-30 調査メモ: enemy-side `SpecialStatusCountByType` の実データ参照
 

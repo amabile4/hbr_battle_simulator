@@ -2179,6 +2179,36 @@ test('シンメトリー・リベレーション resolves SuperBreakDown enemy c
   assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 37.5);
 });
 
+test('シンメトリー・リベレーション resolves replay superDown break-state snapshots without explicit SuperBreakDown status', () => {
+  const store = getStore();
+  const skillId = 46001523;
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
+
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [
+      { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+      { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 },
+    ],
+    destructionRateByEnemy: { 0: 999 },
+    destructionRateCapByEnemy: { 0: 1299 },
+    breakStateByEnemy: {
+      0: {
+        baseCap: 999,
+        strongBreakActive: false,
+        superDown: {
+          preRate: 100,
+          preCap: 999,
+        },
+      },
+    },
+  };
+
+  const preview = previewActorSkill(state, skillId);
+  assert.equal(preview.actions[0].spCost, 0);
+  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 37.5);
+});
+
 test('HasSkill() condition can resolve triggered skill labels at preview time', () => {
   const party = createSixMemberManualParty((idx) => {
     if (idx === 0) {
