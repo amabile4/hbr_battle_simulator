@@ -88,3 +88,5 @@ scripts/run_gemini_api.sh
 
 # Codex local skills / settings installed into the repo by local tooling
 .codex/
+# Added by code-review-graph
+.code-review-graph/
