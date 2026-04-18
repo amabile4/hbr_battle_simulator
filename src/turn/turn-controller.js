@@ -18,6 +18,7 @@ import {
 } from '../domain/enemy-status.js';
 import { isNormalAttackSkill, isPursuitOnlySkill } from '../domain/skill-classifiers.js';
 import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
+import { isFormEntryActive } from '../domain/form-change.js';
 import { compareTurnActionExecutionOrder } from './action-execution-order.js';
 import {
   OD_RECOVERY_BY_LEVEL,
@@ -2305,6 +2306,7 @@ function toPassiveLikeEntryFromTriggeredSkill(skill) {
     requiredLimitBreakLevel: 0,
     sourceType: String(skill.sourceType ?? 'triggeredSkill'),
     isTriggeredSkillPassive: true,
+    cardForm: String(skill.cardForm ?? skill.card_form ?? ''),
     sourceMeta:
       skill.sourceMeta && typeof skill.sourceMeta === 'object' ? structuredClone(skill.sourceMeta) : null,
     labels: null,
@@ -2312,11 +2314,17 @@ function toPassiveLikeEntryFromTriggeredSkill(skill) {
   };
 }
 
+function getConfiguredPassivesForMember(member) {
+  return (Array.isArray(member?.passives) ? member.passives : []).filter((passive) =>
+    isFormEntryActive(member, passive)
+  );
+}
+
 function getPassiveEntriesForMember(member) {
-  const entries = Array.isArray(member?.passives) ? [...member.passives] : [];
+  const entries = [...getConfiguredPassivesForMember(member)];
   for (const skill of member?.triggeredSkills ?? []) {
     const passiveLike = toPassiveLikeEntryFromTriggeredSkill(skill);
-    if (passiveLike) {
+    if (passiveLike && isFormEntryActive(member, passiveLike)) {
       entries.push(passiveLike);
     }
   }
@@ -3618,7 +3626,7 @@ function applyTokenEffectsFromActions(state, previewRecord, dpEvents = []) {
       const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
       const hitEnemyCount = targetEnemyIndexes.length;
       if (hitEnemyCount > 0) {
-        for (const passive of actor.passives ?? []) {
+        for (const passive of getConfiguredPassivesForMember(actor)) {
           for (const part of passive.parts ?? []) {
             if (String(part?.skill_type ?? '') !== 'TokenSetByAttacking') {
               continue;
@@ -3663,7 +3671,7 @@ function applyTokenEffectsFromActions(state, previewRecord, dpEvents = []) {
       if (!target) {
         continue;
       }
-      for (const passive of target.passives ?? []) {
+      for (const passive of getConfiguredPassivesForMember(target)) {
         for (const passivePart of passive.parts ?? []) {
           if (String(passivePart?.skill_type ?? '') !== 'TokenSetByHealedDp') {
             continue;
@@ -3888,7 +3896,7 @@ function applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry) {
     }
 
     // このメンバーが AdditionalHitOnHealedSpWithoutSelfHeal パッシブを持つか確認
-    for (const passive of member.passives ?? []) {
+    for (const passive of getConfiguredPassivesForMember(member)) {
       const timing = String(passive?.timing ?? '').trim();
       if (
         timing !== 'OnFirstBattleStart' &&
@@ -4013,7 +4021,7 @@ function applyReceiverZonePassiveTriggers(state, actor, skill, actionEntry) {
   // 全パーティメンバー（actor 含む）を走査
   for (const member of state?.party ?? []) {
     // このメンバーが AdditionalHitOnZone パッシブを持つか確認
-    for (const passive of member.passives ?? []) {
+    for (const passive of getConfiguredPassivesForMember(member)) {
       const timing = String(passive?.timing ?? '').trim();
       if (
         timing !== 'OnFirstBattleStart' &&
@@ -4107,7 +4115,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   const passiveTriggerEvents = [];
   const fieldStateEvents = [];
 
-  for (const passive of actor.passives ?? []) {
+  for (const passive of getConfiguredPassivesForMember(actor)) {
     const timing = String(passive?.timing ?? '').trim();
     if (
       timing !== 'OnFirstBattleStart' &&
@@ -4922,7 +4930,7 @@ export function applyEnemyAttackTokenTriggers(state, targetCharacterIds = []) {
     if (!target) {
       continue;
     }
-    for (const passive of target.passives ?? []) {
+    for (const passive of getConfiguredPassivesForMember(target)) {
       for (const part of passive.parts ?? []) {
         if (String(part?.skill_type ?? '') !== 'TokenSetByAttacked') {
           continue;
@@ -5803,7 +5811,7 @@ function resolvePassiveDamageRateUpPerTokenForMember(state, targetMember, timing
   const matchedPassives = [];
 
   for (const actor of state.party ?? []) {
-    for (const passive of actor.passives ?? []) {
+    for (const passive of getConfiguredPassivesForMember(actor)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
       }
@@ -5863,7 +5871,7 @@ function resolvePassiveAttackUpPerTokenForMember(state, targetMember, timings = 
   const matchedPassives = [];
 
   for (const actor of state.party ?? []) {
-    for (const passive of actor.passives ?? []) {
+    for (const passive of getConfiguredPassivesForMember(actor)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
       }
@@ -5923,7 +5931,7 @@ function resolvePassiveDefenseUpPerTokenForMember(state, targetMember, timings =
   const matchedPassives = [];
 
   for (const actor of state.party ?? []) {
-    for (const passive of actor.passives ?? []) {
+    for (const passive of getConfiguredPassivesForMember(actor)) {
       if (!timingSet.has(String(passive?.timing ?? ''))) {
         continue;
       }
@@ -8658,7 +8666,7 @@ function computeSupportBreakOdBonusEvents(state, actor, skill, actionEntry) {
   const baseHitCount = resolveSkillHitCount(skill);
   const driveBonusPercent = resolveDrivePierceBonusPercent(baseHitCount, actor?.drivePiercePercent ?? 0);
   const driveMultiplier = 1 + driveBonusPercent / 100;
-  for (const passive of actor.passives ?? []) {
+  for (const passive of getConfiguredPassivesForMember(actor)) {
     if (String(passive?.sourceType ?? '') !== 'support') {
       continue;
     }
@@ -9020,7 +9028,7 @@ function getEpRule(member) {
 
 function getPassiveOverdriveEpLimit(member) {
   let limit = null;
-  for (const passive of member.passives ?? []) {
+  for (const passive of getConfiguredPassivesForMember(member)) {
     if (String(passive.timing ?? '') !== 'OnOverdriveStart') {
       continue;
     }
@@ -9104,7 +9112,7 @@ function applyPassiveEpOnOverdriveStart(member, turnState, options = {}) {
   const passiveOverdriveEpLimit = Number.isFinite(Number(options.passiveOverdriveEpLimit))
     ? Number(options.passiveOverdriveEpLimit)
     : null;
-  for (const passive of member.passives ?? []) {
+  for (const passive of getConfiguredPassivesForMember(member)) {
     if (String(passive.timing ?? '') !== 'OnOverdriveStart') {
       continue;
     }
@@ -9177,7 +9185,7 @@ function applyPassiveSpOnOverdriveStart(state) {
   const passiveEvents = [];
 
   for (const actor of state.party ?? []) {
-    for (const passive of actor.passives ?? []) {
+    for (const passive of getConfiguredPassivesForMember(actor)) {
       if (String(passive.timing ?? '') !== 'OnOverdriveStart') {
         continue;
       }

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CharacterStyle } from '../domain/character-style.js';
 import { resolveShortCharacterName } from '../domain/character-name.js';
+import { buildStyleFormChange } from '../domain/form-change.js';
 import { Party, MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 import {
   isAdmiralCommandSkill as isAdmiralCommandSkillClassifier,
@@ -298,6 +299,7 @@ function createPassiveMeaningKey(passive) {
     name: String(passive?.name ?? ''),
     desc: String(passive?.desc ?? ''),
     info: String(passive?.info ?? ''),
+    cardForm: String(passive?.card_form ?? passive?.cardForm ?? ''),
     timing: String(passive?.timing ?? ''),
     condition: String(passive?.condition ?? ''),
     effect: String(passive?.effect ?? ''),
@@ -1248,21 +1250,31 @@ export class HbrDataStore {
       : maxLimitBreak;
 
     const out = [];
-    const seen = new Set();
+    const seenMeaningKeys = new Set();
+    const pushPassiveIfUnique = (passive, sourceType, sourceMeta) => {
+      const cloned = clonePassiveWithSource(passive, sourceType, sourceMeta);
+      const meaningKey = createPassiveMeaningKey(cloned);
+      if (seenMeaningKeys.has(meaningKey)) {
+        return;
+      }
+      seenMeaningKeys.add(meaningKey);
+      out.push(cloned);
+    };
 
     for (const passive of style.passives ?? []) {
       const id = Number(passive?.id);
-      if (!Number.isFinite(id) || seen.has(id)) {
+      if (!Number.isFinite(id)) {
         continue;
       }
-      seen.add(id);
-      out.push(
-        clonePassiveWithSource(passive, 'style', {
+      pushPassiveIfUnique(
+        passive,
+        'style',
+        {
           sourceStyleId: Number(style.id),
           sourceStyleName: String(style.name ?? ''),
           sourceCharacterId: String(style.chara_label ?? ''),
           sourceCharacterName: normalizeCharacterName(style.chara),
-        })
+        }
       );
     }
 
@@ -1271,7 +1283,7 @@ export class HbrDataStore {
     const styleCharaNorm = normalizeCharaText(style.chara);
     for (const passive of this.passives ?? []) {
       const id = Number(passive?.id);
-      if (!Number.isFinite(id) || seen.has(id)) {
+      if (!Number.isFinite(id)) {
         continue;
       }
 
@@ -1283,14 +1295,15 @@ export class HbrDataStore {
         continue;
       }
 
-      seen.add(id);
-      out.push(
-        clonePassiveWithSource(passive, 'database', {
+      pushPassiveIfUnique(
+        passive,
+        'database',
+        {
           sourceStyleId: Number(style.id),
           sourceStyleName: String(style.name ?? ''),
           sourceCharacterId: String(style.chara_label ?? ''),
           sourceCharacterName: normalizeCharacterName(style.chara),
-        })
+        }
       );
     }
 
@@ -1300,54 +1313,39 @@ export class HbrDataStore {
       if (
         masterSkill &&
         Number.isFinite(masterSkillId) &&
-        !seen.has(masterSkillId) &&
         this.isPassiveSkill(masterSkill)
       ) {
         const passive = masterSkill.passive ?? {};
-        seen.add(masterSkillId);
-        out.push(
-          clonePassiveWithSource(
-            {
-              id: masterSkillId,
-              label: String(masterSkill?.label ?? ''),
-              name: String(masterSkill?.name ?? ''),
-              desc: String(masterSkill?.desc ?? ''),
-              info: String(masterSkill?.info ?? ''),
-              timing: String(passive?.timing ?? ''),
-              condition: String(passive?.condition ?? ''),
-              effect: String(passive?.effect ?? masterSkill?.effect ?? ''),
-              activ_rate: Number(passive?.activ_rate ?? passive?.activRate ?? 0),
-              auto_type: String(passive?.auto_type ?? passive?.autoType ?? 'None'),
-              limit: Number(passive?.limit ?? 0),
-              parts: Array.isArray(masterSkill?.parts) ? structuredClone(masterSkill.parts) : [],
-              ct: String(style.tier ?? ''),
-              lb: 0,
-            },
-            'master',
-            {
-              sourceStyleId: Number(style.id),
-              sourceStyleName: String(style.name ?? ''),
-              sourceCharacterId: String(style.chara_label ?? ''),
-              sourceCharacterName: normalizeCharacterName(style.chara),
-              sourceCharacterLabel: String(style.chara_label ?? ''),
-            }
-          )
+        pushPassiveIfUnique(
+          {
+            id: masterSkillId,
+            label: String(masterSkill?.label ?? ''),
+            name: String(masterSkill?.name ?? ''),
+            desc: String(masterSkill?.desc ?? ''),
+            info: String(masterSkill?.info ?? ''),
+            timing: String(passive?.timing ?? ''),
+            condition: String(passive?.condition ?? ''),
+            effect: String(passive?.effect ?? masterSkill?.effect ?? ''),
+            activ_rate: Number(passive?.activ_rate ?? passive?.activRate ?? 0),
+            auto_type: String(passive?.auto_type ?? passive?.autoType ?? 'None'),
+            limit: Number(passive?.limit ?? 0),
+            parts: Array.isArray(masterSkill?.parts) ? structuredClone(masterSkill.parts) : [],
+            ct: String(style.tier ?? ''),
+            lb: 0,
+          },
+          'master',
+          {
+            sourceStyleId: Number(style.id),
+            sourceStyleName: String(style.name ?? ''),
+            sourceCharacterId: String(style.chara_label ?? ''),
+            sourceCharacterName: normalizeCharacterName(style.chara),
+            sourceCharacterLabel: String(style.chara_label ?? ''),
+          }
         );
       }
     }
 
-    const deduped = [];
-    const uniqueByMeaning = new Set();
-    for (const passive of out) {
-      const key = createPassiveMeaningKey(passive);
-      if (uniqueByMeaning.has(key)) {
-        continue;
-      }
-      uniqueByMeaning.add(key);
-      deduped.push(passive);
-    }
-
-    const acquired = deduped.filter(
+    const acquired = out.filter(
       (passive) => Number(passive.requiredLimitBreakLevel ?? 0) <= limitBreakLevel
     );
 
@@ -1558,6 +1556,7 @@ export class HbrDataStore {
       limitBreakLevel: normalizedLimitBreak,
       supportStyleId: supportStyleId != null ? Number(supportStyleId) : null,
       supportStyleLimitBreakLevel: Number(supportStyleLimitBreakLevel ?? 0),
+      formChange: buildStyleFormChange(style),
       skills: styleSkills,
       triggeredSkills,
       passives,

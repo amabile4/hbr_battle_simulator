@@ -107,6 +107,21 @@ function extractOperationLevel(operation = {}) {
   return Number.isFinite(level) && level >= 1 && level <= 3 ? level : null;
 }
 
+function normalizeChangeFormPayload(payload = {}) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const characterId = String(payload.characterId ?? '').trim();
+  const formKey = String(payload.formKey ?? '').trim();
+  if (!characterId || !formKey) {
+    return null;
+  }
+  return {
+    characterId,
+    formKey,
+  };
+}
+
 function truncateToTwoDecimals(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -180,6 +195,25 @@ function applyKishinkaToState(state) {
       ...state.turnState,
       odGauge: Number(nextOdGauge.toFixed(2)),
     },
+  };
+}
+
+function applyFormChangeToState(state, operation = {}) {
+  const payload = normalizeChangeFormPayload(operation?.payload);
+  if (!payload) {
+    return state;
+  }
+  const clonedParty = state.party.map((member) => member.clone());
+  const actor = clonedParty.find((member) => String(member?.characterId ?? '') === payload.characterId) ?? null;
+  if (!actor?.hasFormChange?.()) {
+    return state;
+  }
+  if (!actor.setCurrentForm(payload.formKey)) {
+    return state;
+  }
+  return {
+    ...state,
+    party: clonedParty,
   };
 }
 
@@ -373,6 +407,9 @@ function applyOperation(state, operation = {}, options = {}) {
   const type = String(operation?.type ?? '').trim();
   if (!type || !BEFORE_COMMIT_OPERATION_TYPES.has(type)) {
     return state;
+  }
+  if (type === REPLAY_OPERATION_TYPES.CHANGE_FORM) {
+    return applyFormChangeToState(state, operation);
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA) {
     return applyKishinkaOperation(state);

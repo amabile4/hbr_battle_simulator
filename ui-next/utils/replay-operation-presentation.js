@@ -1,6 +1,7 @@
 import { REPLAY_OPERATION_TYPES } from '../../src/ui/lightweight-replay-script.js';
 
 const OPERATION_LABELS = Object.freeze({
+  [REPLAY_OPERATION_TYPES.CHANGE_FORM]: 'フォーム',
   [REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA]: '鬼神化',
   [REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI]: '騎兵起動',
   [REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD]: '先制OD',
@@ -24,6 +25,12 @@ export function getReplayOperationDisplayLabel(operation = {}) {
       return `${baseLabel}${level}`;
     }
   }
+  if (type === REPLAY_OPERATION_TYPES.CHANGE_FORM) {
+    const displayName = String(operation?.payload?.displayName ?? '').trim();
+    if (displayName) {
+      return `${baseLabel}: ${displayName}`;
+    }
+  }
   if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
     const enemyName = String(
       operation?.payload?.enemyName ??
@@ -41,6 +48,9 @@ export function getReplayOperationTone(operation = {}) {
   const type = String(operation?.type ?? '');
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA) {
     return 'border-purple-200 bg-purple-50 text-purple-700';
+  }
+  if (type === REPLAY_OPERATION_TYPES.CHANGE_FORM) {
+    return 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700';
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI) {
     return 'border-rose-200 bg-rose-50 text-rose-700';

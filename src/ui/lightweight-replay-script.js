@@ -9,6 +9,7 @@ export const REPLAY_TARGET_TYPES = Object.freeze({
 });
 
 export const REPLAY_OPERATION_TYPES = Object.freeze({
+  CHANGE_FORM: 'ChangeForm',
   ACTIVATE_KISHINKA: 'ActivateKishinka',
   ACTIVATE_MAKAI_KIHEI: 'ActivateMakaiKihei',
   ACTIVATE_PREEMPTIVE_OD: 'ActivatePreemptiveOd',
@@ -196,6 +197,10 @@ export const replaySetupEntryRegistry = createTypedEnvelopeRegistry({
   ),
 });
 export const replayOperationRegistry = createTypedEnvelopeRegistry({
+  [REPLAY_OPERATION_TYPES.CHANGE_FORM]: Object.freeze({
+    timing: 'beforeCommit',
+    allowMultiple: true,
+  }),
   [REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA]: Object.freeze({
     timing: 'beforeCommit',
     allowMultiple: false,

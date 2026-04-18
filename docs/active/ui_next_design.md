@@ -295,9 +295,14 @@
 - 右端のメモ欄は `operation chips + free text note` の 2 層にする
 - 自動生成される操作履歴は `note` 文字列へ追記せず、`LightweightReplayTurn.operations` を正本として chip 表示する
 - chip は pending 行と committed 行の両方で `×` 削除でき、committed 行の削除時はその turn から再計算する
-- 現在の chip 対象は `鬼神化` / `騎兵起動` / `先制OD` / `割込OD`
+- 現在の chip 対象は `フォームチェンジ` / `鬼神化` / `騎兵起動` / `先制OD` / `割込OD`
 - operation chip は OS のフォント差分があっても 1 行維持を優先し、`騎兵起動` / `先制OD1` のような中長ラベルでも折り返さない
 - before-commit 系 operation の適用順は `special operation -> 先制OD -> 通常 action preview/commit` とする
+- `フォームチェンジ` は draft 行の style icon 上に `CHANGE` button を重ねて操作し、button 押下だけでなくフォーム専用スキル選択時も対応フォームへ自動同期する
+- `フォームチェンジ` はコミット前なら同一ターン内で何度でも切り替えられ、基準 state と同じフォームへ戻した場合は pending chip を自動で外す
+- committed turn で確定したフォームは次の input row の icon / role / passive 判定へ引き継ぐ
+- char detail popup は form-change style の現在フォームを header chip (`フォーム: カレン` など) で表示し、`アビリティ` タブでは system `[Overdrive]` を除く全 passive を並べ、非アクティブ側フォームの entries は dimmed 表示にする
+- char detail popup の `パッシブ` タブは committed 行では発動履歴を維持し、draft/input/edit 行の form-change style では現在フォームで有効な passive 一覧を表示する
 - `騎兵起動` は `SS<レゾナンス>[誇り高き魔王の凱旋] 山脇・ボン・イヴァール` が所属しているときだけ未コミット行に表示する
 - `騎兵起動` は同一 turn 内に複数回積めるが、残回数 3 を超えて追加できない
 - `騎兵起動` の残回数は battle state に持たず、committed replay turns と current pending operations の prefix から導出する

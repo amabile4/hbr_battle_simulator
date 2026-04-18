@@ -689,6 +689,9 @@ export class TurnEngineManager {
     if (!normalized) {
       return false;
     }
+    if (normalized.type === REPLAY_OPERATION_TYPES.CHANGE_FORM) {
+      return this.#upsertPendingFormChangeOperation(normalized);
+    }
     const definition = replayOperationRegistry.get(normalized.type);
     if (definition?.allowMultiple === false) {
       const alreadyQueued = this.#pendingSpecialOperations.some((entry) => entry?.type === normalized.type);
@@ -1726,6 +1729,39 @@ export class TurnEngineManager {
       normalized.payload = payload;
     }
     return normalized;
+  }
+
+  #upsertPendingFormChangeOperation(normalized) {
+    const characterId = String(normalized?.payload?.characterId ?? '').trim();
+    const formKey = String(normalized?.payload?.formKey ?? '').trim();
+    if (!characterId || !formKey) {
+      return false;
+    }
+    const member = this.currentState?.party?.find(
+      (entry) => String(entry?.characterId ?? '') === characterId
+    ) ?? null;
+    if (!member?.hasFormChange?.()) {
+      return false;
+    }
+    const existingIndex = this.#pendingSpecialOperations.findIndex(
+      (entry) =>
+        String(entry?.type ?? '') === REPLAY_OPERATION_TYPES.CHANGE_FORM &&
+        String(entry?.payload?.characterId ?? '') === characterId
+    );
+    const currentFormKey = String(member?.getCurrentFormKey?.() ?? '').trim();
+    if (formKey === currentFormKey) {
+      if (existingIndex >= 0) {
+        this.#pendingSpecialOperations.splice(existingIndex, 1);
+        return true;
+      }
+      return false;
+    }
+    if (existingIndex >= 0) {
+      this.#pendingSpecialOperations.splice(existingIndex, 1, normalized);
+      return true;
+    }
+    this.#pendingSpecialOperations.push(normalized);
+    return true;
   }
 
   #buildPendingBeforeCommitOperations() {

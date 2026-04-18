@@ -572,6 +572,29 @@ test('listPassivesByStyleId keeps same-name passives when activation metadata di
   );
 });
 
+test('listPassivesByStyleId keeps same-id passives when card_form differs', () => {
+  const store = getStore();
+  const passives = store.listPassivesByStyleId(1001509, { limitBreakLevel: 4 });
+  const lb3Variants = passives
+    .filter((item) => Number(item.requiredLimitBreakLevel ?? 0) === 3)
+    .map((item) => ({
+      name: item.name,
+      cardForm: String(item.card_form ?? item.cardForm ?? ''),
+    }))
+    .sort((left, right) => left.cardForm.localeCompare(right.cardForm));
+
+  assert.deepEqual(lb3Variants, [
+    {
+      name: '貴様に託した【カレン 専用】',
+      cardForm: 'CardForm.KAsakura09',
+    },
+    {
+      name: '戦場に立つ【朝倉可憐 専用】',
+      cardForm: 'KAsakura09',
+    },
+  ]);
+});
+
 test('listEquipableSkillsByStyleId includes passives as equip-only entries', () => {
   const store = getStore();
   const tojoLamentStyleId = 1001408; // 哀情のラメント

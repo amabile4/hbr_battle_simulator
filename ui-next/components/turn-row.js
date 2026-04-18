@@ -1,4 +1,4 @@
-import { resolveStyleImageUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { resolveStyleAssetUrl, resolveStyleImageUrl, resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import {
   clampEnemyCount,
   DEFAULT_ENEMY_COUNT,
@@ -1578,6 +1578,74 @@ export class TurnRowController {
     if (nextOperation) {
       this.#operations.push(structuredClone(nextOperation));
     }
+  }
+
+  #createFormChangeOperation(member, formKey) {
+    if (!member?.hasFormChange?.()) {
+      return null;
+    }
+    const normalizedFormKey = String(formKey ?? '').trim();
+    const formInfo = member?.formChange?.forms?.[normalizedFormKey] ?? null;
+    if (!normalizedFormKey || !formInfo) {
+      return null;
+    }
+    return {
+      type: REPLAY_OPERATION_TYPES.CHANGE_FORM,
+      payload: {
+        characterId: String(member.characterId ?? ''),
+        formKey: normalizedFormKey,
+        displayName: String(formInfo.displayName ?? ''),
+      },
+    };
+  }
+
+  #upsertDraftFormChangeOperation(member, formKey) {
+    const operation = this.#createFormChangeOperation(member, formKey);
+    if (!operation) {
+      return false;
+    }
+    const characterId = String(member?.characterId ?? '');
+    const currentFormKey = String(member?.getCurrentFormKey?.() ?? '').trim();
+    const nextFormKey = String(formKey ?? '').trim();
+    const existingOperations = Array.isArray(this.#operations) ? this.#operations : [];
+    const nextOperations = existingOperations.filter(
+      (entry) =>
+        String(entry?.type ?? '') !== REPLAY_OPERATION_TYPES.CHANGE_FORM ||
+        String(entry?.payload?.characterId ?? '') !== characterId
+    );
+    if (nextFormKey !== currentFormKey) {
+      nextOperations.push(operation);
+    }
+    const changed =
+      JSON.stringify(existingOperations) !== JSON.stringify(nextOperations);
+    if (!changed) {
+      return false;
+    }
+    this.#operations = nextOperations.map((entry) => structuredClone(entry));
+    return true;
+  }
+
+  #requestFormChange(member, formKey) {
+    if (!member?.hasFormChange?.()) {
+      return false;
+    }
+    const operation = this.#createFormChangeOperation(member, formKey);
+    if (!operation) {
+      return false;
+    }
+    if (this.#isEditMode()) {
+      return this.#upsertDraftFormChangeOperation(member, formKey);
+    }
+    return Boolean(this.#onOperationAdd?.(this.#turnIndex, operation));
+  }
+
+  #syncFormChangeForSkill(member, skillId) {
+    const skill = member?.getSkill?.(skillId) ?? null;
+    const requiredFormKey = member?.resolveRequiredFormKey?.(skill?.cardForm ?? '') ?? null;
+    if (!requiredFormKey) {
+      return false;
+    }
+    return this.#requestFormChange(member, requiredFormKey);
   }
 
   #setDraftOdSelection(odType, level) {
@@ -3574,8 +3642,44 @@ export class TurnRowController {
 
   /** member.styleId から raw style 経由で画像 URL を取得する */
   #resolveImageUrl(member) {
+    const currentFormInfo = member?.getCurrentFormInfo?.() ?? null;
+    if (currentFormInfo?.image) {
+      return resolveStyleAssetUrl(currentFormInfo.image);
+    }
     const rawStyle = this.#store?.getStyleById?.(member.styleId);
     return rawStyle ? resolveStyleImageUrl(rawStyle) : '';
+  }
+
+  #resolveImageAlt(member) {
+    const currentFormInfo = member?.getCurrentFormInfo?.() ?? null;
+    if (currentFormInfo?.displayName) {
+      return String(currentFormInfo.displayName);
+    }
+    return String(member?.styleName ?? '');
+  }
+
+  #buildFormChangeButtonHtml(member) {
+    if (!this.#isDraftMode() || !member?.hasFormChange?.()) {
+      return '';
+    }
+    const nextFormInfo = member?.getAlternateFormInfo?.() ?? null;
+    const currentFormInfo = member?.getCurrentFormInfo?.() ?? null;
+    if (!nextFormInfo?.key) {
+      return '';
+    }
+    const title = [currentFormInfo?.displayName, nextFormInfo?.displayName]
+      .filter(Boolean)
+      .join(' → ');
+    return `
+      <button type="button"
+              data-role="form-change-btn"
+              data-party-index="${member.partyIndex}"
+              data-form-key="${nextFormInfo.key}"
+              title="${escapeHtml(title || 'フォームチェンジ')}"
+              class="absolute left-0.5 bottom-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-600/90 px-1.5 py-[1px] text-[8px] font-bold leading-none tracking-[0.08em] text-white shadow-sm hover:bg-fuchsia-500">
+        CHANGE
+      </button>
+    `;
   }
 
   /** EX ターン中かどうかを判定する（未コミット行専用）。*/
@@ -3611,6 +3715,8 @@ export class TurnRowController {
 
   #buildFrontSlotHtml(member, isCommitted) {
     const imageUrl = this.#resolveImageUrl(member);
+    const imageAlt = this.#resolveImageAlt(member);
+    const formChangeButtonHtml = this.#buildFormChangeButtonHtml(member);
 
     // スキル選択肢（replaySlot は inactive 判定でも必要なため先に算出）
     const skills = member.getActionSkills ? member.getActionSkills() : [];
@@ -3768,10 +3874,11 @@ export class TurnRowController {
                  class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-100
                         ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
               ${imageUrl
-                ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                ? `<img src="${imageUrl}" alt="${imageAlt}" draggable="false"
                         class="w-full h-full object-cover" />`
                 : `<div class="w-full h-full flex items-center justify-center text-gray-300">？</div>`
               }
+              ${formChangeButtonHtml}
               <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px]"
                    style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.9);">
                 ${spDisplay}
@@ -3797,6 +3904,8 @@ export class TurnRowController {
    *  コミット済み行: gray 色で「EX待機」表示（後衛スロットと同トーン）。
    */
   #buildInactiveSlotHtml(member, imageUrl, isCommitted) {
+    const imageAlt = this.#resolveImageAlt(member);
+    const formChangeButtonHtml = this.#buildFormChangeButtonHtml(member);
     const inactiveSnap = isCommitted ? this.#getRecordSnapEntry(member.partyIndex) : null;
     const sp = this.#resolveDisplayedSpValue({ member, isCommitted });
     const tokenCurrent  = isCommitted ? (inactiveSnap?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
@@ -3816,10 +3925,11 @@ export class TurnRowController {
           <div class="flex items-start gap-1">
             <div data-turn-slot-icon class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50">
               ${imageUrl
-                ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                ? `<img src="${imageUrl}" alt="${imageAlt}" draggable="false"
                         class="w-full h-full object-cover opacity-40" />`
                 : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
               }
+              ${formChangeButtonHtml}
               <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px]"
                    style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
                 ${sp}
@@ -3837,6 +3947,8 @@ export class TurnRowController {
 
   #buildBackSlotHtml(member, isCommitted) {
     const imageUrl = this.#resolveImageUrl(member);
+    const imageAlt = this.#resolveImageAlt(member);
+    const formChangeButtonHtml = this.#buildFormChangeButtonHtml(member);
     const backSnap = isCommitted ? this.#getRecordSnapEntry(member.partyIndex) : null;
     const sp = this.#resolveDisplayedSpValue({ member, isCommitted });
     const tokenCurrent  = isCommitted ? (backSnap?.tokenState?.current  ?? 0) : (member.tokenState?.current  ?? 0);
@@ -3864,10 +3976,11 @@ export class TurnRowController {
                  class="relative flex-shrink-0 overflow-hidden rounded-sm bg-gray-50
                         ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}">
               ${imageUrl
-                ? `<img src="${imageUrl}" alt="${member.styleName ?? ''}" draggable="false"
+                ? `<img src="${imageUrl}" alt="${imageAlt}" draggable="false"
                         class="w-full h-full object-cover opacity-60" />`
                 : `<div class="w-full h-full flex items-center justify-center text-gray-200">？</div>`
               }
+              ${formChangeButtonHtml}
               <div data-sp-badge class="absolute -top-0.5 -right-0.5 font-bold leading-none text-center px-1 py-0.5 min-w-[20px] opacity-80"
                    style="color:${spColor};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,0.7);">
                 ${sp}
@@ -4022,13 +4135,24 @@ export class TurnRowController {
           if (Number.isFinite(partyIndex) && skillId != null) {
             this.#draftSlotSkills[partyIndex] = { partyIndex, skillId };
           }
+          const member = this.#getPartyMemberByPartyIndex(partyIndex);
+          const formChanged = member && skillId != null
+            ? this.#syncFormChangeForSkill(member, skillId)
+            : false;
           this.#openTargetPickerPartyIndex = null;
           this.#isBreakEditorOpen = false;
           this.#isKillEditorOpen = false;
           this.#isFollowUpEditorOpen = false;
           this.#closeEnemySummonEditor();
-          this.#rerenderDraftMode();
-          this.#emitPreviewRequest();
+          if (this.#isEditMode()) {
+            this.#rerenderDraftMode();
+            this.#emitPreviewRequest();
+            return;
+          }
+          if (!formChanged) {
+            this.#rerenderDraftMode();
+            this.#emitPreviewRequest();
+          }
         });
       });
     }
@@ -4293,6 +4417,29 @@ export class TurnRowController {
           return;
         }
         this.#onOperationAdd?.(this.#turnIndex, { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI });
+      });
+    }
+
+    if (this.#isDraftMode()) {
+      this.#root.querySelectorAll('[data-role="form-change-btn"]').forEach((button) => {
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const partyIndex = Number(button.dataset.partyIndex);
+          const formKey = String(button.dataset.formKey ?? '').trim();
+          const member = this.#getPartyMemberByPartyIndex(partyIndex);
+          if (!member || !formKey) {
+            return;
+          }
+          const changed = this.#requestFormChange(member, formKey);
+          if (this.#isEditMode()) {
+            if (!changed) {
+              return;
+            }
+            this.#rerenderDraftMode();
+            this.#emitPreviewRequest();
+          }
+        });
       });
     }
 
