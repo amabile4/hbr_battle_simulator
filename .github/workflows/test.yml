@@ -26,11 +26,5 @@ jobs:
 
       - run: npm ci
 
-      - name: Quick tests
-        run: npm run test:quick
-
-      - name: DOM tests (full)
-        run: npm run test:dom:full
-
-      - name: All tests
+      - name: Run tests
         run: npm test
