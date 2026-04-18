@@ -1,18 +1,35 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { test, expect, devices } from '@playwright/test';
 
 import {
-  getLatestDownloadedSessionPath,
   gotoUiNext,
   openPassiveLog,
 } from './ui-next-helpers.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DEFAULT_SESSION_FIXTURE_PATH = path.resolve(
+  __dirname,
+  './fixtures/ui_next_session_enemy_status_desc_fixture.json'
+);
+const BATTLE_END_SESSION_FIXTURE_PATH = path.resolve(
+  __dirname,
+  './fixtures/ui_next_session_2026-03-29T04-34-22.739Z.json'
+);
+const NO_BATTLE_END_SESSION_FIXTURE_PATH = path.resolve(
+  __dirname,
+  './fixtures/ui_next_session_2026-03-30T07-28-15.502Z.json'
+);
 
 test.use({
   ...devices['iPhone SE'],
 });
 
-async function loadSampleSession(page) {
+async function loadSampleSession(page, sessionPath = DEFAULT_SESSION_FIXTURE_PATH) {
   await gotoUiNext(page);
-  await page.locator('#session-load-input').setInputFiles(getLatestDownloadedSessionPath());
+  await page.locator('#session-load-input').setInputFiles(sessionPath);
   await page
     .locator('[data-turn-row][data-row-mode="committed"]')
     .first()
@@ -134,7 +151,7 @@ test.describe('Mobile turn replay status', () => {
   });
 
   test('moves the battle-end chip below the compact turn header on mobile', async ({ page }) => {
-    await loadSampleSession(page);
+    await loadSampleSession(page, BATTLE_END_SESSION_FIXTURE_PATH);
 
     const battleEndRow = page
       .locator('[data-turn-row][data-row-mode="committed"][data-battle-ended="true"]')
@@ -158,30 +175,80 @@ test.describe('Mobile turn replay status', () => {
     expect(layout.chipWidth).toBeLessThan(layout.infoWidth);
   });
 
-  test('keeps ally target labels off the character icon on mobile', async ({ page }) => {
-    await loadSampleSession(page);
+  test('keeps the final committed row stable when the replay session has no battle-end row', async ({ page }) => {
+    await loadSampleSession(page, NO_BATTLE_END_SESSION_FIXTURE_PATH);
 
-    const label = page
-      .locator('[data-role="target-trigger-label"], [data-role="target-trigger"]')
-      .filter({ hasText: '味方' })
-      .first();
-    await expect(label).toBeVisible();
+    const committedRows = page.locator('[data-turn-row][data-row-mode="committed"]');
+    await expect(committedRows).toHaveCount(4, { timeout: 10000 });
+    await expect(
+      page.locator('[data-turn-row][data-row-mode="committed"][data-battle-ended="true"]')
+    ).toHaveCount(0);
 
-    const layout = await label.evaluate((node) => {
-      const slot = node.closest('[data-turn-slot]');
-      const icon = slot?.querySelector('[data-turn-slot-icon]')?.getBoundingClientRect();
-      const footer = slot?.querySelector('[data-role="slot-footer"]')?.getBoundingClientRect();
-      const labelRect = node.getBoundingClientRect();
+    const lastCommittedRow = committedRows.last();
+    await lastCommittedRow.scrollIntoViewIfNeeded();
+    await expect(lastCommittedRow).toBeVisible();
+    await expect(lastCommittedRow).toHaveAttribute('data-battle-ended', 'false');
+    await expect(page.locator('[data-turn-row][data-row-mode="input"]').last()).toBeVisible();
+
+    const layout = await lastCommittedRow.evaluate((row) => {
+      const rowRect = row.getBoundingClientRect();
+      const info = row.querySelector('[data-turn-info]')?.getBoundingClientRect();
+      const slots = row.querySelector('[data-turn-slots]')?.getBoundingClientRect();
+      const maxChildRight = [...row.children].reduce((maxRight, child) => {
+        const childRight = child.getBoundingClientRect().right;
+        return Math.max(maxRight, childRight);
+      }, rowRect.right);
       return {
-        iconBottom: icon?.bottom ?? 0,
-        footerTop: footer?.top ?? 0,
-        labelTop: labelRect.top,
-        labelBottom: labelRect.bottom,
+        rowVisibleOverflow: Math.max(0, maxChildRight - rowRect.right),
+        documentOverflow: Math.max(0, document.documentElement.scrollWidth - window.innerWidth),
+        infoWidth: info?.width ?? 0,
+        slotsWidth: slots?.width ?? 0,
       };
     });
 
-    expect(layout.labelTop).toBeGreaterThanOrEqual(layout.iconBottom - 1);
-    expect(layout.labelBottom).toBeGreaterThan(layout.footerTop);
+    expect(layout.infoWidth).toBeGreaterThan(0);
+    expect(layout.slotsWidth).toBeGreaterThan(0);
+    expect(layout.rowVisibleOverflow, JSON.stringify(layout)).toBeLessThanOrEqual(1);
+    expect(layout.documentOverflow, JSON.stringify(layout)).toBeLessThanOrEqual(1);
+  });
+
+  test('keeps ally target labels off the character icon on mobile', async ({ page }) => {
+    await loadSampleSession(page);
+
+    const firstCommittedRow = page.locator('[data-turn-row][data-row-mode="committed"]').first();
+    await firstCommittedRow.locator('[data-role="edit-btn"]').click();
+
+    const editRow = page.locator('[data-turn-row][data-row-mode="edit"]');
+    await expect(editRow).toBeVisible({ timeout: 5000 });
+
+    const label = editRow.locator('[data-role="target-trigger"][data-target-kind="ally"]').first();
+    await expect(label).toBeVisible({ timeout: 5000 });
+
+    const layout = await label.evaluate((node) => {
+      const slot = node.closest('[data-turn-slot]');
+      const slotRect = slot?.getBoundingClientRect();
+      const icon = slot?.querySelector('[data-turn-slot-icon]')?.getBoundingClientRect();
+      const labelRect = node.getBoundingClientRect();
+      const overlapWidth = Math.max(
+        0,
+        Math.min(labelRect.right, icon?.right ?? 0) - Math.max(labelRect.left, icon?.left ?? 0)
+      );
+      const overlapHeight = Math.max(
+        0,
+        Math.min(labelRect.bottom, icon?.bottom ?? 0) - Math.max(labelRect.top, icon?.top ?? 0)
+      );
+      return {
+        slotRight: slotRect?.right ?? 0,
+        slotBottom: slotRect?.bottom ?? 0,
+        labelRight: labelRect.right,
+        labelBottom: labelRect.bottom,
+        overlapArea: overlapWidth * overlapHeight,
+      };
+    });
+
+    expect(layout.overlapArea).toBe(0);
+    expect(layout.labelRight).toBeLessThanOrEqual(layout.slotRight + 1);
+    expect(layout.labelBottom).toBeLessThanOrEqual(layout.slotBottom + 1);
   });
 
   test('hides front-slot buff icons on mobile', async ({ page }) => {

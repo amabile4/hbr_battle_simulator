@@ -15,13 +15,11 @@ const SESSION_FIXTURE_PATH = path.resolve(
 function collectChipMetrics(row) {
   const chips = [...row.querySelectorAll('[data-role="operation-chip"]')];
   return chips.map((node) => {
-    const label = node.querySelector('span');
     return {
       text: node.textContent?.replace('×', '').trim() ?? '',
-      whiteSpace: getComputedStyle(node).whiteSpace,
-      labelWhiteSpace: label ? getComputedStyle(label).whiteSpace : '',
       hasLineBreak: /\n/.test(node.innerText),
       height: node.getBoundingClientRect().height,
+      clientRectCount: node.getClientRects().length,
     };
   });
 }
@@ -38,18 +36,16 @@ test.describe('Turn row operation chip layout', () => {
     const makaiChipMetrics = await committedRows.nth(0).evaluate(collectChipMetrics);
     expect(makaiChipMetrics.map((metric) => metric.text)).toEqual(['騎兵起動', '騎兵起動']);
     makaiChipMetrics.forEach((metric) => {
-      expect(metric.whiteSpace).toBe('nowrap');
-      expect(metric.labelWhiteSpace).toBe('nowrap');
       expect(metric.hasLineBreak).toBe(false);
+      expect(metric.clientRectCount).toBe(1);
       expect(metric.height).toBeLessThan(32);
     });
 
     const preemptiveChipMetrics = await committedRows.nth(6).evaluate(collectChipMetrics);
     expect(preemptiveChipMetrics.map((metric) => metric.text)).toEqual(['先制OD1']);
     preemptiveChipMetrics.forEach((metric) => {
-      expect(metric.whiteSpace).toBe('nowrap');
-      expect(metric.labelWhiteSpace).toBe('nowrap');
       expect(metric.hasLineBreak).toBe(false);
+      expect(metric.clientRectCount).toBe(1);
       expect(metric.height).toBeLessThan(32);
     });
   });

@@ -179,11 +179,11 @@ async function expectBreakPopupSemantics(popup, enemyIndex, { broken }) {
   const stateRow = column
     .locator('[data-role="enemy-popup-basic-info-row"]')
     .filter({ hasText: '状態' });
+  const breakAction = column.locator('[data-role="enemy-popup-action"][data-action-type="break"]');
   await expect(stateRow).toContainText(broken ? 'BREAK' : 'Alive', { timeout: 5000 });
   await expect(column.locator('[data-status-type="Break"]')).toHaveCount(0);
-  await expect(
-    column.locator('[data-role="enemy-popup-action"][data-action-type="break"]')
-  ).toContainText('ブレイク付与', { timeout: 5000 });
+  const isPending = (await breakAction.getAttribute('data-pending')) === 'true';
+  await expect(breakAction).toContainText(isPending ? 'ブレイク予定' : 'ブレイク付与', { timeout: 5000 });
 }
 
 async function closeEnemyPopup(page) {

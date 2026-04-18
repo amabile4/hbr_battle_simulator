@@ -2,6 +2,8 @@
 
 :root {
   --mobile-touch-target-min-size: 44px;
+  --party-preset-toolbar-popover-z-index: 260;
+  --turn-target-popover-z-index: 120;
 }
 
 .workspace-toolbar {
@@ -356,6 +358,8 @@
   overflow-x: auto;
   padding-right: 0;
   scrollbar-width: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .party-preset-toolbar__scroller[data-overflowing="true"] {
@@ -380,6 +384,11 @@
   color: #64748b;
   font-size: 1rem;
   line-height: 1;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
 }
 
@@ -482,7 +491,7 @@
 .party-preset-toolbar__hover-preview,
 .party-preset-toolbar__action-menu {
   position: fixed;
-  z-index: 80;
+  z-index: var(--party-preset-toolbar-popover-z-index);
   width: min(20rem, calc(100vw - 1rem));
 }
 
@@ -1102,6 +1111,28 @@
 .turn-info-enemy-button__label-text--full {
   display: inline;
 }
+[data-role="operation-chip-list"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+[data-role="operation-chip"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+[data-role="operation-chip"] > span {
+  white-space: nowrap;
+}
+[data-role="operation-chip-remove"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
 @container (max-width: 5rem) {
   .turn-info-enemy-button__label-text--full {
     display: none;
@@ -1354,11 +1385,6 @@
    Row2: [スロット full-width]
    ============================================================ */
 @container turn-area (max-width: 479px) {
-  [data-role="turn-row-list"] {
-    --turn-mobile-target-anchor-right: 0.125rem;
-    --turn-mobile-target-anchor-bottom: 0.125rem;
-  }
-
   /* 外側コンテナ: flex-wrap を有効にして2行に */
   [data-turn-row] { flex-wrap: wrap; }
 
@@ -1604,14 +1630,6 @@
 
   [data-role="slot-body"] {
     position: relative;
-  }
-
-  [data-role="slot-target-anchor"] {
-    position: absolute;
-    right: var(--turn-mobile-target-anchor-right);
-    bottom: var(--turn-mobile-target-anchor-bottom);
-    z-index: 1;
-    max-width: calc(100% - var(--turn-slot-icon-size) - 0.5rem);
   }
 
   [data-turn-row][data-row-mode="committed"][data-battle-ended="true"] [data-role="turn-info-battle-end-row"] {
@@ -1916,7 +1934,12 @@
 
 /* ポップオーバーのレスポンシブ配置（ビューポート外はみ出し防止） */
 .target-popover {
+  z-index: var(--turn-target-popover-z-index);
   max-width: min(280px, calc(100vw - 16px));
+}
+
+.target-popover[data-target-kind="ally"] {
+  max-width: min(360px, calc(100vw - 16px));
 }
 
 /* ============================================================

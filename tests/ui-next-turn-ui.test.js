@@ -508,6 +508,50 @@ test('TurnRowController preserves draft skill and note across rerender without r
     assert.equal(root.querySelector('[data-role="note"]').value, 'draft-note');
   }));
 
+test('TurnRowController shows OD debt badges for negative gauge values without changing minus styling', () =>
+  withDom(({ root }) => {
+    const state = createState(
+      createSkill({
+        id: 95001,
+        name: 'Protection',
+        targetType: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      })
+    );
+    state.turnState.odGauge = -300;
+
+    const row = mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const startBadge = root.querySelector(
+      '[data-od-gauge-row="start"] [data-role="turn-od-stage-badge"]'
+    );
+    const endBadge = root.querySelector(
+      '[data-od-gauge-row="end"] [data-role="turn-od-stage-badge"]'
+    );
+
+    assert.equal(startBadge?.textContent?.trim(), '3');
+    assert.equal(endBadge?.textContent?.trim(), '3');
+    assert.equal(startBadge?.dataset.stage, 'minus');
+    assert.match(startBadge?.className ?? '', /turn-od-stage-minus/);
+
+    row.updateOdPreview(-240);
+    assert.equal(endBadge?.textContent?.trim(), '2');
+    assert.equal(endBadge?.dataset.stage, 'minus');
+    assert.match(endBadge?.className ?? '', /turn-od-stage-minus/);
+
+    row.updateOdPreview(-100);
+    assert.equal(endBadge?.textContent?.trim(), '1');
+    assert.equal(endBadge?.dataset.stage, 'minus');
+
+    row.updateOdPreview(-99);
+    assert.equal(endBadge?.textContent?.trim(), '0');
+    assert.equal(endBadge?.dataset.stage, 'minus');
+  }));
+
 test('TurnRowController allows drag-and-drop swapping from front to back slots via child drop targets', () =>
   withDom(({ root, win }) => {
     const state = createState(
@@ -1176,7 +1220,7 @@ test('TurnRowController shows enemy target trigger only when enemy selection is 
     assert.ok(infoSpace);
     assert.ok(targetAnchor);
     assert.equal(selectRow.contains(trigger), false);
-    assert.ok(infoSpace.contains(trigger));
+    assert.equal(infoSpace.contains(trigger), false);
     assert.ok(targetAnchor.contains(trigger));
     assert.equal(popover.hidden, true);
 
@@ -1691,6 +1735,7 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
     assert.ok(getEnemyDetailPopup(win));
     assert.match(editor.className, /bg-slate-800/);
     assert.match(editor.className, /border-slate-600/);
+    assert.equal(editor.style.zIndex, '1010');
 
     const select = root.querySelector('[data-role="enemy-summon-select"]');
     select.value = String(DEFAULT_SUMMON_SAMPLE_ENEMY.id);
@@ -1769,6 +1814,7 @@ test('TurnRowController keeps dead-slot summon requests on the selected enemy sl
     const editor = root.querySelector('[data-role="enemy-summon-editor"]');
     assert.ok(editor);
     assert.match(editor.textContent ?? '', /配置先: E1/);
+    assert.equal(editor.style.zIndex, '1010');
     editor
       .querySelector('[data-role="enemy-summon-submit"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
@@ -3430,7 +3476,7 @@ test('TurnRowController keeps skill badges stable near the responsive threshold 
     assert.ok(targetAnchor);
     assert.ok(trigger);
     assert.equal(selectRow.contains(trigger), false);
-    assert.ok(infoSpace.contains(trigger));
+    assert.equal(infoSpace.contains(trigger), false);
     assert.ok(targetAnchor.contains(trigger));
 
     delete badgeEl.dataset.responsiveVisible;
@@ -3452,7 +3498,7 @@ test('TurnRowController keeps skill badges stable near the responsive threshold 
     rowWidth = 158;
     row.refreshSkillSelects();
     assert.notEqual(badgeEl.style.display, 'none');
-    assert.ok(infoSpace.contains(root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')));
+    assert.ok(targetAnchor.contains(root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]')));
   }));
 
 test('TurnRowController lets simple-mode single-target rows override target locally and bind break to that target', () =>
@@ -3768,7 +3814,7 @@ test('TurnAreaController preserves committed enemy explicit target when simulato
     assert.equal(root.querySelector('[data-role="target-trigger"][data-target-kind="enemy"]'), null);
   }));
 
-test('TurnAreaController keeps enemy target controls in the info-space anchor across simulator setting rerenders', () =>
+test('TurnAreaController keeps enemy target controls in the slot target anchor across simulator setting rerenders', () =>
   withDom(({ root }) => {
     const state = createState(
       createSkill({
@@ -3795,7 +3841,7 @@ test('TurnAreaController keeps enemy target controls in the info-space anchor ac
       assert.ok(infoSpace);
       assert.ok(targetAnchor);
       assert.equal(selectRow.contains(trigger), false);
-      assert.ok(infoSpace.contains(trigger));
+      assert.equal(infoSpace.contains(trigger), false);
       assert.ok(targetAnchor.contains(trigger));
     };
 
@@ -4354,13 +4400,14 @@ test('TurnAreaController limits pending Makai Kihei chips to three uses', () =>
       root.querySelector('[data-role="makai-kihei-btn"]').click();
     }
 
-    const chipLabels = [...root.querySelectorAll('[data-role="operation-chip"]')].map((chip) =>
+    const chips = [...root.querySelectorAll('[data-role="operation-chip"]')];
+    const chipLabels = chips.map((chip) =>
       chip.textContent.replace('×', '').trim()
     );
     const makaiButton = root.querySelector('[data-role="makai-kihei-btn"]');
     assert.deepEqual(chipLabels, ['騎兵起動', '騎兵起動', '騎兵起動']);
     assert.equal(
-      [...root.querySelectorAll('[data-role="operation-chip"]')].every((chip) =>
+      chips.every((chip) =>
         chip.className.includes('whitespace-nowrap')
       ),
       true

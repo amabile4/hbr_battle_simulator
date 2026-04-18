@@ -3,6 +3,7 @@ import { createEmptyPartySlots, renderPartySlotStrip } from '../utils/party-slot
 const PRESET_COUNT = 20;
 const LONG_PRESS_DURATION_MS = 420;
 const POPOVER_MARGIN_PX = 8;
+const PRESET_POPOVER_MIN_VIEWPORT_HEIGHT_PX = 160;
 const CIRCLED_NUMBERS = Object.freeze(
   Array.from({ length: PRESET_COUNT }, (_, index) => String.fromCodePoint(0x2460 + index))
 );
@@ -194,6 +195,9 @@ export class PartyPresetToolbarController {
       const index = Number(button.dataset.index);
       button.addEventListener('mouseenter', () => this.#showHoverPreview(index, button));
       button.addEventListener('mouseleave', () => this.#hideHoverPreview());
+      button.addEventListener('selectstart', (event) => {
+        event.preventDefault();
+      });
       button.addEventListener('contextmenu', (event) => {
         event.preventDefault();
         this.#showActionMenu(index, button);
@@ -434,8 +438,10 @@ export class PartyPresetToolbarController {
     }
     popover.style.left = '0px';
     popover.style.top = '0px';
+    popover.style.maxHeight = '';
+    popover.style.overflowY = '';
     const anchorRect = anchor.getBoundingClientRect();
-    const popoverRect = popover.getBoundingClientRect();
+    let popoverRect = popover.getBoundingClientRect();
     const maxLeft = Math.max(POPOVER_MARGIN_PX, window.innerWidth - popoverRect.width - POPOVER_MARGIN_PX);
     const preferredTop = anchorRect.bottom + POPOVER_MARGIN_PX;
     const fallbackTop = anchorRect.top - popoverRect.height - POPOVER_MARGIN_PX;
@@ -446,6 +452,21 @@ export class PartyPresetToolbarController {
         : Math.max(POPOVER_MARGIN_PX, fallbackTop);
     popover.style.left = `${left}px`;
     popover.style.top = `${top}px`;
+
+    const maxViewportHeight = Math.max(
+      PRESET_POPOVER_MIN_VIEWPORT_HEIGHT_PX,
+      window.innerHeight - POPOVER_MARGIN_PX * 2
+    );
+    if (popoverRect.height > maxViewportHeight) {
+      popover.style.maxHeight = `${maxViewportHeight}px`;
+      popover.style.overflowY = 'auto';
+      popoverRect = popover.getBoundingClientRect();
+      const adjustedTop = Math.min(
+        Math.max(POPOVER_MARGIN_PX, Number.parseFloat(popover.style.top) || 0),
+        Math.max(POPOVER_MARGIN_PX, window.innerHeight - popoverRect.height - POPOVER_MARGIN_PX)
+      );
+      popover.style.top = `${adjustedTop}px`;
+    }
   }
 
   #syncOverflowIndicator() {

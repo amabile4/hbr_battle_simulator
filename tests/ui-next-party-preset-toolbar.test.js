@@ -314,3 +314,22 @@ test('PartyPresetToolbarController opens action menu on long press and suppresse
     await new Promise((resolve) => win.setTimeout(resolve, 0));
     assert.deepEqual(service.calls.load, []);
   }));
+
+test('PartyPresetToolbarController prevents text selection from preset buttons during long press gestures', () =>
+  withDom(({ root, win }) => {
+    const service = createService();
+    const controller = new PartyPresetToolbarController({
+      root,
+      getPresetPreviews: () => service.getPresetPreviews(),
+      onLoadPreset: (index) => service.loadPreset(index),
+      onSavePreset: (index, options) => service.savePreset(index, options),
+      onRenamePreset: (index, options) => service.renamePreset(index, options),
+      onClearPreset: (index) => service.clearPreset(index),
+    });
+    controller.mount();
+
+    const button = root.querySelector('[data-role="party-preset-button"]');
+    const selectStartEvent = new win.Event('selectstart', { bubbles: true, cancelable: true });
+    button.dispatchEvent(selectStartEvent);
+    assert.equal(selectStartEvent.defaultPrevented, true);
+  }));

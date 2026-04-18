@@ -112,8 +112,11 @@
 - `Style Picker` header と `Party Setup` 本体の両方に `PT解散` を置き、全 slot の選択状態を初期化できるようにする
 - `Party Setup` header row は左に `並替 OFF/ON` toggle、中央に reorder help text、右に破壊系 action (`PT解散`, `全体初期化`) を置く
 - Party preset button の通常 click/tap は読込、desktop 右クリックと touch 長押しは `保存 / 名前編集 / 消去` menu を開く
+- mobile の preset 長押しは native text selection / callout を抑止し、custom menu 操作を優先する
 - desktop hover preview と action menu preview は PartyPickup 左上と同じ 12 マス簡易 PT 表現を使う
 - preset strip は utility row とは別の 2 段目とし、右側に余剰がある間だけ `…` overflow indicator を出す
+- preset action menu / preview は viewport 基準の fixed popover とし、turn row 編集 UI より前面に出す
+- 狭幅 mobile の slot target trigger / label は absolute overlay にせず、slot info column の通常フローへ置いて character icon に重ねない
 - `Party Setup` の main style icon は通常モードでは picker を開き、`並替 ON` 時だけ D&D / tap-swap の操作面に切り替える
 - `並替 ON` 時の help text は `ドラッグ / 2回タップで入替` とし、狭幅では header row の 2 行目へ折り返す
 - touch 環境では `並替 ON` 中の main icon 2 回タップで「入れ替え元選択 → destination 確定」にできるようにし、iPhone Safari でも並び替え導線を失わない
@@ -220,9 +223,11 @@
 - turn row の自己状態バフアイコンは固定3種ではなく、状態変化ページの statusType 定義順に準拠したバフ系表示へ拡張する（デバフ系は除外）
 - 同一 statusType 内で `Only` / `Count` が競合する場合、`Only=最強1件` と `Count=上位2件合算` を比較して採用側のみアイコン表示する（同値は `Count` 側優先、非採用側は詳細テキスト側で確認）
 - turn row バフアイコンは視認性確保のため全体表示上限を設ける（現在値: 10）
+- turn row の OD ゲージ badge は正値帯を `0 / 1 / 2 / 3`、負値帯を debt bucket として `-99..0 => 0`、`-199..-100 => 1`、`-299..-200 => 2`、`<= -300 => 3` で表示し、負値時の赤系 track / badge tone は維持する
 - キャラクター詳細ポップアップの `フィールド` タブは `Zone / Territory / Talisman` の属性・倍率・継続を併記し、`remainingTurns=null` は `永続` として表示する
 - turn row の note 列上部には active なフィールド状態チップを表示し、`talismanState` は `active=true` または `level>0`（もしくは明示名/説明あり）の場合のみ表示する
 - current session の JSON 保存 / 読込は `Simulator Settings` 内ではなく上部 utility bar に置く
+- session JSON の replay UI / E2E は `battle end` 行の存在を前提にしない。fixture では `battle end` あり/なしの両方を固定し、ある場合は chip / truncate 経路、ない場合は最終 committed row まで崩れず描画されることを確認する
 - 上部 utility bar は desktop では icon + label、smartphone では icon-only に切り替える
 - `レイアウト` toggle は desktop 専用とし、smartphone では表示しない
 - utility bar の free icon は Heroicons（MIT）を採用する
@@ -283,6 +288,7 @@
 - simple 中に局所 target override が入っている input row は、通常の target trigger ではなく info-space に read-only summary label を出して current target を見せる
 - committed 行の explicit target summary は現在設定が `simple` でも表示を保持する
 - target の保存形式は replay target に統一し、engine 実行直前に `targetEnemyIndex` / `targetCharacterId` へ変換する
+- mobile の manual target popover は turn row 内 absolute のまま閉じ込めず、viewport 基準へ再配置して `P1-P6` / `E1-E3` 候補が row 外でも欠けずに見えるようにする
 
 ### Turn 行の special operation UI
 
@@ -313,6 +319,7 @@
 - `Summon.webp` は popup action row の `召喚` ボタンに使い、button 押下で listbox popover を開いて敵 preset を 1 体選んで `SummonEnemy` before-commit operation として積む
 - summon popover を開いても `enemy-detail-popup-container` は閉じず、そのまま背面に維持する
 - summon popover は popup 本体より前面に重ね、位置決めは popup 内の `召喚` action を優先 anchor にする
+- summon popover は viewport 補正で `position: fixed` に再配置された後も popup 本体より高い z-index を維持し、submit button が背面 popup に遮られないようにする
 - summon popover の配色は popup 本体に寄せ、`bg-slate-800` / `border-slate-600` / `text-slate-100` 系で統一する
 - `Break.webp` と `defeat.webp` を popup action row の `ブレイク` / `討伐` icon に使う
 - `Break.webp` はラベルなしの画像ボタンとして扱い、縦寸は下部の状態異常 icon と同じ 28px、横はアスペクト比維持とする。`Summon.webp` / `defeat.webp` も icon 高さを同じ 28px に揃える
@@ -355,6 +362,7 @@
   - 基本情報の状態バッジ: `Alive / BREAK / Dead`
   - `状態異常 / バフ` 一覧: `DownTurn` / `SuperBreak` / `SuperBreakDown` などを表示し、bare `Break` は出さない
   - action row の `Break.webp`: manual break 編集用の `ブレイク付与` ボタンとして扱う
+  - draft / replay override で break / kill が pending の enemy slot は action row 文言を `ブレイク予定` / `討伐予定` に切り替え、現在ターンの未確定操作であることを示す
 - enemy detail popup から break / kill editor を開いたときは popup を閉じず、選択中 enemy slot を requested context として sub-panel 内に editor を共存表示する
 - popup から開いた sub-panel editor では requested enemy を初期選択状態として見せ、single-target の local target override と all-target の複数選択を従来どおり使える
 - 行上の常設表示は要約 1 件ではなく、`actor→enemy ブレイク` の chip 群とする

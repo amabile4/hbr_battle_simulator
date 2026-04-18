@@ -68,9 +68,17 @@ const RESPONSIVE_BADGE_COLUMN_GAP_FALLBACK_PX = 1;
 const OD_GAUGE_BAR_MIN = 0;
 const OD_GAUGE_BAR_MAX = 300;
 const OD_GAUGE_BAND_SIZE = 100;
+const OD_GAUGE_STAGE_LABEL_MAX = Math.trunc(OD_GAUGE_BAR_MAX / OD_GAUGE_BAND_SIZE);
 const ENEMY_DETAIL_LONG_PRESS_MS = 520;
 const ENEMY_SUMMON_MAX_VISIBLE_OPTIONS = 8;
 const ENEMY_SUMMON_EDITOR_Z_INDEX = 1010;
+const TARGET_POPOVER_VIEWPORT_PADDING_PX = 8;
+const TARGET_POPOVER_MIN_VIEWPORT_HEIGHT_PX = 120;
+const TARGET_POPOVER_Z_INDEX = 120;
+const ALLY_TARGET_POPOVER_MIN_WIDTH_PX = 220;
+const ALLY_TARGET_POPOVER_MAX_WIDTH_PX = 360;
+const ENEMY_TARGET_POPOVER_MIN_WIDTH_PX = 180;
+const ENEMY_TARGET_POPOVER_MAX_WIDTH_PX = 280;
 const TURN_INFO_PANEL_WIDTH_CLASS = 'w-[108px]';
 const ENEMY_STATUS_BREAK = 'Break';
 const SUMMON_ENEMY_RESISTANCE_LABELS = Object.freeze([
@@ -143,6 +151,11 @@ function formatOdGauge(value) {
 function normalizeOdGaugeNumber(value, fallback = 0) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function resolveNegativeOdGaugeStageLabel(value) {
+  const numericValue = Math.abs(normalizeOdGaugeNumber(value));
+  return String(Math.min(OD_GAUGE_STAGE_LABEL_MAX, Math.floor(numericValue / OD_GAUGE_BAND_SIZE)));
 }
 
 export function resolveOdMarkerLabel(turnLabel, { fallback = '' } = {}) {
@@ -1762,7 +1775,7 @@ export class TurnRowController {
   #resolveOdGaugeStage(value) {
     const numericValue = normalizeOdGaugeNumber(value);
     if (numericValue < 0) {
-      return { key: 'minus', label: '-' };
+      return { key: 'minus', label: resolveNegativeOdGaugeStageLabel(numericValue) };
     }
     if (numericValue < OD_GAUGE_BAND_SIZE) {
       return { key: 'od0', label: '0' };
@@ -3725,7 +3738,7 @@ export class TurnRowController {
     const targetControlAnchorHtml = targetControlHtml
       ? `
         <div data-role="slot-target-anchor" data-position="${member.position}"
-             class="flex justify-end items-start">
+             class="flex justify-end items-start px-0.5">
           ${targetControlHtml}
         </div>
       `
@@ -3766,9 +3779,10 @@ export class TurnRowController {
             </div>
             <!-- バフ/デバフ・状態異常アイコンスペース兼 target trigger 置き場 -->
             <div data-slot-info-space data-position="${member.position}" class="flex-1 min-w-0">
-              ${buffListHtml}${targetControlAnchorHtml}
+              ${buffListHtml}
             </div>
           </div>
+          ${targetControlAnchorHtml}
           <!-- アイコン直下: トークン・士気 -->
           <div data-role="slot-footer" class="flex items-center gap-1.5 flex-wrap px-0.5">
             ${this.#buildTokenHtml(tokenCurrent, tokenMax)}
@@ -4355,7 +4369,7 @@ export class TurnRowController {
    * translate と maxHeight で画面内に収める。
    */
   #adjustPopoverPositions() {
-    const viewportPadding = 8;
+    const viewportPadding = TARGET_POPOVER_VIEWPORT_PADDING_PX;
     const viewportWidth = Number(window?.innerWidth ?? 0);
     const viewportHeight = Number(window?.innerHeight ?? 0);
     this.#root.querySelectorAll('.target-popover').forEach((popover) => {
@@ -4369,6 +4383,7 @@ export class TurnRowController {
       popover.style.transform = '';
       popover.style.maxHeight = '';
       popover.style.overflowY = '';
+      popover.style.zIndex = '';
 
       if (String(popover.dataset.popoverKind ?? '') === 'enemy-summon') {
         const host = popover.closest('.relative');
@@ -4390,6 +4405,7 @@ export class TurnRowController {
             : Math.max(0, toggleRect.left);
 
           popover.style.position = 'fixed';
+          popover.style.zIndex = String(ENEMY_SUMMON_EDITOR_Z_INDEX);
           popover.style.width = `${resolvedWidth}px`;
           popover.style.left = `${left}px`;
           popover.style.top = `${Math.max(viewportPadding, toggleRect.bottom + 4)}px`;
@@ -4407,6 +4423,60 @@ export class TurnRowController {
             const availableHeight = shouldOpenAbove
               ? Math.max(120, Math.floor(spaceAbove))
               : Math.max(120, Math.floor(spaceBelow));
+            if (fixedRect.height > availableHeight) {
+              popover.style.maxHeight = `${availableHeight}px`;
+              popover.style.overflowY = 'auto';
+            }
+          }
+          return;
+        }
+      }
+
+      if (popover.matches('[data-role="target-popover"][data-target-kind]')) {
+        const host = popover.closest('.relative');
+        const toggle = host?.querySelector?.('[data-role="target-trigger"]') ?? null;
+        const targetKind = String(popover.dataset.targetKind ?? '');
+        if (toggle) {
+          const toggleRect = toggle.getBoundingClientRect();
+          const resolvedWidth = viewportWidth > 0
+            ? targetKind === 'ally'
+              ? Math.max(
+                  ALLY_TARGET_POPOVER_MIN_WIDTH_PX,
+                  Math.min(ALLY_TARGET_POPOVER_MAX_WIDTH_PX, viewportWidth - viewportPadding * 2)
+                )
+              : Math.max(
+                  ENEMY_TARGET_POPOVER_MIN_WIDTH_PX,
+                  Math.min(ENEMY_TARGET_POPOVER_MAX_WIDTH_PX, viewportWidth - viewportPadding * 2)
+                )
+            : targetKind === 'ally'
+              ? ALLY_TARGET_POPOVER_MAX_WIDTH_PX
+              : ENEMY_TARGET_POPOVER_MAX_WIDTH_PX;
+          const left = viewportWidth > 0
+            ? Math.max(
+                viewportPadding,
+                Math.min(toggleRect.left, viewportWidth - viewportPadding - resolvedWidth)
+              )
+            : Math.max(0, toggleRect.left);
+
+          popover.style.position = 'fixed';
+          popover.style.zIndex = String(TARGET_POPOVER_Z_INDEX);
+          popover.style.width = `${resolvedWidth}px`;
+          popover.style.left = `${left}px`;
+          popover.style.top = `${Math.max(viewportPadding, toggleRect.bottom + 4)}px`;
+
+          let fixedRect = popover.getBoundingClientRect();
+          if (viewportHeight > 0) {
+            const spaceBelow = viewportHeight - viewportPadding - (toggleRect.bottom + 4);
+            const spaceAbove = toggleRect.top - viewportPadding - 4;
+            const shouldOpenAbove = fixedRect.bottom > viewportHeight - viewportPadding && spaceAbove > spaceBelow;
+            if (shouldOpenAbove) {
+              popover.style.top = `${Math.max(viewportPadding, toggleRect.top - 4 - fixedRect.height)}px`;
+              fixedRect = popover.getBoundingClientRect();
+            }
+
+            const availableHeight = shouldOpenAbove
+              ? Math.max(TARGET_POPOVER_MIN_VIEWPORT_HEIGHT_PX, Math.floor(spaceAbove))
+              : Math.max(TARGET_POPOVER_MIN_VIEWPORT_HEIGHT_PX, Math.floor(spaceBelow));
             if (fixedRect.height > availableHeight) {
               popover.style.maxHeight = `${availableHeight}px`;
               popover.style.overflowY = 'auto';
