@@ -1852,6 +1852,26 @@ function cloneEnemySlotObjectMap(value, fallback = {}) {
   return structuredClone(value);
 }
 
+function normalizeEnemyEShieldStateEntry(value) {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const current = Number(value.current ?? value.count ?? 0);
+  const max = Number(value.max ?? value.initial ?? value.current ?? value.count ?? 0);
+  const defUpRate = Number(value.defUpRate ?? value.def_up_rate ?? 0);
+  const damageLimit = Number(value.damageLimit ?? value.dmg_limit ?? 0);
+  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
+  return {
+    current: normalizedCurrent,
+    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
+    elements: Array.isArray(value.elements)
+      ? [...new Set(value.elements.map((element) => String(element ?? '').trim()).filter(Boolean))]
+      : [],
+    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
+    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
+  };
+}
+
 export function getEnemyState(turnState) {
   const state = turnState?.enemyState;
   if (!state || typeof state !== 'object') {
@@ -1863,6 +1883,7 @@ export function getEnemyState(turnState) {
       destructionRateCapByEnemy: {},
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
+      eShieldStateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -1892,6 +1913,14 @@ export function getEnemyState(turnState) {
         : {},
     odRateByEnemy:
       state.odRateByEnemy && typeof state.odRateByEnemy === 'object' ? state.odRateByEnemy : {},
+    eShieldStateByEnemy:
+      state.eShieldStateByEnemy && typeof state.eShieldStateByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(state.eShieldStateByEnemy)
+              .map(([targetIndex, shieldState]) => [String(targetIndex), normalizeEnemyEShieldStateEntry(shieldState)])
+              .filter(([, shieldState]) => Boolean(shieldState))
+          )
+        : {},
     breakStateByEnemy:
       state.breakStateByEnemy && typeof state.breakStateByEnemy === 'object' ? state.breakStateByEnemy : {},
     enemyNamesByEnemy:
@@ -1928,6 +1957,7 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
     enemyDestructionRates: structuredClone(enemyState.destructionRateByEnemy),
     enemyDestructionRateCaps: structuredClone(enemyState.destructionRateCapByEnemy),
     enemyOdRates: structuredClone(enemyState.odRateByEnemy),
+    enemyEShields: structuredClone(enemyState.eShieldStateByEnemy),
     enemyAbsorbElements: structuredClone(enemyState.absorbElementsByEnemy),
     enemyBreakStates: structuredClone(enemyState.breakStateByEnemy),
     enemyStatuses: structuredClone(enemyState.statuses),
@@ -1960,6 +1990,13 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
     odRateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyOdRates')
       ? cloneEnemySlotObjectMap(snapshot.enemyOdRates)
       : structuredClone(current.odRateByEnemy),
+    eShieldStateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyEShields')
+      ? Object.fromEntries(
+          Object.entries(snapshot.enemyEShields ?? {})
+            .map(([targetIndex, shieldState]) => [String(targetIndex), normalizeEnemyEShieldStateEntry(shieldState)])
+            .filter(([, shieldState]) => Boolean(shieldState))
+        )
+      : structuredClone(current.eShieldStateByEnemy),
     absorbElementsByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyAbsorbElements')
       ? cloneEnemySlotObjectMap(snapshot.enemyAbsorbElements)
       : structuredClone(current.absorbElementsByEnemy),

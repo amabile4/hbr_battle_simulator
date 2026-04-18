@@ -17,6 +17,7 @@ function makeEnemy({
   od_rate = 0,
   max_d_rate = 999,
   absorbElementList = [],
+  eShield = null,
 }) {
   return {
     id,
@@ -41,6 +42,18 @@ function makeEnemy({
         absorb_element_list: absorbElementList,
       },
     },
+    ...(eShield
+      ? {
+          extra_gauge: {
+            esp: eShield.esp ?? 0,
+            eshield: {
+              ele_list: eShield.ele_list ?? null,
+              def_up_rate: eShield.def_up_rate ?? 0,
+              dmg_limit: eShield.dmg_limit ?? 0,
+            },
+          },
+        }
+      : {}),
   };
 }
 
@@ -113,4 +126,32 @@ test('buildEnemyList keeps the summon sample enemies pinned when they are presen
     result.find((enemy) => enemy.id === DEFAULT_SUMMON_SAMPLE_ENEMY.id)?.absorbElementList,
     ['fire'],
   );
+});
+
+test('buildEnemyList maps extra_gauge Eシールド metadata into enemy preset entries', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({
+      id: 301,
+      name: 'Eシールド敵',
+      in_date: '2026-04-05',
+      eShield: {
+        esp: 10,
+        ele_list: ['Light', 'Dark'],
+        def_up_rate: 5000,
+        dmg_limit: 0,
+      },
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'));
+  const target = result.find((enemy) => enemy.id === 301);
+
+  assert.deepEqual(target?.e_shield, {
+    count: 10,
+    max: 10,
+    elements: ['Light', 'Dark'],
+    def_up_rate: 5000,
+    dmg_limit: 0,
+  });
 });

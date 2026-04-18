@@ -297,6 +297,7 @@ function createEnemyPreset({
   od_rate = 0,
   max_d_rate = 350,
   fireRate = 250,
+  eShield = null,
 } = {}) {
   return {
     id,
@@ -317,6 +318,7 @@ function createEnemyPreset({
       },
     },
     absorbElementList: [],
+    ...(eShield ? { e_shield: structuredClone(eShield) } : {}),
   };
 }
 
@@ -334,6 +336,17 @@ function createEnemyPopupPayload(occupiedCount = 1) {
         canKill: occupied,
         name: occupied ? `PopupEnemy${index + 1}` : `E${index + 1} 未使用`,
         statuses: [],
+        ...(index === 0 && occupied
+          ? {
+              eShieldState: {
+                current: 10,
+                max: 10,
+                elements: ['Light', 'Dark'],
+                defUpRate: 5000,
+                damageLimit: 0,
+              },
+            }
+          : {}),
       };
     }),
     activeEnemyIndex: 0,
@@ -1487,6 +1500,19 @@ test('EnemyDetailPopup defaults to narrow for one occupied enemy and keeps manua
     reopenedPopup.close();
   }));
 
+test('EnemyDetailPopup basic info shows Eシールド summary when present', () =>
+  withDom(() => {
+    const popup = new EnemyDetailPopup();
+    popup.show(createEnemyPopupPayload(1), 0);
+
+    const root = popup.getRootElement();
+    assert.ok(root);
+    assert.match(root.textContent ?? '', /Eシールド/);
+    assert.match(root.textContent ?? '', /10\/10/);
+    assert.match(root.textContent ?? '', /光, 闇/);
+    popup.close();
+  }));
+
 test('EnemyDetailPopup defaults to wide for multiple occupied enemies and allows manual narrow selection', () =>
   withDom(({ win }) => {
     setViewportSize(win, { width: 1360, height: 900 });
@@ -1683,7 +1709,17 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
           name: DEATH_SLUG_WHITE_SAMPLE_ENEMY.name,
           max_d_rate: 999,
         }),
-        createEnemyPreset({ id: DEFAULT_SUMMON_SAMPLE_ENEMY.id, name: DEFAULT_SUMMON_SAMPLE_ENEMY.name }),
+        createEnemyPreset({
+          id: DEFAULT_SUMMON_SAMPLE_ENEMY.id,
+          name: DEFAULT_SUMMON_SAMPLE_ENEMY.name,
+          eShield: {
+            count: 10,
+            max: 10,
+            elements: ['Fire', 'Ice'],
+            def_up_rate: 0,
+            dmg_limit: 0,
+          },
+        }),
       ],
       turnIndex: 0,
       record: null,
@@ -1754,6 +1790,13 @@ test('TurnRowController opens summon editor and queues selected summon enemy ope
     assert.equal(addedOperations[0]?.payload?.targetEnemyIndex, 1);
     assert.equal(addedOperations[0]?.payload?.max_d_rate, 350);
     assert.equal(addedOperations[0]?.payload?.resistances?.element?.fire, 250);
+    assert.deepEqual(addedOperations[0]?.payload?.e_shield, {
+      count: 10,
+      max: 10,
+      elements: ['Fire', 'Ice'],
+      def_up_rate: 0,
+      dmg_limit: 0,
+    });
   }));
 
 test('TurnRowController keeps dead-slot summon requests on the selected enemy slot', () =>

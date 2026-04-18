@@ -50,6 +50,9 @@ const DAMAGE_RATE_DISPLAY_ORDER = Object.freeze([
   ['Dark', '闇'],
   ['Nonelement', '無'],
 ]);
+const ELEMENT_DISPLAY_LABELS = Object.freeze(
+  Object.fromEntries(DAMAGE_RATE_DISPLAY_ORDER.map(([key, label]) => [key, label]))
+);
 
 function normalizeTalismanState(talismanState) {
   const state = talismanState && typeof talismanState === 'object' ? talismanState : {};
@@ -77,6 +80,37 @@ function normalizeDisasterState(disasterState) {
 
 function formatDisasterPenalty(level) {
   return `全能力-${Math.max(0, Math.floor(Number(level) || 0)) * DISASTER_PENALTY_PER_LEVEL}`;
+}
+
+function normalizeEShieldState(eShieldState) {
+  const state = eShieldState && typeof eShieldState === 'object' ? eShieldState : {};
+  const current = Math.max(0, Math.floor(Number(state.current ?? state.count ?? 0)));
+  return {
+    current,
+    max: Math.max(current, Math.floor(Number(state.max ?? state.initial ?? state.current ?? state.count ?? 0)) || 0),
+    elements: Array.isArray(state.elements)
+      ? [...new Set(state.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+      : [],
+    defUpRate: Number(state.defUpRate ?? state.def_up_rate ?? 0) || 0,
+    damageLimit: Number(state.damageLimit ?? state.dmg_limit ?? 0) || 0,
+  };
+}
+
+function isDisplayableEShieldState(eShieldState) {
+  if (!eShieldState || typeof eShieldState !== 'object') {
+    return false;
+  }
+  const state = normalizeEShieldState(eShieldState);
+  return state.current > 0 || state.max > 0 || state.elements.length > 0 || state.defUpRate !== 0 || state.damageLimit !== 0;
+}
+
+function formatEShieldSummary(eShieldState) {
+  const state = normalizeEShieldState(eShieldState);
+  const gaugeLabel = state.max > 0 ? `${state.current}/${state.max}` : String(state.current);
+  const elementLabel = state.elements
+    .map((element) => ELEMENT_DISPLAY_LABELS[element] ?? element)
+    .join(', ');
+  return elementLabel ? `${gaugeLabel} (${elementLabel})` : gaugeLabel;
 }
 
 function isDisplayableEnemyFieldState(state) {
@@ -381,6 +415,7 @@ export class EnemyDetailPopup {
         ...(enemy?.max_d_rate !== undefined ? { max_d_rate: enemy.max_d_rate } : {}),
         ...(enemy?.damageRates ? { damageRates: structuredClone(enemy.damageRates) } : {}),
         ...(enemy?.absorbElements ? { absorbElements: structuredClone(enemy.absorbElements) } : {}),
+        ...(enemy?.eShieldState ? { eShieldState: structuredClone(enemy.eShieldState) } : {}),
         ...(enemy?.hp !== undefined ? { hp: enemy.hp } : {}),
         ...(enemy?.maxHp !== undefined ? { maxHp: enemy.maxHp } : {}),
       };
@@ -805,6 +840,7 @@ export class EnemyDetailPopup {
       ? enemy.damageRates
       : {};
     const absorbElements = Array.isArray(enemy?.absorbElements) ? enemy.absorbElements : [];
+    const eShieldState = normalizeEShieldState(enemy?.eShieldState);
     const damageRateEntries = DAMAGE_RATE_DISPLAY_ORDER
       .map(([key, label]) => {
         const numeric = Number(damageRates?.[key]);
@@ -819,6 +855,9 @@ export class EnemyDetailPopup {
       : 'empty';
     const infoRows = [
       ['状態', `<span data-role="enemy-popup-state-badge" data-state="${stateKey}">${escapeHtml(stateLabel)}</span>`],
+      ...(isDisplayableEShieldState(eShieldState)
+        ? [['Eシールド', escapeHtml(formatEShieldSummary(eShieldState)), true]]
+        : []),
       ['OD率', escapeHtml(Number.isFinite(Number(enemy?.od_rate)) ? `×${Number(enemy.od_rate).toFixed(2)}` : '-'), true],
       ['最大D率', escapeHtml(Number.isFinite(Number(enemy?.max_d_rate)) ? Number(enemy.max_d_rate) : '-'), true],
       ['耐性', escapeHtml(damageRateEntries.length > 0 ? damageRateEntries.join(' / ') : '未設定'), true],

@@ -27,6 +27,13 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
           selectedEnemyName: '敵A',
           od_rate: 8500,
           max_d_rate: 700,
+          e_shield: {
+            count: 10,
+            max: 10,
+            elements: ['Light', 'Dark'],
+            def_up_rate: 5000,
+            dmg_limit: 0,
+          },
           resistances: {
             element: { fire: 130 },
           },
@@ -67,6 +74,13 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
   assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyName, '敵A');
   assert.equal(snapshot.enemy.enemySlots[0].od_rate, 0.85);
   assert.equal(snapshot.enemy.enemySlots[0].max_d_rate, 700);
+  assert.deepEqual(snapshot.enemy.enemySlots[0].e_shield, {
+    count: 10,
+    max: 10,
+    elements: ['Light', 'Dark'],
+    def_up_rate: 5000,
+    dmg_limit: 0,
+  });
   assert.equal(snapshot.enemy.enemySlots[0].resistances.element.fire, 130);
   assert.deepEqual(snapshot.enemy.enemySlots[0].absorbElementList, ['fire']);
   assert.equal(snapshot.enemy.preemptiveField, 'fire');

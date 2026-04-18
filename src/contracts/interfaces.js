@@ -97,6 +97,26 @@ function normalizeEnemyStatusForClone(status, enemyCount = DEFAULT_ENEMY_COUNT) 
   return normalized;
 }
 
+function normalizeEnemyEShieldStateForClone(state) {
+  if (!state || typeof state !== 'object') {
+    return null;
+  }
+  const current = Number(state.current ?? state.count ?? 0);
+  const max = Number(state.max ?? state.initial ?? state.current ?? state.count ?? 0);
+  const defUpRate = Number(state.defUpRate ?? state.def_up_rate ?? 0);
+  const damageLimit = Number(state.damageLimit ?? state.dmg_limit ?? 0);
+  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
+  return {
+    current: normalizedCurrent,
+    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
+    elements: Array.isArray(state.elements)
+      ? [...new Set(state.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+      : [],
+    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
+    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
+  };
+}
+
 export function toCharacterSnapshot(character) {
   return Object.freeze({
     characterId: character.characterId,
@@ -160,6 +180,7 @@ export function createInitialTurnState() {
       destructionRateCapByEnemy: {},
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
+      eShieldStateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -237,6 +258,15 @@ export function cloneTurnState(turnState) {
                     String(targetIndex),
                     Number.isFinite(Number(rate)) ? Number(rate) : 0,
                   ])
+                )
+              : {},
+          eShieldStateByEnemy:
+            turnState.enemyState.eShieldStateByEnemy &&
+            typeof turnState.enemyState.eShieldStateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.eShieldStateByEnemy)
+                    .map(([targetIndex, state]) => [String(targetIndex), normalizeEnemyEShieldStateForClone(state)])
+                    .filter(([, state]) => Boolean(state))
                 )
               : {},
           breakStateByEnemy:

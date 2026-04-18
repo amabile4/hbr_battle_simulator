@@ -271,6 +271,27 @@ function normalizeSummonEnemyAbsorbElements(payload = {}) {
   return [...new Set(list.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean))];
 }
 
+function normalizeSummonEnemyEShield(payload = {}) {
+  const raw = payload?.e_shield ?? payload?.eShield ?? null;
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const current = Number(raw.count ?? raw.current ?? 0);
+  const max = Number(raw.max ?? raw.initial ?? raw.count ?? raw.current ?? 0);
+  const defUpRate = Number(raw.def_up_rate ?? raw.defUpRate ?? 0);
+  const damageLimit = Number(raw.dmg_limit ?? raw.damageLimit ?? 0);
+  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
+  return {
+    current: normalizedCurrent,
+    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
+    elements: Array.isArray(raw.elements)
+      ? [...new Set(raw.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+      : [],
+    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
+    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
+  };
+}
+
 function normalizeSummonEnemyPayload(payload = {}) {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -294,6 +315,7 @@ function normalizeSummonEnemyPayload(payload = {}) {
       : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
     damageRates: normalizeSummonEnemyRates(payload),
     absorbElements: normalizeSummonEnemyAbsorbElements(payload),
+    eShieldState: normalizeSummonEnemyEShield(payload),
     targetEnemyIndex: Number.isInteger(targetEnemyIndex) ? targetEnemyIndex : null,
   };
 }
@@ -387,6 +409,14 @@ function applySummonEnemyToState(state, operation = {}, options = {}) {
       ...(currentSnapshot.enemyOdRates ?? {}),
       [slotKey]: summonEnemy.odRate,
     },
+    enemyEShields: summonEnemy.eShieldState
+      ? {
+          ...(currentSnapshot.enemyEShields ?? {}),
+          [slotKey]: structuredClone(summonEnemy.eShieldState),
+        }
+      : Object.fromEntries(
+          Object.entries(currentSnapshot.enemyEShields ?? {}).filter(([enemyIndex]) => String(enemyIndex) !== slotKey)
+        ),
     enemyAbsorbElements: {
       ...(currentSnapshot.enemyAbsorbElements ?? {}),
       [slotKey]: summonEnemy.absorbElements,

@@ -141,6 +141,7 @@ function createSummonEnemyOperation({
   maxDRate = 350,
   fireRate = 250,
   targetEnemyIndex = null,
+  eShield = null,
 } = {}) {
   return {
     type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
@@ -163,6 +164,7 @@ function createSummonEnemyOperation({
         },
       },
       absorbElementList: ['fire'],
+      ...(eShield ? { e_shield: structuredClone(eShield) } : {}),
       ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
     },
   };
@@ -325,13 +327,34 @@ test('applyBeforeCommitOperations summons into the next unused enemy slot and co
   state.turnState.enemyState.breakStateByEnemy = {};
   state.turnState.enemyState.statuses = [];
 
-  const nextState = applyBeforeCommitOperations(state, [createSummonEnemyOperation()], {});
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [
+      createSummonEnemyOperation({
+        eShield: {
+          count: 12,
+          max: 12,
+          elements: ['Fire', 'Light'],
+          def_up_rate: 5000,
+          dmg_limit: 0,
+        },
+      }),
+    ],
+    {}
+  );
 
   assert.equal(nextState.turnState.enemyState.enemyCount, 2);
   assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['1'], DEFAULT_SUMMON_SAMPLE_ENEMY.name);
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['1'], 350);
   assert.equal(nextState.turnState.enemyState.damageRatesByEnemy['1'].Fire, 250);
   assert.deepEqual(nextState.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['1'], {
+    current: 12,
+    max: 12,
+    elements: ['Fire', 'Light'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['1'], 100);
 });
 

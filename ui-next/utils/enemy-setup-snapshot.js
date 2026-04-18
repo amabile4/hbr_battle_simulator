@@ -53,6 +53,27 @@ function normalizeAbsorbElementList(list = []) {
   )];
 }
 
+function normalizeEnemyEShield(source = null) {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+  const count = Number(source.count ?? source.current ?? 0);
+  const max = Number(source.max ?? source.initial ?? source.count ?? source.current ?? 0);
+  const defUpRate = Number(source.def_up_rate ?? source.defUpRate ?? 0);
+  const damageLimit = Number(source.dmg_limit ?? source.damageLimit ?? 0);
+  const normalizedCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  const normalizedMax = Number.isFinite(max) ? Math.max(normalizedCount, Math.floor(max)) : normalizedCount;
+  return {
+    count: normalizedCount,
+    max: normalizedMax,
+    elements: Array.isArray(source.elements)
+      ? [...new Set(source.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+      : [],
+    def_up_rate: Number.isFinite(defUpRate) ? defUpRate : 0,
+    dmg_limit: Number.isFinite(damageLimit) ? damageLimit : 0,
+  };
+}
+
 export function normalizeEnemyOdRateMultiplier(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -68,6 +89,7 @@ export function normalizeEnemyOdRateMultiplier(value) {
 }
 
 function normalizeEnemyManual(manual = {}) {
+  const eShield = normalizeEnemyEShield(manual?.e_shield ?? manual?.eShield);
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual?.od_rate),
     max_d_rate: Number.isFinite(Number(manual?.max_d_rate))
@@ -77,11 +99,13 @@ function normalizeEnemyManual(manual = {}) {
       ENEMY_ELEMENT_KEYS.map((key) => [key, normalizeElementRatePercent(manual?.element?.[key])])
     ),
     absorbElementList: normalizeAbsorbElementList(manual?.absorbElementList),
+    ...(eShield ? { e_shield: eShield } : {}),
   };
 }
 
 function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
   const manual = normalizeEnemyManual(source?.manual ?? source);
+  const eShield = normalizeEnemyEShield(source?.e_shield ?? source?.eShield ?? manual.e_shield);
   const effectiveElementSource = source?.resistances?.element ?? source?.element ?? manual.element;
   const resistances = {
     element: Object.fromEntries(
@@ -101,6 +125,7 @@ function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
     max_d_rate: Number.isFinite(Number(source?.max_d_rate)) ? Number(source.max_d_rate) : manual.max_d_rate,
     resistances,
     absorbElementList,
+    ...(eShield ? { e_shield: eShield } : {}),
   };
 }
 
@@ -149,6 +174,7 @@ export function normalizeEnemySetupSnapshot(snapshot = {}) {
     max_d_rate: slot0.max_d_rate,
     resistances: slot0.resistances,
     absorbElementList: slot0.absorbElementList,
+    ...(slot0.e_shield ? { e_shield: structuredClone(slot0.e_shield) } : {}),
   };
 }
 

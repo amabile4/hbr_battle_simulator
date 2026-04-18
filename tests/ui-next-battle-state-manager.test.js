@@ -110,6 +110,13 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         selectedEnemyName: '魔王ヤマワキ',
         od_rate: 8500,
         max_d_rate: 650,
+        e_shield: {
+          count: 10,
+          max: 10,
+          elements: ['Fire', 'Ice'],
+          def_up_rate: 5000,
+          dmg_limit: 0,
+        },
         resistances: {
           element: {
             slash: 120,
@@ -164,6 +171,14 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Ice, 160);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire']);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['ice', 'dark']);
+  assert.deepEqual(state.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 10,
+    max: 10,
+    elements: ['Fire', 'Ice'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.equal(state.turnState.enemyState.eShieldStateByEnemy['1'], undefined);
 });
 
 test('BattleStateManager falls back to one enemy when all enemy slots are unselected', () => {

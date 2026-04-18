@@ -186,6 +186,27 @@ function buildEnemyAbsorbElements(source = {}) {
   return [...new Set(list.map((value) => String(value ?? '').trim().toLowerCase()).filter(Boolean))];
 }
 
+function buildEnemyEShieldState(source = {}) {
+  const raw = source?.e_shield;
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const current = Number(raw.count ?? raw.current ?? 0);
+  const max = Number(raw.max ?? raw.initial ?? raw.count ?? raw.current ?? 0);
+  const defUpRate = Number(raw.def_up_rate ?? raw.defUpRate ?? 0);
+  const damageLimit = Number(raw.dmg_limit ?? raw.damageLimit ?? 0);
+  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
+  return {
+    current: normalizedCurrent,
+    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
+    elements: Array.isArray(raw.elements)
+      ? [...new Set(raw.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+      : [],
+    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
+    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
+  };
+}
+
 function normalizeEnemyCount(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -202,6 +223,7 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     max_d_rate: enemySetup?.max_d_rate,
     resistances: enemySetup?.resistances,
     absorbElementList: enemySetup?.absorbElementList,
+    e_shield: enemySetup?.e_shield,
   };
 }
 
@@ -243,6 +265,7 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       absorbElements: buildEnemyAbsorbElements(slot),
       maxDestructionRate,
       rawOdRate,
+      eShieldState: buildEnemyEShieldState(slot),
     };
   });
 
@@ -262,6 +285,11 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     ),
     odRateByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.rawOdRate])
+    ),
+    eShieldStateByEnemy: Object.fromEntries(
+      slotStates
+        .filter((slotState) => Boolean(slotState.eShieldState))
+        .map((slotState, index) => [String(index), structuredClone(slotState.eShieldState)])
     ),
   };
 }
@@ -396,6 +424,7 @@ export class BattleStateManager {
       destructionRateCapByEnemy: enemyStateOverrides.destructionRateCapByEnemy,
       absorbElementsByEnemy: enemyStateOverrides.absorbElementsByEnemy,
       odRateByEnemy: enemyStateOverrides.odRateByEnemy,
+      eShieldStateByEnemy: enemyStateOverrides.eShieldStateByEnemy,
       enemyStatuses: [],
       breakStateByEnemy: {},
       enemyZoneConfigByEnemy: {},

@@ -760,6 +760,7 @@ export class TurnRowController {
         absorbElementList: Array.isArray(preset.absorbElementList)
           ? [...preset.absorbElementList]
           : [],
+        ...(preset?.e_shield ? { e_shield: structuredClone(preset.e_shield) } : {}),
         ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
       },
     };
@@ -2835,6 +2836,7 @@ export class TurnRowController {
       const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
       const damageRates = enemyState.damageRatesByEnemy?.[enemyKey] ?? null;
       const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey] ?? null;
+      const eShieldState = enemyState.eShieldStateByEnemy?.[enemyKey] ?? null;
       const talismanState = enemyState.talismanState ?? null;
       const disasterState = enemyState.disasterState ?? null;
       return {
@@ -2868,6 +2870,7 @@ export class TurnRowController {
         ...(max_d_rate !== null ? { max_d_rate } : {}),
         ...(damageRates ? { damageRates: structuredClone(damageRates) } : {}),
         ...(absorbElements ? { absorbElements: structuredClone(absorbElements) } : {}),
+        ...(eShieldState ? { eShieldState: structuredClone(eShieldState) } : {}),
       };
     });
 

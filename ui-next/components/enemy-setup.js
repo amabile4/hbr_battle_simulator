@@ -58,7 +58,38 @@ function normalizeAbsorbElementList(list = []) {
   return [...new Set(list.map((value) => normalizeAbsorbElementKey(value)).filter(Boolean))];
 }
 
+function normalizeEnemyEShield(eShield = null) {
+  if (!eShield || typeof eShield !== 'object') {
+    return null;
+  }
+  const count = Number(eShield.count ?? eShield.current ?? 0);
+  const max = Number(eShield.max ?? eShield.initial ?? eShield.count ?? eShield.current ?? 0);
+  const defUpRate = Number(eShield.def_up_rate ?? eShield.defUpRate ?? 0);
+  const damageLimit = Number(eShield.dmg_limit ?? eShield.damageLimit ?? 0);
+  const normalizedCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  return {
+    count: normalizedCount,
+    max: Number.isFinite(max) ? Math.max(normalizedCount, Math.floor(max)) : normalizedCount,
+    elements: Array.isArray(eShield.elements)
+      ? [...new Set(eShield.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
+      : [],
+    def_up_rate: Number.isFinite(defUpRate) ? defUpRate : 0,
+    dmg_limit: Number.isFinite(damageLimit) ? damageLimit : 0,
+  };
+}
+
+function cloneEnemyEShield(eShield = null) {
+  const normalized = normalizeEnemyEShield(eShield);
+  return normalized
+    ? {
+        ...normalized,
+        elements: [...normalized.elements],
+      }
+    : null;
+}
+
 function cloneManual(manual = {}) {
+  const eShield = cloneEnemyEShield(manual.e_shield);
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
@@ -66,6 +97,7 @@ function cloneManual(manual = {}) {
       ELEMENTS.map((element) => [element.key, normalizeElementRatePercent(manual.element?.[element.key])])
     ),
     absorbElementList: normalizeAbsorbElementList(manual.absorbElementList),
+    ...(eShield ? { e_shield: eShield } : {}),
   };
 }
 
@@ -84,6 +116,7 @@ function defaultManual() {
 
 function enemyToManual(enemy) {
   if (!enemy) return defaultManual();
+  const eShield = cloneEnemyEShield(enemy.e_shield);
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
@@ -94,18 +127,24 @@ function enemyToManual(enemy) {
       ])
     ),
     absorbElementList: enemy.absorbElementList ?? enemy.resistances?.element?.absorb_element_list ?? [],
+    ...(eShield ? { e_shield: eShield } : {}),
   });
 }
 
 function snapshotToManual(snapshot = {}) {
+  const eShield = cloneEnemyEShield(snapshot.e_shield ?? snapshot.manual?.e_shield);
   if (snapshot.manual && typeof snapshot.manual === 'object') {
-    return cloneManual(snapshot.manual);
+    return cloneManual({
+      ...snapshot.manual,
+      ...(eShield ? { e_shield: eShield } : {}),
+    });
   }
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(snapshot.od_rate),
     max_d_rate: snapshot.max_d_rate,
     element: snapshot.resistances?.element,
     absorbElementList: snapshot.absorbElementList,
+    ...(eShield ? { e_shield: eShield } : {}),
   });
 }
 
@@ -293,6 +332,7 @@ export class EnemySetupController {
       const selectedEnemyId = selectedEnemyIds[slotIndex];
       const selectedEnemy = this.#enemies.find((enemy) => enemy.id === selectedEnemyId) ?? null;
       const effective = cloneManual(this.#getEffectiveBySlot(slotIndex));
+      const effectiveEShield = cloneEnemyEShield(effective.e_shield);
       return {
         slotIndex,
         selectedEnemyId,
@@ -303,6 +343,7 @@ export class EnemySetupController {
         max_d_rate: effective.max_d_rate,
         resistances: { element: { ...effective.element } },
         absorbElementList: [...effective.absorbElementList],
+        ...(effectiveEShield ? { e_shield: effectiveEShield } : {}),
       };
     });
     const selectedCount = selectedEnemyIds.filter((enemyId) => enemyId !== null).length;
@@ -323,6 +364,7 @@ export class EnemySetupController {
       max_d_rate: slot0.max_d_rate,
       resistances: { element: { ...slot0.resistances.element } },
       absorbElementList: [...slot0.absorbElementList],
+      ...(slot0.e_shield ? { e_shield: cloneEnemyEShield(slot0.e_shield) } : {}),
     };
   }
 
@@ -343,7 +385,8 @@ export class EnemySetupController {
           slot?.od_rate != null ||
           slot?.max_d_rate != null ||
           (slot?.resistances && typeof slot.resistances === 'object') ||
-          Array.isArray(slot?.absorbElementList);
+          Array.isArray(slot?.absorbElementList) ||
+          (slot?.e_shield && typeof slot.e_shield === 'object');
         if (hasManualState) {
           nextManualBySlot[slotIndex] = snapshotToManual(slot);
         }
@@ -369,7 +412,8 @@ export class EnemySetupController {
       snapshot.od_rate != null ||
       snapshot.max_d_rate != null ||
       (snapshot.resistances && typeof snapshot.resistances === 'object') ||
-      Array.isArray(snapshot.absorbElementList)
+      Array.isArray(snapshot.absorbElementList) ||
+      (snapshot?.e_shield && typeof snapshot.e_shield === 'object')
     ) {
       nextSelectedEnemyIds[REQUIRED_SLOT_INDEX] = normalizeSelectedEnemyId(snapshot.selectedEnemyId);
       nextManualBySlot[REQUIRED_SLOT_INDEX] = snapshotToManual(snapshot);
