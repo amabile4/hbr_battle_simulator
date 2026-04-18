@@ -13,6 +13,11 @@
 
 import { resolveUiAssetUrl, resolveSkillTypeAssetUrl } from '../../src/ui/style-asset-url.js';
 import { normalizeEnemyStatusType } from '../../src/domain/enemy-status.js';
+import {
+  getCurrentFormInfo,
+  hasFormChange,
+  isFormEntryActive,
+} from '../../src/domain/form-change.js';
 import { buildFieldDisplayEntries } from './field-state-display.js';
 import { SPECIAL_STATUS_TYPE_NAMES } from '../../src/domain/character-style.js';
 import { ELEMENT_KANJI, ELEMENT_PREFIXED_STATUS_TYPES } from './element-status-constants.js';
@@ -29,6 +34,8 @@ import { resolveSourceSkillDescription } from './source-skill-description.js';
 import { resolveAdoptionStatus } from './buff-adoption.js';
 
 const DEAD_STATUS_ICON_FILE_NAME = 'dead.webp';
+const SYSTEM_PASSIVE_NAMES = new Set(['[Overdrive]']);
+const SYSTEM_PASSIVE_LABELS = new Set(['Passive.Overdrive_DamageUp']);
 
 export function resolveSkillTypeIconUrl(statusType) {
   const name = String(statusType ?? '').trim();
@@ -309,6 +316,47 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+function isSystemPassive(passive) {
+  const name = String(passive?.name ?? '').trim();
+  const label = String(passive?.label ?? '').trim();
+  return SYSTEM_PASSIVE_NAMES.has(name) || SYSTEM_PASSIVE_LABELS.has(label);
+}
+
+function getDisplayPassives(member) {
+  return (Array.isArray(member?.passives) ? member.passives : [])
+    .filter((passive) => !isSystemPassive(passive));
+}
+
+function isPassiveActiveForDisplay(member, passive) {
+  if (!hasFormChange(member)) {
+    return true;
+  }
+  return isFormEntryActive(member, passive);
+}
+
+function buildPassiveBlockHtml(
+  passive,
+  { showLimitBreakBadge = false, dimmed = false, entryRole = 'char-popup-passive-entry', isActive = true } = {}
+) {
+  const name = String(passive?.name ?? '').trim();
+  const desc = String(passive?.desc ?? '').trim();
+  const limitBreakLevel = Number(passive?.requiredLimitBreakLevel ?? 0);
+  const dimmedClass = dimmed ? ' dimmed' : '';
+  const lbBadgeHtml = showLimitBreakBadge
+    ? `<span class="char-popup-passive-lb">LB${limitBreakLevel}</span>`
+    : '';
+
+  return (
+    `<div class="char-popup-passive-block${dimmedClass}"` +
+    ` data-role="${entryRole}"` +
+    ` data-passive-name="${esc(name)}"` +
+    ` data-passive-active="${isActive ? 'true' : 'false'}">` +
+    `<div class="char-popup-passive-title">${esc(name)}${lbBadgeHtml}</div>` +
+    (desc ? `<div class="char-popup-passive-desc">${esc(desc)}</div>` : '') +
+    `</div>`
+  );
+}
+
 const FUNNEL_SIZE_BY_PERCENT = Object.freeze({
   6: '小',
   12: '中',
@@ -521,28 +569,24 @@ function buildStatusTabHtml(statusEffects, options = {}) {
 
 /** アビリティタブ — 限界突破パッシブ (requiredLimitBreakLevel > 0) */
 function buildAbilityTabHtml(member) {
-  const passives = Array.isArray(member?.passives) ? member.passives : [];
-  const lbPassives = passives.filter((p) => Number(p?.requiredLimitBreakLevel ?? 0) > 0);
-  if (lbPassives.length === 0) {
+  const passives = getDisplayPassives(member);
+  if (passives.length === 0) {
     return '<p class="char-popup-empty">なし</p>';
   }
-  return lbPassives
-    .map((p) => {
-      const name = String(p.name ?? '').trim();
-      const desc = String(p.desc ?? '').trim();
-      const lv = Number(p.requiredLimitBreakLevel ?? 0);
-      return (
-        `<div class="char-popup-passive-block">` +
-        `<div class="char-popup-passive-title">${esc(name)}<span class="char-popup-passive-lb">LB${lv}</span></div>` +
-        (desc ? `<div class="char-popup-passive-desc">${esc(desc)}</div>` : '') +
-        `</div>`
-      );
-    })
+  return passives
+    .map((passive) =>
+      buildPassiveBlockHtml(passive, {
+        showLimitBreakBadge: true,
+        dimmed: !isPassiveActiveForDisplay(member, passive),
+        entryRole: 'char-popup-ability-entry',
+        isActive: isPassiveActiveForDisplay(member, passive),
+      })
+    )
     .join('');
 }
 
 /** パッシブスキルタブ — 当ターン発動済みパッシブ */
-function buildPassiveTabHtml(member, passiveEvents) {
+function buildPassiveEventHistoryTabHtml(member, passiveEvents) {
   const characterId = String(member?.characterId ?? '');
   const events = Array.isArray(passiveEvents)
     ? passiveEvents.filter((e) => String(e?.characterId ?? '') === characterId)
@@ -561,6 +605,22 @@ function buildPassiveTabHtml(member, passiveEvents) {
         `</div>`
       );
     })
+    .join('');
+}
+
+function buildCurrentActivePassiveTabHtml(member) {
+  const activePassives = getDisplayPassives(member)
+    .filter((passive) => isPassiveActiveForDisplay(member, passive));
+  if (activePassives.length === 0) {
+    return '<p class="char-popup-empty">なし（現在有効なパッシブなし）</p>';
+  }
+  return activePassives
+    .map((passive) =>
+      buildPassiveBlockHtml(passive, {
+        entryRole: 'char-popup-passive-entry',
+        isActive: true,
+      })
+    )
     .join('');
 }
 
@@ -673,9 +733,14 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
   const charName = String(member?.characterName ?? member?.name ?? '');
   const styleName = String(member?.styleName ?? member?.style_name ?? '').trim();
   const iconsHtml = buildHeaderIconsHtml(member);
+  const currentFormInfo = getCurrentFormInfo(member);
+  const formChipHtml = currentFormInfo?.displayName
+    ? `<span class="char-popup-hdr-form-chip" data-role="char-popup-form-chip">フォーム: ${esc(currentFormInfo.displayName)}</span>`
+    : '';
   nameEl.innerHTML =
     (styleName ? `<span class="char-popup-hdr-style">[${esc(styleName)}]</span>` : '') +
     `<span class="char-popup-hdr-char">${esc(charName)}</span>` +
+    formChipHtml +
     (iconsHtml ? `<span class="char-popup-hdr-icons">${iconsHtml}</span>` : '');
 
   // タブコンテンツ更新
@@ -699,7 +764,10 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
       typeof opts.resolveSkillDescription === 'function' ? opts.resolveSkillDescription : null,
   });
   popup.querySelector('[data-tab-panel="ability"]').innerHTML = buildAbilityTabHtml(member);
-  popup.querySelector('[data-tab-panel="passive"]').innerHTML = buildPassiveTabHtml(member, passiveEvents);
+  popup.querySelector('[data-tab-panel="passive"]').innerHTML =
+    !opts.isCommitted && hasFormChange(member)
+      ? buildCurrentActivePassiveTabHtml(member)
+      : buildPassiveEventHistoryTabHtml(member, passiveEvents);
   popup.querySelector('[data-tab-panel="field"]').innerHTML = buildFieldTabHtml(stateOrRecord);
 
   // 最初のタブをアクティブにリセット

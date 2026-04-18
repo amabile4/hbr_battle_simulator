@@ -2,6 +2,14 @@ import { applySpChange, getEventCeiling } from './sp.js';
 import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
 import { resolveShortCharacterName } from './character-name.js';
 import {
+  getAlternateFormInfo,
+  getCurrentFormInfo,
+  getCurrentFormKey,
+  normalizeFormChange,
+  resolveRequiredFormKey,
+  toggleFormKey,
+} from './form-change.js';
+import {
   DEFAULT_INITIAL_SP,
   DEFAULT_MARK_LEVEL_MAX,
   MARK_STATE_ELEMENTS,
@@ -54,6 +62,7 @@ function normalizeSkill(skill) {
     consumeType: skill.consume_type ?? skill.consumeType ?? null,
     hitCount: Number(skill.hit_count ?? skill.hitCount ?? 0),
     isRestricted: Number(skill.is_restricted ?? skill.isRestricted ?? 0) === 1,
+    cardForm: String(skill.card_form ?? skill.cardForm ?? ''),
     hits: Array.isArray(skill.hits) ? structuredClone(skill.hits) : [],
     maxLevel: skill.max_level ?? skill.maxLevel ?? null,
     spRecoveryCeiling:
@@ -298,6 +307,7 @@ function normalizePassive(passive) {
       passive.sourceMeta && typeof passive.sourceMeta === 'object'
         ? structuredClone(passive.sourceMeta)
         : null,
+    cardForm: String(passive.card_form ?? passive.cardForm ?? ''),
     labels: Array.isArray(passive.labels) ? structuredClone(passive.labels) : null,
     parts: Array.isArray(passive.parts) ? structuredClone(passive.parts) : [],
   };
@@ -319,6 +329,13 @@ export class CharacterStyle {
     this.styleName = String(input.styleName);
     this.team = String(input.team ?? '');
     this.role = String(input.role ?? '');
+    this.formChange = normalizeFormChange(input.formChange);
+    if (this.formChange) {
+      const currentFormInfo = getCurrentFormInfo(this.formChange);
+      if (currentFormInfo?.role) {
+        this.role = String(currentFormInfo.role);
+      }
+    }
     this.elements = Object.freeze(
       Array.isArray(input.elements)
         ? [...new Set(input.elements.map((element) => String(element ?? '')).filter(Boolean))]
@@ -841,6 +858,55 @@ export class CharacterStyle {
     return this.position;
   }
 
+  hasFormChange() {
+    return this.formChange != null;
+  }
+
+  getCurrentFormKey() {
+    return getCurrentFormKey(this.formChange);
+  }
+
+  getCurrentFormInfo() {
+    return getCurrentFormInfo(this.formChange);
+  }
+
+  getAlternateFormInfo() {
+    return getAlternateFormInfo(this.formChange);
+  }
+
+  resolveRequiredFormKey(cardForm = '') {
+    return resolveRequiredFormKey(this.formChange, cardForm);
+  }
+
+  setCurrentForm(formKey) {
+    if (!this.formChange) {
+      return false;
+    }
+    const normalizedFormKey = String(formKey ?? '').trim();
+    const currentFormKey = this.getCurrentFormKey();
+    if (!normalizedFormKey || !this.formChange.forms?.[normalizedFormKey]) {
+      return false;
+    }
+    if (currentFormKey === normalizedFormKey) {
+      return false;
+    }
+    this.formChange.currentFormKey = normalizedFormKey;
+    const currentFormInfo = this.getCurrentFormInfo();
+    if (currentFormInfo?.role) {
+      this.role = String(currentFormInfo.role);
+    }
+    this._revision += 1;
+    return true;
+  }
+
+  toggleCurrentForm() {
+    if (!this.formChange) {
+      return false;
+    }
+    const nextFormKey = toggleFormKey(this.formChange);
+    return this.setCurrentForm(nextFormKey);
+  }
+
   setExtraActive(active) {
     this.isExtraActive = Boolean(active);
     this._revision += 1;
@@ -1301,6 +1367,7 @@ export class CharacterStyle {
     c.styleName = this.styleName;
     c.team = this.team;
     c.role = this.role;
+    c.formChange = this.formChange ? structuredClone(this.formChange) : null;
     c.weaponType = this.weaponType;
     c.elements = this.elements;
     c.normalAttackElements = this.normalAttackElements;
@@ -1348,7 +1415,9 @@ export class CharacterStyle {
       shortName: this.shortName,
       styleId: this.styleId,
       styleName: this.styleName,
+      role: this.role,
       limitBreakLevel: this.limitBreakLevel,
+      formChange: this.formChange ? structuredClone(this.formChange) : null,
       supportStyleId: this.supportStyleId,
       supportStyleLimitBreakLevel: this.supportStyleLimitBreakLevel,
       partyIndex: this.partyIndex,

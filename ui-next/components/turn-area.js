@@ -539,22 +539,24 @@ export class TurnAreaController {
 
   #handleOperationAdd(turnIndex, operation) {
     if (this.#editSession || turnIndex !== this.#engineManager.committedTurnCount) {
-      return;
+      return false;
     }
     if (!this.#engineManager.addPendingSpecialOperation(operation)) {
-      return;
+      return false;
     }
     this.#refreshInputRow();
+    return true;
   }
 
   #handleOperationRemove(turnIndex, operationIndex) {
     if (this.#editSession || turnIndex !== this.#engineManager.committedTurnCount) {
-      return;
+      return false;
     }
     if (!this.#engineManager.removePendingSpecialOperation(operationIndex)) {
-      return;
+      return false;
     }
     this.#refreshInputRow();
+    return true;
   }
 
   #refreshEditRow(draftOverride = null) {

@@ -15,10 +15,12 @@ import {
 } from '../src/ui/lightweight-replay-script.js';
 import { applyBeforeCommitOperations } from '../src/turn/turn-operations.js';
 import { TARGET_SELECTION_MODES } from '../ui-next/utils/simulator-settings.js';
+import { FORM_CHANGE_KEYS, FORM_CHANGE_STYLE_IDS } from '../src/domain/form-change.js';
 import {
   DEFAULT_SUMMON_SAMPLE_ENEMY,
   DEATH_SLUG_WHITE_SAMPLE_ENEMY,
 } from '../src/data/enemy-sample-presets.js';
+import { getStore } from './helpers.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
@@ -3309,6 +3311,137 @@ test('char detail popup preview section renders Funnel from previewActionFlow.fu
     assert.ok(popup);
     assert.match(popup.textContent ?? '', /ハッピー！エッグ・ラッシュ！/);
     assert.match(popup.textContent ?? '', /連撃（特大）3回\s*150%/);
+  }));
+
+test('char detail popup shows form chip and dims inactive ability entries for form-change styles', () =>
+  withDom(({ win }) => {
+    const member = getStore().buildCharacterStyle({
+      styleId: FORM_CHANGE_STYLE_IDS.K_ASAKURA_TWINS,
+      partyIndex: 0,
+      limitBreakLevel: 4,
+    });
+    member.setCurrentForm(FORM_CHANGE_KEYS.KAREN);
+
+    openCharDetailPopup(
+      member,
+      {
+        statusEffects: [],
+        passiveEvents: [],
+      },
+      { x: 200, y: 120, isCommitted: false }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    const formChip = popup.querySelector('[data-role="char-popup-form-chip"]');
+    assert.ok(formChip);
+    assert.match(formChip.textContent ?? '', /フォーム:\s*カレン/);
+
+    popup.querySelector('.char-popup-tab[data-tab="ability"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const overdriveEntry = popup.querySelector('[data-role="char-popup-ability-entry"][data-passive-name="[Overdrive]"]');
+    assert.equal(overdriveEntry, null);
+
+    const activeKarenEntry = [...popup.querySelectorAll('[data-role="char-popup-ability-entry"]')]
+      .find((entry) => (entry.getAttribute('data-passive-name') ?? '').includes('無差別な殺人鬼'));
+    assert.ok(activeKarenEntry);
+    assert.equal(activeKarenEntry.getAttribute('data-passive-active'), 'true');
+    assert.equal(activeKarenEntry.classList.contains('dimmed'), false);
+
+    const inactiveKareiEntry = [...popup.querySelectorAll('[data-role="char-popup-ability-entry"]')]
+      .find((entry) => (entry.getAttribute('data-passive-name') ?? '').includes('仲間と共に'));
+    assert.ok(inactiveKareiEntry);
+    assert.equal(inactiveKareiEntry.getAttribute('data-passive-active'), 'false');
+    assert.equal(inactiveKareiEntry.classList.contains('dimmed'), true);
+
+    const commonEntry = [...popup.querySelectorAll('[data-role="char-popup-ability-entry"]')]
+      .find((entry) => (entry.getAttribute('data-passive-name') ?? '') === '閃光');
+    assert.ok(commonEntry);
+    assert.equal(commonEntry.getAttribute('data-passive-active'), 'true');
+    assert.equal(commonEntry.textContent?.includes('LB1'), true);
+  }));
+
+test('char detail popup draft passive tab uses current active passives for form-change styles', () =>
+  withDom(({ win }) => {
+    const member = getStore().buildCharacterStyle({
+      styleId: FORM_CHANGE_STYLE_IDS.K_ASAKURA_TWINS,
+      partyIndex: 0,
+      limitBreakLevel: 4,
+    });
+    member.setCurrentForm(FORM_CHANGE_KEYS.KAREN);
+
+    openCharDetailPopup(
+      member,
+      {
+        statusEffects: [],
+        passiveEvents: [
+          {
+            characterId: String(member.characterId),
+            passiveName: '仲間と共に【朝倉可憐 専用】',
+            passiveDesc: '旧フォームの履歴',
+          },
+        ],
+      },
+      { x: 200, y: 120, isCommitted: false }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    popup.querySelector('.char-popup-tab[data-tab="passive"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const passivePanel = popup.querySelector('[data-tab-panel="passive"]');
+    assert.ok(passivePanel);
+    assert.match(passivePanel.textContent ?? '', /無差別な殺人鬼【カレン 専用】/);
+    assert.match(passivePanel.textContent ?? '', /閃光/);
+    assert.match(passivePanel.textContent ?? '', /貴様に託した【カレン 専用】/);
+    assert.doesNotMatch(passivePanel.textContent ?? '', /仲間と共に【朝倉可憐 専用】/);
+    assert.doesNotMatch(passivePanel.textContent ?? '', /紡がれる勇気【朝倉可憐 専用】/);
+  }));
+
+test('char detail popup committed passive tab keeps fired passive history for form-change styles', () =>
+  withDom(({ win }) => {
+    const member = getStore().buildCharacterStyle({
+      styleId: FORM_CHANGE_STYLE_IDS.K_ASAKURA_TWINS,
+      partyIndex: 0,
+      limitBreakLevel: 4,
+    });
+    member.setCurrentForm(FORM_CHANGE_KEYS.KAREN);
+
+    openCharDetailPopup(
+      member,
+      {
+        statusEffects: [],
+        passiveEvents: [
+          {
+            characterId: String(member.characterId),
+            passiveName: '無差別な殺人鬼【カレン 専用】',
+            passiveDesc: '発動履歴',
+          },
+          {
+            characterId: String(member.characterId),
+            passiveName: '閃光',
+            passiveDesc: '発動履歴',
+          },
+        ],
+      },
+      { x: 200, y: 120, isCommitted: true }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    popup.querySelector('.char-popup-tab[data-tab="passive"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const passivePanel = popup.querySelector('[data-tab-panel="passive"]');
+    assert.ok(passivePanel);
+    assert.match(passivePanel.textContent ?? '', /無差別な殺人鬼【カレン 専用】/);
+    assert.match(passivePanel.textContent ?? '', /閃光/);
+    assert.doesNotMatch(passivePanel.textContent ?? '', /貴様に託した【カレン 専用】/);
   }));
 
 test('TurnRowController committed char detail popup includes committed action flow section', () =>
