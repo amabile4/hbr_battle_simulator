@@ -17,15 +17,9 @@ test.describe('Turn row summon enemy', () => {
     const inputRow = await applyParty(page);
 
     const label = inputRow.locator('.turn-info-enemy-button__label').first();
-    await expect
-      .poll(
-        async () =>
-          label.evaluate((node) =>
-            getComputedStyle(node, '::before').content.replace(/^["']|["']$/g, '')
-          ),
-        { timeout: 5000 }
-      )
-      .toBe('敵情報確認');
+    await expect(label.locator('.turn-info-enemy-button__label-text--full')).toBeVisible({ timeout: 5000 });
+    await expect(label.locator('.turn-info-enemy-button__label-text--medium')).toBeHidden();
+    await expect(label.locator('.turn-info-enemy-button__label-text--short')).toBeHidden();
 
     const triggerWidth = await inputRow
       .locator('[data-role="enemy-detail-trigger"]')

@@ -1296,7 +1296,19 @@ test('TurnRowController opens enemy detail popup from Enemy label context menu',
     });
 
     const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
-    assert.equal(trigger.textContent?.trim(), '敵情報確認');
+    assert.equal(trigger.getAttribute('aria-label'), '敵情報確認');
+    assert.equal(
+      trigger.querySelector('.turn-info-enemy-button__label-text--full')?.textContent?.trim(),
+      '敵情報確認'
+    );
+    assert.equal(
+      trigger.querySelector('.turn-info-enemy-button__label-text--medium')?.textContent?.trim(),
+      '敵情報'
+    );
+    assert.equal(
+      trigger.querySelector('.turn-info-enemy-button__label-text--short')?.textContent?.trim(),
+      '敵'
+    );
     const popup = openEnemyDetailPopup(trigger, win, { eventType: 'contextmenu' });
     const tabs = popup.querySelectorAll('[data-role="enemy-popup-tab"]');
     assert.equal(tabs.length, 3);
@@ -4347,6 +4359,12 @@ test('TurnAreaController limits pending Makai Kihei chips to three uses', () =>
     );
     const makaiButton = root.querySelector('[data-role="makai-kihei-btn"]');
     assert.deepEqual(chipLabels, ['騎兵起動', '騎兵起動', '騎兵起動']);
+    assert.equal(
+      [...root.querySelectorAll('[data-role="operation-chip"]')].every((chip) =>
+        chip.className.includes('whitespace-nowrap')
+      ),
+      true
+    );
     assert.equal(makaiButton.disabled, true);
     assert.match(makaiButton.textContent, /残0/);
     assert.equal(root.querySelector('[data-role="note"]').value, '騎兵メモ');

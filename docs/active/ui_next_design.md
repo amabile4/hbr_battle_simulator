@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-12
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-18
 
 ## 目的
 
@@ -290,6 +290,7 @@
 - 自動生成される操作履歴は `note` 文字列へ追記せず、`LightweightReplayTurn.operations` を正本として chip 表示する
 - chip は pending 行と committed 行の両方で `×` 削除でき、committed 行の削除時はその turn から再計算する
 - 現在の chip 対象は `鬼神化` / `騎兵起動` / `先制OD` / `割込OD`
+- operation chip は OS のフォント差分があっても 1 行維持を優先し、`騎兵起動` / `先制OD1` のような中長ラベルでも折り返さない
 - before-commit 系 operation の適用順は `special operation -> 先制OD -> 通常 action preview/commit` とする
 - `騎兵起動` は `SS<レゾナンス>[誇り高き魔王の凱旋] 山脇・ボン・イヴァール` が所属しているときだけ未コミット行に表示する
 - `騎兵起動` は同一 turn 内に複数回積めるが、残回数 3 を超えて追加できない
@@ -300,6 +301,7 @@
 
 - 戦闘中 summon は `Enemy Setup` ではなく turn row の `敵情報確認` trigger から投入する
 - row 上の `enemy tools box` は `敵情報確認` trigger だけを持ち、`召喚 / ブレイク / 討伐` の入口は `enemy-detail-popup-container` 内へ移す
+- `敵情報確認` trigger の `敵情報確認 / 敵情報 / 敵` 切替は pseudo-element `content` に依存せず、実 DOM text を container 幅で切り替える。PNG export と一部 browser/font 環境での二重描画を避けるため
 - enemy detail popup は `E1 / E2 / E3` の 3 tab を常設し、wide では tab 直下を 3 等分カラム、narrow では選択中 enemy の 1 カラム表示へ切り替える
 - popup header 直下に `3表示 / 1表示` toggle を置き、manual layout は popup を閉じるまで保持する
 - 初期 layout は occupied enemy slot 数で決め、`occupied <= 1` は `1表示`、`occupied >= 2` は `3表示` を既定にする

@@ -1639,8 +1639,8 @@ export class TurnRowController {
         ${this.#operations.map((operation, index) => `
           <span data-role="operation-chip"
                 data-operation-index="${index}"
-                class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold leading-tight ${getReplayOperationTone(operation)}">
-            <span>${getReplayOperationDisplayLabel(operation)}</span>
+                class="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold leading-tight whitespace-nowrap ${getReplayOperationTone(operation)}">
+            <span class="whitespace-nowrap">${getReplayOperationDisplayLabel(operation)}</span>
             ${canRemove
               ? `
                 <button type="button"
@@ -2217,11 +2217,13 @@ export class TurnRowController {
       <button type="button"
               data-role="enemy-detail-trigger"
               title="左クリック/右クリック/長押しで敵情報詳細を表示"
+              aria-label="敵情報確認"
               class="turn-info-enemy-button">
-        <span class="turn-info-enemy-button__label"
-              data-label-full="敵情報確認"
-              data-label-medium="敵情報"
-              data-label-short="敵">敵情報確認</span>
+        <span class="turn-info-enemy-button__label" aria-hidden="true">
+          <span class="turn-info-enemy-button__label-text turn-info-enemy-button__label-text--full">敵情報確認</span>
+          <span class="turn-info-enemy-button__label-text turn-info-enemy-button__label-text--medium">敵情報</span>
+          <span class="turn-info-enemy-button__label-text turn-info-enemy-button__label-text--short">敵</span>
+        </span>
       </button>
     `;
   }

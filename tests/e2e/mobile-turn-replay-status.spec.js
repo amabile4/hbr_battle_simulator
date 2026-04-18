@@ -128,15 +128,9 @@ test.describe('Mobile turn replay status', () => {
       .locator('.turn-info-enemy-button__label')
       .first();
 
-    await expect
-      .poll(
-        async () =>
-          label.evaluate((node) =>
-            getComputedStyle(node, '::before').content.replace(/^["']|["']$/g, '')
-          ),
-        { timeout: 5000 }
-      )
-      .toBe('敵情報');
+    await expect(label.locator('.turn-info-enemy-button__label-text--full')).toBeHidden();
+    await expect(label.locator('.turn-info-enemy-button__label-text--medium')).toBeVisible({ timeout: 5000 });
+    await expect(label.locator('.turn-info-enemy-button__label-text--short')).toBeHidden();
   });
 
   test('moves the battle-end chip below the compact turn header on mobile', async ({ page }) => {

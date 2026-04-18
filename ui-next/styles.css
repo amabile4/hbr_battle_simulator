@@ -1089,25 +1089,33 @@
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 0;
-  letter-spacing: 0;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
-.turn-info-enemy-button__label::before {
-  content: attr(data-label-full);
+.turn-info-enemy-button__label-text {
+  display: none;
   font-size: 0.75rem;
   font-weight: 800;
-  letter-spacing: 0.01em;
   line-height: 1;
+  white-space: nowrap;
+}
+.turn-info-enemy-button__label-text--full {
+  display: inline;
 }
 @container (max-width: 5rem) {
-  .turn-info-enemy-button__label::before {
-    content: attr(data-label-medium);
+  .turn-info-enemy-button__label-text--full {
+    display: none;
+  }
+  .turn-info-enemy-button__label-text--medium {
+    display: inline;
   }
 }
 @container (max-width: 2.7rem) {
-  .turn-info-enemy-button__label::before {
-    content: attr(data-label-short);
+  .turn-info-enemy-button__label-text--medium {
+    display: none;
+  }
+  .turn-info-enemy-button__label-text--short {
+    display: inline;
   }
 }
 [data-turn-slot-icon] {
@@ -1491,16 +1499,20 @@
   }
 
   [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label {
-    font-size: 0;
+    letter-spacing: 0.01em;
   }
 
-  [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label::before {
+  [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label-text {
     font-size: 0.6875rem;
   }
 
   @container (max-width: 2.7rem) {
-    [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label::before {
-      content: attr(data-label-medium);
+    [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label-text--medium {
+      display: inline;
+    }
+
+    [data-turn-row][data-row-mode="committed"] .turn-info-enemy-button__label-text--short {
+      display: none;
     }
   }
 
@@ -1701,8 +1713,12 @@
 @container turn-area (min-width: 720px) {
   [data-turn-front-group] { flex: 1; }
   [data-turn-back-group]  { flex: 1; }
-  .turn-info-enemy-button__label::before {
-    content: attr(data-label-full);
+  .turn-info-enemy-button__label-text--full {
+    display: inline;
+  }
+  .turn-info-enemy-button__label-text--medium,
+  .turn-info-enemy-button__label-text--short {
+    display: none;
   }
   [data-role="turn-row-list"] {
     --turn-info-width: 7rem;

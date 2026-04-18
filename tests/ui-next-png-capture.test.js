@@ -175,6 +175,51 @@ test('buildPngCaptureClone keeps all committed rows when battle-end row does not
     }
   ));
 
+test('buildPngCaptureClone preserves enemy detail labels as real DOM text for capture rendering', () =>
+  withDom(
+    `
+      <section id="turn-area">
+        <div data-role="turn-row-list">
+          <div data-turn-row data-row-mode="committed" data-battle-ended="false">
+            <div data-turn-info>
+              <button type="button"
+                      data-role="enemy-detail-trigger"
+                      aria-label="敵情報確認"
+                      class="turn-info-enemy-button">
+                <span class="turn-info-enemy-button__label" aria-hidden="true">
+                  <span class="turn-info-enemy-button__label-text turn-info-enemy-button__label-text--full">敵情報確認</span>
+                  <span class="turn-info-enemy-button__label-text turn-info-enemy-button__label-text--medium">敵情報</span>
+                  <span class="turn-info-enemy-button__label-text turn-info-enemy-button__label-text--short">敵</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    `,
+    ({ root }) => {
+      const { clone } = buildPngCaptureClone(root, {
+        captureUntilBattleEnd: false,
+      });
+
+      const trigger = clone.querySelector('[data-role="enemy-detail-trigger"]');
+      assert.ok(trigger);
+      assert.equal(trigger.getAttribute('aria-label'), '敵情報確認');
+      assert.equal(
+        trigger.querySelector('.turn-info-enemy-button__label-text--full')?.textContent?.trim(),
+        '敵情報確認'
+      );
+      assert.equal(
+        trigger.querySelector('.turn-info-enemy-button__label-text--medium')?.textContent?.trim(),
+        '敵情報'
+      );
+      assert.equal(
+        trigger.querySelector('.turn-info-enemy-button__label-text--short')?.textContent?.trim(),
+        '敵'
+      );
+    }
+  ));
+
 test('mountPngCaptureSandbox keeps capture target visible to the renderer while placing it offscreen', () =>
   withDom(createTurnAreaMarkup(), ({ root }) => {
     root.getBoundingClientRect = () => makeRect(720, 400);
