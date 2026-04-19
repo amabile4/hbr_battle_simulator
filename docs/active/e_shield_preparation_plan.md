@@ -2,7 +2,7 @@
 
 > ステータス: 🟢 進行中
 > 作成日: 2026-04-18
-> 最終更新: 2026-04-18
+> 最終更新: 2026-04-19
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 概要
@@ -11,7 +11,8 @@
 `json/enemies.json.extra_gauge.eshield` / `extra_gauge.esp` として格納されている。
 
 この文書では、ヘルプ整備と実装準備フェーズで固定する仕様判断、および
-`ui-next` 側の最小導入順を整理する。
+`ui-next` 側の最小導入順を整理する。あわせて、Enemy Setup で使うサンプル敵と
+`def_up_rate` / `dmg_limit` の文書化方針もここで確定させる。
 
 ## 調査結果
 
@@ -29,6 +30,9 @@
 - `json/skill_types.json` に `ReviveEShield (id:268)` / `IgnoreEShieldElement (id:301)` / `HealEShield (id:320)` が存在する
 - `json/passives.json` では `100150900 / 無差別な殺人鬼【カレン 専用】` が `IgnoreEShieldElement` を持つ
 - `json/enemies.json` には `extra_gauge.eshield` を持つ enemy が `113` 件ある
+- `Dimension_09_X_KaleidoOuroboros (id:13450815 / 変貌を重ねる不滅の円環)` は `extra_gauge.hp` に `3` 本の HP ゲージを持ち、`esp:30` / `ele_list:["Fire","Ice"]` の Eシールドを持つ
+- 同系列の summon 用 enemy として `Dimension_09_X_CatHornMeteor_Summon ([強化変種]ミーティアホーン)` / `Dimension_09_X_OctopusTailMeteor_Summon ([強化変種]ミーティアテイル)` が存在する
+- `ui-next/utils/enemy-list.js` の現行実装は `ALWAYS_VISIBLE_ENEMY_PRESET_IDS` と `直近3ヶ月の boss` から flat list を組んでいる。Enemy Setup 改修時は本書の方針を優先し、`直近2ヶ月` + `カテゴリ -> 敵` の2段導線へ更新する
 - 代表的な raw schema:
 
 ```json
@@ -68,7 +72,31 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 }
 ```
 
-### 3. 次フェーズで実装する戦闘仕様
+### 3. Enemy Setup のサンプル導線方針
+
+- 敵プリセットのサンプル候補に `Dimension_09_X_KaleidoOuroboros` を追加する
+- 追加理由は「Eシールド」「複数 HP ゲージ」「summon を行うボス」を1体で確認できるため
+- summon 相手の確認用として `Dimension_09_X_CatHornMeteor_Summon` / `Dimension_09_X_OctopusTailMeteor_Summon` も選択可能候補に含める
+- 敵プリセット選択 UI は flat list のまま増やさず、`カテゴリ -> 具体的な敵` の2段構えへ移行する
+- 少なくとも `期間（直近2ヶ月）` と `恒星掃戦線` の2カテゴリを持たせる
+- `恒星掃戦線` カテゴリでは、同名 enemy が難易度違いで複数ある場合は重複を除去し、もっとも高いランクの1件のみを表示対象とする
+- 現行コードは `直近3ヶ月` の flat list なので、実装時はこの文書に合わせて抽出条件と UI 構造を更新する
+
+### 4. `def_up_rate` / `dmg_limit` の解釈（文書化のみ）
+
+- `def_up_rate` は、Eシールドを破壊していない状態で敵本体へ直接 HP ダメージを与える際の補正値として扱う
+- この状態のダメージ式は「通常の DP を割っていない敵への HP ダメージ計算式」を使う
+- `def_up_rate` の単位は `0.01%` とし、実効倍率は `1 - (def_up_rate / 10000)` で解釈する
+- `def_up_rate = 0` は補正なし、すなわち `100%` (`1.0x`) を意味する
+- `def_up_rate = 5000` は `50%` 補正、すなわち最終ダメージ `0.5x`
+- `def_up_rate = 9900` は `99%` 補正、すなわち最終ダメージ `0.01x`
+- `def_up_rate = 10000` は `100%` 補正、すなわち最終ダメージ `0`
+- `dmg_limit` は、同じく Eシールド未破壊状態で敵本体へ直接 HP ダメージを与える際の上限値として扱う
+- DP 未破壊時 HP ダメージ式で値が出ても、`dmg_limit` を超える場合はその値で clamp する
+- 本シミュレーターはダメージ計算機ではないため、`def_up_rate` / `dmg_limit` はこの文書に仕様メモとして保持し、既定では runtime 実装や UI 表示の対象にしない
+- 後日あらためて再調査する前提は置かず、本書の記述を以後の判断基準とする
+
+### 5. 次フェーズで実装する戦闘仕様
 
 - 弱点属性 hit ごとに `current -= 1`
 - `IgnoreEShieldElement` 所持時は属性不一致でも `current -= 1`
@@ -78,11 +106,6 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 
 ## 未確定事項
 
-- `def_up_rate` の実機意味
-  - データ上は `5000` / `9900` などが存在する
-  - 被ダメ軽減率か別種係数かは未検証
-- `dmg_limit` の実機意味
-  - 現データ確認範囲では `0` が中心
 - `dp > 0` と Eシールドが同時に存在する敵が将来現れた場合の優先順位
   - 現フェーズでは未確定として保留する
 
@@ -108,6 +131,9 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 
 ### Phase 3: UI/QA
 
+- [ ] Enemy preset selector を `カテゴリ -> 敵` の2段構えへ変更する
+- [ ] `Dimension_09_X_KaleidoOuroboros` と関連 summon enemy 2体を Enemy Setup の選択候補へ追加する
+- [ ] `恒星掃戦線` カテゴリでは同名重複を除去し、もっとも高いランクの1件のみ表示する
 - [ ] Enemy Setup で Eシールドを手動編集できるようにする
 - [ ] session save/load と summon operation に対する回帰を固定する
 - [ ] browser E2E を追加する
