@@ -35,9 +35,9 @@
 - `extra_gauge.eshield` を持つ enemy のうち、`base_param.dp > 0` 併存は `0` 件
 - `esp=0` または `ele_list=[]` の raw 定義が `33` 件あり、初回実装では inactive 扱いに寄せる
 - `HealEShield` / `ReviveEShield` は live usage が `0` 件
-- `Dimension_09_X_KaleidoOuroboros (id:13450815 / 変貌を重ねる不滅の円環)` は `extra_gauge.hp` に `3` 本の HP ゲージを持ち、`esp:30` / `ele_list:["Fire","Ice"]` の Eシールドを持つ
+- `Dimension_09_X_KaleidoOuroboros (id:13450815 / 変貌を重ねる不滅の円環)` は `extra_gauge.hp` に `3` 本の HP ゲージを持ち、`esp:30` / `ele_list:["Fire","Ice"]` の Eシールドを持つため、Eシールド確認用の代表ケースとして扱いやすい
 - 同系列の summon 用 enemy として `Dimension_09_X_CatHornMeteor_Summon ([強化変種]ミーティアホーン)` / `Dimension_09_X_OctopusTailMeteor_Summon ([強化変種]ミーティアテイル)` が存在する
-- `ui-next/utils/enemy-list.js` の現行実装は `ALWAYS_VISIBLE_ENEMY_PRESET_IDS` と `直近3ヶ月の boss` から flat list を組んでいる。Enemy Setup 改修時は本書の方針を優先し、`直近2ヶ月` + `カテゴリ -> 敵` の2段導線へ更新する
+- `ui-next/utils/enemy-list.js` の現行実装は `ALWAYS_VISIBLE_ENEMY_PRESET_IDS` と `直近3ヶ月の boss` から flat list を組んでいる。Enemy Setup 改修時は本書の方針を優先し、通常 enemy をカテゴリ定義から追加できる `カテゴリ -> 敵` の2段導線へ更新する
 - 代表的な raw schema:
 
 ```json
@@ -61,8 +61,7 @@
 
 - 初回は `engine-first` とし、`ui-next` の enemy preset / snapshot / summon / popup に加え、
   `turn-controller` の戦闘解決まで接続する
-- Enemy Setup の selector 改修、`Dimension_09_X_KaleidoOuroboros` 導線追加、
-  Eシールド手動編集、browser E2E は後続フェーズへ分離する
+- Enemy Setup の selector 汎用化、Eシールド手動編集、browser E2E は後続フェーズへ分離する
 
 ### 2. 内部表現
 
@@ -147,9 +146,9 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 
 ### Phase 3: UI/QA
 
-- [ ] Enemy preset selector を `カテゴリ -> 敵` の2段構えへ変更する
-- [ ] `Dimension_09_X_KaleidoOuroboros` と関連 summon enemy 2体を Enemy Setup の選択候補へ追加する
-- [ ] `恒星掃戦線` カテゴリでは同名重複を除去し、もっとも高いランクの1件のみ表示する
+- [ ] Enemy preset selector を、通常 enemy をカテゴリ定義から追加できる `カテゴリ -> 敵` の2段構えへ変更する
+- [ ] `恒星掃戦線` カテゴリも他カテゴリと同じ流儀で追加し、同名 enemy が難易度違いで複数ある場合はもっとも高いランクの1件のみ表示する
+- [ ] Eシールド回帰や動作確認では `Dimension_09_X_KaleidoOuroboros` を代表ケースとして扱い、専用 hardcode ではなく通常 selector 経由で到達できる状態にする
 - [ ] Enemy Setup で Eシールドを手動編集できるようにする
 - [ ] session save/load と summon operation に対する回帰を固定する
 - [ ] browser E2E を追加する
