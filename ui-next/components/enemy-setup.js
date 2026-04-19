@@ -22,10 +22,22 @@ const ELEMENTS = [
   { key: 'nonelement', label: '無', icon: null           },
 ];
 const ELEMENT_KEY_SET = new Set(ELEMENTS.map((element) => element.key));
+const E_SHIELD_ELEMENT_OPTIONS = Object.freeze(
+  ELEMENTS
+    .filter((element) => ['fire', 'ice', 'thunder', 'light', 'dark'].includes(element.key))
+    .map((element) => Object.freeze({
+      ...element,
+      eShieldValue: element.key.charAt(0).toUpperCase() + element.key.slice(1),
+    }))
+);
+const E_SHIELD_ELEMENT_VALUE_SET = new Set(
+  E_SHIELD_ELEMENT_OPTIONS.map((element) => element.eShieldValue)
+);
 
 const DEFAULT_OD_RATE    = 1;
 const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
+const DEFAULT_E_SHIELD_EDITOR_VALUE = 0;
 const ENEMY_SLOT_COUNT = 3;
 const REQUIRED_SLOT_INDEX = 0;
 const DEFAULT_PREEMPTIVE_FIELD = 'none';
@@ -86,6 +98,54 @@ function cloneEnemyEShield(eShield = null) {
         elements: [...normalized.elements],
       }
     : null;
+}
+
+function normalizeEnemyEShieldEditorNumber(value, fallback = DEFAULT_E_SHIELD_EDITOR_VALUE) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return Math.max(DEFAULT_E_SHIELD_EDITOR_VALUE, Math.floor(Number(fallback) || 0));
+  }
+  return Math.max(DEFAULT_E_SHIELD_EDITOR_VALUE, Math.floor(numeric));
+}
+
+function normalizeEnemyEShieldEditorElements(elements = []) {
+  if (!Array.isArray(elements)) {
+    return [];
+  }
+  return [...new Set(
+    elements
+      .map((value) => String(value ?? '').trim())
+      .filter((value) => E_SHIELD_ELEMENT_VALUE_SET.has(value))
+  )];
+}
+
+function createEmptyEnemyEShieldDraft() {
+  return {
+    count: DEFAULT_E_SHIELD_EDITOR_VALUE,
+    max: DEFAULT_E_SHIELD_EDITOR_VALUE,
+    elements: [],
+    def_up_rate: DEFAULT_E_SHIELD_EDITOR_VALUE,
+    dmg_limit: DEFAULT_E_SHIELD_EDITOR_VALUE,
+  };
+}
+
+function cloneEnemyEShieldDraft(eShield = null) {
+  const normalized = cloneEnemyEShield(eShield);
+  if (normalized) {
+    return normalized;
+  }
+  if (!eShield || typeof eShield !== 'object') {
+    return createEmptyEnemyEShieldDraft();
+  }
+  return {
+    count: normalizeEnemyEShieldEditorNumber(eShield.count ?? eShield.current),
+    max: normalizeEnemyEShieldEditorNumber(
+      eShield.max ?? eShield.initial ?? eShield.count ?? eShield.current
+    ),
+    elements: normalizeEnemyEShieldEditorElements(eShield.elements ?? eShield.ele_list ?? []),
+    def_up_rate: normalizeEnemyEShieldEditorNumber(eShield.def_up_rate ?? eShield.defUpRate),
+    dmg_limit: normalizeEnemyEShieldEditorNumber(eShield.dmg_limit ?? eShield.damageLimit),
+  };
 }
 
 function cloneManual(manual = {}) {
@@ -371,6 +431,42 @@ export class EnemySetupController {
         }
         this.#state.manualBySlot[slotIndex].absorbElementList = [...next];
         this.#onChange?.(this.getSnapshot());
+        return;
+      }
+
+      if (t.dataset.editEshieldField) {
+        const slotIndex = this.#state.activeSlotIndex;
+        const key = String(t.dataset.editEshieldField).trim();
+        if (!['count', 'max', 'def_up_rate', 'dmg_limit'].includes(key)) {
+          return;
+        }
+        const value = Number(t.value);
+        if (!Number.isFinite(value)) {
+          return;
+        }
+        const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
+        currentDraft[key] = normalizeEnemyEShieldEditorNumber(value, currentDraft[key]);
+        this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
+        this.#onChange?.(this.getSnapshot());
+        return;
+      }
+
+      if (t.dataset.editEshieldElement) {
+        const slotIndex = this.#state.activeSlotIndex;
+        const elementValue = String(t.dataset.editEshieldElement).trim();
+        if (!E_SHIELD_ELEMENT_VALUE_SET.has(elementValue)) {
+          return;
+        }
+        const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
+        const next = new Set(currentDraft.elements);
+        if (t.checked) {
+          next.add(elementValue);
+        } else {
+          next.delete(elementValue);
+        }
+        currentDraft.elements = [...next];
+        this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
+        this.#onChange?.(this.getSnapshot());
       }
     });
   }
@@ -609,6 +705,8 @@ export class EnemySetupController {
     const categoryOptions = this.#getCategoryOptions();
     const selectedCategoryKey = this.#normalizeCategoryKeyForSlot(activeSlotIndex);
     const categoryEnemies = this.#getEnemiesForCategory(selectedCategoryKey);
+    const eShieldDraft = cloneEnemyEShieldDraft(vals.e_shield);
+    const hasEShield = Boolean(cloneEnemyEShield(vals.e_shield));
 
     this.#root.innerHTML = `
       <div class="p-1.5 space-y-2">
@@ -746,6 +844,8 @@ export class EnemySetupController {
                 ${ELEMENTS.map((el) => this.#absorbHtml(el, vals.absorbElementList.includes(el.key), isManual)).join('')}
               </div>
             </div>
+
+            ${this.#eShieldHtml(eShieldDraft, hasEShield, isManual)}
           </div>
         </div>
 
@@ -753,12 +853,12 @@ export class EnemySetupController {
     `;
   }
 
-  #numFieldHtml(key, label, value, editable, formatter = null) {
+  #numFieldHtml(key, label, value, editable, formatter = null, inputDataAttribute = 'data-edit-field') {
     if (editable) {
       return `
         <label class="flex flex-col gap-0.5">
           <span class="text-xs text-gray-500">${label}</span>
-          <input type="number" data-edit-field="${key}" value="${value}"
+          <input type="number" ${inputDataAttribute}="${key}" value="${value}"
                  class="text-xs rounded border border-gray-300 px-1 py-0.5 w-full
                         focus:outline-none focus:ring-1 focus:ring-blue-400" />
         </label>`;
@@ -816,5 +916,96 @@ export class EnemySetupController {
         ${iconHtml}
         <span class="text-[10px] font-medium ${checked ? 'text-emerald-600' : 'text-gray-300'}">${checked ? '吸収' : '---'}</span>
       </div>`;
+  }
+
+  #eShieldHtml(eShield, hasEShield, editable) {
+    if (editable) {
+      return `
+        <div data-role="enemy-e-shield-editor" class="rounded-md border border-violet-200 bg-violet-50/70 p-2 space-y-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-xs font-semibold text-violet-700">Eシールド</div>
+            <div class="text-[10px] text-violet-500">max=0 または属性未選択で未設定扱い</div>
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            ${this.#numFieldHtml('count', '現在値', eShield.count, true, null, 'data-edit-eshield-field')}
+            ${this.#numFieldHtml('max', '最大値', eShield.max, true, null, 'data-edit-eshield-field')}
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            ${this.#numFieldHtml('def_up_rate', '防御UP', eShield.def_up_rate, true, null, 'data-edit-eshield-field')}
+            ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', eShield.dmg_limit, true, null, 'data-edit-eshield-field')}
+          </div>
+          <div>
+            <div class="text-xs text-violet-500 mb-1">対応属性</div>
+            <div class="grid grid-cols-5 gap-0.5">
+              ${E_SHIELD_ELEMENT_OPTIONS.map((element) => this.#eShieldElementHtml(
+                element,
+                eShield.elements.includes(element.eShieldValue)
+              )).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (!hasEShield) {
+      return `
+        <div data-role="enemy-e-shield-summary" class="rounded-md border border-violet-100 bg-violet-50/40 p-2">
+          <div class="text-xs font-semibold text-violet-700 mb-1">Eシールド</div>
+          <div class="text-xs text-gray-500">なし</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div data-role="enemy-e-shield-summary" class="rounded-md border border-violet-100 bg-violet-50/40 p-2 space-y-1.5">
+        <div class="text-xs font-semibold text-violet-700">Eシールド</div>
+        <div class="grid grid-cols-2 gap-1.5">
+          ${this.#numFieldHtml('count', '現在値', eShield.count, false)}
+          ${this.#numFieldHtml('max', '最大値', eShield.max, false)}
+        </div>
+        <div>
+          <div class="text-xs text-violet-500 mb-1">対応属性</div>
+          <div class="flex flex-wrap gap-1">
+            ${E_SHIELD_ELEMENT_OPTIONS
+              .filter((element) => eShield.elements.includes(element.eShieldValue))
+              .map((element) => this.#eShieldElementChipHtml(element))
+              .join('')}
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          ${this.#numFieldHtml('def_up_rate', '防御UP', eShield.def_up_rate, false)}
+          ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', eShield.dmg_limit, false)}
+        </div>
+      </div>
+    `;
+  }
+
+  #eShieldElementHtml(element, checked) {
+    const iconHtml = element.icon
+      ? `<img src="${resolveUiAssetUrl(element.icon)}" alt="${element.label}"
+              class="w-4 h-4 object-contain" />`
+      : `<span class="w-4 h-4 flex items-center justify-center text-xs text-gray-400 leading-none">${element.label}</span>`;
+    return `
+      <label class="flex flex-col items-center gap-0.5 py-0.5 cursor-pointer rounded border ${checked ? 'border-violet-300 bg-white' : 'border-violet-100 bg-white/70'}">
+        ${iconHtml}
+        <input type="checkbox"
+               data-edit-eshield-element="${element.eShieldValue}"
+               ${checked ? 'checked' : ''}
+               class="h-3.5 w-3.5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+      </label>
+    `;
+  }
+
+  #eShieldElementChipHtml(element) {
+    const iconHtml = element.icon
+      ? `<img src="${resolveUiAssetUrl(element.icon)}" alt="${element.label}"
+              class="w-3.5 h-3.5 object-contain" />`
+      : `<span class="w-3.5 h-3.5 flex items-center justify-center text-[10px] text-violet-500 leading-none">${element.label}</span>`;
+    return `
+      <span class="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[10px] text-violet-700">
+        ${iconHtml}
+        ${element.label}
+      </span>
+    `;
   }
 }

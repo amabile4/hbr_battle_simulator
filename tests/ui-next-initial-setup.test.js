@@ -483,7 +483,7 @@ test('InitialSetupController getCurrentSetupSnapshot returns party and simulator
     assert.equal(snapshot.enemy.preemptiveField, 'none');
   }));
 
-test('InitialSetupController restores enemy manual resistance percent and absorb selection', () =>
+test('InitialSetupController restores enemy manual resistance percent, absorb selection, and Eシールド', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new InitialSetupController({
       root,
@@ -534,6 +534,13 @@ test('InitialSetupController restores enemy manual resistance percent and absorb
             nonelement: 100,
           },
           absorbElementList: ['fire', 'nonelement'],
+          e_shield: {
+            count: 12,
+            max: 30,
+            elements: ['Fire', 'Ice'],
+            def_up_rate: 5000,
+            dmg_limit: 200000,
+          },
         },
       },
     });
@@ -546,12 +553,108 @@ test('InitialSetupController restores enemy manual resistance percent and absorb
     assert.equal(root.querySelector('[data-edit-element="ice"]').value, '30');
     assert.equal(root.querySelector('[data-edit-absorb="fire"]').checked, true);
     assert.equal(root.querySelector('[data-edit-absorb="nonelement"]').checked, true);
+    assert.equal(root.querySelector('[data-edit-eshield-field="count"]').value, '12');
+    assert.equal(root.querySelector('[data-edit-eshield-field="max"]').value, '30');
+    assert.equal(root.querySelector('[data-edit-eshield-element="Fire"]').checked, true);
+    assert.equal(root.querySelector('[data-edit-eshield-element="Ice"]').checked, true);
+    assert.equal(root.querySelector('[data-edit-eshield-field="def_up_rate"]').value, '5000');
+    assert.equal(root.querySelector('[data-edit-eshield-field="dmg_limit"]').value, '200000');
 
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(snapshot.enemy.isManual, true);
     assert.equal(snapshot.enemy.resistances.element.fire, 400);
     assert.equal(snapshot.enemy.resistances.element.ice, 30);
     assert.deepEqual(snapshot.enemy.absorbElementList, ['fire', 'nonelement']);
+    assert.deepEqual(snapshot.enemy.e_shield, {
+      count: 12,
+      max: 30,
+      elements: ['Fire', 'Ice'],
+      def_up_rate: 5000,
+      dmg_limit: 200000,
+    });
+  }));
+
+test('InitialSetupController enemy setup manual edit updates Eシールド fields in snapshot', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 9101,
+          name: 'Eシールド対象',
+          categoryKey: 'template',
+          categoryLabel: 'テンプレート',
+          dimension: null,
+          od_rate: 1,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+          e_shield: {
+            count: 30,
+            max: 30,
+            elements: ['Fire', 'Ice'],
+            def_up_rate: 5000,
+            dmg_limit: 0,
+          },
+        },
+      ],
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    root
+      .querySelector('[data-action="select-enemy"]')
+      .dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root
+      .querySelector('[data-action="toggle-edit"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const countInput = root.querySelector('[data-edit-eshield-field="count"]');
+    countInput.value = '7';
+    countInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const maxInput = root.querySelector('[data-edit-eshield-field="max"]');
+    maxInput.value = '11';
+    maxInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const fireCheckbox = root.querySelector('[data-edit-eshield-element="Fire"]');
+    fireCheckbox.checked = false;
+    fireCheckbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const lightCheckbox = root.querySelector('[data-edit-eshield-element="Light"]');
+    lightCheckbox.checked = true;
+    lightCheckbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const defUpInput = root.querySelector('[data-edit-eshield-field="def_up_rate"]');
+    defUpInput.value = '3200';
+    defUpInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const damageLimitInput = root.querySelector('[data-edit-eshield-field="dmg_limit"]');
+    damageLimitInput.value = '150000';
+    damageLimitInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.equal(snapshot.enemy.isManual, true);
+    assert.deepEqual(snapshot.enemy.e_shield, {
+      count: 7,
+      max: 11,
+      elements: ['Ice', 'Light'],
+      def_up_rate: 3200,
+      dmg_limit: 150000,
+    });
+    assert.deepEqual(snapshot.enemy.enemySlots[0].manual.e_shield, {
+      count: 7,
+      max: 11,
+      elements: ['Ice', 'Light'],
+      def_up_rate: 3200,
+      dmg_limit: 150000,
+    });
   }));
 
 test('InitialSetupController enemy setup defaults to slot 1 selected and slots 2/3 empty', () =>

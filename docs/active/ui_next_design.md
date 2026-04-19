@@ -186,6 +186,8 @@
 - `テンプレート` category には `希望を喰むもの` に加え、Eシールド確認用の `Dimension_09_X_KaleidoOuroboros` を常時表示し、デフォルトのカテゴリのまま選択できるようにする
 - `恒星掃戦線` は通常 enemy 用カテゴリ定義の 1 つとして扱い、`Dimension_09_X_KaleidoOuroboros` などへ専用 hardcode なしで到達できるようにする
 - 同名 enemy が難易度違いで複数あるカテゴリは、もっとも高いランクの 1 件だけを selector に残す
+- `Enemy Setup` の `✎ 編集` では preset の Eシールドを `count/max/elements/def_up_rate/dmg_limit` 付きで手動編集できるようにし、未設定状態は `max=0` または属性未選択で表現する
+- manual Eシールド編集結果は `enemy.enemySlots[*].manual.e_shield` と legacy flat `enemy.e_shield` の両方へ乗せ、session save/load でも保持する
 
 ## Block 3: Stage Setup
 

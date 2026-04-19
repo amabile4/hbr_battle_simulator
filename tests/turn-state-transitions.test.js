@@ -19479,6 +19479,94 @@ test('通常攻撃はEシールドに対して raw hit_count を使い、OD は 
   );
 });
 
+test('HealEShield restores enemy Eシールド current up to max', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_HEAL',
+          characterName: 'ESH_HEAL',
+          skills: [
+            {
+              id: 99106,
+              name: 'E Shield Heal',
+              label: 'ESHHeal',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'HealEShield', target_type: 'Single', power: [3, 0] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99260 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 4, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_HEAL', skillId: 99106, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 4,
+    max: 4,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+});
+
+test('ReviveEShield restores depleted enemy Eシールド current', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_REVIVE',
+          characterName: 'ESH_REVIVE',
+          skills: [
+            {
+              id: 99107,
+              name: 'E Shield Revive',
+              label: 'ESHRevive',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'ReviveEShield', target_type: 'Single', power: [3, 0] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99270 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 0, max: 5, elements: ['Fire', 'Ice'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_REVIVE', skillId: 99107, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 3,
+    max: 5,
+    elements: ['Fire', 'Ice'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+});
+
 test('Eシールド ignores non-matching elements unless IgnoreEShieldElement is active', () => {
   const createParty = (withIgnorePassive) =>
     createSixMemberManualParty((idx) =>

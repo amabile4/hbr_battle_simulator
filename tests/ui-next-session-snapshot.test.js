@@ -124,6 +124,55 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   assert.equal(parsed.enemy.resistances.element.fire, 150);
 });
 
+test('normalizeSessionSnapshot preserves manual Eシールド edits in enemy setup snapshots', () => {
+  const snapshot = normalizeSessionSnapshot({
+    enemy: {
+      selectedEnemyId: 13450815,
+      selectedEnemyName: '変貌を重ねる不滅の円環',
+      isManual: true,
+      manual: {
+        od_rate: 1,
+        max_d_rate: 999,
+        element: {
+          fire: 100,
+          ice: 100,
+        },
+        absorbElementList: [],
+        e_shield: {
+          count: 9,
+          max: 15,
+          elements: ['Fire', 'Thunder'],
+          def_up_rate: 3200,
+          dmg_limit: 180000,
+        },
+      },
+    },
+  });
+
+  assert.equal(snapshot.enemy.isManual, true);
+  assert.deepEqual(snapshot.enemy.manual.e_shield, {
+    count: 9,
+    max: 15,
+    elements: ['Fire', 'Thunder'],
+    def_up_rate: 3200,
+    dmg_limit: 180000,
+  });
+  assert.deepEqual(snapshot.enemy.enemySlots[0].manual.e_shield, {
+    count: 9,
+    max: 15,
+    elements: ['Fire', 'Thunder'],
+    def_up_rate: 3200,
+    dmg_limit: 180000,
+  });
+  assert.deepEqual(snapshot.enemy.e_shield, {
+    count: 9,
+    max: 15,
+    elements: ['Fire', 'Thunder'],
+    def_up_rate: 3200,
+    dmg_limit: 180000,
+  });
+});
+
 test('decorateSessionSnapshotForHumans adds names and turn/action SP metadata', () => {
   const decorated = decorateSessionSnapshotForHumans(
     {

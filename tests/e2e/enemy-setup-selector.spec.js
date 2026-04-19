@@ -30,3 +30,25 @@ test('Enemy Setup template category keeps the Eシールド sample preset availa
     { timeout: 5000 }
   );
 });
+
+test('Enemy Setup manual edit shows prefilled Eシールド editor for the sample preset', async ({ page }) => {
+  await gotoUiNext(page);
+
+  await page.locator('[role="tab"][data-tab="enemy"]').click();
+
+  const presetSelect = page.locator('#enemy-setup-root [data-action="select-enemy"]');
+  await expect(presetSelect).toBeVisible({ timeout: 5000 });
+  await presetSelect.selectOption(String(KALEIDO_OUROBOROS_PRESET_ID));
+
+  const editButton = page.locator('#enemy-setup-root [data-action="toggle-edit"]');
+  await expect(editButton).toBeVisible({ timeout: 5000 });
+  await editButton.click();
+
+  const editor = page.locator('#enemy-setup-root [data-role="enemy-e-shield-editor"]');
+  await expect(editor).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('[data-edit-eshield-field="count"]')).toHaveValue('30');
+  await expect(page.locator('[data-edit-eshield-field="max"]')).toHaveValue('30');
+  await expect(page.locator('[data-edit-eshield-field="def_up_rate"]')).toHaveValue('0');
+  await expect(page.locator('[data-edit-eshield-element="Fire"]')).toBeChecked();
+  await expect(page.locator('[data-edit-eshield-element="Ice"]')).toBeChecked();
+});

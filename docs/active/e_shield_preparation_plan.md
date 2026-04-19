@@ -1,20 +1,20 @@
 # Eシールド実装準備
 
-> ステータス: 🟢 進行中
+> ステータス: ✅ 完了
 > 作成日: 2026-04-18
 > 最終更新: 2026-04-19
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 概要
 
-`Eシールド` は、現行 runtime では戦闘解決に未接続だが、ローカルデータには既に
-`json/enemies.json.extra_gauge.eshield` / `extra_gauge.esp` として格納されている。
+`Eシールド` は `json/enemies.json.extra_gauge.eshield` / `extra_gauge.esp` を正本データ源とし、
+2026-04-19 時点で `engine-first` 範囲と `Enemy Setup` 手動編集、`HealEShield` /
+`ReviveEShield` まで実装済みである。
 
-この文書では、`engine-first` マイルストーンで固定した仕様判断と、
-今回の実装完了範囲、および後続フェーズへ送った UI/QA 項目を整理する。
-`ui-next` / snapshot / summon / popup の metadata plumbing に加え、
-`turn-controller` 側の Eシールド減算・same-action BREAK・`IgnoreEShieldElement`
-までを今回の正本とする。
+この文書では、実装時に固定した仕様判断と、完了した接続範囲を整理する。
+`ui-next` / snapshot / summon / popup / `Enemy Setup` manual edit に加え、
+`turn-controller` 側の Eシールド減算・same-action BREAK・`IgnoreEShieldElement` /
+`HealEShield` / `ReviveEShield` をこの文書の正本とする。
 
 ## 調査結果
 
@@ -62,7 +62,8 @@
 
 - 初回は `engine-first` とし、`ui-next` の enemy preset / snapshot / summon / popup に加え、
   `turn-controller` の戦闘解決まで接続する
-- 後続フェーズは `Enemy Setup` の Eシールド手動編集と `HealEShield` / `ReviveEShield` を主対象とする
+- `engine-first` マイルストーンに続き、`Enemy Setup` の manual Eシールド編集、
+  session save/load 回帰、`HealEShield` / `ReviveEShield` までこの文書の scope で完了した
 
 ### 2. 内部表現
 
@@ -143,8 +144,8 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 ### Phase 2: スキル型対応
 
 - [x] `IgnoreEShieldElement`
-- [ ] `HealEShield`
-- [ ] `ReviveEShield`
+- [x] `HealEShield`
+- [x] `ReviveEShield`
 
 ### Phase 3: UI/QA
 
@@ -152,8 +153,8 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] Enemy preset selector を、通常 enemy をカテゴリ定義から追加できる `カテゴリ -> 敵` の2段構えへ変更する
 - [x] `恒星掃戦線` カテゴリも他カテゴリと同じ流儀で追加し、同名 enemy が難易度違いで複数ある場合はもっとも高いランクの1件のみ表示する
 - [x] Eシールド回帰や動作確認では `Dimension_09_X_KaleidoOuroboros` を代表ケースとして扱い、専用 hardcode ではなく通常 selector 経由に加え `テンプレート` からも素早く到達できる状態にする
-- [ ] Enemy Setup で Eシールドを手動編集できるようにする
-- [ ] session save/load と summon operation に対する回帰を固定する
+- [x] Enemy Setup で Eシールドを手動編集できるようにする
+- [x] session save/load と summon operation に対する回帰を固定する
 - [x] browser E2E を追加する
 
 ## 今回追加したテスト固定
@@ -163,12 +164,14 @@ eShieldStateByEnemy[targetEnemyIndex] = {
   に入ることを固定
 - [x] `tests/turn-operations.test.js`: summon 時に inactive raw 定義を持ち込まないことを固定
 - [x] `tests/turn-state-transitions.test.js`: 単体弱点 hit / 全体攻撃 / 属性不一致 /
-  `IgnoreEShieldElement` / same-action BREAK / `SuperBreak` / `SuperBreakDown` /
-  `BreakDownTurnUp` / `AdditionalHitOnBreaking` / turn end を跨ぐ state 保持を固定
+  `IgnoreEShieldElement` / `HealEShield` / `ReviveEShield` / same-action BREAK /
+  `SuperBreak` / `SuperBreakDown` / `BreakDownTurnUp` / `AdditionalHitOnBreaking` /
+  turn end を跨ぐ state 保持を固定
 - [x] `tests/ui-next-turn-ui.test.js`: row strip の有無、multi-color/depleted badge、popup の shared badge と resolved current/max を固定
 - [x] `tests/e2e/turn-row-preview-status-popup.spec.js`: turn row 左パネル内での strip 位置と popup の badge/value 一致を固定
-- [x] `tests/ui-next-initial-setup.test.js`: Enemy Setup の `カテゴリ -> 敵` selector と slot 切替時の snapshot 反映を固定
-- [x] `tests/e2e/enemy-setup-selector.spec.js`: `テンプレート` category に `Dimension_09_X_KaleidoOuroboros` が常時表示され、デフォルトカテゴリのまま選択できることを固定
+- [x] `tests/ui-next-initial-setup.test.js`: Enemy Setup の `カテゴリ -> 敵` selector、slot 切替、manual Eシールド編集の snapshot 反映を固定
+- [x] `tests/ui-next-session-snapshot.test.js`: manual Eシールド編集が session save/load 正規化を通って保持されることを固定
+- [x] `tests/e2e/enemy-setup-selector.spec.js`: `テンプレート` category に `Dimension_09_X_KaleidoOuroboros` が常時表示され、manual Eシールド editor に preset 値が prefill されることを固定
 
 ## 関連ファイル
 

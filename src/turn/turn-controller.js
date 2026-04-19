@@ -183,6 +183,7 @@ const REMOVABLE_PLAYER_DEBUFF_STATUS_TYPES = Object.freeze(
 );
 const ACTIVE_BUFF_STATUS_NORMAL_ATTACK_EFFECTS = Object.freeze(new Set(['NormalBuff_Up']));
 const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp', 'ReviveDpRate']));
+const DIRECT_ENEMY_E_SHIELD_CHANGE_SKILL_TYPES = Object.freeze(new Set(['HealEShield', 'ReviveEShield']));
 const HIGH_BOOST_SCALED_DP_SKILL_TYPES = Object.freeze(new Set(['HealDpRate', 'RegenerationDp']));
 const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
 const DP_HEAL_SKILL_TYPES = Object.freeze(
@@ -202,6 +203,7 @@ const DP_EVENT_SOURCE_SKILL = 'dp_skill';
 const DP_EVENT_SOURCE_REGENERATION = 'dp_regeneration';
 const DEFAULT_STATUS_EFFECT_REMAINING = 1;
 const DEFAULT_REVIVE_DP_FLOOR = 1;
+const DEFAULT_REVIVE_E_SHIELD_FLOOR = 1;
 const DEFAULT_REVIVE_TERRITORY_HEAL_RATE = 0.5;
 const DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE = 'DoubleActionExtraSkill';
 const DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING = 1;
@@ -949,6 +951,27 @@ function resolveNextCurrentDpForDirectChange(startDpState, skillType, amount) {
     return Math.max(startCurrentDp, numericAmount);
   }
   return startCurrentDp + numericAmount;
+}
+
+function resolveEnemyEShieldDirectChangeAmount(skillType, part) {
+  const numericAmount = Math.max(0, Math.floor(Number(part?.power?.[0] ?? 0) || 0));
+  if (String(skillType ?? '') === 'ReviveEShield') {
+    return Math.max(DEFAULT_REVIVE_E_SHIELD_FLOOR, numericAmount);
+  }
+  return numericAmount;
+}
+
+function resolveNextEnemyEShieldCurrentForDirectChange(startEShieldState, skillType, amount) {
+  const startCurrent = Math.max(0, Math.floor(Number(startEShieldState?.current ?? 0) || 0));
+  const max = Math.max(0, Math.floor(Number(startEShieldState?.max ?? startCurrent) || 0));
+  const numericAmount = Math.max(0, Math.floor(Number(amount ?? 0) || 0));
+  if (max <= 0 || numericAmount <= 0) {
+    return startCurrent;
+  }
+  if (String(skillType ?? '') === 'ReviveEShield') {
+    return Math.min(max, Math.max(startCurrent, numericAmount));
+  }
+  return Math.min(max, startCurrent + numericAmount);
 }
 
 function scaleHighBoostAttackBuffPower(actor, skillType, power) {
@@ -7822,35 +7845,84 @@ function applyEnemyEShieldEffectsFromActions(state, previewRecord) {
       continue;
     }
     const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
-    if (!hasDamagePartInParts(effectiveParts)) {
+    const eShieldRecoveryParts = (effectiveParts ?? []).filter((part) =>
+      DIRECT_ENEMY_E_SHIELD_CHANGE_SKILL_TYPES.has(String(part?.skill_type ?? '').trim())
+    );
+    if (!hasDamagePartInParts(effectiveParts) && eShieldRecoveryParts.length === 0) {
       actionEntry.autoBreakEnemyIndexes = [];
       continue;
     }
-    const skillHitCount = resolveActionEShieldHitCount(actionEntry, skill);
-    if (skillHitCount <= 0) {
-      actionEntry.autoBreakEnemyIndexes = [];
-      continue;
-    }
-    const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
-    const ignoreEShieldElement = Boolean(actionEntry?.specialPassiveModifiers?.ignoreEShieldElement);
-    const actionElementReferences = normalizeActionElementReferences(skill, actor, state);
     const nextAutoBreakEnemyIndexes = [];
-    for (const targetIndex of targetEnemyIndexes) {
-      const eShieldState = getEnemyEShieldStateByTarget(state.turnState, targetIndex);
-      if (!isEnemyEShieldActive(eShieldState)) {
+
+    if (hasDamagePartInParts(effectiveParts)) {
+      const skillHitCount = resolveActionEShieldHitCount(actionEntry, skill);
+      if (skillHitCount > 0) {
+        const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
+        const ignoreEShieldElement = Boolean(actionEntry?.specialPassiveModifiers?.ignoreEShieldElement);
+        const actionElementReferences = normalizeActionElementReferences(skill, actor, state);
+        for (const targetIndex of targetEnemyIndexes) {
+          const eShieldState = getEnemyEShieldStateByTarget(state.turnState, targetIndex);
+          if (!isEnemyEShieldActive(eShieldState)) {
+            continue;
+          }
+          if (!ignoreEShieldElement && !actionMatchesEnemyEShield(actionElementReferences, eShieldState)) {
+            continue;
+          }
+          const nextState = {
+            ...eShieldState,
+            current: Math.max(0, Number(eShieldState.current ?? 0) - skillHitCount),
+          };
+          setEnemyEShieldStateByTarget(state.turnState, targetIndex, nextState);
+          if (Number(eShieldState.current ?? 0) > 0 && nextState.current === 0) {
+            nextAutoBreakEnemyIndexes.push(targetIndex);
+            applyManualEnemyBreak(state.turnState, targetIndex);
+          }
+        }
+      }
+    }
+
+    for (const part of eShieldRecoveryParts) {
+      const skillType = String(part?.skill_type ?? '').trim();
+      const amount = resolveEnemyEShieldDirectChangeAmount(skillType, part);
+      if (amount <= 0) {
         continue;
       }
-      if (!ignoreEShieldElement && !actionMatchesEnemyEShield(actionElementReferences, eShieldState)) {
+      const targetType = String(part?.target_type ?? '').trim();
+      if (!isEnemyStatusTargetType(targetType)) {
         continue;
       }
-      const nextState = {
-        ...eShieldState,
-        current: Math.max(0, Number(eShieldState.current ?? 0) - skillHitCount),
+      const targetingSkill = {
+        ...skill,
+        targetType,
       };
-      setEnemyEShieldStateByTarget(state.turnState, targetIndex, nextState);
-      if (Number(eShieldState.current ?? 0) > 0 && nextState.current === 0) {
-        nextAutoBreakEnemyIndexes.push(targetIndex);
-        applyManualEnemyBreak(state.turnState, targetIndex);
+      const baseConditionSkill = createConditionSkillContext(targetingSkill, part);
+      const conditionTexts = [part?.cond, part?.hit_condition, part?.target_condition]
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean);
+      const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, targetingSkill);
+      for (const targetIndex of targetEnemyIndexes) {
+        const eShieldState = getEnemyEShieldStateByTarget(state.turnState, targetIndex);
+        if (!eShieldState) {
+          continue;
+        }
+        const conditionSkill = {
+          ...baseConditionSkill,
+          targetEnemyIndex: Number(targetIndex),
+        };
+        const targetActionEntry = {
+          ...actionEntry,
+          targetEnemyIndex: Number(targetIndex),
+        };
+        const condSatisfied = conditionTexts.every((expr) =>
+          evaluateConditionExpression(expr, state, actor, conditionSkill, targetActionEntry).result
+        );
+        if (!condSatisfied) {
+          continue;
+        }
+        setEnemyEShieldStateByTarget(state.turnState, targetIndex, {
+          ...eShieldState,
+          current: resolveNextEnemyEShieldCurrentForDirectChange(eShieldState, skillType, amount),
+        });
       }
     }
     actionEntry.autoBreakEnemyIndexes = [...new Set(nextAutoBreakEnemyIndexes)].sort((left, right) => left - right);

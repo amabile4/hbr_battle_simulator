@@ -26,9 +26,9 @@ Eシールドは、敵が DP の代わりに持つ特殊ゲージです。
   - shield count: `json/enemies.json.extra_gauge.esp`
   - related skill types: `ReviveEShield`, `HealEShield`, `IgnoreEShieldElement`
 - **現状の実装ステータス**:
-  - `IgnoreEShieldElement` / Eシールド current 減算 / same-action BREAK は実装済み
+  - `IgnoreEShieldElement` / Eシールド current 減算 / same-action BREAK / `HealEShield` / `ReviveEShield` は実装済み
   - 通常攻撃は OD 計算と Eシールド減算で hit 数の扱いを分離し、OD は `2.5%` 固定、Eシールドは raw hit 数を使う
-  - `HealEShield` / `ReviveEShield` は後続実装
+  - `Enemy Setup` の手動編集では `count/max/elements/def_up_rate/dmg_limit` を変更でき、session save/load にも保存される
 
 ### シミュレーターでの解決 (Resolution) と評価
 
@@ -51,7 +51,7 @@ turnState.enemyState.eShieldStateByEnemy[targetEnemyIndex] = {
    - 通常攻撃だけは `OD=2.5% 固定` と分離し、`raw hit_count + Funnel bonus` を Eシールド減算に使う
 3. `current > 0` の間は HP ダメージは通すが、破壊率上昇は止める
 4. `current === 0` で通常の BREAK / DownTurn 経路へ接続する
-5. `HealEShield` / `ReviveEShield` は `max` を上限とした回復・再展開として後続実装する
+5. `HealEShield` / `ReviveEShield` は `max` を上限とした回復・再展開として解決する
 
 未確定事項:
 
