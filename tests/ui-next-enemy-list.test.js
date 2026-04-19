@@ -12,6 +12,7 @@ import {
 function makeEnemy({
   id,
   name,
+  label = null,
   in_date,
   is_boss = true,
   od_rate = 0,
@@ -22,6 +23,7 @@ function makeEnemy({
   return {
     id,
     name,
+    ...(label ? { label } : {}),
     in_date,
     flags: { is_boss },
     base_param: {
@@ -187,4 +189,51 @@ test('buildEnemyList drops inactive extra_gauge Eシールド metadata', () => {
 
   assert.equal(result.find((enemy) => enemy.id === 302)?.e_shield, undefined);
   assert.equal(result.find((enemy) => enemy.id === 303)?.e_shield, undefined);
+});
+
+test('buildEnemyList exposes 恒星掃戦線 as category metadata and dedupes higher-rank duplicates', () => {
+  const enemies = [
+    makeEnemy({
+      id: PINNED_INITIAL_SETUP_ENEMY.id,
+      name: PINNED_INITIAL_SETUP_ENEMY.name,
+      label: 'Dimension_01_X_RedCrimson',
+      in_date: '2023-06-24',
+    }),
+    makeEnemy({
+      id: 410,
+      name: '変貌を重ねる不滅の円環',
+      label: 'Dimension_09_X_KaleidoOuroboros',
+      in_date: '2025-08-10',
+    }),
+    makeEnemy({
+      id: 411,
+      name: '峡谷に棲まう幽鬼',
+      label: 'Dimension_05_X_UltimateFeeler',
+      in_date: '2024-06-14',
+    }),
+    makeEnemy({
+      id: 412,
+      name: '峡谷に棲まう幽鬼',
+      label: 'Dimension_11_X_UltimateFeeler',
+      in_date: '2025-11-28',
+    }),
+    makeEnemy({
+      id: 413,
+      name: '[強化変種]ミーティアホーン',
+      label: 'Dimension_09_X_CatHornMeteor_Summon',
+      in_date: '2025-08-10',
+      is_boss: false,
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'));
+  const stellarSweepfrontEntries = result.filter((enemy) => enemy.categoryLabel === '恒星掃戦線');
+
+  assert.deepEqual(
+    stellarSweepfrontEntries.map((enemy) => enemy.id),
+    [412, 410],
+  );
+  assert.equal(stellarSweepfrontEntries.every((enemy) => enemy.categoryKey === 'normal:stellar-sweepfront'), true);
+  assert.equal(result.some((enemy) => enemy.id === 411), false);
+  assert.equal(result.some((enemy) => enemy.id === 413), false);
 });

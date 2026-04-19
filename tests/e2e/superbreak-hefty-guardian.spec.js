@@ -6,6 +6,7 @@ import {
   fillPartySetupSlotsWithStyleIds,
   gotoUiNext,
   openEnemyPopupActionForRow,
+  selectEnemyPresetForActiveSlot,
   selectSkillForPosition,
 } from './ui-next-helpers.js';
 
@@ -22,16 +23,14 @@ const KAREN_SUPERBREAKDOWN_SKILL_ID = 46001522;
 
 async function configureEnemyPresetSlots(page, enemyIds) {
   await page.locator('[role="tab"][data-tab="enemy"]').click();
-  const presetSelect = page.locator('#enemy-setup-root [data-action="select-enemy"]');
-  await expect(presetSelect).toBeVisible({ timeout: 5000 });
-  await presetSelect.selectOption(String(enemyIds[0]));
+  await selectEnemyPresetForActiveSlot(page, enemyIds[0]);
 
   for (const [slotIndex, enemyId] of enemyIds.entries()) {
     if (slotIndex === 0 || enemyId === null || enemyId === undefined) {
       continue;
     }
     await page.locator(`[data-action="set-active-slot"][data-slot-index="${slotIndex}"]`).click();
-    await presetSelect.selectOption(String(enemyId));
+    await selectEnemyPresetForActiveSlot(page, enemyId);
   }
 
   await page.locator('[role="tab"][data-tab="party"]').click();

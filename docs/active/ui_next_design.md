@@ -178,6 +178,14 @@
 - 実行タイミングは `▽敵の先制行動` として扱い、`バトル開始時` パッシブ評価より前に `zoneState` へ反映する
 - 反映値は `sourceSide='enemy'` とし、`none` 以外の選択時のみ初期 `zoneState` を構成する
 
+### 2026-04-19 追記: Enemy preset selector のカテゴリ化
+
+- `Enemy Setup` の enemy preset は単一 select ではなく `カテゴリ -> 敵` の2段 select とする
+- `ui-next/utils/enemy-list.js` は flat list を維持しつつ `categoryKey/categoryLabel` を付与し、Enemy Setup 側はこの metadata を使ってカテゴリ select を描画する
+- カテゴリの並びは `テンプレート`、通常 enemy 用カテゴリ定義、`直近3ヶ月` の月別カテゴリの順とする
+- `恒星掃戦線` は通常 enemy 用カテゴリ定義の 1 つとして扱い、`Dimension_09_X_KaleidoOuroboros` などへ専用 hardcode なしで到達できるようにする
+- 同名 enemy が難易度違いで複数あるカテゴリは、もっとも高いランクの 1 件だけを selector に残す
+
 ## Block 3: Stage Setup
 
 ### 役割

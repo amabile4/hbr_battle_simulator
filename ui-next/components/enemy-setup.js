@@ -1,6 +1,10 @@
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 import {
+  ENEMY_PRESET_TEMPLATE_CATEGORY_KEY,
+  getEnemyPresetCategoryMetadata,
+} from '../utils/enemy-list.js';
+import {
   formatEnemyOdRatePercent,
   normalizeEnemyOdRateMultiplier,
 } from '../utils/enemy-setup-snapshot.js';
@@ -25,6 +29,8 @@ const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const ENEMY_SLOT_COUNT = 3;
 const REQUIRED_SLOT_INDEX = 0;
 const DEFAULT_PREEMPTIVE_FIELD = 'none';
+const EMPTY_ENEMY_SELECT_VALUE = '';
+const EMPTY_ENEMY_SELECT_LABEL = '── 選択なし ──';
 const PREEMPTIVE_FIELD_OPTIONS = [
   { value: 'none', label: 'なし' },
   { value: 'fire', label: '火' },
@@ -146,6 +152,10 @@ function createDefaultSelectedEnemyIds() {
   return Array.from({ length: ENEMY_SLOT_COUNT }, () => null);
 }
 
+function createDefaultSelectedCategoryKeys() {
+  return Array.from({ length: ENEMY_SLOT_COUNT }, () => null);
+}
+
 function createDefaultManualBySlot() {
   return Array.from({ length: ENEMY_SLOT_COUNT }, () => defaultManual());
 }
@@ -173,6 +183,25 @@ function normalizeSelectedEnemyId(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function buildEnemyCategoryOptions(enemies = []) {
+  const categories = new Map();
+  for (const enemy of enemies) {
+    const metadata = getEnemyPresetCategoryMetadata(enemy);
+    if (!categories.has(metadata.key)) {
+      categories.set(metadata.key, metadata.label);
+    }
+  }
+  return [...categories.entries()].map(([key, label]) => ({ key, label }));
+}
+
+function normalizeSelectedCategoryKey(value, categoryOptions = [], fallbackKey = ENEMY_PRESET_TEMPLATE_CATEGORY_KEY) {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (normalized && categoryOptions.some((category) => category.key === normalized)) {
+    return normalized;
+  }
+  return categoryOptions[0]?.key ?? fallbackKey;
+}
+
 /**
  * Enemy Setup タブコンポーネント
  *
@@ -184,6 +213,7 @@ export class EnemySetupController {
   #onChange;
   #state = {
     selectedEnemyIds: createDefaultSelectedEnemyIds(),
+    selectedCategoryKeys: createDefaultSelectedCategoryKeys(),
     activeSlotIndex: REQUIRED_SLOT_INDEX,
     preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
     isManualBySlot: createDefaultManualFlags(),
@@ -198,6 +228,7 @@ export class EnemySetupController {
 
   mount() {
     this.#ensureRequiredSlotSelected();
+    this.#syncSelectedCategories();
     this.#render();
 
     this.#root.addEventListener('click', (e) => {
@@ -221,6 +252,7 @@ export class EnemySetupController {
         if (this.#state.activeSlotIndex === slotIndex) {
           this.#state.activeSlotIndex = REQUIRED_SLOT_INDEX;
         }
+        this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -232,10 +264,11 @@ export class EnemySetupController {
           return;
         }
         if (this.#state.selectedEnemyIds[slotIndex] === null) {
-          this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyId();
+          this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyIdForSlot(slotIndex);
           this.#state.isManualBySlot[slotIndex] = false;
         }
         this.#state.activeSlotIndex = slotIndex;
+        this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -260,16 +293,38 @@ export class EnemySetupController {
     this.#root.addEventListener('change', (e) => {
       const t = e.target;
 
+      if (t.dataset.action === 'select-enemy-category') {
+        const slotIndex = this.#state.activeSlotIndex;
+        const nextCategoryKey = this.#normalizeCategoryKeyForSlot(slotIndex, t.value);
+        const previousEnemyId = this.#state.selectedEnemyIds[slotIndex];
+
+        this.#state.selectedCategoryKeys[slotIndex] = nextCategoryKey;
+        if (slotIndex === REQUIRED_SLOT_INDEX || previousEnemyId !== null) {
+          this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyIdForSlot(slotIndex, nextCategoryKey);
+        }
+        this.#state.isManualBySlot[slotIndex] = false;
+        this.#ensureRequiredSlotSelected();
+        this.#syncSelectedCategories();
+        this.#onChange?.(this.getSnapshot());
+        this.#render();
+        return;
+      }
+
       if (t.dataset.action === 'select-enemy') {
         const slotIndex = this.#state.activeSlotIndex;
         const selectedEnemyId = normalizeSelectedEnemyId(t.value);
         if (slotIndex === REQUIRED_SLOT_INDEX) {
-          this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId ?? this.#resolveDefaultEnemyId();
+          this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId ?? this.#resolveDefaultEnemyIdForSlot(slotIndex);
         } else {
           this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId;
         }
+        const selectedEnemy = this.#findEnemyById(this.#state.selectedEnemyIds[slotIndex]);
+        if (selectedEnemy) {
+          this.#state.selectedCategoryKeys[slotIndex] = getEnemyPresetCategoryMetadata(selectedEnemy).key;
+        }
         this.#state.isManualBySlot[slotIndex] = false;
         this.#ensureRequiredSlotSelected();
+        this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -364,6 +419,7 @@ export class EnemySetupController {
 
   applySnapshot(snapshot = {}) {
     const nextSelectedEnemyIds = createDefaultSelectedEnemyIds();
+    const nextSelectedCategoryKeys = createDefaultSelectedCategoryKeys();
     const nextIsManualBySlot = createDefaultManualFlags();
     const nextManualBySlot = createDefaultManualBySlot();
 
@@ -417,6 +473,7 @@ export class EnemySetupController {
     }
 
     this.#state.selectedEnemyIds = nextSelectedEnemyIds;
+    this.#state.selectedCategoryKeys = nextSelectedCategoryKeys;
     this.#state.isManualBySlot = nextIsManualBySlot;
     this.#state.manualBySlot = nextManualBySlot;
 
@@ -427,24 +484,28 @@ export class EnemySetupController {
       this.#state.activeSlotIndex = normalizeSlotIndex(snapshot.activeSlotIndex, REQUIRED_SLOT_INDEX);
     }
     this.#ensureRequiredSlotSelected();
+    this.#syncSelectedCategories();
     this.#render();
   }
 
   setEnemies(enemies = []) {
     this.#enemies = Array.isArray(enemies) ? enemies : [];
     this.#ensureRequiredSlotSelected();
+    this.#syncSelectedCategories();
     this.#render();
   }
 
   resetToDefaults() {
     this.#state = {
       selectedEnemyIds: createDefaultSelectedEnemyIds(),
+      selectedCategoryKeys: createDefaultSelectedCategoryKeys(),
       activeSlotIndex: REQUIRED_SLOT_INDEX,
       preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
       isManualBySlot: createDefaultManualFlags(),
       manualBySlot: createDefaultManualBySlot(),
     };
     this.#ensureRequiredSlotSelected();
+    this.#syncSelectedCategories();
     this.#onChange?.(this.getSnapshot());
     this.#render();
   }
@@ -459,16 +520,76 @@ export class EnemySetupController {
     return this.#enemies[0]?.id ?? null;
   }
 
+  #getCategoryOptions() {
+    return buildEnemyCategoryOptions(this.#enemies);
+  }
+
+  #getCategoryFallbackKey() {
+    return this.#getCategoryOptions()[0]?.key ?? ENEMY_PRESET_TEMPLATE_CATEGORY_KEY;
+  }
+
+  #normalizeCategoryKeyForSlot(slotIndex, value = null) {
+    return normalizeSelectedCategoryKey(
+      value ?? this.#state.selectedCategoryKeys[slotIndex],
+      this.#getCategoryOptions(),
+      this.#getCategoryFallbackKey()
+    );
+  }
+
+  #syncSelectedCategories() {
+    const categoryOptions = this.#getCategoryOptions();
+    const fallbackKey = categoryOptions[0]?.key ?? ENEMY_PRESET_TEMPLATE_CATEGORY_KEY;
+    this.#state.selectedCategoryKeys = this.#state.selectedCategoryKeys.map((currentKey, slotIndex) => {
+      const selectedEnemy = this.#getSelectedEnemyBySlot(slotIndex);
+      if (selectedEnemy) {
+        return getEnemyPresetCategoryMetadata(selectedEnemy).key;
+      }
+      return normalizeSelectedCategoryKey(currentKey, categoryOptions, fallbackKey);
+    });
+  }
+
+  #getEnemiesForCategory(categoryKey) {
+    const normalizedCategoryKey = normalizeSelectedCategoryKey(
+      categoryKey,
+      this.#getCategoryOptions(),
+      this.#getCategoryFallbackKey()
+    );
+    return this.#enemies.filter((enemy) => getEnemyPresetCategoryMetadata(enemy).key === normalizedCategoryKey);
+  }
+
+  #resolveDefaultEnemyIdForSlot(slotIndex, preferredCategoryKey = null) {
+    const normalizedSlotIndex = normalizeSlotIndex(slotIndex, REQUIRED_SLOT_INDEX);
+    const normalizedCategoryKey = this.#normalizeCategoryKeyForSlot(normalizedSlotIndex, preferredCategoryKey);
+    const categoryEnemies = this.#getEnemiesForCategory(normalizedCategoryKey);
+    if (normalizedSlotIndex === REQUIRED_SLOT_INDEX) {
+      const preferred = categoryEnemies.find((enemy) => enemy.name === '希望を喰むもの');
+      if (preferred) {
+        return preferred.id;
+      }
+    }
+    if (categoryEnemies[0]) {
+      return categoryEnemies[0].id;
+    }
+    return this.#resolveDefaultEnemyId();
+  }
+
   #ensureRequiredSlotSelected() {
     if (this.#state.selectedEnemyIds[REQUIRED_SLOT_INDEX] == null) {
-      this.#state.selectedEnemyIds[REQUIRED_SLOT_INDEX] = this.#resolveDefaultEnemyId();
+      this.#state.selectedEnemyIds[REQUIRED_SLOT_INDEX] = this.#resolveDefaultEnemyIdForSlot(REQUIRED_SLOT_INDEX);
     }
     this.#state.activeSlotIndex = normalizeSlotIndex(this.#state.activeSlotIndex, REQUIRED_SLOT_INDEX);
   }
 
+  #findEnemyById(enemyId) {
+    const normalizedEnemyId = normalizeSelectedEnemyId(enemyId);
+    if (normalizedEnemyId === null) {
+      return null;
+    }
+    return this.#enemies.find((enemy) => enemy.id === normalizedEnemyId) ?? null;
+  }
+
   #getSelectedEnemyBySlot(slotIndex) {
-    const selectedEnemyId = this.#state.selectedEnemyIds[slotIndex];
-    return this.#enemies.find((enemy) => enemy.id === selectedEnemyId) ?? null;
+    return this.#findEnemyById(this.#state.selectedEnemyIds[slotIndex]);
   }
 
   #getEffectiveBySlot(slotIndex) {
@@ -485,27 +606,9 @@ export class EnemySetupController {
     const vals = this.#getEffectiveBySlot(activeSlotIndex);
     const isManual = this.#state.isManualBySlot[activeSlotIndex];
     const hasSelectedEnemy = selectedEnemyId !== null;
-
-    // YYYYMM キーを表示ラベルに変換  null → "テンプレート"
-    const formatGroupLabel = (key) => {
-      if (key === null || key === undefined) return 'テンプレート';
-      const year = Math.floor(key / 100);
-      const month = key % 100;
-      return `${year}年${month}月`;
-    };
-
-    // グループ化（null=テンプレートを先頭、次いで YYYYMM 降順）
-    const groups = new Map();
-    this.#enemies.forEach(e => {
-      const key = e.dimension;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(e);
-    });
-    const groupsArr = [...groups.entries()].sort((a, b) => {
-      if (a[0] === null) return -1;
-      if (b[0] === null) return 1;
-      return b[0] - a[0];
-    });
+    const categoryOptions = this.#getCategoryOptions();
+    const selectedCategoryKey = this.#normalizeCategoryKeyForSlot(activeSlotIndex);
+    const categoryEnemies = this.#getEnemiesForCategory(selectedCategoryKey);
 
     this.#root.innerHTML = `
       <div class="p-1.5 space-y-2">
@@ -571,20 +674,37 @@ export class EnemySetupController {
         <!-- 敵プリセット選択 -->
         <div>
           <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-0.5">敵プリセット</div>
-          <select data-action="select-enemy"
-                  class="w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5
-                         focus:outline-none focus:ring-1 focus:ring-blue-400">
-            ${activeSlotIndex > REQUIRED_SLOT_INDEX ? '<option value="">── 選択なし ──</option>' : ''}
-            ${groupsArr.map(([dim, enemies]) => `
-              <optgroup label="${formatGroupLabel(dim)}">
-                ${enemies.map(e => `
-                  <option value="${e.id}" ${e.id === selectedEnemyId ? 'selected' : ''}>
-                    ${e.name}
+          <div class="grid grid-cols-2 gap-1.5">
+            <label class="flex flex-col gap-0.5">
+              <span class="text-xs text-gray-500">カテゴリ</span>
+              <select data-action="select-enemy-category"
+                      data-role="enemy-category-select"
+                      class="w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5
+                             focus:outline-none focus:ring-1 focus:ring-blue-400">
+                ${categoryOptions.length > 0
+                  ? categoryOptions.map((category) => `
+                      <option value="${category.key}" ${category.key === selectedCategoryKey ? 'selected' : ''}>
+                        ${category.label}
+                      </option>
+                    `).join('')
+                  : `<option value="${ENEMY_PRESET_TEMPLATE_CATEGORY_KEY}" selected>${EMPTY_ENEMY_SELECT_LABEL}</option>`}
+              </select>
+            </label>
+            <label class="flex flex-col gap-0.5">
+              <span class="text-xs text-gray-500">敵</span>
+              <select data-action="select-enemy"
+                      data-role="enemy-preset-select"
+                      class="w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5
+                             focus:outline-none focus:ring-1 focus:ring-blue-400">
+                ${activeSlotIndex > REQUIRED_SLOT_INDEX ? `<option value="${EMPTY_ENEMY_SELECT_VALUE}">${EMPTY_ENEMY_SELECT_LABEL}</option>` : ''}
+                ${categoryEnemies.map((enemy) => `
+                  <option value="${enemy.id}" ${enemy.id === selectedEnemyId ? 'selected' : ''}>
+                    ${enemy.name}
                   </option>
                 `).join('')}
-              </optgroup>
-            `).join('')}
-          </select>
+              </select>
+            </label>
+          </div>
         </div>
 
         <!-- パラメータ表示 / 編集 -->
