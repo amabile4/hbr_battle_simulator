@@ -155,3 +155,36 @@ test('buildEnemyList maps extra_gauge Eシールド metadata into enemy preset e
     dmg_limit: 0,
   });
 });
+
+test('buildEnemyList drops inactive extra_gauge Eシールド metadata', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({
+      id: 302,
+      name: 'Eシールド0カウント敵',
+      in_date: '2026-04-05',
+      eShield: {
+        esp: 0,
+        ele_list: ['Light'],
+        def_up_rate: 5000,
+        dmg_limit: 0,
+      },
+    }),
+    makeEnemy({
+      id: 303,
+      name: 'Eシールド属性なし敵',
+      in_date: '2026-04-05',
+      eShield: {
+        esp: 10,
+        ele_list: [],
+        def_up_rate: 5000,
+        dmg_limit: 0,
+      },
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'));
+
+  assert.equal(result.find((enemy) => enemy.id === 302)?.e_shield, undefined);
+  assert.equal(result.find((enemy) => enemy.id === 303)?.e_shield, undefined);
+});

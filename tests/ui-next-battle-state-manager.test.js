@@ -181,6 +181,42 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   assert.equal(state.turnState.enemyState.eShieldStateByEnemy['1'], undefined);
 });
 
+test('BattleStateManager ignores inactive Eシールド definitions in enemy slots', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 7001,
+        selectedEnemyName: '無効Eシールド敵A',
+        e_shield: {
+          count: 0,
+          max: 0,
+          elements: ['Light'],
+          def_up_rate: 5000,
+          dmg_limit: 0,
+        },
+      },
+      {
+        slotIndex: 1,
+        selectedEnemyId: 7002,
+        selectedEnemyName: '無効Eシールド敵B',
+        e_shield: {
+          count: 10,
+          max: 10,
+          elements: [],
+          def_up_rate: 5000,
+          dmg_limit: 0,
+        },
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.eShieldStateByEnemy['0'], undefined);
+  assert.equal(state.turnState.enemyState.eShieldStateByEnemy['1'], undefined);
+});
+
 test('BattleStateManager falls back to one enemy when all enemy slots are unselected', () => {
   const manager = new BattleStateManager({ store: getStore() });
 

@@ -258,6 +258,40 @@ function createProtectionSkill(skillId) {
   };
 }
 
+function createEnemyEShieldState({
+  current = 1,
+  max = current,
+  elements = ['Fire'],
+  defUpRate = 0,
+  damageLimit = 0,
+} = {}) {
+  return {
+    current,
+    max,
+    elements,
+    defUpRate,
+    damageLimit,
+  };
+}
+
+function applyEnemyEShieldTestSetup(
+  state,
+  {
+    enemyCount = 1,
+    eShields = {},
+    damageRatesByEnemy = {},
+    statuses = [],
+  } = {}
+) {
+  state.turnState.enemyState.enemyCount = enemyCount;
+  state.turnState.enemyState.statuses = structuredClone(statuses);
+  state.turnState.enemyState.damageRatesByEnemy = structuredClone(damageRatesByEnemy);
+  state.turnState.enemyState.eShieldStateByEnemy = Object.fromEntries(
+    Object.entries(eShields).map(([enemyIndex, shieldState]) => [String(enemyIndex), structuredClone(shieldState)])
+  );
+  return state;
+}
+
 function createHighBoostManualParty(actorOverrides = {}) {
   return createSixMemberManualParty((idx) => {
     if (idx === 0) {
@@ -19332,4 +19366,389 @@ test('PlayedSkillCount SkillCondition with < 2 condition selects correct variant
   // 5th use (count=4): clamp to variant[3] sp_cost=4
   preview = previewTurn(state, actions);
   assert.equal(preview.actions[0].spCost, 4, '5回目以降もvariant[3]にクランプされること');
+});
+
+test('Eシールド matching hit consumes current and applies Break on the same action', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_BREAK',
+          characterName: 'ESH_BREAK',
+          skills: [
+            {
+              id: 99100,
+              name: 'Fire Break',
+              hitCount: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99200 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_BREAK', skillId: 99100, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_BREAK');
+
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn' && change.source === 'auto'),
+    true
+  );
+  assert.equal(action?.breakHitCount, 1);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 0,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+});
+
+test('Eシールド ignores non-matching elements unless IgnoreEShieldElement is active', () => {
+  const createParty = (withIgnorePassive) =>
+    createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: withIgnorePassive ? 'ESH_IGNORE' : 'ESH_MISS',
+            characterName: withIgnorePassive ? 'ESH_IGNORE' : 'ESH_MISS',
+            passives: withIgnorePassive
+              ? [
+                  {
+                    id: 99110,
+                    name: 'Ignore E Shield',
+                    timing: 'OnPlayerTurnStart',
+                    parts: [
+                      {
+                        skill_type: 'IgnoreEShieldElement',
+                        target_type: 'Self',
+                        power: [0, 0],
+                        value: [0, 0],
+                        cond: '',
+                        hit_condition: '',
+                        target_condition: '',
+                      },
+                    ],
+                  },
+                ]
+              : [],
+            skills: [
+              {
+                id: 99111,
+                name: 'Thunder Hit',
+                hitCount: 2,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Thunder'] },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99300 + idx)],
+          }
+    );
+
+  const missState = applyEnemyEShieldTestSetup(createBattleStateFromParty(createParty(false)), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+  const missPreview = previewTurn(missState, {
+    0: { characterId: 'ESH_MISS', skillId: 99111, targetEnemyIndex: 0 },
+  });
+  const missCommit = commitTurn(missState, missPreview);
+
+  assert.deepEqual(missCommit.nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 2,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(
+    missCommit.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    false
+  );
+
+  const ignoreState = applyEnemyEShieldTestSetup(createBattleStateFromParty(createParty(true)), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+  const ignorePreview = previewTurn(ignoreState, {
+    0: { characterId: 'ESH_IGNORE', skillId: 99111, targetEnemyIndex: 0 },
+  });
+  const ignoreCommit = commitTurn(ignoreState, ignorePreview);
+  const ignoreAction = findActionByCharacterId(ignoreCommit.committedRecord, 'ESH_IGNORE');
+
+  assert.equal(ignoreAction?.breakHitCount, 1);
+  assert.equal(
+    (ignoreAction?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn' && change.source === 'auto'),
+    true
+  );
+  assert.equal(
+    ignoreCommit.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+});
+
+test('Eシールド auto-break on all-target action updates breakHitCount and triggers AdditionalHitOnBreaking', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_ALL',
+          characterName: 'ESH_ALL',
+          initialSP: 5,
+          passives: [
+            {
+              id: 99120,
+              name: 'E Shield Break Trigger',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99121,
+              name: 'Fire Sweep',
+              hitCount: 1,
+              sp_cost: 0,
+              target_type: 'All',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'All', type: 'Strike', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99400 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 2,
+    eShields: {
+      0: createEnemyEShieldState({ current: 1, max: 1, elements: ['Fire'] }),
+      1: createEnemyEShieldState({ current: 1, max: 1, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_ALL', skillId: 99121 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_ALL');
+  const spChange = (action?.spChanges ?? []).find((change) => change.source === 'sp_passive');
+
+  assert.equal(action?.breakHitCount, 2);
+  assert.ok(spChange, 'spChanges should include sp_passive after two auto breaks');
+  assert.equal(spChange.delta, 8);
+});
+
+test('Eシールド auto-break upgrades same-action SuperBreak to canonical state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_SUPER',
+          characterName: 'ESH_SUPER',
+          skills: [
+            {
+              id: 99130,
+              name: 'Auto SuperBreak',
+              hitCount: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab', elements: ['Fire'] },
+                { skill_type: 'SuperBreak', target_type: 'Single', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99500 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 1, max: 1, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_SUPER', skillId: 99130, targetEnemyIndex: 0 },
+  });
+  const committed = commitTurn(state, preview);
+  const action = findActionByCharacterId(committed.committedRecord, 'ESH_SUPER');
+
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'SuperBreak' && change.targetIndex === 0),
+    true
+  );
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn'),
+    false
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 0
+    ),
+    true
+  );
+});
+
+test('Eシールド auto-break upgrades same-action SuperBreakDown and drives BreakDownTurnUp', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_SUPERDOWN',
+          characterName: 'ESH_SUPERDOWN',
+          passives: [
+            {
+              id: 99140,
+              name: 'BreakDownTurnUp Trigger',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'AllyAll', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'BreakDownTurnUp', target_type: 'None', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99141,
+              name: 'Auto SuperBreakDown',
+              hitCount: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] },
+                { skill_type: 'SuperBreakDown', target_type: 'Single' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99600 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 1, max: 1, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_SUPERDOWN', skillId: 99141, targetEnemyIndex: 0 },
+  });
+  const committed = commitTurn(state, preview);
+  const action = findActionByCharacterId(committed.committedRecord, 'ESH_SUPERDOWN');
+
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'SuperBreakDown'),
+    true
+  );
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'BreakDownTurnUp'),
+    true
+  );
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn'),
+    false
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreakDown' && status.targetIndex === 0
+    ),
+    true
+  );
+});
+
+test('Eシールド state persists across PlayerTurnEnd and EnemyTurnEnd while still active', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_PERSIST',
+          characterName: 'ESH_PERSIST',
+          skills: [
+            {
+              id: 99150,
+              name: 'Thunder Miss',
+              hitCount: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Thunder'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99700 + idx)],
+        }
+  );
+  let state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 3, max: 3, elements: ['Fire'] }),
+    },
+  });
+
+  let preview = previewTurn(state, {
+    0: { characterId: 'ESH_PERSIST', skillId: 99150, targetEnemyIndex: 0 },
+  });
+  let committed = commitTurn(state, preview);
+  state = committed.nextState;
+
+  assert.deepEqual(state.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 3,
+    max: 3,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+
+  preview = previewTurn(state, {
+    0: { characterId: 'ESH_PERSIST', skillId: 99150, targetEnemyIndex: 0 },
+  });
+  committed = commitTurn(state, preview);
+
+  assert.deepEqual(committed.nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 3,
+    max: 3,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
 });

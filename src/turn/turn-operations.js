@@ -19,6 +19,7 @@ import {
   REINFORCED_MODE_OD_GAUGE_BONUS,
 } from '../config/battle-defaults.js';
 import { REPLAY_OPERATION_TYPES, replayOperationRegistry } from '../ui/lightweight-replay-script.js';
+import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
 
 export const TEZUKA_CHARACTER_ID = 'STezuka';
 export const MAKAI_KIHEI_STYLE_ID = 1003108;
@@ -272,24 +273,7 @@ function normalizeSummonEnemyAbsorbElements(payload = {}) {
 }
 
 function normalizeSummonEnemyEShield(payload = {}) {
-  const raw = payload?.e_shield ?? payload?.eShield ?? null;
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-  const current = Number(raw.count ?? raw.current ?? 0);
-  const max = Number(raw.max ?? raw.initial ?? raw.count ?? raw.current ?? 0);
-  const defUpRate = Number(raw.def_up_rate ?? raw.defUpRate ?? 0);
-  const damageLimit = Number(raw.dmg_limit ?? raw.damageLimit ?? 0);
-  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
-  return {
-    current: normalizedCurrent,
-    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
-    elements: Array.isArray(raw.elements)
-      ? [...new Set(raw.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
-  };
+  return cloneEnemyEShieldState(payload?.e_shield ?? payload?.eShield ?? null);
 }
 
 function normalizeSummonEnemyPayload(payload = {}) {

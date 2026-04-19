@@ -1,5 +1,6 @@
 import { createInitializedBattleSnapshot } from '../../src/ui/adapter-core.js';
 import { DEFAULT_INITIAL_SP, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
+import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 
 const PREEMPTIVE_FIELD_TO_ZONE_TYPE = Object.freeze({
   fire: 'Fire',
@@ -187,24 +188,7 @@ function buildEnemyAbsorbElements(source = {}) {
 }
 
 function buildEnemyEShieldState(source = {}) {
-  const raw = source?.e_shield;
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-  const current = Number(raw.count ?? raw.current ?? 0);
-  const max = Number(raw.max ?? raw.initial ?? raw.count ?? raw.current ?? 0);
-  const defUpRate = Number(raw.def_up_rate ?? raw.defUpRate ?? 0);
-  const damageLimit = Number(raw.dmg_limit ?? raw.damageLimit ?? 0);
-  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
-  return {
-    current: normalizedCurrent,
-    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
-    elements: Array.isArray(raw.elements)
-      ? [...new Set(raw.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
-  };
+  return cloneEnemyEShieldState(source?.e_shield);
 }
 
 function normalizeEnemyCount(value) {

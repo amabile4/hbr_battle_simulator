@@ -1,4 +1,5 @@
 import { ALWAYS_VISIBLE_ENEMY_PRESET_IDS } from '../../src/data/enemy-sample-presets.js';
+import { normalizeEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 
 const ALWAYS_SHOW_ENEMY_IDS = new Set(ALWAYS_VISIBLE_ENEMY_PRESET_IDS);
 
@@ -18,21 +19,19 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
   };
   const normalizeEnemyEShield = (enemy) => {
     const rawShield = enemy?.extra_gauge?.eshield;
-    if (!rawShield || typeof rawShield !== 'object') {
-      return null;
-    }
-    const count = Number(enemy?.extra_gauge?.esp ?? 0);
-    const defUpRate = Number(rawShield.def_up_rate ?? 0);
-    const damageLimit = Number(rawShield.dmg_limit ?? 0);
-    return {
-      count: Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0,
-      max: Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0,
-      elements: Array.isArray(rawShield.ele_list)
-        ? [...new Set(rawShield.ele_list.map((value) => String(value ?? '').trim()).filter(Boolean))]
-        : [],
-      def_up_rate: Number.isFinite(defUpRate) ? defUpRate : 0,
-      dmg_limit: Number.isFinite(damageLimit) ? damageLimit : 0,
-    };
+    const normalized = normalizeEnemyEShieldState(rawShield, {
+      count: enemy?.extra_gauge?.esp,
+      max: enemy?.extra_gauge?.esp,
+    });
+    return normalized
+      ? {
+          count: normalized.current,
+          max: normalized.max,
+          elements: [...normalized.elements],
+          def_up_rate: normalized.defUpRate,
+          dmg_limit: normalized.damageLimit,
+        }
+      : null;
   };
   if (!Array.isArray(rawEnemies)) return [];
 

@@ -358,6 +358,30 @@ test('applyBeforeCommitOperations summons into the next unused enemy slot and co
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['1'], 100);
 });
 
+test('applyBeforeCommitOperations skips inactive summon Eシールド metadata', () => {
+  const state = createState({}, { enemyCount: 1 });
+  state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [
+      createSummonEnemyOperation({
+        eShield: {
+          count: 0,
+          max: 0,
+          elements: ['Fire', 'Light'],
+          def_up_rate: 5000,
+          dmg_limit: 0,
+        },
+      }),
+    ],
+    {}
+  );
+
+  assert.equal(nextState.turnState.enemyState.enemyCount, 2);
+  assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['1'], undefined);
+});
+
 test('applyBeforeCommitOperations preserves summon-expanded enemyCount when the caller passes a stale value', () => {
   const state = createState({}, { enemyCount: 1 });
   state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };

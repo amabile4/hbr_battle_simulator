@@ -9,6 +9,11 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import {
+  cloneEnemyEShieldState,
+  isEnemyEShieldActive,
+  normalizeEnemyEShieldElements,
+} from '../domain/enemy-e-shield.js';
+import {
   ENEMY_STATUS_BREAK,
   ENEMY_STATUS_SUPER_BREAK,
   ENEMY_STATUS_SUPER_BREAK_DOWN,
@@ -1853,23 +1858,7 @@ function cloneEnemySlotObjectMap(value, fallback = {}) {
 }
 
 function normalizeEnemyEShieldStateEntry(value) {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-  const current = Number(value.current ?? value.count ?? 0);
-  const max = Number(value.max ?? value.initial ?? value.current ?? value.count ?? 0);
-  const defUpRate = Number(value.defUpRate ?? value.def_up_rate ?? 0);
-  const damageLimit = Number(value.damageLimit ?? value.dmg_limit ?? 0);
-  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
-  return {
-    current: normalizedCurrent,
-    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
-    elements: Array.isArray(value.elements)
-      ? [...new Set(value.elements.map((element) => String(element ?? '').trim()).filter(Boolean))]
-      : [],
-    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
-  };
+  return cloneEnemyEShieldState(value);
 }
 
 export function getEnemyState(turnState) {
@@ -2619,6 +2608,36 @@ function isHitWeakBySkillContext(state, skill, actionEntry) {
   };
 }
 
+function normalizeActionElementReferences(skill, member, state) {
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
+  const normalAttackElements =
+    isNormalAttackSkill(skill) && Array.isArray(member?.normalAttackElements) ? member.normalAttackElements : [];
+  const references = [];
+  for (const part of effectiveParts) {
+    const skillType = String(part?.skill_type ?? '').trim();
+    if (!OD_DAMAGE_PART_TYPES.has(skillType)) {
+      continue;
+    }
+    for (const reference of getDamagePartReferences(part, { normalAttackElements })) {
+      const normalized = String(reference ?? '').trim().toLowerCase();
+      if (normalized) {
+        references.push(normalized);
+      }
+    }
+  }
+  return [...new Set(references)];
+}
+
+function actionMatchesEnemyEShield(actionElementReferences, eShieldState) {
+  const shieldElements = new Set(
+    normalizeEnemyEShieldElements(eShieldState?.elements).map((element) => String(element).toLowerCase())
+  );
+  if (shieldElements.size === 0) {
+    return false;
+  }
+  return actionElementReferences.some((element) => shieldElements.has(element));
+}
+
 function getEnemyDestructionRatePercent(turnState, targetIndex) {
   const enemyState = getEnemyState(turnState);
   const value = Number(enemyState.destructionRateByEnemy?.[String(Number(targetIndex))]);
@@ -2655,6 +2674,27 @@ function getEnemyBreakStateByTarget(turnState, targetIndex) {
               : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
           }
         : null,
+  };
+}
+
+function getEnemyEShieldStateByTarget(turnState, targetIndex) {
+  const enemyState = getEnemyState(turnState);
+  return cloneEnemyEShieldState(enemyState.eShieldStateByEnemy?.[String(Number(targetIndex))]);
+}
+
+function setEnemyEShieldStateByTarget(turnState, targetIndex, state) {
+  const enemyState = getEnemyState(turnState);
+  const next = { ...(enemyState.eShieldStateByEnemy ?? {}) };
+  const key = String(Number(targetIndex));
+  const normalized = cloneEnemyEShieldState(state);
+  if (normalized) {
+    next[key] = normalized;
+  } else {
+    delete next[key];
+  }
+  turnState.enemyState = {
+    ...enemyState,
+    eShieldStateByEnemy: next,
   };
 }
 
@@ -5181,6 +5221,7 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     destructionRateCapByEnemy: enemyState.destructionRateCapByEnemy,
     absorbElementsByEnemy: enemyState.absorbElementsByEnemy,
     odRateByEnemy: enemyState.odRateByEnemy,
+    eShieldStateByEnemy: enemyState.eShieldStateByEnemy,
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
@@ -6017,6 +6058,57 @@ function resolvePassiveDefenseUpPerTokenForMember(state, targetMember, timings =
   }
 
   return { totalRate, matchedPassives };
+}
+
+function resolvePassiveIgnoreEShieldElementForMember(state, targetMember, timings = []) {
+  if (!state || !targetMember) {
+    return { active: false, matchedPassives: [] };
+  }
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  const matchedPassives = [];
+
+  for (const actor of state.party ?? []) {
+    for (const passive of getPassiveEntriesForMember(actor)) {
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      let matched = false;
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
+        if (String(part?.skill_type ?? '') !== 'IgnoreEShieldElement') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          targetMember.characterId
+        );
+        if (!targetCharacterIds.includes(targetMember.characterId)) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
+          continue;
+        }
+        matched = true;
+        break;
+      }
+      if (matched) {
+        matchedPassives.push({
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          timing: String(passive?.timing ?? ''),
+        });
+      }
+    }
+  }
+
+  return {
+    active: matchedPassives.length > 0,
+    matchedPassives,
+  };
 }
 
 function normalizeStatusEffectElements(elements) {
@@ -7665,8 +7757,111 @@ function resolveSuperBreakReferenceTurnState(currentTurnState, preActionTurnStat
   return currentTurnState;
 }
 
-function isSameActionManualBreakTarget(manualBreakEnemyIndexes, targetIndex) {
-  return manualBreakEnemyIndexes.includes(Number(targetIndex));
+function isSameActionBreakTarget(breakEnemyIndexes, targetIndex) {
+  return breakEnemyIndexes.includes(Number(targetIndex));
+}
+
+function normalizeAutoBreakEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const normalizedEnemyCount = clampEnemyCount(enemyCount);
+  return [...new Set(
+    (Array.isArray(actionEntry?.autoBreakEnemyIndexes) ? actionEntry.autoBreakEnemyIndexes : [])
+      .map((enemyIndex) => Number(enemyIndex))
+      .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < normalizedEnemyCount)
+  )].sort((left, right) => left - right);
+}
+
+function applyEnemyEShieldEffectsFromActions(state, previewRecord) {
+  const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    if (!hasDamagePartInParts(effectiveParts)) {
+      actionEntry.autoBreakEnemyIndexes = [];
+      continue;
+    }
+    const skillHitCount = Math.max(0, Number(actionEntry?.skillHitCount ?? 0));
+    if (skillHitCount <= 0) {
+      actionEntry.autoBreakEnemyIndexes = [];
+      continue;
+    }
+    const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
+    const ignoreEShieldElement = Boolean(actionEntry?.specialPassiveModifiers?.ignoreEShieldElement);
+    const actionElementReferences = normalizeActionElementReferences(skill, actor, state);
+    const nextAutoBreakEnemyIndexes = [];
+    for (const targetIndex of targetEnemyIndexes) {
+      const eShieldState = getEnemyEShieldStateByTarget(state.turnState, targetIndex);
+      if (!isEnemyEShieldActive(eShieldState)) {
+        continue;
+      }
+      if (!ignoreEShieldElement && !actionMatchesEnemyEShield(actionElementReferences, eShieldState)) {
+        continue;
+      }
+      const nextState = {
+        ...eShieldState,
+        current: Math.max(0, Number(eShieldState.current ?? 0) - skillHitCount),
+      };
+      setEnemyEShieldStateByTarget(state.turnState, targetIndex, nextState);
+      if (Number(eShieldState.current ?? 0) > 0 && nextState.current === 0) {
+        nextAutoBreakEnemyIndexes.push(targetIndex);
+        applyManualEnemyBreak(state.turnState, targetIndex);
+      }
+    }
+    actionEntry.autoBreakEnemyIndexes = [...new Set(nextAutoBreakEnemyIndexes)].sort((left, right) => left - right);
+    if (nextAutoBreakEnemyIndexes.length > 0) {
+      const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
+      const breakCount = new Set([...manualBreakEnemyIndexes, ...nextAutoBreakEnemyIndexes]).size;
+      actionEntry.breakHitCount = Math.max(Math.max(0, Number(actionEntry?.breakHitCount ?? 0)), breakCount);
+    }
+  }
+}
+
+function buildAutoBreakEventsFromActions(previewRecord, existingEnemyBreakEvents = []) {
+  const events = [];
+  const enemyCount = clampEnemyCount(previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const autoBreakEnemyIndexes = normalizeAutoBreakEnemyIndexes(actionEntry, enemyCount);
+    if (autoBreakEnemyIndexes.length === 0) {
+      continue;
+    }
+    const handledTargets = new Set(
+      existingEnemyBreakEvents
+        .filter(
+          (event) =>
+            String(event?.actorCharacterId ?? '') === String(actionEntry.characterId ?? '') &&
+            Number(event?.skillId ?? 0) === Number(actionEntry.skillId ?? 0)
+        )
+        .map((event) => Number(event?.targetIndex))
+        .filter((targetIndex) => Number.isInteger(targetIndex) && targetIndex >= 0)
+    );
+    for (const targetIndex of autoBreakEnemyIndexes) {
+      if (handledTargets.has(targetIndex)) {
+        continue;
+      }
+      events.push(
+        buildActionScopedEvent(actionEntry, {
+          actorCharacterId: String(actionEntry.characterId ?? ''),
+          skillId: Number(actionEntry.skillId ?? 0),
+          skillName: String(actionEntry.skillName ?? ''),
+          mode: 'DownTurn',
+          targetIndex,
+          statusType: ENEMY_STATUS_DOWN_TURN,
+          remainingTurns: DEFAULT_AUTO_DOWN_TURN_REMAINING,
+          source: 'auto',
+        })
+      );
+    }
+  }
+  return events;
 }
 
 function applyEnemyBreakEffectsFromActions(state, previewRecord, options = {}) {
@@ -7675,6 +7870,8 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord, options = {}) {
   const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
   for (const actionEntry of previewRecord.actions ?? []) {
     const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
+    const autoBreakEnemyIndexes = normalizeAutoBreakEnemyIndexes(actionEntry, enemyCount);
+    const sameActionBreakEnemyIndexes = [...new Set([...manualBreakEnemyIndexes, ...autoBreakEnemyIndexes])];
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
     if (!actor) {
       continue;
@@ -7719,13 +7916,13 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord, options = {}) {
             preActionTurnState,
             part
           );
-          const allowsSameActionManualBreak =
+          const allowsSameActionBreak =
             hitTiming !== SPECIAL_BREAK_HIT_TIMING_BEFORE &&
-            isSameActionManualBreakTarget(manualBreakEnemyIndexes, targetIndex);
-          if (!hasEnemyStatus(referenceTurnState, targetIndex, ENEMY_STATUS_BREAK) && !allowsSameActionManualBreak) {
+            isSameActionBreakTarget(sameActionBreakEnemyIndexes, targetIndex);
+          if (!hasEnemyStatus(referenceTurnState, targetIndex, ENEMY_STATUS_BREAK) && !allowsSameActionBreak) {
             continue;
           }
-          if (allowsSameActionManualBreak && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
+          if (allowsSameActionBreak && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
             applyManualEnemyBreak(state.turnState, targetIndex);
           }
           const applied = applyEnemyStrongBreakState(state.turnState, targetIndex, {
@@ -7745,11 +7942,11 @@ function applyEnemyBreakEffectsFromActions(state, previewRecord, options = {}) {
           continue;
         }
 
-        const allowsSameActionManualBreak = isSameActionManualBreakTarget(
-          manualBreakEnemyIndexes,
+        const allowsSameActionBreak = isSameActionBreakTarget(
+          sameActionBreakEnemyIndexes,
           targetIndex
         );
-        if (allowsSameActionManualBreak && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
+        if (allowsSameActionBreak && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
           applyManualEnemyBreak(state.turnState, targetIndex);
           if (
             getEnemyStatusRemainingTurns(state.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN) <
@@ -7943,7 +8140,8 @@ function findMemberByCharacterId(state, characterId) {
 function resolveActionBreakTriggerCount(actionEntry) {
   const breakHitCount = Math.max(0, Number(actionEntry?.breakHitCount ?? 0));
   const manualBreakCount = normalizeManualBreakEnemyIndexes(actionEntry).length;
-  return Math.max(breakHitCount, manualBreakCount);
+  const autoBreakCount = normalizeAutoBreakEnemyIndexes(actionEntry).length;
+  return Math.max(breakHitCount, manualBreakCount, autoBreakCount);
 }
 
 // ブレイク時にダウンターンを延長するパッシブ（ひれ伏すでゲス！など）を処理する。
@@ -8484,6 +8682,7 @@ function buildDerivedRepeatAction(action) {
     pursuedHitCount: 0,
     pursuedTargetEnemyIndex: null,
     manualBreakEnemyIndexes: [],
+    autoBreakEnemyIndexes: [],
     manualKillEnemyIndexes: [],
   };
 }
@@ -8532,6 +8731,11 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     effectiveSkill
   );
   const highBoostModifiers = resolveHighBoostModifiersForMember(member);
+  const ignoreEShieldElement = resolvePassiveIgnoreEShieldElementForMember(
+    state,
+    member,
+    ['OnFirstBattleStart', 'OnBattleStart', 'OnEveryTurn', 'OnPlayerTurnStart']
+  );
 
   return {
     characterId: member.characterId,
@@ -8643,6 +8847,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       giveHealUpRate: highBoostModifiers.active
         ? truncateToTwoDecimals(Number(highBoostModifiers.dpHealMultiplier ?? 1) - 1)
         : 0,
+      ignoreEShieldElement: ignoreEShieldElement.active,
       markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
       markDevastationRateUp: Number(intrinsicMarkModifiers.devastationRateUp ?? 0),
       markCriticalRateUp: Number(intrinsicMarkModifiers.criticalRateUp ?? 0),
@@ -8671,6 +8876,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       action,
       state?.turnState?.enemyState?.enemyCount
     ),
+    autoBreakEnemyIndexes: [],
     manualKillEnemyIndexes: normalizeManualKillEnemyIndexes(
       action,
       state?.turnState?.enemyState?.enemyCount
@@ -8883,6 +9089,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     ),
   });
   const preActionTurnState = cloneTurnState(state.turnState);
+  applyEnemyEShieldEffectsFromActions(state, singleRecord);
   const removeDebuffEvents = applyRemoveDebuffEffectsFromActions(state, singleRecord);
   const epSkillEvents = applySkillSelfEpGains(state, singleRecord);
   const skillSpEvents = applySkillSpGains(state, singleRecord);
@@ -8921,8 +9128,11 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const shreddingEvents = applyShreddingEffectsFromActions(state, singleRecord);
   const buffStatusEvents = applyBuffStatusEffectsFromActions(state, singleRecord);
   const enemyStatusEvents = applyEnemyStatusEffectsFromActions(state, singleRecord);
+  const specialEnemyBreakEvents = applyEnemyBreakEffectsFromActions(state, singleRecord, { preActionTurnState });
+  const autoEshieldBreakEvents = buildAutoBreakEventsFromActions(singleRecord, specialEnemyBreakEvents);
   const enemyBreakEvents = [
-    ...applyEnemyBreakEffectsFromActions(state, singleRecord, { preActionTurnState }),
+    ...specialEnemyBreakEvents,
+    ...autoEshieldBreakEvents,
     ...applyManualBreakEffectsFromActions(state, singleRecord),
   ];
   const enemyKillEvents = applyManualKillEffectsFromActions(state, singleRecord);

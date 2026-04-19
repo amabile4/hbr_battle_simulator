@@ -1,4 +1,5 @@
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 import {
   formatEnemyOdRatePercent,
   normalizeEnemyOdRateMultiplier,
@@ -59,23 +60,16 @@ function normalizeAbsorbElementList(list = []) {
 }
 
 function normalizeEnemyEShield(eShield = null) {
-  if (!eShield || typeof eShield !== 'object') {
-    return null;
-  }
-  const count = Number(eShield.count ?? eShield.current ?? 0);
-  const max = Number(eShield.max ?? eShield.initial ?? eShield.count ?? eShield.current ?? 0);
-  const defUpRate = Number(eShield.def_up_rate ?? eShield.defUpRate ?? 0);
-  const damageLimit = Number(eShield.dmg_limit ?? eShield.damageLimit ?? 0);
-  const normalizedCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
-  return {
-    count: normalizedCount,
-    max: Number.isFinite(max) ? Math.max(normalizedCount, Math.floor(max)) : normalizedCount,
-    elements: Array.isArray(eShield.elements)
-      ? [...new Set(eShield.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    def_up_rate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    dmg_limit: Number.isFinite(damageLimit) ? damageLimit : 0,
-  };
+  const normalized = cloneEnemyEShieldState(eShield);
+  return normalized
+    ? {
+        count: normalized.current,
+        max: normalized.max,
+        elements: [...normalized.elements],
+        def_up_rate: normalized.defUpRate,
+        dmg_limit: normalized.damageLimit,
+      }
+    : null;
 }
 
 function cloneEnemyEShield(eShield = null) {

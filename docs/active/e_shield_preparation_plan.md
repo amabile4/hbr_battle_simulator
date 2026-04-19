@@ -10,9 +10,11 @@
 `Eシールド` は、現行 runtime では戦闘解決に未接続だが、ローカルデータには既に
 `json/enemies.json.extra_gauge.eshield` / `extra_gauge.esp` として格納されている。
 
-この文書では、ヘルプ整備と実装準備フェーズで固定する仕様判断、および
-`ui-next` 側の最小導入順を整理する。あわせて、Enemy Setup で使うサンプル敵と
-`def_up_rate` / `dmg_limit` の文書化方針もここで確定させる。
+この文書では、`engine-first` マイルストーンで固定した仕様判断と、
+今回の実装完了範囲、および後続フェーズへ送った UI/QA 項目を整理する。
+`ui-next` / snapshot / summon / popup の metadata plumbing に加え、
+`turn-controller` 側の Eシールド減算・same-action BREAK・`IgnoreEShieldElement`
+までを今回の正本とする。
 
 ## 調査結果
 
@@ -30,6 +32,9 @@
 - `json/skill_types.json` に `ReviveEShield (id:268)` / `IgnoreEShieldElement (id:301)` / `HealEShield (id:320)` が存在する
 - `json/passives.json` では `100150900 / 無差別な殺人鬼【カレン 専用】` が `IgnoreEShieldElement` を持つ
 - `json/enemies.json` には `extra_gauge.eshield` を持つ enemy が `113` 件ある
+- `extra_gauge.eshield` を持つ enemy のうち、`base_param.dp > 0` 併存は `0` 件
+- `esp=0` または `ele_list=[]` の raw 定義が `33` 件あり、初回実装では inactive 扱いに寄せる
+- `HealEShield` / `ReviveEShield` は live usage が `0` 件
 - `Dimension_09_X_KaleidoOuroboros (id:13450815 / 変貌を重ねる不滅の円環)` は `extra_gauge.hp` に `3` 本の HP ゲージを持ち、`esp:30` / `ele_list:["Fire","Ice"]` の Eシールドを持つ
 - 同系列の summon 用 enemy として `Dimension_09_X_CatHornMeteor_Summon ([強化変種]ミーティアホーン)` / `Dimension_09_X_OctopusTailMeteor_Summon ([強化変種]ミーティアテイル)` が存在する
 - `ui-next/utils/enemy-list.js` の現行実装は `ALWAYS_VISIBLE_ENEMY_PRESET_IDS` と `直近3ヶ月の boss` から flat list を組んでいる。Enemy Setup 改修時は本書の方針を優先し、`直近2ヶ月` + `カテゴリ -> 敵` の2段導線へ更新する
@@ -52,15 +57,21 @@
 
 ## 今回固定する仕様判断
 
-### 1. 導入対象
+### 1. 初回マイルストーン
 
-- まずは `ui-next` の敵プリセット・snapshot・turnState・enemy popup へ Eシールド metadata を通す
-- 戦闘挙動そのものの実装は次フェーズに分離する
+- 初回は `engine-first` とし、`ui-next` の enemy preset / snapshot / summon / popup に加え、
+  `turn-controller` の戦闘解決まで接続する
+- Enemy Setup の selector 改修、`Dimension_09_X_KaleidoOuroboros` 導線追加、
+  Eシールド手動編集、browser E2E は後続フェーズへ分離する
 
 ### 2. 内部表現
 
 - preset / session snapshot では `e_shield` を使用する
 - runtime の `turnState.enemyState` では `eShieldStateByEnemy` を使用する
+- raw `extra_gauge` の ingest 時点で `max <= 0` または `elements.length === 0` の
+  Eシールドは `null` として落とす
+- runtime では `current=0` でも `max>0` かつ `elementsあり` の depleted state は保持し、
+  active 判定のみ `current > 0` に限定する
 
 ```js
 eShieldStateByEnemy[targetEnemyIndex] = {
@@ -72,17 +83,27 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 }
 ```
 
-### 3. Enemy Setup のサンプル導線方針
+### 3. Action-time 解決方針
 
-- 敵プリセットのサンプル候補に `Dimension_09_X_KaleidoOuroboros` を追加する
-- 追加理由は「Eシールド」「複数 HP ゲージ」「summon を行うボス」を1体で確認できるため
-- summon 相手の確認用として `Dimension_09_X_CatHornMeteor_Summon` / `Dimension_09_X_OctopusTailMeteor_Summon` も選択可能候補に含める
-- 敵プリセット選択 UI は flat list のまま増やさず、`カテゴリ -> 具体的な敵` の2段構えへ移行する
-- 少なくとも `期間（直近2ヶ月）` と `恒星掃戦線` の2カテゴリを持たせる
-- `恒星掃戦線` カテゴリでは、同名 enemy が難易度違いで複数ある場合は重複を除去し、もっとも高いランクの1件のみを表示対象とする
-- 現行コードは `直近3ヶ月` の flat list なので、実装時はこの文書に合わせて抽出条件と UI 構造を更新する
+- damage part を持つ action のみを対象にする
+- target は既存の `getActionTargetEnemyIndexes()`、hit 数は既存の `skillHitCount`
+  を再利用する
+- 属性一致は action 単位で判定し、「effective damage part のいずれかが active
+  Eシールド要素に一致すれば、その action の hit 全数を減算」に固定する
+- `IgnoreEShieldElement` は style ID の特判を置かず、既存 passive resolver と同様に
+  action-time に `specialPassiveModifiers` へ展開する
 
-### 4. `def_up_rate` / `dmg_limit` の解釈（文書化のみ）
+### 4. BREAK 接続方針
+
+- `current = max(0, current - skillHitCount)` とする
+- `current === 0` 到達時は同一 action 内で BREAK を成立させる
+- `manualBreakEnemyIndexes` と `autoBreakEnemyIndexes` の union を same-action break source
+  として扱い、既存の `SuperBreak` / `SuperBreakDown` / `BreakDownTurnUp` /
+  `AdditionalHitOnBreaking` 判定へ接続する
+- `tickEnemyStatusDurations()` など `turnState.enemyState` 再構築箇所でも
+  `eShieldStateByEnemy` を保持する
+
+### 5. `def_up_rate` / `dmg_limit` の解釈（文書化のみ）
 
 - `def_up_rate` は、Eシールドを破壊していない状態で敵本体へ直接 HP ダメージを与える際の補正値として扱う
 - この状態のダメージ式は「通常の DP を割っていない敵への HP ダメージ計算式」を使う
@@ -95,14 +116,6 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - DP 未破壊時 HP ダメージ式で値が出ても、`dmg_limit` を超える場合はその値で clamp する
 - 本シミュレーターはダメージ計算機ではないため、`def_up_rate` / `dmg_limit` はこの文書に仕様メモとして保持し、既定では runtime 実装や UI 表示の対象にしない
 - 後日あらためて再調査する前提は置かず、本書の記述を以後の判断基準とする
-
-### 5. 次フェーズで実装する戦闘仕様
-
-- 弱点属性 hit ごとに `current -= 1`
-- `IgnoreEShieldElement` 所持時は属性不一致でも `current -= 1`
-- `current > 0` の間は HP ダメージは通すが破壊率上昇を抑止する
-- `current === 0` 到達時に通常の enemy break/down-turn 経路へ接続する
-- `HealEShield` / `ReviveEShield` は `max` を上限とした回復・再展開として扱う
 
 ## 未確定事項
 
@@ -119,13 +132,16 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 
 ### Phase 1: 戦闘基盤
 
-- [ ] `src/turn/turn-controller.js` に Eシールド current 減少処理を追加する
-- [ ] 破壊率上昇の抑止条件を Eシールド active 中へ拡張する
-- [ ] `current === 0` で通常の BREAK / DownTurn 経路へ接続する
+- [x] `src/turn/turn-controller.js` に Eシールド current 減少処理を追加する
+- [x] Eシールド active 中は BREAK 未成立のまま既存 break-state 依存ロジックへ流し、
+  same-action auto BREAK まで破壊率上昇を抑止する
+- [x] `current === 0` で通常の BREAK / DownTurn 経路へ接続する
+- [x] `tickEnemyStatusDurations()` などの enemyState 再構築で `eShieldStateByEnemy`
+  を保持する
 
 ### Phase 2: スキル型対応
 
-- [ ] `IgnoreEShieldElement`
+- [x] `IgnoreEShieldElement`
 - [ ] `HealEShield`
 - [ ] `ReviveEShield`
 
@@ -137,6 +153,16 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [ ] Enemy Setup で Eシールドを手動編集できるようにする
 - [ ] session save/load と summon operation に対する回帰を固定する
 - [ ] browser E2E を追加する
+
+## 今回追加したテスト固定
+
+- [x] `tests/ui-next-enemy-list.test.js`: `esp=0` / 属性なし raw 定義を inactive 扱いに固定
+- [x] `tests/ui-next-battle-state-manager.test.js`: active Eシールドのみ `eShieldStateByEnemy`
+  に入ることを固定
+- [x] `tests/turn-operations.test.js`: summon 時に inactive raw 定義を持ち込まないことを固定
+- [x] `tests/turn-state-transitions.test.js`: 単体弱点 hit / 全体攻撃 / 属性不一致 /
+  `IgnoreEShieldElement` / same-action BREAK / `SuperBreak` / `SuperBreakDown` /
+  `BreakDownTurnUp` / `AdditionalHitOnBreaking` / turn end を跨ぐ state 保持を固定
 
 ## 関連ファイル
 
