@@ -2,10 +2,10 @@ import { normalizeLightweightReplayScript } from '../../src/ui/lightweight-repla
 import { normalizeEnemySetupSnapshot } from './enemy-setup-snapshot.js';
 import { normalizeSimulatorSettings } from './simulator-settings.js';
 import { normalizeValidationPolicy } from './validation-policy.js';
+import { normalizeNormalAttackElementsByPartyIndex } from '../../src/domain/normal-attack-elements.js';
 
 export const SESSION_SNAPSHOT_VERSION = 1;
 const PARTY_SIZE = 6;
-const VALID_NORMAL_ATTACK_ELEMENTS = Object.freeze(new Set(['Fire', 'Ice', 'Thunder', 'Light', 'Dark']));
 
 function toOptionalNumber(value) {
   const numeric = Number(value);
@@ -45,25 +45,6 @@ function normalizeSkillSetsByPartyIndex(source = {}) {
         .map((value) => Number(value))
         .filter((value) => Number.isFinite(value))
     )];
-  }
-  return normalized;
-}
-
-function normalizeNormalAttackElementsByPartyIndex(source = {}) {
-  const normalized = {};
-  for (let index = 0; index < PARTY_SIZE; index += 1) {
-    const raw =
-      source?.[index] ??
-      source?.[String(index)] ??
-      null;
-    if (!Array.isArray(raw) || raw.length !== 1) {
-      continue;
-    }
-    const value = String(raw[0] ?? '').trim();
-    if (!VALID_NORMAL_ATTACK_ELEMENTS.has(value)) {
-      continue;
-    }
-    normalized[String(index)] = [value];
   }
   return normalized;
 }

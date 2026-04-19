@@ -8,7 +8,7 @@ import {
   SESSION_SNAPSHOT_VERSION,
 } from '../ui-next/utils/session-snapshot.js';
 import { TARGET_SELECTION_MODES } from '../ui-next/utils/simulator-settings.js';
-import { REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
+import { REPLAY_OVERRIDE_ENTRY_TYPES, REPLAY_SETUP_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 
 test('normalizeSessionSnapshot fills defaults and preserves replay override entries', () => {
   const snapshot = normalizeSessionSnapshot({
@@ -144,6 +144,32 @@ test('normalizeSessionSnapshot keeps only valid single-value normalAttackElement
   assert.deepEqual(snapshot.setup.normalAttackElementsByPartyIndex, {
     0: ['Light'],
   });
+});
+
+test('normalizeSessionSnapshot canonicalizes replay setup bracelet legacy fields into setupEntries', () => {
+  const snapshot = normalizeSessionSnapshot({
+    replayScript: {
+      setup: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        normalAttackElementsByPartyIndex: {
+          0: ['Dark'],
+          1: ['Fire', 'Ice'],
+        },
+      },
+      turns: [],
+    },
+  });
+
+  assert.equal(Object.hasOwn(snapshot.replayScript.setup, 'normalAttackElementsByPartyIndex'), false);
+  assert.deepEqual(
+    snapshot.replayScript.setup.setupEntries.find(
+      (entry) => entry.type === REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    {
+      type: REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX,
+      payload: { 0: ['Dark'] },
+    }
+  );
 });
 
 test('normalizeSessionSnapshot preserves manual Eシールド edits in enemy setup snapshots', () => {

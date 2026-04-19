@@ -1,4 +1,5 @@
 import { MAX_PARTY_SIZE } from '../domain/party.js';
+import { normalizeNormalAttackElementsByPartyIndex } from '../domain/normal-attack-elements.js';
 
 export const LIGHTWEIGHT_REPLAY_SCRIPT_VERSION = 1;
 
@@ -26,6 +27,7 @@ export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
   MOTIVATION_STATE_BY_PARTY_INDEX: 'MotivationStateByPartyIndex',
   MARK_STATE_BY_PARTY_INDEX: 'MarkStateByPartyIndex',
   STATUS_EFFECTS_BY_PARTY_INDEX: 'StatusEffectsByPartyIndex',
+  NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX: 'NormalAttackElementsByPartyIndex',
 });
 
 export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
@@ -75,11 +77,18 @@ function isEmptyReplayPayload(value) {
   return false;
 }
 
-function createReplaySetupEntryDefinition(legacyField) {
+function createReplaySetupEntryDefinition(legacyField, options = {}) {
+  const normalizePayload =
+    typeof options?.normalizePayload === 'function' ? options.normalizePayload : null;
   return Object.freeze({
     legacyField,
+    normalizePayload,
     applyToInitializeOptions(initializeOptions, payload) {
-      initializeOptions[legacyField] = cloneReplayPayload(payload) ?? {};
+      const nextPayload = normalizePayload ? normalizePayload(payload) : cloneReplayPayload(payload);
+      if (isEmptyReplayPayload(nextPayload)) {
+        return;
+      }
+      initializeOptions[legacyField] = nextPayload;
     },
   });
 }
@@ -165,7 +174,22 @@ function createTypedEnvelopeRegistry(definitions = {}) {
       return Object.keys(normalizedDefinitions);
     },
     normalizeEntries(entries = []) {
-      return normalizeTypedEnvelopeEntries(entries);
+      return normalizeTypedEnvelopeEntries(entries)
+        .map((entry) => {
+          const definition = normalizedDefinitions[String(entry?.type ?? '')] ?? null;
+          if (!definition || !('payload' in entry) || typeof definition.normalizePayload !== 'function') {
+            return entry;
+          }
+          const normalizedPayload = definition.normalizePayload(entry.payload);
+          if (isEmptyReplayPayload(normalizedPayload)) {
+            return null;
+          }
+          return {
+            type: entry.type,
+            payload: cloneReplayPayload(normalizedPayload),
+          };
+        })
+        .filter(Boolean);
     },
   });
 }
@@ -194,6 +218,12 @@ export const replaySetupEntryRegistry = createTypedEnvelopeRegistry({
   ),
   [REPLAY_SETUP_ENTRY_TYPES.STATUS_EFFECTS_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
     'statusEffectsByPartyIndex'
+  ),
+  [REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'normalAttackElementsByPartyIndex',
+    {
+      normalizePayload: (payload) => normalizeNormalAttackElementsByPartyIndex(payload),
+    }
   ),
 });
 export const replayOperationRegistry = createTypedEnvelopeRegistry({
@@ -283,7 +313,35 @@ export function getReplaySetupEntries(setup = {}) {
   const source = isPlainObject(setup) ? setup : {};
   const explicitEntries = replaySetupEntryRegistry.normalizeEntries(source.setupEntries);
   const explicitTypes = new Set(explicitEntries.map((entry) => String(entry.type ?? '')));
-  return [...collectLegacyReplaySetupEntries(source, explicitTypes), ...explicitEntries];
+  return replaySetupEntryRegistry.normalizeEntries([
+    ...collectLegacyReplaySetupEntries(source, explicitTypes),
+    ...explicitEntries,
+  ]);
+}
+
+export function replaceReplaySetupEntry(setup = {}, type, payload) {
+  const source = isPlainObject(setup) ? setup : {};
+  const normalizedType = String(type ?? '').trim();
+  if (!normalizedType) {
+    return normalizeLightweightReplaySetup(source);
+  }
+  const remainingEntries = getReplaySetupEntries(source).filter(
+    (entry) => String(entry?.type ?? '') !== normalizedType
+  );
+  const nextEntries = payload == null ? remainingEntries : [...remainingEntries, { type: normalizedType, payload }];
+  return normalizeLightweightReplaySetup({
+    ...source,
+    setupEntries: nextEntries,
+  });
+}
+
+export function syncReplaySetupNormalAttackElements(setup = {}, normalAttackElementsByPartyIndex = {}) {
+  const normalized = normalizeNormalAttackElementsByPartyIndex(normalAttackElementsByPartyIndex);
+  return replaceReplaySetupEntry(
+    setup,
+    REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX,
+    isEmptyReplayPayload(normalized) ? null : normalized
+  );
 }
 
 function mergeReplaySetupEntries(preferredSetup = {}, fallbackSetup = {}) {

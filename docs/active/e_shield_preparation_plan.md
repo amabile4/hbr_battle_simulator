@@ -18,7 +18,9 @@
 
 2026-04-19 の follow-up として、`Party Setup` の属性ブレスレット selector を
 `setup.normalAttackElementsByPartyIndex` 経由で runtime へ接続し、通常攻撃の属性参照と
-Eシールド減算が同じ `normalAttackElements` を使う状態まで反映した。
+Eシールド減算が同じ `normalAttackElements` を使う状態まで反映した。さらに同日、
+`replayScript.setup` 側でも `setupEntries[type=NormalAttackElementsByPartyIndex]` に同情報を
+canonical で保持し、save/load/recalculate 時に top-level `setup` と齟齬が残らないようにした。
 
 ## 調査結果
 
@@ -163,6 +165,7 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] session save/load と summon operation に対する回帰を固定する
 - [x] browser E2E を追加する
 - [x] `Party Setup` の属性ブレスレット selector を `normalAttackElementsByPartyIndex` に接続し、通常攻撃の属性参照と Eシールド減算を同じ runtime state へ流す
+- [x] `replayScript.setup` にも `NormalAttackElementsByPartyIndex` setup entry を保持し、session save/load と replay recalculate で belt 情報を同期する
 
 ## 今回追加したテスト固定
 
@@ -181,9 +184,13 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] `tests/e2e/enemy-setup-selector.spec.js`: `テンプレート` category に `Dimension_09_X_KaleidoOuroboros` が常時表示され、manual Eシールド editor に preset 値が prefill されることを固定
 - [x] `tests/ui-next-party-setup.test.js`: belt selector と `normalAttackElementsByPartyIndex` の export/import、無効値 fallback を固定
 - [x] `tests/ui-next-session-snapshot.test.js`: `setup.normalAttackElementsByPartyIndex` の normalize / serialize / round-trip を固定
+- [x] `tests/lightweight-replay-script.test.js`: `replayScript.setup` の legacy fixed field を canonical `setupEntries[type=NormalAttackElementsByPartyIndex]` へ畳み込むことを固定
+- [x] `tests/ui-next-replay-setup.test.js`: party snapshot の belt 選択が compact replay index の setup entry に変換されることを固定
 - [x] `tests/ui-next-battle-state-manager.test.js`: party snapshot の `normalAttackElementsByPartyIndex` が `CharacterStyle.normalAttackElements` へ渡ることを固定
+- [x] `tests/ui-next-turn-engine-manager.test.js`: old replayScript に setup entry が無くても load/recalculate で base setup 由来の belt 情報が replay setup に同期されることを固定
 - [x] `tests/turn-state-transitions.test.js`: 通常攻撃 + 属性ブレスレットで Eシールドが減ること、非一致属性では減らないことを固定
 - [x] `tests/e2e/normal-attack-belt-e-shield.spec.js`: belt 選択後の通常攻撃で Eシールド値が減ることと、session save/load 後も belt と挙動が維持されることを固定
+- [x] `tests/e2e/session-save.spec.js`: belt 情報が top-level `setup` と `replayScript.setup.setupEntries` の両方に保存され、既存 record を持つ状態の再保存でも current setup に同期されることを固定
 
 ## 関連ファイル
 

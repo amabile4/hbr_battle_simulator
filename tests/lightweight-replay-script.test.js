@@ -9,6 +9,7 @@ import {
   REPLAY_SETUP_ENTRY_TYPES,
   createEmptyLightweightReplayScript,
   createLightweightReplayScriptFromBaseSetup,
+  normalizeLightweightReplayScript,
   normalizeLightweightReplayTurn,
   replayOperationRegistry,
   replayOverrideEntryRegistry,
@@ -100,6 +101,7 @@ test('override registry round-trips enemy slot metadata entries including od rat
 test('setup registry migrates legacy pre-state fields into setupEntries and preserves explicit overrides', () => {
   assert.equal(replaySetupEntryRegistry.has(REPLAY_SETUP_ENTRY_TYPES.INITIAL_DP_STATE_BY_PARTY_INDEX), true);
   assert.equal(replaySetupEntryRegistry.has(REPLAY_SETUP_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX), true);
+  assert.equal(replaySetupEntryRegistry.has(REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX), true);
 
   const existing = {
     version: LIGHTWEIGHT_REPLAY_SCRIPT_VERSION,
@@ -122,6 +124,7 @@ test('setup registry migrates legacy pre-state fields into setupEntries and pres
       initialBreakByPartyIndex: { 1: true },
       initialMotivationByPartyIndex: { 2: 5 },
       tokenStateByPartyIndex: { 0: { current: 4, min: 0, max: 10 } },
+      normalAttackElementsByPartyIndex: { 0: ['Ice'], 2: ['Void'], 3: ['Fire', 'Dark'] },
     },
     existing
   );
@@ -150,6 +153,9 @@ test('setup registry migrates legacy pre-state fields into setupEntries and pres
   assert.deepEqual(setupEntriesByType[REPLAY_SETUP_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX], {
     0: { current: 4, min: 0, max: 10 },
   });
+  assert.deepEqual(setupEntriesByType[REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX], {
+    0: ['Ice'],
+  });
   assert.deepEqual(setupEntriesByType.FutureSetup, { enabled: true });
   assert.equal(script.turns.length, 1);
   assert.deepEqual(script.turns[0].slots[0], {
@@ -157,6 +163,31 @@ test('setup registry migrates legacy pre-state fields into setupEntries and pres
     skillId: 2,
     target: { type: 'none' },
   });
+});
+
+test('normalizeLightweightReplayScript canonicalizes legacy replay setup bracelet fields into setupEntries', () => {
+  const script = normalizeLightweightReplayScript({
+    setup: {
+      styleIds: [1001, 1002, 1003, null, null, null],
+      normalAttackElementsByPartyIndex: {
+        0: ['Light'],
+        1: ['Fire', 'Ice'],
+        2: ['Void'],
+      },
+    },
+    turns: [],
+  });
+
+  assert.equal('normalAttackElementsByPartyIndex' in script.setup, false);
+  assert.deepEqual(
+    script.setup.setupEntries.find(
+      (entry) => entry.type === REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    {
+      type: REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX,
+      payload: { 0: ['Light'] },
+    }
+  );
 });
 
 test('createLightweightReplayScriptFromBaseSetup keeps stable core and turn list', () => {

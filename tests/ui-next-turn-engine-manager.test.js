@@ -6,7 +6,11 @@ import { CharacterStyle, HbrDataStore, Party, applyInitialPassiveState, createBa
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { normalizeSessionSnapshot } from '../ui-next/utils/session-snapshot.js';
-import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
+import {
+  REPLAY_OPERATION_TYPES,
+  REPLAY_OVERRIDE_ENTRY_TYPES,
+  REPLAY_SETUP_ENTRY_TYPES,
+} from '../src/ui/lightweight-replay-script.js';
 import { DEFAULT_VALIDATION_POLICY } from '../ui-next/utils/validation-policy.js';
 import { DEFAULT_SUMMON_SAMPLE_ENEMY } from '../src/data/enemy-sample-presets.js';
 import { getSixUsableStyleIds, getStore } from './helpers.js';
@@ -117,6 +121,18 @@ function createManualParty(actorSkill, actorOptions = {}) {
 
 function createInitialState(actorSkill, actorOptions = {}) {
   return createBattleStateFromParty(createManualParty(actorSkill, actorOptions));
+}
+
+function attachTurnPlanBaseSetup(state, normalAttackElementsByPartyIndex = {}) {
+  state.turnPlanBaseSetup = {
+    ...(state.turnPlanBaseSetup ?? {}),
+    normalAttackElementsByPartyIndex: structuredClone(normalAttackElementsByPartyIndex),
+  };
+  return state;
+}
+
+function getReplaySetupEntryPayload(setup = {}, type) {
+  return (setup?.setupEntries ?? []).find((entry) => entry?.type === type)?.payload ?? null;
 }
 
 function createFrontlineInitialState(frontlineSkills = [], enemyCount = 1, frontOptions = []) {
@@ -1739,6 +1755,71 @@ test('TurnEngineManager loadReplayScript restores validationPolicy and committed
   assert.equal(restored.committedTurnCount, 1);
   assert.equal(restored.computedRecords[0]?.enemyCount, 2);
   assert.equal(restored.validationPolicy.allowUseCountOverflow, true);
+});
+
+test('TurnEngineManager loadReplayScript backfills replay setup bracelet entry from initialState base setup', () => {
+  const actorSkill = createSkill({
+    id: 9071,
+    name: 'Replay Bracelet',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = attachTurnPlanBaseSetup(createInitialState(actorSkill), {
+    0: ['Ice'],
+  });
+  const manager = new TurnEngineManager();
+
+  manager.loadReplayScript(initialState, {
+    setup: {
+      styleIds: [9100, 9101, 9102, 9103, 9104, 9105],
+      setupEntries: [],
+    },
+    turns: [],
+  });
+
+  assert.deepEqual(
+    getReplaySetupEntryPayload(
+      manager.replayScript.setup,
+      REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    { 0: ['Ice'] }
+  );
+});
+
+test('TurnEngineManager recalculateAll replaces stale replay setup bracelet entries from new base state', () => {
+  const actorSkill = createSkill({
+    id: 9072,
+    name: 'Replay Recalc Bracelet',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = attachTurnPlanBaseSetup(createInitialState(actorSkill), {
+    0: ['Fire'],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+
+  assert.deepEqual(
+    getReplaySetupEntryPayload(
+      manager.replayScript.setup,
+      REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    { 0: ['Fire'] }
+  );
+
+  manager.recalculateAll(
+    attachTurnPlanBaseSetup(createInitialState(actorSkill), {
+      0: ['Light'],
+    })
+  );
+
+  assert.deepEqual(
+    getReplaySetupEntryPayload(
+      manager.replayScript.setup,
+      REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    { 0: ['Light'] }
+  );
 });
 
 test('session fixture replay: Turn4 start SP reflects OnOverdriveStart HealSp over-cap for Nikaido', () => {

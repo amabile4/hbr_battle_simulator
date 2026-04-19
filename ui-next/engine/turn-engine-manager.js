@@ -28,6 +28,7 @@ import {
   REPLAY_OPERATION_TYPES,
   REPLAY_OVERRIDE_ENTRY_TYPES,
   replayOperationRegistry,
+  syncReplaySetupNormalAttackElements,
 } from '../../src/ui/lightweight-replay-script.js';
 import {
   normalizeTurnReplayTarget,
@@ -266,6 +267,7 @@ export class TurnEngineManager {
   initialize(initialState, replaySetup = {}, options = {}) {
     this.#initialState = initialState;
     this.#replayScript = createEmptyLightweightReplayScript(replaySetup);
+    this.#syncReplaySetupWithBaseState();
     this.#computedStates = [];
     this.#computedRecords = [];
     this.#pendingPreemptiveOdLevel = null;
@@ -299,6 +301,7 @@ export class TurnEngineManager {
   loadReplayScript(initialState, replayScript = {}, options = {}) {
     this.#initialState = initialState;
     this.#replayScript = normalizeLightweightReplayScript(replayScript);
+    this.#syncReplaySetupWithBaseState();
     this.#computedStates = [];
     this.#computedRecords = [];
     this.#pendingPreemptiveOdLevel = null;
@@ -444,6 +447,7 @@ export class TurnEngineManager {
   recalculateAll(newInitialState) {
     this.#initialState = newInitialState;
     if (this.#replayScript) {
+      this.#syncReplaySetupWithBaseState();
       this.#recalculateAllBestEffort();
     }
   }
@@ -1139,6 +1143,17 @@ export class TurnEngineManager {
           ? structuredClone(sourceState.turnState)
           : sourceState.turnState ?? null,
     };
+  }
+
+  #syncReplaySetupWithBaseState() {
+    const baseSetup = this.#initialState?.turnPlanBaseSetup;
+    if (!this.#replayScript || !baseSetup || typeof baseSetup !== 'object') {
+      return;
+    }
+    this.#replayScript.setup = syncReplaySetupNormalAttackElements(
+      this.#replayScript.setup,
+      baseSetup.normalAttackElementsByPartyIndex ?? {}
+    );
   }
 
   #buildScenarioEnemyOverrideSnapshot(scenarioTurn = {}) {

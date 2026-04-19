@@ -2,9 +2,25 @@ import { test, expect } from '@playwright/test';
 
 import {
   applyParty,
+  commitLatestInputRow,
   fillPartySetupSlots,
   gotoUiNext,
 } from './ui-next-helpers.js';
+
+const REPLAY_SETUP_ENTRY_TYPE_NORMAL_ATTACK_ELEMENTS = 'NormalAttackElementsByPartyIndex';
+
+function getReplaySetupEntryPayload(json, type) {
+  return (json?.replayScript?.setup?.setupEntries ?? []).find((entry) => entry?.type === type)?.payload ?? null;
+}
+
+async function ensureSetupVisible(page) {
+  const applyButton = page.locator('[data-role="apply-btn"]');
+  if (await applyButton.isVisible()) {
+    return;
+  }
+  await page.locator('#toggle-setup').click();
+  await expect(applyButton).toBeVisible({ timeout: 5000 });
+}
 
 test.describe('Session JSON save', () => {
   test('saves JSON with 4 selected characters after apply', async ({ page }) => {
@@ -57,5 +73,54 @@ test.describe('Session JSON save', () => {
     for (let i = 0; i < 4; i++) {
       expect(replayStyleIds[i]).toBe(json.setup.styleIds[i]);
     }
+  });
+
+  test('saves bracelet selection into both top-level setup and replayScript.setup entries', async ({ page }) => {
+    await gotoUiNext(page);
+    await fillPartySetupSlots(page, [0, 1, 2]);
+    await page.locator('select[data-field="belt"][data-slot-index="0"]').selectOption('Ice');
+    await applyParty(page);
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#session-save-btn').click();
+    const download = await downloadPromise;
+    const stream = await download.createReadStream();
+    const chunks = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const json = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+
+    expect(json.setup.normalAttackElementsByPartyIndex).toEqual({ 0: ['Ice'] });
+    expect(getReplaySetupEntryPayload(json, REPLAY_SETUP_ENTRY_TYPE_NORMAL_ATTACK_ELEMENTS)).toEqual({
+      0: ['Ice'],
+    });
+  });
+
+  test('re-saving after party setup bracelet changes keeps replay setup entry synced to current setup', async ({ page }) => {
+    await gotoUiNext(page);
+    await fillPartySetupSlots(page, [0, 1, 2]);
+    await page.locator('select[data-field="belt"][data-slot-index="0"]').selectOption('Fire');
+    await applyParty(page);
+    await commitLatestInputRow(page);
+
+    await ensureSetupVisible(page);
+    await page.locator('select[data-field="belt"][data-slot-index="0"]').selectOption('Dark');
+    await applyParty(page);
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#session-save-btn').click();
+    const download = await downloadPromise;
+    const stream = await download.createReadStream();
+    const chunks = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const json = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+
+    expect(json.setup.normalAttackElementsByPartyIndex).toEqual({ 0: ['Dark'] });
+    expect(getReplaySetupEntryPayload(json, REPLAY_SETUP_ENTRY_TYPE_NORMAL_ATTACK_ELEMENTS)).toEqual({
+      0: ['Dark'],
+    });
   });
 });

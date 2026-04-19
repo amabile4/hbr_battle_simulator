@@ -1,6 +1,6 @@
 # Replay Entry 分離 WBS
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-12 | 🔄 最終更新: 2026-04-12
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-12 | 🔄 最終更新: 2026-04-19
 >
 > **親設計**: [lightweight_record_replay_design.md](lightweight_record_replay_design.md)
 >
@@ -23,6 +23,7 @@
 - ただし実装上は `ActionOutcomeOverrides` と `FollowUpOverrides` が `overrideEntries` に保存されつつ、commit / replay / recalculate では action dict へ materialize され、`Break` / `DownTurn` / break 起点 passive / pursued hit 数に影響している
 - このため現状の `overrideEntries` は「参考情報の箱」ではなく、「action 入力」と「state snapshot」が混在した箱になっている
 - `overrideEntries` を丸ごと外す検証では、enemy status desc の表示は第1弾 fallback で維持できた一方、`Break` と `追撃` のような結果影響入力まで失われることが確認された
+- 2026-04-19 に `ReplaySetup.setupEntries.NormalAttackElementsByPartyIndex` を追加したが、これは battle 初期条件を持つ setup-layer typed entry であり、本 WBS の対象である `ReplayTurn.operations` / `overrideEntries` の責務分離には含めない
 
 ## 現状整理
 
@@ -218,6 +219,10 @@ ReplayTurn = {
 - action 入力を `overrideEntries` から分離する段階実装の順序と完了条件が WBS で確認できる
 
 ## 非スコープ
+
+- `ReplaySetup.setupEntries` の拡張
+  - 例: `NormalAttackElementsByPartyIndex`
+  - これらは turn entry ではなく setup-layer の typed entry であり、本 WBS では action 入力分離の対象外とする
 
 - 本ドキュメント作成時点では実装変更を行わない
 - `EnemyStatuses` や `EnemyCount` の最終配置をこの文書だけで確定しない

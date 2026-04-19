@@ -1,6 +1,7 @@
 import { createInitializedBattleSnapshot } from '../../src/ui/adapter-core.js';
 import { DEFAULT_INITIAL_SP, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
+import { getNormalAttackElementsForPartyIndex } from '../../src/domain/normal-attack-elements.js';
 
 const PREEMPTIVE_FIELD_TO_ZONE_TYPE = Object.freeze({
   fire: 'Fire',
@@ -34,7 +35,6 @@ const DEFAULT_STAGE_SETUP = Object.freeze({
   turnlySpFront: 0,
   turnlySpBack: 0,
 });
-const VALID_NORMAL_ATTACK_ELEMENTS = Object.freeze(new Set(['Fire', 'Ice', 'Thunder', 'Light', 'Dark']));
 const STAGE_SETUP_EFFECT_SCOPE_ALL = 'all';
 const STAGE_SETUP_EFFECT_SCOPE_FRONT = 'front';
 const STAGE_SETUP_EFFECT_SCOPE_BACK = 'back';
@@ -201,15 +201,7 @@ function normalizeEnemyCount(value) {
 }
 
 function resolveNormalAttackElementsForPartyIndex(snapshot = {}, index) {
-  const raw =
-    snapshot?.normalAttackElementsByPartyIndex?.[index] ??
-    snapshot?.normalAttackElementsByPartyIndex?.[String(index)] ??
-    null;
-  if (!Array.isArray(raw) || raw.length !== 1) {
-    return null;
-  }
-  const element = String(raw[0] ?? '').trim();
-  return VALID_NORMAL_ATTACK_ELEMENTS.has(element) ? [element] : null;
+  return getNormalAttackElementsForPartyIndex(snapshot?.normalAttackElementsByPartyIndex, index);
 }
 
 function buildLegacyEnemySlot(enemySetup = {}) {

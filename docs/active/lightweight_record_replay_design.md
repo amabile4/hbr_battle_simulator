@@ -1,6 +1,6 @@
 # 軽量 Record / Replay / Edit 設計案
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-04-11
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-04-19
 >
 > **前提調査**: [`../20260314_record_replay_edit_investigation/README.md`](../20260314_record_replay_edit_investigation/README.md)
 
@@ -22,6 +22,10 @@
   - `ActionOutcomeOverrides` で manual break / kill attribution を保持する
   - `FollowUpOverrides` で follow-up 対象補正を保持する
   - `EnemyCount` / `EnemyNames` / `EnemyDamageRates` / `EnemyDestructionRates` / `EnemyDestructionRateCaps` / `EnemyOdRates` / `EnemyAbsorbElements` / `EnemyBreakStates` / `EnemyStatuses` で summon 後の enemy slot snapshot を保持する
+- `ReplaySetup.setupEntries` には setup-layer typed entry を追加できる
+  - 2026-04-19 時点で `NormalAttackElementsByPartyIndex` を実装済み
+  - `Party Setup` の belt selector は top-level `setup.normalAttackElementsByPartyIndex` を正本としつつ、save/load/recalculate 用に `replayScript.setup.setupEntries` にも同期保持する
+  - legacy な fixed field `replayScript.setup.normalAttackElementsByPartyIndex` は load 時に canonical `setupEntries[]` へ畳み込む
 - `operations` には `ActivateKishinka` / `ActivateMakaiKihei` / `ActivatePreemptiveOd` / `ReserveInterruptOd` に加えて `SummonEnemy` を実装済み
 - `ActivateMakaiKihei` は generic `previewTurn` ではなく専用 OD gain helper で解決する
   - live enemy 数と enemy `od_rate` は反映する
@@ -150,6 +154,7 @@ known setup entry の例:
 - `MotivationStateByPartyIndex`
 - `MarkStateByPartyIndex`
 - `StatusEffectsByPartyIndex`
+- `NormalAttackElementsByPartyIndex`
 
 ### 3. 各ターン
 
