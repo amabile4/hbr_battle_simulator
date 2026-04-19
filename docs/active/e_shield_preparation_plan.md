@@ -146,12 +146,13 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 
 ### Phase 3: UI/QA
 
+- [x] turn row 左パネルと enemy detail popup に shared badge renderer で Eシールド現在値を表示する
 - [ ] Enemy preset selector を、通常 enemy をカテゴリ定義から追加できる `カテゴリ -> 敵` の2段構えへ変更する
 - [ ] `恒星掃戦線` カテゴリも他カテゴリと同じ流儀で追加し、同名 enemy が難易度違いで複数ある場合はもっとも高いランクの1件のみ表示する
 - [ ] Eシールド回帰や動作確認では `Dimension_09_X_KaleidoOuroboros` を代表ケースとして扱い、専用 hardcode ではなく通常 selector 経由で到達できる状態にする
 - [ ] Enemy Setup で Eシールドを手動編集できるようにする
 - [ ] session save/load と summon operation に対する回帰を固定する
-- [ ] browser E2E を追加する
+- [x] browser E2E を追加する
 
 ## 今回追加したテスト固定
 
@@ -162,6 +163,8 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] `tests/turn-state-transitions.test.js`: 単体弱点 hit / 全体攻撃 / 属性不一致 /
   `IgnoreEShieldElement` / same-action BREAK / `SuperBreak` / `SuperBreakDown` /
   `BreakDownTurnUp` / `AdditionalHitOnBreaking` / turn end を跨ぐ state 保持を固定
+- [x] `tests/ui-next-turn-ui.test.js`: row strip の有無、multi-color/depleted badge、popup の shared badge と resolved current/max を固定
+- [x] `tests/e2e/turn-row-preview-status-popup.spec.js`: turn row 左パネル内での strip 位置と popup の badge/value 一致を固定
 
 ## 関連ファイル
 

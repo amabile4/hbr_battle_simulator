@@ -240,6 +240,16 @@ function createState(actorSkill, enemyCount = 1, actorOptions = {}) {
   return state;
 }
 
+function createEShieldState({ current = 10, max = 10, elements = ['Light', 'Dark'] } = {}) {
+  return {
+    current,
+    max,
+    elements: [...elements],
+    defUpRate: 5000,
+    damageLimit: 0,
+  };
+}
+
 function createFrontlineState(frontlineSkills, enemyCount = 1, frontOptions = []) {
   const members = Array.from({ length: 6 }, (_, index) =>
     new CharacterStyle({
@@ -417,6 +427,7 @@ function extractPassiveLogTexts(rows = []) {
 function mountTurnRow({
   root,
   stateBefore,
+  stateAfter = null,
   simulatorSettings,
   store = createStoreStub(),
   enemyPresets = [],
@@ -436,7 +447,7 @@ function mountTurnRow({
       makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
     },
     stateBefore,
-    stateAfter: null,
+    stateAfter,
     previewActionFlow,
     simulatorSettings,
     odState: {
@@ -1507,10 +1518,79 @@ test('EnemyDetailPopup basic info shows Eシールド summary when present', () 
 
     const root = popup.getRootElement();
     assert.ok(root);
-    assert.match(root.textContent ?? '', /Eシールド/);
-    assert.match(root.textContent ?? '', /10\/10/);
-    assert.match(root.textContent ?? '', /光, 闇/);
+    const summary = root.querySelector('[data-role="enemy-popup-e-shield-summary"]');
+    assert.ok(summary);
+    assert.equal(summary.querySelectorAll('[data-role="enemy-popup-e-shield-badge"]').length, 1);
+    assert.match(summary.textContent ?? '', /10\/10/);
+    assert.match(summary.textContent ?? '', /光 \/ 闇/);
     popup.close();
+  }));
+
+test('TurnRowController omits Eシールド strip when no enemy has Eシールド state', () =>
+  withDom(({ root }) => {
+    const skill = createSkill({
+      id: 9600,
+      name: 'Protection',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const state = createState(skill, 2);
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    assert.equal(root.querySelector('[data-role="turn-info-e-shield-strip"]'), null);
+  }));
+
+test('TurnRowController renders compact Eシールド strip with split colors and depleted badge', () =>
+  withDom(({ root }) => {
+    const skill = createSkill({
+      id: 9602,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 3);
+    const stateAfter = createState(skill, 3);
+    stateAfter.turnState.enemyState.eShieldStateByEnemy = {
+      0: createEShieldState({ current: 9, max: 10, elements: ['Fire'] }),
+      1: createEShieldState({ current: 7, max: 10, elements: ['Light', 'Dark'] }),
+      2: createEShieldState({ current: 0, max: 10, elements: ['Fire', 'Ice', 'Thunder'] }),
+    };
+
+    mountTurnRow({
+      root,
+      stateBefore,
+      stateAfter,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const strip = root.querySelector('[data-role="turn-info-e-shield-strip"]');
+    assert.ok(strip);
+    const badges = strip.querySelectorAll('[data-role="turn-info-e-shield-badge"]');
+    assert.equal(badges.length, 3);
+    assert.equal(
+      strip.querySelectorAll('[data-role="turn-info-e-shield-badge"][data-eshield-split-count="1"]').length,
+      1
+    );
+    assert.equal(
+      strip.querySelectorAll('[data-role="turn-info-e-shield-badge"][data-eshield-split-count="2"]').length,
+      1
+    );
+    assert.equal(
+      strip.querySelectorAll('[data-role="turn-info-e-shield-badge"][data-eshield-split-count="3"]').length,
+      1
+    );
+    assert.equal(
+      strip.querySelectorAll('[data-role="turn-info-e-shield-badge"][data-eshield-depleted="true"]').length,
+      1
+    );
+    assert.match(strip.textContent ?? '', /9/);
+    assert.match(strip.textContent ?? '', /7/);
+    assert.match(strip.textContent ?? '', /0/);
   }));
 
 test('EnemyDetailPopup defaults to wide for multiple occupied enemies and allows manual narrow selection', () =>
@@ -2327,6 +2407,12 @@ test('TurnRowController committed enemy detail popup uses stateBefore (same turn
     const stateAfter = createState(skill, 1);
     stateBefore.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
     stateAfter.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    stateBefore.turnState.enemyState.eShieldStateByEnemy = {
+      0: createEShieldState({ current: 10, max: 10, elements: ['Light', 'Dark'] }),
+    };
+    stateAfter.turnState.enemyState.eShieldStateByEnemy = {
+      0: createEShieldState({ current: 6, max: 10, elements: ['Light', 'Dark'] }),
+    };
     stateBefore.turnState.enemyState.statuses = [
       {
         statusType: 'AttackDown',
@@ -2390,6 +2476,8 @@ test('TurnRowController committed enemy detail popup uses stateBefore (same turn
     assert.ok(popup);
     assert.match(popup.textContent ?? '', /攻撃力ダウン/);
     assert.doesNotMatch(popup.textContent ?? '', /防御力ダウン/);
+    assert.match(popup.textContent ?? '', /6\/10/);
+    assert.doesNotMatch(popup.textContent ?? '', /10\/10/);
   }));
 
 test('TurnRowController enemy detail popup resolves missing sourceSkillDesc from store', () =>

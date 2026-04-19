@@ -53,6 +53,11 @@ import { buildFieldDisplayEntries } from '../utils/field-state-display.js';
 import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
 import { buildActionFlowFromRecord } from '../utils/action-flow-builder.js';
 import { sortTurnActionExecutionEntries } from '../../src/turn/action-execution-order.js';
+import {
+  buildEnemyEShieldBadgeHtml,
+  isDisplayableEnemyEShieldState,
+  normalizeEnemyEShieldDisplayState,
+} from '../utils/e-shield-display.js';
 
 // select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
 // 属性/武器種バッジと SP コストを段階的に隠す。
@@ -2734,6 +2739,64 @@ export class TurnRowController {
     `;
   }
 
+  #resolveDisplayedEnemyEShieldStateByEnemy() {
+    const maps = [
+      this.#stateAfter?.turnState?.enemyState?.eShieldStateByEnemy,
+      this.#stateBefore?.turnState?.enemyState?.eShieldStateByEnemy,
+    ];
+    const next = {};
+    for (const source of maps) {
+      if (!source || typeof source !== 'object') {
+        continue;
+      }
+      for (const [enemyKey, shieldState] of Object.entries(source)) {
+        if (Object.prototype.hasOwnProperty.call(next, enemyKey)) {
+          continue;
+        }
+        const normalized = normalizeEnemyEShieldDisplayState(shieldState);
+        if (normalized) {
+          next[String(enemyKey)] = normalized;
+        }
+      }
+    }
+    return next;
+  }
+
+  #buildEnemyEShieldStripHtml() {
+    const displayedStateByEnemy = this.#resolveDisplayedEnemyEShieldStateByEnemy();
+    const enemyCount = clampEnemyCount(
+      this.#stateAfter?.turnState?.enemyState?.enemyCount ??
+      this.#stateBefore?.turnState?.enemyState?.enemyCount ??
+      DEFAULT_ENEMY_COUNT
+    );
+    const itemHtml = Array.from({ length: enemyCount }, (_, enemyIndex) => {
+      const eShieldState = displayedStateByEnemy[String(enemyIndex)] ?? null;
+      if (!isDisplayableEnemyEShieldState(eShieldState)) {
+        return '';
+      }
+      return `
+        <div class="turn-info-e-shield-item" data-role="turn-info-e-shield-item" data-enemy-index="${enemyIndex}">
+          ${buildEnemyEShieldBadgeHtml(eShieldState, {
+            enemyIndex,
+            mode: 'row',
+            dataRole: 'turn-info-e-shield-badge',
+            showSlotMarker: true,
+          })}
+        </div>
+      `;
+    }).filter(Boolean);
+
+    if (itemHtml.length === 0) {
+      return '';
+    }
+
+    return `
+      <div class="turn-info-e-shield-strip" data-role="turn-info-e-shield-strip">
+        ${itemHtml.join('')}
+      </div>
+    `;
+  }
+
   #canOpenEnemyPopupSummonAction() {
     return this.#isDraftMode() && this.#getEnemySummonPresets().length > 0;
   }
@@ -2788,6 +2851,7 @@ export class TurnRowController {
   #buildEnemyDetailPopupPayload(isCommitted = false, activeEnemyIndex = 0) {
     const sourceState = this.#buildProjectedEnemyPopupState();
     const enemyState = sourceState?.turnState?.enemyState ?? {};
+    const displayedEShieldStateByEnemy = this.#resolveDisplayedEnemyEShieldStateByEnemy();
     const enemyNamesByEnemy = enemyState?.enemyNamesByEnemy && typeof enemyState.enemyNamesByEnemy === 'object'
       ? enemyState.enemyNamesByEnemy
       : {};
@@ -2836,7 +2900,7 @@ export class TurnRowController {
       const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
       const damageRates = enemyState.damageRatesByEnemy?.[enemyKey] ?? null;
       const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey] ?? null;
-      const eShieldState = enemyState.eShieldStateByEnemy?.[enemyKey] ?? null;
+      const eShieldState = displayedEShieldStateByEnemy[enemyKey] ?? enemyState.eShieldStateByEnemy?.[enemyKey] ?? null;
       const talismanState = enemyState.talismanState ?? null;
       const disasterState = enemyState.disasterState ?? null;
       return {
@@ -3587,6 +3651,7 @@ export class TurnRowController {
               ${errorBadgeHtml}
             </div>
             ${this.#buildEnemyToolsBoxHtml(false)}
+            ${this.#buildEnemyEShieldStripHtml()}
             ${this.#buildOdGaugeGraphHtml({
               beforeValue: turnState?.odGauge,
               afterValue: turnState?.odGauge,
@@ -3624,6 +3689,7 @@ export class TurnRowController {
             ${errorBadgeHtml}
           </div>
           ${this.#buildEnemyToolsBoxHtml(!isEditMode)}
+          ${this.#buildEnemyEShieldStripHtml()}
           ${this.#buildOdGaugeGraphHtml({
             beforeValue: odGaugeAtStart,
             afterValue: odGaugeAtEnd,

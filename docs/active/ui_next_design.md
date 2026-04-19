@@ -313,6 +313,9 @@
 - 戦闘中 summon は `Enemy Setup` ではなく turn row の `敵情報確認` trigger から投入する
 - row 上の `enemy tools box` は `敵情報確認` trigger だけを持ち、`召喚 / ブレイク / 討伐` の入口は `enemy-detail-popup-container` 内へ移す
 - `敵情報確認` trigger の `敵情報確認 / 敵情報 / 敵` 切替は pseudo-element `content` に依存せず、実 DOM text を container 幅で切り替える。PNG export と一部 browser/font 環境での二重描画を避けるため
+- turn row 左パネルでは `敵情報確認` trigger の直下、OD ゲージの直上に Eシールド strip を置き、`MAX_ENEMY_COUNT=3` 前提で 2列・最大2段の compact layout に固定する
+- row/popup の Eシールドは同一 renderer を使い、row では `盾 + 色分割 + 現在値`、popup では同じ badge に `current/max + 属性名` を添える
+- Eシールド badge は binary icon を増やさず、CSS の shield shape + 1色/2色/3色 gradient fill で表現する。`current=0` の depleted state は灰色 badge を残して BREAK 表示と併存させる
 - enemy detail popup は `E1 / E2 / E3` の 3 tab を常設し、wide では tab 直下を 3 等分カラム、narrow では選択中 enemy の 1 カラム表示へ切り替える
 - popup header 直下に `3表示 / 1表示` toggle を置き、manual layout は popup を閉じるまで保持する
 - 初期 layout は occupied enemy slot 数で決め、`occupied <= 1` は `1表示`、`occupied >= 2` は `3表示` を既定にする

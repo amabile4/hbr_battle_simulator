@@ -652,6 +652,7 @@ export class TurnEngineManager {
 
     return {
       stateBefore,
+      stateAfter: preview?.projectedState ?? null,
       slotActions: resolvedSlotActions,
       odGaugeAfter: preview?.odGaugeAfter ?? null,
       previewResourceState: preview?.previewResourceState ?? { spAfterByPartyIndex: {} },
@@ -1417,6 +1418,7 @@ export class TurnEngineManager {
         followUpOverrides,
       }),
       stateBefore,
+      stateAfter: preview?.projectedState ?? null,
       previewResourceState: preview?.previewResourceState ?? { spAfterByPartyIndex: {} },
       previewActionFlow: preview?.previewActionFlow ?? [],
       odState: {
@@ -1803,6 +1805,7 @@ export class TurnEngineManager {
         onWarning: (message) => warnings.push(String(message)),
       });
       let previewActionFlowRecord = previewRecord;
+      let projectedState = null;
       try {
         // previewTurnRecord だけでは action の状態変化イベントが不足するため、
         // クローン状態で commit 相当の計算を行い、表示用イベントを取得する。
@@ -1817,6 +1820,9 @@ export class TurnEngineManager {
         if (committedPreview?.record) {
           previewActionFlowRecord = committedPreview.record;
         }
+        if (committedPreview?.nextState) {
+          projectedState = committedPreview.nextState;
+        }
       } catch {
         // preview 表示に必要な action flow 生成が失敗した場合は、
         // 既存 previewRecord をフォールバックとして使用する。
@@ -1830,6 +1836,7 @@ export class TurnEngineManager {
       return {
         odGaugeAfter,
         activatableInterrupt,
+        projectedState,
         previewResourceState: this.#buildPreviewResourceState(previewRecord),
         previewActionFlow: this.#buildPreviewActionFlow(previewActionFlowRecord),
       };
