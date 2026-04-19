@@ -708,6 +708,67 @@ test('InitialSetupController enemy setup switches slot 1 via category selector a
     assert.equal(snapshot.enemy.selectedEnemyName, '変貌を重ねる不滅の円環');
   }));
 
+test('InitialSetupController template category keeps the Eシールド sample enemy ready for quick selection', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 13450045,
+          name: '希望を喰むもの',
+          categoryKey: 'template',
+          categoryLabel: 'テンプレート',
+          dimension: null,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+        {
+          id: 13450815,
+          name: '変貌を重ねる不滅の円環',
+          categoryKey: 'template',
+          categoryLabel: 'テンプレート',
+          dimension: null,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+          e_shield: {
+            count: 30,
+            max: 30,
+            elements: ['Fire', 'Ice'],
+            def_up_rate: 0,
+            dmg_limit: 0,
+          },
+        },
+      ],
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const categorySelect = root.querySelector('[data-action="select-enemy-category"]');
+    const presetSelect = root.querySelector('[data-action="select-enemy"]');
+
+    assert.equal(categorySelect.value, 'template');
+    assert.equal(
+      [...presetSelect.options].some((option) => option.value === '13450815' && option.textContent.includes('変貌を重ねる不滅の円環')),
+      true,
+    );
+
+    presetSelect.value = '13450815';
+    presetSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450815, null, null]);
+    assert.equal(snapshot.enemy.selectedEnemyName, '変貌を重ねる不滅の円環');
+  }));
+
 test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const recalculations = [];

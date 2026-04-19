@@ -6,6 +6,7 @@ import {
   ALWAYS_VISIBLE_ENEMY_PRESET_IDS,
   DEATH_SLUG_WHITE_SAMPLE_ENEMY,
   DEFAULT_SUMMON_SAMPLE_ENEMY,
+  E_SHIELD_SAMPLE_ENEMY,
   PINNED_INITIAL_SETUP_ENEMY,
 } from '../src/data/enemy-sample-presets.js';
 
@@ -128,6 +129,42 @@ test('buildEnemyList keeps the summon sample enemies pinned when they are presen
     result.find((enemy) => enemy.id === DEFAULT_SUMMON_SAMPLE_ENEMY.id)?.absorbElementList,
     ['fire'],
   );
+});
+
+test('buildEnemyList keeps the Eシールド sample enemy pinned in the template category', () => {
+  const enemies = [
+    makeEnemy({
+      id: PINNED_INITIAL_SETUP_ENEMY.id,
+      name: PINNED_INITIAL_SETUP_ENEMY.name,
+      label: PINNED_INITIAL_SETUP_ENEMY.label,
+      in_date: '2023-06-24',
+    }),
+    makeEnemy({
+      id: E_SHIELD_SAMPLE_ENEMY.id,
+      name: E_SHIELD_SAMPLE_ENEMY.name,
+      label: E_SHIELD_SAMPLE_ENEMY.label,
+      in_date: '2025-08-10',
+      eShield: {
+        esp: 30,
+        ele_list: ['Fire', 'Ice'],
+      },
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'));
+
+  assert.deepEqual(
+    result.slice(0, 2).map((enemy) => enemy.id),
+    [PINNED_INITIAL_SETUP_ENEMY.id, E_SHIELD_SAMPLE_ENEMY.id],
+  );
+  assert.equal(result[1].categoryKey, 'template');
+  assert.deepEqual(result[1].e_shield, {
+    count: 30,
+    max: 30,
+    elements: ['Fire', 'Ice'],
+    def_up_rate: 0,
+    dmg_limit: 0,
+  });
 });
 
 test('buildEnemyList maps extra_gauge Eシールド metadata into enemy preset entries', () => {

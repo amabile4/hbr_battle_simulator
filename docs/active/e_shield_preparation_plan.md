@@ -36,6 +36,7 @@
 - `esp=0` または `ele_list=[]` の raw 定義が `33` 件あり、初回実装では inactive 扱いに寄せる
 - `HealEShield` / `ReviveEShield` は live usage が `0` 件
 - `Dimension_09_X_KaleidoOuroboros (id:13450815 / 変貌を重ねる不滅の円環)` は `extra_gauge.hp` に `3` 本の HP ゲージを持ち、`esp:30` / `ele_list:["Fire","Ice"]` の Eシールドを持つため、Eシールド確認用の代表ケースとして扱いやすい
+- 同敵は `Enemy Setup` の `テンプレート` category にも常時表示し、カテゴリ切替なしで Eシールド確認へ入りやすくする
 - 同系列の summon 用 enemy として `Dimension_09_X_CatHornMeteor_Summon ([強化変種]ミーティアホーン)` / `Dimension_09_X_OctopusTailMeteor_Summon ([強化変種]ミーティアテイル)` が存在する
 - `ui-next/utils/enemy-list.js` は `ALWAYS_VISIBLE_ENEMY_PRESET_IDS` の `テンプレート`、通常 enemy 用のカテゴリ定義、`直近3ヶ月の boss` を 1 本の flat list に正規化し、Enemy Setup 側では `categoryKey/categoryLabel` を使って `カテゴリ -> 敵` の2段導線を描画する
 - 代表的な raw schema:
@@ -150,7 +151,7 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] turn row 左パネルと enemy detail popup に shared badge renderer で Eシールド現在値を表示する
 - [x] Enemy preset selector を、通常 enemy をカテゴリ定義から追加できる `カテゴリ -> 敵` の2段構えへ変更する
 - [x] `恒星掃戦線` カテゴリも他カテゴリと同じ流儀で追加し、同名 enemy が難易度違いで複数ある場合はもっとも高いランクの1件のみ表示する
-- [x] Eシールド回帰や動作確認では `Dimension_09_X_KaleidoOuroboros` を代表ケースとして扱い、専用 hardcode ではなく通常 selector 経由で到達できる状態にする
+- [x] Eシールド回帰や動作確認では `Dimension_09_X_KaleidoOuroboros` を代表ケースとして扱い、専用 hardcode ではなく通常 selector 経由に加え `テンプレート` からも素早く到達できる状態にする
 - [ ] Enemy Setup で Eシールドを手動編集できるようにする
 - [ ] session save/load と summon operation に対する回帰を固定する
 - [x] browser E2E を追加する
@@ -167,7 +168,7 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] `tests/ui-next-turn-ui.test.js`: row strip の有無、multi-color/depleted badge、popup の shared badge と resolved current/max を固定
 - [x] `tests/e2e/turn-row-preview-status-popup.spec.js`: turn row 左パネル内での strip 位置と popup の badge/value 一致を固定
 - [x] `tests/ui-next-initial-setup.test.js`: Enemy Setup の `カテゴリ -> 敵` selector と slot 切替時の snapshot 反映を固定
-- [x] `tests/e2e/enemy-setup-selector.spec.js`: `恒星掃戦線` カテゴリから `Dimension_09_X_KaleidoOuroboros` へ到達でき、同名 preset が 1 件に正規化されることを固定
+- [x] `tests/e2e/enemy-setup-selector.spec.js`: `テンプレート` category に `Dimension_09_X_KaleidoOuroboros` が常時表示され、デフォルトカテゴリのまま選択できることを固定
 
 ## 関連ファイル
 

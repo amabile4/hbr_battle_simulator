@@ -4,6 +4,12 @@ export const PINNED_INITIAL_SETUP_ENEMY = Object.freeze({
   name: '希望を喰むもの',
 });
 
+export const E_SHIELD_SAMPLE_ENEMY = Object.freeze({
+  id: 13450815,
+  label: 'Dimension_09_X_KaleidoOuroboros',
+  name: '変貌を重ねる不滅の円環',
+});
+
 export const DEATH_SLUG_WHITE_SAMPLE_ENEMY = Object.freeze({
   id: 13450251,
   label: 'Dimension_03_C_DeathSlugWhite',
@@ -32,5 +38,6 @@ export const DEFAULT_SUMMON_SAMPLE_ENEMY = DEATH_SLUG_WHITE_BIT_SAMPLE_ENEMY;
 
 export const ALWAYS_VISIBLE_ENEMY_PRESET_IDS = Object.freeze([
   PINNED_INITIAL_SETUP_ENEMY.id,
+  E_SHIELD_SAMPLE_ENEMY.id,
   ...SUMMON_SAMPLE_ENEMIES.map((enemy) => enemy.id),
 ]);
