@@ -750,8 +750,8 @@ test('pursuit OD is not affected by drive pierce bonus on front attacker', () =>
   assert.equal(pursuitWithPierce, 2.5, 'Pursuit OD contribution should be 2.5% regardless of drive pierce');
 });
 
-test('pursuit OD is not mixed into normal attack minimum 3-hit guarantee', () => {
-  // 通常攻撃のスキルを作成（hitCount=1 → 最低3hit保証で3hitになる）
+test('pursuit OD is not mixed into normal attack fixed 1-hit OD handling', () => {
+  // 通常攻撃の OD は raw hit_count に関わらず 1hit 相当 (=2.5%) を基準にする
   const normalAttack = createSkill({
     id: 8000,
     name: '通常攻撃',
@@ -790,11 +790,9 @@ test('pursuit OD is not mixed into normal attack minimum 3-hit guarantee', () =>
 
   const odWithout = recordWithout.projections?.odGaugeAtEnd ?? 0;
   const odWith = recordWith.projections?.odGaugeAtEnd ?? 0;
-  // 通常攻撃 3hit × 2.5% = 7.5%、追撃 1hit × 2.5% = 2.5%
-  // 合計 10% であり、追撃が3hit保証に混入して (3+1)hit × 2.5% = 10% にはならない
-  // （数値的には同じだが、追撃なし = 7.5%、差分 = 2.5% で確認）
-  assert.equal(odWithout, 7.5, 'Normal attack 3-hit minimum should give 7.5% OD');
-  assert.equal(odWith - odWithout, 2.5, 'Pursuit should add exactly 2.5% (1hit), not alter 3-hit guarantee');
+  // 通常攻撃 1hit 相当 × 2.5% = 2.5%、追撃 1hit × 2.5% = 2.5%
+  assert.equal(odWithout, 2.5, 'Normal attack should give fixed 2.5% OD');
+  assert.equal(odWith - odWithout, 2.5, 'Pursuit should add exactly 2.5% (1hit), not alter normal attack fixed OD');
 });
 
 test('pursuit OD is affected by enemy od_rate multiplier', () => {

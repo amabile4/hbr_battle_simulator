@@ -9,6 +9,7 @@
 
 - **ドライブピアスはロール非依存**: アタック/ブレイク/ブラスト/ドライブは装備効果として扱い、スタイルの `role` では分岐しない。
 - **OD小数処理**: ODゲージは **小数第2位まで保持**し、**第3位以下を切り捨て**る。
+- **通常攻撃のOD**: 通常攻撃は raw hit 数に関わらず **1hit相当 = 2.5% 基準** で計算する。
 - **全体攻撃（敵複数）時の加算順序**:
   - **alive enemy ごと・1hitごと** にOD増加量を計算
   - 各hitぶんを小数第2位で切り捨て
@@ -36,7 +37,8 @@
 
 | 記号 | 意味 |
 |------|------|
-| `h` | スキル本来のヒット数（通常攻撃は最低3hit保証後の値を使用） |
+| `h` | スキル本来のヒット数 |
+| `h_od` | OD計算に使うヒット数（通常攻撃は `1`、それ以外は `h`） |
 | `p` | ドライブピアス値（`10 / 12 / 15`） |
 | `N` | 敵数（`1..3`） |
 | `trunc2(x)` | 小数第2位まで保持（第3位以下切り捨て） |
@@ -44,16 +46,17 @@
 ### 計算式
 
 ```
-h_ref = clamp(h, 1, 10)                          // ピアス補正率参照用
+h_od = isNormalAttack ? 1 : h
+h_ref = clamp(h_od, 1, 10)                       // ピアス補正率参照用
 bonus(h, p) = 5 + ((p - 5) / 9) * (h_ref - 1)  // ピアス補正率(%)
 
 // 単体攻撃
 per_hit     = trunc2(2.5 * (1 + bonus/100))
-gain_single = trunc2(per_hit * h)
+gain_single = trunc2(per_hit * h_od)
 
 // 全体攻撃（敵N体）
 per_hit  = trunc2(2.5 * (1 + bonus/100))
-gain_all = trunc2(per_hit * (h * N))
+gain_all = trunc2(per_hit * (h_od * N))
 ```
 
 ### 例（サンダーパルス, h=2, p=15, N=3）
@@ -98,6 +101,7 @@ gain_all = trunc2(2.65 * 6) = 15.90
 - 旧データ互換として、`enemies.json > base_param.od_rate` などの legacy 値（例: `8500`）は `0.85` として解釈する。
 - `od_rate = 0` の legacy 値は **補正なし** とみなし、乗数 `1.0` に正規化する。
 - 攻撃由来OD（通常攻撃・攻撃スキル・追撃）は **1hitごと** に `od_rate` を掛け、`trunc2` してから合算する。
+- 通常攻撃の `h_od` は raw hit 数ではなく **常に 1** とするため、`od_rate` の補正対象も 1hit 分のみになる。
 - 単体攻撃は **target enemy slot** の `od_rate` を使用する。
 - 全体攻撃は **alive enemy slot ごと** に `od_rate` を解決し、enemy ごとの hit 合計を加算する。
 
@@ -107,7 +111,7 @@ effective_hit_gain = trunc2(per_hit × total_hits)
 ```
 
 - `OverDrivePointUp` 系は `od_rate` 非適用（そのまま加算）。
-- 例: `od_rate = 0.85` → 通常攻撃3hit は `trunc2(2.5 × 0.85)=2.12`、合計 `trunc2(2.12 × 3)=6.36`。
+- 例: `od_rate = 0.85` → 通常攻撃は `trunc2(2.5 × 0.85)=2.12`。
 - 旧値例: `od_rate = 8500` → 正規化後 `0.85`。
 
 ### ブレイク時トリガーOD（AdditionalHitOnBreaking + OverDrivePointUp, 共鳴含む）

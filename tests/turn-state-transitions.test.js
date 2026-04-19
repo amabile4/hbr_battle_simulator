@@ -6299,7 +6299,7 @@ test('HealSp AllySingleWithoutSelf respects selected targetCharacterId', () => {
   assert.equal(t5.sp.current, 16, 'selected backline ally should receive HealSp');
 });
 
-test('normal attack guarantees minimum 7.5% OD gain even when hit count is below 3', () => {
+test('normal attack gains fixed 2.5% OD even when its raw hit count is below 3', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `N${idx + 1}`,
@@ -6328,7 +6328,7 @@ test('normal attack guarantees minimum 7.5% OD gain even when hit count is below
   });
   const { nextState } = commitTurn(state, preview);
 
-  assert.equal(nextState.turnState.odGauge, 7.5);
+  assert.equal(nextState.turnState.odGauge, 2.5);
 });
 
 test('normal attack uses belt element in OD resistance check', () => {
@@ -6377,7 +6377,7 @@ test('normal attack uses belt element in OD resistance check', () => {
     0: { characterId: 'NAB1', skillId: 11600 },
   });
   committed = commitTurn(state, preview);
-  assert.equal(committed.nextState.turnState.odGauge, 7.5);
+  assert.equal(committed.nextState.turnState.odGauge, 2.5);
 });
 
 test('skill attack increases OD gauge by hit_count * 2.5%', () => {
@@ -18426,10 +18426,9 @@ test('enemy od_rate=0 means no correction: OD gain is unchanged', () => {
   assert.equal(nextState.turnState.odGauge, 10);
 });
 
-test('enemy od_rate applies truncation per hit for normal attacks', () => {
-  // 3-hit 通常攻撃:
+test('enemy od_rate applies truncation to fixed 1-hit OD for normal attacks', () => {
+  // 通常攻撃 OD は 1hit 相当で固定:
   // 1hit OD = trunc2(2.5 * 0.85) = 2.12
-  // 合計 = 2.12 * 3 = 6.36
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `ODH${idx + 1}`,
@@ -18442,8 +18441,8 @@ test('enemy od_rate applies truncation per hit for normal attacks', () => {
       skills: [
         {
           id: 15960 + idx,
-          name: idx === 0 ? '3hit Normal' : 'Protection',
-          label: idx === 0 ? 'ThreeHitNormal' : `ODHSkill${idx + 1}`,
+          name: idx === 0 ? '通常攻撃' : 'Protection',
+          label: idx === 0 ? 'ODHAttackNormal' : `ODHSkill${idx + 1}`,
           sp_cost: 0,
           hit_count: idx === 0 ? 3 : 0,
           target_type: 'Single',
@@ -18469,7 +18468,7 @@ test('enemy od_rate applies truncation per hit for normal attacks', () => {
   });
   const { nextState } = commitTurn(baseState, preview);
 
-  assert.equal(nextState.turnState.odGauge, 6.36);
+  assert.equal(nextState.turnState.odGauge, 2.12);
 });
 
 test('enemy od_rate scales hit-based OD only and leaves OverDrivePointUp unscaled', () => {
@@ -19421,6 +19420,62 @@ test('Eシールド matching hit consumes current and applies Break on the same 
       (status) => status.statusType === 'Break' && status.targetIndex === 0
     ),
     true
+  );
+});
+
+test('通常攻撃はEシールドに対して raw hit_count を使い、OD は 2.5% 固定のまま扱う', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_NORMAL_RAW',
+          characterName: 'ESH_NORMAL_RAW',
+          weaponType: 'Strike',
+          skills: [
+            {
+              id: 99105,
+              name: '通常攻撃',
+              label: 'ESHNormalAttack',
+              hit_count: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Strike', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99250 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_NORMAL_RAW', skillId: 99105, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_NORMAL_RAW');
+
+  assert.equal(action?.skillHitCount, 1);
+  assert.equal(nextState.turnState.odGauge, 2.5);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 1,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(action?.breakHitCount ?? 0, 0);
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    false
   );
 });
 

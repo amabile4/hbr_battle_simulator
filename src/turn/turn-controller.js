@@ -1118,6 +1118,42 @@ function resolveSkillHitCount(skill) {
   return Number.isFinite(hitsArrayCount) && hitsArrayCount > 0 ? hitsArrayCount : 0;
 }
 
+function resolveActionBaseHitCount(skill, options = {}) {
+  const rawHitCount = Math.max(0, Number(resolveSkillHitCount(skill) ?? 0));
+  if (!isNormalAttackSkill(skill)) {
+    return rawHitCount;
+  }
+  if (options.forOd === true) {
+    return rawHitCount > 0 ? 1 : 0;
+  }
+  return rawHitCount;
+}
+
+function resolveActionHitCount(skill, options = {}) {
+  const baseHitCount = resolveActionBaseHitCount(skill, options);
+  const funnelHitBonus = Math.max(0, Number(options?.funnelHitBonus ?? 0));
+  return Math.max(0, baseHitCount + funnelHitBonus);
+}
+
+function resolveActionEShieldHitCount(actionEntry, skill) {
+  const fallbackBaseHitCount = resolveActionBaseHitCount(skill);
+  const baseHitCount = Math.max(
+    0,
+    Number.isFinite(Number(actionEntry?.skillBaseHitCount))
+      ? Number(actionEntry.skillBaseHitCount)
+      : fallbackBaseHitCount
+  );
+  const funnelHitBonus = Math.max(0, Number(actionEntry?.skillFunnelHitBonus ?? 0));
+  if (isNormalAttackSkill(skill)) {
+    return Math.max(0, baseHitCount + funnelHitBonus);
+  }
+  const resolvedSkillHitCount = Number(actionEntry?.skillHitCount ?? 0);
+  if (Number.isFinite(resolvedSkillHitCount) && resolvedSkillHitCount > 0) {
+    return Math.max(0, resolvedSkillHitCount);
+  }
+  return Math.max(0, baseHitCount + funnelHitBonus);
+}
+
 function hasDamagePartInParts(parts) {
   for (const part of parts ?? []) {
     const skillType = String(part?.skill_type ?? '');
@@ -6509,8 +6545,10 @@ function computeOdGaugeGainPercentBySkill(
 
   const baseHitCount = resolveSkillHitCount(skill);
   const funnelHitBonus = Number(options?.funnelHitBonus ?? 0);
-  const hitCountPerEnemyBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
-  const hitCountPerEnemy = hitCountPerEnemyBase + Math.max(0, funnelHitBonus);
+  const hitCountPerEnemy = resolveActionHitCount(skill, {
+    forOd: true,
+    funnelHitBonus,
+  });
   const odEnemyAnalysis = hasDamage
     ? analyzeEnemiesEligibleForOdGain(state, member, skillWithTarget, numericEnemyCount)
     : null;
@@ -6618,10 +6656,10 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       0
     );
     const baseHitCount = resolveSkillHitCount(skill);
-    const effectiveHitCountPerEnemy = Math.max(
-      0,
-      (isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount) + funnelHitBonus
-    );
+    const effectiveHitCountPerEnemy = resolveActionHitCount(skill, {
+      forOd: true,
+      funnelHitBonus,
+    });
     const skillWithTarget =
       actionEntry && typeof actionEntry === 'object'
         ? {
@@ -6651,7 +6689,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
     );
     // 追撃ヒットの OD 寄与を前衛のスキル属性・バフ状態から完全に独立して計算する。
     // 追撃はバフ/デバフの効果を受けない無属性攻撃であり、ドライブピアス・Funnel・
-    // 全体攻撃の敵数倍・通常攻撃の最低3hit保証は適用しない。
+    // 全体攻撃の敵数倍・通常攻撃の固定OD 1hit相当は適用しない。
     const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
     const pursuedTargetEnemyIndex = Number.isFinite(Number(actionEntry?.pursuedTargetEnemyIndex))
       ? Number(actionEntry.pursuedTargetEnemyIndex)
@@ -7090,12 +7128,11 @@ function resolveEffectivePreviewHitCount(skill, state, member) {
     };
   }
 
-  const normalizedBase = isNormalAttackSkill(skill) ? Math.max(3, baseHitCount) : baseHitCount;
   const funnelHitBonus = resolveFunnelHitBonusForMember(member, 2);
   return {
     baseHitCount,
     funnelHitBonus,
-    effectiveHitCount: Math.max(0, normalizedBase + funnelHitBonus),
+    effectiveHitCount: resolveActionHitCount(skill, { funnelHitBonus }),
   };
 }
 
@@ -7789,7 +7826,7 @@ function applyEnemyEShieldEffectsFromActions(state, previewRecord) {
       actionEntry.autoBreakEnemyIndexes = [];
       continue;
     }
-    const skillHitCount = Math.max(0, Number(actionEntry?.skillHitCount ?? 0));
+    const skillHitCount = resolveActionEShieldHitCount(actionEntry, skill);
     if (skillHitCount <= 0) {
       actionEntry.autoBreakEnemyIndexes = [];
       continue;

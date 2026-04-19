@@ -12,6 +12,7 @@ Eシールドは、敵が DP の代わりに持つ特殊ゲージです。
 - `5章中編 Part2` から登場した敵ギミック
 - 対応した弱点属性攻撃の hit 数に応じてカウントが減る
 - `1 hit = 1 count` で減少し、`0` になると通常の BREAK 相当になる
+- 通常攻撃は OD 計算では `2.5%` 固定だが、Eシールド減算では各通常攻撃の raw hit 数を使う
 - Eシールドが残っている間も HP にはダメージが通る
 - ただし Eシールド展開中は破壊率が上がらない
 - `対HP+%` は有効だが、`対DP+%` の有効度は落ちる
@@ -25,8 +26,9 @@ Eシールドは、敵が DP の代わりに持つ特殊ゲージです。
   - shield count: `json/enemies.json.extra_gauge.esp`
   - related skill types: `ReviveEShield`, `HealEShield`, `IgnoreEShieldElement`
 - **現状の実装ステータス**:
-  - `IgnoreEShieldElement` は passive whitelist / event log 上は認識済み
-  - Eシールド本体の enemy state / damage 解決 / break 解決は未実装だったため、まず metadata plumbing を先行する
+  - `IgnoreEShieldElement` / Eシールド current 減算 / same-action BREAK は実装済み
+  - 通常攻撃は OD 計算と Eシールド減算で hit 数の扱いを分離し、OD は `2.5%` 固定、Eシールドは raw hit 数を使う
+  - `HealEShield` / `ReviveEShield` は後続実装
 
 ### シミュレーターでの解決 (Resolution) と評価
 
@@ -46,6 +48,7 @@ turnState.enemyState.eShieldStateByEnemy[targetEnemyIndex] = {
 
 1. Enemy preset / session snapshot / turnState / enemy popup で Eシールド metadata を保持する
 2. hit 解決時に、対応元素属性 hit か `IgnoreEShieldElement` を持つ攻撃だけ `current` を減らす
+   - 通常攻撃だけは `OD=2.5% 固定` と分離し、`raw hit_count + Funnel bonus` を Eシールド減算に使う
 3. `current > 0` の間は HP ダメージは通すが、破壊率上昇は止める
 4. `current === 0` で通常の BREAK / DownTurn 経路へ接続する
 5. `HealEShield` / `ReviveEShield` は `max` を上限とした回復・再展開として後続実装する

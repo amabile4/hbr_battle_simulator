@@ -85,8 +85,9 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 ### 3. Action-time 解決方針
 
 - damage part を持つ action のみを対象にする
-- target は既存の `getActionTargetEnemyIndexes()`、hit 数は既存の `skillHitCount`
-  を再利用する
+- target は既存の `getActionTargetEnemyIndexes()` を使う
+- hit 数は action preview の実 hit 数を使う。通常攻撃だけは `OD=2.5% 固定`
+  の経路と分離し、`raw hit_count + Funnel bonus` を Eシールド減算に使う
 - 属性一致は action 単位で判定し、「effective damage part のいずれかが active
   Eシールド要素に一致すれば、その action の hit 全数を減算」に固定する
 - `IgnoreEShieldElement` は style ID の特判を置かず、既存 passive resolver と同様に
@@ -94,7 +95,7 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 
 ### 4. BREAK 接続方針
 
-- `current = max(0, current - skillHitCount)` とする
+- `current = max(0, current - resolvedEShieldHitCount)` とする
 - `current === 0` 到達時は同一 action 内で BREAK を成立させる
 - `manualBreakEnemyIndexes` と `autoBreakEnemyIndexes` の union を same-action break source
   として扱い、既存の `SuperBreak` / `SuperBreakDown` / `BreakDownTurnUp` /
