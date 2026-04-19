@@ -13,6 +13,7 @@ Eシールドは、敵が DP の代わりに持つ特殊ゲージです。
 - 対応した弱点属性攻撃の hit 数に応じてカウントが減る
 - `1 hit = 1 count` で減少し、`0` になると通常の BREAK 相当になる
 - 通常攻撃は OD 計算では `2.5%` 固定だが、Eシールド減算では各通常攻撃の raw hit 数を使う
+- 属性ブレスレットで通常攻撃が火/氷/雷/光/闇属性になっている場合、その属性一致でも減算される
 - Eシールドが残っている間も HP にはダメージが通る
 - ただし Eシールド展開中は破壊率が上がらない
 - `対HP+%` は有効だが、`対DP+%` の有効度は落ちる
@@ -28,6 +29,7 @@ Eシールドは、敵が DP の代わりに持つ特殊ゲージです。
 - **現状の実装ステータス**:
   - `IgnoreEShieldElement` / Eシールド current 減算 / same-action BREAK / `HealEShield` / `ReviveEShield` は実装済み
   - 通常攻撃は OD 計算と Eシールド減算で hit 数の扱いを分離し、OD は `2.5%` 固定、Eシールドは raw hit 数を使う
+  - `Party Setup` の属性ブレスレット selector は `CharacterStyle.normalAttackElements` へ接続されており、通常攻撃の属性参照と Eシールド判定の両方に使われる
   - `Enemy Setup` の手動編集では `count/max/elements/def_up_rate/dmg_limit` を変更でき、session save/load にも保存される
 
 ### シミュレーターでの解決 (Resolution) と評価

@@ -34,6 +34,7 @@ const DEFAULT_STAGE_SETUP = Object.freeze({
   turnlySpFront: 0,
   turnlySpBack: 0,
 });
+const VALID_NORMAL_ATTACK_ELEMENTS = Object.freeze(new Set(['Fire', 'Ice', 'Thunder', 'Light', 'Dark']));
 const STAGE_SETUP_EFFECT_SCOPE_ALL = 'all';
 const STAGE_SETUP_EFFECT_SCOPE_FRONT = 'front';
 const STAGE_SETUP_EFFECT_SCOPE_BACK = 'back';
@@ -199,6 +200,18 @@ function normalizeEnemyCount(value) {
   return Math.min(MAX_ENEMY_COUNT, Math.max(MIN_ENEMY_COUNT, Math.trunc(numeric)));
 }
 
+function resolveNormalAttackElementsForPartyIndex(snapshot = {}, index) {
+  const raw =
+    snapshot?.normalAttackElementsByPartyIndex?.[index] ??
+    snapshot?.normalAttackElementsByPartyIndex?.[String(index)] ??
+    null;
+  if (!Array.isArray(raw) || raw.length !== 1) {
+    return null;
+  }
+  const element = String(raw[0] ?? '').trim();
+  return VALID_NORMAL_ATTACK_ELEMENTS.has(element) ? [element] : null;
+}
+
 function buildLegacyEnemySlot(enemySetup = {}) {
   return {
     selectedEnemyId: enemySetup?.selectedEnemyId ?? null,
@@ -360,6 +373,14 @@ export class BattleStateManager {
         Number(snapshot.startSpEquipByPartyIndex[srcIdx] ?? 0) + Number(stageSetup.initialSpBonusAll ?? 0),
       ])
     );
+    const normalAttackElementsByPartyIndex = Object.fromEntries(
+      filledIndices
+        .map((srcIdx, newIdx) => {
+          const elements = resolveNormalAttackElementsForPartyIndex(snapshot, srcIdx);
+          return elements ? [newIdx, elements] : null;
+        })
+        .filter(Boolean)
+    );
     const stageStatusEffectsByPartyIndex = buildStageStatusEffectsByPartyIndex(
       stageSetup,
       compactIndexBySourceIndex
@@ -391,7 +412,7 @@ export class BattleStateManager {
       supportStyleIdsByPartyIndex,
       supportLimitBreakLevelsByPartyIndex,
       skillSetsByPartyIndex,
-      normalAttackElementsByPartyIndex: {},
+      normalAttackElementsByPartyIndex,
       initialMotivationByPartyIndex: {},
       initialDpStateByPartyIndex: {},
       initialBreakByPartyIndex: {},

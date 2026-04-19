@@ -88,6 +88,23 @@ test('BattleStateManager wires enemy od_rate to odRateByEnemy for each enemy slo
   assert.equal(state.turnState.enemyState.odRateByEnemy['2'], 8500);
 });
 
+test('BattleStateManager forwards normalAttackElementsByPartyIndex into party members', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+  const partySnapshot = createPartySnapshot();
+  partySnapshot.normalAttackElementsByPartyIndex = {
+    0: ['Ice'],
+    2: ['Dark'],
+  };
+
+  const state = manager.buildFromSnapshot(partySnapshot, {
+    enemyCount: 1,
+  });
+
+  assert.deepEqual(state.party[0].normalAttackElements, ['Ice']);
+  assert.deepEqual(state.party[1].normalAttackElements, []);
+  assert.deepEqual(state.party[2].normalAttackElements, ['Dark']);
+});
+
 test('BattleStateManager sets odRateByEnemy to 0 when od_rate is 0 (no correction)', () => {
   const manager = new BattleStateManager({ store: getStore() });
 

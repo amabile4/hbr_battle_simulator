@@ -97,6 +97,9 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
     setup: {
       styleIds: [1001, 1002, 1003, null, null, null],
       supportStyleIds: [null, null, null, null, null, null],
+      normalAttackElementsByPartyIndex: {
+        0: ['Ice'],
+      },
     },
     enemy: {
       selectedEnemyId: 7001,
@@ -118,10 +121,29 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   assert.equal(parsed.validationPolicy.allowInsufficientSp, true);
   assert.equal(parsed.simulatorSettings.captureUntilBattleEnd, true);
   assert.deepEqual(parsed.setup.styleIds.slice(0, 3), [1001, 1002, 1003]);
+  assert.deepEqual(parsed.setup.normalAttackElementsByPartyIndex, { 0: ['Ice'] });
   assert.deepEqual(parsed.setup.skillSetsByPartyIndex, {});
   assert.equal(parsed.enemy.selectedEnemyId, 7001);
   assert.equal(parsed.enemy.od_rate, 1);
   assert.equal(parsed.enemy.resistances.element.fire, 150);
+});
+
+test('normalizeSessionSnapshot keeps only valid single-value normalAttackElementsByPartyIndex entries', () => {
+  const snapshot = normalizeSessionSnapshot({
+    setup: {
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      normalAttackElementsByPartyIndex: {
+        0: ['Light'],
+        1: ['Fire', 'Ice'],
+        2: ['Void'],
+      },
+    },
+  });
+
+  assert.deepEqual(snapshot.setup.normalAttackElementsByPartyIndex, {
+    0: ['Light'],
+  });
 });
 
 test('normalizeSessionSnapshot preserves manual Eシールド edits in enemy setup snapshots', () => {

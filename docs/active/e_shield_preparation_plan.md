@@ -16,6 +16,10 @@
 `turn-controller` 側の Eシールド減算・same-action BREAK・`IgnoreEShieldElement` /
 `HealEShield` / `ReviveEShield` をこの文書の正本とする。
 
+2026-04-19 の follow-up として、`Party Setup` の属性ブレスレット selector を
+`setup.normalAttackElementsByPartyIndex` 経由で runtime へ接続し、通常攻撃の属性参照と
+Eシールド減算が同じ `normalAttackElements` を使う状態まで反映した。
+
 ## 調査結果
 
 ### 外部仕様
@@ -90,6 +94,8 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - target は既存の `getActionTargetEnemyIndexes()` を使う
 - hit 数は action preview の実 hit 数を使う。通常攻撃だけは `OD=2.5% 固定`
   の経路と分離し、`raw hit_count + Funnel bonus` を Eシールド減算に使う
+- 通常攻撃の属性は `Party Setup` の属性ブレスレット selector を正本とし、
+  `normalAttackElementsByPartyIndex -> CharacterStyle.normalAttackElements` を経由して解決する
 - 属性一致は action 単位で判定し、「effective damage part のいずれかが active
   Eシールド要素に一致すれば、その action の hit 全数を減算」に固定する
 - `IgnoreEShieldElement` は style ID の特判を置かず、既存 passive resolver と同様に
@@ -156,6 +162,7 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] Enemy Setup で Eシールドを手動編集できるようにする
 - [x] session save/load と summon operation に対する回帰を固定する
 - [x] browser E2E を追加する
+- [x] `Party Setup` の属性ブレスレット selector を `normalAttackElementsByPartyIndex` に接続し、通常攻撃の属性参照と Eシールド減算を同じ runtime state へ流す
 
 ## 今回追加したテスト固定
 
@@ -172,6 +179,11 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] `tests/ui-next-initial-setup.test.js`: Enemy Setup の `カテゴリ -> 敵` selector、slot 切替、manual Eシールド編集の snapshot 反映を固定
 - [x] `tests/ui-next-session-snapshot.test.js`: manual Eシールド編集が session save/load 正規化を通って保持されることを固定
 - [x] `tests/e2e/enemy-setup-selector.spec.js`: `テンプレート` category に `Dimension_09_X_KaleidoOuroboros` が常時表示され、manual Eシールド editor に preset 値が prefill されることを固定
+- [x] `tests/ui-next-party-setup.test.js`: belt selector と `normalAttackElementsByPartyIndex` の export/import、無効値 fallback を固定
+- [x] `tests/ui-next-session-snapshot.test.js`: `setup.normalAttackElementsByPartyIndex` の normalize / serialize / round-trip を固定
+- [x] `tests/ui-next-battle-state-manager.test.js`: party snapshot の `normalAttackElementsByPartyIndex` が `CharacterStyle.normalAttackElements` へ渡ることを固定
+- [x] `tests/turn-state-transitions.test.js`: 通常攻撃 + 属性ブレスレットで Eシールドが減ること、非一致属性では減らないことを固定
+- [x] `tests/e2e/normal-attack-belt-e-shield.spec.js`: belt 選択後の通常攻撃で Eシールド値が減ることと、session save/load 後も belt と挙動が維持されることを固定
 
 ## 関連ファイル
 
@@ -181,5 +193,8 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [../../tests/ui-next-initial-setup.test.js](../../tests/ui-next-initial-setup.test.js)
 - [../../tests/e2e/enemy-setup-selector.spec.js](../../tests/e2e/enemy-setup-selector.spec.js)
 - [../../ui-next/engine/battle-state-manager.js](../../ui-next/engine/battle-state-manager.js)
+- [../../ui-next/utils/session-snapshot.js](../../ui-next/utils/session-snapshot.js)
+- [../../ui-next/components/party-setup.js](../../ui-next/components/party-setup.js)
 - [../../src/contracts/interfaces.js](../../src/contracts/interfaces.js)
 - [../../src/turn/turn-controller.js](../../src/turn/turn-controller.js)
+- [../../help/HEAVEN_BURNS_RED/バトル/属性ブレスレット.md](../../help/HEAVEN_BURNS_RED/バトル/属性ブレスレット.md)

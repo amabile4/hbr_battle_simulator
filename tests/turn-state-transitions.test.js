@@ -19430,6 +19430,7 @@ test('通常攻撃はEシールドに対して raw hit_count を使い、OD は 
           characterId: 'ESH_NORMAL_RAW',
           characterName: 'ESH_NORMAL_RAW',
           weaponType: 'Strike',
+          normalAttackElements: ['Fire'],
           skills: [
             {
               id: 99105,
@@ -19439,7 +19440,7 @@ test('通常攻撃はEシールドに対して raw hit_count を使い、OD は 
               sp_cost: 0,
               target_type: 'Single',
               parts: [
-                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Strike', elements: ['Fire'] },
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Strike' },
               ],
             },
           ],
@@ -19477,6 +19478,54 @@ test('通常攻撃はEシールドに対して raw hit_count を使い、OD は 
     ),
     false
   );
+});
+
+test('通常攻撃の属性ブレスレットが不一致属性なら Eシールドは減らない', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_NORMAL_MISS',
+          characterName: 'ESH_NORMAL_MISS',
+          weaponType: 'Strike',
+          normalAttackElements: ['Thunder'],
+          skills: [
+            {
+              id: 991055,
+              name: '通常攻撃',
+              label: 'ESHNormalAttackMiss',
+              hit_count: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Strike' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99255 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_NORMAL_MISS', skillId: 991055, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 2.5);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 2,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
 });
 
 test('HealEShield restores enemy Eシールド current up to max', () => {

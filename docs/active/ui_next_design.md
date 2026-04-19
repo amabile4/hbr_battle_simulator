@@ -90,6 +90,8 @@
 
 - listbox は icon と同じ幅に揃える
 - `SP装備` の初期既定値は `SP +3` とする
+- `属性ベルト` は実アクセサリ個体選択ではなく、属性ブレスレット種別の代表設定として扱う
+- `属性ベルト` の選択値は `setup.normalAttackElementsByPartyIndex` に保存し、通常攻撃の属性参照と Eシールド判定へ同じ runtime state を渡す
 - 未選択時は略称を placeholder として表示する
 - `main style icon` / `support style icon` は未選択でもクリック可能な明確な empty state を持つ
 - Party preset UI は `Party Setup` 本体ではなく header 配下の 2 段目 toolbar strip に置く
