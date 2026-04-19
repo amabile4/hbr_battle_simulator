@@ -62,6 +62,60 @@ test('normalizeLightweightReplayTurn preserves duplicate Makai Kihei operations'
   );
 });
 
+test('normalizeLightweightReplayTurn migrates legacy action input overrideEntries into explicit fields', () => {
+  const turn = normalizeLightweightReplayTurn({
+    turn: 1,
+    slots: [{ styleId: 1001, skillId: 2001 }],
+    overrideEntries: [
+      { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, payload: 3 },
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+        payload: [{ position: 0, outcome: 'Break', enemyIndexes: [0, 1] }],
+      },
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
+        payload: [{ position: 3, enemyIndex: 1 }],
+      },
+    ],
+  });
+
+  assert.deepEqual(turn.actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0, 1] },
+  ]);
+  assert.deepEqual(turn.followUpOverrides, [{ position: 3, enemyIndex: 1 }]);
+  assert.deepEqual(turn.overrideEntries, [
+    { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, payload: 3 },
+  ]);
+});
+
+test('normalizeLightweightReplayTurn prefers explicit action input fields over legacy overrideEntries', () => {
+  const turn = normalizeLightweightReplayTurn({
+    turn: 2,
+    slots: [{ styleId: 1001, skillId: 2001 }],
+    actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [1] }],
+    followUpOverrides: [{ position: 4, enemyIndex: 0 }],
+    overrideEntries: [
+      { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, payload: 3 },
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+        payload: [{ position: 0, outcome: 'Break', enemyIndexes: [0] }],
+      },
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
+        payload: [{ position: 3, enemyIndex: 2 }],
+      },
+    ],
+  });
+
+  assert.deepEqual(turn.actionOutcomeOverrides, [
+    { position: 0, outcome: 'Kill', enemyIndexes: [1] },
+  ]);
+  assert.deepEqual(turn.followUpOverrides, [{ position: 4, enemyIndex: 0 }]);
+  assert.deepEqual(turn.overrideEntries, [
+    { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT, payload: 3 },
+  ]);
+});
+
 test('override registry applies known scenario fields and warns only for unknown types', () => {
   assert.equal(replayOverrideEntryRegistry.has(REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ACTION), true);
 

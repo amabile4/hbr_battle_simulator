@@ -1,6 +1,6 @@
 # Replay Entry 分離 WBS
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-12 | 🔄 最終更新: 2026-04-19
+> **ステータス**: ✅ 完了 | 📅 作成: 2026-04-12 | 🔄 最終更新: 2026-04-19
 >
 > **親設計**: [lightweight_record_replay_design.md](lightweight_record_replay_design.md)
 >
@@ -111,47 +111,36 @@
 - action 入力は `overrideEntries` から切り離し、将来的には `ReplayTurn` の独立フィールドとして扱う
 - snapshot/manual state は action 入力と別フェーズで整理する
 
-### 目標とする責務分離
+### 実装後の責務分離
 
 ```text
 ReplayTurn = {
   turn,
   slots[6],
   operations?,        // control 操作
-  actionInputs?,      // manual break / kill / follow-up など action 入力
+  actionOutcomeOverrides?,
+  followUpOverrides?,
   overrideEntries?,   // manual state / turn-start snapshot（移行完了まで暫定維持）
   note?
 }
 ```
 
-`actionInputs` は仮称であり、最終名称は実装前に確定する。
-
 ### 段階方針
 
-#### 第1段階
+#### 実装結果
 
-- `ActionOutcomeOverrides` / `FollowUpOverrides` を「replay の入力」として明文化する
-- 棚卸しと移行方針を docs に固定する
-- 既存 `overrideEntries` 依存を前提とした実装箇所を洗い出す
-
-#### 第2段階
-
-- `ActionOutcomeOverrides` / `FollowUpOverrides` を独立フィールドへ分離する
-- load/save/normalize/turn edit/recalculate/commit の全経路を新フィールド優先へ寄せる
-- 旧 `overrideEntries` 読み込みは migration / fallback としてのみ残す
-
-#### 第3段階
-
-- `EnemyCount` など topology/state snapshot 群を別方針で整理する
-- `overrideEntries` を「snapshot/state 専用の箱」として残すか、さらに別フィールドへ分離するかを判断する
+- `ActionOutcomeOverrides` / `FollowUpOverrides` は `ReplayTurn.actionOutcomeOverrides` / `ReplayTurn.followUpOverrides` へ分離済み
+- load/save/normalize/turn edit/recalculate/commit は新フィールド正本へ移行済み
+- 旧 session の `overrideEntries.ActionOutcomeOverrides` / `overrideEntries.FollowUpOverrides` は load 時に migration し、正規化後の `overrideEntries` から除去する
+- `overrideEntries` は `EnemyCount` など snapshot/state entry 専用へ縮小した
 
 ## 詳細 WBS
 
 ### WBS-1: 契約の可視化
 
-- [ ] `operations` / action 入力 / snapshot の3分類を docs で確定する
-- [ ] `ActionOutcomeOverrides` / `FollowUpOverrides` が result-affecting input であることを docs に明記する
-- [ ] `overrideEntries` の type 一覧と性質を表形式で固定する
+- [x] `operations` / action 入力 / snapshot の3分類を docs で確定する
+- [x] `ActionOutcomeOverrides` / `FollowUpOverrides` が result-affecting input であることを docs に明記する
+- [x] `overrideEntries` の type 一覧と性質を表形式で固定する
 
 完了条件:
 
@@ -159,10 +148,10 @@ ReplayTurn = {
 
 ### WBS-2: action 入力分離の設計
 
-- [ ] `ReplayTurn.actionInputs` の候補 shape を定義する
-- [ ] `ActionOutcomeOverrides` と `FollowUpOverrides` の格納方式を決める
-- [ ] `operations` に移さない理由を設計上明文化する
-- [ ] 既存 session JSON との load 互換方針を定める
+- [x] `ReplayTurn.actionOutcomeOverrides` / `ReplayTurn.followUpOverrides` の shape を定義する
+- [x] `ActionOutcomeOverrides` と `FollowUpOverrides` の格納方式を explicit 2 フィールドへ固定する
+- [x] `operations` に移さない理由を設計上明文化する
+- [x] 既存 session JSON との load 互換方針を定める
 
 完了条件:
 
@@ -170,10 +159,10 @@ ReplayTurn = {
 
 ### WBS-3: 読み書き経路の洗い出し
 
-- [ ] save: `#buildReplayTurn()` / `#buildReplayTurnFromDraft()` の保存経路を洗い出す
-- [ ] load: `normalizeLightweightReplayTurn()` / `loadReplayScript()` の正規化経路を洗い出す
-- [ ] edit: turn edit draft の入出力経路を洗い出す
-- [ ] consume: `#buildActionsDict()` が action 入力を参照する箇所を一覧化する
+- [x] save: `#buildReplayTurn()` / `#buildReplayTurnFromDraft()` の保存経路を洗い出す
+- [x] load: `normalizeLightweightReplayTurn()` / `loadReplayScript()` の正規化経路を洗い出す
+- [x] edit: turn edit draft の入出力経路を洗い出す
+- [x] consume: `#buildActionsDict()` が action 入力を参照する箇所を一覧化する
 
 完了条件:
 
@@ -181,10 +170,10 @@ ReplayTurn = {
 
 ### WBS-4: action 入力分離の実装
 
-- [ ] `ReplayTurn` に action 入力フィールドを追加する
-- [ ] commit / replay / recalculate / edit を新フィールド優先へ切り替える
-- [ ] save は新フィールドへ書き、旧 `overrideEntries` への二重書き要否を判断する
-- [ ] load は旧 session の `overrideEntries` から新フィールドへ best-effort migration する
+- [x] `ReplayTurn` に action 入力フィールドを追加する
+- [x] commit / replay / recalculate / edit を新フィールド優先へ切り替える
+- [x] save は新フィールドへ書き、`overrideEntries` への二重書きをやめる
+- [x] load は旧 session の `overrideEntries` から新フィールドへ best-effort migration する
 
 完了条件:
 
@@ -192,10 +181,10 @@ ReplayTurn = {
 
 ### WBS-5: 検証
 
-- [ ] manual break の session save/load 互換を固定する
-- [ ] follow-up の session save/load 互換を固定する
-- [ ] EX 単独 turn / summon 併用 / enemyCount 変動を含む回帰を追加する
-- [ ] `overrideEntries` から action 入力を削った fixture でも同一挙動になることを固定する
+- [x] manual break の session save/load 互換を固定する
+- [x] follow-up の session save/load 互換を固定する
+- [x] EX 単独 turn / summon 併用 / enemyCount 変動を含む回帰を追加する
+- [x] `overrideEntries` から action 入力を削った fixture でも同一挙動になることを固定する
 
 完了条件:
 
@@ -203,6 +192,7 @@ ReplayTurn = {
 
 ### WBS-6: snapshot 群の後続整理
 
+- [x] `overrideEntries` から action input 依存を 0 にする
 - [ ] `EnemyCount` ほか snapshot/state 群を `manual state` と `turn-start snapshot` に再分類する
 - [ ] `overrideEntries` を今後も state 専用箱として残すか、`stateEntries` / `snapshotEntries` に分けるか判断する
 - [ ] `EnemyStatuses` など UI 表示 fallback との境界を整理する
@@ -218,12 +208,18 @@ ReplayTurn = {
 - `overrideEntries` の現行 type が責務別に棚卸しされている
 - action 入力を `overrideEntries` から分離する段階実装の順序と完了条件が WBS で確認できる
 
+## 実装結果メモ
+
+- canonical save shape は `ReplayTurn.actionOutcomeOverrides` / `ReplayTurn.followUpOverrides`
+- `normalizeLightweightReplayTurn()` は new fields を優先し、legacy `overrideEntries` は migration 用 reader としてのみ扱う
+- `TurnEngineManager` と committed row UI は explicit fields を正本とし、再計算時に legacy action input entry を再生成しない
+- `tests/lightweight-replay-script.test.js` / `tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` / `tests/ui-next-follow-up-integration.test.js` / `tests/ui-next-session-snapshot.test.js` / `tests/e2e/session-save.spec.js` で新旧互換を固定した
+
 ## 非スコープ
 
 - `ReplaySetup.setupEntries` の拡張
   - 例: `NormalAttackElementsByPartyIndex`
   - これらは turn entry ではなく setup-layer の typed entry であり、本 WBS では action 入力分離の対象外とする
 
-- 本ドキュメント作成時点では実装変更を行わない
 - `EnemyStatuses` や `EnemyCount` の最終配置をこの文書だけで確定しない
 - 旧 `dom_adapter` 側の保存形式は対象外とする

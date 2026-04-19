@@ -393,7 +393,7 @@
   - `characters.json.name` の 3 セグメント目にある日本語愛称を候補に含める
   - `姓 名` の場合は名を候補に含める
   - 同一長の場合は `名 → 愛称 → フルネーム` の順で採る
-- 保存値は `ReplayTurn.overrideEntries.ActionOutcomeOverrides` とし、payload は `{ position, outcome: 'Break', enemyIndexes }[]` に固定する
+- 保存値は `ReplayTurn.actionOutcomeOverrides` とし、payload は `{ position, outcome: 'Break', enemyIndexes }[]` に固定する
 - 単体攻撃では payload を boolean 相当として扱い、非空なら current target 1 件へ正規化する
 - committed 行では `ブレイク` editor を再表示せず、保存済み chip のみを見せる
 - `DownTurn` は保存しない

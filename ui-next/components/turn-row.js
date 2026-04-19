@@ -29,7 +29,7 @@ import { openCharDetailPopup } from '../utils/char-detail-popup.js';
 import { openEnemyDetailPopup } from './enemy-detail-popup.js';
 import {
   ACTION_OUTCOME_TYPES,
-  getActionOutcomeOverridesFromOverrideEntries,
+  getActionOutcomeOverridesFromReplayTurn,
   getBreakEnemyIndexesForPosition,
   getKillEnemyIndexesForPosition,
   normalizeActionOutcomeOverrides,
@@ -41,7 +41,7 @@ import {
 } from '../utils/manual-break-presentation.js';
 import { buildFollowUpChipModels } from '../utils/follow-up-presentation.js';
 import {
-  getFollowUpOverridesFromOverrideEntries,
+  getFollowUpOverridesFromReplayTurn,
   normalizeFollowUpOverrides,
 } from '../utils/follow-up-overrides.js';
 import {
@@ -2016,17 +2016,11 @@ export class TurnRowController {
   }
 
   #getReplayTurnActionOutcomeOverrides(enemyCount = this.#getCurrentReplayTurnEnemyCount()) {
-    return getActionOutcomeOverridesFromOverrideEntries(
-      this.#replayTurn?.overrideEntries ?? [],
-      enemyCount
-    );
+    return getActionOutcomeOverridesFromReplayTurn(this.#replayTurn, enemyCount);
   }
 
   #getReplayTurnFollowUpOverrides(enemyCount = this.#getCurrentReplayTurnEnemyCount()) {
-    return getFollowUpOverridesFromOverrideEntries(
-      this.#replayTurn?.overrideEntries ?? [],
-      enemyCount
-    );
+    return getFollowUpOverridesFromReplayTurn(this.#replayTurn, enemyCount);
   }
 
   #getEnemyNamesByEnemy() {
@@ -2079,8 +2073,8 @@ export class TurnRowController {
 
   #buildKillChipsHtml(isCommitted) {
     const currentOverrides = isCommitted
-      ? getActionOutcomeOverridesFromOverrideEntries(
-          this.#replayTurn?.overrideEntries ?? [],
+      ? getActionOutcomeOverridesFromReplayTurn(
+          this.#replayTurn,
           this.#getCurrentReplayTurnEnemyCount()
         )
       : this.getCurrentActionOutcomeOverrides();
@@ -2655,10 +2649,7 @@ export class TurnRowController {
       : this.getCurrentEnemyCount();
     const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
     const currentActionOutcomeOverrides = isCommitted
-      ? getActionOutcomeOverridesFromOverrideEntries(
-          this.#replayTurn?.overrideEntries ?? [],
-          enemyCount
-        )
+      ? getActionOutcomeOverridesFromReplayTurn(this.#replayTurn, enemyCount)
       : this.getCurrentActionOutcomeOverrides();
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     return `

@@ -2271,18 +2271,12 @@ test('TurnAreaController preserves summoned slot identity for break and follow-u
         .some((label) => label.includes('E2') && label.includes(DEFAULT_SUMMON_SAMPLE_ENEMY.name)),
       true
     );
-    assert.deepEqual(
-      engineManager.getReplayTurn(0)?.overrideEntries.find(
-        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-      )?.payload,
-      [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
-    );
-    assert.deepEqual(
-      engineManager.getReplayTurn(0)?.overrideEntries.find(
-        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
-      )?.payload,
-      [{ position: 3, enemyIndex: 1 }]
-    );
+    assert.deepEqual(engineManager.getReplayTurn(0)?.actionOutcomeOverrides, [
+      { position: 0, outcome: 'Break', enemyIndexes: [1] },
+    ]);
+    assert.deepEqual(engineManager.getReplayTurn(0)?.followUpOverrides, [
+      { position: 3, enemyIndex: 1 },
+    ]);
   }));
 
 test('TurnAreaController shows Break badge and disables popup break action for already-broken enemies', () =>
@@ -4849,12 +4843,9 @@ test('TurnAreaController commits manual break attribution and hides committed-ro
       ),
       ['UI1→E3 ブレイク']
     );
-    assert.deepEqual(
-      engineManager.getReplayTurn(0)?.overrideEntries.find(
-        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-      )?.payload,
-      [{ position: 0, outcome: 'Break', enemyIndexes: [2] }]
-    );
+    assert.deepEqual(engineManager.getReplayTurn(0)?.actionOutcomeOverrides, [
+      { position: 0, outcome: 'Break', enemyIndexes: [2] },
+    ]);
   }));
 
 test('TurnAreaController supports simple-mode local target overrides for three single-target attackers in one turn', () =>
@@ -4919,15 +4910,10 @@ test('TurnAreaController supports simple-mode local target overrides for three s
     assert.equal(thirdAction?.targetEnemyIndex, 2);
     assert.equal(thirdAction?.breakHitCount, 0);
     assert.deepEqual(thirdAction?.manualBreakEnemyIndexes ?? [], []);
-    assert.deepEqual(
-      engineManager.getReplayTurn(0)?.overrideEntries.find(
-        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-      )?.payload,
-      [
-        { position: 0, outcome: 'Break', enemyIndexes: [0] },
-        { position: 1, outcome: 'Break', enemyIndexes: [1] },
-      ]
-    );
+    assert.deepEqual(engineManager.getReplayTurn(0)?.actionOutcomeOverrides, [
+      { position: 0, outcome: 'Break', enemyIndexes: [0] },
+      { position: 1, outcome: 'Break', enemyIndexes: [1] },
+    ]);
   }));
 
 test('TurnAreaController disables later duplicate manual break targets after an earlier actor claims them', () =>
@@ -4979,13 +4965,8 @@ test('TurnAreaController disables later duplicate manual break targets after an 
     assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
     assert.deepEqual(secondAction?.manualBreakEnemyIndexes, [1]);
     assert.deepEqual(thirdAction?.manualBreakEnemyIndexes ?? [], []);
-    assert.deepEqual(
-      engineManager.getReplayTurn(0)?.overrideEntries.find(
-        (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-      )?.payload,
-      [
-        { position: 0, outcome: 'Break', enemyIndexes: [0] },
-        { position: 1, outcome: 'Break', enemyIndexes: [1] },
-      ]
-    );
+    assert.deepEqual(engineManager.getReplayTurn(0)?.actionOutcomeOverrides, [
+      { position: 0, outcome: 'Break', enemyIndexes: [0] },
+      { position: 1, outcome: 'Break', enemyIndexes: [1] },
+    ]);
   }));

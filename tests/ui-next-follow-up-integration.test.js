@@ -190,7 +190,7 @@ test('follow-up override NOT set means pursuedHitCount stays 0', () => {
   assert.ok(!spPassive, 'sp_passive should NOT fire when pursuedHitCount is 0');
 });
 
-test('follow-up overrides are persisted in replay overrideEntries', () => {
+test('follow-up overrides are persisted in canonical replay turn fields', () => {
   const actorSkill = createSkill({
     id: 9303,
     name: 'Replay Persist Test',
@@ -219,18 +219,18 @@ test('follow-up overrides are persisted in replay overrideEntries', () => {
     }
   );
 
-  // Verify overrideEntries in replay script
   const replayTurn = manager.replayScript.turns[0];
   assert.ok(replayTurn, 'Replay turn should exist');
-
-  const followUpEntry = replayTurn.overrideEntries.find(
-    (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+  assert.deepEqual(replayTurn.followUpOverrides, [
+    { position: 3, enemyIndex: 0 },
+    { position: 4, enemyIndex: 1 },
+  ]);
+  assert.equal(
+    replayTurn.overrideEntries.some(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+    ),
+    false
   );
-  assert.ok(followUpEntry, 'Follow-up override entry should be stored in replay');
-  assert.ok(Array.isArray(followUpEntry.payload));
-  assert.equal(followUpEntry.payload.length, 2);
-  assert.deepEqual(followUpEntry.payload[0], { position: 3, enemyIndex: 0 });
-  assert.deepEqual(followUpEntry.payload[1], { position: 4, enemyIndex: 1 });
 });
 
 test('follow-up overrides survive recalculateFrom', () => {
@@ -402,10 +402,9 @@ test('extra turn follow-up from non-EX backliner attaches to the sole EX action 
   assert.equal(actorEntry.pursuedTargetEnemyIndex, 0);
   assert.equal(record.projections?.odGaugeAtEnd, 12.5, '1hit skill + 4hit pursuit should total 12.5% OD');
 
-  const followUpEntry = manager.replayScript.turns[0]?.overrideEntries?.find(
-    (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
-  );
-  assert.deepEqual(followUpEntry?.payload, [{ position: 4, enemyIndex: 0 }]);
+  assert.deepEqual(manager.replayScript.turns[0]?.followUpOverrides, [
+    { position: 4, enemyIndex: 0 },
+  ]);
 
   manager.recalculateFrom(0);
 

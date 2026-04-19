@@ -31,21 +31,21 @@ import {
   syncReplaySetupNormalAttackElements,
 } from '../../src/ui/lightweight-replay-script.js';
 import {
+  getActionOutcomeOverridesFromReplayTurn,
+  getFollowUpOverridesFromReplayTurn,
+} from '../../src/domain/replay-turn-overrides.js';
+import {
   normalizeTurnReplayTarget,
   resolveTurnBreakAttributionMode,
   TURN_BREAK_ATTRIBUTION_MODES,
 } from '../utils/turn-targeting.js';
 import {
   ACTION_OUTCOME_TYPES,
-  buildActionOutcomeOverrideEntry,
-  getActionOutcomeOverridesFromOverrideEntries,
   getBreakEnemyIndexesForPosition,
   getKillEnemyIndexesForPosition,
   normalizeActionOutcomeOverrides,
 } from '../utils/action-outcome-overrides.js';
 import {
-  buildFollowUpOverrideEntry,
-  getFollowUpOverridesFromOverrideEntries,
   normalizeFollowUpOverrides,
 } from '../utils/follow-up-overrides.js';
 import { normalizeValidationPolicy } from '../utils/validation-policy.js';
@@ -498,16 +498,8 @@ export class TurnEngineManager {
         enemyCount,
         state
       );
-      this.#replaceReplayOverrideEntry(
-        turn,
-        REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
-        actionOutcomeOverrides.length > 0 ? actionOutcomeOverrides : null
-      );
-      this.#replaceReplayOverrideEntry(
-        turn,
-        REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
-        followUpOverrides.length > 0 ? followUpOverrides : null
-      );
+      this.#replaceReplayTurnActionOutcomeOverrides(turn, actionOutcomeOverrides, enemyCount);
+      this.#replaceReplayTurnFollowUpOverrides(turn, followUpOverrides, enemyCount);
       try {
         state = applyBeforeCommitOperations(
           state,
@@ -880,21 +872,13 @@ export class TurnEngineManager {
       this.#resolveReplayTurnActionOutcomeOverrides(turn, normalizedEnemyCount),
       normalizedEnemyCount
     );
-    this.#replaceReplayOverrideEntry(
-      turn,
-      REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
-      actionOutcomeOverrides.length > 0 ? actionOutcomeOverrides : null
-    );
+    this.#replaceReplayTurnActionOutcomeOverrides(turn, actionOutcomeOverrides, normalizedEnemyCount);
     const followUpOverrides = this.#normalizeFollowUpOverridesForState(
       stateBefore,
       this.#resolveReplayTurnFollowUpOverrides(turn, normalizedEnemyCount),
       normalizedEnemyCount
     );
-    this.#replaceReplayOverrideEntry(
-      turn,
-      REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
-      followUpOverrides.length > 0 ? followUpOverrides : null
-    );
+    this.#replaceReplayTurnFollowUpOverrides(turn, followUpOverrides, normalizedEnemyCount);
     this.recalculateFrom(turnIndex);
   }
 
@@ -910,11 +894,7 @@ export class TurnEngineManager {
       actionOutcomeOverrides,
       enemyCount
     );
-    this.#replaceReplayOverrideEntry(
-      turn,
-      REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
-      normalized.length > 0 ? normalized : null
-    );
+    this.#replaceReplayTurnActionOutcomeOverrides(turn, normalized, enemyCount);
     this.recalculateFrom(turnIndex);
   }
 
@@ -928,11 +908,7 @@ export class TurnEngineManager {
       followUpOverrides,
       enemyCount
     );
-    this.#replaceReplayOverrideEntry(
-      turn,
-      REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
-      normalized.length > 0 ? normalized : null
-    );
+    this.#replaceReplayTurnFollowUpOverrides(turn, normalized, enemyCount);
     this.recalculateFrom(turnIndex);
   }
 
@@ -1253,16 +1229,12 @@ export class TurnEngineManager {
   #mergeReplayTurnOverrideEntries(
     baseOverrideEntries = [],
     enemyCount,
-    actionOutcomeOverrides = [],
-    followUpOverrides = [],
     enemyOverrideEntries = []
   ) {
     const preservedEntries = this.#filterReplayOverrideEntries(
       baseOverrideEntries,
       new Set([
         REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT,
-        REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
-        REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
         ...ENEMY_SNAPSHOT_OVERRIDE_TYPES,
       ])
     );
@@ -1274,20 +1246,6 @@ export class TurnEngineManager {
       ...(Array.isArray(enemyOverrideEntries) ? enemyOverrideEntries.map((entry) => structuredClone(entry)) : []),
       ...preservedEntries,
     ];
-    const actionOutcomeOverrideEntry = buildActionOutcomeOverrideEntry(
-      actionOutcomeOverrides,
-      clampEnemyCount(enemyCount)
-    );
-    if (actionOutcomeOverrideEntry) {
-      nextOverrideEntries.push(actionOutcomeOverrideEntry);
-    }
-    const followUpOverrideEntry = buildFollowUpOverrideEntry(
-      followUpOverrides,
-      clampEnemyCount(enemyCount)
-    );
-    if (followUpOverrideEntry) {
-      nextOverrideEntries.push(followUpOverrideEntry);
-    }
     return nextOverrideEntries;
   }
 
@@ -1299,11 +1257,11 @@ export class TurnEngineManager {
       slots: draft.slots,
       operations: draft.operations,
       note: draft.note,
+      actionOutcomeOverrides: draft.actionOutcomeOverrides,
+      followUpOverrides: draft.followUpOverrides,
       overrideEntries: this.#mergeReplayTurnOverrideEntries(
         draft.overrideEntries,
         effectiveEnemyCount,
-        draft.actionOutcomeOverrides,
-        draft.followUpOverrides,
         enemyOverrideEntries
       ),
     });
@@ -1353,7 +1311,7 @@ export class TurnEngineManager {
     const followUpOverrides = this.#normalizeFollowUpOverridesForState(
       stateBefore,
       draft?.followUpOverrides ??
-        getFollowUpOverridesFromOverrideEntries((sourceTurn ?? normalizedTurn)?.overrideEntries ?? [], enemyCount),
+        this.#resolveReplayTurnFollowUpOverrides(sourceTurn ?? normalizedTurn, enemyCount, stateBefore),
       enemyCount
     );
     return {
@@ -1584,16 +1542,8 @@ export class TurnEngineManager {
         effectiveEnemyCount,
         state
       );
-      this.#replaceReplayOverrideEntry(
-        turn,
-        REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
-        actionOutcomeOverrides.length > 0 ? actionOutcomeOverrides : null
-      );
-      this.#replaceReplayOverrideEntry(
-        turn,
-        REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
-        followUpOverrides.length > 0 ? followUpOverrides : null
-      );
+      this.#replaceReplayTurnActionOutcomeOverrides(turn, actionOutcomeOverrides, effectiveEnemyCount);
+      this.#replaceReplayTurnFollowUpOverrides(turn, followUpOverrides, effectiveEnemyCount);
 
       const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides, followUpOverrides);
       const previewRecord = previewTurnRecord(state, actions, null, effectiveEnemyCount, {
@@ -2160,11 +2110,11 @@ export class TurnEngineManager {
       slots,
       note,
       operations,
+      actionOutcomeOverrides: normalizedActionOutcomeOverrides,
+      followUpOverrides,
       overrideEntries: this.#mergeReplayTurnOverrideEntries(
         [],
         normalizedEnemyCount,
-        normalizedActionOutcomeOverrides,
-        followUpOverrides,
         enemyOverrideEntries
       ),
     });
@@ -2198,10 +2148,7 @@ export class TurnEngineManager {
   }
 
   #resolveReplayTurnActionOutcomeOverrides(replayTurn, enemyCount, state = null, slotActions = null, options = {}) {
-    const normalized = getActionOutcomeOverridesFromOverrideEntries(
-      replayTurn?.overrideEntries ?? [],
-      enemyCount
-    );
+    const normalized = getActionOutcomeOverridesFromReplayTurn(replayTurn, enemyCount);
     if (!state || !slotActions) {
       return normalized;
     }
@@ -2215,14 +2162,27 @@ export class TurnEngineManager {
   }
 
   #resolveReplayTurnFollowUpOverrides(replayTurn, enemyCount, state = null) {
-    const normalized = getFollowUpOverridesFromOverrideEntries(
-      replayTurn?.overrideEntries ?? [],
-      enemyCount
-    );
+    const normalized = getFollowUpOverridesFromReplayTurn(replayTurn, enemyCount);
     if (!state) {
       return normalized;
     }
     return this.#normalizeFollowUpOverridesForState(state, normalized, enemyCount);
+  }
+
+  #replaceReplayTurnActionOutcomeOverrides(turn, overrides, enemyCount) {
+    if (!turn || typeof turn !== 'object') {
+      return;
+    }
+    turn.actionOutcomeOverrides = normalizeActionOutcomeOverrides(overrides, enemyCount);
+    this.#replaceReplayOverrideEntry(turn, REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES, null);
+  }
+
+  #replaceReplayTurnFollowUpOverrides(turn, overrides, enemyCount) {
+    if (!turn || typeof turn !== 'object') {
+      return;
+    }
+    turn.followUpOverrides = normalizeFollowUpOverrides(overrides, enemyCount);
+    this.#replaceReplayOverrideEntry(turn, REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES, null);
   }
 
   #replaceReplayOverrideEntry(turn, type, payload) {

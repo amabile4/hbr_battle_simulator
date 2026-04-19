@@ -519,18 +519,12 @@ test('TurnEngineManager preserves summoned slot identity when break and follow-u
     manager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['1'],
     DEFAULT_SUMMON_SAMPLE_ENEMY.name
   );
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
-  );
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
-    )?.payload,
-    [{ position: 3, enemyIndex: 1 }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+  ]);
+  assert.deepEqual(manager.replayScript.turns[0].followUpOverrides, [
+    { position: 3, enemyIndex: 1 },
+  ]);
 
   const draft = manager.buildTurnEditDraft(0);
   assert.equal(draft?.enemyCount, 2);
@@ -1226,12 +1220,9 @@ test('TurnEngineManager normalizes single-target manual break attribution to the
   assert.equal(action.breakHitCount, 1);
   assert.deepEqual(action.manualBreakEnemyIndexes, [1]);
   assert.equal(spPassiveChange?.delta, 8);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+  ]);
   assert.equal(
     action.enemyStatusChanges.some(
       (change) =>
@@ -1287,12 +1278,9 @@ test('TurnEngineManager preserves subset manual break attribution for all-target
   const action = committedRecord.actions.find((entry) => entry.positionIndex === 0);
   assert.equal(action.breakHitCount, 2);
   assert.deepEqual(action.manualBreakEnemyIndexes, [0, 2]);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [0, 2] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0, 2] },
+  ]);
 });
 
 test('TurnEngineManager keeps only the first manual break actor for the same enemy in one turn', () => {
@@ -1344,12 +1332,9 @@ test('TurnEngineManager keeps only the first manual break actor for the same ene
     secondAction?.spChanges?.some((change) => change.source === 'sp_passive'),
     false
   );
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [0] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0] },
+  ]);
 });
 
 test('TurnEngineManager trims later all-target manual break overrides to unclaimed enemies only', () => {
@@ -1391,15 +1376,10 @@ test('TurnEngineManager trims later all-target manual break overrides to unclaim
   assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [1]);
   assert.deepEqual(secondAction?.manualBreakEnemyIndexes, [0, 2]);
   assert.equal(secondAction?.breakHitCount, 2);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [
-      { position: 0, outcome: 'Break', enemyIndexes: [1] },
-      { position: 1, outcome: 'Break', enemyIndexes: [0, 2] },
-    ]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+    { position: 1, outcome: 'Break', enemyIndexes: [0, 2] },
+  ]);
 });
 
 test('TurnEngineManager loadReplayScript removes duplicate manual break overrides from later actors', () => {
@@ -1454,12 +1434,9 @@ test('TurnEngineManager loadReplayScript removes duplicate manual break override
 
   assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
   assert.deepEqual(secondAction?.manualBreakEnemyIndexes ?? [], []);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [0] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0] },
+  ]);
 });
 
 test('TurnEngineManager loadReplayScript normalizes legacy single-target manual break overrides to the saved target', () => {
@@ -1506,12 +1483,9 @@ test('TurnEngineManager loadReplayScript normalizes legacy single-target manual 
   assert.equal(action?.targetEnemyIndex, 1);
   assert.equal(action?.breakHitCount, 1);
   assert.deepEqual(action?.manualBreakEnemyIndexes, [1]);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+  ]);
 });
 
 test('TurnEngineManager still allows a later SuperBreak after an earlier manual Break', () => {
@@ -2141,12 +2115,8 @@ test('TurnEngineManager passes killCount to actions when Kill overrides are prov
   assert.ok(spPassive, 'kill-count passive should fire');
   assert.equal(spPassive.delta, 10); // 5 * 2 kills
 
-  // replay script に ACTION_OUTCOME_OVERRIDES として Kill エントリが保存されていること
-  const overrideEntry = manager.replayScript.turns[0].overrideEntries.find(
-    (e) => e.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-  );
-  assert.ok(overrideEntry, 'ACTION_OUTCOME_OVERRIDES entry should exist');
-  const killEntry = overrideEntry?.payload?.find(
+  // replay script に kill attribution が canonical field として保存されていること
+  const killEntry = manager.replayScript.turns[0].actionOutcomeOverrides.find(
     (e) => e.position === 0 && e.outcome === 'Kill'
   );
   assert.deepEqual(killEntry?.enemyIndexes, [0, 1]);

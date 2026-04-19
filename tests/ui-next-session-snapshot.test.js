@@ -10,7 +10,7 @@ import {
 import { TARGET_SELECTION_MODES } from '../ui-next/utils/simulator-settings.js';
 import { REPLAY_OVERRIDE_ENTRY_TYPES, REPLAY_SETUP_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 
-test('normalizeSessionSnapshot fills defaults and preserves replay override entries', () => {
+test('normalizeSessionSnapshot fills defaults and migrates replay action inputs to canonical turn fields', () => {
   const snapshot = normalizeSessionSnapshot({
     setup: {
       styleIds: [1001, 1002, 1003, null, null, null],
@@ -84,11 +84,14 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
   assert.equal(snapshot.enemy.enemySlots[0].resistances.element.fire, 130);
   assert.deepEqual(snapshot.enemy.enemySlots[0].absorbElementList, ['fire']);
   assert.equal(snapshot.enemy.preemptiveField, 'fire');
-  assert.deepEqual(
-    snapshot.replayScript.turns[0].overrideEntries.find(
+  assert.deepEqual(snapshot.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0, 1] },
+  ]);
+  assert.equal(
+    snapshot.replayScript.turns[0].overrideEntries.some(
       (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [0, 1] }]
+    ),
+    false
   );
 });
 

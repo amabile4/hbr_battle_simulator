@@ -1,5 +1,10 @@
 import { MAX_PARTY_SIZE } from '../domain/party.js';
 import { normalizeNormalAttackElementsByPartyIndex } from '../domain/normal-attack-elements.js';
+import {
+  getActionOutcomeOverridesFromReplayTurn,
+  getFollowUpOverridesFromReplayTurn,
+  REPLAY_TURN_LEGACY_OVERRIDE_ENTRY_TYPES,
+} from '../domain/replay-turn-overrides.js';
 
 export const LIGHTWEIGHT_REPLAY_SCRIPT_VERSION = 1;
 
@@ -32,8 +37,8 @@ export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
 
 export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
   ENEMY_COUNT: 'EnemyCount',
-  ACTION_OUTCOME_OVERRIDES: 'ActionOutcomeOverrides',
-  FOLLOW_UP_OVERRIDES: 'FollowUpOverrides',
+  ACTION_OUTCOME_OVERRIDES: REPLAY_TURN_LEGACY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+  FOLLOW_UP_OVERRIDES: REPLAY_TURN_LEGACY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
   ENEMY_ACTION: 'EnemyAction',
   ENEMY_NAMES: 'EnemyNames',
   ENEMY_DAMAGE_RATES: 'EnemyDamageRates',
@@ -471,12 +476,26 @@ function normalizeReplayTurnSlots(slots = []) {
 export function normalizeLightweightReplayTurn(turn = {}) {
   const source = isPlainObject(turn) ? turn : {};
   const turnNumber = Number(source.turn);
+  const normalizedOverrideEntries = replayOverrideEntryRegistry
+    .normalizeEntries(source.overrideEntries)
+    .filter((entry) => {
+      const type = String(entry?.type ?? '').trim();
+      return (
+        type !== REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES &&
+        type !== REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+      );
+    });
+  const enemyCount = normalizedOverrideEntries.find(
+    (entry) => String(entry?.type ?? '') === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT
+  )?.payload;
   return {
     turn: Number.isFinite(turnNumber) ? turnNumber : null,
     slots: normalizeReplayTurnSlots(source.slots),
     operations: replayOperationRegistry.normalizeEntries(source.operations),
     note: typeof source.note === 'string' ? source.note : '',
-    overrideEntries: replayOverrideEntryRegistry.normalizeEntries(source.overrideEntries),
+    actionOutcomeOverrides: getActionOutcomeOverridesFromReplayTurn(source, enemyCount),
+    followUpOverrides: getFollowUpOverridesFromReplayTurn(source, enemyCount),
+    overrideEntries: normalizedOverrideEntries,
   };
 }
 
