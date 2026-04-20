@@ -6123,12 +6123,18 @@ function resolvePassiveIgnoreEShieldElementForMember(state, targetMember, timing
   if (!state || !targetMember) {
     return { active: false, matchedPassives: [] };
   }
-  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  // IgnoreEShieldElement は action-time に恒常フラグとして展開する性質なので
+  // timing 別の発火タイミングを持たない。`timings` が空または未指定のときは全 timing を通過させる。
+  const timingList = Array.isArray(timings) ? timings : [timings];
+  const filterByTiming = timingList.length > 0;
+  const timingSet = filterByTiming
+    ? new Set(timingList.map((value) => String(value)))
+    : null;
   const matchedPassives = [];
 
   for (const actor of state.party ?? []) {
     for (const passive of getPassiveEntriesForMember(actor)) {
-      if (!timingSet.has(String(passive?.timing ?? ''))) {
+      if (filterByTiming && !timingSet.has(String(passive?.timing ?? ''))) {
         continue;
       }
       let matched = false;
@@ -7860,6 +7866,9 @@ function applyEnemyEShieldEffectsFromActions(state, previewRecord) {
         const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
         const ignoreEShieldElement = Boolean(actionEntry?.specialPassiveModifiers?.ignoreEShieldElement);
         const actionElementReferences = normalizeActionElementReferences(skill, actor, state);
+        // ゲーム仕様上 enemy `base_param.dp > 0` と `extra_gauge.eshield` は併存しないが、
+        // 異常データ混入時も E-shield が active なら本ブロックが先に処理されるため、
+        // E-shield を優先し DP 側の減算ルートへは落とさない（docs/active/e_shield_preparation_plan.md 参照）。
         for (const targetIndex of targetEnemyIndexes) {
           const eShieldState = getEnemyEShieldStateByTarget(state.turnState, targetIndex);
           if (!isEnemyEShieldActive(eShieldState)) {
@@ -8840,10 +8849,11 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     effectiveSkill
   );
   const highBoostModifiers = resolveHighBoostModifiersForMember(member);
+  // IgnoreEShieldElement は action-time に恒常フラグとして展開する性質のため
+  // timing に依存せず全 passive を検査対象にする。
   const ignoreEShieldElement = resolvePassiveIgnoreEShieldElementForMember(
     state,
-    member,
-    ['OnFirstBattleStart', 'OnBattleStart', 'OnEveryTurn', 'OnPlayerTurnStart']
+    member
   );
 
   return {

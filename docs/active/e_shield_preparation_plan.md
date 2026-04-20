@@ -127,10 +127,14 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - 本シミュレーターはダメージ計算機ではないため、`def_up_rate` / `dmg_limit` はこの文書に仕様メモとして保持し、既定では runtime 実装や UI 表示の対象にしない
 - 後日あらためて再調査する前提は置かず、本書の記述を以後の判断基準とする
 
-## 未確定事項
+## `dp > 0` と Eシールド併存時の動作
 
-- `dp > 0` と Eシールドが同時に存在する敵が将来現れた場合の優先順位
-  - 現フェーズでは未確定として保留する
+- ゲーム仕様上 `base_param.dp > 0` と `extra_gauge.eshield` は併存しないことを確認済み（`json/enemies.json` で併存は 0 件）
+- 異常データが混入した場合の runtime 動作を次で固定する：
+  - E-shield が active（`current > 0` かつ `elements` 非空）なら E-shield を優先する
+  - 現行の `src/turn/turn-controller.js` の action-time ブロックは `isEnemyEShieldActive` を先に判定してから減算に入るため、DP 減算ルートへ落ちずに E-shield 減算が実行される
+  - E-shield が 0 に到達した時点で通常の BREAK 経路へ接続し、それ以降の action から DP 相当の処理を再開する
+- 上記の優先動作は [../../tests/turn-state-transitions.test.js](../../tests/turn-state-transitions.test.js) の `dp > 0 併存時でも Eシールド減算が優先されブレイク経路へ接続する` ケースで固定する
 
 ## 実装フェーズ
 

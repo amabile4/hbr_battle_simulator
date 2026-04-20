@@ -19528,6 +19528,280 @@ test('通常攻撃の属性ブレスレットが不一致属性なら Eシール
   });
 });
 
+for (const { weaponType, hitCount, skillId } of [
+  { weaponType: 'Slash', hitCount: 3, skillId: 99130 },
+  { weaponType: 'Stab', hitCount: 2, skillId: 99131 },
+  { weaponType: 'Strike', hitCount: 1, skillId: 99132 },
+]) {
+  test(`通常攻撃 × weaponType=${weaponType} (hit_count=${hitCount}) は OD=2.5% 固定 かつ E-shield は raw hit 分減る`, () => {
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: `ESH_NORMAL_${weaponType}`,
+            characterName: `ESH_NORMAL_${weaponType}`,
+            weaponType,
+            normalAttackElements: ['Fire'],
+            skills: [
+              {
+                id: skillId,
+                name: '通常攻撃',
+                label: `ESHNormal${weaponType}`,
+                hit_count: hitCount,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackNormal', target_type: 'Single', type: weaponType },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99330 + idx)],
+          }
+    );
+    const initialShield = hitCount + 2;
+    const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+      enemyCount: 1,
+      eShields: {
+        0: createEnemyEShieldState({ current: initialShield, max: initialShield, elements: ['Fire'] }),
+      },
+    });
+
+    const preview = previewTurn(state, {
+      0: { characterId: `ESH_NORMAL_${weaponType}`, skillId, targetEnemyIndex: 0 },
+    });
+    const { committedRecord, nextState } = commitTurn(state, preview);
+    const action = findActionByCharacterId(committedRecord, `ESH_NORMAL_${weaponType}`);
+
+    assert.equal(action?.skillHitCount, hitCount);
+    assert.equal(nextState.turnState.odGauge, 2.5);
+    assert.equal(
+      nextState.turnState.enemyState.eShieldStateByEnemy['0'].current,
+      initialShield - hitCount
+    );
+  });
+}
+
+for (const { weaponType, hitCount, skillId } of [
+  { weaponType: 'Slash', hitCount: 3, skillId: 99140 },
+  { weaponType: 'Stab', hitCount: 2, skillId: 99141 },
+  { weaponType: 'Strike', hitCount: 1, skillId: 99142 },
+]) {
+  test(`通常攻撃 × weaponType=${weaponType} は od_rate=0.85 でも OD=trunc2(2.5*0.85) 固定 かつ E-shield は raw hit 分減る`, () => {
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: `ESH_OD_RATE_${weaponType}`,
+            characterName: `ESH_OD_RATE_${weaponType}`,
+            weaponType,
+            normalAttackElements: ['Fire'],
+            skills: [
+              {
+                id: skillId,
+                name: '通常攻撃',
+                label: `ESHOdRate${weaponType}`,
+                hit_count: hitCount,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackNormal', target_type: 'Single', type: weaponType },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99350 + idx)],
+          }
+    );
+    const initialShield = hitCount + 2;
+    const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+      enemyCount: 1,
+      eShields: {
+        0: createEnemyEShieldState({ current: initialShield, max: initialShield, elements: ['Fire'] }),
+      },
+    });
+    state.turnState.enemyState.odRateByEnemy = { '0': 0.85 };
+
+    const preview = previewTurn(state, {
+      0: { characterId: `ESH_OD_RATE_${weaponType}`, skillId, targetEnemyIndex: 0 },
+    });
+    const { nextState } = commitTurn(state, preview);
+
+    // trunc2(2.5 * 0.85) * 1 = 2.12（武器種ヒット数に依らず常に 1hit 相当）
+    assert.equal(nextState.turnState.odGauge, 2.12);
+    assert.equal(
+      nextState.turnState.enemyState.eShieldStateByEnemy['0'].current,
+      initialShield - hitCount
+    );
+  });
+}
+
+test('weapon_type の列挙が styles.json と乖離していないことを検出するメタテスト', async () => {
+  // 将来 Gun 等の新武器種が styles.json に追加されたときに、
+  // 上記の武器種別カバレッジテストを拡張する必要があることを気付けるようにする。
+  const { readFileSync } = await import('node:fs');
+  const rawStyles = JSON.parse(readFileSync(new URL('../json/styles.json', import.meta.url), 'utf8'));
+  const styles = Array.isArray(rawStyles) ? rawStyles : Object.values(rawStyles);
+  const weaponTypes = new Set(
+    styles
+      .map((style) => String(style?.type ?? '').trim())
+      .filter(Boolean)
+  );
+  const expected = new Set(['Slash', 'Stab', 'Strike']);
+
+  const unexpected = [...weaponTypes].filter((t) => !expected.has(t));
+  const missing = [...expected].filter((t) => !weaponTypes.has(t));
+
+  assert.deepEqual(
+    unexpected,
+    [],
+    `styles.json に未知の weapon_type が追加されています: ${unexpected.join(', ')}。武器種別カバレッジテスト（通常攻撃 OD 2.5% 保証 / E-shield 減算）を拡張してください。`
+  );
+  assert.deepEqual(
+    missing,
+    [],
+    `styles.json から既知の weapon_type が消えています: ${missing.join(', ')}。`
+  );
+});
+
+for (const { weaponType, pursuedHitCount, skillId } of [
+  { weaponType: 'Slash', pursuedHitCount: 1, skillId: 99160 },
+  { weaponType: 'Stab', pursuedHitCount: 2, skillId: 99161 },
+  { weaponType: 'Strike', pursuedHitCount: 3, skillId: 99162 },
+]) {
+  test(`追撃 OD は pursuedHitCount に比例する (weaponType=${weaponType}, pursuedHitCount=${pursuedHitCount})`, () => {
+    // 通常攻撃 OD は 1hit 固定 (2.5) だが、追撃 OD は pursuedHitCount × 2.5 で算出される。
+    // 武器種は OD 計算に影響しないが、通常攻撃と追撃の経路差を武器種ごとに固定する。
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: `PURSUIT_OD_${weaponType}`,
+            characterName: `PURSUIT_OD_${weaponType}`,
+            weaponType,
+            normalAttackElements: ['Fire'],
+            skills: [
+              {
+                id: skillId,
+                name: '通常攻撃',
+                label: `Pursuit${weaponType}`,
+                hit_count: 1,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackNormal', target_type: 'Single', type: weaponType },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99370 + idx)],
+          }
+    );
+    const state = createBattleStateFromParty(party);
+    state.turnState.enemyState.enemyCount = 1;
+
+    const preview = previewTurn(state, {
+      0: { characterId: `PURSUIT_OD_${weaponType}`, skillId, targetEnemyIndex: 0, pursuedHitCount },
+    });
+    const { nextState } = commitTurn(state, preview);
+
+    // 通常攻撃 OD: 2.5 (hit 固定 1)
+    // 追撃 OD: trunc2(pursuedHitCount × trunc2(2.5 × 1.0)) = pursuedHitCount × 2.5
+    const expectedOd = 2.5 + pursuedHitCount * 2.5;
+    assert.equal(nextState.turnState.odGauge, expectedOd);
+  });
+}
+
+test('追撃は属性ベルト効果を受けない無属性扱いで、通常攻撃の hit のみが E-shield を減らす', () => {
+  // 属性ベルト Fire + E-shield Fire 一致 → 通常攻撃の hit 数だけ E-shield が減る。
+  // 追撃は無属性扱いで属性ベルトが乗らないため、pursuedHitCount は E-shield を減らさない。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'PURSUIT_ESH_MATCH',
+          characterName: 'PURSUIT_ESH_MATCH',
+          weaponType: 'Slash',
+          normalAttackElements: ['Fire'],
+          skills: [
+            {
+              id: 99170,
+              name: '通常攻撃',
+              label: 'PursuitEShieldMatch',
+              hit_count: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99390 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 5, max: 5, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'PURSUIT_ESH_MATCH', skillId: 99170, targetEnemyIndex: 0, pursuedHitCount: 3 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 通常攻撃 2 hit (Fire 一致で減算) + 追撃 3 hit (無属性なので減らない) → current 5 - 2 = 3
+  assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].current, 3);
+  // OD: 通常攻撃 2.5 + 追撃 3 × 2.5 = 10.0
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
+test('追撃 hit は属性ベルトが不一致のときも E-shield を減らさない（通常攻撃 hit も同じく減らない）', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'PURSUIT_ESH_MISS',
+          characterName: 'PURSUIT_ESH_MISS',
+          weaponType: 'Slash',
+          normalAttackElements: ['Thunder'],
+          skills: [
+            {
+              id: 99175,
+              name: '通常攻撃',
+              label: 'PursuitEShieldMiss',
+              hit_count: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99410 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 5, max: 5, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'PURSUIT_ESH_MISS', skillId: 99175, targetEnemyIndex: 0, pursuedHitCount: 3 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 通常攻撃も追撃も E-shield の Fire と不一致 → current 変化なし
+  assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].current, 5);
+  // OD は通常攻撃 2.5 + 追撃 3 × 2.5 = 10.0（両方とも加算される）
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
 test('HealEShield restores enemy Eシールド current up to max', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -19709,6 +19983,224 @@ test('Eシールド ignores non-matching elements unless IgnoreEShieldElement is
     ),
     true
   );
+});
+
+for (const mockTiming of ['OnHit', 'OnEnemyTurnStart', 'OnOverdriveStart', 'OnAdditionalTurnStart']) {
+  test(`IgnoreEShieldElement は timing=${mockTiming} でも属性不一致攻撃で Eシールドを減らす`, () => {
+    // IgnoreEShieldElement は action-time の恒常フラグとして扱うため、
+    // passive の timing が OnPlayerTurnStart 以外でも同じく E-shield 属性を無視すること。
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: `ESH_IGNORE_${mockTiming}`,
+            characterName: `ESH_IGNORE_${mockTiming}`,
+            passives: [
+              {
+                id: 99190,
+                name: `Ignore E Shield (${mockTiming})`,
+                timing: mockTiming,
+                parts: [
+                  {
+                    skill_type: 'IgnoreEShieldElement',
+                    target_type: 'Self',
+                    power: [0, 0],
+                    value: [0, 0],
+                    cond: '',
+                    hit_condition: '',
+                    target_condition: '',
+                  },
+                ],
+              },
+            ],
+            skills: [
+              {
+                id: 99191,
+                name: 'Thunder Hit',
+                hitCount: 2,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Thunder'] },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99290 + idx)],
+          }
+    );
+    const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+      enemyCount: 1,
+      eShields: {
+        0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+      },
+    });
+
+    const preview = previewTurn(state, {
+      0: { characterId: `ESH_IGNORE_${mockTiming}`, skillId: 99191, targetEnemyIndex: 0 },
+    });
+    const { nextState } = commitTurn(state, preview);
+
+    assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+      current: 0,
+      max: 2,
+      elements: ['Fire'],
+      defUpRate: 0,
+      damageLimit: 0,
+    });
+    assert.equal(
+      nextState.turnState.enemyState.statuses.some(
+        (status) => status.statusType === 'Break' && status.targetIndex === 0
+      ),
+      true
+    );
+  });
+}
+
+test('IgnoreEShieldElement は既存の OnPlayerTurnStart passive と他 timing passive が共存してもどちらも動作する', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_IGNORE_MULTI',
+          characterName: 'ESH_IGNORE_MULTI',
+          passives: [
+            {
+              id: 99192,
+              name: 'Ignore E Shield (OnPlayerTurnStart)',
+              timing: 'OnPlayerTurnStart',
+              parts: [
+                {
+                  skill_type: 'IgnoreEShieldElement',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  target_condition: '',
+                },
+              ],
+            },
+            {
+              id: 99193,
+              name: 'Ignore E Shield (OnHit)',
+              timing: 'OnHit',
+              parts: [
+                {
+                  skill_type: 'IgnoreEShieldElement',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  target_condition: '',
+                },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99194,
+              name: 'Thunder Hit',
+              hitCount: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Thunder'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99310 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_IGNORE_MULTI', skillId: 99194, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_IGNORE_MULTI');
+
+  // 両 passive が ignoreEShieldElement フラグに寄与し、action 自体は 1 回だけ減算する
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 0,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(action?.breakHitCount, 1);
+});
+
+test('dp > 0 併存時でも Eシールド減算が優先されブレイク経路へ接続する', () => {
+  // ゲーム仕様上 base_param.dp > 0 と extra_gauge.eshield は併存しないが、
+  // 異常データ混入時は E-shield を優先し DP ルートへ落とさないことを固定する。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_DP_COEXIST',
+          characterName: 'ESH_DP_COEXIST',
+          skills: [
+            {
+              id: 99180,
+              name: 'Fire Hit',
+              hit_count: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99280 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+    // 異常データを想定: 敵側に DP 相当の破壊率 cap を 100（DP 有効相当）で設定するが、
+    // E-shield active な間は本来 destruction rate が上がらない仕様。
+    damageRatesByEnemy: { 0: { dp: 1, hp: 1, dr: 1 } },
+  });
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 100 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_DP_COEXIST', skillId: 99180, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_DP_COEXIST');
+
+  // E-shield は 2 hit で 0 まで削られ、same-action BREAK が成立
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 0,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn' && change.source === 'auto'),
+    true
+  );
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  // E-shield 破壊まで destructionRate は更新されない（DP ルートへ落ちていないことの表明）
+  const destructionRate = Number(nextState.turnState.enemyState.destructionRateByEnemy?.[0] ?? 0);
+  assert.equal(destructionRate, 0);
 });
 
 test('Eシールド auto-break on all-target action updates breakHitCount and triggers AdditionalHitOnBreaking', () => {
