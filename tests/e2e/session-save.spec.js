@@ -33,6 +33,37 @@ async function ensureSetupVisible(page) {
 }
 
 test.describe('Session JSON save', () => {
+  test('stage setup preset enchant summary persists across session save/load', async ({ page }) => {
+    await gotoUiNext(page);
+    await ensureSetupVisible(page);
+    await fillPartySetupSlots(page, [0, 1, 2]);
+
+    await page.locator('[role="tab"][data-tab="stage"]').click();
+    const dimensionSelect = page.locator('[data-role="stage-dimension-battle"]');
+    await expect(dimensionSelect).toBeEnabled({ timeout: 10000 });
+    await dimensionSelect.selectOption('191000002');
+
+    const satellite = page.locator('[data-role="stage-satellite-checkbox"]').nth(3);
+    await satellite.check();
+    await expect(page.locator('[data-role="stage-enchant-summary"] li')).toHaveText(['ODゲージ上昇量+20%']);
+
+    await page.locator('[role="tab"][data-tab="party"]').click();
+    await applyParty(page);
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#session-save-btn').click();
+    const download = await downloadPromise;
+    const savedPath = await download.path();
+    expect(savedPath).toBeTruthy();
+
+    await gotoUiNext(page);
+    await page.locator('#session-load-input').setInputFiles(String(savedPath));
+    await ensureSetupVisible(page);
+    await page.locator('[role="tab"][data-tab="stage"]').click();
+    await expect(page.locator('[data-role="stage-dimension-battle"]')).toHaveValue('191000002');
+    await expect(page.locator('[data-role="stage-enchant-summary"] li')).toHaveText(['ODゲージ上昇量+20%']);
+  });
+
   test('saves JSON with 4 selected characters after apply', async ({ page }) => {
     await gotoUiNext(page);
     await fillPartySetupSlots(page, [0, 1, 2, 3]);

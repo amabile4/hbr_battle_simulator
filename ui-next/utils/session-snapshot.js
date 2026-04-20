@@ -3,6 +3,7 @@ import { normalizeEnemySetupSnapshot } from './enemy-setup-snapshot.js';
 import { normalizeSimulatorSettings } from './simulator-settings.js';
 import { normalizeValidationPolicy } from './validation-policy.js';
 import { normalizeNormalAttackElementsByPartyIndex } from '../../src/domain/normal-attack-elements.js';
+import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
 
 export const SESSION_SNAPSHOT_VERSION = 1;
 const PARTY_SIZE = 6;
@@ -106,6 +107,7 @@ function normalizeStageSetupSnapshot(stageSetup = {}) {
   const turnlySpAll = Number(stageSetup?.turnlySpAll ?? 0);
   const turnlySpFront = Number(stageSetup?.turnlySpFront ?? 0);
   const turnlySpBack = Number(stageSetup?.turnlySpBack ?? 0);
+  const enchantEffects = normalizeStageSetupEnchantEffects(stageSetup?.enchantEffects);
   const selectedDimensionBattleId = Number(stageSetup?.selectedDimensionBattleId);
   const initialStatusEffects = Array.isArray(stageSetup?.initialStatusEffects)
     ? stageSetup.initialStatusEffects
@@ -119,6 +121,7 @@ function normalizeStageSetupSnapshot(stageSetup = {}) {
     turnlySpAll: Number.isFinite(turnlySpAll) ? turnlySpAll : 0,
     turnlySpFront: Number.isFinite(turnlySpFront) ? turnlySpFront : 0,
     turnlySpBack: Number.isFinite(turnlySpBack) ? turnlySpBack : 0,
+    enchantEffects,
     initialStatusEffects,
     selectedDimensionBattleId: Number.isFinite(selectedDimensionBattleId) ? selectedDimensionBattleId : null,
   };

@@ -2,6 +2,7 @@ import { createInitializedBattleSnapshot } from '../../src/ui/adapter-core.js';
 import { DEFAULT_INITIAL_SP, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 import { getNormalAttackElementsForPartyIndex } from '../../src/domain/normal-attack-elements.js';
+import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
 
 const PREEMPTIVE_FIELD_TO_ZONE_TYPE = Object.freeze({
   fire: 'Fire',
@@ -31,6 +32,7 @@ const DEFAULT_STAGE_SETUP = Object.freeze({
   initialOdGauge: 0,
   initialSpBonusAll: 0,
   initialStatusEffects: Object.freeze([]),
+  enchantEffects: Object.freeze([]),
   turnlySpAll: 0,
   turnlySpFront: 0,
   turnlySpBack: 0,
@@ -108,6 +110,7 @@ function normalizeStageSetup(stageSetup = {}) {
   const turnlySpAll = Number(stageSetup?.turnlySpAll);
   const turnlySpFront = Number(stageSetup?.turnlySpFront);
   const turnlySpBack = Number(stageSetup?.turnlySpBack);
+  const enchantEffects = normalizeStageSetupEnchantEffects(stageSetup?.enchantEffects);
   const initialStatusEffects = Array.isArray(stageSetup?.initialStatusEffects)
     ? stageSetup.initialStatusEffects.map((effect) => normalizeStageStatusEffect(effect)).filter(Boolean)
     : [];
@@ -117,6 +120,7 @@ function normalizeStageSetup(stageSetup = {}) {
     initialSpBonusAll: Number.isFinite(initialSpBonusAll)
       ? initialSpBonusAll
       : DEFAULT_STAGE_SETUP.initialSpBonusAll,
+    enchantEffects,
     turnlySpAll: Number.isFinite(turnlySpAll) ? turnlySpAll : DEFAULT_STAGE_SETUP.turnlySpAll,
     turnlySpFront: Number.isFinite(turnlySpFront) ? turnlySpFront : DEFAULT_STAGE_SETUP.turnlySpFront,
     turnlySpBack: Number.isFinite(turnlySpBack) ? turnlySpBack : DEFAULT_STAGE_SETUP.turnlySpBack,
@@ -440,6 +444,7 @@ export class BattleStateManager {
         spFront: stageSetup.turnlySpFront ?? 0,
         spBack: stageSetup.turnlySpBack ?? 0,
       };
+      this.#state.stageSetupEnchantEffects = structuredClone(stageSetup.enchantEffects ?? []);
     }
 
     return result.state;

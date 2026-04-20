@@ -272,7 +272,11 @@ export class InitialSetupController {
       initialOdGauge: 0,
       initialSpBonusAll: 0,
       initialStatusEffects: [],
+      enchantEffects: [],
       selectedDimensionBattleId: null,
+      turnlySpAll: 0,
+      turnlySpFront: 0,
+      turnlySpBack: 0,
     };
   }
 

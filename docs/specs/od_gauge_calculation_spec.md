@@ -94,6 +94,35 @@ gain_all = trunc2(2.65 * 6) = 15.90
 
 ---
 
+## Stage Setup エンチャントによるOD補正
+
+- `ui-next` の Stage Setup で選択する `ODゲージ上昇量+20%` は、`stageSetup.enchantEffects[*].effectType === 'odGaugeGainBonusPercent'` として保持する
+- 適用先は **Party Setup の `ODピアス` と同じ補正枠** に限定する
+  - 攻撃スキル由来の hit-based OD
+  - `OverDrivePointUp` / `OverDrivePointUpByToken`
+  - `AdditionalHitOnBreaking + OverDrivePointUp`（共鳴含む）の drive bonus 経路
+- 加算方法:
+
+```
+combined_drive_bonus_percent =
+  drive_pierce_bonus_percent + stage_setup_od_gain_bonus_percent
+```
+
+- 非適用:
+  - 通常攻撃の固定 `1hit = 2.5%` 経路
+  - `pursuitOdGain`
+  - `OverDrivePointDown`
+  - `enemy od_rate` の解釈・適用順
+
+### 例
+
+- 2hit `AttackSkill`、`ODピアス=15%`、Stage Setup `ODゲージ上昇量+20%`
+  - drive bonus は `6.11 + 20 = 26.11%`
+  - `per_hit = trunc2(2.5 * 1.2611) = 3.15`
+  - `gain = trunc2(3.15 * 2) = 6.30`
+
+---
+
 ## 敵 od_rate によるOD上昇量補正
 
 ### 仕様

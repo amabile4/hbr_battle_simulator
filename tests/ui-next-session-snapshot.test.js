@@ -375,6 +375,12 @@ test('normalizeSessionSnapshot preserves stageSetup fields with defaults', () =>
         initialOdGauge: -300,
         initialSpBonusAll: 5,
         selectedDimensionBattleId: 191000004,
+        enchantEffects: [
+          { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+          { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+          { effectType: 'spOnEnemyKill', scope: 'all', amount: 2 },
+          { effectType: 'turnStartSpIfNegativeSp', scope: 'invalid', amount: 2 },
+        ],
         initialStatusEffects: [
           {
             scope: 'all',
@@ -399,6 +405,10 @@ test('normalizeSessionSnapshot preserves stageSetup fields with defaults', () =>
   assert.equal(normalized.setup.stageSetup.initialOdGauge, -300);
   assert.equal(normalized.setup.stageSetup.initialSpBonusAll, 5);
   assert.equal(normalized.setup.stageSetup.selectedDimensionBattleId, 191000004);
+  assert.deepEqual(normalized.setup.stageSetup.enchantEffects, [
+    { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+    { effectType: 'spOnEnemyKill', scope: 'all', amount: 3 },
+  ]);
   assert.equal(normalized.setup.stageSetup.initialStatusEffects.length, 2);
   assert.equal(normalized.setup.stageSetup.initialStatusEffects[0].statusType, 'DefenseUp');
   assert.equal(normalized.setup.stageSetup.initialStatusEffects[1].scope, 'partyIndex');

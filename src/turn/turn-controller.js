@@ -24,6 +24,10 @@ import {
 import { isNormalAttackSkill, isPursuitOnlySkill } from '../domain/skill-classifiers.js';
 import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
 import { isFormEntryActive } from '../domain/form-change.js';
+import {
+  STAGE_SETUP_ENCHANT_EFFECT_SCOPES,
+  STAGE_SETUP_ENCHANT_EFFECT_TYPES,
+} from '../domain/stage-setup-enchants.js';
 import { compareTurnActionExecutionOrder } from './action-execution-order.js';
 import {
   OD_RECOVERY_BY_LEVEL,
@@ -6448,6 +6452,127 @@ function resolveDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent) {
   return Number(bonus.toFixed(4));
 }
 
+function getStageSetupEnchantEffects(state) {
+  return Array.isArray(state?.stageSetupEnchantEffects) ? state.stageSetupEnchantEffects : [];
+}
+
+function resolveStageSetupOdGaugeGainBonusPercent(state) {
+  return getStageSetupEnchantEffects(state).reduce((sum, effect) => {
+    if (String(effect?.effectType ?? '') !== STAGE_SETUP_ENCHANT_EFFECT_TYPES.OD_GAUGE_GAIN_BONUS_PERCENT) {
+      return sum;
+    }
+    const amount = Number(effect?.amount ?? 0);
+    return Number.isFinite(amount) ? sum + amount : sum;
+  }, 0);
+}
+
+function resolveCombinedDrivePierceOdBonusPercent(state, effectiveHitCount, drivePiercePercent) {
+  return truncateToTwoDecimals(
+    resolveDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent) +
+      resolveStageSetupOdGaugeGainBonusPercent(state)
+  );
+}
+
+function isFrontlinePosition(position) {
+  return Number.isInteger(position) && position >= 0 && position <= 2;
+}
+
+function isBacklinePosition(position) {
+  return Number.isInteger(position) && position >= 3 && position <= 5;
+}
+
+function shouldApplyStageSetupConditionalSpEffect(effect, member, turnState) {
+  const effectType = String(effect?.effectType ?? '');
+  if (effectType === STAGE_SETUP_ENCHANT_EFFECT_TYPES.TURN_START_SP_IF_ENEMY_DOWN) {
+    return countEnemiesWithStatus(turnState, ENEMY_STATUS_DOWN_TURN) > 0;
+  }
+  if (effectType !== STAGE_SETUP_ENCHANT_EFFECT_TYPES.TURN_START_SP_IF_NEGATIVE_SP) {
+    return false;
+  }
+
+  const memberSp = Number(member?.sp?.current ?? 0);
+  if (!(memberSp < 0)) {
+    return false;
+  }
+
+  const scope = String(effect?.scope ?? '');
+  if (scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.FRONT) {
+    return isFrontlinePosition(Number(member?.position));
+  }
+  if (scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.BACK) {
+    return isBacklinePosition(Number(member?.position));
+  }
+  return false;
+}
+
+function applyStageSetupTurnStartEnchantEffects(state, party, recoveryEvents) {
+  const enchantEffects = getStageSetupEnchantEffects(state).filter((effect) => {
+    const effectType = String(effect?.effectType ?? '');
+    return (
+      effectType === STAGE_SETUP_ENCHANT_EFFECT_TYPES.TURN_START_SP_IF_ENEMY_DOWN ||
+      effectType === STAGE_SETUP_ENCHANT_EFFECT_TYPES.TURN_START_SP_IF_NEGATIVE_SP
+    );
+  });
+  if (enchantEffects.length === 0) {
+    return;
+  }
+
+  for (const member of party) {
+    for (const effect of enchantEffects) {
+      if (!shouldApplyStageSetupConditionalSpEffect(effect, member, state?.turnState)) {
+        continue;
+      }
+      const amount = Number(effect?.amount ?? 0);
+      if (!Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+      const spChangeEvent = member.applySpDelta(amount, 'passive');
+      if (spChangeEvent) {
+        recoveryEvents.push(spChangeEvent);
+      }
+    }
+  }
+}
+
+function resolveStageSetupSpOnEnemyKillAmount(state) {
+  return getStageSetupEnchantEffects(state).reduce((sum, effect) => {
+    if (String(effect?.effectType ?? '') !== STAGE_SETUP_ENCHANT_EFFECT_TYPES.SP_ON_ENEMY_KILL) {
+      return sum;
+    }
+    const amount = Number(effect?.amount ?? 0);
+    return Number.isFinite(amount) ? sum + amount : sum;
+  }, 0);
+}
+
+function applyStageSetupSpOnEnemyKill(state, actionEntry, killCount) {
+  const normalizedKillCount = Math.max(0, Math.trunc(Number(killCount ?? 0)));
+  if (normalizedKillCount <= 0) {
+    return [];
+  }
+  const amountPerKill = resolveStageSetupSpOnEnemyKillAmount(state);
+  if (!Number.isFinite(amountPerKill) || amountPerKill === 0) {
+    return [];
+  }
+
+  const totalDelta = amountPerKill * normalizedKillCount;
+  const events = [];
+  for (const target of state?.party ?? []) {
+    const change = target.applySpDelta(totalDelta, 'passive');
+    if (!change) {
+      continue;
+    }
+    events.push(
+      buildActionScopedEvent(actionEntry, {
+        ...change,
+        source: 'passive',
+        sourceType: 'stage_setup_enchant',
+        effectType: STAGE_SETUP_ENCHANT_EFFECT_TYPES.SP_ON_ENEMY_KILL,
+      })
+    );
+  }
+  return events;
+}
+
 function truncateToTwoDecimals(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) {
@@ -6495,7 +6620,11 @@ function computeOverDrivePointUpGainPercent(
     return 0;
   }
 
-  const driveBonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
+  const driveBonusPercent = resolveCombinedDrivePierceOdBonusPercent(
+    state,
+    baseHitCount,
+    member?.drivePiercePercent ?? 0
+  );
   const driveMultiplier = 1 + driveBonusPercent / 100;
 
   let total = 0;
@@ -6597,7 +6726,11 @@ function computeOdGaugeGainPercentBySkill(
         }, 0)
       );
     } else {
-      const bonusPercent = resolveDrivePierceBonusPercent(baseHitCount, member?.drivePiercePercent ?? 0);
+      const bonusPercent = resolveCombinedDrivePierceOdBonusPercent(
+        state,
+        baseHitCount,
+        member?.drivePiercePercent ?? 0
+      );
       const multiplier = 1 + bonusPercent / 100;
       attackGain = truncateToTwoDecimals(
         targetEnemyIndexes.reduce((sum, targetEnemyIndex) => {
@@ -9026,7 +9159,11 @@ function computeSupportBreakOdBonusEvents(state, actor, skill, actionEntry) {
 
   const events = [];
   const baseHitCount = resolveSkillHitCount(skill);
-  const driveBonusPercent = resolveDrivePierceBonusPercent(baseHitCount, actor?.drivePiercePercent ?? 0);
+  const driveBonusPercent = resolveCombinedDrivePierceOdBonusPercent(
+    state,
+    baseHitCount,
+    actor?.drivePiercePercent ?? 0
+  );
   const driveMultiplier = 1 + driveBonusPercent / 100;
   for (const passive of getConfiguredPassivesForMember(actor)) {
     if (String(passive?.sourceType ?? '') !== 'support') {
@@ -9255,6 +9392,22 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     ...applyManualBreakEffectsFromActions(state, singleRecord),
   ];
   const enemyKillEvents = applyManualKillEffectsFromActions(state, singleRecord);
+  const derivedKillEnemyIndexes = enemyKillEvents
+    .map((event) => Number(event?.targetIndex))
+    .filter((targetIndex) => Number.isInteger(targetIndex) && targetIndex >= 0);
+  if (derivedKillEnemyIndexes.length > 0) {
+    if (!Number.isFinite(Number(actionEntry?.killCount)) || Number(actionEntry.killCount) <= 0) {
+      actionEntry.killCount = derivedKillEnemyIndexes.length;
+    }
+    if (normalizeManualKillEnemyIndexes(actionEntry).length === 0) {
+      actionEntry.manualKillEnemyIndexes = [...new Set(derivedKillEnemyIndexes)];
+    }
+  }
+  const stageSetupKillSpEvents = applyStageSetupSpOnEnemyKill(
+    state,
+    actionEntry,
+    Number(actionEntry?.killCount ?? derivedKillEnemyIndexes.length)
+  );
   const derivedBreakEnemyIndexes = enemyBreakEvents
     .filter(
       (event) =>
@@ -9285,7 +9438,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     dpHealMotivationEvents,
     tokenEvents,
     moraleEvents: moraleResult.moraleEvents,
-    spPassiveEvents: moraleResult.spPassiveEvents,
+    spPassiveEvents: [...moraleResult.spPassiveEvents, ...stageSetupKillSpEvents],
     additionalTurnPassiveGrantedIds: moraleResult.additionalTurnPassiveGrantedIds,
     dpPassiveEvents: moraleResult.dpPassiveEvents,
     dpPassiveMotivationEvents: applyMotivationFromDpHealEvents(state, moraleResult.dpPassiveEvents),
@@ -11206,7 +11359,11 @@ function applyFieldStateFromActions(state, previewRecord) {
   return events;
 }
 
-function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false, stageSetupTurnly = null } = {}) {
+function applyRecoveryPipeline(
+  party,
+  turnState,
+  { skipTurnStartRecovery = false, stageSetupTurnly = null, stageSetupEnchantEffects = null } = {}
+) {
   // extra turn のコミット時（T1EX→T2遷移）は skipTurnStartRecovery=false で呼ばれるため
   // T2のターン開始回復・OnEveryTurnを正常に計算する。
   // T1→T1EX遷移時の回避は skipTurnStartRecovery: true（行8634）で制御済み。
@@ -11298,6 +11455,18 @@ function applyRecoveryPipeline(party, turnState, { skipTurnStartRecovery = false
           }
         }
       }
+    }
+
+    if (!skipTurnStartRecovery) {
+      applyStageSetupTurnStartEnchantEffects(
+        {
+          party,
+          turnState,
+          stageSetupEnchantEffects,
+        },
+        party,
+        recoveryEvents
+      );
     }
 
   return {
@@ -11734,8 +11903,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       : true;
   const recovery = applyRecoveryPipeline(state.party, nextTurnState, {
     skipTurnStartRecovery: !nextTurnIndexAdvances,
-      stageSetupTurnly: state.stageSetupTurnly,
-    });
+    stageSetupTurnly: state.stageSetupTurnly,
+    stageSetupEnchantEffects: state.stageSetupEnchantEffects,
+  });
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
   const recoveryDpEvents = Array.isArray(recovery.dpEvents) ? [...recovery.dpEvents] : [];

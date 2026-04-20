@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 import { StageSetupController } from '../ui-next/components/stage-setup.js';
+import { buildStageSetupEnchantEffectLabels } from '../src/domain/stage-setup-enchants.js';
 
 function withDom(run) {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -44,6 +45,11 @@ function createDimensionBattlesFixture() {
         { enchant: { desc: '毎ターン前衛のSP+1' } },
         { enchant: { desc: '毎ターン後衛のSP+1' } },
         { enchant: { desc: 'ODゲージ上昇量+20%' } },
+        { enchant: { desc: 'ターン開始時ダウンターン中の敵がいるとSP+2' } },
+        { enchant: { desc: '敵を倒したとき敵1体につき味方全体のSP+1' } },
+        { enchant: { desc: 'ターン開始時SP0未満の前衛の味方のSP+2' } },
+        { enchant: { desc: 'ターン開始時SP0未満の後衛の味方のSP+2' } },
+        { enchant: { desc: '回復量+50%' } },
       ],
     },
     {
@@ -102,7 +108,7 @@ test('StageSetupController applies preset to upper inputs immediately on satelli
     );
   }));
 
-test('StageSetupController shows hint for unsupported preset effects on check', () =>
+test('StageSetupController excludes supported enchant presets from unsupported hint', () =>
   withDom(({ root, win }) => {
     const controller = new StageSetupController({
       root,
@@ -117,10 +123,25 @@ test('StageSetupController shows hint for unsupported preset effects on check', 
     const checkboxes = root.querySelectorAll('[data-role="stage-satellite-checkbox"]');
     checkboxes.item(6).checked = true;
     checkboxes.item(6).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(7).checked = true;
+    checkboxes.item(7).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(8).checked = true;
+    checkboxes.item(8).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(9).checked = true;
+    checkboxes.item(9).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(10).checked = true;
+    checkboxes.item(10).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(11).checked = true;
+    checkboxes.item(11).dispatchEvent(new win.Event('change', { bubbles: true }));
 
     const hint = root.querySelector('[data-role="stage-preset-hint"]');
     assert.equal(hint.classList.contains('hidden'), false);
-    assert.equal(hint.textContent.includes('ODゲージ上昇量+20%'), true);
+    assert.equal(hint.textContent.includes('回復量+50%'), true);
+    assert.equal(hint.textContent.includes('ODゲージ上昇量+20%'), false);
+    assert.equal(hint.textContent.includes('ターン開始時ダウンターン中の敵がいるとSP+2'), false);
+    assert.equal(hint.textContent.includes('敵を倒したとき敵1体につき味方全体のSP+1'), false);
+    assert.equal(hint.textContent.includes('ターン開始時SP0未満の前衛の味方のSP+2'), false);
+    assert.equal(hint.textContent.includes('ターン開始時SP0未満の後衛の味方のSP+2'), false);
   }));
 
 test('StageSetupController preset applies turnly SP fields immediately on check', () =>
@@ -170,6 +191,40 @@ test('StageSetupController applySnapshot restores selected dimension battle and 
     assert.equal(root.querySelector('[data-role="stage-initial-sp"]').value, '5');
     assert.equal(root.querySelector('[data-role="stage-effect-debuff-guard"]').checked, true);
     assert.equal(root.querySelector('[data-role="stage-dimension-battle"]').value, '191000001');
+  }));
+
+test('StageSetupController stores enchantEffects in snapshot and renders preset summary', () =>
+  withDom(({ root, win }) => {
+    const controller = new StageSetupController({
+      root,
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    const battleSelect = root.querySelector('[data-role="stage-dimension-battle"]');
+    battleSelect.value = '191000001';
+    battleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const checkboxes = root.querySelectorAll('[data-role="stage-satellite-checkbox"]');
+    for (const index of [6, 7, 8, 9, 10]) {
+      checkboxes.item(index).checked = true;
+      checkboxes.item(index).dispatchEvent(new win.Event('change', { bubbles: true }));
+    }
+
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.enchantEffects, [
+      { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+      { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+      { effectType: 'turnStartSpIfNegativeSp', scope: 'front', amount: 2 },
+      { effectType: 'turnStartSpIfNegativeSp', scope: 'back', amount: 2 },
+      { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+    ]);
+
+    const summaryItems = [...root.querySelectorAll('[data-role="stage-enchant-summary"] li')].map((item) =>
+      item.textContent.trim()
+    );
+    assert.deepEqual(summaryItems, buildStageSetupEnchantEffectLabels(snapshot.enchantEffects));
+    assert.equal(root.querySelector('[data-role="stage-enchant-summary-empty"]').classList.contains('hidden'), true);
   }));
 
 test('StageSetupController reset button restores only upper free inputs to initial defaults', () =>
@@ -257,6 +312,46 @@ test('StageSetupController reset button restores only upper free inputs to initi
       assert.equal(turnlySpFrontInput.value, '4');
       assert.equal(turnlySpBackInput.value, '-2');
     }));
+
+test('StageSetupController applySnapshot restores enchant summary and reset clears it', () =>
+  withDom(({ root, win }) => {
+    const controller = new StageSetupController({
+      root,
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      selectedDimensionBattleId: 191000001,
+      initialOdGauge: 0,
+      initialSpBonusAll: 0,
+      initialStatusEffects: [],
+      enchantEffects: [
+        { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+        { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+      ],
+    });
+
+    let summaryItems = [...root.querySelectorAll('[data-role="stage-enchant-summary"] li')].map((item) =>
+      item.textContent.trim()
+    );
+    assert.deepEqual(summaryItems, [
+      'ODゲージ上昇量+20%',
+      'ターン開始時ダウンターン中の敵がいるとSP+2',
+    ]);
+    assert.equal(root.querySelector('[data-role="stage-enchant-summary-empty"]').classList.contains('hidden'), true);
+
+    root
+      .querySelector('[data-action="reset-stage-upper-inputs"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    summaryItems = [...root.querySelectorAll('[data-role="stage-enchant-summary"] li')].map((item) =>
+      item.textContent.trim()
+    );
+    assert.deepEqual(summaryItems, []);
+    assert.equal(root.querySelector('[data-role="stage-enchant-summary-empty"]').classList.contains('hidden'), false);
+    assert.deepEqual(controller.getSnapshot().enchantEffects, []);
+  }));
 
   test('StageSetupController reset button resets every-turn SP fields to defaults', () =>
     withDom(({ root, win }) => {

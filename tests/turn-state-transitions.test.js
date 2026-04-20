@@ -19017,6 +19017,163 @@ test('interrupt OD1 during EX (odSuspended, all OD consumed) → normal with sin
     }
   });
 
+test('applyRecoveryPipeline grants stage setup SP when any enemy is in DownTurn', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8810 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+  ];
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8810 },
+  });
+  const { nextState } = commitTurn(state, preview, []);
+
+  for (const member of nextState.party) {
+    assert.equal(member.sp.current, 14, `${member.characterId}: should be 10 + 2(base) + 2(stage) = 14`);
+  }
+});
+
+test('applyRecoveryPipeline grants stage setup SP to negative-SP front/back members only', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    initialSP: idx === 0 ? -5 : idx === 3 ? -4 : 10,
+    skills: [createProtectionSkill(8830 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'turnStartSpIfNegativeSp', scope: 'front', amount: 2 },
+    { effectType: 'turnStartSpIfNegativeSp', scope: 'back', amount: 2 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8830 },
+  });
+  const { nextState } = commitTurn(state, preview, []);
+
+  assert.equal(nextState.party[0].sp.current, -1, 'front negative SP member should gain conditional +2 after base recovery');
+  assert.equal(nextState.party[3].sp.current, 0, 'back negative SP member should gain conditional +2 after base recovery');
+
+  for (const index of [1, 2, 4, 5]) {
+    assert.equal(nextState.party[index].sp.current, 12, `M${index + 1}: should only receive base recovery`);
+  }
+});
+
+test('stage setup SP on enemy kill is reflected in the same preview turn for one kill', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    initialSP: idx === 1 ? 0 : 10,
+    skills: [createProtectionSkill(8850 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8850, manualKillEnemyIndexes: [0] },
+    1: { characterId: 'M2', skillId: 8851 },
+  }, null, 1);
+
+  assert.equal(findActionByCharacterId(preview, 'M1').killCount, 1);
+  assert.equal(findActionByCharacterId(preview, 'M2').startSP, 1);
+});
+
+test('stage setup SP on enemy kill stacks by killCount in the same preview turn', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    initialSP: idx === 1 ? 0 : 10,
+    skills: [createProtectionSkill(8870 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 2 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8870, manualKillEnemyIndexes: [0, 1] },
+    1: { characterId: 'M2', skillId: 8871 },
+  }, null, 2);
+
+  assert.equal(findActionByCharacterId(preview, 'M1').killCount, 2);
+  assert.equal(findActionByCharacterId(preview, 'M2').startSP, 2);
+});
+
+test('stage setup OD bonus is added in the same bucket as drive pierce for action-skill OD gain', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 8890,
+              name: '2hit AttackSkill',
+              label: 'TwoHitAttackSkill',
+              sp_cost: 0,
+              hit_count: 2,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(8890 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.party[0].drivePiercePercent = 15;
+  state.stageSetupEnchantEffects = [
+    { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8890, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 6.3);
+});
+
+test('stage setup OD bonus does not affect pursuit OD gain', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'PURSUIT_STAGE_OD',
+          characterName: 'PURSUIT_STAGE_OD',
+          weaponType: 'Slash',
+          skills: [
+            {
+              id: 8898,
+              name: '通常攻撃',
+              label: 'PursuitStageOd',
+              hit_count: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(8898 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.stageSetupEnchantEffects = [
+    { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'PURSUIT_STAGE_OD', skillId: 8898, targetEnemyIndex: 0, pursuedHitCount: 3 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
 // ─── Phase C: enemy status sourceCharacterName が nextState に保持される ───
 // normalizeEnemyStatusForClone (cloneTurnState 内) が sourceCharacterName を
 // 適切に保持することを確認する。

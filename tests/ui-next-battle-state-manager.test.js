@@ -329,6 +329,28 @@ test('BattleStateManager applies stageSetup initial OD/SP bonus and initial stat
     assert.equal(state.stageSetupTurnly?.spBack, -3);
   });
 
+  test('BattleStateManager stores stageSetupEnchantEffects from snapshot stageSetup in battle state', () => {
+    const manager = new BattleStateManager({ store: getStore() });
+
+    const partySnapshot = createPartySnapshot();
+    partySnapshot.stageSetup = {
+      enchantEffects: [
+        { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+        { effectType: 'spOnEnemyKill', scope: 'all', amount: 2 },
+        { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+      ],
+    };
+
+    const state = manager.buildFromSnapshot(partySnapshot, {
+      enemyCount: 1,
+    });
+
+    assert.deepEqual(state.stageSetupEnchantEffects, [
+      { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+      { effectType: 'spOnEnemyKill', scope: 'all', amount: 3 },
+    ]);
+  });
+
   test('BattleStateManager handles missing stageSetup turnly SP fields with zero defaults', () => {
     const manager = new BattleStateManager({ store: getStore() });
 
@@ -340,4 +362,5 @@ test('BattleStateManager applies stageSetup initial OD/SP bonus and initial stat
     assert.equal(state.stageSetupTurnly?.spAll, 0);
     assert.equal(state.stageSetupTurnly?.spFront, 0);
     assert.equal(state.stageSetupTurnly?.spBack, 0);
+    assert.deepEqual(state.stageSetupEnchantEffects, []);
   });
