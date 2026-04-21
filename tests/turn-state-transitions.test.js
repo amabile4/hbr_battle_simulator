@@ -7437,11 +7437,12 @@ test('CountBC(...BreakDownTurn()>0) is evaluated from enemy down-turn state', ()
     0: { characterId: 'ED1', skillId: 18000 },
   });
   const { nextState } = commitTurn(state, preview);
-  assert.equal(
-    nextState.turnState.enemyState.statuses.length,
-    0,
-    'down turn should tick when base turn advances (enemy turn consumed)'
+  // 新仕様: remaining=1 は 1 tick で 0 に下がるが、grace として status は残る
+  const downTurn = nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
   );
+  assert.ok(downTurn, 'DownTurn should remain at remaining=0 (grace) after 1 tick');
+  assert.equal(Number(downTurn.remainingTurns ?? -1), 0);
 });
 
 test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
@@ -8556,7 +8557,12 @@ test('enemy down-turn status ticks when base turn advances (enemy turn consumed)
   });
   const { nextState } = commitTurn(state, preview);
   assert.equal(nextState.turnState.turnIndex, 2);
-  assert.equal(nextState.turnState.enemyState.statuses.length, 0);
+  // remaining=1 → 1 tick で remaining=0 へ（ダウンターン最終ターンとして保持される）
+  const downTurn = nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+  );
+  assert.ok(downTurn, 'DownTurn が remaining=0 で残っているはず');
+  assert.equal(Number(downTurn.remainingTurns ?? -1), 0);
 });
 
 test('SuperBreakDown adds DownTurn event on fresh target and leaves Break state in next turn', () => {
@@ -8592,12 +8598,12 @@ test('SuperBreakDown adds DownTurn event on fresh target and leaves Break state 
     ),
     true
   );
-  assert.equal(
-    committed.nextState.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
-    ),
-    false
+  // 新仕様: 付与された DownTurn(remaining=1) は 1 tick 後 remaining=0 で残る（次ターンに消える）
+  const downTurn = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
   );
+  assert.ok(downTurn, '付与直後の DownTurn は remaining=0 の grace で残っているはず');
+  assert.equal(Number(downTurn.remainingTurns ?? -1), 0);
 });
 
 test('SuperBreakDown upgrades same-action manual break target to canonical SuperBreakDown state', () => {
@@ -8799,6 +8805,17 @@ test('SuperBreakDown upgrades down-turn target to canonical SuperBreakDown state
   assert.equal(committed.nextState.turnState.enemyState.breakStateByEnemy['0'].superDown.preRate, 250);
 
   committed.nextState.turnState.enemyState.destructionRateByEnemy['0'] = 420;
+  preview = previewTurn(committed.nextState, {
+    0: { characterId: 'M1', skillId: 18131, targetEnemyIndex: 0 },
+  });
+  committed = commitTurn(committed.nextState, preview);
+
+  // 新仕様: 1 → 0 grace で DownTurn / SuperBreakDown はまだ残り、もう 1 ターン後に消える
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some((status) => status.statusType === 'SuperBreakDown'),
+    true
+  );
+
   preview = previewTurn(committed.nextState, {
     0: { characterId: 'M1', skillId: 18131, targetEnemyIndex: 0 },
   });
@@ -19565,6 +19582,8 @@ test('Eシールド matching hit consumes current and applies Break on the same 
     true
   );
   assert.equal(action?.breakHitCount, 1);
+  // 新仕様: 自動ブレイクで付与された DownTurn(remaining=1) は 1 tick で remaining=0 の grace として残り、
+  // E シールド復帰は DownTurn が消滅する次ターンまで持ち越される
   assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
     current: 0,
     max: 2,
@@ -19578,6 +19597,11 @@ test('Eシールド matching hit consumes current and applies Break on the same 
     ),
     true
   );
+  const downTurnAfter = nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+  );
+  assert.ok(downTurnAfter, 'auto-break で付与された DownTurn は remaining=0 で残るはず');
+  assert.equal(Number(downTurnAfter.remainingTurns ?? -1), 0);
 });
 
 test('通常攻撃はEシールドに対して raw hit_count を使い、OD は 2.5% 固定のまま扱う', () => {
@@ -20198,6 +20222,8 @@ for (const mockTiming of ['OnHit', 'OnEnemyTurnStart', 'OnOverdriveStart', 'OnAd
     });
     const { nextState } = commitTurn(state, preview);
 
+    // 新仕様: 自動ブレイクで付与された DownTurn(remaining=1) は 1 tick で remaining=0 grace として残り、
+    // E シールド復帰は DownTurn 消滅の次ターンまで持ち越される（current=0 を維持）
     assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
       current: 0,
       max: 2,
@@ -20285,6 +20311,7 @@ test('IgnoreEShieldElement は既存の OnPlayerTurnStart passive と他 timing 
   const action = findActionByCharacterId(committedRecord, 'ESH_IGNORE_MULTI');
 
   // 両 passive が ignoreEShieldElement フラグに寄与し、action 自体は 1 回だけ減算する
+  // 新仕様: auto-break で付与された DownTurn(remaining=1) は grace として残るため E シールドは current=0 のまま
   assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
     current: 0,
     max: 2,
@@ -20338,8 +20365,9 @@ test('dp > 0 併存時でも Eシールド減算が優先されブレイク経�
   const action = findActionByCharacterId(committedRecord, 'ESH_DP_COEXIST');
 
   // E-shield は 2 hit で 0 まで削られ、same-action BREAK が成立
+  // 自動ブレイクで追加された DownTurn は同一 commit 内で消滅し、Eシールドが max に自動復帰する
   assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
-    current: 0,
+    current: 2,
     max: 2,
     elements: ['Fire'],
     defUpRate: 0,

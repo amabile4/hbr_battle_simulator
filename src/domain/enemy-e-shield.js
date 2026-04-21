@@ -58,3 +58,15 @@ export function isEnemyEShieldActive(raw = null) {
   const normalized = normalizeEnemyEShieldState(raw);
   return Boolean(normalized && normalized.current > 0);
 }
+
+export function restoreEShieldStateToMax(raw = null) {
+  const normalized = normalizeEnemyEShieldState(raw);
+  if (!normalized) {
+    return null;
+  }
+  return {
+    ...normalized,
+    elements: [...normalized.elements],
+    current: normalized.max,
+  };
+}

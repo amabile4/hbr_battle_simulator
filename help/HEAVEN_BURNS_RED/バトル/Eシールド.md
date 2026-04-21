@@ -31,6 +31,10 @@ Eシールドは、敵が DP の代わりに持つ特殊ゲージです。
   - 通常攻撃は OD 計算と Eシールド減算で hit 数の扱いを分離し、OD は `2.5%` 固定、Eシールドは raw hit 数を使う
   - `Party Setup` の属性ブレスレット selector は `CharacterStyle.normalAttackElements` へ接続されており、通常攻撃の属性参照と Eシールド判定の両方に使われる
   - `Enemy Setup` の手動編集では `count/max/elements/def_up_rate/dmg_limit` を変更でき、session save/load にも保存される
+  - `Enemy Setup` の `count` 入力は `max` を超える値を許可し、その場合 `max` を `count` に自動引き上げる（HP ゲージ複数の擬似表現用）
+  - 自動ブレイク（current=0 到達）した actionEntry には `autoBreakEnemyIndexes` と「ブレイカー識別情報 (`actorCharacterId / skillId / source='auto'`)」が記録され、Turn Row には violet 色の `(自動)` chip が手動 chip と同じ行に並ぶ
+  - 自動ブレイクで起動した「ブレイク時パッシブ」は通常パッシブと同じ形式で Passive Log ペインへ流入する (`source='passive_trigger'` / `effectTypes=['BreakDownTurnUp']`)
+  - DownTurn ステータスが消滅した瞬間（`tickEnemyStatusDurations` の `PlayerTurnEnd` / `EnemyTurnEnd` 両 timing）に対象 enemy の Eシールド `current` が `max` まで自動復帰する
 
 ### シミュレーターでの解決 (Resolution) と評価
 
@@ -60,6 +64,7 @@ turnState.enemyState.eShieldStateByEnemy[targetEnemyIndex] = {
 - `def_up_rate` の実機意味
 - `dmg_limit` の実機意味
 - `dp > 0` と Eシールドが同時に存在する敵の優先順位
+- HP ゲージ複数（例: 変貌を重ねる不滅の円環は 30→35→40→45 の段階的拡張）の正式な仕様。現状は `Enemy Setup` の `count/max` 手動編集 + max overflow 追従で擬似表現する
 
 ### 所持スタイルリスト
 

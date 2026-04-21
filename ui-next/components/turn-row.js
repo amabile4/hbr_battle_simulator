@@ -35,6 +35,7 @@ import {
   normalizeActionOutcomeOverrides,
 } from '../utils/action-outcome-overrides.js';
 import {
+  buildAutoBreakChipModels,
   buildManualBreakChipModels,
   buildManualKillChipModels,
   resolveManualBreakActorLabel,
@@ -2049,26 +2050,49 @@ export class TurnRowController {
   }
 
   #buildManualBreakChipsHtml(isCommitted) {
-    const chipModels = buildManualBreakChipModels({
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
+    const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
+    const manualChipModels = buildManualBreakChipModels({
       overrides: this.#getCurrentActionOutcomeOverridesForDisplay(isCommitted),
-      members: this.#getMembersInPositionOrder().filter((member) => member.position <= 2),
+      members,
       store: this.#store,
-      enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+      enemyNamesByEnemy,
     });
-    if (chipModels.length === 0) {
+    const autoChipModels = buildAutoBreakChipModels({
+      actions: this.#getActionsForAutoBreakChips(isCommitted),
+      members,
+      store: this.#store,
+      enemyNamesByEnemy,
+    });
+    if (manualChipModels.length === 0 && autoChipModels.length === 0) {
       return '';
     }
-    return `
-      <div data-role="manual-break-chip-list" class="flex flex-wrap gap-1 pb-1">
-        ${chipModels.map((chip) => `
+    const manualHtml = manualChipModels.map((chip) => `
           <span data-role="manual-break-chip"
                 title="${chip.label}"
                 class="inline-flex max-w-full items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold leading-tight text-amber-700">
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
-        `).join('')}
+        `).join('');
+    const autoHtml = autoChipModels.map((chip) => `
+          <span data-role="auto-break-chip"
+                title="${chip.label}"
+                class="inline-flex max-w-full items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold leading-tight text-violet-700">
+            <span class="max-w-full break-all">${chip.label}</span>
+          </span>
+        `).join('');
+    return `
+      <div data-role="manual-break-chip-list" class="flex flex-wrap gap-1 pb-1">
+        ${manualHtml}${autoHtml}
       </div>
     `;
+  }
+
+  #getActionsForAutoBreakChips(isCommitted) {
+    if (isCommitted) {
+      return Array.isArray(this.#record?.actions) ? this.#record.actions : [];
+    }
+    return Array.isArray(this.#previewActionFlow) ? this.#previewActionFlow : [];
   }
 
   #buildKillChipsHtml(isCommitted) {

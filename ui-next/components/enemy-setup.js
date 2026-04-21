@@ -445,9 +445,20 @@ export class EnemySetupController {
           return;
         }
         const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
+        const previousMax = Number(currentDraft.max);
         currentDraft[key] = normalizeEnemyEShieldEditorNumber(value, currentDraft[key]);
+        // count が max を超えた場合、max を count に追従させる（HPゲージ複数の擬似表現）
+        let maxFollowed = false;
+        if (key === 'count' && Number(currentDraft.count) > Number(currentDraft.max)) {
+          currentDraft.max = currentDraft.count;
+          maxFollowed = Number(currentDraft.max) !== previousMax;
+        }
         this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
         this.#onChange?.(this.getSnapshot());
+        // max を自動引き上げした場合は input value を反映するため再レンダリング
+        if (maxFollowed) {
+          this.#render();
+        }
         return;
       }
 

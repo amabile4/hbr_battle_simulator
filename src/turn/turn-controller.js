@@ -12,6 +12,7 @@ import {
   cloneEnemyEShieldState,
   isEnemyEShieldActive,
   normalizeEnemyEShieldElements,
+  restoreEShieldStateToMax,
 } from '../domain/enemy-e-shield.js';
 import {
   ENEMY_STATUS_BREAK,
@@ -223,7 +224,7 @@ const MOTIVATION_DP_HEAL_PASSIVE_NAME = 'Motivation';
 const MOTIVATION_DP_HEAL_PASSIVE_DESC = 'Motivation increases when receiving DP heal from active skill';
 const AUTO_DP_CONSUMPTION_FLOOR = 1;
 const DEFAULT_AUTO_DOWN_TURN_REMAINING = 1;
-const SAME_ACTION_SUPER_BREAK_DOWN_INITIAL_REMAINING = DEFAULT_AUTO_DOWN_TURN_REMAINING + 1;
+const SAME_ACTION_SUPER_BREAK_DOWN_INITIAL_REMAINING = DEFAULT_AUTO_DOWN_TURN_REMAINING;
 const DP_RATE_REFERENCE_MIN = 0;
 const DP_RATE_REFERENCE_MAX = 1;
 const REVIVE_TERRITORY_TYPE = 'ReviveTerritory';
@@ -1792,7 +1793,9 @@ function normalizeEnemyStatus(status, enemyCount = null) {
       : 0
     : Number.isFinite(Number(rawRemaining)) && Number(rawRemaining) > 0
       ? Number(rawRemaining)
-      : getEnemyStatusDefaultRemainingTurns(statusType, status);
+      : statusType === ENEMY_STATUS_DOWN_TURN && Number.isFinite(Number(rawRemaining)) && Number(rawRemaining) === 0
+        ? 0
+        : getEnemyStatusDefaultRemainingTurns(statusType, status);
   const power = getEnemyStatusPowerValue(status);
   const normalized = {
     statusType,
@@ -2761,6 +2764,19 @@ function setEnemyEShieldStateByTarget(turnState, targetIndex, state) {
   };
 }
 
+function restoreEnemyEShieldToMax(turnState, targetIndex) {
+  const current = getEnemyEShieldStateByTarget(turnState, targetIndex);
+  const restored = restoreEShieldStateToMax(current);
+  if (!restored) {
+    return false;
+  }
+  if (Number(current?.current ?? 0) === restored.current) {
+    return false;
+  }
+  setEnemyEShieldStateByTarget(turnState, targetIndex, restored);
+  return true;
+}
+
 function setEnemyDestructionRatePercent(turnState, targetIndex, value) {
   const enemyState = getEnemyState(turnState);
   const next = {
@@ -3072,7 +3088,12 @@ function isEnemyStatusActive(status) {
   if (isEnemyStatusPersistent(status)) {
     return true;
   }
-  return Number(status?.remainingTurns ?? 0) > 0;
+  const remaining = Number(status?.remainingTurns ?? 0);
+  // DownTurn は remaining=0 も 1 ターン保持（ダウン状態の最終ターン）
+  if (normalizeEnemyStatusType(status?.statusType) === ENEMY_STATUS_DOWN_TURN) {
+    return remaining >= 0;
+  }
+  return remaining > 0;
 }
 
 function getActiveEnemyStatuses(turnState, statusType) {
@@ -5266,7 +5287,19 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
         return normalizeEnemyStatus(status, enemyState.enemyCount);
       }
       const remainingTurns = Number(status?.remainingTurns ?? 0);
-      if (!Number.isFinite(remainingTurns) || remainingTurns <= 0) {
+      if (!Number.isFinite(remainingTurns)) {
+        return null;
+      }
+      // DownTurn は remaining=0 を 1 ターン grace として保持し、次 tick で削除する
+      const isDownTurn = normalizeEnemyStatusType(status?.statusType) === ENEMY_STATUS_DOWN_TURN;
+      if (isDownTurn) {
+        if (remainingTurns <= 0) {
+          return null;
+        }
+        const nextTurns = remainingTurns - 1;
+        return normalizeEnemyStatus({ ...status, remainingTurns: nextTurns }, enemyState.enemyCount);
+      }
+      if (remainingTurns <= 0) {
         return null;
       }
       const nextTurns = remainingTurns - 1;
@@ -5299,6 +5332,8 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
       continue;
     }
     removeEnemySuperDownState(turnState, targetIndex);
+    // DownTurn が明けた enemy の Eシールドを max まで自動復帰
+    restoreEnemyEShieldToMax(turnState, targetIndex);
   }
 }
 
@@ -8397,8 +8432,10 @@ function resolveActionBreakTriggerCount(actionEntry) {
 
 // ブレイク時にダウンターンを延長するパッシブ（ひれ伏すでゲス！など）を処理する。
 // applyEnemyBreakEffectsFromActions の後に呼ぶことで、同ターン付与のDownTurnも対象にできる。
+// 戻り値の events は breakDownTurnUpEvents 用、passiveTriggerEvents は Passive Log 表示用。
 function applyBreakDownTurnUpFromActions(state, previewRecord) {
   const events = [];
+  const passiveTriggerEvents = [];
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const breakHitCount = resolveActionBreakTriggerCount(actionEntry);
@@ -8441,6 +8478,8 @@ function applyBreakDownTurnUpFromActions(state, previewRecord) {
         continue;
       }
 
+      let passiveFiredForActor = false;
+      const firedEffectTypes = [];
       for (const part of parts) {
         if (String(part?.skill_type ?? '') !== 'BreakDownTurnUp') {
           continue;
@@ -8475,12 +8514,30 @@ function applyBreakDownTurnUpFromActions(state, previewRecord) {
               remainingTurns: newRemaining,
             })
           );
+          passiveFiredForActor = true;
+          if (!firedEffectTypes.includes('BreakDownTurnUp')) {
+            firedEffectTypes.push('BreakDownTurnUp');
+          }
         }
+      }
+
+      if (passiveFiredForActor) {
+        passiveTriggerEvents.push(
+          buildActionScopedEvent(
+            actionEntry,
+            createPassiveTriggerEvent(state.turnState, actor, passive, {
+              source: 'passive_trigger',
+              effectTypes: firedEffectTypes,
+              triggerSkillId: Number(skill?.skillId ?? 0),
+              triggerSkillName: String(skill?.name ?? ''),
+            })
+          )
+        );
       }
     }
   }
 
-  return events;
+  return { events, passiveTriggerEvents };
 }
 
 function hasReinforcedMode(member) {
@@ -9424,7 +9481,9 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       actionEntry.manualBreakEnemyIndexes = [...new Set(derivedBreakEnemyIndexes)];
     }
   }
-  const breakDownTurnUpEvents = applyBreakDownTurnUpFromActions(state, singleRecord);
+  const breakDownTurnUpResult = applyBreakDownTurnUpFromActions(state, singleRecord);
+  const breakDownTurnUpEvents = breakDownTurnUpResult.events;
+  const breakDownTurnUpPassiveTriggerEvents = breakDownTurnUpResult.passiveTriggerEvents;
   const odGaugeGain = applyOdGaugeFromActions(state, singleRecord, {
     buffMetadataValidation,
   });
@@ -9442,7 +9501,11 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     additionalTurnPassiveGrantedIds: moraleResult.additionalTurnPassiveGrantedIds,
     dpPassiveEvents: moraleResult.dpPassiveEvents,
     dpPassiveMotivationEvents: applyMotivationFromDpHealEvents(state, moraleResult.dpPassiveEvents),
-    passiveTriggerEvents: [...moraleResult.passiveTriggerEvents, ...supportBreakOdEvents],
+    passiveTriggerEvents: [
+      ...moraleResult.passiveTriggerEvents,
+      ...supportBreakOdEvents,
+      ...breakDownTurnUpPassiveTriggerEvents,
+    ],
     motivationEvents,
     markEvents,
     fieldStateEvents: [...fieldStateEvents, ...moraleResult.fieldStateEvents, ...talismanFieldEvents],

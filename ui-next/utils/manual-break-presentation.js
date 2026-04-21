@@ -57,6 +57,61 @@ export function buildManualBreakChipModels({
     });
 }
 
+export function buildAutoBreakChipModels({
+  actions = [],
+  members = [],
+  store = null,
+  enemyNamesByEnemy = {},
+} = {}) {
+  const memberByPosition = new Map(
+    (Array.isArray(members) ? members : []).map((member) => [Number(member?.position), member])
+  );
+  const memberByCharacterId = new Map(
+    (Array.isArray(members) ? members : [])
+      .filter((member) => member?.characterId)
+      .map((member) => [String(member.characterId), member])
+  );
+  const seen = new Set();
+  const models = [];
+  for (const action of Array.isArray(actions) ? actions : []) {
+    const enemyIndexes = Array.isArray(action?.autoBreakEnemyIndexes) ? action.autoBreakEnemyIndexes : [];
+    if (enemyIndexes.length === 0) {
+      continue;
+    }
+    const characterId = String(action?.actorCharacterId ?? action?.characterId ?? '').trim();
+    const positionRaw = Number(action?.positionIndex ?? action?.actorPositionIndex);
+    const position = Number.isFinite(positionRaw) ? positionRaw : null;
+    const member =
+      (characterId && memberByCharacterId.get(characterId)) ||
+      (position != null ? memberByPosition.get(position) : null) ||
+      null;
+    const actorLabel = member
+      ? resolveManualBreakActorLabel(member, store)
+      : (position != null ? `P${position + 1}` : characterId || '?');
+    for (const enemyIndex of enemyIndexes) {
+      const normalizedEnemyIndex = Number(enemyIndex);
+      if (!Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0) {
+        continue;
+      }
+      const key = `${characterId || position || ''}:${Number(action?.skillId ?? 0)}:${normalizedEnemyIndex}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      const enemyLabel = resolveManualBreakEnemyLabel(normalizedEnemyIndex, enemyNamesByEnemy);
+      models.push({
+        key,
+        actorLabel,
+        enemyLabel,
+        label: `${actorLabel}→${enemyLabel} ブレイク (自動)`,
+        position: position ?? -1,
+        enemyIndex: normalizedEnemyIndex,
+      });
+    }
+  }
+  return models;
+}
+
 export function buildManualKillChipModels({
   overrides = [],
   members = [],
