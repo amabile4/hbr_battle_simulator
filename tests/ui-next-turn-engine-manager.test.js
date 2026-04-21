@@ -1578,12 +1578,12 @@ test('TurnEngineManager keeps later SuperBreakDown behavior unchanged after an e
     ),
     true
   );
-  assert.equal(
-    manager.currentState.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
-    ),
-    false
+  // 新仕様: manual Break で付与された DownTurn(remaining=1) は commit 末の tick で remaining=0 の grace として残る
+  const downTurn = manager.currentState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
   );
+  assert.ok(downTurn, 'DownTurn が grace で残っているはず');
+  assert.equal(Number(downTurn.remainingTurns ?? -1), 0);
 });
 
 test('TurnEngineManager upgrades same-action manual break target to SuperBreakDown', () => {
