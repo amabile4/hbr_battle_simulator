@@ -9,6 +9,7 @@ export const REPLAY_TURN_LEGACY_OVERRIDE_ENTRY_TYPES = Object.freeze({
 export const ACTION_OUTCOME_TYPES = Object.freeze({
   BREAK: 'Break',
   KILL: 'Kill',
+  HP_BREAK: 'HpBreak',
 });
 
 function normalizePosition(position) {
@@ -59,7 +60,11 @@ export function normalizeActionOutcomeOverride(override = {}, enemyCount = null)
     return null;
   }
   const outcome = String(override.outcome ?? '').trim();
-  if (outcome !== ACTION_OUTCOME_TYPES.BREAK && outcome !== ACTION_OUTCOME_TYPES.KILL) {
+  if (
+    outcome !== ACTION_OUTCOME_TYPES.BREAK &&
+    outcome !== ACTION_OUTCOME_TYPES.KILL &&
+    outcome !== ACTION_OUTCOME_TYPES.HP_BREAK
+  ) {
     return null;
   }
   const enemyIndexes = normalizeEnemyIndexes(override.enemyIndexes, enemyCount);
@@ -210,6 +215,50 @@ export function setKillEnemyIndexesForPosition(
       {
         position: normalizedPosition,
         outcome: ACTION_OUTCOME_TYPES.KILL,
+        enemyIndexes: nextEnemyIndexes,
+      },
+    ],
+    enemyCount
+  );
+}
+
+export function getHpBreakEnemyIndexesForPosition(overrides = [], position) {
+  const normalizedPosition = normalizePosition(position);
+  if (normalizedPosition === null) {
+    return [];
+  }
+  const override = normalizeActionOutcomeOverrides(overrides).find(
+    (candidate) =>
+      candidate.position === normalizedPosition &&
+      candidate.outcome === ACTION_OUTCOME_TYPES.HP_BREAK
+  );
+  return override ? [...override.enemyIndexes] : [];
+}
+
+export function setHpBreakEnemyIndexesForPosition(
+  overrides = [],
+  position,
+  enemyIndexes = [],
+  enemyCount = null
+) {
+  const normalizedPosition = normalizePosition(position);
+  if (normalizedPosition === null) {
+    return normalizeActionOutcomeOverrides(overrides, enemyCount);
+  }
+  const nextEnemyIndexes = normalizeEnemyIndexes(enemyIndexes, enemyCount);
+  const filtered = normalizeActionOutcomeOverrides(overrides, enemyCount).filter(
+    (override) =>
+      !(override.position === normalizedPosition && override.outcome === ACTION_OUTCOME_TYPES.HP_BREAK)
+  );
+  if (nextEnemyIndexes.length === 0) {
+    return filtered;
+  }
+  return normalizeActionOutcomeOverrides(
+    [
+      ...filtered,
+      {
+        position: normalizedPosition,
+        outcome: ACTION_OUTCOME_TYPES.HP_BREAK,
         enemyIndexes: nextEnemyIndexes,
       },
     ],

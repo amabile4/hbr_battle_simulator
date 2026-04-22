@@ -15,6 +15,11 @@ import {
   restoreEShieldStateToMax,
 } from '../domain/enemy-e-shield.js';
 import {
+  canEnemyHpBreak,
+  cloneEnemyExtraHpGaugeState,
+  decrementEnemyExtraHpGaugeState,
+} from '../domain/enemy-extra-hp-gauge.js';
+import {
   ENEMY_STATUS_BREAK,
   ENEMY_STATUS_SUPER_BREAK,
   ENEMY_STATUS_SUPER_BREAK_DOWN,
@@ -215,6 +220,7 @@ const DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE = 'DoubleActionExtraSkill';
 const DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING = 1;
 const DOUBLE_ACTION_EXTRA_SKILL_CAST_COUNT = 2;
 const DOUBLE_ACTION_EXTRA_SKILL_REQUIRED_USES = 2;
+const ENEMY_HP_BREAK_E_SHIELD_MAX_INCREMENT = 5;
 const MOTIVATION_DAMAGE_TAKEN_DELTA = -1;
 const MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE = 'MotivationDamage';
 const MOTIVATION_DAMAGE_TAKEN_PASSIVE_NAME = 'Motivation';
@@ -2038,6 +2044,7 @@ export function getEnemyState(turnState) {
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
+      extraHpGaugeStateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -2073,6 +2080,14 @@ export function getEnemyState(turnState) {
             Object.entries(state.eShieldStateByEnemy)
               .map(([targetIndex, shieldState]) => [String(targetIndex), normalizeEnemyEShieldStateEntry(shieldState)])
               .filter(([, shieldState]) => Boolean(shieldState))
+          )
+        : {},
+    extraHpGaugeStateByEnemy:
+      state.extraHpGaugeStateByEnemy && typeof state.extraHpGaugeStateByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(state.extraHpGaugeStateByEnemy)
+              .map(([targetIndex, gaugeState]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(gaugeState)])
+              .filter(([, gaugeState]) => Boolean(gaugeState))
           )
         : {},
     breakStateByEnemy:
@@ -2112,6 +2127,7 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
     enemyDestructionRateCaps: structuredClone(enemyState.destructionRateCapByEnemy),
     enemyOdRates: structuredClone(enemyState.odRateByEnemy),
     enemyEShields: structuredClone(enemyState.eShieldStateByEnemy),
+    enemyExtraHpGauges: structuredClone(enemyState.extraHpGaugeStateByEnemy),
     enemyAbsorbElements: structuredClone(enemyState.absorbElementsByEnemy),
     enemyBreakStates: structuredClone(enemyState.breakStateByEnemy),
     enemyStatuses: structuredClone(enemyState.statuses),
@@ -2151,6 +2167,13 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
             .filter(([, shieldState]) => Boolean(shieldState))
         )
       : structuredClone(current.eShieldStateByEnemy),
+    extraHpGaugeStateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyExtraHpGauges')
+      ? Object.fromEntries(
+          Object.entries(snapshot.enemyExtraHpGauges ?? {})
+            .map(([targetIndex, gaugeState]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(gaugeState)])
+            .filter(([, gaugeState]) => Boolean(gaugeState))
+        )
+      : structuredClone(current.extraHpGaugeStateByEnemy),
     absorbElementsByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyAbsorbElements')
       ? cloneEnemySlotObjectMap(snapshot.enemyAbsorbElements)
       : structuredClone(current.absorbElementsByEnemy),
@@ -2847,6 +2870,11 @@ function getEnemyEShieldStateByTarget(turnState, targetIndex) {
   return cloneEnemyEShieldState(enemyState.eShieldStateByEnemy?.[String(Number(targetIndex))]);
 }
 
+function getEnemyExtraHpGaugeStateByTarget(turnState, targetIndex) {
+  const enemyState = getEnemyState(turnState);
+  return cloneEnemyExtraHpGaugeState(enemyState.extraHpGaugeStateByEnemy?.[String(Number(targetIndex))]);
+}
+
 function setEnemyEShieldStateByTarget(turnState, targetIndex, state) {
   const enemyState = getEnemyState(turnState);
   const next = { ...(enemyState.eShieldStateByEnemy ?? {}) };
@@ -2863,6 +2891,22 @@ function setEnemyEShieldStateByTarget(turnState, targetIndex, state) {
   };
 }
 
+function setEnemyExtraHpGaugeStateByTarget(turnState, targetIndex, state) {
+  const enemyState = getEnemyState(turnState);
+  const next = { ...(enemyState.extraHpGaugeStateByEnemy ?? {}) };
+  const key = String(Number(targetIndex));
+  const normalized = cloneEnemyExtraHpGaugeState(state);
+  if (normalized) {
+    next[key] = normalized;
+  } else {
+    delete next[key];
+  }
+  turnState.enemyState = {
+    ...enemyState,
+    extraHpGaugeStateByEnemy: next,
+  };
+}
+
 function restoreEnemyEShieldToMax(turnState, targetIndex) {
   const current = getEnemyEShieldStateByTarget(turnState, targetIndex);
   const restored = restoreEShieldStateToMax(current);
@@ -2874,6 +2918,25 @@ function restoreEnemyEShieldToMax(turnState, targetIndex) {
   }
   setEnemyEShieldStateByTarget(turnState, targetIndex, restored);
   return true;
+}
+
+function increaseEnemyEShieldMaxAndRestore(
+  turnState,
+  targetIndex,
+  increment = ENEMY_HP_BREAK_E_SHIELD_MAX_INCREMENT
+) {
+  const current = getEnemyEShieldStateByTarget(turnState, targetIndex);
+  if (!isEnemyEShieldActive(current)) {
+    return null;
+  }
+  const nextMax = Math.max(0, Number(current?.max ?? 0) + Number(increment));
+  const restored = {
+    ...current,
+    current: nextMax,
+    max: nextMax,
+  };
+  setEnemyEShieldStateByTarget(turnState, targetIndex, restored);
+  return restored;
 }
 
 function setEnemyDestructionRatePercent(turnState, targetIndex, value) {
@@ -3048,6 +3111,18 @@ function clearEnemySpecialBreakState(turnState, targetIndex) {
   deleteEnemyDestructionRateCapPercent(turnState, targetIndex);
   setEnemyBreakStateByTarget(turnState, targetIndex, null);
   removeEnemyStatuses(turnState, targetIndex, [ENEMY_STATUS_STRONG_BREAK, ENEMY_STATUS_SUPER_DOWN]);
+}
+
+function resetEnemyHpBreakPhaseState(turnState, targetIndex) {
+  setEnemyDestructionRatePercent(turnState, targetIndex, DEFAULT_DESTRUCTION_RATE_PERCENT);
+  deleteEnemyDestructionRateCapPercent(turnState, targetIndex);
+  setEnemyBreakStateByTarget(turnState, targetIndex, null);
+  removeEnemyStatuses(turnState, targetIndex, [
+    ENEMY_STATUS_BREAK,
+    ENEMY_STATUS_DOWN_TURN,
+    ENEMY_STATUS_STRONG_BREAK,
+    ENEMY_STATUS_SUPER_DOWN,
+  ]);
 }
 
 function applyEnemyStrongBreakState(turnState, targetIndex, options = {}) {
@@ -5417,6 +5492,7 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     absorbElementsByEnemy: enemyState.absorbElementsByEnemy,
     odRateByEnemy: enemyState.odRateByEnemy,
     eShieldStateByEnemy: enemyState.eShieldStateByEnemy,
+    extraHpGaugeStateByEnemy: enemyState.extraHpGaugeStateByEnemy,
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
@@ -8514,6 +8590,15 @@ function normalizeManualKillEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEMY
   )].sort((left, right) => left - right);
 }
 
+function normalizeManualHpBreakEnemyIndexes(actionEntry, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const normalizedEnemyCount = clampEnemyCount(enemyCount);
+  return [...new Set(
+    (Array.isArray(actionEntry?.manualHpBreakEnemyIndexes) ? actionEntry.manualHpBreakEnemyIndexes : [])
+      .map((enemyIndex) => Number(enemyIndex))
+      .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < normalizedEnemyCount)
+  )].sort((left, right) => left - right);
+}
+
 export function applyManualEnemyBreak(turnState, targetIndex) {
   if (!turnState || !isEnemyAlive(turnState, targetIndex)) {
     return null;
@@ -8559,6 +8644,26 @@ export function applyManualEnemyKill(turnState, targetIndex) {
   };
 }
 
+export function applyManualEnemyHpBreak(turnState, targetIndex) {
+  if (!turnState || !isEnemyAlive(turnState, targetIndex)) {
+    return null;
+  }
+  const currentExtraHpGaugeState = getEnemyExtraHpGaugeStateByTarget(turnState, targetIndex);
+  if (!canEnemyHpBreak(currentExtraHpGaugeState)) {
+    return null;
+  }
+  const nextExtraHpGaugeState = decrementEnemyExtraHpGaugeState(currentExtraHpGaugeState);
+  setEnemyExtraHpGaugeStateByTarget(turnState, targetIndex, nextExtraHpGaugeState);
+  resetEnemyHpBreakPhaseState(turnState, targetIndex);
+  const restoredEShieldState = increaseEnemyEShieldMaxAndRestore(turnState, targetIndex);
+  return {
+    targetIndex: Number(targetIndex),
+    statusType: 'HpBreak',
+    remainingExtraHpGaugeCount: Number(nextExtraHpGaugeState?.remaining ?? 0),
+    eShieldState: restoredEShieldState ? cloneEnemyEShieldState(restoredEShieldState) : null,
+  };
+}
+
 function applyManualBreakEffectsFromActions(state, previewRecord) {
   const events = [];
   const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
@@ -8581,6 +8686,36 @@ function applyManualBreakEffectsFromActions(state, previewRecord) {
           targetIndex,
           statusType: ENEMY_STATUS_DOWN_TURN,
           remainingTurns: Number(applied.downTurnRemainingTurns ?? DEFAULT_AUTO_DOWN_TURN_REMAINING),
+          source: 'manual',
+        })
+      );
+    }
+  }
+  return events;
+}
+
+function applyManualHpBreakEffectsFromActions(state, previewRecord) {
+  const events = [];
+  const enemyCount = clampEnemyCount(state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const manualHpBreakEnemyIndexes = normalizeManualHpBreakEnemyIndexes(actionEntry, enemyCount);
+    if (manualHpBreakEnemyIndexes.length === 0) {
+      continue;
+    }
+    for (const targetIndex of manualHpBreakEnemyIndexes) {
+      const applied = applyManualEnemyHpBreak(state.turnState, targetIndex);
+      if (!applied) {
+        continue;
+      }
+      events.push(
+        buildActionScopedEvent(actionEntry, {
+          actorCharacterId: String(actionEntry.characterId ?? ''),
+          skillId: Number(actionEntry.skillId ?? 0),
+          skillName: String(actionEntry.skillName ?? ''),
+          mode: 'HpBreak',
+          targetIndex: Number(applied.targetIndex),
+          statusType: String(applied.statusType ?? 'HpBreak'),
+          remainingExtraHpGaugeCount: Number(applied.remainingExtraHpGaugeCount ?? 0),
           source: 'manual',
         })
       );
@@ -9190,6 +9325,8 @@ function buildDerivedRepeatAction(action) {
     pursuedTargetEnemyIndex: null,
     manualBreakEnemyIndexes: [],
     autoBreakEnemyIndexes: [],
+    manualHpBreakEnemyIndexes: [],
+    hpBreakCount: 0,
     manualKillEnemyIndexes: [],
   };
 }
@@ -9372,6 +9509,10 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       Number.isFinite(Number(action?.breakHitCount))
         ? Number(action.breakHitCount)
         : normalizeManualBreakEnemyIndexes(action, state?.turnState?.enemyState?.enemyCount).length,
+    hpBreakCount:
+      Number.isFinite(Number(action?.hpBreakCount))
+        ? Number(action.hpBreakCount)
+        : normalizeManualHpBreakEnemyIndexes(action, state?.turnState?.enemyState?.enemyCount).length,
     killCount: Number(action?.killCount ?? 0),
     pursuedHitCount: Math.max(0, Number(action?.pursuedHitCount ?? 0)),
     pursuedTargetEnemyIndex:
@@ -9385,6 +9526,10 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       state?.turnState?.enemyState?.enemyCount
     ),
     autoBreakEnemyIndexes: [],
+    manualHpBreakEnemyIndexes: normalizeManualHpBreakEnemyIndexes(
+      action,
+      state?.turnState?.enemyState?.enemyCount
+    ),
     manualKillEnemyIndexes: normalizeManualKillEnemyIndexes(
       action,
       state?.turnState?.enemyState?.enemyCount
@@ -9647,6 +9792,18 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     ...autoEshieldBreakEvents,
     ...applyManualBreakEffectsFromActions(state, singleRecord),
   ];
+  const enemyHpBreakEvents = applyManualHpBreakEffectsFromActions(state, singleRecord);
+  const derivedHpBreakEnemyIndexes = enemyHpBreakEvents
+    .map((event) => Number(event?.targetIndex))
+    .filter((targetIndex) => Number.isInteger(targetIndex) && targetIndex >= 0);
+  if (derivedHpBreakEnemyIndexes.length > 0) {
+    if (!Number.isFinite(Number(actionEntry?.hpBreakCount)) || Number(actionEntry.hpBreakCount) <= 0) {
+      actionEntry.hpBreakCount = derivedHpBreakEnemyIndexes.length;
+    }
+    if (normalizeManualHpBreakEnemyIndexes(actionEntry).length === 0) {
+      actionEntry.manualHpBreakEnemyIndexes = [...new Set(derivedHpBreakEnemyIndexes)];
+    }
+  }
   const enemyKillEvents = applyManualKillEffectsFromActions(state, singleRecord);
   const derivedKillEnemyIndexes = enemyKillEvents
     .map((event) => Number(event?.targetIndex))
@@ -9716,6 +9873,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     shreddingEvents,
     enemyStatusEvents,
     enemyBreakEvents,
+    enemyHpBreakEvents,
     enemyKillEvents,
     breakDownTurnUpEvents,
     odGaugeGain,
@@ -9732,7 +9890,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
   const actionEntries = [];
   let actionSequence = 0;
 
-  for (const { member, position, skill, action } of sortedActions) {
+  outer: for (const { member, position, skill, action } of sortedActions) {
     const projectedMember = findMemberByCharacterId(projectedState, member.characterId);
     if (!projectedMember) {
       throw new Error(`Member not found: ${member.characterId}`);
@@ -9756,11 +9914,14 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     );
     actionSequence += 1;
     actionEntries.push(primaryEntry);
-    applyCommittedActionSideEffects(projectedState, primaryEntry, {
+    const primaryResult = applyCommittedActionSideEffects(projectedState, primaryEntry, {
       ...options,
       validatePreview: false,
       enemyCount,
     });
+    if ((primaryResult.enemyHpBreakEvents?.length ?? 0) > 0) {
+      break outer;
+    }
 
     if (!shouldRepeat) {
       continue;
@@ -9790,11 +9951,14 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     );
     actionSequence += 1;
     actionEntries.push(repeatEntry);
-    applyCommittedActionSideEffects(projectedState, repeatEntry, {
+    const repeatResult = applyCommittedActionSideEffects(projectedState, repeatEntry, {
       ...options,
       validatePreview: false,
       enemyCount,
     });
+    if ((repeatResult.enemyHpBreakEvents?.length ?? 0) > 0) {
+      break;
+    }
   }
 
   return {
@@ -11734,9 +11898,21 @@ function applySwapEvents(state, swapEvents) {
   }
 }
 
-function computeNextTurnState(current, grantedExtraCharacterIds = []) {
+function computeNextTurnState(current, grantedExtraCharacterIds = [], options = {}) {
   const next = cloneTurnState(current);
   next.sequenceId += 1;
+  if (options.forceNextBaseTurn) {
+    next.turnType = 'normal';
+    next.turnIndex = Number(current.turnIndex ?? 1) + 1;
+    next.turnLabel = `T${next.turnIndex}`;
+    next.odLevel = 0;
+    next.remainingOdActions = 0;
+    next.odContext = null;
+    next.odSuspended = false;
+    next.odPending = false;
+    next.extraTurnState = null;
+    return next;
+  }
   const hasGrantedExtra = grantedExtraCharacterIds.length > 0;
   const grantedSet = new Set(grantedExtraCharacterIds);
 
@@ -11972,8 +12148,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const shreddingEvents = [];
   const enemyStatusEvents = [];
   const enemyBreakEvents = [];
+  const enemyHpBreakEvents = [];
   const enemyKillEvents = [];
   const breakDownTurnUpEvents = [];
+  let forceNextBaseTurn = false;
   let odGaugeGain = {
     startOdGauge: truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0)),
     endOdGauge: truncateToTwoDecimals(Number(state.turnState.odGauge ?? 0)),
@@ -12009,6 +12187,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     shreddingEvents.push(...actionResult.shreddingEvents);
     enemyStatusEvents.push(...actionResult.enemyStatusEvents);
     enemyBreakEvents.push(...actionResult.enemyBreakEvents);
+    enemyHpBreakEvents.push(...actionResult.enemyHpBreakEvents);
     enemyKillEvents.push(...actionResult.enemyKillEvents);
     breakDownTurnUpEvents.push(...actionResult.breakDownTurnUpEvents);
     odGaugeGain = {
@@ -12016,7 +12195,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       endOdGauge: Number(actionResult.odGaugeGain?.endOdGauge ?? odGaugeGain.endOdGauge ?? 0),
       events: [...(odGaugeGain.events ?? []), ...(actionResult.odGaugeGain?.events ?? [])],
     };
+    if ((actionResult.enemyHpBreakEvents?.length ?? 0) > 0) {
+      forceNextBaseTurn = true;
+      break;
+    }
   }
+  const shouldActivateInterruptOdAfterActions = shouldActivateInterruptOd && !forceNextBaseTurn;
   // EXターン遷移判定を applyRecoveryPipeline より前に確定させる
   // （normal/od → extra 遷移時にSP回復が実行されるバグを防ぐため）
   const grantedExtraCharacterIds = [
@@ -12039,10 +12223,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   // ─── 次ターン状態の確定 ───
-  const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds);
+  const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds, {
+    forceNextBaseTurn,
+  });
   const nextTurnLabel = nextTurnState.turnLabel;
   const nextBaseTurnAdvances =
-    !shouldActivateInterruptOd && Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0);
+    !shouldActivateInterruptOdAfterActions &&
+    Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0);
   nextTurnState.passiveEventsLastApplied = [];
   // P3-B: PlayerTurnEnd パッシブの発火フラグをリセット（新プレイヤーターン開始時）
   if (nextBaseTurnAdvances) {
@@ -12096,7 +12283,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   // ─── 割込OD turnIndex 補正 ───
-  if (shouldActivateInterruptOd) {
+  if (shouldActivateInterruptOdAfterActions) {
     // 割込ODは「現在通常ターンの後段」に差し込まれるため、
     // ODが終わるまで base turn index を進めない。
     nextTurnState.turnIndex = Number(state.turnState.turnIndex ?? nextTurnState.turnIndex ?? 1);
@@ -12408,7 +12595,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     ];
   }
 
-  if (shouldActivateInterruptOd) {
+  if (shouldActivateInterruptOdAfterActions) {
     nextState = activateOverdrive(nextState, interruptOdLevel, 'interrupt', {
       forceActivation: forceOdActivation,
       forceConsumeGauge: forceResourceDeficit,

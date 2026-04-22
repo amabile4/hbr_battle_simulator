@@ -5,6 +5,7 @@ import {
 } from '../config/battle-defaults.js';
 import { cloneDpState } from '../domain/dp-state.js';
 import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
 import { MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 
 export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
@@ -162,6 +163,7 @@ export function createInitialTurnState() {
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
+      extraHpGaugeStateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -247,6 +249,15 @@ export function cloneTurnState(turnState) {
               ? Object.fromEntries(
                   Object.entries(turnState.enemyState.eShieldStateByEnemy)
                     .map(([targetIndex, state]) => [String(targetIndex), cloneEnemyEShieldState(state)])
+                    .filter(([, state]) => Boolean(state))
+                )
+              : {},
+          extraHpGaugeStateByEnemy:
+            turnState.enemyState.extraHpGaugeStateByEnemy &&
+            typeof turnState.enemyState.extraHpGaugeStateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.extraHpGaugeStateByEnemy)
+                    .map(([targetIndex, state]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(state)])
                     .filter(([, state]) => Boolean(state))
                 )
               : {},
@@ -339,6 +350,8 @@ export function cloneTurnState(turnState) {
           destructionRateCapByEnemy: {},
           absorbElementsByEnemy: {},
           odRateByEnemy: {},
+          eShieldStateByEnemy: {},
+          extraHpGaugeStateByEnemy: {},
           breakStateByEnemy: {},
           enemyNamesByEnemy: {},
           zoneConfigByEnemy: {},

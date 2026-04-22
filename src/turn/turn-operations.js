@@ -20,6 +20,7 @@ import {
 } from '../config/battle-defaults.js';
 import { REPLAY_OPERATION_TYPES, replayOperationRegistry } from '../ui/lightweight-replay-script.js';
 import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
 
 export const TEZUKA_CHARACTER_ID = 'STezuka';
 export const MAKAI_KIHEI_STYLE_ID = 1003108;
@@ -276,6 +277,10 @@ function normalizeSummonEnemyEShield(payload = {}) {
   return cloneEnemyEShieldState(payload?.e_shield ?? payload?.eShield ?? null);
 }
 
+function normalizeSummonEnemyExtraHpGauge(payload = {}) {
+  return cloneEnemyExtraHpGaugeState(payload?.extra_hp_gauge ?? payload?.extraHpGauge ?? null);
+}
+
 function normalizeSetEnemyEShieldPayload(payload = {}) {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -314,6 +319,7 @@ function normalizeSummonEnemyPayload(payload = {}) {
     damageRates: normalizeSummonEnemyRates(payload),
     absorbElements: normalizeSummonEnemyAbsorbElements(payload),
     eShieldState: normalizeSummonEnemyEShield(payload),
+    extraHpGaugeState: normalizeSummonEnemyExtraHpGauge(payload),
     targetEnemyIndex: Number.isInteger(targetEnemyIndex) ? targetEnemyIndex : null,
   };
 }
@@ -414,6 +420,16 @@ function applySummonEnemyToState(state, operation = {}, options = {}) {
         }
       : Object.fromEntries(
           Object.entries(currentSnapshot.enemyEShields ?? {}).filter(([enemyIndex]) => String(enemyIndex) !== slotKey)
+        ),
+    enemyExtraHpGauges: summonEnemy.extraHpGaugeState
+      ? {
+          ...(currentSnapshot.enemyExtraHpGauges ?? {}),
+          [slotKey]: structuredClone(summonEnemy.extraHpGaugeState),
+        }
+      : Object.fromEntries(
+          Object.entries(currentSnapshot.enemyExtraHpGauges ?? {}).filter(
+            ([enemyIndex]) => String(enemyIndex) !== slotKey
+          )
         ),
     enemyAbsorbElements: {
       ...(currentSnapshot.enemyAbsorbElements ?? {}),

@@ -2260,6 +2260,77 @@ test('TurnEngineManager recalculateFrom restores killCount from overrideEntries'
   assert.equal(manager.computedStates[0].turnState.enemyState.allEnemiesDefeated, true);
 });
 
+test('TurnEngineManager applies HP_BREAK overrides, prunes later actors, and advances to the next base turn', () => {
+  const actorSkill = createSkill({
+    id: 9073,
+    name: 'Gauge Slash',
+    targetType: 'All',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  const initialState = createFrontlineInitialState([actorSkill], 1);
+  initialState.turnState.enemyState.extraHpGaugeStateByEnemy = {
+    0: { total: 3, remaining: 3, values: [40400000, 40400000, 40400000] },
+  };
+  initialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 30, max: 30, elements: ['Light'] }),
+  };
+  initialState.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 },
+  ];
+  initialState.turnState.enemyState.destructionRateByEnemy = { 0: 250 };
+  initialState.turnState.enemyState.destructionRateCapByEnemy = { 0: 350 };
+  initialState.turnState.enemyState.breakStateByEnemy = {
+    0: {
+      baseCap: 300,
+      strongBreakActive: true,
+      superDown: { preRate: 100, preCap: 300 },
+    },
+  };
+  manager.initialize(initialState, {});
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9073 },
+      1: { skillId: initialState.party[1].skills[0].skillId },
+    },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [
+        { position: 0, outcome: 'HpBreak', enemyIndexes: [0] },
+        { position: 1, outcome: 'HpBreak', enemyIndexes: [0] },
+      ],
+    }
+  );
+
+  assert.equal(committedRecord.actions.length, 1, 'later actions should be truncated after HP break');
+  assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0]);
+  assert.equal(committedRecord.actions[0]?.hpBreakCount, 1);
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'HpBreak', enemyIndexes: [0] },
+  ]);
+  assert.equal(manager.currentState.turnState.turnType, 'normal');
+  assert.equal(manager.currentState.turnState.turnIndex, 2);
+  assert.deepEqual(manager.currentState.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 2,
+    values: [40400000, 40400000, 40400000],
+  });
+  assert.deepEqual(manager.currentState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 35,
+    max: 35,
+    elements: ['Light'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.deepEqual(
+    (manager.currentState.turnState.enemyState.statuses ?? []).filter((status) => Number(status?.targetIndex) === 0),
+    [],
+    'break/down statuses should be cleared after HP break'
+  );
+});
+
 test('TurnEngineManager persists turn-start enemy slot snapshots into overrideEntries and restores them on reload', () => {
   const actorSkill = createSkill({
     id: 90725,

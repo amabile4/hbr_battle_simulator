@@ -42,9 +42,11 @@ import {
 import {
   ACTION_OUTCOME_TYPES,
   getBreakEnemyIndexesForPosition,
+  getHpBreakEnemyIndexesForPosition,
   getKillEnemyIndexesForPosition,
   normalizeActionOutcomeOverrides,
 } from '../utils/action-outcome-overrides.js';
+import { canEnemyHpBreak } from '../../src/domain/enemy-extra-hp-gauge.js';
 import {
   normalizeFollowUpOverrides,
 } from '../utils/follow-up-overrides.js';
@@ -74,6 +76,7 @@ const ENEMY_SNAPSHOT_OVERRIDE_FIELD_TO_TYPE = Object.freeze({
   enemyDestructionRateCaps: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATE_CAPS,
   enemyOdRates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES,
   enemyEShields: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS,
+  enemyExtraHpGauges: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_EXTRA_HP_GAUGES,
   enemyAbsorbElements: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS,
   enemyBreakStates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES,
   enemyStatuses: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES,
@@ -1160,6 +1163,9 @@ export class TurnEngineManager {
       ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyEShields')
         ? { enemyEShields: scenarioTurn.enemyEShields }
         : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyExtraHpGauges')
+        ? { enemyExtraHpGauges: scenarioTurn.enemyExtraHpGauges }
+        : {}),
       ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyAbsorbElements')
         ? { enemyAbsorbElements: scenarioTurn.enemyAbsorbElements }
         : {}),
@@ -2024,6 +2030,10 @@ export class TurnEngineManager {
         normalizedActionOutcomeOverrides,
         member.position
       );
+      const hpBreakEnemyIndexesForMember = getHpBreakEnemyIndexesForPosition(
+        normalizedActionOutcomeOverrides,
+        member.position
+      );
       const killEnemyIndexesForMember = getKillEnemyIndexesForPosition(
         normalizedActionOutcomeOverrides,
         member.position
@@ -2052,6 +2062,12 @@ export class TurnEngineManager {
           ? {
               breakHitCount: breakEnemyIndexes.length,
               manualBreakEnemyIndexes: breakEnemyIndexes,
+            }
+          : {}),
+        ...(hpBreakEnemyIndexesForMember.length > 0
+          ? {
+              hpBreakCount: hpBreakEnemyIndexesForMember.length,
+              manualHpBreakEnemyIndexes: [...hpBreakEnemyIndexesForMember],
             }
           : {}),
         ...(killEnemyIndexesForMember.length > 0 ? { killCount: killEnemyIndexesForMember.length } : {}),
@@ -2338,6 +2354,7 @@ export class TurnEngineManager {
 
     const nextOverrides = [];
     const pendingBreakOverrides = [];
+    const pendingHpBreakOverrides = [];
     for (const override of normalizedOverrides) {
       const position = Number(override?.position);
       if (!Number.isInteger(position)) {
@@ -2350,11 +2367,31 @@ export class TurnEngineManager {
         continue;
       }
 
-      // Kill エントリはブレイク帰属モードのチェックなしでそのまま通過させる
-      if (override.outcome === ACTION_OUTCOME_TYPES.KILL) {
+      if (
+        override.outcome === ACTION_OUTCOME_TYPES.KILL ||
+        override.outcome === ACTION_OUTCOME_TYPES.HP_BREAK
+      ) {
+        const eligibleEnemyIndexes = aliveEnemyIndexes.filter((enemyIndex) => {
+          const extraHpGaugeState =
+            state?.turnState?.enemyState?.extraHpGaugeStateByEnemy?.[String(enemyIndex)] ?? null;
+          const canHpBreakEnemy = canEnemyHpBreak(extraHpGaugeState);
+          return override.outcome === ACTION_OUTCOME_TYPES.HP_BREAK
+            ? canHpBreakEnemy
+            : !canHpBreakEnemy;
+        });
+        if (eligibleEnemyIndexes.length === 0) {
+          continue;
+        }
+        if (override.outcome === ACTION_OUTCOME_TYPES.HP_BREAK) {
+          pendingHpBreakOverrides.push({
+            position,
+            enemyIndexes: eligibleEnemyIndexes,
+          });
+          continue;
+        }
         nextOverrides.push({
           ...override,
-          enemyIndexes: aliveEnemyIndexes,
+          enemyIndexes: eligibleEnemyIndexes,
         });
         continue;
       }
@@ -2438,6 +2475,25 @@ export class TurnEngineManager {
         outcome: ACTION_OUTCOME_TYPES.BREAK,
         enemyIndexes: availableEnemyIndexes,
       });
+    }
+
+    const sortedHpBreakOverrides = sortTurnActionExecutionEntries(pendingHpBreakOverrides);
+    const firstHpBreakOverride = sortedHpBreakOverrides[0] ?? null;
+    if (firstHpBreakOverride) {
+      nextOverrides.push({
+        position: firstHpBreakOverride.position,
+        outcome: ACTION_OUTCOME_TYPES.HP_BREAK,
+        enemyIndexes: [...firstHpBreakOverride.enemyIndexes],
+      });
+    }
+    if (sortedHpBreakOverrides.length > 1) {
+      const droppedPositions = sortedHpBreakOverrides
+        .slice(1)
+        .map((override) => Number(override.position) + 1)
+        .filter((position) => Number.isInteger(position));
+      if (droppedPositions.length > 0) {
+        onWarning?.(`manual HP break removed for later actors: P${droppedPositions.join(', P')}`);
+      }
     }
 
     return normalizeActionOutcomeOverrides(nextOverrides, normalizedEnemyCount);

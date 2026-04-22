@@ -4,6 +4,7 @@ import {
   DEFAULT_ENEMY_COUNT,
 } from '../../src/config/battle-defaults.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gauge.js';
 import { getNormalAttackElementsForPartyIndex } from '../../src/domain/normal-attack-elements.js';
 import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
 import {
@@ -206,6 +207,10 @@ function buildEnemyEShieldState(source = {}) {
   return cloneEnemyEShieldState(source?.e_shield);
 }
 
+function buildEnemyExtraHpGaugeState(source = {}) {
+  return cloneEnemyExtraHpGaugeState(source?.extra_hp_gauge);
+}
+
 function normalizeEnemyCount(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -227,6 +232,7 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     resistances: enemySetup?.resistances,
     absorbElementList: enemySetup?.absorbElementList,
     e_shield: enemySetup?.e_shield,
+    extra_hp_gauge: cloneEnemyExtraHpGaugeState(enemySetup?.extra_hp_gauge),
   };
 }
 
@@ -269,6 +275,7 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       maxDestructionRate,
       rawOdRate,
       eShieldState: buildEnemyEShieldState(slot),
+      extraHpGaugeState: buildEnemyExtraHpGaugeState(slot),
     };
   });
 
@@ -293,6 +300,11 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       slotStates
         .filter((slotState) => Boolean(slotState.eShieldState))
         .map((slotState, index) => [String(index), structuredClone(slotState.eShieldState)])
+    ),
+    extraHpGaugeStateByEnemy: Object.fromEntries(
+      slotStates
+        .filter((slotState) => Boolean(slotState.extraHpGaugeState))
+        .map((slotState, index) => [String(index), structuredClone(slotState.extraHpGaugeState)])
     ),
   };
 }
@@ -436,6 +448,7 @@ export class BattleStateManager {
       absorbElementsByEnemy: enemyStateOverrides.absorbElementsByEnemy,
       odRateByEnemy: enemyStateOverrides.odRateByEnemy,
       eShieldStateByEnemy: enemyStateOverrides.eShieldStateByEnemy,
+      extraHpGaugeStateByEnemy: enemyStateOverrides.extraHpGaugeStateByEnemy,
       enemyStatuses: [],
       breakStateByEnemy: {},
       enemyZoneConfigByEnemy: {},

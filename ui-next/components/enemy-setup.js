@@ -1,5 +1,6 @@
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gauge.js';
 import {
   ENEMY_PRESET_TEMPLATE_CATEGORY_KEY,
   getEnemyPresetCategoryMetadata,
@@ -100,6 +101,16 @@ function cloneEnemyEShield(eShield = null) {
     : null;
 }
 
+function cloneEnemyExtraHpGauge(extraHpGauge = null) {
+  const normalized = cloneEnemyExtraHpGaugeState(extraHpGauge);
+  return normalized
+    ? {
+        ...normalized,
+        values: [...normalized.values],
+      }
+    : null;
+}
+
 function normalizeEnemyEShieldEditorNumber(value, fallback = DEFAULT_E_SHIELD_EDITOR_VALUE) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -150,6 +161,7 @@ function cloneEnemyEShieldDraft(eShield = null) {
 
 function cloneManual(manual = {}) {
   const eShield = cloneEnemyEShield(manual.e_shield);
+  const extraHpGauge = cloneEnemyExtraHpGauge(manual.extra_hp_gauge);
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
@@ -158,6 +170,7 @@ function cloneManual(manual = {}) {
     ),
     absorbElementList: normalizeAbsorbElementList(manual.absorbElementList),
     ...(eShield ? { e_shield: eShield } : {}),
+    ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
   };
 }
 
@@ -177,6 +190,7 @@ function defaultManual() {
 function enemyToManual(enemy) {
   if (!enemy) return defaultManual();
   const eShield = cloneEnemyEShield(enemy.e_shield);
+  const extraHpGauge = cloneEnemyExtraHpGauge(enemy.extra_hp_gauge);
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
@@ -188,15 +202,20 @@ function enemyToManual(enemy) {
     ),
     absorbElementList: enemy.absorbElementList ?? enemy.resistances?.element?.absorb_element_list ?? [],
     ...(eShield ? { e_shield: eShield } : {}),
+    ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
   });
 }
 
 function snapshotToManual(snapshot = {}) {
   const eShield = cloneEnemyEShield(snapshot.e_shield ?? snapshot.manual?.e_shield);
+  const extraHpGauge = cloneEnemyExtraHpGauge(
+    snapshot.extra_hp_gauge ?? snapshot.manual?.extra_hp_gauge
+  );
   if (snapshot.manual && typeof snapshot.manual === 'object') {
     return cloneManual({
       ...snapshot.manual,
       ...(eShield ? { e_shield: eShield } : {}),
+      ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
     });
   }
   return cloneManual({
@@ -205,6 +224,7 @@ function snapshotToManual(snapshot = {}) {
     element: snapshot.resistances?.element,
     absorbElementList: snapshot.absorbElementList,
     ...(eShield ? { e_shield: eShield } : {}),
+    ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
   });
 }
 
@@ -489,6 +509,9 @@ export class EnemySetupController {
       const selectedEnemy = this.#enemies.find((enemy) => enemy.id === selectedEnemyId) ?? null;
       const effective = cloneManual(this.#getEffectiveBySlot(slotIndex));
       const effectiveEShield = cloneEnemyEShield(effective.e_shield);
+      const effectiveExtraHpGauge = cloneEnemyExtraHpGauge(
+        selectedEnemy?.extra_hp_gauge ?? effective.extra_hp_gauge
+      );
       return {
         slotIndex,
         selectedEnemyId,
@@ -500,6 +523,7 @@ export class EnemySetupController {
         resistances: { element: { ...effective.element } },
         absorbElementList: [...effective.absorbElementList],
         ...(effectiveEShield ? { e_shield: effectiveEShield } : {}),
+        ...(effectiveExtraHpGauge ? { extra_hp_gauge: effectiveExtraHpGauge } : {}),
       };
     });
     const selectedCount = selectedEnemyIds.filter((enemyId) => enemyId !== null).length;
@@ -521,6 +545,7 @@ export class EnemySetupController {
       resistances: { element: { ...slot0.resistances.element } },
       absorbElementList: [...slot0.absorbElementList],
       ...(slot0.e_shield ? { e_shield: cloneEnemyEShield(slot0.e_shield) } : {}),
+      ...(slot0.extra_hp_gauge ? { extra_hp_gauge: cloneEnemyExtraHpGauge(slot0.extra_hp_gauge) } : {}),
     };
   }
 
@@ -543,7 +568,8 @@ export class EnemySetupController {
           slot?.max_d_rate != null ||
           (slot?.resistances && typeof slot.resistances === 'object') ||
           Array.isArray(slot?.absorbElementList) ||
-          (slot?.e_shield && typeof slot.e_shield === 'object');
+          (slot?.e_shield && typeof slot.e_shield === 'object') ||
+          (slot?.extra_hp_gauge && typeof slot.extra_hp_gauge === 'object');
         if (hasManualState) {
           nextManualBySlot[slotIndex] = snapshotToManual(slot);
         }

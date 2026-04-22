@@ -36,6 +36,7 @@ import {
 } from '../utils/action-outcome-overrides.js';
 import {
   buildAutoBreakChipModels,
+  buildManualHpBreakChipModels,
   buildManualBreakChipModels,
   buildManualKillChipModels,
   resolveManualBreakActorLabel,
@@ -63,6 +64,10 @@ import {
   cloneEnemyEShieldState,
   normalizeEnemyEShieldElements,
 } from '../../src/domain/enemy-e-shield.js';
+import {
+  canEnemyHpBreak,
+  cloneEnemyExtraHpGaugeState,
+} from '../../src/domain/enemy-extra-hp-gauge.js';
 
 // select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
 // 属性/武器種バッジと SP コストを段階的に隠す。
@@ -256,6 +261,7 @@ export class TurnRowController {
   #requestedEnemySummonIndex = null;
   #draftBreakEnemyIndexesByPartyIndex = {};
   #draftKillEnemyIndexesByPartyIndex = {};
+  #draftHpBreakEnemyIndexesByPartyIndex = {};
   #draftFollowUpEnemyIndexByPartyIndex = {};
   #enemyDetailPopup = null;
   #popupOutcomeRequest = null;
@@ -412,6 +418,7 @@ export class TurnRowController {
     }
     this.#draftBreakEnemyIndexesByPartyIndex = {};
     this.#draftKillEnemyIndexesByPartyIndex = {};
+    this.#draftHpBreakEnemyIndexesByPartyIndex = {};
     this.#draftFollowUpEnemyIndexByPartyIndex = {};
     const normalizedOverrides = normalizeActionOutcomeOverrides(
       editDraft?.actionOutcomeOverrides ?? [],
@@ -428,6 +435,9 @@ export class TurnRowController {
       }
       if (override.outcome === ACTION_OUTCOME_TYPES.KILL) {
         this.#draftKillEnemyIndexesByPartyIndex[member.partyIndex] = [...override.enemyIndexes];
+      }
+      if (override.outcome === ACTION_OUTCOME_TYPES.HP_BREAK) {
+        this.#draftHpBreakEnemyIndexesByPartyIndex[member.partyIndex] = [...override.enemyIndexes];
       }
     }
     const normalizedFollowUps = normalizeFollowUpOverrides(
@@ -516,6 +526,12 @@ export class TurnRowController {
     for (const partyIndex of Object.keys(this.#draftKillEnemyIndexesByPartyIndex)) {
       this.#draftKillEnemyIndexesByPartyIndex[partyIndex] =
         (this.#draftKillEnemyIndexesByPartyIndex[partyIndex] ?? []).filter(
+          (idx) => idx < this.#draftEnemyCount
+        );
+    }
+    for (const partyIndex of Object.keys(this.#draftHpBreakEnemyIndexesByPartyIndex)) {
+      this.#draftHpBreakEnemyIndexesByPartyIndex[partyIndex] =
+        (this.#draftHpBreakEnemyIndexesByPartyIndex[partyIndex] ?? []).filter(
           (idx) => idx < this.#draftEnemyCount
         );
     }
@@ -840,7 +856,8 @@ export class TurnRowController {
     const normalizedOutcome = String(outcome ?? '').trim();
     if (
       normalizedOutcome !== ACTION_OUTCOME_TYPES.BREAK &&
-      normalizedOutcome !== ACTION_OUTCOME_TYPES.KILL
+      normalizedOutcome !== ACTION_OUTCOME_TYPES.KILL &&
+      normalizedOutcome !== ACTION_OUTCOME_TYPES.HP_BREAK
     ) {
       this.#popupOutcomeRequest = null;
       return;
@@ -943,6 +960,30 @@ export class TurnRowController {
     }
     this.#draftKillEnemyIndexesByPartyIndex = {
       ...this.#draftKillEnemyIndexesByPartyIndex,
+      [normalizedPartyIndex]: normalizedEnemyIndexes,
+    };
+    return true;
+  }
+
+  #setDraftHpBreakEnemyIndexes(partyIndex, enemyIndexes = []) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const normalizedPartyIndex = Number(partyIndex);
+    if (!Number.isFinite(normalizedPartyIndex)) {
+      return false;
+    }
+    const enemyCount = this.getCurrentEnemyCount();
+    const normalizedEnemyIndexes = [...new Set((Array.isArray(enemyIndexes) ? enemyIndexes : [])
+      .map((enemyIndex) => Number(enemyIndex))
+      .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0 && enemyIndex < enemyCount))]
+      .sort((left, right) => left - right);
+    if (normalizedEnemyIndexes.length === 0) {
+      delete this.#draftHpBreakEnemyIndexesByPartyIndex[normalizedPartyIndex];
+      return true;
+    }
+    this.#draftHpBreakEnemyIndexesByPartyIndex = {
+      ...this.#draftHpBreakEnemyIndexesByPartyIndex,
       [normalizedPartyIndex]: normalizedEnemyIndexes,
     };
     return true;
@@ -1399,7 +1440,11 @@ export class TurnRowController {
       return false;
     }
     const normalizedEnemyIndex = Number(enemyIndex);
-    if (!Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0) {
+    if (
+      !Number.isInteger(normalizedEnemyIndex) ||
+      normalizedEnemyIndex < 0 ||
+      this.#canEnemySlotHpBreak(normalizedEnemyIndex)
+    ) {
       return false;
     }
     const currentEnemyIndexes = [
@@ -1440,7 +1485,12 @@ export class TurnRowController {
         : selectionContext.currentReplayTarget.type === 'enemy'
           ? Number(selectionContext.currentReplayTarget.enemyIndex)
           : null;
-    if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0 || targetEnemyIndex >= enemyCount) {
+    if (
+      !Number.isInteger(targetEnemyIndex) ||
+      targetEnemyIndex < 0 ||
+      targetEnemyIndex >= enemyCount ||
+      this.#canEnemySlotHpBreak(targetEnemyIndex)
+    ) {
       return false;
     }
     const currentEnemyIndexes = [
@@ -1450,6 +1500,77 @@ export class TurnRowController {
       ? currentEnemyIndexes.filter((candidate) => candidate !== targetEnemyIndex)
       : [...currentEnemyIndexes, targetEnemyIndex];
     this.#setDraftKillEnemyIndexes(partyIndex, nextEnemyIndexes);
+    this.#applyDraftAttributionMutation({
+      clearPopupOutcomeRequest: options?.clearPopupOutcomeRequest !== false,
+    });
+    return true;
+  }
+
+  #toggleHpBreakSelectionForPartyIndex(partyIndex, enemyIndex) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (
+      !Number.isInteger(normalizedEnemyIndex) ||
+      normalizedEnemyIndex < 0 ||
+      !this.#canEnemySlotHpBreak(normalizedEnemyIndex)
+    ) {
+      return false;
+    }
+    const currentEnemyIndexes = [
+      ...(this.#draftHpBreakEnemyIndexesByPartyIndex?.[partyIndex] ?? []),
+    ].filter((candidate) => Number.isInteger(candidate) && candidate >= 0);
+    const nextEnemyIndexes = currentEnemyIndexes.includes(normalizedEnemyIndex)
+      ? currentEnemyIndexes.filter((candidate) => candidate !== normalizedEnemyIndex)
+      : [...currentEnemyIndexes, normalizedEnemyIndex];
+    this.#setDraftHpBreakEnemyIndexes(partyIndex, nextEnemyIndexes);
+    this.#applyDraftAttributionMutation({ clearPopupOutcomeRequest: false });
+    return true;
+  }
+
+  #toggleHpBreakSingleSelectionForPartyIndex(partyIndex, requestedEnemyIndex = null, options = {}) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const member = this.#getPartyMemberByPartyIndex(partyIndex);
+    if (!member) {
+      return false;
+    }
+    const enemyCount = this.getCurrentEnemyCount();
+    const normalizedRequestedEnemyIndex = Number(requestedEnemyIndex);
+    if (Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0) {
+      this.#setDraftEnemyTarget(partyIndex, normalizedRequestedEnemyIndex);
+    }
+    const selectionContext = this.#getBreakSelectionContext({
+      member,
+      isCommitted: false,
+      enemyCount,
+    });
+    if (!selectionContext) {
+      return false;
+    }
+    const targetEnemyIndex =
+      Number.isInteger(normalizedRequestedEnemyIndex) && normalizedRequestedEnemyIndex >= 0
+        ? normalizedRequestedEnemyIndex
+        : selectionContext.currentReplayTarget.type === 'enemy'
+          ? Number(selectionContext.currentReplayTarget.enemyIndex)
+          : null;
+    if (
+      !Number.isInteger(targetEnemyIndex) ||
+      targetEnemyIndex < 0 ||
+      targetEnemyIndex >= enemyCount ||
+      !this.#canEnemySlotHpBreak(targetEnemyIndex)
+    ) {
+      return false;
+    }
+    const currentEnemyIndexes = [
+      ...(this.#draftHpBreakEnemyIndexesByPartyIndex?.[partyIndex] ?? []),
+    ].filter((candidate) => Number.isInteger(candidate) && candidate >= 0 && candidate < enemyCount);
+    const nextEnemyIndexes = currentEnemyIndexes.includes(targetEnemyIndex)
+      ? currentEnemyIndexes.filter((candidate) => candidate !== targetEnemyIndex)
+      : [...currentEnemyIndexes, targetEnemyIndex];
+    this.#setDraftHpBreakEnemyIndexes(partyIndex, nextEnemyIndexes);
     this.#applyDraftAttributionMutation({
       clearPopupOutcomeRequest: options?.clearPopupOutcomeRequest !== false,
     });
@@ -1469,6 +1590,11 @@ export class TurnRowController {
     if (immediateCandidate) {
       if (outcome === ACTION_OUTCOME_TYPES.BREAK) {
         this.#toggleBreakSingleSelectionForPartyIndex(
+          immediateCandidate.member.partyIndex,
+          normalizedEnemyIndex
+        );
+      } else if (outcome === ACTION_OUTCOME_TYPES.HP_BREAK) {
+        this.#toggleHpBreakSingleSelectionForPartyIndex(
           immediateCandidate.member.partyIndex,
           normalizedEnemyIndex
         );
@@ -1568,8 +1694,22 @@ export class TurnRowController {
       if (this.#isExtraTurn() && !this.#isActionable(member)) {
         continue;
       }
+      const hpBreakEnemyIndexes = (this.#draftHpBreakEnemyIndexesByPartyIndex[member.partyIndex] ?? []).filter(
+        (idx) => idx < enemyCount && this.#isEnemySlotAlive(idx) && this.#canEnemySlotHpBreak(idx)
+      );
+      if (hpBreakEnemyIndexes.length === 0) continue;
+      overrides.push({
+        position: member.position,
+        outcome: ACTION_OUTCOME_TYPES.HP_BREAK,
+        enemyIndexes: hpBreakEnemyIndexes,
+      });
+    }
+    for (const member of members) {
+      if (this.#isExtraTurn() && !this.#isActionable(member)) {
+        continue;
+      }
       const killEnemyIndexes = (this.#draftKillEnemyIndexesByPartyIndex[member.partyIndex] ?? []).filter(
-        (idx) => idx < enemyCount && this.#isEnemySlotAlive(idx)
+        (idx) => idx < enemyCount && this.#isEnemySlotAlive(idx) && !this.#canEnemySlotHpBreak(idx)
       );
       if (killEnemyIndexes.length === 0) continue;
       overrides.push({
@@ -2218,6 +2358,17 @@ export class TurnRowController {
       : {};
   }
 
+  #getEnemyExtraHpGaugeState(enemyIndex, state = this.#stateBefore ?? this.#stateAfter) {
+    const enemyKey = String(Number(enemyIndex));
+    return cloneEnemyExtraHpGaugeState(
+      state?.turnState?.enemyState?.extraHpGaugeStateByEnemy?.[enemyKey] ?? null
+    );
+  }
+
+  #canEnemySlotHpBreak(enemyIndex, state = this.#stateBefore ?? this.#stateAfter) {
+    return canEnemyHpBreak(this.#getEnemyExtraHpGaugeState(enemyIndex, state));
+  }
+
   #isEnemySlotAlive(enemyIndex, state = this.#stateBefore ?? this.#stateAfter) {
     return isEnemyAlive(state?.turnState, enemyIndex);
   }
@@ -2302,6 +2453,33 @@ export class TurnRowController {
           <span data-role="kill-chip"
                 title="${chip.label}"
                 class="inline-flex max-w-full items-center rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold leading-tight text-green-700">
+            <span class="max-w-full break-all">${chip.label}</span>
+          </span>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  #buildHpBreakChipsHtml(isCommitted) {
+    const currentOverrides = isCommitted
+      ? getActionOutcomeOverridesFromReplayTurn(
+          this.#replayTurn,
+          this.#getCurrentReplayTurnEnemyCount()
+        )
+      : this.getCurrentActionOutcomeOverrides();
+    const chipModels = buildManualHpBreakChipModels({
+      overrides: currentOverrides,
+      members: this.#getMembersInPositionOrder().filter((member) => member.position <= 2),
+      store: this.#store,
+      enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+    });
+    if (chipModels.length === 0) return '';
+    return `
+      <div data-role="hp-break-chip-list" class="flex flex-wrap gap-1 pb-1">
+        ${chipModels.map((chip) => `
+          <span data-role="hp-break-chip"
+                title="${chip.label}"
+                class="inline-flex max-w-full items-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold leading-tight text-rose-700">
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
         `).join('')}
@@ -2600,6 +2778,7 @@ export class TurnRowController {
       selectionContext.singleTargetConfig?.kind === 'enemy' &&
       Number(selectionContext.singleTargetConfig?.candidates?.length ?? 0) > 1;
     const isBreakOutcome = outcome === ACTION_OUTCOME_TYPES.BREAK;
+    const isHpBreakOutcome = outcome === ACTION_OUTCOME_TYPES.HP_BREAK;
     const targetClaimedByEarlierActor =
       isBreakOutcome &&
       Number.isInteger(displayTargetEnemyIndex) &&
@@ -2609,22 +2788,34 @@ export class TurnRowController {
         selectionContext.currentReplayTarget.type === 'enemy' &&
         Number(selectionContext.currentReplayTarget.enemyIndex) === displayTargetEnemyIndex &&
         selectionContext.effectiveBreakEnemyIndexes.includes(displayTargetEnemyIndex)
+      : isHpBreakOutcome
+        ? (this.#draftHpBreakEnemyIndexesByPartyIndex?.[selectionContext.member.partyIndex] ?? [])
+            .includes(displayTargetEnemyIndex)
       : (this.#draftKillEnemyIndexesByPartyIndex?.[selectionContext.member.partyIndex] ?? [])
           .includes(displayTargetEnemyIndex);
     const accentButtonClasses = isBreakOutcome
       ? 'border-amber-500 bg-amber-500 text-white'
       : 'border-rose-500 bg-rose-500 text-white';
     const accentHeadingClass = isBreakOutcome ? 'text-green-700' : 'text-rose-700';
+    const targetMatchesOutcome =
+      !Number.isInteger(displayTargetEnemyIndex)
+        ? false
+        : isBreakOutcome
+          ? this.#isEnemySlotAlive(displayTargetEnemyIndex)
+          : isHpBreakOutcome
+            ? this.#canEnemySlotHpBreak(displayTargetEnemyIndex)
+            : this.#isEnemySlotAlive(displayTargetEnemyIndex) && !this.#canEnemySlotHpBreak(displayTargetEnemyIndex);
     const isToggleEnabled =
       enabled &&
       Number.isInteger(displayTargetEnemyIndex) &&
+      targetMatchesOutcome &&
       (!isBreakOutcome || !targetClaimedByEarlierActor) &&
       (!isBreakOutcome || this.#isEnemySlotAlive(displayTargetEnemyIndex));
 
     return `
       <div class="mb-1 space-y-1">
         <div class="text-[9px] font-semibold ${accentHeadingClass} pb-0.5">${escapeHtml(
-          isBreakOutcome ? 'ブレイク' : '討伐'
+          isBreakOutcome ? 'ブレイク' : (isHpBreakOutcome ? 'HP破壊' : '討伐')
         )}</div>
         ${showLocalTargetOverrideControls
           ? `
@@ -2644,7 +2835,15 @@ export class TurnRowController {
                 const candidateClaimedByEarlierActor =
                   isBreakOutcome &&
                   this.#isBreakEnemyClaimedForSelection(selectionContext, candidate.enemyIndex);
-                const candidateDisabled = candidate.disabled || candidateClaimedByEarlierActor;
+                const candidateMatchesOutcome = isBreakOutcome
+                  ? this.#isEnemySlotAlive(candidate.enemyIndex)
+                  : isHpBreakOutcome
+                    ? this.#canEnemySlotHpBreak(candidate.enemyIndex)
+                    : this.#isEnemySlotAlive(candidate.enemyIndex) && !this.#canEnemySlotHpBreak(candidate.enemyIndex);
+                const candidateDisabled =
+                  candidate.disabled ||
+                  candidateClaimedByEarlierActor ||
+                  !candidateMatchesOutcome;
                 return `
                   <button type="button"
                           data-role="manual-break-target-candidate"
@@ -2755,7 +2954,7 @@ export class TurnRowController {
           <div class="text-[9px] font-semibold text-rose-700 pb-0.5">討伐</div>
           <div class="flex flex-wrap gap-1">
             ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
-              const isAlive = this.#isEnemySlotAlive(enemyIndex);
+              const isAlive = this.#isEnemySlotAlive(enemyIndex) && !this.#canEnemySlotHpBreak(enemyIndex);
               const isSelected = currentKillEnemyIndexes.includes(enemyIndex);
               const isRequested = !isSelected && Number(requestedEnemyIndex) === enemyIndex;
               const label = this.#resolveEnemyPopupEnemyLabel(enemyIndex, enemyNamesByEnemy);
@@ -2788,6 +2987,59 @@ export class TurnRowController {
       requestedEnemyIndex,
       outcome: ACTION_OUTCOME_TYPES.KILL,
       toggleRole: 'popup-kill-single-toggle',
+      enabled: true,
+    });
+  }
+
+  #buildEnemyPopupHpBreakEditorControls({ selectionContext, enemyCount, enemyNamesByEnemy, requestedEnemyIndex }) {
+    if (!selectionContext || !selectionContext.skill) {
+      return '<div class="text-[10px] text-gray-400">スキル未選択</div>';
+    }
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.NONE) {
+      return '<div class="text-[10px] text-gray-400">敵を攻撃しないため指定なし</div>';
+    }
+    if (selectionContext.breakAttributionMode === TURN_BREAK_ATTRIBUTION_MODES.ALL) {
+      const currentHpBreakEnemyIndexes = [
+        ...(this.#draftHpBreakEnemyIndexesByPartyIndex?.[selectionContext.member.partyIndex] ?? []),
+      ];
+      return `
+        <div class="mb-1">
+          <div class="text-[9px] font-semibold text-rose-700 pb-0.5">HP破壊</div>
+          <div class="flex flex-wrap gap-1">
+            ${Array.from({ length: enemyCount }, (_, enemyIndex) => {
+              const isAlive = this.#isEnemySlotAlive(enemyIndex) && this.#canEnemySlotHpBreak(enemyIndex);
+              const isSelected = currentHpBreakEnemyIndexes.includes(enemyIndex);
+              const isRequested = !isSelected && Number(requestedEnemyIndex) === enemyIndex;
+              const label = this.#resolveEnemyPopupEnemyLabel(enemyIndex, enemyNamesByEnemy);
+              return `
+                <button type="button"
+                        data-role="hp-break-enemy-candidate"
+                        data-position="${selectionContext.member.position}"
+                        data-party-index="${selectionContext.member.partyIndex}"
+                        data-enemy-index="${enemyIndex}"
+                        ${isAlive ? '' : 'disabled'}
+                        class="target-chip inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors
+                               ${!isAlive
+                                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                 : isSelected
+                                 ? 'border-rose-500 bg-rose-500 text-white'
+                                 : isRequested
+                                 ? 'border-rose-300 bg-rose-50 text-rose-700'
+                                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}">
+                  ${escapeHtml(label)}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+    return this.#buildEnemyPopupSingleTargetControls({
+      selectionContext,
+      enemyNamesByEnemy,
+      requestedEnemyIndex,
+      outcome: ACTION_OUTCOME_TYPES.HP_BREAK,
+      toggleRole: 'popup-hp-break-single-toggle',
       enabled: true,
     });
   }
@@ -2902,11 +3154,15 @@ export class TurnRowController {
     const requestedOutcome = String(request.outcome ?? '').trim();
     const heading = requestedOutcome === ACTION_OUTCOME_TYPES.KILL
       ? '討伐した前衛を選択'
-      : 'ブレイクした前衛を選択';
+      : requestedOutcome === ACTION_OUTCOME_TYPES.HP_BREAK
+        ? 'HP破壊した前衛を選択'
+        : 'ブレイクした前衛を選択';
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     const confirmLabel = requestedOutcome === ACTION_OUTCOME_TYPES.KILL
       ? '討伐を確定して閉じる'
-      : 'ブレイクを確定して閉じる';
+      : requestedOutcome === ACTION_OUTCOME_TYPES.HP_BREAK
+        ? 'HP破壊を確定して閉じる'
+        : 'ブレイクを確定して閉じる';
     return `
       <div data-role="enemy-popup-editor"
            data-outcome="${escapeHtml(requestedOutcome)}"
@@ -2927,6 +3183,13 @@ export class TurnRowController {
                 enemyNamesByEnemy,
                 requestedEnemyIndex,
               })
+              : requestedOutcome === ACTION_OUTCOME_TYPES.HP_BREAK
+                ? this.#buildEnemyPopupHpBreakEditorControls({
+                  selectionContext,
+                  enemyCount,
+                  enemyNamesByEnemy,
+                  requestedEnemyIndex,
+                })
               : this.#buildEnemyPopupBreakEditorControls({
                 selectionContext,
                 enemyCount,
@@ -2986,7 +3249,7 @@ export class TurnRowController {
               member.position
             );
             const killButtonsHtml = Array.from({ length: enemyCount }, (_, enemyIndex) => {
-              const isAlive = this.#isEnemySlotAlive(enemyIndex);
+              const isAlive = this.#isEnemySlotAlive(enemyIndex) && !this.#canEnemySlotHpBreak(enemyIndex);
               const isKilled = memberKillEnemyIndexes.includes(enemyIndex);
               const enemyName = String(
                 enemyNamesByEnemy[String(enemyIndex)] ?? enemyNamesByEnemy[enemyIndex] ?? ''
@@ -3174,6 +3437,10 @@ export class TurnRowController {
         ? ({ enemyIndex, activeEnemyIndex }) =>
           this.#handleEnemyPopupOutcomeAction(ACTION_OUTCOME_TYPES.BREAK, enemyIndex, activeEnemyIndex)
         : null,
+      hpbreak: this.#canOpenEnemyPopupEditorAction()
+        ? ({ enemyIndex, activeEnemyIndex }) =>
+          this.#handleEnemyPopupOutcomeAction(ACTION_OUTCOME_TYPES.HP_BREAK, enemyIndex, activeEnemyIndex)
+        : null,
       kill: this.#canOpenEnemyPopupEditorAction()
         ? ({ enemyIndex, activeEnemyIndex }) =>
           this.#handleEnemyPopupOutcomeAction(ACTION_OUTCOME_TYPES.KILL, enemyIndex, activeEnemyIndex)
@@ -3203,6 +3470,13 @@ export class TurnRowController {
     const killEnemyIndexes = new Set(
       normalizeActionOutcomeOverrides(actionOutcomeOverrides, enemyCount)
         .filter((override) => override.outcome === ACTION_OUTCOME_TYPES.KILL)
+        .flatMap((override) => override.enemyIndexes)
+        .map((enemyIndex) => Number(enemyIndex))
+        .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0)
+    );
+    const hpBreakEnemyIndexes = new Set(
+      normalizeActionOutcomeOverrides(actionOutcomeOverrides, enemyCount)
+        .filter((override) => override.outcome === ACTION_OUTCOME_TYPES.HP_BREAK)
         .flatMap((override) => override.enemyIndexes)
         .map((enemyIndex) => Number(enemyIndex))
         .filter((enemyIndex) => Number.isInteger(enemyIndex) && enemyIndex >= 0)
@@ -3237,6 +3511,8 @@ export class TurnRowController {
       const eShieldState = hasDisplayedEShieldState
         ? displayedEShieldStateByEnemy[enemyKey]
         : (enemyState.eShieldStateByEnemy?.[enemyKey] ?? null);
+      const extraHpGaugeState = enemyState.extraHpGaugeStateByEnemy?.[enemyKey] ?? null;
+      const canHpBreak = this.#isDraftMode() && occupied && alive && canEnemyHpBreak(extraHpGaugeState);
       const talismanState = enemyState.talismanState ?? null;
       const disasterState = enemyState.disasterState ?? null;
       return {
@@ -3255,10 +3531,16 @@ export class TurnRowController {
           !killedByAttribution &&
           (breakEnemyIndexes.has(enemyIndex) || (alive && !broken)),
         canEditEShield: this.#isDraftMode() && occupied && alive,
-        canKill: this.#isDraftMode() && occupied && (alive || killEnemyIndexes.has(enemyIndex)),
+        canHpBreak: canHpBreak || hpBreakEnemyIndexes.has(enemyIndex),
+        canKill:
+          !canHpBreak &&
+          this.#isDraftMode() &&
+          occupied &&
+          (alive || killEnemyIndexes.has(enemyIndex)),
         hasPendingEShieldOperation:
           this.#isDraftMode() && Boolean(this.#findEnemyEShieldOperationForEnemyIndex(enemyIndex)),
         hasPendingBreakOperation: breakEnemyIndexes.has(enemyIndex),
+        hasPendingHpBreakOperation: hpBreakEnemyIndexes.has(enemyIndex),
         hasPendingKillOperation: killEnemyIndexes.has(enemyIndex),
         popupEditorHtml:
           this.#buildEnemyPopupEShieldEditorHtml({ enemyIndex }) ||
@@ -3276,6 +3558,7 @@ export class TurnRowController {
         ...(damageRates ? { damageRates: structuredClone(damageRates) } : {}),
         ...(absorbElements ? { absorbElements: structuredClone(absorbElements) } : {}),
         ...(eShieldState ? { eShieldState: structuredClone(eShieldState) } : {}),
+        ...(extraHpGaugeState ? { extraHpGaugeState: structuredClone(extraHpGaugeState) } : {}),
       };
     });
 
@@ -3786,6 +4069,7 @@ export class TurnRowController {
     const noteValue = this.getCurrentNote();
     const fieldChipsHtml = this.#buildFieldChipsHtml();
     const manualBreakChipsHtml = this.#buildManualBreakChipsHtml(isCommitted);
+    const hpBreakChipsHtml = this.#buildHpBreakChipsHtml(isCommitted);
     const killChipsHtml = this.#buildKillChipsHtml(isCommitted);
     const followUpChipsHtml = this.#buildFollowUpChipsHtml(isCommitted);
     const operationChipsHtml = this.#buildOperationChipsHtml();
@@ -3793,6 +4077,7 @@ export class TurnRowController {
       <div data-turn-note class="flex flex-col self-stretch min-h-0 flex-shrink-0 w-36 gap-1">
         ${fieldChipsHtml}
         ${manualBreakChipsHtml}
+        ${hpBreakChipsHtml}
         ${killChipsHtml}
         ${followUpChipsHtml}
         ${operationChipsHtml}
@@ -3918,6 +4203,30 @@ export class TurnRowController {
         this.#isBreakEditorOpen = false;
         this.#isKillEditorOpen = !popupScoped;
         this.#toggleKillSingleSelectionForPartyIndex(partyIndex, requestedEnemyIndex, {
+          clearPopupOutcomeRequest: !popupScoped,
+        });
+      });
+    });
+
+    container.querySelectorAll('[data-role="hp-break-enemy-candidate"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const enemyIndex = Number(btn.dataset.enemyIndex);
+        this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = !popupScoped;
+        this.#toggleHpBreakSelectionForPartyIndex(partyIndex, enemyIndex);
+      });
+    });
+
+    container.querySelectorAll('[data-role="popup-hp-break-single-toggle"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const partyIndex = Number(btn.dataset.partyIndex);
+        const requestedEnemyIndex = btn.dataset.requestedEnemyIndex ?? null;
+        this.#isBreakEditorOpen = false;
+        this.#isKillEditorOpen = !popupScoped;
+        this.#toggleHpBreakSingleSelectionForPartyIndex(partyIndex, requestedEnemyIndex, {
           clearPopupOutcomeRequest: !popupScoped,
         });
       });

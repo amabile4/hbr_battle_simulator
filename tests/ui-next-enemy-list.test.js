@@ -20,7 +20,20 @@ function makeEnemy({
   max_d_rate = 999,
   absorbElementList = [],
   eShield = null,
+  extraGaugeHp = null,
 }) {
+  const extraGauge = {};
+  if (eShield) {
+    extraGauge.esp = eShield.esp ?? 0;
+    extraGauge.eshield = {
+      ele_list: eShield.ele_list ?? null,
+      def_up_rate: eShield.def_up_rate ?? 0,
+      dmg_limit: eShield.dmg_limit ?? 0,
+    };
+  }
+  if (Array.isArray(extraGaugeHp)) {
+    extraGauge.hp = [...extraGaugeHp];
+  }
   return {
     id,
     name,
@@ -45,16 +58,9 @@ function makeEnemy({
         absorb_element_list: absorbElementList,
       },
     },
-    ...(eShield
+    ...(Object.keys(extraGauge).length > 0
       ? {
-          extra_gauge: {
-            esp: eShield.esp ?? 0,
-            eshield: {
-              ele_list: eShield.ele_list ?? null,
-              def_up_rate: eShield.def_up_rate ?? 0,
-              dmg_limit: eShield.dmg_limit ?? 0,
-            },
-          },
+          extra_gauge: extraGauge,
         }
       : {}),
   };
@@ -226,6 +232,27 @@ test('buildEnemyList drops inactive extra_gauge Eシールド metadata', () => {
 
   assert.equal(result.find((enemy) => enemy.id === 302)?.e_shield, undefined);
   assert.equal(result.find((enemy) => enemy.id === 303)?.e_shield, undefined);
+});
+
+test('buildEnemyList maps extra_gauge hp metadata into enemy preset entries', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({
+      id: 304,
+      name: '多重HPゲージ敵',
+      in_date: '2026-04-05',
+      extraGaugeHp: [40400000, 40400000, 40400000],
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'));
+  const target = result.find((enemy) => enemy.id === 304);
+
+  assert.deepEqual(target?.extra_hp_gauge, {
+    total: 3,
+    remaining: 3,
+    values: [40400000, 40400000, 40400000],
+  });
 });
 
 test('buildEnemyList exposes 恒星掃戦線 as category metadata and dedupes higher-rank duplicates', () => {

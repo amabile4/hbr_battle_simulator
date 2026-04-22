@@ -5,10 +5,12 @@ export {
   getActionOutcomeOverridesFromReplayTurn,
   getAllKilledEnemyIndexes,
   getBreakEnemyIndexesForPosition,
+  getHpBreakEnemyIndexesForPosition,
   getKillEnemyIndexesForPosition,
   normalizeActionOutcomeOverride,
   normalizeActionOutcomeOverrides,
   setBreakEnemyIndexesForPosition,
+  setHpBreakEnemyIndexesForPosition,
   setKillEnemyIndexesForPosition,
 } from '../../src/domain/replay-turn-overrides.js';
 

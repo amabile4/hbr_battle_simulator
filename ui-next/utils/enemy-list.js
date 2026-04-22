@@ -1,5 +1,6 @@
 import { ALWAYS_VISIBLE_ENEMY_PRESET_IDS } from '../../src/data/enemy-sample-presets.js';
 import { normalizeEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gauge.js';
 
 const ALWAYS_SHOW_ENEMY_IDS = new Set(ALWAYS_VISIBLE_ENEMY_PRESET_IDS);
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
@@ -98,6 +99,8 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
         }
       : null;
   };
+  const normalizeEnemyExtraHpGauge = (enemy) =>
+    cloneEnemyExtraHpGaugeState(enemy?.extra_gauge?.hp);
   if (!Array.isArray(rawEnemies)) return [];
 
   const currentMonthIndex = today.getFullYear() * 12 + today.getMonth();
@@ -146,6 +149,7 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
   const consumedEnemyIds = new Set(alwaysEntries.map((enemy) => enemy.id));
   const mapEnemy = (enemy, categoryKey, categoryLabel) => {
     const eShield = normalizeEnemyEShield(enemy);
+    const extraHpGauge = normalizeEnemyExtraHpGauge(enemy);
     const dimension = categoryKey === ENEMY_PRESET_TEMPLATE_CATEGORY_KEY
       ? null
       : toYYYYMM(enemy?.in_date);
@@ -167,6 +171,7 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
       },
       absorbElementList: normalizeAbsorbElementList(enemy.resistances?.element?.absorb_element_list),
       ...(eShield ? { e_shield: eShield } : {}),
+      ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
     };
   };
 

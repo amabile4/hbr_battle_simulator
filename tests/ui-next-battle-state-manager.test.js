@@ -241,6 +241,31 @@ test('BattleStateManager ignores inactive Eシールド definitions in enemy slo
   assert.equal(state.turnState.enemyState.eShieldStateByEnemy['1'], undefined);
 });
 
+test('BattleStateManager maps enemy extra_hp_gauge into extraHpGaugeStateByEnemy', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 7101,
+        selectedEnemyName: '多重ゲージ敵',
+        extra_hp_gauge: {
+          total: 3,
+          remaining: 2,
+          values: [40400000, 40400000, 40400000],
+        },
+      },
+    ],
+  });
+
+  assert.deepEqual(state.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 2,
+    values: [40400000, 40400000, 40400000],
+  });
+});
+
 test('BattleStateManager falls back to one enemy when all enemy slots are unselected', () => {
   const manager = new BattleStateManager({ store: getStore() });
 

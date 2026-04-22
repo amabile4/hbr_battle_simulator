@@ -392,9 +392,11 @@ export class EnemyDetailPopup {
         canSummon: Boolean(enemy?.canSummon),
         canEditEShield: Boolean(enemy?.canEditEShield),
         canBreak: Boolean(enemy?.canBreak),
+        canHpBreak: Boolean(enemy?.canHpBreak),
         canKill: Boolean(enemy?.canKill),
         hasPendingEShieldOperation: Boolean(enemy?.hasPendingEShieldOperation),
         hasPendingBreakOperation: Boolean(enemy?.hasPendingBreakOperation),
+        hasPendingHpBreakOperation: Boolean(enemy?.hasPendingHpBreakOperation),
         hasPendingKillOperation: Boolean(enemy?.hasPendingKillOperation),
         popupEditorHtml: String(enemy?.popupEditorHtml ?? ''),
         ...(enemy?.od_rate !== undefined ? { od_rate: enemy.od_rate } : {}),
@@ -402,6 +404,7 @@ export class EnemyDetailPopup {
         ...(enemy?.damageRates ? { damageRates: structuredClone(enemy.damageRates) } : {}),
         ...(enemy?.absorbElements ? { absorbElements: structuredClone(enemy.absorbElements) } : {}),
         ...(enemy?.eShieldState ? { eShieldState: structuredClone(enemy.eShieldState) } : {}),
+        ...(enemy?.extraHpGaugeState ? { extraHpGaugeState: structuredClone(enemy.extraHpGaugeState) } : {}),
         ...(enemy?.hp !== undefined ? { hp: enemy.hp } : {}),
         ...(enemy?.maxHp !== undefined ? { maxHp: enemy.maxHp } : {}),
       };
@@ -847,17 +850,18 @@ export class EnemyDetailPopup {
       },
       {
         actionType: 'kill',
-        label: '討伐',
-        pendingLabel: '討伐予定',
-        iconHtml: `<img src="${KILL_BUTTON_ICON_URL}" alt="討伐" data-role="enemy-popup-action-icon" />`,
-        enabledByState: Boolean(enemy?.canKill),
-        isPending: Boolean(enemy?.hasPendingKillOperation),
+        label: enemy?.canHpBreak ? 'HP破壊' : '討伐',
+        pendingLabel: enemy?.canHpBreak ? 'HP破壊予定' : '討伐予定',
+        iconHtml: `<img src="${KILL_BUTTON_ICON_URL}" alt="${escapeHtml(enemy?.canHpBreak ? 'HP破壊' : '討伐')}" data-role="enemy-popup-action-icon" />`,
+        enabledByState: Boolean(enemy?.canKill || enemy?.canHpBreak),
+        isPending: Boolean(enemy?.hasPendingKillOperation || enemy?.hasPendingHpBreakOperation),
+        resolvedActionType: enemy?.canHpBreak ? 'hpbreak' : 'kill',
       },
     ];
     return `
       <div data-role="enemy-popup-action-row">
-        ${actionButtons.map(({ actionType, label, pendingLabel, iconHtml, enabledByState, isPending }) => {
-          const enabled = enabledByState && typeof this.#toolActions?.[actionType] === 'function';
+        ${actionButtons.map(({ actionType, label, pendingLabel, iconHtml, enabledByState, isPending, resolvedActionType = actionType }) => {
+          const enabled = enabledByState && typeof this.#toolActions?.[resolvedActionType] === 'function';
           const displayLabel = isPending ? pendingLabel : label;
           const titleText = actionType === 'summon'
             ? label
@@ -865,7 +869,7 @@ export class EnemyDetailPopup {
           return `
             <button type="button"
                     data-role="enemy-popup-action"
-                    data-action-type="${actionType}"
+                    data-action-type="${resolvedActionType}"
                     data-enemy-index="${enemyIndex}"
                     data-pending="${isPending ? 'true' : 'false'}"
                     title="${escapeHtml(titleText)}"
@@ -885,6 +889,9 @@ export class EnemyDetailPopup {
       : {};
     const absorbElements = Array.isArray(enemy?.absorbElements) ? enemy.absorbElements : [];
     const eShieldState = normalizeEnemyEShieldDisplayState(enemy?.eShieldState);
+    const extraHpGaugeState = enemy?.extraHpGaugeState && typeof enemy.extraHpGaugeState === 'object'
+      ? enemy.extraHpGaugeState
+      : null;
     const damageRateEntries = DAMAGE_RATE_DISPLAY_ORDER
       .map(([key, label]) => {
         const numeric = Number(damageRates?.[key]);
@@ -911,9 +918,17 @@ export class EnemyDetailPopup {
                })}
                <span class="enemy-popup-e-shield-summary__meta">
                  <span class="enemy-popup-e-shield-summary__gauge">${escapeHtml(formatEnemyEShieldGaugeLabel(eShieldState))}</span>
-                 <span class="enemy-popup-e-shield-summary__elements">${escapeHtml(formatEnemyEShieldElementsLabel(eShieldState))}</span>
-               </span>
-             </div>`,
+               <span class="enemy-popup-e-shield-summary__elements">${escapeHtml(formatEnemyEShieldElementsLabel(eShieldState))}</span>
+             </span>
+           </div>`,
+          ]]
+        : []),
+      ...(extraHpGaugeState
+        ? [[
+            'HPゲージ',
+            escapeHtml(
+              `${Number(extraHpGaugeState.remaining ?? 0)}/${Number(extraHpGaugeState.total ?? 0)}`
+            ),
           ]]
         : []),
       ['OD率', escapeHtml(Number.isFinite(Number(enemy?.od_rate)) ? `×${Number(enemy.od_rate).toFixed(2)}` : '-'), true],

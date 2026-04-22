@@ -294,6 +294,147 @@ function applyEnemyEShieldTestSetup(
   return state;
 }
 
+function createHpBreakAttackSkill(skillId = 99501) {
+  return {
+    id: skillId,
+    name: 'Gauge Slash',
+    label: `GaugeSlash${skillId}`,
+    sp_cost: 0,
+    target_type: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  };
+}
+
+function createHpBreakTestState({
+  remaining = 3,
+  eShieldState = createEnemyEShieldState({
+    current: 12,
+    max: 30,
+    elements: ['Light'],
+    defUpRate: 5000,
+  }),
+} = {}) {
+  const skill = createHpBreakAttackSkill();
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? { skills: [skill] }
+      : { skills: [createProtectionSkill(8800 + idx)] }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.extraHpGaugeStateByEnemy = {
+    0: {
+      total: 3,
+      remaining,
+      values: [40400000, 40400000, 40400000],
+    },
+  };
+  state.turnState.enemyState.eShieldStateByEnemy = eShieldState
+    ? { 0: structuredClone(eShieldState) }
+    : {};
+  return {
+    state,
+    skillId: skill.id,
+  };
+}
+
+test('manual HP break decrements extra gauge, resets break state, restores E shield, and truncates later actions', () => {
+  const { state, skillId } = createHpBreakTestState();
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 },
+    { statusType: 'SuperBreak', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'SuperBreakDown', targetIndex: 0, remainingTurns: 0 },
+  ];
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 250 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 350 };
+  state.turnState.enemyState.breakStateByEnemy = {
+    0: {
+      baseCap: 300,
+      strongBreakActive: true,
+      superDown: { preRate: 100, preCap: 300 },
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+    1: { characterId: 'M2', skillId: state.party[1].skills[0].skillId },
+    2: { characterId: 'M3', skillId: state.party[2].skills[0].skillId },
+  });
+  assert.equal(preview.actions.length, 1, 'preview should stop after the HP break action');
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(committedRecord.actions.length, 1, 'commit should not materialize later actions');
+  assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0]);
+  assert.equal(committedRecord.actions[0]?.hpBreakCount, 1);
+  assert.deepEqual(nextState.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 2,
+    values: [40400000, 40400000, 40400000],
+  });
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 35,
+    max: 35,
+    elements: ['Light'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.deepEqual(
+    (nextState.turnState.enemyState.statuses ?? []).filter((status) => Number(status?.targetIndex) === 0),
+    [],
+    'BREAK/DownTurn/SuperBreak states should be cleared'
+  );
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 100);
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], undefined);
+  assert.equal(nextState.turnState.turnType, 'normal');
+  assert.equal(nextState.turnState.turnIndex, 2);
+});
+
+test('manual HP break does not create an E shield when no active E shield exists', () => {
+  const { state, skillId } = createHpBreakTestState({ eShieldState: null });
+
+  const committed = commitTurn(
+    state,
+    previewTurn(state, {
+      0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+    })
+  );
+
+  assert.equal(committed.nextState.turnState.enemyState.eShieldStateByEnemy['0'], undefined);
+  assert.deepEqual(committed.nextState.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 2,
+    values: [40400000, 40400000, 40400000],
+  });
+});
+
+test('manual HP break forces the next state to the next normal base turn from OD and EX contexts', () => {
+  const { state: odBaseState, skillId } = createHpBreakTestState();
+  const odState = activateOverdrive(odBaseState, 1, 'preemptive');
+  const odCommitted = commitTurn(
+    odState,
+    previewTurn(odState, {
+      0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+    })
+  );
+  assert.equal(odCommitted.nextState.turnState.turnType, 'normal');
+  assert.equal(odCommitted.nextState.turnState.turnIndex, 2);
+  assert.equal(odCommitted.nextState.turnState.turnLabel, 'T2');
+
+  const { state: exBaseState } = createHpBreakTestState();
+  const extraState = grantExtraTurn(exBaseState, ['M1']);
+  const extraCommitted = commitTurn(
+    extraState,
+    previewTurn(extraState, {
+      0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+    })
+  );
+  assert.equal(extraCommitted.nextState.turnState.turnType, 'normal');
+  assert.equal(extraCommitted.nextState.turnState.turnIndex, 2);
+  assert.equal(extraCommitted.nextState.turnState.turnLabel, 'T2');
+});
+
 function createHighBoostManualParty(actorOverrides = {}) {
   return createSixMemberManualParty((idx) => {
     if (idx === 0) {

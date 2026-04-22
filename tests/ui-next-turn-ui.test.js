@@ -1793,6 +1793,53 @@ test('TurnAreaController keeps only the enemy detail trigger in the row and expo
     );
   }));
 
+test('TurnRowController enemy popup switches defeat to HP break for multi-gauge enemies and renders HP break chips', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 950305,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: '多重ゲージ敵' };
+    state.turnState.enemyState.extraHpGaugeStateByEnemy = {
+      0: {
+        total: 3,
+        remaining: 2,
+        values: [40400000, 40400000, 40400000],
+      },
+    };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
+      eventType: 'contextmenu',
+    });
+    assert.match(popup.textContent ?? '', /HPゲージ/);
+    assert.match(popup.textContent ?? '', /2\/3/);
+
+    const hpBreakAction = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="hpbreak"]');
+    assert.ok(hpBreakAction);
+    assert.match(hpBreakAction.textContent ?? '', /HP破壊/);
+    assert.equal(popup.querySelector('[data-role="enemy-popup-action"][data-action-type="kill"]'), null);
+
+    triggerEnemyPopupAction(win, 'hpbreak', { enemyIndex: 0 });
+    const refreshedPopup = getEnemyDetailPopup(win);
+    assert.match(refreshedPopup.textContent ?? '', /HP破壊した前衛を選択/);
+
+    clickElement(win, refreshedPopup.querySelector('[data-role="popup-hp-break-single-toggle"]'));
+    clickElement(win, getEnemyDetailPopup(win).querySelector('[data-role="enemy-popup-outcome-confirm"]'));
+
+    const hpBreakChip = root.querySelector('[data-role="hp-break-chip"]');
+    assert.ok(hpBreakChip);
+    assert.match(hpBreakChip.textContent ?? '', /HP破壊/);
+  }));
+
 test('TurnRowController opens summon editor and queues selected summon enemy operation', () =>
   withDom(({ root, win }) => {
     const state = createState(

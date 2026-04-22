@@ -1,5 +1,6 @@
 import { MAX_PARTY_SIZE } from '../domain/party.js';
 import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
 import { normalizeNormalAttackElementsByPartyIndex } from '../domain/normal-attack-elements.js';
 import {
   getActionOutcomeOverridesFromReplayTurn,
@@ -48,6 +49,7 @@ export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
   ENEMY_DESTRUCTION_RATE_CAPS: 'EnemyDestructionRateCaps',
   ENEMY_OD_RATES: 'EnemyOdRates',
   ENEMY_E_SHIELDS: 'EnemyEShields',
+  ENEMY_EXTRA_HP_GAUGES: 'EnemyExtraHpGauges',
   ENEMY_ABSORB_ELEMENTS: 'EnemyAbsorbElements',
   ENEMY_BREAK_STATES: 'EnemyBreakStates',
   ENEMY_STATUSES: 'EnemyStatuses',
@@ -149,6 +151,24 @@ function normalizeEnemyEShieldsPayload(payload = {}) {
       .map(([enemyIndex, state]) => {
         const numericEnemyIndex = Number(enemyIndex);
         const normalizedState = cloneEnemyEShieldState(state);
+        if (!Number.isInteger(numericEnemyIndex) || numericEnemyIndex < 0 || !normalizedState) {
+          return null;
+        }
+        return [String(numericEnemyIndex), normalizedState];
+      })
+      .filter(Boolean)
+  );
+}
+
+function normalizeEnemyExtraHpGaugesPayload(payload = {}) {
+  if (!isPlainObject(payload)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([enemyIndex, state]) => {
+        const numericEnemyIndex = Number(enemyIndex);
+        const normalizedState = cloneEnemyExtraHpGaugeState(state);
         if (!Number.isInteger(numericEnemyIndex) || numericEnemyIndex < 0 || !normalizedState) {
           return null;
         }
@@ -317,6 +337,10 @@ export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS]:
     createReplayOverrideEntryDefinition('enemyEShields', {
       normalizePayload: (payload) => normalizeEnemyEShieldsPayload(payload),
+    }),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_EXTRA_HP_GAUGES]:
+    createReplayOverrideEntryDefinition('enemyExtraHpGauges', {
+      normalizePayload: (payload) => normalizeEnemyExtraHpGaugesPayload(payload),
     }),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS]:
     createReplayOverrideEntryDefinition('enemyAbsorbElements'),

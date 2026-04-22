@@ -138,6 +138,12 @@ test('override registry applies known scenario fields and warns only for unknown
 test('override registry round-trips enemy slot metadata entries including od rates and absorb elements', () => {
   const scenarioTurn = applyReplayOverrideEntriesToScenarioTurn([
     { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES, payload: { 0: 10000, 1: 8500 } },
+    {
+      type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_EXTRA_HP_GAUGES,
+      payload: {
+        0: { total: 3, remaining: 2, values: [40400000, 40400000, 40400000] },
+      },
+    },
     { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS, payload: { 1: ['fire'] } },
     {
       type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES,
@@ -146,6 +152,9 @@ test('override registry round-trips enemy slot metadata entries including od rat
   ]);
 
   assert.deepEqual(scenarioTurn.enemyOdRates, { 0: 10000, 1: 8500 });
+  assert.deepEqual(scenarioTurn.enemyExtraHpGauges, {
+    0: { total: 3, remaining: 2, values: [40400000, 40400000, 40400000] },
+  });
   assert.deepEqual(scenarioTurn.enemyAbsorbElements, { 1: ['fire'] });
   assert.deepEqual(scenarioTurn.enemyStatuses, [
     { statusType: 'Dead', targetIndex: 1, remainingTurns: 0, exitCond: 'Eternal' },

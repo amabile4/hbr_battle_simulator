@@ -142,3 +142,34 @@ export function buildManualKillChipModels({
       });
     });
 }
+
+export function buildManualHpBreakChipModels({
+  overrides = [],
+  members = [],
+  store = null,
+  enemyNamesByEnemy = {},
+} = {}) {
+  const memberByPosition = new Map(
+    (Array.isArray(members) ? members : []).map((member) => [Number(member?.position), member])
+  );
+  return normalizeActionOutcomeOverrides(overrides)
+    .filter((override) => override.outcome === ACTION_OUTCOME_TYPES.HP_BREAK)
+    .flatMap((override) => {
+      const position = Number(override?.position);
+      const member = memberByPosition.get(position) ?? null;
+      const actorLabel = member
+        ? resolveManualBreakActorLabel(member, store)
+        : `P${position + 1}`;
+      return (Array.isArray(override?.enemyIndexes) ? override.enemyIndexes : []).map((enemyIndex) => {
+        const enemyLabel = resolveManualBreakEnemyLabel(enemyIndex, enemyNamesByEnemy);
+        return {
+          key: `${position}:${enemyIndex}`,
+          actorLabel,
+          enemyLabel,
+          label: `${actorLabel}→${enemyLabel} HP破壊`,
+          position,
+          enemyIndex: Number(enemyIndex),
+        };
+      });
+    });
+}
