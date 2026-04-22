@@ -104,6 +104,7 @@ function normalizeStageStatusEffect(effect = {}) {
 function normalizeStageSetupSnapshot(stageSetup = {}) {
   const initialOdGauge = Number(stageSetup?.initialOdGauge ?? 0);
   const initialSpBonusAll = Number(stageSetup?.initialSpBonusAll ?? 0);
+  const turnlyOdGauge = Number(stageSetup?.turnlyOdGauge ?? 0);
   const turnlySpAll = Number(stageSetup?.turnlySpAll ?? 0);
   const turnlySpFront = Number(stageSetup?.turnlySpFront ?? 0);
   const turnlySpBack = Number(stageSetup?.turnlySpBack ?? 0);
@@ -118,6 +119,7 @@ function normalizeStageSetupSnapshot(stageSetup = {}) {
   return {
     initialOdGauge: Number.isFinite(initialOdGauge) ? initialOdGauge : 0,
     initialSpBonusAll: Number.isFinite(initialSpBonusAll) ? initialSpBonusAll : 0,
+    turnlyOdGauge: Number.isFinite(turnlyOdGauge) ? turnlyOdGauge : 0,
     turnlySpAll: Number.isFinite(turnlySpAll) ? turnlySpAll : 0,
     turnlySpFront: Number.isFinite(turnlySpFront) ? turnlySpFront : 0,
     turnlySpBack: Number.isFinite(turnlySpBack) ? turnlySpBack : 0,

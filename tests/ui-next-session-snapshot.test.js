@@ -100,6 +100,9 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
     setup: {
       styleIds: [1001, 1002, 1003, null, null, null],
       supportStyleIds: [null, null, null, null, null, null],
+      stageSetup: {
+        turnlyOdGauge: 10,
+      },
       normalAttackElementsByPartyIndex: {
         0: ['Ice'],
       },
@@ -124,6 +127,7 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   assert.equal(parsed.validationPolicy.allowInsufficientSp, true);
   assert.equal(parsed.simulatorSettings.captureUntilBattleEnd, true);
   assert.deepEqual(parsed.setup.styleIds.slice(0, 3), [1001, 1002, 1003]);
+  assert.equal(parsed.setup.stageSetup.turnlyOdGauge, 10);
   assert.deepEqual(parsed.setup.normalAttackElementsByPartyIndex, { 0: ['Ice'] });
   assert.deepEqual(parsed.setup.skillSetsByPartyIndex, {});
   assert.equal(parsed.enemy.selectedEnemyId, 7001);
@@ -374,6 +378,7 @@ test('normalizeSessionSnapshot preserves stageSetup fields with defaults', () =>
       stageSetup: {
         initialOdGauge: -300,
         initialSpBonusAll: 5,
+        turnlyOdGauge: -10,
         selectedDimensionBattleId: 191000004,
         enchantEffects: [
           { effectType: 'odGaugeGainBonusPercent', amount: 20 },
@@ -404,6 +409,7 @@ test('normalizeSessionSnapshot preserves stageSetup fields with defaults', () =>
 
   assert.equal(normalized.setup.stageSetup.initialOdGauge, -300);
   assert.equal(normalized.setup.stageSetup.initialSpBonusAll, 5);
+  assert.equal(normalized.setup.stageSetup.turnlyOdGauge, -10);
   assert.equal(normalized.setup.stageSetup.selectedDimensionBattleId, 191000004);
   assert.deepEqual(normalized.setup.stageSetup.enchantEffects, [
     { effectType: 'odGaugeGainBonusPercent', amount: 20 },

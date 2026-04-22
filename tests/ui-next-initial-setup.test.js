@@ -274,6 +274,7 @@ test('InitialSetupController applySetupSnapshot restores stage setup upper input
         stageSetup: {
           initialOdGauge: -300,
           initialSpBonusAll: 5,
+          turnlyOdGauge: -10,
           selectedDimensionBattleId: 191000002,
           enchantEffects: [
             { effectType: 'odGaugeGainBonusPercent', amount: 20 },
@@ -297,6 +298,7 @@ test('InitialSetupController applySetupSnapshot restores stage setup upper input
 
     assert.equal(root.querySelector('[data-role="stage-initial-od"]').value, '-300');
     assert.equal(root.querySelector('[data-role="stage-initial-sp"]').value, '5');
+    assert.equal(root.querySelector('[data-role="stage-turnly-od"]').value, '-10');
     assert.equal(root.querySelector('[data-role="stage-effect-defense-up"]').checked, false);
     assert.equal(root.querySelector('[data-role="stage-effect-debuff-guard"]').checked, true);
     assert.equal(root.querySelector('[data-role="stage-dimension-battle"]').value, '191000002');
@@ -997,6 +999,7 @@ test('InitialSetupController 全体初期化 resets party, enemy, and stage setu
         stageSetup: {
           initialOdGauge: -300,
           initialSpBonusAll: 5,
+          turnlyOdGauge: -10,
           selectedDimensionBattleId: 191000001,
           enchantEffects: [
             { effectType: 'odGaugeGainBonusPercent', amount: 20 },
@@ -1021,6 +1024,7 @@ test('InitialSetupController 全体初期化 resets party, enemy, and stage setu
     assert.equal(snapshot.enemy.preemptiveField, 'none');
     assert.equal(snapshot.party.stageSetup.initialOdGauge, 0);
     assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 0);
+    assert.equal(snapshot.party.stageSetup.turnlyOdGauge, 0);
     assert.equal(snapshot.party.stageSetup.initialStatusEffects.length, 0);
     assert.deepEqual(snapshot.party.stageSetup.enchantEffects, []);
   }));
@@ -1045,6 +1049,7 @@ test('InitialSetupController 全体初期化 keeps current setup when confirmati
         stageSetup: {
           initialOdGauge: -300,
           initialSpBonusAll: 5,
+          turnlyOdGauge: -10,
           selectedDimensionBattleId: 191000001,
           enchantEffects: [
             { effectType: 'odGaugeGainBonusPercent', amount: 20 },
@@ -1069,6 +1074,7 @@ test('InitialSetupController 全体初期化 keeps current setup when confirmati
     assert.equal(snapshot.enemy.preemptiveField, 'thunder');
     assert.equal(snapshot.party.stageSetup.initialOdGauge, -300);
     assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 5);
+    assert.equal(snapshot.party.stageSetup.turnlyOdGauge, -10);
     assert.equal(snapshot.party.stageSetup.initialStatusEffects.length, 1);
     assert.deepEqual(snapshot.party.stageSetup.enchantEffects, [
       { effectType: 'odGaugeGainBonusPercent', amount: 20 },

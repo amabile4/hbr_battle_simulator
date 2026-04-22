@@ -10,6 +10,7 @@ const DEFAULT_STAGE_SETUP = Object.freeze({
   initialSpBonusAll: 0,
   initialStatusEffects: Object.freeze([]),
   enchantEffects: Object.freeze([]),
+  turnlyOdGauge: 0,
   selectedDimensionBattleId: null,
   turnlySpAll: 0,
   turnlySpFront: 0,
@@ -24,6 +25,7 @@ const STAGE_EFFECT_IDS = Object.freeze({
 const STAGE_PRESET_RESULT_DEFAULT = Object.freeze({
   initialOdGauge: 0,
   initialSpBonusAll: 0,
+  turnlyOdGauge: 0,
   turnlySpAll: 0,
   turnlySpFront: 0,
   turnlySpBack: 0,
@@ -72,6 +74,7 @@ function parsePresetDescriptions(descriptions = []) {
   const result = {
     initialOdGauge: 0,
     initialSpBonusAll: 0,
+    turnlyOdGauge: 0,
     turnlySpAll: 0,
     turnlySpFront: 0,
     turnlySpBack: 0,
@@ -106,6 +109,12 @@ function parsePresetDescriptions(descriptions = []) {
     const spMatch = description.match(/戦闘開始時SP\+(\d+)/);
     if (spMatch) {
       result.initialSpBonusAll += Number(spMatch[1]);
+      consumed = true;
+    }
+
+    const turnlyOdGaugeMatch = description.match(/毎ターンOD([+-]\d+)(?:%|％)/);
+    if (turnlyOdGaugeMatch) {
+      result.turnlyOdGauge += Number(turnlyOdGaugeMatch[1]);
       consumed = true;
     }
 
@@ -224,6 +233,7 @@ function parseUiFromStatusEffects(effects = []) {
 function normalizeStageSetupSnapshot(stageSetup = {}) {
   const initialOdGauge = toFiniteNumber(stageSetup?.initialOdGauge, DEFAULT_STAGE_SETUP.initialOdGauge);
   const initialSpBonusAll = toFiniteNumber(stageSetup?.initialSpBonusAll, DEFAULT_STAGE_SETUP.initialSpBonusAll);
+  const turnlyOdGauge = toFiniteNumber(stageSetup?.turnlyOdGauge, DEFAULT_STAGE_SETUP.turnlyOdGauge);
   const turnlySpAll = toFiniteNumber(stageSetup?.turnlySpAll, DEFAULT_STAGE_SETUP.turnlySpAll);
   const turnlySpFront = toFiniteNumber(stageSetup?.turnlySpFront, DEFAULT_STAGE_SETUP.turnlySpFront);
   const turnlySpBack = toFiniteNumber(stageSetup?.turnlySpBack, DEFAULT_STAGE_SETUP.turnlySpBack);
@@ -239,6 +249,7 @@ function normalizeStageSetupSnapshot(stageSetup = {}) {
   return {
     initialOdGauge,
     initialSpBonusAll,
+    turnlyOdGauge,
     turnlySpAll,
     turnlySpFront,
     turnlySpBack,
@@ -257,6 +268,7 @@ export class StageSetupController {
   #spInput = null;
   #defenseUpToggle = null;
   #debuffGuardToggle = null;
+  #turnlyOdGaugeInput = null;
   #turnlySpAllInput = null;
   #turnlySpFrontInput = null;
   #turnlySpBackInput = null;
@@ -304,7 +316,13 @@ export class StageSetupController {
                      class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
             </label>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-2">
+            <label class="block">
+              <span class="mb-0.5 block text-xs font-medium text-gray-600">毎ターンOD（%）</span>
+              <input data-role="stage-turnly-od"
+                     type="number" step="1" value="0"
+                     class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
+            </label>
             <label class="block">
               <span class="mb-0.5 block text-xs font-medium text-gray-600">毎ターンSP（全員）</span>
               <input data-role="stage-turnly-sp-all"
@@ -360,6 +378,7 @@ export class StageSetupController {
     this.#spInput = this.#root.querySelector('[data-role="stage-initial-sp"]');
     this.#defenseUpToggle = this.#root.querySelector('[data-role="stage-effect-defense-up"]');
     this.#debuffGuardToggle = this.#root.querySelector('[data-role="stage-effect-debuff-guard"]');
+    this.#turnlyOdGaugeInput = this.#root.querySelector('[data-role="stage-turnly-od"]');
     this.#turnlySpAllInput = this.#root.querySelector('[data-role="stage-turnly-sp-all"]');
     this.#turnlySpFrontInput = this.#root.querySelector('[data-role="stage-turnly-sp-front"]');
     this.#turnlySpBackInput = this.#root.querySelector('[data-role="stage-turnly-sp-back"]');
@@ -391,6 +410,7 @@ export class StageSetupController {
   getSnapshot() {
     const initialOdGauge = toFiniteNumber(this.#odInput?.value, 0);
     const initialSpBonusAll = toFiniteNumber(this.#spInput?.value, 0);
+    const turnlyOdGauge = toFiniteNumber(this.#turnlyOdGaugeInput?.value, 0);
     const turnlySpAll = toFiniteNumber(this.#turnlySpAllInput?.value, 0);
     const turnlySpFront = toFiniteNumber(this.#turnlySpFrontInput?.value, 0);
     const turnlySpBack = toFiniteNumber(this.#turnlySpBackInput?.value, 0);
@@ -402,6 +422,7 @@ export class StageSetupController {
     return {
       initialOdGauge,
       initialSpBonusAll,
+      turnlyOdGauge,
       turnlySpAll,
       turnlySpFront,
       turnlySpBack,
@@ -426,6 +447,9 @@ export class StageSetupController {
     }
     if (this.#debuffGuardToggle) {
       this.#debuffGuardToggle.checked = uiState.enableDebuffGuard;
+    }
+    if (this.#turnlyOdGaugeInput) {
+      this.#turnlyOdGaugeInput.value = String(normalized.turnlyOdGauge);
     }
     if (this.#turnlySpAllInput) {
       this.#turnlySpAllInput.value = String(normalized.turnlySpAll);
@@ -471,6 +495,7 @@ export class StageSetupController {
       this.#spInput,
       this.#defenseUpToggle,
       this.#debuffGuardToggle,
+      this.#turnlyOdGaugeInput,
       this.#turnlySpAllInput,
       this.#turnlySpFrontInput,
       this.#turnlySpBackInput,
@@ -586,6 +611,9 @@ export class StageSetupController {
     if (this.#spInput) {
       this.#spInput.value = String(parsed.initialSpBonusAll);
     }
+    if (this.#turnlyOdGaugeInput) {
+      this.#turnlyOdGaugeInput.value = String(parsed.turnlyOdGauge);
+    }
     if (this.#defenseUpToggle) {
       this.#defenseUpToggle.checked = parsed.enableDefenseUp;
     }
@@ -615,6 +643,9 @@ export class StageSetupController {
     }
     if (this.#spInput) {
       this.#spInput.value = String(DEFAULT_STAGE_SETUP.initialSpBonusAll);
+    }
+    if (this.#turnlyOdGaugeInput) {
+      this.#turnlyOdGaugeInput.value = String(DEFAULT_STAGE_SETUP.turnlyOdGauge);
     }
     if (this.#defenseUpToggle) {
       this.#defenseUpToggle.checked = false;

@@ -50,6 +50,7 @@ function createDimensionBattlesFixture() {
         { enchant: { desc: 'ターン開始時SP0未満の前衛の味方のSP+2' } },
         { enchant: { desc: 'ターン開始時SP0未満の後衛の味方のSP+2' } },
         { enchant: { desc: '回復量+50%' } },
+        { enchant: { desc: '毎ターンOD+10%' } },
       ],
     },
     {
@@ -76,6 +77,7 @@ test('StageSetupController defaults to latest dimension battle and exposes upper
     const snapshot = controller.getSnapshot();
     assert.equal(snapshot.initialOdGauge, 0);
     assert.equal(snapshot.initialSpBonusAll, 0);
+    assert.equal(snapshot.turnlyOdGauge, 0);
     assert.equal(snapshot.selectedDimensionBattleId, 191000002);
   }));
 
@@ -163,8 +165,11 @@ test('StageSetupController preset applies turnly SP fields immediately on check'
     checkboxes.item(4).dispatchEvent(new win.Event('change', { bubbles: true }));
     checkboxes.item(5).checked = true;
     checkboxes.item(5).dispatchEvent(new win.Event('change', { bubbles: true }));
+    checkboxes.item(12).checked = true;
+    checkboxes.item(12).dispatchEvent(new win.Event('change', { bubbles: true }));
 
     const snapshot = controller.getSnapshot();
+    assert.equal(snapshot.turnlyOdGauge, 10);
     assert.equal(snapshot.turnlySpAll, 1);
     assert.equal(snapshot.turnlySpFront, 1);
     assert.equal(snapshot.turnlySpBack, 1);
@@ -267,10 +272,13 @@ test('StageSetupController reset button restores only upper free inputs to initi
       controller.mount();
 
       // Set turnly SP values
+      const turnlyOdGaugeInput = root.querySelector('[data-role="stage-turnly-od"]');
       const turnlySpAllInput = root.querySelector('[data-role="stage-turnly-sp-all"]');
       const turnlySpFrontInput = root.querySelector('[data-role="stage-turnly-sp-front"]');
       const turnlySpBackInput = root.querySelector('[data-role="stage-turnly-sp-back"]');
 
+      turnlyOdGaugeInput.value = '-10';
+      turnlyOdGaugeInput.dispatchEvent(new win.Event('change', { bubbles: true }));
       turnlySpAllInput.value = '2';
       turnlySpAllInput.dispatchEvent(new win.Event('change', { bubbles: true }));
       turnlySpFrontInput.value = '5';
@@ -279,6 +287,7 @@ test('StageSetupController reset button restores only upper free inputs to initi
       turnlySpBackInput.dispatchEvent(new win.Event('change', { bubbles: true }));
 
       const snapshot = controller.getSnapshot();
+      assert.equal(snapshot.turnlyOdGauge, -10);
       assert.equal(snapshot.turnlySpAll, 2);
       assert.equal(snapshot.turnlySpFront, 5);
       assert.equal(snapshot.turnlySpBack, -3);
@@ -297,6 +306,7 @@ test('StageSetupController reset button restores only upper free inputs to initi
         initialOdGauge: 0,
         initialSpBonusAll: 0,
         initialStatusEffects: [],
+        turnlyOdGauge: -15,
         turnlySpAll: 3,
         turnlySpFront: 4,
         turnlySpBack: -2,
@@ -304,10 +314,12 @@ test('StageSetupController reset button restores only upper free inputs to initi
 
       controller.applySnapshot(snapshot);
 
+      const turnlyOdGaugeInput = root.querySelector('[data-role="stage-turnly-od"]');
       const turnlySpAllInput = root.querySelector('[data-role="stage-turnly-sp-all"]');
       const turnlySpFrontInput = root.querySelector('[data-role="stage-turnly-sp-front"]');
       const turnlySpBackInput = root.querySelector('[data-role="stage-turnly-sp-back"]');
 
+      assert.equal(turnlyOdGaugeInput.value, '-15');
       assert.equal(turnlySpAllInput.value, '3');
       assert.equal(turnlySpFrontInput.value, '4');
       assert.equal(turnlySpBackInput.value, '-2');
@@ -361,10 +373,13 @@ test('StageSetupController applySnapshot restores enchant summary and reset clea
       });
       controller.mount();
 
+      const turnlyOdGaugeInput = root.querySelector('[data-role="stage-turnly-od"]');
       const turnlySpAllInput = root.querySelector('[data-role="stage-turnly-sp-all"]');
       const turnlySpFrontInput = root.querySelector('[data-role="stage-turnly-sp-front"]');
       const turnlySpBackInput = root.querySelector('[data-role="stage-turnly-sp-back"]');
 
+      turnlyOdGaugeInput.value = '20';
+      turnlyOdGaugeInput.dispatchEvent(new win.Event('change', { bubbles: true }));
       turnlySpAllInput.value = '5';
       turnlySpAllInput.dispatchEvent(new win.Event('change', { bubbles: true }));
       turnlySpFrontInput.value = '10';
@@ -376,6 +391,7 @@ test('StageSetupController applySnapshot restores enchant summary and reset clea
         .querySelector('[data-action="reset-stage-upper-inputs"]')
         .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
+      assert.equal(turnlyOdGaugeInput.value, '0');
       assert.equal(turnlySpAllInput.value, '0');
       assert.equal(turnlySpFrontInput.value, '0');
       assert.equal(turnlySpBackInput.value, '0');

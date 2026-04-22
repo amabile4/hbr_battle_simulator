@@ -19034,6 +19034,50 @@ test('interrupt OD1 during EX (odSuspended, all OD consumed) → normal with sin
     }
   });
 
+test('applyRecoveryPipeline applies every-turn OD on normal turn transition', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8910 + idx)],
+  }));
+  const state = createBattleStateFromParty(party);
+  state.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0, odGauge: 10 };
+  state.turnState.turnIndex = 1;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8910 },
+  });
+  const { nextState } = commitTurn(state, preview, []);
+
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
+test('applyRecoveryPipeline clamps every-turn OD at max and min bounds', () => {
+  const positiveParty = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8930 + idx)],
+  }));
+  const positiveState = createBattleStateFromParty(positiveParty);
+  positiveState.turnState.odGauge = 295;
+  positiveState.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0, odGauge: 10 };
+
+  const positivePreview = previewTurn(positiveState, {
+    0: { characterId: 'M1', skillId: 8930 },
+  });
+  const { nextState: clampedHighState } = commitTurn(positiveState, positivePreview, []);
+  assert.equal(clampedHighState.turnState.odGauge, 300);
+
+  const negativeParty = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8950 + idx)],
+  }));
+  const negativeState = createBattleStateFromParty(negativeParty);
+  negativeState.turnState.odGauge = -995;
+  negativeState.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0, odGauge: -10 };
+
+  const negativePreview = previewTurn(negativeState, {
+    0: { characterId: 'M1', skillId: 8950 },
+  });
+  const { nextState: clampedLowState } = commitTurn(negativeState, negativePreview, []);
+  assert.equal(clampedLowState.turnState.odGauge, -999.99);
+});
+
 test('applyRecoveryPipeline grants stage setup SP when any enemy is in DownTurn', () => {
   const party = createSixMemberManualParty((idx) => ({
     skills: [createProtectionSkill(8810 + idx)],
@@ -19189,6 +19233,52 @@ test('stage setup OD bonus does not affect pursuit OD gain', () => {
   const { nextState } = commitTurn(state, preview);
 
   assert.equal(nextState.turnState.odGauge, 10);
+});
+
+test('stage setup every-turn OD is independent from odGaugeGainBonusPercent drive bonus handling', () => {
+  const createStateWithTurnlyOd = (turnlyOdGauge) => {
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            skills: [
+              {
+                id: 8899,
+                name: '2hit AttackSkill',
+                label: 'TwoHitAttackSkill',
+                sp_cost: 0,
+                hit_count: 2,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(8990 + idx)],
+          }
+    );
+    const state = createBattleStateFromParty(party, { enemyCount: 1 });
+    state.party[0].drivePiercePercent = 15;
+    state.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0, odGauge: turnlyOdGauge };
+    state.stageSetupEnchantEffects = [
+      { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+    ];
+    return state;
+  };
+
+  const baseState = createStateWithTurnlyOd(0);
+  const turnlyOdState = createStateWithTurnlyOd(10);
+
+  const basePreview = previewTurn(baseState, {
+    0: { characterId: 'M1', skillId: 8899, targetEnemyIndex: 0 },
+  });
+  const { nextState: baseNextState } = commitTurn(baseState, basePreview);
+
+  const turnlyPreview = previewTurn(turnlyOdState, {
+    0: { characterId: 'M1', skillId: 8899, targetEnemyIndex: 0 },
+  });
+  const { nextState: turnlyNextState } = commitTurn(turnlyOdState, turnlyPreview);
+
+  assert.equal(turnlyNextState.turnState.odGauge - baseNextState.turnState.odGauge, 10);
 });
 
 // ─── Phase C: enemy status sourceCharacterName が nextState に保持される ───

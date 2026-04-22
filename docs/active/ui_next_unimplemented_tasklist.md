@@ -229,3 +229,8 @@ Source: `stage_setup_gimmick_pattern_analysis.md`
 - [x] #7 `ターン開始時ダウンターン中の敵がいるとSP+2` を turn-start 条件付き回復として実装した
 - [x] #13 `敵を倒したとき敵1体につき味方全体のSP+1` を撃破直後反映で実装した
 - [x] Stage Setup UI に read-only の「有効なプリセット効果」要約と session save/load を追加した
+
+2026-04-22 更新:
+
+- [x] Stage Setup に manual `毎ターンOD（%）` 入力を追加し、`turnlyOdGauge` として save/load・runtime 反映・T1 初期表示適用まで接続した
+- [x] この追加は 23 項目の恒星戦ギミック残件とは別枠の汎用入力強化として扱い、残件数 `9` は据え置く

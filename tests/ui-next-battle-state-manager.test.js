@@ -315,6 +315,7 @@ test('BattleStateManager applies stageSetup initial OD/SP bonus and initial stat
 
     const partySnapshot = createPartySnapshot();
     partySnapshot.stageSetup = {
+      turnlyOdGauge: -10,
       turnlySpAll: 2,
       turnlySpFront: 5,
       turnlySpBack: -3,
@@ -324,9 +325,40 @@ test('BattleStateManager applies stageSetup initial OD/SP bonus and initial stat
       enemyCount: 1,
     });
 
+    assert.equal(state.stageSetupTurnly?.odGauge, -10);
     assert.equal(state.stageSetupTurnly?.spAll, 2);
     assert.equal(state.stageSetupTurnly?.spFront, 5);
     assert.equal(state.stageSetupTurnly?.spBack, -3);
+  });
+
+  test('BattleStateManager applies stageSetup turnly OD once to the initial T1 gauge', () => {
+    const manager = new BattleStateManager({ store: getStore() });
+
+    const baseState = manager.buildFromSnapshot(
+      {
+        ...createPartySnapshot(),
+        stageSetup: {
+          initialOdGauge: 100,
+        },
+      },
+      {
+        enemyCount: 1,
+      }
+    );
+    const stagedState = manager.buildFromSnapshot(
+      {
+        ...createPartySnapshot(),
+        stageSetup: {
+          initialOdGauge: 100,
+          turnlyOdGauge: 10,
+        },
+      },
+      {
+        enemyCount: 1,
+      }
+    );
+
+    assert.equal(Number(stagedState.turnState.odGauge) - Number(baseState.turnState.odGauge), 10);
   });
 
   test('BattleStateManager stores stageSetupEnchantEffects from snapshot stageSetup in battle state', () => {
@@ -359,6 +391,7 @@ test('BattleStateManager applies stageSetup initial OD/SP bonus and initial stat
       // No turnly SP fields provided
     });
 
+    assert.equal(state.stageSetupTurnly?.odGauge, 0);
     assert.equal(state.stageSetupTurnly?.spAll, 0);
     assert.equal(state.stageSetupTurnly?.spFront, 0);
     assert.equal(state.stageSetupTurnly?.spBack, 0);

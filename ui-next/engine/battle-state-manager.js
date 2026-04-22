@@ -1,5 +1,10 @@
 import { createInitializedBattleSnapshot } from '../../src/ui/adapter-core.js';
-import { DEFAULT_INITIAL_SP, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
+import {
+  DEFAULT_INITIAL_SP,
+  DEFAULT_ENEMY_COUNT,
+  OD_GAUGE_MAX_PERCENT,
+  OD_GAUGE_MIN_PERCENT,
+} from '../../src/config/battle-defaults.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 import { getNormalAttackElementsForPartyIndex } from '../../src/domain/normal-attack-elements.js';
 import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
@@ -33,6 +38,7 @@ const DEFAULT_STAGE_SETUP = Object.freeze({
   initialSpBonusAll: 0,
   initialStatusEffects: Object.freeze([]),
   enchantEffects: Object.freeze([]),
+  turnlyOdGauge: 0,
   turnlySpAll: 0,
   turnlySpFront: 0,
   turnlySpBack: 0,
@@ -107,6 +113,7 @@ function normalizeStageSetup(stageSetup = {}) {
 
   const initialOdGauge = Number(stageSetup?.initialOdGauge);
   const initialSpBonusAll = Number(stageSetup?.initialSpBonusAll);
+  const turnlyOdGauge = Number(stageSetup?.turnlyOdGauge);
   const turnlySpAll = Number(stageSetup?.turnlySpAll);
   const turnlySpFront = Number(stageSetup?.turnlySpFront);
   const turnlySpBack = Number(stageSetup?.turnlySpBack);
@@ -121,6 +128,7 @@ function normalizeStageSetup(stageSetup = {}) {
       ? initialSpBonusAll
       : DEFAULT_STAGE_SETUP.initialSpBonusAll,
     enchantEffects,
+    turnlyOdGauge: Number.isFinite(turnlyOdGauge) ? turnlyOdGauge : DEFAULT_STAGE_SETUP.turnlyOdGauge,
     turnlySpAll: Number.isFinite(turnlySpAll) ? turnlySpAll : DEFAULT_STAGE_SETUP.turnlySpAll,
     turnlySpFront: Number.isFinite(turnlySpFront) ? turnlySpFront : DEFAULT_STAGE_SETUP.turnlySpFront,
     turnlySpBack: Number.isFinite(turnlySpBack) ? turnlySpBack : DEFAULT_STAGE_SETUP.turnlySpBack,
@@ -300,6 +308,21 @@ function buildPreemptiveZoneState(enemySetup) {
   };
 }
 
+function truncateToTwoDecimals(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  if (numeric >= 0) {
+    return Math.floor((numeric + 1e-9) * 100) / 100;
+  }
+  return Math.ceil((numeric - 1e-9) * 100) / 100;
+}
+
+function clampOdGauge(value) {
+  return Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, value));
+}
+
 /**
  * slot snapshot から BattleState を生成・保持するクラス。
  * - 後衛の空きスロットは左詰めでエンジンに渡す
@@ -440,11 +463,18 @@ export class BattleStateManager {
     // Stage Setup 毎ターン SP ギミック情報を state に保存
     if (this.#state) {
       this.#state.stageSetupTurnly = {
+        odGauge: stageSetup.turnlyOdGauge ?? 0,
         spAll: stageSetup.turnlySpAll ?? 0,
         spFront: stageSetup.turnlySpFront ?? 0,
         spBack: stageSetup.turnlySpBack ?? 0,
       };
       this.#state.stageSetupEnchantEffects = structuredClone(stageSetup.enchantEffects ?? []);
+      const initialTurnlyOdGauge = Number(this.#state.stageSetupTurnly.odGauge ?? 0);
+      if (Number.isFinite(initialTurnlyOdGauge) && initialTurnlyOdGauge !== 0) {
+        this.#state.turnState.odGauge = clampOdGauge(
+          truncateToTwoDecimals(Number(this.#state.turnState?.odGauge ?? 0) + initialTurnlyOdGauge)
+        );
+      }
     }
 
     return result.state;

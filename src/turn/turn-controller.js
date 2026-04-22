@@ -11498,7 +11498,7 @@ function applyRecoveryPipeline(
     }
   }
 
-    // ─── 毎ターん SP ギミック適用 ───
+    // ─── Stage Setup 毎ターンギミック適用 ───
     // stageSetupTurnly が存在する場合、該当メンバーに SP 回復/ペナルティを適用
     if (stageSetupTurnly && !skipTurnStartRecovery) {
       const { spAll = 0, spFront = 0, spBack = 0 } = stageSetupTurnly;
@@ -11530,6 +11530,15 @@ function applyRecoveryPipeline(
         party,
         recoveryEvents
       );
+    }
+
+    if (stageSetupTurnly && !skipTurnStartRecovery) {
+      const odGaugeDelta = Number(stageSetupTurnly.odGauge ?? 0);
+      if (Number.isFinite(odGaugeDelta) && odGaugeDelta !== 0) {
+        turnState.odGauge = clampOdGauge(
+          truncateToTwoDecimals(Number(turnState.odGauge ?? 0) + odGaugeDelta)
+        );
+      }
     }
 
   return {
