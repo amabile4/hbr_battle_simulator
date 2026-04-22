@@ -17,6 +17,7 @@ import { getSixUsableStyleIds, getStore } from './helpers.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
+const STAGE_SETUP_TURN_START_FIXTURE = 'ui_next_session_stage_setup_turn_start_fixture.json';
 
 function loadSessionFixture(fileName) {
   const fixtureUrl = new URL(`./fixtures/${fileName}`, import.meta.url);
@@ -1854,6 +1855,56 @@ test('session fixture replay: #5相当ターン開始はODサスペンドEXと�
   assert.equal(turn5StateBefore?.turnState?.turnType, 'extra');
   assert.equal(turn5StateBefore?.turnState?.turnLabel, 'EX');
   assert.equal(Boolean(turn5StateBefore?.turnState?.odSuspended), true);
+});
+
+test('session fixture replay: T1 stateBefore reflects stageSetup front SP bonus from saved session', () => {
+  const session = loadSessionFixture(STAGE_SETUP_TURN_START_FIXTURE);
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn1StateBefore = manager.getStateBefore(0);
+  const actualSpByName = Object.fromEntries(
+    turn1StateBefore.party.map((member) => [member.characterName, Number(member.sp.current)])
+  );
+
+  assert.deepEqual(actualSpByName, {
+    '朝倉 可憐': 8,
+    '命 吹雪': 9,
+    '白河 ユイナ': 11,
+    '茅森 月歌': 7,
+    '柳 美音': 7,
+    '豊後 弥生': 8,
+  });
+});
+
+test('session fixture replay: T2 stateBefore keeps recurring stageSetup SP without replaying battle-start bonuses', () => {
+  const session = loadSessionFixture(STAGE_SETUP_TURN_START_FIXTURE);
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn2StateBefore = manager.getStateBefore(1);
+  const actualSpByName = Object.fromEntries(
+    turn2StateBefore.party.map((member) => [member.characterName, Number(member.sp.current)])
+  );
+
+  assert.deepEqual(actualSpByName, {
+    '朝倉 可憐': 12,
+    '命 吹雪': 14,
+    '白河 ユイナ': 16,
+    '茅森 月歌': 10,
+    '柳 美音': 10,
+    '豊後 弥生': 12,
+  });
 });
 
 test('session fixture replay: #4のBreak overrideで和泉ユキのBeatDown(); SP+2が反映される', () => {

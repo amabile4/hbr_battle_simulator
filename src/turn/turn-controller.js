@@ -28,6 +28,7 @@ import { isFormEntryActive } from '../domain/form-change.js';
 import {
   STAGE_SETUP_ENCHANT_EFFECT_SCOPES,
   STAGE_SETUP_ENCHANT_EFFECT_TYPES,
+  buildStageSetupEnchantEffectLabel,
 } from '../domain/stage-setup-enchants.js';
 import { compareTurnActionExecutionOrder } from './action-execution-order.js';
 import {
@@ -245,6 +246,11 @@ const MARK_SKILL_TYPE_TO_ELEMENT = Object.freeze({
 const INTRINSIC_MARK_ELEMENTS = Object.freeze([...new Set(Object.values(MARK_LEVEL_CONDITION_TO_ELEMENT))]);
 const TURN_START_PASSIVE_TIMINGS = Object.freeze(['OnEveryTurn', 'OnPlayerTurnStart']);
 const BATTLE_START_PASSIVE_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
+const STAGE_SETUP_PASSIVE_CHARACTER_ID = 'StageSetup';
+const STAGE_SETUP_PASSIVE_CHARACTER_NAME = 'Stage Setup';
+const STAGE_SETUP_PASSIVE_NAME = 'Stage Setup';
+const STAGE_SETUP_PASSIVE_SOURCE = 'stage_setup';
+const STAGE_SETUP_PASSIVE_SOURCE_TYPE = 'stage_setup';
 // パーティーメンバーのパッシブ評価順序（ゲーム内行動順: partyIndex 1 が最初に行動）
 const PASSIVE_ACTION_ORDER = Object.freeze([1, 0, 2, 3, 4, 5]);
 const EXTRA_ACTIVATION_STATUS_TYPE = 20;
@@ -715,6 +721,99 @@ function createPassiveTriggerEvent(turnState, member, passive, details = {}) {
       : {},
     ...details,
   };
+}
+
+function formatStageSetupSignedNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '+0';
+  }
+  return numeric >= 0 ? `+${numeric}` : String(numeric);
+}
+
+function formatStageSetupSignedPercent(value) {
+  return `${formatStageSetupSignedNumber(value)}%`;
+}
+
+function buildStageSetupInitialSpLabel(amount) {
+  return `戦闘開始時SP${formatStageSetupSignedNumber(amount)}`;
+}
+
+function buildStageSetupInitialOdLabel(amount) {
+  return `戦闘開始時ODゲージ${formatStageSetupSignedPercent(amount)}`;
+}
+
+function buildStageSetupTurnlySpLabel(scope, amount) {
+  if (scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.FRONT) {
+    return `毎ターン前衛のSP${formatStageSetupSignedNumber(amount)}`;
+  }
+  if (scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.BACK) {
+    return `毎ターン後衛のSP${formatStageSetupSignedNumber(amount)}`;
+  }
+  return `毎ターンSP${formatStageSetupSignedNumber(amount)}`;
+}
+
+function buildStageSetupTurnlyOdLabel(amount) {
+  return `毎ターンOD${formatStageSetupSignedPercent(amount)}`;
+}
+
+function createStageSetupPassiveEvent(turnState, {
+  timing,
+  label,
+  effectType = '',
+  effectTypes = [],
+  spDelta = 0,
+  odGaugeDelta = 0,
+} = {}) {
+  return {
+    turnLabel: String(turnState?.turnLabel ?? ''),
+    turnType: String(turnState?.turnType ?? ''),
+    timing: String(timing ?? ''),
+    characterId: STAGE_SETUP_PASSIVE_CHARACTER_ID,
+    characterName: STAGE_SETUP_PASSIVE_CHARACTER_NAME,
+    shortCharacterName: STAGE_SETUP_PASSIVE_CHARACTER_NAME,
+    passiveId: 0,
+    passiveName: STAGE_SETUP_PASSIVE_NAME,
+    passiveDesc: String(label ?? '').trim(),
+    source: STAGE_SETUP_PASSIVE_SOURCE,
+    sourceType: STAGE_SETUP_PASSIVE_SOURCE_TYPE,
+    effectType: String(effectType ?? ''),
+    effectTypes: Array.isArray(effectTypes) ? effectTypes.map((type) => String(type ?? '')).filter(Boolean) : [],
+    spDelta: Number(spDelta ?? 0),
+    odGaugeDelta: Number(odGaugeDelta ?? 0),
+  };
+}
+
+export function buildStageSetupBattleStartPassiveEvents(turnState, stageSetup = {}, party = []) {
+  const events = [];
+  const partySize = Array.isArray(party) ? party.length : 0;
+  const initialSpBonusAll = Number(stageSetup?.initialSpBonusAll ?? 0);
+  if (Number.isFinite(initialSpBonusAll) && initialSpBonusAll !== 0 && partySize > 0) {
+    events.push(
+      createStageSetupPassiveEvent(turnState, {
+        timing: 'OnBattleStart',
+        label: buildStageSetupInitialSpLabel(initialSpBonusAll),
+        effectType: 'initialSpBonusAll',
+        effectTypes: ['HealSp'],
+        spDelta: initialSpBonusAll * partySize,
+      })
+    );
+  }
+
+  const initialOdGauge = Number(stageSetup?.initialOdGauge ?? 0);
+  if (Number.isFinite(initialOdGauge) && initialOdGauge !== 0) {
+    events.push(
+      createStageSetupPassiveEvent(turnState, {
+        timing: 'OnBattleStart',
+        label: buildStageSetupInitialOdLabel(initialOdGauge),
+        effectType: 'initialOdGauge',
+        effectTypes: ['OverDrivePointUp'],
+        odGaugeDelta: initialOdGauge,
+      })
+    );
+  }
+
+  return events;
 }
 
 function buildActionEventMetadata(actionEntry) {
@@ -6540,7 +6639,7 @@ function shouldApplyStageSetupConditionalSpEffect(effect, member, turnState) {
   return false;
 }
 
-function applyStageSetupTurnStartEnchantEffects(state, party, recoveryEvents) {
+function applyStageSetupTurnStartEnchantEffects(state, party, recoveryEvents, passiveEvents) {
   const enchantEffects = getStageSetupEnchantEffects(state).filter((effect) => {
     const effectType = String(effect?.effectType ?? '');
     return (
@@ -6552,8 +6651,9 @@ function applyStageSetupTurnStartEnchantEffects(state, party, recoveryEvents) {
     return;
   }
 
-  for (const member of party) {
-    for (const effect of enchantEffects) {
+  for (const effect of enchantEffects) {
+    let totalSpDelta = 0;
+    for (const member of party) {
       if (!shouldApplyStageSetupConditionalSpEffect(effect, member, state?.turnState)) {
         continue;
       }
@@ -6564,9 +6664,108 @@ function applyStageSetupTurnStartEnchantEffects(state, party, recoveryEvents) {
       const spChangeEvent = member.applySpDelta(amount, 'passive');
       if (spChangeEvent) {
         recoveryEvents.push(spChangeEvent);
+        totalSpDelta += Number(spChangeEvent?.delta ?? 0);
+      }
+    }
+    if (totalSpDelta !== 0 && Array.isArray(passiveEvents)) {
+      passiveEvents.push(
+        createStageSetupPassiveEvent(state?.turnState, {
+          timing: 'OnEveryTurn',
+          label: buildStageSetupEnchantEffectLabel(effect),
+          effectType: String(effect?.effectType ?? ''),
+          effectTypes: ['HealSp'],
+          spDelta: totalSpDelta,
+        })
+      );
+    }
+  }
+}
+
+export function applyStageSetupTurnStartEffects(state, recoveryEvents = [], passiveEvents = []) {
+  const party = Array.isArray(state?.party) ? state.party : [];
+  const turnState = state?.turnState ?? null;
+  const stageSetupTurnly = state?.stageSetupTurnly ?? null;
+  const events = Array.isArray(recoveryEvents) ? recoveryEvents : [];
+  const passiveLogEvents = Array.isArray(passiveEvents) ? passiveEvents : [];
+
+  if (stageSetupTurnly) {
+    const spEffects = [
+      {
+        amount: Number(stageSetupTurnly.spAll ?? 0),
+        scope: STAGE_SETUP_ENCHANT_EFFECT_SCOPES.ALL,
+      },
+      {
+        amount: Number(stageSetupTurnly.spFront ?? 0),
+        scope: STAGE_SETUP_ENCHANT_EFFECT_SCOPES.FRONT,
+      },
+      {
+        amount: Number(stageSetupTurnly.spBack ?? 0),
+        scope: STAGE_SETUP_ENCHANT_EFFECT_SCOPES.BACK,
+      },
+    ];
+    for (const effect of spEffects) {
+      if (!Number.isFinite(effect.amount) || effect.amount === 0) {
+        continue;
+      }
+      let totalSpDelta = 0;
+      for (const member of party) {
+        const position = Number(member?.position);
+        const appliesToFront = effect.scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.FRONT && position >= 0 && position <= 2;
+        const appliesToBack = effect.scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.BACK && position >= 3 && position <= 5;
+        const appliesToAll = effect.scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.ALL;
+        if (!appliesToAll && !appliesToFront && !appliesToBack) {
+          continue;
+        }
+        const spChangeEvent = member.applySpDelta(effect.amount, 'passive');
+        if (spChangeEvent) {
+          events.push(spChangeEvent);
+          totalSpDelta += Number(spChangeEvent?.delta ?? 0);
+        }
+      }
+      if (totalSpDelta !== 0) {
+        passiveLogEvents.push(
+          createStageSetupPassiveEvent(turnState, {
+            timing: 'OnEveryTurn',
+            label: buildStageSetupTurnlySpLabel(effect.scope, effect.amount),
+            effectType:
+              effect.scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.ALL
+                ? 'turnlySpAll'
+                : effect.scope === STAGE_SETUP_ENCHANT_EFFECT_SCOPES.FRONT
+                  ? 'turnlySpFront'
+                  : 'turnlySpBack',
+            effectTypes: ['HealSp'],
+            spDelta: totalSpDelta,
+          })
+        );
       }
     }
   }
+
+  applyStageSetupTurnStartEnchantEffects(state, party, events, passiveLogEvents);
+
+  if (stageSetupTurnly && turnState) {
+    const odGaugeDelta = Number(stageSetupTurnly.odGauge ?? 0);
+    if (Number.isFinite(odGaugeDelta) && odGaugeDelta !== 0) {
+      const startOdGauge = Number(turnState.odGauge ?? 0);
+      turnState.odGauge = clampOdGauge(
+        truncateToTwoDecimals(Number(turnState.odGauge ?? 0) + odGaugeDelta)
+      );
+      const appliedOdGaugeDelta = truncateToTwoDecimals(Number(turnState.odGauge ?? 0) - startOdGauge);
+      if (appliedOdGaugeDelta !== 0) {
+        passiveLogEvents.push(
+          createStageSetupPassiveEvent(turnState, {
+            timing: 'OnEveryTurn',
+            label: buildStageSetupTurnlyOdLabel(odGaugeDelta),
+            effectType: 'turnlyOdGauge',
+            effectTypes: ['OverDrivePointUp'],
+            odGaugeDelta: appliedOdGaugeDelta,
+          })
+        );
+      }
+    }
+  }
+
+  return events;
 }
 
 function resolveStageSetupSpOnEnemyKillAmount(state) {
@@ -11498,48 +11697,18 @@ function applyRecoveryPipeline(
     }
   }
 
-    // ─── Stage Setup 毎ターンギミック適用 ───
-    // stageSetupTurnly が存在する場合、該当メンバーに SP 回復/ペナルティを適用
-    if (stageSetupTurnly && !skipTurnStartRecovery) {
-      const { spAll = 0, spFront = 0, spBack = 0 } = stageSetupTurnly;
-      for (const member of party) {
-        let turnlyDelta = spAll;
-        // パーティポジション (0-2: 前衛, 3-5: 後衛) で追加ボーナス適用
-        if (member.position >= 0 && member.position <= 2) {
-          turnlyDelta += spFront;
-        } else if (member.position >= 3 && member.position <= 5) {
-          turnlyDelta += spBack;
-        }
-        // SP 変更を適用（負の値は消費/ペナルティとして機能）
-        if (turnlyDelta !== 0) {
-          const spChangeEvent = member.applySpDelta(turnlyDelta, 'passive');
-          if (spChangeEvent) {
-            recoveryEvents.push(spChangeEvent);
-          }
-        }
-      }
-    }
-
-    if (!skipTurnStartRecovery) {
-      applyStageSetupTurnStartEnchantEffects(
-        {
-          party,
-          turnState,
-          stageSetupEnchantEffects,
-        },
+  if (!skipTurnStartRecovery) {
+    applyStageSetupTurnStartEffects(
+      {
         party,
-        recoveryEvents
-      );
-    }
-
-    if (stageSetupTurnly && !skipTurnStartRecovery) {
-      const odGaugeDelta = Number(stageSetupTurnly.odGauge ?? 0);
-      if (Number.isFinite(odGaugeDelta) && odGaugeDelta !== 0) {
-        turnState.odGauge = clampOdGauge(
-          truncateToTwoDecimals(Number(turnState.odGauge ?? 0) + odGaugeDelta)
-        );
-      }
-    }
+        turnState,
+        stageSetupTurnly,
+        stageSetupEnchantEffects,
+      },
+      recoveryEvents,
+      passiveEvents
+    );
+  }
 
   return {
     spEvents: recoveryEvents,

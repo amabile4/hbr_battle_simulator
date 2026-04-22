@@ -17,6 +17,13 @@ function createPartySnapshot() {
   };
 }
 
+function createFullPartySnapshot() {
+  return {
+    ...createPartySnapshot(),
+    styleIds: [1005504, 1004107, 1001408, 1001109, 1007106, 1003406],
+  };
+}
+
 test('BattleStateManager maps enemy preemptiveField to initial zoneState before battle-start passives', () => {
   const manager = new BattleStateManager({ store: getStore() });
 
@@ -310,6 +317,66 @@ test('BattleStateManager applies stageSetup initial OD/SP bonus and initial stat
   }
 });
 
+test('BattleStateManager appends Stage Setup passive log events for initial battle-start and T1 turn-start effects', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const stagedState = manager.buildFromSnapshot(
+    {
+      ...createFullPartySnapshot(),
+      stageSetup: {
+        initialOdGauge: 100,
+        initialSpBonusAll: 5,
+        turnlyOdGauge: 10,
+        turnlySpFront: 1,
+      },
+    },
+    {
+      enemyCount: 1,
+    }
+  );
+
+  const passiveEvents = stagedState.turnState.passiveEventsLastApplied.filter(
+    (event) => String(event?.sourceType ?? '') === 'stage_setup'
+  );
+
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.timing === 'OnBattleStart' &&
+        event.passiveDesc === '戦闘開始時SP+5' &&
+        Number(event.spDelta ?? 0) === 30
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.timing === 'OnBattleStart' &&
+        event.passiveDesc === '戦闘開始時ODゲージ+100%' &&
+        Number(event.odGaugeDelta ?? 0) === 100
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === '毎ターン前衛のSP+1' &&
+        Number(event.spDelta ?? 0) === 3
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === '毎ターンOD+10%' &&
+        Number(event.odGaugeDelta ?? 0) === 10
+    ),
+    true
+  );
+});
+
   test('BattleStateManager stores stageSetupTurnly from snapshot stageSetup in battle state', () => {
     const manager = new BattleStateManager({ store: getStore() });
 
@@ -359,6 +426,86 @@ test('BattleStateManager applies stageSetup initial OD/SP bonus and initial stat
     );
 
     assert.equal(Number(stagedState.turnState.odGauge) - Number(baseState.turnState.odGauge), 10);
+  });
+
+  test('BattleStateManager applies stageSetup turnly SP to the initial T1 state', () => {
+    const manager = new BattleStateManager({ store: getStore() });
+
+    const baseState = manager.buildFromSnapshot(createFullPartySnapshot(), {
+      enemyCount: 1,
+    });
+    const stagedState = manager.buildFromSnapshot(
+      {
+        ...createFullPartySnapshot(),
+        stageSetup: {
+          turnlySpAll: 2,
+          turnlySpFront: 1,
+          turnlySpBack: -1,
+        },
+      },
+      {
+        enemyCount: 1,
+      }
+    );
+
+    for (let index = 0; index < 3; index += 1) {
+      assert.equal(
+        Number(stagedState.party[index].sp.current) - Number(baseState.party[index].sp.current),
+        3,
+        `front partyIndex=${index} should gain +3 on T1 from turnly SP`
+      );
+    }
+    for (let index = 3; index < 6; index += 1) {
+      assert.equal(
+        Number(stagedState.party[index].sp.current) - Number(baseState.party[index].sp.current),
+        1,
+        `back partyIndex=${index} should gain +1 on T1 from turnly SP`
+      );
+    }
+  });
+
+  test('BattleStateManager applies T1 negative-SP stage setup recovery only to matching front/back members', () => {
+    const manager = new BattleStateManager({ store: getStore() });
+
+    const baseSnapshot = {
+      ...createFullPartySnapshot(),
+      startSpEquipByPartyIndex: { 0: -10, 1: 3, 2: 3, 3: -9, 4: 3, 5: 3 },
+    };
+    const baseState = manager.buildFromSnapshot(baseSnapshot, {
+      enemyCount: 1,
+    });
+    const stagedState = manager.buildFromSnapshot(
+      {
+        ...baseSnapshot,
+        stageSetup: {
+          enchantEffects: [
+            { effectType: 'turnStartSpIfNegativeSp', scope: 'front', amount: 2 },
+            { effectType: 'turnStartSpIfNegativeSp', scope: 'back', amount: 2 },
+          ],
+        },
+      },
+      {
+        enemyCount: 1,
+      }
+    );
+
+    assert.equal(
+      Number(stagedState.party[0].sp.current) - Number(baseState.party[0].sp.current),
+      2,
+      'front negative-SP member should gain +2 on T1'
+    );
+    assert.equal(
+      Number(stagedState.party[3].sp.current) - Number(baseState.party[3].sp.current),
+      2,
+      'back negative-SP member should gain +2 on T1'
+    );
+    for (const index of [1, 2, 4, 5]) {
+      assert.equal(
+        Number(stagedState.party[index].sp.current) - Number(baseState.party[index].sp.current),
+        0,
+        `partyIndex=${index} should not gain conditional T1 recovery`
+      );
+    }
   });
 
   test('BattleStateManager stores stageSetupEnchantEffects from snapshot stageSetup in battle state', () => {

@@ -15,6 +15,8 @@ import {
   previewTurn,
   applyInitialPassiveState,
 } from '../src/index.js';
+import { applyStageSetupTurnStartEffects } from '../src/turn/turn-controller.js';
+import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
 function buildActionDict(party) {
@@ -19034,6 +19036,85 @@ test('interrupt OD1 during EX (odSuspended, all OD consumed) → normal with sin
     }
   });
 
+test('applyStageSetupTurnStartEffects seeds T1 state without base SP recovery', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8900 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupTurnly = { spAll: 3, spFront: 2, spBack: -1, odGauge: 10 };
+  state.stageSetupEnchantEffects = [];
+
+  applyStageSetupTurnStartEffects(state);
+
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal(state.party[i].sp.current, 15, `Front M${i + 1}: should be 10 + 3 + 2 = 15 on T1`);
+  }
+  for (let i = 3; i < 6; i += 1) {
+    assert.equal(state.party[i].sp.current, 12, `Back M${i + 1}: should be 10 + 3 - 1 = 12 on T1`);
+  }
+  assert.equal(state.turnState.odGauge, 10);
+});
+
+test('applyStageSetupTurnStartEffects emits passive log events for stage setup turn-start SP/OD bonuses', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8905 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupTurnly = { spAll: 1, spFront: 1, spBack: 0, odGauge: 10 };
+  state.stageSetupEnchantEffects = [
+    { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+  ];
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  const passiveEvents = [];
+  applyStageSetupTurnStartEffects(state, [], passiveEvents);
+
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.sourceType === 'stage_setup' &&
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === '毎ターンSP+1' &&
+        Number(event.spDelta ?? 0) === 6
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.sourceType === 'stage_setup' &&
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === '毎ターン前衛のSP+1' &&
+        Number(event.spDelta ?? 0) === 3
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.sourceType === 'stage_setup' &&
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === 'ターン開始時ダウンターン中の敵がいるとSP+2' &&
+        Number(event.spDelta ?? 0) === 12
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.sourceType === 'stage_setup' &&
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === '毎ターンOD+10%' &&
+        Number(event.odGaugeDelta ?? 0) === 10
+    ),
+    true
+  );
+});
+
 test('applyRecoveryPipeline applies every-turn OD on normal turn transition', () => {
   const party = createSixMemberManualParty((idx) => ({
     skills: [createProtectionSkill(8910 + idx)],
@@ -19099,6 +19180,27 @@ test('applyRecoveryPipeline grants stage setup SP when any enemy is in DownTurn'
 
   for (const member of nextState.party) {
     assert.equal(member.sp.current, 14, `${member.characterId}: should be 10 + 2(base) + 2(stage) = 14`);
+  }
+});
+
+test('applyStageSetupTurnStartEffects grants T1 stage setup SP when enemy already starts in DownTurn', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8820 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+  ];
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  applyStageSetupTurnStartEffects(state);
+
+  for (const member of state.party) {
+    assert.equal(member.sp.current, 12, `${member.characterId}: should be 10 + 2(stage) on T1`);
   }
 });
 
@@ -19279,6 +19381,80 @@ test('stage setup every-turn OD is independent from odGaugeGainBonusPercent driv
   const { nextState: turnlyNextState } = commitTurn(turnlyOdState, turnlyPreview);
 
   assert.equal(turnlyNextState.turnState.odGauge - baseNextState.turnState.odGauge, 10);
+});
+
+test('battle-start-only stage setup SP/OD bonuses are not replayed on T2+', () => {
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const baseSnapshot = {
+    isFrontFilled: true,
+    styleIds: [1001509, 1005303, 1004107, 1001109, 1007106, 1003406],
+    supportStyleIds: [1003604, 1001708, 1005104, 1002107, 1007104, 1005407],
+    limitBreakLevelsByPartyIndex: { 0: 4, 1: 4, 2: 4, 3: 3, 4: 3, 5: 4 },
+    supportLimitBreakLevelsByPartyIndex: { 0: 4, 1: 4, 2: 3, 3: 4, 4: 1, 5: 1 },
+    drivePierceByPartyIndex: { 0: 15, 1: 15, 2: 15, 3: 15, 4: 15, 5: 15 },
+    startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    normalAttackElementsByPartyIndex: {
+      0: ['Ice'],
+      1: ['Ice'],
+      2: ['Ice'],
+      3: ['Ice'],
+      4: ['Ice'],
+      5: ['Ice'],
+    },
+    skillSetsByPartyIndex: {
+      0: [46001501],
+      1: [46005301],
+      2: [46004101],
+      3: [46001101],
+      4: [46007110],
+      5: [46003401],
+    },
+  };
+  const baseState = battleStateManager.buildFromSnapshot(baseSnapshot, { enemyCount: 1 });
+  const stagedState = battleStateManager.buildFromSnapshot(
+    {
+      ...baseSnapshot,
+      stageSetup: {
+        initialOdGauge: 100,
+        initialSpBonusAll: 5,
+      },
+    },
+    { enemyCount: 1 }
+  );
+  const buildNormalAttackActions = (state) =>
+    Object.fromEntries(
+      state.party
+        .filter((member) => Number(member.position) >= 0 && Number(member.position) <= 2)
+        .map((member) => {
+          const skillId = Number(member.skills?.[0]?.skillId ?? member.skills?.[0]?.id);
+          return [member.position, { characterId: member.characterId, skillId }];
+        })
+    );
+
+  const basePreview = previewTurn(baseState, buildNormalAttackActions(baseState));
+  const { nextState: baseNextState } = commitTurn(baseState, basePreview, []);
+  const stagedPreview = previewTurn(stagedState, buildNormalAttackActions(stagedState));
+  const { nextState: stagedNextState } = commitTurn(stagedState, stagedPreview, []);
+
+  assert.equal(
+    Number(stagedNextState.turnState.odGauge) - Number(baseNextState.turnState.odGauge),
+    100,
+    'initial OD bonus should remain a one-time T1 offset on T2+'
+  );
+  for (const index of [0, 1, 2]) {
+    assert.equal(
+      Number(stagedNextState.party[index].sp.current) - Number(baseNextState.party[index].sp.current),
+      5,
+      `front partyIndex=${index} should keep only the one-time initial SP bonus on T2+`
+    );
+  }
+  for (const index of [3, 4, 5]) {
+    assert.equal(
+      Number(stagedNextState.party[index].sp.current) - Number(baseNextState.party[index].sp.current),
+      5,
+      `back partyIndex=${index} should keep only the one-time initial SP bonus on T2+`
+    );
+  }
 });
 
 // ─── Phase C: enemy status sourceCharacterName が nextState に保持される ───

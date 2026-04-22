@@ -63,6 +63,97 @@ function createDimensionBattlesFixture() {
   ];
 }
 
+const SUPPORTED_STAGE_PRESET_CASES = Object.freeze([
+  {
+    description: '戦闘開始時ODゲージ+200%',
+    checkboxIndex: 0,
+    assertSnapshot(snapshot) {
+      assert.equal(snapshot.initialOdGauge, 200);
+    },
+  },
+  {
+    description: '毎ターンSP+1',
+    checkboxIndex: 1,
+    assertSnapshot(snapshot) {
+      assert.equal(snapshot.turnlySpAll, 1);
+    },
+  },
+  {
+    description: '毎ターン前衛のSP+1',
+    checkboxIndex: 4,
+    assertSnapshot(snapshot) {
+      assert.equal(snapshot.turnlySpFront, 1);
+    },
+  },
+  {
+    description: '毎ターン後衛のSP+1',
+    checkboxIndex: 5,
+    assertSnapshot(snapshot) {
+      assert.equal(snapshot.turnlySpBack, 1);
+    },
+  },
+  {
+    description: 'ODゲージ上昇量+20%',
+    checkboxIndex: 6,
+    assertSnapshot(snapshot) {
+      assert.deepEqual(snapshot.enchantEffects, [
+        { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+      ]);
+    },
+  },
+  {
+    description: 'ターン開始時ダウンターン中の敵がいるとSP+2',
+    checkboxIndex: 7,
+    assertSnapshot(snapshot) {
+      assert.deepEqual(snapshot.enchantEffects, [
+        { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+      ]);
+    },
+  },
+  {
+    description: '敵を倒したとき敵1体につき味方全体のSP+1',
+    checkboxIndex: 8,
+    assertSnapshot(snapshot) {
+      assert.deepEqual(snapshot.enchantEffects, [
+        { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+      ]);
+    },
+  },
+  {
+    description: 'ターン開始時SP0未満の前衛の味方のSP+2',
+    checkboxIndex: 9,
+    assertSnapshot(snapshot) {
+      assert.deepEqual(snapshot.enchantEffects, [
+        { effectType: 'turnStartSpIfNegativeSp', scope: 'front', amount: 2 },
+      ]);
+    },
+  },
+  {
+    description: 'ターン開始時SP0未満の後衛の味方のSP+2',
+    checkboxIndex: 10,
+    assertSnapshot(snapshot) {
+      assert.deepEqual(snapshot.enchantEffects, [
+        { effectType: 'turnStartSpIfNegativeSp', scope: 'back', amount: 2 },
+      ]);
+    },
+  },
+  {
+    description: '毎ターンOD+10%',
+    checkboxIndex: 12,
+    assertSnapshot(snapshot) {
+      assert.equal(snapshot.turnlyOdGauge, 10);
+    },
+  },
+  {
+    description: '戦闘開始時SP+5',
+    battleId: '191000002',
+    checkboxIndex: 0,
+    assertSnapshot(snapshot) {
+      assert.equal(snapshot.initialSpBonusAll, 5);
+    },
+  },
+]);
+
 test('StageSetupController defaults to latest dimension battle and exposes upper inputs', () =>
   withDom(({ root }) => {
     const controller = new StageSetupController({
@@ -80,6 +171,28 @@ test('StageSetupController defaults to latest dimension battle and exposes upper
     assert.equal(snapshot.turnlyOdGauge, 0);
     assert.equal(snapshot.selectedDimensionBattleId, 191000002);
   }));
+
+for (const presetCase of SUPPORTED_STAGE_PRESET_CASES) {
+  test(`StageSetupController maps preset "${presetCase.description}" into stage setup snapshot`, () =>
+    withDom(({ root, win }) => {
+      const controller = new StageSetupController({
+        root,
+        dimensionBattles: createDimensionBattlesFixture(),
+      });
+      controller.mount();
+
+      const battleSelect = root.querySelector('[data-role="stage-dimension-battle"]');
+      battleSelect.value = presetCase.battleId ?? '191000001';
+      battleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+      const checkbox = root.querySelectorAll('[data-role="stage-satellite-checkbox"]').item(presetCase.checkboxIndex);
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+      const snapshot = controller.getSnapshot();
+      presetCase.assertSnapshot(snapshot);
+    }));
+}
 
 test('StageSetupController applies preset to upper inputs immediately on satellite check', () =>
   withDom(({ root, win }) => {

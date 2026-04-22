@@ -2,12 +2,14 @@ import { createInitializedBattleSnapshot } from '../../src/ui/adapter-core.js';
 import {
   DEFAULT_INITIAL_SP,
   DEFAULT_ENEMY_COUNT,
-  OD_GAUGE_MAX_PERCENT,
-  OD_GAUGE_MIN_PERCENT,
 } from '../../src/config/battle-defaults.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 import { getNormalAttackElementsForPartyIndex } from '../../src/domain/normal-attack-elements.js';
 import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
+import {
+  applyStageSetupTurnStartEffects,
+  buildStageSetupBattleStartPassiveEvents,
+} from '../../src/turn/turn-controller.js';
 
 const PREEMPTIVE_FIELD_TO_ZONE_TYPE = Object.freeze({
   fire: 'Fire',
@@ -308,21 +310,6 @@ function buildPreemptiveZoneState(enemySetup) {
   };
 }
 
-function truncateToTwoDecimals(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return 0;
-  }
-  if (numeric >= 0) {
-    return Math.floor((numeric + 1e-9) * 100) / 100;
-  }
-  return Math.ceil((numeric - 1e-9) * 100) / 100;
-}
-
-function clampOdGauge(value) {
-  return Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, value));
-}
-
 /**
  * slot snapshot から BattleState を生成・保持するクラス。
  * - 後衛の空きスロットは左詰めでエンジンに渡す
@@ -469,12 +456,18 @@ export class BattleStateManager {
         spBack: stageSetup.turnlySpBack ?? 0,
       };
       this.#state.stageSetupEnchantEffects = structuredClone(stageSetup.enchantEffects ?? []);
-      const initialTurnlyOdGauge = Number(this.#state.stageSetupTurnly.odGauge ?? 0);
-      if (Number.isFinite(initialTurnlyOdGauge) && initialTurnlyOdGauge !== 0) {
-        this.#state.turnState.odGauge = clampOdGauge(
-          truncateToTwoDecimals(Number(this.#state.turnState?.odGauge ?? 0) + initialTurnlyOdGauge)
-        );
-      }
+      const stageSetupPassiveEvents = buildStageSetupBattleStartPassiveEvents(
+        this.#state.turnState,
+        stageSetup,
+        this.#state.party
+      );
+      applyStageSetupTurnStartEffects(this.#state, [], stageSetupPassiveEvents);
+      this.#state.turnState.passiveEventsLastApplied = [
+        ...(Array.isArray(this.#state.turnState.passiveEventsLastApplied)
+          ? this.#state.turnState.passiveEventsLastApplied
+          : []),
+        ...stageSetupPassiveEvents,
+      ];
     }
 
     return result.state;

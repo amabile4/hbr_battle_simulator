@@ -4428,6 +4428,63 @@ test('TurnAreaController emits initial passive log rows for battle-start passive
     ]);
   }));
 
+test('TurnAreaController emits Stage Setup passive log rows on turn start after commit', () =>
+  withDom(({ root, win }) => {
+    let passiveLogRows = [];
+    const state = createState(
+      createSkill({
+        id: 95084,
+        name: 'Stage Setup Commit Skill',
+        targetType: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      }),
+      1,
+      {
+        characterId: 'PLOG_STAGE',
+        characterName: 'StageSetupLog役',
+        styleId: 9804,
+        styleName: 'StageSetupLogスタイル',
+      },
+    );
+    state.stageSetupTurnly = {
+      odGauge: 10,
+      spAll: 0,
+      spFront: 1,
+      spBack: 0,
+    };
+
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      onPassiveLogRowsChange: (rows) => {
+        passiveLogRows = rows;
+      },
+    });
+
+    root
+      .querySelector('[data-role="commit-btn"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(
+      passiveLogRows.some((row) => row.kind === 'marker' && row.text === '=== T2開始 ==='),
+    );
+    assert.ok(
+      passiveLogRows.some(
+        (row) =>
+          row.kind === 'passive' &&
+          row.text === 'T2：Stage Setup : 毎ターン前衛のSP+1',
+      ),
+    );
+    assert.ok(
+      passiveLogRows.some(
+        (row) =>
+          row.kind === 'passive' &&
+          row.text === 'T2：Stage Setup : 毎ターンOD+10%',
+      ),
+    );
+  }));
+
 test('TurnAreaController appends only new passive trigger rows after commit', () =>
   withDom(({ root, win }) => {
     let passiveLogRows = [];
