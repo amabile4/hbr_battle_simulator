@@ -36,6 +36,7 @@ const KILL_BUTTON_ICON_URL = resolveUiAssetUrl('defeat.webp');
 const TALISMAN_ICON_URL = resolveSkillTypeAssetUrl('Talisman.webp');
 const DISASTER_ICON_URL = resolveSkillTypeAssetUrl('Disaster.webp');
 const ENEMY_POPUP_STATUS_ICON_SIZE_PX = 28;
+const ENEMY_POPUP_E_SHIELD_ACTION_ICON_SCALE = 0.82;
 const ENEMY_POPUP_VIEWPORT_INSET_PERCENT = 10;
 const ENEMY_POPUP_CONTAINER_PADDING_PX = 16;
 const ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX = 12;
@@ -60,6 +61,13 @@ const DAMAGE_RATE_DISPLAY_ORDER = Object.freeze([
 const ELEMENT_DISPLAY_LABELS = Object.freeze(
   Object.fromEntries(DAMAGE_RATE_DISPLAY_ORDER.map(([key, label]) => [key, label]))
 );
+const DEFAULT_E_SHIELD_ACTION_ICON_STATE = Object.freeze({
+  current: 0,
+  max: 1,
+  elements: ['Light'],
+  defUpRate: 0,
+  damageLimit: 0,
+});
 
 function normalizeTalismanState(talismanState) {
   const state = talismanState && typeof talismanState === 'object' ? talismanState : {};
@@ -382,8 +390,10 @@ export class EnemyDetailPopup {
         broken: Boolean(enemy?.broken),
         dead: Boolean(enemy?.dead),
         canSummon: Boolean(enemy?.canSummon),
+        canEditEShield: Boolean(enemy?.canEditEShield),
         canBreak: Boolean(enemy?.canBreak),
         canKill: Boolean(enemy?.canKill),
+        hasPendingEShieldOperation: Boolean(enemy?.hasPendingEShieldOperation),
         hasPendingBreakOperation: Boolean(enemy?.hasPendingBreakOperation),
         hasPendingKillOperation: Boolean(enemy?.hasPendingKillOperation),
         popupEditorHtml: String(enemy?.popupEditorHtml ?? ''),
@@ -563,7 +573,22 @@ export class EnemyDetailPopup {
             opacity: 1;
             filter: saturate(1.18) brightness(1.1);
           }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action-icon-shell"] {
+            width: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX}px;
+            height: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX}px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action-icon-shell"] [data-role="enemy-popup-action-eshield-icon"] {
+            transform: scale(${ENEMY_POPUP_E_SHIELD_ACTION_ICON_SCALE});
+            transform-origin: center;
+          }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"]:disabled [data-role="enemy-popup-action-icon"] {
+            filter: grayscale(1) brightness(0.72);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"]:disabled [data-role="enemy-popup-action-icon-shell"] {
             filter: grayscale(1) brightness(0.72);
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"] span {
@@ -780,15 +805,58 @@ export class EnemyDetailPopup {
     `;
   }
 
+  #buildEShieldActionIconHtml(enemy, enemyIndex) {
+    const iconState = normalizeEnemyEShieldDisplayState(enemy?.eShieldState) ?? DEFAULT_E_SHIELD_ACTION_ICON_STATE;
+    return `
+      <span data-role="enemy-popup-action-icon-shell">
+        ${buildEnemyEShieldBadgeHtml(iconState, {
+          enemyIndex,
+          mode: 'row',
+          dataRole: 'enemy-popup-action-eshield-icon',
+          showSlotMarker: false,
+        })}
+      </span>
+    `;
+  }
+
   #buildActionButtonsHtml(enemy, enemyIndex) {
     const actionButtons = [
-      ['summon', '召喚', '召喚', SUMMON_BUTTON_ICON_URL, Boolean(enemy?.canSummon), false],
-      ['break', 'ブレイク付与', 'ブレイク予定', BREAK_BUTTON_ICON_URL, Boolean(enemy?.canBreak), Boolean(enemy?.hasPendingBreakOperation)],
-      ['kill', '討伐', '討伐予定', KILL_BUTTON_ICON_URL, Boolean(enemy?.canKill), Boolean(enemy?.hasPendingKillOperation)],
+      {
+        actionType: 'summon',
+        label: '召喚',
+        pendingLabel: '召喚',
+        iconHtml: `<img src="${SUMMON_BUTTON_ICON_URL}" alt="召喚" data-role="enemy-popup-action-icon" />`,
+        enabledByState: Boolean(enemy?.canSummon),
+        isPending: false,
+      },
+      {
+        actionType: 'eshield',
+        label: 'Eシールド',
+        pendingLabel: 'Eシールド更新',
+        iconHtml: this.#buildEShieldActionIconHtml(enemy, enemyIndex),
+        enabledByState: Boolean(enemy?.canEditEShield),
+        isPending: Boolean(enemy?.hasPendingEShieldOperation),
+      },
+      {
+        actionType: 'break',
+        label: 'ブレイク付与',
+        pendingLabel: 'ブレイク予定',
+        iconHtml: `<img src="${BREAK_BUTTON_ICON_URL}" alt="ブレイク付与" data-role="enemy-popup-action-icon" />`,
+        enabledByState: Boolean(enemy?.canBreak),
+        isPending: Boolean(enemy?.hasPendingBreakOperation),
+      },
+      {
+        actionType: 'kill',
+        label: '討伐',
+        pendingLabel: '討伐予定',
+        iconHtml: `<img src="${KILL_BUTTON_ICON_URL}" alt="討伐" data-role="enemy-popup-action-icon" />`,
+        enabledByState: Boolean(enemy?.canKill),
+        isPending: Boolean(enemy?.hasPendingKillOperation),
+      },
     ];
     return `
       <div data-role="enemy-popup-action-row">
-        ${actionButtons.map(([actionType, label, pendingLabel, iconUrl, enabledByState, isPending]) => {
+        ${actionButtons.map(({ actionType, label, pendingLabel, iconHtml, enabledByState, isPending }) => {
           const enabled = enabledByState && typeof this.#toolActions?.[actionType] === 'function';
           const displayLabel = isPending ? pendingLabel : label;
           const titleText = actionType === 'summon'
@@ -802,7 +870,7 @@ export class EnemyDetailPopup {
                     data-pending="${isPending ? 'true' : 'false'}"
                     title="${escapeHtml(titleText)}"
                     ${enabled ? '' : 'disabled'}>
-              <img src="${iconUrl}" alt="${escapeHtml(label)}" data-role="enemy-popup-action-icon" />
+              ${iconHtml}
               <span>${escapeHtml(displayLabel)}</span>
             </button>
           `;

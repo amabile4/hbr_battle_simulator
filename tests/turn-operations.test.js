@@ -170,6 +170,35 @@ function createSummonEnemyOperation({
   };
 }
 
+function createEShieldState({
+  current = 10,
+  max = 10,
+  elements = ['Light', 'Dark'],
+  defUpRate = 5000,
+  damageLimit = 0,
+} = {}) {
+  return {
+    current,
+    max,
+    elements: [...elements],
+    defUpRate,
+    damageLimit,
+  };
+}
+
+function createSetEnemyEShieldOperation({
+  targetEnemyIndex = 0,
+  eShieldState = createEShieldState(),
+} = {}) {
+  return {
+    type: REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD,
+    payload: {
+      targetEnemyIndex,
+      eShieldState: eShieldState ? structuredClone(eShieldState) : null,
+    },
+  };
+}
+
 test('applyBeforeCommitOperations uses the supplied enemyCount for Makai Kihei OD gain', () => {
   const state = createState(
     {
@@ -491,4 +520,87 @@ test('applyBeforeCommitOperations warns when summon has no reusable enemy slot',
   assert.equal(nextState.turnState.enemyState.enemyCount, MAX_ENEMY_COUNT);
   assert.deepEqual(nextState.turnState.enemyState.enemyNamesByEnemy, { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' });
   assert.deepEqual(warnings, ['summon enemy ignored: no available enemy slot.']);
+});
+
+test('applyBeforeCommitOperations updates only the targeted enemy Eシールド and preserves break state', () => {
+  const state = createState({}, { enemyCount: 2 });
+  state.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 0, max: 30, elements: ['Light', 'Dark'] }),
+    1: createEShieldState({ current: 12, max: 12, elements: ['Fire'] }),
+  };
+  state.turnState.enemyState.breakStateByEnemy = {
+    0: { broken: true, superDown: false },
+  };
+  state.turnState.enemyState.statuses = [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2, exitCond: 'PlayerTurnEnd' },
+  ];
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 45, max: 45, elements: ['Light', 'Dark'] }),
+    })]
+  );
+
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 45,
+    max: 45,
+    elements: ['Light', 'Dark'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['1'], {
+    current: 12,
+    max: 12,
+    elements: ['Fire'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.deepEqual(nextState.turnState.enemyState.breakStateByEnemy, {
+    0: { broken: true, superDown: false },
+  });
+  assert.deepEqual(nextState.turnState.enemyState.statuses, [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 2, exitCond: 'PlayerTurnEnd' },
+  ]);
+});
+
+test('applyBeforeCommitOperations clears targeted enemy Eシールド when max is zero or elements are empty', () => {
+  const state = createState({}, { enemyCount: 1 });
+  state.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 18, max: 30, elements: ['Light'] }),
+  };
+
+  const clearedByMax = applyBeforeCommitOperations(
+    state,
+    [createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: {
+        current: 25,
+        max: 0,
+        elements: ['Light'],
+        defUpRate: 5000,
+        damageLimit: 0,
+      },
+    })]
+  );
+  assert.equal(clearedByMax.turnState.enemyState.eShieldStateByEnemy['0'], undefined);
+
+  state.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 18, max: 30, elements: ['Light'] }),
+  };
+  const clearedByElements = applyBeforeCommitOperations(
+    state,
+    [createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: {
+        current: 25,
+        max: 30,
+        elements: [],
+        defUpRate: 5000,
+        damageLimit: 0,
+      },
+    })]
+  );
+  assert.equal(clearedByElements.turnState.enemyState.eShieldStateByEnemy['0'], undefined);
 });

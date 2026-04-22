@@ -32,6 +32,11 @@ Eシールドは、敵が DP の代わりに持つ特殊ゲージです。
   - `Party Setup` の属性ブレスレット selector は `CharacterStyle.normalAttackElements` へ接続されており、通常攻撃の属性参照と Eシールド判定の両方に使われる
   - `Enemy Setup` の手動編集では `count/max/elements/def_up_rate/dmg_limit` を変更でき、session save/load にも保存される
   - `Enemy Setup` の `count` 入力は `max` を超える値を許可し、その場合 `max` を `count` に自動引き上げる（HP ゲージ複数の擬似表現用）
+  - 戦闘中の `Turn Row -> 敵情報確認 popup -> Eシールド` からも、slot 単位で `current/max/elements/def_up_rate/dmg_limit` を手動編集できる
+  - popup editor の `最大値で回復` は `current=max` を即時入力し、`current > max` で適用した場合も `max` は `current` に追従する
+  - popup editor で `elements=[]` または `max<=0` にした場合は、その enemy slot の Eシールドを手動解除として保存する
+  - popup からの手動 Eシールド編集は same-slot で 1 operation に upsert され、turn row strip / popup summary / operation chip へ即時反映される
+  - popup からの手動 Eシールド編集は replay の `EnemyEShields` snapshot に正本化されるため、commit / recommit / session save-load / recalculate 後も保持される
   - 自動ブレイク（current=0 到達）した actionEntry には `autoBreakEnemyIndexes` と「ブレイカー識別情報 (`actorCharacterId / skillId / source='auto'`)」が記録され、Turn Row には violet 色の `(自動)` chip が手動 chip と同じ行に並ぶ
   - 自動ブレイクで起動した「ブレイク時パッシブ」は通常パッシブと同じ形式で Passive Log ペインへ流入する (`source='passive_trigger'` / `effectTypes=['BreakDownTurnUp']`)
   - DownTurn ステータスが消滅した瞬間（`tickEnemyStatusDurations` の `PlayerTurnEnd` / `EnemyTurnEnd` 両 timing）に対象 enemy の Eシールド `current` が `max` まで自動復帰する
@@ -64,7 +69,7 @@ turnState.enemyState.eShieldStateByEnemy[targetEnemyIndex] = {
 - `def_up_rate` の実機意味
 - `dmg_limit` の実機意味
 - `dp > 0` と Eシールドが同時に存在する敵の優先順位
-- HP ゲージ複数（例: 変貌を重ねる不滅の円環は 30→35→40→45 の段階的拡張）の正式な仕様。現状は `Enemy Setup` の `count/max` 手動編集 + max overflow 追従で擬似表現する
+- HP ゲージ複数（例: 変貌を重ねる不滅の円環は 30→35→40→45 の段階的拡張）の正式な仕様。現状は `Enemy Setup` または battle 中の `Turn Row popup` から `count/max` を手動編集し、max overflow 追従で擬似表現する
 
 ### 所持スタイルリスト
 

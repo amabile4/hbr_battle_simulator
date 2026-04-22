@@ -194,6 +194,35 @@ function createSummonEnemyOperation({
   };
 }
 
+function createEShieldState({
+  current = 10,
+  max = 10,
+  elements = ['Light', 'Dark'],
+  defUpRate = 5000,
+  damageLimit = 0,
+} = {}) {
+  return {
+    current,
+    max,
+    elements: [...elements],
+    defUpRate,
+    damageLimit,
+  };
+}
+
+function createSetEnemyEShieldOperation({
+  targetEnemyIndex = 0,
+  eShieldState = createEShieldState(),
+} = {}) {
+  return {
+    type: REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD,
+    payload: {
+      targetEnemyIndex,
+      eShieldState: eShieldState ? structuredClone(eShieldState) : null,
+    },
+  };
+}
+
 function createLegacyExtraTurnInitialState() {
   const initialState = createInitialState(
     createSkill({
@@ -2242,6 +2271,133 @@ test('TurnEngineManager persists turn-start enemy slot snapshots into overrideEn
     ),
     true
   );
+});
+
+test('TurnEngineManager persists manual Eシールド edits into EnemyEShields overrideEntries and restores them on reload', () => {
+  const actorSkill = createSkill({
+    id: 90725,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 1;
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  initialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 0, max: 30, elements: ['Light', 'Dark'] }),
+  };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+
+  assert.equal(
+    manager.addPendingSpecialOperation(
+      createSetEnemyEShieldOperation({
+        targetEnemyIndex: 0,
+        eShieldState: createEShieldState({ current: 45, max: 45, elements: ['Light', 'Dark'] }),
+      })
+    ),
+    true
+  );
+
+  const inputSnapshot = manager.buildInputRowSnapshot({
+    slotActions: { 0: { skillId: 90725 } },
+    enemyCount: 1,
+  });
+  assert.equal(inputSnapshot.stateBefore.turnState.enemyState.eShieldStateByEnemy['0'].current, 45);
+  assert.equal(inputSnapshot.stateBefore.turnState.enemyState.eShieldStateByEnemy['0'].max, 45);
+
+  manager.commitNextTurn(
+    { 0: { skillId: 90725 } },
+    { enemyCount: 1, note: 'manual e-shield edit' }
+  );
+
+  const turn = manager.replayScript.turns[0];
+  assert.deepEqual(turn.operations, [
+    createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 45, max: 45, elements: ['Light', 'Dark'] }),
+    }),
+  ]);
+  assert.deepEqual(
+    turn.overrideEntries.find((entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS),
+    {
+      type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS,
+      payload: {
+        0: createEShieldState({ current: 45, max: 45, elements: ['Light', 'Dark'] }),
+      },
+    }
+  );
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.current, 45);
+
+  manager.recalculateFrom(0);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.current, 45);
+
+  const reloadInitialState = createInitialState(actorSkill);
+  reloadInitialState.turnState.enemyState.enemyCount = 1;
+  reloadInitialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  reloadInitialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 0, max: 30, elements: ['Light', 'Dark'] }),
+  };
+
+  const reloadedManager = new TurnEngineManager();
+  reloadedManager.loadReplayScript(reloadInitialState, manager.replayScript, {});
+  assert.equal(reloadedManager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.current, 45);
+  assert.equal(reloadedManager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.max, 45);
+});
+
+test('TurnEngineManager recommit updates the same enemy Eシールド override instead of accumulating duplicates', () => {
+  const actorSkill = createSkill({
+    id: 90725,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 1;
+  initialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 0, max: 30, elements: ['Light', 'Dark'] }),
+  };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  manager.addPendingSpecialOperation(
+    createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 35, max: 35, elements: ['Light', 'Dark'] }),
+    })
+  );
+  manager.commitNextTurn(
+    { 0: { skillId: 90725 } },
+    { enemyCount: 1, note: 'first edit' }
+  );
+
+  const draft = manager.buildTurnEditDraft(0);
+  draft.operations = [
+    createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 60, max: 60, elements: ['Light', 'Dark'] }),
+    }),
+  ];
+  manager.replaceCommittedTurn(0, draft);
+
+  const overrideEntries = manager.replayScript.turns[0].overrideEntries.filter(
+    (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS
+  );
+  assert.equal(overrideEntries.length, 1);
+  assert.deepEqual(overrideEntries[0].payload, {
+    0: createEShieldState({ current: 60, max: 60, elements: ['Light', 'Dark'] }),
+  });
+  assert.deepEqual(manager.replayScript.turns[0].operations, [
+    createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 60, max: 60, elements: ['Light', 'Dark'] }),
+    }),
+  ]);
+
+  manager.recalculateFrom(0);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.current, 60);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.max, 60);
 });
 
 test('TurnEngineManager break passive fires on Break but not on Kill for the same enemy', () => {

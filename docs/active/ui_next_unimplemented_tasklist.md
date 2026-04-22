@@ -1,6 +1,6 @@
 # UI Next 未実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-20
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-22
 >
 > **目的**: `ui_next_implementation_tasklist.md` から未完了項目を分離し、active ドキュメントに散在していた未実装作業をこの 1 ファイルで追跡する。
 >
@@ -38,11 +38,13 @@
 - 2026-04-07: turn row は `敵情報確認` trigger のみとし、`enemy-detail-popup-container` を `E1/E2/E3` 3 tab + wide 3列 / narrow 1列 layout に更新した。`召喚 / ブレイク / 討伐` は選択中 enemy slot 直下の action row へ集約し、`Summon.webp` / `Break.webp` / `defeat.webp` を使う。break / kill は direct chip ではなく `ActionOutcomeOverrides` ベースの actor attribution へ戻し、単体攻撃で一意なら即時反映、曖昧または全体攻撃なら popup を閉じずに popup 内 sub-panel editor を開く。sample enemy は `Dimension_03_C_DeathSlugWhite` / `Dimension_03_C1_DeathSlugWhiteBit` / `Dimension_03_C1_EnergyPit_Pink_e` の 3 体で固定。`敵詳細` 見出しは廃止し、`名称` fold と `敵情報確認 / 敵情報 / 敵` の responsive label に更新した。残りは敵行動データからの自動 summon 化と、summon 後 selector 回帰 coverage。
 - 2026-04-10: `tests/ui-next-battle-state-manager.test.js` / `tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` を再実行し、summon 後の `target / break / follow-up / recommit` 回帰は固定済みと確認した。残る実装タスクは敵行動データからの自動 summon 化で、`BattleStateManager` の runtime summon 反映要否は `lightweight_record_replay_design.md` 側の責務整理 follow-up として分離する。
 - 2026-04-12: enemy popup に `3表示 / 1表示` toggle を追加し、default layout を occupied slot 数ベースへ変更した。`3表示` の許可は popup content 幅と最小 panel 幅で判定し、従来の `960px` 固定より早い段階で `1表示` を強制するように更新した。JSDOM / Playwright も `single enemy default narrow`、`multi enemy default wide`、`medium width forced narrow` へ合わせて回帰を追加した。
+- 2026-04-22: enemy popup action row を `召喚 / Eシールド / ブレイク付与 / 討伐` に拡張し、DownTurn 中など battle 中の slot 単位 Eシールド手動復帰・差し替えを追加した。`SetEnemyEShield` は `EnemyEShields` replay snapshot に正本化し、same-slot upsert、commit / recommit / save-load / recalculate 回帰、Playwright の popup 編集フローまで固定した。
 
 - [x] 手動 `Summon` を turn 単位の敵数増加イベントとして入力できる
 - [x] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する
 - [x] Summon 後に増えた敵スロットの情報表示（名前 / OD率 / 最大破壊率 / 耐性 / 吸収属性）を追加する
 - [x] break / follow-up / enemy detail popup など既存の敵選択 UI が増加後スロットにも追従する
+- [x] DownTurn 中の Eシールドを turn-row popup から手動復帰・編集し、same-slot upsert と replay snapshot 正本化で維持できる
 - [ ] 敵行動データの `Summon` を `ReplayTurn.operations[].type === 'SummonEnemy'` へ自動変換する
 
 ## 2) T19: use_count 表示・管理（集約）

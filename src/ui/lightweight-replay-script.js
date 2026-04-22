@@ -1,4 +1,5 @@
 import { MAX_PARTY_SIZE } from '../domain/party.js';
+import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
 import { normalizeNormalAttackElementsByPartyIndex } from '../domain/normal-attack-elements.js';
 import {
   getActionOutcomeOverridesFromReplayTurn,
@@ -21,6 +22,7 @@ export const REPLAY_OPERATION_TYPES = Object.freeze({
   ACTIVATE_PREEMPTIVE_OD: 'ActivatePreemptiveOd',
   RESERVE_INTERRUPT_OD: 'ReserveInterruptOd',
   SUMMON_ENEMY: 'SummonEnemy',
+  SET_ENEMY_E_SHIELD: 'SetEnemyEShield',
 });
 
 export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
@@ -45,6 +47,7 @@ export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
   ENEMY_DESTRUCTION_RATES: 'EnemyDestructionRates',
   ENEMY_DESTRUCTION_RATE_CAPS: 'EnemyDestructionRateCaps',
   ENEMY_OD_RATES: 'EnemyOdRates',
+  ENEMY_E_SHIELDS: 'EnemyEShields',
   ENEMY_ABSORB_ELEMENTS: 'EnemyAbsorbElements',
   ENEMY_BREAK_STATES: 'EnemyBreakStates',
   ENEMY_STATUSES: 'EnemyStatuses',
@@ -98,11 +101,14 @@ function createReplaySetupEntryDefinition(legacyField, options = {}) {
   });
 }
 
-function createReplayOverrideEntryDefinition(fieldName) {
+function createReplayOverrideEntryDefinition(fieldName, options = {}) {
+  const normalizePayload =
+    typeof options?.normalizePayload === 'function' ? options.normalizePayload : null;
   return Object.freeze({
     fieldName,
+    normalizePayload,
     applyToScenarioTurn(scenarioTurn, payload) {
-      const nextPayload = cloneReplayPayload(payload);
+      const nextPayload = normalizePayload ? normalizePayload(payload) : cloneReplayPayload(payload);
       if (nextPayload === undefined) {
         return;
       }
@@ -132,6 +138,38 @@ function normalizeNumericArray(values = []) {
   return Array.from({ length: MAX_PARTY_SIZE }, (_, index) => {
     return normalizeOptionalNumber(source[index]);
   });
+}
+
+function normalizeEnemyEShieldsPayload(payload = {}) {
+  if (!isPlainObject(payload)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([enemyIndex, state]) => {
+        const numericEnemyIndex = Number(enemyIndex);
+        const normalizedState = cloneEnemyEShieldState(state);
+        if (!Number.isInteger(numericEnemyIndex) || numericEnemyIndex < 0 || !normalizedState) {
+          return null;
+        }
+        return [String(numericEnemyIndex), normalizedState];
+      })
+      .filter(Boolean)
+  );
+}
+
+function normalizeSetEnemyEShieldPayload(payload = {}) {
+  if (!isPlainObject(payload)) {
+    return null;
+  }
+  const targetEnemyIndex = Number(payload.targetEnemyIndex ?? payload.enemyIndex);
+  if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0) {
+    return null;
+  }
+  return {
+    targetEnemyIndex,
+    eShieldState: cloneEnemyEShieldState(payload.eShieldState ?? payload.e_shield ?? null),
+  };
 }
 
 function normalizeTypedEnvelopeEntry(entry) {
@@ -256,6 +294,11 @@ export const replayOperationRegistry = createTypedEnvelopeRegistry({
     timing: 'beforeCommit',
     allowMultiple: true,
   }),
+  [REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD]: Object.freeze({
+    timing: 'beforeCommit',
+    allowMultiple: true,
+    normalizePayload: (payload) => normalizeSetEnemyEShieldPayload(payload),
+  }),
 });
 export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT]: createReplayOverrideEntryDefinition('enemyCount'),
@@ -271,6 +314,10 @@ export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATE_CAPS]:
     createReplayOverrideEntryDefinition('enemyDestructionRateCaps'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES]: createReplayOverrideEntryDefinition('enemyOdRates'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS]:
+    createReplayOverrideEntryDefinition('enemyEShields', {
+      normalizePayload: (payload) => normalizeEnemyEShieldsPayload(payload),
+    }),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS]:
     createReplayOverrideEntryDefinition('enemyAbsorbElements'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES]: createReplayOverrideEntryDefinition('enemyBreakStates'),

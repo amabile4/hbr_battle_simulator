@@ -276,6 +276,20 @@ function normalizeSummonEnemyEShield(payload = {}) {
   return cloneEnemyEShieldState(payload?.e_shield ?? payload?.eShield ?? null);
 }
 
+function normalizeSetEnemyEShieldPayload(payload = {}) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const targetEnemyIndex = Number(payload.targetEnemyIndex ?? payload.enemyIndex);
+  if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0 || targetEnemyIndex >= MAX_ENEMY_COUNT) {
+    return null;
+  }
+  return {
+    targetEnemyIndex,
+    eShieldState: cloneEnemyEShieldState(payload.eShieldState ?? payload.e_shield ?? null),
+  };
+}
+
 function normalizeSummonEnemyPayload(payload = {}) {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -417,6 +431,38 @@ function applySummonEnemyToState(state, operation = {}, options = {}) {
   return state;
 }
 
+function applySetEnemyEShieldToState(state, operation = {}) {
+  if (!state?.turnState?.enemyState) {
+    return state;
+  }
+  const payload = normalizeSetEnemyEShieldPayload(operation?.payload);
+  if (!payload) {
+    return state;
+  }
+  const currentEnemyCount = normalizeSummonEnemyCount(
+    state.turnState?.enemyState?.enemyCount,
+    DEFAULT_ENEMY_COUNT
+  );
+  if (payload.targetEnemyIndex >= currentEnemyCount) {
+    return state;
+  }
+  const currentSnapshot = buildEnemyStateOverrideSnapshot(state.turnState);
+  const slotKey = String(payload.targetEnemyIndex);
+  const nextEnemyEShields = payload.eShieldState
+    ? {
+        ...(currentSnapshot.enemyEShields ?? {}),
+        [slotKey]: structuredClone(payload.eShieldState),
+      }
+    : Object.fromEntries(
+        Object.entries(currentSnapshot.enemyEShields ?? {}).filter(([enemyIndex]) => String(enemyIndex) !== slotKey)
+      );
+  applyEnemyStateOverrideSnapshot(state.turnState, {
+    ...currentSnapshot,
+    enemyEShields: nextEnemyEShields,
+  });
+  return state;
+}
+
 function applyOperation(state, operation = {}, options = {}) {
   const type = String(operation?.type ?? '').trim();
   if (!type || !BEFORE_COMMIT_OPERATION_TYPES.has(type)) {
@@ -433,6 +479,9 @@ function applyOperation(state, operation = {}, options = {}) {
   }
   if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
     return applySummonEnemyToState(state, operation, options);
+  }
+  if (type === REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD) {
+    return applySetEnemyEShieldToState(state, operation);
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
     const level = extractOperationLevel(operation);

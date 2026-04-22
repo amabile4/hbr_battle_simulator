@@ -59,6 +59,10 @@ import {
   isDisplayableEnemyEShieldState,
   normalizeEnemyEShieldDisplayState,
 } from '../utils/e-shield-display.js';
+import {
+  cloneEnemyEShieldState,
+  normalizeEnemyEShieldElements,
+} from '../../src/domain/enemy-e-shield.js';
 
 // select 幅の閾値（px）：スキル名の可読性を維持できる幅を下回ったら
 // 属性/武器種バッジと SP コストを段階的に隠す。
@@ -87,6 +91,14 @@ const ENEMY_TARGET_POPOVER_MIN_WIDTH_PX = 180;
 const ENEMY_TARGET_POPOVER_MAX_WIDTH_PX = 280;
 const TURN_INFO_PANEL_WIDTH_CLASS = 'w-[108px]';
 const ENEMY_STATUS_BREAK = 'Break';
+const ENEMY_E_SHIELD_EDITOR_MIN_VALUE = 0;
+const ENEMY_E_SHIELD_EDITOR_ELEMENT_OPTIONS = Object.freeze([
+  ['Fire', '火'],
+  ['Ice', '氷'],
+  ['Thunder', '雷'],
+  ['Light', '光'],
+  ['Dark', '闇'],
+]);
 const SUMMON_ENEMY_RESISTANCE_LABELS = Object.freeze([
   ['slash', '斬'],
   ['stab', '突'],
@@ -125,6 +137,19 @@ function escapeHtml(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function normalizeNonNegativeInteger(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return Math.max(ENEMY_E_SHIELD_EDITOR_MIN_VALUE, Math.floor(Number(fallback) || 0));
+  }
+  return Math.max(ENEMY_E_SHIELD_EDITOR_MIN_VALUE, Math.floor(numeric));
+}
+
+function normalizeFiniteNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
 }
 
 function normalizeRowDiagnostics(diagnostics = {}) {
@@ -234,6 +259,7 @@ export class TurnRowController {
   #draftFollowUpEnemyIndexByPartyIndex = {};
   #enemyDetailPopup = null;
   #popupOutcomeRequest = null;
+  #popupEShieldEditorRequest = null;
   #previewResourceState = null;
   #previewActionFlow = [];
   // Simulator Settings パラメータ
@@ -791,7 +817,17 @@ export class TurnRowController {
     this.#popupOutcomeRequest = null;
   }
 
+  #clearPopupEShieldEditorRequest() {
+    this.#popupEShieldEditorRequest = null;
+  }
+
+  #clearPopupInlineEditorRequests() {
+    this.#clearPopupOutcomeRequest();
+    this.#clearPopupEShieldEditorRequest();
+  }
+
   #setPopupOutcomeRequest(outcome, enemyIndex) {
+    this.#clearPopupEShieldEditorRequest();
     const normalizedEnemyIndex = Number(enemyIndex);
     if (
       !Number.isInteger(normalizedEnemyIndex) ||
@@ -811,6 +847,22 @@ export class TurnRowController {
     }
     this.#popupOutcomeRequest = {
       outcome: normalizedOutcome,
+      enemyIndex: normalizedEnemyIndex,
+    };
+  }
+
+  #setPopupEShieldEditorRequest(enemyIndex) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (
+      !Number.isInteger(normalizedEnemyIndex) ||
+      normalizedEnemyIndex < 0 ||
+      normalizedEnemyIndex >= MAX_ENEMY_COUNT
+    ) {
+      this.#popupEShieldEditorRequest = null;
+      return;
+    }
+    this.#clearPopupOutcomeRequest();
+    this.#popupEShieldEditorRequest = {
       enemyIndex: normalizedEnemyIndex,
     };
   }
@@ -910,7 +962,7 @@ export class TurnRowController {
 
   #handleEnemyDetailPopupClosed() {
     this.#enemyDetailPopup = null;
-    this.#clearPopupOutcomeRequest();
+    this.#clearPopupInlineEditorRequests();
     if (this.#isEnemySummonEditorOpen && this.#isDraftMode()) {
       this.#closeEnemySummonEditor();
       this.#rerenderDraftMode();
@@ -928,18 +980,21 @@ export class TurnRowController {
 
   #handleEnemyDetailPopupTabChange(activeEnemyIndex) {
     const normalizedEnemyIndex = Number(activeEnemyIndex);
-    if (!this.#popupOutcomeRequest) {
+    const hasPopupInlineEditor = Boolean(this.#popupOutcomeRequest || this.#popupEShieldEditorRequest);
+    if (!hasPopupInlineEditor) {
       return true;
     }
     if (
       !Number.isInteger(normalizedEnemyIndex) ||
       normalizedEnemyIndex < 0 ||
       normalizedEnemyIndex >= MAX_ENEMY_COUNT ||
-      normalizedEnemyIndex === Number(this.#popupOutcomeRequest?.enemyIndex)
+      normalizedEnemyIndex === Number(
+        this.#popupEShieldEditorRequest?.enemyIndex ?? this.#popupOutcomeRequest?.enemyIndex
+      )
     ) {
       return true;
     }
-    this.#clearPopupOutcomeRequest();
+    this.#clearPopupInlineEditorRequests();
     this.#refreshEnemyDetailPopup(normalizedEnemyIndex);
     return false;
   }
@@ -950,7 +1005,7 @@ export class TurnRowController {
     this.#isKillEditorOpen = false;
     this.#isFollowUpEditorOpen = false;
     this.#closeEnemySummonEditor();
-    this.#clearPopupOutcomeRequest();
+    this.#clearPopupInlineEditorRequests();
     const payload = this.#buildEnemyDetailPopupPayload(this.#isCommittedDisplayMode(), activeEnemyIndex);
     if (!payload || !Array.isArray(payload.enemies) || payload.enemies.length === 0) {
       return null;
@@ -1406,6 +1461,7 @@ export class TurnRowController {
       return { closePopup: false };
     }
     this.#closeEnemySummonEditor();
+    this.#clearPopupEShieldEditorRequest();
     this.#isBreakEditorOpen = false;
     this.#isKillEditorOpen = false;
     const normalizedEnemyIndex = Number(enemyIndex);
@@ -1587,6 +1643,59 @@ export class TurnRowController {
     }
   }
 
+  #findEnemyEShieldOperationForEnemyIndex(enemyIndex, operations = this.#operations) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (!Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0) {
+      return null;
+    }
+    return (Array.isArray(operations) ? operations : []).find(
+      (operation) =>
+        String(operation?.type ?? '') === REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD &&
+        Number(operation?.payload?.targetEnemyIndex) === normalizedEnemyIndex
+    ) ?? null;
+  }
+
+  #createEnemyEShieldOperation(enemyIndex, eShieldState = null) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (!Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0 || normalizedEnemyIndex >= MAX_ENEMY_COUNT) {
+      return null;
+    }
+    return {
+      type: REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD,
+      payload: {
+        targetEnemyIndex: normalizedEnemyIndex,
+        eShieldState: eShieldState ? structuredClone(eShieldState) : null,
+      },
+    };
+  }
+
+  #replaceDraftEnemyEShieldOperation(enemyIndex, nextOperation = null) {
+    const normalizedEnemyIndex = Number(enemyIndex);
+    if (!Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0) {
+      return false;
+    }
+    const nextOperations = [];
+    let replaced = false;
+    for (const operation of Array.isArray(this.#operations) ? this.#operations : []) {
+      if (
+        String(operation?.type ?? '') === REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD &&
+        Number(operation?.payload?.targetEnemyIndex) === normalizedEnemyIndex
+      ) {
+        if (!replaced && nextOperation) {
+          nextOperations.push(structuredClone(nextOperation));
+          replaced = true;
+        }
+        continue;
+      }
+      nextOperations.push(structuredClone(operation));
+    }
+    if (!replaced && nextOperation) {
+      nextOperations.push(structuredClone(nextOperation));
+    }
+    this.#operations = nextOperations;
+    return true;
+  }
+
   #createFormChangeOperation(member, formKey) {
     if (!member?.hasFormChange?.()) {
       return null;
@@ -1702,6 +1811,84 @@ export class TurnRowController {
     }
     this.#operations = [...(this.#operations ?? []), structuredClone(operation)];
     return true;
+  }
+
+  #buildEnemyEShieldStateFromEditorValues({
+    current = 0,
+    max = 0,
+    elements = [],
+    defUpRate = 0,
+    damageLimit = 0,
+  } = {}) {
+    const normalizedCurrent = normalizeNonNegativeInteger(current);
+    const normalizedMaxInput = normalizeNonNegativeInteger(max);
+    const normalizedMax = Math.max(normalizedCurrent, normalizedMaxInput);
+    return cloneEnemyEShieldState({
+      current: normalizedCurrent,
+      max: normalizedMax,
+      elements: normalizeEnemyEShieldElements(elements),
+      defUpRate: normalizeFiniteNumber(defUpRate),
+      damageLimit: normalizeFiniteNumber(damageLimit),
+    });
+  }
+
+  #syncEnemyEShieldEditorCountInputs(editorRoot) {
+    const currentInput = editorRoot?.querySelector('[data-role="enemy-popup-eshield-current"]');
+    const maxInput = editorRoot?.querySelector('[data-role="enemy-popup-eshield-max"]');
+    if (!currentInput || !maxInput) {
+      return;
+    }
+    const normalizedCurrent = normalizeNonNegativeInteger(currentInput.value);
+    const normalizedMax = normalizeNonNegativeInteger(maxInput.value);
+    if (normalizedCurrent > normalizedMax) {
+      maxInput.value = String(normalizedCurrent);
+    }
+  }
+
+  #buildEnemyEShieldStateFromEditor(editorRoot) {
+    const currentInput = editorRoot?.querySelector('[data-role="enemy-popup-eshield-current"]');
+    const maxInput = editorRoot?.querySelector('[data-role="enemy-popup-eshield-max"]');
+    const defUpRateInput = editorRoot?.querySelector('[data-role="enemy-popup-eshield-def-up-rate"]');
+    const damageLimitInput = editorRoot?.querySelector('[data-role="enemy-popup-eshield-damage-limit"]');
+    if (!currentInput || !maxInput || !defUpRateInput || !damageLimitInput) {
+      return null;
+    }
+    const elements = [...editorRoot.querySelectorAll('[data-role="enemy-popup-eshield-element-toggle"]')]
+      .filter((input) => input.checked)
+      .map((input) => String(input.dataset.element ?? '').trim())
+      .filter(Boolean);
+    return this.#buildEnemyEShieldStateFromEditorValues({
+      current: currentInput.value,
+      max: maxInput.value,
+      elements,
+      defUpRate: defUpRateInput.value,
+      damageLimit: damageLimitInput.value,
+    });
+  }
+
+  #applyEnemyPopupEShieldEditor(editorRoot) {
+    if (!this.#isDraftMode()) {
+      return false;
+    }
+    const targetEnemyIndex = Number(editorRoot?.dataset.enemyIndex);
+    if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0 || targetEnemyIndex >= MAX_ENEMY_COUNT) {
+      return false;
+    }
+    this.#syncEnemyEShieldEditorCountInputs(editorRoot);
+    const eShieldState = this.#buildEnemyEShieldStateFromEditor(editorRoot);
+    const operation = this.#createEnemyEShieldOperation(targetEnemyIndex, eShieldState);
+    if (!operation) {
+      return false;
+    }
+    if (this.#isEditMode()) {
+      if (!this.#replaceDraftEnemyEShieldOperation(targetEnemyIndex, operation)) {
+        return false;
+      }
+      this.#rerenderDraftMode();
+      this.#emitPreviewRequest();
+      return true;
+    }
+    return Boolean(this.#onOperationAdd?.(this.#turnIndex, operation));
   }
 
   #removeDraftOperation(operationIndex) {
@@ -2605,6 +2792,107 @@ export class TurnRowController {
     });
   }
 
+  #resolveEnemyPopupEShieldEditorState(enemyIndex) {
+    const enemyKey = String(enemyIndex);
+    const displayedStateByEnemy = this.#resolveDisplayedEnemyEShieldStateByEnemy();
+    if (Object.prototype.hasOwnProperty.call(displayedStateByEnemy, enemyKey)) {
+      return normalizeEnemyEShieldDisplayState(displayedStateByEnemy[enemyKey]);
+    }
+    return normalizeEnemyEShieldDisplayState(
+      this.#buildProjectedEnemyPopupState()?.turnState?.enemyState?.eShieldStateByEnemy?.[enemyKey] ?? null
+    );
+  }
+
+  #buildEnemyPopupEShieldEditorHtml({ enemyIndex }) {
+    const request = this.#popupEShieldEditorRequest;
+    if (!this.#isDraftMode() || !request || Number(request.enemyIndex) !== Number(enemyIndex)) {
+      return '';
+    }
+    const eShieldState = this.#resolveEnemyPopupEShieldEditorState(enemyIndex);
+    const current = Number(eShieldState?.current ?? 0);
+    const max = Number(eShieldState?.max ?? 0);
+    const defUpRate = Number(eShieldState?.defUpRate ?? 0);
+    const damageLimit = Number(eShieldState?.damageLimit ?? 0);
+    const selectedElements = new Set(Array.isArray(eShieldState?.elements) ? eShieldState.elements : []);
+
+    return `
+      <div data-role="enemy-popup-eshield-editor"
+           data-enemy-index="${enemyIndex}"
+           class="rounded-lg border border-sky-400/35 bg-slate-950/65 p-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-2">
+          <div class="text-[11px] font-semibold text-sky-100">Eシールドを編集</div>
+          <button type="button"
+                  data-role="enemy-popup-eshield-fill-max"
+                  class="rounded-md border border-sky-300/70 bg-sky-500/20 px-2 py-1 text-[10px] font-semibold text-sky-100 hover:bg-sky-500/30">
+            最大値で回復
+          </button>
+        </div>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <label class="grid gap-1 text-[10px] font-semibold text-slate-200">
+            <span>現在値</span>
+            <input type="number"
+                   min="${ENEMY_E_SHIELD_EDITOR_MIN_VALUE}"
+                   value="${escapeHtml(current)}"
+                   data-role="enemy-popup-eshield-current"
+                   class="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-[12px] text-slate-100" />
+          </label>
+          <label class="grid gap-1 text-[10px] font-semibold text-slate-200">
+            <span>最大値</span>
+            <input type="number"
+                   min="${ENEMY_E_SHIELD_EDITOR_MIN_VALUE}"
+                   value="${escapeHtml(max)}"
+                   data-role="enemy-popup-eshield-max"
+                   class="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-[12px] text-slate-100" />
+          </label>
+          <label class="grid gap-1 text-[10px] font-semibold text-slate-200">
+            <span>防御UP</span>
+            <input type="number"
+                   value="${escapeHtml(defUpRate)}"
+                   data-role="enemy-popup-eshield-def-up-rate"
+                   class="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-[12px] text-slate-100" />
+          </label>
+          <label class="grid gap-1 text-[10px] font-semibold text-slate-200">
+            <span>ダメージ上限</span>
+            <input type="number"
+                   value="${escapeHtml(damageLimit)}"
+                   data-role="enemy-popup-eshield-damage-limit"
+                   class="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-[12px] text-slate-100" />
+          </label>
+        </div>
+        <div class="pt-2">
+          <div class="pb-1 text-[10px] font-semibold text-slate-200">属性</div>
+          <div class="flex flex-wrap gap-1.5">
+            ${ENEMY_E_SHIELD_EDITOR_ELEMENT_OPTIONS.map(([element, label]) => {
+              const checked = selectedElements.has(element);
+              return `
+                <label class="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold transition-colors
+                              ${checked
+                                ? 'border-sky-300 bg-sky-500/25 text-sky-50'
+                                : 'border-slate-600 bg-slate-900/80 text-slate-300 hover:bg-slate-800'}">
+                  <input type="checkbox"
+                         data-role="enemy-popup-eshield-element-toggle"
+                         data-element="${element}"
+                         ${checked ? 'checked' : ''}
+                         class="h-3 w-3 accent-sky-400" />
+                  <span>${label}</span>
+                </label>
+              `;
+            }).join('')}
+          </div>
+          <div class="pt-2 text-[10px] text-slate-400">属性未選択、または最大値が 0 以下なら Eシールド解除として保存されます。</div>
+        </div>
+        <div class="pt-2 flex justify-end">
+          <button type="button"
+                  data-role="enemy-popup-eshield-apply"
+                  data-enemy-index="${enemyIndex}"
+                  class="rounded-md border border-sky-300/70 bg-sky-500 px-3 py-1 text-[11px] font-bold text-slate-950 hover:bg-sky-400">
+            適用
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   #buildEnemyPopupOutcomeEditorHtml({ enemyIndex, enemyCount, enemyNamesByEnemy, isCommitted }) {
     const request = this.#popupOutcomeRequest;
     if (!this.#isDraftMode() || !request || Number(request.enemyIndex) !== Number(enemyIndex)) {
@@ -2755,11 +3043,25 @@ export class TurnRowController {
   }
 
   #resolveDisplayedEnemyEShieldStateByEnemy() {
+    const next = {};
+    if (this.#isDraftMode()) {
+      for (const operation of Array.isArray(this.#operations) ? this.#operations : []) {
+        if (String(operation?.type ?? '') !== REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD) {
+          continue;
+        }
+        const enemyIndex = Number(operation?.payload?.targetEnemyIndex);
+        if (!Number.isInteger(enemyIndex) || enemyIndex < 0 || enemyIndex >= MAX_ENEMY_COUNT) {
+          continue;
+        }
+        if (operation?.payload?.eShieldState == null) {
+          next[String(enemyIndex)] = null;
+        }
+      }
+    }
     const maps = [
       this.#stateAfter?.turnState?.enemyState?.eShieldStateByEnemy,
       this.#stateBefore?.turnState?.enemyState?.eShieldStateByEnemy,
     ];
-    const next = {};
     for (const source of maps) {
       if (!source || typeof source !== 'object') {
         continue;
@@ -2826,11 +3128,18 @@ export class TurnRowController {
     }
     this.#openTargetPickerPartyIndex = null;
     this.#isFollowUpEditorOpen = false;
-    this.#clearPopupOutcomeRequest();
+    this.#clearPopupInlineEditorRequests();
     if (actionType === 'summon') {
       this.#openEnemySummonEditor(requestedEnemyIndex);
     } else {
       this.#closeEnemySummonEditor();
+    }
+    if (actionType === 'eshield') {
+      this.#isBreakEditorOpen = false;
+      this.#isKillEditorOpen = false;
+      this.#setPopupEShieldEditorRequest(requestedEnemyIndex);
+      this.#refreshEnemyDetailPopup(this.#getEnemyDetailPopupActiveEnemyIndex(requestedEnemyIndex));
+      return true;
     }
     this.#isBreakEditorOpen = actionType === 'break';
     this.#isKillEditorOpen = actionType === 'kill';
@@ -2846,6 +3155,15 @@ export class TurnRowController {
       summon: this.#canOpenEnemyPopupSummonAction()
         ? ({ enemyIndex, activeEnemyIndex }) => {
           this.#openEnemyPopupEditor('summon', enemyIndex);
+          return {
+            closePopup: false,
+            activeEnemyIndex,
+          };
+        }
+        : null,
+      eshield: this.#canOpenEnemyPopupEditorAction()
+        ? ({ enemyIndex, activeEnemyIndex }) => {
+          this.#openEnemyPopupEditor('eshield', enemyIndex);
           return {
             closePopup: false,
             activeEnemyIndex,
@@ -2915,7 +3233,10 @@ export class TurnRowController {
       const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
       const damageRates = enemyState.damageRatesByEnemy?.[enemyKey] ?? null;
       const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey] ?? null;
-      const eShieldState = displayedEShieldStateByEnemy[enemyKey] ?? enemyState.eShieldStateByEnemy?.[enemyKey] ?? null;
+      const hasDisplayedEShieldState = Object.prototype.hasOwnProperty.call(displayedEShieldStateByEnemy, enemyKey);
+      const eShieldState = hasDisplayedEShieldState
+        ? displayedEShieldStateByEnemy[enemyKey]
+        : (enemyState.eShieldStateByEnemy?.[enemyKey] ?? null);
       const talismanState = enemyState.talismanState ?? null;
       const disasterState = enemyState.disasterState ?? null;
       return {
@@ -2933,15 +3254,20 @@ export class TurnRowController {
           occupied &&
           !killedByAttribution &&
           (breakEnemyIndexes.has(enemyIndex) || (alive && !broken)),
+        canEditEShield: this.#isDraftMode() && occupied && alive,
         canKill: this.#isDraftMode() && occupied && (alive || killEnemyIndexes.has(enemyIndex)),
+        hasPendingEShieldOperation:
+          this.#isDraftMode() && Boolean(this.#findEnemyEShieldOperationForEnemyIndex(enemyIndex)),
         hasPendingBreakOperation: breakEnemyIndexes.has(enemyIndex),
         hasPendingKillOperation: killEnemyIndexes.has(enemyIndex),
-        popupEditorHtml: this.#buildEnemyPopupOutcomeEditorHtml({
-          enemyIndex,
-          enemyCount,
-          enemyNamesByEnemy,
-          isCommitted,
-        }),
+        popupEditorHtml:
+          this.#buildEnemyPopupEShieldEditorHtml({ enemyIndex }) ||
+          this.#buildEnemyPopupOutcomeEditorHtml({
+            enemyIndex,
+            enemyCount,
+            enemyNamesByEnemy,
+            isCommitted,
+          }),
         statuses,
         ...(talismanState ? { talismanState: structuredClone(talismanState) } : {}),
         ...(disasterState ? { disasterState: structuredClone(disasterState) } : {}),
@@ -3617,6 +3943,37 @@ export class TurnRowController {
           : this.#getEnemyDetailPopupActiveEnemyIndex();
         this.#clearPopupOutcomeRequest();
         this.#refreshEnemyDetailPopup(fallbackIndex);
+      });
+    });
+
+    popupRoot.querySelectorAll('[data-role="enemy-popup-eshield-editor"]').forEach((editorRoot) => {
+      const syncCounts = () => this.#syncEnemyEShieldEditorCountInputs(editorRoot);
+      editorRoot.querySelectorAll(
+        '[data-role="enemy-popup-eshield-current"], [data-role="enemy-popup-eshield-max"]'
+      ).forEach((input) => {
+        input.addEventListener('input', syncCounts);
+        input.addEventListener('blur', syncCounts);
+      });
+    });
+
+    popupRoot.querySelectorAll('[data-role="enemy-popup-eshield-fill-max"]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const editorRoot = button.closest('[data-role="enemy-popup-eshield-editor"]');
+        const currentInput = editorRoot?.querySelector('[data-role="enemy-popup-eshield-current"]');
+        const maxInput = editorRoot?.querySelector('[data-role="enemy-popup-eshield-max"]');
+        if (!currentInput || !maxInput) {
+          return;
+        }
+        currentInput.value = String(normalizeNonNegativeInteger(maxInput.value));
+      });
+    });
+
+    popupRoot.querySelectorAll('[data-role="enemy-popup-eshield-apply"]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const editorRoot = button.closest('[data-role="enemy-popup-eshield-editor"]');
+        this.#applyEnemyPopupEShieldEditor(editorRoot);
       });
     });
   }

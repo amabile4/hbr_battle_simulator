@@ -342,6 +342,7 @@ function createEnemyPopupPayload(occupiedCount = 1) {
         broken: false,
         dead: false,
         canSummon: !occupied,
+        canEditEShield: occupied,
         canBreak: occupied,
         canKill: occupied,
         name: occupied ? `PopupEnemy${index + 1}` : `E${index + 1} 未使用`,
@@ -392,6 +393,19 @@ function createSummonEnemyOperation({
       },
       absorbElementList: ['fire'],
       ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
+    },
+  };
+}
+
+function createSetEnemyEShieldOperation({
+  targetEnemyIndex = 0,
+  eShieldState = createEShieldState(),
+} = {}) {
+  return {
+    type: REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD,
+    payload: {
+      targetEnemyIndex,
+      eShieldState: eShieldState ? structuredClone(eShieldState) : null,
     },
   };
 }
@@ -1723,18 +1737,25 @@ test('TurnAreaController keeps only the enemy detail trigger in the row and expo
     assert.ok(inputActivePanel);
     assert.deepEqual(
       [...inputPopup.querySelectorAll('[data-role="enemy-popup-action"]')].map((button) => button.dataset.actionType),
-      ['summon', 'break', 'kill']
+      ['summon', 'eshield', 'break', 'kill']
     );
     assert.deepEqual(
-      [...inputPopup.querySelectorAll('[data-role="enemy-popup-action"] span')].map((label) => label.textContent?.trim()),
-      ['召喚', 'ブレイク付与', '討伐']
+      [...inputPopup.querySelectorAll('[data-role="enemy-popup-action"]')].map(
+        (button) => button.lastElementChild?.textContent?.trim()
+      ),
+      ['召喚', 'Eシールド', 'ブレイク付与', '討伐']
     );
     const actionIconSources = [...inputPopup.querySelectorAll('[data-role="enemy-popup-action-icon"]')]
       .map((image) => image.getAttribute('src') ?? '');
     assert.equal(actionIconSources.some((src) => src.includes('Summon.webp')), true);
     assert.equal(actionIconSources.some((src) => src.includes('Break.webp')), true);
     assert.equal(actionIconSources.some((src) => src.includes('defeat.webp')), true);
-    inputPopup.querySelector('[data-role="popup-close"]').dispatchEvent(
+    assert.ok(
+      inputPopup.querySelector(
+        '[data-role="enemy-popup-action"][data-action-type="eshield"] [data-role="enemy-popup-action-eshield-icon"]'
+      )
+    );
+    getEnemyDetailPopup(win).querySelector('[data-role="popup-close"]').dispatchEvent(
       new win.MouseEvent('click', { bubbles: true, cancelable: true })
     );
 
@@ -1756,6 +1777,10 @@ test('TurnAreaController keeps only the enemy detail trigger in the row and expo
     assert.ok(committedWideLayout);
     assert.equal(
       committedPopup.querySelector('[data-role="enemy-popup-action"][data-action-type="summon"]').disabled,
+      true
+    );
+    assert.equal(
+      committedPopup.querySelector('[data-role="enemy-popup-action"][data-action-type="eshield"]').disabled,
       true
     );
     assert.equal(
@@ -2030,6 +2055,131 @@ test('TurnRowController draft enemy detail popup keeps a requested dead-slot sum
     assert.match(e1Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
     assert.match(e2Column.textContent ?? '', /E2 未使用/);
     assert.doesNotMatch(e2Column.textContent ?? '', new RegExp(DEFAULT_SUMMON_SAMPLE_ENEMY.name));
+  }));
+
+test('TurnAreaController popup Eシールド editor prefills current state, supports max restore, and upserts same-slot operations', () =>
+  withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1280, height: 900 });
+    const state = createState(
+      createSkill({
+        id: 95044,
+        name: 'Protection',
+        targetType: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      }),
+      1
+    );
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+    state.turnState.enemyState.eShieldStateByEnemy = {
+      0: createEShieldState({ current: 0, max: 30, elements: ['Light', 'Dark'] }),
+    };
+
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      enemyPresets: [createEnemyPreset()],
+    });
+
+    const inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
+    const popup = openEnemyDetailPopup(inputRow.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    const eShieldAction = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="eshield"]');
+    assert.ok(eShieldAction);
+    assert.equal(eShieldAction.disabled, false);
+    clickElement(win, eShieldAction);
+
+    let refreshedPopup = getEnemyDetailPopup(win);
+    let editor = refreshedPopup.querySelector('[data-role="enemy-popup-eshield-editor"]');
+    assert.ok(editor);
+    const currentInput = editor.querySelector('[data-role="enemy-popup-eshield-current"]');
+    const maxInput = editor.querySelector('[data-role="enemy-popup-eshield-max"]');
+    assert.equal(currentInput?.value, '0');
+    assert.equal(maxInput?.value, '30');
+    assert.deepEqual(
+      [...editor.querySelectorAll('[data-role="enemy-popup-eshield-element-toggle"]')]
+        .filter((input) => input.checked)
+        .map((input) => input.dataset.element),
+      ['Light', 'Dark']
+    );
+
+    maxInput.value = '45';
+    clickElement(win, editor.querySelector('[data-role="enemy-popup-eshield-fill-max"]'));
+    assert.equal(currentInput.value, '45');
+    clickElement(win, editor.querySelector('[data-role="enemy-popup-eshield-apply"]'));
+
+    refreshedPopup = getEnemyDetailPopup(win);
+    assert.ok(refreshedPopup?.querySelector('[data-role="enemy-popup-eshield-editor"]'));
+    assert.match(refreshedPopup.textContent ?? '', /45\/45/);
+    assert.ok(root.querySelector('[data-role="turn-info-e-shield-strip"]'));
+    assert.equal(root.querySelectorAll('[data-role="operation-chip"]').length, 1);
+    assert.match(root.querySelector('[data-role="operation-chip"]')?.textContent ?? '', /Eシールド: E1 45\/45/);
+    assert.equal(engineManager.pendingSpecialOperations.length, 1);
+    assert.deepEqual(engineManager.pendingSpecialOperations[0], createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 45, max: 45, elements: ['Light', 'Dark'] }),
+    }));
+
+    editor = refreshedPopup.querySelector('[data-role="enemy-popup-eshield-editor"]');
+    const nextMaxInput = editor.querySelector('[data-role="enemy-popup-eshield-max"]');
+    nextMaxInput.value = '60';
+    clickElement(win, editor.querySelector('[data-role="enemy-popup-eshield-fill-max"]'));
+    clickElement(win, editor.querySelector('[data-role="enemy-popup-eshield-apply"]'));
+
+    const updatedPopup = getEnemyDetailPopup(win);
+    assert.ok(updatedPopup?.querySelector('[data-role="enemy-popup-eshield-editor"]'));
+    assert.match(updatedPopup.textContent ?? '', /60\/60/);
+    assert.equal(root.querySelectorAll('[data-role="operation-chip"]').length, 1);
+    assert.match(root.querySelector('[data-role="operation-chip"]')?.textContent ?? '', /Eシールド: E1 60\/60/);
+    assert.equal(engineManager.pendingSpecialOperations.length, 1);
+    assert.deepEqual(engineManager.pendingSpecialOperations[0], createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 60, max: 60, elements: ['Light', 'Dark'] }),
+    }));
+  }));
+
+test('TurnAreaController popup Eシールド editor clears the summary and strip immediately when attributes are removed', () =>
+  withDom(({ root, win }) => {
+    setViewportSize(win, { width: 1280, height: 900 });
+    const state = createState(
+      createSkill({
+        id: 95045,
+        name: 'Protection',
+        targetType: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      }),
+      1
+    );
+    state.turnState.enemyState.eShieldStateByEnemy = {
+      0: createEShieldState({ current: 18, max: 30, elements: ['Light', 'Dark'] }),
+    };
+
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+      enemyPresets: [createEnemyPreset()],
+    });
+
+    const inputRow = root.querySelector('[data-turn-row][data-row-mode="input"]');
+    const popup = openEnemyDetailPopup(inputRow.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    clickElement(win, popup.querySelector('[data-role="enemy-popup-action"][data-action-type="eshield"]'));
+
+    const editor = getEnemyDetailPopup(win).querySelector('[data-role="enemy-popup-eshield-editor"]');
+    assert.ok(editor);
+    clickElement(win, editor.querySelector('[data-role="enemy-popup-eshield-element-toggle"][data-element="Light"]'));
+    clickElement(win, editor.querySelector('[data-role="enemy-popup-eshield-element-toggle"][data-element="Dark"]'));
+    clickElement(win, editor.querySelector('[data-role="enemy-popup-eshield-apply"]'));
+
+    const refreshedPopup = getEnemyDetailPopup(win);
+    assert.equal(refreshedPopup.querySelector('[data-role="enemy-popup-e-shield-summary"]'), null);
+    assert.equal(root.querySelector('[data-role="turn-info-e-shield-strip"]'), null);
+    assert.equal(root.querySelectorAll('[data-role="operation-chip"]').length, 1);
+    assert.match(root.querySelector('[data-role="operation-chip"]')?.textContent ?? '', /Eシールド解除: E1/);
+    assert.equal(engineManager.pendingSpecialOperations.length, 1);
+    assert.deepEqual(engineManager.pendingSpecialOperations[0], createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: null,
+    }));
   }));
 
 test('TurnAreaController applies popup break/kill to actor-based chips for unique single-target attribution', () =>

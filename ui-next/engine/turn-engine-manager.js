@@ -73,6 +73,7 @@ const ENEMY_SNAPSHOT_OVERRIDE_FIELD_TO_TYPE = Object.freeze({
   enemyDestructionRates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATES,
   enemyDestructionRateCaps: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATE_CAPS,
   enemyOdRates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES,
+  enemyEShields: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS,
   enemyAbsorbElements: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS,
   enemyBreakStates: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES,
   enemyStatuses: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES,
@@ -86,6 +87,7 @@ const TURN_EDIT_PRESERVED_OVERRIDE_EXCLUDED_TYPES = new Set([
 ]);
 const SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES = new Set([
   REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
+  REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD,
 ]);
 const ENEMY_SINGLE_TARGET_TYPES = new Set(['Single', 'EnemySingle']);
 const ENEMY_ALL_TARGET_TYPES = new Set(['All', 'EnemyAll']);
@@ -689,6 +691,9 @@ export class TurnEngineManager {
     if (normalized.type === REPLAY_OPERATION_TYPES.CHANGE_FORM) {
       return this.#upsertPendingFormChangeOperation(normalized);
     }
+    if (normalized.type === REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD) {
+      return this.#upsertPendingEnemyEShieldOperation(normalized);
+    }
     const definition = replayOperationRegistry.get(normalized.type);
     if (definition?.allowMultiple === false) {
       const alreadyQueued = this.#pendingSpecialOperations.some((entry) => entry?.type === normalized.type);
@@ -1151,6 +1156,9 @@ export class TurnEngineManager {
         : {}),
       ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyOdRates')
         ? { enemyOdRates: scenarioTurn.enemyOdRates }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyEShields')
+        ? { enemyEShields: scenarioTurn.enemyEShields }
         : {}),
       ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyAbsorbElements')
         ? { enemyAbsorbElements: scenarioTurn.enemyAbsorbElements }
@@ -1688,10 +1696,24 @@ export class TurnEngineManager {
     if (!type) {
       return null;
     }
+    const definition = replayOperationRegistry.get(type);
+    if (!definition) {
+      return null;
+    }
     const normalized = { type };
     const payload = operation.payload && typeof operation.payload === 'object'
       ? structuredClone(operation.payload)
       : {};
+    if (typeof definition.normalizePayload === 'function') {
+      const normalizedPayload = definition.normalizePayload(payload);
+      if (normalizedPayload == null) {
+        return null;
+      }
+      if (Array.isArray(normalizedPayload) ? normalizedPayload.length > 0 : Object.keys(normalizedPayload).length > 0) {
+        normalized.payload = structuredClone(normalizedPayload);
+      }
+      return normalized;
+    }
     if (Object.keys(payload).length > 0) {
       normalized.payload = payload;
     }
@@ -1723,6 +1745,24 @@ export class TurnEngineManager {
       }
       return false;
     }
+    if (existingIndex >= 0) {
+      this.#pendingSpecialOperations.splice(existingIndex, 1, normalized);
+      return true;
+    }
+    this.#pendingSpecialOperations.push(normalized);
+    return true;
+  }
+
+  #upsertPendingEnemyEShieldOperation(normalized) {
+    const targetEnemyIndex = Number(normalized?.payload?.targetEnemyIndex);
+    if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0) {
+      return false;
+    }
+    const existingIndex = this.#pendingSpecialOperations.findIndex(
+      (entry) =>
+        String(entry?.type ?? '') === REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD &&
+        Number(entry?.payload?.targetEnemyIndex) === targetEnemyIndex
+    );
     if (existingIndex >= 0) {
       this.#pendingSpecialOperations.splice(existingIndex, 1, normalized);
       return true;
