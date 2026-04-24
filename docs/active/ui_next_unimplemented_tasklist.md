@@ -1,6 +1,6 @@
 # UI Next 未実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-22
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-24
 >
 > **目的**: `ui_next_implementation_tasklist.md` から未完了項目を分離し、active ドキュメントに散在していた未実装作業をこの 1 ファイルで追跡する。
 >
@@ -146,6 +146,7 @@ T34 UI 段階導入（WBS 同期）:
 T34 follow-up（Day 1 設計ゲートで分離）:
 
 - [ ] T34-E2E: fixture 読込 / 残ターン更新 / legacy fallback を browser で固定する
+- 2026-04-24: `Undermine / 蝕` を enemy status 基盤へ接続し、`Undermine.webp`・help 文書・unit/E2E 回帰を追加した。`黒蝶霹靂制裁` の real-data integration と enemy popup preview 表示を固定。
 - [ ] T34-FU1: C-2 選択肢B（`effectId` 単位の per-source instance 管理）を別タスクで設計・実装する
 	- DoD: identity model 変更の影響範囲（engine/UI/tests）を文書化し、既存 merged 前提テストとの差分移行計画を提示する
 - [x] T34-FU3: `Disaster / 禍` を engine / UI / test まで接続した（2026-04-10）

@@ -90,6 +90,7 @@ export const UNIFIED_STATUS_TYPE_ID_MAP = Object.freeze({
   // --- 防御系バフ ---
   Cover:                162,   // char only
   Misfortune:           164,
+  Undermine:            166,   // enemy only
 
   // --- 特殊状態 ---
   MindEye:              187,   // char only

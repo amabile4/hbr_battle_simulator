@@ -241,6 +241,13 @@ test('getEnemyStatusLabel normalizes SuperBreak aliases to the canonical Japanes
   assert.equal(getEnemyStatusLabel({ statusType: 'StrongBreak', remaining: 0 }), '強ブレイク');
 });
 
+test('getEnemyStatusLabel formats Undermine with the 蝕 label', () => {
+  assert.equal(
+    getEnemyStatusLabel({ statusType: 'Undermine', remaining: 2, exitCond: 'EnemyTurnEnd' }),
+    '蝕 ×2ターン'
+  );
+});
+
 /**
  * WBS-4d-a5: buildEnemyStatusTableHtml の HTML 生成テスト（ブロック形式）
  */
@@ -515,6 +522,21 @@ test('buildEnemyStatusIconsHtml uses element-prefixed icon for status with eleme
 
   assert(html.includes('ThunderDefenseDown.webp'), 'should use ThunderDefenseDown.webp icon');
   assert(html.includes('雷防御力ダウン'), 'should show 雷防御力ダウン in alt/title');
+});
+
+test('buildEnemyStatusIconsHtml uses Undermine icon and 蝕 label', () => {
+  const html = buildEnemyStatusIconsHtml([
+    {
+      statusType: 'Undermine',
+      remaining: 2,
+      exitCond: 'EnemyTurnEnd',
+      power: 0,
+    },
+  ]);
+
+  assert(html.includes('Undermine.webp'), 'should use Undermine.webp icon');
+  assert(html.includes('alt="蝕"'), 'should expose 蝕 label in alt text');
+  assert(html.includes('残り2ターン'), 'should include remaining turns in title');
 });
 
 test('buildEnemyStatusTableHtml displays sourceSkillDesc when present', () => {

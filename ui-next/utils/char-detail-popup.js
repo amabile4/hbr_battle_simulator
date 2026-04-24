@@ -98,6 +98,7 @@ const STATUS_LABELS = {
   ResistDownOverwrite:       '属性耐性打ち消し',
   ToughnessUpValue:          '体力アップ',
   Fragile:                   '脆弱',
+  Undermine:                 '蝕',
   Shredding:                 '速弾き',
   HighBoost:                 'ハイブースト',
   GiveAttackBuffUp:          'スキル攻撃力上昇の効果アップ',

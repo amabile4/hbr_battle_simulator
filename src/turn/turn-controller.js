@@ -115,6 +115,7 @@ const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
   new Set([
     'DefenseDown',
     'Fragile',
+    'Undermine',
     'AttackDown',
     'ResistDown',
     'ResistDownOverwrite',
@@ -138,6 +139,7 @@ const HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES = Object.freeze(
   new Set([
     'DefenseDown',
     'Fragile',
+    'Undermine',
     'AttackDown',
     'ResistDown',
     'ResistDownOverwrite',
@@ -157,7 +159,7 @@ const SUPPORTED_PASSIVE_ENEMY_STATUS_SKILL_TYPES_FOR_REPORT = Object.freeze(
 );
 const ENEMY_STATUS_TARGET_TYPES = Object.freeze(new Set(['Single', 'All', 'EnemySingle', 'EnemyAll']));
 const ENEMY_STATUS_REPORT_KEYWORD_RE =
-  /(Down|Fragile|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Disaster|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
+  /(Down|Fragile|Undermine|Stun|Confusion|Imprison|Misfortune|Hacking|Talisman|Disaster|Cover|Poison|Paralyze|Seal|Curse|Burn|Freeze|Sleep|Bind|Silence)/i;
 const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
   AttackUp: 'AttackUp',
   AttackUpIncludeNormal: 'AttackUp',

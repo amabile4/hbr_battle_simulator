@@ -292,6 +292,60 @@ test('WBS-4a: committed enemyStatusSnapshot matches recalculated enemy statuses'
   );
 });
 
+test('real-data 黒蝶霹靂制裁 applies Undermine to all enemies and preserves it through recalculation', async () => {
+  const skillId = 46007612;
+  const baseTurnState = createInitialTurnState();
+  const initialState = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId), {
+    ...baseTurnState,
+    enemyState: {
+      ...baseTurnState.enemyState,
+      enemyCount: 3,
+    },
+  });
+  initialState.party[0].currentSp = 20;
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: {
+        skillId,
+        target: { type: 'enemy', enemyIndex: 0 },
+      },
+    },
+    { enemyCount: 3, note: 'undermine real-data recalc' }
+  );
+  const committedStatuses = normalizeStatusList(committedRecord.stateSnapshot?.enemyStatusSnapshot ?? []);
+  const committedUndermine = committedStatuses.filter((status) => status.statusType === 'Undermine');
+  assert.equal(committedUndermine.length, 3, 'committed state should keep Undermine on all enemies');
+  assert.deepEqual(
+    committedUndermine.map((status) => status.targetIndex),
+    [0, 1, 2],
+    'All target should preserve per-enemy Undermine entries'
+  );
+  assert(
+    committedUndermine.every((status) => status.remaining === 1),
+    'Undermine should decrement to 1 turn after commit-time EnemyTurnEnd tick'
+  );
+  assert(
+    committedUndermine.every((status) => status.exitCond === 'EnemyTurnEnd'),
+    'Undermine should use EnemyTurnEnd duration in committed snapshot'
+  );
+  assert(
+    committedUndermine.every((status) => status.sourceSkillDesc.includes('蝕状態')),
+    'Undermine should preserve source skill description for popup/help display'
+  );
+
+  manager.recalculateFrom(0);
+  const recalculatedStatuses = normalizeStatusList(manager.computedStates[0]?.turnState?.enemyState?.statuses ?? []);
+  assertEnemyStatusesStrictEqual(
+    recalculatedStatuses,
+    committedStatuses,
+    'recalculated real-data Undermine statuses should match committed'
+  );
+});
+
 /**
  * WBS-4b-a1: wbs4b_a1_merge_same_key_uses_max_remaining
  * 同一敵に同じstatusTypeが複数回付与された場合、max-merge規則が適用されることを検証

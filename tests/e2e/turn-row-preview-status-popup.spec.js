@@ -132,7 +132,7 @@ test.describe('Turn row preview status popup', () => {
     await expect(popup).toContainText('プレビュー（コミット見込み）');
   });
 
-  test('enemy detail popup talisman/disaster icon assets are browser-loadable', async ({ page }) => {
+  test('enemy detail popup talisman/disaster/undermine icon assets are browser-loadable', async ({ page }) => {
     await gotoUiNext(page);
 
     const results = await page.evaluate(async () => {
@@ -166,11 +166,50 @@ test.describe('Turn row preview status popup', () => {
       return {
         talisman: await loadImage('../assets/skill_type/Talisman.webp'),
         disaster: await loadImage('../assets/skill_type/Disaster.webp'),
+        undermine: await loadImage('../assets/skill_type/Undermine.webp'),
       };
     });
 
     expect(results.talisman.ok, JSON.stringify(results.talisman)).toBeTruthy();
     expect(results.disaster.ok, JSON.stringify(results.disaster)).toBeTruthy();
+    expect(results.undermine.ok, JSON.stringify(results.undermine)).toBeTruthy();
+  });
+
+  test('enemy detail popup renders Undermine preview status with 蝕 label and icon', async ({ page }) => {
+    await gotoUiNext(page);
+
+    await page.evaluate(async () => {
+      const { EnemyDetailPopup } = await import('/ui-next/components/enemy-detail-popup.js');
+      new EnemyDetailPopup().show({
+        enemies: [
+          {
+            occupied: true,
+            name: 'Alpha',
+            statuses: [
+              {
+                statusType: 'Undermine',
+                targetIndex: 0,
+                remaining: 2,
+                exitCond: 'EnemyTurnEnd',
+                sourceSkillName: '黒蝶霹靂制裁',
+                sourceSkillDesc: '2ターンの間 敵全体の攻撃力と防御力を下げ 蝕状態にし 雷属性攻撃',
+              },
+            ],
+          },
+        ],
+        activeEnemyIndex: 0,
+      });
+    });
+
+    const popup = page.locator('.enemy-detail-popup-container');
+    const statusList = popup.locator(
+      '[data-role="enemy-popup-column"][data-selected="true"] [data-role="enemy-popup-status-list"]'
+    );
+
+    await expect(statusList).toContainText('蝕');
+    await expect(statusList).toContainText('2T');
+    await expect(statusList).toContainText('黒蝶霹靂制裁');
+    await expect(statusList.locator('img[src*="Undermine.webp"]')).toHaveCount(1);
   });
 
   test('enemy detail popup renders talisman/disaster as compact status blocks', async ({ page }) => {
