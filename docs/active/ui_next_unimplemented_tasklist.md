@@ -235,3 +235,8 @@ Source: `stage_setup_gimmick_pattern_analysis.md`
 
 - [x] Stage Setup に manual `毎ターンOD（%）` 入力を追加し、`turnlyOdGauge` として save/load・runtime 反映・T1 初期表示適用まで接続した
 - [x] この追加は 23 項目の恒星戦ギミック残件とは別枠の汎用入力強化として扱い、残件数 `9` は据え置く
+
+2026-04-27 更新:
+
+- [x] Stage Setup に manual `ODゲージ上昇量（%）` 入力を追加し、プリセット `ODゲージ上昇量+20%` を上段入力へ転記して任意値編集できるようにした
+- [x] 保存・実行時は既存 `stageSetup.enchantEffects` の `odGaugeGainBonusPercent` として保持するため、残件数 `9` は据え置く

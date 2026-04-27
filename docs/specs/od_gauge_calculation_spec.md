@@ -96,7 +96,8 @@ gain_all = trunc2(2.65 * 6) = 15.90
 
 ## Stage Setup エンチャントによるOD補正
 
-- `ui-next` の Stage Setup で選択する `ODゲージ上昇量+20%` は、`stageSetup.enchantEffects[*].effectType === 'odGaugeGainBonusPercent'` として保持する
+- `ui-next` の Stage Setup で選択する `ODゲージ上昇量+20%` は、上段の `ODゲージ上昇量（%）` 入力欄へ転記する
+- 保存・実行時は入力欄の任意値を正本とし、`stageSetup.enchantEffects[*].effectType === 'odGaugeGainBonusPercent'` として保持する
 - 適用先は **Party Setup の `ODピアス` と同じ補正枠** に限定する
   - 攻撃スキル由来の hit-based OD
   - `OverDrivePointUp` / `OverDrivePointUpByToken`

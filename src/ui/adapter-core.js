@@ -305,6 +305,7 @@ export function createInitializedBattleSnapshot({
   absorbElementsByEnemy = {},
   odRateByEnemy = {},
   eShieldStateByEnemy = {},
+  extraHpGaugeStateByEnemy = {},
   enemyStatuses = [],
   breakStateByEnemy = {},
   enemyZoneConfigByEnemy = {},
@@ -370,6 +371,10 @@ export function createInitializedBattleSnapshot({
         eShieldStateByEnemy && typeof eShieldStateByEnemy === 'object'
           ? structuredClone(eShieldStateByEnemy)
           : {},
+      extraHpGaugeStateByEnemy:
+        extraHpGaugeStateByEnemy && typeof extraHpGaugeStateByEnemy === 'object'
+          ? structuredClone(extraHpGaugeStateByEnemy)
+          : {},
       breakStateByEnemy:
         breakStateByEnemy && typeof breakStateByEnemy === 'object' ? structuredClone(breakStateByEnemy) : {},
       enemyNamesByEnemy:
@@ -434,6 +439,10 @@ export function createInitializedBattleSnapshot({
       eShieldStateByEnemy:
         eShieldStateByEnemy && typeof eShieldStateByEnemy === 'object'
           ? structuredClone(eShieldStateByEnemy)
+          : {},
+      extraHpGaugeStateByEnemy:
+        extraHpGaugeStateByEnemy && typeof extraHpGaugeStateByEnemy === 'object'
+          ? structuredClone(extraHpGaugeStateByEnemy)
           : {},
       breakStateByEnemy:
         breakStateByEnemy && typeof breakStateByEnemy === 'object' ? structuredClone(breakStateByEnemy) : {},

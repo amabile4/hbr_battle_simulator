@@ -345,6 +345,72 @@ test('StageSetupController stores enchantEffects in snapshot and renders preset 
     assert.equal(root.querySelector('[data-role="stage-enchant-summary-empty"]').classList.contains('hidden'), true);
   }));
 
+test('StageSetupController copies OD gain bonus preset into editable upper input', () =>
+  withDom(({ root, win }) => {
+    const controller = new StageSetupController({
+      root,
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    const battleSelect = root.querySelector('[data-role="stage-dimension-battle"]');
+    battleSelect.value = '191000001';
+    battleSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const checkbox = root.querySelectorAll('[data-role="stage-satellite-checkbox"]').item(6);
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    assert.equal(root.querySelector('[data-role="stage-od-gain-bonus"]').value, '20');
+    assert.deepEqual(controller.getSnapshot().enchantEffects, [
+      { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+    ]);
+  }));
+
+test('StageSetupController uses edited OD gain bonus input as the snapshot source', () =>
+  withDom(({ root, win }) => {
+    const controller = new StageSetupController({
+      root,
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    const odGainBonusInput = root.querySelector('[data-role="stage-od-gain-bonus"]');
+    odGainBonusInput.value = '35';
+    odGainBonusInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    assert.deepEqual(controller.getSnapshot().enchantEffects, [
+      { effectType: 'odGaugeGainBonusPercent', amount: 35 },
+    ]);
+    assert.deepEqual(
+      [...root.querySelectorAll('[data-role="stage-enchant-summary"] li')].map((item) =>
+        item.textContent.trim()
+      ),
+      ['ODゲージ上昇量+35%']
+    );
+  }));
+
+test('StageSetupController applySnapshot restores OD gain bonus into upper input', () =>
+  withDom(({ root }) => {
+    const controller = new StageSetupController({
+      root,
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      selectedDimensionBattleId: 191000001,
+      enchantEffects: [
+        { effectType: 'odGaugeGainBonusPercent', amount: -15 },
+      ],
+    });
+
+    assert.equal(root.querySelector('[data-role="stage-od-gain-bonus"]').value, '-15');
+    assert.deepEqual(controller.getSnapshot().enchantEffects, [
+      { effectType: 'odGaugeGainBonusPercent', amount: -15 },
+    ]);
+  }));
+
 test('StageSetupController reset button restores only upper free inputs to initial defaults', () =>
   withDom(({ root, win }) => {
     const controller = new StageSetupController({
@@ -372,6 +438,8 @@ test('StageSetupController reset button restores only upper free inputs to initi
     assert.equal(snapshot.initialOdGauge, 0);
     assert.equal(snapshot.initialSpBonusAll, 0);
     assert.equal(snapshot.initialStatusEffects.length, 0);
+    assert.deepEqual(snapshot.enchantEffects, []);
+    assert.equal(root.querySelector('[data-role="stage-od-gain-bonus"]').value, '0');
     assert.equal(snapshot.selectedDimensionBattleId, 191000001);
     assert.equal(root.querySelector('[data-role="stage-dimension-battle"]').value, '191000001');
   }));
@@ -475,6 +543,7 @@ test('StageSetupController applySnapshot restores enchant summary and reset clea
     );
     assert.deepEqual(summaryItems, []);
     assert.equal(root.querySelector('[data-role="stage-enchant-summary-empty"]').classList.contains('hidden'), false);
+    assert.equal(root.querySelector('[data-role="stage-od-gain-bonus"]').value, '0');
     assert.deepEqual(controller.getSnapshot().enchantEffects, []);
   }));
 
