@@ -144,7 +144,7 @@ test.describe('Turn row preview status popup', () => {
     await expect(trigger).toBeVisible({ timeout: 5000 });
     await trigger.click({ button: 'right' });
 
-    const popup = page.locator('.enemy-detail-popup-container');
+    const popup = page.locator('.enemy-detail-popup-container').last();
     await expect(popup).toBeVisible({ timeout: 5000 });
     await expect(popup).toContainText('プレビュー（コミット見込み）');
   });
@@ -218,7 +218,7 @@ test.describe('Turn row preview status popup', () => {
       });
     });
 
-    const popup = page.locator('.enemy-detail-popup-container');
+    const popup = page.locator('.enemy-detail-popup-container').last();
     const statusList = popup.locator(
       '[data-role="enemy-popup-column"][data-selected="true"] [data-role="enemy-popup-status-list"]'
     ).first();
@@ -248,10 +248,11 @@ test.describe('Turn row preview status popup', () => {
       });
     });
 
-    const popup = page.locator('.enemy-detail-popup-container');
+    const popup = page.locator('.enemy-detail-popup-container').last();
+    await expect(popup).toBeVisible({ timeout: 5000 });
     const statusList = popup.locator(
       '[data-role="enemy-popup-column"][data-selected="true"] [data-role="enemy-popup-status-list"]'
-    );
+    ).first();
 
     await expect(statusList.locator('[data-role="enemy-popup-talisman-block"]')).toHaveCount(1);
     await expect(statusList.locator('[data-role="enemy-popup-disaster-block"]')).toHaveCount(1);
@@ -299,7 +300,7 @@ test.describe('Turn row preview status popup', () => {
       });
     });
 
-    const popup = page.locator('.enemy-detail-popup-container');
+    const popup = page.locator('.enemy-detail-popup-container').last();
     await expect(popup).toContainText('プレビュー（コミット見込み）');
     await expect(popup).toContainText('ヒットチャートからの一閃');
     await expect(popup).toContainText('敵の防御力と闇属性防御力を下げる');
@@ -345,7 +346,7 @@ test.describe('Turn row preview status popup', () => {
       });
     });
 
-    const popup = page.locator('.enemy-detail-popup-container');
+    const popup = page.locator('.enemy-detail-popup-container').last();
     await expect(popup).toContainText('E2 Beta');
     await expect(popup).toContainText('Dead');
     await expect(popup).toContainText('プレビュー（コミット見込み）');
@@ -387,7 +388,7 @@ test.describe('Turn row preview status popup', () => {
     const row = page.locator('[data-test-id="synthetic-eshield-row"]');
     await row.locator('[data-role="enemy-detail-trigger"]').click();
 
-    const popup = page.locator('.enemy-detail-popup-container');
+    const popup = page.locator('.enemy-detail-popup-container').last();
     await expect(popup).toBeVisible();
     const e1Column = popup.locator('[data-role="enemy-popup-column"][data-enemy-tab-index="0"]');
     await expect(e1Column.locator('[data-role="enemy-popup-e-shield-summary"]')).toHaveCount(1);
