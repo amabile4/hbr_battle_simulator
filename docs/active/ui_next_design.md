@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-18
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-28
 
 ## 目的
 
@@ -51,6 +51,7 @@
 - 必要時に再表示し、初期条件を変えて turn 1 から再計算できること
 - desktop では Setup を隠した瞬間に TurnPlanner が全幅を使えること
 - Setup header は最小限の tab shell に留め、説明面や常時 visible block を増やしすぎないこと
+- Top toolbar 背景は `assets/ui/workspace-toolbar-bg.png` の淡色生成画像を、白水色 overlay と半透明 button surface 越しに薄く見せる。公式キャラクターや公式ロゴの直接利用・模写は避け、抽象的な空 / 光跡 / 汎用シルエットの背景模様として扱う
 
 ## Block 1: Party Setup (`Character Selection`)
 

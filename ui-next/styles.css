@@ -4,6 +4,13 @@
   --mobile-touch-target-min-size: 44px;
   --party-preset-toolbar-popover-z-index: 260;
   --turn-target-popover-z-index: 120;
+  --workspace-toolbar-bg-overlay: rgba(239, 248, 255, 0.58);
+  --workspace-toolbar-bg-position: center 62%;
+  --workspace-toolbar-bg-accent-position: right 68%;
+  --workspace-toolbar-bg-accent-size: auto 180px;
+  --workspace-toolbar-button-bg: rgba(255, 255, 255, 0.76);
+  --workspace-toolbar-button-hover-bg: rgba(239, 246, 255, 0.86);
+  --workspace-toolbar-button-active-bg: rgba(240, 249, 255, 0.86);
 }
 
 .workspace-toolbar {
@@ -13,6 +20,19 @@
   padding: 0.5rem 0.75rem;
   overflow-x: auto;
   scrollbar-width: none;
+  background-image:
+    linear-gradient(var(--workspace-toolbar-bg-overlay), var(--workspace-toolbar-bg-overlay)),
+    url("../assets/ui/workspace-toolbar-bg.png"),
+    url("../assets/ui/workspace-toolbar-bg.png");
+  background-position:
+    center,
+    var(--workspace-toolbar-bg-accent-position),
+    var(--workspace-toolbar-bg-position);
+  background-size:
+    auto,
+    var(--workspace-toolbar-bg-accent-size),
+    cover;
+  background-repeat: no-repeat;
 }
 
 .workspace-toolbar::-webkit-scrollbar {
@@ -29,13 +49,15 @@
   padding: 0.35rem 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
-  background: #ffffff;
+  background: var(--workspace-toolbar-button-bg);
   color: #475569;
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(3px);
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .workspace-toolbar__icon {
@@ -57,8 +79,9 @@
 
 .workspace-toolbar__button:hover:not(:disabled) {
   border-color: #93c5fd;
-  background: #eff6ff;
+  background: var(--workspace-toolbar-button-hover-bg);
   color: #1d4ed8;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
 }
 
 .workspace-toolbar__button:focus-visible {
@@ -73,7 +96,7 @@
 
 .workspace-toolbar__button[data-active="true"] {
   border-color: #bae6fd;
-  background: #f0f9ff;
+  background: var(--workspace-toolbar-button-active-bg);
   color: #0369a1;
 }
 
