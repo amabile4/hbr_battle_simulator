@@ -43,6 +43,10 @@ function normalizePassiveEvents(events, stateContext = null, fallbackTurnLabel =
       const suffix = passiveDesc ? ` ${passiveDesc}` : '';
       // サポートパッシブの場合はキャラクター名にサポート由来の識別子を付与
       const displayName = sourceType === 'support' ? `${characterName}[共鳴]` : characterName;
+      const text =
+        sourceType === 'stage_setup'
+          ? `${turnLabel}：Stage Setup : ${passiveDesc || passiveName}`
+          : `${turnLabel}：${displayName} : [${passiveName}]${suffix}`;
       return {
         kind: ROW_KIND_PASSIVE,
         turnLabel,
@@ -52,7 +56,7 @@ function normalizePassiveEvents(events, stateContext = null, fallbackTurnLabel =
         timing,
         sourceType,
         source: normalizeInlineText(event.source ?? ''),
-        text: `${turnLabel}：${displayName} : [${passiveName}]${suffix}`,
+        text,
       };
     })
     .filter(Boolean);

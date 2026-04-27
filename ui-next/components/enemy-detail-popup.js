@@ -11,6 +11,13 @@ import {
   buildEnemyStatusTableHtml,
 } from '../utils/enemy-status-display.js';
 import { resolveUiAssetUrl, resolveSkillTypeAssetUrl } from '../../src/ui/style-asset-url.js';
+import {
+  buildEnemyEShieldBadgeHtml,
+  formatEnemyEShieldElementsLabel,
+  formatEnemyEShieldGaugeLabel,
+  isDisplayableEnemyEShieldState,
+  normalizeEnemyEShieldDisplayState,
+} from '../utils/e-shield-display.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -29,6 +36,7 @@ const KILL_BUTTON_ICON_URL = resolveUiAssetUrl('defeat.webp');
 const TALISMAN_ICON_URL = resolveSkillTypeAssetUrl('Talisman.webp');
 const DISASTER_ICON_URL = resolveSkillTypeAssetUrl('Disaster.webp');
 const ENEMY_POPUP_STATUS_ICON_SIZE_PX = 28;
+const ENEMY_POPUP_E_SHIELD_ACTION_ICON_SCALE = 0.82;
 const ENEMY_POPUP_VIEWPORT_INSET_PERCENT = 10;
 const ENEMY_POPUP_CONTAINER_PADDING_PX = 16;
 const ENEMY_POPUP_LAYOUT_COLUMN_GAP_PX = 12;
@@ -53,6 +61,13 @@ const DAMAGE_RATE_DISPLAY_ORDER = Object.freeze([
 const ELEMENT_DISPLAY_LABELS = Object.freeze(
   Object.fromEntries(DAMAGE_RATE_DISPLAY_ORDER.map(([key, label]) => [key, label]))
 );
+const DEFAULT_E_SHIELD_ACTION_ICON_STATE = Object.freeze({
+  current: 0,
+  max: 1,
+  elements: ['Light'],
+  defUpRate: 0,
+  damageLimit: 0,
+});
 
 function normalizeTalismanState(talismanState) {
   const state = talismanState && typeof talismanState === 'object' ? talismanState : {};
@@ -80,37 +95,6 @@ function normalizeDisasterState(disasterState) {
 
 function formatDisasterPenalty(level) {
   return `全能力-${Math.max(0, Math.floor(Number(level) || 0)) * DISASTER_PENALTY_PER_LEVEL}`;
-}
-
-function normalizeEShieldState(eShieldState) {
-  const state = eShieldState && typeof eShieldState === 'object' ? eShieldState : {};
-  const current = Math.max(0, Math.floor(Number(state.current ?? state.count ?? 0)));
-  return {
-    current,
-    max: Math.max(current, Math.floor(Number(state.max ?? state.initial ?? state.current ?? state.count ?? 0)) || 0),
-    elements: Array.isArray(state.elements)
-      ? [...new Set(state.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    defUpRate: Number(state.defUpRate ?? state.def_up_rate ?? 0) || 0,
-    damageLimit: Number(state.damageLimit ?? state.dmg_limit ?? 0) || 0,
-  };
-}
-
-function isDisplayableEShieldState(eShieldState) {
-  if (!eShieldState || typeof eShieldState !== 'object') {
-    return false;
-  }
-  const state = normalizeEShieldState(eShieldState);
-  return state.current > 0 || state.max > 0 || state.elements.length > 0 || state.defUpRate !== 0 || state.damageLimit !== 0;
-}
-
-function formatEShieldSummary(eShieldState) {
-  const state = normalizeEShieldState(eShieldState);
-  const gaugeLabel = state.max > 0 ? `${state.current}/${state.max}` : String(state.current);
-  const elementLabel = state.elements
-    .map((element) => ELEMENT_DISPLAY_LABELS[element] ?? element)
-    .join(', ');
-  return elementLabel ? `${gaugeLabel} (${elementLabel})` : gaugeLabel;
 }
 
 function isDisplayableEnemyFieldState(state) {
@@ -406,9 +390,13 @@ export class EnemyDetailPopup {
         broken: Boolean(enemy?.broken),
         dead: Boolean(enemy?.dead),
         canSummon: Boolean(enemy?.canSummon),
+        canEditEShield: Boolean(enemy?.canEditEShield),
         canBreak: Boolean(enemy?.canBreak),
+        canHpBreak: Boolean(enemy?.canHpBreak),
         canKill: Boolean(enemy?.canKill),
+        hasPendingEShieldOperation: Boolean(enemy?.hasPendingEShieldOperation),
         hasPendingBreakOperation: Boolean(enemy?.hasPendingBreakOperation),
+        hasPendingHpBreakOperation: Boolean(enemy?.hasPendingHpBreakOperation),
         hasPendingKillOperation: Boolean(enemy?.hasPendingKillOperation),
         popupEditorHtml: String(enemy?.popupEditorHtml ?? ''),
         ...(enemy?.od_rate !== undefined ? { od_rate: enemy.od_rate } : {}),
@@ -416,6 +404,7 @@ export class EnemyDetailPopup {
         ...(enemy?.damageRates ? { damageRates: structuredClone(enemy.damageRates) } : {}),
         ...(enemy?.absorbElements ? { absorbElements: structuredClone(enemy.absorbElements) } : {}),
         ...(enemy?.eShieldState ? { eShieldState: structuredClone(enemy.eShieldState) } : {}),
+        ...(enemy?.extraHpGaugeState ? { extraHpGaugeState: structuredClone(enemy.extraHpGaugeState) } : {}),
         ...(enemy?.hp !== undefined ? { hp: enemy.hp } : {}),
         ...(enemy?.maxHp !== undefined ? { maxHp: enemy.maxHp } : {}),
       };
@@ -587,7 +576,22 @@ export class EnemyDetailPopup {
             opacity: 1;
             filter: saturate(1.18) brightness(1.1);
           }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action-icon-shell"] {
+            width: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX}px;
+            height: ${ENEMY_POPUP_STATUS_ICON_SIZE_PX}px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action-icon-shell"] [data-role="enemy-popup-action-eshield-icon"] {
+            transform: scale(${ENEMY_POPUP_E_SHIELD_ACTION_ICON_SCALE});
+            transform-origin: center;
+          }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"]:disabled [data-role="enemy-popup-action-icon"] {
+            filter: grayscale(1) brightness(0.72);
+          }
+          .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"]:disabled [data-role="enemy-popup-action-icon-shell"] {
             filter: grayscale(1) brightness(0.72);
           }
           .${POPUP_CONTAINER_CLASS} [data-role="enemy-popup-action"] span {
@@ -804,16 +808,60 @@ export class EnemyDetailPopup {
     `;
   }
 
+  #buildEShieldActionIconHtml(enemy, enemyIndex) {
+    const iconState = normalizeEnemyEShieldDisplayState(enemy?.eShieldState) ?? DEFAULT_E_SHIELD_ACTION_ICON_STATE;
+    return `
+      <span data-role="enemy-popup-action-icon-shell">
+        ${buildEnemyEShieldBadgeHtml(iconState, {
+          enemyIndex,
+          mode: 'row',
+          dataRole: 'enemy-popup-action-eshield-icon',
+          showSlotMarker: false,
+        })}
+      </span>
+    `;
+  }
+
   #buildActionButtonsHtml(enemy, enemyIndex) {
     const actionButtons = [
-      ['summon', '召喚', '召喚', SUMMON_BUTTON_ICON_URL, Boolean(enemy?.canSummon), false],
-      ['break', 'ブレイク付与', 'ブレイク予定', BREAK_BUTTON_ICON_URL, Boolean(enemy?.canBreak), Boolean(enemy?.hasPendingBreakOperation)],
-      ['kill', '討伐', '討伐予定', KILL_BUTTON_ICON_URL, Boolean(enemy?.canKill), Boolean(enemy?.hasPendingKillOperation)],
+      {
+        actionType: 'summon',
+        label: '召喚',
+        pendingLabel: '召喚',
+        iconHtml: `<img src="${SUMMON_BUTTON_ICON_URL}" alt="召喚" data-role="enemy-popup-action-icon" />`,
+        enabledByState: Boolean(enemy?.canSummon),
+        isPending: false,
+      },
+      {
+        actionType: 'eshield',
+        label: 'Eシールド',
+        pendingLabel: 'Eシールド更新',
+        iconHtml: this.#buildEShieldActionIconHtml(enemy, enemyIndex),
+        enabledByState: Boolean(enemy?.canEditEShield),
+        isPending: Boolean(enemy?.hasPendingEShieldOperation),
+      },
+      {
+        actionType: 'break',
+        label: 'ブレイク付与',
+        pendingLabel: 'ブレイク予定',
+        iconHtml: `<img src="${BREAK_BUTTON_ICON_URL}" alt="ブレイク付与" data-role="enemy-popup-action-icon" />`,
+        enabledByState: Boolean(enemy?.canBreak),
+        isPending: Boolean(enemy?.hasPendingBreakOperation),
+      },
+      {
+        actionType: 'kill',
+        label: enemy?.canHpBreak ? 'HP破壊' : '討伐',
+        pendingLabel: enemy?.canHpBreak ? 'HP破壊予定' : '討伐予定',
+        iconHtml: `<img src="${KILL_BUTTON_ICON_URL}" alt="${escapeHtml(enemy?.canHpBreak ? 'HP破壊' : '討伐')}" data-role="enemy-popup-action-icon" />`,
+        enabledByState: Boolean(enemy?.canKill || enemy?.canHpBreak),
+        isPending: Boolean(enemy?.hasPendingKillOperation || enemy?.hasPendingHpBreakOperation),
+        resolvedActionType: enemy?.canHpBreak ? 'hpbreak' : 'kill',
+      },
     ];
     return `
       <div data-role="enemy-popup-action-row">
-        ${actionButtons.map(([actionType, label, pendingLabel, iconUrl, enabledByState, isPending]) => {
-          const enabled = enabledByState && typeof this.#toolActions?.[actionType] === 'function';
+        ${actionButtons.map(({ actionType, label, pendingLabel, iconHtml, enabledByState, isPending, resolvedActionType = actionType }) => {
+          const enabled = enabledByState && typeof this.#toolActions?.[resolvedActionType] === 'function';
           const displayLabel = isPending ? pendingLabel : label;
           const titleText = actionType === 'summon'
             ? label
@@ -821,12 +869,12 @@ export class EnemyDetailPopup {
           return `
             <button type="button"
                     data-role="enemy-popup-action"
-                    data-action-type="${actionType}"
+                    data-action-type="${resolvedActionType}"
                     data-enemy-index="${enemyIndex}"
                     data-pending="${isPending ? 'true' : 'false'}"
                     title="${escapeHtml(titleText)}"
                     ${enabled ? '' : 'disabled'}>
-              <img src="${iconUrl}" alt="${escapeHtml(label)}" data-role="enemy-popup-action-icon" />
+              ${iconHtml}
               <span>${escapeHtml(displayLabel)}</span>
             </button>
           `;
@@ -840,7 +888,10 @@ export class EnemyDetailPopup {
       ? enemy.damageRates
       : {};
     const absorbElements = Array.isArray(enemy?.absorbElements) ? enemy.absorbElements : [];
-    const eShieldState = normalizeEShieldState(enemy?.eShieldState);
+    const eShieldState = normalizeEnemyEShieldDisplayState(enemy?.eShieldState);
+    const extraHpGaugeState = enemy?.extraHpGaugeState && typeof enemy.extraHpGaugeState === 'object'
+      ? enemy.extraHpGaugeState
+      : null;
     const damageRateEntries = DAMAGE_RATE_DISPLAY_ORDER
       .map(([key, label]) => {
         const numeric = Number(damageRates?.[key]);
@@ -855,8 +906,30 @@ export class EnemyDetailPopup {
       : 'empty';
     const infoRows = [
       ['状態', `<span data-role="enemy-popup-state-badge" data-state="${stateKey}">${escapeHtml(stateLabel)}</span>`],
-      ...(isDisplayableEShieldState(eShieldState)
-        ? [['Eシールド', escapeHtml(formatEShieldSummary(eShieldState)), true]]
+      ...(isDisplayableEnemyEShieldState(eShieldState)
+        ? [[
+            'Eシールド',
+            `<div class="enemy-popup-e-shield-summary" data-role="enemy-popup-e-shield-summary">
+               ${buildEnemyEShieldBadgeHtml(eShieldState, {
+                 enemyIndex,
+                 mode: 'popup',
+                 dataRole: 'enemy-popup-e-shield-badge',
+                 showSlotMarker: false,
+               })}
+               <span class="enemy-popup-e-shield-summary__meta">
+                 <span class="enemy-popup-e-shield-summary__gauge">${escapeHtml(formatEnemyEShieldGaugeLabel(eShieldState))}</span>
+               <span class="enemy-popup-e-shield-summary__elements">${escapeHtml(formatEnemyEShieldElementsLabel(eShieldState))}</span>
+             </span>
+           </div>`,
+          ]]
+        : []),
+      ...(extraHpGaugeState
+        ? [[
+            'HPゲージ',
+            escapeHtml(
+              `${Number(extraHpGaugeState.remaining ?? 0)}/${Number(extraHpGaugeState.total ?? 0)}`
+            ),
+          ]]
         : []),
       ['OD率', escapeHtml(Number.isFinite(Number(enemy?.od_rate)) ? `×${Number(enemy.od_rate).toFixed(2)}` : '-'), true],
       ['最大D率', escapeHtml(Number.isFinite(Number(enemy?.max_d_rate)) ? Number(enemy.max_d_rate) : '-'), true],

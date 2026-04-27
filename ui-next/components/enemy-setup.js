@@ -1,4 +1,10 @@
 import { resolveUiAssetUrl } from '../../src/ui/style-asset-url.js';
+import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gauge.js';
+import {
+  ENEMY_PRESET_TEMPLATE_CATEGORY_KEY,
+  getEnemyPresetCategoryMetadata,
+} from '../utils/enemy-list.js';
 import {
   formatEnemyOdRatePercent,
   normalizeEnemyOdRateMultiplier,
@@ -17,13 +23,27 @@ const ELEMENTS = [
   { key: 'nonelement', label: '無', icon: null           },
 ];
 const ELEMENT_KEY_SET = new Set(ELEMENTS.map((element) => element.key));
+const E_SHIELD_ELEMENT_OPTIONS = Object.freeze(
+  ELEMENTS
+    .filter((element) => ['fire', 'ice', 'thunder', 'light', 'dark'].includes(element.key))
+    .map((element) => Object.freeze({
+      ...element,
+      eShieldValue: element.key.charAt(0).toUpperCase() + element.key.slice(1),
+    }))
+);
+const E_SHIELD_ELEMENT_VALUE_SET = new Set(
+  E_SHIELD_ELEMENT_OPTIONS.map((element) => element.eShieldValue)
+);
 
 const DEFAULT_OD_RATE    = 1;
 const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
+const DEFAULT_E_SHIELD_EDITOR_VALUE = 0;
 const ENEMY_SLOT_COUNT = 3;
 const REQUIRED_SLOT_INDEX = 0;
 const DEFAULT_PREEMPTIVE_FIELD = 'none';
+const EMPTY_ENEMY_SELECT_VALUE = '';
+const EMPTY_ENEMY_SELECT_LABEL = '── 選択なし ──';
 const PREEMPTIVE_FIELD_OPTIONS = [
   { value: 'none', label: 'なし' },
   { value: 'fire', label: '火' },
@@ -59,23 +79,16 @@ function normalizeAbsorbElementList(list = []) {
 }
 
 function normalizeEnemyEShield(eShield = null) {
-  if (!eShield || typeof eShield !== 'object') {
-    return null;
-  }
-  const count = Number(eShield.count ?? eShield.current ?? 0);
-  const max = Number(eShield.max ?? eShield.initial ?? eShield.count ?? eShield.current ?? 0);
-  const defUpRate = Number(eShield.def_up_rate ?? eShield.defUpRate ?? 0);
-  const damageLimit = Number(eShield.dmg_limit ?? eShield.damageLimit ?? 0);
-  const normalizedCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
-  return {
-    count: normalizedCount,
-    max: Number.isFinite(max) ? Math.max(normalizedCount, Math.floor(max)) : normalizedCount,
-    elements: Array.isArray(eShield.elements)
-      ? [...new Set(eShield.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    def_up_rate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    dmg_limit: Number.isFinite(damageLimit) ? damageLimit : 0,
-  };
+  const normalized = cloneEnemyEShieldState(eShield);
+  return normalized
+    ? {
+        count: normalized.current,
+        max: normalized.max,
+        elements: [...normalized.elements],
+        def_up_rate: normalized.defUpRate,
+        dmg_limit: normalized.damageLimit,
+      }
+    : null;
 }
 
 function cloneEnemyEShield(eShield = null) {
@@ -88,8 +101,67 @@ function cloneEnemyEShield(eShield = null) {
     : null;
 }
 
+function cloneEnemyExtraHpGauge(extraHpGauge = null) {
+  const normalized = cloneEnemyExtraHpGaugeState(extraHpGauge);
+  return normalized
+    ? {
+        ...normalized,
+        values: [...normalized.values],
+      }
+    : null;
+}
+
+function normalizeEnemyEShieldEditorNumber(value, fallback = DEFAULT_E_SHIELD_EDITOR_VALUE) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return Math.max(DEFAULT_E_SHIELD_EDITOR_VALUE, Math.floor(Number(fallback) || 0));
+  }
+  return Math.max(DEFAULT_E_SHIELD_EDITOR_VALUE, Math.floor(numeric));
+}
+
+function normalizeEnemyEShieldEditorElements(elements = []) {
+  if (!Array.isArray(elements)) {
+    return [];
+  }
+  return [...new Set(
+    elements
+      .map((value) => String(value ?? '').trim())
+      .filter((value) => E_SHIELD_ELEMENT_VALUE_SET.has(value))
+  )];
+}
+
+function createEmptyEnemyEShieldDraft() {
+  return {
+    count: DEFAULT_E_SHIELD_EDITOR_VALUE,
+    max: DEFAULT_E_SHIELD_EDITOR_VALUE,
+    elements: [],
+    def_up_rate: DEFAULT_E_SHIELD_EDITOR_VALUE,
+    dmg_limit: DEFAULT_E_SHIELD_EDITOR_VALUE,
+  };
+}
+
+function cloneEnemyEShieldDraft(eShield = null) {
+  const normalized = cloneEnemyEShield(eShield);
+  if (normalized) {
+    return normalized;
+  }
+  if (!eShield || typeof eShield !== 'object') {
+    return createEmptyEnemyEShieldDraft();
+  }
+  return {
+    count: normalizeEnemyEShieldEditorNumber(eShield.count ?? eShield.current),
+    max: normalizeEnemyEShieldEditorNumber(
+      eShield.max ?? eShield.initial ?? eShield.count ?? eShield.current
+    ),
+    elements: normalizeEnemyEShieldEditorElements(eShield.elements ?? eShield.ele_list ?? []),
+    def_up_rate: normalizeEnemyEShieldEditorNumber(eShield.def_up_rate ?? eShield.defUpRate),
+    dmg_limit: normalizeEnemyEShieldEditorNumber(eShield.dmg_limit ?? eShield.damageLimit),
+  };
+}
+
 function cloneManual(manual = {}) {
   const eShield = cloneEnemyEShield(manual.e_shield);
+  const extraHpGauge = cloneEnemyExtraHpGauge(manual.extra_hp_gauge);
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
@@ -98,6 +170,7 @@ function cloneManual(manual = {}) {
     ),
     absorbElementList: normalizeAbsorbElementList(manual.absorbElementList),
     ...(eShield ? { e_shield: eShield } : {}),
+    ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
   };
 }
 
@@ -117,6 +190,7 @@ function defaultManual() {
 function enemyToManual(enemy) {
   if (!enemy) return defaultManual();
   const eShield = cloneEnemyEShield(enemy.e_shield);
+  const extraHpGauge = cloneEnemyExtraHpGauge(enemy.extra_hp_gauge);
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
@@ -128,15 +202,20 @@ function enemyToManual(enemy) {
     ),
     absorbElementList: enemy.absorbElementList ?? enemy.resistances?.element?.absorb_element_list ?? [],
     ...(eShield ? { e_shield: eShield } : {}),
+    ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
   });
 }
 
 function snapshotToManual(snapshot = {}) {
   const eShield = cloneEnemyEShield(snapshot.e_shield ?? snapshot.manual?.e_shield);
+  const extraHpGauge = cloneEnemyExtraHpGauge(
+    snapshot.extra_hp_gauge ?? snapshot.manual?.extra_hp_gauge
+  );
   if (snapshot.manual && typeof snapshot.manual === 'object') {
     return cloneManual({
       ...snapshot.manual,
       ...(eShield ? { e_shield: eShield } : {}),
+      ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
     });
   }
   return cloneManual({
@@ -145,10 +224,15 @@ function snapshotToManual(snapshot = {}) {
     element: snapshot.resistances?.element,
     absorbElementList: snapshot.absorbElementList,
     ...(eShield ? { e_shield: eShield } : {}),
+    ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
   });
 }
 
 function createDefaultSelectedEnemyIds() {
+  return Array.from({ length: ENEMY_SLOT_COUNT }, () => null);
+}
+
+function createDefaultSelectedCategoryKeys() {
   return Array.from({ length: ENEMY_SLOT_COUNT }, () => null);
 }
 
@@ -179,6 +263,25 @@ function normalizeSelectedEnemyId(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function buildEnemyCategoryOptions(enemies = []) {
+  const categories = new Map();
+  for (const enemy of enemies) {
+    const metadata = getEnemyPresetCategoryMetadata(enemy);
+    if (!categories.has(metadata.key)) {
+      categories.set(metadata.key, metadata.label);
+    }
+  }
+  return [...categories.entries()].map(([key, label]) => ({ key, label }));
+}
+
+function normalizeSelectedCategoryKey(value, categoryOptions = [], fallbackKey = ENEMY_PRESET_TEMPLATE_CATEGORY_KEY) {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (normalized && categoryOptions.some((category) => category.key === normalized)) {
+    return normalized;
+  }
+  return categoryOptions[0]?.key ?? fallbackKey;
+}
+
 /**
  * Enemy Setup タブコンポーネント
  *
@@ -190,6 +293,7 @@ export class EnemySetupController {
   #onChange;
   #state = {
     selectedEnemyIds: createDefaultSelectedEnemyIds(),
+    selectedCategoryKeys: createDefaultSelectedCategoryKeys(),
     activeSlotIndex: REQUIRED_SLOT_INDEX,
     preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
     isManualBySlot: createDefaultManualFlags(),
@@ -204,6 +308,7 @@ export class EnemySetupController {
 
   mount() {
     this.#ensureRequiredSlotSelected();
+    this.#syncSelectedCategories();
     this.#render();
 
     this.#root.addEventListener('click', (e) => {
@@ -227,6 +332,7 @@ export class EnemySetupController {
         if (this.#state.activeSlotIndex === slotIndex) {
           this.#state.activeSlotIndex = REQUIRED_SLOT_INDEX;
         }
+        this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -238,10 +344,11 @@ export class EnemySetupController {
           return;
         }
         if (this.#state.selectedEnemyIds[slotIndex] === null) {
-          this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyId();
+          this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyIdForSlot(slotIndex);
           this.#state.isManualBySlot[slotIndex] = false;
         }
         this.#state.activeSlotIndex = slotIndex;
+        this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -266,16 +373,38 @@ export class EnemySetupController {
     this.#root.addEventListener('change', (e) => {
       const t = e.target;
 
+      if (t.dataset.action === 'select-enemy-category') {
+        const slotIndex = this.#state.activeSlotIndex;
+        const nextCategoryKey = this.#normalizeCategoryKeyForSlot(slotIndex, t.value);
+        const previousEnemyId = this.#state.selectedEnemyIds[slotIndex];
+
+        this.#state.selectedCategoryKeys[slotIndex] = nextCategoryKey;
+        if (slotIndex === REQUIRED_SLOT_INDEX || previousEnemyId !== null) {
+          this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyIdForSlot(slotIndex, nextCategoryKey);
+        }
+        this.#state.isManualBySlot[slotIndex] = false;
+        this.#ensureRequiredSlotSelected();
+        this.#syncSelectedCategories();
+        this.#onChange?.(this.getSnapshot());
+        this.#render();
+        return;
+      }
+
       if (t.dataset.action === 'select-enemy') {
         const slotIndex = this.#state.activeSlotIndex;
         const selectedEnemyId = normalizeSelectedEnemyId(t.value);
         if (slotIndex === REQUIRED_SLOT_INDEX) {
-          this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId ?? this.#resolveDefaultEnemyId();
+          this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId ?? this.#resolveDefaultEnemyIdForSlot(slotIndex);
         } else {
           this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId;
         }
+        const selectedEnemy = this.#findEnemyById(this.#state.selectedEnemyIds[slotIndex]);
+        if (selectedEnemy) {
+          this.#state.selectedCategoryKeys[slotIndex] = getEnemyPresetCategoryMetadata(selectedEnemy).key;
+        }
         this.#state.isManualBySlot[slotIndex] = false;
         this.#ensureRequiredSlotSelected();
+        this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -322,6 +451,53 @@ export class EnemySetupController {
         }
         this.#state.manualBySlot[slotIndex].absorbElementList = [...next];
         this.#onChange?.(this.getSnapshot());
+        return;
+      }
+
+      if (t.dataset.editEshieldField) {
+        const slotIndex = this.#state.activeSlotIndex;
+        const key = String(t.dataset.editEshieldField).trim();
+        if (!['count', 'max', 'def_up_rate', 'dmg_limit'].includes(key)) {
+          return;
+        }
+        const value = Number(t.value);
+        if (!Number.isFinite(value)) {
+          return;
+        }
+        const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
+        const previousMax = Number(currentDraft.max);
+        currentDraft[key] = normalizeEnemyEShieldEditorNumber(value, currentDraft[key]);
+        // count が max を超えた場合、max を count に追従させる（HPゲージ複数の擬似表現）
+        let maxFollowed = false;
+        if (key === 'count' && Number(currentDraft.count) > Number(currentDraft.max)) {
+          currentDraft.max = currentDraft.count;
+          maxFollowed = Number(currentDraft.max) !== previousMax;
+        }
+        this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
+        this.#onChange?.(this.getSnapshot());
+        // max を自動引き上げした場合は input value を反映するため再レンダリング
+        if (maxFollowed) {
+          this.#render();
+        }
+        return;
+      }
+
+      if (t.dataset.editEshieldElement) {
+        const slotIndex = this.#state.activeSlotIndex;
+        const elementValue = String(t.dataset.editEshieldElement).trim();
+        if (!E_SHIELD_ELEMENT_VALUE_SET.has(elementValue)) {
+          return;
+        }
+        const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
+        const next = new Set(currentDraft.elements);
+        if (t.checked) {
+          next.add(elementValue);
+        } else {
+          next.delete(elementValue);
+        }
+        currentDraft.elements = [...next];
+        this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
+        this.#onChange?.(this.getSnapshot());
       }
     });
   }
@@ -333,6 +509,9 @@ export class EnemySetupController {
       const selectedEnemy = this.#enemies.find((enemy) => enemy.id === selectedEnemyId) ?? null;
       const effective = cloneManual(this.#getEffectiveBySlot(slotIndex));
       const effectiveEShield = cloneEnemyEShield(effective.e_shield);
+      const effectiveExtraHpGauge = cloneEnemyExtraHpGauge(
+        selectedEnemy?.extra_hp_gauge ?? effective.extra_hp_gauge
+      );
       return {
         slotIndex,
         selectedEnemyId,
@@ -344,6 +523,7 @@ export class EnemySetupController {
         resistances: { element: { ...effective.element } },
         absorbElementList: [...effective.absorbElementList],
         ...(effectiveEShield ? { e_shield: effectiveEShield } : {}),
+        ...(effectiveExtraHpGauge ? { extra_hp_gauge: effectiveExtraHpGauge } : {}),
       };
     });
     const selectedCount = selectedEnemyIds.filter((enemyId) => enemyId !== null).length;
@@ -365,11 +545,13 @@ export class EnemySetupController {
       resistances: { element: { ...slot0.resistances.element } },
       absorbElementList: [...slot0.absorbElementList],
       ...(slot0.e_shield ? { e_shield: cloneEnemyEShield(slot0.e_shield) } : {}),
+      ...(slot0.extra_hp_gauge ? { extra_hp_gauge: cloneEnemyExtraHpGauge(slot0.extra_hp_gauge) } : {}),
     };
   }
 
   applySnapshot(snapshot = {}) {
     const nextSelectedEnemyIds = createDefaultSelectedEnemyIds();
+    const nextSelectedCategoryKeys = createDefaultSelectedCategoryKeys();
     const nextIsManualBySlot = createDefaultManualFlags();
     const nextManualBySlot = createDefaultManualBySlot();
 
@@ -386,7 +568,8 @@ export class EnemySetupController {
           slot?.max_d_rate != null ||
           (slot?.resistances && typeof slot.resistances === 'object') ||
           Array.isArray(slot?.absorbElementList) ||
-          (slot?.e_shield && typeof slot.e_shield === 'object');
+          (slot?.e_shield && typeof slot.e_shield === 'object') ||
+          (slot?.extra_hp_gauge && typeof slot.extra_hp_gauge === 'object');
         if (hasManualState) {
           nextManualBySlot[slotIndex] = snapshotToManual(slot);
         }
@@ -423,6 +606,7 @@ export class EnemySetupController {
     }
 
     this.#state.selectedEnemyIds = nextSelectedEnemyIds;
+    this.#state.selectedCategoryKeys = nextSelectedCategoryKeys;
     this.#state.isManualBySlot = nextIsManualBySlot;
     this.#state.manualBySlot = nextManualBySlot;
 
@@ -433,24 +617,28 @@ export class EnemySetupController {
       this.#state.activeSlotIndex = normalizeSlotIndex(snapshot.activeSlotIndex, REQUIRED_SLOT_INDEX);
     }
     this.#ensureRequiredSlotSelected();
+    this.#syncSelectedCategories();
     this.#render();
   }
 
   setEnemies(enemies = []) {
     this.#enemies = Array.isArray(enemies) ? enemies : [];
     this.#ensureRequiredSlotSelected();
+    this.#syncSelectedCategories();
     this.#render();
   }
 
   resetToDefaults() {
     this.#state = {
       selectedEnemyIds: createDefaultSelectedEnemyIds(),
+      selectedCategoryKeys: createDefaultSelectedCategoryKeys(),
       activeSlotIndex: REQUIRED_SLOT_INDEX,
       preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
       isManualBySlot: createDefaultManualFlags(),
       manualBySlot: createDefaultManualBySlot(),
     };
     this.#ensureRequiredSlotSelected();
+    this.#syncSelectedCategories();
     this.#onChange?.(this.getSnapshot());
     this.#render();
   }
@@ -465,16 +653,76 @@ export class EnemySetupController {
     return this.#enemies[0]?.id ?? null;
   }
 
+  #getCategoryOptions() {
+    return buildEnemyCategoryOptions(this.#enemies);
+  }
+
+  #getCategoryFallbackKey() {
+    return this.#getCategoryOptions()[0]?.key ?? ENEMY_PRESET_TEMPLATE_CATEGORY_KEY;
+  }
+
+  #normalizeCategoryKeyForSlot(slotIndex, value = null) {
+    return normalizeSelectedCategoryKey(
+      value ?? this.#state.selectedCategoryKeys[slotIndex],
+      this.#getCategoryOptions(),
+      this.#getCategoryFallbackKey()
+    );
+  }
+
+  #syncSelectedCategories() {
+    const categoryOptions = this.#getCategoryOptions();
+    const fallbackKey = categoryOptions[0]?.key ?? ENEMY_PRESET_TEMPLATE_CATEGORY_KEY;
+    this.#state.selectedCategoryKeys = this.#state.selectedCategoryKeys.map((currentKey, slotIndex) => {
+      const selectedEnemy = this.#getSelectedEnemyBySlot(slotIndex);
+      if (selectedEnemy) {
+        return getEnemyPresetCategoryMetadata(selectedEnemy).key;
+      }
+      return normalizeSelectedCategoryKey(currentKey, categoryOptions, fallbackKey);
+    });
+  }
+
+  #getEnemiesForCategory(categoryKey) {
+    const normalizedCategoryKey = normalizeSelectedCategoryKey(
+      categoryKey,
+      this.#getCategoryOptions(),
+      this.#getCategoryFallbackKey()
+    );
+    return this.#enemies.filter((enemy) => getEnemyPresetCategoryMetadata(enemy).key === normalizedCategoryKey);
+  }
+
+  #resolveDefaultEnemyIdForSlot(slotIndex, preferredCategoryKey = null) {
+    const normalizedSlotIndex = normalizeSlotIndex(slotIndex, REQUIRED_SLOT_INDEX);
+    const normalizedCategoryKey = this.#normalizeCategoryKeyForSlot(normalizedSlotIndex, preferredCategoryKey);
+    const categoryEnemies = this.#getEnemiesForCategory(normalizedCategoryKey);
+    if (normalizedSlotIndex === REQUIRED_SLOT_INDEX) {
+      const preferred = categoryEnemies.find((enemy) => enemy.name === '希望を喰むもの');
+      if (preferred) {
+        return preferred.id;
+      }
+    }
+    if (categoryEnemies[0]) {
+      return categoryEnemies[0].id;
+    }
+    return this.#resolveDefaultEnemyId();
+  }
+
   #ensureRequiredSlotSelected() {
     if (this.#state.selectedEnemyIds[REQUIRED_SLOT_INDEX] == null) {
-      this.#state.selectedEnemyIds[REQUIRED_SLOT_INDEX] = this.#resolveDefaultEnemyId();
+      this.#state.selectedEnemyIds[REQUIRED_SLOT_INDEX] = this.#resolveDefaultEnemyIdForSlot(REQUIRED_SLOT_INDEX);
     }
     this.#state.activeSlotIndex = normalizeSlotIndex(this.#state.activeSlotIndex, REQUIRED_SLOT_INDEX);
   }
 
+  #findEnemyById(enemyId) {
+    const normalizedEnemyId = normalizeSelectedEnemyId(enemyId);
+    if (normalizedEnemyId === null) {
+      return null;
+    }
+    return this.#enemies.find((enemy) => enemy.id === normalizedEnemyId) ?? null;
+  }
+
   #getSelectedEnemyBySlot(slotIndex) {
-    const selectedEnemyId = this.#state.selectedEnemyIds[slotIndex];
-    return this.#enemies.find((enemy) => enemy.id === selectedEnemyId) ?? null;
+    return this.#findEnemyById(this.#state.selectedEnemyIds[slotIndex]);
   }
 
   #getEffectiveBySlot(slotIndex) {
@@ -491,27 +739,11 @@ export class EnemySetupController {
     const vals = this.#getEffectiveBySlot(activeSlotIndex);
     const isManual = this.#state.isManualBySlot[activeSlotIndex];
     const hasSelectedEnemy = selectedEnemyId !== null;
-
-    // YYYYMM キーを表示ラベルに変換  null → "テンプレート"
-    const formatGroupLabel = (key) => {
-      if (key === null || key === undefined) return 'テンプレート';
-      const year = Math.floor(key / 100);
-      const month = key % 100;
-      return `${year}年${month}月`;
-    };
-
-    // グループ化（null=テンプレートを先頭、次いで YYYYMM 降順）
-    const groups = new Map();
-    this.#enemies.forEach(e => {
-      const key = e.dimension;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(e);
-    });
-    const groupsArr = [...groups.entries()].sort((a, b) => {
-      if (a[0] === null) return -1;
-      if (b[0] === null) return 1;
-      return b[0] - a[0];
-    });
+    const categoryOptions = this.#getCategoryOptions();
+    const selectedCategoryKey = this.#normalizeCategoryKeyForSlot(activeSlotIndex);
+    const categoryEnemies = this.#getEnemiesForCategory(selectedCategoryKey);
+    const eShieldDraft = cloneEnemyEShieldDraft(vals.e_shield);
+    const hasEShield = Boolean(cloneEnemyEShield(vals.e_shield));
 
     this.#root.innerHTML = `
       <div class="p-1.5 space-y-2">
@@ -577,20 +809,37 @@ export class EnemySetupController {
         <!-- 敵プリセット選択 -->
         <div>
           <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-0.5">敵プリセット</div>
-          <select data-action="select-enemy"
-                  class="w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5
-                         focus:outline-none focus:ring-1 focus:ring-blue-400">
-            ${activeSlotIndex > REQUIRED_SLOT_INDEX ? '<option value="">── 選択なし ──</option>' : ''}
-            ${groupsArr.map(([dim, enemies]) => `
-              <optgroup label="${formatGroupLabel(dim)}">
-                ${enemies.map(e => `
-                  <option value="${e.id}" ${e.id === selectedEnemyId ? 'selected' : ''}>
-                    ${e.name}
+          <div class="grid grid-cols-2 gap-1.5">
+            <label class="flex flex-col gap-0.5">
+              <span class="text-xs text-gray-500">カテゴリ</span>
+              <select data-action="select-enemy-category"
+                      data-role="enemy-category-select"
+                      class="w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5
+                             focus:outline-none focus:ring-1 focus:ring-blue-400">
+                ${categoryOptions.length > 0
+                  ? categoryOptions.map((category) => `
+                      <option value="${category.key}" ${category.key === selectedCategoryKey ? 'selected' : ''}>
+                        ${category.label}
+                      </option>
+                    `).join('')
+                  : `<option value="${ENEMY_PRESET_TEMPLATE_CATEGORY_KEY}" selected>${EMPTY_ENEMY_SELECT_LABEL}</option>`}
+              </select>
+            </label>
+            <label class="flex flex-col gap-0.5">
+              <span class="text-xs text-gray-500">敵</span>
+              <select data-action="select-enemy"
+                      data-role="enemy-preset-select"
+                      class="w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5
+                             focus:outline-none focus:ring-1 focus:ring-blue-400">
+                ${activeSlotIndex > REQUIRED_SLOT_INDEX ? `<option value="${EMPTY_ENEMY_SELECT_VALUE}">${EMPTY_ENEMY_SELECT_LABEL}</option>` : ''}
+                ${categoryEnemies.map((enemy) => `
+                  <option value="${enemy.id}" ${enemy.id === selectedEnemyId ? 'selected' : ''}>
+                    ${enemy.name}
                   </option>
                 `).join('')}
-              </optgroup>
-            `).join('')}
-          </select>
+              </select>
+            </label>
+          </div>
         </div>
 
         <!-- パラメータ表示 / 編集 -->
@@ -632,6 +881,8 @@ export class EnemySetupController {
                 ${ELEMENTS.map((el) => this.#absorbHtml(el, vals.absorbElementList.includes(el.key), isManual)).join('')}
               </div>
             </div>
+
+            ${this.#eShieldHtml(eShieldDraft, hasEShield, isManual)}
           </div>
         </div>
 
@@ -639,12 +890,12 @@ export class EnemySetupController {
     `;
   }
 
-  #numFieldHtml(key, label, value, editable, formatter = null) {
+  #numFieldHtml(key, label, value, editable, formatter = null, inputDataAttribute = 'data-edit-field') {
     if (editable) {
       return `
         <label class="flex flex-col gap-0.5">
           <span class="text-xs text-gray-500">${label}</span>
-          <input type="number" data-edit-field="${key}" value="${value}"
+          <input type="number" ${inputDataAttribute}="${key}" value="${value}"
                  class="text-xs rounded border border-gray-300 px-1 py-0.5 w-full
                         focus:outline-none focus:ring-1 focus:ring-blue-400" />
         </label>`;
@@ -702,5 +953,96 @@ export class EnemySetupController {
         ${iconHtml}
         <span class="text-[10px] font-medium ${checked ? 'text-emerald-600' : 'text-gray-300'}">${checked ? '吸収' : '---'}</span>
       </div>`;
+  }
+
+  #eShieldHtml(eShield, hasEShield, editable) {
+    if (editable) {
+      return `
+        <div data-role="enemy-e-shield-editor" class="rounded-md border border-violet-200 bg-violet-50/70 p-2 space-y-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-xs font-semibold text-violet-700">Eシールド</div>
+            <div class="text-[10px] text-violet-500">max=0 または属性未選択で未設定扱い</div>
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            ${this.#numFieldHtml('count', '現在値', eShield.count, true, null, 'data-edit-eshield-field')}
+            ${this.#numFieldHtml('max', '最大値', eShield.max, true, null, 'data-edit-eshield-field')}
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            ${this.#numFieldHtml('def_up_rate', '防御UP', eShield.def_up_rate, true, null, 'data-edit-eshield-field')}
+            ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', eShield.dmg_limit, true, null, 'data-edit-eshield-field')}
+          </div>
+          <div>
+            <div class="text-xs text-violet-500 mb-1">対応属性</div>
+            <div class="grid grid-cols-5 gap-0.5">
+              ${E_SHIELD_ELEMENT_OPTIONS.map((element) => this.#eShieldElementHtml(
+                element,
+                eShield.elements.includes(element.eShieldValue)
+              )).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (!hasEShield) {
+      return `
+        <div data-role="enemy-e-shield-summary" class="rounded-md border border-violet-100 bg-violet-50/40 p-2">
+          <div class="text-xs font-semibold text-violet-700 mb-1">Eシールド</div>
+          <div class="text-xs text-gray-500">なし</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div data-role="enemy-e-shield-summary" class="rounded-md border border-violet-100 bg-violet-50/40 p-2 space-y-1.5">
+        <div class="text-xs font-semibold text-violet-700">Eシールド</div>
+        <div class="grid grid-cols-2 gap-1.5">
+          ${this.#numFieldHtml('count', '現在値', eShield.count, false)}
+          ${this.#numFieldHtml('max', '最大値', eShield.max, false)}
+        </div>
+        <div>
+          <div class="text-xs text-violet-500 mb-1">対応属性</div>
+          <div class="flex flex-wrap gap-1">
+            ${E_SHIELD_ELEMENT_OPTIONS
+              .filter((element) => eShield.elements.includes(element.eShieldValue))
+              .map((element) => this.#eShieldElementChipHtml(element))
+              .join('')}
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          ${this.#numFieldHtml('def_up_rate', '防御UP', eShield.def_up_rate, false)}
+          ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', eShield.dmg_limit, false)}
+        </div>
+      </div>
+    `;
+  }
+
+  #eShieldElementHtml(element, checked) {
+    const iconHtml = element.icon
+      ? `<img src="${resolveUiAssetUrl(element.icon)}" alt="${element.label}"
+              class="w-4 h-4 object-contain" />`
+      : `<span class="w-4 h-4 flex items-center justify-center text-xs text-gray-400 leading-none">${element.label}</span>`;
+    return `
+      <label class="flex flex-col items-center gap-0.5 py-0.5 cursor-pointer rounded border ${checked ? 'border-violet-300 bg-white' : 'border-violet-100 bg-white/70'}">
+        ${iconHtml}
+        <input type="checkbox"
+               data-edit-eshield-element="${element.eShieldValue}"
+               ${checked ? 'checked' : ''}
+               class="h-3.5 w-3.5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+      </label>
+    `;
+  }
+
+  #eShieldElementChipHtml(element) {
+    const iconHtml = element.icon
+      ? `<img src="${resolveUiAssetUrl(element.icon)}" alt="${element.label}"
+              class="w-3.5 h-3.5 object-contain" />`
+      : `<span class="w-3.5 h-3.5 flex items-center justify-center text-[10px] text-violet-500 leading-none">${element.label}</span>`;
+    return `
+      <span class="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[10px] text-violet-700">
+        ${iconHtml}
+        ${element.label}
+      </span>
+    `;
   }
 }

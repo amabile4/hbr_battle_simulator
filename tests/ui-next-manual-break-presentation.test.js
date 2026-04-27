@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildAutoBreakChipModels,
   buildManualBreakChipModels,
   resolveManualBreakActorLabel,
   resolveManualBreakEnemyLabel,
@@ -87,4 +88,73 @@ test('buildManualBreakChipModels renders actor and enemy labels per enemy', () =
     ['ワッキー→ワイバーン ブレイク', 'ワッキー→E3 ブレイク']
   );
   assert.equal(resolveManualBreakEnemyLabel(1, {}), 'E2');
+});
+
+test('buildAutoBreakChipModels picks up actions with autoBreakEnemyIndexes', () => {
+  const chipModels = buildAutoBreakChipModels({
+    actions: [
+      {
+        characterId: 'BIYamawaki',
+        actorCharacterId: 'BIYamawaki',
+        positionIndex: 0,
+        skillId: 1234,
+        autoBreakEnemyIndexes: [0, 1],
+      },
+    ],
+    members: [
+      { position: 0, characterId: 'BIYamawaki', characterName: '山脇・ボン・イヴァール' },
+    ],
+    store: createStore({
+      BIYamawaki: {
+        label: 'BIYamawaki',
+        name: '山脇・ボン・イヴァール — Ivar Bon Yamawaki — ワッキー Wakkii',
+      },
+    }),
+    enemyNamesByEnemy: { 0: 'ワイバーン' },
+  });
+
+  assert.deepEqual(
+    chipModels.map((chip) => chip.label),
+    ['ワッキー→ワイバーン ブレイク (自動)', 'ワッキー→E2 ブレイク (自動)']
+  );
+});
+
+test('buildAutoBreakChipModels skips actions without autoBreakEnemyIndexes', () => {
+  const chipModels = buildAutoBreakChipModels({
+    actions: [
+      { characterId: 'X', positionIndex: 0, skillId: 1, autoBreakEnemyIndexes: [] },
+      { characterId: 'X', positionIndex: 0, skillId: 2 },
+    ],
+    members: [{ position: 0, characterId: 'X', characterName: 'カレン' }],
+    store: createStore(),
+    enemyNamesByEnemy: {},
+  });
+  assert.equal(chipModels.length, 0);
+});
+
+test('buildAutoBreakChipModels deduplicates same actor+skill+enemy combinations', () => {
+  const chipModels = buildAutoBreakChipModels({
+    actions: [
+      { characterId: 'X', positionIndex: 0, skillId: 5, autoBreakEnemyIndexes: [0] },
+      { characterId: 'X', positionIndex: 0, skillId: 5, autoBreakEnemyIndexes: [0] },
+    ],
+    members: [{ position: 0, characterId: 'X', characterName: 'カレン' }],
+    store: createStore(),
+    enemyNamesByEnemy: {},
+  });
+  assert.equal(chipModels.length, 1);
+  assert.equal(chipModels[0].label, 'カレン→E1 ブレイク (自動)');
+});
+
+test('buildAutoBreakChipModels falls back to position when characterId is missing', () => {
+  const chipModels = buildAutoBreakChipModels({
+    actions: [
+      { positionIndex: 1, skillId: 9, autoBreakEnemyIndexes: [2] },
+    ],
+    members: [{ position: 1, characterId: 'Y', characterName: 'ユキ' }],
+    store: createStore(),
+    enemyNamesByEnemy: {},
+  });
+  assert.equal(chipModels.length, 1);
+  assert.equal(chipModels[0].label, 'ユキ→E3 ブレイク (自動)');
 });

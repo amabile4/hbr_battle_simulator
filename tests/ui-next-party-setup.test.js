@@ -125,6 +125,53 @@ test('PartySetupController defaults all SP equip selectors to SP +3', () =>
     );
   }));
 
+test('PartySetupController exports belt selection as normalAttackElementsByPartyIndex', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    const beltSelect = root.querySelector('select[data-field="belt"][data-slot-index="0"]');
+    beltSelect.value = 'Ice';
+    beltSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    assert.deepEqual(controller.getSnapshot().normalAttackElementsByPartyIndex, {
+      0: ['Ice'],
+    });
+  }));
+
+test('PartySetupController restores belt selector from normalAttackElementsByPartyIndex and ignores invalid values', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+      normalAttackElementsByPartyIndex: {
+        0: ['Thunder'],
+        1: ['Fire', 'Ice'],
+        2: ['Void'],
+      },
+    });
+
+    const values = [...root.querySelectorAll('select[data-field="belt"]')].map((select) => select.value);
+    assert.equal(values[0], 'Thunder');
+    assert.equal(values[1], '');
+    assert.equal(values[2], '');
+  }));
+
 test('PartySetupController no longer renders preset controls inside setup body', () =>
   withDom(({ root, pickerOverlay }) => {
     const controller = new PartySetupController({

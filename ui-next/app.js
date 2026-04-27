@@ -6,7 +6,10 @@ import { UsedSkillsOverlayController } from './components/used-skills-overlay.js
 import { BattleStateManager } from './engine/battle-state-manager.js';
 import { TurnEngineManager } from './engine/turn-engine-manager.js';
 import { TurnAreaController } from './components/turn-area.js';
-import { createEmptyLightweightReplayScript } from '../src/ui/lightweight-replay-script.js';
+import {
+  createEmptyLightweightReplayScript,
+  createLightweightReplayScriptFromBaseSetup,
+} from '../src/ui/lightweight-replay-script.js';
 import { buildUsedSkillsByPartyMember } from './utils/used-skills-view.js';
 import {
   decorateSessionSnapshotForHumans,
@@ -30,6 +33,7 @@ import {
 } from './utils/workspace-shell.js';
 import { mountPngCaptureSandbox } from './utils/png-capture.js';
 import { buildEnemyList } from './utils/enemy-list.js';
+import { buildReplaySetupFromPartySnapshot } from './utils/replay-setup.js';
 
 const UI_NEXT_READY_FLAG_KEY = '__UI_NEXT_READY__';
 const UI_NEXT_BOOT_METRICS_KEY = '__UI_NEXT_BOOT_METRICS__';
@@ -542,9 +546,9 @@ function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
   if (!snapshot?.party?.isFrontFilled) {
     throw new Error('前衛3スロットを設定してください。');
   }
-  const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
+  const replaySetup = buildReplaySetupFromPartySnapshot(snapshot.party);
   const replayScript = turnEngineManager.replayScript
-    ? structuredClone(turnEngineManager.replayScript)
+    ? createLightweightReplayScriptFromBaseSetup(replaySetup, turnEngineManager.replayScript)
     : createEmptyLightweightReplayScript(replaySetup);
   const decoratedSnapshot = decorateSessionSnapshotForHumans({
     setup: snapshot.party,
@@ -949,7 +953,7 @@ async function main() {
       onApply: (snapshot) => {
         try {
           const state = battleStateManager.buildFromSnapshot(snapshot.party, snapshot.enemy);
-          const replaySetup = buildReplaySetupFromSnapshot(snapshot.party);
+          const replaySetup = buildReplaySetupFromPartySnapshot(snapshot.party);
           turnArea.initialize(state, replaySetup, snapshot.simulatorSettings, DEFAULT_VALIDATION_POLICY);
           initialSetup.setHasActiveBattle(true);
           initialSetup.setHasRecords(false);
@@ -1096,43 +1100,6 @@ async function main() {
     setUiNextReadyFlag(false);
     throw error;
   }
-}
-
-/**
- * PartySetupController.getSnapshot() の戻り値から LightweightReplaySetup を生成する。
- * @param {object} snapshot
- * @returns {object} setup オブジェクト（createEmptyLightweightReplayScript に渡す）
- */
-function buildReplaySetupFromSnapshot(snapshot) {
-  // filledIndices: null を除いた前衛→後衛の左詰めインデックス
-  const filledIndices = snapshot.styleIds
-    .map((id, i) => (id !== null ? i : null))
-    .filter((i) => i !== null);
-
-  return {
-    styleIds: filledIndices.map((i) => snapshot.styleIds[i]),
-    supportStyleIdsByPartyIndex: Object.fromEntries(
-      filledIndices
-        .map((srcIdx, newIdx) => [newIdx, snapshot.supportStyleIds[srcIdx]])
-        .filter(([, id]) => id !== null)
-    ),
-    limitBreakLevelsByPartyIndex: Object.fromEntries(
-      filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.limitBreakLevelsByPartyIndex[srcIdx] ?? 0])
-    ),
-    skillSetsByPartyIndex: Object.fromEntries(
-      filledIndices
-        .map((srcIdx, newIdx) => {
-          const equippedSkillIds =
-            snapshot.skillSetsByPartyIndex?.[srcIdx] ??
-            snapshot.skillSetsByPartyIndex?.[String(srcIdx)] ??
-            null;
-          return Array.isArray(equippedSkillIds)
-            ? [newIdx, structuredClone(equippedSkillIds)]
-            : null;
-        })
-        .filter(Boolean)
-    ),
-  };
 }
 
 main().catch((error) => {

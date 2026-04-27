@@ -1,3 +1,6 @@
+import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gauge.js';
+
 const ENEMY_SLOT_COUNT = 3;
 const REQUIRED_SLOT_INDEX = 0;
 const DEFAULT_PREEMPTIVE_FIELD = 'none';
@@ -54,24 +57,20 @@ function normalizeAbsorbElementList(list = []) {
 }
 
 function normalizeEnemyEShield(source = null) {
-  if (!source || typeof source !== 'object') {
-    return null;
-  }
-  const count = Number(source.count ?? source.current ?? 0);
-  const max = Number(source.max ?? source.initial ?? source.count ?? source.current ?? 0);
-  const defUpRate = Number(source.def_up_rate ?? source.defUpRate ?? 0);
-  const damageLimit = Number(source.dmg_limit ?? source.damageLimit ?? 0);
-  const normalizedCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
-  const normalizedMax = Number.isFinite(max) ? Math.max(normalizedCount, Math.floor(max)) : normalizedCount;
-  return {
-    count: normalizedCount,
-    max: normalizedMax,
-    elements: Array.isArray(source.elements)
-      ? [...new Set(source.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    def_up_rate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    dmg_limit: Number.isFinite(damageLimit) ? damageLimit : 0,
-  };
+  const normalized = cloneEnemyEShieldState(source);
+  return normalized
+    ? {
+        count: normalized.current,
+        max: normalized.max,
+        elements: [...normalized.elements],
+        def_up_rate: normalized.defUpRate,
+        dmg_limit: normalized.damageLimit,
+      }
+    : null;
+}
+
+function normalizeEnemyExtraHpGauge(source = null) {
+  return cloneEnemyExtraHpGaugeState(source);
 }
 
 export function normalizeEnemyOdRateMultiplier(value) {
@@ -90,6 +89,7 @@ export function normalizeEnemyOdRateMultiplier(value) {
 
 function normalizeEnemyManual(manual = {}) {
   const eShield = normalizeEnemyEShield(manual?.e_shield ?? manual?.eShield);
+  const extraHpGauge = normalizeEnemyExtraHpGauge(manual?.extra_hp_gauge ?? manual?.extraHpGauge);
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual?.od_rate),
     max_d_rate: Number.isFinite(Number(manual?.max_d_rate))
@@ -100,12 +100,16 @@ function normalizeEnemyManual(manual = {}) {
     ),
     absorbElementList: normalizeAbsorbElementList(manual?.absorbElementList),
     ...(eShield ? { e_shield: eShield } : {}),
+    ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
   };
 }
 
 function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
   const manual = normalizeEnemyManual(source?.manual ?? source);
   const eShield = normalizeEnemyEShield(source?.e_shield ?? source?.eShield ?? manual.e_shield);
+  const extraHpGauge = normalizeEnemyExtraHpGauge(
+    source?.extra_hp_gauge ?? source?.extraHpGauge ?? manual.extra_hp_gauge
+  );
   const effectiveElementSource = source?.resistances?.element ?? source?.element ?? manual.element;
   const resistances = {
     element: Object.fromEntries(
@@ -126,6 +130,7 @@ function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
     resistances,
     absorbElementList,
     ...(eShield ? { e_shield: eShield } : {}),
+    ...(extraHpGauge ? { extra_hp_gauge: extraHpGauge } : {}),
   };
 }
 
@@ -175,6 +180,7 @@ export function normalizeEnemySetupSnapshot(snapshot = {}) {
     resistances: slot0.resistances,
     absorbElementList: slot0.absorbElementList,
     ...(slot0.e_shield ? { e_shield: structuredClone(slot0.e_shield) } : {}),
+    ...(slot0.extra_hp_gauge ? { extra_hp_gauge: structuredClone(slot0.extra_hp_gauge) } : {}),
   };
 }
 

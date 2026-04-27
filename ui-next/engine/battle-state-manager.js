@@ -1,5 +1,16 @@
 import { createInitializedBattleSnapshot } from '../../src/ui/adapter-core.js';
-import { DEFAULT_INITIAL_SP, DEFAULT_ENEMY_COUNT } from '../../src/config/battle-defaults.js';
+import {
+  DEFAULT_INITIAL_SP,
+  DEFAULT_ENEMY_COUNT,
+} from '../../src/config/battle-defaults.js';
+import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gauge.js';
+import { getNormalAttackElementsForPartyIndex } from '../../src/domain/normal-attack-elements.js';
+import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
+import {
+  applyStageSetupTurnStartEffects,
+  buildStageSetupBattleStartPassiveEvents,
+} from '../../src/turn/turn-controller.js';
 
 const PREEMPTIVE_FIELD_TO_ZONE_TYPE = Object.freeze({
   fire: 'Fire',
@@ -29,6 +40,8 @@ const DEFAULT_STAGE_SETUP = Object.freeze({
   initialOdGauge: 0,
   initialSpBonusAll: 0,
   initialStatusEffects: Object.freeze([]),
+  enchantEffects: Object.freeze([]),
+  turnlyOdGauge: 0,
   turnlySpAll: 0,
   turnlySpFront: 0,
   turnlySpBack: 0,
@@ -103,9 +116,11 @@ function normalizeStageSetup(stageSetup = {}) {
 
   const initialOdGauge = Number(stageSetup?.initialOdGauge);
   const initialSpBonusAll = Number(stageSetup?.initialSpBonusAll);
+  const turnlyOdGauge = Number(stageSetup?.turnlyOdGauge);
   const turnlySpAll = Number(stageSetup?.turnlySpAll);
   const turnlySpFront = Number(stageSetup?.turnlySpFront);
   const turnlySpBack = Number(stageSetup?.turnlySpBack);
+  const enchantEffects = normalizeStageSetupEnchantEffects(stageSetup?.enchantEffects);
   const initialStatusEffects = Array.isArray(stageSetup?.initialStatusEffects)
     ? stageSetup.initialStatusEffects.map((effect) => normalizeStageStatusEffect(effect)).filter(Boolean)
     : [];
@@ -115,6 +130,8 @@ function normalizeStageSetup(stageSetup = {}) {
     initialSpBonusAll: Number.isFinite(initialSpBonusAll)
       ? initialSpBonusAll
       : DEFAULT_STAGE_SETUP.initialSpBonusAll,
+    enchantEffects,
+    turnlyOdGauge: Number.isFinite(turnlyOdGauge) ? turnlyOdGauge : DEFAULT_STAGE_SETUP.turnlyOdGauge,
     turnlySpAll: Number.isFinite(turnlySpAll) ? turnlySpAll : DEFAULT_STAGE_SETUP.turnlySpAll,
     turnlySpFront: Number.isFinite(turnlySpFront) ? turnlySpFront : DEFAULT_STAGE_SETUP.turnlySpFront,
     turnlySpBack: Number.isFinite(turnlySpBack) ? turnlySpBack : DEFAULT_STAGE_SETUP.turnlySpBack,
@@ -187,24 +204,11 @@ function buildEnemyAbsorbElements(source = {}) {
 }
 
 function buildEnemyEShieldState(source = {}) {
-  const raw = source?.e_shield;
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-  const current = Number(raw.count ?? raw.current ?? 0);
-  const max = Number(raw.max ?? raw.initial ?? raw.count ?? raw.current ?? 0);
-  const defUpRate = Number(raw.def_up_rate ?? raw.defUpRate ?? 0);
-  const damageLimit = Number(raw.dmg_limit ?? raw.damageLimit ?? 0);
-  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
-  return {
-    current: normalizedCurrent,
-    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
-    elements: Array.isArray(raw.elements)
-      ? [...new Set(raw.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
-  };
+  return cloneEnemyEShieldState(source?.e_shield);
+}
+
+function buildEnemyExtraHpGaugeState(source = {}) {
+  return cloneEnemyExtraHpGaugeState(source?.extra_hp_gauge);
 }
 
 function normalizeEnemyCount(value) {
@@ -213,6 +217,10 @@ function normalizeEnemyCount(value) {
     return MIN_ENEMY_COUNT;
   }
   return Math.min(MAX_ENEMY_COUNT, Math.max(MIN_ENEMY_COUNT, Math.trunc(numeric)));
+}
+
+function resolveNormalAttackElementsForPartyIndex(snapshot = {}, index) {
+  return getNormalAttackElementsForPartyIndex(snapshot?.normalAttackElementsByPartyIndex, index);
 }
 
 function buildLegacyEnemySlot(enemySetup = {}) {
@@ -224,6 +232,7 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     resistances: enemySetup?.resistances,
     absorbElementList: enemySetup?.absorbElementList,
     e_shield: enemySetup?.e_shield,
+    extra_hp_gauge: cloneEnemyExtraHpGaugeState(enemySetup?.extra_hp_gauge),
   };
 }
 
@@ -266,6 +275,7 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       maxDestructionRate,
       rawOdRate,
       eShieldState: buildEnemyEShieldState(slot),
+      extraHpGaugeState: buildEnemyExtraHpGaugeState(slot),
     };
   });
 
@@ -290,6 +300,11 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       slotStates
         .filter((slotState) => Boolean(slotState.eShieldState))
         .map((slotState, index) => [String(index), structuredClone(slotState.eShieldState)])
+    ),
+    extraHpGaugeStateByEnemy: Object.fromEntries(
+      slotStates
+        .filter((slotState) => Boolean(slotState.extraHpGaugeState))
+        .map((slotState, index) => [String(index), structuredClone(slotState.extraHpGaugeState)])
     ),
   };
 }
@@ -376,6 +391,14 @@ export class BattleStateManager {
         Number(snapshot.startSpEquipByPartyIndex[srcIdx] ?? 0) + Number(stageSetup.initialSpBonusAll ?? 0),
       ])
     );
+    const normalAttackElementsByPartyIndex = Object.fromEntries(
+      filledIndices
+        .map((srcIdx, newIdx) => {
+          const elements = resolveNormalAttackElementsForPartyIndex(snapshot, srcIdx);
+          return elements ? [newIdx, elements] : null;
+        })
+        .filter(Boolean)
+    );
     const stageStatusEffectsByPartyIndex = buildStageStatusEffectsByPartyIndex(
       stageSetup,
       compactIndexBySourceIndex
@@ -407,7 +430,7 @@ export class BattleStateManager {
       supportStyleIdsByPartyIndex,
       supportLimitBreakLevelsByPartyIndex,
       skillSetsByPartyIndex,
-      normalAttackElementsByPartyIndex: {},
+      normalAttackElementsByPartyIndex,
       initialMotivationByPartyIndex: {},
       initialDpStateByPartyIndex: {},
       initialBreakByPartyIndex: {},
@@ -425,6 +448,7 @@ export class BattleStateManager {
       absorbElementsByEnemy: enemyStateOverrides.absorbElementsByEnemy,
       odRateByEnemy: enemyStateOverrides.odRateByEnemy,
       eShieldStateByEnemy: enemyStateOverrides.eShieldStateByEnemy,
+      extraHpGaugeStateByEnemy: enemyStateOverrides.extraHpGaugeStateByEnemy,
       enemyStatuses: [],
       breakStateByEnemy: {},
       enemyZoneConfigByEnemy: {},
@@ -439,10 +463,24 @@ export class BattleStateManager {
     // Stage Setup 毎ターン SP ギミック情報を state に保存
     if (this.#state) {
       this.#state.stageSetupTurnly = {
+        odGauge: stageSetup.turnlyOdGauge ?? 0,
         spAll: stageSetup.turnlySpAll ?? 0,
         spFront: stageSetup.turnlySpFront ?? 0,
         spBack: stageSetup.turnlySpBack ?? 0,
       };
+      this.#state.stageSetupEnchantEffects = structuredClone(stageSetup.enchantEffects ?? []);
+      const stageSetupPassiveEvents = buildStageSetupBattleStartPassiveEvents(
+        this.#state.turnState,
+        stageSetup,
+        this.#state.party
+      );
+      applyStageSetupTurnStartEffects(this.#state, [], stageSetupPassiveEvents);
+      this.#state.turnState.passiveEventsLastApplied = [
+        ...(Array.isArray(this.#state.turnState.passiveEventsLastApplied)
+          ? this.#state.turnState.passiveEventsLastApplied
+          : []),
+        ...stageSetupPassiveEvents,
+      ];
     }
 
     return result.state;

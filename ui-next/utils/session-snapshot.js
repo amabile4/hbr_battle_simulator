@@ -2,6 +2,8 @@ import { normalizeLightweightReplayScript } from '../../src/ui/lightweight-repla
 import { normalizeEnemySetupSnapshot } from './enemy-setup-snapshot.js';
 import { normalizeSimulatorSettings } from './simulator-settings.js';
 import { normalizeValidationPolicy } from './validation-policy.js';
+import { normalizeNormalAttackElementsByPartyIndex } from '../../src/domain/normal-attack-elements.js';
+import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
 
 export const SESSION_SNAPSHOT_VERSION = 1;
 const PARTY_SIZE = 6;
@@ -102,9 +104,11 @@ function normalizeStageStatusEffect(effect = {}) {
 function normalizeStageSetupSnapshot(stageSetup = {}) {
   const initialOdGauge = Number(stageSetup?.initialOdGauge ?? 0);
   const initialSpBonusAll = Number(stageSetup?.initialSpBonusAll ?? 0);
+  const turnlyOdGauge = Number(stageSetup?.turnlyOdGauge ?? 0);
   const turnlySpAll = Number(stageSetup?.turnlySpAll ?? 0);
   const turnlySpFront = Number(stageSetup?.turnlySpFront ?? 0);
   const turnlySpBack = Number(stageSetup?.turnlySpBack ?? 0);
+  const enchantEffects = normalizeStageSetupEnchantEffects(stageSetup?.enchantEffects);
   const selectedDimensionBattleId = Number(stageSetup?.selectedDimensionBattleId);
   const initialStatusEffects = Array.isArray(stageSetup?.initialStatusEffects)
     ? stageSetup.initialStatusEffects
@@ -115,9 +119,11 @@ function normalizeStageSetupSnapshot(stageSetup = {}) {
   return {
     initialOdGauge: Number.isFinite(initialOdGauge) ? initialOdGauge : 0,
     initialSpBonusAll: Number.isFinite(initialSpBonusAll) ? initialSpBonusAll : 0,
+    turnlyOdGauge: Number.isFinite(turnlyOdGauge) ? turnlyOdGauge : 0,
     turnlySpAll: Number.isFinite(turnlySpAll) ? turnlySpAll : 0,
     turnlySpFront: Number.isFinite(turnlySpFront) ? turnlySpFront : 0,
     turnlySpBack: Number.isFinite(turnlySpBack) ? turnlySpBack : 0,
+    enchantEffects,
     initialStatusEffects,
     selectedDimensionBattleId: Number.isFinite(selectedDimensionBattleId) ? selectedDimensionBattleId : null,
   };
@@ -141,6 +147,9 @@ export function normalizePartySetupSnapshot(snapshot = {}) {
     ),
     drivePierceByPartyIndex: normalizeIndexedObject(snapshot?.drivePierceByPartyIndex, 0),
     startSpEquipByPartyIndex: normalizeIndexedObject(snapshot?.startSpEquipByPartyIndex, 0),
+    normalAttackElementsByPartyIndex: normalizeNormalAttackElementsByPartyIndex(
+      snapshot?.normalAttackElementsByPartyIndex
+    ),
     skillSetsByPartyIndex: normalizeSkillSetsByPartyIndex(snapshot?.skillSetsByPartyIndex),
     stageSetup: normalizeStageSetupSnapshot(snapshot?.stageSetup),
   };

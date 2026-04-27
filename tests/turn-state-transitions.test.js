@@ -15,6 +15,8 @@ import {
   previewTurn,
   applyInitialPassiveState,
 } from '../src/index.js';
+import { applyStageSetupTurnStartEffects } from '../src/turn/turn-controller.js';
+import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
 function buildActionDict(party) {
@@ -184,6 +186,35 @@ function buildFullSkillRealDataParty(store, skillId, options = {}) {
   });
 }
 
+const START_CHARGE_STYLE_ID = 1007505;
+const START_CHARGE_LIMIT_BREAK_LEVEL = 3;
+const START_CHARGE_PASSIVE_ID = 100750503;
+const START_CHARGE_INITIAL_SP = 10;
+const START_CHARGE_SP_DELTA = 3;
+const START_CHARGE_TURN_SP_DELTA = 1;
+const START_CHARGE_CONDITIONAL_TURN_SP_DELTA = 1;
+const BUFF_CHARGE_SPECIAL_STATUS_ID = 25;
+
+function buildStartChargeRealDataParty(store, stylePosition) {
+  const style = store.getStyleById(START_CHARGE_STYLE_ID);
+  const styleCharacterKey = String(style?.chara_label ?? style?.chara ?? '');
+  const styleIds = getSixUsableStyleIds(store)
+    .filter((id) => {
+      const candidate = store.getStyleById(id);
+      return (
+        Number(id) !== START_CHARGE_STYLE_ID &&
+        String(candidate?.chara_label ?? candidate?.chara ?? '') !== styleCharacterKey
+      );
+    })
+    .slice(0, 6);
+  styleIds[stylePosition] = START_CHARGE_STYLE_ID;
+
+  return store.buildPartyFromStyleIds(styleIds, {
+    initialSP: START_CHARGE_INITIAL_SP,
+    limitBreakLevelsByPartyIndex: { [stylePosition]: START_CHARGE_LIMIT_BREAK_LEVEL },
+  });
+}
+
 function previewActorSkill(state, skillId, actionOverrides = {}) {
   const actor = state.party[0];
   return previewTurn(state, {
@@ -257,6 +288,273 @@ function createProtectionSkill(skillId) {
     ],
   };
 }
+
+function createEnemyEShieldState({
+  current = 1,
+  max = current,
+  elements = ['Fire'],
+  defUpRate = 0,
+  damageLimit = 0,
+} = {}) {
+  return {
+    current,
+    max,
+    elements,
+    defUpRate,
+    damageLimit,
+  };
+}
+
+function applyEnemyEShieldTestSetup(
+  state,
+  {
+    enemyCount = 1,
+    eShields = {},
+    damageRatesByEnemy = {},
+    statuses = [],
+  } = {}
+) {
+  state.turnState.enemyState.enemyCount = enemyCount;
+  state.turnState.enemyState.statuses = structuredClone(statuses);
+  state.turnState.enemyState.damageRatesByEnemy = structuredClone(damageRatesByEnemy);
+  state.turnState.enemyState.eShieldStateByEnemy = Object.fromEntries(
+    Object.entries(eShields).map(([enemyIndex, shieldState]) => [String(enemyIndex), structuredClone(shieldState)])
+  );
+  return state;
+}
+
+const HP_BREAK_TEST_EXTRA_GAUGE_TOTAL = 3;
+const HP_BREAK_TEST_EXTRA_GAUGE_VALUE = 40400000;
+
+function createHpBreakAttackSkill(skillId = 99501, { targetType = 'Single' } = {}) {
+  return {
+    id: skillId,
+    name: 'Gauge Slash',
+    label: `GaugeSlash${skillId}`,
+    sp_cost: 0,
+    target_type: targetType,
+    parts: [{ skill_type: 'AttackSkill', target_type: targetType, type: 'Slash' }],
+  };
+}
+
+function createHpBreakTestState({
+  enemyCount = 1,
+  remaining = 3,
+  skillTargetType = 'Single',
+  eShieldState = createEnemyEShieldState({
+    current: 12,
+    max: 30,
+    elements: ['Light'],
+    defUpRate: 5000,
+  }),
+} = {}) {
+  const skill = createHpBreakAttackSkill(99501, { targetType: skillTargetType });
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? { skills: [skill] }
+      : { skills: [createProtectionSkill(8800 + idx)] }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = enemyCount;
+  state.turnState.enemyState.extraHpGaugeStateByEnemy = Object.fromEntries(
+    Array.from({ length: enemyCount }, (_, enemyIndex) => [
+      String(enemyIndex),
+      {
+        total: HP_BREAK_TEST_EXTRA_GAUGE_TOTAL,
+        remaining,
+        values: Array.from(
+          { length: HP_BREAK_TEST_EXTRA_GAUGE_TOTAL },
+          () => HP_BREAK_TEST_EXTRA_GAUGE_VALUE
+        ),
+      },
+    ])
+  );
+  state.turnState.enemyState.eShieldStateByEnemy = eShieldState
+    ? Object.fromEntries(
+        Array.from({ length: enemyCount }, (_, enemyIndex) => [String(enemyIndex), structuredClone(eShieldState)])
+      )
+    : {};
+  return {
+    state,
+    skillId: skill.id,
+  };
+}
+
+test('manual HP break decrements extra gauge, resets break state, restores E shield, and truncates later actions', () => {
+  const { state, skillId } = createHpBreakTestState();
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 },
+    { statusType: 'SuperBreak', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'SuperBreakDown', targetIndex: 0, remainingTurns: 0 },
+  ];
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 250 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 350 };
+  state.turnState.enemyState.breakStateByEnemy = {
+    0: {
+      baseCap: 300,
+      strongBreakActive: true,
+      superDown: { preRate: 100, preCap: 300 },
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+    1: { characterId: 'M2', skillId: state.party[1].skills[0].skillId },
+    2: { characterId: 'M3', skillId: state.party[2].skills[0].skillId },
+  });
+  assert.equal(preview.actions.length, 1, 'preview should stop after the HP break action');
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+
+  assert.equal(committedRecord.actions.length, 1, 'commit should not materialize later actions');
+  assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0]);
+  assert.equal(committedRecord.actions[0]?.hpBreakCount, 1);
+  assert.deepEqual(nextState.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 2,
+    values: [40400000, 40400000, 40400000],
+  });
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 35,
+    max: 35,
+    elements: ['Light'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.deepEqual(
+    (nextState.turnState.enemyState.statuses ?? []).filter((status) => Number(status?.targetIndex) === 0),
+    [],
+    'BREAK/DownTurn/SuperBreak states should be cleared'
+  );
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 100);
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], undefined);
+  assert.equal(nextState.turnState.turnType, 'normal');
+  assert.equal(nextState.turnState.turnIndex, 2);
+});
+
+test('manual HP break can be applied repeatedly to multiple enemies until final kill', () => {
+  const { state, skillId } = createHpBreakTestState({
+    enemyCount: 2,
+    skillTargetType: 'All',
+  });
+  let currentState = state;
+
+  for (const expectedTurnIndex of [2, 3]) {
+    const preview = previewTurn(currentState, {
+      0: { characterId: 'M1', skillId, manualHpBreakEnemyIndexes: [0, 1] },
+      1: { characterId: 'M2', skillId: currentState.party[1].skills[0].skillId },
+    });
+
+    assert.equal(preview.actions.length, 1, 'preview should stop after each HP break action');
+
+    const { nextState, committedRecord } = commitTurn(currentState, preview);
+    const expectedRemaining = HP_BREAK_TEST_EXTRA_GAUGE_TOTAL - (expectedTurnIndex - 1);
+
+    assert.equal(committedRecord.actions.length, 1, 'commit should truncate later actors after HP break');
+    assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0, 1]);
+    assert.equal(committedRecord.actions[0]?.hpBreakCount, 2);
+    assert.equal(nextState.turnState.turnType, 'normal');
+    assert.equal(nextState.turnState.turnIndex, expectedTurnIndex);
+
+    for (const enemyIndex of [0, 1]) {
+      assert.deepEqual(
+        nextState.turnState.enemyState.extraHpGaugeStateByEnemy[String(enemyIndex)],
+        {
+          total: HP_BREAK_TEST_EXTRA_GAUGE_TOTAL,
+          remaining: expectedRemaining,
+          values: Array.from(
+            { length: HP_BREAK_TEST_EXTRA_GAUGE_TOTAL },
+            () => HP_BREAK_TEST_EXTRA_GAUGE_VALUE
+          ),
+        },
+        `enemy ${enemyIndex} should consume one extra HP gauge`
+      );
+      assert.equal(
+        (nextState.turnState.enemyState.statuses ?? []).some(
+          (status) => status?.statusType === 'Dead' && Number(status?.targetIndex) === enemyIndex
+        ),
+        false,
+        `enemy ${enemyIndex} should not be dead before the final gauge`
+      );
+    }
+
+    currentState = nextState;
+  }
+
+  const killPreview = previewTurn(currentState, {
+    0: { characterId: 'M1', skillId, manualKillEnemyIndexes: [0, 1] },
+    1: { characterId: 'M2', skillId: currentState.party[1].skills[0].skillId },
+  });
+  const { nextState: killedState, committedRecord } = commitTurn(currentState, killPreview);
+  const killAction = findActionByCharacterId(committedRecord, 'M1');
+
+  assert.equal(committedRecord.actions.length, 2, 'kill should not use the HP break truncation path');
+  assert.deepEqual(killAction?.manualKillEnemyIndexes, [0, 1]);
+  assert.equal(killAction?.killCount, 2);
+  assert.equal(killAction?.hpBreakCount, 0);
+  for (const enemyIndex of [0, 1]) {
+    assert.equal(
+      (killAction?.enemyStatusChanges ?? []).some(
+        (event) => event?.statusType === 'Dead' && Number(event?.targetIndex) === enemyIndex
+      ),
+      true,
+      `enemy ${enemyIndex} should be killed manually after the final gauge`
+    );
+    assert.equal(
+      (killedState.turnState.enemyState.statuses ?? []).some(
+        (status) => status?.statusType === 'Dead' && Number(status?.targetIndex) === enemyIndex
+      ),
+      true,
+      `enemy ${enemyIndex} should stay dead in next state`
+    );
+  }
+});
+
+test('manual HP break does not create an E shield when no active E shield exists', () => {
+  const { state, skillId } = createHpBreakTestState({ eShieldState: null });
+
+  const committed = commitTurn(
+    state,
+    previewTurn(state, {
+      0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+    })
+  );
+
+  assert.equal(committed.nextState.turnState.enemyState.eShieldStateByEnemy['0'], undefined);
+  assert.deepEqual(committed.nextState.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 2,
+    values: [40400000, 40400000, 40400000],
+  });
+});
+
+test('manual HP break forces the next state to the next normal base turn from OD and EX contexts', () => {
+  const { state: odBaseState, skillId } = createHpBreakTestState();
+  odBaseState.turnState.odGauge = 100;
+  const odState = activateOverdrive(odBaseState, 1, 'preemptive');
+  const odCommitted = commitTurn(
+    odState,
+    previewTurn(odState, {
+      0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+    })
+  );
+  assert.equal(odCommitted.nextState.turnState.turnType, 'normal');
+  assert.equal(odCommitted.nextState.turnState.turnIndex, 2);
+  assert.equal(odCommitted.nextState.turnState.turnLabel, 'T2');
+
+  const { state: exBaseState } = createHpBreakTestState();
+  const extraState = grantExtraTurn(exBaseState, ['M1']);
+  const extraCommitted = commitTurn(
+    extraState,
+    previewTurn(extraState, {
+      0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+    })
+  );
+  assert.equal(extraCommitted.nextState.turnState.turnType, 'normal');
+  assert.equal(extraCommitted.nextState.turnState.turnIndex, 2);
+  assert.equal(extraCommitted.nextState.turnState.turnLabel, 'T2');
+});
 
 function createHighBoostManualParty(actorOverrides = {}) {
   return createSixMemberManualParty((idx) => {
@@ -4670,16 +4968,19 @@ test('passive timing coverage report identifies controller gaps against passives
   const store = getStore();
   const report = analyzePassiveTimingCoverage(store.passives);
 
-  assert.deepEqual(report.supportedTimings, [
-    { timing: 'OnAdditionalTurnStart', count: 12 },
-    { timing: 'OnBattleStart', count: 84 },
-    { timing: 'OnBattleWin', count: 8 },
-    { timing: 'OnEnemyTurnStart', count: 32 },
-    { timing: 'OnEveryTurn', count: 294 },
-    { timing: 'OnFirstBattleStart', count: 116 },
-    { timing: 'OnOverdriveStart', count: 9 },
-    { timing: 'OnPlayerTurnStart', count: 200 },
-  ]);
+  assert.deepEqual(
+    report.supportedTimings.map((item) => item.timing),
+    [
+      'OnAdditionalTurnStart',
+      'OnBattleStart',
+      'OnBattleWin',
+      'OnEnemyTurnStart',
+      'OnEveryTurn',
+      'OnFirstBattleStart',
+      'OnOverdriveStart',
+      'OnPlayerTurnStart',
+    ]
+  );
   assert.deepEqual(
     report.unsupportedTimings.map((item) => item.timing),
     ['None', 'OnEveryTurnIncludeSpecial']
@@ -6265,7 +6566,7 @@ test('HealSp AllySingleWithoutSelf respects selected targetCharacterId', () => {
   assert.equal(t5.sp.current, 16, 'selected backline ally should receive HealSp');
 });
 
-test('normal attack guarantees minimum 7.5% OD gain even when hit count is below 3', () => {
+test('normal attack gains fixed 2.5% OD even when its raw hit count is below 3', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `N${idx + 1}`,
@@ -6294,7 +6595,7 @@ test('normal attack guarantees minimum 7.5% OD gain even when hit count is below
   });
   const { nextState } = commitTurn(state, preview);
 
-  assert.equal(nextState.turnState.odGauge, 7.5);
+  assert.equal(nextState.turnState.odGauge, 2.5);
 });
 
 test('normal attack uses belt element in OD resistance check', () => {
@@ -6343,7 +6644,7 @@ test('normal attack uses belt element in OD resistance check', () => {
     0: { characterId: 'NAB1', skillId: 11600 },
   });
   committed = commitTurn(state, preview);
-  assert.equal(committed.nextState.turnState.odGauge, 7.5);
+  assert.equal(committed.nextState.turnState.odGauge, 2.5);
 });
 
 test('skill attack increases OD gauge by hit_count * 2.5%', () => {
@@ -7403,11 +7704,12 @@ test('CountBC(...BreakDownTurn()>0) is evaluated from enemy down-turn state', ()
     0: { characterId: 'ED1', skillId: 18000 },
   });
   const { nextState } = commitTurn(state, preview);
-  assert.equal(
-    nextState.turnState.enemyState.statuses.length,
-    0,
-    'down turn should tick when base turn advances (enemy turn consumed)'
+  // 新仕様: remaining=1 は 1 tick で 0 に下がるが、grace として status は残る
+  const downTurn = nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
   );
+  assert.ok(downTurn, 'DownTurn should remain at remaining=0 (grace) after 1 tick');
+  assert.equal(Number(downTurn.remainingTurns ?? -1), 0);
 });
 
 test('CountBC(...IsBroken()==1) is evaluated from enemy break status', () => {
@@ -8522,7 +8824,12 @@ test('enemy down-turn status ticks when base turn advances (enemy turn consumed)
   });
   const { nextState } = commitTurn(state, preview);
   assert.equal(nextState.turnState.turnIndex, 2);
-  assert.equal(nextState.turnState.enemyState.statuses.length, 0);
+  // remaining=1 → 1 tick で remaining=0 へ（ダウンターン最終ターンとして保持される）
+  const downTurn = nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+  );
+  assert.ok(downTurn, 'DownTurn が remaining=0 で残っているはず');
+  assert.equal(Number(downTurn.remainingTurns ?? -1), 0);
 });
 
 test('SuperBreakDown adds DownTurn event on fresh target and leaves Break state in next turn', () => {
@@ -8558,12 +8865,12 @@ test('SuperBreakDown adds DownTurn event on fresh target and leaves Break state 
     ),
     true
   );
-  assert.equal(
-    committed.nextState.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
-    ),
-    false
+  // 新仕様: 付与された DownTurn(remaining=1) は 1 tick 後 remaining=0 で残る（次ターンに消える）
+  const downTurn = committed.nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
   );
+  assert.ok(downTurn, '付与直後の DownTurn は remaining=0 の grace で残っているはず');
+  assert.equal(Number(downTurn.remainingTurns ?? -1), 0);
 });
 
 test('SuperBreakDown upgrades same-action manual break target to canonical SuperBreakDown state', () => {
@@ -8765,6 +9072,17 @@ test('SuperBreakDown upgrades down-turn target to canonical SuperBreakDown state
   assert.equal(committed.nextState.turnState.enemyState.breakStateByEnemy['0'].superDown.preRate, 250);
 
   committed.nextState.turnState.enemyState.destructionRateByEnemy['0'] = 420;
+  preview = previewTurn(committed.nextState, {
+    0: { characterId: 'M1', skillId: 18131, targetEnemyIndex: 0 },
+  });
+  committed = commitTurn(committed.nextState, preview);
+
+  // 新仕様: 1 → 0 grace で DownTurn / SuperBreakDown はまだ残り、もう 1 ターン後に消える
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some((status) => status.statusType === 'SuperBreakDown'),
+    true
+  );
+
   preview = previewTurn(committed.nextState, {
     0: { characterId: 'M1', skillId: 18131, targetEnemyIndex: 0 },
   });
@@ -15612,6 +15930,61 @@ function countActiveSpecialStatus(member, typeId) {
   ).length;
 }
 
+test('Passive.Start_Charge01 applies battle-start BuffCharge and SP+3 for frontline real data', () => {
+  const store = getStore();
+  const state = applyInitialPassiveState(
+    createBattleStateFromParty(buildStartChargeRealDataParty(store, 0))
+  );
+  const actor = state.party[0];
+  const openingEvent = state.turnState.passiveEventsLastApplied.find(
+    (event) => Number(event.passiveId) === START_CHARGE_PASSIVE_ID && event.characterId === actor.characterId
+  );
+
+  assert.equal(
+    actor.sp.current,
+    START_CHARGE_INITIAL_SP +
+      START_CHARGE_SP_DELTA +
+      START_CHARGE_TURN_SP_DELTA +
+      START_CHARGE_CONDITIONAL_TURN_SP_DELTA
+  );
+  assert.equal(countActiveSpecialStatus(actor, BUFF_CHARGE_SPECIAL_STATUS_ID), 1);
+  assert.ok(openingEvent, 'Passive.Start_Charge01 event should be recorded');
+  assert.deepEqual(openingEvent.effectTypes, ['BuffCharge', 'HealSp']);
+  assert.equal(openingEvent.spDelta, START_CHARGE_SP_DELTA);
+  assert.deepEqual(
+    openingEvent.appliedStatusEffects.map((effect) => ({
+      characterId: effect.characterId,
+      statusType: effect.statusType,
+      exitCond: effect.exitCond,
+      remaining: effect.remaining,
+    })),
+    [
+      {
+        characterId: actor.characterId,
+        statusType: 'BuffCharge',
+        exitCond: 'Count',
+        remaining: 1,
+      },
+    ]
+  );
+});
+
+test('Passive.Start_Charge01 does not apply while the real-data style starts in backline', () => {
+  const store = getStore();
+  const backlinePosition = 3;
+  const state = applyInitialPassiveState(
+    createBattleStateFromParty(buildStartChargeRealDataParty(store, backlinePosition))
+  );
+  const actor = state.party[backlinePosition];
+  const openingEvent = state.turnState.passiveEventsLastApplied.find(
+    (event) => Number(event.passiveId) === START_CHARGE_PASSIVE_ID && event.characterId === actor.characterId
+  );
+
+  assert.equal(actor.sp.current, START_CHARGE_INITIAL_SP);
+  assert.equal(countActiveSpecialStatus(actor, BUFF_CHARGE_SPECIAL_STATUS_ID), 0);
+  assert.equal(openingEvent, undefined);
+});
+
 test('T06: BuffCharge(25) — commitTurnで付与・パッシブ発動・次スキル使用で解除', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -18392,10 +18765,9 @@ test('enemy od_rate=0 means no correction: OD gain is unchanged', () => {
   assert.equal(nextState.turnState.odGauge, 10);
 });
 
-test('enemy od_rate applies truncation per hit for normal attacks', () => {
-  // 3-hit 通常攻撃:
+test('enemy od_rate applies truncation to fixed 1-hit OD for normal attacks', () => {
+  // 通常攻撃 OD は 1hit 相当で固定:
   // 1hit OD = trunc2(2.5 * 0.85) = 2.12
-  // 合計 = 2.12 * 3 = 6.36
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `ODH${idx + 1}`,
@@ -18408,8 +18780,8 @@ test('enemy od_rate applies truncation per hit for normal attacks', () => {
       skills: [
         {
           id: 15960 + idx,
-          name: idx === 0 ? '3hit Normal' : 'Protection',
-          label: idx === 0 ? 'ThreeHitNormal' : `ODHSkill${idx + 1}`,
+          name: idx === 0 ? '通常攻撃' : 'Protection',
+          label: idx === 0 ? 'ODHAttackNormal' : `ODHSkill${idx + 1}`,
           sp_cost: 0,
           hit_count: idx === 0 ? 3 : 0,
           target_type: 'Single',
@@ -18435,7 +18807,7 @@ test('enemy od_rate applies truncation per hit for normal attacks', () => {
   });
   const { nextState } = commitTurn(baseState, preview);
 
-  assert.equal(nextState.turnState.odGauge, 6.36);
+  assert.equal(nextState.turnState.odGauge, 2.12);
 });
 
 test('enemy od_rate scales hit-based OD only and leaves OverDrivePointUp unscaled', () => {
@@ -18984,6 +19356,427 @@ test('interrupt OD1 during EX (odSuspended, all OD consumed) → normal with sin
     }
   });
 
+test('applyStageSetupTurnStartEffects seeds T1 state without base SP recovery', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8900 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupTurnly = { spAll: 3, spFront: 2, spBack: -1, odGauge: 10 };
+  state.stageSetupEnchantEffects = [];
+
+  applyStageSetupTurnStartEffects(state);
+
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal(state.party[i].sp.current, 15, `Front M${i + 1}: should be 10 + 3 + 2 = 15 on T1`);
+  }
+  for (let i = 3; i < 6; i += 1) {
+    assert.equal(state.party[i].sp.current, 12, `Back M${i + 1}: should be 10 + 3 - 1 = 12 on T1`);
+  }
+  assert.equal(state.turnState.odGauge, 10);
+});
+
+test('applyStageSetupTurnStartEffects emits passive log events for stage setup turn-start SP/OD bonuses', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8905 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupTurnly = { spAll: 1, spFront: 1, spBack: 0, odGauge: 10 };
+  state.stageSetupEnchantEffects = [
+    { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+  ];
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  const passiveEvents = [];
+  applyStageSetupTurnStartEffects(state, [], passiveEvents);
+
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.sourceType === 'stage_setup' &&
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === '毎ターンSP+1' &&
+        Number(event.spDelta ?? 0) === 6
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.sourceType === 'stage_setup' &&
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === '毎ターン前衛のSP+1' &&
+        Number(event.spDelta ?? 0) === 3
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.sourceType === 'stage_setup' &&
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === 'ターン開始時ダウンターン中の敵がいるとSP+2' &&
+        Number(event.spDelta ?? 0) === 12
+    ),
+    true
+  );
+  assert.equal(
+    passiveEvents.some(
+      (event) =>
+        event.sourceType === 'stage_setup' &&
+        event.timing === 'OnEveryTurn' &&
+        event.passiveDesc === '毎ターンOD+10%' &&
+        Number(event.odGaugeDelta ?? 0) === 10
+    ),
+    true
+  );
+});
+
+test('applyRecoveryPipeline applies every-turn OD on normal turn transition', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8910 + idx)],
+  }));
+  const state = createBattleStateFromParty(party);
+  state.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0, odGauge: 10 };
+  state.turnState.turnIndex = 1;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8910 },
+  });
+  const { nextState } = commitTurn(state, preview, []);
+
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
+test('applyRecoveryPipeline clamps every-turn OD at max and min bounds', () => {
+  const positiveParty = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8930 + idx)],
+  }));
+  const positiveState = createBattleStateFromParty(positiveParty);
+  positiveState.turnState.odGauge = 295;
+  positiveState.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0, odGauge: 10 };
+
+  const positivePreview = previewTurn(positiveState, {
+    0: { characterId: 'M1', skillId: 8930 },
+  });
+  const { nextState: clampedHighState } = commitTurn(positiveState, positivePreview, []);
+  assert.equal(clampedHighState.turnState.odGauge, 300);
+
+  const negativeParty = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8950 + idx)],
+  }));
+  const negativeState = createBattleStateFromParty(negativeParty);
+  negativeState.turnState.odGauge = -995;
+  negativeState.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0, odGauge: -10 };
+
+  const negativePreview = previewTurn(negativeState, {
+    0: { characterId: 'M1', skillId: 8950 },
+  });
+  const { nextState: clampedLowState } = commitTurn(negativeState, negativePreview, []);
+  assert.equal(clampedLowState.turnState.odGauge, -999.99);
+});
+
+test('applyRecoveryPipeline grants stage setup SP when any enemy is in DownTurn', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8810 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+  ];
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8810 },
+  });
+  const { nextState } = commitTurn(state, preview, []);
+
+  for (const member of nextState.party) {
+    assert.equal(member.sp.current, 14, `${member.characterId}: should be 10 + 2(base) + 2(stage) = 14`);
+  }
+});
+
+test('applyStageSetupTurnStartEffects grants T1 stage setup SP when enemy already starts in DownTurn', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [createProtectionSkill(8820 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+  ];
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 }],
+  };
+
+  applyStageSetupTurnStartEffects(state);
+
+  for (const member of state.party) {
+    assert.equal(member.sp.current, 12, `${member.characterId}: should be 10 + 2(stage) on T1`);
+  }
+});
+
+test('applyRecoveryPipeline grants stage setup SP to negative-SP front/back members only', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    initialSP: idx === 0 ? -5 : idx === 3 ? -4 : 10,
+    skills: [createProtectionSkill(8830 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'turnStartSpIfNegativeSp', scope: 'front', amount: 2 },
+    { effectType: 'turnStartSpIfNegativeSp', scope: 'back', amount: 2 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8830 },
+  });
+  const { nextState } = commitTurn(state, preview, []);
+
+  assert.equal(nextState.party[0].sp.current, -1, 'front negative SP member should gain conditional +2 after base recovery');
+  assert.equal(nextState.party[3].sp.current, 0, 'back negative SP member should gain conditional +2 after base recovery');
+
+  for (const index of [1, 2, 4, 5]) {
+    assert.equal(nextState.party[index].sp.current, 12, `M${index + 1}: should only receive base recovery`);
+  }
+});
+
+test('stage setup SP on enemy kill is reflected in the same preview turn for one kill', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    initialSP: idx === 1 ? 0 : 10,
+    skills: [createProtectionSkill(8850 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8850, manualKillEnemyIndexes: [0] },
+    1: { characterId: 'M2', skillId: 8851 },
+  }, null, 1);
+
+  assert.equal(findActionByCharacterId(preview, 'M1').killCount, 1);
+  assert.equal(findActionByCharacterId(preview, 'M2').startSP, 1);
+});
+
+test('stage setup SP on enemy kill stacks by killCount in the same preview turn', () => {
+  const party = createSixMemberManualParty((idx) => ({
+    initialSP: idx === 1 ? 0 : 10,
+    skills: [createProtectionSkill(8870 + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 2 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8870, manualKillEnemyIndexes: [0, 1] },
+    1: { characterId: 'M2', skillId: 8871 },
+  }, null, 2);
+
+  assert.equal(findActionByCharacterId(preview, 'M1').killCount, 2);
+  assert.equal(findActionByCharacterId(preview, 'M2').startSP, 2);
+});
+
+test('stage setup OD bonus is added in the same bucket as drive pierce for action-skill OD gain', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          skills: [
+            {
+              id: 8890,
+              name: '2hit AttackSkill',
+              label: 'TwoHitAttackSkill',
+              sp_cost: 0,
+              hit_count: 2,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(8890 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.party[0].drivePiercePercent = 15;
+  state.stageSetupEnchantEffects = [
+    { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 8890, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 6.3);
+});
+
+test('stage setup OD bonus does not affect pursuit OD gain', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'PURSUIT_STAGE_OD',
+          characterName: 'PURSUIT_STAGE_OD',
+          weaponType: 'Slash',
+          skills: [
+            {
+              id: 8898,
+              name: '通常攻撃',
+              label: 'PursuitStageOd',
+              hit_count: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(8898 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.stageSetupEnchantEffects = [
+    { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'PURSUIT_STAGE_OD', skillId: 8898, targetEnemyIndex: 0, pursuedHitCount: 3 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
+test('stage setup every-turn OD is independent from odGaugeGainBonusPercent drive bonus handling', () => {
+  const createStateWithTurnlyOd = (turnlyOdGauge) => {
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            skills: [
+              {
+                id: 8899,
+                name: '2hit AttackSkill',
+                label: 'TwoHitAttackSkill',
+                sp_cost: 0,
+                hit_count: 2,
+                target_type: 'Single',
+                parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(8990 + idx)],
+          }
+    );
+    const state = createBattleStateFromParty(party, { enemyCount: 1 });
+    state.party[0].drivePiercePercent = 15;
+    state.stageSetupTurnly = { spAll: 0, spFront: 0, spBack: 0, odGauge: turnlyOdGauge };
+    state.stageSetupEnchantEffects = [
+      { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+    ];
+    return state;
+  };
+
+  const baseState = createStateWithTurnlyOd(0);
+  const turnlyOdState = createStateWithTurnlyOd(10);
+
+  const basePreview = previewTurn(baseState, {
+    0: { characterId: 'M1', skillId: 8899, targetEnemyIndex: 0 },
+  });
+  const { nextState: baseNextState } = commitTurn(baseState, basePreview);
+
+  const turnlyPreview = previewTurn(turnlyOdState, {
+    0: { characterId: 'M1', skillId: 8899, targetEnemyIndex: 0 },
+  });
+  const { nextState: turnlyNextState } = commitTurn(turnlyOdState, turnlyPreview);
+
+  assert.equal(turnlyNextState.turnState.odGauge - baseNextState.turnState.odGauge, 10);
+});
+
+test('battle-start-only stage setup SP/OD bonuses are not replayed on T2+', () => {
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const baseSnapshot = {
+    isFrontFilled: true,
+    styleIds: [1001509, 1005303, 1004107, 1001109, 1007106, 1003406],
+    supportStyleIds: [1003604, 1001708, 1005104, 1002107, 1007104, 1005407],
+    limitBreakLevelsByPartyIndex: { 0: 4, 1: 4, 2: 4, 3: 3, 4: 3, 5: 4 },
+    supportLimitBreakLevelsByPartyIndex: { 0: 4, 1: 4, 2: 3, 3: 4, 4: 1, 5: 1 },
+    drivePierceByPartyIndex: { 0: 15, 1: 15, 2: 15, 3: 15, 4: 15, 5: 15 },
+    startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    normalAttackElementsByPartyIndex: {
+      0: ['Ice'],
+      1: ['Ice'],
+      2: ['Ice'],
+      3: ['Ice'],
+      4: ['Ice'],
+      5: ['Ice'],
+    },
+    skillSetsByPartyIndex: {
+      0: [46001501],
+      1: [46005301],
+      2: [46004101],
+      3: [46001101],
+      4: [46007110],
+      5: [46003401],
+    },
+  };
+  const baseState = battleStateManager.buildFromSnapshot(baseSnapshot, { enemyCount: 1 });
+  const stagedState = battleStateManager.buildFromSnapshot(
+    {
+      ...baseSnapshot,
+      stageSetup: {
+        initialOdGauge: 100,
+        initialSpBonusAll: 5,
+      },
+    },
+    { enemyCount: 1 }
+  );
+  const buildNormalAttackActions = (state) =>
+    Object.fromEntries(
+      state.party
+        .filter((member) => Number(member.position) >= 0 && Number(member.position) <= 2)
+        .map((member) => {
+          const skillId = Number(member.skills?.[0]?.skillId ?? member.skills?.[0]?.id);
+          return [member.position, { characterId: member.characterId, skillId }];
+        })
+    );
+
+  const basePreview = previewTurn(baseState, buildNormalAttackActions(baseState));
+  const { nextState: baseNextState } = commitTurn(baseState, basePreview, []);
+  const stagedPreview = previewTurn(stagedState, buildNormalAttackActions(stagedState));
+  const { nextState: stagedNextState } = commitTurn(stagedState, stagedPreview, []);
+
+  assert.equal(
+    Number(stagedNextState.turnState.odGauge) - Number(baseNextState.turnState.odGauge),
+    100,
+    'initial OD bonus should remain a one-time T1 offset on T2+'
+  );
+  for (const index of [0, 1, 2]) {
+    assert.equal(
+      Number(stagedNextState.party[index].sp.current) - Number(baseNextState.party[index].sp.current),
+      5,
+      `front partyIndex=${index} should keep only the one-time initial SP bonus on T2+`
+    );
+  }
+  for (const index of [3, 4, 5]) {
+    assert.equal(
+      Number(stagedNextState.party[index].sp.current) - Number(baseNextState.party[index].sp.current),
+      5,
+      `back partyIndex=${index} should keep only the one-time initial SP bonus on T2+`
+    );
+  }
+});
+
 // ─── Phase C: enemy status sourceCharacterName が nextState に保持される ───
 // normalizeEnemyStatusForClone (cloneTurnState 内) が sourceCharacterName を
 // 適切に保持することを確認する。
@@ -19332,4 +20125,1085 @@ test('PlayedSkillCount SkillCondition with < 2 condition selects correct variant
   // 5th use (count=4): clamp to variant[3] sp_cost=4
   preview = previewTurn(state, actions);
   assert.equal(preview.actions[0].spCost, 4, '5回目以降もvariant[3]にクランプされること');
+});
+
+test('Eシールド matching hit consumes current and applies Break on the same action', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_BREAK',
+          characterName: 'ESH_BREAK',
+          skills: [
+            {
+              id: 99100,
+              name: 'Fire Break',
+              hitCount: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99200 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_BREAK', skillId: 99100, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_BREAK');
+
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn' && change.source === 'auto'),
+    true
+  );
+  assert.equal(action?.breakHitCount, 1);
+  // 新仕様: 自動ブレイクで付与された DownTurn(remaining=1) は 1 tick で remaining=0 の grace として残り、
+  // E シールド復帰は DownTurn が消滅する次ターンまで持ち越される
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 0,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  const downTurnAfter = nextState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+  );
+  assert.ok(downTurnAfter, 'auto-break で付与された DownTurn は remaining=0 で残るはず');
+  assert.equal(Number(downTurnAfter.remainingTurns ?? -1), 0);
+});
+
+test('通常攻撃はEシールドに対して raw hit_count を使い、OD は 2.5% 固定のまま扱う', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_NORMAL_RAW',
+          characterName: 'ESH_NORMAL_RAW',
+          weaponType: 'Strike',
+          normalAttackElements: ['Fire'],
+          skills: [
+            {
+              id: 99105,
+              name: '通常攻撃',
+              label: 'ESHNormalAttack',
+              hit_count: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Strike' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99250 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_NORMAL_RAW', skillId: 99105, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_NORMAL_RAW');
+
+  assert.equal(action?.skillHitCount, 1);
+  assert.equal(nextState.turnState.odGauge, 2.5);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 1,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(action?.breakHitCount ?? 0, 0);
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    false
+  );
+});
+
+test('通常攻撃の属性ブレスレットが不一致属性なら Eシールドは減らない', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_NORMAL_MISS',
+          characterName: 'ESH_NORMAL_MISS',
+          weaponType: 'Strike',
+          normalAttackElements: ['Thunder'],
+          skills: [
+            {
+              id: 991055,
+              name: '通常攻撃',
+              label: 'ESHNormalAttackMiss',
+              hit_count: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Strike' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99255 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_NORMAL_MISS', skillId: 991055, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 2.5);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 2,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+});
+
+for (const { weaponType, hitCount, skillId } of [
+  { weaponType: 'Slash', hitCount: 3, skillId: 99130 },
+  { weaponType: 'Stab', hitCount: 2, skillId: 99131 },
+  { weaponType: 'Strike', hitCount: 1, skillId: 99132 },
+]) {
+  test(`通常攻撃 × weaponType=${weaponType} (hit_count=${hitCount}) は OD=2.5% 固定 かつ E-shield は raw hit 分減る`, () => {
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: `ESH_NORMAL_${weaponType}`,
+            characterName: `ESH_NORMAL_${weaponType}`,
+            weaponType,
+            normalAttackElements: ['Fire'],
+            skills: [
+              {
+                id: skillId,
+                name: '通常攻撃',
+                label: `ESHNormal${weaponType}`,
+                hit_count: hitCount,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackNormal', target_type: 'Single', type: weaponType },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99330 + idx)],
+          }
+    );
+    const initialShield = hitCount + 2;
+    const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+      enemyCount: 1,
+      eShields: {
+        0: createEnemyEShieldState({ current: initialShield, max: initialShield, elements: ['Fire'] }),
+      },
+    });
+
+    const preview = previewTurn(state, {
+      0: { characterId: `ESH_NORMAL_${weaponType}`, skillId, targetEnemyIndex: 0 },
+    });
+    const { committedRecord, nextState } = commitTurn(state, preview);
+    const action = findActionByCharacterId(committedRecord, `ESH_NORMAL_${weaponType}`);
+
+    assert.equal(action?.skillHitCount, hitCount);
+    assert.equal(nextState.turnState.odGauge, 2.5);
+    assert.equal(
+      nextState.turnState.enemyState.eShieldStateByEnemy['0'].current,
+      initialShield - hitCount
+    );
+  });
+}
+
+for (const { weaponType, hitCount, skillId } of [
+  { weaponType: 'Slash', hitCount: 3, skillId: 99140 },
+  { weaponType: 'Stab', hitCount: 2, skillId: 99141 },
+  { weaponType: 'Strike', hitCount: 1, skillId: 99142 },
+]) {
+  test(`通常攻撃 × weaponType=${weaponType} は od_rate=0.85 でも OD=trunc2(2.5*0.85) 固定 かつ E-shield は raw hit 分減る`, () => {
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: `ESH_OD_RATE_${weaponType}`,
+            characterName: `ESH_OD_RATE_${weaponType}`,
+            weaponType,
+            normalAttackElements: ['Fire'],
+            skills: [
+              {
+                id: skillId,
+                name: '通常攻撃',
+                label: `ESHOdRate${weaponType}`,
+                hit_count: hitCount,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackNormal', target_type: 'Single', type: weaponType },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99350 + idx)],
+          }
+    );
+    const initialShield = hitCount + 2;
+    const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+      enemyCount: 1,
+      eShields: {
+        0: createEnemyEShieldState({ current: initialShield, max: initialShield, elements: ['Fire'] }),
+      },
+    });
+    state.turnState.enemyState.odRateByEnemy = { '0': 0.85 };
+
+    const preview = previewTurn(state, {
+      0: { characterId: `ESH_OD_RATE_${weaponType}`, skillId, targetEnemyIndex: 0 },
+    });
+    const { nextState } = commitTurn(state, preview);
+
+    // trunc2(2.5 * 0.85) * 1 = 2.12（武器種ヒット数に依らず常に 1hit 相当）
+    assert.equal(nextState.turnState.odGauge, 2.12);
+    assert.equal(
+      nextState.turnState.enemyState.eShieldStateByEnemy['0'].current,
+      initialShield - hitCount
+    );
+  });
+}
+
+test('weapon_type の列挙が styles.json と乖離していないことを検出するメタテスト', async () => {
+  // 将来 Gun 等の新武器種が styles.json に追加されたときに、
+  // 上記の武器種別カバレッジテストを拡張する必要があることを気付けるようにする。
+  const { readFileSync } = await import('node:fs');
+  const rawStyles = JSON.parse(readFileSync(new URL('../json/styles.json', import.meta.url), 'utf8'));
+  const styles = Array.isArray(rawStyles) ? rawStyles : Object.values(rawStyles);
+  const weaponTypes = new Set(
+    styles
+      .map((style) => String(style?.type ?? '').trim())
+      .filter(Boolean)
+  );
+  const expected = new Set(['Slash', 'Stab', 'Strike']);
+
+  const unexpected = [...weaponTypes].filter((t) => !expected.has(t));
+  const missing = [...expected].filter((t) => !weaponTypes.has(t));
+
+  assert.deepEqual(
+    unexpected,
+    [],
+    `styles.json に未知の weapon_type が追加されています: ${unexpected.join(', ')}。武器種別カバレッジテスト（通常攻撃 OD 2.5% 保証 / E-shield 減算）を拡張してください。`
+  );
+  assert.deepEqual(
+    missing,
+    [],
+    `styles.json から既知の weapon_type が消えています: ${missing.join(', ')}。`
+  );
+});
+
+for (const { weaponType, pursuedHitCount, skillId } of [
+  { weaponType: 'Slash', pursuedHitCount: 1, skillId: 99160 },
+  { weaponType: 'Stab', pursuedHitCount: 2, skillId: 99161 },
+  { weaponType: 'Strike', pursuedHitCount: 3, skillId: 99162 },
+]) {
+  test(`追撃 OD は pursuedHitCount に比例する (weaponType=${weaponType}, pursuedHitCount=${pursuedHitCount})`, () => {
+    // 通常攻撃 OD は 1hit 固定 (2.5) だが、追撃 OD は pursuedHitCount × 2.5 で算出される。
+    // 武器種は OD 計算に影響しないが、通常攻撃と追撃の経路差を武器種ごとに固定する。
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: `PURSUIT_OD_${weaponType}`,
+            characterName: `PURSUIT_OD_${weaponType}`,
+            weaponType,
+            normalAttackElements: ['Fire'],
+            skills: [
+              {
+                id: skillId,
+                name: '通常攻撃',
+                label: `Pursuit${weaponType}`,
+                hit_count: 1,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackNormal', target_type: 'Single', type: weaponType },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99370 + idx)],
+          }
+    );
+    const state = createBattleStateFromParty(party);
+    state.turnState.enemyState.enemyCount = 1;
+
+    const preview = previewTurn(state, {
+      0: { characterId: `PURSUIT_OD_${weaponType}`, skillId, targetEnemyIndex: 0, pursuedHitCount },
+    });
+    const { nextState } = commitTurn(state, preview);
+
+    // 通常攻撃 OD: 2.5 (hit 固定 1)
+    // 追撃 OD: trunc2(pursuedHitCount × trunc2(2.5 × 1.0)) = pursuedHitCount × 2.5
+    const expectedOd = 2.5 + pursuedHitCount * 2.5;
+    assert.equal(nextState.turnState.odGauge, expectedOd);
+  });
+}
+
+test('追撃は属性ベルト効果を受けない無属性扱いで、通常攻撃の hit のみが E-shield を減らす', () => {
+  // 属性ベルト Fire + E-shield Fire 一致 → 通常攻撃の hit 数だけ E-shield が減る。
+  // 追撃は無属性扱いで属性ベルトが乗らないため、pursuedHitCount は E-shield を減らさない。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'PURSUIT_ESH_MATCH',
+          characterName: 'PURSUIT_ESH_MATCH',
+          weaponType: 'Slash',
+          normalAttackElements: ['Fire'],
+          skills: [
+            {
+              id: 99170,
+              name: '通常攻撃',
+              label: 'PursuitEShieldMatch',
+              hit_count: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99390 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 5, max: 5, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'PURSUIT_ESH_MATCH', skillId: 99170, targetEnemyIndex: 0, pursuedHitCount: 3 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 通常攻撃 2 hit (Fire 一致で減算) + 追撃 3 hit (無属性なので減らない) → current 5 - 2 = 3
+  assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].current, 3);
+  // OD: 通常攻撃 2.5 + 追撃 3 × 2.5 = 10.0
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
+test('追撃 hit は属性ベルトが不一致のときも E-shield を減らさない（通常攻撃 hit も同じく減らない）', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'PURSUIT_ESH_MISS',
+          characterName: 'PURSUIT_ESH_MISS',
+          weaponType: 'Slash',
+          normalAttackElements: ['Thunder'],
+          skills: [
+            {
+              id: 99175,
+              name: '通常攻撃',
+              label: 'PursuitEShieldMiss',
+              hit_count: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99410 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 5, max: 5, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'PURSUIT_ESH_MISS', skillId: 99175, targetEnemyIndex: 0, pursuedHitCount: 3 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 通常攻撃も追撃も E-shield の Fire と不一致 → current 変化なし
+  assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].current, 5);
+  // OD は通常攻撃 2.5 + 追撃 3 × 2.5 = 10.0（両方とも加算される）
+  assert.equal(nextState.turnState.odGauge, 10);
+});
+
+test('HealEShield restores enemy Eシールド current up to max', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_HEAL',
+          characterName: 'ESH_HEAL',
+          skills: [
+            {
+              id: 99106,
+              name: 'E Shield Heal',
+              label: 'ESHHeal',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'HealEShield', target_type: 'Single', power: [3, 0] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99260 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 4, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_HEAL', skillId: 99106, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 4,
+    max: 4,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+});
+
+test('ReviveEShield restores depleted enemy Eシールド current', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_REVIVE',
+          characterName: 'ESH_REVIVE',
+          skills: [
+            {
+              id: 99107,
+              name: 'E Shield Revive',
+              label: 'ESHRevive',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'ReviveEShield', target_type: 'Single', power: [3, 0] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99270 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 0, max: 5, elements: ['Fire', 'Ice'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_REVIVE', skillId: 99107, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 3,
+    max: 5,
+    elements: ['Fire', 'Ice'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+});
+
+test('Eシールド ignores non-matching elements unless IgnoreEShieldElement is active', () => {
+  const createParty = (withIgnorePassive) =>
+    createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: withIgnorePassive ? 'ESH_IGNORE' : 'ESH_MISS',
+            characterName: withIgnorePassive ? 'ESH_IGNORE' : 'ESH_MISS',
+            passives: withIgnorePassive
+              ? [
+                  {
+                    id: 99110,
+                    name: 'Ignore E Shield',
+                    timing: 'OnPlayerTurnStart',
+                    parts: [
+                      {
+                        skill_type: 'IgnoreEShieldElement',
+                        target_type: 'Self',
+                        power: [0, 0],
+                        value: [0, 0],
+                        cond: '',
+                        hit_condition: '',
+                        target_condition: '',
+                      },
+                    ],
+                  },
+                ]
+              : [],
+            skills: [
+              {
+                id: 99111,
+                name: 'Thunder Hit',
+                hitCount: 2,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Thunder'] },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99300 + idx)],
+          }
+    );
+
+  const missState = applyEnemyEShieldTestSetup(createBattleStateFromParty(createParty(false)), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+  const missPreview = previewTurn(missState, {
+    0: { characterId: 'ESH_MISS', skillId: 99111, targetEnemyIndex: 0 },
+  });
+  const missCommit = commitTurn(missState, missPreview);
+
+  assert.deepEqual(missCommit.nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 2,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(
+    missCommit.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    false
+  );
+
+  const ignoreState = applyEnemyEShieldTestSetup(createBattleStateFromParty(createParty(true)), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+  const ignorePreview = previewTurn(ignoreState, {
+    0: { characterId: 'ESH_IGNORE', skillId: 99111, targetEnemyIndex: 0 },
+  });
+  const ignoreCommit = commitTurn(ignoreState, ignorePreview);
+  const ignoreAction = findActionByCharacterId(ignoreCommit.committedRecord, 'ESH_IGNORE');
+
+  assert.equal(ignoreAction?.breakHitCount, 1);
+  assert.equal(
+    (ignoreAction?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn' && change.source === 'auto'),
+    true
+  );
+  assert.equal(
+    ignoreCommit.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+});
+
+for (const mockTiming of ['OnHit', 'OnEnemyTurnStart', 'OnOverdriveStart', 'OnAdditionalTurnStart']) {
+  test(`IgnoreEShieldElement は timing=${mockTiming} でも属性不一致攻撃で Eシールドを減らす`, () => {
+    // IgnoreEShieldElement は action-time の恒常フラグとして扱うため、
+    // passive の timing が OnPlayerTurnStart 以外でも同じく E-shield 属性を無視すること。
+    const party = createSixMemberManualParty((idx) =>
+      idx === 0
+        ? {
+            characterId: `ESH_IGNORE_${mockTiming}`,
+            characterName: `ESH_IGNORE_${mockTiming}`,
+            passives: [
+              {
+                id: 99190,
+                name: `Ignore E Shield (${mockTiming})`,
+                timing: mockTiming,
+                parts: [
+                  {
+                    skill_type: 'IgnoreEShieldElement',
+                    target_type: 'Self',
+                    power: [0, 0],
+                    value: [0, 0],
+                    cond: '',
+                    hit_condition: '',
+                    target_condition: '',
+                  },
+                ],
+              },
+            ],
+            skills: [
+              {
+                id: 99191,
+                name: 'Thunder Hit',
+                hitCount: 2,
+                sp_cost: 0,
+                target_type: 'Single',
+                parts: [
+                  { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Thunder'] },
+                ],
+              },
+            ],
+          }
+        : {
+            skills: [createProtectionSkill(99290 + idx)],
+          }
+    );
+    const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+      enemyCount: 1,
+      eShields: {
+        0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+      },
+    });
+
+    const preview = previewTurn(state, {
+      0: { characterId: `ESH_IGNORE_${mockTiming}`, skillId: 99191, targetEnemyIndex: 0 },
+    });
+    const { nextState } = commitTurn(state, preview);
+
+    // 新仕様: 自動ブレイクで付与された DownTurn(remaining=1) は 1 tick で remaining=0 grace として残り、
+    // E シールド復帰は DownTurn 消滅の次ターンまで持ち越される（current=0 を維持）
+    assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+      current: 0,
+      max: 2,
+      elements: ['Fire'],
+      defUpRate: 0,
+      damageLimit: 0,
+    });
+    assert.equal(
+      nextState.turnState.enemyState.statuses.some(
+        (status) => status.statusType === 'Break' && status.targetIndex === 0
+      ),
+      true
+    );
+  });
+}
+
+test('IgnoreEShieldElement は既存の OnPlayerTurnStart passive と他 timing passive が共存してもどちらも動作する', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_IGNORE_MULTI',
+          characterName: 'ESH_IGNORE_MULTI',
+          passives: [
+            {
+              id: 99192,
+              name: 'Ignore E Shield (OnPlayerTurnStart)',
+              timing: 'OnPlayerTurnStart',
+              parts: [
+                {
+                  skill_type: 'IgnoreEShieldElement',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  target_condition: '',
+                },
+              ],
+            },
+            {
+              id: 99193,
+              name: 'Ignore E Shield (OnHit)',
+              timing: 'OnHit',
+              parts: [
+                {
+                  skill_type: 'IgnoreEShieldElement',
+                  target_type: 'Self',
+                  power: [0, 0],
+                  value: [0, 0],
+                  cond: '',
+                  hit_condition: '',
+                  target_condition: '',
+                },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99194,
+              name: 'Thunder Hit',
+              hitCount: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Thunder'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99310 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_IGNORE_MULTI', skillId: 99194, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_IGNORE_MULTI');
+
+  // 両 passive が ignoreEShieldElement フラグに寄与し、action 自体は 1 回だけ減算する
+  // 新仕様: auto-break で付与された DownTurn(remaining=1) は grace として残るため E シールドは current=0 のまま
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 0,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(action?.breakHitCount, 1);
+});
+
+test('dp > 0 併存時でも Eシールド減算が優先されブレイク経路へ接続する', () => {
+  // ゲーム仕様上 base_param.dp > 0 と extra_gauge.eshield は併存しないが、
+  // 異常データ混入時は E-shield を優先し DP ルートへ落とさないことを固定する。
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_DP_COEXIST',
+          characterName: 'ESH_DP_COEXIST',
+          skills: [
+            {
+              id: 99180,
+              name: 'Fire Hit',
+              hit_count: 2,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99280 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 2, max: 2, elements: ['Fire'] }),
+    },
+    // 異常データを想定: 敵側に DP 相当の破壊率 cap を 100（DP 有効相当）で設定するが、
+    // E-shield active な間は本来 destruction rate が上がらない仕様。
+    damageRatesByEnemy: { 0: { dp: 1, hp: 1, dr: 1 } },
+  });
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 100 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_DP_COEXIST', skillId: 99180, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_DP_COEXIST');
+
+  // E-shield は 2 hit で 0 まで削られ、same-action BREAK が成立
+  // 新仕様: auto-break で付与された DownTurn(remaining=1) は grace として残るため E シールドは current=0 のまま
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 0,
+    max: 2,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn' && change.source === 'auto'),
+    true
+  );
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  // E-shield 破壊まで destructionRate は更新されない（DP ルートへ落ちていないことの表明）
+  const destructionRate = Number(nextState.turnState.enemyState.destructionRateByEnemy?.[0] ?? 0);
+  assert.equal(destructionRate, 0);
+});
+
+test('Eシールド auto-break on all-target action updates breakHitCount and triggers AdditionalHitOnBreaking', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_ALL',
+          characterName: 'ESH_ALL',
+          initialSP: 5,
+          passives: [
+            {
+              id: 99120,
+              name: 'E Shield Break Trigger',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'HealSp', target_type: 'Self', power: [8, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99121,
+              name: 'Fire Sweep',
+              hitCount: 1,
+              sp_cost: 0,
+              target_type: 'All',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'All', type: 'Strike', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99400 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 2,
+    eShields: {
+      0: createEnemyEShieldState({ current: 1, max: 1, elements: ['Fire'] }),
+      1: createEnemyEShieldState({ current: 1, max: 1, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_ALL', skillId: 99121 },
+  });
+  const { committedRecord } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_ALL');
+  const spChange = (action?.spChanges ?? []).find((change) => change.source === 'sp_passive');
+
+  assert.equal(action?.breakHitCount, 2);
+  assert.ok(spChange, 'spChanges should include sp_passive after two auto breaks');
+  assert.equal(spChange.delta, 8);
+});
+
+test('Eシールド auto-break upgrades same-action SuperBreak to canonical state', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_SUPER',
+          characterName: 'ESH_SUPER',
+          skills: [
+            {
+              id: 99130,
+              name: 'Auto SuperBreak',
+              hitCount: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab', elements: ['Fire'] },
+                { skill_type: 'SuperBreak', target_type: 'Single', elements: ['Fire'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99500 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 1, max: 1, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_SUPER', skillId: 99130, targetEnemyIndex: 0 },
+  });
+  const committed = commitTurn(state, preview);
+  const action = findActionByCharacterId(committed.committedRecord, 'ESH_SUPER');
+
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'SuperBreak' && change.targetIndex === 0),
+    true
+  );
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn'),
+    false
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreak' && status.targetIndex === 0
+    ),
+    true
+  );
+});
+
+test('Eシールド auto-break upgrades same-action SuperBreakDown and drives BreakDownTurnUp', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_SUPERDOWN',
+          characterName: 'ESH_SUPERDOWN',
+          passives: [
+            {
+              id: 99140,
+              name: 'BreakDownTurnUp Trigger',
+              timing: 'OnFirstBattleStart',
+              parts: [
+                { skill_type: 'AdditionalHitOnBreaking', target_type: 'AllyAll', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+                { skill_type: 'BreakDownTurnUp', target_type: 'None', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+              ],
+            },
+          ],
+          skills: [
+            {
+              id: 99141,
+              name: 'Auto SuperBreakDown',
+              hitCount: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] },
+                { skill_type: 'SuperBreakDown', target_type: 'Single' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99600 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 1, max: 1, elements: ['Fire'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_SUPERDOWN', skillId: 99141, targetEnemyIndex: 0 },
+  });
+  const committed = commitTurn(state, preview);
+  const action = findActionByCharacterId(committed.committedRecord, 'ESH_SUPERDOWN');
+
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'SuperBreakDown'),
+    true
+  );
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'BreakDownTurnUp'),
+    true
+  );
+  assert.equal(
+    (action?.enemyStatusChanges ?? []).some((change) => change.mode === 'DownTurn'),
+    false
+  );
+  assert.equal(
+    committed.nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'SuperBreakDown' && status.targetIndex === 0
+    ),
+    true
+  );
+});
+
+test('Eシールド state persists across PlayerTurnEnd and EnemyTurnEnd while still active', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_PERSIST',
+          characterName: 'ESH_PERSIST',
+          skills: [
+            {
+              id: 99150,
+              name: 'Thunder Miss',
+              hitCount: 1,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Strike', elements: ['Thunder'] },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99700 + idx)],
+        }
+  );
+  let state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 3, max: 3, elements: ['Fire'] }),
+    },
+  });
+
+  let preview = previewTurn(state, {
+    0: { characterId: 'ESH_PERSIST', skillId: 99150, targetEnemyIndex: 0 },
+  });
+  let committed = commitTurn(state, preview);
+  state = committed.nextState;
+
+  assert.deepEqual(state.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 3,
+    max: 3,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+
+  preview = previewTurn(state, {
+    0: { characterId: 'ESH_PERSIST', skillId: 99150, targetEnemyIndex: 0 },
+  });
+  committed = commitTurn(state, preview);
+
+  assert.deepEqual(committed.nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 3,
+    max: 3,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
 });

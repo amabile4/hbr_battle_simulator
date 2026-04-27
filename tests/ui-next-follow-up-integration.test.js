@@ -190,7 +190,7 @@ test('follow-up override NOT set means pursuedHitCount stays 0', () => {
   assert.ok(!spPassive, 'sp_passive should NOT fire when pursuedHitCount is 0');
 });
 
-test('follow-up overrides are persisted in replay overrideEntries', () => {
+test('follow-up overrides are persisted in canonical replay turn fields', () => {
   const actorSkill = createSkill({
     id: 9303,
     name: 'Replay Persist Test',
@@ -219,18 +219,18 @@ test('follow-up overrides are persisted in replay overrideEntries', () => {
     }
   );
 
-  // Verify overrideEntries in replay script
   const replayTurn = manager.replayScript.turns[0];
   assert.ok(replayTurn, 'Replay turn should exist');
-
-  const followUpEntry = replayTurn.overrideEntries.find(
-    (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+  assert.deepEqual(replayTurn.followUpOverrides, [
+    { position: 3, enemyIndex: 0 },
+    { position: 4, enemyIndex: 1 },
+  ]);
+  assert.equal(
+    replayTurn.overrideEntries.some(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+    ),
+    false
   );
-  assert.ok(followUpEntry, 'Follow-up override entry should be stored in replay');
-  assert.ok(Array.isArray(followUpEntry.payload));
-  assert.equal(followUpEntry.payload.length, 2);
-  assert.deepEqual(followUpEntry.payload[0], { position: 3, enemyIndex: 0 });
-  assert.deepEqual(followUpEntry.payload[1], { position: 4, enemyIndex: 1 });
 });
 
 test('follow-up overrides survive recalculateFrom', () => {
@@ -402,10 +402,9 @@ test('extra turn follow-up from non-EX backliner attaches to the sole EX action 
   assert.equal(actorEntry.pursuedTargetEnemyIndex, 0);
   assert.equal(record.projections?.odGaugeAtEnd, 12.5, '1hit skill + 4hit pursuit should total 12.5% OD');
 
-  const followUpEntry = manager.replayScript.turns[0]?.overrideEntries?.find(
-    (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
-  );
-  assert.deepEqual(followUpEntry?.payload, [{ position: 4, enemyIndex: 0 }]);
+  assert.deepEqual(manager.replayScript.turns[0]?.followUpOverrides, [
+    { position: 4, enemyIndex: 0 },
+  ]);
 
   manager.recalculateFrom(0);
 
@@ -750,8 +749,8 @@ test('pursuit OD is not affected by drive pierce bonus on front attacker', () =>
   assert.equal(pursuitWithPierce, 2.5, 'Pursuit OD contribution should be 2.5% regardless of drive pierce');
 });
 
-test('pursuit OD is not mixed into normal attack minimum 3-hit guarantee', () => {
-  // 通常攻撃のスキルを作成（hitCount=1 → 最低3hit保証で3hitになる）
+test('pursuit OD is not mixed into normal attack fixed 1-hit OD handling', () => {
+  // 通常攻撃の OD は raw hit_count に関わらず 1hit 相当 (=2.5%) を基準にする
   const normalAttack = createSkill({
     id: 8000,
     name: '通常攻撃',
@@ -790,11 +789,9 @@ test('pursuit OD is not mixed into normal attack minimum 3-hit guarantee', () =>
 
   const odWithout = recordWithout.projections?.odGaugeAtEnd ?? 0;
   const odWith = recordWith.projections?.odGaugeAtEnd ?? 0;
-  // 通常攻撃 3hit × 2.5% = 7.5%、追撃 1hit × 2.5% = 2.5%
-  // 合計 10% であり、追撃が3hit保証に混入して (3+1)hit × 2.5% = 10% にはならない
-  // （数値的には同じだが、追撃なし = 7.5%、差分 = 2.5% で確認）
-  assert.equal(odWithout, 7.5, 'Normal attack 3-hit minimum should give 7.5% OD');
-  assert.equal(odWith - odWithout, 2.5, 'Pursuit should add exactly 2.5% (1hit), not alter 3-hit guarantee');
+  // 通常攻撃 1hit 相当 × 2.5% = 2.5%、追撃 1hit × 2.5% = 2.5%
+  assert.equal(odWithout, 2.5, 'Normal attack should give fixed 2.5% OD');
+  assert.equal(odWith - odWithout, 2.5, 'Pursuit should add exactly 2.5% (1hit), not alter normal attack fixed OD');
 });
 
 test('pursuit OD is affected by enemy od_rate multiplier', () => {

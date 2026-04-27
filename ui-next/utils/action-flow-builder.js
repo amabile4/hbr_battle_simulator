@@ -37,6 +37,7 @@ export function buildActionFlowFromRecord(record) {
       actorCharacterId: String(action?.characterId ?? ''),
       actorCharacterName: String(action?.characterName ?? ''),
       actorPartyIndex: Number(action?.partyIndex),
+      positionIndex: Number(action?.positionIndex),
       skillId: Number(action?.skillId ?? 0),
       skillName: String(action?.skillName ?? ''),
       costDelta: Number.isFinite(costDelta) ? costDelta : 0,
@@ -47,6 +48,9 @@ export function buildActionFlowFromRecord(record) {
       statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
       fieldStateApplied: structuredClone(action?.fieldStateApplied ?? []),
       enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),
+      autoBreakEnemyIndexes: Array.isArray(action?.autoBreakEnemyIndexes)
+        ? [...action.autoBreakEnemyIndexes]
+        : [],
     };
   });
 }

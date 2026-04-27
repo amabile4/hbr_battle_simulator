@@ -1,4 +1,12 @@
 import { MAX_PARTY_SIZE } from '../domain/party.js';
+import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
+import { normalizeNormalAttackElementsByPartyIndex } from '../domain/normal-attack-elements.js';
+import {
+  getActionOutcomeOverridesFromReplayTurn,
+  getFollowUpOverridesFromReplayTurn,
+  REPLAY_TURN_LEGACY_OVERRIDE_ENTRY_TYPES,
+} from '../domain/replay-turn-overrides.js';
 
 export const LIGHTWEIGHT_REPLAY_SCRIPT_VERSION = 1;
 
@@ -15,6 +23,7 @@ export const REPLAY_OPERATION_TYPES = Object.freeze({
   ACTIVATE_PREEMPTIVE_OD: 'ActivatePreemptiveOd',
   RESERVE_INTERRUPT_OD: 'ReserveInterruptOd',
   SUMMON_ENEMY: 'SummonEnemy',
+  SET_ENEMY_E_SHIELD: 'SetEnemyEShield',
 });
 
 export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
@@ -26,18 +35,21 @@ export const REPLAY_SETUP_ENTRY_TYPES = Object.freeze({
   MOTIVATION_STATE_BY_PARTY_INDEX: 'MotivationStateByPartyIndex',
   MARK_STATE_BY_PARTY_INDEX: 'MarkStateByPartyIndex',
   STATUS_EFFECTS_BY_PARTY_INDEX: 'StatusEffectsByPartyIndex',
+  NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX: 'NormalAttackElementsByPartyIndex',
 });
 
 export const REPLAY_OVERRIDE_ENTRY_TYPES = Object.freeze({
   ENEMY_COUNT: 'EnemyCount',
-  ACTION_OUTCOME_OVERRIDES: 'ActionOutcomeOverrides',
-  FOLLOW_UP_OVERRIDES: 'FollowUpOverrides',
+  ACTION_OUTCOME_OVERRIDES: REPLAY_TURN_LEGACY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+  FOLLOW_UP_OVERRIDES: REPLAY_TURN_LEGACY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES,
   ENEMY_ACTION: 'EnemyAction',
   ENEMY_NAMES: 'EnemyNames',
   ENEMY_DAMAGE_RATES: 'EnemyDamageRates',
   ENEMY_DESTRUCTION_RATES: 'EnemyDestructionRates',
   ENEMY_DESTRUCTION_RATE_CAPS: 'EnemyDestructionRateCaps',
   ENEMY_OD_RATES: 'EnemyOdRates',
+  ENEMY_E_SHIELDS: 'EnemyEShields',
+  ENEMY_EXTRA_HP_GAUGES: 'EnemyExtraHpGauges',
   ENEMY_ABSORB_ELEMENTS: 'EnemyAbsorbElements',
   ENEMY_BREAK_STATES: 'EnemyBreakStates',
   ENEMY_STATUSES: 'EnemyStatuses',
@@ -75,20 +87,30 @@ function isEmptyReplayPayload(value) {
   return false;
 }
 
-function createReplaySetupEntryDefinition(legacyField) {
+function createReplaySetupEntryDefinition(legacyField, options = {}) {
+  const normalizePayload =
+    typeof options?.normalizePayload === 'function' ? options.normalizePayload : null;
   return Object.freeze({
     legacyField,
+    normalizePayload,
     applyToInitializeOptions(initializeOptions, payload) {
-      initializeOptions[legacyField] = cloneReplayPayload(payload) ?? {};
+      const nextPayload = normalizePayload ? normalizePayload(payload) : cloneReplayPayload(payload);
+      if (isEmptyReplayPayload(nextPayload)) {
+        return;
+      }
+      initializeOptions[legacyField] = nextPayload;
     },
   });
 }
 
-function createReplayOverrideEntryDefinition(fieldName) {
+function createReplayOverrideEntryDefinition(fieldName, options = {}) {
+  const normalizePayload =
+    typeof options?.normalizePayload === 'function' ? options.normalizePayload : null;
   return Object.freeze({
     fieldName,
+    normalizePayload,
     applyToScenarioTurn(scenarioTurn, payload) {
-      const nextPayload = cloneReplayPayload(payload);
+      const nextPayload = normalizePayload ? normalizePayload(payload) : cloneReplayPayload(payload);
       if (nextPayload === undefined) {
         return;
       }
@@ -118,6 +140,56 @@ function normalizeNumericArray(values = []) {
   return Array.from({ length: MAX_PARTY_SIZE }, (_, index) => {
     return normalizeOptionalNumber(source[index]);
   });
+}
+
+function normalizeEnemyEShieldsPayload(payload = {}) {
+  if (!isPlainObject(payload)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([enemyIndex, state]) => {
+        const numericEnemyIndex = Number(enemyIndex);
+        const normalizedState = cloneEnemyEShieldState(state);
+        if (!Number.isInteger(numericEnemyIndex) || numericEnemyIndex < 0 || !normalizedState) {
+          return null;
+        }
+        return [String(numericEnemyIndex), normalizedState];
+      })
+      .filter(Boolean)
+  );
+}
+
+function normalizeEnemyExtraHpGaugesPayload(payload = {}) {
+  if (!isPlainObject(payload)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([enemyIndex, state]) => {
+        const numericEnemyIndex = Number(enemyIndex);
+        const normalizedState = cloneEnemyExtraHpGaugeState(state);
+        if (!Number.isInteger(numericEnemyIndex) || numericEnemyIndex < 0 || !normalizedState) {
+          return null;
+        }
+        return [String(numericEnemyIndex), normalizedState];
+      })
+      .filter(Boolean)
+  );
+}
+
+function normalizeSetEnemyEShieldPayload(payload = {}) {
+  if (!isPlainObject(payload)) {
+    return null;
+  }
+  const targetEnemyIndex = Number(payload.targetEnemyIndex ?? payload.enemyIndex);
+  if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0) {
+    return null;
+  }
+  return {
+    targetEnemyIndex,
+    eShieldState: cloneEnemyEShieldState(payload.eShieldState ?? payload.e_shield ?? null),
+  };
 }
 
 function normalizeTypedEnvelopeEntry(entry) {
@@ -165,7 +237,22 @@ function createTypedEnvelopeRegistry(definitions = {}) {
       return Object.keys(normalizedDefinitions);
     },
     normalizeEntries(entries = []) {
-      return normalizeTypedEnvelopeEntries(entries);
+      return normalizeTypedEnvelopeEntries(entries)
+        .map((entry) => {
+          const definition = normalizedDefinitions[String(entry?.type ?? '')] ?? null;
+          if (!definition || !('payload' in entry) || typeof definition.normalizePayload !== 'function') {
+            return entry;
+          }
+          const normalizedPayload = definition.normalizePayload(entry.payload);
+          if (isEmptyReplayPayload(normalizedPayload)) {
+            return null;
+          }
+          return {
+            type: entry.type,
+            payload: cloneReplayPayload(normalizedPayload),
+          };
+        })
+        .filter(Boolean);
     },
   });
 }
@@ -195,6 +282,12 @@ export const replaySetupEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_SETUP_ENTRY_TYPES.STATUS_EFFECTS_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
     'statusEffectsByPartyIndex'
   ),
+  [REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX]: createReplaySetupEntryDefinition(
+    'normalAttackElementsByPartyIndex',
+    {
+      normalizePayload: (payload) => normalizeNormalAttackElementsByPartyIndex(payload),
+    }
+  ),
 });
 export const replayOperationRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OPERATION_TYPES.CHANGE_FORM]: Object.freeze({
@@ -221,6 +314,11 @@ export const replayOperationRegistry = createTypedEnvelopeRegistry({
     timing: 'beforeCommit',
     allowMultiple: true,
   }),
+  [REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD]: Object.freeze({
+    timing: 'beforeCommit',
+    allowMultiple: true,
+    normalizePayload: (payload) => normalizeSetEnemyEShieldPayload(payload),
+  }),
 });
 export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT]: createReplayOverrideEntryDefinition('enemyCount'),
@@ -236,6 +334,14 @@ export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_DESTRUCTION_RATE_CAPS]:
     createReplayOverrideEntryDefinition('enemyDestructionRateCaps'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_OD_RATES]: createReplayOverrideEntryDefinition('enemyOdRates'),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS]:
+    createReplayOverrideEntryDefinition('enemyEShields', {
+      normalizePayload: (payload) => normalizeEnemyEShieldsPayload(payload),
+    }),
+  [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_EXTRA_HP_GAUGES]:
+    createReplayOverrideEntryDefinition('enemyExtraHpGauges', {
+      normalizePayload: (payload) => normalizeEnemyExtraHpGaugesPayload(payload),
+    }),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ABSORB_ELEMENTS]:
     createReplayOverrideEntryDefinition('enemyAbsorbElements'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES]: createReplayOverrideEntryDefinition('enemyBreakStates'),
@@ -283,7 +389,35 @@ export function getReplaySetupEntries(setup = {}) {
   const source = isPlainObject(setup) ? setup : {};
   const explicitEntries = replaySetupEntryRegistry.normalizeEntries(source.setupEntries);
   const explicitTypes = new Set(explicitEntries.map((entry) => String(entry.type ?? '')));
-  return [...collectLegacyReplaySetupEntries(source, explicitTypes), ...explicitEntries];
+  return replaySetupEntryRegistry.normalizeEntries([
+    ...collectLegacyReplaySetupEntries(source, explicitTypes),
+    ...explicitEntries,
+  ]);
+}
+
+export function replaceReplaySetupEntry(setup = {}, type, payload) {
+  const source = isPlainObject(setup) ? setup : {};
+  const normalizedType = String(type ?? '').trim();
+  if (!normalizedType) {
+    return normalizeLightweightReplaySetup(source);
+  }
+  const remainingEntries = getReplaySetupEntries(source).filter(
+    (entry) => String(entry?.type ?? '') !== normalizedType
+  );
+  const nextEntries = payload == null ? remainingEntries : [...remainingEntries, { type: normalizedType, payload }];
+  return normalizeLightweightReplaySetup({
+    ...source,
+    setupEntries: nextEntries,
+  });
+}
+
+export function syncReplaySetupNormalAttackElements(setup = {}, normalAttackElementsByPartyIndex = {}) {
+  const normalized = normalizeNormalAttackElementsByPartyIndex(normalAttackElementsByPartyIndex);
+  return replaceReplaySetupEntry(
+    setup,
+    REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX,
+    isEmptyReplayPayload(normalized) ? null : normalized
+  );
 }
 
 function mergeReplaySetupEntries(preferredSetup = {}, fallbackSetup = {}) {
@@ -413,12 +547,26 @@ function normalizeReplayTurnSlots(slots = []) {
 export function normalizeLightweightReplayTurn(turn = {}) {
   const source = isPlainObject(turn) ? turn : {};
   const turnNumber = Number(source.turn);
+  const normalizedOverrideEntries = replayOverrideEntryRegistry
+    .normalizeEntries(source.overrideEntries)
+    .filter((entry) => {
+      const type = String(entry?.type ?? '').trim();
+      return (
+        type !== REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES &&
+        type !== REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
+      );
+    });
+  const enemyCount = normalizedOverrideEntries.find(
+    (entry) => String(entry?.type ?? '') === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_COUNT
+  )?.payload;
   return {
     turn: Number.isFinite(turnNumber) ? turnNumber : null,
     slots: normalizeReplayTurnSlots(source.slots),
     operations: replayOperationRegistry.normalizeEntries(source.operations),
     note: typeof source.note === 'string' ? source.note : '',
-    overrideEntries: replayOverrideEntryRegistry.normalizeEntries(source.overrideEntries),
+    actionOutcomeOverrides: getActionOutcomeOverridesFromReplayTurn(source, enemyCount),
+    followUpOverrides: getFollowUpOverridesFromReplayTurn(source, enemyCount),
+    overrideEntries: normalizedOverrideEntries,
   };
 }
 

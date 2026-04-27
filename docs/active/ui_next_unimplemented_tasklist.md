@@ -1,6 +1,6 @@
 # UI Next 未実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-12
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-24
 >
 > **目的**: `ui_next_implementation_tasklist.md` から未完了項目を分離し、active ドキュメントに散在していた未実装作業をこの 1 ファイルで追跡する。
 >
@@ -23,7 +23,7 @@
 1. PRI-018 / Skill Usage Limits（`T19` 集約先）
 2. T16-B: 敵行動データからの auto summon
 3. T34 follow-up: enemy 関連メニュー統合 / browser E2E / per-source instance 管理 / `Disaster` 対応
-4. T32: Stage Setup Phase2/3
+4. T32: Stage Setup follow-up（残9項目）
 5. Setup パネル レイアウト改善 & ロード高速化
 
 ## 1) T16-B: Summon による敵数増加（5項目）
@@ -38,11 +38,13 @@
 - 2026-04-07: turn row は `敵情報確認` trigger のみとし、`enemy-detail-popup-container` を `E1/E2/E3` 3 tab + wide 3列 / narrow 1列 layout に更新した。`召喚 / ブレイク / 討伐` は選択中 enemy slot 直下の action row へ集約し、`Summon.webp` / `Break.webp` / `defeat.webp` を使う。break / kill は direct chip ではなく `ActionOutcomeOverrides` ベースの actor attribution へ戻し、単体攻撃で一意なら即時反映、曖昧または全体攻撃なら popup を閉じずに popup 内 sub-panel editor を開く。sample enemy は `Dimension_03_C_DeathSlugWhite` / `Dimension_03_C1_DeathSlugWhiteBit` / `Dimension_03_C1_EnergyPit_Pink_e` の 3 体で固定。`敵詳細` 見出しは廃止し、`名称` fold と `敵情報確認 / 敵情報 / 敵` の responsive label に更新した。残りは敵行動データからの自動 summon 化と、summon 後 selector 回帰 coverage。
 - 2026-04-10: `tests/ui-next-battle-state-manager.test.js` / `tests/ui-next-turn-engine-manager.test.js` / `tests/ui-next-turn-ui.test.js` を再実行し、summon 後の `target / break / follow-up / recommit` 回帰は固定済みと確認した。残る実装タスクは敵行動データからの自動 summon 化で、`BattleStateManager` の runtime summon 反映要否は `lightweight_record_replay_design.md` 側の責務整理 follow-up として分離する。
 - 2026-04-12: enemy popup に `3表示 / 1表示` toggle を追加し、default layout を occupied slot 数ベースへ変更した。`3表示` の許可は popup content 幅と最小 panel 幅で判定し、従来の `960px` 固定より早い段階で `1表示` を強制するように更新した。JSDOM / Playwright も `single enemy default narrow`、`multi enemy default wide`、`medium width forced narrow` へ合わせて回帰を追加した。
+- 2026-04-22: enemy popup action row を `召喚 / Eシールド / ブレイク付与 / 討伐` に拡張し、DownTurn 中など battle 中の slot 単位 Eシールド手動復帰・差し替えを追加した。`SetEnemyEShield` は `EnemyEShields` replay snapshot に正本化し、same-slot upsert、commit / recommit / save-load / recalculate 回帰、Playwright の popup 編集フローまで固定した。
 
 - [x] 手動 `Summon` を turn 単位の敵数増加イベントとして入力できる
 - [x] Summon 実行後の `enemyCount` を commit / replay / recalculate で維持する
 - [x] Summon 後に増えた敵スロットの情報表示（名前 / OD率 / 最大破壊率 / 耐性 / 吸収属性）を追加する
 - [x] break / follow-up / enemy detail popup など既存の敵選択 UI が増加後スロットにも追従する
+- [x] DownTurn 中の Eシールドを turn-row popup から手動復帰・編集し、same-slot upsert と replay snapshot 正本化で維持できる
 - [ ] 敵行動データの `Summon` を `ReplayTurn.operations[].type === 'SummonEnemy'` へ自動変換する
 
 ## 2) T19: use_count 表示・管理（集約）
@@ -144,6 +146,7 @@ T34 UI 段階導入（WBS 同期）:
 T34 follow-up（Day 1 設計ゲートで分離）:
 
 - [ ] T34-E2E: fixture 読込 / 残ターン更新 / legacy fallback を browser で固定する
+- 2026-04-24: `Undermine / 蝕` を enemy status 基盤へ接続し、`Undermine.webp`・help 文書・unit/E2E 回帰を追加した。`黒蝶霹靂制裁` の real-data integration と enemy popup preview 表示を固定。
 - [ ] T34-FU1: C-2 選択肢B（`effectId` 単位の per-source instance 管理）を別タスクで設計・実装する
 	- DoD: identity model 変更の影響範囲（engine/UI/tests）を文書化し、既存 merged 前提テストとの差分移行計画を提示する
 - [x] T34-FU3: `Disaster / 禍` を engine / UI / test まで接続した（2026-04-10）
@@ -206,17 +209,12 @@ DoD（受け入れ条件）:
 - UI で残弾 0 のスキルが見える化（または disabled 表示）される
 - 全ての既存テストおよび追加の回数制限テストが PASS する
 
-## 10) Stage Setup ギミック実装残（14項目）
+## 10) Stage Setup ギミック実装残（9項目）
 
 Source: `stage_setup_gimmick_pattern_analysis.md`
 
 - [ ] #2 3ターン味方全体の防御力+30%（エンジン対応済み。UIは50%/Eternal固定のため、power・ターン数のパラメータ化が必要）
 - [ ] #14 毎ターンDP+10%（`HealDpRate` + `OnEveryTurn` は既存。UI入力 + エンジン経路追加が必要）
-- [ ] #4 ターン開始時SP0未満の前衛の味方のSP+2（`Sp()<0` + `IsFront()` 条件は既存）
-- [ ] #5 ターン開始時SP0未満の後衛の味方のSP+2（#4 と同様、後衛条件）
-- [ ] #7 ターン開始時ダウンターン中の敵がいるとSP+2（`BreakDownTurn()` 条件は既存）
-- [ ] #13 敵を倒したとき敵1体につき味方全体のSP+1（`AdditionalHitOnKillCount` + `HealSp` は既存）
-- [ ] #3 ODゲージ上昇量+20%（OD獲得量倍率の常時バフ管理）
 - [ ] #9 回復スキルの効果量+50%（回復計算への倍率統合）
 - [ ] #6 ターン開始時スタン状態の味方のスタン解除（`RemoveSpecialStatus` 実体ロジック）
 - [ ] #18 破壊率上昇量+100%（破壊率上昇量の常時倍率管理）
@@ -224,3 +222,21 @@ Source: `stage_setup_gimmick_pattern_analysis.md`
 - [ ] #20 行動開始時ダウンターン中の敵がいるとスキル攻撃力+50%（#19 と同様）
 - [ ] #21 行動開始時ダウンターン中の敵がいると破壊率上昇量+30%（#19 + 破壊率倍率）
 - [ ] #22 行動開始時ダウンターン中の敵がいると破壊率上昇量+50%（#21 と同様）
+
+2026-04-20 更新:
+
+- [x] #3 `ODゲージ上昇量+20%` は `ODピアス` と同じ補正枠へ加算する形で実装した
+- [x] #4/#5 `ターン開始時SP0未満の前衛/後衛の味方のSP+2` を turn-start 条件付き回復として実装した
+- [x] #7 `ターン開始時ダウンターン中の敵がいるとSP+2` を turn-start 条件付き回復として実装した
+- [x] #13 `敵を倒したとき敵1体につき味方全体のSP+1` を撃破直後反映で実装した
+- [x] Stage Setup UI に read-only の「有効なプリセット効果」要約と session save/load を追加した
+
+2026-04-22 更新:
+
+- [x] Stage Setup に manual `毎ターンOD（%）` 入力を追加し、`turnlyOdGauge` として save/load・runtime 反映・T1 初期表示適用まで接続した
+- [x] この追加は 23 項目の恒星戦ギミック残件とは別枠の汎用入力強化として扱い、残件数 `9` は据え置く
+
+2026-04-27 更新:
+
+- [x] Stage Setup に manual `ODゲージ上昇量（%）` 入力を追加し、プリセット `ODゲージ上昇量+20%` を上段入力へ転記して任意値編集できるようにした
+- [x] 保存・実行時は既存 `stageSetup.enchantEffects` の `odGaugeGainBonusPercent` として保持するため、残件数 `9` は据え置く

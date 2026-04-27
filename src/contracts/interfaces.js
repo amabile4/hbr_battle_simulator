@@ -4,6 +4,8 @@ import {
   DEFAULT_ENEMY_COUNT,
 } from '../config/battle-defaults.js';
 import { cloneDpState } from '../domain/dp-state.js';
+import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
 import { MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 
 export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
@@ -97,26 +99,6 @@ function normalizeEnemyStatusForClone(status, enemyCount = DEFAULT_ENEMY_COUNT) 
   return normalized;
 }
 
-function normalizeEnemyEShieldStateForClone(state) {
-  if (!state || typeof state !== 'object') {
-    return null;
-  }
-  const current = Number(state.current ?? state.count ?? 0);
-  const max = Number(state.max ?? state.initial ?? state.current ?? state.count ?? 0);
-  const defUpRate = Number(state.defUpRate ?? state.def_up_rate ?? 0);
-  const damageLimit = Number(state.damageLimit ?? state.dmg_limit ?? 0);
-  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
-  return {
-    current: normalizedCurrent,
-    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
-    elements: Array.isArray(state.elements)
-      ? [...new Set(state.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
-  };
-}
-
 export function toCharacterSnapshot(character) {
   return Object.freeze({
     characterId: character.characterId,
@@ -181,6 +163,7 @@ export function createInitialTurnState() {
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
+      extraHpGaugeStateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       zoneConfigByEnemy: {},
@@ -265,7 +248,16 @@ export function cloneTurnState(turnState) {
             typeof turnState.enemyState.eShieldStateByEnemy === 'object'
               ? Object.fromEntries(
                   Object.entries(turnState.enemyState.eShieldStateByEnemy)
-                    .map(([targetIndex, state]) => [String(targetIndex), normalizeEnemyEShieldStateForClone(state)])
+                    .map(([targetIndex, state]) => [String(targetIndex), cloneEnemyEShieldState(state)])
+                    .filter(([, state]) => Boolean(state))
+                )
+              : {},
+          extraHpGaugeStateByEnemy:
+            turnState.enemyState.extraHpGaugeStateByEnemy &&
+            typeof turnState.enemyState.extraHpGaugeStateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.extraHpGaugeStateByEnemy)
+                    .map(([targetIndex, state]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(state)])
                     .filter(([, state]) => Boolean(state))
                 )
               : {},
@@ -358,6 +350,8 @@ export function cloneTurnState(turnState) {
           destructionRateCapByEnemy: {},
           absorbElementsByEnemy: {},
           odRateByEnemy: {},
+          eShieldStateByEnemy: {},
+          extraHpGaugeStateByEnemy: {},
           breakStateByEnemy: {},
           enemyNamesByEnemy: {},
           zoneConfigByEnemy: {},

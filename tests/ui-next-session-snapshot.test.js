@@ -8,9 +8,9 @@ import {
   SESSION_SNAPSHOT_VERSION,
 } from '../ui-next/utils/session-snapshot.js';
 import { TARGET_SELECTION_MODES } from '../ui-next/utils/simulator-settings.js';
-import { REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
+import { REPLAY_OVERRIDE_ENTRY_TYPES, REPLAY_SETUP_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 
-test('normalizeSessionSnapshot fills defaults and preserves replay override entries', () => {
+test('normalizeSessionSnapshot fills defaults and migrates replay action inputs to canonical turn fields', () => {
   const snapshot = normalizeSessionSnapshot({
     setup: {
       styleIds: [1001, 1002, 1003, null, null, null],
@@ -84,11 +84,14 @@ test('normalizeSessionSnapshot fills defaults and preserves replay override entr
   assert.equal(snapshot.enemy.enemySlots[0].resistances.element.fire, 130);
   assert.deepEqual(snapshot.enemy.enemySlots[0].absorbElementList, ['fire']);
   assert.equal(snapshot.enemy.preemptiveField, 'fire');
-  assert.deepEqual(
-    snapshot.replayScript.turns[0].overrideEntries.find(
+  assert.deepEqual(snapshot.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0, 1] },
+  ]);
+  assert.equal(
+    snapshot.replayScript.turns[0].overrideEntries.some(
       (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [0, 1] }]
+    ),
+    false
   );
 });
 
@@ -97,6 +100,12 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
     setup: {
       styleIds: [1001, 1002, 1003, null, null, null],
       supportStyleIds: [null, null, null, null, null, null],
+      stageSetup: {
+        turnlyOdGauge: 10,
+      },
+      normalAttackElementsByPartyIndex: {
+        0: ['Ice'],
+      },
     },
     enemy: {
       selectedEnemyId: 7001,
@@ -118,10 +127,105 @@ test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {
   assert.equal(parsed.validationPolicy.allowInsufficientSp, true);
   assert.equal(parsed.simulatorSettings.captureUntilBattleEnd, true);
   assert.deepEqual(parsed.setup.styleIds.slice(0, 3), [1001, 1002, 1003]);
+  assert.equal(parsed.setup.stageSetup.turnlyOdGauge, 10);
+  assert.deepEqual(parsed.setup.normalAttackElementsByPartyIndex, { 0: ['Ice'] });
   assert.deepEqual(parsed.setup.skillSetsByPartyIndex, {});
   assert.equal(parsed.enemy.selectedEnemyId, 7001);
   assert.equal(parsed.enemy.od_rate, 1);
   assert.equal(parsed.enemy.resistances.element.fire, 150);
+});
+
+test('normalizeSessionSnapshot keeps only valid single-value normalAttackElementsByPartyIndex entries', () => {
+  const snapshot = normalizeSessionSnapshot({
+    setup: {
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      normalAttackElementsByPartyIndex: {
+        0: ['Light'],
+        1: ['Fire', 'Ice'],
+        2: ['Void'],
+      },
+    },
+  });
+
+  assert.deepEqual(snapshot.setup.normalAttackElementsByPartyIndex, {
+    0: ['Light'],
+  });
+});
+
+test('normalizeSessionSnapshot canonicalizes replay setup bracelet legacy fields into setupEntries', () => {
+  const snapshot = normalizeSessionSnapshot({
+    replayScript: {
+      setup: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        normalAttackElementsByPartyIndex: {
+          0: ['Dark'],
+          1: ['Fire', 'Ice'],
+        },
+      },
+      turns: [],
+    },
+  });
+
+  assert.equal(Object.hasOwn(snapshot.replayScript.setup, 'normalAttackElementsByPartyIndex'), false);
+  assert.deepEqual(
+    snapshot.replayScript.setup.setupEntries.find(
+      (entry) => entry.type === REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    {
+      type: REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX,
+      payload: { 0: ['Dark'] },
+    }
+  );
+});
+
+test('normalizeSessionSnapshot preserves manual Eシールド edits in enemy setup snapshots', () => {
+  const snapshot = normalizeSessionSnapshot({
+    enemy: {
+      selectedEnemyId: 13450815,
+      selectedEnemyName: '変貌を重ねる不滅の円環',
+      isManual: true,
+      manual: {
+        od_rate: 1,
+        max_d_rate: 999,
+        element: {
+          fire: 100,
+          ice: 100,
+        },
+        absorbElementList: [],
+        e_shield: {
+          count: 9,
+          max: 15,
+          elements: ['Fire', 'Thunder'],
+          def_up_rate: 3200,
+          dmg_limit: 180000,
+        },
+      },
+    },
+  });
+
+  assert.equal(snapshot.enemy.isManual, true);
+  assert.deepEqual(snapshot.enemy.manual.e_shield, {
+    count: 9,
+    max: 15,
+    elements: ['Fire', 'Thunder'],
+    def_up_rate: 3200,
+    dmg_limit: 180000,
+  });
+  assert.deepEqual(snapshot.enemy.enemySlots[0].manual.e_shield, {
+    count: 9,
+    max: 15,
+    elements: ['Fire', 'Thunder'],
+    def_up_rate: 3200,
+    dmg_limit: 180000,
+  });
+  assert.deepEqual(snapshot.enemy.e_shield, {
+    count: 9,
+    max: 15,
+    elements: ['Fire', 'Thunder'],
+    def_up_rate: 3200,
+    dmg_limit: 180000,
+  });
 });
 
 test('decorateSessionSnapshotForHumans adds names and turn/action SP metadata', () => {
@@ -274,7 +378,14 @@ test('normalizeSessionSnapshot preserves stageSetup fields with defaults', () =>
       stageSetup: {
         initialOdGauge: -300,
         initialSpBonusAll: 5,
+        turnlyOdGauge: -10,
         selectedDimensionBattleId: 191000004,
+        enchantEffects: [
+          { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+          { effectType: 'spOnEnemyKill', scope: 'all', amount: 1 },
+          { effectType: 'spOnEnemyKill', scope: 'all', amount: 2 },
+          { effectType: 'turnStartSpIfNegativeSp', scope: 'invalid', amount: 2 },
+        ],
         initialStatusEffects: [
           {
             scope: 'all',
@@ -298,7 +409,12 @@ test('normalizeSessionSnapshot preserves stageSetup fields with defaults', () =>
 
   assert.equal(normalized.setup.stageSetup.initialOdGauge, -300);
   assert.equal(normalized.setup.stageSetup.initialSpBonusAll, 5);
+  assert.equal(normalized.setup.stageSetup.turnlyOdGauge, -10);
   assert.equal(normalized.setup.stageSetup.selectedDimensionBattleId, 191000004);
+  assert.deepEqual(normalized.setup.stageSetup.enchantEffects, [
+    { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+    { effectType: 'spOnEnemyKill', scope: 'all', amount: 3 },
+  ]);
   assert.equal(normalized.setup.stageSetup.initialStatusEffects.length, 2);
   assert.equal(normalized.setup.stageSetup.initialStatusEffects[0].statusType, 'DefenseUp');
   assert.equal(normalized.setup.stageSetup.initialStatusEffects[1].scope, 'partyIndex');

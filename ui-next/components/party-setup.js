@@ -17,6 +17,9 @@ const BELT_OPTIONS = [
   { value: 'Light',   label: '光' },
   { value: 'Dark',    label: '闇' },
 ];
+const VALID_BELT_VALUES = Object.freeze(
+  new Set(BELT_OPTIONS.map((option) => String(option.value ?? '').trim()).filter(Boolean))
+);
 
 const SP_EQUIP_OPTIONS = [
   { value: '', label: 'SP装備なし' },
@@ -106,6 +109,23 @@ function resolveSnapshotSpEquipId(snapshot = {}, index) {
     return bonus > 0 ? String(bonus) : EMPTY_SP_EQUIP_ID;
   }
   return DEFAULT_SP_EQUIP_ID;
+}
+
+function normalizeBeltValue(value) {
+  const normalized = String(value ?? '').trim();
+  return VALID_BELT_VALUES.has(normalized) ? normalized : '';
+}
+
+function resolveSnapshotBeltValue(snapshot = {}, index) {
+  const normalAttackElementsByPartyIndex = snapshot?.normalAttackElementsByPartyIndex;
+  const raw =
+    normalAttackElementsByPartyIndex?.[index] ??
+    normalAttackElementsByPartyIndex?.[String(index)] ??
+    null;
+  if (!Array.isArray(raw) || raw.length !== 1) {
+    return '';
+  }
+  return normalizeBeltValue(raw[0]);
 }
 
 /**
@@ -210,6 +230,14 @@ export class PartySetupController {
       startSpEquipByPartyIndex: Object.fromEntries(
         this.#slots.map((s, i) => [i, s.spEquipId === EMPTY_SP_EQUIP_ID ? 0 : Number(s.spEquipId)])
       ),
+      normalAttackElementsByPartyIndex: Object.fromEntries(
+        this.#slots
+          .map((slot, index) => {
+            const belt = normalizeBeltValue(slot.belt);
+            return belt ? [index, [belt]] : null;
+          })
+          .filter(Boolean)
+      ),
       skillSetsByPartyIndex: Object.fromEntries(
         this.#slots
           .map((slot, index) => (
@@ -254,7 +282,7 @@ export class PartySetupController {
         supportLb: Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0),
         drivePierce: Number(snapshot?.drivePierceByPartyIndex?.[index] ?? 0),
         spEquipId: resolveSnapshotSpEquipId(snapshot, index),
-        belt: '',
+        belt: resolveSnapshotBeltValue(snapshot, index),
         morale: 'normal',
         equippedSkillIds: style
           ? this.#resolveEquippedSkillIdsForStyle(
@@ -895,7 +923,7 @@ export class PartySetupController {
         else if (field === 'supportLb') this.#slots[idx].supportLb = Number(val);
         else if (field === 'drivePierce') this.#slots[idx].drivePierce = Number(val);
         else if (field === 'spEquip') this.#slots[idx].spEquipId = val;
-        else if (field === 'belt') this.#slots[idx].belt = val;
+        else if (field === 'belt') this.#slots[idx].belt = normalizeBeltValue(val);
         else if (field === 'morale') this.#slots[idx].morale = val;
         this.#notifyChange();
       });

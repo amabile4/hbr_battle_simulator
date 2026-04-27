@@ -1,6 +1,6 @@
 # 軽量 Record / Replay / Edit 設計案
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-04-11
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-14 | 🔄 最終更新: 2026-04-19
 >
 > **前提調査**: [`../20260314_record_replay_edit_investigation/README.md`](../20260314_record_replay_edit_investigation/README.md)
 
@@ -18,10 +18,16 @@
 - warning は replay diagnostics にのみ保持し、session snapshot には保存しない
 - soft warning として実装済み: SP不足継続、OD不足継続、使用回数超過、skill condition 不一致、未知 operation 無視、単体ブレイク target 正規化、召喚空きスロットなし warning
 - hard error は replay を停止し、対象 row に error 表示を出す
+- `ReplayTurn.actionOutcomeOverrides` / `ReplayTurn.followUpOverrides` を action input 正本として実装済み
+  - `actionOutcomeOverrides` で manual break / kill attribution を保持する
+  - `followUpOverrides` で follow-up 対象補正を保持する
 - `overrideEntries` は manual state だけでなく turn-bound の replay snapshot 正本としても使う
-  - `ActionOutcomeOverrides` で manual break / kill attribution を保持する
-  - `FollowUpOverrides` で follow-up 対象補正を保持する
   - `EnemyCount` / `EnemyNames` / `EnemyDamageRates` / `EnemyDestructionRates` / `EnemyDestructionRateCaps` / `EnemyOdRates` / `EnemyAbsorbElements` / `EnemyBreakStates` / `EnemyStatuses` で summon 後の enemy slot snapshot を保持する
+  - legacy `overrideEntries.ActionOutcomeOverrides` / `overrideEntries.FollowUpOverrides` は load 時に canonical field へ migration し、save 時には出力しない
+- `ReplaySetup.setupEntries` には setup-layer typed entry を追加できる
+  - 2026-04-19 時点で `NormalAttackElementsByPartyIndex` を実装済み
+  - `Party Setup` の belt selector は top-level `setup.normalAttackElementsByPartyIndex` を正本としつつ、save/load/recalculate 用に `replayScript.setup.setupEntries` にも同期保持する
+  - legacy な fixed field `replayScript.setup.normalAttackElementsByPartyIndex` は load 時に canonical `setupEntries[]` へ畳み込む
 - `operations` には `ActivateKishinka` / `ActivateMakaiKihei` / `ActivatePreemptiveOd` / `ReserveInterruptOd` に加えて `SummonEnemy` を実装済み
 - `ActivateMakaiKihei` は generic `previewTurn` ではなく専用 OD gain helper で解決する
   - live enemy 数と enemy `od_rate` は反映する
@@ -79,7 +85,7 @@ TurnAction = {
 1. 正本は lightweight replay script とする
 2. `record` は再計算で常に再生成できる derived data とする
 3. 各ターンは「6 slot の並び」と「その slot の skill / target」を同じ構造体に入れる
-4. 手動状態注入は例外扱いにし、通常ターン保存とは別枠の `overrideEntries[]` に限定する
+4. action 入力は `actionOutcomeOverrides` / `followUpOverrides`、manual state と turn-start snapshot は `overrideEntries[]` に分離する
 5. 再計算は重くてよい。保存と編集は軽くする
 
 ## 何を捨てるか
@@ -150,6 +156,7 @@ known setup entry の例:
 - `MotivationStateByPartyIndex`
 - `MarkStateByPartyIndex`
 - `StatusEffectsByPartyIndex`
+- `NormalAttackElementsByPartyIndex`
 
 ### 3. 各ターン
 
@@ -158,6 +165,8 @@ ReplayTurn = {
   turn,
   slots[6],
   operations?,
+  actionOutcomeOverrides?,
+  followUpOverrides?,
   note?,
   overrideEntries?
 }
@@ -203,6 +212,8 @@ ReplayTurn = {
   turn,
   slots[6],
   operations?,
+  actionOutcomeOverrides?,
+  followUpOverrides?,
   note?,
   overrideEntries?
 }
@@ -383,7 +394,7 @@ actionsByPosition[6]
 
 ## manual state の扱い
 
-通常 action 以外の control は `operations` に、manual state と turn-bound replay snapshot は `overrideEntries` に分ける。
+通常 action 以外の control は `operations` に、action 入力は `ReplayTurn.actionOutcomeOverrides` / `ReplayTurn.followUpOverrides` に、manual state と turn-bound replay snapshot は `overrideEntries` に分ける。
 
 ```text
 OverrideEntry = {
@@ -395,8 +406,6 @@ OverrideEntry = {
 例:
 
 - `EnemyCount`
-- `ActionOutcomeOverrides`
-- `FollowUpOverrides`
 - `EnemyNames`
 - `EnemyDamageRates`
 - `EnemyDestructionRates`
@@ -423,7 +432,7 @@ OverrideEntry = {
 | 項目 | 現行 | 提案 |
 |------|------|------|
 | 編集正本 | `turnPlans` | `ReplayScript.turns` |
-| 各ターン保存 | action + setupDelta + swap + manual state | `slots[6]` + `operations[]` + `note` + 必要時のみ `overrideEntries[]` |
+| 各ターン保存 | action + setupDelta + swap + manual state | `slots[6]` + `operations[]` + `actionOutcomeOverrides[]?` + `followUpOverrides[]?` + `note` + 必要時のみ `overrideEntries[]` |
 | swap | event として保存 | 保存しない |
 | Position | actor/position が混在 | `slots` の index を正本に固定 |
 | actor と skill | 別構造でずれうる | 同じ slot にまとめる |
@@ -514,7 +523,7 @@ OverrideEntry = {
 8. manual state は `overrideEntries` として分離する
 9. setup / operation / override は typed envelope で増減可能にする
 
-## 残タスクと優先順位（2026-04-10）
+## 残タスクと優先順位（2026-04-19）
 
 結論:
 
@@ -539,7 +548,7 @@ OverrideEntry = {
 ### P2
 
 - summon 後の `break / follow-up / target` 選択と committed-row 再編集の主要回帰 coverage を維持し、追加ケースが必要になったときだけ補う
-- `ActionOutcomeOverrides` / `FollowUpOverrides` / enemy slot snapshot override 群が同時に存在する turn の replay warning / normalization 挙動を固定する
+- `actionOutcomeOverrides` / `followUpOverrides` / enemy slot snapshot override 群が同時に存在する turn の replay warning / normalization 挙動を固定する
 
 理由:
 

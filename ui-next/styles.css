@@ -1111,6 +1111,129 @@
 .turn-info-enemy-button__label-text--full {
   display: inline;
 }
+.turn-info-e-shield-strip {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-items: center;
+  gap: 0.25rem 0.375rem;
+  padding: 0.25rem 0.125rem;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 0.625rem;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.92) 0%, rgba(226, 232, 240, 0.75) 100%);
+}
+.turn-info-e-shield-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+}
+.enemy-e-shield-badge {
+  --enemy-e-shield-fill: radial-gradient(circle at 35% 25%, #ffffff 0%, #60a5fa 38%, #1d4ed8 100%);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.9);
+  isolation: isolate;
+}
+.enemy-e-shield-badge--row {
+  width: 2rem;
+  height: 2.28rem;
+}
+.enemy-e-shield-badge--popup {
+  width: 2.25rem;
+  height: 2.55rem;
+}
+.enemy-e-shield-badge__shape,
+.enemy-e-shield-badge__shine {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(50% 100%, 14% 83%, 8% 34%, 20% 11%, 50% 0, 80% 11%, 92% 34%, 86% 83%);
+  pointer-events: none;
+}
+.enemy-e-shield-badge__shape {
+  background: var(--enemy-e-shield-fill);
+  box-shadow:
+    inset 0 0 0 2px rgba(219, 234, 254, 0.96),
+    0 1px 3px rgba(30, 64, 175, 0.3);
+}
+.enemy-e-shield-badge__shine {
+  inset: 2px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.12) 36%, rgba(15, 23, 42, 0.18) 100%);
+}
+.enemy-e-shield-badge__value {
+  position: relative;
+  z-index: 2;
+  transform: translateY(0.01rem);
+}
+.enemy-e-shield-badge--row .enemy-e-shield-badge__value {
+  font-size: 0.88rem;
+}
+.enemy-e-shield-badge--popup .enemy-e-shield-badge__value {
+  font-size: 0.96rem;
+}
+.enemy-e-shield-badge--digits-2.enemy-e-shield-badge--row .enemy-e-shield-badge__value {
+  font-size: 0.72rem;
+}
+.enemy-e-shield-badge--digits-2.enemy-e-shield-badge--popup .enemy-e-shield-badge__value {
+  font-size: 0.82rem;
+}
+.enemy-e-shield-badge--digits-3.enemy-e-shield-badge--row .enemy-e-shield-badge__value {
+  font-size: 0.6rem;
+}
+.enemy-e-shield-badge--digits-3.enemy-e-shield-badge--popup .enemy-e-shield-badge__value {
+  font-size: 0.68rem;
+}
+.enemy-e-shield-badge__slot-marker {
+  position: absolute;
+  top: -0.15rem;
+  left: -0.08rem;
+  z-index: 3;
+  display: inline-flex;
+  min-width: 0.86rem;
+  height: 0.86rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.9);
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+  font-size: 0.56rem;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+}
+.enemy-e-shield-badge--depleted .enemy-e-shield-badge__shape {
+  box-shadow:
+    inset 0 0 0 2px rgba(226, 232, 240, 0.98),
+    0 1px 2px rgba(100, 116, 139, 0.22);
+}
+.enemy-popup-e-shield-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+.enemy-popup-e-shield-summary__meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+.enemy-popup-e-shield-summary__gauge {
+  font-weight: 800;
+  color: #0f172a;
+}
+.enemy-popup-e-shield-summary__elements {
+  font-size: 0.75rem;
+  color: #475569;
+}
 [data-role="operation-chip-list"] {
   display: flex;
   flex-wrap: wrap;

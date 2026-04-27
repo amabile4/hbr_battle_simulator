@@ -1,7 +1,17 @@
+import {
+  STAGE_SETUP_ENCHANT_EFFECT_SCOPES,
+  STAGE_SETUP_ENCHANT_EFFECT_TYPES,
+  buildStageSetupEnchantEffectLabels,
+  normalizeStageSetupEnchantEffects,
+} from '../../src/domain/stage-setup-enchants.js';
+
 const DEFAULT_STAGE_SETUP = Object.freeze({
   initialOdGauge: 0,
+  odGainBonusPercent: 0,
   initialSpBonusAll: 0,
   initialStatusEffects: Object.freeze([]),
+  enchantEffects: Object.freeze([]),
+  turnlyOdGauge: 0,
   selectedDimensionBattleId: null,
   turnlySpAll: 0,
   turnlySpFront: 0,
@@ -15,10 +25,13 @@ const STAGE_EFFECT_IDS = Object.freeze({
 
 const STAGE_PRESET_RESULT_DEFAULT = Object.freeze({
   initialOdGauge: 0,
+  odGainBonusPercent: 0,
   initialSpBonusAll: 0,
+  turnlyOdGauge: 0,
   turnlySpAll: 0,
   turnlySpFront: 0,
   turnlySpBack: 0,
+  enchantEffects: Object.freeze([]),
   enableDefenseUp: false,
   enableDebuffGuard: false,
   unsupportedDescriptions: Object.freeze([]),
@@ -62,10 +75,13 @@ function normalizeDimensionBattles(raw = []) {
 function parsePresetDescriptions(descriptions = []) {
   const result = {
     initialOdGauge: 0,
+    odGainBonusPercent: 0,
     initialSpBonusAll: 0,
+    turnlyOdGauge: 0,
     turnlySpAll: 0,
     turnlySpFront: 0,
     turnlySpBack: 0,
+    enchantEffects: [],
     enableDefenseUp: false,
     enableDebuffGuard: false,
     unsupportedDescriptions: [],
@@ -84,9 +100,21 @@ function parsePresetDescriptions(descriptions = []) {
       consumed = true;
     }
 
+    const odGaugeGainBonusMatch = description.match(/ODゲージ上昇量([+-]\d+)(?:%|％)/);
+    if (odGaugeGainBonusMatch) {
+      result.odGainBonusPercent += Number(odGaugeGainBonusMatch[1]);
+      consumed = true;
+    }
+
     const spMatch = description.match(/戦闘開始時SP\+(\d+)/);
     if (spMatch) {
       result.initialSpBonusAll += Number(spMatch[1]);
+      consumed = true;
+    }
+
+    const turnlyOdGaugeMatch = description.match(/毎ターンOD([+-]\d+)(?:%|％)/);
+    if (turnlyOdGaugeMatch) {
+      result.turnlyOdGauge += Number(turnlyOdGaugeMatch[1]);
       consumed = true;
     }
 
@@ -118,11 +146,52 @@ function parsePresetDescriptions(descriptions = []) {
       consumed = true;
     }
 
+    const turnStartSpIfEnemyDownMatch = description.match(/ターン開始時ダウンターン中の敵がいるとSP([+-]\d+)/);
+    if (turnStartSpIfEnemyDownMatch) {
+      result.enchantEffects.push({
+        effectType: STAGE_SETUP_ENCHANT_EFFECT_TYPES.TURN_START_SP_IF_ENEMY_DOWN,
+        scope: STAGE_SETUP_ENCHANT_EFFECT_SCOPES.ALL,
+        amount: Number(turnStartSpIfEnemyDownMatch[1]),
+      });
+      consumed = true;
+    }
+
+    const turnStartSpIfNegativeFrontMatch = description.match(/ターン開始時SP0未満の前衛の味方のSP([+-]\d+)/);
+    if (turnStartSpIfNegativeFrontMatch) {
+      result.enchantEffects.push({
+        effectType: STAGE_SETUP_ENCHANT_EFFECT_TYPES.TURN_START_SP_IF_NEGATIVE_SP,
+        scope: STAGE_SETUP_ENCHANT_EFFECT_SCOPES.FRONT,
+        amount: Number(turnStartSpIfNegativeFrontMatch[1]),
+      });
+      consumed = true;
+    }
+
+    const turnStartSpIfNegativeBackMatch = description.match(/ターン開始時SP0未満の後衛の味方のSP([+-]\d+)/);
+    if (turnStartSpIfNegativeBackMatch) {
+      result.enchantEffects.push({
+        effectType: STAGE_SETUP_ENCHANT_EFFECT_TYPES.TURN_START_SP_IF_NEGATIVE_SP,
+        scope: STAGE_SETUP_ENCHANT_EFFECT_SCOPES.BACK,
+        amount: Number(turnStartSpIfNegativeBackMatch[1]),
+      });
+      consumed = true;
+    }
+
+    const spOnEnemyKillMatch = description.match(/敵を倒したとき敵1体につき味方全体のSP([+-]\d+)/);
+    if (spOnEnemyKillMatch) {
+      result.enchantEffects.push({
+        effectType: STAGE_SETUP_ENCHANT_EFFECT_TYPES.SP_ON_ENEMY_KILL,
+        scope: STAGE_SETUP_ENCHANT_EFFECT_SCOPES.ALL,
+        amount: Number(spOnEnemyKillMatch[1]),
+      });
+      consumed = true;
+    }
+
     if (!consumed) {
       result.unsupportedDescriptions.push(description);
     }
   }
 
+  result.enchantEffects = normalizeStageSetupEnchantEffects(result.enchantEffects);
   return result;
 }
 
@@ -161,12 +230,29 @@ function parseUiFromStatusEffects(effects = []) {
   };
 }
 
+function getOdGainBonusPercentFromEnchantEffects(effects = []) {
+  const normalized = normalizeStageSetupEnchantEffects(effects);
+  const odGainBonus = normalized.find(
+    (effect) => effect.effectType === STAGE_SETUP_ENCHANT_EFFECT_TYPES.OD_GAUGE_GAIN_BONUS_PERCENT
+  );
+  return toFiniteNumber(odGainBonus?.amount, DEFAULT_STAGE_SETUP.odGainBonusPercent);
+}
+
+function stripOdGainBonusFromEnchantEffects(effects = []) {
+  return normalizeStageSetupEnchantEffects(effects).filter(
+    (effect) => effect.effectType !== STAGE_SETUP_ENCHANT_EFFECT_TYPES.OD_GAUGE_GAIN_BONUS_PERCENT
+  );
+}
+
 function normalizeStageSetupSnapshot(stageSetup = {}) {
   const initialOdGauge = toFiniteNumber(stageSetup?.initialOdGauge, DEFAULT_STAGE_SETUP.initialOdGauge);
+  const odGainBonusPercent = getOdGainBonusPercentFromEnchantEffects(stageSetup?.enchantEffects);
   const initialSpBonusAll = toFiniteNumber(stageSetup?.initialSpBonusAll, DEFAULT_STAGE_SETUP.initialSpBonusAll);
+  const turnlyOdGauge = toFiniteNumber(stageSetup?.turnlyOdGauge, DEFAULT_STAGE_SETUP.turnlyOdGauge);
   const turnlySpAll = toFiniteNumber(stageSetup?.turnlySpAll, DEFAULT_STAGE_SETUP.turnlySpAll);
   const turnlySpFront = toFiniteNumber(stageSetup?.turnlySpFront, DEFAULT_STAGE_SETUP.turnlySpFront);
   const turnlySpBack = toFiniteNumber(stageSetup?.turnlySpBack, DEFAULT_STAGE_SETUP.turnlySpBack);
+  const enchantEffects = stripOdGainBonusFromEnchantEffects(stageSetup?.enchantEffects);
   const selectedDimensionBattleIdRaw = Number(stageSetup?.selectedDimensionBattleId);
   const selectedDimensionBattleId = Number.isFinite(selectedDimensionBattleIdRaw)
     ? selectedDimensionBattleIdRaw
@@ -177,10 +263,13 @@ function normalizeStageSetupSnapshot(stageSetup = {}) {
 
   return {
     initialOdGauge,
+    odGainBonusPercent,
     initialSpBonusAll,
+    turnlyOdGauge,
     turnlySpAll,
     turnlySpFront,
     turnlySpBack,
+    enchantEffects,
     initialStatusEffects: statusEffects,
     selectedDimensionBattleId,
   };
@@ -192,14 +281,19 @@ export class StageSetupController {
   #selectedDimensionBattleId = null;
   #selectedSatelliteKeys = new Set();
   #odInput = null;
+  #odGainBonusInput = null;
   #spInput = null;
   #defenseUpToggle = null;
   #debuffGuardToggle = null;
+  #turnlyOdGaugeInput = null;
   #turnlySpAllInput = null;
   #turnlySpFrontInput = null;
   #turnlySpBackInput = null;
+  #enchantEffects = [];
   #dimensionBattleSelect = null;
   #satellitesContainer = null;
+  #enchantSummary = null;
+  #enchantSummaryEmpty = null;
   #hint = null;
   #onChange = null;
 
@@ -225,10 +319,16 @@ export class StageSetupController {
               初期値に戻す
             </button>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-2">
             <label class="block">
               <span class="mb-0.5 block text-xs font-medium text-gray-600">初期OD（%）</span>
               <input data-role="stage-initial-od"
+                     type="number" step="1" value="0"
+                     class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
+            </label>
+            <label class="block">
+              <span class="mb-0.5 block text-xs font-medium text-gray-600">ODゲージ上昇量（%）</span>
+              <input data-role="stage-od-gain-bonus"
                      type="number" step="1" value="0"
                      class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
             </label>
@@ -239,7 +339,13 @@ export class StageSetupController {
                      class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
             </label>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-2">
+            <label class="block">
+              <span class="mb-0.5 block text-xs font-medium text-gray-600">毎ターンOD（%）</span>
+              <input data-role="stage-turnly-od"
+                     type="number" step="1" value="0"
+                     class="w-full rounded border border-gray-300 px-2 py-1 text-right tabular-nums" />
+            </label>
             <label class="block">
               <span class="mb-0.5 block text-xs font-medium text-gray-600">毎ターンSP（全員）</span>
               <input data-role="stage-turnly-sp-all"
@@ -280,24 +386,36 @@ export class StageSetupController {
           </label>
           <div data-role="stage-satellites" class="space-y-2"></div>
           <p data-role="stage-preset-hint" class="text-xs text-amber-700 hidden"></p>
+          <div class="rounded border border-sky-200 bg-sky-50 p-2 space-y-1">
+            <p class="text-xs font-medium text-sky-900">有効なプリセット効果</p>
+            <ul data-role="stage-enchant-summary" class="space-y-1 text-xs text-sky-900"></ul>
+            <p data-role="stage-enchant-summary-empty" class="text-xs text-sky-700">
+              現在、有効なプリセット効果はありません。
+            </p>
+          </div>
         </section>
       </div>
     `;
 
     this.#odInput = this.#root.querySelector('[data-role="stage-initial-od"]');
+    this.#odGainBonusInput = this.#root.querySelector('[data-role="stage-od-gain-bonus"]');
     this.#spInput = this.#root.querySelector('[data-role="stage-initial-sp"]');
     this.#defenseUpToggle = this.#root.querySelector('[data-role="stage-effect-defense-up"]');
     this.#debuffGuardToggle = this.#root.querySelector('[data-role="stage-effect-debuff-guard"]');
+    this.#turnlyOdGaugeInput = this.#root.querySelector('[data-role="stage-turnly-od"]');
     this.#turnlySpAllInput = this.#root.querySelector('[data-role="stage-turnly-sp-all"]');
     this.#turnlySpFrontInput = this.#root.querySelector('[data-role="stage-turnly-sp-front"]');
     this.#turnlySpBackInput = this.#root.querySelector('[data-role="stage-turnly-sp-back"]');
     this.#dimensionBattleSelect = this.#root.querySelector('[data-role="stage-dimension-battle"]');
     this.#satellitesContainer = this.#root.querySelector('[data-role="stage-satellites"]');
+    this.#enchantSummary = this.#root.querySelector('[data-role="stage-enchant-summary"]');
+    this.#enchantSummaryEmpty = this.#root.querySelector('[data-role="stage-enchant-summary-empty"]');
     this.#hint = this.#root.querySelector('[data-role="stage-preset-hint"]');
 
     this.#bindEvents();
     this.#renderDimensionBattleOptions();
     this.#renderSatellites();
+    this.#renderEnchantSummary();
   }
 
   setDimensionBattles(rawDimensionBattles = []) {
@@ -315,7 +433,9 @@ export class StageSetupController {
 
   getSnapshot() {
     const initialOdGauge = toFiniteNumber(this.#odInput?.value, 0);
+    const odGainBonusPercent = toFiniteNumber(this.#odGainBonusInput?.value, 0);
     const initialSpBonusAll = toFiniteNumber(this.#spInput?.value, 0);
+    const turnlyOdGauge = toFiniteNumber(this.#turnlyOdGaugeInput?.value, 0);
     const turnlySpAll = toFiniteNumber(this.#turnlySpAllInput?.value, 0);
     const turnlySpFront = toFiniteNumber(this.#turnlySpFrontInput?.value, 0);
     const turnlySpBack = toFiniteNumber(this.#turnlySpBackInput?.value, 0);
@@ -327,9 +447,11 @@ export class StageSetupController {
     return {
       initialOdGauge,
       initialSpBonusAll,
+      turnlyOdGauge,
       turnlySpAll,
       turnlySpFront,
       turnlySpBack,
+      enchantEffects: this.#buildCombinedEnchantEffects(odGainBonusPercent),
       initialStatusEffects: statusEffects,
       selectedDimensionBattleId: this.#selectedDimensionBattleId,
     };
@@ -342,6 +464,9 @@ export class StageSetupController {
     if (this.#odInput) {
       this.#odInput.value = String(normalized.initialOdGauge);
     }
+    if (this.#odGainBonusInput) {
+      this.#odGainBonusInput.value = String(normalized.odGainBonusPercent);
+    }
     if (this.#spInput) {
       this.#spInput.value = String(normalized.initialSpBonusAll);
     }
@@ -350,6 +475,9 @@ export class StageSetupController {
     }
     if (this.#debuffGuardToggle) {
       this.#debuffGuardToggle.checked = uiState.enableDebuffGuard;
+    }
+    if (this.#turnlyOdGaugeInput) {
+      this.#turnlyOdGaugeInput.value = String(normalized.turnlyOdGauge);
     }
     if (this.#turnlySpAllInput) {
       this.#turnlySpAllInput.value = String(normalized.turnlySpAll);
@@ -360,6 +488,7 @@ export class StageSetupController {
     if (this.#turnlySpBackInput) {
       this.#turnlySpBackInput.value = String(normalized.turnlySpBack);
     }
+    this.#enchantEffects = structuredClone(normalized.enchantEffects);
 
     if (
       normalized.selectedDimensionBattleId !== null &&
@@ -371,6 +500,8 @@ export class StageSetupController {
     this.#selectedSatelliteKeys.clear();
     this.#renderDimensionBattleOptions();
     this.#renderSatellites();
+    this.#setUnsupportedDescriptions([]);
+    this.#renderEnchantSummary();
   }
 
   resetToDefaults() {
@@ -383,37 +514,45 @@ export class StageSetupController {
     this.#resetUpperInputsToDefaults();
     this.#renderDimensionBattleOptions();
     this.#renderSatellites();
-    if (this.#hint) {
-      this.#hint.textContent = '';
-      this.#hint.classList.add('hidden');
-    }
     this.#emitChange();
   }
 
   #bindEvents() {
     const controls = [
       this.#odInput,
+      this.#odGainBonusInput,
       this.#spInput,
       this.#defenseUpToggle,
       this.#debuffGuardToggle,
+      this.#turnlyOdGaugeInput,
       this.#turnlySpAllInput,
       this.#turnlySpFrontInput,
       this.#turnlySpBackInput,
     ];
     for (const control of controls) {
-      control?.addEventListener('change', () => this.#emitChange());
+      control?.addEventListener('change', () => {
+        if (control === this.#odGainBonusInput) {
+          this.#renderEnchantSummary();
+        }
+        this.#emitChange();
+      });
     }
 
     this.#dimensionBattleSelect?.addEventListener('change', () => {
       const selectedId = Number(this.#dimensionBattleSelect.value);
       this.#selectedDimensionBattleId = Number.isFinite(selectedId) ? selectedId : null;
       this.#selectedSatelliteKeys.clear();
+      this.#enchantEffects = [];
       this.#renderSatellites();
+      this.#setUnsupportedDescriptions([]);
+      this.#renderEnchantSummary();
       this.#emitChange();
     });
 
     this.#root.querySelector('[data-action="reset-stage-upper-inputs"]')?.addEventListener('click', () => {
+      this.#selectedSatelliteKeys.clear();
       this.#resetUpperInputsToDefaults();
+      this.#renderSatellites();
     });
   }
 
@@ -503,8 +642,14 @@ export class StageSetupController {
     if (this.#odInput) {
       this.#odInput.value = String(parsed.initialOdGauge);
     }
+    if (this.#odGainBonusInput) {
+      this.#odGainBonusInput.value = String(parsed.odGainBonusPercent);
+    }
     if (this.#spInput) {
       this.#spInput.value = String(parsed.initialSpBonusAll);
+    }
+    if (this.#turnlyOdGaugeInput) {
+      this.#turnlyOdGaugeInput.value = String(parsed.turnlyOdGauge);
     }
     if (this.#defenseUpToggle) {
       this.#defenseUpToggle.checked = parsed.enableDefenseUp;
@@ -521,16 +666,10 @@ export class StageSetupController {
     if (this.#turnlySpBackInput) {
       this.#turnlySpBackInput.value = String(parsed.turnlySpBack);
     }
+    this.#enchantEffects = structuredClone(parsed.enchantEffects ?? []);
+    this.#renderEnchantSummary();
 
-    if (this.#hint) {
-      if (parsed.unsupportedDescriptions.length > 0) {
-        this.#hint.textContent = `未対応効果は転記対象外です: ${parsed.unsupportedDescriptions.join(' / ')}`;
-        this.#hint.classList.remove('hidden');
-      } else {
-        this.#hint.textContent = '';
-        this.#hint.classList.add('hidden');
-      }
-    }
+    this.#setUnsupportedDescriptions(parsed.unsupportedDescriptions);
 
     this.#emitChange();
   }
@@ -539,8 +678,14 @@ export class StageSetupController {
     if (this.#odInput) {
       this.#odInput.value = String(DEFAULT_STAGE_SETUP.initialOdGauge);
     }
+    if (this.#odGainBonusInput) {
+      this.#odGainBonusInput.value = String(DEFAULT_STAGE_SETUP.odGainBonusPercent);
+    }
     if (this.#spInput) {
       this.#spInput.value = String(DEFAULT_STAGE_SETUP.initialSpBonusAll);
+    }
+    if (this.#turnlyOdGaugeInput) {
+      this.#turnlyOdGaugeInput.value = String(DEFAULT_STAGE_SETUP.turnlyOdGauge);
     }
     if (this.#defenseUpToggle) {
       this.#defenseUpToggle.checked = false;
@@ -557,7 +702,48 @@ export class StageSetupController {
     if (this.#turnlySpBackInput) {
       this.#turnlySpBackInput.value = String(DEFAULT_STAGE_SETUP.turnlySpBack);
     }
+    this.#enchantEffects = [];
+    this.#setUnsupportedDescriptions([]);
+    this.#renderEnchantSummary();
     this.#emitChange();
+  }
+
+  #setUnsupportedDescriptions(descriptions = []) {
+    if (!this.#hint) {
+      return;
+    }
+    const normalized = Array.isArray(descriptions) ? descriptions.filter(Boolean) : [];
+    if (normalized.length > 0) {
+      this.#hint.textContent = `未対応効果は転記対象外です: ${normalized.join(' / ')}`;
+      this.#hint.classList.remove('hidden');
+      return;
+    }
+    this.#hint.textContent = '';
+    this.#hint.classList.add('hidden');
+  }
+
+  #renderEnchantSummary() {
+    if (!this.#enchantSummary || !this.#enchantSummaryEmpty) {
+      return;
+    }
+    const labels = buildStageSetupEnchantEffectLabels(
+      this.#buildCombinedEnchantEffects(toFiniteNumber(this.#odGainBonusInput?.value, 0))
+    );
+    this.#enchantSummary.innerHTML = labels
+      .map((label) => `<li class="leading-5">${label}</li>`)
+      .join('');
+    this.#enchantSummaryEmpty.classList.toggle('hidden', labels.length > 0);
+  }
+
+  #buildCombinedEnchantEffects(odGainBonusPercent = 0) {
+    const effects = structuredClone(this.#enchantEffects);
+    if (Number(odGainBonusPercent) !== 0) {
+      effects.push({
+        effectType: STAGE_SETUP_ENCHANT_EFFECT_TYPES.OD_GAUGE_GAIN_BONUS_PERCENT,
+        amount: odGainBonusPercent,
+      });
+    }
+    return normalizeStageSetupEnchantEffects(effects);
   }
 
   #emitChange() {

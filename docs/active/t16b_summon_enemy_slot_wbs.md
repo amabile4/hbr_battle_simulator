@@ -71,7 +71,7 @@ Summon 後の `enemyCount` が stale な caller 値で `1` に戻され、turn s
 - Summon した敵の `名前 / OD率 / 最大破壊率 / 属性耐性 / 吸収属性` を slot metadata と popup 表示へ反映した
 - `ui-next/utils/enemy-list.js` に手動 summon 用の pinned preset を追加し、サンプル敵 3 体を常に選択候補へ出せるようにした
 - popup から `ブレイク / 討伐` を押したときは、単体攻撃で attribution 先が一意なら即時反映し、曖昧または全体攻撃なら popup 内 sub-panel editor を開いて actor と enemy の対応を選べるようにした
-- break / kill の正本は `ReplayTurn.overrideEntries.ActionOutcomeOverrides` に戻し、chip 表示も `ワッキー→E1 ブレイク` / `ワッキー→E1 討伐` のような actor attribution 表示へ戻した
+- break / kill の正本は `ReplayTurn.actionOutcomeOverrides` とし、chip 表示も `ワッキー→E1 ブレイク` / `ワッキー→E1 討伐` のような actor attribution 表示へ戻した
 - `tests/e2e/turn-row-summon-enemy.spec.js` / `turn-edit-manual-break.spec.js` / `turn-row-kill-enemy.spec.js` で popup action 導線と wide/narrow layout を Playwright で固定した
 
 手動 summon 用のサンプル敵:

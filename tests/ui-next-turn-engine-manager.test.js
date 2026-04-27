@@ -6,13 +6,18 @@ import { CharacterStyle, HbrDataStore, Party, applyInitialPassiveState, createBa
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { normalizeSessionSnapshot } from '../ui-next/utils/session-snapshot.js';
-import { REPLAY_OPERATION_TYPES, REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
+import {
+  REPLAY_OPERATION_TYPES,
+  REPLAY_OVERRIDE_ENTRY_TYPES,
+  REPLAY_SETUP_ENTRY_TYPES,
+} from '../src/ui/lightweight-replay-script.js';
 import { DEFAULT_VALIDATION_POLICY } from '../ui-next/utils/validation-policy.js';
 import { DEFAULT_SUMMON_SAMPLE_ENEMY } from '../src/data/enemy-sample-presets.js';
 import { getSixUsableStyleIds, getStore } from './helpers.js';
 
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
+const STAGE_SETUP_TURN_START_FIXTURE = 'ui_next_session_stage_setup_turn_start_fixture.json';
 
 function loadSessionFixture(fileName) {
   const fixtureUrl = new URL(`./fixtures/${fileName}`, import.meta.url);
@@ -119,6 +124,18 @@ function createInitialState(actorSkill, actorOptions = {}) {
   return createBattleStateFromParty(createManualParty(actorSkill, actorOptions));
 }
 
+function attachTurnPlanBaseSetup(state, normalAttackElementsByPartyIndex = {}) {
+  state.turnPlanBaseSetup = {
+    ...(state.turnPlanBaseSetup ?? {}),
+    normalAttackElementsByPartyIndex: structuredClone(normalAttackElementsByPartyIndex),
+  };
+  return state;
+}
+
+function getReplaySetupEntryPayload(setup = {}, type) {
+  return (setup?.setupEntries ?? []).find((entry) => entry?.type === type)?.payload ?? null;
+}
+
 function createFrontlineInitialState(frontlineSkills = [], enemyCount = 1, frontOptions = []) {
   const members = Array.from({ length: 6 }, (_, index) =>
     new CharacterStyle({
@@ -174,6 +191,35 @@ function createSummonEnemyOperation({
       },
       absorbElementList: ['fire'],
       ...(Number.isInteger(targetEnemyIndex) ? { targetEnemyIndex } : {}),
+    },
+  };
+}
+
+function createEShieldState({
+  current = 10,
+  max = 10,
+  elements = ['Light', 'Dark'],
+  defUpRate = 5000,
+  damageLimit = 0,
+} = {}) {
+  return {
+    current,
+    max,
+    elements: [...elements],
+    defUpRate,
+    damageLimit,
+  };
+}
+
+function createSetEnemyEShieldOperation({
+  targetEnemyIndex = 0,
+  eShieldState = createEShieldState(),
+} = {}) {
+  return {
+    type: REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD,
+    payload: {
+      targetEnemyIndex,
+      eShieldState: eShieldState ? structuredClone(eShieldState) : null,
     },
   };
 }
@@ -503,18 +549,12 @@ test('TurnEngineManager preserves summoned slot identity when break and follow-u
     manager.getStateBefore(0)?.turnState?.enemyState?.enemyNamesByEnemy?.['1'],
     DEFAULT_SUMMON_SAMPLE_ENEMY.name
   );
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
-  );
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.FOLLOW_UP_OVERRIDES
-    )?.payload,
-    [{ position: 3, enemyIndex: 1 }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+  ]);
+  assert.deepEqual(manager.replayScript.turns[0].followUpOverrides, [
+    { position: 3, enemyIndex: 1 },
+  ]);
 
   const draft = manager.buildTurnEditDraft(0);
   assert.equal(draft?.enemyCount, 2);
@@ -1210,12 +1250,9 @@ test('TurnEngineManager normalizes single-target manual break attribution to the
   assert.equal(action.breakHitCount, 1);
   assert.deepEqual(action.manualBreakEnemyIndexes, [1]);
   assert.equal(spPassiveChange?.delta, 8);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+  ]);
   assert.equal(
     action.enemyStatusChanges.some(
       (change) =>
@@ -1271,12 +1308,9 @@ test('TurnEngineManager preserves subset manual break attribution for all-target
   const action = committedRecord.actions.find((entry) => entry.positionIndex === 0);
   assert.equal(action.breakHitCount, 2);
   assert.deepEqual(action.manualBreakEnemyIndexes, [0, 2]);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [0, 2] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0, 2] },
+  ]);
 });
 
 test('TurnEngineManager keeps only the first manual break actor for the same enemy in one turn', () => {
@@ -1328,12 +1362,9 @@ test('TurnEngineManager keeps only the first manual break actor for the same ene
     secondAction?.spChanges?.some((change) => change.source === 'sp_passive'),
     false
   );
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [0] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0] },
+  ]);
 });
 
 test('TurnEngineManager trims later all-target manual break overrides to unclaimed enemies only', () => {
@@ -1375,15 +1406,10 @@ test('TurnEngineManager trims later all-target manual break overrides to unclaim
   assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [1]);
   assert.deepEqual(secondAction?.manualBreakEnemyIndexes, [0, 2]);
   assert.equal(secondAction?.breakHitCount, 2);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [
-      { position: 0, outcome: 'Break', enemyIndexes: [1] },
-      { position: 1, outcome: 'Break', enemyIndexes: [0, 2] },
-    ]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+    { position: 1, outcome: 'Break', enemyIndexes: [0, 2] },
+  ]);
 });
 
 test('TurnEngineManager loadReplayScript removes duplicate manual break overrides from later actors', () => {
@@ -1438,12 +1464,9 @@ test('TurnEngineManager loadReplayScript removes duplicate manual break override
 
   assert.deepEqual(firstAction?.manualBreakEnemyIndexes, [0]);
   assert.deepEqual(secondAction?.manualBreakEnemyIndexes ?? [], []);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [0] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [0] },
+  ]);
 });
 
 test('TurnEngineManager loadReplayScript normalizes legacy single-target manual break overrides to the saved target', () => {
@@ -1490,12 +1513,9 @@ test('TurnEngineManager loadReplayScript normalizes legacy single-target manual 
   assert.equal(action?.targetEnemyIndex, 1);
   assert.equal(action?.breakHitCount, 1);
   assert.deepEqual(action?.manualBreakEnemyIndexes, [1]);
-  assert.deepEqual(
-    manager.replayScript.turns[0].overrideEntries.find(
-      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-    )?.payload,
-    [{ position: 0, outcome: 'Break', enemyIndexes: [1] }]
-  );
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'Break', enemyIndexes: [1] },
+  ]);
 });
 
 test('TurnEngineManager still allows a later SuperBreak after an earlier manual Break', () => {
@@ -1588,12 +1608,12 @@ test('TurnEngineManager keeps later SuperBreakDown behavior unchanged after an e
     ),
     true
   );
-  assert.equal(
-    manager.currentState.turnState.enemyState.statuses.some(
-      (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
-    ),
-    false
+  // 新仕様: manual Break で付与された DownTurn(remaining=1) は commit 末の tick で remaining=0 の grace として残る
+  const downTurn = manager.currentState.turnState.enemyState.statuses.find(
+    (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
   );
+  assert.ok(downTurn, 'DownTurn が grace で残っているはず');
+  assert.equal(Number(downTurn.remainingTurns ?? -1), 0);
 });
 
 test('TurnEngineManager upgrades same-action manual break target to SuperBreakDown', () => {
@@ -1741,6 +1761,71 @@ test('TurnEngineManager loadReplayScript restores validationPolicy and committed
   assert.equal(restored.validationPolicy.allowUseCountOverflow, true);
 });
 
+test('TurnEngineManager loadReplayScript backfills replay setup bracelet entry from initialState base setup', () => {
+  const actorSkill = createSkill({
+    id: 9071,
+    name: 'Replay Bracelet',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = attachTurnPlanBaseSetup(createInitialState(actorSkill), {
+    0: ['Ice'],
+  });
+  const manager = new TurnEngineManager();
+
+  manager.loadReplayScript(initialState, {
+    setup: {
+      styleIds: [9100, 9101, 9102, 9103, 9104, 9105],
+      setupEntries: [],
+    },
+    turns: [],
+  });
+
+  assert.deepEqual(
+    getReplaySetupEntryPayload(
+      manager.replayScript.setup,
+      REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    { 0: ['Ice'] }
+  );
+});
+
+test('TurnEngineManager recalculateAll replaces stale replay setup bracelet entries from new base state', () => {
+  const actorSkill = createSkill({
+    id: 9072,
+    name: 'Replay Recalc Bracelet',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = attachTurnPlanBaseSetup(createInitialState(actorSkill), {
+    0: ['Fire'],
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+
+  assert.deepEqual(
+    getReplaySetupEntryPayload(
+      manager.replayScript.setup,
+      REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    { 0: ['Fire'] }
+  );
+
+  manager.recalculateAll(
+    attachTurnPlanBaseSetup(createInitialState(actorSkill), {
+      0: ['Light'],
+    })
+  );
+
+  assert.deepEqual(
+    getReplaySetupEntryPayload(
+      manager.replayScript.setup,
+      REPLAY_SETUP_ENTRY_TYPES.NORMAL_ATTACK_ELEMENTS_BY_PARTY_INDEX
+    ),
+    { 0: ['Light'] }
+  );
+});
+
 test('session fixture replay: Turn4 start SP reflects OnOverdriveStart HealSp over-cap for Nikaido', () => {
   const session = loadSessionFixture('ui_next_session_2026-04-01T14-09-27.704Z.json');
   const battleStateManager = new BattleStateManager({ store: getStore() });
@@ -1770,6 +1855,56 @@ test('session fixture replay: #5相当ターン開始はODサスペンドEXと�
   assert.equal(turn5StateBefore?.turnState?.turnType, 'extra');
   assert.equal(turn5StateBefore?.turnState?.turnLabel, 'EX');
   assert.equal(Boolean(turn5StateBefore?.turnState?.odSuspended), true);
+});
+
+test('session fixture replay: T1 stateBefore reflects stageSetup front SP bonus from saved session', () => {
+  const session = loadSessionFixture(STAGE_SETUP_TURN_START_FIXTURE);
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn1StateBefore = manager.getStateBefore(0);
+  const actualSpByName = Object.fromEntries(
+    turn1StateBefore.party.map((member) => [member.characterName, Number(member.sp.current)])
+  );
+
+  assert.deepEqual(actualSpByName, {
+    '朝倉 可憐': 8,
+    '命 吹雪': 9,
+    '白河 ユイナ': 11,
+    '茅森 月歌': 7,
+    '柳 美音': 7,
+    '豊後 弥生': 8,
+  });
+});
+
+test('session fixture replay: T2 stateBefore keeps recurring stageSetup SP without replaying battle-start bonuses', () => {
+  const session = loadSessionFixture(STAGE_SETUP_TURN_START_FIXTURE);
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn2StateBefore = manager.getStateBefore(1);
+  const actualSpByName = Object.fromEntries(
+    turn2StateBefore.party.map((member) => [member.characterName, Number(member.sp.current)])
+  );
+
+  assert.deepEqual(actualSpByName, {
+    '朝倉 可憐': 12,
+    '命 吹雪': 14,
+    '白河 ユイナ': 16,
+    '茅森 月歌': 10,
+    '柳 美音': 10,
+    '豊後 弥生': 12,
+  });
 });
 
 test('session fixture replay: #4のBreak overrideで和泉ユキのBeatDown(); SP+2が反映される', () => {
@@ -2060,12 +2195,8 @@ test('TurnEngineManager passes killCount to actions when Kill overrides are prov
   assert.ok(spPassive, 'kill-count passive should fire');
   assert.equal(spPassive.delta, 10); // 5 * 2 kills
 
-  // replay script に ACTION_OUTCOME_OVERRIDES として Kill エントリが保存されていること
-  const overrideEntry = manager.replayScript.turns[0].overrideEntries.find(
-    (e) => e.type === REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES
-  );
-  assert.ok(overrideEntry, 'ACTION_OUTCOME_OVERRIDES entry should exist');
-  const killEntry = overrideEntry?.payload?.find(
+  // replay script に kill attribution が canonical field として保存されていること
+  const killEntry = manager.replayScript.turns[0].actionOutcomeOverrides.find(
     (e) => e.position === 0 && e.outcome === 'Kill'
   );
   assert.deepEqual(killEntry?.enemyIndexes, [0, 1]);
@@ -2127,6 +2258,77 @@ test('TurnEngineManager recalculateFrom restores killCount from overrideEntries'
   assert.ok(sp, 'kill-count passive should fire after recalculate');
   assert.equal(sp.delta, 5); // 5 * 1 kill
   assert.equal(manager.computedStates[0].turnState.enemyState.allEnemiesDefeated, true);
+});
+
+test('TurnEngineManager applies HP_BREAK overrides, prunes later actors, and advances to the next base turn', () => {
+  const actorSkill = createSkill({
+    id: 9073,
+    name: 'Gauge Slash',
+    targetType: 'All',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'All', type: 'Slash' }],
+  });
+  const manager = new TurnEngineManager();
+  const initialState = createFrontlineInitialState([actorSkill], 1);
+  initialState.turnState.enemyState.extraHpGaugeStateByEnemy = {
+    0: { total: 3, remaining: 3, values: [40400000, 40400000, 40400000] },
+  };
+  initialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 30, max: 30, elements: ['Light'] }),
+  };
+  initialState.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 },
+  ];
+  initialState.turnState.enemyState.destructionRateByEnemy = { 0: 250 };
+  initialState.turnState.enemyState.destructionRateCapByEnemy = { 0: 350 };
+  initialState.turnState.enemyState.breakStateByEnemy = {
+    0: {
+      baseCap: 300,
+      strongBreakActive: true,
+      superDown: { preRate: 100, preCap: 300 },
+    },
+  };
+  manager.initialize(initialState, {});
+
+  const committedRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9073 },
+      1: { skillId: initialState.party[1].skills[0].skillId },
+    },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [
+        { position: 0, outcome: 'HpBreak', enemyIndexes: [0] },
+        { position: 1, outcome: 'HpBreak', enemyIndexes: [0] },
+      ],
+    }
+  );
+
+  assert.equal(committedRecord.actions.length, 1, 'later actions should be truncated after HP break');
+  assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0]);
+  assert.equal(committedRecord.actions[0]?.hpBreakCount, 1);
+  assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
+    { position: 0, outcome: 'HpBreak', enemyIndexes: [0] },
+  ]);
+  assert.equal(manager.currentState.turnState.turnType, 'normal');
+  assert.equal(manager.currentState.turnState.turnIndex, 2);
+  assert.deepEqual(manager.currentState.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 2,
+    values: [40400000, 40400000, 40400000],
+  });
+  assert.deepEqual(manager.currentState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 35,
+    max: 35,
+    elements: ['Light'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.deepEqual(
+    (manager.currentState.turnState.enemyState.statuses ?? []).filter((status) => Number(status?.targetIndex) === 0),
+    [],
+    'break/down statuses should be cleared after HP break'
+  );
 });
 
 test('TurnEngineManager persists turn-start enemy slot snapshots into overrideEntries and restores them on reload', () => {
@@ -2191,6 +2393,133 @@ test('TurnEngineManager persists turn-start enemy slot snapshots into overrideEn
     ),
     true
   );
+});
+
+test('TurnEngineManager persists manual Eシールド edits into EnemyEShields overrideEntries and restores them on reload', () => {
+  const actorSkill = createSkill({
+    id: 90725,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 1;
+  initialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  initialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 0, max: 30, elements: ['Light', 'Dark'] }),
+  };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+
+  assert.equal(
+    manager.addPendingSpecialOperation(
+      createSetEnemyEShieldOperation({
+        targetEnemyIndex: 0,
+        eShieldState: createEShieldState({ current: 45, max: 45, elements: ['Light', 'Dark'] }),
+      })
+    ),
+    true
+  );
+
+  const inputSnapshot = manager.buildInputRowSnapshot({
+    slotActions: { 0: { skillId: 90725 } },
+    enemyCount: 1,
+  });
+  assert.equal(inputSnapshot.stateBefore.turnState.enemyState.eShieldStateByEnemy['0'].current, 45);
+  assert.equal(inputSnapshot.stateBefore.turnState.enemyState.eShieldStateByEnemy['0'].max, 45);
+
+  manager.commitNextTurn(
+    { 0: { skillId: 90725 } },
+    { enemyCount: 1, note: 'manual e-shield edit' }
+  );
+
+  const turn = manager.replayScript.turns[0];
+  assert.deepEqual(turn.operations, [
+    createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 45, max: 45, elements: ['Light', 'Dark'] }),
+    }),
+  ]);
+  assert.deepEqual(
+    turn.overrideEntries.find((entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS),
+    {
+      type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS,
+      payload: {
+        0: createEShieldState({ current: 45, max: 45, elements: ['Light', 'Dark'] }),
+      },
+    }
+  );
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.current, 45);
+
+  manager.recalculateFrom(0);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.current, 45);
+
+  const reloadInitialState = createInitialState(actorSkill);
+  reloadInitialState.turnState.enemyState.enemyCount = 1;
+  reloadInitialState.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+  reloadInitialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 0, max: 30, elements: ['Light', 'Dark'] }),
+  };
+
+  const reloadedManager = new TurnEngineManager();
+  reloadedManager.loadReplayScript(reloadInitialState, manager.replayScript, {});
+  assert.equal(reloadedManager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.current, 45);
+  assert.equal(reloadedManager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.max, 45);
+});
+
+test('TurnEngineManager recommit updates the same enemy Eシールド override instead of accumulating duplicates', () => {
+  const actorSkill = createSkill({
+    id: 90725,
+    name: 'Protection',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill);
+  initialState.turnState.enemyState.enemyCount = 1;
+  initialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 0, max: 30, elements: ['Light', 'Dark'] }),
+  };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  manager.addPendingSpecialOperation(
+    createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 35, max: 35, elements: ['Light', 'Dark'] }),
+    })
+  );
+  manager.commitNextTurn(
+    { 0: { skillId: 90725 } },
+    { enemyCount: 1, note: 'first edit' }
+  );
+
+  const draft = manager.buildTurnEditDraft(0);
+  draft.operations = [
+    createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 60, max: 60, elements: ['Light', 'Dark'] }),
+    }),
+  ];
+  manager.replaceCommittedTurn(0, draft);
+
+  const overrideEntries = manager.replayScript.turns[0].overrideEntries.filter(
+    (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS
+  );
+  assert.equal(overrideEntries.length, 1);
+  assert.deepEqual(overrideEntries[0].payload, {
+    0: createEShieldState({ current: 60, max: 60, elements: ['Light', 'Dark'] }),
+  });
+  assert.deepEqual(manager.replayScript.turns[0].operations, [
+    createSetEnemyEShieldOperation({
+      targetEnemyIndex: 0,
+      eShieldState: createEShieldState({ current: 60, max: 60, elements: ['Light', 'Dark'] }),
+    }),
+  ]);
+
+  manager.recalculateFrom(0);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.current, 60);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.eShieldStateByEnemy?.['0']?.max, 60);
 });
 
 test('TurnEngineManager break passive fires on Break but not on Kill for the same enemy', () => {

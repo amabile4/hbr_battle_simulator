@@ -81,7 +81,12 @@ skillDatabase.json
 scripts/run_gemini_api.sh
 
 # Local IDE metadata
+.cursor/
+.cursorrules
+.windsurfrules
 .kiro/
+.mcp.json
+.opencode.json
 
 # Claude Code local settings (machine-specific, not shared)
 .claude/

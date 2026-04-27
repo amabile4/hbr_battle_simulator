@@ -44,6 +44,7 @@ const ENEMY_STATUS_TYPE_DISPLAY_ORDER = [
   'CriticalDamageDown',
   'ResistDown',
   'Fragile',
+  'Undermine',
   'DownTurn',
   'HealDown',
   'OverDrivePointDown',
@@ -147,8 +148,12 @@ export function isActiveEnemyStatus(status) {
   // Eternal ケース
   if (String(status?.exitCond ?? '') === 'Eternal') return true;
   if (isPersistentEnemyStatusType(status?.statusType)) return true;
-  // 残ターン > 0
-  return Number(status?.remaining ?? status?.remainingTurns ?? 0) > 0;
+  const remaining = Number(status?.remaining ?? status?.remainingTurns ?? 0);
+  // DownTurn は remaining=0 も grace として active 扱い (engine 側の isEnemyStatusActive と一致)
+  if (normalizeEnemyStatusType(status?.statusType) === 'DownTurn') {
+    return remaining >= 0;
+  }
+  return remaining > 0;
 }
 
 /**

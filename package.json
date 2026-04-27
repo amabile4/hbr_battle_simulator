@@ -8,7 +8,11 @@
     "dev": "node scripts/dev-server.mjs",
     "test": "node --test tests/*.test.js",
     "test:e2e": "playwright test",
-    "lint": "eslint src ui-next tests scripts"
+    "lint": "eslint src ui-next tests scripts",
+    "crg": "scripts/code-review-graph-local",
+    "crg:status": "scripts/code-review-graph-local status",
+    "crg:watch": "scripts/code-review-graph-local watch",
+    "crg:mcp": "scripts/code-review-graph-local serve"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

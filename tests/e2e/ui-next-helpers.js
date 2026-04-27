@@ -189,6 +189,39 @@ export async function commitLatestInputRow(page) {
   return committedRows.last();
 }
 
+export async function selectEnemyPresetForActiveSlot(page, enemyId) {
+  const categorySelect = page.locator('#enemy-setup-root [data-action="select-enemy-category"]');
+  const presetSelect = page.locator('#enemy-setup-root [data-action="select-enemy"]');
+  await expect(categorySelect).toBeVisible({ timeout: 5000 });
+  await expect(presetSelect).toBeVisible({ timeout: 5000 });
+
+  const targetEnemyId = String(enemyId);
+  const categoryValues = await categorySelect.locator('option').evaluateAll((options) =>
+    options.map((option) => option.value)
+  );
+
+  for (const categoryValue of categoryValues) {
+    await categorySelect.selectOption(categoryValue);
+    const hasTargetOption = await page
+      .waitForFunction(
+        ({ selector, value }) =>
+          Boolean(document.querySelector(`${selector} option[value="${value}"]`)),
+        {
+          selector: '#enemy-setup-root [data-action="select-enemy"]',
+          value: targetEnemyId,
+        },
+        { timeout: 2000 }
+      )
+      .then(() => true, () => false);
+    if (hasTargetOption) {
+      await presetSelect.selectOption(targetEnemyId);
+      return;
+    }
+  }
+
+  throw new Error(`Enemy preset ${targetEnemyId} was not found in any category`);
+}
+
 export async function openEnemyPopupActionForRow(page, row, actionType, options = {}) {
   const enemyIndex = Number.isInteger(Number(options?.enemyIndex)) ? Number(options.enemyIndex) : null;
   const closeBehavior = String(options?.closeBehavior ?? 'stay');

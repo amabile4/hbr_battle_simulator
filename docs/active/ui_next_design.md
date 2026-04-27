@@ -90,6 +90,8 @@
 
 - listbox は icon と同じ幅に揃える
 - `SP装備` の初期既定値は `SP +3` とする
+- `属性ベルト` は実アクセサリ個体選択ではなく、属性ブレスレット種別の代表設定として扱う
+- `属性ベルト` の選択値は `setup.normalAttackElementsByPartyIndex` に保存し、通常攻撃の属性参照と Eシールド判定へ同じ runtime state を渡す
 - 未選択時は略称を placeholder として表示する
 - `main style icon` / `support style icon` は未選択でもクリック可能な明確な empty state を持つ
 - Party preset UI は `Party Setup` 本体ではなく header 配下の 2 段目 toolbar strip に置く
@@ -177,6 +179,17 @@
 - 選択肢は `なし / 火 / 氷 / 雷 / 光 / 闇` の固定値とする
 - 実行タイミングは `▽敵の先制行動` として扱い、`バトル開始時` パッシブ評価より前に `zoneState` へ反映する
 - 反映値は `sourceSide='enemy'` とし、`none` 以外の選択時のみ初期 `zoneState` を構成する
+
+### 2026-04-19 追記: Enemy preset selector のカテゴリ化
+
+- `Enemy Setup` の enemy preset は単一 select ではなく `カテゴリ -> 敵` の2段 select とする
+- `ui-next/utils/enemy-list.js` は flat list を維持しつつ `categoryKey/categoryLabel` を付与し、Enemy Setup 側はこの metadata を使ってカテゴリ select を描画する
+- カテゴリの並びは `テンプレート`、通常 enemy 用カテゴリ定義、`直近3ヶ月` の月別カテゴリの順とする
+- `テンプレート` category には `希望を喰むもの` に加え、Eシールド確認用の `Dimension_09_X_KaleidoOuroboros` を常時表示し、デフォルトのカテゴリのまま選択できるようにする
+- `恒星掃戦線` は通常 enemy 用カテゴリ定義の 1 つとして扱い、`Dimension_09_X_KaleidoOuroboros` などへ専用 hardcode なしで到達できるようにする
+- 同名 enemy が難易度違いで複数あるカテゴリは、もっとも高いランクの 1 件だけを selector に残す
+- `Enemy Setup` の `✎ 編集` では preset の Eシールドを `count/max/elements/def_up_rate/dmg_limit` 付きで手動編集できるようにし、未設定状態は `max=0` または属性未選択で表現する
+- manual Eシールド編集結果は `enemy.enemySlots[*].manual.e_shield` と legacy flat `enemy.e_shield` の両方へ乗せ、session save/load でも保持する
 
 ## Block 3: Stage Setup
 
@@ -313,6 +326,9 @@
 - 戦闘中 summon は `Enemy Setup` ではなく turn row の `敵情報確認` trigger から投入する
 - row 上の `enemy tools box` は `敵情報確認` trigger だけを持ち、`召喚 / ブレイク / 討伐` の入口は `enemy-detail-popup-container` 内へ移す
 - `敵情報確認` trigger の `敵情報確認 / 敵情報 / 敵` 切替は pseudo-element `content` に依存せず、実 DOM text を container 幅で切り替える。PNG export と一部 browser/font 環境での二重描画を避けるため
+- turn row 左パネルでは `敵情報確認` trigger の直下、OD ゲージの直上に Eシールド strip を置き、`MAX_ENEMY_COUNT=3` 前提で 2列・最大2段の compact layout に固定する
+- row/popup の Eシールドは同一 renderer を使い、row では `盾 + 色分割 + 現在値`、popup では同じ badge に `current/max + 属性名` を添える
+- Eシールド badge は binary icon を増やさず、CSS の shield shape + 1色/2色/3色 gradient fill で表現する。`current=0` の depleted state は灰色 badge を残して BREAK 表示と併存させる
 - enemy detail popup は `E1 / E2 / E3` の 3 tab を常設し、wide では tab 直下を 3 等分カラム、narrow では選択中 enemy の 1 カラム表示へ切り替える
 - popup header 直下に `3表示 / 1表示` toggle を置き、manual layout は popup を閉じるまで保持する
 - 初期 layout は occupied enemy slot 数で決め、`occupied <= 1` は `1表示`、`occupied >= 2` は `3表示` を既定にする
@@ -377,7 +393,7 @@
   - `characters.json.name` の 3 セグメント目にある日本語愛称を候補に含める
   - `姓 名` の場合は名を候補に含める
   - 同一長の場合は `名 → 愛称 → フルネーム` の順で採る
-- 保存値は `ReplayTurn.overrideEntries.ActionOutcomeOverrides` とし、payload は `{ position, outcome: 'Break', enemyIndexes }[]` に固定する
+- 保存値は `ReplayTurn.actionOutcomeOverrides` とし、payload は `{ position, outcome: 'Break', enemyIndexes }[]` に固定する
 - 単体攻撃では payload を boolean 相当として扱い、非空なら current target 1 件へ正規化する
 - committed 行では `ブレイク` editor を再表示せず、保存済み chip のみを見せる
 - `DownTurn` は保存しない

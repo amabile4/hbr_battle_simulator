@@ -135,6 +135,8 @@ function createDimensionBattlesFixture() {
         { enchant: { desc: '毎ターンSP+1' } },
         { enchant: { desc: '防御力50%アップ' } },
         { enchant: { desc: 'デバフ無効1回付与' } },
+        { enchant: { desc: 'ODゲージ上昇量+20%' } },
+        { enchant: { desc: 'ターン開始時ダウンターン中の敵がいるとSP+2' } },
       ],
     },
     {
@@ -248,6 +250,7 @@ test('InitialSetupController stage preset reflection updates only upper stage se
     assert.equal(snapshot.party.stageSetup.initialOdGauge, 200);
     assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 0);
     assert.equal(snapshot.party.stageSetup.selectedDimensionBattleId, 191000001);
+    assert.deepEqual(snapshot.party.stageSetup.enchantEffects, []);
     assert.equal(
       snapshot.party.stageSetup.initialStatusEffects.some((effect) => effect.statusType === 'DefenseUp'),
       true,
@@ -271,7 +274,11 @@ test('InitialSetupController applySetupSnapshot restores stage setup upper input
         stageSetup: {
           initialOdGauge: -300,
           initialSpBonusAll: 5,
+          turnlyOdGauge: -10,
           selectedDimensionBattleId: 191000002,
+          enchantEffects: [
+            { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+          ],
           initialStatusEffects: [
             {
               scope: 'all',
@@ -291,9 +298,52 @@ test('InitialSetupController applySetupSnapshot restores stage setup upper input
 
     assert.equal(root.querySelector('[data-role="stage-initial-od"]').value, '-300');
     assert.equal(root.querySelector('[data-role="stage-initial-sp"]').value, '5');
+    assert.equal(root.querySelector('[data-role="stage-turnly-od"]').value, '-10');
     assert.equal(root.querySelector('[data-role="stage-effect-defense-up"]').checked, false);
     assert.equal(root.querySelector('[data-role="stage-effect-debuff-guard"]').checked, true);
     assert.equal(root.querySelector('[data-role="stage-dimension-battle"]').value, '191000002');
+    assert.deepEqual(
+      [...root.querySelectorAll('[data-role="stage-enchant-summary"] li')].map((item) => item.textContent.trim()),
+      ['ODゲージ上昇量+20%']
+    );
+  }));
+
+test('InitialSetupController stage setup save/load preserves enchantEffects', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      dimensionBattles: createDimensionBattlesFixture(),
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="stage"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const dimensionSelect = root.querySelector('[data-role="stage-dimension-battle"]');
+    dimensionSelect.value = '191000001';
+    dimensionSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const satelliteCheckboxes = root.querySelectorAll('[data-role="stage-satellite-checkbox"]');
+    satelliteCheckboxes.item(4).checked = true;
+    satelliteCheckboxes.item(4).dispatchEvent(new win.Event('change', { bubbles: true }));
+    satelliteCheckboxes.item(5).checked = true;
+    satelliteCheckboxes.item(5).dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.party.stageSetup.enchantEffects, [
+      { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+      { effectType: 'turnStartSpIfEnemyDown', scope: 'all', amount: 2 },
+    ]);
+
+    controller.applySetupSnapshot(snapshot);
+
+    assert.deepEqual(
+      [...root.querySelectorAll('[data-role="stage-enchant-summary"] li')].map((item) => item.textContent.trim()),
+      ['ODゲージ上昇量+20%', 'ターン開始時ダウンターン中の敵がいるとSP+2']
+    );
   }));
 
 test('InitialSetupController enemy tab shows Turn0 preemptive field as display-only setup', () =>
@@ -483,7 +533,7 @@ test('InitialSetupController getCurrentSetupSnapshot returns party and simulator
     assert.equal(snapshot.enemy.preemptiveField, 'none');
   }));
 
-test('InitialSetupController restores enemy manual resistance percent and absorb selection', () =>
+test('InitialSetupController restores enemy manual resistance percent, absorb selection, and Eシールド', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new InitialSetupController({
       root,
@@ -534,6 +584,13 @@ test('InitialSetupController restores enemy manual resistance percent and absorb
             nonelement: 100,
           },
           absorbElementList: ['fire', 'nonelement'],
+          e_shield: {
+            count: 12,
+            max: 30,
+            elements: ['Fire', 'Ice'],
+            def_up_rate: 5000,
+            dmg_limit: 200000,
+          },
         },
       },
     });
@@ -546,12 +603,108 @@ test('InitialSetupController restores enemy manual resistance percent and absorb
     assert.equal(root.querySelector('[data-edit-element="ice"]').value, '30');
     assert.equal(root.querySelector('[data-edit-absorb="fire"]').checked, true);
     assert.equal(root.querySelector('[data-edit-absorb="nonelement"]').checked, true);
+    assert.equal(root.querySelector('[data-edit-eshield-field="count"]').value, '12');
+    assert.equal(root.querySelector('[data-edit-eshield-field="max"]').value, '30');
+    assert.equal(root.querySelector('[data-edit-eshield-element="Fire"]').checked, true);
+    assert.equal(root.querySelector('[data-edit-eshield-element="Ice"]').checked, true);
+    assert.equal(root.querySelector('[data-edit-eshield-field="def_up_rate"]').value, '5000');
+    assert.equal(root.querySelector('[data-edit-eshield-field="dmg_limit"]').value, '200000');
 
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(snapshot.enemy.isManual, true);
     assert.equal(snapshot.enemy.resistances.element.fire, 400);
     assert.equal(snapshot.enemy.resistances.element.ice, 30);
     assert.deepEqual(snapshot.enemy.absorbElementList, ['fire', 'nonelement']);
+    assert.deepEqual(snapshot.enemy.e_shield, {
+      count: 12,
+      max: 30,
+      elements: ['Fire', 'Ice'],
+      def_up_rate: 5000,
+      dmg_limit: 200000,
+    });
+  }));
+
+test('InitialSetupController enemy setup manual edit updates Eシールド fields in snapshot', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 9101,
+          name: 'Eシールド対象',
+          categoryKey: 'template',
+          categoryLabel: 'テンプレート',
+          dimension: null,
+          od_rate: 1,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+          e_shield: {
+            count: 30,
+            max: 30,
+            elements: ['Fire', 'Ice'],
+            def_up_rate: 5000,
+            dmg_limit: 0,
+          },
+        },
+      ],
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    root
+      .querySelector('[data-action="select-enemy"]')
+      .dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    root
+      .querySelector('[data-action="toggle-edit"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const countInput = root.querySelector('[data-edit-eshield-field="count"]');
+    countInput.value = '7';
+    countInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const maxInput = root.querySelector('[data-edit-eshield-field="max"]');
+    maxInput.value = '11';
+    maxInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const fireCheckbox = root.querySelector('[data-edit-eshield-element="Fire"]');
+    fireCheckbox.checked = false;
+    fireCheckbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const lightCheckbox = root.querySelector('[data-edit-eshield-element="Light"]');
+    lightCheckbox.checked = true;
+    lightCheckbox.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const defUpInput = root.querySelector('[data-edit-eshield-field="def_up_rate"]');
+    defUpInput.value = '3200';
+    defUpInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const damageLimitInput = root.querySelector('[data-edit-eshield-field="dmg_limit"]');
+    damageLimitInput.value = '150000';
+    damageLimitInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.equal(snapshot.enemy.isManual, true);
+    assert.deepEqual(snapshot.enemy.e_shield, {
+      count: 7,
+      max: 11,
+      elements: ['Ice', 'Light'],
+      def_up_rate: 3200,
+      dmg_limit: 150000,
+    });
+    assert.deepEqual(snapshot.enemy.enemySlots[0].manual.e_shield, {
+      count: 7,
+      max: 11,
+      elements: ['Ice', 'Light'],
+      def_up_rate: 3200,
+      dmg_limit: 150000,
+    });
   }));
 
 test('InitialSetupController enemy setup defaults to slot 1 selected and slots 2/3 empty', () =>
@@ -636,7 +789,12 @@ test('InitialSetupController enemy setup supports selecting and deleting slot 2 
       .querySelector('[data-action="set-active-slot"][data-slot-index="1"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
-    const presetSelect = root.querySelector('[data-action="select-enemy"]');
+    const categorySelect = root.querySelector('[data-action="select-enemy-category"]');
+    let presetSelect = root.querySelector('[data-action="select-enemy"]');
+    const recentMonthOption = [...categorySelect.options].find((option) => option.textContent.includes('2026年3月'));
+    categorySelect.value = recentMonthOption?.value ?? categorySelect.value;
+    categorySelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+    presetSelect = root.querySelector('[data-action="select-enemy"]');
     presetSelect.value = '7001';
     presetSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
 
@@ -652,6 +810,116 @@ test('InitialSetupController enemy setup supports selecting and deleting slot 2 
     snapshot = controller.getCurrentSetupSnapshot();
     assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450045, null, null]);
     assert.equal(snapshot.enemy.enemyCount, 1);
+  }));
+
+test('InitialSetupController enemy setup switches slot 1 via category selector and reaches 恒星掃戦線 presets', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 13450045,
+          name: '希望を喰むもの',
+          categoryKey: 'template',
+          categoryLabel: 'テンプレート',
+          dimension: null,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+        {
+          id: 13450815,
+          name: '変貌を重ねる不滅の円環',
+          categoryKey: 'normal:stellar-sweepfront',
+          categoryLabel: '恒星掃戦線',
+          dimension: 202508,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+      ],
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const categorySelect = root.querySelector('[data-action="select-enemy-category"]');
+    categorySelect.value = 'normal:stellar-sweepfront';
+    categorySelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const slotButtons = root.querySelectorAll('[data-action="set-active-slot"]');
+    assert.equal(slotButtons.item(0).textContent.includes('変貌を重ねる不滅の円環'), true);
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450815, null, null]);
+    assert.equal(snapshot.enemy.selectedEnemyName, '変貌を重ねる不滅の円環');
+  }));
+
+test('InitialSetupController template category keeps the Eシールド sample enemy ready for quick selection', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 13450045,
+          name: '希望を喰むもの',
+          categoryKey: 'template',
+          categoryLabel: 'テンプレート',
+          dimension: null,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+        {
+          id: 13450815,
+          name: '変貌を重ねる不滅の円環',
+          categoryKey: 'template',
+          categoryLabel: 'テンプレート',
+          dimension: null,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+          e_shield: {
+            count: 30,
+            max: 30,
+            elements: ['Fire', 'Ice'],
+            def_up_rate: 0,
+            dmg_limit: 0,
+          },
+        },
+      ],
+    });
+    controller.mount();
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const categorySelect = root.querySelector('[data-action="select-enemy-category"]');
+    const presetSelect = root.querySelector('[data-action="select-enemy"]');
+
+    assert.equal(categorySelect.value, 'template');
+    assert.equal(
+      [...presetSelect.options].some((option) => option.value === '13450815' && option.textContent.includes('変貌を重ねる不滅の円環')),
+      true,
+    );
+
+    presetSelect.value = '13450815';
+    presetSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    const snapshot = controller.getCurrentSetupSnapshot();
+    assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450815, null, null]);
+    assert.equal(snapshot.enemy.selectedEnemyName, '変貌を重ねる不滅の円環');
   }));
 
 test('InitialSetupController auto-recalculates when active battle gains skills from skill settings', () =>
@@ -731,7 +999,11 @@ test('InitialSetupController 全体初期化 resets party, enemy, and stage setu
         stageSetup: {
           initialOdGauge: -300,
           initialSpBonusAll: 5,
+          turnlyOdGauge: -10,
           selectedDimensionBattleId: 191000001,
+          enchantEffects: [
+            { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+          ],
           initialStatusEffects: [{ scope: 'all', statusType: 'DefenseUp' }],
         },
       },
@@ -752,7 +1024,9 @@ test('InitialSetupController 全体初期化 resets party, enemy, and stage setu
     assert.equal(snapshot.enemy.preemptiveField, 'none');
     assert.equal(snapshot.party.stageSetup.initialOdGauge, 0);
     assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 0);
+    assert.equal(snapshot.party.stageSetup.turnlyOdGauge, 0);
     assert.equal(snapshot.party.stageSetup.initialStatusEffects.length, 0);
+    assert.deepEqual(snapshot.party.stageSetup.enchantEffects, []);
   }));
 
 test('InitialSetupController 全体初期化 keeps current setup when confirmation is cancelled', () =>
@@ -775,7 +1049,11 @@ test('InitialSetupController 全体初期化 keeps current setup when confirmati
         stageSetup: {
           initialOdGauge: -300,
           initialSpBonusAll: 5,
+          turnlyOdGauge: -10,
           selectedDimensionBattleId: 191000001,
+          enchantEffects: [
+            { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+          ],
           initialStatusEffects: [{ scope: 'all', statusType: 'DefenseUp' }],
         },
       },
@@ -796,5 +1074,9 @@ test('InitialSetupController 全体初期化 keeps current setup when confirmati
     assert.equal(snapshot.enemy.preemptiveField, 'thunder');
     assert.equal(snapshot.party.stageSetup.initialOdGauge, -300);
     assert.equal(snapshot.party.stageSetup.initialSpBonusAll, 5);
+    assert.equal(snapshot.party.stageSetup.turnlyOdGauge, -10);
     assert.equal(snapshot.party.stageSetup.initialStatusEffects.length, 1);
+    assert.deepEqual(snapshot.party.stageSetup.enchantEffects, [
+      { effectType: 'odGaugeGainBonusPercent', amount: 20 },
+    ]);
   }));

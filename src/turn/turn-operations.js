@@ -19,6 +19,8 @@ import {
   REINFORCED_MODE_OD_GAUGE_BONUS,
 } from '../config/battle-defaults.js';
 import { REPLAY_OPERATION_TYPES, replayOperationRegistry } from '../ui/lightweight-replay-script.js';
+import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
+import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
 
 export const TEZUKA_CHARACTER_ID = 'STezuka';
 export const MAKAI_KIHEI_STYLE_ID = 1003108;
@@ -272,23 +274,24 @@ function normalizeSummonEnemyAbsorbElements(payload = {}) {
 }
 
 function normalizeSummonEnemyEShield(payload = {}) {
-  const raw = payload?.e_shield ?? payload?.eShield ?? null;
-  if (!raw || typeof raw !== 'object') {
+  return cloneEnemyEShieldState(payload?.e_shield ?? payload?.eShield ?? null);
+}
+
+function normalizeSummonEnemyExtraHpGauge(payload = {}) {
+  return cloneEnemyExtraHpGaugeState(payload?.extra_hp_gauge ?? payload?.extraHpGauge ?? null);
+}
+
+function normalizeSetEnemyEShieldPayload(payload = {}) {
+  if (!payload || typeof payload !== 'object') {
     return null;
   }
-  const current = Number(raw.count ?? raw.current ?? 0);
-  const max = Number(raw.max ?? raw.initial ?? raw.count ?? raw.current ?? 0);
-  const defUpRate = Number(raw.def_up_rate ?? raw.defUpRate ?? 0);
-  const damageLimit = Number(raw.dmg_limit ?? raw.damageLimit ?? 0);
-  const normalizedCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
+  const targetEnemyIndex = Number(payload.targetEnemyIndex ?? payload.enemyIndex);
+  if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0 || targetEnemyIndex >= MAX_ENEMY_COUNT) {
+    return null;
+  }
   return {
-    current: normalizedCurrent,
-    max: Number.isFinite(max) ? Math.max(normalizedCurrent, Math.floor(max)) : normalizedCurrent,
-    elements: Array.isArray(raw.elements)
-      ? [...new Set(raw.elements.map((value) => String(value ?? '').trim()).filter(Boolean))]
-      : [],
-    defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
-    damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
+    targetEnemyIndex,
+    eShieldState: cloneEnemyEShieldState(payload.eShieldState ?? payload.e_shield ?? null),
   };
 }
 
@@ -316,6 +319,7 @@ function normalizeSummonEnemyPayload(payload = {}) {
     damageRates: normalizeSummonEnemyRates(payload),
     absorbElements: normalizeSummonEnemyAbsorbElements(payload),
     eShieldState: normalizeSummonEnemyEShield(payload),
+    extraHpGaugeState: normalizeSummonEnemyExtraHpGauge(payload),
     targetEnemyIndex: Number.isInteger(targetEnemyIndex) ? targetEnemyIndex : null,
   };
 }
@@ -417,6 +421,16 @@ function applySummonEnemyToState(state, operation = {}, options = {}) {
       : Object.fromEntries(
           Object.entries(currentSnapshot.enemyEShields ?? {}).filter(([enemyIndex]) => String(enemyIndex) !== slotKey)
         ),
+    enemyExtraHpGauges: summonEnemy.extraHpGaugeState
+      ? {
+          ...(currentSnapshot.enemyExtraHpGauges ?? {}),
+          [slotKey]: structuredClone(summonEnemy.extraHpGaugeState),
+        }
+      : Object.fromEntries(
+          Object.entries(currentSnapshot.enemyExtraHpGauges ?? {}).filter(
+            ([enemyIndex]) => String(enemyIndex) !== slotKey
+          )
+        ),
     enemyAbsorbElements: {
       ...(currentSnapshot.enemyAbsorbElements ?? {}),
       [slotKey]: summonEnemy.absorbElements,
@@ -430,6 +444,38 @@ function applySummonEnemyToState(state, operation = {}, options = {}) {
     ),
   };
   applyEnemyStateOverrideSnapshot(state.turnState, nextSnapshot);
+  return state;
+}
+
+function applySetEnemyEShieldToState(state, operation = {}) {
+  if (!state?.turnState?.enemyState) {
+    return state;
+  }
+  const payload = normalizeSetEnemyEShieldPayload(operation?.payload);
+  if (!payload) {
+    return state;
+  }
+  const currentEnemyCount = normalizeSummonEnemyCount(
+    state.turnState?.enemyState?.enemyCount,
+    DEFAULT_ENEMY_COUNT
+  );
+  if (payload.targetEnemyIndex >= currentEnemyCount) {
+    return state;
+  }
+  const currentSnapshot = buildEnemyStateOverrideSnapshot(state.turnState);
+  const slotKey = String(payload.targetEnemyIndex);
+  const nextEnemyEShields = payload.eShieldState
+    ? {
+        ...(currentSnapshot.enemyEShields ?? {}),
+        [slotKey]: structuredClone(payload.eShieldState),
+      }
+    : Object.fromEntries(
+        Object.entries(currentSnapshot.enemyEShields ?? {}).filter(([enemyIndex]) => String(enemyIndex) !== slotKey)
+      );
+  applyEnemyStateOverrideSnapshot(state.turnState, {
+    ...currentSnapshot,
+    enemyEShields: nextEnemyEShields,
+  });
   return state;
 }
 
@@ -449,6 +495,9 @@ function applyOperation(state, operation = {}, options = {}) {
   }
   if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
     return applySummonEnemyToState(state, operation, options);
+  }
+  if (type === REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD) {
+    return applySetEnemyEShieldToState(state, operation);
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
     const level = extractOperationLevel(operation);
