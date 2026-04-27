@@ -323,19 +323,24 @@ function applyEnemyEShieldTestSetup(
   return state;
 }
 
-function createHpBreakAttackSkill(skillId = 99501) {
+const HP_BREAK_TEST_EXTRA_GAUGE_TOTAL = 3;
+const HP_BREAK_TEST_EXTRA_GAUGE_VALUE = 40400000;
+
+function createHpBreakAttackSkill(skillId = 99501, { targetType = 'Single' } = {}) {
   return {
     id: skillId,
     name: 'Gauge Slash',
     label: `GaugeSlash${skillId}`,
     sp_cost: 0,
-    target_type: 'Single',
-    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    target_type: targetType,
+    parts: [{ skill_type: 'AttackSkill', target_type: targetType, type: 'Slash' }],
   };
 }
 
 function createHpBreakTestState({
+  enemyCount = 1,
   remaining = 3,
+  skillTargetType = 'Single',
   eShieldState = createEnemyEShieldState({
     current: 12,
     max: 30,
@@ -343,23 +348,31 @@ function createHpBreakTestState({
     defUpRate: 5000,
   }),
 } = {}) {
-  const skill = createHpBreakAttackSkill();
+  const skill = createHpBreakAttackSkill(99501, { targetType: skillTargetType });
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? { skills: [skill] }
       : { skills: [createProtectionSkill(8800 + idx)] }
   );
   const state = createBattleStateFromParty(party);
-  state.turnState.enemyState.enemyCount = 1;
-  state.turnState.enemyState.extraHpGaugeStateByEnemy = {
-    0: {
-      total: 3,
-      remaining,
-      values: [40400000, 40400000, 40400000],
-    },
-  };
+  state.turnState.enemyState.enemyCount = enemyCount;
+  state.turnState.enemyState.extraHpGaugeStateByEnemy = Object.fromEntries(
+    Array.from({ length: enemyCount }, (_, enemyIndex) => [
+      String(enemyIndex),
+      {
+        total: HP_BREAK_TEST_EXTRA_GAUGE_TOTAL,
+        remaining,
+        values: Array.from(
+          { length: HP_BREAK_TEST_EXTRA_GAUGE_TOTAL },
+          () => HP_BREAK_TEST_EXTRA_GAUGE_VALUE
+        ),
+      },
+    ])
+  );
   state.turnState.enemyState.eShieldStateByEnemy = eShieldState
-    ? { 0: structuredClone(eShieldState) }
+    ? Object.fromEntries(
+        Array.from({ length: enemyCount }, (_, enemyIndex) => [String(enemyIndex), structuredClone(eShieldState)])
+      )
     : {};
   return {
     state,
@@ -418,6 +431,84 @@ test('manual HP break decrements extra gauge, resets break state, restores E shi
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], undefined);
   assert.equal(nextState.turnState.turnType, 'normal');
   assert.equal(nextState.turnState.turnIndex, 2);
+});
+
+test('manual HP break can be applied repeatedly to multiple enemies until final kill', () => {
+  const { state, skillId } = createHpBreakTestState({
+    enemyCount: 2,
+    skillTargetType: 'All',
+  });
+  let currentState = state;
+
+  for (const expectedTurnIndex of [2, 3]) {
+    const preview = previewTurn(currentState, {
+      0: { characterId: 'M1', skillId, manualHpBreakEnemyIndexes: [0, 1] },
+      1: { characterId: 'M2', skillId: currentState.party[1].skills[0].skillId },
+    });
+
+    assert.equal(preview.actions.length, 1, 'preview should stop after each HP break action');
+
+    const { nextState, committedRecord } = commitTurn(currentState, preview);
+    const expectedRemaining = HP_BREAK_TEST_EXTRA_GAUGE_TOTAL - (expectedTurnIndex - 1);
+
+    assert.equal(committedRecord.actions.length, 1, 'commit should truncate later actors after HP break');
+    assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0, 1]);
+    assert.equal(committedRecord.actions[0]?.hpBreakCount, 2);
+    assert.equal(nextState.turnState.turnType, 'normal');
+    assert.equal(nextState.turnState.turnIndex, expectedTurnIndex);
+
+    for (const enemyIndex of [0, 1]) {
+      assert.deepEqual(
+        nextState.turnState.enemyState.extraHpGaugeStateByEnemy[String(enemyIndex)],
+        {
+          total: HP_BREAK_TEST_EXTRA_GAUGE_TOTAL,
+          remaining: expectedRemaining,
+          values: Array.from(
+            { length: HP_BREAK_TEST_EXTRA_GAUGE_TOTAL },
+            () => HP_BREAK_TEST_EXTRA_GAUGE_VALUE
+          ),
+        },
+        `enemy ${enemyIndex} should consume one extra HP gauge`
+      );
+      assert.equal(
+        (nextState.turnState.enemyState.statuses ?? []).some(
+          (status) => status?.statusType === 'Dead' && Number(status?.targetIndex) === enemyIndex
+        ),
+        false,
+        `enemy ${enemyIndex} should not be dead before the final gauge`
+      );
+    }
+
+    currentState = nextState;
+  }
+
+  const killPreview = previewTurn(currentState, {
+    0: { characterId: 'M1', skillId, manualKillEnemyIndexes: [0, 1] },
+    1: { characterId: 'M2', skillId: currentState.party[1].skills[0].skillId },
+  });
+  const { nextState: killedState, committedRecord } = commitTurn(currentState, killPreview);
+  const killAction = findActionByCharacterId(committedRecord, 'M1');
+
+  assert.equal(committedRecord.actions.length, 2, 'kill should not use the HP break truncation path');
+  assert.deepEqual(killAction?.manualKillEnemyIndexes, [0, 1]);
+  assert.equal(killAction?.killCount, 2);
+  assert.equal(killAction?.hpBreakCount, 0);
+  for (const enemyIndex of [0, 1]) {
+    assert.equal(
+      (killAction?.enemyStatusChanges ?? []).some(
+        (event) => event?.statusType === 'Dead' && Number(event?.targetIndex) === enemyIndex
+      ),
+      true,
+      `enemy ${enemyIndex} should be killed manually after the final gauge`
+    );
+    assert.equal(
+      (killedState.turnState.enemyState.statuses ?? []).some(
+        (status) => status?.statusType === 'Dead' && Number(status?.targetIndex) === enemyIndex
+      ),
+      true,
+      `enemy ${enemyIndex} should stay dead in next state`
+    );
+  }
 });
 
 test('manual HP break does not create an E shield when no active E shield exists', () => {
