@@ -202,7 +202,18 @@ export async function selectEnemyPresetForActiveSlot(page, enemyId) {
 
   for (const categoryValue of categoryValues) {
     await categorySelect.selectOption(categoryValue);
-    if (await presetSelect.locator(`option[value="${targetEnemyId}"]`).count()) {
+    const hasTargetOption = await page
+      .waitForFunction(
+        ({ selector, value }) =>
+          Boolean(document.querySelector(`${selector} option[value="${value}"]`)),
+        {
+          selector: '#enemy-setup-root [data-action="select-enemy"]',
+          value: targetEnemyId,
+        },
+        { timeout: 2000 }
+      )
+      .then(() => true, () => false);
+    if (hasTargetOption) {
       await presetSelect.selectOption(targetEnemyId);
       return;
     }

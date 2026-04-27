@@ -6,8 +6,25 @@ import {
   gotoUiNext,
 } from './ui-next-helpers.js';
 
+async function evaluateOnStablePage(page, pageFunction) {
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await page.evaluate(pageFunction);
+    } catch (error) {
+      const message = String(error?.message ?? error ?? '');
+      if (!message.includes('Execution context was destroyed') || attempt === 2) {
+        throw error;
+      }
+      await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(100);
+    }
+  }
+  return null;
+}
+
 async function mountSyntheticEShieldRow(page) {
-  await page.evaluate(async () => {
+  await evaluateOnStablePage(page, async () => {
     const existing = document.querySelector('[data-test-id="synthetic-eshield-row"]');
     existing?.remove();
 
@@ -135,7 +152,7 @@ test.describe('Turn row preview status popup', () => {
   test('enemy detail popup talisman/disaster/undermine icon assets are browser-loadable', async ({ page }) => {
     await gotoUiNext(page);
 
-    const results = await page.evaluate(async () => {
+    const results = await evaluateOnStablePage(page, async () => {
       async function loadImage(relativePath) {
         const src = new URL(relativePath, window.location.href).href;
         const image = new Image();
@@ -178,7 +195,7 @@ test.describe('Turn row preview status popup', () => {
   test('enemy detail popup renders Undermine preview status with 蝕 label and icon', async ({ page }) => {
     await gotoUiNext(page);
 
-    await page.evaluate(async () => {
+    await evaluateOnStablePage(page, async () => {
       const { EnemyDetailPopup } = await import('/ui-next/components/enemy-detail-popup.js');
       new EnemyDetailPopup().show({
         enemies: [
@@ -204,7 +221,7 @@ test.describe('Turn row preview status popup', () => {
     const popup = page.locator('.enemy-detail-popup-container');
     const statusList = popup.locator(
       '[data-role="enemy-popup-column"][data-selected="true"] [data-role="enemy-popup-status-list"]'
-    );
+    ).first();
 
     await expect(statusList).toContainText('蝕');
     await expect(statusList).toContainText('2T');
@@ -215,7 +232,7 @@ test.describe('Turn row preview status popup', () => {
   test('enemy detail popup renders talisman/disaster as compact status blocks', async ({ page }) => {
     await gotoUiNext(page);
 
-    await page.evaluate(async () => {
+    await evaluateOnStablePage(page, async () => {
       const { EnemyDetailPopup } = await import('/ui-next/components/enemy-detail-popup.js');
       new EnemyDetailPopup().show({
         enemies: [
@@ -251,7 +268,7 @@ test.describe('Turn row preview status popup', () => {
   test('enemy detail popup preview renders source skill desc when preview enemy status includes it', async ({ page }) => {
     await gotoUiNext(page);
 
-    await page.evaluate(async () => {
+    await evaluateOnStablePage(page, async () => {
       const { EnemyDetailPopup } = await import('/ui-next/components/enemy-detail-popup.js');
       new EnemyDetailPopup().show({
         enemies: [
@@ -291,7 +308,7 @@ test.describe('Turn row preview status popup', () => {
   test('enemy detail popup omits source skill desc for Dead preview status', async ({ page }) => {
     await gotoUiNext(page);
 
-    await page.evaluate(async () => {
+    await evaluateOnStablePage(page, async () => {
       const { EnemyDetailPopup } = await import('/ui-next/components/enemy-detail-popup.js');
       new EnemyDetailPopup().show({
         enemies: [

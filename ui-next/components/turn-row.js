@@ -1586,7 +1586,9 @@ export class TurnRowController {
     this.#isBreakEditorOpen = false;
     this.#isKillEditorOpen = false;
     const normalizedEnemyIndex = Number(enemyIndex);
-    const immediateCandidate = this.#resolvePopupImmediateOutcomeCandidate(normalizedEnemyIndex);
+    const immediateCandidate = outcome === ACTION_OUTCOME_TYPES.HP_BREAK
+      ? null
+      : this.#resolvePopupImmediateOutcomeCandidate(normalizedEnemyIndex);
     if (immediateCandidate) {
       if (outcome === ACTION_OUTCOME_TYPES.BREAK) {
         this.#toggleBreakSingleSelectionForPartyIndex(
@@ -2049,26 +2051,14 @@ export class TurnRowController {
       return '';
     }
     const canRemove = this.#isDraftMode();
-    return `
-      <div data-role="operation-chip-list" class="flex flex-wrap gap-1 pb-1">
-        ${this.#operations.map((operation, index) => `
-          <span data-role="operation-chip"
-                data-operation-index="${index}"
-                class="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold leading-tight whitespace-nowrap ${getReplayOperationTone(operation)}">
-            <span class="whitespace-nowrap">${getReplayOperationDisplayLabel(operation)}</span>
-            ${canRemove
-              ? `
-                <button type="button"
-                        data-role="operation-chip-remove"
-                        data-operation-index="${index}"
-                        class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 text-[11px] leading-none hover:bg-white"
-                        aria-label="${getReplayOperationDisplayLabel(operation)} を削除">×</button>
-              `
-              : ''}
-          </span>
-        `).join('')}
-      </div>
-    `;
+    const chipHtml = this.#operations.map((operation, index) => {
+      const label = getReplayOperationDisplayLabel(operation);
+      const removeButtonHtml = canRemove
+        ? `<button type="button" data-role="operation-chip-remove" data-operation-index="${index}" class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 text-[11px] leading-none hover:bg-white" aria-label="${escapeHtml(label)} を削除">×</button>`
+        : '';
+      return `<span data-role="operation-chip" data-operation-index="${index}" class="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold leading-tight whitespace-nowrap ${getReplayOperationTone(operation)}"><span class="whitespace-nowrap">${escapeHtml(label)}</span>${removeButtonHtml}</span>`;
+    }).join('');
+    return `<div data-role="operation-chip-list" class="flex flex-wrap gap-1 pb-1">${chipHtml}</div>`;
   }
 
   #buildFieldChipsHtml() {

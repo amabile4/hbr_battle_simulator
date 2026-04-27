@@ -33,7 +33,10 @@ test.describe('Turn row operation chip layout', () => {
     const committedRows = page.locator('[data-turn-row][data-row-mode="committed"]');
     await expect(committedRows).toHaveCount(19, { timeout: 10000 });
 
-    const makaiChipMetrics = await committedRows.nth(0).evaluate(collectChipMetrics);
+    const firstCommittedRow = committedRows.nth(0);
+    await firstCommittedRow.scrollIntoViewIfNeeded();
+    await expect(firstCommittedRow.locator('[data-role="operation-chip"]').first()).toBeVisible();
+    const makaiChipMetrics = await firstCommittedRow.evaluate(collectChipMetrics);
     expect(makaiChipMetrics.map((metric) => metric.text)).toEqual(['騎兵起動', '騎兵起動']);
     makaiChipMetrics.forEach((metric) => {
       expect(metric.hasLineBreak).toBe(false);
@@ -41,7 +44,10 @@ test.describe('Turn row operation chip layout', () => {
       expect(metric.height).toBeLessThan(32);
     });
 
-    const preemptiveChipMetrics = await committedRows.nth(6).evaluate(collectChipMetrics);
+    const preemptiveOdRow = committedRows.nth(6);
+    await preemptiveOdRow.scrollIntoViewIfNeeded();
+    await expect(preemptiveOdRow.locator('[data-role="operation-chip"]').first()).toBeVisible();
+    const preemptiveChipMetrics = await preemptiveOdRow.evaluate(collectChipMetrics);
     expect(preemptiveChipMetrics.map((metric) => metric.text)).toEqual(['先制OD1']);
     preemptiveChipMetrics.forEach((metric) => {
       expect(metric.hasLineBreak).toBe(false);
