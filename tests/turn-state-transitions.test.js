@@ -186,6 +186,35 @@ function buildFullSkillRealDataParty(store, skillId, options = {}) {
   });
 }
 
+const START_CHARGE_STYLE_ID = 1007505;
+const START_CHARGE_LIMIT_BREAK_LEVEL = 3;
+const START_CHARGE_PASSIVE_ID = 100750503;
+const START_CHARGE_INITIAL_SP = 10;
+const START_CHARGE_SP_DELTA = 3;
+const START_CHARGE_TURN_SP_DELTA = 1;
+const START_CHARGE_CONDITIONAL_TURN_SP_DELTA = 1;
+const BUFF_CHARGE_SPECIAL_STATUS_ID = 25;
+
+function buildStartChargeRealDataParty(store, stylePosition) {
+  const style = store.getStyleById(START_CHARGE_STYLE_ID);
+  const styleCharacterKey = String(style?.chara_label ?? style?.chara ?? '');
+  const styleIds = getSixUsableStyleIds(store)
+    .filter((id) => {
+      const candidate = store.getStyleById(id);
+      return (
+        Number(id) !== START_CHARGE_STYLE_ID &&
+        String(candidate?.chara_label ?? candidate?.chara ?? '') !== styleCharacterKey
+      );
+    })
+    .slice(0, 6);
+  styleIds[stylePosition] = START_CHARGE_STYLE_ID;
+
+  return store.buildPartyFromStyleIds(styleIds, {
+    initialSP: START_CHARGE_INITIAL_SP,
+    limitBreakLevelsByPartyIndex: { [stylePosition]: START_CHARGE_LIMIT_BREAK_LEVEL },
+  });
+}
+
 function previewActorSkill(state, skillId, actionOverrides = {}) {
   const actor = state.party[0];
   return previewTurn(state, {
@@ -15805,6 +15834,61 @@ function countActiveSpecialStatus(member, typeId) {
       (String(e.exitCond) === 'Eternal' || Number(e.remaining) > 0)
   ).length;
 }
+
+test('Passive.Start_Charge01 applies battle-start BuffCharge and SP+3 for frontline real data', () => {
+  const store = getStore();
+  const state = applyInitialPassiveState(
+    createBattleStateFromParty(buildStartChargeRealDataParty(store, 0))
+  );
+  const actor = state.party[0];
+  const openingEvent = state.turnState.passiveEventsLastApplied.find(
+    (event) => Number(event.passiveId) === START_CHARGE_PASSIVE_ID && event.characterId === actor.characterId
+  );
+
+  assert.equal(
+    actor.sp.current,
+    START_CHARGE_INITIAL_SP +
+      START_CHARGE_SP_DELTA +
+      START_CHARGE_TURN_SP_DELTA +
+      START_CHARGE_CONDITIONAL_TURN_SP_DELTA
+  );
+  assert.equal(countActiveSpecialStatus(actor, BUFF_CHARGE_SPECIAL_STATUS_ID), 1);
+  assert.ok(openingEvent, 'Passive.Start_Charge01 event should be recorded');
+  assert.deepEqual(openingEvent.effectTypes, ['BuffCharge', 'HealSp']);
+  assert.equal(openingEvent.spDelta, START_CHARGE_SP_DELTA);
+  assert.deepEqual(
+    openingEvent.appliedStatusEffects.map((effect) => ({
+      characterId: effect.characterId,
+      statusType: effect.statusType,
+      exitCond: effect.exitCond,
+      remaining: effect.remaining,
+    })),
+    [
+      {
+        characterId: actor.characterId,
+        statusType: 'BuffCharge',
+        exitCond: 'Count',
+        remaining: 1,
+      },
+    ]
+  );
+});
+
+test('Passive.Start_Charge01 does not apply while the real-data style starts in backline', () => {
+  const store = getStore();
+  const backlinePosition = 3;
+  const state = applyInitialPassiveState(
+    createBattleStateFromParty(buildStartChargeRealDataParty(store, backlinePosition))
+  );
+  const actor = state.party[backlinePosition];
+  const openingEvent = state.turnState.passiveEventsLastApplied.find(
+    (event) => Number(event.passiveId) === START_CHARGE_PASSIVE_ID && event.characterId === actor.characterId
+  );
+
+  assert.equal(actor.sp.current, START_CHARGE_INITIAL_SP);
+  assert.equal(countActiveSpecialStatus(actor, BUFF_CHARGE_SPECIAL_STATUS_ID), 0);
+  assert.equal(openingEvent, undefined);
+});
 
 test('T06: BuffCharge(25) — commitTurnで付与・パッシブ発動・次スキル使用で解除', () => {
   const party = createSixMemberManualParty((idx) =>

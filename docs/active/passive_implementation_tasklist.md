@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-10
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-27
 
 ## 方針
 
@@ -167,6 +167,7 @@
 - [x] `OnEveryTurn`
 - [x] `OnEveryTurnIncludeSpecial`
 - [x] `OnBattleStart`
+  - passive timing の `BuffCharge` は実状態付与へ接続済み。`Passive.Start_Charge01` は前衛 `OnBattleStart` で `BuffCharge(25)` と `HealSp(+3)` を同時に適用する
 - [x] `OnFirstBattleStart`
 - [x] `OnEnemyTurnStart`
 - [x] `OnAdditionalTurnStart`

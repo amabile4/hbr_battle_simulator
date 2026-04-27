@@ -8084,6 +8084,8 @@ const BUFF_SKILL_TYPE_TO_STATUS_ID = Object.freeze({
   EternalOath: 124,
   BIYamawakiServant: 155,
 });
+const DEFAULT_BUFF_CHARGE_EXIT_COND = 'Count';
+const DEFAULT_BUFF_CHARGE_REMAINING = 1;
 
 function applyBuffStatusEffectsFromActions(state, previewRecord) {
   const events = [];
@@ -11148,13 +11150,21 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'BuffCharge') {
-          // Charge/stacking buff. Log passive event; no state change.
           const targetCharacterIds = resolveSupportTargetCharacterIds(
             state,
             member,
             part?.target_type,
             options.targetCharacterId ?? null
           );
+          const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID.BuffCharge;
+          const exitCond = String(part?.effect?.exitCond ?? DEFAULT_BUFF_CHARGE_EXIT_COND);
+          const remaining = Number(part?.effect?.exitVal?.[0] ?? DEFAULT_BUFF_CHARGE_REMAINING);
+          const sourceSkill = {
+            skillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+            label: String(passive?.label ?? ''),
+            name: String(passive?.name ?? ''),
+            desc: String(passive?.desc ?? ''),
+          };
           for (const targetCharacterId of targetCharacterIds) {
             const target = findMemberByCharacterId(state, targetCharacterId);
             if (!target) {
@@ -11163,8 +11173,17 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
               continue;
             }
+            target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill: sourceSkill, actor: member });
+            const activeEffects = target.getStatusEffectsByType('BuffCharge', { activeOnly: true });
+            const latest = activeEffects.at(-1);
+            appliedStatusEffects.push({
+              characterId: target.characterId,
+              statusType: 'BuffCharge',
+              effectId: Number(latest?.effectId ?? 0),
+              exitCond: String(latest?.exitCond ?? exitCond),
+              remaining: Number(latest?.remaining ?? remaining),
+            });
             matched = true;
-            break;
           }
           continue;
         }
