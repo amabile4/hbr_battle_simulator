@@ -169,6 +169,7 @@ const STATUS_LABELS = {
   // スキル関連
   AdditionalTurn:            '追加ターン',
   DoubleActionExtraSkill:    'EXスキル連続発動',
+  ByakkoDoubleActionAttackSkill: 'ラッシュ',
   SkillCondition:            'スキル条件',
   SkillRandom:               'スキルランダム',
   SkillSwitch:               'スキルスイッチ',

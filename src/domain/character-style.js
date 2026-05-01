@@ -1275,13 +1275,34 @@ export class CharacterStyle {
   }
 
   consumeDoubleActionExtraSkillEffects(consumeCount = 1) {
+    return this.consumeDoubleActionStatusEffects('DoubleActionExtraSkill', consumeCount);
+  }
+
+  getByakkoDoubleActionAttackSkillEffects(options = {}) {
+    return this.getStatusEffectsByType('ByakkoDoubleActionAttackSkill', options);
+  }
+
+  resolveEffectiveByakkoDoubleActionAttackSkillEffects() {
+    return this.getByakkoDoubleActionAttackSkillEffects({ activeOnly: true }).sort(sortStatusEffectsByPriority).slice(0, 1);
+  }
+
+  consumeByakkoDoubleActionAttackSkillEffects(consumeCount = 1) {
+    return this.consumeDoubleActionStatusEffects('ByakkoDoubleActionAttackSkill', consumeCount);
+  }
+
+  consumeDoubleActionStatusEffects(statusType, consumeCount = 1) {
     const count = Math.max(0, Number(consumeCount) || 0);
     if (count <= 0) {
       return [];
     }
 
-    const picked = this.resolveEffectiveDoubleActionExtraSkillEffects()
-      .filter((effect) => String(effect.exitCond) === 'Count')
+    const normalizedStatusType = String(statusType ?? '').trim();
+    if (!normalizedStatusType) {
+      return [];
+    }
+
+    const picked = this.getStatusEffectsByType(normalizedStatusType, { activeOnly: true })
+      .sort(sortStatusEffectsByPriority)
       .slice(0, count);
     if (picked.length === 0) {
       return [];

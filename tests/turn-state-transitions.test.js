@@ -18176,6 +18176,157 @@ test('DoubleActionExtraSkill: 朝倉可憐の意気揚々で次のEX二連権が
   assert.equal(actorAfterEx.resolveEffectiveDoubleActionExtraSkillEffects().length, 0);
 });
 
+function buildByakko06RealDataParty(store, skillIds, buildOptions = {}) {
+  const BYAKKO_STYLE_ID = 1002606;
+  const byakkoStyle = store.getStyleById(BYAKKO_STYLE_ID);
+  const byakkoCharaLabel = String(byakkoStyle?.chara_label ?? byakkoStyle?.chara ?? '');
+  const otherStyleIds = getSixUsableStyleIds(store).filter((id) => {
+    if (Number(id) === BYAKKO_STYLE_ID) {
+      return false;
+    }
+    const style = store.getStyleById(id);
+    return String(style?.chara_label ?? style?.chara ?? '') !== byakkoCharaLabel;
+  });
+  return store.buildPartyFromStyleIds([BYAKKO_STYLE_ID, ...otherStyleIds.slice(0, 5)], {
+    initialSP: 30,
+    skillSetsByPartyIndex: {
+      0: Array.isArray(skillIds) ? skillIds : [skillIds],
+    },
+    ...buildOptions,
+  });
+}
+
+test('ByakkoDoubleActionAttackSkill: DP100%以上のラッシュで非EX攻撃スキルが二連になる', () => {
+  const store = getStore();
+  const BYAKKO_ASSAULT_CLAW_SKILL_ID = 46002609;
+  const party = buildByakko06RealDataParty(store, [BYAKKO_ASSAULT_CLAW_SKILL_ID], {
+    initialDpStateByPartyIndex: {
+      0: { baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  const passiveResult = applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.ok(
+    passiveResult.passiveEvents.some((event) =>
+      (event.appliedStatusEffects ?? []).some(
+        (effect) => effect.statusType === 'ByakkoDoubleActionAttackSkill'
+      )
+    )
+  );
+  assert.equal(actor.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 1);
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: BYAKKO_ASSAULT_CLAW_SKILL_ID, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.actions.length, 2);
+  assert.deepEqual(preview.actions.map((entry) => entry.castIndex), [0, 1]);
+  assert.equal(preview.actions[0].doubleActionStatusType, 'ByakkoDoubleActionAttackSkill');
+  assert.equal(preview.actions[0].spCost, 6);
+  assert.equal(preview.actions[1].spCost, 0);
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const actorAfter = nextState.party[0];
+  assert.equal(committedRecord.actions.length, 2);
+  assert.equal(actorAfter.getSkillUseCountByLabel('ByakkoSkill06'), 2);
+  assert.equal(actorAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 1);
+});
+
+test('ByakkoDoubleActionAttackSkill: DP100%未満ではラッシュ状態を得ない', () => {
+  const store = getStore();
+  const BYAKKO_ASSAULT_CLAW_SKILL_ID = 46002609;
+  const party = buildByakko06RealDataParty(store, [BYAKKO_ASSAULT_CLAW_SKILL_ID], {
+    initialDpStateByPartyIndex: {
+      0: { baseMaxDp: 70, currentDp: 69, effectiveDpCap: 70 },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  assert.equal(actor.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 0);
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: BYAKKO_ASSAULT_CLAW_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  assert.equal(preview.actions.length, 1);
+});
+
+test('ByakkoDoubleActionAttackSkill: 通常攻撃はラッシュ二連対象外', () => {
+  const store = getStore();
+  const BYAKKO_NORMAL_ATTACK_SKILL_ID = 46002601;
+  const party = buildByakko06RealDataParty(store, [BYAKKO_NORMAL_ATTACK_SKILL_ID], {
+    initialDpStateByPartyIndex: {
+      0: { baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(actor.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 1);
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: BYAKKO_NORMAL_ATTACK_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  assert.equal(preview.actions.length, 1);
+});
+
+test('ByakkoDoubleActionAttackSkill: EX攻撃スキルは残回数2以上のときだけ二連になる', () => {
+  const store = getStore();
+  const BYAKKO_EX_SKILL_ID = 46002611;
+  const party = buildByakko06RealDataParty(store, [BYAKKO_EX_SKILL_ID], {
+    initialDpStateByPartyIndex: {
+      0: { baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  let preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: BYAKKO_EX_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  assert.equal(preview.actions.length, 2);
+
+  const maxUses = Number(actor.getSkill(BYAKKO_EX_SKILL_ID)?.usage?.maxUses ?? 0);
+  for (let i = 0; i < Math.max(0, maxUses - 1); i += 1) {
+    actor.incrementSkillUseByLabel('ByakkoSkill53');
+  }
+  preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: BYAKKO_EX_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  assert.equal(preview.actions.length, 1);
+});
+
+test('Byakko06 獅子奮迅: EX使用後に自身以外へSP+2をSP30上限で付与する', () => {
+  const store = getStore();
+  const BYAKKO_EX_SKILL_ID = 46002611;
+  const party = buildByakko06RealDataParty(store, [BYAKKO_EX_SKILL_ID], {
+    initialSP: 20,
+    initialDpStateByPartyIndex: {
+      0: { baseMaxDp: 70, currentDp: 69, effectiveDpCap: 70 },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: BYAKKO_EX_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  const allySpValues = nextState.party
+    .filter((member) => member.characterId !== actor.characterId)
+    .map((member) => Number(member.sp.current ?? 0));
+
+  assert.equal(preview.actions.length, 1);
+  assert.ok(allySpValues.length >= 2);
+  assert.ok(allySpValues.every((sp) => sp === 22));
+});
+
 test('DoubleActionExtraSkill: 李映夏Funnel付きフグリングクラッシュは1発目だけFunnelを消費し各castで全体バフを付与する', () => {
   const store = getStore();
   const LI_STYLE_ID = 1008203;

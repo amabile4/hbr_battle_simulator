@@ -219,9 +219,13 @@ const DEFAULT_REVIVE_DP_FLOOR = 1;
 const DEFAULT_REVIVE_E_SHIELD_FLOOR = 1;
 const DEFAULT_REVIVE_TERRITORY_HEAL_RATE = 0.5;
 const DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE = 'DoubleActionExtraSkill';
+const BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE = 'ByakkoDoubleActionAttackSkill';
 const DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING = 1;
 const DOUBLE_ACTION_EXTRA_SKILL_CAST_COUNT = 2;
 const DOUBLE_ACTION_EXTRA_SKILL_REQUIRED_USES = 2;
+const DOUBLE_ACTION_STATUS_TYPES = Object.freeze(
+  new Set([DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE, BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE])
+);
 const ENEMY_HP_BREAK_E_SHIELD_MAX_INCREMENT = 5;
 const MOTIVATION_DAMAGE_TAKEN_DELTA = -1;
 const MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE = 'MotivationDamage';
@@ -4731,7 +4735,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         continue;
       }
 
-      if (effectType === DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE) {
+      if (DOUBLE_ACTION_STATUS_TYPES.has(effectType)) {
         const targetCharacterIds = resolveSupportTargetCharacterIds(
           state,
           actor,
@@ -4747,7 +4751,8 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
           if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
             continue;
           }
-          const added = addDoubleActionExtraSkillStatusEffect(
+          const added = addDoubleActionStatusEffect(
+            effectType,
             target,
             {
               sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
@@ -4773,7 +4778,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
               actionEntry,
               createPassiveTriggerEvent(state.turnState, actor, passive, {
                 source: 'passive_trigger',
-                effectTypes: [DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE],
+                effectTypes: [effectType],
                 appliedStatusEffects: [added],
                 triggerSkillId: Number(skill?.skillId ?? 0),
                 triggerSkillName: String(skill?.name ?? ''),
@@ -7729,15 +7734,18 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
   return events;
 }
 
-function addDoubleActionExtraSkillStatusEffect(target, source, options = {}) {
+function addDoubleActionStatusEffect(statusType, target, source, options = {}) {
+  const normalizedStatusType = DOUBLE_ACTION_STATUS_TYPES.has(String(statusType ?? '').trim())
+    ? String(statusType).trim()
+    : DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE;
   const remaining = Number(options.remaining ?? DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING);
   if (typeof target?.removeStatusEffectsWhere === 'function') {
     target.removeStatusEffectsWhere(
-      (effect) => String(effect?.statusType ?? '') === DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE
+      (effect) => String(effect?.statusType ?? '') === normalizedStatusType
     );
   }
   const effect = target.addStatusEffect({
-    statusType: DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE,
+    statusType: normalizedStatusType,
     limitType: String(options.limitType ?? 'Only'),
     exitCond: String(options.exitCond ?? 'Count'),
     remaining: Number.isFinite(remaining) && remaining > 0 ? remaining : DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING,
@@ -7754,11 +7762,15 @@ function addDoubleActionExtraSkillStatusEffect(target, source, options = {}) {
   return {
     characterId: target.characterId,
     effectId: Number(effect?.effectId ?? 0),
-    statusType: String(effect?.statusType ?? DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE),
+    statusType: String(effect?.statusType ?? normalizedStatusType),
     limitType: String(effect?.limitType ?? 'Only'),
     exitCond: String(effect?.exitCond ?? 'Count'),
     remaining: Number(effect?.remaining ?? DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING),
   };
+}
+
+function addDoubleActionExtraSkillStatusEffect(target, source, options = {}) {
+  return addDoubleActionStatusEffect(DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE, target, source, options);
 }
 
 function applyDoubleActionExtraSkillEffectsFromActions(state, previewRecord) {
@@ -9303,21 +9315,59 @@ function resolveRemainingSkillUsesForMember(member, skill) {
   return Math.max(0, maxUses - used);
 }
 
-function shouldRepeatWithDoubleActionExtraSkill(member, skill, actionMetadata = {}) {
+function isRepeatableAttackSkillForByakkoDoubleAction(skill) {
+  if (!skill || isNormalAttackSkill(skill) || isPursuitOnlySkill(skill)) {
+    return false;
+  }
+  return hasDamagePartInParts(resolveEffectiveSkillParts(skill));
+}
+
+function resolveDoubleActionRepeatStatusType(member, skill, actionMetadata = {}) {
   if (!member || !skill || actionMetadata?.isDerivedRepeat) {
-    return false;
+    return '';
   }
-  if (!Boolean(skill?.isRestricted)) {
-    return false;
+  if (Boolean(skill?.isRestricted)) {
+    const extraSkillEffects =
+      typeof member.resolveEffectiveDoubleActionExtraSkillEffects === 'function'
+        ? member.resolveEffectiveDoubleActionExtraSkillEffects()
+        : [];
+    if (Array.isArray(extraSkillEffects) && extraSkillEffects.length > 0) {
+      return DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE;
+    }
   }
-  const effectiveEffects =
-    typeof member.resolveEffectiveDoubleActionExtraSkillEffects === 'function'
-      ? member.resolveEffectiveDoubleActionExtraSkillEffects()
-      : [];
-  if (!Array.isArray(effectiveEffects) || effectiveEffects.length === 0) {
+  if (isRepeatableAttackSkillForByakkoDoubleAction(skill)) {
+    const attackSkillEffects =
+      typeof member.resolveEffectiveByakkoDoubleActionAttackSkillEffects === 'function'
+        ? member.resolveEffectiveByakkoDoubleActionAttackSkillEffects()
+        : [];
+    if (Array.isArray(attackSkillEffects) && attackSkillEffects.length > 0) {
+      return BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE;
+    }
+  }
+  return '';
+}
+
+function shouldRepeatWithDoubleActionExtraSkill(member, skill, actionMetadata = {}) {
+  const statusType = resolveDoubleActionRepeatStatusType(member, skill, actionMetadata);
+  if (!statusType) {
     return false;
   }
   return resolveRemainingSkillUsesForMember(member, skill) >= DOUBLE_ACTION_EXTRA_SKILL_REQUIRED_USES;
+}
+
+function consumeDoubleActionRepeatStatus(member, statusType, consumeCount = 1) {
+  const normalizedStatusType = String(statusType ?? '').trim();
+  if (normalizedStatusType === BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE) {
+    return typeof member?.consumeByakkoDoubleActionAttackSkillEffects === 'function'
+      ? member.consumeByakkoDoubleActionAttackSkillEffects(consumeCount)
+      : [];
+  }
+  if (normalizedStatusType === DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE) {
+    return typeof member?.consumeDoubleActionExtraSkillEffects === 'function'
+      ? member.consumeDoubleActionExtraSkillEffects(consumeCount)
+      : [];
+  }
+  return [];
 }
 
 function buildDerivedRepeatAction(action) {
@@ -9396,6 +9446,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     actionInstanceId: String(actionMetadata.actionInstanceId ?? ''),
     castIndex: Math.max(0, Number(actionMetadata.castIndex ?? 0)),
     castCount: Math.max(1, Number(actionMetadata.castCount ?? 1)),
+    doubleActionStatusType: String(actionMetadata.doubleActionStatusType ?? ''),
     isDerivedRepeat: Boolean(actionMetadata.isDerivedRepeat),
     isExtraAction: state.turnState.turnType === 'extra',
     skillId: effectiveSkill.skillId,
@@ -9681,7 +9732,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   });
 
   if (!actionEntry.isDerivedRepeat && Number(actionEntry.castCount ?? 1) > 1 && Number(actionEntry.castIndex ?? 0) === 0) {
-    member.consumeDoubleActionExtraSkillEffects(1);
+    consumeDoubleActionRepeatStatus(member, actionEntry.doubleActionStatusType, 1);
   }
 
   const skillForCount =
@@ -9901,7 +9952,10 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     }
     const projectedSkill = projectedMember.getSkill(skill.skillId) ?? skill;
     const effectiveSkill = resolveEffectiveSkillForAction(projectedState, projectedMember, projectedSkill);
-    const shouldRepeat = shouldRepeatWithDoubleActionExtraSkill(projectedMember, effectiveSkill);
+    const doubleActionStatusType = resolveDoubleActionRepeatStatusType(projectedMember, effectiveSkill);
+    const shouldRepeat =
+      Boolean(doubleActionStatusType) &&
+      resolveRemainingSkillUsesForMember(projectedMember, effectiveSkill) >= DOUBLE_ACTION_EXTRA_SKILL_REQUIRED_USES;
     const castCount = shouldRepeat ? DOUBLE_ACTION_EXTRA_SKILL_CAST_COUNT : 1;
     const primaryEntry = buildPreviewActionEntry(
       projectedState,
@@ -9913,6 +9967,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
         actionInstanceId: buildActionInstanceId(projectedMember.characterId, actionSequence),
         castIndex: 0,
         castCount,
+        doubleActionStatusType,
         isDerivedRepeat: false,
       }
     );
@@ -9950,6 +10005,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
         actionInstanceId: buildActionInstanceId(repeatMember.characterId, actionSequence),
         castIndex: 1,
         castCount,
+        doubleActionStatusType,
         isDerivedRepeat: true,
       }
     );
@@ -10483,6 +10539,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'AdditionalHitOnPursuit' &&
           skillType !== 'ZoneUpEternal' &&
           skillType !== 'DoubleActionExtraSkill' &&
+          skillType !== 'ByakkoDoubleActionAttackSkill' &&
           skillType !== 'ShadowClone' &&
           skillType !== 'BorderRefPDownByAdmiral' &&
           skillType !== 'ExecuteSkillOnPreTurn' &&
@@ -11018,7 +11075,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
-        if (skillType === DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE) {
+        if (DOUBLE_ACTION_STATUS_TYPES.has(skillType)) {
           const targetCharacterIds = resolveSupportTargetCharacterIds(
             state,
             member,
@@ -11036,7 +11093,8 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
               continue;
             }
-            const appliedStatus = addDoubleActionExtraSkillStatusEffect(
+            const appliedStatus = addDoubleActionStatusEffect(
+              skillType,
               target,
               {
                 sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
@@ -11390,6 +11448,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType === 'AdditionalHitOnPursuit' ||
           skillType === 'ZoneUpEternal' ||
           skillType === 'DoubleActionExtraSkill' ||
+          skillType === 'ByakkoDoubleActionAttackSkill' ||
           skillType === 'ShadowClone' ||
           skillType === 'BorderRefPDownByAdmiral' ||
           skillType === 'ExecuteSkillOnPreTurn' ||
