@@ -18301,6 +18301,75 @@ test('ByakkoDoubleActionAttackSkill: EX攻撃スキルは残回数2以上のと�
   assert.equal(preview.actions.length, 1);
 });
 
+test('ByakkoDoubleActionAttackSkill: シャドウ・ランペイジ二連はマスター連撃と3T連撃を両方OD計算に乗せる', () => {
+  const store = getStore();
+  const BYAKKO_STYLE_ID = 1002606;
+  const NIKAIDO_ADMIRAL_STYLE_ID = 1005107;
+  const YAMAWAKI_STYLE_ID = 1003108;
+  const FILLER_STYLE_IDS = [1001101, 1001201, 1001301];
+  const BYAKKO_EX_SKILL_ID = 46002611;
+  const BYAKKO_MASTER_SKILL_ID = 46512601;
+  const NIKAIDO_COMMAND_SKILL_ID = 46005122;
+  const YAMAWAKI_SP_SKILL_ID = 46003109;
+  const EXPECTED_FUNNEL_HIT_BONUS = 5;
+  const EXPECTED_HIT_COUNT = 10;
+  const EXPECTED_OD_PER_CAST = 25;
+
+  const party = store.buildPartyFromStyleIds(
+    [BYAKKO_STYLE_ID, NIKAIDO_ADMIRAL_STYLE_ID, YAMAWAKI_STYLE_ID, ...FILLER_STYLE_IDS],
+    {
+      initialSP: 30,
+      limitBreakLevelsByPartyIndex: {
+        0: 2,
+        1: 2,
+        2: 4,
+      },
+      skillSetsByPartyIndex: {
+        0: [BYAKKO_EX_SKILL_ID, BYAKKO_MASTER_SKILL_ID],
+        1: [NIKAIDO_COMMAND_SKILL_ID],
+        2: [YAMAWAKI_SP_SKILL_ID],
+      },
+    }
+  );
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  const byakko = state.party.find((member) => member.characterId === 'Byakko');
+  assert.ok(byakko, 'ビャッコが存在すること');
+
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const preview = previewTurn(state, {
+    0: { characterId: 'Byakko', skillId: BYAKKO_EX_SKILL_ID, targetEnemyIndex: 0 },
+    1: { characterId: 'MNikaido', skillId: NIKAIDO_COMMAND_SKILL_ID },
+    2: { characterId: 'BIYamawaki', skillId: YAMAWAKI_SP_SKILL_ID, targetCharacterId: 'Byakko' },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const byakkoActions = committedRecord.actions.filter((action) => action.characterId === 'Byakko');
+
+  assert.equal(byakkoActions.length, 2);
+  assert.deepEqual(byakkoActions.map((action) => action.castIndex), [0, 1]);
+  assert.deepEqual(
+    byakkoActions.map((action) => action.skillFunnelHitBonus),
+    [EXPECTED_FUNNEL_HIT_BONUS, EXPECTED_FUNNEL_HIT_BONUS]
+  );
+  assert.deepEqual(
+    byakkoActions.map((action) => action.skillHitCount),
+    [EXPECTED_HIT_COUNT, EXPECTED_HIT_COUNT]
+  );
+  assert.deepEqual(
+    byakkoActions.map((action) => action.odGaugeGain),
+    [EXPECTED_OD_PER_CAST, EXPECTED_OD_PER_CAST]
+  );
+  assert.equal(nextState.turnState.odGauge, EXPECTED_OD_PER_CAST * 2);
+  assert.ok(
+    byakkoActions.every((action) => {
+      const funnelEffects = action.damageContext?.funnelEffects ?? [];
+      return (
+        funnelEffects.some((effect) => effect.power === 2 && effect.exitCond === 'Eternal') &&
+        funnelEffects.some((effect) => effect.power === 3 && effect.exitCond === 'PlayerTurnEnd')
+      );
+    })
+  );
+});
+
 test('Byakko06 獅子奮迅: EX使用後に自身以外へSP+2をSP30上限で付与する', () => {
   const store = getStore();
   const BYAKKO_EX_SKILL_ID = 46002611;

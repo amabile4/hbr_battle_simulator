@@ -83,11 +83,12 @@
 - [x] 実装完了時に本 WBS のチェックを更新する。
 - [x] `docs/README.md` の該当行のステータス・概要・最終更新日を更新する。
 - [x] 実行した unit / Playwright 結果を最終報告に記載する。
+- [x] 2026-05-01 追補: `シャドウ・ランペイジ` 二連時にマスタースキル連撃（Eternal）とスキル自身の連撃（PlayerTurnEnd 3T）が同時採用され、各 cast が `5hit + 2hit + 3hit = 10hit` / OD `+25%` になるよう Funnel の `Only` 競合を duration 別に分離する。
 
 ## 検証結果
 
-- `node --test tests/turn-state-transitions.test.js`: 484 tests pass
-- `npm test`: 1153 tests pass
+- `node --test tests/turn-state-transitions.test.js`: 485 tests pass
+- `npm test`: 1154 tests pass
 
 ## リスク・未確定事項
 

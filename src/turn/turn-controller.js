@@ -7388,6 +7388,7 @@ function resolveSupportTargetCharacterIds(
 
 function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
   const countLimit = Math.max(0, Number(options.countLimit ?? 0));
+  const groupOnlyByDuration = Boolean(options.groupOnlyByDuration);
   const normalized = Array.isArray(effects) ? effects : [];
   const active = normalized.filter(
     (effect) => Number(effect?.remaining ?? 0) > 0 || String(effect?.exitCond ?? '') === 'Eternal'
@@ -7401,11 +7402,16 @@ function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
     (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') === 'Count'
   );
 
-  const bestOnly = pickTopStatusEffectsByPower(onlyCandidates, 1)[0] ?? null;
+  const onlyWinners = groupOnlyByDuration
+    ? pickTopOnlyStatusEffectsByDuration(onlyCandidates)
+    : pickTopStatusEffectsByPower(onlyCandidates, 1);
+  const bestOnly = onlyWinners[0] ?? null;
   const topCount = pickTopStatusEffectsByPower(countCandidates, countLimit);
-  const onlyPower = bestOnly ? Number(bestOnly?.power ?? 0) : 0;
+  const onlyPower = groupOnlyByDuration
+    ? onlyWinners.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0)
+    : bestOnly ? Number(bestOnly?.power ?? 0) : 0;
   const countPower = topCount.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0);
-  const adopted = countPower >= onlyPower ? topCount : bestOnly ? [bestOnly] : [];
+  const adopted = countPower >= onlyPower ? topCount : onlyWinners;
   const selectedEffects = [...persistentDefaults, ...adopted].sort(compareStatusEffectsByPowerDesc);
   const selectedCountEffectIds = adopted
     .filter((effect) => String(effect?.exitCond ?? '') === 'Count')
@@ -7415,6 +7421,24 @@ function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
     selectedEffects,
     selectedCountEffectIds,
   };
+}
+
+function pickTopOnlyStatusEffectsByDuration(effects) {
+  const winnersByDuration = new Map();
+  for (const effect of Array.isArray(effects) ? effects : []) {
+    const durationKey = createStatusEffectDurationCompetitionKey(effect);
+    const current = winnersByDuration.get(durationKey);
+    if (!current || compareStatusEffectsByPowerDesc(effect, current) < 0) {
+      winnersByDuration.set(durationKey, effect);
+    }
+  }
+  return [...winnersByDuration.values()].sort(compareStatusEffectsByPowerDesc);
+}
+
+function createStatusEffectDurationCompetitionKey(effect) {
+  const exitCond = String(effect?.exitCond ?? '').trim() || 'None';
+  const remaining = Number(effect?.remaining ?? 0);
+  return `${exitCond}|${Number.isFinite(remaining) ? remaining : 0}`;
 }
 
 function resolveActionContextTypeForSkill(skill) {
@@ -7509,6 +7533,7 @@ function resolveFunnelCompetitionForAction(member, actionContext = null, options
   }
   return evaluateCompetitiveConsumption(member.getFunnelEffects({ activeOnly: true }), actionContext, {
     countLimit: 2,
+    groupOnlyByDuration: true,
     ...options,
   });
 }
@@ -12566,6 +12591,20 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     );
     entry.odGaugeGain = Number(odEvent?.odGaugeGain ?? 0);
     entry.damageContext = odEvent?.damageContext ? structuredClone(odEvent.damageContext) : null;
+    if (entry.damageContext) {
+      const contextFunnelHitBonus = Number(entry.damageContext.funnelHitBonus ?? 0);
+      const previewFunnelHitBonus = Number(entry.skillFunnelHitBonus ?? 0);
+      if (
+        Number.isFinite(contextFunnelHitBonus) &&
+        contextFunnelHitBonus !== previewFunnelHitBonus
+      ) {
+        entry.skillFunnelHitBonus = contextFunnelHitBonus;
+        entry.skillHitCount = Number(
+          entry.damageContext.effectiveHitCountPerEnemy ?? entry.skillHitCount ?? 0
+        );
+        entry.skillBaseHitCount = Number(entry.damageContext.baseHitCount ?? entry.skillBaseHitCount ?? 0);
+      }
+    }
     entry.consumedFunnelEffects = structuredClone(odEvent?.consumedFunnelEffects ?? []);
     entry.consumedMindEyeEffects = structuredClone(odEvent?.consumedMindEyeEffects ?? []);
     entry.funnelApplied = funnelEvents.filter((ev) =>

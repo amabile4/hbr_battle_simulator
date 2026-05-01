@@ -139,7 +139,7 @@ test('json exporter writes all record store fields for file save payload', () =>
   assert.deepEqual(payload.recordStore.records[0].swapEvents, committedRecord.swapEvents);
 });
 
-test('csv action cell renders hit as base+funnel when funnel bonus exists', () => {
+test('csv action cell renders hit as base+funnel when active and same-action funnel bonuses exist', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `CR${idx + 1}`,
@@ -192,7 +192,7 @@ test('csv action cell renders hit as base+funnel when funnel bonus exists', () =
   const store = RecordEditor.upsertRecord(createBattleRecordStore(), committedRecord);
   const csv = CsvExporter.exportToCSV(store, state.initialParty);
 
-  assert.ok(csv.includes('Attack + Funnel (SP 0) [Single,4hit (1+3)]'));
+  assert.ok(csv.includes('Attack + Funnel (SP 0) [Single,7hit (1+6)]'));
 });
 
 test('csv action cell shows selected enemy target with enemy name when available', () => {
