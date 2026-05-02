@@ -433,6 +433,7 @@ export class TurnAreaController {
       this.#engineManager.commitNextTurn(row.getCurrentSlotActions(), {
         note: row.getCurrentNote(),
         enemyCount: row.getCurrentEnemyCount(),
+        overrideEntries: row.getCurrentOverrideEntries(),
         actionOutcomeOverrides: row.getCurrentActionOutcomeOverrides(),
         followUpOverrides: row.getCurrentFollowUpOverrides(),
       });
@@ -608,6 +609,7 @@ export class TurnAreaController {
     const snapshot = this.#engineManager.buildInputRowSnapshot({
       slotActions: lastRow.getCurrentSlotActions(),
       enemyCount,
+      overrideEntries: lastRow.getCurrentOverrideEntries(),
       actionOutcomeOverrides: lastRow.getCurrentActionOutcomeOverrides(),
       followUpOverrides: lastRow.getCurrentFollowUpOverrides(),
     });

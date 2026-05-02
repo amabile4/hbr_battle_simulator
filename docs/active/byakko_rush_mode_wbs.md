@@ -1,6 +1,6 @@
 # Byakko06 ラッシュモード実装 WBS
 
-> **ステータス**: ✅ 完了 | **作成**: 2026-05-01 | **最終更新**: 2026-05-01
+> **ステータス**: ✅ 完了 | **作成**: 2026-05-01 | **最終更新**: 2026-05-02
 
 ## 対象スタイル
 
@@ -84,11 +84,24 @@
 - [x] `docs/README.md` の該当行のステータス・概要・最終更新日を更新する。
 - [x] 実行した unit / Playwright 結果を最終報告に記載する。
 - [x] 2026-05-01 追補: `シャドウ・ランペイジ` 二連時にマスタースキル連撃（Eternal）とスキル自身の連撃（PlayerTurnEnd 3T）が同時採用され、各 cast が `5hit + 2hit + 3hit = 10hit` / OD `+25%` になるよう Funnel の `Only` 競合を duration 別に分離する。
+- [x] 2026-05-02 追補: ラッシュ任意 ON/OFF を直接 override せず、`DpStateByPartyIndex` と `EnemyAttackTargetCharacterIds` による DP 状態表現へ接続する。
+
+### WBS-5 ラッシュ DP 状態制御追補
+
+- [x] `EnemyAttackTargetCharacterIds` の対象へ固定 `1 DP` の簡易被弾ダメージを追加し、DP BREAK させず `source: enemy_attack` の `dpEvents` として記録する。
+- [x] 敵攻撃ターゲット指定時も既存 `TokenSetByAttacked` / motivation 減少を従来どおり発火させる。
+- [x] DP100%未満の `OnPlayerTurnStart` で既存ラッシュ状態を整理し、`夏色ハイテンション` などの DP 消費後にラッシュが残らないよう固定する。
+- [x] `DpStateByPartyIndex` override を TurnEngineManager の preview / commit / replay / edit stateBefore 経路へ適用する。
+- [x] DP override 適用時に Byakko06 のラッシュ状態を DP 条件へ同期し、`DP 100%` / `DP 99%` の手動制御を preview に反映する。
+- [x] UI Next turn row に折りたたみ式の `敵行動` 操作を追加し、展開時のみ味方ごとの `被弾` / `100` / `99` を表示する。draft / committed edit の `overrideEntries` として保存・復元する。
+- [x] replay JSON save/load 後も `EnemyAttackTargetCharacterIds` と `DpStateByPartyIndex` が再計算に反映される回帰を追加する。
 
 ## 検証結果
 
-- `node --test tests/turn-state-transitions.test.js`: 485 tests pass
-- `npm test`: 1154 tests pass
+- `node --test tests/turn-state-transitions.test.js --test-name-pattern "ByakkoDoubleActionAttackSkill|enemy attack"`: 487 tests pass
+- `node --test tests/lightweight-replay-script.test.js tests/ui-next-turn-engine-manager.test.js tests/ui-next-turn-ui.test.js`: 155 tests pass
+- `npm run lint`: pass
+- 既存完了時: `npm test`: 1154 tests pass
 
 ## リスク・未確定事項
 

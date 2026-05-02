@@ -548,6 +548,42 @@ test('TurnRowController preserves draft skill and note across rerender without r
     assert.equal(root.querySelector('[data-role="note"]').value, 'draft-note');
   }));
 
+test('TurnRowController records ally hit and DP adjustment override entries from row controls', () =>
+  withDom(({ root }) => {
+    const actorSkill = createSkill({
+      id: 9500,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createBattleStateFromParty(createPartyWithActorSkill(actorSkill));
+    state.party[0].setDpState({ baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 });
+    const row = mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    assert.equal(root.querySelector('[data-role="ally-hit-toggle"]'), null);
+    root.querySelector('[data-role="party-state-toggle"]').click();
+    root.querySelector('[data-role="ally-hit-toggle"][data-character-id="UI1"]').click();
+    root.querySelector('[data-role="ally-dp-set"][data-party-index="0"][data-dp-mode="99"]').click();
+
+    assert.deepEqual(row.getCurrentOverrideEntries(), [
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ATTACK_TARGET_CHARACTER_IDS,
+        payload: ['UI1'],
+      },
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX,
+        payload: {
+          0: { baseMaxDp: 70, currentDp: 69, effectiveDpCap: 70, minDp: 0 },
+        },
+      },
+    ]);
+  })
+);
+
 test('TurnRowController shows OD debt badges for negative gauge values without changing minus styling', () =>
   withDom(({ root }) => {
     const state = createState(

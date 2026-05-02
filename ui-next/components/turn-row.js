@@ -263,6 +263,9 @@ export class TurnRowController {
   #draftKillEnemyIndexesByPartyIndex = {};
   #draftHpBreakEnemyIndexesByPartyIndex = {};
   #draftFollowUpEnemyIndexByPartyIndex = {};
+  #draftEnemyAttackTargetCharacterIds = [];
+  #draftDpStateByPartyIndex = {};
+  #isPartyStateControlOpen = false;
   #enemyDetailPopup = null;
   #popupOutcomeRequest = null;
   #popupEShieldEditorRequest = null;
@@ -388,6 +391,8 @@ export class TurnRowController {
     }
     this.#draftNote = String(this.#draftNote ?? '');
     this.#draftEnemyCount = this.#resolveDraftEnemyCount();
+    this.#draftEnemyAttackTargetCharacterIds = [];
+    this.#draftDpStateByPartyIndex = {};
     this.#syncDraftSelections();
   }
 
@@ -420,6 +425,10 @@ export class TurnRowController {
     this.#draftKillEnemyIndexesByPartyIndex = {};
     this.#draftHpBreakEnemyIndexesByPartyIndex = {};
     this.#draftFollowUpEnemyIndexByPartyIndex = {};
+    this.#draftEnemyAttackTargetCharacterIds =
+      this.#extractEnemyAttackTargetCharacterIdsFromOverrideEntries(editDraft?.overrideEntries ?? []);
+    this.#draftDpStateByPartyIndex =
+      this.#extractDpStateByPartyIndexFromOverrideEntries(editDraft?.overrideEntries ?? []);
     const normalizedOverrides = normalizeActionOutcomeOverrides(
       editDraft?.actionOutcomeOverrides ?? [],
       this.#draftEnemyCount
@@ -1657,6 +1666,66 @@ export class TurnRowController {
     return String(this.#draftNote ?? '');
   }
 
+  #extractEnemyAttackTargetCharacterIdsFromOverrideEntries(overrideEntries = []) {
+    const entry = (Array.isArray(overrideEntries) ? overrideEntries : []).find(
+      (candidate) =>
+        String(candidate?.type ?? '') === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ATTACK_TARGET_CHARACTER_IDS
+    );
+    return [...new Set(
+      (Array.isArray(entry?.payload) ? entry.payload : [])
+        .map((characterId) => String(characterId ?? '').trim())
+        .filter(Boolean)
+    )];
+  }
+
+  #extractDpStateByPartyIndexFromOverrideEntries(overrideEntries = []) {
+    const entry = (Array.isArray(overrideEntries) ? overrideEntries : []).find(
+      (candidate) => String(candidate?.type ?? '') === REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX
+    );
+    const payload = entry?.payload && typeof entry.payload === 'object' && !Array.isArray(entry.payload)
+      ? entry.payload
+      : {};
+    return Object.fromEntries(
+      Object.entries(payload)
+        .map(([partyIndex, state]) => {
+          const numericPartyIndex = Number(partyIndex);
+          if (!Number.isInteger(numericPartyIndex) || !state || typeof state !== 'object' || Array.isArray(state)) {
+            return null;
+          }
+          return [String(numericPartyIndex), structuredClone(state)];
+        })
+        .filter(Boolean)
+    );
+  }
+
+  getCurrentOverrideEntries() {
+    const entries = [];
+    const attackedIds = [...new Set(
+      (Array.isArray(this.#draftEnemyAttackTargetCharacterIds) ? this.#draftEnemyAttackTargetCharacterIds : [])
+        .map((characterId) => String(characterId ?? '').trim())
+        .filter(Boolean)
+    )];
+    if (attackedIds.length > 0) {
+      entries.push({
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ATTACK_TARGET_CHARACTER_IDS,
+        payload: attackedIds,
+      });
+    }
+    const dpStateByPartyIndex = Object.fromEntries(
+      Object.entries(this.#draftDpStateByPartyIndex ?? {})
+        .filter(([, state]) => state && typeof state === 'object' && !Array.isArray(state))
+        .map(([partyIndex, state]) => [String(Number(partyIndex)), structuredClone(state)])
+        .filter(([partyIndex]) => Number.isInteger(Number(partyIndex)))
+    );
+    if (Object.keys(dpStateByPartyIndex).length > 0) {
+      entries.push({
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX,
+        payload: dpStateByPartyIndex,
+      });
+    }
+    return entries;
+  }
+
   getCurrentActionOutcomeOverrides() {
     const enemyCount = this.getCurrentEnemyCount();
     const overrides = [];
@@ -1744,6 +1813,7 @@ export class TurnRowController {
         : [],
       note: this.getCurrentNote(),
       enemyCount: this.getCurrentEnemyCount(),
+      overrideEntries: this.getCurrentOverrideEntries(),
       actionOutcomeOverrides: this.getCurrentActionOutcomeOverrides(),
       followUpOverrides: this.getCurrentFollowUpOverrides(),
     };
@@ -1808,6 +1878,25 @@ export class TurnRowController {
         targetEnemyIndex: normalizedEnemyIndex,
         eShieldState: eShieldState ? structuredClone(eShieldState) : null,
       },
+    };
+  }
+
+  #buildDpOverrideState(member, mode) {
+    const dpState = member?.dpState ?? {};
+    const baseMaxDp = Number(dpState.baseMaxDp ?? 0);
+    const effectiveDpCap = Number(dpState.effectiveDpCap ?? baseMaxDp);
+    const cap = Number.isFinite(effectiveDpCap) && effectiveDpCap > 0
+      ? effectiveDpCap
+      : baseMaxDp;
+    if (!Number.isFinite(cap) || cap <= 0) {
+      return null;
+    }
+    const currentDp = String(mode) === '99' ? Math.max(1, cap - 1) : cap;
+    return {
+      baseMaxDp: Number.isFinite(baseMaxDp) && baseMaxDp > 0 ? baseMaxDp : cap,
+      currentDp,
+      effectiveDpCap: cap,
+      minDp: Number(dpState.minDp ?? 0),
     };
   }
 
@@ -4063,6 +4152,7 @@ export class TurnRowController {
     const killChipsHtml = this.#buildKillChipsHtml(isCommitted);
     const followUpChipsHtml = this.#buildFollowUpChipsHtml(isCommitted);
     const operationChipsHtml = this.#buildOperationChipsHtml();
+    const partyStateControlHtml = this.#buildPartyStateControlHtml(isCommitted);
     const noteHtml = `
       <div data-turn-note class="flex flex-col self-stretch min-h-0 flex-shrink-0 w-36 gap-1">
         ${fieldChipsHtml}
@@ -4071,6 +4161,7 @@ export class TurnRowController {
         ${killChipsHtml}
         ${followUpChipsHtml}
         ${operationChipsHtml}
+        ${partyStateControlHtml}
         <textarea data-role="note" rows="2"
                   class="w-full min-h-[52px] flex-1 text-xs border border-gray-200 rounded px-1 py-0.5
                          resize-none focus:outline-none focus:ring-1 focus:ring-blue-300
@@ -4102,6 +4193,96 @@ export class TurnRowController {
         </div>
         ${buttonHtml}
         ${noteHtml}
+      </div>`;
+  }
+
+  #getDisplayEnemyAttackTargetCharacterIds(isCommitted) {
+    return isCommitted
+      ? this.#extractEnemyAttackTargetCharacterIdsFromOverrideEntries(this.#replayTurn?.overrideEntries ?? [])
+      : [...(this.#draftEnemyAttackTargetCharacterIds ?? [])];
+  }
+
+  #getDisplayDpStateByPartyIndex(isCommitted) {
+    return isCommitted
+      ? this.#extractDpStateByPartyIndexFromOverrideEntries(this.#replayTurn?.overrideEntries ?? [])
+      : structuredClone(this.#draftDpStateByPartyIndex ?? {});
+  }
+
+  #resolveDpOverrideMode(member, dpStateByPartyIndex = {}) {
+    const override = dpStateByPartyIndex?.[String(member?.partyIndex)] ?? dpStateByPartyIndex?.[member?.partyIndex] ?? null;
+    if (!override) {
+      return '';
+    }
+    const currentDp = Number(override.currentDp);
+    const cap = Number(override.effectiveDpCap ?? override.baseMaxDp ?? member?.dpState?.effectiveDpCap ?? member?.dpState?.baseMaxDp ?? 0);
+    if (!Number.isFinite(currentDp) || !Number.isFinite(cap) || cap <= 0) {
+      return '';
+    }
+    if (currentDp >= cap) {
+      return '100';
+    }
+    if (currentDp === Math.max(1, cap - 1)) {
+      return '99';
+    }
+    return '';
+  }
+
+  #buildPartyStateControlHtml(isCommitted) {
+    const members = this.#getMembersInPositionOrder();
+    if (members.length === 0) {
+      return '';
+    }
+    const attackedIds = new Set(this.#getDisplayEnemyAttackTargetCharacterIds(isCommitted));
+    const dpStateByPartyIndex = this.#getDisplayDpStateByPartyIndex(isCommitted);
+    const attackedCount = attackedIds.size;
+    const dpOverrideCount = Object.keys(dpStateByPartyIndex ?? {}).length;
+    const hasOverride = attackedCount > 0 || dpOverrideCount > 0;
+    if (isCommitted && !hasOverride) {
+      return '';
+    }
+    const summaryParts = [
+      attackedCount > 0 ? `被弾${attackedCount}` : '',
+      dpOverrideCount > 0 ? `DP${dpOverrideCount}` : '',
+    ].filter(Boolean);
+    const summaryLabel = summaryParts.length > 0 ? summaryParts.join(' ') : '';
+    const toggleTone = hasOverride
+      ? 'border-rose-200 bg-rose-50 text-rose-700'
+      : 'border-gray-200 bg-white text-gray-600';
+    const toggleHtml = `
+      <button type="button"
+              data-role="party-state-toggle"
+              class="inline-flex h-6 w-full items-center justify-center gap-1 rounded border px-1 text-[10px] font-semibold ${toggleTone}"
+              title="敵行動による被弾とDP調整">
+        <span>${this.#isPartyStateControlOpen ? '閉じる' : '敵行動'}</span>
+        ${summaryLabel ? `<span class="truncate text-[9px] opacity-80">${escapeHtml(summaryLabel)}</span>` : ''}
+      </button>`;
+    if (!this.#isPartyStateControlOpen) {
+      return `<div data-role="party-state-control-collapsed" class="flex flex-col gap-0.5">${toggleHtml}</div>`;
+    }
+    const rows = members.map((member) => {
+      const label = String(member?.characterName ?? member?.characterId ?? `P${Number(member?.position ?? 0) + 1}`);
+      const shortLabel = label.length > 4 ? label.slice(0, 4) : label;
+      const isAttacked = attackedIds.has(String(member?.characterId ?? ''));
+      const dpMode = this.#resolveDpOverrideMode(member, dpStateByPartyIndex);
+      const disabled = isCommitted ? ' disabled' : '';
+      return `
+        <div class="flex items-center gap-1">
+          <span class="min-w-0 flex-1 truncate text-[10px] font-semibold text-gray-500" title="${escapeHtml(label)}">${escapeHtml(shortLabel)}</span>
+          <button type="button" data-role="ally-hit-toggle" data-character-id="${escapeHtml(member.characterId)}"
+                  class="h-5 w-9 rounded border text-[10px] font-semibold ${isAttacked ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-gray-200 bg-white text-gray-500'}"
+                  title="${escapeHtml(label)} 被弾"${disabled}>被弾</button>
+          <button type="button" data-role="ally-dp-set" data-party-index="${member.partyIndex}" data-dp-mode="100"
+                  class="h-5 w-9 rounded border text-[10px] font-semibold ${dpMode === '100' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-500'}"
+                  title="${escapeHtml(label)} DP 100%にする"${disabled}>100</button>
+          <button type="button" data-role="ally-dp-set" data-party-index="${member.partyIndex}" data-dp-mode="99"
+                  class="h-5 w-8 rounded border text-[10px] font-semibold ${dpMode === '99' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-gray-200 bg-white text-gray-500'}"
+                  title="${escapeHtml(label)} DP 99%にする"${disabled}>99</button>
+        </div>`;
+    }).join('');
+    return `
+      <div data-role="party-state-control" class="flex flex-col gap-1 rounded border border-gray-100 bg-gray-50/70 p-1">
+        ${toggleHtml}
+        ${rows}
       </div>`;
   }
 
@@ -4956,6 +5137,84 @@ export class TurnRowController {
         this.#emitPreviewRequest();
       });
     });
+
+    this.#root.querySelectorAll('[data-role="party-state-toggle"]').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.#isPartyStateControlOpen = !this.#isPartyStateControlOpen;
+        if (this.#isDraftMode()) {
+          this.#rerenderDraftMode();
+          return;
+        }
+        this.update({
+          rowMode: this.#rowMode,
+          rowDiagnostics: this.#rowDiagnostics,
+          record: this.#record,
+          replayTurn: this.#replayTurn,
+          operations: this.#operations,
+          operationState: this.#operationState,
+          enemyPresets: this.#enemyPresets,
+          stateBefore: this.#stateBefore,
+          stateAfter: this.#stateAfter,
+          previewResourceState: this.#previewResourceState,
+          previewActionFlow: this.#previewActionFlow,
+          previewOdGaugeAfter: this.#previewOdGaugeAfter,
+          odState: this.#odState,
+          simulatorSettings: this.#simulatorSettings,
+          openTargetPickerPartyIndex: this.#openTargetPickerPartyIndex,
+          isBreakEditorOpen: this.#isBreakEditorOpen,
+        });
+      });
+    });
+
+    if (this.#isDraftMode()) {
+      this.#root.querySelectorAll('[data-role="ally-hit-toggle"]').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const characterId = String(btn.dataset.characterId ?? '').trim();
+          if (!characterId) {
+            return;
+          }
+          const currentIds = new Set(this.#draftEnemyAttackTargetCharacterIds ?? []);
+          if (currentIds.has(characterId)) {
+            currentIds.delete(characterId);
+          } else {
+            currentIds.add(characterId);
+          }
+          this.#draftEnemyAttackTargetCharacterIds = [...currentIds];
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
+        });
+      });
+
+      this.#root.querySelectorAll('[data-role="ally-dp-set"]').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const partyIndex = Number(btn.dataset.partyIndex);
+          const mode = String(btn.dataset.dpMode ?? '');
+          const member = this.#getPartyMemberByPartyIndex(partyIndex);
+          if (!member || (mode !== '100' && mode !== '99')) {
+            return;
+          }
+          const key = String(partyIndex);
+          const currentMode = this.#resolveDpOverrideMode(member, this.#draftDpStateByPartyIndex);
+          if (currentMode === mode) {
+            delete this.#draftDpStateByPartyIndex[key];
+          } else {
+            const nextState = this.#buildDpOverrideState(member, mode);
+            if (!nextState) {
+              return;
+            }
+            this.#draftDpStateByPartyIndex = {
+              ...this.#draftDpStateByPartyIndex,
+              [key]: nextState,
+            };
+          }
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
+        });
+      });
+    }
 
     this.#root.querySelectorAll('[data-role="follow-up-toggle"]').forEach((btn) => {
       btn.addEventListener('click', (event) => {

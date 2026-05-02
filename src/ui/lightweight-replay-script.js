@@ -178,6 +178,39 @@ function normalizeEnemyExtraHpGaugesPayload(payload = {}) {
   );
 }
 
+function normalizeDpStateByPartyIndexPayload(payload = {}) {
+  if (!isPlainObject(payload)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([partyIndex, dpState]) => {
+        const numericPartyIndex = Number(partyIndex);
+        if (!Number.isInteger(numericPartyIndex) || numericPartyIndex < 0 || numericPartyIndex >= MAX_PARTY_SIZE) {
+          return null;
+        }
+        if (!isPlainObject(dpState)) {
+          return null;
+        }
+        const normalizedState = {};
+        for (const field of ['baseMaxDp', 'currentDp', 'effectiveDpCap', 'minDp']) {
+          if (!Object.prototype.hasOwnProperty.call(dpState, field)) {
+            continue;
+          }
+          const numericValue = Number(dpState[field]);
+          if (Number.isFinite(numericValue)) {
+            normalizedState[field] = numericValue;
+          }
+        }
+        if (Object.keys(normalizedState).length === 0) {
+          return null;
+        }
+        return [String(numericPartyIndex), normalizedState];
+      })
+      .filter(Boolean)
+  );
+}
+
 function normalizeSetEnemyEShieldPayload(payload = {}) {
   if (!isPlainObject(payload)) {
     return null;
@@ -347,7 +380,9 @@ export const replayOverrideEntryRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES]: createReplayOverrideEntryDefinition('enemyBreakStates'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES]: createReplayOverrideEntryDefinition('enemyStatuses'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX]:
-    createReplayOverrideEntryDefinition('dpStateByPartyIndex'),
+    createReplayOverrideEntryDefinition('dpStateByPartyIndex', {
+      normalizePayload: (payload) => normalizeDpStateByPartyIndexPayload(payload),
+    }),
   [REPLAY_OVERRIDE_ENTRY_TYPES.TOKEN_STATE_BY_PARTY_INDEX]:
     createReplayOverrideEntryDefinition('tokenStateByPartyIndex'),
   [REPLAY_OVERRIDE_ENTRY_TYPES.MORALE_STATE_BY_PARTY_INDEX]:

@@ -18,6 +18,8 @@ import { getSixUsableStyleIds, getStore } from './helpers.js';
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
 const STAGE_SETUP_TURN_START_FIXTURE = 'ui_next_session_stage_setup_turn_start_fixture.json';
+const BYAKKO_STYLE_ID = 1002606;
+const BYAKKO_ASSAULT_CLAW_SKILL_ID = 46002609;
 
 function loadSessionFixture(fileName) {
   const fixtureUrl = new URL(`./fixtures/${fileName}`, import.meta.url);
@@ -118,6 +120,21 @@ function createManualParty(actorSkill, actorOptions = {}) {
     })
   );
   return new Party(members);
+}
+
+function createByakkoManagerState(currentDp = 70) {
+  const store = getStore();
+  const fillerStyleIds = getSixUsableStyleIds(store).filter((id) => Number(id) !== BYAKKO_STYLE_ID);
+  const party = store.buildPartyFromStyleIds([BYAKKO_STYLE_ID, ...fillerStyleIds.slice(0, 5)], {
+    initialSP: 30,
+    skillSetsByPartyIndex: {
+      0: [BYAKKO_ASSAULT_CLAW_SKILL_ID],
+    },
+    initialDpStateByPartyIndex: {
+      0: { baseMaxDp: 70, currentDp, effectiveDpCap: 70 },
+    },
+  });
+  return applyInitialPassiveState(createBattleStateFromParty(party));
 }
 
 function createInitialState(actorSkill, actorOptions = {}) {
@@ -302,6 +319,83 @@ test('TurnEngineManager persists enemyCount through commit and replay recalculat
   assert.equal(manager.computedRecords[0]?.enemyCount, 3);
   assert.equal(manager.computedStates[0]?.turnState?.enemyState?.enemyCount, 3);
   assert.equal(manager.computedRecords[0]?.actions.find((action) => action.positionIndex === 0)?.targetEnemyIndex, 2);
+});
+
+test('TurnEngineManager applies DpStateByPartyIndex override before previewing Byakko rush', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(createByakkoManagerState(69));
+
+  const snapshotOff = manager.buildInputRowSnapshot({
+    slotActions: {
+      0: { partyIndex: 0, skillId: BYAKKO_ASSAULT_CLAW_SKILL_ID, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    overrideEntries: [
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX,
+        payload: {
+          0: { baseMaxDp: 70, currentDp: 69, effectiveDpCap: 70 },
+        },
+      },
+    ],
+  });
+  const byakkoOff = snapshotOff.stateBefore.party.find((member) => member.characterId === 'Byakko');
+  assert.equal(byakkoOff.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 0);
+
+  const snapshotOn = manager.buildInputRowSnapshot({
+    slotActions: {
+      0: { partyIndex: 0, skillId: BYAKKO_ASSAULT_CLAW_SKILL_ID, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    overrideEntries: [
+      {
+        type: REPLAY_OVERRIDE_ENTRY_TYPES.DP_STATE_BY_PARTY_INDEX,
+        payload: {
+          0: { baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 },
+        },
+      },
+    ],
+  });
+  const byakkoOn = snapshotOn.stateBefore.party.find((member) => member.characterId === 'Byakko');
+  assert.equal(byakkoOn.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 1);
+});
+
+test('TurnEngineManager replays enemy attack targets as Byakko DP damage after JSON save/load', () => {
+  const manager = new TurnEngineManager();
+  const initialState = createByakkoManagerState(70);
+  manager.initialize(initialState);
+  const attackOverride = {
+    type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ATTACK_TARGET_CHARACTER_IDS,
+    payload: ['Byakko'],
+  };
+
+  manager.commitNextTurn(
+    {
+      0: { partyIndex: 0, skillId: BYAKKO_ASSAULT_CLAW_SKILL_ID, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    {
+      overrideEntries: [attackOverride],
+    }
+  );
+  assert.equal(manager.computedRecords[0].dpEvents.some((event) =>
+    event.characterId === 'Byakko' &&
+    event.source === 'enemy_attack' &&
+    event.delta === -1
+  ), true);
+  assert.equal(manager.computedStates[0].party.find((member) => member.characterId === 'Byakko').dpState.currentDp, 69);
+
+  const reloaded = new TurnEngineManager();
+  reloaded.loadReplayScript(initialState, structuredClone(manager.replayScript));
+  assert.deepEqual(
+    reloaded.replayScript.turns[0].overrideEntries.find(
+      (entry) => entry.type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_ATTACK_TARGET_CHARACTER_IDS
+    ),
+    attackOverride
+  );
+  assert.equal(reloaded.computedRecords[0].dpEvents.some((event) =>
+    event.characterId === 'Byakko' &&
+    event.source === 'enemy_attack' &&
+    event.delta === -1
+  ), true);
+  assert.equal(reloaded.computedStates[0].party.find((member) => member.characterId === 'Byakko').dpState.currentDp, 69);
 });
 
 test('TurnEngineManager buildInputRowSnapshot keeps summon-expanded enemyCount when the caller passes a stale value', () => {

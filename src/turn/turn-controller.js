@@ -236,6 +236,8 @@ const MOTIVATION_DP_HEAL_TRIGGER_TYPE = 'MotivationDpHeal';
 const MOTIVATION_DP_HEAL_PASSIVE_NAME = 'Motivation';
 const MOTIVATION_DP_HEAL_PASSIVE_DESC = 'Motivation increases when receiving DP heal from active skill';
 const AUTO_DP_CONSUMPTION_FLOOR = 1;
+const ENEMY_ATTACK_DP_DAMAGE_AMOUNT = 1;
+const ENEMY_ATTACK_DP_DAMAGE_TRIGGER_TYPE = 'EnemyAttackDpDamage';
 const DEFAULT_AUTO_DOWN_TURN_REMAINING = 1;
 const SAME_ACTION_SUPER_BREAK_DOWN_INITIAL_REMAINING = DEFAULT_AUTO_DOWN_TURN_REMAINING;
 const DP_RATE_REFERENCE_MIN = 0;
@@ -3716,6 +3718,29 @@ function createPassiveDpEvent({
   };
 }
 
+function createEnemyAttackDpEvent(target, startDpState, endDpState) {
+  const startState = cloneDpState(startDpState ?? target?.dpState ?? {});
+  const endState = cloneDpState(endDpState ?? target?.dpState ?? {});
+  return {
+    actorCharacterId: null,
+    characterId: target.characterId,
+    source: 'enemy_attack',
+    skillId: 0,
+    skillName: '',
+    skillType: ENEMY_ATTACK_DP_DAMAGE_TRIGGER_TYPE,
+    triggerType: ENEMY_ATTACK_DP_DAMAGE_TRIGGER_TYPE,
+    delta: Number(endState.currentDp ?? 0) - Number(startState.currentDp ?? 0),
+    startDpState: startState,
+    endDpState: endState,
+    startDpRate: getDpRate(startState),
+    endDpRate: getDpRate(endState),
+    eventCeiling: Number(endState.effectiveDpCap ?? endState.baseMaxDp ?? 0),
+    isAmountResolved: true,
+    targetType: 'AllySingle',
+    targetCondition: '',
+  };
+}
+
 function mapDpEventToRecordChange(event) {
   return {
     source: event.source,
@@ -5339,6 +5364,33 @@ export function applyEnemyAttackMotivationTriggers(state, targetCharacterIds = [
       triggerType: MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE,
       ...change,
     });
+  }
+
+  return events;
+}
+
+function applyEnemyAttackDpDamage(state, targetCharacterIds = []) {
+  const events = [];
+  const ids = normalizeEnemyAttackTargetCharacterIds(targetCharacterIds);
+
+  for (const characterId of ids) {
+    const target = findMemberByCharacterId(state, characterId);
+    if (!target) {
+      continue;
+    }
+    const startDpState = cloneDpState(target.dpState ?? {});
+    const nextCurrentDp = resolveAutoDpConsumptionCurrentDp(
+      startDpState,
+      ENEMY_ATTACK_DP_DAMAGE_AMOUNT
+    );
+    if (Number(nextCurrentDp) === Number(startDpState.currentDp ?? 0)) {
+      continue;
+    }
+    const change = target.setDpState({
+      currentDp: nextCurrentDp,
+      effectiveDpCap: Number(startDpState.effectiveDpCap ?? startDpState.baseMaxDp ?? 0),
+    });
+    events.push(createEnemyAttackDpEvent(target, startDpState, cloneDpState(change.endDpState)));
   }
 
   return events;
@@ -10358,6 +10410,20 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
       ? turnState.passiveUsageCounts
       : {};
 
+  if (timingSet.has('OnPlayerTurnStart')) {
+    for (const member of state?.party ?? []) {
+      if (typeof member?.removeStatusEffectsWhere !== 'function') {
+        continue;
+      }
+      if (getDpRate(member.dpState) >= DP_RATE_REFERENCE_MAX) {
+        continue;
+      }
+      member.removeStatusEffectsWhere(
+        (effect) => String(effect?.statusType ?? '') === BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE
+      );
+    }
+  }
+
   const sortedParty = [...(state?.party ?? [])].sort((a, b) => {
     const ai = PASSIVE_ACTION_ORDER.indexOf(Number(a.partyIndex ?? 99));
     const bi = PASSIVE_ACTION_ORDER.indexOf(Number(b.partyIndex ?? 99));
@@ -11594,6 +11660,79 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
   return { spEvents, epEvents, dpEvents, passiveEvents };
 }
 
+export function syncByakkoRushStateWithDpCondition(state) {
+  for (const member of state?.party ?? []) {
+    if (typeof member?.removeStatusEffectsWhere !== 'function') {
+      continue;
+    }
+    const dpRate = getDpRate(member.dpState);
+    if (dpRate < DP_RATE_REFERENCE_MAX) {
+      member.removeStatusEffectsWhere(
+        (effect) => String(effect?.statusType ?? '') === BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE
+      );
+      continue;
+    }
+    if (
+      typeof member.resolveEffectiveByakkoDoubleActionAttackSkillEffects === 'function' &&
+      member.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length > 0
+    ) {
+      continue;
+    }
+    for (const passive of getPassiveEntriesForMember(member)) {
+      let applied = false;
+      for (const part of resolvePassiveEffectiveParts(passive, state, member)) {
+        const skillType = String(part?.skill_type ?? '');
+        if (skillType !== BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE) {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, member)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          member,
+          part?.target_type,
+          null
+        );
+        for (const targetCharacterId of targetCharacterIds) {
+          const target = findMemberByCharacterId(state, targetCharacterId);
+          if (!target) {
+            continue;
+          }
+          addDoubleActionStatusEffect(
+            skillType,
+            target,
+            {
+              sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              sourceSkillLabel: String(passive?.label ?? ''),
+              sourceSkillName: String(passive?.name ?? ''),
+              sourceCharacterId: String(member?.characterId ?? ''),
+              sourceCharacterName: String(member?.characterName ?? ''),
+              sourceSkillDesc: String(passive?.desc ?? ''),
+              metadata: {
+                targetType: String(part?.target_type ?? ''),
+              },
+            },
+            {
+              sourceType: 'passive',
+              limitType: String(part?.effect?.limitType ?? 'Only'),
+              exitCond: String(part?.effect?.exitCond ?? 'Count'),
+              remaining: Number(part?.effect?.exitVal?.[0] ?? DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING),
+            }
+          );
+          applied = true;
+        }
+        if (applied) {
+          break;
+        }
+      }
+      if (applied) {
+        break;
+      }
+    }
+  }
+}
+
 function applySkillSelfEpGains(state, previewRecord) {
   const events = [];
   for (const actionEntry of previewRecord.actions ?? []) {
@@ -12401,6 +12540,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   // Enemy statuses tick on enemy-turn consumption only.
   // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
   if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+    const enemyAttackDpEvents = applyEnemyAttackDpDamage(state, enemyAttackTargetCharacterIds);
+    if (enemyAttackDpEvents.length > 0) {
+      boundaryDpEvents.push(...enemyAttackDpEvents);
+    }
     const attackEvents = [
       ...applyEnemyAttackTokenTriggers(state, enemyAttackTargetCharacterIds),
       ...applyEnemyAttackMotivationTriggers(state, enemyAttackTargetCharacterIds),

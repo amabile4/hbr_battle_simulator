@@ -18254,6 +18254,75 @@ test('ByakkoDoubleActionAttackSkill: DP100%未満ではラッシュ状態を得�
   assert.equal(preview.actions.length, 1);
 });
 
+test('ByakkoDoubleActionAttackSkill: 夏色ハイテンションでDPを消費された次ターンはラッシュ状態を得ない', () => {
+  const store = getStore();
+  const BYAKKO_STYLE_ID = 1002606;
+  const MIZUHARA_SUMMER_STYLE_ID = 1005607;
+  const BYAKKO_ASSAULT_CLAW_SKILL_ID = 46002609;
+  const MIZUHARA_SUMMER_SKILL_ID = 46005619;
+  const FILLER_STYLE_IDS = getSixUsableStyleIds(store).filter(
+    (id) => Number(id) !== BYAKKO_STYLE_ID && Number(id) !== MIZUHARA_SUMMER_STYLE_ID
+  );
+  const party = store.buildPartyFromStyleIds(
+    [BYAKKO_STYLE_ID, MIZUHARA_SUMMER_STYLE_ID, ...FILLER_STYLE_IDS.slice(0, 4)],
+    {
+      initialSP: 30,
+      skillSetsByPartyIndex: {
+        0: [BYAKKO_ASSAULT_CLAW_SKILL_ID],
+        1: [MIZUHARA_SUMMER_SKILL_ID],
+      },
+      initialDpStateByPartyIndex: {
+        0: { baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 },
+      },
+    }
+  );
+  const state = createBattleStateFromParty(party);
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+
+  const preview = previewTurn(state, {
+    1: { characterId: 'AMizuhara', skillId: MIZUHARA_SUMMER_SKILL_ID, targetCharacterId: 'Byakko' },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const byakkoAfter = nextState.party.find((member) => member.characterId === 'Byakko');
+
+  assert.ok((committedRecord.dpEvents ?? []).some((event) =>
+    event.characterId === 'Byakko' &&
+    event.source === 'dp_skill' &&
+    Number(event.delta) < 0
+  ));
+  assert.equal(Number(byakkoAfter?.dpState?.currentDp ?? 0) < Number(byakkoAfter?.dpState?.effectiveDpCap ?? 0), true);
+  assert.equal(byakkoAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 0);
+});
+
+test('ByakkoDoubleActionAttackSkill: 簡易被弾でDPが1減ると次ターンはラッシュ状態を得ない', () => {
+  const store = getStore();
+  const BYAKKO_ASSAULT_CLAW_SKILL_ID = 46002609;
+  const party = buildByakko06RealDataParty(store, [BYAKKO_ASSAULT_CLAW_SKILL_ID], {
+    initialDpStateByPartyIndex: {
+      0: { baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const preview = previewTurn(state, {
+    0: { characterId: 'Byakko', skillId: BYAKKO_ASSAULT_CLAW_SKILL_ID, targetEnemyIndex: 0 },
+  });
+
+  const { nextState, committedRecord } = commitTurn(state, preview, [], {
+    enemyAttackTargetCharacterIds: ['Byakko'],
+  });
+  const byakkoAfter = nextState.party.find((member) => member.characterId === 'Byakko');
+
+  assert.equal(byakkoAfter?.dpState?.currentDp, 69);
+  assert.equal(byakkoAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 0);
+  assert.ok((committedRecord.dpEvents ?? []).some((event) =>
+    event.characterId === 'Byakko' &&
+    event.source === 'enemy_attack' &&
+    event.triggerType === 'EnemyAttackDpDamage' &&
+    event.delta === -1
+  ));
+});
+
 test('ByakkoDoubleActionAttackSkill: 通常攻撃はラッシュ二連対象外', () => {
   const store = getStore();
   const BYAKKO_NORMAL_ATTACK_SKILL_ID = 46002601;

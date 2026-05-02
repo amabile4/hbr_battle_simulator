@@ -5,6 +5,7 @@ import {
   countAliveEnemies,
   isEnemyAlive,
   resolveEffectiveSkillForAction,
+  syncByakkoRushStateWithDpCondition,
 } from '../../src/turn/turn-controller.js';
 import { sortTurnActionExecutionEntries } from '../../src/turn/action-execution-order.js';
 import {
@@ -342,12 +343,16 @@ export class TurnEngineManager {
         payload: { level: directInterruptLevel },
       });
     }
-    const enemyCount = clampEnemyCount(
-      options.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
-    );
     const warnings = [];
-    let state = applyBeforeCommitOperations(
-      this.#cloneWorkingState(this.currentState),
+    const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(options.overrideEntries ?? [], warnings);
+    const enemyCount = clampEnemyCount(
+      options.enemyCount ?? scenarioTurn.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
+    );
+    let state = this.#cloneWorkingState(this.currentState);
+    this.#applyScenarioTurnPlayerOverrides(state, scenarioTurn);
+    this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
+    state = applyBeforeCommitOperations(
+      state,
       operations,
       {
         enemyCount,
@@ -418,6 +423,7 @@ export class TurnEngineManager {
       interruptOdLevel: interruptLevel,
       forceOdActivation: forceInterruptOd,
       forceResourceDeficit: forceInterruptOd,
+      enemyAttackTargetCharacterIds: scenarioTurn.enemyAttackTargetCharacterIds ?? [],
     });
 
     // slotActions は currentState（先制OD 適用前）の position を基準に記録
@@ -428,7 +434,8 @@ export class TurnEngineManager {
       operations,
       effectiveEnemyCount,
       actionOutcomeOverrides,
-      followUpOverrides
+      followUpOverrides,
+      options.overrideEntries ?? []
     );
     this.#replayScript.turns.push(replayTurn);
     // pending をリセット
@@ -489,6 +496,7 @@ export class TurnEngineManager {
       state = this.#cloneWorkingState(state);
       this.#alignPositionsToSlots(state, turn);
       const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(turn?.overrideEntries ?? [], []);
+      this.#applyScenarioTurnPlayerOverrides(state, scenarioTurn);
       this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
       const slotActions = this.#slotActionsFromReplayTurn(turn);
       const enemyCount = this.#resolveReplayTurnEnemyCount(turn, state);
@@ -530,6 +538,7 @@ export class TurnEngineManager {
         const previewRecord = previewTurnRecord(state, actions, null, effectiveEnemyCount);
         const { nextState, committedRecord } = commitTurnRecord(state, previewRecord, [], {
           interruptOdLevel: interruptLevel ?? 0,
+          enemyAttackTargetCharacterIds: scenarioTurn.enemyAttackTargetCharacterIds ?? [],
         });
         const patchedNextState = this.#patchNextStateForKills(
           nextState,
@@ -601,15 +610,19 @@ export class TurnEngineManager {
     enemyCount = null,
     actionOutcomeOverrides = [],
     followUpOverrides = [],
+    overrideEntries = [],
   } = {}) {
     const warnings = [];
+    const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(overrideEntries, warnings);
     const normalizedEnemyCount = clampEnemyCount(
-      enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
+      enemyCount ?? scenarioTurn.enemyCount ?? this.currentState?.turnState?.enemyState?.enemyCount
     );
     let stateBefore = this.#cloneWorkingState(this.currentState);
     try {
+      this.#applyScenarioTurnPlayerOverrides(stateBefore, scenarioTurn);
+      this.#applyScenarioTurnEnemyOverrides(stateBefore, scenarioTurn);
       stateBefore = applyBeforeCommitOperations(
-        this.#cloneWorkingState(this.currentState),
+        stateBefore,
         this.#buildPendingBeforeCommitOperations(),
         {
           enemyCount: normalizedEnemyCount,
@@ -1077,6 +1090,7 @@ export class TurnEngineManager {
 
     const warnings = [];
     const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(turn?.overrideEntries ?? [], warnings);
+    this.#applyScenarioTurnPlayerOverrides(state, scenarioTurn);
     this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
     if (hasOperations) {
       try {
@@ -1218,6 +1232,25 @@ export class TurnEngineManager {
     return state;
   }
 
+  #applyScenarioTurnPlayerOverrides(state, scenarioTurn = {}) {
+    if (!state?.party || !isPlainObject(scenarioTurn?.dpStateByPartyIndex)) {
+      return state;
+    }
+    for (const [partyIndexKey, dpState] of Object.entries(scenarioTurn.dpStateByPartyIndex)) {
+      const partyIndex = Number(partyIndexKey);
+      if (!Number.isInteger(partyIndex)) {
+        continue;
+      }
+      const member = state.party.find((candidate) => Number(candidate?.partyIndex) === partyIndex);
+      if (!member || !isPlainObject(dpState) || typeof member.setDpState !== 'function') {
+        continue;
+      }
+      member.setDpState(structuredClone(dpState));
+    }
+    syncByakkoRushStateWithDpCondition(state);
+    return state;
+  }
+
   #buildScenarioTurnFromOverrideEntries(overrideEntries = [], warnings = []) {
     return applyReplayOverrideEntriesToScenarioTurn(overrideEntries, {}, warnings);
   }
@@ -1355,6 +1388,7 @@ export class TurnEngineManager {
     let state = this.#cloneWorkingState(rawBefore);
     this.#alignPositionsToSlots(state, { slots });
     const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(overrideEntries, warnings);
+    this.#applyScenarioTurnPlayerOverrides(state, scenarioTurn);
     this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
     return applyBeforeCommitOperations(state, operations, {
       enemyCount,
@@ -1519,6 +1553,7 @@ export class TurnEngineManager {
 
     try {
       this.#alignPositionsToSlots(state, turn);
+      this.#applyScenarioTurnPlayerOverrides(state, scenarioTurn);
       this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
       const enemyCount = clampEnemyCount(
         scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
@@ -1583,6 +1618,7 @@ export class TurnEngineManager {
         interruptOdLevel: interruptLevel ?? 0,
         forceOdActivation: forceInterruptOd,
         forceResourceDeficit: forceInterruptOd,
+        enemyAttackTargetCharacterIds: scenarioTurn.enemyAttackTargetCharacterIds ?? [],
       });
       return {
         warnings,
@@ -2141,7 +2177,8 @@ export class TurnEngineManager {
     operations = [],
     enemyCount = DEFAULT_ENEMY_COUNT,
     actionOutcomeOverrides = [],
-    followUpOverrides = []
+    followUpOverrides = [],
+    baseOverrideEntries = []
   ) {
     const slots = Array.from({ length: 6 }, (_, position) => {
       const member = state.party.find((m) => m.position === position);
@@ -2169,7 +2206,7 @@ export class TurnEngineManager {
       actionOutcomeOverrides: normalizedActionOutcomeOverrides,
       followUpOverrides,
       overrideEntries: this.#mergeReplayTurnOverrideEntries(
-        [],
+        baseOverrideEntries,
         normalizedEnemyCount,
         enemyOverrideEntries
       ),
