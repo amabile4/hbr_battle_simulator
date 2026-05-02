@@ -10630,7 +10630,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'AdditionalHitOnPursuit' &&
           skillType !== 'ZoneUpEternal' &&
           skillType !== 'DoubleActionExtraSkill' &&
-          skillType !== 'ByakkoDoubleActionAttackSkill' &&
+          skillType !== BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE &&
           skillType !== 'ShadowClone' &&
           skillType !== 'BorderRefPDownByAdmiral' &&
           skillType !== 'ExecuteSkillOnPreTurn' &&
@@ -11539,7 +11539,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType === 'AdditionalHitOnPursuit' ||
           skillType === 'ZoneUpEternal' ||
           skillType === 'DoubleActionExtraSkill' ||
-          skillType === 'ByakkoDoubleActionAttackSkill' ||
+          skillType === BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE ||
           skillType === 'ShadowClone' ||
           skillType === 'BorderRefPDownByAdmiral' ||
           skillType === 'ExecuteSkillOnPreTurn' ||
@@ -11661,6 +11661,8 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
 }
 
 export function syncByakkoRushStateWithDpCondition(state) {
+  // Keep this in sync with the OnPlayerTurnStart passive status application path.
+  // DP overrides use the same passive condition semantics without running the full turn-start timing.
   for (const member of state?.party ?? []) {
     if (typeof member?.removeStatusEffectsWhere !== 'function') {
       continue;
