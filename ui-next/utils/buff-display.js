@@ -59,6 +59,7 @@ const STATUS_TYPE_ID_MAP = Object.freeze({
   DamageRateUp: 163,
   MindEye: 187,
   ToughnessUpValue: 199,
+  Babied: 258,
   Shredding: 271,
   HighBoost: 289,
   HealUp: 291,

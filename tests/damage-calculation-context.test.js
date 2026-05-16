@@ -46,6 +46,8 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     criticalRateUpRate: 0,
     criticalDamageUpRate: 0,
     damageRateUpPerTokenRate: 0,
+    babiedSkillAttackUpRate: 0,
+    babiedOdGaugeGainUpRate: 0,
     foodBuffAttackUpRate: 0,
     foodBuffHealDpByDamageRate: 0,
     markAttackUpRate: 0,
@@ -117,6 +119,8 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     criticalRateUpRate: '0.35',
     criticalDamageUpRate: '0.45',
     damageRateUpPerTokenRate: '0.1',
+    babiedSkillAttackUpRate: '0.3',
+    babiedOdGaugeGainUpRate: '0.2',
     foodBuffAttackUpRate: '0.5',
     foodBuffHealDpByDamageRate: '0.1',
     enemyTalismanLevelByEnemy: { 0: '4' },
@@ -145,6 +149,8 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.criticalRateUpRate, 0.35);
   assert.equal(context.criticalDamageUpRate, 0.45);
   assert.equal(context.damageRateUpPerTokenRate, 0.1);
+  assert.equal(context.babiedSkillAttackUpRate, 0.3);
+  assert.equal(context.babiedOdGaugeGainUpRate, 0.2);
   assert.equal(context.foodBuffAttackUpRate, 0.5);
   assert.equal(context.foodBuffHealDpByDamageRate, 0.1);
   assert.equal(context.enemyTalismanLevelByEnemy[0], 4);

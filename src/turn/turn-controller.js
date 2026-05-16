@@ -376,7 +376,9 @@ const DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER = Object.freeze({
   SS: 0,
   SSR: 0,
 });
+const BABIED_STATUS_TYPE = 'Babied';
 const SPECIAL_STATUS_TYPE_BUFF_CHARGE = 25;
+const SPECIAL_STATUS_TYPE_BABIED = 258;
 const SPECIAL_STATUS_TYPE_CURRY = 303;
 const SPECIAL_STATUS_TYPE_SHCHI = 304;
 const SPECIAL_STATUS_TYPE_MOCKTAIL = 313;
@@ -1096,7 +1098,24 @@ function resolveFoodBuffPartHealDpByDamageRate(part) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function resolveBabiedPartSkillAttackUpRate(part) {
+  const value = Number(part?.power?.[0] ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function resolveBabiedPartOdGaugeGainUpRate(part) {
+  const value = Number(part?.value?.[0] ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
 function isFoodBuffApplicableSkill(skill, state, member) {
+  if (!skill || isNormalAttackSkill(skill) || isPursuitOnlySkill(skill)) {
+    return false;
+  }
+  return skillHasDamageParts(skill, state, member);
+}
+
+function isBabiedApplicableSkill(skill, state, member) {
   if (!skill || isNormalAttackSkill(skill) || isPursuitOnlySkill(skill)) {
     return false;
   }
@@ -1109,6 +1128,15 @@ function summarizeFoodBuffStatusEffect(effect) {
     statusTypeId: Number(effect?.metadata?.specialStatusTypeId ?? FOOD_BUFF_STATUS_TYPE_BY_SKILL_TYPE[String(effect?.statusType ?? '')] ?? 0),
     attackUpRate: Number(effect?.metadata?.attackUpRate ?? effect?.power ?? 0),
     healDpByDamageRate: Number(effect?.metadata?.healDpByDamageRate ?? 0),
+  };
+}
+
+function summarizeBabiedStatusEffect(effect) {
+  return {
+    ...summarizeActiveBuffStatusEffect(effect),
+    statusTypeId: Number(effect?.metadata?.specialStatusTypeId ?? SPECIAL_STATUS_TYPE_BABIED),
+    skillAttackUpRate: Number(effect?.metadata?.skillAttackUpRate ?? effect?.power ?? 0),
+    odGaugeGainUpRate: Number(effect?.metadata?.odGaugeGainUpRate ?? 0),
   };
 }
 
@@ -1147,6 +1175,43 @@ function resolveFoodBuffModifiersForAction(state, member, skill) {
     active: matchedEffects.length > 0,
     attackUpRate,
     healDpByDamageRate,
+    matchedEffects,
+  };
+}
+
+function resolveBabiedModifiersForAction(state, member, skill) {
+  if (!state || !member || !isBabiedApplicableSkill(skill, state, member)) {
+    return {
+      active: false,
+      skillAttackUpRate: 0,
+      odGaugeGainUpRate: 0,
+      matchedEffects: [],
+    };
+  }
+
+  const effects =
+    typeof member?.resolveEffectiveStatusEffects === 'function'
+      ? member.resolveEffectiveStatusEffects(BABIED_STATUS_TYPE)
+      : [];
+  const matchedEffects = [];
+  let skillAttackUpRate = 0;
+  let odGaugeGainUpRate = 0;
+  for (const effect of effects ?? []) {
+    const effectSkillAttackUpRate = Number(effect?.metadata?.skillAttackUpRate ?? effect?.power ?? 0);
+    const effectOdGaugeGainUpRate = Number(effect?.metadata?.odGaugeGainUpRate ?? 0);
+    if (Number.isFinite(effectSkillAttackUpRate)) {
+      skillAttackUpRate = Math.max(skillAttackUpRate, effectSkillAttackUpRate);
+    }
+    if (Number.isFinite(effectOdGaugeGainUpRate)) {
+      odGaugeGainUpRate = Math.max(odGaugeGainUpRate, effectOdGaugeGainUpRate);
+    }
+    matchedEffects.push(summarizeBabiedStatusEffect(effect));
+  }
+
+  return {
+    active: matchedEffects.length > 0,
+    skillAttackUpRate,
+    odGaugeGainUpRate,
     matchedEffects,
   };
 }
@@ -6910,6 +6975,12 @@ function resolveCombinedDrivePierceOdBonusPercent(state, effectiveHitCount, driv
   );
 }
 
+function resolveBabiedOdGaugeGainBonusPercent(actionEntry) {
+  return truncateToTwoDecimals(
+    Number(actionEntry?.specialPassiveModifiers?.babiedOdGaugeGainUpRate ?? 0) * 100
+  );
+}
+
 function isFrontlinePosition(position) {
   return Number.isInteger(position) && position >= 0 && position <= 2;
 }
@@ -7263,10 +7334,12 @@ function computeOdGaugeGainPercentBySkill(
         }, 0)
       );
     } else {
-      const bonusPercent = resolveCombinedDrivePierceOdBonusPercent(
-        state,
-        baseHitCount,
-        member?.drivePiercePercent ?? 0
+      const bonusPercent = truncateToTwoDecimals(
+        resolveCombinedDrivePierceOdBonusPercent(
+          state,
+          baseHitCount,
+          member?.drivePiercePercent ?? 0
+        ) + resolveBabiedOdGaugeGainBonusPercent(actionEntry)
       );
       const multiplier = 1 + bonusPercent / 100;
       attackGain = truncateToTwoDecimals(
@@ -7469,6 +7542,8 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
       criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
       damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
+      babiedSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.babiedSkillAttackUpRate ?? 0),
+      babiedOdGaugeGainUpRate: Number(actionEntry?.specialPassiveModifiers?.babiedOdGaugeGainUpRate ?? 0),
       foodBuffAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffAttackUpRate ?? 0),
       foodBuffHealDpByDamageRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffHealDpByDamageRate ?? 0),
       attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
@@ -8284,6 +8359,7 @@ const IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([
   146,
   155,
   164,
+  SPECIAL_STATUS_TYPE_BABIED,
   SPECIAL_STATUS_TYPE_CURRY,
   SPECIAL_STATUS_TYPE_SHCHI,
   SPECIAL_STATUS_TYPE_MOCKTAIL,
@@ -8356,6 +8432,7 @@ const BUFF_SKILL_TYPE_TO_STATUS_ID = Object.freeze({
   Diva: 144,
   NegativeMind: 146,
   Makeup: 164,
+  Babied: SPECIAL_STATUS_TYPE_BABIED,
   Curry: SPECIAL_STATUS_TYPE_CURRY,
   Shchi: SPECIAL_STATUS_TYPE_SHCHI,
   Mocktail: SPECIAL_STATUS_TYPE_MOCKTAIL,
@@ -8401,20 +8478,34 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
         if (!target) {
           continue;
         }
-        const context = FOOD_BUFF_SKILL_TYPES.has(skillType)
-          ? {
-              skill,
-              actor,
-              power: resolveFoodBuffPartPower(part),
-              metadata: {
-                foodBuff: true,
-                sourceSkillType: skillType,
-                attackUpRate: resolveFoodBuffPartPower(part),
-                healDpByDamageRate: resolveFoodBuffPartHealDpByDamageRate(part),
-                targetType: String(part?.target_type ?? ''),
-              },
-            }
-          : { skill, actor };
+        let context = { skill, actor };
+        if (FOOD_BUFF_SKILL_TYPES.has(skillType)) {
+          context = {
+            skill,
+            actor,
+            power: resolveFoodBuffPartPower(part),
+            metadata: {
+              foodBuff: true,
+              sourceSkillType: skillType,
+              attackUpRate: resolveFoodBuffPartPower(part),
+              healDpByDamageRate: resolveFoodBuffPartHealDpByDamageRate(part),
+              targetType: String(part?.target_type ?? ''),
+            },
+          };
+        } else if (skillType === BABIED_STATUS_TYPE) {
+          context = {
+            skill,
+            actor,
+            power: resolveBabiedPartSkillAttackUpRate(part),
+            metadata: {
+              babied: true,
+              sourceSkillType: skillType,
+              skillAttackUpRate: resolveBabiedPartSkillAttackUpRate(part),
+              odGaugeGainUpRate: resolveBabiedPartOdGaugeGainUpRate(part),
+              targetType: String(part?.target_type ?? ''),
+            },
+          };
+        }
         target.applySpecialStatus(statusTypeId, remaining, exitCond, context);
         const activeEffects =
           typeof target?.getStatusEffectsByType === 'function'
@@ -8431,6 +8522,7 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
             effectId: Number(latest?.effectId ?? 0),
             power: Number(latest?.power ?? context?.power ?? 0),
             healDpByDamageRate: Number(latest?.metadata?.healDpByDamageRate ?? 0),
+            odGaugeGainUpRate: Number(latest?.metadata?.odGaugeGainUpRate ?? 0),
             remaining,
             exitCond,
             skillId: Number(skill.skillId ?? skill.id ?? 0),
@@ -9719,6 +9811,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     effectiveSkill
   );
   const foodBuffModifiers = resolveFoodBuffModifiersForAction(state, member, effectiveSkill);
+  const babiedModifiers = resolveBabiedModifiersForAction(state, member, effectiveSkill);
   const highBoostModifiers = resolveHighBoostModifiersForMember(member);
   const dpHealOutputModifiers = resolveDpHealOutputModifiersForMember(member);
   // IgnoreEShieldElement は action-time に恒常フラグとして展開する性質のため
@@ -9815,6 +9908,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     },
     activeStatusEffects: [
       ...structuredClone(activeBuffStatusModifiers.matchedEffects ?? []),
+      ...structuredClone(babiedModifiers.matchedEffects ?? []),
       ...structuredClone(foodBuffModifiers.matchedEffects ?? []),
     ],
     specialPassiveModifiers: {
@@ -9825,6 +9919,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
         Number(specialAttackUp.totalRate ?? 0) +
         Number(intrinsicMarkModifiers.attackUpRate ?? 0) +
         Number(attackUpPerToken.totalRate ?? 0) +
+        Number(babiedModifiers.skillAttackUpRate ?? 0) +
         Number(foodBuffModifiers.attackUpRate ?? 0),
       defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
       criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
@@ -9832,6 +9927,8 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       markAttackUpRate: Number(intrinsicMarkModifiers.attackUpRate ?? 0),
       attackUpPerTokenRate: Number(attackUpPerToken.totalRate ?? 0),
       damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
+      babiedSkillAttackUpRate: Number(babiedModifiers.skillAttackUpRate ?? 0),
+      babiedOdGaugeGainUpRate: Number(babiedModifiers.odGaugeGainUpRate ?? 0),
       foodBuffAttackUpRate: Number(foodBuffModifiers.attackUpRate ?? 0),
       foodBuffHealDpByDamageRate: Number(foodBuffModifiers.healDpByDamageRate ?? 0),
       defenseUpPerTokenRate: Number(defenseUpPerToken.totalRate ?? 0),

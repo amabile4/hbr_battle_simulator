@@ -15,6 +15,7 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
     { statusType: 'AttackUp', remaining: 2 },
     { statusType: 'MindEye', remaining: 1 },
     { statusType: 'Funnel', remaining: 1 },
+    { statusType: 'Babied', remaining: 3 },
     { statusType: 'Curry', remaining: 0, exitCond: 'Eternal' },
     { statusType: 'Shchi', remaining: 0, exitCond: 'Eternal' },
     { statusType: 'Mocktail', remaining: 0, exitCond: 'Eternal' },
@@ -33,6 +34,7 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
     'AttackUp',
     'MindEye',
     'Funnel',
+    'Babied',
     'Curry',
     'Shchi',
     'Mocktail',
@@ -61,18 +63,20 @@ test('buildBuffListHtml follows status detail order and shows only adopted effec
     // CriticalRateUp: Default=0.2 vs Only=0.25 → Only が勝つ → 1件
     { statusType: 'CriticalRateUp', remaining: 2, power: 0.2, effectId: 201 },
     { statusType: 'CriticalRateUp', remaining: 2, limitType: 'Only', power: 0.25, effectId: 202 },
+    { statusType: 'Babied', remaining: 3, power: 0.3, effectId: 25801 },
   ]);
 
   const altList = extractAltList(html);
 
   // skill_types.json ID 昇順:
-  // AttackUp(30), Funnel(50), CriticalRateUp(70), MindEye(187)
+  // AttackUp(30), Funnel(50), CriticalRateUp(70), MindEye(187), Babied(258)
   assert.deepEqual(altList, [
     'AttackUp',
     'Funnel',
     'CriticalRateUp',
     'MindEye',
     'MindEye',
+    'Babied',
   ]);
 });
 

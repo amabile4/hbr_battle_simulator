@@ -104,6 +104,7 @@ export const UNIFIED_STATUS_TYPE_ID_MAP = Object.freeze({
 
   // --- 回避 ---
   Dodge:                243,   // char only
+  Babied:               258,   // char only
 
   // --- ダウンターン系 (ID=264 重複 → SORT-TODO-1) ---
   BreakDownTurnUp:      264,   // char uses this key

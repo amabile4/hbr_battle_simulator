@@ -222,6 +222,16 @@ const FOOD_BUFF_ATTACK_UP_RATE = 0.5;
 const FOOD_BUFF_HEAL_DP_BY_DAMAGE_RATE = 0.1;
 const FOOD_BUFF_TEST_ATTACK_SKILL_ID = 99033001;
 const FOOD_BUFF_TEST_NORMAL_ATTACK_SKILL_ID = 99033002;
+const BABIED_STYLE_ID = 1005403;
+const BABIED_MASTER_SKILL_ID = 46505401;
+const BABIED_SPECIAL_STATUS_ID = 258;
+const BABIED_SKILL_ATTACK_UP_RATE = 0.3;
+const BABIED_OD_GAUGE_GAIN_UP_RATE = 0.2;
+const BABIED_DURATION_TURNS = 3;
+const BABIED_TEST_ATTACK_SKILL_ID = 99025801;
+const BABIED_TEST_NORMAL_ATTACK_SKILL_ID = 99025802;
+const BABIED_TEST_ATTACK_HIT_COUNT = 2;
+const BABIED_TEST_ATTACK_OD_GAIN = 6;
 const FOOD_BUFF_CASES = Object.freeze([
   {
     statusType: 'Steak',
@@ -342,6 +352,30 @@ function buildNiOhshimaMakeupParty(store) {
     initialSP: 20,
     skillSetsByPartyIndex: {
       0: [NIOHSHIMA_ODOR_TOILETTE_SKILL_ID],
+    },
+  });
+}
+
+function buildRmurohushiBabiedParty(store) {
+  const style = store.getStyleById(BABIED_STYLE_ID);
+  const styleCharacterKey = String(style?.chara_label ?? style?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter((id) => {
+      const candidate = store.getStyleById(id);
+      return (
+        Number(id) !== BABIED_STYLE_ID &&
+        String(candidate?.chara_label ?? candidate?.chara ?? '') !== styleCharacterKey
+      );
+    })
+    .slice(0, 5);
+  if (fillerStyleIds.length !== 5) {
+    throw new Error('Could not build RMurohushi Babied real-data party');
+  }
+
+  return store.buildPartyFromStyleIds([BABIED_STYLE_ID, ...fillerStyleIds], {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [BABIED_MASTER_SKILL_ID],
     },
   });
 }
@@ -477,11 +511,88 @@ function addFoodBuffTestAttackSkill(actor) {
   }]);
 }
 
+function addBabiedTestAttackSkills(actor) {
+  actor.skills = Object.freeze([...actor.skills, {
+    skillId: BABIED_TEST_ATTACK_SKILL_ID,
+    label: 'TestBabiedAttack',
+    name: 'Babied Attack',
+    targetType: 'Single',
+    spCost: 0,
+    sourceType: 'test',
+    isPassive: false,
+    type: 'attack',
+    consumeType: 'Sp',
+    hitCount: BABIED_TEST_ATTACK_HIT_COUNT,
+    hits: [],
+    maxLevel: null,
+    cond: '',
+    iucCond: '',
+    overwriteCond: '',
+    effect: '',
+    overwrite: null,
+    legacySkillIds: [],
+    usage: null,
+    additionalTurnRule: null,
+    parts: [
+      {
+        skill_type: 'AttackSkill',
+        target_type: 'Single',
+        type: 'Slash',
+        power: [100, 0],
+        value: [0, 0],
+      },
+    ],
+    passive: null,
+  }, {
+    skillId: BABIED_TEST_NORMAL_ATTACK_SKILL_ID,
+    label: 'TestBabiedAttackNormal',
+    name: '通常攻撃',
+    targetType: 'Single',
+    spCost: 0,
+    sourceType: 'test',
+    isPassive: false,
+    type: 'attack',
+    consumeType: 'Sp',
+    hitCount: BABIED_TEST_ATTACK_HIT_COUNT,
+    hits: [],
+    maxLevel: null,
+    cond: '',
+    iucCond: '',
+    overwriteCond: '',
+    effect: '',
+    overwrite: null,
+    legacySkillIds: [],
+    usage: null,
+    additionalTurnRule: null,
+    parts: [
+      {
+        skill_type: 'AttackNormal',
+        target_type: 'Single',
+        type: 'Slash',
+        power: [100, 0],
+        value: [0, 0],
+      },
+    ],
+    passive: null,
+  }]);
+}
+
 function previewActorSkill(state, skillId, actionOverrides = {}) {
   const actor = state.party[0];
   return previewTurn(state, {
     0: {
       characterId: actor.characterId,
+      skillId,
+      targetEnemyIndex: 0,
+      ...actionOverrides,
+    },
+  });
+}
+
+function previewMemberSkill(state, member, skillId, actionOverrides = {}) {
+  return previewTurn(state, {
+    [String(member.position)]: {
+      characterId: member.characterId,
       skillId,
       targetEnemyIndex: 0,
       ...actionOverrides,
@@ -16562,6 +16673,88 @@ test('料理バフは異なる料理状態同士で重複してスキル攻撃�
   assert.deepEqual(
     foodDpChange?.foodBuffStatusEffects.map((effect) => effect.statusType).sort(),
     ['Curry', 'Shchi']
+  );
+});
+
+test('Babied オギャり状態 applies to allies except self and increases skill attack / OD gain for skill attacks', () => {
+  const store = getStore();
+  const state = createBattleStateFromParty(buildRmurohushiBabiedParty(store));
+  const actor = state.party[0];
+  const target = state.party[1];
+  addBabiedTestAttackSkills(target);
+
+  assert.equal(countActiveSpecialStatus(actor, BABIED_SPECIAL_STATUS_ID), 0);
+  assert.equal(countActiveSpecialStatus(target, BABIED_SPECIAL_STATUS_ID), 0);
+
+  const babiedPreview = previewMemberSkill(state, actor, BABIED_MASTER_SKILL_ID);
+  const { nextState, committedRecord } = commitTurn(state, babiedPreview);
+  const babiedAction = findActionByCharacterId(committedRecord, actor.characterId);
+  const appliedEffects = (babiedAction?.statusEffectsApplied ?? []).filter(
+    (effect) => effect.statusType === 'Babied'
+  );
+
+  assert.equal(appliedEffects.length, 5);
+  assert.equal(countActiveSpecialStatus(nextState.party[0], BABIED_SPECIAL_STATUS_ID), 0);
+  for (const member of nextState.party.slice(1)) {
+    assert.equal(countActiveSpecialStatus(member, BABIED_SPECIAL_STATUS_ID), 1);
+    const effect = member.statusEffects.find(
+      (item) => Number(item.metadata?.specialStatusTypeId) === BABIED_SPECIAL_STATUS_ID
+    );
+    assert.equal(effect?.statusType, 'Babied');
+    assert.equal(effect?.exitCond, 'PlayerTurnEnd');
+    assert.equal(effect?.remaining, BABIED_DURATION_TURNS);
+    assert.equal(effect?.power, BABIED_SKILL_ATTACK_UP_RATE);
+    assert.equal(effect?.metadata?.skillAttackUpRate, BABIED_SKILL_ATTACK_UP_RATE);
+    assert.equal(effect?.metadata?.odGaugeGainUpRate, BABIED_OD_GAUGE_GAIN_UP_RATE);
+  }
+
+  const refreshedActor = nextState.party[0];
+  const refreshPreview = previewMemberSkill(nextState, refreshedActor, BABIED_MASTER_SKILL_ID);
+  const { nextState: refreshedState } = commitTurn(nextState, refreshPreview);
+  const refreshedTarget = refreshedState.party[1];
+  assert.equal(countActiveSpecialStatus(refreshedTarget, BABIED_SPECIAL_STATUS_ID), 1);
+  assert.equal(
+    refreshedTarget.statusEffects.find(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === BABIED_SPECIAL_STATUS_ID
+    )?.remaining,
+    BABIED_DURATION_TURNS
+  );
+
+  const normalPreview = previewMemberSkill(
+    refreshedState,
+    refreshedTarget,
+    BABIED_TEST_NORMAL_ATTACK_SKILL_ID
+  );
+  const normalAction = findActionByCharacterId(normalPreview, refreshedTarget.characterId);
+  assert.equal(normalAction?.specialPassiveModifiers?.babiedSkillAttackUpRate, 0);
+  assert.equal(normalAction?.specialPassiveModifiers?.babiedOdGaugeGainUpRate, 0);
+
+  const attackPreview = previewMemberSkill(refreshedState, refreshedTarget, BABIED_TEST_ATTACK_SKILL_ID);
+  const attackAction = findActionByCharacterId(attackPreview, refreshedTarget.characterId);
+  assert.equal(attackAction?.specialPassiveModifiers?.babiedSkillAttackUpRate, BABIED_SKILL_ATTACK_UP_RATE);
+  assert.equal(attackAction?.specialPassiveModifiers?.babiedOdGaugeGainUpRate, BABIED_OD_GAUGE_GAIN_UP_RATE);
+  assert.ok(Number(attackAction?.specialPassiveModifiers?.attackUpRate ?? 0) >= BABIED_SKILL_ATTACK_UP_RATE);
+  assert.equal(
+    attackAction?.activeStatusEffects.some(
+      (effect) =>
+        effect.statusType === 'Babied' &&
+        effect.skillAttackUpRate === BABIED_SKILL_ATTACK_UP_RATE &&
+        effect.odGaugeGainUpRate === BABIED_OD_GAUGE_GAIN_UP_RATE
+    ),
+    true
+  );
+
+  const { nextState: afterAttack, committedRecord: attackRecord } = commitTurn(refreshedState, attackPreview);
+  const committedAttack = findActionByCharacterId(attackRecord, refreshedTarget.characterId);
+  assert.equal(committedAttack?.odGaugeGain, BABIED_TEST_ATTACK_OD_GAIN);
+  assert.equal(committedAttack?.damageContext?.babiedSkillAttackUpRate, BABIED_SKILL_ATTACK_UP_RATE);
+  assert.equal(committedAttack?.damageContext?.babiedOdGaugeGainUpRate, BABIED_OD_GAUGE_GAIN_UP_RATE);
+  assert.equal(afterAttack.turnState.odGauge, BABIED_TEST_ATTACK_OD_GAIN);
+  assert.equal(
+    afterAttack.party[1].statusEffects.find(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === BABIED_SPECIAL_STATUS_ID
+    )?.remaining,
+    BABIED_DURATION_TURNS - 1
   );
 });
 

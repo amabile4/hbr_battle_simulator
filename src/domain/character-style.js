@@ -30,6 +30,7 @@ export const SPECIAL_STATUS_TYPE_NAMES = Object.freeze({
   146: 'NegativeState',
   155: 'BIYamawakiServant',
   164: 'Makeup',
+  258: 'Babied',
   303: 'Curry',
   304: 'Shchi',
   313: 'Mocktail',
