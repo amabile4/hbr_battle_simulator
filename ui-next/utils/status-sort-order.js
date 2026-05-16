@@ -113,6 +113,7 @@ export const UNIFIED_STATUS_TYPE_ID_MAP = Object.freeze({
   HealUp:               291,   // enemy only
   RemoveDebuff:         301,   // char only
   SuperBreakDown:       302,
+  Mocktail:             313,   // char only
 
   // --- バリア ---
   Barrier:              321,   // enemy only

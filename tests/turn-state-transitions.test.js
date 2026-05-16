@@ -200,6 +200,24 @@ const SELF_AID_SKILL_ID = 46300008;
 const ALLY_DEBUFF_CLEANSE_SKILL_ID = 46005416;
 const NEGATIVE_STATE_SPECIAL_STATUS_ID = 146;
 const NEGATIVE_STATE_DURATION_TURNS = 5;
+const NIOHSHIMA_PURE_MEMORY_STYLE_ID = 1006206;
+const NIOHSHIMA_MAKEUP_PASSIVE_ID = 57001237;
+const NIOHSHIMA_ODOR_TOILETTE_SKILL_ID = 46006211;
+const NIOHSHIMA_ODOR_TOILETTE_BASE_SP_COST = 16;
+const NIOHSHIMA_ODOR_TOILETTE_MAKEUP_SP_COST = 8;
+const MAKEUP_SPECIAL_STATUS_ID = 164;
+const MOCKTAIL_SUPPORT_MAIN_STYLE_ID = 1001108;
+const MOCKTAIL_SUPPORT_STYLE_ID = 1006506;
+const MOCKTAIL_SUPPORT_LIMIT_BREAK_LEVEL = 4;
+const MOCKTAIL_SUPPORT_PASSIVE_ID_LB4 = 57009445;
+const MOCKTAIL_SPECIAL_STATUS_ID = 313;
+const MOCKTAIL_SUPPORT_LB4_HEAL_UP_RATE = 0.5;
+const MOCKTAIL_SUPPORT_LB4_HEAL_MULTIPLIER = 1.5;
+const MOCKTAIL_TEST_HEAL_DP_RATE_SKILL_ID = 99031301;
+const MOCKTAIL_TEST_BASE_MAX_DP = 100;
+const MOCKTAIL_TEST_START_DP = 0;
+const MOCKTAIL_TEST_HEAL_DP_RATE = 0.1;
+const MOCKTAIL_TEST_HEAL_DP_DELTA = 15;
 
 function buildStartChargeRealDataParty(store, stylePosition) {
   const style = store.getStyleById(START_CHARGE_STYLE_ID);
@@ -272,6 +290,95 @@ function buildAdateFuyuUraraAllyCleanseParty(store) {
       1: [ALLY_DEBUFF_CLEANSE_SKILL_ID],
     },
   });
+}
+
+function buildNiOhshimaMakeupParty(store) {
+  const style = store.getStyleById(NIOHSHIMA_PURE_MEMORY_STYLE_ID);
+  const styleCharacterKey = String(style?.chara_label ?? style?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter((id) => {
+      const candidate = store.getStyleById(id);
+      return (
+        Number(id) !== NIOHSHIMA_PURE_MEMORY_STYLE_ID &&
+        String(candidate?.chara_label ?? candidate?.chara ?? '') !== styleCharacterKey
+      );
+    })
+    .slice(0, 5);
+  if (fillerStyleIds.length !== 5) {
+    throw new Error('Could not build NiOhshima06 real-data party');
+  }
+
+  return store.buildPartyFromStyleIds([NIOHSHIMA_PURE_MEMORY_STYLE_ID, ...fillerStyleIds], {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [NIOHSHIMA_ODOR_TOILETTE_SKILL_ID],
+    },
+  });
+}
+
+function buildMocktailSupportParty(store) {
+  const mainStyle = store.getStyleById(MOCKTAIL_SUPPORT_MAIN_STYLE_ID);
+  const supportStyle = store.getStyleById(MOCKTAIL_SUPPORT_STYLE_ID);
+  const excludedCharacterKeys = new Set(
+    [mainStyle, supportStyle].map((style) => String(style?.chara_label ?? style?.chara ?? ''))
+  );
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter((id) => {
+      const candidate = store.getStyleById(id);
+      return (
+        Number(id) !== MOCKTAIL_SUPPORT_MAIN_STYLE_ID &&
+        Number(id) !== MOCKTAIL_SUPPORT_STYLE_ID &&
+        !excludedCharacterKeys.has(String(candidate?.chara_label ?? candidate?.chara ?? ''))
+      );
+    })
+    .slice(0, 5);
+  if (fillerStyleIds.length !== 5) {
+    throw new Error('Could not build Mocktail support real-data party');
+  }
+
+  return store.buildPartyFromStyleIds([MOCKTAIL_SUPPORT_MAIN_STYLE_ID, ...fillerStyleIds], {
+    initialSP: 20,
+    supportStyleIdsByPartyIndex: {
+      0: MOCKTAIL_SUPPORT_STYLE_ID,
+    },
+    supportLimitBreakLevelsByPartyIndex: {
+      0: MOCKTAIL_SUPPORT_LIMIT_BREAK_LEVEL,
+    },
+  });
+}
+
+function addMocktailTestHealSkill(actor) {
+  actor.skills = Object.freeze([...actor.skills, {
+    skillId: MOCKTAIL_TEST_HEAL_DP_RATE_SKILL_ID,
+    label: 'TestMocktailHealDpRate',
+    name: 'Mocktail HealDpRate',
+    targetType: 'Self',
+    spCost: 0,
+    sourceType: 'test',
+    isPassive: false,
+    type: 'non_damage',
+    consumeType: 'Sp',
+    hitCount: 0,
+    hits: [],
+    maxLevel: null,
+    cond: '',
+    iucCond: '',
+    overwriteCond: '',
+    effect: '',
+    overwrite: null,
+    legacySkillIds: [],
+    usage: null,
+    additionalTurnRule: null,
+    parts: [
+      {
+        skill_type: 'HealDpRate',
+        target_type: 'Self',
+        power: [MOCKTAIL_TEST_HEAL_DP_RATE, 0],
+        value: [1, 0],
+      },
+    ],
+    passive: null,
+  }]);
 }
 
 function previewActorSkill(state, skillId, actionOverrides = {}) {
@@ -16102,6 +16209,131 @@ test('伊達朱里[幸運ふゆうらら] NegativeState can be removed by ally d
   assert.equal(countActiveSpecialStatus(cleanedActor, NEGATIVE_STATE_SPECIAL_STATUS_ID), 0);
 });
 
+test('大島二以奈[渚のピュアメモリー] applies Makeup on first battle start and unlocks Makeup conditions', () => {
+  const store = getStore();
+  const state = createBattleStateFromParty(buildNiOhshimaMakeupParty(store));
+
+  assert.equal(countActiveSpecialStatus(state.party[0], MAKEUP_SPECIAL_STATUS_ID), 0);
+  assert.equal(
+    previewActorSkill(state, NIOHSHIMA_ODOR_TOILETTE_SKILL_ID).actions[0].spCost,
+    NIOHSHIMA_ODOR_TOILETTE_BASE_SP_COST
+  );
+
+  applyInitialPassiveState(state);
+
+  const actor = state.party[0];
+  const makeupEffect = actor.statusEffects.find(
+    (effect) => Number(effect.metadata?.specialStatusTypeId) === MAKEUP_SPECIAL_STATUS_ID
+  );
+  const openingEvent = state.turnState.passiveEventsLastApplied.find(
+    (event) => Number(event.passiveId) === NIOHSHIMA_MAKEUP_PASSIVE_ID && event.characterId === actor.characterId
+  );
+
+  assert.equal(countActiveSpecialStatus(actor, MAKEUP_SPECIAL_STATUS_ID), 1);
+  assert.equal(makeupEffect?.statusType, 'Makeup');
+  assert.equal(makeupEffect?.exitCond, 'Eternal');
+  assert.equal(makeupEffect?.remaining, 0);
+  assert.equal(Number(makeupEffect?.sourceSkillId), NIOHSHIMA_MAKEUP_PASSIVE_ID);
+  assert.ok(openingEvent, 'Passive.Condition_MakeUp01 event should be recorded');
+  assert.deepEqual(openingEvent.effectTypes, ['Makeup']);
+  assert.deepEqual(
+    openingEvent.appliedStatusEffects.map((effect) => ({
+      characterId: effect.characterId,
+      statusType: effect.statusType,
+      statusTypeId: effect.statusTypeId,
+      exitCond: effect.exitCond,
+      remaining: effect.remaining,
+    })),
+    [
+      {
+        characterId: actor.characterId,
+        statusType: 'Makeup',
+        statusTypeId: MAKEUP_SPECIAL_STATUS_ID,
+        exitCond: 'Eternal',
+        remaining: 0,
+      },
+    ]
+  );
+  assert.equal(
+    previewActorSkill(state, NIOHSHIMA_ODOR_TOILETTE_SKILL_ID).actions[0].spCost,
+    NIOHSHIMA_ODOR_TOILETTE_MAKEUP_SP_COST
+  );
+});
+
+test('共鳴アビリティ[素敵な夜] applies Mocktail and scales DP healing by support LB', () => {
+  const store = getStore();
+  const state = createBattleStateFromParty(buildMocktailSupportParty(store));
+  const actor = state.party[0];
+  actor.setDpState({
+    baseMaxDp: MOCKTAIL_TEST_BASE_MAX_DP,
+    currentDp: MOCKTAIL_TEST_START_DP,
+    effectiveDpCap: MOCKTAIL_TEST_BASE_MAX_DP,
+  });
+  addMocktailTestHealSkill(actor);
+
+  assert.equal(countActiveSpecialStatus(actor, MOCKTAIL_SPECIAL_STATUS_ID), 0);
+
+  applyInitialPassiveState(state);
+
+  const mocktailEffect = actor.statusEffects.find(
+    (effect) => Number(effect.metadata?.specialStatusTypeId) === MOCKTAIL_SPECIAL_STATUS_ID
+  );
+  const openingEvent = state.turnState.passiveEventsLastApplied.find(
+    (event) => Number(event.passiveId) === MOCKTAIL_SUPPORT_PASSIVE_ID_LB4 && event.characterId === actor.characterId
+  );
+
+  assert.equal(countActiveSpecialStatus(actor, MOCKTAIL_SPECIAL_STATUS_ID), 1);
+  assert.equal(mocktailEffect?.statusType, 'Mocktail');
+  assert.equal(mocktailEffect?.exitCond, 'Eternal');
+  assert.equal(mocktailEffect?.remaining, 0);
+  assert.equal(mocktailEffect?.power, MOCKTAIL_SUPPORT_LB4_HEAL_UP_RATE);
+  assert.equal(mocktailEffect?.metadata?.dpHealMultiplier, MOCKTAIL_SUPPORT_LB4_HEAL_MULTIPLIER);
+  assert.equal(Number(mocktailEffect?.sourceSkillId), MOCKTAIL_SUPPORT_PASSIVE_ID_LB4);
+  assert.ok(openingEvent, 'SupportSkill_IrOhshima01 Mocktail event should be recorded');
+  assert.equal(openingEvent.sourceType, 'support');
+  assert.deepEqual(openingEvent.effectTypes, ['Mocktail']);
+  assert.deepEqual(
+    openingEvent.appliedStatusEffects.map((effect) => ({
+      characterId: effect.characterId,
+      statusType: effect.statusType,
+      statusTypeId: effect.statusTypeId,
+      power: effect.power,
+      exitCond: effect.exitCond,
+      remaining: effect.remaining,
+    })),
+    [
+      {
+        characterId: actor.characterId,
+        statusType: 'Mocktail',
+        statusTypeId: MOCKTAIL_SPECIAL_STATUS_ID,
+        power: MOCKTAIL_SUPPORT_LB4_HEAL_UP_RATE,
+        exitCond: 'Eternal',
+        remaining: 0,
+      },
+    ]
+  );
+
+  const preview = previewTurn(state, {
+    0: {
+      characterId: actor.characterId,
+      skillId: MOCKTAIL_TEST_HEAL_DP_RATE_SKILL_ID,
+    },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const healedActor = nextState.party[0];
+  const actorRecord = committedRecord.actions.find((action) => action.characterId === actor.characterId);
+  const dpChange = actorRecord?.dpChanges.find(
+    (change) =>
+      change.triggerType === 'DirectDpHeal' &&
+      change.skillType === 'HealDpRate' &&
+      change.targetCharacterId === actor.characterId
+  );
+
+  assert.equal(actorRecord?.specialPassiveModifiers?.giveHealUpRate, MOCKTAIL_SUPPORT_LB4_HEAL_UP_RATE);
+  assert.equal(dpChange?.delta, MOCKTAIL_TEST_HEAL_DP_DELTA);
+  assert.equal(healedActor.dpState.currentDp, MOCKTAIL_TEST_HEAL_DP_DELTA);
+});
+
 test('T06: BuffCharge(25) — commitTurnで付与・パッシブ発動・次スキル使用で解除', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -16678,8 +16910,8 @@ test('T10: Diva(144) — PlayerTurnEnd型: commitTurn×6後に解除・パッシ
   assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore2, 0, '歌姫の加護解除後はパッシブが発動しない');
 });
 
-test('T11: Makeup(164) — applySpecialStatus直接付与・パッシブ発動・Count解除', () => {
-  // Makeupはpassives.jsonで付与されるため、applySpecialStatusを直接使用してテスト
+test('T11: Makeup(164) — direct applySpecialStatus path triggers condition and Count expiry', () => {
+  // Direct付与経路でも SpecialStatusCountByType(164) 条件と Count 消費が機能することを固定する
   const party = createSixMemberManualParty((idx) =>
     idx === 0
       ? {

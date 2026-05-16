@@ -15,6 +15,7 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
     { statusType: 'AttackUp', remaining: 2 },
     { statusType: 'MindEye', remaining: 1 },
     { statusType: 'Funnel', remaining: 1 },
+    { statusType: 'Mocktail', remaining: 0, exitCond: 'Eternal' },
     { statusType: 'AttackDown', remaining: 2 },
     { statusType: 'ConfusionRandom', remaining: 2 },
     { statusType: 'CriticalRateUp', remaining: 0 },
@@ -24,7 +25,7 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
   ];
 
   const actual = getDisplayableBuffs(effects).map((effect) => effect.statusType);
-  assert.deepEqual(actual, ['AttackUp', 'MindEye', 'Funnel', 'CriticalDamageUp']);
+  assert.deepEqual(actual, ['AttackUp', 'MindEye', 'Funnel', 'Mocktail', 'CriticalDamageUp']);
 });
 
 test('buildBuffListHtml follows status detail order and shows only adopted effects', () => {

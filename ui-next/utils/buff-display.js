@@ -62,6 +62,7 @@ const STATUS_TYPE_ID_MAP = Object.freeze({
   Shredding: 271,
   HighBoost: 289,
   HealUp: 291,
+  Mocktail: 313,
 });
 
 function getStatusTypeOrderValue(statusType) {

@@ -30,6 +30,7 @@ export const SPECIAL_STATUS_TYPE_NAMES = Object.freeze({
   146: 'NegativeState',
   155: 'BIYamawakiServant',
   164: 'Makeup',
+  313: 'Mocktail',
 });
 
 const STACKABLE_COUNT_SPECIAL_STATUS_TYPE_IDS = new Set([78]);
@@ -944,6 +945,11 @@ export class CharacterStyle {
     // Eternal 状態は remaining=0 でも isActiveStatusEffect が true を返す
     const effectiveRemaining = cond === 'Eternal' ? 0 : Math.max(1, Number(remaining) || 1);
     const skill = context?.skill ?? null;
+    const power = Number(context?.power);
+    const metadata =
+      context?.metadata && typeof context.metadata === 'object'
+        ? structuredClone(context.metadata)
+        : {};
 
     const sourceCharacterId = String(context?.actor?.characterId ?? '');
     const sourceCharacterName = String(context?.actor?.characterName ?? '');
@@ -958,12 +964,20 @@ export class CharacterStyle {
         if (cond !== 'Eternal') {
           existing.remaining = Math.max(existing.remaining, effectiveRemaining);
         }
+        if (Number.isFinite(power)) {
+          existing.power = Math.max(Number(existing.power ?? 0), power);
+        }
         existing.sourceSkillId = skill?.skillId ?? null;
         existing.sourceSkillLabel = String(skill?.label ?? '');
         existing.sourceSkillName = String(skill?.name ?? '');
         existing.sourceSkillDesc = String(skill?.desc ?? '');
         existing.sourceCharacterId = sourceCharacterId;
         existing.sourceCharacterName = sourceCharacterName;
+        existing.metadata = {
+          ...(existing.metadata && typeof existing.metadata === 'object' ? existing.metadata : {}),
+          ...metadata,
+          specialStatusTypeId: id,
+        };
         this._revision += 1;
         return;
       }
@@ -979,7 +993,8 @@ export class CharacterStyle {
       sourceSkillDesc: String(skill?.desc ?? ''),
       sourceCharacterId,
       sourceCharacterName,
-      metadata: { specialStatusTypeId: id },
+      power: Number.isFinite(power) ? power : 0,
+      metadata: { specialStatusTypeId: id, ...metadata },
     });
   }
 

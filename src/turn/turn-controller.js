@@ -82,6 +82,10 @@ const HIGH_BOOST_SKILL_ATK_RATE = 1.8;
 const HIGH_BOOST_ATTACK_BUFF_MULTIPLIER = 1.2;
 const HIGH_BOOST_DEBUFF_MULTIPLIER = 1.2;
 const HIGH_BOOST_DP_HEAL_MULTIPLIER = 1.5;
+const MOCKTAIL_STATUS_TYPE = 'Mocktail';
+const MOCKTAIL_BASE_HEAL_MULTIPLIER = 1;
+const MOCKTAIL_DEFAULT_EXIT_COND = 'Eternal';
+const MOCKTAIL_NONE_EXIT_COND = 'None';
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
   'AttackSkill',
@@ -197,7 +201,7 @@ const REMOVABLE_PLAYER_DEBUFF_STATUS_TYPES = Object.freeze(
 const ACTIVE_BUFF_STATUS_NORMAL_ATTACK_EFFECTS = Object.freeze(new Set(['NormalBuff_Up']));
 const DIRECT_DP_HEAL_SKILL_TYPES = Object.freeze(new Set(['HealDp', 'HealDpRate', 'ReviveDp', 'ReviveDpRate']));
 const DIRECT_ENEMY_E_SHIELD_CHANGE_SKILL_TYPES = Object.freeze(new Set(['HealEShield', 'ReviveEShield']));
-const HIGH_BOOST_SCALED_DP_SKILL_TYPES = Object.freeze(new Set(['HealDpRate', 'RegenerationDp']));
+const DP_HEAL_OUTPUT_SCALED_SKILL_TYPES = Object.freeze(new Set(['HealDpRate', 'RegenerationDp']));
 const DP_SELF_DAMAGE_SKILL_TYPES = Object.freeze(new Set(['SelfDamage']));
 const DP_HEAL_SKILL_TYPES = Object.freeze(
   new Set([...DIRECT_DP_HEAL_SKILL_TYPES, 'RegenerationDp', 'HealDpByDamage'])
@@ -371,6 +375,7 @@ const DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER = Object.freeze({
   SSR: 0,
 });
 const SPECIAL_STATUS_TYPE_BUFF_CHARGE = 25;
+const SPECIAL_STATUS_TYPE_MOCKTAIL = 313;
 const CONDITION_FUNCTION_PATTERN = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
 export function analyzePassiveTimingCoverage(passives = []) {
@@ -1025,6 +1030,47 @@ function resolveHighBoostModifiersForMember(member) {
   };
 }
 
+function resolveMocktailModifiersForMember(member) {
+  const effects =
+    typeof member?.resolveEffectiveStatusEffects === 'function'
+      ? member.resolveEffectiveStatusEffects(MOCKTAIL_STATUS_TYPE)
+      : [];
+  const healUpRate = (effects ?? []).reduce((maxRate, effect) => {
+    const rate = Number(effect?.metadata?.healUpRate ?? effect?.power ?? 0);
+    return Number.isFinite(rate) ? Math.max(maxRate, rate) : maxRate;
+  }, 0);
+  if (healUpRate <= 0) {
+    return {
+      active: false,
+      healUpRate: 0,
+      dpHealMultiplier: MOCKTAIL_BASE_HEAL_MULTIPLIER,
+    };
+  }
+  return {
+    active: true,
+    healUpRate,
+    dpHealMultiplier: truncateToTwoDecimals(MOCKTAIL_BASE_HEAL_MULTIPLIER + healUpRate),
+  };
+}
+
+function resolveDpHealOutputModifiersForMember(member) {
+  const highBoost = resolveHighBoostModifiersForMember(member);
+  const mocktail = resolveMocktailModifiersForMember(member);
+  const highBoostMultiplier = highBoost.active
+    ? Number(highBoost.dpHealMultiplier ?? MOCKTAIL_BASE_HEAL_MULTIPLIER)
+    : MOCKTAIL_BASE_HEAL_MULTIPLIER;
+  const mocktailMultiplier = mocktail.active
+    ? Number(mocktail.dpHealMultiplier ?? MOCKTAIL_BASE_HEAL_MULTIPLIER)
+    : MOCKTAIL_BASE_HEAL_MULTIPLIER;
+  const dpHealMultiplier = truncateToTwoDecimals(highBoostMultiplier * mocktailMultiplier);
+  return {
+    active: highBoost.active || mocktail.active,
+    dpHealMultiplier,
+    highBoost,
+    mocktail,
+  };
+}
+
 function applyHighBoostMultiplier(value, multiplier) {
   const numericValue = Number(value ?? 0);
   const numericMultiplier = Number(multiplier ?? 1);
@@ -1038,7 +1084,7 @@ function applyHighBoostMultiplier(value, multiplier) {
 }
 
 function scaleHighBoostDpHealAmount(actor, amount) {
-  const modifiers = resolveHighBoostModifiersForMember(actor);
+  const modifiers = resolveDpHealOutputModifiersForMember(actor);
   if (!modifiers.active) {
     return Number(amount ?? 0);
   }
@@ -1050,7 +1096,7 @@ function resolveHighBoostAdjustedDpAmount(actor, skillType, amount) {
   if (!Number.isFinite(numericAmount)) {
     return 0;
   }
-  if (!HIGH_BOOST_SCALED_DP_SKILL_TYPES.has(String(skillType ?? '').trim())) {
+  if (!DP_HEAL_OUTPUT_SCALED_SKILL_TYPES.has(String(skillType ?? '').trim())) {
     return numericAmount;
   }
   return scaleHighBoostDpHealAmount(actor, numericAmount);
@@ -8170,6 +8216,7 @@ const BUFF_SKILL_TYPE_TO_STATUS_ID = Object.freeze({
   Diva: 144,
   NegativeMind: 146,
   Makeup: 164,
+  Mocktail: SPECIAL_STATUS_TYPE_MOCKTAIL,
   EternalOath: 124,
   BIYamawakiServant: 155,
 });
@@ -9506,6 +9553,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     effectiveSkill
   );
   const highBoostModifiers = resolveHighBoostModifiersForMember(member);
+  const dpHealOutputModifiers = resolveDpHealOutputModifiersForMember(member);
   // IgnoreEShieldElement は action-time に恒常フラグとして展開する性質のため
   // timing に依存せず全 passive を検査対象にする。
   const ignoreEShieldElement = resolvePassiveIgnoreEShieldElementForMember(
@@ -9621,8 +9669,8 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       giveDefenseDebuffUpRate: highBoostModifiers.active
         ? truncateToTwoDecimals(Number(highBoostModifiers.debuffMultiplier ?? 1) - 1)
         : 0,
-      giveHealUpRate: highBoostModifiers.active
-        ? truncateToTwoDecimals(Number(highBoostModifiers.dpHealMultiplier ?? 1) - 1)
+      giveHealUpRate: dpHealOutputModifiers.active
+        ? truncateToTwoDecimals(Number(dpHealOutputModifiers.dpHealMultiplier ?? 1) - 1)
         : 0,
       ignoreEShieldElement: ignoreEShieldElement.active,
       markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
@@ -11525,6 +11573,116 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
+        if (skillType === 'Makeup') {
+          const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID.Makeup;
+          const exitCond = String(part?.effect?.exitCond ?? 'Eternal');
+          const remaining = Number(part?.effect?.exitVal?.[0] ?? DEFAULT_STATUS_EFFECT_REMAINING);
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            target.applySpecialStatus(statusTypeId, remaining, exitCond, {
+              skill: {
+                skillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                label: String(passive?.label ?? ''),
+                name: String(passive?.name ?? ''),
+                desc: String(passive?.desc ?? ''),
+              },
+              actor: member,
+            });
+            const activeEffects = target.getStatusEffectsByType('Makeup', { activeOnly: true });
+            const latest = activeEffects.at(-1);
+            appliedStatusEffects.push({
+              characterId: String(target.characterId),
+              statusType: 'Makeup',
+              sourceSkillType: skillType,
+              statusTypeId,
+              effectId: Number(latest?.effectId ?? 0),
+              exitCond: String(latest?.exitCond ?? exitCond),
+              remaining: Number(latest?.remaining ?? remaining),
+            });
+            matched = true;
+          }
+          continue;
+        }
+
+        if (skillType === 'Mocktail') {
+          const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID.Mocktail;
+          const healUpRate = Number(part?.power?.[0] ?? 0);
+          const rawExitCond = String(part?.effect?.exitCond ?? '').trim();
+          const exitCond =
+            rawExitCond && rawExitCond !== MOCKTAIL_NONE_EXIT_COND
+              ? rawExitCond
+              : MOCKTAIL_DEFAULT_EXIT_COND;
+          const remaining =
+            exitCond === MOCKTAIL_DEFAULT_EXIT_COND
+              ? 0
+              : Number(part?.effect?.exitVal?.[0] ?? DEFAULT_STATUS_EFFECT_REMAINING);
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            target.applySpecialStatus(statusTypeId, remaining, exitCond, {
+              skill: {
+                skillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                label: String(passive?.label ?? ''),
+                name: String(passive?.name ?? ''),
+                desc: String(passive?.desc ?? ''),
+              },
+              actor: member,
+              power: healUpRate,
+              metadata: {
+                healUpRate,
+                dpHealMultiplier: truncateToTwoDecimals(MOCKTAIL_BASE_HEAL_MULTIPLIER + healUpRate),
+                timing: String(passive?.timing ?? ''),
+                passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                sourceKind: String(passive?.sourceType ?? '') === 'support' ? 'support' : 'passive',
+                targetType: String(part?.target_type ?? ''),
+              },
+            });
+            const activeEffects = target.getStatusEffectsByType(MOCKTAIL_STATUS_TYPE, { activeOnly: true });
+            const latest = activeEffects.at(-1);
+            appliedStatusEffects.push({
+              characterId: String(target.characterId),
+              statusType: MOCKTAIL_STATUS_TYPE,
+              sourceSkillType: skillType,
+              statusTypeId,
+              effectId: Number(latest?.effectId ?? 0),
+              power: Number(latest?.power ?? healUpRate),
+              exitCond: String(latest?.exitCond ?? exitCond),
+              remaining: Number(latest?.remaining ?? remaining),
+            });
+            matched = true;
+          }
+          continue;
+        }
+
         if (
           skillType === 'TokenSetByAttacking' ||
           skillType === 'TokenSetByAttacked' ||
@@ -11592,8 +11750,6 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType === 'RemoveSpecialStatus' ||
           skillType === 'ArrowCherryBlossoms' ||
           skillType === 'NegativeMind' ||
-          skillType === 'Makeup' ||
-          skillType === 'Mocktail' ||
           skillType === 'SpecialCommandCountUp'
         ) {
           // Action-time attack modifiers or character-specific mechanics; silent-skip at timing boundary.

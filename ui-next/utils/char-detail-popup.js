@@ -101,6 +101,7 @@ const STATUS_LABELS = {
   Undermine:                 '蝕',
   Shredding:                 '速弾き',
   HighBoost:                 'ハイブースト',
+  Mocktail:                  'モクテル',
   GiveAttackBuffUp:          'スキル攻撃力上昇の効果アップ',
   GiveDebuffUp:              'デバフスキル効果量アップ',
   GiveDefenseDebuffUp:       '防御力ダウン効果アップ',

@@ -168,7 +168,9 @@
 - [x] `OnEveryTurnIncludeSpecial`
 - [x] `OnBattleStart`
   - passive timing の `BuffCharge` は実状態付与へ接続済み。`Passive.Start_Charge01` は前衛 `OnBattleStart` で `BuffCharge(25)` と `HealSp(+3)` を同時に適用する
+  - `Mocktail` は `Mocktail(313)` として実状態付与し、DP回復量補正へ接続済み。共鳴アビリティ `SupportSkill_IrOhshima01` は LB に応じた回復量補正を反映する
 - [x] `OnFirstBattleStart`
+  - `NegativeMind` は `NegativeState(146)`、`Makeup` は `Makeup(164)` として実状態付与へ接続済み
 - [x] `OnEnemyTurnStart`
 - [x] `OnAdditionalTurnStart`
 - [x] `OnBattleWin`
@@ -392,9 +394,13 @@
       `AdditionalHitOnSpecifiedSkill`, `AdditionalHitOnRemovingBuff`, `AdditionalHitOnKill`,
       `AdditionalHitOnZone`, `AdditionalHitOnOverDrivePointDownSkill`, `AdditionalHitOnPursuit`,
       `ZoneUpEternal`, `ShadowClone`, `BorderRefPDownByAdmiral`,
-      `ExecuteSkillOnPreTurn`, `RemoveSpecialStatus`, `ArrowCherryBlossoms`, `Makeup`, `Mocktail`, `SpecialCommandCountUp`
+      `ExecuteSkillOnPreTurn`, `RemoveSpecialStatus`, `ArrowCherryBlossoms`, `SpecialCommandCountUp`
     - ✅ 完了: `NegativeMind`（`生きててごめんなさい`）は `OnFirstBattleStart` で `NegativeState(146)` として状態付与し、
       `RemoveDebuff` 経路（味方解除スキル / `セルフエイド`）で解除可能にした
+    - ✅ 完了: `Makeup`（`メイクアップ` / 大島二以奈「渚のピュアメモリー」）は `OnFirstBattleStart` で
+      `Makeup(164)` の Eternal 状態を付与し、`SpecialStatusCountByType(164)` を参照するスキル条件・SP overwrite に接続済み
+    - ✅ 完了: `Mocktail`（`素敵な夜` / 共鳴アビリティ）は `OnBattleStart` で `Mocktail(313)` の Eternal 状態を付与し、
+      `power[0]` を DP 回復量補正として `HealDpRate` / `RegenerationDp` に反映。LB4 の 50% 補正まで実データ回帰で固定済み
     - ログのみ（状態変化なし、パッシブイベント記録）:
       `StunRandom`, `GiveDebuffTurnUp`, `SkillCondition`, `IgnoreEShieldElement`, `Dodge`, `SkillLimitCountUp`, `Misfortune`
   - ✅ 完了: トリガー型パッシブの効果エンジン拡張（`applyMoralePassiveTriggerEffects` 汎用化）
