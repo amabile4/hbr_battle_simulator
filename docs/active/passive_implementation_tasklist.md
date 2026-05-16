@@ -280,6 +280,7 @@
   - Phase 4 の direct heal / regeneration grant / regeneration tick / HealDpByDamage trigger は実装済み
   - Phase 5 の `SelfDamage` / `AttackByOwnDpRate` / 行動後 `DpRate` 再評価は実装済み
   - Phase 7 の `HealDpRate` / `ReviveDpRate` passive effect と `OnPlayerTurnStart` / `OnEveryTurn` / `OnEnemyTurnStart` / `OnBattleWin` 接続も実装済み
+  - 料理バフ `Curry(303)` / `Shchi(304)` / `Steak(330)` / `Gelato(331)` は Eternal 特殊状態として付与し、スキル攻撃力+50% と `HealDpByDamage` trigger（与ダメージ10%回復、実数は未解決）へ接続済み
   - `HealDp` / `ReviveDp` / `HealDpByDamage` の厳密量は仕様留保のまま、trigger と状態遷移を優先して完了扱いにする
 
 ### DP回復タスクメモ
@@ -401,6 +402,8 @@
       `Makeup(164)` の Eternal 状態を付与し、`SpecialStatusCountByType(164)` を参照するスキル条件・SP overwrite に接続済み
     - ✅ 完了: `Mocktail`（`素敵な夜` / 共鳴アビリティ）は `OnBattleStart` で `Mocktail(313)` の Eternal 状態を付与し、
       `power[0]` を DP 回復量補正として `HealDpRate` / `RegenerationDp` に反映。LB4 の 50% 補正まで実データ回帰で固定済み
+    - ✅ 完了: 料理バフ4種（`Curry` / `Shchi` / `Steak` / `Gelato`）はアクティブスキルから味方全体へ Eternal 特殊状態を付与し、
+      料理同士の重複、スキル攻撃力補正、`HealDpByDamage` record / damageContext 露出、UI アイコン表示を実データ回帰で固定済み
     - ログのみ（状態変化なし、パッシブイベント記録）:
       `StunRandom`, `GiveDebuffTurnUp`, `SkillCondition`, `IgnoreEShieldElement`, `Dodge`, `SkillLimitCountUp`, `Misfortune`
   - ✅ 完了: トリガー型パッシブの効果エンジン拡張（`applyMoralePassiveTriggerEffects` 汎用化）

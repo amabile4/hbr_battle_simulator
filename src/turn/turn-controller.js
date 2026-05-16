@@ -86,6 +86,8 @@ const MOCKTAIL_STATUS_TYPE = 'Mocktail';
 const MOCKTAIL_BASE_HEAL_MULTIPLIER = 1;
 const MOCKTAIL_DEFAULT_EXIT_COND = 'Eternal';
 const MOCKTAIL_NONE_EXIT_COND = 'None';
+const FOOD_BUFF_HEAL_DP_BY_DAMAGE_TRIGGER = 'HealDpByDamage';
+const DP_EVENT_SOURCE_FOOD_BUFF = 'food_buff';
 const OD_DAMAGE_PART_TYPES = new Set([
   'AttackNormal',
   'AttackSkill',
@@ -375,7 +377,20 @@ const DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER = Object.freeze({
   SSR: 0,
 });
 const SPECIAL_STATUS_TYPE_BUFF_CHARGE = 25;
+const SPECIAL_STATUS_TYPE_CURRY = 303;
+const SPECIAL_STATUS_TYPE_SHCHI = 304;
 const SPECIAL_STATUS_TYPE_MOCKTAIL = 313;
+const SPECIAL_STATUS_TYPE_STEAK = 330;
+const SPECIAL_STATUS_TYPE_GELATO = 331;
+const FOOD_BUFF_STATUS_TYPE_BY_SKILL_TYPE = Object.freeze({
+  Curry: SPECIAL_STATUS_TYPE_CURRY,
+  Shchi: SPECIAL_STATUS_TYPE_SHCHI,
+  Steak: SPECIAL_STATUS_TYPE_STEAK,
+  Gelato: SPECIAL_STATUS_TYPE_GELATO,
+});
+const FOOD_BUFF_SKILL_TYPES = Object.freeze(
+  new Set(Object.keys(FOOD_BUFF_STATUS_TYPE_BY_SKILL_TYPE))
+);
 const CONDITION_FUNCTION_PATTERN = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
 export function analyzePassiveTimingCoverage(passives = []) {
@@ -1068,6 +1083,71 @@ function resolveDpHealOutputModifiersForMember(member) {
     dpHealMultiplier,
     highBoost,
     mocktail,
+  };
+}
+
+function resolveFoodBuffPartPower(part) {
+  const value = Number(part?.power?.[0] ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function resolveFoodBuffPartHealDpByDamageRate(part) {
+  const value = Number(part?.value?.[0] ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isFoodBuffApplicableSkill(skill, state, member) {
+  if (!skill || isNormalAttackSkill(skill) || isPursuitOnlySkill(skill)) {
+    return false;
+  }
+  return skillHasDamageParts(skill, state, member);
+}
+
+function summarizeFoodBuffStatusEffect(effect) {
+  return {
+    ...summarizeActiveBuffStatusEffect(effect),
+    statusTypeId: Number(effect?.metadata?.specialStatusTypeId ?? FOOD_BUFF_STATUS_TYPE_BY_SKILL_TYPE[String(effect?.statusType ?? '')] ?? 0),
+    attackUpRate: Number(effect?.metadata?.attackUpRate ?? effect?.power ?? 0),
+    healDpByDamageRate: Number(effect?.metadata?.healDpByDamageRate ?? 0),
+  };
+}
+
+function resolveFoodBuffModifiersForAction(state, member, skill) {
+  if (!state || !member || !isFoodBuffApplicableSkill(skill, state, member)) {
+    return {
+      active: false,
+      attackUpRate: 0,
+      healDpByDamageRate: 0,
+      matchedEffects: [],
+    };
+  }
+
+  const matchedEffects = [];
+  let attackUpRate = 0;
+  let healDpByDamageRate = 0;
+  for (const statusType of FOOD_BUFF_SKILL_TYPES) {
+    const effects =
+      typeof member?.resolveEffectiveStatusEffects === 'function'
+        ? member.resolveEffectiveStatusEffects(statusType)
+        : [];
+    for (const effect of effects ?? []) {
+      const effectAttackUpRate = Number(effect?.metadata?.attackUpRate ?? effect?.power ?? 0);
+      const effectHealDpByDamageRate = Number(effect?.metadata?.healDpByDamageRate ?? 0);
+      if (Number.isFinite(effectAttackUpRate)) {
+        attackUpRate += effectAttackUpRate;
+      }
+      if (Number.isFinite(effectHealDpByDamageRate)) {
+        healDpByDamageRate += effectHealDpByDamageRate;
+      }
+      matchedEffects.push(summarizeFoodBuffStatusEffect(effect));
+    }
+  }
+
+  return {
+    active: matchedEffects.length > 0,
+    attackUpRate,
+    healDpByDamageRate,
+    matchedEffects,
   };
 }
 
@@ -3787,6 +3867,32 @@ function createEnemyAttackDpEvent(target, startDpState, endDpState) {
   };
 }
 
+function createFoodBuffDamageHealEvent(actor, skill, actionEntry, foodBuffModifiers) {
+  const startDpState = cloneDpState(actor?.dpState ?? {});
+  const endDpState = cloneDpState(startDpState);
+  return buildActionScopedEvent(actionEntry, {
+    actorCharacterId: actor.characterId,
+    characterId: actor.characterId,
+    source: DP_EVENT_SOURCE_FOOD_BUFF,
+    skillId: Number(skill?.skillId ?? skill?.id ?? 0),
+    skillName: String(skill?.name ?? ''),
+    skillType: FOOD_BUFF_HEAL_DP_BY_DAMAGE_TRIGGER,
+    triggerType: DP_EVENT_KINDS.DAMAGE_BASED_HEAL,
+    delta: 0,
+    startDpState,
+    endDpState,
+    startDpRate: getDpRate(startDpState),
+    endDpRate: getDpRate(endDpState),
+    eventCeiling: Number(endDpState.effectiveDpCap ?? endDpState.baseMaxDp ?? 0),
+    isAmountResolved: false,
+    targetType: 'Self',
+    targetCondition: '',
+    healDpByDamageRate: Number(foodBuffModifiers?.healDpByDamageRate ?? 0),
+    foodBuffAttackUpRate: Number(foodBuffModifiers?.attackUpRate ?? 0),
+    foodBuffStatusEffects: structuredClone(foodBuffModifiers?.matchedEffects ?? []),
+  });
+}
+
 function mapDpEventToRecordChange(event) {
   return {
     source: event.source,
@@ -3799,6 +3905,15 @@ function mapDpEventToRecordChange(event) {
     preDpCap: Number(event.startDpState?.effectiveDpCap ?? event.startDpState?.baseMaxDp ?? 0),
     postDpCap: Number(event.endDpState?.effectiveDpCap ?? event.endDpState?.baseMaxDp ?? 0),
     isAmountResolved: Boolean(event.isAmountResolved),
+    ...(Number.isFinite(Number(event.healDpByDamageRate))
+      ? { healDpByDamageRate: Number(event.healDpByDamageRate) }
+      : {}),
+    ...(Number.isFinite(Number(event.foodBuffAttackUpRate))
+      ? { foodBuffAttackUpRate: Number(event.foodBuffAttackUpRate) }
+      : {}),
+    ...(Array.isArray(event.foodBuffStatusEffects)
+      ? { foodBuffStatusEffects: structuredClone(event.foodBuffStatusEffects) }
+      : {}),
     ...(Number.isFinite(Number(event.effectId)) ? { effectId: Number(event.effectId) } : {}),
     ...(Number.isFinite(Number(event.remaining)) ? { remaining: Number(event.remaining) } : {}),
     ...(String(event.exitCond ?? '') ? { exitCond: String(event.exitCond) } : {}),
@@ -3916,6 +4031,13 @@ function applyDpEffectsFromActions(state, previewRecord) {
           )
         );
       }
+    }
+
+    const foodBuffModifiers = resolveFoodBuffModifiersForAction(state, actor, skill);
+    const hasFoodBuffDamageHeal =
+      foodBuffModifiers.active && Number(foodBuffModifiers.healDpByDamageRate ?? 0) > 0;
+    if (hasFoodBuffDamageHeal && getActionTargetEnemyIndexes(state, actionEntry, skill).length > 0) {
+      events.push(createFoodBuffDamageHealEvent(actor, skill, actionEntry, foodBuffModifiers));
     }
   }
 
@@ -7347,6 +7469,8 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
       criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
       damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
+      foodBuffAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffAttackUpRate ?? 0),
+      foodBuffHealDpByDamageRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffHealDpByDamageRate ?? 0),
       attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
       defenseUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpPerTokenRate ?? 0),
       markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
@@ -8149,7 +8273,23 @@ function applyGuardEffectsFromActions(state, previewRecord) {
 }
 
 // T02: SpecialStatusCountByType 状態保持チェックヘルパー
-const IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([25, 78, 79, 122, 124, 125, 144, 146, 155, 164]);
+const IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([
+  25,
+  78,
+  79,
+  122,
+  124,
+  125,
+  144,
+  146,
+  155,
+  164,
+  SPECIAL_STATUS_TYPE_CURRY,
+  SPECIAL_STATUS_TYPE_SHCHI,
+  SPECIAL_STATUS_TYPE_MOCKTAIL,
+  SPECIAL_STATUS_TYPE_STEAK,
+  SPECIAL_STATUS_TYPE_GELATO,
+]);
 
 function hasSpecialStatus(member, typeId) {
   if (!Array.isArray(member?.statusEffects)) return false;
@@ -8216,7 +8356,11 @@ const BUFF_SKILL_TYPE_TO_STATUS_ID = Object.freeze({
   Diva: 144,
   NegativeMind: 146,
   Makeup: 164,
+  Curry: SPECIAL_STATUS_TYPE_CURRY,
+  Shchi: SPECIAL_STATUS_TYPE_SHCHI,
   Mocktail: SPECIAL_STATUS_TYPE_MOCKTAIL,
+  Steak: SPECIAL_STATUS_TYPE_STEAK,
+  Gelato: SPECIAL_STATUS_TYPE_GELATO,
   EternalOath: 124,
   BIYamawakiServant: 155,
 });
@@ -8257,7 +8401,26 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
         if (!target) {
           continue;
         }
-        target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill, actor });
+        const context = FOOD_BUFF_SKILL_TYPES.has(skillType)
+          ? {
+              skill,
+              actor,
+              power: resolveFoodBuffPartPower(part),
+              metadata: {
+                foodBuff: true,
+                sourceSkillType: skillType,
+                attackUpRate: resolveFoodBuffPartPower(part),
+                healDpByDamageRate: resolveFoodBuffPartHealDpByDamageRate(part),
+                targetType: String(part?.target_type ?? ''),
+              },
+            }
+          : { skill, actor };
+        target.applySpecialStatus(statusTypeId, remaining, exitCond, context);
+        const activeEffects =
+          typeof target?.getStatusEffectsByType === 'function'
+            ? target.getStatusEffectsByType(skillType, { activeOnly: true })
+            : [];
+        const latest = activeEffects.at(-1);
         events.push(
           buildActionScopedEvent(actionEntry, {
             actorCharacterId: actor.characterId,
@@ -8265,6 +8428,9 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
             targetCharacterId: target.characterId,
             statusType: skillType,
             statusTypeId,
+            effectId: Number(latest?.effectId ?? 0),
+            power: Number(latest?.power ?? context?.power ?? 0),
+            healDpByDamageRate: Number(latest?.metadata?.healDpByDamageRate ?? 0),
             remaining,
             exitCond,
             skillId: Number(skill.skillId ?? skill.id ?? 0),
@@ -9552,6 +9718,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     member,
     effectiveSkill
   );
+  const foodBuffModifiers = resolveFoodBuffModifiersForAction(state, member, effectiveSkill);
   const highBoostModifiers = resolveHighBoostModifiersForMember(member);
   const dpHealOutputModifiers = resolveDpHealOutputModifiersForMember(member);
   // IgnoreEShieldElement は action-time に恒常フラグとして展開する性質のため
@@ -9646,7 +9813,10 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
       criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
     },
-    activeStatusEffects: structuredClone(activeBuffStatusModifiers.matchedEffects ?? []),
+    activeStatusEffects: [
+      ...structuredClone(activeBuffStatusModifiers.matchedEffects ?? []),
+      ...structuredClone(foodBuffModifiers.matchedEffects ?? []),
+    ],
     specialPassiveModifiers: {
       highBoostSkillAtkRate: Number(highBoostModifiers.skillAtkRate ?? 0),
       consumedCountEffectIds: [...(activeBuffStatusModifiers.consumedCountEffectIds ?? [])],
@@ -9654,13 +9824,16 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
         Number(activeBuffStatusModifiers.attackUpRate ?? 0) +
         Number(specialAttackUp.totalRate ?? 0) +
         Number(intrinsicMarkModifiers.attackUpRate ?? 0) +
-        Number(attackUpPerToken.totalRate ?? 0),
+        Number(attackUpPerToken.totalRate ?? 0) +
+        Number(foodBuffModifiers.attackUpRate ?? 0),
       defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
       criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
       criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
       markAttackUpRate: Number(intrinsicMarkModifiers.attackUpRate ?? 0),
       attackUpPerTokenRate: Number(attackUpPerToken.totalRate ?? 0),
       damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
+      foodBuffAttackUpRate: Number(foodBuffModifiers.attackUpRate ?? 0),
+      foodBuffHealDpByDamageRate: Number(foodBuffModifiers.healDpByDamageRate ?? 0),
       defenseUpPerTokenRate: Number(defenseUpPerToken.totalRate ?? 0),
       zonePowerRate,
       giveAttackBuffUpRate: highBoostModifiers.active

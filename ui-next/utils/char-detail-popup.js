@@ -191,7 +191,7 @@ const STATUS_LABELS = {
   // キャラ固有
   ArrowCherryBlossoms:       '桜花の矢',
   BIYamawakiServant:         '山脇様のしもべ',
-  Curry:                     'カレー',
+  Curry:                     'カリー',
   Gelato:                    'ジェラート',
   Shchi:                     'シチー',
   Steak:                     'ステーキ',

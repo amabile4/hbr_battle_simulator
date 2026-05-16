@@ -62,7 +62,11 @@ const STATUS_TYPE_ID_MAP = Object.freeze({
   Shredding: 271,
   HighBoost: 289,
   HealUp: 291,
+  Curry: 303,
+  Shchi: 304,
   Mocktail: 313,
+  Steak: 330,
+  Gelato: 331,
 });
 
 function getStatusTypeOrderValue(statusType) {

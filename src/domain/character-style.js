@@ -30,7 +30,11 @@ export const SPECIAL_STATUS_TYPE_NAMES = Object.freeze({
   146: 'NegativeState',
   155: 'BIYamawakiServant',
   164: 'Makeup',
+  303: 'Curry',
+  304: 'Shchi',
   313: 'Mocktail',
+  330: 'Steak',
+  331: 'Gelato',
 });
 
 const STACKABLE_COUNT_SPECIAL_STATUS_TYPE_IDS = new Set([78]);

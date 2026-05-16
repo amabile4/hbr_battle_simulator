@@ -15,7 +15,11 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
     { statusType: 'AttackUp', remaining: 2 },
     { statusType: 'MindEye', remaining: 1 },
     { statusType: 'Funnel', remaining: 1 },
+    { statusType: 'Curry', remaining: 0, exitCond: 'Eternal' },
+    { statusType: 'Shchi', remaining: 0, exitCond: 'Eternal' },
     { statusType: 'Mocktail', remaining: 0, exitCond: 'Eternal' },
+    { statusType: 'Steak', remaining: 0, exitCond: 'Eternal' },
+    { statusType: 'Gelato', remaining: 0, exitCond: 'Eternal' },
     { statusType: 'AttackDown', remaining: 2 },
     { statusType: 'ConfusionRandom', remaining: 2 },
     { statusType: 'CriticalRateUp', remaining: 0 },
@@ -25,7 +29,17 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
   ];
 
   const actual = getDisplayableBuffs(effects).map((effect) => effect.statusType);
-  assert.deepEqual(actual, ['AttackUp', 'MindEye', 'Funnel', 'Mocktail', 'CriticalDamageUp']);
+  assert.deepEqual(actual, [
+    'AttackUp',
+    'MindEye',
+    'Funnel',
+    'Curry',
+    'Shchi',
+    'Mocktail',
+    'Steak',
+    'Gelato',
+    'CriticalDamageUp',
+  ]);
 });
 
 test('buildBuffListHtml follows status detail order and shows only adopted effects', () => {

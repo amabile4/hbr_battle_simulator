@@ -218,6 +218,36 @@ const MOCKTAIL_TEST_BASE_MAX_DP = 100;
 const MOCKTAIL_TEST_START_DP = 0;
 const MOCKTAIL_TEST_HEAL_DP_RATE = 0.1;
 const MOCKTAIL_TEST_HEAL_DP_DELTA = 15;
+const FOOD_BUFF_ATTACK_UP_RATE = 0.5;
+const FOOD_BUFF_HEAL_DP_BY_DAMAGE_RATE = 0.1;
+const FOOD_BUFF_TEST_ATTACK_SKILL_ID = 99033001;
+const FOOD_BUFF_TEST_NORMAL_ATTACK_SKILL_ID = 99033002;
+const FOOD_BUFF_CASES = Object.freeze([
+  {
+    statusType: 'Steak',
+    statusTypeId: 330,
+    skillId: 46008114,
+    skillName: 'サーブド・アメイジング',
+  },
+  {
+    statusType: 'Curry',
+    statusTypeId: 303,
+    skillId: 46008409,
+    skillName: '饗宴アヌラーガ',
+  },
+  {
+    statusType: 'Gelato',
+    statusTypeId: 331,
+    skillId: 46008511,
+    skillName: '感嘆必至のボナペティート',
+  },
+  {
+    statusType: 'Shchi',
+    statusTypeId: 304,
+    skillId: 46008611,
+    skillName: '召し上がれミラーシュカ',
+  },
+]);
 
 function buildStartChargeRealDataParty(store, stylePosition) {
   const style = store.getStyleById(START_CHARGE_STYLE_ID);
@@ -375,6 +405,72 @@ function addMocktailTestHealSkill(actor) {
         target_type: 'Self',
         power: [MOCKTAIL_TEST_HEAL_DP_RATE, 0],
         value: [1, 0],
+      },
+    ],
+    passive: null,
+  }]);
+}
+
+function addFoodBuffTestAttackSkill(actor) {
+  actor.skills = Object.freeze([...actor.skills, {
+    skillId: FOOD_BUFF_TEST_ATTACK_SKILL_ID,
+    label: 'TestFoodBuffAttack',
+    name: 'Food Buff Attack',
+    targetType: 'Single',
+    spCost: 0,
+    sourceType: 'test',
+    isPassive: false,
+    type: 'attack',
+    consumeType: 'Sp',
+    hitCount: 1,
+    hits: [],
+    maxLevel: null,
+    cond: '',
+    iucCond: '',
+    overwriteCond: '',
+    effect: '',
+    overwrite: null,
+    legacySkillIds: [],
+    usage: null,
+    additionalTurnRule: null,
+    parts: [
+      {
+        skill_type: 'AttackSkill',
+        target_type: 'Single',
+        type: 'Slash',
+        power: [100, 0],
+        value: [0, 0],
+      },
+    ],
+    passive: null,
+  }, {
+    skillId: FOOD_BUFF_TEST_NORMAL_ATTACK_SKILL_ID,
+    label: 'TestFoodBuffAttackNormal',
+    name: '通常攻撃',
+    targetType: 'Single',
+    spCost: 0,
+    sourceType: 'test',
+    isPassive: false,
+    type: 'attack',
+    consumeType: 'Sp',
+    hitCount: 1,
+    hits: [],
+    maxLevel: null,
+    cond: '',
+    iucCond: '',
+    overwriteCond: '',
+    effect: '',
+    overwrite: null,
+    legacySkillIds: [],
+    usage: null,
+    additionalTurnRule: null,
+    parts: [
+      {
+        skill_type: 'AttackNormal',
+        target_type: 'Single',
+        type: 'Slash',
+        power: [100, 0],
+        value: [0, 0],
       },
     ],
     passive: null,
@@ -16332,6 +16428,141 @@ test('共鳴アビリティ[素敵な夜] applies Mocktail and scales DP healing
   assert.equal(actorRecord?.specialPassiveModifiers?.giveHealUpRate, MOCKTAIL_SUPPORT_LB4_HEAL_UP_RATE);
   assert.equal(dpChange?.delta, MOCKTAIL_TEST_HEAL_DP_DELTA);
   assert.equal(healedActor.dpState.currentDp, MOCKTAIL_TEST_HEAL_DP_DELTA);
+});
+
+test('料理バフ4種 applies Eternal food statuses and exposes skill attack / damage-heal modifiers', () => {
+  const store = getStore();
+
+  for (const foodCase of FOOD_BUFF_CASES) {
+    const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, foodCase.skillId));
+    const actor = state.party[0];
+    addFoodBuffTestAttackSkill(actor);
+
+    assert.equal(countActiveSpecialStatus(actor, foodCase.statusTypeId), 0, `${foodCase.statusType} should start inactive`);
+    assert.equal(
+      previewActorSkill(state, FOOD_BUFF_TEST_ATTACK_SKILL_ID).actions[0].specialPassiveModifiers.foodBuffAttackUpRate,
+      0,
+      `${foodCase.statusType} should not affect attacks before the food skill is committed`
+    );
+
+    const foodPreview = previewActorSkill(state, foodCase.skillId);
+    const { nextState, committedRecord } = commitTurn(state, foodPreview);
+    const foodAction = committedRecord.actions.find((action) => action.characterId === actor.characterId);
+
+    assert.equal(foodAction?.skillName, foodCase.skillName);
+    const foodStatusEffectsApplied = (foodAction?.statusEffectsApplied ?? []).filter(
+      (effect) => effect.statusType === foodCase.statusType
+    );
+    assert.equal(foodStatusEffectsApplied.length, 6);
+    assert.equal(
+      foodStatusEffectsApplied.every(
+        (effect) =>
+          effect.statusType === foodCase.statusType &&
+          effect.statusTypeId === foodCase.statusTypeId &&
+          effect.exitCond === 'Eternal' &&
+          effect.remaining === 0 &&
+          effect.power === FOOD_BUFF_ATTACK_UP_RATE &&
+          effect.healDpByDamageRate === FOOD_BUFF_HEAL_DP_BY_DAMAGE_RATE
+      ),
+      true,
+      `${foodCase.statusType} should be applied to all allies as an Eternal food status`
+    );
+    for (const member of nextState.party) {
+      assert.equal(countActiveSpecialStatus(member, foodCase.statusTypeId), 1);
+      const effect = member.statusEffects.find(
+        (item) => Number(item.metadata?.specialStatusTypeId) === foodCase.statusTypeId
+      );
+      assert.equal(effect?.statusType, foodCase.statusType);
+      assert.equal(effect?.metadata?.attackUpRate, FOOD_BUFF_ATTACK_UP_RATE);
+      assert.equal(effect?.metadata?.healDpByDamageRate, FOOD_BUFF_HEAL_DP_BY_DAMAGE_RATE);
+    }
+
+    const nextActor = nextState.party[0];
+    const normalSkill = nextActor.skills.find(
+      (skill) => Number(skill.skillId) === FOOD_BUFF_TEST_NORMAL_ATTACK_SKILL_ID
+    );
+    assert.ok(normalSkill, 'normal attack skill should exist in real-data party');
+    const normalPreview = previewActorSkill(nextState, normalSkill.skillId);
+    assert.equal(normalPreview.actions[0].specialPassiveModifiers.foodBuffAttackUpRate, 0);
+    assert.equal(normalPreview.actions[0].specialPassiveModifiers.foodBuffHealDpByDamageRate, 0);
+
+    const attackPreview = previewActorSkill(nextState, FOOD_BUFF_TEST_ATTACK_SKILL_ID);
+    const attackAction = attackPreview.actions[0];
+    assert.equal(attackAction.specialPassiveModifiers.foodBuffAttackUpRate, FOOD_BUFF_ATTACK_UP_RATE);
+    assert.equal(attackAction.specialPassiveModifiers.foodBuffHealDpByDamageRate, FOOD_BUFF_HEAL_DP_BY_DAMAGE_RATE);
+    assert.ok(attackAction.specialPassiveModifiers.attackUpRate >= FOOD_BUFF_ATTACK_UP_RATE);
+    assert.equal(
+      attackAction.activeStatusEffects.some((effect) => effect.statusType === foodCase.statusType),
+      true
+    );
+
+    const { committedRecord: attackRecord } = commitTurn(nextState, attackPreview);
+    const committedAttack = attackRecord.actions.find((action) => action.characterId === nextActor.characterId);
+    const foodDpChange = committedAttack?.dpChanges.find(
+      (change) =>
+        change.source === 'food_buff' &&
+        change.triggerType === 'HealDpByDamage' &&
+        change.skillType === 'HealDpByDamage'
+    );
+    assert.equal(committedAttack?.damageContext?.foodBuffAttackUpRate, FOOD_BUFF_ATTACK_UP_RATE);
+    assert.equal(committedAttack?.damageContext?.foodBuffHealDpByDamageRate, FOOD_BUFF_HEAL_DP_BY_DAMAGE_RATE);
+    assert.equal(foodDpChange?.delta, 0);
+    assert.equal(foodDpChange?.isAmountResolved, false);
+    assert.equal(foodDpChange?.healDpByDamageRate, FOOD_BUFF_HEAL_DP_BY_DAMAGE_RATE);
+    assert.equal(foodDpChange?.foodBuffStatusEffects[0]?.statusType, foodCase.statusType);
+  }
+});
+
+test('料理バフは異なる料理状態同士で重複してスキル攻撃補正を合算する', () => {
+  const store = getStore();
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, 46008611, {
+    extraStyleIds: [findStyleIdBySkillId(store, 46008409)],
+    buildOptions: {
+      skillSetsByPartyIndex: {
+        0: [46008611],
+        1: [46008409],
+      },
+    },
+  }));
+  addFoodBuffTestAttackSkill(state.party[0]);
+
+  const shchiPreview = previewTurn(state, {
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: 46008611,
+      targetEnemyIndex: 0,
+    },
+  });
+  const { nextState: afterShchi } = commitTurn(state, shchiPreview);
+  const curryPreview = previewTurn(afterShchi, {
+    1: {
+      characterId: afterShchi.party[1].characterId,
+      skillId: 46008409,
+      targetEnemyIndex: 0,
+    },
+  });
+  const { nextState: afterCurry } = commitTurn(afterShchi, curryPreview);
+  const actor = afterCurry.party[0];
+
+  assert.equal(countActiveSpecialStatus(actor, 304), 1);
+  assert.equal(countActiveSpecialStatus(actor, 303), 1);
+
+  const attackPreview = previewActorSkill(afterCurry, FOOD_BUFF_TEST_ATTACK_SKILL_ID);
+  const action = attackPreview.actions[0];
+  assert.equal(action.specialPassiveModifiers.foodBuffAttackUpRate, 1);
+  assert.equal(action.specialPassiveModifiers.foodBuffHealDpByDamageRate, 0.2);
+  assert.equal(action.specialPassiveModifiers.attackUpRate, 1);
+
+  const { committedRecord } = commitTurn(afterCurry, attackPreview);
+  const committedAction = committedRecord.actions.find((entry) => entry.characterId === actor.characterId);
+  const foodDpChange = committedAction?.dpChanges.find((change) => change.source === 'food_buff');
+  assert.equal(committedAction?.damageContext?.foodBuffAttackUpRate, 1);
+  assert.equal(committedAction?.damageContext?.foodBuffHealDpByDamageRate, 0.2);
+  assert.equal(foodDpChange?.healDpByDamageRate, 0.2);
+  assert.deepEqual(
+    foodDpChange?.foodBuffStatusEffects.map((effect) => effect.statusType).sort(),
+    ['Curry', 'Shchi']
+  );
 });
 
 test('T06: BuffCharge(25) — commitTurnで付与・パッシブ発動・次スキル使用で解除', () => {
