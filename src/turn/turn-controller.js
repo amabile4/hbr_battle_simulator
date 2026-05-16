@@ -11479,6 +11479,52 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           continue;
         }
 
+        if (skillType === 'NegativeMind') {
+          const statusTypeId = SPECIAL_STATUS_TYPE_NEGATIVE_STATE;
+          const exitCond = String(part?.effect?.exitCond ?? 'Count');
+          const remaining = Number(part?.effect?.exitVal?.[0] ?? DEFAULT_STATUS_EFFECT_REMAINING);
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          if (targetCharacterIds.length === 0) {
+            continue;
+          }
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target) {
+              continue;
+            }
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            target.applySpecialStatus(statusTypeId, remaining, exitCond, {
+              skill: {
+                skillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+                label: String(passive?.label ?? ''),
+                name: String(passive?.name ?? ''),
+                desc: String(passive?.desc ?? ''),
+              },
+              actor: member,
+            });
+            const activeEffects = target.getStatusEffectsByType('NegativeState', { activeOnly: true });
+            const latest = activeEffects.at(-1);
+            appliedStatusEffects.push({
+              characterId: String(target.characterId),
+              statusType: 'NegativeState',
+              sourceSkillType: skillType,
+              statusTypeId,
+              effectId: Number(latest?.effectId ?? 0),
+              exitCond: String(latest?.exitCond ?? exitCond),
+              remaining: Number(latest?.remaining ?? remaining),
+            });
+            matched = true;
+          }
+          continue;
+        }
+
         if (
           skillType === 'TokenSetByAttacking' ||
           skillType === 'TokenSetByAttacked' ||
@@ -12446,10 +12492,15 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       break;
     }
   }
-  const shouldActivateInterruptOdAfterActions = shouldActivateInterruptOd && !forceNextBaseTurn;
   // EXターン遷移判定を applyRecoveryPipeline より前に確定させる
   // （normal/od → extra 遷移時にSP回復が実行されるバグを防ぐため）
-  const grantedExtraCharacterIds = [
+  const battleEndedAfterActions =
+    Number(getEnemyState(state.turnState).enemyCount ?? 0) > 0 &&
+    countAliveEnemies(state.turnState) === 0;
+  const shouldForceNextBaseTurn = forceNextBaseTurn || battleEndedAfterActions;
+  const shouldActivateInterruptOdAfterActions =
+    shouldActivateInterruptOd && !shouldForceNextBaseTurn;
+  const grantedExtraCharacterIdsForNextTurn = battleEndedAfterActions ? [] : [
     ...deriveGrantedExtraTurnCharacterIds(state, previewRecord),
     ...additionalTurnPassiveGrantedIds,
   ];
@@ -12469,8 +12520,8 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
 
   // ─── 次ターン状態の確定 ───
-  const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIds, {
-    forceNextBaseTurn,
+  const nextTurnState = computeNextTurnState(state.turnState, grantedExtraCharacterIdsForNextTurn, {
+    forceNextBaseTurn: shouldForceNextBaseTurn,
   });
   const nextTurnLabel = nextTurnState.turnLabel;
   const nextBaseTurnAdvances =
@@ -12488,9 +12539,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       nextTurnState.enemyState.enemyCount = previewRecord.enemyCount;
     }
   }
+  if (battleEndedAfterActions && nextTurnState.enemyState) {
+    nextTurnState.enemyState.allEnemiesDefeated = true;
+  }
 
   // ─── ② ターンフェーズ: ▽敵行動開始 (OnEnemyTurnStart) ───
-  if (nextBaseTurnAdvances) {
+  if (nextBaseTurnAdvances && !battleEndedAfterActions) {
     const enemyTurnStartResult = applyPassiveTimingInternal(
       {
         ...state,
@@ -12541,7 +12595,10 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   // ─── ② ターンフェーズ: ▽敵が行動後処理 ───
   // Enemy statuses tick on enemy-turn consumption only.
   // In this simulator, enemy turn is consumed when base turn index advances (Tn -> Tn+1).
-  if (Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)) {
+  if (
+    !battleEndedAfterActions &&
+    Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0)
+  ) {
     const enemyAttackDpEvents = applyEnemyAttackDpDamage(state, enemyAttackTargetCharacterIds);
     if (enemyAttackDpEvents.length > 0) {
       boundaryDpEvents.push(...enemyAttackDpEvents);

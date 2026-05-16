@@ -194,6 +194,12 @@ const START_CHARGE_SP_DELTA = 3;
 const START_CHARGE_TURN_SP_DELTA = 1;
 const START_CHARGE_CONDITIONAL_TURN_SP_DELTA = 1;
 const BUFF_CHARGE_SPECIAL_STATUS_ID = 25;
+const ADATE_FUYU_URARA_STYLE_ID = 1005505;
+const ADATE_NEGATIVE_STYLE_PASSIVE_ID = 57001170;
+const SELF_AID_SKILL_ID = 46300008;
+const ALLY_DEBUFF_CLEANSE_SKILL_ID = 46005416;
+const NEGATIVE_STATE_SPECIAL_STATUS_ID = 146;
+const NEGATIVE_STATE_DURATION_TURNS = 5;
 
 function buildStartChargeRealDataParty(store, stylePosition) {
   const style = store.getStyleById(START_CHARGE_STYLE_ID);
@@ -212,6 +218,59 @@ function buildStartChargeRealDataParty(store, stylePosition) {
   return store.buildPartyFromStyleIds(styleIds, {
     initialSP: START_CHARGE_INITIAL_SP,
     limitBreakLevelsByPartyIndex: { [stylePosition]: START_CHARGE_LIMIT_BREAK_LEVEL },
+  });
+}
+
+function buildAdateFuyuUraraSelfAidParty(store) {
+  const style = store.getStyleById(ADATE_FUYU_URARA_STYLE_ID);
+  const styleCharacterKey = String(style?.chara_label ?? style?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter((id) => {
+      const candidate = store.getStyleById(id);
+      return (
+        Number(id) !== ADATE_FUYU_URARA_STYLE_ID &&
+        String(candidate?.chara_label ?? candidate?.chara ?? '') !== styleCharacterKey
+      );
+    })
+    .slice(0, 5);
+  if (fillerStyleIds.length !== 5) {
+    throw new Error('Could not build ADate05 real-data party');
+  }
+
+  return store.buildPartyFromStyleIds([ADATE_FUYU_URARA_STYLE_ID, ...fillerStyleIds], {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [SELF_AID_SKILL_ID],
+    },
+  });
+}
+
+function buildAdateFuyuUraraAllyCleanseParty(store) {
+  const negativeStyle = store.getStyleById(ADATE_FUYU_URARA_STYLE_ID);
+  const cleanseStyleId = findStyleIdBySkillId(store, ALLY_DEBUFF_CLEANSE_SKILL_ID);
+  const cleanseStyle = store.getStyleById(cleanseStyleId);
+  const excludedCharacterKeys = new Set(
+    [negativeStyle, cleanseStyle].map((style) => String(style?.chara_label ?? style?.chara ?? ''))
+  );
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter((id) => {
+      const candidate = store.getStyleById(id);
+      return (
+        Number(id) !== ADATE_FUYU_URARA_STYLE_ID &&
+        Number(id) !== Number(cleanseStyleId) &&
+        !excludedCharacterKeys.has(String(candidate?.chara_label ?? candidate?.chara ?? ''))
+      );
+    })
+    .slice(0, 4);
+  if (fillerStyleIds.length !== 4) {
+    throw new Error('Could not build ADate05 ally cleanse party');
+  }
+
+  return store.buildPartyFromStyleIds([ADATE_FUYU_URARA_STYLE_ID, cleanseStyleId, ...fillerStyleIds], {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      1: [ALLY_DEBUFF_CLEANSE_SKILL_ID],
+    },
   });
 }
 
@@ -15983,6 +16042,64 @@ test('Passive.Start_Charge01 does not apply while the real-data style starts in 
   assert.equal(actor.sp.current, START_CHARGE_INITIAL_SP);
   assert.equal(countActiveSpecialStatus(actor, BUFF_CHARGE_SPECIAL_STATUS_ID), 0);
   assert.equal(openingEvent, undefined);
+});
+
+test('伊達朱里[幸運ふゆうらら] applies NegativeState on first battle start and Self Aid removes it', () => {
+  const store = getStore();
+  let state = applyInitialPassiveState(
+    createBattleStateFromParty(buildAdateFuyuUraraSelfAidParty(store))
+  );
+  const actor = state.party[0];
+  const negativeState = actor.statusEffects.find(
+    (effect) => Number(effect.metadata?.specialStatusTypeId) === NEGATIVE_STATE_SPECIAL_STATUS_ID
+  );
+  const openingEvent = state.turnState.passiveEventsLastApplied.find(
+    (event) => Number(event.passiveId) === ADATE_NEGATIVE_STYLE_PASSIVE_ID && event.characterId === actor.characterId
+  );
+
+  assert.equal(negativeState?.statusType, 'NegativeState');
+  assert.equal(negativeState?.exitCond, 'EnemyTurnEnd');
+  assert.equal(negativeState?.remaining, NEGATIVE_STATE_DURATION_TURNS);
+  assert.equal(countActiveSpecialStatus(actor, NEGATIVE_STATE_SPECIAL_STATUS_ID), 1);
+  assert.ok(openingEvent, '生きててごめんなさい should be recorded during initial passive state');
+  assert.deepEqual(openingEvent.appliedStatusEffects.map((effect) => effect.statusType), ['NegativeState']);
+
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: SELF_AID_SKILL_ID },
+  });
+  assert.equal(findActionByCharacterId(preview, actor.characterId).removeDebuffCount, 1);
+
+  state = commitTurn(state, preview).nextState;
+  const cleanedActor = state.party.find((member) => member.characterId === actor.characterId);
+
+  assert.equal(countActiveSpecialStatus(cleanedActor, NEGATIVE_STATE_SPECIAL_STATUS_ID), 0);
+  assert.equal(
+    cleanedActor.statusEffects.some(
+      (effect) => Number(effect.metadata?.specialStatusTypeId) === NEGATIVE_STATE_SPECIAL_STATUS_ID
+    ),
+    false
+  );
+});
+
+test('伊達朱里[幸運ふゆうらら] NegativeState can be removed by ally debuff cleanse skills', () => {
+  const store = getStore();
+  let state = applyInitialPassiveState(
+    createBattleStateFromParty(buildAdateFuyuUraraAllyCleanseParty(store))
+  );
+  const negativeActor = state.party[0];
+  const cleanser = state.party[1];
+
+  assert.equal(countActiveSpecialStatus(negativeActor, NEGATIVE_STATE_SPECIAL_STATUS_ID), 1);
+
+  const preview = previewTurn(state, {
+    1: { characterId: cleanser.characterId, skillId: ALLY_DEBUFF_CLEANSE_SKILL_ID },
+  });
+  assert.equal(findActionByCharacterId(preview, cleanser.characterId).removeDebuffCount, 1);
+
+  state = commitTurn(state, preview).nextState;
+  const cleanedActor = state.party.find((member) => member.characterId === negativeActor.characterId);
+
+  assert.equal(countActiveSpecialStatus(cleanedActor, NEGATIVE_STATE_SPECIAL_STATUS_ID), 0);
 });
 
 test('T06: BuffCharge(25) — commitTurnで付与・パッシブ発動・次スキル使用で解除', () => {

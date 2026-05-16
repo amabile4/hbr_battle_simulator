@@ -392,7 +392,9 @@
       `AdditionalHitOnSpecifiedSkill`, `AdditionalHitOnRemovingBuff`, `AdditionalHitOnKill`,
       `AdditionalHitOnZone`, `AdditionalHitOnOverDrivePointDownSkill`, `AdditionalHitOnPursuit`,
       `ZoneUpEternal`, `ShadowClone`, `BorderRefPDownByAdmiral`,
-      `ExecuteSkillOnPreTurn`, `RemoveSpecialStatus`, `ArrowCherryBlossoms`, `NegativeMind`, `Makeup`, `Mocktail`, `SpecialCommandCountUp`
+      `ExecuteSkillOnPreTurn`, `RemoveSpecialStatus`, `ArrowCherryBlossoms`, `Makeup`, `Mocktail`, `SpecialCommandCountUp`
+    - ✅ 完了: `NegativeMind`（`生きててごめんなさい`）は `OnFirstBattleStart` で `NegativeState(146)` として状態付与し、
+      `RemoveDebuff` 経路（味方解除スキル / `セルフエイド`）で解除可能にした
     - ログのみ（状態変化なし、パッシブイベント記録）:
       `StunRandom`, `GiveDebuffTurnUp`, `SkillCondition`, `IgnoreEShieldElement`, `Dodge`, `SkillLimitCountUp`, `Misfortune`
   - ✅ 完了: トリガー型パッシブの効果エンジン拡張（`applyMoralePassiveTriggerEffects` 汎用化）

@@ -2323,6 +2323,98 @@ test('TurnEngineManager patches nextState with allEnemiesDefeated when all enemi
   assert.equal(manager.computedStates[0].turnState.enemyState.enemyCount, 2);
 });
 
+test('TurnEngineManager clears OD context when battle ends during interrupt OD', () => {
+  const actorSkill = createSkill({
+    id: 9074,
+    name: 'OD Finisher',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const initialState = createFrontlineInitialState([actorSkill], 1);
+  initialState.turnState.odGauge = 200;
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+
+  manager.commitNextTurn(
+    { 0: { skillId: 9074 } },
+    {
+      enemyCount: 1,
+      interruptOdLevel: 2,
+    }
+  );
+  assert.equal(manager.currentState.turnState.turnType, 'od');
+  assert.equal(manager.currentState.turnState.turnLabel, 'OD2-1');
+
+  const committedRecord = manager.commitNextTurn(
+    { 0: { skillId: 9074 } },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [0] }],
+    }
+  );
+
+  assert.equal(manager.currentState.turnState.turnType, 'normal');
+  assert.equal(manager.currentState.turnState.turnIndex, 2);
+  assert.equal(manager.currentState.turnState.turnLabel, 'T2');
+  assert.equal(manager.currentState.turnState.odLevel, 0);
+  assert.equal(manager.currentState.turnState.remainingOdActions, 0);
+  assert.equal(manager.currentState.turnState.odContext, null);
+  assert.equal(manager.currentState.turnState.odSuspended, false);
+  assert.equal(manager.currentState.turnState.odPending, false);
+  assert.equal(manager.currentState.turnState.extraTurnState, null);
+  assert.equal(manager.currentState.turnState.enemyState.allEnemiesDefeated, true);
+  assert.equal(
+    manager.currentState.turnState.odGauge,
+    committedRecord.projections.odGaugeAtEnd
+  );
+});
+
+test('TurnEngineManager replay keeps summon turn out of previous battle OD context', () => {
+  const actorSkill = createSkill({
+    id: 9075,
+    name: 'Replay OD Finisher',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const initialState = createFrontlineInitialState([actorSkill], 1);
+  initialState.turnState.odGauge = 200;
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+
+  manager.commitNextTurn(
+    { 0: { skillId: 9075 } },
+    {
+      enemyCount: 1,
+      interruptOdLevel: 2,
+    }
+  );
+  manager.commitNextTurn(
+    { 0: { skillId: 9075 } },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [{ position: 0, outcome: 'Kill', enemyIndexes: [0] }],
+    }
+  );
+  assert.equal(manager.addPendingSpecialOperation(createSummonEnemyOperation({ targetEnemyIndex: 0 })), true);
+  manager.commitNextTurn({ 0: { skillId: 9075 } }, { enemyCount: 1 });
+
+  manager.recalculateFrom(0);
+
+  const summonStateBefore = manager.getStateBefore(2).turnState;
+  assert.equal(summonStateBefore.turnType, 'normal');
+  assert.equal(summonStateBefore.turnLabel, 'T2');
+  assert.equal(summonStateBefore.odLevel, 0);
+  assert.equal(summonStateBefore.remainingOdActions, 0);
+  assert.equal(summonStateBefore.odContext, null);
+  assert.equal(summonStateBefore.odSuspended, false);
+  assert.equal(summonStateBefore.odPending, false);
+  assert.equal(summonStateBefore.extraTurnState, null);
+
+  const stateAfterSummonTurn = manager.computedStates[2].turnState;
+  assert.notEqual(stateAfterSummonTurn.turnType, 'extra');
+  assert.equal(stateAfterSummonTurn.odSuspended, false);
+});
+
 test('TurnEngineManager recalculateFrom restores killCount from overrideEntries', () => {
   const actorSkill = createSkill({
     id: 9072,
