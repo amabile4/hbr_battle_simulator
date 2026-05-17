@@ -85,7 +85,9 @@ scripts/run_gemini_api.sh
 .cursor/
 .cursorrules
 .windsurfrules
+.gemini/
 .kiro/
+.qoder/
 .mcp.json
 .opencode.json
 
