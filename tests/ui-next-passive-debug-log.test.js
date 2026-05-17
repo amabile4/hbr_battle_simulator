@@ -26,3 +26,29 @@ test('buildPassiveDebugLogRows formats warning messages via formatMessage callba
   assert.match(warningRows[1], /46002126\(イノセントワイルド\)/);
   assert.match(warningRows[1], /1002109\(茅森月歌\/夜空のShining Star\)/);
 });
+
+test('buildPassiveDebugLogRows renders OnEveryTurnIncludeSpecial as action-selection section', () => {
+  const rows = buildPassiveDebugLogRows({
+    committedRecords: [
+      {
+        turnLabel: 'T1',
+        passiveEvents: [
+          {
+            characterId: 'AP1',
+            characterName: 'AP1',
+            passiveName: 'トルクマキシマム',
+            passiveDesc: '行動選択時 自身のスキル攻撃力+50%',
+            timing: 'OnEveryTurnIncludeSpecial',
+            source: 'action_selection',
+          },
+        ],
+      },
+    ],
+  });
+
+  const texts = rows.map((row) => row.text);
+  assert.ok(texts.includes('=== T1行動選択 ==='));
+  assert.ok(texts.includes('--- OnEveryTurnIncludeSpecial ---'));
+  assert.ok(texts.some((text) => /T1：AP1 : \[トルクマキシマム\]/.test(text)));
+  assert.equal(texts.includes('=== T1開始 ==='), false);
+});

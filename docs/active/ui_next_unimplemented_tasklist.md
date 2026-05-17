@@ -117,7 +117,8 @@ T33 は完了済み。未実装優先順からは外し、詳細は [talisman_co
 
 - [x] `node scripts/generate-t33-skill-passive-audit.mjs` を再実行し、`logicGaps=[]` / `structuralConditionGaps=0` / `structuralOverwriteGaps=0` / `structuralEnemyStatusGaps=0` / `staleDocFalsePositives=[]` を確認した
 - [x] 現行 live store は `styles=352` / `scannedEntries=1830` / `embeddedOnlyPassiveIds=120`
-- [x] 残る T33 関連は runtime 未実装ではなく、`OnEveryTurnIncludeSpecial` passive log と style-embedded passive audit surface の observability 2件のみ
+- [x] `OnEveryTurnIncludeSpecial` passive log は action-selection event として record / Passive Log へ接続した
+- [x] 残る T33 関連は runtime 未実装ではなく、style-embedded passive audit surface の observability 1件のみ
 
 ## 6) T34: 敵状態変化（バフ/デバフ）管理・表示（本体完了 / follow-up 管理）
 

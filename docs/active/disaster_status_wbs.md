@@ -1,6 +1,6 @@
 # 禍（Disaster）実装 WBS
 
-> **ステータス**: ✅ 完了 | 📅 作成: 2026-04-10 | 🔄 最終更新: 2026-04-10
+> **ステータス**: ✅ 完了 | 📅 作成: 2026-04-10 | 🔄 最終更新: 2026-05-17
 >
 > **親管理**: `docs/active/ui_next_unimplemented_tasklist.md`
 >
@@ -24,13 +24,13 @@
 
 ## 現状認識
 
-### 2026-04-10 再照合結果
+### 2026-05-17 再照合結果
 
 - `node scripts/generate-t33-skill-passive-audit.mjs`
-  - `styles=347`
-  - `scannedEntries=1801`
+  - `styles=352`
+  - `scannedEntries=1830`
   - `logicGapCount=0`
-  - `observabilityGapCount=2`
+  - `observabilityGapCount=1`
   - `structuralEnemyStatusGaps=0`
   - `silentSkipEnemyStatusCandidates=4`
 - live data 上の `Disaster` 出現は引き続き 1 style / 1 active skill

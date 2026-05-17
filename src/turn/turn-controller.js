@@ -6401,10 +6401,11 @@ function resolveOverwriteSpCostIfSatisfied(effectiveSkill, state, member) {
 
 function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
   if (!state || !targetMember) {
-    return 0;
+    return { amount: 0, matchedPassives: [] };
   }
   const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
   let maxReduction = 0;
+  const matchedPassives = [];
 
   for (const actor of state.party ?? []) {
     for (const passive of getPassiveEntriesForMember(actor)) {
@@ -6434,12 +6435,28 @@ function resolvePassiveReduceSpForMember(state, targetMember, timings = []) {
         if (!Number.isFinite(amount) || amount <= 0) {
           continue;
         }
+        matchedPassives.push({
+          characterId: String(actor?.characterId ?? ''),
+          characterName: String(actor?.characterName ?? ''),
+          shortCharacterName: String(actor?.shortCharacterName ?? actor?.characterName ?? ''),
+          styleId: Number(actor?.styleId ?? 0),
+          styleName: String(actor?.styleName ?? ''),
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          passiveDesc: String(passive?.desc ?? ''),
+          timing: String(passive?.timing ?? ''),
+          source: 'action_selection',
+          targetCharacterId: String(targetMember?.characterId ?? ''),
+          targetCharacterName: String(targetMember?.characterName ?? ''),
+          effectType: 'ReduceSp',
+          reduceSp: amount,
+        });
         maxReduction = Math.max(maxReduction, amount);
       }
     }
   }
 
-  return maxReduction;
+  return { amount: maxReduction, matchedPassives };
 }
 
 function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
@@ -6484,10 +6501,19 @@ function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
       }
       if (passiveRate !== 0) {
         matchedPassives.push({
+          characterId: String(actor?.characterId ?? ''),
+          characterName: String(actor?.characterName ?? ''),
+          shortCharacterName: String(actor?.shortCharacterName ?? actor?.characterName ?? ''),
+          styleId: Number(actor?.styleId ?? 0),
+          styleName: String(actor?.styleName ?? ''),
           passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
           passiveName: String(passive?.name ?? ''),
           passiveDesc: String(passive?.desc ?? ''),
           timing: String(passive?.timing ?? ''),
+          source: 'action_selection',
+          targetCharacterId: String(targetMember?.characterId ?? ''),
+          targetCharacterName: String(targetMember?.characterName ?? ''),
+          effectType: 'AttackUp',
           attackUpRate: passiveRate,
         });
       }
@@ -6963,8 +6989,8 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
   }
   const reduceSp = resolvePassiveReduceSpForMember(state, member, reduceSpTimings);
   const resolvedSpCost =
-    Number.isFinite(reduceSp) && reduceSp > 0
-      ? Math.max(0, baseSpCost - reduceSp)
+    Number.isFinite(reduceSp.amount) && reduceSp.amount > 0
+      ? Math.max(0, baseSpCost - reduceSp.amount)
       : baseSpCost;
   const highBoostModifiers = resolveHighBoostModifiersForMember(member);
   const highBoostAdjustedSpCost =
@@ -6978,13 +7004,17 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
     String(member?.characterId) === TEZUKA_CHARACTER_ID &&
     Boolean(member?.isReinforcedMode)
   ) {
-    return { ...effective, spCost: 0 };
+    return { ...effective, spCost: 0, actionSelectionPassiveEvents: [] };
   }
 
-  if (highBoostAdjustedSpCost === baseSpCost) {
+  if (highBoostAdjustedSpCost === baseSpCost && (reduceSp.matchedPassives?.length ?? 0) === 0) {
     return effective;
   }
-  return { ...effective, spCost: highBoostAdjustedSpCost };
+  return {
+    ...effective,
+    spCost: highBoostAdjustedSpCost,
+    actionSelectionPassiveEvents: structuredClone(reduceSp.matchedPassives ?? []),
+  };
 }
 
 function resolveEffectiveSkillParts(skill, state, member) {
@@ -10019,6 +10049,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     },
     tokenAttackContext,
     specialPassiveEvents: [
+      ...structuredClone(effectiveSkill?.actionSelectionPassiveEvents ?? []),
       ...specialAttackUp.matchedPassives,
       ...attackUpPerToken.matchedPassives,
       ...defenseUpPerToken.matchedPassives,
@@ -10458,6 +10489,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     const repeatSkill = {
       ...resolveEffectiveSkillForAction(projectedState, repeatMember, repeatBaseSkill),
       spCost: 0,
+      actionSelectionPassiveEvents: [],
     };
     const repeatEntry = buildPreviewActionEntry(
       projectedState,
@@ -12886,6 +12918,30 @@ export function previewTurn(state, actions, enemyAction = null, enemyCount = nul
   return record;
 }
 
+function buildActionSelectionPassiveEvents(previewRecord) {
+  const turnLabel = String(previewRecord?.turnLabel ?? '');
+  const events = [];
+  for (const entry of previewRecord?.actions ?? []) {
+    for (const event of entry?.specialPassiveEvents ?? []) {
+      if (String(event?.timing ?? '') !== 'OnEveryTurnIncludeSpecial') {
+        continue;
+      }
+      events.push({
+        ...structuredClone(event),
+        source: 'action_selection',
+        timing: 'OnEveryTurnIncludeSpecial',
+        turnLabel,
+        actionInstanceId: String(entry?.actionInstanceId ?? ''),
+        skillId: Number(entry?.skillId ?? 0),
+        skillName: String(entry?.skillName ?? entry?.skillLabel ?? ''),
+        actingCharacterId: String(entry?.characterId ?? ''),
+        actingCharacterName: String(entry?.characterName ?? ''),
+      });
+    }
+  }
+  return events;
+}
+
 export function commitTurn(state, previewRecord, swapEvents = [], options = {}) {
   if (!previewRecord || previewRecord.recordStatus !== 'preview') {
     throw new Error('commitTurn requires preview TurnRecord.');
@@ -12920,6 +12976,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const tokenEvents = [];
   const moraleEvents = [];
   const spPassiveEvents = [];
+  const actionSelectionPassiveEvents = buildActionSelectionPassiveEvents(previewRecord);
   const additionalTurnPassiveGrantedIds = [];
   const dpPassiveEvents = [];
   const dpPassiveMotivationEvents = [];
@@ -13426,7 +13483,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   committed.transcendence = transcendenceSummary;
   committed.skillSpEvents = structuredClone(skillSpEvents);
   committed.passiveSpEvents = structuredClone([...recovery.spEvents, ...boundarySpEvents]);
-  committed.passiveEvents = structuredClone([...currentTurnPassiveEvents, ...passiveTriggerEvents, ...boundaryPassiveEvents]);
+  committed.passiveEvents = structuredClone([
+    ...currentTurnPassiveEvents,
+    ...actionSelectionPassiveEvents,
+    ...passiveTriggerEvents,
+    ...boundaryPassiveEvents,
+  ]);
   committed.dpEvents = structuredClone([...actionDpEvents, ...dpPassiveEvents, ...recoveryDpEvents, ...boundaryDpEvents]);
   committed.enemyAttackEvents = structuredClone(enemyAttackEvents);
   committed.enemyAttackTargetCharacterIds = structuredClone(enemyAttackTargetCharacterIds);

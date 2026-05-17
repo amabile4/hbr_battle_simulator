@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { generateT33SkillPassiveAudit } from '../scripts/generate-t33-skill-passive-audit.mjs';
 
-test('T33 audit summary matches the post-talisman-completion baseline', () => {
+test('T33 audit summary matches the post-action-selection-observability baseline', () => {
   const report = generateT33SkillPassiveAudit();
 
   assert.equal(report.counts.structuralConditionGaps, 0);
@@ -24,12 +24,11 @@ test('T33 audit summary matches the post-talisman-completion baseline', () => {
     ]
   );
 
-  assert.ok(
-    report.observabilityGaps.some((item) => item.key === 'topic:on-every-turn-include-special-passive-log')
+  assert.deepEqual(
+    report.observabilityGaps.map((item) => item.key),
+    ['topic:style-embedded-passive-audit-surface']
   );
-  assert.ok(
-    report.observabilityGaps.some((item) => item.key === 'topic:style-embedded-passive-audit-surface')
-  );
+  assert.equal(report.counts.observabilityGapCount, 1);
 });
 
 test('恐怖の叫び is no longer reported as a T33 logic gap', () => {

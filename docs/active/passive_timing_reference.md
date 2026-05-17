@@ -1,6 +1,6 @@
 # Passive Timing Reference
 
-> **ステータス**: 📚 参照 | 📅 最終更新: 2026-04-10
+> **ステータス**: 📚 参照 | 📅 最終更新: 2026-05-17
 
 ## §0. turn_timing.md との対応マッピング
 
@@ -13,7 +13,7 @@
 | 初戦開始 | `OnFirstBattleStart` | 111 | ✅ | 同上 |
 | ターン開始 | `OnEveryTurn` | 292 | ✅ | `applyRecoveryPipeline()` → `TURN_START_PASSIVE_TIMINGS` |
 | ターン開始（攻撃条件付き）| `OnPlayerTurnStart` | 199 | ✅ | 同上 |
-| 行動開始（コマンド選択後）| `OnEveryTurnIncludeSpecial` | 5 | ✅△ | `resolveEffectiveSkillForAction()` / `previewActionEntries()` |
+| 行動開始（コマンド選択後）| `OnEveryTurnIncludeSpecial` | 5 | ✅ | `resolveEffectiveSkillForAction()` / `previewActionEntries()` |
 | OD発動時（ターン中）| `OnOverdriveStart` | 9 | ✅ | `activateOverdrive()` → `applyPassiveTimingInternal("OnOverdriveStart")` |
 | 追加ターン開始（EX）| `OnAdditionalTurnStart` | 10 | ✅ | `commitTurn()` / `grantExtraTurn()` |
 | ▽敵行動開始 | `OnEnemyTurnStart` | 31 | ✅ | `commitTurn()` でベースターン進行時 |
@@ -29,17 +29,18 @@
 - そのため `専心`（AttackUp）や `思考加速`（GiveDefenseDebuffUp）を含む `OnOverdriveStart` は runtime 未接続ではない
 - 追加で厚くできるのは OD 終了側の観測テストだが、T33 第1波では runtime gap ではなく stale claim 修正の対象とした
 
-### OnEveryTurnIncludeSpecial — パッシブログ非表示（既知）
+### OnEveryTurnIncludeSpecial — action-selection event
 
 5件は turn-start pipeline に乗らず行動選択時に参照されるため、
-`passiveEventsLastApplied` に記録されず Passive Log に表示されない。
-影響軽微（SP 軽減・AttackUp の機能自体は正常）。対応はユーザー判断次第。
+`passiveEventsLastApplied` ではなく `committedRecord.passiveEvents` に
+`source: "action_selection"` として記録する。
+Passive Log では通常のターン開始欄ではなく `Tn行動選択` セクションに表示する。
 
 ---
 
 ## 1. 今回の修正が場当たりではない理由
 
-- `commitTurn()` の `committedRecord.passiveEvents` を、`state.turnState.passiveEventsLastApplied` と boundary で新規発火した passive に限定しました。
+- `commitTurn()` の `committedRecord.passiveEvents` を、`state.turnState.passiveEventsLastApplied`、行動選択時に観測した passive、boundary で新規発火した passive に限定しました。
 - これにより T1 の `committedRecord` に T2 開始時の `OnEveryTurn` / `OnPlayerTurnStart` が逆流しなくなります。
 - つまりテスト期待値だけを変えたのではなく、`src/turn/turn-controller.js` の記録責務を修正しています。
 
@@ -56,7 +57,7 @@
 | OnAdditionalTurnStart | 10 | 追加ターンへ入る瞬間に評価される。EX専用のSP軽減や補助。 | `commitTurn()` / `grantExtraTurn()` で `applyPassiveTimingInternal("OnAdditionalTurnStart")` | クイックリキャスト(100330503), アフターサービス(100360700), 優美なる剣舞(100410703) |
 | OnOverdriveStart | 9 | OD発動時に評価される。OD突入直後の強化やSP補充。 | `activateOverdrive()` → `applyPassiveTimingInternal("OnOverdriveStart")` | 専心(100260203), 専心(100450203), 専心(100510303) |
 | OnBattleWin | 4 | 勝利確定時に評価される。戦闘後リソース回復。 | `commitTurn()` で敵全滅を検知したときに `applyPassiveTimingInternal("OnBattleWin")` | 勝利のカリーを食べましょう(100840600), おかわりもどうぞ(100840603), 愛情の料理(100860700) |
-| OnEveryTurnIncludeSpecial | 5 | 通常 turn-start ではなく、行動選択時の消費SP補正や preview modifier で参照される特殊系。 | `resolveEffectiveSkillForAction()` と `previewActionEntries()` から `resolvePassiveReduceSpForMember()` / `resolvePassiveAttackUpForMember()` を参照 | 絶唱(100110903), ポジショニング(100150800), 勇姿(100720700) |
+| OnEveryTurnIncludeSpecial | 5 | 通常 turn-start ではなく、行動選択時の消費SP補正や preview modifier で参照される特殊系。 | `resolveEffectiveSkillForAction()` と `previewActionEntries()` から `resolvePassiveReduceSpForMember()` / `resolvePassiveAttackUpForMember()` を参照し、commit 時に action-selection event として記録 | 絶唱(100110903), ポジショニング(100150800), 勇姿(100720700) |
 
 ## 3. 実装上の時系列
 

@@ -35,7 +35,7 @@
   - `structuralEnemyStatusGaps=0`
   - `silentSkipEnemyStatusCandidates=4`
   - `logicGapCount=0`
-  - `observabilityGapCount=2`
+  - `observabilityGapCount=1`
   - `staleDocFalsePositiveCount=0`
   - `outOfScopeCount=3`
 - runtime gap は 0 件
@@ -43,6 +43,7 @@
   - dedicated runtime test: `tests/turn-state-transitions.test.js:11769`
   - baseline test: `tests/t33-skill-passive-audit.test.js:6`
 - 2026-05-17 の `Diva(144)` / 歌姫の加護実装後も `logicGaps=[]` / `staleDocFalsePositives=[]` を維持している
+- `OnEveryTurnIncludeSpecial` は action-selection event として `committedRecord.passiveEvents` / Passive Log へ記録するようにし、T33 observability gap から除外した
 - `silentSkipEnemyStatusCandidates=4` は `BorderRefPDownByAdmiral` 系の current live data 残差
   - T33 の未実装ではなく、action-time Admiral mechanic の silent-skip として別扱い
 - `Disaster / 禍` は `docs/active/disaster_status_wbs.md` で完了済み
@@ -52,7 +53,7 @@
 ### 判定ルール
 
 - `OnEveryTurnIncludeSpecial` は preview-path 実装であり、runtime gap には数えない
-  - ただし `passiveEventsLastApplied` に載らないため observability gap として残す
+  - action-selection event として `committedRecord.passiveEvents` に載せ、Passive Log では `Tn行動選択` セクションに表示する
 - style 埋め込み passive は `passives.json` 単体では取り切れない
   - T33 監査は raw file ではなく `HbrDataStore` を使う
 - 既存 active 文書には stale claim が残っていた

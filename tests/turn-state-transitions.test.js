@@ -12007,6 +12007,15 @@ test('OnEveryTurnIncludeSpecial ReduceSp lowers self skill cost at action select
   assert.equal(preview.actions[0].spCost, 6);
   assert.equal(preview.actions[0].startSP, 20);
   assert.equal(preview.actions[0].endSP, 14);
+
+  const { committedRecord } = commitTurn(state, preview);
+  const actionSelectionEvent = committedRecord.passiveEvents.find(
+    (event) => event.source === 'action_selection' && event.passiveName === 'ポジショニング'
+  );
+  assert.ok(actionSelectionEvent);
+  assert.equal(actionSelectionEvent.timing, 'OnEveryTurnIncludeSpecial');
+  assert.equal(actionSelectionEvent.reduceSp, 2);
+  assert.equal(actionSelectionEvent.targetCharacterId, 'RS1');
 });
 
 test('OnEveryTurnIncludeSpecial ReduceSp can target matching allies at action selection time', () => {
@@ -12052,6 +12061,15 @@ test('OnEveryTurnIncludeSpecial ReduceSp can target matching allies at action se
   assert.equal(preview.actions[0].spCost, 4);
   assert.equal(preview.actions[0].startSP, 20);
   assert.equal(preview.actions[0].endSP, 16);
+
+  const { committedRecord } = commitTurn(state, preview);
+  const actionSelectionEvent = committedRecord.passiveEvents.find(
+    (event) => event.source === 'action_selection' && event.passiveName === '勇姿'
+  );
+  assert.ok(actionSelectionEvent);
+  assert.equal(actionSelectionEvent.timing, 'OnEveryTurnIncludeSpecial');
+  assert.equal(actionSelectionEvent.reduceSp, 1);
+  assert.equal(actionSelectionEvent.targetCharacterId, 'RA2');
 });
 
 test('OnEveryTurnIncludeSpecial AttackUp is exposed on preview action modifiers', () => {
@@ -12090,6 +12108,63 @@ test('OnEveryTurnIncludeSpecial AttackUp is exposed on preview action modifiers'
   assert.equal(preview.actions[0].specialPassiveModifiers?.attackUpRate, 0.5);
   assert.equal(preview.actions[0].specialPassiveEvents?.length, 1);
   assert.equal(preview.actions[0].specialPassiveEvents?.[0]?.passiveName, 'トルクマキシマム');
+
+  const { committedRecord } = commitTurn(state, preview);
+  const actionSelectionEvent = committedRecord.passiveEvents.find(
+    (event) => event.source === 'action_selection' && event.passiveName === 'トルクマキシマム'
+  );
+  assert.ok(actionSelectionEvent);
+  assert.equal(actionSelectionEvent.timing, 'OnEveryTurnIncludeSpecial');
+  assert.equal(actionSelectionEvent.attackUpRate, 0.5);
+  assert.equal(actionSelectionEvent.targetCharacterId, 'AP1');
+});
+
+test('OnEveryTurnIncludeSpecial passive is not recorded when action-selection condition is unmet', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `RN${idx + 1}`,
+      characterName: `RN${idx + 1}`,
+      styleId: idx + 1,
+      styleName: `RNS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 54,
+                name: 'ポジショニング',
+                desc: 'ダウンターン中の敵がいるとき 自身の消費SPが-2',
+                timing: 'OnEveryTurnIncludeSpecial',
+                condition: 'CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0',
+                parts: [{ skill_type: 'ReduceSp', target_type: 'Self', power: [2, 0] }],
+              },
+            ]
+          : [],
+      skills: [{ id: 28500 + idx, name: 'Act', label: `RNSkill${idx + 1}`, sp_cost: idx === 0 ? 8 : 0, parts: [] }],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+  state.turnState.enemyState = {
+    ...(state.turnState.enemyState ?? {}),
+    enemyCount: 1,
+    statuses: [],
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'RN1', skillId: 28500 },
+  });
+
+  assert.equal(preview.actions[0].spCost, 8);
+
+  const { committedRecord } = commitTurn(state, preview);
+  assert.equal(
+    committedRecord.passiveEvents.some(
+      (event) => event.source === 'action_selection' && event.timing === 'OnEveryTurnIncludeSpecial'
+    ),
+    false
+  );
 });
 
 test('commitTurn applies OnBattleWin passives when all enemies are dead', () => {

@@ -14,22 +14,7 @@ const MANUAL_LOGIC_GAP_RULES = Object.freeze([]);
 
 const STALE_DOC_FALSE_POSITIVE_RULES = Object.freeze([]);
 
-const OBSERVABILITY_GAP_RULES = Object.freeze([
-  Object.freeze({
-    key: 'topic:on-every-turn-include-special-passive-log',
-    reason:
-      'OnEveryTurnIncludeSpecial effects are resolved in preview/action-selection paths and are not appended to passiveEventsLastApplied, so Passive Log observability remains partial.',
-    examples: Object.freeze([
-      '100110903:絶唱',
-      '100150800:ポジショニング',
-      '101020304:トルクマキシマム',
-    ]),
-    docReferences: Object.freeze([
-      'docs/active/passive_timing_reference.md',
-      'docs/active/t33_skill_passive_audit_wbs.md',
-    ]),
-  }),
-]);
+const OBSERVABILITY_GAP_RULES = Object.freeze([]);
 
 const OUT_OF_SCOPE_RULES = Object.freeze([
   Object.freeze({
@@ -347,15 +332,7 @@ export function generateT33SkillPassiveAudit({ jsonDir = 'json' } = {}) {
 
   const logicGaps = materializeManualItems(MANUAL_LOGIC_GAP_RULES, allEntries);
   const staleDocFalsePositives = materializeManualItems(STALE_DOC_FALSE_POSITIVE_RULES, allEntries);
-  const observabilityGaps = materializeManualItems(OBSERVABILITY_GAP_RULES, allEntries).map((item) => {
-    if (item.key === 'topic:on-every-turn-include-special-passive-log') {
-      return {
-        ...item,
-        affectedTimingCount: 5,
-      };
-    }
-    return item;
-  });
+  const observabilityGaps = materializeManualItems(OBSERVABILITY_GAP_RULES, allEntries);
   observabilityGaps.push({
     key: 'topic:style-embedded-passive-audit-surface',
     entryKind: 'topic',

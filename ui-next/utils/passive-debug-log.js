@@ -5,9 +5,9 @@ const UNKNOWN_TIMING_LABEL = 'UnknownTiming';
 
 const TURN_START_TIMINGS = Object.freeze([
   'OnEveryTurn',
-  'OnEveryTurnIncludeSpecial',
   'OnPlayerTurnStart',
 ]);
+const ACTION_SELECTION_TIMINGS = Object.freeze(['OnEveryTurnIncludeSpecial']);
 const BATTLE_START_TIMINGS = Object.freeze(['OnBattleStart', 'OnFirstBattleStart']);
 // OnAdditionalTurnStart はエンジン側で boundaryPassiveEvents として処理されるため境界扱い
 const BOUNDARY_TIMINGS = Object.freeze(['OnEnemyTurnStart', 'OnBattleWin', 'OnAdditionalTurnStart']);
@@ -193,6 +193,9 @@ export function buildPassiveDebugLogRows({
 
     // timing フィールドで分類
     const turnStartEvents = allEvents.filter((e) => TURN_START_TIMINGS.includes(e.timing));
+    const actionSelectionEvents = allEvents.filter(
+      (e) => ACTION_SELECTION_TIMINGS.includes(e.timing) && e.source === 'action_selection'
+    );
     const actionEvents = allEvents.filter((e) => e.source === 'passive_trigger');
     const allBoundaryEvents = allEvents.filter((e) => BOUNDARY_TIMINGS.includes(e.timing));
 
@@ -200,6 +203,7 @@ export function buildPassiveDebugLogRows({
     const boundaryEvents = allBoundaryEvents.slice(prevBoundaryCount);
 
     appendEventSection(rows, turnStartEvents, turnLabel ? `${turnLabel}開始` : '開始');
+    appendEventSection(rows, actionSelectionEvents, turnLabel ? `${turnLabel}行動選択` : '行動選択');
     appendEventSection(rows, actionEvents, turnLabel ? `${turnLabel}実行` : '実行');
     appendBoundarySections(rows, boundaryEvents);
 
