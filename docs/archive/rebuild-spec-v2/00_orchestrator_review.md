@@ -1,12 +1,12 @@
 # 00 Orchestrator Review
 
 ## 1. 検収対象
-- [a_codex_implementation_blueprint.md](/Users/ram4/git/hbr_battle_simulator/docs/rebuild-spec-v2/a_codex_implementation_blueprint.md)
-- [b_gemini_gap_and_edge_cases.md](/Users/ram4/git/hbr_battle_simulator/docs/rebuild-spec-v2/b_gemini_gap_and_edge_cases.md)
-- [c_claude_rebuild_spec_final.md](/Users/ram4/git/hbr_battle_simulator/docs/rebuild-spec-v2/c_claude_rebuild_spec_final.md)
+- [a_codex_implementation_blueprint.md](a_codex_implementation_blueprint.md)
+- [b_gemini_gap_and_edge_cases.md](b_gemini_gap_and_edge_cases.md)
+- [c_claude_rebuild_spec_final.md](c_claude_rebuild_spec_final.md)
 
 ## 2. 絶対制約の遵守確認
-- 作業範囲: `/Users/ram4/git/hbr_battle_simulator` 配下のみで実施。
+- 作業範囲: `<repo>` 配下のみで実施。
 - 既存ファイル編集禁止: 本ラウンドで新規作成のみを実施。
 - 親の役割: 配布・進捗管理・検収のみ。子A/B/C本文は各子が執筆。
 - ユーザー確認: 実施なし（無人実行）。

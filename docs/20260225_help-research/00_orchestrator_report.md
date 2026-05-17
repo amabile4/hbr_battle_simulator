@@ -23,10 +23,10 @@
 - 再調査チケット解消状況記録: **達成**（`03_spec_gap_resolution.md`）
 
 ## 4. 成果物
-- [01_site_inventory.md](/Users/ram4/git/hbr_battle_simulator/01_site_inventory.md)
-- [02_help_facts_catalog.md](/Users/ram4/git/hbr_battle_simulator/02_help_facts_catalog.md)
-- [03_spec_gap_resolution.md](/Users/ram4/git/hbr_battle_simulator/03_spec_gap_resolution.md)
-- [09_collaboration_log.md](/Users/ram4/git/hbr_battle_simulator/09_collaboration_log.md)
+- [01_site_inventory.md](01_site_inventory.md)
+- [02_help_facts_catalog.md](02_help_facts_catalog.md)
+- [03_spec_gap_resolution.md](03_spec_gap_resolution.md)
+- [09_collaboration_log.md](09_collaboration_log.md)
 
 ## 5. 残課題
 - 未解消チケットが5件残存（数式・行動順の敵味方跨ぎ規則・ガイドライン詳細リンク先本文・言語別TZ対応表）
