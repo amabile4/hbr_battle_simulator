@@ -1,6 +1,6 @@
 # Implementation Priority Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-18
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-05-17
 >
 > **前回完了分**: [`../archive/20260314_priority_history_pri010_012.md`](../archive/20260314_priority_history_pri010_012.md) に `PRI-010`〜`PRI-012` を退避済み
 >
@@ -78,6 +78,12 @@
 - この状態では `SpecialStatusCountByType(172)` が explicit status のみを見ていたため、`シンメトリー・リベレーション` の `overwrite_cond` / `SkillCondition` が不発になり、消費SP0 へ切り替わらなかった
 - 2026-04-18 修正で、enemy-side `SpecialStatusCountByType(172)` は `SuperBreakDown` status に加えて `enemyBreakStates[*].superDown` も超ダウンとして解釈する
 - 回帰として、replay snapshot 由来の `Break + DownTurn + breakState.superDown` だけを持つ状態でも `シンメトリー・リベレーション` が `spCost=0` / 強化分岐へ入ることを test で固定した
+
+### 2026-05-17 追記: `Diva` / 歌姫の加護の状態効果
+
+- `SpecialStatusCountByType(144)` / `skill_type: Diva` は既に状態付与・条件判定へ接続済みだったが、実データ `流れ星に唄えば` の `power: 0.3` が状態効果として damage context に流れていなかった
+- 2026-05-17 修正で、`Diva` 状態は `skillAttackUpRate` を保持し、通常攻撃・追撃を除くダメージスキルの `specialPassiveModifiers.attackUpRate` / `damageContext.divaSkillAttackUpRate` へ反映する
+- 回帰として、`流れ星に唄えば` が味方全体へ `Diva(144)` を付与し、付与対象の非通常攻撃だけに `+30%` が乗ることを test で固定した
 
 ### 2026-03-30 調査メモ: enemy-side `SpecialStatusCountByType` の実データ参照
 

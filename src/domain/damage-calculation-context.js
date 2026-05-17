@@ -74,6 +74,7 @@ export function buildDamageCalculationContext(input = {}) {
     damageRateUpPerTokenRate: Number(input.damageRateUpPerTokenRate ?? 0),
     babiedSkillAttackUpRate: Number(input.babiedSkillAttackUpRate ?? 0),
     babiedOdGaugeGainUpRate: Number(input.babiedOdGaugeGainUpRate ?? 0),
+    divaSkillAttackUpRate: Number(input.divaSkillAttackUpRate ?? 0),
     foodBuffAttackUpRate: Number(input.foodBuffAttackUpRate ?? 0),
     foodBuffHealDpByDamageRate: Number(input.foodBuffHealDpByDamageRate ?? 0),
     markAttackUpRate: Number(input.markAttackUpRate ?? 0),

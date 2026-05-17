@@ -222,6 +222,9 @@ const FOOD_BUFF_ATTACK_UP_RATE = 0.5;
 const FOOD_BUFF_HEAL_DP_BY_DAMAGE_RATE = 0.1;
 const FOOD_BUFF_TEST_ATTACK_SKILL_ID = 99033001;
 const FOOD_BUFF_TEST_NORMAL_ATTACK_SKILL_ID = 99033002;
+const DIVA_SKILL_ID = 46001120;
+const DIVA_SPECIAL_STATUS_ID = 144;
+const DIVA_SKILL_ATTACK_UP_RATE = 0.3;
 const BABIED_STYLE_ID = 1005403;
 const BABIED_MASTER_SKILL_ID = 46505401;
 const BABIED_SPECIAL_STATUS_ID = 258;
@@ -16674,6 +16677,63 @@ test('料理バフは異なる料理状態同士で重複してスキル攻撃�
     foodDpChange?.foodBuffStatusEffects.map((effect) => effect.statusType).sort(),
     ['Curry', 'Shchi']
   );
+});
+
+test('流れ星に唄えば applies Diva and grants skill attack up to non-normal damage skills', () => {
+  const store = getStore();
+  const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, DIVA_SKILL_ID));
+  const target = state.party[1];
+  addFoodBuffTestAttackSkill(target);
+
+  assert.equal(countActiveSpecialStatus(target, DIVA_SPECIAL_STATUS_ID), 0);
+
+  const divaPreview = previewActorSkill(state, DIVA_SKILL_ID);
+  const { nextState, committedRecord } = commitTurn(state, divaPreview);
+  const divaAction = findActionByCharacterId(committedRecord, state.party[0].characterId);
+  const appliedEffects = (divaAction?.statusEffectsApplied ?? []).filter(
+    (effect) => effect.statusType === 'Diva'
+  );
+
+  assert.equal(appliedEffects.length, 6);
+  assert.equal(
+    appliedEffects.every(
+      (effect) =>
+        effect.statusTypeId === DIVA_SPECIAL_STATUS_ID &&
+        effect.exitCond === 'PlayerTurnEnd' &&
+        effect.remaining === 5 &&
+        effect.power === DIVA_SKILL_ATTACK_UP_RATE
+    ),
+    true
+  );
+
+  const refreshedTarget = nextState.party.find((member) => member.characterId === target.characterId);
+  assert.equal(countActiveSpecialStatus(refreshedTarget, DIVA_SPECIAL_STATUS_ID), 1);
+  const divaEffect = refreshedTarget.statusEffects.find(
+    (effect) => Number(effect.metadata?.specialStatusTypeId) === DIVA_SPECIAL_STATUS_ID
+  );
+  assert.equal(divaEffect?.metadata?.skillAttackUpRate, DIVA_SKILL_ATTACK_UP_RATE);
+
+  const normalPreview = previewMemberSkill(nextState, refreshedTarget, FOOD_BUFF_TEST_NORMAL_ATTACK_SKILL_ID);
+  const normalAction = findActionByCharacterId(normalPreview, refreshedTarget.characterId);
+  assert.equal(normalAction?.specialPassiveModifiers?.divaSkillAttackUpRate, 0);
+
+  const attackPreview = previewMemberSkill(nextState, refreshedTarget, FOOD_BUFF_TEST_ATTACK_SKILL_ID);
+  const attackAction = findActionByCharacterId(attackPreview, refreshedTarget.characterId);
+  assert.equal(attackAction?.specialPassiveModifiers?.divaSkillAttackUpRate, DIVA_SKILL_ATTACK_UP_RATE);
+  assert.ok(Number(attackAction?.specialPassiveModifiers?.attackUpRate ?? 0) >= DIVA_SKILL_ATTACK_UP_RATE);
+  assert.equal(
+    attackAction?.activeStatusEffects.some(
+      (effect) =>
+        effect.statusType === 'Diva' &&
+        effect.statusTypeId === DIVA_SPECIAL_STATUS_ID &&
+        effect.skillAttackUpRate === DIVA_SKILL_ATTACK_UP_RATE
+    ),
+    true
+  );
+
+  const { committedRecord: attackRecord } = commitTurn(nextState, attackPreview);
+  const committedAttack = findActionByCharacterId(attackRecord, refreshedTarget.characterId);
+  assert.equal(committedAttack?.damageContext?.divaSkillAttackUpRate, DIVA_SKILL_ATTACK_UP_RATE);
 });
 
 test('Babied オギャり状態 applies to allies except self and increases skill attack / OD gain for skill attacks', () => {

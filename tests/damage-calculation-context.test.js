@@ -48,6 +48,7 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     damageRateUpPerTokenRate: 0,
     babiedSkillAttackUpRate: 0,
     babiedOdGaugeGainUpRate: 0,
+    divaSkillAttackUpRate: 0,
     foodBuffAttackUpRate: 0,
     foodBuffHealDpByDamageRate: 0,
     markAttackUpRate: 0,
