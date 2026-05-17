@@ -1,6 +1,6 @@
 # UI Next 未実装タスクリスト
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-04-24
+> **ステータス**: 🟢 進行中 | 📅 作成: 2026-04-05 | 🔄 最終更新: 2026-05-17
 >
 > **目的**: `ui_next_implementation_tasklist.md` から未完了項目を分離し、active ドキュメントに散在していた未実装作業をこの 1 ファイルで追跡する。
 >
@@ -112,6 +112,12 @@
 - [x] audit summary を `logicGapCount=0` / `staleDocFalsePositiveCount=0` に更新した
 
 T33 は完了済み。未実装優先順からは外し、詳細は [talisman_completion_wbs.md](talisman_completion_wbs.md) に引き継いだ。
+
+2026-05-17 再監査:
+
+- [x] `node scripts/generate-t33-skill-passive-audit.mjs` を再実行し、`logicGaps=[]` / `structuralConditionGaps=0` / `structuralOverwriteGaps=0` / `structuralEnemyStatusGaps=0` / `staleDocFalsePositives=[]` を確認した
+- [x] 現行 live store は `styles=352` / `scannedEntries=1830` / `embeddedOnlyPassiveIds=120`
+- [x] 残る T33 関連は runtime 未実装ではなく、`OnEveryTurnIncludeSpecial` passive log と style-embedded passive audit surface の observability 2件のみ
 
 ## 6) T34: 敵状態変化（バフ/デバフ）管理・表示（本体完了 / follow-up 管理）
 

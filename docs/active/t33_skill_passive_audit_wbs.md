@@ -1,6 +1,6 @@
 # T33 実データ基準の固有スキル/パッシブ監査 WBS
 
-> **ステータス**: ✅ 完了 | 📅 作成: 2026-04-10 | 🔄 最終更新: 2026-04-10
+> **ステータス**: ✅ 完了 | 📅 作成: 2026-04-10 | 🔄 最終更新: 2026-05-17
 >
 > **親管理**: `docs/active/ui_next_unimplemented_tasklist.md`
 >
@@ -21,15 +21,15 @@
 
 ## 監査メモ
 
-### 2026-04-10 実行結果
+### 2026-05-17 実行結果
 
 - `node scripts/generate-t33-skill-passive-audit.mjs`
-  - `styles=347`
-  - `styleSkillEntries=1269`
+  - `styles=352`
+  - `styleSkillEntries=1289`
   - `skillPassiveEntries=28`
-  - `stylePassiveEntries=504`
-  - `scannedEntries=1801`
-  - `embeddedOnlyPassiveIds=118`
+  - `stylePassiveEntries=513`
+  - `scannedEntries=1830`
+  - `embeddedOnlyPassiveIds=120`
   - `structuralConditionGaps=0`
   - `structuralOverwriteGaps=0`
   - `structuralEnemyStatusGaps=0`
@@ -42,6 +42,7 @@
   - `恐怖の叫び` は `AdditionalHitOnExtraSkill + Talisman` 実装後、audit から除外された
   - dedicated runtime test: `tests/turn-state-transitions.test.js:11769`
   - baseline test: `tests/t33-skill-passive-audit.test.js:6`
+- 2026-05-17 の `Diva(144)` / 歌姫の加護実装後も `logicGaps=[]` / `staleDocFalsePositives=[]` を維持している
 - `silentSkipEnemyStatusCandidates=4` は `BorderRefPDownByAdmiral` 系の current live data 残差
   - T33 の未実装ではなく、action-time Admiral mechanic の silent-skip として別扱い
 - `Disaster / 禍` は `docs/active/disaster_status_wbs.md` で完了済み

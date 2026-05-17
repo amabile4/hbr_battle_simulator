@@ -1,26 +1,29 @@
 # パッシブ発火トリガー × exitCond テストカバレッジ監査
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-04-10
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-05-17
 > 調査ファイル: `tests/turn-state-transitions.test.js`・`tests/real-data-mechanics-coverage.test.js`・`tests/t33-skill-passive-audit.test.js`・`scripts/generate-t33-skill-passive-audit.mjs`
 
 ---
 
-## 0. 2026-04-10 HEAD再照合サマリ
+## 0. 2026-05-17 HEAD再照合サマリ
 
 - 実データ監査を `HbrDataStore.fromJsonDirectory('json')` 基準へ切り替え、`skill` / `skills[].passive` / `style.passives[]` をまとめて棚卸しした
 - `node scripts/generate-t33-skill-passive-audit.mjs` 結果
-  - `styles=345`, `scannedEntries=1789`, `embeddedOnlyPassiveIds=116`
+  - `styles=352`, `styleSkillEntries=1289`, `skillPassiveEntries=28`, `stylePassiveEntries=513`
+  - `scannedEntries=1830`, `embeddedOnlyPassiveIds=120`
   - structural residual は `condition=0`, `overwrite=0`, `enemy-status=0`
-  - `BorderRefPDownByAdmiral` は `silentSkipEnemyStatusCandidates=3` として別カウント化
+  - `BorderRefPDownByAdmiral` は `silentSkipEnemyStatusCandidates=4` として別カウント化
 - `node --test tests/t33-skill-passive-audit.test.js` で post-talisman-completion baseline を固定済み
 - `node --test tests/turn-state-transitions.test.js` → `pass 422 / fail 0`
 - 旧「未実装/未テスト」扱いだった `Talisman` / `DebuffGuard` / `BuffCharge` / `OnOverdriveStart` / `AttackUp` trigger は stale claim 解消済み
+- 2026-05-17 時点でも `logicGaps=[]` / `staleDocFalsePositives=[]` を維持しており、Diva / 歌姫の加護追加後も T33 runtime gap は増えていない
 - current live store では `AdditionalHitOnBreaking + AttackUp` の旧記載名 `破砕の喝采` を確認できず、runtime coverage は synthetic fixture 側で維持している
 
 ### 現時点の残課題（テスト監査観点）
 
 - observability gap
   - `OnEveryTurnIncludeSpecial`: preview-path 発火のため `passiveEventsLastApplied` / Passive Log からは見えにくい
+  - style 埋め込み passive: `passives.json` 単体では 120 件を取り逃すため、監査は `HbrDataStore` 経由を必須とする
 - out-of-scope
   - `use_count` / `HealSkillUsedCount` は `PRI-018`
   - `ConquestBikeLevel` UI override、印 / `Territory` の見える化拡張は既存 backlog 管理
@@ -153,7 +156,7 @@
 | 分類 | 件数 | 内容 |
 |------|------|------|
 | runtime gap | 0 | なし |
-| observability gap | 2 | `OnEveryTurnIncludeSpecial` passive log 非掲載、style-embedded passive は `passives.json` 単体では棚卸し不可 |
+| observability gap | 2 | `OnEveryTurnIncludeSpecial` passive log 非掲載、style-embedded passive 120件は `passives.json` 単体では棚卸し不可 |
 | stale doc false positive | 0 | なし |
 | out-of-scope | 3 | `PRI-018`、`ConquestBikeLevel` UI override、印 / `Territory` 見える化 |
 
@@ -182,7 +185,7 @@
 
 ---
 
-## 4. 残課題（優先度付き / 2026-04-10 更新）
+## 4. 残課題（優先度付き / 2026-05-17 更新）
 
 ### 優先度 🔴 高（実装未接続）
 
@@ -193,6 +196,7 @@
 | 項目 | 内容 | 難易度 |
 |-----|------|--------|
 | OnEveryTurnIncludeSpecial passive log | preview-path 実装のため `passiveEventsLastApplied` / Passive Log では観測できない | 低 |
+| style-embedded passive audit surface | `passives.json` 単体監査では style 埋め込み passive 120件を取り逃すため、T33 監査は `HbrDataStore` 経由を維持する | 低 |
 
 ### 優先度 🟡 低（カバレッジ厚み）
 
