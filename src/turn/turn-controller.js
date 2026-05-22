@@ -1837,7 +1837,7 @@ function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
         value: getTalismanState(state?.turnState).active ? 1 : 0,
       };
     case 'IsHitWeak':
-      return isHitWeakBySkillContext(state, skill, actionEntry);
+      return isHitWeakBySkillContext(state, member, skill, actionEntry);
     case 'IsAttackNormal':
       return {
         known: true,
@@ -3010,15 +3010,18 @@ function getConditionTargetEnemyIndex(state, skill, actionEntry) {
   return Number.NaN;
 }
 
-function getConditionSkillElements(skill) {
+function getConditionSkillElements(skill, member = null) {
   const explicit = Array.isArray(skill?.__conditionElements) ? skill.__conditionElements : null;
-  if (explicit) {
+  if (explicit && explicit.length > 0) {
     return [...new Set(explicit.map((element) => String(element ?? '').trim()).filter(Boolean))];
   }
   const part = skill?.__conditionPart;
   const partElements = Array.isArray(part?.elements) ? part.elements : null;
-  if (partElements) {
+  if (partElements && partElements.length > 0) {
     return [...new Set(partElements.map((element) => String(element ?? '').trim()).filter(Boolean))];
+  }
+  if (isNormalAttackSkill(skill)) {
+    return normalizeStatusEffectElements(member?.normalAttackElements);
   }
   const elements = [];
   for (const candidatePart of Array.isArray(skill?.parts) ? skill.parts : []) {
@@ -3032,12 +3035,12 @@ function getConditionSkillElements(skill) {
   return [...new Set(elements)];
 }
 
-function isHitWeakBySkillContext(state, skill, actionEntry) {
+function isHitWeakBySkillContext(state, member, skill, actionEntry) {
   const targetIndex = getConditionTargetEnemyIndex(state, skill, actionEntry);
   if (!Number.isFinite(targetIndex) || targetIndex < 0) {
     return { known: false, value: true };
   }
-  const elements = getConditionSkillElements(skill).filter((element) => element && element !== 'None');
+  const elements = getConditionSkillElements(skill, member).filter((element) => element && element !== 'None');
   if (elements.length === 0) {
     return { known: true, value: 0 };
   }

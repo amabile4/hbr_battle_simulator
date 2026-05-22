@@ -53,7 +53,7 @@
   - `CountBC(... MoraleLevel() >= N ...)` の player 条件評価も実装済み
   - `Morale` スキルによる士気上昇、`SkillCondition` / `iuc_cond` を含む士気依存スキル分岐は実装済み
   - `AdditionalHitOnSpecifiedSkill` / `AdditionalHitOnExtraSkill` を起点にした士気上昇パッシブも実装済み
-  - `AdditionalHitOnWeak` は、行動スキルの攻撃属性/攻撃種別が対象敵の現在弱点を突いたときに action-time trigger として発火し、`AdditionalTurn` などの後続効果へ接続済み
+  - `AdditionalHitOnWeak` は、行動スキルの攻撃属性/攻撃種別が対象敵の現在弱点を突いたときに action-time trigger として発火し、`AdditionalTurn` などの後続効果へ接続済み。通常攻撃は属性ブレスレット由来の `normalAttackElements` も `IsHitWeak()` / trigger 判定へ反映する
   - `AdditionalHitOnKillCount` はエンジン側で実装済み。現状は `action.killCount` を与える形で検証する
   - `consume_type: Morale` と負数 `Morale` にも対応済み
 - [x] `MotivationLevel`

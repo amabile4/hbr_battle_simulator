@@ -14032,6 +14032,66 @@ test('AdditionalHitOnWeak + AdditionalTurn does not grant extra turn when the ta
   assert.notEqual(nextState.turnState.turnType, 'extra');
 });
 
+test('闇撃のブレス通常攻撃は弱点攻撃として AdditionalHitOnWeak + AdditionalTurn を発火する', () => {
+  const NORMAL_ATTACK_SKILL_ID = 205004;
+  const FILLER_SKILL_ID_BASE = 205030;
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'WEAK_TURN_DARK_NORMAL',
+        characterName: 'WEAK_TURN_DARK_NORMAL',
+        weaponType: 'Strike',
+        normalAttackElements: ['Dark'],
+        initialSP: 10,
+        passives: [
+          {
+            id: 205005,
+            name: '1MORE闇撃通常攻撃テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnWeak', target_type: 'Self', power: [0, 0], value: [0, 0], cond: 'IsHitWeak()', hit_condition: '' },
+              { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: NORMAL_ATTACK_SKILL_ID,
+            name: '通常攻撃',
+            label: 'WeakDarkNormalAttack',
+            sp_cost: 0,
+            hit_count: 1,
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Strike' }],
+          },
+        ],
+      };
+    }
+    if (idx === 1 || idx === 2) {
+      return { skills: [createProtectionSkill(FILLER_SKILL_ID_BASE + idx)] };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState = {
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Strike: 50, Dark: 150 },
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'WEAK_TURN_DARK_NORMAL', skillId: NORMAL_ATTACK_SKILL_ID, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: FILLER_SKILL_ID_BASE + 1 },
+    2: { characterId: 'M3', skillId: FILLER_SKILL_ID_BASE + 2 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, ['WEAK_TURN_DARK_NORMAL']);
+});
+
 test('AdditionalHitOnExtraSkill + HealDpRate: DP healed to AllyFront targets when EX skill used', () => {
   // 慶福の一矢: EXスキル使用後、前衛全員のDPを+30%回復するパッシブのテスト
   const BASE_MAX_DP = 1000;
@@ -21597,6 +21657,58 @@ test('通常攻撃の属性ブレスレットが不一致属性なら Eシール
     defUpRate: 0,
     damageLimit: 0,
   });
+});
+
+test('闇撃のブレス装備中の通常攻撃は Dark 属性で Eシールドを raw hit 分減らす', () => {
+  const NORMAL_ATTACK_SKILL_ID = 991056;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'ESH_NORMAL_DARK_BELT',
+          characterName: 'ESH_NORMAL_DARK_BELT',
+          weaponType: 'Slash',
+          normalAttackElements: ['Dark'],
+          skills: [
+            {
+              id: NORMAL_ATTACK_SKILL_ID,
+              name: '通常攻撃',
+              label: 'ESHDarkBeltNormalAttack',
+              hit_count: 3,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99260 + idx)],
+        }
+  );
+  const state = applyEnemyEShieldTestSetup(createBattleStateFromParty(party), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 5, max: 5, elements: ['Dark'] }),
+    },
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'ESH_NORMAL_DARK_BELT', skillId: NORMAL_ATTACK_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'ESH_NORMAL_DARK_BELT');
+
+  assert.equal(action?.skillHitCount, 3);
+  assert.equal(nextState.turnState.odGauge, 2.5);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 2,
+    max: 5,
+    elements: ['Dark'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(action?.breakHitCount ?? 0, 0);
 });
 
 for (const { weaponType, hitCount, skillId } of [

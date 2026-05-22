@@ -2,7 +2,7 @@
 
 > ステータス: ✅ 完了
 > 作成日: 2026-04-18
-> 最終更新: 2026-04-19
+> 最終更新: 2026-05-22
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 概要
@@ -21,6 +21,8 @@
 Eシールド減算が同じ `normalAttackElements` を使う状態まで反映した。さらに同日、
 `replayScript.setup` 側でも `setupEntries[type=NormalAttackElementsByPartyIndex]` に同情報を
 canonical で保持し、save/load/recalculate 時に top-level `setup` と齟齬が残らないようにした。
+2026-05-22 には、闇撃のブレスなどの属性ブレスレット付き通常攻撃が Eシールド減少と
+弱点攻撃トリガーの両方で属性攻撃として扱われることを回帰テストで固定した。
 
 ## 調査結果
 
@@ -193,6 +195,7 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] `tests/ui-next-battle-state-manager.test.js`: party snapshot の `normalAttackElementsByPartyIndex` が `CharacterStyle.normalAttackElements` へ渡ることを固定
 - [x] `tests/ui-next-turn-engine-manager.test.js`: old replayScript に setup entry が無くても load/recalculate で base setup 由来の belt 情報が replay setup に同期されることを固定
 - [x] `tests/turn-state-transitions.test.js`: 通常攻撃 + 属性ブレスレットで Eシールドが減ること、非一致属性では減らないことを固定
+- [x] `tests/turn-state-transitions.test.js`: 闇撃のブレス通常攻撃で Dark Eシールドを raw hit 分減らし、Dark 弱点への `AdditionalHitOnWeak + AdditionalTurn` が発火することを固定
 - [x] `tests/e2e/normal-attack-belt-e-shield.spec.js`: belt 選択後の通常攻撃で Eシールド値が減ることと、session save/load 後も belt と挙動が維持されることを固定
 - [x] `tests/e2e/session-save.spec.js`: belt 情報が top-level `setup` と `replayScript.setup.setupEntries` の両方に保存され、既存 record を持つ状態の再保存でも current setup に同期されることを固定
 
