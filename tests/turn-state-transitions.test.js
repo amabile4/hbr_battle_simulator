@@ -13925,6 +13925,113 @@ test('AdditionalHitOnBreaking + AdditionalTurn does NOT grant extra turn when br
   );
 });
 
+test('AdditionalHitOnWeak + AdditionalTurn grants extra turn when the action hits an enemy weakness', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'WEAK_TURN1',
+        characterName: 'WEAK_TURN1',
+        initialSP: 10,
+        passives: [
+          {
+            id: 205000,
+            name: '1MORE弱点テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnWeak', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+              { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: 205001,
+            name: 'Fire Weak Skill',
+            sp_cost: 3,
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }],
+          },
+        ],
+      };
+    }
+    if (idx === 1 || idx === 2) {
+      return { skills: [createProtectionSkill(205010 + idx)] };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Fire: 150 },
+      1: { Fire: 50 },
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'WEAK_TURN1', skillId: 205001, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: 205011 },
+    2: { characterId: 'M3', skillId: 205012 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, ['WEAK_TURN1']);
+});
+
+test('AdditionalHitOnWeak + AdditionalTurn does not grant extra turn when the target is not weak', () => {
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'WEAK_TURN2',
+        characterName: 'WEAK_TURN2',
+        initialSP: 10,
+        passives: [
+          {
+            id: 205002,
+            name: '1MORE弱点不発テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnWeak', target_type: 'Self', power: [0, 0], value: [0, 0], cond: '', hit_condition: '' },
+              { skill_type: 'AdditionalTurn', target_type: 'Self', power: [1, 0], value: [0, 0], cond: '', hit_condition: '', target_condition: '' },
+            ],
+          },
+        ],
+        skills: [
+          {
+            id: 205003,
+            name: 'Fire Non Weak Skill',
+            sp_cost: 3,
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Fire'] }],
+          },
+        ],
+      };
+    }
+    if (idx === 1 || idx === 2) {
+      return { skills: [createProtectionSkill(205020 + idx)] };
+    }
+    return {};
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState = {
+    enemyCount: 2,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Fire: 150 },
+      1: { Fire: 50 },
+    },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'WEAK_TURN2', skillId: 205003, targetEnemyIndex: 1 },
+    1: { characterId: 'M2', skillId: 205021 },
+    2: { characterId: 'M3', skillId: 205022 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.notEqual(nextState.turnState.turnType, 'extra');
+});
+
 test('AdditionalHitOnExtraSkill + HealDpRate: DP healed to AllyFront targets when EX skill used', () => {
   // 慶福の一矢: EXスキル使用後、前衛全員のDPを+30%回復するパッシブのテスト
   const BASE_MAX_DP = 1000;

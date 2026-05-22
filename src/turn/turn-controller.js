@@ -3047,6 +3047,64 @@ function isHitWeakBySkillContext(state, skill, actionEntry) {
   };
 }
 
+function resolveWeakHitTargetEnemyIndexes(state, skill, actionEntry) {
+  const actionTarget = Number(actionEntry?.targetEnemyIndex);
+  if (Number.isInteger(actionTarget) && actionTarget >= 0) {
+    return [actionTarget];
+  }
+
+  const targetType = String(skill?.targetType ?? skill?.target_type ?? '').trim();
+  if (targetType !== 'All' && targetType !== 'EnemyAll') {
+    return [];
+  }
+
+  const enemyState = getEnemyState(state?.turnState);
+  const targetIndexes = [];
+  for (let index = 0; index < enemyState.enemyCount; index += 1) {
+    if (!isEnemyDead(state?.turnState, index)) {
+      targetIndexes.push(index);
+    }
+  }
+  return targetIndexes;
+}
+
+function actionHitsEnemyWeakness(state, actor, skill, actionEntry) {
+  if (!state || !actor || !skill) {
+    return false;
+  }
+  const effectiveSkill =
+    actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+      ? actionEntry._effectiveSkillSnapshot
+      : resolveEffectiveSkillForAction(state, actor, skill);
+  const targetEnemyIndexes = resolveWeakHitTargetEnemyIndexes(state, effectiveSkill ?? skill, actionEntry);
+  if (targetEnemyIndexes.length === 0) {
+    return false;
+  }
+
+  const normalAttackElements =
+    isNormalAttackSkill(effectiveSkill ?? skill) && Array.isArray(actor?.normalAttackElements)
+      ? actor.normalAttackElements
+      : [];
+  for (const part of Array.isArray(effectiveSkill?.parts) ? effectiveSkill.parts : []) {
+    const skillType = String(part?.skill_type ?? '').trim();
+    if (!OD_DAMAGE_PART_TYPES.has(skillType)) {
+      continue;
+    }
+    const references = getDamagePartReferences(part, { normalAttackElements })
+      .map((reference) => String(reference ?? '').trim())
+      .filter((reference) => reference && reference !== 'None');
+    if (references.length === 0) {
+      continue;
+    }
+    for (const targetIndex of targetEnemyIndexes) {
+      if (references.some((reference) => isEnemyWeakToElement(state.turnState, targetIndex, reference))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function normalizeActionElementReferences(skill, member, state) {
   const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
   const normalAttackElements =
@@ -4838,6 +4896,10 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
           return true;
         }
         return false;
+      }
+      if (skillType === 'AdditionalHitOnWeak') {
+        triggerMultiplier = 1;
+        return actionHitsEnemyWeakness(state, actor, skill, actionEntry);
       }
       if (skillType === 'AdditionalHitOnRemovingBuff') {
         // Fires when the actor uses a skill that removes buffs from enemies (RemoveBuff part).
@@ -11039,6 +11101,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'DefenseUpPerToken' &&
           skillType !== 'AdditionalHitOnExtraSkill' &&
           skillType !== 'AdditionalHitOnBreaking' &&
+          skillType !== 'AdditionalHitOnWeak' &&
           skillType !== 'AdditionalHitOnKillCount' &&
           skillType !== 'AdditionalHitOnHealedSpWithoutSelfHeal' &&
           skillType !== 'AdditionalHitOnSpecifiedSkill' &&
@@ -12104,6 +12167,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         if (
           skillType === 'AdditionalHitOnExtraSkill' ||
           skillType === 'AdditionalHitOnBreaking' ||
+          skillType === 'AdditionalHitOnWeak' ||
           skillType === 'AdditionalHitOnKillCount' ||
           skillType === 'AdditionalHitOnHealedSpWithoutSelfHeal' ||
           skillType === 'AdditionalHitOnSpecifiedSkill' ||
