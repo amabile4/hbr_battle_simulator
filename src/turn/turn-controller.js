@@ -229,6 +229,22 @@ const BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE = 'ByakkoDoubleActionAttackS
 const DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING = 1;
 const DOUBLE_ACTION_EXTRA_SKILL_CAST_COUNT = 2;
 const DOUBLE_ACTION_EXTRA_SKILL_REQUIRED_USES = 2;
+const PURSUIT_TRANSFORMED_SKILL_NAME = 'ネコジェット・シャテキ';
+const PURSUIT_TRANSFORMED_SKILL_SP_COST = 10;
+const PURSUIT_HIT_COUNT_BY_WEAPON_TYPE = Object.freeze({
+  DoubleSword: 2,
+  LargeSword: 2,
+  Cannon: 3,
+  Shield: 3,
+  Claw: 3,
+  Sword: 4,
+  Gun: 1,
+  Scythe: 4,
+});
+const PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID = Object.freeze({
+  IMinase: 2,
+  BIYamawaki: 3,
+});
 const DOUBLE_ACTION_STATUS_TYPES = Object.freeze(
   new Set([DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE, BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE])
 );
@@ -4995,6 +5011,8 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
           part?.target_type,
           actionEntry?.targetCharacterId
         );
+        let affectedTargetCount = 0;
+        let totalSpDelta = 0;
         for (const targetCharacterId of targetCharacterIds) {
           const target = findMemberByCharacterId(state, targetCharacterId);
           if (!target) {
@@ -5016,6 +5034,26 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
               ...change,
               source: 'sp_passive',
             })
+          );
+          affectedTargetCount += 1;
+          totalSpDelta += Number(change?.delta ?? 0);
+        }
+        if (affectedTargetCount > 0) {
+          const signedAmount = amount >= 0 ? `+${amount}` : String(amount);
+          passiveTriggerEvents.push(
+            buildActionScopedEvent(
+              actionEntry,
+              createPassiveTriggerEvent(state.turnState, actor, passive, {
+                source: 'passive_trigger',
+                effectTypes: ['HealSp'],
+                triggerType: 'SpPassiveTrigger',
+                triggerSkillId: Number(skill?.skillId ?? 0),
+                triggerSkillName: String(skill?.name ?? ''),
+                passiveDesc: String(passive?.desc ?? '').trim() || `追撃発生時、前衛のSP${signedAmount}`,
+                spDelta: totalSpDelta,
+                affectedTargetCount,
+              })
+            )
           );
         }
         continue;
@@ -5485,6 +5523,30 @@ function applyMoraleEffectsFromActions(state, previewRecord) {
     dpPassiveEvents.push(...triggerResult.dpEvents);
     passiveTriggerEvents.push(...triggerResult.passiveTriggerEvents);
     fieldStateEvents.push(...triggerResult.fieldStateEvents);
+
+    const pursuitSourceCharacterId = String(actionEntry?.pursuitSourceCharacterId ?? '');
+    if (pursuitSourceCharacterId && pursuitSourceCharacterId !== actor.characterId) {
+      const pursuitActor = findMemberByCharacterId(state, pursuitSourceCharacterId);
+      if (pursuitActor) {
+        const pursuitSkill =
+          Number.isFinite(Number(actionEntry?.pursuitSourceSkillId)) &&
+          Number(actionEntry.pursuitSourceSkillId) > 0
+            ? pursuitActor.getSkill(Number(actionEntry.pursuitSourceSkillId)) ?? skill
+            : skill;
+        const pursuitTriggerResult = applyMoralePassiveTriggerEffects(
+          state,
+          pursuitActor,
+          pursuitSkill,
+          actionEntry
+        );
+        moraleEvents.push(...pursuitTriggerResult.moraleEvents);
+        spPassiveEvents.push(...pursuitTriggerResult.spEvents);
+        additionalTurnPassiveGrantedIds.push(...pursuitTriggerResult.additionalTurnGrantedIds);
+        dpPassiveEvents.push(...pursuitTriggerResult.dpEvents);
+        passiveTriggerEvents.push(...pursuitTriggerResult.passiveTriggerEvents);
+        fieldStateEvents.push(...pursuitTriggerResult.fieldStateEvents);
+      }
+    }
 
     // RECEIVER基準のSP回復トリガーパッシブ（お裾分け・愛嬌等）を処理
     const receiverResult = applyReceiverSpHealPassiveTriggers(state, actor, skill, actionEntry);
@@ -9900,9 +9962,7 @@ function shouldRepeatWithDoubleActionExtraSkill(member, skill, actionMetadata = 
 function consumeDoubleActionRepeatStatus(member, statusType, consumeCount = 1) {
   const normalizedStatusType = String(statusType ?? '').trim();
   if (normalizedStatusType === BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE) {
-    return typeof member?.consumeByakkoDoubleActionAttackSkillEffects === 'function'
-      ? member.consumeByakkoDoubleActionAttackSkillEffects(consumeCount)
-      : [];
+    return [];
   }
   if (normalizedStatusType === DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE) {
     return typeof member?.consumeDoubleActionExtraSkillEffects === 'function'
@@ -9912,13 +9972,100 @@ function consumeDoubleActionRepeatStatus(member, statusType, consumeCount = 1) {
   return [];
 }
 
+function resolvePursuitSkillCandidatesForMember(member) {
+  return [
+    ...(member?.getActionSkills?.() ?? []),
+    ...(Array.isArray(member?.triggeredSkills) ? member.triggeredSkills : []),
+    ...(member?.getSupportSkills?.() ?? []),
+  ];
+}
+
+function resolvePursuitSourceForMember(member) {
+  const candidates = resolvePursuitSkillCandidatesForMember(member);
+  const transformed = candidates.find((skill) => String(skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME);
+  if (transformed && Number(member?.sp?.current ?? 0) >= PURSUIT_TRANSFORMED_SKILL_SP_COST) {
+    const hitCount = Number(transformed?.hitCount ?? transformed?.hit_count ?? 0);
+    return {
+      skill: transformed,
+      hitCount: Number.isFinite(hitCount) && hitCount > 0 ? hitCount : 5,
+      spCost: PURSUIT_TRANSFORMED_SKILL_SP_COST,
+    };
+  }
+  const pursuitSkill = candidates.find((skill) => isPursuitOnlySkill(skill)) ?? null;
+  const hitCount = Number(pursuitSkill?.hitCount ?? pursuitSkill?.hit_count ?? 0);
+  if (Number.isFinite(hitCount) && hitCount > 0) {
+    return {
+      skill: pursuitSkill,
+      hitCount,
+      spCost: 0,
+    };
+  }
+  const characterId = String(member?.characterId ?? '');
+  if (Object.hasOwn(PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID, characterId)) {
+    return {
+      skill: pursuitSkill,
+      hitCount: Number(PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID[characterId]),
+      spCost: 0,
+    };
+  }
+  const weaponType = String(member?.weaponType ?? '');
+  if (Object.hasOwn(PURSUIT_HIT_COUNT_BY_WEAPON_TYPE, weaponType)) {
+    return {
+      skill: pursuitSkill,
+      hitCount: Number(PURSUIT_HIT_COUNT_BY_WEAPON_TYPE[weaponType]),
+      spCost: 0,
+    };
+  }
+  return {
+    skill: pursuitSkill,
+    hitCount: Math.max(1, Number(member?.normalAttackHitCount ?? 1) || 1),
+    spCost: 0,
+  };
+}
+
+function refreshAutomaticPursuitActionForState(action, state) {
+  if (String(action?.pursuitTriggerSource ?? '') !== 'auto') {
+    return action;
+  }
+  const sourceCharacterId = String(action?.pursuitSourceCharacterId ?? '');
+  const source = sourceCharacterId ? findMemberByCharacterId(state, sourceCharacterId) : null;
+  if (!source) {
+    return action;
+  }
+  const pursuitSource = resolvePursuitSourceForMember(source);
+  const skill = pursuitSource.skill ?? null;
+  return {
+    ...(action && typeof action === 'object' ? action : {}),
+    pursuedHitCount: Math.max(1, Number(pursuitSource.hitCount ?? action?.pursuedHitCount ?? 1)),
+    pursuitSourceSkillId: Number(skill?.skillId ?? skill?.id ?? 0),
+    pursuitSourceSkillName: String(skill?.name ?? '追撃'),
+    pursuitSourceSpCost: Math.max(0, Number(pursuitSource.spCost ?? 0)),
+  };
+}
+
 function buildDerivedRepeatAction(action) {
+  const shouldKeepAutomaticPursuit = String(action?.pursuitTriggerSource ?? '') === 'auto';
   return {
     ...(action && typeof action === 'object' ? structuredClone(action) : {}),
     breakHitCount: 0,
     killCount: 0,
-    pursuedHitCount: 0,
-    pursuedTargetEnemyIndex: null,
+    pursuedHitCount: shouldKeepAutomaticPursuit ? Math.max(0, Number(action?.pursuedHitCount ?? 0)) : 0,
+    pursuedTargetEnemyIndex:
+      shouldKeepAutomaticPursuit && Number.isFinite(Number(action?.pursuedTargetEnemyIndex))
+        ? Number(action.pursuedTargetEnemyIndex)
+        : null,
+    pursuitSourceCharacterId: shouldKeepAutomaticPursuit ? String(action?.pursuitSourceCharacterId ?? '') : '',
+    pursuitSourcePosition:
+      shouldKeepAutomaticPursuit && Number.isFinite(Number(action?.pursuitSourcePosition))
+        ? Number(action.pursuitSourcePosition)
+        : null,
+    pursuitSourceSkillId:
+      shouldKeepAutomaticPursuit && Number.isFinite(Number(action?.pursuitSourceSkillId))
+        ? Number(action.pursuitSourceSkillId)
+        : 0,
+    pursuitSourceSkillName: shouldKeepAutomaticPursuit ? String(action?.pursuitSourceSkillName ?? '') : '',
+    pursuitSourceSpCost: shouldKeepAutomaticPursuit ? Math.max(0, Number(action?.pursuitSourceSpCost ?? 0)) : 0,
+    pursuitTriggerSource: shouldKeepAutomaticPursuit ? 'auto' : '',
     manualBreakEnemyIndexes: [],
     autoBreakEnemyIndexes: [],
     manualHpBreakEnemyIndexes: [],
@@ -10132,6 +10279,14 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     pursuedHitCount: Math.max(0, Number(action?.pursuedHitCount ?? 0)),
     pursuedTargetEnemyIndex:
       Number.isFinite(Number(action?.pursuedTargetEnemyIndex)) ? Number(action.pursuedTargetEnemyIndex) : null,
+    pursuitSourceCharacterId: String(action?.pursuitSourceCharacterId ?? ''),
+    pursuitSourcePosition:
+      Number.isFinite(Number(action?.pursuitSourcePosition)) ? Number(action.pursuitSourcePosition) : null,
+    pursuitSourceSkillId:
+      Number.isFinite(Number(action?.pursuitSourceSkillId)) ? Number(action.pursuitSourceSkillId) : 0,
+    pursuitSourceSkillName: String(action?.pursuitSourceSkillName ?? ''),
+    pursuitSourceSpCost: Math.max(0, Number(action?.pursuitSourceSpCost ?? 0)),
+    pursuitTriggerSource: String(action?.pursuitTriggerSource ?? ''),
     removeDebuffCount: resolveRemoveDebuffCountForAction(state, member, effectiveSkill, action),
     targetCharacterId: String(action?.targetCharacterId ?? ''),
     targetEnemyIndex:
@@ -10291,6 +10446,28 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     baseRevision: actionEntry._baseRevision,
   });
 
+  const pursuitSkillSpEvents = [];
+  const pursuitSourceSpCost = Math.max(0, Number(actionEntry?.pursuitSourceSpCost ?? 0));
+  const pursuitSourceCharacterId = String(actionEntry?.pursuitSourceCharacterId ?? '');
+  if (pursuitSourceSpCost > 0 && pursuitSourceCharacterId) {
+    const pursuitActor = findMemberByCharacterId(state, pursuitSourceCharacterId);
+    if (pursuitActor) {
+      const change = pursuitActor.applySpDelta(-pursuitSourceSpCost, 'cost');
+      pursuitSkillSpEvents.push(
+        buildActionScopedEvent(actionEntry, {
+          actorCharacterId: String(actionEntry?.characterId ?? ''),
+          characterId: pursuitActor.characterId,
+          source: 'pursuit_cost',
+          triggerType: 'PursuitSkillCost',
+          skillId: Number(actionEntry?.pursuitSourceSkillId ?? 0),
+          skillName: String(actionEntry?.pursuitSourceSkillName ?? PURSUIT_TRANSFORMED_SKILL_NAME),
+          recordAllocation: 'recipient',
+          ...change,
+        })
+      );
+    }
+  }
+
   if (!actionEntry.isDerivedRepeat && Number(actionEntry.castCount ?? 1) > 1 && Number(actionEntry.castIndex ?? 0) === 0) {
     consumeDoubleActionRepeatStatus(member, actionEntry.doubleActionStatusType, 1);
   }
@@ -10364,7 +10541,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   applyEnemyEShieldEffectsFromActions(state, singleRecord);
   const removeDebuffEvents = applyRemoveDebuffEffectsFromActions(state, singleRecord);
   const epSkillEvents = applySkillSelfEpGains(state, singleRecord);
-  const skillSpEvents = applySkillSpGains(state, singleRecord);
+  const skillSpEvents = [...applySkillSpGains(state, singleRecord), ...pursuitSkillSpEvents];
   const actionDpEvents = applyDpEffectsFromActions(state, singleRecord);
   const dpHealMotivationEvents = applyMotivationFromDpHealEvents(state, actionDpEvents);
   const tokenEvents = applyTokenEffectsFromActions(state, singleRecord, actionDpEvents);
@@ -10512,6 +10689,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
     }
     const projectedSkill = projectedMember.getSkill(skill.skillId) ?? skill;
     const effectiveSkill = resolveEffectiveSkillForAction(projectedState, projectedMember, projectedSkill);
+    const projectedAction = refreshAutomaticPursuitActionForState(action, projectedState);
     const doubleActionStatusType = resolveDoubleActionRepeatStatusType(projectedMember, effectiveSkill);
     const shouldRepeat =
       Boolean(doubleActionStatusType) &&
@@ -10522,7 +10700,7 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
       projectedMember,
       position,
       effectiveSkill,
-      action,
+      projectedAction,
       {
         actionInstanceId: buildActionInstanceId(projectedMember.characterId, actionSequence),
         castIndex: 0,
@@ -10556,12 +10734,16 @@ function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_C
       spCost: 0,
       actionSelectionPassiveEvents: [],
     };
+    const repeatAction = refreshAutomaticPursuitActionForState(
+      buildDerivedRepeatAction(projectedAction),
+      projectedState
+    );
     const repeatEntry = buildPreviewActionEntry(
       projectedState,
       repeatMember,
       position,
       repeatSkill,
-      buildDerivedRepeatAction(action),
+      repeatAction,
       {
         actionInstanceId: buildActionInstanceId(repeatMember.characterId, actionSequence),
         castIndex: 1,
@@ -13128,10 +13310,28 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     state,
     computeTranscendenceTurnSummary(state, previewRecord)
   );
+  const playerTurnContinuesAfterActions =
+    !shouldForceNextBaseTurn &&
+    (
+      grantedExtraCharacterIdsForNextTurn.length > 0 ||
+      shouldActivateInterruptOdAfterActions ||
+      (String(state.turnState?.turnType ?? '') === 'od' && Number(state.turnState?.remainingOdActions ?? 0) > 1) ||
+      (
+        String(state.turnState?.turnType ?? '') === 'extra' &&
+        (
+          Number(state.turnState?.extraTurnState?.remainingActions ?? 0) > 1 ||
+          Boolean(state.turnState?.odSuspended)
+        )
+      )
+    );
   // ─── ② ターンフェーズ: プレイヤーターン終了後処理 ───
-  tickEnemyStatusDurations(state.turnState, 'PlayerTurnEnd');
+  if (!playerTurnContinuesAfterActions) {
+    tickEnemyStatusDurations(state.turnState, 'PlayerTurnEnd');
+  }
   updateReinforcedModeStateAfterTurn(state);
-  applyTurnBasedStatusExpiry(state, previewRecord);
+  if (!playerTurnContinuesAfterActions) {
+    applyTurnBasedStatusExpiry(state, previewRecord);
+  }
   tickShreddingTurns(state, previewRecord, newlyShreddedIds);
 
   if (applySwapOnCommit) {

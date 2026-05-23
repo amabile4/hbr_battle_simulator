@@ -44,7 +44,7 @@
   - スキル使用回数は各 cast で消費される。
   - Count 型 Funnel / MindEye / AttackUp は 1 発目で消費され、2 発目には残らない。
   - derived repeat は break/kill/follow-up/manual outcome を引き継がない。
-- ラッシュ状態は `PlayerTurnEnd` で消えるため、同一 player turn 内の該当行動にのみ有効。
+- ラッシュ状態は `PlayerTurnEnd` で消えるため、同一 player turn 内の該当行動にのみ有効。追加ターン / OD 割込で player turn が継続している間は action 消費で剥がさず、EX 中の `アサルトクロー` も DP 条件を満たすラッシュ対象として扱う。
 
 ## WBS
 

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
+import { buildAutomaticFollowUpChipModelsFromActions } from '../ui-next/utils/follow-up-presentation.js';
 import { CharacterStyle, Party, createBattleStateFromParty, applyInitialPassiveState } from '../src/index.js';
 import { REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
 
@@ -30,15 +31,19 @@ function createPursuitTestParty(actorOptions = {}) {
     actorOptions.memberSkillsByIndex && typeof actorOptions.memberSkillsByIndex === 'object'
       ? actorOptions.memberSkillsByIndex
       : {};
+  const memberOptionsByIndex =
+    actorOptions.memberOptionsByIndex && typeof actorOptions.memberOptionsByIndex === 'object'
+      ? actorOptions.memberOptionsByIndex
+      : {};
   const members = Array.from({ length: 6 }, (_, index) =>
     new CharacterStyle({
-      characterId: index === 0 ? (actorOptions.characterId ?? 'TM1') : `TM${index + 1}`,
-      characterName: index === 0 ? (actorOptions.characterName ?? 'TM1') : `TM${index + 1}`,
-      styleId: index === 0 ? (actorOptions.styleId ?? 9100) : 9100 + index,
+      characterId: memberOptionsByIndex[index]?.characterId ?? (index === 0 ? (actorOptions.characterId ?? 'TM1') : `TM${index + 1}`),
+      characterName: memberOptionsByIndex[index]?.characterName ?? (index === 0 ? (actorOptions.characterName ?? 'TM1') : `TM${index + 1}`),
+      styleId: memberOptionsByIndex[index]?.styleId ?? (index === 0 ? (actorOptions.styleId ?? 9100) : 9100 + index),
       styleName: index === 0 ? (actorOptions.styleName ?? 'TS1') : `TS${index + 1}`,
       partyIndex: index,
       position: index,
-      initialSP: 10,
+      initialSP: memberOptionsByIndex[index]?.initialSP ?? 10,
       drivePiercePercent: index === 0 ? (actorOptions.drivePiercePercent ?? 0) : 0,
       skills: [
         Object.hasOwn(memberSkillsByIndex, index)
@@ -49,7 +54,8 @@ function createPursuitTestParty(actorOptions = {}) {
             ? backMemberSkills
             : PROTECTION_SKILL,
       ].flat(),
-      passives: index === 0 ? (actorOptions.passives ?? []) : [],
+      triggeredSkills: memberOptionsByIndex[index]?.triggeredSkills ?? [],
+      passives: memberOptionsByIndex[index]?.passives ?? (index === 0 ? (actorOptions.passives ?? []) : []),
     })
   );
   return new Party(members);
@@ -624,6 +630,262 @@ test('pursuedHitCount resolves transformed pursuit skill hit_count (ネコジェ
 
   const actorEntry = record.actions.find((a) => a.characterId === 'TRANSFORMED_HIT_COUNT_ACTOR');
   assert.equal(actorEntry.pursuedHitCount, 5, 'Transformed pursuit skill should resolve to 5 hits');
+  assert.equal(actorEntry.pursuitSourceSpCost, 10);
+  assert.equal(actorEntry.pursuitSourceSkillName, 'ネコジェット・シャテキ');
+});
+
+test('ネコジェット・シャテキ requires pursuit source SP10; SP8 uses normal pursuit', () => {
+  const actorSkill = createSkill({
+    id: 9319,
+    name: 'Transformed Pursuit SP Gate Test',
+    targetType: 'Single',
+    spCost: 5,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const normalPursuit = createSkill({
+    id: 9390,
+    name: '追撃',
+    targetType: 'Single',
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+  const nekoJet = createSkill({
+    id: 9391,
+    name: 'ネコジェット・シャテキ',
+    targetType: 'Single',
+    hitCount: 5,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+  const party = createPursuitTestParty({
+    characterId: 'TRANSFORMED_SP_GATE_ACTOR',
+    skill: actorSkill,
+    memberOptionsByIndex: {
+      3: {
+        characterId: 'YO_OSHIMA_SP8',
+        initialSP: 8,
+        triggeredSkills: [nekoJet, normalPursuit],
+        passives: [{ id: 57001218, name: '湯めぐり', timing: 'None', condition: 'ConsumeSp()<=8', parts: [] }],
+      },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 9319, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    { enemyCount: 1 }
+  );
+
+  const actorEntry = record.actions.find((a) => a.characterId === 'TRANSFORMED_SP_GATE_ACTOR');
+  assert.equal(actorEntry.pursuedHitCount, 1);
+  assert.equal(actorEntry.pursuitSourceSkillName, '追撃');
+  assert.equal(actorEntry.pursuitSourceSpCost, 0);
+});
+
+test('湯めぐり automatically materializes follow-up and そよぐ新緑 heals frontline SP', () => {
+  const actorSkill = createSkill({
+    id: 9401,
+    name: 'Auto Follow Source Skill',
+    targetType: 'Single',
+    spCost: 8,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const nekoJet = createSkill({
+    id: 9491,
+    name: 'ネコジェット・シャテキ',
+    targetType: 'Single',
+    hitCount: 5,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+  const party = createPursuitTestParty({
+    characterId: 'AUTO_FOLLOW_ACTOR',
+    skill: actorSkill,
+    memberOptionsByIndex: {
+      3: {
+        characterId: 'YO_OSHIMA_AUTO',
+        initialSP: 10,
+        triggeredSkills: [nekoJet],
+        passives: [
+          { id: 57001218, name: '湯めぐり', timing: 'None', condition: 'ConsumeSp()<=8', parts: [] },
+          {
+            id: 57001217,
+            name: 'そよぐ新緑',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              { skill_type: 'AdditionalHitOnPursuit', target_type: 'Self', power: [0, 0], value: [0, 0] },
+              { skill_type: 'HealSp', target_type: 'AllyFront', power: [2, 0], value: [0, 0] },
+            ],
+          },
+        ],
+      },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  applyInitialPassiveState(state);
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 9401, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    { enemyCount: 1 }
+  );
+
+  assert.deepEqual(manager.replayScript.turns[0].followUpOverrides, [{ position: 3, enemyIndex: 0 }]);
+  const actorEntry = record.actions.find((action) => action.characterId === 'AUTO_FOLLOW_ACTOR');
+  assert.equal(actorEntry.pursuedHitCount, 5);
+  assert.equal(actorEntry.pursuitSourceCharacterId, 'YO_OSHIMA_AUTO');
+  assert.equal(actorEntry.pursuitSourceSkillName, 'ネコジェット・シャテキ');
+  assert.equal(actorEntry.pursuitSourceSpCost, 10);
+  const spPassives = record.actions
+    .flatMap((action) => action.spChanges ?? [])
+    .filter((change) => change.source === 'sp_passive');
+  assert.equal(spPassives.length, 3, 'AllyFront three members should receive SP+2');
+  assert.ok(spPassives.every((change) => change.delta === 2));
+  const passiveLogEvents = record.passiveEvents.filter((event) => event.passiveName === 'そよぐ新緑');
+  assert.equal(passiveLogEvents.length, 1);
+  assert.equal(passiveLogEvents[0].source, 'passive_trigger');
+  assert.equal(passiveLogEvents[0].spDelta, 6);
+});
+
+test('湯めぐり automatic follow-up fires for both Byakko rush repeated attacks', () => {
+  const byakkoAssaultClaw = createSkill({
+    id: 9402,
+    name: 'アサルトクロー',
+    targetType: 'Single',
+    spCost: 6,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' }],
+  });
+  const pursuit = createSkill({
+    id: 9492,
+    name: '追撃',
+    targetType: 'Single',
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+  const party = createPursuitTestParty({
+    characterId: 'BYAKKO_RUSH_AUTO',
+    skill: byakkoAssaultClaw,
+    memberOptionsByIndex: {
+      3: {
+        characterId: 'YO_OSHIMA_RUSH',
+        passives: [{ id: 57001218, name: '湯めぐり', timing: 'None', condition: 'ConsumeSp()<=8', parts: [] }],
+        triggeredSkills: [pursuit],
+      },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  state.party[0].addStatusEffect({
+    statusType: 'ByakkoDoubleActionAttackSkill',
+    limitType: 'None',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 1,
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 9402, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    { enemyCount: 1 }
+  );
+
+  const byakkoActions = record.actions.filter((action) => action.characterId === 'BYAKKO_RUSH_AUTO');
+  assert.equal(byakkoActions.length, 2);
+  assert.deepEqual(byakkoActions.map((action) => action.castIndex), [0, 1]);
+  assert.deepEqual(byakkoActions.map((action) => action.pursuedHitCount), [1, 1]);
+  assert.deepEqual(byakkoActions.map((action) => action.pursuitTriggerSource), ['auto', 'auto']);
+  const chipModels = buildAutomaticFollowUpChipModelsFromActions({
+    actions: record.actions,
+    members: state.party,
+  });
+  assert.equal(chipModels.length, 2);
+  assert.ok(chipModels.every((chip) => chip.label.includes('自動追撃')));
+});
+
+test('Byakko rush remains active into granted extra turn and repeats Assault Claw there', () => {
+  const grantExtraAttack = {
+    id: 9403,
+    name: 'Extra Grant Attack',
+    label: 'ExtraGrantAttack9403',
+    sp_cost: 0,
+    target_type: 'Single',
+    hit_count: 1,
+    additionalTurnRule: {
+      skillUsableInExtraTurn: true,
+      additionalTurnGrantInExtraTurn: true,
+      conditions: {
+        requiresOverDrive: false,
+        requiresReinforcedMode: false,
+        excludesExtraTurnForSkillUse: false,
+        excludesExtraTurnForAdditionalTurnGrant: false,
+      },
+      additionalTurnTargetTypes: ['AllyFront'],
+    },
+    parts: [
+      { skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' },
+      { skill_type: 'AdditionalTurn', target_type: 'AllyFront' },
+    ],
+  };
+  const byakkoAssaultClaw = createSkill({
+    id: 9404,
+    name: 'アサルトクロー',
+    targetType: 'Single',
+    spCost: 5,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' }],
+  });
+  const party = createPursuitTestParty({
+    characterId: 'BYAKKO_RUSH_EXTRA',
+    skills: [grantExtraAttack, byakkoAssaultClaw],
+  });
+  const state = createBattleStateFromParty(party);
+  state.party[0].addStatusEffect({
+    statusType: 'ByakkoDoubleActionAttackSkill',
+    limitType: 'None',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 1,
+  });
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  manager.commitNextTurn(
+    {
+      0: { skillId: 9403, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    { enemyCount: 1 }
+  );
+
+  const extraState = manager.getStateBefore(1);
+  const byakkoBeforeExtra = extraState.party.find((member) => member.characterId === 'BYAKKO_RUSH_EXTRA');
+  assert.equal(extraState.turnState.turnType, 'extra');
+  assert.equal(byakkoBeforeExtra.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 1);
+
+  const extraRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 9404, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    { enemyCount: 1 }
+  );
+  const byakkoActions = extraRecord.actions.filter((action) => action.characterId === 'BYAKKO_RUSH_EXTRA');
+  assert.equal(byakkoActions.length, 2);
+  assert.deepEqual(byakkoActions.map((action) => action.castIndex), [0, 1]);
 });
 
 test('pursuit OD is not multiplied by enemy count on All-target skill', () => {

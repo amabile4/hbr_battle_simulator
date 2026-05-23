@@ -142,6 +142,7 @@ function cloneReplayDiagnostics(diagnostics = {}) {
 }
 
 const PURSUIT_TRANSFORMED_SKILL_NAME = 'ネコジェット・シャテキ';
+const PURSUIT_TRANSFORMED_SKILL_SP_COST = 10;
 const PURSUIT_HIT_COUNT_BY_WEAPON_TYPE = Object.freeze({
   DoubleSword: 2,
   LargeSword: 2,
@@ -157,8 +158,15 @@ const PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID = Object.freeze({
   BIYamawaki: 3,
 });
 const FOLLOW_UP_MAX_TRIGGERS_PER_ACTION = 1;
+const AUTOMATIC_FOLLOW_UP_TRIGGER_SOURCE = 'auto';
+const FOLLOW_UP_TRIGGER_SOURCE_MANUAL = 'manual';
+const AUTOMATIC_FOLLOW_UP_PASSIVE_SKILL_TYPE = 'PursuitConfirmed';
+const AUTOMATIC_FOLLOW_UP_MAX_SP_COST = 8;
+const FRONT_POSITION_MAX = 2;
+const BACK_POSITION_MIN = 3;
+const BACK_POSITION_MAX = 5;
 
-function resolvePursuitHitCountForMember(member) {
+function resolvePursuitSourceForMember(member) {
   const pursuitCandidates = [
     ...(member?.getActionSkills?.() ?? []),
     ...(Array.isArray(member?.triggeredSkills) ? member.triggeredSkills : []),
@@ -168,30 +176,74 @@ function resolvePursuitHitCountForMember(member) {
   const transformed = pursuitCandidates.find(
     (skill) => String(skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME
   );
-  if (transformed) {
+  if (transformed && Number(member?.sp?.current ?? 0) >= PURSUIT_TRANSFORMED_SKILL_SP_COST) {
     const transformedHitCount = Number(transformed?.hitCount ?? transformed?.hit_count ?? 0);
-    return Number.isFinite(transformedHitCount) && transformedHitCount > 0
-      ? transformedHitCount
-      : 5;
+    return {
+      skill: transformed,
+      hitCount: Number.isFinite(transformedHitCount) && transformedHitCount > 0 ? transformedHitCount : 5,
+      spCost: PURSUIT_TRANSFORMED_SKILL_SP_COST,
+    };
   }
 
   const pursuitSkill = pursuitCandidates.find((skill) => isPursuitOnlySkill(skill));
   const explicitHitCount = Number(pursuitSkill?.hitCount ?? pursuitSkill?.hit_count ?? 0);
   if (Number.isFinite(explicitHitCount) && explicitHitCount > 0) {
-    return explicitHitCount;
+    return {
+      skill: pursuitSkill ?? null,
+      hitCount: explicitHitCount,
+      spCost: 0,
+    };
   }
 
   const characterId = String(member?.characterId ?? '');
   if (Object.hasOwn(PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID, characterId)) {
-    return Number(PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID[characterId]);
+    return {
+      skill: pursuitSkill ?? null,
+      hitCount: Number(PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID[characterId]),
+      spCost: 0,
+    };
   }
 
   const weaponType = String(member?.weaponType ?? '');
   if (Object.hasOwn(PURSUIT_HIT_COUNT_BY_WEAPON_TYPE, weaponType)) {
-    return Number(PURSUIT_HIT_COUNT_BY_WEAPON_TYPE[weaponType]);
+    return {
+      skill: pursuitSkill ?? null,
+      hitCount: Number(PURSUIT_HIT_COUNT_BY_WEAPON_TYPE[weaponType]),
+      spCost: 0,
+    };
   }
 
-  return 1;
+  return {
+    skill: pursuitSkill ?? null,
+    hitCount: 1,
+    spCost: 0,
+  };
+}
+
+function hasAutomaticFollowUpPassive(member) {
+  return (member?.passives ?? []).some((passive) => {
+    if (String(passive?.name ?? '') === '湯めぐり') {
+      return true;
+    }
+    return (passive?.parts ?? []).some(
+      (part) => String(part?.skill_type ?? '').trim() === AUTOMATIC_FOLLOW_UP_PASSIVE_SKILL_TYPE
+    );
+  });
+}
+
+function skillHasAttackPart(skill) {
+  return (skill?.parts ?? []).some((part) => String(part?.skill_type ?? '').trim() === 'AttackSkill');
+}
+
+function resolveSkillPreviewCost(member, effectiveSkill) {
+  if (typeof member?.previewSkillUseResolved !== 'function') {
+    return Number(effectiveSkill?.spCost ?? effectiveSkill?.sp_cost ?? 0);
+  }
+  const preview = member.previewSkillUseResolved(effectiveSkill);
+  if (Number.isFinite(Number(preview?.delta)) && Number(preview.delta) < 0) {
+    return Math.abs(Number(preview.delta));
+  }
+  return Number(effectiveSkill?.spCost ?? effectiveSkill?.sp_cost ?? 0);
 }
 
 /**
@@ -371,9 +423,19 @@ export class TurnEngineManager {
         onWarning: (message) => warnings.push(String(message)),
       }
     );
-    const followUpOverrides = this.#normalizeFollowUpOverridesForState(
+    const manualFollowUpOverrides = this.#normalizeFollowUpOverridesForState(
       state,
       options.followUpOverrides,
+      effectiveEnemyCount
+    );
+    const automaticFollowUpOverrides = this.#resolveAutomaticFollowUpOverrides(
+      state,
+      resolvedSlotActions,
+      effectiveEnemyCount
+    );
+    const followUpOverrides = this.#mergeFollowUpOverrides(
+      manualFollowUpOverrides,
+      automaticFollowUpOverrides,
       effectiveEnemyCount
     );
 
@@ -381,7 +443,8 @@ export class TurnEngineManager {
       state,
       resolvedSlotActions,
       actionOutcomeOverrides,
-      followUpOverrides
+      manualFollowUpOverrides,
+      automaticFollowUpOverrides
     );
     const previewRecord = previewTurnRecord(
       state,
@@ -506,10 +569,25 @@ export class TurnEngineManager {
         state,
         slotActions
       );
-      const followUpOverrides = this.#resolveReplayTurnFollowUpOverrides(
+      const replayFollowUpOverrides = this.#resolveReplayTurnFollowUpOverrides(
         turn,
         enemyCount,
         state
+      );
+      const automaticFollowUpOverrides = this.#resolveAutomaticFollowUpOverrides(
+        state,
+        slotActions,
+        enemyCount
+      );
+      const manualFollowUpOverrides = this.#subtractAutomaticFollowUpOverrides(
+        replayFollowUpOverrides,
+        automaticFollowUpOverrides,
+        enemyCount
+      );
+      const followUpOverrides = this.#mergeFollowUpOverrides(
+        manualFollowUpOverrides,
+        automaticFollowUpOverrides,
+        enemyCount
       );
       this.#replaceReplayTurnActionOutcomeOverrides(turn, actionOutcomeOverrides, enemyCount);
       this.#replaceReplayTurnFollowUpOverrides(turn, followUpOverrides, enemyCount);
@@ -527,7 +605,13 @@ export class TurnEngineManager {
       }
       const effectiveEnemyCount = this.#resolveEffectiveEnemyCount(state, enemyCount);
 
-      const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides, followUpOverrides);
+      const actions = this.#buildActionsDict(
+        state,
+        slotActions,
+        actionOutcomeOverrides,
+        manualFollowUpOverrides,
+        automaticFollowUpOverrides
+      );
 
       // 割込OD operation を再現
       const interruptLevel = this.#extractOperationLevel(
@@ -1586,15 +1670,36 @@ export class TurnEngineManager {
           onWarning: (message) => warnings.push(String(message)),
         }
       );
-      const followUpOverrides = this.#resolveReplayTurnFollowUpOverrides(
+      const replayFollowUpOverrides = this.#resolveReplayTurnFollowUpOverrides(
         turn,
         effectiveEnemyCount,
         state
       );
+      const automaticFollowUpOverrides = this.#resolveAutomaticFollowUpOverrides(
+        state,
+        slotActions,
+        effectiveEnemyCount
+      );
+      const manualFollowUpOverrides = this.#subtractAutomaticFollowUpOverrides(
+        replayFollowUpOverrides,
+        automaticFollowUpOverrides,
+        effectiveEnemyCount
+      );
+      const followUpOverrides = this.#mergeFollowUpOverrides(
+        manualFollowUpOverrides,
+        automaticFollowUpOverrides,
+        effectiveEnemyCount
+      );
       this.#replaceReplayTurnActionOutcomeOverrides(turn, actionOutcomeOverrides, effectiveEnemyCount);
       this.#replaceReplayTurnFollowUpOverrides(turn, followUpOverrides, effectiveEnemyCount);
 
-      const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides, followUpOverrides);
+      const actions = this.#buildActionsDict(
+        state,
+        slotActions,
+        actionOutcomeOverrides,
+        manualFollowUpOverrides,
+        automaticFollowUpOverrides
+      );
       const previewRecord = previewTurnRecord(state, actions, null, effectiveEnemyCount, {
         allowUseCountOverflow: this.#validationPolicy.allowUseCountOverflow,
         allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
@@ -1844,7 +1949,18 @@ export class TurnEngineManager {
     options = {}
   ) {
     const warnings = Array.isArray(options.warnings) ? options.warnings : [];
-    const actions = this.#buildActionsDict(state, slotActions, actionOutcomeOverrides, followUpOverrides);
+    const automaticFollowUpOverrides = this.#resolveAutomaticFollowUpOverrides(
+      state,
+      slotActions,
+      enemyCount
+    );
+    const actions = this.#buildActionsDict(
+      state,
+      slotActions,
+      actionOutcomeOverrides,
+      followUpOverrides,
+      automaticFollowUpOverrides
+    );
     try {
       const previewRecord = previewTurnRecord(state, actions, null, enemyCount, {
         allowUseCountOverflow: this.#validationPolicy.allowUseCountOverflow,
@@ -1967,7 +2083,13 @@ export class TurnEngineManager {
    * GUI の slotActions（position キー）を previewTurn 用 actions dict に変換する。
    * action.styleId が指定されている場合は styleId でメンバーを検索する。
    */
-  #buildActionsDict(state, slotActions, actionOutcomeOverrides = [], followUpOverrides = []) {
+  #buildActionsDict(
+    state,
+    slotActions,
+    actionOutcomeOverrides = [],
+    followUpOverrides = [],
+    automaticFollowUpOverrides = []
+  ) {
     const actions = {};
     const normalizedEnemyCount = clampEnemyCount(
       state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
@@ -1983,18 +2105,26 @@ export class TurnEngineManager {
       followUpOverrides,
       normalizedEnemyCount
     );
-    const pursuedHitCountByBackPosition = new Map();
+    const normalizedAutomaticFollowUpOverrides = this.#normalizeFollowUpOverridesForState(
+      state,
+      automaticFollowUpOverrides,
+      normalizedEnemyCount
+    ).map((override) => ({
+      ...override,
+      triggerSource: AUTOMATIC_FOLLOW_UP_TRIGGER_SOURCE,
+    }));
+    const pursuitSourceByBackPosition = new Map();
     const frontActionPositions = [];
-    for (const override of normalizedFollowUpOverrides) {
+    for (const override of [...normalizedFollowUpOverrides, ...normalizedAutomaticFollowUpOverrides]) {
       const backPosition = Number(override?.position);
-      if (!Number.isInteger(backPosition) || backPosition < 3 || backPosition > 5) {
+      if (!Number.isInteger(backPosition) || backPosition < BACK_POSITION_MIN || backPosition > BACK_POSITION_MAX) {
         continue;
       }
       const backMember = state.party.find((candidate) => Number(candidate?.position) === backPosition);
       if (!backMember) {
         continue;
       }
-      pursuedHitCountByBackPosition.set(backPosition, resolvePursuitHitCountForMember(backMember));
+      pursuitSourceByBackPosition.set(backPosition, resolvePursuitSourceForMember(backMember));
     }
     for (const [posStr, action] of Object.entries(slotActions)) {
       const slotPosition = Number(posStr);
@@ -2004,7 +2134,7 @@ export class TurnEngineManager {
       const member = action.styleId != null
         ? state.party.find((candidate) => candidate.styleId === action.styleId)
         : state.party.find((candidate) => candidate.position === slotPosition);
-      if (!member || member.position > 2) {
+      if (!member || member.position > FRONT_POSITION_MAX) {
         continue;
       }
       frontActionPositions.push(Number(member.position));
@@ -2035,7 +2165,7 @@ export class TurnEngineManager {
       }
 
       // 後衛にいるメンバーはスキルを使えない
-      if (member.position > 2) {
+      if (member.position > FRONT_POSITION_MAX) {
         throw new Error(`Action is allowed only for front positions (0..2). got=${member.position}`);
       }
 
@@ -2076,19 +2206,43 @@ export class TurnEngineManager {
       );
       const resolvedFollowUpOverride =
         singleExtraActionFollowUpOverride && frontActionPositions[0] === Number(member.position)
-          ? singleExtraActionFollowUpOverride
+          ? {
+              ...singleExtraActionFollowUpOverride,
+              triggerSource: FOLLOW_UP_TRIGGER_SOURCE_MANUAL,
+            }
           : normalizedFollowUpOverrides.find(
               (override) => Number(override?.position) === Number(member.position) + 3
-            ) ?? null;
+            ) != null
+            ? {
+                ...normalizedFollowUpOverrides.find(
+                  (override) => Number(override?.position) === Number(member.position) + 3
+                ),
+                triggerSource: FOLLOW_UP_TRIGGER_SOURCE_MANUAL,
+              }
+            : normalizedAutomaticFollowUpOverrides.find((override) =>
+                this.#isAutomaticFollowUpEligibleForAction(state, member, skill, action, override)
+              ) ?? null;
 
       // 追撃は前衛行動とは独立して管理し、後衛側の追撃定義のみから hit 数を解決する。
       let resolvedPursuedHitCount = 0;
       const followUpEnemyIndex =
-        resolvedFollowUpOverride != null ? Number(resolvedFollowUpOverride.enemyIndex) : null;
+        resolvedFollowUpOverride != null &&
+        String(resolvedFollowUpOverride.triggerSource ?? '') === AUTOMATIC_FOLLOW_UP_TRIGGER_SOURCE &&
+        Number.isFinite(Number(materializedTarget?.targetEnemyIndex))
+          ? Number(materializedTarget.targetEnemyIndex)
+          : (resolvedFollowUpOverride != null ? Number(resolvedFollowUpOverride.enemyIndex) : null);
+      const followUpSourceMember =
+        resolvedFollowUpOverride != null
+          ? state.party.find(
+              (candidate) => Number(candidate?.position) === Number(resolvedFollowUpOverride.position)
+            ) ?? null
+          : null;
+      const pursuitSource = followUpSourceMember
+        ? pursuitSourceByBackPosition.get(Number(resolvedFollowUpOverride?.position)) ?? resolvePursuitSourceForMember(followUpSourceMember)
+        : null;
+      const followUpSourceSkill = pursuitSource?.skill ?? null;
       if (followUpEnemyIndex !== null && followUpEnemyIndex !== undefined) {
-        resolvedPursuedHitCount = Number(
-          pursuedHitCountByBackPosition.get(Number(resolvedFollowUpOverride.position)) ?? 1
-        );
+        resolvedPursuedHitCount = Number(pursuitSource?.hitCount ?? 1);
       }
 
       actions[member.position] = {
@@ -2116,6 +2270,12 @@ export class TurnEngineManager {
           ? {
               pursuedHitCount: resolvedPursuedHitCount,
               pursuedTargetEnemyIndex: Number(followUpEnemyIndex),
+              pursuitSourceCharacterId: String(followUpSourceMember?.characterId ?? ''),
+              pursuitSourcePosition: Number(resolvedFollowUpOverride.position),
+              pursuitSourceSkillId: Number(followUpSourceSkill?.skillId ?? followUpSourceSkill?.id ?? 0),
+              pursuitSourceSkillName: String(followUpSourceSkill?.name ?? '追撃'),
+              pursuitSourceSpCost: Math.max(0, Number(pursuitSource?.spCost ?? 0)),
+              pursuitTriggerSource: String(resolvedFollowUpOverride.triggerSource ?? FOLLOW_UP_TRIGGER_SOURCE_MANUAL),
             }
           : {}),
       };
@@ -2563,6 +2723,115 @@ export class TurnEngineManager {
       });
     }
     return normalizeFollowUpOverrides(next, normalizedEnemyCount);
+  }
+
+  #mergeFollowUpOverrides(manualFollowUpOverrides = [], automaticFollowUpOverrides = [], enemyCount = DEFAULT_ENEMY_COUNT) {
+    const normalizedEnemyCount = clampEnemyCount(enemyCount);
+    return normalizeFollowUpOverrides(
+      [...manualFollowUpOverrides, ...automaticFollowUpOverrides],
+      normalizedEnemyCount
+    );
+  }
+
+  #subtractAutomaticFollowUpOverrides(
+    followUpOverrides = [],
+    automaticFollowUpOverrides = [],
+    enemyCount = DEFAULT_ENEMY_COUNT
+  ) {
+    const normalizedEnemyCount = clampEnemyCount(enemyCount);
+    const automaticKeys = new Set(
+      normalizeFollowUpOverrides(automaticFollowUpOverrides, normalizedEnemyCount)
+        .map((override) => `${Number(override.position)}:${Number(override.enemyIndex)}`)
+    );
+    return normalizeFollowUpOverrides(followUpOverrides, normalizedEnemyCount).filter(
+      (override) => !automaticKeys.has(`${Number(override.position)}:${Number(override.enemyIndex)}`)
+    );
+  }
+
+  #resolveAutomaticFollowUpOverrides(state, slotActions = {}, enemyCount = DEFAULT_ENEMY_COUNT) {
+    const normalizedEnemyCount = clampEnemyCount(
+      enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
+    );
+    const sources = (state?.party ?? [])
+      .filter((member) => {
+        const position = Number(member?.position);
+        return (
+          Number.isInteger(position) &&
+          position >= BACK_POSITION_MIN &&
+          position <= BACK_POSITION_MAX &&
+          hasAutomaticFollowUpPassive(member)
+        );
+      })
+      .sort((a, b) => Number(a.position) - Number(b.position));
+    if (sources.length === 0) {
+      return [];
+    }
+
+    const hasEligibleAction = sources.some((source) =>
+      Object.entries(slotActions ?? {}).some(([positionKey, action]) => {
+        if (action?.skillId == null) {
+          return false;
+        }
+        const slotPosition = Number(positionKey);
+        const member = action.styleId != null
+          ? state.party.find((candidate) => candidate.styleId === action.styleId)
+          : state.party.find((candidate) => Number(candidate.position) === slotPosition);
+        const actor = member ?? state.party.find((candidate) => Number(candidate?.position) === slotPosition);
+        if (!actor || Number(actor.position) > FRONT_POSITION_MAX) {
+          return false;
+        }
+        const skill = actor.getSkill(action.skillId);
+        return this.#isAutomaticFollowUpEligibleForAction(state, actor, skill, action, {
+          position: Number(source.position),
+          enemyIndex: 0,
+        });
+      })
+    );
+    if (!hasEligibleAction) {
+      return [];
+    }
+
+    const enemyIndex = this.#resolveDefaultFollowUpEnemyIndex(state, normalizedEnemyCount);
+    return this.#normalizeFollowUpOverridesForState(
+      state,
+      sources.map((source) => ({
+        position: Number(source.position),
+        enemyIndex,
+      })),
+      normalizedEnemyCount
+    );
+  }
+
+  #resolveDefaultFollowUpEnemyIndex(state, enemyCount = DEFAULT_ENEMY_COUNT) {
+    const normalizedEnemyCount = clampEnemyCount(enemyCount);
+    for (let enemyIndex = 0; enemyIndex < normalizedEnemyCount; enemyIndex += 1) {
+      if (isEnemyAlive(state?.turnState, enemyIndex)) {
+        return enemyIndex;
+      }
+    }
+    return 0;
+  }
+
+  #isAutomaticFollowUpEligibleForAction(state, member, skill, action, override) {
+    if (!override || !member || !skill) {
+      return false;
+    }
+    if (!skillHasAttackPart(skill)) {
+      return false;
+    }
+    const sourceMember = state?.party?.find(
+      (candidate) => Number(candidate?.position) === Number(override.position)
+    ) ?? null;
+    if (!sourceMember || !hasAutomaticFollowUpPassive(sourceMember)) {
+      return false;
+    }
+    const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
+    const consumeSp = resolveSkillPreviewCost(member, effectiveSkill);
+    if (!Number.isFinite(consumeSp) || consumeSp > AUTOMATIC_FOLLOW_UP_MAX_SP_COST) {
+      return false;
+    }
+    const targetEnemyIndex = Number(action?.target?.enemyIndex ?? action?.targetEnemyIndex ?? override.enemyIndex);
+    return isEnemyAlive(state?.turnState, Number.isFinite(targetEnemyIndex) ? targetEnemyIndex : override.enemyIndex);
   }
 
   /**

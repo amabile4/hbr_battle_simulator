@@ -12,15 +12,23 @@ const SESSION_FIXTURE_PATH = path.resolve(
   './fixtures/ui_next_session_enemy_status_desc_fixture.json'
 );
 
-function collectChipMetrics(row) {
-  const chips = [...row.querySelectorAll('[data-role="operation-chip"]')];
-  return chips.map((node) => {
-    return {
-      text: node.textContent?.replace('×', '').trim() ?? '',
-      hasLineBreak: /\n/.test(node.innerText),
-      height: node.getBoundingClientRect().height,
-      clientRectCount: node.getClientRects().length,
-    };
+async function collectStableCommittedRowChipMetrics(page, rowIndex) {
+  await page.waitForFunction((index) => {
+    const rows = [...document.querySelectorAll('[data-turn-row][data-row-mode="committed"]')];
+    return Boolean(rows[index]?.querySelector('[data-role="operation-chip"]'));
+  }, rowIndex);
+
+  const row = page.locator('[data-turn-row][data-row-mode="committed"]').nth(rowIndex);
+  await expect(row.locator('[data-role="operation-chip"]').first()).toBeVisible();
+  return row.evaluate((node) => {
+    node.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const chips = [...node.querySelectorAll('[data-role="operation-chip"]')];
+    return chips.map((chip) => ({
+      text: chip.textContent?.replace('×', '').trim() ?? '',
+      hasLineBreak: /\n/.test(chip.innerText),
+      height: chip.getBoundingClientRect().height,
+      clientRectCount: chip.getClientRects().length,
+    }));
   });
 }
 
@@ -33,10 +41,7 @@ test.describe('Turn row operation chip layout', () => {
     const committedRows = page.locator('[data-turn-row][data-row-mode="committed"]');
     await expect(committedRows).toHaveCount(19, { timeout: 10000 });
 
-    const firstCommittedRow = committedRows.nth(0);
-    await firstCommittedRow.scrollIntoViewIfNeeded();
-    await expect(firstCommittedRow.locator('[data-role="operation-chip"]').first()).toBeVisible();
-    const makaiChipMetrics = await firstCommittedRow.evaluate(collectChipMetrics);
+    const makaiChipMetrics = await collectStableCommittedRowChipMetrics(page, 0);
     expect(makaiChipMetrics.map((metric) => metric.text)).toEqual(['騎兵起動', '騎兵起動']);
     makaiChipMetrics.forEach((metric) => {
       expect(metric.hasLineBreak).toBe(false);
@@ -44,10 +49,7 @@ test.describe('Turn row operation chip layout', () => {
       expect(metric.height).toBeLessThan(32);
     });
 
-    const preemptiveOdRow = committedRows.nth(6);
-    await preemptiveOdRow.scrollIntoViewIfNeeded();
-    await expect(preemptiveOdRow.locator('[data-role="operation-chip"]').first()).toBeVisible();
-    const preemptiveChipMetrics = await preemptiveOdRow.evaluate(collectChipMetrics);
+    const preemptiveChipMetrics = await collectStableCommittedRowChipMetrics(page, 6);
     expect(preemptiveChipMetrics.map((metric) => metric.text)).toEqual(['先制OD1']);
     preemptiveChipMetrics.forEach((metric) => {
       expect(metric.hasLineBreak).toBe(false);

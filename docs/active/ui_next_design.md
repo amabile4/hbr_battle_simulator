@@ -1,6 +1,6 @@
 # UI Next 設計メモ
 
-> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-04-28
+> **ステータス**: 🟢 進行中 | 📅 開始: 2026-03-15 | 🔄 最終更新: 2026-05-23
 
 ## 目的
 
@@ -286,6 +286,7 @@
   - same-name variant は `variants[0]` の 1 件だけを出し、旧 parent id は first variant alias として読む
 - `skills.json` に無い `通常攻撃` / `指揮行動` / `追撃` は、`styles.json` の埋め込み skill を fallback として復元する
 - `追撃` は internal triggered skill としてだけ復元し、command-selectable listbox には出さない
+- `湯めぐり` のような自動追撃は turn row の committed action から action ごとの `自動追撃` chip として表示する。`ネコジェット・シャテキ` は追撃者の現在 SP が 10 以上のときだけ chip / action entry 上も変換後スキル名にし、SP 不足時は通常追撃名を表示する
 - 非 `Admiral` の selectable skill list は `通常攻撃` を先頭、`Admiral` は `指揮行動` を先頭に固定する
 
 ### Turn 行の manual target UI

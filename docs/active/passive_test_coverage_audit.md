@@ -147,7 +147,7 @@
 |-----------|---------|-----------|---------|
 | オーバーレイ | **OnZone** × Eternal | HealSp(AllyAll) | ✅ 実装・テスト済み |
 | トップアップ | **OnOverDrivePointDownSkill** × Eternal | AdditionalTurn(Self) | ✅ 実装・テスト済み |
-| そよぐ新緑 | **OnPursuit** × Eternal | HealSp(AllyFront) | ✅ 実装・テスト済み |
+| そよぐ新緑 | **OnPursuit** × Eternal | HealSp(AllyFront) | ✅ 実装・テスト済み（2026-05-23: `湯めぐり` 自動追撃 / ビャッコ二連追撃 / SP10時のみの `ネコジェット・シャテキ` 変換 / Passive Log 表示を追加固定） |
 
 ---
 

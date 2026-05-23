@@ -41,7 +41,10 @@ import {
   buildManualKillChipModels,
   resolveManualBreakActorLabel,
 } from '../utils/manual-break-presentation.js';
-import { buildFollowUpChipModels } from '../utils/follow-up-presentation.js';
+import {
+  buildAutomaticFollowUpChipModelsFromActions,
+  buildFollowUpChipModels,
+} from '../utils/follow-up-presentation.js';
 import {
   getFollowUpOverridesFromReplayTurn,
   normalizeFollowUpOverrides,
@@ -96,6 +99,8 @@ const ENEMY_TARGET_POPOVER_MIN_WIDTH_PX = 180;
 const ENEMY_TARGET_POPOVER_MAX_WIDTH_PX = 280;
 const TURN_INFO_PANEL_WIDTH_CLASS = 'w-[108px]';
 const ENEMY_STATUS_BREAK = 'Break';
+const PURSUIT_TRANSFORMED_SKILL_NAME = 'ネコジェット・シャテキ';
+const PURSUIT_TRANSFORMED_SKILL_SP_COST = 10;
 const ENEMY_E_SHIELD_EDITOR_MIN_VALUE = 0;
 const ENEMY_E_SHIELD_EDITOR_ELEMENT_OPTIONS = Object.freeze([
   ['Fire', '火'],
@@ -2602,7 +2607,15 @@ export class TurnRowController {
     const result = {};
     const members = this.#getMembersInPositionOrder().filter((member) => member.position >= 3);
     for (const member of members) {
-      const pursuitSkill = (member.getActionSkills?.() ?? []).find((skill) => isPursuitOnlySkill(skill));
+      const pursuitSkill = [
+        ...(member.getActionSkills?.() ?? []),
+        ...(Array.isArray(member.triggeredSkills) ? member.triggeredSkills : []),
+      ].find((skill) => {
+        if (String(skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME) {
+          return Number(member?.sp?.current ?? 0) >= PURSUIT_TRANSFORMED_SKILL_SP_COST;
+        }
+        return isPursuitOnlySkill(skill);
+      });
       if (pursuitSkill) {
         result[member.position] = String(pursuitSkill.name ?? '追撃');
       }
@@ -2611,20 +2624,31 @@ export class TurnRowController {
   }
 
   #buildFollowUpChipsHtml(isCommitted) {
+    const members = this.#getMembersInPositionOrder().filter((member) => member.position >= 3);
+    const autoChipModels = isCommitted
+      ? buildAutomaticFollowUpChipModelsFromActions({
+          actions: this.#record?.actions ?? [],
+          members,
+          store: this.#store,
+          enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+        })
+      : [];
+    const autoChipPositions = new Set(autoChipModels.map((chip) => Number(chip.position)));
     const chipModels = buildFollowUpChipModels({
       overrides: this.#getCurrentFollowUpOverridesForDisplay(isCommitted),
-      members: this.#getMembersInPositionOrder().filter((member) => member.position >= 3),
+      members,
       store: this.#store,
       enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
       resolvedSkillNameByPosition: this.#resolveFollowUpSkillNameByPosition(),
-    });
-    if (chipModels.length === 0) {
+    }).filter((chip) => !autoChipPositions.has(Number(chip.position)));
+    const allChipModels = [...chipModels, ...autoChipModels];
+    if (allChipModels.length === 0) {
       return '';
     }
     return `
       <div data-role="follow-up-chip-list" class="flex flex-wrap gap-1 pb-1">
-        ${chipModels.map((chip) => `
-          <span data-role="follow-up-chip"
+        ${allChipModels.map((chip) => `
+          <span data-role="${String(chip.key ?? '').startsWith('auto:') ? 'automatic-follow-up-chip' : 'follow-up-chip'}"
                 title="${chip.label}"
                 class="inline-flex max-w-full items-center rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold leading-tight text-cyan-700">
             <span class="max-w-full break-all">${chip.label}</span>
