@@ -1,11 +1,5 @@
-const MANUAL_HP_BREAK_EXECUTION_PHASE = -1;
 const NON_DAMAGE_EXECUTION_PHASE = 0;
 const DAMAGE_EXECUTION_PHASE = 1;
-
-function hasManualHpBreakAction(entry) {
-  return Array.isArray(entry?.action?.manualHpBreakEnemyIndexes) &&
-    entry.action.manualHpBreakEnemyIndexes.length > 0;
-}
 
 export function getTurnActionExecutionPhase(skill) {
   return String(skill?.type ?? '') === 'damage'
@@ -14,9 +8,6 @@ export function getTurnActionExecutionPhase(skill) {
 }
 
 function getTurnActionEntryExecutionPhase(entry) {
-  if (hasManualHpBreakAction(entry)) {
-    return MANUAL_HP_BREAK_EXECUTION_PHASE;
-  }
   return String(entry?.skill?.type ?? '') === 'damage'
     ? DAMAGE_EXECUTION_PHASE
     : NON_DAMAGE_EXECUTION_PHASE;

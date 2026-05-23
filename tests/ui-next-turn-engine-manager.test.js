@@ -2446,7 +2446,7 @@ test('TurnEngineManager recalculateFrom restores killCount from overrideEntries'
   assert.equal(manager.computedStates[0].turnState.enemyState.allEnemiesDefeated, true);
 });
 
-test('TurnEngineManager applies HP_BREAK overrides, prunes later actors, and advances to the next base turn', () => {
+test('TurnEngineManager applies HP_BREAK overrides, preserves earlier actors, and advances to the next base turn', () => {
   const actorSkill = createSkill({
     id: 9073,
     name: 'Gauge Slash',
@@ -2490,9 +2490,10 @@ test('TurnEngineManager applies HP_BREAK overrides, prunes later actors, and adv
     }
   );
 
-  assert.equal(committedRecord.actions.length, 1, 'later actions should be truncated after HP break');
-  assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0]);
-  assert.equal(committedRecord.actions[0]?.hpBreakCount, 1);
+  assert.equal(committedRecord.actions.length, 2, 'earlier non-damage actions should execute before HP break');
+  assert.deepEqual(committedRecord.actions.map((action) => action.positionIndex), [1, 0]);
+  assert.deepEqual(committedRecord.actions[1]?.manualHpBreakEnemyIndexes, [0]);
+  assert.equal(committedRecord.actions[1]?.hpBreakCount, 1);
   assert.deepEqual(manager.replayScript.turns[0].actionOutcomeOverrides, [
     { position: 0, outcome: 'HpBreak', enemyIndexes: [0] },
   ]);

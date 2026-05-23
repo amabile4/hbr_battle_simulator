@@ -1,9 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
+import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { buildAutomaticFollowUpChipModelsFromActions } from '../ui-next/utils/follow-up-presentation.js';
 import { CharacterStyle, Party, createBattleStateFromParty, applyInitialPassiveState } from '../src/index.js';
 import { REPLAY_OVERRIDE_ENTRY_TYPES } from '../src/ui/lightweight-replay-script.js';
+import { normalizeSessionSnapshot } from '../ui-next/utils/session-snapshot.js';
+import { getStore } from './helpers.js';
+
+const YUMEGURI_REAL_REPLAY_FIXTURE = 'ui_next_session_yumeguri_real_replay_2026-05-23.json';
 
 function createSkill({ id, name, targetType, parts, spCost = 0, hitCount = 0 }) {
   return {
@@ -24,6 +30,22 @@ const PROTECTION_SKILL = createSkill({
   targetType: 'Self',
   parts: [{ skill_type: 'Protection', target_type: 'Self' }],
 });
+
+function loadSessionFixture(fileName) {
+  const fixtureUrl = new URL(`./fixtures/${fileName}`, import.meta.url);
+  const text = fs.readFileSync(fixtureUrl, 'utf8');
+  return normalizeSessionSnapshot(JSON.parse(text));
+}
+
+function loadSessionIntoTurnEngine(session) {
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+  return manager;
+}
 
 function createPursuitTestParty(actorOptions = {}) {
   const backMemberSkills = actorOptions.backMemberSkills ?? [PROTECTION_SKILL];
@@ -886,6 +908,191 @@ test('Byakko rush remains active into granted extra turn and repeats Assault Cla
   const byakkoActions = extraRecord.actions.filter((action) => action.characterId === 'BYAKKO_RUSH_EXTRA');
   assert.equal(byakkoActions.length, 2);
   assert.deepEqual(byakkoActions.map((action) => action.castIndex), [0, 1]);
+});
+
+test('湯めぐり handles derived attack skills before HP break and 温泉手形 transforms only once per player turn', () => {
+  const lovelyBeam = createSkill({
+    id: 9410,
+    name: 'くぎづけ♡ラブリービーム',
+    targetType: 'Single',
+    spCost: 7,
+    hitCount: 1,
+    parts: [{ skill_type: 'DamageRateChangeAttackSkill', target_type: 'Single', type: 'Light' }],
+  });
+  const sweetsCharge = createSkill({
+    id: 9411,
+    name: 'スイーツチャージ！',
+    targetType: 'Single',
+    spCost: 4,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const finisher = createSkill({
+    id: 9412,
+    name: '黒曜のオーバーロード',
+    targetType: 'Single',
+    spCost: 13,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Dark' }],
+  });
+  const normalPursuit = createSkill({
+    id: 9490,
+    name: '追撃',
+    targetType: 'Single',
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+  const nekoJet = createSkill({
+    id: 9491,
+    name: 'ネコジェット・シャテキ',
+    targetType: 'Single',
+    hitCount: 5,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+  const party = createPursuitTestParty({
+    characterId: 'ALESSA_LOVELY',
+    skill: lovelyBeam,
+    memberSkillsByIndex: {
+      0: [lovelyBeam],
+      1: [sweetsCharge],
+      2: [finisher],
+    },
+    memberOptionsByIndex: {
+      1: { characterId: 'NIKAIDO_SWEETS', initialSP: 20 },
+      2: { characterId: 'RUKA_FINISHER', initialSP: 20 },
+      3: {
+        characterId: 'YO_OSHIMA_TICKET',
+        initialSP: 24,
+        triggeredSkills: [nekoJet, normalPursuit],
+        passives: [{ id: 57001218, name: '湯めぐり', timing: 'None', condition: 'ConsumeSp()<=8', parts: [] }],
+      },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.extraHpGaugeStateByEnemy = {
+    0: { total: 3, remaining: 3, values: [1, 1, 1] },
+  };
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 9410, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 9411, target: { type: 'enemy', enemyIndex: 0 } },
+      2: { skillId: 9412, target: { type: 'enemy', enemyIndex: 0 } },
+    },
+    {
+      enemyCount: 1,
+      actionOutcomeOverrides: [{ position: 2, outcome: 'HpBreak', enemyIndexes: [0] }],
+    }
+  );
+
+  assert.deepEqual(record.actions.map((action) => action.skillName), [
+    'くぎづけ♡ラブリービーム',
+    'スイーツチャージ！',
+    '黒曜のオーバーロード',
+  ]);
+  assert.deepEqual(record.actions.map((action) => action.pursuitSourceSkillName || ''), [
+    'ネコジェット・シャテキ',
+    '追撃',
+    '',
+  ]);
+  assert.deepEqual(record.actions.map((action) => action.pursuitSourceSpCost ?? 0), [10, 0, 0]);
+  assert.deepEqual(record.actions.map((action) => action.pursuedHitCount), [5, 1, 0]);
+});
+
+test('実リプレイ #5: 自動追撃表示・SP消費/増加・ネコジェットと通常追撃を1回ずつ再計算できる', () => {
+  const session = loadSessionFixture(YUMEGURI_REAL_REPLAY_FIXTURE);
+  const manager = loadSessionIntoTurnEngine(session);
+
+  assert.equal(manager.replayDiagnostics.error, null);
+  assert.equal(manager.replayDiagnostics.appliedTurnCount, 5);
+  assert.ok(manager.replayDiagnostics.turnWarnings.every((warnings) => warnings.length === 0));
+
+  const turnIndex = 4;
+  const record = manager.computedRecords[turnIndex];
+  const stateBefore = manager.getStateBefore(turnIndex);
+  const stateAfter = manager.computedStates[turnIndex];
+  assert.ok(record, '実リプレイ #5 の record が存在する');
+
+  assert.deepEqual(record.actions.map((action) => action.skillName), [
+    'くぎづけ♡ラブリービーム',
+    'スイーツチャージ！',
+    '黒曜のオーバーロード',
+  ]);
+  assert.deepEqual(record.actions.map((action) => action.characterName), [
+    '蒼井 えりか',
+    '二階堂 三郷',
+    '茅森 月歌',
+  ]);
+
+  const pursuitActions = record.actions.filter((action) => action.pursuitTriggerSource === 'auto');
+  assert.equal(pursuitActions.length, 2, '実リプレイ #5 の自動追撃は2回');
+  assert.deepEqual(pursuitActions.map((action) => action.pursuitSourceSkillName), [
+    'ネコジェット・シャテキ',
+    '追撃',
+  ]);
+  assert.deepEqual(pursuitActions.map((action) => action.pursuitSourceSpCost), [10, 0]);
+  assert.deepEqual(pursuitActions.map((action) => action.pursuedHitCount), [5, 1]);
+  assert.equal(
+    record.actions.filter((action) => action.pursuitSourceSkillName === 'ネコジェット・シャテキ').length,
+    1,
+    '温泉手形によるネコジェット変換は同一 player turn で1回だけ'
+  );
+  assert.equal(
+    record.actions.filter((action) => action.pursuitSourceSkillName === '追撃').length,
+    1,
+    '2回目の湯めぐりは通常追撃に戻る'
+  );
+
+  const chipModels = buildAutomaticFollowUpChipModelsFromActions({
+    actions: record.actions,
+    members: stateBefore.party,
+  });
+  assert.equal(chipModels.length, 2, '実リプレイ #5 の自動追撃チップは2枚表示される');
+  assert.deepEqual(chipModels.map((chip) => chip.label), [
+    '四ツ葉→E1 自動追撃 ネコジェット・シャテキ',
+    '四ツ葉→E1 自動追撃 追撃',
+  ]);
+
+  const costBySkillName = Object.fromEntries(
+    record.actions.map((action) => [
+      action.skillName,
+      (action.spChanges ?? [])
+        .filter((change) => change.source === 'cost')
+        .reduce((sum, change) => sum + Number(change.delta ?? 0), 0),
+    ])
+  );
+  assert.deepEqual(costBySkillName, {
+    'くぎづけ♡ラブリービーム': -7,
+    'スイーツチャージ！': -4,
+    '黒曜のオーバーロード': -13,
+  });
+
+  const frontSpPassiveChanges = record.actions.flatMap((action) =>
+    (action.spChanges ?? [])
+      .filter((change) => change.source === 'sp_passive')
+      .map((change) => ({
+        skillName: action.skillName,
+        delta: change.delta,
+      }))
+  );
+  assert.equal(frontSpPassiveChanges.length, 6, 'そよぐ新緑2回 x 前衛3人分の SP+2 が記録される');
+  assert.ok(frontSpPassiveChanges.every((change) => change.delta === 2));
+
+  const passiveLogEvents = record.passiveEvents.filter((event) => event.passiveName === 'そよぐ新緑');
+  assert.equal(passiveLogEvents.length, 2, 'そよぐ新緑のパッシブログは追撃2回分');
+  assert.deepEqual(passiveLogEvents.map((event) => event.triggerSkillName), [
+    'くぎづけ♡ラブリービーム',
+    'スイーツチャージ！',
+  ]);
+  assert.ok(passiveLogEvents.every((event) => event.spDelta === 6));
+  assert.ok(passiveLogEvents.every((event) => event.affectedTargetCount === 3));
+
+  const yotsubaBefore = stateBefore.party.find((member) => member.characterName === '大島 四ツ葉');
+  const yotsubaAfter = stateAfter.party.find((member) => member.characterName === '大島 四ツ葉');
+  assert.equal(yotsubaBefore?.sp?.current, 24);
+  assert.equal(yotsubaAfter?.sp?.current, 18);
 });
 
 test('pursuit OD is not multiplied by enemy count on All-target skill', () => {

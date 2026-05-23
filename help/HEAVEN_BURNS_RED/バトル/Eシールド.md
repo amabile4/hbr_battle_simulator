@@ -40,6 +40,7 @@ Eシールドは、敵が DP の代わりに持つ特殊ゲージです。
   - 自動ブレイク（current=0 到達）した actionEntry には `autoBreakEnemyIndexes` と「ブレイカー識別情報 (`actorCharacterId / skillId / source='auto'`)」が記録され、Turn Row には violet 色の `(自動)` chip が手動 chip と同じ行に並ぶ
   - 自動ブレイクで起動した「ブレイク時パッシブ」は通常パッシブと同じ形式で Passive Log ペインへ流入する (`source='passive_trigger'` / `effectTypes=['BreakDownTurnUp']`)
   - DownTurn ステータスが消滅した瞬間（`tickEnemyStatusDurations` の `PlayerTurnEnd` / `EnemyTurnEnd` 両 timing）に対象 enemy の Eシールド `current` が `max` まで自動復帰する
+  - `慧眼の女教皇` クイーンの `アトミックフレア` など、スキル本体に `IgnoreEShieldElement` を持つアクティブ攻撃は、active な Eシールド敵に対して Eシールドを減らし、同時に弱点命中扱いとして `1MORE` などの `AdditionalHitOnWeak` を発火できる
 
 ### シミュレーターでの解決 (Resolution) と評価
 

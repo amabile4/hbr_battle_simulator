@@ -203,6 +203,9 @@ const NEGATIVE_STATE_DURATION_TURNS = 5;
 const NIOHSHIMA_PURE_MEMORY_STYLE_ID = 1006206;
 const NIOHSHIMA_MAKEUP_PASSIVE_ID = 57001237;
 const NIOHSHIMA_ODOR_TOILETTE_SKILL_ID = 46006211;
+const QUEEN_HIGH_PRIESTESS_STYLE_ID = 1021203;
+const QUEEN_ATOMIC_FLARE_SKILL_ID = 46041206;
+const QUEEN_1MORE_LIMIT_BREAK_LEVEL = 1;
 const NIOHSHIMA_ODOR_TOILETTE_BASE_SP_COST = 16;
 const NIOHSHIMA_ODOR_TOILETTE_MAKEUP_SP_COST = 8;
 const MAKEUP_SPECIAL_STATUS_ID = 164;
@@ -756,7 +759,7 @@ function createHpBreakTestState({
   };
 }
 
-test('manual HP break decrements extra gauge, resets break state, restores E shield, and truncates later actions', () => {
+test('manual HP break decrements extra gauge, resets break state, restores E shield, and preserves earlier actions', () => {
   const { state, skillId } = createHpBreakTestState();
   state.turnState.enemyState.statuses = [
     { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
@@ -779,13 +782,15 @@ test('manual HP break decrements extra gauge, resets break state, restores E shi
     1: { characterId: 'M2', skillId: state.party[1].skills[0].skillId },
     2: { characterId: 'M3', skillId: state.party[2].skills[0].skillId },
   });
-  assert.equal(preview.actions.length, 1, 'preview should stop after the HP break action');
+  assert.equal(preview.actions.length, 3, 'preview should preserve earlier non-damage actions before the HP break action');
+  assert.deepEqual(preview.actions.map((action) => action.characterId), ['M2', 'M3', 'M1']);
 
   const { nextState, committedRecord } = commitTurn(state, preview);
 
-  assert.equal(committedRecord.actions.length, 1, 'commit should not materialize later actions');
-  assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0]);
-  assert.equal(committedRecord.actions[0]?.hpBreakCount, 1);
+  assert.equal(committedRecord.actions.length, 3, 'commit should keep actions that execute before HP break');
+  assert.deepEqual(committedRecord.actions.map((action) => action.characterId), ['M2', 'M3', 'M1']);
+  assert.deepEqual(committedRecord.actions[2]?.manualHpBreakEnemyIndexes, [0]);
+  assert.equal(committedRecord.actions[2]?.hpBreakCount, 1);
   assert.deepEqual(nextState.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
     total: 3,
     remaining: 2,
@@ -822,14 +827,16 @@ test('manual HP break can be applied repeatedly to multiple enemies until final 
       1: { characterId: 'M2', skillId: currentState.party[1].skills[0].skillId },
     });
 
-    assert.equal(preview.actions.length, 1, 'preview should stop after each HP break action');
+    assert.equal(preview.actions.length, 2, 'preview should preserve earlier non-damage actions before each HP break action');
+    assert.deepEqual(preview.actions.map((action) => action.characterId), ['M2', 'M1']);
 
     const { nextState, committedRecord } = commitTurn(currentState, preview);
     const expectedRemaining = HP_BREAK_TEST_EXTRA_GAUGE_TOTAL - (expectedTurnIndex - 1);
 
-    assert.equal(committedRecord.actions.length, 1, 'commit should truncate later actors after HP break');
-    assert.deepEqual(committedRecord.actions[0]?.manualHpBreakEnemyIndexes, [0, 1]);
-    assert.equal(committedRecord.actions[0]?.hpBreakCount, 2);
+    assert.equal(committedRecord.actions.length, 2, 'commit should preserve earlier actions before HP break');
+    assert.deepEqual(committedRecord.actions.map((action) => action.characterId), ['M2', 'M1']);
+    assert.deepEqual(committedRecord.actions[1]?.manualHpBreakEnemyIndexes, [0, 1]);
+    assert.equal(committedRecord.actions[1]?.hpBreakCount, 2);
     assert.equal(nextState.turnState.turnType, 'normal');
     assert.equal(nextState.turnState.turnIndex, expectedTurnIndex);
 
@@ -14090,6 +14097,85 @@ test('闇撃のブレス通常攻撃は弱点攻撃として AdditionalHitOnWeak
 
   assert.equal(nextState.turnState.turnType, 'extra');
   assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, ['WEAK_TURN_DARK_NORMAL']);
+});
+
+test('慧眼の女教皇 アトミックフレアはEシールド属性無視を弱点命中として扱い1MOREを発火する', () => {
+  const store = getStore();
+  const fillerStyleIds = getSixUsableStyleIds(store).filter((styleId) => Number(styleId) !== QUEEN_HIGH_PRIESTESS_STYLE_ID);
+  const party = store.buildPartyFromStyleIds(
+    [QUEEN_HIGH_PRIESTESS_STYLE_ID, ...fillerStyleIds.slice(0, 5)],
+    {
+      initialSP: 20,
+      limitBreakLevelsByPartyIndex: { 0: QUEEN_1MORE_LIMIT_BREAK_LEVEL },
+      skillSetsByPartyIndex: {
+        0: [QUEEN_ATOMIC_FLARE_SKILL_ID],
+      },
+    }
+  );
+  const state = applyEnemyEShieldTestSetup(applyInitialPassiveState(createBattleStateFromParty(party)), {
+    enemyCount: 1,
+    eShields: {
+      0: createEnemyEShieldState({ current: 10, max: 10, elements: ['Fire'] }),
+    },
+    damageRatesByEnemy: {
+      0: { Strike: 100, Fire: 50 },
+    },
+  });
+  const queen = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: queen.characterId, skillId: QUEEN_ATOMIC_FLARE_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, queen.characterId);
+
+  assert.equal(action?.skillName, 'アトミックフレア');
+  assert.equal(action?.spCost, 16);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 5,
+    max: 10,
+    elements: ['Fire'],
+    defUpRate: 0,
+    damageLimit: 0,
+  });
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, [queen.characterId]);
+
+  const extraPreview = previewTurn(nextState, {
+    0: { characterId: queen.characterId, skillId: QUEEN_ATOMIC_FLARE_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  assert.equal(extraPreview.actions[0]?.spCost, 0, 'アトミックフレアは追加ターン中 SP0');
+  const extraCommit = commitTurn(nextState, extraPreview);
+  assert.equal(extraCommit.nextState.turnState.turnType, 'normal', '1MOREは追加ターン中に再付与しない');
+});
+
+test('慧眼の女教皇 アトミックフレアはEシールドがない非弱点敵では1MOREを発火しない', () => {
+  const store = getStore();
+  const fillerStyleIds = getSixUsableStyleIds(store).filter((styleId) => Number(styleId) !== QUEEN_HIGH_PRIESTESS_STYLE_ID);
+  const party = store.buildPartyFromStyleIds(
+    [QUEEN_HIGH_PRIESTESS_STYLE_ID, ...fillerStyleIds.slice(0, 5)],
+    {
+      initialSP: 20,
+      limitBreakLevelsByPartyIndex: { 0: QUEEN_1MORE_LIMIT_BREAK_LEVEL },
+      skillSetsByPartyIndex: {
+        0: [QUEEN_ATOMIC_FLARE_SKILL_ID],
+      },
+    }
+  );
+  const state = applyEnemyEShieldTestSetup(applyInitialPassiveState(createBattleStateFromParty(party)), {
+    enemyCount: 1,
+    damageRatesByEnemy: {
+      0: { Strike: 100 },
+    },
+  });
+  const queen = state.party[0];
+
+  const preview = previewTurn(state, {
+    0: { characterId: queen.characterId, skillId: QUEEN_ATOMIC_FLARE_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.notEqual(nextState.turnState.turnType, 'extra');
 });
 
 test('AdditionalHitOnExtraSkill + HealDpRate: DP healed to AllyFront targets when EX skill used', () => {

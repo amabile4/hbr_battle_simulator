@@ -1,0 +1,2121 @@
+{
+  "version": 1,
+  "setup": {
+    "isFrontFilled": true,
+    "styleIds": [
+      1001108,
+      1002108,
+      1002606,
+      1006405,
+      1005107,
+      1021203
+    ],
+    "supportStyleIds": [
+      1005605,
+      1004605,
+      1006206,
+      1001208,
+      1002406,
+      1008405
+    ],
+    "limitBreakLevelsByPartyIndex": {
+      "0": 4,
+      "1": 2,
+      "2": 2,
+      "3": 3,
+      "4": 1,
+      "5": 2
+    },
+    "supportLimitBreakLevelsByPartyIndex": {
+      "0": 4,
+      "1": 4,
+      "2": 4,
+      "3": 4,
+      "4": 4,
+      "5": 4
+    },
+    "drivePierceByPartyIndex": {
+      "0": 15,
+      "1": 15,
+      "2": 15,
+      "3": 15,
+      "4": 15,
+      "5": 15
+    },
+    "startSpEquipByPartyIndex": {
+      "0": 3,
+      "1": 3,
+      "2": 3,
+      "3": 3,
+      "4": 3,
+      "5": 3
+    },
+    "normalAttackElementsByPartyIndex": {
+      "0": [
+        "Dark"
+      ],
+      "1": [
+        "Dark"
+      ],
+      "2": [
+        "Dark"
+      ],
+      "3": [
+        "Dark"
+      ],
+      "4": [
+        "Dark"
+      ],
+      "5": [
+        "Dark"
+      ]
+    },
+    "skillSetsByPartyIndex": {
+      "0": [
+        46001101,
+        46001102,
+        46001105,
+        46001104,
+        46001106,
+        46001103,
+        46001107,
+        46001161,
+        46001108,
+        46001110,
+        46001111,
+        46001114,
+        46001115,
+        46001116,
+        46001117,
+        46511101,
+        46300001,
+        46300002,
+        46300003,
+        46300004,
+        46300005,
+        46300006,
+        46300007,
+        46300008,
+        46300009,
+        46300010,
+        46300011,
+        46300012,
+        46300013,
+        46300014,
+        46300015,
+        46300017,
+        46300018,
+        46450001
+      ],
+      "1": [
+        46002101,
+        46002102,
+        46002103,
+        46002104,
+        46002106,
+        46002105,
+        46002108,
+        46002110,
+        46002113,
+        46002114,
+        46002125,
+        46300001,
+        46300002,
+        46300003,
+        46300004,
+        46300005,
+        46300006,
+        46300007,
+        46300008,
+        46300009,
+        46300010,
+        46300011,
+        46300012,
+        46300013,
+        46300014,
+        46300015,
+        46300017,
+        46300018,
+        46450001,
+        46402101
+      ],
+      "2": [
+        46002601,
+        46002602,
+        46002604,
+        46002605,
+        46002661,
+        46002603,
+        46002606,
+        46002608,
+        46002609,
+        46002610,
+        46002611,
+        46512601,
+        46300001,
+        46300002,
+        46300003,
+        46300004,
+        46300005,
+        46300006,
+        46300007,
+        46300008,
+        46300009,
+        46300010,
+        46300011,
+        46300012,
+        46300013,
+        46300014,
+        46300015,
+        46300017,
+        46300018,
+        46450001
+      ],
+      "3": [
+        46006401,
+        46006402,
+        46006403,
+        46006404,
+        46006405,
+        46006406,
+        46006409,
+        46300001,
+        46300002,
+        46300003,
+        46300004,
+        46300005,
+        46300006,
+        46300007,
+        46300008,
+        46300009,
+        46300010,
+        46300011,
+        46300012,
+        46300013,
+        46300014,
+        46300015,
+        46300017,
+        46300018,
+        46450001,
+        46406401
+      ],
+      "4": [
+        46005122,
+        46005102,
+        46005105,
+        46005106,
+        46005161,
+        46005103,
+        46005109,
+        46005113,
+        46005114,
+        46005120,
+        46005121,
+        46300001,
+        46300002,
+        46300003,
+        46300004,
+        46300005,
+        46300006,
+        46300007,
+        46300008,
+        46300009,
+        46300010,
+        46300011,
+        46300012,
+        46300013,
+        46300014,
+        46300015,
+        46300017,
+        46300018,
+        46450001
+      ],
+      "5": [
+        46041201,
+        46041202,
+        46041205,
+        46041206,
+        46300001,
+        46300002,
+        46300003,
+        46300004,
+        46300005,
+        46300006,
+        46300007,
+        46300008,
+        46300009,
+        46300010,
+        46300011,
+        46300012,
+        46300013,
+        46300014,
+        46300015,
+        46300017,
+        46300018,
+        46450001
+      ]
+    },
+    "stageSetup": {
+      "initialOdGauge": 0,
+      "initialSpBonusAll": 0,
+      "turnlyOdGauge": 0,
+      "turnlySpAll": 0,
+      "turnlySpFront": 1,
+      "turnlySpBack": 1,
+      "enchantEffects": [],
+      "initialStatusEffects": [],
+      "selectedDimensionBattleId": 191000014
+    },
+    "styleNames": [
+      "The Feel of the Throne",
+      "ヒカル・Mermaid Vacation",
+      "戦場の白き牙",
+      "ゆるりたゆたう湯道楽",
+      "アオゾラ全力応援歌",
+      "慧眼の女教皇"
+    ],
+    "characterNames": [
+      "茅森 月歌",
+      "蒼井 えりか",
+      "ビャッコ",
+      "大島 四ツ葉",
+      "二階堂 三郷",
+      "クイーン"
+    ],
+    "supportStyleNames": [
+      "ラッシュ！スタブ！ツナ！",
+      "若女将の日々",
+      "渚のピュアメモリー",
+      "君を待つ紅玉",
+      "暁のカタルシス",
+      "美しきシャールドゥーラ"
+    ],
+    "supportCharacterNames": [
+      "瑞原 あいな",
+      "蔵 里見",
+      "大島 二以奈",
+      "和泉 ユキ",
+      "樋口 聖華",
+      "ヴリティカ・バラクリシュナン"
+    ],
+    "skillNamesByPartyIndex": {
+      "0": [
+        "通常攻撃",
+        "クロス斬り",
+        "フルブレイカー",
+        "リカバー",
+        "夢幻泡影",
+        "スピニングスラッシュ",
+        "星火燎原",
+        "星火燎原+",
+        "ノーブルウェッジ",
+        "バーニングインパクト",
+        "サンダーパルス",
+        "黒曜のオーバーロード",
+        "黒曜のオーバーロード",
+        "炯眼の構え",
+        "月光",
+        "紡がれた記憶",
+        "クリティカルシンキング",
+        "リペアライト",
+        "ドライブゲイン",
+        "プロテクション",
+        "アタックライズ",
+        "コンセントレーション",
+        "ポイントケア",
+        "セルフエイド",
+        "ソフニング",
+        "ウィークンパワー",
+        "ファイアグラビトン",
+        "サンダーグラビトン",
+        "ダークグラビトン",
+        "ライトグラビトン",
+        "アイスグラビトン",
+        "チャージインジェクション",
+        "チアーアップ",
+        "ディフェンスブースト"
+      ],
+      "1": [
+        "通常攻撃",
+        "シールドレイ",
+        "プロヴォーク",
+        "シールドトルネード",
+        "エンジェルズ・ウィング",
+        "ご注文を伺います",
+        "アイドルスマイル",
+        "アクセラレーション",
+        "ときめきスライダー",
+        "くぎづけ♡ラブリービーム",
+        "過去を映す涙",
+        "クリティカルシンキング",
+        "リペアライト",
+        "ドライブゲイン",
+        "プロテクション",
+        "アタックライズ",
+        "コンセントレーション",
+        "ポイントケア",
+        "セルフエイド",
+        "ソフニング",
+        "ウィークンパワー",
+        "ファイアグラビトン",
+        "サンダーグラビトン",
+        "ダークグラビトン",
+        "ライトグラビトン",
+        "アイスグラビトン",
+        "チャージインジェクション",
+        "チアーアップ",
+        "ディフェンスブースト",
+        "プライベートレッスン"
+      ],
+      "2": [
+        "通常攻撃",
+        "スラッシュクロー",
+        "レイジングクロー",
+        "ビースト・プリズン",
+        "ビースト・プリズン+",
+        "イノセンス",
+        "ヒロイックプラウド",
+        "ぽかぽかリフレッシュ",
+        "アサルトクロー",
+        "ディスラプト",
+        "シャドウ・ランペイジ",
+        "めつるもまをまかな",
+        "クリティカルシンキング",
+        "リペアライト",
+        "ドライブゲイン",
+        "プロテクション",
+        "アタックライズ",
+        "コンセントレーション",
+        "ポイントケア",
+        "セルフエイド",
+        "ソフニング",
+        "ウィークンパワー",
+        "ファイアグラビトン",
+        "サンダーグラビトン",
+        "ダークグラビトン",
+        "ライトグラビトン",
+        "アイスグラビトン",
+        "チャージインジェクション",
+        "チアーアップ",
+        "ディフェンスブースト"
+      ],
+      "3": [
+        "通常攻撃",
+        "エンハンス",
+        "キャンディ・バースト",
+        "決戦前夜",
+        "夢見る幻想覚醒",
+        "グッナイ",
+        "フラッフィー",
+        "クリティカルシンキング",
+        "リペアライト",
+        "ドライブゲイン",
+        "プロテクション",
+        "アタックライズ",
+        "コンセントレーション",
+        "ポイントケア",
+        "セルフエイド",
+        "ソフニング",
+        "ウィークンパワー",
+        "ファイアグラビトン",
+        "サンダーグラビトン",
+        "ダークグラビトン",
+        "ライトグラビトン",
+        "アイスグラビトン",
+        "チャージインジェクション",
+        "チアーアップ",
+        "ディフェンスブースト",
+        "温泉手形"
+      ],
+      "4": [
+        "指揮行動",
+        "ハネ殺し",
+        "極点の一手",
+        "石塔の手筋",
+        "石塔の手筋+",
+        "クールダウン",
+        "北風のスバル",
+        "スイーツチャージ！",
+        "追風",
+        "三三七拍子",
+        "チアフル・エール",
+        "クリティカルシンキング",
+        "リペアライト",
+        "ドライブゲイン",
+        "プロテクション",
+        "アタックライズ",
+        "コンセントレーション",
+        "ポイントケア",
+        "セルフエイド",
+        "ソフニング",
+        "ウィークンパワー",
+        "ファイアグラビトン",
+        "サンダーグラビトン",
+        "ダークグラビトン",
+        "ライトグラビトン",
+        "アイスグラビトン",
+        "チャージインジェクション",
+        "チアーアップ",
+        "ディフェンスブースト"
+      ],
+      "5": [
+        "通常攻撃",
+        "マハラクカジャ",
+        "メディアラハン",
+        "アトミックフレア",
+        "クリティカルシンキング",
+        "リペアライト",
+        "ドライブゲイン",
+        "プロテクション",
+        "アタックライズ",
+        "コンセントレーション",
+        "ポイントケア",
+        "セルフエイド",
+        "ソフニング",
+        "ウィークンパワー",
+        "ファイアグラビトン",
+        "サンダーグラビトン",
+        "ダークグラビトン",
+        "ライトグラビトン",
+        "アイスグラビトン",
+        "チャージインジェクション",
+        "チアーアップ",
+        "ディフェンスブースト"
+      ]
+    }
+  },
+  "enemy": {
+    "selectedEnemyIds": [
+      13451074,
+      null,
+      null
+    ],
+    "activeSlotIndex": 0,
+    "enemySlots": [
+      {
+        "slotIndex": 0,
+        "selectedEnemyId": 13451074,
+        "selectedEnemyName": "絶界に屹立せし蝕樹",
+        "isManual": false,
+        "manual": {
+          "od_rate": 1,
+          "max_d_rate": 999,
+          "element": {
+            "slash": 100,
+            "stab": 100,
+            "strike": 100,
+            "fire": 100,
+            "ice": 100,
+            "thunder": 100,
+            "light": 100,
+            "dark": 100,
+            "nonelement": 100
+          },
+          "absorbElementList": [],
+          "e_shield": {
+            "count": 35,
+            "max": 35,
+            "elements": [
+              "Fire",
+              "Light",
+              "Dark"
+            ],
+            "def_up_rate": 5000,
+            "dmg_limit": 0
+          },
+          "extra_hp_gauge": {
+            "total": 3,
+            "remaining": 3,
+            "values": [
+              57500000,
+              57500000,
+              57500000
+            ]
+          }
+        },
+        "od_rate": 1,
+        "max_d_rate": 999,
+        "resistances": {
+          "element": {
+            "slash": 100,
+            "stab": 100,
+            "strike": 100,
+            "fire": 400,
+            "ice": 100,
+            "thunder": 100,
+            "light": 400,
+            "dark": 400,
+            "nonelement": 100
+          }
+        },
+        "absorbElementList": [],
+        "e_shield": {
+          "count": 35,
+          "max": 35,
+          "elements": [
+            "Fire",
+            "Light",
+            "Dark"
+          ],
+          "def_up_rate": 5000,
+          "dmg_limit": 0
+        },
+        "extra_hp_gauge": {
+          "total": 3,
+          "remaining": 3,
+          "values": [
+            57500000,
+            57500000,
+            57500000
+          ]
+        }
+      },
+      {
+        "slotIndex": 1,
+        "selectedEnemyId": null,
+        "selectedEnemyName": "",
+        "isManual": false,
+        "manual": {
+          "od_rate": 1,
+          "max_d_rate": 999,
+          "element": {
+            "slash": 100,
+            "stab": 100,
+            "strike": 100,
+            "fire": 100,
+            "ice": 100,
+            "thunder": 100,
+            "light": 100,
+            "dark": 100,
+            "nonelement": 100
+          },
+          "absorbElementList": []
+        },
+        "od_rate": 1,
+        "max_d_rate": 999,
+        "resistances": {
+          "element": {
+            "slash": 100,
+            "stab": 100,
+            "strike": 100,
+            "fire": 100,
+            "ice": 100,
+            "thunder": 100,
+            "light": 100,
+            "dark": 100,
+            "nonelement": 100
+          }
+        },
+        "absorbElementList": []
+      },
+      {
+        "slotIndex": 2,
+        "selectedEnemyId": null,
+        "selectedEnemyName": "",
+        "isManual": false,
+        "manual": {
+          "od_rate": 1,
+          "max_d_rate": 999,
+          "element": {
+            "slash": 100,
+            "stab": 100,
+            "strike": 100,
+            "fire": 100,
+            "ice": 100,
+            "thunder": 100,
+            "light": 100,
+            "dark": 100,
+            "nonelement": 100
+          },
+          "absorbElementList": []
+        },
+        "od_rate": 1,
+        "max_d_rate": 999,
+        "resistances": {
+          "element": {
+            "slash": 100,
+            "stab": 100,
+            "strike": 100,
+            "fire": 100,
+            "ice": 100,
+            "thunder": 100,
+            "light": 100,
+            "dark": 100,
+            "nonelement": 100
+          }
+        },
+        "absorbElementList": []
+      }
+    ],
+    "preemptiveField": "none",
+    "selectedEnemyId": 13451074,
+    "selectedEnemyName": "絶界に屹立せし蝕樹",
+    "enemyCount": 1,
+    "isManual": false,
+    "manual": {
+      "od_rate": 1,
+      "max_d_rate": 999,
+      "element": {
+        "slash": 100,
+        "stab": 100,
+        "strike": 100,
+        "fire": 100,
+        "ice": 100,
+        "thunder": 100,
+        "light": 100,
+        "dark": 100,
+        "nonelement": 100
+      },
+      "absorbElementList": [],
+      "e_shield": {
+        "count": 35,
+        "max": 35,
+        "elements": [
+          "Fire",
+          "Light",
+          "Dark"
+        ],
+        "def_up_rate": 5000,
+        "dmg_limit": 0
+      },
+      "extra_hp_gauge": {
+        "total": 3,
+        "remaining": 3,
+        "values": [
+          57500000,
+          57500000,
+          57500000
+        ]
+      }
+    },
+    "od_rate": 1,
+    "max_d_rate": 999,
+    "resistances": {
+      "element": {
+        "slash": 100,
+        "stab": 100,
+        "strike": 100,
+        "fire": 400,
+        "ice": 100,
+        "thunder": 100,
+        "light": 400,
+        "dark": 400,
+        "nonelement": 100
+      }
+    },
+    "absorbElementList": [],
+    "e_shield": {
+      "count": 35,
+      "max": 35,
+      "elements": [
+        "Fire",
+        "Light",
+        "Dark"
+      ],
+      "def_up_rate": 5000,
+      "dmg_limit": 0
+    },
+    "extra_hp_gauge": {
+      "total": 3,
+      "remaining": 3,
+      "values": [
+        57500000,
+        57500000,
+        57500000
+      ]
+    }
+  },
+  "simulatorSettings": {
+    "targetSelection": {
+      "enemyMode": "simple",
+      "allyMode": "manual"
+    },
+    "captureUntilBattleEnd": true
+  },
+  "validationPolicy": {
+    "allowInsufficientSp": true,
+    "allowInsufficientOd": true,
+    "allowUseCountOverflow": true,
+    "allowSkillConditionMismatch": true
+  },
+  "replayScript": {
+    "version": 1,
+    "setup": {
+      "styleIds": [
+        1001108,
+        1002108,
+        1002606,
+        1006405,
+        1005107,
+        1021203
+      ],
+      "supportStyleIdsByPartyIndex": {
+        "0": 1005605,
+        "1": 1004605,
+        "2": 1006206,
+        "3": 1001208,
+        "4": 1002406,
+        "5": 1008405
+      },
+      "supportLimitBreakLevelsByPartyIndex": {},
+      "skillSetsByPartyIndex": {
+        "0": [
+          46001101,
+          46001102,
+          46001105,
+          46001104,
+          46001106,
+          46001103,
+          46001107,
+          46001161,
+          46001108,
+          46001110,
+          46001111,
+          46001114,
+          46001115,
+          46001116,
+          46001117,
+          46511101,
+          46300001,
+          46300002,
+          46300003,
+          46300004,
+          46300005,
+          46300006,
+          46300007,
+          46300008,
+          46300009,
+          46300010,
+          46300011,
+          46300012,
+          46300013,
+          46300014,
+          46300015,
+          46300017,
+          46300018,
+          46450001
+        ],
+        "1": [
+          46002101,
+          46002102,
+          46002103,
+          46002104,
+          46002106,
+          46002105,
+          46002108,
+          46002110,
+          46002113,
+          46002114,
+          46002125,
+          46300001,
+          46300002,
+          46300003,
+          46300004,
+          46300005,
+          46300006,
+          46300007,
+          46300008,
+          46300009,
+          46300010,
+          46300011,
+          46300012,
+          46300013,
+          46300014,
+          46300015,
+          46300017,
+          46300018,
+          46450001,
+          46402101
+        ],
+        "2": [
+          46002601,
+          46002602,
+          46002604,
+          46002605,
+          46002661,
+          46002603,
+          46002606,
+          46002608,
+          46002609,
+          46002610,
+          46002611,
+          46512601,
+          46300001,
+          46300002,
+          46300003,
+          46300004,
+          46300005,
+          46300006,
+          46300007,
+          46300008,
+          46300009,
+          46300010,
+          46300011,
+          46300012,
+          46300013,
+          46300014,
+          46300015,
+          46300017,
+          46300018,
+          46450001
+        ],
+        "3": [
+          46006401,
+          46006402,
+          46006403,
+          46006404,
+          46006405,
+          46006406,
+          46006409,
+          46300001,
+          46300002,
+          46300003,
+          46300004,
+          46300005,
+          46300006,
+          46300007,
+          46300008,
+          46300009,
+          46300010,
+          46300011,
+          46300012,
+          46300013,
+          46300014,
+          46300015,
+          46300017,
+          46300018,
+          46450001,
+          46406401
+        ],
+        "4": [
+          46005122,
+          46005102,
+          46005105,
+          46005106,
+          46005161,
+          46005103,
+          46005109,
+          46005113,
+          46005114,
+          46005120,
+          46005121,
+          46300001,
+          46300002,
+          46300003,
+          46300004,
+          46300005,
+          46300006,
+          46300007,
+          46300008,
+          46300009,
+          46300010,
+          46300011,
+          46300012,
+          46300013,
+          46300014,
+          46300015,
+          46300017,
+          46300018,
+          46450001
+        ],
+        "5": [
+          46041201,
+          46041202,
+          46041205,
+          46041206,
+          46300001,
+          46300002,
+          46300003,
+          46300004,
+          46300005,
+          46300006,
+          46300007,
+          46300008,
+          46300009,
+          46300010,
+          46300011,
+          46300012,
+          46300013,
+          46300014,
+          46300015,
+          46300017,
+          46300018,
+          46450001
+        ]
+      },
+      "limitBreakLevelsByPartyIndex": {
+        "0": 4,
+        "1": 2,
+        "2": 2,
+        "3": 3,
+        "4": 1,
+        "5": 2
+      },
+      "initialOdGauge": 0,
+      "setupEntries": [
+        {
+          "type": "NormalAttackElementsByPartyIndex",
+          "payload": {
+            "0": [
+              "Dark"
+            ],
+            "1": [
+              "Dark"
+            ],
+            "2": [
+              "Dark"
+            ],
+            "3": [
+              "Dark"
+            ],
+            "4": [
+              "Dark"
+            ],
+            "5": [
+              "Dark"
+            ]
+          }
+        }
+      ],
+      "styleNames": [
+        "The Feel of the Throne",
+        "ヒカル・Mermaid Vacation",
+        "戦場の白き牙",
+        "ゆるりたゆたう湯道楽",
+        "アオゾラ全力応援歌",
+        "慧眼の女教皇"
+      ],
+      "characterNames": [
+        "茅森 月歌",
+        "蒼井 えりか",
+        "ビャッコ",
+        "大島 四ツ葉",
+        "二階堂 三郷",
+        "クイーン"
+      ],
+      "supportStyleNamesByPartyIndex": {
+        "0": "ラッシュ！スタブ！ツナ！",
+        "1": "若女将の日々",
+        "2": "渚のピュアメモリー",
+        "3": "君を待つ紅玉",
+        "4": "暁のカタルシス",
+        "5": "美しきシャールドゥーラ"
+      },
+      "supportCharacterNamesByPartyIndex": {
+        "0": "瑞原 あいな",
+        "1": "蔵 里見",
+        "2": "大島 二以奈",
+        "3": "和泉 ユキ",
+        "4": "樋口 聖華",
+        "5": "ヴリティカ・バラクリシュナン"
+      },
+      "skillNamesByPartyIndex": {
+        "0": [
+          "通常攻撃",
+          "クロス斬り",
+          "フルブレイカー",
+          "リカバー",
+          "夢幻泡影",
+          "スピニングスラッシュ",
+          "星火燎原",
+          "星火燎原+",
+          "ノーブルウェッジ",
+          "バーニングインパクト",
+          "サンダーパルス",
+          "黒曜のオーバーロード",
+          "黒曜のオーバーロード",
+          "炯眼の構え",
+          "月光",
+          "紡がれた記憶",
+          "クリティカルシンキング",
+          "リペアライト",
+          "ドライブゲイン",
+          "プロテクション",
+          "アタックライズ",
+          "コンセントレーション",
+          "ポイントケア",
+          "セルフエイド",
+          "ソフニング",
+          "ウィークンパワー",
+          "ファイアグラビトン",
+          "サンダーグラビトン",
+          "ダークグラビトン",
+          "ライトグラビトン",
+          "アイスグラビトン",
+          "チャージインジェクション",
+          "チアーアップ",
+          "ディフェンスブースト"
+        ],
+        "1": [
+          "通常攻撃",
+          "シールドレイ",
+          "プロヴォーク",
+          "シールドトルネード",
+          "エンジェルズ・ウィング",
+          "ご注文を伺います",
+          "アイドルスマイル",
+          "アクセラレーション",
+          "ときめきスライダー",
+          "くぎづけ♡ラブリービーム",
+          "過去を映す涙",
+          "クリティカルシンキング",
+          "リペアライト",
+          "ドライブゲイン",
+          "プロテクション",
+          "アタックライズ",
+          "コンセントレーション",
+          "ポイントケア",
+          "セルフエイド",
+          "ソフニング",
+          "ウィークンパワー",
+          "ファイアグラビトン",
+          "サンダーグラビトン",
+          "ダークグラビトン",
+          "ライトグラビトン",
+          "アイスグラビトン",
+          "チャージインジェクション",
+          "チアーアップ",
+          "ディフェンスブースト",
+          "プライベートレッスン"
+        ],
+        "2": [
+          "通常攻撃",
+          "スラッシュクロー",
+          "レイジングクロー",
+          "ビースト・プリズン",
+          "ビースト・プリズン+",
+          "イノセンス",
+          "ヒロイックプラウド",
+          "ぽかぽかリフレッシュ",
+          "アサルトクロー",
+          "ディスラプト",
+          "シャドウ・ランペイジ",
+          "めつるもまをまかな",
+          "クリティカルシンキング",
+          "リペアライト",
+          "ドライブゲイン",
+          "プロテクション",
+          "アタックライズ",
+          "コンセントレーション",
+          "ポイントケア",
+          "セルフエイド",
+          "ソフニング",
+          "ウィークンパワー",
+          "ファイアグラビトン",
+          "サンダーグラビトン",
+          "ダークグラビトン",
+          "ライトグラビトン",
+          "アイスグラビトン",
+          "チャージインジェクション",
+          "チアーアップ",
+          "ディフェンスブースト"
+        ],
+        "3": [
+          "通常攻撃",
+          "エンハンス",
+          "キャンディ・バースト",
+          "決戦前夜",
+          "夢見る幻想覚醒",
+          "グッナイ",
+          "フラッフィー",
+          "クリティカルシンキング",
+          "リペアライト",
+          "ドライブゲイン",
+          "プロテクション",
+          "アタックライズ",
+          "コンセントレーション",
+          "ポイントケア",
+          "セルフエイド",
+          "ソフニング",
+          "ウィークンパワー",
+          "ファイアグラビトン",
+          "サンダーグラビトン",
+          "ダークグラビトン",
+          "ライトグラビトン",
+          "アイスグラビトン",
+          "チャージインジェクション",
+          "チアーアップ",
+          "ディフェンスブースト",
+          "温泉手形"
+        ],
+        "4": [
+          "指揮行動",
+          "ハネ殺し",
+          "極点の一手",
+          "石塔の手筋",
+          "石塔の手筋+",
+          "クールダウン",
+          "北風のスバル",
+          "スイーツチャージ！",
+          "追風",
+          "三三七拍子",
+          "チアフル・エール",
+          "クリティカルシンキング",
+          "リペアライト",
+          "ドライブゲイン",
+          "プロテクション",
+          "アタックライズ",
+          "コンセントレーション",
+          "ポイントケア",
+          "セルフエイド",
+          "ソフニング",
+          "ウィークンパワー",
+          "ファイアグラビトン",
+          "サンダーグラビトン",
+          "ダークグラビトン",
+          "ライトグラビトン",
+          "アイスグラビトン",
+          "チャージインジェクション",
+          "チアーアップ",
+          "ディフェンスブースト"
+        ],
+        "5": [
+          "通常攻撃",
+          "マハラクカジャ",
+          "メディアラハン",
+          "アトミックフレア",
+          "クリティカルシンキング",
+          "リペアライト",
+          "ドライブゲイン",
+          "プロテクション",
+          "アタックライズ",
+          "コンセントレーション",
+          "ポイントケア",
+          "セルフエイド",
+          "ソフニング",
+          "ウィークンパワー",
+          "ファイアグラビトン",
+          "サンダーグラビトン",
+          "ダークグラビトン",
+          "ライトグラビトン",
+          "アイスグラビトン",
+          "チャージインジェクション",
+          "チアーアップ",
+          "ディフェンスブースト"
+        ]
+      }
+    },
+    "turns": [
+      {
+        "turn": 1,
+        "slots": [
+          {
+            "styleId": 1001108,
+            "skillId": 46001117,
+            "target": {
+              "type": "ally",
+              "styleId": 1002606
+            },
+            "styleName": "The Feel of the Throne",
+            "characterName": "茅森 月歌",
+            "skillName": "月光",
+            "spAtTurnStart": 8,
+            "spAtActionStart": 2
+          },
+          {
+            "styleId": 1005107,
+            "skillId": 46005120,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "アオゾラ全力応援歌",
+            "characterName": "二階堂 三郷",
+            "skillName": "三三七拍子",
+            "spAtTurnStart": 7,
+            "spAtActionStart": 0
+          },
+          {
+            "styleId": 1002606,
+            "skillId": 46002609,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "戦場の白き牙",
+            "characterName": "ビャッコ",
+            "skillName": "アサルトクロー",
+            "spAtTurnStart": 8,
+            "spAtActionStart": 3
+          },
+          {
+            "styleId": 1006405,
+            "skillId": null,
+            "styleName": "ゆるりたゆたう湯道楽",
+            "characterName": "大島 四ツ葉",
+            "skillName": null,
+            "spAtTurnStart": 8,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1002108,
+            "skillId": null,
+            "styleName": "ヒカル・Mermaid Vacation",
+            "characterName": "蒼井 えりか",
+            "skillName": null,
+            "spAtTurnStart": 8,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1021203,
+            "skillId": null,
+            "styleName": "慧眼の女教皇",
+            "characterName": "クイーン",
+            "skillName": null,
+            "spAtTurnStart": 7,
+            "spAtActionStart": null
+          }
+        ],
+        "operations": [],
+        "note": "",
+        "actionOutcomeOverrides": [],
+        "followUpOverrides": [
+          {
+            "position": 3,
+            "enemyIndex": 0
+          }
+        ],
+        "overrideEntries": [
+          {
+            "type": "EnemyCount",
+            "payload": 1
+          }
+        ],
+        "info": {
+          "spAtTurnStartByStyleId": {
+            "1001108": 8,
+            "1002108": 8,
+            "1002606": 8,
+            "1005107": 7,
+            "1006405": 8,
+            "1021203": 7
+          },
+          "spAtActionStartByStyleId": {
+            "1001108": 2,
+            "1002606": 3,
+            "1005107": 0
+          },
+          "spAtTurnStartByName": {
+            "茅森 月歌": 8,
+            "蒼井 えりか": 8,
+            "ビャッコ": 8,
+            "二階堂 三郷": 7,
+            "大島 四ツ葉": 8,
+            "クイーン": 7
+          },
+          "spAtActionStartByName": {
+            "茅森 月歌": 2,
+            "ビャッコ": 3,
+            "二階堂 三郷": 0
+          },
+          "actionOrder": [
+            "茅森 月歌",
+            "二階堂 三郷",
+            "ビャッコ"
+          ]
+        }
+      },
+      {
+        "turn": 2,
+        "slots": [
+          {
+            "styleId": 1001108,
+            "skillId": 46300018,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "The Feel of the Throne",
+            "characterName": "茅森 月歌",
+            "skillName": "チアーアップ",
+            "spAtTurnStart": 6,
+            "spAtActionStart": 1
+          },
+          {
+            "styleId": 1005107,
+            "skillId": 46005113,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "アオゾラ全力応援歌",
+            "characterName": "二階堂 三郷",
+            "skillName": "スイーツチャージ！",
+            "spAtTurnStart": 4,
+            "spAtActionStart": 0
+          },
+          {
+            "styleId": 1002606,
+            "skillId": 46002609,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "戦場の白き牙",
+            "characterName": "ビャッコ",
+            "skillName": "アサルトクロー",
+            "spAtTurnStart": 7,
+            "spAtActionStart": 2
+          },
+          {
+            "styleId": 1006405,
+            "skillId": null,
+            "styleName": "ゆるりたゆたう湯道楽",
+            "characterName": "大島 四ツ葉",
+            "skillName": null,
+            "spAtTurnStart": 8,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1002108,
+            "skillId": null,
+            "styleName": "ヒカル・Mermaid Vacation",
+            "characterName": "蒼井 えりか",
+            "skillName": null,
+            "spAtTurnStart": 8,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1021203,
+            "skillId": null,
+            "styleName": "慧眼の女教皇",
+            "characterName": "クイーン",
+            "skillName": null,
+            "spAtTurnStart": 7,
+            "spAtActionStart": null
+          }
+        ],
+        "operations": [
+          {
+            "type": "ReserveInterruptOd",
+            "payload": {
+              "level": 2
+            }
+          }
+        ],
+        "note": "",
+        "actionOutcomeOverrides": [],
+        "followUpOverrides": [
+          {
+            "position": 3,
+            "enemyIndex": 0
+          }
+        ],
+        "overrideEntries": [
+          {
+            "type": "EnemyCount",
+            "payload": 1
+          },
+          {
+            "type": "EnemyEShields",
+            "payload": {
+              "0": {
+                "current": 15,
+                "max": 35,
+                "elements": [
+                  "Fire",
+                  "Light",
+                  "Dark"
+                ],
+                "defUpRate": 5000,
+                "damageLimit": 0
+              }
+            }
+          },
+          {
+            "type": "EnemyStatuses",
+            "payload": [
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              }
+            ]
+          }
+        ],
+        "info": {
+          "spAtTurnStartByStyleId": {
+            "1001108": 6,
+            "1002108": 8,
+            "1002606": 7,
+            "1005107": 4,
+            "1006405": 8,
+            "1021203": 7
+          },
+          "spAtActionStartByStyleId": {
+            "1001108": 1,
+            "1002606": 2,
+            "1005107": 0
+          },
+          "spAtTurnStartByName": {
+            "茅森 月歌": 6,
+            "蒼井 えりか": 8,
+            "ビャッコ": 7,
+            "二階堂 三郷": 4,
+            "大島 四ツ葉": 8,
+            "クイーン": 7
+          },
+          "spAtActionStartByName": {
+            "茅森 月歌": 1,
+            "ビャッコ": 2,
+            "二階堂 三郷": 0
+          },
+          "actionOrder": [
+            "茅森 月歌",
+            "二階堂 三郷",
+            "ビャッコ"
+          ]
+        }
+      },
+      {
+        "turn": 3,
+        "slots": [
+          {
+            "styleId": 1002108,
+            "skillId": 46002113,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "ヒカル・Mermaid Vacation",
+            "characterName": "蒼井 えりか",
+            "skillName": "ときめきスライダー",
+            "spAtTurnStart": 20,
+            "spAtActionStart": 15
+          },
+          {
+            "styleId": 1005107,
+            "skillId": 46005121,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "アオゾラ全力応援歌",
+            "characterName": "二階堂 三郷",
+            "skillName": "チアフル・エール",
+            "spAtTurnStart": 25,
+            "spAtActionStart": 12
+          },
+          {
+            "styleId": 1002606,
+            "skillId": 46002611,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "戦場の白き牙",
+            "characterName": "ビャッコ",
+            "skillName": "シャドウ・ランペイジ",
+            "spAtTurnStart": 20,
+            "spAtActionStart": 7
+          },
+          {
+            "styleId": 1006405,
+            "skillId": null,
+            "styleName": "ゆるりたゆたう湯道楽",
+            "characterName": "大島 四ツ葉",
+            "skillName": null,
+            "spAtTurnStart": 20,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1001108,
+            "skillId": null,
+            "styleName": "The Feel of the Throne",
+            "characterName": "茅森 月歌",
+            "skillName": null,
+            "spAtTurnStart": 19,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1021203,
+            "skillId": null,
+            "styleName": "慧眼の女教皇",
+            "characterName": "クイーン",
+            "skillName": null,
+            "spAtTurnStart": 19,
+            "spAtActionStart": null
+          }
+        ],
+        "operations": [],
+        "note": "",
+        "actionOutcomeOverrides": [],
+        "followUpOverrides": [],
+        "overrideEntries": [
+          {
+            "type": "EnemyCount",
+            "payload": 1
+          },
+          {
+            "type": "EnemyEShields",
+            "payload": {
+              "0": {
+                "current": 0,
+                "max": 35,
+                "elements": [
+                  "Fire",
+                  "Light",
+                  "Dark"
+                ],
+                "defUpRate": 5000,
+                "damageLimit": 0
+              }
+            }
+          },
+          {
+            "type": "EnemyStatuses",
+            "payload": [
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Break",
+                "targetIndex": 0,
+                "remainingTurns": 0
+              },
+              {
+                "statusType": "DownTurn",
+                "targetIndex": 0,
+                "remainingTurns": 1
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              }
+            ]
+          }
+        ],
+        "info": {
+          "spAtTurnStartByStyleId": {
+            "1001108": 19,
+            "1002108": 20,
+            "1002606": 20,
+            "1005107": 25,
+            "1006405": 20,
+            "1021203": 19
+          },
+          "spAtActionStartByStyleId": {
+            "1002108": 15,
+            "1002606": 7,
+            "1005107": 12
+          },
+          "spAtTurnStartByName": {
+            "茅森 月歌": 19,
+            "蒼井 えりか": 20,
+            "ビャッコ": 20,
+            "二階堂 三郷": 25,
+            "大島 四ツ葉": 20,
+            "クイーン": 19
+          },
+          "spAtActionStartByName": {
+            "蒼井 えりか": 15,
+            "ビャッコ": 7,
+            "二階堂 三郷": 12
+          },
+          "actionOrder": [
+            "蒼井 えりか",
+            "二階堂 三郷",
+            "ビャッコ"
+          ]
+        }
+      },
+      {
+        "turn": 4,
+        "slots": [
+          {
+            "styleId": 1002108,
+            "skillId": 46002113,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "ヒカル・Mermaid Vacation",
+            "characterName": "蒼井 えりか",
+            "skillName": "ときめきスライダー",
+            "spAtTurnStart": 19,
+            "spAtActionStart": 14
+          },
+          {
+            "styleId": 1005107,
+            "skillId": 46005120,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "アオゾラ全力応援歌",
+            "characterName": "二階堂 三郷",
+            "skillName": "三三七拍子",
+            "spAtTurnStart": 16,
+            "spAtActionStart": 9
+          },
+          {
+            "styleId": 1001108,
+            "skillId": 46001117,
+            "target": {
+              "type": "ally",
+              "styleId": 1021203
+            },
+            "styleName": "The Feel of the Throne",
+            "characterName": "茅森 月歌",
+            "skillName": "月光",
+            "spAtTurnStart": 23,
+            "spAtActionStart": 17
+          },
+          {
+            "styleId": 1006405,
+            "skillId": null,
+            "styleName": "ゆるりたゆたう湯道楽",
+            "characterName": "大島 四ツ葉",
+            "skillName": null,
+            "spAtTurnStart": 24,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1002606,
+            "skillId": null,
+            "styleName": "戦場の白き牙",
+            "characterName": "ビャッコ",
+            "skillName": null,
+            "spAtTurnStart": 7,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1021203,
+            "skillId": null,
+            "styleName": "慧眼の女教皇",
+            "characterName": "クイーン",
+            "skillName": null,
+            "spAtTurnStart": 23,
+            "spAtActionStart": null
+          }
+        ],
+        "operations": [],
+        "note": "",
+        "actionOutcomeOverrides": [],
+        "followUpOverrides": [],
+        "overrideEntries": [
+          {
+            "type": "EnemyCount",
+            "payload": 1
+          },
+          {
+            "type": "EnemyEShields",
+            "payload": {
+              "0": {
+                "current": 0,
+                "max": 35,
+                "elements": [
+                  "Fire",
+                  "Light",
+                  "Dark"
+                ],
+                "defUpRate": 5000,
+                "damageLimit": 0
+              }
+            }
+          },
+          {
+            "type": "EnemyStatuses",
+            "payload": [
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Break",
+                "targetIndex": 0,
+                "remainingTurns": 0
+              },
+              {
+                "statusType": "DownTurn",
+                "targetIndex": 0,
+                "remainingTurns": 1
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              }
+            ]
+          }
+        ],
+        "info": {
+          "spAtTurnStartByStyleId": {
+            "1001108": 23,
+            "1002108": 19,
+            "1002606": 7,
+            "1005107": 16,
+            "1006405": 24,
+            "1021203": 23
+          },
+          "spAtActionStartByStyleId": {
+            "1001108": 17,
+            "1002108": 14,
+            "1005107": 9
+          },
+          "spAtTurnStartByName": {
+            "茅森 月歌": 23,
+            "蒼井 えりか": 19,
+            "ビャッコ": 7,
+            "二階堂 三郷": 16,
+            "大島 四ツ葉": 24,
+            "クイーン": 23
+          },
+          "spAtActionStartByName": {
+            "茅森 月歌": 17,
+            "蒼井 えりか": 14,
+            "二階堂 三郷": 9
+          },
+          "actionOrder": [
+            "蒼井 えりか",
+            "茅森 月歌",
+            "二階堂 三郷"
+          ]
+        }
+      },
+      {
+        "turn": 5,
+        "slots": [
+          {
+            "styleId": 1002108,
+            "skillId": 46002114,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "ヒカル・Mermaid Vacation",
+            "characterName": "蒼井 えりか",
+            "skillName": "くぎづけ♡ラブリービーム",
+            "spAtTurnStart": 14,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1005107,
+            "skillId": 46005113,
+            "target": {
+              "type": "none"
+            },
+            "styleName": "アオゾラ全力応援歌",
+            "characterName": "二階堂 三郷",
+            "skillName": "スイーツチャージ！",
+            "spAtTurnStart": 9,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1001108,
+            "skillId": 46001114,
+            "target": {
+              "type": "enemy",
+              "enemyIndex": 0
+            },
+            "styleName": "The Feel of the Throne",
+            "characterName": "茅森 月歌",
+            "skillName": "黒曜のオーバーロード",
+            "spAtTurnStart": 17,
+            "spAtActionStart": 4
+          },
+          {
+            "styleId": 1006405,
+            "skillId": null,
+            "styleName": "ゆるりたゆたう湯道楽",
+            "characterName": "大島 四ツ葉",
+            "skillName": null,
+            "spAtTurnStart": 24,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1002606,
+            "skillId": null,
+            "styleName": "戦場の白き牙",
+            "characterName": "ビャッコ",
+            "skillName": null,
+            "spAtTurnStart": 7,
+            "spAtActionStart": null
+          },
+          {
+            "styleId": 1021203,
+            "skillId": null,
+            "styleName": "慧眼の女教皇",
+            "characterName": "クイーン",
+            "skillName": null,
+            "spAtTurnStart": 23,
+            "spAtActionStart": null
+          }
+        ],
+        "operations": [],
+        "note": "",
+        "actionOutcomeOverrides": [
+          {
+            "position": 2,
+            "outcome": "HpBreak",
+            "enemyIndexes": [
+              0
+            ]
+          }
+        ],
+        "followUpOverrides": [
+          {
+            "position": 3,
+            "enemyIndex": 0
+          }
+        ],
+        "overrideEntries": [
+          {
+            "type": "EnemyCount",
+            "payload": 1
+          },
+          {
+            "type": "EnemyEShields",
+            "payload": {
+              "0": {
+                "current": 0,
+                "max": 35,
+                "elements": [
+                  "Fire",
+                  "Light",
+                  "Dark"
+                ],
+                "defUpRate": 5000,
+                "damageLimit": 0
+              }
+            }
+          },
+          {
+            "type": "EnemyStatuses",
+            "payload": [
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              },
+              {
+                "statusType": "Break",
+                "targetIndex": 0,
+                "remainingTurns": 0
+              },
+              {
+                "statusType": "DownTurn",
+                "targetIndex": 0,
+                "remainingTurns": 1
+              },
+              {
+                "statusType": "Fragile",
+                "targetIndex": 0,
+                "remainingTurns": 1,
+                "power": 0.6,
+                "limitType": "Default",
+                "exitCond": "EnemyTurnEnd",
+                "sourceSkillId": 46002609,
+                "sourceSkillName": "アサルトクロー",
+                "sourceSkillLabel": "ByakkoSkill06",
+                "sourceCharacterName": "ビャッコ",
+                "sourceSkillDesc": "爪で敵を斬り裂く 闇属性攻撃[破壊率大]\nさらに 脆弱状態にする",
+                "metadata": {
+                  "targetType": "Single"
+                }
+              }
+            ]
+          }
+        ],
+        "info": {
+          "spAtTurnStartByStyleId": {
+            "1001108": 17,
+            "1002108": 14,
+            "1002606": 7,
+            "1005107": 9,
+            "1006405": 24,
+            "1021203": 23
+          },
+          "spAtActionStartByStyleId": {
+            "1001108": 4
+          },
+          "spAtTurnStartByName": {
+            "茅森 月歌": 17,
+            "蒼井 えりか": 14,
+            "ビャッコ": 7,
+            "二階堂 三郷": 9,
+            "大島 四ツ葉": 24,
+            "クイーン": 23
+          },
+          "spAtActionStartByName": {
+            "茅森 月歌": 4
+          },
+          "actionOrder": [
+            "茅森 月歌"
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -165,6 +165,15 @@ const AUTOMATIC_FOLLOW_UP_MAX_SP_COST = 8;
 const FRONT_POSITION_MAX = 2;
 const BACK_POSITION_MIN = 3;
 const BACK_POSITION_MAX = 5;
+const AUTOMATIC_FOLLOW_UP_ATTACK_SKILL_TYPES = new Set([
+  'AttackSkill',
+  'DamageRateChangeAttackSkill',
+  'PenetrationCriticalAttack',
+  'AttackByOwnDpRate',
+  'AttackBySp',
+  'TokenAttack',
+  'FixedHpDamageRateAttack',
+]);
 
 function resolvePursuitSourceForMember(member) {
   const pursuitCandidates = [
@@ -232,7 +241,19 @@ function hasAutomaticFollowUpPassive(member) {
 }
 
 function skillHasAttackPart(skill) {
-  return (skill?.parts ?? []).some((part) => String(part?.skill_type ?? '').trim() === 'AttackSkill');
+  for (const part of skill?.parts ?? []) {
+    if (AUTOMATIC_FOLLOW_UP_ATTACK_SKILL_TYPES.has(String(part?.skill_type ?? '').trim())) {
+      return true;
+    }
+    if (Array.isArray(part?.strval)) {
+      for (const nested of part.strval) {
+        if (nested && typeof nested === 'object' && skillHasAttackPart(nested)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 function resolveSkillPreviewCost(member, effectiveSkill) {

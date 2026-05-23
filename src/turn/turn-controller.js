@@ -245,6 +245,7 @@ const PURSUIT_HIT_COUNT_EXCEPTIONS_BY_CHARACTER_ID = Object.freeze({
   IMinase: 2,
   BIYamawaki: 3,
 });
+const PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY = 'pursuitTransformUsedCharacterIds';
 const DOUBLE_ACTION_STATUS_TYPES = Object.freeze(
   new Set([DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE, BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE])
 );
@@ -3056,6 +3057,9 @@ function isHitWeakBySkillContext(state, member, skill, actionEntry) {
   if (!Number.isFinite(targetIndex) || targetIndex < 0) {
     return { known: false, value: true };
   }
+  if (actionTreatsEShieldAsWeakHit(state, member, skill, actionEntry, [targetIndex])) {
+    return { known: true, value: 1 };
+  }
   const elements = getConditionSkillElements(skill, member).filter((element) => element && element !== 'None');
   if (elements.length === 0) {
     return { known: true, value: 0 };
@@ -3098,6 +3102,9 @@ function actionHitsEnemyWeakness(state, actor, skill, actionEntry) {
   const targetEnemyIndexes = resolveWeakHitTargetEnemyIndexes(state, effectiveSkill ?? skill, actionEntry);
   if (targetEnemyIndexes.length === 0) {
     return false;
+  }
+  if (actionTreatsEShieldAsWeakHit(state, actor, effectiveSkill ?? skill, actionEntry, targetEnemyIndexes)) {
+    return true;
   }
 
   const normalAttackElements =
@@ -3152,6 +3159,29 @@ function actionMatchesEnemyEShield(actionElementReferences, eShieldState) {
     return false;
   }
   return actionElementReferences.some((element) => shieldElements.has(element));
+}
+
+function skillHasIgnoreEShieldElementPart(skill, state = null, actor = null) {
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+  return effectiveParts.some(
+    (part) => String(part?.skill_type ?? '').trim() === 'IgnoreEShieldElement'
+  );
+}
+
+function actionTreatsEShieldAsWeakHit(state, actor, skill, actionEntry, targetEnemyIndexes = []) {
+  if (!state || !actor || !skill || !Array.isArray(targetEnemyIndexes) || targetEnemyIndexes.length === 0) {
+    return false;
+  }
+  const effectiveSkill =
+    actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+      ? actionEntry._effectiveSkillSnapshot
+      : resolveEffectiveSkillForAction(state, actor, skill);
+  if (!skillHasIgnoreEShieldElementPart(effectiveSkill ?? skill, state, actor)) {
+    return false;
+  }
+  return targetEnemyIndexes.some((targetIndex) =>
+    isEnemyEShieldActive(getEnemyEShieldStateByTarget(state.turnState, targetIndex))
+  );
 }
 
 function getEnemyDestructionRatePercent(turnState, targetIndex) {
@@ -8927,7 +8957,9 @@ function applyEnemyEShieldEffectsFromActions(state, previewRecord) {
       const skillHitCount = resolveActionEShieldHitCount(actionEntry, skill);
       if (skillHitCount > 0) {
         const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
-        const ignoreEShieldElement = Boolean(actionEntry?.specialPassiveModifiers?.ignoreEShieldElement);
+        const ignoreEShieldElement =
+          Boolean(actionEntry?.specialPassiveModifiers?.ignoreEShieldElement) ||
+          skillHasIgnoreEShieldElementPart(skill, state, actor);
         const actionElementReferences = normalizeActionElementReferences(skill, actor, state);
         // ゲーム仕様上 enemy `base_param.dp > 0` と `extra_gauge.eshield` は併存しないが、
         // 異常データ混入時も E-shield が active なら本ブロックが先に処理されるため、
@@ -9980,10 +10012,32 @@ function resolvePursuitSkillCandidatesForMember(member) {
   ];
 }
 
-function resolvePursuitSourceForMember(member) {
+function getPursuitTransformUsedCharacterIds(turnState) {
+  return (Array.isArray(turnState?.[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY])
+    ? turnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY]
+    : []
+  ).map((id) => String(id ?? '')).filter(Boolean);
+}
+
+function markPursuitTransformUsed(turnState, characterId) {
+  const id = String(characterId ?? '');
+  if (!id || !turnState) {
+    return;
+  }
+  const used = new Set(getPursuitTransformUsedCharacterIds(turnState));
+  used.add(id);
+  turnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY] = [...used];
+}
+
+function resolvePursuitSourceForMember(member, turnState = null) {
   const candidates = resolvePursuitSkillCandidatesForMember(member);
   const transformed = candidates.find((skill) => String(skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME);
-  if (transformed && Number(member?.sp?.current ?? 0) >= PURSUIT_TRANSFORMED_SKILL_SP_COST) {
+  const transformUsed = new Set(getPursuitTransformUsedCharacterIds(turnState));
+  if (
+    transformed &&
+    !transformUsed.has(String(member?.characterId ?? '')) &&
+    Number(member?.sp?.current ?? 0) >= PURSUIT_TRANSFORMED_SKILL_SP_COST
+  ) {
     const hitCount = Number(transformed?.hitCount ?? transformed?.hit_count ?? 0);
     return {
       skill: transformed,
@@ -10032,7 +10086,7 @@ function refreshAutomaticPursuitActionForState(action, state) {
   if (!source) {
     return action;
   }
-  const pursuitSource = resolvePursuitSourceForMember(source);
+  const pursuitSource = resolvePursuitSourceForMember(source, state?.turnState);
   const skill = pursuitSource.skill ?? null;
   return {
     ...(action && typeof action === 'object' ? action : {}),
@@ -10453,6 +10507,9 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     const pursuitActor = findMemberByCharacterId(state, pursuitSourceCharacterId);
     if (pursuitActor) {
       const change = pursuitActor.applySpDelta(-pursuitSourceSpCost, 'cost');
+      if (String(actionEntry?.pursuitSourceSkillName ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME) {
+        markPursuitTransformUsed(state.turnState, pursuitActor.characterId);
+      }
       pursuitSkillSpEvents.push(
         buildActionScopedEvent(actionEntry, {
           actorCharacterId: String(actionEntry?.characterId ?? ''),
@@ -13195,6 +13252,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   if (!previewRecord || previewRecord.recordStatus !== 'preview') {
     throw new Error('commitTurn requires preview TurnRecord.');
   }
+  if (!Array.isArray(state.turnState?.[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY])) {
+    state.turnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY] = [];
+  }
   syncTurnStateEnemyCount(state?.turnState, Number(previewRecord.enemyCount ?? DEFAULT_ENEMY_COUNT));
   const applySwapOnCommit = options.applySwapOnCommit !== false;
   const interruptOdLevel = Number(options.interruptOdLevel ?? 0);
@@ -13347,6 +13407,9 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     !shouldActivateInterruptOdAfterActions &&
     Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0);
   nextTurnState.passiveEventsLastApplied = [];
+  if (!playerTurnContinuesAfterActions) {
+    nextTurnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY] = [];
+  }
   // P3-B: PlayerTurnEnd パッシブの発火フラグをリセット（新プレイヤーターン開始時）
   if (nextBaseTurnAdvances) {
     nextTurnState.passiveTurnFiredKeys = [];
