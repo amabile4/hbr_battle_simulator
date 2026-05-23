@@ -2707,6 +2707,98 @@ test('TurnRowController committed enemy detail popup uses stateBefore (same turn
     assert.doesNotMatch(popup.textContent ?? '', /10\/10/);
   }));
 
+test('TurnRowController committed HP break row keeps Eシールド depleted until the next row', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96011,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const stateBefore = createState(skill, 1);
+    const stateAfter = createState(skill, 1);
+    stateBefore.turnState.enemyState.enemyNamesByEnemy = { 0: '絶界に屹立せし蝕樹' };
+    stateAfter.turnState.enemyState.enemyNamesByEnemy = { 0: '絶界に屹立せし蝕樹' };
+    stateBefore.turnState.enemyState.eShieldStateByEnemy = {
+      0: createEShieldState({ current: 0, max: 35, elements: ['Fire', 'Light', 'Dark'] }),
+    };
+    stateAfter.turnState.enemyState.eShieldStateByEnemy = {
+      0: createEShieldState({ current: 35, max: 35, elements: ['Fire', 'Light', 'Dark'] }),
+    };
+    stateBefore.turnState.enemyState.extraHpGaugeStateByEnemy = {
+      0: { total: 3, remaining: 3, values: [57500000, 57500000, 57500000] },
+    };
+    stateAfter.turnState.enemyState.extraHpGaugeStateByEnemy = {
+      0: { total: 3, remaining: 2, values: [57500000, 57500000, 57500000] },
+    };
+
+    const row = new TurnRowController({
+      root,
+      store: createStoreStub(),
+      turnIndex: 4,
+      rowMode: 'committed',
+      rowDiagnostics: null,
+      record: {
+        turnIndex: 1,
+        turnId: 5,
+        odGaugeAtStart: 200,
+        projections: { odGaugeAtEnd: 200 },
+        actions: [
+          {
+            positionIndex: 0,
+            characterId: 'M1',
+            skillId: 96011,
+            manualHpBreakEnemyIndexes: [0],
+            hpBreakCount: 1,
+          },
+        ],
+      },
+      replayTurn: {
+        turn: 1,
+        slots: [{ styleId: stateBefore.party[0].styleId, skillId: 96011 }],
+        operations: [],
+        note: '',
+        actionOutcomeOverrides: [{ position: 0, outcome: 'HpBreak', enemyIndexes: [0] }],
+        overrideEntries: [],
+      },
+      operations: [],
+      operationState: {
+        kishinkaStatus: { hasTezuka: false },
+        makaiKiheiStatus: { hasYamawaki: false, available: false, remainingUses: 0 },
+      },
+      stateBefore,
+      stateAfter,
+      onSlotChange: () => {},
+      onCommit: () => {},
+      onNoteChange: () => {},
+      onPreviewRequest: () => {},
+      onOdChange: () => {},
+      onOperationAdd: () => {},
+      onOperationRemove: () => {},
+      simulatorSettings: createSimulatorSettings(),
+    });
+    row.mount();
+
+    const strip = root.querySelector('[data-role="turn-info-e-shield-strip"]');
+    assert.ok(strip);
+    const stripBadge = strip.querySelector('[data-role="turn-info-e-shield-badge"]');
+    assert.ok(stripBadge);
+    assert.equal(stripBadge.getAttribute('data-eshield-current'), '0');
+    assert.equal(stripBadge.getAttribute('data-eshield-max'), '35');
+    assert.equal(stripBadge.getAttribute('data-eshield-depleted'), 'true');
+
+    const trigger = root.querySelector('[data-role="enemy-detail-trigger"]');
+    assert.ok(trigger);
+    trigger.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const popup = win.document.body.querySelector('.enemy-detail-popup');
+    assert.ok(popup);
+    const popupSummary = popup.querySelector('[data-role="enemy-popup-e-shield-summary"]');
+    assert.ok(popupSummary);
+    assert.match(popupSummary.textContent ?? '', /0\/35/);
+    assert.doesNotMatch(popup.textContent ?? '', /35\/35/);
+  }));
+
 test('TurnRowController enemy detail popup resolves missing sourceSkillDesc from store', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({

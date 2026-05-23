@@ -249,7 +249,6 @@ const PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY = 'pursuitTransformUsedCharacterI
 const DOUBLE_ACTION_STATUS_TYPES = Object.freeze(
   new Set([DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE, BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE])
 );
-const ENEMY_HP_BREAK_E_SHIELD_MAX_INCREMENT = 5;
 const MOTIVATION_DAMAGE_TAKEN_DELTA = -1;
 const MOTIVATION_DAMAGE_TAKEN_TRIGGER_TYPE = 'MotivationDamage';
 const MOTIVATION_DAMAGE_TAKEN_PASSIVE_NAME = 'Motivation';
@@ -3278,21 +3277,12 @@ function restoreEnemyEShieldToMax(turnState, targetIndex) {
   return true;
 }
 
-function increaseEnemyEShieldMaxAndRestore(
-  turnState,
-  targetIndex,
-  increment = ENEMY_HP_BREAK_E_SHIELD_MAX_INCREMENT
-) {
+function restoreEnemyEShieldAfterHpBreak(turnState, targetIndex) {
   const current = getEnemyEShieldStateByTarget(turnState, targetIndex);
-  if (!isEnemyEShieldActive(current)) {
+  if (!current) {
     return null;
   }
-  const nextMax = Math.max(0, Number(current?.max ?? 0) + Number(increment));
-  const restored = {
-    ...current,
-    current: nextMax,
-    max: nextMax,
-  };
+  const restored = restoreEShieldStateToMax(current);
   setEnemyEShieldStateByTarget(turnState, targetIndex, restored);
   return restored;
 }
@@ -9307,7 +9297,7 @@ export function applyManualEnemyHpBreak(turnState, targetIndex) {
   const nextExtraHpGaugeState = decrementEnemyExtraHpGaugeState(currentExtraHpGaugeState);
   setEnemyExtraHpGaugeStateByTarget(turnState, targetIndex, nextExtraHpGaugeState);
   resetEnemyHpBreakPhaseState(turnState, targetIndex);
-  const restoredEShieldState = increaseEnemyEShieldMaxAndRestore(turnState, targetIndex);
+  const restoredEShieldState = restoreEnemyEShieldAfterHpBreak(turnState, targetIndex);
   return {
     targetIndex: Number(targetIndex),
     statusType: 'HpBreak',

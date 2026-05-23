@@ -2505,8 +2505,8 @@ test('TurnEngineManager applies HP_BREAK overrides, preserves earlier actors, an
     values: [40400000, 40400000, 40400000],
   });
   assert.deepEqual(manager.currentState.turnState.enemyState.eShieldStateByEnemy['0'], {
-    current: 35,
-    max: 35,
+    current: 30,
+    max: 30,
     elements: ['Light'],
     defUpRate: 5000,
     damageLimit: 0,

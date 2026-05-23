@@ -3410,6 +3410,21 @@ export class TurnRowController {
 
   #resolveDisplayedEnemyEShieldStateByEnemy() {
     const next = {};
+    const hpBreakEnemyIndexes = new Set();
+    if (!this.#isDraftMode()) {
+      const enemyCount = this.#getCurrentReplayTurnEnemyCount();
+      for (const override of normalizeActionOutcomeOverrides(
+        this.#getReplayTurnActionOutcomeOverrides(enemyCount),
+        enemyCount
+      )) {
+        if (override.outcome !== ACTION_OUTCOME_TYPES.HP_BREAK) {
+          continue;
+        }
+        for (const enemyIndex of override.enemyIndexes) {
+          hpBreakEnemyIndexes.add(String(enemyIndex));
+        }
+      }
+    }
     if (this.#isDraftMode()) {
       for (const operation of Array.isArray(this.#operations) ? this.#operations : []) {
         if (String(operation?.type ?? '') !== REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD) {
@@ -3424,16 +3439,25 @@ export class TurnRowController {
         }
       }
     }
-    const maps = [
-      this.#stateAfter?.turnState?.enemyState?.eShieldStateByEnemy,
-      this.#stateBefore?.turnState?.enemyState?.eShieldStateByEnemy,
-    ];
-    for (const source of maps) {
+    const maps = hpBreakEnemyIndexes.size > 0
+      ? [
+          { source: this.#stateBefore?.turnState?.enemyState?.eShieldStateByEnemy, onlyKeys: hpBreakEnemyIndexes },
+          { source: this.#stateAfter?.turnState?.enemyState?.eShieldStateByEnemy, onlyKeys: null },
+          { source: this.#stateBefore?.turnState?.enemyState?.eShieldStateByEnemy, onlyKeys: null },
+        ]
+      : [
+          { source: this.#stateAfter?.turnState?.enemyState?.eShieldStateByEnemy, onlyKeys: null },
+          { source: this.#stateBefore?.turnState?.enemyState?.eShieldStateByEnemy, onlyKeys: null },
+        ];
+    for (const { source, onlyKeys } of maps) {
       if (!source || typeof source !== 'object') {
         continue;
       }
       for (const [enemyKey, shieldState] of Object.entries(source)) {
         if (Object.prototype.hasOwnProperty.call(next, enemyKey)) {
+          continue;
+        }
+        if (onlyKeys && !onlyKeys.has(String(enemyKey))) {
           continue;
         }
         const normalized = normalizeEnemyEShieldDisplayState(shieldState);

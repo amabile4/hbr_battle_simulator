@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   activateOverdrive,
   analyzePassiveTimingCoverage,
@@ -18,6 +19,10 @@ import {
 import { applyStageSetupTurnStartEffects } from '../src/turn/turn-controller.js';
 import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
+
+const DIMENSION_BATTLE_DATA = JSON.parse(
+  readFileSync(new URL('../json/dimension_battle.json', import.meta.url), 'utf8')
+);
 
 function buildActionDict(party) {
   return Object.fromEntries(
@@ -704,6 +709,10 @@ function applyEnemyEShieldTestSetup(
 
 const HP_BREAK_TEST_EXTRA_GAUGE_TOTAL = 3;
 const HP_BREAK_TEST_EXTRA_GAUGE_VALUE = 40400000;
+const DIMENSION_HP_BREAK_TARGET_NAMES = Object.freeze([
+  '万象を蝕む妖花',
+  '絶界に屹立せし蝕樹',
+]);
 
 function createHpBreakAttackSkill(skillId = 99501, { targetType = 'Single' } = {}) {
   return {
@@ -713,6 +722,74 @@ function createHpBreakAttackSkill(skillId = 99501, { targetType = 'Single' } = {
     sp_cost: 0,
     target_type: targetType,
     parts: [{ skill_type: 'AttackSkill', target_type: targetType, type: 'Slash' }],
+  };
+}
+
+function getDimensionBattleEnemyEntriesByName(enemyName) {
+  const entries = [];
+  for (const dimension of DIMENSION_BATTLE_DATA) {
+    for (const [slotIndex, entry] of (dimension?.central ?? []).entries()) {
+      const names = (entry?.bn ?? [])
+        .filter(Boolean)
+        .map((candidate) => String(candidate?.n ?? ''))
+        .filter(Boolean);
+      if (!names.includes(enemyName)) {
+        continue;
+      }
+      entries.push({
+        dimensionLabel: String(dimension?.label ?? ''),
+        slotIndex,
+        enemyLabel: String(entry?.b?.[0] ?? ''),
+        enemyName,
+        extraGauge: structuredClone(entry?.eg?.[0] ?? null),
+      });
+    }
+  }
+  return entries;
+}
+
+function createHpBreakTestStateFromDimensionEnemy(dimensionEnemy) {
+  const extraGauge = dimensionEnemy?.extraGauge;
+  assert.ok(extraGauge, `${dimensionEnemy?.enemyLabel ?? dimensionEnemy?.enemyName} should have eg[0]`);
+  const hpStages = extraGauge.hp;
+  const eShield = extraGauge.eshield;
+  const expectedEShieldMax = Number(extraGauge.esp);
+  assert.equal(Array.isArray(hpStages), true, 'dimension_battle eg[0].hp should be an array');
+  assert.equal(hpStages.length, 3, 'target dimension enemy should have 3 HP gauge stages');
+  assert.equal(Array.isArray(extraGauge?.pattern?.hp), true, 'dimension_battle eg[0].pattern.hp should exist');
+  assert.equal(
+    extraGauge.pattern.hp.length,
+    hpStages.length,
+    'HP break pattern count should match HP gauge stage count'
+  );
+  assert.equal(Number.isFinite(expectedEShieldMax), true, 'dimension_battle eg[0].esp should be numeric');
+  assert.ok(eShield && typeof eShield === 'object', 'dimension_battle eg[0].eshield should exist');
+
+  const { state, skillId } = createHpBreakTestState({
+    remaining: hpStages.length,
+    eShieldState: createEnemyEShieldState({
+      current: 0,
+      max: expectedEShieldMax,
+      elements: eShield.ele_list,
+      defUpRate: Number(eShield.def_up_rate ?? 0),
+      damageLimit: Number(eShield.dmg_limit ?? 0),
+    }),
+  });
+  state.turnState.enemyState.extraHpGaugeStateByEnemy = {
+    0: {
+      total: hpStages.length,
+      remaining: hpStages.length,
+      values: [...hpStages],
+    },
+  };
+  return {
+    state,
+    skillId,
+    hpStages,
+    expectedEShieldMax,
+    expectedEShieldElements: [...eShield.ele_list],
+    expectedDefUpRate: Number(eShield.def_up_rate ?? 0),
+    expectedDamageLimit: Number(eShield.dmg_limit ?? 0),
   };
 }
 
@@ -759,7 +836,7 @@ function createHpBreakTestState({
   };
 }
 
-test('manual HP break decrements extra gauge, resets break state, restores E shield, and preserves earlier actions', () => {
+test('manual HP break decrements extra gauge, resets break state, restores E shield to max, and preserves earlier actions', () => {
   const { state, skillId } = createHpBreakTestState();
   state.turnState.enemyState.statuses = [
     { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
@@ -797,8 +874,8 @@ test('manual HP break decrements extra gauge, resets break state, restores E shi
     values: [40400000, 40400000, 40400000],
   });
   assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
-    current: 35,
-    max: 35,
+    current: 30,
+    max: 30,
     elements: ['Light'],
     defUpRate: 5000,
     damageLimit: 0,
@@ -813,6 +890,105 @@ test('manual HP break decrements extra gauge, resets break state, restores E shi
   assert.equal(nextState.turnState.turnType, 'normal');
   assert.equal(nextState.turnState.turnIndex, 2);
 });
+
+test('manual HP break restores depleted E shield without increasing max', () => {
+  const { state, skillId } = createHpBreakTestState({
+    eShieldState: createEnemyEShieldState({
+      current: 0,
+      max: 35,
+      elements: ['Fire', 'Light', 'Dark'],
+      defUpRate: 5000,
+    }),
+  });
+
+  const { nextState, committedRecord } = commitTurn(
+    state,
+    previewTurn(state, {
+      0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+      1: { characterId: 'M2', skillId: state.party[1].skills[0].skillId },
+      2: { characterId: 'M3', skillId: state.party[2].skills[0].skillId },
+    })
+  );
+
+  assert.equal(committedRecord.actions.at(-1)?.hpBreakCount, 1);
+  assert.deepEqual(nextState.turnState.enemyState.extraHpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 2,
+    values: [40400000, 40400000, 40400000],
+  });
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 35,
+    max: 35,
+    elements: ['Fire', 'Light', 'Dark'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+});
+
+for (const enemyName of DIMENSION_HP_BREAK_TARGET_NAMES) {
+  test(`dimension_battle real data: ${enemyName} HP break advances gauges and restores E shield to eg[0].esp`, () => {
+    const dimensionEnemies = getDimensionBattleEnemyEntriesByName(enemyName);
+    assert.ok(dimensionEnemies.length > 0, `${enemyName} should exist in dimension_battle central entries`);
+
+    for (const dimensionEnemy of dimensionEnemies) {
+      const {
+        state,
+        skillId,
+        hpStages,
+        expectedEShieldMax,
+        expectedEShieldElements,
+        expectedDefUpRate,
+        expectedDamageLimit,
+      } = createHpBreakTestStateFromDimensionEnemy(dimensionEnemy);
+      let currentState = state;
+
+      for (const breakIndex of [0, 1]) {
+        currentState.turnState.enemyState.eShieldStateByEnemy['0'] = {
+          ...currentState.turnState.enemyState.eShieldStateByEnemy['0'],
+          current: 0,
+        };
+
+        const { nextState, committedRecord } = commitTurn(
+          currentState,
+          previewTurn(currentState, {
+            0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+            1: { characterId: 'M2', skillId: currentState.party[1].skills[0].skillId },
+            2: { characterId: 'M3', skillId: currentState.party[2].skills[0].skillId },
+          })
+        );
+
+        const expectedRemaining = hpStages.length - (breakIndex + 1);
+        assert.equal(
+          committedRecord.actions.at(-1)?.hpBreakCount,
+          1,
+          `${dimensionEnemy.enemyLabel} HP break #${breakIndex + 1} should be recorded`
+        );
+        assert.deepEqual(
+          nextState.turnState.enemyState.extraHpGaugeStateByEnemy['0'],
+          {
+            total: hpStages.length,
+            remaining: expectedRemaining,
+            values: hpStages,
+          },
+          `${dimensionEnemy.enemyLabel} HP break #${breakIndex + 1} should advance to the next HP gauge`
+        );
+        assert.deepEqual(
+          nextState.turnState.enemyState.eShieldStateByEnemy['0'],
+          {
+            current: expectedEShieldMax,
+            max: expectedEShieldMax,
+            elements: expectedEShieldElements,
+            defUpRate: expectedDefUpRate,
+            damageLimit: expectedDamageLimit,
+          },
+          `${dimensionEnemy.enemyLabel} HP break #${breakIndex + 1} should restore E shield to dimension_battle eg[0].esp`
+        );
+
+        currentState = nextState;
+      }
+    }
+  });
+}
 
 test('manual HP break can be applied repeatedly to multiple enemies until final kill', () => {
   const { state, skillId } = createHpBreakTestState({
