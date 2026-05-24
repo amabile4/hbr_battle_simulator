@@ -98,3 +98,6 @@ scripts/run_gemini_api.sh
 .codex/
 # Added by code-review-graph
 .code-review-graph/
+
+# Local CodeGraph data
+.codegraph/
