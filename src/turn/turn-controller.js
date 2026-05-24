@@ -9602,21 +9602,16 @@ function updateReinforcedModeStateAfterTurn(state) {
   tezuka.tickReinforcedModeTurnIfActionable(actionable, { tickPlayerTurnEndStatuses: false });
 }
 
-function applyTurnBasedStatusExpiry(state, previewRecord) {
+function applyTurnBasedStatusExpiry(state, turnState) {
   const processed = new Set();
   const events = [];
   const actionContext = buildActionContext('TurnEnd', null, { turnPhase: 'PlayerTurnEnd' });
-  for (const actionEntry of previewRecord.actions ?? []) {
-    const characterId = String(actionEntry?.characterId ?? '');
+  for (const member of resolvePlayerTurnEndStatusExpiryMembers(state, turnState)) {
+    const characterId = String(member?.characterId ?? '');
     if (!characterId || processed.has(characterId)) {
       continue;
     }
     processed.add(characterId);
-
-    const member = findMemberByCharacterId(state, characterId);
-    if (!member) {
-      continue;
-    }
     const ticked = member.tickStatusEffectsWhere(
       (effect) => shouldConsume(effect, actionContext).shouldConsume
     );
@@ -9625,6 +9620,21 @@ function applyTurnBasedStatusExpiry(state, previewRecord) {
     }
   }
   return events;
+}
+
+function resolvePlayerTurnEndStatusExpiryMembers(state, turnState = state?.turnState) {
+  const turnType = String(turnState?.turnType ?? '');
+  if (turnType === 'od') {
+    return state.party ?? [];
+  }
+  if (turnType === 'extra') {
+    const allowedSet = getExtraAllowedSet(turnState);
+    if (!allowedSet) {
+      return [];
+    }
+    return (state.party ?? []).filter((member) => allowedSet.has(member.characterId));
+  }
+  return state.party ?? [];
 }
 
 function tickShreddingTurns(state, previewRecord, skipCharacterIds = new Set()) {
@@ -13428,9 +13438,6 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     tickEnemyStatusDurations(state.turnState, 'PlayerTurnEnd');
   }
   updateReinforcedModeStateAfterTurn(state);
-  if (!playerTurnContinuesAfterActions) {
-    applyTurnBasedStatusExpiry(state, previewRecord);
-  }
   tickShreddingTurns(state, previewRecord, newlyShreddedIds);
 
   if (applySwapOnCommit) {
@@ -13853,6 +13860,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
       boundaryPassiveEvents.push(...structuredClone(nextState.turnState.passiveEventsLastApplied));
     }
   }
+  applyTurnBasedStatusExpiry(nextState, nextState.turnState);
 
   const snapAfter = snapshotPartyByPartyIndex(nextState.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);

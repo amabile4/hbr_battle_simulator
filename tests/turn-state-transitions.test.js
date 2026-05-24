@@ -3800,7 +3800,7 @@ test('クレール・ド・リュンヌ heals ally SP in real data despite top-l
   assert.ok(Number(committed.nextState.party[2].sp.current ?? 0) > before2);
 });
 
-test('指揮行動 stores NormalBuff_Up as active AttackUp status on non-acting frontline allies in real data', () => {
+test('指揮行動 records NormalBuff_Up AttackUp application on non-acting frontline allies in real data', () => {
   const store = getStore();
   const skillId = 46001134;
   const state = createBattleStateFromParty(buildSingleSkillRealDataParty(store, skillId));
@@ -3814,13 +3814,14 @@ test('指揮行動 stores NormalBuff_Up as active AttackUp status on non-acting 
   const actor = state.party[0];
   const frontlineAlly = committed.nextState.party[1];
   const action = findActionByCharacterId(committed.committedRecord, actor.characterId);
-  const stored = frontlineAlly.resolveEffectiveStatusEffects('AttackUp').find(
-    (effect) => effect.metadata?.effectName === 'NormalBuff_Up'
-  );
 
-  assert.ok(stored);
-  assert.equal(stored.exitCond, 'PlayerTurnEnd');
-  assert.equal(stored.metadata.includeNormalAttack, true);
+  assert.equal(
+    frontlineAlly.resolveEffectiveStatusEffects('AttackUp').some(
+      (effect) => effect.metadata?.effectName === 'NormalBuff_Up'
+    ),
+    false,
+    '1T PlayerTurnEnd status should be consumed when the next row is action-capable'
+  );
   assert.equal(
     action.statusEffectsApplied.some(
       (event) =>
@@ -10609,7 +10610,7 @@ test('OD gain uses Funnel hit bonus and consumes count-based Funnel on damage ac
   assert.equal(state.turnState.odGauge, 20, 'same action repeats same +10.0%');
 });
 
-test('PlayerTurnEnd status expiry is applied only to members who acted this turn', () => {
+test('PlayerTurnEnd status expiry is applied to members action-capable on the next row', () => {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `TE${idx + 1}`,
@@ -10647,8 +10648,8 @@ test('PlayerTurnEnd status expiry is applied only to members who acted this turn
 
   const te1 = state.party.find((m) => m.characterId === 'TE1').resolveEffectiveFunnelEffects();
   const te2 = state.party.find((m) => m.characterId === 'TE2').resolveEffectiveFunnelEffects();
-  assert.equal(te1[0].remaining, 1, 'acted member should tick PlayerTurnEnd');
-  assert.equal(te2[0].remaining, 2, 'non-acting member should not tick PlayerTurnEnd');
+  assert.equal(te1[0].remaining, 1, 'allowed extra-turn member should tick when next row is normal');
+  assert.equal(te2[0].remaining, 1, 'non-acting member should tick when the next row is normal');
 });
 
 test('count-based MindEye is consumed by damage action only', () => {
@@ -10793,6 +10794,231 @@ test('Funnel/MindEye: AdditionalTurn中も与ダメージで消費し、非ダ�
     0,
     'AdditionalTurn中の与ダメージ行動でMindEyeが消費される'
   );
+});
+
+const PLAYER_TURN_END_STATUS_START_REMAINING = 3;
+const PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN = 2;
+const TURN_BASED_FUNNEL_EFFECT_ID_BASE = 9400;
+const TURN_BASED_FUNNEL_GRANT_EXTRA_SKILL_ID = 25301;
+const TURN_BASED_FUNNEL_APPLY_AND_GRANT_EXTRA_SKILL_ID = 25302;
+const TURN_BASED_ATTACK_UP_APPLY_SKILL_ID = 25303;
+const TURN_BASED_FUNNEL_PROTECTION_SKILL_ID_BASE = 25310;
+
+function addTurnBasedFunnelToAllMembers(state, remaining = PLAYER_TURN_END_STATUS_START_REMAINING) {
+  for (const [idx, member] of state.party.entries()) {
+    member.addStatusEffect({
+      effectId: TURN_BASED_FUNNEL_EFFECT_ID_BASE + idx,
+      statusType: 'Funnel',
+      limitType: 'Default',
+      exitCond: 'PlayerTurnEnd',
+      remaining,
+      power: 1,
+    });
+  }
+}
+
+function getTurnBasedFunnelRemainingByCharacterId(state) {
+  return Object.fromEntries(
+    state.party.map((member) => {
+      const effect = member.statusEffects.find(
+        (item) => item.statusType === 'Funnel' && item.exitCond === 'PlayerTurnEnd'
+      );
+      return [member.characterId, Number(effect?.remaining ?? 0)];
+    })
+  );
+}
+
+function getTurnBasedStatusRemainingByCharacterId(state, statusType) {
+  return Object.fromEntries(
+    state.party.map((member) => {
+      const effect = member.statusEffects.find(
+        (item) => item.statusType === statusType && item.exitCond === 'PlayerTurnEnd'
+      );
+      return [member.characterId, Number(effect?.remaining ?? 0)];
+    })
+  );
+}
+
+function buildTurnBasedFunnelActionableParty() {
+  return createSixMemberManualParty((idx) => ({
+    skills: [
+      {
+        id: TURN_BASED_FUNNEL_GRANT_EXTRA_SKILL_ID,
+        name: '追加ターン付与',
+        label: 'TurnBasedFunnelGrantExtra',
+        sp_cost: 0,
+        additionalTurnRule: {
+          skillUsableInExtraTurn: true,
+          additionalTurnGrantInExtraTurn: false,
+          conditions: {
+            requiresOverDrive: false,
+            requiresReinforcedMode: false,
+            excludesExtraTurnForSkillUse: false,
+            excludesExtraTurnForAdditionalTurnGrant: true,
+          },
+          additionalTurnTargetTypes: ['Self'],
+        },
+        parts: [{ skill_type: 'AdditionalTurn', target_type: 'Self' }],
+      },
+      {
+        id: TURN_BASED_FUNNEL_APPLY_AND_GRANT_EXTRA_SKILL_ID,
+        name: '連撃付与と追加ターン付与',
+        label: 'TurnBasedFunnelApplyAndGrantExtra',
+        sp_cost: 0,
+        additionalTurnRule: {
+          skillUsableInExtraTurn: true,
+          additionalTurnGrantInExtraTurn: false,
+          conditions: {
+            requiresOverDrive: false,
+            requiresReinforcedMode: false,
+            excludesExtraTurnForSkillUse: false,
+            excludesExtraTurnForAdditionalTurnGrant: true,
+          },
+          additionalTurnTargetTypes: ['Self'],
+        },
+        parts: [
+          {
+            skill_type: 'Funnel',
+            target_type: 'AllyAll',
+            power: [1, 0],
+            effect: {
+              exitCond: 'PlayerTurnEnd',
+              exitVal: [PLAYER_TURN_END_STATUS_START_REMAINING, 0],
+            },
+          },
+          { skill_type: 'AdditionalTurn', target_type: 'Self' },
+        ],
+      },
+      {
+        id: TURN_BASED_ATTACK_UP_APPLY_SKILL_ID,
+        name: '攻撃力アップ付与',
+        label: 'TurnBasedAttackUpApply',
+        sp_cost: 0,
+        parts: [
+          {
+            skill_type: 'AttackUp',
+            target_type: 'AllyAll',
+            power: [0.2, 0],
+            effect: {
+              limitType: 'Default',
+              exitCond: 'PlayerTurnEnd',
+              exitVal: [PLAYER_TURN_END_STATUS_START_REMAINING, 0],
+            },
+          },
+        ],
+      },
+      {
+        id: TURN_BASED_FUNNEL_PROTECTION_SKILL_ID_BASE + idx,
+        name: 'プロテクション',
+        label: `TurnBasedFunnelProtection${idx + 1}`,
+        sp_cost: 0,
+        target_type: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      },
+    ],
+  }));
+}
+
+test('PlayerTurnEnd型Funnelは付与直後は消費せず次行EXの行動可能対象だけ減る', () => {
+  let state = createBattleStateFromParty(buildTurnBasedFunnelActionableParty());
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: TURN_BASED_FUNNEL_APPLY_AND_GRANT_EXTRA_SKILL_ID },
+    1: { characterId: 'M2', skillId: TURN_BASED_FUNNEL_PROTECTION_SKILL_ID_BASE + 1 },
+    2: { characterId: 'M3', skillId: TURN_BASED_FUNNEL_PROTECTION_SKILL_ID_BASE + 2 },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  assert.equal(state.turnState.turnType, 'extra');
+  assert.deepEqual(getTurnBasedFunnelRemainingByCharacterId(state), {
+    M1: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M2: PLAYER_TURN_END_STATUS_START_REMAINING,
+    M3: PLAYER_TURN_END_STATUS_START_REMAINING,
+    M4: PLAYER_TURN_END_STATUS_START_REMAINING,
+    M5: PLAYER_TURN_END_STATUS_START_REMAINING,
+    M6: PLAYER_TURN_END_STATUS_START_REMAINING,
+  });
+});
+
+test('PlayerTurnEnd型ステータスはFunnel以外も次行の行動可能対象で減る', () => {
+  let state = createBattleStateFromParty(buildTurnBasedFunnelActionableParty());
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: TURN_BASED_ATTACK_UP_APPLY_SKILL_ID },
+    1: { characterId: 'M2', skillId: TURN_BASED_FUNNEL_PROTECTION_SKILL_ID_BASE + 1 },
+    2: { characterId: 'M3', skillId: TURN_BASED_FUNNEL_PROTECTION_SKILL_ID_BASE + 2 },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  assert.deepEqual(getTurnBasedStatusRemainingByCharacterId(state, 'AttackUp'), {
+    M1: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M2: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M3: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M4: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M5: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M6: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+  });
+});
+
+test('PlayerTurnEnd型Funnelは通常ターンからEXへ継続すると追加ターン対象だけ減る', () => {
+  let state = createBattleStateFromParty(buildTurnBasedFunnelActionableParty());
+  addTurnBasedFunnelToAllMembers(state);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: TURN_BASED_FUNNEL_GRANT_EXTRA_SKILL_ID },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  assert.equal(state.turnState.turnType, 'extra');
+  assert.deepEqual(getTurnBasedFunnelRemainingByCharacterId(state), {
+    M1: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M2: PLAYER_TURN_END_STATUS_START_REMAINING,
+    M3: PLAYER_TURN_END_STATUS_START_REMAINING,
+    M4: PLAYER_TURN_END_STATUS_START_REMAINING,
+    M5: PLAYER_TURN_END_STATUS_START_REMAINING,
+    M6: PLAYER_TURN_END_STATUS_START_REMAINING,
+  });
+});
+
+test('PlayerTurnEnd型FunnelはEX終了後に通常ターンへ進むと全員が減る', () => {
+  let state = createBattleStateFromParty(buildTurnBasedFunnelActionableParty());
+  addTurnBasedFunnelToAllMembers(state);
+  state = grantExtraTurn(state, ['M1', 'M2', 'M3']);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: TURN_BASED_FUNNEL_PROTECTION_SKILL_ID_BASE },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  assert.deepEqual(getTurnBasedFunnelRemainingByCharacterId(state), {
+    M1: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M2: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M3: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M4: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M5: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M6: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+  });
+});
+
+test('PlayerTurnEnd型FunnelはOD中に後衛も行動可能として減る', () => {
+  let state = createBattleStateFromParty(buildTurnBasedFunnelActionableParty());
+  addTurnBasedFunnelToAllMembers(state);
+  state.turnState.odGauge = 100;
+  state = activateOverdrive(state, 1, 'preemptive');
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: TURN_BASED_FUNNEL_PROTECTION_SKILL_ID_BASE },
+  });
+  state = commitTurn(state, preview).nextState;
+
+  assert.deepEqual(getTurnBasedFunnelRemainingByCharacterId(state), {
+    M1: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M2: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M3: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M4: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M5: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+    M6: PLAYER_TURN_END_STATUS_AFTER_ONE_ACTIONABLE_TURN,
+  });
 });
 
 test('EnemyTurnEnd status expiry ticks for all active members on base turn advance', () => {
@@ -12600,7 +12826,7 @@ test('OnOverdriveStart passive does not fire on non-OD timing (OnPlayerTurnStart
 test('commitTurn includes stateSnapshot with markStateByPartyIndex, statusEffectsByPartyIndex, zoneState, territoryState, tokenStateByPartyIndex', () => {
   const party = createSixMemberManualParty(() => ({}));
   const state = createBattleStateFromParty(party);
-  state.party[4].applySpecialStatus(79, 1, 'PlayerTurnEnd', {});
+  state.party[4].applySpecialStatus(79, 2, 'PlayerTurnEnd', {});
   const actions = buildActionDict(new Party(party.members));
   const preview = previewTurn(state, actions);
   const { committedRecord } = commitTurn(state, preview);
@@ -14816,8 +15042,7 @@ test('AdditionalHitOnBreaking + AttackUp: grants AllyAll AttackUp +0.6 for 8 tur
       .filter((status) => Math.abs(Number(status?.power ?? 0) - 0.6) < 0.01);
     assert.equal(attackUps.length, 1, `${member.characterId} should have exactly one +0.6 AttackUp`);
     assert.equal(String(attackUps[0].exitCond), 'PlayerTurnEnd');
-    const expectedRemaining = ['HASAN1', 'M2', 'M3'].includes(member.characterId) ? 7 : 8;
-    assert.equal(Number(attackUps[0].remaining), expectedRemaining);
+    assert.equal(Number(attackUps[0].remaining), 7);
   }
 });
 
@@ -17454,7 +17679,7 @@ test('Babied オギャり状態 applies to allies except self and increases skil
     );
     assert.equal(effect?.statusType, 'Babied');
     assert.equal(effect?.exitCond, 'PlayerTurnEnd');
-    assert.equal(effect?.remaining, BABIED_DURATION_TURNS);
+    assert.equal(effect?.remaining, BABIED_DURATION_TURNS - 1);
     assert.equal(effect?.power, BABIED_SKILL_ATTACK_UP_RATE);
     assert.equal(effect?.metadata?.skillAttackUpRate, BABIED_SKILL_ATTACK_UP_RATE);
     assert.equal(effect?.metadata?.odGaugeGainUpRate, BABIED_OD_GAUGE_GAIN_UP_RATE);
@@ -17469,7 +17694,7 @@ test('Babied オギャり状態 applies to allies except self and increases skil
     refreshedTarget.statusEffects.find(
       (effect) => Number(effect.metadata?.specialStatusTypeId) === BABIED_SPECIAL_STATUS_ID
     )?.remaining,
-    BABIED_DURATION_TURNS
+    BABIED_DURATION_TURNS - 1
   );
 
   const normalPreview = previewMemberSkill(
@@ -17506,7 +17731,7 @@ test('Babied オギャり状態 applies to allies except self and increases skil
     afterAttack.party[1].statusEffects.find(
       (effect) => Number(effect.metadata?.specialStatusTypeId) === BABIED_SPECIAL_STATUS_ID
     )?.remaining,
-    BABIED_DURATION_TURNS - 1
+    BABIED_DURATION_TURNS - 2
   );
 });
 
@@ -19758,7 +19983,7 @@ test('ByakkoDoubleActionAttackSkill: DP100%以上のラッシュで非EX攻撃�
   const actorAfter = nextState.party[0];
   assert.equal(committedRecord.actions.length, 2);
   assert.equal(actorAfter.getSkillUseCountByLabel('ByakkoSkill06'), 2);
-  assert.equal(actorAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 1);
+  assert.equal(actorAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 0);
 });
 
 test('ByakkoDoubleActionAttackSkill: DP100%未満ではラッシュ状態を得ない', () => {
