@@ -495,16 +495,13 @@
 
 .party-setup__party-manage-menu {
   position: absolute;
-  right: 0;
-  top: 100%;
-  margin-top: 0.25rem;
   width: 7rem;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid #e2e8f0;
   border-radius: 0.375rem;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(8px);
-  z-index: 50;
+  z-index: 100;
   opacity: 0;
   visibility: hidden;
   transform: translateY(-4px);

@@ -154,6 +154,7 @@ export class PartySetupController {
   #hasRecords = false;
   #isPartyManageOpen = false;
   #selectedSlotIndices = new Set();
+  #partyManageMenu = null;
 
   constructor({ root, pickerOverlay, store, onChange = null, onResetAll = null }) {
     this.#onChange = onChange;
@@ -204,19 +205,28 @@ export class PartySetupController {
     this.#bindDragAndDropDelegation();
     document.addEventListener('mousedown', this.#handleDocumentMouseDown);
     document.addEventListener('keydown', this.#handleDocumentKeyDown);
+
+    this.#partyManageMenu = document.createElement('div');
+    this.#partyManageMenu.className = 'party-setup__party-manage-menu';
+    this.#partyManageMenu.setAttribute('data-role', 'party-manage-menu');
+    this.#partyManageMenu.hidden = true;
+    document.body.appendChild(this.#partyManageMenu);
+
     this.#render();
   }
 
   unmount() {
     document.removeEventListener('mousedown', this.#handleDocumentMouseDown);
     document.removeEventListener('keydown', this.#handleDocumentKeyDown);
+    this.#partyManageMenu?.remove();
+    this.#partyManageMenu = null;
   }
 
   #handleDocumentMouseDown = (event) => {
     // Dropdown close logic
     if (this.#isPartyManageOpen) {
       const trigger = this.#root.querySelector('[data-action="toggle-party-manage"]');
-      const menu = this.#root.querySelector('[data-role="party-manage-menu"]');
+      const menu = this.#partyManageMenu;
       if (
         !(trigger && trigger.contains(event.target)) &&
         !(menu && menu.contains(event.target))
@@ -987,20 +997,6 @@ export class PartySetupController {
                       class="party-setup__party-manage-trigger text-xs px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1">
                 ⚙️ パーティ管理 ▽
               </button>
-              <div data-role="party-manage-menu"
-                   class="party-setup__party-manage-menu ${this.#isPartyManageOpen ? 'is-open' : ''}">
-                <button data-action="disband-party"
-                        type="button"
-                        ${canDisband ? '' : 'disabled'}
-                        class="w-full text-left text-xs px-3 py-1.5 hover:bg-slate-50 transition-colors text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-50">
-                  PT解散
-                </button>
-                <button data-action="reset-all-setup"
-                        type="button"
-                        class="w-full text-left text-xs px-3 py-1.5 hover:bg-rose-50 transition-colors text-rose-600">
-                  全体初期化
-                </button>
-              </div>
             </div>
           </div>
           ${this.#isReorderMode
@@ -1096,18 +1092,7 @@ export class PartySetupController {
       });
     });
 
-    this.#root.querySelector('[data-action="disband-party"]')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.#isPartyManageOpen = false;
-      this.#disbandParty();
-    });
 
-    this.#root.querySelector('[data-action="reset-all-setup"]')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.#isPartyManageOpen = false;
-      this.#render();
-      this.#onResetAll?.();
-    });
 
     this.#root.querySelector('[data-action="toggle-reorder-mode"]')?.addEventListener('click', () => {
       this.#toggleReorderMode();
@@ -1190,6 +1175,67 @@ export class PartySetupController {
     });
 
     this.#updateReorderSelectionVisual();
+
+    // Render and position the body-appended party management menu
+    if (this.#partyManageMenu) {
+      if (this.#isPartyManageOpen) {
+        const canDisband = this.#slots.some((s) => s.styleId);
+        this.#partyManageMenu.innerHTML = `
+          <button data-action="disband-party"
+                  type="button"
+                  ${canDisband ? '' : 'disabled'}
+                  class="w-full text-left text-xs px-3 py-1.5 hover:bg-slate-50 transition-colors text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-50">
+            PT解散
+          </button>
+          <button data-action="reset-all-setup"
+                  type="button"
+                  class="w-full text-left text-xs px-3 py-1.5 hover:bg-rose-50 transition-colors text-rose-600">
+            全体初期化
+          </button>
+        `;
+        this.#partyManageMenu.hidden = false;
+        // Trigger reflow
+        this.#partyManageMenu.getBoundingClientRect();
+        this.#partyManageMenu.classList.add('is-open');
+
+        // Bind events inside the body menu
+        this.#partyManageMenu.querySelector('[data-action="disband-party"]')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.#isPartyManageOpen = false;
+          this.#render();
+          this.#disbandParty();
+        });
+
+        this.#partyManageMenu.querySelector('[data-action="reset-all-setup"]')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.#isPartyManageOpen = false;
+          this.#render();
+          this.#onResetAll?.();
+        });
+
+        this.#partyManageMenu.querySelectorAll('button').forEach((btn) => {
+          btn.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+          });
+        });
+
+        // Position the menu relative to the trigger button
+        const trigger = this.#root.querySelector('[data-action="toggle-party-manage"]');
+        if (trigger) {
+          const triggerRect = trigger.getBoundingClientRect();
+          const menuWidth = 112; // 7rem = 112px
+          const left = triggerRect.right - menuWidth;
+          const top = triggerRect.bottom + 4 + window.scrollY;
+          this.#partyManageMenu.style.position = 'absolute';
+          this.#partyManageMenu.style.left = `${left}px`;
+          this.#partyManageMenu.style.top = `${top}px`;
+          this.#partyManageMenu.style.zIndex = '100';
+        }
+      } else {
+        this.#partyManageMenu.classList.remove('is-open');
+        this.#partyManageMenu.hidden = true;
+      }
+    }
   }
 
   #toggleSlotSelection(index) {

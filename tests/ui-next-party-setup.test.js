@@ -203,7 +203,10 @@ test('PartySetupController PT解散 button clears current party selection from s
       startSpEquipByPartyIndex: { 0: 1, 1: 2, 2: 3, 3: 3, 4: 3, 5: 3 },
     });
 
-    root
+    // Open the dropdown first
+    root.querySelector('[data-action="toggle-party-manage"]').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    win.document.body
       .querySelector('[data-action="disband-party"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
@@ -215,7 +218,10 @@ test('PartySetupController PT解散 button clears current party selection from s
       Object.values(snapshot.startSpEquipByPartyIndex),
       [3, 3, 3, 3, 3, 3],
     );
-    assert.equal(root.querySelector('[data-action="disband-party"]').disabled, true);
+
+    // Open the dropdown again to verify disabled state of disband button
+    root.querySelector('[data-action="toggle-party-manage"]').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(win.document.body.querySelector('[data-action="disband-party"]').disabled, true);
   }));
 
 test('PartySetupController 全体初期化 button triggers reset-all callback', () =>
@@ -231,7 +237,10 @@ test('PartySetupController 全体初期化 button triggers reset-all callback', 
     });
     controller.mount();
 
-    root
+    // Open the dropdown first
+    root.querySelector('[data-action="toggle-party-manage"]').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    win.document.body
       .querySelector('[data-action="reset-all-setup"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
@@ -1068,17 +1077,17 @@ test('PartySetupController handles party manage dropdown toggle and actions', ()
     controller.mount();
 
     // Verify initial state: dropdown is closed (no open class)
-    assert.equal(root.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), false);
+    assert.equal(win.document.body.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), false);
 
     // Toggle dropdown
     const trigger = root.querySelector('[data-action="toggle-party-manage"]');
     trigger.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-    assert.equal(root.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), true);
+    assert.equal(win.document.body.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), true);
 
     // Click reset-all-setup in dropdown
-    root.querySelector('[data-action="reset-all-setup"]').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    win.document.body.querySelector('[data-action="reset-all-setup"]').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     assert.equal(resetCalled, true);
-    assert.equal(root.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), false);
+    assert.equal(win.document.body.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), false);
   }));
 
 test('PartySetupController supports multi-slot selection, escape key deselect, and bulk settings sync', () =>
