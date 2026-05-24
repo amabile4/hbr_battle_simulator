@@ -114,14 +114,22 @@ export class PartyPresetToolbarController {
     this.#root.innerHTML = `
       <div class="party-preset-toolbar__scroller" data-role="preset-scroller"></div>
       <div class="party-preset-toolbar__overflow-indicator" data-role="preset-overflow-indicator" hidden>…</div>
-      <div class="party-preset-toolbar__hover-preview" data-role="preset-hover-preview" hidden></div>
-      <div class="party-preset-toolbar__action-menu" data-role="preset-action-menu" hidden></div>
     `;
 
     this.#scroller = this.#root.querySelector('[data-role="preset-scroller"]');
     this.#overflowIndicator = this.#root.querySelector('[data-role="preset-overflow-indicator"]');
-    this.#hoverPreview = this.#root.querySelector('[data-role="preset-hover-preview"]');
-    this.#actionMenu = this.#root.querySelector('[data-role="preset-action-menu"]');
+
+    this.#hoverPreview = document.createElement('div');
+    this.#hoverPreview.className = 'party-preset-toolbar__hover-preview';
+    this.#hoverPreview.setAttribute('data-role', 'preset-hover-preview');
+    this.#hoverPreview.hidden = true;
+    document.body.appendChild(this.#hoverPreview);
+
+    this.#actionMenu = document.createElement('div');
+    this.#actionMenu.className = 'party-preset-toolbar__action-menu';
+    this.#actionMenu.setAttribute('data-role', 'preset-action-menu');
+    this.#actionMenu.hidden = true;
+    document.body.appendChild(this.#actionMenu);
 
     this.#scroller?.addEventListener('scroll', () => {
       this.#syncOverflowIndicator();
@@ -144,6 +152,10 @@ export class PartyPresetToolbarController {
     document.removeEventListener('keydown', this.#handleDocumentKeyDown);
     this.#resizeObserver?.disconnect();
     this.#clearLongPressTimer();
+    this.#hoverPreview?.remove();
+    this.#hoverPreview = null;
+    this.#actionMenu?.remove();
+    this.#actionMenu = null;
   }
 
   sync(entries = this.#getPresetPreviews?.()) {
@@ -162,7 +174,7 @@ export class PartyPresetToolbarController {
     if (!this.#actionState || !this.#root) {
       return;
     }
-    if (this.#root.contains(event.target)) {
+    if (this.#root.contains(event.target) || this.#actionMenu?.contains(event.target)) {
       return;
     }
     this.#hideActionMenu();

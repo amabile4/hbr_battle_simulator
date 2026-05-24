@@ -206,7 +206,7 @@ test('PartyPresetToolbarController uses name over label in hover preview and loa
 
     const buttons = root.querySelectorAll('[data-role="party-preset-button"]');
     buttons[0].dispatchEvent(new win.MouseEvent('mouseenter', { bubbles: true }));
-    const hoverPreview = root.querySelector('[data-role="preset-hover-preview"]');
+    const hoverPreview = win.document.querySelector('[data-role="preset-hover-preview"]');
     assert.equal(hoverPreview.hidden, false);
     assert.match(hoverPreview.textContent ?? '', /31A前衛/);
 
@@ -236,7 +236,7 @@ test('PartyPresetToolbarController hides hover preview after async load complete
 
     const buttons = root.querySelectorAll('[data-role="party-preset-button"]');
     buttons[0].dispatchEvent(new win.MouseEvent('mouseenter', { bubbles: true }));
-    const hoverPreview = root.querySelector('[data-role="preset-hover-preview"]');
+    const hoverPreview = win.document.querySelector('[data-role="preset-hover-preview"]');
     assert.equal(hoverPreview.hidden, false, 'Preview should be visible after mouseenter');
 
     // Click to load — async load resolves and re-renders buttons.
@@ -263,7 +263,7 @@ test('PartyPresetToolbarController opens context menu and supports save rename c
 
     let buttons = root.querySelectorAll('[data-role="party-preset-button"]');
     buttons[2].dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true }));
-    const menu = root.querySelector('[data-role="preset-action-menu"]');
+    const menu = win.document.querySelector('[data-role="preset-action-menu"]');
     assert.equal(menu.hidden, false);
     assert.match(menu.textContent ?? '', /保存/);
 
@@ -307,7 +307,7 @@ test('PartyPresetToolbarController opens action menu on long press and suppresse
     button.dispatchEvent(new win.Event('touchstart', { bubbles: true }));
     await new Promise((resolve) => win.setTimeout(resolve, 460));
 
-    const menu = root.querySelector('[data-role="preset-action-menu"]');
+    const menu = win.document.querySelector('[data-role="preset-action-menu"]');
     assert.equal(menu.hidden, false);
 
     button.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
