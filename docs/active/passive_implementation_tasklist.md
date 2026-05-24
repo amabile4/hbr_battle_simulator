@@ -521,10 +521,11 @@ Phase 6-D（対象外）: 装備起点パッシブ
 - 印の残課題は「表示」「ログ」「実データ回帰の厚み」であり、条件評価や常在効果の基盤自体はほぼ完了
 - `DamageRate()` は手動破壊率状態としてのみ使い、ダメージ計算には接続しない
 - `ConquestBikeLevel()` は現状固定 `160`。UI 上書きだけ将来課題
-- 2026-05-23: `湯めぐり` は UI Next の turn action 構築時に `ConsumeSp()<=8` の攻撃スキルから自動追撃を生成する。手動追撃は従来どおり同一ターン内 1 回扱いだが、この自動追撃は action ごとに付与されるため、ビャッコ `ラッシュモード` の二連 `アサルトクロー` では 2 回とも追撃する。
+- 2026-05-23: `湯めぐり` は UI Next の turn action 構築時にパッシブ定義の `condition`（実データでは `ConsumeSp()<=8`）を評価し、条件を満たす攻撃スキルから自動追撃を生成する。手動追撃は従来どおり同一ターン内 1 回扱いだが、この自動追撃は action ごとに付与されるため、ビャッコ `ラッシュモード` の二連 `アサルトクロー` では 2 回とも追撃する。
 - 2026-05-23: 自動追撃の発生元は後衛の追撃者として action entry に保持し、`AdditionalHitOnPursuit` は追撃者本人のパッシブとしても評価する。これにより `そよぐ新緑` の前衛 SP+2 が追撃発生ごとに反映される。
 - 2026-05-24: 追撃者が `ReplacePursuit` で `ネコジェット・シャテキ` を保持している場合でも、追撃者の現在 SP が実効コスト以上のときだけ変換追撃にする。`闇天` などの `ReduceSp` を通して SP10 → SP9 のように解決し、不足時は通常追撃として扱う。`そよぐ新緑` の Passive Log は追撃発生ごとに `passive_trigger` として表示する。
 - 2026-05-24: `湯めぐり` の攻撃スキル判定は `AttackSkill` だけでなく `DamageRateChangeAttackSkill` 等の damage 系 skill_type も対象にする。`温泉手形` の変換追撃は同一 action record 内 1 回までとし、次の committed row では再び1回目の自動追撃が `ネコジェット・シャテキ` へ変換される。
+- 2026-05-24: 自動追撃の SP 条件は `AUTOMATIC_FOLLOW_UP_MAX_SP_COST = 8` の固定値ではなく、`auto_type: Pursuit` / `Passive.PursuitConfirmed` の `condition` を `evaluateConditionExpression` で評価する。将来 `ConsumeSp()<=10` の同系パッシブが追加されてもデータ定義だけで発火条件が変わる。
 - 2026-05-23: `ui_next_session_yumeguri_real_replay_2026-05-23.json` を実リプレイ fixture として追加し、#5 の `くぎづけ♡ラブリービーム -> ネコジェット・シャテキ`、`スイーツチャージ！ -> 通常追撃`、自動追撃 chip 2枚、`そよぐ新緑` SP+2 x 2回 / Passive Log 2件を回帰テストで固定する。
 
 ## 2026-04-04 main HEAD 進捗確認

@@ -3,6 +3,7 @@ import {
   applyEnemyStateOverrideSnapshot,
   buildEnemyStateOverrideSnapshot,
   countAliveEnemies,
+  evaluateConditionExpression,
   isEnemyAlive,
   resolveEffectiveSkillForAction,
   syncByakkoRushStateWithDpCondition,
@@ -161,7 +162,7 @@ const FOLLOW_UP_MAX_TRIGGERS_PER_ACTION = 1;
 const AUTOMATIC_FOLLOW_UP_TRIGGER_SOURCE = 'auto';
 const FOLLOW_UP_TRIGGER_SOURCE_MANUAL = 'manual';
 const AUTOMATIC_FOLLOW_UP_PASSIVE_SKILL_TYPE = 'PursuitConfirmed';
-const AUTOMATIC_FOLLOW_UP_MAX_SP_COST = 8;
+const AUTOMATIC_FOLLOW_UP_AUTO_TYPE = 'Pursuit';
 const FRONT_POSITION_MAX = 2;
 const BACK_POSITION_MIN = 3;
 const BACK_POSITION_MAX = 5;
@@ -255,15 +256,41 @@ function resolveNormalPursuitSourceForMember(member, pursuitCandidates = null) {
   };
 }
 
+function isAutomaticFollowUpPassive(passive) {
+  if (!passive || typeof passive !== 'object') {
+    return false;
+  }
+  if (String(passive?.auto_type ?? '').trim() === AUTOMATIC_FOLLOW_UP_AUTO_TYPE) {
+    return true;
+  }
+  if (String(passive?.label ?? '').includes(AUTOMATIC_FOLLOW_UP_PASSIVE_SKILL_TYPE)) {
+    return true;
+  }
+  return (passive?.parts ?? []).some(
+    (part) => String(part?.skill_type ?? '').trim() === AUTOMATIC_FOLLOW_UP_PASSIVE_SKILL_TYPE
+  );
+}
+
+function getAutomaticFollowUpPassives(member) {
+  return (member?.passives ?? []).filter((passive) => isAutomaticFollowUpPassive(passive));
+}
+
 function hasAutomaticFollowUpPassive(member) {
-  return (member?.passives ?? []).some((passive) => {
-    if (String(passive?.name ?? '') === '湯めぐり') {
-      return true;
-    }
-    return (passive?.parts ?? []).some(
-      (part) => String(part?.skill_type ?? '').trim() === AUTOMATIC_FOLLOW_UP_PASSIVE_SKILL_TYPE
-    );
-  });
+  return getAutomaticFollowUpPassives(member).length > 0;
+}
+
+function evaluateAutomaticFollowUpPassiveCondition(passive, state, actor, effectiveSkill, action, consumeSp) {
+  const expression = String(passive?.condition ?? passive?.cond ?? '').trim();
+  if (!expression) {
+    return true;
+  }
+  const skillForCondition = {
+    ...(effectiveSkill ?? {}),
+    spCost: consumeSp,
+    sp_cost: consumeSp,
+  };
+  const evaluated = evaluateConditionExpression(expression, state, actor, skillForCondition, action);
+  return evaluated.result === true && Number(evaluated.unknownCount ?? 0) === 0;
 }
 
 function skillHasAttackPart(skill) {
@@ -2886,7 +2913,14 @@ export class TurnEngineManager {
     }
     const effectiveSkill = resolveEffectiveSkillForAction(state, member, skill);
     const consumeSp = resolveSkillPreviewCost(member, effectiveSkill);
-    if (!Number.isFinite(consumeSp) || consumeSp > AUTOMATIC_FOLLOW_UP_MAX_SP_COST) {
+    if (!Number.isFinite(consumeSp)) {
+      return false;
+    }
+    const triggerPassives = getAutomaticFollowUpPassives(sourceMember);
+    const hasMatchingPassive = triggerPassives.some((passive) =>
+      evaluateAutomaticFollowUpPassiveCondition(passive, state, member, effectiveSkill, action, consumeSp)
+    );
+    if (!hasMatchingPassive) {
       return false;
     }
     const targetEnemyIndex = Number(action?.target?.enemyIndex ?? action?.targetEnemyIndex ?? override.enemyIndex);

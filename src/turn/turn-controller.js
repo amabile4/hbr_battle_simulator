@@ -6280,7 +6280,7 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
   return { known: false, value: true };
 }
 
-function evaluateConditionExpression(expression, state, member, skill, actionEntry = null) {
+export function evaluateConditionExpression(expression, state, member, skill, actionEntry = null) {
   const text = String(expression ?? '').trim();
   if (!text) {
     return { result: true, knownCount: 0, unknownCount: 0 };
