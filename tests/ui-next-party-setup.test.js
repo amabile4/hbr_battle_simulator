@@ -1053,3 +1053,104 @@ test('PartySetupController disables removing checked skills while records exist'
     assert.equal(uncheckedOptionalCheckbox?.disabled, false);
     assert.match(win.document.body.textContent ?? '', /記録中はスキル解除できません/);
   }));
+
+test('PartySetupController handles party manage dropdown toggle and actions', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    let resetCalled = false;
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      onResetAll: () => {
+        resetCalled = true;
+      },
+    });
+    controller.mount();
+
+    // Verify initial state: dropdown is closed (no open class)
+    assert.equal(root.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), false);
+
+    // Toggle dropdown
+    const trigger = root.querySelector('[data-action="toggle-party-manage"]');
+    trigger.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(root.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), true);
+
+    // Click reset-all-setup in dropdown
+    root.querySelector('[data-action="reset-all-setup"]').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(resetCalled, true);
+    assert.equal(root.querySelector('[data-role="party-manage-menu"]').classList.contains('is-open'), false);
+  }));
+
+test('PartySetupController supports multi-slot selection, escape key deselect, and bulk settings sync', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    // Populate styles to make limit break available
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    // Click slot 0 number button to select it
+    root.querySelectorAll('[data-action="toggle-slot-selection"]')[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(root.querySelector('[data-slot="0"]').classList.contains('is-selected'), true);
+    assert.equal(root.querySelectorAll('[data-action="toggle-slot-selection"]')[0].textContent.trim(), '✓');
+
+    // Click slot 1 number button to select it too
+    root.querySelectorAll('[data-action="toggle-slot-selection"]')[1].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(root.querySelector('[data-slot="1"]').classList.contains('is-selected'), true);
+
+    // Verify header switched to show selected count and clear selections button
+    const clearBtn = root.querySelector('[data-action="clear-selections"]');
+    assert.ok(clearBtn);
+    assert.match(root.innerHTML, /2枠 選択中/);
+
+    // Change limit break of slot 0 to 4
+    const lbSelect0 = root.querySelector('select[data-field="lb"][data-slot-index="0"]');
+    lbSelect0.value = '4';
+    lbSelect0.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    // Verify slot 1's limit break also changed to 4
+    assert.equal(controller.getSnapshot().limitBreakLevelsByPartyIndex[1], 4);
+
+    // Press Escape to clear selections
+    win.document.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(root.querySelector('[data-slot="0"]').classList.contains('is-selected'), false);
+    assert.equal(root.querySelector('[data-slot="1"]').classList.contains('is-selected'), false);
+  }));
+
+test('PartySetupController clears selection when clicking clear button or outside slots', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    // Select slot 0
+    root.querySelectorAll('[data-action="toggle-slot-selection"]')[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(root.querySelector('[data-slot="0"]').classList.contains('is-selected'), true);
+
+    // Click "選択を解除" button
+    const clearBtn = root.querySelector('[data-action="clear-selections"]');
+    clearBtn.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(root.querySelector('[data-slot="0"]').classList.contains('is-selected'), false);
+
+    // Select slot 0 again
+    root.querySelectorAll('[data-action="toggle-slot-selection"]')[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(root.querySelector('[data-slot="0"]').classList.contains('is-selected'), true);
+
+    // Click outside of character cards (e.g. background body)
+    win.document.body.dispatchEvent(new win.MouseEvent('mousedown', { bubbles: true }));
+    assert.equal(root.querySelector('[data-slot="0"]').classList.contains('is-selected'), false);
+  }));
