@@ -27,7 +27,7 @@ import {
   isPersistentEnemyStatusType,
   normalizeEnemyStatusType,
 } from '../domain/enemy-status.js';
-import { isNormalAttackSkill, isPursuitOnlySkill } from '../domain/skill-classifiers.js';
+import { isExSkillByLabel, isNormalAttackSkill, isPursuitOnlySkill } from '../domain/skill-classifiers.js';
 import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
 import { isFormEntryActive } from '../domain/form-change.js';
 import {
@@ -4916,7 +4916,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       }
       if (skillType === 'AdditionalHitOnExtraSkill') {
         triggerMultiplier = 1;
-        return Boolean(skill?.isRestricted);
+        return isExtraSkillTriggerSkill(skill);
       }
       if (skillType === 'AdditionalHitOnKillCount') {
         const killCount = Math.max(0, Number(actionEntry?.killCount ?? 0));
@@ -10019,20 +10019,36 @@ function markPursuitTransformUsed(turnState, characterId) {
   turnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY] = [...used];
 }
 
-function resolvePursuitSourceForMember(member, turnState = null) {
+function resolvePursuitSourceForMember(member, state = null) {
   const candidates = resolvePursuitSkillCandidatesForMember(member);
   const transformed = candidates.find((skill) => String(skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME);
+  const turnState = state?.turnState ?? state ?? null;
   const transformUsed = new Set(getPursuitTransformUsedCharacterIds(turnState));
+  const transformedEffective =
+    transformed && state?.turnState
+      ? resolveEffectiveSkillForAction(state, member, transformed) ?? transformed
+      : transformed;
+  const rawTransformedSpCost = Number(
+    transformedEffective?.spCost ??
+      transformedEffective?.sp_cost ??
+      transformed?.spCost ??
+      transformed?.sp_cost ??
+      PURSUIT_TRANSFORMED_SKILL_SP_COST
+  );
+  const transformedSpCost =
+    Number.isFinite(rawTransformedSpCost) && rawTransformedSpCost > 0
+      ? rawTransformedSpCost
+      : PURSUIT_TRANSFORMED_SKILL_SP_COST;
   if (
     transformed &&
     !transformUsed.has(String(member?.characterId ?? '')) &&
-    Number(member?.sp?.current ?? 0) >= PURSUIT_TRANSFORMED_SKILL_SP_COST
+    Number(member?.sp?.current ?? 0) >= transformedSpCost
   ) {
     const hitCount = Number(transformed?.hitCount ?? transformed?.hit_count ?? 0);
     return {
-      skill: transformed,
+      skill: transformedEffective,
       hitCount: Number.isFinite(hitCount) && hitCount > 0 ? hitCount : 5,
-      spCost: PURSUIT_TRANSFORMED_SKILL_SP_COST,
+      spCost: transformedSpCost,
     };
   }
   const pursuitSkill = candidates.find((skill) => isPursuitOnlySkill(skill)) ?? null;
@@ -10076,7 +10092,7 @@ function refreshAutomaticPursuitActionForState(action, state) {
   if (!source) {
     return action;
   }
-  const pursuitSource = resolvePursuitSourceForMember(source, state?.turnState);
+  const pursuitSource = resolvePursuitSourceForMember(source, state);
   const skill = pursuitSource.skill ?? null;
   return {
     ...(action && typeof action === 'object' ? action : {}),
@@ -10717,6 +10733,13 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     breakDownTurnUpEvents,
     odGaugeGain,
   };
+}
+
+function isExtraSkillTriggerSkill(skill) {
+  if (!skill || typeof skill !== 'object') {
+    return false;
+  }
+  return isExSkillByLabel(skill);
 }
 
 function previewActionEntries(state, sortedActions, enemyCount = DEFAULT_ENEMY_COUNT, options = {}) {
@@ -13397,9 +13420,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     !shouldActivateInterruptOdAfterActions &&
     Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0);
   nextTurnState.passiveEventsLastApplied = [];
-  if (!playerTurnContinuesAfterActions) {
-    nextTurnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY] = [];
-  }
+  nextTurnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY] = [];
   // P3-B: PlayerTurnEnd パッシブの発火フラグをリセット（新プレイヤーターン開始時）
   if (nextBaseTurnAdvances) {
     nextTurnState.passiveTurnFiredKeys = [];

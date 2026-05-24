@@ -5037,6 +5037,7 @@ test('AdditionalHitOnExtraSkill can raise morale when restricted skill is used',
           skills: [
             {
               id: 18241,
+              label: 'TestSkill51',
               name: 'EX Skill',
               is_restricted: 1,
               sp_cost: 0,
@@ -12919,6 +12920,7 @@ test('恐怖の叫び: EX skill use applies Talisman trigger, attack increment, 
           skills: [
             {
               id: 99984,
+              label: 'TestSkill51',
               name: 'Talisman EX Slash',
               sp_cost: 12,
               is_restricted: 1,
@@ -12987,6 +12989,7 @@ test('AdditionalHitOnExtraSkill + Talisman does not fire while talisman is inact
           skills: [
             {
               id: 99985,
+              label: 'TestSkill51',
               name: 'Inactive Talisman EX',
               sp_cost: 12,
               is_restricted: 1,
@@ -13038,6 +13041,7 @@ test('AdditionalHitOnExtraSkill + Talisman clamps at max level 10', () => {
           skills: [
             {
               id: 99986,
+              label: 'TestSkill51',
               name: 'Clamp Talisman EX',
               sp_cost: 12,
               is_restricted: 1,
@@ -13572,6 +13576,7 @@ test('AdditionalHitOnExtraSkill + OverDrivePointUp: OD gauge increases when EX s
           skills: [
             {
               id: 99931,
+              label: 'TestSkill51',
               name: 'EX Skill Test',
               sp_cost: 12,
               is_restricted: 1,
@@ -13627,6 +13632,7 @@ test('AdditionalHitOnExtraSkill + DebuffGuard: EX skill used grants DebuffGuard 
           skills: [
             {
               id: 99933,
+              label: 'TestSkill51',
               name: 'EX Guard Skill',
               sp_cost: 12,
               is_restricted: 1,
@@ -13680,6 +13686,7 @@ test('AdditionalHitOnExtraSkill + BuffCharge: EX skill used grants BuffCharge to
           skills: [
             {
               id: 99935,
+              label: 'TestSkill51',
               name: 'EX Charge Skill',
               sp_cost: 12,
               is_restricted: 1,
@@ -14382,6 +14389,7 @@ test('AdditionalHitOnExtraSkill + HealDpRate: DP healed to AllyFront targets whe
           skills: [
             {
               id: 99981,
+              label: 'TestSkill51',
               name: 'EX Non-Attack',
               sp_cost: 12,
               is_restricted: 1,
@@ -19314,6 +19322,7 @@ test('P3-B: exitCond=PlayerTurnEnd: T1EXで再度EXスキル使用しても二�
           skills: [
             {
               id: 208001,
+              label: 'TestSkill51',
               name: 'EX Skill',
               sp_cost: 10,
               is_restricted: 1,
@@ -19377,6 +19386,7 @@ test('P3-B: exitCond=PlayerTurnEnd: T2では再び発動する', () => {
           skills: [
             {
               id: 208003,
+              label: 'TestSkill51',
               name: 'EX Skill 2',
               sp_cost: 10,
               is_restricted: 1,
@@ -19800,6 +19810,114 @@ test('Byakko06 獅子奮迅: EX使用後に自身以外へSP+2をSP30上限で�
   assert.equal(preview.actions.length, 1);
   assert.ok(allySpValues.length >= 2);
   assert.ok(allySpValues.every((sp) => sp === 22));
+});
+
+test('Byakko06 獅子奮迅: 専用通常スキルのディスラプトでは発動しない', () => {
+  const store = getStore();
+  const BYAKKO_DISRUPT_SKILL_ID = 46002610;
+  const party = buildByakko06RealDataParty(store, [BYAKKO_DISRUPT_SKILL_ID], {
+    initialSP: 20,
+    initialDpStateByPartyIndex: {
+      0: { baseMaxDp: 70, currentDp: 69, effectiveDpCap: 70 },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const actor = state.party[0];
+
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const preview = previewTurn(state, {
+    0: { characterId: actor.characterId, skillId: BYAKKO_DISRUPT_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const allySpValues = nextState.party
+    .filter((member) => member.characterId !== actor.characterId)
+    .map((member) => Number(member.sp.current ?? 0));
+
+  assert.equal(preview.actions.length, 1);
+  assert.equal(
+    committedRecord.passiveEvents.some((event) => event.passiveName === '獅子奮迅'),
+    false,
+    'Skill07 の専用通常スキルは AdditionalHitOnExtraSkill の対象外'
+  );
+  assert.ok(allySpValues.length >= 2);
+  assert.ok(allySpValues.every((sp) => sp === 20));
+});
+
+test('Byakko06 獅子奮迅: EXスキルとスキル進化EXで発動する', () => {
+  const store = getStore();
+  const BYAKKO_BEAST_PRISON_SKILL_ID = 46002605;
+  const BYAKKO_BEAST_PRISON_PLUS_SKILL_ID = 46002661;
+
+  for (const skillId of [BYAKKO_BEAST_PRISON_SKILL_ID, BYAKKO_BEAST_PRISON_PLUS_SKILL_ID]) {
+    const party = buildByakko06RealDataParty(store, [skillId], {
+      initialSP: 20,
+      initialDpStateByPartyIndex: {
+        0: { baseMaxDp: 70, currentDp: 69, effectiveDpCap: 70 },
+      },
+    });
+    const state = createBattleStateFromParty(party);
+    const actor = state.party[0];
+
+    applyPassiveTiming(state, 'OnPlayerTurnStart');
+    const preview = previewTurn(state, {
+      0: { characterId: actor.characterId, skillId, targetEnemyIndex: 0 },
+    });
+    const { committedRecord } = commitTurn(state, preview);
+
+    assert.equal(
+      committedRecord.passiveEvents.some((event) => event.passiveName === '獅子奮迅'),
+      true,
+      `${skillId} should trigger 獅子奮迅 as an EX skill`
+    );
+  }
+});
+
+test('桐生美也マスタースキル 希望を拓く一矢: EXスキルで発動し専用通常スキルでは発動しない', () => {
+  const store = getStore();
+  const MKIRYU_EX_STYLE_ID = 1004307;
+  const MKIRYU_NORMAL_STYLE_ID = 1004306;
+  const MKIRYU_EX_SKILL_ID = 46004311;
+  const MKIRYU_NORMAL_SKILL_ID = 46004310;
+  const MKIRYU_MASTER_PASSIVE_SKILL_ID = 46514301;
+  const fillerStyleIds = getSixUsableStyleIds(store)
+    .filter((styleId) => ![MKIRYU_EX_STYLE_ID, MKIRYU_NORMAL_STYLE_ID].includes(Number(styleId)))
+    .slice(0, 5);
+
+  const exParty = store.buildPartyFromStyleIds([MKIRYU_EX_STYLE_ID, ...fillerStyleIds], {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [MKIRYU_EX_SKILL_ID, MKIRYU_MASTER_PASSIVE_SKILL_ID],
+    },
+  });
+  const exState = createBattleStateFromParty(exParty);
+  const exActor = exState.party[0];
+  const exPreview = previewTurn(exState, {
+    0: { characterId: exActor.characterId, skillId: MKIRYU_EX_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  const exCommit = commitTurn(exState, exPreview);
+  assert.equal(
+    exCommit.committedRecord.passiveEvents.some((event) => event.passiveName === '希望を拓く一矢'),
+    true,
+    'Master passive should trigger after an EX skill'
+  );
+
+  const normalParty = store.buildPartyFromStyleIds([MKIRYU_NORMAL_STYLE_ID, ...fillerStyleIds], {
+    initialSP: 20,
+    skillSetsByPartyIndex: {
+      0: [MKIRYU_NORMAL_SKILL_ID, MKIRYU_MASTER_PASSIVE_SKILL_ID],
+    },
+  });
+  const normalState = createBattleStateFromParty(normalParty);
+  const normalActor = normalState.party[0];
+  const normalPreview = previewTurn(normalState, {
+    0: { characterId: normalActor.characterId, skillId: MKIRYU_NORMAL_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  const normalCommit = commitTurn(normalState, normalPreview);
+  assert.equal(
+    normalCommit.committedRecord.passiveEvents.some((event) => event.passiveName === '希望を拓く一矢'),
+    false,
+    'Master passive should not trigger after a non-EX style-locked skill'
+  );
 });
 
 test('DoubleActionExtraSkill: 李映夏Funnel付きフグリングクラッシュは1発目だけFunnelを消費し各castで全体バフを付与する', () => {

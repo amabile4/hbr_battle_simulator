@@ -42,6 +42,14 @@ export function extractSkillLabelTrailingNumber(label) {
   return Number(match[1]);
 }
 
+export function extractSkillLabelSkillNumber(label) {
+  const match = String(label ?? '').match(/Skill(\d+)/);
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]);
+}
+
 export const SKILL_TYPE_SKILL = 'スキル';
 export const SKILL_TYPE_SKILL_RESTRICTED = 'スキル（専用）';
 export const SKILL_TYPE_EX_SKILL = 'EXスキル';
@@ -59,12 +67,12 @@ export function classifySkillType(skill) {
     return null;
   }
   const label = String(skill.label ?? '');
-  const trailingNumber = extractSkillLabelTrailingNumber(label);
-  if (trailingNumber === null) {
+  const skillNumber = extractSkillLabelSkillNumber(label);
+  if (skillNumber === null) {
     return null;
   }
-  const isEx = trailingNumber >= EX_SKILL_LABEL_NUMBER_THRESHOLD;
-  const isRestricted = Number(skill.is_restricted ?? 0) === 1;
+  const isEx = skillNumber >= EX_SKILL_LABEL_NUMBER_THRESHOLD;
+  const isRestricted = Number(skill.is_restricted ?? skill.isRestricted ?? 0) === 1;
 
   if (isEx && isRestricted) {
     return SKILL_TYPE_EX_SKILL_RESTRICTED;
@@ -79,9 +87,9 @@ export function classifySkillType(skill) {
 }
 
 /**
- * スキルが EX スキルかどうかを返す（label 末尾数値 >= 51）。
+ * スキルが EX スキルかどうかを返す（label 内の SkillNN が 51 以上）。
  */
 export function isExSkillByLabel(skill) {
-  const trailingNumber = extractSkillLabelTrailingNumber(String(skill?.label ?? ''));
-  return trailingNumber !== null && trailingNumber >= EX_SKILL_LABEL_NUMBER_THRESHOLD;
+  const skillNumber = extractSkillLabelSkillNumber(String(skill?.label ?? ''));
+  return skillNumber !== null && skillNumber >= EX_SKILL_LABEL_NUMBER_THRESHOLD;
 }

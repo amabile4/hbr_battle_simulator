@@ -65,6 +65,7 @@ function createPursuitTestParty(actorOptions = {}) {
       styleName: index === 0 ? (actorOptions.styleName ?? 'TS1') : `TS${index + 1}`,
       partyIndex: index,
       position: index,
+      elements: memberOptionsByIndex[index]?.elements ?? [],
       initialSP: memberOptionsByIndex[index]?.initialSP ?? 10,
       drivePiercePercent: index === 0 ? (actorOptions.drivePiercePercent ?? 0) : 0,
       skills: [
@@ -780,6 +781,152 @@ test('湯めぐり automatically materializes follow-up and そよぐ新緑 heal
   assert.equal(passiveLogEvents[0].spDelta, 6);
 });
 
+test('ネコジェット・シャテキ pursuit cost uses ReduceSp passives such as 闇天', () => {
+  const actorSkill = createSkill({
+    id: 94011,
+    name: 'Dark Heaven Follow Source',
+    targetType: 'Single',
+    spCost: 8,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const nekoJet = createSkill({
+    id: 94911,
+    name: 'ネコジェット・シャテキ',
+    targetType: 'Single',
+    spCost: 10,
+    hitCount: 5,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Dark'] }],
+  });
+  const normalPursuit = createSkill({
+    id: 94912,
+    name: '追撃',
+    targetType: 'Single',
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+  const party = createPursuitTestParty({
+    characterId: 'DARK_HEAVEN_ACTOR',
+    skill: actorSkill,
+    memberOptionsByIndex: {
+      3: {
+        characterId: 'YO_OSHIMA_DARK',
+        initialSP: 9,
+        elements: ['Dark'],
+        triggeredSkills: [nekoJet, normalPursuit],
+        passives: [{ id: 57001218, name: '湯めぐり', timing: 'None', condition: 'ConsumeSp()<=8', parts: [] }],
+      },
+      4: {
+        characterId: 'DARK_HEAVEN_REDUCER',
+        passives: [
+          {
+            id: 57009991,
+            name: '闇天テスト',
+            timing: 'OnFirstBattleStart',
+            parts: [
+              {
+                skill_type: 'ReduceSp',
+                target_type: 'AllyAll',
+                power: [1, 0],
+                target_condition: 'IsNatureElement(Dark)',
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const record = manager.commitNextTurn(
+    {
+      0: { skillId: 94011, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    { enemyCount: 1 }
+  );
+
+  const actorEntry = record.actions.find((action) => action.characterId === 'DARK_HEAVEN_ACTOR');
+  assert.equal(actorEntry.pursuitSourceSkillName, 'ネコジェット・シャテキ');
+  assert.equal(actorEntry.pursuitSourceSpCost, 9);
+  const yotsubaAfter = manager.computedStates[0].party.find((member) => member.characterId === 'YO_OSHIMA_DARK');
+  assert.equal(yotsubaAfter.sp.current, 2, 'SP9からネコジェット実効コスト9を消費し、ターン開始回復+2でSP2');
+});
+
+test('ネコジェット・シャテキ transform resets for the next committed row but remains once per row', () => {
+  const actorSkill = createSkill({
+    id: 94012,
+    name: 'Repeated Row Follow Source',
+    targetType: 'Single',
+    spCost: 8,
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const nekoJet = createSkill({
+    id: 94913,
+    name: 'ネコジェット・シャテキ',
+    targetType: 'Single',
+    spCost: 10,
+    hitCount: 5,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const normalPursuit = createSkill({
+    id: 94914,
+    name: '追撃',
+    targetType: 'Single',
+    hitCount: 1,
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single' }],
+  });
+  const party = createPursuitTestParty({
+    characterId: 'ROW_RESET_ACTOR',
+    skill: actorSkill,
+    memberSkillsByIndex: {
+      1: [actorSkill, PROTECTION_SKILL],
+    },
+    memberOptionsByIndex: {
+      1: { characterId: 'ROW_RESET_ACTOR_2' },
+      3: {
+        characterId: 'YO_OSHIMA_ROW_RESET',
+        initialSP: 30,
+        triggeredSkills: [nekoJet, normalPursuit],
+        passives: [{ id: 57001218, name: '湯めぐり', timing: 'None', condition: 'ConsumeSp()<=8', parts: [] }],
+      },
+    },
+  });
+  const state = createBattleStateFromParty(party);
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {});
+
+  const firstRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 94012, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 94012, target: { type: 'enemy', enemyIndex: 0 } },
+      2: { skillId: 8001 },
+    },
+    { enemyCount: 1 }
+  );
+  assert.deepEqual(
+    firstRecord.actions
+      .filter((action) => action.pursuitTriggerSource === 'auto')
+      .map((action) => action.pursuitSourceSkillName),
+    ['ネコジェット・シャテキ', '追撃']
+  );
+
+  const secondRecord = manager.commitNextTurn(
+    {
+      0: { skillId: 94012, target: { type: 'enemy', enemyIndex: 0 } },
+      1: { skillId: 8001 },
+      2: { skillId: 8001 },
+    },
+    { enemyCount: 1 }
+  );
+  const secondPursuitAction = secondRecord.actions.find((action) => action.pursuitTriggerSource === 'auto');
+  assert.equal(secondPursuitAction.pursuitSourceSkillName, 'ネコジェット・シャテキ');
+});
+
 test('湯めぐり automatic follow-up fires for both Byakko rush repeated attacks', () => {
   const byakkoAssaultClaw = createSkill({
     id: 9402,
@@ -1032,12 +1179,12 @@ test('実リプレイ #5: 自動追撃表示・SP消費/増加・ネコジェッ
     'ネコジェット・シャテキ',
     '追撃',
   ]);
-  assert.deepEqual(pursuitActions.map((action) => action.pursuitSourceSpCost), [10, 0]);
+  assert.deepEqual(pursuitActions.map((action) => action.pursuitSourceSpCost), [9, 0]);
   assert.deepEqual(pursuitActions.map((action) => action.pursuedHitCount), [5, 1]);
   assert.equal(
     record.actions.filter((action) => action.pursuitSourceSkillName === 'ネコジェット・シャテキ').length,
     1,
-    '温泉手形によるネコジェット変換は同一 player turn で1回だけ'
+    '温泉手形によるネコジェット変換は同一行動レコードで1回だけ'
   );
   assert.equal(
     record.actions.filter((action) => action.pursuitSourceSkillName === '追撃').length,
@@ -1092,7 +1239,7 @@ test('実リプレイ #5: 自動追撃表示・SP消費/増加・ネコジェッ
   const yotsubaBefore = stateBefore.party.find((member) => member.characterName === '大島 四ツ葉');
   const yotsubaAfter = stateAfter.party.find((member) => member.characterName === '大島 四ツ葉');
   assert.equal(yotsubaBefore?.sp?.current, 24);
-  assert.equal(yotsubaAfter?.sp?.current, 18);
+  assert.equal(yotsubaAfter?.sp?.current, 19);
 });
 
 test('pursuit OD is not multiplied by enemy count on All-target skill', () => {

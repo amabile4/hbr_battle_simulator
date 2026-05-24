@@ -175,7 +175,7 @@ const AUTOMATIC_FOLLOW_UP_ATTACK_SKILL_TYPES = new Set([
   'FixedHpDamageRateAttack',
 ]);
 
-function resolvePursuitSourceForMember(member) {
+function resolvePursuitSourceForMember(member, state = null) {
   const pursuitCandidates = [
     ...(member?.getActionSkills?.() ?? []),
     ...(Array.isArray(member?.triggeredSkills) ? member.triggeredSkills : []),
@@ -185,16 +185,42 @@ function resolvePursuitSourceForMember(member) {
   const transformed = pursuitCandidates.find(
     (skill) => String(skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME
   );
-  if (transformed && Number(member?.sp?.current ?? 0) >= PURSUIT_TRANSFORMED_SKILL_SP_COST) {
+  const transformedEffective =
+    transformed && state
+      ? resolveEffectiveSkillForAction(state, member, transformed) ?? transformed
+      : transformed;
+  const rawTransformedSpCost = Number(
+    transformedEffective?.spCost ??
+      transformedEffective?.sp_cost ??
+      transformed?.spCost ??
+      transformed?.sp_cost ??
+      PURSUIT_TRANSFORMED_SKILL_SP_COST
+  );
+  const transformedSpCost =
+    Number.isFinite(rawTransformedSpCost) && rawTransformedSpCost > 0
+      ? rawTransformedSpCost
+      : PURSUIT_TRANSFORMED_SKILL_SP_COST;
+  if (transformed && Number(member?.sp?.current ?? 0) >= transformedSpCost) {
     const transformedHitCount = Number(transformed?.hitCount ?? transformed?.hit_count ?? 0);
     return {
-      skill: transformed,
+      skill: transformedEffective,
       hitCount: Number.isFinite(transformedHitCount) && transformedHitCount > 0 ? transformedHitCount : 5,
-      spCost: PURSUIT_TRANSFORMED_SKILL_SP_COST,
+      spCost: transformedSpCost,
     };
   }
 
-  const pursuitSkill = pursuitCandidates.find((skill) => isPursuitOnlySkill(skill));
+  return resolveNormalPursuitSourceForMember(member, pursuitCandidates);
+}
+
+function resolveNormalPursuitSourceForMember(member, pursuitCandidates = null) {
+  const candidates = Array.isArray(pursuitCandidates)
+    ? pursuitCandidates
+    : [
+        ...(member?.getActionSkills?.() ?? []),
+        ...(Array.isArray(member?.triggeredSkills) ? member.triggeredSkills : []),
+        ...(member?.getSupportSkills?.() ?? []),
+      ];
+  const pursuitSkill = candidates.find((skill) => isPursuitOnlySkill(skill));
   const explicitHitCount = Number(pursuitSkill?.hitCount ?? pursuitSkill?.hit_count ?? 0);
   if (Number.isFinite(explicitHitCount) && explicitHitCount > 0) {
     return {
@@ -2135,6 +2161,7 @@ export class TurnEngineManager {
       triggerSource: AUTOMATIC_FOLLOW_UP_TRIGGER_SOURCE,
     }));
     const pursuitSourceByBackPosition = new Map();
+    const transformedPursuitUsedBackPositions = new Set();
     const frontActionPositions = [];
     for (const override of [...normalizedFollowUpOverrides, ...normalizedAutomaticFollowUpOverrides]) {
       const backPosition = Number(override?.position);
@@ -2145,7 +2172,7 @@ export class TurnEngineManager {
       if (!backMember) {
         continue;
       }
-      pursuitSourceByBackPosition.set(backPosition, resolvePursuitSourceForMember(backMember));
+      pursuitSourceByBackPosition.set(backPosition, resolvePursuitSourceForMember(backMember, state));
     }
     for (const [posStr, action] of Object.entries(slotActions)) {
       const slotPosition = Number(posStr);
@@ -2258,12 +2285,23 @@ export class TurnEngineManager {
               (candidate) => Number(candidate?.position) === Number(resolvedFollowUpOverride.position)
             ) ?? null
           : null;
-      const pursuitSource = followUpSourceMember
-        ? pursuitSourceByBackPosition.get(Number(resolvedFollowUpOverride?.position)) ?? resolvePursuitSourceForMember(followUpSourceMember)
+      const followUpSourcePosition = Number(resolvedFollowUpOverride?.position);
+      let pursuitSource = followUpSourceMember
+        ? pursuitSourceByBackPosition.get(followUpSourcePosition) ?? resolvePursuitSourceForMember(followUpSourceMember, state)
         : null;
+      if (
+        pursuitSource &&
+        transformedPursuitUsedBackPositions.has(followUpSourcePosition) &&
+        String(pursuitSource?.skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME
+      ) {
+        pursuitSource = resolveNormalPursuitSourceForMember(followUpSourceMember);
+      }
       const followUpSourceSkill = pursuitSource?.skill ?? null;
       if (followUpEnemyIndex !== null && followUpEnemyIndex !== undefined) {
         resolvedPursuedHitCount = Number(pursuitSource?.hitCount ?? 1);
+      }
+      if (String(followUpSourceSkill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME) {
+        transformedPursuitUsedBackPositions.add(followUpSourcePosition);
       }
 
       actions[member.position] = {

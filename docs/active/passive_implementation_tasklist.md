@@ -1,6 +1,6 @@
 # Passive Implementation Task List
 
-> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-05-23
+> **ステータス**: 🟢 進行中 | 📅 最終更新: 2026-05-24
 
 ## 方針
 
@@ -53,6 +53,7 @@
   - `CountBC(... MoraleLevel() >= N ...)` の player 条件評価も実装済み
   - `Morale` スキルによる士気上昇、`SkillCondition` / `iuc_cond` を含む士気依存スキル分岐は実装済み
   - `AdditionalHitOnSpecifiedSkill` / `AdditionalHitOnExtraSkill` を起点にした士気上昇パッシブも実装済み
+  - `AdditionalHitOnExtraSkill` の実データ判定は label 内の `SkillNN` が EX 範囲（Skill51以降）のスキルに限定する。`Skill51Ev1` のようなスキル進化 EX も対象にし、`is_restricted` は専用通常スキルにも付くため、`ByakkoSkill07` / `ディスラプト` では `獅子奮迅` やマスタースキル `希望を拓く一矢` を発火させない
   - `AdditionalHitOnWeak` は、行動スキルの攻撃属性/攻撃種別が対象敵の現在弱点を突いたときに action-time trigger として発火し、`AdditionalTurn` などの後続効果へ接続済み。通常攻撃は属性ブレスレット由来の `normalAttackElements` も `IsHitWeak()` / trigger 判定へ反映する
   - `IgnoreEShieldElement` を持つアクティブ攻撃が active な Eシールド敵に命中した場合も弱点命中扱いにする。`慧眼の女教皇` クイーンの `アトミックフレア` は Eシールド属性無視で current を減らし、`1MORE` の `AdditionalHitOnWeak -> AdditionalTurn` を発火する
   - `AdditionalHitOnKillCount` はエンジン側で実装済み。現状は `action.killCount` を与える形で検証する
@@ -522,8 +523,8 @@ Phase 6-D（対象外）: 装備起点パッシブ
 - `ConquestBikeLevel()` は現状固定 `160`。UI 上書きだけ将来課題
 - 2026-05-23: `湯めぐり` は UI Next の turn action 構築時に `ConsumeSp()<=8` の攻撃スキルから自動追撃を生成する。手動追撃は従来どおり同一ターン内 1 回扱いだが、この自動追撃は action ごとに付与されるため、ビャッコ `ラッシュモード` の二連 `アサルトクロー` では 2 回とも追撃する。
 - 2026-05-23: 自動追撃の発生元は後衛の追撃者として action entry に保持し、`AdditionalHitOnPursuit` は追撃者本人のパッシブとしても評価する。これにより `そよぐ新緑` の前衛 SP+2 が追撃発生ごとに反映される。
-- 2026-05-23: 追撃者が `ReplacePursuit` で `ネコジェット・シャテキ` を保持している場合でも、追撃者の現在 SP が 10 以上のときだけ SP10 を消費して変換追撃にする。SP8 など不足時は通常追撃として扱い、`そよぐ新緑` の Passive Log は追撃発生ごとに `passive_trigger` として表示する。
-- 2026-05-23: `湯めぐり` の攻撃スキル判定は `AttackSkill` だけでなく `DamageRateChangeAttackSkill` 等の damage 系 skill_type も対象にする。`温泉手形` の変換追撃は同一 player turn 内 1 回までとし、2回目以降の自動追撃は通常追撃へ戻す。
+- 2026-05-24: 追撃者が `ReplacePursuit` で `ネコジェット・シャテキ` を保持している場合でも、追撃者の現在 SP が実効コスト以上のときだけ変換追撃にする。`闇天` などの `ReduceSp` を通して SP10 → SP9 のように解決し、不足時は通常追撃として扱う。`そよぐ新緑` の Passive Log は追撃発生ごとに `passive_trigger` として表示する。
+- 2026-05-24: `湯めぐり` の攻撃スキル判定は `AttackSkill` だけでなく `DamageRateChangeAttackSkill` 等の damage 系 skill_type も対象にする。`温泉手形` の変換追撃は同一 action record 内 1 回までとし、次の committed row では再び1回目の自動追撃が `ネコジェット・シャテキ` へ変換される。
 - 2026-05-23: `ui_next_session_yumeguri_real_replay_2026-05-23.json` を実リプレイ fixture として追加し、#5 の `くぎづけ♡ラブリービーム -> ネコジェット・シャテキ`、`スイーツチャージ！ -> 通常追撃`、自動追撃 chip 2枚、`そよぐ新緑` SP+2 x 2回 / Passive Log 2件を回帰テストで固定する。
 
 ## 2026-04-04 main HEAD 進捗確認

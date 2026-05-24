@@ -5,6 +5,7 @@ import {
   isNormalAttackSkill,
   isPursuitOnlySkill,
   extractSkillLabelTrailingNumber,
+  extractSkillLabelSkillNumber,
   classifySkillType,
   isExSkillByLabel,
 } from '../src/domain/skill-classifiers.js';
@@ -37,8 +38,16 @@ test('extractSkillLabelTrailingNumber returns trailing number or null', () => {
   assert.equal(extractSkillLabelTrailingNumber(null), null);
 });
 
-test('isExSkillByLabel returns true for label trailing number >= 51', () => {
+test('extractSkillLabelSkillNumber returns Skill number before evolution suffix', () => {
+  assert.equal(extractSkillLabelSkillNumber('YShirakawaSkill09'), 9);
+  assert.equal(extractSkillLabelSkillNumber('ByakkoSkill51Ev1'), 51);
+  assert.equal(extractSkillLabelSkillNumber('MKiryuMasterlyPassiveSkill01'), 1);
+  assert.equal(extractSkillLabelSkillNumber('NoNumber'), null);
+});
+
+test('isExSkillByLabel returns true for Skill number >= 51', () => {
   assert.equal(isExSkillByLabel({ label: 'YShirakawaSkill51' }), true);
+  assert.equal(isExSkillByLabel({ label: 'ByakkoSkill51Ev1' }), true);
   assert.equal(isExSkillByLabel({ label: 'CharacterSkill99' }), true);
   assert.equal(isExSkillByLabel({ label: 'CharacterSkill50' }), false);
   assert.equal(isExSkillByLabel({ label: 'CharacterSkill09' }), false);
@@ -52,6 +61,8 @@ test('classifySkillType returns correct category', () => {
   assert.equal(classifySkillType({ label: 'CharacterSkill09', is_restricted: 1 }), 'スキル（専用）');
   assert.equal(classifySkillType({ label: 'CharacterSkill51', is_restricted: 0 }), 'EXスキル');
   assert.equal(classifySkillType({ label: 'CharacterSkill51', is_restricted: 1 }), 'EXスキル（専用）');
+  assert.equal(classifySkillType({ label: 'CharacterSkill51Ev1', is_restricted: 1 }), 'EXスキル（専用）');
+  assert.equal(classifySkillType({ label: 'CharacterSkill51', isRestricted: true }), 'EXスキル（専用）');
   assert.equal(classifySkillType({}), null);
   assert.equal(classifySkillType(null), null);
 });

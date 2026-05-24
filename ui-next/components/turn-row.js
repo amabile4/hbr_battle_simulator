@@ -2612,7 +2612,19 @@ export class TurnRowController {
         ...(Array.isArray(member.triggeredSkills) ? member.triggeredSkills : []),
       ].find((skill) => {
         if (String(skill?.name ?? '') === PURSUIT_TRANSFORMED_SKILL_NAME) {
-          return Number(member?.sp?.current ?? 0) >= PURSUIT_TRANSFORMED_SKILL_SP_COST;
+          const effectiveSkill = this.#resolveEffectiveSkill(member, skill, this.#stateBefore) ?? skill;
+          const rawEffectiveSpCost = Number(
+            effectiveSkill?.spCost ??
+              effectiveSkill?.sp_cost ??
+              skill?.spCost ??
+              skill?.sp_cost ??
+              PURSUIT_TRANSFORMED_SKILL_SP_COST
+          );
+          const effectiveSpCost =
+            Number.isFinite(rawEffectiveSpCost) && rawEffectiveSpCost > 0
+              ? rawEffectiveSpCost
+              : PURSUIT_TRANSFORMED_SKILL_SP_COST;
+          return Number(member?.sp?.current ?? 0) >= effectiveSpCost;
         }
         return isPursuitOnlySkill(skill);
       });
