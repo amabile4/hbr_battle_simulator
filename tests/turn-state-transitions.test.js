@@ -211,6 +211,13 @@ const NIOHSHIMA_ODOR_TOILETTE_SKILL_ID = 46006211;
 const QUEEN_HIGH_PRIESTESS_STYLE_ID = 1021203;
 const QUEEN_ATOMIC_FLARE_SKILL_ID = 46041206;
 const QUEEN_1MORE_LIMIT_BREAK_LEVEL = 1;
+const TOJO_FATAL_FEMME_STYLE_ID = 1001409;
+const TOJO_MEMENTO_MORI_PLUS_SKILL_ID = 46001461;
+const TOJO_CHARMING_GAZE_SKILL_ID = 46001414;
+const TOJO_1MORE_PASSIVE_USAGE_KEY = 'TTojo:100140901:1MORE';
+const YUINA_ORACLE_FLAG_STYLE_ID = 1004110;
+const YUINA_DIVINE_EYE_SKILL_ID = 46004121;
+const COMMON_PROTECTION_SKILL_ID = 46300004;
 const NIOHSHIMA_ODOR_TOILETTE_BASE_SP_COST = 16;
 const NIOHSHIMA_ODOR_TOILETTE_MAKEUP_SP_COST = 8;
 const MAKEUP_SPECIAL_STATUS_ID = 164;
@@ -14359,6 +14366,179 @@ test('慧眼の女教皇 アトミックフレアはEシールドがない非弱
   const { nextState } = commitTurn(state, preview);
 
   assert.notEqual(nextState.turnState.turnType, 'extra');
+});
+
+function createTojoYuinaOneMoreTestState() {
+  const store = getStore();
+  const tojoStyle = store.getStyleById(TOJO_FATAL_FEMME_STYLE_ID);
+  const tojoCharaLabel = String(tojoStyle?.chara_label ?? tojoStyle?.chara ?? '');
+  const yuinaStyle = store.getStyleById(YUINA_ORACLE_FLAG_STYLE_ID);
+  const yuinaCharaLabel = String(yuinaStyle?.chara_label ?? yuinaStyle?.chara ?? '');
+  const fillerStyleIds = getSixUsableStyleIds(store).filter(
+    (styleId) => {
+      const style = store.getStyleById(styleId);
+      const charaLabel = String(style?.chara_label ?? style?.chara ?? '');
+      return (
+        Number(styleId) !== TOJO_FATAL_FEMME_STYLE_ID &&
+        Number(styleId) !== YUINA_ORACLE_FLAG_STYLE_ID &&
+        charaLabel !== tojoCharaLabel &&
+        charaLabel !== yuinaCharaLabel
+      );
+    }
+  );
+  const party = store.buildPartyFromStyleIds(
+    [TOJO_FATAL_FEMME_STYLE_ID, YUINA_ORACLE_FLAG_STYLE_ID, ...fillerStyleIds.slice(0, 4)],
+    {
+      initialSP: 30,
+      limitBreakLevelsByPartyIndex: { 0: 3 },
+      skillSetsByPartyIndex: {
+        0: [
+          TOJO_MEMENTO_MORI_PLUS_SKILL_ID,
+          TOJO_CHARMING_GAZE_SKILL_ID,
+          COMMON_PROTECTION_SKILL_ID,
+        ],
+        1: [
+          YUINA_DIVINE_EYE_SKILL_ID,
+          COMMON_PROTECTION_SKILL_ID,
+        ],
+      },
+    }
+  );
+  const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  state.turnState.enemyState = {
+    ...state.turnState.enemyState,
+    enemyCount: 1,
+    statuses: [],
+    damageRatesByEnemy: {
+      0: { Stab: 100, Fire: 400 },
+    },
+  };
+  return state;
+}
+
+test('東城つかさ 1MORE: ユイナ追加ターンと同時発火しても追加ターン開始時に発火済み状態を消す', () => {
+  const state = createTojoYuinaOneMoreTestState();
+  const tojo = state.party[0];
+  const yuina = state.party[1];
+
+  const firstPreview = previewTurn(state, {
+    0: {
+      characterId: tojo.characterId,
+      skillId: TOJO_MEMENTO_MORI_PLUS_SKILL_ID,
+      targetEnemyIndex: 0,
+    },
+    1: {
+      characterId: yuina.characterId,
+      skillId: YUINA_DIVINE_EYE_SKILL_ID,
+    },
+  });
+  const committed = commitTurn(state, firstPreview);
+  assert.equal(committed.nextState.turnState.turnType, 'extra');
+  assert.ok(
+    committed.nextState.turnState.extraTurnState?.allowedCharacterIds?.includes(tojo.characterId),
+    '初回の火弱点攻撃で東城つかさの1MOREが発火する'
+  );
+  assert.ok(
+    committed.nextState.turnState.extraTurnState?.allowedCharacterIds?.includes(yuina.characterId),
+    '神命を宿す瞳の前衛追加ターンも同時に成立する'
+  );
+  assert.equal(
+    committed.nextState.turnState.passiveTurnFiredKeys?.includes(TOJO_1MORE_PASSIVE_USAGE_KEY),
+    false,
+    '追加ターンに入った時点で東城つかさ1MOREの発火済み状態は消える'
+  );
+});
+
+test('東城つかさ 1MORE: 割込ODなしでも追加ターン後の通常ターンで魅惑のまなざしが再度追加ターンを付与する', () => {
+  let state = createTojoYuinaOneMoreTestState();
+  const tojo = state.party[0];
+  const yuina = state.party[1];
+
+  const firstPreview = previewTurn(state, {
+    0: {
+      characterId: tojo.characterId,
+      skillId: TOJO_MEMENTO_MORI_PLUS_SKILL_ID,
+      targetEnemyIndex: 0,
+    },
+    1: {
+      characterId: yuina.characterId,
+      skillId: YUINA_DIVINE_EYE_SKILL_ID,
+    },
+  });
+  let committed = commitTurn(state, firstPreview);
+  assert.equal(committed.nextState.turnState.turnType, 'extra');
+
+  state = committed.nextState;
+  const extraPreview = previewTurn(state, {
+    0: {
+      characterId: tojo.characterId,
+      skillId: COMMON_PROTECTION_SKILL_ID,
+    },
+  });
+  committed = commitTurn(state, extraPreview);
+  assert.equal(committed.nextState.turnState.turnType, 'normal');
+
+  state = committed.nextState;
+  const nextNormalPreview = previewTurn(state, {
+    0: {
+      characterId: tojo.characterId,
+      skillId: TOJO_CHARMING_GAZE_SKILL_ID,
+      targetEnemyIndex: 0,
+    },
+  });
+  committed = commitTurn(state, nextNormalPreview);
+
+  assert.equal(committed.nextState.turnState.turnType, 'extra');
+  assert.deepEqual(committed.nextState.turnState.extraTurnState?.allowedCharacterIds, [tojo.characterId]);
+});
+
+test('東城つかさ 1MORE: 追加ターン後の割込OD中に魅惑のまなざしで弱点を突くと再度追加ターンを付与する', () => {
+  let state = createTojoYuinaOneMoreTestState();
+  const tojo = state.party[0];
+  const yuina = state.party[1];
+
+  const firstPreview = previewTurn(state, {
+    0: {
+      characterId: tojo.characterId,
+      skillId: TOJO_MEMENTO_MORI_PLUS_SKILL_ID,
+      targetEnemyIndex: 0,
+    },
+    1: {
+      characterId: yuina.characterId,
+      skillId: YUINA_DIVINE_EYE_SKILL_ID,
+    },
+  });
+  let committed = commitTurn(state, firstPreview);
+  assert.equal(committed.nextState.turnState.turnType, 'extra');
+
+  state = committed.nextState;
+  state.turnState.odGauge = 200;
+  const extraPreview = previewTurn(state, {
+    0: {
+      characterId: tojo.characterId,
+      skillId: COMMON_PROTECTION_SKILL_ID,
+    },
+  });
+  committed = commitTurn(state, extraPreview, [], { interruptOdLevel: 2 });
+  assert.equal(committed.nextState.turnState.turnType, 'od');
+  assert.deepEqual(
+    committed.nextState.turnState.passiveTurnFiredKeys,
+    [],
+    '追加ターンから割込ODへ移る境界でPlayerTurnEnd扱いの発火フラグをリセットする'
+  );
+
+  state = committed.nextState;
+  const odPreview = previewTurn(state, {
+    0: {
+      characterId: tojo.characterId,
+      skillId: TOJO_CHARMING_GAZE_SKILL_ID,
+      targetEnemyIndex: 0,
+    },
+  });
+  committed = commitTurn(state, odPreview);
+
+  assert.equal(committed.nextState.turnState.turnType, 'extra');
+  assert.deepEqual(committed.nextState.turnState.extraTurnState?.allowedCharacterIds, [tojo.characterId]);
 });
 
 test('AdditionalHitOnExtraSkill + HealDpRate: DP healed to AllyFront targets when EX skill used', () => {

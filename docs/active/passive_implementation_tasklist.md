@@ -56,6 +56,7 @@
   - `AdditionalHitOnExtraSkill` の実データ判定は label 内の `SkillNN` が EX 範囲（Skill51以降）のスキルに限定する。`Skill51Ev1` のようなスキル進化 EX も対象にし、`is_restricted` は専用通常スキルにも付くため、`ByakkoSkill07` / `ディスラプト` では `獅子奮迅` やマスタースキル `希望を拓く一矢` を発火させない
   - `AdditionalHitOnWeak` は、行動スキルの攻撃属性/攻撃種別が対象敵の現在弱点を突いたときに action-time trigger として発火し、`AdditionalTurn` などの後続効果へ接続済み。通常攻撃は属性ブレスレット由来の `normalAttackElements` も `IsHitWeak()` / trigger 判定へ反映する
   - `IgnoreEShieldElement` を持つアクティブ攻撃が active な Eシールド敵に命中した場合も弱点命中扱いにする。`慧眼の女教皇` クイーンの `アトミックフレア` は Eシールド属性無視で current を減らし、`1MORE` の `AdditionalHitOnWeak -> AdditionalTurn` を発火する
+  - `AdditionalHitOnWeak` 系の `exitCond=PlayerTurnEnd` 発火フラグは、追加ターン開始時に弱点トリガー分だけリセットする。`ユイナ / 神命を宿す瞳` と `東城つかさ / メメント・モリ+` が同じ行で追加ターンを作った場合、追加ターンに入った時点で東城つかさ `1MORE` の発火済み状態が消える。割込ODなしで次の通常ターンへ進むケース、追加ターン後に割込ODへ進んで `魅惑のまなざし` が `絶界に屹立せし蝕樹` の Fire 弱点を突くケースの両方で、`1MORE` が再発火して次の追加ターンへ進むことを実データ回帰で固定済み
   - `AdditionalHitOnKillCount` はエンジン側で実装済み。現状は `action.killCount` を与える形で検証する
   - `consume_type: Morale` と負数 `Morale` にも対応済み
 - [x] `MotivationLevel`

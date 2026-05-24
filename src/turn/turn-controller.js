@@ -5467,6 +5467,32 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
   return { moraleEvents, spEvents, additionalTurnGrantedIds, dpEvents, passiveTriggerEvents, fieldStateEvents };
 }
 
+function passiveHasAdditionalHitOnWeakTrigger(passive) {
+  return (Array.isArray(passive?.parts) ? passive.parts : []).some(
+    (part) => String(part?.skill_type ?? '').trim() === 'AdditionalHitOnWeak'
+  );
+}
+
+function clearAdditionalHitOnWeakPassiveTurnFiredKeys(turnState, party = []) {
+  if (!turnState || !Array.isArray(turnState.passiveTurnFiredKeys)) {
+    return;
+  }
+  const weakTriggerKeys = new Set();
+  for (const member of Array.isArray(party) ? party : []) {
+    for (const passive of getConfiguredPassivesForMember(member)) {
+      if (passiveHasAdditionalHitOnWeakTrigger(passive)) {
+        weakTriggerKeys.add(getPassiveUsageKey(member, passive));
+      }
+    }
+  }
+  if (weakTriggerKeys.size === 0) {
+    return;
+  }
+  turnState.passiveTurnFiredKeys = turnState.passiveTurnFiredKeys.filter(
+    (key) => !weakTriggerKeys.has(String(key))
+  );
+}
+
 function applyMoraleEffectsFromActions(state, previewRecord) {
   const moraleEvents = [];
   const spPassiveEvents = [];
@@ -13419,11 +13445,20 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const nextBaseTurnAdvances =
     !shouldActivateInterruptOdAfterActions &&
     Number(nextTurnState.turnIndex ?? 0) > Number(state.turnState.turnIndex ?? 0);
+  const leavesAdditionalTurnContext =
+    String(state.turnState?.turnType ?? '') === 'extra' &&
+    String(nextTurnState?.turnType ?? '') !== 'extra';
   nextTurnState.passiveEventsLastApplied = [];
   nextTurnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY] = [];
-  // P3-B: PlayerTurnEnd パッシブの発火フラグをリセット（新プレイヤーターン開始時）
-  if (nextBaseTurnAdvances) {
+  // P3-B: PlayerTurnEnd パッシブの発火フラグをリセット（新プレイヤーターン開始時、または追加ターン終了後のOD復帰時）
+  if (nextBaseTurnAdvances || leavesAdditionalTurnContext) {
     nextTurnState.passiveTurnFiredKeys = [];
+  }
+  if (
+    String(state.turnState?.turnType ?? '') !== 'extra' &&
+    String(nextTurnState?.turnType ?? '') === 'extra'
+  ) {
+    clearAdditionalHitOnWeakPassiveTurnFiredKeys(nextTurnState, state.party);
   }
   if (Number.isFinite(previewRecord.enemyCount)) {
     if (!nextTurnState.enemyState) {
