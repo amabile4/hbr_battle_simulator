@@ -1,5 +1,6 @@
 import {
   activateOverdrive,
+  applyManualEnemyBreak,
   applyEnemyStateOverrideSnapshot,
   buildEnemyStateOverrideSnapshot,
   isEnemyAlive,
@@ -19,7 +20,11 @@ import {
   REINFORCED_MODE_OD_GAUGE_BONUS,
 } from '../config/battle-defaults.js';
 import { REPLAY_OPERATION_TYPES, replayOperationRegistry } from '../ui/lightweight-replay-script.js';
-import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
+import {
+  cloneEnemyEShieldState,
+  isEnemyEShieldActive,
+  normalizeEnemyEShieldElements,
+} from '../domain/enemy-e-shield.js';
 import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
 
 export const TEZUKA_CHARACTER_ID = 'STezuka';
@@ -179,6 +184,86 @@ function computeMakaiKiheiOdGain(state, embeddedSkill, enemyCountOverride = null
   return total;
 }
 
+function collectMakaiKiheiElementReferences(embeddedSkill = {}, actor = null) {
+  const references = [];
+  for (const part of embeddedSkill?.parts ?? []) {
+    const type = String(part?.type ?? '').trim();
+    if (type) {
+      references.push(type);
+    }
+    for (const element of Array.isArray(part?.elements) ? part.elements : []) {
+      const normalized = String(element ?? '').trim();
+      if (normalized) {
+        references.push(normalized);
+      }
+    }
+  }
+  for (const element of Array.isArray(actor?.elements) ? actor.elements : []) {
+    const normalized = String(element ?? '').trim();
+    if (normalized) {
+      references.push(normalized);
+    }
+  }
+  return [...new Set(references.map((value) => value.toLowerCase()))];
+}
+
+function applyMakaiKiheiEShieldDamage(state, embeddedSkill, actor) {
+  const enemyState = state?.turnState?.enemyState;
+  if (!enemyState) {
+    return state;
+  }
+  const references = collectMakaiKiheiElementReferences(embeddedSkill, actor);
+  if (references.length === 0) {
+    return state;
+  }
+  const referenceSet = new Set(references);
+  const enemyCount = clampEnemyCount(enemyState.enemyCount ?? DEFAULT_ENEMY_COUNT);
+  const eShieldDamage = resolveMakaiKiheiHitCount(embeddedSkill);
+  const nextEShields = { ...(enemyState.eShieldStateByEnemy ?? {}) };
+  let changed = false;
+
+  for (let targetEnemyIndex = 0; targetEnemyIndex < enemyCount; targetEnemyIndex += 1) {
+    if (!isEnemyAlive(state.turnState, targetEnemyIndex, enemyCount)) {
+      continue;
+    }
+    const key = String(targetEnemyIndex);
+    const eShieldState = cloneEnemyEShieldState(nextEShields[key]);
+    if (!isEnemyEShieldActive(eShieldState)) {
+      continue;
+    }
+    const matches = normalizeEnemyEShieldElements(eShieldState.elements)
+      .map((element) => String(element).toLowerCase())
+      .some((element) => referenceSet.has(element));
+    if (!matches) {
+      continue;
+    }
+    const current = Number(eShieldState.current ?? 0);
+    const nextCurrent = Math.max(0, current - eShieldDamage);
+    nextEShields[key] = {
+      ...eShieldState,
+      current: nextCurrent,
+    };
+    if (current > 0 && nextCurrent === 0) {
+      applyManualEnemyBreak(state.turnState, targetEnemyIndex);
+    }
+    changed = true;
+  }
+
+  if (!changed) {
+    return state;
+  }
+  return {
+    ...state,
+    turnState: {
+      ...state.turnState,
+      enemyState: {
+        ...state.turnState.enemyState,
+        eShieldStateByEnemy: nextEShields,
+      },
+    },
+  };
+}
+
 function applyKishinkaToState(state) {
   const clonedParty = state.party.map((member) => member.clone());
   const tezuka = clonedParty.find((member) => member.characterId === TEZUKA_CHARACTER_ID) ?? null;
@@ -234,13 +319,14 @@ function applyMakaiKiheiToState(state) {
   const currentOdGauge = truncateToTwoDecimals(Number(state?.turnState?.odGauge ?? 0));
   const odGain = computeMakaiKiheiOdGain(state, availability.embeddedSkill);
   const odGaugeAfter = truncateToTwoDecimals(clampOdGauge(currentOdGauge + odGain));
-  return {
+  const nextState = {
     ...state,
     turnState: {
       ...state.turnState,
       odGauge: odGaugeAfter,
     },
   };
+  return applyMakaiKiheiEShieldDamage(nextState, availability.embeddedSkill, availability.actor);
 }
 
 function normalizeSummonEnemyCount(value, fallback = DEFAULT_ENEMY_COUNT) {

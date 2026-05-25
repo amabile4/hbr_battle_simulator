@@ -82,6 +82,7 @@ function createMember({
   position,
   initialSP = 10,
   drivePiercePercent = 0,
+  elements = [],
   skills = [],
   passives = [],
 }) {
@@ -94,6 +95,7 @@ function createMember({
     position,
     initialSP,
     drivePiercePercent,
+    elements,
     skills,
     passives,
   });
@@ -112,6 +114,7 @@ function createBaselineParty(overrides = {}) {
         position: override.position ?? index,
         initialSP: override.initialSP ?? 10,
         drivePiercePercent: override.drivePiercePercent ?? 0,
+        elements: override.elements ?? [],
         skills:
           override.skills ??
           [
@@ -221,6 +224,87 @@ test('applyBeforeCommitOperations uses the supplied enemyCount for Makai Kihei O
 
   assert.equal(nextState.turnState.enemyState.enemyCount, 2);
   assert.equal(nextState.turnState.odGauge, 30);
+});
+
+test('applyBeforeCommitOperations applies Makai Kihei dark attack to matching Eシールド by hit count', () => {
+  const state = createState(
+    {
+      0: {
+        characterId: 'BIYamawaki',
+        characterName: '山脇・ボン・イヴァール',
+        styleId: MAKAI_KIHEI_STYLE_ID,
+        styleName: '誇り高き魔王の凱旋',
+        elements: ['Dark'],
+        passives: [createMakaiKiheiPassive()],
+      },
+    },
+    { odGauge: 0, enemyCount: 2 }
+  );
+  state.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 10, max: 10, elements: ['Dark'] }),
+    1: createEShieldState({ current: 5, max: 5, elements: ['Fire'] }),
+  };
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [{ type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI }],
+    { enemyCount: 2 }
+  );
+
+  assert.equal(nextState.turnState.odGauge, 30);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 4,
+    max: 10,
+    elements: ['Dark'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['1'], {
+    current: 5,
+    max: 5,
+    elements: ['Fire'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+});
+
+test('applyBeforeCommitOperations breaks enemy when Makai Kihei depletes Eシールド', () => {
+  const state = createState(
+    {
+      0: {
+        characterId: 'BIYamawaki',
+        characterName: '山脇・ボン・イヴァール',
+        styleId: MAKAI_KIHEI_STYLE_ID,
+        styleName: '誇り高き魔王の凱旋',
+        elements: ['Dark'],
+        passives: [createMakaiKiheiPassive()],
+      },
+    },
+    { odGauge: 0, enemyCount: 1 }
+  );
+  state.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({ current: 1, max: 5, elements: ['Dark'] }),
+  };
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [{ type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI }],
+    { enemyCount: 1 }
+  );
+
+  assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].current, 0);
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'Break' && status.targetIndex === 0
+    ),
+    true
+  );
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some(
+      (status) => status.statusType === 'DownTurn' && status.targetIndex === 0
+    ),
+    true
+  );
 });
 
 test('applyBeforeCommitOperations ignores drive pierce for duplicate Makai Kihei OD gain', () => {

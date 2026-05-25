@@ -1022,6 +1022,7 @@ test('湯めぐり automatic follow-up fires for both Byakko rush repeated attac
     },
   });
   const state = createBattleStateFromParty(party);
+  state.party[0].setDpState({ baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 });
   state.party[0].addStatusEffect({
     statusType: 'ByakkoDoubleActionAttackSkill',
     limitType: 'None',
@@ -1090,6 +1091,7 @@ test('Byakko rush remains active into granted extra turn and repeats Assault Cla
     skills: [grantExtraAttack, byakkoAssaultClaw],
   });
   const state = createBattleStateFromParty(party);
+  state.party[0].setDpState({ baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 });
   state.party[0].addStatusEffect({
     statusType: 'ByakkoDoubleActionAttackSkill',
     limitType: 'None',

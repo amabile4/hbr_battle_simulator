@@ -2,7 +2,7 @@
 
 > ステータス: ✅ 完了
 > 作成日: 2026-04-18
-> 最終更新: 2026-05-23
+> 最終更新: 2026-05-25
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 概要
@@ -35,6 +35,9 @@ Dimension 09 の円環系は追加 skill ID による段階差分を持つ。一
 このため、汎用の HP break 処理では `+5` のような推測増加は行わず、既存 `max` へ復帰する。
 UI Next の committed row 表示では、HP break した当該行は同ターン内の depleted Eシールドを表示し、
 復帰後の `current=max` は次行（次ターン開始 state）から見える扱いに固定した。
+2026-05-25 には、`ActivateMakaiKihei` operation で発動する `魔界騎兵起動` を山脇スタイルの
+Dark 攻撃として Eシールド減算へ接続し、embedded skill の `hit_count: 6` に従って対応属性の
+Eシールドを `6` 減らすように固定した。depleted 時は既存 BREAK / DownTurn 経路へ接続する。
 
 ## 調査結果
 

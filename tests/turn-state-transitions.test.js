@@ -5810,7 +5810,7 @@ function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
 const REAL_DATA_DARK_TRANSCENDENCE_STYLE_ID = 1005107;
 const REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT = 3;
 const TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER = 15;
-const TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION = 4;
+const TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_UNIT = 4;
 
 function createRealDataDarkTranscendenceState() {
   const store = getStore();
@@ -5868,6 +5868,54 @@ test('transcendence gauge gains +4 per matching-element action and is capped at 
   assert.equal(committed2.nextState.turnState.transcendence?.gaugePercent, 100);
 });
 
+test('transcendence gauge ignores matching skill element when actor element does not match', () => {
+  const state = createTranscendenceTestParty();
+  const nonMatchingActor = state.party[2];
+  nonMatchingActor.elements = ['Fire'];
+  nonMatchingActor.skills = Object.freeze([
+    ...nonMatchingActor.skills,
+    {
+      id: 15150,
+      skillId: 15150,
+      name: 'Ice Attack By Fire Actor',
+      sp_cost: 0,
+      hit_count: 3,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Ice'] }],
+    },
+  ]);
+
+  const preview = previewTurn(state, {
+    2: { characterId: nonMatchingActor.characterId, skillId: 15150, targetEnemyIndex: 0 },
+  });
+
+  assert.equal(preview.projections?.transcendence?.matchingUnitCount, 0);
+  assert.equal(preview.projections?.transcendence?.endGaugePercent, 45);
+});
+
+test('transcendence gauge gains +4 when matching-element pursuit source attacks', () => {
+  const state = createTranscendenceTestParty();
+  const nonMatchingActor = state.party[2];
+  const pursuitSource = state.party[3];
+  nonMatchingActor.elements = ['Fire'];
+  pursuitSource.elements = ['Ice'];
+
+  const preview = previewTurn(state, {
+    2: {
+      characterId: nonMatchingActor.characterId,
+      skillId: nonMatchingActor.skills[0].skillId ?? nonMatchingActor.skills[0].id,
+      pursuedHitCount: 1,
+      pursuedTargetEnemyIndex: 0,
+      pursuitSourceCharacterId: pursuitSource.characterId,
+      pursuitSourcePosition: pursuitSource.position,
+      pursuitSourceSkillName: '追撃',
+    },
+  });
+
+  assert.equal(preview.projections?.transcendence?.matchingUnitCount, 1);
+  assert.equal(preview.projections?.transcendence?.endGaugePercent, 49);
+});
+
 test('real data dark transcendence initializes for アオゾラ全力応援歌', () => {
   const state = createRealDataDarkTranscendenceState();
   assert.equal(state.turnState.transcendence?.active, true);
@@ -5879,35 +5927,54 @@ test('real data dark transcendence initializes for アオゾラ全力応援歌',
   );
 });
 
-test('real data dark transcendence gains gauge from dark-member actions', () => {
+test('real data dark transcendence gains gauge once per Dark action even with multi-hit skills', () => {
   let state = createRealDataDarkTranscendenceState();
+  const darkHitCounts = [3, 2, 1];
+  state.party.slice(0, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT).forEach((member, index) => {
+    member.skills = Object.freeze([
+      ...member.skills,
+      {
+        skillId: 15100 + index,
+        id: 15100 + index,
+        name: `Dark Transcendence Hit ${index + 1}`,
+        label: `DarkTranscendenceHit${index + 1}`,
+        spCost: 0,
+        sp_cost: 0,
+        hitCount: darkHitCounts[index],
+        hit_count: darkHitCounts[index],
+        targetType: 'Single',
+        target_type: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Dark'] }],
+      },
+    ]);
+  });
 
   const frontlineActions = Object.fromEntries(
-    state.party.slice(0, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT).map((member) => {
-      const skill = member.skills.find((item) => item.spCost > 0) ?? member.skills[0];
+    state.party.slice(0, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT).map((member, index) => {
       return [
         String(member.position),
         {
           characterId: member.characterId,
-          skillId: Number(skill?.skillId ?? skill?.id),
+          skillId: 15100 + index,
+          targetEnemyIndex: 0,
         },
       ];
     })
   );
   const preview = previewTurn(state, frontlineActions);
-  assert.equal(preview.projections?.transcendence?.matchingActionCount, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT);
+  assert.equal(preview.projections?.transcendence?.matchingUnitCount, REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT);
   assert.equal(
     preview.projections?.transcendence?.endGaugePercent,
-    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT *
-      (TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER + TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION)
+    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT * TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER +
+      REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT * TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_UNIT
   );
 
   const committed = commitTurn(state, preview);
   state = committed.nextState;
   assert.equal(
     state.turnState.transcendence?.gaugePercent,
-    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT *
-      (TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER + TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_ACTION)
+    REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT * TRANSCENDENCE_INITIAL_GAUGE_PERCENT_PER_MEMBER +
+      REAL_DATA_DARK_TRANSCENDENCE_MATCHING_MEMBER_COUNT * TRANSCENDENCE_GAUGE_GAIN_PERCENT_PER_UNIT
   );
 });
 
@@ -19983,7 +20050,11 @@ test('ByakkoDoubleActionAttackSkill: DP100%以上のラッシュで非EX攻撃�
   const actorAfter = nextState.party[0];
   assert.equal(committedRecord.actions.length, 2);
   assert.equal(actorAfter.getSkillUseCountByLabel('ByakkoSkill06'), 2);
-  assert.equal(actorAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 0);
+  assert.equal(
+    actorAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length,
+    1,
+    'DP100%以上を維持しているため次ターン開始時にラッシュ状態を再取得する'
+  );
 });
 
 test('ByakkoDoubleActionAttackSkill: DP100%未満ではラッシュ状態を得ない', () => {
@@ -20044,6 +20115,74 @@ test('ByakkoDoubleActionAttackSkill: 夏色ハイテンションでDPを消費�
   ));
   assert.equal(Number(byakkoAfter?.dpState?.currentDp ?? 0) < Number(byakkoAfter?.dpState?.effectiveDpCap ?? 0), true);
   assert.equal(byakkoAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 0);
+});
+
+test('ByakkoDoubleActionAttackSkill: DP100%未満へ落ちたまま追加ターンへ入るとラッシュ状態は残らない', () => {
+  const RUSH_SELF_DAMAGE_EXTRA_SKILL_ID = 26001;
+  const RUSH_ATTACK_SKILL_ID = 26002;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'Byakko',
+          characterName: 'ビャッコ',
+          dpState: { baseMaxDp: 70, currentDp: 70, effectiveDpCap: 70 },
+          skills: [
+            {
+              id: RUSH_SELF_DAMAGE_EXTRA_SKILL_ID,
+              name: 'DP消費追加ターン',
+              label: 'ByakkoRushSelfDamageExtra',
+              sp_cost: 0,
+              additionalTurnRule: {
+                skillUsableInExtraTurn: true,
+                additionalTurnGrantInExtraTurn: false,
+                conditions: {
+                  requiresOverDrive: false,
+                  requiresReinforcedMode: false,
+                  excludesExtraTurnForSkillUse: false,
+                  excludesExtraTurnForAdditionalTurnGrant: true,
+                },
+                additionalTurnTargetTypes: ['Self'],
+              },
+              parts: [
+                { skill_type: 'SelfDamage', target_type: 'Self', power: [0.5, 0] },
+                { skill_type: 'AdditionalTurn', target_type: 'Self' },
+              ],
+            },
+            {
+              id: RUSH_ATTACK_SKILL_ID,
+              name: 'ラッシュ対象攻撃',
+              label: 'ByakkoRushAttack',
+              sp_cost: 0,
+              hit_count: 1,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  let state = createBattleStateFromParty(party);
+  const actor = state.party.find((member) => member.characterId === 'Byakko');
+  actor.addStatusEffect({
+    statusType: 'ByakkoDoubleActionAttackSkill',
+    limitType: 'None',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 1,
+  });
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'Byakko', skillId: RUSH_SELF_DAMAGE_EXTRA_SKILL_ID },
+  });
+  state = commitTurn(state, preview).nextState;
+  const byakkoAfter = state.party.find((member) => member.characterId === 'Byakko');
+  assert.equal(state.turnState.turnType, 'extra');
+  assert.equal(byakkoAfter.dpState.currentDp, 35);
+  assert.equal(byakkoAfter.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length, 0);
+
+  const extraPreview = previewTurn(state, {
+    0: { characterId: 'Byakko', skillId: RUSH_ATTACK_SKILL_ID, targetEnemyIndex: 0 },
+  });
+  assert.equal(extraPreview.actions.filter((action) => action.characterId === 'Byakko').length, 1);
 });
 
 test('ByakkoDoubleActionAttackSkill: 簡易被弾でDPが1減ると次ターンはラッシュ状態を得ない', () => {
@@ -20153,6 +20292,7 @@ test('ByakkoDoubleActionAttackSkill: シャドウ・ランペイジ二連はマ�
     }
   );
   const state = applyInitialPassiveState(createBattleStateFromParty(party));
+  state.turnState.transcendence = null;
   const byakko = state.party.find((member) => member.characterId === 'Byakko');
   assert.ok(byakko, 'ビャッコが存在すること');
 

@@ -18,8 +18,12 @@ import { getSixUsableStyleIds, getStore } from './helpers.js';
 const MAKAI_KIHEI_STYLE_ID = 1003108;
 const MAKAI_KIHEI_SKILL_ID = 46003117;
 const STAGE_SETUP_TURN_START_FIXTURE = 'ui_next_session_stage_setup_turn_start_fixture.json';
+const BYAKKO_RUSH_DISRUPT_EXTRA_FIXTURE = 'ui_next_session_byakko_rush_disrupt_extra_2026-05-24.json';
+const MAKAI_KIHEI_E_SHIELD_FIXTURE = 'ui_next_session_makai_kihei_e_shield_2026-05-24.json';
+const INTERRUPT_OD3_DARK_TRANSCENDENCE_FIXTURE = 'ui_next_session_interrupt_od3_dark_transcendence_2026-05-24.json';
 const BYAKKO_STYLE_ID = 1002606;
 const BYAKKO_ASSAULT_CLAW_SKILL_ID = 46002609;
+const BYAKKO_DISRUPT_SKILL_ID = 46002610;
 
 function loadSessionFixture(fileName) {
   const fixtureUrl = new URL(`./fixtures/${fileName}`, import.meta.url);
@@ -1999,6 +2003,119 @@ test('session fixture replay: T2 stateBefore keeps recurring stageSetup SP witho
     '柳 美音': 10,
     '豊後 弥生': 12,
   });
+});
+
+test('session fixture replay: Byakko rush remains active for #2 Disrupt in granted extra turn', () => {
+  const session = loadSessionFixture(BYAKKO_RUSH_DISRUPT_EXTRA_FIXTURE);
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+  const manager = new TurnEngineManager();
+
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn2StateBefore = manager.getStateBefore(1);
+  const byakkoBeforeTurn2 = turn2StateBefore.party.find((member) => member.characterId === 'Byakko');
+  assert.equal(turn2StateBefore.turnState.turnType, 'extra');
+  assert.equal(
+    byakkoBeforeTurn2.resolveEffectiveByakkoDoubleActionAttackSkillEffects().length,
+    1,
+    'ラッシュ状態はT1 EX相当の#2へ残る'
+  );
+
+  const byakkoDisruptActions = manager.computedRecords[1].actions.filter(
+    (action) => action.characterId === 'Byakko' && Number(action.skillId) === BYAKKO_DISRUPT_SKILL_ID
+  );
+  assert.equal(byakkoDisruptActions.length, 2);
+  assert.deepEqual(byakkoDisruptActions.map((action) => action.castIndex), [0, 1]);
+  assert.deepEqual(
+    byakkoDisruptActions.map((action) => action.doubleActionStatusType),
+    ['ByakkoDoubleActionAttackSkill', 'ByakkoDoubleActionAttackSkill']
+  );
+});
+
+test('session fixture replay: #1 Makai Kihei activation consumes Dark Eシールド before #2', () => {
+  const session = loadSessionFixture(MAKAI_KIHEI_E_SHIELD_FIXTURE);
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+  const manager = new TurnEngineManager();
+
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn2StateBefore = manager.getStateBefore(1);
+  assert.deepEqual(turn2StateBefore.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 21,
+    max: 40,
+    elements: ['Fire', 'Light', 'Dark'],
+    defUpRate: 9900,
+    damageLimit: 0,
+  });
+});
+
+test('session fixture replay: #2 remains at Dark transcendence 99 without Yamawaki pursuit', () => {
+  const session = loadSessionFixture(INTERRUPT_OD3_DARK_TRANSCENDENCE_FIXTURE);
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+  const manager = new TurnEngineManager();
+
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn1Record = manager.computedRecords[0];
+  assert.equal(turn1Record.projections?.transcendence?.startGaugePercent, 75);
+  assert.equal(turn1Record.projections?.transcendence?.endGaugePercent, 87);
+  assert.equal(turn1Record.projections?.transcendence?.matchingUnitCount, 3);
+  assert.equal(turn1Record.projections?.transcendence?.reachedMaxThisTurn, false);
+  assert.equal(turn1Record.projections?.transcendence?.odGaugeBonusPercent, 0);
+
+  const turn2Record = manager.computedRecords[1];
+  assert.equal(turn2Record.projections?.transcendence?.startGaugePercent, 87);
+  assert.equal(turn2Record.projections?.transcendence?.endGaugePercent, 99);
+  assert.equal(turn2Record.projections?.transcendence?.matchingUnitCount, 3);
+  assert.equal(turn2Record.projections?.transcendence?.reachedMaxThisTurn, false);
+  assert.equal(turn2Record.projections?.transcendence?.odGaugeBonusPercent, 0);
+  const atomicFlareAction = turn2Record.actions.find(
+    (action) => action.characterId === 'EmaC' && Number(action.skillId) === 46041206
+  );
+  assert.equal(atomicFlareAction?.breakHitCount, 1);
+  assert.equal(atomicFlareAction?.odGaugeGain >= 100, true);
+  assert.equal(turn2Record.projections?.odGaugeAtEnd, 220.34);
+  assert.deepEqual(
+    [1, 2, 3].filter((level) => Number(turn2Record.projections?.odGaugeAtEnd ?? 0) >= level * 100),
+    [1, 2]
+  );
+});
+
+test('session fixture replay: Yamawaki pursuit raises Dark transcendence to 100 and enables interrupt OD3', () => {
+  const session = loadSessionFixture(INTERRUPT_OD3_DARK_TRANSCENDENCE_FIXTURE);
+  const replayTurn2 = session.replayScript.turns[1];
+  replayTurn2.followUpOverrides = [{ position: 5, enemyIndex: 0 }];
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+  const manager = new TurnEngineManager();
+
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const turn2Record = manager.computedRecords[1];
+  assert.equal(turn2Record.projections?.transcendence?.startGaugePercent, 87);
+  assert.equal(turn2Record.projections?.transcendence?.endGaugePercent, 100);
+  assert.equal(turn2Record.projections?.transcendence?.matchingUnitCount, 4);
+  assert.equal(turn2Record.projections?.transcendence?.reachedMaxThisTurn, true);
+  assert.equal(turn2Record.projections?.transcendence?.odGaugeBonusPercent, 100);
+  const pursuitAction = turn2Record.actions.find((action) => action.pursuitSourceCharacterId === 'BIYamawaki');
+  assert.equal(pursuitAction?.pursuedHitCount, 3);
+  assert.equal(pursuitAction?.pursuitSourcePosition, 5);
+  assert.equal(turn2Record.projections?.odGaugeAtEnd, 300);
+  assert.deepEqual(
+    [1, 2, 3].filter((level) => Number(turn2Record.projections?.odGaugeAtEnd ?? 0) >= level * 100),
+    [1, 2, 3]
+  );
 });
 
 test('session fixture replay: #4のBreak overrideで和泉ユキのBeatDown(); SP+2が反映される', () => {

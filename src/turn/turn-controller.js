@@ -226,6 +226,9 @@ const DEFAULT_REVIVE_E_SHIELD_FLOOR = 1;
 const DEFAULT_REVIVE_TERRITORY_HEAL_RATE = 0.5;
 const DOUBLE_ACTION_EXTRA_SKILL_STATUS_TYPE = 'DoubleActionExtraSkill';
 const BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE = 'ByakkoDoubleActionAttackSkill';
+const PLAYER_TURN_END_STATUS_EXPIRY_EXCLUDED_STATUS_TYPES = new Set([
+  BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE,
+]);
 const DOUBLE_ACTION_EXTRA_SKILL_DEFAULT_REMAINING = 1;
 const DOUBLE_ACTION_EXTRA_SKILL_CAST_COUNT = 2;
 const DOUBLE_ACTION_EXTRA_SKILL_REQUIRED_USES = 2;
@@ -1441,6 +1444,35 @@ function buildInitialTranscendenceStateFromParty(party) {
   };
 }
 
+function actionMatchesTranscendenceElement(state, actionEntry, gaugeElement) {
+  const actor = findMemberByCharacterId(state, actionEntry?.characterId);
+  return hasElement(actor, gaugeElement);
+}
+
+function pursuitMatchesTranscendenceElement(state, actionEntry, gaugeElement) {
+  const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
+  if (pursuedHitCount <= 0) {
+    return false;
+  }
+  const sourceCharacterId = String(actionEntry?.pursuitSourceCharacterId ?? '');
+  if (!sourceCharacterId) {
+    return false;
+  }
+  const pursuitActor = findMemberByCharacterId(state, sourceCharacterId);
+  return hasElement(pursuitActor, gaugeElement);
+}
+
+function resolveTranscendenceMatchingUnitCount(state, previewRecord, transcendence) {
+  const gaugeElement = String(transcendence?.gaugeElement ?? '');
+  return (previewRecord?.actions ?? []).reduce((count, actionEntry) => {
+    return (
+      count +
+      (actionMatchesTranscendenceElement(state, actionEntry, gaugeElement) ? 1 : 0) +
+      (pursuitMatchesTranscendenceElement(state, actionEntry, gaugeElement) ? 1 : 0)
+    );
+  }, 0);
+}
+
 function computeTranscendenceTurnSummary(state, previewRecord) {
   const transcendence = getTranscendenceState(state?.turnState);
   if (!transcendence || !transcendence.active) {
@@ -1450,6 +1482,7 @@ function computeTranscendenceTurnSummary(state, previewRecord) {
       endGaugePercent: 0,
       gainPercent: 0,
       matchingActionCount: 0,
+      matchingUnitCount: 0,
       reachedMaxThisTurn: false,
       odGaugeBonusPercent: 0,
     };
@@ -1459,11 +1492,8 @@ function computeTranscendenceTurnSummary(state, previewRecord) {
   const maxGaugePercent = Math.max(0, Number(transcendence.maxGaugePercent ?? 100));
   const gainPerAction = Math.max(0, Number(transcendence.gainPercentPerAction ?? 0));
   const startGaugePercent = truncateToTwoDecimals(Number(transcendence.gaugePercent ?? 0));
-  const matchingActionCount = (previewRecord?.actions ?? []).reduce((count, actionEntry) => {
-    const actor = findMemberByCharacterId(state, actionEntry.characterId);
-    return count + (hasElement(actor, gaugeElement) ? 1 : 0);
-  }, 0);
-  const gainPercent = truncateToTwoDecimals(matchingActionCount * gainPerAction);
+  const matchingUnitCount = resolveTranscendenceMatchingUnitCount(state, previewRecord, transcendence);
+  const gainPercent = truncateToTwoDecimals(matchingUnitCount * gainPerAction);
   const endGaugePercent = truncateToTwoDecimals(
     Math.max(0, Math.min(maxGaugePercent, startGaugePercent + gainPercent))
   );
@@ -1480,7 +1510,8 @@ function computeTranscendenceTurnSummary(state, previewRecord) {
     startGaugePercent,
     endGaugePercent,
     gainPercent,
-    matchingActionCount,
+    matchingActionCount: matchingUnitCount,
+    matchingUnitCount,
     reachedMaxThisTurn,
     odGaugeBonusPercent,
   };
@@ -9613,7 +9644,9 @@ function applyTurnBasedStatusExpiry(state, turnState) {
     }
     processed.add(characterId);
     const ticked = member.tickStatusEffectsWhere(
-      (effect) => shouldConsume(effect, actionContext).shouldConsume
+      (effect) =>
+        !PLAYER_TURN_END_STATUS_EXPIRY_EXCLUDED_STATUS_TYPES.has(String(effect?.statusType ?? '')) &&
+        shouldConsume(effect, actionContext).shouldConsume
     );
     for (const item of ticked) {
       events.push({ characterId, ...item });
@@ -9635,6 +9668,17 @@ function resolvePlayerTurnEndStatusExpiryMembers(state, turnState = state?.turnS
     return (state.party ?? []).filter((member) => allowedSet.has(member.characterId));
   }
   return state.party ?? [];
+}
+
+function removeByakkoRushStateWhenDpBelowCondition(state) {
+  for (const member of state?.party ?? []) {
+    if (getDpRate(member?.dpState) >= DP_RATE_REFERENCE_MAX) {
+      continue;
+    }
+    member.removeStatusEffectsWhere?.(
+      (effect) => String(effect?.statusType ?? '') === BYAKKO_DOUBLE_ACTION_ATTACK_SKILL_STATUS_TYPE
+    );
+  }
 }
 
 function tickShreddingTurns(state, previewRecord, skipCharacterIds = new Set()) {
@@ -13861,6 +13905,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     }
   }
   applyTurnBasedStatusExpiry(nextState, nextState.turnState);
+  removeByakkoRushStateWhenDpBelowCondition(nextState);
 
   const snapAfter = snapshotPartyByPartyIndex(nextState.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);

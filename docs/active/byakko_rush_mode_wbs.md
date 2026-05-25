@@ -1,6 +1,6 @@
 # Byakko06 ラッシュモード実装 WBS
 
-> **ステータス**: ✅ 完了 | **作成**: 2026-05-01 | **最終更新**: 2026-05-02
+> **ステータス**: ✅ 完了 | **作成**: 2026-05-01 | **最終更新**: 2026-05-24
 
 ## 対象スタイル
 
@@ -85,6 +85,7 @@
 - [x] 実行した unit / Playwright 結果を最終報告に記載する。
 - [x] 2026-05-01 追補: `シャドウ・ランペイジ` 二連時にマスタースキル連撃（Eternal）とスキル自身の連撃（PlayerTurnEnd 3T）が同時採用され、各 cast が `5hit + 2hit + 3hit = 10hit` / OD `+25%` になるよう Funnel の `Only` 競合を duration 別に分離する。
 - [x] 2026-05-02 追補: ラッシュ任意 ON/OFF を直接 override せず、`DpStateByPartyIndex` と `EnemyAttackTargetCharacterIds` による DP 状態表現へ接続する。
+- [x] 2026-05-24 追補: `PlayerTurnEnd` 系 status の重複減算により、三三七拍子で付与された追加ターン #2 の `ディスラプト` からラッシュが消える回帰を修正。汎用 `PlayerTurnEnd` 減算経路は維持し、`ByakkoDoubleActionAttackSkill` だけを汎用減算から除外したうえで DP100% 未満時の整理を別経路で補償する。実セッション fixture で T1 EX 相当の #2 に `ByakkoDoubleActionAttackSkill` が残り、`ディスラプト` が 2 cast になることを固定する。
 
 ### WBS-5 ラッシュ DP 状態制御追補
 
@@ -100,6 +101,10 @@
 
 - `node --test tests/turn-state-transitions.test.js --test-name-pattern "ByakkoDoubleActionAttackSkill|enemy attack"`: 487 tests pass
 - `node --test tests/lightweight-replay-script.test.js tests/ui-next-turn-engine-manager.test.js tests/ui-next-turn-ui.test.js`: 155 tests pass
+- `node --test --test-name-pattern="PlayerTurnEnd|ByakkoDoubleActionAttackSkill|Byakko rush" tests/turn-state-transitions.test.js tests/ui-next-turn-engine-manager.test.js tests/ui-next-follow-up-integration.test.js tests/buff-consumption-orchestrator.test.js`: 25 tests pass
+- `node --test tests/turn-state-transitions.test.js`: 517 tests pass
+- `node --test tests/ui-next-turn-engine-manager.test.js tests/ui-next-follow-up-integration.test.js`: 82 tests pass
+- `node --test tests/buff-consumption-orchestrator.test.js`: 15 tests pass
 - `npm run lint`: pass
 - 既存完了時: `npm test`: 1154 tests pass
 
