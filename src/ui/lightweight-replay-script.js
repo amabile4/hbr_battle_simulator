@@ -20,6 +20,7 @@ export const REPLAY_OPERATION_TYPES = Object.freeze({
   CHANGE_FORM: 'ChangeForm',
   ACTIVATE_KISHINKA: 'ActivateKishinka',
   ACTIVATE_MAKAI_KIHEI: 'ActivateMakaiKihei',
+  ACTIVATE_ALL_OUT_ATTACK: 'ActivateAllOutAttack',
   ACTIVATE_PREEMPTIVE_OD: 'ActivatePreemptiveOd',
   RESERVE_INTERRUPT_OD: 'ReserveInterruptOd',
   SUMMON_ENEMY: 'SummonEnemy',
@@ -334,6 +335,10 @@ export const replayOperationRegistry = createTypedEnvelopeRegistry({
   [REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI]: Object.freeze({
     timing: 'beforeCommit',
     allowMultiple: true,
+  }),
+  [REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK]: Object.freeze({
+    timing: 'beforeCommit',
+    allowMultiple: false,
   }),
   [REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD]: Object.freeze({
     timing: 'beforeCommit',

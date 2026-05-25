@@ -154,6 +154,7 @@ export function createInitialTurnState() {
     odContext: null,
     odSuspended: false,
     odPending: false,
+    holdUpActive: false,
     enemyState: {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],

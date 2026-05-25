@@ -214,6 +214,7 @@ function createPartyWithActorSkill(actorSkill, actorOptions = {}) {
       characterName: index === 0 ? (actorOptions.characterName ?? 'UI1') : `UI${index + 1}`,
       styleId: index === 0 ? (actorOptions.styleId ?? 9300) : 9300 + index,
       styleName: index === 0 ? (actorOptions.styleName ?? 'UIS1') : `UIS${index + 1}`,
+      roleAbility: index === 0 ? (actorOptions.roleAbility ?? null) : null,
       partyIndex: index,
       position: index,
       initialSP: index === 0 ? (actorOptions.initialSP ?? 10) : 10,
@@ -257,6 +258,7 @@ function createFrontlineState(frontlineSkills, enemyCount = 1, frontOptions = []
       characterName: frontOptions[index]?.characterName ?? `UI${index + 1}`,
       styleId: frontOptions[index]?.styleId ?? 9300 + index,
       styleName: frontOptions[index]?.styleName ?? `UIS${index + 1}`,
+      roleAbility: frontOptions[index]?.roleAbility ?? null,
       partyIndex: index,
       position: index,
       initialSP: 10,
@@ -5172,6 +5174,151 @@ test('TurnAreaController ignores drive pierce for Makai Kihei OD preview and com
     root.querySelector('[data-role="commit-btn"]').click();
 
     assert.equal(engineManager.getStateBefore(0)?.turnState?.odGauge, 70);
+  }));
+
+test('TurnAreaController shows and applies 総攻撃 only during HOLD UP all-down state', () =>
+  withDom(({ root }) => {
+    const state = createState(
+      createSkill({
+        id: 9528,
+        name: 'All Out Test',
+        targetType: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      }),
+      2,
+      {
+        roleAbility: { name: '総攻撃' },
+      }
+    );
+    state.turnState.odGauge = 10;
+    state.turnState.holdUpActive = true;
+    state.turnState.enemyState.statuses = [
+      { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+      { statusType: 'DownTurn', targetIndex: 1, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+    ];
+    state.turnState.enemyState.destructionRateByEnemy = { 0: 120, 1: 140 };
+    const { engineManager } = createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const allOutButton = root.querySelector('[data-role="all-out-attack-btn"]');
+    assert.ok(allOutButton);
+    assert.equal(allOutButton.disabled, false);
+
+    allOutButton.click();
+
+    const chips = [...root.querySelectorAll('[data-role="operation-chip"]')].map((chip) =>
+      chip.textContent.replace('×', '').trim()
+    );
+    const pendingState = engineManager.getCurrentStateWithPending(2);
+    assert.deepEqual(chips, ['総攻撃']);
+    assert.equal(pendingState.turnState.odGauge, 45);
+    assert.equal(pendingState.turnState.holdUpActive, false);
+    assert.equal(pendingState.turnState.enemyState.destructionRateByEnemy['0'], 220);
+    assert.equal(pendingState.turnState.enemyState.destructionRateByEnemy['1'], 240);
+    assert.equal(root.querySelector('[data-role="all-out-attack-btn"]').disabled, true);
+
+    root.querySelector('[data-role="operation-chip-remove"]').click();
+
+    const restoredState = engineManager.getCurrentStateWithPending(2);
+    assert.equal(root.querySelector('[data-role="operation-chip"]'), null);
+    assert.equal(restoredState.turnState.odGauge, 10);
+    assert.equal(restoredState.turnState.holdUpActive, true);
+    assert.equal(restoredState.turnState.enemyState.destructionRateByEnemy['0'], 120);
+  }));
+
+test('TurnAreaController hides or disables 総攻撃 when ability or HOLD UP condition is missing', () =>
+  withDom(({ root }) => {
+    const skill = createSkill({
+      id: 9529,
+      name: 'All Out Disabled',
+      targetType: 'Self',
+      parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+    });
+    const noAbilityState = createState(skill, 1);
+    createTurnAreaController({
+      root,
+      state: noAbilityState,
+      simulatorSettings: createSimulatorSettings(),
+    });
+    assert.equal(root.querySelector('[data-role="all-out-attack-btn"]'), null);
+
+    const disabledState = createState(skill, 1, { roleAbility: { name: '総攻撃' } });
+    createTurnAreaController({
+      root,
+      state: disabledState,
+      simulatorSettings: createSimulatorSettings(),
+    });
+    const disabledButton = root.querySelector('[data-role="all-out-attack-btn"]');
+    assert.ok(disabledButton);
+    assert.equal(disabledButton.disabled, true);
+  }));
+
+test('TurnAreaController keeps special button area width and compacts when three special buttons are visible', () =>
+  withDom(({ root }) => {
+    const state = createFrontlineState(
+      [
+        createSkill({
+          id: 9530,
+          name: 'Tezuka Protection',
+          targetType: 'Self',
+          parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+        }),
+        createSkill({
+          id: 9531,
+          name: 'Makai Protection',
+          targetType: 'Self',
+          parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+        }),
+        createSkill({
+          id: 9532,
+          name: 'All Out Protection',
+          targetType: 'Self',
+          parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+        }),
+      ],
+      1,
+      [
+        {
+          characterId: TEZUKA_CHARACTER_ID,
+          characterName: '手塚 咲',
+          styleId: TEZUKA_STYLE_ID,
+          styleName: '鬼神テスト',
+        },
+        {
+          characterId: 'BIYamawaki',
+          characterName: '山脇・ボン・イヴァール',
+          styleId: MAKAI_KIHEI_STYLE_ID,
+          styleName: '誇り高き魔王の凱旋',
+          passives: [createMakaiKiheiPassive()],
+        },
+        {
+          characterId: 'Mona',
+          characterName: 'モナ',
+          styleId: 1021102,
+          styleName: '黎明の魔術師',
+          roleAbility: { name: '総攻撃' },
+        },
+      ]
+    );
+    state.turnState.holdUpActive = true;
+    state.turnState.enemyState.statuses = [
+      { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+    ];
+    createTurnAreaController({
+      root,
+      state,
+      simulatorSettings: createSimulatorSettings(),
+    });
+
+    const buttonArea = root.querySelector('[data-turn-buttons]');
+    assert.ok(buttonArea.className.includes('w-[110px]'));
+    assert.ok(buttonArea.className.includes('auto-rows-[minmax(20px,auto)]'));
+    assert.ok(root.querySelector('[data-role="kishinka-btn"]'));
+    assert.ok(root.querySelector('[data-role="makai-kihei-btn"]'));
+    assert.ok(root.querySelector('[data-role="all-out-attack-btn"]'));
   }));
 
 test('TurnAreaController commits manual break attribution and hides committed-row break controls', () =>

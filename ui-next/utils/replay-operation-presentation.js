@@ -4,6 +4,7 @@ const OPERATION_LABELS = Object.freeze({
   [REPLAY_OPERATION_TYPES.CHANGE_FORM]: 'フォーム',
   [REPLAY_OPERATION_TYPES.ACTIVATE_KISHINKA]: '鬼神化',
   [REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI]: '騎兵起動',
+  [REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK]: '総攻撃',
   [REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD]: '先制OD',
   [REPLAY_OPERATION_TYPES.RESERVE_INTERRUPT_OD]: '割込OD',
   [REPLAY_OPERATION_TYPES.SUMMON_ENEMY]: '召喚',
@@ -70,6 +71,9 @@ export function getReplayOperationTone(operation = {}) {
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI) {
     return 'border-rose-200 bg-rose-50 text-rose-700';
+  }
+  if (type === REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK) {
+    return 'border-amber-200 bg-amber-50 text-amber-700';
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_PREEMPTIVE_OD) {
     return 'border-indigo-200 bg-indigo-50 text-indigo-700';

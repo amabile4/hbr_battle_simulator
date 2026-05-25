@@ -3,6 +3,8 @@ import {
   applyManualEnemyBreak,
   applyEnemyStateOverrideSnapshot,
   buildEnemyStateOverrideSnapshot,
+  areAllAliveEnemiesDownTurn,
+  getAliveEnemyIndexes,
   isEnemyAlive,
 } from './turn-controller.js';
 import {
@@ -33,6 +35,9 @@ export const MAKAI_KIHEI_PASSIVE_LABEL = 'Passive.Machina_Demon';
 export const MAKAI_KIHEI_SKILL_LABEL = 'BIYamawakiSkill55b';
 export const MAKAI_KIHEI_MAX_USES = 3;
 export const MAKAI_KIHEI_DEFAULT_POSITION = 0;
+export const ALL_OUT_ATTACK_ROLE_ABILITY_NAME = '総攻撃';
+export const ALL_OUT_ATTACK_DESTRUCTION_RATE_GAIN_PERCENT = 100;
+export const ALL_OUT_ATTACK_OD_GAIN_PER_ENEMY_PERCENT = 17.5;
 const SUMMONABLE_ENEMY_RESISTANCE_KEYS = Object.freeze({
   slash: 'Slash',
   stab: 'Stab',
@@ -565,6 +570,60 @@ function applySetEnemyEShieldToState(state, operation = {}) {
   return state;
 }
 
+function hasAllOutAttackRoleAbility(member) {
+  const candidates = [
+    member?.roleAbility,
+    member?.roleabi,
+  ].filter((entry) => entry && typeof entry === 'object');
+  return candidates.some((entry) => String(entry?.name ?? '').trim() === ALL_OUT_ATTACK_ROLE_ABILITY_NAME);
+}
+
+export function hasAllOutAttackAbility(state) {
+  return (Array.isArray(state?.party) ? state.party : []).some((member) => hasAllOutAttackRoleAbility(member));
+}
+
+export function resolveAllOutAttackAvailability(state) {
+  const aliveEnemyIndexes = getAliveEnemyIndexes(state?.turnState);
+  const hasAbility = hasAllOutAttackAbility(state);
+  const holdUpActive = Boolean(state?.turnState?.holdUpActive);
+  const allAliveEnemiesDownTurn = areAllAliveEnemiesDownTurn(state?.turnState);
+  return {
+    hasAbility,
+    holdUpActive,
+    allAliveEnemiesDownTurn,
+    aliveEnemyCount: aliveEnemyIndexes.length,
+    available: hasAbility && holdUpActive && allAliveEnemiesDownTurn,
+  };
+}
+
+function applyAllOutAttackToState(state) {
+  const availability = resolveAllOutAttackAvailability(state);
+  if (!availability.available) {
+    return state;
+  }
+  const currentSnapshot = buildEnemyStateOverrideSnapshot(state.turnState);
+  const nextEnemyDestructionRates = { ...(currentSnapshot.enemyDestructionRates ?? {}) };
+  for (const targetEnemyIndex of getAliveEnemyIndexes(state.turnState)) {
+    const slotKey = String(targetEnemyIndex);
+    const currentRate = Number(
+      nextEnemyDestructionRates[slotKey] ?? DEFAULT_DESTRUCTION_RATE_PERCENT
+    );
+    nextEnemyDestructionRates[slotKey] = currentRate + ALL_OUT_ATTACK_DESTRUCTION_RATE_GAIN_PERCENT;
+  }
+  applyEnemyStateOverrideSnapshot(state.turnState, {
+    ...currentSnapshot,
+    enemyDestructionRates: nextEnemyDestructionRates,
+  });
+  const currentOdGauge = Number(state.turnState.odGauge ?? 0);
+  const odGain = availability.aliveEnemyCount * ALL_OUT_ATTACK_OD_GAIN_PER_ENEMY_PERCENT;
+  state.turnState.odGauge = Math.max(
+    OD_GAUGE_MIN_PERCENT,
+    Math.min(OD_GAUGE_MAX_PERCENT, truncateToTwoDecimals(currentOdGauge + odGain))
+  );
+  state.turnState.holdUpActive = false;
+  return state;
+}
+
 function applyOperation(state, operation = {}, options = {}) {
   const type = String(operation?.type ?? '').trim();
   if (!type || !BEFORE_COMMIT_OPERATION_TYPES.has(type)) {
@@ -578,6 +637,9 @@ function applyOperation(state, operation = {}, options = {}) {
   }
   if (type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI) {
     return applyMakaiKiheiToState(state);
+  }
+  if (type === REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK) {
+    return applyAllOutAttackToState(state);
   }
   if (type === REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
     return applySummonEnemyToState(state, operation, options);

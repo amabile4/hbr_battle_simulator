@@ -335,6 +335,12 @@ export class CharacterStyle {
     this.styleName = String(input.styleName);
     this.team = String(input.team ?? '');
     this.role = String(input.role ?? '');
+    this.roleAbility =
+      input.roleAbility && typeof input.roleAbility === 'object'
+        ? structuredClone(input.roleAbility)
+        : input.roleabi && typeof input.roleabi === 'object'
+          ? structuredClone(input.roleabi)
+          : null;
     this.formChange = normalizeFormChange(input.formChange);
     if (this.formChange) {
       const currentFormInfo = getCurrentFormInfo(this.formChange);
@@ -1408,6 +1414,7 @@ export class CharacterStyle {
     c.styleName = this.styleName;
     c.team = this.team;
     c.role = this.role;
+    c.roleAbility = this.roleAbility ? structuredClone(this.roleAbility) : null;
     c.formChange = this.formChange ? structuredClone(this.formChange) : null;
     c.weaponType = this.weaponType;
     c.elements = this.elements;
@@ -1457,6 +1464,7 @@ export class CharacterStyle {
       styleId: this.styleId,
       styleName: this.styleName,
       role: this.role,
+      roleAbility: this.roleAbility ? structuredClone(this.roleAbility) : null,
       limitBreakLevel: this.limitBreakLevel,
       formChange: this.formChange ? structuredClone(this.formChange) : null,
       supportStyleId: this.supportStyleId,

@@ -23548,3 +23548,67 @@ test('Eシールド state persists across PlayerTurnEnd and EnemyTurnEnd while s
     damageLimit: 0,
   });
 });
+
+function createHoldUpTestParty() {
+  return new Party(Array.from({ length: 6 }, (_, index) =>
+    new CharacterStyle({
+      characterId: `HU${index + 1}`,
+      characterName: `HU${index + 1}`,
+      styleId: 9700 + index,
+      styleName: `HUS${index + 1}`,
+      partyIndex: index,
+      position: index,
+      initialSP: 10,
+      roleAbility: index === 0 ? { name: '総攻撃' } : null,
+      skills: [
+        {
+          id: 9800 + index,
+          name: `プロテクション${index + 1}`,
+          sp_cost: 0,
+          target_type: 'Self',
+          parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+        },
+      ],
+    })
+  ));
+}
+
+test('HOLD UP becomes active when all alive enemies newly enter DownTurn in one turn', () => {
+  const state = createBattleStateFromParty(createHoldUpTestParty());
+  state.turnState.enemyState.enemyCount = 2;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'HU1', skillId: 9800, manualBreakEnemyIndexes: [0] },
+    1: { characterId: 'HU2', skillId: 9801, manualBreakEnemyIndexes: [1] },
+    2: { characterId: 'HU3', skillId: 9802 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.holdUpActive, true);
+  assert.equal(
+    nextState.turnState.enemyState.statuses.filter((status) => status.statusType === 'DownTurn').length,
+    2
+  );
+});
+
+test('HOLD UP is cleared when DownTurn expires', () => {
+  const state = createBattleStateFromParty(createHoldUpTestParty());
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.holdUpActive = true;
+  state.turnState.enemyState.statuses = [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 0, exitCond: 'PlayerTurnEnd' },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'HU1', skillId: 9800 },
+    1: { characterId: 'HU2', skillId: 9801 },
+    2: { characterId: 'HU3', skillId: 9802 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.holdUpActive, false);
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some((status) => status.statusType === 'DownTurn'),
+    false
+  );
+});

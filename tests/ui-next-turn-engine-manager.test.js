@@ -107,6 +107,7 @@ function createManualParty(actorSkill, actorOptions = {}) {
       characterName: index === 0 ? (actorOptions.characterName ?? 'TM1') : `TM${index + 1}`,
       styleId: index === 0 ? (actorOptions.styleId ?? 9100) : 9100 + index,
       styleName: index === 0 ? (actorOptions.styleName ?? 'TS1') : `TS${index + 1}`,
+      roleAbility: index === 0 ? (actorOptions.roleAbility ?? null) : null,
       partyIndex: index,
       position: index,
       initialSP: index === 0 ? (actorOptions.initialSP ?? 10) : 10,
@@ -698,6 +699,71 @@ test('TurnEngineManager preserves summoned slot identity when break and follow-u
   assert.deepEqual(reloadedAction?.manualBreakEnemyIndexes, [1]);
   assert.equal(reloadedAction?.pursuedHitCount, 1);
   assert.deepEqual(reloadedManager.replayDiagnostics.turnWarnings[0] ?? [], []);
+});
+
+test('TurnEngineManager preserves 総攻撃 operation through commit, recommit, and replay reload', () => {
+  const actorSkill = createSkill({
+    id: 90729,
+    name: 'All Out Hold',
+    targetType: 'Self',
+    parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+  });
+  const initialState = createInitialState(actorSkill, {
+    roleAbility: { name: '総攻撃' },
+  });
+  initialState.turnState.odGauge = 20;
+  initialState.turnState.holdUpActive = true;
+  initialState.turnState.enemyState.enemyCount = 1;
+  initialState.turnState.enemyState.statuses = [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+  ];
+  initialState.turnState.enemyState.destructionRateByEnemy = { 0: 125 };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(initialState, {});
+  assert.equal(manager.addPendingSpecialOperation({ type: REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK }), true);
+
+  manager.commitNextTurn({
+    0: { skillId: 90729 },
+  }, { enemyCount: 1, note: 'all-out' });
+
+  assert.deepEqual(
+    manager.replayScript.turns[0].operations.map((operation) => operation.type),
+    [REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK]
+  );
+  assert.equal(manager.getStateBefore(0)?.turnState?.odGauge, 37.5);
+  assert.equal(manager.getStateBefore(0)?.turnState?.holdUpActive, false);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.destructionRateByEnemy?.['0'], 225);
+
+  const draft = manager.buildTurnEditDraft(0);
+  manager.replaceCommittedTurn(0, draft);
+  assert.deepEqual(
+    manager.replayScript.turns[0].operations.map((operation) => operation.type),
+    [REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK]
+  );
+  assert.equal(manager.getStateBefore(0)?.turnState?.odGauge, 37.5);
+  assert.equal(manager.getStateBefore(0)?.turnState?.enemyState?.destructionRateByEnemy?.['0'], 225);
+
+  const reloadState = createInitialState(actorSkill, {
+    roleAbility: { name: '総攻撃' },
+  });
+  reloadState.turnState.odGauge = 20;
+  reloadState.turnState.holdUpActive = true;
+  reloadState.turnState.enemyState.enemyCount = 1;
+  reloadState.turnState.enemyState.statuses = [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+  ];
+  reloadState.turnState.enemyState.destructionRateByEnemy = { 0: 125 };
+
+  const reloadedManager = new TurnEngineManager();
+  reloadedManager.loadReplayScript(reloadState, manager.replayScript, {});
+
+  assert.deepEqual(
+    reloadedManager.replayScript.turns[0].operations.map((operation) => operation.type),
+    [REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK]
+  );
+  assert.equal(reloadedManager.getStateBefore(0)?.turnState?.odGauge, 37.5);
+  assert.equal(reloadedManager.getStateBefore(0)?.turnState?.enemyState?.destructionRateByEnemy?.['0'], 225);
 });
 
 test('TurnEngineManager replays Karen double-action EX after 意気揚々 self-buff', () => {

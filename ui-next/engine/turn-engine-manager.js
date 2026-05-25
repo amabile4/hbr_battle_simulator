@@ -20,6 +20,7 @@ import {
   getActivatablePreemptiveOdLevels as resolveActivatablePreemptiveOdLevels,
   MAKAI_KIHEI_MAX_USES,
   TEZUKA_CHARACTER_ID,
+  resolveAllOutAttackAvailability,
   resolveMakaiKiheiAvailability,
 } from '../../src/turn/turn-operations.js';
 import {
@@ -477,6 +478,13 @@ export class TurnEngineManager {
     let state = this.#cloneWorkingState(this.currentState);
     this.#applyScenarioTurnPlayerOverrides(state, scenarioTurn);
     this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
+    const operationFreeStateBefore = this.#cloneWorkingState(state);
+    const replayEnemySnapshotState = this.#applySnapshotOnlyOperationsForReplay(
+      operationFreeStateBefore,
+      operations,
+      enemyCount,
+      warnings
+    );
     state = applyBeforeCommitOperations(
       state,
       operations,
@@ -572,7 +580,8 @@ export class TurnEngineManager {
       effectiveEnemyCount,
       actionOutcomeOverrides,
       followUpOverrides,
-      options.overrideEntries ?? []
+      options.overrideEntries ?? [],
+      { enemyOverrideState: replayEnemySnapshotState }
     );
     this.#replayScript.turns.push(replayTurn);
     // pending をリセット
@@ -834,6 +843,7 @@ export class TurnEngineManager {
       operationState: {
         kishinkaStatus: this.getKishinkaStatus(),
         makaiKiheiStatus: this.getMakaiKiheiStatus(),
+        allOutAttackStatus: this.getAllOutAttackStatus(),
       },
       warnings,
     };
@@ -884,6 +894,12 @@ export class TurnEngineManager {
     if (
       normalized.type === REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI &&
       !this.getMakaiKiheiStatus().available
+    ) {
+      return false;
+    }
+    if (
+      normalized.type === REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK &&
+      !this.getAllOutAttackStatus().available
     ) {
       return false;
     }
@@ -957,6 +973,18 @@ export class TurnEngineManager {
       remainingUses,
       pendingCount,
       maxUses: MAKAI_KIHEI_MAX_USES,
+    };
+  }
+
+  getAllOutAttackStatus() {
+    const availability = resolveAllOutAttackAvailability(this.currentState);
+    const activePending = this.#pendingSpecialOperations.some(
+      (operation) => operation?.type === REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK
+    );
+    return {
+      ...availability,
+      activePending,
+      available: availability.available && !activePending,
     };
   }
 
@@ -1146,7 +1174,7 @@ export class TurnEngineManager {
       normalizedDraft.overrideEntries
     );
     const previousComputedStates = [...this.#computedStates];
-    this.#replayScript.turns[turnIndex] = this.#buildReplayTurnFromDraft(normalizedDraft, draftStateBefore);
+    this.#replayScript.turns[turnIndex] = this.#buildReplayTurnFromDraft(normalizedDraft, draftStateBefore, turnIndex);
     this.#recalculateAllBestEffort({
       strictExtraTurnTurnIndexes: new Set([turnIndex]),
     });
@@ -1431,6 +1459,28 @@ export class TurnEngineManager {
       .map((operation) => structuredClone(operation));
   }
 
+  #filterSnapshotOnlyOperations(operations = []) {
+    return (Array.isArray(operations) ? operations : [])
+      .filter((operation) => SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES.has(String(operation?.type ?? '')))
+      .map((operation) => structuredClone(operation));
+  }
+
+  #applySnapshotOnlyOperationsForReplay(state, operations = [], enemyCount = DEFAULT_ENEMY_COUNT, warnings = []) {
+    const snapshotOnlyOperations = this.#filterSnapshotOnlyOperations(operations);
+    if (snapshotOnlyOperations.length === 0) {
+      return this.#cloneWorkingState(state);
+    }
+    return applyBeforeCommitOperations(
+      this.#cloneWorkingState(state),
+      snapshotOnlyOperations,
+      {
+        enemyCount,
+        allowInsufficientOd: this.#validationPolicy.allowInsufficientOd,
+        onWarning: (message) => warnings.push(String(message)),
+      }
+    );
+  }
+
   #mergeReplayTurnOverrideEntries(
     baseOverrideEntries = [],
     enemyCount,
@@ -1454,9 +1504,22 @@ export class TurnEngineManager {
     return nextOverrideEntries;
   }
 
-  #buildReplayTurnFromDraft(draft, stateBefore) {
+  #buildReplayTurnFromDraft(draft, stateBefore, turnIndex = 0) {
     const effectiveEnemyCount = this.#resolveEffectiveEnemyCount(stateBefore, draft.enemyCount);
-    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(stateBefore);
+    const operationFreeStateBefore = this.#buildDraftStateBefore(
+      turnIndex,
+      draft.slots,
+      [],
+      null,
+      [],
+      draft.overrideEntries
+    );
+    const replayEnemySnapshotState = this.#applySnapshotOnlyOperationsForReplay(
+      operationFreeStateBefore,
+      draft.operations,
+      draft.enemyCount
+    );
+    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(replayEnemySnapshotState);
     return normalizeLightweightReplayTurn({
       turn: draft.turn,
       slots: draft.slots,
@@ -1632,6 +1695,10 @@ export class TurnEngineManager {
       0,
       MAKAI_KIHEI_MAX_USES - committedCount - pendingCount
     );
+    const allOutAttackPending = (Array.isArray(operations) ? operations : []).some(
+      (operation) => operation?.type === REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK
+    );
+    const allOutAttackAvailability = resolveAllOutAttackAvailability(stateBefore);
     return {
       kishinkaStatus: tezuka
         ? {
@@ -1649,6 +1716,11 @@ export class TurnEngineManager {
         remainingUses,
         pendingCount,
         maxUses: MAKAI_KIHEI_MAX_USES,
+      },
+      allOutAttackStatus: {
+        ...allOutAttackAvailability,
+        activePending: allOutAttackPending,
+        available: allOutAttackAvailability.available && !allOutAttackPending,
       },
     };
   }
@@ -2424,7 +2496,8 @@ export class TurnEngineManager {
     enemyCount = DEFAULT_ENEMY_COUNT,
     actionOutcomeOverrides = [],
     followUpOverrides = [],
-    baseOverrideEntries = []
+    baseOverrideEntries = [],
+    options = {}
   ) {
     const slots = Array.from({ length: 6 }, (_, position) => {
       const member = state.party.find((m) => m.position === position);
@@ -2436,7 +2509,7 @@ export class TurnEngineManager {
       };
     });
     const normalizedEnemyCount = clampEnemyCount(enemyCount);
-    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(state);
+    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(options.enemyOverrideState ?? state);
     const normalizedActionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       state,
       slotActions,

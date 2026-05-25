@@ -3745,6 +3745,31 @@ export function countAliveEnemies(turnState, enemyCountOverride = null) {
   return count;
 }
 
+export function getAliveEnemyIndexes(turnState, enemyCountOverride = null) {
+  const enemyCount = resolveEffectiveEnemyCount(turnState, enemyCountOverride);
+  const indexes = [];
+  for (let i = 0; i < enemyCount; i += 1) {
+    if (isEnemyAlive(turnState, i, enemyCount)) {
+      indexes.push(i);
+    }
+  }
+  return indexes;
+}
+
+export function areAllAliveEnemiesDownTurn(turnState, enemyCountOverride = null) {
+  const aliveIndexes = getAliveEnemyIndexes(turnState, enemyCountOverride);
+  if (aliveIndexes.length === 0) {
+    return false;
+  }
+  return aliveIndexes.every((idx) => hasEnemyStatus(turnState, idx, ENEMY_STATUS_DOWN_TURN));
+}
+
+function clearHoldUpIfAllDownConditionLost(turnState) {
+  if (turnState?.holdUpActive && !areAllAliveEnemiesDownTurn(turnState)) {
+    turnState.holdUpActive = false;
+  }
+}
+
 function countDeadEnemies(turnState) {
   return getDeadEnemyTargetIndexes(turnState).size;
 }
@@ -6058,6 +6083,7 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     // DownTurn が明けた enemy の Eシールドを max まで自動復帰
     restoreEnemyEShieldToMax(turnState, targetIndex);
   }
+  clearHoldUpIfAllDownConditionLost(turnState);
 }
 
 function tickEnemyStatuses(turnState) {
@@ -13349,6 +13375,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     state.turnState[PURSUIT_TRANSFORM_USED_CHARACTER_IDS_KEY] = [];
   }
   syncTurnStateEnemyCount(state?.turnState, Number(previewRecord.enemyCount ?? DEFAULT_ENEMY_COUNT));
+  const allAliveEnemiesDownAtTurnStart = areAllAliveEnemiesDownTurn(state.turnState);
   const applySwapOnCommit = options.applySwapOnCommit !== false;
   const interruptOdLevel = Number(options.interruptOdLevel ?? 0);
   const shouldActivateInterruptOd =
@@ -13906,6 +13933,12 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   }
   applyTurnBasedStatusExpiry(nextState, nextState.turnState);
   removeByakkoRushStateWhenDpBelowCondition(nextState);
+  const allAliveEnemiesDownAtTurnEnd = areAllAliveEnemiesDownTurn(nextState.turnState);
+  if (allAliveEnemiesDownAtTurnEnd && !allAliveEnemiesDownAtTurnStart) {
+    nextState.turnState.holdUpActive = true;
+  } else if (!allAliveEnemiesDownAtTurnEnd) {
+    nextState.turnState.holdUpActive = false;
+  }
 
   const snapAfter = snapshotPartyByPartyIndex(nextState.party);
   const committed = commitRecord(previewRecord, snapAfter, swapEvents);

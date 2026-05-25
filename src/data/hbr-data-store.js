@@ -1532,6 +1532,7 @@ export class HbrDataStore {
       styleName: String(style.name),
       team: String(style.team ?? ''),
       role: String(style.role ?? ''),
+      roleAbility: style.roleabi && typeof style.roleabi === 'object' ? structuredClone(style.roleabi) : null,
       elements: Array.isArray(style.elements) ? [...style.elements] : [],
       weaponType: String(style.type ?? ''),
       transcendenceRule: this.getTranscendenceRuleByStyleId(style.id),

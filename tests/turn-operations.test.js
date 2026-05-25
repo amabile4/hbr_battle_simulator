@@ -5,6 +5,7 @@ import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.
 import {
   applyBeforeCommitOperations,
   canActivateKishinka,
+  resolveAllOutAttackAvailability,
   resolveMakaiKiheiAvailability,
 } from '../src/turn/turn-operations.js';
 import { REPLAY_OPERATION_TYPES } from '../src/ui/lightweight-replay-script.js';
@@ -83,6 +84,7 @@ function createMember({
   initialSP = 10,
   drivePiercePercent = 0,
   elements = [],
+  roleAbility = null,
   skills = [],
   passives = [],
 }) {
@@ -96,6 +98,7 @@ function createMember({
     initialSP,
     drivePiercePercent,
     elements,
+    roleAbility,
     skills,
     passives,
   });
@@ -115,6 +118,7 @@ function createBaselineParty(overrides = {}) {
         initialSP: override.initialSP ?? 10,
         drivePiercePercent: override.drivePiercePercent ?? 0,
         elements: override.elements ?? [],
+        roleAbility: override.roleAbility ?? null,
         skills:
           override.skills ??
           [
@@ -224,6 +228,74 @@ test('applyBeforeCommitOperations uses the supplied enemyCount for Makai Kihei O
 
   assert.equal(nextState.turnState.enemyState.enemyCount, 2);
   assert.equal(nextState.turnState.odGauge, 30);
+});
+
+test('総攻撃 operation adds fixed destruction rate and OD without advancing turn resources', () => {
+  const state = createState({
+    0: { roleAbility: { name: '総攻撃' } },
+  }, { odGauge: 280, enemyCount: 2 });
+  state.turnState.holdUpActive = true;
+  state.turnState.turnIndex = 4;
+  state.turnState.sequenceId = 9;
+  state.turnState.enemyState.statuses = [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+    { statusType: 'DownTurn', targetIndex: 1, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+  ];
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 150, 1: 210 };
+  const spBefore = state.party.map((member) => member.sp.current);
+
+  assert.deepEqual(resolveAllOutAttackAvailability(state), {
+    hasAbility: true,
+    holdUpActive: true,
+    allAliveEnemiesDownTurn: true,
+    aliveEnemyCount: 2,
+    available: true,
+  });
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [{ type: REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK }]
+  );
+
+  assert.equal(nextState.turnState.holdUpActive, false);
+  assert.equal(nextState.turnState.odGauge, 300);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 250);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['1'], 310);
+  assert.equal(nextState.turnState.turnIndex, 4);
+  assert.equal(nextState.turnState.sequenceId, 9);
+  assert.deepEqual(nextState.party.map((member) => member.sp.current), spBefore);
+});
+
+test('総攻撃 operation is ignored without role ability or all-down HOLD UP state', () => {
+  const noAbilityState = createState({}, { odGauge: 10, enemyCount: 1 });
+  noAbilityState.turnState.holdUpActive = true;
+  noAbilityState.turnState.enemyState.statuses = [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+  ];
+
+  const noAbilityNext = applyBeforeCommitOperations(
+    noAbilityState,
+    [{ type: REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK }]
+  );
+  assert.equal(noAbilityNext.turnState.odGauge, 10);
+  assert.equal(noAbilityNext.turnState.holdUpActive, true);
+  assert.equal(noAbilityNext.turnState.enemyState.destructionRateByEnemy['0'], undefined);
+
+  const notAllDownState = createState({
+    0: { roleAbility: { name: '総攻撃' } },
+  }, { odGauge: 10, enemyCount: 2 });
+  notAllDownState.turnState.holdUpActive = true;
+  notAllDownState.turnState.enemyState.statuses = [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+  ];
+
+  const notAllDownNext = applyBeforeCommitOperations(
+    notAllDownState,
+    [{ type: REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK }]
+  );
+  assert.equal(notAllDownNext.turnState.odGauge, 10);
+  assert.equal(notAllDownNext.turnState.holdUpActive, true);
+  assert.equal(notAllDownNext.turnState.enemyState.destructionRateByEnemy['0'], undefined);
 });
 
 test('applyBeforeCommitOperations applies Makai Kihei dark attack to matching Eシールド by hit count', () => {

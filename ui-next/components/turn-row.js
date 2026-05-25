@@ -5030,6 +5030,19 @@ export class TurnRowController {
     const operationState = this.#operationState ?? {};
     const ks = operationState.kishinkaStatus ?? { hasTezuka: false };
     const makai = operationState.makaiKiheiStatus ?? { hasYamawaki: false };
+    const allOut = operationState.allOutAttackStatus ?? { hasAbility: false };
+    const specialButtonCount = [
+      ks.hasTezuka && !ks.isActive && !(ks.actionDisabledTurns > 0),
+      makai.hasYamawaki,
+      allOut.hasAbility,
+    ].filter(Boolean).length;
+    const compactSpecialButtons = specialButtonCount >= 3;
+    const specialButtonClass = compactSpecialButtons
+      ? 'w-full h-full text-[8px] leading-[0.85rem] rounded px-0.5 py-0 border font-semibold'
+      : 'w-full h-full text-[9px] leading-tight rounded px-0.5 py-0.5 border font-semibold';
+    const turnButtonRowClass = compactSpecialButtons
+      ? 'auto-rows-[minmax(20px,auto)]'
+      : 'auto-rows-[minmax(24px,auto)]';
     let kishinkaHtml = '';
     if (ks.hasTezuka) {
       if (ks.isActive) {
@@ -5043,7 +5056,7 @@ export class TurnRowController {
         kishinkaHtml = `<button data-role="kishinka-btn"
           title="${kActive ? '鬼神化は操作タグから取り消せます' : '鬼神化を操作タグに追加（OD+15%）'}"
           ${kActive ? 'disabled' : ''}
-          class="w-full h-full text-[9px] leading-tight rounded px-0.5 py-0.5 border font-semibold
+          class="${specialButtonClass}
                    ${kActive
                      ? 'bg-purple-200 text-purple-700 border-purple-300 cursor-not-allowed'
                      : 'bg-white text-purple-700 border-purple-400 hover:bg-purple-50'}">
@@ -5057,7 +5070,7 @@ export class TurnRowController {
       makaiHtml = `<button data-role="makai-kihei-btn"
         title="騎兵起動を操作タグに追加"
         ${makai.available ? '' : 'disabled'}
-        class="w-full h-full text-[9px] leading-tight rounded px-0.5 py-0.5 border font-semibold
+        class="${specialButtonClass}
                ${makai.available
                  ? 'bg-white text-rose-700 border-rose-400 hover:bg-rose-50'
                  : 'bg-rose-100 text-rose-300 border-rose-200 cursor-not-allowed'}">
@@ -5065,8 +5078,24 @@ export class TurnRowController {
       </button>`;
     }
 
+    let allOutHtml = '';
+    if (allOut.hasAbility) {
+      const allOutActive = Boolean(allOut.activePending);
+      allOutHtml = `<button data-role="all-out-attack-btn"
+        title="${allOutActive ? '総攻撃は操作タグから取り消せます' : '総攻撃を操作タグに追加'}"
+        ${allOut.available ? '' : 'disabled'}
+        class="${specialButtonClass}
+               ${allOut.available
+                 ? 'bg-white text-amber-700 border-amber-400 hover:bg-amber-50'
+                 : allOutActive
+                   ? 'bg-amber-200 text-amber-700 border-amber-300 cursor-not-allowed'
+                   : 'bg-amber-100 text-amber-300 border-amber-200 cursor-not-allowed'}">
+        ${allOutActive ? '総攻撃待機' : '総攻撃'}
+      </button>`;
+    }
+
     return `
-      <div data-turn-buttons class="flex-shrink-0 w-[110px] grid grid-cols-2 gap-0.5 px-1 py-1 auto-rows-[minmax(24px,auto)]">
+      <div data-turn-buttons class="flex-shrink-0 w-[110px] grid grid-cols-2 gap-0.5 px-1 py-1 ${turnButtonRowClass}">
         ${isEditMode
           ? `
             <button data-role="recommit-btn"
@@ -5103,6 +5132,7 @@ export class TurnRowController {
         </select>
         ${kishinkaHtml}
         ${makaiHtml}
+        ${allOutHtml}
         ${followUpControlHtml}
       </div>`;
   }
@@ -5476,6 +5506,18 @@ export class TurnRowController {
           return;
         }
         this.#onOperationAdd?.(this.#turnIndex, { type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI });
+      });
+      const allOutBtn = this.#root.querySelector('[data-role="all-out-attack-btn"]');
+      allOutBtn?.addEventListener('click', () => {
+        if (this.#isEditMode()) {
+          if (!this.#addDraftOperation({ type: REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK })) {
+            return;
+          }
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
+          return;
+        }
+        this.#onOperationAdd?.(this.#turnIndex, { type: REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK });
       });
     }
 
