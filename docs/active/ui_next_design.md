@@ -187,7 +187,7 @@
 - `ui-next/utils/enemy-list.js` は flat list を維持しつつ `categoryKey/categoryLabel` を付与し、Enemy Setup 側はこの metadata を使ってカテゴリ select を描画する
 - カテゴリの並びは `テンプレート`、通常 enemy 用カテゴリ定義（`異時層EX`、`恒星掃戦線`）、`直近3ヶ月` の月別カテゴリの順とする
 - `テンプレート` category には `希望を喰むもの` に加え、Eシールド確認用の `Dimension_09_X_KaleidoOuroboros` を常時表示し、デフォルトのカテゴリのまま選択できるようにする
-- `異時層EX` は `Dimension_<番号>_EX<番号>_...` label の enemy をまとめる通常 enemy 用カテゴリとし、EX stage variant を落とさないよう同名重複を保持する
+- `異時層EX` は `Ex_...` label の enemy をまとめる通常 enemy 用カテゴリとし、`デススラッグEX 第一形態` / `デススラッグEX 第二形態`、`ロータリーモールEX`、`レッドクリムゾンEX` へ到達できるよう同名重複を保持する
 - `恒星掃戦線` は通常 enemy 用カテゴリ定義の 1 つとして扱い、`Dimension_09_X_KaleidoOuroboros` などへ専用 hardcode なしで到達できるようにする
 - 同名 enemy が難易度違いで複数あるカテゴリは、もっとも高いランクの 1 件だけを selector に残す
 - `Enemy Setup` の `✎ 編集` では preset の Eシールドを `count/max/elements/def_up_rate/dmg_limit` 付きで手動編集できるようにし、未設定状態は `max=0` または属性未選択で表現する

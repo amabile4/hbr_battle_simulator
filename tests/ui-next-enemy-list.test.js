@@ -302,7 +302,7 @@ test('buildEnemyList exposes 恒星掃戦線 as category metadata and dedupes hi
   assert.equal(result.some((enemy) => enemy.id === 413), false);
 });
 
-test('buildEnemyList places 異時層EX after templates and keeps EX stage variants', () => {
+test('buildEnemyList places 異時層EX after templates and keeps EX battle variants', () => {
   const enemies = [
     makeEnemy({
       id: PINNED_INITIAL_SETUP_ENEMY.id,
@@ -312,22 +312,34 @@ test('buildEnemyList places 異時層EX after templates and keeps EX stage varia
     }),
     makeEnemy({
       id: 510,
-      name: 'エネルギーピットε',
-      label: 'Dimension_03_EX1_DeathSlugWhiteBit',
-      in_date: '2023-12-22',
+      name: 'デススラッグEX',
+      label: 'Ex_DeathSlug1st',
+      in_date: '2026-02-01',
       is_boss: false,
     }),
     makeEnemy({
       id: 511,
-      name: '[強化変種]ミーティアホーン',
-      label: 'Dimension_09_EX1_CatHornMeteor_Summon',
-      in_date: '2025-08-10',
-      is_boss: false,
+      name: 'デススラッグEX',
+      label: 'Ex_DeathSlug2nd',
+      in_date: '2026-02-01',
     }),
     makeEnemy({
       id: 512,
+      name: 'ロータリーモールEX',
+      label: 'Ex_RotaryMole2nd',
+      in_date: '2026-05-01',
+      is_boss: false,
+    }),
+    makeEnemy({
+      id: 513,
+      name: 'レッドクリムゾンEX',
+      label: 'Ex_RedCrimson',
+      in_date: '2026-05-01',
+    }),
+    makeEnemy({
+      id: 514,
       name: '[強化変種]ミーティアホーン',
-      label: 'Dimension_09_EX2_CatHornMeteor_Summon',
+      label: 'Dimension_09_EX1_CatHornMeteor_Summon',
       in_date: '2025-08-10',
       is_boss: false,
     }),
@@ -350,8 +362,14 @@ test('buildEnemyList places 異時層EX after templates and keeps EX stage varia
 
   assert.deepEqual(categoryLabels.slice(0, 4), ['テンプレート', '異時層EX', '恒星掃戦線', '2026年4月']);
   assert.deepEqual(
-    dimensionExEntries.map((enemy) => enemy.id),
-    [511, 512, 510],
+    dimensionExEntries.map((enemy) => [enemy.id, enemy.name]),
+    [
+      [513, 'レッドクリムゾンEX'],
+      [512, 'ロータリーモールEX'],
+      [510, 'デススラッグEX 第一形態'],
+      [511, 'デススラッグEX 第二形態'],
+    ],
   );
   assert.equal(dimensionExEntries.every((enemy) => enemy.categoryKey === 'normal:dimension-ex'), true);
+  assert.equal(result.some((enemy) => enemy.id === 514), false);
 });

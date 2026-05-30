@@ -20,7 +20,11 @@ const ENEMY_PRESET_ELEMENT_KEYS = Object.freeze([
   'nonelement',
 ]);
 const DIMENSION_X_NORMAL_ENEMY_PATTERN = /^Dimension_\d+_X_/;
-const DIMENSION_EX_ENEMY_PATTERN = /^Dimension_\d+_EX\d+_/;
+const DIMENSION_EX_ENEMY_PATTERN = /^Ex_/;
+const ENEMY_PRESET_DISPLAY_NAME_BY_LABEL = Object.freeze({
+  Ex_DeathSlug1st: 'デススラッグEX 第一形態',
+  Ex_DeathSlug2nd: 'デススラッグEX 第二形態',
+});
 const SUMMON_ENEMY_LABEL_SUFFIX = '_Summon';
 const NORMAL_ENEMY_CATEGORY_DEFINITIONS = Object.freeze([
   Object.freeze({
@@ -149,6 +153,8 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
     }
     return (left?.name ?? '').localeCompare(right?.name ?? '', 'ja');
   };
+  const resolveDisplayEnemyName = (enemy) =>
+    ENEMY_PRESET_DISPLAY_NAME_BY_LABEL[String(enemy?.label ?? '')] ?? enemy.name;
 
   const alwaysEntries = [];
   for (const id of ALWAYS_SHOW_ENEMY_IDS) {
@@ -165,7 +171,7 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
       : toYYYYMM(enemy?.in_date);
     return {
       id: enemy.id,
-      name: enemy.name,
+      name: resolveDisplayEnemyName(enemy),
       dimension,
       categoryKey,
       categoryLabel,
