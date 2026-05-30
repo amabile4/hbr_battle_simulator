@@ -18518,6 +18518,123 @@ test('T13: BIYamawakiServant(155) — Eternal型: 複数付与・CountBC(>=6)判
   assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore, 3, 'しもべ状態6人以上のときパッシブが発動してSP+3');
 });
 
+test('SkillCondition variants use CountBC thresholds and same-action Before Funnel for OD gain', () => {
+  const skillId = 30072;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 20,
+          drivePiercePercent: 15,
+          skills: [
+            {
+              id: skillId,
+              name: 'Servant Mega Destroyer',
+              label: 'TestServantMegaDestroyer',
+              sp_cost: 0,
+              hit_count: 10,
+              target_type: 'Single',
+              parts: [
+                {
+                  skill_type: 'SkillCondition',
+                  cond: 'CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=4',
+                  strval: [
+                    {
+                      name: '下僕1人',
+                      hit_count: 10,
+                      target_type: 'Single',
+                      sp_cost: 0,
+                      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' }],
+                    },
+                    {
+                      name: '下僕2人',
+                      hit_count: 10,
+                      target_type: 'Single',
+                      sp_cost: 0,
+                      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' }],
+                    },
+                    {
+                      name: '下僕3人',
+                      hit_count: 10,
+                      target_type: 'Single',
+                      sp_cost: 0,
+                      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' }],
+                    },
+                    {
+                      name: '下僕4人',
+                      hit_count: 10,
+                      target_type: 'Single',
+                      sp_cost: 0,
+                      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' }],
+                    },
+                    {
+                      name: '下僕5人',
+                      hit_count: 10,
+                      target_type: 'Single',
+                      sp_cost: 0,
+                      parts: [
+                        { skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' },
+                        {
+                          skill_type: 'Funnel',
+                          target_type: 'Self',
+                          power: [3, 0],
+                          value: [0.25, 0],
+                          hits: [{ id: 1, type: 'Before', power_ratio: 0 }],
+                          effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                        },
+                      ],
+                    },
+                    {
+                      name: '下僕6人',
+                      hit_count: 10,
+                      target_type: 'Single',
+                      sp_cost: 0,
+                      parts: [
+                        { skill_type: 'AttackSkill', target_type: 'Single', type: 'Stab' },
+                        {
+                          skill_type: 'Funnel',
+                          target_type: 'Self',
+                          power: [3, 0],
+                          value: [0.25, 0],
+                          hits: [{ id: 1, type: 'Before', power_ratio: 0 }],
+                          effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                        },
+                        {
+                          skill_type: 'Funnel',
+                          target_type: 'Self',
+                          power: [3, 0],
+                          value: [0.25, 0],
+                          hits: [{ id: 2, type: 'Before', power_ratio: 0 }],
+                          effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  for (const member of state.party) {
+    member.applySpecialStatus(155, 0, 'Eternal', {});
+  }
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+  assert.equal(action.skillFunnelHitBonus, 6);
+  assert.equal(action.skillHitCount, 16);
+
+  const { nextState, committedRecord } = commitTurn(state, preview);
+  const committed = findActionByCharacterId(committedRecord, 'M1');
+  assert.equal(committed.odGaugeGain, 45.92);
+  assert.equal(committed.damageContext.funnelHitBonus, 6);
+  assert.equal(nextState.party[0].getFunnelEffects({ activeOnly: true }).length, 0);
+});
+
 test('T12b: EternalOath(124) + エンゲージリンク — AllyAll+target_conditionで誓い状態のメンバーのみSP+1', () => {
   // 実際のエンゲージリンク (清廉なるニヴェースタ) のデータを模倣:
   //   condition: IsFront() && CountBC(IsPlayer() && SpecialStatusCountByType(124)>0)>0

@@ -294,7 +294,7 @@ const STAGE_SETUP_PASSIVE_SOURCE_TYPE = 'stage_setup';
 const PASSIVE_ACTION_ORDER = Object.freeze([1, 0, 2, 3, 4, 5]);
 const EXTRA_ACTIVATION_STATUS_TYPE = 20;
 const CONDITION_WHITESPACE_RE = /\s+/g;
-const PASSIVE_VARIANT_THRESHOLD_RE = /[:：]\s*(\d+)人/;
+const PASSIVE_VARIANT_THRESHOLD_RE = /(?:[:：]\s*)?(?:下僕|しもべ)?\s*(\d+)人/;
 const CONDITION_COMPARISON_OP_PATTERN = String.raw`(==|!=|>=|<=|>|<)`;
 const CONDITION_INTEGER_PATTERN = String.raw`(-?\d+)`;
 const CONDITION_NUMERIC_PATTERN = String.raw`(-?\d+(?:\.\d+)?)`;
@@ -6525,6 +6525,26 @@ function extractPlayedSkillCountValue(condExpression, member, skill) {
   return Number(member?.getSkillUseCountByLabel(ref) ?? 0);
 }
 
+function isBeforeSelfFunnelPart(part) {
+  if (String(part?.skill_type ?? '') !== 'Funnel') {
+    return false;
+  }
+  if (String(part?.target_type ?? '') !== 'Self') {
+    return false;
+  }
+  return (part?.hits ?? []).some((hit) => String(hit?.type ?? '') === 'Before');
+}
+
+function resolveImmediateSelfFunnelHitBonus(skill) {
+  return (skill?.parts ?? []).reduce((sum, part) => {
+    if (!isBeforeSelfFunnelPart(part)) {
+      return sum;
+    }
+    const hitBonus = Number(part?.power?.[0] ?? 0);
+    return sum + (Number.isFinite(hitBonus) && hitBonus > 0 ? hitBonus : 0);
+  }, 0);
+}
+
 function resolveEffectiveSkillVariant(skill, state, member) {
   const recurse = (skillLike) => {
     const fallbackParts = Array.isArray(skillLike?.parts) ? skillLike.parts : [];
@@ -6561,8 +6581,24 @@ function resolveEffectiveSkillVariant(skill, state, member) {
       if (playedCount !== null && variants.length > 2) {
         selected = variants[Math.min(playedCount, variants.length - 1)];
       } else {
-        const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
-        selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
+        const countBc = evaluateCountBcValue(part?.cond, state, member);
+        const thresholded = countBc.known
+          ? variants
+              .map((variant) => ({
+                variant,
+                threshold: inferPassiveVariantThreshold(variant),
+              }))
+              .filter((entry) => Number.isFinite(entry.threshold))
+          : [];
+        if (thresholded.length > 0) {
+          thresholded.sort((a, b) => Number(b.threshold) - Number(a.threshold));
+          selected =
+            thresholded.find((entry) => Number(countBc.value) >= Number(entry.threshold))
+              ?.variant ?? variants[0];
+        } else {
+          const conditionMatched = evaluateSkillConditionExpression(part?.cond, state, member, skill);
+          selected = conditionMatched ? variants[0] : variants[1] ?? variants[0];
+        }
       }
       const nested = recurse(selected);
       const inheritedConsumeType =
@@ -7735,10 +7771,15 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       ? resolveMindEyeCompetitionForAction(member, actionContext, { buffMetadataValidation })
       : { selectedEffects: [], selectedCountEffectIds: [] };
     const funnelEffects = funnelResolution.selectedEffects.slice(0, 2);
-    const funnelHitBonus = funnelEffects.reduce(
+    const resolvedFunnelHitBonus = funnelEffects.reduce(
       (sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)),
       0
     );
+    const actionFunnelHitBonus = Number(actionEntry?.skillFunnelHitBonus ?? NaN);
+    const recomputedFunnelHitBonus = resolvedFunnelHitBonus + resolveImmediateSelfFunnelHitBonus(skill);
+    const funnelHitBonus = Number.isFinite(actionFunnelHitBonus)
+      ? Math.max(0, actionFunnelHitBonus, recomputedFunnelHitBonus)
+      : recomputedFunnelHitBonus;
     const baseHitCount = resolveSkillHitCount(skill);
     const effectiveHitCountPerEnemy = resolveActionHitCount(skill, {
       forOd: true,
@@ -8234,15 +8275,16 @@ function resolveEffectivePreviewHitCount(skill, state, member) {
   const baseHitCount = resolveSkillHitCount(skill);
   const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
   const hasDamage = hasDamagePartInParts(effectiveParts);
+  const immediateSelfFunnelHitBonus = resolveImmediateSelfFunnelHitBonus(skill);
   if (!hasDamage) {
     return {
       baseHitCount,
-      funnelHitBonus: 0,
-      effectiveHitCount: baseHitCount,
+      funnelHitBonus: immediateSelfFunnelHitBonus,
+      effectiveHitCount: baseHitCount + immediateSelfFunnelHitBonus,
     };
   }
 
-  const funnelHitBonus = resolveFunnelHitBonusForMember(member, 2);
+  const funnelHitBonus = resolveFunnelHitBonusForMember(member, 2) + immediateSelfFunnelHitBonus;
   return {
     baseHitCount,
     funnelHitBonus,
@@ -8499,7 +8541,7 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
 
     const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
     for (const part of effectiveParts) {
-      if (String(part?.skill_type ?? '') !== 'Funnel') {
+      if (String(part?.skill_type ?? '') !== 'Funnel' || isBeforeSelfFunnelPart(part)) {
         continue;
       }
       const conditionSkill = createConditionSkillContext(skill, part);

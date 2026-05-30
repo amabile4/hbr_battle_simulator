@@ -324,6 +324,7 @@
   - DP 0 / Break を再現したいケースは、現状はユーザー手入力で `currentDp=0` を入れる前提
   - `AttackByOwnDpRate` は preview / record の `damageContext` に「行動開始時 DP 比率」と解決 multiplier を残す
   - `SkillCondition` 分岐後の実スキルを行動 entry に snapshot して、OD増加・DP変化・Funnel などの後段処理でも同じ分岐結果を使う
+  - 2026-05-31: `メガデストロイヤー` のような `CountBC(...SpecialStatusCountByType(155)...)` 多段分岐は、派生名の人数しきい値で正しい 1〜6 人版を選択し、同一行動内の `Before` / `Self` Funnel を OD hit 数へ反映する
   - 行動後 DP を同じ commit 内で見られるのは boundary timing に限られる
     - `OnAdditionalTurnStart` / `OnEnemyTurnStart` / `OnBattleWin` は行動後状態を見て評価できる
     - `OnEveryTurn` / `OnPlayerTurnStart` は次ターン開始用として `nextState.turnState.passiveEventsLastApplied` に保持し、前ターンの `committedRecord.passiveEvents` には混ぜない
