@@ -34,6 +34,10 @@ import {
 import { mountPngCaptureSandbox } from './utils/png-capture.js';
 import { buildEnemyList } from './utils/enemy-list.js';
 import { buildReplaySetupFromPartySnapshot } from './utils/replay-setup.js';
+import {
+  createJsonDataCacheContext,
+  fetchJsonWithCache,
+} from './utils/json-cache.js';
 
 const UI_NEXT_READY_FLAG_KEY = '__UI_NEXT_READY__';
 const UI_NEXT_BOOT_METRICS_KEY = '__UI_NEXT_BOOT_METRICS__';
@@ -74,32 +78,18 @@ function createBootProfiler() {
   };
 }
 
-// Cache API キャッシュバージョン。JSON データを更新したらここを上げて強制リフレッシュ。
-const HBR_CACHE_VERSION = 'hbr-data-v1';
+let jsonDataCacheContextPromise = null;
+
+function getJsonDataCacheContext() {
+  if (!jsonDataCacheContextPromise) {
+    jsonDataCacheContextPromise = createJsonDataCacheContext();
+  }
+  return jsonDataCacheContextPromise;
+}
 
 async function fetchJson(path) {
-  if (window.location.protocol === 'file:') {
-    const url = new URL(path, import.meta.url).href;
-    const module = await import(url, { with: { type: 'json' } });
-    return module.default;
-  }
-  const url = new URL(path, location.href).href;
-  if ('caches' in window) {
-    const cache = await caches.open(HBR_CACHE_VERSION);
-    const cached = await cache.match(url);
-    if (cached) return cached.json();
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${path}: ${response.status}`);
-    }
-    await cache.put(url, response.clone());
-    return response.json();
-  }
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${path}: ${response.status}`);
-  }
-  return response.json();
+  const cacheContext = await getJsonDataCacheContext();
+  return fetchJsonWithCache(path, cacheContext);
 }
 
 async function fetchJsonOrFallback(path, fallback) {

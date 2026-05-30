@@ -87,17 +87,19 @@
 ### P02: Cache API による JSON キャッシュ ★2回目以降を瞬時化
 
 - [x] `app.js` の `fetchJson()` を Cache API ラッパーに差し替える
-  - `caches.open('hbr-data-v1')` でキャッシュストアを開く
+  - `json/_sync_metadata.json` の `generated_at` を含むCache API名でキャッシュストアを開く
   - cache hit 時は `cache.match()` から即時返却
   - cache miss 時は fetch して `cache.put()` で保存
-- [x] キャッシュキー（バージョン文字列）を定数として管理し、JSON更新時に上げる運用にする
+- [x] JSON同期メタデータ更新時にキャッシュキーが自動で変わる運用にする
+- [x] `_sync_metadata.json` はCache APIに保存せず `cache: 'no-store'` で取得し、古い `hbr-data-*` キャッシュを削除する
 - [ ] 動作確認: 初回ロード後にオフラインでリロードしても表示されること
 
 完了条件:
 - [ ] 2回目以降のロードで Network タブに JSON fetch が出ない（キャッシュから配信）
-- [ ] `hbr-data-v1` → `hbr-data-v2` にキャッシュキーを変えると強制リフレッシュされる
+- [x] `_sync_metadata.json` の `generated_at` が変わると強制リフレッシュされる
 
 > ✅ P02 完了（2026-03-29）: `app.js` に `HBR_CACHE_VERSION = 'hbr-data-v1'` 定数を追加し、`fetchJson()` を Cache API ラッパーに変更。`file:` プロトコル時は既存 `import()` パスを維持。Response は `.clone()` してキャッシュ保存。
+> 🔁 P02 更新（2026-05-31）: seraphdb同期時に転記される `json/_sync_metadata.json` を起動時に `cache: 'no-store'` で取得し、`generated_at` を含む `hbr-data-v2-*` キャッシュ名へ移行。同期メタデータが更新されたら JSON キャッシュが自動的に切り替わり、古い `hbr-data-*` キャッシュを削除する。
 
 **工数**: 30〜60分 / **効果**: 2回目以降のロードがほぼ瞬時（< 500ms）
 
