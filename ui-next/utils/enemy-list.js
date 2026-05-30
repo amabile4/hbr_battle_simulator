@@ -31,6 +31,7 @@ const NORMAL_ENEMY_CATEGORY_DEFINITIONS = Object.freeze([
     key: 'normal:dimension-ex',
     label: '異時層EX',
     dedupeByName: false,
+    sortOrder: 'firstSeenDateAsc',
     match(enemy) {
       const label = String(enemy?.label ?? '');
       return DIMENSION_EX_ENEMY_PATTERN.test(label);
@@ -153,6 +154,16 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
     }
     return (left?.name ?? '').localeCompare(right?.name ?? '', 'ja');
   };
+  const compareByFirstSeenDateThenId = (left, right) => {
+    const leftTime = new Date(left?.in_date ?? '').getTime();
+    const rightTime = new Date(right?.in_date ?? '').getTime();
+    const normalizedLeftTime = Number.isNaN(leftTime) ? Number.POSITIVE_INFINITY : leftTime;
+    const normalizedRightTime = Number.isNaN(rightTime) ? Number.POSITIVE_INFINITY : rightTime;
+    if (normalizedLeftTime !== normalizedRightTime) {
+      return normalizedLeftTime - normalizedRightTime;
+    }
+    return Number(left?.id ?? 0) - Number(right?.id ?? 0);
+  };
   const resolveDisplayEnemyName = (enemy) =>
     ENEMY_PRESET_DISPLAY_NAME_BY_LABEL[String(enemy?.label ?? '')] ?? enemy.name;
 
@@ -203,7 +214,11 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
     const categoryEnemies = (definition.dedupeByName === false
       ? matchedEnemies
       : dedupeEnemiesByNameKeepingHighestId(matchedEnemies)
-    ).sort(compareByMonthThenName);
+    ).sort(
+      definition.sortOrder === 'firstSeenDateAsc'
+        ? compareByFirstSeenDateThenId
+        : compareByMonthThenName
+    );
     categoryEnemies.forEach((enemy) => consumedEnemyIds.add(enemy.id));
     normalCategoryList.push(
       ...categoryEnemies.map((enemy) => mapEnemy(enemy, definition.key, definition.label))

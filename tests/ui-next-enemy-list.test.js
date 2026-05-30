@@ -364,10 +364,10 @@ test('buildEnemyList places 異時層EX after templates and keeps EX battle vari
   assert.deepEqual(
     dimensionExEntries.map((enemy) => [enemy.id, enemy.name]),
     [
-      [513, 'レッドクリムゾンEX'],
-      [512, 'ロータリーモールEX'],
       [510, 'デススラッグEX 第一形態'],
       [511, 'デススラッグEX 第二形態'],
+      [512, 'ロータリーモールEX'],
+      [513, 'レッドクリムゾンEX'],
     ],
   );
   assert.equal(dimensionExEntries.every((enemy) => enemy.categoryKey === 'normal:dimension-ex'), true);
