@@ -20,8 +20,18 @@ const ENEMY_PRESET_ELEMENT_KEYS = Object.freeze([
   'nonelement',
 ]);
 const DIMENSION_X_NORMAL_ENEMY_PATTERN = /^Dimension_\d+_X_/;
+const DIMENSION_EX_ENEMY_PATTERN = /^Dimension_\d+_EX\d+_/;
 const SUMMON_ENEMY_LABEL_SUFFIX = '_Summon';
 const NORMAL_ENEMY_CATEGORY_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    key: 'normal:dimension-ex',
+    label: '異時層EX',
+    dedupeByName: false,
+    match(enemy) {
+      const label = String(enemy?.label ?? '');
+      return DIMENSION_EX_ENEMY_PATTERN.test(label);
+    },
+  }),
   Object.freeze({
     key: 'normal:stellar-sweepfront',
     label: '恒星掃戦線',
@@ -181,8 +191,12 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
 
   const normalCategoryList = [];
   for (const definition of NORMAL_ENEMY_CATEGORY_DEFINITIONS) {
-    const categoryEnemies = dedupeEnemiesByNameKeepingHighestId(
-      rawEnemies.filter((enemy) => !consumedEnemyIds.has(enemy.id) && definition.match(enemy))
+    const matchedEnemies = rawEnemies.filter(
+      (enemy) => !consumedEnemyIds.has(enemy.id) && definition.match(enemy)
+    );
+    const categoryEnemies = (definition.dedupeByName === false
+      ? matchedEnemies
+      : dedupeEnemiesByNameKeepingHighestId(matchedEnemies)
     ).sort(compareByMonthThenName);
     categoryEnemies.forEach((enemy) => consumedEnemyIds.add(enemy.id));
     normalCategoryList.push(

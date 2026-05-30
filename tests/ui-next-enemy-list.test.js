@@ -301,3 +301,57 @@ test('buildEnemyList exposes 恒星掃戦線 as category metadata and dedupes hi
   assert.equal(result.some((enemy) => enemy.id === 411), false);
   assert.equal(result.some((enemy) => enemy.id === 413), false);
 });
+
+test('buildEnemyList places 異時層EX after templates and keeps EX stage variants', () => {
+  const enemies = [
+    makeEnemy({
+      id: PINNED_INITIAL_SETUP_ENEMY.id,
+      name: PINNED_INITIAL_SETUP_ENEMY.name,
+      label: 'Dimension_01_X_RedCrimson',
+      in_date: '2023-06-24',
+    }),
+    makeEnemy({
+      id: 510,
+      name: 'エネルギーピットε',
+      label: 'Dimension_03_EX1_DeathSlugWhiteBit',
+      in_date: '2023-12-22',
+      is_boss: false,
+    }),
+    makeEnemy({
+      id: 511,
+      name: '[強化変種]ミーティアホーン',
+      label: 'Dimension_09_EX1_CatHornMeteor_Summon',
+      in_date: '2025-08-10',
+      is_boss: false,
+    }),
+    makeEnemy({
+      id: 512,
+      name: '[強化変種]ミーティアホーン',
+      label: 'Dimension_09_EX2_CatHornMeteor_Summon',
+      in_date: '2025-08-10',
+      is_boss: false,
+    }),
+    makeEnemy({
+      id: 520,
+      name: '変貌を重ねる不滅の円環',
+      label: 'Dimension_09_X_KaleidoOuroboros',
+      in_date: '2025-08-10',
+    }),
+    makeEnemy({
+      id: 530,
+      name: '4月ボス',
+      in_date: '2026-04-05',
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'));
+  const categoryLabels = [...new Set(result.map((enemy) => enemy.categoryLabel))];
+  const dimensionExEntries = result.filter((enemy) => enemy.categoryLabel === '異時層EX');
+
+  assert.deepEqual(categoryLabels.slice(0, 4), ['テンプレート', '異時層EX', '恒星掃戦線', '2026年4月']);
+  assert.deepEqual(
+    dimensionExEntries.map((enemy) => enemy.id),
+    [511, 512, 510],
+  );
+  assert.equal(dimensionExEntries.every((enemy) => enemy.categoryKey === 'normal:dimension-ex'), true);
+});
