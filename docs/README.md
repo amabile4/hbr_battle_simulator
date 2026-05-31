@@ -93,6 +93,7 @@ docs/
 | [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
 | [specs/dev_principles.md](specs/dev_principles.md) | 開発原則：バグ切り分け・UI/エンジン責務境界・安易な実装禁止事項・新UI設計指針（原則1〜5） | 2026-03-16 |
 | [specs/ui_next_game_rules_index.md](specs/ui_next_game_rules_index.md) | UI Next 旧実装参照インデックス：旧UIファイル構造・spec要素対応表・エンジン層ゲームルール辞書（A〜E カテゴリ） | 2026-03-16 |
+| [specs/damage_breakdown_design.md](specs/damage_breakdown_design.md) | 威力増加ブレイクダウンパネルのHTML/CSS設計書。画像効果値まとめに準拠した2列グループ構成。 | 2026-05-31 |
 
 ---
 
