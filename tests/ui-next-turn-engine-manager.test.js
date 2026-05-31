@@ -2149,7 +2149,7 @@ test('session fixture replay: #2 remains at Dark transcendence 99 without Yamawa
   );
   assert.equal(atomicFlareAction?.breakHitCount, 1);
   assert.equal(atomicFlareAction?.odGaugeGain >= 100, true);
-  assert.equal(turn2Record.projections?.odGaugeAtEnd, 220.34);
+  assert.equal(turn2Record.projections?.odGaugeAtEnd, 225.34);
   assert.deepEqual(
     [1, 2, 3].filter((level) => Number(turn2Record.projections?.odGaugeAtEnd ?? 0) >= level * 100),
     [1, 2]

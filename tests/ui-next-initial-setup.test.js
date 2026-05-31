@@ -1016,7 +1016,10 @@ test('InitialSetupController 全体初期化 resets party, enemy, and stage setu
     win.confirm = () => true;
 
     root
-      .querySelector('[data-action="reset-all-setup"]')
+      .querySelector('[data-action="toggle-party-manage"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    win.document
+      .querySelector('[data-role="party-manage-menu"] [data-action="reset-all-setup"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     const snapshot = controller.getCurrentSetupSnapshot();
@@ -1066,7 +1069,10 @@ test('InitialSetupController 全体初期化 keeps current setup when confirmati
     win.confirm = () => false;
 
     root
-      .querySelector('[data-action="reset-all-setup"]')
+      .querySelector('[data-action="toggle-party-manage"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    win.document
+      .querySelector('[data-role="party-manage-menu"] [data-action="reset-all-setup"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
     const snapshot = controller.getCurrentSetupSnapshot();
