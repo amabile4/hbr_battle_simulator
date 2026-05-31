@@ -37,9 +37,9 @@
 
 | 要素 | フィールド | 分類 | 備考 |
 |---|---|---|---|
-| 全能力ダウン合算値 | `enemyAllAbilityDownByEnemy` | **A** | `buildEnemyAllAbilityPenaltyMaps` 内で Talisman / Disaster のうち高い方を採用した合算値。debuff 枠に直接追加可能。**注意**: percent 形式（例: 30 = 30%）なので contribution.value へ渡す際は `/100` する |
-| タリスマンレベル | `enemyTalismanLevelByEnemy` | **C** | `enemyAllAbilityDownByEnemy` に Talisman が既に含まれており内訳として重複する。レベル数値→能力ダウン率の換算が別途必要なため、合算値表示で代替する |
-| 災難レベル | `enemyDisasterLevelByEnemy` | **C** | 同上。Talisman/Disaster のうち高い方のみが採用されるため、合算値 `enemyAllAbilityDownByEnemy` で代替する |
+| 全能力ダウン合算値 | `enemyAllAbilityDownByEnemy` | **B** | `buildEnemyAllAbilityPenaltyMaps` 内で Talisman / Disaster のうち高い方を採用した合算値。効果は敵の防御ステータスを-N引き下げるもので、倍率ではない。ステータス差分計算に攻撃側ATK・防御側DEFの絶対値が必要なため、現時点では計算不可 |
+| タリスマンレベル | `enemyTalismanLevelByEnemy` | **B** | 全能力ダウンの source level として `damageContext` に保持済み。絶対ステータス追跡と差分計算の実装後に内訳表示を再検討する |
+| 災難レベル | `enemyDisasterLevelByEnemy` | **B** | 同上。Talisman/Disaster のうち高い方のみが採用されるため、将来の差分計算では `enemyAllAbilityDownByEnemy` と併せて扱う |
 
 ## 4. DP条件詳細
 
@@ -83,7 +83,6 @@
 - [x] `foodBuffAttackUpRate` → buff 枠に「食事バフ攻撃力」として追加（`damageBreakdownInput` に渡し、`collectAttackBuffContributions` で個別処理）
 - [x] `highBoostSkillAtkRate` → buff 枠に「ハイブースト」として追加（ラベル固定）
 - [x] `damageRateUpPerTokenRate` → token-passive 枠に「トークン連動ダメージアップ」として追加
-- [x] `enemyAllAbilityDownByEnemy` → debuff 枠に「全能力ダウン」として追加（`/100` 変換を忘れずに）
 
 ### Priority 2（設計確定後）
 
@@ -91,7 +90,8 @@
 
 - [ ] `markDestructionRateGainBonusRate` → 破壊率追跡機能の実装後に「印Lv3 破壊率上昇量」として威力詳細へ追加（WIP: `DESTRUCTION_RATE_GAIN_SKILL_TYPE_PATTERN` / `hasDestructionRateGainPartInParts` は足場として残存）
 - [ ] `highBoostSkillAtkRate` の source 付き contribution 化 → `resolveHighBoostModifiersForMember` が sourceSkillName を返せるよう改修後
-- [ ] タリスマン・災難の内訳表示（任意）→ `enemyAllAbilityDownByEnemy` の内訳として level/rate 変換設計後
+- [ ] `enemyAllAbilityDownByEnemy` → 攻撃側ATK・防御側DEFの絶対値追跡とステータス差分計算の実装後に debuff 枠へ追加
+- [ ] タリスマン・災難の内訳表示（任意）→ 全能力ダウンの差分計算設計後
 
 ### Priority 3（将来対応）
 
@@ -105,6 +105,6 @@
 ## 協議記録（2026-05-31）
 
 - `attackUpRate` はスキルバフ AttackUp / markAttackUp / attackUpPerToken / babied / diva / food の **合算値** であり、これをそのまま表示すると既表示済み項目との二重計上が発生する。表示対象から除外することを Claude / Codex 双方で確認。
-- `enemyAllAbilityDownByEnemy` は `buildEnemyAllAbilityPenaltyMaps` 内で Talisman / Disaster のうち高い方を採用した合算値。Talisman と Disaster を個別に加算しない方針。
+- `enemyAllAbilityDownByEnemy` は `buildEnemyAllAbilityPenaltyMaps` 内で Talisman / Disaster のうち高い方を採用した合算値。これは倍率ではなく敵の防御ステータスを-N引き下げる値であり、攻撃側ATK・防御側DEFの絶対値がない現状では威力詳細に表示しない。
 - `markDestructionRateGainBonusRate` は印Lv3の**破壊率上昇量**（+10%）であり、ダメージ倍率ではないことをユーザーが確認（2026-05-31）。現在は `damageContext` に値を保持するのみで威力詳細には表示しない。将来の破壊率追跡実装時に備え `DESTRUCTION_RATE_GAIN_SKILL_TYPE_PATTERN` / `hasDestructionRateGainPartInParts` を WIP コメント付きで残存。
 - `defenseUpRate` が攻撃ダメージ倍率に影響しないことをコードレベルで確認済み。

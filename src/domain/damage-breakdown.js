@@ -442,24 +442,6 @@ function collectEnemyStatusContributions(input, targetContext, statusTypes) {
     .map((status) => createRateContribution(status));
 }
 
-function collectAllAbilityDownContribution(input, targetContext) {
-  const rawValue = toFiniteNumber(
-    input?.enemyAllAbilityDownByEnemy?.[String(targetContext.targetEnemyIndex)],
-    0
-  );
-  const value = rawValue / 100;
-  if (value === 0) {
-    return [];
-  }
-  return [
-    createStaticContribution({
-      label: '全能力ダウン',
-      value,
-      iconStatusType: 'DefenseDown',
-    }),
-  ];
-}
-
 function collectAffinityContributions(input, targetContext) {
   const explicit = cloneArray(input?.affinityContributionsByEnemy?.[String(targetContext.targetEnemyIndex)]);
   if (explicit.length > 0) {
@@ -508,7 +490,7 @@ function buildGroupsForTarget(input, targetContext) {
     input,
     targetContext,
     new Set(['DefenseDown', 'Fragile'])
-  ).concat(collectAllAbilityDownContribution(input, targetContext));
+  );
   const resistDown = collectEnemyStatusContributions(
     input,
     targetContext,

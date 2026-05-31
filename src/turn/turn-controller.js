@@ -8025,7 +8025,6 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
         attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
-        enemyAllAbilityDownByEnemy: allAbilityDownMaps.enemyAllAbilityDownByEnemy,
         zoneType: zoneMatchForDamageContext.zoneState?.type ?? '',
         zonePowerRate: zoneMatchForDamageContext.matched
           ? Number(zoneMatchForDamageContext.zoneState?.powerRate ?? 0)
@@ -8098,6 +8097,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         zonePowerRate: zoneMatchForDamageContext.matched
           ? Number(zoneMatchForDamageContext.zoneState?.powerRate ?? 0)
           : 0,
+        // WIP: 全能力ダウン（タリスマン/霊符・禍）は敵の防御ステータスを-N引き下げる効果。
+        // ダメージ計算には自身の攻撃ステータスと敵の防御ステータスの差分が必要なため、
+        // 現時点では威力詳細への表示対象外。将来の絶対ステータス追跡実装時に有効化する。
         enemyTalismanLevelByEnemy: allAbilityDownMaps.enemyTalismanLevelByEnemy,
         enemyDisasterLevelByEnemy: allAbilityDownMaps.enemyDisasterLevelByEnemy,
         enemyAllAbilityDownByEnemy: allAbilityDownMaps.enemyAllAbilityDownByEnemy,
