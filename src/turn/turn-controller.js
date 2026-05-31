@@ -8040,7 +8040,7 @@ function resolveSupportTargetCharacterIds(
 
 function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
   const countLimit = Math.max(0, Number(options.countLimit ?? 0));
-  const groupOnlyByDuration = Boolean(options.groupOnlyByDuration);
+  const groupOnlyByOnlyGroup = Boolean(options.groupOnlyByOnlyGroup);
   const normalized = Array.isArray(effects) ? effects : [];
   const active = normalized.filter(
     (effect) => Number(effect?.remaining ?? 0) > 0 || String(effect?.exitCond ?? '') === 'Eternal'
@@ -8054,12 +8054,12 @@ function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
     (effect) => String(effect?.limitType ?? '') !== 'Only' && String(effect?.exitCond ?? '') === 'Count'
   );
 
-  const onlyWinners = groupOnlyByDuration
-    ? pickTopOnlyStatusEffectsByDuration(onlyCandidates)
+  const onlyWinners = groupOnlyByOnlyGroup
+    ? pickTopOnlyStatusEffectsByOnlyGroup(onlyCandidates)
     : pickTopStatusEffectsByPower(onlyCandidates, 1);
   const bestOnly = onlyWinners[0] ?? null;
   const topCount = pickTopStatusEffectsByPower(countCandidates, countLimit);
-  const onlyPower = groupOnlyByDuration
+  const onlyPower = groupOnlyByOnlyGroup
     ? onlyWinners.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0)
     : bestOnly ? Number(bestOnly?.power ?? 0) : 0;
   const countPower = topCount.reduce((sum, effect) => sum + Number(effect?.power ?? 0), 0);
@@ -8075,22 +8075,29 @@ function resolveCountOnlyCompetitionForEffects(effects, options = {}) {
   };
 }
 
-function pickTopOnlyStatusEffectsByDuration(effects) {
-  const winnersByDuration = new Map();
+function pickTopOnlyStatusEffectsByOnlyGroup(effects) {
+  const winnersByOnlyGroup = new Map();
   for (const effect of Array.isArray(effects) ? effects : []) {
-    const durationKey = createStatusEffectDurationCompetitionKey(effect);
-    const current = winnersByDuration.get(durationKey);
+    const onlyGroupKey = createStatusEffectOnlyCompetitionKey(effect);
+    const current = winnersByOnlyGroup.get(onlyGroupKey);
     if (!current || compareStatusEffectsByPowerDesc(effect, current) < 0) {
-      winnersByDuration.set(durationKey, effect);
+      winnersByOnlyGroup.set(onlyGroupKey, effect);
     }
   }
-  return [...winnersByDuration.values()].sort(compareStatusEffectsByPowerDesc);
+  return [...winnersByOnlyGroup.values()].sort(compareStatusEffectsByPowerDesc);
 }
 
-function createStatusEffectDurationCompetitionKey(effect) {
-  const exitCond = String(effect?.exitCond ?? '').trim() || 'None';
-  const remaining = Number(effect?.remaining ?? 0);
-  return `${exitCond}|${Number.isFinite(remaining) ? remaining : 0}`;
+function createStatusEffectOnlyCompetitionKey(effect) {
+  const sourceType = String(effect?.sourceType ?? 'skill') === 'passive' ? 'passive' : 'skill';
+  const explicit = String(effect?.metadata?.onlyGroupKey ?? '').trim();
+  if (explicit) {
+    return `${sourceType}|${explicit}`;
+  }
+  const effectName = String(effect?.metadata?.effectName ?? '').trim();
+  const elements = Array.isArray(effect?.elements)
+    ? [...new Set(effect.elements.map((value) => String(value ?? '').trim()).filter(Boolean))].sort()
+    : [];
+  return `${sourceType}|${effectName}|${elements.join(',')}`;
 }
 
 function resolveActionContextTypeForSkill(skill) {
@@ -8185,7 +8192,7 @@ function resolveFunnelCompetitionForAction(member, actionContext = null, options
   }
   return evaluateCompetitiveConsumption(member.getFunnelEffects({ activeOnly: true }), actionContext, {
     countLimit: 2,
-    groupOnlyByDuration: true,
+    groupOnlyByOnlyGroup: true,
     ...options,
   });
 }

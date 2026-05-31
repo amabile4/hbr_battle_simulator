@@ -11185,6 +11185,182 @@ test('Funnel: Only vs Count(上位2)で勝者を採用し、採用されたCount
   assert.equal(remainingIds.has(ONLY_ID), true);
 });
 
+test('Funnel: 同一skill由来Onlyは残ターン違いでも最強1件だけ採用する', () => {
+  const ONLY_LONG_ID = 9304;
+  const ONLY_SHORT_ID = 9305;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: ONLY_SHORT_ID,
+              statusType: 'Funnel',
+              limitType: 'Only',
+              exitCond: 'PlayerTurnEnd',
+              remaining: 2,
+              power: 3,
+              sourceType: 'skill',
+              sourceSkillId: 46004121,
+            },
+            {
+              effectId: ONLY_LONG_ID,
+              statusType: 'Funnel',
+              limitType: 'Only',
+              exitCond: 'PlayerTurnEnd',
+              remaining: 3,
+              power: 3,
+              sourceType: 'skill',
+              sourceSkillId: 46004121,
+            },
+          ],
+          skills: [
+            {
+              id: 25243,
+              name: 'Funnel Only Slash',
+              label: 'FunnelOnlySlash25243',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25243, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+
+  assert.equal(action.skillFunnelHitBonus, 3);
+  const { committedRecord } = commitTurn(state, preview);
+  const committed = findActionByCharacterId(committedRecord, 'M1');
+  assert.deepEqual(
+    committed.damageContext.funnelEffects.map((effect) => Number(effect.effectId)),
+    [ONLY_LONG_ID]
+  );
+});
+
+test('Funnel: skill由来Onlyとpassive由来Onlyは別枠で共存する', () => {
+  const SKILL_ONLY_ID = 9306;
+  const PASSIVE_ONLY_ID = 9307;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: SKILL_ONLY_ID,
+              statusType: 'Funnel',
+              limitType: 'Only',
+              exitCond: 'PlayerTurnEnd',
+              remaining: 2,
+              power: 3,
+              sourceType: 'skill',
+            },
+            {
+              effectId: PASSIVE_ONLY_ID,
+              statusType: 'Funnel',
+              limitType: 'Only',
+              exitCond: 'Eternal',
+              remaining: 0,
+              power: 2,
+              sourceType: 'passive',
+            },
+          ],
+          skills: [
+            {
+              id: 25244,
+              name: 'Funnel Skill Passive Slash',
+              label: 'FunnelSkillPassiveSlash25244',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25244, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+
+  assert.equal(action.skillFunnelHitBonus, 5);
+  const { committedRecord } = commitTurn(state, preview);
+  const committed = findActionByCharacterId(committedRecord, 'M1');
+  assert.deepEqual(
+    committed.damageContext.funnelEffects.map((effect) => Number(effect.effectId)).sort((a, b) => a - b),
+    [SKILL_ONLY_ID, PASSIVE_ONLY_ID]
+  );
+});
+
+test('Funnel: Only勝ちの場合はCount候補を消費しない', () => {
+  const COUNT_A_ID = 9308;
+  const COUNT_B_ID = 9309;
+  const ONLY_ID = 9310;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_A_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.4,
+            },
+            {
+              effectId: COUNT_B_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.3,
+            },
+            {
+              effectId: ONLY_ID,
+              statusType: 'Funnel',
+              limitType: 'Only',
+              exitCond: 'PlayerTurnEnd',
+              remaining: 2,
+              power: 0.8,
+            },
+          ],
+          skills: [
+            {
+              id: 25245,
+              name: 'Funnel Only Wins Slash',
+              label: 'FunnelOnlyWinsSlash25245',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25245, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'M1');
+  assert.equal(action.skillFunnelHitBonus, 0.8);
+
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const committed = findActionByCharacterId(committedRecord, 'M1');
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+  const remainingIds = new Set(actor.getFunnelEffects({ activeOnly: true }).map((effect) => Number(effect.effectId)));
+
+  assert.deepEqual(committed.consumedFunnelEffects ?? [], []);
+  assert.equal(remainingIds.has(COUNT_A_ID), true);
+  assert.equal(remainingIds.has(COUNT_B_ID), true);
+});
+
 test('MindEye: Only vs Count(上位2)で勝者を採用し、採用されたCount側のみを消費する', () => {
   const COUNT_A_ID = 9311;
   const COUNT_B_ID = 9312;

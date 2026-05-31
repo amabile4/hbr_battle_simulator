@@ -195,6 +195,66 @@ test('evaluateCompetitiveConsumptionはCount勝ちの selectedCountEffectIds を
   assert.deepEqual(result.selectedCountEffectIds, [21, 22]);
 });
 
+test('evaluateCompetitiveConsumptionはOnlyを残ターンではなく単独発動グループで競合させる', () => {
+  const shortOnly = createEffect({
+    effectId: 51,
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 2,
+    power: 3,
+    sourceType: 'skill',
+  });
+  const longOnly = createEffect({
+    effectId: 52,
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 3,
+    power: 3,
+    sourceType: 'skill',
+  });
+  const actionContext = buildActionContext('Skill', {
+    parts: [{ skill_type: 'AttackSkill' }],
+  });
+
+  const result = evaluateCompetitiveConsumption([shortOnly, longOnly], actionContext, {
+    countLimit: 2,
+    groupOnlyByOnlyGroup: true,
+  });
+
+  assert.deepEqual(result.selectedEffects.map((effect) => Number(effect.effectId)), [52]);
+  assert.deepEqual(result.selectedCountEffectIds, []);
+});
+
+test('evaluateCompetitiveConsumptionはskill由来Onlyとpassive由来Onlyを別枠にする', () => {
+  const skillOnly = createEffect({
+    effectId: 61,
+    limitType: 'Only',
+    exitCond: 'PlayerTurnEnd',
+    remaining: 2,
+    power: 3,
+    sourceType: 'skill',
+  });
+  const passiveOnly = createEffect({
+    effectId: 62,
+    limitType: 'Only',
+    exitCond: 'Eternal',
+    remaining: 0,
+    power: 2,
+    sourceType: 'passive',
+  });
+  const actionContext = buildActionContext('Skill', {
+    parts: [{ skill_type: 'AttackSkill' }],
+  });
+
+  const result = evaluateCompetitiveConsumption([skillOnly, passiveOnly], actionContext, {
+    countLimit: 2,
+    groupOnlyByOnlyGroup: true,
+  });
+
+  assert.deepEqual(result.selectedEffects.map((effect) => Number(effect.effectId)), [61, 62]);
+  assert.deepEqual(result.selectedCountEffectIds, []);
+});
+
 test('evaluateCompetitiveConsumptionはwarningモードで不正metadataを警告しつつ消費候補を維持する', () => {
   const invalid = createEffect({
     effectId: 31,
