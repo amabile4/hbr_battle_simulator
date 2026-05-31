@@ -7997,7 +7997,8 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       const hasPenetrationCritical = effectiveParts.some(
         (part) => String(part?.skill_type ?? '') === 'PenetrationCriticalAttack'
       );
-      const isDestructionRateGainSkill = hasDestructionRateGainPartInParts(effectiveParts);
+      // WIP: 将来の破壊率追跡実装時に damageBreakdownInput / damageContext へ渡す
+      const isDestructionRateGainSkill = hasDestructionRateGainPartInParts(effectiveParts); // eslint-disable-line no-unused-vars
       const damageBreakdownInput = hasDamage ? {
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
