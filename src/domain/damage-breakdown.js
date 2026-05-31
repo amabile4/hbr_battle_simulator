@@ -117,7 +117,7 @@ function durationGroup(effect) {
 function competitionKey(effect) {
   const statusType = String(effect?.statusType ?? '').trim();
   const elements = normalizeElements(effect?.elements).sort().join(',');
-  return `${statusType}|${elements}|${durationGroup(effect)}`;
+  return `${statusType}|${elements}|${durationGroup(effect)}|${String(effect?.targetIndex ?? '')}`;
 }
 
 function pickTopByPower(effects, limit) {

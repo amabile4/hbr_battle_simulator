@@ -922,7 +922,7 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
       : buildPassiveEventHistoryTabHtml(member, passiveEvents);
   popup.querySelector('[data-tab-panel="field"]').innerHTML = buildFieldTabHtml(stateOrRecord);
   popup.querySelector('[data-tab-panel="damage"]').innerHTML = buildDamageBreakdownTabHtml(
-    stateOrRecord?.previewActionFlow ?? []
+    (stateOrRecord?.previewActionFlow ?? []).filter((action) => action?.actorCharacterId === member?.characterId)
   );
 
   // 最初のタブをアクティブにリセット

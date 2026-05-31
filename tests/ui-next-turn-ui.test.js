@@ -3765,6 +3765,72 @@ test('char detail popup preview section renders Funnel from previewActionFlow.fu
     assert.match(popup.textContent ?? '', /連撃（特大）3回\s*150%/);
   }));
 
+test('char detail popup damage tab only renders the opened character action', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+    const makeDamageContext = (finalMultiplier) => ({
+      criticalRateBreakdown: {
+        criticalRatePercent: 100,
+        isCriticalGuaranteed: true,
+        contributions: [],
+      },
+      damageBreakdown: {
+        version: 1,
+        targetBreakdowns: [
+          {
+            targetEnemyIndex: 0,
+            targetLabel: 'E1',
+            finalMultiplier,
+            increasePercent: Math.round((finalMultiplier - 1) * 100),
+            formula: `${finalMultiplier.toFixed(2)}x`,
+            groups: [],
+          },
+        ],
+      },
+    });
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [],
+        previewActionFlow: [
+          {
+            actorCharacterId: 'NNanase',
+            skillName: '七瀬の威力詳細',
+            damageContext: makeDamageContext(2),
+          },
+          {
+            actorCharacterId: 'OTHER',
+            skillName: '他キャラの威力詳細',
+            damageContext: makeDamageContext(9),
+          },
+        ],
+      },
+      { x: 200, y: 120, isCommitted: false }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const damagePanel = popup.querySelector('[data-tab-panel="damage"]');
+    assert.ok(damagePanel);
+    assert.match(damagePanel.textContent ?? '', /七瀬の威力詳細/);
+    assert.match(damagePanel.textContent ?? '', /2.00x/);
+    assert.doesNotMatch(damagePanel.textContent ?? '', /他キャラの威力詳細/);
+    assert.doesNotMatch(damagePanel.textContent ?? '', /9.00x/);
+  }));
+
 test('char detail popup shows form chip and dims inactive ability entries for form-change styles', () =>
   withDom(({ win }) => {
     const member = getStore().buildCharacterStyle({

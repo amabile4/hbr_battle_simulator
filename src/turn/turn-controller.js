@@ -7931,7 +7931,6 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
     let consumedFunnels = [];
     let consumedMindEyes = [];
     if (
-      shouldApplyOdDelta &&
       hasDamage &&
       consumeStatusEffects &&
       !isNormalAttackSkill(skill) &&

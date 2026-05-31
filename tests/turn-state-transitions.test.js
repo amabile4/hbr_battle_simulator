@@ -11188,6 +11188,54 @@ test('Funnel: Only vs Count(上位2)で勝者を採用し、採用されたCount
   assert.equal(remainingIds.has(ONLY_ID), true);
 });
 
+test('Funnel: OD増加0の与ダメージスキルでも採用Countを消費する', () => {
+  const COUNT_ID = 9314;
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          statusEffects: [
+            {
+              effectId: COUNT_ID,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 0.5,
+            },
+          ],
+          skills: [
+            {
+              id: 25246,
+              name: 'Funnel Zero OD Slash',
+              label: 'FunnelZeroOdSlash25246',
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.damageRatesByEnemy = {
+    0: { Slash: 0 },
+  };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: 25246, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const committed = findActionByCharacterId(committedRecord, 'M1');
+  const actor = nextState.party.find((member) => member.characterId === 'M1');
+
+  assert.equal(committed.odGaugeGain, 0);
+  assert.deepEqual(
+    (committed.consumedFunnelEffects ?? []).map((effect) => Number(effect.effectId)),
+    [COUNT_ID]
+  );
+  assert.equal(actor.getFunnelEffects({ activeOnly: true }).length, 0);
+});
+
 test('Funnel: 同一skill由来Onlyは残ターン違いでも最強1件だけ採用する', () => {
   const ONLY_LONG_ID = 9304;
   const ONLY_SHORT_ID = 9305;

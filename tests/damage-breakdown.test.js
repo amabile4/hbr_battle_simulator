@@ -90,3 +90,27 @@ test('buildDamageBreakdown returns seven grouped target-specific critical multip
   assert.equal(findGroup(resistedTarget, 'debuff').contributions.some((entry) => entry.label === '脆弱'), false);
   assert.equal(findGroup(weakTarget, 'buff').contributions.some((entry) => entry.label === 'アクセサリ'), false);
 });
+
+test('buildDamageBreakdown keeps enemy debuff adoption target-specific', () => {
+  const breakdown = buildDamageBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 100, 1: 100 },
+    enemyStatusEffects: [
+      { targetIndex: 0, statusType: 'DefenseDown', power: 0.5, remaining: 1, effectId: 1 },
+      { targetIndex: 0, statusType: 'DefenseDown', power: 0.4, remaining: 1, effectId: 2 },
+      { targetIndex: 1, statusType: 'DefenseDown', power: 0.3, remaining: 1, effectId: 3 },
+    ],
+  });
+
+  const target0 = breakdown.targetBreakdowns[0];
+  const target1 = breakdown.targetBreakdowns[1];
+
+  assert.deepEqual(
+    findGroup(target0, 'debuff').contributions.map((entry) => entry.value),
+    [0.5, 0.4]
+  );
+  assert.deepEqual(
+    findGroup(target1, 'debuff').contributions.map((entry) => entry.value),
+    [0.3]
+  );
+  assert.equal(findGroup(target1, 'debuff').multiplier, 1.3);
+});
