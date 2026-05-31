@@ -18,7 +18,7 @@ export const INTRINSIC_MARK_EFFECTS_BY_ELEMENT = Object.freeze({
   Fire: Object.freeze({
     skillDamageUpRateAtLevel1: 0.3,
     damageTakenDownRateAtLevel2: 0.1,
-    devastationRateUpAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
+    destructionRateGainBonusRateAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
     criticalRateUpAtLevel4: 0.3,
     criticalDamageUpAtLevel5: 0.3,
     extraFrontSpAtTurnStartAtLevel6: 1,
@@ -26,7 +26,7 @@ export const INTRINSIC_MARK_EFFECTS_BY_ELEMENT = Object.freeze({
   Ice: Object.freeze({
     skillDamageUpRateAtLevel1: 0.3,
     damageTakenDownRateAtLevel2: 0.1,
-    devastationRateUpAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
+    destructionRateGainBonusRateAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
     criticalRateUpAtLevel4: 0.3,
     criticalDamageUpAtLevel5: 0.3,
     extraFrontSpAtTurnStartAtLevel6: 1,
@@ -34,7 +34,7 @@ export const INTRINSIC_MARK_EFFECTS_BY_ELEMENT = Object.freeze({
   Thunder: Object.freeze({
     skillDamageUpRateAtLevel1: 0.3,
     damageTakenDownRateAtLevel2: 0.1,
-    devastationRateUpAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
+    destructionRateGainBonusRateAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
     criticalRateUpAtLevel4: 0.3,
     criticalDamageUpAtLevel5: 0.3,
     extraFrontSpAtTurnStartAtLevel6: 1,
@@ -42,7 +42,7 @@ export const INTRINSIC_MARK_EFFECTS_BY_ELEMENT = Object.freeze({
   Dark: Object.freeze({
     skillDamageUpRateAtLevel1: 0.3,
     damageTakenDownRateAtLevel2: 0.1,
-    devastationRateUpAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
+    destructionRateGainBonusRateAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
     criticalRateUpAtLevel4: 0.3,
     criticalDamageUpAtLevel5: 0.3,
     extraFrontSpAtTurnStartAtLevel6: 1,
@@ -50,7 +50,7 @@ export const INTRINSIC_MARK_EFFECTS_BY_ELEMENT = Object.freeze({
   Light: Object.freeze({
     skillDamageUpRateAtLevel1: 0.3,
     damageTakenDownRateAtLevel2: 0.1,
-    devastationRateUpAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
+    destructionRateGainBonusRateAtLevel3: 0.1, // 破壊率上昇量+10%（WIP: 破壊率追跡未実装のため damageContext 保持のみ）
     criticalRateUpAtLevel4: 0.3,
     criticalDamageUpAtLevel5: 0.3,
     extraFrontSpAtTurnStartAtLevel6: 1,

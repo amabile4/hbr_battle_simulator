@@ -79,7 +79,7 @@ export function buildDamageCalculationContext(input = {}) {
     foodBuffHealDpByDamageRate: Number(input.foodBuffHealDpByDamageRate ?? 0),
     markAttackUpRate: Number(input.markAttackUpRate ?? 0),
     markDamageTakenDownRate: Number(input.markDamageTakenDownRate ?? 0),
-    markDevastationRateUp: Number(input.markDevastationRateUp ?? 0), // 印Lv3: 破壊率上昇量+10%（WIP: 威力詳細未表示）
+    markDestructionRateGainBonusRate: Number(input.markDestructionRateGainBonusRate ?? 0), // 印Lv3: 破壊率上昇量+10%（WIP: 威力詳細未表示）
     markCriticalRateUp: Number(input.markCriticalRateUp ?? 0),
     markCriticalDamageUp: Number(input.markCriticalDamageUp ?? 0),
     accessoryAttackUpRate: Number(input.accessoryAttackUpRate ?? 0),

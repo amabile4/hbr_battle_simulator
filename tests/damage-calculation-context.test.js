@@ -53,7 +53,7 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     foodBuffHealDpByDamageRate: 0,
     markAttackUpRate: 0,
     markDamageTakenDownRate: 0,
-    markDevastationRateUp: 0,
+    markDestructionRateGainBonusRate: 0,
     markCriticalRateUp: 0,
     markCriticalDamageUp: 0,
     accessoryAttackUpRate: 0,
@@ -138,7 +138,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     enemyAllAbilityDownByEnemy: { 0: '40' },
     markAttackUpRate: '30',
     markDamageTakenDownRate: '10',
-    markDevastationRateUp: '20',
+    markDestructionRateGainBonusRate: '20',
     markCriticalRateUp: '30',
     markCriticalDamageUp: '40',
     accessoryAttackUpRate: '0.15',
@@ -171,7 +171,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.enemyTalismanLevelByEnemy[0], 4);
   assert.equal(context.enemyDisasterLevelByEnemy[0], 2);
   assert.equal(context.enemyAllAbilityDownByEnemy[0], 40);
-  assert.equal(context.markDevastationRateUp, 20);
+  assert.equal(context.markDestructionRateGainBonusRate, 20);
   assert.equal(context.markCriticalDamageUp, 40);
   assert.equal(context.accessoryAttackUpRate, 0.15);
   assert.equal(context.overDrivePointUpByTokenTotalPercent, 12.5);

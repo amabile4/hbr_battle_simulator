@@ -31,7 +31,7 @@
 | 要素 | フィールド | 分類 | 備考 |
 |---|---|---|---|
 | トークン連動ダメージアップ | `damageRateUpPerTokenRate` | **A** | `damageRateUpRate` として `specialPassiveModifiers` に存在。既存の `tokenAttackTotalRate`（トークン攻撃倍率）とは別効果なので独立した枠として表示 |
-| マーク印Lv3 破壊率上昇量 | `markDevastationRateUp` | **B** | 印Lv3 = **破壊率上昇量+10%**。ダメージ倍率ではなくブレイク系指標。現時点で破壊率追跡は未実装のため威力詳細表示なし。値は `damageContext` に保持済み。`DEVASTATION_SKILL_TYPE_PATTERN` / `hasDevastationPartInParts` も WIP として残存。将来の破壊率機能追加時に有効化する |
+| マーク印Lv3 破壊率上昇量 | `markDestructionRateGainBonusRate` | **B** | 印Lv3 = **破壊率上昇量+10%**。ダメージ倍率ではなくブレイク系指標。現時点で破壊率追跡は未実装のため威力詳細表示なし。値は `damageContext` に保持済み。`DESTRUCTION_RATE_GAIN_SKILL_TYPE_PATTERN` / `hasDestructionRateGainPartInParts` も WIP として残存。将来の破壊率機能追加時に有効化する |
 
 ## 3. 敵デバフ枠（debuff group）への追加候補
 
@@ -89,7 +89,7 @@
 
 実装前に `damageContext` フィールドまたは表示設計の追加が必要なもの：
 
-- [ ] `markDevastationRateUp` → 破壊率追跡機能の実装後に「印Lv3 破壊率上昇量」として威力詳細へ追加（WIP: `DEVASTATION_SKILL_TYPE_PATTERN` / `hasDevastationPartInParts` は足場として残存）
+- [ ] `markDestructionRateGainBonusRate` → 破壊率追跡機能の実装後に「印Lv3 破壊率上昇量」として威力詳細へ追加（WIP: `DESTRUCTION_RATE_GAIN_SKILL_TYPE_PATTERN` / `hasDestructionRateGainPartInParts` は足場として残存）
 - [ ] `highBoostSkillAtkRate` の source 付き contribution 化 → `resolveHighBoostModifiersForMember` が sourceSkillName を返せるよう改修後
 - [ ] タリスマン・災難の内訳表示（任意）→ `enemyAllAbilityDownByEnemy` の内訳として level/rate 変換設計後
 
@@ -106,5 +106,5 @@
 
 - `attackUpRate` はスキルバフ AttackUp / markAttackUp / attackUpPerToken / babied / diva / food の **合算値** であり、これをそのまま表示すると既表示済み項目との二重計上が発生する。表示対象から除外することを Claude / Codex 双方で確認。
 - `enemyAllAbilityDownByEnemy` は `buildEnemyAllAbilityPenaltyMaps` 内で Talisman / Disaster のうち高い方を採用した合算値。Talisman と Disaster を個別に加算しない方針。
-- `markDevastationRateUp` は印Lv3の**破壊率上昇量**（+10%）であり、ダメージ倍率ではないことをユーザーが確認（2026-05-31）。現在は `damageContext` に値を保持するのみで威力詳細には表示しない。将来の破壊率追跡実装時に備え `DEVASTATION_SKILL_TYPE_PATTERN` / `hasDevastationPartInParts` を WIP コメント付きで残存。
+- `markDestructionRateGainBonusRate` は印Lv3の**破壊率上昇量**（+10%）であり、ダメージ倍率ではないことをユーザーが確認（2026-05-31）。現在は `damageContext` に値を保持するのみで威力詳細には表示しない。将来の破壊率追跡実装時に備え `DESTRUCTION_RATE_GAIN_SKILL_TYPE_PATTERN` / `hasDestructionRateGainPartInParts` を WIP コメント付きで残存。
 - `defenseUpRate` が攻撃ダメージ倍率に影響しないことをコードレベルで確認済み。

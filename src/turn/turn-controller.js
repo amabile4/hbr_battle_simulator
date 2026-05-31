@@ -101,9 +101,9 @@ const OD_DAMAGE_PART_TYPES = new Set([
   'FixedHpDamageRateAttack',
 ]);
 // WIP: 印Lv3の破壊率上昇量（+10%）を持つスキルの検出用。
-// 現在のゲームデータに Devastation 系 skill_type は存在せず、markDevastationRateUp の
+// 現在のゲームデータに 破壊率上昇量系 skill_type は存在せず、markDestructionRateGainBonusRate の
 // 威力詳細表示も未実装。将来の破壊率追跡機能追加時に有効化する想定。
-const DEVASTATION_SKILL_TYPE_PATTERN = /Devastation/i;
+const DESTRUCTION_RATE_GAIN_SKILL_TYPE_PATTERN = /DestructionRateGain/i;
 const DAMAGE_AFFINITY_REFERENCE_LABELS = Object.freeze({
   Slash: '斬相性',
   Stab: '突相性',
@@ -1631,18 +1631,18 @@ function hasDamagePartInParts(parts) {
   return false;
 }
 
-// WIP: 破壊率上昇スキル判定。現時点では常に false を返す（データに Devastation 型なし）。
-function hasDevastationPartInParts(parts) {
+// WIP: 破壊率上昇スキル判定。現時点では常に false を返す（データに 破壊率上昇量型なし）。
+function hasDestructionRateGainPartInParts(parts) {
   for (const part of parts ?? []) {
     const skillType = String(part?.skill_type ?? '').trim();
-    if (DEVASTATION_SKILL_TYPE_PATTERN.test(skillType)) {
+    if (DESTRUCTION_RATE_GAIN_SKILL_TYPE_PATTERN.test(skillType)) {
       return true;
     }
 
     if (Array.isArray(part?.strval)) {
       for (const nested of part.strval) {
         if (nested && typeof nested === 'object' && Array.isArray(nested.parts)) {
-          if (hasDevastationPartInParts(nested.parts)) {
+          if (hasDestructionRateGainPartInParts(nested.parts)) {
             return true;
           }
         }
@@ -4680,7 +4680,7 @@ function resolveIntrinsicMarkModifiersForMember(member) {
     return {
       attackUpRate: 0,
       damageTakenDownRate: 0,
-      devastationRateUp: 0,
+      destructionRateGainBonusRate: 0,
       criticalRateUp: 0,
       criticalDamageUp: 0,
       matchedElements: [],
@@ -4689,7 +4689,7 @@ function resolveIntrinsicMarkModifiersForMember(member) {
 
   let attackUpRate = 0;
   let damageTakenDownRate = 0;
-  let devastationRateUp = 0;
+  let destructionRateGainBonusRate = 0;
   let criticalRateUp = 0;
   let criticalDamageUp = 0;
   const matchedElements = [];
@@ -4711,7 +4711,7 @@ function resolveIntrinsicMarkModifiersForMember(member) {
       damageTakenDownRate += Number(config.damageTakenDownRateAtLevel2 ?? 0);
     }
     if (level >= 3) {
-      devastationRateUp += Number(config.devastationRateUpAtLevel3 ?? 0);
+      destructionRateGainBonusRate += Number(config.destructionRateGainBonusRateAtLevel3 ?? 0);
     }
     if (level >= 4) {
       criticalRateUp += Number(config.criticalRateUpAtLevel4 ?? 0);
@@ -4724,7 +4724,7 @@ function resolveIntrinsicMarkModifiersForMember(member) {
   return {
     attackUpRate,
     damageTakenDownRate,
-    devastationRateUp,
+    destructionRateGainBonusRate,
     criticalRateUp,
     criticalDamageUp,
     matchedElements,
@@ -7997,7 +7997,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       const hasPenetrationCritical = effectiveParts.some(
         (part) => String(part?.skill_type ?? '') === 'PenetrationCriticalAttack'
       );
-      const isDevastationSkill = hasDevastationPartInParts(effectiveParts);
+      const isDestructionRateGainSkill = hasDestructionRateGainPartInParts(effectiveParts);
       const damageBreakdownInput = hasDamage ? {
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
@@ -8074,7 +8074,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         defenseUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpPerTokenRate ?? 0),
         markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
         markDamageTakenDownRate: Number(actionEntry?.specialPassiveModifiers?.markDamageTakenDownRate ?? 0),
-        markDevastationRateUp: Number(actionEntry?.specialPassiveModifiers?.markDevastationRateUp ?? 0),
+        markDestructionRateGainBonusRate: Number(actionEntry?.specialPassiveModifiers?.markDestructionRateGainBonusRate ?? 0),
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
         accessoryAttackUpRate: 0,
@@ -10655,7 +10655,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
         : 0,
       ignoreEShieldElement: ignoreEShieldElement.active,
       markDamageTakenDownRate: Number(intrinsicMarkModifiers.damageTakenDownRate ?? 0),
-      markDevastationRateUp: Number(intrinsicMarkModifiers.devastationRateUp ?? 0),
+      markDestructionRateGainBonusRate: Number(intrinsicMarkModifiers.destructionRateGainBonusRate ?? 0),
       markCriticalRateUp: Number(intrinsicMarkModifiers.criticalRateUp ?? 0),
       markCriticalDamageUp: Number(intrinsicMarkModifiers.criticalDamageUp ?? 0),
     },

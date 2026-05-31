@@ -4506,7 +4506,7 @@ test('fire mark intrinsic modifiers are exposed on preview and damage context', 
 
   assert.equal(preview.actions[0].specialPassiveModifiers?.markAttackUpRate, 0.3);
   assert.equal(preview.actions[0].specialPassiveModifiers?.markDamageTakenDownRate, 0.1);
-  assert.equal(preview.actions[0].specialPassiveModifiers?.markDevastationRateUp, 0.1);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markDestructionRateGainBonusRate, 0.1);
   assert.equal(preview.actions[0].specialPassiveModifiers?.markCriticalRateUp, 0.3);
   assert.equal(preview.actions[0].specialPassiveModifiers?.markCriticalDamageUp, 0.3);
   assert.equal(preview.actions[0].specialPassiveModifiers?.attackUpRate, 0.3);
@@ -4514,7 +4514,7 @@ test('fire mark intrinsic modifiers are exposed on preview and damage context', 
   const { committedRecord } = commitTurn(state, preview);
   assert.equal(committedRecord.actions[0].damageContext?.markAttackUpRate, 0.3);
   assert.equal(committedRecord.actions[0].damageContext?.markDamageTakenDownRate, 0.1);
-  assert.equal(committedRecord.actions[0].damageContext?.markDevastationRateUp, 0.1);
+  assert.equal(committedRecord.actions[0].damageContext?.markDestructionRateGainBonusRate, 0.1);
   assert.equal(committedRecord.actions[0].damageContext?.markCriticalRateUp, 0.3);
   assert.equal(committedRecord.actions[0].damageContext?.markCriticalDamageUp, 0.3);
 });
@@ -4593,14 +4593,14 @@ test('dark and light mark intrinsic modifiers are exposed on preview and damage 
 
   assert.equal(preview.actions[0].specialPassiveModifiers?.markAttackUpRate, 0.6);
   assert.equal(preview.actions[0].specialPassiveModifiers?.markDamageTakenDownRate, 0.2);
-  assert.equal(preview.actions[0].specialPassiveModifiers?.markDevastationRateUp, 0.2);
+  assert.equal(preview.actions[0].specialPassiveModifiers?.markDestructionRateGainBonusRate, 0.2);
   assert.equal(preview.actions[0].specialPassiveModifiers?.markCriticalRateUp, 0.6);
   assert.equal(preview.actions[0].specialPassiveModifiers?.markCriticalDamageUp, 0.3);
 
   const { committedRecord } = commitTurn(state, preview);
   assert.equal(committedRecord.actions[0].damageContext?.markAttackUpRate, 0.6);
   assert.equal(committedRecord.actions[0].damageContext?.markDamageTakenDownRate, 0.2);
-  assert.equal(committedRecord.actions[0].damageContext?.markDevastationRateUp, 0.2);
+  assert.equal(committedRecord.actions[0].damageContext?.markDestructionRateGainBonusRate, 0.2);
   assert.equal(committedRecord.actions[0].damageContext?.markCriticalRateUp, 0.6);
   assert.equal(committedRecord.actions[0].damageContext?.markCriticalDamageUp, 0.3);
 });
