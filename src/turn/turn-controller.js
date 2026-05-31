@@ -100,6 +100,9 @@ const OD_DAMAGE_PART_TYPES = new Set([
   'TokenAttack',
   'FixedHpDamageRateAttack',
 ]);
+// WIP: 印Lv3の破壊率上昇量（+10%）を持つスキルの検出用。
+// 現在のゲームデータに Devastation 系 skill_type は存在せず、markDevastationRateUp の
+// 威力詳細表示も未実装。将来の破壊率追跡機能追加時に有効化する想定。
 const DEVASTATION_SKILL_TYPE_PATTERN = /Devastation/i;
 const DAMAGE_AFFINITY_REFERENCE_LABELS = Object.freeze({
   Slash: '斬相性',
@@ -1628,6 +1631,7 @@ function hasDamagePartInParts(parts) {
   return false;
 }
 
+// WIP: 破壊率上昇スキル判定。現時点では常に false を返す（データに Devastation 型なし）。
 function hasDevastationPartInParts(parts) {
   for (const part of parts ?? []) {
     const skillType = String(part?.skill_type ?? '').trim();
