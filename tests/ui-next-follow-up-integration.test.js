@@ -1434,8 +1434,8 @@ test('pursuit OD is not affected by drive pierce bonus on front attacker', () =>
   assert.equal(pursuitWithPierce, 2.5, 'Pursuit OD contribution should be 2.5% regardless of drive pierce');
 });
 
-test('pursuit OD is not mixed into normal attack fixed 1-hit OD handling', () => {
-  // 通常攻撃の OD は raw hit_count に関わらず 1hit 相当 (=2.5%) を基準にする
+test('pursuit OD is not mixed into normal attack fixed 3-hit OD handling', () => {
+  // 通常攻撃の OD は raw hit_count に関わらず 3hit 相当 (=7.5%) を基準にする
   const normalAttack = createSkill({
     id: 8000,
     name: '通常攻撃',
@@ -1474,8 +1474,8 @@ test('pursuit OD is not mixed into normal attack fixed 1-hit OD handling', () =>
 
   const odWithout = recordWithout.projections?.odGaugeAtEnd ?? 0;
   const odWith = recordWith.projections?.odGaugeAtEnd ?? 0;
-  // 通常攻撃 1hit 相当 × 2.5% = 2.5%、追撃 1hit × 2.5% = 2.5%
-  assert.equal(odWithout, 2.5, 'Normal attack should give fixed 2.5% OD');
+  // 通常攻撃 3hit 相当 × 2.5% = 7.5%、追撃 1hit × 2.5% = 2.5%
+  assert.equal(odWithout, 7.5, 'Normal attack should give fixed 7.5% OD');
   assert.equal(odWith - odWithout, 2.5, 'Pursuit should add exactly 2.5% (1hit), not alter normal attack fixed OD');
 });
 

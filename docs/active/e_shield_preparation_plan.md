@@ -111,7 +111,7 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 
 - damage part を持つ action のみを対象にする
 - target は既存の `getActionTargetEnemyIndexes()` を使う
-- hit 数は action preview の実 hit 数を使う。通常攻撃だけは `OD=2.5% 固定`
+- hit 数は action preview の実 hit 数を使う。通常攻撃だけは `OD=7.5% 固定`、Eシールド減算は raw hit 数
   の経路と分離し、`raw hit_count + Funnel bonus` を Eシールド減算に使う
 - 通常攻撃の属性は `Party Setup` の属性ブレスレット selector を正本とし、
   `normalAttackElementsByPartyIndex -> CharacterStyle.normalAttackElements` を経由して解決する

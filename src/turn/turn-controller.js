@@ -58,6 +58,7 @@ import {
 } from '../config/battle-defaults.js';
 
 export const BASE_SP_RECOVERY = 2;
+const NORMAL_ATTACK_OD_HIT_COUNT = 3;
 const TEZUKA_CHARACTER_ID = 'STezuka';
 const TALISMAN_MAX_LEVEL = 10;
 const TALISMAN_PENALTY_PER_LEVEL = 10;
@@ -1555,7 +1556,7 @@ function resolveActionBaseHitCount(skill, options = {}) {
     return rawHitCount;
   }
   if (options.forOd === true) {
-    return rawHitCount > 0 ? 1 : 0;
+    return rawHitCount > 0 ? NORMAL_ATTACK_OD_HIT_COUNT : 0;
   }
   return rawHitCount;
 }
@@ -10807,23 +10808,6 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       actionEntry.manualHpBreakEnemyIndexes = [...new Set(derivedHpBreakEnemyIndexes)];
     }
   }
-  const enemyKillEvents = applyManualKillEffectsFromActions(state, singleRecord);
-  const derivedKillEnemyIndexes = enemyKillEvents
-    .map((event) => Number(event?.targetIndex))
-    .filter((targetIndex) => Number.isInteger(targetIndex) && targetIndex >= 0);
-  if (derivedKillEnemyIndexes.length > 0) {
-    if (!Number.isFinite(Number(actionEntry?.killCount)) || Number(actionEntry.killCount) <= 0) {
-      actionEntry.killCount = derivedKillEnemyIndexes.length;
-    }
-    if (normalizeManualKillEnemyIndexes(actionEntry).length === 0) {
-      actionEntry.manualKillEnemyIndexes = [...new Set(derivedKillEnemyIndexes)];
-    }
-  }
-  const stageSetupKillSpEvents = applyStageSetupSpOnEnemyKill(
-    state,
-    actionEntry,
-    Number(actionEntry?.killCount ?? derivedKillEnemyIndexes.length)
-  );
   const derivedBreakEnemyIndexes = enemyBreakEvents
     .filter(
       (event) =>
@@ -10843,9 +10827,27 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const breakDownTurnUpResult = applyBreakDownTurnUpFromActions(state, singleRecord);
   const breakDownTurnUpEvents = breakDownTurnUpResult.events;
   const breakDownTurnUpPassiveTriggerEvents = breakDownTurnUpResult.passiveTriggerEvents;
+  // 討伐した攻撃自体はODを獲得するため、Dead付与より前の敵状態で攻撃ODを解決する。
   const odGaugeGain = applyOdGaugeFromActions(state, singleRecord, {
     buffMetadataValidation,
   });
+  const enemyKillEvents = applyManualKillEffectsFromActions(state, singleRecord);
+  const derivedKillEnemyIndexes = enemyKillEvents
+    .map((event) => Number(event?.targetIndex))
+    .filter((targetIndex) => Number.isInteger(targetIndex) && targetIndex >= 0);
+  if (derivedKillEnemyIndexes.length > 0) {
+    if (!Number.isFinite(Number(actionEntry?.killCount)) || Number(actionEntry.killCount) <= 0) {
+      actionEntry.killCount = derivedKillEnemyIndexes.length;
+    }
+    if (normalizeManualKillEnemyIndexes(actionEntry).length === 0) {
+      actionEntry.manualKillEnemyIndexes = [...new Set(derivedKillEnemyIndexes)];
+    }
+  }
+  const stageSetupKillSpEvents = applyStageSetupSpOnEnemyKill(
+    state,
+    actionEntry,
+    Number(actionEntry?.killCount ?? derivedKillEnemyIndexes.length)
+  );
   member.incrementSkillUseById(actionEntry.skillId);
 
   return {
