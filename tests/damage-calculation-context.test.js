@@ -171,6 +171,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.enemyTalismanLevelByEnemy[0], 4);
   assert.equal(context.enemyDisasterLevelByEnemy[0], 2);
   assert.equal(context.enemyAllAbilityDownByEnemy[0], 40);
+  assert.equal(context.markDevastationRateUp, 20);
   assert.equal(context.markCriticalDamageUp, 40);
   assert.equal(context.accessoryAttackUpRate, 0.15);
   assert.equal(context.overDrivePointUpByTokenTotalPercent, 12.5);

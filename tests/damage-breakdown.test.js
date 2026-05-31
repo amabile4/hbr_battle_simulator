@@ -114,3 +114,34 @@ test('buildDamageBreakdown keeps enemy debuff adoption target-specific', () => {
   );
   assert.equal(findGroup(target1, 'debuff').multiplier, 1.3);
 });
+
+test('buildDamageBreakdown includes priority 1 modifiers: food buff, high boost, damage rate up per token, all ability down', () => {
+  const breakdown = buildDamageBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 100, 1: 100 },
+    foodBuffAttackUpRate: 0.5,
+    highBoostSkillAtkRate: 1.8,
+    damageRateUpPerTokenRate: 0.2,
+    enemyAllAbilityDownByEnemy: {
+      0: 30,
+      1: 0,
+    },
+  });
+
+  const target0 = breakdown.targetBreakdowns[0];
+  const target1 = breakdown.targetBreakdowns[1];
+  const buffLabels = findGroup(target0, 'buff').contributions.map((entry) => entry.label);
+  const tokenPassiveLabels = findGroup(target0, 'token-passive').contributions.map((entry) => entry.label);
+  const debuff = findGroup(target0, 'debuff');
+
+  assert.equal(buffLabels.includes('食事バフ攻撃力'), true);
+  assert.equal(buffLabels.includes('ハイブースト'), true);
+  assert.equal(findGroup(target0, 'buff').multiplier, 3.3);
+  assert.equal(tokenPassiveLabels.includes('トークン連動ダメージアップ'), true);
+  assert.equal(findGroup(target0, 'token-passive').multiplier, 1.2);
+  assert.deepEqual(
+    debuff.contributions.map((entry) => [entry.label, entry.value]),
+    [['全能力ダウン', 0.3]]
+  );
+  assert.equal(debuff.multiplier, 1.3);
+  assert.equal(findGroup(target1, 'debuff').contributions.some((entry) => entry.label === '全能力ダウン'), false);
+});

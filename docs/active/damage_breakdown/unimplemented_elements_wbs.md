@@ -31,7 +31,7 @@
 | 要素 | フィールド | 分類 | 備考 |
 |---|---|---|---|
 | トークン連動ダメージアップ | `damageRateUpPerTokenRate` | **A** | `damageRateUpRate` として `specialPassiveModifiers` に存在。既存の `tokenAttackTotalRate`（トークン攻撃倍率）とは別効果なので独立した枠として表示 |
-| マーク必殺技倍率アップ | `markDevastationRateUp` | **D** | token-passive 枠への配置が適切（ラベル案: 「固有マーク必殺技倍率」）。ただし `damageContext` は値のみ保持しており、必殺技スキルにのみ適用されるという条件を表示側が判定する必要がある。`isDevastationSkill` フラグを `damageContext` に追加してから対応 |
+| マーク印Lv3効果 | `markDevastationRateUp` | **C** | 印Lv3 = **破壊率上昇量+10%**。ダメージ倍率ではなくブレイク系指標であり、本シミュレータは破壊率を扱わないため威力詳細への表示対象外。`isDevastationSkill` ゲートも同様に不要と確定（2026-05-31 ユーザー確認） |
 
 ## 3. 敵デバフ枠（debuff group）への追加候補
 
@@ -80,16 +80,16 @@
 
 データが揃っており、`damageBreakdownInput` へ 1 フィールドを追加するだけで掲載できるもの：
 
-- [ ] `foodBuffAttackUpRate` → buff 枠に「食事バフ攻撃力」として追加（`damageBreakdownInput` に渡し、`collectAttackBuffContributions` で個別処理）
-- [ ] `highBoostSkillAtkRate` → buff 枠に「ハイブースト」として追加（ラベル固定）
-- [ ] `damageRateUpPerTokenRate` → token-passive 枠に「トークン連動ダメージアップ」として追加
-- [ ] `enemyAllAbilityDownByEnemy` → debuff 枠に「全能力ダウン」として追加（`/100` 変換を忘れずに）
+- [x] `foodBuffAttackUpRate` → buff 枠に「食事バフ攻撃力」として追加（`damageBreakdownInput` に渡し、`collectAttackBuffContributions` で個別処理）
+- [x] `highBoostSkillAtkRate` → buff 枠に「ハイブースト」として追加（ラベル固定）
+- [x] `damageRateUpPerTokenRate` → token-passive 枠に「トークン連動ダメージアップ」として追加
+- [x] `enemyAllAbilityDownByEnemy` → debuff 枠に「全能力ダウン」として追加（`/100` 変換を忘れずに）
 
 ### Priority 2（設計確定後）
 
 実装前に `damageContext` フィールドまたは表示設計の追加が必要なもの：
 
-- [ ] `markDevastationRateUp` → token-passive 枠「固有マーク必殺技倍率」として追加。`damageContext` に `isDevastationSkill: boolean` を追加してから
+- [x] ~~`markDevastationRateUp`~~ → **取消**: 印Lv3は破壊率上昇量でありダメージ倍率ではない。表示対象外に変更（C分類）
 - [ ] `highBoostSkillAtkRate` の source 付き contribution 化 → `resolveHighBoostModifiersForMember` が sourceSkillName を返せるよう改修後
 - [ ] タリスマン・災難の内訳表示（任意）→ `enemyAllAbilityDownByEnemy` の内訳として level/rate 変換設計後
 
@@ -106,5 +106,5 @@
 
 - `attackUpRate` はスキルバフ AttackUp / markAttackUp / attackUpPerToken / babied / diva / food の **合算値** であり、これをそのまま表示すると既表示済み項目との二重計上が発生する。表示対象から除外することを Claude / Codex 双方で確認。
 - `enemyAllAbilityDownByEnemy` は `buildEnemyAllAbilityPenaltyMaps` 内で Talisman / Disaster のうち高い方を採用した合算値。Talisman と Disaster を個別に加算しない方針。
-- `markDevastationRateUp` の配置は crit-mindeye ではなく token-passive（固有マーク系）が適切であることを Codex が提案し確定。
+- `markDevastationRateUp` は印Lv3の**破壊率上昇量**（+10%）であり、ダメージ倍率ではないことをユーザーが確認（2026-05-31）。`isDevastationSkill` ゲートを含む関連コードを威力詳細から除去済み。`markDevastationRateUp` 値は `damageContext` に保持されるが表示しない。
 - `defenseUpRate` が攻撃ダメージ倍率に影響しないことをコードレベルで確認済み。

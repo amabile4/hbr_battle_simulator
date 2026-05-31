@@ -100,6 +100,7 @@ const OD_DAMAGE_PART_TYPES = new Set([
   'TokenAttack',
   'FixedHpDamageRateAttack',
 ]);
+const DEVASTATION_SKILL_TYPE_PATTERN = /Devastation/i;
 const DAMAGE_AFFINITY_REFERENCE_LABELS = Object.freeze({
   Slash: '斬相性',
   Stab: '突相性',
@@ -1618,6 +1619,26 @@ function hasDamagePartInParts(parts) {
       for (const nested of part.strval) {
         if (nested && typeof nested === 'object' && Array.isArray(nested.parts)) {
           if (hasDamagePartInParts(nested.parts)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function hasDevastationPartInParts(parts) {
+  for (const part of parts ?? []) {
+    const skillType = String(part?.skill_type ?? '').trim();
+    if (DEVASTATION_SKILL_TYPE_PATTERN.test(skillType)) {
+      return true;
+    }
+
+    if (Array.isArray(part?.strval)) {
+      for (const nested of part.strval) {
+        if (nested && typeof nested === 'object' && Array.isArray(nested.parts)) {
+          if (hasDevastationPartInParts(nested.parts)) {
             return true;
           }
         }
@@ -7972,6 +7993,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       const hasPenetrationCritical = effectiveParts.some(
         (part) => String(part?.skill_type ?? '') === 'PenetrationCriticalAttack'
       );
+      const isDevastationSkill = hasDevastationPartInParts(effectiveParts);
       const damageBreakdownInput = hasDamage ? {
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
@@ -7988,14 +8010,18 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         attackByOwnDpRateResolvedMultiplier: Number(
           actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
         ),
+        highBoostSkillAtkRate: Number(actionEntry?.specialPassiveModifiers?.highBoostSkillAtkRate ?? 0),
         criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
         criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
+        damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
         babiedSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.babiedSkillAttackUpRate ?? 0),
         divaSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.divaSkillAttackUpRate ?? 0),
+        foodBuffAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffAttackUpRate ?? 0),
         markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
         attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
+        enemyAllAbilityDownByEnemy: allAbilityDownMaps.enemyAllAbilityDownByEnemy,
         zoneType: zoneMatchForDamageContext.zoneState?.type ?? '',
         zonePowerRate: zoneMatchForDamageContext.matched
           ? Number(zoneMatchForDamageContext.zoneState?.powerRate ?? 0)

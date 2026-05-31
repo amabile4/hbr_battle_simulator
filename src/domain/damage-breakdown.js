@@ -294,6 +294,28 @@ function collectAttackBuffContributions(input) {
     );
   }
 
+  const foodBuffAttackUpRate = toFiniteNumber(input?.foodBuffAttackUpRate, 0);
+  if (foodBuffAttackUpRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '食事バフ攻撃力',
+        value: foodBuffAttackUpRate,
+        iconStatusType: 'AttackUp',
+      })
+    );
+  }
+
+  const highBoostSkillAtkRate = toFiniteNumber(input?.highBoostSkillAtkRate, 0);
+  if (highBoostSkillAtkRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: 'ハイブースト',
+        value: highBoostSkillAtkRate,
+        iconStatusType: 'HighBoost',
+      })
+    );
+  }
+
   for (const contribution of cloneArray(input?.accessoryContributions)) {
     const value = toFiniteNumber(contribution?.value ?? contribution?.rate, 0);
     if (value !== 0) {
@@ -373,6 +395,16 @@ function collectTokenPassiveContributions(input) {
       })
     );
   }
+  const damageRateUpPerTokenRate = toFiniteNumber(input?.damageRateUpPerTokenRate, 0);
+  if (damageRateUpPerTokenRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: 'トークン連動ダメージアップ',
+        value: damageRateUpPerTokenRate,
+        iconStatusType: 'TokenSet',
+      })
+    );
+  }
   const attackByOwnDpRateResolvedMultiplier = toFiniteNumber(input?.attackByOwnDpRateResolvedMultiplier, 0);
   if (attackByOwnDpRateResolvedMultiplier > 0 && attackByOwnDpRateResolvedMultiplier !== 1) {
     contributions.push(
@@ -408,6 +440,24 @@ function collectEnemyStatusContributions(input, targetContext, statusTypes) {
   return statuses
     .filter((status) => String(status?.statusType ?? '') !== 'Fragile' || targetContext.isWeak)
     .map((status) => createRateContribution(status));
+}
+
+function collectAllAbilityDownContribution(input, targetContext) {
+  const rawValue = toFiniteNumber(
+    input?.enemyAllAbilityDownByEnemy?.[String(targetContext.targetEnemyIndex)],
+    0
+  );
+  const value = rawValue / 100;
+  if (value === 0) {
+    return [];
+  }
+  return [
+    createStaticContribution({
+      label: '全能力ダウン',
+      value,
+      iconStatusType: 'DefenseDown',
+    }),
+  ];
 }
 
 function collectAffinityContributions(input, targetContext) {
@@ -458,7 +508,7 @@ function buildGroupsForTarget(input, targetContext) {
     input,
     targetContext,
     new Set(['DefenseDown', 'Fragile'])
-  );
+  ).concat(collectAllAbilityDownContribution(input, targetContext));
   const resistDown = collectEnemyStatusContributions(
     input,
     targetContext,
