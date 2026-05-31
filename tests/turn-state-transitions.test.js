@@ -7864,7 +7864,10 @@ test('absorbed element is treated as resistance for OD gain and damage context',
   const damageContext = committedRecord.actions[0].damageContext;
 
   assert.equal(nextState.turnState.odGauge, 0);
-  assert.equal(damageContext, null);
+  assert.ok(damageContext);
+  assert.deepEqual(damageContext.eligibleEnemyIndexes, []);
+  assert.equal(damageContext.effectiveDamageRatesByEnemy['0'], 0);
+  assert.equal(damageContext.damageBreakdown.targetBreakdowns[0].finalMultiplier, 0);
 });
 
 test('damage context keeps all-target enemy eligibility and effective rates', () => {

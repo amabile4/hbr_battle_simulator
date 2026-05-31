@@ -653,6 +653,152 @@ function buildFieldTabHtml(stateOrRecord) {
     .join('');
 }
 
+function formatDamageMultiplier(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${numeric.toFixed(2)}x` : '1.00x';
+}
+
+function formatDamageIncrease(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '+0%';
+  }
+  return `${numeric >= 0 ? '+' : ''}${Math.round(numeric)}%`;
+}
+
+function formatDamageContributionValue(contribution) {
+  const value = Number(contribution?.value ?? 0);
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+  const label = String(contribution?.label ?? '');
+  if (label.includes('相性') || label.includes('基礎倍率')) {
+    return formatDamageMultiplier(value);
+  }
+  const percent = Math.round(value * 100);
+  return `${percent >= 0 ? '+' : ''}${percent}%`;
+}
+
+function resolveDamageContributionIconUrl(contribution) {
+  const iconType = String(contribution?.iconStatusType ?? '').trim();
+  const elements = Array.isArray(contribution?.elements) ? contribution.elements : [];
+  if (ELEMENT_ICON[iconType]) {
+    return ELEMENT_ICON[iconType].src;
+  }
+  if (WEAPON_ICON[iconType]) {
+    return WEAPON_ICON[iconType].src;
+  }
+  const elementalStatusType = resolveElementalStatusType(iconType, elements);
+  return iconType ? resolveSkillTypeIconUrl(elementalStatusType || iconType) : '';
+}
+
+function buildDamageContributionBlockHtml(contribution) {
+  const label = String(contribution?.label ?? '').trim();
+  const sourceSkillName = String(contribution?.sourceSkillName ?? '').trim();
+  const sourceCharacterName = String(contribution?.sourceCharacterName ?? '').trim();
+  const description = String(contribution?.description ?? '').trim();
+  const powerStr = formatDamageContributionValue(contribution);
+  const iconUrl = resolveDamageContributionIconUrl(contribution);
+  return (
+    `<div class="char-popup-buff-block char-popup-damage-effect" data-role="char-popup-damage-effect">` +
+    `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">` +
+    (iconUrl ? `<img src="${esc(iconUrl)}" alt="${esc(label)}" />` : '') +
+    `</div>` +
+    `<div class="char-popup-buff-center">` +
+    `<div class="char-popup-buff-title">${esc(label)}` +
+    (powerStr ? `<span class="char-popup-buff-power">${esc(powerStr)}</span>` : '') +
+    (sourceSkillName ? `<span class="char-popup-buff-skill">[${esc(sourceSkillName)}]</span>` : '') +
+    (sourceCharacterName ? `<span class="char-popup-buff-from">${esc(sourceCharacterName)}</span>` : '') +
+    `</div>` +
+    (description ? `<div class="char-popup-buff-desc line-clamp-2">${esc(description)}</div>` : '') +
+    `</div>` +
+    `</div>`
+  );
+}
+
+function buildDamageGroupRowHtml(group) {
+  const contributions = Array.isArray(group?.contributions) ? group.contributions : [];
+  const effectsHtml = contributions.length > 0
+    ? contributions.map((contribution) => buildDamageContributionBlockHtml(contribution)).join('')
+    : '<div class="char-popup-damage-no-effect">採用効果なし</div>';
+  return (
+    `<div class="char-popup-damage-row" data-role="char-popup-damage-row" data-group="${esc(group?.dataGroup ?? '')}">` +
+    `<div class="char-popup-damage-group-col">` +
+    `<div class="char-popup-damage-group-title">${esc(group?.title ?? '')}</div>` +
+    `<div class="char-popup-damage-group-formula">${esc(group?.formula ?? '')}</div>` +
+    `<div class="char-popup-damage-group-total">${esc(formatDamageMultiplier(group?.multiplier))}</div>` +
+    `</div>` +
+    `<div class="char-popup-damage-effects-col">${effectsHtml}</div>` +
+    `</div>`
+  );
+}
+
+function buildCriticalRateNoteHtml(criticalRateBreakdown) {
+  const percent = Number(criticalRateBreakdown?.criticalRatePercent ?? 0);
+  const safePercent = Number.isFinite(percent) ? Math.round(percent) : 0;
+  const guaranteed = Boolean(criticalRateBreakdown?.isCriticalGuaranteed);
+  const contributions = Array.isArray(criticalRateBreakdown?.contributions)
+    ? criticalRateBreakdown.contributions
+    : [];
+  const detail = contributions.length > 0
+    ? contributions
+        .map((entry) => `${String(entry?.label ?? '')} ${formatDamageContributionValue(entry)}`.trim())
+        .filter(Boolean)
+        .join(' / ')
+    : '補正なし';
+  return (
+    `<div class="char-popup-damage-critical-note" data-role="char-popup-damage-critical-note" data-critical-guaranteed="${guaranteed ? 'true' : 'false'}">` +
+    `<span>クリティカル発生率: ${esc(`${safePercent}%`)}</span>` +
+    (guaranteed ? '<span class="char-popup-damage-critical-badge">クリティカル確定</span>' : '') +
+    `<span class="char-popup-damage-critical-detail">${esc(detail)}</span>` +
+    `</div>`
+  );
+}
+
+function buildDamageTargetBreakdownHtml(targetBreakdown) {
+  const groups = Array.isArray(targetBreakdown?.groups) ? targetBreakdown.groups : [];
+  return (
+    `<section class="char-popup-damage-target" data-role="char-popup-damage-target" data-target-enemy-index="${esc(targetBreakdown?.targetEnemyIndex ?? '')}">` +
+    `<div class="char-popup-damage-target-header">` +
+    `<span class="char-popup-damage-target-label">${esc(targetBreakdown?.targetLabel ?? '')}</span>` +
+    `<span class="char-popup-damage-summary-value">${esc(formatDamageMultiplier(targetBreakdown?.finalMultiplier))}</span>` +
+    `<span class="char-popup-damage-summary-plus">(${esc(formatDamageIncrease(targetBreakdown?.increasePercent))})</span>` +
+    `</div>` +
+    `<div class="char-popup-damage-formula">${esc(targetBreakdown?.formula ?? '')}</div>` +
+    `<div class="char-popup-damage-table" data-role="char-popup-damage-table">` +
+    groups.map((group) => buildDamageGroupRowHtml(group)).join('') +
+    `</div>` +
+    `</section>`
+  );
+}
+
+function buildDamageActionBreakdownHtml(action) {
+  const damageContext = action?.damageContext && typeof action.damageContext === 'object'
+    ? action.damageContext
+    : null;
+  const damageBreakdown = damageContext?.damageBreakdown;
+  const targetBreakdowns = Array.isArray(damageBreakdown?.targetBreakdowns)
+    ? damageBreakdown.targetBreakdowns
+    : [];
+  if (!damageContext || targetBreakdowns.length === 0) {
+    return '';
+  }
+  const skillName = String(action?.skillName ?? damageContext?.skillName ?? '').trim();
+  return (
+    `<section class="char-popup-damage-action" data-role="char-popup-damage-action">` +
+    `<div class="char-popup-damage-action-title">${skillName ? esc(skillName) : 'スキル'}</div>` +
+    buildCriticalRateNoteHtml(damageContext?.criticalRateBreakdown) +
+    targetBreakdowns.map((targetBreakdown) => buildDamageTargetBreakdownHtml(targetBreakdown)).join('') +
+    `</section>`
+  );
+}
+
+function buildDamageBreakdownTabHtml(previewActionFlow) {
+  const actions = Array.isArray(previewActionFlow) ? previewActionFlow : [];
+  const html = actions.map((action) => buildDamageActionBreakdownHtml(action)).filter(Boolean).join('');
+  return html || '<p class="char-popup-empty">威力詳細なし</p>';
+}
+
 // ============================================================
 // シングルトン DOM 管理
 // ============================================================
@@ -682,12 +828,14 @@ function getOrCreatePopup() {
         <button type="button" class="char-popup-tab" data-tab="ability">アビリティ</button>
         <button type="button" class="char-popup-tab" data-tab="passive">パッシブ</button>
         <button type="button" class="char-popup-tab" data-tab="field">フィールド</button>
+        <button type="button" class="char-popup-tab" data-tab="damage">威力詳細</button>
       </div>
       <div data-role="char-popup-content">
         <div class="char-popup-tab-panel" data-tab-panel="status"></div>
         <div class="char-popup-tab-panel" data-tab-panel="ability" hidden></div>
         <div class="char-popup-tab-panel" data-tab-panel="passive" hidden></div>
         <div class="char-popup-tab-panel" data-tab-panel="field" hidden></div>
+        <div class="char-popup-tab-panel" data-tab-panel="damage" hidden></div>
       </div>
     </div>
   `;
@@ -773,6 +921,9 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
       ? buildCurrentActivePassiveTabHtml(member)
       : buildPassiveEventHistoryTabHtml(member, passiveEvents);
   popup.querySelector('[data-tab-panel="field"]').innerHTML = buildFieldTabHtml(stateOrRecord);
+  popup.querySelector('[data-tab-panel="damage"]').innerHTML = buildDamageBreakdownTabHtml(
+    stateOrRecord?.previewActionFlow ?? []
+  );
 
   // 最初のタブをアクティブにリセット
   popup.querySelectorAll('.char-popup-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === 'status'));

@@ -40,6 +40,10 @@ export function buildActionFlowFromRecord(record) {
       positionIndex: Number(action?.positionIndex),
       skillId: Number(action?.skillId ?? 0),
       skillName: String(action?.skillName ?? ''),
+      damageContext:
+        action?.damageContext && typeof action.damageContext === 'object'
+          ? structuredClone(action.damageContext)
+          : null,
       costDelta: Number.isFinite(costDelta) ? costDelta : 0,
       costPreSp: Number.isFinite(startSp) ? startSp : null,
       costPostSp: Number.isFinite(endSp) ? endSp : null,

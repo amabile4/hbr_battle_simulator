@@ -82,11 +82,26 @@ export function buildDamageCalculationContext(input = {}) {
     markDevastationRateUp: Number(input.markDevastationRateUp ?? 0),
     markCriticalRateUp: Number(input.markCriticalRateUp ?? 0),
     markCriticalDamageUp: Number(input.markCriticalDamageUp ?? 0),
+    accessoryAttackUpRate: Number(input.accessoryAttackUpRate ?? 0),
+    accessoryContributions: Array.isArray(input.accessoryContributions)
+      ? structuredClone(input.accessoryContributions)
+      : [],
     overDrivePointUpByTokenPerToken: Number(input.overDrivePointUpByTokenPerToken ?? 0),
     overDrivePointUpByTokenTokenCount: Number(input.overDrivePointUpByTokenTokenCount ?? 0),
     overDrivePointUpByTokenTotalPercent: Number(input.overDrivePointUpByTokenTotalPercent ?? 0),
     zoneType: String(input.zoneType ?? ''),
     zonePowerRate: Number(input.zonePowerRate ?? 0),
+    selectedMindEyeEffects: Array.isArray(input.selectedMindEyeEffects)
+      ? structuredClone(input.selectedMindEyeEffects)
+      : [],
+    criticalRateBreakdown:
+      input.criticalRateBreakdown && typeof input.criticalRateBreakdown === 'object'
+        ? structuredClone(input.criticalRateBreakdown)
+        : null,
+    damageBreakdown:
+      input.damageBreakdown && typeof input.damageBreakdown === 'object'
+        ? structuredClone(input.damageBreakdown)
+        : null,
     funnelEffects: Array.isArray(input.funnelEffects) ? structuredClone(input.funnelEffects) : [],
   };
 }

@@ -56,11 +56,16 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     markDevastationRateUp: 0,
     markCriticalRateUp: 0,
     markCriticalDamageUp: 0,
+    accessoryAttackUpRate: 0,
+    accessoryContributions: [],
     overDrivePointUpByTokenPerToken: 0,
     overDrivePointUpByTokenTokenCount: 0,
     overDrivePointUpByTokenTotalPercent: 0,
     zoneType: '',
     zonePowerRate: 0,
+    selectedMindEyeEffects: [],
+    criticalRateBreakdown: null,
+    damageBreakdown: null,
     funnelEffects: [],
   });
 });
@@ -105,6 +110,10 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
 
 test('buildDamageCalculationContext clones funnel effects and preserves numeric combat modifiers', () => {
   const funnelEffects = [{ effectType: 'Funnel', count: 2, power: [15, 0] }];
+  const accessoryContributions = [{ label: 'リング', value: 0.1 }];
+  const selectedMindEyeEffects = [{ statusType: 'MindEye', power: 0.5 }];
+  const criticalRateBreakdown = { criticalRatePercent: 100, isCriticalGuaranteed: true };
+  const damageBreakdown = { version: 1, targetBreakdowns: [{ targetEnemyIndex: 0 }] };
   const context = buildDamageCalculationContext({
     tokenAttackTokenCount: '5',
     tokenAttackRatePerToken: '12.5',
@@ -132,11 +141,16 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     markDevastationRateUp: '20',
     markCriticalRateUp: '30',
     markCriticalDamageUp: '40',
+    accessoryAttackUpRate: '0.15',
+    accessoryContributions,
     overDrivePointUpByTokenPerToken: '2.5',
     overDrivePointUpByTokenTokenCount: '5',
     overDrivePointUpByTokenTotalPercent: '12.5',
     zoneType: 'Fire',
     zonePowerRate: '45',
+    selectedMindEyeEffects,
+    criticalRateBreakdown,
+    damageBreakdown,
     funnelEffects,
   });
 
@@ -158,12 +172,29 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.enemyDisasterLevelByEnemy[0], 2);
   assert.equal(context.enemyAllAbilityDownByEnemy[0], 40);
   assert.equal(context.markCriticalDamageUp, 40);
+  assert.equal(context.accessoryAttackUpRate, 0.15);
   assert.equal(context.overDrivePointUpByTokenTotalPercent, 12.5);
   assert.equal(context.zoneType, 'Fire');
   assert.equal(context.zonePowerRate, 45);
+  assert.notEqual(context.accessoryContributions, accessoryContributions);
+  assert.deepEqual(context.accessoryContributions, accessoryContributions);
+  assert.notEqual(context.selectedMindEyeEffects, selectedMindEyeEffects);
+  assert.deepEqual(context.selectedMindEyeEffects, selectedMindEyeEffects);
+  assert.notEqual(context.criticalRateBreakdown, criticalRateBreakdown);
+  assert.deepEqual(context.criticalRateBreakdown, criticalRateBreakdown);
+  assert.notEqual(context.damageBreakdown, damageBreakdown);
+  assert.deepEqual(context.damageBreakdown, damageBreakdown);
   assert.notEqual(context.funnelEffects, funnelEffects);
   assert.deepEqual(context.funnelEffects, funnelEffects);
 
+  accessoryContributions[0].value = 0.9;
+  selectedMindEyeEffects[0].power = 0.9;
+  criticalRateBreakdown.criticalRatePercent = 0;
+  damageBreakdown.targetBreakdowns[0].targetEnemyIndex = 2;
   funnelEffects[0].count = 99;
+  assert.equal(context.accessoryContributions[0].value, 0.1);
+  assert.equal(context.selectedMindEyeEffects[0].power, 0.5);
+  assert.equal(context.criticalRateBreakdown.criticalRatePercent, 100);
+  assert.equal(context.damageBreakdown.targetBreakdowns[0].targetEnemyIndex, 0);
   assert.equal(context.funnelEffects[0].count, 2);
 });

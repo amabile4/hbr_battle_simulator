@@ -7,6 +7,7 @@ import {
 } from '../contracts/interfaces.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
+import { buildCriticalRateBreakdown, buildDamageBreakdown } from '../domain/damage-breakdown.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import {
   cloneEnemyEShieldState,
@@ -99,6 +100,26 @@ const OD_DAMAGE_PART_TYPES = new Set([
   'TokenAttack',
   'FixedHpDamageRateAttack',
 ]);
+const DAMAGE_AFFINITY_REFERENCE_LABELS = Object.freeze({
+  Slash: '斬相性',
+  Stab: '突相性',
+  Strike: '打相性',
+  Fire: '火属性相性',
+  Ice: '氷属性相性',
+  Thunder: '雷属性相性',
+  Light: '光属性相性',
+  Dark: '闇属性相性',
+});
+const DAMAGE_AFFINITY_REFERENCE_ICON_TYPES = Object.freeze({
+  Slash: 'Slash',
+  Stab: 'Stab',
+  Strike: 'Strike',
+  Fire: 'Fire',
+  Ice: 'Ice',
+  Thunder: 'Thunder',
+  Light: 'Light',
+  Dark: 'Dark',
+});
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_STRONG_BREAK = ENEMY_STATUS_SUPER_BREAK;
 const ENEMY_STATUS_SUPER_DOWN = ENEMY_STATUS_SUPER_BREAK_DOWN;
@@ -1659,6 +1680,57 @@ function computeEnemyEffectiveDamageRatePercentForPart(turnState, targetIndex, p
     rate *= getEnemyResistanceRatePercent(turnState, targetIndex, reference) / 100;
   }
   return truncateToTwoDecimals(rate * 100);
+}
+
+function resolveBestDamagePartAffinityForEnemy(state, member, skill, targetIndex) {
+  const normalAttackElements =
+    isNormalAttackSkill(skill) && Array.isArray(member?.normalAttackElements) ? member.normalAttackElements : [];
+  const effectiveParts = resolveEffectiveSkillParts(skill, state, member).filter((part) =>
+    OD_DAMAGE_PART_TYPES.has(String(part?.skill_type ?? ''))
+  );
+  let bestPart = null;
+  let bestRate = Number.NEGATIVE_INFINITY;
+  for (const part of effectiveParts) {
+    const partRate = computeEnemyEffectiveDamageRatePercentForPart(state?.turnState, targetIndex, part, {
+      normalAttackElements,
+    });
+    if (partRate > bestRate) {
+      bestRate = partRate;
+      bestPart = part;
+    }
+  }
+  const references = getDamagePartReferences(bestPart, { normalAttackElements });
+  const contributions = references.map((reference) => {
+    const multiplier = getEnemyResistanceRatePercent(state?.turnState, targetIndex, reference) / 100;
+    return {
+      reference,
+      label: DAMAGE_AFFINITY_REFERENCE_LABELS[reference] ?? `${reference}相性`,
+      multiplier: Number.isFinite(multiplier) && multiplier >= 0 ? multiplier : 1,
+      iconStatusType: DAMAGE_AFFINITY_REFERENCE_ICON_TYPES[reference] ?? '',
+    };
+  });
+  return {
+    references,
+    contributions,
+  };
+}
+
+function buildDamageAffinityMapsForAction(state, member, skill, effectiveDamageRatesByEnemy = {}) {
+  const attackReferencesByEnemy = {};
+  const affinityContributionsByEnemy = {};
+  for (const targetKey of Object.keys(effectiveDamageRatesByEnemy ?? {})) {
+    const targetIndex = Number(targetKey);
+    if (!Number.isInteger(targetIndex) || targetIndex < 0) {
+      continue;
+    }
+    const affinity = resolveBestDamagePartAffinityForEnemy(state, member, skill, targetIndex);
+    attackReferencesByEnemy[String(targetIndex)] = affinity.references;
+    affinityContributionsByEnemy[String(targetIndex)] = affinity.contributions;
+  }
+  return {
+    attackReferencesByEnemy,
+    affinityContributionsByEnemy,
+  };
 }
 
 function computeEnemyEffectiveDamageRatePercentForSkill(state, member, skill, targetIndex) {
@@ -5399,6 +5471,7 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
         const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID.BuffCharge;
         const exitCond = String(part?.effect?.exitCond ?? 'Count');
         const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
+        const power = resolvePreferredNonDamageRangeValue(part?.power);
         const sourceSkill = {
           skillId: Number(passive?.passiveId ?? passive?.id ?? 0),
           label: String(passive?.label ?? ''),
@@ -5414,7 +5487,11 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
           if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
             continue;
           }
-          target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill: sourceSkill, actor });
+          target.applySpecialStatus(statusTypeId, remaining, exitCond, {
+            skill: sourceSkill,
+            actor,
+            ...(Number.isFinite(power) ? { power } : {}),
+          });
           const activeEffects = target.getStatusEffectsByType('BuffCharge', { activeOnly: true });
           const latest = activeEffects.at(-1);
           appliedStatusEffects.push({
@@ -7839,17 +7916,27 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
     );
     const effectiveOdGaugeGain = truncateToTwoDecimals(odGaugeGain + pursuitOdGain);
     const delta = truncateToTwoDecimals(Number(effectiveOdGaugeGain ?? 0) - Number(odGaugeDown ?? 0));
-    if (!Number.isFinite(delta) || delta === 0) {
+    const effectiveDelta = Number.isFinite(delta) ? delta : 0;
+    const shouldApplyOdDelta = effectiveDelta !== 0;
+    if (!hasDamage && !shouldApplyOdDelta) {
       continue;
     }
 
     const beforeOdGauge = currentOdGauge;
-    currentOdGauge = truncateToTwoDecimals(beforeOdGauge + delta);
-    currentOdGauge = Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, currentOdGauge));
+    if (shouldApplyOdDelta) {
+      currentOdGauge = truncateToTwoDecimals(beforeOdGauge + effectiveDelta);
+      currentOdGauge = Math.max(OD_GAUGE_MIN_PERCENT, Math.min(OD_GAUGE_MAX_PERCENT, currentOdGauge));
+    }
 
     let consumedFunnels = [];
     let consumedMindEyes = [];
-    if (hasDamage && consumeStatusEffects && !isNormalAttackSkill(skill) && !isPursuitOnlySkill(skill)) {
+    if (
+      shouldApplyOdDelta &&
+      hasDamage &&
+      consumeStatusEffects &&
+      !isNormalAttackSkill(skill) &&
+      !isPursuitOnlySkill(skill)
+    ) {
       consumedFunnels = consumeSelectedCountStatusEffectsWithOrchestrator(
         member,
         'Funnel',
@@ -7864,74 +7951,133 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       );
     }
 
-    const allAbilityDownMaps = buildEnemyAllAbilityPenaltyMaps(state.turnState, enemyCount);
-    const damageContext = buildDamageCalculationContext({
-      actorCharacterId: member.characterId,
-      actorStyleId: member.styleId,
-      skillId: skill.skillId,
-      skillLabel: skill.label,
-      skillName: skill.name,
-      targetType: skill.targetType,
-      enemyCount,
-      targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
-      baseHitCount,
-      funnelHitBonus,
-      effectiveHitCountPerEnemy,
-      effectiveHitCountTotal: effectiveHitCount,
-      eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
-      effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
-      tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
-      tokenAttackRatePerToken: Number(actionEntry?.tokenAttackContext?.ratePerToken ?? 0),
-      tokenAttackTotalRate: Number(actionEntry?.tokenAttackContext?.totalRate ?? 0),
-      attackByOwnDpRateStartDpRate: Number(actionEntry?.attackByOwnDpRateContext?.startDpRate ?? 0),
-      attackByOwnDpRateReferenceDpRate: Number(actionEntry?.attackByOwnDpRateContext?.referenceDpRate ?? 0),
-      attackByOwnDpRateLowDpMultiplier: Number(actionEntry?.attackByOwnDpRateContext?.lowDpMultiplier ?? 0),
-      attackByOwnDpRateHighDpMultiplier: Number(actionEntry?.attackByOwnDpRateContext?.highDpMultiplier ?? 0),
-      attackByOwnDpRateResolvedMultiplier: Number(
-        actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
-      ),
-      highBoostSkillAtkRate: Number(actionEntry?.specialPassiveModifiers?.highBoostSkillAtkRate ?? 0),
-      attackUpRate: Number(actionEntry?.specialPassiveModifiers?.attackUpRate ?? 0),
-      defenseUpRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpRate ?? 0),
-      criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
-      criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
-      damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
-      babiedSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.babiedSkillAttackUpRate ?? 0),
-      babiedOdGaugeGainUpRate: Number(actionEntry?.specialPassiveModifiers?.babiedOdGaugeGainUpRate ?? 0),
-      divaSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.divaSkillAttackUpRate ?? 0),
-      foodBuffAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffAttackUpRate ?? 0),
-      foodBuffHealDpByDamageRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffHealDpByDamageRate ?? 0),
-      attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
-      defenseUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpPerTokenRate ?? 0),
-      markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
-      markDamageTakenDownRate: Number(actionEntry?.specialPassiveModifiers?.markDamageTakenDownRate ?? 0),
-      markDevastationRateUp: Number(actionEntry?.specialPassiveModifiers?.markDevastationRateUp ?? 0),
-      markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
-      markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
-      overDrivePointUpByTokenPerToken: effectiveParts
-        .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
-        .reduce((sum, part) => sum + Number(part?.power?.[0] ?? 0), 0),
-      overDrivePointUpByTokenTokenCount: Number(actionEntry?.startToken ?? member?.tokenState?.current ?? 0),
-      overDrivePointUpByTokenTotalPercent: effectiveParts
-        .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
-        .reduce(
-          (sum, part) =>
-            sum +
-            truncateToTwoDecimals(
-              resolveOverDrivePointUpPowerPercent(part) *
-                Number(actionEntry?.startToken ?? member?.tokenState?.current ?? 0)
-            ),
-          0
+    let damageContext = null;
+    if (hasDamage || shouldApplyOdDelta) {
+      const allAbilityDownMaps = buildEnemyAllAbilityPenaltyMaps(state.turnState, enemyCount);
+      const selectedMindEyeEffects = (mindEyeResolution.selectedEffects ?? []).map((effect) =>
+        summarizeActiveBuffStatusEffect(effect)
+      );
+      const chargeEffects =
+        typeof member?.resolveEffectiveStatusEffects === 'function'
+          ? member
+              .resolveEffectiveStatusEffects('BuffCharge')
+              .map((effect) => summarizeActiveBuffStatusEffect(effect))
+          : [];
+      const affinityMaps = buildDamageAffinityMapsForAction(
+        state,
+        member,
+        skillWithTarget,
+        odEnemyAnalysis?.effectiveDamageRatesByEnemy
+      );
+      const zoneMatchForDamageContext = skillMatchesActiveZone(state, skill, member);
+      const hasPenetrationCritical = effectiveParts.some(
+        (part) => String(part?.skill_type ?? '') === 'PenetrationCriticalAttack'
+      );
+      const damageBreakdownInput = hasDamage ? {
+        targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
+        effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
+        activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
+        chargeEffects,
+        selectedMindEyeEffects,
+        funnelEffects,
+        enemyStatusEffects: getEnemyState(state.turnState).statuses,
+        attackReferencesByEnemy: affinityMaps.attackReferencesByEnemy,
+        affinityContributionsByEnemy: affinityMaps.affinityContributionsByEnemy,
+        tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
+        tokenAttackRatePerToken: Number(actionEntry?.tokenAttackContext?.ratePerToken ?? 0),
+        tokenAttackTotalRate: Number(actionEntry?.tokenAttackContext?.totalRate ?? 0),
+        attackByOwnDpRateResolvedMultiplier: Number(
+          actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
         ),
-      zoneType: skillMatchesActiveZone(state, skill, member).zoneState?.type ?? '',
-      zonePowerRate: skillMatchesActiveZone(state, skill, member).matched
-        ? Number(skillMatchesActiveZone(state, skill, member).zoneState?.powerRate ?? 0)
-        : 0,
-      enemyTalismanLevelByEnemy: allAbilityDownMaps.enemyTalismanLevelByEnemy,
-      enemyDisasterLevelByEnemy: allAbilityDownMaps.enemyDisasterLevelByEnemy,
-      enemyAllAbilityDownByEnemy: allAbilityDownMaps.enemyAllAbilityDownByEnemy,
-      funnelEffects,
-    });
+        criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
+        criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
+        babiedSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.babiedSkillAttackUpRate ?? 0),
+        divaSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.divaSkillAttackUpRate ?? 0),
+        markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
+        markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
+        markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
+        attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
+        zoneType: zoneMatchForDamageContext.zoneState?.type ?? '',
+        zonePowerRate: zoneMatchForDamageContext.matched
+          ? Number(zoneMatchForDamageContext.zoneState?.powerRate ?? 0)
+          : 0,
+        hasPenetrationCritical,
+      } : null;
+      const criticalRateBreakdown = damageBreakdownInput ? buildCriticalRateBreakdown(damageBreakdownInput) : null;
+      const damageBreakdown = damageBreakdownInput ? buildDamageBreakdown(damageBreakdownInput) : null;
+      damageContext = buildDamageCalculationContext({
+        actorCharacterId: member.characterId,
+        actorStyleId: member.styleId,
+        skillId: skill.skillId,
+        skillLabel: skill.label,
+        skillName: skill.name,
+        targetType: skill.targetType,
+        enemyCount,
+        targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
+        baseHitCount,
+        funnelHitBonus,
+        effectiveHitCountPerEnemy,
+        effectiveHitCountTotal: effectiveHitCount,
+        eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
+        effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
+        tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
+        tokenAttackRatePerToken: Number(actionEntry?.tokenAttackContext?.ratePerToken ?? 0),
+        tokenAttackTotalRate: Number(actionEntry?.tokenAttackContext?.totalRate ?? 0),
+        attackByOwnDpRateStartDpRate: Number(actionEntry?.attackByOwnDpRateContext?.startDpRate ?? 0),
+        attackByOwnDpRateReferenceDpRate: Number(actionEntry?.attackByOwnDpRateContext?.referenceDpRate ?? 0),
+        attackByOwnDpRateLowDpMultiplier: Number(actionEntry?.attackByOwnDpRateContext?.lowDpMultiplier ?? 0),
+        attackByOwnDpRateHighDpMultiplier: Number(actionEntry?.attackByOwnDpRateContext?.highDpMultiplier ?? 0),
+        attackByOwnDpRateResolvedMultiplier: Number(
+          actionEntry?.attackByOwnDpRateContext?.resolvedMultiplier ?? 0
+        ),
+        highBoostSkillAtkRate: Number(actionEntry?.specialPassiveModifiers?.highBoostSkillAtkRate ?? 0),
+        attackUpRate: Number(actionEntry?.specialPassiveModifiers?.attackUpRate ?? 0),
+        defenseUpRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpRate ?? 0),
+        criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
+        criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
+        damageRateUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.damageRateUpRate ?? 0),
+        babiedSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.babiedSkillAttackUpRate ?? 0),
+        babiedOdGaugeGainUpRate: Number(actionEntry?.specialPassiveModifiers?.babiedOdGaugeGainUpRate ?? 0),
+        divaSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.divaSkillAttackUpRate ?? 0),
+        foodBuffAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffAttackUpRate ?? 0),
+        foodBuffHealDpByDamageRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffHealDpByDamageRate ?? 0),
+        attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
+        defenseUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpPerTokenRate ?? 0),
+        markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
+        markDamageTakenDownRate: Number(actionEntry?.specialPassiveModifiers?.markDamageTakenDownRate ?? 0),
+        markDevastationRateUp: Number(actionEntry?.specialPassiveModifiers?.markDevastationRateUp ?? 0),
+        markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
+        markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
+        accessoryAttackUpRate: 0,
+        accessoryContributions: [],
+        overDrivePointUpByTokenPerToken: effectiveParts
+          .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
+          .reduce((sum, part) => sum + Number(part?.power?.[0] ?? 0), 0),
+        overDrivePointUpByTokenTokenCount: Number(actionEntry?.startToken ?? member?.tokenState?.current ?? 0),
+        overDrivePointUpByTokenTotalPercent: effectiveParts
+          .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
+          .reduce(
+            (sum, part) =>
+              sum +
+              truncateToTwoDecimals(
+                resolveOverDrivePointUpPowerPercent(part) *
+                  Number(actionEntry?.startToken ?? member?.tokenState?.current ?? 0)
+              ),
+            0
+          ),
+        zoneType: zoneMatchForDamageContext.zoneState?.type ?? '',
+        zonePowerRate: zoneMatchForDamageContext.matched
+          ? Number(zoneMatchForDamageContext.zoneState?.powerRate ?? 0)
+          : 0,
+        enemyTalismanLevelByEnemy: allAbilityDownMaps.enemyTalismanLevelByEnemy,
+        enemyDisasterLevelByEnemy: allAbilityDownMaps.enemyDisasterLevelByEnemy,
+        enemyAllAbilityDownByEnemy: allAbilityDownMaps.enemyAllAbilityDownByEnemy,
+        selectedMindEyeEffects,
+        criticalRateBreakdown,
+        damageBreakdown,
+        funnelEffects,
+      });
+    }
 
     events.push(
       buildActionScopedEvent(actionEntry, {
@@ -7944,7 +8090,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         consumedFunnelEffects: consumedFunnels,
         consumedMindEyeEffects: consumedMindEyes,
         damageContext,
-        odGaugeGain: delta,
+        odGaugeGain: effectiveDelta,
         odGaugeRawGain: truncateToTwoDecimals(Number(effectiveOdGaugeGain ?? 0)),
         odGaugeRawDown: truncateToTwoDecimals(Number(odGaugeDown ?? 0)),
         odGaugeBefore: beforeOdGauge,
@@ -8841,7 +8987,16 @@ function applyBuffStatusEffectsFromActions(state, previewRecord) {
         if (!target) {
           continue;
         }
-        let context = { skill, actor };
+        const partPower = resolvePreferredNonDamageRangeValue(part?.power);
+        let context = {
+          skill,
+          actor,
+          ...(Number.isFinite(partPower) ? { power: partPower } : {}),
+          metadata: {
+            sourceSkillType: skillType,
+            targetType: String(part?.target_type ?? ''),
+          },
+        };
         if (FOOD_BUFF_SKILL_TYPES.has(skillType)) {
           context = {
             skill,
@@ -12202,6 +12357,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           const statusTypeId = BUFF_SKILL_TYPE_TO_STATUS_ID.BuffCharge;
           const exitCond = String(part?.effect?.exitCond ?? DEFAULT_BUFF_CHARGE_EXIT_COND);
           const remaining = Number(part?.effect?.exitVal?.[0] ?? DEFAULT_BUFF_CHARGE_REMAINING);
+          const power = resolvePreferredNonDamageRangeValue(part?.power);
           const sourceSkill = {
             skillId: Number(passive?.passiveId ?? passive?.id ?? 0),
             label: String(passive?.label ?? ''),
@@ -12216,7 +12372,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
             if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
               continue;
             }
-            target.applySpecialStatus(statusTypeId, remaining, exitCond, { skill: sourceSkill, actor: member });
+            target.applySpecialStatus(statusTypeId, remaining, exitCond, {
+              skill: sourceSkill,
+              actor: member,
+              ...(Number.isFinite(power) ? { power } : {}),
+            });
             const activeEffects = target.getStatusEffectsByType('BuffCharge', { activeOnly: true });
             const latest = activeEffects.at(-1);
             appliedStatusEffects.push({
