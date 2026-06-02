@@ -101,3 +101,5 @@ scripts/run_gemini_api.sh
 
 # Local CodeGraph data
 .codegraph/
+
+__pycache__
