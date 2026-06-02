@@ -81,6 +81,20 @@ docs/
 
 ---
 
+## calc/（計算ロジック移植ドキュメント）
+
+| ドキュメント | ステータス | 概要 | 最終更新 |
+|-------------|-----------|------|----------|
+| [calc/porting_design_guideline.md](calc/porting_design_guideline.md) | ✅ 完了 | Python版コアロジックのTypeScript移植に伴う設計・命名統一ガイドライン | 2026-06-03 |
+| [calc/damage_calculation_model.md](calc/damage_calculation_model.md) | 📚 参照 | HBR計算機 ダメージ計算仕様・データ構造レポート | 2026-06-02 |
+| [calc/phase2_design_specification.md](calc/phase2_design_specification.md) | 📚 参照 | フェーズ2 設計仕様書: バフ・デバフ動的解決器と重複上限ルール | 2026-06-02 |
+| [calc/phase3_go_decision.md](calc/phase3_go_decision.md) | 📚 参照 | フェーズ3 計算コアロジック移植Go判定レポート | 2026-06-02 |
+| [calc/phase3_wbs.md](calc/phase3_wbs.md) | ✅ 完了 | フェーズ3 実装 WBS。T3.2.1〜T3.2.4 の初期 TypeScript 移植、T3.3.1 固定 fixture node:test (1235件 PASS)、T3.3.2 大規模クロス言語アサーションテスト(2000件 PASS/カバレッジ84.22%)および T3.4.1 category fallback 方針策定（非ブロッカーとして Phase4 フォローアップへ移行）を含めて全タスクを完了 | 2026-06-03 |
+| [calc/phase3_porting_review_findings.md](calc/phase3_porting_review_findings.md) | ✅ 完了 | フェーズ3移植設計レビュー指摘事項（High 6件・Medium 6件・Low 2件）と修正方針。各ドキュメントの矛盾・抜け漏れを整理し修正完了 | 2026-06-02 |
+| [calc/phase3_validation_report.md](calc/phase3_validation_report.md) | ✅ 完了 | フェーズ3 移植ロジック検証レポート。固定境界ケース、Excel格子点回帰テスト、大規模ランダム差分テストの検証結果を記載。実行再現性コマンドや category fallback の非ブロッカー扱いを整理 | 2026-06-03 |
+
+---
+
 ## 📚 確定設計仕様（specs/）
 
 | ドキュメント | 概要 | 作成日 |

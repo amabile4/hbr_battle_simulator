@@ -30,6 +30,7 @@ export { fromSnapshot, commitRecord, buildTurnContext } from './records/record-a
 export { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from './records/record-store.js';
 export { resolveStyleAssetUrl, resolveStyleImageUrl } from './ui/style-asset-url.js';
 export { HbrDataStore } from './data/hbr-data-store.js';
+export { loadDamageCalculationData } from './data/damage-calculation-data.js';
 export { buildDamageCalculationContext } from './domain/damage-calculation-context.js';
 export {
   buildCriticalRateBreakdown,
@@ -37,6 +38,16 @@ export {
   DAMAGE_BREAKDOWN_GROUPS,
   DAMAGE_RANDOM_FIXED_MULTIPLIER,
 } from './domain/damage-breakdown.js';
+export {
+  ATTACK_PART_TYPES,
+  NORMAL_ATTACK_ID_SUFFIX,
+  NORMAL_ATTACK_SKILL_NAME,
+  PURSUIT_ID_SUFFIX,
+  PURSUIT_SKILL_NAME,
+  calculateDamage,
+  flattenSkillParts,
+  resolveEffectPower,
+} from './domain/damage-calculator.js';
 export {
   resolveSupportPassiveEntry,
   buildSupportPassive,
