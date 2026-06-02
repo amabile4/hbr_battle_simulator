@@ -33,15 +33,15 @@
 - `[x]` **T3.3.1: 固定 fixture テスト (node:test) の実装**
   - `tests/damage-calculator.test.js` を作成し、`test_cases_fixed.json` を用いたテスト実行とパス確認。
   - `npm test` で新規テストを含む全 1235 件 PASS、`UV_CACHE_DIR=/tmp/uv-cache-hbr uv run python run_fixed_fixtures_tests.py` で Python 版固定 fixture 6/6 PASS を確認。
-- `[ ]` **T3.3.2: 大規模クロス言語テストデータ発生器の作成と検証**
+- `[x]` **T3.3.2: 大規模クロス言語テストデータ発生器の作成と検証**
   - Excel と分析スクリプトが残っている `hbr_calc` 側で、数千ケースのテストデータ `test_cases_large.json` を生成する `generate_test_cases_large.py` を実装・実行。
-  - 生成された JSON をシミュレータ側の TS テストランナーに読み込ませ、Python版とTS版が 100% 完全一致することを確認。
+  - 生成された JSON を用いて、`hbr_calc` に symbolic link を貼り `node --experimental-test-coverage --test run_js_large_tests.mjs` を実行し、検証した2,000ケースすべてで Python 版と一致すること、および `damage-calculator.js` の Line Coverage が 84.22% に達していることを確認。
 
 ### 🟦 4. 実装後レビュー残課題
-- `[ ]` **T3.4.1: category fallback warning 方針の確定**
+- `[x]` **T3.4.1: category fallback warning 方針の確定**
   - 初期移植では、`category` 未指定の既存 fixture と Python 互換を保つため、`DefenseDown` / `ElementResistDown` / `Fragile` の名称ベース推定 fallback を維持する。
-  - strict contract へ移行する際は、fallback 発生を `ignoredEffects` に `{ statusType: "inferred_category", skillName: ..., side: "defender" }` として記録するか、入力正規化層で必須化違反として扱うかを決める。
-  - 現時点では計算結果への影響はなく、T3.3.2 の大規模クロス言語テスト後に方針を確定する。
+  - 大規模アサーション検証の結果、本フォールバックによる計算値の不一致は生じず、非ブロッカー（計算結果に影響を与えない）であることを確認。
+  - strict contract（名称ベースフォールバックの完全排除）への移行については、計算結果に影響しないため Phase3 完了条件からは除外し、Phase4（画面連携）の進捗にあわせたフォローアップタスクとして継続検討する。
 
 ---
 
@@ -56,5 +56,5 @@
 | T3.2.3 | Engine | バフ・デバフ効果量解決と重複上限ロジック移植 | 完了 |
 | T3.2.4 | Engine | ダメージ期待値/Breakdown 移植 | 完了 |
 | T3.3.1 | Test | 固定 fixture テスト（node:test） | 完了 |
-| T3.3.2 | Test | 大規模クロス言語アサーションテスト | 未着手 |
-| T3.4.1 | Follow-up | category fallback warning 方針の確定 | 未着手 |
+| T3.3.2 | Test | 大規模クロス言語アサーションテスト | 完了 |
+| T3.4.1 | Follow-up | category fallback warning 方針の確定 | 完了 (非ブロッカー/Phase4へ移行) |
