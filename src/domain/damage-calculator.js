@@ -235,12 +235,7 @@ function aggregateBuffs(buffs) {
   const singleBuffs = [];
   for (const buff of buffs) {
     const power = toNumber(buff?.resolvedPower);
-    // limitType === 'Only' を正とし、フォールバックとして skillName の [単独発動] を参照する
-    const isOnly =
-      String(buff?.limitType ?? '') === 'Only' ||
-      String(buff?.skillName ?? '').includes('[単独発動]') ||
-      String(buff?.skillName ?? '').includes('単独発動');
-    if (isOnly) {
+    if (String(buff?.limitType ?? '') === 'Only') {
       singleBuffs.push(power);
     } else {
       normalBuffs.push(power);

@@ -86,7 +86,8 @@
           },
           {
             "statusType": "AttackUp",
-            "skillName": "[単独発動]ガーデンオブエデン",
+            "skillName": "ガーデンオブエデン",
+            "limitType": "Only",
             "power": 90.0
           }
         ]
