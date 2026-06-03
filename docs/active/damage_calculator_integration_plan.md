@@ -1,6 +1,6 @@
 # ダメージ計算機 統合実装プラン
 
-> **ステータス**: 🟢 机上設計完了・実装フェーズ GO（3者レビュー反映済 2026-06-03） | **ブランチ**: `feature/damage-calculator-integration` | **作成日**: 2026-06-03
+> **ステータス**: ✅ 実装完了（2026-06-03） | **ブランチ**: `feature/damage-calculator-integration` | **作成日**: 2026-06-03 | **最終更新**: 2026-06-03
 
 ## 概要
 
@@ -343,7 +343,7 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - `EnemySetupController.getSnapshot()` → `selectedEnemyId` → `enemies.json` → `param_border` の取得パス確定
 - **v1 制約**: `resistances` は空（武器耐性データが enemies.json に存在しない）
 
-#### T1.3: DamageInputContext 組み立て関数 ✅ 机上設計完了
+#### T1.3: DamageInputContext 組み立て関数 ✅ 実装完了
 - `buildDamageCalculationInput()` シグネチャ確定（上記参照）
 - **前提条件**: `chargeEffects` を `damageContext` に追加保持するよう turn-controller を修正する必要がある
 
@@ -351,22 +351,22 @@ const paramBorder = enemy?.base_param?.param_border > 0
 
 ### 🟡 Phase 2: UI 実装
 
-#### T2.1: 威力詳細タブのレイアウト変更 ✅ 机上設計完了
+#### T2.1: 威力詳細タブのレイアウト変更 ✅ 実装完了
 - 左ペイン（既存・横幅半分）＋右ペイン（新規計算機）の2ペイン構造（v2、上記参照）
 - 左ペインは既存 critical note / target breakdowns / group table を中身不変で移設
 
-#### T2.2: 右ペイン上部 ダメージ・補足情報エリア + 敵選択タブ ✅ 机上設計完了
+#### T2.2: 右ペイン上部 ダメージ・補足情報エリア + 敵選択タブ ✅ 実装完了
 - E1/E2/E3 敵選択タブ（使用スロット数に連動）
 - 通常・クリ 最小/期待/最大 の `<output>`、補足情報欄
 
-#### T2.3: 右ペイン下部 自身のパラメータ（左） ✅ 机上設計完了
+#### T2.3: 右ペイン下部 自身のパラメータ（左） ✅ 実装完了
 - role select、凸数、6ステータス（base 入力＋delta＋resolved の3列。v1 は delta=0・resolved=base）
 
-#### T2.4: 右ペイン下部 敵のパラメータ（右） ✅ 机上設計完了
+#### T2.4: 右ペイン下部 敵のパラメータ（右） ✅ 実装完了
 - 敵名・param_border、敵ステータス（元値＋バフ/デバフ、stat delta レーン）、補足記述スペース（textarea）
 - textarea は v1 では非永続プレースホルダ（save/replay/session schema に入れない）
 
-#### T2.5: CSS スタイリング
+#### T2.5: CSS スタイリング ✅ 実装完了
 - `.char-popup-damage-layout`（左右2ペイン flex、各 ~50%・狭幅で縦積み）
 - `.char-popup-damage-right`（敵タブ + 上部3割/下部7割の縦配分）
 - `.char-popup-damage-enemy-tabs` / `.char-popup-damage-enemy-tab`（敵選択タブ・選択状態）
@@ -379,11 +379,11 @@ const paramBorder = enemy?.base_param?.param_border > 0
 
 ### 🟢 Phase 3: 計算連携
 
-#### T3.0: turn-controller に chargeEffects を damageContext へ追加（前提条件）
+#### T3.0: turn-controller に chargeEffects を damageContext へ追加（前提条件） ✅ 実装完了
 - `buildDamageCalculationContext()` の入力に `chargeEffects` を追加
 - turn-controller で `chargeEffects` を damageContext に渡す
 
-#### T3.1: `calculateDamage` の呼び出し接続
+#### T3.1: `calculateDamage` の呼び出し接続 ✅ 実装完了
 - `buildDamageCalculationInput()` 実装
 - `resolveDefaultStats()` 実装
 - 入力変更時の debounce 再計算（300ms）
@@ -392,7 +392,7 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - 右ペイン計算結果は targetBreakdowns だけでは不足。`paramBorder / isHpTarget / affinityRate / resistances / 敵 status・採用済み debuff` を enemyAdapter または追加 damageContext field から取得する必要あり（`destructionRate` は v1=1.0 固定）
 - `effectiveDamageRatesByEnemy`（属性相性有効率）/ `enemyAllAbilityDownByEnemy` は `targetEnemyIndex` keyed。タブ切替時は同じ index で参照（targetBreakdown=表示倍率、keyed maps=計算入力 という役割差を保つ）
 
-#### T3.2: stat delta 表示連携（v2新規・v1 は placeholder）
+#### T3.2: stat delta 表示連携（v2新規・v1 は placeholder） ✅ 実装完了
 - **正本の区別（ユーザー補足で確定）**: 右ペインの「バフ値/デバフ値」は **ステータス実数差分（stat delta）** を指す。例: `STR 650 (+25) = 675`。
   - これは **`damageBreakdown` contribution（ダメージ倍率カテゴリ）とは別物**（Stat view lane）。倍率カテゴリの値を流用しない。
   - `damageBreakdown` contribution = 威力カテゴリ表示の正本（左ペイン）。右ペイン stat delta = 能力値表示の正本（別レーン）。
@@ -401,19 +401,19 @@ const paramBorder = enemy?.base_param?.param_border > 0
   - 実効ステータス算出 provider が定まり次第、delta/resolved を実値化（後続フェーズ）。
 - 表示: `元値（base）/ 補正（+delta, v1=0）/ 最終（resolved）`。base（手動入力）と delta/resolved（自動算出）を視覚的に分離。
 
-#### T3.3: `loadDamageCalculationData()` のキャッシュ
+#### T3.3: `loadDamageCalculationData()` のキャッシュ ✅ 実装完了
 - 初回のみ読み込み、以降はキャッシュ（`HbrDataStore` 既存機構と整合）
 
 ---
 
 ### 🔵 Phase 4: テスト
 
-#### T4.1: input builder のユニットテスト
+#### T4.1: input builder のユニットテスト ✅ 実装完了
 - `buildDamageCalculationInput()` の変換ロジックカバレッジ
 - `resolveDefaultStats()` の role 別デフォルト値テスト（全 role）
 
-#### T4.2: Playwright E2E テストの追加
-- `tests/e2e/damage-calculator-integration.spec.js`
+#### T4.2: Playwright E2E テストの追加 ✅ 実装完了
+- `tests/e2e/damage-breakdown-popup.spec.js` に右ペイン計算機・敵タブ切替・攻撃者 stat 入力保持の回帰を追加
 
 ---
 
@@ -425,21 +425,25 @@ const paramBorder = enemy?.base_param?.param_border > 0
 |:---|:---|:---|:---|:---|
 | T1.1 | Data | ステータス入力スキーマ定義 | 🟢 GO | ✅ 机上設計完了 |
 | T1.2 | Data | 敵ステータス取得アダプタ | 🟢 GO（destructionRate訂正済） | ✅ 机上設計完了 |
-| T1.3 | Data | DamageInputContext 組み立て関数 | 🟢 GO（synthetic aggregate/2レーン分離明記済） | ✅ 机上設計完了 |
-| T2.1 | UI | 威力詳細タブ 2ペイン化（左既存/右計算機） | 🟢 GO | ✅ 机上設計完了 |
-| T2.2 | UI | 右ペイン上部 ダメージ+敵選択タブ（動的生成） | 🟢 GO（動的生成仕様反映済） | ✅ 机上設計完了 |
-| T2.3 | UI | 右ペイン下部 自身パラメータ（base/delta/resolved） | 🟢 GO（列定義統一済） | ✅ 机上設計完了 |
-| T2.4 | UI | 右ペイン下部 敵パラメータ+補足記述 | 🟢 GO（textarea非永続/敵stat=placeholder） | ✅ 机上設計完了 |
-| T2.5 | UI | CSS スタイリング（2ペイン+3割/7割+左右分割） | 🟢 GO | 未着手 |
-| T3.0 | Logic | turn-controller に最小 raw/adopted inputs 追加 | 🟢 GO | 未着手（T3.1の前提） |
-| T3.1 | Logic | calculateDamage 呼び出し接続＋敵タブ切替再計算 | 🟢 GO（T1.3確定により） | 未着手 |
-| T3.2 | Logic | stat delta 表示（v1 placeholder/delta=0） | 🟢 GO（provider新設・v1方針確定） | 未着手 |
-| T3.3 | Logic | JSON データキャッシュ | 🟢 GO | 未着手 |
-| T4.1 | Test | input builder ユニットテスト | 🟢 GO | 未着手 |
-| T4.2 | Test | E2E テスト追加 | 🟢 GO | 未着手 |
+| T1.3 | Data | DamageInputContext 組み立て関数 | 🟢 GO（synthetic aggregate/2レーン分離明記済） | ✅ 実装完了 |
+| T2.1 | UI | 威力詳細タブ 2ペイン化（左既存/右計算機） | 🟢 GO | ✅ 実装完了 |
+| T2.2 | UI | 右ペイン上部 ダメージ+敵選択タブ（動的生成） | 🟢 GO（動的生成仕様反映済） | ✅ 実装完了 |
+| T2.3 | UI | 右ペイン下部 自身パラメータ（base/delta/resolved） | 🟢 GO（列定義統一済） | ✅ 実装完了 |
+| T2.4 | UI | 右ペイン下部 敵パラメータ+補足記述 | 🟢 GO（textarea非永続/敵stat=placeholder） | ✅ 実装完了 |
+| T2.5 | UI | CSS スタイリング（2ペイン+3割/7割+左右分割） | 🟢 GO | ✅ 実装完了 |
+| T3.0 | Logic | turn-controller に最小 raw/adopted inputs 追加 | 🟢 GO | ✅ 実装完了 |
+| T3.1 | Logic | calculateDamage 呼び出し接続＋敵タブ切替再計算 | 🟢 GO（T1.3確定により） | ✅ 実装完了 |
+| T3.2 | Logic | stat delta 表示（v1 placeholder/delta=0） | 🟢 GO（provider新設・v1方針確定） | ✅ 実装完了 |
+| T3.3 | Logic | JSON データキャッシュ | 🟢 GO | ✅ 実装完了 |
+| T4.1 | Test | input builder ユニットテスト | 🟢 GO | ✅ 実装完了 |
+| T4.2 | Test | E2E テスト追加 | 🟢 GO | ✅ 実装完了 |
 
 **総合判定**: 初回レビューは 3者全員 NOGO（T1.3/T2.3/T3.1/T3.2 の設計不整合が理由）。
-上記レビュー指摘6点（synthetic aggregate明記 / 2レーン分離節追加 / 列定義 base-delta-resolved 統一 / stat delta provider新設・v1=placeholder確定 / 敵タブ動的生成仕様 / destructionRate誤用訂正）を反映し、**実装フェーズ着手可能（GO）** に到達。
+上記レビュー指摘6点（synthetic aggregate明記 / 2レーン分離節追加 / 列定義 base-delta-resolved 統一 / stat delta provider新設・v1=placeholder確定 / 敵タブ動的生成仕様 / destructionRate誤用訂正）を反映したうえで、`src/domain/damage-calculator-input-builder.js`、威力詳細右ペイン UI、`damageContext` 入力追加、テスト追加まで完了。
+
+**完了確認**:
+- `npm test` PASS（1261 tests）
+- `npx playwright test tests/e2e/damage-breakdown-popup.spec.js` PASS（2 tests）
 
 ---
 

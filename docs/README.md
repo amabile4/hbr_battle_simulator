@@ -43,7 +43,7 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-| [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブへのダメージ計算機統合実装プラン。攻撃者ステータス手動入力・敵パラメータ自動取得・calculateDamage 接続・2カラムUI 実装の WBS（T1〜T4、12タスク） | 2026-06-03 |
+| [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | ✅ 完了 | 威力詳細タブへのダメージ計算機統合実装完了記録。攻撃者ステータス手動入力、敵タブ切替、calculateDamage 接続、stat delta placeholder、2ペインUI、unit / Playwright 回帰まで反映 | 2026-06-03 |
 
 ---
 

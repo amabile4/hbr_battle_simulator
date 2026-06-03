@@ -8052,6 +8052,11 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         effectiveHitCountTotal: effectiveHitCount,
         eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
+        activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
+        chargeEffects,
+        enemyStatusEffects: getEnemyState(state.turnState).statuses,
+        attackReferencesByEnemy: affinityMaps.attackReferencesByEnemy,
+        affinityContributionsByEnemy: affinityMaps.affinityContributionsByEnemy,
         tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
         tokenAttackRatePerToken: Number(actionEntry?.tokenAttackContext?.ratePerToken ?? 0),
         tokenAttackTotalRate: Number(actionEntry?.tokenAttackContext?.totalRate ?? 0),
@@ -8101,6 +8106,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         zonePowerRate: zoneMatchForDamageContext.matched
           ? Number(zoneMatchForDamageContext.zoneState?.powerRate ?? 0)
           : 0,
+        hasPenetrationCritical,
         // WIP: 全能力ダウン（タリスマン/霊符・禍）は敵の防御ステータスを-N引き下げる効果。
         // ダメージ計算には自身の攻撃ステータスと敵の防御ステータスの差分が必要なため、
         // 現時点では威力詳細への表示対象外。将来の絶対ステータス追跡実装時に有効化する。

@@ -104,4 +104,103 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(popup).not.toContainText('属性耐性ダウン枠');
     await expect(popup).not.toContainText('落選バフ');
   });
+
+  test('damage calculator pane recalculates by enemy tab and keeps attacker stats', async ({ page }) => {
+    await gotoUiNext(page);
+
+    await page.evaluate(async () => {
+      const { openCharDetailPopup } = await import('/ui-next/utils/char-detail-popup.js');
+      const baseGroups = [
+        { dataGroup: 'buff', title: '攻撃バフ枠', multiplier: 1.5, formula: '1.50x', contributions: [] },
+        { dataGroup: 'crit-mindeye', title: 'クリティカル枠', multiplier: 1.2, formula: '1.20x', contributions: [] },
+        { dataGroup: 'funnel', title: '連撃バフ枠', multiplier: 1, formula: '1.00x', contributions: [] },
+        { dataGroup: 'token-passive', title: 'トークン・固有枠', multiplier: 1, formula: '1.00x', contributions: [] },
+        { dataGroup: 'debuff', title: '敵デバフ・脆弱枠', multiplier: 1.3, formula: '1.30x', contributions: [] },
+        { dataGroup: 'affinity', title: '基本相性枠', multiplier: 1, formula: '1.00x', contributions: [] },
+      ];
+      openCharDetailPopup(
+        {
+          characterId: 'DAMAGE_CALC_E2E',
+          characterName: '計算テスト',
+          styleName: 'テストスタイル',
+          elements: ['Fire'],
+          weaponType: 'Slash',
+          statusEffects: [],
+          passives: [],
+        },
+        {
+          previewActionFlow: [
+            {
+              actorCharacterId: 'DAMAGE_CALC_E2E',
+              actorStyleId: 10101010,
+              skillId: 101010100,
+              skillName: '星火燎原',
+              damageContext: {
+                actorCharacterId: 'DAMAGE_CALC_E2E',
+                actorStyleId: 10101010,
+                skillId: 101010100,
+                skillName: '星火燎原',
+                isNormalAttack: false,
+                effectiveDamageRatesByEnemy: { 0: 100, 1: 150 },
+                zoneType: 'Fire',
+                zonePowerRate: 50,
+                tokenAttackTokenCount: 0,
+                chargeEffects: [],
+                criticalRateBreakdown: {
+                  criticalRatePercent: 100,
+                  isCriticalGuaranteed: true,
+                  contributions: [],
+                },
+                damageBreakdown: {
+                  version: 1,
+                  mode: 'critical',
+                  targetBreakdowns: [
+                    {
+                      targetEnemyIndex: 0,
+                      targetLabel: 'E1',
+                      finalMultiplier: 2.34,
+                      increasePercent: 134,
+                      formula: '1.50x * 1.20x * 1.30x',
+                      groups: baseGroups,
+                    },
+                    {
+                      targetEnemyIndex: 1,
+                      targetLabel: '強敵ベータ',
+                      finalMultiplier: 3.51,
+                      increasePercent: 251,
+                      formula: '1.50x * 1.20x * 1.30x * 1.50x',
+                      groups: baseGroups.map((group) =>
+                        group.dataGroup === 'affinity'
+                          ? { ...group, multiplier: 1.5, formula: '1.50x' }
+                          : group
+                      ),
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+        { isCommitted: false }
+      );
+    });
+
+    const popup = page.locator('#char-detail-popup');
+    await expect(popup).toBeVisible();
+    await popup.locator('.char-popup-tab[data-tab="damage"]').click();
+
+    const pane = popup.locator('[data-role="damage-calc-pane"]').first();
+    await expect(pane).toBeVisible();
+    await expect(pane.locator('[data-role="damage-calc-enemy-tab"]')).toHaveCount(2);
+    await expect(pane.locator('[data-role="damage-calc-normal-expected"]')).not.toHaveText('-', { timeout: 5000 });
+
+    const strInput = pane.locator('[data-role="damage-calc-stat-input"][data-stat="str"]');
+    await strInput.fill('701');
+    await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('701', { timeout: 1000 });
+
+    await pane.locator('[data-role="damage-calc-enemy-tab"][data-target-enemy-index="1"]').click();
+    await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
+    await expect(pane.locator('[data-role="damage-calc-affinity"]')).toHaveText('1.50x');
+    await expect(strInput).toHaveValue('701');
+  });
 });
