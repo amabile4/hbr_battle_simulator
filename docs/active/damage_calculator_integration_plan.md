@@ -48,6 +48,8 @@ v2 実装（commit 384d805）を実機確認したユーザーから、設計思
 ### 三者再整合の open questions
 
 - **Q-V3-1（codex/logic・是正）**: 点1は再設計ではなく整合性バグ。表示スキル（action.skillName）と計算スキル（calculateDamage の解決結果）が相違する原因を実機再現で特定すること。候補: (a) 消費側 action.damageContext.isNormalAttack が誤って true、(b) damageContext.skillId が skills DB の id と不一致で findSkill が name フォールバック→さらに通常攻撃へ、(c) 消費している previewActionFlow action と表示タイトルの action がずれている。特定後、`displayed skill == calculated skill` を固定する回帰テストを追加。
+  - **ユーザー確定（2026-06-04）**: 右ペインの計算ダメージ**数値が（トリニティ・ブレイジングにしては）低い＝実バグ**。「通常」ラベル（非クリの意味）の誤読ではない。codex の Node 最小再現は正常 context で正しく計算されたため、消費側 context が不正（候補(a) isNormalAttack 誤 true が最有力）。実機再現で `action.damageContext` の skillId/skillName/isNormalAttack の実値を確認し原因確定する。
+  - codex 提案: `result.breakdown` に `resolvedSkill {id,name,isNormalAttack}` を追加し、タイトルと計算入力の正本を damageContext に統一（buildDamageActionBreakdownHtml のタイトルを damageContext.skillName 優先へ）。action.skillName と damageContext の mismatch をテストで検出。
 - **Q-V3-2（ag/data）**: PartySetup が member ごとに role / 凸 / ステータスを公開する正確なフィールドは何か。戦闘不変のステータス正本は現状あるか（無ければ「PartySetup でのステータス編集」は新規機能スコープ）。
 - **Q-V3-3（全員）**: 上記を踏まえた WBS の再構成（撤去タスク・新規タスク・流用タスクの確定）。
 
