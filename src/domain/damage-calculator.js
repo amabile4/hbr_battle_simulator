@@ -464,34 +464,36 @@ export function calculateDamage(input, data) {
   const weaponType = style?.type ?? 'Slash';
   const affinityMultiplier = toNumber(defender.resistances?.[weaponType], 1);
   const activeZone = String(input?.activeZone ?? 'None').trim().toLowerCase();
-  let zoneMultiplier = 1;
+  let zoneBuffRate = 0;
   if (activeZone !== 'none') {
     const zoneElement = ZONE_ELEMENT_MAP[activeZone];
     if (zoneElement) {
       const skillElements = (fallbackPart?.elements ?? []).map((element) => String(element).trim().toLowerCase());
       if (skillElements.includes(zoneElement)) {
-        zoneMultiplier = DEFAULT_ZONE_MULTIPLIER;
+        // Zone は公式仕様でスキル攻撃力アップカテゴリ（加算）
+        zoneBuffRate = DEFAULT_ZONE_MULTIPLIER - 1;
       }
     } else {
       ignoredEffects.push({ statusType: 'activeZone', skillName: input?.activeZone ?? '', side: 'context' });
     }
   }
 
-  // Zone は Excel確認済みで独立乗算因子。affinityMultiplier との積で resistanceTotal を構成する。
-  const resistanceTotal = affinityMultiplier * zoneMultiplier;
-  const isWeaknessAttack = resistanceTotal > 1;
-  const buffMultiplier = 1 + aggregateBuffs(buffsResolved);
+  // 武器属性相性のみが resistanceTotal を構成する（Zone は攻撃バフカテゴリへ）
+  const resistanceTotal = affinityMultiplier;
+  const isWeaknessAttack = resistanceTotal > 1 || zoneBuffRate > 0;
+  // MindEye: スキル攻撃力アップカテゴリ（通常+クリ両方に影響）。ただし通常攻撃には適用しない。
+  const mindEyeTotal = isWeaknessAttack && !isNormalAttack
+    ? mindEyeBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100
+    : 0;
+  const buffMultiplier = 1 + aggregateBuffs(buffsResolved) + zoneBuffRate + mindEyeTotal;
   const passiveDefenseDown = toNumber(defender.passiveDefenseDown);
   const debuffVal = aggregateDebuffs(debuffsResolved) + passiveDefenseDown;
   const fragileVal = aggregateFragiles(fragilesResolved, isWeaknessAttack);
   const debuffMultiplier = 1 + debuffVal + fragileVal;
   const vulnerabilityMultiplier = 1;
+  // クリティカル枠: CritDamageUp/CritBuff のみ（MindEye は攻撃バフカテゴリへ移動）
   const critBuffTotal = critBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100;
-  // MindEye は Excel Y16セル数式で通常ダメージに非影響を確認済み。クリティカル専用乗算。
-  const mindEyeTotal = isWeaknessAttack
-    ? mindEyeBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100
-    : 0;
-  const critMindeyeMultiplier = (CRITICAL_BASE_RATE + critBuffTotal + mindEyeTotal) / CRITICAL_BASE_RATE;
+  const critMindeyeMultiplier = (CRITICAL_BASE_RATE + critBuffTotal) / CRITICAL_BASE_RATE;
   const funnelMultiplier = 1 + funnelBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100;
   const tokenMultiplier = 1 + tokenRatio;
   const destructionRate = toNumber(defender.destructionRate, 1);
@@ -539,7 +541,7 @@ export function calculateDamage(input, data) {
       critMindeyeMultiplier,
       debuffMultiplier,
       vulnerabilityMultiplier,
-      resistMultiplier: zoneMultiplier,
+      resistMultiplier: 1,
       affinityMultiplier,
       tokenMultiplier,
       funnelMultiplier,

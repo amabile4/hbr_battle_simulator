@@ -103,9 +103,8 @@ function createOfficialCategoryInput(overrides = {}) {
   };
 }
 
-test('calculateDamage: MindEye does not affect normal damage, only critical (Excel Y16 confirmed)', () => {
-  // Excel セル参照確認済み: Y16 (通常) に AR65 (MindEye) は含まれない
-  // ユーザー仕様: 心眼バフは通常攻撃には乗らない
+test('calculateDamage: MindEye applies to skill attacks on weakness (both normal and crit via buffMultiplier)', () => {
+  // 仕様: 心眼はスキル攻撃力アップカテゴリ。弱点スキル攻撃時に通常・クリ両方に影響する。
   const data = loadDamageCalculationData();
   const base = calculateDamage(createOfficialCategoryInput(), data);
   const actual = calculateDamage(
@@ -116,12 +115,27 @@ test('calculateDamage: MindEye does not affect normal damage, only critical (Exc
     }),
     data
   );
+  // 弱点スキル攻撃: MindEye が buffMultiplier に加算され通常・クリ両方が増加
+  assertAlmostEqual(actual.breakdown.buffMultiplier, 1.5, 'mindeye.buffMultiplier', OFFICIAL_CATEGORY_TOLERANCE);
+  assertAlmostEqual(actual.breakdown.critMindeyeMultiplier, 1, 'mindeye.critMindeyeMult', OFFICIAL_CATEGORY_TOLERANCE);
+  assertAlmostEqual(actual.normal.expected / base.normal.expected, 1.5, 'mindeye.normalRatio', OFFICIAL_CATEGORY_TOLERANCE);
+  assertAlmostEqual(actual.critical.expected / base.critical.expected, 1.5, 'mindeye.criticalRatio', OFFICIAL_CATEGORY_TOLERANCE);
+});
 
-  // 通常ダメージは MindEye の影響を受けない
-  assertAlmostEqual(actual.normal.expected / base.normal.expected, 1, 'mindeye.normalRatio', OFFICIAL_CATEGORY_TOLERANCE);
-  // クリティカルのみ MindEye が乗る: (1.5 + 0.5) / 1.5 ≒ 1.333
-  assertAlmostEqual(actual.breakdown.critMindeyeMultiplier, (1.5 + 0.5) / 1.5, 'mindeye.critMultiplier', OFFICIAL_CATEGORY_TOLERANCE);
-  assertAlmostEqual(actual.breakdown.buffMultiplier, 1, 'mindeye.buffMultiplier', OFFICIAL_CATEGORY_TOLERANCE);
+test('calculateDamage: MindEye does not apply to normal attacks (isNormalAttack)', () => {
+  // 仕様: 通常攻撃では心眼は乗らない（バフ消費設計との一貫性）
+  const data = loadDamageCalculationData();
+  const baseInput = createOfficialCategoryInput({ skill: { skillId: null, name: '通常攻撃', level: 10 } });
+  const base = calculateDamage(baseInput, data);
+  const actual = calculateDamage({
+    ...baseInput,
+    attacker: { ...baseInput.attacker, statusEffects: [{ statusType: 'MindEye', skillName: '心眼', power: 50 }] },
+  }, data);
+  // 通常攻撃: MindEye 不適用、通常・クリ両方とも倍率変化なし
+  assertAlmostEqual(actual.breakdown.buffMultiplier, 1, 'normalatk.buffMultiplier', OFFICIAL_CATEGORY_TOLERANCE);
+  assertAlmostEqual(actual.breakdown.critMindeyeMultiplier, 1, 'normalatk.critMindeyeMult', OFFICIAL_CATEGORY_TOLERANCE);
+  assertAlmostEqual(actual.normal.expected / base.normal.expected, 1, 'normalatk.normalRatio', OFFICIAL_CATEGORY_TOLERANCE);
+  assertAlmostEqual(actual.critical.expected / base.critical.expected, 1, 'normalatk.criticalRatio', OFFICIAL_CATEGORY_TOLERANCE);
 });
 
 test('calculateDamage adds defense down, element resist down, and fragile in one defense category', () => {
