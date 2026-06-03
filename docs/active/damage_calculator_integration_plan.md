@@ -21,7 +21,7 @@ v2 実装（commit 384d805）を実機確認したユーザーから、設計思
 
 | # | 指摘 | 判定 | 根拠（実コード） |
 |---|---|---|---|
-| 1 | 手塚咲 トリニティ・ブレイジングを右クリックしても**通常攻撃の威力**が出る。見たいのは当該スキルのダメージ | 🔴 束縛ギャップ（バグ寄り・最重要） | 威力詳細タブは `previewActionFlow` をキャラフィルタした**行動フローのアクション**に束縛（char-detail-popup.js L1198-1199）。各 `action.damageContext` を計算対象にするため、閲覧中スキルではなくフロー上のアクション（=通常攻撃）が出る |
+| 1 | 威力詳細タブ左上に**トリニティ・ブレイジング**と表示されているのに、計算結果は**通常攻撃の威力**になる。表示スキルと計算スキルが相違している | 🔴 整合性バグ（最重要） | タイトル=`action.skillName`、左ペイン内訳=当該スキルの`damageBreakdown`、右ペイン計算=同一`damageContext`→`calculateDamage`（skillId 解決）。turn-controller L8039-8046 で damageContext は `skillId/skillName/isNormalAttack` を正しく保持するため、**静的には表示スキルと同一スキルが計算されるはず**。実機で通常攻撃が出る＝実バグ（要再現特定）。※前回の「previewActionFlow 束縛で閲覧時に通常攻撃」という診断は誤り（タイトルが正しいスキルを出している＝アクション束縛は正常） |
 | 2 | role/凸は PartySetup で定義済み。ペインで再入力させる項目は不要 | 🔴 設計思想の乖離 | PartySetup が凸数を `limitBreakLevelsByPartyIndex` で保持（party-setup.js L290/L351）、role は style 由来。ペインの `<select Role>`/`<input 凸>`（char-detail-popup.js L876-877）は当初プランの手動入力設計で冗長 |
 | 3 | ステータス入力は PartySetup タブに入るべき。戦闘中不変、変更時は PartySetup で変更→再計算 | 🔴 設計思想の乖離 | ペインのステータスは編集可能な手動入力（L841 `damage-calc-stat-input`）。戦闘不変の正本を PartySetup に置く思想と乖離 |
 
@@ -35,7 +35,7 @@ v2 実装（commit 384d805）を実機確認したユーザーから、設計思
 
 ### 確定した修正方針（ユーザー決定）
 
-- **点1: スキル駆動に変更** — 右クリックで開いたスキルそのもののダメージを計算・表示。行動フローに依存せず、スキルごとの damageContext を構築する。
+- **点1: 表示スキル＝計算スキルの整合性を保証** — 威力詳細タブに表示されている（左上タイトルの）スキルそのもののダメージを計算・表示する。現状は表示と計算が相違＝バグ。不変条件「displayed skill == calculated skill」を満たすよう、計算が通常攻撃へフォールバックする原因を実機再現で特定し修正。回帰テストで invariant を固定する（アーキテクチャ再設計ではなく整合性修正）。
 - **点2/3: PartySetup を単一の正に** — role/凸/ステータスは PartySetup から読み取る。ペインの手動入力（role/凸/stat）を撤去。ステータス編集UIは PartySetup タブの将来機能（戦闘不変・変更時は PartySetup で編集→再計算反映）。計算機ペインは resolved 値を read-only 表示。
 
 ### 再利用可能 / 要再設計の切り分け
@@ -47,7 +47,7 @@ v2 実装（commit 384d805）を実機確認したユーザーから、設計思
 
 ### 三者再整合の open questions
 
-- **Q-V3-1（codex/logic）**: 閲覧中スキル単体の damageContext / damageBreakdown を、行動フロー外で構築する engine 経路はあるか。無い場合、スキル→仮想アクション合成 or turn-controller の preview 経路の流用が必要か。
+- **Q-V3-1（codex/logic・是正）**: 点1は再設計ではなく整合性バグ。表示スキル（action.skillName）と計算スキル（calculateDamage の解決結果）が相違する原因を実機再現で特定すること。候補: (a) 消費側 action.damageContext.isNormalAttack が誤って true、(b) damageContext.skillId が skills DB の id と不一致で findSkill が name フォールバック→さらに通常攻撃へ、(c) 消費している previewActionFlow action と表示タイトルの action がずれている。特定後、`displayed skill == calculated skill` を固定する回帰テストを追加。
 - **Q-V3-2（ag/data）**: PartySetup が member ごとに role / 凸 / ステータスを公開する正確なフィールドは何か。戦闘不変のステータス正本は現状あるか（無ければ「PartySetup でのステータス編集」は新規機能スコープ）。
 - **Q-V3-3（全員）**: 上記を踏まえた WBS の再構成（撤去タスク・新規タスク・流用タスクの確定）。
 
