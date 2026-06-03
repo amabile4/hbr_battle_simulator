@@ -48,8 +48,12 @@ v2 実装（commit 384d805）を実機確認したユーザーから、設計思
 ### 三者再整合の open questions
 
 - **Q-V3-1（codex/logic・是正）**: 点1は再設計ではなく整合性バグ。表示スキル（action.skillName）と計算スキル（calculateDamage の解決結果）が相違する原因を実機再現で特定すること。候補: (a) 消費側 action.damageContext.isNormalAttack が誤って true、(b) damageContext.skillId が skills DB の id と不一致で findSkill が name フォールバック→さらに通常攻撃へ、(c) 消費している previewActionFlow action と表示タイトルの action がずれている。特定後、`displayed skill == calculated skill` を固定する回帰テストを追加。
-  - **ユーザー確定（2026-06-04）**: 右ペインの計算ダメージ**数値が（トリニティ・ブレイジングにしては）低い＝実バグ**。「通常」ラベル（非クリの意味）の誤読ではない。codex の Node 最小再現は正常 context で正しく計算されたため、消費側 context が不正（候補(a) isNormalAttack 誤 true が最有力）。実機再現で `action.damageContext` の skillId/skillName/isNormalAttack の実値を確認し原因確定する。
-  - codex 提案: `result.breakdown` に `resolvedSkill {id,name,isNormalAttack}` を追加し、タイトルと計算入力の正本を damageContext に統一（buildDamageActionBreakdownHtml のタイトルを damageContext.skillName 優先へ）。action.skillName と damageContext の mismatch をテストで検出。
+  - **ユーザー確定（2026-06-04）**: 右ペインの計算ダメージ**数値が（トリニティ・ブレイジングにしては）低い**。「通常」ラベル（非クリの意味）の誤読ではない。
+  - **codex 実機 probe で原因確定（2026-06-04・候補(a)は否定）**: commitTurn の実アクションで `action.damageContext = {skillId:46041404, skillName:'トリニティ・ブレイジング', isNormalAttack:false, baseHitCount:8}`。**damageContext は正しく Trinity を指しており、通常攻撃化していない**。よって「isNormalAttack 誤 true」「displayed≠calculated skill」は真因ではない。
+  - **真因（合わせ技）**:
+    1. **攻撃者 stats がプレースホルダのデフォルト値（低い）** → `calculateBaseDamage`（damage-calculator.js L330-341）は `diff = statusAtk - paramBorder` で min/maxPower を補間。default stats 由来の statusAtk が paramBorder(770) を下回ると低ブランチに落ち低ダメージ（LB0≈6634 / LB4≈15629）。→ V3 の PartySetup stats 連携で解消見込み。
+    2. **AttackBySp の消費SP威力スケーリングが未モデル化**: Trinity は `skill_type=AttackBySp, sp_cost=-1, cond=Sp()>0, power=[13880.625,27761.25], diff_for_max=179`。`buildDamageCalculationContext` / builder は `startSP/endSP/spCost/consumedSP` を保持・伝播していない。`docs/specs/sp_condition_skill_spec.md` も「消費SPに応じて威力上昇」を未実装候補と明記。**ただし正式な計算式は Excel/Python 正本で要確認**。
+  - **invariant は依然必要**: `result.breakdown` に `resolvedSkill {id,name,isNormalAttack}` を追加し、displayed skill == calculated skill を回帰テストで固定（codex 提案 B）。ただし表示を damageContext に寄せるだけの対症療法は不可（書き込み側が正しいことが前提）。
 - **Q-V3-2（ag/data）**: PartySetup が member ごとに role / 凸 / ステータスを公開する正確なフィールドは何か。戦闘不変のステータス正本は現状あるか（無ければ「PartySetup でのステータス編集」は新規機能スコープ）。
 - **Q-V3-3（全員）**: 上記を踏まえた WBS の再構成（撤去タスク・新規タスク・流用タスクの確定）。
 
