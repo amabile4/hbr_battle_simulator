@@ -253,22 +253,9 @@ function inferDebuffCategory(effect) {
   if (DEBUFF_CATEGORY_SET.has(effect?.category)) {
     return effect.category;
   }
-  const skillName = String(effect?.skillName ?? '');
   const statusType = String(effect?.statusType ?? '');
-  if (
-    (skillName.includes('永続') && (skillName.includes('属性') || skillName.includes('属防'))) ||
-    skillName.includes('氷華、千射万箭')
-  ) {
-    return 'PermElementDefense';
-  }
-  if (skillName.includes('DP防御') || skillName.includes('ほてるししむら')) {
-    return 'DPDefense';
-  }
-  if (skillName.includes('属性') || skillName.includes('グラビトン') || statusType === 'ElementResistDown') {
+  if (statusType === 'ElementResistDown') {
     return 'ElementDefense';
-  }
-  if (skillName.includes('永続') || skillName.includes('インフィニティ')) {
-    return 'PermDefense';
   }
   return 'NormalDefense';
 }
@@ -277,10 +264,7 @@ function inferFragileCategory(effect) {
   if (FRAGILE_CATEGORY_SET.has(effect?.category)) {
     return effect.category;
   }
-  const skillName = String(effect?.skillName ?? '');
-  return skillName.includes('永続') || skillName.includes('まだまだ行くで')
-    ? 'PermFragile'
-    : 'NormalFragile';
+  return 'NormalFragile';
 }
 
 function aggregateDebuffs(debuffs) {
@@ -439,6 +423,7 @@ export function calculateDamage(input, data) {
   const debuffsResolved = [];
   const fragilesResolved = [];
   const critBuffsResolved = [];
+  const mindEyeBuffsResolved = [];
   const funnelBuffsResolved = [];
 
   for (const rawBuff of attacker.statusEffects ?? []) {
@@ -450,8 +435,10 @@ export function calculateDamage(input, data) {
     const resolved = { ...buff, skillName: buff.skillName ?? '', resolvedPower: resolveEffectPower(buff, skills) };
     if (['AttackUp', 'Charge', 'ElementAttackUp'].includes(buff.statusType)) {
       buffsResolved.push(resolved);
-    } else if (['CritDamageUp', 'CritBuff', 'MindEye'].includes(buff.statusType)) {
+    } else if (['CritDamageUp', 'CritBuff'].includes(buff.statusType)) {
       critBuffsResolved.push(resolved);
+    } else if (buff.statusType === 'MindEye') {
+      mindEyeBuffsResolved.push(resolved);
     } else if (buff.statusType === 'Funnel') {
       funnelBuffsResolved.push(resolved);
     }
@@ -490,19 +477,19 @@ export function calculateDamage(input, data) {
     }
   }
 
+  // Zone は Excel確認済みで独立乗算因子。affinityMultiplier との積で resistanceTotal を構成する。
   const resistanceTotal = affinityMultiplier * zoneMultiplier;
   const isWeaknessAttack = resistanceTotal > 1;
   const buffMultiplier = 1 + aggregateBuffs(buffsResolved);
   const passiveDefenseDown = toNumber(defender.passiveDefenseDown);
-  const debuffMultiplier = 1 + aggregateDebuffs(debuffsResolved) + passiveDefenseDown;
-  const vulnerabilityMultiplier = 1 + aggregateFragiles(fragilesResolved, isWeaknessAttack);
-  const critBuffTotal = critBuffsResolved
-    .filter((buff) => buff.statusType !== 'MindEye')
-    .reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100;
+  const debuffVal = aggregateDebuffs(debuffsResolved) + passiveDefenseDown;
+  const fragileVal = aggregateFragiles(fragilesResolved, isWeaknessAttack);
+  const debuffMultiplier = 1 + debuffVal + fragileVal;
+  const vulnerabilityMultiplier = 1;
+  const critBuffTotal = critBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100;
+  // MindEye は Excel Y16セル数式で通常ダメージに非影響を確認済み。クリティカル専用乗算。
   const mindEyeTotal = isWeaknessAttack
-    ? critBuffsResolved
-        .filter((buff) => buff.statusType === 'MindEye')
-        .reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100
+    ? mindEyeBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100
     : 0;
   const critMindeyeMultiplier = (CRITICAL_BASE_RATE + critBuffTotal + mindEyeTotal) / CRITICAL_BASE_RATE;
   const funnelMultiplier = 1 + funnelBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100;
@@ -516,7 +503,6 @@ export function calculateDamage(input, data) {
       destructionRate *
       specialEffect *
       debuffMultiplier *
-      vulnerabilityMultiplier *
       buffMultiplier *
       tokenMultiplier *
       funnelMultiplier
@@ -528,12 +514,12 @@ export function calculateDamage(input, data) {
       destructionRate *
       specialEffect *
       debuffMultiplier *
-      vulnerabilityMultiplier *
       buffMultiplier *
       tokenMultiplier *
       critMindeyeMultiplier *
       funnelMultiplier
   );
+
 
   return {
     normal: {

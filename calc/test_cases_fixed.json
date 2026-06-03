@@ -19,10 +19,10 @@
       "defender": {
         "enemyId": 13000001,
         "paramBorder": 950,
-        "destructionRate": 1.0,
+        "destructionRate": 1,
         "isHpTarget": true,
         "resistances": {
-          "Stab": 1.0
+          "Stab": 1
         },
         "statusEffects": []
       },
@@ -36,24 +36,24 @@
       "normal": {
         "expected": 356.25,
         "min": 320.625,
-        "max": 391.875
+        "max": 391.87500000000006
       },
       "critical": {
         "expected": 712.5,
         "min": 641.25,
-        "max": 783.75
+        "max": 783.7500000000001
       },
       "breakdown": {
         "baseDamageNormal": 356.25,
         "baseDamageCrit": 712.5,
-        "buffMultiplier": 1.0,
-        "critMindeyeMultiplier": 1.0,
-        "debuffMultiplier": 1.0,
-        "vulnerabilityMultiplier": 1.0,
-        "resistMultiplier": 1.0,
-        "affinityMultiplier": 1.0,
-        "tokenMultiplier": 1.0,
-        "funnelMultiplier": 1.0,
+        "buffMultiplier": 1,
+        "critMindeyeMultiplier": 1,
+        "debuffMultiplier": 1,
+        "vulnerabilityMultiplier": 1,
+        "resistMultiplier": 1,
+        "affinityMultiplier": 1,
+        "tokenMultiplier": 1,
+        "funnelMultiplier": 1,
         "ignoredEffects": []
       }
     }
@@ -77,28 +77,28 @@
           {
             "statusType": "AttackUp",
             "skillName": "エンハンス",
-            "power": 50.0
+            "power": 50
           },
           {
             "statusType": "AttackUp",
             "skillName": "ドーピング",
-            "power": 75.0
+            "power": 75
           },
           {
             "statusType": "AttackUp",
             "skillName": "ガーデンオブエデン",
             "limitType": "Only",
-            "power": 90.0
+            "power": 90
           }
         ]
       },
       "defender": {
         "enemyId": 13000001,
         "paramBorder": 950,
-        "destructionRate": 1.0,
+        "destructionRate": 1,
         "isHpTarget": true,
         "resistances": {
-          "Stab": 1.0
+          "Stab": 1
         },
         "statusEffects": []
       },
@@ -112,24 +112,24 @@
       "normal": {
         "expected": 801.5625,
         "min": 721.40625,
-        "max": 881.71875
+        "max": 881.7187500000001
       },
       "critical": {
         "expected": 1603.125,
         "min": 1442.8125,
-        "max": 1763.4375
+        "max": 1763.4375000000002
       },
       "breakdown": {
         "baseDamageNormal": 356.25,
         "baseDamageCrit": 712.5,
         "buffMultiplier": 2.25,
-        "critMindeyeMultiplier": 1.0,
-        "debuffMultiplier": 1.0,
-        "vulnerabilityMultiplier": 1.0,
-        "resistMultiplier": 1.0,
-        "affinityMultiplier": 1.0,
-        "tokenMultiplier": 1.0,
-        "funnelMultiplier": 1.0,
+        "critMindeyeMultiplier": 1,
+        "debuffMultiplier": 1,
+        "vulnerabilityMultiplier": 1,
+        "resistMultiplier": 1,
+        "affinityMultiplier": 1,
+        "tokenMultiplier": 1,
+        "funnelMultiplier": 1,
         "ignoredEffects": []
       }
     }
@@ -154,31 +154,35 @@
       "defender": {
         "enemyId": 13000001,
         "paramBorder": 950,
-        "destructionRate": 1.0,
+        "destructionRate": 1,
         "isHpTarget": true,
         "resistances": {
-          "Stab": 1.0
+          "Stab": 1
         },
         "statusEffects": [
           {
             "statusType": "DefenseDown",
             "skillName": "ソフニング",
-            "power": 30.0
+            "category": "NormalDefense",
+            "power": 30
           },
           {
             "statusType": "DefenseDown",
             "skillName": "インフィニティ・ハレーション",
-            "power": 15.0
+            "category": "PermDefense",
+            "power": 15
           },
           {
             "statusType": "ElementResistDown",
             "skillName": "グラビトン(通常)",
-            "power": 20.0
+            "category": "ElementDefense",
+            "power": 20
           },
           {
             "statusType": "DefenseDown",
             "skillName": "ほてるししむら(DP防御)",
-            "power": 25.0
+            "category": "DPDefense",
+            "power": 25
           }
         ]
       },
@@ -192,24 +196,24 @@
       "normal": {
         "expected": 676.875,
         "min": 609.1875,
-        "max": 744.5625
+        "max": 744.5625000000001
       },
       "critical": {
         "expected": 1353.75,
         "min": 1218.375,
-        "max": 1489.125
+        "max": 1489.1250000000002
       },
       "breakdown": {
         "baseDamageNormal": 356.25,
         "baseDamageCrit": 712.5,
-        "buffMultiplier": 1.0,
-        "critMindeyeMultiplier": 1.0,
+        "buffMultiplier": 1,
+        "critMindeyeMultiplier": 1,
         "debuffMultiplier": 1.9,
-        "vulnerabilityMultiplier": 1.0,
-        "resistMultiplier": 1.0,
-        "affinityMultiplier": 1.0,
-        "tokenMultiplier": 1.0,
-        "funnelMultiplier": 1.0,
+        "vulnerabilityMultiplier": 1,
+        "resistMultiplier": 1,
+        "affinityMultiplier": 1,
+        "tokenMultiplier": 1,
+        "funnelMultiplier": 1,
         "ignoredEffects": []
       }
     }
@@ -234,7 +238,7 @@
       "defender": {
         "enemyId": 13000001,
         "paramBorder": 950,
-        "destructionRate": 1.0,
+        "destructionRate": 1,
         "isHpTarget": true,
         "resistances": {
           "Stab": 1.5
@@ -243,12 +247,14 @@
           {
             "statusType": "Fragile",
             "skillName": "ネイキッドイレイザー",
-            "power": 35.0
+            "category": "NormalFragile",
+            "power": 35
           },
           {
             "statusType": "Fragile",
-            "skillName": "永続:まだまだ行くで！",
-            "power": 20.0
+            "skillName": "まだまだ行くで！",
+            "category": "PermFragile",
+            "power": 20
           }
         ]
       },
@@ -262,24 +268,24 @@
       "normal": {
         "expected": 828.28125,
         "min": 745.453125,
-        "max": 911.109375
+        "max": 911.1093750000001
       },
       "critical": {
         "expected": 1656.5625,
         "min": 1490.90625,
-        "max": 1822.21875
+        "max": 1822.2187500000002
       },
       "breakdown": {
         "baseDamageNormal": 356.25,
         "baseDamageCrit": 712.5,
-        "buffMultiplier": 1.0,
-        "critMindeyeMultiplier": 1.0,
-        "debuffMultiplier": 1.0,
-        "vulnerabilityMultiplier": 1.55,
-        "resistMultiplier": 1.0,
+        "buffMultiplier": 1,
+        "critMindeyeMultiplier": 1,
+        "debuffMultiplier": 1.55,
+        "vulnerabilityMultiplier": 1,
+        "resistMultiplier": 1,
         "affinityMultiplier": 1.5,
-        "tokenMultiplier": 1.0,
-        "funnelMultiplier": 1.0,
+        "tokenMultiplier": 1,
+        "funnelMultiplier": 1,
         "ignoredEffects": []
       }
     }
@@ -304,21 +310,23 @@
       "defender": {
         "enemyId": 13000001,
         "paramBorder": 950,
-        "destructionRate": 1.0,
+        "destructionRate": 1,
         "isHpTarget": true,
         "resistances": {
-          "Stab": 1.0
+          "Stab": 1
         },
         "statusEffects": [
           {
             "statusType": "Fragile",
             "skillName": "ネイキッドイレイザー",
-            "power": 35.0
+            "category": "NormalFragile",
+            "power": 35
           },
           {
             "statusType": "Fragile",
-            "skillName": "永続:まだまだ行くで！",
-            "power": 20.0
+            "skillName": "まだまだ行くで！",
+            "category": "PermFragile",
+            "power": 20
           }
         ]
       },
@@ -332,24 +340,24 @@
       "normal": {
         "expected": 427.5,
         "min": 384.75,
-        "max": 470.25
+        "max": 470.25000000000006
       },
       "critical": {
-        "expected": 855.0,
+        "expected": 855,
         "min": 769.5,
-        "max": 940.5
+        "max": 940.5000000000001
       },
       "breakdown": {
         "baseDamageNormal": 356.25,
         "baseDamageCrit": 712.5,
-        "buffMultiplier": 1.0,
-        "critMindeyeMultiplier": 1.0,
-        "debuffMultiplier": 1.0,
-        "vulnerabilityMultiplier": 1.2,
-        "resistMultiplier": 1.0,
-        "affinityMultiplier": 1.0,
-        "tokenMultiplier": 1.0,
-        "funnelMultiplier": 1.0,
+        "buffMultiplier": 1,
+        "critMindeyeMultiplier": 1,
+        "debuffMultiplier": 1.2,
+        "vulnerabilityMultiplier": 1,
+        "resistMultiplier": 1,
+        "affinityMultiplier": 1,
+        "tokenMultiplier": 1,
+        "funnelMultiplier": 1,
         "ignoredEffects": []
       }
     }
@@ -372,12 +380,12 @@
         "statusEffects": [
           {
             "statusType": "MindEye",
-            "power": 30.0,
+            "power": 30,
             "skillName": ""
           },
           {
             "statusType": "Funnel",
-            "power": 20.0,
+            "power": 20,
             "skillName": ""
           }
         ]
@@ -385,7 +393,7 @@
       "defender": {
         "enemyId": 13000001,
         "paramBorder": 950,
-        "destructionRate": 1.0,
+        "destructionRate": 1,
         "isHpTarget": true,
         "resistances": {
           "Stab": 1.5
@@ -414,12 +422,222 @@
         "baseDamageCrit": 712.5,
         "buffMultiplier": 1.0,
         "critMindeyeMultiplier": 1.2,
-        "debuffMultiplier": 1.0,
-        "vulnerabilityMultiplier": 1.0,
+        "debuffMultiplier": 1,
+        "vulnerabilityMultiplier": 1,
         "resistMultiplier": 1.0,
         "affinityMultiplier": 1.5,
         "tokenMultiplier": 1.3,
         "funnelMultiplier": 1.2,
+        "ignoredEffects": []
+      }
+    }
+  },
+  {
+    "name": "case7_debuff_fragile_additive",
+    "input": {
+      "attacker": {
+        "characterId": "手塚咲",
+        "styleId": 1010103,
+        "tokenCount": 0,
+        "stats": {
+          "str": 675,
+          "dex": 675,
+          "wis": 675,
+          "spr": 675,
+          "luk": 675,
+          "con": 675
+        },
+        "statusEffects": []
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "paramBorder": 770,
+        "destructionRate": 1,
+        "isHpTarget": true,
+        "resistances": {
+          "Stab": 1.5
+        },
+        "statusEffects": [
+          {
+            "statusType": "DefenseDown",
+            "skillName": "ソフニング(超越・通常)",
+            "category": "NormalDefense",
+            "power": 50
+          },
+          {
+            "statusType": "Fragile",
+            "skillName": "ネイキッドイレイザー",
+            "category": "NormalFragile",
+            "power": 35
+          }
+        ]
+      },
+      "skill": {
+        "name": "通常攻撃",
+        "level": 10
+      },
+      "activeZone": "None"
+    },
+    "expected": {
+      "normal": {
+        "expected": 32.953125,
+        "min": 29.657812500000002,
+        "max": 36.2484375
+      },
+      "critical": {
+        "expected": 98.859375,
+        "min": 88.9734375,
+        "max": 108.74531250000001
+      },
+      "breakdown": {
+        "baseDamageNormal": 11.875,
+        "baseDamageCrit": 35.625,
+        "buffMultiplier": 1,
+        "critMindeyeMultiplier": 1,
+        "debuffMultiplier": 1.85,
+        "vulnerabilityMultiplier": 1,
+        "resistMultiplier": 1,
+        "affinityMultiplier": 1.5,
+        "tokenMultiplier": 1,
+        "funnelMultiplier": 1,
+        "ignoredEffects": []
+      }
+    }
+  },
+  {
+    "name": "case8_debuff_element_resist_down",
+    "input": {
+      "attacker": {
+        "characterId": "手塚咲",
+        "styleId": 1010103,
+        "tokenCount": 0,
+        "stats": {
+          "str": 675,
+          "dex": 675,
+          "wis": 675,
+          "spr": 675,
+          "luk": 675,
+          "con": 675
+        },
+        "statusEffects": []
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "paramBorder": 770,
+        "destructionRate": 1,
+        "isHpTarget": true,
+        "resistances": {
+          "Stab": 1
+        },
+        "statusEffects": [
+          {
+            "statusType": "DefenseDown",
+            "skillName": "ソフニング(超越・通常)",
+            "category": "NormalDefense",
+            "power": 30
+          },
+          {
+            "statusType": "ElementResistDown",
+            "skillName": "グラビトン(通常)",
+            "category": "ElementDefense",
+            "power": 20
+          }
+        ]
+      },
+      "skill": {
+        "name": "通常攻撃",
+        "level": 10
+      },
+      "activeZone": "None"
+    },
+    "expected": {
+      "normal": {
+        "expected": 17.8125,
+        "min": 16.03125,
+        "max": 19.59375
+      },
+      "critical": {
+        "expected": 53.4375,
+        "min": 48.09375,
+        "max": 58.78125000000001
+      },
+      "breakdown": {
+        "baseDamageNormal": 11.875,
+        "baseDamageCrit": 35.625,
+        "buffMultiplier": 1,
+        "critMindeyeMultiplier": 1,
+        "debuffMultiplier": 1.5,
+        "vulnerabilityMultiplier": 1,
+        "resistMultiplier": 1,
+        "affinityMultiplier": 1,
+        "tokenMultiplier": 1,
+        "funnelMultiplier": 1,
+        "ignoredEffects": []
+      }
+    }
+  },
+  {
+    "name": "case9_mindeye_normal_no_influence",
+    "description": "MindEye 30% + 弱点 Stab×1.5、DefenseDown なし。通常ダメージは MindEye の影響を受けず (Y16 formula に AR65 不含)、クリダメのみ crit_scale=(1.5+0.3)/1.5=1.2 分増加することを検証。期待値は Excel Y16=17.8125, AB16=64.125 より。",
+    "input": {
+      "attacker": {
+        "characterId": "手塚咲",
+        "styleId": 1010103,
+        "tokenCount": 0,
+        "stats": {
+          "str": 675,
+          "dex": 675,
+          "wis": 675,
+          "spr": 675,
+          "luk": 675,
+          "con": 675
+        },
+        "statusEffects": [
+          {
+            "statusType": "MindEye",
+            "skillName": "心眼スキル",
+            "power": 30
+          }
+        ]
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "paramBorder": 770,
+        "destructionRate": 1,
+        "isHpTarget": true,
+        "resistances": {
+          "Stab": 1.5
+        },
+        "statusEffects": []
+      },
+      "skill": {
+        "name": "通常攻撃",
+        "level": 10
+      },
+      "activeZone": "None"
+    },
+    "expected": {
+      "normal": {
+        "expected": 17.8125,
+        "min": 16.03125,
+        "max": 19.59375
+      },
+      "critical": {
+        "expected": 64.125,
+        "min": 57.7125,
+        "max": 70.5375
+      },
+      "breakdown": {
+        "baseDamageNormal": 11.875,
+        "baseDamageCrit": 35.625,
+        "buffMultiplier": 1.0,
+        "critMindeyeMultiplier": 1.2,
+        "debuffMultiplier": 1,
+        "vulnerabilityMultiplier": 1,
+        "resistMultiplier": 1.0,
+        "affinityMultiplier": 1.5,
+        "tokenMultiplier": 1,
+        "funnelMultiplier": 1,
         "ignoredEffects": []
       }
     }
