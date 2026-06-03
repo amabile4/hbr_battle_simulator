@@ -72,14 +72,14 @@ class TestPhase2Logic(unittest.TestCase):
         """
         debuffs = [
             # 通常防御: 30%, 20%, 10% -> 通常枠上位2枠で 50%
-            {"skillName": "ソフニング", "resolved_power": 30.0},
-            {"skillName": "ソフニング", "resolved_power": 20.0},
-            {"skillName": "ソフニング", "resolved_power": 10.0},
+            {"skillName": "ソフニング", "resolved_power": 30.0, "category": "NormalDefense"},
+            {"skillName": "ソフニング", "resolved_power": 20.0, "category": "NormalDefense"},
+            {"skillName": "ソフニング", "resolved_power": 10.0, "category": "NormalDefense"},
             # 永続通常防御: 15% -> 永続枠 15%
-            {"skillName": "インフィニティ・ハレーション", "resolved_power": 15.0},
+            {"skillName": "インフィニティ・ハレーション", "resolved_power": 15.0, "category": "PermDefense"},
             # DP防御: 10%, 20% -> DP枠はすべて合計で 30%
-            {"skillName": "ほてるししむら(DP防御)", "resolved_power": 10.0},
-            {"skillName": "ほてるししむら(DP防御)", "resolved_power": 20.0}
+            {"skillName": "ほてるししむら(DP防御)", "resolved_power": 10.0, "category": "DPDefense"},
+            {"skillName": "ほてるししむら(DP防御)", "resolved_power": 20.0, "category": "DPDefense"}
         ]
         val = self.engine.aggregate_debuffs(debuffs)
         # 合計: 50% (通常) + 15% (永続) + 30% (DP) = 95% = 0.95
@@ -91,10 +91,10 @@ class TestPhase2Logic(unittest.TestCase):
         """
         fragiles = [
             # 通常脆弱 (弱点限定): 35%, 15% -> 通常脆弱上位2枠合計で 50%
-            {"skillName": "ネイキッドイレイザー", "resolved_power": 35.0},
-            {"skillName": "フリージング・スペル", "resolved_power": 15.0},
+            {"skillName": "ネイキッドイレイザー", "resolved_power": 35.0, "category": "NormalFragile"},
+            {"skillName": "フリージング・スペル", "resolved_power": 15.0, "category": "NormalFragile"},
             # 永続脆弱 (常時): 20% -> 永続脆弱上位2枠合計で 20%
-            {"skillName": "永続:まだまだ行くで！", "resolved_power": 20.0}
+            {"skillName": "永続:まだまだ行くで！", "resolved_power": 20.0, "category": "PermFragile"}
         ]
 
         # 1. 弱点攻撃時 -> 通常脆弱 + 永続脆弱 = 50% + 20% = 70% = 0.70
@@ -154,7 +154,7 @@ class TestPhase2Logic(unittest.TestCase):
 
     def test_mindeye_and_crit_mindeye_multiplier(self):
         """
-        心眼(MindEye)が弱点属性攻撃時のみ有効になり、クリティカル心眼倍率に反映されること
+        心眼(MindEye)が弱点属性攻撃時のみ有効になり、スキル攻撃のバフ倍率に反映されること
         """
         # 1. 弱点攻撃時 (耐性=1.5倍)
         input_weakness = {
@@ -171,12 +171,13 @@ class TestPhase2Logic(unittest.TestCase):
                 "statusEffects": []
             },
             "skill": {
-                "name": "通常攻撃"
+                "name": "星火燎原" # スキル攻撃を指定
             }
         }
         res_weakness = self.engine.calculate_damage(input_weakness)
-        # (1.5 + 0.30) / 1.5 = 1.8 / 1.5 = 1.20
-        self.assertAlmostEqual(res_weakness["breakdown"]["critMindeyeMultiplier"], 1.20, places=4)
+        # 心眼が buffMultiplier (1.0 + 0.30 = 1.30) に反映される
+        self.assertAlmostEqual(res_weakness["breakdown"]["buffMultiplier"], 1.30, places=4)
+        self.assertAlmostEqual(res_weakness["breakdown"]["critMindeyeMultiplier"], 1.00, places=4)
 
         # 2. 非弱点攻撃時 (耐性=1.0倍) -> 心眼無効
         input_normal = {
@@ -193,10 +194,11 @@ class TestPhase2Logic(unittest.TestCase):
                 "statusEffects": []
             },
             "skill": {
-                "name": "通常攻撃"
+                "name": "星火燎原"
             }
         }
         res_normal = self.engine.calculate_damage(input_normal)
+        self.assertAlmostEqual(res_normal["breakdown"]["buffMultiplier"], 1.00, places=4)
         self.assertAlmostEqual(res_normal["breakdown"]["critMindeyeMultiplier"], 1.00, places=4)
 
     def test_ignored_effects_warning(self):
@@ -229,17 +231,19 @@ class TestPhase2Logic(unittest.TestCase):
 
     def test_classify_debuff_category_and_ordering(self):
         """
-        classify_debuffが明示的なcategory指定や、名前の揺らぎに関わらず正しいカテゴリに分類すること
+        classify_debuffが明示的なcategory指定や、statusType分類に従うこと
         """
         # 明示的なカテゴリ指定
         eff1 = {"skillName": "適当な名前", "statusType": "DefenseDown", "category": "PermDefense", "power": 20.0}
         self.assertEqual(self.engine.classify_debuff(eff1), "PermDefense")
 
-        # 名前の順序揺らぎ
-        eff2 = {"skillName": "属性永続防御デバフ", "statusType": "DefenseDown", "power": 20.0}
-        eff3 = {"skillName": "永続属性防御デバフ", "statusType": "DefenseDown", "power": 20.0}
-        self.assertEqual(self.engine.classify_debuff(eff2), "PermElementDefense")
-        self.assertEqual(self.engine.classify_debuff(eff3), "PermElementDefense")
+        # statusType による ElementDefense 判定
+        eff2 = {"skillName": "属性デバフ", "statusType": "ElementResistDown", "power": 20.0}
+        self.assertEqual(self.engine.classify_debuff(eff2), "ElementDefense")
+
+        # その他はデフォルトで NormalDefense になること
+        eff3 = {"skillName": "通常デバフ", "statusType": "DefenseDown", "power": 20.0}
+        self.assertEqual(self.engine.classify_debuff(eff3), "NormalDefense")
 
     def test_non_attack_skills_clamp_to_zero(self):
         """
@@ -297,17 +301,19 @@ class TestPhase2Logic(unittest.TestCase):
             }
         }
 
-        # 1. FireZone (正当なゾーン) -> zone_mult = 1.5
+        # 1. FireZone (正当なゾーン) -> buff_mult = 1.5, resist_mult = 1.0
         input_fire = dict(base_input)
         input_fire["activeZone"] = "FireZone"
         res_fire = self.engine.calculate_damage(input_fire)
-        self.assertAlmostEqual(res_fire["breakdown"]["resistMultiplier"], 1.5, places=4)
+        self.assertAlmostEqual(res_fire["breakdown"]["buffMultiplier"], 1.5, places=4)
+        self.assertAlmostEqual(res_fire["breakdown"]["resistMultiplier"], 1.0, places=4)
         self.assertEqual(len(res_fire["breakdown"]["ignoredEffects"]), 0)
 
-        # 2. Fireworks (部分一致するが未知のゾーン) -> zone_mult = 1.0 且つ警告リストに入る
+        # 2. Fireworks (部分一致するが未知のゾーン) -> buff_mult = 1.0, resist_mult = 1.0 且つ警告リストに入る
         input_fireworks = dict(base_input)
         input_fireworks["activeZone"] = "Fireworks"
         res_fireworks = self.engine.calculate_damage(input_fireworks)
+        self.assertAlmostEqual(res_fireworks["breakdown"]["buffMultiplier"], 1.0, places=4)
         self.assertAlmostEqual(res_fireworks["breakdown"]["resistMultiplier"], 1.0, places=4)
         
         ignored = res_fireworks["breakdown"]["ignoredEffects"]
@@ -315,10 +321,11 @@ class TestPhase2Logic(unittest.TestCase):
         self.assertEqual(ignored[0]["statusType"], "activeZone")
         self.assertEqual(ignored[0]["skillName"], "Fireworks")
 
-        # 3. IceFire (部分一致するが未知のゾーン) -> zone_mult = 1.0 且つ警告
+        # 3. IceFire (部分一致するが未知のゾーン) -> buff_mult = 1.0, resist_mult = 1.0 且つ警告
         input_icefire = dict(base_input)
         input_icefire["activeZone"] = "IceFire"
         res_icefire = self.engine.calculate_damage(input_icefire)
+        self.assertAlmostEqual(res_icefire["breakdown"]["buffMultiplier"], 1.0, places=4)
         self.assertAlmostEqual(res_icefire["breakdown"]["resistMultiplier"], 1.0, places=4)
         self.assertEqual(len(res_icefire["breakdown"]["ignoredEffects"]), 1)
 

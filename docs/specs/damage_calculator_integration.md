@@ -154,11 +154,11 @@ interface DamageResult {
   breakdown: {
     baseDamageNormal: number;    // 通常時基礎ダメージ (W59)
     baseDamageCrit: number;      // クリティカル時基礎ダメージ (X59)
-    buffMultiplier: number;      // 攻撃バフ枠倍率 (積算用、例: 2.10)
-    critMindeyeMultiplier: number; // クリティカル・心眼枠倍率 (例: 2.25)
+    buffMultiplier: number;      // 攻撃バフ枠倍率。Field / MindEye も公式カテゴリ通りここへ加算
+    critMindeyeMultiplier: number; // クリティカル枠倍率 (例: 2.25)
     funnelMultiplier: number;    // 連撃枠倍率 (例: 1.20)
-    debuffMultiplier: number;    // 敵デバフ・脆弱枠倍率 (例: 1.80)
-    resistMultiplier: number;    // 属性耐性・ゾーン枠倍率 (例: 1.50)
+    debuffMultiplier: number;    // 防御ダウン・属性防御ダウン・脆弱の合算枠倍率 (例: 1.80)
+    resistMultiplier: number;    // 互換用。Field は buffMultiplier へ移動したため通常 1.0
     affinityMultiplier: number;  // 武器属性相性枠倍率 (例: 1.50)
     tokenMultiplier: number;     // トークン・固有パッシブ枠倍率 (例: 1.30)
   };
@@ -172,18 +172,16 @@ interface DamageResult {
 `docs/specs/damage_breakdown_design.md` にて定義されているUIのグループ分けと、計算結果 `breakdown` のマッピングは以下の通り接続されます。
 
 1. **攻撃バフ枠 (`buff`)** -> `breakdown.buffMultiplier`
-   - 内訳表示対象: `attacker.statusEffects` のうち `AttackUp` や `Charge` に該当するもの。
-2. **クリティカル・心眼枠 (`crit-mindeye`)** -> `breakdown.critMindeyeMultiplier`
-   - 内訳表示対象: `CritDamageUp` や `MindEye` (心眼)。
+   - 内訳表示対象: `attacker.statusEffects` のうち `AttackUp` / `ElementAttackUp` / `Charge` に該当するもの、および Field / MindEye。
+2. **クリティカル枠 (`crit-mindeye`)** -> `breakdown.critMindeyeMultiplier`
+   - 内訳表示対象: `CritDamageUp` / `CritBuff`。MindEye は公式カテゴリ通り攻撃バフ枠へ表示する。
 3. **連撃バフ枠 (`funnel`)** -> `breakdown.funnelMultiplier`
    - 内訳表示対象: `Funnel` (連撃)。
 4. **トークン・固有枠 (`token-passive`)** -> `breakdown.tokenMultiplier`
    - 内訳表示対象: キャラクターのアビリティ効果、トークン消費・所持威力アップ。
 5. **敵デバフ・脆弱枠 (`debuff`)** -> `breakdown.debuffMultiplier`
-   - 内訳表示対象: `defender.statusEffects` の `DefenseDown` (防御ダウン) や `Fragile` (脆弱)。
-6. **属性耐性・ゾーン枠 (`resist-down`)** -> `breakdown.resistMultiplier`
-   - 内訳表示対象: 属性耐性ダウンおよび展開中の `activeZone` 効果。
-7. **基本相性枠 (`affinity`)** -> `breakdown.affinityMultiplier`
+   - 内訳表示対象: `defender.statusEffects` の `DefenseDown` / `ElementResistDown` / `Fragile`。
+6. **基本相性枠 (`affinity`)** -> `breakdown.affinityMultiplier`
    - 内訳表示対象: `defender.resistances` に基づく基本相性。
 
 ---

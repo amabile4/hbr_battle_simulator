@@ -5,11 +5,10 @@ export const CRITICAL_BASE_MULTIPLIER = 1.5;
 
 export const DAMAGE_BREAKDOWN_GROUPS = Object.freeze([
   Object.freeze({ id: 'attack-buff', dataGroup: 'buff', title: '攻撃バフ枠' }),
-  Object.freeze({ id: 'crit-mindeye', dataGroup: 'crit-mindeye', title: 'クリティカル・心眼枠' }),
+  Object.freeze({ id: 'crit-mindeye', dataGroup: 'crit-mindeye', title: 'クリティカル枠' }),
   Object.freeze({ id: 'funnel', dataGroup: 'funnel', title: '連撃バフ枠' }),
   Object.freeze({ id: 'token-passive', dataGroup: 'token-passive', title: 'トークン・固有枠' }),
   Object.freeze({ id: 'debuff', dataGroup: 'debuff', title: '敵デバフ・脆弱枠' }),
-  Object.freeze({ id: 'resist-down', dataGroup: 'resist-down', title: '属性耐性ダウン枠' }),
   Object.freeze({ id: 'affinity', dataGroup: 'affinity', title: '基本相性枠' }),
 ]);
 
@@ -258,7 +257,7 @@ function getTargetLabel(targetEnemyIndex) {
   return `E${Number(targetEnemyIndex) + 1}`;
 }
 
-function collectAttackBuffContributions(input) {
+function collectAttackBuffContributions(input, targetContext) {
   const effects = cloneArray(input?.activeStatusEffects).filter(
     (effect) => String(effect?.statusType ?? '') === 'AttackUp'
   );
@@ -281,6 +280,15 @@ function collectAttackBuffContributions(input) {
         elements: [String(input?.zoneType ?? '')].filter(Boolean),
       })
     );
+  }
+
+  if (targetContext.isWeak) {
+    for (const effect of cloneArray(input?.selectedMindEyeEffects)) {
+      const value = readEffectPower(effect);
+      if (value !== 0) {
+        contributions.push(createRateContribution(effect, { statusType: 'MindEye' }));
+      }
+    }
   }
 
   const accessoryRate = toFiniteNumber(input?.accessoryAttackUpRate, 0);
@@ -326,7 +334,7 @@ function collectAttackBuffContributions(input) {
   return contributions;
 }
 
-function collectCritMindEyeContributions(input, targetContext) {
+function collectCritMindEyeContributions(input) {
   const contributions = [
     createStaticContribution({
       label: 'クリティカル基礎倍率',
@@ -350,14 +358,6 @@ function collectCritMindEyeContributions(input, targetContext) {
         iconStatusType: 'CriticalDamageUp',
       })
     );
-  }
-  if (targetContext.isWeak) {
-    for (const effect of cloneArray(input?.selectedMindEyeEffects)) {
-      const value = readEffectPower(effect);
-      if (value !== 0) {
-        contributions.push(createRateContribution(effect, { statusType: 'MindEye' }));
-      }
-    }
   }
   return contributions;
 }
@@ -482,19 +482,14 @@ function normalizeTargetContext(input, targetEnemyIndex) {
 }
 
 function buildGroupsForTarget(input, targetContext) {
-  const attackBuff = collectAttackBuffContributions(input);
-  const critMindEye = collectCritMindEyeContributions(input, targetContext);
+  const attackBuff = collectAttackBuffContributions(input, targetContext);
+  const critMindEye = collectCritMindEyeContributions(input);
   const funnel = collectFunnelContributions(input);
   const tokenPassive = collectTokenPassiveContributions(input);
   const debuff = collectEnemyStatusContributions(
     input,
     targetContext,
-    new Set(['DefenseDown', 'Fragile'])
-  );
-  const resistDown = collectEnemyStatusContributions(
-    input,
-    targetContext,
-    new Set(['ResistDown', 'ResistDownOverwrite'])
+    new Set(['DefenseDown', 'Fragile', 'ResistDown', 'ResistDownOverwrite'])
   );
   const affinity = collectAffinityContributions(input, targetContext);
 
@@ -511,8 +506,7 @@ function buildGroupsForTarget(input, targetContext) {
     normalizeGroup({ ...DAMAGE_BREAKDOWN_GROUPS[2], contributions: funnel }, sumValues(funnel)),
     normalizeGroup({ ...DAMAGE_BREAKDOWN_GROUPS[3], contributions: tokenPassive }, sumValues(tokenPassive)),
     normalizeGroup({ ...DAMAGE_BREAKDOWN_GROUPS[4], contributions: debuff }, sumValues(debuff)),
-    normalizeGroup({ ...DAMAGE_BREAKDOWN_GROUPS[5], contributions: resistDown }, sumValues(resistDown)),
-    normalizeGroup({ ...DAMAGE_BREAKDOWN_GROUPS[6], contributions: affinity }, affinityMultiplier),
+    normalizeGroup({ ...DAMAGE_BREAKDOWN_GROUPS[5], contributions: affinity }, affinityMultiplier),
   ];
   return groups;
 }

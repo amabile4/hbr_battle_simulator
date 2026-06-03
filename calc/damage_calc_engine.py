@@ -3,10 +3,37 @@ import os
 import math
 
 # パス定義
-STYLES_JSON_PATH = "../json/styles.json"
-CHARACTERS_JSON_PATH = "../json/characters.json"
-ENEMIES_JSON_PATH = "../json/enemies.json"
-SKILLS_JSON_PATH = "../json/skills.json"
+def _get_json_path(relative_path):
+    # Try resolving relative to REAL_DIR (resolving symlinks)
+    real_dir = os.path.dirname(os.path.realpath(__file__))
+    path1 = os.path.abspath(os.path.join(real_dir, relative_path))
+    if os.path.exists(path1):
+        return path1
+
+    # Try resolving relative to CALLED_DIR
+    called_dir = os.path.dirname(os.path.abspath(__file__))
+    path2 = os.path.abspath(os.path.join(called_dir, relative_path))
+    if os.path.exists(path2):
+        return path2
+
+    # Try removing "../" prefix if searching in hbr_calc root
+    if relative_path.startswith("../json/"):
+        sub_path = relative_path[3:] # "json/styles.json"
+        path3 = os.path.abspath(os.path.join(called_dir, sub_path))
+        if os.path.exists(path3):
+            return path3
+
+    # Try directly under called_dir
+    path4 = os.path.abspath(os.path.join(called_dir, relative_path))
+    if os.path.exists(path4):
+        return path4
+
+    return relative_path
+
+STYLES_JSON_PATH = _get_json_path("../json/styles.json")
+CHARACTERS_JSON_PATH = _get_json_path("../json/characters.json")
+ENEMIES_JSON_PATH = _get_json_path("../json/enemies.json")
+SKILLS_JSON_PATH = _get_json_path("../json/skills.json")
 
 class DamageCalculatorEngine:
     def __init__(self):
@@ -14,7 +41,7 @@ class DamageCalculatorEngine:
         self.characters = self._load_json(CHARACTERS_JSON_PATH)
         self.enemies = self._load_json(ENEMIES_JSON_PATH)
         self.skills = self._load_json(SKILLS_JSON_PATH)
-        self.sp_mapping = self._load_json_dict("seraphdb_json/skill_sp_mapping.json")
+        self.sp_mapping = self._load_json_dict(_get_json_path("seraphdb_json/skill_sp_mapping.json"))
 
     def _load_json_dict(self, path):
         if os.path.exists(path):
@@ -213,8 +240,9 @@ class DamageCalculatorEngine:
         
         for b in buffs_resolved:
             name = b.get("skillName", "")
+            limit_type = b.get("limitType") or b.get("limit_type")
             power = b.get("resolved_power", 0.0)
-            if "[単独発動]" in name or "単独発動" in name:
+            if limit_type == "Only" or "[単独発動]" in name or "単独発動" in name:
                 single_buffs.append(power)
             else:
                 normal_buffs.append(power)
@@ -231,19 +259,10 @@ class DamageCalculatorEngine:
         # 明示的なカテゴリ指定があれば優先
         if "category" in effect and effect["category"]:
             return effect["category"]
-            
-        name = effect.get("skillName") or ""
-        status_type = effect.get("statusType") or ""
-        
-        # 判定順序を整理し、複合的な名称も正しく分類できるようにする
-        if ("永続" in name and ("属性" in name or "属防" in name)) or "氷華、千射万箭" in name:
-            return "PermElementDefense"
-        if "DP防御" in name or "ほてるししむら" in name:
-            return "DPDefense"
-        if "属性" in name or "グラビトン" in name or status_type == "ElementResistDown":
+
+        status_type = effect.get("statusType") or effect.get("debuffType") or ""
+        if status_type == "ElementResistDown":
             return "ElementDefense"
-        if "永続" in name or "インフィニティ" in name:
-            return "PermDefense"
         return "NormalDefense"
 
     def aggregate_debuffs(self, debuffs_resolved):
@@ -273,10 +292,11 @@ class DamageCalculatorEngine:
                 
         return total / 100.0
 
-    def classify_fragile(self, name):
-        name = name or ""
-        if "永続" in name or "まだまだ行くで" in name:
-            return "PermFragile"
+    def classify_fragile(self, effect):
+        # 明示的なカテゴリ指定があれば優先
+        if "category" in effect and effect["category"]:
+            return effect["category"]
+
         return "NormalFragile"
 
     def aggregate_fragiles(self, fragiles_resolved, is_weakness_attack):
@@ -289,9 +309,8 @@ class DamageCalculatorEngine:
         }
         
         for f in fragiles_resolved:
-            name = f.get("skillName", "")
             power = f.get("resolved_power", 0.0)
-            cat = self.classify_fragile(name)
+            cat = self.classify_fragile(f)
             categories[cat].append(power)
             
         normal_powers = categories["NormalFragile"]
@@ -512,6 +531,7 @@ class DamageCalculatorEngine:
         debuffs_resolved = []
         fragiles_resolved = []
         crit_buffs_resolved = []
+        mindeye_buffs_resolved = []
         funnel_buffs_resolved = []
         
         for b in buffs:
@@ -526,8 +546,10 @@ class DamageCalculatorEngine:
             
             if st in ["AttackUp", "Charge", "ElementAttackUp"]:
                 buffs_resolved.append(b_res)
-            elif st in ["CritDamageUp", "CritBuff", "MindEye"]:
+            elif st in ["CritDamageUp", "CritBuff"]:
                 crit_buffs_resolved.append(b_res)
+            elif st == "MindEye":
+                mindeye_buffs_resolved.append(b_res)
             elif st == "Funnel":
                 funnel_buffs_resolved.append(b_res)
                 
@@ -556,7 +578,7 @@ class DamageCalculatorEngine:
         
         # activeZone の正規化とマッピング判定
         active_zone = str(input_data.get("activeZone", "None")).strip().lower()
-        zone_mult = 1.0
+        zone_buff_rate = 0.0
         
         ZONE_ELEMENT_MAP = {
             "firezone": "fire",
@@ -571,7 +593,7 @@ class DamageCalculatorEngine:
                 zone_element = ZONE_ELEMENT_MAP[active_zone]
                 skill_elements = [str(el).strip().lower() for el in part_elements]
                 if zone_element in skill_elements:
-                    zone_mult = 1.5
+                    zone_buff_rate = 0.5
             else:
                 # 未知のゾーン文字列は警告として ignoredEffects に追加
                 ignored_effects.append({
@@ -580,22 +602,26 @@ class DamageCalculatorEngine:
                     "side": "context"
                 })
             
-        resistance_total = affinity_mult * zone_mult
+        resistance_total = affinity_mult
         
         # 弱点属性攻撃の判定 (耐性補正が 1.0 を超えているか)
         is_weakness_attack = (resistance_total > 1.0)
         
         # 集約された倍率
-        buff_mult = 1.0 + self.aggregate_buffs(buffs_resolved)
-        debuff_mult = 1.0 + self.aggregate_debuffs(debuffs_resolved)
-        fragile_mult = 1.0 + self.aggregate_fragiles(fragiles_resolved, is_weakness_attack)
+        mindeye_buff_total = sum(d.get("resolved_power", 0.0) for d in mindeye_buffs_resolved) / 100.0
+        if not is_weakness_attack or is_normal_attack or is_pursuit:
+            mindeye_buff_total = 0.0
         
-        # クリティカル心眼枠 (加算)
-        crit_buff_total = sum(d.get("resolved_power", 0.0) for d in crit_buffs_resolved if d.get("statusType") != "MindEye") / 100.0
-        mindeye_buff_total = sum(d.get("resolved_power", 0.0) for d in crit_buffs_resolved if d.get("statusType") == "MindEye") / 100.0
-        if not is_weakness_attack:
-            mindeye_buff_total = 0.0 # 心眼は弱点時のみ有効
-        crit_scale = (1.5 + crit_buff_total + mindeye_buff_total) / 1.5
+        buff_mult = 1.0 + self.aggregate_buffs(buffs_resolved) + zone_buff_rate + mindeye_buff_total
+        
+        debuff_val = self.aggregate_debuffs(debuffs_resolved)
+        fragile_val = self.aggregate_fragiles(fragiles_resolved, is_weakness_attack)
+        debuff_mult = 1.0 + debuff_val + fragile_val
+        fragile_mult = 1.0
+
+        # クリティカル枠 (加算)
+        crit_buff_total = sum(d.get("resolved_power", 0.0) for d in crit_buffs_resolved) / 100.0
+        crit_scale = (1.5 + crit_buff_total) / 1.5
         
         # 連撃枠
         funnel_mult = 1.0 + sum(d.get("resolved_power", 0.0) for d in funnel_buffs_resolved) / 100.0
@@ -605,9 +631,9 @@ class DamageCalculatorEngine:
         # 9. 最終ダメージ期待値の計算
         destruction_rate = defender_data.get("destructionRate", 1.0)
         
-        expected_normal = base_damage_normal * resistance_total * destruction_rate * special_effect * debuff_mult * fragile_mult * buff_mult * token_mult * funnel_mult
-        expected_crit = base_damage_crit * resistance_total * destruction_rate * special_effect * debuff_mult * fragile_mult * buff_mult * token_mult * crit_scale * funnel_mult
-        
+        expected_normal = base_damage_normal * resistance_total * destruction_rate * special_effect * debuff_mult * buff_mult * token_mult * funnel_mult
+        expected_crit = base_damage_crit * resistance_total * destruction_rate * special_effect * debuff_mult * buff_mult * token_mult * crit_scale * funnel_mult
+
         expected_normal = max(0.0, expected_normal)
         expected_crit = max(0.0, expected_crit)
         
@@ -629,7 +655,7 @@ class DamageCalculatorEngine:
                 "critMindeyeMultiplier": crit_scale,
                 "debuffMultiplier": debuff_mult,
                 "vulnerabilityMultiplier": fragile_mult,
-                "resistMultiplier": zone_mult,
+                "resistMultiplier": 1.0,
                 "affinityMultiplier": affinity_mult,
                 "tokenMultiplier": token_mult,
                 "funnelMultiplier": funnel_mult,

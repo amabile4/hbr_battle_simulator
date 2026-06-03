@@ -380,6 +380,7 @@ export function calculateDamage(input, data) {
 
   const { threshold, minPower, maxPower } = resolvePowerParameters(fallbackPart, skillLevel, skill);
   const isNormalAttack = skill?.name === NORMAL_ATTACK_SKILL_NAME && skillIdEndsWith(skill, NORMAL_ATTACK_ID_SUFFIX);
+  const isPursuit = skill?.name === PURSUIT_SKILL_NAME && skillIdEndsWith(skill, PURSUIT_ID_SUFFIX);
   const abilitySprCorrection = toNumber(
     hasValue(attacker.abilitySprCorrection) ? attacker.abilitySprCorrection : attacker.as48
   );
@@ -480,9 +481,9 @@ export function calculateDamage(input, data) {
 
   // 武器属性相性のみが resistanceTotal を構成する（Zone は攻撃バフカテゴリへ）
   const resistanceTotal = affinityMultiplier;
-  const isWeaknessAttack = resistanceTotal > 1 || zoneBuffRate > 0;
-  // MindEye: スキル攻撃力アップカテゴリ（通常+クリ両方に影響）。ただし通常攻撃には適用しない。
-  const mindEyeTotal = isWeaknessAttack && !isNormalAttack
+  const isWeaknessAttack = resistanceTotal > 1;
+  // MindEye: スキル攻撃力アップカテゴリ（通常+クリ両方に影響）。ただし通常攻撃および追撃には適用しない。
+  const mindEyeTotal = isWeaknessAttack && !isNormalAttack && !isPursuit
     ? mindEyeBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100
     : 0;
   const buffMultiplier = 1 + aggregateBuffs(buffsResolved) + zoneBuffRate + mindEyeTotal;

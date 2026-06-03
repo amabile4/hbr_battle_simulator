@@ -29,7 +29,7 @@ test('buildCriticalRateBreakdown totals selected critical sources and marks guar
   );
 });
 
-test('buildDamageBreakdown returns seven grouped target-specific critical multipliers', () => {
+test('buildDamageBreakdown returns official-category target-specific critical multipliers', () => {
   const breakdown = buildDamageBreakdown({
     effectiveDamageRatesByEnemy: { 0: 150, 1: 50 },
     attackReferencesByEnemy: {
@@ -75,20 +75,21 @@ test('buildDamageBreakdown returns seven grouped target-specific critical multip
 
   const weakTarget = breakdown.targetBreakdowns[0];
   const resistedTarget = breakdown.targetBreakdowns[1];
-  assert.equal(findGroup(weakTarget, 'buff').multiplier, 2.5);
-  assert.equal(findGroup(weakTarget, 'crit-mindeye').multiplier, 2.3);
+  assert.equal(findGroup(weakTarget, 'buff').multiplier, 3);
+  assert.equal(findGroup(weakTarget, 'crit-mindeye').multiplier, 1.8);
   assert.equal(findGroup(weakTarget, 'funnel').multiplier, 1.5);
   assert.equal(findGroup(weakTarget, 'token-passive').multiplier, 1.8);
-  assert.equal(findGroup(weakTarget, 'debuff').multiplier, 2.05);
-  assert.equal(findGroup(weakTarget, 'resist-down').multiplier, 1.2);
+  assert.equal(findGroup(weakTarget, 'debuff').multiplier, 2.25);
   assert.equal(findGroup(weakTarget, 'affinity').multiplier, 1.5);
   assert.ok(weakTarget.finalMultiplier > resistedTarget.finalMultiplier);
 
   const debuffLabels = findGroup(weakTarget, 'debuff').contributions.map((entry) => entry.label);
-  assert.deepEqual(debuffLabels, ['防御力ダウン', '防御力ダウン', '脆弱']);
+  assert.deepEqual(debuffLabels, ['防御力ダウン', '防御力ダウン', '脆弱', '火属性耐性ダウン']);
   assert.equal(debuffLabels.includes('0.1'), false);
   assert.equal(findGroup(resistedTarget, 'debuff').contributions.some((entry) => entry.label === '脆弱'), false);
   assert.equal(findGroup(weakTarget, 'buff').contributions.some((entry) => entry.label === 'アクセサリ'), false);
+  assert.equal(findGroup(weakTarget, 'buff').contributions.some((entry) => entry.label === '心眼'), true);
+  assert.equal(findGroup(weakTarget, 'crit-mindeye').contributions.some((entry) => entry.label === '心眼'), false);
 });
 
 test('buildDamageBreakdown keeps enemy debuff adoption target-specific', () => {
@@ -141,4 +142,23 @@ test('buildDamageBreakdown includes supported priority 1 modifiers without all a
   assert.equal(debuff.contributions.some((entry) => entry.label === '全能力ダウン'), false);
   assert.equal(debuff.multiplier, 1);
   assert.equal(findGroup(target1, 'debuff').contributions.some((entry) => entry.label === '全能力ダウン'), false);
+});
+
+test('buildDamageBreakdown adds defense down, element resist down, and fragile in one defense category', () => {
+  const breakdown = buildDamageBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 150 },
+    attackReferencesByEnemy: { 0: ['Fire'] },
+    enemyStatusEffects: [
+      { targetIndex: 0, statusType: 'DefenseDown', power: 0.3, remaining: 1, effectId: 1 },
+      { targetIndex: 0, statusType: 'ResistDown', elements: ['Fire'], power: 0.2, remaining: 1, effectId: 2 },
+      { targetIndex: 0, statusType: 'Fragile', power: 0.35, remaining: 1, effectId: 3 },
+    ],
+  });
+
+  const debuff = findGroup(breakdown.targetBreakdowns[0], 'debuff');
+  assert.equal(debuff.multiplier, 1.85);
+  assert.deepEqual(
+    debuff.contributions.map((entry) => entry.label),
+    ['防御力ダウン', '火属性耐性ダウン', '脆弱']
+  );
 });

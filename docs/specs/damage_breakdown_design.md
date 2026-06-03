@@ -9,10 +9,10 @@
 画像の色分けと同等の粒度で計算の種別グループを定義し、各グループ内で計算（加算/乗算）された結果が、最後に全て積算されるプロセスを視覚的に表現します。
 
 1. **攻撃バフ枠 (`buff`) [赤ピンク系]**
-   - 項目: スキル攻撃力バフ、属性スキル攻撃力バフ、チャージ（スキル攻撃力）、属性強化フィールド等
+   - 項目: スキル攻撃力バフ、属性スキル攻撃力バフ、チャージ（スキル攻撃力）、属性強化フィールド、心眼等
    - 配色: `rgba(244, 63, 94, 0.08)` 背景 / 文字色 `#f43f5e`
-2. **クリティカル・心眼枠 (`crit-mindeye`) [黄緑系]**
-   - 項目: クリティカル威力バフ、属性クリティカル威力バフ、心眼（弱点スキル攻撃力）
+2. **クリティカル枠 (`crit-mindeye`) [黄緑系]**
+   - 項目: クリティカル威力バフ、属性クリティカル威力バフ
    - 配色: `rgba(132, 204, 22, 0.08)` 背景 / 文字色 `#84cc16`
 3. **連撃バフ枠 (`funnel`) [薄青系]**
    - 項目: 連撃数アップ
@@ -21,12 +21,9 @@
    - 項目: トークン攻撃倍率、アビリティや固有パッシブバフ（影分身、オギャり等）
    - 配色: `rgba(217, 70, 239, 0.08)` 背景 / 文字色 `#d946ef`
 5. **敵デバフ・脆弱枠 (`debuff`) [オレンジ/黄系]**
-   - 項目: 防御ダウン、永続防御ダウン、属性防御ダウン、脆弱
+   - 項目: 防御ダウン、永続防御ダウン、属性防御ダウン、属性耐性ダウン、脆弱
    - 配色: `rgba(249, 115, 22, 0.08)` 背景 / 文字色 `#f97316`
-6. **属性耐性ダウン枠 (`resist-down`) [紫系]**
-   - 項目: 属性耐性ダウン（エレメンタルダウン）
-   - 配色: `rgba(139, 92, 246, 0.08)` 背景 / 文字色 `#8b5cf6`
-7. **基本相性枠 (`affinity`) [グレー/その他]**
+6. **基本相性枠 (`affinity`) [グレー/その他]**
    - 項目: 敵の基本武器属性相性（斬・突・打）、基本属性相性値
    - 配色: `rgba(148, 163, 184, 0.08)` 背景 / 文字色 `#94a3b8`
 
@@ -91,27 +88,14 @@
         </div>
       </div>
 
-      <!-- 2. クリティカル・心眼枠 -->
+      <!-- 2. クリティカル枠 -->
       <div class="dmg-popup__row" data-group="crit-mindeye">
         <div class="dmg-popup__group-col">
-          <div class="dmg-popup__group-title">クリティカル・心眼枠</div>
+          <div class="dmg-popup__group-title">クリティカル枠</div>
           <div class="dmg-popup__group-formula">式: 1.50 * 1.50</div>
           <div class="dmg-popup__group-total">2.25x</div>
         </div>
         <div class="dmg-popup__effects-col">
-          <!-- 心眼 -->
-          <div class="char-popup-buff-block">
-            <div class="char-popup-buff-icon">👁️</div>
-            <div class="char-popup-buff-center">
-              <div class="char-popup-buff-title">
-                心眼 (弱点スキル攻撃力)
-                <span class="char-popup-buff-power">+50%</span>
-                <span class="char-popup-buff-skill">[専用スキル]</span>
-                <span class="char-popup-buff-from">大島一千子</span>
-              </div>
-              <div class="char-popup-buff-desc line-clamp-2">敵の弱点属性を突いた時のダメージを上昇させる</div>
-            </div>
-          </div>
           <!-- クリティカル威力 -->
           <div class="char-popup-buff-block">
             <div class="char-popup-buff-icon">✨</div>
@@ -224,10 +208,6 @@
 .dmg-popup__row[data-group="debuff"] .dmg-popup__group-col { background: rgba(249, 115, 22, 0.08); }
 .dmg-popup__row[data-group="debuff"] .dmg-popup__group-title { color: #ffedd5; }
 .dmg-popup__row[data-group="debuff"] .dmg-popup__group-total { color: #f97316; }
-
-.dmg-popup__row[data-group="resist-down"] .dmg-popup__group-col { background: rgba(139, 92, 246, 0.08); }
-.dmg-popup__row[data-group="resist-down"] .dmg-popup__group-title { color: #ddd6fe; }
-.dmg-popup__row[data-group="resist-down"] .dmg-popup__group-total { color: #8b5cf6; }
 
 .dmg-popup__row[data-group="affinity"] .dmg-popup__group-col { background: rgba(148, 163, 184, 0.08); }
 .dmg-popup__row[data-group="affinity"] .dmg-popup__group-title { color: #cbd5e1; }

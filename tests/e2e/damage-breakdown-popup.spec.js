@@ -3,18 +3,20 @@ import { test, expect } from '@playwright/test';
 import { gotoUiNext } from './ui-next-helpers.js';
 
 test.describe('Damage breakdown popup tab', () => {
-  test('character detail popup renders damage breakdown summary, critical rate and seven groups', async ({ page }) => {
+  test('character detail popup renders damage breakdown summary, critical rate and official categories', async ({ page }) => {
     await gotoUiNext(page);
 
     await page.evaluate(async () => {
       const { openCharDetailPopup } = await import('/ui-next/utils/char-detail-popup.js');
       const groups = [
         ['buff', '攻撃バフ枠', 2.1, [{ label: '攻撃力アップ', value: 0.5, iconStatusType: 'AttackUp', sourceSkillName: '攻撃支援' }]],
-        ['crit-mindeye', 'クリティカル・心眼枠', 2.25, [{ label: 'クリティカル基礎倍率', value: 1.5, iconStatusType: 'CriticalDamageUp' }]],
+        ['crit-mindeye', 'クリティカル枠', 2.25, [{ label: 'クリティカル基礎倍率', value: 1.5, iconStatusType: 'CriticalDamageUp' }]],
         ['funnel', '連撃バフ枠', 1.5, [{ label: '連撃数アップ', value: 0.5, iconStatusType: 'Funnel', sourceSkillName: '連撃支援' }]],
         ['token-passive', 'トークン・固有枠', 1.8, [{ label: 'トークン攻撃倍率', value: 0.8, iconStatusType: 'TokenSet' }]],
-        ['debuff', '敵デバフ・脆弱枠', 1.7, [{ label: '防御力ダウン', value: 0.7, iconStatusType: 'DefenseDown' }]],
-        ['resist-down', '属性耐性ダウン枠', 1.2, [{ label: '火属性耐性ダウン', value: 0.2, iconStatusType: 'ResistDown', elements: ['Fire'] }]],
+        ['debuff', '敵デバフ・脆弱枠', 1.9, [
+          { label: '防御力ダウン', value: 0.7, iconStatusType: 'DefenseDown' },
+          { label: '火属性耐性ダウン', value: 0.2, iconStatusType: 'ResistDown', elements: ['Fire'] },
+        ]],
         ['affinity', '基本相性枠', 1.5, [{ label: '斬相性', value: 1.5, iconStatusType: 'Slash' }]],
       ].map(([dataGroup, title, multiplier, contributions], index) => ({
         id: `g${index}`,
@@ -55,17 +57,17 @@ test.describe('Damage breakdown popup tab', () => {
                     {
                       targetEnemyIndex: 0,
                       targetLabel: 'E1',
-                      finalMultiplier: 26.02,
-                      increasePercent: 2502,
-                      formula: '2.10x * 2.25x * 1.50x * 1.80x * 1.70x * 1.20x * 1.50x',
+                      finalMultiplier: 32.32,
+                      increasePercent: 3132,
+                      formula: '2.10x * 2.25x * 1.50x * 1.80x * 1.90x * 1.50x',
                       groups,
                     },
                     {
                       targetEnemyIndex: 1,
                       targetLabel: 'E2',
-                      finalMultiplier: 8.67,
-                      increasePercent: 767,
-                      formula: '2.10x * 2.25x * 1.50x * 1.80x * 1.70x * 1.20x * 0.50x',
+                      finalMultiplier: 10.77,
+                      increasePercent: 977,
+                      formula: '2.10x * 2.25x * 1.50x * 1.80x * 1.90x * 0.50x',
                       groups: groups.map((group) =>
                         group.dataGroup === 'affinity'
                           ? {
@@ -92,13 +94,14 @@ test.describe('Damage breakdown popup tab', () => {
 
     await expect(popup).toContainText('威力詳細');
     await expect(popup).toContainText('星火燎原');
-    await expect(popup).toContainText('26.02x');
+    await expect(popup).toContainText('32.32x');
     await expect(popup).toContainText('クリティカル発生率: 135%');
     await expect(popup).toContainText('クリティカル確定');
     await expect(popup.locator('[data-role="char-popup-damage-target"]')).toHaveCount(2);
-    await expect(popup.locator('[data-role="char-popup-damage-target"]').first().locator('[data-role="char-popup-damage-row"]')).toHaveCount(7);
+    await expect(popup.locator('[data-role="char-popup-damage-target"]').first().locator('[data-role="char-popup-damage-row"]')).toHaveCount(6);
     await expect(popup).toContainText('攻撃バフ枠');
-    await expect(popup).toContainText('属性耐性ダウン枠');
+    await expect(popup).toContainText('火属性耐性ダウン');
+    await expect(popup).not.toContainText('属性耐性ダウン枠');
     await expect(popup).not.toContainText('落選バフ');
   });
 });
