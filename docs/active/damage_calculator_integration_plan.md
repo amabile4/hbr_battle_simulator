@@ -1,6 +1,6 @@
 # ダメージ計算機 統合実装プラン
 
-> **ステータス**: 🟢 進行中 | **ブランチ**: `feature/damage-calculator-integration` | **作成日**: 2026-06-03
+> **ステータス**: 🟢 机上設計完了・実装フェーズ GO（3者レビュー反映済 2026-06-03） | **ブランチ**: `feature/damage-calculator-integration` | **作成日**: 2026-06-03
 
 ## 概要
 
@@ -97,8 +97,9 @@
  * @property {number|null} [enemyId]              選択中の敵ID（EnemySetupSnapshot.enemySlots[i].selectedEnemyId）
  * @property {string} [enemyName]                 表示用敵名
  * @property {number|null|undefined} [paramBorder] 防御境界値。null → enemies.json から自動取得、未存在時は 770。
- * @property {boolean} [isHpTarget=true]          HP対象: true、DP対象: false。v1 は true 固定。
- * @property {number} [destructionRate=1]         破壊率倍率（1.0〜）。damageContext.effectiveDamageRatesByEnemy から取得。
+ * @property {boolean} [isHpTarget=true]          HP対象: true、DP対象: false。v1 は true 固定（取得経路なし）。
+ * @property {number} [destructionRate=1]         破壊率倍率。v1 は 1.0 固定（正本フィールド未確定）。effectiveDamageRatesByEnemy とは別物。
+ * @property {number} [affinityRate=1]            属性相性による有効ダメージ率。damageContext.effectiveDamageRatesByEnemy[targetEnemyIndex] ÷ 100。
  * @property {Record<string, number>} [resistances={}] 武器・属性耐性マップ。v1 は空（全属性 1.0）。
  * @property {Array<object>} [statusEffects=[]]   デバフ効果。v1 は空（damageBreakdown groups から逆算しない）。
  */
@@ -137,6 +138,28 @@ export function buildDamageCalculationInput(damageContext, attackerStatsInput = 
 export function resolveDefaultStats(role, limitBreakCount = 0) {}
 ```
 
+#### stat delta provider シグネチャ（T3.2・Stat view lane 正本）
+
+右ペインの能力値表示（base/delta/resolved）の正本。**calculateDamage には流し込まない**（2レーン分離）。
+
+```js
+/**
+ * @typedef {{ base:number, buffDelta:number, debuffDelta:number, resolved:number }} StatDeltaCell
+ *
+ * 右ペインの能力値表示 view model を組み立てる。
+ * v1: 実効ステータス算出経路が未実装のため buffDelta=debuffDelta=0、resolved=base を返す（placeholder）。
+ * 将来: バフ適用後の実効ステータス算出 provider が定まり次第 delta/resolved を実値化。
+ *
+ * @param {object} damageContext
+ * @param {AttackerStatsInput} attackerStatsInput
+ * @param {DamageCalculatorEnemyAdapter} enemyAdapter
+ * @returns {{ attacker: Record<string, StatDeltaCell>, enemy: Record<string, StatDeltaCell> }}
+ */
+export function buildDamageStatDeltaViewModel(damageContext, attackerStatsInput = {}, enemyAdapter = {}) {}
+```
+
+> **v1 方針（ユーザー確定）**: stat delta 表示は placeholder 枠として UI を確保するが、`buffDelta`/`debuffDelta` は 0 固定。実効ステータス算出（バフ適用後の能力値）は後続フェーズで provider を実装してから実値化する。
+
 #### 重要な変換ルール
 
 | DamageInputContext フィールド | 取得元 | 変換 |
@@ -146,13 +169,26 @@ export function resolveDefaultStats(role, limitBreakCount = 0) {}
 | `attacker.characterId` / `styleId` | `damageContext.actorCharacterId` / `actorStyleId` | そのまま |
 | `attacker.tokenCount` / `tokenRatio` | `damageContext.tokenAttackTokenCount` / `tokenAttackTotalRate` | そのまま |
 | `activeZone` | `damageContext.zoneType` + `zonePowerRate` | `zonePowerRate > 0` → `'${zoneType}Zone'`、それ以外 `'None'` |
-| `defender.destructionRate` | `damageContext.effectiveDamageRatesByEnemy[targetIndex]` | 破壊率% ÷ 100 |
-| `attacker.statusEffects (MindEye)` | `damageContext.selectedMindEyeEffects` | power × 100 で % 変換 |
-| `attacker.statusEffects (Funnel)` | `damageBreakdown.groups['funnel'].multiplier` | `(multiplier - 1) * 100` |
-| `attacker.statusEffects (AttackUp)` | `damageBreakdown.groups['buff'].contributions` | 各 contribution の value × 100 |
+| `defender.affinityRate`（耐性有効率） | `damageContext.effectiveDamageRatesByEnemy[targetEnemyIndex]` | % ÷ 100。**これは破壊率ではなく属性相性による有効ダメージ率**（`computeEnemyEffectiveDamageRatePercentForSkill` 由来・`DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT` 基準） |
+| `defender.destructionRate` | **v1 では 1.0 固定** | 破壊率の正本フィールドは未確定。`effectiveDamageRatesByEnemy` を流用しない（意味が異なる）。将来 enemy data の `d_rate`/`od_rate` 等から確定 |
+| `attacker.preResolvedDamageModifiers` | `damageBreakdown.groups[*].multiplier` | **synthetic aggregate（採用済み総倍率）として渡す**。後述「2レーン分離」参照 |
+
+> ⚠️ **codex/ag レビュー反映（重要）**: `damageBreakdown.groups['buff']` には AttackUp 以外に Zone / MindEye / 装備 / 食事 / highBoost 等が混在しており、**個別の raw statusEffect（AttackUp 等）へ復元することは不可能**。calculateDamage へ再投入する際は、個別 contribution を statusEffects に戻さず、**カテゴリ別の採用済み総倍率（synthetic aggregate）を1件として渡す**（または calculateDamage に `buffMultiplierOverride` 入力を新設する）。Funnel の `(multiplier - 1) * 100` も「採用済み総倍率の再投入」であり raw Funnel の再現ではない旨を明記する。
 
 **chargeEffects の注意**: `damageContext` に含まれないため、turn-controller が
-`damageContext` に `chargeEffects` を追加保持することが T1.3 の前提条件となる。
+`damageContext` に `chargeEffects`（および T1.3 が必要とする最小 raw/adopted inputs 一式）を追加保持することが T1.3 の前提条件となる（T3.0 で対応）。
+
+### 2レーン分離（calculateDamage 入力 / stat 表示）— codex レビュー反映
+
+T1.3 と T3.2 は**独立した2レーン**であり、互いに値を流し込まない。
+
+| レーン | 役割 | データソース | 出力先 |
+|---|---|---|---|
+| **Damage calculation lane** | 実ダメージ算出 | `DamageInputContext`（威力カテゴリ倍率・敵param・スキル情報） | `calculateDamage()` |
+| **Stat view lane** | 右ペインの能力値表示 | base/delta/resolved の view model | 右ペイン stat grid（表示のみ） |
+
+- `damageBreakdown` contribution は**左ペイン/威力倍率の正本**。stat delta は**右ペイン/能力値表示の正本**。
+- **stat delta を `DamageInputContext.attacker.stats` に足し込まない**。`stats` は手動入力 or role default の base/resolved 攻撃ステータスとして扱い、威力カテゴリ contribution とは別に表示する（二重計上防止）。
 
 ### EnemySetupController.getSnapshot() 取得経路（T1.2確定）
 
@@ -200,11 +236,12 @@ const paramBorder = enemy?.base_param?.param_border > 0
     <!-- ══ 右ペイン: 計算機（幅 ~50%・新規） ══ -->
     <aside class="char-popup-damage-right" data-role="char-popup-damage-calculator">
 
-      <!-- 敵選択タブ（Enemy Setup の使用スロット数に連動して E1/E2/E3 を出し分け） -->
+      <!-- 敵選択タブ（※下記は例示。実装では enemySlots から動的生成・下記「敵選択タブの出し分け」参照） -->
       <div class="char-popup-damage-enemy-tabs" data-role="damage-calc-enemy-tabs" role="tablist">
-        <button type="button" class="char-popup-damage-enemy-tab" data-role="damage-calc-enemy-tab" data-enemy-index="0" aria-selected="true">E1</button>
-        <button type="button" class="char-popup-damage-enemy-tab" data-role="damage-calc-enemy-tab" data-enemy-index="1">E2</button>
-        <button type="button" class="char-popup-damage-enemy-tab" data-role="damage-calc-enemy-tab" data-enemy-index="2">E3</button>
+        <!-- availableTargets = enemySlots.filter(s => s.selectedEnemyId != null) でループ生成 -->
+        <!-- data-enemy-index は targetEnemyIndex を正本にする（配列 index ではない） -->
+        <!-- button text = enemyName || targetBreakdown.targetLabel || `E${targetEnemyIndex+1}` -->
+        <button type="button" class="char-popup-damage-enemy-tab" data-role="damage-calc-enemy-tab" data-enemy-index="0" aria-selected="true">（敵名 or E1）</button>
       </div>
 
       <!-- ── 上部（約3割）: ダメージ・補足情報エリア ── -->
@@ -242,13 +279,14 @@ const paramBorder = enemy?.base_param?.param_border > 0
             <span>凸</span>
             <input type="number" min="0" max="4" step="1" data-role="damage-calc-limit-break">
           </label>
-          <!-- ステータス: 元値 + バフ値 + デバフ値 の3列構成 -->
+          <!-- ステータス: 元値(base) + 補正(delta) + 最終(resolved) の3列構成 -->
+          <!-- ⚠ v1 は delta=0 固定（実効ステータス算出 provider 未実装のため）。resolved=base 表示 -->
           <div class="char-popup-damage-stat-grid" data-role="damage-calc-stats">
             <div class="char-popup-damage-stat-row" data-stat="str">
               <span>力</span>
-              <input data-role="damage-calc-stat-base" data-stat="str"><!-- 元値 -->
-              <output data-role="damage-calc-stat-buff" data-stat="str"></output><!-- バフ値 -->
-              <output data-role="damage-calc-stat-debuff" data-stat="str"></output><!-- デバフ値 -->
+              <input data-role="damage-calc-stat-base" data-stat="str"><!-- 元値 base -->
+              <output data-role="damage-calc-stat-delta" data-stat="str"></output><!-- 補正 +delta（v1=0） -->
+              <output data-role="damage-calc-stat-resolved" data-stat="str"></output><!-- 最終 resolved -->
             </div>
             <!-- dex/wis/spr/luk/con も同形式 -->
           </div>
@@ -280,7 +318,7 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - 既存の `char-popup-damage-*` に準拠。
 - JS操作用は `data-role="damage-calc-*"`、stat識別は `data-stat="str"` で分離。
 - 結果値は `<output>`（`data-value="min|expected|max"`）。
-- ステータスの元値は `data-role="damage-calc-stat-base"`（入力）、バフ値/デバフ値は `damage-calc-stat-buff` / `damage-calc-stat-debuff`（表示用 output）で分離。
+- ステータスは `base`（入力）/ `delta`（補正・output）/ `resolved`（最終・output）の3列。`data-role="damage-calc-stat-base"` / `damage-calc-stat-delta` / `damage-calc-stat-resolved`。**v1 は delta=0 固定・resolved=base**（実効ステータス provider 未実装）。
 - 敵選択タブ切替時は `data-enemy-index` で計算対象を切り替え、右ペイン全体（ダメージ・敵パラメータ）を再描画する。
 
 **敵選択タブの出し分け**: Enemy Setup の使用スロット数（`enemySlots` のうち `selectedEnemyId !== null` の数）に応じてタブを出す。単体敵時は1タブのみ表示。
@@ -322,7 +360,7 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - 通常・クリ 最小/期待/最大 の `<output>`、補足情報欄
 
 #### T2.3: 右ペイン下部 自身のパラメータ（左） ✅ 机上設計完了
-- role select、凸数、6ステータス（元値入力＋バフ値/デバフ値表示の3列）
+- role select、凸数、6ステータス（base 入力＋delta＋resolved の3列。v1 は delta=0・resolved=base）
 
 #### T2.4: 右ペイン下部 敵のパラメータ（右） ✅ 机上設計完了
 - 敵名・param_border、敵ステータス（元値＋バフ/デバフ、stat delta レーン）、補足記述スペース（textarea）
@@ -351,17 +389,17 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - 入力変更時の debounce 再計算（300ms）
 - **敵選択タブ切替時**に対象敵を `targetEnemyIndex` 一致で切り替えて再計算・敵依存表示のみ再描画（攻撃者 stat 入力 state は保持）
 - 左ペイン倍率表示は `damageContext.damageBreakdown.targetBreakdowns[]` を `targetEnemyIndex` 一致で参照
-- 右ペイン計算結果は targetBreakdowns だけでは不足。`paramBorder / isHpTarget / destructionRate / resistances / 敵 status・採用済み debuff` を enemyAdapter または追加 damageContext field から取得する必要あり
-- `effectiveDamageRatesByEnemy` / `enemyAllAbilityDownByEnemy` は `targetEnemyIndex` keyed。タブ切替時は同じ index で参照（targetBreakdown=表示倍率、keyed maps=計算入力 という役割差を保つ）
+- 右ペイン計算結果は targetBreakdowns だけでは不足。`paramBorder / isHpTarget / affinityRate / resistances / 敵 status・採用済み debuff` を enemyAdapter または追加 damageContext field から取得する必要あり（`destructionRate` は v1=1.0 固定）
+- `effectiveDamageRatesByEnemy`（属性相性有効率）/ `enemyAllAbilityDownByEnemy` は `targetEnemyIndex` keyed。タブ切替時は同じ index で参照（targetBreakdown=表示倍率、keyed maps=計算入力 という役割差を保つ）
 
-#### T3.2: バフ値/デバフ値の表示連携（v2新規・データソース確定）
-- **正本の区別（重要・ユーザー補足で確定）**: 右ペインの「バフ値/デバフ値」は **ステータス実数差分（stat delta）** を指す。例: `STR 650 (+25)` / `DEX 670 (+50)`。
-  - これは **`damageBreakdown` contribution（ダメージ倍率カテゴリ）とは別物**。倍率カテゴリの値を流用してはいけない。
-  - データソースは **stat base / resolved / delta の正本**（実効ステータス計算経路）から取得する。`damageBreakdown` からは取らない。
-  - `damageBreakdown` contribution = 威力カテゴリ表示の正本（左ペイン）。右ペイン stat delta = 能力値表示の正本（別レーン）。両者を混同しない。
-- 自身パラメータ: `元値（base）/ バフ値（+delta）/ 最終値（resolved）` を表示。delta は実効ステータスから base を引いて算出。
-- 敵パラメータ: 敵ステータス元値＋適用デバフによる実数差分（同じく stat delta レーン）。AllAbilityDown 等の能力値側補正もこちらのレーンで表現する。
-- 元値（手動入力）と delta/最終値（自動算出）を視覚的に分離する。
+#### T3.2: stat delta 表示連携（v2新規・v1 は placeholder）
+- **正本の区別（ユーザー補足で確定）**: 右ペインの「バフ値/デバフ値」は **ステータス実数差分（stat delta）** を指す。例: `STR 650 (+25) = 675`。
+  - これは **`damageBreakdown` contribution（ダメージ倍率カテゴリ）とは別物**（Stat view lane）。倍率カテゴリの値を流用しない。
+  - `damageBreakdown` contribution = 威力カテゴリ表示の正本（左ペイン）。右ペイン stat delta = 能力値表示の正本（別レーン）。
+- **v1 実装方針（ユーザー確定・調査で経路不在を確認）**: バフ適用後の実効ステータスを算出する既存エンジン経路は存在しない（`calculateDamage` は AttackUp 等を倍率処理し、ステータス加算しない）。
+  - → v1 は `buildDamageStatDeltaViewModel()` を新設し、**`base`（手動入力 or role default）/ `delta`=0 / `resolved`=base の placeholder 表示**から始める。
+  - 実効ステータス算出 provider が定まり次第、delta/resolved を実値化（後続フェーズ）。
+- 表示: `元値（base）/ 補正（+delta, v1=0）/ 最終（resolved）`。base（手動入力）と delta/resolved（自動算出）を視覚的に分離。
 
 #### T3.3: `loadDamageCalculationData()` のキャッシュ
 - 初回のみ読み込み、以降はキャッシュ（`HbrDataStore` 既存機構と整合）
@@ -381,22 +419,27 @@ const paramBorder = enemy?.base_param?.param_border > 0
 
 ## 進捗状況
 
-| タスクID | 分類 | 内容 | 状況 |
-|:---|:---|:---|:---|
-| T1.1 | Data | ステータス入力スキーマ定義 | ✅ 机上設計完了 |
-| T1.2 | Data | 敵ステータス取得アダプタ | ✅ 机上設計完了 |
-| T1.3 | Data | DamageInputContext 組み立て関数 | ✅ 机上設計完了 |
-| T2.1 | UI | 威力詳細タブ 2ペイン化（左既存/右計算機） | ✅ 机上設計完了 |
-| T2.2 | UI | 右ペイン上部 ダメージ+敵選択タブ(E1/E2/E3) | ✅ 机上設計完了 |
-| T2.3 | UI | 右ペイン下部 自身パラメータ（元値+バフ/デバフ） | ✅ 机上設計完了 |
-| T2.4 | UI | 右ペイン下部 敵パラメータ+補足記述 | ✅ 机上設計完了 |
-| T2.5 | UI | CSS スタイリング（2ペイン+3割/7割+左右分割） | 未着手 |
-| T3.0 | Logic | turn-controller に chargeEffects 追加 | 未着手（T3.1の前提） |
-| T3.1 | Logic | calculateDamage 呼び出し接続＋敵タブ切替再計算 | 未着手 |
-| T3.2 | Logic | バフ値/デバフ値の表示連携（v2新規） | 未着手 |
-| T3.3 | Logic | JSON データキャッシュ | 未着手 |
-| T4.1 | Test | input builder ユニットテスト | 未着手 |
-| T4.2 | Test | E2E テスト追加 | 未着手 |
+3者レビュー（claude/codex/ag, 2026-06-03）の GO/NOGO 判定と、レビュー反映後の到達状況。
+
+| タスクID | 分類 | 内容 | レビュー判定 | 状況 |
+|:---|:---|:---|:---|:---|
+| T1.1 | Data | ステータス入力スキーマ定義 | 🟢 GO | ✅ 机上設計完了 |
+| T1.2 | Data | 敵ステータス取得アダプタ | 🟢 GO（destructionRate訂正済） | ✅ 机上設計完了 |
+| T1.3 | Data | DamageInputContext 組み立て関数 | 🟢 GO（synthetic aggregate/2レーン分離明記済） | ✅ 机上設計完了 |
+| T2.1 | UI | 威力詳細タブ 2ペイン化（左既存/右計算機） | 🟢 GO | ✅ 机上設計完了 |
+| T2.2 | UI | 右ペイン上部 ダメージ+敵選択タブ（動的生成） | 🟢 GO（動的生成仕様反映済） | ✅ 机上設計完了 |
+| T2.3 | UI | 右ペイン下部 自身パラメータ（base/delta/resolved） | 🟢 GO（列定義統一済） | ✅ 机上設計完了 |
+| T2.4 | UI | 右ペイン下部 敵パラメータ+補足記述 | 🟢 GO（textarea非永続/敵stat=placeholder） | ✅ 机上設計完了 |
+| T2.5 | UI | CSS スタイリング（2ペイン+3割/7割+左右分割） | 🟢 GO | 未着手 |
+| T3.0 | Logic | turn-controller に最小 raw/adopted inputs 追加 | 🟢 GO | 未着手（T3.1の前提） |
+| T3.1 | Logic | calculateDamage 呼び出し接続＋敵タブ切替再計算 | 🟢 GO（T1.3確定により） | 未着手 |
+| T3.2 | Logic | stat delta 表示（v1 placeholder/delta=0） | 🟢 GO（provider新設・v1方針確定） | 未着手 |
+| T3.3 | Logic | JSON データキャッシュ | 🟢 GO | 未着手 |
+| T4.1 | Test | input builder ユニットテスト | 🟢 GO | 未着手 |
+| T4.2 | Test | E2E テスト追加 | 🟢 GO | 未着手 |
+
+**総合判定**: 初回レビューは 3者全員 NOGO（T1.3/T2.3/T3.1/T3.2 の設計不整合が理由）。
+上記レビュー指摘6点（synthetic aggregate明記 / 2レーン分離節追加 / 列定義 base-delta-resolved 統一 / stat delta provider新設・v1=placeholder確定 / 敵タブ動的生成仕様 / destructionRate誤用訂正）を反映し、**実装フェーズ着手可能（GO）** に到達。
 
 ---
 
