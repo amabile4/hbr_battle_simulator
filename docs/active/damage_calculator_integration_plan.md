@@ -10,19 +10,42 @@
 
 ---
 
-## ゴール
+## ゴール（確定レイアウト v2）
 
+威力詳細タブの中身のみを2ペイン構成に改修する。左ペインは従来表示を横幅半分に縮小して維持、右ペインに計算機を新設する。
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ [状態変化] [アビリティ] [パッシブ] [フィールド] [[威力詳細]]      (大元タブ／既存)   │
+├────────────────────────────────┬───────────────────────────────────────────────┤
+│           左ペイン (~50%)        │                右ペイン (~50%／新規)              │
+│                                │                                                 │
+│  ★ 従来の威力詳細をそのまま     │   [ E1 ]   [ E2 ]   [ E3 ]   (敵選択タブ)        │
+│     横幅半分にして配置          │  ┌─────────────────────────────────────────┐  │
+│   ・スキル名                    │  │ ダメージ・補足情報エリア（上部 約3割）     │  │
+│   ・クリティカル率              │  │  ・対象の敵へのダメージ（通常/クリ）      │  │
+│   ・倍率                        │  │  ・その他補足情報                         │  │
+│   ・カテゴリ｜アイコン一覧      │  └─────────────────────────────────────────┘  │
+│   (※中身は一切変更なし)        │  ┌────────────────────┬────────────────────┐  │
+│                                │  │ 自身のパラメータ    │ 敵のパラメータ      │  │
+│                                │  │ （下部7割・左）     │ （下部7割・右）     │  │
+│                                │  │ ・攻撃者ステ(元値)  │ ・敵ステ(元値)      │  │
+│                                │  │ ・適用バフ/デバフ値 │ ・適用バフ/デバフ値 │  │
+│                                │  │                    │ ・補足記述スペース  │  │
+│                                │  └────────────────────┴────────────────────┘  │
+└────────────────────────────────┴───────────────────────────────────────────────┘
 ```
-威力詳細タブ（現在）         威力詳細タブ（改修後）
-┌────────────────┐           ┌──────────┬───────────────┐
-│カテゴリ │ 倍率  │           │カテゴリ  │  攻撃者/敵    │
-│攻撃バフ │ 1.3  │           │ 倍率     │  ステータス   │
-│防御デバフ│ 1.5  │    →     │攻撃バフ  ├───────────────┤
-│         │      │           │1.3       │ 計算結果      │
-│         │      │           │防御デバフ │ 通常: XXXX   │
-│         │      │           │1.5       │ クリ: XXXX   │
-└────────────────┘           └──────────┴───────────────┘
-```
+
+### レイアウト構成の要点
+
+- **大元タブ（既存）**: `状態変化 / アビリティ / パッシブ / フィールド / 威力詳細` の5つ。改修は `威力詳細` タブの中身のみ。
+- **左ペイン（~50%・従来そのまま）**: スキル名・クリティカル率・倍率・カテゴリ｜アイコン一覧。中身は変更せず横幅だけ半分にする。
+- **右ペイン（~50%・新規）**:
+  - **敵選択タブ（E1/E2/E3）**: 計算対象の敵を切り替える。Enemy Setup の使用スロット数に連動。
+  - **上部（約3割）ダメージ・補足情報エリア**: 選択した敵へのダメージ計算結果（通常/クリティカル）＋補足情報。
+  - **下部（約7割）パラメータエリア（左右分割）**:
+    - 左: 自身のパラメータ（攻撃者ステータス元値＋適用バフ値/デバフ値）。手動入力・設定可能。
+    - 右: 敵のパラメータ（敵ステータス元値＋適用バフ値/デバフ値＋補足記述スペース）。
 
 ---
 
@@ -152,58 +175,32 @@ const paramBorder = enemy?.base_param?.param_border > 0
   : 770;  // デフォルト（スコアアタック難易度40G35基準）
 ```
 
-### UI 2カラム HTML 構造仕様（T2.1〜T2.4確定）
+### UI HTML 構造仕様 v2（T2.1〜T2.4確定）
+
+レイアウト確定 v2 に基づく構造。右ペインは「E1/E2/E3 敵選択タブ + 上部ダメージ(3割) + 下部パラメータ左右分割(7割)」。
 
 ```html
 <section class="char-popup-damage-action" data-role="char-popup-damage-action">
   <div class="char-popup-damage-action-title">...</div>
   <div class="char-popup-damage-layout" data-role="char-popup-damage-layout">
 
-    <!-- 左カラム: 既存の倍率グループ表示（幅 ~50%） -->
+    <!-- ══ 左ペイン: 既存の倍率グループ表示（幅 ~50%・中身不変） ══ -->
     <div class="char-popup-damage-left" data-role="char-popup-damage-left">
       <!-- 既存: critical note / target breakdowns / group table をそのまま移動 -->
     </div>
 
-    <!-- 右カラム: 計算機パネル（新規） -->
+    <!-- ══ 右ペイン: 計算機（幅 ~50%・新規） ══ -->
     <aside class="char-popup-damage-right" data-role="char-popup-damage-calculator">
 
-      <!-- 上部: 攻撃者ステータス入力 -->
-      <section class="char-popup-damage-calc-section" data-role="damage-calc-attacker">
-        <div class="char-popup-damage-calc-heading">攻撃者</div>
-        <label class="char-popup-damage-field" data-stat="role">
-          <span>ロール</span>
-          <select data-role="damage-calc-role">
-            <option value="Attacker">Attacker</option>
-            <!-- Blaster / Breaker / Buffer / Debuffer / Defender / Healer / Admiral / Rider -->
-          </select>
-        </label>
-        <label class="char-popup-damage-field" data-stat="limitBreakCount">
-          <span>凸</span>
-          <input type="number" min="0" max="4" step="1" data-role="damage-calc-limit-break">
-        </label>
-        <div class="char-popup-damage-stat-grid" data-role="damage-calc-stats">
-          <label data-stat="str"><span>力</span><input data-role="damage-calc-stat" data-stat="str"></label>
-          <label data-stat="dex"><span>器用さ</span><input data-role="damage-calc-stat" data-stat="dex"></label>
-          <label data-stat="wis"><span>知性</span><input data-role="damage-calc-stat" data-stat="wis"></label>
-          <label data-stat="spr"><span>精神</span><input data-role="damage-calc-stat" data-stat="spr"></label>
-          <label data-stat="luk"><span>運</span><input data-role="damage-calc-stat" data-stat="luk"></label>
-          <label data-stat="con"><span>体力</span><input data-role="damage-calc-stat" data-stat="con"></label>
-        </div>
-      </section>
+      <!-- 敵選択タブ（Enemy Setup の使用スロット数に連動して E1/E2/E3 を出し分け） -->
+      <div class="char-popup-damage-enemy-tabs" data-role="damage-calc-enemy-tabs" role="tablist">
+        <button type="button" class="char-popup-damage-enemy-tab" data-role="damage-calc-enemy-tab" data-enemy-index="0" aria-selected="true">E1</button>
+        <button type="button" class="char-popup-damage-enemy-tab" data-role="damage-calc-enemy-tab" data-enemy-index="1">E2</button>
+        <button type="button" class="char-popup-damage-enemy-tab" data-role="damage-calc-enemy-tab" data-enemy-index="2">E3</button>
+      </div>
 
-      <!-- 中部: 敵情報 -->
-      <section class="char-popup-damage-calc-section" data-role="damage-calc-enemy">
-        <div class="char-popup-damage-calc-heading">敵情報</div>
-        <div class="char-popup-damage-enemy-name" data-role="damage-calc-enemy-name">（未選択）</div>
-        <div class="char-popup-damage-enemy-param">
-          <span>防御境界値</span>
-          <output data-role="damage-calc-param-border">770</output>
-        </div>
-      </section>
-
-      <!-- 下部: 計算結果 -->
-      <section class="char-popup-damage-calc-section" data-role="damage-calc-result">
-        <div class="char-popup-damage-calc-heading">計算結果</div>
+      <!-- ── 上部（約3割）: ダメージ・補足情報エリア ── -->
+      <section class="char-popup-damage-calc-result" data-role="damage-calc-result">
         <div class="char-popup-damage-result-table" data-role="damage-calc-result-table">
           <div class="char-popup-damage-result-row" data-result="normal">
             <span>通常</span>
@@ -218,14 +215,67 @@ const paramBorder = enemy?.base_param?.param_border > 0
             <output data-value="max"></output>
           </div>
         </div>
+        <div class="char-popup-damage-result-note" data-role="damage-calc-result-note">
+          <!-- その他補足情報（破壊率・対象ゲージ HP/DP など） -->
+        </div>
       </section>
 
+      <!-- ── 下部（約7割）: パラメータエリア（左右分割） ── -->
+      <div class="char-popup-damage-param-area" data-role="damage-calc-param-area">
+
+        <!-- 左: 自身のパラメータ -->
+        <section class="char-popup-damage-param-self" data-role="damage-calc-attacker">
+          <div class="char-popup-damage-calc-heading">自身のパラメータ</div>
+          <label class="char-popup-damage-field" data-stat="role">
+            <span>ロール</span>
+            <select data-role="damage-calc-role"><!-- Attacker/Blaster/.../Rider --></select>
+          </label>
+          <label class="char-popup-damage-field" data-stat="limitBreakCount">
+            <span>凸</span>
+            <input type="number" min="0" max="4" step="1" data-role="damage-calc-limit-break">
+          </label>
+          <!-- ステータス: 元値 + バフ値 + デバフ値 の3列構成 -->
+          <div class="char-popup-damage-stat-grid" data-role="damage-calc-stats">
+            <div class="char-popup-damage-stat-row" data-stat="str">
+              <span>力</span>
+              <input data-role="damage-calc-stat-base" data-stat="str"><!-- 元値 -->
+              <output data-role="damage-calc-stat-buff" data-stat="str"></output><!-- バフ値 -->
+              <output data-role="damage-calc-stat-debuff" data-stat="str"></output><!-- デバフ値 -->
+            </div>
+            <!-- dex/wis/spr/luk/con も同形式 -->
+          </div>
+        </section>
+
+        <!-- 右: 敵のパラメータ -->
+        <section class="char-popup-damage-param-enemy" data-role="damage-calc-enemy">
+          <div class="char-popup-damage-calc-heading">敵のパラメータ</div>
+          <div class="char-popup-damage-enemy-name" data-role="damage-calc-enemy-name">（未選択）</div>
+          <div class="char-popup-damage-enemy-param">
+            <span>防御境界値</span>
+            <output data-role="damage-calc-param-border">770</output>
+          </div>
+          <!-- 敵ステータス: 元値 + 適用バフ値 + デバフ値 -->
+          <div class="char-popup-damage-enemy-stat-grid" data-role="damage-calc-enemy-stats">
+            <!-- 敵ステータス行（元値/バフ/デバフ） -->
+          </div>
+          <!-- 補足記述スペース -->
+          <textarea class="char-popup-damage-enemy-note" data-role="damage-calc-enemy-note" placeholder="補足メモ"></textarea>
+        </section>
+
+      </div>
     </aside>
   </div>
 </section>
 ```
 
-**命名方針**: 既存の `char-popup-damage-*` に準拠。JS操作用は `data-role="damage-calc-*"`、stat識別は `data-stat="str"` で分離。結果値は `<output>` 要素（`data-value="min|expected|max"`）。
+**命名方針**:
+- 既存の `char-popup-damage-*` に準拠。
+- JS操作用は `data-role="damage-calc-*"`、stat識別は `data-stat="str"` で分離。
+- 結果値は `<output>`（`data-value="min|expected|max"`）。
+- ステータスの元値は `data-role="damage-calc-stat-base"`（入力）、バフ値/デバフ値は `damage-calc-stat-buff` / `damage-calc-stat-debuff`（表示用 output）で分離。
+- 敵選択タブ切替時は `data-enemy-index` で計算対象を切り替え、右ペイン全体（ダメージ・敵パラメータ）を再描画する。
+
+**敵選択タブの出し分け**: Enemy Setup の使用スロット数（`enemySlots` のうち `selectedEnemyId !== null` の数）に応じて E1/E2/E3 を出す。単体敵時は E1 のみ表示。
 
 ---
 
@@ -251,22 +301,28 @@ const paramBorder = enemy?.base_param?.param_border > 0
 
 ### 🟡 Phase 2: UI 実装
 
-#### T2.1: 威力詳細タブのレイアウト変更 ✅ 機上設計完了
-- 2カラム構造確定（上記参照）
+#### T2.1: 威力詳細タブのレイアウト変更 ✅ 机上設計完了
+- 左ペイン（既存・横幅半分）＋右ペイン（新規計算機）の2ペイン構造（v2、上記参照）
+- 左ペインは既存 critical note / target breakdowns / group table を中身不変で移設
 
-#### T2.2: 攻撃者ステータス入力UI ✅ 机上設計完了
-- role select、凸数、6ステータス入力フォーム（上記参照）
+#### T2.2: 右ペイン上部 ダメージ・補足情報エリア + 敵選択タブ ✅ 机上設計完了
+- E1/E2/E3 敵選択タブ（使用スロット数に連動）
+- 通常・クリ 最小/期待/最大 の `<output>`、補足情報欄
 
-#### T2.3: 敵ステータス表示エリア ✅ 机上設計完了
-- 敵名・param_border 表示（上記参照）
+#### T2.3: 右ペイン下部 自身のパラメータ（左） ✅ 机上設計完了
+- role select、凸数、6ステータス（元値入力＋バフ値/デバフ値表示の3列）
 
-#### T2.4: 計算結果表示エリア ✅ 机上設計完了
-- 通常・クリ 最小/期待/最大 の `<output>` 要素（上記参照）
+#### T2.4: 右ペイン下部 敵のパラメータ（右） ✅ 机上設計完了
+- 敵名・param_border、敵ステータス（元値＋バフ/デバフ）、補足記述スペース（textarea）
 
 #### T2.5: CSS スタイリング
-- `.char-popup-damage-layout`（flex/grid 2カラム）
-- `.char-popup-damage-stat-grid`（6ステータスのグリッド）
+- `.char-popup-damage-layout`（左右2ペイン flex、各 ~50%・狭幅で縦積み）
+- `.char-popup-damage-right`（敵タブ + 上部3割/下部7割の縦配分）
+- `.char-popup-damage-enemy-tabs` / `.char-popup-damage-enemy-tab`（敵選択タブ・選択状態）
+- `.char-popup-damage-param-area`（下部7割の左右2分割）
+- `.char-popup-damage-stat-grid` / `.char-popup-damage-stat-row`（元値/バフ/デバフの3列）
 - `.char-popup-damage-result-table`（最小/期待/最大 の3列）
+- `.char-popup-damage-enemy-note`（補足記述 textarea）
 
 ---
 
@@ -280,8 +336,14 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - `buildDamageCalculationInput()` 実装
 - `resolveDefaultStats()` 実装
 - 入力変更時の debounce 再計算（300ms）
+- **敵選択タブ（E1/E2/E3）切替時**に対象敵を切り替えて再計算・右ペイン再描画
 
-#### T3.2: `loadDamageCalculationData()` のキャッシュ
+#### T3.2: バフ値/デバフ値の表示連携（v2新規）
+- 自身パラメータ: 適用中のバフ値/デバフ値を `damageBreakdown` の各グループ contribution から取得して表示
+- 敵パラメータ: 適用中の敵デバフ値（防御ダウン/属性耐性ダウン/脆弱/全能力ダウン）を表示
+- 元値（手動入力）とバフ/デバフ値（自動算出）を視覚的に分離する
+
+#### T3.3: `loadDamageCalculationData()` のキャッシュ
 - 初回のみ読み込み、以降はキャッシュ（`HbrDataStore` 既存機構と整合）
 
 ---
@@ -304,14 +366,15 @@ const paramBorder = enemy?.base_param?.param_border > 0
 | T1.1 | Data | ステータス入力スキーマ定義 | ✅ 机上設計完了 |
 | T1.2 | Data | 敵ステータス取得アダプタ | ✅ 机上設計完了 |
 | T1.3 | Data | DamageInputContext 組み立て関数 | ✅ 机上設計完了 |
-| T2.1 | UI | 威力詳細タブ 2カラム化 | ✅ 机上設計完了 |
-| T2.2 | UI | 攻撃者ステータス入力フォーム | ✅ 机上設計完了 |
-| T2.3 | UI | 敵ステータス表示エリア | ✅ 机上設計完了 |
-| T2.4 | UI | 計算結果表示エリア | ✅ 机上設計完了 |
-| T2.5 | UI | CSS スタイリング | 未着手 |
+| T2.1 | UI | 威力詳細タブ 2ペイン化（左既存/右計算機） | ✅ 机上設計完了 |
+| T2.2 | UI | 右ペイン上部 ダメージ+敵選択タブ(E1/E2/E3) | ✅ 机上設計完了 |
+| T2.3 | UI | 右ペイン下部 自身パラメータ（元値+バフ/デバフ） | ✅ 机上設計完了 |
+| T2.4 | UI | 右ペイン下部 敵パラメータ+補足記述 | ✅ 机上設計完了 |
+| T2.5 | UI | CSS スタイリング（2ペイン+3割/7割+左右分割） | 未着手 |
 | T3.0 | Logic | turn-controller に chargeEffects 追加 | 未着手（T3.1の前提） |
-| T3.1 | Logic | calculateDamage 呼び出し接続 | 未着手 |
-| T3.2 | Logic | JSON データキャッシュ | 未着手 |
+| T3.1 | Logic | calculateDamage 呼び出し接続＋敵タブ切替再計算 | 未着手 |
+| T3.2 | Logic | バフ値/デバフ値の表示連携（v2新規） | 未着手 |
+| T3.3 | Logic | JSON データキャッシュ | 未着手 |
 | T4.1 | Test | input builder ユニットテスト | 未着手 |
 | T4.2 | Test | E2E テスト追加 | 未着手 |
 
