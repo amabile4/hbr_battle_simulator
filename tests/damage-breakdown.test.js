@@ -4,12 +4,64 @@ import assert from 'node:assert/strict';
 import {
   buildCriticalRateBreakdown,
   buildDamageBreakdown,
+  calculateDamage,
   DAMAGE_BREAKDOWN_GROUPS,
   DAMAGE_RANDOM_FIXED_MULTIPLIER,
+  loadDamageCalculationData,
 } from '../src/index.js';
+
+const MULTIPLIER_TOLERANCE = 1e-9;
 
 function findGroup(target, dataGroup) {
   return target.groups.find((group) => group.dataGroup === dataGroup);
+}
+
+function assertAlmostEqual(actual, expected, label, tolerance = MULTIPLIER_TOLERANCE) {
+  assert.ok(
+    Math.abs(actual - expected) <= Math.max(tolerance, Math.abs(expected) * tolerance),
+    `${label}: actual=${actual}, expected=${expected}`
+  );
+}
+
+function createCalculatorInput(overrides = {}) {
+  return {
+    attacker: {
+      characterId: 'DAMAGE_BREAKDOWN_MATCH_TEST',
+      styleId: 1010103,
+      tokenCount: 0,
+      stats: {
+        str: 675,
+        dex: 675,
+        wis: 675,
+        spr: 675,
+        luk: 675,
+        con: 675,
+      },
+      statusEffects: [],
+      ...(overrides.attacker ?? {}),
+    },
+    defender: {
+      enemyId: 13000001,
+      paramBorder: 770,
+      destructionRate: 1,
+      isHpTarget: true,
+      resistances: { Stab: 1.5 },
+      statusEffects: [],
+      ...(overrides.defender ?? {}),
+    },
+    skill: {
+      skillId: 46001107,
+      name: '星火燎原',
+      level: 10,
+      ...(overrides.skill ?? {}),
+    },
+    activeZone: 'None',
+    ...Object.fromEntries(Object.entries(overrides).filter(([key]) => !['attacker', 'defender', 'skill'].includes(key))),
+  };
+}
+
+function firstTargetBreakdown(input) {
+  return buildDamageBreakdown(input).targetBreakdowns[0];
 }
 
 test('buildCriticalRateBreakdown totals selected critical sources and marks guaranteed critical', () => {
@@ -161,4 +213,73 @@ test('buildDamageBreakdown adds defense down, element resist down, and fragile i
     debuff.contributions.map((entry) => entry.label),
     ['防御力ダウン', '火属性耐性ダウン', '脆弱']
   );
+});
+
+test('buildDamageBreakdown matches calculateDamage for defense down plus fragile category', () => {
+  const calculator = calculateDamage(
+    createCalculatorInput({
+      defender: {
+        resistances: { Stab: 1.5 },
+        statusEffects: [
+          { statusType: 'DefenseDown', skillName: '防御力ダウン', category: 'NormalDefense', power: 30 },
+          { statusType: 'Fragile', skillName: '脆弱', category: 'NormalFragile', power: 35 },
+        ],
+      },
+    }),
+    loadDamageCalculationData()
+  );
+  const breakdown = firstTargetBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 150 },
+    attackReferencesByEnemy: { 0: ['Stab'] },
+    enemyStatusEffects: [
+      { targetIndex: 0, statusType: 'DefenseDown', power: 0.3, remaining: 1, effectId: 1 },
+      { targetIndex: 0, statusType: 'Fragile', power: 0.35, remaining: 1, effectId: 2 },
+    ],
+  });
+
+  assertAlmostEqual(
+    findGroup(breakdown, 'debuff').multiplier,
+    calculator.breakdown.debuffMultiplier,
+    'debuffMultiplier'
+  );
+});
+
+test('buildDamageBreakdown matches calculateDamage for MindEye on weakness skill attacks', () => {
+  const calculator = calculateDamage(
+    createCalculatorInput({
+      attacker: {
+        statusEffects: [{ statusType: 'MindEye', skillName: '心眼', power: 50 }],
+      },
+    }),
+    loadDamageCalculationData()
+  );
+  const breakdown = firstTargetBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 150 },
+    selectedMindEyeEffects: [{ statusType: 'MindEye', power: 0.5, sourceSkillName: '心眼', remaining: 1 }],
+  });
+
+  assertAlmostEqual(findGroup(breakdown, 'buff').multiplier, calculator.breakdown.buffMultiplier, 'buffMultiplier');
+  assert.equal(findGroup(breakdown, 'buff').contributions.some((entry) => entry.label === '心眼'), true);
+});
+
+test('buildDamageBreakdown matches calculateDamage by excluding MindEye from weakness normal attacks', () => {
+  const calculatorInput = createCalculatorInput({
+    attacker: {
+      statusEffects: [{ statusType: 'MindEye', skillName: '心眼', power: 50 }],
+    },
+    skill: {
+      skillId: null,
+      name: '通常攻撃',
+      level: 10,
+    },
+  });
+  const calculator = calculateDamage(calculatorInput, loadDamageCalculationData());
+  const breakdown = firstTargetBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 150 },
+    isNormalAttack: true,
+    selectedMindEyeEffects: [{ statusType: 'MindEye', power: 0.5, sourceSkillName: '心眼', remaining: 1 }],
+  });
+
+  assertAlmostEqual(findGroup(breakdown, 'buff').multiplier, calculator.breakdown.buffMultiplier, 'buffMultiplier');
+  assert.equal(findGroup(breakdown, 'buff').contributions.some((entry) => entry.label === '心眼'), false);
 });

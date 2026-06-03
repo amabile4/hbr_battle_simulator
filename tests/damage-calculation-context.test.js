@@ -21,6 +21,7 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     skillLabel: '99',
     skillName: '',
     targetType: '',
+    isNormalAttack: false,
     enemyCount: 1,
     targetEnemyIndex: null,
     baseHitCount: 0,
@@ -148,6 +149,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     overDrivePointUpByTokenTotalPercent: '12.5',
     zoneType: 'Fire',
     zonePowerRate: '45',
+    isNormalAttack: true,
     selectedMindEyeEffects,
     criticalRateBreakdown,
     damageBreakdown,
@@ -177,6 +179,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.overDrivePointUpByTokenTotalPercent, 12.5);
   assert.equal(context.zoneType, 'Fire');
   assert.equal(context.zonePowerRate, 45);
+  assert.equal(context.isNormalAttack, true);
   assert.notEqual(context.accessoryContributions, accessoryContributions);
   assert.deepEqual(context.accessoryContributions, accessoryContributions);
   assert.notEqual(context.selectedMindEyeEffects, selectedMindEyeEffects);

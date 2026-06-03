@@ -6,6 +6,7 @@ export function buildDamageCalculationContext(input = {}) {
     skillLabel: String(input.skillLabel ?? ''),
     skillName: String(input.skillName ?? ''),
     targetType: String(input.targetType ?? ''),
+    isNormalAttack: input.isNormalAttack === true,
     enemyCount: Number(input.enemyCount ?? 1),
     targetEnemyIndex:
       input.targetEnemyIndex === null || input.targetEnemyIndex === undefined

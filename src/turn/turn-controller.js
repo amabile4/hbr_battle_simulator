@@ -7997,10 +7997,12 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       const hasPenetrationCritical = effectiveParts.some(
         (part) => String(part?.skill_type ?? '') === 'PenetrationCriticalAttack'
       );
+      const isNormalAttack = isNormalAttackSkill(skill);
       // WIP: 将来の破壊率追跡実装時に damageBreakdownInput / damageContext へ渡す
       const isDestructionRateGainSkill = hasDestructionRateGainPartInParts(effectiveParts); // eslint-disable-line no-unused-vars
       const damageBreakdownInput = hasDamage ? {
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
+        isNormalAttack,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
         activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
         chargeEffects,
@@ -8041,6 +8043,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         skillLabel: skill.label,
         skillName: skill.name,
         targetType: skill.targetType,
+        isNormalAttack,
         enemyCount,
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
         baseHitCount,

@@ -282,7 +282,7 @@ function collectAttackBuffContributions(input, targetContext) {
     );
   }
 
-  if (targetContext.isWeak) {
+  if (targetContext.isWeak && !targetContext.isNormalAttack) {
     for (const effect of cloneArray(input?.selectedMindEyeEffects)) {
       const value = readEffectPower(effect);
       if (value !== 0) {
@@ -477,6 +477,7 @@ function normalizeTargetContext(input, targetEnemyIndex) {
     targetLabel: getTargetLabel(targetEnemyIndex),
     affinityMultiplier: affinityMultiplier > 0 ? affinityMultiplier : 1,
     isWeak: affinityMultiplier > 1,
+    isNormalAttack: input?.isNormalAttack === true,
     attackReferences: normalizeElements(input?.attackReferencesByEnemy?.[String(targetEnemyIndex)]),
   };
 }
