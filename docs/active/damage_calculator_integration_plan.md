@@ -47,6 +47,14 @@
     - 左: 自身のパラメータ（攻撃者ステータス元値＋適用バフ値/デバフ値）。手動入力・設定可能。
     - 右: 敵のパラメータ（敵ステータス元値＋適用バフ値/デバフ値＋補足記述スペース）。
 
+#### レイアウト v2 設計レビュー反映（codex フィードバック + ユーザー補足）
+
+- **レスポンシブ fallback は必須**: char detail popup は既に情報密度が高く、50/50 では左ペインの contribution block が詰まる。desktop は2ペイン、一定幅未満では縦積み（または右ペインを下に回す）。
+- **攻撃者 stat 入力 state は action 単位で保持**: 敵タブ切替で入力中の攻撃者ステータスを消さない。敵タブ切替では敵依存の表示/結果だけ更新する。
+- **補足記述 textarea は v1 では非永続のプレースホルダ扱い**（ユーザー補足で確定）: 中身は未定で「将来必要になったら追加できる余白」。save 対象や replay/session schema には入れない。
+- **計算結果が出せない場合**は「計算不可」ではなく「敵 param 未取得」等の具体的な missing reason を表示する。
+- **実装順**: ① target tab + readonly 計算結果表示 → ② 攻撃者 stat input → ③ 補足 textarea の順が安全。
+
 ---
 
 ## 確定インターフェース定義（机上設計完了）
@@ -275,7 +283,11 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - ステータスの元値は `data-role="damage-calc-stat-base"`（入力）、バフ値/デバフ値は `damage-calc-stat-buff` / `damage-calc-stat-debuff`（表示用 output）で分離。
 - 敵選択タブ切替時は `data-enemy-index` で計算対象を切り替え、右ペイン全体（ダメージ・敵パラメータ）を再描画する。
 
-**敵選択タブの出し分け**: Enemy Setup の使用スロット数（`enemySlots` のうち `selectedEnemyId !== null` の数）に応じて E1/E2/E3 を出す。単体敵時は E1 のみ表示。
+**敵選択タブの出し分け**: Enemy Setup の使用スロット数（`enemySlots` のうち `selectedEnemyId !== null` の数）に応じてタブを出す。単体敵時は1タブのみ表示。
+- **内部キー / 表示ラベルの分離（ユーザー補足で確定）**: タブの内部キーは `targetEnemyIndex` を正本とする。配列 index ではなく `targetEnemyIndex` 一致で参照する。
+- 表示ラベルは **敵名が定義されていれば敵名**（`targetBreakdown.targetLabel`）を使い、**未定義時のみ E1/E2/E3 にフォールバック**する。
+- **未使用スロットは出さない**。`dead/unused` の表示状態は区別する。
+- `targetBreakdown` が存在しない敵を選んだ場合は disabled / empty 表示にする（calculateDamage 入力不足時は「敵 param 未取得」等の具体的な missing reason を出す）。
 
 ---
 
@@ -313,7 +325,8 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - role select、凸数、6ステータス（元値入力＋バフ値/デバフ値表示の3列）
 
 #### T2.4: 右ペイン下部 敵のパラメータ（右） ✅ 机上設計完了
-- 敵名・param_border、敵ステータス（元値＋バフ/デバフ）、補足記述スペース（textarea）
+- 敵名・param_border、敵ステータス（元値＋バフ/デバフ、stat delta レーン）、補足記述スペース（textarea）
+- textarea は v1 では非永続プレースホルダ（save/replay/session schema に入れない）
 
 #### T2.5: CSS スタイリング
 - `.char-popup-damage-layout`（左右2ペイン flex、各 ~50%・狭幅で縦積み）
@@ -336,12 +349,19 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - `buildDamageCalculationInput()` 実装
 - `resolveDefaultStats()` 実装
 - 入力変更時の debounce 再計算（300ms）
-- **敵選択タブ（E1/E2/E3）切替時**に対象敵を切り替えて再計算・右ペイン再描画
+- **敵選択タブ切替時**に対象敵を `targetEnemyIndex` 一致で切り替えて再計算・敵依存表示のみ再描画（攻撃者 stat 入力 state は保持）
+- 左ペイン倍率表示は `damageContext.damageBreakdown.targetBreakdowns[]` を `targetEnemyIndex` 一致で参照
+- 右ペイン計算結果は targetBreakdowns だけでは不足。`paramBorder / isHpTarget / destructionRate / resistances / 敵 status・採用済み debuff` を enemyAdapter または追加 damageContext field から取得する必要あり
+- `effectiveDamageRatesByEnemy` / `enemyAllAbilityDownByEnemy` は `targetEnemyIndex` keyed。タブ切替時は同じ index で参照（targetBreakdown=表示倍率、keyed maps=計算入力 という役割差を保つ）
 
-#### T3.2: バフ値/デバフ値の表示連携（v2新規）
-- 自身パラメータ: 適用中のバフ値/デバフ値を `damageBreakdown` の各グループ contribution から取得して表示
-- 敵パラメータ: 適用中の敵デバフ値（防御ダウン/属性耐性ダウン/脆弱/全能力ダウン）を表示
-- 元値（手動入力）とバフ/デバフ値（自動算出）を視覚的に分離する
+#### T3.2: バフ値/デバフ値の表示連携（v2新規・データソース確定）
+- **正本の区別（重要・ユーザー補足で確定）**: 右ペインの「バフ値/デバフ値」は **ステータス実数差分（stat delta）** を指す。例: `STR 650 (+25)` / `DEX 670 (+50)`。
+  - これは **`damageBreakdown` contribution（ダメージ倍率カテゴリ）とは別物**。倍率カテゴリの値を流用してはいけない。
+  - データソースは **stat base / resolved / delta の正本**（実効ステータス計算経路）から取得する。`damageBreakdown` からは取らない。
+  - `damageBreakdown` contribution = 威力カテゴリ表示の正本（左ペイン）。右ペイン stat delta = 能力値表示の正本（別レーン）。両者を混同しない。
+- 自身パラメータ: `元値（base）/ バフ値（+delta）/ 最終値（resolved）` を表示。delta は実効ステータスから base を引いて算出。
+- 敵パラメータ: 敵ステータス元値＋適用デバフによる実数差分（同じく stat delta レーン）。AllAbilityDown 等の能力値側補正もこちらのレーンで表現する。
+- 元値（手動入力）と delta/最終値（自動算出）を視覚的に分離する。
 
 #### T3.3: `loadDamageCalculationData()` のキャッシュ
 - 初回のみ読み込み、以降はキャッシュ（`HbrDataStore` 既存機構と整合）
