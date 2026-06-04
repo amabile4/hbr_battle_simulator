@@ -43,6 +43,20 @@ test('buildReplaySetupFromPartySnapshot compacts belt selection into replay setu
   );
 });
 
+test('buildReplaySetupFromPartySnapshot compacts stats by filled party index', () => {
+  const setup = buildReplaySetupFromPartySnapshot({
+    styleIds: [1001, null, 1003],
+    supportStyleIds: [null, null, null],
+    limitBreakLevelsByPartyIndex: {},
+    skillSetsByPartyIndex: {},
+    statsByPartyIndex: {
+      2: { stats: { str: 700, dex: 701, wis: 702, spr: 703, luk: 704, con: 705 } },
+    },
+  });
+
+  assert.equal(setup.statsByPartyIndex['1'].stats.str, 700);
+});
+
 test('buildReplaySetupFromPartySnapshot omits empty bracelet payloads', () => {
   const setup = buildReplaySetupFromPartySnapshot({
     styleIds: [1001, 1002, 1003, null, null, null],

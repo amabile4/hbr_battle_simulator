@@ -296,6 +296,7 @@ export function createInitializedBattleSnapshot({
   statusEffectsByPartyIndex = {},
   supportStyleIdsByPartyIndex = {},
   supportLimitBreakLevelsByPartyIndex = {},
+  statsByPartyIndex = {},
   initialOdGauge,
   enemyCount,
   enemyNamesByEnemy = {},
@@ -333,6 +334,7 @@ export function createInitializedBattleSnapshot({
     normalAttackElementsByPartyIndex,
     supportStyleIdsByPartyIndex,
     supportLimitBreakLevelsByPartyIndex,
+    statsByPartyIndex,
   });
   applyInitialPartyStateOverrides(party, {
     tokenStateByPartyIndex,
@@ -407,6 +409,7 @@ export function createInitializedBattleSnapshot({
       styleIds: [...styleIds].map((id) => Number(id)),
       supportStyleIdsByPartyIndex: structuredClone(supportStyleIdsByPartyIndex),
       supportLimitBreakLevelsByPartyIndex: structuredClone(supportLimitBreakLevelsByPartyIndex),
+      statsByPartyIndex: structuredClone(statsByPartyIndex),
       skillSetsByPartyIndex: structuredClone(skillSetsByPartyIndex),
       limitBreakLevelsByPartyIndex: structuredClone(limitBreakLevelsByPartyIndex),
       drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),

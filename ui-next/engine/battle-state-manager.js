@@ -390,6 +390,14 @@ export class BattleStateManager {
         .map((srcIdx, newIdx) => [newIdx, snapshot.supportLimitBreakLevelsByPartyIndex?.[srcIdx] ?? 0])
         .filter(([, level]) => level > 0)
     );
+    const statsByPartyIndex = Object.fromEntries(
+      filledIndices
+        .map((srcIdx, newIdx) => {
+          const value = snapshot.statsByPartyIndex?.[srcIdx] ?? snapshot.statsByPartyIndex?.[String(srcIdx)] ?? null;
+          return value && typeof value === 'object' ? [newIdx, structuredClone(value)] : null;
+        })
+        .filter(Boolean)
+    );
     const drivePierceByPartyIndex = Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.drivePierceByPartyIndex[srcIdx] ?? 0])
     );
@@ -437,6 +445,7 @@ export class BattleStateManager {
       startSpEquipByPartyIndex,
       supportStyleIdsByPartyIndex,
       supportLimitBreakLevelsByPartyIndex,
+      statsByPartyIndex,
       skillSetsByPartyIndex,
       normalAttackElementsByPartyIndex,
       initialMotivationByPartyIndex: {},

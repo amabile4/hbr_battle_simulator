@@ -16,6 +16,12 @@ test('normalizeSessionSnapshot fills defaults and migrates replay action inputs 
       styleIds: [1001, 1002, 1003, null, null, null],
       supportStyleIds: [null, null, null, null, null, null],
       limitBreakLevelsByPartyIndex: { 0: 4, 1: 3, 2: 2 },
+      statsByPartyIndex: {
+        0: {
+          stats: { str: 650, dex: 670, wis: 600, spr: 610, luk: 620, con: 630 },
+          supportStats: { str: 50, dex: 40, wis: 30, spr: 20, luk: 10, con: 5 },
+        },
+      },
       skillSetsByPartyIndex: { 0: ['46000001', 46400001] },
     },
     enemy: {
@@ -71,6 +77,8 @@ test('normalizeSessionSnapshot fills defaults and migrates replay action inputs 
   assert.equal(snapshot.simulatorSettings.captureUntilBattleEnd, true);
   assert.equal(snapshot.validationPolicy.allowUseCountOverflow, true);
   assert.deepEqual(snapshot.setup.skillSetsByPartyIndex['0'], [46000001, 46400001]);
+  assert.equal(snapshot.setup.statsByPartyIndex['0'].stats.str, 650);
+  assert.equal(snapshot.setup.statsByPartyIndex['0'].supportStats.str, 50);
   assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyId, 7001);
   assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyName, '敵A');
   assert.equal(snapshot.enemy.enemySlots[0].param_border, 812);

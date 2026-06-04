@@ -4,6 +4,7 @@ import { normalizeSimulatorSettings } from './simulator-settings.js';
 import { normalizeValidationPolicy } from './validation-policy.js';
 import { normalizeNormalAttackElementsByPartyIndex } from '../../src/domain/normal-attack-elements.js';
 import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
+import { normalizeStatsByPartyIndex } from '../../src/domain/character-stats.js';
 
 export const SESSION_SNAPSHOT_VERSION = 1;
 const PARTY_SIZE = 6;
@@ -145,6 +146,7 @@ export function normalizePartySetupSnapshot(snapshot = {}) {
       snapshot?.supportLimitBreakLevelsByPartyIndex,
       0
     ),
+    statsByPartyIndex: normalizeStatsByPartyIndex(snapshot?.statsByPartyIndex),
     drivePierceByPartyIndex: normalizeIndexedObject(snapshot?.drivePierceByPartyIndex, 0),
     startSpEquipByPartyIndex: normalizeIndexedObject(snapshot?.startSpEquipByPartyIndex, 0),
     normalAttackElementsByPartyIndex: normalizeNormalAttackElementsByPartyIndex(

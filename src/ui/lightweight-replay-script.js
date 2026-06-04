@@ -618,6 +618,7 @@ export function normalizeLightweightReplaySetup(setup = {}) {
     supportLimitBreakLevelsByPartyIndex: clonePlainObject(source.supportLimitBreakLevelsByPartyIndex),
     skillSetsByPartyIndex: clonePlainObject(source.skillSetsByPartyIndex),
     limitBreakLevelsByPartyIndex: clonePlainObject(source.limitBreakLevelsByPartyIndex),
+    statsByPartyIndex: clonePlainObject(source.statsByPartyIndex),
     initialOdGauge: Number.isFinite(Number(source.initialOdGauge)) ? Number(source.initialOdGauge) : 0,
     setupEntries: mergeReplaySetupEntries(source),
   };
@@ -651,6 +652,7 @@ export function createLightweightReplaySetupFromBaseSetup(baseSetup = {}, existi
       base.supportLimitBreakLevelsByPartyIndex ?? existing.supportLimitBreakLevelsByPartyIndex,
     skillSetsByPartyIndex: base.skillSetsByPartyIndex ?? existing.skillSetsByPartyIndex,
     limitBreakLevelsByPartyIndex: base.limitBreakLevelsByPartyIndex ?? existing.limitBreakLevelsByPartyIndex,
+    statsByPartyIndex: base.statsByPartyIndex ?? existing.statsByPartyIndex,
     initialOdGauge: base.initialOdGauge ?? existing.initialOdGauge,
     setupEntries: mergeReplaySetupEntries(existing, base),
   });

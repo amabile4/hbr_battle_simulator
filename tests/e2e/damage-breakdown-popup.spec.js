@@ -126,6 +126,8 @@ test.describe('Damage breakdown popup tab', () => {
           styleName: 'テストスタイル',
           role: 'Buffer',
           limitBreakLevel: 2,
+          stats: { str: 700, dex: 710, wis: 720, spr: 730, luk: 740, con: 750 },
+          supportStats: { str: 100, dex: 100, wis: 100, spr: 100, luk: 100, con: 100 },
           elements: ['Fire'],
           weaponType: 'Slash',
           statusEffects: [],
@@ -202,8 +204,8 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('[data-role="damage-calc-limit-break"]')).toHaveCount(0);
     await expect(popup).toContainText('星火燎原');
     await expect(popup).not.toContainText('誤った表示名');
-    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('640');
-    await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('640');
+    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('710');
+    await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('710');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ DP');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル DP');
     await expect(pane.locator('[data-role="damage-calc-result"]')).not.toContainText('HP');
@@ -213,6 +215,6 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
     await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('923');
     await expect(pane.locator('[data-role="damage-calc-affinity"]')).toHaveText('1.50x');
-    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('640');
+    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('710');
   });
 });
