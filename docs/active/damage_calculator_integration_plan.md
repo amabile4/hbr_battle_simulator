@@ -94,16 +94,17 @@ HP ダメージは破壊率（destructionRate）と AttackBySp 消費SP威力ス
 | A-4 | ✅ | 計算対象を DP 固定・HP 非表示 | `isHpTarget=false`。結果ラベルを `非クリ DP` / `クリティカル DP` とし、HP 行は描画しない |
 | A-5 | ✅ | invariant | `result.breakdown.resolvedSkill {id,name,isNormalAttack}` を追加。表示タイトルは `damageContext.skillName` を優先し、displayed==calculated 回帰を固定 |
 | A-6 | ✅ | docs/test | docs status 更新、`npm test` 1263件 / lint / Playwright 2件 PASS |
-| A-7 | 🔄 | 敵 param_border を実値配線（claude レビュー指摘・ユーザー決定 2026-06-04） | 現状 `resolveDamageCalculatorEnemyAdapter` が `paramBorder=770` 固定で実敵の防御境界を引いていない。敵タブ（targetEnemyIndex）ごとに enemies.json の `base_param.param_border` を引く。推奨: turn-controller が damageContext に `enemyParamBorderByEnemy`（targetEnemyIndex keyed・`effectiveDamageRatesByEnemy` と同パターン）を追加し、adapter がそれを読む（770 fallback）。UI の「境界」表示も実値化。テスト追加 |
+| A-7 | ✅ | 敵 param_border を実値配線（claude レビュー指摘・ユーザー決定 2026-06-04） | `EnemySetupController` が選択敵の `base_param.param_border` を snapshot に保持し、`BattleStateManager` → `enemyState.paramBorderByEnemy` → `damageContext.enemyParamBorderByEnemy` → `resolveDamageCalculatorEnemyAdapter` の経路で敵タブごとの実値を使用。値なし・summon は 770 fallback。clone / override snapshot / status tick でも保持。unit / Playwright 回帰を追加 |
 
 > Phase A 完了 = 一般スキルの DP ダメージが PartySetup 由来 stats で期待通り表示される状態。
 
 #### claude レビュー結果（2026-06-04・commit c85f170）
 
 - **コア承認**: A-1〜A-5 は確定事項通り実装。特に A-1 は前回レビュー指摘（charge 過小計上＋往復等価性テスト欠如）を完全解消（単一 synthetic AttackUp + `calculateDamage` 倍率一致テスト）。ユニット11件 / E2E（invariant・DP表示・手動入力撤去）PASS を claude が再実行確認。
-- **要対応 A-7**: 敵 param_border が 770 固定で実敵を引いていない（DP ダメージ精度の根幹）。→ ユーザー決定により実値配線を実施。
+- **対応完了 A-7**: 敵 param_border の 770 固定を解消。選択敵ごとの実値を damageContext に配線し、敵タブ切替と 770 fallback を回帰で固定。
 - **既知の許容事項**: 攻撃者 stats は role標準＋凸 の placeholder（ステータス正本不在・PartySetup ステータス編集は別スコープ）。実キャラ stats は後続。
 - **E2E 全体**: codex 報告で 92 PASS / 4 FAIL。4件は既存 superbreak-hefty-guardian fixture（enemy preset 13490231 未検出）の同一原因で本変更と無関係。
+- **A-7 検証**: `npm test` 1263件 / lint / `tests/e2e/damage-breakdown-popup.spec.js` 2件 PASS。
 
 ### スコープ外（別タスク・トラッキング）
 

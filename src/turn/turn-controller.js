@@ -2443,6 +2443,7 @@ export function getEnemyState(turnState) {
       extraHpGaugeStateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
+      paramBorderByEnemy: {},
       zoneConfigByEnemy: {},
       talismanState: structuredClone(TALISMAN_STATE_DEFAULT),
       disasterState: structuredClone(DISASTER_STATE_DEFAULT),
@@ -2490,6 +2491,8 @@ export function getEnemyState(turnState) {
       state.breakStateByEnemy && typeof state.breakStateByEnemy === 'object' ? state.breakStateByEnemy : {},
     enemyNamesByEnemy:
       state.enemyNamesByEnemy && typeof state.enemyNamesByEnemy === 'object' ? state.enemyNamesByEnemy : {},
+    paramBorderByEnemy:
+      state.paramBorderByEnemy && typeof state.paramBorderByEnemy === 'object' ? state.paramBorderByEnemy : {},
     zoneConfigByEnemy:
       state.zoneConfigByEnemy && typeof state.zoneConfigByEnemy === 'object' ? state.zoneConfigByEnemy : {},
     talismanState:
@@ -2518,6 +2521,7 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
   return {
     enemyCount: enemyState.enemyCount,
     enemyNames: structuredClone(enemyState.enemyNamesByEnemy),
+    enemyParamBorders: structuredClone(enemyState.paramBorderByEnemy),
     enemyDamageRates: structuredClone(enemyState.damageRatesByEnemy),
     enemyDestructionRates: structuredClone(enemyState.destructionRateByEnemy),
     enemyDestructionRateCaps: structuredClone(enemyState.destructionRateCapByEnemy),
@@ -2544,6 +2548,9 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
     enemyNamesByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyNames')
       ? cloneEnemySlotObjectMap(snapshot.enemyNames)
       : structuredClone(current.enemyNamesByEnemy),
+    paramBorderByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyParamBorders')
+      ? cloneEnemySlotObjectMap(snapshot.enemyParamBorders)
+      : structuredClone(current.paramBorderByEnemy),
     damageRatesByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDamageRates')
       ? cloneEnemySlotObjectMap(snapshot.enemyDamageRates)
       : structuredClone(current.damageRatesByEnemy),
@@ -6171,6 +6178,7 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     extraHpGaugeStateByEnemy: enemyState.extraHpGaugeStateByEnemy,
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
+    paramBorderByEnemy: enemyState.paramBorderByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
     talismanState: enemyState.talismanState ?? structuredClone(TALISMAN_STATE_DEFAULT),
     disasterState: enemyState.disasterState ?? structuredClone(DISASTER_STATE_DEFAULT),
@@ -8052,6 +8060,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         effectiveHitCountTotal: effectiveHitCount,
         eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
+        enemyParamBorderByEnemy: getEnemyState(state.turnState).paramBorderByEnemy,
         activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
         chargeEffects,
         enemyStatusEffects: getEnemyState(state.turnState).statuses,

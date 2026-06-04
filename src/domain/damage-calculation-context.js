@@ -32,6 +32,15 @@ export function buildDamageCalculationContext(input = {}) {
             ])
           )
         : {},
+    enemyParamBorderByEnemy:
+      input.enemyParamBorderByEnemy && typeof input.enemyParamBorderByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.enemyParamBorderByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              Number(value ?? 0),
+            ])
+          )
+        : {},
     activeStatusEffects: Array.isArray(input.activeStatusEffects)
       ? structuredClone(input.activeStatusEffects)
       : [],

@@ -6,6 +6,7 @@ import {
   getEnemyPresetCategoryMetadata,
 } from '../utils/enemy-list.js';
 import {
+  DEFAULT_ENEMY_PARAM_BORDER,
   formatEnemyOdRatePercent,
   normalizeEnemyOdRateMultiplier,
 } from '../utils/enemy-setup-snapshot.js';
@@ -516,6 +517,11 @@ export class EnemySetupController {
         slotIndex,
         selectedEnemyId,
         selectedEnemyName: selectedEnemy?.name ?? '',
+        param_border:
+          Number.isFinite(Number(selectedEnemy?.base_param?.param_border))
+          && Number(selectedEnemy.base_param.param_border) > 0
+            ? Number(selectedEnemy.base_param.param_border)
+            : DEFAULT_ENEMY_PARAM_BORDER,
         isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
         od_rate: effective.od_rate,

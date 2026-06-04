@@ -30,6 +30,7 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     effectiveHitCountTotal: 0,
     eligibleEnemyIndexes: [],
     effectiveDamageRatesByEnemy: {},
+    enemyParamBorderByEnemy: {},
     activeStatusEffects: [],
     chargeEffects: [],
     enemyStatusEffects: [],
@@ -87,6 +88,11 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
       1: null,
       2: 'bad',
     },
+    enemyParamBorderByEnemy: {
+      0: '812',
+      1: null,
+      2: 'bad',
+    },
     enemyTalismanLevelByEnemy: {
       0: '3',
       1: null,
@@ -107,6 +113,9 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
   assert.equal(context.effectiveDamageRatesByEnemy[0], 125);
   assert.equal(context.effectiveDamageRatesByEnemy[1], 0);
   assert.equal(Number.isNaN(context.effectiveDamageRatesByEnemy[2]), true);
+  assert.equal(context.enemyParamBorderByEnemy[0], 812);
+  assert.equal(context.enemyParamBorderByEnemy[1], 0);
+  assert.equal(Number.isNaN(context.enemyParamBorderByEnemy[2]), true);
   assert.equal(context.enemyTalismanLevelByEnemy[0], 3);
   assert.equal(context.enemyTalismanLevelByEnemy[1], 0);
   assert.equal(context.enemyDisasterLevelByEnemy[0], 2);

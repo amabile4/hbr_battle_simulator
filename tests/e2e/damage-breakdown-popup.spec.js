@@ -99,6 +99,7 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(popup).toContainText('クリティカル確定');
     await expect(popup.locator('[data-role="char-popup-damage-target"]')).toHaveCount(2);
     await expect(popup.locator('[data-role="char-popup-damage-target"]').first().locator('[data-role="char-popup-damage-row"]')).toHaveCount(6);
+    await expect(popup.locator('[data-role="damage-calc-enemy-border"]').first()).toHaveText('770');
     await expect(popup).toContainText('攻撃バフ枠');
     await expect(popup).toContainText('火属性耐性ダウン');
     await expect(popup).not.toContainText('属性耐性ダウン枠');
@@ -144,6 +145,7 @@ test.describe('Damage breakdown popup tab', () => {
                 skillName: '星火燎原',
                 isNormalAttack: false,
                 effectiveDamageRatesByEnemy: { 0: 100, 1: 150 },
+                enemyParamBorderByEnemy: { 0: 812, 1: 923 },
                 zoneType: 'Fire',
                 zonePowerRate: 50,
                 tokenAttackTokenCount: 0,
@@ -205,9 +207,11 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ DP');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル DP');
     await expect(pane.locator('[data-role="damage-calc-result"]')).not.toContainText('HP');
+    await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('812');
 
     await pane.locator('[data-role="damage-calc-enemy-tab"][data-target-enemy-index="1"]').click();
     await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
+    await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('923');
     await expect(pane.locator('[data-role="damage-calc-affinity"]')).toHaveText('1.50x');
     await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('640');
   });

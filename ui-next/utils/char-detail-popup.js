@@ -899,10 +899,13 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
     (target) => Number(target?.targetEnemyIndex) === targetEnemyIndex
   ) ?? model.targetBreakdowns?.[0] ?? null;
   const affinityRate = Number(model.damageContext?.effectiveDamageRatesByEnemy?.[String(targetEnemyIndex)]);
+  const paramBorder = Number(model.damageContext?.enemyParamBorderByEnemy?.[String(targetEnemyIndex)]);
   return {
     targetEnemyIndex,
     enemyName: getDamageTargetLabel(targetBreakdown),
-    paramBorder: DAMAGE_CALC_DEFAULT_ENEMY_BORDER,
+    paramBorder: Number.isFinite(paramBorder) && paramBorder > 0
+      ? paramBorder
+      : DAMAGE_CALC_DEFAULT_ENEMY_BORDER,
     isHpTarget: false,
     destructionRate: 1,
     affinityRate: Number.isFinite(affinityRate) ? affinityRate / 100 : undefined,

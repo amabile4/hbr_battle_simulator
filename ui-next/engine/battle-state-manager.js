@@ -11,6 +11,7 @@ import {
   applyStageSetupTurnStartEffects,
   buildStageSetupBattleStartPassiveEvents,
 } from '../../src/turn/turn-controller.js';
+import { DEFAULT_ENEMY_PARAM_BORDER } from '../utils/enemy-setup-snapshot.js';
 
 const PREEMPTIVE_FIELD_TO_ZONE_TYPE = Object.freeze({
   fire: 'Fire',
@@ -227,6 +228,7 @@ function buildLegacyEnemySlot(enemySetup = {}) {
   return {
     selectedEnemyId: enemySetup?.selectedEnemyId ?? null,
     selectedEnemyName: enemySetup?.selectedEnemyName ?? DEFAULT_ENEMY_NAME,
+    param_border: enemySetup?.param_border,
     od_rate: enemySetup?.od_rate,
     max_d_rate: enemySetup?.max_d_rate,
     resistances: enemySetup?.resistances,
@@ -270,6 +272,9 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       : ENEMY_OD_RATE_NO_CORRECTION;
     return {
       enemyName,
+      paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0
+        ? Number(slot.param_border)
+        : DEFAULT_ENEMY_PARAM_BORDER,
       rates: buildEnemyDamageRates(slot),
       absorbElements: buildEnemyAbsorbElements(slot),
       maxDestructionRate,
@@ -283,6 +288,9 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     enemyCount: normalizeEnemyCount(enemyCount),
     enemyNamesByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.enemyName])
+    ),
+    paramBorderByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.paramBorder])
     ),
     damageRatesByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), { ...slotState.rates }])
@@ -442,6 +450,7 @@ export class BattleStateManager {
       initialOdGauge: Number(stageSetup.initialOdGauge ?? 0),
       enemyCount: enemyStateOverrides.enemyCount,
       enemyNamesByEnemy: enemyStateOverrides.enemyNamesByEnemy,
+      paramBorderByEnemy: enemyStateOverrides.paramBorderByEnemy,
       damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: enemyStateOverrides.destructionRateCapByEnemy,
