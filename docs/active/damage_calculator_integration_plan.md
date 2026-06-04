@@ -74,8 +74,28 @@ HP ダメージは破壊率（destructionRate）と AttackBySp 消費SP威力ス
     1. **攻撃者 stats がプレースホルダのデフォルト値（低い）** → `calculateBaseDamage`（damage-calculator.js L330-341）は `diff = statusAtk - paramBorder` で min/maxPower を補間。default stats 由来の statusAtk が paramBorder(770) を下回ると低ブランチに落ち低ダメージ（LB0≈6634 / LB4≈15629）。→ V3 の PartySetup stats 連携で解消見込み。
     2. **AttackBySp の消費SP威力スケーリングが未モデル化**: Trinity は `skill_type=AttackBySp, sp_cost=-1, cond=Sp()>0, power=[13880.625,27761.25], diff_for_max=179`。`buildDamageCalculationContext` / builder は `startSP/endSP/spCost/consumedSP` を保持・伝播していない。`docs/specs/sp_condition_skill_spec.md` も「消費SPに応じて威力上昇」を未実装候補と明記。**ただし正式な計算式は Excel/Python 正本で要確認**。
   - **invariant は依然必要**: `result.breakdown` に `resolvedSkill {id,name,isNormalAttack}` を追加し、displayed skill == calculated skill を回帰テストで固定（codex 提案 B）。ただし表示を damageContext に寄せるだけの対症療法は不可（書き込み側が正しいことが前提）。
-- **Q-V3-2（ag/data）**: PartySetup が member ごとに role / 凸 / ステータスを公開する正確なフィールドは何か。戦闘不変のステータス正本は現状あるか（無ければ「PartySetup でのステータス編集」は新規機能スコープ）。
-- **Q-V3-3（全員）**: 上記を踏まえた WBS の再構成（撤去タスク・新規タスク・流用タスクの確定）。
+- **Q-V3-2（ag/data・✅解決 2026-06-04）**: PartySetup の member 公開フィールドを ag が確定。
+  - **role** = `member.role`（src/domain/character-style.js:337。style.role 由来・フォームチェンジで自動更新）。
+  - **凸** = `member.limitBreakLevel`（:361。`member.partyIndex`(:370) で PartySetup snapshot.limitBreakLevelsByPartyIndex と紐づくが、直接参照で足りる）。
+  - **ステータス正本は存在しない**: PartySetup/CharacterStyle に str 等のフィールドなし。戦闘不変ステータス編集は**新規スコープ**（PartySetup スロット/snapshot に stats 追加が必要）。
+  - **member 特定** = `openCharDetailPopup(member,...)` 第1引数の `member.partyIndex`(:370) で一意。生 snapshot が要る場合は openCharDetailPopup の引数(stateOrRecord/opts)経由で渡す。
+  - **→ Phase A の attacker source 確定**: `role=member.role` / `limitBreakCount=member.limitBreakLevel` / `stats=resolveDefaultStats(member.role, member.limitBreakLevel)`（read-only base）。手動入力は全撤去。PartySetup snapshot の追加配線は Phase A では不要（stats 正本が無いため）。
+- **Q-V3-3（全員・確定）**: WBS 再構成は下記「Phase A 確定 WBS」を参照。
+
+### Phase A 確定 WBS（DPダメージ MVP・実装可能）
+
+3者再整合の結果、Phase A は以下で確定。実装担当 codex → claude レビュー。
+
+| ID | 内容 | 詳細 |
+|---|---|---|
+| A-1 | charge 過小計上修正 | builder の charge 分離をやめ、buff group multiplier を**単一 synthetic AttackUp** として渡す。往復等価性テスト（buff/debuff/crit/funnel/token/affinity 倍率一致）を追加 |
+| A-2 | attacker source を PartySetup(member) 読取に転換 | `role=member.role` / `limitBreakCount=member.limitBreakLevel` / `stats=resolveDefaultStats(...)`。AttackerStatsInput の責務を手動入力→member 読取へ |
+| A-3 | 右ペイン手動入力撤去→read-only 表示 | Role select / 凸 input / stat number input を削除。base/delta/resolved は read-only（delta=0 placeholder 継続） |
+| A-4 | 計算対象を DP 固定・HP 非表示 | `isHpTarget=false`。HP 行は Phase A では描画しない（破壊率未対応のため） |
+| A-5 | invariant（任意・優先度低） | `result.breakdown.resolvedSkill {id,name,isNormalAttack}` 追加 + displayed==calculated 回帰テスト |
+| A-6 | docs/test | docs status 更新、npm test + Playwright（DP ダメージ表示の E2E） |
+
+> Phase A 完了 = 一般スキルの DP ダメージが PartySetup 由来 stats で期待通り表示される状態。
 
 ### スコープ外（別タスク・トラッキング）
 
