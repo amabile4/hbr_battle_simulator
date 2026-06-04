@@ -35,7 +35,8 @@
 - **データ保持（スロット単位）**: `createEmptySlotState` に `stats`（6値の override オブジェクト・メイン枠）と `supportStats`（サポート枠）を追加。`lb` と同様にスロットフィールドとして move/swap/clear。各値 null/未入力なら `resolveDefaultStats(role, lb)` へ fallback。
 - **永続化**: ステータスは戦闘中不変の正本 → **session save/load に必ず含める**（Phase A の textarea のような非永続枠とは異なる）。snapshot は **`statsByPartyIndex`**（lb と同パターン）。後方互換: 欠落時は role 標準 fallback。
 - **UI（別パネル）**: スロット詳細に詰めず、style-picker のような **overlay/別ウィンドウ**で 6 ステータスを編集。role 標準値をプリフィルし自由入力。スロットのキャラ変更で stats はリセット→再プリフィル。
-- **計算機接合**: char-detail-popup attackerInput は スロットの `stats`（partyIndex で解決した override）が有れば優先、無ければ `resolveDefaultStats(role, lb)` fallback。サポート枠がある場合は公式ヘルプ調査に基づき `supportStats` の各値を **10% 加算**する。Phase A の DP ダメージが実 stats で再計算される。
+- **計算機接合**: char-detail-popup attackerInput は スロットの **手入力 `stats` が有ればそのまま使用（最優先・support 10% を上乗せしない）**、無ければ `resolveStatsWithSupport(resolveDefaultStats(role, lb), supportStats)`（= role 標準 + サポート 10%）に fallback。Phase A の DP ダメージが実 stats で再計算される。
+  - **サポート 10% の位置づけ（ユーザー確定 2026-06-04）**: 手入力6値は「装備・強化等を全部足した最終ステータス」なので、手入力があるときは **手入力が勝ち、サポート 10% は上乗せしない**。サポート 10%（G-18・係数0.10）は **default/プリフィル値としてのみ採用**（処理は残すが手入力に負ける）。
 - **stat delta レーンとの関係**: 本機能は **base（元値）の正本化**。バフ適用後の delta（「STR 650 (+25)」）は別タスク（実効ステータス算出経路）。本機能後は base=実値・delta=0・resolved=base になる。
 
 ## 4. 確定した設計判断（ユーザー回答 2026-06-04）
@@ -46,7 +47,7 @@
 - **Q-P2 → 別パネル**: スロット詳細に詰め込まず、**別パネル/別ウィンドウ**（キャラスロット選択（style-picker）のような overlay）で stats を編集する。
 - **Q-P3 → role 標準プリフィル**: パネルは `resolveDefaultStats(role, lb)` の **role 標準値をプリフィル**し、そこから編集可能にする。
   - 注: styles.json の `base_param`（str:5 等）は成長方向/初期値であり最終ステータス（実数600〜700）ではないため、プリフィル源には使わない。role 標準値を採用。
-- **Q-P4 → サポート枠も対応**: **サポート枠の stats も対応する**（slot state の supportStyle/supportLb と同様に support stats を持つ）。`docs/20260225_help-research/02_help_facts_catalog.md` と `03_spec_gap_resolution.md` を正本として、メインの各ステータスへサポートの **10%** を加算する。
+- **Q-P4 → サポート枠も対応（ただしプリフィル専用）**: サポート枠の stats も保持する。サポート 10% 加算（G-18・`03_spec_gap_resolution.md`・係数0.10）は **default/プリフィル値としてのみ採用**し、**手入力6値があるときは手入力が勝つ（10% を上乗せしない）**。手入力は「装備・強化等を全部足した最終値」のため。処理自体は捨てない。
 - **Q-P5 → 完全自由入力（v1）**: まずは **数値の完全自由入力**。装備・レベル・ロール連動は v1 では作らない（装備枠/UI を作るのは過大）。将来、選択による role/レベル/装備連動は否定しないが別スコープ。
 
 ## 5. WBS（PartySetup ステータス編集）
@@ -62,6 +63,7 @@
 | P-4 | Integration | char-detail-popup attackerInput が スロット `stats` 優先、無ければ `resolveDefaultStats` fallback。サポート stats は各値10%加算。DP ダメージが実 stats で再計算 | P-3 | ✅ 完了 |
 | P-5 | Persistence | session save/load schema と lightweight replay に `statsByPartyIndex`。後方互換（欠落時 role 標準）・replay/snapshot 整合・回帰 | P-1 | ✅ 完了 |
 | P-6 | Test | unit（snapshot round-trip・fallback・slot move/clear・サポート10%）／ E2E（stats 入力→計算反映→保存復元・計算機表示）／ lint | P-2〜P-5 | ✅ 完了 |
+| P-7 | Fix | **サポート 10% を「手入力に負ける」挙動へ修正**（claude レビュー指摘・ユーザー確定 2026-06-04）。計算機は 手入力 stats をそのまま使用（10% 上乗せ無し）、無い時のみ role 標準 + 10%。パネル main プリフィルも default+10% に揃える。テスト/doc 更新 | P-4 | 🔄 codex 実装中 |
 
 ## 6. 完了時検証
 
