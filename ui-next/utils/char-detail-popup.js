@@ -51,18 +51,6 @@ const DAMAGE_CALC_STAT_LABELS = Object.freeze({
   luk: 'LUK',
   con: 'CON',
 });
-const DAMAGE_CALC_ROLES = Object.freeze([
-  'Attacker',
-  'Blaster',
-  'Breaker',
-  'Buffer',
-  'Debuffer',
-  'Defender',
-  'Healer',
-  'Admiral',
-  'Rider',
-]);
-const DAMAGE_CALC_RECALC_DELAY_MS = 300;
 const DAMAGE_CALC_DEFAULT_ROLE = 'Attacker';
 const DAMAGE_CALC_DEFAULT_ENEMY_BORDER = 770;
 const DAMAGE_CALC_JSON_FILES = Object.freeze(['styles', 'characters', 'enemies', 'skills']);
@@ -837,13 +825,10 @@ function buildDamageCalculatorStatRowsHtml(viewModel, side) {
   const rows = viewModel?.[side] ?? {};
   return DAMAGE_CALC_STAT_KEYS.map((statKey) => {
     const row = rows[statKey] ?? { base: 0, buffDelta: 0, debuffDelta: 0, resolved: 0 };
-    const inputHtml = side === 'attacker'
-      ? `<input type="number" min="0" step="1" data-role="damage-calc-stat-input" data-stat="${esc(statKey)}" value="${esc(row.base)}" />`
-      : `<span data-role="damage-calc-stat-base" data-stat="${esc(statKey)}">${esc(row.base)}</span>`;
     return (
       `<div class="char-popup-damage-calc-stat-row" data-stat="${esc(statKey)}">` +
       `<span class="char-popup-damage-calc-stat-label">${esc(DAMAGE_CALC_STAT_LABELS[statKey])}</span>` +
-      inputHtml +
+      `<span data-role="damage-calc-stat-base" data-stat="${esc(statKey)}">${esc(row.base)}</span>` +
       `<span data-role="damage-calc-stat-delta" data-stat="${esc(statKey)}">${esc(formatDamageCalculatorSigned(row.buffDelta - row.debuffDelta))}</span>` +
       `<span data-role="damage-calc-stat-resolved" data-stat="${esc(statKey)}">${esc(row.resolved)}</span>` +
       `</div>`
@@ -851,31 +836,23 @@ function buildDamageCalculatorStatRowsHtml(viewModel, side) {
   }).join('');
 }
 
-function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdowns) {
-  const defaultStats = resolveDefaultStats(DAMAGE_CALC_DEFAULT_ROLE, 0);
-  const statViewModel = buildDamageStatDeltaViewModel(damageContext, {
-    role: DAMAGE_CALC_DEFAULT_ROLE,
-    limitBreakCount: 0,
-    ...defaultStats,
-  }, { paramBorder: DAMAGE_CALC_DEFAULT_ENEMY_BORDER });
-  const roleOptions = DAMAGE_CALC_ROLES.map((role) => (
-    `<option value="${esc(role)}"${role === DAMAGE_CALC_DEFAULT_ROLE ? ' selected' : ''}>${esc(role)}</option>`
-  )).join('');
+function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdowns, attackerInput) {
+  const statViewModel = buildDamageStatDeltaViewModel(
+    damageContext,
+    attackerInput,
+    { paramBorder: DAMAGE_CALC_DEFAULT_ENEMY_BORDER }
+  );
   return (
     `<aside class="char-popup-damage-calc" data-role="damage-calc-pane" data-action-key="${esc(actionKey)}">` +
     `<div class="char-popup-damage-calc-tabs" data-role="damage-calc-enemy-tabs">${buildDamageCalculatorTargetTabsHtml(targetBreakdowns)}</div>` +
     `<div class="char-popup-damage-calc-result" data-role="damage-calc-result">` +
-    `<div><span>通常</span><strong data-role="damage-calc-normal-expected">-</strong></div>` +
-    `<div><span>クリティカル</span><strong data-role="damage-calc-critical-expected">-</strong></div>` +
+    `<div><span>非クリ DP</span><strong data-role="damage-calc-normal-expected">-</strong></div>` +
+    `<div><span>クリティカル DP</span><strong data-role="damage-calc-critical-expected">-</strong></div>` +
     `<div><span>倍率</span><strong data-role="damage-calc-final-multiplier">-</strong></div>` +
     `</div>` +
     `<div class="char-popup-damage-calc-body">` +
     `<section class="char-popup-damage-calc-section">` +
     `<div class="char-popup-damage-calc-section-title">攻撃側</div>` +
-    `<div class="char-popup-damage-calc-controls">` +
-    `<label>Role<select data-role="damage-calc-role">${roleOptions}</select></label>` +
-    `<label>凸<input type="number" min="0" max="4" step="1" value="0" data-role="damage-calc-limit-break" /></label>` +
-    `</div>` +
     `<div class="char-popup-damage-calc-stat-grid" data-role="damage-calc-attacker-stats">` +
     buildDamageCalculatorStatRowsHtml(statViewModel, 'attacker') +
     `</div>` +
@@ -914,16 +891,6 @@ function loadDamageCalculationDataForPopup() {
   return damageCalculationDataPromise;
 }
 
-function readDamageCalculatorAttackerInput(pane) {
-  const role = pane.querySelector('[data-role="damage-calc-role"]')?.value || DAMAGE_CALC_DEFAULT_ROLE;
-  const limitBreakCount = Number(pane.querySelector('[data-role="damage-calc-limit-break"]')?.value ?? 0);
-  const input = { role, limitBreakCount };
-  pane.querySelectorAll('[data-role="damage-calc-stat-input"]').forEach((element) => {
-    input[element.dataset.stat] = Number(element.value);
-  });
-  return input;
-}
-
 function resolveDamageCalculatorEnemyAdapter(model, pane) {
   const activeTab = pane.querySelector('[data-role="damage-calc-enemy-tab"].active')
     ?? pane.querySelector('[data-role="damage-calc-enemy-tab"]');
@@ -936,6 +903,7 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
     targetEnemyIndex,
     enemyName: getDamageTargetLabel(targetBreakdown),
     paramBorder: DAMAGE_CALC_DEFAULT_ENEMY_BORDER,
+    isHpTarget: false,
     destructionRate: 1,
     affinityRate: Number.isFinite(affinityRate) ? affinityRate / 100 : undefined,
   };
@@ -948,11 +916,9 @@ function updateDamageCalculatorStatGrid(pane, statViewModel) {
     for (const statKey of DAMAGE_CALC_STAT_KEYS) {
       const row = statViewModel?.[side]?.[statKey] ?? { base: 0, buffDelta: 0, debuffDelta: 0, resolved: 0 };
       const baseEl = root.querySelector(`[data-role="damage-calc-stat-base"][data-stat="${statKey}"]`);
-      const inputEl = root.querySelector(`[data-role="damage-calc-stat-input"][data-stat="${statKey}"]`);
       const deltaEl = root.querySelector(`[data-role="damage-calc-stat-delta"][data-stat="${statKey}"]`);
       const resolvedEl = root.querySelector(`[data-role="damage-calc-stat-resolved"][data-stat="${statKey}"]`);
       if (baseEl) baseEl.textContent = String(row.base);
-      if (inputEl && inputEl !== document.activeElement) inputEl.value = String(row.base);
       if (deltaEl) deltaEl.textContent = formatDamageCalculatorSigned(row.buffDelta - row.debuffDelta);
       if (resolvedEl) resolvedEl.textContent = String(row.resolved);
     }
@@ -964,7 +930,7 @@ async function updateDamageCalculatorPane(pane) {
   const model = damageCalculationActionModels.get(actionKey);
   if (!model) return;
 
-  const attackerInput = readDamageCalculatorAttackerInput(pane);
+  const attackerInput = model.attackerInput;
   const enemyAdapter = resolveDamageCalculatorEnemyAdapter(model, pane);
   const statViewModel = buildDamageStatDeltaViewModel(model.damageContext, attackerInput, enemyAdapter);
   updateDamageCalculatorStatGrid(pane, statViewModel);
@@ -997,11 +963,6 @@ function attachDamageCalculatorInteractions(root) {
   if (!damagePanel) return;
   if (!damageCalculationInteractionPanels.has(damagePanel)) {
     damageCalculationInteractionPanels.add(damagePanel);
-    const timers = new WeakMap();
-    const scheduleUpdate = (pane) => {
-      clearTimeout(timers.get(pane));
-      timers.set(pane, setTimeout(() => updateDamageCalculatorPane(pane), DAMAGE_CALC_RECALC_DELAY_MS));
-    };
     damagePanel.addEventListener('click', (event) => {
       const tab = event.target?.closest?.('[data-role="damage-calc-enemy-tab"]');
       if (!tab) return;
@@ -1010,12 +971,6 @@ function attachDamageCalculatorInteractions(root) {
         candidate.classList.toggle('active', candidate === tab);
       });
       updateDamageCalculatorPane(pane);
-    });
-    damagePanel.addEventListener('input', (event) => {
-      const control = event.target?.closest?.('[data-role="damage-calc-stat-input"], [data-role="damage-calc-role"], [data-role="damage-calc-limit-break"]');
-      if (!control) return;
-      const pane = control.closest('[data-role="damage-calc-pane"]');
-      if (pane) scheduleUpdate(pane);
     });
   }
   damagePanel.querySelectorAll('[data-role="damage-calc-pane"]').forEach((pane) => updateDamageCalculatorPane(pane));
@@ -1038,7 +993,7 @@ function buildDamageTargetBreakdownHtml(targetBreakdown) {
   );
 }
 
-function buildDamageActionBreakdownHtml(action, actionIndex) {
+function buildDamageActionBreakdownHtml(action, actionIndex, attackerInput) {
   const damageContext = action?.damageContext && typeof action.damageContext === 'object'
     ? action.damageContext
     : null;
@@ -1049,9 +1004,9 @@ function buildDamageActionBreakdownHtml(action, actionIndex) {
   if (!damageContext || targetBreakdowns.length === 0) {
     return '';
   }
-  const skillName = String(action?.skillName ?? damageContext?.skillName ?? '').trim();
+  const skillName = String(damageContext?.skillName ?? action?.skillName ?? '').trim();
   const actionKey = buildDamageActionKey(action, actionIndex);
-  damageCalculationActionModels.set(actionKey, { action, damageContext, targetBreakdowns });
+  damageCalculationActionModels.set(actionKey, { action, damageContext, targetBreakdowns, attackerInput });
   return (
     `<section class="char-popup-damage-action" data-role="char-popup-damage-action" data-action-key="${esc(actionKey)}">` +
     `<div class="char-popup-damage-action-title">${skillName ? esc(skillName) : 'スキル'}</div>` +
@@ -1060,16 +1015,26 @@ function buildDamageActionBreakdownHtml(action, actionIndex) {
     `<div class="char-popup-damage-breakdown-pane">` +
     targetBreakdowns.map((targetBreakdown) => buildDamageTargetBreakdownHtml(targetBreakdown)).join('') +
     `</div>` +
-    buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdowns) +
+    buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdowns, attackerInput) +
     `</div>` +
     `</section>`
   );
 }
 
-function buildDamageBreakdownTabHtml(previewActionFlow) {
+function buildDamageBreakdownTabHtml(previewActionFlow, member) {
   const actions = Array.isArray(previewActionFlow) ? previewActionFlow : [];
+  const role = String(member?.role ?? DAMAGE_CALC_DEFAULT_ROLE);
+  const limitBreakCount = Number(member?.limitBreakLevel ?? 0);
+  const attackerInput = {
+    role,
+    limitBreakCount,
+    ...resolveDefaultStats(role, limitBreakCount),
+  };
   damageCalculationActionModels.clear();
-  const html = actions.map((action, index) => buildDamageActionBreakdownHtml(action, index)).filter(Boolean).join('');
+  const html = actions
+    .map((action, index) => buildDamageActionBreakdownHtml(action, index, attackerInput))
+    .filter(Boolean)
+    .join('');
   return html || '<p class="char-popup-empty">威力詳細なし</p>';
 }
 
@@ -1196,7 +1161,8 @@ export function openCharDetailPopup(member, stateOrRecord, opts = {}) {
       : buildPassiveEventHistoryTabHtml(member, passiveEvents);
   popup.querySelector('[data-tab-panel="field"]').innerHTML = buildFieldTabHtml(stateOrRecord);
   popup.querySelector('[data-tab-panel="damage"]').innerHTML = buildDamageBreakdownTabHtml(
-    (stateOrRecord?.previewActionFlow ?? []).filter((action) => action?.actorCharacterId === member?.characterId)
+    (stateOrRecord?.previewActionFlow ?? []).filter((action) => action?.actorCharacterId === member?.characterId),
+    member
   );
   attachDamageCalculatorInteractions(popup);
 

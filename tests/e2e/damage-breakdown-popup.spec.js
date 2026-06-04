@@ -123,6 +123,8 @@ test.describe('Damage breakdown popup tab', () => {
           characterId: 'DAMAGE_CALC_E2E',
           characterName: '計算テスト',
           styleName: 'テストスタイル',
+          role: 'Buffer',
+          limitBreakLevel: 2,
           elements: ['Fire'],
           weaponType: 'Slash',
           statusEffects: [],
@@ -134,7 +136,7 @@ test.describe('Damage breakdown popup tab', () => {
               actorCharacterId: 'DAMAGE_CALC_E2E',
               actorStyleId: 10101010,
               skillId: 101010100,
-              skillName: '星火燎原',
+              skillName: '誤った表示名',
               damageContext: {
                 actorCharacterId: 'DAMAGE_CALC_E2E',
                 actorStyleId: 10101010,
@@ -193,14 +195,20 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane).toBeVisible();
     await expect(pane.locator('[data-role="damage-calc-enemy-tab"]')).toHaveCount(2);
     await expect(pane.locator('[data-role="damage-calc-normal-expected"]')).not.toHaveText('-', { timeout: 5000 });
-
-    const strInput = pane.locator('[data-role="damage-calc-stat-input"][data-stat="str"]');
-    await strInput.fill('701');
-    await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('701', { timeout: 1000 });
+    await expect(pane.locator('[data-role="damage-calc-stat-input"]')).toHaveCount(0);
+    await expect(pane.locator('[data-role="damage-calc-role"]')).toHaveCount(0);
+    await expect(pane.locator('[data-role="damage-calc-limit-break"]')).toHaveCount(0);
+    await expect(popup).toContainText('星火燎原');
+    await expect(popup).not.toContainText('誤った表示名');
+    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('640');
+    await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('640');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ DP');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル DP');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).not.toContainText('HP');
 
     await pane.locator('[data-role="damage-calc-enemy-tab"][data-target-enemy-index="1"]').click();
     await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
     await expect(pane.locator('[data-role="damage-calc-affinity"]')).toHaveText('1.50x');
-    await expect(strInput).toHaveValue('701');
+    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('640');
   });
 });

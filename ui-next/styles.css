@@ -2854,36 +2854,12 @@
   font-weight: 800;
 }
 
-.char-popup-damage-calc-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 72px;
-  gap: 6px;
-}
-
-.char-popup-damage-calc-controls label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  color: #94a3b8;
-  font-size: 10px;
-}
-
-.char-popup-damage-calc-controls select,
-.char-popup-damage-calc-controls input,
-.char-popup-damage-calc-stat-row input,
 .char-popup-damage-calc-note {
   border: 1px solid #334155;
   border-radius: 6px;
   background: #111827;
   color: #e2e8f0;
   font: inherit;
-}
-
-.char-popup-damage-calc-controls select,
-.char-popup-damage-calc-controls input,
-.char-popup-damage-calc-stat-row input {
-  min-height: 28px;
-  padding: 3px 6px;
 }
 
 .char-popup-damage-calc-stat-grid {

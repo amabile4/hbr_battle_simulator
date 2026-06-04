@@ -1,6 +1,6 @@
 # ダメージ計算機 統合実装プラン
 
-> **ステータス**: 🟠 設計改訂中（v3・アーキテクチャ修正） | **ブランチ**: `feature/damage-calculator-integration` | **作成日**: 2026-06-03 | **最終更新**: 2026-06-04
+> **ステータス**: 🟢 Phase A 完了・Phase B以降継続 | **ブランチ**: `feature/damage-calculator-integration` | **作成日**: 2026-06-03 | **最終更新**: 2026-06-04
 >
 > v2 実装（commit 384d805）に対しユーザーから設計思想の乖離指摘あり。下記「設計改訂 v3」を参照。三者（claude/codex/ag）で再整合中。
 
@@ -86,14 +86,14 @@ HP ダメージは破壊率（destructionRate）と AttackBySp 消費SP威力ス
 
 3者再整合の結果、Phase A は以下で確定。実装担当 codex → claude レビュー。
 
-| ID | 内容 | 詳細 |
-|---|---|---|
-| A-1 | charge 過小計上修正 | builder の charge 分離をやめ、buff group multiplier を**単一 synthetic AttackUp** として渡す。往復等価性テスト（buff/debuff/crit/funnel/token/affinity 倍率一致）を追加 |
-| A-2 | attacker source を PartySetup(member) 読取に転換 | `role=member.role` / `limitBreakCount=member.limitBreakLevel` / `stats=resolveDefaultStats(...)`。AttackerStatsInput の責務を手動入力→member 読取へ |
-| A-3 | 右ペイン手動入力撤去→read-only 表示 | Role select / 凸 input / stat number input を削除。base/delta/resolved は read-only（delta=0 placeholder 継続） |
-| A-4 | 計算対象を DP 固定・HP 非表示 | `isHpTarget=false`。HP 行は Phase A では描画しない（破壊率未対応のため） |
-| A-5 | invariant（任意・優先度低） | `result.breakdown.resolvedSkill {id,name,isNormalAttack}` 追加 + displayed==calculated 回帰テスト |
-| A-6 | docs/test | docs status 更新、npm test + Playwright（DP ダメージ表示の E2E） |
+| ID | 状況 | 内容 | 詳細 |
+|---|---|---|---|
+| A-1 | ✅ | charge 過小計上修正 | builder の charge 分離を廃止し、buff group multiplier を**単一 synthetic AttackUp** として渡す。往復等価性テストで buff/debuff/crit/funnel/token/affinity 倍率一致を固定 |
+| A-2 | ✅ | attacker source を PartySetup(member) 読取に転換 | `role=member.role` / `limitBreakCount=member.limitBreakLevel` / `stats=resolveDefaultStats(...)`。AttackerStatsInput の責務を手動入力→member 読取へ転換 |
+| A-3 | ✅ | 右ペイン手動入力撤去→read-only 表示 | Role select / 凸 input / stat number input を削除。base/delta/resolved は read-only（delta=0 placeholder 継続） |
+| A-4 | ✅ | 計算対象を DP 固定・HP 非表示 | `isHpTarget=false`。結果ラベルを `非クリ DP` / `クリティカル DP` とし、HP 行は描画しない |
+| A-5 | ✅ | invariant | `result.breakdown.resolvedSkill {id,name,isNormalAttack}` を追加。表示タイトルは `damageContext.skillName` を優先し、displayed==calculated 回帰を固定 |
+| A-6 | ✅ | docs/test | docs status 更新、`npm test` 1263件 / lint / Playwright 2件 PASS |
 
 > Phase A 完了 = 一般スキルの DP ダメージが PartySetup 由来 stats で期待通り表示される状態。
 
@@ -458,8 +458,10 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - E1/E2/E3 敵選択タブ（使用スロット数に連動）
 - 通常・クリ 最小/期待/最大 の `<output>`、補足情報欄
 
-#### T2.3: 右ペイン下部 自身のパラメータ（左） ✅ 実装完了
-- role select、凸数、6ステータス（base 入力＋delta＋resolved の3列。v1 は delta=0・resolved=base）
+#### T2.3: 右ペイン下部 自身のパラメータ（左） ✅ Phase A 改訂完了
+- `member.role` / `member.limitBreakLevel` 由来の6ステータスを read-only 表示
+- base＋delta＋resolved の3列。Phase A は delta=0・resolved=base
+- role select / 凸 input / stat number input は撤去
 
 #### T2.4: 右ペイン下部 敵のパラメータ（右） ✅ 実装完了
 - 敵名・param_border、敵ステータス（元値＋バフ/デバフ、stat delta レーン）、補足記述スペース（textarea）
@@ -485,7 +487,7 @@ const paramBorder = enemy?.base_param?.param_border > 0
 #### T3.1: `calculateDamage` の呼び出し接続 ✅ 実装完了
 - `buildDamageCalculationInput()` 実装
 - `resolveDefaultStats()` 実装
-- 入力変更時の debounce 再計算（300ms）
+- Phase A は PartySetup(member) 由来の read-only attacker input を使用
 - **敵選択タブ切替時**に対象敵を `targetEnemyIndex` 一致で切り替えて再計算・敵依存表示のみ再描画（攻撃者 stat 入力 state は保持）
 - 左ペイン倍率表示は `damageContext.damageBreakdown.targetBreakdowns[]` を `targetEnemyIndex` 一致で参照
 - 右ペイン計算結果は targetBreakdowns だけでは不足。`paramBorder / isHpTarget / affinityRate / resistances / 敵 status・採用済み debuff` を enemyAdapter または追加 damageContext field から取得する必要あり（`destructionRate` は v1=1.0 固定）
@@ -496,7 +498,7 @@ const paramBorder = enemy?.base_param?.param_border > 0
   - これは **`damageBreakdown` contribution（ダメージ倍率カテゴリ）とは別物**（Stat view lane）。倍率カテゴリの値を流用しない。
   - `damageBreakdown` contribution = 威力カテゴリ表示の正本（左ペイン）。右ペイン stat delta = 能力値表示の正本（別レーン）。
 - **v1 実装方針（ユーザー確定・調査で経路不在を確認）**: バフ適用後の実効ステータスを算出する既存エンジン経路は存在しない（`calculateDamage` は AttackUp 等を倍率処理し、ステータス加算しない）。
-  - → v1 は `buildDamageStatDeltaViewModel()` を新設し、**`base`（手動入力 or role default）/ `delta`=0 / `resolved`=base の placeholder 表示**から始める。
+  - → Phase A は `buildDamageStatDeltaViewModel()` で、**`base`（member role/凸由来 default）/ `delta`=0 / `resolved`=base の placeholder 表示**とする。
   - 実効ステータス算出 provider が定まり次第、delta/resolved を実値化（後続フェーズ）。
 - 表示: `元値（base）/ 補正（+delta, v1=0）/ 最終（resolved）`。base（手動入力）と delta/resolved（自動算出）を視覚的に分離。
 
@@ -511,8 +513,8 @@ const paramBorder = enemy?.base_param?.param_border > 0
 - `buildDamageCalculationInput()` の変換ロジックカバレッジ
 - `resolveDefaultStats()` の role 別デフォルト値テスト（全 role）
 
-#### T4.2: Playwright E2E テストの追加 ✅ 実装完了
-- `tests/e2e/damage-breakdown-popup.spec.js` に右ペイン計算機・敵タブ切替・攻撃者 stat 入力保持の回帰を追加
+#### T4.2: Playwright E2E テストの追加 ✅ Phase A 改訂完了
+- `tests/e2e/damage-breakdown-popup.spec.js` に右ペイン計算機・敵タブ切替・member role/凸由来 read-only stats・DP表示・表示スキル一致の回帰を追加
 
 ---
 
@@ -540,9 +542,11 @@ const paramBorder = enemy?.base_param?.param_border > 0
 **総合判定**: 初回レビューは 3者全員 NOGO（T1.3/T2.3/T3.1/T3.2 の設計不整合が理由）。
 上記レビュー指摘6点（synthetic aggregate明記 / 2レーン分離節追加 / 列定義 base-delta-resolved 統一 / stat delta provider新設・v1=placeholder確定 / 敵タブ動的生成仕様 / destructionRate誤用訂正）を反映したうえで、`src/domain/damage-calculator-input-builder.js`、威力詳細右ペイン UI、`damageContext` 入力追加、テスト追加まで完了。
 
-**完了確認**:
-- `npm test` PASS（1261 tests）
+**Phase A 完了確認（2026-06-04）**:
+- `npm test` PASS（1263 tests）
+- `npm run lint` PASS
 - `npx playwright test tests/e2e/damage-breakdown-popup.spec.js` PASS（2 tests）
+- AttackBySp 消費SP威力スケーリング、HP破壊率、stat delta 実値 provider は Phase A スコープ外
 
 ---
 

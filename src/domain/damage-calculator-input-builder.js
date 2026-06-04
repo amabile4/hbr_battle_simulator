@@ -118,24 +118,13 @@ function buildSyntheticAttackerEffects(damageContext = {}, targetBreakdown = nul
   const buffPower = multiplierToPower(getGroupMultiplier(targetBreakdown, 'buff'));
   const critPower = criticalMultiplierToPower(getGroupMultiplier(targetBreakdown, 'crit-mindeye'));
   const funnelPower = multiplierToPower(getGroupMultiplier(targetBreakdown, 'funnel'));
-  const chargePower = (damageContext?.chargeEffects ?? []).reduce(
-    (sum, effect) => sum + toFiniteNumber(effect?.power, 0),
-    0
-  );
 
   for (const effect of [
-    buildSyntheticEffect('AttackUp', Math.max(0, buffPower - chargePower), 'attacker'),
+    buildSyntheticEffect('AttackUp', buffPower, 'attacker'),
     buildSyntheticEffect('CritDamageUp', critPower, 'attacker'),
     buildSyntheticEffect('Funnel', funnelPower, 'attacker'),
   ]) {
     if (effect) effects.push(effect);
-  }
-  for (const chargeEffect of damageContext?.chargeEffects ?? []) {
-    effects.push({
-      ...chargeEffect,
-      statusType: 'Charge',
-      power: toFiniteNumber(chargeEffect?.power, 0),
-    });
   }
   return effects;
 }

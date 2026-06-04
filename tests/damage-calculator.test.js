@@ -64,6 +64,18 @@ test('calculateDamage matches fixed Python fixtures', () => {
   }
 });
 
+test('calculateDamage exposes the resolved skill used by the calculation', () => {
+  const data = loadDamageCalculationData();
+  const input = createOfficialCategoryInput();
+  const actual = calculateDamage(input, data);
+
+  assert.deepEqual(actual.breakdown.resolvedSkill, {
+    id: Number(input.skill.skillId),
+    name: input.skill.name,
+    isNormalAttack: false,
+  });
+});
+
 function createOfficialCategoryInput(overrides = {}) {
   return {
     attacker: {

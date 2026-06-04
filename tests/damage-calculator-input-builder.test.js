@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {
   buildDamageCalculationInput,
   buildDamageStatDeltaViewModel,
+  calculateDamage,
+  loadDamageCalculationData,
   resolveDefaultStats,
 } from '../src/index.js';
 
@@ -90,7 +92,51 @@ test('buildDamageCalculationInput preserves stat lane and builds target-indexed 
   assert.equal(input.defender.resistances.Slash, 1.5);
   assert.equal(input.targetEnemyIndex, 1);
   assert.equal(input.activeZone, 'FireZone');
-  assert.equal(input.attacker.statusEffects.find((effect) => effect.statusType === 'Charge')?.power, 30);
+  assert.equal(input.attacker.statusEffects.find((effect) => effect.statusType === 'AttackUp')?.power, 50);
+  assert.equal(input.attacker.statusEffects.some((effect) => effect.statusType === 'Charge'), false);
+  assert.equal(input.defender.isHpTarget, true);
+});
+
+test('buildDamageCalculationInput preserves resolved breakdown multipliers without splitting charge', () => {
+  const input = buildDamageCalculationInput(
+    {
+      actorStyleId: 1000101,
+      skillId: 46001102,
+      skillName: 'クロス斬り',
+      chargeEffects: [{ statusType: 'Charge', power: 30, skillName: 'チャージ' }],
+      damageBreakdown: {
+        targetBreakdowns: [{
+          targetEnemyIndex: 0,
+          groups: [
+            { dataGroup: 'buff', multiplier: 1.8 },
+            { dataGroup: 'crit-mindeye', multiplier: 1.2 },
+            { dataGroup: 'funnel', multiplier: 1.1 },
+            { dataGroup: 'token-passive', multiplier: 1.3 },
+            { dataGroup: 'debuff', multiplier: 1.4 },
+            { dataGroup: 'affinity', multiplier: 1.5 },
+          ],
+        }],
+      },
+    },
+    { tokenRatio: 0.3 },
+    { targetEnemyIndex: 0, isHpTarget: false }
+  );
+
+  assert.ok(Math.abs(input.attacker.statusEffects.find((effect) => effect.statusType === 'AttackUp')?.power - 80) < 1e-9);
+  assert.ok(Math.abs(input.attacker.statusEffects.find((effect) => effect.statusType === 'CritDamageUp')?.power - 30) < 1e-9);
+  assert.ok(Math.abs(input.attacker.statusEffects.find((effect) => effect.statusType === 'Funnel')?.power - 10) < 1e-9);
+  assert.ok(Math.abs(input.defender.statusEffects.find((effect) => effect.statusType === 'DefenseDown')?.power - 40) < 1e-9);
+  assert.equal(input.attacker.tokenRatio, 0.3);
+  assert.equal(input.defender.affinityRate, 1.5);
+  assert.equal(input.defender.isHpTarget, false);
+
+  const result = calculateDamage(input, loadDamageCalculationData());
+  assert.ok(Math.abs(result.breakdown.buffMultiplier - 1.8) < 1e-9);
+  assert.ok(Math.abs(result.breakdown.critMindeyeMultiplier - 1.2) < 1e-9);
+  assert.ok(Math.abs(result.breakdown.funnelMultiplier - 1.1) < 1e-9);
+  assert.ok(Math.abs(result.breakdown.tokenMultiplier - 1.3) < 1e-9);
+  assert.ok(Math.abs(result.breakdown.debuffMultiplier - 1.4) < 1e-9);
+  assert.ok(Math.abs(result.breakdown.affinityMultiplier - 1.5) < 1e-9);
 });
 
 test('buildDamageCalculationInput marks normal attacks and keeps MindEye out of synthetic normal handling', () => {
