@@ -35,7 +35,10 @@ v2 実装（commit 384d805）を実機確認したユーザーから、設計思
 
 ### 確定した修正方針（ユーザー決定）
 
-- **点1: 表示スキル＝計算スキルの整合性を保証** — 威力詳細タブに表示されている（左上タイトルの）スキルそのもののダメージを計算・表示する。現状は表示と計算が相違＝バグ。不変条件「displayed skill == calculated skill」を満たすよう、計算が通常攻撃へフォールバックする原因を実機再現で特定し修正。回帰テストで invariant を固定する（アーキテクチャ再設計ではなく整合性修正）。
+- **点1: 低ダメージの真因対応（再診断済み・スコープ確定）** — 実機 probe で「通常攻撃化」は否定。真因は ①攻撃者 stats がプレースホルダ default で低い ②AttackBySp 消費SP威力スケーリング未実装、の合わせ技。
+  - **① は V3 スコープ内**: PartySetup stats 連携（V3-2/3/4）で statusAtk を実値化し解消。
+  - **② AttackBySp SP-scaling は V3 スコープ外（別タスク・ユーザー決定 2026-06-04）**: `calculateDamage` エンジン本体の機能追加であり統合配線とは別。正本（calc/damage_calc_engine.py）の式抽出は行うが、実装は独立タスクに切り出す。**Trinity 等の AttackBySp スキルは本タスク完了後も SP-scaling 分は正確値にならない点をユーザー了承済み**。
+  - invariant（`resolvedSkill` / displayed==calculated）は引き続き有効だが、真因が skill mismatch でないため優先度は stats 連携より下。
 - **点2/3: PartySetup を単一の正に** — role/凸/ステータスは PartySetup から読み取る。ペインの手動入力（role/凸/stat）を撤去。ステータス編集UIは PartySetup タブの将来機能（戦闘不変・変更時は PartySetup で編集→再計算反映）。計算機ペインは resolved 値を read-only 表示。
 
 ### 再利用可能 / 要再設計の切り分け
@@ -56,6 +59,14 @@ v2 実装（commit 384d805）を実機確認したユーザーから、設計思
   - **invariant は依然必要**: `result.breakdown` に `resolvedSkill {id,name,isNormalAttack}` を追加し、displayed skill == calculated skill を回帰テストで固定（codex 提案 B）。ただし表示を damageContext に寄せるだけの対症療法は不可（書き込み側が正しいことが前提）。
 - **Q-V3-2（ag/data）**: PartySetup が member ごとに role / 凸 / ステータスを公開する正確なフィールドは何か。戦闘不変のステータス正本は現状あるか（無ければ「PartySetup でのステータス編集」は新規機能スコープ）。
 - **Q-V3-3（全員）**: 上記を踏まえた WBS の再構成（撤去タスク・新規タスク・流用タスクの確定）。
+
+### スコープ外（別タスク・トラッキング）
+
+- **[別タスク] AttackBySp 消費SP威力スケーリングの実装**（ユーザー決定 2026-06-04・本統合タスクのスコープ外）
+  - 対象: `calculateDamage`（src/domain/damage-calculator.js）エンジン本体。消費SP（sp_cost=-1=全消費時の startSP-endSP 等）を威力解決に反映する。
+  - 正本: `calc/damage_calc_engine.py` の AttackBySp 経路（式抽出は本タスク中に実施し、別タスクの設計入力とする）。
+  - 影響: calculateDamage / damage-calculation-context（startSP/endSP/spCost/consumedSP の保持・伝播）/ contract / test。
+  - 影響範囲メモ: Trinity・疾きこと風の如し 等の AttackBySp / SP条件スキルは、本実装まで威力が正確値にならない（既知・許容）。
 
 > 本セクション合意後、下記 v2 仕様（ゴール以降）の該当箇所を改訂する。それまで v2 記述は参考として残す。
 
