@@ -45,7 +45,7 @@ docs/
 |-------------|-----------|------|----------|
 | [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブのダメージ計算機統合。Phase A の一般スキルDPダメージMVPとして、member role/凸由来read-only stats、Charge倍率往復等価、DP固定表示、resolved skill invariant、選択敵ごとの実 `param_border` 配線、unit / Playwright 回帰まで反映。AttackBySp・HP破壊率・stat delta実値は後続 | 2026-06-04 |
 | [active/destruction_rate_implementation_plan.md](active/destruction_rate_implementation_plan.md) | 🟡 検討中 | 破壊率（HPダメージ係数・最大1299%級）の単独タスク検討＆WBS。記録・上昇計算・表示・ダメージ式接合の4要素。エンジンに破壊率状態(rate/cap/breakState)とbreak遷移は存在するが、攻撃ごとの上昇モデルはWIP、damageContext接合・表示は未実装。上昇式の正本確定(D-1)が最重要ブロッカー | 2026-06-04 |
-| [active/partysetup_stats_editing_plan.md](active/partysetup_stats_editing_plan.md) | 🟡 検討中 | PartySetupステータス編集機能の検討＆WBS。現状は計算機がrole標準値プレースホルダ固定で実stats入力手段が無く、3点一致検証のクリティカルパス。lb(凸)と同じ経路でslot state→statsByPartyIndex snapshot→CharacterStyle→計算機供給＋session永続化。Excel非依存で着手可。P-0(設計判断Q-P1〜5)〜P-6(テスト) | 2026-06-04 |
+| [active/partysetup_stats_editing_plan.md](active/partysetup_stats_editing_plan.md) | 🟢 設計確定 | PartySetupステータス編集機能。現状は計算機がrole標準値プレースホルダ固定で実stats入力手段が無く、3点一致検証のクリティカルパス。P-0確定: キャラ単位(statsByCharacterId)保持・別パネルoverlay・role標準プリフィル・サポート枠対応・完全自由入力(装備連動なし)。CharacterStyle→計算機供給＋session永続化。Excel非依存で実装可。P-1〜P-6 | 2026-06-04 |
 
 ---
 
