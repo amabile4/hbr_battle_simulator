@@ -1,4 +1,8 @@
-import { CHARACTER_STAT_KEYS, normalizeCharacterStats } from '../../src/domain/character-stats.js';
+import {
+  CHARACTER_STAT_KEYS,
+  normalizeCharacterStats,
+  resolveStatsWithSupport,
+} from '../../src/domain/character-stats.js';
 import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
 
 const STAT_LABELS = Object.freeze({
@@ -65,7 +69,10 @@ export class StatsSettingsPanel {
     const isSupport = this.#currentMode === 'support';
     const style = isSupport ? slot?.supportStyle : slot?.style;
     const lb = isSupport ? slot?.supportLb : slot?.lb;
-    return resolveDefaultStats(style?.role, lb);
+    const defaults = resolveDefaultStats(style?.role, lb);
+    return isSupport
+      ? defaults
+      : resolveStatsWithSupport(defaults, slot?.supportStats);
   }
 
   #resolveCurrentStats() {
@@ -100,7 +107,7 @@ export class StatsSettingsPanel {
         `).join('')}
       </div>
       <div class="party-stats-panel__actions">
-        <button type="button" data-action="reset-stats">ロール標準に戻す</button>
+        <button type="button" data-action="reset-stats">デフォルトに戻す</button>
         <button type="button" data-action="apply-stats">適用</button>
       </div>
     `;

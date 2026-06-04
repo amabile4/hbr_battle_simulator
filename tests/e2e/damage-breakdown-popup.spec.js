@@ -204,8 +204,8 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('[data-role="damage-calc-limit-break"]')).toHaveCount(0);
     await expect(popup).toContainText('星火燎原');
     await expect(popup).not.toContainText('誤った表示名');
-    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('710');
-    await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('710');
+    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('700');
+    await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('700');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ DP');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル DP');
     await expect(pane.locator('[data-role="damage-calc-result"]')).not.toContainText('HP');
@@ -215,6 +215,56 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
     await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('923');
     await expect(pane.locator('[data-role="damage-calc-affinity"]')).toHaveText('1.50x');
-    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('710');
+    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('700');
+  });
+
+  test('damage calculator pane uses default plus support stats when main stats are absent', async ({ page }) => {
+    await gotoUiNext(page);
+
+    await page.evaluate(async () => {
+      const { openCharDetailPopup } = await import('/ui-next/utils/char-detail-popup.js');
+      openCharDetailPopup(
+        {
+          characterId: 'DAMAGE_CALC_DEFAULT_E2E',
+          characterName: 'デフォルト計算テスト',
+          styleName: 'テストスタイル',
+          role: 'Buffer',
+          limitBreakLevel: 2,
+          stats: null,
+          supportStats: { str: 100, dex: 100, wis: 100, spr: 100, luk: 100, con: 100 },
+          elements: ['Fire'],
+          weaponType: 'Slash',
+          statusEffects: [],
+          passives: [],
+        },
+        {
+          previewActionFlow: [{
+            actorCharacterId: 'DAMAGE_CALC_DEFAULT_E2E',
+            skillName: 'デフォルト威力詳細',
+            damageContext: {
+              effectiveDamageRatesByEnemy: { 0: 100 },
+              enemyParamBorderByEnemy: { 0: 812 },
+              damageBreakdown: {
+                targetBreakdowns: [{
+                  targetEnemyIndex: 0,
+                  targetLabel: 'E1',
+                  finalMultiplier: 1,
+                  increasePercent: 0,
+                  formula: '1.00x',
+                  groups: [],
+                }],
+              },
+            },
+          }],
+        },
+        { isCommitted: false }
+      );
+    });
+
+    const popup = page.locator('#char-detail-popup');
+    await popup.locator('.char-popup-tab[data-tab="damage"]').click();
+    const pane = popup.locator('[data-role="damage-calc-pane"]').first();
+
+    await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('650');
   });
 });

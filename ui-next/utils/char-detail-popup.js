@@ -38,7 +38,7 @@ import {
   buildDamageStatDeltaViewModel,
   resolveDefaultStats,
 } from '../../src/domain/damage-calculator-input-builder.js';
-import { resolveStatsWithSupport } from '../../src/domain/character-stats.js';
+import { normalizeCharacterStats, resolveStatsWithSupport } from '../../src/domain/character-stats.js';
 
 const DEAD_STATUS_ICON_FILE_NAME = 'dead.webp';
 const SYSTEM_PASSIVE_NAMES = new Set(['[Overdrive]']);
@@ -1029,13 +1029,14 @@ function buildDamageBreakdownTabHtml(previewActionFlow, member) {
   const actions = Array.isArray(previewActionFlow) ? previewActionFlow : [];
   const role = String(member?.role ?? DAMAGE_CALC_DEFAULT_ROLE);
   const limitBreakCount = Number(member?.limitBreakLevel ?? 0);
+  const stats = (
+    normalizeCharacterStats(member?.stats)
+    ?? resolveStatsWithSupport(resolveDefaultStats(role, limitBreakCount), member?.supportStats)
+  );
   const attackerInput = {
     role,
     limitBreakCount,
-    ...(
-      resolveStatsWithSupport(member?.stats, member?.supportStats)
-      ?? resolveDefaultStats(role, limitBreakCount)
-    ),
+    ...stats,
   };
   damageCalculationActionModels.clear();
   const html = actions

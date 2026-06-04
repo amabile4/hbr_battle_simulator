@@ -1503,7 +1503,7 @@ export class PartySetupController {
       this.#slots[idx].style = style;
       this.#slots[idx].styleId = style.id;
       this.#slots[idx].lb = 0;
-      this.#slots[idx].stats = resolveDefaultStats(style.role, 0);
+      this.#slots[idx].stats = null;
       this.#slots[idx].equippedSkillIds = this.#resolveEquippedSkillIdsForStyle(style.id, null);
     } else {
       // サポート同士: 同一スタイル不可 → 既存サポートをクリア

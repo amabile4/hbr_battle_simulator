@@ -165,6 +165,35 @@ test('PartySetupController edits, snapshots, restores, and swaps slot stats', ()
     assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
   }));
 
+test('PartySetupController prefills unsaved main stats with support 10%', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [1002, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+      statsByPartyIndex: {
+        0: {
+          supportStats: { str: 600, dex: 600, wis: 670, spr: 620, luk: 600, con: 600 },
+        },
+      },
+    });
+
+    root.querySelector('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const panel = win.document.querySelector('#stats-settings-panel');
+
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '710');
+    assert.equal(panel.querySelector('[data-stat="wis"]').value, '667');
+    assert.equal(controller.getSnapshot().statsByPartyIndex['0'].stats, undefined);
+  }));
+
 test('PartySetupController exports belt selection as normalAttackElementsByPartyIndex', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
