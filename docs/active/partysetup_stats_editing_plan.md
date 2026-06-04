@@ -32,18 +32,20 @@
 
 ## 3. 設計方針
 
-- **データ保持（キャラ単位）**: stats を **characterId keyed の override** として保持（メイン枠＋サポート枠）。各値 null/未入力なら `resolveDefaultStats(role, lb)` へ fallback。同キャラはどのスロットでも同 stats。
-- **永続化**: ステータスは戦闘中不変の正本 → **session save/load に必ず含める**（Phase A の textarea のような非永続枠とは異なる）。snapshot は **`statsByCharacterId`**（characterId keyed）。後方互換: 欠落時は role 標準 fallback。
-- **UI（別パネル）**: スロット詳細に詰めず、style-picker のような **overlay/別ウィンドウ**で 6 ステータスを編集。role 標準値をプリフィルし自由入力。
-- **計算機接合**: char-detail-popup attackerInput は `member.stats`（characterId で解決した override）が有れば優先、無ければ `resolveDefaultStats(role, lb)` fallback。Phase A の DP ダメージが実 stats で再計算される。サポート枠由来のステータス加算の寄与は実装時に整理。
+- **データ保持（スロット単位）**: `createEmptySlotState` に `stats`（6値の override オブジェクト・メイン枠）と `supportStats`（サポート枠）を追加。`lb` と同様にスロットフィールドとして move/swap/clear。各値 null/未入力なら `resolveDefaultStats(role, lb)` へ fallback。
+- **永続化**: ステータスは戦闘中不変の正本 → **session save/load に必ず含める**（Phase A の textarea のような非永続枠とは異なる）。snapshot は **`statsByPartyIndex`**（lb と同パターン）。後方互換: 欠落時は role 標準 fallback。
+- **UI（別パネル）**: スロット詳細に詰めず、style-picker のような **overlay/別ウィンドウ**で 6 ステータスを編集。role 標準値をプリフィルし自由入力。スロットのキャラ変更で stats はリセット→再プリフィル。
+- **計算機接合**: char-detail-popup attackerInput は スロットの `stats`（partyIndex で解決した override）が有れば優先、無ければ `resolveDefaultStats(role, lb)` fallback。Phase A の DP ダメージが実 stats で再計算される。サポート枠由来のステータス加算の寄与は実装時に整理。
 - **stat delta レーンとの関係**: 本機能は **base（元値）の正本化**。バフ適用後の delta（「STR 650 (+25)」）は別タスク（実効ステータス算出経路）。本機能後は base=実値・delta=0・resolved=base になる。
 
 ## 4. 確定した設計判断（ユーザー回答 2026-06-04）
 
-- **Q-P1 → キャラ単位**: stats は **キャラ（characterId）単位**で保持する。partyIndex（スロット）単位ではない。同じキャラがどのスロットに入っても同じ stats が適用され、キャラに紐づいて永続する。
-  - 含意: snapshot キーは `statsByPartyIndex`（lb パターン）ではなく **`statsByCharacterId`（キャラ keyed）**。slot 配置時に characterId で引く。role 標準プリフィルは選択中スタイルの role 由来のため、style/role 切替時の prefill 基準は実装時に明確化する。
+- **Q-P1 → スロット単位（再確認で確定）**: stats は **partyIndex（スロット）単位**で保持する（lb と同じ持ち方）。`stats` を `createEmptySlotState` のスロットフィールドとして追加し、`lb` と同様にスロット操作（move/swap/clear）で移動・リセットされる。
+  - 背景: stats は「最終的な6数値の手入力」だけを意図し、宝珠強化・転生・称号ボーナス等のシミュレータ非対応補正は入力しない。キャラ/スタイル/ロールを跨ぐ複雑な永続管理は不要、というユーザー意図。
+  - 含意: snapshot キーは **`statsByPartyIndex`（lb と同パターン）**。スロットのキャラ（styleId）を入れ替えたら stats はリセットして role 標準へ再プリフィル。
 - **Q-P2 → 別パネル**: スロット詳細に詰め込まず、**別パネル/別ウィンドウ**（キャラスロット選択（style-picker）のような overlay）で stats を編集する。
 - **Q-P3 → role 標準プリフィル**: パネルは `resolveDefaultStats(role, lb)` の **role 標準値をプリフィル**し、そこから編集可能にする。
+  - 注: styles.json の `base_param`（str:5 等）は成長方向/初期値であり最終ステータス（実数600〜700）ではないため、プリフィル源には使わない。role 標準値を採用。
 - **Q-P4 → サポート枠も対応**: サポート枠はステータスを少しプラスする効果があるため、**サポート枠の stats も対応する**（slot state の supportStyle/supportLb と同様に support stats を持つ）。サポート由来のステータス加算がダメージ計算へどう寄与するかは実装時に整理。
 - **Q-P5 → 完全自由入力（v1）**: まずは **数値の完全自由入力**。装備・レベル・ロール連動は v1 では作らない（装備枠/UI を作るのは過大）。将来、選択による role/レベル/装備連動は否定しないが別スコープ。
 
@@ -54,12 +56,12 @@
 | ID | 分類 | 内容 | 依存 | 状況 |
 |---|---|---|---|---|
 | P-0 | Spec | Q-P1〜P5 のユーザー確定（✅完了・本書 §4） | — | ✅ 完了 |
-| P-1 | Data | stats を **characterId keyed** で保持（メイン＋サポート）。`getSnapshot`/`applySnapshot` に **`statsByCharacterId`**。null fallback ルール（→ role 標準） | P-0 | 未着手 |
-| P-2 | UI | **別パネル/overlay**（style-picker 流用）で 6 ステータス編集。role 標準値プリフィル＋完全自由入力。スロットから起動 | P-1 | 未着手 |
-| P-3 | Wiring | `CharacterStyle` に `stats`、`BattleStateManager.buildCharacterStyle` が snapshot.`statsByCharacterId` から characterId で解決して供給（メイン＋サポート） | P-1 | 未着手 |
-| P-4 | Integration | char-detail-popup attackerInput が `member.stats` 優先、無ければ `resolveDefaultStats` fallback。サポート枠由来加算の寄与を整理。DP ダメージが実 stats で再計算 | P-3 | 未着手 |
-| P-5 | Persistence | session save/load schema に `statsByCharacterId`。後方互換（欠落時 role 標準）・replay/snapshot 整合・回帰 | P-1 | 未着手 |
-| P-6 | Test | unit（snapshot round-trip・fallback・characterId 解決）／ E2E（stats 入力→計算反映→保存復元）／ lint | P-2〜P-5 | 未着手 |
+| P-1 | Data | `createEmptySlotState` に `stats`/`supportStats` 追加。`getSnapshot`/`applySnapshot` に **`statsByPartyIndex`**（lb と同パターン）。move/swap/clear で lb 同様に追従。null fallback（→ role 標準） | P-0 | 未着手 |
+| P-2 | UI | **別パネル/overlay**（style-picker 流用）で 6 ステータス編集。role 標準値プリフィル＋完全自由入力。スロットから起動。キャラ変更で reset→再プリフィル | P-1 | 未着手 |
+| P-3 | Wiring | `CharacterStyle` に `stats`、`BattleStateManager.buildCharacterStyle` が snapshot.`statsByPartyIndex` から partyIndex で解決して供給（メイン＋サポート） | P-1 | 未着手 |
+| P-4 | Integration | char-detail-popup attackerInput が スロット `stats` 優先、無ければ `resolveDefaultStats` fallback。サポート枠由来加算の寄与を整理。DP ダメージが実 stats で再計算 | P-3 | 未着手 |
+| P-5 | Persistence | session save/load schema に `statsByPartyIndex`。後方互換（欠落時 role 標準）・replay/snapshot 整合・回帰 | P-1 | 未着手 |
+| P-6 | Test | unit（snapshot round-trip・fallback・slot move/clear）／ E2E（stats 入力→計算反映→保存復元）／ lint | P-2〜P-5 | 未着手 |
 
 ## 6. リスク・留意点
 
