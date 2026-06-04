@@ -2443,6 +2443,7 @@ export function getEnemyState(turnState) {
       extraHpGaugeStateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
+      paramBorderByEnemy: {},
       zoneConfigByEnemy: {},
       talismanState: structuredClone(TALISMAN_STATE_DEFAULT),
       disasterState: structuredClone(DISASTER_STATE_DEFAULT),
@@ -2490,6 +2491,8 @@ export function getEnemyState(turnState) {
       state.breakStateByEnemy && typeof state.breakStateByEnemy === 'object' ? state.breakStateByEnemy : {},
     enemyNamesByEnemy:
       state.enemyNamesByEnemy && typeof state.enemyNamesByEnemy === 'object' ? state.enemyNamesByEnemy : {},
+    paramBorderByEnemy:
+      state.paramBorderByEnemy && typeof state.paramBorderByEnemy === 'object' ? state.paramBorderByEnemy : {},
     zoneConfigByEnemy:
       state.zoneConfigByEnemy && typeof state.zoneConfigByEnemy === 'object' ? state.zoneConfigByEnemy : {},
     talismanState:
@@ -2518,6 +2521,7 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
   return {
     enemyCount: enemyState.enemyCount,
     enemyNames: structuredClone(enemyState.enemyNamesByEnemy),
+    enemyParamBorders: structuredClone(enemyState.paramBorderByEnemy),
     enemyDamageRates: structuredClone(enemyState.damageRatesByEnemy),
     enemyDestructionRates: structuredClone(enemyState.destructionRateByEnemy),
     enemyDestructionRateCaps: structuredClone(enemyState.destructionRateCapByEnemy),
@@ -2544,6 +2548,9 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
     enemyNamesByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyNames')
       ? cloneEnemySlotObjectMap(snapshot.enemyNames)
       : structuredClone(current.enemyNamesByEnemy),
+    paramBorderByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyParamBorders')
+      ? cloneEnemySlotObjectMap(snapshot.enemyParamBorders)
+      : structuredClone(current.paramBorderByEnemy),
     damageRatesByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDamageRates')
       ? cloneEnemySlotObjectMap(snapshot.enemyDamageRates)
       : structuredClone(current.damageRatesByEnemy),
@@ -6171,6 +6178,7 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     extraHpGaugeStateByEnemy: enemyState.extraHpGaugeStateByEnemy,
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
+    paramBorderByEnemy: enemyState.paramBorderByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
     talismanState: enemyState.talismanState ?? structuredClone(TALISMAN_STATE_DEFAULT),
     disasterState: enemyState.disasterState ?? structuredClone(DISASTER_STATE_DEFAULT),
@@ -8052,6 +8060,12 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         effectiveHitCountTotal: effectiveHitCount,
         eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
+        enemyParamBorderByEnemy: getEnemyState(state.turnState).paramBorderByEnemy,
+        activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
+        chargeEffects,
+        enemyStatusEffects: getEnemyState(state.turnState).statuses,
+        attackReferencesByEnemy: affinityMaps.attackReferencesByEnemy,
+        affinityContributionsByEnemy: affinityMaps.affinityContributionsByEnemy,
         tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
         tokenAttackRatePerToken: Number(actionEntry?.tokenAttackContext?.ratePerToken ?? 0),
         tokenAttackTotalRate: Number(actionEntry?.tokenAttackContext?.totalRate ?? 0),
@@ -8101,6 +8115,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         zonePowerRate: zoneMatchForDamageContext.matched
           ? Number(zoneMatchForDamageContext.zoneState?.powerRate ?? 0)
           : 0,
+        hasPenetrationCritical,
         // WIP: 全能力ダウン（タリスマン/霊符・禍）は敵の防御ステータスを-N引き下げる効果。
         // ダメージ計算には自身の攻撃ステータスと敵の防御ステータスの差分が必要なため、
         // 現時点では威力詳細への表示対象外。将来の絶対ステータス追跡実装時に有効化する。

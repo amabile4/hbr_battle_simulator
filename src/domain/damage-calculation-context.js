@@ -32,6 +32,30 @@ export function buildDamageCalculationContext(input = {}) {
             ])
           )
         : {},
+    enemyParamBorderByEnemy:
+      input.enemyParamBorderByEnemy && typeof input.enemyParamBorderByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.enemyParamBorderByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              Number(value ?? 0),
+            ])
+          )
+        : {},
+    activeStatusEffects: Array.isArray(input.activeStatusEffects)
+      ? structuredClone(input.activeStatusEffects)
+      : [],
+    chargeEffects: Array.isArray(input.chargeEffects) ? structuredClone(input.chargeEffects) : [],
+    enemyStatusEffects: Array.isArray(input.enemyStatusEffects)
+      ? structuredClone(input.enemyStatusEffects)
+      : [],
+    attackReferencesByEnemy:
+      input.attackReferencesByEnemy && typeof input.attackReferencesByEnemy === 'object'
+        ? structuredClone(input.attackReferencesByEnemy)
+        : {},
+    affinityContributionsByEnemy:
+      input.affinityContributionsByEnemy && typeof input.affinityContributionsByEnemy === 'object'
+        ? structuredClone(input.affinityContributionsByEnemy)
+        : {},
     enemyTalismanLevelByEnemy:
       input.enemyTalismanLevelByEnemy && typeof input.enemyTalismanLevelByEnemy === 'object'
         ? Object.fromEntries(
@@ -92,6 +116,7 @@ export function buildDamageCalculationContext(input = {}) {
     overDrivePointUpByTokenTotalPercent: Number(input.overDrivePointUpByTokenTotalPercent ?? 0),
     zoneType: String(input.zoneType ?? ''),
     zonePowerRate: Number(input.zonePowerRate ?? 0),
+    hasPenetrationCritical: input.hasPenetrationCritical === true,
     selectedMindEyeEffects: Array.isArray(input.selectedMindEyeEffects)
       ? structuredClone(input.selectedMindEyeEffects)
       : [],

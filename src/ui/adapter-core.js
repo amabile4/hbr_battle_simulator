@@ -299,6 +299,7 @@ export function createInitializedBattleSnapshot({
   initialOdGauge,
   enemyCount,
   enemyNamesByEnemy = {},
+  paramBorderByEnemy = {},
   damageRatesByEnemy = {},
   destructionRateByEnemy = {},
   destructionRateCapByEnemy = {},
@@ -379,6 +380,8 @@ export function createInitializedBattleSnapshot({
         breakStateByEnemy && typeof breakStateByEnemy === 'object' ? structuredClone(breakStateByEnemy) : {},
       enemyNamesByEnemy:
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
+      paramBorderByEnemy:
+        paramBorderByEnemy && typeof paramBorderByEnemy === 'object' ? structuredClone(paramBorderByEnemy) : {},
       zoneConfigByEnemy:
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)
@@ -421,6 +424,8 @@ export function createInitializedBattleSnapshot({
       enemyCount: Number(enemyCount),
       enemyNamesByEnemy:
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
+      paramBorderByEnemy:
+        paramBorderByEnemy && typeof paramBorderByEnemy === 'object' ? structuredClone(paramBorderByEnemy) : {},
       damageRatesByEnemy:
         damageRatesByEnemy && typeof damageRatesByEnemy === 'object' ? structuredClone(damageRatesByEnemy) : {},
       destructionRateByEnemy:

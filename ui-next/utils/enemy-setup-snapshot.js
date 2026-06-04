@@ -8,6 +8,7 @@ const DEFAULT_ENEMY_NAME = '';
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_OD_RATE_MULTIPLIER = 1;
+export const DEFAULT_ENEMY_PARAM_BORDER = 770;
 const ENEMY_ELEMENT_KEYS = Object.freeze([
   'slash',
   'stab',
@@ -123,6 +124,9 @@ function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
     slotIndex,
     selectedEnemyId: toOptionalEnemyId(source?.selectedEnemyId),
     selectedEnemyName: normalizeEnemyName(source?.selectedEnemyName),
+    param_border: Number.isFinite(Number(source?.param_border)) && Number(source.param_border) > 0
+      ? Number(source.param_border)
+      : DEFAULT_ENEMY_PARAM_BORDER,
     isManual: Boolean(source?.isManual),
     manual,
     od_rate: normalizeEnemyOdRateMultiplier(source?.od_rate ?? manual.od_rate),

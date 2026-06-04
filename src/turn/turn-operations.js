@@ -50,6 +50,7 @@ const SUMMONABLE_ENEMY_RESISTANCE_KEYS = Object.freeze({
   nonelement: 'Nonelement',
 });
 const SUMMON_ENEMY_NO_SLOT_WARNING = 'summon enemy ignored: no available enemy slot.';
+const DEFAULT_ENEMY_PARAM_BORDER = 770;
 
 const BEFORE_COMMIT_OPERATION_TYPES = new Set(
   Object.values(REPLAY_OPERATION_TYPES).filter((type) => replayOperationRegistry.get(type)?.timing === 'beforeCommit')
@@ -400,6 +401,7 @@ function normalizeSummonEnemyPayload(payload = {}) {
   const odRate = Number(payload.od_rate ?? payload.odRate ?? 0);
   const maxDestructionRate = Number(payload.max_d_rate ?? payload.maxDRate ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT);
   const targetEnemyIndex = Number(payload.targetEnemyIndex ?? payload.target_enemy_index ?? NaN);
+  const paramBorder = Number(payload.param_border ?? payload.paramBorder ?? DEFAULT_ENEMY_PARAM_BORDER);
   return {
     enemyId: Number.isFinite(enemyId) ? enemyId : null,
     enemyName,
@@ -408,6 +410,9 @@ function normalizeSummonEnemyPayload(payload = {}) {
       ? maxDestructionRate
       : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
     damageRates: normalizeSummonEnemyRates(payload),
+    paramBorder: Number.isFinite(paramBorder) && paramBorder > 0
+      ? paramBorder
+      : DEFAULT_ENEMY_PARAM_BORDER,
     absorbElements: normalizeSummonEnemyAbsorbElements(payload),
     eShieldState: normalizeSummonEnemyEShield(payload),
     extraHpGaugeState: normalizeSummonEnemyExtraHpGauge(payload),
@@ -487,6 +492,10 @@ function applySummonEnemyToState(state, operation = {}, options = {}) {
     enemyNames: {
       ...(currentSnapshot.enemyNames ?? {}),
       [slotKey]: summonEnemy.enemyName,
+    },
+    enemyParamBorders: {
+      ...(currentSnapshot.enemyParamBorders ?? {}),
+      [slotKey]: summonEnemy.paramBorder,
     },
     enemyDamageRates: {
       ...(currentSnapshot.enemyDamageRates ?? {}),

@@ -7799,6 +7799,10 @@ test('damage context keeps target enemy and effective rates for multi-enemy OD a
       0: { Slash: 300, Thunder: 50 },
       1: { Slash: 50, Thunder: 50 },
     },
+    paramBorderByEnemy: {
+      0: 812,
+      1: 923,
+    },
   };
 
   const preview = previewTurn(
@@ -7817,6 +7821,7 @@ test('damage context keeps target enemy and effective rates for multi-enemy OD a
   assert.deepEqual(damageContext.eligibleEnemyIndexes, [0]);
   assert.equal(damageContext.effectiveDamageRatesByEnemy['0'], 150);
   assert.equal(damageContext.effectiveDamageRatesByEnemy['1'], undefined);
+  assert.deepEqual(damageContext.enemyParamBorderByEnemy, { 0: 812, 1: 923 });
 });
 
 test('absorbed element is treated as resistance for OD gain and damage context', () => {

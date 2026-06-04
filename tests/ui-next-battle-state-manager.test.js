@@ -54,6 +54,7 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
   const state = manager.buildFromSnapshot(createPartySnapshot(), {
     enemyCount: 2,
     selectedEnemyName: '敵テスト',
+    param_border: 845,
     max_d_rate: 650,
     resistances: {
       element: {
@@ -73,6 +74,8 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
 
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], '敵テスト');
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '敵テスト');
+  assert.equal(state.turnState.enemyState.paramBorderByEnemy['0'], 845);
+  assert.equal(state.turnState.enemyState.paramBorderByEnemy['1'], 845);
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Fire, 400);
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Ice, 30);
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Slash, 150);
@@ -132,6 +135,7 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         slotIndex: 0,
         selectedEnemyId: 7001,
         selectedEnemyName: '魔王ヤマワキ',
+        param_border: 812,
         od_rate: 8500,
         max_d_rate: 650,
         e_shield: {
@@ -160,6 +164,7 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         slotIndex: 1,
         selectedEnemyId: 7002,
         selectedEnemyName: '使い魔ブンゴ',
+        param_border: 923,
         od_rate: 0,
         max_d_rate: 999,
         resistances: {
@@ -187,6 +192,8 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   assert.equal(state.turnState.enemyState.enemyCount, 2);
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], '魔王ヤマワキ');
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '使い魔ブンゴ');
+  assert.equal(state.turnState.enemyState.paramBorderByEnemy['0'], 812);
+  assert.equal(state.turnState.enemyState.paramBorderByEnemy['1'], 923);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 999);
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);

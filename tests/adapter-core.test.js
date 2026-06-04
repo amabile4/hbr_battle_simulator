@@ -189,10 +189,13 @@ test('createInitializedBattleSnapshot keeps support setup in turnPlanBaseSetup',
     supportLimitBreakLevelsByPartyIndex: { 0: 3 },
     initialOdGauge: 0,
     enemyCount: 1,
+    paramBorderByEnemy: { 0: 812 },
   });
 
   assert.deepEqual(snapshot.turnPlanBaseSetup.supportStyleIdsByPartyIndex, { 0: 1001408 });
   assert.deepEqual(snapshot.turnPlanBaseSetup.supportLimitBreakLevelsByPartyIndex, { 0: 3 });
+  assert.deepEqual(snapshot.state.turnState.enemyState.paramBorderByEnemy, { 0: 812 });
+  assert.deepEqual(snapshot.turnPlanBaseSetup.paramBorderByEnemy, { 0: 812 });
 });
 
 test('createInitializedBattleSnapshot keeps reported frontline initial SP at 9/11/9', () => {

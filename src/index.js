@@ -49,6 +49,11 @@ export {
   resolveEffectPower,
 } from './domain/damage-calculator.js';
 export {
+  buildDamageCalculationInput,
+  buildDamageStatDeltaViewModel,
+  resolveDefaultStats,
+} from './domain/damage-calculator-input-builder.js';
+export {
   resolveSupportPassiveEntry,
   buildSupportPassive,
 } from './domain/support-skills-resolver.js';

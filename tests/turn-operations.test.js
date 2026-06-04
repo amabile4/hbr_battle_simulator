@@ -530,6 +530,7 @@ test('applyBeforeCommitOperations summons into the next unused enemy slot and co
 
   assert.equal(nextState.turnState.enemyState.enemyCount, 2);
   assert.equal(nextState.turnState.enemyState.enemyNamesByEnemy['1'], DEFAULT_SUMMON_SAMPLE_ENEMY.name);
+  assert.equal(nextState.turnState.enemyState.paramBorderByEnemy['1'], 770);
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['1'], 350);
   assert.equal(nextState.turnState.enemyState.damageRatesByEnemy['1'].Fire, 250);
   assert.deepEqual(nextState.turnState.enemyState.absorbElementsByEnemy['1'], ['fire']);

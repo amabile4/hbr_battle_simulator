@@ -39,6 +39,14 @@ docs/
 
 ---
 
+## active/damage_calculator_integration_plan.md
+
+| ドキュメント | ステータス | 概要 | 最終更新 |
+|-------------|-----------|------|----------|
+| [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブのダメージ計算機統合。Phase A の一般スキルDPダメージMVPとして、member role/凸由来read-only stats、Charge倍率往復等価、DP固定表示、resolved skill invariant、選択敵ごとの実 `param_border` 配線、unit / Playwright 回帰まで反映。AttackBySp・HP破壊率・stat delta実値は後続 | 2026-06-04 |
+
+---
+
 ## active/（運用中ドキュメント）
 
 | ドキュメント | ステータス | 概要 | 最終更新 |

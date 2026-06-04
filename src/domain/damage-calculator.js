@@ -536,6 +536,13 @@ export function calculateDamage(input, data) {
       max: expectedCrit * (1 + DEFAULT_DAMAGE_RANGE_RATE),
     },
     breakdown: {
+      resolvedSkill: skill
+        ? {
+            id: Number(skill.id ?? 0),
+            name: String(skill.name ?? ''),
+            isNormalAttack,
+          }
+        : null,
       baseDamageNormal,
       baseDamageCrit,
       buffMultiplier,

@@ -8,6 +8,8 @@ import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
 import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
 import { MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 
+const DEFAULT_ENEMY_PARAM_BORDER = 770;
+
 export const TURN_TYPES = Object.freeze(['normal', 'od', 'extra']);
 export const OD_CONTEXTS = Object.freeze(['preemptive', 'interrupt', null]);
 export const RECORD_STATUSES = Object.freeze(['preview', 'committed']);
@@ -167,6 +169,7 @@ export function createInitialTurnState() {
       extraHpGaugeStateByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
+      paramBorderByEnemy: {},
       zoneConfigByEnemy: {},
       talismanState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 },
       disasterState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },
@@ -303,6 +306,18 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          paramBorderByEnemy:
+            turnState.enemyState.paramBorderByEnemy &&
+            typeof turnState.enemyState.paramBorderByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.paramBorderByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) && Number(value) > 0
+                      ? Number(value)
+                      : DEFAULT_ENEMY_PARAM_BORDER,
+                  ])
+                )
+              : {},
           zoneConfigByEnemy:
             turnState.enemyState.zoneConfigByEnemy &&
             typeof turnState.enemyState.zoneConfigByEnemy === 'object'
@@ -355,6 +370,7 @@ export function cloneTurnState(turnState) {
           extraHpGaugeStateByEnemy: {},
           breakStateByEnemy: {},
           enemyNamesByEnemy: {},
+          paramBorderByEnemy: {},
           zoneConfigByEnemy: {},
           talismanState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 },
           disasterState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },

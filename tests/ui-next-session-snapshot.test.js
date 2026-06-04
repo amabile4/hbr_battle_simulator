@@ -25,6 +25,7 @@ test('normalizeSessionSnapshot fills defaults and migrates replay action inputs 
           slotIndex: 0,
           selectedEnemyId: 7001,
           selectedEnemyName: '敵A',
+          param_border: 812,
           od_rate: 8500,
           max_d_rate: 700,
           e_shield: {
@@ -72,6 +73,7 @@ test('normalizeSessionSnapshot fills defaults and migrates replay action inputs 
   assert.deepEqual(snapshot.setup.skillSetsByPartyIndex['0'], [46000001, 46400001]);
   assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyId, 7001);
   assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyName, '敵A');
+  assert.equal(snapshot.enemy.enemySlots[0].param_border, 812);
   assert.equal(snapshot.enemy.enemySlots[0].od_rate, 0.85);
   assert.equal(snapshot.enemy.enemySlots[0].max_d_rate, 700);
   assert.deepEqual(snapshot.enemy.enemySlots[0].e_shield, {

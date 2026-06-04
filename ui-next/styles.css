@@ -2763,7 +2763,162 @@
 .char-popup-damage-row[data-group="affinity"] .char-popup-damage-group-title { color: #cbd5e1; }
 .char-popup-damage-row[data-group="affinity"] .char-popup-damage-group-total { color: #94a3b8; }
 
+.char-popup-damage-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.char-popup-damage-breakdown-pane,
+.char-popup-damage-calc {
+  min-width: 0;
+}
+
+.char-popup-damage-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  padding: 10px;
+}
+
+.char-popup-damage-calc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.char-popup-damage-calc-target {
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #111827;
+  color: #cbd5e1;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.char-popup-damage-calc-target.active {
+  border-color: #38bdf8;
+  background: #0c4a6e;
+  color: #f8fafc;
+}
+
+.char-popup-damage-calc-result {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.char-popup-damage-calc-result > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid #273549;
+  border-radius: 6px;
+  background: #111827;
+  padding: 8px;
+}
+
+.char-popup-damage-calc-result span,
+.char-popup-damage-calc-section-title,
+.char-popup-damage-calc-enemy-meta,
+.char-popup-damage-calc-message {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.char-popup-damage-calc-result strong {
+  color: #f8fafc;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.char-popup-damage-calc-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.char-popup-damage-calc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.char-popup-damage-calc-section-title {
+  font-weight: 800;
+}
+
+.char-popup-damage-calc-note {
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #111827;
+  color: #e2e8f0;
+  font: inherit;
+}
+
+.char-popup-damage-calc-stat-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.char-popup-damage-calc-stat-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 48px 56px;
+  gap: 5px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.char-popup-damage-calc-stat-label {
+  color: #cbd5e1;
+  font-weight: 800;
+}
+
+.char-popup-damage-calc-stat-row [data-role="damage-calc-stat-base"],
+.char-popup-damage-calc-stat-row [data-role="damage-calc-stat-delta"],
+.char-popup-damage-calc-stat-row [data-role="damage-calc-stat-resolved"] {
+  min-height: 28px;
+  border: 1px solid #273549;
+  border-radius: 6px;
+  background: #111827;
+  color: #e2e8f0;
+  padding: 5px 6px;
+  text-align: right;
+}
+
+.char-popup-damage-calc-stat-row [data-role="damage-calc-stat-delta"] {
+  color: #86efac;
+}
+
+.char-popup-damage-calc-enemy-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.char-popup-damage-calc-note {
+  width: 100%;
+  resize: vertical;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
 @media (max-width: 720px) {
+  .char-popup-damage-layout,
+  .char-popup-damage-calc-body {
+    grid-template-columns: 1fr;
+  }
+
+  .char-popup-damage-calc-result {
+    grid-template-columns: 1fr;
+  }
+
   .char-popup-damage-row {
     grid-template-columns: 1fr;
   }

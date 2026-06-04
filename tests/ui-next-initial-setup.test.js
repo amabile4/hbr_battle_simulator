@@ -836,6 +836,7 @@ test('InitialSetupController enemy setup switches slot 1 via category selector a
           categoryKey: 'normal:stellar-sweepfront',
           categoryLabel: '恒星掃戦線',
           dimension: 202508,
+          base_param: { param_border: 812 },
           od_rate: 0,
           max_d_rate: 999,
           resistances: { element: {} },
@@ -859,6 +860,7 @@ test('InitialSetupController enemy setup switches slot 1 via category selector a
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450815, null, null]);
     assert.equal(snapshot.enemy.selectedEnemyName, '変貌を重ねる不滅の円環');
+    assert.equal(snapshot.enemy.enemySlots[0].param_border, 812);
   }));
 
 test('InitialSetupController template category keeps the Eシールド sample enemy ready for quick selection', () =>
