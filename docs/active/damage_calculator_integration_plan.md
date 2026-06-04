@@ -41,6 +41,23 @@ v2 実装（commit 384d805）を実機確認したユーザーから、設計思
   - invariant（`resolvedSkill` / displayed==calculated）は引き続き有効だが、真因が skill mismatch でないため優先度は stats 連携より下。
 - **点2/3: PartySetup を単一の正に** — role/凸/ステータスは PartySetup から読み取る。ペインの手動入力（role/凸/stat）を撤去。ステータス編集UIは PartySetup タブの将来機能（戦闘不変・変更時は PartySetup で編集→再計算反映）。計算機ペインは resolved 値を read-only 表示。
 
+### 実装フェーズ順序（ユーザー方針 2026-06-04・DPダメージ優先）
+
+HP ダメージは破壊率（destructionRate）と AttackBySp 消費SP威力スケーリングの両方が未実装で、特に**破壊率係数はダメージを 100%→最大1299% に変える巨大係数**のため、現状の HP ダメージは検証に不向き。
+一方 **DP ダメージ（isHpTarget=false）は破壊率が原理的に不要**で、一般スキルなら現行 `calculateDamage` の式で正しく計算できる（`specialEffect = multipliers.dp`、destructionRate 不要）。
+
+よって実装順を以下に確定:
+
+- **Phase A（最優先・MVP）: 一般スキルの DP ダメージを期待通りに計算・表示**
+  - 残ブロッカーは V3-2（PartySetup stats 連携で statusAtk 実値化）＋ V3-1（charge 過小計上修正）。これらが入れば一般スキルの DP ダメージは正確値になる。
+  - 計算対象を DP（isHpTarget=false）に固定。**HP は破壊率未対応で不正確なため Phase A では非表示**（ユーザー決定 2026-06-04・DPのみ表示）。HP 表示は Phase B（破壊率実装）後に追加。
+  - **一般的な計算結果を早期に可視化する**のが本フェーズのゴール。
+- **Phase B（後続・別タスク群）: 不足要素の受け渡し（例外的に少数のパラメータ）**
+  - 破壊率（HP ダメージ用 destructionRate）、AttackBySp 消費SP（SP-scaling）、その他特殊パラメータの受け渡し。
+  - これらが揃って初めて HP ダメージ・SP条件スキルが正確値になる。
+
+> 検証の現実的な順序: まず Phase A で「一般スキル DP ダメージが期待通り」を確認 → その後 Phase B で特殊要素を順次追加。
+
 ### 再利用可能 / 要再設計の切り分け
 
 | 区分 | 対象 |
