@@ -66,6 +66,7 @@ function normalizeEnemyEShield(source = null) {
         elements: [...normalized.elements],
         def_up_rate: normalized.defUpRate,
         dmg_limit: normalized.damageLimit,
+        ...(Array.isArray(normalized.maxByStage) ? { maxByStage: [...normalized.maxByStage] } : {}),
       }
     : null;
 }

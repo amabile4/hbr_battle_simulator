@@ -21,10 +21,14 @@ function makeEnemy({
   absorbElementList = [],
   eShield = null,
   extraGaugeHp = null,
+  eShieldMaxByStage = null,
 }) {
   const extraGauge = {};
   if (eShield) {
     extraGauge.esp = eShield.esp ?? 0;
+    if (Array.isArray(eShieldMaxByStage)) {
+      extraGauge.esp_by_stage = [...eShieldMaxByStage];
+    }
     extraGauge.eshield = {
       ele_list: eShield.ele_list ?? null,
       def_up_rate: eShield.def_up_rate ?? 0,
@@ -197,6 +201,36 @@ test('buildEnemyList maps extra_gauge Eシールド metadata into enemy preset e
     max: 10,
     elements: ['Light', 'Dark'],
     def_up_rate: 5000,
+    dmg_limit: 0,
+  });
+});
+
+test('buildEnemyList maps stage-specific Eシールド values into enemy preset entries', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({
+      id: 303,
+      name: '段階Eシールド敵',
+      in_date: '2026-06-05',
+      eShield: {
+        esp: 30,
+        ele_list: ['Fire', 'Light', 'Dark'],
+        def_up_rate: 9900,
+        dmg_limit: 0,
+      },
+      eShieldMaxByStage: [30, 35, 40],
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-06-05T00:00:00+09:00'));
+  const target = result.find((enemy) => enemy.id === 303);
+
+  assert.deepEqual(target?.e_shield, {
+    count: 30,
+    max: 30,
+    maxByStage: [30, 35, 40],
+    elements: ['Fire', 'Light', 'Dark'],
+    def_up_rate: 9900,
     dmg_limit: 0,
   });
 });

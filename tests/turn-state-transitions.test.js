@@ -683,6 +683,7 @@ function createProtectionSkill(skillId) {
 function createEnemyEShieldState({
   current = 1,
   max = current,
+  maxByStage = null,
   elements = ['Fire'],
   defUpRate = 0,
   damageLimit = 0,
@@ -690,6 +691,7 @@ function createEnemyEShieldState({
   return {
     current,
     max,
+    ...(Array.isArray(maxByStage) ? { maxByStage: [...maxByStage] } : {}),
     elements,
     defUpRate,
     damageLimit,
@@ -930,6 +932,41 @@ test('manual HP break restores depleted E shield without increasing max', () => 
     defUpRate: 5000,
     damageLimit: 0,
   });
+});
+
+test('manual HP break restores E shield to stage-specific max values', () => {
+  const { state, skillId } = createHpBreakTestState({
+    eShieldState: createEnemyEShieldState({
+      current: 0,
+      max: 30,
+      maxByStage: [30, 35, 40],
+      elements: ['Fire', 'Light', 'Dark'],
+      defUpRate: 9900,
+    }),
+  });
+  let currentState = state;
+
+  for (const expectedMax of [35, 40]) {
+    currentState.turnState.enemyState.eShieldStateByEnemy['0'].current = 0;
+    const { nextState } = commitTurn(
+      currentState,
+      previewTurn(currentState, {
+        0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+        1: { characterId: 'M2', skillId: currentState.party[1].skills[0].skillId },
+        2: { characterId: 'M3', skillId: currentState.party[2].skills[0].skillId },
+      })
+    );
+
+    assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'], {
+      current: expectedMax,
+      max: expectedMax,
+      maxByStage: [30, 35, 40],
+      elements: ['Fire', 'Light', 'Dark'],
+      defUpRate: 9900,
+      damageLimit: 0,
+    });
+    currentState = nextState;
+  }
 });
 
 for (const enemyName of DIMENSION_HP_BREAK_TARGET_NAMES) {

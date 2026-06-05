@@ -8,6 +8,15 @@ function normalizeEnemyEShieldCount(value, fallback = 0) {
   return Math.max(E_SHIELD_MIN_COUNT, Math.floor(numeric));
 }
 
+function normalizeEnemyEShieldMaxByStage(value = null) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeEnemyEShieldCount(entry, 0))
+    .filter((entry) => entry > 0);
+}
+
 export function normalizeEnemyEShieldElements(elements = null) {
   if (!Array.isArray(elements)) {
     return [];
@@ -35,12 +44,17 @@ export function normalizeEnemyEShieldState(raw = null, options = {}) {
 
   const defUpRate = Number(raw.defUpRate ?? raw.def_up_rate ?? options.defUpRate ?? options.def_up_rate ?? 0);
   const damageLimit = Number(raw.damageLimit ?? raw.dmg_limit ?? options.damageLimit ?? options.dmg_limit ?? 0);
+  const maxByStage = normalizeEnemyEShieldMaxByStage(
+    options.maxByStage ?? options.max_by_stage ?? options.esp_by_stage
+    ?? raw.maxByStage ?? raw.max_by_stage ?? raw.esp_by_stage
+  );
   return {
     current: Math.min(normalizedCurrent, normalizedMax),
     max: normalizedMax,
     elements,
     defUpRate: Number.isFinite(defUpRate) ? defUpRate : 0,
     damageLimit: Number.isFinite(damageLimit) ? damageLimit : 0,
+    ...(maxByStage.length > 0 ? { maxByStage } : {}),
   };
 }
 
@@ -50,6 +64,7 @@ export function cloneEnemyEShieldState(raw = null, options = {}) {
     ? {
         ...normalized,
         elements: [...normalized.elements],
+        ...(Array.isArray(normalized.maxByStage) ? { maxByStage: [...normalized.maxByStage] } : {}),
       }
     : null;
 }
@@ -67,6 +82,26 @@ export function restoreEShieldStateToMax(raw = null) {
   return {
     ...normalized,
     elements: [...normalized.elements],
+    ...(Array.isArray(normalized.maxByStage) ? { maxByStage: [...normalized.maxByStage] } : {}),
     current: normalized.max,
+  };
+}
+
+export function restoreEShieldStateToStageMax(raw = null, stageIndex = null) {
+  const normalized = normalizeEnemyEShieldState(raw);
+  if (!normalized) {
+    return null;
+  }
+  const index = Number(stageIndex);
+  const stagedMax = Number.isInteger(index) && index >= 0
+    ? Number(normalized.maxByStage?.[index])
+    : NaN;
+  const max = Number.isFinite(stagedMax) && stagedMax > 0 ? Math.floor(stagedMax) : normalized.max;
+  return {
+    ...normalized,
+    elements: [...normalized.elements],
+    ...(Array.isArray(normalized.maxByStage) ? { maxByStage: [...normalized.maxByStage] } : {}),
+    current: max,
+    max,
   };
 }

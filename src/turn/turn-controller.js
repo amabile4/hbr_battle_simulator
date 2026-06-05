@@ -14,6 +14,7 @@ import {
   isEnemyEShieldActive,
   normalizeEnemyEShieldElements,
   restoreEShieldStateToMax,
+  restoreEShieldStateToStageMax,
 } from '../domain/enemy-e-shield.js';
 import {
   canEnemyHpBreak,
@@ -3418,7 +3419,9 @@ function restoreEnemyEShieldAfterHpBreak(turnState, targetIndex) {
   if (!current) {
     return null;
   }
-  const restored = restoreEShieldStateToMax(current);
+  const extraHpGaugeState = getEnemyExtraHpGaugeStateByTarget(turnState, targetIndex);
+  const stageIndex = Number(extraHpGaugeState?.total ?? 0) - Number(extraHpGaugeState?.remaining ?? 0);
+  const restored = restoreEShieldStateToStageMax(current, stageIndex);
   setEnemyEShieldStateByTarget(turnState, targetIndex, restored);
   return restored;
 }

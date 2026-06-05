@@ -103,6 +103,7 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
     const normalized = normalizeEnemyEShieldState(rawShield, {
       count: enemy?.extra_gauge?.esp,
       max: enemy?.extra_gauge?.esp,
+      maxByStage: enemy?.extra_gauge?.esp_by_stage,
     });
     return normalized
       ? {
@@ -111,6 +112,7 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
           elements: [...normalized.elements],
           def_up_rate: normalized.defUpRate,
           dmg_limit: normalized.damageLimit,
+          ...(Array.isArray(normalized.maxByStage) ? { maxByStage: [...normalized.maxByStage] } : {}),
         }
       : null;
   };
