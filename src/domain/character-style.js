@@ -1,5 +1,6 @@
 import { applySpChange, getEventCeiling } from './sp.js';
 import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
+import { normalizeCharacterStats } from './character-stats.js';
 import { resolveShortCharacterName } from './character-name.js';
 import {
   getAlternateFormInfo,
@@ -361,6 +362,8 @@ export class CharacterStyle {
     this.limitBreakLevel = Number(input.limitBreakLevel ?? 0);
     this.supportStyleId = input.supportStyleId != null ? Number(input.supportStyleId) : null;
     this.supportStyleLimitBreakLevel = Number(input.supportStyleLimitBreakLevel ?? 0);
+    this.stats = normalizeCharacterStats(input.stats);
+    this.supportStats = normalizeCharacterStats(input.supportStats);
     this.drivePiercePercent = Number(input.drivePiercePercent ?? 0);
     this.normalAttackElements = Object.freeze(
       Array.isArray(input.normalAttackElements)
@@ -1423,6 +1426,8 @@ export class CharacterStyle {
     c.limitBreakLevel = this.limitBreakLevel;
     c.supportStyleId = this.supportStyleId;
     c.supportStyleLimitBreakLevel = this.supportStyleLimitBreakLevel;
+    c.stats = this.stats ? { ...this.stats } : null;
+    c.supportStats = this.supportStats ? { ...this.supportStats } : null;
     c.drivePiercePercent = this.drivePiercePercent;
     c.partyIndex = this.partyIndex;
     c.skills = this.skills;
@@ -1469,6 +1474,8 @@ export class CharacterStyle {
       formChange: this.formChange ? structuredClone(this.formChange) : null,
       supportStyleId: this.supportStyleId,
       supportStyleLimitBreakLevel: this.supportStyleLimitBreakLevel,
+      stats: this.stats ? { ...this.stats } : null,
+      supportStats: this.supportStats ? { ...this.supportStats } : null,
       partyIndex: this.partyIndex,
       position: this.position,
       normalAttackElements: [...this.normalAttackElements],

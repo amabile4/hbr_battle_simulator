@@ -1467,6 +1467,8 @@ export class HbrDataStore {
     limitBreakLevel = null,
     supportStyleId = null,
     supportStyleLimitBreakLevel = 0,
+    stats = null,
+    supportStats = null,
   }) {
     const style = this.getStyleById(styleId);
     if (!style) {
@@ -1563,6 +1565,8 @@ export class HbrDataStore {
       limitBreakLevel: normalizedLimitBreak,
       supportStyleId: supportStyleId != null ? Number(supportStyleId) : null,
       supportStyleLimitBreakLevel: Number(supportStyleLimitBreakLevel ?? 0),
+      stats,
+      supportStats: supportStyleId != null ? supportStats : null,
       formChange: buildStyleFormChange(style),
       skills: styleSkills,
       triggeredSkills,
@@ -1587,6 +1591,7 @@ export class HbrDataStore {
     const limitBreakLevelsByPartyIndex = options.limitBreakLevelsByPartyIndex ?? {};
     const supportStyleIdsByPartyIndex = options.supportStyleIdsByPartyIndex ?? {};
     const supportLimitBreakLevelsByPartyIndex = options.supportLimitBreakLevelsByPartyIndex ?? {};
+    const statsByPartyIndex = options.statsByPartyIndex ?? {};
 
     const members = styleIds.map((styleId, index) =>
       this.buildCharacterStyle({
@@ -1610,6 +1615,8 @@ export class HbrDataStore {
         limitBreakLevel: Number(limitBreakLevelsByPartyIndex[index]),
         supportStyleId: supportStyleIdsByPartyIndex[index] ?? null,
         supportStyleLimitBreakLevel: Number(supportLimitBreakLevelsByPartyIndex[index] ?? 0),
+        stats: statsByPartyIndex[index]?.stats ?? null,
+        supportStats: statsByPartyIndex[index]?.supportStats ?? null,
       })
     );
 

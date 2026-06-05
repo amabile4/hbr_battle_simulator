@@ -108,3 +108,17 @@ test('clone: clone() が CharacterStyle インスタンスを返す', () => {
   assert.ok(cloned instanceof CharacterStyle, 'cloned は CharacterStyle インスタンス');
   assert.notStrictEqual(cloned, orig, '元インスタンスとは別オブジェクト');
 });
+
+test('clone: stats and supportStats are independent', () => {
+  const original = buildMember({
+    stats: { str: 650, dex: 650, wis: 650, spr: 650, luk: 650, con: 650 },
+    supportStats: { str: 10, dex: 10, wis: 10, spr: 10, luk: 10, con: 10 },
+  });
+  const cloned = original.clone();
+
+  cloned.stats.str = 700;
+  cloned.supportStats.str = 20;
+
+  assert.equal(original.stats.str, 650);
+  assert.equal(original.supportStats.str, 10);
+});

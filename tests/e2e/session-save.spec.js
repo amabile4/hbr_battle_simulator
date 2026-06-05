@@ -33,6 +33,43 @@ async function ensureSetupVisible(page) {
 }
 
 test.describe('Session JSON save', () => {
+  test('Party stats edit drives damage calculator and survives session save/load', async ({ page }) => {
+    await gotoUiNext(page);
+    await fillPartySetupSlots(page, [0, 1, 2]);
+
+    await page.locator('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]').click();
+    const statsPanel = page.locator('#stats-settings-panel');
+    await expect(statsPanel).toBeVisible();
+    await statsPanel.locator('[data-stat="str"]').fill('700');
+    await statsPanel.locator('[data-stat="dex"]').fill('710');
+    await statsPanel.locator('[data-action="apply-stats"]').click();
+
+    const inputRow = await applyParty(page);
+    await inputRow.locator('[data-turn-slot-icon]').first().click({ button: 'right' });
+    const charPopup = page.locator('#char-detail-popup');
+    await expect(charPopup).toBeVisible();
+    await charPopup.locator('.char-popup-tab[data-tab="damage"]').click();
+    await expect(charPopup.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('700');
+    await charPopup.locator('[data-role="char-popup-backdrop"]').click({ position: { x: 4, y: 4 } });
+    await expect(charPopup).not.toHaveClass(/open/);
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#session-save-btn').click();
+    const download = await downloadPromise;
+    const savedPath = await download.path();
+    const savedJson = await readDownloadedJson(download);
+    expect(savedJson.setup.statsByPartyIndex['0'].stats.str).toBe(700);
+    expect(savedJson.replayScript.setup.statsByPartyIndex['0'].stats.dex).toBe(710);
+
+    await gotoUiNext(page);
+    await page.locator('#session-load-input').setInputFiles(String(savedPath));
+    await ensureSetupVisible(page);
+    await page.locator('[role="tab"][data-tab="party"]').click();
+    await page.locator('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]').click();
+    await expect(page.locator('#stats-settings-panel [data-stat="str"]')).toHaveValue('700');
+    await expect(page.locator('#stats-settings-panel [data-stat="dex"]')).toHaveValue('710');
+  });
+
   test('stage setup preset enchant summary persists across session save/load', async ({ page }) => {
     await gotoUiNext(page);
     await ensureSetupVisible(page);

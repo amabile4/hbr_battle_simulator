@@ -51,6 +51,7 @@ function createStyle(id, chara, tier = 'SS') {
     chara_label: `C${id}`,
     image: '',
     tier,
+    role: id === 1001 ? 'Attacker' : 'Buffer',
     passives: [],
     skills: [],
   };
@@ -123,6 +124,74 @@ test('PartySetupController defaults all SP equip selectors to SP +3', () =>
       Object.values(controller.getSnapshot().startSpEquipByPartyIndex),
       [3, 3, 3, 3, 3, 3]
     );
+  }));
+
+test('PartySetupController edits, snapshots, restores, and swaps slot stats', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0 },
+      statsByPartyIndex: {
+        0: { stats: { str: 650, dex: 670, wis: 600, spr: 610, luk: 620, con: 630 } },
+      },
+    });
+
+    root.querySelector('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const panel = win.document.querySelector('#stats-settings-panel');
+    assert.equal(panel.style.display, 'block');
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '650');
+    panel.querySelector('[data-stat="str"]').value = '700';
+    panel.querySelector('[data-action="apply-stats"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(controller.getSnapshot().statsByPartyIndex['0'].stats.str, 700);
+
+    root.querySelector('[data-action="toggle-reorder-mode"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root.querySelector('[data-role="party-slot-main-button"][data-slot-index="0"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    root.querySelector('[data-role="party-slot-main-button"][data-slot-index="1"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(controller.getSnapshot().statsByPartyIndex['1'].stats.str, 700);
+
+    controller.disbandParty();
+    assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
+  }));
+
+test('PartySetupController prefills unsaved main stats with support 10%', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [1002, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+      statsByPartyIndex: {
+        0: {
+          supportStats: { str: 600, dex: 600, wis: 670, spr: 620, luk: 600, con: 600 },
+        },
+      },
+    });
+
+    root.querySelector('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const panel = win.document.querySelector('#stats-settings-panel');
+
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '710');
+    assert.equal(panel.querySelector('[data-stat="wis"]').value, '667');
+    assert.equal(controller.getSnapshot().statsByPartyIndex['0'].stats, undefined);
   }));
 
 test('PartySetupController exports belt selection as normalAttackElementsByPartyIndex', () =>

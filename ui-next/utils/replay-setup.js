@@ -35,6 +35,14 @@ export function buildReplaySetupFromPartySnapshot(snapshot = {}) {
         snapshot.limitBreakLevelsByPartyIndex[sourceIndex] ?? 0,
       ])
     ),
+    statsByPartyIndex: Object.fromEntries(
+      filledIndices
+        .map((sourceIndex, compactIndex) => {
+          const value = snapshot.statsByPartyIndex?.[sourceIndex] ?? snapshot.statsByPartyIndex?.[String(sourceIndex)] ?? null;
+          return value && typeof value === 'object' ? [compactIndex, structuredClone(value)] : null;
+        })
+        .filter(Boolean)
+    ),
     skillSetsByPartyIndex: Object.fromEntries(
       filledIndices
         .map((sourceIndex, compactIndex) => {

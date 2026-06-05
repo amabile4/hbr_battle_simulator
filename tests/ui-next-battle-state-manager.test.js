@@ -115,6 +115,40 @@ test('BattleStateManager forwards normalAttackElementsByPartyIndex into party me
   assert.deepEqual(state.party[2].normalAttackElements, ['Dark']);
 });
 
+test('BattleStateManager forwards compacted main and support stats into party members', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+  const partySnapshot = createPartySnapshot();
+  partySnapshot.supportStyleIds[0] = 1006506;
+  partySnapshot.statsByPartyIndex = {
+    0: {
+      stats: { str: 650, dex: 670, wis: 600, spr: 610, luk: 620, con: 630 },
+      supportStats: { str: 50, dex: 40, wis: 30, spr: 20, luk: 10, con: 5 },
+    },
+  };
+
+  const state = manager.buildFromSnapshot(partySnapshot, { enemyCount: 1 });
+
+  assert.equal(state.party[0].stats.str, 650);
+  assert.equal(state.party[0].supportStats.str, 50);
+  assert.equal(state.party[1].stats, null);
+});
+
+test('BattleStateManager ignores support stats without a support style', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+  const partySnapshot = createPartySnapshot();
+  partySnapshot.statsByPartyIndex = {
+    0: {
+      stats: { str: 650, dex: 670, wis: 600, spr: 610, luk: 620, con: 630 },
+      supportStats: { str: 50, dex: 40, wis: 30, spr: 20, luk: 10, con: 5 },
+    },
+  };
+
+  const state = manager.buildFromSnapshot(partySnapshot, { enemyCount: 1 });
+
+  assert.equal(state.party[0].stats.str, 650);
+  assert.equal(state.party[0].supportStats, null);
+});
+
 test('BattleStateManager sets odRateByEnemy to 0 when od_rate is 0 (no correction)', () => {
   const manager = new BattleStateManager({ store: getStore() });
 
