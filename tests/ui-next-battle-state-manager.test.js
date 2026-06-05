@@ -273,6 +273,37 @@ test('BattleStateManager maps enemy extra_hp_gauge into extraHpGaugeStateByEnemy
   });
 });
 
+test('BattleStateManager preserves stage-specific Eシールド values', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 7102,
+        selectedEnemyName: '段階Eシールド敵',
+        e_shield: {
+          count: 30,
+          max: 30,
+          maxByStage: [30, 35, 40],
+          elements: ['Fire', 'Light', 'Dark'],
+          def_up_rate: 9900,
+          dmg_limit: 0,
+        },
+      },
+    ],
+  });
+
+  assert.deepEqual(state.turnState.enemyState.eShieldStateByEnemy['0'], {
+    current: 30,
+    max: 30,
+    maxByStage: [30, 35, 40],
+    elements: ['Fire', 'Light', 'Dark'],
+    defUpRate: 9900,
+    damageLimit: 0,
+  });
+});
+
 test('BattleStateManager falls back to one enemy when all enemy slots are unselected', () => {
   const manager = new BattleStateManager({ store: getStore() });
 

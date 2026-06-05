@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeEnemyEShieldState,
   restoreEShieldStateToMax,
+  restoreEShieldStateToStageMax,
 } from '../src/domain/enemy-e-shield.js';
 
 test('restoreEShieldStateToMax returns null when source is null', () => {
@@ -62,4 +63,38 @@ test('normalizeEnemyEShieldState clamps current to max (regression: input source
   });
   assert.equal(normalized.current, 30);
   assert.equal(normalized.max, 30);
+});
+
+test('restoreEShieldStateToStageMax restores current and max from stage-specific values', () => {
+  const source = {
+    current: 0,
+    max: 30,
+    maxByStage: [30, 35, 40],
+    elements: ['Fire', 'Light', 'Dark'],
+    defUpRate: 9900,
+  };
+
+  const restored = restoreEShieldStateToStageMax(source, 2);
+
+  assert.deepEqual(restored, {
+    current: 40,
+    max: 40,
+    maxByStage: [30, 35, 40],
+    elements: ['Fire', 'Light', 'Dark'],
+    defUpRate: 9900,
+    damageLimit: 0,
+  });
+  assert.deepEqual(source.maxByStage, [30, 35, 40]);
+});
+
+test('restoreEShieldStateToStageMax falls back to current max when stage value is absent', () => {
+  const restored = restoreEShieldStateToStageMax({
+    current: 0,
+    max: 30,
+    maxByStage: [30],
+    elements: ['Fire'],
+  }, 1);
+
+  assert.equal(restored.current, 30);
+  assert.equal(restored.max, 30);
 });

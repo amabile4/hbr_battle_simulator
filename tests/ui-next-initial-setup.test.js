@@ -587,6 +587,7 @@ test('InitialSetupController restores enemy manual resistance percent, absorb se
           e_shield: {
             count: 12,
             max: 30,
+            maxByStage: [30, 35, 40],
             elements: ['Fire', 'Ice'],
             def_up_rate: 5000,
             dmg_limit: 200000,
@@ -609,6 +610,7 @@ test('InitialSetupController restores enemy manual resistance percent, absorb se
     assert.equal(root.querySelector('[data-edit-eshield-element="Ice"]').checked, true);
     assert.equal(root.querySelector('[data-edit-eshield-field="def_up_rate"]').value, '5000');
     assert.equal(root.querySelector('[data-edit-eshield-field="dmg_limit"]').value, '200000');
+    assert.equal(root.querySelector('[data-edit-eshield-stages]').value, '30,35,40');
 
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(snapshot.enemy.isManual, true);
@@ -618,6 +620,7 @@ test('InitialSetupController restores enemy manual resistance percent, absorb se
     assert.deepEqual(snapshot.enemy.e_shield, {
       count: 12,
       max: 30,
+      maxByStage: [30, 35, 40],
       elements: ['Fire', 'Ice'],
       def_up_rate: 5000,
       dmg_limit: 200000,
@@ -644,6 +647,7 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
           e_shield: {
             count: 30,
             max: 30,
+            maxByStage: [30, 35, 40],
             elements: ['Fire', 'Ice'],
             def_up_rate: 5000,
             dmg_limit: 0,
@@ -689,11 +693,17 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
     damageLimitInput.value = '150000';
     damageLimitInput.dispatchEvent(new win.Event('change', { bubbles: true }));
 
+    const stagesInput = root.querySelector('[data-edit-eshield-stages]');
+    assert.equal(stagesInput.value, '30,35,40');
+    stagesInput.value = '7,11,15';
+    stagesInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(snapshot.enemy.isManual, true);
     assert.deepEqual(snapshot.enemy.e_shield, {
       count: 7,
       max: 11,
+      maxByStage: [7, 11, 15],
       elements: ['Ice', 'Light'],
       def_up_rate: 3200,
       dmg_limit: 150000,
@@ -701,6 +711,7 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
     assert.deepEqual(snapshot.enemy.enemySlots[0].manual.e_shield, {
       count: 7,
       max: 11,
+      maxByStage: [7, 11, 15],
       elements: ['Ice', 'Light'],
       def_up_rate: 3200,
       dmg_limit: 150000,

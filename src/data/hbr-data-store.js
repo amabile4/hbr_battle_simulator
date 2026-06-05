@@ -346,6 +346,7 @@ export class HbrDataStore {
     this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
     this.epRuleOverrides = payload.epRuleOverrides ?? [];
     this.transcendenceRuleOverrides = payload.transcendenceRuleOverrides ?? [];
+    this.enemyEShieldOverrides = payload.enemyEShieldOverrides ?? [];
     this.supportSkills = payload.supportSkills ?? [];
     this.skillAvailability = {
       includeMasterSkills: payload.skillAvailability?.includeMasterSkills ?? true,
@@ -377,6 +378,9 @@ export class HbrDataStore {
     });
     this.skillRuleOverridesById = new Map(
       this.skillRuleOverrides.map((row) => [Number(row.id), row])
+    );
+    this.enemyEShieldOverridesByEnemyId = new Map(
+      this.enemyEShieldOverrides.map((row) => [Number(row.enemyId ?? row.id), row])
     );
     this.supportSkillsByLabel = new Map(
       this.supportSkills.map((g) => [String(g.label ?? ''), g])
@@ -447,6 +451,7 @@ export class HbrDataStore {
       skillRuleOverrides: readJson(resolve(dir, 'skill_rule_overrides.json')),
       epRuleOverrides: readJson(resolve(dir, 'ep_rule_overrides.json')),
       transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
+      enemyEShieldOverrides: readJsonOrFallback(resolve(dir, 'enemy_eshield_overrides.json'), []),
       supportSkills: readJsonOrFallback(resolve(dir, 'support_skills.json'), []),
     });
   }
@@ -465,6 +470,7 @@ export class HbrDataStore {
       skillRuleOverrides: payload.skillRuleOverrides ?? [],
       epRuleOverrides: payload.epRuleOverrides ?? [],
       transcendenceRuleOverrides: payload.transcendenceRuleOverrides ?? [],
+      enemyEShieldOverrides: payload.enemyEShieldOverrides ?? [],
       skillAvailability: payload.skillAvailability ?? {},
       supportSkills: payload.supportSkills ?? [],
     });
