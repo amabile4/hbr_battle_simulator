@@ -218,11 +218,12 @@ test('buildEnemyList maps stage-specific Eシールド values into enemy preset 
         def_up_rate: 9900,
         dmg_limit: 0,
       },
-      eShieldMaxByStage: [30, 35, 40],
     }),
   ];
 
-  const result = buildEnemyList(enemies, new Date('2026-06-05T00:00:00+09:00'));
+  const result = buildEnemyList(enemies, new Date('2026-06-05T00:00:00+09:00'), {
+    enemyEShieldOverrides: [{ enemyId: 303, espByStage: [30, 35, 40] }],
+  });
   const target = result.find((enemy) => enemy.id === 303);
 
   assert.deepEqual(target?.e_shield, {
@@ -233,6 +234,30 @@ test('buildEnemyList maps stage-specific Eシールド values into enemy preset 
     def_up_rate: 9900,
     dmg_limit: 0,
   });
+});
+
+test('buildEnemyList prefers Eシールド overrides over generated enemy data', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({
+      id: 305,
+      name: '上書きEシールド敵',
+      in_date: '2026-06-05',
+      eShield: {
+        esp: 30,
+        ele_list: ['Fire', 'Light', 'Dark'],
+        def_up_rate: 9900,
+        dmg_limit: 0,
+      },
+      eShieldMaxByStage: [30, 31, 32],
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-06-05T00:00:00+09:00'), {
+    enemyEShieldOverrides: [{ enemyId: 305, espByStage: [30, 35, 40] }],
+  });
+
+  assert.deepEqual(result.find((enemy) => enemy.id === 305)?.e_shield?.maxByStage, [30, 35, 40]);
 });
 
 test('buildEnemyList drops inactive extra_gauge Eシールド metadata', () => {

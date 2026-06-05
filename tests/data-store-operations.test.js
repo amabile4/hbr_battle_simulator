@@ -96,6 +96,23 @@ test('store resolves skill descriptions across direct and accessory catalogs', (
   assert.equal(store.resolveSkillDescription(99999999), null);
 });
 
+test('HbrDataStore loads enemy Eシールド overrides from raw payload and JSON directory', () => {
+  const rawStore = HbrDataStore.fromRawData({
+    enemyEShieldOverrides: [
+      {
+        enemyId: 13312940,
+        espByStage: [30, 35, 40],
+        notes: 'test override',
+      },
+    ],
+  });
+
+  assert.deepEqual(rawStore.enemyEShieldOverridesByEnemyId.get(13312940)?.espByStage, [30, 35, 40]);
+
+  const jsonStore = getStore();
+  assert.deepEqual(jsonStore.enemyEShieldOverridesByEnemyId.get(13312940)?.espByStage, [30, 35, 40]);
+});
+
 test('style limit break max depends on tier', () => {
   const store = getStore();
   assert.equal(store.getStyleLimitBreakMax(1001101), 20, 'A max LB should be 20');

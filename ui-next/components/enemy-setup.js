@@ -132,6 +132,19 @@ function normalizeEnemyEShieldEditorElements(elements = []) {
   )];
 }
 
+function normalizeEnemyEShieldEditorMaxByStage(value = []) {
+  const source = Array.isArray(value)
+    ? value
+    : String(value ?? '').split(',');
+  return source
+    .map((entry) => normalizeEnemyEShieldEditorNumber(String(entry).trim(), 0))
+    .filter((entry) => entry > 0);
+}
+
+function formatEnemyEShieldEditorMaxByStage(value = []) {
+  return normalizeEnemyEShieldEditorMaxByStage(value).join(',');
+}
+
 function createEmptyEnemyEShieldDraft() {
   return {
     count: DEFAULT_E_SHIELD_EDITOR_VALUE,
@@ -139,6 +152,7 @@ function createEmptyEnemyEShieldDraft() {
     elements: [],
     def_up_rate: DEFAULT_E_SHIELD_EDITOR_VALUE,
     dmg_limit: DEFAULT_E_SHIELD_EDITOR_VALUE,
+    maxByStage: [],
   };
 }
 
@@ -158,6 +172,9 @@ function cloneEnemyEShieldDraft(eShield = null) {
     elements: normalizeEnemyEShieldEditorElements(eShield.elements ?? eShield.ele_list ?? []),
     def_up_rate: normalizeEnemyEShieldEditorNumber(eShield.def_up_rate ?? eShield.defUpRate),
     dmg_limit: normalizeEnemyEShieldEditorNumber(eShield.dmg_limit ?? eShield.damageLimit),
+    maxByStage: normalizeEnemyEShieldEditorMaxByStage(
+      eShield.maxByStage ?? eShield.max_by_stage ?? eShield.espByStage ?? eShield.esp_by_stage
+    ),
   };
 }
 
@@ -481,6 +498,15 @@ export class EnemySetupController {
         if (maxFollowed) {
           this.#render();
         }
+        return;
+      }
+
+      if (t.dataset.editEshieldStages != null) {
+        const slotIndex = this.#state.activeSlotIndex;
+        const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
+        currentDraft.maxByStage = normalizeEnemyEShieldEditorMaxByStage(t.value);
+        this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
+        this.#onChange?.(this.getSnapshot());
         return;
       }
 
@@ -978,6 +1004,13 @@ export class EnemySetupController {
             ${this.#numFieldHtml('def_up_rate', '防御UP', eShield.def_up_rate, true, null, 'data-edit-eshield-field')}
             ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', eShield.dmg_limit, true, null, 'data-edit-eshield-field')}
           </div>
+          <label class="flex flex-col gap-0.5">
+            <span class="text-xs text-violet-500">段階別最大値</span>
+            <input type="text" data-edit-eshield-stages
+                   value="${formatEnemyEShieldEditorMaxByStage(eShield.maxByStage)}"
+                   class="text-xs rounded border border-violet-200 px-1 py-0.5 w-full
+                          focus:outline-none focus:ring-1 focus:ring-violet-400" />
+          </label>
           <div>
             <div class="text-xs text-violet-500 mb-1">対応属性</div>
             <div class="grid grid-cols-5 gap-0.5">
@@ -1020,6 +1053,9 @@ export class EnemySetupController {
           ${this.#numFieldHtml('def_up_rate', '防御UP', eShield.def_up_rate, false)}
           ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', eShield.dmg_limit, false)}
         </div>
+        ${Array.isArray(eShield.maxByStage) && eShield.maxByStage.length > 0
+          ? `<div class="text-xs text-violet-600">段階別最大値: ${formatEnemyEShieldEditorMaxByStage(eShield.maxByStage)}</div>`
+          : ''}
       </div>
     `;
   }

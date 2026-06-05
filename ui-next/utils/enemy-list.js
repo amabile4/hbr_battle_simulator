@@ -85,7 +85,31 @@ export function getEnemyPresetCategoryMetadata(enemy = {}) {
   };
 }
 
-export function buildEnemyList(rawEnemies, today = new Date()) {
+function normalizeEnemyEShieldOverrideMap(overrides = []) {
+  const map = new Map();
+  if (!Array.isArray(overrides)) {
+    return map;
+  }
+  for (const override of overrides) {
+    const enemyId = Number(override?.enemyId ?? override?.id);
+    if (!Number.isFinite(enemyId)) {
+      continue;
+    }
+    const normalized = normalizeEnemyEShieldState({
+      count: 1,
+      max: 1,
+      elements: ['Fire'],
+      maxByStage: override?.espByStage ?? override?.esp_by_stage ?? override?.maxByStage,
+    });
+    if (Array.isArray(normalized?.maxByStage)) {
+      map.set(enemyId, [...normalized.maxByStage]);
+    }
+  }
+  return map;
+}
+
+export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
+  const eShieldOverrideByEnemyId = normalizeEnemyEShieldOverrideMap(options?.enemyEShieldOverrides);
   const normalizeEnemyResistanceRatePercent = (value) => {
     const numeric = Number(value);
     return Number.isFinite(numeric)
@@ -100,10 +124,11 @@ export function buildEnemyList(rawEnemies, today = new Date()) {
   };
   const normalizeEnemyEShield = (enemy) => {
     const rawShield = enemy?.extra_gauge?.eshield;
+    const overrideMaxByStage = eShieldOverrideByEnemyId.get(Number(enemy?.id));
     const normalized = normalizeEnemyEShieldState(rawShield, {
       count: enemy?.extra_gauge?.esp,
       max: enemy?.extra_gauge?.esp,
-      maxByStage: enemy?.extra_gauge?.esp_by_stage,
+      maxByStage: overrideMaxByStage ?? enemy?.extra_gauge?.esp_by_stage,
     });
     return normalized
       ? {

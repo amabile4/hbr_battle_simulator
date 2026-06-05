@@ -871,6 +871,7 @@ async function main() {
       skillRuleOverrides,
       epRuleOverrides,
       transcendenceRuleOverrides,
+      enemyEShieldOverrides,
       supportSkills,
     ] = await Promise.all([
       fetchJson('../json/characters.json'),
@@ -881,6 +882,7 @@ async function main() {
       fetchJson('../json/skill_rule_overrides.json'),
       fetchJson('../json/ep_rule_overrides.json'),
       fetchJson('../json/transcendence_rule_overrides.json'),
+      fetchJsonOrFallback('../json/enemy_eshield_overrides.json', []),
       fetchJsonOrFallback('../json/support_skills.json', []),
     ]);
     const payload = {
@@ -892,6 +894,7 @@ async function main() {
       skillRuleOverrides,
       epRuleOverrides,
       transcendenceRuleOverrides,
+      enemyEShieldOverrides,
       supportSkills,
     };
     bootProfiler.mark('data:fetch:done');
@@ -973,7 +976,9 @@ async function main() {
     scheduleDeferredTask(async () => {
       try {
         const rawEnemies = await fetchJsonOrFallback('../json/enemies.json', []);
-        const enemyPresets = buildEnemyList(rawEnemies);
+        const enemyPresets = buildEnemyList(rawEnemies, new Date(), {
+          enemyEShieldOverrides: store.enemyEShieldOverrides,
+        });
         initialSetup.setEnemies(enemyPresets);
         turnArea.setEnemyPresets(enemyPresets);
       } catch (error) {
