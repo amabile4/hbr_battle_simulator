@@ -145,6 +145,36 @@ function formatEnemyEShieldEditorMaxByStage(value = []) {
   return normalizeEnemyEShieldEditorMaxByStage(value).join(',');
 }
 
+function normalizeEnemyEShieldStageCount(value) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric >= 2 ? numeric : 0;
+}
+
+function resolveEnemyEShieldEditorStageCount(extraHpGauge = null) {
+  const normalized = cloneEnemyExtraHpGauge(extraHpGauge);
+  return normalizeEnemyEShieldStageCount(normalized?.total ?? normalized?.values?.length);
+}
+
+function normalizeEnemyEShieldStageIndex(value, stageCount) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 0 || numeric >= stageCount) {
+    return null;
+  }
+  return numeric;
+}
+
+function buildEnemyEShieldEditorStageValues(eShield, stageCount) {
+  const count = normalizeEnemyEShieldStageCount(stageCount);
+  if (count === 0) {
+    return [];
+  }
+  const fallbackMax = normalizeEnemyEShieldEditorNumber(eShield?.max, 0);
+  return Array.from({ length: count }, (_, index) => {
+    const stagedMax = normalizeEnemyEShieldEditorNumber(eShield?.maxByStage?.[index], 0);
+    return stagedMax > 0 ? stagedMax : fallbackMax;
+  });
+}
+
 function createEmptyEnemyEShieldDraft() {
   return {
     count: DEFAULT_E_SHIELD_EDITOR_VALUE,
@@ -510,6 +540,23 @@ export class EnemySetupController {
         return;
       }
 
+      if (t.dataset.editEshieldStageIndex != null) {
+        const slotIndex = this.#state.activeSlotIndex;
+        const stageCount = normalizeEnemyEShieldStageCount(t.dataset.editEshieldStageCount);
+        const stageIndex = normalizeEnemyEShieldStageIndex(t.dataset.editEshieldStageIndex, stageCount);
+        const value = Number(t.value);
+        if (stageIndex === null || !Number.isFinite(value)) {
+          return;
+        }
+        const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
+        const nextValues = buildEnemyEShieldEditorStageValues(currentDraft, stageCount);
+        nextValues[stageIndex] = normalizeEnemyEShieldEditorNumber(value, nextValues[stageIndex]);
+        currentDraft.maxByStage = nextValues;
+        this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
+        this.#onChange?.(this.getSnapshot());
+        return;
+      }
+
       if (t.dataset.editEshieldElement) {
         const slotIndex = this.#state.activeSlotIndex;
         const elementValue = String(t.dataset.editEshieldElement).trim();
@@ -776,6 +823,7 @@ export class EnemySetupController {
     const selectedCategoryKey = this.#normalizeCategoryKeyForSlot(activeSlotIndex);
     const categoryEnemies = this.#getEnemiesForCategory(selectedCategoryKey);
     const eShieldDraft = cloneEnemyEShieldDraft(vals.e_shield);
+    const eShieldStageCount = resolveEnemyEShieldEditorStageCount(vals.extra_hp_gauge);
     const hasEShield = Boolean(cloneEnemyEShield(vals.e_shield));
 
     this.#root.innerHTML = `
@@ -915,7 +963,7 @@ export class EnemySetupController {
               </div>
             </div>
 
-            ${this.#eShieldHtml(eShieldDraft, hasEShield, isManual)}
+            ${this.#eShieldHtml(eShieldDraft, hasEShield, isManual, eShieldStageCount)}
           </div>
         </div>
 
@@ -988,7 +1036,7 @@ export class EnemySetupController {
       </div>`;
   }
 
-  #eShieldHtml(eShield, hasEShield, editable) {
+  #eShieldHtml(eShield, hasEShield, editable, stageCount = 0) {
     if (editable) {
       return `
         <div data-role="enemy-e-shield-editor" class="rounded-md border border-violet-200 bg-violet-50/70 p-2 space-y-1.5">
@@ -1004,13 +1052,7 @@ export class EnemySetupController {
             ${this.#numFieldHtml('def_up_rate', '防御UP', eShield.def_up_rate, true, null, 'data-edit-eshield-field')}
             ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', eShield.dmg_limit, true, null, 'data-edit-eshield-field')}
           </div>
-          <label class="flex flex-col gap-0.5">
-            <span class="text-xs text-violet-500">段階別最大値</span>
-            <input type="text" data-edit-eshield-stages
-                   value="${formatEnemyEShieldEditorMaxByStage(eShield.maxByStage)}"
-                   class="text-xs rounded border border-violet-200 px-1 py-0.5 w-full
-                          focus:outline-none focus:ring-1 focus:ring-violet-400" />
-          </label>
+          ${this.#eShieldStageEditorHtml(eShield, stageCount)}
           <div>
             <div class="text-xs text-violet-500 mb-1">対応属性</div>
             <div class="grid grid-cols-5 gap-0.5">
@@ -1058,6 +1100,35 @@ export class EnemySetupController {
           : ''}
       </div>
     `;
+  }
+
+  #eShieldStageEditorHtml(eShield, stageCount = 0) {
+    const count = normalizeEnemyEShieldStageCount(stageCount);
+    if (count >= 2) {
+      const stageValues = buildEnemyEShieldEditorStageValues(eShield, count);
+      return `
+        <div class="space-y-1">
+          <div class="text-xs text-violet-500">段階別最大値</div>
+          <div class="grid grid-cols-3 gap-1.5">
+            ${stageValues.map((value, index) => `
+              <label class="flex flex-col gap-0.5">
+                <span class="text-[10px] text-violet-500">段階${index + 1}</span>
+                <input type="number"
+                       data-edit-eshield-stage-index="${index}"
+                       data-edit-eshield-stage-count="${count}"
+                       value="${value}"
+                       class="text-xs rounded border border-violet-200 px-1 py-0.5 w-full
+                              focus:outline-none focus:ring-1 focus:ring-violet-400" />
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    const stageText = formatEnemyEShieldEditorMaxByStage(eShield.maxByStage);
+    return stageText
+      ? `<div class="text-xs text-violet-600">段階別最大値: ${stageText}</div>`
+      : '';
   }
 
   #eShieldElementHtml(element, checked) {

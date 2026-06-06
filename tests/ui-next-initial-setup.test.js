@@ -610,7 +610,11 @@ test('InitialSetupController restores enemy manual resistance percent, absorb se
     assert.equal(root.querySelector('[data-edit-eshield-element="Ice"]').checked, true);
     assert.equal(root.querySelector('[data-edit-eshield-field="def_up_rate"]').value, '5000');
     assert.equal(root.querySelector('[data-edit-eshield-field="dmg_limit"]').value, '200000');
-    assert.equal(root.querySelector('[data-edit-eshield-stages]').value, '30,35,40');
+    assert.equal(root.querySelector('[data-edit-eshield-stages]'), null);
+    assert.match(
+      root.querySelector('[data-role="enemy-e-shield-editor"]')?.textContent ?? '',
+      /段階別最大値: 30,35,40/
+    );
 
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(snapshot.enemy.isManual, true);
@@ -651,6 +655,11 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
             elements: ['Fire', 'Ice'],
             def_up_rate: 5000,
             dmg_limit: 0,
+          },
+          extra_hp_gauge: {
+            total: 3,
+            remaining: 3,
+            values: [75000000, 150000000, 200000000],
           },
         },
       ],
@@ -693,10 +702,17 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
     damageLimitInput.value = '150000';
     damageLimitInput.dispatchEvent(new win.Event('change', { bubbles: true }));
 
-    const stagesInput = root.querySelector('[data-edit-eshield-stages]');
-    assert.equal(stagesInput.value, '30,35,40');
-    stagesInput.value = '7,11,15';
-    stagesInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+    assert.equal(root.querySelector('[data-edit-eshield-stages]'), null);
+    const stageInputs = root.querySelectorAll('[data-edit-eshield-stage-index]');
+    assert.equal(stageInputs.length, 3);
+    assert.equal(stageInputs.item(0).value, '30');
+    assert.equal(stageInputs.item(1).value, '35');
+    assert.equal(stageInputs.item(2).value, '40');
+    [7, 11, 15].forEach((value, index) => {
+      const input = stageInputs.item(index);
+      input.value = String(value);
+      input.dispatchEvent(new win.Event('change', { bubbles: true }));
+    });
 
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(snapshot.enemy.isManual, true);
