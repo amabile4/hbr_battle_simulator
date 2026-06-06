@@ -200,13 +200,17 @@ export function calculateDestruction(input, data) {
   const finalDestLimit = destLimit + limitExceedBonus;
 
   // 14. Simulation
+  const autoBreak = input?.autoBreak !== undefined && input?.autoBreak !== null ? Boolean(input.autoBreak) : false;
   const dpInit = Number(defender.dp ?? 0.0);
   let destructionRate = Number(defender.destructionRate ?? 1.0);
 
   let dmgAccum = 0.0;
+  let isBroken = dpInit <= 0.0;
   for (const hit of hits) {
     dmgAccum += Number(hit.damage ?? 0.0);
-    if (dmgAccum >= dpInit) {
+    const hitIsBreak = autoBreak ? (dmgAccum >= dpInit) : (hit.isBreakHit === true);
+    if (hitIsBreak || isBroken) {
+      isBroken = true;
       let addI = 0.0;
       if (hit.isMultiHit) {
         addI = finalBaseDestruction * Number(hit.hitRatio ?? 1.0);

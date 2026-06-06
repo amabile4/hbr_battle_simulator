@@ -1,0 +1,275 @@
+[
+  {
+    "name": "天駆の鉄槌 (通常攻撃枠外, バフなし, 連撃大3ヒット(25%x3), DPブレイク済み)",
+    "input": {
+      "attacker": {
+        "characterId": "手塚咲",
+        "styleId": 1010103,
+        "accessories": [],
+        "statusEffects": []
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "enemyName": "スモールホッパー",
+        "destructionRate": 1.0,
+        "destructionLimit": 3.0,
+        "dp": 0.0,
+        "destructionResist": 0.0,
+        "destructionMultiplier": 1.0
+      },
+      "skill": {
+        "skillId": null,
+        "name": "天駆の鉄槌"
+      },
+      "hits": [
+        {"damage": 25655.65, "isMultiHit": false, "hitRatio": 1.0},
+        {"damage": 0.0, "isMultiHit": true, "hitRatio": 0.25},
+        {"damage": 0.0, "isMultiHit": true, "hitRatio": 0.25},
+        {"damage": 0.0, "isMultiHit": true, "hitRatio": 0.25}
+      ]
+    },
+    "expected": {
+      "destructionRate": 3.0,
+      "breakdown": {
+        "baseDestruction": 1.587,
+        "finalBaseDestruction": 1.587,
+        "blasterCorrection": 0.0,
+        "buffMultiplier": 0.0
+      }
+    }
+  },
+  {
+    "name": "通常攻撃 (基本破壊倍率0.08, 連撃なし, DPブレイク済み)",
+    "input": {
+      "attacker": {
+        "characterId": "手塚咲",
+        "styleId": 1010103,
+        "accessories": [],
+        "statusEffects": []
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "enemyName": "スモールホッパー",
+        "destructionRate": 1.0,
+        "destructionLimit": 3.0,
+        "dp": 0.0,
+        "destructionResist": 0.0,
+        "destructionMultiplier": 1.0
+      },
+      "skill": {
+        "skillId": null,
+        "name": "通常攻撃"
+      },
+      "hits": [
+        {"damage": 500.0, "isMultiHit": false, "hitRatio": 0.5},
+        {"damage": 500.0, "isMultiHit": false, "hitRatio": 0.5}
+      ]
+    },
+    "expected": {
+      "destructionRate": 1.08,
+      "breakdown": {
+        "baseDestruction": 0.08,
+        "finalBaseDestruction": 0.08,
+        "blasterCorrection": 0.0,
+        "buffMultiplier": 0.0
+      }
+    }
+  },
+  {
+    "name": "天駆の鉄槌 (DP未ブレイクにより破壊率が蓄積しないケース)",
+    "input": {
+      "attacker": {
+        "characterId": "手塚咲",
+        "styleId": 1010103,
+        "accessories": [],
+        "statusEffects": []
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "enemyName": "スモールホッパー",
+        "destructionRate": 1.0,
+        "destructionLimit": 3.0,
+        "dp": 100000.0,
+        "destructionResist": 0.0,
+        "destructionMultiplier": 1.0
+      },
+      "skill": {
+        "skillId": null,
+        "name": "天駆の鉄槌"
+      },
+      "hits": [
+        {"damage": 25655.65, "isMultiHit": false, "hitRatio": 1.0},
+        {"damage": 0.0, "isMultiHit": true, "hitRatio": 0.25},
+        {"damage": 0.0, "isMultiHit": true, "hitRatio": 0.25},
+        {"damage": 0.0, "isMultiHit": true, "hitRatio": 0.25}
+      ]
+    },
+    "expected": {
+      "destructionRate": 1.0,
+      "breakdown": {
+        "baseDestruction": 1.587,
+        "finalBaseDestruction": 1.587,
+        "blasterCorrection": 0.0,
+        "buffMultiplier": 0.0
+      }
+    }
+  },
+  {
+    "name": "ブラスタースキル攻撃 (ブラスターロール+200%, 破壊率バフ30%適用)",
+    "input": {
+      "attacker": {
+        "characterId": "朝倉 可憐 — Karen Asakura — かれりん Karerin",
+        "styleId": 1001503,
+        "accessories": [],
+        "statusEffects": [
+          {"statusType": "DestructionUp", "power": 30.0, "skillName": "ドライブゲイン"}
+        ]
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "enemyName": "スモールホッパー",
+        "destructionRate": 1.0,
+        "destructionLimit": 3.0,
+        "dp": 0.0,
+        "destructionResist": 0.0,
+        "destructionMultiplier": 1.0
+      },
+      "skill": {
+        "skillId": null,
+        "name": "天駆の鉄槌"
+      },
+      "hits": [
+        {"damage": 10000.0, "isMultiHit": false, "hitRatio": 1.0}
+      ]
+    },
+    "expected": {
+      "destructionRate": 3.0,
+      "breakdown": {
+        "baseDestruction": 2.1424,
+        "finalBaseDestruction": 2.1424,
+        "blasterCorrection": 2.0,
+        "buffMultiplier": 0.3
+      }
+    }
+  },
+  {
+    "name": "アクセサリー破壊率ボーナス(0.25)の動的適用",
+    "input": {
+      "attacker": {
+        "characterId": "朝倉 可憐",
+        "styleId": 1001503,
+        "accessories": [],
+        "accessoryDestructionRateBonus": 0.25,
+        "statusEffects": []
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "enemyName": "スモールホッパー",
+        "destructionRate": 1.0,
+        "destructionLimit": 3.0,
+        "dp": 0.0,
+        "destructionResist": 0.0,
+        "destructionMultiplier": 1.0
+      },
+      "skill": {
+        "skillId": null,
+        "name": "天駆の鉄槌"
+      },
+      "hits": [
+        {"damage": 10000.0, "isMultiHit": false, "hitRatio": 1.0}
+      ]
+    },
+    "expected": {
+      "destructionRate": 2.6663,
+      "breakdown": {
+        "baseDestruction": 1.6663,
+        "finalBaseDestruction": 1.6663,
+        "blasterCorrection": 2.25,
+        "buffMultiplier": 0.0,
+        "accessoryBonus": 0.25,
+        "resonanceBonus": 0.0,
+        "limitExceedBonus": 0.0
+      }
+    }
+  },
+  {
+    "name": "共鳴アビリティの破壊率ボーナス(0.10)の適用",
+    "input": {
+      "attacker": {
+        "characterId": "朝倉 可憐",
+        "styleId": 1001503,
+        "accessories": [],
+        "resonanceDestructionRateBonus": 0.10,
+        "statusEffects": []
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "enemyName": "スモールホッパー",
+        "destructionRate": 1.0,
+        "destructionLimit": 3.0,
+        "dp": 0.0,
+        "destructionResist": 0.0,
+        "destructionMultiplier": 1.0
+      },
+      "skill": {
+        "skillId": null,
+        "name": "天駆の鉄槌"
+      },
+      "hits": [
+        {"damage": 10000.0, "isMultiHit": false, "hitRatio": 1.0}
+      ]
+    },
+    "expected": {
+      "destructionRate": 2.8329,
+      "breakdown": {
+        "baseDestruction": 1.6663,
+        "finalBaseDestruction": 1.8329,
+        "blasterCorrection": 2.0,
+        "buffMultiplier": 0.0,
+        "accessoryBonus": 0.0,
+        "resonanceBonus": 0.10,
+        "limitExceedBonus": 0.0
+      }
+    }
+  },
+  {
+    "name": "上限超越(超ブレイク効果 +1.5)の適用",
+    "input": {
+      "attacker": {
+        "characterId": "朝倉 可憐",
+        "styleId": 1001503,
+        "accessories": [],
+        "destructionLimitExceedBonus": 1.5,
+        "statusEffects": []
+      },
+      "defender": {
+        "enemyId": 13000001,
+        "enemyName": "スモールホッパー",
+        "destructionRate": 3.0,
+        "destructionLimit": 3.0,
+        "dp": 0.0,
+        "destructionResist": 0.0,
+        "destructionMultiplier": 1.0
+      },
+      "skill": {
+        "skillId": null,
+        "name": "天駆の鉄槌"
+      },
+      "hits": [
+        {"damage": 10000.0, "isMultiHit": false, "hitRatio": 1.0}
+      ]
+    },
+    "expected": {
+      "destructionRate": 4.5,
+      "breakdown": {
+        "baseDestruction": 1.6663,
+        "finalBaseDestruction": 1.6663,
+        "blasterCorrection": 2.0,
+        "buffMultiplier": 0.0,
+        "accessoryBonus": 0.0,
+        "resonanceBonus": 0.0,
+        "limitExceedBonus": 1.5
+      }
+    }
+  }
+]
