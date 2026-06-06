@@ -48,6 +48,7 @@ test('Enemy Setup manual edit shows prefilled Eシールド editor for the sampl
   await expect(editor).toBeVisible({ timeout: 5000 });
   await expect(page.locator('[data-edit-eshield-field="count"]')).toHaveValue('30');
   await expect(page.locator('[data-edit-eshield-field="max"]')).toHaveValue('30');
+  await expect(page.locator('[data-edit-eshield-field="max"]')).toBeDisabled();
   await expect(page.locator('[data-edit-eshield-field="def_up_rate"]')).toHaveValue('0');
   await expect(page.locator('[data-edit-eshield-stage-index]')).toHaveCount(3);
   await expect(page.locator('[data-edit-eshield-stage-index="0"]')).toHaveValue('30');
