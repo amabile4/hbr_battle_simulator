@@ -106,7 +106,7 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
   // finalBaseDestruction = baseDestruction * (1.0 - destResist) * (1.0 + resonanceBonus) = 0.105 * 1.0 * 1.10 = 0.1155
   // finalDestLimit = 3.0 + 1.0 = 4.0
   // destructionRate = 1.0 + 0.1155 = 1.1155
-  
+
   assertAlmostEqual(result.destructionRate, 1.1155, 'destructionRate');
   assertAlmostEqual(result.breakdown.baseDestruction, 0.105, 'baseDestruction');
   assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.1155, 'finalBaseDestruction');

@@ -56,7 +56,7 @@ function assertDamageResultMatches(actual, expected, scenarioName) {
 
 test('calculateDamage matches fixed Python fixtures', () => {
   const data = loadDamageCalculationData();
-  const fixtures = readJson('calc/test_cases_fixed.json');
+  const fixtures = readJson('tests/fixtures/test_cases_fixed.json');
 
   for (const fixture of fixtures) {
     const actual = calculateDamage(fixture.input, data);
