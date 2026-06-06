@@ -182,7 +182,7 @@ export function calculateDestruction(input, data) {
   let destLimit = defender.destructionLimit;
   if (destLimit === undefined || destLimit === null) {
     if (enemy && enemy.base_param) {
-      destLimit = 1.5 + Number(enemy.base_param.max_d_rate ?? 150.0) / 100.0;
+      destLimit = Number(enemy.base_param.max_d_rate ?? 150.0) / 100.0;
     } else {
       destLimit = 3.0;
     }
