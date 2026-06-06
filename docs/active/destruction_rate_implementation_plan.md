@@ -1,8 +1,8 @@
 # 破壊率（destructionRate）実装プラン — 検討 & WBS
 
-> **ステータス**: 🟡 検討中（WBSドラフト） | **ブランチ**: 未着手（実装時に feature ブランチを切る） | **作成日**: 2026-06-04
+> **ステータス**: ✅ 仕様確定・実装完了 | **ブランチ**: `feature/decouple-sp-mapping-and-destruction-mechanics` | **更新日**: 2026-06-06
 >
-> ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の **Phase B** に属する単独タスク。HP ダメージの正確化に必須。
+> ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の **Phase B** に属する単独タスク。HP ダメージの正確化に必須。仕様は `hbr_calc` 側で確定され、実装されました。
 
 ## 1. 背景・なぜ単独タスクか
 
@@ -33,15 +33,15 @@
 | c | **ダメージ式への接合** | `damage-calculator-input-builder.js` は `destructionRate: DEFAULT_DESTRUCTION_RATE(=1)` 固定。`damageContext` に per-enemy 破壊率フィールドなし（A-7 の `enemyParamBorderByEnemy` のような配線が未整備） |
 | d | **HP ダメージ表示の解禁** | Phase A で HP 行を非表示にした。破壊率実装後に HP ダメージ（破壊率適用後）を表示する必要 |
 
-## 3. 未確定のゲーム仕様（要・正本確認）
+## 3. 確定済みのゲーム仕様
 
-> **実装の前提となる最重要ブロッカー。** 以下は Excel フィックス版／Python 正本（`calc/`）／実機で確定が必要。
+> `hbr_calc` 側での Excel 計算機解析および検証により、以下の仕様が確定し、実装されました。
 
-- **Q-D1**: 破壊率上昇の正確な式。攻撃1回（または1ヒット／OD）でどれだけ上がるか。`od_rate` / `d_rate` / `ini_d_rate` / `max_d_rate` の各セマンティクスと寄与。
-- **Q-D2**: 破壊率が HP ダメージに乗る条件。DP を割った後のみか、常時か。DP/HP ターゲットの出し分け（Phase A の `isHpTarget`）との関係。
-- **Q-D3**: cap の実値。現状定数は基準100%/cap300%/special+300%（最大600%級）だが、ユーザー実測の 1299% との整合（追加のブレイク機構か、計算式由来か）。
-- **Q-D4**: `break_down_turn` の意味と破壊率進行への影響。
-- **Q-D5**: 本シミュレータが「敵 DP を割ったか／割れなかったか」をどこまでモデル化しているか（実データ DP 検証の前提）。
+- **Q-D1**: **基本破壊率と上昇モデル**: 基本破壊率は `BG_30` (スキル基本破壊倍率)、ブラスター補正 (スロープ補正含む)、アクセサリー/共鳴ボーナス、バフから決定。敵残りDPおよび `autoBreak`/`isBreakHit` 判定により、ヒット単位で加算。
+- **Q-D2**: **HPダメージへの適用**: 最終破壊率はHPダメージに対して全倍率乗算される。DPが存在する間のヒットでは破壊率は蓄積しない（ブレイク発生ヒットおよびそれ以降で加算）。
+- **Q-D3**: **破壊率上限の決定**: 最終上限は `敵固有破壊上限 (max_d_rate / 100)` + `上限超越補正` となる。これにより300%を超える上限値が再現可能。
+- **Q-D4**: **break_down_turn の影響**: 破壊率の直接的な進行計算には影響を与えない（状態異常管理やシミュレーションのフェーズ遷移にのみ影響）。
+- **Q-D5**: **DPブレイク判定のモデル化**: `calculateDestruction` に `dp` と `hits` 配列を渡し、累積ダメージでブレイク判定を行う（`autoBreak` 時）か、または `isBreakHit` フラグで判定。
 
 ## 4. WBS（破壊率タスク）
 
