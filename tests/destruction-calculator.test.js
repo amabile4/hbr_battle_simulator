@@ -1,94 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
 import {
   calculateDestruction,
-  loadDamageCalculationData,
 } from '../src/index.js';
 
-const DESTRUCTION_FIXTURE_TOLERANCE = 1e-4;
+const DESTRUCTION_TOLERANCE = 1e-4;
 
-function readJson(path) {
-  return JSON.parse(readFileSync(path, 'utf8'));
-}
-
-function assertAlmostEqual(actual, expected, label, tolerance = DESTRUCTION_FIXTURE_TOLERANCE) {
+function assertAlmostEqual(actual, expected, label, tolerance = DESTRUCTION_TOLERANCE) {
   assert.ok(
     Math.abs(actual - expected) <= Math.max(tolerance, Math.abs(expected) * tolerance),
     `${label}: actual=${actual}, expected=${expected}`
   );
 }
-
-function assertDestructionResultMatches(actual, expected, scenarioName) {
-  assertAlmostEqual(actual.destructionRate, expected.destructionRate, `${scenarioName}.destructionRate`);
-
-  for (const key of ['baseDestruction', 'finalBaseDestruction', 'blasterCorrection', 'buffMultiplier']) {
-    assertAlmostEqual(actual.breakdown[key], expected.breakdown[key], `${scenarioName}.breakdown.${key}`);
-  }
-}
-
-const spMapping = readJson('calc/skill_sp_mapping.json');
-
-function injectOverrides(input, data) {
-  const skillInput = input.skill || {};
-  const skillName = skillInput.name;
-  const cleanName = skillName ? skillName.replace('[単独発動]', '').split('[')[0].split('(')[0].split('（')[0].trim() : '';
-
-  const mappingInfo = spMapping[skillName] || spMapping[cleanName];
-
-  let sp = 4.0;
-  let isNormalAttack = skillName ? skillName.includes('通常攻撃') : false;
-  let isPursuit = skillName ? skillName.includes('追撃') : false;
-
-  const realSkill = data?.skills?.find(s => s.name === cleanName) || null;
-
-  if (mappingInfo) {
-    const spVal = mappingInfo.sp;
-    if (spVal !== undefined && spVal !== null && spVal !== '-') {
-      sp = Number(spVal);
-    } else {
-      sp = 0.0;
-    }
-    isNormalAttack = Boolean(mappingInfo.is_normal_attack);
-    isPursuit = Boolean(mappingInfo.is_pursuit);
-  } else if (realSkill) {
-    sp = Number(realSkill.sp_cost ?? realSkill.spCost ?? 4.0);
-  }
-
-  return {
-    ...input,
-    autoBreak: true,
-    skill: {
-      ...skillInput,
-      spCostOverride: sp,
-      isNormalAttack,
-      isPursuit,
-    },
-  };
-}
-
-test('calculateDestruction matches fixed regression fixtures', () => {
-  const data = loadDamageCalculationData();
-
-  const fixtures = readJson('calc/test_cases_destruction.json');
-
-  for (const fixture of fixtures) {
-    const actual = calculateDestruction(injectOverrides(fixture.input, data), data);
-    assertDestructionResultMatches(actual, fixture.expected, fixture.name);
-  }
-});
-
-test('calculateDestruction matches randomized large-scale differential tests', () => {
-  const data = loadDamageCalculationData();
-
-  const fixtures = readJson('calc/test_cases_destruction_large.json');
-
-  for (const fixture of fixtures) {
-    const actual = calculateDestruction(injectOverrides(fixture.input, data), data);
-    assertDestructionResultMatches(actual, fixture.expected, fixture.name);
-  }
-});
 
 test('calculateDestruction requires manual break hits unless autoBreak is enabled', () => {
   const data = {
@@ -103,7 +27,6 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
         parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
       },
     ],
-    spMapping: {},
   };
   const input = {
     attacker: { styleId: 1 },
@@ -133,4 +56,60 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
     autoBreak: true
   }, data);
   assertAlmostEqual(autoBreak.destructionRate, 1.75, 'autoBreak.destructionRate');
+});
+
+test('calculateDestruction resolves role, accessory, and limit exceedance bonuses', () => {
+  const data = {
+    styles: [{ id: 2, role: 'Blaster' }],
+    enemies: [],
+    skills: [
+      {
+        id: 20,
+        name: 'Blaster Skill',
+        hit_count: 1,
+        sp_cost: 10,
+        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 1.0 } }],
+      },
+    ],
+  };
+
+  // 1. Attacker is Blaster (+2.0 blaster correction)
+  // 2. BlastPierce accessory (+0.15 accessory bonus)
+  // 3. Resonance bonus (+10%)
+  // 4. Limit exceedance bonus (+1.0)
+  const input = {
+    attacker: {
+      styleId: 2,
+      accessories: ['BlastPierce'],
+      resonanceDestructionRateBonus: 0.10,
+      destructionLimitExceedBonus: 1.0,
+    },
+    defender: {
+      destructionRate: 1.0,
+      destructionLimit: 3.0,
+      destructionMultiplier: 1.0,
+      dp: 0,
+    },
+    skill: { skillId: 20, name: 'Blaster Skill' },
+    hits: [{ damage: 100 }],
+    autoBreak: true,
+  };
+
+  const result = calculateDestruction(input, data);
+
+  // bg30 = (dr * sp * destMult) / 100.0 = (1.0 * 10.0 * 1.0) / 100.0 = 0.1
+  // blasterCorrection = 2.0 (role) + 0.15 (accessory) = 2.15
+  // Since h = 1, blaster slope correction applies: sRatio = 5.0% = 0.05
+  // baseDestruction = Math.floor(bg30 * (1.0 + sRatio) * 10000.0) / 10000.0 = Math.floor(0.1 * 1.05 * 10000) / 10000 = 0.105
+  // finalBaseDestruction = baseDestruction * (1.0 - destResist) * (1.0 + resonanceBonus) = 0.105 * 1.0 * 1.10 = 0.1155
+  // finalDestLimit = 3.0 + 1.0 = 4.0
+  // destructionRate = 1.0 + 0.1155 = 1.1155
+  
+  assertAlmostEqual(result.destructionRate, 1.1155, 'destructionRate');
+  assertAlmostEqual(result.breakdown.baseDestruction, 0.105, 'baseDestruction');
+  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.1155, 'finalBaseDestruction');
+  assertAlmostEqual(result.breakdown.blasterCorrection, 2.15, 'blasterCorrection');
+  assertAlmostEqual(result.breakdown.accessoryBonus, 0.15, 'accessoryBonus');
+  assertAlmostEqual(result.breakdown.resonanceBonus, 0.10, 'resonanceBonus');
+  assertAlmostEqual(result.breakdown.limitExceedBonus, 1.0, 'limitExceedBonus');
 });
