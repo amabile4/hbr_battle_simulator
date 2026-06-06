@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   calculateDestruction,
+  loadDamageCalculationData,
 } from '../src/index.js';
 
 const DESTRUCTION_TOLERANCE = 1e-4;
@@ -27,6 +28,7 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
         parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
       },
     ],
+    spMapping: {},
   };
   const input = {
     attacker: { styleId: 1 },
