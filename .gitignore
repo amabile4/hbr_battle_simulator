@@ -102,4 +102,4 @@ scripts/run_gemini_api.sh
 # Local CodeGraph data
 .codegraph/
 
-__pycache__
+__pycache__calc/test_cases_destruction*.json

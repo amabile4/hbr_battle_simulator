@@ -32,6 +32,7 @@ export { resolveStyleAssetUrl, resolveStyleImageUrl } from './ui/style-asset-url
 export { HbrDataStore } from './data/hbr-data-store.js';
 export { loadDamageCalculationData } from './data/damage-calculation-data.js';
 export { buildDamageCalculationContext } from './domain/damage-calculation-context.js';
+export { calculateDestruction } from './domain/destruction-calculator.js';
 export {
   buildCriticalRateBreakdown,
   buildDamageBreakdown,
