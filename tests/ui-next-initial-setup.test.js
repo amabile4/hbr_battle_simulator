@@ -889,6 +889,11 @@ test('InitialSetupController enemy setup switches slot 1 via category selector a
     assert.deepEqual(snapshot.enemy.selectedEnemyIds, [13450815, null, null]);
     assert.equal(snapshot.enemy.selectedEnemyName, '変貌を重ねる不滅の円環');
     assert.equal(snapshot.enemy.enemySlots[0].param_border, 812);
+    assert.equal(snapshot.enemy.enemySlots[0].destructionRate, 1);
+    assert.equal(
+      root.querySelector('[data-role="enemy-current-destruction-rate"]')?.textContent.includes('100.00%'),
+      true,
+    );
   }));
 
 test('InitialSetupController template category keeps the Eシールド sample enemy ready for quick selection', () =>

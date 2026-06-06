@@ -13,11 +13,13 @@ export function loadDamageCalculationData(rootDir = process.cwd()) {
     return dataCache.get(cacheKey);
   }
   const jsonDir = resolve(rootDir, 'json');
+  const calcDir = resolve(rootDir, 'calc');
   const data = {
     styles: readJson(resolve(jsonDir, 'styles.json')),
     characters: readJson(resolve(jsonDir, 'characters.json')),
     enemies: readJson(resolve(jsonDir, 'enemies.json')),
     skills: readJson(resolve(jsonDir, 'skills.json')),
+    spMapping: readJson(resolve(calcDir, 'skill_sp_mapping.json')),
   };
   dataCache.set(cacheKey, data);
   return data;

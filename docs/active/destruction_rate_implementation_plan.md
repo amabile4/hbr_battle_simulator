@@ -1,6 +1,6 @@
 # 破壊率（destructionRate）実装プラン — 検討 & WBS
 
-> **ステータス**: 🟡 検討中（WBSドラフト） | **ブランチ**: 未着手（実装時に feature ブランチを切る） | **作成日**: 2026-06-04
+> **ステータス**: 🟢 進行中（計算コアの初期実装中） | **ブランチ**: 作業中 | **作成日**: 2026-06-04 | **最終更新**: 2026-06-06
 >
 > ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の **Phase B** に属する単独タスク。HP ダメージの正確化に必須。
 
@@ -23,13 +23,15 @@
 | 定数 | `DEFAULT_DESTRUCTION_RATE_PERCENT=100` / `DEFAULT_DESTRUCTION_RATE_CAP_PERCENT=300` / `SPECIAL_BREAK_CAP_BONUS_PERCENT=300` | `src/config/battle-defaults.js` L12-14 |
 | snapshot 保持 | override / clone / status tick で destruction 状態を保持 | turn-controller L2526-2585, 6173 |
 | ダメージ式スロット | `calculateDamage` が `defender.destructionRate`(既定1) を全倍率に乗算 | `src/domain/damage-calculator.js` L500, 506, 517 |
+| 破壊率上昇計算コア | `calculateDestruction` が 1.0 ベースで破壊率を算出し、`spMapping`、`destructionMultiplier`、手動 `isBreakHit` / 任意 `autoBreak` に対応 | `src/domain/damage-calculator.js` |
+| 初期表示 | Enemy Setup の各 enemy slot snapshot に `destructionRate=1` を保持し、セットアップタブで現在破壊率を `%` 表示 | `ui-next/components/enemy-setup.js` |
 
 ### 2.2 欠落・WIP ⚠️❌
 
 | # | 不足 | 根拠 |
 |---|---|---|
-| a | **攻撃ごとの破壊率上昇モデル**（DP ダメージ／OD 進行で rate が増える動的計算）が WIP/未確認 | turn-controller L103-106・L1634「破壊率上昇量系 skill_type は存在せず…将来の破壊率追跡機能追加時に有効化」。現状 set 呼び出しは break 状態遷移のみで、攻撃由来の incremental 上昇が見当たらない |
-| b | **破壊率の表示**（威力詳細／計算機ペイン）未実装 | `markDestructionRateGainBonusRate` 表示未実装（L104-105）。`damage_breakdown/unimplemented_elements_wbs.md` でも `isDestructionRateGainSkill` を将来対応扱い |
+| a | **攻撃ごとの破壊率上昇モデルの turn engine 接続**（DP ダメージ／OD 進行で rate が増える動的計算）は WIP/未接続 | `calculateDestruction` は追加済みだが、turnState への接続は今回スコープ外。現状の battle engine は既存 `destructionRateByEnemy` を直接更新しない |
+| b | **破壊率の詳細表示**（威力詳細／計算機ペイン）は未実装。Enemy Setup の初期現在値表示のみ追加済み | `markDestructionRateGainBonusRate` 表示未実装（L104-105）。`damage_breakdown/unimplemented_elements_wbs.md` でも `isDestructionRateGainSkill` を将来対応扱い |
 | c | **ダメージ式への接合** | `damage-calculator-input-builder.js` は `destructionRate: DEFAULT_DESTRUCTION_RATE(=1)` 固定。`damageContext` に per-enemy 破壊率フィールドなし（A-7 の `enemyParamBorderByEnemy` のような配線が未整備） |
 | d | **HP ダメージ表示の解禁** | Phase A で HP 行を非表示にした。破壊率実装後に HP ダメージ（破壊率適用後）を表示する必要 |
 
@@ -49,12 +51,12 @@
 
 | ID | 分類 | 内容 | 依存 | 状況 |
 |---|---|---|---|---|
-| D-1 | Spec | 破壊率上昇式・cap・適用条件の正本確定（Q-D1〜D5）。Excel/Python/実機を突き合わせて式を文書化 | — | 未着手（最重要・他の前提） |
+| D-1 | Spec | 破壊率上昇式・cap・適用条件の正本確定（Q-D1〜D5）。Excel/Python/実機を突き合わせて式を文書化 | — | 部分着手（`bg30 = dr × SP / 100`、`destructionMultiplier`、手動/自動break入力契約をコード化。ブラスタースロープ等の正確性検証は継続） |
 | D-2 | Engine(記録) | 既存 `destructionRateByEnemy` が実戦闘進行を反映するか検証。攻撃進行による破壊率の現在値を「記録」する経路を確認・補完 | D-1 | 未着手 |
-| D-3 | Engine(上昇計算) | D-1 の式を engine に実装（DP ダメージ／OD／break 連動で rate を上昇、cap でクランプ）。snapshot 保持・replay 整合 | D-1, D-2 | 未着手 |
+| D-3 | Engine(上昇計算) | D-1 の式を engine に実装（DP ダメージ／OD／break 連動で rate を上昇、cap でクランプ）。snapshot 保持・replay 整合 | D-1, D-2 | 部分着手（単体 `calculateDestruction` 追加。turnState/replay 接続は未着手） |
 | D-4 | Integration(接合) | `damageContext` に per-enemy 破壊率（と cap）を配線（A-7 の `enemyParamBorderByEnemy` と同パターン）。builder が `destructionRate` を渡す。`calculateDamage` が HP ダメージに適用。HP/DP 出し分け | D-2, D-3 | 未着手 |
-| D-5 | UI(表示) | 威力詳細／計算機ペインに破壊率（現在値・cap）と適用後 HP ダメージを表示。Phase A で非表示にした HP 行を解禁 | D-4 | 未着手 |
-| D-6 | Test | unit（上昇式・cap・接合）／ E2E（破壊率表示・HP ダメージ・敵タブ連動）／ 実データ DP 検証（敵 DP 割れ判定） | D-3, D-4, D-5 | 未着手 |
+| D-5 | UI(表示) | 威力詳細／計算機ペインに破壊率（現在値・cap）と適用後 HP ダメージを表示。Phase A で非表示にした HP 行を解禁 | D-4 | 部分着手（Enemy Setup に初期現在破壊率 100.00% を読み取り専用表示。威力詳細/HP表示は未着手） |
+| D-6 | Test | unit（上昇式・cap・接合）／ E2E（破壊率表示・HP ダメージ・敵タブ連動）／ 実データ DP 検証（敵 DP 割れ判定） | D-3, D-4, D-5 | 部分着手（`calculateDestruction` 回帰、`spMapping` loader、manual/auto break、Enemy Setup 初期表示を unit で固定） |
 | D-7 | 受け入れ | HP ダメージの 3点一致（Excel／実機／本シミュレータ）＋実データ DP 検証で OK | D-6 | 未着手 |
 
 ## 5. リスク・留意点

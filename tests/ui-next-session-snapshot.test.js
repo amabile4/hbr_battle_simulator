@@ -364,7 +364,9 @@ test('normalizeSessionSnapshot converts legacy enemy od_rate basis points into d
   });
 
   assert.equal(normalized.enemy.od_rate, 0.85);
+  assert.equal(normalized.enemy.destructionRate, 1);
   assert.equal(normalized.enemy.enemySlots[0].od_rate, 0.85);
+  assert.equal(normalized.enemy.enemySlots[0].destructionRate, 1);
 });
 
 test('normalizeSessionSnapshot converts legacy 0 style placeholders into null', () => {

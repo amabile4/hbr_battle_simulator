@@ -38,6 +38,8 @@ const E_SHIELD_ELEMENT_VALUE_SET = new Set(
 
 const DEFAULT_OD_RATE    = 1;
 const DEFAULT_MAX_D_RATE = 999;
+const DEFAULT_CURRENT_DESTRUCTION_RATE = 1;
+const DESTRUCTION_RATE_PERCENT_SCALE = 100;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_E_SHIELD_EDITOR_VALUE = 0;
 const ENEMY_SLOT_COUNT = 3;
@@ -65,6 +67,15 @@ function normalizePreemptiveField(value) {
 function normalizeElementRatePercent(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+}
+
+function normalizeDestructionRate(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : DEFAULT_CURRENT_DESTRUCTION_RATE;
+}
+
+function formatDestructionRatePercent(value) {
+  return `${(normalizeDestructionRate(value) * DESTRUCTION_RATE_PERCENT_SCALE).toFixed(2)}%`;
 }
 
 function normalizeAbsorbElementKey(value) {
@@ -219,6 +230,7 @@ function cloneManual(manual = {}) {
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
+    destructionRate: normalizeDestructionRate(manual.destructionRate),
     element: Object.fromEntries(
       ELEMENTS.map((element) => [element.key, normalizeElementRatePercent(manual.element?.[element.key])])
     ),
@@ -236,6 +248,7 @@ function defaultManual() {
   return {
     od_rate: DEFAULT_OD_RATE,
     max_d_rate: DEFAULT_MAX_D_RATE,
+    destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: defaultElement(),
     absorbElementList: [],
   };
@@ -248,6 +261,7 @@ function enemyToManual(enemy) {
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
+    destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: Object.fromEntries(
       ELEMENTS.map((element) => [
         element.key,
@@ -275,6 +289,7 @@ function snapshotToManual(snapshot = {}) {
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(snapshot.od_rate),
     max_d_rate: snapshot.max_d_rate,
+    destructionRate: snapshot.destructionRate,
     element: snapshot.resistances?.element,
     absorbElementList: snapshot.absorbElementList,
     ...(eShield ? { e_shield: eShield } : {}),
@@ -626,6 +641,7 @@ export class EnemySetupController {
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
         od_rate: effective.od_rate,
         max_d_rate: effective.max_d_rate,
+        destructionRate: normalizeDestructionRate(effective.destructionRate),
         resistances: { element: { ...effective.element } },
         absorbElementList: [...effective.absorbElementList],
         ...(effectiveEShield ? { e_shield: effectiveEShield } : {}),
@@ -648,6 +664,7 @@ export class EnemySetupController {
       manual: cloneManual(slot0.manual),
       od_rate: slot0.od_rate,
       max_d_rate: slot0.max_d_rate,
+      destructionRate: slot0.destructionRate,
       resistances: { element: { ...slot0.resistances.element } },
       absorbElementList: [...slot0.absorbElementList],
       ...(slot0.e_shield ? { e_shield: cloneEnemyEShield(slot0.e_shield) } : {}),
@@ -843,6 +860,7 @@ export class EnemySetupController {
     const selectedEnemyId = selectedEnemyIds[activeSlotIndex];
     const selected = this.#getSelectedEnemyBySlot(activeSlotIndex);
     const vals = this.#getEffectiveBySlot(activeSlotIndex);
+    const currentDestructionRate = normalizeDestructionRate(vals.destructionRate);
     const isManual = this.#state.isManualBySlot[activeSlotIndex];
     const hasSelectedEnemy = selectedEnemyId !== null;
     const categoryOptions = this.#getCategoryOptions();
@@ -966,10 +984,11 @@ export class EnemySetupController {
           </div>
 
           <div class="p-2 space-y-2 ${hasSelectedEnemy ? '' : 'pointer-events-none'}">
-            <!-- オーバードライブ上昇量 / 最大破壊率 -->
-            <div class="grid grid-cols-2 gap-1.5">
+            <!-- オーバードライブ上昇量 / 現在破壊率 / 最大破壊率 -->
+            <div class="grid grid-cols-3 gap-1.5">
               ${this.#numFieldHtml('od_rate',    'オーバードライブ上昇量', vals.od_rate,    isManual,
                 (v) => formatEnemyOdRatePercent(v))}
+              ${this.#readOnlyFieldHtml('現在破壊率', formatDestructionRatePercent(currentDestructionRate), 'enemy-current-destruction-rate')}
               ${this.#numFieldHtml('max_d_rate', '最大破壊率',             vals.max_d_rate, isManual,
                 (v) => `${v}%`)}
             </div>
@@ -1011,6 +1030,14 @@ export class EnemySetupController {
       <div class="flex flex-col gap-0.5">
         <span class="text-xs text-gray-500">${label}</span>
         <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${formatter ? formatter(value) : value}</span>
+      </div>`;
+  }
+
+  #readOnlyFieldHtml(label, value, role = '') {
+    return `
+      <div class="flex flex-col gap-0.5" ${role ? `data-role="${role}"` : ''}>
+        <span class="text-xs text-gray-500">${label}</span>
+        <span class="text-xs font-mono font-medium text-blue-700">${value}</span>
       </div>`;
   }
 

@@ -45,6 +45,7 @@ export {
   PURSUIT_ID_SUFFIX,
   PURSUIT_SKILL_NAME,
   calculateDamage,
+  calculateDestruction,
   flattenSkillParts,
   resolveEffectPower,
 } from './domain/damage-calculator.js';

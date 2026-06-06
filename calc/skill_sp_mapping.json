@@ -1,0 +1,5098 @@
+{
+  "茅森通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "和泉通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "逢川通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "東城通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "朝倉通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "國見通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "蒼井通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "水瀬い通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "水瀬す通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "樋口通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "柊木通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "ビャッコ通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "山脇通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "桜庭通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "天音通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "豊後通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "神崎通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "佐月通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "二階堂通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "石井通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "命通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "室伏通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "伊達通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "瑞原通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "大島一通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "大島二通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "大島三通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "大島四通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "大島五通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "大島六通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "柳通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "丸山通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "華村通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "松岡通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "夏目通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "黒沢通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "キャロル通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "李通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "アイリーン通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "ヴリティカ通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "マリア通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "シャルロッタ通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "白河通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "月城通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "桐生通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "菅原通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "小笠原通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "蔵通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "仲村通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "立華通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "入江通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "渕田通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "関根通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "岩沢通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "芳岡通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "七瀬通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "手塚通常攻撃": {
+    "row": 16,
+    "sp": "-",
+    "e": 100.0,
+    "is_aoe": false,
+    "is_normal_attack": true,
+    "is_pursuit": false
+  },
+  "茅森追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "和泉追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "逢川追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "東城追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "朝倉追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "國見追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "蒼井追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "水瀬い追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "水瀬す追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "樋口追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "柊木追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "ビャッコ追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "山脇追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "桜庭追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "天音追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "豊後追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "神崎追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "佐月追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "二階堂追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "石井追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "命追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "室伏追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "伊達追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "瑞原追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "大島一追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "大島二追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "大島三追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "大島四追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "大島五追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "大島六追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "柳追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "丸山追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "華村追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "松岡追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "夏目追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "黒沢追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "キャロル追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "李追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "アイリーン追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "ヴリティカ追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "マリア追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "シャルロッタ追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "白河追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "月城追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "桐生追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "菅原追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "小笠原追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "蔵追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "仲村追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "立華追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "入江追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "渕田追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "関根追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "岩沢追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "芳岡追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "七瀬追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "手塚追撃": {
+    "row": 17,
+    "sp": "-",
+    "e": 114.0,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": true
+  },
+  "エレメンタリー・バレット": {
+    "row": 22,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ダッシュブレード": {
+    "row": 22,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ギャザー・バッシュ": {
+    "row": 22,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シールドレイ": {
+    "row": 22,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ウィザードショット": {
+    "row": 22,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ウィザードショット(宝珠なし)": {
+    "row": 22,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "カースサイス": {
+    "row": 22,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "天変の相": {
+    "row": 22,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヴィヴィットシュート": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "リバースショット": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ミストサイス": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スタンブレード": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "断": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "残影": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "クラッカー": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "サービス・エース": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "キラーサイス": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "呪怨の矢": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "呪怨の矢(宝珠なし)": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ディープブロー": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ディープブロー(宝珠強化無し)": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ナイトフォール": {
+    "row": 24,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スイーツチャージ！": {
+    "row": 25,
+    "sp": 5.5,
+    "e": 121.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "クロス斬り": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブレイブソード": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "残心": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ハイセンス・ショット": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "臥龍演舞斬": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "臥龍演舞斬(宝珠あり)": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヴィクタープラクティス": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ファーストラヴ": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "先に逝くなよ": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "グッナイ": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レイス・カース・ダンス(1回目)": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "もつれトラップ": {
+    "row": 26,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "サクリファイス": {
+    "row": 27,
+    "sp": 6.5,
+    "e": 124.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ネコジェット・シャテキ": {
+    "row": 27,
+    "sp": 6.5,
+    "e": 124.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブレスショット": {
+    "row": 28,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブレイクカノン": {
+    "row": 28,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "残心撃": {
+    "row": 28,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ミストイングレイブ": {
+    "row": 28,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ミストイングレイブ(宝珠強化なし)": {
+    "row": 28,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "渾身銃撃": {
+    "row": 28,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "リサイクル": {
+    "row": 28,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ネオンバースト": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ゲインカノン": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "極点の一手": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ディミニッシュ・レイ": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ポラリスの輝き": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ハードブレード": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "キリングエッジ": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フレイムテンペスト": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ランブルシャーク": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ライトニングロア": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ー〇〇〇": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レイス・カース・ダンス(2回目)": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "魅惑のまなざし": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "魅惑のまなざし(属性)": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "魅惑のまなざし(防御)": {
+    "row": 30,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夜雨": {
+    "row": 31,
+    "sp": 8.5,
+    "e": 130.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夜雨(宝珠あり)": {
+    "row": 31,
+    "sp": 8.5,
+    "e": 130.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "プリンシプルチャンダス": {
+    "row": 31,
+    "sp": 8.5,
+    "e": 130.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "輝耀": {
+    "row": 31,
+    "sp": 8.5,
+    "e": 130.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "狼狽プーリァ": {
+    "row": 32,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "主君の努め": {
+    "row": 32,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "乙女の輝き": {
+    "row": 32,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コールドクラッシュ": {
+    "row": 32,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "パニッシャー": {
+    "row": 33,
+    "sp": 9.5,
+    "e": 133.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フルブレイカー": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "キラーショット": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "滾る激情": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "銀蜂": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "疾黒破弾": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "小鳥たちへのシンフォニー(+)": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "パワークラッシュ": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "衝撃零度": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "エキゾーストノート": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "プリズムアタック": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "露わな鋒": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ほてるししむら": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ほてるししむら(DP防御)": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "生存の業": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フロストソーン": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ウィッチ・オブ・カーマイン": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ウィッチ・オブ・カーマイン(脆弱)": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "オルタネイトピッキング": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レイス・カース・ダンス(3回目)": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ドミネーション・グラビティ": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ドミネーション・グラビティ(SP半減)": {
+    "row": 34,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夢幻泡影": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トリック・カノン": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "光芒一閃": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "光芒一閃+": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "光芒一閃+(宝珠なし)": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ファーマメントブーケショット(火)": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ファーマメントブーケショット(氷)": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ファーマメントブーケショット(雷)": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ファーマメントブーケショット(光)": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ファーマメントブーケショット(闇)": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ファーマメントブーケショット(無)": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "チアフル・エール": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ガルダイン": {
+    "row": 36,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "狂気乱舞のカーリー(+)": {
+    "row": 37,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "そよ風に吹かれて": {
+    "row": 38,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "覚醒インスティンクト": {
+    "row": 38,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レイス・カース・ダンス(4回目)": {
+    "row": 38,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ハロウィンにゃイトフィーバー！": {
+    "row": 38,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "御稲荷神話": {
+    "row": 39,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "御稲荷神話[脆弱中]": {
+    "row": 39,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "(火)黒曜のオーバーロード": {
+    "row": 39,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "(闇)黒曜のオーバーロード": {
+    "row": 39,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "花舞う、可憐のフレア(DP100%)": {
+    "row": 39,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "花舞う、可憐のフレア(DP0%)": {
+    "row": 39,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "青春色のシュプール": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "海のギャング": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヒットチャートからの一閃": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヒットチャートからの一閃(防御)": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヒットチャートからの一閃(属性)": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ルナティック・クリスタル": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "燃やせ青春！マリンボール！(属性)": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "燃やせ青春！マリンボール！(防御)": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "燃やせ青春！マリンボール！": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "燃やせ青春！マリンボール！(絶好調)": {
+    "row": 40,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コンヴィクション・ゼロ": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "にゃんこ大魔法": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "にゃんこ大魔法[防御デバフ中]": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "哀のスノードロップ": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "哀のスノードロップ[ブレイク時]": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "華麗なるファントム・シーフ": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "プレゼント・フォー・ユー(DP100%)": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "プレゼント・フォー・ユー(DP0%)": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "一途[通常]": {
+    "row": 41,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "星火燎原": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "星火燎原+": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "星火燎原+(31Aが3人以上)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "リミットインパクト(+)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "リミットインパクト[31A3人以上](+)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "リミットインパクト+": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スパークル・トライショット": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スパークル・トライエッジ": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スパークル・トライエッジ[タゲ集中]+": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "絶対零度(+)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "石塔の手筋+[OD中]": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "魔炎閃獄門": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "魔炎閃獄門(+)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "魔炎閃獄門[31E3人以上](+)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ハートフル・ボマー": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ハートフル・ボマー+": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ハートフル・ボマー[31D3人以上]+": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フリージング・スペル": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "二律背反スパークピッキング": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "エンジェルズ・レイ": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "神楽浄火・閃": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "次の主役はあなた[破壊率200%未満]": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "次の主役はあなた[破壊率200%以上]": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "漆黒トランスサーブ": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夢視るデザイア": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "(特効30%)スパークル・トライショット+": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スパークル・トライエッジ+": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "(特効50%)スパークル・トライショット+": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "絶対零度+(31Cが3人以上)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ロココ・デストラクション": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ロココ・デストラクション(初回)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "メガデストロイヤー(しもべ1)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "メガデストロイヤー(しもべ2-3)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "メガデストロイヤー(しもべ4)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "メガデストロイヤー(しもべ5)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "メガデストロイヤー(しもべ6)": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ナイトキルエッジ": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レインボーミラクルスライダー": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アトミックフレア[通常]": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アトミックフレア[追加ターン中]": {
+    "row": 42,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "セイントフォール": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヴォイドストーム[チャージあり]": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヴォイドストーム+[チャージあり]": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "牡丹": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夜嵐[チャージあり](+)": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "迅雷風烈": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "姫君の寵愛": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "姫君の寵愛[挑発中]": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "浮き浮きサニー・ボマー(通常)": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "浮き浮きサニー・ボマー(影分身)": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コードダクネス(火)": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コードダクネス(闇)": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コードダクネス": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]アクターズ・スーパーノヴァ": {
+    "row": 43,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "破滅でおやすみ[OD中]": {
+    "row": 44,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "破滅でおやすみ+[OD中]": {
+    "row": 44,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "バブルデストロイヤー": {
+    "row": 44,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "とどけ！誓いのしるし": {
+    "row": 45,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "とどけ！誓いのしるし[挑発中]": {
+    "row": 45,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トゥルー・アイシクル": {
+    "row": 45,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "一途[追加ターン中]": {
+    "row": 45,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ディナミコ・アチェーゾ(DP100%)": {
+    "row": 45,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ディナミコ・アチェーゾ(DP150%)": {
+    "row": 45,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "サンダー・オブ・ジャスティス": {
+    "row": 45,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "セイクリッド・クワイア[1回目]": {
+    "row": 46,
+    "sp": 16.0,
+    "e": 153,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "走り屋に夜露死苦": {
+    "row": 46,
+    "sp": 16.0,
+    "e": 153,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "走り屋に夜露死苦(DP防御)": {
+    "row": 46,
+    "sp": 16.0,
+    "e": 153,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "走り屋に夜露死苦(属性)": {
+    "row": 46,
+    "sp": 16.0,
+    "e": 153,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "バーチカルフォース(DP100%)": {
+    "row": 47,
+    "sp": 16.5,
+    "e": 154.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "バーチカルフォース(DP150%)": {
+    "row": 47,
+    "sp": 16.5,
+    "e": 154.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トリック・オア・トリート": {
+    "row": 48,
+    "sp": 17.0,
+    "e": 156,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "サンダー・オブ・ジャスティス(ダウンターン中)": {
+    "row": 51,
+    "sp": 18.5,
+    "e": 160.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブレイクバースト": {
+    "row": 59,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ラージ・カノン": {
+    "row": 59,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブラスト・スラッシュ": {
+    "row": 59,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "曙(LV1固定/破壊率係数1/実火力1.02倍)": {
+    "row": 59,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ディザスター": {
+    "row": 61,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "朧月": {
+    "row": 61,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "キャノンボール": {
+    "row": 61,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ハネ殺し": {
+    "row": 61,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レイジングシャウト": {
+    "row": 61,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ザヴィーシマスチ": {
+    "row": 61,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ナイトグリント": {
+    "row": 61,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "華麗なる清掃": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トータルサブトラクション": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トラブルメーカー": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ラブカ・ブレード": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シールドトルネード": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブレイブソウル": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "豪快！パイレーツキャノン(敵1体)": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "豪快！パイレーツキャノン(敵2体)": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "豪快！パイレーツキャノン(敵3体)": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "豪快！パイレーツキャノン": {
+    "row": 63,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "闘気斬": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "プレッツェル": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "薙の矢": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "薙の矢(宝珠なし)": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "キャンディ・バースト": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シャドウインサイト": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "サンダーパルス": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フォーチュンスラッシュ": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "R.I.P.": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヴァンダリズム": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "目覚まし見て氷結(宝珠あり)": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "目覚まし見て氷結(宝珠なし)": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "目覚まし見て氷結": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "まだまだ行くで！": {
+    "row": 65,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "想像の翼": {
+    "row": 66,
+    "sp": 7.5,
+    "e": 127.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フューリーインパルス": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スピニングスラッシュ": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "粛清": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ミストスラッシュ": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "桜華": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "風斬りの刃": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スライスショット": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アイススラッシュ": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ルーンバースト": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ビスコッティ": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "怒裂昂": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "バーニングインパクト": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "不純なアリア": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ダウンビート": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "負けるな、私": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トランスペイン": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "天の慈悲": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "大海原": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "儚き目覚め": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ファイトパッション": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レッドオペレーション": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "春雷": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ジーナーカーナー": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アバランチ": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ファンタズム": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フローズンタイム": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "朧": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シャインテラー": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "イリュージョン": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "花の散るらむ": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "炎焔": {
+    "row": 67,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "一意専心": {
+    "row": 68,
+    "sp": 8.5,
+    "e": 130.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フォトン・バレット": {
+    "row": 68,
+    "sp": 8.5,
+    "e": 130.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "喧嘩上等！！": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ネイキッドイレイザー": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シルキーフレア": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シルキーフレア(宝珠強化なし)": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "神妙": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "別れの朝": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "デバノデバン": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アイドルスマイル(火弱点以外)": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ティーブレイク": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スイート・ブレイク": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "一点突破": {
+    "row": 69,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "螳螂之斧": {
+    "row": 70,
+    "sp": 9.5,
+    "e": 133.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "螳螂之斧(宝珠あり)": {
+    "row": 70,
+    "sp": 9.5,
+    "e": 133.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "渦中のヴァイオレット": {
+    "row": 70,
+    "sp": 9.5,
+    "e": 133.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "守りたい場所": {
+    "row": 70,
+    "sp": 9.5,
+    "e": 133.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "瞬刃": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フルスイング": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "烈": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "イノセンス": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スターマイン": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "魔莢": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コールドウェイヴ": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スパイクサージ": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コールドストローク": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "仮面のワルツ": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "朝霜": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "爆裂サーブ": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "配牌上々": {
+    "row": 71,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ロリータフルバースト": {
+    "row": 72,
+    "sp": 10.5,
+    "e": 136.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "パドマ・ナーチュナー(DP100%)": {
+    "row": 72,
+    "sp": 10.5,
+    "e": 136.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "パドマ・ナーチュナー(DP150%)": {
+    "row": 72,
+    "sp": 10.5,
+    "e": 136.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "国士無双": {
+    "row": 72,
+    "sp": 10.5,
+    "e": 136.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "サイクロンブレード": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ダイヤモンド・ダスト": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ダイヤモンド・ダスト+": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "メメント・モリ(+)": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アクロマティックバレット(+)": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アクロマティックバレット(初回)(+)": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レイジング・レインディア": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "バラ撒き": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レディ・イン・ミラージュ": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "輝神(追加ターン中)": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "輝神(追加ターン以外)": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "今宵、快楽ナイトメア": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フグリングクラッシュ(弱点無効)": {
+    "row": 73,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "君に咲くグラナータ(防御)": {
+    "row": 74,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "君に咲くグラナータ(属性)": {
+    "row": 74,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "君に咲くグラナータ(宝珠なし)": {
+    "row": 74,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "君に咲くグラナータ(防御/宝珠なし)": {
+    "row": 74,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "君に咲くグラナータ(属性/宝珠なし)": {
+    "row": 74,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "君に咲くグラナータ": {
+    "row": 74,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "君に咲くグラナータ+": {
+    "row": 74,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "放課後の淡いスリル": {
+    "row": 74,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "イノセントワイルド": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "純潔のパツィルーイ": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "耐性ダウン(妄想)": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スポットライトよ永遠に": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スポットライトよ永遠に(防御)": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スポットライトよ永遠に(属性)": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "くぎづけ♡ラブリービーム(士気5以下)": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "くぎづけ♡ラブリービーム(士気6以上)": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "くぎづけ♡ラブリービーム(防御)": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "くぎづけ♡ラブリービーム(属性)": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "秘技！霊符トルネード": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "踊れ！マ・パシオン！[通常]": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "踊れ！マ・パシオン！[追加ターン中]": {
+    "row": 75,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヌラルジャ(通常)": {
+    "row": 76,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヌラルジャ(OD中)": {
+    "row": 76,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "追風": {
+    "row": 76,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "インフィニティ・ハレーション": {
+    "row": 76,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "流星(+)": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "羅刹": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "流星+(初回)": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "救済のレクイエム": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フローズン・ワルツ[ODなし]": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "狂騒のヨスガ": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "乙女の秘め事": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "氷華、千射万箭": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "氷華、千射万箭(防御)": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "氷華、千射万箭(属性)": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "潮風ハイボルテージ": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ジェリーフィッシュ・ダンス": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ジェリーフィッシュ・ダンス(防御)": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ジェリーフィッシュ・ダンス(属性)": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "黒蝶霹靂制裁": {
+    "row": 77,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "三日月宗近": {
+    "row": 78,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "三日月宗近+": {
+    "row": 78,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "サンダーストーム": {
+    "row": 78,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "必滅！ヴェインキック(+)": {
+    "row": 78,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "飛沫きらめく水浅葱(初回)": {
+    "row": 78,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "飛沫きらめく水浅葱(2回目以降)": {
+    "row": 78,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "千紫万紅": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "デストロイ": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "デストロイ+": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "デストロイ[初回]+": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "デストロイ(宝珠なし)": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "デストロイ+(宝珠なし)": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "宙舞うハイテンション": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "宙舞うハイテンション(+)": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "爽籟に舞う仁慈[破壊率200%未満]": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "爽籟に舞う仁慈[破壊率200%以上]": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "三色団子乱れ撃ち[2回目以降]": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ノヴァエリミネーション": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ノヴァエリミネーション": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]神に捧ぐ、勝旗のラ・ピュセル": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "大玉パニック・スクランブル": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "大玉パニック・スクランブル(属性)": {
+    "row": 79,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヘイルストーム": {
+    "row": 80,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トゥルーペネトレーター": {
+    "row": 80,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トゥルーペネトレーター+": {
+    "row": 80,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "破壊のシニシズム(弱点無効)": {
+    "row": 80,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "光輝の夜明け": {
+    "row": 80,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "醒めたる思い(初回)": {
+    "row": 80,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "醒めたる思い(2回目以降)": {
+    "row": 80,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブレイブ・ストライク": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スーパーセル": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フローズン・ワルツ[OD中]": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "蒼焔ノ迷宮(通常)": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "蒼焔ノ迷宮(追加ターン中)": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夏に恋するオードトワレ": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夏に恋するオードトワレ（メイクアップ状態）": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "星降るシャンデリア・グラス": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "最高潮！アオハルオンステージ": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "最高潮！アオハルオンステージ(属性)": {
+    "row": 81,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "メイド・イン・パンクチュア[チャージあり]": {
+    "row": 82,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シーサイドベルセルク(追加ターン以外)": {
+    "row": 82,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シーサイドベルセルク(追加ターン中)": {
+    "row": 82,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "三色団子乱れ撃ち[1回目]": {
+    "row": 82,
+    "sp": 15.5,
+    "e": 151.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夜注ぐスターライト・ステア": {
+    "row": 83,
+    "sp": 16.0,
+    "e": 153,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "凍てつく宵の剣舞": {
+    "row": 83,
+    "sp": 16.0,
+    "e": 153,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "唯雅粛正[チャージあり]": {
+    "row": 87,
+    "sp": 18.0,
+    "e": 159,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "唯雅粛正[チャージなし]": {
+    "row": 87,
+    "sp": 18.0,
+    "e": 159,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "一発入魂": {
+    "row": 95,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "砕華": {
+    "row": 95,
+    "sp": 4.0,
+    "e": 117,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "乱舞": {
+    "row": 97,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "斜陽": {
+    "row": 97,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アサルトクロー": {
+    "row": 97,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アサルトクロー(宝珠なし)": {
+    "row": 97,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "大切り盛り": {
+    "row": 99,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ノーブルウェッジ": {
+    "row": 103,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "一片氷心": {
+    "row": 103,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "残焔": {
+    "row": 103,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "狂乱舞": {
+    "row": 105,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夢十夜": {
+    "row": 105,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "誘掖の途": {
+    "row": 105,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "雷鳴": {
+    "row": 107,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "バーストファイア": {
+    "row": 107,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コールドバレット": {
+    "row": 107,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レイジングクロー": {
+    "row": 108,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "疾きこと風の如し[チャージなし]": {
+    "row": 110,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブラッディ・バーン(火)": {
+    "row": 112,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブラッディ・バーン(氷)": {
+    "row": 112,
+    "sp": 12.0,
+    "e": 141,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブラッディ・ダンス(+)": {
+    "row": 114,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "神崎流忍術・氷塵(弱点無効)": {
+    "row": 114,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ビースト・プリズン": {
+    "row": 116,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "純愛アンビシャス": {
+    "row": 116,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "破壊の女王(弱点無効)": {
+    "row": 116,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "神崎流忍術・散華(弱点無効)": {
+    "row": 116,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "カタストロフィー": {
+    "row": 118,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブロッサム・ブレイズ": {
+    "row": 136,
+    "sp": 5.0,
+    "e": 120,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "スラッシュクロー": {
+    "row": 138,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "旋風": {
+    "row": 138,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "オンラッシュ": {
+    "row": 138,
+    "sp": 6.0,
+    "e": 123,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ワイルドスロー": {
+    "row": 140,
+    "sp": 7.0,
+    "e": 126,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "武血伽魔死": {
+    "row": 142,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レッドスピネル": {
+    "row": 142,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レッドスピネル(火)": {
+    "row": 142,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レッドスピネル(氷)": {
+    "row": 142,
+    "sp": 8.0,
+    "e": 129,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "地獄変": {
+    "row": 144,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヒロイックプラウド": {
+    "row": 144,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "キルキルヒカル": {
+    "row": 144,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "寝ても醒めても": {
+    "row": 144,
+    "sp": 9.0,
+    "e": 132,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レヴォリューション": {
+    "row": 146,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アイドルスマイル(火弱点)": {
+    "row": 146,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "滅殺影分身": {
+    "row": 154,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "最凶のおもてなし(弱点無効)": {
+    "row": 154,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ディスラプト": {
+    "row": 180,
+    "sp": 8.5,
+    "e": 130.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レッドラウンドイリュージョン": {
+    "row": 183,
+    "sp": 10.0,
+    "e": 135,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]アーク・オブ・ヴィクトリア": {
+    "row": 188,
+    "sp": 12.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "咲き昇る宵の幻(火の印4以上)": {
+    "row": 190,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "咲き昇る宵の幻(火の印3以下)": {
+    "row": 190,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "収穫祭(+)": {
+    "row": 191,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "純愛アンビシャス+": {
+    "row": 191,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "覇道妄執我突邁進(+)[チャージあり]": {
+    "row": 192,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "アルペジオ": {
+    "row": 218,
+    "sp": 9.5,
+    "e": 133.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ワイルドハウル": {
+    "row": 221,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シャドウ・ランペイジ": {
+    "row": 221,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]蒼星のイリデッセンス": {
+    "row": 222,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]蒼星のイリデッセンス[トークン4以上]": {
+    "row": 222,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "天駆の鉄槌": {
+    "row": 222,
+    "sp": 11.5,
+    "e": 139.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "セレスティアルショット[通常]": {
+    "row": 225,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "蒼焔ノ螺旋": {
+    "row": 226,
+    "sp": 13.5,
+    "e": 145.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "劫火絢爛": {
+    "row": 227,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "滅殺影分身+": {
+    "row": 227,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "カラスの鳴き声で(初回)": {
+    "row": 227,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "カラスの鳴き声で(2回目)": {
+    "row": 227,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "カラスの鳴き声で(3回目)": {
+    "row": 227,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "カラスの鳴き声で(4回目～)": {
+    "row": 227,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "邪眼・マリンスラッシュ(士気5以下)": {
+    "row": 228,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ライトニングジャッジメント": {
+    "row": 229,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "御祈祷オーバーヒート": {
+    "row": 229,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "御祈祷オーバーヒート[ネガティブ解除]": {
+    "row": 229,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "コーシュカ・アルマータ": {
+    "row": 243,
+    "sp": 17,
+    "e": 120,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "石塔の手筋+[ODなし]": {
+    "row": 244,
+    "sp": 11,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヴォイドストーム[チャージなし]": {
+    "row": 245,
+    "sp": 13,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "夜嵐[チャージなし](+)": {
+    "row": 245,
+    "sp": 13,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヴォイドストーム+[チャージなし]": {
+    "row": 245,
+    "sp": 13,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "セイクリッド・クワイア[2回目以降]": {
+    "row": 246,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "破滅でおやすみ[ODなし]": {
+    "row": 247,
+    "sp": 13,
+    "e": 150,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "破滅でおやすみ+[ODなし]": {
+    "row": 247,
+    "sp": 13,
+    "e": 150,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "覇道妄執我突邁進(+)[チャージなし]": {
+    "row": 248,
+    "sp": 13,
+    "e": 148.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "神崎流忍術・氷塵(弱点有効)": {
+    "row": 249,
+    "sp": 14.5,
+    "e": 144,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "破壊の女王(弱点有効)": {
+    "row": 250,
+    "sp": 15,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ソフニング(通常)": {
+    "row": 251,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ソフニング(超越・通常)": {
+    "row": 251,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "グラビトン(通常)": {
+    "row": 251,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "グラビトン(宝珠あり)": {
+    "row": 251,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ソフニング(宝珠あり)": {
+    "row": 252,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ソフニング(超越・宝珠あり)": {
+    "row": 252,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "グラビトン(超越・宝珠あり)": {
+    "row": 252,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "グラビトン(超越・通常)": {
+    "row": 252,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "神崎流忍術・散華(弱点有効)": {
+    "row": 253,
+    "sp": 15.5,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "(火:弱点)黒曜のオーバーロード": {
+    "row": 255,
+    "sp": 14.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "(闇:弱点)黒曜のオーバーロード": {
+    "row": 255,
+    "sp": 14.5,
+    "e": 142.5,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "春の宵の塵に同じ": {
+    "row": 256,
+    "sp": 0,
+    "e": 105,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ソフニング(海賊あいな+提督蒼井)": {
+    "row": 257,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "グラビトン(海賊あいな)": {
+    "row": 257,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ソフニング(しもべマリ+提督蒼井)": {
+    "row": 257,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "グラビトン(しもべマリ)": {
+    "row": 257,
+    "sp": 31.66666667,
+    "e": 200,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブラッディ・バーン(火/ダウンターン中)": {
+    "row": 258,
+    "sp": 14,
+    "e": 141,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ブラッディ・バーン(氷/ダウンターン中)": {
+    "row": 258,
+    "sp": 14,
+    "e": 141,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シンメトリー・リベレーション(超ダウン中)": {
+    "row": 259,
+    "sp": 15,
+    "e": 150,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "最凶のおもてなし(弱点有効)": {
+    "row": 279,
+    "sp": 15,
+    "e": 147,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "メイド・イン・パンクチュア[チャージなし]": {
+    "row": 280,
+    "sp": 14,
+    "e": 151.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "イノセントワイルド+(DP100%未満)": {
+    "row": 281,
+    "sp": 13,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "イノセントワイルド+(DP100%以上)": {
+    "row": 281,
+    "sp": 13,
+    "e": 141,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "邪眼・マリンスラッシュ(士気6以上)": {
+    "row": 282,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "トリニティ・ブレイジング": {
+    "row": 283,
+    "sp": 24.5,
+    "e": 178.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ギガビッグバン": {
+    "row": 284,
+    "sp": 22.5,
+    "e": 173,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "魔界騎兵起動！": {
+    "row": 285,
+    "sp": 30,
+    "e": 195,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "総攻撃": {
+    "row": 286,
+    "sp": 31,
+    "e": 198,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "疾きこと風の如し[チャージあり]": {
+    "row": 321,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "[単独発動]ビースト・プリズン+": {
+    "row": 327,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "レインボーミラクルスライダー(ダウンターン中)": {
+    "row": 327,
+    "sp": 14.0,
+    "e": 147,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "シンメトリー・リベレーション": {
+    "row": 329,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "ヴォリション・サイス": {
+    "row": 331,
+    "sp": 16.0,
+    "e": 153,
+    "is_aoe": false,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "フグリングクラッシュ(弱点有効)": {
+    "row": 357,
+    "sp": 11.0,
+    "e": 138,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "セレスティアルショット[OD中]": {
+    "row": 361,
+    "sp": 13.0,
+    "e": 144,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "破壊のシニシズム(弱点有効)": {
+    "row": 364,
+    "sp": 14.5,
+    "e": 148.5,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  },
+  "回る！ぽんぽこ花吹雪": {
+    "row": 365,
+    "sp": 15.0,
+    "e": 150,
+    "is_aoe": true,
+    "is_normal_attack": false,
+    "is_pursuit": false
+  }
+}
