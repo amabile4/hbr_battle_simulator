@@ -41,7 +41,7 @@ class DamageCalculatorEngine:
         self.characters = self._load_json(CHARACTERS_JSON_PATH)
         self.enemies = self._load_json(ENEMIES_JSON_PATH)
         self.skills = self._load_json(SKILLS_JSON_PATH)
-        self.sp_mapping = self._load_json_dict(_get_json_path("skill_sp_mapping.json"))
+        self.sp_mapping = self._load_json_dict(_get_json_path("seraphdb_json/skill_sp_mapping.json"))
 
     def _load_json_dict(self, path):
         if os.path.exists(path):
@@ -664,209 +664,168 @@ class DamageCalculatorEngine:
         }
 
     def calculate_destruction(self, input_data):
-        """
-        破壊率（Destruction Rate）の計算およびヒットごとの累積シミュレーションを行う
-        """
         attacker_data = input_data.get("attacker", {})
         defender_data = input_data.get("defender", {})
         skill_data = input_data.get("skill", {})
-        hits_data = input_data.get("hits", [])
-        
-        ignored_effects = []
-        
-        # 1. 攻撃者の解決とロールの特定
+        hits = input_data.get("hits", [])
+
+        # 1. Look up attacker style & role
         style_id = attacker_data.get("styleId")
         style = next((s for s in self.styles if s["id"] == style_id), None)
         role = style.get("role", "Attacker") if style else "Attacker"
-        
-        # ブラスターロール補正（+200% = 2.00）
-        bg27 = 2.00 if str(role).lower() == "blaster" else 0.0
-        
-        # 装備アクセサリ（ブラストピアス等）
-        accessories = attacker_data.get("accessories", []) or []
-        if "BlastPierce" in accessories or "ブラストピアス" in accessories:
-            bg27 += 0.15
-            
-        # 2. スキルの基本情報の取得 (BG30)
+
+        # 2. Look up skill
         skill_id = skill_data.get("skillId")
         skill_name = skill_data.get("name")
-        
         clean_name = skill_name
         if skill_name:
             clean_name = skill_name.replace("[単独発動]", "").split("[")[0].split("(")[0].split("（")[0].strip()
             
         skill = self._find_skill(skill_id, clean_name)
-        
-        bg30 = 0.0
-        hit_count = 1
-        part = None
-        
-        if skill:
-            hit_count = int(skill.get("hit_count", 1))
-            parts = self._flatten_parts(skill.get("parts", []))
-            
-            # 攻撃スキルの許可リスト (部分一致による誤検出防止)
-            ALLOWED_ATTACK_TYPES = [
-                "AttackNormal", 
-                "AttackSkill", 
-                "DamageRateChangeAttackSkill", 
-                "PenetrationCriticalAttack", 
-                "PenetrationNormalAttack", 
-                "PenetrationSkill",
-                "TokenAttack",
-                "AttackBySp",
-                "AttackByOwnDpRate",
-                "FixedHpDamageRateAttack"
-            ]
-            
-            for p in parts:
-                p_type = p.get("skill_type", "")
-                if p_type in ALLOWED_ATTACK_TYPES:
-                    part = p
-                    break
-                    
-        if part:
-            multipliers = part.get("multipliers", {})
-            bg30_raw = float(multipliers.get("dr", 1.0))
-            
-            is_normal_attack = False
-            is_pursuit = False
+
+        # 3. SP cost lookup
+        mapping_info = self.sp_mapping.get(skill_name) if isinstance(self.sp_mapping, dict) else None
+        if not mapping_info and skill_name:
+            mapping_info = self.sp_mapping.get(clean_name) if isinstance(self.sp_mapping, dict) else None
+
+        is_normal_attack = False
+        is_pursuit = False
+        sp = 4.0
+        if mapping_info:
+            is_normal_attack = mapping_info.get("is_normal_attack", False)
+            is_pursuit = mapping_info.get("is_pursuit", False)
+            sp_val = mapping_info.get("sp")
+            if sp_val is not None and sp_val != "-":
+                sp = float(sp_val)
+            else:
+                sp = 0.0
+        else:
+            if skill:
+                sp = float(skill.get("sp_cost", 4.0))
             if skill_name:
                 if "通常攻撃" in skill_name:
                     is_normal_attack = True
                 elif "追撃" in skill_name:
                     is_pursuit = True
-                    
-            if is_normal_attack:
-                bg30 = 0.08
-            elif is_pursuit:
-                bg30 = bg30_raw
-            else:
-                sp_cost = float(skill.get("sp_cost", 0.0)) if skill else 0.0
-                mapping_info = self.sp_mapping.get(clean_name) if isinstance(self.sp_mapping, dict) else None
-                if mapping_info:
-                    sp_val = mapping_info.get("sp")
-                    if sp_val is not None and sp_val != "-":
-                        sp_cost = float(sp_val)
-                bg30 = (bg30_raw * sp_cost) / 100.0
-        else:
-            # フォールバック
-            bg30 = 1.0
-            if skill_name:
-                if "通常攻撃" in skill_name:
-                    bg30 = 0.08
-                elif "追撃" in skill_name:
-                    bg30 = 1.0
-            
-        # 3. バフの集約 (AS39)
-        # 破壊率アップバフのみを処理
-        SUPPORTED_BUFFS = ["DestructionUp"]
-        buffs = attacker_data.get("statusEffects", []) or []
-        destruction_buffs_resolved = []
+
+        # 4. Get dr (destruction rate) from skill parts
+        dr = 1.0
+        if skill:
+            parts = self._flatten_parts(skill.get("parts", []))
+            ALLOWED_ATTACK_TYPES = [
+                "AttackNormal", "AttackSkill", "DamageRateChangeAttackSkill",
+                "PenetrationCriticalAttack", "PenetrationNormalAttack", "PenetrationSkill",
+                "TokenAttack", "AttackBySp", "AttackByOwnDpRate", "FixedHpDamageRateAttack"
+            ]
+            part = None
+            for p in parts:
+                if p.get("skill_type") in ALLOWED_ATTACK_TYPES:
+                    part = p
+                    break
+            if part and "multipliers" in part:
+                dr = float(part["multipliers"].get("dr", 1.0))
         
-        for b in buffs:
-            st = b.get("statusType")
-            if st not in SUPPORTED_BUFFS:
-                ignored_effects.append({"statusType": st, "skillName": b.get("skillName"), "side": "attacker"})
-                continue
-                
-            p_resolved = self.resolve_effect_power(b)
-            b_res = dict(b)
-            b_res["resolved_power"] = p_resolved
-            destruction_buffs_resolved.append(b_res)
-            
-        # 破壊率バフの集約ルール（通常バフと同様に、上位2枠の合計を適用）
-        destruction_buffs_resolved.sort(key=lambda x: x.get("resolved_power", 0.0), reverse=True)
-        as39 = sum(b.get("resolved_power", 0.0) for b in destruction_buffs_resolved[:2]) / 100.0
+        # 5. Resolve enemy destructionMultiplier
+        enemy_id = defender_data.get("enemyId")
+        enemy = next((e for e in self.enemies if str(e["id"]) == str(enemy_id)), None)
         
-        # 4. デバフ側の処理 (現在サポートされていないデバフはすべて警告)
-        debuffs = defender_data.get("statusEffects", []) or []
-        for d in debuffs:
-            st = d.get("statusType")
-            ignored_effects.append({"statusType": st, "skillName": d.get("skillName"), "side": "defender"})
-            
-        # 5. 敵の耐性と破壊上限の解決
-        al10 = float(defender_data.get("destructionResist", 0.0))
-        
-        # 破壊上限 (max_d_rate) の取得
-        destruction_limit = defender_data.get("destructionLimit")
-        if destruction_limit is None:
-            enemy_id = defender_data.get("enemyId")
-            enemy = next((e for e in self.enemies if str(e["id"]) == str(enemy_id)), None)
+        dest_mult = defender_data.get("destructionMultiplier")
+        if dest_mult is None:
             if enemy and "base_param" in enemy:
-                max_d_rate = enemy["base_param"].get("max_d_rate", 150)
-                destruction_limit = max_d_rate / 100.0
+                dest_mult = float(enemy["base_param"].get("d_rate", 1.0))
             else:
-                destruction_limit = 3.0 # デフォルト 300%
-                
-        # 6. 基本破壊率の計算 (D_base)
-        is_normal_attack = False
-        is_pursuit = False
-        if skill_name:
-            if "通常攻撃" in skill_name:
-                is_normal_attack = True
-            elif "追撃" in skill_name:
-                is_pursuit = True
-                
-        if is_normal_attack or is_pursuit:
-            d_base = bg30
-        elif bg27 == 0:
-            d_base = math.floor((bg30 * (1.0 + as39)) * 10000) / 10000.0
+                dest_mult = 1.0
         else:
-            # ブラスター補正 (スロープ補正) の計算
-            b_pct = bg27 * 100.0
-            if hit_count < 11:
-                slope_pct = 5.0 + ((b_pct - 5.0) * (hit_count - 1.0)) / 9.0
+            dest_mult = float(dest_mult)
+
+        # 6. Calculate BG30 (base destruction rate before buffs)
+        if is_normal_attack or is_pursuit:
+            bg30 = (dr * 8.0 * dest_mult) / 100.0
+        else:
+            bg30 = (dr * sp * dest_mult) / 100.0
+
+        # 7. Blaster correction & accessories
+        blaster_correction = 0.0
+        if role.lower() == "blaster":
+            blaster_correction += 2.0
+            
+        accs = attacker_data.get("accessories", [])
+        if any(a in ["BlastPierce", "ブラストピアス"] for a in accs):
+            blaster_correction += 0.15
+
+        # 8. Resolve buffs (DestructionUp)
+        buffs = attacker_data.get("statusEffects", [])
+        dest_buffs = [b for b in buffs if b.get("statusType") == "DestructionUp"]
+        buff_multiplier = sum(self.resolve_effect_power(b) for b in dest_buffs) / 100.0
+
+        # 9. Total hits count (h)
+        h = sum(1 for hit in hits if not hit.get("isMultiHit", False))
+        if h == 0:
+            if skill:
+                h = int(skill.get("hit_count", 1))
             else:
-                slope_pct = b_pct
-                
-            d_base = math.floor((bg30 * (100.0 + slope_pct + as39 * 100.0) / 100.0) * 10000) / 10000.0
-            
-        destruction_multiplier = float(defender_data.get("destructionMultiplier", 1.0))
-        d_final_base = d_base * (1.0 - al10) * destruction_multiplier
-        
-        # 7. ヒットごとの累積シミュレーション
-        initial_destruction = float(defender_data.get("destructionRate", 1.0))
-        dp_initial = float(defender_data.get("dp", 0.0))
-        auto_break = input_data.get("autoBreak") is True
-        
-        current_destruction = initial_destruction
-        accumulated_damage = 0.0
-        
-        # ヒットリストのシミュレーション
-        for hit in hits_data:
-            damage = float(hit.get("damage", 0.0))
-            is_multi_hit = bool(hit.get("isMultiHit", False))
-            hit_ratio = float(hit.get("hitRatio", 1.0))
-            
-            accumulated_damage += damage
-            
-            # ブレイク判定
-            if auto_break:
-                is_broken = (accumulated_damage >= dp_initial)
+                h = 1
+
+        # 10. Blaster slope correction
+        if blaster_correction > 0.0:
+            b_pct = blaster_correction * 100.0
+            if h < 11:
+                s_pct = 5.0 + ((b_pct - 5.0) * (h - 1)) / 9.0
             else:
-                is_broken = (hit.get("isBreakHit") is True)
+                s_pct = b_pct
+            s_ratio = s_pct / 100.0
+        else:
+            s_ratio = 0.0
+
+        # 11. Base destruction with buffs and blaster
+        if is_normal_attack or is_pursuit:
+            base_destruction = bg30
+        else:
+            base_destruction = math.floor(bg30 * (1.0 + s_ratio + buff_multiplier) * 10000.0) / 10000.0
+
+        # 12. Apply enemy destructionResist (AL10)
+        dest_resist = defender_data.get("destructionResist")
+        if dest_resist is None:
+            dest_resist = 0.0
+        else:
+            dest_resist = float(dest_resist)
             
-            if is_broken:
-                if is_multi_hit:
-                    # 連撃ヒット
-                    add_val = d_final_base * hit_ratio
+        final_base_destruction = base_destruction * (1.0 - dest_resist)
+
+        # 13. Resolve destruction rate limit
+        dest_limit = defender_data.get("destructionLimit")
+        if dest_limit is None:
+            if enemy and "base_param" in enemy:
+                dest_limit = 1.5 + float(enemy["base_param"].get("max_d_rate", 150.0)) / 100.0
+            else:
+                dest_limit = 3.0
+        else:
+            dest_limit = float(dest_limit)
+
+        # 14. Simulation
+        dp_init = float(defender_data.get("dp", 0.0))
+        destruction_rate = float(defender_data.get("destructionRate", 1.0))
+
+        dmg_accum = 0.0
+        for hit in hits:
+            dmg_accum += float(hit.get("damage", 0.0))
+            if dmg_accum >= dp_init:
+                if hit.get("isMultiHit", False):
+                    add_i = final_base_destruction * float(hit.get("hitRatio", 1.0))
                 else:
-                    # 通常ヒット
-                    add_val = d_final_base / hit_count
-            else:
-                add_val = 0.0
-                
-            current_destruction = min(destruction_limit, current_destruction + add_val)
-            
+                    add_i = final_base_destruction / h
+                destruction_rate = min(dest_limit, destruction_rate + add_i)
+
+        # 15. Ignored effects warning
+        ignored_effects = []
+
         return {
-            "destructionRate": current_destruction,
+            "destructionRate": destruction_rate,
             "breakdown": {
-                "baseDestruction": d_base,
-                "finalBaseDestruction": d_final_base,
-                "blasterCorrection": bg27,
-                "buffMultiplier": as39,
-                "destructionMultiplier": destruction_multiplier,
+                "baseDestruction": base_destruction,
+                "finalBaseDestruction": final_base_destruction,
+                "blasterCorrection": blaster_correction,
+                "buffMultiplier": buff_multiplier,
                 "ignoredEffects": ignored_effects
             }
         }

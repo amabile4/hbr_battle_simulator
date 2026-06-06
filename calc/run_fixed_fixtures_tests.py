@@ -1,14 +1,22 @@
 import json
 import math
 import sys
+import os
+# Resolve path to engine
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../engine")))
 from damage_calc_engine import DamageCalculatorEngine
+
+CALC_DIR = os.path.dirname(__file__)
 
 def run_fixed_fixtures_tests():
     print("=== Running Fixed Fixtures Damage Calculator Regression Tests ===")
     
     engine = DamageCalculatorEngine()
     
-    with open("test_cases_fixed.json", "r", encoding="utf-8") as f:
+    fixtures_path = os.path.join(CALC_DIR, "fixtures/test_cases_fixed.json")
+    if not os.path.exists(fixtures_path):
+        fixtures_path = os.path.join(CALC_DIR, "test_cases_fixed.json")
+    with open(fixtures_path, "r", encoding="utf-8") as f:
         fixtures = json.load(f)
         
     passed = 0

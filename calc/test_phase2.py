@@ -1,4 +1,9 @@
+import sys
+import os
 import unittest
+
+# Resolve path to engine
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../engine")))
 from damage_calc_engine import DamageCalculatorEngine
 
 class TestPhase2Logic(unittest.TestCase):
