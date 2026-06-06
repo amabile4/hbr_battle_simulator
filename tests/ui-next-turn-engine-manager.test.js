@@ -220,6 +220,7 @@ function createSummonEnemyOperation({
 function createEShieldState({
   current = 10,
   max = 10,
+  maxByStage = null,
   elements = ['Light', 'Dark'],
   defUpRate = 5000,
   damageLimit = 0,
@@ -227,6 +228,7 @@ function createEShieldState({
   return {
     current,
     max,
+    ...(Array.isArray(maxByStage) ? { maxByStage: [...maxByStage] } : {}),
     elements: [...elements],
     defUpRate,
     damageLimit,
@@ -2699,6 +2701,67 @@ test('TurnEngineManager applies HP_BREAK overrides, preserves earlier actors, an
     [],
     'break/down statuses should be cleared after HP break'
   );
+});
+
+test('TurnEngineManager replays stale EnemyEShields overrides with catalog stage maxByStage for HP breaks', () => {
+  const actorSkill = createSkill({
+    id: 9074,
+    name: 'Stage Gauge Slash',
+    targetType: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+  });
+  const initialState = createFrontlineInitialState([actorSkill], 1);
+  initialState.turnState.enemyState.extraHpGaugeStateByEnemy = {
+    0: { total: 3, remaining: 3, values: [75000000, 150000000, 200000000] },
+  };
+  initialState.turnState.enemyState.eShieldStateByEnemy = {
+    0: createEShieldState({
+      current: 30,
+      max: 30,
+      maxByStage: [30, 35, 40],
+      elements: ['Fire', 'Light', 'Dark'],
+      defUpRate: 9900,
+    }),
+  };
+  const staleEShieldPayload = {
+    0: createEShieldState({
+      current: 0,
+      max: 30,
+      elements: ['Fire', 'Light', 'Dark'],
+      defUpRate: 9900,
+    }),
+  };
+  const replayScript = {
+    turns: [1, 2].map((turn) => ({
+      turn,
+      slots: [
+        { styleId: initialState.party[0].styleId, skillId: 9074, target: { type: 'enemy', enemyIndex: 0 } },
+        { styleId: initialState.party[1].styleId, skillId: initialState.party[1].skills[0].skillId },
+        { styleId: initialState.party[2].styleId, skillId: initialState.party[2].skills[0].skillId },
+        { styleId: initialState.party[3].styleId, skillId: null },
+        { styleId: initialState.party[4].styleId, skillId: null },
+        { styleId: initialState.party[5].styleId, skillId: null },
+      ],
+      operations: [],
+      overrideEntries: [
+        { type: REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_E_SHIELDS, payload: structuredClone(staleEShieldPayload) },
+        {
+          type: REPLAY_OVERRIDE_ENTRY_TYPES.ACTION_OUTCOME_OVERRIDES,
+          payload: [{ position: 0, outcome: 'HpBreak', enemyIndexes: [0] }],
+        },
+      ],
+    })),
+  };
+
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, replayScript, {});
+
+  assert.equal(manager.computedStates[0]?.turnState.enemyState.eShieldStateByEnemy['0'].current, 35);
+  assert.equal(manager.computedStates[0]?.turnState.enemyState.eShieldStateByEnemy['0'].max, 35);
+  assert.deepEqual(manager.computedStates[0]?.turnState.enemyState.eShieldStateByEnemy['0'].maxByStage, [30, 35, 40]);
+  assert.equal(manager.currentState.turnState.enemyState.eShieldStateByEnemy['0'].current, 40);
+  assert.equal(manager.currentState.turnState.enemyState.eShieldStateByEnemy['0'].max, 40);
+  assert.deepEqual(manager.currentState.turnState.enemyState.eShieldStateByEnemy['0'].maxByStage, [30, 35, 40]);
 });
 
 test('TurnEngineManager persists turn-start enemy slot snapshots into overrideEntries and restores them on reload', () => {

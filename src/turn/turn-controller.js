@@ -2429,6 +2429,37 @@ function normalizeEnemyEShieldStateEntry(value) {
   return cloneEnemyEShieldState(value);
 }
 
+function resolveEnemyEShieldStageIndex(extraHpGaugeState = null) {
+  const total = Number(extraHpGaugeState?.total ?? 0);
+  const remaining = Number(extraHpGaugeState?.remaining ?? 0);
+  return Number.isFinite(total) && Number.isFinite(remaining) ? total - remaining : 0;
+}
+
+function resolveEnemyEShieldStageMax(maxByStage = null, stageIndex = null) {
+  if (!Array.isArray(maxByStage)) {
+    return null;
+  }
+  const index = Number(stageIndex);
+  if (!Number.isInteger(index) || index < 0) {
+    return null;
+  }
+  const stagedMax = Number(maxByStage[index]);
+  return Number.isFinite(stagedMax) && stagedMax > 0 ? Math.floor(stagedMax) : null;
+}
+
+function normalizeEnemyEShieldStateEntryForOverride(value, currentValue = null, extraHpGaugeState = null) {
+  const current = cloneEnemyEShieldState(currentValue);
+  const incoming = cloneEnemyEShieldState(value);
+  const currentMaxByStage = Array.isArray(current?.maxByStage) ? current.maxByStage : [];
+  const incomingMaxByStage = Array.isArray(incoming?.maxByStage) ? incoming.maxByStage : [];
+  const maxByStage = currentMaxByStage.length > 0 ? currentMaxByStage : incomingMaxByStage;
+  const stageMax = resolveEnemyEShieldStageMax(maxByStage, resolveEnemyEShieldStageIndex(extraHpGaugeState));
+  return cloneEnemyEShieldState(value, {
+    ...(maxByStage.length > 0 ? { maxByStage } : {}),
+    ...(stageMax !== null ? { max: stageMax } : {}),
+  });
+}
+
 export function getEnemyState(turnState) {
   const state = turnState?.enemyState;
   if (!state || typeof state !== 'object') {
@@ -2543,6 +2574,13 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
   const nextEnemyCount = hasOwnEnemyOverrideField(snapshot, 'enemyCount')
     ? clampEnemyCount(snapshot.enemyCount)
     : current.enemyCount;
+  const nextExtraHpGaugeStateByEnemy = hasOwnEnemyOverrideField(snapshot, 'enemyExtraHpGauges')
+    ? Object.fromEntries(
+        Object.entries(snapshot.enemyExtraHpGauges ?? {})
+          .map(([targetIndex, gaugeState]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(gaugeState)])
+          .filter(([, gaugeState]) => Boolean(gaugeState))
+      )
+    : structuredClone(current.extraHpGaugeStateByEnemy);
   const nextEnemyState = {
     ...current,
     enemyCount: nextEnemyCount,
@@ -2567,17 +2605,21 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
     eShieldStateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyEShields')
       ? Object.fromEntries(
           Object.entries(snapshot.enemyEShields ?? {})
-            .map(([targetIndex, shieldState]) => [String(targetIndex), normalizeEnemyEShieldStateEntry(shieldState)])
+            .map(([targetIndex, shieldState]) => {
+              const key = String(targetIndex);
+              return [
+                key,
+                normalizeEnemyEShieldStateEntryForOverride(
+                  shieldState,
+                  current.eShieldStateByEnemy?.[key],
+                  nextExtraHpGaugeStateByEnemy?.[key]
+                ),
+              ];
+            })
             .filter(([, shieldState]) => Boolean(shieldState))
         )
       : structuredClone(current.eShieldStateByEnemy),
-    extraHpGaugeStateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyExtraHpGauges')
-      ? Object.fromEntries(
-          Object.entries(snapshot.enemyExtraHpGauges ?? {})
-            .map(([targetIndex, gaugeState]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(gaugeState)])
-            .filter(([, gaugeState]) => Boolean(gaugeState))
-        )
-      : structuredClone(current.extraHpGaugeStateByEnemy),
+    extraHpGaugeStateByEnemy: nextExtraHpGaugeStateByEnemy,
     absorbElementsByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyAbsorbElements')
       ? cloneEnemySlotObjectMap(snapshot.enemyAbsorbElements)
       : structuredClone(current.absorbElementsByEnemy),
@@ -3403,7 +3445,11 @@ function setEnemyExtraHpGaugeStateByTarget(turnState, targetIndex, state) {
 
 function restoreEnemyEShieldToMax(turnState, targetIndex) {
   const current = getEnemyEShieldStateByTarget(turnState, targetIndex);
-  const restored = restoreEShieldStateToMax(current);
+  const extraHpGaugeState = getEnemyExtraHpGaugeStateByTarget(turnState, targetIndex);
+  const restored = restoreEShieldStateToStageMax(
+    current,
+    resolveEnemyEShieldStageIndex(extraHpGaugeState)
+  ) ?? restoreEShieldStateToMax(current);
   if (!restored) {
     return false;
   }
@@ -3420,7 +3466,7 @@ function restoreEnemyEShieldAfterHpBreak(turnState, targetIndex) {
     return null;
   }
   const extraHpGaugeState = getEnemyExtraHpGaugeStateByTarget(turnState, targetIndex);
-  const stageIndex = Number(extraHpGaugeState?.total ?? 0) - Number(extraHpGaugeState?.remaining ?? 0);
+  const stageIndex = resolveEnemyEShieldStageIndex(extraHpGaugeState);
   const restored = restoreEShieldStateToStageMax(current, stageIndex);
   setEnemyEShieldStateByTarget(turnState, targetIndex, restored);
   return restored;

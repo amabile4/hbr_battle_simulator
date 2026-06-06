@@ -35,14 +35,29 @@ function buildSixMemberDownTurnParty() {
 
 function setEnemyDownTurnAndShield(
   state,
-  { current = 0, max = 30, elements = ['Fire'], remainingTurns = 0 } = {}
+  {
+    current = 0,
+    max = 30,
+    maxByStage = null,
+    elements = ['Fire'],
+    remainingTurns = 0,
+    extraHpGaugeState = null,
+  } = {}
 ) {
   state.turnState.enemyState = {
     enemyCount: 1,
     statuses: [{ statusType: 'DownTurn', targetIndex: 0, remainingTurns }],
     eShieldStateByEnemy: {
-      0: { current, max, elements, defUpRate: 0, damageLimit: 0 },
+      0: {
+        current,
+        max,
+        ...(Array.isArray(maxByStage) ? { maxByStage: [...maxByStage] } : {}),
+        elements,
+        defUpRate: 0,
+        damageLimit: 0,
+      },
     },
+    ...(extraHpGaugeState ? { extraHpGaugeStateByEnemy: { 0: structuredClone(extraHpGaugeState) } } : {}),
   };
   return state;
 }
@@ -105,6 +120,28 @@ test('部分減算された Eシールド (current<max) も DownTurn (remaining=
   assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].current, 45);
   assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].max, 45);
   assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'].elements, ['Wind']);
+});
+
+test('段階別Eシールドは DownTurn 自然回復で現在HP段階の max まで戻る', () => {
+  const party = buildSixMemberDownTurnParty();
+  const state = setEnemyDownTurnAndShield(createBattleStateFromParty(party), {
+    current: 0,
+    max: 30,
+    maxByStage: [30, 35, 40],
+    elements: ['Fire', 'Light', 'Dark'],
+    remainingTurns: 0,
+    extraHpGaugeState: {
+      total: 3,
+      remaining: 2,
+      values: [75000000, 150000000, 200000000],
+    },
+  });
+
+  const { nextState } = runDefaultPreviewCommit(state);
+
+  assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].current, 35);
+  assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].max, 35);
+  assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'].maxByStage, [30, 35, 40]);
 });
 
 test('DownTurn remaining=1 は 1 tick 後も remaining=0 で active のまま (Eシールド復帰しない)', () => {

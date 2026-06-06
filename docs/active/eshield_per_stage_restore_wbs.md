@@ -1,6 +1,6 @@
 # Eシールド段階別復帰バグ修正 WBS
 
-> **ステータス**: ✅ 完了 | **ブランチ**: `feature/eshield-per-stage-restore` | **作成日**: 2026-06-05 | **最終更新**: 2026-06-05
+> **ステータス**: ✅ 完了 | **ブランチ**: `feature/eshield-per-stage-restore` / `feature/eshield-replay-override-stage-fix` | **作成日**: 2026-06-05 | **最終更新**: 2026-06-06
 
 ## 背景
 
@@ -15,6 +15,7 @@
 - Eシールド状態に段階別 max 配列を保持し、HP破壊後に進んだ段階 index に対応する max/current へ復帰する。
 - 段階別データが無い敵は従来通り現在の max へ復帰する。
 - 優先順位は手動 Eシールド編集 > override > なしとし、snapshot、replay override は既存の `eShieldState` 正規化経路で段階別情報を保持する。
+- 2026-06-06 follow-up: 旧 replay の `EnemyEShields` override が `maxByStage` を持たない場合でも、override 内の stale `max` で段階別値を落とさず、現在状態 / catalog 側の `maxByStage` と HP 段階から `max` を再導出する。DownTurn 自然回復も段階別値がある場合は現在 HP 段階の max へ戻す。
 
 ## WBS
 
@@ -26,6 +27,7 @@
 | E-4 | Enemy Setup 手動入力 / BattleState / snapshot 経路の保持確認 | ✅ 完了 |
 | E-5 | unit / Playwright / lint で回帰確認 | ✅ 完了 |
 | E-6 | docs/README 同期・Claudeレビュー依頼 | ✅ 完了 |
+| E-7 | 旧 replay `EnemyEShields` override の `maxByStage` 欠落補正と DownTurn 段階別復帰 | ✅ 完了 |
 
 ## 受け入れ条件
 
@@ -34,6 +36,8 @@
 - Enemy Setup の手動 Eシールド編集で段階別最大値を入力でき、override より優先される。
 - 段階別 Eシールド値がない敵は従来通り単一 max へ復帰する。
 - Eシールド状態の snapshot / replay override で段階別 max が落ちない。
+- 旧 replay の stale `EnemyEShields` override に `maxByStage` がなくても、HP破壊後は `35 -> 40` へ復帰する。
+- DownTurn 終了時の Eシールド自然回復は、段階別値がある場合に現在 HP 段階の max へ復帰する。
 - `npm test`、lint、関連 Playwright が通過する。
 
 ## 検証

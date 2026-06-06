@@ -16,7 +16,10 @@ import {
   previewTurn,
   applyInitialPassiveState,
 } from '../src/index.js';
-import { applyStageSetupTurnStartEffects } from '../src/turn/turn-controller.js';
+import {
+  applyEnemyStateOverrideSnapshot,
+  applyStageSetupTurnStartEffects,
+} from '../src/turn/turn-controller.js';
 import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
@@ -965,6 +968,51 @@ test('manual HP break restores E shield to stage-specific max values', () => {
       defUpRate: 9900,
       damageLimit: 0,
     });
+    currentState = nextState;
+  }
+});
+
+test('stale EnemyEShields override without maxByStage keeps catalog stage values for HP break restore', () => {
+  const { state, skillId } = createHpBreakTestState({
+    eShieldState: createEnemyEShieldState({
+      current: 30,
+      max: 30,
+      maxByStage: [30, 35, 40],
+      elements: ['Fire', 'Light', 'Dark'],
+      defUpRate: 9900,
+    }),
+  });
+  let currentState = state;
+
+  for (const expectedMax of [35, 40]) {
+    applyEnemyStateOverrideSnapshot(currentState.turnState, {
+      enemyEShields: {
+        0: {
+          current: 0,
+          max: 30,
+          elements: ['Fire', 'Light', 'Dark'],
+          defUpRate: 9900,
+          damageLimit: 0,
+        },
+      },
+    });
+    assert.deepEqual(
+      currentState.turnState.enemyState.eShieldStateByEnemy['0'].maxByStage,
+      [30, 35, 40]
+    );
+
+    const { nextState } = commitTurn(
+      currentState,
+      previewTurn(currentState, {
+        0: { characterId: 'M1', skillId, targetEnemyIndex: 0, manualHpBreakEnemyIndexes: [0] },
+        1: { characterId: 'M2', skillId: currentState.party[1].skills[0].skillId },
+        2: { characterId: 'M3', skillId: currentState.party[2].skills[0].skillId },
+      })
+    );
+
+    assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].current, expectedMax);
+    assert.equal(nextState.turnState.enemyState.eShieldStateByEnemy['0'].max, expectedMax);
+    assert.deepEqual(nextState.turnState.enemyState.eShieldStateByEnemy['0'].maxByStage, [30, 35, 40]);
     currentState = nextState;
   }
 });
