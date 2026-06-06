@@ -145,6 +145,41 @@ function formatEnemyEShieldEditorMaxByStage(value = []) {
   return normalizeEnemyEShieldEditorMaxByStage(value).join(',');
 }
 
+function normalizeEnemyEShieldStageCount(value) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric >= 2 ? numeric : 0;
+}
+
+function resolveEnemyEShieldEditorStageCount(extraHpGauge = null) {
+  const normalized = cloneEnemyExtraHpGauge(extraHpGauge);
+  return normalizeEnemyEShieldStageCount(normalized?.total ?? normalized?.values?.length);
+}
+
+function normalizeEnemyEShieldStageIndex(value, stageCount) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 0 || numeric >= stageCount) {
+    return null;
+  }
+  return numeric;
+}
+
+function buildEnemyEShieldEditorStageValues(eShield, stageCount) {
+  const count = normalizeEnemyEShieldStageCount(stageCount);
+  if (count === 0) {
+    return [];
+  }
+  const fallbackMax = normalizeEnemyEShieldEditorNumber(eShield?.max, 0);
+  return Array.from({ length: count }, (_, index) => {
+    const stagedMax = normalizeEnemyEShieldEditorNumber(eShield?.maxByStage?.[index], 0);
+    return stagedMax > 0 ? stagedMax : fallbackMax;
+  });
+}
+
+function resolveEnemyEShieldEditorMax(eShield, stageCount) {
+  const stageValues = buildEnemyEShieldEditorStageValues(eShield, stageCount);
+  return stageValues[0] ?? normalizeEnemyEShieldEditorNumber(eShield?.max, 0);
+}
+
 function createEmptyEnemyEShieldDraft() {
   return {
     count: DEFAULT_E_SHIELD_EDITOR_VALUE,
@@ -483,10 +518,26 @@ export class EnemySetupController {
         if (!Number.isFinite(value)) {
           return;
         }
+        const stageCount = resolveEnemyEShieldEditorStageCount(this.#getEffectiveBySlot(slotIndex).extra_hp_gauge);
+        if (stageCount >= 2 && key === 'max') {
+          return;
+        }
         const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
         const previousMax = Number(currentDraft.max);
         currentDraft[key] = normalizeEnemyEShieldEditorNumber(value, currentDraft[key]);
-        // count が max を超えた場合、max を count に追従させる（HPゲージ複数の擬似表現）
+        if (stageCount >= 2) {
+          currentDraft.max = resolveEnemyEShieldEditorMax(currentDraft, stageCount);
+          if (key === 'count' && Number(currentDraft.count) > Number(currentDraft.max)) {
+            currentDraft.count = currentDraft.max;
+          }
+          this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
+          this.#onChange?.(this.getSnapshot());
+          if (key === 'count' && Number(value) > Number(currentDraft.max)) {
+            this.#render();
+          }
+          return;
+        }
+        // count が max を超えた場合、max を count に追従させる
         let maxFollowed = false;
         if (key === 'count' && Number(currentDraft.count) > Number(currentDraft.max)) {
           currentDraft.max = currentDraft.count;
@@ -507,6 +558,28 @@ export class EnemySetupController {
         currentDraft.maxByStage = normalizeEnemyEShieldEditorMaxByStage(t.value);
         this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
         this.#onChange?.(this.getSnapshot());
+        return;
+      }
+
+      if (t.dataset.editEshieldStageIndex != null) {
+        const slotIndex = this.#state.activeSlotIndex;
+        const stageCount = normalizeEnemyEShieldStageCount(t.dataset.editEshieldStageCount);
+        const stageIndex = normalizeEnemyEShieldStageIndex(t.dataset.editEshieldStageIndex, stageCount);
+        const value = Number(t.value);
+        if (stageIndex === null || !Number.isFinite(value)) {
+          return;
+        }
+        const currentDraft = cloneEnemyEShieldDraft(this.#state.manualBySlot[slotIndex].e_shield);
+        const nextValues = buildEnemyEShieldEditorStageValues(currentDraft, stageCount);
+        nextValues[stageIndex] = normalizeEnemyEShieldEditorNumber(value, nextValues[stageIndex]);
+        currentDraft.maxByStage = nextValues;
+        currentDraft.max = nextValues[0];
+        if (Number(currentDraft.count) > Number(currentDraft.max)) {
+          currentDraft.count = currentDraft.max;
+        }
+        this.#state.manualBySlot[slotIndex].e_shield = currentDraft;
+        this.#onChange?.(this.getSnapshot());
+        this.#render();
         return;
       }
 
@@ -776,6 +849,7 @@ export class EnemySetupController {
     const selectedCategoryKey = this.#normalizeCategoryKeyForSlot(activeSlotIndex);
     const categoryEnemies = this.#getEnemiesForCategory(selectedCategoryKey);
     const eShieldDraft = cloneEnemyEShieldDraft(vals.e_shield);
+    const eShieldStageCount = resolveEnemyEShieldEditorStageCount(vals.extra_hp_gauge);
     const hasEShield = Boolean(cloneEnemyEShield(vals.e_shield));
 
     this.#root.innerHTML = `
@@ -915,7 +989,7 @@ export class EnemySetupController {
               </div>
             </div>
 
-            ${this.#eShieldHtml(eShieldDraft, hasEShield, isManual)}
+            ${this.#eShieldHtml(eShieldDraft, hasEShield, isManual, eShieldStageCount)}
           </div>
         </div>
 
@@ -988,7 +1062,13 @@ export class EnemySetupController {
       </div>`;
   }
 
-  #eShieldHtml(eShield, hasEShield, editable) {
+  #eShieldHtml(eShield, hasEShield, editable, stageCount = 0) {
+    const displayEShield = normalizeEnemyEShieldStageCount(stageCount) >= 2
+      ? {
+          ...eShield,
+          max: resolveEnemyEShieldEditorMax(eShield, stageCount),
+        }
+      : eShield;
     if (editable) {
       return `
         <div data-role="enemy-e-shield-editor" class="rounded-md border border-violet-200 bg-violet-50/70 p-2 space-y-1.5">
@@ -997,26 +1077,20 @@ export class EnemySetupController {
             <div class="text-[10px] text-violet-500">max=0 または属性未選択で未設定扱い</div>
           </div>
           <div class="grid grid-cols-2 gap-1.5">
-            ${this.#numFieldHtml('count', '現在値', eShield.count, true, null, 'data-edit-eshield-field')}
-            ${this.#numFieldHtml('max', '最大値', eShield.max, true, null, 'data-edit-eshield-field')}
+            ${this.#numFieldHtml('count', '現在値', displayEShield.count, true, null, 'data-edit-eshield-field')}
+            ${this.#eShieldMaxFieldHtml(displayEShield, stageCount)}
           </div>
           <div class="grid grid-cols-2 gap-1.5">
-            ${this.#numFieldHtml('def_up_rate', '防御UP', eShield.def_up_rate, true, null, 'data-edit-eshield-field')}
-            ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', eShield.dmg_limit, true, null, 'data-edit-eshield-field')}
+            ${this.#numFieldHtml('def_up_rate', '防御UP', displayEShield.def_up_rate, true, null, 'data-edit-eshield-field')}
+            ${this.#numFieldHtml('dmg_limit', 'ダメージ上限', displayEShield.dmg_limit, true, null, 'data-edit-eshield-field')}
           </div>
-          <label class="flex flex-col gap-0.5">
-            <span class="text-xs text-violet-500">段階別最大値</span>
-            <input type="text" data-edit-eshield-stages
-                   value="${formatEnemyEShieldEditorMaxByStage(eShield.maxByStage)}"
-                   class="text-xs rounded border border-violet-200 px-1 py-0.5 w-full
-                          focus:outline-none focus:ring-1 focus:ring-violet-400" />
-          </label>
+          ${this.#eShieldStageEditorHtml(displayEShield, stageCount)}
           <div>
             <div class="text-xs text-violet-500 mb-1">対応属性</div>
             <div class="grid grid-cols-5 gap-0.5">
               ${E_SHIELD_ELEMENT_OPTIONS.map((element) => this.#eShieldElementHtml(
                 element,
-                eShield.elements.includes(element.eShieldValue)
+                displayEShield.elements.includes(element.eShieldValue)
               )).join('')}
             </div>
           </div>
@@ -1058,6 +1132,50 @@ export class EnemySetupController {
           : ''}
       </div>
     `;
+  }
+
+  #eShieldMaxFieldHtml(eShield, stageCount = 0) {
+    if (normalizeEnemyEShieldStageCount(stageCount) < 2) {
+      return this.#numFieldHtml('max', '最大値', eShield.max, true, null, 'data-edit-eshield-field');
+    }
+    return `
+      <label class="flex flex-col gap-0.5">
+        <span class="text-xs text-gray-500">最大値</span>
+        <input type="number"
+               data-edit-eshield-field="max"
+               value="${eShield.max}"
+               disabled
+               class="text-xs rounded border border-gray-200 bg-gray-100 px-1 py-0.5 w-full text-gray-500" />
+      </label>`;
+  }
+
+  #eShieldStageEditorHtml(eShield, stageCount = 0) {
+    const count = normalizeEnemyEShieldStageCount(stageCount);
+    if (count >= 2) {
+      const stageValues = buildEnemyEShieldEditorStageValues(eShield, count);
+      return `
+        <div class="space-y-1">
+          <div class="text-xs text-violet-500">段階別最大値</div>
+          <div class="grid grid-cols-3 gap-1.5">
+            ${stageValues.map((value, index) => `
+              <label class="flex flex-col gap-0.5">
+                <span class="text-[10px] text-violet-500">段階${index + 1}</span>
+                <input type="number"
+                       data-edit-eshield-stage-index="${index}"
+                       data-edit-eshield-stage-count="${count}"
+                       value="${value}"
+                       class="text-xs rounded border border-violet-200 px-1 py-0.5 w-full
+                              focus:outline-none focus:ring-1 focus:ring-violet-400" />
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    const stageText = formatEnemyEShieldEditorMaxByStage(eShield.maxByStage);
+    return stageText
+      ? `<div class="text-xs text-violet-600">段階別最大値: ${stageText}</div>`
+      : '';
   }
 
   #eShieldElementHtml(element, checked) {

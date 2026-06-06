@@ -11,7 +11,7 @@
 ## 方針
 
 - `json/enemies.json` は canonical のまま維持し、`json/enemy_eshield_overrides.json` で該当敵の段階別 Eシールド値を補完する。
-- Enemy Setup の手動 Eシールド編集からも段階別 max を CSV で入力できるようにする。
+- Enemy Setup の手動 Eシールド編集からも段階別 max を編集できるようにする。HP段階ゲージを持つ敵は段階ごとの個別 number input を使い、単一の最大値は段階1から派生する編集不可表示、コンマ区切りは表示用途に留める。
 - Eシールド状態に段階別 max 配列を保持し、HP破壊後に進んだ段階 index に対応する max/current へ復帰する。
 - 段階別データが無い敵は従来通り現在の max へ復帰する。
 - 優先順位は手動 Eシールド編集 > override > なしとし、snapshot、replay override は既存の `eShieldState` 正規化経路で段階別情報を保持する。
@@ -28,6 +28,7 @@
 | E-5 | unit / Playwright / lint で回帰確認 | ✅ 完了 |
 | E-6 | docs/README 同期・Claudeレビュー依頼 | ✅ 完了 |
 | E-7 | 旧 replay `EnemyEShields` override の `maxByStage` 欠落補正と DownTurn 段階別復帰 | ✅ 完了 |
+| E-8 | Enemy Setup の HP段階別 Eシールド max 個別入力化 | ✅ 完了 |
 
 ## 受け入れ条件
 

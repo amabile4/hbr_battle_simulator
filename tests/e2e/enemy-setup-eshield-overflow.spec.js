@@ -20,8 +20,8 @@ async function openEShieldEditorForKaleidoPreset(page) {
   await expect(editor).toBeVisible({ timeout: 5000 });
 }
 
-test.describe('Enemy Setup Eシールド count > max auto-follow', () => {
-  test('count に max を超える値を入れると max が count に追従する', async ({ page }) => {
+test.describe('Enemy Setup Eシールド staged max handling', () => {
+  test('段階別最大値がある敵では max を段階1から派生し count を max 以下に保つ', async ({ page }) => {
     await openEShieldEditorForKaleidoPreset(page);
 
     const countInput = page.locator('[data-edit-eshield-field="count"]');
@@ -30,25 +30,29 @@ test.describe('Enemy Setup Eシールド count > max auto-follow', () => {
     // 初期値は count=30 / max=30
     await expect(countInput).toHaveValue('30');
     await expect(maxInput).toHaveValue('30');
+    await expect(maxInput).toBeDisabled();
 
     // count を 45 に変更（max を超える値）
     await countInput.fill('45');
     await countInput.blur();
 
-    // max が count に追従して 45 になっていること
-    await expect(maxInput).toHaveValue('45');
-    await expect(countInput).toHaveValue('45');
+    // max は段階1由来のまま、count は max 以下に戻る
+    await expect(maxInput).toHaveValue('30');
+    await expect(countInput).toHaveValue('30');
   });
 
-  test('count <= max のときは max を変更しない', async ({ page }) => {
+  test('段階1を変えると disabled の max 表示も同期する', async ({ page }) => {
     await openEShieldEditorForKaleidoPreset(page);
 
     const countInput = page.locator('[data-edit-eshield-field="count"]');
     const maxInput = page.locator('[data-edit-eshield-field="max"]');
+    const stage1Input = page.locator('[data-edit-eshield-stage-index="0"]');
 
-    // max を 50 に上げる
-    await maxInput.fill('50');
-    await maxInput.blur();
+    await expect(maxInput).toBeDisabled();
+
+    // 段階1を 50 に上げる
+    await stage1Input.fill('50');
+    await stage1Input.blur();
     await expect(maxInput).toHaveValue('50');
 
     // count を 25 に下げる（max 以下）

@@ -606,11 +606,16 @@ test('InitialSetupController restores enemy manual resistance percent, absorb se
     assert.equal(root.querySelector('[data-edit-absorb="nonelement"]').checked, true);
     assert.equal(root.querySelector('[data-edit-eshield-field="count"]').value, '12');
     assert.equal(root.querySelector('[data-edit-eshield-field="max"]').value, '30');
+    assert.equal(root.querySelector('[data-edit-eshield-field="max"]').disabled, false);
     assert.equal(root.querySelector('[data-edit-eshield-element="Fire"]').checked, true);
     assert.equal(root.querySelector('[data-edit-eshield-element="Ice"]').checked, true);
     assert.equal(root.querySelector('[data-edit-eshield-field="def_up_rate"]').value, '5000');
     assert.equal(root.querySelector('[data-edit-eshield-field="dmg_limit"]').value, '200000');
-    assert.equal(root.querySelector('[data-edit-eshield-stages]').value, '30,35,40');
+    assert.equal(root.querySelector('[data-edit-eshield-stages]'), null);
+    assert.match(
+      root.querySelector('[data-role="enemy-e-shield-editor"]')?.textContent ?? '',
+      /段階別最大値: 30,35,40/
+    );
 
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(snapshot.enemy.isManual, true);
@@ -652,6 +657,11 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
             def_up_rate: 5000,
             dmg_limit: 0,
           },
+          extra_hp_gauge: {
+            total: 3,
+            remaining: 3,
+            values: [75000000, 150000000, 200000000],
+          },
         },
       ],
     });
@@ -674,8 +684,8 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
     countInput.dispatchEvent(new win.Event('change', { bubbles: true }));
 
     const maxInput = root.querySelector('[data-edit-eshield-field="max"]');
-    maxInput.value = '11';
-    maxInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+    assert.equal(maxInput.value, '30');
+    assert.equal(maxInput.disabled, true);
 
     const fireCheckbox = root.querySelector('[data-edit-eshield-element="Fire"]');
     fireCheckbox.checked = false;
@@ -693,16 +703,23 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
     damageLimitInput.value = '150000';
     damageLimitInput.dispatchEvent(new win.Event('change', { bubbles: true }));
 
-    const stagesInput = root.querySelector('[data-edit-eshield-stages]');
-    assert.equal(stagesInput.value, '30,35,40');
-    stagesInput.value = '7,11,15';
-    stagesInput.dispatchEvent(new win.Event('change', { bubbles: true }));
+    assert.equal(root.querySelector('[data-edit-eshield-stages]'), null);
+    const stageInputs = root.querySelectorAll('[data-edit-eshield-stage-index]');
+    assert.equal(stageInputs.length, 3);
+    assert.equal(stageInputs.item(0).value, '30');
+    assert.equal(stageInputs.item(1).value, '35');
+    assert.equal(stageInputs.item(2).value, '40');
+    [7, 11, 15].forEach((value, index) => {
+      const input = root.querySelector(`[data-edit-eshield-stage-index="${index}"]`);
+      input.value = String(value);
+      input.dispatchEvent(new win.Event('change', { bubbles: true }));
+    });
 
     const snapshot = controller.getCurrentSetupSnapshot();
     assert.equal(snapshot.enemy.isManual, true);
     assert.deepEqual(snapshot.enemy.e_shield, {
       count: 7,
-      max: 11,
+      max: 7,
       maxByStage: [7, 11, 15],
       elements: ['Ice', 'Light'],
       def_up_rate: 3200,
@@ -710,7 +727,7 @@ test('InitialSetupController enemy setup manual edit updates Eシールド field
     });
     assert.deepEqual(snapshot.enemy.enemySlots[0].manual.e_shield, {
       count: 7,
-      max: 11,
+      max: 7,
       maxByStage: [7, 11, 15],
       elements: ['Ice', 'Light'],
       def_up_rate: 3200,
