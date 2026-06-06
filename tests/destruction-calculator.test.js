@@ -28,7 +28,6 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
         parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
       },
     ],
-    spMapping: {},
   };
   const input = {
     attacker: { styleId: 1 },
