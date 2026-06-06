@@ -81,6 +81,7 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
     attacker: {
       styleId: 2,
       accessories: ['BlastPierce'],
+      accessoryDestructionRateBonus: 0.15,
       resonanceDestructionRateBonus: 0.10,
       destructionLimitExceedBonus: 1.0,
     },

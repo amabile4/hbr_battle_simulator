@@ -44,14 +44,10 @@ export function calculateDestruction(input, data) {
 
   if (skillInput.isNormalAttack !== undefined && skillInput.isNormalAttack !== null) {
     isNormalAttack = Boolean(skillInput.isNormalAttack);
-  } else if (skillName && skillName.includes('通常攻撃')) {
-    isNormalAttack = true;
   }
 
   if (skillInput.isPursuit !== undefined && skillInput.isPursuit !== null) {
     isPursuit = Boolean(skillInput.isPursuit);
-  } else if (skillName && skillName.includes('追撃')) {
-    isPursuit = true;
   }
 
   if (skillInput.spCostOverride !== undefined && skillInput.spCostOverride !== null) {
@@ -108,16 +104,10 @@ export function calculateDestruction(input, data) {
   let accessoryBonus = attacker.accessoryDestructionRateBonus;
   if (accessoryBonus !== undefined && accessoryBonus !== null) {
     accessoryBonus = Number(accessoryBonus);
-    blasterCorrection += accessoryBonus;
   } else {
-    const accessories = attacker.accessories ?? [];
-    if (accessories.includes('BlastPierce') || accessories.includes('ブラストピアス')) {
-      accessoryBonus = 0.15;
-      blasterCorrection += 0.15;
-    } else {
-      accessoryBonus = 0.0;
-    }
+    accessoryBonus = 0.0;
   }
+  blasterCorrection += accessoryBonus;
 
   // 8. Resolve buffs (DestructionUp)
   const buffs = attacker.statusEffects ?? [];
