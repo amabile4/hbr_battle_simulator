@@ -329,7 +329,7 @@ function calculateWeightedAttackStat(stats, weights) {
   return statValues.reduce((sum, value) => sum + value, 0) / statValues.length;
 }
 
-function calculateBaseDamage({ statusAtk, paramBorder, threshold, minPower, maxPower, isCritical, isNormalAttack, abilitySprCorrection }) {
+function calculateBaseDamage({ statusAtk, paramBorder, threshold, minPower, maxPower, isCritical, isNormalAttack, abilitySprCorrection, clampOverLimit = true }) {
   const effectiveThreshold = isCritical && isNormalAttack
     ? threshold / NORMAL_ATTACK_CRIT_E_DIVISOR
     : threshold;
@@ -337,9 +337,19 @@ function calculateBaseDamage({ statusAtk, paramBorder, threshold, minPower, maxP
     ? paramBorder - CRITICAL_BORDER_REDUCTION - Math.max(0, -CRITICAL_BORDER_REDUCTION - abilitySprCorrection)
     : paramBorder;
   const diff = statusAtk - border;
-  const base = diff < 0
-    ? (minPower / effectiveThreshold) * (diff + effectiveThreshold)
-    : ((maxPower - minPower) / effectiveThreshold) * Math.min(diff, effectiveThreshold) + minPower;
+  
+  let base;
+  if (diff < 0) {
+    base = (minPower / effectiveThreshold) * (diff + effectiveThreshold);
+  } else if (diff < effectiveThreshold) {
+    base = ((maxPower - minPower) / effectiveThreshold) * diff + minPower;
+  } else {
+    if (clampOverLimit) {
+      base = maxPower;
+    } else {
+      base = maxPower + maxPower * (diff - effectiveThreshold) * 0.0025;
+    }
+  }
   return Math.max(0, base * (isCritical ? CRITICAL_BASE_RATE : 1));
 }
 
@@ -364,6 +374,8 @@ export function calculateDamage(input, data) {
   const attacker = clonePlainObject(input?.attacker);
   const defender = clonePlainObject(input?.defender);
   const skillInput = clonePlainObject(input?.skill);
+  const options = input?.options ?? {};
+  const clampOverLimit = options.clampOverLimit !== false;
   const ignoredEffects = [];
 
   const skillName = cleanSkillName(skillInput.name);
@@ -396,6 +408,7 @@ export function calculateDamage(input, data) {
     isCritical: false,
     isNormalAttack,
     abilitySprCorrection,
+    clampOverLimit,
   });
   let baseDamageCrit = calculateBaseDamage({
     statusAtk,
@@ -406,6 +419,7 @@ export function calculateDamage(input, data) {
     isCritical: true,
     isNormalAttack,
     abilitySprCorrection,
+    clampOverLimit,
   });
 
   if (!attackPart) {
