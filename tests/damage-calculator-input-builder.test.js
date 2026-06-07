@@ -98,6 +98,29 @@ test('buildDamageCalculationInput preserves stat lane and builds target-indexed 
   assert.equal(input.defender.isHpTarget, true);
 });
 
+test('buildDamageCalculationInput falls back per stat when actual stats are missing or zero', () => {
+  const input = buildDamageCalculationInput(
+    {},
+    {
+      role: 'Attacker',
+      limitBreakCount: 1,
+      str: 777,
+      dex: 0,
+      wis: null,
+      spr: undefined,
+      luk: 'bad',
+      con: 888,
+    }
+  );
+
+  assert.equal(input.attacker.stats.str, 777);
+  assert.equal(input.attacker.stats.dex, 670);
+  assert.equal(input.attacker.stats.wis, 620);
+  assert.equal(input.attacker.stats.spr, 620);
+  assert.equal(input.attacker.stats.luk, 620);
+  assert.equal(input.attacker.stats.con, 888);
+});
+
 test('buildDamageCalculationInput preserves resolved breakdown multipliers without splitting charge', () => {
   const input = buildDamageCalculationInput(
     {

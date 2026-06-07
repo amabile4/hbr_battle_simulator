@@ -5,7 +5,7 @@ import {
   isRequiredSkillSetting,
   SkillSettingsPanel,
 } from './skill-filter-panel.js';
-import { normalizeCharacterStats } from '../../src/domain/character-stats.js';
+import { CHARACTER_STAT_KEYS, normalizeCharacterStats } from '../../src/domain/character-stats.js';
 import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
 import { StatsSettingsPanel } from './stats-settings-panel.js';
 
@@ -49,6 +49,8 @@ function createEmptySlotState() {
     style: null,
     supportStyleId: null,
     supportStyle: null,
+    defaultStats: null,
+    supportDefaultStats: null,
     stats: null,
     supportStats: null,
     lb: 0,
@@ -59,6 +61,19 @@ function createEmptySlotState() {
     morale: 'normal',
     equippedSkillIds: [],
   };
+}
+
+function readBaseParamValue(value) {
+  if (Array.isArray(value)) {
+    const maxValue = Number(value[1]);
+    if (Number.isFinite(maxValue)) {
+      return maxValue;
+    }
+    const minValue = Number(value[0]);
+    return Number.isFinite(minValue) ? minValue : null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function normalizePresetName(name) {
@@ -387,18 +402,24 @@ export class PartySetupController {
       const supportStyleId = snapshot?.supportStyleIds?.[index] ?? null;
       const style = styleId ? (this.#store.getStyleById(styleId) ?? null) : null;
       const supportStyle = supportStyleId ? (this.#store.getStyleById(supportStyleId) ?? null) : null;
+      const lb = Number(snapshot?.limitBreakLevelsByPartyIndex?.[index] ?? 0);
+      const supportLb = Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0);
+      const defaultStats = style ? this.#resolveInitialStats(style, lb) : null;
+      const supportDefaultStats = style && supportStyle ? this.#resolveInitialStats(supportStyle, supportLb) : null;
       return {
         styleId: style ? Number(styleId) : null,
         style,
         supportStyleId: style && supportStyle ? Number(supportStyleId) : null,
         supportStyle: style ? supportStyle : null,
-        stats: style ? normalizeCharacterStats(snapshot?.statsByPartyIndex?.[index]?.stats) : null,
+        defaultStats,
+        supportDefaultStats,
+        stats: style ? (normalizeCharacterStats(snapshot?.statsByPartyIndex?.[index]?.stats) ?? defaultStats) : null,
         supportStats:
           style && supportStyle
-            ? normalizeCharacterStats(snapshot?.statsByPartyIndex?.[index]?.supportStats)
+            ? (normalizeCharacterStats(snapshot?.statsByPartyIndex?.[index]?.supportStats) ?? supportDefaultStats)
             : null,
-        lb: Number(snapshot?.limitBreakLevelsByPartyIndex?.[index] ?? 0),
-        supportLb: Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0),
+        lb,
+        supportLb,
         drivePierce: Number(snapshot?.drivePierceByPartyIndex?.[index] ?? 0),
         spEquipId: resolveSnapshotSpEquipId(snapshot, index),
         belt: resolveSnapshotBeltValue(snapshot, index),
@@ -471,6 +492,32 @@ export class PartySetupController {
   }
 
   // ---- private ----
+
+  #resolveStyleJsonStats(style) {
+    if (!style) {
+      return null;
+    }
+    const character = Array.isArray(this.#store?.characters)
+      ? this.#store.characters.find((entry) => String(entry?.label) === String(style?.chara_label)) ?? null
+      : null;
+    const values = Object.fromEntries(
+      CHARACTER_STAT_KEYS.map((key) => {
+        const characterBase = readBaseParamValue(character?.base_param?.[key]);
+        const styleBase = readBaseParamValue(style?.base_param?.[key]);
+        return [
+          key,
+          Number.isFinite(characterBase) && Number.isFinite(styleBase)
+            ? characterBase + styleBase
+            : Number.NaN,
+        ];
+      })
+    );
+    return normalizeCharacterStats(values);
+  }
+
+  #resolveInitialStats(style, limitBreakLevel = 0) {
+    return this.#resolveStyleJsonStats(style) ?? resolveDefaultStats(style?.role, limitBreakLevel);
+  }
 
   // ---- preset ----
 
@@ -623,15 +670,21 @@ export class PartySetupController {
         style && s.supportStyleId
           ? (this.#store.getStyleById(s.supportStyleId) ?? null)
           : null;
+      const lb = s.lb ?? 0;
+      const supportLb = s.supportLb ?? 0;
+      const defaultStats = style ? this.#resolveInitialStats(style, lb) : null;
+      const supportDefaultStats = supportStyle ? this.#resolveInitialStats(supportStyle, supportLb) : null;
       return {
         styleId: style ? s.styleId : null,
         style,
         supportStyleId: supportStyle ? s.supportStyleId : null,
         supportStyle,
-        stats: style ? normalizeCharacterStats(s.stats) : null,
-        supportStats: supportStyle ? normalizeCharacterStats(s.supportStats) : null,
-        lb: s.lb ?? 0,
-        supportLb: s.supportLb ?? 0,
+        defaultStats,
+        supportDefaultStats,
+        stats: style ? (normalizeCharacterStats(s.stats) ?? defaultStats) : null,
+        supportStats: supportStyle ? (normalizeCharacterStats(s.supportStats) ?? supportDefaultStats) : null,
+        lb,
+        supportLb,
         drivePierce: s.drivePierce ?? 0,
         spEquipId: s.spEquipId ?? DEFAULT_SP_EQUIP_ID,
         belt: s.belt ?? '',
@@ -1107,17 +1160,23 @@ export class PartySetupController {
         const val = el.value;
         if (field === 'lb') {
           const slot = this.#slots[idx];
-          const previousDefault = resolveDefaultStats(slot.style?.role, slot.lb);
+          const previousDefault = slot.defaultStats ?? resolveDefaultStats(slot.style?.role, slot.lb);
           slot.lb = Number(val);
           if (statsEqual(slot.stats, previousDefault)) {
-            slot.stats = resolveDefaultStats(slot.style?.role, slot.lb);
+            slot.defaultStats = this.#resolveInitialStats(slot.style, slot.lb);
+            slot.stats = slot.defaultStats;
+          } else {
+            slot.defaultStats = this.#resolveInitialStats(slot.style, slot.lb);
           }
         } else if (field === 'supportLb') {
           const slot = this.#slots[idx];
-          const previousDefault = resolveDefaultStats(slot.supportStyle?.role, slot.supportLb);
+          const previousDefault = slot.supportDefaultStats ?? resolveDefaultStats(slot.supportStyle?.role, slot.supportLb);
           slot.supportLb = Number(val);
           if (statsEqual(slot.supportStats, previousDefault)) {
-            slot.supportStats = resolveDefaultStats(slot.supportStyle?.role, slot.supportLb);
+            slot.supportDefaultStats = this.#resolveInitialStats(slot.supportStyle, slot.supportLb);
+            slot.supportStats = slot.supportDefaultStats;
+          } else {
+            slot.supportDefaultStats = this.#resolveInitialStats(slot.supportStyle, slot.supportLb);
           }
         }
         else if (field === 'drivePierce') this.#slots[idx].drivePierce = Number(val);
@@ -1132,22 +1191,28 @@ export class PartySetupController {
             const slot = this.#slots[otherIdx];
             if (field === 'lb') {
               if (slot.style) {
-                const previousDefault = resolveDefaultStats(slot.style.role, slot.lb);
+                const previousDefault = slot.defaultStats ?? resolveDefaultStats(slot.style.role, slot.lb);
                 const maxLb = LB_MAX[slot.style.tier] ?? 0;
                 slot.lb = Math.min(Number(val), maxLb);
                 if (statsEqual(slot.stats, previousDefault)) {
-                  slot.stats = resolveDefaultStats(slot.style.role, slot.lb);
+                  slot.defaultStats = this.#resolveInitialStats(slot.style, slot.lb);
+                  slot.stats = slot.defaultStats;
+                } else {
+                  slot.defaultStats = this.#resolveInitialStats(slot.style, slot.lb);
                 }
               } else {
                 slot.lb = 0;
               }
             } else if (field === 'supportLb') {
               if (slot.supportStyle) {
-                const previousDefault = resolveDefaultStats(slot.supportStyle.role, slot.supportLb);
+                const previousDefault = slot.supportDefaultStats ?? resolveDefaultStats(slot.supportStyle.role, slot.supportLb);
                 const maxLb = LB_MAX[slot.supportStyle.tier] ?? 0;
                 slot.supportLb = Math.min(Number(val), maxLb);
                 if (statsEqual(slot.supportStats, previousDefault)) {
-                  slot.supportStats = resolveDefaultStats(slot.supportStyle.role, slot.supportLb);
+                  slot.supportDefaultStats = this.#resolveInitialStats(slot.supportStyle, slot.supportLb);
+                  slot.supportStats = slot.supportDefaultStats;
+                } else {
+                  slot.supportDefaultStats = this.#resolveInitialStats(slot.supportStyle, slot.supportLb);
                 }
               } else {
                 slot.supportLb = 0;
@@ -1489,6 +1554,7 @@ export class PartySetupController {
         if (i !== idx && s.style?.chara_label === style.chara_label) {
           s.style = null;
           s.styleId = null;
+          s.defaultStats = null;
           s.stats = null;
         }
       });
@@ -1497,13 +1563,15 @@ export class PartySetupController {
         if (s.supportStyle?.id === style.id) {
           s.supportStyle = null;
           s.supportStyleId = null;
+          s.supportDefaultStats = null;
           s.supportStats = null;
         }
       });
       this.#slots[idx].style = style;
       this.#slots[idx].styleId = style.id;
       this.#slots[idx].lb = 0;
-      this.#slots[idx].stats = null;
+      this.#slots[idx].defaultStats = this.#resolveInitialStats(style, 0);
+      this.#slots[idx].stats = this.#slots[idx].defaultStats;
       this.#slots[idx].equippedSkillIds = this.#resolveEquippedSkillIdsForStyle(style.id, null);
     } else {
       // サポート同士: 同一スタイル不可 → 既存サポートをクリア
@@ -1512,13 +1580,15 @@ export class PartySetupController {
         if (i !== idx && s.supportStyle?.id === style.id) {
           s.supportStyle = null;
           s.supportStyleId = null;
+          s.supportDefaultStats = null;
           s.supportStats = null;
         }
       });
       this.#slots[idx].supportStyle = style;
       this.#slots[idx].supportStyleId = style.id;
       this.#slots[idx].supportLb = 0;
-      this.#slots[idx].supportStats = resolveDefaultStats(style.role, 0);
+      this.#slots[idx].supportDefaultStats = this.#resolveInitialStats(style, 0);
+      this.#slots[idx].supportStats = this.#slots[idx].supportDefaultStats;
     }
 
     this.#syncReorderMode();

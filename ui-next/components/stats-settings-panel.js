@@ -69,7 +69,8 @@ export class StatsSettingsPanel {
     const isSupport = this.#currentMode === 'support';
     const style = isSupport ? slot?.supportStyle : slot?.style;
     const lb = isSupport ? slot?.supportLb : slot?.lb;
-    const defaults = resolveDefaultStats(style?.role, lb);
+    const defaults = normalizeCharacterStats(isSupport ? slot?.supportDefaultStats : slot?.defaultStats)
+      ?? resolveDefaultStats(style?.role, lb);
     return isSupport
       ? defaults
       : resolveStatsWithSupport(defaults, slot?.supportStats);

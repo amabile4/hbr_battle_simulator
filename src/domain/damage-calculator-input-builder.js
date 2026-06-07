@@ -85,9 +85,14 @@ function normalizeStats(defaultStats, attackerStatsInput = {}) {
   return Object.fromEntries(
     DAMAGE_CALCULATION_STAT_KEYS.map((key) => [
       key,
-      toFiniteNumber(attackerStatsInput?.[key], defaultStats[key]),
+      normalizeStatValue(attackerStatsInput?.[key], defaultStats[key]),
     ])
   );
+}
+
+function normalizeStatValue(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
 }
 
 function buildResistanceMap(affinityRate) {

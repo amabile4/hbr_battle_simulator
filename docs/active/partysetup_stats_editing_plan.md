@@ -1,8 +1,9 @@
 # PartySetup ステータス編集機能 — 検討 & WBS
 
-> **ステータス**: ✅ 完了（P-0〜P-6） | **ブランチ**: `feature/partysetup-stats-editing` | **作成日**: 2026-06-04 | **最終更新**: 2026-06-04
+> **ステータス**: ✅ 完了（P-0〜P-8） | **ブランチ**: `feature/partysetup-stats-editing` | **作成日**: 2026-06-04 | **最終更新**: 2026-06-07
 >
 > ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の後続。攻撃者ステータスの正本を PartySetup に持たせ、計算機へ供給する。
+> 2026-06-07: `characters.json` の `base_param.<stat>[1]` と `styles.json` の `base_param.<stat>` から初期実 stats を生成し、旧 snapshot / preset の stats 欠落時にも PartySetup snapshot へ補完するよう更新。`0/null` stats は欠落扱いで既存 fallback を維持。
 
 ## 1. 背景・なぜ必要か
 
@@ -64,6 +65,7 @@
 | P-5 | Persistence | session save/load schema と lightweight replay に `statsByPartyIndex`。後方互換（欠落時デフォルト値）・replay/snapshot 整合・回帰 | P-1 | ✅ 完了 |
 | P-6 | Test | unit（snapshot round-trip・fallback・slot move/clear・サポート10%）／ E2E（stats 入力→計算反映→保存復元・計算機表示）／ lint | P-2〜P-5 | ✅ 完了 |
 | P-7 | Fix | **サポート 10% を「手入力に負ける」挙動へ修正**（claude レビュー指摘・ユーザー確定 2026-06-04）。計算機は 手入力 stats をそのまま使用（10% 上乗せ無し）、無い時のみ role 標準 + 10%。パネル main プリフィルも default+10% に揃える。テスト/doc 更新 | P-4 | ✅ 完了 |
+| P-8 | Integration | **JSON 実 stats 初期化**。`characters.base_param.<stat>[1] + styles.base_param.<stat>` を PartySetup の main/support default stats として snapshot / preset / style 選択に補完。フィールド欠落・`0/null` は無効値として role 標準 fallback。`buildDamageCalculationInput` も `0/null` stats を fallback する | P-1〜P-5 | ✅ 完了 |
 
 ## 6. 完了時検証
 

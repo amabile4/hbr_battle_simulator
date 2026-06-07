@@ -6,7 +6,9 @@ export function normalizeCharacterStats(source = null) {
     return null;
   }
   const entries = CHARACTER_STAT_KEYS.map((key) => [key, Number(source[key])]);
-  return entries.every(([, value]) => Number.isFinite(value))
+  return entries.every(
+    ([key, value]) => source[key] !== null && source[key] !== undefined && Number.isFinite(value) && value > 0
+  )
     ? Object.fromEntries(entries)
     : null;
 }
