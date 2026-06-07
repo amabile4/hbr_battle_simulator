@@ -1,6 +1,9 @@
 # 威力詳細 未掲載要素 WBS
 
-> **ステータス**: 🟢 進行中 | **最終更新**: 2026-05-31
+> **ステータス**: 🟢 進行中 | **最終更新**: 2026-06-07
+>
+> Priority 1 は実装済み確認。Priority 2/3 は残タスク。
+> 横断サマリーは [damage_calculator_remaining_wbs.md](../damage_calculator_remaining_wbs.md) §大分類E を参照。
 
 ## 目的
 

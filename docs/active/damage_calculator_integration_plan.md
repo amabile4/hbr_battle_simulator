@@ -1,8 +1,9 @@
 # ダメージ計算機 統合実装プラン
 
-> **ステータス**: 🟢 Phase A 完了・Phase B以降継続 | **ブランチ**: `feature/damage-calculator-integration` | **作成日**: 2026-06-03 | **最終更新**: 2026-06-04
+> **ステータス**: 🟢 Phase A 完了・Phase B 残タスク整理済み | **ブランチ**: `feature/damage-calculator-integration` | **作成日**: 2026-06-03 | **最終更新**: 2026-06-07
 >
-> v2 実装（commit 384d805）に対しユーザーから設計思想の乖離指摘あり。下記「設計改訂 v3」を参照。三者（claude/codex/ag）で再整合中。
+> v2 実装（commit 384d805）に対しユーザーから設計思想の乖離指摘あり。設計改訂 v3 で解決済み（2026-06-04）。
+> **Phase B 以降の残タスクは [damage_calculator_remaining_wbs.md](damage_calculator_remaining_wbs.md) を参照**。
 
 ## 概要
 

@@ -1,8 +1,11 @@
 # 破壊率（destructionRate）実装プラン — 検討 & WBS
 
-> **ステータス**: ✅ 仕様確定・実装完了 | **ブランチ**: `feature/decouple-sp-mapping-and-destruction-mechanics` | **更新日**: 2026-06-06
+> **ステータス**: 🟢 仕様確定・D-1完了・D-2〜D-7未着手 | **ブランチ**: `feature/destruction-rate-popup` | **更新日**: 2026-06-07
 >
-> ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の **Phase B** に属する単独タスク。HP ダメージの正確化に必須。仕様は `hbr_calc` 側で確定され、実装されました。
+> ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の **Phase B** に属する単独タスク。HP ダメージの正確化に必須。
+> エンジン単体（calculateDestruction）は実装済み。**turn engine 接続・HP ダメージ接合は未着手**。
+> 右クリックポップアップへの破壊率手動入力（暫定）は 2026-06-07 完了。
+> 残タスクの横断サマリーは [damage_calculator_remaining_wbs.md](damage_calculator_remaining_wbs.md) §大分類D を参照。
 
 ## 1. 背景・なぜ単独タスクか
 

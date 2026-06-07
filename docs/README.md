@@ -43,8 +43,9 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-| [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブのダメージ計算機統合。Phase A の一般スキルDPダメージMVPとして、member role/凸由来read-only stats、Charge倍率往復等価、DP固定表示、resolved skill invariant、選択敵ごとの実 `param_border` 配線、unit / Playwright 回帰まで反映。AttackBySp・HP破壊率・stat delta実値は後続 | 2026-06-04 |
-| [active/destruction_rate_implementation_plan.md](active/destruction_rate_implementation_plan.md) | 🟢 進行中 | 破壊率（HPダメージ係数・最大1299%級）の単独タスク検討＆WBS。`calculateDestruction` の初期実装として 1.0 ベース、`spMapping` loader、`destructionMultiplier`、手動 `isBreakHit` / 任意 `autoBreak`、Enemy Setup 初期現在破壊率表示を追加。turnState 接続、威力詳細/HP表示、ブラスタースロープ等の実値検証は継続 | 2026-06-06 |
+| [active/damage_calculator_remaining_wbs.md](active/damage_calculator_remaining_wbs.md) | 🟢 進行中 | **計算機完成までの残タスクマスター WBS**。C（バフ・デバフ接続検証）/ S（stats実値化）/ E（全能力ダウン差分計算）/ D（破壊率turn接続・HP表示）/ SP（AttackBySp別タスク）/ V（受け入れ検証）の6大分類と依存グラフ。既存3ドキュメントの横断サマリー | 2026-06-07 |
+| [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブのダメージ計算機統合。Phase A（一般スキルDPダメージMVP: A-1〜A-7）完了。Phase B以降の残タスクは damage_calculator_remaining_wbs.md を参照 | 2026-06-07 |
+| [active/destruction_rate_implementation_plan.md](active/destruction_rate_implementation_plan.md) | 🟢 進行中 | 破壊率（HPダメージ係数・最大1299%級）。エンジン単体（calculateDestruction）実装済み、右クリックポップアップ手動入力（暫定）完了。turn engine接続・HP damage接合・表示解禁（D-2〜D-7）は未着手 | 2026-06-07 |
 | [active/partysetup_stats_editing_plan.md](active/partysetup_stats_editing_plan.md) | ✅ 完了 | PartySetupステータス編集機能。スロット単位の `statsByPartyIndex`、メイン/サポート別パネル、自由入力、CharacterStyle・session・lightweight replay 永続化、威力詳細への実stats供給を実装。メイン手入力を最終値として優先し、未入力時のrole標準プリフィル／計算fallbackにのみサポート各ステータス10%を加算。unit / Playwright 回帰まで固定済み | 2026-06-04 |
 
 ---
