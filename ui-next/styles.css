@@ -2980,6 +2980,61 @@
   font-size: 11px;
 }
 
+/* 破壊率（暫定）セクション */
+.char-popup-destruction-rate {
+  border-top: 1px solid #e0e0e0;
+  padding: 8px 12px;
+  background: #fafaf6;
+  font-size: 12px;
+}
+
+.char-popup-destruction-rate-title {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 6px;
+  font-weight: bold;
+  letter-spacing: 0.03em;
+}
+
+.char-popup-destruction-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.char-popup-destruction-rate-label {
+  min-width: 90px;
+  color: #666;
+  font-size: 11px;
+}
+
+.char-popup-destruction-rate-input {
+  width: 80px;
+  padding: 2px 4px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  text-align: right;
+}
+
+.char-popup-destruction-rate-cap {
+  font-size: 10px;
+  color: #999;
+  margin-left: 4px;
+}
+
+.char-popup-destruction-rate-message {
+  font-size: 10px;
+  color: #c00;
+  margin-top: 2px;
+}
+
+[data-role="destruction-rate-after"] {
+  font-size: 14px;
+  color: #1a6030;
+}
+
 @media (max-width: 720px) {
   .char-popup-damage-layout,
   .char-popup-damage-calc-body {
@@ -2992,6 +3047,10 @@
 
   .char-popup-damage-row {
     grid-template-columns: 1fr;
+  }
+
+  .char-popup-destruction-rate-row {
+    flex-wrap: wrap;
   }
 
   .char-popup-damage-group-col {

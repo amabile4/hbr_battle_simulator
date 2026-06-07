@@ -5606,6 +5606,10 @@ export class TurnRowController {
               typeof this.#store?.resolveSkillDescription === 'function'
                 ? (skillId) => this.#store.resolveSkillDescription(skillId)
                 : null,
+            enemyDestructionState: {
+              destructionRateByEnemy: this.#stateAfter?.turnState?.enemyState?.destructionRateByEnemy ?? {},
+              destructionRateCapByEnemy: this.#stateAfter?.turnState?.enemyState?.destructionRateCapByEnemy ?? {},
+            },
           }
         );
       });
