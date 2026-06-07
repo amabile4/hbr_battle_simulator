@@ -1095,7 +1095,7 @@ function attachDamageCalculatorInteractions(root) {
   damagePanel.querySelectorAll('[data-role="damage-calc-pane"]').forEach((pane) => updateDamageCalculatorPane(pane));
 }
 
-function buildDamageTargetBreakdownHtml(targetBreakdown) {
+function buildDamageTargetBreakdownHtml(targetBreakdown, criticalRateNoteHtml = '') {
   const groups = Array.isArray(targetBreakdown?.groups) ? targetBreakdown.groups : [];
   return (
     `<section class="char-popup-damage-target" data-role="char-popup-damage-target" data-target-enemy-index="${esc(targetBreakdown?.targetEnemyIndex ?? '')}">` +
@@ -1105,6 +1105,7 @@ function buildDamageTargetBreakdownHtml(targetBreakdown) {
     `<span class="char-popup-damage-summary-plus">(${esc(formatDamageIncrease(targetBreakdown?.increasePercent))})</span>` +
     `</div>` +
     `<div class="char-popup-damage-formula">${esc(targetBreakdown?.formula ?? '')}</div>` +
+    criticalRateNoteHtml +
     `<div class="char-popup-damage-table" data-role="char-popup-damage-table">` +
     groups.map((group) => buildDamageGroupRowHtml(group)).join('') +
     `</div>` +
@@ -1131,8 +1132,12 @@ function buildDamageActionBreakdownHtml(action, actionIndex, attackerInput, enem
     `<div class="char-popup-damage-action-title">${skillName ? esc(skillName) : 'スキル'}</div>` +
     `<div class="char-popup-damage-layout">` +
     `<div class="char-popup-damage-breakdown-pane">` +
-    targetBreakdowns.map((targetBreakdown) => buildDamageTargetBreakdownHtml(targetBreakdown)).join('') +
-    buildCriticalRateNoteHtml(damageContext?.criticalRateBreakdown) +
+    targetBreakdowns.map((targetBreakdown, i) =>
+      buildDamageTargetBreakdownHtml(
+        targetBreakdown,
+        i === 0 ? buildCriticalRateNoteHtml(damageContext?.criticalRateBreakdown) : ''
+      )
+    ).join('') +
     `</div>` +
     buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdowns, attackerInput) +
     `</div>` +
