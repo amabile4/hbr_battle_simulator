@@ -48,7 +48,7 @@
 
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
-| S-1 | 🔴 | **攻撃者 stats 実値配線**: PartySetup スナップショットにキャラ str/dex/wis/spr/luk/con を追加し、`openCharDetailPopup` 経由で `attackerInput` に実値を渡す。凸・role はすでに連携済み | ❌ 未着手 | PartySetup stats 欄実装 |
+| S-1 | 🔴 | **攻撃者 stats 実値配線**: PartySetup スナップショットにキャラ str/dex/wis/spr/luk/con を追加し、`openCharDetailPopup` 経由で `attackerInput` に実値を渡す。凸・role はすでに連携済み | ✅ 完了（commit 6067712） | PartySetup stats 欄実装 |
 | S-2 | 🟡 | **stat delta 実値化（攻撃者）**: バフ適用後の実効 stat（resolved = base + buffDelta - debuffDelta）を `buildDamageStatDeltaViewModel` に実装。現状 delta=0 固定 | ❌ 未着手 | S-1, C-1 |
 | S-3 | 🟡 | **stat delta 実値化（敵）**: 敵の DefenseDown 等の数値を stat 列の delta として表示。enemyAllAbilityDownByEnemy の計算式確定が必要 | ❌ 未着手・設計必要 | C-2 |
 
