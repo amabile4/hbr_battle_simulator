@@ -6,13 +6,14 @@ import {
 import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
 
 const STAT_LABELS = Object.freeze({
-  str: 'STR',
-  dex: 'DEX',
-  wis: 'WIS',
-  spr: 'SPR',
-  luk: 'LUK',
-  con: 'CON',
+  str: '力',
+  dex: '器用さ',
+  wis: '知性',
+  spr: '精神',
+  luk: '運',
+  con: '体力',
 });
+const STATS_PANEL_DISPLAY_ORDER = Object.freeze(['str', 'dex', 'con', 'spr', 'wis', 'luk']);
 
 export class StatsSettingsPanel {
   #panelEl = null;
@@ -100,7 +101,7 @@ export class StatsSettingsPanel {
         <button type="button" data-action="close-stats" title="閉じる">×</button>
       </div>
       <div class="party-stats-panel__grid">
-        ${CHARACTER_STAT_KEYS.map((key) => `
+        ${STATS_PANEL_DISPLAY_ORDER.map((key) => `
           <label>
             <span>${STAT_LABELS[key]}</span>
             <input type="number" step="1" data-stat="${key}" value="${stats[key]}">

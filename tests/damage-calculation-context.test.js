@@ -31,6 +31,8 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     eligibleEnemyIndexes: [],
     effectiveDamageRatesByEnemy: {},
     enemyParamBorderByEnemy: {},
+    enemyDpByEnemy: {},
+    enemyNamesByEnemy: {},
     destructionRateByEnemy: {},
     activeStatusEffects: [],
     chargeEffects: [],
@@ -94,6 +96,16 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
       1: null,
       2: 'bad',
     },
+    enemyDpByEnemy: {
+      0: '4550000',
+      1: null,
+      2: 'bad',
+    },
+    enemyNamesByEnemy: {
+      0: '敵A',
+      1: null,
+      2: ' 敵C ',
+    },
     destructionRateByEnemy: {
       0: '150',
       1: null,
@@ -122,6 +134,12 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
   assert.equal(context.enemyParamBorderByEnemy[0], 812);
   assert.equal(context.enemyParamBorderByEnemy[1], 0);
   assert.equal(Number.isNaN(context.enemyParamBorderByEnemy[2]), true);
+  assert.equal(context.enemyDpByEnemy[0], 4550000);
+  assert.equal(context.enemyDpByEnemy[1], 0);
+  assert.equal(Number.isNaN(context.enemyDpByEnemy[2]), true);
+  assert.equal(context.enemyNamesByEnemy[0], '敵A');
+  assert.equal(context.enemyNamesByEnemy[1], '');
+  assert.equal(context.enemyNamesByEnemy[2], '敵C');
   assert.equal(context.destructionRateByEnemy[0], 150);
   assert.equal(context.destructionRateByEnemy[1], 0);
   assert.equal(Number.isNaN(context.destructionRateByEnemy[2]), true);

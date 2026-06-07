@@ -2483,6 +2483,7 @@ export function getEnemyState(turnState) {
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       paramBorderByEnemy: {},
+      enemyDpByEnemy: {},
       zoneConfigByEnemy: {},
       talismanState: structuredClone(TALISMAN_STATE_DEFAULT),
       disasterState: structuredClone(DISASTER_STATE_DEFAULT),
@@ -2536,6 +2537,8 @@ export function getEnemyState(turnState) {
       state.enemyNamesByEnemy && typeof state.enemyNamesByEnemy === 'object' ? state.enemyNamesByEnemy : {},
     paramBorderByEnemy:
       state.paramBorderByEnemy && typeof state.paramBorderByEnemy === 'object' ? state.paramBorderByEnemy : {},
+    enemyDpByEnemy:
+      state.enemyDpByEnemy && typeof state.enemyDpByEnemy === 'object' ? state.enemyDpByEnemy : {},
     zoneConfigByEnemy:
       state.zoneConfigByEnemy && typeof state.zoneConfigByEnemy === 'object' ? state.zoneConfigByEnemy : {},
     talismanState:
@@ -2565,6 +2568,7 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
     enemyCount: enemyState.enemyCount,
     enemyNames: structuredClone(enemyState.enemyNamesByEnemy),
     enemyParamBorders: structuredClone(enemyState.paramBorderByEnemy),
+    enemyDps: structuredClone(enemyState.enemyDpByEnemy),
     enemyDamageRates: structuredClone(enemyState.damageRatesByEnemy),
     enemyDestructionRates: structuredClone(enemyState.destructionRateByEnemy),
     enemyDestructionRateCaps: structuredClone(enemyState.destructionRateCapByEnemy),
@@ -2602,6 +2606,9 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
     paramBorderByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyParamBorders')
       ? cloneEnemySlotObjectMap(snapshot.enemyParamBorders)
       : structuredClone(current.paramBorderByEnemy),
+    enemyDpByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDps')
+      ? cloneEnemySlotObjectMap(snapshot.enemyDps)
+      : structuredClone(current.enemyDpByEnemy),
     damageRatesByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDamageRates')
       ? cloneEnemySlotObjectMap(snapshot.enemyDamageRates)
       : structuredClone(current.damageRatesByEnemy),
@@ -8175,6 +8182,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         selectedMindEyeEffects,
         funnelEffects,
         enemyStatusEffects: getEnemyState(state.turnState).statuses,
+        enemyNamesByEnemy: getEnemyState(state.turnState).enemyNamesByEnemy,
         attackReferencesByEnemy: affinityMaps.attackReferencesByEnemy,
         affinityContributionsByEnemy: affinityMaps.affinityContributionsByEnemy,
         tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
@@ -8219,6 +8227,8 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
         enemyParamBorderByEnemy: getEnemyState(state.turnState).paramBorderByEnemy,
+        enemyDpByEnemy: getEnemyState(state.turnState).enemyDpByEnemy,
+        enemyNamesByEnemy: getEnemyState(state.turnState).enemyNamesByEnemy,
         destructionRateByEnemy: getEnemyState(state.turnState).destructionRateByEnemy,
         activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
         chargeEffects,

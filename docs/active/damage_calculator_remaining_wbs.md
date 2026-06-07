@@ -17,7 +17,7 @@
 |---|---|
 | A-1 〜 A-7 | DP ダメージ MVP: charge 修正・attacker source PartySetup 化・read-only stat 表示・DP 固定・invariant・敵 param_border 実値配線 |
 | 倍率内訳 | 7カテゴリ（buff / crit-mindeye / funnel / token-passive / debuff / affinity / vulnerability）表示 |
-| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加 |
+| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続と、新規 EnemySetup snapshot からの敵DP配線を追加 |
 
 ---
 
@@ -79,8 +79,18 @@
 | D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | 🔶 turnState 接続完了（既BREAK / same-action Break・SuperBreak、cap clamp、E-shield active 除外）。敵 `d_rate` 実値は `destructionMultiplierByEnemy` に保持し、破壊率上昇式へ接続。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 | D-1, D-2 |
 | D-4 | 🔴 | **ダメージ式接合**: `damageContext` に per-enemy 破壊率（`enemyParamBorderByEnemy` と同パターン）を配線。`buildDamageCalculationInput` が `destructionRate` を実値化。`calculateDamage` が HP ダメージに乗算 | ✅ 完了（`destructionRateByEnemy` は `%` で保持し、builder / popup adapter が `calculateDamage` 用 rate に変換） | D-2, D-3 |
 | D-5 | 🔴 | **HP ダメージ表示解禁**: `isHpTarget=false` 固定を解除。右ペインに「非クリ HP」「クリティカル HP」行を追加。DP/HP の表示切り替え | ✅ 完了（右クリック威力詳細で DP/HP の非クリ・クリティカル期待値と現在破壊率を同時表示） | D-4 |
-| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E を固定。実データ DP 割れ検証は残） | D-3, D-4, D-5 |
+| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E、DPダメージでは破壊率を乗算しないこと、SkillSwitch 子スキルID解決、対象敵名表示を固定。2026-06-07 添付セッションのコードダクネスは `skillHitCount=9` / `baseHitCount=6` / `funnelHitBonus=3` / `breakHitCount=1` と確認済み。多段中 DP break 後の残 hit を HP ダメージへ按分して威力詳細に出す表示は未実装） | D-3, D-4, D-5 |
 | D-7 | 🟡 | **受け入れ**: HP ダメージ 3 点一致（Excel・実機・シミュレータ） | ❌ 未着手 | D-6 |
+
+### 2026-06-07 コードダクネス検算で判明した不足機能
+
+| ID | 優先度 | 内容 | 状態 | 備考 |
+|---|---|---|---|---|
+| CD-1 | 🔴 | `criticalDamageUpRate` / `criticalRateUpRate` の summary rate を威力詳細 breakdown に接続する | ✅ 完了 | 具体 `activeStatusEffects` が欠けていても不足分だけを静的 contribution として加算し、二重計上を避ける |
+| CD-2 | 🔴 | 敵の現在DPを `damageContext` に渡す | 🔶 新規 EnemySetup snapshot では配線済み | `enemyDpByEnemy` を追加。既存保存セッションには `dp` がないため、load migration または HbrDataStore への敵マスタ保持が必要 |
+| CD-3 | 🔴 | 多段攻撃中にDPが割れた場合、break hit 以降の hit だけ HP ダメージ・破壊率上昇として按分する | ❌ 未実装 | コードダクネスは `baseHitCount=6` + 連撃3で `skillHitCount=9`。現状の威力詳細は全hit DP / 全hit HP の別表示のみ |
+| CD-4 | 🟡 | 属性クリティカル威力UPなど、属性条件付きクリティカル威力が `criticalDamageUpRate` として action に入る実データ回帰を固定する | 🔶 summary 接続済み・実データ検証待ち | スクショの `トロピカルスクランブル 90%` 相当を検証対象にする |
+| CD-5 | 🟡 | 既存セッションでも選択敵IDから敵DPを補完できるデータ経路を作る | ❌ 未実装 | 現在の `HbrDataStore` には enemies がなく、ブラウザ上は EnemySetup snapshot の `dp` 追加で新規保存分のみ対応 |
 
 ---
 

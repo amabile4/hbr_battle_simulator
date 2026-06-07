@@ -4,6 +4,7 @@
 >
 > ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の後続。攻撃者ステータスの正本を PartySetup に持たせ、計算機へ供給する。
 > 2026-06-07: `characters.json` の `base_param.<stat>[1]` と `styles.json` の `base_param.<stat>` から初期実 stats を生成し、旧 snapshot / preset の stats 欠落時にも PartySetup snapshot へ補完するよう更新。`0/null` stats は欠落扱いで既存 fallback を維持。
+> 2026-06-07: ステータス手動入力パネルの表示を日本語ラベルに変更し、入力順を `力/器用さ`, `体力/精神`, `知性/運`（内部キー `str,dex,con,spr,wis,luk`）へ調整。
 
 ## 1. 背景・なぜ必要か
 
@@ -35,7 +36,7 @@
 
 - **データ保持（スロット単位）**: `createEmptySlotState` に `stats`（6値の override オブジェクト・メイン枠）と `supportStats`（サポート枠）を追加。`lb` と同様にスロットフィールドとして move/swap/clear。各値 null/未入力なら `resolveDefaultStats(role, lb)` へ fallback。
 - **永続化**: ステータスは戦闘中不変の正本 → **session save/load に必ず含める**（Phase A の textarea のような非永続枠とは異なる）。snapshot は **`statsByPartyIndex`**（lb と同パターン）。後方互換: 欠落時は role 標準（サポート stats があれば各値10%加算）fallback。
-- **UI（別パネル）**: スロット詳細に詰めず、style-picker のような **overlay/別ウィンドウ**で 6 ステータスを編集。メイン未入力時は role 標準 + サポート各値10%、サポート未入力時は role 標準をプリフィルし自由入力。スロットのキャラ変更で stats はリセット→再プリフィル。
+- **UI（別パネル）**: スロット詳細に詰めず、style-picker のような **overlay/別ウィンドウ**で 6 ステータスを編集。メイン未入力時は role 標準 + サポート各値10%、サポート未入力時は role 標準をプリフィルし自由入力。表示は日本語ラベル、並びは `力/器用さ`, `体力/精神`, `知性/運`。スロットのキャラ変更で stats はリセット→再プリフィル。
 - **計算機接合**: char-detail-popup attackerInput は スロットの **手入力 `stats` が有ればそのまま使用（最優先・support 10% を上乗せしない）**、無ければ `resolveStatsWithSupport(resolveDefaultStats(role, lb), supportStats)`（= role 標準 + サポート 10%）に fallback。Phase A の DP ダメージが実 stats で再計算される。
   - **サポート 10% の位置づけ（ユーザー確定 2026-06-04）**: 手入力6値は「装備・強化等を全部足した最終ステータス」なので、手入力があるときは **手入力が勝ち、サポート 10% は上乗せしない**。サポート 10%（G-18・係数0.10）は **default/プリフィル値としてのみ採用**（処理は残すが手入力に負ける）。
 - **stat delta レーンとの関係**: 本機能は **base（元値）の正本化**。バフ適用後の delta（「STR 650 (+25)」）は別タスク（実効ステータス算出経路）。本機能後は base=実値・delta=0・resolved=base になる。

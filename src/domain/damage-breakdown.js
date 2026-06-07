@@ -275,8 +275,10 @@ function getTargetIndexes(input) {
   return Number.isInteger(target) && target >= 0 ? [target] : [0];
 }
 
-function getTargetLabel(targetEnemyIndex) {
-  return `E${Number(targetEnemyIndex) + 1}`;
+function getTargetLabel(input, targetEnemyIndex) {
+  const slotLabel = `E${Number(targetEnemyIndex) + 1}`;
+  const enemyName = String(input?.enemyNamesByEnemy?.[String(targetEnemyIndex)] ?? '').trim();
+  return enemyName ? `${slotLabel} ${enemyName}` : slotLabel;
 }
 
 function collectAttackBuffContributions(input, targetContext) {
@@ -353,6 +355,25 @@ function collectAttackBuffContributions(input, targetContext) {
     }
   }
 
+  const representedAttackUp =
+    sumValues(effects.map((effect) => createRateContribution(effect))) +
+    foodBuffAttackUpRate +
+    highBoostSkillAtkRate +
+    toFiniteNumber(input?.babiedSkillAttackUpRate, 0) +
+    toFiniteNumber(input?.divaSkillAttackUpRate, 0) +
+    toFiniteNumber(input?.markAttackUpRate, 0) +
+    toFiniteNumber(input?.attackUpPerTokenRate, 0);
+  const missingAttackUpRate = toFiniteNumber(input?.attackUpRate, 0) - representedAttackUp;
+  if (missingAttackUpRate > 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '攻撃力UP',
+        value: missingAttackUpRate,
+        iconStatusType: 'AttackUp',
+      })
+    );
+  }
+
   return contributions;
 }
 
@@ -370,6 +391,17 @@ function collectCritMindEyeContributions(input) {
   );
   for (const effect of criticalDamageEffects) {
     contributions.push(createRateContribution(effect));
+  }
+  const representedCriticalDamageUp = sumValues(criticalDamageEffects.map((effect) => createRateContribution(effect)));
+  const missingCriticalDamageUpRate = toFiniteNumber(input?.criticalDamageUpRate, 0) - representedCriticalDamageUp;
+  if (missingCriticalDamageUpRate > 0) {
+    contributions.push(
+      createStaticContribution({
+        label: 'クリティカル威力UP',
+        value: missingCriticalDamageUpRate,
+        iconStatusType: 'CriticalDamageUp',
+      })
+    );
   }
   const markCriticalDamageUp = toFiniteNumber(input?.markCriticalDamageUp, 0);
   if (markCriticalDamageUp !== 0) {
@@ -496,7 +528,7 @@ function normalizeTargetContext(input, targetEnemyIndex) {
   const affinityMultiplier = toFiniteNumber(input?.effectiveDamageRatesByEnemy?.[String(targetEnemyIndex)], 100) / 100;
   return {
     targetEnemyIndex,
-    targetLabel: getTargetLabel(targetEnemyIndex),
+    targetLabel: getTargetLabel(input, targetEnemyIndex),
     affinityMultiplier: affinityMultiplier > 0 ? affinityMultiplier : 1,
     isWeak: affinityMultiplier > 1,
     isNormalAttack: input?.isNormalAttack === true,
@@ -548,6 +580,17 @@ export function buildCriticalRateBreakdown(input = {}) {
   );
   for (const effect of criticalRateEffects) {
     contributions.push(createRateContribution(effect));
+  }
+  const representedCriticalRateUp = sumValues(criticalRateEffects.map((effect) => createRateContribution(effect)));
+  const missingCriticalRateUpRate = toFiniteNumber(input?.criticalRateUpRate, 0) - representedCriticalRateUp;
+  if (missingCriticalRateUpRate > 0) {
+    contributions.push(
+      createStaticContribution({
+        label: 'クリティカル率UP',
+        value: missingCriticalRateUpRate,
+        iconStatusType: 'CriticalRateUp',
+      })
+    );
   }
   const markCriticalRateUp = toFiniteNumber(input?.markCriticalRateUp, 0);
   if (markCriticalRateUp !== 0) {

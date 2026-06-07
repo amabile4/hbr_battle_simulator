@@ -171,6 +171,14 @@ test('PartySetupController edits, snapshots, restores, and swaps slot stats', ()
     const panel = win.document.querySelector('#stats-settings-panel');
     assert.equal(panel.style.display, 'block');
     assert.equal(panel.querySelector('[data-stat="str"]').value, '650');
+    assert.deepEqual(
+      [...panel.querySelectorAll('[data-stat]')].map((input) => input.dataset.stat),
+      ['str', 'dex', 'con', 'spr', 'wis', 'luk']
+    );
+    assert.deepEqual(
+      [...panel.querySelectorAll('.party-stats-panel__grid span')].map((label) => label.textContent),
+      ['力', '器用さ', '体力', '精神', '知性', '運']
+    );
     panel.querySelector('[data-stat="str"]').value = '700';
     panel.querySelector('[data-action="apply-stats"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));

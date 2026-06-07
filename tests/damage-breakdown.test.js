@@ -81,8 +81,27 @@ test('buildCriticalRateBreakdown totals selected critical sources and marks guar
   );
 });
 
+test('buildCriticalRateBreakdown uses missing summarized critical rate without double counting active effects', () => {
+  const breakdown = buildCriticalRateBreakdown({
+    activeStatusEffects: [
+      { statusType: 'CriticalRateUp', power: 0.7, sourceSkillName: '会心の構え', remaining: 1 },
+    ],
+    criticalRateUpRate: 1,
+  });
+
+  assert.equal(breakdown.criticalRatePercent, 100);
+  assert.deepEqual(
+    breakdown.contributions.map((entry) => [entry.label, entry.value]),
+    [
+      ['クリティカル確率アップ', 0.7],
+      ['クリティカル率UP', 0.30000000000000004],
+    ]
+  );
+});
+
 test('buildDamageBreakdown returns official-category target-specific critical multipliers', () => {
   const breakdown = buildDamageBreakdown({
+    enemyNamesByEnemy: { 0: '異時層 スカルフェザー 最終形態' },
     effectiveDamageRatesByEnemy: { 0: 150, 1: 50 },
     attackReferencesByEnemy: {
       0: ['Slash', 'Fire'],
@@ -127,6 +146,8 @@ test('buildDamageBreakdown returns official-category target-specific critical mu
 
   const weakTarget = breakdown.targetBreakdowns[0];
   const resistedTarget = breakdown.targetBreakdowns[1];
+  assert.equal(weakTarget.targetLabel, 'E1 異時層 スカルフェザー 最終形態');
+  assert.equal(resistedTarget.targetLabel, 'E2');
   assert.equal(findGroup(weakTarget, 'buff').multiplier, 3);
   assert.equal(findGroup(weakTarget, 'crit-mindeye').multiplier, 1.8);
   assert.equal(findGroup(weakTarget, 'funnel').multiplier, 1.5);
@@ -142,6 +163,36 @@ test('buildDamageBreakdown returns official-category target-specific critical mu
   assert.equal(findGroup(weakTarget, 'buff').contributions.some((entry) => entry.label === 'アクセサリ'), false);
   assert.equal(findGroup(weakTarget, 'buff').contributions.some((entry) => entry.label === '心眼'), true);
   assert.equal(findGroup(weakTarget, 'crit-mindeye').contributions.some((entry) => entry.label === '心眼'), false);
+});
+
+test('buildDamageBreakdown uses missing summarized attack and critical damage rates', () => {
+  const target = firstTargetBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    activeStatusEffects: [
+      { statusType: 'AttackUp', power: 0.4, sourceSkillName: '攻撃支援', remaining: 1 },
+      { statusType: 'CriticalDamageUp', power: 0.6, sourceSkillName: '会心支援', remaining: 1 },
+    ],
+    attackUpRate: 0.75,
+    criticalDamageUpRate: 1,
+  });
+
+  assert.equal(findGroup(target, 'buff').multiplier, 1.75);
+  assert.deepEqual(
+    findGroup(target, 'buff').contributions.map((entry) => [entry.label, entry.value]),
+    [
+      ['攻撃力アップ', 0.4],
+      ['攻撃力UP', 0.35],
+    ]
+  );
+  assert.equal(findGroup(target, 'crit-mindeye').multiplier, 2.5);
+  assert.deepEqual(
+    findGroup(target, 'crit-mindeye').contributions.map((entry) => [entry.label, entry.value]),
+    [
+      ['クリティカル基礎倍率', 1.5],
+      ['クリティカルダメージアップ', 0.6],
+      ['クリティカル威力UP', 0.4],
+    ]
+  );
 });
 
 test('buildDamageBreakdown keeps enemy debuff adoption target-specific', () => {
