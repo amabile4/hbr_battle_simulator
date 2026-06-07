@@ -24,6 +24,7 @@ const DIMENSION_EX_ENEMY_PATTERN = /^Ex_/;
 const ENEMY_PRESET_DISPLAY_NAME_BY_LABEL = Object.freeze({
   Ex_DeathSlug1st: 'デススラッグEX 第一形態',
   Ex_DeathSlug2nd: 'デススラッグEX 第二形態',
+  Hard_SkullFeatherHead2nd_MC04BDay14: '異時層 スカルフェザー 最終形態',
 });
 const SUMMON_ENEMY_LABEL_SUFFIX = '_Summon';
 const NORMAL_ENEMY_CATEGORY_DEFINITIONS = Object.freeze([
