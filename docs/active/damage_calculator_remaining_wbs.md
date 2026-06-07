@@ -117,9 +117,8 @@
 
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
-| I-1 | ⚪ | **Shredding（速弾き）の計算式確定**: DP 直撃・防御無視系かどうかを確認。エンジン新型追加が必要な場合 hbr_calc 側と合意 | ❌ 未着手 | — |
-| I-2 | ⚪ | **ShadowClone（影分身）の計算式確定**: 分身攻撃倍率の仕組みを確認。engine 変更要否を判断し必要なら合意 | ❌ 未着手 | — |
-| I-3 | ⚪ | **Hacking（ハッキング）の分類確定**: Fragile / DefenseDown と同型か否かを確認。既存型に吸収できるなら engine 変更不要 | ❌ 未着手 | — |
+| I-1 | ⚪ | **ShadowClone（影分身）の計算式確定**: 分身攻撃倍率の仕組みを確認。engine 変更要否を判断し必要なら合意 | ❌ 未着手 | — |
+| I-2 | ⚪ | **Hacking（ハッキング）の分類確定**: Fragile / DefenseDown と同型か否かを確認。既存型に吸収できるなら engine 変更不要 | ❌ 未着手 | — |
 | I-4 | 🟡 | **全能力ダウン engine マッピング合意**: `enemyAllAbilityDownByEnemy` をエンジン入力のどの引数に渡すか hbr_calc 側と確定（E-1 の実装前提） | ❌ 未着手 | E-1 |
 | I-5 | 🔵 | **破壊率 API 拡張の合意**: D-3 実装で `calculateDestruction` インターフェース変更が生じた場合、hbr_calc 側と合意 | 🔵 D-3 で判断 | D-3 |
 
@@ -182,7 +181,7 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | session 保存・replay での破壊率整合 | D-3 snapshot 整合の範囲 |
 | AcccessoryAttackUpRate | 🔵 将来（アクセサリ DB 整備後） |
 | foodBuffAttackUpRate / highBoostSkillAtkRate 表示 | ✅ Priority 1 チェック済み（unimplemented_elements_wbs.md）|
-| 状態変化タブ 全 90 件の計算機接続状況 | → 付録「状態変化タブ 全数検査結果」参照。✅ 19件 / ⚠️ 6件（I-1〜I-4 対象）/ 🔵 65件 |
+| 状態変化タブ 全 90 件の計算機接続状況 | → 付録「状態変化タブ 全数検査結果」参照。✅ 19件 / ⚠️ 5件（I-1〜I-3/E 対象）/ 🔵 66件 |
 
 ---
 
@@ -211,7 +210,7 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | ToughnessUpValue | 体力アップ | 🔵 | HP上限変化 |
 | Fragile | 脆弱 | ✅ | debuff群（弱点時のみ有効） |
 | Undermine | 蝕 | 🔵 | 状態変化効果量変動系 |
-| Shredding | 速弾き | ⚠️ | **I-1**: DP特化・防御無視系の可能性。エンジン型未対応 |
+| Shredding | 速弾き | 🔵 | SPがマイナスでもスキル使用可能にする特殊状態。スキル使用可否のみに影響し、ダメージ倍率には非影響 |
 | HighBoost | ハイブースト | ✅ | buff群（`highBoostSkillAtkRate` 専用フィールド経由） |
 | Mocktail | モクテル | 🔵 | SP/EP 回復系 |
 | Babied | オギャり | ✅ | token-passive群（`babiedSkillAttackUpRate` 専用フィールド経由） |
@@ -291,10 +290,10 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | Reinforce | 鬼神化中 | 🔵 | 変身状態（ATK増加効果は AttackUp 等として収集） |
 | ActionDisabled | 行動不能 | 🔵 | 行動管理 |
 
-**集計: ✅ 19件 / ⚠️ 6件 / 🔵 65件 （合計 90件）**
+**集計: ✅ 19件 / ⚠️ 5件 / 🔵 66件 （合計 90件）**
 
 | 区分 | タイプ一覧 |
 |---|---|
 | ✅ 反映済み（19件）| AttackUp, DefenseDown, ResistDown, ResistDownOverwrite, Fragile, HighBoost, Babied, CriticalRateUp, CriticalDamageUp, BuffCharge, MindEye, Funnel, Diva, TokenSet, FireMark, Curry, Gelato, Shchi, Steak |
-| ⚠️ 要調査（6件）| DamageRateUp, Shredding（I-1）, ShadowClone（I-2）, Hacking（I-3）, Talisman（I-4/E）, Disaster（I-4/E）|
-| 🔵 スコープ外（65件）| 上記以外 |
+| ⚠️ 要調査（5件）| DamageRateUp, ShadowClone（I-1）, Hacking（I-2）, Talisman（I-3/E）, Disaster（I-3/E）|
+| 🔵 スコープ外（66件）| 上記以外（Shredding はスキル使用可否のみ） |
