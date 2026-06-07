@@ -906,8 +906,7 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
 function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
   const damageContext = model.damageContext;
   const enemyKey = String(Number(targetEnemyIndex));
-  const rawCap = Number(model.enemyDestructionState?.destructionRateCapByEnemy?.[enemyKey]);
-  const destructionLimit = (Number.isFinite(rawCap) && rawCap > 0) ? rawCap / 100 : 3.0;
+  const destructionLimit = resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey) / 100;
   const hitCount = Math.max(
     1,
     Number(damageContext?.effectiveHitCountPerEnemy ?? damageContext?.baseHitCount ?? 1)
@@ -937,6 +936,13 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
   };
 }
 
+function resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey) {
+  const contextCap = Number(model?.damageContext?.destructionRateCapByEnemy?.[enemyKey]);
+  const storedCap = Number(model?.enemyDestructionState?.destructionRateCapByEnemy?.[enemyKey]);
+  const candidates = [contextCap, storedCap].filter((value) => Number.isFinite(value) && value > 0);
+  return candidates.length > 0 ? Math.max(...candidates) : 300;
+}
+
 async function updateDestructionRateDisplay(pane) {
   const actionKey = pane?.dataset?.actionKey;
   const model = damageCalculationActionModels.get(actionKey);
@@ -958,8 +964,7 @@ async function updateDestructionRateDisplay(pane) {
     ?? pane.querySelector('[data-role="damage-calc-enemy-tab"]');
   const targetEnemyIndex = Number(activeTab?.dataset?.targetEnemyIndex ?? 0);
   const enemyKey = String(Number(targetEnemyIndex));
-  const rawCap = Number(model.enemyDestructionState?.destructionRateCapByEnemy?.[enemyKey]);
-  const capPercent = (Number.isFinite(rawCap) && rawCap > 0) ? rawCap : 300;
+  const capPercent = resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey);
 
   if (capNoteEl) {
     capNoteEl.textContent = `${capPercent}%`;

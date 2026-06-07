@@ -3559,6 +3559,7 @@ test('コードダクネス stores Hacking from the selected SkillSwitch variant
   assert.ok(hacking);
   assert.equal(hacking.remainingTurns, 2);
   assert.equal(hacking.exitCond, 'EnemyTurnEnd');
+  assert.equal(action.damageContext?.enemyAllAbilityDownByEnemy?.['0'], 100);
   assert.ok(fragile);
   assert.equal(fragile.remainingTurns, 2);
 });
@@ -6123,7 +6124,9 @@ test('transcendence burst raises destruction gain and cap without stacking with 
   const action = findActionByCharacterId(preview, 'TC1');
   assert.equal(action.specialPassiveModifiers.transcendenceBurstDestructionRateGainBonusRate, 0.1);
 
-  const { nextState } = commitTurn(state, preview);
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const committedAction = findActionByCharacterId(committedRecord, 'TC1');
+  assert.equal(committedAction.damageContext?.destructionRateCapByEnemy?.['0'], 600);
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 600);
 });

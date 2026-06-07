@@ -67,6 +67,7 @@ const TALISMAN_MAX_LEVEL = 10;
 const TALISMAN_PENALTY_PER_LEVEL = 10;
 const DISASTER_MAX_LEVEL = 10;
 const DISASTER_PENALTY_PER_LEVEL = 7;
+const HACKING_ALL_ABILITY_DOWN = 100;
 const TALISMAN_STATE_DEFAULT = Object.freeze({
   active: false,
   level: 0,
@@ -2912,13 +2913,40 @@ function buildEnemyDisasterMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
   );
 }
 
+function buildEnemyHackingPenaltyMap(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const numericEnemyCount = clampEnemyCount(enemyCount);
+  const penaltyMap = {};
+  const statuses = Array.isArray(turnState?.enemyState?.statuses) ? turnState.enemyState.statuses : [];
+  for (const status of statuses) {
+    if (String(status?.statusType ?? '') !== 'Hacking') {
+      continue;
+    }
+    const targetIndex = Number(status?.targetIndex);
+    if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= numericEnemyCount) {
+      continue;
+    }
+    if (!isEnemyAlive(turnState, targetIndex, numericEnemyCount)) {
+      continue;
+    }
+    penaltyMap[String(targetIndex)] = HACKING_ALL_ABILITY_DOWN;
+  }
+  return penaltyMap;
+}
+
 function buildEnemyAllAbilityPenaltyMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
   const talismanMaps = buildEnemyTalismanMaps(turnState, enemyCount);
   const disasterMaps = buildEnemyDisasterMaps(turnState, enemyCount);
-  const enemyAllAbilityDownByEnemy = { ...disasterMaps.enemyAllAbilityDownByEnemy };
-  for (const [targetIndex, penalty] of Object.entries(talismanMaps.enemyAllAbilityDownByEnemy)) {
-    const currentPenalty = Number(enemyAllAbilityDownByEnemy[targetIndex] ?? 0);
-    enemyAllAbilityDownByEnemy[targetIndex] = Math.max(currentPenalty, Number(penalty ?? 0));
+  const hackingMap = buildEnemyHackingPenaltyMap(turnState, enemyCount);
+  const enemyAllAbilityDownByEnemy = {};
+  for (const sourceMap of [
+    disasterMaps.enemyAllAbilityDownByEnemy,
+    talismanMaps.enemyAllAbilityDownByEnemy,
+    hackingMap,
+  ]) {
+    for (const [targetIndex, penalty] of Object.entries(sourceMap)) {
+      const currentPenalty = Number(enemyAllAbilityDownByEnemy[targetIndex] ?? 0);
+      enemyAllAbilityDownByEnemy[targetIndex] = Math.max(currentPenalty, Number(penalty ?? 0));
+    }
   }
   return {
     enemyTalismanLevelByEnemy: talismanMaps.enemyTalismanLevelByEnemy,
@@ -3500,6 +3528,18 @@ function getEnemyDestructionRateCapPercent(turnState, targetIndex, member = null
   const breakState = getEnemyBreakStateByTarget(turnState, targetIndex);
   const baseCap = breakState?.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT;
   return Math.max(storedCap, Math.max(DEFAULT_DESTRUCTION_RATE_CAP_PERCENT, baseCap) + burstBonus);
+}
+
+function buildEnemyDestructionRateCapMapForAction(turnState, enemyCount, member = null) {
+  const numericEnemyCount = clampEnemyCount(enemyCount);
+  const map = {};
+  for (let targetIndex = 0; targetIndex < numericEnemyCount; targetIndex += 1) {
+    if (!isEnemyAlive(turnState, targetIndex, numericEnemyCount)) {
+      continue;
+    }
+    map[String(targetIndex)] = getEnemyDestructionRateCapPercent(turnState, targetIndex, member);
+  }
+  return map;
 }
 
 function getEnemyBreakStateByTarget(turnState, targetIndex) {
@@ -8341,6 +8381,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         enemyDpByEnemy: getEnemyState(state.turnState).enemyDpByEnemy,
         enemyNamesByEnemy: getEnemyState(state.turnState).enemyNamesByEnemy,
         destructionRateByEnemy: getEnemyState(state.turnState).destructionRateByEnemy,
+        destructionRateCapByEnemy: buildEnemyDestructionRateCapMapForAction(state.turnState, enemyCount, member),
         activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
         chargeEffects,
         enemyStatusEffects: getEnemyState(state.turnState).statuses,

@@ -244,6 +244,7 @@
 - turn row の自己状態バフアイコンは固定3種ではなく、状態変化ページの statusType 定義順に準拠したバフ系表示へ拡張する（デバフ系は除外）
 - 同一 statusType 内で `Only` / `Count` が競合する場合、`Only=最強1件` と `Count=上位2件合算` を比較して採用側のみアイコン表示する（同値は `Count` 側優先、非採用側は詳細テキスト側で確認）
 - turn row バフアイコンは視認性確保のため全体表示上限を設ける（現在値: 10）
+- 敵詳細ポップアップ / turn row の敵状態アイコンは debuff 優先順で表示し、`Hacking` は `Fragile` 直後の高優先 debuff として `assets/skill_type/Hacking.webp` を表示する
 - turn row の OD ゲージ badge は正値帯を `0 / 1 / 2 / 3`、負値帯を debt bucket として `-99..0 => 0`、`-199..-100 => 1`、`-299..-200 => 2`、`<= -300 => 3` で表示し、負値時の赤系 track / badge tone は維持する
 - キャラクター詳細ポップアップの `フィールド` タブは `Zone / Territory / Talisman` の属性・倍率・継続を併記し、`remainingTurns=null` は `永続` として表示する
 - turn row の note 列上部には active なフィールド状態チップを表示し、`talismanState` は `active=true` または `level>0`（もしくは明示名/説明あり）の場合のみ表示する

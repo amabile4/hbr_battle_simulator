@@ -35,7 +35,7 @@ test('resolveSkillTypeAssetUrl points to assets/skill_type for skill-type icon f
 });
 
 test('skill-type icons used by UI status displays exist in assets/skill_type', () => {
-  for (const fileName of ['Talisman.webp', 'Disaster.webp', 'Babied.webp']) {
+  for (const fileName of ['Talisman.webp', 'Disaster.webp', 'Babied.webp', 'Hacking.webp']) {
     const filePath = fileURLToPath(resolveSkillTypeAssetUrl(fileName));
     assert.equal(fs.existsSync(filePath), true, `${fileName} should exist in assets/skill_type`);
   }

@@ -68,6 +68,15 @@ export function buildDamageCalculationContext(input = {}) {
             ])
           )
         : {},
+    destructionRateCapByEnemy:
+      input.destructionRateCapByEnemy && typeof input.destructionRateCapByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.destructionRateCapByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              Number(value ?? 0),
+            ])
+          )
+        : {},
     activeStatusEffects: Array.isArray(input.activeStatusEffects)
       ? structuredClone(input.activeStatusEffects)
       : [],

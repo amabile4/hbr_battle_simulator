@@ -44,6 +44,7 @@ function withDom(run) {
     CustomEvent: globalThis.CustomEvent,
     Event: globalThis.Event,
     MouseEvent: globalThis.MouseEvent,
+    fetch: globalThis.fetch,
   };
 
   globalThis.window = dom.window;
@@ -54,20 +55,31 @@ function withDom(run) {
   globalThis.MouseEvent = dom.window.MouseEvent;
   dom.window.scrollTo = () => {};
 
-  try {
-    return run({
-      dom,
-      win: dom.window,
-      root: dom.window.document.querySelector('#root'),
-    });
-  } finally {
+  const cleanup = () => {
     globalThis.window = previous.window;
     globalThis.document = previous.document;
     globalThis.ResizeObserver = previous.ResizeObserver;
     globalThis.CustomEvent = previous.CustomEvent;
     globalThis.Event = previous.Event;
     globalThis.MouseEvent = previous.MouseEvent;
+    globalThis.fetch = previous.fetch;
     dom.window.close();
+  };
+
+  try {
+    const result = run({
+      dom,
+      win: dom.window,
+      root: dom.window.document.querySelector('#root'),
+    });
+    if (result && typeof result.then === 'function') {
+      return result.finally(cleanup);
+    }
+    cleanup();
+    return result;
+  } catch (error) {
+    cleanup();
+    throw error;
   }
 }
 
@@ -3412,6 +3424,56 @@ test('TurnRowController enemy detail popup preview keeps SuperBreak visible with
     );
   }));
 
+test('TurnRowController enemy detail popup preview shows Hacking icon for enemy status change', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96023,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '和泉 ユキ',
+          skillId: 46001215,
+          skillName: 'コードダクネス',
+          costDelta: -14,
+          costPreSp: 14,
+          costPostSp: 0,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [
+            {
+              statusType: 'Hacking',
+              targetIndex: 0,
+              remaining: 2,
+              exitCond: 'EnemyTurnEnd',
+            },
+          ],
+        },
+      ],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /ハッキング/);
+    assert.ok(popup.querySelector('[data-status-type="Hacking"]'));
+    assert.match(
+      popup.querySelector('[data-status-type="Hacking"] img')?.getAttribute('src') ?? '',
+      /Hacking\.webp/
+    );
+  }));
+
 test('TurnRowController enemy detail popup shows no-change row when action has no enemy status changes', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
@@ -3767,6 +3829,11 @@ test('char detail popup preview section renders Funnel from previewActionFlow.fu
 
 test('char detail popup damage tab only renders the opened character action', () =>
   withDom(({ win }) => {
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => [],
+    });
     const targetMember = {
       characterId: 'NNanase',
       characterName: '七瀬 七海',
@@ -3797,38 +3864,142 @@ test('char detail popup damage tab only renders the opened character action', ()
       },
     });
 
-    openCharDetailPopup(
-      targetMember,
-      {
-        statusEffects: [],
-        previewActionFlow: [
+    try {
+      openCharDetailPopup(
+        targetMember,
+        {
+          statusEffects: [],
+          previewActionFlow: [
+            {
+              actorCharacterId: 'NNanase',
+              skillName: '七瀬の威力詳細',
+              damageContext: makeDamageContext(2),
+            },
+            {
+              actorCharacterId: 'OTHER',
+              skillName: '他キャラの威力詳細',
+              damageContext: makeDamageContext(9),
+            },
+          ],
+        },
+        { x: 200, y: 120, isCommitted: false }
+      );
+
+      const popup = win.document.body.querySelector('#char-detail-popup');
+      assert.ok(popup);
+      popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+        new win.MouseEvent('click', { bubbles: true, cancelable: true })
+      );
+
+      const damagePanel = popup.querySelector('[data-tab-panel="damage"]');
+      assert.ok(damagePanel);
+      assert.match(damagePanel.textContent ?? '', /七瀬の威力詳細/);
+      assert.match(damagePanel.textContent ?? '', /2.00x/);
+      assert.doesNotMatch(damagePanel.textContent ?? '', /他キャラの威力詳細/);
+      assert.doesNotMatch(damagePanel.textContent ?? '', /9.00x/);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  }));
+
+test('char detail popup damage tab uses damage context destruction cap for manual destruction input', () =>
+  withDom(async ({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+    const damageContext = {
+      actorCharacterId: 'NNanase',
+      actorStyleId: 1000001,
+      skillId: 999001,
+      skillName: '破壊率上限テスト',
+      isNormalAttack: false,
+      targetEnemyIndex: 0,
+      enemyCount: 1,
+      baseHitCount: 1,
+      effectiveHitCountPerEnemy: 1,
+      destructionRateByEnemy: { 0: 600 },
+      destructionRateCapByEnemy: { 0: 600 },
+      enemyNamesByEnemy: { 0: 'E1' },
+      effectiveDamageRatesByEnemy: { 0: 100 },
+      damageBreakdown: {
+        version: 1,
+        targetBreakdowns: [
           {
-            actorCharacterId: 'NNanase',
-            skillName: '七瀬の威力詳細',
-            damageContext: makeDamageContext(2),
-          },
-          {
-            actorCharacterId: 'OTHER',
-            skillName: '他キャラの威力詳細',
-            damageContext: makeDamageContext(9),
+            targetEnemyIndex: 0,
+            targetLabel: 'E1',
+            finalMultiplier: 1,
+            increasePercent: 0,
+            formula: '1.00x',
+            groups: [],
           },
         ],
       },
-      { x: 200, y: 120, isCommitted: false }
-    );
+      criticalRateBreakdown: {
+        criticalRatePercent: 0,
+        isCriticalGuaranteed: false,
+        contributions: [],
+      },
+    };
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => [],
+    });
 
-    const popup = win.document.body.querySelector('#char-detail-popup');
-    assert.ok(popup);
-    popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
-      new win.MouseEvent('click', { bubbles: true, cancelable: true })
-    );
+    try {
+      openCharDetailPopup(
+        targetMember,
+        {
+          statusEffects: [],
+          previewActionFlow: [
+            {
+              actorCharacterId: 'NNanase',
+              skillName: '破壊率上限テスト',
+              damageContext,
+            },
+          ],
+        },
+        {
+          x: 200,
+          y: 120,
+          isCommitted: false,
+          enemyDestructionState: {
+            destructionRateByEnemy: { 0: 300 },
+            destructionRateCapByEnemy: { 0: 300 },
+          },
+        }
+      );
 
-    const damagePanel = popup.querySelector('[data-tab-panel="damage"]');
-    assert.ok(damagePanel);
-    assert.match(damagePanel.textContent ?? '', /七瀬の威力詳細/);
-    assert.match(damagePanel.textContent ?? '', /2.00x/);
-    assert.doesNotMatch(damagePanel.textContent ?? '', /他キャラの威力詳細/);
-    assert.doesNotMatch(damagePanel.textContent ?? '', /9.00x/);
+      const popup = win.document.body.querySelector('#char-detail-popup');
+      assert.ok(popup);
+      popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+        new win.MouseEvent('click', { bubbles: true, cancelable: true })
+      );
+
+      const input = popup.querySelector('[data-role="destruction-rate-input"]');
+      const capNote = popup.querySelector('[data-role="destruction-rate-cap-note"]');
+      const after = popup.querySelector('[data-role="destruction-rate-after"]');
+      assert.ok(input);
+      assert.ok(capNote);
+      assert.ok(after);
+      input.value = '600';
+      input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+      for (let attempt = 0; attempt < 20 && after.textContent?.trim() !== '600.00%'; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      assert.equal(capNote.textContent?.trim(), '600%');
+      assert.equal(after.textContent?.trim(), '600.00%');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
   }));
 
 test('char detail popup shows form chip and dims inactive ability entries for form-change styles', () =>
