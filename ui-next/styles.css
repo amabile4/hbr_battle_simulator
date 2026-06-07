@@ -2921,6 +2921,13 @@
   gap: 8px;
 }
 
+.char-popup-damage-calc-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .char-popup-damage-calc-section-title {
   font-weight: 800;
 }

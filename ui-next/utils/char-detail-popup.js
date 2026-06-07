@@ -860,11 +860,13 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `</div>` +
     `</section>` +
     `<section class="char-popup-damage-calc-section">` +
-    `<div class="char-popup-damage-calc-section-title">敵</div>` +
+    `<div class="char-popup-damage-calc-section-header">` +
+    `<span class="char-popup-damage-calc-section-title">敵</span>` +
     `<div class="char-popup-damage-calc-enemy-meta">` +
     `<span data-role="damage-calc-enemy-name">-</span>` +
     `<span>境界 <strong data-role="damage-calc-enemy-border">${DAMAGE_CALC_DEFAULT_ENEMY_BORDER}</strong></span>` +
     `<span>相性 <strong data-role="damage-calc-affinity">${formatDamageCalculatorMultiplier(1)}</strong></span>` +
+    `</div>` +
     `</div>` +
     `<div class="char-popup-damage-calc-stat-grid" data-role="damage-calc-enemy-stats">` +
     buildDamageCalculatorStatRowsHtml(statViewModel, 'enemy') +
