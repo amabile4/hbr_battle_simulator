@@ -633,9 +633,8 @@ export class EnemySetupController {
         selectedEnemyId,
         selectedEnemyName: selectedEnemy?.name ?? '',
         param_border:
-          Number.isFinite(Number(selectedEnemy?.base_param?.param_border))
-          && Number(selectedEnemy.base_param.param_border) > 0
-            ? Number(selectedEnemy.base_param.param_border)
+          Number.isFinite(Number(selectedEnemy?.param_border)) && Number(selectedEnemy.param_border) > 0
+            ? Number(selectedEnemy.param_border)
             : DEFAULT_ENEMY_PARAM_BORDER,
         isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),

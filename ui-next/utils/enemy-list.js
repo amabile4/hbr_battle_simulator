@@ -208,12 +208,16 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
     const dimension = categoryKey === ENEMY_PRESET_TEMPLATE_CATEGORY_KEY
       ? null
       : toYYYYMM(enemy?.in_date);
+    const paramDef = Number(enemy.base_param?.param_def);
+    const paramBorderRaw = Number(enemy.base_param?.param_border);
+    const paramBorder = Number.isFinite(paramDef) && paramDef > 0 ? paramDef : paramBorderRaw;
     return {
       id: enemy.id,
       name: resolveDisplayEnemyName(enemy),
       dimension,
       categoryKey,
       categoryLabel,
+      param_border: Number.isFinite(paramBorder) && paramBorder > 0 ? paramBorder : 0,
       od_rate: enemy.base_param?.od_rate ?? 0,
       max_d_rate: enemy.base_param?.max_d_rate ?? 999,
       resistances: {
