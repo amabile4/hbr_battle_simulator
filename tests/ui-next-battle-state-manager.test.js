@@ -56,6 +56,7 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
     selectedEnemyName: '敵テスト',
     param_border: 845,
     max_d_rate: 650,
+    d_rate: 5,
     resistances: {
       element: {
         slash: 150,
@@ -81,6 +82,8 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Slash, 150);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 650);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 5);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 5);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire', 'nonelement']);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['fire', 'nonelement']);
 });

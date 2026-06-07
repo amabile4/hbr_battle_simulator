@@ -163,6 +163,7 @@ export function createInitialTurnState() {
       damageRatesByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
+      destructionMultiplierByEnemy: {},
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
@@ -222,6 +223,16 @@ export function cloneTurnState(turnState) {
                   Object.entries(turnState.enemyState.destructionRateCapByEnemy).map(([targetIndex, value]) => [
                     String(targetIndex),
                     Number.isFinite(Number(value)) ? Number(value) : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+                  ])
+                )
+              : {},
+          destructionMultiplierByEnemy:
+            turnState.enemyState.destructionMultiplierByEnemy &&
+            typeof turnState.enemyState.destructionMultiplierByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.destructionMultiplierByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) ? Number(value) : 100,
                   ])
                 )
               : {},
@@ -364,6 +375,7 @@ export function cloneTurnState(turnState) {
           damageRatesByEnemy: {},
           destructionRateByEnemy: {},
           destructionRateCapByEnemy: {},
+          destructionMultiplierByEnemy: {},
           absorbElementsByEnemy: {},
           odRateByEnemy: {},
           eShieldStateByEnemy: {},

@@ -148,6 +148,7 @@ test.describe('Damage breakdown popup tab', () => {
                 isNormalAttack: false,
                 effectiveDamageRatesByEnemy: { 0: 100, 1: 150 },
                 enemyParamBorderByEnemy: { 0: 812, 1: 923 },
+                destructionRateByEnemy: { 0: 120, 1: 150 },
                 zoneType: 'Fire',
                 zonePowerRate: 50,
                 tokenAttackTokenCount: 0,
@@ -208,13 +209,17 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('700');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ DP');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル DP');
-    await expect(pane.locator('[data-role="damage-calc-result"]')).not.toContainText('HP');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ HP');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル HP');
+    await expect(pane.locator('[data-role="damage-calc-normal-hp-expected"]')).not.toHaveText('-');
+    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('120.00%');
     await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('812');
 
     await pane.locator('[data-role="damage-calc-enemy-tab"][data-target-enemy-index="1"]').click();
     await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
     await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('923');
     await expect(pane.locator('[data-role="damage-calc-affinity"]')).toHaveText('1.50x');
+    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('150.00%');
     await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('700');
   });
 

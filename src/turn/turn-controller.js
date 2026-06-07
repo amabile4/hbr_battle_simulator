@@ -2475,6 +2475,7 @@ export function getEnemyState(turnState) {
       damageRatesByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
+      destructionMultiplierByEnemy: {},
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
@@ -2502,6 +2503,10 @@ export function getEnemyState(turnState) {
     destructionRateCapByEnemy:
       state.destructionRateCapByEnemy && typeof state.destructionRateCapByEnemy === 'object'
         ? state.destructionRateCapByEnemy
+        : {},
+    destructionMultiplierByEnemy:
+      state.destructionMultiplierByEnemy && typeof state.destructionMultiplierByEnemy === 'object'
+        ? state.destructionMultiplierByEnemy
         : {},
     absorbElementsByEnemy:
       state.absorbElementsByEnemy && typeof state.absorbElementsByEnemy === 'object'
@@ -2563,6 +2568,7 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
     enemyDamageRates: structuredClone(enemyState.damageRatesByEnemy),
     enemyDestructionRates: structuredClone(enemyState.destructionRateByEnemy),
     enemyDestructionRateCaps: structuredClone(enemyState.destructionRateCapByEnemy),
+    enemyDestructionMultipliers: structuredClone(enemyState.destructionMultiplierByEnemy),
     enemyOdRates: structuredClone(enemyState.odRateByEnemy),
     enemyEShields: structuredClone(enemyState.eShieldStateByEnemy),
     enemyExtraHpGauges: structuredClone(enemyState.extraHpGaugeStateByEnemy),
@@ -2605,6 +2611,9 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
     destructionRateCapByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRateCaps')
       ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRateCaps)
       : structuredClone(current.destructionRateCapByEnemy),
+    destructionMultiplierByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionMultipliers')
+      ? cloneEnemySlotObjectMap(snapshot.enemyDestructionMultipliers)
+      : structuredClone(current.destructionMultiplierByEnemy),
     odRateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyOdRates')
       ? cloneEnemySlotObjectMap(snapshot.enemyOdRates)
       : structuredClone(current.odRateByEnemy),
@@ -4543,7 +4552,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             enemyId: null,
             destructionRate: currentRatePercent / 100,
             destructionLimit: capPercent / 100,
-            destructionMultiplier: null,
+            destructionMultiplier: Number(state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? 100) / 100,
             dp: wasBroken ? 0 : 1,
           },
           skill: {
@@ -6320,6 +6329,7 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     damageRatesByEnemy: enemyState.damageRatesByEnemy,
     destructionRateByEnemy: enemyState.destructionRateByEnemy,
     destructionRateCapByEnemy: enemyState.destructionRateCapByEnemy,
+    destructionMultiplierByEnemy: enemyState.destructionMultiplierByEnemy,
     absorbElementsByEnemy: enemyState.absorbElementsByEnemy,
     odRateByEnemy: enemyState.odRateByEnemy,
     eShieldStateByEnemy: enemyState.eShieldStateByEnemy,
@@ -8209,6 +8219,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
         enemyParamBorderByEnemy: getEnemyState(state.turnState).paramBorderByEnemy,
+        destructionRateByEnemy: getEnemyState(state.turnState).destructionRateByEnemy,
         activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
         chargeEffects,
         enemyStatusEffects: getEnemyState(state.turnState).statuses,

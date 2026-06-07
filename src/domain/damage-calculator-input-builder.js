@@ -152,6 +152,18 @@ function resolveAffinityRate(damageContext = {}, enemyAdapter = {}, targetEnemyI
   return getGroupMultiplier(targetBreakdown, 'affinity') || DEFAULT_AFFINITY_RATE;
 }
 
+function resolveDestructionRate(damageContext = {}, enemyAdapter = {}, targetEnemyIndex = 0) {
+  const adapterRate = Number(enemyAdapter?.destructionRate);
+  if (Number.isFinite(adapterRate) && adapterRate > 0) {
+    return adapterRate;
+  }
+  const keyedPercent = Number(damageContext?.destructionRateByEnemy?.[String(targetEnemyIndex)]);
+  if (Number.isFinite(keyedPercent) && keyedPercent > 0) {
+    return keyedPercent / 100;
+  }
+  return DEFAULT_DESTRUCTION_RATE;
+}
+
 export function resolveDefaultStats(role, limitBreakCount = DEFAULT_LIMIT_BREAK_COUNT) {
   const roleKey = normalizeRole(role);
   const base = DEFAULT_STATS_BY_ROLE[roleKey] ?? DEFAULT_STATS_BY_ROLE.admiral;
@@ -179,6 +191,7 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
   const defaultStats = resolveDefaultStats(attackerStatsInput?.role, attackerStatsInput?.limitBreakCount);
   const stats = normalizeStats(defaultStats, attackerStatsInput);
   const affinityRate = resolveAffinityRate(damageContext, enemyAdapter, targetEnemyIndex, targetBreakdown);
+  const destructionRate = resolveDestructionRate(damageContext, enemyAdapter, targetEnemyIndex);
   const tokenPassiveMultiplier = getGroupMultiplier(targetBreakdown, 'token-passive');
   const tokenRatio = Number.isFinite(Number(attackerStatsInput?.tokenRatio))
     ? Number(attackerStatsInput.tokenRatio)
@@ -200,7 +213,7 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
       enemyName: String(enemyAdapter?.enemyName ?? targetBreakdown?.targetLabel ?? ''),
       paramBorder: toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER),
       isHpTarget: enemyAdapter?.isHpTarget !== false,
-      destructionRate: DEFAULT_DESTRUCTION_RATE,
+      destructionRate,
       affinityRate,
       resistances: buildResistanceMap(affinityRate),
       statusEffects: buildSyntheticDefenderEffects(targetBreakdown),

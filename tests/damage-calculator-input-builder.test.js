@@ -48,6 +48,7 @@ test('buildDamageCalculationInput preserves stat lane and builds target-indexed 
     zonePowerRate: 50,
     tokenAttackTokenCount: 3,
     effectiveDamageRatesByEnemy: { 0: 100, 1: 150 },
+    destructionRateByEnemy: { 0: 125, 1: 175 },
     chargeEffects: [{ statusType: 'Charge', power: 30, skillName: 'チャージ' }],
     damageBreakdown: {
       targetBreakdowns: [
@@ -90,12 +91,37 @@ test('buildDamageCalculationInput preserves stat lane and builds target-indexed 
   assert.equal(input.defender.enemyName, 'ボス');
   assert.equal(input.defender.paramBorder, 800);
   assert.equal(input.defender.affinityRate, 1.5);
+  assert.equal(input.defender.destructionRate, 1.75);
   assert.equal(input.defender.resistances.Slash, 1.5);
   assert.equal(input.targetEnemyIndex, 1);
   assert.equal(input.activeZone, 'FireZone');
   assert.equal(input.attacker.statusEffects.find((effect) => effect.statusType === 'AttackUp')?.power, 50);
   assert.equal(input.attacker.statusEffects.some((effect) => effect.statusType === 'Charge'), false);
   assert.equal(input.defender.isHpTarget, true);
+});
+
+test('buildDamageCalculationInput converts context destructionRate percent to calculateDamage rate', () => {
+  const damageContext = {
+    actorStyleId: 1010103,
+    skillId: 46001107,
+    skillName: '星火燎原',
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    destructionRateByEnemy: { 0: 200 },
+    damageBreakdown: {
+      targetBreakdowns: [{ targetEnemyIndex: 0, targetLabel: 'E1', groups: [] }],
+    },
+  };
+  const hpInput = buildDamageCalculationInput(damageContext, {}, { targetEnemyIndex: 0, isHpTarget: true });
+  const dpInput = buildDamageCalculationInput(damageContext, {}, { targetEnemyIndex: 0, isHpTarget: false });
+
+  assert.equal(hpInput.defender.destructionRate, 2);
+  assert.equal(dpInput.defender.destructionRate, 2);
+
+  const data = loadDamageCalculationData();
+  const hpResult = calculateDamage(hpInput, data);
+  const dpResult = calculateDamage(dpInput, data);
+  assert.notEqual(hpResult.critical.expected, dpResult.critical.expected);
+  assert.ok(hpResult.critical.expected > dpResult.critical.expected);
 });
 
 test('buildDamageCalculationInput falls back per stat when actual stats are missing or zero', () => {

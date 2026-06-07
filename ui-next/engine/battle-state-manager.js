@@ -231,6 +231,7 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     param_border: enemySetup?.param_border,
     od_rate: enemySetup?.od_rate,
     max_d_rate: enemySetup?.max_d_rate,
+    d_rate: enemySetup?.d_rate,
     resistances: enemySetup?.resistances,
     absorbElementList: enemySetup?.absorbElementList,
     e_shield: enemySetup?.e_shield,
@@ -270,6 +271,9 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     const rawOdRate = Number.isFinite(Number(slot?.od_rate))
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
+    const rawDestructionMultiplier = Number.isFinite(Number(slot?.d_rate))
+      ? Number(slot.d_rate)
+      : 100;
     return {
       enemyName,
       paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0
@@ -278,6 +282,7 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       rates: buildEnemyDamageRates(slot),
       absorbElements: buildEnemyAbsorbElements(slot),
       maxDestructionRate,
+      rawDestructionMultiplier,
       rawOdRate,
       eShieldState: buildEnemyEShieldState(slot),
       extraHpGaugeState: buildEnemyExtraHpGaugeState(slot),
@@ -297,6 +302,9 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     ),
     destructionRateCapByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.maxDestructionRate])
+    ),
+    destructionMultiplierByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.rawDestructionMultiplier])
     ),
     absorbElementsByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), [...slotState.absorbElements]])
@@ -463,6 +471,7 @@ export class BattleStateManager {
       damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: enemyStateOverrides.destructionRateCapByEnemy,
+      destructionMultiplierByEnemy: enemyStateOverrides.destructionMultiplierByEnemy,
       absorbElementsByEnemy: enemyStateOverrides.absorbElementsByEnemy,
       odRateByEnemy: enemyStateOverrides.odRateByEnemy,
       eShieldStateByEnemy: enemyStateOverrides.eShieldStateByEnemy,

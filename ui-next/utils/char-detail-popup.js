@@ -850,6 +850,9 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `<div class="char-popup-damage-calc-result" data-role="damage-calc-result">` +
     `<div><span>非クリ DP</span><strong data-role="damage-calc-normal-expected">-</strong></div>` +
     `<div><span>クリティカル DP</span><strong data-role="damage-calc-critical-expected">-</strong></div>` +
+    `<div><span>非クリ HP</span><strong data-role="damage-calc-normal-hp-expected">-</strong></div>` +
+    `<div><span>クリティカル HP</span><strong data-role="damage-calc-critical-hp-expected">-</strong></div>` +
+    `<div><span>現在破壊率</span><strong data-role="damage-calc-destruction-rate">100.00%</strong></div>` +
     `<div><span>倍率</span><strong data-role="damage-calc-final-multiplier">-</strong></div>` +
     `</div>` +
     `<div class="char-popup-damage-calc-body">` +
@@ -999,14 +1002,18 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
   ) ?? model.targetBreakdowns?.[0] ?? null;
   const affinityRate = Number(model.damageContext?.effectiveDamageRatesByEnemy?.[String(targetEnemyIndex)]);
   const paramBorder = Number(model.damageContext?.enemyParamBorderByEnemy?.[String(targetEnemyIndex)]);
+  const destructionRatePercent = Number(model.damageContext?.destructionRateByEnemy?.[String(targetEnemyIndex)]);
+  const destructionRate = Number.isFinite(destructionRatePercent) && destructionRatePercent > 0
+    ? destructionRatePercent / 100
+    : 1;
   return {
     targetEnemyIndex,
     enemyName: getDamageTargetLabel(targetBreakdown),
     paramBorder: Number.isFinite(paramBorder) && paramBorder > 0
       ? paramBorder
       : DAMAGE_CALC_DEFAULT_ENEMY_BORDER,
-    isHpTarget: false,
-    destructionRate: 1,
+    destructionRate,
+    destructionRatePercent: destructionRate * 100,
     affinityRate: Number.isFinite(affinityRate) ? affinityRate / 100 : undefined,
   };
 }
@@ -1039,20 +1046,31 @@ async function updateDamageCalculatorPane(pane) {
   pane.querySelector('[data-role="damage-calc-enemy-name"]').textContent = enemyAdapter.enemyName;
   pane.querySelector('[data-role="damage-calc-enemy-border"]').textContent = String(enemyAdapter.paramBorder);
   pane.querySelector('[data-role="damage-calc-affinity"]').textContent = formatDamageCalculatorMultiplier(enemyAdapter.affinityRate ?? 1);
+  pane.querySelector('[data-role="damage-calc-destruction-rate"]').textContent = `${enemyAdapter.destructionRatePercent.toFixed(2)}%`;
 
   try {
-    const input = buildDamageCalculationInput(model.damageContext, attackerInput, enemyAdapter);
+    const dpInput = buildDamageCalculationInput(model.damageContext, attackerInput, {
+      ...enemyAdapter,
+      isHpTarget: false,
+    });
+    const hpInput = buildDamageCalculationInput(model.damageContext, attackerInput, {
+      ...enemyAdapter,
+      isHpTarget: true,
+    });
     const data = await loadDamageCalculationDataForPopup();
-    const result = calculateDamage(input, data);
-    pane.querySelector('[data-role="damage-calc-normal-expected"]').textContent = formatDamageCalculatorNumber(result.normal.expected);
-    pane.querySelector('[data-role="damage-calc-critical-expected"]').textContent = formatDamageCalculatorNumber(result.critical.expected);
+    const dpResult = calculateDamage(dpInput, data);
+    const hpResult = calculateDamage(hpInput, data);
+    pane.querySelector('[data-role="damage-calc-normal-expected"]').textContent = formatDamageCalculatorNumber(dpResult.normal.expected);
+    pane.querySelector('[data-role="damage-calc-critical-expected"]').textContent = formatDamageCalculatorNumber(dpResult.critical.expected);
+    pane.querySelector('[data-role="damage-calc-normal-hp-expected"]').textContent = formatDamageCalculatorNumber(hpResult.normal.expected);
+    pane.querySelector('[data-role="damage-calc-critical-hp-expected"]').textContent = formatDamageCalculatorNumber(hpResult.critical.expected);
     pane.querySelector('[data-role="damage-calc-final-multiplier"]').textContent = formatDamageCalculatorMultiplier(
-      result.breakdown.buffMultiplier *
-        result.breakdown.critMindeyeMultiplier *
-        result.breakdown.debuffMultiplier *
-        result.breakdown.affinityMultiplier *
-        result.breakdown.tokenMultiplier *
-        result.breakdown.funnelMultiplier
+      dpResult.breakdown.buffMultiplier *
+        dpResult.breakdown.critMindeyeMultiplier *
+        dpResult.breakdown.debuffMultiplier *
+        dpResult.breakdown.affinityMultiplier *
+        dpResult.breakdown.tokenMultiplier *
+        dpResult.breakdown.funnelMultiplier
     );
     pane.querySelector('[data-role="damage-calc-message"]').textContent = '';
   } catch (error) {
@@ -1063,7 +1081,10 @@ async function updateDamageCalculatorPane(pane) {
   const inputEl = pane.querySelector('[data-role="destruction-rate-input"]');
   if (inputEl) {
     const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
-    const storedRate = Number(model.enemyDestructionState?.destructionRateByEnemy?.[enemyKey]);
+    const contextRate = Number(model.damageContext?.destructionRateByEnemy?.[enemyKey]);
+    const storedRate = Number.isFinite(contextRate) && contextRate > 0
+      ? contextRate
+      : Number(model.enemyDestructionState?.destructionRateByEnemy?.[enemyKey]);
     if (Number.isFinite(storedRate) && storedRate > 0) {
       inputEl.value = storedRate.toFixed(2);
     }
