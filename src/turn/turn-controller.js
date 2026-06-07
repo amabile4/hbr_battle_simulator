@@ -3481,20 +3481,24 @@ function getStoredEnemyDestructionRateCapPercent(turnState, targetIndex) {
   return Math.max(DEFAULT_DESTRUCTION_RATE_CAP_PERCENT, getEnemyDestructionRatePercent(turnState, targetIndex));
 }
 
-function getTranscendenceBurstDestructionCapBonusPercent(turnState) {
+function getTranscendenceBurstDestructionCapBonusPercent(turnState, member = null) {
   const burst = resolveTranscendenceBurstConfig(turnState);
+  const element = String(burst?.element ?? getTranscendenceState(turnState)?.gaugeElement ?? '');
+  if (!burst || !element || !hasElement(member, element)) {
+    return 0;
+  }
   const value = Number(burst?.destructionRateCapPercent ?? 0);
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
-function getEnemyDestructionRateCapPercent(turnState, targetIndex) {
+function getEnemyDestructionRateCapPercent(turnState, targetIndex, member = null) {
   const storedCap = getStoredEnemyDestructionRateCapPercent(turnState, targetIndex);
-  const burstBonus = getTranscendenceBurstDestructionCapBonusPercent(turnState);
+  const burstBonus = getTranscendenceBurstDestructionCapBonusPercent(turnState, member);
   if (burstBonus <= 0) {
     return storedCap;
   }
   const breakState = getEnemyBreakStateByTarget(turnState, targetIndex);
-  const baseCap = breakState?.baseCap ?? storedCap;
+  const baseCap = breakState?.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT;
   return Math.max(storedCap, Math.max(DEFAULT_DESTRUCTION_RATE_CAP_PERCENT, baseCap) + burstBonus);
 }
 
@@ -3816,7 +3820,7 @@ function applyEnemySuperDownState(turnState, targetIndex, options = {}) {
   }
   const elements = normalizeEnemyStatusElements(options?.elements);
   const currentRate = getEnemyDestructionRatePercent(turnState, targetIndex);
-  const currentCap = getEnemyDestructionRateCapPercent(turnState, targetIndex);
+  const currentCap = getStoredEnemyDestructionRateCapPercent(turnState, targetIndex);
   const current = getEnemyBreakStateByTarget(turnState, targetIndex);
   const nextState = {
     baseCap: current?.baseCap ?? deriveBaseCapForEnemy(turnState, targetIndex),
@@ -4645,7 +4649,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       }
 
       const currentRatePercent = getEnemyDestructionRatePercent(preActionTurnState, targetIndex);
-      const capPercent = getEnemyDestructionRateCapPercent(state.turnState, targetIndex);
+      const capPercent = getEnemyDestructionRateCapPercent(state.turnState, targetIndex, actor);
       const result = calculateDestruction(
         {
           attacker: {

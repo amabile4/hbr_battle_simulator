@@ -6018,6 +6018,32 @@ test('transcendence burst applies matching-element attack and critical modifiers
   assert.equal(committedIceAction.damageContext.criticalRateBreakdown?.isCriticalGuaranteed, true);
 });
 
+test('transcendence burst modifiers stay zero before burst is triggered', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 99, withBurst: true });
+  state.party[0].skills = Object.freeze([
+    ...state.party[0].skills,
+    {
+      id: 15205,
+      skillId: 15205,
+      name: 'Ice Pre Burst Hit',
+      sp_cost: 0,
+      hit_count: 1,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Ice'] }],
+    },
+  ]);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15205, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'TC1');
+
+  assert.equal(state.turnState.transcendence?.burstTriggered, false);
+  assert.equal(action.specialPassiveModifiers.transcendenceBurstAttackUpRate, 0);
+  assert.equal(action.specialPassiveModifiers.transcendenceBurstCriticalRateUpRate, 0);
+  assert.equal(action.specialPassiveModifiers.transcendenceBurstDestructionRateGainBonusRate, 0);
+});
+
 test('transcendence burst scales matching-element attack buff and debuff skill effects by 20%', () => {
   const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
   state.turnState.transcendence.burstTriggered = true;
@@ -6100,6 +6126,52 @@ test('transcendence burst raises destruction gain and cap without stacking with 
   const { nextState } = commitTurn(state, preview);
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 600);
+});
+
+test('transcendence burst destruction cap is actor-element gated and does not add to higher stored cap', () => {
+  const createState = (characterId, elements, storedRate, storedCap) => {
+    const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+    state.turnState.transcendence.burstTriggered = true;
+    state.party[0].characterId = characterId;
+    state.party[0].elements = elements;
+    state.party[0].skills = Object.freeze([
+      {
+        id: 15225,
+        skillId: 15225,
+        name: 'Burst Cap Boundary Hit',
+        hitCount: 2,
+        sp_cost: 10,
+        target_type: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 1 } }],
+      },
+    ]);
+    state.turnState.enemyState.enemyCount = 1;
+    state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
+    state.turnState.enemyState.statuses = [
+      { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    ];
+    state.turnState.enemyState.destructionRateByEnemy = { 0: storedRate };
+    state.turnState.enemyState.destructionRateCapByEnemy = { 0: storedCap };
+    return state;
+  };
+
+  const nonMatchingState = createState('TC_FIRE_CAP', ['Fire'], 290, 300);
+  const nonMatchingPreview = previewTurn(nonMatchingState, {
+    0: { characterId: 'TC_FIRE_CAP', skillId: 15225, targetEnemyIndex: 0 },
+  });
+  const nonMatchingCommitted = commitTurn(nonMatchingState, nonMatchingPreview);
+  assert.ok(
+    Math.abs(nonMatchingCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 300) < 1e-9
+  );
+
+  const highStoredCapState = createState('TC_ICE_CAP', ['Ice'], 690, 700);
+  const highStoredCapPreview = previewTurn(highStoredCapState, {
+    0: { characterId: 'TC_ICE_CAP', skillId: 15225, targetEnemyIndex: 0 },
+  });
+  const highStoredCapCommitted = commitTurn(highStoredCapState, highStoredCapPreview);
+  assert.ok(
+    Math.abs(highStoredCapCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 700) < 1e-9
+  );
 });
 
 test('transcendence gauge ignores matching skill element when actor element does not match', () => {
