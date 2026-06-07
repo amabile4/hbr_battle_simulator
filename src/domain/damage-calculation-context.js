@@ -132,6 +132,18 @@ export function buildDamageCalculationContext(input = {}) {
     markAttackUpRate: Number(input.markAttackUpRate ?? 0),
     markDamageTakenDownRate: Number(input.markDamageTakenDownRate ?? 0),
     markDestructionRateGainBonusRate: Number(input.markDestructionRateGainBonusRate ?? 0), // 印Lv3: 破壊率上昇量+10%（WIP: 威力詳細未表示）
+    transcendenceBurstAttackUpRate: Number(input.transcendenceBurstAttackUpRate ?? 0),
+    transcendenceBurstDestructionRateGainBonusRate: Number(
+      input.transcendenceBurstDestructionRateGainBonusRate ?? 0
+    ),
+    transcendenceBurstAttackBuffSkillEffectUpRate: Number(
+      input.transcendenceBurstAttackBuffSkillEffectUpRate ?? 0
+    ),
+    transcendenceBurstDebuffSkillEffectUpRate: Number(
+      input.transcendenceBurstDebuffSkillEffectUpRate ?? 0
+    ),
+    transcendenceBurstCriticalRateUpRate: Number(input.transcendenceBurstCriticalRateUpRate ?? 0),
+    transcendenceBurstCriticalDamageUpRate: Number(input.transcendenceBurstCriticalDamageUpRate ?? 0),
     markCriticalRateUp: Number(input.markCriticalRateUp ?? 0),
     markCriticalDamageUp: Number(input.markCriticalDamageUp ?? 0),
     accessoryAttackUpRate: Number(input.accessoryAttackUpRate ?? 0),

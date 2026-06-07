@@ -1387,26 +1387,88 @@ function resolveNextEnemyEShieldCurrentForDirectChange(startEShieldState, skillT
   return Math.min(max, startCurrent + numericAmount);
 }
 
-function scaleHighBoostAttackBuffPower(actor, skillType, power) {
+function resolveTranscendenceBurstConfig(turnState) {
+  const transcendence = getTranscendenceState(turnState);
+  const burst = transcendence?.burst;
+  if (!transcendence?.burstTriggered || !burst?.enabled) {
+    return null;
+  }
+  return burst;
+}
+
+function resolveTranscendenceBurstModifiersForMember(state, member) {
+  const burst = resolveTranscendenceBurstConfig(state?.turnState);
+  const element = String(burst?.element ?? getTranscendenceState(state?.turnState)?.gaugeElement ?? '');
+  if (!burst || !element || !hasElement(member, element)) {
+    return {
+      active: false,
+      attackUpRate: 0,
+      destructionRateGainBonusRate: 0,
+      attackBuffSkillEffectUpRate: 0,
+      debuffSkillEffectUpRate: 0,
+      criticalRateUpRate: 0,
+      criticalDamageUpRate: 0,
+      destructionRateCapBonusPercent: 0,
+    };
+  }
+  return {
+    active: true,
+    attackUpRate: Number(burst.attackUpPercent ?? 0) / 100,
+    destructionRateGainBonusRate: Number(burst.destructionRateBonusPercent ?? 0) / 100,
+    attackBuffSkillEffectUpRate: Number(burst.attackBuffSkillEffectUpPercent ?? 0) / 100,
+    debuffSkillEffectUpRate: Number(burst.debuffSkillEffectUpPercent ?? 0) / 100,
+    criticalRateUpRate: burst.criticalGuaranteed ? 1 : 0,
+    criticalDamageUpRate: Number(burst.criticalDamageUpPercent ?? 0) / 100,
+    destructionRateCapBonusPercent: Math.max(0, Number(burst.destructionRateCapPercent ?? 0)),
+  };
+}
+
+function resolveAttackBuffSkillEffectMultiplier(state, actor) {
+  const highBoost = resolveHighBoostModifiersForMember(actor);
+  const burst = resolveTranscendenceBurstModifiersForMember(state, actor);
+  let multiplier = 1;
+  if (highBoost.active) {
+    multiplier *= Number(highBoost.attackBuffMultiplier ?? 1);
+  }
+  if (burst.active) {
+    multiplier *= 1 + Number(burst.attackBuffSkillEffectUpRate ?? 0);
+  }
+  return multiplier;
+}
+
+function resolveEnemyDebuffSkillEffectMultiplier(state, actor) {
+  const highBoost = resolveHighBoostModifiersForMember(actor);
+  const burst = resolveTranscendenceBurstModifiersForMember(state, actor);
+  let multiplier = 1;
+  if (highBoost.active) {
+    multiplier *= Number(highBoost.debuffMultiplier ?? 1);
+  }
+  if (burst.active) {
+    multiplier *= 1 + Number(burst.debuffSkillEffectUpRate ?? 0);
+  }
+  return multiplier;
+}
+
+function scaleHighBoostAttackBuffPower(state, actor, skillType, power) {
   if (String(skillType ?? '') !== 'AttackUp' && String(skillType ?? '') !== 'AttackUpIncludeNormal') {
     return Number(power ?? 0);
   }
-  const modifiers = resolveHighBoostModifiersForMember(actor);
-  if (!modifiers.active) {
+  const multiplier = resolveAttackBuffSkillEffectMultiplier(state, actor);
+  if (multiplier === 1) {
     return Number(power ?? 0);
   }
-  return applyHighBoostMultiplier(power, modifiers.attackBuffMultiplier);
+  return applyHighBoostMultiplier(power, multiplier);
 }
 
-function scaleHighBoostEnemyDebuffPower(actor, skillType, power) {
+function scaleHighBoostEnemyDebuffPower(state, actor, skillType, power) {
   if (!HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES.has(String(skillType ?? ''))) {
     return Number(power ?? 0);
   }
-  const modifiers = resolveHighBoostModifiersForMember(actor);
-  if (!modifiers.active) {
+  const multiplier = resolveEnemyDebuffSkillEffectMultiplier(state, actor);
+  if (multiplier === 1) {
     return Number(power ?? 0);
   }
-  return applyHighBoostMultiplier(power, modifiers.debuffMultiplier);
+  return applyHighBoostMultiplier(power, multiplier);
 }
 
 function isOverDriveActive(turnState) {
@@ -1433,6 +1495,23 @@ function hasElement(member, element) {
   return member.elements.some((item) => String(item) === String(element));
 }
 
+function normalizeTranscendenceBurstConfig(rawBurst, gaugeElement) {
+  if (!rawBurst || typeof rawBurst !== 'object' || rawBurst.enabled !== true) {
+    return null;
+  }
+  return {
+    enabled: true,
+    element: String(rawBurst.element ?? gaugeElement ?? ''),
+    attackUpPercent: Number(rawBurst.attackUpPercent ?? 0),
+    destructionRateBonusPercent: Number(rawBurst.destructionRateBonusPercent ?? 0),
+    attackBuffSkillEffectUpPercent: Number(rawBurst.attackBuffSkillEffectUpPercent ?? 0),
+    debuffSkillEffectUpPercent: Number(rawBurst.debuffSkillEffectUpPercent ?? 0),
+    criticalGuaranteed: Boolean(rawBurst.criticalGuaranteed),
+    criticalDamageUpPercent: Number(rawBurst.criticalDamageUpPercent ?? 0),
+    destructionRateCapPercent: Number(rawBurst.destructionRateCapPercent ?? 0),
+  };
+}
+
 function buildInitialTranscendenceStateFromParty(party) {
   if (!Array.isArray(party) || party.length === 0) {
     return null;
@@ -1451,6 +1530,7 @@ function buildInitialTranscendenceStateFromParty(party) {
   const gainPerAction = Number(rule?.gaugeGainPercentOnMatchingElementAction ?? 0);
   const maxGaugePercent = Number(rule?.maxGaugePercent ?? 100);
   const odBonusOnMax = Number(rule?.triggerOnReachMax?.odGaugeDeltaPercent ?? 0);
+  const burst = normalizeTranscendenceBurstConfig(rule?.triggerOnReachMax?.burst, gaugeElement);
 
   if (!gaugeElement || !Number.isFinite(maxGaugePercent) || maxGaugePercent <= 0) {
     return null;
@@ -1473,6 +1553,7 @@ function buildInitialTranscendenceStateFromParty(party) {
     maxGaugePercent: maxGaugePercent,
     gainPercentPerAction: Math.max(0, gainPerAction),
     odBonusOnMax: Math.max(0, odBonusOnMax),
+    burst,
     burstTriggered: false,
   };
 }
@@ -3390,7 +3471,7 @@ function getEnemyDestructionRatePercent(turnState, targetIndex) {
   return Number.isFinite(value) ? value : DEFAULT_DESTRUCTION_RATE_PERCENT;
 }
 
-function getEnemyDestructionRateCapPercent(turnState, targetIndex) {
+function getStoredEnemyDestructionRateCapPercent(turnState, targetIndex) {
   const enemyState = getEnemyState(turnState);
   const key = String(Number(targetIndex));
   const explicit = Number(enemyState.destructionRateCapByEnemy?.[key]);
@@ -3398,6 +3479,23 @@ function getEnemyDestructionRateCapPercent(turnState, targetIndex) {
     return explicit;
   }
   return Math.max(DEFAULT_DESTRUCTION_RATE_CAP_PERCENT, getEnemyDestructionRatePercent(turnState, targetIndex));
+}
+
+function getTranscendenceBurstDestructionCapBonusPercent(turnState) {
+  const burst = resolveTranscendenceBurstConfig(turnState);
+  const value = Number(burst?.destructionRateCapPercent ?? 0);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function getEnemyDestructionRateCapPercent(turnState, targetIndex) {
+  const storedCap = getStoredEnemyDestructionRateCapPercent(turnState, targetIndex);
+  const burstBonus = getTranscendenceBurstDestructionCapBonusPercent(turnState);
+  if (burstBonus <= 0) {
+    return storedCap;
+  }
+  const breakState = getEnemyBreakStateByTarget(turnState, targetIndex);
+  const baseCap = breakState?.baseCap ?? storedCap;
+  return Math.max(storedCap, Math.max(DEFAULT_DESTRUCTION_RATE_CAP_PERCENT, baseCap) + burstBonus);
 }
 
 function getEnemyBreakStateByTarget(turnState, targetIndex) {
@@ -3571,7 +3669,7 @@ function computeEnemySpecialBreakCapPercent(breakState) {
 }
 
 function deriveBaseCapForEnemy(turnState, targetIndex) {
-  const currentCap = getEnemyDestructionRateCapPercent(turnState, targetIndex);
+  const currentCap = getStoredEnemyDestructionRateCapPercent(turnState, targetIndex);
   const currentBreakState = getEnemyBreakStateByTarget(turnState, targetIndex);
   if (!currentBreakState) {
     return currentCap;
@@ -4553,7 +4651,9 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
           attacker: {
             styleId: Number(actor.styleId ?? actionEntry?.styleId ?? 0),
             statusEffects: (actor.statusEffects ?? []).filter((effect) => effect?.statusType === 'DestructionUp'),
-            accessoryDestructionRateBonus: 0,
+            accessoryDestructionRateBonus: Number(
+              actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+            ),
           },
           defender: {
             enemyId: null,
@@ -8199,6 +8299,13 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         divaSkillAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.divaSkillAttackUpRate ?? 0),
         foodBuffAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.foodBuffAttackUpRate ?? 0),
         markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
+        transcendenceBurstAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.transcendenceBurstAttackUpRate ?? 0),
+        transcendenceBurstCriticalRateUpRate: Number(
+          actionEntry?.specialPassiveModifiers?.transcendenceBurstCriticalRateUpRate ?? 0
+        ),
+        transcendenceBurstCriticalDamageUpRate: Number(
+          actionEntry?.specialPassiveModifiers?.transcendenceBurstCriticalDamageUpRate ?? 0
+        ),
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
         attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
@@ -8261,6 +8368,22 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         markAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.markAttackUpRate ?? 0),
         markDamageTakenDownRate: Number(actionEntry?.specialPassiveModifiers?.markDamageTakenDownRate ?? 0),
         markDestructionRateGainBonusRate: Number(actionEntry?.specialPassiveModifiers?.markDestructionRateGainBonusRate ?? 0),
+        transcendenceBurstAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.transcendenceBurstAttackUpRate ?? 0),
+        transcendenceBurstDestructionRateGainBonusRate: Number(
+          actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+        ),
+        transcendenceBurstAttackBuffSkillEffectUpRate: Number(
+          actionEntry?.specialPassiveModifiers?.transcendenceBurstAttackBuffSkillEffectUpRate ?? 0
+        ),
+        transcendenceBurstDebuffSkillEffectUpRate: Number(
+          actionEntry?.specialPassiveModifiers?.transcendenceBurstDebuffSkillEffectUpRate ?? 0
+        ),
+        transcendenceBurstCriticalRateUpRate: Number(
+          actionEntry?.specialPassiveModifiers?.transcendenceBurstCriticalRateUpRate ?? 0
+        ),
+        transcendenceBurstCriticalDamageUpRate: Number(
+          actionEntry?.specialPassiveModifiers?.transcendenceBurstCriticalDamageUpRate ?? 0
+        ),
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
         accessoryAttackUpRate: 0,
@@ -8678,13 +8801,13 @@ function isTimedActiveBuffPart(part) {
   return (exitCond && exitCond !== 'None') || (limitType && limitType !== 'None');
 }
 
-function addActiveBuffStatusEffect(actor, target, skill, part) {
+function addActiveBuffStatusEffect(state, actor, target, skill, part) {
   const skillType = String(part?.skill_type ?? '').trim();
   const statusType = resolveActiveBuffStatusType(skillType);
   if (!statusType) {
     return null;
   }
-  const power = scaleHighBoostAttackBuffPower(actor, skillType, Number(part?.power?.[0] ?? 0));
+  const power = scaleHighBoostAttackBuffPower(state, actor, skillType, Number(part?.power?.[0] ?? 0));
   if (!Number.isFinite(power) || power === 0) {
     return null;
   }
@@ -8764,7 +8887,7 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
         if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
           continue;
         }
-        const added = addActiveBuffStatusEffect(actor, target, skill, part);
+        const added = addActiveBuffStatusEffect(state, actor, target, skill, part);
         if (!added) {
           continue;
         }
@@ -9354,7 +9477,7 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
             statusType: skillType,
             targetIndex,
             remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-            power: scaleHighBoostEnemyDebuffPower(actor, skillType, getEnemyStatusPowerValue(part)),
+            power: scaleHighBoostEnemyDebuffPower(state, actor, skillType, getEnemyStatusPowerValue(part)),
             elements: normalizeEnemyStatusElements(part?.elements),
             limitType: String(part?.effect?.limitType ?? ''),
             exitCond: String(part?.effect?.exitCond ?? ''),
@@ -10711,7 +10834,10 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
   const babiedModifiers = resolveBabiedModifiersForAction(state, member, effectiveSkill);
   const divaModifiers = resolveDivaModifiersForAction(state, member, effectiveSkill);
   const highBoostModifiers = resolveHighBoostModifiersForMember(member);
+  const transcendenceBurstModifiers = resolveTranscendenceBurstModifiersForMember(state, member);
   const dpHealOutputModifiers = resolveDpHealOutputModifiersForMember(member);
+  const attackBuffSkillEffectMultiplier = resolveAttackBuffSkillEffectMultiplier(state, member);
+  const enemyDebuffSkillEffectMultiplier = resolveEnemyDebuffSkillEffectMultiplier(state, member);
   // IgnoreEShieldElement は action-time に恒常フラグとして展開する性質のため
   // timing に依存せず全 passive を検査対象にする。
   const ignoreEShieldElement = resolvePassiveIgnoreEShieldElementForMember(
@@ -10820,11 +10946,28 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
         Number(attackUpPerToken.totalRate ?? 0) +
         Number(babiedModifiers.skillAttackUpRate ?? 0) +
         Number(divaModifiers.skillAttackUpRate ?? 0) +
-        Number(foodBuffModifiers.attackUpRate ?? 0),
+        Number(foodBuffModifiers.attackUpRate ?? 0) +
+        Number(transcendenceBurstModifiers.attackUpRate ?? 0),
       defenseUpRate: Number(activeBuffStatusModifiers.defenseUpRate ?? 0),
-      criticalRateUpRate: Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0),
-      criticalDamageUpRate: Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0),
+      criticalRateUpRate:
+        Number(activeBuffStatusModifiers.criticalRateUpRate ?? 0) +
+        Number(transcendenceBurstModifiers.criticalRateUpRate ?? 0),
+      criticalDamageUpRate:
+        Number(activeBuffStatusModifiers.criticalDamageUpRate ?? 0) +
+        Number(transcendenceBurstModifiers.criticalDamageUpRate ?? 0),
       markAttackUpRate: Number(intrinsicMarkModifiers.attackUpRate ?? 0),
+      transcendenceBurstAttackUpRate: Number(transcendenceBurstModifiers.attackUpRate ?? 0),
+      transcendenceBurstDestructionRateGainBonusRate: Number(
+        transcendenceBurstModifiers.destructionRateGainBonusRate ?? 0
+      ),
+      transcendenceBurstAttackBuffSkillEffectUpRate: Number(
+        transcendenceBurstModifiers.attackBuffSkillEffectUpRate ?? 0
+      ),
+      transcendenceBurstDebuffSkillEffectUpRate: Number(
+        transcendenceBurstModifiers.debuffSkillEffectUpRate ?? 0
+      ),
+      transcendenceBurstCriticalRateUpRate: Number(transcendenceBurstModifiers.criticalRateUpRate ?? 0),
+      transcendenceBurstCriticalDamageUpRate: Number(transcendenceBurstModifiers.criticalDamageUpRate ?? 0),
       attackUpPerTokenRate: Number(attackUpPerToken.totalRate ?? 0),
       damageRateUpRate: Number(damageRateUpPerToken.totalRate ?? 0),
       babiedSkillAttackUpRate: Number(babiedModifiers.skillAttackUpRate ?? 0),
@@ -10834,12 +10977,14 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       foodBuffHealDpByDamageRate: Number(foodBuffModifiers.healDpByDamageRate ?? 0),
       defenseUpPerTokenRate: Number(defenseUpPerToken.totalRate ?? 0),
       zonePowerRate,
-      giveAttackBuffUpRate: highBoostModifiers.active
-        ? truncateToTwoDecimals(Number(highBoostModifiers.attackBuffMultiplier ?? 1) - 1)
-        : 0,
-      giveDefenseDebuffUpRate: highBoostModifiers.active
-        ? truncateToTwoDecimals(Number(highBoostModifiers.debuffMultiplier ?? 1) - 1)
-        : 0,
+      giveAttackBuffUpRate:
+        attackBuffSkillEffectMultiplier > 1
+          ? truncateToTwoDecimals(attackBuffSkillEffectMultiplier - 1)
+          : 0,
+      giveDefenseDebuffUpRate:
+        enemyDebuffSkillEffectMultiplier > 1
+          ? truncateToTwoDecimals(enemyDebuffSkillEffectMultiplier - 1)
+          : 0,
       giveHealUpRate: dpHealOutputModifiers.active
         ? truncateToTwoDecimals(Number(dpHealOutputModifiers.dpHealMultiplier ?? 1) - 1)
         : 0,
@@ -11810,7 +11955,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
               statusType: skillType,
               targetIndex,
               remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-              power: scaleHighBoostEnemyDebuffPower(member, skillType, getEnemyStatusPowerValue(part)),
+              power: scaleHighBoostEnemyDebuffPower(state, member, skillType, getEnemyStatusPowerValue(part)),
               elements: normalizeEnemyStatusElements(part?.elements),
               limitType: String(part?.effect?.limitType ?? ''),
                 exitCond: String(part?.effect?.exitCond ?? ''),

@@ -5850,7 +5850,7 @@ test('normal/od/extra boundary transitions keep expected turn labels and indices
   assert.equal(state.turnState.sequenceId, 4);
 });
 
-function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
+function createTranscendenceTestParty({ initialGaugePercent = null, withBurst = false } = {}) {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `TC${idx + 1}`,
@@ -5867,7 +5867,22 @@ function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
               initialGaugePercentPerMatchingElementMember: 15,
               gaugeGainPercentOnMatchingElementAction: 4,
               maxGaugePercent: 100,
-              triggerOnReachMax: { odGaugeDeltaPercent: 100 },
+              triggerOnReachMax: {
+                odGaugeDeltaPercent: 100,
+                burst: withBurst
+                  ? {
+                      enabled: true,
+                      element: 'Ice',
+                      attackUpPercent: 300,
+                      destructionRateBonusPercent: 10,
+                      attackBuffSkillEffectUpPercent: 20,
+                      debuffSkillEffectUpPercent: 20,
+                      criticalGuaranteed: true,
+                      criticalDamageUpPercent: 100,
+                      destructionRateCapPercent: 300,
+                    }
+                  : null,
+              },
             }
           : null,
       partyIndex: idx,
@@ -5951,6 +5966,140 @@ test('transcendence gauge gains +4 per matching-element action and is capped at 
   const committed2 = commitTurn(state, preview2);
   assert.equal(committed2.nextState.turnState.odGauge, 110);
   assert.equal(committed2.nextState.turnState.transcendence?.gaugePercent, 100);
+});
+
+test('transcendence burst applies matching-element attack and critical modifiers after reaching 100%', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+  state.turnState.transcendence.burstTriggered = true;
+  state.party[0].skills = Object.freeze([
+    ...state.party[0].skills,
+    {
+      id: 15200,
+      skillId: 15200,
+      name: 'Ice Burst Hit',
+      sp_cost: 0,
+      hit_count: 1,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Ice'] }],
+    },
+  ]);
+  state.party[1].elements = ['Fire'];
+  state.party[1].skills = Object.freeze([
+    ...state.party[1].skills,
+    {
+      id: 15201,
+      skillId: 15201,
+      name: 'Fire Burst Miss',
+      sp_cost: 0,
+      hit_count: 1,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Ice'] }],
+    },
+  ]);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15200, targetEnemyIndex: 0 },
+    1: { characterId: 'TC2', skillId: 15201, targetEnemyIndex: 0 },
+  });
+  const iceAction = findActionByCharacterId(preview, 'TC1');
+  const fireAction = findActionByCharacterId(preview, 'TC2');
+
+  assert.equal(iceAction.specialPassiveModifiers.transcendenceBurstAttackUpRate, 3);
+  assert.equal(iceAction.specialPassiveModifiers.attackUpRate, 3);
+  assert.equal(iceAction.specialPassiveModifiers.criticalRateUpRate, 1);
+  assert.equal(iceAction.specialPassiveModifiers.criticalDamageUpRate, 1);
+  assert.equal(fireAction.specialPassiveModifiers.transcendenceBurstAttackUpRate, 0);
+  assert.equal(fireAction.specialPassiveModifiers.attackUpRate, 0);
+
+  const { committedRecord } = commitTurn(state, preview);
+  const committedIceAction = findActionByCharacterId(committedRecord, 'TC1');
+  assert.equal(committedIceAction.damageContext.attackUpRate, 3);
+  assert.equal(committedIceAction.damageContext.transcendenceBurstAttackUpRate, 3);
+  assert.equal(committedIceAction.damageContext.criticalRateBreakdown?.isCriticalGuaranteed, true);
+});
+
+test('transcendence burst scales matching-element attack buff and debuff skill effects by 20%', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+  state.turnState.transcendence.burstTriggered = true;
+  state.party[0].skills = Object.freeze([
+    {
+      id: 15210,
+      skillId: 15210,
+      name: 'Burst Attack Buff',
+      sp_cost: 0,
+      target_type: 'Self',
+      parts: [
+        {
+          skill_type: 'AttackUp',
+          target_type: 'Self',
+          power: [0.5, 0],
+          effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+        },
+      ],
+    },
+  ]);
+  state.party[1].skills = Object.freeze([
+    {
+      id: 15211,
+      skillId: 15211,
+      name: 'Burst Defense Down',
+      sp_cost: 0,
+      target_type: 'Single',
+      parts: [
+        {
+          skill_type: 'DefenseDown',
+          target_type: 'Single',
+          power: [0.5, 0],
+          effect: { limitType: 'Default', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+        },
+      ],
+    },
+  ]);
+  state.turnState.enemyState.enemyCount = 1;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15210 },
+    1: { characterId: 'TC2', skillId: 15211, targetEnemyIndex: 0 },
+  });
+  assert.equal(findActionByCharacterId(preview, 'TC1').specialPassiveModifiers.giveAttackBuffUpRate, 0.2);
+  assert.equal(findActionByCharacterId(preview, 'TC2').specialPassiveModifiers.giveDefenseDebuffUpRate, 0.2);
+
+  const { committedRecord } = commitTurn(state, preview);
+  assert.equal(findActionByCharacterId(committedRecord, 'TC1').statusEffectsApplied[0].power, 0.6);
+  assert.equal(findActionByCharacterId(committedRecord, 'TC2').enemyStatusChanges[0].power, 0.6);
+});
+
+test('transcendence burst raises destruction gain and cap without stacking with SuperBreak cap bonus', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+  state.turnState.transcendence.burstTriggered = true;
+  state.party[0].skills = Object.freeze([
+    {
+      id: 15220,
+      skillId: 15220,
+      name: 'Burst Destruction Hit',
+      hitCount: 2,
+      sp_cost: 10,
+      target_type: 'Single',
+      parts: [
+        { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 1 } },
+        { skill_type: 'SuperBreak', target_type: 'Single' },
+      ],
+    },
+  ]);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 590 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15220, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
+  });
+  const action = findActionByCharacterId(preview, 'TC1');
+  assert.equal(action.specialPassiveModifiers.transcendenceBurstDestructionRateGainBonusRate, 0.1);
+
+  const { nextState } = commitTurn(state, preview);
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 600);
 });
 
 test('transcendence gauge ignores matching skill element when actor element does not match', () => {
