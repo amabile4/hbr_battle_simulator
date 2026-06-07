@@ -61,9 +61,9 @@
 
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
-| E-1 | 🟡 | **全能力ダウン計算式確定**: `enemyAllAbilityDownByEnemy` が `calculateDamage` でどの引数にマップされるか確定（`defender.statusEffects` の DefenseDown として渡す？ or `paramBorder` 補正？）。`calculateDamage` エンジン側の受け口を確認 | ❌ 未着手 | — |
-| E-2 | 🟡 | **全能力ダウン を calculateDamage に配線**: E-1 確定後、`buildDamageCalculationInput` に `enemyAllAbilityDownByEnemy` を渡す経路を追加 | ❌ 未着手 | E-1 |
-| E-3 | ⚪ | **倍率内訳への表示**: debuff 枠に「タリスマン/災難 -N 能力ダウン」として差分ベースで表示。stat delta（S-3）と連動 | ❌ 設計待ち | E-1, S-3 |
+| E-1 | 🟡 | **全能力ダウン計算式確定**: `enemyAllAbilityDownByEnemy` が `calculateDamage` でどの引数にマップされるか確定（`defender.statusEffects` の DefenseDown として渡す？ or `paramBorder` 補正？）。`calculateDamage` エンジン側の受け口を確認 | ✅ 完了（`DefenseDown` は倍率カテゴリのため不採用。敵防御ステータス絶対値の低下として `defender.paramBorder - penalty` にマップ。エンジン変更不要） | — |
+| E-2 | 🟡 | **全能力ダウン を calculateDamage に配線**: E-1 確定後、`buildDamageCalculationInput` に `enemyAllAbilityDownByEnemy` を渡す経路を追加 | ✅ 完了（対象敵の `enemyAllAbilityDownByEnemy` を `paramBorder` から減算し、`calculateDamage` の基礎ダメージ式へ反映） | E-1 |
+| E-3 | ⚪ | **倍率内訳への表示**: debuff 枠に「タリスマン/災難 -N 能力ダウン」として差分ベースで表示。stat delta（S-3）と連動 | ❌ 設計待ち（倍率ではないため debuff multiplier には未追加） | E-1, S-3 |
 
 ---
 
@@ -119,7 +119,7 @@
 |---|---|---|---|---|
 | I-1 | ⚪ | **ShadowClone（影分身）の計算式確定**: 分身攻撃倍率の仕組みを確認。engine 変更要否を判断し必要なら合意 | ❌ 未着手 | — |
 | I-2 | ⚪ | **Hacking（ハッキング）の分類確定**: Fragile / DefenseDown と同型か否かを確認。既存型に吸収できるなら engine 変更不要 | ❌ 未着手 | — |
-| I-4 | 🟡 | **全能力ダウン engine マッピング合意**: `enemyAllAbilityDownByEnemy` をエンジン入力のどの引数に渡すか hbr_calc 側と確定（E-1 の実装前提） | ❌ 未着手 | E-1 |
+| I-4 | 🟡 | **全能力ダウン engine マッピング合意**: `enemyAllAbilityDownByEnemy` をエンジン入力のどの引数に渡すか hbr_calc 側と確定（E-1 の実装前提） | ✅ 本repo側判断完了（既存 `defender.paramBorder` 補正で対応、追加engine API不要） | E-1 |
 | I-5 | 🔵 | **破壊率 API 拡張の合意**: D-3 実装で `calculateDestruction` インターフェース変更が生じた場合、hbr_calc 側と合意 | 🔵 D-3 で判断 | D-3 |
 
 **調整手順**:

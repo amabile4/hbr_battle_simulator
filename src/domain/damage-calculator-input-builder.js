@@ -164,6 +164,11 @@ function resolveDestructionRate(damageContext = {}, enemyAdapter = {}, targetEne
   return DEFAULT_DESTRUCTION_RATE;
 }
 
+function resolveEnemyAllAbilityDown(damageContext = {}, targetEnemyIndex = 0) {
+  const keyedPenalty = Number(damageContext?.enemyAllAbilityDownByEnemy?.[String(targetEnemyIndex)]);
+  return Number.isFinite(keyedPenalty) && keyedPenalty > 0 ? keyedPenalty : 0;
+}
+
 export function resolveDefaultStats(role, limitBreakCount = DEFAULT_LIMIT_BREAK_COUNT) {
   const roleKey = normalizeRole(role);
   const base = DEFAULT_STATS_BY_ROLE[roleKey] ?? DEFAULT_STATS_BY_ROLE.admiral;
@@ -192,6 +197,8 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
   const stats = normalizeStats(defaultStats, attackerStatsInput);
   const affinityRate = resolveAffinityRate(damageContext, enemyAdapter, targetEnemyIndex, targetBreakdown);
   const destructionRate = resolveDestructionRate(damageContext, enemyAdapter, targetEnemyIndex);
+  const paramBorder = toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER);
+  const enemyAllAbilityDown = resolveEnemyAllAbilityDown(damageContext, targetEnemyIndex);
   const tokenPassiveMultiplier = getGroupMultiplier(targetBreakdown, 'token-passive');
   const tokenRatio = Number.isFinite(Number(attackerStatsInput?.tokenRatio))
     ? Number(attackerStatsInput.tokenRatio)
@@ -211,7 +218,7 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
     defender: {
       enemyId: enemyAdapter?.enemyId ?? null,
       enemyName: String(enemyAdapter?.enemyName ?? targetBreakdown?.targetLabel ?? ''),
-      paramBorder: toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER),
+      paramBorder: Math.max(0, paramBorder - enemyAllAbilityDown),
       isHpTarget: enemyAdapter?.isHpTarget !== false,
       destructionRate,
       affinityRate,

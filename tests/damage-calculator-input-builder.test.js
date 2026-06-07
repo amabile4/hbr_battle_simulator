@@ -124,6 +124,36 @@ test('buildDamageCalculationInput converts context destructionRate percent to ca
   assert.ok(hpResult.critical.expected > dpResult.critical.expected);
 });
 
+test('buildDamageCalculationInput applies enemy all ability down as absolute param border reduction', () => {
+  const damageContext = {
+    actorStyleId: 1010103,
+    skillId: 46001107,
+    skillName: '星火燎原',
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    destructionRateByEnemy: { 0: 100 },
+    enemyAllAbilityDownByEnemy: { 0: 50 },
+    damageBreakdown: {
+      targetBreakdowns: [{ targetEnemyIndex: 0, targetLabel: 'E1', groups: [] }],
+    },
+  };
+  const attackerStats = { role: 'Attacker', str: 820, dex: 820, wis: 820, spr: 820, luk: 820, con: 820 };
+  const enemyAdapter = { targetEnemyIndex: 0, paramBorder: 800, isHpTarget: false };
+  const input = buildDamageCalculationInput(damageContext, attackerStats, enemyAdapter);
+  const baselineInput = buildDamageCalculationInput(
+    { ...damageContext, enemyAllAbilityDownByEnemy: {} },
+    attackerStats,
+    enemyAdapter
+  );
+
+  assert.equal(input.defender.paramBorder, 750);
+  assert.equal(input.defender.statusEffects.some((effect) => effect.statusType === 'DefenseDown'), false);
+
+  const data = loadDamageCalculationData();
+  const result = calculateDamage(input, data);
+  const baselineResult = calculateDamage(baselineInput, data);
+  assert.ok(result.critical.expected > baselineResult.critical.expected);
+});
+
 test('buildDamageCalculationInput falls back per stat when actual stats are missing or zero', () => {
   const input = buildDamageCalculationInput(
     {},
