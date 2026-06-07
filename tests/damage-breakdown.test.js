@@ -196,6 +196,27 @@ test('buildDamageBreakdown includes supported priority 1 modifiers without all a
   assert.equal(findGroup(target1, 'debuff').contributions.some((entry) => entry.label === '全能力ダウン'), false);
 });
 
+test('buildDamageBreakdown applies DP condition as token-passive multiplier', () => {
+  const breakdown = buildDamageBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    tokenAttackTotalRate: 0.2,
+    damageRateUpPerTokenRate: 0.1,
+    attackByOwnDpRateResolvedMultiplier: 1.8,
+  });
+
+  const tokenPassive = findGroup(breakdown.targetBreakdowns[0], 'token-passive');
+
+  assert.equal(tokenPassive.multiplier, 2.34);
+  assert.deepEqual(
+    tokenPassive.contributions.map((entry) => [entry.label, entry.kind, entry.value]),
+    [
+      ['トークン攻撃倍率', 'rate', 0.2],
+      ['トークン連動ダメージアップ', 'rate', 0.1],
+      ['DP条件倍率', 'multiplier', 1.8],
+    ]
+  );
+});
+
 test('buildDamageBreakdown adds defense down, element resist down, and fragile in one defense category', () => {
   const breakdown = buildDamageBreakdown({
     effectiveDamageRatesByEnemy: { 0: 150 },

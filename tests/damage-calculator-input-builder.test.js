@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildDamageBreakdown,
   buildDamageCalculationInput,
   buildDamageStatDeltaViewModel,
   calculateDamage,
@@ -137,6 +138,26 @@ test('buildDamageCalculationInput preserves resolved breakdown multipliers witho
   assert.ok(Math.abs(result.breakdown.tokenMultiplier - 1.3) < 1e-9);
   assert.ok(Math.abs(result.breakdown.debuffMultiplier - 1.4) < 1e-9);
   assert.ok(Math.abs(result.breakdown.affinityMultiplier - 1.5) < 1e-9);
+});
+
+test('buildDamageCalculationInput forwards multiplicative token-passive breakdown as token ratio', () => {
+  const damageBreakdown = buildDamageBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    tokenAttackTotalRate: 0.2,
+    damageRateUpPerTokenRate: 0.1,
+    attackByOwnDpRateResolvedMultiplier: 1.8,
+  });
+  const input = buildDamageCalculationInput({
+    actorStyleId: 1000101,
+    skillId: 46001102,
+    skillName: 'クロス斬り',
+    damageBreakdown,
+  });
+
+  assert.ok(Math.abs(input.attacker.tokenRatio - 1.34) < 1e-9);
+
+  const result = calculateDamage(input, loadDamageCalculationData());
+  assert.ok(Math.abs(result.breakdown.tokenMultiplier - 2.34) < 1e-9);
 });
 
 test('buildDamageCalculationInput marks normal attacks and keeps MindEye out of synthetic normal handling', () => {

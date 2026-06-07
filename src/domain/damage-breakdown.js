@@ -193,6 +193,8 @@ function normalizeGroup(group, rateSum) {
   const multiplier =
     group.id === 'affinity'
       ? (Number.isFinite(Number(rateSum)) ? roundTo(rateSum) : 1)
+      : group.id === 'token-passive'
+        ? roundTo(calculateTokenPassiveMultiplier(group.contributions))
       : group.id === 'crit-mindeye'
         ? roundTo(rateSum || CRITICAL_BASE_MULTIPLIER)
         : roundTo(1 + rateSum);
@@ -204,6 +206,17 @@ function normalizeGroup(group, rateSum) {
     formula: buildFormula(group.id, group.contributions, multiplier),
     contributions: group.contributions,
   };
+}
+
+function calculateTokenPassiveMultiplier(contributions) {
+  const entries = Array.isArray(contributions) ? contributions : [];
+  const rateTotal = entries
+    .filter((entry) => String(entry?.kind ?? 'rate') !== 'multiplier')
+    .reduce((sum, entry) => sum + toFiniteNumber(entry.value, 0), 0);
+  const multiplierTotal = entries
+    .filter((entry) => String(entry?.kind ?? 'rate') === 'multiplier')
+    .reduce((product, entry) => product * toFiniteNumber(entry.value, 1), 1);
+  return (1 + rateTotal) * multiplierTotal;
 }
 
 function buildFormula(groupId, contributions, multiplier) {
@@ -219,6 +232,15 @@ function buildFormula(groupId, contributions, multiplier) {
         .filter((entry) => entry.label !== 'クリティカル基礎倍率')
         .reduce((sum, entry) => sum + toFiniteNumber(entry.value, 0), 0)
     )}`;
+  }
+  if (groupId === 'token-passive' && contributions.some((entry) => String(entry?.kind ?? 'rate') === 'multiplier')) {
+    const rateTotal = contributions
+      .filter((entry) => String(entry?.kind ?? 'rate') !== 'multiplier')
+      .reduce((sum, entry) => sum + toFiniteNumber(entry.value, 0), 0);
+    const multiplierTerms = contributions
+      .filter((entry) => String(entry?.kind ?? 'rate') === 'multiplier')
+      .map((entry) => formatMultiplier(entry.value));
+    return `式: (1.0 + ${formatSignedPercent(rateTotal)}) * ${multiplierTerms.join(' * ')}`;
   }
   return `式: 1.0 + ${formatSignedPercent(
     contributions.reduce((sum, entry) => sum + toFiniteNumber(entry.value, 0), 0)
@@ -411,7 +433,7 @@ function collectTokenPassiveContributions(input) {
       createStaticContribution({
         label: 'DP条件倍率',
         kind: 'multiplier',
-        value: attackByOwnDpRateResolvedMultiplier - 1,
+        value: attackByOwnDpRateResolvedMultiplier,
         iconStatusType: 'AttackUp',
       })
     );
