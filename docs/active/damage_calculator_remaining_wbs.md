@@ -35,9 +35,9 @@
 
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
-| C-1 | 🔴 | **バフ接続検証**: `buffMultiplier`・`critMindeyeMultiplier`・`funnelMultiplier`・`tokenMultiplier` が breakdownのカテゴリ倍率と `calculateDamage` 結果で一致するか実データ確認。E2E or 実機比較。心眼（MindEye）弱点スキル判定も確認 | ❌ 未検証 | — |
-| C-2 | 🔴 | **デバフ接続検証**: `debuffMultiplier`・`vulnerabilityMultiplier`・`affinityMultiplier` の一致確認。DefenseDown / ElementResistDown / Fragile の合算パスが `calculateDamage` に届いているか | ❌ 未検証 | — |
-| C-3 | 🟡 | **接続不一致時の修正**: C-1/C-2 で差異が出た場合に `buildDamageCalculationInput` または `calculateDamage` を修正 | ❌ C-1/C-2 結果待ち | C-1, C-2 |
+| C-1 | 🔴 | **バフ接続検証**: `buffMultiplier`・`critMindeyeMultiplier`・`funnelMultiplier`・`tokenMultiplier` が breakdownのカテゴリ倍率と `calculateDamage` 結果で一致するか実データ確認。E2E or 実機比較。心眼（MindEye）弱点スキル判定も確認 | ✅ 検証完了 | — |
+| C-2 | 🔴 | **デバフ接続検証**: `debuffMultiplier`・`vulnerabilityMultiplier`・`affinityMultiplier` の一致確認。DefenseDown / ElementResistDown / Fragile の合算パスが `calculateDamage` に届いているか | ✅ 検証完了 | — |
+| C-3 | 🟡 | **接続不一致時の修正**: token-passive の DP条件倍率（attackByOwnDpRateResolvedMultiplier）が rate 加算扱いだったのを乗算に修正。`(1 + Σrates) × dp_multiplier` の正しい式に修正済み（commit bf9e861） | ✅ 修正完了 | C-1, C-2 |
 
 ---
 
