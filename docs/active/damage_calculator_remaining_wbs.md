@@ -105,6 +105,31 @@
 
 ---
 
+### 大分類 I: hbr_calc インターフェース調整
+
+> `calculateDamage` / `calculateDestruction` / コントラクト（`src/contracts/damage-calculation.js`）は
+> **hbr_calc（別リポジトリ）** で管理される。エンジン型の追加・変更を伴う実装は
+> hbr_calc との合意が前提となる。
+>
+> **現行エンジン型** (`src/contracts/damage-calculation.js` より):
+> - buff: `AttackUp | CritDamageUp | CritBuff | MindEye | Charge | Funnel | ElementAttackUp`
+> - debuff: `DefenseDown | ElementResistDown | Fragile`
+
+| ID | 優先度 | 内容 | 状態 | 依存 |
+|---|---|---|---|---|
+| I-1 | ⚪ | **Shredding（速弾き）の計算式確定**: DP 直撃・防御無視系かどうかを確認。エンジン新型追加が必要な場合 hbr_calc 側と合意 | ❌ 未着手 | — |
+| I-2 | ⚪ | **ShadowClone（影分身）の計算式確定**: 分身攻撃倍率の仕組みを確認。engine 変更要否を判断し必要なら合意 | ❌ 未着手 | — |
+| I-3 | ⚪ | **Hacking（ハッキング）の分類確定**: Fragile / DefenseDown と同型か否かを確認。既存型に吸収できるなら engine 変更不要 | ❌ 未着手 | — |
+| I-4 | 🟡 | **全能力ダウン engine マッピング合意**: `enemyAllAbilityDownByEnemy` をエンジン入力のどの引数に渡すか hbr_calc 側と確定（E-1 の実装前提） | ❌ 未着手 | E-1 |
+| I-5 | 🔵 | **破壊率 API 拡張の合意**: D-3 実装で `calculateDestruction` インターフェース変更が生じた場合、hbr_calc 側と合意 | 🔵 D-3 で判断 | D-3 |
+
+**調整手順**:
+1. 本リポジトリ側で「何が必要か（計算式・型の候補）」を明確化
+2. hbr_calc の issue / PR で変更案を提案 → 双方合意後に engine 更新
+3. engine 更新後に本リポジトリ側の `buildDamageCalculationInput` / breakdown を修正
+
+---
+
 ## 依存グラフ（実装順の骨格）
 
 ```
@@ -138,6 +163,7 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | D-1 〜 D-7 | destruction_rate_implementation_plan.md | §4 WBS |
 | SP-1 | damage_calculator_integration_plan.md | スコープ外項目 |
 | V-1 〜 V-3 | damage_calculator_integration_plan.md | 受け入れ基準 |
+| I-1 〜 I-5 | 本 WBS 付録「状態変化タブ 全数検査結果」| ⚠️ 要調査 6 件 |
 
 ---
 
@@ -156,3 +182,119 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | session 保存・replay での破壊率整合 | D-3 snapshot 整合の範囲 |
 | AcccessoryAttackUpRate | 🔵 将来（アクセサリ DB 整備後） |
 | foodBuffAttackUpRate / highBoostSkillAtkRate 表示 | ✅ Priority 1 チェック済み（unimplemented_elements_wbs.md）|
+| 状態変化タブ 全 90 件の計算機接続状況 | → 付録「状態変化タブ 全数検査結果」参照。✅ 19件 / ⚠️ 6件（I-1〜I-4 対象）/ 🔵 65件 |
+
+---
+
+## 付録: 状態変化タブ 全数検査結果
+
+> **検査日**: 2026-06-07 | **対象**: `ui-next/utils/char-detail-popup.js` の `STATUS_LABELS`（90 件）
+>
+> 各ステータスタイプが `src/domain/damage-breakdown.js` のダメージ計算に接続されているかを全数確認。
+> 判定基準: `collectXxx` 関数でステータスタイプとして直接フィルタされる / `iconStatusType` として使用される / 専用フィールド経由（`foodBuffAttackUpRate` 等）で接続されている。
+
+**凡例**:
+- ✅ 反映済み: ダメージ計算に影響し、breakdown に表示される
+- ⚠️ 要調査: 影響する可能性があるが未接続または仕様未確定
+- 🔵 スコープ外: ダメージ倍率に影響しない（HP 管理・状態管理・OD 管理等）
+
+| ステータスタイプ | 表示名 | 判定 | 計算機上の位置 / 備考 |
+|---|---|---|---|
+| AttackUp | 攻撃力アップ | ✅ | buff群（直接フィルタ `collectAttackBuffContributions`） |
+| AttackDown | 攻撃力ダウン | 🔵 | 敵専用・被ダメ計算 |
+| AttackUpIncludeNormal | 攻撃力アップ（通常攻撃含む）| 🔵 | isNormalAttack フラグ別管理。damage-breakdown では拾われない |
+| DefenseUp | 防御力アップ | 🔵 | 被ダメ計算用 |
+| DefenseDown | 防御力ダウン | ✅ | debuff群（直接フィルタ `collectEnemyStatusContributions`） |
+| DamageRateUp | 破壊率上昇量アップ | ⚠️ | **大分類D**: ダメージ倍率ではなく破壊率蓄積速度に影響。D-3 接続時に評価 |
+| ResistDown | 属性耐性ダウン | ✅ | debuff群（直接フィルタ） |
+| ResistDownOverwrite | 属性耐性打ち消し | ✅ | debuff群（直接フィルタ） |
+| ToughnessUpValue | 体力アップ | 🔵 | HP上限変化 |
+| Fragile | 脆弱 | ✅ | debuff群（弱点時のみ有効） |
+| Undermine | 蝕 | 🔵 | 状態変化効果量変動系 |
+| Shredding | 速弾き | ⚠️ | **I-1**: DP特化・防御無視系の可能性。エンジン型未対応 |
+| HighBoost | ハイブースト | ✅ | buff群（`highBoostSkillAtkRate` 専用フィールド経由） |
+| Mocktail | モクテル | 🔵 | SP/EP 回復系 |
+| Babied | オギャり | ✅ | token-passive群（`babiedSkillAttackUpRate` 専用フィールド経由） |
+| GiveAttackBuffUp | スキル攻撃力上昇の効果アップ | 🔵 | バフ付与量増加（自己ダメージ計算外） |
+| GiveDebuffUp | デバフスキル効果量アップ | 🔵 | デバフ付与量増加 |
+| GiveDefenseDebuffUp | 防御力ダウン効果アップ | 🔵 | デバフ付与量増加 |
+| CriticalRateUp | クリティカル確率アップ | ✅ | criticalRateBreakdown（直接フィルタ） |
+| CriticalRateDown | クリティカル確率ダウン | 🔵 | 敵専用 |
+| CriticalDamageUp | クリティカルダメージアップ | ✅ | crit-mindeye群（直接フィルタ） |
+| CriticalDamageDown | クリティカルダメージダウン | 🔵 | 敵専用 |
+| HealDp | HP回復 | 🔵 | HP管理 |
+| HealDpByDamage | ダメージHP回復 | 🔵 | HP管理 |
+| HealDown | 回復量ダウン | 🔵 | 回復管理 |
+| RegenerationDp | HP継続回復 | 🔵 | HP管理 |
+| ReviveDp | DPゲージ復活 | 🔵 | DP管理 |
+| HealSp | SP回復 | 🔵 | SP管理 |
+| HealSpRandom | 確率でSPを回復 | 🔵 | SP管理 |
+| OverwriteSp | SP上書き | 🔵 | SP管理 |
+| SpecifySp | SP指定 | 🔵 | SP管理 |
+| SpLimitOverwrite | SP上限上書き | 🔵 | SP管理 |
+| HealEp | EP回復 | 🔵 | EP管理 |
+| HealSkillUsedCount | スキル使用回数回復 | 🔵 | スキル管理 |
+| OverDrivePointUp | ODゲージアップ | 🔵 | OD管理 |
+| OverDrivePointDown | ODゲージダウン | 🔵 | OD管理 |
+| OverDrivePointUpByToken | トークンによるODゲージアップ | 🔵 | OD管理 |
+| ConfusionRandom | 混乱 | 🔵 | 状態異常 |
+| ImprisonRandom | 束縛 | 🔵 | 状態異常 |
+| StunRandom | 気絶 | 🔵 | 状態異常 |
+| RecoilRandom | 反動ダメージ | 🔵 | 固定ダメージ（倍率計算外） |
+| Misfortune | 不幸 | 🔵 | 状態異常 |
+| SelfDamage | 自傷ダメージ | 🔵 | 固定ダメージ |
+| DebuffGuard | デバフ無効 | 🔵 | 状態管理 |
+| BuffCharge | チャージ | ✅ | buff群（`chargeEffects` 経由でチャージ倍率として加算） |
+| Invincible | 無敵 | 🔵 | 被ダメ無効 |
+| Cover | かばう | 🔵 | ターゲット管理 |
+| Dodge | 回避 | 🔵 | 命中管理 |
+| Provoke | 挑発 | 🔵 | ターゲット管理 |
+| Break | BREAK | 🔵 | 状態遷移（大分類D 破壊率対象） |
+| SuperBreak | 強ブレイク | 🔵 | 状態遷移（破壊率cap。D-3 スコープ） |
+| BreakGuard | ブレイクガード | 🔵 | 状態管理 |
+| SuperBreakDown | 超ダウン | 🔵 | 状態管理 |
+| DownTurn | ダウンターン | 🔵 | ターン管理 |
+| BreakDownTurnUp | ブレイクダウンターン延長 | 🔵 | ターン管理 |
+| MindEye | 心眼 | ✅ | buff群（弱点時クリ昇格。`selectedMindEyeEffects` 経由） |
+| FightingSpirit | 闘志 | 🔵 | 複合バフ。個別効果は AttackUp 等として各 collectXxx で収集 |
+| Morale | 士気 | 🔵 | 複合バフ。個別効果は各型で収集 |
+| Motivation | やる気 | 🔵 | 複合バフ |
+| EternalOath | 永遠の誓い | 🔵 | 複合バフ |
+| ShadowClone | 影分身 | ⚠️ | **I-2**: 分身攻撃倍率の仕組みを確認。エンジン未対応 |
+| Funnel | 連撃数アップ | ✅ | funnel群（`funnelEffects` 経由で連撃ヒット×倍率加算） |
+| Diva | 歌姫の加護 | ✅ | token-passive群（`divaSkillAttackUpRate` 専用フィールド経由） |
+| Hacking | ハッキング | ⚠️ | **I-3**: DefenseDown / Fragile 相当か否かを確認 |
+| FireMark | 火の印 | ✅ | buff群（`markAttackUpRate` / crit-mindeye群（`markCriticalDamageUp`）/ critRate（`markCriticalRateUp`）経由） |
+| AdditionalTurn | 追加ターン | 🔵 | ターン管理 |
+| DoubleActionExtraSkill | EXスキル連続発動 | 🔵 | 行動管理 |
+| ByakkoDoubleActionAttackSkill | ラッシュ | 🔵 | 行動管理 |
+| SkillCondition | スキル条件 | 🔵 | 条件管理 |
+| SkillRandom | スキルランダム | 🔵 | スキル管理 |
+| SkillSwitch | スキルスイッチ | 🔵 | スキル管理 |
+| FixedHpDamageRateAttack | 固定HP割合攻撃 | 🔵 | 固定ダメージ（倍率計算外） |
+| TokenSet | トークン上昇 | ✅ | token-passive群（`tokenAttackTotalRate` / `damageRateUpPerTokenRate` / `attackUpPerTokenRate` 経由） |
+| RemoveBuff | バフ解除 | 🔵 | 状態管理 |
+| RemoveDebuff | デバフ解除 | 🔵 | 状態管理 |
+| RemoveSpecialStatus | 特殊状態解除 | 🔵 | 状態管理 |
+| Talisman | 霊符状態 | ⚠️ | **大分類E / I-4**: 全能力ダウン source。差分計算実装後に debuff 枠へ反映（E-1/E-2） |
+| Disaster | 禍状態 | ⚠️ | **大分類E / I-4**: 全能力ダウン source。差分計算実装後に debuff 枠へ反映（E-1/E-2） |
+| ZoneUpEternal | フィールド状態永続 | 🔵 | フィールド管理（フィールドの攻撃倍率は `zonePowerRate` で buff群に反映済み） |
+| ReviveTerritory | 再生の陣 | 🔵 | HP回復フィールド |
+| ArrowCherryBlossoms | 桜花の矢 | 🔵 | キャラ固有状態 |
+| BIYamawakiServant | 山脇様のしもべ | 🔵 | キャラ固有状態 |
+| Curry | カリー | ✅ | buff群（`foodBuffAttackUpRate` 専用フィールド経由） |
+| Gelato | ジェラート | ✅ | buff群（`foodBuffAttackUpRate` 専用フィールド経由） |
+| Shchi | シチー | ✅ | buff群（`foodBuffAttackUpRate` 専用フィールド経由） |
+| Steak | ステーキ | ✅ | buff群（`foodBuffAttackUpRate` 専用フィールド経由） |
+| SpeedUp | 速度アップ | 🔵 | 速度管理 |
+| SpeedDown | 速度ダウン | 🔵 | 速度管理 |
+| Reinforce | 鬼神化中 | 🔵 | 変身状態（ATK増加効果は AttackUp 等として収集） |
+| ActionDisabled | 行動不能 | 🔵 | 行動管理 |
+
+**集計: ✅ 19件 / ⚠️ 6件 / 🔵 65件 （合計 90件）**
+
+| 区分 | タイプ一覧 |
+|---|---|
+| ✅ 反映済み（19件）| AttackUp, DefenseDown, ResistDown, ResistDownOverwrite, Fragile, HighBoost, Babied, CriticalRateUp, CriticalDamageUp, BuffCharge, MindEye, Funnel, Diva, TokenSet, FireMark, Curry, Gelato, Shchi, Steak |
+| ⚠️ 要調査（6件）| DamageRateUp, Shredding（I-1）, ShadowClone（I-2）, Hacking（I-3）, Talisman（I-4/E）, Disaster（I-4/E）|
+| 🔵 スコープ外（65件）| 上記以外 |
