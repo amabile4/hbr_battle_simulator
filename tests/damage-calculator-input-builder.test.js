@@ -257,9 +257,9 @@ test('buildDamageCalculationInput marks normal attacks and keeps MindEye out of 
 
 test('buildDamageStatDeltaViewModel exposes base, delta and resolved lanes without mutating input stats', () => {
   const viewModel = buildDamageStatDeltaViewModel(
-    {},
+    { enemyAllAbilityDownByEnemy: { 0: 40 } },
     { role: 'Debuffer', limitBreakCount: 1, luk: 777 },
-    { paramBorder: 810 }
+    { targetEnemyIndex: 0, paramBorder: 810 }
   );
 
   assert.deepEqual(viewModel.attacker.luk, {
@@ -271,7 +271,7 @@ test('buildDamageStatDeltaViewModel exposes base, delta and resolved lanes witho
   assert.deepEqual(viewModel.enemy.str, {
     base: 810,
     buffDelta: 0,
-    debuffDelta: 0,
-    resolved: 810,
+    debuffDelta: 40,
+    resolved: 770,
   });
 });

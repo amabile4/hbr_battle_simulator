@@ -43,14 +43,14 @@
 
 ### 大分類 S: 攻撃者・敵 ステータス実値化
 
-> 現状: 攻撃者は `resolveDefaultStats(role, limitBreak)` の role 標準値、delta は 0 固定。
+> 現状: 攻撃者は PartySetup 実 stats を表示し、固定値 stat 加算バフの入力がないため攻撃者 delta は 0。敵側は全能力ダウンを stat delta に反映済み。
 > 正確な計算には実際のキャラ stat（エクイップ後・バフ適用後）が必要。
 
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
 | S-1 | 🔴 | **攻撃者 stats 実値配線**: PartySetup スナップショットにキャラ str/dex/wis/spr/luk/con を追加し、`openCharDetailPopup` 経由で `attackerInput` に実値を渡す。凸・role はすでに連携済み | ✅ 完了（commit 6067712） | PartySetup stats 欄実装 |
-| S-2 | 🟡 | **stat delta 実値化（攻撃者）**: バフ適用後の実効 stat（resolved = base + buffDelta - debuffDelta）を `buildDamageStatDeltaViewModel` に実装。現状 delta=0 固定 | ❌ 未着手 | S-1, C-1 |
-| S-3 | 🟡 | **stat delta 実値化（敵）**: 敵の DefenseDown 等の数値を stat 列の delta として表示。enemyAllAbilityDownByEnemy の計算式確定が必要 | ❌ 未着手・設計必要 | C-2 |
+| S-2 | 🟡 | **stat delta 実値化（攻撃者）**: バフ適用後の実効 stat（resolved = base + buffDelta - debuffDelta）を `buildDamageStatDeltaViewModel` に実装。現状 delta=0 固定 | ✅ 現状確認完了（damageContext に固定値 stat 加算バフがないため攻撃者 delta=0 維持。AttackUp 等は倍率カテゴリで別管理） | S-1, C-1 |
+| S-3 | 🟡 | **stat delta 実値化（敵）**: 敵の DefenseDown 等の数値を stat 列の delta として表示。enemyAllAbilityDownByEnemy の計算式確定が必要 | ✅ 完了（`enemyAllAbilityDownByEnemy` を敵 stat 行の `debuffDelta` として表示。base=paramBorder、delta=-penalty、resolved=paramBorder-penalty） | C-2, E-1 |
 
 ---
 
@@ -79,7 +79,7 @@
 | D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | 🔶 turnState 接続完了（既BREAK / same-action Break・SuperBreak、cap clamp、E-shield active 除外）。敵 `d_rate` 実値は `destructionMultiplierByEnemy` に保持し、破壊率上昇式へ接続。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 | D-1, D-2 |
 | D-4 | 🔴 | **ダメージ式接合**: `damageContext` に per-enemy 破壊率（`enemyParamBorderByEnemy` と同パターン）を配線。`buildDamageCalculationInput` が `destructionRate` を実値化。`calculateDamage` が HP ダメージに乗算 | ✅ 完了（`destructionRateByEnemy` は `%` で保持し、builder / popup adapter が `calculateDamage` 用 rate に変換） | D-2, D-3 |
 | D-5 | 🔴 | **HP ダメージ表示解禁**: `isHpTarget=false` 固定を解除。右ペインに「非クリ HP」「クリティカル HP」行を追加。DP/HP の表示切り替え | ✅ 完了（右クリック威力詳細で DP/HP の非クリ・クリティカル期待値と現在破壊率を同時表示） | D-4 |
-| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（context/builder 接合、敵 `d_rate` snapshot、HP表示・敵タブ連動 E2E を追加。実データ DP 割れ検証は残） | D-3, D-4, D-5 |
+| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E を固定。実データ DP 割れ検証は残） | D-3, D-4, D-5 |
 | D-7 | 🟡 | **受け入れ**: HP ダメージ 3 点一致（Excel・実機・シミュレータ） | ❌ 未着手 | D-6 |
 
 ---

@@ -59,7 +59,7 @@
 | D-3 | Engine(上昇計算) | D-1 の式を engine に実装（DP ダメージ／OD／break 連動で rate を上昇、cap でクランプ）。snapshot 保持・replay 整合 | D-1, D-2 | 🔶 turnState 接続完了（既BREAK / same-action Break・SuperBreak で上昇、cap clamp、E-shield active 除外）。敵 `d_rate` 実値を `destructionMultiplierByEnemy` として保持し、破壊率上昇式へ接続。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 |
 | D-4 | Integration(接合) | `damageContext` に per-enemy 破壊率（と cap）を配線（A-7 の `enemyParamBorderByEnemy` と同パターン）。builder が `destructionRate` を渡す。`calculateDamage` が HP ダメージに適用。HP/DP 出し分け | D-2, D-3 | ✅ 完了（`destructionRateByEnemy` は `%` で保持し、builder / popup adapter が `calculateDamage` 用 rate に変換） |
 | D-5 | UI(表示) | 威力詳細／計算機ペインに破壊率（現在値・cap）と適用後 HP ダメージを表示。Phase A で非表示にした HP 行を解禁 | D-4 | ✅ 完了（DP/HP の非クリ・クリティカル期待値と現在破壊率を表示。cap 表示と上昇量内訳は後続） |
-| D-6 | Test | unit（上昇式・cap・接合）／ E2E（破壊率表示・HP ダメージ・敵タブ連動）／ 実データ DP 検証（敵 DP 割れ判定） | D-3, D-4, D-5 | 🔶 部分完了（`calculateDestruction` 回帰、context/builder 接合、敵 `d_rate` snapshot、HP表示・敵タブ連動 E2E を固定。実データ DP 割れ検証は残） |
+| D-6 | Test | unit（上昇式・cap・接合）／ E2E（破壊率表示・HP ダメージ・敵タブ連動）／ 実データ DP 検証（敵 DP 割れ判定） | D-3, D-4, D-5 | 🔶 部分完了（`calculateDestruction` 回帰、dp=0 + damage=0 post-break 加算、storedRate 100% fallback、context/builder 接合、敵 `d_rate` snapshot、HP表示・破壊率>100%時 HP>DP・敵タブ連動 E2E を固定。実データ DP 割れ検証は残） |
 | D-7 | 受け入れ | HP ダメージの 3点一致（Excel／実機／本シミュレータ）＋実データ DP 検証で OK | D-6 | 未着手 |
 
 ## 5. リスク・留意点

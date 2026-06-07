@@ -181,12 +181,20 @@ export function resolveDefaultStats(role, limitBreakCount = DEFAULT_LIMIT_BREAK_
 export function buildDamageStatDeltaViewModel(damageContext = {}, attackerStatsInput = {}, enemyAdapter = {}) {
   const defaultStats = resolveDefaultStats(attackerStatsInput?.role, attackerStatsInput?.limitBreakCount);
   const attackerStats = normalizeStats(defaultStats, attackerStatsInput);
+  const targetEnemyIndex = getTargetEnemyIndex(damageContext, enemyAdapter);
   const paramBorder = toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER);
+  const enemyAllAbilityDown = resolveEnemyAllAbilityDown(damageContext, targetEnemyIndex);
   const enemyStats = Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, paramBorder]));
   const makeRow = (base) => ({ base, buffDelta: 0, debuffDelta: 0, resolved: base });
+  const makeEnemyRow = (base) => ({
+    base,
+    buffDelta: 0,
+    debuffDelta: enemyAllAbilityDown,
+    resolved: Math.max(0, base - enemyAllAbilityDown),
+  });
   return {
     attacker: Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, makeRow(attackerStats[key])])),
-    enemy: Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, makeRow(enemyStats[key])])),
+    enemy: Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, makeEnemyRow(enemyStats[key])])),
   };
 }
 

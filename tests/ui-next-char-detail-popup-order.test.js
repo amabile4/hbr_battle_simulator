@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  resolveDamageCalculatorStoredDestructionRatePercent,
   resolveSkillTypeIconUrl,
   sortStatusEffectsForStatusTab,
 } from '../ui-next/utils/char-detail-popup.js';
@@ -94,4 +95,28 @@ test('resolveSkillTypeIconUrl uses ui dead icon for Dead status', () => {
   const url = resolveSkillTypeIconUrl('Dead');
 
   assert.match(url, /assets\/ui\/dead\.webp$/);
+});
+
+test('resolveDamageCalculatorStoredDestructionRatePercent falls back to default rate without enemy state', () => {
+  assert.equal(
+    resolveDamageCalculatorStoredDestructionRatePercent(
+      { damageContext: { destructionRateByEnemy: {} }, enemyDestructionState: undefined },
+      '0'
+    ),
+    100
+  );
+  assert.equal(
+    resolveDamageCalculatorStoredDestructionRatePercent(
+      { damageContext: { destructionRateByEnemy: { 0: 125 } }, enemyDestructionState: undefined },
+      '0'
+    ),
+    125
+  );
+  assert.equal(
+    resolveDamageCalculatorStoredDestructionRatePercent(
+      { damageContext: {}, enemyDestructionState: { destructionRateByEnemy: { 0: 150 } } },
+      '0'
+    ),
+    150
+  );
 });

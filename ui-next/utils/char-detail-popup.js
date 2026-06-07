@@ -55,6 +55,7 @@ const DAMAGE_CALC_STAT_LABELS = Object.freeze({
 });
 const DAMAGE_CALC_DEFAULT_ROLE = 'Attacker';
 const DAMAGE_CALC_DEFAULT_ENEMY_BORDER = 770;
+const DEFAULT_DESTRUCTION_RATE_PERCENT = 100;
 const DAMAGE_CALC_JSON_FILES = Object.freeze(['styles', 'characters', 'enemies', 'skills']);
 const damageCalculationActionModels = new Map();
 const damageCalculationInteractionPanels = new WeakSet();
@@ -1018,6 +1019,17 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
   };
 }
 
+export function resolveDamageCalculatorStoredDestructionRatePercent(model, enemyKey) {
+  const contextRate = Number(model?.damageContext?.destructionRateByEnemy?.[enemyKey]);
+  if (Number.isFinite(contextRate) && contextRate > 0) {
+    return contextRate;
+  }
+  const storedRate = Number(model?.enemyDestructionState?.destructionRateByEnemy?.[enemyKey]);
+  return Number.isFinite(storedRate) && storedRate > 0
+    ? storedRate
+    : DEFAULT_DESTRUCTION_RATE_PERCENT;
+}
+
 function updateDamageCalculatorStatGrid(pane, statViewModel) {
   for (const side of ['attacker', 'enemy']) {
     const root = pane.querySelector(`[data-role="damage-calc-${side}-stats"]`);
@@ -1081,13 +1093,8 @@ async function updateDamageCalculatorPane(pane) {
   const inputEl = pane.querySelector('[data-role="destruction-rate-input"]');
   if (inputEl) {
     const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
-    const contextRate = Number(model.damageContext?.destructionRateByEnemy?.[enemyKey]);
-    const storedRate = Number.isFinite(contextRate) && contextRate > 0
-      ? contextRate
-      : Number(model.enemyDestructionState?.destructionRateByEnemy?.[enemyKey]);
-    if (Number.isFinite(storedRate) && storedRate > 0) {
-      inputEl.value = storedRate.toFixed(2);
-    }
+    const storedRate = resolveDamageCalculatorStoredDestructionRatePercent(model, enemyKey);
+    inputEl.value = storedRate.toFixed(2);
   }
   updateDestructionRateDisplay(pane);
 }
