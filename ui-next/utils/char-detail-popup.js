@@ -1129,10 +1129,10 @@ function buildDamageActionBreakdownHtml(action, actionIndex, attackerInput, enem
   return (
     `<section class="char-popup-damage-action" data-role="char-popup-damage-action" data-action-key="${esc(actionKey)}">` +
     `<div class="char-popup-damage-action-title">${skillName ? esc(skillName) : 'スキル'}</div>` +
-    buildCriticalRateNoteHtml(damageContext?.criticalRateBreakdown) +
     `<div class="char-popup-damage-layout">` +
     `<div class="char-popup-damage-breakdown-pane">` +
     targetBreakdowns.map((targetBreakdown) => buildDamageTargetBreakdownHtml(targetBreakdown)).join('') +
+    buildCriticalRateNoteHtml(damageContext?.criticalRateBreakdown) +
     `</div>` +
     buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdowns, attackerInput) +
     `</div>` +
