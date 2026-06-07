@@ -8,6 +8,7 @@ import {
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { buildCriticalRateBreakdown, buildDamageBreakdown } from '../domain/damage-breakdown.js';
+import { calculateDestruction } from '../domain/destruction-calculator.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import {
   cloneEnemyEShieldState,
@@ -124,6 +125,11 @@ const DAMAGE_AFFINITY_REFERENCE_ICON_TYPES = Object.freeze({
   Thunder: 'Thunder',
   Light: 'Light',
   Dark: 'Dark',
+});
+const DESTRUCTION_CALCULATION_DATA_FALLBACK = Object.freeze({
+  styles: Object.freeze([]),
+  enemies: Object.freeze([]),
+  skills: Object.freeze([]),
 });
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_STRONG_BREAK = ENEMY_STATUS_SUPER_BREAK;
@@ -4466,6 +4472,99 @@ function applyDpEffectsFromActions(state, previewRecord) {
   }
 
   return events;
+}
+
+function buildDestructionHitsForAction(hitCount, isSameActionBreak) {
+  const normalizedHitCount = Math.max(1, Number(hitCount ?? 0));
+  return Array.from({ length: normalizedHitCount }, (_, index) => ({
+    damage: 0,
+    isBreakHit: Boolean(isSameActionBreak && index === 0),
+  }));
+}
+
+function applyDestructionRateFromActions(state, previewRecord, options = {}) {
+  const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
+  const enemyCount = clampEnemyCount(
+    state?.turnState?.enemyState?.enemyCount ?? previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT
+  );
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    if (!hasDamagePartInParts(effectiveParts)) {
+      continue;
+    }
+
+    const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
+    if (targetEnemyIndexes.length === 0) {
+      continue;
+    }
+
+    const hitCount = Math.max(1, resolveActionEShieldHitCount(actionEntry, skill));
+    const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
+    const autoBreakEnemyIndexes = normalizeAutoBreakEnemyIndexes(actionEntry, enemyCount);
+    const sameActionBreakEnemyIndexes = new Set([...manualBreakEnemyIndexes, ...autoBreakEnemyIndexes]);
+
+    for (const targetIndex of targetEnemyIndexes) {
+      const preActionEShieldState = getEnemyEShieldStateByTarget(preActionTurnState, targetIndex);
+      if (isEnemyEShieldActive(preActionEShieldState)) {
+        continue;
+      }
+
+      const wasBroken = hasEnemyStatus(preActionTurnState, targetIndex, ENEMY_STATUS_BREAK);
+      const isSameActionBreak =
+        sameActionBreakEnemyIndexes.has(Number(targetIndex)) ||
+        (!wasBroken && hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK));
+      if (!wasBroken && !isSameActionBreak) {
+        continue;
+      }
+
+      const currentRatePercent = getEnemyDestructionRatePercent(preActionTurnState, targetIndex);
+      const capPercent = getEnemyDestructionRateCapPercent(state.turnState, targetIndex);
+      const result = calculateDestruction(
+        {
+          attacker: {
+            styleId: Number(actor.styleId ?? actionEntry?.styleId ?? 0),
+            statusEffects: (actor.statusEffects ?? []).filter((effect) => effect?.statusType === 'DestructionUp'),
+            accessoryDestructionRateBonus: 0,
+          },
+          defender: {
+            enemyId: null,
+            destructionRate: currentRatePercent / 100,
+            destructionLimit: capPercent / 100,
+            destructionMultiplier: null,
+            dp: wasBroken ? 0 : 1,
+          },
+          skill: {
+            skillId: Number(skill.skillId ?? skill.id ?? actionEntry?.skillId ?? 0),
+            name: String(skill.name ?? actionEntry?.skillName ?? ''),
+            isNormalAttack: isNormalAttackSkill(skill),
+            isPursuit: isPursuitOnlySkill(skill),
+            spCostOverride: Number(actionEntry?.spCost ?? skill?.spCost ?? skill?.sp_cost ?? 0),
+            parts: effectiveParts,
+          },
+          hits: buildDestructionHitsForAction(hitCount, isSameActionBreak),
+          autoBreak: false,
+        },
+        DESTRUCTION_CALCULATION_DATA_FALLBACK
+      );
+      const nextRatePercent = Math.min(capPercent, Number(result?.destructionRate ?? 1) * 100);
+      if (Number.isFinite(nextRatePercent)) {
+        setEnemyDestructionRatePercent(state.turnState, targetIndex, nextRatePercent);
+      }
+    }
+  }
 }
 
 function applyEnemyTurnEndDpEffects(party = []) {
@@ -11085,6 +11184,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       actionEntry.manualBreakEnemyIndexes = [...new Set(derivedBreakEnemyIndexes)];
     }
   }
+  applyDestructionRateFromActions(state, singleRecord, { preActionTurnState });
   const breakDownTurnUpResult = applyBreakDownTurnUpFromActions(state, singleRecord);
   const breakDownTurnUpEvents = breakDownTurnUpResult.events;
   const breakDownTurnUpPassiveTriggerEvents = breakDownTurnUpResult.passiveTriggerEvents;

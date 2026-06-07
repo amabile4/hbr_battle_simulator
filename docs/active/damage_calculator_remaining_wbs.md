@@ -70,16 +70,16 @@
 ### 大分類 D: 破壊率（HP ダメージ正確化）
 
 > `destruction_rate_implementation_plan.md` の残項目を再掲。
-> **右クリック手動入力（暫定）は 2026-06-07 完了**。turn engine 接続は未着手。
+> **右クリック手動入力（暫定）は 2026-06-07 完了**。turn engine 接続は 2026-06-07 に最小実装済み。HP damage 接合・敵 `d_rate` 実値配線は後続。
 
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
 | D-1 | ✅ | 破壊率上昇式・cap・適用条件の仕様確定（calculateDestruction 実装済み） | ✅ | — |
-| D-2 | 🔴 | **turn engine 記録検証**: `destructionRateByEnemy` が攻撃進行（DP ダメージ発生ごと）を実際に反映しているか確認。空オブジェクトのまま進行しないか | ❌ 未着手 | D-1 |
-| D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | ❌ 未着手 | D-1, D-2 |
+| D-2 | 🔴 | **turn engine 記録検証**: `destructionRateByEnemy` が攻撃進行（DP ダメージ発生ごと）を実際に反映しているか確認。空オブジェクトのまま進行しないか | ✅ 完了（攻撃進行では未更新、break/reset/superDown 系のみ更新と確認） | D-1 |
+| D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | 🔶 turnState 接続完了（既BREAK / same-action Break・SuperBreak、cap clamp、E-shield active 除外）。敵 `d_rate` 実値配線は後続 | D-1, D-2 |
 | D-4 | 🔴 | **ダメージ式接合**: `damageContext` に per-enemy 破壊率（`enemyParamBorderByEnemy` と同パターン）を配線。`buildDamageCalculationInput` が `destructionRate` を実値化。`calculateDamage` が HP ダメージに乗算 | ❌ 未着手 | D-2, D-3 |
 | D-5 | 🔴 | **HP ダメージ表示解禁**: `isHpTarget=false` 固定を解除。右ペインに「非クリ HP」「クリティカル HP」行を追加。DP/HP の表示切り替え | 🔶 暫定手入力のみ | D-4 |
-| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 calculateDestruction 単体のみ | D-3, D-4, D-5 |
+| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 calculateDestruction 単体 + turnState 上昇/cap unit | D-3, D-4, D-5 |
 | D-7 | 🟡 | **受け入れ**: HP ダメージ 3 点一致（Excel・実機・シミュレータ） | ❌ 未着手 | D-6 |
 
 ---
