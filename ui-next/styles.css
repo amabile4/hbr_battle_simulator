@@ -2982,57 +2982,49 @@
 
 /* 破壊率（暫定）セクション */
 .char-popup-destruction-rate {
-  border-top: 1px solid #e0e0e0;
-  padding: 8px 12px;
-  background: #fafaf6;
-  font-size: 12px;
+  border-top: 1px solid #334155;
+  padding-top: 6px;
 }
 
-.char-popup-destruction-rate-title {
-  font-size: 11px;
-  color: #888;
-  margin-bottom: 6px;
-  font-weight: bold;
-  letter-spacing: 0.03em;
-}
-
-.char-popup-destruction-rate-row {
+.char-popup-destruction-rate-input-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.char-popup-destruction-rate-label {
-  min-width: 90px;
-  color: #666;
-  font-size: 11px;
+  gap: 3px;
 }
 
 .char-popup-destruction-rate-input {
-  width: 80px;
-  padding: 2px 4px;
-  font-size: 12px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+  width: 72px;
+  padding: 4px 6px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #1e293b;
+  color: #f8fafc;
   text-align: right;
+  line-height: 1.2;
 }
 
-.char-popup-destruction-rate-cap {
-  font-size: 10px;
-  color: #999;
-  margin-left: 4px;
+.char-popup-destruction-rate-input:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
+.char-popup-destruction-rate-unit {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+[data-role="destruction-rate-after"] {
+  color: #86efac;
+  font-size: 16px;
+  line-height: 1.2;
 }
 
 .char-popup-destruction-rate-message {
   font-size: 10px;
-  color: #c00;
-  margin-top: 2px;
-}
-
-[data-role="destruction-rate-after"] {
-  font-size: 14px;
-  color: #1a6030;
+  color: #f87171;
+  margin-top: 4px;
 }
 
 @media (max-width: 720px) {

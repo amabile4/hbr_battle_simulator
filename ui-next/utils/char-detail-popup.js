@@ -874,16 +874,22 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `</div>` +
     `<div class="char-popup-damage-calc-message" data-role="damage-calc-message"></div>` +
     `<div class="char-popup-destruction-rate" data-role="destruction-rate-section">` +
-    `<div class="char-popup-destruction-rate-title">破壊率（暫定）</div>` +
-    `<div class="char-popup-destruction-rate-row">` +
-    `<label class="char-popup-destruction-rate-label">現在の破壊率</label>` +
+    `<div class="char-popup-damage-calc-result">` +
+    `<div>` +
+    `<span>破壊率（入力）</span>` +
+    `<div class="char-popup-destruction-rate-input-wrap">` +
     `<input type="number" class="char-popup-destruction-rate-input" data-role="destruction-rate-input" min="100" max="9999" step="0.01" value="100.00">` +
-    `<span>%</span>` +
+    `<span class="char-popup-destruction-rate-unit">%</span>` +
     `</div>` +
-    `<div class="char-popup-destruction-rate-row">` +
-    `<span class="char-popup-destruction-rate-label">このスキル後</span>` +
+    `</div>` +
+    `<div>` +
+    `<span>このスキル後</span>` +
     `<strong data-role="destruction-rate-after">-</strong>` +
-    `<span data-role="destruction-rate-cap-note" class="char-popup-destruction-rate-cap"></span>` +
+    `</div>` +
+    `<div>` +
+    `<span>上限</span>` +
+    `<strong data-role="destruction-rate-cap-note">-</strong>` +
+    `</div>` +
     `</div>` +
     `<div class="char-popup-destruction-rate-message" data-role="destruction-rate-message"></div>` +
     `</div>` +
@@ -950,7 +956,7 @@ async function updateDestructionRateDisplay(pane) {
   const capPercent = (Number.isFinite(rawCap) && rawCap > 0) ? rawCap : 300;
 
   if (capNoteEl) {
-    capNoteEl.textContent = `上限 ${capPercent}%`;
+    capNoteEl.textContent = `${capPercent}%`;
   }
 
   try {
