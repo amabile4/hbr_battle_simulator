@@ -3823,6 +3823,21 @@ function resetEnemyHpBreakPhaseState(turnState, targetIndex) {
     ENEMY_STATUS_STRONG_BREAK,
     ENEMY_STATUS_SUPER_DOWN,
   ]);
+  resetEnemyRemainingDpToMax(turnState, targetIndex);
+}
+
+// ブレイク解除（ゲージ移行等）時は DP ゲージが全回復する
+function resetEnemyRemainingDpToMax(turnState, targetIndex) {
+  const enemyState = getEnemyState(turnState);
+  const key = String(Number(targetIndex));
+  const maxDp = Number(enemyState.enemyDpByEnemy?.[key] ?? 0);
+  if (!(maxDp > 0) || !enemyState.remainingDpByEnemy || typeof enemyState.remainingDpByEnemy !== 'object') {
+    return;
+  }
+  turnState.enemyState = {
+    ...enemyState,
+    remainingDpByEnemy: { ...enemyState.remainingDpByEnemy, [key]: maxDp },
+  };
 }
 
 function applyEnemyStrongBreakState(turnState, targetIndex, options = {}) {
@@ -4647,6 +4662,7 @@ function buildDestructionHitsForAction(hitCount, breakHitIndex) {
 }
 
 function applyDestructionRateFromActions(state, previewRecord, options = {}) {
+  const events = [];
   const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
   const enemyCount = clampEnemyCount(
     state?.turnState?.enemyState?.enemyCount ?? previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT
@@ -4660,10 +4676,17 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
   const runningDp = {};
   for (let i = 0; i < enemyCount; i++) {
     const key = String(i);
+    const maxDp = Number(maxDpByEnemy[key] ?? 0);
     if (key in inheritedRemaining) {
-      runningDp[key] = Number(inheritedRemaining[key]);
+      const remaining = Number(inheritedRemaining[key]);
+      // ブレイク状態でないのに残DPが0以下の場合はブレイク解除済みとみなし、
+      // ゲーム仕様（ブレイク回復時にDPゲージ全回復）に合わせて最大値へ戻す。
+      runningDp[key] =
+        remaining <= 0 && maxDp > 0 && !hasEnemyStatus(state.turnState, i, ENEMY_STATUS_BREAK)
+          ? maxDp
+          : remaining;
     } else if (key in maxDpByEnemy) {
-      runningDp[key] = Number(maxDpByEnemy[key]);
+      runningDp[key] = maxDp;
     }
   }
 
@@ -4702,18 +4725,42 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       }
 
       const wasBroken = hasEnemyStatus(preActionTurnState, targetIndex, ENEMY_STATUS_BREAK);
+      // DPゲージを持たない敵（DP未設定・DP0でブレイク状態のまま行動する敵）は
+      // DP消費・自動ブレイクの対象外。
+      const hasDpGauge = Number(maxDpByEnemy[String(targetIndex)] ?? 0) > 0;
+      const isManualBreakTarget = manualBreakEnemyIndexes.includes(Number(targetIndex));
       const perHitDpDamage = Number(actionEntry?.perHitDpDamageByEnemy?.[String(targetIndex)] ?? 0);
       const dpBeforeThisAction = runningDp[String(targetIndex)] ?? 0;
 
-
       // Step 1: perHitDpDamageByEnemy によるDP消費をアクションごとに更新する。
       // ブレイク判定（DR計算）の有無に関わらず実行し、クロスアクション残量を維持する。
-      if (!wasBroken && perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
-        const dpConsumed = Math.min(dpBeforeThisAction, hitCount * perHitDpDamage);
-        const newDp = Math.max(0, dpBeforeThisAction - dpConsumed);
+      // 手動ブレイク指定はDP残量に関わらず優先し、DP枯渇として扱う。
+      if (!wasBroken && hasDpGauge) {
+        let newDp = dpBeforeThisAction;
+        if (isManualBreakTarget) {
+          newDp = 0;
+        } else if (perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
+          const dpConsumed = Math.min(dpBeforeThisAction, hitCount * perHitDpDamage);
+          newDp = Math.max(0, dpBeforeThisAction - dpConsumed);
+        }
         runningDp[String(targetIndex)] = newDp;
         if (newDp <= 0 && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
-          applyManualEnemyBreak(state.turnState, targetIndex);
+          const applied = applyManualEnemyBreak(state.turnState, targetIndex);
+          if (applied) {
+            // DP枯渇による自動ブレイクも他のブレイク経路と同様にイベントへ記録する
+            events.push(
+              buildActionScopedEvent(actionEntry, {
+                actorCharacterId: String(actionEntry.characterId ?? ''),
+                skillId: Number(actionEntry.skillId ?? 0),
+                skillName: String(actionEntry.skillName ?? ''),
+                mode: 'DownTurn',
+                targetIndex: Number(targetIndex),
+                statusType: ENEMY_STATUS_DOWN_TURN,
+                remainingTurns: Number(applied.downTurnRemainingTurns ?? DEFAULT_AUTO_DOWN_TURN_REMAINING),
+                source: 'auto',
+              })
+            );
+          }
         }
       }
 
@@ -4733,20 +4780,20 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       // ヒット単位のDP消費を使った自動ブレイク検出
       // perHitDpDamageByEnemy が設定されている場合は dpBeforeThisAction（このアクション開始時点の残DP）を
       // defenderDp として autoBreak モードで正確なブレイクヒット位置を特定する。
-      // 未設定の場合は従来の manualBreak フラグ（breakHitIndex=0）を使う（後方互換）。
+      // 手動ブレイク指定がある場合はユーザー指定を優先し、従来どおり index 0 をブレイクヒットとする。
       let destructionHits, useAutoBreak, defenderDp;
       if (wasBroken) {
         // アクション前からブレイク済み: dp=0 → isBroken=true → 全ヒットが DR 加算対象
         destructionHits = buildDestructionHitsForAction(hitCount, -1);
         defenderDp = 0;
         useAutoBreak = false;
-      } else if (perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
+      } else if (hasDpGauge && !isManualBreakTarget && perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
         // per-hit DP ダメージが提供されている: dpBeforeThisAction を起点に autoBreak でブレイクヒットを特定
         destructionHits = Array.from({ length: hitCount }, () => ({ damage: perHitDpDamage }));
         defenderDp = dpBeforeThisAction > 0 ? dpBeforeThisAction : 0;
         useAutoBreak = true;
       } else {
-        // per-hit データなし: 旧来どおり index 0 をブレイクヒットとして全ヒット加算
+        // per-hit データなし or 手動ブレイク指定: index 0 をブレイクヒットとして全ヒット加算
         destructionHits = buildDestructionHitsForAction(hitCount, 0);
         defenderDp = 1;
         useAutoBreak = false;
@@ -4793,6 +4840,8 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
     state.turnState.enemyState = { enemyCount, statuses: [] };
   }
   state.turnState.enemyState.remainingDpByEnemy = { ...runningDp };
+
+  return events;
 }
 
 function applyEnemyTurnEndDpEffects(party = []) {
@@ -11473,7 +11522,8 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       actionEntry.manualBreakEnemyIndexes = [...new Set(derivedBreakEnemyIndexes)];
     }
   }
-  applyDestructionRateFromActions(state, singleRecord, { preActionTurnState });
+  const dpAutoBreakEvents = applyDestructionRateFromActions(state, singleRecord, { preActionTurnState });
+  enemyBreakEvents.push(...dpAutoBreakEvents);
   const breakDownTurnUpResult = applyBreakDownTurnUpFromActions(state, singleRecord);
   const breakDownTurnUpEvents = breakDownTurnUpResult.events;
   const breakDownTurnUpPassiveTriggerEvents = breakDownTurnUpResult.passiveTriggerEvents;
