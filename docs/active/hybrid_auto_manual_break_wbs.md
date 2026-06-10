@@ -1,8 +1,9 @@
 # hybrid_auto_manual_break_wbs
 
-- ステータス: 🟢 進行中
+- ステータス: 📦 参照（対案・採用判断済み）
 - 作成日: 2026-06-10
-- 最終更新: 2026-06-10
+- 最終更新: 2026-06-11
+- 後継: [hybrid_auto_manual_break_implementation_plan.md](hybrid_auto_manual_break_implementation_plan.md)（第2稿ベース採用。本稿の suppression 永続化案は不採用、normalize 互換・赤テスト先行・save/load 必須ゲートのみ採用）
 - 対象: 自動計算（DPブレイク/HP破壊/討伐）と手動オーバーライドのハイブリッド運用
 
 ## 1. 背景
