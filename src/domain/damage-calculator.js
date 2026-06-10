@@ -6,6 +6,25 @@ import {
   DAMAGE_FRAGILE_CATEGORIES,
 } from '../contracts/damage-calculation.js';
 
+import {
+  toNumber,
+  hasValue,
+  clonePlainObject,
+  skillIdEndsWith,
+  cleanSkillName,
+  flattenSkillParts,
+  findAttackPart,
+  findSkill,
+  findEffectPart,
+  getEnemyBorder,
+  resolveEffectPower,
+  ATTACK_PART_TYPES,
+  NORMAL_ATTACK_SKILL_NAME,
+  PURSUIT_SKILL_NAME,
+  NORMAL_ATTACK_ID_SUFFIX,
+  PURSUIT_ID_SUFFIX,
+} from './calculator-helpers.js';
+
 const DEFAULT_ENEMY_BORDER = 770;
 const DEFAULT_LEVEL = 10;
 const DEFAULT_ORB_LEVEL = 0;
@@ -27,23 +46,9 @@ const DEFAULT_EFFECT_POWER = Object.freeze([0, 0]);
 const DEFAULT_ATTACK_PARAMETERS = Object.freeze({ str: 1, dex: 1 });
 const DEFAULT_MULTIPLIERS = Object.freeze({ hp: 1, dp: 1 });
 
-export const NORMAL_ATTACK_SKILL_NAME = '通常攻撃';
-export const PURSUIT_SKILL_NAME = '追撃';
-export const NORMAL_ATTACK_ID_SUFFIX = '01';
-export const PURSUIT_ID_SUFFIX = '91';
 
-export const ATTACK_PART_TYPES = Object.freeze([
-  'AttackNormal',
-  'AttackSkill',
-  'DamageRateChangeAttackSkill',
-  'PenetrationCriticalAttack',
-  'PenetrationNormalAttack',
-  'PenetrationSkill',
-  'TokenAttack',
-  'AttackBySp',
-  'AttackByOwnDpRate',
-  'FixedHpDamageRateAttack',
-]);
+
+
 
 const NESTED_PART_TYPES = new Set(['SkillCondition', 'SkillRandom', 'SkillSwitch']);
 const ATTACK_PART_TYPE_SET = new Set(ATTACK_PART_TYPES);
@@ -72,165 +77,6 @@ const ZONE_ELEMENT_MAP = Object.freeze({
   darkzone: 'dark',
   lightzone: 'light',
 });
-
-function toNumber(value, fallback = 0) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : fallback;
-}
-
-function hasValue(value) {
-  return value !== null && value !== undefined && value !== '';
-}
-
-function clonePlainObject(value) {
-  return value && typeof value === 'object' ? { ...value } : {};
-}
-
-function skillIdEndsWith(skill, suffix) {
-  return String(skill?.id ?? '').endsWith(suffix);
-}
-
-function cleanSkillName(skillName) {
-  return String(skillName ?? '')
-    .replace('[単独発動]', '')
-    .split('[')[0]
-    .split('(')[0]
-    .split('（')[0]
-    .trim();
-}
-
-export function flattenSkillParts(parts = []) {
-  const flat = [];
-  for (const part of parts ?? []) {
-    const skillType = String(part?.skill_type ?? '');
-    if (!NESTED_PART_TYPES.has(skillType)) {
-      flat.push(part);
-      continue;
-    }
-
-    const nested = part?.strval;
-    if (Array.isArray(nested)) {
-      for (const subSkill of nested) {
-        if (subSkill?.parts) {
-          flat.push(...flattenSkillParts(subSkill.parts));
-        }
-      }
-      continue;
-    }
-
-    if (nested?.parts) {
-      flat.push(...flattenSkillParts(nested.parts));
-    }
-  }
-  return flat;
-}
-
-function findAttackPart(skill) {
-  for (const part of flattenSkillParts(skill?.parts ?? [])) {
-    if (ATTACK_PART_TYPE_SET.has(String(part?.skill_type ?? ''))) {
-      return part;
-    }
-  }
-  return null;
-}
-
-function findSkillByNameAndSuffix(skills, name, suffix) {
-  return skills.find((skill) => skill?.name === name && skillIdEndsWith(skill, suffix)) ?? null;
-}
-
-function findSkill(skills, skillId, skillName) {
-  let candidates = [];
-  if (hasValue(skillId)) {
-    candidates = skills.filter((skill) => Number(skill?.id) === Number(skillId));
-  }
-
-  const cleanedName = cleanSkillName(skillName);
-  if (!candidates.length && cleanedName === NORMAL_ATTACK_SKILL_NAME) {
-    const skill = findSkillByNameAndSuffix(skills, NORMAL_ATTACK_SKILL_NAME, NORMAL_ATTACK_ID_SUFFIX);
-    candidates = skill ? [skill] : [];
-  }
-  if (!candidates.length && cleanedName === PURSUIT_SKILL_NAME) {
-    const skill = findSkillByNameAndSuffix(skills, PURSUIT_SKILL_NAME, PURSUIT_ID_SUFFIX);
-    candidates = skill ? [skill] : [];
-  }
-  if (!candidates.length && cleanedName) {
-    candidates = skills.filter((skill) => skill?.name === cleanedName);
-  }
-  if (!candidates.length) {
-    return null;
-  }
-
-  return candidates.find((candidate) => Boolean(findAttackPart(candidate))) ?? candidates[0];
-}
-
-function findEffectPart(skills, skillId, skillName, targetTypes) {
-  const skill = findSkill(skills, skillId, skillName);
-  if (!skill) {
-    return null;
-  }
-  const targetTypeSet = new Set(targetTypes);
-  return (
-    flattenSkillParts(skill.parts ?? []).find((part) =>
-      targetTypeSet.has(String(part?.skill_type ?? ''))
-    ) ?? null
-  );
-}
-
-function getEnemyBorder(enemies, enemyId) {
-  const enemy = enemies.find((entry) => String(entry?.id) === String(enemyId));
-  const border = Number(enemy?.base_param?.param_border);
-  return border > 0 ? border : DEFAULT_ENEMY_BORDER;
-}
-
-function resolveProviderStat(effect) {
-  if (hasValue(effect?.providerWis)) {
-    return toNumber(effect.providerWis, DEFAULT_PROVIDER_STAT);
-  }
-  if (hasValue(effect?.providerWisOrLuk)) {
-    return toNumber(effect.providerWisOrLuk, DEFAULT_PROVIDER_STAT);
-  }
-  return DEFAULT_PROVIDER_STAT;
-}
-
-export function resolveEffectPower(effect, skills, options = {}) {
-  if (hasValue(effect?.power)) {
-    return Number(effect.power);
-  }
-
-  const statusType = effect?.statusType;
-  const targetTypes = EFFECT_PART_TYPES_BY_STATUS[statusType] ?? [statusType];
-  const part = findEffectPart(skills, effect?.sourceSkillId, effect?.skillName, targetTypes);
-  if (!part) {
-    return 0;
-  }
-
-  const powers = part.power ?? DEFAULT_EFFECT_POWER;
-  const vMin = toNumber(powers[0]) * 100;
-  const vMax = toNumber(powers[1], vMin / 100) * 100;
-  const threshold = toNumber(part.diff_for_max);
-  const growths = part.growth ?? DEFAULT_GROWTHS;
-  const gMin = toNumber(growths[0], DEFAULT_GROWTHS[0]);
-  const gMax = toNumber(growths[1], gMin);
-  const providerStat = resolveProviderStat(effect);
-  const skillLevel = toNumber(effect?.skillLevel, options.defaultLevel ?? DEFAULT_LEVEL);
-  const orbLevel = toNumber(effect?.orbLevel, options.defaultOrbLevel ?? DEFAULT_ORB_LEVEL);
-  const orbPowerRate = ORB_POWER_RATE_PER_LEVEL * orbLevel;
-  const orbThreshold = ORB_THRESHOLD_PER_LEVEL * orbLevel;
-
-  const minAtLevel = vMin * (1 + gMin * (skillLevel - 1));
-  const maxAtLevel = vMax * (1 + gMax * (skillLevel - 1)) * (1 + orbPowerRate);
-  const finalThreshold = threshold + orbThreshold;
-
-  if (finalThreshold <= 0 || providerStat >= finalThreshold) {
-    return Math.max(0, maxAtLevel);
-  }
-  if (providerStat < 0) {
-    return Math.max(0, minAtLevel);
-  }
-
-  const resolved = ((maxAtLevel - minAtLevel) / finalThreshold) * providerStat + minAtLevel;
-  return Math.max(0, resolved);
-}
 
 function aggregateBuffs(buffs) {
   const normalBuffs = [];
@@ -794,3 +640,13 @@ export function calculateDestruction(input, data) {
     },
   };
 }
+
+export {
+  NORMAL_ATTACK_SKILL_NAME,
+  PURSUIT_SKILL_NAME,
+  NORMAL_ATTACK_ID_SUFFIX,
+  PURSUIT_ID_SUFFIX,
+  ATTACK_PART_TYPES,
+  flattenSkillParts,
+  resolveEffectPower,
+} from './calculator-helpers.js';
