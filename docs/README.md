@@ -127,6 +127,14 @@ docs/
 
 ## 📦 スナップショット（日付別・変更しない）
 
+### 20260610_code_dakness_damage_analysis/ — コードダクネス T2 ダメージ乖離調査（2026-06-10実施）
+
+| ドキュメント | 概要 |
+|-------------|------|
+| [20260610_code_dakness_damage_analysis/README.md](20260610_code_dakness_damage_analysis/README.md) | コードダクネス（T2 Action 0）の計算値 673 万 vs 実機値 592 万の乖離分析。HP/DP ターゲット判定ミス・破壊率フォールバック・脆弱バースト拡張・specialEffect 表示欠落・残差 +12.7% の仮説一覧 |
+
+---
+
 ### 20260321_ui_next_analysis/ — UI Next アーキテクチャ・仕様分析（2026-03-21実施）
 
 | ドキュメント | 概要 |

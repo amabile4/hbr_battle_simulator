@@ -44,14 +44,14 @@ import { normalizeCharacterStats, resolveStatsWithSupport } from '../../src/doma
 const DEAD_STATUS_ICON_FILE_NAME = 'dead.webp';
 const SYSTEM_PASSIVE_NAMES = new Set(['[Overdrive]']);
 const SYSTEM_PASSIVE_LABELS = new Set(['Passive.Overdrive_DamageUp']);
-const DAMAGE_CALC_STAT_KEYS = Object.freeze(['str', 'dex', 'wis', 'spr', 'luk', 'con']);
+const DAMAGE_CALC_STAT_KEYS = Object.freeze(['str', 'dex', 'con', 'spr', 'wis', 'luk']);
 const DAMAGE_CALC_STAT_LABELS = Object.freeze({
-  str: 'STR',
-  dex: 'DEX',
-  wis: 'WIS',
-  spr: 'SPR',
-  luk: 'LUK',
-  con: 'CON',
+  str: '力',
+  dex: '器用さ',
+  wis: '知性',
+  spr: '精神',
+  luk: '運',
+  con: '体力',
 });
 const DAMAGE_CALC_DEFAULT_ROLE = 'Attacker';
 const DAMAGE_CALC_DEFAULT_ENEMY_BORDER = 770;
