@@ -4632,11 +4632,14 @@ function applyDpEffectsFromActions(state, previewRecord) {
   return events;
 }
 
-function buildDestructionHitsForAction(hitCount, isSameActionBreak) {
+function buildDestructionHitsForAction(hitCount, breakHitIndex) {
   const normalizedHitCount = Math.max(1, Number(hitCount ?? 0));
+  const normIdx = Math.floor(Number(breakHitIndex ?? -1));
+  const effectiveIdx =
+    Number.isFinite(normIdx) && normIdx >= 0 && normIdx < normalizedHitCount ? normIdx : -1;
   return Array.from({ length: normalizedHitCount }, (_, index) => ({
     damage: 0,
-    isBreakHit: Boolean(isSameActionBreak && index === 0),
+    isBreakHit: index === effectiveIdx,
   }));
 }
 
@@ -4690,6 +4693,36 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
 
       const currentRatePercent = getEnemyDestructionRatePercent(preActionTurnState, targetIndex);
       const capPercent = getEnemyDestructionRateCapPercent(state.turnState, targetIndex, actor);
+
+      // ヒット単位のDP消費を使った自動ブレイク検出
+      // actionEntry.perHitDpDamageByEnemy[targetIndex] が設定されている場合は
+      // 実ダメージ値と autoBreak モードで正確なブレイクヒット位置を特定する。
+      // 未設定の場合は従来の manualBreak フラグ（breakHitIndex=0）を使う（後方互換）。
+      let destructionHits, useAutoBreak, defenderDp;
+      if (wasBroken) {
+        // アクション前からブレイク済み: dp=0 → isBroken=true → 全ヒットが DR 加算対象
+        destructionHits = buildDestructionHitsForAction(hitCount, -1);
+        defenderDp = 0;
+        useAutoBreak = false;
+      } else {
+        // 同一アクション内でブレイク
+        const perHitDpDamage = Number(actionEntry?.perHitDpDamageByEnemy?.[String(targetIndex)] ?? 0);
+        if (perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
+          // per-hit DP ダメージが提供されている: autoBreak で正確なブレイクヒットを特定
+          const enemyStartDp = Number(
+            getEnemyState(preActionTurnState)?.enemyDpByEnemy?.[String(targetIndex)] ?? 0
+          );
+          destructionHits = Array.from({ length: hitCount }, () => ({ damage: perHitDpDamage }));
+          defenderDp = Number.isFinite(enemyStartDp) && enemyStartDp > 0 ? enemyStartDp : 1;
+          useAutoBreak = true;
+        } else {
+          // per-hit データなし: 旧来どおり index 0 をブレイクヒットとして全ヒット加算
+          destructionHits = buildDestructionHitsForAction(hitCount, 0);
+          defenderDp = 1;
+          useAutoBreak = false;
+        }
+      }
+
       const result = calculateDestruction(
         {
           attacker: {
@@ -4704,7 +4737,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             destructionRate: currentRatePercent / 100,
             destructionLimit: capPercent / 100,
             destructionMultiplier: Number(state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? 100) / 100,
-            dp: wasBroken ? 0 : 1,
+            dp: defenderDp,
           },
           skill: {
             skillId: Number(skill.skillId ?? skill.id ?? actionEntry?.skillId ?? 0),
@@ -4714,8 +4747,8 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             spCostOverride: Number(actionEntry?.spCost ?? skill?.spCost ?? skill?.sp_cost ?? 0),
             parts: effectiveParts,
           },
-          hits: buildDestructionHitsForAction(hitCount, isSameActionBreak),
-          autoBreak: false,
+          hits: destructionHits,
+          autoBreak: useAutoBreak,
         },
         DESTRUCTION_CALCULATION_DATA_FALLBACK
       );

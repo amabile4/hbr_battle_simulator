@@ -93,6 +93,47 @@ test('calculateDestruction treats dp=0 zero-damage hits as post-break destructio
   assertAlmostEqual(result.breakdown.finalBaseDestruction, 1.5, 'alreadyBrokenZeroDamage.finalBaseDestruction');
 });
 
+test('calculateDestruction: 9ヒット autoBreak 7発目ブレイクで破壊率が計算値+33.3%になる', () => {
+  // SP=10, DR倍率=10 → bg30=1.0, finalBaseDestruction=1.0 の設定
+  // DP=4,550,000、1ヒット650,000ダメージ → 7発目(index 6)で累積4,550,000≥DP → ブレイク
+  // 貢献ヒット: index 6(ブレイクヒット), 7, 8 = 3ヒット
+  // DR加算 = 3 × (1.0/9) = 1/3 ≈ 33.33%（実機では端数処理の差異で+32.6%になる）
+  const data = {
+    styles: [{ id: 1, role: 'Attacker' }],
+    enemies: [],
+    skills: [
+      {
+        id: 9001,
+        name: 'テスト9ヒット',
+        hit_count: 9,
+        sp_cost: 10,
+        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
+      },
+    ],
+  };
+
+  const input = {
+    attacker: { styleId: 1 },
+    defender: {
+      destructionRate: 1.0,
+      destructionLimit: 5.0,
+      destructionMultiplier: 1.0,
+      dp: 4550000,
+    },
+    skill: { skillId: 9001, name: 'テスト9ヒット' },
+    hits: Array.from({ length: 9 }, () => ({ damage: 650000 })),
+    autoBreak: true,
+  };
+
+  const result = calculateDestruction(input, data);
+
+  assertAlmostEqual(
+    result.destructionRate - 1.0,
+    1 / 3,
+    '9hit autoBreak DR加算(計算値+33.3%)'
+  );
+});
+
 test('calculateDestruction resolves role, accessory, and limit exceedance bonuses', () => {
   const data = {
     styles: [{ id: 2, role: 'Blaster' }],
