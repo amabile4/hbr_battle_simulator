@@ -24387,3 +24387,103 @@ test('HOLD UP is cleared when DownTurn expires', () => {
     false
   );
 });
+
+test('perHitDpDamageByEnemy: DPダメージがアクション間・ターン間で累積されブレイクを自動判定する', () => {
+  // シナリオ:
+  //   敵DP = 200万、破壊率初期100%、上限500%
+  //   T1: M1(500k DP) + M2(100万 DP) → 残り500k、ブレイクなし
+  //   T2: M1(500k DP) → 残り0、自動ブレイク発生
+  //       M2: ブレイク済みとして DR加算が走る
+
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'DP_A',
+        characterName: 'DP_A',
+        skills: [
+          {
+            id: 99500,
+            name: 'DP Attack A',
+            sp_cost: 10,
+            hit_count: 1,
+            hitCount: 1,
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 10 } }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        characterId: 'DP_B',
+        characterName: 'DP_B',
+        skills: [
+          {
+            id: 99501,
+            name: 'DP Attack B',
+            sp_cost: 10,
+            hit_count: 1,
+            hitCount: 1,
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 10 } }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+
+  let state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.enemyDpByEnemy = { '0': 2000000 };
+  state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+
+  // T1: M1(500k) + M2(100万) → 残り500k、ブレイクなし
+  const t1Preview = previewTurn(state, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 500000 } },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 1000000 } },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateAfterT1 } = commitTurn(state, t1Preview);
+
+  // T1終了後: ブレイクなし、残りDP=500k
+  assert.equal(
+    stateAfterT1.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    false,
+    'T1終了時点でブレイクしていないこと'
+  );
+  assert.equal(
+    stateAfterT1.turnState.enemyState.remainingDpByEnemy?.['0'],
+    500000,
+    'T1後の残りDP=500k'
+  );
+
+  // T2: M1(500k) → DP枯渇・自動ブレイク、M2はブレイク後として DR加算
+  const t1Dr = stateAfterT1.turnState.enemyState.destructionRateByEnemy['0'];
+  const t2Preview = previewTurn(stateAfterT1, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 500000 } },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateAfterT2 } = commitTurn(stateAfterT1, t2Preview);
+
+  // T2終了後: 自動ブレイク発生、残りDP=0
+  assert.equal(
+    stateAfterT2.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    true,
+    'T2でM1がDPを枯渇させ自動ブレイク発生すること'
+  );
+  assert.equal(
+    stateAfterT2.turnState.enemyState.remainingDpByEnemy?.['0'],
+    0,
+    'T2後の残りDP=0'
+  );
+
+  // T2終了後: M2はブレイク後として DR加算が実行される
+  const t2Dr = stateAfterT2.turnState.enemyState.destructionRateByEnemy['0'];
+  assert.ok(
+    t2Dr > t1Dr,
+    `T2後のDR(${t2Dr})がT1後のDR(${t1Dr})より増加していること（M2のブレイク後DR加算）`
+  );
+});

@@ -340,6 +340,16 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          remainingDpByEnemy:
+            turnState.enemyState.remainingDpByEnemy &&
+            typeof turnState.enemyState.remainingDpByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.remainingDpByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
+                  ])
+                )
+              : null,
           zoneConfigByEnemy:
             turnState.enemyState.zoneConfigByEnemy &&
             typeof turnState.enemyState.zoneConfigByEnemy === 'object'

@@ -2566,6 +2566,7 @@ export function getEnemyState(turnState) {
       enemyNamesByEnemy: {},
       paramBorderByEnemy: {},
       enemyDpByEnemy: {},
+      remainingDpByEnemy: null,
       zoneConfigByEnemy: {},
       talismanState: structuredClone(TALISMAN_STATE_DEFAULT),
       disasterState: structuredClone(DISASTER_STATE_DEFAULT),
@@ -2621,6 +2622,8 @@ export function getEnemyState(turnState) {
       state.paramBorderByEnemy && typeof state.paramBorderByEnemy === 'object' ? state.paramBorderByEnemy : {},
     enemyDpByEnemy:
       state.enemyDpByEnemy && typeof state.enemyDpByEnemy === 'object' ? state.enemyDpByEnemy : {},
+    remainingDpByEnemy:
+      state.remainingDpByEnemy && typeof state.remainingDpByEnemy === 'object' ? state.remainingDpByEnemy : null,
     zoneConfigByEnemy:
       state.zoneConfigByEnemy && typeof state.zoneConfigByEnemy === 'object' ? state.zoneConfigByEnemy : {},
     talismanState:
@@ -4649,6 +4652,21 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
     state?.turnState?.enemyState?.enemyCount ?? previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT
   );
 
+  // クロスアクションDP追跡: アクションごとに残りDPを減算し、ブレイク自動判定する。
+  // 初期値は前ターンから引き継いだ remainingDpByEnemy、なければ enemyDpByEnemy（最大DP）を使用。
+  const initEnemyState = getEnemyState(preActionTurnState);
+  const maxDpByEnemy = initEnemyState.enemyDpByEnemy ?? {};
+  const inheritedRemaining = getEnemyState(state.turnState).remainingDpByEnemy ?? {};
+  const runningDp = {};
+  for (let i = 0; i < enemyCount; i++) {
+    const key = String(i);
+    if (key in inheritedRemaining) {
+      runningDp[key] = Number(inheritedRemaining[key]);
+    } else if (key in maxDpByEnemy) {
+      runningDp[key] = Number(maxDpByEnemy[key]);
+    }
+  }
+
   for (const actionEntry of previewRecord.actions ?? []) {
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
     if (!actor) {
@@ -4684,9 +4702,27 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       }
 
       const wasBroken = hasEnemyStatus(preActionTurnState, targetIndex, ENEMY_STATUS_BREAK);
+      const perHitDpDamage = Number(actionEntry?.perHitDpDamageByEnemy?.[String(targetIndex)] ?? 0);
+      const dpBeforeThisAction = runningDp[String(targetIndex)] ?? 0;
+
+
+      // Step 1: perHitDpDamageByEnemy によるDP消費をアクションごとに更新する。
+      // ブレイク判定（DR計算）の有無に関わらず実行し、クロスアクション残量を維持する。
+      if (!wasBroken && perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
+        const dpConsumed = Math.min(dpBeforeThisAction, hitCount * perHitDpDamage);
+        const newDp = Math.max(0, dpBeforeThisAction - dpConsumed);
+        runningDp[String(targetIndex)] = newDp;
+        if (newDp <= 0 && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
+          applyManualEnemyBreak(state.turnState, targetIndex);
+        }
+      }
+
+      // Step 2: DP更新後の状態でブレイク有無を判定（DP枯渇によるブレイクを反映）
       const isSameActionBreak =
         sameActionBreakEnemyIndexes.has(Number(targetIndex)) ||
         (!wasBroken && hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK));
+
+      // DR計算はブレイクが絡む場合のみ（ブレイク前の通常攻撃はスキップ）
       if (!wasBroken && !isSameActionBreak) {
         continue;
       }
@@ -4695,8 +4731,8 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       const capPercent = getEnemyDestructionRateCapPercent(state.turnState, targetIndex, actor);
 
       // ヒット単位のDP消費を使った自動ブレイク検出
-      // actionEntry.perHitDpDamageByEnemy[targetIndex] が設定されている場合は
-      // 実ダメージ値と autoBreak モードで正確なブレイクヒット位置を特定する。
+      // perHitDpDamageByEnemy が設定されている場合は dpBeforeThisAction（このアクション開始時点の残DP）を
+      // defenderDp として autoBreak モードで正確なブレイクヒット位置を特定する。
       // 未設定の場合は従来の manualBreak フラグ（breakHitIndex=0）を使う（後方互換）。
       let destructionHits, useAutoBreak, defenderDp;
       if (wasBroken) {
@@ -4704,23 +4740,16 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         destructionHits = buildDestructionHitsForAction(hitCount, -1);
         defenderDp = 0;
         useAutoBreak = false;
+      } else if (perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
+        // per-hit DP ダメージが提供されている: dpBeforeThisAction を起点に autoBreak でブレイクヒットを特定
+        destructionHits = Array.from({ length: hitCount }, () => ({ damage: perHitDpDamage }));
+        defenderDp = dpBeforeThisAction > 0 ? dpBeforeThisAction : 0;
+        useAutoBreak = true;
       } else {
-        // 同一アクション内でブレイク
-        const perHitDpDamage = Number(actionEntry?.perHitDpDamageByEnemy?.[String(targetIndex)] ?? 0);
-        if (perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
-          // per-hit DP ダメージが提供されている: autoBreak で正確なブレイクヒットを特定
-          const enemyStartDp = Number(
-            getEnemyState(preActionTurnState)?.enemyDpByEnemy?.[String(targetIndex)] ?? 0
-          );
-          destructionHits = Array.from({ length: hitCount }, () => ({ damage: perHitDpDamage }));
-          defenderDp = Number.isFinite(enemyStartDp) && enemyStartDp > 0 ? enemyStartDp : 1;
-          useAutoBreak = true;
-        } else {
-          // per-hit データなし: 旧来どおり index 0 をブレイクヒットとして全ヒット加算
-          destructionHits = buildDestructionHitsForAction(hitCount, 0);
-          defenderDp = 1;
-          useAutoBreak = false;
-        }
+        // per-hit データなし: 旧来どおり index 0 をブレイクヒットとして全ヒット加算
+        destructionHits = buildDestructionHitsForAction(hitCount, 0);
+        defenderDp = 1;
+        useAutoBreak = false;
       }
 
       const result = calculateDestruction(
@@ -4758,6 +4787,12 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       }
     }
   }
+
+  // DP 残量をターン状態に永続化（ターンをまたいだ引き継ぎのため）
+  if (!state.turnState.enemyState) {
+    state.turnState.enemyState = { enemyCount, statuses: [] };
+  }
+  state.turnState.enemyState.remainingDpByEnemy = { ...runningDp };
 }
 
 function applyEnemyTurnEndDpEffects(party = []) {
@@ -6521,6 +6556,8 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
     paramBorderByEnemy: enemyState.paramBorderByEnemy,
+    enemyDpByEnemy: enemyState.enemyDpByEnemy,
+    remainingDpByEnemy: enemyState.remainingDpByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
     talismanState: enemyState.talismanState ?? structuredClone(TALISMAN_STATE_DEFAULT),
     disasterState: enemyState.disasterState ?? structuredClone(DISASTER_STATE_DEFAULT),
@@ -11117,6 +11154,14 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       action,
       state?.turnState?.enemyState?.enemyCount
     ),
+    perHitDpDamageByEnemy:
+      action?.perHitDpDamageByEnemy && typeof action.perHitDpDamageByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(action.perHitDpDamageByEnemy)
+              .map(([k, v]) => [String(k), Number(v)])
+              .filter(([, v]) => Number.isFinite(v) && v >= 0)
+          )
+        : null,
     insufficientSpWarning: String(preview.insufficientSpWarning ?? ''),
     // skill cond に "Sp()>=0" が含まれるか記録（warning 生成時の判定に使用）
     hasSpGreaterOrEqualZeroCondition: /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(String(effectiveSkill?.cond ?? '')),
