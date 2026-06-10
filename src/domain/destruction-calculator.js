@@ -58,19 +58,20 @@ export function calculateDestruction(input, data) {
     sp = Number(skill.sp_cost ?? 4.0);
   }
 
-  // 4. Get dr (destruction rate) from skill parts
-  let dr = 1.0;
-  let part = null;
+  // 4. Resolve destruction factor (F_tag) and AoE flag
+  const isAoE = (skill && (skill.target_type === 'All' || skill.is_aoe === true)) || (skillInput && skillInput.isAoE === true);
+
+  let fTag = isAoE ? 0.20 : 0.25;
   if (skill) {
-    const parts = flattenSkillParts(skill.parts ?? []);
-    for (const p of parts) {
-      if (ATTACK_PART_TYPE_SET.has(String(p.skill_type ?? ''))) {
-        part = p;
-        break;
-      }
-    }
-    if (part && part.multipliers) {
-      dr = Number(part.multipliers.dr ?? 1.0);
+    const desc = skill.desc || '';
+    if (desc.includes('[破壊率絶大]')) {
+      fTag = 2.50;
+    } else if (desc.includes('[破壊率超特大]')) {
+      fTag = isAoE ? 1.60 : 2.00;
+    } else if (desc.includes('[破壊率特大]')) {
+      fTag = isAoE ? 1.20 : 1.50;
+    } else if (desc.includes('[破壊率大]')) {
+      fTag = isAoE ? 0.80 : 1.00;
     }
   }
 
@@ -90,12 +91,9 @@ export function calculateDestruction(input, data) {
   }
 
   // 6. Calculate BG30 (base destruction rate before buffs)
-  let bg30 = 0.0;
-  if (isNormalAttack || isPursuit) {
-    bg30 = (dr * 8.0 * destMult) / 100.0;
-  } else {
-    bg30 = (dr * sp * destMult) / 100.0;
-  }
+  const spVal = (isNormalAttack || isPursuit) ? 8.0 : sp;
+  const drVal = destMult / 25.0;
+  const bg30 = fTag * spVal * drVal;
 
   // 7. Blaster correction & accessories
   let blasterCorrection = 0.0;

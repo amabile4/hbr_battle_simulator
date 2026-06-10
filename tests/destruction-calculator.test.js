@@ -25,7 +25,7 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
         name: 'Test Skill',
         hit_count: 2,
         sp_cost: 10,
-        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
+        parts: [{ skill_type: 'AttackSkill' }],
       },
     ],
   };
@@ -47,8 +47,8 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
     ...input,
     hits: [{ damage: 0 }, { damage: 1000, isBreakHit: true }],
   }, data);
-  assertAlmostEqual(manualBreak.destructionRate, 1.75, 'manualBreak.destructionRate');
-  assertAlmostEqual(manualBreak.breakdown.finalBaseDestruction, 1.5, 'manualBreak.finalBaseDestruction');
+  assertAlmostEqual(manualBreak.destructionRate, 1.075, 'manualBreak.destructionRate');
+  assertAlmostEqual(manualBreak.breakdown.finalBaseDestruction, 0.15, 'manualBreak.finalBaseDestruction');
   assertAlmostEqual(manualBreak.breakdown.destructionMultiplier, 1.5, 'manualBreak.destructionMultiplier');
 
   const autoBreak = calculateDestruction({
@@ -56,7 +56,7 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
     hits: [{ damage: 0 }, { damage: 1000 }],
     autoBreak: true
   }, data);
-  assertAlmostEqual(autoBreak.destructionRate, 1.75, 'autoBreak.destructionRate');
+  assertAlmostEqual(autoBreak.destructionRate, 1.075, 'autoBreak.destructionRate');
 });
 
 test('calculateDestruction treats dp=0 zero-damage hits as post-break destruction hits', () => {
@@ -69,7 +69,7 @@ test('calculateDestruction treats dp=0 zero-damage hits as post-break destructio
         name: 'Already Broken Skill',
         hit_count: 3,
         sp_cost: 10,
-        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
+        parts: [{ skill_type: 'AttackSkill' }],
       },
     ],
   };
@@ -89,8 +89,8 @@ test('calculateDestruction treats dp=0 zero-damage hits as post-break destructio
     data
   );
 
-  assertAlmostEqual(result.destructionRate, 2.5, 'alreadyBrokenZeroDamage.destructionRate');
-  assertAlmostEqual(result.breakdown.finalBaseDestruction, 1.5, 'alreadyBrokenZeroDamage.finalBaseDestruction');
+  assertAlmostEqual(result.destructionRate, 1.15, 'alreadyBrokenZeroDamage.destructionRate');
+  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.15, 'alreadyBrokenZeroDamage.finalBaseDestruction');
 });
 
 test('calculateDestruction resolves role, accessory, and limit exceedance bonuses', () => {
@@ -103,7 +103,7 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
         name: 'Blaster Skill',
         hit_count: 1,
         sp_cost: 10,
-        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 1.0 } }],
+        parts: [{ skill_type: 'AttackSkill' }],
       },
     ],
   };
@@ -133,7 +133,8 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
 
   const result = calculateDestruction(input, data);
 
-  // bg30 = (dr * sp * destMult) / 100.0 = (1.0 * 10.0 * 1.0) / 100.0 = 0.1
+  // F_tag = 0.25 (no tag)
+  // bg30 = fTag * sp * DR = 0.25 * 10 * (1.0 / 25.0) = 0.1
   // blasterCorrection = 2.0 (role) + 0.15 (accessory) = 2.15
   // Since h = 1, blaster slope correction applies: sRatio = 5.0% = 0.05
   // baseDestruction = Math.floor(bg30 * (1.0 + sRatio) * 10000.0) / 10000.0 = Math.floor(0.1 * 1.05 * 10000) / 10000 = 0.105
@@ -148,4 +149,46 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
   assertAlmostEqual(result.breakdown.accessoryBonus, 0.15, 'accessoryBonus');
   assertAlmostEqual(result.breakdown.resonanceBonus, 0.10, 'resonanceBonus');
   assertAlmostEqual(result.breakdown.limitExceedBonus, 1.0, 'limitExceedBonus');
+});
+
+test('calculateDestruction parses description tags correctly', () => {
+  const data = (desc, target_type = 'Single') => ({
+    styles: [{ id: 1, role: 'Attacker' }],
+    enemies: [],
+    skills: [{ id: 100, name: 'T', sp_cost: 10, desc, target_type }],
+  });
+
+  const run = (desc, target_type) => {
+    const input = {
+      attacker: { styleId: 1 },
+      defender: { destructionRate: 1, destructionMultiplier: 1 },
+      skill: { skillId: 100, name: 'T' },
+      hits: [{ damage: 100 }],
+      autoBreak: true,
+    };
+    return calculateDestruction(input, data(desc, target_type)).breakdown.baseDestruction;
+  };
+
+  // 1. Tag-less Single (0.25) -> baseDest = 0.25 * 10 * (1/25) = 0.10
+  assertAlmostEqual(run('', 'Single'), 0.10, 'tagless-single');
+  // 2. Tag-less AoE (0.20) -> baseDest = 0.20 * 10 * (1/25) = 0.08
+  assertAlmostEqual(run('', 'All'), 0.08, 'tagless-aoe');
+
+  // 3. [破壊率大] Single (1.00) -> baseDest = 1.00 * 10 * (1/25) = 0.40
+  assertAlmostEqual(run('刀を振るう\n[破壊率大]', 'Single'), 0.40, 'large-single');
+  // 4. [破壊率大] AoE (0.80) -> baseDest = 0.80 * 10 * (1/25) = 0.32
+  assertAlmostEqual(run('刀を振るう\n[破壊率大]', 'All'), 0.32, 'large-aoe');
+
+  // 5. [破壊率特大] Single (1.50) -> baseDest = 1.50 * 10 * (1/25) = 0.60
+  assertAlmostEqual(run('大技\n[破壊率特大]', 'Single'), 0.60, 'ex-large-single');
+  // 6. [破壊率特大] AoE (1.20) -> baseDest = 1.20 * 10 * (1/25) = 0.48
+  assertAlmostEqual(run('大技\n[破壊率特大]', 'All'), 0.48, 'ex-large-aoe');
+
+  // 7. [破壊率超特大] Single (2.00) -> baseDest = 2.00 * 10 * (1/25) = 0.80
+  assertAlmostEqual(run('超大技\n[破壊率超特大]', 'Single'), 0.80, 'super-ex-large-single');
+  // 8. [破壊率超特大] AoE (1.60) -> baseDest = 1.60 * 10 * (1/25) = 0.64
+  assertAlmostEqual(run('超大技\n[破壊率超特大]', 'All'), 0.64, 'super-ex-large-aoe');
+
+  // 9. [破壊率絶大] Single (2.50) -> baseDest = 2.50 * 10 * (1/25) = 1.00
+  assertAlmostEqual(run('絶大技\n[破壊率絶大]', 'Single'), 1.00, 'absolute-single');
 });

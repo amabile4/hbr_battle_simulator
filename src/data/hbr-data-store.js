@@ -327,6 +327,7 @@ function clonePassiveWithSource(passive, sourceType, sourceMeta = {}) {
 
 export class HbrDataStore {
   constructor(payload) {
+    this.enemies = payload.enemies ?? [];
     this.characters = payload.characters;
     this.styles = payload.styles;
     this.skills = (payload.skills ?? []).map((skill) => {
@@ -443,6 +444,7 @@ export class HbrDataStore {
   static fromJsonDirectory(baseDir = 'json') {
     const dir = resolve(baseDir);
     return new HbrDataStore({
+      enemies: readJsonOrFallback(resolve(dir, 'enemies.json'), []),
       characters: readJson(resolve(dir, 'characters.json')),
       styles: readJson(resolve(dir, 'styles.json')),
       skills: readJson(resolve(dir, 'skills.json')),
@@ -462,6 +464,7 @@ export class HbrDataStore {
     }
 
     return new HbrDataStore({
+      enemies: payload.enemies ?? [],
       characters: payload.characters ?? [],
       styles: payload.styles ?? [],
       skills: payload.skills ?? [],

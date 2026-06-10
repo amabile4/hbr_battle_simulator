@@ -103,6 +103,7 @@ function normalizeEnemyManual(manual = {}) {
     max_d_rate: Number.isFinite(Number(manual?.max_d_rate))
       ? Number(manual.max_d_rate)
       : DEFAULT_MAX_D_RATE,
+    d_rate: Number.isFinite(Number(manual?.d_rate)) ? Number(manual.d_rate) : 100,
     destructionRate: normalizeDestructionRate(manual?.destructionRate),
     element: Object.fromEntries(
       ENEMY_ELEMENT_KEYS.map((key) => [key, normalizeElementRatePercent(manual?.element?.[key])])
@@ -139,6 +140,7 @@ function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
     manual,
     od_rate: normalizeEnemyOdRateMultiplier(source?.od_rate ?? manual.od_rate),
     max_d_rate: Number.isFinite(Number(source?.max_d_rate)) ? Number(source.max_d_rate) : manual.max_d_rate,
+    d_rate: Number.isFinite(Number(source?.d_rate)) ? Number(source.d_rate) : manual.d_rate,
     destructionRate: normalizeDestructionRate(source?.destructionRate ?? manual.destructionRate),
     resistances,
     absorbElementList,
@@ -190,6 +192,7 @@ export function normalizeEnemySetupSnapshot(snapshot = {}) {
     manual: slot0.manual,
     od_rate: slot0.od_rate,
     max_d_rate: slot0.max_d_rate,
+    d_rate: slot0.d_rate,
     destructionRate: slot0.destructionRate,
     resistances: slot0.resistances,
     absorbElementList: slot0.absorbElementList,

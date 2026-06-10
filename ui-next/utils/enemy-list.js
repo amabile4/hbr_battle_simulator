@@ -220,6 +220,7 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
       param_border: Number.isFinite(paramBorder) && paramBorder > 0 ? paramBorder : 0,
       od_rate: enemy.base_param?.od_rate ?? 0,
       max_d_rate: enemy.base_param?.max_d_rate ?? 999,
+      d_rate: enemy.base_param?.d_rate ?? 1,
       resistances: {
         element: Object.fromEntries(
           ENEMY_PRESET_ELEMENT_KEYS.map((key) => [

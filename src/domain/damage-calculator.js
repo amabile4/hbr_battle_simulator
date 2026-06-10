@@ -514,9 +514,30 @@ export function calculateDamage(input, data) {
     }
   }
 
-  // 武器属性相性のみが resistanceTotal を構成する（Zone は攻撃バフカテゴリへ）
-  const resistanceTotal = affinityMultiplier;
-  const isWeaknessAttack = resistanceTotal > 1;
+  let elementMultiplier = 1;
+  const skillElements = (fallbackPart?.elements ?? []).map((element) => String(element).trim());
+  for (const element of skillElements) {
+    let elMult = defender.resistances?.[element];
+    if (elMult === undefined) {
+      elMult = defender.resistances?.[element.toLowerCase()];
+    }
+    if (elMult === undefined && defender.resistances?.element) {
+      elMult = defender.resistances.element?.[element];
+      if (elMult === undefined) {
+        elMult = defender.resistances.element?.[element.toLowerCase()];
+      }
+    }
+    if (elMult !== undefined) {
+      const numericEl = Number(elMult);
+      if (Number.isFinite(numericEl)) {
+        elementMultiplier *= (numericEl > 10) ? numericEl / 100 : numericEl;
+      }
+    }
+  }
+
+  // 武器属性相性と元素耐性を掛け合わせて resistanceTotal を構成する
+  const resistanceTotal = affinityMultiplier * elementMultiplier;
+  const isWeaknessAttack = (affinityMultiplier > 1) || (elementMultiplier > 1);
   // MindEye: スキル攻撃力アップカテゴリ（通常+クリ両方に影響）。ただし通常攻撃および追撃には適用しない。
   const mindEyeTotal = isWeaknessAttack && !isNormalAttack && !isPursuit
     ? mindEyeBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100

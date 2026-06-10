@@ -250,6 +250,7 @@ function cloneManual(manual = {}) {
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
+    d_rate: Number(manual.d_rate ?? 100),
     destructionRate: normalizeDestructionRate(manual.destructionRate),
     element: Object.fromEntries(
       ELEMENTS.map((element) => [element.key, normalizeElementRatePercent(manual.element?.[element.key])])
@@ -268,6 +269,7 @@ function defaultManual() {
   return {
     od_rate: DEFAULT_OD_RATE,
     max_d_rate: DEFAULT_MAX_D_RATE,
+    d_rate: 100,
     destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: defaultElement(),
     absorbElementList: [],
@@ -281,6 +283,7 @@ function enemyToManual(enemy) {
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
+    d_rate: enemy.d_rate !== undefined ? enemy.d_rate * 100 : (enemy.base_param?.d_rate !== undefined ? enemy.base_param.d_rate * 100 : 100),
     destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: Object.fromEntries(
       ELEMENTS.map((element) => [
@@ -309,6 +312,7 @@ function snapshotToManual(snapshot = {}) {
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(snapshot.od_rate),
     max_d_rate: snapshot.max_d_rate,
+    d_rate: snapshot.d_rate,
     destructionRate: snapshot.destructionRate,
     element: snapshot.resistances?.element,
     absorbElementList: snapshot.absorbElementList,
@@ -658,6 +662,7 @@ export class EnemySetupController {
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
         od_rate: effective.od_rate,
         max_d_rate: effective.max_d_rate,
+        d_rate: effective.d_rate,
         destructionRate: normalizeDestructionRate(effective.destructionRate),
         resistances: { element: { ...effective.element } },
         absorbElementList: [...effective.absorbElementList],
@@ -681,6 +686,7 @@ export class EnemySetupController {
       manual: cloneManual(slot0.manual),
       od_rate: slot0.od_rate,
       max_d_rate: slot0.max_d_rate,
+      d_rate: slot0.d_rate,
       destructionRate: slot0.destructionRate,
       resistances: { element: { ...slot0.resistances.element } },
       absorbElementList: [...slot0.absorbElementList],

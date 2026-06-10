@@ -279,15 +279,45 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
 
   const slotStates = slots.map((slot) => {
     const enemyName = String(slot?.selectedEnemyName ?? DEFAULT_ENEMY_NAME).trim();
-    const maxDestructionRate = Number.isFinite(Number(slot?.max_d_rate))
-      ? Number(slot.max_d_rate)
-      : DEFAULT_MAX_D_RATE;
-    const rawOdRate = Number.isFinite(Number(slot?.od_rate))
-      ? Number(slot.od_rate)
-      : ENEMY_OD_RATE_NO_CORRECTION;
-    const rawDestructionMultiplier = Number.isFinite(Number(slot?.d_rate))
-      ? Number(slot.d_rate)
-      : 100;
+    const selectedEnemyId = Number(slot?.selectedEnemyId);
+    const enemy = Array.isArray(dataStore?.enemies)
+      ? dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId)
+      : null;
+
+    const isManual = Boolean(slot?.isManual);
+
+    let maxDestructionRate = DEFAULT_MAX_D_RATE;
+    if (isManual) {
+      maxDestructionRate = Number.isFinite(Number(slot?.max_d_rate))
+        ? Number(slot.max_d_rate)
+        : (Number.isFinite(Number(enemy?.base_param?.max_d_rate)) ? Number(enemy.base_param.max_d_rate) : DEFAULT_MAX_D_RATE);
+    } else {
+      maxDestructionRate = Number.isFinite(Number(enemy?.base_param?.max_d_rate))
+        ? Number(enemy.base_param.max_d_rate)
+        : (Number.isFinite(Number(slot?.max_d_rate)) ? Number(slot.max_d_rate) : DEFAULT_MAX_D_RATE);
+    }
+
+    let rawOdRate = ENEMY_OD_RATE_NO_CORRECTION;
+    if (isManual) {
+      rawOdRate = Number.isFinite(Number(slot?.od_rate))
+        ? Number(slot.od_rate)
+        : (Number.isFinite(Number(enemy?.base_param?.od_rate)) ? Number(enemy.base_param.od_rate) : ENEMY_OD_RATE_NO_CORRECTION);
+    } else {
+      rawOdRate = Number.isFinite(Number(enemy?.base_param?.od_rate))
+        ? Number(enemy.base_param.od_rate)
+        : (Number.isFinite(Number(slot?.od_rate)) ? Number(slot.od_rate) : ENEMY_OD_RATE_NO_CORRECTION);
+    }
+
+    let rawDestructionMultiplier = 100;
+    if (isManual) {
+      rawDestructionMultiplier = Number.isFinite(Number(slot?.d_rate))
+        ? Number(slot.d_rate)
+        : (Number.isFinite(Number(enemy?.base_param?.d_rate)) ? Number(enemy.base_param.d_rate) * 100 : 100);
+    } else {
+      rawDestructionMultiplier = Number.isFinite(Number(enemy?.base_param?.d_rate))
+        ? Number(enemy.base_param.d_rate) * 100
+        : (Number.isFinite(Number(slot?.d_rate)) ? Number(slot.d_rate) : 100);
+    }
     return {
       enemyName,
       paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0
