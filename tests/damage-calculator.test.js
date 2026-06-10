@@ -270,3 +270,115 @@ test('skills master contains resolvable normal attack and pursuit entries', () =
     assert.equal(typeof attackPart.diff_for_max, 'number');
   }
 });
+
+test('calculateDamage: resolveEffectPower edge cases', () => {
+  const data = loadDamageCalculationData();
+
+  // 1. providerStats がある場合、providerWis 未指定でも効果量が変化するケース
+  const input1 = createOfficialCategoryInput({
+    defender: {
+      paramBorder: 500,
+      resistances: { Stab: 1.5 },
+      statusEffects: [
+        {
+          statusType: 'Fragile',
+          sourceSkillId: 46001304,
+          skillLevel: 10,
+          providerStats: { wis: 600, luk: 600 },
+        }
+      ]
+    }
+  });
+  const actual1 = calculateDamage(input1, data);
+  assertAlmostEqual(actual1.breakdown.debuffMultiplier, 1.5563, 'providerStats test', OFFICIAL_CATEGORY_TOLERANCE);
+
+  // 2. providerStats なしの場合は、従来どおり providerWis/providerWisOrLuk を使うケース
+  const input2 = createOfficialCategoryInput({
+    defender: {
+      paramBorder: 500,
+      resistances: { Stab: 1.5 },
+      statusEffects: [
+        {
+          statusType: 'Fragile',
+          sourceSkillId: 46001304,
+          skillLevel: 10,
+          providerWis: 600,
+        }
+      ]
+    }
+  });
+  const actual2 = calculateDamage(input2, data);
+  assertAlmostEqual(actual2.breakdown.debuffMultiplier, 1.5563, 'providerWis fallback test', OFFICIAL_CATEGORY_TOLERANCE);
+
+  // 3. DefenseDown 系で enemyBorder を渡したときに、境界前後で値が変わるケース
+  const input3 = createOfficialCategoryInput({
+    defender: {
+      paramBorder: 700,
+      resistances: { Stab: 1.5 },
+      statusEffects: [
+        {
+          statusType: 'Fragile',
+          sourceSkillId: 46001304,
+          skillLevel: 10,
+          providerStats: { wis: 600, luk: 600 },
+        }
+      ]
+    }
+  });
+  const actual3 = calculateDamage(input3, data);
+  assertAlmostEqual(actual3.breakdown.debuffMultiplier, 1.42, 'enemyBorder boundary clamp test', OFFICIAL_CATEGORY_TOLERANCE);
+
+  // 4. orbLevel > 0 のとき、バフ系とデバフ系でそれぞれ加算が効くケース
+  const input4_debuff = createOfficialCategoryInput({
+    defender: {
+      paramBorder: 500,
+      resistances: { Stab: 1.5 },
+      statusEffects: [
+        {
+          statusType: 'Fragile',
+          sourceSkillId: 46001304,
+          skillLevel: 10,
+          orbLevel: 2,
+          providerStats: { wis: 600, luk: 600 },
+        }
+      ]
+    }
+  });
+  const actual4_debuff = calculateDamage(input4_debuff, data);
+  assertAlmostEqual(actual4_debuff.breakdown.debuffMultiplier, 1.5773, 'debuff orbLevel test', OFFICIAL_CATEGORY_TOLERANCE);
+
+  const input4_buff = createOfficialCategoryInput({
+    attacker: {
+      stats: { wis: 300 },
+      statusEffects: [
+        {
+          statusType: 'AttackUp',
+          sourceSkillId: 46003603,
+          skillLevel: 10,
+          orbLevel: 1,
+        }
+      ]
+    }
+  });
+  const actual4_buff = calculateDamage(input4_buff, data);
+  assertAlmostEqual(actual4_buff.breakdown.buffMultiplier, 1.8071128, 'buff orbLevel test', OFFICIAL_CATEGORY_TOLERANCE);
+
+  // 5. power 直接指定 effect が最優先で返るケース
+  const input5 = createOfficialCategoryInput({
+    defender: {
+      paramBorder: 500,
+      resistances: { Stab: 1.5 },
+      statusEffects: [
+        {
+          statusType: 'Fragile',
+          sourceSkillId: 46001304,
+          skillLevel: 10,
+          power: 99.9,
+          providerStats: { wis: 600, luk: 600 },
+        }
+      ]
+    }
+  });
+  const actual5 = calculateDamage(input5, data);
+  assertAlmostEqual(actual5.breakdown.debuffMultiplier, 1.999, 'power override priority test', OFFICIAL_CATEGORY_TOLERANCE);
+});

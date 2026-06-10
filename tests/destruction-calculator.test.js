@@ -190,3 +190,52 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
   assertAlmostEqual(result.breakdown.resonanceBonus, 0.10, 'resonanceBonus');
   assertAlmostEqual(result.breakdown.limitExceedBonus, 1.0, 'limitExceedBonus');
 });
+
+test('calculateDestruction: resolveEffectPower regression test for DestructionUp buff', () => {
+  const data = {
+    styles: [{ id: 2, role: 'Blaster' }],
+    enemies: [],
+    skills: [
+      {
+        id: 46001361,
+        name: 'Test Destruction Skill',
+        parts: [
+          {
+            skill_type: 'DestructionUp',
+            power: [0.20, 0.35],
+            diff_for_max: 132,
+            parameters: { wis: 1, luk: 2 },
+            growth: [0.0, 0.0]
+          }
+        ]
+      }
+    ]
+  };
+
+  const input = {
+    attacker: {
+      styleId: 2,
+      statusEffects: [
+        {
+          statusType: 'DestructionUp',
+          sourceSkillId: 46001361,
+          skillLevel: 10,
+          orbLevel: 1,
+          providerStats: { wis: 600, luk: 600 },
+        }
+      ]
+    },
+    defender: {
+      destructionRate: 1.0,
+      destructionLimit: 3.0,
+      destructionMultiplier: 1.0,
+      dp: 0,
+    },
+    skill: { name: '通常攻撃' },
+    hits: [{ damage: 100 }],
+    autoBreak: true,
+  };
+
+  const result = calculateDestruction(input, data);
+  assertAlmostEqual(result.breakdown.buffMultiplier, 0.39676, 'DestructionUp resolvedPower regression');
+});
