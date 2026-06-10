@@ -41,6 +41,16 @@
 4. 仕様の明文化不足
 - Auto / Manual / Hybrid の意味と優先順位がコード全体で統一されていない
 
+5. session JSON の敵 current DP / HP が保存対象外
+- 現行の session snapshot / replay script には enemy の current DP / HP を復元する canonical field がない
+- `enemyDpByEnemy` / `extraHpGaugeStateByEnemy` はあるが、保存時点の current 値をそのまま読み戻す経路は未整備
+- ハイブリッド運用で「再計算後も同じ見え方・同じ判定」を保証したい場合は、current DP / HP か、それを再導出できる追加状態を別途モデル化する必要がある
+
+6. 初期敵選択時の maxHP 記録が不足
+- HP ゲージが複数本でない敵でも、初期敵選択時点で maxHP を canonical に記録する必要がある
+- 現状の `extraHpGaugeStateByEnemy` だけでは、HP ゲージ非搭載敵の maxHP を後続の表示・再計算に安定供給できない
+- `maxDP` / `max破壊率` と同じく、enemy 初期化時点で `maxHP` を別フィールドとして保持する方針を WBS に含める
+
 ## 3. 目標仕様（提案）
 
 ## 3.1 判定モード
@@ -74,6 +84,13 @@
 
 - 旧データ読込時は `mode=hybrid` とし、抑止なしで現行互換
 - normalize 時に欠損フィールドを補完
+
+## 4.3 既存 session snapshot との整合
+
+- 既存の `session` JSON は enemy の current DP / HP を持たないため、`actionOutcomePolicy` だけでは保存/読込後の表示再現性が不足する
+- HP ゲージ非搭載敵の maxHP も session 保存対象に含める必要があり、初期 enemy snapshot に canonical field を追加するか、再導出元を明示する必要がある
+- 必要に応じて `replayScript` か `enemy` 配下に current 値を追加するか、または battle-state 側の再導出ロジックを固定化して保存/読込差分を吸収する
+- この論点は UI 表示の追加ではなく、ハイブリッド判定の再現性要件に属するため、本 WBS に残課題として明記する
 
 ## 5. WBS
 

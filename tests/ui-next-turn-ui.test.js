@@ -1870,8 +1870,8 @@ test('TurnRowController enemy popup switches defeat to HP break for multi-gauge 
     const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
       eventType: 'contextmenu',
     });
-    assert.match(popup.textContent ?? '', /HPゲージ/);
-    assert.match(popup.textContent ?? '', /2\/3/);
+    assert.match(popup.textContent ?? '', /HP/);
+    assert.match(popup.textContent ?? '', /2 \/ 3/);
 
     const hpBreakAction = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="hpbreak"]');
     assert.ok(hpBreakAction);
@@ -3983,10 +3983,10 @@ test('char detail popup damage tab uses damage context destruction cap for manua
       );
 
       const input = popup.querySelector('[data-role="destruction-rate-input"]');
-      const capNote = popup.querySelector('[data-role="destruction-rate-cap-note"]');
+  const destructionRateSummary = popup.querySelector('[data-role="damage-calc-destruction-rate"]');
       const after = popup.querySelector('[data-role="destruction-rate-after"]');
       assert.ok(input);
-      assert.ok(capNote);
+  assert.ok(destructionRateSummary);
       assert.ok(after);
       input.value = '600';
       input.dispatchEvent(new win.Event('input', { bubbles: true }));
@@ -3995,7 +3995,7 @@ test('char detail popup damage tab uses damage context destruction cap for manua
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
-      assert.equal(capNote.textContent?.trim(), '600%');
+      assert.match(destructionRateSummary.textContent?.trim() ?? '', /600\.00% \/ 600\.00%/);
       assert.equal(after.textContent?.trim(), '600.00%');
     } finally {
       globalThis.fetch = previousFetch;

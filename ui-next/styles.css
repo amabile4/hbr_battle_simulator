@@ -2887,6 +2887,30 @@
   gap: 8px;
 }
 
+.char-popup-damage-calc-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.char-popup-damage-calc-summary-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #273549;
+  border-radius: 6px;
+  background: #111827;
+  padding: 8px 10px;
+}
+
+.char-popup-damage-calc-summary-row strong {
+  color: #f8fafc;
+  font-size: 15px;
+  line-height: 1.2;
+  text-align: right;
+}
+
 .char-popup-damage-calc-result > div {
   display: flex;
   flex-direction: column;
@@ -2982,6 +3006,47 @@
   gap: 8px;
 }
 
+.char-popup-damage-calc-damage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.char-popup-damage-calc-damage-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #273549;
+  border-radius: 6px;
+  background: #0f172a;
+  padding: 8px 10px;
+}
+
+.char-popup-damage-calc-damage-label {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.char-popup-damage-calc-damage-values {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 12px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.char-popup-damage-calc-damage-values span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
 .char-popup-damage-calc-note {
   width: 100%;
   resize: vertical;
@@ -3034,6 +3099,10 @@
   font-size: 10px;
   color: #f87171;
   margin-top: 4px;
+}
+
+.char-popup-destruction-rate .char-popup-damage-calc-result {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 @media (max-width: 720px) {
