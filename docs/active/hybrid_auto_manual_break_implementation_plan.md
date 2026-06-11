@@ -132,3 +132,27 @@
 1. 第1稿・第2稿のステータスを本書へ収束させる README/ステータス更新（T1 完了化）
 2. 連戦召喚＋保存純度の赤テストを `tests/` に追加（T2/T3）
 3. 累積DPガイド導出の最小スパイクを `turn-engine-manager` 再計算パスに実装（T4 先行部分）
+
+---
+
+## 進捗記録（2026-06-11）
+
+| タスク | 状態 | コミット | 備考 |
+|---|---|---|---|
+| T1 仕様明文化 | ✅ 完了 | 3d7f3bb | 第1稿/第2稿を参照ステータスへ収束 |
+| T2 連戦召喚整合テスト | ✅ 完了 | a74df46 | `tests/ui-next-summon-recalculate-consistency.test.js`（4件）。現状実装で全PASS（構造ガード）。パラメータ変更バリアントはT5以降で拡張 |
+| T3 保存純度回帰 | ✅ 完了 | a74df46 | `tests/replay-json-purity.test.js`（6件）。canonicalキー集合＋禁止キーガード。`calculateDestruction` 重複定義も解消 |
+| T4 累積ガイド導出（DP） | ✅ 完了（DP分） | d6db838, ae97cb5 | `resolvePerHitDpDamageByEnemy` + manager enrichment + app起動時データ注入。エンジン既存の `applyDestructionRateFromActions` がDP累積消費・DP0自動ブレイク（手動優先は既存実装どおり）。`tests/ui-next-dp-damage-guide.test.js`（6件） |
+
+### T4 の主要設計判断
+- エンジン（turn-controller）は無変更。`perHitDpDamageByEnemy` の休眠経路（実装済みだが未供給）に manager 層から供給する方式を採用。
+- damageContext は commit 計算内でのみ構築されるため、クローン状態への probe commit で取得（`#enrichPreviewRecordWithDpDamage`）。
+- データ未注入時は完全に従来挙動。派生値は replay JSON 非混入（T3テストで恒久ガード）。
+
+### 既知のフォローアップ（未完了）
+1. 討伐予測（HP累積）: extra HP gauge 非搭載敵の maxHP/currentHP 追跡が未実装のため未着手（T4残）
+2. T5 ガイドバッジUI: turn row / popup の「ブレイク予測/討伐予測」バッジ表示
+3. T6 一時プレビュー / T7 比較ビュー / T8 差分警告: 未着手
+4. app.js のデータ注入後 `recalculateFrom(0)` 実行時にUI再描画を明示的に促していない（セッションロード直後のDP表示が次の操作まで古い可能性）
+5. E2E: 既存 fixture に `enemyDpByEnemy` 設定がなく、DPガイドのブラウザE2Eは fixture 整備とセットで追加する（T9）
+6. probe commit により commit/preview の計算コストが約2倍（DPゲージ敵存在時のみ）。体感劣化があれば最適化検討
