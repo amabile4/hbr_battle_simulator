@@ -150,9 +150,14 @@
 - データ未注入時は完全に従来挙動。派生値は replay JSON 非混入（T3テストで恒久ガード）。
 
 ### 既知のフォローアップ（未完了）
-1. 討伐予測（HP累積）: extra HP gauge 非搭載敵の maxHP/currentHP 追跡が未実装のため未着手（T4残）
-2. T5 ガイドバッジUI: turn row / popup の「ブレイク予測/討伐予測」バッジ表示
+1. 討伐予測（HP累積）: extra HP gauge 非搭載敵の maxHP/currentHP 追跡が未実装のため未着手（T4残・最難度）
+2. T5 残り: 「ブレイク予測（次ターンでDP0見込み）」の事前予測バッジ（現状は確定時の出所表示まで）
 3. T6 一時プレビュー / T7 比較ビュー / T8 差分警告: 未着手
-4. app.js のデータ注入後 `recalculateFrom(0)` 実行時にUI再描画を明示的に促していない（セッションロード直後のDP表示が次の操作まで古い可能性）
-5. E2E: 既存 fixture に `enemyDpByEnemy` 設定がなく、DPガイドのブラウザE2Eは fixture 整備とセットで追加する（T9）
-6. probe commit により commit/preview の計算コストが約2倍（DPゲージ敵存在時のみ）。体感劣化があれば最適化検討
+4. probe commit により commit/preview の計算コストが約2倍（DPゲージ敵存在時のみ）。体感劣化があれば最適化検討
+
+### 進捗追記（2026-06-12, 810f54d）
+- T5前半 ✅: DP自動ブレイクの出所可視化（turn row に `dp-auto-break-chip`、source:'auto' を manual と区別。record イベント由来で保存JSONには非追加）
+- FU#4 ✅: データ注入後の `recalculateFrom(0)` 直後に `turnArea.refreshRows()` で再描画
+- T9 ✅: `dp:1` 敵の E2E fixture + `tests/e2e/dp-damage-guide.spec.js`（DP表示・減少・自動ブレイクチップ・保存JSON純度の4件）
+- 副修正: enemy-setup-snapshot の normalize で `dp` フィールドが落ちていた既存欠落を修正
+- unit 1340 PASS / lint クリーン / 対象E2E PASS
