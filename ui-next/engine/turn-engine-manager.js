@@ -56,6 +56,9 @@ import {
 import { normalizeValidationPolicy } from '../utils/validation-policy.js';
 import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
 import { buildActionFlowFromRecord } from '../utils/action-flow-builder.js';
+import { resolvePerHitDpDamageByEnemy } from '../../src/domain/action-dp-damage.js';
+import { normalizeCharacterStats, resolveStatsWithSupport } from '../../src/domain/character-stats.js';
+import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
 
 function createEmptyReplayDiagnostics() {
   return {
@@ -345,6 +348,9 @@ export class TurnEngineManager {
   #pendingSpecialOperations = [];    // ReplayOperation[]
   #validationPolicy = normalizeValidationPolicy();
   #replayDiagnostics = createEmptyReplayDiagnostics();
+  // DPダメージガイド導出用の計算データ（{styles, characters, enemies, skills}）。
+  // 未設定の場合は enrichment を行わず従来挙動を維持する。派生値専用で保存対象外。
+  #damageCalculationData = null;
 
   get replayScript() { return this.#replayScript; }
   get computedRecords() { return this.#computedRecords; }
@@ -408,6 +414,18 @@ export class TurnEngineManager {
     this.#pendingSpecialOperations = [];
     this.#validationPolicy = normalizeValidationPolicy(options.validationPolicy);
     this.#replayDiagnostics = createEmptyReplayDiagnostics();
+    if ('damageCalculationData' in options) {
+      this.#damageCalculationData = options.damageCalculationData ?? null;
+    }
+  }
+
+  /**
+   * DPダメージガイド導出に使う計算データ（{styles, characters, enemies, skills}）を設定する。
+   * 設定後の commit / recalculate から enrichment が有効になる。
+   * 既存ターンへ反映するには呼び出し側で recalculateFrom(0) を実行すること。
+   */
+  setDamageCalculationData(data) {
+    this.#damageCalculationData = data ?? null;
   }
 
   #appendReplayWarnings(turnIndex, warnings = []) {
@@ -441,6 +459,9 @@ export class TurnEngineManager {
     this.#pendingInterruptOdLevel = null;
     this.#pendingSpecialOperations = [];
     this.#validationPolicy = normalizeValidationPolicy(options.validationPolicy);
+    if ('damageCalculationData' in options) {
+      this.#damageCalculationData = options.damageCalculationData ?? null;
+    }
     this.#recalculateAllBestEffort({
       strictExtraTurnTurnIndexes: new Set(),
     });
@@ -540,6 +561,7 @@ export class TurnEngineManager {
       }
     );
     this.#appendPreviewResourceWarnings(previewRecord, warnings);
+    this.#enrichPreviewRecordWithDpDamage(state, previewRecord);
 
     const interruptLevel = options.interruptOdLevel ?? this.#pendingInterruptOdLevel ?? 0;
     const requiredInterruptGauge = interruptLevel > 0 ? getOdGaugeRequirement(interruptLevel) : 0;
@@ -703,6 +725,7 @@ export class TurnEngineManager {
 
       try {
         const previewRecord = previewTurnRecord(state, actions, null, effectiveEnemyCount);
+        this.#enrichPreviewRecordWithDpDamage(state, previewRecord);
         const { nextState, committedRecord } = commitTurnRecord(state, previewRecord, [], {
           interruptOdLevel: interruptLevel ?? 0,
           enemyAttackTargetCharacterIds: scenarioTurn.enemyAttackTargetCharacterIds ?? [],
@@ -1855,6 +1878,7 @@ export class TurnEngineManager {
         onWarning: (message) => warnings.push(String(message)),
       });
       this.#appendPreviewResourceWarnings(previewRecord, warnings);
+      this.#enrichPreviewRecordWithDpDamage(state, previewRecord);
 
       const odGaugeAfter = Number(previewRecord?.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
       const requiredInterruptGauge = interruptLevel != null ? getOdGaugeRequirement(interruptLevel) : 0;
@@ -2089,6 +2113,81 @@ export class TurnEngineManager {
     return operations;
   }
 
+  #buildAttackerInputForMember(member) {
+    const role = String(member?.role ?? 'Attacker');
+    const limitBreakCount = Number(member?.limitBreakLevel ?? 0);
+    const stats =
+      normalizeCharacterStats(member?.stats)
+      ?? resolveStatsWithSupport(resolveDefaultStats(role, limitBreakCount), member?.supportStats);
+    return { role, limitBreakCount, ...stats };
+  }
+
+  /**
+   * previewRecord.actions に per-hit DPダメージ（ガイド導出値）を付与する。
+   *
+   * damageContext は commit 計算内でのみ構築されるため、クローン状態への probe commit で取得する。
+   * 計算データ未設定・DPゲージ敵なし・probe 失敗時は何もせず従来挙動を維持する。
+   * 付与値は派生値であり、replayScript（保存JSON）には書き込まれない。
+   */
+  #enrichPreviewRecordWithDpDamage(state, previewRecord) {
+    const data = this.#damageCalculationData;
+    const actions = previewRecord?.actions;
+    if (!data || !Array.isArray(actions) || actions.length === 0) {
+      return;
+    }
+    const enemyDpByEnemy = state?.turnState?.enemyState?.enemyDpByEnemy ?? {};
+    const hasDpGauge = Object.values(enemyDpByEnemy).some((value) => Number(value) > 0);
+    if (!hasDpGauge) {
+      return;
+    }
+    let probeActions = null;
+    try {
+      const probe = commitTurnRecord(
+        this.#cloneWorkingState(state),
+        structuredClone(previewRecord),
+        [],
+        { interruptOdLevel: 0 }
+      );
+      probeActions = probe?.committedRecord?.actions ?? null;
+    } catch {
+      return;
+    }
+    if (!Array.isArray(probeActions)) {
+      return;
+    }
+    for (let i = 0; i < actions.length; i++) {
+      const action = actions[i];
+      // 明示的に指定済みの perHitDpDamageByEnemy は尊重する
+      if (!action || action.perHitDpDamageByEnemy) {
+        continue;
+      }
+      const probeAction = probeActions[i];
+      if (
+        !probeAction?.damageContext ||
+        String(probeAction.characterId ?? '') !== String(action.characterId ?? '') ||
+        Number(probeAction.skillId ?? 0) !== Number(action.skillId ?? 0)
+      ) {
+        continue;
+      }
+      const member = (state?.party ?? []).find(
+        (candidate) => String(candidate?.characterId ?? '') === String(action.characterId ?? '')
+      );
+      if (!member) {
+        continue;
+      }
+      const perHitDpDamageByEnemy = resolvePerHitDpDamageByEnemy({
+        damageContext: probeAction.damageContext,
+        attackerInput: this.#buildAttackerInputForMember(member),
+        enemyDpByEnemy,
+        hitCount: Number(probeAction.skillHitCount ?? 0) || null,
+        data,
+      });
+      if (perHitDpDamageByEnemy) {
+        action.perHitDpDamageByEnemy = perHitDpDamageByEnemy;
+      }
+    }
+  }
+
   #previewResolvedTurn(
     state,
     slotActions = {},
@@ -2116,6 +2215,7 @@ export class TurnEngineManager {
         allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
         onWarning: (message) => warnings.push(String(message)),
       });
+      this.#enrichPreviewRecordWithDpDamage(state, previewRecord);
       let previewActionFlowRecord = previewRecord;
       let projectedState = null;
       try {
