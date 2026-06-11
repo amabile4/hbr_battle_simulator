@@ -34,6 +34,7 @@ import { resolveSourceSkillDescription } from './source-skill-description.js';
 import { resolveAdoptionStatus } from './buff-adoption.js';
 import { calculateDamage } from '../../src/domain/damage-calculator.js';
 import { calculateDestruction } from '../../src/domain/destruction-calculator.js';
+import { loadDamageCalculationData } from './damage-calculation-data.js';
 import {
   buildDamageCalculationInput,
   buildDamageStatDeltaViewModel,
@@ -56,10 +57,8 @@ const DAMAGE_CALC_STAT_LABELS = Object.freeze({
 const DAMAGE_CALC_DEFAULT_ROLE = 'Attacker';
 const DAMAGE_CALC_DEFAULT_ENEMY_BORDER = 770;
 const DEFAULT_DESTRUCTION_RATE_PERCENT = 100;
-const DAMAGE_CALC_JSON_FILES = Object.freeze(['styles', 'characters', 'enemies', 'skills']);
 const damageCalculationActionModels = new Map();
 const damageCalculationInteractionPanels = new WeakSet();
-let damageCalculationDataPromise = null;
 
 export function resolveSkillTypeIconUrl(statusType) {
   const name = String(statusType ?? '').trim();
@@ -986,19 +985,7 @@ async function updateDestructionRateDisplay(pane) {
 }
 
 function loadDamageCalculationDataForPopup() {
-  if (!damageCalculationDataPromise) {
-    damageCalculationDataPromise = Promise.all(
-      DAMAGE_CALC_JSON_FILES.map((name) =>
-        fetch(`../json/${name}.json`).then((response) => {
-          if (!response.ok) {
-            throw new Error(`${name}.json ${response.status}`);
-          }
-          return response.json();
-        })
-      )
-    ).then(([styles, characters, enemies, skills]) => ({ styles, characters, enemies, skills }));
-  }
-  return damageCalculationDataPromise;
+  return loadDamageCalculationData();
 }
 
 function resolveDamageCalculatorEnemyAdapter(model, pane) {

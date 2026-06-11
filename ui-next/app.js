@@ -38,6 +38,7 @@ import {
   createJsonDataCacheContext,
   fetchJsonWithCache,
 } from './utils/json-cache.js';
+import { loadDamageCalculationData } from './utils/damage-calculation-data.js';
 
 const UI_NEXT_READY_FLAG_KEY = '__UI_NEXT_READY__';
 const UI_NEXT_BOOT_METRICS_KEY = '__UI_NEXT_BOOT_METRICS__';
@@ -993,6 +994,22 @@ async function main() {
         initialSetup.setDimensionBattles(dimensionBattles);
       } catch (error) {
         console.error('Failed to hydrate stage presets:', error);
+      }
+    }, 0);
+
+    // DPダメージガイド用の計算データを TurnEngineManager に注入する。
+    // 起動時のレンダリングをブロックしないよう遅延ロードする。
+    // 失敗時はガイドなしのまま続行（アプリを止めない）。
+    scheduleDeferredTask(async () => {
+      try {
+        const damageCalculationData = await loadDamageCalculationData();
+        turnEngineManager.setDamageCalculationData(damageCalculationData);
+        // セッションロード直後など既にターンが存在する場合は再計算して DP を反映する。
+        if (turnEngineManager.committedTurnCount > 0) {
+          turnEngineManager.recalculateFrom(0);
+        }
+      } catch (error) {
+        console.error('Failed to load damage calculation data for DP guide:', error);
       }
     }, 0);
 
