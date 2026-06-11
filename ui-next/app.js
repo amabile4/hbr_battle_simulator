@@ -1005,8 +1005,10 @@ async function main() {
         const damageCalculationData = await loadDamageCalculationData();
         turnEngineManager.setDamageCalculationData(damageCalculationData);
         // セッションロード直後など既にターンが存在する場合は再計算して DP を反映する。
+        // recalculateFrom はエンジン内部状態のみ更新するため、完了後に UI の再描画も行う。
         if (turnEngineManager.committedTurnCount > 0) {
           turnEngineManager.recalculateFrom(0);
+          turnArea.refreshRows();
         }
       } catch (error) {
         console.error('Failed to load damage calculation data for DP guide:', error);

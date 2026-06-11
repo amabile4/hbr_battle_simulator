@@ -75,6 +75,18 @@ export class TurnAreaController {
     this.#emitPassiveLogRows();
   }
 
+  /**
+   * エンジン側で recalculateFrom() 等を直接呼び出した後に UI を最新状態へ同期する。
+   * scroll 位置を維持したまま行を再描画し、受動ログも更新する。
+   */
+  refreshRows() {
+    if (!this.#rowsRoot) {
+      return;
+    }
+    this.#renderRows({ preserveScroll: true });
+    this.#emitPassiveLogRows();
+  }
+
   setEnemyPresets(enemyPresets = []) {
     this.#enemyPresets = Array.isArray(enemyPresets)
       ? enemyPresets.map((preset) => structuredClone(preset))

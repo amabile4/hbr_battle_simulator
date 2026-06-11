@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildAutoBreakChipModels,
+  buildDpAutoBreakChipModels,
   buildManualBreakChipModels,
   resolveManualBreakActorLabel,
   resolveManualBreakEnemyLabel,
@@ -157,4 +158,93 @@ test('buildAutoBreakChipModels falls back to position when characterId is missin
   });
   assert.equal(chipModels.length, 1);
   assert.equal(chipModels[0].label, 'ユキ→E3 ブレイク (自動)');
+});
+
+// ---------------------------------------------------------------------------
+// buildDpAutoBreakChipModels
+// ---------------------------------------------------------------------------
+
+test('buildDpAutoBreakChipModels generates DP break chip from enemyStatusChanges source:auto', () => {
+  const chipModels = buildDpAutoBreakChipModels({
+    actions: [
+      {
+        characterId: 'BIYamawaki',
+        actorCharacterId: 'BIYamawaki',
+        positionIndex: 0,
+        skillId: 1234,
+        autoBreakEnemyIndexes: [],
+        enemyStatusChanges: [
+          { mode: 'DownTurn', source: 'auto', targetIndex: 0 },
+        ],
+      },
+    ],
+    members: [{ position: 0, characterId: 'BIYamawaki', characterName: 'ワッキー' }],
+    store: createStore(),
+    enemyNamesByEnemy: { 0: 'ワイバーン' },
+  });
+
+  assert.equal(chipModels.length, 1);
+  assert.equal(chipModels[0].label, 'ワッキー→ワイバーン ブレイク (DP)');
+  assert.equal(chipModels[0].enemyIndex, 0);
+});
+
+test('buildDpAutoBreakChipModels skips changes with source:manual', () => {
+  const chipModels = buildDpAutoBreakChipModels({
+    actions: [
+      {
+        characterId: 'X',
+        positionIndex: 0,
+        skillId: 1,
+        autoBreakEnemyIndexes: [],
+        enemyStatusChanges: [
+          { mode: 'DownTurn', source: 'manual', targetIndex: 0 },
+        ],
+      },
+    ],
+    members: [{ position: 0, characterId: 'X', characterName: 'カレン' }],
+    store: createStore(),
+    enemyNamesByEnemy: {},
+  });
+  assert.equal(chipModels.length, 0);
+});
+
+test('buildDpAutoBreakChipModels skips enemies already in autoBreakEnemyIndexes', () => {
+  const chipModels = buildDpAutoBreakChipModels({
+    actions: [
+      {
+        characterId: 'X',
+        positionIndex: 0,
+        skillId: 1,
+        autoBreakEnemyIndexes: [0],
+        enemyStatusChanges: [
+          { mode: 'DownTurn', source: 'auto', targetIndex: 0 },
+        ],
+      },
+    ],
+    members: [{ position: 0, characterId: 'X', characterName: 'カレン' }],
+    store: createStore(),
+    enemyNamesByEnemy: {},
+  });
+  assert.equal(chipModels.length, 0);
+});
+
+test('buildDpAutoBreakChipModels deduplicates same actor+skill+enemy combination', () => {
+  const action = {
+    characterId: 'X',
+    positionIndex: 0,
+    skillId: 5,
+    autoBreakEnemyIndexes: [],
+    enemyStatusChanges: [
+      { mode: 'DownTurn', source: 'auto', targetIndex: 1 },
+      { mode: 'DownTurn', source: 'auto', targetIndex: 1 },
+    ],
+  };
+  const chipModels = buildDpAutoBreakChipModels({
+    actions: [action],
+    members: [{ position: 0, characterId: 'X', characterName: 'ユキ' }],
+    store: createStore(),
+    enemyNamesByEnemy: {},
+  });
+  assert.equal(chipModels.length, 1);
+  assert.equal(chipModels[0].label, 'ユキ→E2 ブレイク (DP)');
 });

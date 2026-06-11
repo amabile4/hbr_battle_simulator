@@ -36,6 +36,7 @@ import {
 } from '../utils/action-outcome-overrides.js';
 import {
   buildAutoBreakChipModels,
+  buildDpAutoBreakChipModels,
   buildManualHpBreakChipModels,
   buildManualBreakChipModels,
   buildManualKillChipModels,
@@ -2474,6 +2475,7 @@ export class TurnRowController {
   #buildManualBreakChipsHtml(isCommitted) {
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
+    const actionsForChips = this.#getActionsForAutoBreakChips(isCommitted);
     const manualChipModels = buildManualBreakChipModels({
       overrides: this.#getCurrentActionOutcomeOverridesForDisplay(isCommitted),
       members,
@@ -2481,12 +2483,18 @@ export class TurnRowController {
       enemyNamesByEnemy,
     });
     const autoChipModels = buildAutoBreakChipModels({
-      actions: this.#getActionsForAutoBreakChips(isCommitted),
+      actions: actionsForChips,
       members,
       store: this.#store,
       enemyNamesByEnemy,
     });
-    if (manualChipModels.length === 0 && autoChipModels.length === 0) {
+    const dpAutoChipModels = buildDpAutoBreakChipModels({
+      actions: actionsForChips,
+      members,
+      store: this.#store,
+      enemyNamesByEnemy,
+    });
+    if (manualChipModels.length === 0 && autoChipModels.length === 0 && dpAutoChipModels.length === 0) {
       return '';
     }
     const manualHtml = manualChipModels.map((chip) => `
@@ -2503,9 +2511,16 @@ export class TurnRowController {
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
         `).join('');
+    const dpAutoHtml = dpAutoChipModels.map((chip) => `
+          <span data-role="dp-auto-break-chip"
+                title="${chip.label}"
+                class="inline-flex max-w-full items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold leading-tight text-sky-700">
+            <span class="max-w-full break-all">${chip.label}</span>
+          </span>
+        `).join('');
     return `
       <div data-role="manual-break-chip-list" class="flex flex-wrap gap-1 pb-1">
-        ${manualHtml}${autoHtml}
+        ${manualHtml}${autoHtml}${dpAutoHtml}
       </div>
     `;
   }
