@@ -32,6 +32,9 @@ export class TurnAreaController {
   #dismissedStatusKey = '';
   #rowsRoot = null;
   #editSession = null;
+  // 一時比較ビュー（手動指定の一括無効化）。ビュー状態のみで保存JSON非対象
+  #comparisonMode = false;
+  #comparisonResult = null;
   #formatMessage = (message) => String(message ?? '');
 
   constructor({
@@ -181,16 +184,22 @@ export class TurnAreaController {
     this.#ensureScaffold();
     this.#clearRows();
 
+    // 比較モード中は最新の比較バッファを再構築する（外部の recalculate に追随）
+    if (this.#comparisonMode) {
+      this.#comparisonResult = this.#engineManager.buildComparisonComputedStates();
+    }
+
     const replayTurns = this.#engineManager.replayScript?.turns ?? [];
     for (let turnIndex = 0; turnIndex < replayTurns.length; turnIndex += 1) {
-      if (this.#editSession?.turnIndex === turnIndex) {
+      if (!this.#comparisonMode && this.#editSession?.turnIndex === turnIndex) {
         this.#appendEditRow(turnIndex);
         continue;
       }
       this.#appendCommittedRow(turnIndex);
     }
 
-    if (!this.#editSession && !this.#engineManager.replayDiagnostics.error) {
+    // 比較モード中は閲覧専用（input 行を出さず commit / 編集を抑止する）
+    if (!this.#comparisonMode && !this.#editSession && !this.#engineManager.replayDiagnostics.error) {
       this.#appendInputRow();
     }
 
@@ -198,6 +207,28 @@ export class TurnAreaController {
     if (scrollState) {
       this.#restoreScrollState(scrollState);
     }
+  }
+
+  /**
+   * 一時比較ビュー: 手動ブレイク/討伐指定を一括無効化した自動計算のみの推移を表示する。
+   * ビュー状態のみで replayScript / 保存JSONには影響しない（OFF で即復帰）。
+   */
+  setComparisonMode(enabled) {
+    const next = Boolean(enabled);
+    if (next === this.#comparisonMode) {
+      return;
+    }
+    this.#comparisonMode = next;
+    if (!next) {
+      this.#comparisonResult = null;
+    }
+    if (this.#rowsRoot) {
+      this.#renderRows({ preserveScroll: true });
+    }
+  }
+
+  get comparisonMode() {
+    return this.#comparisonMode;
   }
 
   #captureScrollState() {
@@ -383,6 +414,11 @@ export class TurnAreaController {
     const rowEl = document.createElement('div');
     this.#rowsRoot.appendChild(rowEl);
     const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
+    const comparison = this.#comparisonMode ? this.#comparisonResult : null;
+    // 比較モード中: record/state を比較バッファから供給し、手動指定チップ表示も無効化する
+    const displayReplayTurn = comparison && replayTurn
+      ? { ...structuredClone(replayTurn), actionOutcomeOverrides: [] }
+      : replayTurn;
     const row = new TurnRowController({
       root: rowEl,
       store: this.#store,
@@ -390,14 +426,22 @@ export class TurnAreaController {
       turnIndex,
       rowMode: 'committed',
       rowDiagnostics: this.#buildRowDiagnostics(turnIndex),
-      record: this.#engineManager.computedRecords[turnIndex] ?? null,
-      replayTurn,
+      record: comparison
+        ? (comparison.records[turnIndex] ?? null)
+        : (this.#engineManager.computedRecords[turnIndex] ?? null),
+      replayTurn: displayReplayTurn,
       operations: replayTurn?.operations ?? [],
       operationState: null,
-      stateBefore: this.#engineManager.getStateBefore(turnIndex),
-      stateAfter: this.#engineManager.computedStates[turnIndex] ?? null,
+      stateBefore: comparison
+        ? (turnIndex === 0
+            ? this.#engineManager.getStateBefore(0)
+            : (comparison.states[turnIndex - 1] ?? null))
+        : this.#engineManager.getStateBefore(turnIndex),
+      stateAfter: comparison
+        ? (comparison.states[turnIndex] ?? null)
+        : (this.#engineManager.computedStates[turnIndex] ?? null),
       simulatorSettings: this.#simulatorSettings,
-      onEditStart: (ti) => this.#handleEditStart(ti),
+      onEditStart: this.#comparisonMode ? null : (ti) => this.#handleEditStart(ti),
     });
     row.mount();
     this.#rowControllers.push(row);

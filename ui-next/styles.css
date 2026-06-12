@@ -3179,3 +3179,10 @@
   border-style: dashed;
   opacity: 0.75;
 }
+
+/* 比較ビューなどトグル系 toolbar ボタンの ON 状態 */
+.workspace-toolbar__button--active {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}

@@ -851,6 +851,7 @@ function setupWorkspaceShell() {
       sessionSave: document.querySelector('#session-save-btn'),
       sessionLoad: document.querySelector('#session-load-btn'),
       sessionLoadInput: document.querySelector('#session-load-input'),
+      comparisonToggle: document.querySelector('#toggle-comparison-view'),
     },
   };
 }
@@ -1104,6 +1105,15 @@ async function main() {
       });
       usedSkillsOverlay.setRows(rows);
       usedSkillsOverlay.toggle();
+    });
+
+    // 一時比較ビュー: 手動ブレイク/討伐指定の一括無効化トグル（ビュー状態のみ・保存JSON非対象）
+    workspaceShell.buttons.comparisonToggle?.addEventListener('click', () => {
+      const nextEnabled = !turnArea.comparisonMode;
+      turnArea.setComparisonMode(nextEnabled);
+      const button = workspaceShell.buttons.comparisonToggle;
+      button.setAttribute('aria-pressed', String(nextEnabled));
+      button.classList.toggle('workspace-toolbar__button--active', nextEnabled);
     });
 
     bootProfiler.mark('main:ready');

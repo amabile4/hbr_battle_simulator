@@ -634,6 +634,52 @@ export class TurnEngineManager {
   }
 
   /**
+   * 比較ビュー用: 手動ブレイク/討伐指定（actionOutcomeOverrides）を一括無効化した
+   * 「自動計算のみ」の推移を別バッファで再計算して返す（read-only API）。
+   *
+   * - replayScript / computedStates / computedRecords / pending には一切影響しない
+   *   （クローンに差し替えて recalculateFrom(0) を流用し、finally で必ず復元する）。
+   * - 戻り値はビュー状態であり、保存JSONには含めない。
+   * - replayScript 未ロード時は null。
+   *
+   * @returns {{ states: object[], records: (object|null)[] } | null}
+   */
+  buildComparisonComputedStates() {
+    if (!this.#replayScript) {
+      return null;
+    }
+    const savedReplayScript = this.#replayScript;
+    const savedComputedStates = this.#computedStates;
+    const savedComputedRecords = this.#computedRecords;
+    const savedPendingPreemptiveOdLevel = this.#pendingPreemptiveOdLevel;
+    const savedPendingInterruptOdLevel = this.#pendingInterruptOdLevel;
+    const savedPendingSpecialOperations = this.#pendingSpecialOperations;
+    try {
+      const comparisonScript = structuredClone(savedReplayScript);
+      for (const turn of comparisonScript.turns ?? []) {
+        if (turn && typeof turn === 'object') {
+          turn.actionOutcomeOverrides = [];
+        }
+      }
+      this.#replayScript = comparisonScript;
+      this.#computedStates = [];
+      this.#computedRecords = [];
+      this.recalculateFrom(0);
+      return { states: this.#computedStates, records: this.#computedRecords };
+    } catch (err) {
+      console.warn('TurnEngineManager.buildComparisonComputedStates failed:', err.message);
+      return null;
+    } finally {
+      this.#replayScript = savedReplayScript;
+      this.#computedStates = savedComputedStates;
+      this.#computedRecords = savedComputedRecords;
+      this.#pendingPreemptiveOdLevel = savedPendingPreemptiveOdLevel;
+      this.#pendingInterruptOdLevel = savedPendingInterruptOdLevel;
+      this.#pendingSpecialOperations = savedPendingSpecialOperations;
+    }
+  }
+
+  /**
    * fromIndex ターン以降を再計算する。
    * fromIndex 以降の computedStates / computedRecords を破棄して再実行。
    * OD operations（ACTIVATE_PREEMPTIVE_OD / RESERVE_INTERRUPT_OD）も再現する。
