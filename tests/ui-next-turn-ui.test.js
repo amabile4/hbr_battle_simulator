@@ -4041,6 +4041,161 @@ test('char detail popup damage tab uses damage context destruction cap for manua
     }
   }));
 
+test('char detail popup damage tab shows normal enemy HP current and max', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [],
+        previewActionFlow: [
+          {
+            actorCharacterId: 'NNanase',
+            skillName: 'HP表示テスト',
+            damageContext: {
+              actorCharacterId: 'NNanase',
+              actorStyleId: 1000001,
+              skillId: 999002,
+              skillName: 'HP表示テスト',
+              isNormalAttack: false,
+              targetEnemyIndex: 0,
+              enemyCount: 1,
+              baseHitCount: 1,
+              effectiveHitCountPerEnemy: 1,
+              destructionRateByEnemy: { 0: 100 },
+              destructionRateCapByEnemy: { 0: 300 },
+              enemyNamesByEnemy: { 0: 'E1' },
+              effectiveDamageRatesByEnemy: { 0: 100 },
+              damageBreakdown: {
+                version: 1,
+                targetBreakdowns: [
+                  {
+                    targetEnemyIndex: 0,
+                    targetLabel: 'E1',
+                    finalMultiplier: 1,
+                    increasePercent: 0,
+                    formula: '1.00x',
+                    groups: [],
+                  },
+                ],
+              },
+              criticalRateBreakdown: {
+                criticalRatePercent: 0,
+                isCriticalGuaranteed: false,
+                contributions: [],
+              },
+            },
+          },
+        ],
+      },
+      {
+        x: 200,
+        y: 120,
+        isCommitted: false,
+        enemyDestructionState: {
+          remainingHpByEnemy: { 0: 12345 },
+          enemyHpByEnemy: { 0: 67890 },
+        },
+      }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
+    assert.equal(hpStatus?.textContent?.trim(), '12345 / 67890');
+  }));
+
+test('char detail popup damage tab prefers extra HP gauge over normal HP fields', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [],
+        previewActionFlow: [
+          {
+            actorCharacterId: 'NNanase',
+            skillName: 'HPゲージ優先テスト',
+            damageContext: {
+              actorCharacterId: 'NNanase',
+              actorStyleId: 1000001,
+              skillId: 999003,
+              skillName: 'HPゲージ優先テスト',
+              isNormalAttack: false,
+              targetEnemyIndex: 0,
+              enemyCount: 1,
+              baseHitCount: 1,
+              effectiveHitCountPerEnemy: 1,
+              destructionRateByEnemy: { 0: 100 },
+              destructionRateCapByEnemy: { 0: 300 },
+              enemyNamesByEnemy: { 0: 'E1' },
+              effectiveDamageRatesByEnemy: { 0: 100 },
+              damageBreakdown: {
+                version: 1,
+                targetBreakdowns: [
+                  {
+                    targetEnemyIndex: 0,
+                    targetLabel: 'E1',
+                    finalMultiplier: 1,
+                    increasePercent: 0,
+                    formula: '1.00x',
+                    groups: [],
+                  },
+                ],
+              },
+              criticalRateBreakdown: {
+                criticalRatePercent: 0,
+                isCriticalGuaranteed: false,
+                contributions: [],
+              },
+            },
+          },
+        ],
+      },
+      {
+        x: 200,
+        y: 120,
+        isCommitted: false,
+        enemyDestructionState: {
+          remainingHpByEnemy: { 0: 12345 },
+          enemyHpByEnemy: { 0: 67890 },
+          extraHpGaugeStateByEnemy: { 0: { total: 3, remaining: 2, values: [100, 100, 100] } },
+        },
+      }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
+    assert.equal(hpStatus?.textContent?.trim(), '2 / 3');
+  }));
+
 test('char detail popup shows form chip and dims inactive ability entries for form-change styles', () =>
   withDom(({ win }) => {
     const member = getStore().buildCharacterStyle({

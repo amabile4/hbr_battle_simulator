@@ -237,6 +237,13 @@
 | 保存JSON純度 | ✅ 強化 | （本コミット） | `total*Damage` を replay purity の禁止キーへ追加。`perHit*DamageByEnemy` と同じく replayScript / session snapshot へ保存しない |
 | 回帰テスト | ✅ 追加完了 | （本コミット） | unit: DP/HP guide fixture を `power=3001, hitCount=3` にして `perHit=1000` / `total=3001` / 消費=3001 を固定。`tests/replay-json-purity.test.js` で total 系キー非保存を固定 |
 
+### 進捗追記（2026-06-12, char-detail popup HP接続）
+
+| 対象 | 状態 | コミット | 備考 |
+|---|---|---|---|
+| 威力詳細タブHP summary | ✅ 完了 | （本コミット） | turn row から char-detail popup の `enemyDestructionState` に `remainingHpByEnemy` / `enemyHpByEnemy` を渡し、damage calculator pane の HP 表示を敵詳細ポップアップと同じ優先順（extra HP gauge → current/max → `- / max` → N/A）へ統一 |
+| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: char-detail damage tab の通常HP表示と extra HP gauge 優先を固定。E2E: `damage-breakdown-popup.spec.js` で HP summary が `remaining / max` になることを検証 |
+
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
 

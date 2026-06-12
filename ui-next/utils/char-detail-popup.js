@@ -1066,6 +1066,12 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
     dpCurrent: Number.isFinite(Number(model.enemyDestructionState?.remainingDpByEnemy?.[enemyKey]))
       ? Number(model.enemyDestructionState.remainingDpByEnemy[enemyKey])
       : null,
+    hpMax: Number.isFinite(Number(model.enemyDestructionState?.enemyHpByEnemy?.[enemyKey]))
+      ? Number(model.enemyDestructionState.enemyHpByEnemy[enemyKey])
+      : null,
+    hpCurrent: Number.isFinite(Number(model.enemyDestructionState?.remainingHpByEnemy?.[enemyKey]))
+      ? Number(model.enemyDestructionState.remainingHpByEnemy[enemyKey])
+      : null,
     extraHpGaugeState: model.enemyDestructionState?.extraHpGaugeStateByEnemy?.[enemyKey] ?? null,
     destructionRateCapPercent: resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey),
   };
@@ -1124,10 +1130,16 @@ async function updateDamageCalculatorPane(pane) {
   }
   const hpStatusEl = pane.querySelector('[data-role="damage-calc-hp-status"]');
   if (hpStatusEl) {
-    const { extraHpGaugeState } = enemyAdapter;
-    hpStatusEl.textContent = extraHpGaugeState
-      ? `${Number(extraHpGaugeState.remaining ?? 0)} / ${Number(extraHpGaugeState.total ?? 0)}`
-      : 'N/A';
+    const { extraHpGaugeState, hpCurrent, hpMax } = enemyAdapter;
+    if (extraHpGaugeState) {
+      hpStatusEl.textContent = `${Number(extraHpGaugeState.remaining ?? 0)} / ${Number(extraHpGaugeState.total ?? 0)}`;
+    } else if (Number.isFinite(hpCurrent) && Number.isFinite(hpMax)) {
+      hpStatusEl.textContent = `${hpCurrent} / ${hpMax}`;
+    } else if (Number.isFinite(hpMax) && hpMax > 0) {
+      hpStatusEl.textContent = `- / ${hpMax}`;
+    } else {
+      hpStatusEl.textContent = 'N/A';
+    }
   }
   try {
     const dpInput = buildDamageCalculationInput(model.damageContext, attackerInput, {

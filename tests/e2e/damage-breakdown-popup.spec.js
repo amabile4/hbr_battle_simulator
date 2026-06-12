@@ -199,7 +199,13 @@ test.describe('Damage breakdown popup tab', () => {
             },
           ],
         },
-        { isCommitted: false }
+        {
+          isCommitted: false,
+          enemyDestructionState: {
+            remainingHpByEnemy: { 0: 12345678, 1: 87654321 },
+            enemyHpByEnemy: { 0: 156000000, 1: 234000000 },
+          },
+        }
       );
     }, { styleId: DAMAGE_CALC_E2E_STYLE_ID, skillId: DAMAGE_CALC_E2E_SKILL_ID });
 
@@ -222,6 +228,7 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('.char-popup-damage-calc-damage-row').nth(1)).toContainText('HPダメージ');
     await expect(pane.locator('[data-role="damage-calc-critical-expected"]')).not.toHaveText('-');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('破壊率');
+    await expect(pane.locator('[data-role="damage-calc-hp-status"]')).toHaveText('12345678 / 156000000');
     await expect(pane.locator('[data-role="damage-calc-normal-hp-expected"]')).not.toHaveText('-');
     await expect.poll(async () => {
       const hp = parseDamageText(await pane.locator('[data-role="damage-calc-critical-hp-expected"]').textContent());
