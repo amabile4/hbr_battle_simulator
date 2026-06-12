@@ -26,12 +26,27 @@ async function loadHpKillFixture(page) {
   await expect(page.locator('[data-turn-row][data-row-mode="input"]')).toBeVisible({ timeout: 10000 });
 }
 
+async function readHpFromRowEnemyPopup(row) {
+  await row.locator('[data-role="enemy-detail-trigger"]').click();
+  const popup = row.page().locator('.enemy-detail-popup-container');
+  await expect(popup).toBeVisible({ timeout: 5000 });
+  const hpRow = popup.locator('[data-role="enemy-popup-basic-info-row"]', { hasText: 'HP' });
+  await expect(hpRow).toBeVisible({ timeout: 5000 });
+  const value = await hpRow.locator('[data-role="enemy-popup-basic-info-value"]').textContent();
+  await popup.locator('[data-role="popup-close"]').click();
+  await expect(popup).not.toBeVisible({ timeout: 5000 });
+  return value?.trim() ?? '';
+}
+
 test.describe('HP visibility', () => {
   test.setTimeout(60000);
 
   test('HP0 auto kill shows preview and committed HP kill chips without manual kill chip', async ({ page }) => {
     await loadHpKillFixture(page);
     await waitForDeferredDamageGuide(page);
+
+    const inputRowBefore = page.locator('[data-turn-row][data-row-mode="input"]').last();
+    await expect(await readHpFromRowEnemyPopup(inputRowBefore)).toMatch(/\/ 1$/);
 
     await selectSkillForPosition(page, 0, 46002102);
     await waitForDeferredDamageGuide(page);
@@ -50,5 +65,8 @@ test.describe('HP visibility', () => {
     await expect(committedChip.first()).toBeVisible({ timeout: 5000 });
     await expect(committedChip.first()).toContainText('討伐 (HP)');
     await expect(committedRow.locator('[data-role="kill-chip"]')).toHaveCount(0);
+
+    const nextInputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
+    await expect(await readHpFromRowEnemyPopup(nextInputRow)).toBe('0 / 1');
   });
 });

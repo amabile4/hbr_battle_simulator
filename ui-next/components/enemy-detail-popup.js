@@ -409,6 +409,8 @@ export class EnemyDetailPopup {
         ...(enemy?.maxHp !== undefined ? { maxHp: enemy.maxHp } : {}),
         ...(enemy?.dpCurrent !== undefined ? { dpCurrent: enemy.dpCurrent } : {}),
         ...(enemy?.dpMax !== undefined ? { dpMax: enemy.dpMax } : {}),
+        ...(enemy?.hpCurrent !== undefined ? { hpCurrent: enemy.hpCurrent } : {}),
+        ...(enemy?.hpMax !== undefined ? { hpMax: enemy.hpMax } : {}),
         ...(enemy?.destructionRateCurrent !== undefined ? { destructionRateCurrent: enemy.destructionRateCurrent } : {}),
       };
     });
@@ -936,7 +938,11 @@ export class EnemyDetailPopup {
       ['HP', escapeHtml(
         extraHpGaugeState
           ? `${Number(extraHpGaugeState.remaining ?? 0)} / ${Number(extraHpGaugeState.total ?? 0)}`
-          : 'N/A'
+          : Number.isFinite(Number(enemy?.hpCurrent)) && Number.isFinite(Number(enemy?.hpMax))
+            ? `${Number(enemy.hpCurrent)} / ${Number(enemy.hpMax)}`
+            : Number.isFinite(Number(enemy?.hpMax)) && Number(enemy.hpMax) > 0
+              ? `- / ${Number(enemy.hpMax)}`
+              : 'N/A'
       )],
       ['破壊率', escapeHtml(
         Number.isFinite(Number(enemy?.destructionRateCurrent)) && Number.isFinite(Number(enemy?.max_d_rate))

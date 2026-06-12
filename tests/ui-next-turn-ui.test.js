@@ -1590,6 +1590,45 @@ test('EnemyDetailPopup basic info shows Eシールド summary when present', () 
     popup.close();
   }));
 
+test('EnemyDetailPopup basic info shows normal HP current and max when supplied', () =>
+  withDom(() => {
+    const popup = new EnemyDetailPopup();
+    const payload = createEnemyPopupPayload(1);
+    payload.enemies[0].hpCurrent = 900;
+    payload.enemies[0].hpMax = 1000;
+    popup.show(payload, 0);
+
+    const root = popup.getRootElement();
+    const hpRow = [...root.querySelectorAll('[data-role="enemy-popup-basic-info-row"]')]
+      .find((row) => row.textContent.includes('HP'));
+    assert.ok(hpRow);
+    assert.equal(
+      hpRow.querySelector('[data-role="enemy-popup-basic-info-value"]')?.textContent,
+      '900 / 1000'
+    );
+    popup.close();
+  }));
+
+test('EnemyDetailPopup basic info keeps extra HP gauge display before normal HP fields', () =>
+  withDom(() => {
+    const popup = new EnemyDetailPopup();
+    const payload = createEnemyPopupPayload(1);
+    payload.enemies[0].extraHpGaugeState = { total: 3, remaining: 2, values: [100, 100, 100] };
+    payload.enemies[0].hpCurrent = 900;
+    payload.enemies[0].hpMax = 1000;
+    popup.show(payload, 0);
+
+    const root = popup.getRootElement();
+    const hpRow = [...root.querySelectorAll('[data-role="enemy-popup-basic-info-row"]')]
+      .find((row) => row.textContent.includes('HP'));
+    assert.ok(hpRow);
+    assert.equal(
+      hpRow.querySelector('[data-role="enemy-popup-basic-info-value"]')?.textContent,
+      '2 / 3'
+    );
+    popup.close();
+  }));
+
 test('TurnRowController omits Eシールド strip when no enemy has Eシールド state', () =>
   withDom(({ root }) => {
     const skill = createSkill({

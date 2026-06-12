@@ -124,6 +124,11 @@ test.describe('一時比較ビュー', () => {
       '4550000',
       { timeout: 10000 }
     );
+    const hpRow = popup.locator('[data-role="enemy-popup-basic-info-row"]', { hasText: 'HP' });
+    await expect(hpRow.locator('[data-role="enemy-popup-basic-info-value"]')).toContainText(
+      '156000000',
+      { timeout: 10000 }
+    );
     await page.locator('.enemy-detail-popup-container [data-role="popup-close"]').click();
 
     const toggle = page.locator('#toggle-comparison-view');

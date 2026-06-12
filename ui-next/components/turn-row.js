@@ -3692,6 +3692,8 @@ export class TurnRowController {
       const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey] ?? null;
       const dpMax = enemyState.enemyDpByEnemy?.[enemyKey] ?? null;
       const dpCurrent = enemyState.remainingDpByEnemy?.[enemyKey] ?? null;
+      const hpMax = enemyState.enemyHpByEnemy?.[enemyKey] ?? null;
+      const hpCurrent = enemyState.remainingHpByEnemy?.[enemyKey] ?? null;
       const destructionRateCurrent = enemyState.destructionRateByEnemy?.[enemyKey] ?? null;
       const hasDisplayedEShieldState = Object.prototype.hasOwnProperty.call(displayedEShieldStateByEnemy, enemyKey);
       const eShieldState = hasDisplayedEShieldState
@@ -3747,6 +3749,8 @@ export class TurnRowController {
         ...(extraHpGaugeState ? { extraHpGaugeState: structuredClone(extraHpGaugeState) } : {}),
         ...(dpMax !== null ? { dpMax } : {}),
         ...(dpCurrent !== null ? { dpCurrent } : {}),
+        ...(hpMax !== null ? { hpMax } : {}),
+        ...(hpCurrent !== null ? { hpCurrent } : {}),
         ...(destructionRateCurrent !== null ? { destructionRateCurrent } : {}),
       };
     });

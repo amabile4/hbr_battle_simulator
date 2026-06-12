@@ -2,7 +2,7 @@
 
 - ステータス: 🟢 進行中
 - 作成日: 2026-06-10
-- 最終更新: 2026-06-10
+- 最終更新: 2026-06-12
 - 対象: `ui-next` の威力詳細タブ / 敵詳細ポップアップ
 
 ## 1. 目的
@@ -41,7 +41,7 @@
   - `destructionRateCapByEnemy`（破壊率MAX）あり
 - HP
   - `extraHpGaugeStateByEnemy`（remaining/total）はあり
-  - 通常HPの `current/max` を全敵共通で持つ正式状態は現時点で未統一
+  - `enemyHpByEnemy`（HP MAX）と `remainingHpByEnemy`（現HP）はHP累積ガイド実装で供給済み
 
 ## 3. 表示仕様（提案）
 
@@ -56,7 +56,8 @@
 - DP: `-`
 - HP:
   - extra gauge あり: `remaining / total`
-  - extra gauge なし: `N/A`
+  - extra gauge なし + `enemyHpByEnemy > 0`: `current / max`（現HP未導出時は `- / max`）
+  - HPデータなし: `N/A`
 - 破壊率: `100.00% / cap%` を既定値として表示（cap不明なら `300%`）
 
 ## 3.3 最小UI変更
@@ -81,14 +82,15 @@
 
 ## 4.2 敵詳細ポップアップ (`ui-next/components/enemy-detail-popup.js`)
 
-1. `#buildEnemyEntries()` へ `dpCurrent/dpMax`, `destructionRateCurrent/destructionRateCap`, `hpCurrent/hpMax` を受け取る項目追加
-2. `#buildBasicInfoHtml()` の infoRows に `DP`, `HP`, `破壊率` を追加
-3. `turn-row` 側モデル組み立てで sourceState から値を供給
+1. ✅ `#buildEnemyEntries()` へ `dpCurrent/dpMax`, `destructionRateCurrent/destructionRateCap`, `hpCurrent/hpMax` を受け取る項目追加
+2. ✅ `#buildBasicInfoHtml()` の infoRows に `DP`, `HP`, `破壊率` を追加
+3. ✅ `turn-row` 側モデル組み立てで sourceState から値を供給
 
 ## 4.3 turn-row モデル供給 (`ui-next/components/turn-row.js`)
 
 1. `sourceState.turnState.enemyState` から以下を取り出して popup model に渡す
 - `remainingDpByEnemy`, `enemyDpByEnemy`
+- `remainingHpByEnemy`, `enemyHpByEnemy`
 - `destructionRateByEnemy`, `destructionRateCapByEnemy`
 - `extraHpGaugeStateByEnemy`
 2. committed / draft で参照する state を明確化（現仕様に合わせる）
@@ -97,7 +99,7 @@
 
 1. 威力詳細タブで対象敵を切り替えると、DP/HP/破壊率が対象ごとに更新される
 2. 敵詳細ポップアップで E1/E2/E3 切替時に同様に更新される
-3. extra gauge なし敵で HP は `N/A` 表示になる
+3. extra gauge なし敵で HP max がある場合は `current / max`、HPデータなしの場合のみ `N/A` 表示になる
 4. 既存のダメージ期待値表示と破壊率入力計算を壊さない
 
 ## 6. テスト計画
@@ -113,8 +115,8 @@
 
 ## 7. リスク
 
-1. HPは extra gauge 非搭載敵に統一 current/max がない
-- 当面は `N/A` 表示で運用
+1. HPは extra gauge 非搭載敵も `enemyHpByEnemy` / `remainingHpByEnemy` で表示可能になった
+- 現HP未導出時は `- / max`、HPデータなしのみ `N/A` で運用
 2. committed/draft の状態差
 - sourceState 選択を固定し、テストで期待値を明示
 

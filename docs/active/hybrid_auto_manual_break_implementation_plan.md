@@ -205,5 +205,12 @@
 | HP自動討伐チップ | ✅ 完了 | （本コミット） | `enemyStatusChanges` の `Dead source:'auto'` から `hp-auto-kill-chip` を導出。コミット済み行は実線、未コミット preview 行は `data-preview` + 「予測:」表示。手動 kill は既存の `kill-chip` のみで、HP自動討伐チップと重複しないことを固定 |
 | 回帰テスト | ✅ 追加完了 | （本コミット） | unit: `buildHpAutoKillChipModels` 3件。E2E: `hp:1` fixture で preview/committed の HP討伐チップ表示と手動 kill chip 非表示を検証 |
 
+### 進捗追記（2026-06-12, HP可視化タスク2）
+
+| 対象 | 状態 | コミット | 備考 |
+|---|---|---|---|
+| 敵詳細ポップアップ現HP表示 | ✅ 完了 | （本コミット） | `turn-row` の敵詳細 payload に `hpCurrent/hpMax` を追加し、通常敵は `remainingHpByEnemy / enemyHpByEnemy` から `現HP / 最大HP` を表示。多段HPゲージ敵は従来の `extraHpGaugeState` 表示を優先し、HPデータなしのみ `N/A` を維持 |
+| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: EnemyDetailPopup の通常HP表示・多段ゲージ優先。E2E: `hp:1` fixture のロード直後/討伐後HP、スカルフェザー fixture の HP max `156000000` 表示を検証 |
+
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
