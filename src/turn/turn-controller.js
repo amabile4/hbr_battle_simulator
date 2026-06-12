@@ -2517,11 +2517,15 @@ function cloneEnemySlotObjectMap(value, fallback = {}) {
  * 破壊率マップをマージする。スナップショット値は新規敵スロットまたは現在値より大きい場合のみ採用する。
  * 破壊率は単調増加が保証されるゲーム仕様であり、過去の記録値で減少方向への上書きを防ぐ。
  *
+ * 召喚敵など「スロット差し替え」で初期値へのリセットが必要なケースでは、
+ * forceOverwriteKeys に該当キーを渡すことで Math.max をバイパスし、スナップショット値を強制適用する。
+ *
  * @param {Object} currentMap 現在の destructionRateByEnemy
  * @param {Object} snapshotMap スナップショットの enemyDestructionRates
+ * @param {Set<string>} [forceOverwriteKeys] スナップショット値を強制上書きする敵スロットキー
  * @returns {Object} マージ後の destructionRateByEnemy
  */
-function mergeDestructionRateByEnemy(currentMap, snapshotMap) {
+function mergeDestructionRateByEnemy(currentMap, snapshotMap, forceOverwriteKeys = null) {
   const current = currentMap && typeof currentMap === 'object'
     ? structuredClone(currentMap)
     : {};
@@ -2531,6 +2535,11 @@ function mergeDestructionRateByEnemy(currentMap, snapshotMap) {
   for (const [key, snapshotValue] of Object.entries(snapshot)) {
     const snapshotNum = Number(snapshotValue);
     if (!Number.isFinite(snapshotNum)) {
+      continue;
+    }
+    if (forceOverwriteKeys && forceOverwriteKeys.has(key)) {
+      // 召喚によるスロット差し替え: スナップショット値を強制適用（リセットを許可）
+      current[key] = snapshotNum;
       continue;
     }
     const currentNum = Number(current[key]);
@@ -2770,7 +2779,7 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, option
       ? cloneEnemySlotObjectMap(snapshot.enemyDamageRates)
       : structuredClone(current.damageRatesByEnemy),
     destructionRateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRates')
-      ? mergeDestructionRateByEnemy(current.destructionRateByEnemy, snapshot.enemyDestructionRates)
+      ? mergeDestructionRateByEnemy(current.destructionRateByEnemy, snapshot.enemyDestructionRates, options?.forceDestructionRateKeys ?? null)
       : structuredClone(current.destructionRateByEnemy),
     destructionRateCapByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRateCaps')
       ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRateCaps)
