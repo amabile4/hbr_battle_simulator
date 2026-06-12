@@ -166,12 +166,13 @@ function collectForbiddenKeys(value, forbiddenPatterns, path = '') {
   return found;
 }
 
-// 禁止キーパターン: suppress / guide / preview / cumulative
+// 禁止キーパターン: suppress / guide / preview / cumulative / total*Damage
 const FORBIDDEN_KEY_PATTERNS = [
   /suppress/i,
   /guide/i,
   /preview/i,
   /cumulative/i,
+  /^total.*Damage/i,
 ];
 
 // ---------------------------------------------------------------------------
@@ -382,10 +383,10 @@ test('replay JSON purity: each serialized replay turn contains only canonical ke
 });
 
 // ---------------------------------------------------------------------------
-// テスト 4: 禁止キー(suppress/guide/preview/cumulative)が JSON に存在しない
+// テスト 4: 禁止キー(suppress/guide/preview/cumulative/total*Damage)が JSON に存在しない
 // ---------------------------------------------------------------------------
 
-test('replay JSON purity: no suppress/guide/preview/cumulative keys anywhere in serialized replayScript JSON', () => {
+test('replay JSON purity: no suppress/guide/preview/cumulative/total damage keys anywhere in serialized replayScript JSON', () => {
   const attackSkill = createSkill({
     id: 9806,
     name: 'Attack',
@@ -444,7 +445,7 @@ test('replay JSON purity: no suppress/guide/preview/cumulative keys anywhere in 
   assert.deepEqual(
     forbiddenPaths,
     [],
-    `serialized replayScript に禁止キー(suppress/guide/preview/cumulative)が存在してはならない。検出パス: ${forbiddenPaths.join(', ')}`
+    `serialized replayScript に禁止キー(suppress/guide/preview/cumulative/total*Damage)が存在してはならない。検出パス: ${forbiddenPaths.join(', ')}`
   );
 });
 
@@ -452,7 +453,7 @@ test('replay JSON purity: no suppress/guide/preview/cumulative keys anywhere in 
 // テスト 5: session snapshot 全体の禁止キーガード
 // ---------------------------------------------------------------------------
 
-test('replay JSON purity: no suppress/guide/preview/cumulative keys in serialized session snapshot', () => {
+test('replay JSON purity: no suppress/guide/preview/cumulative/total damage keys in serialized session snapshot', () => {
   const attackSkill = createSkill({
     id: 9808,
     name: 'Attack',
@@ -503,7 +504,7 @@ test('replay JSON purity: no suppress/guide/preview/cumulative keys in serialize
   assert.deepEqual(
     forbiddenPaths,
     [],
-    `serialized session snapshot に禁止キー(suppress/guide/preview/cumulative)が存在してはならない。検出パス: ${forbiddenPaths.join(', ')}`
+    `serialized session snapshot に禁止キー(suppress/guide/preview/cumulative/total*Damage)が存在してはならない。検出パス: ${forbiddenPaths.join(', ')}`
   );
 });
 

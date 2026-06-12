@@ -19,7 +19,8 @@ const MIN_HIT_COUNT = 1;
  * @param {object} params.enemyHpByEnemy - 敵ごとの最大HP（HP追跡対象の判定に使用）
  * @param {number} [params.hitCount] - 消費側が乗算する hit 数。省略時は damageContext.effectiveHitCountPerEnemy
  * @param {object|null} params.data - { styles, characters, enemies, skills }
- * @returns {Object<string, number>|null} enemyKey -> per-hit HPダメージ（正の整数）
+ * @returns {{perHitHpDamageByEnemy: Object<string, number>, totalHpDamageByEnemy: Object<string, number>}|null}
+ *   enemyKey -> per-hit HPダメージ / exact total HPダメージ（正の整数）
  */
 export function resolvePerHitHpDamageByEnemy({
   damageContext = null,
@@ -45,7 +46,8 @@ export function resolvePerHitHpDamageByEnemy({
       : contextHitCount
   );
 
-  const result = {};
+  const perHitHpDamageByEnemy = {};
+  const totalHpDamageByEnemy = {};
   for (const rawIndex of targetIndexes) {
     const targetEnemyIndex = Number(rawIndex);
     if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0) {
@@ -70,12 +72,15 @@ export function resolvePerHitHpDamageByEnemy({
       }
       const perHit = Math.floor(expectedTotal / resolvedHitCount);
       if (perHit > 0) {
-        result[enemyKey] = perHit;
+        perHitHpDamageByEnemy[enemyKey] = perHit;
+        totalHpDamageByEnemy[enemyKey] = Math.floor(expectedTotal);
       }
     } catch {
       // 計算データ不足などで失敗した敵はスキップ（enrichment なし = 従来挙動）
     }
   }
 
-  return Object.keys(result).length > 0 ? result : null;
+  return Object.keys(perHitHpDamageByEnemy).length > 0
+    ? { perHitHpDamageByEnemy, totalHpDamageByEnemy }
+    : null;
 }

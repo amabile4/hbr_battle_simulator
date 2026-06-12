@@ -24,6 +24,8 @@ import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 // ---------------------------------------------------------------------------
 
 const ATTACK_SKILL_ID = 9901;
+const ATTACK_SKILL_POWER = 3001;
+const ATTACK_SKILL_HIT_COUNT = 3;
 
 function createAttackSkill() {
   return {
@@ -33,7 +35,8 @@ function createAttackSkill() {
     sp_cost: 0,
     cond: '',
     target_type: 'Single',
-    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', power: [3000] }],
+    hitCount: ATTACK_SKILL_HIT_COUNT,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', power: [ATTACK_SKILL_POWER] }],
   };
 }
 
@@ -141,7 +144,7 @@ test('hp damage guide: injected damageCalculationData consumes enemy HP on commi
   const manager = new TurnEngineManager();
   manager.initialize(createInitialState(), {}, { damageCalculationData: DAMAGE_DATA });
 
-  commitAttackTurn(manager);
+  const record = commitAttackTurn(manager);
 
   const remaining = getRemainingHp(manager, 0);
   assert.ok(Number.isFinite(remaining), 'remainingHpByEnemy[0] が数値であること');
@@ -151,6 +154,14 @@ test('hp damage guide: injected damageCalculationData consumes enemy HP on commi
   );
   assert.ok(remaining > 0, '大HPの敵はこの1撃で討伐されないこと');
   assert.equal(enemyHasDeadStatus(manager, 0), false, 'Dead 状態が付与されないこと');
+  const action = record.actions.find((entry) => entry.skillId === ATTACK_SKILL_ID);
+  assert.equal(action?.perHitHpDamageByEnemy?.['0'], 1000, 'per-hit HP は floor(total / hitCount) であること');
+  assert.equal(action?.totalHpDamageByEnemy?.['0'], 3001, 'exact total HP が派生値として保持されること');
+  assert.equal(
+    1_000_000_000 - remaining,
+    3001,
+    'HP消費は per-hit×hitCount ではなく exact total を使用すること'
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -295,9 +306,9 @@ test('hp damage guide: perHitHpDamageByEnemy never leaks into serialized replayS
 
   const serialized = JSON.stringify(manager.replayScript);
   assert.equal(
-    /perHitHpDamage/i.test(serialized),
+    /perHitHpDamage|totalHpDamage/i.test(serialized),
     false,
-    'replayScript に perHitHpDamageByEnemy が含まれないこと'
+    'replayScript に perHitHpDamageByEnemy / totalHpDamageByEnemy が含まれないこと'
   );
   assert.equal(
     /remainingHp/i.test(serialized),

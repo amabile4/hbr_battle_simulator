@@ -4735,8 +4735,10 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       // DP消費・自動ブレイクの対象外。
       const hasDpGauge = Number(maxDpByEnemy[String(targetIndex)] ?? 0) > 0;
       const isManualBreakTarget = manualBreakEnemyIndexes.includes(Number(targetIndex));
-      const perHitDpDamage = Number(actionEntry?.perHitDpDamageByEnemy?.[String(targetIndex)] ?? 0);
-      const dpBeforeThisAction = runningDp[String(targetIndex)] ?? 0;
+      const targetKey = String(targetIndex);
+      const perHitDpDamage = Number(actionEntry?.perHitDpDamageByEnemy?.[targetKey] ?? 0);
+      const totalDpDamage = Number(actionEntry?.totalDpDamageByEnemy?.[targetKey] ?? NaN);
+      const dpBeforeThisAction = runningDp[targetKey] ?? 0;
 
       // Step 1: perHitDpDamageByEnemy によるDP消費をアクションごとに更新する。
       // ブレイク判定（DR計算）の有無に関わらず実行し、クロスアクション残量を維持する。
@@ -4746,10 +4748,14 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         if (isManualBreakTarget) {
           newDp = 0;
         } else if (perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
-          const dpConsumed = Math.min(dpBeforeThisAction, hitCount * perHitDpDamage);
+          const dpDamage =
+            totalDpDamage > 0 && Number.isFinite(totalDpDamage)
+              ? totalDpDamage
+              : hitCount * perHitDpDamage;
+          const dpConsumed = Math.min(dpBeforeThisAction, dpDamage);
           newDp = Math.max(0, dpBeforeThisAction - dpConsumed);
         }
-        runningDp[String(targetIndex)] = newDp;
+        runningDp[targetKey] = newDp;
         if (newDp <= 0 && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
           const applied = applyManualEnemyBreak(state.turnState, targetIndex);
           if (applied) {
@@ -4932,8 +4938,13 @@ function applyEnemyHpFromActions(state, previewRecord, options = {}) {
       if (!(perHitHpDamage > 0) || !Number.isFinite(perHitHpDamage)) {
         continue;
       }
+      const totalHpDamage = Number(actionEntry?.totalHpDamageByEnemy?.[key] ?? NaN);
       const hpBefore = runningHp[key];
-      const newHp = Math.max(0, hpBefore - Math.min(hpBefore, hitCount * perHitHpDamage));
+      const hpDamage =
+        totalHpDamage > 0 && Number.isFinite(totalHpDamage)
+          ? totalHpDamage
+          : hitCount * perHitHpDamage;
+      const newHp = Math.max(0, hpBefore - Math.min(hpBefore, hpDamage));
       runningHp[key] = newHp;
       if (newHp <= 0) {
         const applied = applyManualEnemyKill(state.turnState, targetIndex);

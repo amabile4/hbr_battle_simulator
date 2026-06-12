@@ -228,6 +228,15 @@
 | 制限事項 | ✅ 記録 | （本コミット） | `EnemyNames` / `EnemyDps` / 耐性 / `EnemyDestructionRates` / `EnemyExtraHpGauges` などの敵スナップショットは比較ビューでも維持する。多段HPゲージの `HpBreak` 状態は召喚・段階管理との差分判定が必要なため第一弾では除外しない |
 | 回帰テスト | ✅ 追加完了 | （本コミット） | unit: スカルフェザー fixture の比較ビューで #3 に手動Break系状態を持ち込まず、DP減少継続後のDP0ターンで `source:'auto'` DownTurn が出ることを固定。E2E: 比較ONで #3 Alive / #4 `dp-auto-break-chip` 表示を検証 |
 
+### 回帰修正追記（2026-06-12, DP/HP exact total 消費）
+
+| 対象 | 状態 | コミット | 備考 |
+|---|---|---|---|
+| DP/HP丸め落ち修正 | ✅ 完了 | （本コミット） | `resolvePerHitDpDamageByEnemy` / `resolvePerHitHpDamageByEnemy` が per-hit に加えて exact total を返し、manager が `totalDpDamageByEnemy` / `totalHpDamageByEnemy` を一時派生値として action に付与。`turn-controller` の DP/HP 消費は total があれば total 優先、未注入・旧データでは従来どおり `perHit * hitCount` にフォールバック |
+| ブレイクヒット位置 | ✅ 維持 | （本コミット） | DP0 自動ブレイクのヒット位置判定は引き続き `perHitDpDamageByEnemy` を使用。総消費量だけ exact total に差し替え、Eシールドなど raw hit 判定には影響させない |
+| 保存JSON純度 | ✅ 強化 | （本コミット） | `total*Damage` を replay purity の禁止キーへ追加。`perHit*DamageByEnemy` と同じく replayScript / session snapshot へ保存しない |
+| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: DP/HP guide fixture を `power=3001, hitCount=3` にして `perHit=1000` / `total=3001` / 消費=3001 を固定。`tests/replay-json-purity.test.js` で total 系キー非保存を固定 |
+
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
 

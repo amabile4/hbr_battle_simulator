@@ -21,6 +21,8 @@ import { buildDpAutoBreakChipModels } from '../ui-next/utils/manual-break-presen
 // ---------------------------------------------------------------------------
 
 const ATTACK_SKILL_ID = 9901;
+const ATTACK_SKILL_POWER = 3001;
+const ATTACK_SKILL_HIT_COUNT = 3;
 
 function createAttackSkill() {
   return {
@@ -30,7 +32,8 @@ function createAttackSkill() {
     sp_cost: 0,
     cond: '',
     target_type: 'Single',
-    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', power: [3000] }],
+    hitCount: ATTACK_SKILL_HIT_COUNT,
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', power: [ATTACK_SKILL_POWER] }],
   };
 }
 
@@ -117,7 +120,7 @@ test('dp damage guide: injected damageCalculationData consumes enemy DP on commi
   const manager = new TurnEngineManager();
   manager.initialize(createInitialState(), {}, { damageCalculationData: DAMAGE_DATA });
 
-  commitAttackTurn(manager);
+  const record = commitAttackTurn(manager);
 
   const remaining = getRemainingDp(manager, 0);
   assert.ok(Number.isFinite(remaining), 'remainingDpByEnemy[0] が数値であること');
@@ -126,6 +129,14 @@ test('dp damage guide: injected damageCalculationData consumes enemy DP on commi
     `DPが消費されていること (remaining=${remaining})`
   );
   assert.ok(remaining > 0, '大DPの敵はこの1撃でブレイクしないこと');
+  const action = record.actions.find((entry) => entry.skillId === ATTACK_SKILL_ID);
+  assert.equal(action?.perHitDpDamageByEnemy?.['0'], 1000, 'per-hit DP は floor(total / hitCount) であること');
+  assert.equal(action?.totalDpDamageByEnemy?.['0'], 3001, 'exact total DP が派生値として保持されること');
+  assert.equal(
+    1_000_000_000 - remaining,
+    3001,
+    'DP消費は per-hit×hitCount ではなく exact total を使用すること'
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -195,9 +206,9 @@ test('dp damage guide: perHitDpDamageByEnemy never leaks into serialized replayS
 
   const serialized = JSON.stringify(manager.replayScript);
   assert.equal(
-    /perHitDpDamage/i.test(serialized),
+    /perHitDpDamage|totalDpDamage/i.test(serialized),
     false,
-    'replayScript に perHitDpDamageByEnemy が含まれないこと'
+    'replayScript に perHitDpDamageByEnemy / totalDpDamageByEnemy が含まれないこと'
   );
   assert.equal(
     /remainingDp/i.test(serialized),

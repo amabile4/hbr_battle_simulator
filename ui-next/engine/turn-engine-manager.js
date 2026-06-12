@@ -2525,27 +2525,29 @@ export class TurnEngineManager {
       const attackerInput = this.#buildAttackerInputForMember(member);
       const hitCount = Number(probeAction.skillHitCount ?? 0) || null;
       if (hasDpGauge && !action.perHitDpDamageByEnemy) {
-        const perHitDpDamageByEnemy = resolvePerHitDpDamageByEnemy({
+        const dpDamageByEnemy = resolvePerHitDpDamageByEnemy({
           damageContext: probeAction.damageContext,
           attackerInput,
           enemyDpByEnemy,
           hitCount,
           data,
         });
-        if (perHitDpDamageByEnemy) {
-          action.perHitDpDamageByEnemy = perHitDpDamageByEnemy;
+        if (dpDamageByEnemy) {
+          action.perHitDpDamageByEnemy = dpDamageByEnemy.perHitDpDamageByEnemy;
+          action.totalDpDamageByEnemy = dpDamageByEnemy.totalDpDamageByEnemy;
         }
       }
       if (hasHpTracking && !action.perHitHpDamageByEnemy) {
-        const perHitHpDamageByEnemy = resolvePerHitHpDamageByEnemy({
+        const hpDamageByEnemy = resolvePerHitHpDamageByEnemy({
           damageContext: probeAction.damageContext,
           attackerInput,
           enemyHpByEnemy,
           hitCount,
           data,
         });
-        if (perHitHpDamageByEnemy) {
-          action.perHitHpDamageByEnemy = perHitHpDamageByEnemy;
+        if (hpDamageByEnemy) {
+          action.perHitHpDamageByEnemy = hpDamageByEnemy.perHitHpDamageByEnemy;
+          action.totalHpDamageByEnemy = hpDamageByEnemy.totalHpDamageByEnemy;
         }
       }
     }
