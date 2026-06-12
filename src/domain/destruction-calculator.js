@@ -147,11 +147,13 @@ export function calculateDestruction(input, data) {
   }
 
   // 11. Base destruction with buffs and blaster
+  const flatDestructionBonus = toNumber(attacker.flatDestructionRateBonus, 0.0);
+
   let baseDestruction = 0.0;
   if (isNormalAttack || isPursuit) {
     baseDestruction = bg30;
   } else {
-    baseDestruction = Math.floor(bg30 * (1.0 + sRatio + buffMultiplier) * 10000.0) / 10000.0;
+    baseDestruction = Math.floor(bg30 * (1.0 + sRatio + buffMultiplier + flatDestructionBonus) * 10000.0) / 10000.0;
   }
 
   // 12. Apply enemy destructionResist (AL10)
@@ -233,6 +235,7 @@ export function calculateDestruction(input, data) {
       accessoryBonus,
       resonanceBonus,
       limitExceedBonus,
+      flatDestructionRateBonus: flatDestructionBonus,
       ignoredEffects,
     },
   };
