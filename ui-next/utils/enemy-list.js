@@ -218,6 +218,7 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
       categoryKey,
       categoryLabel,
       param_border: Number.isFinite(paramBorder) && paramBorder > 0 ? paramBorder : 0,
+      dp: Number(enemy.base_param?.dp ?? 0),
       od_rate: enemy.base_param?.od_rate ?? 0,
       max_d_rate: enemy.base_param?.max_d_rate ?? 999,
       resistances: {
