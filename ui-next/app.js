@@ -566,6 +566,7 @@ function loadSessionText({
   text,
   initialSetup,
   battleStateManager,
+  turnEngineManager,
   turnArea,
 }) {
   const session = normalizeSessionSnapshot(JSON.parse(text));
@@ -581,6 +582,18 @@ function loadSessionText({
     session.simulatorSettings,
     session.validationPolicy,
   );
+  scheduleDeferredTask(async () => {
+    try {
+      const damageCalculationData = await loadDamageCalculationData();
+      turnEngineManager?.setDamageCalculationData(damageCalculationData);
+      if (turnEngineManager?.committedTurnCount > 0) {
+        turnEngineManager.recalculateFrom(0);
+        turnArea.refreshRows();
+      }
+    } catch (error) {
+      console.error('Failed to refresh damage guide after session load:', error);
+    }
+  }, 0);
   initialSetup.setHasActiveBattle(true);
   initialSetup.setHasRecords(session.replayScript.turns.length > 0);
   window.collapseSetup?.();
@@ -1088,6 +1101,7 @@ async function main() {
           text,
           initialSetup,
           battleStateManager,
+          turnEngineManager,
           turnArea,
         });
       } catch (err) {

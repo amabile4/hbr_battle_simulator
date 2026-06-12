@@ -16,6 +16,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
+import { REPLAY_OPERATION_TYPES } from '../src/ui/lightweight-replay-script.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 
 // ---------------------------------------------------------------------------
@@ -325,4 +326,68 @@ test('hp damage guide: setDamageCalculationData then recalculateFrom enables con
 
   const remaining = getRemainingHp(manager, 0);
   assert.ok(remaining < 1_000_000_000, `注入+再計算後はHPが消費されること (remaining=${remaining})`);
+});
+
+// ---------------------------------------------------------------------------
+// テスト 10: 自動討伐ガイドと召喚操作のターン差分を警告する
+// ---------------------------------------------------------------------------
+
+test('hp damage guide: warns when summon is later than auto kill guide', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState({ enemyHp: 1 }), {}, { damageCalculationData: DAMAGE_DATA });
+
+  commitAttackTurn(manager);
+  commitAttackTurn(manager);
+  assert.equal(
+    manager.addPendingSpecialOperation({
+      type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
+      payload: { enemyId: 7001, enemyName: 'Beta', targetEnemyIndex: 0 },
+    }),
+    true,
+    '召喚 operation を pending に追加できること'
+  );
+  manager.commitNextTurn(
+    { 0: { skillId: 9902 } },
+    { enemyCount: 1 }
+  );
+
+  const diagnostics = manager.replayDiagnostics;
+  assert.equal(diagnostics.turnWarnings[0]?.length ?? 0, 0, '自動ガイド側のターンには警告を出さないこと');
+  assert.ok(
+    diagnostics.turnWarnings[2]?.some((warning) => warning.includes('召喚操作が自動討伐ガイド #1 より後')),
+    '後続の召喚操作ターンへ差分警告を出すこと'
+  );
+
+  const serialized = JSON.stringify(manager.replayScript);
+  assert.equal(/自動討伐ガイド|召喚操作|turnWarnings|warning/i.test(serialized), false, '警告は replayScript に混入しないこと');
+});
+
+// ---------------------------------------------------------------------------
+// テスト 11: 自動討伐ガイド直後の召喚は警告しない
+// ---------------------------------------------------------------------------
+
+test('hp damage guide: does not warn when summon follows auto kill guide on the next turn', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState({ enemyHp: 1 }), {}, { damageCalculationData: DAMAGE_DATA });
+
+  commitAttackTurn(manager);
+  assert.equal(
+    manager.addPendingSpecialOperation({
+      type: REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
+      payload: { enemyId: 7001, enemyName: 'Beta', targetEnemyIndex: 0 },
+    }),
+    true,
+    '召喚 operation を pending に追加できること'
+  );
+  manager.commitNextTurn(
+    { 0: { skillId: 9902 } },
+    { enemyCount: 1 }
+  );
+
+  const diagnostics = manager.replayDiagnostics;
+  assert.equal(
+    (diagnostics.turnWarnings ?? []).flat().some((warning) => warning.includes('召喚操作')),
+    false,
+    '自動討伐の次ターン召喚は整合済みとして扱うこと'
+  );
 });

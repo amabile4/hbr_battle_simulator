@@ -147,6 +147,26 @@ function cloneReplayDiagnostics(diagnostics = {}) {
   };
 }
 
+function mergeTurnWarnings(baseTurnWarnings = [], derivedTurnWarnings = []) {
+  const maxLength = Math.max(baseTurnWarnings.length, derivedTurnWarnings.length);
+  return Array.from({ length: maxLength }, (_, turnIndex) => {
+    const merged = [];
+    const seen = new Set();
+    for (const warning of [
+      ...(Array.isArray(baseTurnWarnings[turnIndex]) ? baseTurnWarnings[turnIndex] : []),
+      ...(Array.isArray(derivedTurnWarnings[turnIndex]) ? derivedTurnWarnings[turnIndex] : []),
+    ]) {
+      const text = String(warning ?? '').trim();
+      if (!text || seen.has(text)) {
+        continue;
+      }
+      merged.push(text);
+      seen.add(text);
+    }
+    return merged;
+  });
+}
+
 const PURSUIT_TRANSFORMED_SKILL_NAME = 'ネコジェット・シャテキ';
 const PURSUIT_TRANSFORMED_SKILL_SP_COST = 10;
 const PURSUIT_HIT_COUNT_BY_WEAPON_TYPE = Object.freeze({
@@ -1194,7 +1214,111 @@ export class TurnEngineManager {
   }
 
   getReplayDiagnostics() {
-    return cloneReplayDiagnostics(this.#replayDiagnostics);
+    const diagnostics = cloneReplayDiagnostics(this.#replayDiagnostics);
+    diagnostics.turnWarnings = mergeTurnWarnings(
+      diagnostics.turnWarnings,
+      this.#buildAutoManualConsistencyTurnWarnings()
+    );
+    return diagnostics;
+  }
+
+  #buildAutoManualConsistencyTurnWarnings() {
+    const turns = Array.isArray(this.#replayScript?.turns) ? this.#replayScript.turns : [];
+    const records = Array.isArray(this.#computedRecords) ? this.#computedRecords : [];
+    if (turns.length === 0 || records.length === 0) {
+      return [];
+    }
+
+    const earliestAutoBreakTurnByEnemy = new Map();
+    const earliestAutoKillTurnByEnemy = new Map();
+    records.forEach((record, turnIndex) => {
+      for (const action of Array.isArray(record?.actions) ? record.actions : []) {
+        for (const change of Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : []) {
+          if (String(change?.source ?? '') !== 'auto') {
+            continue;
+          }
+          const enemyIndex = Number(change?.targetIndex ?? change?.enemyIndex);
+          if (!Number.isInteger(enemyIndex) || enemyIndex < 0) {
+            continue;
+          }
+          const mode = String(change?.mode ?? '');
+          const statusType = String(change?.statusType ?? '');
+          if (mode === 'DownTurn' || /break|downturn/i.test(statusType)) {
+            if (!earliestAutoBreakTurnByEnemy.has(enemyIndex)) {
+              earliestAutoBreakTurnByEnemy.set(enemyIndex, turnIndex);
+            }
+          }
+          if (mode === 'Dead' || /^dead$/i.test(statusType)) {
+            if (!earliestAutoKillTurnByEnemy.has(enemyIndex)) {
+              earliestAutoKillTurnByEnemy.set(enemyIndex, turnIndex);
+            }
+          }
+        }
+      }
+    });
+
+    if (earliestAutoBreakTurnByEnemy.size === 0 && earliestAutoKillTurnByEnemy.size === 0) {
+      return [];
+    }
+
+    const warningsByTurn = [];
+    const appendWarning = (turnIndex, message) => {
+      if (!Number.isInteger(turnIndex) || turnIndex < 0 || !message) {
+        return;
+      }
+      if (!Array.isArray(warningsByTurn[turnIndex])) {
+        warningsByTurn[turnIndex] = [];
+      }
+      warningsByTurn[turnIndex].push(message);
+    };
+
+    turns.forEach((turn, turnIndex) => {
+      for (const override of normalizeActionOutcomeOverrides(turn?.actionOutcomeOverrides ?? [])) {
+        const outcome = String(override?.outcome ?? '');
+        const targetMap =
+          outcome === ACTION_OUTCOME_TYPES.BREAK
+            ? earliestAutoBreakTurnByEnemy
+            : outcome === ACTION_OUTCOME_TYPES.KILL
+              ? earliestAutoKillTurnByEnemy
+              : null;
+        if (!targetMap) {
+          continue;
+        }
+        for (const enemyIndex of Array.isArray(override?.enemyIndexes) ? override.enemyIndexes : []) {
+          const normalizedEnemyIndex = Number(enemyIndex);
+          const autoTurnIndex = targetMap.get(normalizedEnemyIndex);
+          if (!Number.isInteger(autoTurnIndex) || autoTurnIndex >= turnIndex) {
+            continue;
+          }
+          const label = outcome === ACTION_OUTCOME_TYPES.BREAK ? 'ブレイク' : '討伐';
+          appendWarning(
+            turnIndex,
+            `自動${label}ガイドは #${autoTurnIndex + 1}、手動${label}指定は #${turnIndex + 1} です（E${normalizedEnemyIndex + 1}）。`
+          );
+        }
+      }
+
+      const hasSummon = (Array.isArray(turn?.operations) ? turn.operations : [])
+        .some((operation) => String(operation?.type ?? '') === REPLAY_OPERATION_TYPES.SUMMON_ENEMY);
+      if (!hasSummon) {
+        return;
+      }
+      for (const [enemyIndex, autoTurnIndex] of earliestAutoKillTurnByEnemy.entries()) {
+        if (turnIndex <= autoTurnIndex) {
+          appendWarning(
+            turnIndex,
+            `召喚操作が自動討伐ガイド #${autoTurnIndex + 1} より前にあります（E${enemyIndex + 1}）。`
+          );
+        } else if (turnIndex > autoTurnIndex + 1) {
+          appendWarning(
+            turnIndex,
+            `召喚操作が自動討伐ガイド #${autoTurnIndex + 1} より後にあります（E${enemyIndex + 1}）。`
+          );
+        }
+      }
+    });
+
+    return warningsByTurn;
   }
 
   buildTurnEditDraft(turnIndex) {

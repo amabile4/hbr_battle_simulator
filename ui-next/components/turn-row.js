@@ -4558,6 +4558,12 @@ export class TurnRowController {
     const editBadgeHtml = isEditMode
       ? '<span class="turn-info-status-chip turn-info-status-chip-edit">編集中</span>'
       : '';
+    const warningMessageHtml = warningCount > 0
+      ? `<div data-role="turn-row-warning-message"
+              class="pt-0.5 text-[9px] font-semibold text-amber-700 leading-tight">
+           ${this.#rowDiagnostics.warnings.map((warning) => `<div>${escapeHtml(warning)}</div>`).join('')}
+         </div>`
+      : '';
 
     if (!isCommitted) {
       // 未コミット行: stateBefore の turnState から OD / EX 状態を先読みする
@@ -4601,6 +4607,7 @@ export class TurnRowController {
           ${this.#rowDiagnostics.error
             ? `<div class="pt-0.5 text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
             : ''}
+          ${warningMessageHtml}
         </div>`;
     }
 
@@ -4639,6 +4646,7 @@ export class TurnRowController {
         ${this.#rowDiagnostics.error
           ? `<div class="pt-0.5 text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
           : ''}
+        ${warningMessageHtml}
         ${allEnemiesDefeated
           ? `<div data-role="turn-info-battle-end-row" class="w-full">
                <div data-role="turn-info-battle-end"

@@ -340,6 +340,52 @@ test('BattleStateManager maps enemy extra_hp_gauge into extraHpGaugeStateByEnemy
   });
 });
 
+test('BattleStateManager preserves sparse enemy slot indexes for Eシールド and extra HP gauge', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 7101,
+        selectedEnemyName: '通常敵',
+      },
+      {
+        slotIndex: 1,
+        selectedEnemyId: 7102,
+        selectedEnemyName: '特殊ゲージ敵',
+        e_shield: {
+          count: 12,
+          max: 12,
+          elements: ['Fire'],
+          def_up_rate: 5000,
+          dmg_limit: 0,
+        },
+        extra_hp_gauge: {
+          total: 2,
+          remaining: 2,
+          values: [100, 200],
+        },
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.eShieldStateByEnemy['0'], undefined);
+  assert.deepEqual(state.turnState.enemyState.eShieldStateByEnemy['1'], {
+    current: 12,
+    max: 12,
+    elements: ['Fire'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.equal(state.turnState.enemyState.extraHpGaugeStateByEnemy['0'], undefined);
+  assert.deepEqual(state.turnState.enemyState.extraHpGaugeStateByEnemy['1'], {
+    total: 2,
+    remaining: 2,
+    values: [100, 200],
+  });
+});
+
 test('BattleStateManager preserves stage-specific Eシールド values', () => {
   const manager = new BattleStateManager({ store: getStore() });
 

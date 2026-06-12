@@ -351,13 +351,15 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
     ),
     eShieldStateByEnemy: Object.fromEntries(
       slotStates
-        .filter((slotState) => Boolean(slotState.eShieldState))
-        .map((slotState, index) => [String(index), structuredClone(slotState.eShieldState)])
+        .map((slotState, index) => [index, slotState.eShieldState])
+        .filter(([, eShieldState]) => Boolean(eShieldState))
+        .map(([index, eShieldState]) => [String(index), structuredClone(eShieldState)])
     ),
     extraHpGaugeStateByEnemy: Object.fromEntries(
       slotStates
-        .filter((slotState) => Boolean(slotState.extraHpGaugeState))
-        .map((slotState, index) => [String(index), structuredClone(slotState.extraHpGaugeState)])
+        .map((slotState, index) => [index, slotState.extraHpGaugeState])
+        .filter(([, extraHpGaugeState]) => Boolean(extraHpGaugeState))
+        .map(([index, extraHpGaugeState]) => [String(index), structuredClone(extraHpGaugeState)])
     ),
   };
 }

@@ -1,6 +1,6 @@
 # hybrid_auto_manual_break 実装計画（採用版）
 
-- ステータス: 🟢 進行中（T8・最終GOAL受け入れE2Eのみ残）
+- ステータス: ✅ 完了
 - 作成日: 2026-06-11
 - 最終更新: 2026-06-12
 - 入力: [第1稿](hybrid_auto_manual_break_wbs.md) / [第2稿](hybrid_auto_manual_break_wbs_v2.md)
@@ -40,7 +40,7 @@
 | T5 | P1 | ガイド表示 UI: turn row / enemy detail popup に「ブレイク予測/討伐予測」バッジと現DP/HP/破壊率の累積表示。手動確定と並置し手動を優先表示 | 手動指定なし時はガイドのみ、手動指定あり時は手動が確定表示・ガイドは参考表示 |
 | T6 | P2 | 一時プレビュー入力（手動計算モード）: 現DP/HP/破壊率/パラメータのターン内一時入力。寿命＝ビュー内のみ、commit/JSON 非対象（WBS-C-3） | 入力で表示が変わり、reload/再計算/保存で消える（unitで寿命固定） |
 | T7 | P2 | 一時比較ビュー: 手動ブレイク/討伐指定を一括「一時無効化」して自動ガイドのみの推移を確認できるトグル（非保存） | トグルON で自動推移表示、OFF で復帰、JSON 不変 |
-| T8 | P2 | 連戦召喚整合の差分警告: ガイドと操作履歴の乖離（例: ガイドは3T撃破、操作は5T撃破）を警告表示（WBS-D-3） | 乖離シナリオで警告が表示され、操作履歴は不変 |
+| T8 | P2 | 連戦召喚整合の差分警告: ガイドと操作履歴の乖離（例: ガイドは3T撃破、操作は5T撃破）を警告表示（WBS-D-3） | ✅ 完了。乖離シナリオで警告が表示され、操作履歴は不変 |
 | T9 | P3 | E2E 整備: 代表シナリオ（#3手動取消→#4手動指定→再計算→JSON往復）、比較ビュー切替、ガイド表示 | Playwright が ui-next 起点で安定 PASS |
 | T10 | P3 | docs 収束: 第1稿/第2稿/本書のステータス整理、suppression 不採用の意思決定記録（WBS-F） | active 文書が本書1本に収束し README 更新済み |
 
@@ -179,8 +179,14 @@
 - 比較ビューは「クローン差し替え+復元」方式で #computedStates 非汚染を構造的に保証（別ループ実装の重複を回避）
 - サブエージェント委任は環境の権限制約（Edit拒否）により断念し、Fable 5 が全タスクをインライン実装（体制差異の記録）
 
+### 完了追記（2026-06-12, T8 + 最終GOAL）
+
+| タスク | 状態 | コミット | 備考 |
+|---|---|---|---|
+| T8: 連戦召喚整合の差分警告 | ✅ 完了 | （本コミット） | `replayDiagnostics` で自動 `DownTurn/Dead source:auto` と後続の手動 `Break/Kill`・召喚操作を突合し、turn row に警告メッセージを表示。派生警告は JSON 非保存。unit 4件 + 既存 JSON 純度で固定 |
+| 最終GOAL受け入れE2E | ✅ 完了 | （本コミット） | `tests/e2e/hybrid-auto-manual-acceptance.spec.js` を追加。#3 自動ガイド観測 → #4 手動 Break 指定 → JSON 往復で #4 の手動指定のみ維持、派生値ゼロを確認 |
+| `buildEnemyStateOverrides` 添字ずれ調査 | ✅ 修正完了 | （本コミット） | eShield / extraHpGauge の map が `.filter()` 後 index を key にしていたため、slot1 のみ gauge を持つケースで key `0` へずれることを unit で再現。元 slot index を保持する実装へ修正 |
+| session load 後のガイド再導出 | ✅ 完了 | （本コミット） | app の JSON 読込後にも `loadDamageCalculationData()` → `setDamageCalculationData()` → `recalculateFrom(0)` → `refreshRows()` を実行し、読み込み済みセッションの DP/HP ガイドを再導出 |
+
 #### 残タスク
-1. T8: 連戦召喚整合の差分警告（未着手・P2）
-2. 最終GOAL受け入れE2E: 代表シナリオ（ガイドが#3提案 → #4手動指定 → JSON往復後も#4のみ確定）の明示テスト
-3. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
-4. 既知: `buildEnemyStateOverrides` の eShield/extraHpGauge map が filter 後の index を使う既存の添字ずれ疑い（今回は未修正・要調査）
+1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化

@@ -89,10 +89,10 @@ function createInitialState({ enemyDp = 1_000_000_000 } = {}) {
   return state;
 }
 
-function commitAttackTurn(manager) {
+function commitAttackTurn(manager, options = {}) {
   return manager.commitNextTurn(
     { 0: { skillId: ATTACK_SKILL_ID, target: { type: 'enemy', enemyIndex: 0 } } },
-    { enemyCount: 1, note: 'attack' }
+    { enemyCount: 1, note: 'attack', ...options }
   );
 }
 
@@ -285,4 +285,48 @@ test('dp damage guide preview: buildDpAutoBreakChipModels returns empty when no 
     store: null,
   });
   assert.equal(manualOnlyModels.length, 0, 'source:manual のみの場合はDP予測チップが返らないこと（手動優先表示は別チップ）');
+});
+
+// ---------------------------------------------------------------------------
+// テスト 9: 自動ブレイクガイドと手動ブレイク指定のターン差分を警告する
+// ---------------------------------------------------------------------------
+
+test('dp damage guide: warns when manual break is later than auto break guide', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState({ enemyDp: 1 }), {}, { damageCalculationData: DAMAGE_DATA });
+
+  commitAttackTurn(manager);
+  commitAttackTurn(manager);
+  commitAttackTurn(manager, {
+    actionOutcomeOverrides: [{ position: 0, outcome: 'Break', enemyIndexes: [0] }],
+  });
+
+  const diagnostics = manager.replayDiagnostics;
+  assert.equal(diagnostics.turnWarnings[0]?.length ?? 0, 0, '自動ガイド側のターンには警告を出さないこと');
+  assert.ok(
+    diagnostics.turnWarnings[2]?.some((warning) => warning.includes('自動ブレイクガイドは #1')),
+    '後続の手動ブレイク指定ターンへ差分警告を出すこと'
+  );
+
+  const serialized = JSON.stringify(manager.replayScript);
+  assert.equal(/自動ブレイクガイド|turnWarnings|warning/i.test(serialized), false, '警告は replayScript に混入しないこと');
+});
+
+// ---------------------------------------------------------------------------
+// テスト 10: 同一ターンの手動ブレイク指定は差分警告しない
+// ---------------------------------------------------------------------------
+
+test('dp damage guide: does not warn when manual break is on the auto guide turn', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState({ enemyDp: 1 }), {}, { damageCalculationData: DAMAGE_DATA });
+
+  commitAttackTurn(manager, {
+    actionOutcomeOverrides: [{ position: 0, outcome: 'Break', enemyIndexes: [0] }],
+  });
+
+  assert.equal(
+    (manager.replayDiagnostics.turnWarnings ?? []).flat().some((warning) => warning.includes('自動ブレイクガイド')),
+    false,
+    '自動ガイドと手動指定が同一ターンなら警告しないこと'
+  );
 });
