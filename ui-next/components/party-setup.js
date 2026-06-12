@@ -35,7 +35,6 @@ const SP_EQUIP_OPTIONS = [
 const PIERCE_SELECT_OPTIONS = PIERCE_EQUIP_OPTIONS.map((option) => ({
   value: option.type === 'none' ? '' : `${option.type}:${option.percent}`,
   label: option.label
-    .replace('ピアスなし', 'ピアスなし')
     .replace('ドライブピアス +', 'DP +')
     .replace('アタックピアス +', 'アタック +')
     .replace('ブレイクピアス +', 'ブレイク +')
