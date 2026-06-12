@@ -94,6 +94,16 @@ function enemyHasStatus(state, pattern, enemyIndex = 0) {
   );
 }
 
+function getAutoBreakEvents(record) {
+  return (record?.actions ?? [])
+    .flatMap((action) => action.enemyStatusChanges ?? [])
+    .filter(
+      (change) =>
+        String(change?.source ?? '') === 'auto' &&
+        /downturn|break/i.test(String(change?.statusType ?? change?.mode ?? ''))
+    );
+}
+
 // ---------------------------------------------------------------------------
 // テスト 1: 手動kill指定が比較バッファでは無効化される（本体は不変）
 // ---------------------------------------------------------------------------
@@ -262,25 +272,45 @@ test('comparison view: skullfeather fixture keeps interrupt OD skills and swappe
   );
   assert.equal(softeningAction?.characterName, '二階堂 三郷');
 
-  const turn3EnemyState = comparison.states[2]?.turnState?.enemyState ?? {};
   assert.equal(
     enemyHasStatus(comparison.states[2], /break|downturn|dead|superdown/i),
-    false,
-    '比較ビューでは保存済み手動Break系EnemyStatusesを#3へ持ち込まないこと'
+    true,
+    '比較ビューでは#2で導出された自動Break/DownTurnを#3のEnemyStatuses置換で消さないこと'
   );
-  assert.ok(
-    Number(turn3EnemyState.remainingDpByEnemy?.['0']) > 0 &&
-      Number(turn3EnemyState.remainingDpByEnemy?.['0']) < Number(turn3EnemyState.enemyDpByEnemy?.['0']),
-    '#3では比較計算のDP減少が継続し、最大DP未満の正値であること'
+  assert.equal(Number(comparison.states[2]?.turnState?.enemyState?.remainingDpByEnemy?.['0']), 0);
+
+  const autoBreakTurnIndexes = comparison.records
+    .map((record, index) => (getAutoBreakEvents(record).length > 0 ? index : -1))
+    .filter((index) => index >= 0);
+  assert.deepEqual(
+    autoBreakTurnIndexes,
+    [1],
+    '#2で自動ブレイク後、DownTurn継続中のターンにはsource:auto DownTurnを再発生させないこと'
   );
 
-  const turn4AutoChanges = (comparison.records[3]?.actions ?? [])
-    .flatMap((action) => action.enemyStatusChanges ?? [])
-    .filter((change) => String(change?.source ?? '') === 'auto');
-  assert.equal(
-    turn4AutoChanges.some((change) => /downturn|break/i.test(String(change?.statusType ?? change?.mode ?? ''))),
-    true,
-    'DP0到達ターンでsource:autoの自動ブレイクイベントが出ること'
-  );
-  assert.equal(Number(comparison.states[3]?.turnState?.enemyState?.remainingDpByEnemy?.['0']), 0);
+  for (const turnIndex of autoBreakTurnIndexes) {
+    const previousState = turnIndex > 0 ? comparison.states[turnIndex - 1] : null;
+    assert.equal(
+      previousState ? enemyHasStatus(previousState, /break|downturn/i) : false,
+      false,
+      `#${turnIndex + 1}の自動ブレイク直前は非Breakであること`
+    );
+  }
+
+  for (let index = 2; index < comparison.states.length; index += 1) {
+    const previousState = comparison.states[index - 1];
+    if (!enemyHasStatus(previousState, /break|downturn/i)) {
+      continue;
+    }
+    assert.equal(
+      enemyHasStatus(comparison.states[index], /break|downturn/i),
+      true,
+      `#${index + 1}でEnemyStatuses entry適用により導出済みBreak/DownTurnを消さないこと`
+    );
+    assert.equal(
+      Number(comparison.states[index]?.turnState?.enemyState?.remainingDpByEnemy?.['0']),
+      0,
+      `#${index + 1}で非Break+remaining0扱いの最大DP回復を発生させないこと`
+    );
+  }
 });

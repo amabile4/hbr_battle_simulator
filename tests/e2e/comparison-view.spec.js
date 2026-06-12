@@ -154,15 +154,21 @@ test.describe('一時比較ビュー', () => {
     await expect(
       popup.locator('[data-role="enemy-popup-basic-info-row"]', { hasText: '状態' })
         .locator('[data-role="enemy-popup-basic-info-value"]')
-    ).toHaveText('Alive');
+    ).toHaveText('BREAK');
     const comparisonTurn3Dp = await popup
       .locator('[data-role="enemy-popup-basic-info-row"]', { hasText: 'DP' })
       .locator('[data-role="enemy-popup-basic-info-value"]')
       .textContent();
+    // #2で導出された自動Break/DownTurnを、#3のEnemyStatuses置換で消さずに保持する。
     expect(comparisonTurn3Dp).toContain('4550000');
+    expect(comparisonTurn3Dp).toContain('0 /');
     await page.locator('.enemy-detail-popup-container [data-role="popup-close"]').click();
 
+    await expect(turn2.locator('[data-role="dp-auto-break-chip"]')).toBeVisible({ timeout: 5000 });
+
     const turn4 = page.locator('[data-turn-row][data-row-mode="committed"]').nth(3);
-    await expect(turn4.locator('[data-role="dp-auto-break-chip"]')).toBeVisible({ timeout: 5000 });
+    await expect(turn4.locator('[data-role="dp-auto-break-chip"]')).toHaveCount(0);
+    const turn8 = page.locator('[data-turn-row][data-row-mode="committed"]').nth(7);
+    await expect(turn8.locator('[data-role="dp-auto-break-chip"]')).toHaveCount(0);
   });
 });

@@ -2673,7 +2673,41 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
   };
 }
 
-export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
+function getEnemyStatusTargetTypeKey(status) {
+  const normalized = normalizeEnemyStatus(status);
+  if (!normalized) {
+    return '';
+  }
+  return `${Number(normalized.targetIndex ?? 0)}|${String(normalized.statusType ?? '')}`;
+}
+
+function buildOverrideEnemyStatuses(currentStatuses, snapshotStatuses, enemyCount, options = {}) {
+  const normalizedSnapshotStatuses = (Array.isArray(snapshotStatuses) ? snapshotStatuses : [])
+    .map((status) => normalizeEnemyStatus(status, enemyCount))
+    .filter(Boolean);
+  const preserveCurrentStatusPredicate =
+    typeof options.preserveCurrentStatusPredicate === 'function'
+      ? options.preserveCurrentStatusPredicate
+      : null;
+  if (!preserveCurrentStatusPredicate) {
+    return normalizedSnapshotStatuses;
+  }
+  const preservedStatuses = (Array.isArray(currentStatuses) ? currentStatuses : [])
+    .map((status) => normalizeEnemyStatus(status, enemyCount))
+    .filter((status) => status && preserveCurrentStatusPredicate(status));
+  if (preservedStatuses.length === 0) {
+    return normalizedSnapshotStatuses;
+  }
+  const preservedKeys = new Set(
+    preservedStatuses.map((status) => getEnemyStatusTargetTypeKey(status)).filter(Boolean)
+  );
+  return [
+    ...preservedStatuses,
+    ...normalizedSnapshotStatuses.filter((status) => !preservedKeys.has(getEnemyStatusTargetTypeKey(status))),
+  ];
+}
+
+export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, options = {}) {
   if (!turnState || typeof turnState !== 'object') {
     return turnState;
   }
@@ -2740,9 +2774,7 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
       ? cloneEnemySlotObjectMap(snapshot.enemyBreakStates)
       : structuredClone(current.breakStateByEnemy),
     statuses: hasOwnEnemyOverrideField(snapshot, 'enemyStatuses')
-      ? (Array.isArray(snapshot.enemyStatuses)
-          ? snapshot.enemyStatuses.map((status) => normalizeEnemyStatus(status, nextEnemyCount)).filter(Boolean)
-          : [])
+      ? buildOverrideEnemyStatuses(current.statuses, snapshot.enemyStatuses, nextEnemyCount, options)
       : current.statuses.map((status) => normalizeEnemyStatus(status, nextEnemyCount)).filter(Boolean),
   };
   turnState.enemyState = {

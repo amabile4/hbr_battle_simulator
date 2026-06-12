@@ -394,6 +394,7 @@ export class TurnEngineManager {
   // DPダメージガイド導出用の計算データ（{styles, characters, enemies, skills}）。
   // 未設定の場合は enrichment を行わず従来挙動を維持する。派生値専用で保存対象外。
   #damageCalculationData = null;
+  #isComparisonRecalculation = false;
 
   get replayScript() { return this.#replayScript; }
   get computedRecords() { return this.#computedRecords; }
@@ -696,6 +697,7 @@ export class TurnEngineManager {
     const savedPendingPreemptiveOdLevel = this.#pendingPreemptiveOdLevel;
     const savedPendingInterruptOdLevel = this.#pendingInterruptOdLevel;
     const savedPendingSpecialOperations = this.#pendingSpecialOperations;
+    const savedIsComparisonRecalculation = this.#isComparisonRecalculation;
     try {
       const comparisonScript = structuredClone(savedReplayScript);
       for (const turn of comparisonScript.turns ?? []) {
@@ -707,6 +709,7 @@ export class TurnEngineManager {
       this.#replayScript = comparisonScript;
       this.#computedStates = [];
       this.#computedRecords = [];
+      this.#isComparisonRecalculation = true;
       this.recalculateFrom(0);
       const comparisonStates = this.#computedStates;
       const comparisonRecords = this.#computedRecords;
@@ -727,6 +730,7 @@ export class TurnEngineManager {
       this.#pendingPreemptiveOdLevel = savedPendingPreemptiveOdLevel;
       this.#pendingInterruptOdLevel = savedPendingInterruptOdLevel;
       this.#pendingSpecialOperations = savedPendingSpecialOperations;
+      this.#isComparisonRecalculation = savedIsComparisonRecalculation;
     }
   }
 
@@ -1745,7 +1749,13 @@ export class TurnEngineManager {
     if (Object.keys(snapshot).length === 0) {
       return state;
     }
-    applyEnemyStateOverrideSnapshot(state.turnState, snapshot);
+    applyEnemyStateOverrideSnapshot(
+      state.turnState,
+      snapshot,
+      this.#isComparisonRecalculation
+        ? { preserveCurrentStatusPredicate: (status) => isComparisonExcludedEnemyStatus(status?.statusType) }
+        : {}
+    );
     return state;
   }
 

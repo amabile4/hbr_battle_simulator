@@ -251,6 +251,15 @@
 | critical確定時のDP/HPガイド | ✅ 完了 | （本コミット） | DP/HP guide enrichment は `criticalRateBreakdown.isCriticalGuaranteed === true` または `criticalRatePercent >= 100` のとき `critical.expected` を採用し、それ以外は従来どおり `normal.expected` を採用する。威力詳細タブの通常/クリティカル表示行は変更しない |
 | 回帰テスト | ✅ 追加完了 | （本コミット） | unit: DP resolver は `isCriticalGuaranteed:true`、HP resolver は `criticalRatePercent:100` で guide total が normal より大きい critical expected に切り替わることを固定。スカルフェザー比較ビューは critical total 採用でDP0到達ターンが前倒しされるため、#3非0固定ではなく「手動Break系状態を持ち込まない」「自動DPチップが出る」ことを受け入れ基準にする |
 
+### 回帰修正追記（2026-06-12, 比較ビュー EnemyStatuses 置換による導出Break消失）
+
+| 対象 | 状態 | コミット | 備考 |
+|---|---|---|---|
+| 比較ビューの導出Break保持 | ✅ 完了 | （本コミット） | `applyEnemyStateOverrideSnapshot` に汎用 `preserveCurrentStatusPredicate` option を追加し、比較再計算中のみ manager から Break/DownTurn/Dead/SuperBreak 系を保持する predicate を渡す。通常の EnemyStatuses override は従来どおり全置換 |
+| DP誤回復防止 | ✅ 完了 | （本コミット） | 比較ビューで保存済み EnemyStatuses から Break 系だけ除外した entry が残っても、直前ターンで導出された自動 Break/DownTurn は保持される。これにより `remainingDp=0` かつ非Break扱いによる最大DP回復と二重 `dp-auto-break-chip` を防ぐ |
+| 仕様整理 | ✅ 記録 | （本コミット） | DownTurn が EnemyTurnEnd tick で正規に明けた後、DPが全回復し、その後の再消費で再ブレイクすることは正しい挙動として扱う。固定するのは回数ではなく「自動ブレイク直前が非Break」「EnemyStatuses適用では導出Breakを消さない」という因果 |
+| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: スカルフェザー比較バッファ全8ターンを走査し、#2自動Break後のDownTurn継続中に auto DownTurn が再発生しないこと、導出Breakが EnemyStatuses entry で消えないこと、DP0から最大回復しないことを固定。E2E: #3 popup が BREAK / `0 / 4550000` で、#4/#8 に DP auto chip が出ないことを検証 |
+
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
 
