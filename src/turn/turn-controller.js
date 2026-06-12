@@ -4914,6 +4914,8 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
               Number(
                 actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
               ) + Number(actor?.blastPiercePercent ?? 0) / 100,
+            // エンシェントチェーンの破壊率上昇量+はヒット数非依存のフラット加算
+            flatDestructionRateBonus: Number(actor?.chainDestructionRateBonus ?? 0),
           },
           defender: {
             enemyId: null,
