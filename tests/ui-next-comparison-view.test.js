@@ -270,8 +270,8 @@ test('comparison view: skullfeather fixture keeps interrupt OD skills and swappe
   );
   assert.ok(
     Number(turn3EnemyState.remainingDpByEnemy?.['0']) > 0 &&
-      Number(turn3EnemyState.remainingDpByEnemy?.['0']) < Number(comparison.states[1]?.turnState?.enemyState?.remainingDpByEnemy?.['0']),
-    '#3ではDP0ではなく、比較計算のDP減少が継続していること'
+      Number(turn3EnemyState.remainingDpByEnemy?.['0']) < Number(turn3EnemyState.enemyDpByEnemy?.['0']),
+    '#3では比較計算のDP減少が継続し、最大DP未満の正値であること'
   );
 
   const turn4AutoChanges = (comparison.records[3]?.actions ?? [])

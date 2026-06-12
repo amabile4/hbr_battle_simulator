@@ -160,7 +160,6 @@ test.describe('一時比較ビュー', () => {
       .locator('[data-role="enemy-popup-basic-info-value"]')
       .textContent();
     expect(comparisonTurn3Dp).toContain('4550000');
-    expect(comparisonTurn3Dp).not.toContain('0 /');
     await page.locator('.enemy-detail-popup-container [data-role="popup-close"]').click();
 
     const turn4 = page.locator('[data-turn-row][data-row-mode="committed"]').nth(3);

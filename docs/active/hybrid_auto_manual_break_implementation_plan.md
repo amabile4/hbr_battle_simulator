@@ -249,7 +249,7 @@
 | 対象 | 状態 | コミット | 備考 |
 |---|---|---|---|
 | critical確定時のDP/HPガイド | ✅ 完了 | （本コミット） | DP/HP guide enrichment は `criticalRateBreakdown.isCriticalGuaranteed === true` または `criticalRatePercent >= 100` のとき `critical.expected` を採用し、それ以外は従来どおり `normal.expected` を採用する。威力詳細タブの通常/クリティカル表示行は変更しない |
-| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: DP resolver は `isCriticalGuaranteed:true`、HP resolver は `criticalRatePercent:100` で guide total が normal より大きい critical expected に切り替わることを固定 |
+| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: DP resolver は `isCriticalGuaranteed:true`、HP resolver は `criticalRatePercent:100` で guide total が normal より大きい critical expected に切り替わることを固定。スカルフェザー比較ビューは critical total 採用でDP0到達ターンが前倒しされるため、#3非0固定ではなく「手動Break系状態を持ち込まない」「自動DPチップが出る」ことを受け入れ基準にする |
 
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
