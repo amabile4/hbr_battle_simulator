@@ -212,5 +212,13 @@
 | 敵詳細ポップアップ現HP表示 | ✅ 完了 | （本コミット） | `turn-row` の敵詳細 payload に `hpCurrent/hpMax` を追加し、通常敵は `remainingHpByEnemy / enemyHpByEnemy` から `現HP / 最大HP` を表示。多段HPゲージ敵は従来の `extraHpGaugeState` 表示を優先し、HPデータなしのみ `N/A` を維持 |
 | 回帰テスト | ✅ 追加完了 | （本コミット） | unit: EnemyDetailPopup の通常HP表示・多段ゲージ優先。E2E: `hp:1` fixture のロード直後/討伐後HP、スカルフェザー fixture の HP max `156000000` 表示を検証 |
 
+### 回帰修正追記（2026-06-12, damage-breakdown-popup E2E）
+
+| 対象 | 状態 | コミット | 備考 |
+|---|---|---|---|
+| `damage-breakdown-popup.spec.js` 既存失敗 | ✅ 修正完了 | （本コミット） | 原因は、テスト fixture が実データに存在しない合成 `skillId` を渡して計算ペインが `calculateDamage` に到達できなかったこと、加えて旧DOM契約（`damage-calc-result` に非クリ/クリ表示、`damage-calc-affinity`）を期待していたこと。実在 `星火燎原` skillId へ合わせ、現DOMの DP/HP ダメージ行・破壊率 `current / cap`・敵タブ切替後の再計算値変化を検証する形へ更新 |
+| 起動直後の安定化 | ✅ 修正完了 | （本コミット） | このspecは `gotoUiNext()` 直後に `page.evaluate(import(...))` でポップアップを直接開くため、`networkidle` 待ちを追加して評価中の navigation 競合を抑止 |
+| 回帰テスト | ✅ 確認完了 | （本コミット） | `npx playwright test tests/e2e/damage-breakdown-popup.spec.js` 3/3 PASS |
+
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化

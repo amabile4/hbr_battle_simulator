@@ -3,6 +3,9 @@ import { test, expect } from '@playwright/test';
 import { gotoUiNext } from './ui-next-helpers.js';
 
 test.describe('Damage breakdown popup tab', () => {
+  const DAMAGE_CALC_E2E_STYLE_ID = 1010103;
+  const DAMAGE_CALC_E2E_SKILL_ID = 46001107;
+
   function parseDamageText(value) {
     const numeric = Number(String(value ?? '').replace(/,/g, ''));
     return Number.isFinite(numeric) ? numeric : 0;
@@ -10,6 +13,7 @@ test.describe('Damage breakdown popup tab', () => {
 
   test('character detail popup renders damage breakdown summary, critical rate and official categories', async ({ page }) => {
     await gotoUiNext(page);
+    await page.waitForLoadState('networkidle');
 
     await page.evaluate(async () => {
       const { openCharDetailPopup } = await import('/ui-next/utils/char-detail-popup.js');
@@ -113,8 +117,9 @@ test.describe('Damage breakdown popup tab', () => {
 
   test('damage calculator pane recalculates by enemy tab and keeps attacker stats', async ({ page }) => {
     await gotoUiNext(page);
+    await page.waitForLoadState('networkidle');
 
-    await page.evaluate(async () => {
+    await page.evaluate(async ({ styleId, skillId }) => {
       const { openCharDetailPopup } = await import('/ui-next/utils/char-detail-popup.js');
       const baseGroups = [
         { dataGroup: 'buff', title: '攻撃バフ枠', multiplier: 1.5, formula: '1.50x', contributions: [] },
@@ -142,13 +147,13 @@ test.describe('Damage breakdown popup tab', () => {
           previewActionFlow: [
             {
               actorCharacterId: 'DAMAGE_CALC_E2E',
-              actorStyleId: 10101010,
-              skillId: 101010100,
+              actorStyleId: styleId,
+              skillId,
               skillName: '誤った表示名',
               damageContext: {
                 actorCharacterId: 'DAMAGE_CALC_E2E',
-                actorStyleId: 10101010,
-                skillId: 101010100,
+                actorStyleId: styleId,
+                skillId,
                 skillName: '星火燎原',
                 isNormalAttack: false,
                 effectiveDamageRatesByEnemy: { 0: 100, 1: 150 },
@@ -196,7 +201,7 @@ test.describe('Damage breakdown popup tab', () => {
         },
         { isCommitted: false }
       );
-    });
+    }, { styleId: DAMAGE_CALC_E2E_STYLE_ID, skillId: DAMAGE_CALC_E2E_SKILL_ID });
 
     const popup = page.locator('#char-detail-popup');
     await expect(popup).toBeVisible();
@@ -213,18 +218,17 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(popup).not.toContainText('誤った表示名');
     await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('700');
     await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('700');
-    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ DP');
-    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル DP');
-    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ HP');
-    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル HP');
-    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('現在破壊率');
+    await expect(pane.locator('.char-popup-damage-calc-damage-row').first()).toContainText('DPダメージ');
+    await expect(pane.locator('.char-popup-damage-calc-damage-row').nth(1)).toContainText('HPダメージ');
+    await expect(pane.locator('[data-role="damage-calc-critical-expected"]')).not.toHaveText('-');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('破壊率');
     await expect(pane.locator('[data-role="damage-calc-normal-hp-expected"]')).not.toHaveText('-');
     await expect.poll(async () => {
       const hp = parseDamageText(await pane.locator('[data-role="damage-calc-critical-hp-expected"]').textContent());
       const dp = parseDamageText(await pane.locator('[data-role="damage-calc-critical-expected"]').textContent());
       return hp > dp;
     }).toBe(true);
-    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('120.00%');
+    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('120.00% / 300.00%');
     await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('812');
     await expect(
       pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-delta"][data-stat="str"]')
@@ -233,11 +237,20 @@ test.describe('Damage breakdown popup tab', () => {
       pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-resolved"][data-stat="str"]')
     ).toHaveText('762');
 
+    const firstEnemyCriticalDp = parseDamageText(
+      await pane.locator('[data-role="damage-calc-critical-expected"]').textContent()
+    );
+
     await pane.locator('[data-role="damage-calc-enemy-tab"][data-target-enemy-index="1"]').click();
     await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
     await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('923');
-    await expect(pane.locator('[data-role="damage-calc-affinity"]')).toHaveText('1.50x');
-    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('150.00%');
+    await expect.poll(async () => {
+      const secondEnemyCriticalDp = parseDamageText(
+        await pane.locator('[data-role="damage-calc-critical-expected"]').textContent()
+      );
+      return secondEnemyCriticalDp !== firstEnemyCriticalDp;
+    }).toBe(true);
+    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('150.00% / 300.00%');
     await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('700');
     await expect(
       pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-delta"][data-stat="str"]')
@@ -249,6 +262,7 @@ test.describe('Damage breakdown popup tab', () => {
 
   test('damage calculator pane uses default plus support stats when main stats are absent', async ({ page }) => {
     await gotoUiNext(page);
+    await page.waitForLoadState('networkidle');
 
     await page.evaluate(async () => {
       const { openCharDetailPopup } = await import('/ui-next/utils/char-detail-popup.js');
