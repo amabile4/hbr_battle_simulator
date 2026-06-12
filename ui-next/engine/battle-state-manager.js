@@ -230,6 +230,7 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     selectedEnemyName: enemySetup?.selectedEnemyName ?? DEFAULT_ENEMY_NAME,
     param_border: enemySetup?.param_border,
     dp: enemySetup?.dp,
+    hp: enemySetup?.hp,
     od_rate: enemySetup?.od_rate,
     max_d_rate: enemySetup?.max_d_rate,
     d_rate: enemySetup?.d_rate,
@@ -270,6 +271,20 @@ function resolveEnemySlotDp(slot = {}, dataStore = null) {
   return Number.isFinite(baseDp) && baseDp >= 0 ? baseDp : 0;
 }
 
+// maxHP は保存対象外（操作イベント正本の方針）。slot 直接値またはenemies.json から再導出する。
+function resolveEnemySlotHp(slot = {}, dataStore = null) {
+  const direct = Number(slot?.hp);
+  if (Number.isFinite(direct) && direct >= 0) {
+    return direct;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  const enemy = Array.isArray(dataStore?.enemies)
+    ? dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId)
+    : null;
+  const baseHp = Number(enemy?.base_param?.hp ?? enemy?.hp);
+  return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
+}
+
 function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
   const resolvedSlots = resolveEnemySlots(enemySetup);
   const enemyCount = normalizeEnemyCount(resolvedSlots.length);
@@ -294,6 +309,7 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
         ? Number(slot.param_border)
         : DEFAULT_ENEMY_PARAM_BORDER,
       dp: resolveEnemySlotDp(slot, dataStore),
+      hp: resolveEnemySlotHp(slot, dataStore),
       rates: buildEnemyDamageRates(slot),
       absorbElements: buildEnemyAbsorbElements(slot),
       maxDestructionRate,
@@ -314,6 +330,9 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
     ),
     enemyDpByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.dp])
+    ),
+    enemyHpByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.hp])
     ),
     damageRatesByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), { ...slotState.rates }])
@@ -487,6 +506,7 @@ export class BattleStateManager {
       enemyNamesByEnemy: enemyStateOverrides.enemyNamesByEnemy,
       paramBorderByEnemy: enemyStateOverrides.paramBorderByEnemy,
       enemyDpByEnemy: enemyStateOverrides.enemyDpByEnemy,
+      enemyHpByEnemy: enemyStateOverrides.enemyHpByEnemy,
       damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: enemyStateOverrides.destructionRateCapByEnemy,

@@ -350,6 +350,26 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : null,
+          enemyHpByEnemy:
+            turnState.enemyState.enemyHpByEnemy &&
+            typeof turnState.enemyState.enemyHpByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.enemyHpByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
+                  ])
+                )
+              : {},
+          remainingHpByEnemy:
+            turnState.enemyState.remainingHpByEnemy &&
+            typeof turnState.enemyState.remainingHpByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.remainingHpByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
+                  ])
+                )
+              : null,
           zoneConfigByEnemy:
             turnState.enemyState.zoneConfigByEnemy &&
             typeof turnState.enemyState.zoneConfigByEnemy === 'object'
@@ -405,6 +425,8 @@ export function cloneTurnState(turnState) {
           enemyNamesByEnemy: {},
           paramBorderByEnemy: {},
           enemyDpByEnemy: {},
+          enemyHpByEnemy: {},
+          remainingHpByEnemy: null,
           zoneConfigByEnemy: {},
           talismanState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 },
           disasterState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },

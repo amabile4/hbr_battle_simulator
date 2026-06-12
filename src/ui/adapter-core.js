@@ -302,6 +302,7 @@ export function createInitializedBattleSnapshot({
   enemyNamesByEnemy = {},
   paramBorderByEnemy = {},
   enemyDpByEnemy = {},
+  enemyHpByEnemy = {},
   damageRatesByEnemy = {},
   destructionRateByEnemy = {},
   destructionRateCapByEnemy = {},
@@ -392,6 +393,9 @@ export function createInitializedBattleSnapshot({
         paramBorderByEnemy && typeof paramBorderByEnemy === 'object' ? structuredClone(paramBorderByEnemy) : {},
       enemyDpByEnemy:
         enemyDpByEnemy && typeof enemyDpByEnemy === 'object' ? structuredClone(enemyDpByEnemy) : {},
+      // maxHP は enemies.json / slot 設定からの再導出値（保存対象外の派生供給）
+      enemyHpByEnemy:
+        enemyHpByEnemy && typeof enemyHpByEnemy === 'object' ? structuredClone(enemyHpByEnemy) : {},
       zoneConfigByEnemy:
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)

@@ -2567,6 +2567,8 @@ export function getEnemyState(turnState) {
       paramBorderByEnemy: {},
       enemyDpByEnemy: {},
       remainingDpByEnemy: null,
+      enemyHpByEnemy: {},
+      remainingHpByEnemy: null,
       zoneConfigByEnemy: {},
       talismanState: structuredClone(TALISMAN_STATE_DEFAULT),
       disasterState: structuredClone(DISASTER_STATE_DEFAULT),
@@ -2624,6 +2626,10 @@ export function getEnemyState(turnState) {
       state.enemyDpByEnemy && typeof state.enemyDpByEnemy === 'object' ? state.enemyDpByEnemy : {},
     remainingDpByEnemy:
       state.remainingDpByEnemy && typeof state.remainingDpByEnemy === 'object' ? state.remainingDpByEnemy : null,
+    enemyHpByEnemy:
+      state.enemyHpByEnemy && typeof state.enemyHpByEnemy === 'object' ? state.enemyHpByEnemy : {},
+    remainingHpByEnemy:
+      state.remainingHpByEnemy && typeof state.remainingHpByEnemy === 'object' ? state.remainingHpByEnemy : null,
     zoneConfigByEnemy:
       state.zoneConfigByEnemy && typeof state.zoneConfigByEnemy === 'object' ? state.zoneConfigByEnemy : {},
     talismanState:
@@ -4844,6 +4850,120 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
   return events;
 }
 
+/**
+ * 敵HPの累積消費と HP0 自動討伐（討伐ガイド）。
+ * applyDestructionRateFromActions の DPパターンと同型:
+ * - 初期値は前ターンから引き継いだ remainingHpByEnemy、なければ enemyHpByEnemy（最大HP）。
+ * - perHitHpDamageByEnemy（manager 層 enrichment が付与する派生値）× hit 数を消費。
+ * - HP0 到達で source:'auto' の Dead を付与（手動討伐指定が最優先）。
+ * - extra HP gauge（多段ゲージ）搭載敵は既存のHpBreak管理に委ね、追跡対象外。
+ * - remainingHpByEnemy は turnState 内の派生値であり、replay JSON へ保存してはならない。
+ */
+function applyEnemyHpFromActions(state, previewRecord, options = {}) {
+  const events = [];
+  const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
+  const enemyCount = clampEnemyCount(
+    state?.turnState?.enemyState?.enemyCount ?? previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT
+  );
+
+  const initEnemyState = getEnemyState(preActionTurnState);
+  const maxHpByEnemy = initEnemyState.enemyHpByEnemy ?? {};
+  const inheritedRemaining = getEnemyState(state.turnState).remainingHpByEnemy ?? {};
+  const runningHp = {};
+  for (let i = 0; i < enemyCount; i++) {
+    const key = String(i);
+    // 多段HPゲージ搭載敵は対象外（HpBreak での段階管理が正）
+    if (getEnemyExtraHpGaugeStateByTarget(state.turnState, i)) {
+      continue;
+    }
+    if (key in inheritedRemaining && Number.isFinite(Number(inheritedRemaining[key]))) {
+      runningHp[key] = Number(inheritedRemaining[key]);
+    } else if (Number(maxHpByEnemy[key] ?? 0) > 0) {
+      runningHp[key] = Number(maxHpByEnemy[key]);
+    }
+  }
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    if (!hasDamagePartInParts(effectiveParts)) {
+      continue;
+    }
+
+    const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
+    if (targetEnemyIndexes.length === 0) {
+      continue;
+    }
+
+    const hitCount = Math.max(1, resolveActionEShieldHitCount(actionEntry, skill));
+    const manualKillEnemyIndexes = normalizeManualKillEnemyIndexes(actionEntry, enemyCount);
+
+    for (const targetIndex of targetEnemyIndexes) {
+      const key = String(targetIndex);
+      if (!(key in runningHp)) {
+        continue;
+      }
+      // 手動討伐指定はHP枯渇として扱う（DP版の手動ブレイク優先と同型）。
+      // Dead 付与自体は applyManualKillEffectsFromActions が先行して行うため、ここでは残量のみ同期する。
+      if (manualKillEnemyIndexes.includes(Number(targetIndex))) {
+        runningHp[key] = 0;
+        continue;
+      }
+      if (!isEnemyAlive(state.turnState, targetIndex)) {
+        continue;
+      }
+      const preActionEShieldState = getEnemyEShieldStateByTarget(preActionTurnState, targetIndex);
+      if (isEnemyEShieldActive(preActionEShieldState)) {
+        continue;
+      }
+
+      const perHitHpDamage = Number(actionEntry?.perHitHpDamageByEnemy?.[key] ?? 0);
+      if (!(perHitHpDamage > 0) || !Number.isFinite(perHitHpDamage)) {
+        continue;
+      }
+      const hpBefore = runningHp[key];
+      const newHp = Math.max(0, hpBefore - Math.min(hpBefore, hitCount * perHitHpDamage));
+      runningHp[key] = newHp;
+      if (newHp <= 0) {
+        const applied = applyManualEnemyKill(state.turnState, targetIndex);
+        if (applied) {
+          // HP枯渇による自動討伐も手動討伐と同様にイベントへ記録する
+          events.push(
+            buildActionScopedEvent(actionEntry, {
+              actorCharacterId: String(actionEntry.characterId ?? ''),
+              skillId: Number(actionEntry.skillId ?? 0),
+              skillName: String(actionEntry.skillName ?? ''),
+              mode: 'Dead',
+              targetIndex: Number(applied.targetIndex),
+              statusType: String(applied.statusType ?? ENEMY_STATUS_DEAD),
+              source: 'auto',
+            })
+          );
+        }
+      }
+    }
+  }
+
+  // HP 残量をターン状態に永続化（ターンをまたいだ引き継ぎのため。保存JSONには非混入）
+  if (!state.turnState.enemyState) {
+    state.turnState.enemyState = { enemyCount, statuses: [] };
+  }
+  state.turnState.enemyState.remainingHpByEnemy = { ...runningHp };
+
+  return events;
+}
+
 function applyEnemyTurnEndDpEffects(party = []) {
   const events = [];
   const actionContext = buildActionContext('TurnEnd', null, { turnPhase: 'EnemyTurnEnd' });
@@ -6607,6 +6727,8 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     paramBorderByEnemy: enemyState.paramBorderByEnemy,
     enemyDpByEnemy: enemyState.enemyDpByEnemy,
     remainingDpByEnemy: enemyState.remainingDpByEnemy,
+    enemyHpByEnemy: enemyState.enemyHpByEnemy,
+    remainingHpByEnemy: enemyState.remainingHpByEnemy,
     zoneConfigByEnemy: enemyState.zoneConfigByEnemy,
     talismanState: enemyState.talismanState ?? structuredClone(TALISMAN_STATE_DEFAULT),
     disasterState: enemyState.disasterState ?? structuredClone(DISASTER_STATE_DEFAULT),
@@ -11543,6 +11665,10 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       actionEntry.manualKillEnemyIndexes = [...new Set(derivedKillEnemyIndexes)];
     }
   }
+  // HP累積消費とHP0自動討伐（手動討伐の後に呼ぶことで applyManualEnemyKill の
+  // 二重適用が自然に抑止され、手動優先になる）。autoのDeadは killCount 導出に含めない。
+  const hpAutoKillEvents = applyEnemyHpFromActions(state, singleRecord, { preActionTurnState });
+  enemyKillEvents.push(...hpAutoKillEvents);
   const stageSetupKillSpEvents = applyStageSetupSpOnEnemyKill(
     state,
     actionEntry,

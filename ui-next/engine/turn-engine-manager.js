@@ -57,6 +57,7 @@ import { normalizeValidationPolicy } from '../utils/validation-policy.js';
 import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
 import { buildActionFlowFromRecord } from '../utils/action-flow-builder.js';
 import { resolvePerHitDpDamageByEnemy } from '../../src/domain/action-dp-damage.js';
+import { resolvePerHitHpDamageByEnemy } from '../../src/domain/action-hp-damage.js';
 import { normalizeCharacterStats, resolveStatsWithSupport } from '../../src/domain/character-stats.js';
 import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
 
@@ -2123,11 +2124,13 @@ export class TurnEngineManager {
   }
 
   /**
-   * previewRecord.actions に per-hit DPダメージ（ガイド導出値）を付与する。
+   * previewRecord.actions に per-hit DP/HPダメージ（ガイド導出値）を付与する。
    *
    * damageContext は commit 計算内でのみ構築されるため、クローン状態への probe commit で取得する。
-   * 計算データ未設定・DPゲージ敵なし・probe 失敗時は何もせず従来挙動を維持する。
+   * 計算データ未設定・対象ゲージ敵なし・probe 失敗時は何もせず従来挙動を維持する。
    * 付与値は派生値であり、replayScript（保存JSON）には書き込まれない。
+   * DP（perHitDpDamageByEnemy: 破壊率乗算除外）と HP（perHitHpDamageByEnemy: 破壊率乗算）を
+   * 同一 probe から導出することで、probe commit のコストを1回に抑える。
    */
   #enrichPreviewRecordWithDpDamage(state, previewRecord) {
     const data = this.#damageCalculationData;
@@ -2136,8 +2139,10 @@ export class TurnEngineManager {
       return;
     }
     const enemyDpByEnemy = state?.turnState?.enemyState?.enemyDpByEnemy ?? {};
+    const enemyHpByEnemy = state?.turnState?.enemyState?.enemyHpByEnemy ?? {};
     const hasDpGauge = Object.values(enemyDpByEnemy).some((value) => Number(value) > 0);
-    if (!hasDpGauge) {
+    const hasHpTracking = Object.values(enemyHpByEnemy).some((value) => Number(value) > 0);
+    if (!hasDpGauge && !hasHpTracking) {
       return;
     }
     let probeActions = null;
@@ -2157,8 +2162,8 @@ export class TurnEngineManager {
     }
     for (let i = 0; i < actions.length; i++) {
       const action = actions[i];
-      // 明示的に指定済みの perHitDpDamageByEnemy は尊重する
-      if (!action || action.perHitDpDamageByEnemy) {
+      // 明示的に指定済みの perHit*DamageByEnemy は尊重する
+      if (!action || (action.perHitDpDamageByEnemy && action.perHitHpDamageByEnemy)) {
         continue;
       }
       const probeAction = probeActions[i];
@@ -2175,15 +2180,31 @@ export class TurnEngineManager {
       if (!member) {
         continue;
       }
-      const perHitDpDamageByEnemy = resolvePerHitDpDamageByEnemy({
-        damageContext: probeAction.damageContext,
-        attackerInput: this.#buildAttackerInputForMember(member),
-        enemyDpByEnemy,
-        hitCount: Number(probeAction.skillHitCount ?? 0) || null,
-        data,
-      });
-      if (perHitDpDamageByEnemy) {
-        action.perHitDpDamageByEnemy = perHitDpDamageByEnemy;
+      const attackerInput = this.#buildAttackerInputForMember(member);
+      const hitCount = Number(probeAction.skillHitCount ?? 0) || null;
+      if (hasDpGauge && !action.perHitDpDamageByEnemy) {
+        const perHitDpDamageByEnemy = resolvePerHitDpDamageByEnemy({
+          damageContext: probeAction.damageContext,
+          attackerInput,
+          enemyDpByEnemy,
+          hitCount,
+          data,
+        });
+        if (perHitDpDamageByEnemy) {
+          action.perHitDpDamageByEnemy = perHitDpDamageByEnemy;
+        }
+      }
+      if (hasHpTracking && !action.perHitHpDamageByEnemy) {
+        const perHitHpDamageByEnemy = resolvePerHitHpDamageByEnemy({
+          damageContext: probeAction.damageContext,
+          attackerInput,
+          enemyHpByEnemy,
+          hitCount,
+          data,
+        });
+        if (perHitHpDamageByEnemy) {
+          action.perHitHpDamageByEnemy = perHitHpDamageByEnemy;
+        }
       }
     }
   }
