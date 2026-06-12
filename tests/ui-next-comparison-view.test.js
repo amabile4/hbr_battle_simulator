@@ -11,7 +11,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
+import { CharacterStyle, Party, createBattleStateFromParty, loadDamageCalculationData } from '../src/index.js';
 import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { getStore } from './helpers.js';
@@ -239,6 +239,7 @@ test('comparison view: skullfeather fixture keeps interrupt OD skills and swappe
   const manager = new TurnEngineManager();
   manager.loadReplayScript(initialState, session.replayScript, {
     validationPolicy: session.validationPolicy,
+    damageCalculationData: loadDamageCalculationData(),
   });
 
   const comparison = manager.buildComparisonComputedStates();
@@ -260,4 +261,26 @@ test('comparison view: skullfeather fixture keeps interrupt OD skills and swappe
     (action) => Number(action.skillId) === 46300009
   );
   assert.equal(softeningAction?.characterName, '二階堂 三郷');
+
+  const turn3EnemyState = comparison.states[2]?.turnState?.enemyState ?? {};
+  assert.equal(
+    enemyHasStatus(comparison.states[2], /break|downturn|dead|superdown/i),
+    false,
+    '比較ビューでは保存済み手動Break系EnemyStatusesを#3へ持ち込まないこと'
+  );
+  assert.ok(
+    Number(turn3EnemyState.remainingDpByEnemy?.['0']) > 0 &&
+      Number(turn3EnemyState.remainingDpByEnemy?.['0']) < Number(comparison.states[1]?.turnState?.enemyState?.remainingDpByEnemy?.['0']),
+    '#3ではDP0ではなく、比較計算のDP減少が継続していること'
+  );
+
+  const turn4AutoChanges = (comparison.records[3]?.actions ?? [])
+    .flatMap((action) => action.enemyStatusChanges ?? [])
+    .filter((change) => String(change?.source ?? '') === 'auto');
+  assert.equal(
+    turn4AutoChanges.some((change) => /downturn|break/i.test(String(change?.statusType ?? change?.mode ?? ''))),
+    true,
+    'DP0到達ターンでsource:autoの自動ブレイクイベントが出ること'
+  );
+  assert.equal(Number(comparison.states[3]?.turnState?.enemyState?.remainingDpByEnemy?.['0']), 0);
 });

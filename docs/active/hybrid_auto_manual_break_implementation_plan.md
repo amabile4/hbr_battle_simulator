@@ -220,6 +220,14 @@
 | 起動直後の安定化 | ✅ 修正完了 | （本コミット） | このspecは `gotoUiNext()` 直後に `page.evaluate(import(...))` でポップアップを直接開くため、`networkidle` 待ちを追加して評価中の navigation 競合を抑止 |
 | 回帰テスト | ✅ 確認完了 | （本コミット） | `npx playwright test tests/e2e/damage-breakdown-popup.spec.js` 3/3 PASS |
 
+### 回帰修正追記（2026-06-12, 比較ビュー手動状態除外）
+
+| 対象 | 状態 | コミット | 備考 |
+|---|---|---|---|
+| 比較ビューの手動敵状態除外 | ✅ 完了 | （本コミット） | 比較ビューの clone replay で `actionOutcomeOverrides` に加え、保存済み `EnemyStatuses` の `Break` / `DownTurn` / `Dead` / `SuperBreak` / `SuperBreakDown` 系と legacy `SuperDown` / `EnemyBreakStates` を除外。通常表示・本体 replayScript・保存JSONは不変 |
+| 制限事項 | ✅ 記録 | （本コミット） | `EnemyNames` / `EnemyDps` / 耐性 / `EnemyDestructionRates` / `EnemyExtraHpGauges` などの敵スナップショットは比較ビューでも維持する。多段HPゲージの `HpBreak` 状態は召喚・段階管理との差分判定が必要なため第一弾では除外しない |
+| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: スカルフェザー fixture の比較ビューで #3 に手動Break系状態を持ち込まず、DP減少継続後のDP0ターンで `source:'auto'` DownTurn が出ることを固定。E2E: 比較ONで #3 Alive / #4 `dp-auto-break-chip` 表示を検証 |
+
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
 

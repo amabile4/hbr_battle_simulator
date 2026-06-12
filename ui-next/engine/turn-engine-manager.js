@@ -60,6 +60,13 @@ import { resolvePerHitDpDamageByEnemy } from '../../src/domain/action-dp-damage.
 import { resolvePerHitHpDamageByEnemy } from '../../src/domain/action-hp-damage.js';
 import { normalizeCharacterStats, resolveStatsWithSupport } from '../../src/domain/character-stats.js';
 import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
+import {
+  ENEMY_STATUS_BREAK,
+  ENEMY_STATUS_DEAD,
+  ENEMY_STATUS_SUPER_BREAK,
+  ENEMY_STATUS_SUPER_BREAK_DOWN,
+  normalizeEnemyStatusType,
+} from '../../src/domain/enemy-status.js';
 
 function createEmptyReplayDiagnostics() {
   return {
@@ -99,6 +106,13 @@ const SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES = new Set([
   REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
   REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD,
 ]);
+const COMPARISON_EXCLUDED_ENEMY_STATUS_TYPES = new Set([
+  ENEMY_STATUS_BREAK,
+  ENEMY_STATUS_SUPER_BREAK,
+  ENEMY_STATUS_SUPER_BREAK_DOWN,
+  ENEMY_STATUS_DEAD,
+  'DownTurn',
+]);
 const ENEMY_SINGLE_TARGET_TYPES = new Set(['Single', 'EnemySingle']);
 const ENEMY_ALL_TARGET_TYPES = new Set(['All', 'EnemyAll']);
 
@@ -125,6 +139,14 @@ function areDeepEqual(left, right) {
     return leftKeys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && areDeepEqual(left[key], right[key]));
   }
   return false;
+}
+
+function isComparisonExcludedEnemyStatus(statusType) {
+  const normalized = normalizeEnemyStatusType(statusType);
+  return (
+    COMPARISON_EXCLUDED_ENEMY_STATUS_TYPES.has(normalized) ||
+    /break|downturn|dead|superdown/i.test(String(statusType ?? ''))
+  );
 }
 
 function cloneReplayDiagnostics(diagnostics = {}) {
@@ -679,6 +701,7 @@ export class TurnEngineManager {
       for (const turn of comparisonScript.turns ?? []) {
         if (turn && typeof turn === 'object') {
           turn.actionOutcomeOverrides = [];
+          turn.overrideEntries = this.#buildComparisonOverrideEntries(turn.overrideEntries);
         }
       }
       this.#replayScript = comparisonScript;
@@ -705,6 +728,26 @@ export class TurnEngineManager {
       this.#pendingInterruptOdLevel = savedPendingInterruptOdLevel;
       this.#pendingSpecialOperations = savedPendingSpecialOperations;
     }
+  }
+
+  #buildComparisonOverrideEntries(overrideEntries = []) {
+    return (Array.isArray(overrideEntries) ? overrideEntries : [])
+      .flatMap((entry) => {
+        const type = String(entry?.type ?? '');
+        if (type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES) {
+          return [];
+        }
+        if (type !== REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES) {
+          return [structuredClone(entry)];
+        }
+        const statuses = Array.isArray(entry?.payload) ? entry.payload : [];
+        const filteredStatuses = statuses.filter(
+          (status) => !isComparisonExcludedEnemyStatus(status?.statusType)
+        );
+        return filteredStatuses.length > 0
+          ? [{ ...structuredClone(entry), payload: filteredStatuses.map((status) => structuredClone(status)) }]
+          : [];
+      });
   }
 
   /**
