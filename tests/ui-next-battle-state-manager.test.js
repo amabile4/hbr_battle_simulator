@@ -176,6 +176,7 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         dp: 12345,
         od_rate: 8500,
         max_d_rate: 650,
+        d_rate: 150,
         e_shield: {
           count: 10,
           max: 10,
@@ -206,6 +207,7 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         dp: 0,
         od_rate: 0,
         max_d_rate: 999,
+        d_rate: 80,
         resistances: {
           element: {
             slash: 80,
@@ -237,6 +239,8 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   assert.equal(state.turnState.enemyState.enemyDpByEnemy['1'], 0);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 999);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 150);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 80);
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
   assert.equal(state.turnState.enemyState.odRateByEnemy['1'], 0);
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Fire, 200);
@@ -264,6 +268,7 @@ test('BattleStateManager resolves missing enemy slot dp from selected enemy mast
         base_param: {
           dp: 4550000,
           hp: 156000000,
+          d_rate: 175,
         },
       },
     ],
@@ -283,6 +288,7 @@ test('BattleStateManager resolves missing enemy slot dp from selected enemy mast
 
   assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 4550000);
   assert.equal(state.turnState.enemyState.enemyHpByEnemy['0'], 156000000);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 175);
 });
 
 test('BattleStateManager ignores inactive Eシールド definitions in enemy slots', () => {

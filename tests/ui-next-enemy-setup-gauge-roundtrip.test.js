@@ -39,6 +39,7 @@ const MANUAL_ENEMY_SNAPSHOT = {
   hp: 12345,
   od_rate: 0,
   max_d_rate: 300,
+  d_rate: 125,
   destructionRate: 1,
   resistances: {
     element: {
@@ -60,12 +61,15 @@ test('enemy setup: manual enemy dp/hp survive applySnapshot -> getSnapshot round
     assert.equal(snapshot.hp, 12345, 'flat hp が往復で保持されること');
     assert.equal(snapshot.enemySlots[0].dp, 1, 'slot dp が往復で保持されること');
     assert.equal(snapshot.enemySlots[0].hp, 12345, 'slot hp が往復で保持されること');
+    assert.equal(snapshot.d_rate, 125, 'flat d_rate が往復で保持されること');
+    assert.equal(snapshot.enemySlots[0].d_rate, 125, 'slot d_rate が往復で保持されること');
 
     // 2回目の往復（save -> load -> save 相当）でも保持される
     controller.applySnapshot(snapshot);
     const second = controller.getSnapshot();
     assert.equal(second.dp, 1, '2往復目でも dp が保持されること');
     assert.equal(second.hp, 12345, '2往復目でも hp が保持されること');
+    assert.equal(second.d_rate, 125, '2往復目でも d_rate が保持されること');
   });
 });
 
@@ -74,7 +78,7 @@ test('enemy setup: selecting a database enemy clears the dp/hp override', () => 
     const dbEnemy = {
       id: 9001,
       name: 'DB敵',
-      base_param: { dp: 480, hp: 3400, param_border: 620 },
+      base_param: { dp: 480, hp: 3400, param_border: 620, d_rate: 175 },
       resistances: { element: null },
     };
     const controller = new EnemySetupController({ root, enemies: [dbEnemy] });
@@ -90,5 +94,6 @@ test('enemy setup: selecting a database enemy clears the dp/hp override', () => 
     const snapshot = controller.getSnapshot();
     assert.equal(snapshot.dp, 480, '敵選択後は選択敵の dp に戻ること');
     assert.equal(snapshot.hp, undefined, '敵選択後は hp override が消えること（再導出方針）');
+    assert.equal(snapshot.d_rate, 175, '敵選択後は enemies.json 由来の d_rate に戻ること');
   });
 });

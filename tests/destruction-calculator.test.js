@@ -93,6 +93,39 @@ test('calculateDestruction treats dp=0 zero-damage hits as post-break destructio
   assertAlmostEqual(result.breakdown.finalBaseDestruction, 1.5, 'alreadyBrokenZeroDamage.finalBaseDestruction');
 });
 
+test('calculateDestruction applies enemy destructionMultiplier to destruction gain', () => {
+  const data = {
+    styles: [{ id: 1, role: 'Attacker' }],
+    enemies: [],
+    skills: [
+      {
+        id: 12,
+        name: 'Multiplier Skill',
+        hit_count: 1,
+        sp_cost: 10,
+        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 1 } }],
+      },
+    ],
+  };
+  const result = calculateDestruction(
+    {
+      attacker: { styleId: 1 },
+      defender: {
+        destructionRate: 1,
+        destructionLimit: 9,
+        destructionMultiplier: 2,
+        dp: 0,
+      },
+      skill: { skillId: 12, name: 'Multiplier Skill' },
+      hits: [{ damage: 1 }],
+    },
+    data
+  );
+
+  assertAlmostEqual(result.destructionRate, 1.2, 'destructionMultiplier.destructionRate');
+  assertAlmostEqual(result.breakdown.destructionMultiplier, 2, 'destructionMultiplier.breakdown');
+});
+
 test('calculateDestruction: 9ヒット autoBreak 7発目ブレイクで破壊率が計算値+33.3%になる', () => {
   // SP=10, DR倍率=10 → bg30=1.0, finalBaseDestruction=1.0 の設定
   // DP=4,550,000、1ヒット650,000ダメージ → 7発目(index 6)で累積4,550,000≥DP → ブレイク
