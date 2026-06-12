@@ -543,7 +543,9 @@ function applySummonEnemyToState(state, operation = {}, options = {}) {
       (status) => Number(status?.targetIndex ?? -1) !== targetEnemyIndex
     ),
   };
-  applyEnemyStateOverrideSnapshot(state.turnState, nextSnapshot);
+  applyEnemyStateOverrideSnapshot(state.turnState, nextSnapshot, {
+    forceDestructionRateKeys: new Set([slotKey]),
+  });
   // 召喚はスロットの敵を差し替えるため、前の敵の残DP/残HP（派生追跡値）を破棄する。
   // 次の commit/recalculate の初期化で最大値から再導出される。
   for (const remainingKey of ['remainingDpByEnemy', 'remainingHpByEnemy']) {
