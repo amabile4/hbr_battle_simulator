@@ -155,7 +155,8 @@ function main() {
     const key = String(ei);
     const enemyId = selectedEnemyIds[ei];
     if (enemyId != null) {
-      const enemy = store.enemiesById?.[enemyId] ?? store.enemies?.find(e => e.id === enemyId);
+      const enemy = store.enemiesById?.get(Number(enemyId))
+        ?? store.enemies?.find(e => e.id === Number(enemyId));
       if (enemy) {
         if (enemy.base_param?.dp != null && enemyDpByEnemy[key] == null) {
           enemyDpByEnemy[key] = enemy.base_param.dp;
