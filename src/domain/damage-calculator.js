@@ -515,6 +515,13 @@ export function calculateDamage(input, data) {
   const tokenMultiplier = 1 + tokenRatio;
   const destructionRate = toNumber(defender.destructionRate, 1);
 
+  // ピアス装備（減衰型・ヒット数解決済み ratio）: アタック=対HPのみ / ブレイク=対DPのみ。
+  // スキル攻撃力カテゴリのため通常攻撃・追撃には適用しない。
+  const pierceUpRate = isHpTarget
+    ? Math.max(0, toNumber(attacker.attackPierceUpRate, 0))
+    : Math.max(0, toNumber(attacker.breakPierceUpRate, 0));
+  const pierceMultiplier = isNormalAttack || isPursuit ? 1 : 1 + pierceUpRate;
+
   const expectedNormal = Math.max(
     0,
     baseDamageNormal *
@@ -524,7 +531,8 @@ export function calculateDamage(input, data) {
       debuffMultiplier *
       buffMultiplier *
       tokenMultiplier *
-      funnelMultiplier
+      funnelMultiplier *
+      pierceMultiplier
   );
   const expectedCrit = Math.max(
     0,
@@ -536,7 +544,8 @@ export function calculateDamage(input, data) {
       buffMultiplier *
       tokenMultiplier *
       critMindeyeMultiplier *
-      funnelMultiplier
+      funnelMultiplier *
+      pierceMultiplier
   );
 
 
@@ -569,6 +578,7 @@ export function calculateDamage(input, data) {
       affinityMultiplier,
       tokenMultiplier,
       funnelMultiplier,
+      pierceMultiplier,
       ignoredEffects,
     },
   };
