@@ -1,5 +1,12 @@
 # Implementation And Test Ownership
 
+> [!CAUTION]
+> **【重要】ダメージ計算機（`src/domain/damage-calculator.js` 等）の編集禁止ルール**
+> ダメージ計算エンジンのソースコード（`src/domain/damage-calculator.js` など計算ロジック関連のファイル）は、本リポジトリ（`hbr_battle_simulator`）の管轄ではありません。
+> マスターコードは **`hbr_calc` リポジトリ（`amabile4/hbr_calc`）** にて一元管理されています。
+> 計算ロジックに変更や修正を加える場合は、**必ず `hbr_calc` リポジトリ側でPRを作成して修正を反映**させてください。本リポジトリで計算関連 of ソースを直接編集・修正することは厳禁とします。
+> （変更がマージされた後、`hbr_calc` から本リポジトリへコードを同期・流し込むプロセスを踏んでください。）
+
 - 実装者は、自分が変更した範囲のテスト作成・更新・実行まで一貫して担当する。
 - `tests/e2e/` と Playwright config も、対象変更に必要なら同じ実装者が修正してよい。
 - browser 実挙動に依存する UI 修正では、unit/integration test だけで閉じず、必要な Playwright coverage を追加して自ら確認する。
