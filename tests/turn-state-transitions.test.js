@@ -3427,7 +3427,7 @@ test('迅雷風烈 records DefenseDown enemy status in real data', () => {
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.45);
+  assert.equal(event.power, 0.3);
 });
 
 test('まだまだ行くで！ applies Fragile enemy status in real data', () => {
@@ -3441,7 +3441,7 @@ test('まだまだ行くで！ applies Fragile enemy status in real data', () =>
   );
 
   assert.ok(fragile);
-  assert.equal(fragile.power, 0.4);
+  assert.equal(fragile.power, 0.3);
   assert.equal(fragile.exitCond, 'Eternal');
 });
 
@@ -3481,7 +3481,7 @@ test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in 
   assert.ok(resistStatus);
   assert.equal(resistStatus.exitCond, 'Eternal');
   assert.deepEqual(resistStatus.elements, ['Dark']);
-  assert.equal(resistStatus.power, 0.6);
+  assert.equal(resistStatus.power, 0.45);
 });
 
 test('今宵、快楽ナイトメア grants 5-hit Funnel only to frontline Dark styles in real data', () => {
@@ -3787,7 +3787,7 @@ test('ハードブレード applies DefenseDown in real data despite top-level D
   const enemyStatus = action.enemyStatusChanges.find((status) => status.statusType === 'DefenseDown');
 
   assert.ok(enemyStatus);
-  assert.equal(enemyStatus.power, 0.45);
+  assert.equal(enemyStatus.power, 0.3);
   assert.equal(enemyStatus.exitCond, 'EnemyTurnEnd');
 });
 
@@ -21207,7 +21207,7 @@ test('DoubleActionExtraSkill: 李映夏Funnel付きフグリングクラッシ�
   const LI_CHARACTER_ID = 'LShanhua';
   const KAREN_CHARACTER_ID = 'KAsakura';
   const FUNNEL_POWER = 5;
-  const ATTACK_UP_POWER = 0.75;
+  const ATTACK_UP_POWER = 1.1686248;
   const EX_SP_COST = 14;
   const PARTY_MEMBER_COUNT = 6;
   const REAL_DATA_TEST_INITIAL_SP = 30;

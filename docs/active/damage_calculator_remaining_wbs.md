@@ -1,6 +1,6 @@
 # ダメージ計算機 完成までの残タスク WBS
 
-> **作成日**: 2026-06-07 | **ステータス**: 🟢 進行中 | **最終更新**: 2026-06-07
+> **作成日**: 2026-06-07 | **ステータス**: 🟢 進行中 | **最終更新**: 2026-06-13
 > **対象ブランチ**: `feature/destruction-rate-popup`（→ main へ最終 merge）
 >
 > 計算の最終的な正確性を得るまでに何が必要かを整理したマスター WBS。
@@ -17,7 +17,7 @@
 |---|---|
 | A-1 〜 A-7 | DP ダメージ MVP: charge 修正・attacker source PartySetup 化・read-only stat 表示・DP 固定・invariant・敵 param_border 実値配線 |
 | 倍率内訳 | 7カテゴリ（buff / crit-mindeye / funnel / token-passive / debuff / affinity / vulnerability）表示 |
-| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続、新規 EnemySetup snapshot からの敵DP配線、超越バーストの破壊率上昇量+10%とcap+300%（一致属性攻撃のみ、SuperBreak/強ブレイクとは非加算）、威力詳細手入力での有効cap反映を追加 |
+| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続、新規 EnemySetup snapshot からの敵DP配線、超越バーストの破壊率上昇量+10%とcap+300%（一致属性攻撃のみ、SuperBreak/強ブレイクとは非加算）、威力詳細手入力での有効cap反映を追加。2026-06-13 に hbr_calc の `resolveEffectPowerFromPart` を turn engine へ接続し、`diff_for_max > 0` の自己バフ / 敵デバフ / DamageRateUp / DestructionUp 入力を実 stats・敵 border で解決するよう更新 |
 
 ---
 
@@ -79,7 +79,7 @@
 | D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | 🔶 turnState 接続完了（既BREAK / same-action Break・SuperBreak、cap clamp、E-shield active 除外）。敵 `d_rate` 実値は `destructionMultiplierByEnemy` に保持し、破壊率上昇式へ接続。超越バースト中の一致属性攻撃は破壊率上昇量+10%とcap+300%を適用し、SuperBreak/強ブレイクcapとは加算しない。非一致属性攻撃や SuperDown の敵状態更新ではバーストcapを参照しない。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 | D-1, D-2 |
 | D-4 | 🔴 | **ダメージ式接合**: `damageContext` に per-enemy 破壊率（`enemyParamBorderByEnemy` と同パターン）を配線。`buildDamageCalculationInput` が `destructionRate` を実値化。`calculateDamage` が HP ダメージに乗算 | ✅ 完了（`destructionRateByEnemy` は `%` で保持し、builder / popup adapter が `calculateDamage` 用 rate に変換） | D-2, D-3 |
 | D-5 | 🔴 | **HP ダメージ表示解禁**: `isHpTarget=false` 固定を解除。右ペインに「非クリ HP」「クリティカル HP」行を追加。DP/HP の表示切り替え | ✅ 完了（右クリック威力詳細で DP/HP の非クリ・クリティカル期待値と現在破壊率を同時表示） | D-4 |
-| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E、DPダメージでは破壊率を乗算しないこと、SkillSwitch 子スキルID解決、対象敵名表示、超越バーストの攻撃/critical/バフ・デバフ効果量/破壊率cap非重複、未発動時ゼロ、非一致属性cap非適用、高い保存capへの非加算、`damageContext.destructionRateCapByEnemy` 経由の威力詳細手入力cap反映を固定。2026-06-07 添付セッションのコードダクネスは `skillHitCount=9` / `baseHitCount=6` / `funnelHitBonus=3` / `breakHitCount=1` と確認済み。多段中 DP break 後の残 hit を HP ダメージへ按分して威力詳細に出す表示は未実装） | D-3, D-4, D-5 |
+| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E、DPダメージでは破壊率を乗算しないこと、SkillSwitch 子スキルID解決、対象敵名表示、超越バーストの攻撃/critical/バフ・デバフ効果量/破壊率cap非重複、未発動時ゼロ、非一致属性cap非適用、高い保存capへの非加算、`damageContext.destructionRateCapByEnemy` 経由の威力詳細手入力cap反映、`DestructionUp` 保存 ratio の calculateDestruction percent 入力変換、stat/border 解決されるバフ・デバフ効果量を固定。2026-06-07 添付セッションのコードダクネスは `skillHitCount=9` / `baseHitCount=6` / `funnelHitBonus=3` / `breakHitCount=1` と確認済み。多段中 DP break 後の残 hit を HP ダメージへ按分して威力詳細に出す表示は未実装） | D-3, D-4, D-5 |
 | D-7 | 🟡 | **受け入れ**: HP ダメージ 3 点一致（Excel・実機・シミュレータ） | ❌ 未着手 | D-6 |
 
 ### 2026-06-07 コードダクネス検算で判明した不足機能

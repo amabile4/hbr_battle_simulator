@@ -12,7 +12,8 @@
 
 ## 接続済み（A: 対応不要・9種）
 
-AttackUp / DamageRateUp（`resonanceDestructionRateBonus`、2026-06-13接続） /
+AttackUp / DamageRateUp（`resonanceDestructionRateBonus`、2026-06-13接続。同日に
+`resolveEffectPowerFromPart` 経由の `diff_for_max` 効果量解決も接続） /
 OverDrivePointUp（ターン開始時・ブレイク時の2系統） / AdditionalHitOnBreaking /
 AdditionalHitOnHealedSpWithoutSelfHeal / HealDpRate / Morale / Mocktail
 

@@ -9,6 +9,12 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { buildCriticalRateBreakdown, buildDamageBreakdown } from '../domain/damage-breakdown.js';
 import { calculateDestruction } from '../domain/destruction-calculator.js';
+import {
+  DEFAULT_ENEMY_BORDER,
+  resolveEffectPowerFromPart,
+} from '../domain/calculator-helpers.js';
+import { normalizeCharacterStats, resolveStatsWithSupport } from '../domain/character-stats.js';
+import { resolveDefaultStats } from '../domain/damage-calculator-input-builder.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import {
   cloneEnemyEShieldState,
@@ -177,6 +183,9 @@ const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
 const ENEMY_STATUS_POWER_DURATION_SKILL_TYPES = Object.freeze(
   new Set([ENEMY_STATUS_PROVOKE, ENEMY_STATUS_ATTENTION, 'Misfortune', 'Cover'])
 );
+const ENEMY_DEBUFF_EFFECT_POWER_SKILL_TYPES = Object.freeze(
+  new Set(['DefenseDown', 'Fragile', 'ResistDown', 'ResistDownOverwrite'])
+);
 const HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES = Object.freeze(
   new Set([
     'DefenseDown',
@@ -212,6 +221,7 @@ const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
 const ACTIVE_BUFF_STATUS_SKILL_TYPES = Object.freeze(
   new Set(Object.keys(ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE))
 );
+const EFFECT_POWER_PERCENT_TO_RATIO = 1 / 100;
 const SPECIAL_STATUS_TYPE_NEGATIVE_STATE = 146;
 const REMOVABLE_PLAYER_DEBUFF_STATUS_TYPES = Object.freeze(
   new Set([
@@ -1472,6 +1482,126 @@ function scaleHighBoostEnemyDebuffPower(state, actor, skillType, power) {
     return Number(power ?? 0);
   }
   return applyHighBoostMultiplier(power, multiplier);
+}
+
+function getMemberEffectProviderStats(member) {
+  if (!member) {
+    return null;
+  }
+  const role = String(member?.role ?? 'Attacker');
+  const limitBreakCount = Number(member?.limitBreakLevel ?? 0);
+  return (
+    normalizeCharacterStats(member?.stats) ??
+    resolveStatsWithSupport(resolveDefaultStats(role, limitBreakCount), member?.supportStats)
+  );
+}
+
+function shouldResolveEffectPowerFromStats(part) {
+  return Number(part?.diff_for_max ?? 0) > 0;
+}
+
+function normalizeEffectPowerStatusType(statusType) {
+  const normalized = String(statusType ?? '').trim();
+  if (normalized === 'AttackUpIncludeNormal') {
+    return 'AttackUp';
+  }
+  if (normalized === 'ResistDown' || normalized === 'ResistDownOverwrite') {
+    return 'ElementResistDown';
+  }
+  return normalized;
+}
+
+function getEffectPowerLevelOptions(part) {
+  const options = {};
+  const skillLevel = Number(part?.skillLevel ?? part?.skill_level ?? part?.level);
+  if (Number.isFinite(skillLevel)) {
+    options.skillLevel = skillLevel;
+  }
+  const orbLevel = Number(part?.orbLevel ?? part?.orb_level);
+  if (Number.isFinite(orbLevel)) {
+    options.orbLevel = orbLevel;
+  }
+  return options;
+}
+
+function resolveEffectPowerRatioFromPart(part, options = {}) {
+  const fallbackRatio = Number(options.fallbackRatio ?? part?.power?.[0] ?? 0);
+  if (!shouldResolveEffectPowerFromStats(part)) {
+    return Number.isFinite(fallbackRatio) ? fallbackRatio : 0;
+  }
+  const providerStats = getMemberEffectProviderStats(options.providerMember);
+  const resolved = resolveEffectPowerFromPart(part, {
+    providerStats,
+    statusType: normalizeEffectPowerStatusType(options.statusType),
+    isEnemyDebuff: Boolean(options.isEnemyDebuff),
+    ...(Number.isFinite(Number(options.enemyBorder)) ? { enemyBorder: Number(options.enemyBorder) } : {}),
+    ...getEffectPowerLevelOptions(part),
+  });
+  const ratio = Number(resolved?.power ?? 0) * EFFECT_POWER_PERCENT_TO_RATIO;
+  return Number.isFinite(ratio) ? ratio : (Number.isFinite(fallbackRatio) ? fallbackRatio : 0);
+}
+
+function resolveEnemyBorderForEffectPower(turnState, targetIndex) {
+  const enemyState = getEnemyState(turnState);
+  const direct = Number(enemyState?.paramBorderByEnemy?.[String(targetIndex)]);
+  if (Number.isFinite(direct) && direct > 0) {
+    return direct;
+  }
+  return DEFAULT_ENEMY_BORDER;
+}
+
+function resolveActiveBuffEffectPowerRatio(state, actor, skillType, statusType, part) {
+  const basePower = resolveEffectPowerRatioFromPart(part, {
+    providerMember: actor,
+    statusType,
+    fallbackRatio: Number(part?.power?.[0] ?? 0),
+  });
+  return scaleHighBoostAttackBuffPower(state, actor, skillType, basePower);
+}
+
+function resolveEnemyStatusEffectPowerRatio(state, actor, skillType, part, targetIndex) {
+  const fallbackRatio = getEnemyStatusPowerValue(part);
+  if (
+    ENEMY_STATUS_POWER_DURATION_SKILL_TYPES.has(String(skillType ?? '')) ||
+    !ENEMY_DEBUFF_EFFECT_POWER_SKILL_TYPES.has(String(skillType ?? ''))
+  ) {
+    return scaleHighBoostEnemyDebuffPower(state, actor, skillType, fallbackRatio);
+  }
+  const basePower = resolveEffectPowerRatioFromPart(part, {
+    providerMember: actor,
+    statusType: skillType,
+    isEnemyDebuff: true,
+    enemyBorder: resolveEnemyBorderForEffectPower(state?.turnState, targetIndex),
+    fallbackRatio,
+  });
+  return scaleHighBoostEnemyDebuffPower(state, actor, skillType, basePower);
+}
+
+function resolveSourceEffectPowerPart(sourceSkill, effectivePart, partIndex) {
+  const sourceParts = Array.isArray(sourceSkill?.parts) ? sourceSkill.parts : [];
+  const indexed = sourceParts[Number(partIndex)];
+  if (indexed && String(indexed?.skill_type ?? '') === String(effectivePart?.skill_type ?? '')) {
+    return indexed;
+  }
+  return (
+    sourceParts.find(
+      (part) =>
+        String(part?.skill_type ?? '') === String(effectivePart?.skill_type ?? '') &&
+        String(part?.target_type ?? '') === String(effectivePart?.target_type ?? '')
+    ) ?? effectivePart
+  );
+}
+
+function normalizeDestructionUpStatusEffectsForCalculation(statusEffects) {
+  return (Array.isArray(statusEffects) ? statusEffects : [])
+    .filter((effect) => effect?.statusType === 'DestructionUp')
+    .map((effect) => {
+      const power = Number(effect?.power ?? 0);
+      return {
+        ...effect,
+        power: Number.isFinite(power) && Math.abs(power) <= 1 ? power * 100 : power,
+      };
+    });
 }
 
 function isOverDriveActive(turnState) {
@@ -4793,10 +4923,11 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
     if (!actor) {
       continue;
     }
+    const sourceSkill = actor.getSkill(actionEntry.skillId);
     const skill =
       actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
         ? structuredClone(actionEntry._effectiveSkillSnapshot)
-        : actor.getSkill(actionEntry.skillId);
+        : sourceSkill;
     if (!skill) {
       continue;
     }
@@ -4907,7 +5038,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         {
           attacker: {
             styleId: Number(actor.styleId ?? actionEntry?.styleId ?? 0),
-            statusEffects: (actor.statusEffects ?? []).filter((effect) => effect?.statusType === 'DestructionUp'),
+            statusEffects: normalizeDestructionUpStatusEffectsForCalculation(actor.statusEffects),
             // ブラストピアスは raw ratio を渡し、calculateDestruction 内の
             // ヒット数傾斜（上昇型・仕様式Bと同一）でスケールさせる（二重傾斜防止）
             accessoryDestructionRateBonus:
@@ -6043,7 +6174,11 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       }
 
       if (effectType === 'AttackUp') {
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolveEffectPowerRatioFromPart(part, {
+          providerMember: actor,
+          statusType: 'AttackUp',
+          fallbackRatio: Number(part?.power?.[0] ?? 0),
+        });
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
@@ -7530,7 +7665,11 @@ function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
         if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
           continue;
         }
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolveEffectPowerRatioFromPart(part, {
+          providerMember: actor,
+          statusType: 'AttackUp',
+          fallbackRatio: Number(part?.power?.[0] ?? 0),
+        });
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
@@ -7597,7 +7736,11 @@ function resolvePassiveResonanceDestructionRateBonusForMember(state, targetMembe
         if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
           continue;
         }
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolveEffectPowerRatioFromPart(part, {
+          providerMember: actor,
+          statusType: 'DamageRateUp',
+          fallbackRatio: Number(part?.power?.[0] ?? 0),
+        });
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
@@ -9275,13 +9418,13 @@ function isTimedActiveBuffPart(part) {
   return (exitCond && exitCond !== 'None') || (limitType && limitType !== 'None');
 }
 
-function addActiveBuffStatusEffect(state, actor, target, skill, part) {
+function addActiveBuffStatusEffect(state, actor, target, skill, part, powerPart = part) {
   const skillType = String(part?.skill_type ?? '').trim();
   const statusType = resolveActiveBuffStatusType(skillType);
   if (!statusType) {
     return null;
   }
-  const power = scaleHighBoostAttackBuffPower(state, actor, skillType, Number(part?.power?.[0] ?? 0));
+  const power = resolveActiveBuffEffectPowerRatio(state, actor, skillType, statusType, powerPart);
   if (!Number.isFinite(power) || power === 0) {
     return null;
   }
@@ -9330,16 +9473,17 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
     if (!actor) {
       continue;
     }
+    const sourceSkill = actor.getSkill(actionEntry.skillId);
     const skill =
       actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
         ? structuredClone(actionEntry._effectiveSkillSnapshot)
-        : actor.getSkill(actionEntry.skillId);
+        : sourceSkill;
     if (!skill) {
       continue;
     }
 
     const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
-    for (const part of effectiveParts) {
+    for (const [partIndex, part] of effectiveParts.entries()) {
       if (!isTimedActiveBuffPart(part)) {
         continue;
       }
@@ -9361,7 +9505,8 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
         if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
           continue;
         }
-        const added = addActiveBuffStatusEffect(state, actor, target, skill, part);
+        const powerPart = resolveSourceEffectPowerPart(sourceSkill, part, partIndex);
+        const added = addActiveBuffStatusEffect(state, actor, target, skill, part, powerPart);
         if (!added) {
           continue;
         }
@@ -9909,14 +10054,15 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
     if (!actor) {
       continue;
     }
+    const sourceSkill = actor.getSkill(actionEntry.skillId);
     const skill =
       actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
         ? structuredClone(actionEntry._effectiveSkillSnapshot)
-        : actor.getSkill(actionEntry.skillId);
+        : sourceSkill;
     if (!skill) {
       continue;
     }
-    for (const part of collectEnemyStatusActionParts(skill, state, actor)) {
+    for (const [partIndex, part] of collectEnemyStatusActionParts(skill, state, actor).entries()) {
       const skillType = String(part?.skill_type ?? '').trim();
       const targetType = String(part?.target_type ?? '').trim();
       if (!ENEMY_STATUS_SKILL_TYPES.has(skillType) || !isEnemyStatusTargetType(targetType)) {
@@ -9946,12 +10092,13 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
         if (!condSatisfied) {
           continue;
         }
+        const powerPart = resolveSourceEffectPowerPart(sourceSkill, part, partIndex);
         const appliedStatus = normalizeEnemyStatus(
           {
             statusType: skillType,
             targetIndex,
             remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-            power: scaleHighBoostEnemyDebuffPower(state, actor, skillType, getEnemyStatusPowerValue(part)),
+            power: resolveEnemyStatusEffectPowerRatio(state, actor, skillType, powerPart, targetIndex),
             elements: normalizeEnemyStatusElements(part?.elements),
             limitType: String(part?.effect?.limitType ?? ''),
             exitCond: String(part?.effect?.exitCond ?? ''),
@@ -12449,7 +12596,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
               statusType: skillType,
               targetIndex,
               remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-              power: scaleHighBoostEnemyDebuffPower(state, member, skillType, getEnemyStatusPowerValue(part)),
+              power: resolveEnemyStatusEffectPowerRatio(state, member, skillType, part, targetIndex),
               elements: normalizeEnemyStatusElements(part?.elements),
               limitType: String(part?.effect?.limitType ?? ''),
                 exitCond: String(part?.effect?.exitCond ?? ''),
@@ -12695,7 +12842,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'AttackUp') {
-          const amount = Number(part?.power?.[0] ?? 0);
+          const amount = resolveEffectPowerRatioFromPart(part, {
+            providerMember: member,
+            statusType: 'AttackUp',
+            fallbackRatio: Number(part?.power?.[0] ?? 0),
+          });
           if (!Number.isFinite(amount) || amount === 0) {
             continue;
           }
@@ -12828,7 +12979,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType === 'GiveAttackBuffUp' ||
           skillType === 'GiveHealUp'
         ) {
-          const amount = Number(part?.power?.[0] ?? 0);
+          const amount = resolveEffectPowerRatioFromPart(part, {
+            providerMember: member,
+            statusType: skillType,
+            fallbackRatio: Number(part?.power?.[0] ?? 0),
+          });
           if (!Number.isFinite(amount) || amount === 0) {
             continue;
           }
