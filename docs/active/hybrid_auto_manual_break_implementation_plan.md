@@ -222,3 +222,12 @@
 
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
+
+### 進捗追記（2026-06-12, T8召喚警告の精度改善 + 連戦召喚バグ修正, 2b03e12）
+
+| 対象 | 状態 | 備考 |
+|---|---|---|
+| T8召喚警告の精度 | ✅ 完了 | 召喚警告を `payload.targetEnemyIndex` と同一スロットの討伐ガイドのみと比較（未指定召喚は警告対象外）。敵ごとの auto ターンを全リスト保持し、比較先は「直近の earlier auto ターン」。auto kill / 手動 kill の直後ターンの召喚は整合（二重警告抑止） |
+| 既存バグ修正: 召喚復活が再計算で再現されない | ✅ 完了 | override entries の差分記録が「Dead解除で初期状態と同型に戻る」ケースで entry を出さず、再計算後に Dead が残存していた。snapshot-only operation（召喚等）を含むターンは entries を全フィールド強制記録 |
+| 既存バグ修正: 召喚後の敵が前の敵の残DP/残HPを引き継ぐ | ✅ 完了 | commit 経路（turn-operations）と再計算/preview/draft 経路（manager `#clearRemainingGaugesForSummonedSlots`）の両方で対象スロットの remaining を破棄し、最大値からの再導出に戻す |
+| 回帰テスト | ✅ 追加完了 | `tests/ui-next-summon-warning-precision.test.js` 7件（別スロット非警告・連戦整合・復活+最大HP再導出・手動kill整合・未指定除外・乖離警告のスロット明記・直近autoターン比較）。unit 1380 / E2E 13件 / 純度+召喚整合 10件 PASS |
