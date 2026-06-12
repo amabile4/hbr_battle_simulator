@@ -1,8 +1,8 @@
 # hybrid_auto_manual_break 実装計画（採用版）
 
-- ステータス: 🟢 進行中
+- ステータス: 🟢 進行中（T8・最終GOAL受け入れE2Eのみ残）
 - 作成日: 2026-06-11
-- 最終更新: 2026-06-11
+- 最終更新: 2026-06-12
 - 入力: [第1稿](hybrid_auto_manual_break_wbs.md) / [第2稿](hybrid_auto_manual_break_wbs_v2.md)
 - 判定: **第2稿ベース（理念整合優先）**。第1稿は補助観点（後方互換・正規化・赤テスト先行）のみ採用。
 
@@ -53,9 +53,10 @@
 | ダメージ計算機 | ✅実装済み | `src/domain/damage-calculator.js` / `damage-breakdown.js` / `damage-calculator-input-builder.js` | `ui-next/utils/char-detail-popup.js`（威力詳細タブ） | ポップアップ表示・入力変更 | UI接続済み（表示専用） | 結果が累積計算・敵状態ガイドに未供給 | T4 でガイド導出の入力に接続 | `tests/damage-breakdown.test.js` ほか |
 | 破壊率計算機 | ✅エンジン実装済み | `src/domain/destruction-calculator.js`（`calculateDestruction`） | `char-detail-popup.js` `updateDestructionRateDisplay` / `src/turn/turn-controller.js` `applyDestructionRateFromActions` | popup 手動入力時 / commit 時（部分） | △部分接続 | D-3/D-4 残（turnState⇔damageContext 接合）。popup 入力は一時値で他表示と非連動。`damage-calculator.js:430` に同名関数の重複あり | T4 で累積破壊率をガイドレイヤへ統合、重複定義を解消 | `tests/destruction-calculator.test.js` |
 | シミュレーター再計算 | ✅実装済み | `ui-next/engine/turn-engine-manager.js` `recalculateAll` / `recalculateFrom` | session load・setup 変更・turn 編集 | 設定変更・読込 | ✅接続済み | ガイド導出が再計算パスに存在しない | T4 で再計算内に guide 導出を統合 | `tests/ui-next-turn-engine-manager.test.js`・session replay E2E |
-| 自動ブレイク・討伐 | △部分 | `turn-controller.js`（Eシールド same-action auto BREAK・スキル効果由来 `applyEnemyBreakEffectsFromActions`） | commitTurnRecord 経由 | commit/recalculate | △既存分のみ接続 | DP累積→ブレイク予測 / HP0→討伐予測の**ガイド**が未実装（v2方針: 自動確定はしない） | T4（導出）+ T5（表示） | `tests/e2e/superbreak-hefty-guardian.spec.js` ほか |
-| 手動ブレイク・討伐 | ✅実装済み | `turn-controller.js` `applyManual{Break,HpBreak,Kill}EffectsFromActions` + `actionOutcomeOverrides` 正本 | enemy-detail-popup の break/kill sub-editor → `updateActionOutcomeOverrides` | popup 操作 → commit/recalc | ✅接続・JSON永続化済み | 一括一時無効化（比較ビュー）がない | T7 で比較ビュートグル追加 | manual break session 回帰・superbreak E2E |
-| 一時プレビュー | △部分 | `char-detail-popup.js` destruction-rate-input（popup 内一時入力） | popup 操作 | 入力変更 | △popup 内のみ | ターンスコープの現DP/HP/破壊率一時入力なし。寿命管理の明示なし | T6 で turn 内一時状態として実装（非保存） | `tests/ui-next-char-detail-popup-order.test.js`（限定的） |
+| 自動ブレイク・討伐 | ✅実装済み | `turn-controller.js` `applyDestructionRateFromActions`（DP累積・DP0自動ブレイク）+ `applyEnemyHpFromActions`（HP累積・HP0自動討伐） | commitTurnRecord 経由（manager enrichment が perHit{Dp,Hp}DamageByEnemy を供給） | commit/recalculate | ✅接続済み（データ注入時のみ有効・派生値非保存） | 多段HPゲージ敵のHP追跡は対象外（既存HpBreak管理に委譲）。T8差分警告が未実装 | T8 | `tests/ui-next-dp-damage-guide.test.js`・`tests/ui-next-hp-damage-guide.test.js`・`tests/e2e/dp-damage-guide.spec.js` |
+| 手動ブレイク・討伐 | ✅実装済み | `turn-controller.js` `applyManual{Break,HpBreak,Kill}EffectsFromActions` + `actionOutcomeOverrides` 正本 | enemy-detail-popup の break/kill sub-editor → `updateActionOutcomeOverrides` | popup 操作 → commit/recalc | ✅接続・JSON永続化済み | （解消済み）一括一時無効化は比較ビューで対応 | - | manual break session 回帰・superbreak E2E・`tests/ui-next-comparison-view.test.js` |
+| 一時比較ビュー | ✅実装済み | `turn-engine-manager.js` `buildComparisonComputedStates` + `turn-area.js` `setComparisonMode` | toolbar `#toggle-comparison-view` | トグル操作 | ✅接続済み（ビュー状態のみ・JSON不変） | - | - | `tests/ui-next-comparison-view.test.js`・`tests/e2e/comparison-view.spec.js` |
+| 一時プレビュー | ✅実装済み | `ui-next/utils/preview-input-store.js` + `char-detail-popup.js`（現DP/現HP/破壊率入力 + スキル後残量表示） | popup 操作 | 入力変更 | ✅接続済み（ターン内寿命・非保存） | 寿命 = 行再描画で消去（turn-area `#renderRows` が単一管理点） | - | `tests/ui-next-preview-input-store.test.js`・`tests/e2e/preview-input.spec.js` |
 
 ---
 
@@ -161,3 +162,25 @@
 - T9 ✅: `dp:1` 敵の E2E fixture + `tests/e2e/dp-damage-guide.spec.js`（DP表示・減少・自動ブレイクチップ・保存JSON純度の4件）
 - 副修正: enemy-setup-snapshot の normalize で `dp` フィールドが落ちていた既存欠落を修正
 - unit 1340 PASS / lint クリーン / 対象E2E PASS
+
+### 進捗追記（2026-06-12 後半, ab2816b〜cf29c51 + docs）
+
+| タスク | 状態 | コミット | 備考 |
+|---|---|---|---|
+| T4残: 討伐予測（HP累積） | ✅ 完了 | ab2816b | `resolvePerHitHpDamageByEnemy`（src/domain/action-hp-damage.js, isHpTarget:true=破壊率乗算込み）+ エンジン新関数 `applyEnemyHpFromActions`（remainingHpByEnemy 引き継ぎ・HP0で source:'auto' の Dead・手動kill最優先・多段HPゲージ敵は対象外）。enemyHpByEnemy は enemies.json (base_param.hp) / slot.hp から再導出（非保存）。probe commit 1回で DP/HP 両 enrich。`tests/ui-next-hp-damage-guide.test.js` 9件 |
+| T5残: 事前予測バッジ | ✅ 完了 | b3b1cf7 | 未コミット行の dp-auto-break-chip に `data-preview` + 破線 + 「予測:」プレフィックス。確定行は従来の実線。unit 2件 + E2E(3d) strict 検証 |
+| T7: 一時比較ビュー | ✅ 完了 | 9193f45 | `buildComparisonComputedStates()` read-only API（replayScript クローンから actionOutcomeOverrides を空に → recalculateFrom(0) 流用 → instance 配列/pending を finally 復元）。toolbar `#toggle-comparison-view`、比較中は閲覧専用（input行・編集抑止）。unit 5件 + E2E 1件（保存JSON不変） |
+| T6: 一時プレビュー入力 | ✅ 完了 | cf29c51 | `ui-next/utils/preview-input-store.js`（寿命: popup内再描画は維持 / 行再描画・リロードで消去）。威力詳細タブに現DP/現HP入力 + 「このスキル後」残量表示（ブレイク!/討伐!）。破壊率入力も store 接続。unit 4件 + E2E 1件 |
+| T10: docs収束 | ✅ 完了 | （本コミット） | 本進捗記録・チェック表・README・next_session_prompt を更新。suppression 不採用判断は §1-6 に記録済みを確認 |
+
+#### 主要設計判断（今回分）
+- HP累積はDP実装と完全同型（enrichment供給 + エンジン消費）。`getEnemyState` / `cloneTurnState` / `tickEnemyStatusDurations` のホワイトリストに `enemyHpByEnemy` / `remainingHpByEnemy` を追加（明示列挙3箇所がフィールド落ちの原因だった）
+- maxHP は方針どおり非保存。enemy-setup snapshot には fixture/手動用の `hp` passthrough のみ追加（UI選択時の自動書き込みはしない）
+- 比較ビューは「クローン差し替え+復元」方式で #computedStates 非汚染を構造的に保証（別ループ実装の重複を回避）
+- サブエージェント委任は環境の権限制約（Edit拒否）により断念し、Fable 5 が全タスクをインライン実装（体制差異の記録）
+
+#### 残タスク
+1. T8: 連戦召喚整合の差分警告（未着手・P2）
+2. 最終GOAL受け入れE2E: 代表シナリオ（ガイドが#3提案 → #4手動指定 → JSON往復後も#4のみ確定）の明示テスト
+3. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
+4. 既知: `buildEnemyStateOverrides` の eShield/extraHpGauge map が filter 後の index を使う既存の添字ずれ疑い（今回は未修正・要調査）
