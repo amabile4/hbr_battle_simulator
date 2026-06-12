@@ -145,6 +145,7 @@ export function buildDamageCalculationContext(input = {}) {
     transcendenceBurstDestructionRateGainBonusRate: Number(
       input.transcendenceBurstDestructionRateGainBonusRate ?? 0
     ),
+    resonanceDestructionRateBonus: Number(input.resonanceDestructionRateBonus ?? 0),
     transcendenceBurstAttackBuffSkillEffectUpRate: Number(
       input.transcendenceBurstAttackBuffSkillEffectUpRate ?? 0
     ),

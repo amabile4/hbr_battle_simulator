@@ -4916,6 +4916,9 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
               ) + Number(actor?.blastPiercePercent ?? 0) / 100,
             // エンシェントチェーンの破壊率上昇量+はヒット数非依存のフラット加算
             flatDestructionRateBonus: Number(actor?.chainDestructionRateBonus ?? 0),
+            resonanceDestructionRateBonus: Number(
+              actionEntry?.specialPassiveModifiers?.resonanceDestructionRateBonus ?? 0
+            ),
           },
           defender: {
             enemyId: null,
@@ -7558,6 +7561,73 @@ function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
   return { totalRate, matchedPassives };
 }
 
+function resolvePassiveResonanceDestructionRateBonusForMember(state, targetMember, timings = []) {
+  if (!state || !targetMember) {
+    return { totalRate: 0, matchedPassives: [] };
+  }
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  let totalRate = 0;
+  const matchedPassives = [];
+
+  for (const actor of state.party ?? []) {
+    for (const passive of getPassiveEntriesForMember(actor)) {
+      if (String(passive?.sourceType ?? '') !== 'support') {
+        continue;
+      }
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      let passiveRate = 0;
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
+        if (String(part?.skill_type ?? '') !== 'DamageRateUp') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          targetMember.characterId
+        );
+        if (!targetCharacterIds.includes(targetMember.characterId)) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
+          continue;
+        }
+        const amount = Number(part?.power?.[0] ?? 0);
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        passiveRate += amount;
+        totalRate += amount;
+      }
+      if (passiveRate !== 0) {
+        matchedPassives.push({
+          characterId: String(actor?.characterId ?? ''),
+          characterName: String(actor?.characterName ?? ''),
+          shortCharacterName: String(actor?.shortCharacterName ?? actor?.characterName ?? ''),
+          styleId: Number(actor?.styleId ?? 0),
+          styleName: String(actor?.styleName ?? ''),
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          passiveDesc: String(passive?.desc ?? ''),
+          timing: String(passive?.timing ?? ''),
+          source: 'action_selection',
+          targetCharacterId: String(targetMember?.characterId ?? ''),
+          targetCharacterName: String(targetMember?.characterName ?? ''),
+          effectType: 'DamageRateUp',
+          resonanceDestructionRateBonus: passiveRate,
+        });
+      }
+    }
+  }
+
+  return { totalRate, matchedPassives };
+}
+
 function resolvePassiveDamageRateUpPerTokenForMember(state, targetMember, timings = []) {
   if (!state || !targetMember) {
     return { totalRate: 0, matchedPassives: [] };
@@ -8764,6 +8834,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         transcendenceBurstAttackUpRate: Number(actionEntry?.specialPassiveModifiers?.transcendenceBurstAttackUpRate ?? 0),
         transcendenceBurstDestructionRateGainBonusRate: Number(
           actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+        ),
+        resonanceDestructionRateBonus: Number(
+          actionEntry?.specialPassiveModifiers?.resonanceDestructionRateBonus ?? 0
         ),
         transcendenceBurstAttackBuffSkillEffectUpRate: Number(
           actionEntry?.specialPassiveModifiers?.transcendenceBurstAttackBuffSkillEffectUpRate ?? 0
@@ -11196,6 +11269,11 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     attackUpTimings.push('OnOverdriveStart');
   }
   const specialAttackUp = resolvePassiveAttackUpForMember(state, member, attackUpTimings);
+  const resonanceDestructionRateBonus = resolvePassiveResonanceDestructionRateBonusForMember(
+    state,
+    member,
+    'OnPlayerTurnStart'
+  );
   const damageRateUpPerToken = resolvePassiveDamageRateUpPerTokenForMember(
     state,
     member,
@@ -11361,6 +11439,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       transcendenceBurstDestructionRateGainBonusRate: Number(
         transcendenceBurstModifiers.destructionRateGainBonusRate ?? 0
       ),
+      resonanceDestructionRateBonus: Number(resonanceDestructionRateBonus.totalRate ?? 0),
       transcendenceBurstAttackBuffSkillEffectUpRate: Number(
         transcendenceBurstModifiers.attackBuffSkillEffectUpRate ?? 0
       ),
@@ -11402,6 +11481,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       ...attackUpPerToken.matchedPassives,
       ...defenseUpPerToken.matchedPassives,
       ...damageRateUpPerToken.matchedPassives,
+      ...resonanceDestructionRateBonus.matchedPassives,
     ],
     breakHitCount:
       Number.isFinite(Number(action?.breakHitCount))

@@ -977,6 +977,7 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
         Number(damageContext?.blastPierceDestructionRateBonus ?? 0),
       // エンシェントチェーンの破壊率上昇量+（フラット加算、commit 側と同構成）
       flatDestructionRateBonus: Number(damageContext?.chainDestructionRateBonus ?? 0),
+      resonanceDestructionRateBonus: Number(damageContext?.resonanceDestructionRateBonus ?? 0),
     },
     defender: {
       enemyId: null,

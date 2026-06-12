@@ -224,6 +224,51 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
   assertAlmostEqual(result.breakdown.limitExceedBonus, 1.0, 'limitExceedBonus');
 });
 
+test('calculateDestruction applies resonance after accessory slope, flat bonus, and resist', () => {
+  const data = {
+    styles: [{ id: 3, role: 'Blaster' }],
+    enemies: [],
+    skills: [
+      {
+        id: 21,
+        name: 'Resonance Skill',
+        hit_count: 4,
+        sp_cost: 10,
+        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
+      },
+    ],
+  };
+
+  const result = calculateDestruction(
+    {
+      attacker: {
+        styleId: 3,
+        accessoryDestructionRateBonus: 0.15,
+        flatDestructionRateBonus: 0.2,
+        resonanceDestructionRateBonus: 0.3,
+      },
+      defender: {
+        destructionRate: 1.0,
+        destructionLimit: 9.0,
+        destructionMultiplier: 1.0,
+        destructionResist: 0.1,
+        dp: 0,
+      },
+      skill: { skillId: 21, name: 'Resonance Skill' },
+      hits: [{ damage: 100 }, { damage: 100 }, { damage: 100 }, { damage: 100 }],
+      autoBreak: true,
+    },
+    data
+  );
+
+  assertAlmostEqual(result.breakdown.baseDestruction, 1.95, 'baseDestruction');
+  assertAlmostEqual(result.breakdown.finalBaseDestruction, 2.2815, 'finalBaseDestruction');
+  assertAlmostEqual(result.destructionRate, 3.2815, 'destructionRate');
+  assertAlmostEqual(result.breakdown.accessoryBonus, 0.15, 'accessoryBonus');
+  assertAlmostEqual(result.breakdown.flatDestructionRateBonus, 0.2, 'flatDestructionRateBonus');
+  assertAlmostEqual(result.breakdown.resonanceBonus, 0.3, 'resonanceBonus');
+});
+
 test('calculateDestruction: resolveEffectPower regression test for DestructionUp buff', () => {
   const data = {
     styles: [{ id: 2, role: 'Blaster' }],

@@ -17572,6 +17572,77 @@ test('AttackUpPerToken + AttackUp の合算: specialPassiveModifiers.attackUpRat
   );
 });
 
+test('support DamageRateUp resolves as resonanceDestructionRateBonus without merging AttackUp', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `DR${idx + 1}`,
+      characterName: `DR${idx + 1}`,
+      styleId: 3600 + idx,
+      styleName: `DRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 272000151,
+                name: 'Fly High!',
+                desc: '自身のスキル攻撃時の破壊率上昇量+30% かつ スキル攻撃力+30%',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                sourceType: 'support',
+                parts: [
+                  { skill_type: 'DamageRateUp', target_type: 'Self', power: [0.3, 0] },
+                  { skill_type: 'AttackUp', target_type: 'Self', power: [0.3, 0] },
+                ],
+              },
+              {
+                id: 272000999,
+                name: '通常枠DamageRateUp',
+                desc: 'support 以外の DamageRateUp は共鳴破壊率として扱わない',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'DamageRateUp', target_type: 'Self', power: [0.9, 0] }],
+              },
+            ]
+          : [],
+      skills: [
+        {
+          id: 30600 + idx,
+          name: 'Act',
+          label: `DRSkill${idx + 1}`,
+          sp_cost: 4,
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 10 } }],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DR1', skillId: 30600, targetEnemyIndex: 0 },
+  });
+  const action = preview.actions[0];
+
+  assert.equal(action.specialPassiveModifiers.resonanceDestructionRateBonus, 0.3);
+  assert.equal(action.specialPassiveModifiers.attackUpRate, 0);
+  assert.ok(
+    (action.specialPassiveEvents ?? []).some(
+      (event) =>
+        event.passiveName === 'Fly High!' &&
+        event.effectType === 'DamageRateUp' &&
+        event.resonanceDestructionRateBonus === 0.3
+    ),
+    'specialPassiveEvents に共鳴 DamageRateUp が記録されている'
+  );
+
+  const { committedRecord } = commitTurn(state, preview);
+  const committedAction = committedRecord.actions[0];
+  assert.equal(committedAction.specialPassiveModifiers.resonanceDestructionRateBonus, 0.3);
+  assert.equal(committedAction.damageContext?.resonanceDestructionRateBonus, 0.3);
+});
+
 // ─────────────────────────────────────────────────────────────
 // SP条件スキル（cond: Sp()...）テスト
 // 仕様: docs/specs/sp_condition_skill_spec.md

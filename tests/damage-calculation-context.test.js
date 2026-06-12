@@ -67,6 +67,7 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     markDestructionRateGainBonusRate: 0,
     transcendenceBurstAttackUpRate: 0,
     transcendenceBurstDestructionRateGainBonusRate: 0,
+    resonanceDestructionRateBonus: 0,
     transcendenceBurstAttackBuffSkillEffectUpRate: 0,
     transcendenceBurstDebuffSkillEffectUpRate: 0,
     transcendenceBurstCriticalRateUpRate: 0,
@@ -210,6 +211,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     markCriticalDamageUp: '40',
     accessoryAttackUpRate: '0.15',
     chainDestructionRateBonus: '0.1',
+    resonanceDestructionRateBonus: '0.3',
     accessoryContributions,
     overDrivePointUpByTokenPerToken: '2.5',
     overDrivePointUpByTokenTokenCount: '5',
@@ -250,6 +252,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.markCriticalDamageUp, 40);
   assert.equal(context.accessoryAttackUpRate, 0.15);
   assert.equal(context.chainDestructionRateBonus, 0.1);
+  assert.equal(context.resonanceDestructionRateBonus, 0.3);
   assert.equal(context.overDrivePointUpByTokenTotalPercent, 12.5);
   assert.equal(context.zoneType, 'Fire');
   assert.equal(context.zonePowerRate, 45);
