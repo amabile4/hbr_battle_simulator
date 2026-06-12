@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 
 import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
+import { buildDpAutoBreakChipModels } from '../ui-next/utils/manual-break-presentation.js';
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -221,4 +222,67 @@ test('dp damage guide: setDamageCalculationData then recalculateFrom enables con
 
   const remaining = getRemainingDp(manager, 0);
   assert.ok(remaining < 1_000_000_000, `注入+再計算後はDPが消費されること (remaining=${remaining})`);
+});
+
+// ---------------------------------------------------------------------------
+// テスト 7: preview（未コミット）アクションからも予測チップモデルが導出できる
+// ---------------------------------------------------------------------------
+
+test('dp damage guide preview: buildDpAutoBreakChipModels returns models from preview actions with source:auto DownTurn', () => {
+  const actions = [
+    {
+      actorCharacterId: 'TM1',
+      positionIndex: 0,
+      skillId: ATTACK_SKILL_ID,
+      autoBreakEnemyIndexes: [],
+      enemyStatusChanges: [{ mode: 'DownTurn', source: 'auto', targetIndex: 0 }],
+    },
+  ];
+  const members = [{ characterId: 'TM1', position: 0, characterName: 'TM1' }];
+  const models = buildDpAutoBreakChipModels({
+    actions,
+    members,
+    store: null,
+    enemyNamesByEnemy: { 0: 'Alpha' },
+  });
+
+  assert.equal(models.length, 1, 'preview アクションからチップモデルが1件生成されること');
+  assert.ok(models[0].label.includes('(DP)'), 'チップラベルに (DP) が含まれること');
+  assert.ok(models[0].label.includes('Alpha'), 'チップラベルに敵名が含まれること');
+});
+
+// ---------------------------------------------------------------------------
+// テスト 8: 自動ブレイクなし（データ未注入相当）の preview ではチップが出ない
+// ---------------------------------------------------------------------------
+
+test('dp damage guide preview: buildDpAutoBreakChipModels returns empty when no auto DownTurn changes', () => {
+  const models = buildDpAutoBreakChipModels({
+    actions: [
+      {
+        actorCharacterId: 'TM1',
+        positionIndex: 0,
+        skillId: ATTACK_SKILL_ID,
+        autoBreakEnemyIndexes: [],
+        enemyStatusChanges: [],
+      },
+    ],
+    members: [],
+    store: null,
+  });
+  assert.equal(models.length, 0, 'enemyStatusChanges が空のときチップモデルが返らないこと');
+
+  const manualOnlyModels = buildDpAutoBreakChipModels({
+    actions: [
+      {
+        actorCharacterId: 'TM1',
+        positionIndex: 0,
+        skillId: ATTACK_SKILL_ID,
+        autoBreakEnemyIndexes: [],
+        enemyStatusChanges: [{ mode: 'DownTurn', source: 'manual', targetIndex: 0 }],
+      },
+    ],
+    members: [],
+    store: null,
+  });
+  assert.equal(manualOnlyModels.length, 0, 'source:manual のみの場合はDP予測チップが返らないこと（手動優先表示は別チップ）');
 });

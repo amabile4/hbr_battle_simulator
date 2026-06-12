@@ -3173,3 +3173,9 @@
   background: #f9fafb;
   color: #374151;
 }
+
+/* DP自動ブレイクの事前予測チップ（未コミット行）: 破線で未確定を示す */
+.dp-auto-break-chip--preview {
+  border-style: dashed;
+  opacity: 0.75;
+}

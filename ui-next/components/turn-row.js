@@ -2511,13 +2511,21 @@ export class TurnRowController {
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
         `).join('');
-    const dpAutoHtml = dpAutoChipModels.map((chip) => `
+    // 未コミット行は「予測（未確定）」であることを破線スタイルとラベルで区別する
+    const dpAutoHtml = dpAutoChipModels.map((chip) => (isCommitted ? `
           <span data-role="dp-auto-break-chip"
                 title="${chip.label}"
                 class="inline-flex max-w-full items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold leading-tight text-sky-700">
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
-        `).join('');
+        ` : `
+          <span data-role="dp-auto-break-chip"
+                data-preview="true"
+                title="予測: ${chip.label}"
+                class="dp-auto-break-chip--preview inline-flex max-w-full items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold leading-tight text-sky-700">
+            <span class="max-w-full break-all">予測: ${chip.label}</span>
+          </span>
+        `)).join('');
     return `
       <div data-role="manual-break-chip-list" class="flex flex-wrap gap-1 pb-1">
         ${manualHtml}${autoHtml}${dpAutoHtml}

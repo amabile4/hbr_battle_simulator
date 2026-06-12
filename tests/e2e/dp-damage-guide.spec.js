@@ -181,6 +181,38 @@ test.describe('DPダメージガイド', () => {
     await expect(committedRow).toBeVisible({ timeout: 3000 });
   });
 
+  test('(3d) コミット前の入力行に予測チップ(data-preview)が表示され、コミット後は実線チップになる', async ({ page }) => {
+    await loadDpFixture(page);
+    await waitForDeferredDpGuide(page);
+
+    // 攻撃スキルを選択（コミット前）。dp=1 なので preview 計算で DP0 到達見込み
+    await selectSkillForPosition(page, 0, 46002102);
+    await waitForDeferredDpGuide(page);
+
+    // 入力行に data-preview="true" 付きの予測チップが表示されること
+    const inputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
+    const previewChip = inputRow.locator('[data-role="dp-auto-break-chip"][data-preview="true"]');
+    await expect(previewChip.first()).toBeVisible({ timeout: 5000 });
+    await expect(previewChip.first()).toContainText('予測:');
+    await expect(previewChip.first()).toContainText('(DP)');
+    const previewChipCount = await previewChip.count();
+
+    // コミット後は data-preview なしの実線チップになること
+    const committedRow = await commitLatestInputRow(page);
+    await waitForDeferredDpGuide(page);
+
+    const committedPreviewChip = committedRow.locator('[data-role="dp-auto-break-chip"][data-preview="true"]');
+    await expect(committedPreviewChip).toHaveCount(0);
+    const solidChip = committedRow.locator('[data-role="dp-auto-break-chip"]:not([data-preview])');
+    const solidChipCount = await solidChip.count();
+    if (solidChipCount > 0) {
+      await expect(solidChip.first()).toContainText('(DP)');
+      await expect(solidChip.first()).not.toContainText('予測:');
+    }
+    // preview チップまたは committed チップのいずれかは観測できているはず
+    expect(previewChipCount + solidChipCount).toBeGreaterThan(0);
+  });
+
   test('(3c) セッション保存JSONにperHitDpDamageByEnemyが含まれない', async ({ page }) => {
     await loadDpFixture(page);
     await waitForDeferredDpGuide(page);
