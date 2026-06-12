@@ -3,6 +3,14 @@ import { calculateDamage } from './damage-calculator.js';
 
 const MIN_HIT_COUNT = 1;
 
+function shouldUseCriticalExpected(damageContext) {
+  const breakdown = damageContext?.criticalRateBreakdown;
+  return (
+    breakdown?.isCriticalGuaranteed === true ||
+    Number(breakdown?.criticalRatePercent ?? 0) >= 100
+  );
+}
+
 /**
  * 1アクションの damageContext から、敵ごとの per-hit HPダメージ（ガイド導出値）を計算する。
  *
@@ -66,7 +74,10 @@ export function resolvePerHitHpDamageByEnemy({
         isHpTarget: true,
       });
       const damageResult = calculateDamage(input, data);
-      const expectedTotal = Number(damageResult?.normal?.expected ?? 0);
+      const expectedSource = shouldUseCriticalExpected(damageContext)
+        ? damageResult?.critical
+        : damageResult?.normal;
+      const expectedTotal = Number(expectedSource?.expected ?? 0);
       if (!Number.isFinite(expectedTotal) || expectedTotal <= 0) {
         continue;
       }

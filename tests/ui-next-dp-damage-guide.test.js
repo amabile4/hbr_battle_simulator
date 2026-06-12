@@ -13,6 +13,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
+import { resolveDefaultStats } from '../src/domain/damage-calculator-input-builder.js';
+import { normalizeCharacterStats, resolveStatsWithSupport } from '../src/domain/character-stats.js';
+import { resolvePerHitDpDamageByEnemy } from '../src/domain/action-dp-damage.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 import { buildDpAutoBreakChipModels } from '../ui-next/utils/manual-break-presentation.js';
 
@@ -101,6 +104,15 @@ function commitAttackTurn(manager, options = {}) {
 
 function getRemainingDp(manager, turnIndex, enemyKey = '0') {
   return manager.computedStates[turnIndex]?.turnState?.enemyState?.remainingDpByEnemy?.[enemyKey];
+}
+
+function buildAttackerInputForMember(member) {
+  const role = String(member?.role ?? 'Attacker');
+  const limitBreakCount = Number(member?.limitBreakLevel ?? 0);
+  const stats =
+    normalizeCharacterStats(member?.stats) ??
+    resolveStatsWithSupport(resolveDefaultStats(role, limitBreakCount), member?.supportStats);
+  return { role, limitBreakCount, ...stats };
 }
 
 function enemyHasBreakStatus(manager, turnIndex, enemyIndex = 0) {
@@ -339,5 +351,43 @@ test('dp damage guide: does not warn when manual break is on the auto guide turn
     (manager.replayDiagnostics.turnWarnings ?? []).flat().some((warning) => warning.includes('自動ブレイクガイド')),
     false,
     '自動ガイドと手動指定が同一ターンなら警告しないこと'
+  );
+});
+
+test('dp damage guide resolver: critical guaranteed uses critical expected damage for guide totals', () => {
+  const state = createInitialState();
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {}, { damageCalculationData: DAMAGE_DATA });
+  const record = commitAttackTurn(manager);
+  const action = record.actions.find((entry) => entry.skillId === ATTACK_SKILL_ID);
+  const actor = state.party.find((member) => member.characterId === action?.characterId);
+  assert.ok(action?.damageContext);
+  assert.ok(actor);
+
+  const normalResult = resolvePerHitDpDamageByEnemy({
+    damageContext: {
+      ...action.damageContext,
+      criticalRateBreakdown: { criticalRatePercent: 0, isCriticalGuaranteed: false, contributions: [] },
+    },
+    attackerInput: buildAttackerInputForMember(actor),
+    enemyDpByEnemy: { 0: 1_000_000_000 },
+    hitCount: ATTACK_SKILL_HIT_COUNT,
+    data: DAMAGE_DATA,
+  });
+  const criticalResult = resolvePerHitDpDamageByEnemy({
+    damageContext: {
+      ...action.damageContext,
+      criticalRateBreakdown: { criticalRatePercent: 99, isCriticalGuaranteed: true, contributions: [] },
+    },
+    attackerInput: buildAttackerInputForMember(actor),
+    enemyDpByEnemy: { 0: 1_000_000_000 },
+    hitCount: ATTACK_SKILL_HIT_COUNT,
+    data: DAMAGE_DATA,
+  });
+
+  assert.equal(normalResult?.totalDpDamageByEnemy?.['0'], 3001, '非確定時は normal.expected を使うこと');
+  assert.ok(
+    Number(criticalResult?.totalDpDamageByEnemy?.['0']) > Number(normalResult?.totalDpDamageByEnemy?.['0']),
+    'critical 確定時は normal より大きい critical.expected を使うこと'
   );
 });

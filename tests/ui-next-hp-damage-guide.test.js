@@ -16,6 +16,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
+import { resolveDefaultStats } from '../src/domain/damage-calculator-input-builder.js';
+import { normalizeCharacterStats, resolveStatsWithSupport } from '../src/domain/character-stats.js';
+import { resolvePerHitHpDamageByEnemy } from '../src/domain/action-hp-damage.js';
 import { REPLAY_OPERATION_TYPES } from '../src/ui/lightweight-replay-script.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 
@@ -113,6 +116,15 @@ function commitAttackTurn(manager, options = {}) {
 
 function getRemainingHp(manager, turnIndex, enemyKey = '0') {
   return manager.computedStates[turnIndex]?.turnState?.enemyState?.remainingHpByEnemy?.[enemyKey];
+}
+
+function buildAttackerInputForMember(member) {
+  const role = String(member?.role ?? 'Attacker');
+  const limitBreakCount = Number(member?.limitBreakLevel ?? 0);
+  const stats =
+    normalizeCharacterStats(member?.stats) ??
+    resolveStatsWithSupport(resolveDefaultStats(role, limitBreakCount), member?.supportStats);
+  return { role, limitBreakCount, ...stats };
 }
 
 function enemyHasDeadStatus(manager, turnIndex, enemyIndex = 0) {
@@ -400,5 +412,43 @@ test('hp damage guide: does not warn when summon follows auto kill guide on the 
     (diagnostics.turnWarnings ?? []).flat().some((warning) => warning.includes('召喚操作')),
     false,
     '自動討伐の次ターン召喚は整合済みとして扱うこと'
+  );
+});
+
+test('hp damage guide resolver: 100 percent critical rate uses critical expected damage for guide totals', () => {
+  const state = createInitialState();
+  const manager = new TurnEngineManager();
+  manager.initialize(state, {}, { damageCalculationData: DAMAGE_DATA });
+  const record = commitAttackTurn(manager);
+  const action = record.actions.find((entry) => entry.skillId === ATTACK_SKILL_ID);
+  const actor = state.party.find((member) => member.characterId === action?.characterId);
+  assert.ok(action?.damageContext);
+  assert.ok(actor);
+
+  const normalResult = resolvePerHitHpDamageByEnemy({
+    damageContext: {
+      ...action.damageContext,
+      criticalRateBreakdown: { criticalRatePercent: 0, isCriticalGuaranteed: false, contributions: [] },
+    },
+    attackerInput: buildAttackerInputForMember(actor),
+    enemyHpByEnemy: { 0: 1_000_000_000 },
+    hitCount: ATTACK_SKILL_HIT_COUNT,
+    data: DAMAGE_DATA,
+  });
+  const criticalResult = resolvePerHitHpDamageByEnemy({
+    damageContext: {
+      ...action.damageContext,
+      criticalRateBreakdown: { criticalRatePercent: 100, isCriticalGuaranteed: false, contributions: [] },
+    },
+    attackerInput: buildAttackerInputForMember(actor),
+    enemyHpByEnemy: { 0: 1_000_000_000 },
+    hitCount: ATTACK_SKILL_HIT_COUNT,
+    data: DAMAGE_DATA,
+  });
+
+  assert.equal(normalResult?.totalHpDamageByEnemy?.['0'], 3001, '非確定時は normal.expected を使うこと');
+  assert.ok(
+    Number(criticalResult?.totalHpDamageByEnemy?.['0']) > Number(normalResult?.totalHpDamageByEnemy?.['0']),
+    'critical rate 100% 時は normal より大きい critical.expected を使うこと'
   );
 });

@@ -244,6 +244,13 @@
 | 威力詳細タブHP summary | ✅ 完了 | （本コミット） | turn row から char-detail popup の `enemyDestructionState` に `remainingHpByEnemy` / `enemyHpByEnemy` を渡し、damage calculator pane の HP 表示を敵詳細ポップアップと同じ優先順（extra HP gauge → current/max → `- / max` → N/A）へ統一 |
 | 回帰テスト | ✅ 追加完了 | （本コミット） | unit: char-detail damage tab の通常HP表示と extra HP gauge 優先を固定。E2E: `damage-breakdown-popup.spec.js` で HP summary が `remaining / max` になることを検証 |
 
+### 進捗追記（2026-06-12, critical確定時のguide total）
+
+| 対象 | 状態 | コミット | 備考 |
+|---|---|---|---|
+| critical確定時のDP/HPガイド | ✅ 完了 | （本コミット） | DP/HP guide enrichment は `criticalRateBreakdown.isCriticalGuaranteed === true` または `criticalRatePercent >= 100` のとき `critical.expected` を採用し、それ以外は従来どおり `normal.expected` を採用する。威力詳細タブの通常/クリティカル表示行は変更しない |
+| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: DP resolver は `isCriticalGuaranteed:true`、HP resolver は `criticalRatePercent:100` で guide total が normal より大きい critical expected に切り替わることを固定 |
+
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
 
