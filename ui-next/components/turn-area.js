@@ -2,6 +2,7 @@ import { TurnRowController } from './turn-row.js';
 import { buildPassiveDebugLogRows } from '../utils/passive-debug-log.js';
 import { createHumanReadableMessageFormatter } from '../utils/human-readable-message.js';
 import { REPLAY_OPERATION_TYPES } from '../../src/ui/lightweight-replay-script.js';
+import { clearAllPreviewInputs } from '../utils/preview-input-store.js';
 
 function createEmptyRowDiagnostics() {
   return {
@@ -183,6 +184,10 @@ export class TurnAreaController {
     const scrollState = options?.preserveScroll ? this.#captureScrollState() : null;
     this.#ensureScaffold();
     this.#clearRows();
+
+    // 一時プレビュー入力（T6）はターン内限定の寿命。
+    // 行再描画（コミット・再計算・ターン移動・セッションロード）で必ず破棄する。
+    clearAllPreviewInputs();
 
     // 比較モード中は最新の比較バッファを再構築する（外部の recalculate に追随）
     if (this.#comparisonMode) {

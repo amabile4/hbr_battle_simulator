@@ -35,6 +35,7 @@ import { resolveAdoptionStatus } from './buff-adoption.js';
 import { calculateDamage } from '../../src/domain/damage-calculator.js';
 import { calculateDestruction } from '../../src/domain/destruction-calculator.js';
 import { loadDamageCalculationData } from './damage-calculation-data.js';
+import { getPreviewInputValue, setPreviewInputValue } from './preview-input-store.js';
 import {
   buildDamageCalculationInput,
   buildDamageStatDeltaViewModel,
@@ -899,9 +900,57 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `</div>` +
     `</div>` +
     `<div class="char-popup-destruction-rate-message" data-role="destruction-rate-message"></div>` +
+    `<div class="char-popup-damage-calc-result">` +
+    `<div>` +
+    `<span>現DP（入力）</span>` +
+    `<div class="char-popup-destruction-rate-input-wrap">` +
+    `<input type="number" class="char-popup-destruction-rate-input" data-role="current-dp-input" min="0" step="1" placeholder="-">` +
+    `</div>` +
+    `</div>` +
+    `<div>` +
+    `<span>このスキル後DP</span>` +
+    `<strong data-role="current-dp-after">-</strong>` +
+    `</div>` +
+    `</div>` +
+    `<div class="char-popup-damage-calc-result">` +
+    `<div>` +
+    `<span>現HP（入力）</span>` +
+    `<div class="char-popup-destruction-rate-input-wrap">` +
+    `<input type="number" class="char-popup-destruction-rate-input" data-role="current-hp-input" min="0" step="1" placeholder="-">` +
+    `</div>` +
+    `</div>` +
+    `<div>` +
+    `<span>このスキル後HP</span>` +
+    `<strong data-role="current-hp-after">-</strong>` +
+    `</div>` +
+    `</div>` +
     `</div>` +
     `</aside>`
   );
+}
+
+/**
+ * 現DP/現HP の一時入力から「このスキル後」の残量プレビューを更新する（T6）。
+ * 入力はビュー専用で、commit / replay JSON には影響しない。
+ */
+function updateGaugePreviewDisplay(pane) {
+  const rows = [
+    { inputRole: 'current-dp-input', afterRole: 'current-dp-after', expectedKey: 'dpExpected', depleteLabel: 'ブレイク!' },
+    { inputRole: 'current-hp-input', afterRole: 'current-hp-after', expectedKey: 'hpExpected', depleteLabel: '討伐!' },
+  ];
+  for (const row of rows) {
+    const inputEl = pane.querySelector(`[data-role="${row.inputRole}"]`);
+    const afterEl = pane.querySelector(`[data-role="${row.afterRole}"]`);
+    if (!inputEl || !afterEl) continue;
+    const current = Number(inputEl.value);
+    const expected = Number(pane.dataset?.[row.expectedKey]);
+    if (inputEl.value === '' || !Number.isFinite(current) || current < 0 || !Number.isFinite(expected)) {
+      afterEl.textContent = '-';
+      continue;
+    }
+    const after = Math.max(0, Math.floor(current - expected));
+    afterEl.textContent = after <= 0 ? `0 (${row.depleteLabel})` : formatDamageCalculatorNumber(after);
+  }
 }
 
 function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
@@ -1097,18 +1146,36 @@ async function updateDamageCalculatorPane(pane) {
     pane.querySelector('[data-role="damage-calc-normal-hp-expected"]').textContent = formatDamageCalculatorNumber(hpResult.normal.expected);
     pane.querySelector('[data-role="damage-calc-critical-hp-expected"]').textContent = formatDamageCalculatorNumber(hpResult.critical.expected);
     pane.querySelector('[data-role="damage-calc-message"]').textContent = '';
+    // 現DP/現HP プレビュー用の期待値（通常）を保持
+    pane.dataset.dpExpected = String(Number(dpResult?.normal?.expected ?? NaN));
+    pane.dataset.hpExpected = String(Number(hpResult?.normal?.expected ?? NaN));
   } catch (error) {
     pane.querySelector('[data-role="damage-calc-message"]').textContent = `計算データを読み込めません: ${error?.message ?? error}`;
   }
 
-  // 破壊率セクション: targetEnemyIndex が確定した後に初期値を設定してから計算
+  const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
+  const previewScopeKey = `${pane.dataset?.actionKey ?? ''}:${enemyKey}`;
+
+  // 破壊率セクション: targetEnemyIndex が確定した後に初期値を設定してから計算。
+  // ターン内の一時入力（preview-input-store）があればそれを優先復元する。
   const inputEl = pane.querySelector('[data-role="destruction-rate-input"]');
   if (inputEl) {
-    const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
-    const storedRate = resolveDamageCalculatorStoredDestructionRatePercent(model, enemyKey);
+    const previewRate = getPreviewInputValue(previewScopeKey, 'destructionRatePercent');
+    const storedRate = previewRate ?? resolveDamageCalculatorStoredDestructionRatePercent(model, enemyKey);
     inputEl.value = storedRate.toFixed(2);
   }
+  // 現DP/現HP の一時入力を復元（未入力なら空欄のまま）
+  for (const [role, field] of [
+    ['current-dp-input', 'currentDp'],
+    ['current-hp-input', 'currentHp'],
+  ]) {
+    const gaugeInputEl = pane.querySelector(`[data-role="${role}"]`);
+    if (!gaugeInputEl) continue;
+    const previewValue = getPreviewInputValue(previewScopeKey, field);
+    gaugeInputEl.value = previewValue === null ? '' : String(previewValue);
+  }
   updateDestructionRateDisplay(pane);
+  updateGaugePreviewDisplay(pane);
 }
 
 function attachDamageCalculatorInteractions(root) {
@@ -1126,10 +1193,35 @@ function attachDamageCalculatorInteractions(root) {
       updateDamageCalculatorPane(pane);
     });
     damagePanel.addEventListener('input', (event) => {
-      const inputEl = event.target?.closest?.('[data-role="destruction-rate-input"]');
-      if (!inputEl) return;
-      const pane = inputEl.closest('[data-role="damage-calc-pane"]');
-      if (pane) updateDestructionRateDisplay(pane);
+      const target = event.target;
+      const pane = target?.closest?.('[data-role="damage-calc-pane"]');
+      if (!pane) return;
+      const activeTab = pane.querySelector('[data-role="damage-calc-enemy-tab"].active')
+        ?? pane.querySelector('[data-role="damage-calc-enemy-tab"]');
+      const enemyKey = String(Number(activeTab?.dataset?.targetEnemyIndex ?? 0));
+      const previewScopeKey = `${pane.dataset?.actionKey ?? ''}:${enemyKey}`;
+      const destructionInputEl = target?.closest?.('[data-role="destruction-rate-input"]');
+      if (destructionInputEl) {
+        // ターン内一時入力として保持（再計算・ターン移動・リロードで消える）
+        setPreviewInputValue(
+          previewScopeKey,
+          'destructionRatePercent',
+          destructionInputEl.value === '' ? null : Number(destructionInputEl.value)
+        );
+        updateDestructionRateDisplay(pane);
+        return;
+      }
+      const dpInputEl = target?.closest?.('[data-role="current-dp-input"]');
+      const hpInputEl = target?.closest?.('[data-role="current-hp-input"]');
+      if (dpInputEl || hpInputEl) {
+        const gaugeInputEl = dpInputEl ?? hpInputEl;
+        setPreviewInputValue(
+          previewScopeKey,
+          dpInputEl ? 'currentDp' : 'currentHp',
+          gaugeInputEl.value === '' ? null : Number(gaugeInputEl.value)
+        );
+        updateGaugePreviewDisplay(pane);
+      }
     });
   }
   damagePanel.querySelectorAll('[data-role="damage-calc-pane"]').forEach((pane) => updateDamageCalculatorPane(pane));
