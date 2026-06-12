@@ -28,25 +28,10 @@ function fmt(value) {
   return n.toFixed(2);
 }
 
-function pct(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 'NaN';
-  return `${n.toFixed(2)}%`;
-}
-
 function commify(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 'NaN';
   return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-}
-
-/**
- * 破壊率をパーセント表記で返す（%値として格納されている前提）
- */
-function fmtDestructionRate(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '—';
-  return `${n.toFixed(2)}%`;
 }
 
 /**

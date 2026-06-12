@@ -4742,6 +4742,23 @@ function buildDestructionHitsForAction(hitCount, breakHitIndex) {
   }));
 }
 
+export function buildAutoBreakDestructionHits(hitCount, perHitDpDamage, totalDpDamage) {
+  const normalizedHitCount = Math.max(1, Number(hitCount ?? 1));
+  const perHit = Number(perHitDpDamage ?? 0);
+  const exactTotal =
+    Number.isFinite(Number(totalDpDamage)) && Number(totalDpDamage) > 0
+      ? Number(totalDpDamage)
+      : perHit * normalizedHitCount;
+  // per-hit 切り捨てで失われる端数を最終ヒットへ加算し、DP消費（exact total）と
+  // calculateDestruction(autoBreak) の累積判定が同じ合計を見るようにする
+  return Array.from({ length: normalizedHitCount }, (_, hitIndex) => ({
+    damage:
+      hitIndex === normalizedHitCount - 1
+        ? Math.max(0, exactTotal - perHit * (normalizedHitCount - 1))
+        : perHit,
+  }));
+}
+
 function applyDestructionRateFromActions(state, previewRecord, options = {}) {
   const events = [];
   const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
@@ -4876,7 +4893,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         useAutoBreak = false;
       } else if (hasDpGauge && !isManualBreakTarget && perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
         // per-hit DP ダメージが提供されている: dpBeforeThisAction を起点に autoBreak でブレイクヒットを特定
-        destructionHits = Array.from({ length: hitCount }, () => ({ damage: perHitDpDamage }));
+        destructionHits = buildAutoBreakDestructionHits(hitCount, perHitDpDamage, totalDpDamage);
         defenderDp = dpBeforeThisAction > 0 ? dpBeforeThisAction : 0;
         useAutoBreak = true;
       } else {

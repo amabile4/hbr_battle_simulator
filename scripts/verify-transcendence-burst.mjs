@@ -18,11 +18,6 @@ function fmt2(v) {
   return Number.isFinite(n) ? n.toFixed(2) : 'NaN';
 }
 
-function pct(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : 'NaN';
-}
-
 function main() {
   let inputPath = null;
   let targetTurn = null;
