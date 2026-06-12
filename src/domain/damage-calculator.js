@@ -441,4 +441,5 @@ export {
   ATTACK_PART_TYPES,
   flattenSkillParts,
   resolveEffectPower,
+  resolveEffectPowerFromPart,
 } from './calculator-helpers.js';
