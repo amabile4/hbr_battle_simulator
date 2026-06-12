@@ -159,6 +159,7 @@ export function buildDamageCalculationContext(input = {}) {
     accessoryContributions: Array.isArray(input.accessoryContributions)
       ? structuredClone(input.accessoryContributions)
       : [],
+    chainDestructionRateBonus: Number(input.chainDestructionRateBonus ?? 0),
     // ピアス装備（ヒット数解決済み ratio）: attack=対HPダメージ乗数 / break=対DPダメージ乗数
     attackPierceUpRate: Number(input.attackPierceUpRate ?? 0),
     breakPierceUpRate: Number(input.breakPierceUpRate ?? 0),

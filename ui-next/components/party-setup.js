@@ -1,5 +1,9 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
-import { PIERCE_EQUIP_OPTIONS } from '../../src/config/battle-defaults.js';
+import {
+  ANCIENT_CHAIN_EQUIP_ID,
+  ANCIENT_CHAIN_START_SP_BONUS,
+  PIERCE_EQUIP_OPTIONS,
+} from '../../src/config/battle-defaults.js';
 import { StylePickerController } from './style-picker.js';
 import {
   isRequiredSkillSetting,
@@ -29,6 +33,7 @@ const SP_EQUIP_OPTIONS = [
   { value: '1', label: 'SP +1' },
   { value: '2', label: 'SP +2' },
   { value: '3', label: 'SP +3' },
+  { value: ANCIENT_CHAIN_EQUIP_ID, label: 'エンシェントチェーン（攻+10%/破壊+10%/SP+3）' },
 ];
 
 // ピアス select 値は 'type:percent'（例 'drive:10'）、なしは ''
@@ -176,6 +181,10 @@ function selectHtml(dataField, slotIndex, options, currentValue, cls = '') {
 }
 
 function resolveSnapshotSpEquipId(snapshot = {}, index) {
+  const chainEquipByPartyIndex = snapshot?.chainEquipByPartyIndex;
+  if (chainEquipByPartyIndex?.[index] === true || chainEquipByPartyIndex?.[String(index)] === true) {
+    return ANCIENT_CHAIN_EQUIP_ID;
+  }
   const startSpEquipByPartyIndex = snapshot?.startSpEquipByPartyIndex;
   if (
     startSpEquipByPartyIndex &&
@@ -186,6 +195,13 @@ function resolveSnapshotSpEquipId(snapshot = {}, index) {
     return bonus > 0 ? String(bonus) : EMPTY_SP_EQUIP_ID;
   }
   return DEFAULT_SP_EQUIP_ID;
+}
+
+function resolveStartSpEquipBonus(spEquipId) {
+  if (spEquipId === ANCIENT_CHAIN_EQUIP_ID) {
+    return ANCIENT_CHAIN_START_SP_BONUS;
+  }
+  return spEquipId === EMPTY_SP_EQUIP_ID ? 0 : Number(spEquipId);
 }
 
 function normalizeBeltValue(value) {
@@ -411,9 +427,12 @@ export class PartySetupController {
           { type: s.pierceType ?? 'none', percent: Number(s.piercePercent ?? 0) },
         ])
       ),
-      // '' = SP装備なし → bonus 0、'1'/'2'/'3' → 数値変換
+      chainEquipByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [i, s.spEquipId === ANCIENT_CHAIN_EQUIP_ID])
+      ),
+      // '' = SP装備なし → bonus 0、エンシェントチェーンも旧互換のため bonus 3 として出力
       startSpEquipByPartyIndex: Object.fromEntries(
-        this.#slots.map((s, i) => [i, s.spEquipId === EMPTY_SP_EQUIP_ID ? 0 : Number(s.spEquipId)])
+        this.#slots.map((s, i) => [i, resolveStartSpEquipBonus(s.spEquipId)])
       ),
       normalAttackElementsByPartyIndex: Object.fromEntries(
         this.#slots

@@ -179,6 +179,20 @@ test('buildDamageBreakdown returns official-category target-specific critical mu
   assert.equal(findGroup(weakTarget, 'crit-mindeye').contributions.some((entry) => entry.label === '心眼'), false);
 });
 
+test('buildDamageBreakdown shows ancient chain as an accessory contribution label', () => {
+  const breakdown = buildDamageBreakdown({
+    enemyCount: 1,
+    targetEnemyIndex: 0,
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    accessoryContributions: [
+      { label: 'エンシェントチェーン', value: 0.1, iconStatusType: 'AttackUp' },
+    ],
+  });
+
+  const buffLabels = findGroup(breakdown.targetBreakdowns[0], 'buff').contributions.map((entry) => entry.label);
+  assert.equal(buffLabels.includes('エンシェントチェーン'), true);
+});
+
 test('buildDamageBreakdown labels transcendence burst attack and critical damage separately', () => {
   const target = firstTargetBreakdown({
     effectiveDamageRatesByEnemy: { 0: 100 },

@@ -111,6 +111,13 @@ export function calculateDestruction(input, data) {
   }
   blasterCorrection += accessoryBonus;
 
+  let flatDestructionRateBonus = attacker.flatDestructionRateBonus;
+  if (flatDestructionRateBonus !== undefined && flatDestructionRateBonus !== null) {
+    flatDestructionRateBonus = Number(flatDestructionRateBonus);
+  } else {
+    flatDestructionRateBonus = 0.0;
+  }
+
   // 8. Resolve buffs (DestructionUp)
   const buffs = attacker.statusEffects ?? [];
   const destructionBuffsResolved = [];
@@ -153,7 +160,8 @@ export function calculateDestruction(input, data) {
   if (isNormalAttack || isPursuit) {
     baseDestruction = bg30;
   } else {
-    baseDestruction = Math.floor(bg30 * (1.0 + sRatio + buffMultiplier) * 10000.0) / 10000.0;
+    baseDestruction =
+      Math.floor(bg30 * (1.0 + sRatio + buffMultiplier + flatDestructionRateBonus) * 10000.0) / 10000.0;
   }
 
   // 12. Apply enemy destructionResist (AL10)
@@ -232,6 +240,7 @@ export function calculateDestruction(input, data) {
       blasterCorrection,
       buffMultiplier,
       destructionMultiplier: destMult,
+      flatDestructionRateBonus,
       accessoryBonus,
       resonanceBonus,
       limitExceedBonus,

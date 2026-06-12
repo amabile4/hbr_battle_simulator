@@ -57,6 +57,7 @@ import {
   SPECIAL_BREAK_CAP_BONUS_PERCENT,
   OD_LEVELS,
   INTRINSIC_MARK_EFFECTS_BY_ELEMENT,
+  ANCIENT_CHAIN_CONTRIBUTION_LABEL,
   getOdGaugeRequirement,
   clampEnemyCount,
 } from '../config/battle-defaults.js';
@@ -4896,6 +4897,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
               Number(
                 actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
               ) + Number(actor?.blastPiercePercent ?? 0) / 100,
+            flatDestructionRateBonus: Number(actor?.chainDestructionRateBonus ?? 0),
           },
           defender: {
             enemyId: null,
@@ -8636,6 +8638,14 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       const isNormalAttack = isNormalAttackSkill(skill);
       // WIP: 将来の破壊率追跡実装時に damageBreakdownInput / damageContext へ渡す
       const isDestructionRateGainSkill = hasDestructionRateGainPartInParts(effectiveParts); // eslint-disable-line no-unused-vars
+      const chainSkillAttackUpRate = Number(member?.chainSkillAttackUpRate ?? 0);
+      const chainAccessoryContributions = chainSkillAttackUpRate > 0
+        ? [{
+            label: ANCIENT_CHAIN_CONTRIBUTION_LABEL,
+            value: chainSkillAttackUpRate,
+            iconStatusType: 'AttackUp',
+          }]
+        : [];
       const damageBreakdownInput = hasDamage ? {
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
         isNormalAttack,
@@ -8669,6 +8679,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         transcendenceBurstCriticalDamageUpRate: Number(
           actionEntry?.specialPassiveModifiers?.transcendenceBurstCriticalDamageUpRate ?? 0
         ),
+        accessoryContributions: chainAccessoryContributions,
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
         attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
@@ -8750,8 +8761,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         ),
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
-        accessoryAttackUpRate: 0,
-        accessoryContributions: [],
+        accessoryAttackUpRate: chainSkillAttackUpRate,
+        accessoryContributions: chainAccessoryContributions,
+        chainDestructionRateBonus: Number(member?.chainDestructionRateBonus ?? 0),
         // ピアス装備（減衰型）: 行動スキルの hit 数に基づき解決済みの ratio を渡す
         attackPierceUpRate:
           resolveAttackOrBreakPierceBonusPercent(baseHitCount, member?.attackPiercePercent ?? 0) / 100,

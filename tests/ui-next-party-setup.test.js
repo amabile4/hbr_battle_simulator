@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 import { PartySetupController } from '../ui-next/components/party-setup.js';
+import { ANCIENT_CHAIN_EQUIP_ID } from '../src/config/battle-defaults.js';
 
 function withDom(run) {
   const dom = new JSDOM(
@@ -1363,4 +1364,33 @@ test('PartySetupController treats legacy drivePierceByPartyIndex as drive pierce
     const snapshot = controller.getSnapshot();
     assert.deepEqual(snapshot.pierceByPartyIndex[0], { type: 'drive', percent: 15 });
     assert.equal(snapshot.drivePierceByPartyIndex[0], 15);
+  }));
+
+test('PartySetupController exports ancient chain as chain equip while keeping SP+3 compatibility', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0 },
+      chainEquipByPartyIndex: { 0: true },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3 },
+    });
+
+    const selects = root.querySelectorAll('select[data-field="spEquip"]');
+    assert.equal(selects[0].value, ANCIENT_CHAIN_EQUIP_ID);
+    assert.equal(selects[1].value, '3');
+
+    const snapshot = controller.getSnapshot();
+    assert.equal(snapshot.chainEquipByPartyIndex[0], true);
+    assert.equal(snapshot.chainEquipByPartyIndex[1], false);
+    assert.equal(snapshot.startSpEquipByPartyIndex[0], 3);
+    assert.equal(snapshot.startSpEquipByPartyIndex[1], 3);
   }));

@@ -75,6 +75,7 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     markCriticalDamageUp: 0,
     accessoryAttackUpRate: 0,
     accessoryContributions: [],
+    chainDestructionRateBonus: 0,
     attackPierceUpRate: 0,
     breakPierceUpRate: 0,
     blastPierceDestructionRateBonus: 0,
@@ -208,6 +209,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     markCriticalRateUp: '30',
     markCriticalDamageUp: '40',
     accessoryAttackUpRate: '0.15',
+    chainDestructionRateBonus: '0.1',
     accessoryContributions,
     overDrivePointUpByTokenPerToken: '2.5',
     overDrivePointUpByTokenTokenCount: '5',
@@ -247,6 +249,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.markDestructionRateGainBonusRate, 20);
   assert.equal(context.markCriticalDamageUp, 40);
   assert.equal(context.accessoryAttackUpRate, 0.15);
+  assert.equal(context.chainDestructionRateBonus, 0.1);
   assert.equal(context.overDrivePointUpByTokenTotalPercent, 12.5);
   assert.equal(context.zoneType, 'Fire');
   assert.equal(context.zonePowerRate, 45);

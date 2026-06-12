@@ -9,7 +9,11 @@ import {
   isNormalAttackSkill as isNormalAttackSkillClassifier,
   isPursuitOnlySkill as isPursuitOnlySkillClassifier,
 } from '../domain/skill-classifiers.js';
-import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
+import {
+  ANCIENT_CHAIN_FLAT_DESTRUCTION_RATE_BONUS,
+  ANCIENT_CHAIN_SKILL_ATTACK_UP_RATE,
+  DEFAULT_INITIAL_SP,
+} from '../config/battle-defaults.js';
 import {
   resolveSupportPassiveEntry,
   buildSupportPassive,
@@ -1469,6 +1473,8 @@ export class HbrDataStore {
     attackPiercePercent = 0,
     breakPiercePercent = 0,
     blastPiercePercent = 0,
+    chainSkillAttackUpRate = 0,
+    chainDestructionRateBonus = 0,
     normalAttackElements = [],
     equippedSkillIds = null,
     limitBreakLevel = null,
@@ -1557,6 +1563,8 @@ export class HbrDataStore {
       attackPiercePercent: Number(attackPiercePercent),
       breakPiercePercent: Number(breakPiercePercent),
       blastPiercePercent: Number(blastPiercePercent),
+      chainSkillAttackUpRate: Number(chainSkillAttackUpRate),
+      chainDestructionRateBonus: Number(chainDestructionRateBonus),
       normalAttackElements: Array.isArray(normalAttackElements) ? [...normalAttackElements] : [],
       initialSP: Number(initialSP),
       initialMotivation: Number(initialMotivation),
@@ -1597,6 +1605,7 @@ export class HbrDataStore {
     const initialBreakByPartyIndex = options.initialBreakByPartyIndex ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
     const pierceByPartyIndex = options.pierceByPartyIndex ?? {};
+    const chainEquipByPartyIndex = options.chainEquipByPartyIndex ?? {};
     const normalAttackElementsByPartyIndex = options.normalAttackElementsByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
     const limitBreakLevelsByPartyIndex = options.limitBreakLevelsByPartyIndex ?? {};
@@ -1638,6 +1647,14 @@ export class HbrDataStore {
         initialBreak: Boolean(initialBreakByPartyIndex[index]),
         spBonus: Number(spBonusMap[index] ?? 0),
         ...resolvePierceForIndex(index),
+        chainSkillAttackUpRate:
+          chainEquipByPartyIndex[index] === true || chainEquipByPartyIndex[String(index)] === true
+            ? ANCIENT_CHAIN_SKILL_ATTACK_UP_RATE
+            : 0,
+        chainDestructionRateBonus:
+          chainEquipByPartyIndex[index] === true || chainEquipByPartyIndex[String(index)] === true
+            ? ANCIENT_CHAIN_FLAT_DESTRUCTION_RATE_BONUS
+            : 0,
         normalAttackElements: Array.isArray(normalAttackElementsByPartyIndex[index])
           ? normalAttackElementsByPartyIndex[index]
           : [],

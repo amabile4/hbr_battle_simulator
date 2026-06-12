@@ -14,6 +14,7 @@ test.describe('Party Setup drag and drop', () => {
 
     await page.locator('select[data-field="lb"][data-slot-index="0"]').selectOption('4');
     await page.locator('select[data-field="pierce"][data-slot-index="0"]').selectOption('drive:10');
+    await page.locator('select[data-field="spEquip"][data-slot-index="0"]').selectOption('ancient_chain');
     await page.locator('select[data-field="lb"][data-slot-index="3"]').selectOption('2');
     await page.locator('select[data-field="pierce"][data-slot-index="3"]').selectOption('drive:15');
 
@@ -42,6 +43,9 @@ test.describe('Party Setup drag and drop', () => {
     await expect(
       page.locator('select[data-field="pierce"][data-slot-index="3"]')
     ).toHaveValue(beforeFront.pierce);
+    await expect(
+      page.locator('select[data-field="spEquip"][data-slot-index="3"]')
+    ).toHaveValue('ancient_chain');
   });
 
   test('tap-to-swap: front ↔ back via main icon click in reorder mode', async ({ page }) => {

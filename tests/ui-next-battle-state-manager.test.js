@@ -101,6 +101,25 @@ test('BattleStateManager wires enemy od_rate to odRateByEnemy for each enemy slo
   assert.equal(state.turnState.enemyState.odRateByEnemy['2'], 8500);
 });
 
+test('BattleStateManager forwards ancient chain equip bonuses to party members', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(
+    {
+      ...createPartySnapshot(),
+      chainEquipByPartyIndex: { 0: true, 1: false },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    },
+    { enemyCount: 1 }
+  );
+
+  assert.equal(state.party[0].chainSkillAttackUpRate, 0.1);
+  assert.equal(state.party[0].chainDestructionRateBonus, 0.1);
+  assert.equal(state.party[0].sp.current, 6);
+  assert.equal(state.party[1].chainSkillAttackUpRate, 0);
+  assert.equal(state.party[1].chainDestructionRateBonus, 0);
+});
+
 test('BattleStateManager forwards normalAttackElementsByPartyIndex into party members', () => {
   const manager = new BattleStateManager({ store: getStore() });
   const partySnapshot = createPartySnapshot();

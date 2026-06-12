@@ -975,6 +975,7 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
       accessoryDestructionRateBonus:
         Number(damageContext?.transcendenceBurstDestructionRateGainBonusRate ?? 0) +
         Number(damageContext?.blastPierceDestructionRateBonus ?? 0),
+      flatDestructionRateBonus: Number(damageContext?.chainDestructionRateBonus ?? 0),
     },
     defender: {
       enemyId: null,

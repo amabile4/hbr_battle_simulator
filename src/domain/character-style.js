@@ -368,6 +368,8 @@ export class CharacterStyle {
     this.attackPiercePercent = Number(input.attackPiercePercent ?? 0);
     this.breakPiercePercent = Number(input.breakPiercePercent ?? 0);
     this.blastPiercePercent = Number(input.blastPiercePercent ?? 0);
+    this.chainSkillAttackUpRate = Number(input.chainSkillAttackUpRate ?? 0);
+    this.chainDestructionRateBonus = Number(input.chainDestructionRateBonus ?? 0);
     this.normalAttackElements = Object.freeze(
       Array.isArray(input.normalAttackElements)
         ? [...new Set(input.normalAttackElements.map((element) => String(element ?? '')).filter(Boolean))]
@@ -1435,6 +1437,8 @@ export class CharacterStyle {
     c.attackPiercePercent = this.attackPiercePercent;
     c.breakPiercePercent = this.breakPiercePercent;
     c.blastPiercePercent = this.blastPiercePercent;
+    c.chainSkillAttackUpRate = this.chainSkillAttackUpRate;
+    c.chainDestructionRateBonus = this.chainDestructionRateBonus;
     c.partyIndex = this.partyIndex;
     c.skills = this.skills;
     c.triggeredSkills = this.triggeredSkills;

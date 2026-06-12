@@ -508,6 +508,13 @@ export class BattleStateManager {
         Number(snapshot.startSpEquipByPartyIndex[srcIdx] ?? 0) + Number(stageSetup.initialSpBonusAll ?? 0),
       ])
     );
+    const chainEquipByPartyIndex = Object.fromEntries(
+      filledIndices.map((srcIdx, newIdx) => [
+        newIdx,
+        snapshot.chainEquipByPartyIndex?.[srcIdx] === true ||
+          snapshot.chainEquipByPartyIndex?.[String(srcIdx)] === true,
+      ])
+    );
     const normalAttackElementsByPartyIndex = Object.fromEntries(
       filledIndices
         .map((srcIdx, newIdx) => {
@@ -544,6 +551,7 @@ export class BattleStateManager {
       limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
       pierceByPartyIndex,
+      chainEquipByPartyIndex,
       startSpEquipByPartyIndex,
       supportStyleIdsByPartyIndex,
       supportLimitBreakLevelsByPartyIndex,

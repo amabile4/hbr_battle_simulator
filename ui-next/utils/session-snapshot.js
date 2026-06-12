@@ -32,6 +32,15 @@ function normalizeIndexedObject(source = {}, fallbackValue = 0) {
   return normalized;
 }
 
+function normalizeBooleanIndexedObject(source = {}) {
+  const normalized = {};
+  for (let index = 0; index < PARTY_SIZE; index += 1) {
+    const key = String(index);
+    normalized[key] = source?.[key] === true || source?.[index] === true;
+  }
+  return normalized;
+}
+
 const PIERCE_TYPES_SET = new Set(['drive', 'attack', 'break', 'blast']);
 
 // percent は任意正数をラウンドトリップ保持する（10/12/15 以外は補正計算側で 0 扱い）
@@ -175,6 +184,7 @@ export function normalizePartySetupSnapshot(snapshot = {}) {
       snapshot?.pierceByPartyIndex,
       snapshot?.drivePierceByPartyIndex
     ),
+    chainEquipByPartyIndex: normalizeBooleanIndexedObject(snapshot?.chainEquipByPartyIndex),
     startSpEquipByPartyIndex: normalizeIndexedObject(snapshot?.startSpEquipByPartyIndex, 0),
     normalAttackElementsByPartyIndex: normalizeNormalAttackElementsByPartyIndex(
       snapshot?.normalAttackElementsByPartyIndex
