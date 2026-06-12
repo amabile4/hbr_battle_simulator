@@ -264,9 +264,7 @@ function resolveEnemySlotDp(slot = {}, dataStore = null) {
     return direct;
   }
   const selectedEnemyId = Number(slot?.selectedEnemyId);
-  const enemy = Array.isArray(dataStore?.enemies)
-    ? dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId)
-    : null;
+  const enemy = resolveEnemyById(dataStore, selectedEnemyId);
   const baseDp = Number(enemy?.base_param?.dp ?? enemy?.dp);
   return Number.isFinite(baseDp) && baseDp >= 0 ? baseDp : 0;
 }
@@ -278,11 +276,23 @@ function resolveEnemySlotHp(slot = {}, dataStore = null) {
     return direct;
   }
   const selectedEnemyId = Number(slot?.selectedEnemyId);
-  const enemy = Array.isArray(dataStore?.enemies)
-    ? dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId)
-    : null;
+  const enemy = resolveEnemyById(dataStore, selectedEnemyId);
   const baseHp = Number(enemy?.base_param?.hp ?? enemy?.hp);
   return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
+}
+
+function resolveEnemyById(dataStore = null, selectedEnemyId = null) {
+  if (!Number.isFinite(selectedEnemyId)) {
+    return null;
+  }
+  if (typeof dataStore?.enemiesById?.get === 'function') {
+    const found = dataStore.enemiesById.get(selectedEnemyId);
+    if (found) return found;
+  }
+  if (Array.isArray(dataStore?.enemies)) {
+    return dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId) ?? null;
+  }
+  return null;
 }
 
 function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
@@ -384,6 +394,8 @@ function buildPreemptiveZoneState(enemySetup) {
  */
 export class BattleStateManager {
   #store;
+  #enemyCatalog = [];
+  #enemyCatalogById = new Map();
   #state = null;
   #party = null;
   #isDirty = false;
@@ -399,6 +411,24 @@ export class BattleStateManager {
 
   markDirty() {
     this.#isDirty = true;
+  }
+
+  setEnemyCatalog(enemies = []) {
+    this.#enemyCatalog = Array.isArray(enemies) ? enemies : [];
+    this.#enemyCatalogById = new Map(
+      this.#enemyCatalog.map((enemy) => [Number(enemy?.id), enemy])
+    );
+  }
+
+  #getEnemyDataSource() {
+    if (this.#enemyCatalog.length === 0) {
+      return this.#store;
+    }
+    return {
+      ...this.#store,
+      enemies: this.#enemyCatalog,
+      enemiesById: this.#enemyCatalogById,
+    };
   }
 
   /**
@@ -481,7 +511,7 @@ export class BattleStateManager {
     );
 
     const preemptiveZoneState = buildPreemptiveZoneState(enemySetup);
-    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup, this.#store);
+    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup, this.#getEnemyDataSource());
 
     const result = createInitializedBattleSnapshot({
       dataStore: this.#store,

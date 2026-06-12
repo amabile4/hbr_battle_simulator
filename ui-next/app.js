@@ -991,11 +991,17 @@ async function main() {
     scheduleDeferredTask(async () => {
       try {
         const rawEnemies = await fetchJsonOrFallback('../json/enemies.json', []);
+        battleStateManager.setEnemyCatalog(rawEnemies);
         const enemyPresets = buildEnemyList(rawEnemies, new Date(), {
           enemyEShieldOverrides: store.enemyEShieldOverrides,
         });
         initialSetup.setEnemies(enemyPresets);
         turnArea.setEnemyPresets(enemyPresets);
+        const snapshot = initialSetup.getCurrentSetupSnapshot();
+        if (snapshot?.party?.isFrontFilled && turnEngineManager.committedTurnCount > 0) {
+          const state = battleStateManager.buildFromSnapshot(snapshot.party, snapshot.enemy);
+          turnArea.reinitialize(state, snapshot.simulatorSettings);
+        }
       } catch (error) {
         console.error('Failed to hydrate enemy presets:', error);
       }

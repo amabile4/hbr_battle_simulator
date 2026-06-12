@@ -9,9 +9,12 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { CharacterStyle, Party, createBattleStateFromParty } from '../src/index.js';
+import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
+import { getStore } from './helpers.js';
 
 const ATTACK_SKILL_ID = 9901;
 
@@ -225,4 +228,36 @@ test('comparison view: pending OD levels survive comparison build', () => {
 test('comparison view: returns null when replayScript is not loaded', () => {
   const manager = new TurnEngineManager();
   assert.equal(manager.buildComparisonComputedStates(), null);
+});
+
+test('comparison view: skullfeather fixture keeps interrupt OD skills and swapped #3 actor', () => {
+  const session = JSON.parse(
+    readFileSync('tests/e2e/fixtures/ui_next_session_skullfeather_repro.json', 'utf-8')
+  );
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+  });
+
+  const comparison = manager.buildComparisonComputedStates();
+
+  assert.ok(comparison, '比較バッファが取得できること');
+  assert.equal(comparison.records.length, 8);
+  assert.equal(comparison.records.every(Boolean), true);
+
+  const turn2SkillNames = comparison.records[1].actions.map((action) => action.skillName);
+  assert.equal(turn2SkillNames.includes('コードダクネス'), true);
+  assert.equal(turn2SkillNames.includes('咲き昇る宵の幻'), true);
+
+  const nikaidoBeforeTurn3 = comparison.stateBefores[2].party.find(
+    (member) => member.characterName === '二階堂 三郷'
+  );
+  assert.equal(nikaidoBeforeTurn3?.position, 0);
+
+  const softeningAction = comparison.records[2].actions.find(
+    (action) => Number(action.skillId) === 46300009
+  );
+  assert.equal(softeningAction?.characterName, '二階堂 三郷');
 });

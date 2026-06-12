@@ -187,6 +187,16 @@
 | 最終GOAL受け入れE2E | ✅ 完了 | （本コミット） | `tests/e2e/hybrid-auto-manual-acceptance.spec.js` を追加。#3 自動ガイド観測 → #4 手動 Break 指定 → JSON 往復で #4 の手動指定のみ維持、派生値ゼロを確認 |
 | `buildEnemyStateOverrides` 添字ずれ調査 | ✅ 修正完了 | （本コミット） | eShield / extraHpGauge の map が `.filter()` 後 index を key にしていたため、slot1 のみ gauge を持つケースで key `0` へずれることを unit で再現。元 slot index を保持する実装へ修正 |
 | session load 後のガイド再導出 | ✅ 完了 | （本コミット） | app の JSON 読込後にも `loadDamageCalculationData()` → `setDamageCalculationData()` → `recalculateFrom(0)` → `refreshRows()` を実行し、読み込み済みセッションの DP/HP ガイドを再導出 |
+| DP/HP往復修正 | ✅ 完了 | 597f9d6 | session save/load で敵 DP/HP の直接値を落とさず、手動・fixture 由来の max DP/HP を再導出できるよう修正 |
+
+### 回帰修正追記（2026-06-12, スカルフェザー実セッション）
+
+| 対象 | 状態 | コミット | 備考 |
+|---|---|---|---|
+| DB敵 DP/HP 解決 | ✅ 修正完了 | （本コミット） | `HbrDataStore` に `enemies/enemiesById` を保持し、`BattleStateManager` が遅延ロード済み `enemies.json` raw catalog を参照できるようにした。slot に `dp/hp` 直書きがない DB敵でも `base_param.dp/hp` から `enemyDpByEnemy/enemyHpByEnemy` を再導出する |
+| 比較ビュー stateBefore | ✅ 修正完了 | （本コミット） | `buildComparisonComputedStates()` が比較用 `stateBefores` を返し、各ターンの `replayTurn.slots` による position 復元を通常表示と同じ経路で適用する。#3 の二階堂ソフニングが比較ビューでユキ行動に見える表示ズレを回帰固定 |
+| 比較計算失敗時の表示 | ✅ 修正完了 | （本コミット） | 比較バッファの record が欠落した行は、保存済み操作履歴へフォールバックしつつ turn row に警告を出す。スキル消失・別人化を黙って表示しない方針を明示 |
+| 回帰テスト | ✅ 追加完了 | （本コミット） | unit: DB敵 `enemiesById` DP/HP 解決、スカルフェザー fixture の比較ビュー `stateBefores`/割込ODスキル/二階堂ソフニング。E2E: `comparison-view.spec.js` に DP max `4550000` と比較ビュー #2/#3 表示検証を追加 |
 
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化

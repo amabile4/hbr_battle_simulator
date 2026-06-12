@@ -317,6 +317,17 @@ export class TurnAreaController {
     };
   }
 
+  #buildCommittedRowDiagnostics(turnIndex, comparison = null) {
+    const diagnostics = this.#buildRowDiagnostics(turnIndex);
+    if (comparison && !comparison.records?.[turnIndex]) {
+      diagnostics.warnings = [
+        ...diagnostics.warnings,
+        '比較計算がこのターンで失敗したため、保存済みの操作履歴を表示しています。',
+      ];
+    }
+    return diagnostics;
+  }
+
   #buildEditSnapshot(turnIndex, draft) {
     try {
       const snapshot = this.#engineManager.buildTurnEditSnapshot(turnIndex, draft);
@@ -420,8 +431,13 @@ export class TurnAreaController {
     this.#rowsRoot.appendChild(rowEl);
     const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
     const comparison = this.#comparisonMode ? this.#comparisonResult : null;
+    const comparisonRecord = comparison?.records?.[turnIndex] ?? null;
+    const hasComparisonRecord = Boolean(comparisonRecord);
+    const mainRecord = this.#engineManager.computedRecords[turnIndex] ?? null;
+    const mainStateBefore = this.#engineManager.getStateBefore(turnIndex);
+    const mainStateAfter = this.#engineManager.computedStates[turnIndex] ?? null;
     // 比較モード中: record/state を比較バッファから供給し、手動指定チップ表示も無効化する
-    const displayReplayTurn = comparison && replayTurn
+    const displayReplayTurn = comparison && hasComparisonRecord && replayTurn
       ? { ...structuredClone(replayTurn), actionOutcomeOverrides: [] }
       : replayTurn;
     const row = new TurnRowController({
@@ -430,21 +446,19 @@ export class TurnAreaController {
       enemyPresets: this.#enemyPresets,
       turnIndex,
       rowMode: 'committed',
-      rowDiagnostics: this.#buildRowDiagnostics(turnIndex),
+      rowDiagnostics: this.#buildCommittedRowDiagnostics(turnIndex, comparison),
       record: comparison
-        ? (comparison.records[turnIndex] ?? null)
-        : (this.#engineManager.computedRecords[turnIndex] ?? null),
+        ? (comparisonRecord ?? mainRecord)
+        : mainRecord,
       replayTurn: displayReplayTurn,
       operations: replayTurn?.operations ?? [],
       operationState: null,
       stateBefore: comparison
-        ? (turnIndex === 0
-            ? this.#engineManager.getStateBefore(0)
-            : (comparison.states[turnIndex - 1] ?? null))
-        : this.#engineManager.getStateBefore(turnIndex),
+        ? (comparison.stateBefores?.[turnIndex] ?? mainStateBefore)
+        : mainStateBefore,
       stateAfter: comparison
-        ? (comparison.states[turnIndex] ?? null)
-        : (this.#engineManager.computedStates[turnIndex] ?? null),
+        ? (comparison.states?.[turnIndex] ?? mainStateAfter)
+        : mainStateAfter,
       simulatorSettings: this.#simulatorSettings,
       onEditStart: this.#comparisonMode ? null : (ti) => this.#handleEditStart(ti),
     });

@@ -685,7 +685,15 @@ export class TurnEngineManager {
       this.#computedStates = [];
       this.#computedRecords = [];
       this.recalculateFrom(0);
-      return { states: this.#computedStates, records: this.#computedRecords };
+      const comparisonStates = this.#computedStates;
+      const comparisonRecords = this.#computedRecords;
+      const stateBefores = (comparisonScript.turns ?? []).map((_, turnIndex) => {
+        const rawBefore = turnIndex === 0
+          ? this.#initialState
+          : (comparisonStates[turnIndex - 1] ?? comparisonStates.at(-1) ?? this.#initialState);
+        return this.#buildStateBeforeForTurn(turnIndex, rawBefore);
+      });
+      return { states: comparisonStates, records: comparisonRecords, stateBefores };
     } catch (err) {
       console.warn('TurnEngineManager.buildComparisonComputedStates failed:', err.message);
       return null;
@@ -1442,6 +1450,10 @@ export class TurnEngineManager {
    */
   getStateBefore(turnIndex) {
     const rawBefore = this.#getBaseStateBefore(turnIndex);
+    return this.#buildStateBeforeForTurn(turnIndex, rawBefore);
+  }
+
+  #buildStateBeforeForTurn(turnIndex, rawBefore) {
     const turn = this.#replayScript?.turns?.[turnIndex];
 
     const hasSlots = Array.isArray(turn?.slots) && turn.slots.some((s) => s?.styleId != null);

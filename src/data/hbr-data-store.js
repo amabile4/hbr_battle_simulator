@@ -342,6 +342,7 @@ export class HbrDataStore {
       return skill;
     });
     this.passives = payload.passives;
+    this.enemies = payload.enemies ?? [];
     this.accessories = payload.accessories ?? [];
     this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
     this.epRuleOverrides = payload.epRuleOverrides ?? [];
@@ -360,6 +361,7 @@ export class HbrDataStore {
     this.characterSortMetaByLabel = this.buildCharacterSortMetaByLabel(this.characters);
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
+    this.enemiesById = new Map(this.enemies.map((row) => [Number(row.id), row]));
     this.skillNamesById = buildSkillNameIndex({
       skills: this.skills,
       styles: this.styles,
@@ -447,6 +449,7 @@ export class HbrDataStore {
       styles: readJson(resolve(dir, 'styles.json')),
       skills: readJson(resolve(dir, 'skills.json')),
       passives: readJson(resolve(dir, 'passives.json')),
+      enemies: readJsonOrFallback(resolve(dir, 'enemies.json'), []),
       accessories: readJson(resolve(dir, 'accessories.json')),
       skillRuleOverrides: readJson(resolve(dir, 'skill_rule_overrides.json')),
       epRuleOverrides: readJson(resolve(dir, 'ep_rule_overrides.json')),
@@ -466,6 +469,7 @@ export class HbrDataStore {
       styles: payload.styles ?? [],
       skills: payload.skills ?? [],
       passives: payload.passives ?? [],
+      enemies: payload.enemies ?? [],
       accessories: payload.accessories ?? [],
       skillRuleOverrides: payload.skillRuleOverrides ?? [],
       epRuleOverrides: payload.epRuleOverrides ?? [],

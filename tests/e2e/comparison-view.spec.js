@@ -25,6 +25,10 @@ const SESSION_FIXTURE_PATH = path.resolve(
   __dirname,
   './fixtures/ui_next_session_dp_damage_fixture.json'
 );
+const SKULLFEATHER_SESSION_FIXTURE_PATH = path.resolve(
+  __dirname,
+  './fixtures/ui_next_session_skullfeather_repro.json'
+);
 
 async function downloadSessionJson(page) {
   const downloadPromise = page.waitForEvent('download');
@@ -101,5 +105,43 @@ test.describe('一時比較ビュー', () => {
     const restoredRow = page.locator('[data-turn-row][data-row-mode="committed"]').first();
     await expect(restoredRow.locator('[data-role="kill-chip"]').first()).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-turn-row][data-row-mode="input"]')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('スカルフェザー実セッションの比較ビューでDB敵DPと入れ替え済み行動者を保つ', async ({ page }) => {
+    await gotoUiNext(page);
+    await page.waitForLoadState('networkidle');
+    await page.locator('#session-load-input').setInputFiles(SKULLFEATHER_SESSION_FIXTURE_PATH);
+    await expect(page.locator('[data-turn-row][data-row-mode="committed"]')).toHaveCount(8, {
+      timeout: 10000,
+    });
+
+    const firstRow = page.locator('[data-turn-row][data-row-mode="committed"]').nth(0);
+    await firstRow.locator('[data-role="enemy-detail-trigger"]').click();
+    const popup = page.locator('.enemy-detail-popup-container');
+    await expect(popup).toBeVisible({ timeout: 5000 });
+    const dpRow = popup.locator('[data-role="enemy-popup-basic-info-row"]', { hasText: 'DP' });
+    await expect(dpRow.locator('[data-role="enemy-popup-basic-info-value"]')).toContainText(
+      '4550000',
+      { timeout: 10000 }
+    );
+    await page.locator('.enemy-detail-popup-container [data-role="popup-close"]').click();
+
+    const toggle = page.locator('#toggle-comparison-view');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    const turn2 = page.locator('[data-turn-row][data-row-mode="committed"]').nth(1);
+    await expect(turn2).toContainText('コードダクネス');
+    await expect(turn2).toContainText('咲き昇る宵の幻');
+
+    const turn3 = page.locator('[data-turn-row][data-row-mode="committed"]').nth(2);
+    await expect(turn3.locator('[data-turn-slot][data-position="0"] [data-turn-slot-icon] > img')).toHaveAttribute(
+      'alt',
+      'Lead by Example'
+    );
+    const position0SkillName = await turn3
+      .locator('[data-skill-select][data-position="0"]')
+      .evaluate((select) => select.selectedOptions[0]?.textContent ?? '');
+    expect(position0SkillName).toContain('ソフニング');
   });
 });

@@ -255,14 +255,19 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
 
 test('BattleStateManager resolves missing enemy slot dp from selected enemy master', () => {
   const store = Object.create(getStore());
-  store.enemies = [
-    {
-      id: 13420081,
-      base_param: {
-        dp: 4550000,
+  store.enemies = [];
+  store.enemiesById = new Map([
+    [
+      13420081,
+      {
+        id: 13420081,
+        base_param: {
+          dp: 4550000,
+          hp: 156000000,
+        },
       },
-    },
-  ];
+    ],
+  ]);
   const manager = new BattleStateManager({ store });
 
   const state = manager.buildFromSnapshot(createPartySnapshot(), {
@@ -277,6 +282,7 @@ test('BattleStateManager resolves missing enemy slot dp from selected enemy mast
   });
 
   assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 4550000);
+  assert.equal(state.turnState.enemyState.enemyHpByEnemy['0'], 156000000);
 });
 
 test('BattleStateManager ignores inactive Eシールド definitions in enemy slots', () => {
