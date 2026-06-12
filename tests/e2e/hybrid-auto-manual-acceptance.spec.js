@@ -9,7 +9,6 @@
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import fs from 'node:fs';
 
 import { test, expect } from '@playwright/test';
 
@@ -25,13 +24,11 @@ const SESSION_FIXTURE_PATH = path.resolve(
   __dirname,
   './fixtures/ui_next_session_dp_damage_fixture.json'
 );
-const BASE_SESSION_FIXTURE = JSON.parse(fs.readFileSync(SESSION_FIXTURE_PATH, 'utf-8'));
-
 const ATTACK_SKILL_ID = 46002102;
 const PROTECTION_SKILL_ID = 46300004;
 
 async function waitForGuideRefresh(page) {
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(4500);
 }
 
 async function downloadSessionJson(page) {
@@ -102,7 +99,8 @@ test.describe('hybrid auto/manual break acceptance', () => {
     await expect(guideRow.locator('[data-role="dp-auto-break-chip"]').first()).toContainText('(DP)');
 
     const saved = await downloadSessionJson(page);
-    saved.enemy = structuredClone(BASE_SESSION_FIXTURE.enemy);
+    // 手動敵の dp が保存JSONへ正しく往復することも受け入れ条件の一部（enemy差し替え禁止）
+    expect(saved.enemy?.dp).toBe(1);
     expect(saved.replayScript?.turns?.length ?? 0).toBeGreaterThanOrEqual(4);
     saved.replayScript.turns = saved.replayScript.turns.map((turn) => ({
       turn: turn.turn,
@@ -127,6 +125,14 @@ test.describe('hybrid auto/manual break acceptance', () => {
 
     await expect(reloadedGuideRow.locator('[data-role="manual-break-chip"]')).toHaveCount(0);
     await expect(manualRow.locator('[data-role="manual-break-chip"]').first()).toBeVisible({ timeout: 5000 });
+
+    // T8: 自動ガイド(#3)より後の手動指定(#4)ターンに差分警告が表示される
+    const warningMessage = manualRow.locator('[data-role="turn-row-warning-message"]');
+    await expect(warningMessage.first()).toBeVisible({ timeout: 5000 });
+    await expect(warningMessage.first()).toContainText('自動ブレイクガイドは #3');
+    await expect(
+      reloadedGuideRow.locator('[data-role="turn-row-warning-message"]')
+    ).toHaveCount(0);
 
     const afterReloadSave = await downloadSessionJson(page);
     expect(afterReloadSave.replayScript.turns[2].actionOutcomeOverrides).toEqual([]);
