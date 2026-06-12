@@ -281,13 +281,13 @@ export async function getPartySetupSlotState(page, slotIndex) {
   const lb = await page
     .locator(`select[data-field="lb"][data-slot-index="${slotIndex}"]`)
     .inputValue();
-  const drivePierce = await page
-    .locator(`select[data-field="drivePierce"][data-slot-index="${slotIndex}"]`)
+  const pierce = await page
+    .locator(`select[data-field="pierce"][data-slot-index="${slotIndex}"]`)
     .inputValue();
   return {
     alt,
     lb,
-    drivePierce,
+    pierce,
   };
 }
 

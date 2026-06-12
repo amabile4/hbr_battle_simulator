@@ -365,6 +365,9 @@ export class CharacterStyle {
     this.stats = normalizeCharacterStats(input.stats);
     this.supportStats = normalizeCharacterStats(input.supportStats);
     this.drivePiercePercent = Number(input.drivePiercePercent ?? 0);
+    this.attackPiercePercent = Number(input.attackPiercePercent ?? 0);
+    this.breakPiercePercent = Number(input.breakPiercePercent ?? 0);
+    this.blastPiercePercent = Number(input.blastPiercePercent ?? 0);
     this.normalAttackElements = Object.freeze(
       Array.isArray(input.normalAttackElements)
         ? [...new Set(input.normalAttackElements.map((element) => String(element ?? '')).filter(Boolean))]
@@ -1429,6 +1432,9 @@ export class CharacterStyle {
     c.stats = this.stats ? { ...this.stats } : null;
     c.supportStats = this.supportStats ? { ...this.supportStats } : null;
     c.drivePiercePercent = this.drivePiercePercent;
+    c.attackPiercePercent = this.attackPiercePercent;
+    c.breakPiercePercent = this.breakPiercePercent;
+    c.blastPiercePercent = this.blastPiercePercent;
     c.partyIndex = this.partyIndex;
     c.skills = this.skills;
     c.triggeredSkills = this.triggeredSkills;

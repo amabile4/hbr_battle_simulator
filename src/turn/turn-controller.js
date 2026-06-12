@@ -34,6 +34,10 @@ import { isExSkillByLabel, isNormalAttackSkill, isPursuitOnlySkill } from '../do
 import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
 import { isFormEntryActive } from '../domain/form-change.js';
 import {
+  resolveAttackOrBreakPierceBonusPercent,
+  resolveBlastOrDrivePierceBonusPercent,
+} from '../domain/pierce-correction.js';
+import {
   STAGE_SETUP_ENCHANT_EFFECT_SCOPES,
   STAGE_SETUP_ENCHANT_EFFECT_TYPES,
   buildStageSetupEnchantEffectLabel,
@@ -52,9 +56,6 @@ import {
   DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
   SPECIAL_BREAK_CAP_BONUS_PERCENT,
   OD_LEVELS,
-  DRIVE_PIERCE_OPTION_VALUES,
-  DRIVE_PIERCE_BASE_BONUS_AT_HIT_1,
-  DRIVE_PIERCE_MAX_REFERENCE_HIT,
   INTRINSIC_MARK_EFFECTS_BY_ELEMENT,
   getOdGaugeRequirement,
   clampEnemyCount,
@@ -4889,9 +4890,12 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
           attacker: {
             styleId: Number(actor.styleId ?? actionEntry?.styleId ?? 0),
             statusEffects: (actor.statusEffects ?? []).filter((effect) => effect?.statusType === 'DestructionUp'),
-            accessoryDestructionRateBonus: Number(
-              actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
-            ),
+            // ブラストピアスは raw ratio を渡し、calculateDestruction 内の
+            // ヒット数傾斜（上昇型・仕様式Bと同一）でスケールさせる（二重傾斜防止）
+            accessoryDestructionRateBonus:
+              Number(
+                actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+              ) + Number(actor?.blastPiercePercent ?? 0) / 100,
           },
           defender: {
             enemyId: null,
@@ -8033,18 +8037,8 @@ function resolveEffectiveSkillParts(skill, state, member) {
 }
 
 function resolveDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent) {
-  const p = Number(drivePiercePercent ?? 0);
-  if (!DRIVE_PIERCE_OPTION_VALUES.includes(p) || p === 0) {
-    return 0;
-  }
-
-  const hit = Math.max(1, Number(effectiveHitCount ?? 1));
-  const clamped = Math.min(DRIVE_PIERCE_MAX_REFERENCE_HIT, hit);
-
   // 今回仕様: 役割で分岐せず、ドライブピアス列のみを使用する。
-  const step = (p - DRIVE_PIERCE_BASE_BONUS_AT_HIT_1) / (DRIVE_PIERCE_MAX_REFERENCE_HIT - 1);
-  const bonus = DRIVE_PIERCE_BASE_BONUS_AT_HIT_1 + step * (clamped - 1);
-  return Number(bonus.toFixed(4));
+  return resolveBlastOrDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent);
 }
 
 function getStageSetupEnchantEffects(state) {
@@ -8758,6 +8752,13 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
         accessoryAttackUpRate: 0,
         accessoryContributions: [],
+        // ピアス装備（減衰型）: 行動スキルの hit 数に基づき解決済みの ratio を渡す
+        attackPierceUpRate:
+          resolveAttackOrBreakPierceBonusPercent(baseHitCount, member?.attackPiercePercent ?? 0) / 100,
+        breakPierceUpRate:
+          resolveAttackOrBreakPierceBonusPercent(baseHitCount, member?.breakPiercePercent ?? 0) / 100,
+        // ブラストピアス: raw ratio（ヒット数傾斜は calculateDestruction 側で適用）
+        blastPierceDestructionRateBonus: Number(member?.blastPiercePercent ?? 0) / 100,
         overDrivePointUpByTokenPerToken: effectiveParts
           .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
           .reduce((sum, part) => sum + Number(part?.power?.[0] ?? 0), 0),

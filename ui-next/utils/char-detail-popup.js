@@ -967,7 +967,10 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
       statusEffects: (damageContext?.activeStatusEffects ?? []).filter(
         (e) => e?.statusType === 'DestructionUp'
       ),
-      accessoryDestructionRateBonus: 0,
+      // commit 側（turn-controller）と同じ構成: 超越バースト + ブラストピアス
+      accessoryDestructionRateBonus:
+        Number(damageContext?.transcendenceBurstDestructionRateGainBonusRate ?? 0) +
+        Number(damageContext?.blastPierceDestructionRateBonus ?? 0),
     },
     defender: {
       enemyId: null,

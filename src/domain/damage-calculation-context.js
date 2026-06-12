@@ -159,6 +159,11 @@ export function buildDamageCalculationContext(input = {}) {
     accessoryContributions: Array.isArray(input.accessoryContributions)
       ? structuredClone(input.accessoryContributions)
       : [],
+    // ピアス装備（ヒット数解決済み ratio）: attack=対HPダメージ乗数 / break=対DPダメージ乗数
+    attackPierceUpRate: Number(input.attackPierceUpRate ?? 0),
+    breakPierceUpRate: Number(input.breakPierceUpRate ?? 0),
+    // ブラストピアス（raw ratio・傾斜は destruction-calculator 側）
+    blastPierceDestructionRateBonus: Number(input.blastPierceDestructionRateBonus ?? 0),
     overDrivePointUpByTokenPerToken: Number(input.overDrivePointUpByTokenPerToken ?? 0),
     overDrivePointUpByTokenTokenCount: Number(input.overDrivePointUpByTokenTokenCount ?? 0),
     overDrivePointUpByTokenTotalPercent: Number(input.overDrivePointUpByTokenTotalPercent ?? 0),

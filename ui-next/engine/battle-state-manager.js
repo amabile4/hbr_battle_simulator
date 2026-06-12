@@ -478,6 +478,20 @@ export class BattleStateManager {
     const drivePierceByPartyIndex = Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.drivePierceByPartyIndex[srcIdx] ?? 0])
     );
+    const pierceByPartyIndex = Object.fromEntries(
+      filledIndices.map((srcIdx, newIdx) => {
+        const entry =
+          snapshot.pierceByPartyIndex?.[srcIdx] ??
+          snapshot.pierceByPartyIndex?.[String(srcIdx)] ??
+          null;
+        if (entry && typeof entry === 'object') {
+          return [newIdx, { type: String(entry.type ?? 'none'), percent: Number(entry.percent ?? 0) }];
+        }
+        // 旧 snapshot 互換: drivePierce のみの場合はドライブピアスとして扱う
+        const drivePierce = Number(snapshot.drivePierceByPartyIndex?.[srcIdx] ?? 0);
+        return [newIdx, drivePierce > 0 ? { type: 'drive', percent: drivePierce } : { type: 'none', percent: 0 }];
+      })
+    );
     const startSpEquipByPartyIndex = Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [
         newIdx,
@@ -519,6 +533,7 @@ export class BattleStateManager {
       styleIds,
       limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
+      pierceByPartyIndex,
       startSpEquipByPartyIndex,
       supportStyleIdsByPartyIndex,
       supportLimitBreakLevelsByPartyIndex,

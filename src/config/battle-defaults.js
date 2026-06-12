@@ -65,15 +65,38 @@ export const OD_GAUGE_MIN_PERCENT = -999.99;
 export const OD_GAUGE_MAX_PERCENT = 300;
 export const REINFORCED_MODE_OD_GAUGE_BONUS = 15;
 
-export const DRIVE_PIERCE_OPTION_VALUES = Object.freeze([0, 10, 12, 15]);
+export const PIERCE_OPTION_VALUES = Object.freeze([0, 10, 12, 15]);
+export const PIERCE_BASE_BONUS_MIN_PERCENT = 5;
+export const PIERCE_MAX_REFERENCE_HIT = 10;
+
+export const DRIVE_PIERCE_OPTION_VALUES = PIERCE_OPTION_VALUES;
 export const DRIVE_PIERCE_OPTIONS = Object.freeze([
   { value: 0, label: 'ドライブピアスなし' },
   { value: 10, label: 'ドライブピアス +10%' },
   { value: 12, label: 'ドライブピアス +12%' },
   { value: 15, label: 'ドライブピアス +15%' },
 ]);
-export const DRIVE_PIERCE_BASE_BONUS_AT_HIT_1 = 5;
-export const DRIVE_PIERCE_MAX_REFERENCE_HIT = 10;
+export const DRIVE_PIERCE_BASE_BONUS_AT_HIT_1 = PIERCE_BASE_BONUS_MIN_PERCENT;
+export const DRIVE_PIERCE_MAX_REFERENCE_HIT = PIERCE_MAX_REFERENCE_HIT;
+
+// ピアス装備の種別: drive=ODゲージ上昇量(上昇型) / attack=対HPスキル攻撃力(減衰型)
+// / break=対DPスキル攻撃力(減衰型) / blast=破壊率上昇量(上昇型)
+export const PIERCE_TYPES = Object.freeze(['drive', 'attack', 'break', 'blast']);
+export const PIERCE_EQUIP_OPTIONS = Object.freeze([
+  { type: 'none', percent: 0, label: 'ピアスなし' },
+  { type: 'drive', percent: 10, label: 'ドライブピアス +10%' },
+  { type: 'drive', percent: 12, label: 'ドライブピアス +12%' },
+  { type: 'drive', percent: 15, label: 'ドライブピアス +15%' },
+  { type: 'attack', percent: 10, label: 'アタックピアス +10%' },
+  { type: 'attack', percent: 12, label: 'アタックピアス +12%' },
+  { type: 'attack', percent: 15, label: 'アタックピアス +15%' },
+  { type: 'break', percent: 10, label: 'ブレイクピアス +10%' },
+  { type: 'break', percent: 12, label: 'ブレイクピアス +12%' },
+  { type: 'break', percent: 15, label: 'ブレイクピアス +15%' },
+  { type: 'blast', percent: 10, label: 'ブラストピアス +10%' },
+  { type: 'blast', percent: 12, label: 'ブラストピアス +12%' },
+  { type: 'blast', percent: 15, label: 'ブラストピアス +15%' },
+]);
 
 export function getOdGaugeRequirement(level) {
   return Number(OD_COST_BY_LEVEL[Number(level)] ?? 0);

@@ -1466,6 +1466,9 @@ export class HbrDataStore {
     initialBreak = false,
     spBonus = 0,
     drivePiercePercent = 0,
+    attackPiercePercent = 0,
+    breakPiercePercent = 0,
+    blastPiercePercent = 0,
     normalAttackElements = [],
     equippedSkillIds = null,
     limitBreakLevel = null,
@@ -1551,6 +1554,9 @@ export class HbrDataStore {
       partyIndex: Number(partyIndex),
       position: Number(partyIndex),
       drivePiercePercent: Number(drivePiercePercent),
+      attackPiercePercent: Number(attackPiercePercent),
+      breakPiercePercent: Number(breakPiercePercent),
+      blastPiercePercent: Number(blastPiercePercent),
       normalAttackElements: Array.isArray(normalAttackElements) ? [...normalAttackElements] : [],
       initialSP: Number(initialSP),
       initialMotivation: Number(initialMotivation),
@@ -1590,12 +1596,34 @@ export class HbrDataStore {
     const initialDpStateByPartyIndex = options.initialDpStateByPartyIndex ?? {};
     const initialBreakByPartyIndex = options.initialBreakByPartyIndex ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
+    const pierceByPartyIndex = options.pierceByPartyIndex ?? {};
     const normalAttackElementsByPartyIndex = options.normalAttackElementsByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
     const limitBreakLevelsByPartyIndex = options.limitBreakLevelsByPartyIndex ?? {};
     const supportStyleIdsByPartyIndex = options.supportStyleIdsByPartyIndex ?? {};
     const supportLimitBreakLevelsByPartyIndex = options.supportLimitBreakLevelsByPartyIndex ?? {};
     const statsByPartyIndex = options.statsByPartyIndex ?? {};
+
+    const resolvePierceForIndex = (index) => {
+      const entry = pierceByPartyIndex[index] ?? pierceByPartyIndex[String(index)] ?? null;
+      if (entry && typeof entry === 'object') {
+        const type = String(entry.type ?? 'none');
+        const percent = Number(entry.percent ?? 0);
+        return {
+          drivePiercePercent: type === 'drive' ? percent : 0,
+          attackPiercePercent: type === 'attack' ? percent : 0,
+          breakPiercePercent: type === 'break' ? percent : 0,
+          blastPiercePercent: type === 'blast' ? percent : 0,
+        };
+      }
+      // 旧経路互換: drivePierceByPartyIndex のみの呼び出し元はドライブピアスとして扱う
+      return {
+        drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
+        attackPiercePercent: 0,
+        breakPiercePercent: 0,
+        blastPiercePercent: 0,
+      };
+    };
 
     const members = styleIds.map((styleId, index) =>
       this.buildCharacterStyle({
@@ -1609,7 +1637,7 @@ export class HbrDataStore {
             : null,
         initialBreak: Boolean(initialBreakByPartyIndex[index]),
         spBonus: Number(spBonusMap[index] ?? 0),
-        drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
+        ...resolvePierceForIndex(index),
         normalAttackElements: Array.isArray(normalAttackElementsByPartyIndex[index])
           ? normalAttackElementsByPartyIndex[index]
           : [],
