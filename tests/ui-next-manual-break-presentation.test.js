@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildAutoBreakChipModels,
   buildDpAutoBreakChipModels,
+  buildHpAutoKillChipModels,
   buildManualBreakChipModels,
   resolveManualBreakActorLabel,
   resolveManualBreakEnemyLabel,
@@ -247,4 +248,70 @@ test('buildDpAutoBreakChipModels deduplicates same actor+skill+enemy combination
   });
   assert.equal(chipModels.length, 1);
   assert.equal(chipModels[0].label, 'ユキ→E2 ブレイク (DP)');
+});
+
+// ---------------------------------------------------------------------------
+// buildHpAutoKillChipModels
+// ---------------------------------------------------------------------------
+
+test('buildHpAutoKillChipModels generates HP kill chip from enemyStatusChanges source:auto Dead', () => {
+  const chipModels = buildHpAutoKillChipModels({
+    actions: [
+      {
+        characterId: 'BIYamawaki',
+        actorCharacterId: 'BIYamawaki',
+        positionIndex: 0,
+        skillId: 1234,
+        enemyStatusChanges: [
+          { statusType: 'Dead', mode: 'Dead', source: 'auto', targetIndex: 0 },
+        ],
+      },
+    ],
+    members: [{ position: 0, characterId: 'BIYamawaki', characterName: 'ワッキー' }],
+    store: createStore(),
+    enemyNamesByEnemy: { 0: 'ワイバーン' },
+  });
+
+  assert.equal(chipModels.length, 1);
+  assert.equal(chipModels[0].label, 'ワッキー→ワイバーン 討伐 (HP)');
+  assert.equal(chipModels[0].enemyIndex, 0);
+});
+
+test('buildHpAutoKillChipModels skips manual Dead changes', () => {
+  const chipModels = buildHpAutoKillChipModels({
+    actions: [
+      {
+        characterId: 'X',
+        positionIndex: 0,
+        skillId: 1,
+        enemyStatusChanges: [
+          { statusType: 'Dead', mode: 'Dead', source: 'manual', targetIndex: 0 },
+        ],
+      },
+    ],
+    members: [{ position: 0, characterId: 'X', characterName: 'カレン' }],
+    store: createStore(),
+    enemyNamesByEnemy: {},
+  });
+  assert.equal(chipModels.length, 0);
+});
+
+test('buildHpAutoKillChipModels deduplicates same actor+skill+enemy combination', () => {
+  const action = {
+    characterId: 'X',
+    positionIndex: 0,
+    skillId: 5,
+    enemyStatusChanges: [
+      { statusType: 'Dead', source: 'auto', targetIndex: 1 },
+      { mode: 'Dead', source: 'auto', enemyIndex: 1 },
+    ],
+  };
+  const chipModels = buildHpAutoKillChipModels({
+    actions: [action],
+    members: [{ position: 0, characterId: 'X', characterName: 'ユキ' }],
+    store: createStore(),
+    enemyNamesByEnemy: {},
+  });
+  assert.equal(chipModels.length, 1);
+  assert.equal(chipModels[0].label, 'ユキ→E2 討伐 (HP)');
 });

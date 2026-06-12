@@ -184,6 +184,66 @@ export function buildDpAutoBreakChipModels({
   return models;
 }
 
+export function buildHpAutoKillChipModels({
+  actions = [],
+  members = [],
+  store = null,
+  enemyNamesByEnemy = {},
+} = {}) {
+  const memberByPosition = new Map(
+    (Array.isArray(members) ? members : []).map((member) => [Number(member?.position), member])
+  );
+  const memberByCharacterId = new Map(
+    (Array.isArray(members) ? members : [])
+      .filter((member) => member?.characterId)
+      .map((member) => [String(member.characterId), member])
+  );
+  const seen = new Set();
+  const models = [];
+  for (const action of Array.isArray(actions) ? actions : []) {
+    const hpKillChanges = (Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : [])
+      .filter(
+        (change) =>
+          (String(change?.mode ?? '') === 'Dead' || /^dead$/i.test(String(change?.statusType ?? ''))) &&
+          String(change?.source ?? '') === 'auto'
+      );
+    if (hpKillChanges.length === 0) {
+      continue;
+    }
+    const characterId = String(action?.actorCharacterId ?? action?.characterId ?? '').trim();
+    const positionRaw = Number(action?.positionIndex ?? action?.actorPositionIndex);
+    const position = Number.isFinite(positionRaw) ? positionRaw : null;
+    const member =
+      (characterId && memberByCharacterId.get(characterId)) ||
+      (position != null ? memberByPosition.get(position) : null) ||
+      null;
+    const actorLabel = member
+      ? resolveManualBreakActorLabel(member, store)
+      : (position != null ? `P${position + 1}` : characterId || '?');
+    for (const change of hpKillChanges) {
+      const normalizedEnemyIndex = Number(change?.targetIndex ?? change?.enemyIndex ?? -1);
+      if (!Number.isInteger(normalizedEnemyIndex) || normalizedEnemyIndex < 0) {
+        continue;
+      }
+      const key = `hp:${characterId || position || ''}:${Number(action?.skillId ?? 0)}:${normalizedEnemyIndex}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      const enemyLabel = resolveManualBreakEnemyLabel(normalizedEnemyIndex, enemyNamesByEnemy);
+      models.push({
+        key,
+        actorLabel,
+        enemyLabel,
+        label: `${actorLabel}→${enemyLabel} 討伐 (HP)`,
+        position: position ?? -1,
+        enemyIndex: normalizedEnemyIndex,
+      });
+    }
+  }
+  return models;
+}
+
 export function buildManualKillChipModels({
   overrides = [],
   members = [],

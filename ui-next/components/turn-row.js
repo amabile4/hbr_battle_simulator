@@ -37,6 +37,7 @@ import {
 import {
   buildAutoBreakChipModels,
   buildDpAutoBreakChipModels,
+  buildHpAutoKillChipModels,
   buildManualHpBreakChipModels,
   buildManualBreakChipModels,
   buildManualKillChipModels,
@@ -2553,7 +2554,27 @@ export class TurnRowController {
       store: this.#store,
       enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
     });
-    if (chipModels.length === 0) return '';
+    const hpAutoChipModels = buildHpAutoKillChipModels({
+      actions: this.#getActionsForAutoBreakChips(isCommitted),
+      members: this.#getMembersInPositionOrder().filter((member) => member.position <= 2),
+      store: this.#store,
+      enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+    });
+    if (chipModels.length === 0 && hpAutoChipModels.length === 0) return '';
+    const hpAutoHtml = hpAutoChipModels.map((chip) => (isCommitted ? `
+          <span data-role="hp-auto-kill-chip"
+                title="${chip.label}"
+                class="inline-flex max-w-full items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold leading-tight text-emerald-700">
+            <span class="max-w-full break-all">${chip.label}</span>
+          </span>
+        ` : `
+          <span data-role="hp-auto-kill-chip"
+                data-preview="true"
+                title="予測: ${chip.label}"
+                class="dp-auto-break-chip--preview inline-flex max-w-full items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold leading-tight text-emerald-700">
+            <span class="max-w-full break-all">予測: ${chip.label}</span>
+          </span>
+        `)).join('');
     return `
       <div data-role="kill-chip-list" class="flex flex-wrap gap-1 pb-1">
         ${chipModels.map((chip) => `
@@ -2562,7 +2583,7 @@ export class TurnRowController {
                 class="inline-flex max-w-full items-center rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold leading-tight text-green-700">
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
-        `).join('')}
+        `).join('')}${hpAutoHtml}
       </div>
     `;
   }
