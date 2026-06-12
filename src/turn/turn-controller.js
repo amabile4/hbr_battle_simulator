@@ -2513,6 +2513,38 @@ function cloneEnemySlotObjectMap(value, fallback = {}) {
   return structuredClone(value);
 }
 
+/**
+ * 破壊率マップをマージする。スナップショット値は新規敵スロットまたは現在値より大きい場合のみ採用する。
+ * 破壊率は単調増加が保証されるゲーム仕様であり、過去の記録値で減少方向への上書きを防ぐ。
+ *
+ * @param {Object} currentMap 現在の destructionRateByEnemy
+ * @param {Object} snapshotMap スナップショットの enemyDestructionRates
+ * @returns {Object} マージ後の destructionRateByEnemy
+ */
+function mergeDestructionRateByEnemy(currentMap, snapshotMap) {
+  const current = currentMap && typeof currentMap === 'object'
+    ? structuredClone(currentMap)
+    : {};
+  const snapshot = snapshotMap && typeof snapshotMap === 'object'
+    ? snapshotMap
+    : {};
+  for (const [key, snapshotValue] of Object.entries(snapshot)) {
+    const snapshotNum = Number(snapshotValue);
+    if (!Number.isFinite(snapshotNum)) {
+      continue;
+    }
+    const currentNum = Number(current[key]);
+    if (!Number.isFinite(currentNum)) {
+      // 新規敵スロット: スナップショット値をそのまま採用
+      current[key] = snapshotNum;
+    } else {
+      // 既存スロット: 現在値とスナップショット値の大きい方を採用（単調増加を保証）
+      current[key] = Math.max(currentNum, snapshotNum);
+    }
+  }
+  return current;
+}
+
 function normalizeEnemyEShieldStateEntry(value) {
   return cloneEnemyEShieldState(value);
 }
@@ -2738,7 +2770,7 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, option
       ? cloneEnemySlotObjectMap(snapshot.enemyDamageRates)
       : structuredClone(current.damageRatesByEnemy),
     destructionRateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRates')
-      ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRates)
+      ? mergeDestructionRateByEnemy(current.destructionRateByEnemy, snapshot.enemyDestructionRates)
       : structuredClone(current.destructionRateByEnemy),
     destructionRateCapByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRateCaps')
       ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRateCaps)
