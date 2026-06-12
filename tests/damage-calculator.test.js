@@ -266,6 +266,7 @@ test('skills master contains resolvable normal attack and pursuit entries', () =
     assert.equal(skill.target_type, 'Single');
     assert.ok(skill.parts.some((part) => part.skill_type === 'AttackNormal'));
     const attackPart = skill.parts.find((part) => part.skill_type === 'AttackNormal');
+    assert.ok(attackPart.parts === undefined); // Check flatten
     assert.ok(Array.isArray(attackPart.power));
     assert.equal(typeof attackPart.diff_for_max, 'number');
   }
@@ -381,4 +382,54 @@ test('calculateDamage: resolveEffectPower edge cases', () => {
   });
   const actual5 = calculateDamage(input5, data);
   assertAlmostEqual(actual5.breakdown.debuffMultiplier, 1.999, 'power override priority test', OFFICIAL_CATEGORY_TOLERANCE);
+});
+
+test('calculateDamage resolves pierceMultiplier', () => {
+  const data = loadDamageCalculationData();
+  const input = createOfficialCategoryInput({
+    attacker: {
+      attackPierceUpRate: 0.15,
+      breakPierceUpRate: 0.12,
+    },
+    defender: {
+      isHpTarget: true,
+      resistances: { Stab: 1.5 },
+    },
+  });
+
+  // 1. HP target, skill attack -> pierceMultiplier = 1.15
+  const resHp = calculateDamage(input, data);
+  assertAlmostEqual(resHp.breakdown.pierceMultiplier, 1.15, 'hpTarget.pierceMultiplier');
+
+  // 2. DP target, skill attack -> pierceMultiplier = 1.12
+  const inputDp = createOfficialCategoryInput({
+    attacker: {
+      attackPierceUpRate: 0.15,
+      breakPierceUpRate: 0.12,
+    },
+    defender: {
+      isHpTarget: false,
+      resistances: { Stab: 1.5 },
+    },
+  });
+  const resDp = calculateDamage(inputDp, data);
+  assertAlmostEqual(resDp.breakdown.pierceMultiplier, 1.12, 'dpTarget.pierceMultiplier');
+
+  // 3. Normal attack -> pierceMultiplier = 1.00
+  const inputNormal = createOfficialCategoryInput({
+    attacker: {
+      attackPierceUpRate: 0.15,
+      breakPierceUpRate: 0.12,
+    },
+    defender: {
+      isHpTarget: true,
+      resistances: { Stab: 1.5 },
+    },
+    skill: {
+      name: '通常攻撃',
+      skillId: 46001101,
+    },
+  });
+  const resNormal = calculateDamage(inputNormal, data);
+  assertAlmostEqual(resNormal.breakdown.pierceMultiplier, 1.00, 'normalAttack.pierceMultiplier');
 });

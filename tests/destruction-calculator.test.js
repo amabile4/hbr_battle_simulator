@@ -272,3 +272,38 @@ test('calculateDestruction: resolveEffectPower regression test for DestructionUp
   const result = calculateDestruction(input, data);
   assertAlmostEqual(result.breakdown.buffMultiplier, 0.39676, 'DestructionUp resolvedPower regression');
 });
+
+test('calculateDestruction resolves flatDestructionRateBonus', () => {
+  const data = {
+    styles: [{ id: 1, role: 'Attacker' }],
+    enemies: [],
+    skills: [
+      {
+        id: 10,
+        name: 'Test Skill',
+        hit_count: 1,
+        sp_cost: 10,
+        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
+      },
+    ],
+  };
+  const input = {
+    attacker: {
+      styleId: 1,
+      flatDestructionRateBonus: 0.10,
+    },
+    defender: {
+      destructionRate: 1,
+      destructionLimit: 9,
+      destructionMultiplier: 1.0,
+      dp: 0,
+    },
+    skill: { skillId: 10, name: 'Test Skill' },
+    hits: [{ damage: 1000 }],
+    autoBreak: true,
+  };
+
+  const res = calculateDestruction(input, data);
+  assertAlmostEqual(res.breakdown.baseDestruction, 1.1, 'baseDestruction');
+  assertAlmostEqual(res.breakdown.flatDestructionRateBonus, 0.10, 'flatDestructionRateBonus');
+});
