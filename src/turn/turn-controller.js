@@ -4897,7 +4897,6 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
               Number(
                 actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
               ) + Number(actor?.blastPiercePercent ?? 0) / 100,
-            flatDestructionRateBonus: Number(actor?.chainDestructionRateBonus ?? 0),
           },
           defender: {
             enemyId: null,
