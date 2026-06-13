@@ -73,3 +73,10 @@ hbr_calc fixtures を simulator calc-core に対し実測検証:
 
 ## 統合完了サマリ
 calc-core 正本を hbr_battle_simulator に一本化。Python/解析は `reference/calc-python/` 静的リファレンス、破壊率 fixture 回帰は `npm run test:calc`、docs は `docs/calc/`、ワークフローは「simulator 直接編集・同期廃止」へ反転。残（ユーザー操作）: hbr_calc リポジトリの GitHub アーカイブ化（Phase E3 手順）。
+
+## 補遺: 第三者成果物（実体相当）の除去（2026-06-14）
+統合初期（Phase B）に `reference/calc-python/analysis/` へ取り込んだ中に第三者の著作物（実体相当）が混入していたため、著作物保護の観点で**作業ツリー・git 履歴の両方から除去**した（14ファイル）。
+- **Excel 計算機（他者作）由来**: `extracted_info/` 一式（数式・セル・マニュアル本文ダンプ、8ファイル）。
+- **hbr-tool.com（他者サイト）由来**: `hbr_tool_harness.mjs`（バンドル抽出・再現）＋同ハーネス依存の比較スクリプト5本（compare_engines / reconcile_session / reconciliation_helper / debug_overlimit / test_harness）。
+- 方式: `git filter-branch --index-filter` で当ブランチの統合4コミット（`922d288..HEAD`）から除去 → `--force-with-lease` で push。`922d288` 以前・main は不変。バックアップ ref `backup/pre-scrub-integrate-hbr-calc` を保持。
+- 残置（自作・実体でない）: `engine/*.py`（移植版）, 自作解析 `.py`, `destruction_analysis_report.json`, `feedback_draft.md`, `tests/*.py`。
