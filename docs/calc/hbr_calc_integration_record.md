@@ -36,5 +36,20 @@ hbr_calc（旧 calc-core 正本）を hbr_battle_simulator へ取り込み、「
 
 ---
 
-## Phase B〜F
+## Phase B: Python/analysis 静的リファレンス ✅
+`reference/calc-python/`（engine / Python tests / analysis）へ curated copy。Excel/ODS 生抽出物・バンドルJS・venv 等 140MB+ は持ち込まずアーカイブ hbr_calc 参照（708KB へ圧縮）。`.gitignore` に Python キャッシュ追加。README で「build/CI 対象外の静的資料」明記。
+
+## Phase C: JS検証テスト・fixtures ✅
+hbr_calc fixtures を simulator calc-core に対し実測検証:
+- **破壊率 fixtures（fixed 7 + large 1000 + flatDestruction）: 1007/1007 PASS** → 移植。
+- **ダメージ fixed fixtures（9, `test_cases_fixed.json`）: 既に `damage-calculator.test.js` で統合済み・PASS**（追加作業なし）。
+- **ダメージ large fixtures（2000）: 不採用**。Zone を耐性乗算する**旧 Python モデル**を前提に生成されており、simulator JS（Zone/MindEye=攻撃バフカテゴリの新モデル）と意図的に乖離（例 rand_case_8: JS=1169 vs Py=4092、約3.5倍）。現行 JS の妥当な pass/fail ゲートにならないため移植せず、アーカイブ hbr_calc に残置。
+
+実施:
+- `tests/fixtures/` に `test_cases_destruction.json` / `test_cases_destruction_large.json` / `skill_sp_mapping.json`(SP解決依存) を追加。
+- `tests/calc/destruction-fixtures.mjs`（hbr_calc runner を移植・パス調整。import→`../../src/index.js`、fixtures→`../fixtures/`、json→repo root）。
+- `package.json` に `"test:calc": "node tests/calc/destruction-fixtures.mjs"` 追加。`.mjs` は eslint 対象外（`.js` のみ lint）かつ `npm test`（`tests/*.test.js`）対象外なので大規模回帰を分離できる。
+- 検証: `npm run test:calc` GREEN（1007）、`npm test` 1435 pass、`npm run lint` clean。
+
+## Phase D〜F
 （実施に応じて追記）
