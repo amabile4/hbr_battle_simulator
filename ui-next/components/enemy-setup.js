@@ -39,6 +39,8 @@ const E_SHIELD_ELEMENT_VALUE_SET = new Set(
 const DEFAULT_OD_RATE    = 1;
 const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_D_RATE_RAW = 5;
+// 実在するd_rate値の全一覧（0=破壊不可、50=外れ値1体）
+const D_RATE_OPTIONS = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 50];
 const DEFAULT_CURRENT_DESTRUCTION_RATE = 1;
 const DESTRUCTION_RATE_PERCENT_SCALE = 100;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
@@ -1052,8 +1054,8 @@ export class EnemySetupController {
             <div class="grid grid-cols-2 gap-1.5">
               ${this.#numFieldHtml('od_rate',    'オーバードライブ上昇量', vals.od_rate,    isManual,
                 (v) => formatEnemyOdRatePercent(v))}
-              ${this.#numFieldHtml('d_rate',     '破壊率上昇率',         vals.d_rate,     isManual,
-                (v) => `${v * 20}%`)}
+              ${this.#selectFieldHtml('d_rate', '破壊率上昇率', vals.d_rate, isManual,
+                D_RATE_OPTIONS, (v) => v === 0 ? '0%（破壊不可）' : `${v * 20}%`)}
               ${this.#readOnlyFieldHtml('現在破壊率', formatDestructionRatePercent(currentDestructionRate), 'enemy-current-destruction-rate')}
               ${this.#numFieldHtml('max_d_rate', '最大破壊率',             vals.max_d_rate, isManual,
                 (v) => `${v}%`)}
@@ -1096,6 +1098,26 @@ export class EnemySetupController {
       <div class="flex flex-col gap-0.5">
         <span class="text-xs text-gray-500">${label}</span>
         <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${formatter ? formatter(value) : value}</span>
+      </div>`;
+  }
+
+  #selectFieldHtml(key, label, value, editable, options, labelFn = (v) => String(v)) {
+    if (editable) {
+      const optionsHtml = options.map((v) =>
+        `<option value="${v}"${v === value ? ' selected' : ''}>${labelFn(v)}</option>`
+      ).join('');
+      return `
+        <label class="flex flex-col gap-0.5">
+          <span class="text-xs text-gray-500">${label}</span>
+          <select data-edit-field="${key}"
+                  class="text-xs rounded border border-gray-300 px-1 py-0.5 w-full
+                         focus:outline-none focus:ring-1 focus:ring-blue-400">${optionsHtml}</select>
+        </label>`;
+    }
+    return `
+      <div class="flex flex-col gap-0.5">
+        <span class="text-xs text-gray-500">${label}</span>
+        <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${labelFn(value)}</span>
       </div>`;
   }
 
