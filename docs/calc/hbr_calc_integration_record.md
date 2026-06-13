@@ -51,5 +51,10 @@ hbr_calc fixtures を simulator calc-core に対し実測検証:
 - `package.json` に `"test:calc": "node tests/calc/destruction-fixtures.mjs"` 追加。`.mjs` は eslint 対象外（`.js` のみ lint）かつ `npm test`（`tests/*.test.js`）対象外なので大規模回帰を分離できる。
 - 検証: `npm run test:calc` GREEN（1007）、`npm test` 1435 pass、`npm run lint` clean。
 
-## Phase D〜F
+## Phase D: docs 移植 ✅
+- 未移植の hbr_calc docs 9件を `docs/calc/` へ移植（data_mapping_specification / integration_research / integration_wbs / phase1_phase2_review_results / review_followup_{verification,unresolved} / review_guide / review_wbs / spreadsheet_analysis）。
+- drift 2件を統一: `damage_calculation_model.md` は hbr_calc が superset（限界値超過WIP追加）のため採用。`destruction_calculation_model.md` は simulator 版（公式破壊率式セクション保持）に hbr_calc の WIP セクション（ヒット毎累積連動）を追記し、通常攻撃式が実機実測と乖離する旨の注記を追加。
+- `docs/README.md` の calc/ セクションを刷新（全21docを index 化、ステータスラベル付与、正本= simulator・reference/calc-python の案内を明記）。
+
+## Phase E〜F
 （実施に応じて追記）

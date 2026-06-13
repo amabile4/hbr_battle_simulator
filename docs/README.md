@@ -101,17 +101,35 @@ docs/
 
 ---
 
-## calc/（計算ロジック移植ドキュメント）
+## calc/（計算ロジック移植ドキュメント / hbr_calc 統合）
+
+> **calc-core の正本は本リポジトリ `src/domain/*-calculator*.js`**（2026-06-14 hbr_calc 統合により一本化）。
+> 旧「hbr_calc で実装→同期」運用は廃止。Python版・解析資料の静的リファレンスは `reference/calc-python/`。
+> 統合の経緯・判定は [calc/hbr_calc_integration_record.md](calc/hbr_calc_integration_record.md) を参照。
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
+| [calc/hbr_calc_integration_record.md](calc/hbr_calc_integration_record.md) | 🟢 進行中 | **hbr_calc 統合記録**。calc-core 正本確定（GO）、Python/analysis 静的リファレンス化、JS検証 fixtures 移植、docs 移植、旧運用反転の Phase A〜F 記録 | 2026-06-14 |
 | [calc/porting_design_guideline.md](calc/porting_design_guideline.md) | ✅ 完了 | Python版コアロジックのTypeScript移植に伴う設計・命名統一ガイドライン | 2026-06-03 |
-| [calc/damage_calculation_model.md](calc/damage_calculation_model.md) | 📚 参照 | HBR計算機 ダメージ計算仕様・データ構造レポート | 2026-06-02 |
+| [calc/damage_calculation_model.md](calc/damage_calculation_model.md) | 📚 参照 | HBR計算機 ダメージ計算仕様・データ構造レポート（限界値超過オプション等のWIP含む） | 2026-06-14 |
+| [calc/destruction_calculation_model.md](calc/destruction_calculation_model.md) | 📚 参照 | 破壊率計算モデル。**通常攻撃式は実機実測(d_rate/100)で乖離・Issue #18 修正中**の注記あり | 2026-06-14 |
+| [calc/destruction_design_specification.md](calc/destruction_design_specification.md) | 📚 参照 | 破壊率計算の設計仕様 | 2026-06-03 |
+| [calc/advanced_destruction_mechanics_spec.md](calc/advanced_destruction_mechanics_spec.md) | 📚 参照 | 破壊率の高度な仕様（超ブレイク・上限超越等） | 2026-06-03 |
+| [calc/data_mapping_specification.md](calc/data_mapping_specification.md) | 📚 参照 | スプレッドシート→JSON データマッピング仕様 | 2026-06-14 |
+| [calc/spreadsheet_analysis.md](calc/spreadsheet_analysis.md) | 📦 スナップショット | 移行元スプレッドシート解析記録 | 2026-06-14 |
 | [calc/phase2_design_specification.md](calc/phase2_design_specification.md) | 📚 参照 | フェーズ2 設計仕様書: バフ・デバフ動的解決器と公式カテゴリ準拠の重複上限ルール | 2026-06-03 |
 | [calc/phase3_go_decision.md](calc/phase3_go_decision.md) | 📚 参照 | フェーズ3 計算コアロジック移植Go判定レポート | 2026-06-02 |
-| [calc/phase3_wbs.md](calc/phase3_wbs.md) | ✅ 完了 | フェーズ3 実装 WBS。T3.2.1〜T3.2.4 の初期 TypeScript 移植、T3.3.1 固定 fixture node:test (1235件 PASS)、T3.3.2 大規模クロス言語アサーションテスト(2000件 PASS/カバレッジ84.22%)および T3.4.1 category fallback 方針策定（非ブロッカーとして Phase4 フォローアップへ移行）を含めて全タスクを完了 | 2026-06-03 |
-| [calc/phase3_porting_review_findings.md](calc/phase3_porting_review_findings.md) | ✅ 完了 | フェーズ3移植設計レビュー指摘事項（High 6件・Medium 6件・Low 2件）と修正方針。各ドキュメントの矛盾・抜け漏れを整理し修正完了 | 2026-06-02 |
-| [calc/phase3_validation_report.md](calc/phase3_validation_report.md) | ✅ 完了 | フェーズ3 移植ロジック検証レポート。固定境界ケース、Excel格子点回帰テスト、大規模ランダム差分テストの検証結果を記載。実行再現性コマンドや category fallback の非ブロッカー扱いを整理 | 2026-06-03 |
+| [calc/phase3_wbs.md](calc/phase3_wbs.md) | ✅ 完了 | フェーズ3 実装 WBS。固定 fixture / 大規模クロス言語テスト / category fallback 方針を含む全タスク完了 | 2026-06-03 |
+| [calc/phase3_porting_review_findings.md](calc/phase3_porting_review_findings.md) | ✅ 完了 | フェーズ3移植設計レビュー指摘事項と修正方針 | 2026-06-02 |
+| [calc/phase3_validation_report.md](calc/phase3_validation_report.md) | ✅ 完了 | フェーズ3 移植ロジック検証レポート | 2026-06-03 |
+| [calc/phase3_reconciliation_wbs.md](calc/phase3_reconciliation_wbs.md) | 📦 スナップショット | フェーズ3 reconciliation WBS | 2026-06-03 |
+| [calc/phase1_phase2_review_results.md](calc/phase1_phase2_review_results.md) | 📦 スナップショット | フェーズ1/2 レビュー結果 | 2026-06-14 |
+| [calc/integration_research.md](calc/integration_research.md) | 📦 スナップショット | 統合調査記録（移植元解析） | 2026-06-14 |
+| [calc/integration_wbs.md](calc/integration_wbs.md) | 📦 スナップショット | 移植統合 WBS | 2026-06-14 |
+| [calc/review_guide.md](calc/review_guide.md) | 📚 参照 | 移植レビューガイド | 2026-06-14 |
+| [calc/review_wbs.md](calc/review_wbs.md) | 📦 スナップショット | 移植レビュー WBS | 2026-06-14 |
+| [calc/review_followup_verification.md](calc/review_followup_verification.md) | 📦 スナップショット | レビューフォローアップ検証記録 | 2026-06-14 |
+| [calc/review_followup_unresolved.md](calc/review_followup_unresolved.md) | 📦 スナップショット | レビューフォローアップ未解決事項 | 2026-06-14 |
 
 ---
 
