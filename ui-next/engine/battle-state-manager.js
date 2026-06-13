@@ -33,7 +33,11 @@ const UI_TO_ENGINE_ELEMENT_KEY = Object.freeze({
 });
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
-const DEFAULT_D_RATE_RAW = 5;
+// 破壊率上昇倍率: ゲーム内表示「破壊率上昇率%」= d_rate(raw) × 20。
+// 計算式 dr×8×destMult/100 が期待する destMult は倍率（標準敵 d_rate=5 → 表示100% → 1.0）。
+// よって destMult = 表示% / 100 = d_rate / 5。
+const D_RATE_RAW_TO_MULTIPLIER = 1 / 5;
+const DEFAULT_DESTRUCTION_MULTIPLIER = 1.0;
 const ENEMY_OD_RATE_NO_CORRECTION = 0;
 const DEFAULT_ENEMY_NAME = '';
 const MIN_ENEMY_COUNT = 1;
@@ -282,15 +286,16 @@ function resolveEnemySlotHp(slot = {}, dataStore = null) {
   return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
 }
 
-function resolveEnemySlotDestructionMultiplierRaw(slot = {}, dataStore = null) {
-  const direct = Number(slot?.d_rate);
-  if (Number.isFinite(direct)) {
-    return direct;
+function resolveEnemySlotDestructionMultiplier(slot = {}, dataStore = null) {
+  // 入力は raw d_rate（例: 標準敵=5, スカルフェザー最終=10）。倍率 = d_rate/5 に変換して返す。
+  const directRaw = Number(slot?.d_rate);
+  if (Number.isFinite(directRaw)) {
+    return directRaw * D_RATE_RAW_TO_MULTIPLIER;
   }
   const selectedEnemyId = Number(slot?.selectedEnemyId);
   const enemy = resolveEnemyById(dataStore, selectedEnemyId);
   const baseRate = Number(enemy?.base_param?.d_rate ?? enemy?.d_rate);
-  return Number.isFinite(baseRate) ? baseRate : DEFAULT_D_RATE_RAW;
+  return Number.isFinite(baseRate) ? baseRate * D_RATE_RAW_TO_MULTIPLIER : DEFAULT_DESTRUCTION_MULTIPLIER;
 }
 
 function resolveEnemyById(dataStore = null, selectedEnemyId = null) {
@@ -322,7 +327,7 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
     const rawOdRate = Number.isFinite(Number(slot?.od_rate))
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
-    const rawDestructionMultiplier = resolveEnemySlotDestructionMultiplierRaw(slot, dataStore);
+    const rawDestructionMultiplier = resolveEnemySlotDestructionMultiplier(slot, dataStore);
     return {
       enemyName,
       paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0

@@ -5124,7 +5124,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             enemyId: null,
             destructionRate: currentRatePercent / 100,
             destructionLimit: capPercent / 100,
-            destructionMultiplier: Number(state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? 5),
+            destructionMultiplier: Number(state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? 1),
             dp: defenderDp,
           },
           skill: {

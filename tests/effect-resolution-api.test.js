@@ -233,11 +233,12 @@ test('calculateDestruction - destructionMultiplier edge cases', () => {
   assert.equal(res0.breakdown.destructionMultiplier, 0);
   assert.equal(res0.destructionRate, 1.0);
 
-  // d_rate=5 (標準敵) と d_rate=50 (外れ値/1000%) の比率が10倍
-  const res5  = calculateDestruction(makeInput(5),  data);
-  const res50 = calculateDestruction(makeInput(50), data);
-  assert.ok(isClose(res50.breakdown.baseDestruction, res5.breakdown.baseDestruction * 10),
-    'd_rate=50 は d_rate=5 の10倍上昇であること');
+  // destructionMultiplier は倍率（標準敵=1.0、d_rate×20=ゲーム内表示%、倍率=表示%/100=d_rate/5）。
+  // 倍率1.0 と 10.0 で破壊率上昇が10倍になること（比例性）。
+  const res1  = calculateDestruction(makeInput(1),  data);
+  const res10 = calculateDestruction(makeInput(10), data);
+  assert.ok(isClose(res10.breakdown.baseDestruction, res1.breakdown.baseDestruction * 10),
+    '倍率10.0 は倍率1.0 の10倍上昇であること');
 
   // destMult < 0: ガードされ 0 として扱われる（破壊率低下バグ防止）
   const resNeg = calculateDestruction(makeInput(-1), data);
