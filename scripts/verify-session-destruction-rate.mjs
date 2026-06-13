@@ -109,32 +109,9 @@ function main() {
   const enemyCount = firstRecord.enemyCount ?? 1;
   const enemyNamesByEnemy = firstRecord.enemyNamesByEnemy ?? {};
 
-  // DP/HP: 最初の damageContext または DataStore から取得
+  // DP/HP: DataStore から取得（敵の base_param が信頼できるソース）
   const enemyDpByEnemy = {};
   const enemyHpByEnemy = {};
-  const enemyMaxDpByEnemy = {};
-
-  // damageContext から拾える範囲で取得
-  for (const t of turns) {
-    for (const a of t.actions ?? []) {
-      const dc = a.damageContext;
-      if (!dc) continue;
-      for (let ei = 0; ei < enemyCount; ei++) {
-        const key = String(ei);
-        if (dc.enemyDpByEnemy?.[key] != null && enemyDpByEnemy[key] == null) {
-          enemyDpByEnemy[key] = dc.enemyDpByEnemy[key];
-        }
-      }
-      // DataStore の敵データも照合して maxDp / hp を取得
-      if (dc.enemyMaxDpByEnemy) {
-        for (const [ei, val] of Object.entries(dc.enemyMaxDpByEnemy)) {
-          if (enemyMaxDpByEnemy[ei] == null) enemyMaxDpByEnemy[ei] = val;
-        }
-      }
-    }
-  }
-
-  // DataStore から敵HPを取得 (セッションJSONの enemy.selectedEnemyIds を使う)
   const selectedEnemyIds = session.enemy?.selectedEnemyIds ?? [];
   for (let ei = 0; ei < enemyCount; ei++) {
     const key = String(ei);
@@ -143,12 +120,8 @@ function main() {
       const enemy = store.enemiesById?.get(Number(enemyId))
         ?? store.enemies?.find(e => e.id === Number(enemyId));
       if (enemy) {
-        if (enemy.base_param?.dp != null && enemyDpByEnemy[key] == null) {
-          enemyDpByEnemy[key] = enemy.base_param.dp;
-        }
-        if (enemy.base_param?.hp != null && enemyHpByEnemy[key] == null) {
-          enemyHpByEnemy[key] = enemy.base_param.hp;
-        }
+        if (enemy.base_param?.dp != null) enemyDpByEnemy[key] = enemy.base_param.dp;
+        if (enemy.base_param?.hp != null) enemyHpByEnemy[key] = enemy.base_param.hp;
         if (!enemyNamesByEnemy[key]) {
           enemyNamesByEnemy[key] = enemy.name ?? `Enemy${ei}`;
         }
