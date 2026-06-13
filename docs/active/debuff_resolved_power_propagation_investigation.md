@@ -11,14 +11,17 @@
 
 ## 1. 課題（ユーザー提起）
 
-項目#2（敵デバフ効果値 = ステータス差分・効果量アップで付与時解決される脆弱/防御ダウン等）について:
+**対象は敵デバフに限らず、計算に関わる全バフ・全デバフ・全状態変化**（自バフ効果値#1 / 敵デバフ効果値#2 / 全 statusType）。
 
 > JSON保存は「操作したことだけ」を保持し、再計算すれば全部正しく出る設計を期待している。
 > ただOD3・追加ターンなど **ゲーム内ターンは進まないが行動が蓄積され続ける** 時、
-> 過去に計算したデバフ効果値（stat差・効果量アップで正しく解決された値）は
-> 伝播して残っているか？
+> 過去に計算した効果値（stat差・効果量アップで正しく解決された値）は伝播して残っているか？
 
-要は「付与時解決した解決済みratioが、ターン非進行の行動蓄積をまたいでも生き残るか／再計算で正しく再導出されるか」の整合性確認。
+正しさの要件（user 明示）:
+- **同一ターン内保持は当然**。
+- **ターンを跨いでも、消費/失効しない限り保持されないとおかしい**（複数ターン継続デバフは当然存在する）。
+- 付与時解決した解決済み ratio が、ターン非進行の行動蓄積・ターン跨ぎをまたいで
+  生き残り、かつ **再計算で正しく再導出**されること。
 
 ---
 
@@ -88,8 +91,31 @@ for (each turn) {
     carry-forward された正しい値を **置換して陳腐化**させる懸念。
   - → 「全部正しく再計算される」というユーザー期待を **編集時に破る可能性**。
 
-※ これは **潜在バグの仮説**であり、実際に顕在化するかは characterization test で確定が必要
-（override entry の差分記録条件・比較再計算フラグ・preserve predicate の影響を実挙動で見る）。
+### 2.5 追加調査で確定した事実（2026-06-13 Explore + 直接確認）
+
+1. **OD3/追加ターンは複数 ReplayTurn レコードに分割される（確定）**。
+   `computeNextTurnState`（:14458）が `remainingOdActions>1` で次 state も `turnType='od'` を維持
+   → 次ラウンドは別 `commitNextTurn` = 別レコード。→ 2.4 の前提は正しい。
+2. **enemyStatuses override は通常 OD/追加ターンでも常に記録される**（force 不問、initialState 差分で記録）。
+3. **通常再計算では全置換**（`preserveCurrentStatusPredicate` は比較再計算時のみ、かつ Break/DownTurn/Dead 系のみ保護）。
+4. **自バフ（member.statusEffects, #1）と敵デバフ（enemyState.statuses, #2）で経路が非対称**:
+   - `#applyScenarioTurnPlayerOverrides`（:1762）は **`dpStateByPartyIndex` のみ**処理。
+     自バフは override 凍結されず、carry-forward + `applyActiveBuffStatusEffectsFromActions` で
+     **毎再計算 action 単位に再導出** → **編集追従が正しい（陳腐化なし）**。
+   - 敵デバフは turn-start `enemyStatuses` override で**凍結置換**される
+     → **編集追従が壊れる懸念（陳腐化ベクトル）**。
+   - **この非対称性が本件の核心**。自バフ側は安全、敵デバフ側が要修正候補。
+5. **手動編集経路**: 敵デバフの **power(効果値) を直接編集する UI は無い**（Explore 結論）。
+   敵の手動編集は **パラメータ（d_rate / param_border / 耐性 / DP / HP 等）に限定**（enemy-setup.js）。
+   → user 回答「手動編集がある」は、この**パラメータ編集**または**威力詳細の手入力**を指す可能性。要すり合わせ（Q-D1 更新）。
+6. **既存テスト**: `tests/t34-enemy-status-integration.test.js` に
+   「committed snapshot 一致」「Undermine の recalculation 保持」「power 競合 max 採択」
+   「committed statuses survive replay」「複数ターン伝播」あり。
+   ただし **「上流編集→再計算で効果値が追従するか」「追加ターン跨ぎ」の明示テストは無い**（= 検証の穴）。
+
+※ 陳腐化が **実際に顕在化するか**は characterization test（T0-1）で確定する。
+no-edit の純再生は凍結値=再導出値で一致するため再現性は保たれるが、
+**上流編集→再計算**で敵デバフが追従しなければバグ確定。
 
 ---
 
@@ -132,13 +158,23 @@ for (each turn) {
 
 ---
 
-## 4. テスト作成方針
+## 4. テスト作成方針（全網羅）
 
-- **赤テスト先行**（dev_principles 準拠）。Phase0 で必ずバグ顕在 or 不在を確定してから実装着手。
+- **全網羅方針を採用**（user 確定）。バフ・デバフ各 statusType は固有事情（消費トリガー・継続型・
+  Count/Only・効果量アップ・cap 判定）を持ちうるため、特徴的なものだけでは漏れる。
+- **マトリクス: statusType × ライフサイクル局面** で網羅:
+  - 局面: (a) 付与時解決値の正しさ / (b) **同一ターン内**行動蓄積での保持 /
+    (c) **ターン跨ぎ**（消費・失効しない限り保持）/ (d) 消費・失効での正しい除去 /
+    (e) **上流編集→再計算での追従**（陳腐化検出の本丸）/ (f) save→load→recompute 往復。
+  - statusType: 自バフ（AttackUp/ElementAttackUp/CritDamageUp/MindEye/Charge/Funnel…）、
+    敵デバフ（Fragile/DefenseDown/ElementResistDown/Undermine…）、DestructionUp、
+    継続ターン型・Count 型・Only 型を各々。
+- **赤テスト先行**（dev_principles 準拠）。Phase0（T0-1）で敵デバフの (e) を最初に確定。
 - 計算機コア（destruction-calculator / damage-calculator / calculator-helpers）は **無変更前提**
   （[[hbr-calc-owns-calculator-core]]）。本件は turn-controller / turn-engine-manager の
   **状態伝播・override 経路の問題**であり、効果値計算式そのものではない。
 - unit（node:test）+ integration + Playwright の 3 層。
+- 自バフ側は「安全である」ことを **回帰固定**する網羅も含める（非対称性が将来崩れない保証）。
 
 ---
 
