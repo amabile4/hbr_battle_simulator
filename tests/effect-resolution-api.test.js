@@ -199,9 +199,8 @@ test('calculateDestruction - DestructionUp integration with pre-resolved power',
   };
 
   const res = calculateDestruction(input, data);
-  // fTag = 0.25 (since single target and no special desc). spVal = 4.
-  // destMult = 1.0. drVal = 1.0 / 25.0 = 0.04.
-  // bg30 = 0.25 * 4 * 0.04 = 0.04.
+  // フォールバック経路: fTag=0.25(単体), spVal=4, destMult=1.0, drVal=1.0/25=0.04
+  // baseDestRate = fTag * spVal * drVal = 0.25 * 4 * 0.04 = 0.04
   // buffMultiplier = 45.32 / 100 = 0.4532
   // baseDestruction = Math.floor(0.04 * (1 + 0 + 0.4532) * 10000) / 10000
   //                 = Math.floor(0.04 * 1.4532 * 10000) / 10000 = Math.floor(581.28) / 10000 = 0.0581
