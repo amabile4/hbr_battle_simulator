@@ -6117,6 +6117,7 @@ test('transcendence burst raises destruction gain and cap without stacking with 
   state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
   state.turnState.enemyState.destructionRateByEnemy = { 0: 590 };
   state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
 
   const preview = previewTurn(state, {
     0: { characterId: 'TC1', skillId: 15220, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
@@ -6157,6 +6158,7 @@ test('transcendence burst destruction cap is actor-element gated and does not ad
     ];
     state.turnState.enemyState.destructionRateByEnemy = { 0: storedRate };
     state.turnState.enemyState.destructionRateCapByEnemy = { 0: storedCap };
+    state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
     return state;
   };
 
@@ -24153,6 +24155,7 @@ test('same-action SuperBreak 後の破壊率上昇は拡張後 cap を使用す�
   state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
   state.turnState.enemyState.destructionRateByEnemy = { 0: 590 };
   state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
 
   const preview = previewTurn(state, {
     0: { characterId: 'DEST_SUPER', skillId: 99183, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
@@ -24591,6 +24594,7 @@ test('手動ブレイク指定はperHitDpDamageのDP残量より優先され、D
   state.turnState.enemyState.enemyDpByEnemy = { '0': 2000000 };
   state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
   state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { '0': 1 };
 
   const preview = previewTurn(state, {
     0: {

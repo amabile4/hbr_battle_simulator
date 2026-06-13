@@ -38,7 +38,7 @@ const E_SHIELD_ELEMENT_VALUE_SET = new Set(
 
 const DEFAULT_OD_RATE    = 1;
 const DEFAULT_MAX_D_RATE = 999;
-const DEFAULT_DESTRUCTION_MULTIPLIER_PERCENT = 100;
+const DEFAULT_D_RATE_RAW = 5;
 const DEFAULT_CURRENT_DESTRUCTION_RATE = 1;
 const DESTRUCTION_RATE_PERCENT_SCALE = 100;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
@@ -75,9 +75,9 @@ function normalizeDestructionRate(value) {
   return Number.isFinite(numeric) ? numeric : DEFAULT_CURRENT_DESTRUCTION_RATE;
 }
 
-function normalizeDestructionMultiplierPercent(value) {
+function normalizeDestructionMultiplierRaw(value) {
   const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : DEFAULT_DESTRUCTION_MULTIPLIER_PERCENT;
+  return Number.isFinite(numeric) ? numeric : DEFAULT_D_RATE_RAW;
 }
 
 function resolveEnemyParamBorder(enemy = null) {
@@ -256,7 +256,7 @@ function cloneManual(manual = {}) {
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
-    d_rate: normalizeDestructionMultiplierPercent(manual.d_rate),
+    d_rate: normalizeDestructionMultiplierRaw(manual.d_rate),
     destructionRate: normalizeDestructionRate(manual.destructionRate),
     element: Object.fromEntries(
       ELEMENTS.map((element) => [element.key, normalizeElementRatePercent(manual.element?.[element.key])])
@@ -275,7 +275,7 @@ function defaultManual() {
   return {
     od_rate: DEFAULT_OD_RATE,
     max_d_rate: DEFAULT_MAX_D_RATE,
-    d_rate: DEFAULT_DESTRUCTION_MULTIPLIER_PERCENT,
+    d_rate: DEFAULT_D_RATE_RAW,
     destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: defaultElement(),
     absorbElementList: [],
@@ -289,7 +289,7 @@ function enemyToManual(enemy) {
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? enemy.base_param?.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: enemy.max_d_rate ?? enemy.base_param?.max_d_rate ?? DEFAULT_MAX_D_RATE,
-    d_rate: enemy.d_rate ?? enemy.base_param?.d_rate ?? DEFAULT_DESTRUCTION_MULTIPLIER_PERCENT,
+    d_rate: enemy.d_rate ?? enemy.base_param?.d_rate ?? DEFAULT_D_RATE_RAW,
     destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: Object.fromEntries(
       ELEMENTS.map((element) => [

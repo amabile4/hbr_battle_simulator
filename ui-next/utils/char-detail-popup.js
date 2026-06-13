@@ -959,7 +959,7 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
   const destructionLimit = resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey) / 100;
   const contextMultiplier = Number(damageContext?.destructionMultiplierByEnemy?.[enemyKey]);
   const storedMultiplier = Number(model?.enemyDestructionState?.destructionMultiplierByEnemy?.[enemyKey]);
-  const destructionMultiplierPercent = [contextMultiplier, storedMultiplier]
+  const destructionMultiplierRaw = [contextMultiplier, storedMultiplier]
     .find((value) => Number.isFinite(value) && value > 0);
   const hitCount = Math.max(
     1,
@@ -983,8 +983,8 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
       enemyId: null,
       destructionRate: currentRatePercent / 100,
       destructionLimit,
-      destructionMultiplier: destructionMultiplierPercent != null
-        ? destructionMultiplierPercent / 100
+      destructionMultiplier: destructionMultiplierRaw != null
+        ? destructionMultiplierRaw
         : null,
       dp: 0,
     },
