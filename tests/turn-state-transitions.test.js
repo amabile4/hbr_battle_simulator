@@ -24167,6 +24167,55 @@ test('same-action SuperBreak 後の破壊率上昇は拡張後 cap を使用す�
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 594);
 });
 
+// 通常攻撃の破壊率はスキルと別式（実機実測で確定）: ブレイク中の通常攻撃は
+// enemy raw d_rate と等しい % だけ破壊率を上げる（d_rate=5→+5%, 10→+10%）。
+// 共鳴・装備・武器種などは通常攻撃には乗らない（超越ゲージ100%の×1.10のみ別途）。
+function runNormalAttackOnBrokenEnemy(dRateRaw) {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'NORM_ATK',
+          characterName: 'NORM_ATK',
+          skills: [
+            {
+              id: 99190,
+              name: '通常攻撃',
+              label: 'TestAttackNormal',
+              hitCount: 3,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : { skills: [createProtectionSkill(99290 + idx)] }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 999 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: dRateRaw };
+  // 敵をブレイク状態にして通常攻撃が破壊率を加算する状態にする
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 3 },
+  ];
+  const preview = previewTurn(state, {
+    0: { characterId: 'NORM_ATK', skillId: 99190, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  return nextState.turnState.enemyState.destructionRateByEnemy['0'];
+}
+
+test('通常攻撃の破壊率上昇は enemy raw d_rate と等しい（ヒット数非依存・共鳴非適用）', () => {
+  // d_rate=5（標準敵）→ +5.0%（100→105）
+  assert.ok(Math.abs(runNormalAttackOnBrokenEnemy(5) - 105) < 1e-9, 'd_rate=5 → +5%');
+  // d_rate=10（強敵）→ +10.0%（100→110）
+  assert.ok(Math.abs(runNormalAttackOnBrokenEnemy(10) - 110) < 1e-9, 'd_rate=10 → +10%');
+  // d_rate=7 → +7.0%
+  assert.ok(Math.abs(runNormalAttackOnBrokenEnemy(7) - 107) < 1e-9, 'd_rate=7 → +7%');
+});
+
 test('Eシールド auto-break on all-target action updates breakHitCount and triggers AdditionalHitOnBreaking', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0

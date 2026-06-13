@@ -33,11 +33,10 @@ const UI_TO_ENGINE_ELEMENT_KEY = Object.freeze({
 });
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
-// 破壊率上昇倍率: ゲーム内表示「破壊率上昇率%」= d_rate(raw) × 20。
-// 計算式 dr×8×destMult/100 が期待する destMult は倍率（標準敵 d_rate=5 → 表示100% → 1.0）。
-// よって destMult = 表示% / 100 = d_rate / 5。
-const D_RATE_RAW_TO_MULTIPLIER = 1 / 5;
-const DEFAULT_DESTRUCTION_MULTIPLIER = 1.0;
+// destructionMultiplierByEnemy には enemy.json の raw d_rate をそのまま格納する。
+// - スキル破壊率（calc-core）: dr×4×d_rate/100 = dr×(d_rate/25) = dr×DR で正典一致。
+// - 通常攻撃破壊率（turn-controller 専用パス）: 基礎 = d_rate/100（実機実測: d_rate=5→5%, 10→10%）。
+const DEFAULT_D_RATE_RAW = 5;
 const ENEMY_OD_RATE_NO_CORRECTION = 0;
 const DEFAULT_ENEMY_NAME = '';
 const MIN_ENEMY_COUNT = 1;
@@ -286,16 +285,16 @@ function resolveEnemySlotHp(slot = {}, dataStore = null) {
   return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
 }
 
-function resolveEnemySlotDestructionMultiplier(slot = {}, dataStore = null) {
-  // 入力は raw d_rate（例: 標準敵=5, スカルフェザー最終=10）。倍率 = d_rate/5 に変換して返す。
-  const directRaw = Number(slot?.d_rate);
-  if (Number.isFinite(directRaw)) {
-    return directRaw * D_RATE_RAW_TO_MULTIPLIER;
+function resolveEnemySlotDestructionMultiplierRaw(slot = {}, dataStore = null) {
+  // raw d_rate をそのまま返す（標準敵=5, スカルフェザー最終=10）。
+  const direct = Number(slot?.d_rate);
+  if (Number.isFinite(direct)) {
+    return direct;
   }
   const selectedEnemyId = Number(slot?.selectedEnemyId);
   const enemy = resolveEnemyById(dataStore, selectedEnemyId);
   const baseRate = Number(enemy?.base_param?.d_rate ?? enemy?.d_rate);
-  return Number.isFinite(baseRate) ? baseRate * D_RATE_RAW_TO_MULTIPLIER : DEFAULT_DESTRUCTION_MULTIPLIER;
+  return Number.isFinite(baseRate) ? baseRate : DEFAULT_D_RATE_RAW;
 }
 
 function resolveEnemyById(dataStore = null, selectedEnemyId = null) {
@@ -327,7 +326,7 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
     const rawOdRate = Number.isFinite(Number(slot?.od_rate))
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
-    const rawDestructionMultiplier = resolveEnemySlotDestructionMultiplier(slot, dataStore);
+    const rawDestructionMultiplier = resolveEnemySlotDestructionMultiplierRaw(slot, dataStore);
     return {
       enemyName,
       paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0

@@ -82,9 +82,9 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Slash, 150);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 650);
-  // 破壊率上昇倍率 = raw d_rate / 5（d_rate=5 → 標準倍率 1.0）
-  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 1);
-  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 1);
+  // destructionMultiplierByEnemy は raw d_rate をそのまま格納（d_rate=5 → 5）
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 5);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 5);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire', 'nonelement']);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['fire', 'nonelement']);
 });
@@ -259,9 +259,9 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   assert.equal(state.turnState.enemyState.enemyDpByEnemy['1'], 0);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 999);
-  // 倍率 = raw d_rate / 5（150→30, 80→16）
-  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 30);
-  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 16);
+  // raw d_rate をそのまま格納（150, 80）
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 150);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 80);
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
   assert.equal(state.turnState.enemyState.odRateByEnemy['1'], 0);
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Fire, 200);
@@ -309,8 +309,8 @@ test('BattleStateManager resolves missing enemy slot dp from selected enemy mast
 
   assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 4550000);
   assert.equal(state.turnState.enemyState.enemyHpByEnemy['0'], 156000000);
-  // raw d_rate=10（ゲーム内表示200%）→ 倍率 10/5 = 2.0
-  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 2);
+  // raw d_rate=10 をそのまま格納
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 10);
 });
 
 test('BattleStateManager ignores inactive Eシールド definitions in enemy slots', () => {
