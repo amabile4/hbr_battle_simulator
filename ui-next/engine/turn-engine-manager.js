@@ -5,6 +5,7 @@ import {
   countAliveEnemies,
   evaluateConditionExpression,
   isEnemyAlive,
+  isRecomputableEnemyStatusPower,
   resolveEffectiveSkillForAction,
   syncByakkoRushStateWithDpCondition,
 } from '../../src/turn/turn-controller.js';
@@ -1711,7 +1712,14 @@ export class TurnEngineManager {
       if (!hasSnapshotField) {
         continue;
       }
-      const nextPayload = structuredClone(snapshot[fieldName]);
+      let nextPayload = structuredClone(snapshot[fieldName]);
+      // recomputable な効果値 power を持つ enemy status は override に記録しない
+      // （再計算で carry-forward から再導出される。凍結すると上流編集が伝播しない）。
+      // apply 側 buildOverrideEnemyStatuses でも無視するため旧 session も救済されるが、
+      // 新規 save は最初から filtered snapshot にして「操作のみ保存」へ収束させる。
+      if (type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES && Array.isArray(nextPayload)) {
+        nextPayload = nextPayload.filter((status) => !isRecomputableEnemyStatusPower(status));
+      }
       const baselinePayload = Object.prototype.hasOwnProperty.call(baselineSnapshot, fieldName)
         ? baselineSnapshot[fieldName]
         : undefined;

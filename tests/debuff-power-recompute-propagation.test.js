@@ -16,6 +16,7 @@ import {
   createInitialTurnState,
 } from '../src/index.js';
 import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
+import { isRecomputableEnemyStatusPower } from '../src/turn/turn-controller.js';
 
 const ENEMY_BORDER = 650;
 
@@ -122,8 +123,8 @@ test('characterization: stat-resolved enemy debuff carries the SAME power into n
   assert.ok(Math.abs(t1 - t2) < 1e-9, `編集前は turn1/turn2 一致 (t1=${t1}, t2=${t2})`);
 });
 
-// 既知バグ（陳腐化）を実証する赤テスト。Phase2 実装で todo を外して緑化するのが acceptance gate。
-test('characterization: editing caster wis + recompute propagates to BOTH apply-turn and carry-turn', { todo: 'Phase2 で turn-start enemyStatuses override の解決値凍結を解消して緑化する' }, () => {
+// Phase2 修正により緑化（turn-start enemyStatuses override の解決値凍結を解消）。
+test('editing caster wis + recompute propagates to BOTH apply-turn and carry-turn', () => {
   const manager = buildTwoTurnManager(700);
   const beforeT1 = getDefenseDownPower(manager.computedStates[0]);
   const beforeT2 = getDefenseDownPower(manager.computedStates[1]);
@@ -147,4 +148,122 @@ test('characterization: editing caster wis + recompute propagates to BOTH apply-
     `再計算後、turn1(再解決) と turn2(引き継ぎ) が一致すべき: t1=${afterT1}, t2=${afterT2} ` +
     `(旧値 beforeT2=${beforeT2})`
   );
+});
+
+// ─── T2-3 / Phase1: predicate 分類 unit ───
+test('isRecomputableEnemyStatusPower classifies effect-value debuffs as recomputable', () => {
+  // 効果値系（HighBoost 集合・numeric power）→ true
+  for (const statusType of ['DefenseDown', 'Fragile', 'ResistDown', 'ResistDownOverwrite', 'Undermine', 'AttackDown', 'Hacking', 'HealDown']) {
+    assert.equal(
+      isRecomputableEnemyStatusPower({ statusType, power: 0.3 }),
+      true,
+      `${statusType} は recomputable であること`
+    );
+  }
+  // ElementResistDown 名称の罠: runtime 実 type は ResistDown 系。ElementResistDown 単体は
+  // HighBoost 集合に無いので false（runtime では出現しないが、誤分類防止の明示ガード）。
+  assert.equal(
+    isRecomputableEnemyStatusPower({ statusType: 'ResistDown', power: 0.2 }),
+    true,
+    'ResistDown(runtime名) は recomputable'
+  );
+  assert.equal(
+    isRecomputableEnemyStatusPower({ statusType: 'ElementResistDown', power: 0.2 }),
+    false,
+    'ElementResistDown(damage計算名) は runtime statusType ではないので false'
+  );
+});
+
+test('isRecomputableEnemyStatusPower preserves duration / lifecycle / unknown statuses', () => {
+  // duration 型（power=ターン数）→ false（preserve）
+  for (const statusType of ['Provoke', 'Attention', 'Misfortune', 'Cover']) {
+    assert.equal(
+      isRecomputableEnemyStatusPower({ statusType, power: 3 }),
+      false,
+      `${statusType} は duration 型なので preserve`
+    );
+  }
+  // lifecycle 系 → false（preserve）。legacy alias も含む。
+  for (const statusType of ['Break', 'SuperBreak', 'SuperBreakDown', 'DownTurn', 'Dead', 'StrongBreak', 'SuperDown']) {
+    assert.equal(
+      isRecomputableEnemyStatusPower({ statusType, power: 1 }),
+      false,
+      `${statusType} は lifecycle なので preserve`
+    );
+  }
+  // numeric power を持たない / unknown → false（安全側 preserve）
+  assert.equal(isRecomputableEnemyStatusPower({ statusType: 'DefenseDown' }), false, 'power 欠落(undefined)は preserve');
+  assert.equal(isRecomputableEnemyStatusPower({ statusType: 'DefenseDown', power: 'abc' }), false, '非numeric power は preserve');
+  assert.equal(isRecomputableEnemyStatusPower({ statusType: '', power: 0.3 }), false, '空 statusType は false');
+  assert.equal(isRecomputableEnemyStatusPower({ statusType: 'TotallyUnknown', power: 0.3 }), false, 'unknown は preserve');
+});
+
+// ─── T3-2 recomputable 代表: Fragile も同様に上流編集へ追従する ───
+test('representative: Fragile carry-turn also follows upstream edit on recompute', () => {
+  const buildFragileState = (actorWis) => {
+    const members = Array.from({ length: 6 }, (_, index) => {
+      const isActor = index === 0;
+      return new CharacterStyle({
+        characterId: `F${index + 1}`,
+        characterName: `F${index + 1}`,
+        styleId: 8000 + index,
+        styleName: `FS${index + 1}`,
+        partyIndex: index,
+        position: index,
+        initialSP: 20,
+        role: 'Attacker',
+        weaponType: 'Slash',
+        stats: { str: 1, dex: 1, con: 1, spr: 1, luk: 1, wis: isActor ? actorWis : 1 },
+        skills: isActor
+          ? [
+              {
+                id: 71010,
+                name: 'Stat Fragile',
+                label: 'Stat Fragile',
+                sp_cost: 0,
+                target_type: 'Single',
+                hit_count: 1,
+                hitCount: 1,
+                parts: [
+                  {
+                    skill_type: 'Fragile',
+                    target_type: 'Single',
+                    power: [0.3, 0.45],
+                    growth: [0, 0],
+                    diff_for_max: 100,
+                    parameters: { wis: 1 },
+                    effect: { limitType: 'Only', exitCond: 'Eternal' },
+                  },
+                ],
+              },
+              { id: 71011, name: 'Filler', label: 'Filler', sp_cost: 0, target_type: 'Self', hit_count: 1, hitCount: 1, parts: [{ skill_type: 'Protection', target_type: 'Self' }] },
+            ]
+          : [{ id: 71011, name: 'Filler', label: 'Filler', sp_cost: 0, target_type: 'Self', hit_count: 1, hitCount: 1, parts: [{ skill_type: 'Protection', target_type: 'Self' }] }],
+        passives: [],
+      });
+    });
+    const baseTurnState = createInitialTurnState();
+    return createBattleStateFromParty(new Party(members), {
+      ...baseTurnState,
+      enemyState: { ...baseTurnState.enemyState, enemyCount: 1, paramBorderByEnemy: { 0: ENEMY_BORDER } },
+    });
+  };
+  const getFragilePower = (state) => {
+    const found = (state?.turnState?.enemyState?.statuses ?? []).find(
+      (s) => String(s?.statusType) === 'Fragile' && Number(s?.targetIndex ?? -1) === 0
+    );
+    return found ? Number(found.power) : null;
+  };
+
+  const manager = new TurnEngineManager();
+  manager.initialize(buildFragileState(700), {});
+  manager.commitNextTurn({ 0: { skillId: 71010, target: { type: 'enemy', enemyIndex: 0 } } }, { enemyCount: 1, note: 'fragile t1' });
+  manager.commitNextTurn({ 0: { skillId: 71011 } }, { enemyCount: 1, note: 'fragile t2 carry' });
+
+  manager.recalculateAll(buildFragileState(300));
+  const t1 = getFragilePower(manager.computedStates[0]);
+  const t2 = getFragilePower(manager.computedStates[1]);
+  assert.notEqual(t1, null, 'turn1 に Fragile が付与されていること');
+  assert.notEqual(t2, null, 'turn2 に Fragile が引き継がれていること');
+  assert.ok(Math.abs(t1 - t2) < 1e-9, `Fragile も turn1(再解決)=turn2(引き継ぎ) (t1=${t1}, t2=${t2})`);
 });

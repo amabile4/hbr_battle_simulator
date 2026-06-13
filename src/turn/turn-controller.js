@@ -2855,30 +2855,65 @@ function getEnemyStatusTargetTypeKey(status) {
   return `${Number(normalized.targetIndex ?? 0)}|${String(normalized.statusType ?? '')}`;
 }
 
+/**
+ * enemy status の power が「再計算で再導出されるべき効果値」かを判定する。
+ *
+ * 再計算(replay)時、turn-start enemyStatuses override は snapshot(commit 時の凍結値)で
+ * carry-forward 値を置換するが、stat 差分・効果量アップ・HighBoost で付与時解決される
+ * デバフ効果値は、上流(caster stat・敵 border 等)を編集して再計算した時に再導出される
+ * べきもの。これらを snapshot 凍結値で上書きすると陳腐化する
+ * （docs/active/debuff_resolved_power_propagation_investigation.md）。
+ *
+ * recomputable = HighBoostEnemyDebuff 影響下（= stat 解決対象を内包する上位集合）の
+ *   action 由来デバフで、power が duration(ターン数)ではなく numeric な効果値であるもの。
+ * - duration 型(Provoke/Attention/Misfortune/Cover)は power=ターン数なので除外。
+ * - lifecycle 系(Break/SuperBreak/SuperBreakDown/DownTurn/Dead)は HighBoost 集合に
+ *   含まれないため自動的に除外（凍結維持＝preserve）。
+ * - unknown/非 numeric power は false（安全側 preserve）。
+ * 注意: runtime statusType は ResistDown / ResistDownOverwrite（damage 計算側の
+ *   ElementResistDown ではない）。HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES は runtime 名で定義。
+ */
+export function isRecomputableEnemyStatusPower(status) {
+  const statusType = normalizeEnemyStatusType(status?.statusType);
+  if (!statusType) {
+    return false;
+  }
+  if (!HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES.has(statusType)) {
+    return false;
+  }
+  if (ENEMY_STATUS_POWER_DURATION_SKILL_TYPES.has(statusType)) {
+    return false;
+  }
+  return getEnemyStatusPowerValue(status) !== null;
+}
+
 function buildOverrideEnemyStatuses(currentStatuses, snapshotStatuses, enemyCount, options = {}) {
   const normalizedSnapshotStatuses = (Array.isArray(snapshotStatuses) ? snapshotStatuses : [])
     .map((status) => normalizeEnemyStatus(status, enemyCount))
     .filter(Boolean);
-  const preserveCurrentStatusPredicate =
+  const extraPreservePredicate =
     typeof options.preserveCurrentStatusPredicate === 'function'
       ? options.preserveCurrentStatusPredicate
       : null;
-  if (!preserveCurrentStatusPredicate) {
-    return normalizedSnapshotStatuses;
-  }
+  // recomputable な効果値 power は常に carry-forward(現在値=再導出済み)を正本とし、
+  // snapshot(凍結値)を採用しない。比較再計算の preserve predicate とは OR 合成する。
+  const shouldPreserveCurrent = (status) =>
+    isRecomputableEnemyStatusPower(status) ||
+    (extraPreservePredicate ? extraPreservePredicate(status) : false);
+
   const preservedStatuses = (Array.isArray(currentStatuses) ? currentStatuses : [])
     .map((status) => normalizeEnemyStatus(status, enemyCount))
-    .filter((status) => status && preserveCurrentStatusPredicate(status));
-  if (preservedStatuses.length === 0) {
-    return normalizedSnapshotStatuses;
-  }
+    .filter((status) => status && shouldPreserveCurrent(status));
   const preservedKeys = new Set(
     preservedStatuses.map((status) => getEnemyStatusTargetTypeKey(status)).filter(Boolean)
   );
-  return [
-    ...preservedStatuses,
-    ...normalizedSnapshotStatuses.filter((status) => !preservedKeys.has(getEnemyStatusTargetTypeKey(status))),
-  ];
+  // snapshot からは「recomputable な凍結値」と「現在値で preserve 済みのキー」を除外する。
+  const snapshotContribution = normalizedSnapshotStatuses.filter(
+    (status) =>
+      !isRecomputableEnemyStatusPower(status) &&
+      !preservedKeys.has(getEnemyStatusTargetTypeKey(status))
+  );
+  return [...preservedStatuses, ...snapshotContribution];
 }
 
 export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, options = {}) {
