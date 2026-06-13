@@ -208,3 +208,51 @@ test('calculateDestruction - DestructionUp integration with pre-resolved power',
   assert.ok(isClose(res.breakdown.baseDestruction, 0.0581));
   assert.ok(isClose(res.breakdown.buffMultiplier, 0.4532));
 });
+
+test('calculateDestruction - destructionMultiplier edge cases', () => {
+  // dr=1 のスキル攻撃でブレイクヒット1発のシンプルな設定
+  const makeInput = (destructionMultiplier) => ({
+    attacker: { role: 'Attacker', statusEffects: [] },
+    defender: {
+      destructionRate: 1.0,
+      destructionMultiplier,
+      destructionLimit: 99.0,
+      dp: 0,
+    },
+    skill: {
+      name: 'edge',
+      isNormalAttack: false,
+      attackPart: { skill_type: 'AttackSkill', multipliers: { dr: 1.0 } },
+    },
+    hits: [{ damage: 1, isBreakHit: true }],
+  });
+  const data = { styles: [], enemies: [], skills: [] };
+
+  // d_rate=0: 破壊不可敵 → 破壊率上昇なし・destructionMultiplierがbreakdownに0で記録される
+  const res0 = calculateDestruction(makeInput(0), data);
+  assert.equal(res0.breakdown.baseDestruction, 0.0);
+  assert.equal(res0.breakdown.destructionMultiplier, 0);
+  assert.equal(res0.destructionRate, 1.0);
+
+  // d_rate=5 (標準敵) と d_rate=50 (外れ値/1000%) の比率が10倍
+  const res5  = calculateDestruction(makeInput(5),  data);
+  const res50 = calculateDestruction(makeInput(50), data);
+  assert.ok(isClose(res50.breakdown.baseDestruction, res5.breakdown.baseDestruction * 10),
+    'd_rate=50 は d_rate=5 の10倍上昇であること');
+
+  // destMult < 0: ガードされ 0 として扱われる（破壊率低下バグ防止）
+  const resNeg = calculateDestruction(makeInput(-1), data);
+  assert.equal(resNeg.breakdown.destructionMultiplier, 0);
+  assert.equal(resNeg.breakdown.baseDestruction, 0.0);
+  assert.equal(resNeg.destructionRate, 1.0);
+
+  // destMult = NaN: ガードされ 0 として扱われる
+  const resNaN = calculateDestruction(makeInput(NaN), data);
+  assert.equal(resNaN.breakdown.destructionMultiplier, 0);
+  assert.equal(resNaN.destructionRate, 1.0);
+
+  // destMult = Infinity: ガードされ 0 として扱われる（安全側に倒す）
+  const resInf = calculateDestruction(makeInput(Infinity), data);
+  assert.equal(resInf.breakdown.destructionMultiplier, 0);
+  assert.equal(resInf.destructionRate, 1.0);
+});

@@ -115,6 +115,10 @@ export function calculateDestruction(input, data) {
   } else {
     destMult = Number(destMult);
   }
+  // 非有限値・負値をガード: 破壊不可（0）として扱う
+  if (!Number.isFinite(destMult) || destMult < 0) {
+    destMult = 0.0;
+  }
 
   // 6. Calculate base destruction rate before buffs
   let baseDestRate = 0.0;
