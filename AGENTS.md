@@ -32,6 +32,14 @@
   - 例（node）: `node -e "const d=require('./json/foo.json'); console.log(JSON.stringify(d.key, null, 2))"`
 - Grep ツールや grep コマンドで `json/` 以下を検索しない。
 
+## 計算機コア（calc-core）の正本
+
+- **ダメージ・破壊率計算コア（`src/domain/damage-calculator.js` / `destruction-calculator.js` / `calculator-helpers.js`、`src/contracts/damage-calculation.js`、`src/data/damage-calculation-data.js`）の正本は本リポジトリ**。2026-06-14 に `hbr_calc` を統合し一本化した。
+- **不具合修正・機能拡張は本リポジトリで直接行う**。旧運用「hbr_calc で実装→PRマージ→simulator へ同期（デプロイ）」は**廃止**。`hbr_calc` リポジトリはアーカイブ（read-only）。
+- 計算式変更時は `npm test`（`tests/*.test.js`）と `npm run test:calc`（破壊率 fixture 回帰 1007件）を回す。
+- Python版エンジン・移植時の解析資料は `reference/calc-python/`（静的リファレンス、build/CI 対象外）。JS↔Python parity の照合用。
+- 計算モデルのドキュメントは `docs/calc/`（index は `docs/README.md`）。統合経緯は `docs/calc/hbr_calc_integration_record.md`。
+
 ## Repo Workflow
 
 - project 固有の branch 命名、merge 方針、shared 変更の流し方は [docs/specs/repo_workflow.md](docs/specs/repo_workflow.md) を参照する。

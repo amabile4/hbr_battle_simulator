@@ -2,7 +2,7 @@
 
 | 項目 | 値 |
 |------|----|
-| ステータス | 🟢 進行中 |
+| ステータス | ✅ 完了（2026-06-14、simulator側。残: hbr_calc GitHubアーカイブ化=ユーザー操作） |
 | 開始日 | 2026-06-14 |
 | 方針 | curated copy / Python静的リファレンス / JS検証はnode:test＋大規模別script / hbr_calcアーカイブ |
 | ブランチ | feature/integrate-hbr-calc |
@@ -56,5 +56,20 @@ hbr_calc fixtures を simulator calc-core に対し実測検証:
 - drift 2件を統一: `damage_calculation_model.md` は hbr_calc が superset（限界値超過WIP追加）のため採用。`destruction_calculation_model.md` は simulator 版（公式破壊率式セクション保持）に hbr_calc の WIP セクション（ヒット毎累積連動）を追記し、通常攻撃式が実機実測と乖離する旨の注記を追加。
 - `docs/README.md` の calc/ セクションを刷新（全21docを index 化、ステータスラベル付与、正本= simulator・reference/calc-python の案内を明記）。
 
-## Phase E〜F
-（実施に応じて追記）
+## Phase E: 旧運用廃止・正本反転 ✅（simulator側）
+- **E1**: `AGENTS.md` に「計算機コア（calc-core）の正本」セクションを追加。calc-core 正本= simulator、直接編集可、hbr_calc 同期運用は廃止、`npm test`＋`npm run test:calc`、`reference/calc-python` 案内を明記。`CLAUDE.md` は calc-core/sync 記述なし（変更不要）。
+- **E2**: memory `[[hbr-calc-owns-calculator-core]]` を反転（正本= simulator、直接編集可、同期廃止）。MEMORY.md index も更新。
+- **E3（ユーザー操作で実施）**: `hbr_calc` リポジトリのアーカイブ手順:
+  1. hbr_calc の README/AGENTS.md 冒頭に「**アーカイブ済み。calc-core の正本は hbr_battle_simulator**」を追記。
+  2. GitHub の `amabile4/hbr_calc` を Settings → Archive（read-only 化）。
+  3. ローカル `hbr_calc/json -> ../hbr_battle_simulator/json` symlink は統合後不要（参照したい場合のみ残置）。
+  - ※ 本リポジトリのタスクからは hbr_calc を直接編集しない（read-only 扱い）。
+
+## Phase F: 検証 ✅
+- `npm test`: **1435 pass / 0 fail**。
+- `npm run test:calc`: **1007 pass / 0 fail**（破壊率 fixed 7 + large 1000）。
+- `npm run lint`: clean。
+- calc-core は simulator 内で直接編集→`npm test`/`npm run test:calc` が回る状態になり、同期工程廃止の目的を達成（Issue #18 等の今後の calc 修正は simulator 内で完結）。
+
+## 統合完了サマリ
+calc-core 正本を hbr_battle_simulator に一本化。Python/解析は `reference/calc-python/` 静的リファレンス、破壊率 fixture 回帰は `npm run test:calc`、docs は `docs/calc/`、ワークフローは「simulator 直接編集・同期廃止」へ反転。残（ユーザー操作）: hbr_calc リポジトリの GitHub アーカイブ化（Phase E3 手順）。

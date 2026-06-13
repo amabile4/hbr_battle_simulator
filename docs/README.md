@@ -109,7 +109,7 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-| [calc/hbr_calc_integration_record.md](calc/hbr_calc_integration_record.md) | 🟢 進行中 | **hbr_calc 統合記録**。calc-core 正本確定（GO）、Python/analysis 静的リファレンス化、JS検証 fixtures 移植、docs 移植、旧運用反転の Phase A〜F 記録 | 2026-06-14 |
+| [calc/hbr_calc_integration_record.md](calc/hbr_calc_integration_record.md) | ✅ 完了 | **hbr_calc 統合記録**。calc-core 正本確定（GO）、Python/analysis 静的リファレンス化、JS検証 fixtures 移植、docs 移植、旧運用反転の Phase A〜F。npm test 1435 / test:calc 1007 GREEN。残=hbr_calc GitHubアーカイブ化（ユーザー操作） | 2026-06-14 |
 | [calc/porting_design_guideline.md](calc/porting_design_guideline.md) | ✅ 完了 | Python版コアロジックのTypeScript移植に伴う設計・命名統一ガイドライン | 2026-06-03 |
 | [calc/damage_calculation_model.md](calc/damage_calculation_model.md) | 📚 参照 | HBR計算機 ダメージ計算仕様・データ構造レポート（限界値超過オプション等のWIP含む） | 2026-06-14 |
 | [calc/destruction_calculation_model.md](calc/destruction_calculation_model.md) | 📚 参照 | 破壊率計算モデル。**通常攻撃式は実機実測(d_rate/100)で乖離・Issue #18 修正中**の注記あり | 2026-06-14 |
