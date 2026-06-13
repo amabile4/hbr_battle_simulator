@@ -11,6 +11,7 @@ import { buildCriticalRateBreakdown, buildDamageBreakdown } from '../domain/dama
 import { calculateDestruction } from '../domain/destruction-calculator.js';
 import {
   DEFAULT_ENEMY_BORDER,
+  findAttackPart,
   resolveEffectPowerFromPart,
 } from '../domain/calculator-helpers.js';
 import { normalizeCharacterStats, resolveStatsWithSupport } from '../domain/character-stats.js';
@@ -3593,6 +3594,38 @@ function isHitWeakBySkillContext(state, member, skill, actionEntry) {
   };
 }
 
+function isHitWeakForTarget(state, member, skill, actionEntry, targetIndex) {
+  const normalizedTargetIndex = Number(targetIndex);
+  if (!Number.isInteger(normalizedTargetIndex) || normalizedTargetIndex < 0) {
+    return false;
+  }
+  if (actionTreatsEShieldAsWeakHit(state, member, skill, actionEntry, [normalizedTargetIndex])) {
+    return true;
+  }
+  const elements = getConditionSkillElements(skill, member).filter((element) => element && element !== 'None');
+  return elements.some((element) => isEnemyWeakToElement(state?.turnState, normalizedTargetIndex, element));
+}
+
+function buildDestructionConditionResultsForTarget(state, member, skill, actionEntry, targetIndex) {
+  return {
+    'IsHitWeak()': isHitWeakForTarget(state, member, skill, actionEntry, targetIndex),
+  };
+}
+
+function buildDestructionConditionResultsByEnemy(state, member, skill, actionEntry, enemyCount) {
+  const results = {};
+  for (let targetIndex = 0; targetIndex < enemyCount; targetIndex += 1) {
+    results[String(targetIndex)] = buildDestructionConditionResultsForTarget(
+      state,
+      member,
+      skill,
+      actionEntry,
+      targetIndex
+    );
+  }
+  return results;
+}
+
 function resolveWeakHitTargetEnemyIndexes(state, skill, actionEntry) {
   const actionTarget = Number(actionEntry?.targetEnemyIndex);
   if (Number.isInteger(actionTarget) && actionTarget >= 0) {
@@ -4936,6 +4969,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
     if (!hasDamagePartInParts(effectiveParts)) {
       continue;
     }
+    const destructionAttackPart = findAttackPart({ parts: effectiveParts });
 
     const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
     if (targetEnemyIndexes.length === 0) {
@@ -5065,6 +5099,14 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             isPursuit: isPursuitOnlySkill(skill),
             spCostOverride: Number(actionEntry?.spCost ?? skill?.spCost ?? skill?.sp_cost ?? 0),
             parts: effectiveParts,
+            attackPart: destructionAttackPart,
+            conditionResults: buildDestructionConditionResultsForTarget(
+              state,
+              actor,
+              skill,
+              actionEntry,
+              targetIndex
+            ),
           },
           hits: destructionHits,
           autoBreak: useAutoBreak,
@@ -8869,6 +8911,14 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       const isNormalAttack = isNormalAttackSkill(skill);
       // WIP: 将来の破壊率追跡実装時に damageBreakdownInput / damageContext へ渡す
       const isDestructionRateGainSkill = hasDestructionRateGainPartInParts(effectiveParts); // eslint-disable-line no-unused-vars
+      const destructionAttackPart = findAttackPart({ parts: effectiveParts });
+      const destructionConditionResultsByEnemy = buildDestructionConditionResultsByEnemy(
+        state,
+        member,
+        skillWithTarget,
+        actionEntry,
+        enemyCount
+      );
       const chainSkillAttackUpRate = Number(member?.chainSkillAttackUpRate ?? 0);
       const chainAccessoryContributions = chainSkillAttackUpRate > 0
         ? [{
@@ -8930,6 +8980,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         skillName: skill.name,
         targetType: skill.targetType,
         isNormalAttack,
+        isPursuit: isPursuitOnlySkill(skill),
+        destructionAttackPart,
+        destructionConditionResultsByEnemy,
         enemyCount,
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
         baseHitCount,

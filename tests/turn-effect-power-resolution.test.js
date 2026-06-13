@@ -217,5 +217,7 @@ test('DestructionUp stored as ratio is converted to core percent at destruction 
   });
   const { nextState } = commitTurn(state, preview);
   const updatedRate = Number(nextState.turnState.enemyState.destructionRateByEnemy?.[0] ?? 0);
-  assertAlmostEqual(updatedRate, 220, 'DestructionUp ratio is passed to core as percent');
+  // SP二重掛け修正後は dr=10 の基礎上昇が 100% ではなく 40%。
+  // DestructionUp 0.2 は core へ 20% として渡され、40% * 1.2 = 48% 加算になる。
+  assertAlmostEqual(updatedRate, 148, 'DestructionUp ratio is passed to core as percent');
 });

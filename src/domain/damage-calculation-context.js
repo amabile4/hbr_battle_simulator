@@ -7,6 +7,15 @@ export function buildDamageCalculationContext(input = {}) {
     skillName: String(input.skillName ?? ''),
     targetType: String(input.targetType ?? ''),
     isNormalAttack: input.isNormalAttack === true,
+    isPursuit: input.isPursuit === true,
+    destructionAttackPart:
+      input.destructionAttackPart && typeof input.destructionAttackPart === 'object'
+        ? structuredClone(input.destructionAttackPart)
+        : null,
+    destructionConditionResultsByEnemy:
+      input.destructionConditionResultsByEnemy && typeof input.destructionConditionResultsByEnemy === 'object'
+        ? structuredClone(input.destructionConditionResultsByEnemy)
+        : {},
     enemyCount: Number(input.enemyCount ?? 1),
     targetEnemyIndex:
       input.targetEnemyIndex === null || input.targetEnemyIndex === undefined

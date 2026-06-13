@@ -6128,7 +6128,9 @@ test('transcendence burst raises destruction gain and cap without stacking with 
   const committedAction = findActionByCharacterId(committedRecord, 'TC1');
   assert.equal(committedAction.damageContext?.destructionRateCapByEnemy?.['0'], 600);
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
-  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 600);
+  // SP二重掛け修正後は dr=1 の基礎上昇が 10% ではなく 4%。
+  // 超越バースト破壊率+10%は blaster slope と同じ上昇量補正として解決されるため 590% + 4.22%。
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 594.22);
 });
 
 test('transcendence burst destruction cap is actor-element gated and does not add to higher stored cap', () => {
@@ -6164,7 +6166,7 @@ test('transcendence burst destruction cap is actor-element gated and does not ad
   });
   const nonMatchingCommitted = commitTurn(nonMatchingState, nonMatchingPreview);
   assert.ok(
-    Math.abs(nonMatchingCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 300) < 1e-9
+    Math.abs(nonMatchingCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 294) < 1e-9
   );
 
   const highStoredCapState = createState('TC_ICE_CAP', ['Ice'], 690, 700);
@@ -6173,7 +6175,7 @@ test('transcendence burst destruction cap is actor-element gated and does not ad
   });
   const highStoredCapCommitted = commitTurn(highStoredCapState, highStoredCapPreview);
   assert.ok(
-    Math.abs(highStoredCapCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 700) < 1e-9
+    Math.abs(highStoredCapCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 694.22) < 1e-9
   );
 });
 
@@ -24158,7 +24160,8 @@ test('same-action SuperBreak 後の破壊率上昇は拡張後 cap を使用す�
   const { nextState } = commitTurn(state, preview);
 
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
-  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 600);
+  // SP二重掛け修正後は dr=1 の same-action SuperBreak 加算が 10% ではなく 4%。
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 594);
 });
 
 test('Eシールド auto-break on all-target action updates breakHitCount and triggers AdditionalHitOnBreaking', () => {
@@ -24613,8 +24616,11 @@ test('手動ブレイク指定はperHitDpDamageのDP残量より優先され、D
     '手動ブレイク指定によりDP残量が0になること'
   );
   const dr = nextState.turnState.enemyState.destructionRateByEnemy['0'];
-  // DP_A(+100%) + DP_B(ブレイク後 +100%) で最低でも300%に到達する
-  assert.ok(dr >= 300, `手動ブレイクのDR加算が反映されること（DR=${dr}）`);
+  // SP二重掛け修正後は dr=10 の加算が各40%。DP_A(+40%) + DP_B(ブレイク後 +40%)。
+  assert.ok(
+    Math.abs(dr - 180) < 1e-9,
+    `手動ブレイクのDR加算が反映されること（DR=${dr}）`
+  );
 });
 
 test('DPゲージ未設定の敵はperHitDpDamageがあっても自動ブレイクしない', () => {

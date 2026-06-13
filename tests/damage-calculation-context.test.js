@@ -22,6 +22,9 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     skillName: '',
     targetType: '',
     isNormalAttack: false,
+    isPursuit: false,
+    destructionAttackPart: null,
+    destructionConditionResultsByEnemy: {},
     enemyCount: 1,
     targetEnemyIndex: null,
     baseHitCount: 0,
@@ -182,6 +185,8 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   const selectedMindEyeEffects = [{ statusType: 'MindEye', power: 0.5 }];
   const criticalRateBreakdown = { criticalRatePercent: 100, isCriticalGuaranteed: true };
   const damageBreakdown = { version: 1, targetBreakdowns: [{ targetEnemyIndex: 0 }] };
+  const destructionAttackPart = { skill_type: 'AttackSkill', multipliers: { dr: 10 } };
+  const destructionConditionResultsByEnemy = { 0: { 'IsHitWeak()': true } };
   const context = buildDamageCalculationContext({
     tokenAttackTokenCount: '5',
     tokenAttackRatePerToken: '12.5',
@@ -219,6 +224,9 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     zoneType: 'Fire',
     zonePowerRate: '45',
     isNormalAttack: true,
+    isPursuit: true,
+    destructionAttackPart,
+    destructionConditionResultsByEnemy,
     activeStatusEffects,
     chargeEffects,
     enemyStatusEffects,
@@ -257,7 +265,12 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.zoneType, 'Fire');
   assert.equal(context.zonePowerRate, 45);
   assert.equal(context.isNormalAttack, true);
+  assert.equal(context.isPursuit, true);
   assert.equal(context.hasPenetrationCritical, true);
+  assert.notEqual(context.destructionAttackPart, destructionAttackPart);
+  assert.deepEqual(context.destructionAttackPart, destructionAttackPart);
+  assert.notEqual(context.destructionConditionResultsByEnemy, destructionConditionResultsByEnemy);
+  assert.deepEqual(context.destructionConditionResultsByEnemy, destructionConditionResultsByEnemy);
   assert.notEqual(context.activeStatusEffects, activeStatusEffects);
   assert.deepEqual(context.activeStatusEffects, activeStatusEffects);
   assert.notEqual(context.chargeEffects, chargeEffects);
@@ -283,6 +296,8 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   selectedMindEyeEffects[0].power = 0.9;
   criticalRateBreakdown.criticalRatePercent = 0;
   damageBreakdown.targetBreakdowns[0].targetEnemyIndex = 2;
+  destructionAttackPart.multipliers.dr = 99;
+  destructionConditionResultsByEnemy[0]['IsHitWeak()'] = false;
   funnelEffects[0].count = 99;
   activeStatusEffects[0].power = 999;
   chargeEffects[0].power = 999;
@@ -298,5 +313,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.selectedMindEyeEffects[0].power, 0.5);
   assert.equal(context.criticalRateBreakdown.criticalRatePercent, 100);
   assert.equal(context.damageBreakdown.targetBreakdowns[0].targetEnemyIndex, 0);
+  assert.equal(context.destructionAttackPart.multipliers.dr, 10);
+  assert.equal(context.destructionConditionResultsByEnemy[0]['IsHitWeak()'], true);
   assert.equal(context.funnelEffects[0].count, 2);
 });
