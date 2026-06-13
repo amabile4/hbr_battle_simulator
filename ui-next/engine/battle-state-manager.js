@@ -282,7 +282,7 @@ function resolveEnemySlotHp(slot = {}, dataStore = null) {
   return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
 }
 
-function resolveEnemySlotDestructionMultiplierPercent(slot = {}, dataStore = null) {
+function resolveEnemySlotDestructionMultiplierRaw(slot = {}, dataStore = null) {
   const direct = Number(slot?.d_rate);
   if (Number.isFinite(direct)) {
     return direct;
@@ -322,7 +322,7 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
     const rawOdRate = Number.isFinite(Number(slot?.od_rate))
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
-    const rawDestructionMultiplier = resolveEnemySlotDestructionMultiplierPercent(slot, dataStore);
+    const rawDestructionMultiplier = resolveEnemySlotDestructionMultiplierRaw(slot, dataStore);
     return {
       enemyName,
       paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0

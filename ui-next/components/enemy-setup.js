@@ -1053,7 +1053,7 @@ export class EnemySetupController {
               ${this.#numFieldHtml('od_rate',    'オーバードライブ上昇量', vals.od_rate,    isManual,
                 (v) => formatEnemyOdRatePercent(v))}
               ${this.#numFieldHtml('d_rate',     '破壊率上昇率',         vals.d_rate,     isManual,
-                (v) => `${v}%`)}
+                (v) => `${v * 20}%`)}
               ${this.#readOnlyFieldHtml('現在破壊率', formatDestructionRatePercent(currentDestructionRate), 'enemy-current-destruction-rate')}
               ${this.#numFieldHtml('max_d_rate', '最大破壊率',             vals.max_d_rate, isManual,
                 (v) => `${v}%`)}
