@@ -102,4 +102,7 @@ scripts/run_gemini_api.sh
 # Local CodeGraph data
 .codegraph/
 
-__pycache__calc/test_cases_destruction*.json
+# Python caches (reference/calc-python は静的リファレンス。キャッシュ/venv は無視)
+__pycache__/
+*.pyc
+.venv/
