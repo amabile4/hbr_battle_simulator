@@ -237,7 +237,7 @@ test('calculateDestruction - destructionMultiplier edge cases', () => {
   // d_rate=1 と d_rate=10 で破壊率上昇が10倍になること（比例性）。
   const res1  = calculateDestruction(makeInput(1),  data);
   const res10 = calculateDestruction(makeInput(10), data);
-  assert.ok(isClose(res10.breakdown.baseDestruction, res1.breakdown.baseDestruction * 10),
+  assert.ok(isClose(res10.breakdown.baseDestRate, res1.breakdown.baseDestRate * 10),
     'd_rate=10 は d_rate=1 の10倍上昇であること');
 
   // destMult < 0: ガードされ 0 として扱われる（破壊率低下バグ防止）

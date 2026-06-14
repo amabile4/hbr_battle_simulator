@@ -65,6 +65,7 @@ import {
   OD_LEVELS,
   INTRINSIC_MARK_EFFECTS_BY_ELEMENT,
   ANCIENT_CHAIN_CONTRIBUTION_LABEL,
+  FUNNEL_DESTRUCTION_RATE_PER_HIT,
   getOdGaugeRequirement,
   clampEnemyCount,
 } from '../config/battle-defaults.js';
@@ -5014,6 +5015,8 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
     }
 
     const hitCount = Math.max(1, resolveActionEShieldHitCount(actionEntry, skill));
+    const baseHitCount = Math.max(1, Number(actionEntry?.skillBaseHitCount ?? resolveSkillHitCount(skill) ?? hitCount));
+    const funnelDestructionRateBonus = resolveFunnelDestructionRateBonusForAction(actor, actionEntry);
     const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
     const autoBreakEnemyIndexes = normalizeAutoBreakEnemyIndexes(actionEntry, enemyCount);
     const sameActionBreakEnemyIndexes = new Set([...manualBreakEnemyIndexes, ...autoBreakEnemyIndexes]);
@@ -5115,15 +5118,15 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             styleId: Number(actor.styleId ?? actionEntry?.styleId ?? 0),
             statusEffects: normalizeDestructionUpStatusEffectsForCalculation(actor.statusEffects),
             // ブラストピアスは raw ratio を渡し、calculateDestruction 内の
-            // ヒット数傾斜（上昇型・仕様式Bと同一）でスケールさせる（二重傾斜防止）
-            accessoryDestructionRateBonus:
-              Number(
-                actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
-              ) + Number(actor?.blastPiercePercent ?? 0) / 100,
+            // 正式な加算グループへ吸収する。
+            accessoryDestructionRateBonus: Number(actor?.blastPiercePercent ?? 0) / 100,
             // エンシェントチェーンの破壊率上昇量+はヒット数非依存のフラット加算
             flatDestructionRateBonus: Number(actor?.chainDestructionRateBonus ?? 0),
             transcendenceBurstDestructionRateGainBonusRate: Number(
               actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+            ),
+            markDestructionRateGainBonusRate: Number(
+              actionEntry?.specialPassiveModifiers?.markDestructionRateGainBonusRate ?? 0
             ),
             resonanceDestructionRateBonus: Number(
               actionEntry?.specialPassiveModifiers?.resonanceDestructionRateBonus ?? 0
@@ -5142,6 +5145,9 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             isNormalAttack: isNormalAttackSkill(skill),
             isPursuit: isPursuitOnlySkill(skill),
             spCostOverride: Number(actionEntry?.spCost ?? skill?.spCost ?? skill?.sp_cost ?? 0),
+            baseHitCount,
+            funnelHitCount: funnelDestructionRateBonus.funnelHitCount,
+            funnelRate: funnelDestructionRateBonus.funnelRate,
             parts: effectiveParts,
             attackPart: destructionAttackPart,
             conditionResults: buildDestructionConditionResultsForTarget(
@@ -9500,6 +9506,59 @@ function resolveFunnelHitBonusForMember(member, maxStacks = 2) {
   return effects.reduce((sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)), 0);
 }
 
+function resolveFunnelEffectHitCount(effect) {
+  const rawPower = effect?.power;
+  const rawHitCount = Array.isArray(rawPower) ? rawPower[0] : rawPower;
+  const hitCount = Number(rawHitCount ?? 0);
+  return Number.isFinite(hitCount) && hitCount > 0 ? hitCount : 0;
+}
+
+function resolveFunnelEffectDestructionRate(effect) {
+  const explicitRate = Number(effect?.metadata?.damageBonus ?? NaN);
+  if (Number.isFinite(explicitRate) && explicitRate > 0) {
+    return explicitRate;
+  }
+  const rawPower = effect?.power;
+  const rateIndex = Number(
+    effect?.metadata?.destructionRateIndex ??
+    (Array.isArray(rawPower) ? rawPower[1] : 0)
+  );
+  return FUNNEL_DESTRUCTION_RATE_PER_HIT[rateIndex] ?? FUNNEL_DESTRUCTION_RATE_PER_HIT[0];
+}
+
+function resolveFunnelDestructionRateBonusForAction(actor, actionEntry) {
+  const effects = Array.isArray(actionEntry?.consumedFunnelEffects) && actionEntry.consumedFunnelEffects.length > 0
+    ? actionEntry.consumedFunnelEffects
+    : (Array.isArray(actionEntry?.damageContext?.funnelEffects)
+      ? actionEntry.damageContext.funnelEffects
+      : []);
+  const effectTotals = effects.reduce(
+    (acc, effect) => {
+      const hitCount = resolveFunnelEffectHitCount(effect);
+      const rate = resolveFunnelEffectDestructionRate(effect);
+      return {
+        hitCount: acc.hitCount + hitCount,
+        weightedRateHits: acc.weightedRateHits + hitCount * rate,
+      };
+    },
+    { hitCount: 0, weightedRateHits: 0 }
+  );
+
+  const actionFunnelHitCount = Number(actionEntry?.skillFunnelHitBonus ?? NaN);
+  const fallbackHitCount = Number.isFinite(actionFunnelHitCount) && actionFunnelHitCount > effectTotals.hitCount
+    ? actionFunnelHitCount - effectTotals.hitCount
+    : 0;
+  const fallbackWeightedRateHits = fallbackHitCount * FUNNEL_DESTRUCTION_RATE_PER_HIT[0];
+  const totalHitCount = effectTotals.hitCount + fallbackHitCount;
+  if (totalHitCount <= 0) {
+    return { funnelHitCount: 0, funnelRate: 0 };
+  }
+  return {
+    funnelHitCount: totalHitCount,
+    funnelRate: (effectTotals.weightedRateHits + fallbackWeightedRateHits) / totalHitCount,
+  };
+}
+
 function resolveEffectivePreviewHitCount(skill, state, member) {
   const baseHitCount = resolveSkillHitCount(skill);
   const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
@@ -9794,6 +9853,7 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
       const exitCond = String(part?.effect?.exitCond ?? 'Count');
       const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
       const hitBonus = Number(part?.power?.[0] ?? 0);
+      const destructionRateIndex = Number(part?.power?.[1] ?? 0);
       const damageBonus = Number(part?.value?.[0] ?? 0);
 
       for (const targetCharacterId of targetCharacterIds) {
@@ -9816,6 +9876,7 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
           sourceSkillName: String(skill.name ?? ''),
           metadata: {
             damageBonus: Number.isFinite(damageBonus) ? damageBonus : 0,
+            destructionRateIndex: Number.isFinite(destructionRateIndex) ? destructionRateIndex : 0,
             targetType: String(part?.target_type ?? ''),
           },
         });
@@ -13300,6 +13361,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
 
         if (skillType === 'Funnel') {
           const hitBonus = Number(part?.power?.[0] ?? 0);
+          const destructionRateIndex = Number(part?.power?.[1] ?? 0);
           const damageBonus = Number(part?.value?.[0] ?? 0);
           if (!Number.isFinite(hitBonus) || hitBonus <= 0) {
             continue;
@@ -13337,6 +13399,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
               sourcePassiveName: String(passive?.name ?? ''),
               metadata: {
                 damageBonus: Number.isFinite(damageBonus) ? damageBonus : 0,
+                destructionRateIndex: Number.isFinite(destructionRateIndex) ? destructionRateIndex : 0,
                 targetType: String(part?.target_type ?? ''),
               },
             });

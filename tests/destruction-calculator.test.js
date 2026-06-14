@@ -8,6 +8,8 @@ import {
 import { findAttackPart } from '../src/domain/calculator-helpers.js';
 
 const DESTRUCTION_TOLERANCE = 1e-4;
+const DESTRUCTION_BASE_HIT_REFERENCE = 8;
+const RATIO_PERCENT_DENOMINATOR = 100;
 
 function assertAlmostEqual(actual, expected, label, tolerance = DESTRUCTION_TOLERANCE) {
   assert.ok(
@@ -33,6 +35,14 @@ function buildBrokenDestructionInput({ skillId, skillName, attackPart, condition
     },
     hits: [{ damage: 1 }],
   };
+}
+
+function expectedSkillBaseDestruction(dr, dRate, hitCount, bonusSum = 0) {
+  return Math.floor(
+    (dr * dRate * hitCount / (DESTRUCTION_BASE_HIT_REFERENCE * RATIO_PERCENT_DENOMINATOR)) *
+    (1 + bonusSum) *
+    10000
+  ) / 10000;
 }
 
 test('calculateDestruction requires manual break hits unless autoBreak is enabled', () => {
@@ -67,9 +77,8 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
     ...input,
     hits: [{ damage: 0 }, { damage: 1000, isBreakHit: true }],
   }, data);
-  // Unified destruction formula: dr already includes effective SP, so active skills use dr * 4.
-  assertAlmostEqual(manualBreak.destructionRate, 1.3, 'manualBreak.destructionRate');
-  assertAlmostEqual(manualBreak.breakdown.finalBaseDestruction, 0.6, 'manualBreak.finalBaseDestruction');
+  assertAlmostEqual(manualBreak.destructionRate, 1.01875, 'manualBreak.destructionRate');
+  assertAlmostEqual(manualBreak.breakdown.finalBaseDestruction, 0.0375, 'manualBreak.finalBaseDestruction');
   assertAlmostEqual(manualBreak.breakdown.destMult, 1.5, 'manualBreak.destMult');
 
   const autoBreak = calculateDestruction({
@@ -77,7 +86,7 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
     hits: [{ damage: 0 }, { damage: 1000 }],
     autoBreak: true
   }, data);
-  assertAlmostEqual(autoBreak.destructionRate, 1.3, 'autoBreak.destructionRate');
+  assertAlmostEqual(autoBreak.destructionRate, 1.01875, 'autoBreak.destructionRate');
 });
 
 test('calculateDestruction treats dp=0 zero-damage hits as post-break destruction hits', () => {
@@ -110,9 +119,8 @@ test('calculateDestruction treats dp=0 zero-damage hits as post-break destructio
     data
   );
 
-  // Unified destruction formula: dr already includes effective SP, so active skills use dr * 4.
-  assertAlmostEqual(result.destructionRate, 1.6, 'alreadyBrokenZeroDamage.destructionRate');
-  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.6, 'alreadyBrokenZeroDamage.finalBaseDestruction');
+  assertAlmostEqual(result.destructionRate, 1.0562, 'alreadyBrokenZeroDamage.destructionRate');
+  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.0562, 'alreadyBrokenZeroDamage.finalBaseDestruction');
 });
 
 test('calculateDestruction applies enemy destructionMultiplier to destruction gain', () => {
@@ -144,8 +152,7 @@ test('calculateDestruction applies enemy destructionMultiplier to destruction ga
     data
   );
 
-  // dr * 4 * destructionMultiplier / 100 = 1 * 4 * 2 / 100 = 0.08 gain.
-  assertAlmostEqual(result.destructionRate, 1.08, 'destructionMultiplier.destructionRate');
+  assertAlmostEqual(result.destructionRate, 1.0025, 'destructionMultiplier.destructionRate');
   assertAlmostEqual(result.breakdown.destMult, 2, 'destMult.breakdown');
 });
 
@@ -202,10 +209,10 @@ test('calculateDestruction uses raw d_rate for normal attack destruction and onl
 });
 
 test('calculateDestruction: 9ヒット autoBreak 7発目ブレイクで破壊率が計算値+13.33%になる', () => {
-  // SP二重掛け修正後: DR倍率=10 → baseDestRate=10*4/100=0.4 の設定
+  // 正式式: DR倍率=10, d_rate=1, 9hit → baseDestRate=10*1*9/(8*100)=0.1125
   // DP=4,550,000、1ヒット650,000ダメージ → 7発目(index 6)で累積4,550,000≥DP → ブレイク
   // 貢献ヒット: index 6(ブレイクヒット), 7, 8 = 3ヒット
-  // DR加算 = 3 × (0.4/9) = 0.1333... ≈ 13.33%
+  // DR加算 = 3 × (0.1125/9) = 0.0375
   const data = {
     styles: [{ id: 1, role: 'Attacker' }],
     enemies: [],
@@ -237,12 +244,12 @@ test('calculateDestruction: 9ヒット autoBreak 7発目ブレイクで破壊率
 
   assertAlmostEqual(
     result.destructionRate - 1.0,
-    0.4 / 3,
-    '9hit autoBreak DR加算(計算値+13.33%)'
+    0.0375,
+    '9hit autoBreak DR加算'
   );
 });
 
-test('calculateDestruction resolves role, accessory, and limit exceedance bonuses', () => {
+test('calculateDestruction resolves accessory additive bonus and limit exceedance bonuses', () => {
   const data = {
     styles: [{ id: 2, role: 'Blaster' }],
     enemies: [],
@@ -257,10 +264,7 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
     ],
   };
 
-  // 1. Attacker is Blaster (+2.0 blaster correction)
-  // 2. BlastPierce accessory (+0.15 accessory bonus)
-  // 3. Resonance bonus (+10%)
-  // 4. Limit exceedance bonus (+1.0)
+  // Blaster role no longer has a hidden +2.0 correction. Blast pierce and resonance are additive.
   const input = {
     attacker: {
       styleId: 2,
@@ -282,24 +286,16 @@ test('calculateDestruction resolves role, accessory, and limit exceedance bonuse
 
   const result = calculateDestruction(input, data);
 
-  // SP二重掛け修正後: baseDestRate = (dr * 4.0 * destMult) / 100.0 = 0.04
-  // blasterCorrection = 2.0 (role) + 0.15 (accessory) = 2.15
-  // Since h = 1, blaster slope correction applies: sRatio = 5.0% = 0.05
-  // baseDestruction = Math.floor(0.04 * 1.05 * 10000.0) / 10000.0 = 0.042
-  // finalBaseDestruction = baseDestruction * (1.0 - destResist) * (1.0 + resonanceBonus) = 0.042 * 1.0 * 1.10 = 0.0462
-  // finalDestLimit = 3.0 + 1.0 = 4.0
-  // destructionRate = 1.0 + 0.0462 = 1.0462
-
-  assertAlmostEqual(result.destructionRate, 1.0462, 'destructionRate');
-  assertAlmostEqual(result.breakdown.baseDestruction, 0.042, 'baseDestruction');
-  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.0462, 'finalBaseDestruction');
-  assertAlmostEqual(result.breakdown.blasterCorrection, 2.15, 'blasterCorrection');
+  assertAlmostEqual(result.destructionRate, 1.0015, 'destructionRate');
+  assertAlmostEqual(result.breakdown.baseDestruction, 0.0015, 'baseDestruction');
+  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.0015, 'finalBaseDestruction');
+  assertAlmostEqual(result.breakdown.blasterCorrection, 0, 'blasterCorrection');
   assertAlmostEqual(result.breakdown.accessoryBonus, 0.15, 'accessoryBonus');
   assertAlmostEqual(result.breakdown.resonanceBonus, 0.10, 'resonanceBonus');
   assertAlmostEqual(result.breakdown.limitExceedBonus, 1.0, 'limitExceedBonus');
 });
 
-test('calculateDestruction applies resonance after accessory slope, flat bonus, and resist', () => {
+test('calculateDestruction applies resonance in additive group before resist', () => {
   const data = {
     styles: [{ id: 3, role: 'Blaster' }],
     enemies: [],
@@ -336,10 +332,9 @@ test('calculateDestruction applies resonance after accessory slope, flat bonus, 
     data
   );
 
-  // SP二重掛け修正後: baseDestRate=10*4/100=0.4, slope=75%, flat=20%.
-  assertAlmostEqual(result.breakdown.baseDestruction, 0.78, 'baseDestruction');
-  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.9126, 'finalBaseDestruction');
-  assertAlmostEqual(result.destructionRate, 1.9126, 'destructionRate');
+  assertAlmostEqual(result.breakdown.baseDestruction, 0.0825, 'baseDestruction');
+  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.07425, 'finalBaseDestruction');
+  assertAlmostEqual(result.destructionRate, 1.07425, 'destructionRate');
   assertAlmostEqual(result.breakdown.accessoryBonus, 0.15, 'accessoryBonus');
   assertAlmostEqual(result.breakdown.flatDestructionBonus, 0.2, 'flatDestructionBonus');
   assertAlmostEqual(result.breakdown.resonanceBonus, 0.3, 'resonanceBonus');
@@ -425,8 +420,7 @@ test('calculateDestruction resolves flatDestructionRateBonus', () => {
   };
 
   const res = calculateDestruction(input, data);
-  // SP二重掛け修正後: baseDestRate=10*4/100=0.4, flat +10% => 0.44.
-  assertAlmostEqual(res.breakdown.baseDestruction, 0.44, 'baseDestruction');
+  assertAlmostEqual(res.breakdown.baseDestruction, 0.0137, 'baseDestruction');
   assertAlmostEqual(res.breakdown.flatDestructionBonus, 0.10, 'flatDestructionBonus');
 });
 
@@ -458,8 +452,12 @@ test('calculateDestruction uses resolved SkillCondition attackPart instead of fl
       data
     );
 
-    // SkillCondition variant selection must preserve the resolved dr; base = dr * 4 / 100.
-    assertAlmostEqual(result.breakdown.baseDestruction, expectedDr * 4 / 100, `${childId}.baseDestruction`);
+    const expectedBase = expectedSkillBaseDestruction(
+      expectedDr,
+      1,
+      Number(childSkill?.hit_count ?? childSkill?.hitCount ?? 1)
+    );
+    assertAlmostEqual(result.breakdown.baseDestruction, expectedBase, `${childId}.baseDestruction`);
   }
 });
 
@@ -491,8 +489,82 @@ test('calculateDestruction applies IsHitWeak conditionResults per target', () =>
       data
     );
 
-    // DamageRateChangeAttackSkill uses multipliers.dr normally and value[0] only on weak hit.
-    assertAlmostEqual(normal.breakdown.baseDestruction, normalDr * 4 / 100, `${skillId}.normal`);
-    assertAlmostEqual(weak.breakdown.baseDestruction, weakDr * 4 / 100, `${skillId}.weak`);
+    const hitCount = Number(skill?.hit_count ?? skill?.hitCount ?? 1);
+    assertAlmostEqual(normal.breakdown.baseDestruction, expectedSkillBaseDestruction(normalDr, 1, hitCount), `${skillId}.normal`);
+    assertAlmostEqual(weak.breakdown.baseDestruction, expectedSkillBaseDestruction(weakDr, 1, hitCount), `${skillId}.weak`);
+  }
+});
+
+test('calculateDestruction matches issue #19 verified formula cases', () => {
+  const cases = [
+    [8, 8, 0, 0, 0, 0.1, 0, 0, 0, 20.25, 178.2],
+    [8, 8, 0, 0, 0.1, 0.1, 0, 0, 0, 20.25, 194.4],
+    [8, 8, 0, 0, 0, 0.1, 0, 0, 0.45, 20.25, 251.1],
+    [8, 8, 0, 0, 0.1, 0.1, 0, 0, 0.45, 20.25, 267.3],
+    [8, 8, 0, 0, 0, 0.1, 0, 0, 0.45, 20.25, 251.1],
+    [8, 8, 0.25, 3, 0, 0.1, 0, 0, 0.45, 20.25, 439.425],
+    [8, 8, 0.25, 3, 0.1, 0.1, 0, 0, 0.45, 20.25, 467.775],
+    [8, 8, 0.06, 10, 0.1, 0.1, 0, 0, 0.45, 20.25, 427.68],
+    [8, 8, 0.25, 3, 0.1, 0.1, 0.1, 0, 0.45, 20.25, 496.125],
+    [8, 8, 0.25, 3, 0.1, 0.1, 0, 0.1278, 0.45, 20.25, 504.0063],
+    [8, 8, 0, 0, 0.1, 0.1, 0, 0.1278, 0.45, 20.25, 288.0036],
+    [8, 8, 0.25, 3, 0.1, 0.1, 0.1, 0.1278, 0.45, 20.25, 532.3563],
+    [8, 8, 0.25, 3, 0.1, 0.1, 0.1, 0, 0.45, 20.25, 496.125],
+    [7, 8, 0.25, 3, 0.1, 0.1, 0, 0, 0.45, 20.25, 409.303125],
+    [10, 8, 0.25, 3, 0.1, 0.1, 0, 0, 0.45, 20.25, 584.71875],
+  ];
+  const data = {
+    styles: [{ id: 1, role: 'Blaster' }],
+    enemies: [],
+    skills: [],
+  };
+
+  for (const [index, params] of cases.entries()) {
+    const [
+      dRate,
+      hitCount,
+      funnelRate,
+      funnelHitCount,
+      transcendence,
+      mark,
+      chain,
+      pierce,
+      resonance,
+      dr,
+      expectedPercent,
+    ] = params;
+    const result = calculateDestruction(
+      {
+        attacker: {
+          styleId: 1,
+          accessoryDestructionRateBonus: pierce,
+          flatDestructionRateBonus: chain,
+          transcendenceBurstDestructionRateGainBonusRate: transcendence,
+          markDestructionRateGainBonusRate: mark,
+          resonanceDestructionRateBonus: resonance,
+        },
+        defender: {
+          destructionRate: 1,
+          destructionLimit: 99,
+          destructionMultiplier: dRate,
+          dp: 0,
+        },
+        skill: {
+          isNormalAttack: false,
+          baseHitCount: hitCount,
+          funnelHitCount,
+          funnelRate,
+          attackPart: { skill_type: 'AttackSkill', multipliers: { dr } },
+        },
+        hits: Array.from({ length: hitCount + funnelHitCount }, () => ({ damage: 1 })),
+      },
+      data
+    );
+    assertAlmostEqual(
+      result.destructionRate - 1,
+      expectedPercent / 100,
+      `issue19 case ${index + 1}`,
+      1e-4
+    );
   }
 });

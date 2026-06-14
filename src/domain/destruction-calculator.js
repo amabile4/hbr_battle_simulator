@@ -7,11 +7,13 @@ import {
   resolveEffectPower,
 } from './calculator-helpers.js';
 
+const DESTRUCTION_BASE_HIT_REFERENCE = 8;
+const RATIO_PERCENT_DENOMINATOR = 100;
+
 /**
  * 破壊率（Destruction Rate）の計算およびヒットごとの累積シミュレーションを行う
  */
 export function calculateDestruction(input, data) {
-  const styles = data?.styles ?? [];
   const enemies = data?.enemies ?? [];
   const skills = data?.skills ?? [];
 
@@ -21,11 +23,6 @@ export function calculateDestruction(input, data) {
   const hits = input?.hits ?? [];
 
   const ignoredEffects = [];
-
-  // 1. Look up attacker style & role
-  const styleId = attacker.styleId;
-  const style = styles.find((s) => Number(s.id) === Number(styleId)) ?? null;
-  const role = style ? (style.role ?? 'Attacker') : 'Attacker';
 
   // 2. Look up skill and attack part
   const skillId = skillInput.skillId;
@@ -124,11 +121,17 @@ export function calculateDestruction(input, data) {
   let baseDestRate = 0.0;
   if (dr !== null && dr !== undefined) {
     if (isNormalAttack) {
-      baseDestRate = destMult / 100.0;
+      baseDestRate = destMult / RATIO_PERCENT_DENOMINATOR;
     } else if (isPursuit) {
-      baseDestRate = dr * 8.0 * destMult / 100.0;
+      baseDestRate = dr * 8.0 * destMult / RATIO_PERCENT_DENOMINATOR;
     } else {
-      baseDestRate = dr * 4.0 * destMult / 100.0;
+      const rawBaseHitCount = Number(skillInput.baseHitCount ?? skill?.hit_count ?? skill?.hitCount ?? 0);
+      const baseHitCountForFormula = Number.isFinite(rawBaseHitCount) && rawBaseHitCount > 0
+        ? rawBaseHitCount
+        : Math.max(1, hits.filter((hit) => !hit.isMultiHit).length);
+      baseDestRate =
+        dr * destMult * baseHitCountForFormula /
+        (DESTRUCTION_BASE_HIT_REFERENCE * RATIO_PERCENT_DENOMINATOR);
     }
   } else {
     // Fallback tag-based calculation
@@ -137,19 +140,12 @@ export function calculateDestruction(input, data) {
     baseDestRate = fTag * spVal * drVal;
   }
 
-  // 7. Blaster correction & accessories
-  let blasterCorrection = 0.0;
-  if (String(role).toLowerCase() === 'blaster') {
-    blasterCorrection += 2.0;
-  }
-
   let accessoryBonus = attacker.accessoryDestructionRateBonus;
   if (accessoryBonus !== undefined && accessoryBonus !== null) {
     accessoryBonus = Number(accessoryBonus);
   } else {
     accessoryBonus = 0.0;
   }
-  blasterCorrection += accessoryBonus;
 
   // 8. Resolve buffs (DestructionUp)
   const buffs = attacker.statusEffects ?? [];
@@ -174,19 +170,8 @@ export function calculateDestruction(input, data) {
       h = 1;
     }
   }
-
-  // 10. Blaster slope correction
-  let sRatio = 0.0;
-  if (blasterCorrection > 0.0) {
-    const bPct = blasterCorrection * 100.0;
-    let slopePct = 0.0;
-    if (h < 11) {
-      slopePct = 5.0 + ((bPct - 5.0) * (h - 1)) / 9.0;
-    } else {
-      slopePct = bPct;
-    }
-    sRatio = slopePct / 100.0;
-  }
+  const funnelHitCount = Math.max(0.0, toNumber(skillInput.funnelHitCount, 0.0));
+  h = Math.max(1, h, Math.ceil(toNumber(skillInput.baseHitCount, 0.0) + funnelHitCount));
 
   // 11. Base destruction with buffs and blaster
   const flatDestructionBonus = toNumber(attacker.flatDestructionRateBonus, 0.0);
@@ -194,6 +179,18 @@ export function calculateDestruction(input, data) {
     attacker.transcendenceBurstDestructionRateGainBonusRate,
     0.0
   );
+  const markDestructionRateGainBonusRate = toNumber(
+    attacker.markDestructionRateGainBonusRate,
+    0.0
+  );
+  const resonanceBonus = toNumber(attacker.resonanceDestructionRateBonus, 0.0);
+  const bonusSum =
+    buffMultiplier +
+    transcendenceBurstDestructionRateGainBonusRate +
+    markDestructionRateGainBonusRate +
+    flatDestructionBonus +
+    accessoryBonus +
+    resonanceBonus;
 
   let baseDestruction = 0.0;
   if (isNormalAttack) {
@@ -201,7 +198,7 @@ export function calculateDestruction(input, data) {
   } else if (isPursuit) {
     baseDestruction = baseDestRate;
   } else {
-    baseDestruction = Math.floor(baseDestRate * (1.0 + sRatio + buffMultiplier + flatDestructionBonus) * 10000.0) / 10000.0;
+    baseDestruction = Math.floor(baseDestRate * (1.0 + bonusSum) * 10000.0) / 10000.0;
   }
 
   // 12. Apply enemy destructionResist
@@ -209,16 +206,9 @@ export function calculateDestruction(input, data) {
     ? Number(defender.destructionResist)
     : 0.0;
 
-  let resonanceBonus = attacker.resonanceDestructionRateBonus;
-  if (resonanceBonus !== undefined && resonanceBonus !== null) {
-    resonanceBonus = Number(resonanceBonus);
-  } else {
-    resonanceBonus = 0.0;
-  }
-
   const finalBaseDestruction = isNormalAttack
     ? baseDestruction
-    : baseDestruction * (1.0 - destResist) * (1.0 + resonanceBonus);
+    : baseDestruction * (1.0 - destResist);
 
   // 13. Resolve destruction rate limit
   let destLimit = defender.destructionLimit;
@@ -245,6 +235,11 @@ export function calculateDestruction(input, data) {
   const autoBreak = input?.autoBreak !== undefined && input?.autoBreak !== null ? Boolean(input.autoBreak) : false;
   const dpInit = Number(defender.dp ?? 0.0);
   let destructionRate = Number(defender.destructionRate ?? 1.0);
+  const funnelRate = Math.max(0.0, toNumber(skillInput.funnelRate, 0.0));
+  const funnelMultiplier = isNormalAttack || isPursuit
+    ? 1.0
+    : 1.0 + funnelRate * funnelHitCount;
+  const effectiveBaseDestruction = finalBaseDestruction * funnelMultiplier;
 
   let dmgAccum = 0.0;
   let isBroken = dpInit <= 0.0;
@@ -255,9 +250,9 @@ export function calculateDestruction(input, data) {
       isBroken = true;
       let addI = 0.0;
       if (hit.isMultiHit) {
-        addI = finalBaseDestruction * Number(hit.hitRatio ?? 1.0);
+        addI = effectiveBaseDestruction * Number(hit.hitRatio ?? 1.0);
       } else {
-        addI = finalBaseDestruction / h;
+        addI = effectiveBaseDestruction / h;
       }
       destructionRate = Math.min(finalDestLimit, destructionRate + addI);
     }
@@ -286,17 +281,23 @@ export function calculateDestruction(input, data) {
       hitCount: h,
       // 中間計算値
       baseDestRate,
-      sRatio,
+      sRatio: 0,
       buffMultiplier,
-      blasterCorrection,
+      blasterCorrection: 0,
       accessoryBonus,
       flatDestructionBonus,
       transcendenceBurstDestructionRateGainBonusRate,
+      markDestructionRateGainBonusRate,
+      bonusSum,
       destResist,
       resonanceBonus,
+      funnelHitCount,
+      funnelRate,
+      funnelMultiplier,
       // 最終値
       baseDestruction,
       finalBaseDestruction,
+      effectiveBaseDestruction,
       destLimit,
       limitExceedBonus,
       finalDestLimit,

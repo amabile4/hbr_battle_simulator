@@ -45,15 +45,17 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.9659999999999997,
+      "destructionRate": 1.0301,
       "breakdown": {
-        "baseDestruction": 0.552,
-        "finalBaseDestruction": 0.552,
+        "baseDestruction": 0.0172,
+        "finalBaseDestruction": 0.0172,
         "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0,
         "resonanceBonus": 0,
-        "limitExceedBonus": 0
+        "limitExceedBonus": 0,
+        "flatDestructionBonus": 0,
+        "ignoredEffects": []
       }
     }
   },
@@ -157,13 +159,15 @@
     "expected": {
       "destructionRate": 1,
       "breakdown": {
-        "baseDestruction": 0.552,
-        "finalBaseDestruction": 0.552,
+        "baseDestruction": 0.0172,
+        "finalBaseDestruction": 0.0172,
         "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0,
         "resonanceBonus": 0,
-        "limitExceedBonus": 0
+        "limitExceedBonus": 0,
+        "flatDestructionBonus": 0,
+        "ignoredEffects": []
       }
     }
   },
@@ -204,15 +208,17 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.7452,
+      "destructionRate": 1.0224,
       "breakdown": {
-        "baseDestruction": 0.7452,
-        "finalBaseDestruction": 0.7452,
-        "blasterCorrection": 2,
+        "baseDestruction": 0.0224,
+        "finalBaseDestruction": 0.0224,
+        "blasterCorrection": 0,
         "buffMultiplier": 0.3,
         "accessoryBonus": 0,
         "resonanceBonus": 0,
-        "limitExceedBonus": 0
+        "limitExceedBonus": 0,
+        "flatDestructionBonus": 0,
+        "ignoredEffects": []
       }
     }
   },
@@ -248,15 +254,17 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.5796000000000001,
+      "destructionRate": 1.0215,
       "breakdown": {
-        "baseDestruction": 0.5796,
-        "finalBaseDestruction": 0.5796,
-        "blasterCorrection": 2.25,
+        "baseDestruction": 0.0215,
+        "finalBaseDestruction": 0.0215,
+        "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0.25,
         "resonanceBonus": 0,
-        "limitExceedBonus": 0
+        "limitExceedBonus": 0,
+        "flatDestructionBonus": 0,
+        "ignoredEffects": []
       }
     }
   },
@@ -292,15 +300,17 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.6375600000000001,
+      "destructionRate": 1.0189,
       "breakdown": {
-        "baseDestruction": 0.5796,
-        "finalBaseDestruction": 0.63756,
-        "blasterCorrection": 2,
+        "baseDestruction": 0.0189,
+        "finalBaseDestruction": 0.0189,
+        "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0,
         "resonanceBonus": 0.1,
-        "limitExceedBonus": 0
+        "limitExceedBonus": 0,
+        "flatDestructionBonus": 0,
+        "ignoredEffects": []
       }
     }
   },
@@ -336,15 +346,17 @@
       ]
     },
     "expected": {
-      "destructionRate": 3.5796,
+      "destructionRate": 3.0172,
       "breakdown": {
-        "baseDestruction": 0.5796,
-        "finalBaseDestruction": 0.5796,
-        "blasterCorrection": 2,
+        "baseDestruction": 0.0172,
+        "finalBaseDestruction": 0.0172,
+        "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0,
         "resonanceBonus": 0,
-        "limitExceedBonus": 1.5
+        "limitExceedBonus": 1.5,
+        "flatDestructionBonus": 0,
+        "ignoredEffects": []
       }
     }
   }

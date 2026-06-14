@@ -73,6 +73,13 @@ export const REINFORCED_MODE_OD_GAUGE_BONUS = 15;
 export const PIERCE_OPTION_VALUES = Object.freeze([0, 10, 12, 15]);
 export const PIERCE_BASE_BONUS_MIN_PERCENT = 5;
 export const PIERCE_MAX_REFERENCE_HIT = 10;
+export const FUNNEL_DESTRUCTION_RATE_PER_HIT = Object.freeze({
+  0: 0.06,
+  1: 0.06,
+  2: 0.12,
+  3: 0.25,
+  5: 0.50,
+});
 
 export const DRIVE_PIERCE_OPTION_VALUES = PIERCE_OPTION_VALUES;
 export const DRIVE_PIERCE_OPTIONS = Object.freeze([
