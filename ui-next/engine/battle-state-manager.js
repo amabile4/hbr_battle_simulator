@@ -35,7 +35,7 @@ const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
 // destructionMultiplierByEnemy には enemy.json の raw d_rate をそのまま格納する。
 // - スキル破壊率（calc-core）: dr×4×d_rate/100 = dr×(d_rate/25) = dr×DR で正典一致。
-// - 通常攻撃破壊率（turn-controller 専用パス）: 基礎 = d_rate/100（実機実測: d_rate=5→5%, 10→10%）。
+// - 通常攻撃破壊率（calc-core）: 基礎 = d_rate/100（実機実測: d_rate=5→5%, 10→10%）。
 const DEFAULT_D_RATE_RAW = 5;
 const ENEMY_OD_RATE_NO_CORRECTION = 0;
 const DEFAULT_ENEMY_NAME = '';

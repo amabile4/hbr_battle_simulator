@@ -70,7 +70,7 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
   // Unified destruction formula: dr already includes effective SP, so active skills use dr * 4.
   assertAlmostEqual(manualBreak.destructionRate, 1.3, 'manualBreak.destructionRate');
   assertAlmostEqual(manualBreak.breakdown.finalBaseDestruction, 0.6, 'manualBreak.finalBaseDestruction');
-  assertAlmostEqual(manualBreak.breakdown.destructionMultiplier, 1.5, 'manualBreak.destructionMultiplier');
+  assertAlmostEqual(manualBreak.breakdown.destMult, 1.5, 'manualBreak.destMult');
 
   const autoBreak = calculateDestruction({
     ...input,
@@ -146,7 +146,59 @@ test('calculateDestruction applies enemy destructionMultiplier to destruction ga
 
   // dr * 4 * destructionMultiplier / 100 = 1 * 4 * 2 / 100 = 0.08 gain.
   assertAlmostEqual(result.destructionRate, 1.08, 'destructionMultiplier.destructionRate');
-  assertAlmostEqual(result.breakdown.destructionMultiplier, 2, 'destructionMultiplier.breakdown');
+  assertAlmostEqual(result.breakdown.destMult, 2, 'destMult.breakdown');
+});
+
+test('calculateDestruction uses raw d_rate for normal attack destruction and only applies transcendence bonus', () => {
+  const data = {
+    styles: [{ id: 1, role: 'Blaster' }],
+    enemies: [],
+    skills: [],
+  };
+  const makeInput = (destructionMultiplier, transcendenceBonus = 0) => ({
+    attacker: {
+      styleId: 1,
+      statusEffects: [
+        {
+          statusType: 'DestructionUp',
+          power: 1.0,
+        },
+      ],
+      accessoryDestructionRateBonus: 2.0,
+      flatDestructionRateBonus: 2.0,
+      resonanceDestructionRateBonus: 2.0,
+      transcendenceBurstDestructionRateGainBonusRate: transcendenceBonus,
+    },
+    defender: {
+      destructionRate: 1,
+      destructionLimit: 9,
+      destructionMultiplier,
+      destructionResist: 0.5,
+      dp: 0,
+    },
+    skill: {
+      name: '通常攻撃',
+      isNormalAttack: true,
+      attackPart: { skill_type: 'AttackNormal', multipliers: { dr: 1 } },
+    },
+    hits: [{ damage: 0 }, { damage: 0 }, { damage: 0 }],
+  });
+
+  const normalD5 = calculateDestruction(makeInput(5), data);
+  assertAlmostEqual(normalD5.destructionRate, 1.05, 'normal.dRate5');
+  assertAlmostEqual(normalD5.breakdown.finalBaseDestruction, 0.05, 'normal.dRate5.finalBase');
+
+  const normalD10 = calculateDestruction(makeInput(10), data);
+  assertAlmostEqual(normalD10.destructionRate, 1.10, 'normal.dRate10');
+  assertAlmostEqual(normalD10.breakdown.finalBaseDestruction, 0.10, 'normal.dRate10.finalBase');
+
+  const transcendenceD10 = calculateDestruction(makeInput(10, 0.1), data);
+  assertAlmostEqual(transcendenceD10.destructionRate, 1.11, 'normal.dRate10.transcendence');
+  assertAlmostEqual(
+    transcendenceD10.breakdown.finalBaseDestruction,
+    0.11,
+    'normal.dRate10.transcendence.finalBase'
+  );
 });
 
 test('calculateDestruction: 9ヒット autoBreak 7発目ブレイクで破壊率が計算値+13.33%になる', () => {
@@ -289,7 +341,7 @@ test('calculateDestruction applies resonance after accessory slope, flat bonus, 
   assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.9126, 'finalBaseDestruction');
   assertAlmostEqual(result.destructionRate, 1.9126, 'destructionRate');
   assertAlmostEqual(result.breakdown.accessoryBonus, 0.15, 'accessoryBonus');
-  assertAlmostEqual(result.breakdown.flatDestructionRateBonus, 0.2, 'flatDestructionRateBonus');
+  assertAlmostEqual(result.breakdown.flatDestructionBonus, 0.2, 'flatDestructionBonus');
   assertAlmostEqual(result.breakdown.resonanceBonus, 0.3, 'resonanceBonus');
 });
 
@@ -375,7 +427,7 @@ test('calculateDestruction resolves flatDestructionRateBonus', () => {
   const res = calculateDestruction(input, data);
   // SP二重掛け修正後: baseDestRate=10*4/100=0.4, flat +10% => 0.44.
   assertAlmostEqual(res.breakdown.baseDestruction, 0.44, 'baseDestruction');
-  assertAlmostEqual(res.breakdown.flatDestructionRateBonus, 0.10, 'flatDestructionRateBonus');
+  assertAlmostEqual(res.breakdown.flatDestructionBonus, 0.10, 'flatDestructionBonus');
 });
 
 test('calculateDestruction uses resolved SkillCondition attackPart instead of flattened first variant', () => {

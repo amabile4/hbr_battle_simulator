@@ -111,8 +111,8 @@ try {
     }
 
     const checkKeys = ['baseDestruction', 'finalBaseDestruction', 'blasterCorrection', 'buffMultiplier', 'accessoryBonus', 'resonanceBonus', 'limitExceedBonus'];
-    if (expected.breakdown && expected.breakdown.flatDestructionRateBonus !== undefined) {
-      checkKeys.push('flatDestructionRateBonus');
+    if (expected.breakdown && expected.breakdown.flatDestructionBonus !== undefined) {
+      checkKeys.push('flatDestructionBonus');
     }
     for (const key of checkKeys) {
       const actVal = actual.breakdown[key] ?? 0;
@@ -173,8 +173,8 @@ try {
 
   console.log(`\nTotal JS Destruction Results: Passed=${passed} | Failed=${failed}`);
 
-  // flatDestructionRateBonus manual validation
-  console.log('Running flatDestructionRateBonus manual JS validation...');
+  // flatDestructionBonus manual validation
+  console.log('Running flatDestructionBonus manual JS validation...');
   const testInput = {
     attacker: {
       characterId: "手塚咲",
@@ -207,10 +207,10 @@ try {
   };
   const testRes = calculateDestruction(testInput, testData);
   if (!isClose(testRes.breakdown.baseDestruction, 0.11)) {
-    console.error(`❌ flatDestructionRateBonus test failed: actual=${testRes.breakdown.baseDestruction} | expected=0.11`);
+    console.error(`❌ flatDestructionBonus test failed: actual=${testRes.breakdown.baseDestruction} | expected=0.11`);
     failed++;
   } else {
-    console.log('  ✅ flatDestructionRateBonus test passed!');
+    console.log('  ✅ flatDestructionBonus test passed!');
   }
 
   if (failed === 0) {

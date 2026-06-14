@@ -123,7 +123,9 @@ export function calculateDestruction(input, data) {
   // 6. Calculate base destruction rate before buffs
   let baseDestRate = 0.0;
   if (dr !== null && dr !== undefined) {
-    if (isNormalAttack || isPursuit) {
+    if (isNormalAttack) {
+      baseDestRate = destMult / 100.0;
+    } else if (isPursuit) {
       baseDestRate = dr * 8.0 * destMult / 100.0;
     } else {
       baseDestRate = dr * 4.0 * destMult / 100.0;
@@ -188,9 +190,15 @@ export function calculateDestruction(input, data) {
 
   // 11. Base destruction with buffs and blaster
   const flatDestructionBonus = toNumber(attacker.flatDestructionRateBonus, 0.0);
+  const transcendenceBurstDestructionRateGainBonusRate = toNumber(
+    attacker.transcendenceBurstDestructionRateGainBonusRate,
+    0.0
+  );
 
   let baseDestruction = 0.0;
-  if (isNormalAttack || isPursuit) {
+  if (isNormalAttack) {
+    baseDestruction = baseDestRate * (1.0 + transcendenceBurstDestructionRateGainBonusRate);
+  } else if (isPursuit) {
     baseDestruction = baseDestRate;
   } else {
     baseDestruction = Math.floor(baseDestRate * (1.0 + sRatio + buffMultiplier + flatDestructionBonus) * 10000.0) / 10000.0;
@@ -208,7 +216,9 @@ export function calculateDestruction(input, data) {
     resonanceBonus = 0.0;
   }
 
-  const finalBaseDestruction = baseDestruction * (1.0 - destResist) * (1.0 + resonanceBonus);
+  const finalBaseDestruction = isNormalAttack
+    ? baseDestruction
+    : baseDestruction * (1.0 - destResist) * (1.0 + resonanceBonus);
 
   // 13. Resolve destruction rate limit
   let destLimit = defender.destructionLimit;
@@ -267,15 +277,33 @@ export function calculateDestruction(input, data) {
   return {
     destructionRate,
     breakdown: {
+      // 入力パラメータ
+      dr,
+      destMult,
+      sp,
+      isNormalAttack,
+      isPursuit,
+      hitCount: h,
+      // 中間計算値
+      baseDestRate,
+      sRatio,
+      buffMultiplier,
+      blasterCorrection,
+      accessoryBonus,
+      flatDestructionBonus,
+      transcendenceBurstDestructionRateGainBonusRate,
+      destResist,
+      resonanceBonus,
+      // 最終値
       baseDestruction,
       finalBaseDestruction,
-      blasterCorrection,
-      buffMultiplier,
-      destructionMultiplier: destMult,
-      accessoryBonus,
-      resonanceBonus,
+      destLimit,
       limitExceedBonus,
-      flatDestructionRateBonus: flatDestructionBonus,
+      finalDestLimit,
+      // シミュレーション
+      destructionRate,
+      dpInit,
+      autoBreak,
       ignoredEffects,
     },
   };

@@ -43,7 +43,7 @@ $$BG_{30} = \text{消費SP} \times F_{\text{タグ}} \times DR$$
 - ただし `multipliers.dr = F_タグ × 4` が「基準dr」として対応する（通常攻撃: dr=1=0.25×4）
 - 実際のスキルのdrは基準dr×スキル固有強化係数になっており、スキルごとに異なる
 
-**SP換算**：通常攻撃は消費SPが0のため、計算式では固定値8.0を使用する（`destruction-calculator.js` L95）。
+**SP換算**：アクティブスキルの `multipliers.dr` は実質SPを内包するため、実装では `dr × 4 × d_rate / 100` を使用する。通常攻撃は実機実測に基づき、別式として `d_rate / 100` を使用する。
 
 ---
 
@@ -59,21 +59,25 @@ $$BG_{30} = \text{消費SP} \times F_{\text{タグ}} \times DR$$
   - $\text{AccessoryBonus}$: `attacker.accessoryDestructionRateBonus`（数値）をそのまま使用する。呼び出し側が解決済みの数値を渡す責務を持つ（例: ブラストピアス装備時は `0.15`）。
 - $AS_{39}$ (破壊率バフ合計): ドライブゲインやアビリティ等の破壊率アップ効果の合計。
 - $AL_{10}$ (敵の破壊率耐性): 敵が持つ破壊率に対する耐性（デフォルトは $0.0$）。
-- $\text{destructionMultiplier}$ (敵の被破壊率倍率): 敵の被破壊率に対する追加乗算倍率（デフォルトは $1.0$）。
+- $\text{destructionMultiplier}$ (敵 raw `d_rate`): 敵データの `base_param.d_rate` をそのまま渡す値（デフォルトは $1.0$）。通常攻撃は `d_rate / 100`、スキル攻撃・追撃は基本破壊率の算出時に `d_rate / 100` として内包する。
 - $\text{resonanceDestructionRateBonus}$ (共鳴アビリティ補正): 共鳴スロット等のアビリティによる破壊率上昇量ボーナス（例: 10%上昇の場合 $0.10$。デフォルトは $0.0$）。
 - $h$ (スキル総ヒット数): スキルの本来のヒット数。
 
 ### 計算ロジック
 
-#### ① 通常攻撃または追撃の場合
-通常攻撃や追撃はブラスター補正やバフを受けません。
-$$D_{\text{base}} = BG_{30}$$
+#### ① 通常攻撃の場合
+通常攻撃は実機実測に基づき、敵 raw `d_rate` をそのまま破壊率上昇%として扱います。ブラスター補正、破壊率上昇バフ、装備、共鳴、敵破壊率耐性は適用しません。超越ゲージ100%時の破壊率上昇率ボーナスのみ適用します。
+$$D_{\text{base}} = \frac{d\_rate}{100} \times (1.0 + \text{transcendenceBurstDestructionRateGainBonusRate})$$
 
-#### ② スキル攻撃かつブラスター補正がない場合 ($BG_{27} = 0$)
+#### ② 追撃の場合
+追撃はブラスター補正やバフを受けません。
+$$D_{\text{base}} = dr \times 8.0 \times \frac{d\_rate}{100}$$
+
+#### ③ スキル攻撃かつブラスター補正がない場合 ($BG_{27} = 0$)
 バフのみを適用し、小数点以下4桁で切り捨てます。
 $$D_{\text{base}} = \text{floor}(BG_{30} \times (1.0 + AS_{39}), 4)$$
 
-#### ③ スキル攻撃かつブラスター補正がある場合 ($BG_{27} > 0$)
+#### ④ スキル攻撃かつブラスター補正がある場合 ($BG_{27} > 0$)
 ブラスターおよびアクセサリー補正は、スキルの総ヒット数 $h$ が少ない場合に効果が減衰する傾斜仕様（スロープ）が適用されます。
 
 - **ヒット数に応じたブラスター補正パーセント ($S_{\text{pct}}$) の算出**:
@@ -88,9 +92,9 @@ $$D_{\text{base}} = \text{floor}(BG_{30} \times (1.0 + AS_{39}), 4)$$
   ブラスター補正 $S_{\text{pct}}$ とバフ $AS_{39}$ を加算し、基本破壊率に乗じて小数点以下4桁で切り捨てます。
   $$D_{\text{base}} = \text{floor}\left(\frac{BG_{30} \times (100 + S_{\text{pct}} + AS_{39} \times 100)}{100}, 4\right)$$
 
-#### ④ 最終基本破壊率の算出
-敵の破壊率耐性 $AL_{10}$、敵の被破壊率倍率 $\text{destructionMultiplier}$、および共鳴アビリティ補正 $\text{resonanceDestructionRateBonus}$ を適用します。
-$$D_{\text{final\_base}} = D_{\text{base}} \times (1.0 - AL_{10}) \times \text{destructionMultiplier} \times (1.0 + \text{resonanceDestructionRateBonus})$$
+#### ⑤ 最終基本破壊率の算出
+通常攻撃以外では、敵の破壊率耐性 $AL_{10}$ と共鳴アビリティ補正 $\text{resonanceDestructionRateBonus}$ を適用します。敵 raw `d_rate` はすでに $D_{\text{base}}$ へ内包済みのため、ここでは二重に乗算しません。
+$$D_{\text{final\_base}} = D_{\text{base}} \times (1.0 - AL_{10}) \times (1.0 + \text{resonanceDestructionRateBonus})$$
 
 ---
 
@@ -188,4 +192,4 @@ calculateDestruction({
   1. 現在の「静的破壊率」による基本ダメージ計算および破壊率の最終累積ロジックの精度検証を完了させる。
   2. 将来的な機能拡張（WIP）として、ダメージ算出ループ内でヒットごとに「ダメージ確定 → 敵の被ダメージ累積 → 被破壊率上昇・反映 → 次のヒットのダメージ計算」をシミュレートする動的連動エンジンを構築する。
 
-> 注: 本ドキュメントの通常攻撃の破壊率式（`BG30 = 消費SP × F_タグ × DR`, `DR=d_rate/25`）は移植時点の理解に基づく。実機実測では **通常攻撃の破壊率上昇 = enemy raw d_rate / 100**（超越ゲージ100%で×1.10）であり、上式とは乖離する。根本修正は Issue #18 で対応中（[hbr_calc_integration_record.md](hbr_calc_integration_record.md) / [[destruction-multiplier-scale]] 参照）。
+> 注: 2026-06-14 に Issue #18 の根本修正として、通常攻撃の破壊率上昇を `calculateDestruction` 内で **enemy raw d_rate / 100**（超越ゲージ100%で×1.10）へ統一した。turn-controller 側の通常攻撃専用バイパスは削除し、威力詳細プレビューも同じ計算機経路を使用する。

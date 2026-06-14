@@ -49,16 +49,16 @@
       "breakdown": {
         "baseDestruction": 0.552,
         "finalBaseDestruction": 0.552,
-        "blasterCorrection": 0.0,
-        "buffMultiplier": 0.0,
-        "accessoryBonus": 0.0,
-        "resonanceBonus": 0.0,
-        "limitExceedBonus": 0.0
+        "blasterCorrection": 0,
+        "buffMultiplier": 0,
+        "accessoryBonus": 0,
+        "resonanceBonus": 0,
+        "limitExceedBonus": 0
       }
     }
   },
   {
-    "name": "通常攻撃 (基本破壊倍率0.08, 連撃なし, DPブレイク済み)",
+    "name": "通常攻撃 (raw d_rate=1 → +1%, 連撃なし, DPブレイク済み)",
     "input": {
       "attacker": {
         "characterId": "手塚咲",
@@ -93,15 +93,19 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.08,
+      "destructionRate": 1.0099999999999998,
       "breakdown": {
-        "baseDestruction": 0.08,
-        "finalBaseDestruction": 0.08,
-        "blasterCorrection": 0.0,
-        "buffMultiplier": 0.0,
-        "accessoryBonus": 0.0,
-        "resonanceBonus": 0.0,
-        "limitExceedBonus": 0.0
+        "baseDestruction": 0.01,
+        "finalBaseDestruction": 0.01,
+        "blasterCorrection": 0,
+        "buffMultiplier": 0,
+        "accessoryBonus": 0,
+        "resonanceBonus": 0,
+        "limitExceedBonus": 0,
+        "transcendenceBurstDestructionRateGainBonusRate": 0,
+        "ignoredEffects": [],
+        "destMult": 1,
+        "flatDestructionBonus": 0
       }
     }
   },
@@ -151,15 +155,15 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.0,
+      "destructionRate": 1,
       "breakdown": {
         "baseDestruction": 0.552,
         "finalBaseDestruction": 0.552,
-        "blasterCorrection": 0.0,
-        "buffMultiplier": 0.0,
-        "accessoryBonus": 0.0,
-        "resonanceBonus": 0.0,
-        "limitExceedBonus": 0.0
+        "blasterCorrection": 0,
+        "buffMultiplier": 0,
+        "accessoryBonus": 0,
+        "resonanceBonus": 0,
+        "limitExceedBonus": 0
       }
     }
   },
@@ -204,11 +208,11 @@
       "breakdown": {
         "baseDestruction": 0.7452,
         "finalBaseDestruction": 0.7452,
-        "blasterCorrection": 2.0,
+        "blasterCorrection": 2,
         "buffMultiplier": 0.3,
-        "accessoryBonus": 0.0,
-        "resonanceBonus": 0.0,
-        "limitExceedBonus": 0.0
+        "accessoryBonus": 0,
+        "resonanceBonus": 0,
+        "limitExceedBonus": 0
       }
     }
   },
@@ -249,10 +253,10 @@
         "baseDestruction": 0.5796,
         "finalBaseDestruction": 0.5796,
         "blasterCorrection": 2.25,
-        "buffMultiplier": 0.0,
+        "buffMultiplier": 0,
         "accessoryBonus": 0.25,
-        "resonanceBonus": 0.0,
-        "limitExceedBonus": 0.0
+        "resonanceBonus": 0,
+        "limitExceedBonus": 0
       }
     }
   },
@@ -292,11 +296,11 @@
       "breakdown": {
         "baseDestruction": 0.5796,
         "finalBaseDestruction": 0.63756,
-        "blasterCorrection": 2.0,
-        "buffMultiplier": 0.0,
-        "accessoryBonus": 0.0,
+        "blasterCorrection": 2,
+        "buffMultiplier": 0,
+        "accessoryBonus": 0,
         "resonanceBonus": 0.1,
-        "limitExceedBonus": 0.0
+        "limitExceedBonus": 0
       }
     }
   },
@@ -336,10 +340,10 @@
       "breakdown": {
         "baseDestruction": 0.5796,
         "finalBaseDestruction": 0.5796,
-        "blasterCorrection": 2.0,
-        "buffMultiplier": 0.0,
-        "accessoryBonus": 0.0,
-        "resonanceBonus": 0.0,
+        "blasterCorrection": 2,
+        "buffMultiplier": 0,
+        "accessoryBonus": 0,
+        "resonanceBonus": 0,
         "limitExceedBonus": 1.5
       }
     }

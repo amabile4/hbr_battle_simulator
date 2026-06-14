@@ -227,13 +227,13 @@ test('calculateDestruction - destructionMultiplier edge cases', () => {
   });
   const data = { styles: [], enemies: [], skills: [] };
 
-  // d_rate=0: 破壊不可敵 → 破壊率上昇なし・destructionMultiplierがbreakdownに0で記録される
+  // d_rate=0: 破壊不可敵 → 破壊率上昇なし・destMultがbreakdownに0で記録される
   const res0 = calculateDestruction(makeInput(0), data);
   assert.equal(res0.breakdown.baseDestruction, 0.0);
-  assert.equal(res0.breakdown.destructionMultiplier, 0);
+  assert.equal(res0.breakdown.destMult, 0);
   assert.equal(res0.destructionRate, 1.0);
 
-  // destructionMultiplier は enemy raw d_rate（スキル: dr×4×d_rate/100 = dr×DR）。
+  // destMult は enemy raw d_rate（スキル: dr×4×d_rate/100 = dr×DR）。
   // d_rate=1 と d_rate=10 で破壊率上昇が10倍になること（比例性）。
   const res1  = calculateDestruction(makeInput(1),  data);
   const res10 = calculateDestruction(makeInput(10), data);
@@ -242,17 +242,17 @@ test('calculateDestruction - destructionMultiplier edge cases', () => {
 
   // destMult < 0: ガードされ 0 として扱われる（破壊率低下バグ防止）
   const resNeg = calculateDestruction(makeInput(-1), data);
-  assert.equal(resNeg.breakdown.destructionMultiplier, 0);
+  assert.equal(resNeg.breakdown.destMult, 0);
   assert.equal(resNeg.breakdown.baseDestruction, 0.0);
   assert.equal(resNeg.destructionRate, 1.0);
 
   // destMult = NaN: ガードされ 0 として扱われる
   const resNaN = calculateDestruction(makeInput(NaN), data);
-  assert.equal(resNaN.breakdown.destructionMultiplier, 0);
+  assert.equal(resNaN.breakdown.destMult, 0);
   assert.equal(resNaN.destructionRate, 1.0);
 
   // destMult = Infinity: ガードされ 0 として扱われる（安全側に倒す）
   const resInf = calculateDestruction(makeInput(Infinity), data);
-  assert.equal(resInf.breakdown.destructionMultiplier, 0);
+  assert.equal(resInf.breakdown.destMult, 0);
   assert.equal(resInf.destructionRate, 1.0);
 });

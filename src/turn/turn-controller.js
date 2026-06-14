@@ -5105,38 +5105,9 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         useAutoBreak = false;
       }
 
-      // 通常攻撃の破壊率はスキルとは別式（実機実測で確定）:
-      //   基礎上昇 = enemy raw d_rate / 100（d_rate=5→5%, 10→10%）
-      //   超越ゲージ100%時のみ ×(1 + 超越バースト破壊率上昇率)（火の律動: +10% → ×1.10）
-      //   共鳴・装備・武器種・キャラ等の他の破壊率上昇量は通常攻撃には乗らない。
-      // ヒット累積は calc-core と同型（ブレイク済み/ブレイク後ヒットで base/h ずつ加算）。
       const rawDestructionMultiplier = Number(
         state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? DEFAULT_ENEMY_D_RATE_RAW
       );
-      if (isNormalAttackSkill(skill)) {
-        const transcendenceBonus = Number(
-          actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
-        );
-        const normalBase = (rawDestructionMultiplier / 100) * (1 + transcendenceBonus);
-        const hitDivisor = hitCount > 0 ? hitCount : 1;
-        const capRatio = capPercent / 100;
-        let rateRatio = currentRatePercent / 100;
-        let isBroken = defenderDp <= 0;
-        let accumDamage = 0;
-        for (const hit of destructionHits) {
-          accumDamage += Number(hit?.damage ?? 0);
-          const hitIsBreak = useAutoBreak ? accumDamage >= defenderDp : hit?.isBreakHit === true;
-          if (hitIsBreak || isBroken) {
-            isBroken = true;
-            rateRatio = Math.min(capRatio, rateRatio + normalBase / hitDivisor);
-          }
-        }
-        const nextRatePercent = Math.min(capPercent, rateRatio * 100);
-        if (Number.isFinite(nextRatePercent)) {
-          setEnemyDestructionRatePercent(state.turnState, targetIndex, nextRatePercent);
-        }
-        continue;
-      }
 
       const result = calculateDestruction(
         {
@@ -5151,6 +5122,9 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
               ) + Number(actor?.blastPiercePercent ?? 0) / 100,
             // エンシェントチェーンの破壊率上昇量+はヒット数非依存のフラット加算
             flatDestructionRateBonus: Number(actor?.chainDestructionRateBonus ?? 0),
+            transcendenceBurstDestructionRateGainBonusRate: Number(
+              actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+            ),
             resonanceDestructionRateBonus: Number(
               actionEntry?.specialPassiveModifiers?.resonanceDestructionRateBonus ?? 0
             ),
@@ -5183,6 +5157,25 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         },
         DESTRUCTION_CALCULATION_DATA_FALLBACK
       );
+      // 計算内訳を actionEntry に保存（verify ツール等からの dump 用）
+      if (!actionEntry.destructionBreakdownByEnemy) {
+        actionEntry.destructionBreakdownByEnemy = {};
+      }
+      actionEntry.destructionBreakdownByEnemy[String(targetIndex)] = {
+        skillName: String(skill.name ?? actionEntry?.skillName ?? ''),
+        characterName: String(actor?.characterName ?? ''),
+        targetIndex: Number(targetIndex),
+        rateBefore: currentRatePercent,
+        rateAfter: Math.min(capPercent, Number(result?.destructionRate ?? 1) * 100),
+        capPercent,
+        rawDestructionMultiplier,
+        hitCount,
+        useAutoBreak,
+        dpBeforeThisAction,
+        perHitDpDamage,
+        totalDpDamage,
+        breakdown: result?.breakdown ?? null,
+      };
       const nextRatePercent = Math.min(capPercent, Number(result?.destructionRate ?? 1) * 100);
       if (Number.isFinite(nextRatePercent)) {
         setEnemyDestructionRatePercent(state.turnState, targetIndex, nextRatePercent);
