@@ -1544,6 +1544,34 @@ function resolveEffectPowerRatioFromPart(part, options = {}) {
   return Number.isFinite(ratio) ? ratio : (Number.isFinite(fallbackRatio) ? fallbackRatio : 0);
 }
 
+function resolveFunnelHitBonusFromPart(part, providerMember) {
+  const rawPower = part?.power;
+  if (!Array.isArray(rawPower)) {
+    const hitBonus = Number(rawPower ?? 0);
+    return Number.isFinite(hitBonus) && hitBonus > 0 ? hitBonus : 0;
+  }
+  const minHitBonus = Number(rawPower[0] ?? 0);
+  const maxHitBonus = Number(rawPower[1] ?? minHitBonus);
+  if (!Number.isFinite(minHitBonus) || minHitBonus <= 0) {
+    return 0;
+  }
+  if (!shouldResolveEffectPowerFromStats(part) || !Number.isFinite(maxHitBonus) || maxHitBonus <= minHitBonus) {
+    return minHitBonus;
+  }
+
+  const resolved = resolveEffectPowerFromPart(part, {
+    providerStats: getMemberEffectProviderStats(providerMember),
+    statusType: 'Funnel',
+    isEnemyDebuff: false,
+    ...getEffectPowerLevelOptions(part),
+  });
+  const hitBonus = Math.floor(Number(resolved?.power ?? 0) * EFFECT_POWER_PERCENT_TO_RATIO);
+  if (!Number.isFinite(hitBonus)) {
+    return minHitBonus;
+  }
+  return Math.max(minHitBonus, Math.min(maxHitBonus, hitBonus));
+}
+
 function resolveEnemyBorderForEffectPower(turnState, targetIndex) {
   const enemyState = getEnemyState(turnState);
   const direct = Number(enemyState?.paramBorderByEnemy?.[String(targetIndex)]);
@@ -2454,7 +2482,7 @@ function normalizeRuntimeNonDamagePart(part) {
     };
   }
 
-  if (isDamageLikeSkillType(skillType)) {
+  if (isDamageLikeSkillType(skillType) || skillType === 'Funnel') {
     return {
       ...structuredClone(part),
       ...(Array.isArray(part?.strval) ? { strval: nestedVariants } : {}),
@@ -7564,12 +7592,12 @@ function isBeforeSelfFunnelPart(part) {
   return (part?.hits ?? []).some((hit) => String(hit?.type ?? '') === 'Before');
 }
 
-function resolveImmediateSelfFunnelHitBonus(skill) {
+function resolveImmediateSelfFunnelHitBonus(skill, member = null) {
   return (skill?.parts ?? []).reduce((sum, part) => {
     if (!isBeforeSelfFunnelPart(part)) {
       return sum;
     }
-    const hitBonus = Number(part?.power?.[0] ?? 0);
+    const hitBonus = resolveFunnelHitBonusFromPart(part, member);
     return sum + (Number.isFinite(hitBonus) && hitBonus > 0 ? hitBonus : 0);
   }, 0);
 }
@@ -8870,7 +8898,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       0
     );
     const actionFunnelHitBonus = Number(actionEntry?.skillFunnelHitBonus ?? NaN);
-    const recomputedFunnelHitBonus = resolvedFunnelHitBonus + resolveImmediateSelfFunnelHitBonus(skill);
+    const recomputedFunnelHitBonus = resolvedFunnelHitBonus + resolveImmediateSelfFunnelHitBonus(skill, member);
     const funnelHitBonus = Number.isFinite(actionFunnelHitBonus)
       ? Math.max(0, actionFunnelHitBonus, recomputedFunnelHitBonus)
       : recomputedFunnelHitBonus;
@@ -9560,7 +9588,7 @@ function resolveEffectivePreviewHitCount(skill, state, member) {
   const baseHitCount = resolveSkillHitCount(skill);
   const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
   const hasDamage = hasDamagePartInParts(effectiveParts);
-  const immediateSelfFunnelHitBonus = resolveImmediateSelfFunnelHitBonus(skill);
+  const immediateSelfFunnelHitBonus = resolveImmediateSelfFunnelHitBonus(skill, member);
   if (!hasDamage) {
     return {
       baseHitCount,
@@ -9849,7 +9877,7 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
       const limitType = String(part?.effect?.limitType ?? 'Default');
       const exitCond = String(part?.effect?.exitCond ?? 'Count');
       const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
-      const hitBonus = Number(part?.power?.[0] ?? 0);
+      const hitBonus = resolveFunnelHitBonusFromPart(part, actor);
       const damageBonus = Number(part?.value?.[0] ?? 0);
 
       for (const targetCharacterId of targetCharacterIds) {
@@ -13355,7 +13383,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'Funnel') {
-          const hitBonus = Number(part?.power?.[0] ?? 0);
+          const hitBonus = resolveFunnelHitBonusFromPart(part, member);
           const damageBonus = Number(part?.value?.[0] ?? 0);
           if (!Number.isFinite(hitBonus) || hitBonus <= 0) {
             continue;

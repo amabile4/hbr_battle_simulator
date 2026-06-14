@@ -34,7 +34,7 @@ $$
 - $dr$: skills.json の攻撃 part `multipliers.dr`。
 - $B_{\text{add}}$: 超越、火の印、エンシェントチェーン、ブラストピアス、共鳴、DestructionUp の加算合計。
 - $r_{\text{funnel}}$: 連撃 1hit あたりの破壊率上昇量（小 0.06 / 中 0.12 / 大 0.25 / 特大 0.50）。実データの `Funnel` part では `value[0]` に入り、runtime では `metadata.damageBonus` として保持する。`power[1]` は可変回数などの補助値であり、破壊率倍率の解決には使わない。
-- $h_{\text{funnel}}$: Funnel の追加 hit 数。
+- $h_{\text{funnel}}$: Funnel の追加 hit 数。固定回数は `power[0]`、可変回数は `power[0]`〜`power[1]` を `diff_for_max` / `parameters` と付与者 stats で解決し、上限は `power[1]` に clamp する。
 
 通常攻撃は実機実測に基づき、別式として `d_rate / 100` を使用する。追撃は実機データ未確定のため既存式を維持する。
 
@@ -48,7 +48,7 @@ $$
 - $dr$: スキルデータの攻撃 part `multipliers.dr`。
 - $h_{\text{base}}$: スキル本来の hit 数。
 - $h$: 実際に配分する総 hit 数（スキル本来の hit + Funnel 追加 hit）。
-- $\text{funnelRate}$ / $\text{funnelHitCount}$: Funnel 連撃補正。`funnelRate` は消費・採用された Funnel effect の `metadata.damageBonus` からのみ解決する。
+- $\text{funnelRate}$ / $\text{funnelHitCount}$: Funnel 連撃補正。`funnelRate` は消費・採用された Funnel effect の `metadata.damageBonus` からのみ解決する。`funnelHitCount` は付与時に `power[0]` / `power[1]` の可変回数を解決した後の status effect `power` を使う。
 - $\text{accessoryDestructionRateBonus}$: ブラストピアス等の破壊率上昇量ボーナス。呼び出し側が解決済みの数値を渡す（例: `0.15`）。
 - $\text{flatDestructionRateBonus}$: エンシェントチェーン等の固定加算ボーナス。
 - $\text{markDestructionRateGainBonusRate}$: 火の印 Lv3 以上の破壊率上昇量ボーナス。

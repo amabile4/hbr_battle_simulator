@@ -42,7 +42,7 @@
 
 > `hbr_calc` 側での Excel 計算機解析および検証により、以下の仕様が確定し、実装されました。
 
-- **Q-D1**: **基本破壊率と上昇モデル**: アクティブスキルの破壊率上昇量は `(raw d_rate / 8) × baseHitCount × (1 + 超越 + 火の印 + チェーン + ブラストピアス + 共鳴 + DestructionUp) × dr × (1 + funnelRate × funnelHitCount)`。`funnelRate` は `Funnel` part の `value[0]` 由来で保持した `metadata.damageBonus` のみを使い、`power[1]` fallback は使わない。通常攻撃は実機実測に基づき `raw d_rate/100` とし、超越ゲージ100%時のみ×1.10、共鳴・装備・武器種・キャラ等の補正は非適用。敵残りDPおよび `autoBreak`/`isBreakHit` 判定により、ヒット単位で加算。追撃式は実機データ未確定のため既存式を維持。
+- **Q-D1**: **基本破壊率と上昇モデル**: アクティブスキルの破壊率上昇量は `(raw d_rate / 8) × baseHitCount × (1 + 超越 + 火の印 + チェーン + ブラストピアス + 共鳴 + DestructionUp) × dr × (1 + funnelRate × funnelHitCount)`。`funnelRate` は `Funnel` part の `value[0]` 由来で保持した `metadata.damageBonus` のみを使い、`power[1]` fallback は使わない。`funnelHitCount` は固定回数なら `power[0]`、可変回数なら `power[0]`〜`power[1]` を `diff_for_max` / `parameters` と付与者 stats で解決して使う。通常攻撃は実機実測に基づき `raw d_rate/100` とし、超越ゲージ100%時のみ×1.10、共鳴・装備・武器種・キャラ等の補正は非適用。敵残りDPおよび `autoBreak`/`isBreakHit` 判定により、ヒット単位で加算。追撃式は実機データ未確定のため既存式を維持。
 - **Q-D2**: **HPダメージへの適用**: 最終破壊率はHPダメージに対して全倍率乗算される。DPが存在する間のヒットでは破壊率は蓄積しない（ブレイク発生ヒットおよびそれ以降で加算）。
 - **Q-D3**: **破壊率上限の決定**: 最終上限は `敵固有破壊上限 (max_d_rate / 100)` + `上限超越補正` となる。これにより300%を超える上限値が再現可能。
 - **Q-D4**: **break_down_turn の影響**: 破壊率の直接的な進行計算には影響を与えない（状態異常管理やシミュレーションのフェーズ遷移にのみ影響）。
