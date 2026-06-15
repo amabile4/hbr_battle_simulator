@@ -1419,7 +1419,49 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
       )).join('') +
       '</tbody></table>'
     : '';
-  summaryEl.innerHTML = `<div>${esc(parts.join(' / '))}</div>${tableHtml}`;
+  const detailsHtml = tableHtml
+    ? `<details class="char-popup-destruction-hit-details">` +
+      `<summary>▶ hit 内訳詳細</summary>` +
+      `<div class="char-popup-destruction-hit-table-wrapper">${tableHtml}</div>` +
+      `</details>`
+    : '';
+  summaryEl.innerHTML =
+    `<div class="char-popup-destruction-hit-parts">${esc(parts.join(' / '))}</div>` +
+    detailsHtml;
+}
+
+function buildStatusBreakdownNoteText(model, enemyKey) {
+  const targetBreakdowns = model?.damageContext?.damageBreakdown?.targetBreakdowns ?? [];
+  const targetEnemyIndex = Number(enemyKey);
+  const breakdown =
+    targetBreakdowns.find((b) => Number(b?.targetEnemyIndex) === targetEnemyIndex) ??
+    targetBreakdowns[0];
+  const groups = Array.isArray(breakdown?.groups) ? breakdown.groups : [];
+
+  const ENEMY_GROUPS = new Set(['debuff']);
+  const selfLines = [];
+  const enemyLines = [];
+
+  for (const group of groups) {
+    if (group?.dataGroup === 'affinity') continue;
+    const contributions = Array.isArray(group?.contributions) ? group.contributions : [];
+    const isEnemy = ENEMY_GROUPS.has(group?.dataGroup);
+    for (const c of contributions) {
+      const label = String(c?.label ?? '').trim();
+      if (!label) continue;
+      const valuePercent = Math.round(Number(c?.value ?? 0) * 100);
+      const sourceName = String(c?.sourceSkillName ?? c?.sourceCharacterName ?? '').trim();
+      const sign = isEnemy ? '-' : '+';
+      const valueStr = `${sign}${Math.abs(valuePercent)}%`;
+      const text = sourceName ? `${sourceName}[${label}${valueStr}]` : `${label}${valueStr}`;
+      (isEnemy ? enemyLines : selfLines).push(text);
+    }
+  }
+
+  const parts = [];
+  if (selfLines.length > 0) parts.push(`【自】${selfLines.join(' / ')}`);
+  if (enemyLines.length > 0) parts.push(`【敵】${enemyLines.join(' / ')}`);
+  return parts.join('\n');
 }
 
 function updateDamageCalculatorStatGrid(pane, statViewModel) {
@@ -1502,6 +1544,12 @@ async function updateDamageCalculatorPane(pane) {
   const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
   const previewScopeKey = `${pane.dataset?.actionKey ?? ''}:${enemyKey}`;
   updateDestructionHitSummary(pane, model, enemyKey);
+
+  const noteEl = pane.querySelector('[data-role="damage-calc-note"]');
+  if (noteEl) {
+    noteEl.value = buildStatusBreakdownNoteText(model, enemyKey);
+    noteEl.readOnly = true;
+  }
 
   // 破壊率セクション: targetEnemyIndex が確定した後に初期値を設定してから計算。
   // ターン内の一時入力（preview-input-store）があればそれを優先復元する。
