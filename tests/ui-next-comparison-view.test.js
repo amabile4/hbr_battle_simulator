@@ -314,3 +314,80 @@ test('comparison view: skullfeather fixture keeps interrupt OD skills and swappe
     );
   }
 });
+
+test('destruction preview fixture keeps action-before destruction rates and DP-aware deltas', () => {
+  const session = JSON.parse(
+    readFileSync('tests/e2e/fixtures/ui_next_session_destruction_preview_2026-06-14.json', 'utf-8')
+  );
+  const battleStateManager = new BattleStateManager({ store: getStore() });
+  const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+  const manager = new TurnEngineManager();
+  manager.loadReplayScript(initialState, session.replayScript, {
+    validationPolicy: session.validationPolicy,
+    damageCalculationData: loadDamageCalculationData(),
+  });
+
+  const turn1Miya = manager.computedRecords[0].actions.find(
+    (action) => action.characterName === '瑞原 あいな' || action.skillName === '咲き昇る宵の幻'
+  );
+  const turn1Yuki = manager.computedRecords[0].actions.find(
+    (action) => action.characterName === '和泉 ユキ' || action.skillName === '通常攻撃'
+  );
+  assert.equal(
+    turn1Miya?.damageContext?.destructionRateByEnemy?.['0'],
+    undefined,
+    '#1美也はDPが割れていないので破壊率を更新しない'
+  );
+  assert.equal(
+    turn1Yuki?.damageContext?.destructionRateByEnemy?.['0'],
+    undefined,
+    '#1ユキはDPが割れていないので破壊率を更新しない'
+  );
+
+  const turn2Yuki = manager.computedRecords[1].actions.find(
+    (action) => action.characterName === '和泉 ユキ' && action.skillName === 'コードダクネス'
+  );
+  const turn2Miya = manager.computedRecords[1].actions.find(
+    (action) => action.skillName === '咲き昇る宵の幻'
+  );
+  const yukiBreakdown = turn2Yuki?.destructionBreakdownByEnemy?.['0'];
+  const miyaBreakdown = turn2Miya?.destructionBreakdownByEnemy?.['0'];
+
+  assert.ok(yukiBreakdown, '#2ユキの破壊率 breakdown が存在すること');
+  assert.ok(miyaBreakdown, '#2美也の破壊率 breakdown が存在すること');
+  assert.ok(Math.abs(Number(yukiBreakdown.rateBefore) - 100) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.rateAfter) - 132.625) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.appliedGainPercent) - 32.625) < 1e-9);
+  assert.equal(yukiBreakdown.contactHitCount, 9);
+  assert.equal(yukiBreakdown.calculationHitCount, 9);
+  assert.deepEqual(yukiBreakdown.hitRatios, [0.1, 0.1, 0.1, 0.2, 0.2, 0.3, 0.25, 0.25, 0.25]);
+  assert.deepEqual(yukiBreakdown.baseHitRatios, [0.1, 0.1, 0.1, 0.2, 0.2, 0.3]);
+  assert.equal(yukiBreakdown.breakHitNumber, 7);
+  assert.equal(yukiBreakdown.damageBreakHitNumber, 7);
+  assert.equal(yukiBreakdown.destructionStartHitNumber, 7);
+  assert.equal(yukiBreakdown.destructionHitCount, 3);
+  assert.equal(yukiBreakdown.destructionFunnelHitCount, 3);
+  assert.ok(Math.abs(Number(yukiBreakdown.totalDestructionWeight) - 1.75) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.appliedDestructionWeight) - 0.75) < 1e-9);
+  assert.equal(yukiBreakdown.useAutoBreak, false);
+  assert.ok(Number(yukiBreakdown.dpBeforeThisAction) > 0);
+  assert.equal(yukiBreakdown.hitBreakdown?.[6]?.source, 'funnel');
+  assert.equal(yukiBreakdown.hitBreakdown?.[6]?.isBreakHit, true);
+  assert.equal(yukiBreakdown.hitBreakdown?.[6]?.isDamageBreakHit, true);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[6]?.hpApplied) - 174165.42857142887) < 1e-6);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[6]?.destructionWeight) - 0.25) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[6]?.destructionGainPercent) - 10.875) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[6]?.destructionRateAfterPercent) - 110.875) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[7]?.hpApplied) - 524381.4117857142) < 1e-6);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[7]?.destructionGainPercent) - 10.875) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[7]?.destructionRateAfterPercent) - 121.75) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[8]?.hpApplied) - 575814.5378571429) < 1e-6);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[8]?.destructionGainPercent) - 10.875) < 1e-9);
+  assert.ok(Math.abs(Number(yukiBreakdown.hitBreakdown?.[8]?.destructionRateBeforePercent) - 121.75) < 1e-9);
+
+  assert.ok(Math.abs(Number(miyaBreakdown.rateBefore) - 132.625) < 1e-9);
+  assert.ok(Math.abs(Number(miyaBreakdown.rateAfter) - 717.335) < 1e-9);
+  assert.ok(Math.abs(Number(miyaBreakdown.rateAfter) - Number(miyaBreakdown.rateBefore) - 584.71) < 1e-9);
+  assert.equal(miyaBreakdown.useAutoBreak, false);
+  assert.equal(Number(miyaBreakdown.dpBeforeThisAction), 0);
+});

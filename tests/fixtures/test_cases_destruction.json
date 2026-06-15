@@ -45,10 +45,10 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.0301,
+      "destructionRate": 1.138,
       "breakdown": {
-        "baseDestruction": 0.0172,
-        "finalBaseDestruction": 0.0172,
+        "baseDestruction": 0.138,
+        "finalBaseDestruction": 0.138,
         "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0,
@@ -104,10 +104,8 @@
         "accessoryBonus": 0,
         "resonanceBonus": 0,
         "limitExceedBonus": 0,
-        "transcendenceBurstDestructionRateGainBonusRate": 0,
-        "ignoredEffects": [],
-        "destMult": 1,
-        "flatDestructionBonus": 0
+        "flatDestructionBonus": 0,
+        "ignoredEffects": []
       }
     }
   },
@@ -159,8 +157,8 @@
     "expected": {
       "destructionRate": 1,
       "breakdown": {
-        "baseDestruction": 0.0172,
-        "finalBaseDestruction": 0.0172,
+        "baseDestruction": 0.138,
+        "finalBaseDestruction": 0.138,
         "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0,
@@ -208,10 +206,10 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.0224,
+      "destructionRate": 1.1794,
       "breakdown": {
-        "baseDestruction": 0.0224,
-        "finalBaseDestruction": 0.0224,
+        "baseDestruction": 0.1794,
+        "finalBaseDestruction": 0.1794,
         "blasterCorrection": 0,
         "buffMultiplier": 0.3,
         "accessoryBonus": 0,
@@ -254,10 +252,10 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.0215,
+      "destructionRate": 1.1724999999999999,
       "breakdown": {
-        "baseDestruction": 0.0215,
-        "finalBaseDestruction": 0.0215,
+        "baseDestruction": 0.1725,
+        "finalBaseDestruction": 0.1725,
         "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0.25,
@@ -300,10 +298,10 @@
       ]
     },
     "expected": {
-      "destructionRate": 1.0189,
+      "destructionRate": 1.1518,
       "breakdown": {
-        "baseDestruction": 0.0189,
-        "finalBaseDestruction": 0.0189,
+        "baseDestruction": 0.1518,
+        "finalBaseDestruction": 0.1518,
         "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0,
@@ -346,10 +344,10 @@
       ]
     },
     "expected": {
-      "destructionRate": 3.0172,
+      "destructionRate": 3.138,
       "breakdown": {
-        "baseDestruction": 0.0172,
-        "finalBaseDestruction": 0.0172,
+        "baseDestruction": 0.138,
+        "finalBaseDestruction": 0.138,
         "blasterCorrection": 0,
         "buffMultiplier": 0,
         "accessoryBonus": 0,

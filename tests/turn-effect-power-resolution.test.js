@@ -258,7 +258,7 @@ test('DestructionUp stored as ratio is converted to core percent at destruction 
   });
   const { nextState } = commitTurn(state, preview);
   const updatedRate = Number(nextState.turnState.enemyState.destructionRateByEnemy?.[0] ?? 0);
-  // 正式式では d_rate=1, 1hit, dr=10 の基礎上昇は 1.25%。
-  // DestructionUp 0.2 は core へ 20% として渡され、1.25% * 1.2 = 1.5% 加算になる。
-  assertAlmostEqual(updatedRate, 101.5, 'DestructionUp ratio is passed to core as percent');
+  // 新式: d_rate=1, 1hit, dr=10 の基礎上昇は 10%（hit count 不依存）。
+  // DestructionUp 0.2 は core へ 20% として渡され、10% * 1.2 = 12% 加算になる。
+  assertAlmostEqual(updatedRate, 112.0, 'DestructionUp ratio is passed to core as percent');
 });
