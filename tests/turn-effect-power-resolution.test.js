@@ -245,7 +245,7 @@ test('DestructionUp stored as ratio is converted to core percent at destruction 
   state.turnState.enemyState.enemyDpByEnemy = { 0: 100 };
   state.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
   state.turnState.enemyState.destructionRateCapByEnemy = { 0: 500 };
-  // d_rate=1 を明示 (旧デフォルト100/100=1.0 と同等のraw値)
+  // d_rate=1 を明示して、DestructionUp の倍率だけを検証対象にする。
   state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
 
   const preview = previewTurn(state, {

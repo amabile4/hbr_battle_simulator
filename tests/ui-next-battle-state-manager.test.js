@@ -313,6 +313,36 @@ test('BattleStateManager resolves missing enemy slot dp from selected enemy mast
   assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 10);
 });
 
+test('BattleStateManager defaults missing selected enemy d_rate to raw 5', () => {
+  const store = Object.create(getStore());
+  store.enemies = [];
+  store.enemiesById = new Map([
+    [
+      990001,
+      {
+        id: 990001,
+        base_param: {
+          dp: 1000,
+          hp: 2000,
+        },
+      },
+    ],
+  ]);
+  const manager = new BattleStateManager({ store });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 990001,
+        selectedEnemyName: 'd_rate欠損敵',
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 5);
+});
+
 test('BattleStateManager ignores inactive Eシールド definitions in enemy slots', () => {
   const manager = new BattleStateManager({ store: getStore() });
 

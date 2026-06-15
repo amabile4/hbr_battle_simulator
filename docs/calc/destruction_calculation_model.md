@@ -57,7 +57,7 @@ $$
 - $\text{resonanceDestructionRateBonus}$: 共鳴アビリティ補正。
 - $AS_{39}$: DestructionUp status の破壊率バフ合計。
 - $AL_{10}$ (敵の破壊率耐性): 敵が持つ破壊率に対する耐性（デフォルトは $0.0$）。
-- $\text{destructionMultiplier}$ (敵 raw `d_rate`): 敵データの `base_param.d_rate` をそのまま渡す値（デフォルトは $1.0$）。
+- $\text{destructionMultiplier}$ (敵 raw `d_rate`): 敵データの `base_param.d_rate` をそのまま渡す値（デフォルトは $5$、破壊率上昇率 等倍相当）。
 
 ### 計算ロジック
 

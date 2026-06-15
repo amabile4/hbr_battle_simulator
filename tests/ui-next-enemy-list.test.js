@@ -18,6 +18,7 @@ function makeEnemy({
   is_boss = true,
   od_rate = 0,
   max_d_rate = 999,
+  d_rate = undefined,
   absorbElementList = [],
   eShield = null,
   extraGaugeHp = null,
@@ -47,6 +48,7 @@ function makeEnemy({
     base_param: {
       od_rate,
       max_d_rate,
+      ...(d_rate !== undefined ? { d_rate } : {}),
     },
     resistances: {
       element: {
@@ -69,6 +71,17 @@ function makeEnemy({
       : {}),
   };
 }
+
+test('buildEnemyList defaults missing enemy d_rate to raw 5', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({ id: 901, name: 'd_rate欠損ボス', in_date: '2026-04-05' }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'));
+
+  assert.equal(result.find((enemy) => enemy.id === 901)?.d_rate, 5);
+});
 
 test('buildEnemyList uses the current month and previous two months, not quarter boundaries', () => {
   const enemies = [

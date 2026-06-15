@@ -339,7 +339,7 @@ function main() {
             console.log(`    │ dr=${fmt(bd.dr)} destMult(d_rate)=${fmt(bd.destMult)} sp=${fmt(bd.sp)} isNormal=${bd.isNormalAttack} isPursuit=${bd.isPursuit}`);
             console.log(`    │ hitCount=${bd.hitCount} autoBreak=${info.useAutoBreak}`);
             const bdr = Number(bd.baseDestRate);
-            console.log(`    │ baseDestRate=${fmt(bdr * 100)}% (= ${fmt(bd.dr)}×${bd.isNormalAttack ? '1' : '4'}×${fmt(bd.destMult)}/100)`);
+            console.log(`    │ baseDestRate=${fmt(bdr * 100)}% (= ${fmt(bd.dr)}×${fmt(bd.destMult)}/100${bd.isNormalAttack ? ' [通常攻撃: dr=1扱い]' : ''})`);
             if (!bd.isNormalAttack) {
               console.log(`    │   × (1 + sRatio=${fmt(bd.sRatio)} + buffMult=${fmt(bd.buffMultiplier)} + flatBonus=${fmt(bd.flatDestructionBonus)})`);
               console.log(`    │   blasterCorrection=${fmt(bd.blasterCorrection)} accessory=${fmt(bd.accessoryBonus)}`);
@@ -347,7 +347,17 @@ function main() {
             }
             console.log(`    │ baseDestruction=${fmt(bd.baseDestruction * 100)}%`);
             console.log(`    │   × (1 - destResist=${fmt(bd.destResist)}) × (1 + resonance=${fmt(bd.resonanceBonus)})`);
-            console.log(`    │ finalBaseDestruction=${fmt(bd.finalBaseDestruction * 100)}% (per-hit: +${fmt(bd.finalBaseDestruction / bd.hitCount * 100)}% × ${bd.hitCount}hits)`);
+            {
+              const fbd = Number(bd.finalBaseDestruction);
+              const showWeighted = bd.usesWeightedDestruction && Number(bd.appliedDestructionWeight) > 0;
+              if (showWeighted) {
+                const appliedW = Number(bd.appliedDestructionWeight);
+                const gainPct = fbd * appliedW * 100;
+                console.log(`    │ finalBaseDestruction=${fmt(fbd * 100)}% × appliedWeight=${fmt(appliedW)} → 破壊率上昇=+${fmt(gainPct)}%`);
+              } else {
+                console.log(`    │ finalBaseDestruction=${fmt(fbd * 100)}% (per-hit: +${fmt(fbd / bd.hitCount * 100)}% × ${bd.hitCount}hits)`);
+              }
+            }
             console.log(`    │ destLimit=${fmt(bd.destLimit * 100)}% + limitExceedBonus=${fmt(bd.limitExceedBonus * 100)}% → finalDestLimit=${fmt(bd.finalDestLimit * 100)}%`);
             console.log(`    │ dpBeforeThisAction=${commify(info.dpBeforeThisAction)} perHitDpDamage=${commify(info.perHitDpDamage)} totalDpDamage=${commify(info.totalDpDamage)}`);
             console.log(`    └── finalDestructionRate=${fmt(bd.destructionRate * 100)}%`);
