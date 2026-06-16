@@ -3083,7 +3083,7 @@
 
 .char-popup-destruction-rate-input {
   width: 90px;
-  padding: 4px 22px 4px 6px;
+  padding: 4px 6px;
   font-size: 14px;
   font-weight: 700;
   border: 1px solid #334155;
@@ -3092,6 +3092,14 @@
   color: #f8fafc;
   text-align: right;
   line-height: 1.2;
+  /* native spinner を除去し幅を有効活用 */
+  -moz-appearance: textfield;
+}
+
+.char-popup-destruction-rate-input::-webkit-outer-spin-button,
+.char-popup-destruction-rate-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .char-popup-destruction-rate-input:focus {
