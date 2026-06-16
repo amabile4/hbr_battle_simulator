@@ -1430,38 +1430,52 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
     detailsHtml;
 }
 
-function buildStatusBreakdownNoteText(model, enemyKey) {
-  const targetBreakdowns = model?.damageContext?.damageBreakdown?.targetBreakdowns ?? [];
+// ステータスグリッドの delta 値を引き起こすエフェクトのみ補足表示する
+const STAT_AFFECTING_SELF_TYPES = new Set([
+  'AttackUp', 'AttackDown', 'AttackUpIncludeNormal',
+  'DefenseUp', 'DefenseDown', 'ToughnessUpValue',
+  'FightingSpirit', 'Morale', 'Motivation', 'EternalOath',
+  'HighBoost', 'SpeedUp', 'SpeedDown',
+]);
+
+function buildStatEffectNoteText(model, enemyKey) {
+  const damageCtx = model?.damageContext ?? {};
   const targetEnemyIndex = Number(enemyKey);
-  const breakdown =
-    targetBreakdowns.find((b) => Number(b?.targetEnemyIndex) === targetEnemyIndex) ??
-    targetBreakdowns[0];
-  const groups = Array.isArray(breakdown?.groups) ? breakdown.groups : [];
+  const lines = [];
 
-  const ENEMY_GROUPS = new Set(['debuff']);
-  const selfLines = [];
-  const enemyLines = [];
-
-  for (const group of groups) {
-    if (group?.dataGroup === 'affinity') continue;
-    const contributions = Array.isArray(group?.contributions) ? group.contributions : [];
-    const isEnemy = ENEMY_GROUPS.has(group?.dataGroup);
-    for (const c of contributions) {
-      const label = String(c?.label ?? '').trim();
-      if (!label) continue;
-      const valuePercent = Math.round(Number(c?.value ?? 0) * 100);
-      const sourceName = String(c?.sourceSkillName ?? c?.sourceCharacterName ?? '').trim();
-      const sign = isEnemy ? '-' : '+';
-      const valueStr = `${sign}${Math.abs(valuePercent)}%`;
-      const text = sourceName ? `${sourceName}[${label}${valueStr}]` : `${label}${valueStr}`;
-      (isEnemy ? enemyLines : selfLines).push(text);
-    }
+  // 自ステータス: ステータス数値に影響するバフ/デバフ
+  const selfEffects = (damageCtx.activeStatusEffects ?? []).filter(
+    (e) => STAT_AFFECTING_SELF_TYPES.has(e?.statusType)
+  );
+  if (selfEffects.length > 0) {
+    const selfParts = selfEffects.map((e) => {
+      const label = STATUS_LABELS[e.statusType] ?? e.statusType;
+      const power = Number(e.power ?? 0);
+      const powerStr = power !== 0 ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%` : '';
+      const src = String(e.sourceSkillName ?? e.sourceCharacterName ?? '').trim();
+      return src ? `${src}[${label}${powerStr}]` : `${label}${powerStr}`;
+    });
+    lines.push(`【自】${selfParts.join(' / ')}`);
   }
 
-  const parts = [];
-  if (selfLines.length > 0) parts.push(`【自】${selfLines.join(' / ')}`);
-  if (enemyLines.length > 0) parts.push(`【敵】${enemyLines.join(' / ')}`);
-  return parts.join('\n');
+  // 敵ステータス: ハッキング / 禍 / 霊符 → enemyAllAbilityDown の原因
+  const enemyParts = [];
+  const enemyStatuses = Array.isArray(damageCtx.enemyStatusEffects) ? damageCtx.enemyStatusEffects : [];
+  const hasHacking = enemyStatuses.some(
+    (e) => String(e?.statusType ?? '') === 'Hacking' &&
+            (e?.targetIndex == null || Number(e.targetIndex) === targetEnemyIndex)
+  );
+  const enemyAllDown = Number(damageCtx.enemyAllAbilityDownByEnemy?.[String(targetEnemyIndex)] ?? 0);
+  if (hasHacking) {
+    enemyParts.push(`ハッキング[全ステータス-${enemyAllDown}]`);
+  }
+  const disasterLevel = Number(damageCtx.enemyDisasterLevelByEnemy?.[String(targetEnemyIndex)] ?? 0);
+  const talismanLevel = Number(damageCtx.enemyTalismanLevelByEnemy?.[String(targetEnemyIndex)] ?? 0);
+  if (disasterLevel > 0) enemyParts.push(`禍[Lv.${disasterLevel}]`);
+  if (talismanLevel > 0) enemyParts.push(`霊符[Lv.${talismanLevel}]`);
+  if (enemyParts.length > 0) lines.push(`【敵】${enemyParts.join(' / ')}`);
+
+  return lines.join('\n');
 }
 
 function updateDamageCalculatorStatGrid(pane, statViewModel) {
@@ -1547,7 +1561,7 @@ async function updateDamageCalculatorPane(pane) {
 
   const noteEl = pane.querySelector('[data-role="damage-calc-note"]');
   if (noteEl) {
-    noteEl.value = buildStatusBreakdownNoteText(model, enemyKey);
+    noteEl.value = buildStatEffectNoteText(model, enemyKey);
     noteEl.readOnly = true;
   }
 
