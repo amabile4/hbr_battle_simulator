@@ -2913,21 +2913,35 @@
 
 .char-popup-enemy-gauge-wrap {
   display: flex;
-  gap: 2px;
-  margin: -4px 0 6px;
+  flex-direction: column;
+  gap: 3px;
+  margin: -2px 0 6px;
 }
 
-.char-popup-enemy-gauge__bar-wrapper {
+.char-popup-enemy-gauge__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.char-popup-enemy-gauge__row.is-depleted {
+  opacity: 0.28;
+}
+
+.char-popup-enemy-gauge__bar-track {
   flex: 1;
   height: 5px;
   background: #0f172a;
   border-radius: 3px;
   overflow: hidden;
-  transition: opacity 0.2s;
 }
 
-.char-popup-enemy-gauge__bar-wrapper.is-depleted {
-  opacity: 0.25;
+.char-popup-enemy-gauge__row-label {
+  font-size: 0.72em;
+  color: #94a3b8;
+  white-space: nowrap;
+  text-align: right;
+  min-width: 6em;
 }
 
 .char-popup-enemy-gauge__bar {

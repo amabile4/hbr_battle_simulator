@@ -1227,6 +1227,22 @@ function resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey) {
   return candidates.length > 0 ? Math.max(...candidates) : 300;
 }
 
+function hasExplicitDestructionRateCap(model, enemyKey) {
+  // storedCap = turn終了後の明示キャップ（破壊ブレイク時にセットされる）
+  const storedCap = Number(model?.enemyDestructionState?.destructionRateCapByEnemy?.[enemyKey]);
+  if (Number.isFinite(storedCap) && storedCap > 0) return true;
+  // contextCap はデフォルト式 Math.max(300, rate) を含むため、
+  // 明示キャップと見なせるのは「現在レートより高くかつデフォルト300を超える」場合のみ
+  const contextCap = Number(model?.damageContext?.destructionRateCapByEnemy?.[enemyKey]);
+  const contextRate = Number(model?.damageContext?.destructionRateByEnemy?.[enemyKey]);
+  return (
+    Number.isFinite(contextCap) &&
+    Number.isFinite(contextRate) &&
+    contextCap > contextRate &&
+    contextCap > 300
+  );
+}
+
 async function updateDestructionRateDisplay(pane) {
   const actionKey = pane?.dataset?.actionKey;
   const model = damageCalculationActionModels.get(actionKey);
@@ -1286,12 +1302,15 @@ function loadDamageCalculationDataForPopup() {
   return loadDamageCalculationData();
 }
 
-function buildEnemyGaugeBarHtml(ratio, type, depleted = false) {
+function buildEnemyGaugeRowHtml(ratio, type, label, depleted = false) {
   const pct = Math.min(100, Math.max(0, Math.round(ratio * 100)));
   const depletedClass = depleted ? ' is-depleted' : '';
   return (
-    `<div class="char-popup-enemy-gauge__bar-wrapper${depletedClass}">` +
+    `<div class="char-popup-enemy-gauge__row${depletedClass}">` +
+    `<div class="char-popup-enemy-gauge__bar-track">` +
     `<div class="char-popup-enemy-gauge__bar char-popup-enemy-gauge__bar--${type}" style="width:${pct}%"></div>` +
+    `</div>` +
+    `<span class="char-popup-enemy-gauge__row-label">${label}</span>` +
     `</div>`
   );
 }
@@ -1305,7 +1324,10 @@ function updateEnemyDpGauge(pane, enemyAdapter) {
     return;
   }
   const ratio = Number.isFinite(dpCurrent) ? dpCurrent / dpMax : 1;
-  wrapper.innerHTML = buildEnemyGaugeBarHtml(ratio, 'dp');
+  const label = Number.isFinite(dpCurrent)
+    ? `${Math.round(dpCurrent).toLocaleString()} / ${Math.round(dpMax).toLocaleString()}`
+    : `- / ${Math.round(dpMax).toLocaleString()}`;
+  wrapper.innerHTML = buildEnemyGaugeRowHtml(ratio, 'dp', label);
 }
 
 function updateEnemyHpGauge(pane, enemyAdapter) {
@@ -1315,18 +1337,25 @@ function updateEnemyHpGauge(pane, enemyAdapter) {
 
   if (extraHpGaugeState && Array.isArray(extraHpGaugeState.values) && extraHpGaugeState.total > 0) {
     const { total, remaining, values } = extraHpGaugeState;
-    const currentIdx = Math.round(total) - Math.round(remaining);
-    const bars = values.map((segHp, i) => {
+    const totalInt = Math.round(total);
+    const remainingInt = Math.round(remaining);
+    const currentIdx = totalInt - remainingInt;
+    const rows = values.map((segHp, i) => {
       if (i < currentIdx) {
-        return buildEnemyGaugeBarHtml(0, 'hp', true);
-      } else if (i === currentIdx && remaining > 0) {
+        const label = `- / ${Math.round(segHp).toLocaleString()}`;
+        return buildEnemyGaugeRowHtml(0, 'hp', label, true);
+      } else if (i === currentIdx && remainingInt > 0) {
         const r = Number.isFinite(hpCurrent) && segHp > 0 ? hpCurrent / segHp : 1;
-        return buildEnemyGaugeBarHtml(r, 'hp', false);
+        const label = Number.isFinite(hpCurrent)
+          ? `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(segHp).toLocaleString()}`
+          : `- / ${Math.round(segHp).toLocaleString()}`;
+        return buildEnemyGaugeRowHtml(r, 'hp', label, false);
       } else {
-        return buildEnemyGaugeBarHtml(1, 'hp', false);
+        const label = `${Math.round(segHp).toLocaleString()} / ${Math.round(segHp).toLocaleString()}`;
+        return buildEnemyGaugeRowHtml(1, 'hp', label, false);
       }
     });
-    wrapper.innerHTML = bars.join('');
+    wrapper.innerHTML = rows.join('');
     return;
   }
 
@@ -1335,7 +1364,10 @@ function updateEnemyHpGauge(pane, enemyAdapter) {
     return;
   }
   const ratio = Number.isFinite(hpCurrent) ? hpCurrent / hpMax : 1;
-  wrapper.innerHTML = buildEnemyGaugeBarHtml(ratio, 'hp');
+  const label = Number.isFinite(hpCurrent)
+    ? `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(hpMax).toLocaleString()}`
+    : `- / ${Math.round(hpMax).toLocaleString()}`;
+  wrapper.innerHTML = buildEnemyGaugeRowHtml(ratio, 'hp', label);
 }
 
 function resolveDamageCalculatorEnemyAdapter(model, pane) {
@@ -1562,11 +1594,16 @@ async function updateDamageCalculatorPane(pane) {
 
   const attackerInput = model.attackerInput;
   const enemyAdapter = resolveDamageCalculatorEnemyAdapter(model, pane);
+  const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
   const statViewModel = buildDamageStatDeltaViewModel(model.damageContext, attackerInput, enemyAdapter);
   updateDamageCalculatorStatGrid(pane, statViewModel);
   pane.querySelector('[data-role="damage-calc-enemy-name"]').textContent = enemyAdapter.enemyName;
   pane.querySelector('[data-role="damage-calc-enemy-border"]').textContent = String(enemyAdapter.paramBorder);
-  pane.querySelector('[data-role="damage-calc-destruction-rate"]').textContent = `${enemyAdapter.destructionRatePercent.toFixed(2)}% / ${enemyAdapter.destructionRateCapPercent.toFixed(2)}%`;
+  const capSuffix = hasExplicitDestructionRateCap(model, enemyKey)
+    ? ` / ${enemyAdapter.destructionRateCapPercent.toFixed(2)}%`
+    : '';
+  pane.querySelector('[data-role="damage-calc-destruction-rate"]').textContent =
+    `${enemyAdapter.destructionRatePercent.toFixed(2)}%${capSuffix}`;
 
   const dpStatusEl = pane.querySelector('[data-role="damage-calc-dp-status"]');
   if (dpStatusEl) {
@@ -1626,7 +1663,6 @@ async function updateDamageCalculatorPane(pane) {
     pane.querySelector('[data-role="damage-calc-message"]').textContent = `計算データを読み込めません: ${error?.message ?? error}`;
   }
 
-  const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
   const previewScopeKey = `${pane.dataset?.actionKey ?? ''}:${enemyKey}`;
   updateDestructionHitSummary(pane, model, enemyKey);
 
