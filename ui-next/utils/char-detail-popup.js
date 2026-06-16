@@ -867,8 +867,11 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `<div class="char-popup-damage-calc-body">` +
     `<section class="char-popup-damage-calc-section">` +
     `<div class="char-popup-damage-calc-section-title">攻撃側</div>` +
+    `<div class="char-popup-stat-with-note">` +
     `<div class="char-popup-damage-calc-stat-grid" data-role="damage-calc-attacker-stats">` +
     buildDamageCalculatorStatRowsHtml(statViewModel, 'attacker') +
+    `</div>` +
+    `<textarea class="char-popup-damage-calc-note" data-role="damage-calc-attacker-note" rows="2" readonly></textarea>` +
     `</div>` +
     `</section>` +
     `<section class="char-popup-damage-calc-section">` +
@@ -879,10 +882,12 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `<span>境界 <strong data-role="damage-calc-enemy-border">${DAMAGE_CALC_DEFAULT_ENEMY_BORDER}</strong></span>` +
     `</div>` +
     `</div>` +
+    `<div class="char-popup-stat-with-note">` +
     `<div class="char-popup-damage-calc-stat-grid" data-role="damage-calc-enemy-stats">` +
     buildDamageCalculatorStatRowsHtml(statViewModel, 'enemy') +
     `</div>` +
-    `<textarea class="char-popup-damage-calc-note" data-role="damage-calc-note" rows="3" placeholder="補足"></textarea>` +
+    `<textarea class="char-popup-damage-calc-note" data-role="damage-calc-note" rows="2" readonly></textarea>` +
+    `</div>` +
     `</section>` +
     `</div>` +
     `<div class="char-popup-damage-calc-message" data-role="damage-calc-message"></div>` +
@@ -1438,44 +1443,37 @@ const STAT_AFFECTING_SELF_TYPES = new Set([
   'HighBoost', 'SpeedUp', 'SpeedDown',
 ]);
 
-function buildStatEffectNoteText(model, enemyKey) {
+function buildSelfStatEffectText(model) {
   const damageCtx = model?.damageContext ?? {};
-  const targetEnemyIndex = Number(enemyKey);
-  const lines = [];
-
-  // 自ステータス: ステータス数値に影響するバフ/デバフ
   const selfEffects = (damageCtx.activeStatusEffects ?? []).filter(
     (e) => STAT_AFFECTING_SELF_TYPES.has(e?.statusType)
   );
-  if (selfEffects.length > 0) {
-    const selfParts = selfEffects.map((e) => {
-      const label = STATUS_LABELS[e.statusType] ?? e.statusType;
-      const power = Number(e.power ?? 0);
-      const powerStr = power !== 0 ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%` : '';
-      const src = String(e.sourceSkillName ?? e.sourceCharacterName ?? '').trim();
-      return src ? `${src}[${label}${powerStr}]` : `${label}${powerStr}`;
-    });
-    lines.push(`【自】${selfParts.join(' / ')}`);
-  }
+  if (selfEffects.length === 0) return '';
+  return selfEffects.map((e) => {
+    const label = STATUS_LABELS[e.statusType] ?? e.statusType;
+    const power = Number(e.power ?? 0);
+    const powerStr = power !== 0 ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%` : '';
+    const src = String(e.sourceSkillName ?? e.sourceCharacterName ?? '').trim();
+    return src ? `${src}[${label}${powerStr}]` : `${label}${powerStr}`;
+  }).join(' / ');
+}
 
-  // 敵ステータス: ハッキング / 禍 / 霊符 → enemyAllAbilityDown の原因
-  const enemyParts = [];
+function buildEnemyStatEffectText(model, enemyKey) {
+  const damageCtx = model?.damageContext ?? {};
+  const targetEnemyIndex = Number(enemyKey);
+  const parts = [];
   const enemyStatuses = Array.isArray(damageCtx.enemyStatusEffects) ? damageCtx.enemyStatusEffects : [];
   const hasHacking = enemyStatuses.some(
     (e) => String(e?.statusType ?? '') === 'Hacking' &&
             (e?.targetIndex == null || Number(e.targetIndex) === targetEnemyIndex)
   );
   const enemyAllDown = Number(damageCtx.enemyAllAbilityDownByEnemy?.[String(targetEnemyIndex)] ?? 0);
-  if (hasHacking) {
-    enemyParts.push(`ハッキング[全ステータス-${enemyAllDown}]`);
-  }
+  if (hasHacking) parts.push(`ハッキング[全ステータス-${enemyAllDown}]`);
   const disasterLevel = Number(damageCtx.enemyDisasterLevelByEnemy?.[String(targetEnemyIndex)] ?? 0);
   const talismanLevel = Number(damageCtx.enemyTalismanLevelByEnemy?.[String(targetEnemyIndex)] ?? 0);
-  if (disasterLevel > 0) enemyParts.push(`禍[Lv.${disasterLevel}]`);
-  if (talismanLevel > 0) enemyParts.push(`霊符[Lv.${talismanLevel}]`);
-  if (enemyParts.length > 0) lines.push(`【敵】${enemyParts.join(' / ')}`);
-
-  return lines.join('\n');
+  if (disasterLevel > 0) parts.push(`禍[Lv.${disasterLevel}]`);
+  if (talismanLevel > 0) parts.push(`霊符[Lv.${talismanLevel}]`);
+  return parts.join(' / ');
 }
 
 function updateDamageCalculatorStatGrid(pane, statViewModel) {
@@ -1559,11 +1557,10 @@ async function updateDamageCalculatorPane(pane) {
   const previewScopeKey = `${pane.dataset?.actionKey ?? ''}:${enemyKey}`;
   updateDestructionHitSummary(pane, model, enemyKey);
 
-  const noteEl = pane.querySelector('[data-role="damage-calc-note"]');
-  if (noteEl) {
-    noteEl.value = buildStatEffectNoteText(model, enemyKey);
-    noteEl.readOnly = true;
-  }
+  const attackerNoteEl = pane.querySelector('[data-role="damage-calc-attacker-note"]');
+  if (attackerNoteEl) attackerNoteEl.value = buildSelfStatEffectText(model);
+  const enemyNoteEl = pane.querySelector('[data-role="damage-calc-note"]');
+  if (enemyNoteEl) enemyNoteEl.value = buildEnemyStatEffectText(model, enemyKey);
 
   // 破壊率セクション: targetEnemyIndex が確定した後に初期値を設定してから計算。
   // ターン内の一時入力（preview-input-store）があればそれを優先復元する。

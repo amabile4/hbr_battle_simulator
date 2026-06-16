@@ -2958,9 +2958,21 @@
   font-weight: 800;
 }
 
-.char-popup-damage-calc-note {
+/* stat grid + 補足 textarea を一体のボックスとして表示 */
+.char-popup-stat-with-note {
   border: 1px solid #334155;
   border-radius: 6px;
+  overflow: hidden;
+}
+
+.char-popup-stat-with-note .char-popup-damage-calc-stat-grid {
+  padding: 6px 8px;
+}
+
+.char-popup-damage-calc-note {
+  border: none;
+  border-top: 1px solid #334155;
+  border-radius: 0;
   background: #111827;
   color: #e2e8f0;
   font: inherit;
@@ -3049,15 +3061,12 @@
 
 .char-popup-damage-calc-note {
   width: 100%;
-  resize: vertical;
-  padding: 6px 8px;
+  resize: none;
+  padding: 5px 8px;
   font-size: 11px;
-}
-
-.char-popup-damage-calc-note[readonly] {
   cursor: default;
   color: #cbd5e1;
-  resize: none;
+  box-sizing: border-box;
 }
 
 /* 破壊率（暫定）セクション */
