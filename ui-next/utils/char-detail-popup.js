@@ -1518,9 +1518,9 @@ async function updateDamageCalculatorPane(pane) {
   if (dpStatusEl) {
     const { dpCurrent, dpMax } = enemyAdapter;
     if (Number.isFinite(dpCurrent) && Number.isFinite(dpMax)) {
-      dpStatusEl.textContent = `${dpCurrent} / ${dpMax}`;
+      dpStatusEl.textContent = `${Math.round(dpCurrent)} / ${Math.round(dpMax)}`;
     } else if (Number.isFinite(dpMax)) {
-      dpStatusEl.textContent = `- / ${dpMax}`;
+      dpStatusEl.textContent = `- / ${Math.round(dpMax)}`;
     } else {
       dpStatusEl.textContent = '-';
     }
@@ -1529,11 +1529,11 @@ async function updateDamageCalculatorPane(pane) {
   if (hpStatusEl) {
     const { extraHpGaugeState, hpCurrent, hpMax } = enemyAdapter;
     if (extraHpGaugeState) {
-      hpStatusEl.textContent = `${Number(extraHpGaugeState.remaining ?? 0)} / ${Number(extraHpGaugeState.total ?? 0)}`;
+      hpStatusEl.textContent = `${Math.round(extraHpGaugeState.remaining ?? 0)} / ${Math.round(extraHpGaugeState.total ?? 0)}`;
     } else if (Number.isFinite(hpCurrent) && Number.isFinite(hpMax)) {
-      hpStatusEl.textContent = `${hpCurrent} / ${hpMax}`;
+      hpStatusEl.textContent = `${Math.round(hpCurrent)} / ${Math.round(hpMax)}`;
     } else if (Number.isFinite(hpMax) && hpMax > 0) {
-      hpStatusEl.textContent = `- / ${hpMax}`;
+      hpStatusEl.textContent = `- / ${Math.round(hpMax)}`;
     } else {
       hpStatusEl.textContent = 'N/A';
     }

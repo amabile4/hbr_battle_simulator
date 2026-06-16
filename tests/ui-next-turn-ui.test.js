@@ -4276,8 +4276,10 @@ test('char detail popup damage tab shows normal enemy HP current and max', () =>
         y: 120,
         isCommitted: false,
         enemyDestructionState: {
-          remainingHpByEnemy: { 0: 12345 },
-          enemyHpByEnemy: { 0: 67890 },
+          remainingDpByEnemy: { 0: 12345.4 },
+          enemyDpByEnemy: { 0: 67890.6 },
+          remainingHpByEnemy: { 0: 12345.4 },
+          enemyHpByEnemy: { 0: 67890.6 },
         },
       }
     );
@@ -4288,8 +4290,10 @@ test('char detail popup damage tab shows normal enemy HP current and max', () =>
       new win.MouseEvent('click', { bubbles: true, cancelable: true })
     );
 
+    const dpStatus = popup.querySelector('[data-role="damage-calc-dp-status"]');
+    assert.equal(dpStatus?.textContent?.trim(), '12345 / 67891');
     const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
-    assert.equal(hpStatus?.textContent?.trim(), '12345 / 67890');
+    assert.equal(hpStatus?.textContent?.trim(), '12345 / 67891');
   }));
 
 test('char detail popup damage tab prefers extra HP gauge over normal HP fields', () =>
@@ -4355,7 +4359,7 @@ test('char detail popup damage tab prefers extra HP gauge over normal HP fields'
         enemyDestructionState: {
           remainingHpByEnemy: { 0: 12345 },
           enemyHpByEnemy: { 0: 67890 },
-          extraHpGaugeStateByEnemy: { 0: { total: 3, remaining: 2, values: [100, 100, 100] } },
+          extraHpGaugeStateByEnemy: { 0: { total: 3.6, remaining: 2.4, values: [100, 100, 100] } },
         },
       }
     );
@@ -4367,7 +4371,7 @@ test('char detail popup damage tab prefers extra HP gauge over normal HP fields'
     );
 
     const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
-    assert.equal(hpStatus?.textContent?.trim(), '2 / 3');
+    assert.equal(hpStatus?.textContent?.trim(), '2 / 4');
   }));
 
 test('char detail popup shows form chip and dims inactive ability entries for form-change styles', () =>
