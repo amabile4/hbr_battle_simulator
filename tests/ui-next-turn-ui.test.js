@@ -3941,6 +3941,86 @@ test('char detail popup damage tab only renders the opened character action', ()
     }
   }));
 
+test('char detail popup damage tab shows FightingSpirit stat delta and attacker note', () =>
+  withDom(async ({ win }) => {
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => [],
+    });
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      role: 'Attacker',
+      stats: { str: 820, dex: 810, wis: 800, spr: 790, luk: 780, con: 770 },
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    try {
+      openCharDetailPopup(
+        targetMember,
+        {
+          statusEffects: [],
+          previewActionFlow: [
+            {
+              actorCharacterId: 'NNanase',
+              skillName: '闘志反映テスト',
+              damageContext: {
+                actorCharacterId: 'NNanase',
+                actorStyleId: 1000001,
+                skillId: 999001,
+                skillName: '闘志反映テスト',
+                fightingSpiritBonusValue: 2,
+                damageBreakdown: {
+                  version: 1,
+                  targetBreakdowns: [
+                    {
+                      targetEnemyIndex: 0,
+                      targetLabel: 'E1',
+                      finalMultiplier: 1,
+                      increasePercent: 0,
+                      formula: '1.00x',
+                      groups: [],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+        { x: 200, y: 120, isCommitted: false }
+      );
+
+      const popup = win.document.body.querySelector('#char-detail-popup');
+      assert.ok(popup);
+      popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+        new win.MouseEvent('click', { bubbles: true, cancelable: true })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const damagePanel = popup.querySelector('[data-tab-panel="damage"]');
+      assert.ok(damagePanel);
+      assert.equal(
+        damagePanel.querySelector('[data-role="damage-calc-stat-delta"][data-stat="str"]')?.textContent,
+        '+2'
+      );
+      assert.equal(
+        damagePanel.querySelector('[data-role="damage-calc-stat-resolved"][data-stat="str"]')?.textContent,
+        '822'
+      );
+      assert.equal(
+        damagePanel.querySelector('[data-role="damage-calc-attacker-note"]')?.value,
+        '闘志[全ステータス+2]'
+      );
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  }));
+
 test('char detail popup damage tab uses damage context destruction cap for manual destruction input', () =>
   withDom(async ({ win }) => {
     const targetMember = {

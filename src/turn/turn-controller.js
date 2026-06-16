@@ -8699,6 +8699,16 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
   };
 }
 
+function resolveFightingSpiritBonus(member) {
+  if (typeof member?.getStatusEffectsByType !== 'function') return 0;
+  const effects = member.getStatusEffectsByType('FightingSpirit', { activeOnly: true });
+  if (!Array.isArray(effects) || effects.length === 0) return 0;
+  return effects.reduce((max, effect) => {
+    const power = Number(effect?.power ?? 0);
+    return Number.isFinite(power) ? Math.max(max, power) : max;
+  }, 0);
+}
+
 function isCountConsumableActiveBuffStatusEffect(effect) {
   return (
     ACTIVE_BUFF_STATUS_SKILL_TYPES.has(String(effect?.statusType ?? '')) &&
@@ -9468,6 +9478,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         ),
         highBoostSkillAtkRate: Number(actionEntry?.specialPassiveModifiers?.highBoostSkillAtkRate ?? 0),
         attackUpRate: Number(actionEntry?.specialPassiveModifiers?.attackUpRate ?? 0),
+        fightingSpiritBonusValue: Number(actionEntry?.specialPassiveModifiers?.fightingSpiritBonusValue ?? 0),
         defenseUpRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpRate ?? 0),
         criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
         criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
@@ -10448,6 +10459,7 @@ const BUFF_SKILL_TYPE_TO_STATUS_ID = Object.freeze({
   ShadowClone: 125,
   Diva: SPECIAL_STATUS_TYPE_DIVA,
   NegativeMind: 146,
+  FightingSpirit: 185,
   Makeup: 164,
   Babied: SPECIAL_STATUS_TYPE_BABIED,
   Curry: SPECIAL_STATUS_TYPE_CURRY,
@@ -12003,6 +12015,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     member,
     effectiveSkill
   );
+  const fightingSpiritBonusValue = resolveFightingSpiritBonus(member);
   const foodBuffModifiers = resolveFoodBuffModifiersForAction(state, member, effectiveSkill);
   const babiedModifiers = resolveBabiedModifiersForAction(state, member, effectiveSkill);
   const divaModifiers = resolveDivaModifiersForAction(state, member, effectiveSkill);
@@ -12111,6 +12124,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     ],
     specialPassiveModifiers: {
       highBoostSkillAtkRate: Number(highBoostModifiers.skillAtkRate ?? 0),
+      fightingSpiritBonusValue,
       consumedCountEffectIds: [...(activeBuffStatusModifiers.consumedCountEffectIds ?? [])],
       attackUpRate:
         Number(activeBuffStatusModifiers.attackUpRate ?? 0) +

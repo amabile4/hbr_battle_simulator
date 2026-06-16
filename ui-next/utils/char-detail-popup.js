@@ -1448,14 +1448,23 @@ function buildSelfStatEffectText(model) {
   const selfEffects = (damageCtx.activeStatusEffects ?? []).filter(
     (e) => STAT_AFFECTING_SELF_TYPES.has(e?.statusType)
   );
-  if (selfEffects.length === 0) return '';
-  return selfEffects.map((e) => {
+  const selfLines = selfEffects.map((e) => {
     const label = STATUS_LABELS[e.statusType] ?? e.statusType;
     const power = Number(e.power ?? 0);
+    if (e.statusType === 'FightingSpirit') {
+      const src = String(e.sourceSkillName ?? e.sourceCharacterName ?? '').trim();
+      const text = `${label} 全ステータス+${power}`;
+      return src ? `${src}[${text}]` : `${label}[全ステータス+${power}]`;
+    }
     const powerStr = power !== 0 ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%` : '';
     const src = String(e.sourceSkillName ?? e.sourceCharacterName ?? '').trim();
     return src ? `${src}[${label}${powerStr}]` : `${label}${powerStr}`;
-  }).join(' / ');
+  });
+  const fsBonus = Number(damageCtx.fightingSpiritBonusValue ?? 0);
+  if (fsBonus > 0 && !selfEffects.some((e) => e?.statusType === 'FightingSpirit')) {
+    selfLines.unshift('闘志[全ステータス+' + fsBonus + ']');
+  }
+  return selfLines.join(' / ');
 }
 
 function buildEnemyStatEffectText(model, enemyKey) {

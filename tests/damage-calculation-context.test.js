@@ -56,6 +56,7 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     attackByOwnDpRateResolvedMultiplier: 0,
     highBoostSkillAtkRate: 0,
     attackUpRate: 0,
+    fightingSpiritBonusValue: 0,
     defenseUpRate: 0,
     criticalRateUpRate: 0,
     criticalDamageUpRate: 0,
@@ -198,6 +199,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     attackByOwnDpRateResolvedMultiplier: '1.8',
     highBoostSkillAtkRate: '1.8',
     attackUpRate: '0.25',
+    fightingSpiritBonusValue: '2',
     defenseUpRate: '0.15',
     criticalRateUpRate: '0.35',
     criticalDamageUpRate: '0.45',
@@ -245,6 +247,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.attackByOwnDpRateResolvedMultiplier, 1.8);
   assert.equal(context.highBoostSkillAtkRate, 1.8);
   assert.equal(context.attackUpRate, 0.25);
+  assert.equal(context.fightingSpiritBonusValue, 2);
   assert.equal(context.defenseUpRate, 0.15);
   assert.equal(context.criticalRateUpRate, 0.35);
   assert.equal(context.criticalDamageUpRate, 0.45);

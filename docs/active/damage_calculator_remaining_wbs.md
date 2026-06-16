@@ -43,13 +43,13 @@
 
 ### 大分類 S: 攻撃者・敵 ステータス実値化
 
-> 現状: 攻撃者は PartySetup 実 stats を表示し、固定値 stat 加算バフの入力がないため攻撃者 delta は 0。敵側は全能力ダウンを stat delta に反映済み。
+> 現状: 攻撃者は PartySetup 実 stats を表示し、闘志（FightingSpirit）の固定値 stat 加算を stat delta に反映済み。敵側は全能力ダウンを stat delta に反映済み。
 > 正確な計算には実際のキャラ stat（エクイップ後・バフ適用後）が必要。
 
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
 | S-1 | 🔴 | **攻撃者 stats 実値配線**: PartySetup スナップショットにキャラ str/dex/wis/spr/luk/con を追加し、`openCharDetailPopup` 経由で `attackerInput` に実値を渡す。凸・role はすでに連携済み | ✅ 完了（commit 6067712） | PartySetup stats 欄実装 |
-| S-2 | 🟡 | **stat delta 実値化（攻撃者）**: バフ適用後の実効 stat（resolved = base + buffDelta - debuffDelta）を `buildDamageStatDeltaViewModel` に実装。現状 delta=0 固定 | ✅ 現状確認完了（damageContext に固定値 stat 加算バフがないため攻撃者 delta=0 維持。AttackUp 等は倍率カテゴリで別管理） | S-1, C-1 |
+| S-2 | 🟡 | **stat delta 実値化（攻撃者）**: バフ適用後の実効 stat（resolved = base + buffDelta - debuffDelta）を `buildDamageStatDeltaViewModel` に実装。現状 delta=0 固定 | 🔶 部分完了（2026-06-16 に `FightingSpirit` / 闘志を固定値 stat 加算として接続。攻撃者全 stat に `fightingSpiritBonusValue` を flat 加算し、威力詳細 stat grid と計算入力へ反映。AttackUp 等は倍率カテゴリで別管理） | S-1, C-1 |
 | S-3 | 🟡 | **stat delta 実値化（敵）**: 敵の DefenseDown 等の数値を stat 列の delta として表示。enemyAllAbilityDownByEnemy の計算式確定が必要 | ✅ 完了（`enemyAllAbilityDownByEnemy` を敵 stat 行の `debuffDelta` として表示。base=paramBorder、delta=-penalty、resolved=paramBorder-penalty） | C-2, E-1 |
 
 ---
@@ -265,7 +265,7 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | DownTurn | ダウンターン | 🔵 | ターン管理 |
 | BreakDownTurnUp | ブレイクダウンターン延長 | 🔵 | ターン管理 |
 | MindEye | 心眼 | ✅ | buff群（弱点時クリ昇格。`selectedMindEyeEffects` 経由） |
-| FightingSpirit | 闘志 | 🔵 | 複合バフ。個別効果は AttackUp 等として各 collectXxx で収集 |
+| FightingSpirit | 闘志 | ✅ | 全ステータス flat 加算バフ。`SpecialStatusCountByType=185` として保持し、複数付与時は最高 power 1つを採用。`damageContext.fightingSpiritBonusValue` から威力詳細 stat grid / `calculateDamage` 入力 / 攻撃側補足欄へ反映 |
 | Morale | 士気 | 🔵 | 複合バフ。個別効果は各型で収集 |
 | Motivation | やる気 | 🔵 | 複合バフ |
 | EternalOath | 永遠の誓い | 🔵 | 複合バフ |

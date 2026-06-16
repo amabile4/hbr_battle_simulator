@@ -138,6 +138,7 @@ export function buildDamageCalculationContext(input = {}) {
     attackByOwnDpRateResolvedMultiplier: Number(input.attackByOwnDpRateResolvedMultiplier ?? 0),
     highBoostSkillAtkRate: Number(input.highBoostSkillAtkRate ?? 0),
     attackUpRate: Number(input.attackUpRate ?? 0),
+    fightingSpiritBonusValue: Number(input.fightingSpiritBonusValue ?? 0),
     defenseUpRate: Number(input.defenseUpRate ?? 0),
     criticalRateUpRate: Number(input.criticalRateUpRate ?? 0),
     criticalDamageUpRate: Number(input.criticalDamageUpRate ?? 0),
